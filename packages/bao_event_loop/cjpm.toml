@@ -1,0 +1,17 @@
+[package]
+cjc-version = "1.0.0"
+name = "bao_event_loop"
+organization = "bao"
+description = "Bao event loop: timer, polling, async task scheduling"
+version = "0.1.0"
+compile-option = ""
+override-compile-option = ""
+link-option = ""
+output-type = "library"
+src-dir = "src"
+target-dir = ""
+
+[dependencies]
+bao_core = { path = "../bao_core" }
+bao_threading = { path = "../bao_threading" }
+bao_sys = { path = "../bao_sys" }

@@ -1,0 +1,17 @@
+[package]
+cjc-version = "1.0.0"
+name = "bao_sql"
+organization = "bao"
+description = "Bao database support: SQLite, PostgreSQL"
+version = "0.1.0"
+compile-option = ""
+override-compile-option = ""
+link-option = ""
+output-type = "library"
+src-dir = "src"
+target-dir = ""
+
+[dependencies]
+bao_core = { path = "../bao_core" }
+bao_io = { path = "../bao_io" }
+bao_sys = { path = "../bao_sys" }

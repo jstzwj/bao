@@ -1,0 +1,22 @@
+[package]
+cjc-version = "1.0.0"
+name = "bao_runtime"
+organization = "bao"
+description = "Bao JavaScript runtime: JSC bindings, VM, Node.js API, Web API"
+version = "0.1.0"
+compile-option = ""
+override-compile-option = ""
+link-option = ""
+output-type = "library"
+src-dir = "src"
+target-dir = ""
+
+[dependencies]
+bao_core = { path = "../bao_core" }
+bao_collections = { path = "../bao_collections" }
+bao_sys = { path = "../bao_sys" }
+bao_io = { path = "../bao_io" }
+bao_event_loop = { path = "../bao_event_loop" }
+bao_parser = { path = "../bao_parser" }
+bao_path = { path = "../bao_path" }
+bao_threading = { path = "../bao_threading" }

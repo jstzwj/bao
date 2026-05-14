@@ -1,0 +1,47 @@
+[workspace]
+members = [
+    "packages/bao_core",
+    "packages/bao_collections",
+    "packages/bao_unicode",
+    "packages/bao_hash",
+    "packages/bao_path",
+    "packages/bao_sys",
+    "packages/bao_io",
+    "packages/bao_threading",
+    "packages/bao_event_loop",
+    "packages/bao_parser",
+    "packages/bao_runtime",
+    "packages/bao_http",
+    "packages/bao_bundler",
+    "packages/bao_install",
+    "packages/bao_sql",
+    "packages/bao_cli",
+]
+build-members = [
+    "packages/bao_core",
+    "packages/bao_collections",
+    "packages/bao_unicode",
+    "packages/bao_hash",
+    "packages/bao_path",
+    "packages/bao_sys",
+    "packages/bao_io",
+    "packages/bao_threading",
+    "packages/bao_event_loop",
+    "packages/bao_parser",
+    "packages/bao_runtime",
+    "packages/bao_http",
+    "packages/bao_bundler",
+    "packages/bao_install",
+    "packages/bao_sql",
+    "packages/bao_cli",
+]
+test-members = [
+    "packages/bao_core",
+    "packages/bao_collections",
+    "packages/bao_unicode",
+    "packages/bao_hash",
+]
+compile-option = ""
+override-compile-option = ""
+link-option = ""
+target-dir = "target"

@@ -1,0 +1,24 @@
+[package]
+cjc-version = "1.0.0"
+name = "bao_cli"
+organization = "bao"
+description = "Bao CLI entry point: run, build, install, test, init commands"
+version = "0.1.0"
+compile-option = ""
+override-compile-option = ""
+link-option = ""
+output-type = "executable"
+src-dir = "src"
+target-dir = ""
+
+[dependencies]
+bao_core = { path = "../bao_core" }
+bao_runtime = { path = "../bao_runtime" }
+bao_bundler = { path = "../bao_bundler" }
+bao_install = { path = "../bao_install" }
+bao_parser = { path = "../bao_parser" }
+bao_io = { path = "../bao_io" }
+bao_sys = { path = "../bao_sys" }
+bao_http = { path = "../bao_http" }
+bao_sql = { path = "../bao_sql" }
+bao_path = { path = "../bao_path" }

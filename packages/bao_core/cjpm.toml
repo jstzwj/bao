@@ -1,0 +1,12 @@
+[package]
+cjc-version = "1.0.0"
+name = "bao_core"
+organization = "bao"
+description = "Bao core types, strings, error handling, and primitives"
+version = "0.1.0"
+compile-option = ""
+override-compile-option = ""
+link-option = ""
+output-type = "library"
+src-dir = "src"
+target-dir = ""
