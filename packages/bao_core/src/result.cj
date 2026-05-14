@@ -1,18 +1,32 @@
 // bao_core - Result 类型
-// 对应 Bun: src/bun_core/result.zig
-// Rust 使用 Result<T,E> + ? 操作符
-// 仓颉使用 Option + 异常，此处提供兼容的 Result 类型
+// 严格翻译自: src/bun_core/result.rs - Result<T, E> enum
+// 以及 src/bun_core/result.zig - Result comptime
 package bao_core
 
 // ============================================================================
-// Result 类型
-// 对应 Rust: Result<T, E>
+// Result<T, E> - 双参数结果类型
+// 严格翻译自: src/bun_core/result.rs:622-636
+//   pub enum Result<T, E> { Ok(T), Err(E) }
+// 以及 src/bun_core/result.zig:1-11
+//   pub fn Result(comptime T: type, comptime E: type) type {
+//       return union(enum) { ok: T, err: E, ... }
+//   }
 // ============================================================================
 
-/// 结果类型 - 表示成功或失败
-public enum Result<T> {
+/// 结果类型 - 严格对应 Bun Result<T, E>
+/// Bun 使用 union(enum) { ok: T, err: E }
+/// 仓颉使用 enum 变体
+public enum Result<T, E> {
     | Ok(T)
-    | Err(BaoError)
+    | Err(E)
+
+    /// 对应 Bun Result::as_err → Option<&E>
+    public func asErr(): ?E {
+        match (this) {
+            case Err(e) => Some(e)
+            case Ok(_) => None
+        }
+    }
 
     /// 是否成功
     public func isOk(): Bool {
@@ -31,7 +45,7 @@ public enum Result<T> {
     }
 
     /// 获取值 (如果成功)
-    public func value(): Option<T> {
+    public func value(): ?T {
         match (this) {
             case Ok(v) => Some(v)
             case Err(_) => None
@@ -39,10 +53,16 @@ public enum Result<T> {
     }
 
     /// 获取值，失败则抛出异常
+    /// 对应 Rust .unwrap() / Bun try-catch 语义
     public func unwrap(): T {
         match (this) {
             case Ok(v) => v
-            case Err(e) => throw e
+            case Err(e) => {
+                match (e) {
+                    case err <: BaoError => throw err
+                    case _ => throw BaoError(ErrorCode.Unexpected, "unwrap on Err value")
+                }
+            }
         }
     }
 
@@ -55,50 +75,43 @@ public enum Result<T> {
     }
 
     /// 获取值，失败则执行函数
-    public func unwrapOrElse(fn: () -> T): T {
+    public func unwrapOrElse(fn: (E) -> T): T {
         match (this) {
             case Ok(v) => v
-            case Err(_) => fn()
+            case Err(e) => fn(e)
         }
     }
 
     /// 映射成功值
-    public func map<U>(fn: (T) -> U): Result<U> {
+    public func map<U>(fn: (T) -> U): Result<U, E> {
         match (this) {
-            case Ok(v) => Result<U>.Ok(fn(v))
-            case Err(e) => Result<U>.Err(e)
+            case Ok(v) => Result<U, E>.Ok(fn(v))
+            case Err(e) => Result<U, E>.Err(e)
         }
     }
 
     /// 映射错误
-    public func mapErr(fn: (BaoError) -> BaoError): Result<T> {
+    public func mapErr<F>(fn: (E) -> F): Result<T, F> {
         match (this) {
-            case Ok(v) => Ok(v)
-            case Err(e) => Err(fn(e))
+            case Ok(v) => Result<T, F>.Ok(v)
+            case Err(e) => Result<T, F>.Err(fn(e))
         }
     }
 
-    /// 链式操作
-    public func andThen<U>(fn: (T) -> Result<U>): Result<U> {
+    /// 链式操作 - 对应 Rust Result::and_then / Zig try 语义
+    public func andThen<U>(fn: (T) -> Result<U, E>): Result<U, E> {
         match (this) {
             case Ok(v) => fn(v)
-            case Err(e) => Result<U>.Err(e)
+            case Err(e) => Result<U, E>.Err(e)
         }
     }
-}
 
-// ============================================================================
-// Option 扩展
-// 仓颉已有 Option<T>，此处添加便捷方法
-// ============================================================================
-
-/// Option 扩展方法
-public extension<T> Option<T> {
-    /// 获取值或抛出异常
-    public func unwrap(message: String): T {
+    /// 或写失败 - 对应 Bun OrWriteFailed trait
+    /// src/bun_core/result.rs:295-312
+    public func orWriteFailed(): Result<T, BaoError> {
         match (this) {
-            case Some(v) => v
-            case None => throw BaoError(message)
+            case Ok(v) => Result<T, BaoError>.Ok(v)
+            case Err(_) => Result<T, BaoError>.Err(BaoError(ErrorCode.WriteFailed))
         }
     }
 }
