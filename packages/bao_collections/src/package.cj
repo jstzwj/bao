@@ -4,9 +4,450 @@
 //   src/collections/lib.rs - PriorityQueue, SmallList
 //   src/collections/array_list.zig - ArrayList
 //   src/collections/pool.zig - ObjectPool
+//   src/collections/array_hash_map.rs - ArrayHashMap (HashMap/HashSet 基础)
 package bao_collections
 
 import bao_core.*
+import bao_hash.*
+
+// ============================================================================
+// HashMap<K,V> - 通用哈希映射
+// 严格翻译自: src/collections/array_hash_map.rs
+//   pub struct ArrayHashMap<K, V, Ctx: ArrayHashContext<K>> {
+//       pub keys: ArrayList<K>,
+//       pub values: ArrayList<V>,
+//       pub index: hashbrown::HashTable<u32>,
+//       pub context: Ctx,
+//   }
+//
+// Bun 设计:
+//   - 保持插入顺序 (与标准 HashMap 不同)
+//   - 低于阈值 (8项) 用线性扫描，高于阈值用哈希索引
+//   - 使用 WyHash 作为默认哈希算法
+//   - keys/values 并行数组存储
+// ============================================================================
+
+/// 哈希表条目 - 内部使用
+class HashEntry<K, V> {
+    public var key: K
+    public var value: V
+    public var hash: UInt64
+    public var isOccupied: Bool
+
+    public init(key: K, value: V, hash: UInt64) {
+        this.key = key
+        this.value = value
+        this.hash = hash
+        this.isOccupied = true
+    }
+}
+
+/// 通用哈希映射 - 严格对应 Bun ArrayHashMap
+/// 保持插入顺序，使用 WyHash 哈希算法
+/// Bun: threshold = 8，低于阈值线性扫描，高于阈值哈希查找
+public class HashMap<K, V> {
+    /// 条目数组 - 对应 Bun keys[] + values[]
+    private var entries: ArrayList<HashEntry<K, V>>
+    /// 当前元素数量
+    private var _size: Int64
+    /// 容量
+    private var _capacity: Int64
+    /// 哈希桶数组 (开放寻址)
+    private var buckets: Array<Int64>
+    /// 是否已建立索引 - 对应 Bun index 行为
+    private var indexed: Bool
+    /// 索引阈值 - 对应 Bun THRESHOLD = 8
+    private static let THRESHOLD: Int64 = 8
+
+    /// 元素数量 - 对应 Bun len()
+    public prop size: Int64 {
+        get() { _size }
+    }
+
+    public init() {
+        entries = ArrayList<HashEntry<K, V>>()
+        _size = 0
+        _capacity = 16
+        buckets = Array<Int64>(_capacity, item: -1)
+        indexed = false
+    }
+
+    public init(capacity: Int64) {
+        entries = ArrayList<HashEntry<K, V>>()
+        _size = 0
+        _capacity = if (capacity < 16) { 16 } else { capacity }
+        buckets = Array<Int64>(_capacity, item: -1)
+        indexed = false
+    }
+
+    /// 插入/更新键值对 - 对应 Bun ArrayHashMap.insert
+    /// Bun: inserts are append-only; updates in-place when key matches
+    public func put(key: K, value: V): Unit {
+        let h = hashKey(key)
+        // 先检查是否已存在
+        let idx = findIndex(key, h)
+        if (idx >= 0) {
+            // 更新已存在的条目
+            entries[idx].value = value
+            return
+        }
+        // 添加新条目
+        ensureCapacity()
+        let entry = HashEntry<K, V>(key, value, h)
+        entries.append(entry)
+        _size += 1
+        if (_size >= THRESHOLD) {
+            rebuildIndex()
+        } else {
+            indexed = false
+        }
+    }
+
+    /// 插入别名 - 对应 Bun insert = put
+    public func insert(key: K, value: V): Unit {
+        put(key, value)
+    }
+
+    /// 获取值 - 对应 Bun ArrayHashMap.get
+    /// Bun: returns Option<&V>
+    public func get(key: K): ?V {
+        if (_size == 0) { return None }
+        if (_size < THRESHOLD || !indexed) {
+            // 线性扫描 - 对应 Bun 低于阈值行为
+            for (i in 0..entries.size) {
+                let e = entries[i]
+                if (e.isOccupied && keyEquals(e.key, key)) {
+                    return Some(e.value)
+                }
+            }
+            return None
+        }
+        // 哈希查找
+        let h = hashKey(key)
+        let idx = findIndex(key, h)
+        if (idx >= 0) {
+            return Some(entries[idx].value)
+        }
+        return None
+    }
+
+    /// 是否包含键 - 对应 Bun ArrayHashMap.contains
+    public func contains(key: K): Bool {
+        if (_size == 0) { return false }
+        if (_size < THRESHOLD || !indexed) {
+            for (i in 0..entries.size) {
+                let e = entries[i]
+                if (e.isOccupied && keyEquals(e.key, key)) {
+                    return true
+                }
+            }
+            return false
+        }
+        let h = hashKey(key)
+        return findIndex(key, h) >= 0
+    }
+
+    /// 删除键值对 - 对应 Bun ArrayHashMap.remove
+    /// Bun: swap-remove，返回被删除的值
+    public func remove(key: K): ?V {
+        if (_size == 0) { return None }
+        // 找到条目
+        var foundIdx: Int64 = -1
+        for (i in 0..entries.size) {
+            let e = entries[i]
+            if (e.isOccupied && keyEquals(e.key, key)) {
+                foundIdx = i
+                break
+            }
+        }
+        if (foundIdx < 0) { return None }
+        let removed = entries[foundIdx].value
+        entries[foundIdx].isOccupied = false
+        _size -= 1
+        // 如果不是最后一个，交换到末尾并移除
+        if (foundIdx < entries.size - 1) {
+            let lastIdx = entries.size - 1
+            if (entries[lastIdx].isOccupied) {
+                entries[foundIdx] = entries[lastIdx]
+            }
+            entries.removeAt(lastIdx)
+        } else {
+            entries.removeAt(foundIdx)
+        }
+        if (_size >= THRESHOLD) {
+            rebuildIndex()
+        } else {
+            indexed = false
+        }
+        return Some(removed)
+    }
+
+    /// 获取所有键 - 对应 Bun ArrayHashMap.keys
+    public func keys(): ArrayList<K> {
+        let result = ArrayList<K>()
+        for (i in 0..entries.size) {
+            let e = entries[i]
+            if (e.isOccupied) {
+                result.append(e.key)
+            }
+        }
+        return result
+    }
+
+    /// 获取所有值 - 对应 Bun ArrayHashMap.values
+    public func values(): ArrayList<V> {
+        let result = ArrayList<V>()
+        for (i in 0..entries.size) {
+            let e = entries[i]
+            if (e.isOccupied) {
+                result.append(e.value)
+            }
+        }
+        return result
+    }
+
+    /// 获取所有条目
+    public func entries(): ArrayList<(K, V)> {
+        let result = ArrayList<(K, V)>()
+        for (i in 0..entries.size) {
+            let e = entries[i]
+            if (e.isOccupied) {
+                result.append((e.key, e.value))
+            }
+        }
+        return result
+    }
+
+    /// 是否为空
+    public func isEmpty(): Bool {
+        return _size == 0
+    }
+
+    /// 清空 - 对应 Bun ArrayHashMap.clear
+    public func clear(): Unit {
+        entries.clear()
+        _size = 0
+        for (i in 0..buckets.size) {
+            buckets[i] = -1
+        }
+        indexed = false
+    }
+
+    /// 遍历 - 对应 Bun for 循环遍历
+    public func forEach(fn: (K, V) -> Unit): Unit {
+        for (i in 0..entries.size) {
+            let e = entries[i]
+            if (e.isOccupied) {
+                fn(e.key, e.value)
+            }
+        }
+    }
+
+    /// 迭代器支持
+    public func iterator(): Iterator<(K, V)> {
+        return MapIterator(entries)
+    }
+
+    // ---- 内部方法 ----
+
+    /// 哈希键值
+    private func hashKey(key: K): UInt64 {
+        // 使用对象的字符串表示进行哈希
+        let str = key.toString()
+        return WyHash.hash(str)
+    }
+
+    /// 键相等比较
+    private func keyEquals(a: K, b: K): Bool {
+        return a == b
+    }
+
+    /// 在哈希桶中查找索引
+    private func findIndex(key: K, hash: UInt64): Int64 {
+        if (!indexed) {
+            // 未建索引时线性扫描
+            for (i in 0..entries.size) {
+                let e = entries[i]
+                if (e.isOccupied && keyEquals(e.key, key)) {
+                    return i
+                }
+            }
+            return -1
+        }
+        let bucketIdx = Int64(hash % UInt64(buckets.size))
+        var idx = buckets[bucketIdx]
+        while (idx >= 0 && idx < entries.size) {
+            let e = entries[idx]
+            if (e.isOccupied && e.hash == hash && keyEquals(e.key, key)) {
+                return idx
+            }
+            idx += 1  // 开放寻址线性探测
+            if (idx >= entries.size) { break }
+            // 检查是否还在同一个桶
+            let e2 = entries[idx]
+            if (e2.isOccupied && (e2.hash % UInt64(buckets.size)) != UInt64(bucketIdx)) {
+                break
+            }
+        }
+        return -1
+    }
+
+    /// 重建索引 - 对应 Bun ArrayHashMap 重建 hashbrown index
+    private func rebuildIndex(): Unit {
+        // 扩容桶数组
+        var newCap = _capacity
+        while (newCap < _size * 2) {
+            newCap *= 2
+        }
+        if (newCap != _capacity) {
+            _capacity = newCap
+            buckets = Array<Int64>(_capacity, item: -1)
+        } else {
+            for (i in 0..buckets.size) {
+                buckets[i] = -1
+            }
+        }
+        // 重新索引所有条目
+        for (i in 0..entries.size) {
+            let e = entries[i]
+            if (!e.isOccupied) { continue }
+            let bucketIdx = Int64(e.hash % UInt64(buckets.size))
+            buckets[bucketIdx] = i
+        }
+        indexed = true
+    }
+
+    /// 确保容量足够
+    private func ensureCapacity(): Unit {
+        if (entries.size >= _capacity - 1) {
+            _capacity *= 2
+            buckets = Array<Int64>(_capacity, item: -1)
+            indexed = false
+        }
+    }
+}
+
+/// HashMap 迭代器
+class MapIterator<K, V> <: Iterator<(K, V)> {
+    private var entries: ArrayList<HashEntry<K, V>>
+    private var pos: Int64
+
+    public init(entries: ArrayList<HashEntry<K, V>>) {
+        this.entries = entries
+        this.pos = 0
+    }
+
+    public func hasNext(): Bool {
+        while (pos < entries.size) {
+            if (entries[pos].isOccupied) {
+                return true
+            }
+            pos += 1
+        }
+        return false
+    }
+
+    public func next(): (K, V) {
+        let e = entries[pos]
+        pos += 1
+        return (e.key, e.value)
+    }
+}
+
+// ============================================================================
+// HashSet<T> - 通用哈希集合
+// 严格翻译自: src/collections/array_hash_map.rs - ArrayHashSet
+//   基于 ArrayHashMap<T, void> 实现
+// ============================================================================
+
+/// 通用哈希集合 - 对应 Bun ArrayHashSet
+/// 保持插入顺序，基于 HashMap 实现
+public class HashSet<T> {
+    private var map: HashMap<T, Bool>
+    /// 标记值 - HashSet 不需要值，用 true 占位
+    private static let PRESENT: Bool = true
+
+    public prop size: Int64 {
+        get() { map.size }
+    }
+
+    public init() {
+        map = HashMap<T, Bool>()
+    }
+
+    public init(capacity: Int64) {
+        map = HashMap<T, Bool>(capacity)
+    }
+
+    /// 插入元素 - 对应 Bun ArrayHashSet.insert
+    public func put(value: T): Unit {
+        map.put(value, PRESENT)
+    }
+
+    /// 插入并返回是否新增 - 对应 Bun ArrayHashSet.insert 返回 bool
+    public func insert(value: T): Bool {
+        if (map.contains(value)) {
+            return false
+        }
+        map.put(value, PRESENT)
+        return true
+    }
+
+    /// 是否包含 - 对应 Bun ArrayHashSet.contains
+    public func contains(value: T): Bool {
+        return map.contains(value)
+    }
+
+    /// 删除元素 - 对应 Bun ArrayHashSet.remove
+    public func remove(value: T): ?Bool {
+        return map.remove(value)
+    }
+
+    /// 是否为空
+    public func isEmpty(): Bool {
+        return map.isEmpty()
+    }
+
+    /// 清空
+    public func clear(): Unit {
+        map.clear()
+    }
+
+    /// 获取所有元素 - 对应 Bun ArrayHashSet.keys
+    public func values(): ArrayList<T> {
+        return map.keys()
+    }
+
+    /// 遍历
+    public func forEach(fn: (T) -> Unit): Unit {
+        map.forEach({ k, _ =>
+            fn(k)
+        })
+    }
+
+    /// 迭代器
+    public func iterator(): Iterator<T> {
+        return SetIterator(map)
+    }
+}
+
+/// HashSet 迭代器
+class SetIterator<T> <: Iterator<T> {
+    private var iter: MapIterator<T, Bool>
+
+    public init(map: HashMap<T, Bool>) {
+        this.iter = map.iterator()
+    }
+
+    public func hasNext(): Bool {
+        return iter.hasNext()
+    }
+
+    public func next(): T {
+        let (k, _) = iter.next()
+        return k
+    }
+}
 
 // ============================================================================
 // StringMap - 字符串键映射

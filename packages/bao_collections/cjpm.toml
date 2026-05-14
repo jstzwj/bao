@@ -13,3 +13,4 @@ target-dir = ""
 
 [dependencies]
 bao_core = { path = "../bao_core" }
+bao_hash = { path = "../bao_hash" }
