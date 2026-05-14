@@ -16,6 +16,15 @@ members = [
     "packages/bao_install",
     "packages/bao_sql",
     "packages/bao_cli",
+    "packages/bao_transpiler",
+    "packages/bao_resolver",
+    "packages/bao_dotenv",
+    "packages/bao_semver",
+    "packages/bao_base64",
+    "packages/bao_sourcemap",
+    "packages/bao_zlib",
+    "packages/bao_brotli",
+    "packages/bao_zstd",
 ]
 build-members = [
     "packages/bao_core",
@@ -34,6 +43,15 @@ build-members = [
     "packages/bao_install",
     "packages/bao_sql",
     "packages/bao_cli",
+    "packages/bao_transpiler",
+    "packages/bao_resolver",
+    "packages/bao_dotenv",
+    "packages/bao_semver",
+    "packages/bao_base64",
+    "packages/bao_sourcemap",
+    "packages/bao_zlib",
+    "packages/bao_brotli",
+    "packages/bao_zstd",
 ]
 test-members = [
     "packages/bao_core",

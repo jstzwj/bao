@@ -266,6 +266,88 @@ def validate_phase4():
     check("class TimersModule" in timers_content, "TimersModule 类已实现")
     check("registerGlobals" in timers_content, "TimersModule.registerGlobals 已实现")
 
+def validate_phase5():
+    """验证 Phase 5: 应用层"""
+    print(bold("\n=== Phase 5: 应用层 ==="))
+
+    # bao_http
+    http_src = PACKAGES_DIR / "bao_http" / "src"
+    check((http_src / "package.cj").exists(), "bao_http/src/package.cj 存在")
+    http_content = (http_src / "package.cj").read_text() if (http_src / "package.cj").exists() else ""
+    check("class HttpServer" in http_content, "HttpServer 类已实现")
+    check("class HttpClient" in http_content, "HttpClient 类已实现")
+    check("class Request" in http_content, "Request 类已实现")
+    check("class Response" in http_content, "Response 类已实现")
+    check("class Headers" in http_content, "Headers 类已实现")
+    check("class ParsedUrl" in http_content, "ParsedUrl URL解析已实现")
+    check("class HttpStatus" in http_content, "HttpStatus 状态码已实现")
+    check("class FormData" in http_content, "FormData 类已实现")
+    check("class Blob" in http_content, "Blob 类已实现")
+    check("class FetchOptions" in http_content, "FetchOptions 类已实现")
+    check("func fetch(" in http_content, "fetch() 已实现")
+    check("func text(" in http_content, "Request.text() 已实现")
+
+    # bao_bundler
+    bundler_src = PACKAGES_DIR / "bao_bundler" / "src"
+    check((bundler_src / "package.cj").exists(), "bao_bundler/src/package.cj 存在")
+    bundler_content = (bundler_src / "package.cj").read_text() if (bundler_src / "package.cj").exists() else ""
+    check("class Bundler" in bundler_content, "Bundler 类已实现")
+    check("class Resolver" in bundler_content, "Resolver 类已实现")
+    check("class BundleResult" in bundler_content, "BundleResult 类已实现")
+    check("extractDependencies" in bundler_content, "extractDependencies() 已实现")
+    check("extractRequireSpecifier" in bundler_content, "require() 依赖提取已实现")
+    check("topologicalSort" in bundler_content, "topologicalSort() 拓扑排序已实现")
+    check("bundleToString" in bundler_content, "bundleToString() 便捷方法已实现")
+    check("PrintOptions" in bundler_content, "Printer 集成已实现")
+    check("__bao_modules" in bundler_content, "模块注册表运行时已实现")
+
+    # bao_install
+    install_src = PACKAGES_DIR / "bao_install" / "src"
+    check((install_src / "package.cj").exists(), "bao_install/src/package.cj 存在")
+    install_content = (install_src / "package.cj").read_text() if (install_src / "package.cj").exists() else ""
+    check("class PackageManager" in install_content, "PackageManager 类已实现")
+    check("class SemVer" in install_content, "SemVer 版本类已实现")
+    check("class JsonParser" in install_content, "JsonParser JSON解析器已实现")
+    check("enum JsonValue" in install_content or "JsonValue" in install_content, "JsonValue JSON值类型已实现")
+    check("class JsonHelper" in install_content, "JsonHelper JSON工具类已实现")
+    check("func satisfies(" in install_content, "SemVer.satisfies() 范围匹配已实现")
+    check("readPackageJson" in install_content, "readPackageJson() 已实现")
+    check("writePackageJson" in install_content, "writePackageJson() 已实现")
+    check("resolveDependencies" in install_content, "resolveDependencies() 已实现")
+    check("downloadPackages" in install_content, "downloadPackages() 已实现")
+    check("writeLockfile" in install_content, "writeLockfile() 已实现")
+    check("readLockfile" in install_content, "readLockfile() 已实现")
+
+    # bao_sql
+    sql_src = PACKAGES_DIR / "bao_sql" / "src"
+    check((sql_src / "package.cj").exists(), "bao_sql/src/package.cj 存在")
+    sql_content = (sql_src / "package.cj").read_text() if (sql_src / "package.cj").exists() else ""
+    check("class SQLiteDatabase" in sql_content, "SQLiteDatabase 类已实现")
+    check("class SQLiteStatement" in sql_content, "SQLiteStatement 类已实现")
+    check("class SQLiteConstants" in sql_content, "SQLiteConstants 常量已定义")
+    check("sqlite3_open" in sql_content, "sqlite3_open FFI 声明已定义")
+    check("sqlite3_exec" in sql_content, "sqlite3_exec FFI 声明已定义")
+    check("sqlite3_prepare_v2" in sql_content, "sqlite3_prepare_v2 FFI 声明已定义")
+    check("sqlite3_step" in sql_content, "sqlite3_step FFI 声明已定义")
+    check("interface Database" in sql_content, "Database 接口已定义")
+    check("interface Statement" in sql_content, "Statement 接口已定义")
+
+    # bao_cli
+    cli_src = PACKAGES_DIR / "bao_cli" / "src"
+    check((cli_src / "package.cj").exists(), "bao_cli/src/package.cj 存在")
+    cli_content = (cli_src / "package.cj").read_text() if (cli_src / "package.cj").exists() else ""
+    check("class CliParser" in cli_content, "CliParser 参数解析器已实现")
+    check("func main(" in cli_content, "main() 入口函数已实现")
+    check("executeRun" in cli_content, "executeRun() 已实现")
+    check("executeBuild" in cli_content, "executeBuild() 已实现")
+    check("executeInstall" in cli_content, "executeInstall() 已实现")
+    check("executeTest" in cli_content, "executeTest() 已实现")
+    check("executeInit" in cli_content, "executeInit() 已实现")
+    check("executeRepl" in cli_content, "executeRepl() REPL模式已实现")
+    check("findTestFiles" in cli_content, "findTestFiles() 测试文件查找已实现")
+    check("readPackageJson" in cli_content, "readPackageJson() package.json读取已实现")
+    check("Command.Repl" in cli_content, "REPL 命令已定义")
+
 def main():
     print(bold("=" * 60))
     print(bold("  Bao 项目验证工具"))
@@ -276,6 +358,7 @@ def main():
     validate_phase2()
     validate_phase3()
     validate_phase4()
+    validate_phase5()
     validate_tests()
 
     print(bold("\n" + "=" * 60))

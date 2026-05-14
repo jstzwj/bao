@@ -13,6 +13,7 @@ target-dir = ""
 
 [dependencies]
 bao_core = { path = "../bao_core" }
+bao_collections = { path = "../bao_collections" }
 bao_runtime = { path = "../bao_runtime" }
 bao_bundler = { path = "../bao_bundler" }
 bao_install = { path = "../bao_install" }
