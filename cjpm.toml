@@ -25,6 +25,14 @@ members = [
     "packages/bao_zlib",
     "packages/bao_brotli",
     "packages/bao_zstd",
+    "packages/bao_jsc",
+    "packages/bao_ast",
+    "packages/bao_parsers",
+    "packages/bao_shell_parser",
+    "packages/bao_spawn",
+    "packages/bao_router",
+    "packages/bao_url",
+    "packages/bao_ini",
 ]
 build-members = [
     "packages/bao_core",
@@ -52,6 +60,14 @@ build-members = [
     "packages/bao_zlib",
     "packages/bao_brotli",
     "packages/bao_zstd",
+    "packages/bao_jsc",
+    "packages/bao_ast",
+    "packages/bao_parsers",
+    "packages/bao_shell_parser",
+    "packages/bao_spawn",
+    "packages/bao_router",
+    "packages/bao_url",
+    "packages/bao_ini",
 ]
 test-members = [
     "packages/bao_core",

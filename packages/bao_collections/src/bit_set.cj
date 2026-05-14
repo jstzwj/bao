@@ -290,4 +290,93 @@ public class BitSet {
         }
         return count
     }
+
+    // ========================================================================
+    // 额外方法 - 严格翻译自 Zig std.bit_set.DynamicBitSet
+    //   flip, cardinality, nextSetBit, symDiff, complement
+    // ========================================================================
+
+    /// 翻转位 - 对应 Bun BitSet.flip / toggle (别名)
+    /// 设置/清除位 (设置为指定值) - 对应 Bun BitSet.setValue
+    public func setValue(index: Int64, value: Bool): Unit {
+        if (value) { set(index) } else { unset(index) }
+    }
+
+    /// 对称差 (XOR) - 对应 Bun BitSet.symDiff
+    /// 结果包含仅在一个集合中存在的位
+    public func symDiff(other: BitSet): Unit {
+        let maxMasks = if (masks.size > other.masks.size) { masks.size } else { other.masks.size }
+        ensureCapacityByMasks(maxMasks)
+        for (i in 0..masks.size) {
+            let b = if (i < other.masks.size) { other.masks[i] } else { UInt64(0) }
+            masks[i] = masks[i] ^ b
+        }
+    }
+
+    /// 取反 - 对应 Bun BitSet.complement
+    /// 所有位取反
+    public func complement(): Unit {
+        for (i in 0..masks.size) {
+            masks[i] = ~masks[i]
+        }
+    }
+
+    /// 基数 (设置的位数量) - 对应 Bun BitSet.cardinality
+    /// count() 的别名
+    public func cardinality(): Int64 {
+        return count()
+    }
+
+    /// 查找下一个设置的位 - 对应 Bun BitSet.nextSetBit
+    /// 从 start (含) 开始查找下一个为 1 的位
+    public func nextSetBit(start: Int64): ?Int64 {
+        if (start < 0) { return findFirstSet() }
+        var idx = start
+        while (idx < bitCount) {
+            let maskIdx = idx / BITS_PER_MASK
+            let bitIdx = idx % BITS_PER_MASK
+            if (maskIdx < masks.size) {
+                // 掩码掉 bitIdx 以下的位
+                var mask = masks[maskIdx] & (~UInt64(0) << UInt64(bitIdx))
+                while (mask != UInt64(0)) {
+                    let tz = trailingZeros(mask)
+                    let result = maskIdx * BITS_PER_MASK + tz
+                    if (result < bitCount) {
+                        return Some(result)
+                    }
+                    return None
+                }
+            }
+            idx = (maskIdx + 1) * BITS_PER_MASK
+        }
+        return None
+    }
+
+    /// 查找下一个未设置的位 - 对应 Bun BitSet.nextUnsetBit
+    public func nextUnsetBit(start: Int64): ?Int64 {
+        var idx = if (start < 0) { Int64(0) } else { start }
+        while (idx < bitCount) {
+            if (!isSet(idx)) {
+                return Some(idx)
+            }
+            idx += 1
+        }
+        return None
+    }
+
+    /// 转为字符串表示 - 调试用
+    public func toString(): String {
+        var sb = StringBuilder()
+        sb.append("BitSet{")
+        var first = true
+        for (i in 0..bitCount) {
+            if (isSet(i)) {
+                if (!first) { sb.append(", ") }
+                sb.append("${i}")
+                first = false
+            }
+        }
+        sb.append("}")
+        return sb.toString()
+    }
 }

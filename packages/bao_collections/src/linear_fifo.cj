@@ -218,4 +218,82 @@ public class LinearFifo<T> {
             fn(buffer[(head + i) % capacity])
         }
     }
+
+    // ========================================================================
+    // 额外方法 - 严格翻译自 Zig std.LinearFifo 补充
+    //   peek, drain, writableSlice, readableSlice, toOwnedSlice
+    // ========================================================================
+
+    /// 窥视第一个元素 (offset=0) - 对应 Bun LinearFifo.peek
+    public func peek(): ?T {
+        return peekItem(0)
+    }
+
+    /// 排空队列到数组 - 对应 Bun LinearFifo.drain
+    /// 读取并移除所有元素
+    public func drain(): Array<T> {
+        var result = Array<T>()
+        while (count > 0) {
+            match (readItem()) {
+                case Some(item) => result.append(item)
+                case None => break
+            }
+        }
+        return result
+    }
+
+    /// 获取可写切片的视图 (不移动指针)
+    /// 对应 Bun LinearFifo.writableSlice
+    public func writableSlice(): Array<T> {
+        var result = Array<T>()
+        let available = writableLength()
+        for (i in 0..available) {
+            result.append(buffer[(tail + i) % capacity])
+        }
+        return result
+    }
+
+    /// 获取可读切片的视图 (不移动指针)
+    /// 对应 Bun LinearFifo.readableSlice
+    public func readableSlice(): Array<T> {
+        var result = Array<T>()
+        for (i in 0..count) {
+            result.append(buffer[(head + i) % capacity])
+        }
+        return result
+    }
+
+    /// 转为 Owned 切片并重置 - 对应 Bun LinearFifo.toOwnedSlice
+    /// 读取所有元素并重置队列
+    public func toOwnedSlice(): Array<T> {
+        let result = drain()
+        clear()
+        return result
+    }
+
+    /// 推入单个元素 (别名) - 对应 Bun LinearFifo.push
+    public func push(item: T): Bool {
+        return writeItem(item)
+    }
+
+    /// 弹出单个元素 (别名) - 对应 Bun LinearFifo.pop
+    /// 对应 LinearFifo.readItem
+    public func pop(): ?T {
+        return readItem()
+    }
+
+    /// 丢弃一个元素 - 对应 Bun LinearFifo.drop
+    public func drop(): Bool {
+        if (count == 0) {
+            return false
+        }
+        head = (head + 1) % capacity
+        count -= 1
+        return true
+    }
+
+    /// 转为字符串 - 调试用
+    public func toString(): String {
+        return "LinearFifo(count=${count}, cap=${capacity}, head=${head}, tail=${tail})"
+    }
 }

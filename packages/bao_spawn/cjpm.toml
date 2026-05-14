@@ -1,0 +1,18 @@
+[package]
+cjc-version = "1.0.0"
+name = "bao_spawn"
+organization = "bao"
+description = "Bao process spawning: child process management, stdio pipes, environment"
+version = "0.1.0"
+compile-option = ""
+override-compile-option = ""
+link-option = ""
+output-type = "library"
+src-dir = "src"
+target-dir = ""
+
+[dependencies]
+bao_core = { path = "../bao_core" }
+bao_collections = { path = "../bao_collections" }
+bao_sys = { path = "../bao_sys" }
+bao_io = { path = "../bao_io" }

@@ -217,4 +217,128 @@ public class MultiArrayList {
             fn(i, getRow(i))
         }
     }
+
+    // ========================================================================
+    // 额外方法 - 严格翻译自 Zig MultiArrayList 补充
+    //   items(field), slice per field, capacity, ensureUnusedCapacity
+    //   appendAssumeCapacity, allocatedSize
+    // ========================================================================
+
+    /// 获取指定列的指定范围切片
+    /// 对应 Bun MultiArrayList.slice(field, start, end)
+    public func columnSlice(name: String, start: Int64, end: Int64): ArrayList<Any> {
+        let result = ArrayList<Any>()
+        match (columns.get(name)) {
+            case Some(arr) => {
+                let e = if (end > arr.size) { arr.size } else { Int64(end) }
+                for (i in start..e) {
+                    if (i >= 0 && i < arr.size) {
+                        result.append(arr[i])
+                    }
+                }
+            }
+            case None => ()
+        }
+        return result
+    }
+
+    /// 总容量 (最大列的数组长度)
+    /// 对应 Bun MultiArrayList.capacity
+    public func capacity(): Int64 {
+        var maxCap: Int64 = 0
+        for (name in columnNames) {
+            match (columns.get(name)) {
+                case Some(arr) => {
+                    if (arr.size > maxCap) {
+                        maxCap = arr.size
+                    }
+                }
+                case None => ()
+            }
+        }
+        return maxCap
+    }
+
+    /// 确保有足够的未使用容量
+    /// 对应 Bun MultiArrayList.ensureUnusedCapacity
+    public func ensureUnusedCapacity(additionalCount: Int64): Unit {
+        let needed = rowCount + additionalCount
+        for (name in columnNames) {
+            match (columns.get(name)) {
+                case Some(arr) => {
+                    while (arr.size < needed) {
+                        // 填充占位值
+                        arr.append("placeholder" as Any)
+                    }
+                }
+                case None => ()
+            }
+        }
+    }
+
+    /// 追加并假设有足够容量 - 对应 Bun MultiArrayList.appendAssumeCapacity
+    public func appendAssumeCapacity(entry: MultiArrayEntry): Unit {
+        for (name in columnNames) {
+            let list = columns.get(name)
+            match (list) {
+                case Some(arr) => {
+                    match (entry.get(name)) {
+                        case Some(val) => arr.append(val)
+                        case None => ()
+                    }
+                }
+                case None => ()
+            }
+        }
+        rowCount += 1
+    }
+
+    /// 分配的字节数估算 - 对应 Bun MultiArrayList.allocatedSize
+    public func allocatedSize(): Int64 {
+        var total: Int64 = 0
+        for (name in columnNames) {
+            match (columns.get(name)) {
+                case Some(arr) => total += arr.size
+                case None => ()
+            }
+        }
+        return total
+    }
+
+    /// 按条件查找行 - 对应 Bun MultiArrayList 中遍历查找模式
+    public func findColumnValue(columnName: String, predicate: (Any) -> Bool): ?Int64 {
+        match (columns.get(columnName)) {
+            case Some(arr) => {
+                for (i in 0..arr.size) {
+                    if (predicate(arr[i])) {
+                        return Some(i)
+                    }
+                }
+            }
+            case None => ()
+        }
+        return None
+    }
+
+    /// 更新一行的多列 - 对应 Bun MultiArrayList.set(index, element)
+    public func updateRow(index: Int64, entry: MultiArrayEntry): Unit {
+        if (index < 0 || index >= rowCount) {
+            return
+        }
+        for (name in columnNames) {
+            match (columns.get(name)) {
+                case Some(arr) => {
+                    match (entry.get(name)) {
+                        case Some(val) => {
+                            if (index < arr.size) {
+                                arr[index] = val
+                            }
+                        }
+                        case None => ()
+                    }
+                }
+                case None => ()
+            }
+        }
+    }
 }

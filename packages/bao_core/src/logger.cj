@@ -397,4 +397,84 @@ public class Log {
     public func addSymbolAlreadyDeclaredError(name: String, originalLoc: ?SourceLocation): Unit {
         addError(originalLoc, "\"${name}\" has already been declared")
     }
+
+    // ========================================================================
+    // 更多日志方法 - 严格翻译自: src/ast/logger.zig:671-900
+    // ========================================================================
+
+    /// 添加带位置和范围的错误 - 对应 Bun Log.addFormattedMsg(.err, ...)
+    /// 严格翻译自: logger.zig:792-816 addFormattedMsg
+    public func addRangeErrorFmt(source: ?SourceLocation, text: String, range: ?Range): Unit {
+        let data = MsgData(text, source, range)
+        let msg = LogMsg(LogKind.Error, data)
+        msgs.append(msg)
+        errors += 1
+    }
+
+    /// 添加带位置的警告 - 对应 Bun Log.addWarningFmt
+    /// 严格翻译自: logger.zig addFormattedMsg(.warn, ...)
+    public func addRangeWarningFmt(source: ?SourceLocation, text: String, range: ?Range): Unit {
+        let data = MsgData(text, source, range)
+        let msg = LogMsg(LogKind.Warning, data)
+        msgs.append(msg)
+        warnings += 1
+    }
+
+    /// 添加 verbose 日志 - 对应 Bun Log.addVerbose
+    /// 严格翻译自: logger.zig:676-684
+    public func addVerbose(source: ?SourceLocation, text: String): Unit {
+        let data = MsgData(text, source)
+        msgs.append(LogMsg(LogKind.Verbose, data))
+    }
+
+    /// 添加带注释的 verbose 日志 - 对应 Bun Log.addVerboseWithNotes
+    /// 严格翻译自: logger.zig:770-779
+    public func addVerboseWithNotes(source: ?SourceLocation, text: String, notes: ArrayList<MsgData>): Unit {
+        let data = MsgData(text, source)
+        let msg = LogMsg(LogKind.Verbose, data)
+        for (note in notes) {
+            msg.addNote(note)
+        }
+        msgs.append(msg)
+    }
+
+    /// 添加带注释的错误 - 对应 Bun Log 中带 notes 的错误
+    public func addErrorWithNotes(source: ?SourceLocation, text: String, notes: ArrayList<MsgData>): Unit {
+        let data = MsgData(text, source)
+        let msg = LogMsg(LogKind.Error, data)
+        for (note in notes) {
+            msg.addNote(note)
+        }
+        msgs.append(msg)
+        errors += 1
+    }
+
+    /// 克隆到另一个 Log - 对应 Bun Log.cloneTo
+    /// 严格翻译自: logger.zig:690-716
+    public func cloneTo(other: Log): Unit {
+        for (msg in msgs) {
+            other.msgs.append(msg)
+        }
+        other.warnings += warnings
+        other.errors += errors
+    }
+
+    /// 追加到另一个 Log 并清空自身 - 对应 Bun Log.appendTo
+    /// 严格翻译自: logger.zig:718-721
+    public func appendTo(other: Log): Unit {
+        cloneTo(other)
+        clear()
+    }
+
+    /// 是否有任何消息 (错误或警告) - 对应 Bun Log.hasAny
+    /// 严格翻译自: logger.zig:608-610
+    public func hasAny(): Bool {
+        return (warnings + errors) > 0
+    }
+
+    /// 获取日志级别 - 对应 Bun Log.Level
+    /// 严格翻译自: logger.zig:627-656
+    public func shouldPrint(kind: LogKind, level: LogLevel): Bool {
+        return kind.shouldPrint(level)
+    }
 }

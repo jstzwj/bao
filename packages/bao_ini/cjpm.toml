@@ -1,0 +1,16 @@
+[package]
+cjc-version = "1.0.0"
+name = "bao_ini"
+organization = "bao"
+description = "Bao INI file parsing: IniParser, IniFile, IniSection, IniWriter, Git config format"
+version = "0.1.0"
+compile-option = ""
+override-compile-option = ""
+link-option = ""
+output-type = "library"
+src-dir = "src"
+target-dir = ""
+
+[dependencies]
+bao_core = { path = "../bao_core" }
+bao_collections = { path = "../bao_collections" }

@@ -1,0 +1,16 @@
+[package]
+cjc-version = "1.0.0"
+name = "bao_shell_parser"
+organization = "bao"
+description = "Bao shell command parser: lexer, AST, interpreter, brace expansion"
+version = "0.1.0"
+compile-option = ""
+override-compile-option = ""
+link-option = ""
+output-type = "library"
+src-dir = "src"
+target-dir = ""
+
+[dependencies]
+bao_core = { path = "../bao_core" }
+bao_collections = { path = "../bao_collections" }

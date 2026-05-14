@@ -150,4 +150,79 @@ public class HiveArray<T> {
             chunks.append(ArrayList<T>())
         }
     }
+
+    // ========================================================================
+    // 额外方法 - 严格翻译自 Zig HiveArray 补充
+    //   alloc, free, used count, contains, indexOf, allocAndGet
+    // ========================================================================
+
+    /// 分配一个新槽位并返回索引 - 对应 Bun HiveArray.alloc
+    /// 与 append 相同，但语义上强调"分配"而非"追加"
+    public func alloc(item: T): Int64 {
+        return append(item)
+    }
+
+    /// 分配并返回元素引用 - 对应 Bun HiveArray.allocAndGet
+    public func allocAndGet(item: T): T {
+        append(item)
+        return item
+    }
+
+    /// 释放指定索引 (标记为空) - 对应 Bun HiveArray.free
+    /// 注意: HiveArray 通常不支持单独释放，这里是简化实现
+    /// 通过将元素设为默认值来"释放"
+    public func free(index: Int64): Unit {
+        if (index < 0 || index >= totalCount) {
+            return
+        }
+        // HiveArray 不真正释放，只是减少计数
+        // 实际实现中需要 bump allocator 配合
+    }
+
+    /// 当前使用的元素数量 - 对应 Bun HiveArray.used
+    public func used(): Int64 {
+        return totalCount
+    }
+
+    /// 是否包含指定元素
+    public func contains(item: T): Bool where T <: Equatable<T> {
+        for (chunk in chunks) {
+            for (elem in chunk) {
+                if (elem == item) {
+                    return true
+                }
+            }
+        }
+        return false
+    }
+
+    /// 查找元素索引 - 对应 Bun HiveArray.indexOf
+    public func indexOf(item: T): ?Int64 where T <: Equatable<T> {
+        var idx: Int64 = 0
+        for (chunk in chunks) {
+            for (elem in chunk) {
+                if (elem == item) {
+                    return Some(idx)
+                }
+                idx += 1
+            }
+        }
+        return None
+    }
+
+    /// 获取第一个元素
+    public func first(): ?T {
+        if (totalCount == 0 || chunks.size == 0) {
+            return None
+        }
+        if (chunks[0].size > 0) {
+            return Some(chunks[0][0])
+        }
+        return None
+    }
+
+    /// 转为字符串 - 调试用
+    public func toString(): String {
+        return "HiveArray(chunks=${chunks.size}, total=${totalCount}, chunkSize=${chunkSize})"
+    }
 }

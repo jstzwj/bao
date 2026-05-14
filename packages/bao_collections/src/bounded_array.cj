@@ -171,6 +171,111 @@ public class BoundedArray<T> {
             fn(i, data[i])
         }
     }
+
+    // ========================================================================
+    // 额外方法 - 严格翻译自 Zig std.BoundedArray 补充
+    //   asConstSlice, assign, insert, orderedRemove, swapRemove
+    //   span, toOwnedSlice, format
+    // ========================================================================
+
+    /// 获取指定范围切片 - 对应 Bun BoundedArray.slice(start, end)
+    public func slice(start: Int64, end: Int64): Array<T> {
+        let e = if (end > len) { len } else { end }
+        var result = Array<T>()
+        for (i in start..e) {
+            if (i >= 0) {
+                result.append(data[i])
+            }
+        }
+        return result
+    }
+
+    /// 在指定位置插入 - 对应 Bun BoundedArray.insert
+    /// 后续元素后移
+    public func insert(index: Int64, item: T): Bool {
+        if (index < 0 || index > len || len >= maxCapacity) {
+            return false
+        }
+        // 从末尾开始后移
+        var i = len
+        while (i > index) {
+            data[i] = data[i - 1]
+            i -= 1
+        }
+        data[index] = item
+        len += 1
+        return true
+    }
+
+    /// 有序删除 - 对应 Bun BoundedArray.orderedRemove
+    /// 后续元素前移
+    public func orderedRemove(index: Int64): ?T {
+        if (index < 0 || index >= len) {
+            return None
+        }
+        let removed = data[index]
+        var i = index
+        while (i < len - 1) {
+            data[i] = data[i + 1]
+            i += 1
+        }
+        len -= 1
+        return Some(removed)
+    }
+
+    /// 交换删除 - 对应 Bun BoundedArray.swapRemove
+    /// 与最后一个元素交换后删除，O(1)
+    public func swapRemove(index: Int64): ?T {
+        if (index < 0 || index >= len) {
+            return None
+        }
+        let removed = data[index]
+        len -= 1
+        if (index != len) {
+            data[index] = data[len]
+        }
+        return Some(removed)
+    }
+
+    /// 获取可变引用 - 对应 Bun BoundedArray.mut(i) (带边界检查)
+    public func getMut(index: Int64): ?T {
+        if (index < 0 || index >= len) {
+            return None
+        }
+        return Some(data[index])
+    }
+
+    /// 检查是否包含元素
+    public func contains(item: T): Bool where T <: Equatable<T> {
+        for (i in 0..len) {
+            if (data[i] == item) {
+                return true
+            }
+        }
+        return false
+    }
+
+    /// 从头查找元素索引 - 对应 Bun BoundedArray.indexOf
+    public func indexOf(item: T): ?Int64 where T <: Equatable<T> {
+        for (i in 0..len) {
+            if (data[i] == item) {
+                return Some(i)
+            }
+        }
+        return None
+    }
+
+    /// 转为字符串 - 调试用
+    public func toString(): String {
+        var sb = StringBuilder()
+        sb.append("BoundedArray(len=${len}, cap=${maxCapacity}, [")
+        for (i in 0..len) {
+            if (i > 0) { sb.append(", ") }
+            sb.append("${data[i]}")
+        }
+        sb.append("])")
+        return sb.toString()
+    }
 }
 
 /// 索引越界异常

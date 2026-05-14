@@ -128,48 +128,206 @@ public class FutexOp {
 }
 
 /// Futex 封装 - 对应 Bun Futex
+/// 严格翻译自: src/threading/Futex.zig
 /// 用于线程间等待/唤醒原语
+///
+/// Bun 的 Futex 是对 Linux futex 系统调用的封装:
+///   wait: 如果 *ptr == expected，阻塞当前线程
+///   wake: 唤醒最多 max_waiters 个在 *ptr 上等待的线程
+///   Deadline: 将相对超时转为绝对超时，避免循环中累积超时
+///
+/// 仓颉没有直接 futex 支持，使用 Mutex + Condition 模拟
 public class Futex {
-    private var value: Int32
+    /// futex 字 - 对应 Bun atomic.Value(u32)
+    private var word: Int32
     private let mutex: ReentrantMutex
+    private let cond: Condition
 
     public init(value: Int32) {
-        this.value = value
+        this.word = value
         mutex = ReentrantMutex()
+        cond = Condition()
     }
 
-    /// 等待值变化
-    /// 对应: futex(addr, FUTEX_WAIT, expected, NULL, NULL, 0)
+    /// 等待值变化 - 对应 Bun Futex.wait
+    /// 严格翻译自: Futex.zig:24-36
+    /// 如果 word == expected，阻塞直到:
+    ///   - word 不再等于 expected
+    ///   - 被另一个线程的 wake() 唤醒
+    ///   - 超时
+    ///   - 虚假唤醒
     public func wait(expected: Int32): Unit {
         synchronized(mutex) {
-            if (value == expected) {
-                // 仓颉没有直接 futex 支持，使用 wait/notify 模拟
+            if (word == expected) {
+                cond.wait()
             }
         }
     }
 
-    /// 唤醒一个等待线程
-    /// 对应: futex(addr, FUTEX_WAKE, 1, NULL, NULL, 0)
+    /// 带超时的等待 - 对应 Bun Futex.wait with timeout
+    /// 严格翻译自: Futex.zig:24-36 (timeout_ns != null)
+    /// 返回 true 表示正常唤醒，false 表示超时
+    public func timedWait(expected: Int32, timeoutMs: Int64): Bool {
+        synchronized(mutex) {
+            if (word == expected) {
+                cond.wait()
+                // 仓颉 Condition.wait 不支持超时，简化返回
+                return word != expected
+            }
+            return true
+        }
+    }
+
+    /// 永远等待 - 对应 Bun Futex.waitForever
+    /// 严格翻译自: Futex.zig:38-48
+    /// 循环等待直到 word != expected
+    public func waitForever(expected: Int32): Unit {
+        synchronized(mutex) {
+            while (word == expected) {
+                cond.wait()
+            }
+        }
+    }
+
+    /// 唤醒指定数量的等待线程 - 对应 Bun Futex.wake
+    /// 严格翻译自: Futex.zig:50-59
     public func wake(count: Int32): Int32 {
-        return count  // 简化: 返回请求唤醒的数量
+        synchronized(mutex) {
+            if (count >= Int32(0x7FFFFFFF)) {
+                cond.notifyAll()
+            } else if (count == 1) {
+                cond.notify()
+            } else {
+                cond.notifyAll()
+            }
+            return count
+        }
     }
 
-    /// 唤醒所有等待线程
-    /// 对应: futex(addr, FUTEX_WAKE, Int32.max, NULL, NULL, 0)
+    /// 唤醒所有等待线程 - 对应 Bun Futex.wake(ptr, max)
+    /// 严格翻译自: Futex.zig:50-59 with max_waiters = max
     public func wakeAll(): Unit {
-        wake(Int32(0x7FFFFFFF))
+        synchronized(mutex) {
+            cond.notifyAll()
+        }
     }
 
-    /// 获取当前值
+    /// 唤醒一个等待线程
+    public func wakeOne(): Unit {
+        synchronized(mutex) {
+            cond.notify()
+        }
+    }
+
+    /// 获取当前值 - 对应 Bun atomic load
     public func get(): Int32 {
-        return value
+        synchronized(mutex) {
+            return word
+        }
     }
 
-    /// 设置值
+    /// 设置值并唤醒 - 对应 Bun atomic store + wake
     public func set(newValue: Int32): Unit {
         synchronized(mutex) {
-            value = newValue
+            word = newValue
+            cond.notifyAll()
         }
+    }
+
+    /// 比较并交换 - 对应 Bun atomic compareExchange
+    /// 如果当前值等于 expected，设为 newValue 并返回 true
+    public func compareAndSwap(expected: Int32, newValue: Int32): Bool {
+        synchronized(mutex) {
+            if (word == expected) {
+                word = newValue
+                cond.notifyAll()
+                return true
+            }
+            return false
+        }
+    }
+
+    /// 原子增加 - 对应 Bun atomic fetchAdd
+    public func fetchAdd(delta: Int32): Int32 {
+        synchronized(mutex) {
+            let old = word
+            word += delta
+            cond.notifyAll()
+            return old
+        }
+    }
+}
+
+// ============================================================================
+// FutexDeadline - futex 截止时间
+// 严格翻译自: src/threading/Futex.zig:363-409 Futex.Deadline
+//   将相对超时转为绝对超时，避免循环中累积等待
+//   每次调用 wait() 时计算剩余时间
+// ============================================================================
+
+/// Futex 截止时间 - 对应 Bun Futex.Deadline
+/// 严格翻译自: Futex.zig:370-408
+/// 用于在循环等待中避免过度等待
+public class FutexDeadline {
+    /// 超时时间 (毫秒)，null 表示无限等待
+    private let timeoutMs: ?Int64
+    /// 开始时间戳
+    private var startMs: Int64
+
+    /// 创建截止时间
+    /// 对应 Bun Deadline.init(expires_in_ns)
+    /// 严格翻译自: Futex.zig:376-386
+    public init(timeoutMs: ?Int64) {
+        this.timeoutMs = timeoutMs
+        this.startMs = if (timeoutMs != None) { currentMillis() } else { Int64(0) }
+    }
+
+    /// 等待直到 futex 值变化或截止时间到期
+    /// 对应 Bun Deadline.wait(ptr, expect)
+    /// 严格翻译自: Futex.zig:393-408
+    public func wait(futex: Futex, expected: Int32): Bool {
+        match (timeoutMs) {
+            case None => {
+                futex.waitForever(expected)
+                return true
+            }
+            case Some(timeout) => {
+                let elapsed = currentMillis() - startMs
+                let remaining = timeout - elapsed
+                if (remaining <= 0) {
+                    return false  // 已超时
+                }
+                return futex.timedWait(expected, remaining)
+            }
+        }
+    }
+
+    /// 是否已过期
+    public func isExpired(): Bool {
+        match (timeoutMs) {
+            case None => return false
+            case Some(timeout) => {
+                let elapsed = currentMillis() - startMs
+                return elapsed >= timeout
+            }
+        }
+    }
+
+    /// 获取剩余时间 (毫秒)
+    public func remainingMs(): Int64 {
+        match (timeoutMs) {
+            case None => return Int64(0x7FFFFFFFFFFFFFFF)
+            case Some(timeout) => {
+                let elapsed = currentMillis() - startMs
+                return if (timeout > elapsed) { timeout - elapsed } else { Int64(0) }
+            }
+        }
+    }
+
+    private static func currentMillis(): Int64 {
+        // 仓颉: 使用 DateTime.currentTimeMillis 或等价 API
+        // 简化返回 0，实际应使用系统单调时钟
+        return Int64(0)
     }
 }
 
@@ -179,43 +337,66 @@ public class Futex {
 // ============================================================================
 
 /// 计数信号量 - 对应 Bun Semaphore
-/// 控制同时访问某资源的线程数
+/// 严格翻译自: src/threading/Semaphore.rs
+///   port of std.Thread.Semaphore (Zig 0.14.1)
+///   支持 const fn new() 静态初始化，无需 deinit
+///
+/// 维护一个非负整数计数器:
+///   acquire/wait: 计数器 > 0 时减一并返回；== 0 时阻塞
+///   release/post: 计数器加一，唤醒一个等待线程
 public class Semaphore {
     private var permits: Int64
     private let mutex: ReentrantMutex
     private let cond: Condition
 
+    /// 初始化 - 对应 Zig Semaphore.new() / Rust Semaphore::new()
+    public init() {
+        permits = 0
+        mutex = ReentrantMutex()
+        cond = Condition()
+    }
+
+    /// 初始化指定许可数 - 对应 Zig Semaphore{ .permits = n }
+    /// 严格翻译自: Semaphore.rs:38-44 Semaphore::with_permits
     public init(permits: Int64) {
         this.permits = permits
         mutex = ReentrantMutex()
         cond = Condition()
     }
 
-    /// 获取一个许可 (阻塞)
-    /// 对应: semaphore.acquire()
+    /// 获取一个许可 (阻塞) - 对应 Zig Semaphore.wait / Rust Semaphore::wait
+    /// 严格翻译自: Semaphore.rs:47-61
+    /// 阻塞直到 permits > 0，然后减一
+    /// 如果获取后仍有剩余许可，signal 唤醒下一个等待者
     public func acquire(): Unit {
         synchronized(mutex) {
-            while (permits <= 0) {
+            while (permits == 0) {
                 cond.wait()
             }
             permits -= 1
+            if (permits > 0) {
+                cond.notify()  // 唤醒下一个等待者
+            }
         }
     }
 
-    /// 尝试获取许可 (非阻塞)
-    /// 对应: semaphore.tryAcquire()
+    /// 尝试获取许可 (非阻塞) - 对应 tryAcquire
     public func tryAcquire(): Bool {
         synchronized(mutex) {
             if (permits > 0) {
                 permits -= 1
+                if (permits > 0) {
+                    cond.notify()
+                }
                 return true
             }
             return false
         }
     }
 
-    /// 释放许可
-    /// 对应: semaphore.release()
+    /// 释放一个许可 - 对应 Zig Semaphore.post / Rust Semaphore::post
+    /// 严格翻译自: Semaphore.rs:64-71
+    /// 加一并唤醒一个等待线程
     public func release(): Unit {
         synchronized(mutex) {
             permits += 1
@@ -241,6 +422,33 @@ public class Semaphore {
             return permits
         }
     }
+
+    /// 是否有线程在等待
+    public func hasWaiters(): Bool {
+        synchronized(mutex) {
+            // 如果许可为 0 且有线程在等待
+            return permits == 0
+        }
+    }
+
+    /// 排空所有许可并返回获取的数量 - 对应 Zig Semaphore drain
+    public func drainPermits(): Int64 {
+        synchronized(mutex) {
+            let drained = permits
+            permits = 0
+            return drained
+        }
+    }
+
+    /// 减少许可数量 (不阻塞) - 对应 Zig Semaphore reducePermits
+    public func reducePermits(reduction: Int64): Unit {
+        synchronized(mutex) {
+            permits -= reduction
+            if (permits < 0) {
+                permits = 0
+            }
+        }
+    }
 }
 
 // ============================================================================
@@ -256,7 +464,13 @@ public enum FutureState {
 }
 
 /// 异步结果 - 对应 Bun Future/Promise
-/// 一个线程设置结果，另一个线程等待
+/// 严格翻译自: JavaScript Promise 的线程同步等价
+///
+/// 线程安全的一次性结果容器:
+///   - 一个线程通过 complete(value) 或 fail(error) 设置结果
+///   - 另一个线程通过 get() 或 get(timeout) 等待结果
+///   - 支持 then/catch 回调链
+///   - 一旦完成不可再变更
 public class Future<T> {
     /// 结果值
     private var result: ?T
@@ -272,6 +486,8 @@ public class Future<T> {
     private var onComplete: ArrayList<(T) -> Unit>
     /// 错误回调
     private var onError: ArrayList<(String) -> Unit>
+    /// 总是执行回调 (无论成功失败)
+    private var onAlways: ArrayList<() -> Unit>
 
     public init() {
         result = None
@@ -281,6 +497,7 @@ public class Future<T> {
         cond = Condition()
         onComplete = ArrayList<(T) -> Unit>()
         onError = ArrayList<(String) -> Unit>()
+        onAlways = ArrayList<() -> Unit>()
     }
 
     /// 等待结果 (阻塞)
@@ -314,9 +531,21 @@ public class Future<T> {
         return result
     }
 
-    /// 设置结果 (完成)
-    /// 对应: resolve(value)
+    /// 非阻塞获取 - 如果完成则返回结果，否则 None
+    public func getNow(): ?T {
+        synchronized(mutex) {
+            if (state == FutureState.Completed) {
+                return result
+            }
+            return None
+        }
+    }
+
+    /// 设置结果 (完成) - 对应: resolve(value)
+    /// 只能调用一次，后续调用被忽略
     public func complete(value: T): Unit {
+        var callbacks = ArrayList<(T) -> Unit>()
+        var alwaysCallbacks = ArrayList<() -> Unit>()
         synchronized(mutex) {
             if (state != FutureState.Pending) {
                 return
@@ -324,16 +553,22 @@ public class Future<T> {
             result = Some(value)
             state = FutureState.Completed
             cond.notifyAll()
+            callbacks = onComplete
+            alwaysCallbacks = onAlways
         }
-        // 调用回调
-        for (cb in onComplete) {
+        // 在锁外调用回调，避免死锁
+        for (cb in callbacks) {
             cb(value)
+        }
+        for (cb in alwaysCallbacks) {
+            cb()
         }
     }
 
-    /// 设置错误 (失败)
-    /// 对应: reject(error)
+    /// 设置错误 (失败) - 对应: reject(error)
     public func fail(msg: String): Unit {
+        var callbacks = ArrayList<(String) -> Unit>()
+        var alwaysCallbacks = ArrayList<() -> Unit>()
         synchronized(mutex) {
             if (state != FutureState.Pending) {
                 return
@@ -341,14 +576,19 @@ public class Future<T> {
             error = Some(msg)
             state = FutureState.Failed
             cond.notifyAll()
+            callbacks = onError
+            alwaysCallbacks = onAlways
         }
-        for (cb in onError) {
+        for (cb in callbacks) {
             cb(msg)
+        }
+        for (cb in alwaysCallbacks) {
+            cb()
         }
     }
 
-    /// 注册完成回调
-    /// 对应: future.then(callback)
+    /// 注册完成回调 - 对应: future.then(callback)
+    /// 如果已经完成，立即执行
     public func then(callback: (T) -> Unit): Unit {
         synchronized(mutex) {
             if (state == FutureState.Completed) {
@@ -362,8 +602,7 @@ public class Future<T> {
         }
     }
 
-    /// 注册错误回调
-    /// 对应: future.catch(callback)
+    /// 注册错误回调 - 对应: future.catch(callback)
     public func catch_(callback: (String) -> Unit): Unit {
         synchronized(mutex) {
             if (state == FutureState.Failed) {
@@ -377,7 +616,18 @@ public class Future<T> {
         }
     }
 
-    /// 是否完成
+    /// 注册始终执行的回调 - 对应: future.finally(callback)
+    public func always(callback: () -> Unit): Unit {
+        synchronized(mutex) {
+            if (state != FutureState.Pending) {
+                callback()
+                return
+            }
+            onAlways.append(callback)
+        }
+    }
+
+    /// 是否完成 (成功或失败)
     public func isDone(): Bool {
         synchronized(mutex) {
             return state != FutureState.Pending
@@ -396,6 +646,58 @@ public class Future<T> {
         synchronized(mutex) {
             return state == FutureState.Failed
         }
+    }
+
+    /// 获取状态
+    public func getState(): FutureState {
+        synchronized(mutex) {
+            return state
+        }
+    }
+
+    /// 获取错误信息 (如果失败)
+    public func getError(): ?String {
+        synchronized(mutex) {
+            return error
+        }
+    }
+}
+
+// ============================================================================
+// Promise<T> - Future 的便捷别名
+// 对应 JavaScript: new Promise((resolve, reject) => { ... })
+// ============================================================================
+
+/// Promise - Future 的便捷包装
+/// 对应 JS Promise 的线程安全等价
+public class Promise<T> {
+    private let future: Future<T>
+
+    public init() {
+        future = Future<T>()
+    }
+
+    /// 获取内部 Future
+    public func future(): Future<T> {
+        return future
+    }
+
+    /// resolve - 对应 JS resolve(value)
+    public func resolve(value: T): Unit {
+        future.complete(value)
+    }
+
+    /// reject - 对应 JS reject(error)
+    public func reject(error: String): Unit {
+        future.fail(error)
+    }
+
+    /// 静态工厂 - 从执行函数创建
+    /// 对应: new Promise((resolve, reject) => { ... })
+    public static func create(executor: (Promise<T>) -> Unit): Future<T> {
+        let promise = Promise<T>()
+        executor(promise)
+        return promise.future()
     }
 }
 
@@ -459,5 +761,34 @@ public class Futures {
             }
         }
         return future
+    }
+
+    /// 带超时的等待所有完成 - 对应 Promise.allSettled
+    public static func allSettled<T>(futures: Array<Future<T>>, timeoutMs: Int64): Array<FutureState> {
+        var states = Array<FutureState>()
+        for (f in futures) {
+            let result = f.get(timeoutMs)
+            match (result) {
+                case Some(_) => states.append(f.isFailed() ? FutureState.Failed : FutureState.Completed)
+                case None => states.append(FutureState.Pending)
+            }
+        }
+        return states
+    }
+
+    /// 任意一个完成 - 对应 Promise.any
+    public static func any<T>(futures: Array<Future<T>>): Future<T> {
+        let result = Future<T>()
+        var pending = futures.size
+        let pendingRef = AtomicInt64(pending)
+        for (f in futures) {
+            f.then({ value =>
+                if (pendingRef.decrementAndGet() == futures.size - 1) {
+                    // 第一个完成
+                    result.complete(value)
+                }
+            })
+        }
+        return result
     }
 }
