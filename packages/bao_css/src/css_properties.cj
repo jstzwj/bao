@@ -6,7 +6,7 @@
 //   对应: 逻辑属性分组 - LogicalGroup, PropertyCategory
 // ============================================================================
 
-package bao.css
+package bao_css
 
 import bao_core.*
 import bao_collections.*

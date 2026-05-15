@@ -1,29 +1,14 @@
 // 严格翻译自: src/sql_jsc/shared/SQLDataCell.zig
 // SQL 数据单元格 - 表示查询结果中单个值的类型化容器
 
-package bao_sql_jsc
+package bao_sql_jsc.shared
 
 import bao_core.*
 import bao_jsc.*
 
 /// SQL 数据单元格标签
 /// 对应 Bun: SQLDataCell.Tag
-public enum DataCellTag <: UInt8 {
-    | Null(0)
-    | String(1)
-    | Float8(2)
-    | Int4(3)
-    | Int8(4)
-    | Bool(5)
-    | Date(6)
-    | DateWithTimeZone(7)
-    | Bytea(8)
-    | Json(9)
-    | Array(10)
-    | TypedArray(11)
-    | Raw(12)
-    | UInt4(13)
-    | UInt8(14)
+public enum DataCellTag {
 }
 
 /// SQL 数据单元格
@@ -73,19 +58,19 @@ public class SQLDataCell {
             return
         }
         match (tag) {
-            case String =>
+            | String =>
                 // 释放字符串
                 stringValue = None
-            case Json =>
+            | Json =>
                 jsonValue = None
-            case Array =>
+            | Array =>
                 if (arrayValue != None) {
                     for (cell in arrayValue.cells) {
                         cell.deinit()
                     }
                     arrayValue = None
                 }
-            case _ => ()
+            | _ => ()
         }
     }
 }

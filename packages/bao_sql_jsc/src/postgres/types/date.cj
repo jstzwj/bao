@@ -1,7 +1,7 @@
 // 严格翻译自: src/sql_jsc/postgres/types/date.zig
 // Postgres 日期/时间戳类型 JS 转换
 
-package bao_sql_jsc
+package bao_sql_jsc.postgres.types
 
 import bao_core.*
 import bao_jsc.*

@@ -5,7 +5,7 @@
 //   pub const DebugOptions = struct { ... };
 //   pub const TestOptions = struct { ... };
 //   pub const RuntimeOptions = struct { ... };
-package bao.options
+package bao_options
 
 import bao_core.*
 

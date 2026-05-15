@@ -11,11 +11,9 @@
 //   pub const VLQSourceMap = struct { ... }
 //   pub fn NewBuilder(comptime SourceMapFormatType: type) type
 //   pub const Builder = NewBuilder(VLQSourceMap);
-package bao_sourcemap.chunk
+package bao_sourcemap
 
 import bao_core.*
-import bao_sourcemap.vlq.*
-import bao_sourcemap.mapping.*
 
 // ============================================================================
 // Chunk - SourceMap 块

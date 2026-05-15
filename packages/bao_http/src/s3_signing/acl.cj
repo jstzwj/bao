@@ -4,7 +4,7 @@
 //   - ACL enum: private, public-read, public-read-write, aws-exec-read, ...
 //   - toString(): 返回 S3 API 格式字符串
 //   - ComptimeStringMap: 字符串反向查找
-package bao_http
+package bao_http.s3_signing
 
 // ============================================================================
 // S3Acl - S3 访问控制列表

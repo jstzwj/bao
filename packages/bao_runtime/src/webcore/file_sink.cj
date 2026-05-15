@@ -1,7 +1,7 @@
 // FileSink - 文件写入 Sink
 // 严格翻译自: src/runtime/webcore/FileSink.zig
 // 包含: FileSink 完整实现, IOWriter, Options, 回调方法, JS 绑定等
-package bao_runtime
+package bao_runtime.webcore
 
 import bao_core.*
 

@@ -65,6 +65,8 @@ members = [
     "packages/bao_simdutf_sys",
     "packages/bao_tcc_sys",
     "packages/bao_windows_sys",
+    "packages/bao_crash_handler",
+    "packages/bao_perf",
 ]
 build-members = [
     "packages/bao_core",
@@ -132,6 +134,8 @@ build-members = [
     "packages/bao_simdutf_sys",
     "packages/bao_tcc_sys",
     "packages/bao_windows_sys",
+    "packages/bao_crash_handler",
+    "packages/bao_perf",
 ]
 test-members = [
     "packages/bao_core",

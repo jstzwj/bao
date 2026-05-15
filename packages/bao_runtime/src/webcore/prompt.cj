@@ -1,7 +1,7 @@
 // Prompt - Web 提示对话框 API
 // 对应 Bun: src/runtime/webcore/prompt.zig
 // 严格翻译自: src/runtime/webcore/prompt.zig
-package bao_runtime
+package bao_runtime.webcore
 
 import bao_core.*
 

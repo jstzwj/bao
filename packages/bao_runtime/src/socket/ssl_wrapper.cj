@@ -1,6 +1,6 @@
 // 严格翻译自: src/runtime/socket/ssl_wrapper.zig
 // SSL 包装器 — 通用 SSL/TLS 流包装，支持任意传输层
-package bao_runtime
+package bao_runtime.socket
 
 import bao_core.*
 import bao_collections.*

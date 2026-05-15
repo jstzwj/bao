@@ -7,7 +7,7 @@
 //   对应: VendorPrefix - 供应商前缀
 //   对应: SourceLocation / Location - 源码位置
 //   对应: Delimiters / BlockType / ParserState - 解析器内部状态
-package bao.css
+package bao_css
 
 import bao_core.*
 import bao_collections.*

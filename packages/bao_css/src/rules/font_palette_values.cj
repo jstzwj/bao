@@ -2,7 +2,7 @@
 // 严格翻译自: bun/src/css/rules/font_palette_values.rs
 //   对应: rules/font_palette_values.zig - FontPaletteValuesRule,
 //     FontPaletteValuesProperty, OverrideColors, BasePalette
-package bao.css
+package bao_css.rules
 
 import bao_core.*
 import bao_collections.*

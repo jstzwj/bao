@@ -1,7 +1,7 @@
 // 严格翻译自: src/runtime/timer/TimeoutObject.zig
 // Timeout 对象 - setTimeout / setInterval 的内部实现
 
-package bao_runtime
+package bao_runtime.timer
 
 import bao_core.*
 import bao_jsc.*

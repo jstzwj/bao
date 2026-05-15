@@ -1,7 +1,7 @@
 // Node.js Buffer 模块 — 二进制数据处理
 // 对应 Bun: src/runtime/node/buffer.zig
 // 严格翻译自: src/runtime/node/buffer.zig
-package bao_runtime
+package bao_runtime.node_api
 
 import bao_core.*
 import bao_collections.*

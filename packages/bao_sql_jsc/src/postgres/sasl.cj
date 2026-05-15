@@ -1,7 +1,7 @@
 // 严格翻译自: src/sql_jsc/postgres/SASL.zig
 // Postgres SASL (SCRAM-SHA-256) 认证
 
-package bao_sql_jsc
+package bao_sql_jsc.postgres
 
 import bao_core.*
 

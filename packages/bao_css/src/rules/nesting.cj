@@ -1,7 +1,7 @@
 // bao_css - CSS @nest 嵌套规则
 // 严格翻译自: bun/src/css/rules/nesting.rs
 //   对应: rules/nesting.zig - NestingRule
-package bao.css
+package bao_css.rules
 
 import bao_core.*
 import bao_collections.*

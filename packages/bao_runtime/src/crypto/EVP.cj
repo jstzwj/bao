@@ -2,7 +2,7 @@
 // 对应 Bun: src/runtime/crypto/EVP.zig
 // 严格1:1翻译自 Bun EVP.zig
 
-package bao_runtime
+package bao_runtime.crypto
 
 import bao_core.*
 

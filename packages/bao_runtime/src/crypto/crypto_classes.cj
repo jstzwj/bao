@@ -2,7 +2,7 @@
 // 对应 Bun: src/runtime/crypto/crypto.classes.ts
 // 严格1:1翻译自 Bun crypto.classes.ts
 
-package bao_runtime
+package bao_runtime.crypto
 
 import bao_core.*
 

@@ -1,7 +1,7 @@
 // Fetch API - HTTP 请求核心
 // 对应 Bun: src/runtime/webcore/fetch.zig
 // 严格翻译自: src/runtime/webcore/fetch.zig
-package bao_runtime
+package bao_runtime.webcore
 
 import bao_core.*
 import bao_collections.*

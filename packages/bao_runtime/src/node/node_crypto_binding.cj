@@ -1,7 +1,7 @@
 // 加密绑定模块
 // 对应 Bun: src/runtime/node/node_crypto_binding.zig
 // 严格翻译自: src/runtime/node/node_crypto_binding.zig
-package bao_runtime
+package bao_runtime.node
 
 // ============================================================================
 // 加密绑定 — 异步加密任务

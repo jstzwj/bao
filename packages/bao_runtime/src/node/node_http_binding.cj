@@ -1,7 +1,7 @@
 // HTTP 绑定模块
 // 对应 Bun: src/runtime/node/node_http_binding.zig
 // 严格翻译自: src/runtime/node/node_http_binding.zig
-package bao_runtime
+package bao_runtime.node
 
 // ============================================================================
 // HTTP 绑定 — HTTP 相关配置

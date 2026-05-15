@@ -1,7 +1,7 @@
 // Blob Store - Blob 底层存储
 // 对应 Bun: src/runtime/webcore/blob/Store.zig
 // 严格翻译自: src/runtime/webcore/blob/Store.zig
-package bao_runtime
+package bao_runtime.webcore.blob
 
 import bao_core.*
 import bao_collections.*

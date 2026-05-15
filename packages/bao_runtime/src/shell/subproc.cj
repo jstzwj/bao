@@ -2,7 +2,7 @@
 // 对应 Bun: src/runtime/shell/subproc.zig
 // 严格翻译Bun shell子进程到仓颉
 
-package bao_runtime
+package bao_runtime.shell
 
 import bao_core.*
 import bao_collections.*

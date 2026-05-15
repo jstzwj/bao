@@ -1,7 +1,7 @@
 // jest.cj - Jest兼容层
 // 严格翻译自 bun/src/runtime/test_runner/jest.zig
 
-package bao_runtime
+package bao_runtime.test_runner
 
 // ========== TestRunner - 测试运行器 ==========
 

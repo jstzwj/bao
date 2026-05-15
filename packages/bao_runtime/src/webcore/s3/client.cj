@@ -1,7 +1,7 @@
 // S3 Client - S3 客户端
 // 对应 Bun: src/runtime/webcore/s3/client.zig
 // 严格翻译自: src/runtime/webcore/s3/client.zig
-package bao_runtime
+package bao_runtime.webcore.s3
 
 import bao_core.*
 import bao_collections.*

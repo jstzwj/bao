@@ -1,10 +1,10 @@
 // 严格翻译自: src/runtime/test_runner/expect/toThrowErrorMatchingInlineSnapshot.zig
 
-package bao_runtime
+package bao_runtime.test_runner.expect
 
 /// toThrowErrorMatchingInlineSnapshot() - 检查抛出的错误是否匹配行内快照
 /// 用法: expect(fn).toThrowErrorMatchingInlineSnapshot(snapshot?)
-public func toThrowErrorMatchingInlineSnapshot(this: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toThrowErrorMatchingInlineSnapshot(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()

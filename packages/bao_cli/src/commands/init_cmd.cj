@@ -1,6 +1,6 @@
 // 严格翻译自: src/cli/init_command.zig
 // Init 命令实现
-package bao_cli
+package bao_cli.commands
 
 import bao_core.*
 import bao_collections.*

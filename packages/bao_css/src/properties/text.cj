@@ -8,7 +8,7 @@
 //   对应: TextAlign, TextAlignLast, TextJustify
 // ============================================================================
 
-package bao.css
+package bao_css.properties
 
 import bao_core.*
 

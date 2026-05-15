@@ -1,7 +1,7 @@
 // 严格翻译自: src/sql_jsc/postgres/AuthenticationState.zig
 // Postgres 认证状态
 
-package bao_sql_jsc
+package bao_sql_jsc.postgres
 
 import bao_core.*
 

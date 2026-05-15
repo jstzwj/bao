@@ -1,7 +1,7 @@
 // Sink - 流式 Sink
 // 对应 Bun: src/runtime/webcore/Sink.zig
 // 严格翻译自: src/runtime/webcore/Sink.zig
-package bao_runtime
+package bao_runtime.webcore
 
 import bao_core.*
 import bao_collections.*

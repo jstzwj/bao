@@ -1,7 +1,7 @@
 // done_callback.cj - 完成回调
 // 严格翻译自 bun/src/runtime/test_runner/DoneCallback.zig
 
-package bao_runtime
+package bao_runtime.test_runner
 
 // ========== DoneCallback - 完成回调 ==========
 

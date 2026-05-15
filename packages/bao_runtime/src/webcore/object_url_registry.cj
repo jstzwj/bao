@@ -1,7 +1,7 @@
 // ObjectURLRegistry - Object URL 注册表
 // 对应 Bun: src/runtime/webcore/ObjectURLRegistry.zig
 // 严格翻译自: src/runtime/webcore/ObjectURLRegistry.zig
-package bao_runtime
+package bao_runtime.webcore
 
 import bao_core.*
 import bao_collections.*

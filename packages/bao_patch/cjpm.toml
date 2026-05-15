@@ -1,0 +1,15 @@
+[package]
+cjc-version = "1.0.0"
+name = "bao_patch"
+organization = "bao"
+description = "Bao patch/diff utilities"
+version = "0.1.0"
+compile-option = ""
+override-compile-option = ""
+link-option = ""
+output-type = "static"
+src-dir = "src"
+target-dir = ""
+
+[dependencies]
+bao_core = { path = "../bao_core" }

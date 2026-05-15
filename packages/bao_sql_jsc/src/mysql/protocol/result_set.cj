@@ -1,7 +1,7 @@
 // 严格翻译自: src/sql_jsc/mysql/protocol/ResultSet.zig
 // MySQL 结果集解码
 
-package bao_sql_jsc
+package bao_sql_jsc.mysql.protocol
 
 import bao_core.*
 import bao_jsc.*

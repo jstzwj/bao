@@ -4,12 +4,9 @@
 //   SourceMapState, LineColumnOffset, SourceMapPieces
 //   appendSourceMapChunk, appendMappingToBuffer, parseUrl, parseJSON
 //   findSourceMappingURL
-package bao_sourcemap.source_map_builder
+package bao_sourcemap
 
 import bao_core.*
-import bao_sourcemap.vlq.*
-import bao_sourcemap.mapping.*
-import bao_sourcemap.parsed_source_map.*
 
 // ============================================================================
 // SourceMapPieces - SourceMap 片段

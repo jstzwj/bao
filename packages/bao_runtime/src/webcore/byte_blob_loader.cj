@@ -1,7 +1,7 @@
 // ByteBlobLoader - 字节 Blob 加载器
 // 对应 Bun: src/runtime/webcore/ByteBlobLoader.zig
 // 严格翻译自: src/runtime/webcore/ByteBlobLoader.zig
-package bao_runtime
+package bao_runtime.webcore
 
 import bao_core.*
 import bao_collections.*

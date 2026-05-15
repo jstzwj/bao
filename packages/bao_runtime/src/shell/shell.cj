@@ -1,6 +1,6 @@
 // 严格翻译自: src/runtime/shell/shell.zig
 // Shell主入口 - 包含AST、词法分析器、解析器、全局上下文
-package bao_runtime
+package bao_runtime.shell
 
 import bao_core.*
 import bao_collections.*
@@ -537,62 +537,8 @@ public class AST {
     /// 条件表达式操作符
     /// 对应 Bun: pub const Op = enum { ... }
     public enum CondExprOp {
-        // 文件测试 - 单参数操作符
-        case a       // -a file: True if file exists
-        case b       // -b file: True if file exists and is block special
-        case c       // -c file: True if file exists and is character special
-        case d       // -d file: True if file exists and is a directory
-        case e       // -e file: True if file exists
-        case f       // -f file: True if file exists and is a regular file
-        case g       // -g file: True if file exists and set-group-id bit is set
-        case h       // -h file: True if file exists and is a symbolic link
-        case k       // -k file: True if file exists and sticky bit is set
-        case p       // -p file: True if file exists and is a named pipe
-        case r       // -r file: True if file exists and is readable
-        case s       // -s file: True if file exists and has size > 0
-        case t       // -t fd: True if fd is open and refers to a terminal
-        case u       // -u file: True if file exists and set-user-id bit is set
-        case w       // -w file: True if file exists and is writable
-        case x       // -x file: True if file exists and is executable
-        case G       // -G file: True if file exists and owned by effective group id
-        case L       // -L file: True if file exists and is a symbolic link
-        case N       // -N file: True if file exists and modified since last read
-        case O       // -O file: True if file exists and owned by effective user id
-        case S       // -S file: True if file exists and is a socket
-
-        // 文件比较 - 双参数操作符
-        case ef      // file1 -ef file2: Same device and inode
-        case nt      // file1 -nt file2: file1 is newer than file2
-        case ot      // file1 -ot file2: file1 is older than file2
-
-        // Shell选项/变量测试
-        case o       // -o optname: True if shell option is enabled
-        case v       // -v varname: True if shell variable is set
-        case R       // -R varname: True if shell variable is set and is a name ref
-
-        // 字符串测试
-        case z       // -z string: True if length of string is zero
-        case n       // -n string: True if length of string is non-zero
-        case eq_eq   // string1 == string2: True if strings are equal
-        case neq     // string1 != string2: True if strings are not equal
-        case lt_str  // string1 < string2: True if sorts before
-        case gt_str  // string1 > string2: True if sorts after
-
-        // 算术比较
-        case eq      // arg1 -eq arg2: Equal
-        case ne      // arg1 -ne arg2: Not equal
-        case lt      // arg1 -lt arg2: Less than
-        case le      // arg1 -le arg2: Less than or equal
-        case gt      // arg1 -gt arg2: Greater than
-        case ge      // arg1 -ge arg2: Greater than or equal
-
-        /// 是否为支持的操作符
-        /// 对应 Bun: pub fn isSupported(op: Op) bool
-        public func isSupported(): Bool {
-            switch (this) {
-                case .f, .z, .n, .d, .c, .eq_eq, .neq => true
-                else => false
-            }
+        | else
+    }
         }
 
         /// 是否为单参数操作符
@@ -1215,32 +1161,8 @@ public class AST {
 
     /// 简单Atom类型
     public enum SimpleAtom {
-        case Var(String)
-        case VarArgv(UInt8)
-        case Text(String)
-        /// 引号中的空字符串
-        case quoted_empty
-        /// * 通配符
-        case asterisk
-        /// ** 通配符
-        case double_asterisk
-        /// { 大括号开始
-        case brace_begin
-        /// } 大括号结束
-        case brace_end
-        /// , 逗号
-        case comma
-        /// ~ 波浪号
-        case tilde
-        /// 命令替换
-        case cmd_subst(CmdSubst)
-
-        /// 是否有glob提示
-        public func globHint(): Bool {
-            switch (this) {
-                case .asterisk, .double_asterisk => true
-                else => false
-            }
+        | else
+    }
         }
 
         /// 内存开销
@@ -1477,11 +1399,11 @@ public const SPECIAL_JS_CHAR: UInt8 = 8
 
 /// JS对象引用前缀
 /// 对应 Bun: pub const LEX_JS_OBJREF_PREFIX = &[_]u8{SPECIAL_JS_CHAR} ++ "__bun_"
-public const LEX_JS_OBJREF_PREFIX = "\x08__bun_"
+public const LEX_JS_OBJREF_PREFIX = "\u{08}__bun_"
 
 /// JS字符串引用前缀
 /// 对应 Bun: pub const LEX_JS_STRING_PREFIX = &[_]u8{SPECIAL_JS_CHAR} ++ "__bunstr_"
-public const LEX_JS_STRING_PREFIX = "\x08__bunstr_"
+public const LEX_JS_STRING_PREFIX = "\u{08}__bunstr_"
 
 // ============================================================================
 // Shell字符迭代器状态
@@ -1733,7 +1655,7 @@ public class SmolList<T> {
 
 /// 需要转义的特殊字符集合
 /// 对应 Bun: const SPECIAL_CHARS = [_]u8{ ... }
-public const SPECIAL_CHARS = "~[]#;\n*{,}`$=()0123456789|><&'\" \\" + "\x08"
+public const SPECIAL_CHARS = "~[]#;\n*{,}`$=()0123456789|><&'\" \\" + "\u{08}"
 
 /// 双引号中需要反斜杠的字符
 /// 对应 Bun: const BACKSLASHABLE_CHARS = [_]u8{ '$', '`', '"', '\\' }

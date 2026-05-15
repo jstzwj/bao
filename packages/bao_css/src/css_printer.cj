@@ -6,7 +6,7 @@
 //   对应: Targets - 目标浏览器
 //   对应: ImportInfo - 导入记录信息
 //   对应: StyleContext - 样式上下文 (用于嵌套规则)
-package bao.css
+package bao_css
 
 import bao_core.*
 import bao_collections.*

@@ -1,7 +1,7 @@
 // NodeHTTPResponse - Node.js 兼容的 HTTP 响应
 // 严格翻译自: Bun src/runtime/server/NodeHTTPResponse.zig
 // 对应: node:http 模块的 ServerResponse 实现
-package bao_runtime
+package bao_runtime.server
 
 import bao_core.*
 import bao_collections.*

@@ -1,7 +1,7 @@
 // Stats 和 BigIntStats 文件状态类
 // 对应 Bun: src/runtime/node/Stat.zig
 // 严格翻译自: src/runtime/node/Stat.zig
-package bao_runtime
+package bao_runtime.node
 
 // ============================================================================
 // Stats 类 — 文件状态信息（使用浮点时间）

@@ -7,16 +7,18 @@ version = "0.1.0"
 compile-option = ""
 override-compile-option = ""
 link-option = ""
-output-type = "library"
+output-type = "static"
 src-dir = "src"
 target-dir = ""
 
 [dependencies]
-bao_core = { path = "../bao_core" }
-bao_collections = { path = "../bao_collections" }
+bao_valkey = { path = "../bao_valkey" }
+bao_threading = { path = "../bao_threading" }
 bao_sys = { path = "../bao_sys" }
+bao_path = { path = "../bao_path" }
+bao_parser = { path = "../bao_parser" }
+bao_jsc = { path = "../bao_jsc" }
 bao_io = { path = "../bao_io" }
 bao_event_loop = { path = "../bao_event_loop" }
-bao_parser = { path = "../bao_parser" }
-bao_path = { path = "../bao_path" }
-bao_threading = { path = "../bao_threading" }
+bao_core = { path = "../bao_core" }
+bao_collections = { path = "../bao_collections" }

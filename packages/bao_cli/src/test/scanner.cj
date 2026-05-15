@@ -1,5 +1,5 @@
 // 严格翻译自: src/cli/test/Scanner.zig
-package bao_cli
+package bao_cli.test
 
 import bao_core.*
 

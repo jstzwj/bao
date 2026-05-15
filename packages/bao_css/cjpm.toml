@@ -1,0 +1,17 @@
+[package]
+cjc-version = "1.0.0"
+name = "bao_css"
+organization = "bao"
+description = "Bao CSS parser, printer, and transformer"
+version = "0.1.0"
+compile-option = ""
+override-compile-option = ""
+link-option = ""
+output-type = "static"
+src-dir = "src"
+target-dir = ""
+
+[dependencies]
+bao_hash = { path = "../bao_hash" }
+bao_core = { path = "../bao_core" }
+bao_collections = { path = "../bao_collections" }

@@ -1,7 +1,7 @@
 // 严格翻译自: src/runtime/webcore/s3/list_objects.zig
 // S3 ListObjectsV2 - 列出 S3 对象的实现
 // 包括 XML 解析、JS 选项解析和结果转换
-package bao_runtime
+package bao_runtime.webcore.s3
 
 import bao_core.*
 import bao_collections.*

@@ -1,10 +1,10 @@
 // 严格翻译自: src/runtime/test_runner/expect/toHaveReturnedWith.zig
 
-package bao_runtime
+package bao_runtime.test_runner.expect
 
 /// toHaveReturnedWith() - 检查mock函数是否以指定值返回
 /// 用法: expect(mockFn).toHaveReturnedWith(expected)
-public func toHaveReturnedWith(this: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toHaveReturnedWith(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()

@@ -6,7 +6,7 @@
 //   pub fn parseParam(line: []const u8) !Param(Help) { ... }
 //   pub const Help = struct { msg: []const u8, value: []const u8 }
 //   pub const Diagnostic = struct { ... }
-package bao.clap
+package bao_clap
 
 import bao_core.*
 import bao_collections.*

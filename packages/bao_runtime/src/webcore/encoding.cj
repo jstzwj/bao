@@ -1,7 +1,7 @@
 // Encoding - 编码工具
 // 对应 Bun: src/runtime/webcore/encoding.zig
 // 严格翻译自: src/runtime/webcore/encoding.zig
-package bao_runtime
+package bao_runtime.webcore
 
 import bao_core.*
 

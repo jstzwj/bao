@@ -1,10 +1,10 @@
 // 严格翻译自: src/runtime/test_runner/expect/toEqual.zig
 
-package bao_runtime
+package bao_runtime.test_runner.expect
 
 /// toEqual() - 深度相等比较
 /// 用法: expect(received).toEqual(expected)
-public func toEqual(this: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toEqual(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()

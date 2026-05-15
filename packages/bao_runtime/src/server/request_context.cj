@@ -1,7 +1,7 @@
 // RequestContext - HTTP 请求上下文
 // 严格翻译自: Bun src/runtime/server/RequestContext.zig
 // 对应: 每个请求的状态管理、响应渲染、生命周期控制
-package bao_runtime
+package bao_runtime.server
 
 import bao_core.*
 import bao_collections.*

@@ -3,7 +3,7 @@
 // 所有源映射都是引用计数的，以便当 WebSocket 断开连接或 bundle 被替换时，
 // 不可达的源映射 URL 被撤销。
 
-package bao_runtime
+package bao_runtime.bake.dev_server
 
 /// SourceMapStore - 源映射存储
 /// 所有源映射都是引用计数的，以便在 WebSocket 断开或 bundle 替换时撤销不可达的 URL。

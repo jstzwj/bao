@@ -5,7 +5,7 @@
 //   byte_offset_to_first_non_ascii: u32 = 0,
 //   byte_offset_to_start_of_line: u32 = 0,
 //   pub fn findLine, findIndex, generate
-package bao_sourcemap.line_offset_table
+package bao_sourcemap
 
 import bao_core.*
 

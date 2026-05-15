@@ -1,6 +1,6 @@
 // 严格翻译自: src/cli/patch_command.zig, src/cli/patch_commit_command.zig
 // bao patch / bao patch-commit - 修补本地依赖
-package bao_cli
+package bao_cli.commands
 
 import bao_core.*
 import bao_collections.*

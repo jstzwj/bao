@@ -1,7 +1,7 @@
 // 错误绑定模块
 // 对应 Bun: src/runtime/node/node_error_binding.zig
 // 严格翻译自: src/runtime/node/node_error_binding.zig
-package bao_runtime
+package bao_runtime.node
 
 // ============================================================================
 // 错误绑定 — 简单错误创建工厂

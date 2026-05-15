@@ -2,7 +2,7 @@
 // 严格翻译自: bun/src/css/selectors/
 //   对应: selectors/parser.zig - 选择器解析器
 //   对应: selectors/selector.zig - Component, Selector, SelectorList, Specificity
-package bao.css
+package bao_css
 
 import bao_core.*
 import bao_collections.*

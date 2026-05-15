@@ -1,7 +1,7 @@
 // bao_css - CSS @property 属性规则
 // 严格翻译自: bun/src/css/rules/property.rs
 //   对应: rules/property.zig - PropertyRule
-package bao.css
+package bao_css.rules
 
 import bao_core.*
 import bao_collections.*

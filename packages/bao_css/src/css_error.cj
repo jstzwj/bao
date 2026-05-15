@@ -1,5 +1,5 @@
 // 严格翻译自: src/css/error.zig
-package bao.css
+package bao_css
 
 import bao_core.*
 

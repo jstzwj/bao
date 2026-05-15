@@ -1,7 +1,7 @@
 // 内容编码枚举
 // 严格翻译自: src/http_types/Encoding.zig
 //   Bun 的内容编码: identity/gzip/deflate/brotli/zstd/chunked
-package bao.http_types
+package bao_http_types
 
 import bao_core.*
 

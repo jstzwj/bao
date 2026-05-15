@@ -4,7 +4,7 @@
 //   对应: BoxShadow (color/x_offset/y_offset/blur/spread/inset)
 // ============================================================================
 
-package bao.css
+package bao_css.properties
 
 import bao_core.*
 

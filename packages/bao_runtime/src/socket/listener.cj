@@ -1,7 +1,7 @@
 // Socket 监听器 — TCP/TLS 服务器监听管理
 // 对应 Bun: src/runtime/socket/Listener.zig
 // 管理 Bun.listen() 返回的监听器对象的生命周期
-package bao_runtime
+package bao_runtime.socket
 
 import bao_core.*
 import bao_collections.*

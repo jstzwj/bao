@@ -1,7 +1,7 @@
 // BlockList — IP 地址阻止列表
 // 对应 Bun: src/runtime/node/net/BlockList.zig
 // 严格翻译自: src/runtime/node/net/BlockList.zig
-package bao_runtime
+package bao_runtime.node.net
 
 // ============================================================================
 // 规则类型

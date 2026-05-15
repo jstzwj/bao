@@ -1,10 +1,10 @@
 // 严格翻译自: src/runtime/test_runner/expect/toBeWithin.zig
 
-package bao_runtime
+package bao_runtime.test_runner.expect
 
 /// toBeWithin() - 检查值是否在指定范围内 [start, end)
 /// 用法: expect(received).toBeWithin(start, end)
-public func toBeWithin(this: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toBeWithin(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()

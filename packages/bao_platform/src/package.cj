@@ -1,7 +1,7 @@
 // bao_platform - 平台检测与系统特定 API
 // 严格翻译自: bun/src/platform/ (linux.zig + darwin.zig, ~198行)
 //   操作系统、架构、libc 检测以及平台特定的系统调用封装
-package bao.platform
+package bao_platform
 
 import bao_core.*
 

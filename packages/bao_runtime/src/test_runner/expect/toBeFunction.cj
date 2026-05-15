@@ -1,10 +1,10 @@
 // 严格翻译自: src/runtime/test_runner/expect/toBeFunction.zig
 
-package bao_runtime
+package bao_runtime.test_runner.expect
 
 /// toBeFunction() - 检查值是否为函数类型
 /// 用法: expect(received).toBeFunction()
-public func toBeFunction(this: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toBeFunction(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()

@@ -1,7 +1,7 @@
 // TextEncoder - 文本编码器
 // 对应 Bun: src/runtime/webcore/TextEncoder.zig
 // 严格翻译自: src/runtime/webcore/TextEncoder.zig
-package bao_runtime
+package bao_runtime.webcore
 
 import bao_core.*
 

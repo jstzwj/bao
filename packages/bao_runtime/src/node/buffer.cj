@@ -1,7 +1,7 @@
 // Buffer 向量化填充操作
 // 对应 Bun: src/runtime/node/buffer.zig
 // 严格翻译自: src/runtime/node/buffer.zig
-package bao_runtime
+package bao_runtime.node
 
 // ============================================================================
 // BufferVectorized — Buffer 高效填充

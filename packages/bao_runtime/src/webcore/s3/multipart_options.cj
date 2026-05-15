@@ -1,6 +1,6 @@
 // 严格翻译自: src/runtime/webcore/s3/multipart_options.zig
 // MultiPartUploadOptions - S3 多部分上传选项
-package bao_runtime
+package bao_runtime.webcore.s3
 
 import bao_core.*
 

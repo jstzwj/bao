@@ -14,60 +14,28 @@ package bao_jsc
 //       TypeFloat16, TypeFloat32, TypeFloat64,
 //       TypeBigInt64, TypeBigUint64, TypeDataView,
 //   };
-public enum TypedArrayType <: UInt8 {
-    | TypeNone(0)
-    | TypeInt8(1)
-    | TypeUint8(2)
-    | TypeUint8Clamped(3)
-    | TypeInt16(4)
-    | TypeUint16(5)
-    | TypeInt32(6)
-    | TypeUint32(7)
-    | TypeFloat16(8)
-    | TypeFloat32(9)
-    | TypeFloat64(10)
-    | TypeBigInt64(11)
-    | TypeBigUint64(12)
-    | TypeDataView(13)
-
-    public init(value: UInt8) {
-        match (value) {
-            case 0 => this = TypeNone
-            case 1 => this = TypeInt8
-            case 2 => this = TypeUint8
-            case 3 => this = TypeUint8Clamped
-            case 4 => this = TypeInt16
-            case 5 => this = TypeUint16
-            case 6 => this = TypeInt32
-            case 7 => this = TypeUint32
-            case 8 => this = TypeFloat16
-            case 9 => this = TypeFloat32
-            case 10 => this = TypeFloat64
-            case 11 => this = TypeBigInt64
-            case 12 => this = TypeBigUint64
-            case 13 => this = TypeDataView
-            case _ => this = TypeNone
-        }
+public enum TypedArrayType {
+}
     }
 
     // 严格翻译自 TypedArrayType.toC
     // 转为 JSTypedArrayType C 枚举
     public func toC() -> Int32 {
         match (this) {
-            case TypeNone => 0       // kJSTypedArrayTypeNone
-            case TypeInt8 => 1       // kJSTypedArrayTypeInt8Array
-            case TypeInt16 => 3      // kJSTypedArrayTypeInt16Array
-            case TypeInt32 => 5      // kJSTypedArrayTypeInt32Array
-            case TypeUint8 => 2      // kJSTypedArrayTypeUint8Array
-            case TypeUint8Clamped => 4 // kJSTypedArrayTypeUint8ClampedArray
-            case TypeUint16 => 6     // kJSTypedArrayTypeUint16Array
-            case TypeUint32 => 7     // kJSTypedArrayTypeUint32Array
-            case TypeFloat16 => 0    // 不支持，映射为 None
-            case TypeFloat32 => 8    // kJSTypedArrayTypeFloat32Array
-            case TypeFloat64 => 9    // kJSTypedArrayTypeFloat64Array
-            case TypeBigInt64 => 10  // kJSTypedArrayTypeBigInt64Array
-            case TypeBigUint64 => 11 // kJSTypedArrayTypeBigUint64Array
-            case TypeDataView => 0   // 不支持，映射为 None
+            | TypeNone => 0       // kJSTypedArrayTypeNone
+            | TypeInt8 => 1       // kJSTypedArrayTypeInt8Array
+            | TypeInt16 => 3      // kJSTypedArrayTypeInt16Array
+            | TypeInt32 => 5      // kJSTypedArrayTypeInt32Array
+            | TypeUint8 => 2      // kJSTypedArrayTypeUint8Array
+            | TypeUint8Clamped => 4 // kJSTypedArrayTypeUint8ClampedArray
+            | TypeUint16 => 6     // kJSTypedArrayTypeUint16Array
+            | TypeUint32 => 7     // kJSTypedArrayTypeUint32Array
+            | TypeFloat16 => 0    // 不支持，映射为 None
+            | TypeFloat32 => 8    // kJSTypedArrayTypeFloat32Array
+            | TypeFloat64 => 9    // kJSTypedArrayTypeFloat64Array
+            | TypeBigInt64 => 10  // kJSTypedArrayTypeBigInt64Array
+            | TypeBigUint64 => 11 // kJSTypedArrayTypeBigUint64Array
+            | TypeDataView => 0   // 不支持，映射为 None
         }
     }
 
@@ -75,20 +43,20 @@ public enum TypedArrayType <: UInt8 {
     // 转为 napi_typedarray_type，不支持返回 None
     public func toNapi() -> ?Int32 {
         match (this) {
-            case TypeNone => None
-            case TypeInt8 => Some(0)         // int8_array
-            case TypeInt16 => Some(1)        // int16_array
-            case TypeInt32 => Some(2)        // int32_array
-            case TypeUint8 => Some(3)        // uint8_array
-            case TypeUint8Clamped => Some(4) // uint8_clamped_array
-            case TypeUint16 => Some(5)       // uint16_array
-            case TypeUint32 => Some(6)       // uint32_array
-            case TypeFloat16 => None
-            case TypeFloat32 => Some(7)      // float32_array
-            case TypeFloat64 => Some(8)      // float64_array
-            case TypeBigInt64 => Some(9)     // bigint64_array
-            case TypeBigUint64 => Some(10)   // biguint64_array
-            case TypeDataView => None
+            | TypeNone => None
+            | TypeInt8 => Some(0)         // int8_array
+            | TypeInt16 => Some(1)        // int16_array
+            | TypeInt32 => Some(2)        // int32_array
+            | TypeUint8 => Some(3)        // uint8_array
+            | TypeUint8Clamped => Some(4) // uint8_clamped_array
+            | TypeUint16 => Some(5)       // uint16_array
+            | TypeUint32 => Some(6)       // uint32_array
+            | TypeFloat16 => None
+            | TypeFloat32 => Some(7)      // float32_array
+            | TypeFloat64 => Some(8)      // float64_array
+            | TypeBigInt64 => Some(9)     // bigint64_array
+            | TypeBigUint64 => Some(10)   // biguint64_array
+            | TypeDataView => None
         }
     }
 }
@@ -96,79 +64,47 @@ public enum TypedArrayType <: UInt8 {
 // ========== BinaryType ==========
 // 严格翻译自 array_buffer.zig ArrayBuffer.BinaryType
 // 用于 WebSocket/Buffer 二进制类型选择
-public enum BinaryType <: UInt8 {
-    | Buffer(0)
-    | ArrayBuffer_(1)
-    | Uint8Array_(2)
-    | Uint8ClampedArray(3)
-    | Uint16Array(4)
-    | Uint32Array(5)
-    | Int8Array(6)
-    | Int16Array(7)
-    | Int32Array(8)
-    | Float16Array(9)
-    | Float32Array(10)
-    | Float64Array(11)
-    | BigInt64Array(12)
-    | BigUint64Array(13)
-
-    public init(value: UInt8) {
-        match (value) {
-            case 0 => this = Buffer
-            case 1 => this = ArrayBuffer_
-            case 2 => this = Uint8Array_
-            case 3 => this = Uint8ClampedArray
-            case 4 => this = Uint16Array
-            case 5 => this = Uint32Array
-            case 6 => this = Int8Array
-            case 7 => this = Int16Array
-            case 8 => this = Int32Array
-            case 9 => this = Float16Array
-            case 10 => this = Float32Array
-            case 11 => this = Float64Array
-            case 12 => this = BigInt64Array
-            case 13 => this = BigUint64Array
-            case _ => this = Buffer
-        }
+public enum BinaryType {
+}
     }
 
     // 严格翻译自 BinaryType.toJSType
     public func toJSType() -> JSType {
         match (this) {
-            case ArrayBuffer_ => JSType.ArrayBuffer
-            case Buffer => JSType.Uint8Array
-            case Float32Array => JSType.Float32Array
-            case Float16Array => JSType.Float16Array
-            case Float64Array => JSType.Float64Array
-            case Int16Array => JSType.Int16Array
-            case Int32Array => JSType.Int32Array
-            case Int8Array => JSType.Int8Array
-            case Uint16Array => JSType.Uint16Array
-            case Uint32Array => JSType.Uint32Array
-            case Uint8Array_ => JSType.Uint8Array
-            case Uint8ClampedArray => JSType.Uint8ClampedArray
-            case BigInt64Array => JSType.BigInt64Array
-            case BigUint64Array => JSType.BigUint64Array
+            | ArrayBuffer_ => JSType.ArrayBuffer
+            | Buffer => JSType.Uint8Array
+            | Float32Array => JSType.Float32Array
+            | Float16Array => JSType.Float16Array
+            | Float64Array => JSType.Float64Array
+            | Int16Array => JSType.Int16Array
+            | Int32Array => JSType.Int32Array
+            | Int8Array => JSType.Int8Array
+            | Uint16Array => JSType.Uint16Array
+            | Uint32Array => JSType.Uint32Array
+            | Uint8Array_ => JSType.Uint8Array
+            | Uint8ClampedArray => JSType.Uint8ClampedArray
+            | BigInt64Array => JSType.BigInt64Array
+            | BigUint64Array => JSType.BigUint64Array
         }
     }
 
     // 严格翻译自 BinaryType.toTypedArrayType
     public func toTypedArrayType() -> TypedArrayType {
         match (this) {
-            case Buffer => TypedArrayType.TypeNone
-            case ArrayBuffer_ => TypedArrayType.TypeNone
-            case Int8Array => TypedArrayType.TypeInt8
-            case Int16Array => TypedArrayType.TypeInt16
-            case Int32Array => TypedArrayType.TypeInt32
-            case Uint8Array_ => TypedArrayType.TypeUint8
-            case Uint8ClampedArray => TypedArrayType.TypeUint8Clamped
-            case Uint16Array => TypedArrayType.TypeUint16
-            case Uint32Array => TypedArrayType.TypeUint32
-            case Float16Array => TypedArrayType.TypeFloat16
-            case Float32Array => TypedArrayType.TypeFloat32
-            case Float64Array => TypedArrayType.TypeFloat64
-            case BigInt64Array => TypedArrayType.TypeBigInt64
-            case BigUint64Array => TypedArrayType.TypeBigUint64
+            | Buffer => TypedArrayType.TypeNone
+            | ArrayBuffer_ => TypedArrayType.TypeNone
+            | Int8Array => TypedArrayType.TypeInt8
+            | Int16Array => TypedArrayType.TypeInt16
+            | Int32Array => TypedArrayType.TypeInt32
+            | Uint8Array_ => TypedArrayType.TypeUint8
+            | Uint8ClampedArray => TypedArrayType.TypeUint8Clamped
+            | Uint16Array => TypedArrayType.TypeUint16
+            | Uint32Array => TypedArrayType.TypeUint32
+            | Float16Array => TypedArrayType.TypeFloat16
+            | Float32Array => TypedArrayType.TypeFloat32
+            | Float64Array => TypedArrayType.TypeFloat64
+            | BigInt64Array => TypedArrayType.TypeBigInt64
+            | BigUint64Array => TypedArrayType.TypeBigUint64
         }
     }
 
@@ -199,7 +135,7 @@ public enum BinaryType <: UInt8 {
             case "uint32array" => Some(Uint32Array)
             case "Uint8Array" => Some(Uint8Array_)
             case "uint8array" => Some(Uint8Array_)
-            case _ => None
+            | _ => None
         }
     }
 
@@ -216,10 +152,10 @@ public enum BinaryType <: UInt8 {
     // 将字节克隆为指定类型的 JS TypedArray
     public func toJS(bytes: Array<UInt8>, globalThis: JsObject) -> JsValue {
         match (this) {
-            case Buffer => JsArrayBuffer.createBuffer(globalThis, bytes)
-            case ArrayBuffer_ => JsArrayBuffer.create(globalThis, bytes, JSType.ArrayBuffer)
-            case Uint8Array_ => JsArrayBuffer.create(globalThis, bytes, JSType.Uint8Array)
-            case _ => {
+            | Buffer => JsArrayBuffer.createBuffer(globalThis, bytes)
+            | ArrayBuffer_ => JsArrayBuffer.create(globalThis, bytes, JSType.ArrayBuffer)
+            | Uint8Array_ => JsArrayBuffer.create(globalThis, bytes, JSType.Uint8Array)
+            | _ => {
                 // 其他类型: 先创建 ArrayBuffer，再用它创建 TypedArray
                 let abValue = JsArrayBuffer.create(globalThis, bytes, JSType.ArrayBuffer)
                 createTypedArrayFromArrayBufferFFI(globalThis, this.toTypedArrayType(), abValue)
@@ -292,21 +228,21 @@ public class JsArrayBuffer {
     // 根据 TypedArray 类型返回每元素字节数
     public func bytesPerElement() -> ?Int64 {
         match (typedArrayType) {
-            case JSType.ArrayBuffer => None
-            case JSType.DataView => None
-            case JSType.Uint8Array => Some(1)
-            case JSType.Uint8ClampedArray => Some(1)
-            case JSType.Int8Array => Some(1)
-            case JSType.Uint16Array => Some(2)
-            case JSType.Int16Array => Some(2)
-            case JSType.Float16Array => Some(2)
-            case JSType.Uint32Array => Some(4)
-            case JSType.Int32Array => Some(4)
-            case JSType.Float32Array => Some(4)
-            case JSType.BigUint64Array => Some(8)
-            case JSType.BigInt64Array => Some(8)
-            case JSType.Float64Array => Some(8)
-            case _ => None
+            | JSType.ArrayBuffer => None
+            | JSType.DataView => None
+            | JSType.Uint8Array => Some(1)
+            | JSType.Uint8ClampedArray => Some(1)
+            | JSType.Int8Array => Some(1)
+            | JSType.Uint16Array => Some(2)
+            | JSType.Int16Array => Some(2)
+            | JSType.Float16Array => Some(2)
+            | JSType.Uint32Array => Some(4)
+            | JSType.Int32Array => Some(4)
+            | JSType.Float32Array => Some(4)
+            | JSType.BigUint64Array => Some(8)
+            | JSType.BigInt64Array => Some(8)
+            | JSType.Float64Array => Some(8)
+            | _ => None
         }
     }
 
@@ -369,11 +305,11 @@ public class JsArrayBuffer {
     // 创建指定类型的 TypedArray/ArrayBuffer (克隆字节)
     public static func create(globalThis: JsObject, bytes: Array<UInt8>, kind: JSType) -> JsValue {
         match (kind) {
-            case JSType.Uint8Array =>
+            | JSType.Uint8Array =>
                 createUint8ArrayForCopyFFI(globalThis, bytes, false)
-            case JSType.ArrayBuffer =>
+            | JSType.ArrayBuffer =>
                 createArrayBufferForCopyFFI(globalThis, bytes)
-            case _ => JsValue.undefined()
+            | _ => JsValue.undefined()
         }
     }
 
@@ -381,11 +317,11 @@ public class JsArrayBuffer {
     // 严格翻译自 ArrayBuffer.createEmpty
     public static func createEmpty(globalThis: JsObject, kind: JSType) -> JsValue {
         match (kind) {
-            case JSType.Uint8Array =>
+            | JSType.Uint8Array =>
                 createUint8ArrayForCopyFFI(globalThis, [], false)
-            case JSType.ArrayBuffer =>
+            | JSType.ArrayBuffer =>
                 createArrayBufferForCopyFFI(globalThis, [])
-            case _ => JsValue.undefined()
+            | _ => JsValue.undefined()
         }
     }
 
@@ -408,15 +344,15 @@ public class JsArrayBuffer {
     public static func alloc(global: JsObject, kind: JSType, len: Int64) -> (JsValue, Array<UInt8>) {
         let bytes = Array<UInt8>(Int64(len))
         match (kind) {
-            case JSType.Uint8Array => {
+            | JSType.Uint8Array => {
                 let val = createUint8ArrayForCopyFFI(global, bytes, false)
                 (val, bytes)
             }
-            case JSType.ArrayBuffer => {
+            | JSType.ArrayBuffer => {
                 let val = createArrayBufferForCopyFFI(global, bytes)
                 (val, bytes)
             }
-            case _ => (JsValue.undefined(), bytes)
+            | _ => (JsValue.undefined(), bytes)
         }
     }
 
@@ -560,11 +496,11 @@ public class JsArrayBuffer {
     // 严格翻译自 ArrayBuffer.fromDefaultAllocator
     public static func fromDefaultAllocator(globalThis: JsObject, bytes: Array<UInt8>, typedArrayType: JSType) -> JsValue {
         match (typedArrayType) {
-            case JSType.ArrayBuffer =>
+            | JSType.ArrayBuffer =>
                 jsArrayBufferFromDefaultAllocatorFFI(globalThis, bytes)
-            case JSType.Uint8Array =>
+            | JSType.Uint8Array =>
                 JsUint8Array_.fromBytes(globalThis, bytes)
-            case _ => JsValue.undefined()
+            | _ => JsValue.undefined()
         }
     }
 

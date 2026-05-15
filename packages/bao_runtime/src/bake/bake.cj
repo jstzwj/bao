@@ -3,12 +3,10 @@
 // 它结合了 `Bun.build` 和 `Bun.serve`，提供热重载开发服务器、服务器组件和其他集成。
 // Bake 不是框架本身，而是框架构建的工具。
 
-package bao_runtime
+package bao_runtime.bake
 
 // 导入子模块
-public import dev_server.dev_server
-public import production.production
-public import framework_router.framework_router
+// DevServer is in bao_runtime.bake.dev_server package
 
 /// export default { app: ... };
 public const api_name: String = "app"
@@ -21,24 +19,13 @@ public enum Mode {
 }
 
 /// Side 枚举
-public enum Side <: UInt8 {
-    | client
-    | server
-
-    public func graph(): Graph {
-        match (this) {
-            case client => Graph.client
-            case server => Graph.server
-        }
+public enum Side {
+}
     }
 }
 
 /// Graph 枚举
-public enum Graph <: UInt8 {
-    | client
-    | server
-    /// 仅当 Framework 启用 .server_components.separate_ssr_graph 时使用
-    | ssr
+public enum Graph {
 }
 
 /// Zig 版本的 TypeScript 定义 'Bake.Options'
@@ -183,8 +170,8 @@ public class HmrRuntime {
 public func getHmrRuntime(side: Side): HmrRuntime {
     // 在实际实现中，这些会加载嵌入的 JS 代码
     match (side) {
-        case client => HmrRuntime(code: "// bake.client.js HMR runtime placeholder")
-        case server => HmrRuntime(code: "// bake.server.js HMR runtime placeholder")
+        | client => HmrRuntime(code: "// bake.client.js HMR runtime placeholder")
+        | server => HmrRuntime(code: "// bake.server.js HMR runtime placeholder")
     }
 }
 
@@ -201,8 +188,8 @@ public func addImportMetaDefines(
     define.insert("import.meta.env.PROD", DefineData.initBoolean(mode != Mode.development))
     // import.meta.env.MODE
     let mode_str: String = match (mode) {
-        case development => "development"
-        case production_dynamic | production_static => "production"
+        | development => "development"
+        | production_dynamic | production_static => "production"
     }
     define.insert("import.meta.env.MODE", DefineData.initStaticString(mode_str))
     // import.meta.env.SSR
@@ -228,13 +215,13 @@ public class PatternBuffer {
 
     public func prependPart(part: FrameworkRouterPart): Unit {
         match (part) {
-            case text(let text) =>
+            | text(let text) =>
                 prepend(text)
                 prepend("/")
-            case param(let name) | catch_all(let name) | catch_all_optional(let name) =>
+            | param(let name) | catch_all(let name) | catch_all_optional(let name) =>
                 prepend(name)
                 prepend("/:")
-            case group(_) => () // 分组不影响模式
+            | group(_) => () // 分组不影响模式
         }
     }
 

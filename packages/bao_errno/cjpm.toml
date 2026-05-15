@@ -1,0 +1,12 @@
+[package]
+cjc-version = "1.0.0"
+name = "bao_errno"
+organization = "bao"
+description = "Bao system error codes for Linux, macOS/Darwin, FreeBSD, and Windows"
+version = "0.1.0"
+compile-option = ""
+override-compile-option = ""
+link-option = ""
+output-type = "static"
+src-dir = "src"
+target-dir = ""

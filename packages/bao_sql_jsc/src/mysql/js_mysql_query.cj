@@ -1,7 +1,7 @@
 // 严格翻译自: src/sql_jsc/mysql/JSMySQLQuery.zig
 // MySQL JS 查询 - MySQL 查询的 JS 绑定
 
-package bao_sql_jsc
+package bao_sql_jsc.mysql
 
 import bao_core.*
 import bao_jsc.*

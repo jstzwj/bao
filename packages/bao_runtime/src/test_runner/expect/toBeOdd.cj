@@ -1,10 +1,10 @@
 // 严格翻译自: src/runtime/test_runner/expect/toBeOdd.zig
 
-package bao_runtime
+package bao_runtime.test_runner.expect
 
 /// toBeOdd() - 检查值是否为奇数
 /// 用法: expect(received).toBeOdd()
-public func toBeOdd(this: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toBeOdd(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()

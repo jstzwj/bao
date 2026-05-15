@@ -1,7 +1,7 @@
 // Socket 核心 — TCP/TLS 连接管理
 // 对应 Bun: src/runtime/socket/socket.zig
 // 包含 TCPSocket 和 TLSSocket 的完整生命周期管理
-package bao_runtime
+package bao_runtime.socket
 
 import bao_core.*
 import bao_collections.*

@@ -9,8 +9,6 @@
 //   仓颉实现提供等价的 Tagged Union 语义
 package bao_string
 
-import bao_string.wtf.*
-import bao_string.immutable.*
 
 // ============================================================================
 // Tag 枚举

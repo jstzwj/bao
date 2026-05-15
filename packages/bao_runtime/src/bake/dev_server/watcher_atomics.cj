@@ -2,7 +2,7 @@
 // 所有使用原子操作在 watcher <-> DevServer 之间通信的代码都在这里。
 // 它尝试尽可能回收内存，因为文件非常频繁地更新（HMR 的全部意义）。
 
-package bao_runtime
+package bao_runtime.bake.dev_server
 
 /// WatcherAtomics - 监控器原子操作
 /// 管理 watcher 线程和 DevServer 线程之间的通信。

@@ -1,0 +1,16 @@
+[package]
+cjc-version = "1.0.0"
+name = "bao_csrf"
+organization = "bao"
+description = "Bao bao_csrf module"
+version = "0.1.0"
+compile-option = ""
+override-compile-option = ""
+link-option = ""
+output-type = "static"
+src-dir = "src"
+target-dir = ""
+
+[dependencies]
+bao_hash = { path = "../bao_hash" }
+bao_core = { path = "../bao_core" }

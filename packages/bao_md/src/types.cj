@@ -19,57 +19,19 @@ public typealias SZ = UInt32
 // ============================================================================
 
 /// 块级元素类型，通过 enterBlock / leaveBlock 回调报告
-public enum BlockType <: UInt8 {
-    | doc
-    | quote
-    | ul
-    | ol
-    | li
-    | hr
-    | h
-    | code
-    | html
-    | p
-    | table
-    | thead
-    | tbody
-    | tr
-    | th
-    | td
+public enum BlockType {
 }
 
 /// 行内元素类型，通过 enterSpan / leaveSpan 回调报告
-public enum SpanType <: UInt8 {
-    | em
-    | strong
-    | a
-    | img
-    | code
-    | del
-    | latexmath
-    | latexmath_display
-    | wikilink
-    | u
+public enum SpanType {
 }
 
 /// 文本类型，通过 text 回调报告
-public enum TextType <: UInt8 {
-    | normal
-    | null_char
-    | br
-    | softbr
-    | entity
-    | code
-    | html
-    | latexmath
+public enum TextType {
 }
 
 /// 表格单元格对齐方式
-public enum Align <: UInt8 {
-    | default
-    | left
-    | center
-    | right
+public enum Align {
 }
 
 // ============================================================================
@@ -239,9 +201,7 @@ public class SpanDetail {
 // ============================================================================
 
 /// 子串类型
-public enum SubstrType <: UInt8 {
-    | normal
-    | entity
+public enum SubstrType {
 }
 
 /// 子串偏移
@@ -285,18 +245,7 @@ public class Attribute {
 // ============================================================================
 
 /// 块分析期间的行类型
-public enum LineType <: UInt8 {
-    | blank
-    | hr
-    | atxheader
-    | setextunderline
-    | setextheader
-    | indentedcode
-    | fencedcode
-    | html
-    | text
-    | table
-    | tableunderline
+public enum LineType {
 }
 
 /// 行分析结果
@@ -553,10 +502,10 @@ public func alignmentFromData(data: UInt32): Align {
 /// 获取对齐方式的字符串名称，默认返回 null
 public func alignmentName(alignment: Align): ?String {
     match (alignment) {
-        case Align.left => return "left"
-        case Align.center => return "center"
-        case Align.right => return "right"
-        case _ => return None
+        | Align.left => return "left"
+        | Align.center => return "center"
+        | Align.right => return "right"
+        | _ => return None
     }
 }
 
@@ -596,11 +545,11 @@ public class EmphDelim {
 public extension Align {
     static func fromUInt8(v: UInt8): Align {
         match (v) {
-            case 0 => Align.default
-            case 1 => Align.left
-            case 2 => Align.center
-            case 3 => Align.right
-            case _ => Align.default
+            | 0 => Align.default
+            | 1 => Align.left
+            | 2 => Align.center
+            | 3 => Align.right
+            | _ => Align.default
         }
     }
 }

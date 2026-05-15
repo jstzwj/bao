@@ -1,10 +1,10 @@
 // 严格翻译自: src/runtime/test_runner/expect/toBeValidDate.zig
 
-package bao_runtime
+package bao_runtime.test_runner.expect
 
 /// toBeValidDate() - 检查值是否为有效Date
 /// 用法: expect(received).toBeValidDate()
-public func toBeValidDate(this: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toBeValidDate(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()

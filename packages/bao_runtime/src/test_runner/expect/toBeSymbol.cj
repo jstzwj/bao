@@ -1,10 +1,10 @@
 // 严格翻译自: src/runtime/test_runner/expect/toBeSymbol.zig
 
-package bao_runtime
+package bao_runtime.test_runner.expect
 
 /// toBeSymbol() - 检查值是否为Symbol类型
 /// 用法: expect(received).toBeSymbol()
-public func toBeSymbol(this: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toBeSymbol(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()

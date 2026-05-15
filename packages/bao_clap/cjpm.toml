@@ -1,0 +1,16 @@
+[package]
+cjc-version = "1.0.0"
+name = "bao_clap"
+organization = "bao"
+description = "Bao bao_clap module"
+version = "0.1.0"
+compile-option = ""
+override-compile-option = ""
+link-option = ""
+output-type = "static"
+src-dir = "src"
+target-dir = ""
+
+[dependencies]
+bao_collections = { path = "../bao_collections" }
+bao_core = { path = "../bao_core" }

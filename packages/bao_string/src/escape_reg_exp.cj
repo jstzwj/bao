@@ -5,7 +5,6 @@
 //   - escapeRegExpForPackageNameMatching: '*' 变成 '.*' 而非 '\\*'
 package bao_string
 
-import bao_string.immutable.*
 
 // ============================================================================
 // 常量

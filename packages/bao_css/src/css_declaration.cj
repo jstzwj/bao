@@ -4,7 +4,7 @@
 //   对应: PropertyDeclarationParser - 属性声明解析
 //   对应: parse_declaration - 声明解析逻辑
 //   对应: DeclarationHandler - 声明处理器 (用于 minify)
-package bao.css
+package bao_css
 
 import bao_core.*
 import bao_collections.*

@@ -1,7 +1,7 @@
 // FileRoute - 文件路由 (从磁盘提供文件)
 // 严格翻译自: Bun src/runtime/server/FileRoute.zig
 // 对应: 从文件系统提供文件响应
-package bao_runtime
+package bao_runtime.server
 
 import bao_core.*
 import bao_collections.*

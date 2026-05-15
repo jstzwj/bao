@@ -1,6 +1,6 @@
 // 严格翻译自: src/cli/publish_command.zig
 // bao publish - 发布包到 npm registry
-package bao_cli
+package bao_cli.commands
 
 import bao_core.*
 import bao_collections.*

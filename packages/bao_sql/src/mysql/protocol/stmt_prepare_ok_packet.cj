@@ -1,6 +1,6 @@
 // MySQL PrepareOK 包 (独立版本)
 // 对应 Bun: src/sql/mysql/protocol/StmtPrepareOKPacket.zig
-package bao_sql
+package bao_sql.mysql.protocol
 
 /// MySQL 预编译语句准备 OK 包
 /// 对应 Bun: StmtPrepareOKPacket (struct)

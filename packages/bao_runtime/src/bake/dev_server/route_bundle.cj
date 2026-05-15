@@ -1,7 +1,7 @@
 // 翻译自 Bun: src/runtime/bake/DevServer/RouteBundle.zig
 // 路由 Bundle - 每个可导航路由的捆绑状态。
 
-package bao_runtime
+package bao_runtime.bake.dev_server
 
 /// 路由 Bundle - 每个可导航路由的捆绑状态
 public class RouteBundle {

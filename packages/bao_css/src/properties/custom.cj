@@ -4,7 +4,7 @@
 //        EnvironmentVariableName, UAEnvironmentVariable, Function,
 //        TokenOrValue, CSSWideKeyword, UnparsedProperty, CustomProperty, CustomPropertyName
 
-package bao.css
+package bao_css.properties
 
 import bao_core.*
 import bao_collections.*

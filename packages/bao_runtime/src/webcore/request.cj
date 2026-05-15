@@ -1,7 +1,7 @@
 // Request - HTTP 请求对象
 // 对应 Bun: src/runtime/webcore/Request.zig
 // 严格翻译自: src/runtime/webcore/Request.zig
-package bao_runtime
+package bao_runtime.webcore
 
 import bao_core.*
 import bao_collections.*

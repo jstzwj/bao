@@ -2,7 +2,7 @@
 // 从文件系统发现路由，由框架配置指导。
 // 与所有不同的范式无关。支持增量更新用于 DevServer，或序列化为二进制用于生产。
 
-package bao_runtime
+package bao_runtime.bake
 
 /// 从文件系统发现路由，由框架配置指导。
 /// 与所有不同的范式无关。支持增量更新用于 DevServer，或序列化为二进制用于生产。

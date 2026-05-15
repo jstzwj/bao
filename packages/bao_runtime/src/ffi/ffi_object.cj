@@ -1,7 +1,7 @@
 // FFI 对象 — 指针操作与内存读写
 // 对应 Bun: src/runtime/ffi/FFIObject.zig
 // 提供 ptr(), read(), toArrayBuffer(), toBuffer() 等指针操作
-package bao_runtime
+package bao_runtime.ffi
 
 import bao_core.*
 import bao_collections.*

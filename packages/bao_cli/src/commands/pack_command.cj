@@ -1,6 +1,6 @@
 // 严格翻译自: src/cli/pack_command.zig
 // bao pack - 创建 npm 包 tarball
-package bao_cli
+package bao_cli.commands
 
 import bao_core.*
 import bao_collections.*

@@ -10,7 +10,7 @@
 //   - S3CredentialsWithOptions: 带 JS 绑定的凭证
 //   - SignedHeaders: 签名头查找表
 //   - CanonicalRequest: 规范请求构建
-package bao_http
+package bao_http.s3_signing
 
 import bao_core.*
 import bao_hash.*

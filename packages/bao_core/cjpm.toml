@@ -7,6 +7,8 @@ version = "0.1.0"
 compile-option = ""
 override-compile-option = ""
 link-option = ""
-output-type = "library"
+output-type = "static"
 src-dir = "src"
 target-dir = ""
+
+[dependencies]

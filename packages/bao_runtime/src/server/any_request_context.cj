@@ -1,7 +1,7 @@
 // AnyRequestContext - 请求上下文的通用包装器
 // 严格翻译自: Bun src/runtime/server/AnyRequestContext.zig
 // 对应: 不同类型 (HTTP/HTTPS/Debug) 的 RequestContext 统一调度
-package bao_runtime
+package bao_runtime.server
 
 import bao_core.*
 import bao_collections.*

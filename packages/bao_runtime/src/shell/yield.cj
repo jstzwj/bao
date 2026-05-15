@@ -2,7 +2,7 @@
 // 对应 Bun: src/runtime/shell/Yield.zig
 // 严格翻译Bun shell协程Yield到仓颉
 
-package bao_runtime
+package bao_runtime.shell
 
 import bao_core.*
 import bao_collections.*

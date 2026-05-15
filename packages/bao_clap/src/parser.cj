@@ -31,7 +31,7 @@
 //           fn chainging(parser, state) ArgError!?Arg(Id) { ... }
 //       };
 //   };
-package bao.clap
+package bao_clap
 
 import bao_core.*
 import bao_collections.*

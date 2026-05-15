@@ -1,6 +1,6 @@
 // MySQL 包读取器
 // 对应 Bun: src/sql/mysql/protocol/NewReader.zig
-package bao_sql
+package bao_sql.mysql.protocol
 
 /// MySQL 包读取器
 /// 对应 Bun: NewReader (通过 NewReaderWrap 生成)

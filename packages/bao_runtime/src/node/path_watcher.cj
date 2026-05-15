@@ -1,7 +1,7 @@
 // POSIX 路径监视器
 // 对应 Bun: src/runtime/node/path_watcher.zig
 // 严格翻译自: src/runtime/node/path_watcher.zig
-package bao_runtime
+package bao_runtime.node
 
 // ============================================================================
 // PathWatcherManager — 进程全局路径监视管理器

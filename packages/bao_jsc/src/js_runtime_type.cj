@@ -23,52 +23,25 @@ package bao_jsc
 //       BigInt = 0x200,
 //       _,
 //   };
-public enum JSRuntimeType <: UInt16 {
-    | Nothing(0x0000)    // 无类型
-    | Function(0x0001)   // 函数
-    | Undefined(0x0002)  // undefined
-    | Null(0x0004)       // null
-    | Boolean(0x0008)    // 布尔值
-    | AnyInt(0x0010)     // 整数
-    | Number(0x0020)     // 数字 (含整数和浮点)
-    | String(0x0040)     // 字符串
-    | Object(0x0080)     // 对象
-    | Symbol(0x0100)     // Symbol
-    | BigInt(0x0200)     // BigInt
-    | Unknown(0xFFFF)    // 未知/默认
-
-    public init(value: UInt16) {
-        match (value) {
-            case 0x0000 => this = Nothing
-            case 0x0001 => this = Function
-            case 0x0002 => this = Undefined
-            case 0x0004 => this = Null
-            case 0x0008 => this = Boolean
-            case 0x0010 => this = AnyInt
-            case 0x0020 => this = Number
-            case 0x0040 => this = String
-            case 0x0080 => this = Object
-            case 0x0100 => this = Symbol
-            case 0x0200 => this = BigInt
-            case _ => this = Unknown
-        }
+public enum JSRuntimeType {
+}
     }
 
     // 获取原始值
     public func toUInt16() -> UInt16 {
         match (this) {
-            case Nothing => 0x0000
-            case Function => 0x0001
-            case Undefined => 0x0002
-            case Null => 0x0004
-            case Boolean => 0x0008
-            case AnyInt => 0x0010
-            case Number => 0x0020
-            case String => 0x0040
-            case Object => 0x0080
-            case Symbol => 0x0100
-            case BigInt => 0x0200
-            case Unknown => 0xFFFF
+            | Nothing => 0x0000
+            | Function => 0x0001
+            | Undefined => 0x0002
+            | Null => 0x0004
+            | Boolean => 0x0008
+            | AnyInt => 0x0010
+            | Number => 0x0020
+            | String => 0x0040
+            | Object => 0x0080
+            | Symbol => 0x0100
+            | BigInt => 0x0200
+            | Unknown => 0xFFFF
         }
     }
 

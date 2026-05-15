@@ -3,7 +3,7 @@
 // 严格翻译Bun shell解释器到仓颉
 // 这是一个基于状态机的树遍历、弹跳床驱动的延续传递风格解释器
 
-package bao_runtime
+package bao_runtime.shell
 
 import bao_core.*
 import bao_collections.*
@@ -97,7 +97,7 @@ public class CowFd {
     var beingUsed: Boolean = false
 
     /// 初始化
-    public static func init(fd: FD): CowFd {
+    public static func initFunc(fd: FD): CowFd {
         let this = CowFd()
         this.fd = fd
         return this
@@ -299,7 +299,7 @@ public class Interpreter {
     }
 
     /// 初始化解释器
-    public static func init(
+    public static func initFunc(
         eventLoop: EventLoopHandle,
         allocator: Allocator,
         shargs: ParsedShellScript.ShellArgs,
@@ -460,7 +460,7 @@ public class Interpreter {
     public class InterpreterChildPtr {
         public var ptr: Any
 
-        public static func init(p: Any): InterpreterChildPtr {
+        public static func initFunc(p: Any): InterpreterChildPtr {
             let cptr = InterpreterChildPtr()
             cptr.ptr = p
             return cptr

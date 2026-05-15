@@ -5,7 +5,7 @@
 //   - weakMatch(): 弱比较 (RFC 9110 §8.8.3.2)
 //   - appendToHeaders(): 基于内容哈希生成 ETag
 //   - ifNoneMatch(): If-None-Match 条件判断
-package bao.http_types
+package bao_http_types
 
 import bao_core.*
 import bao_hash.*

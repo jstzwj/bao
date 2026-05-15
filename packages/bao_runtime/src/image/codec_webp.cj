@@ -4,7 +4,7 @@
 // 使用 libwebpmux/libwebpdemux 处理 ICCP 块
 // 分发逻辑位于 codecs.zig; 此文件是编解码器主体
 
-package bao_runtime
+package bao_runtime.image
 
 // ============================================================================
 // WebP 外部结构

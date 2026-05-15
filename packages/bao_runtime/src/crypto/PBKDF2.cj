@@ -2,7 +2,7 @@
 // 对应 Bun: src/runtime/crypto/PBKDF2.zig
 // 严格1:1翻译自 Bun PBKDF2.zig
 
-package bao_runtime
+package bao_runtime.crypto
 
 import bao_core.*
 

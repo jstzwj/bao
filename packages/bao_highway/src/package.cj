@@ -11,7 +11,7 @@
 //
 //   Zig 版本通过 extern "c" 调用 C 实现的 SIMD 函数
 //   仓颉版本提供纯仓颉回退实现，后续可替换为原生 SIMD
-package bao.highway
+package bao_highway
 
 import bao_core.*
 

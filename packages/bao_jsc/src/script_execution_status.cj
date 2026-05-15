@@ -13,18 +13,8 @@ package bao_jsc
 //       suspended = 1,
 //       stopped = 2,
 //   };
-public enum ScriptExecutionStatus <: Int32 {
-    | Running(0)     // 脚本正在执行
-    | Suspended(1)   // 脚本已暂停 (如遇到断点或 debugger 语句)
-    | Stopped(2)     // 脚本已停止执行
-
-    public init(value: Int32) {
-        match (value) {
-            case 0 => this = Running
-            case 1 => this = Suspended
-            case 2 => this = Stopped
-            case _ => this = Stopped
-        }
+public enum ScriptExecutionStatus {
+}
     }
 
     // 是否正在运行

@@ -11,7 +11,7 @@
 //   对应: rules/container.zig - ContainerRule
 //   对应: rules/namespace.zig - NamespaceRule
 //   对应: rules/unknown.zig - UnknownAtRule
-package bao.css
+package bao_css
 
 import bao_core.*
 import bao_collections.*

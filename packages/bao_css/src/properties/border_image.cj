@@ -6,7 +6,7 @@
 //   对应: BorderImageProperty (bitflags)
 // ============================================================================
 
-package bao.css
+package bao_css.properties
 
 import bao_core.*
 

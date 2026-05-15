@@ -3,7 +3,7 @@
 // ~21-25 字节编码 <=100x100 图像的低阶 DCT 系数
 // 解码给出 <=32px 模糊图像，具有正确的平均颜色、宽高比和大致结构
 
-package bao_runtime
+package bao_runtime.image
 
 import std.math.*
 

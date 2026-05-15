@@ -1,7 +1,7 @@
 // TextDecoder - 文本解码器
 // 对应 Bun: src/runtime/webcore/TextDecoder.zig
 // 严格翻译自: src/runtime/webcore/TextDecoder.zig
-package bao_runtime
+package bao_runtime.webcore
 
 import bao_core.*
 

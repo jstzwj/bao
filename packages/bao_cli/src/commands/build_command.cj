@@ -1,7 +1,7 @@
 // 严格翻译自: src/cli/build_command.zig
 // Build 命令 — 核心打包命令
 // 对应 Bun: bun build <entry...> [flags]
-package bao_cli
+package bao_cli.commands
 
 import bao_core.*
 import bao_collections.*

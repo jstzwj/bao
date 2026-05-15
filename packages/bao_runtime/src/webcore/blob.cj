@@ -4,7 +4,7 @@
 // objects that reference the filesystem (Blob.Store.File). This is how
 // operations like writing `Store.File` to another `Store.File` knows to use a
 // basic file copy instead of a naive read write loop.
-package bao_runtime
+package bao_runtime.webcore
 
 import bao_core.*
 import bao_collections.*

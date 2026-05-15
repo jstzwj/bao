@@ -1,7 +1,7 @@
 // 严格翻译自: src/runtime/timer/WTFTimer.zig
 // WTF 定时器 - WebKit WTF::RunLoop::TimerBase 的 Bun 封装
 
-package bao_runtime
+package bao_runtime.timer
 
 import bao_core.*
 import bao_jsc.*

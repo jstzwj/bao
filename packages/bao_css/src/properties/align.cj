@@ -6,7 +6,7 @@
 //   对应: ContentDistribution, ContentPosition, OverflowPosition, SelfPosition
 // ============================================================================
 
-package bao.css
+package bao_css.properties
 
 import bao_core.*
 

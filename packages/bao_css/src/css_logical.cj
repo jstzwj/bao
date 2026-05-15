@@ -1,5 +1,5 @@
 // 严格翻译自: src/css/logical.zig
-package bao.css
+package bao_css
 
 // ============================================================================
 // PropertyCategory - 属性类别 (逻辑属性 vs 物理属性)

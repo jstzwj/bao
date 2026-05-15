@@ -1,10 +1,10 @@
 // 严格翻译自: src/runtime/test_runner/expect/toEndWith.zig
 
-package bao_runtime
+package bao_runtime.test_runner.expect
 
 /// toEndWith() - 检查字符串是否以指定后缀结尾
 /// 用法: expect(received).toEndWith(expected)
-public func toEndWith(this: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toEndWith(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()

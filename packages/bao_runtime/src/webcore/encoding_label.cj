@@ -1,7 +1,7 @@
 // EncodingLabel - 编码标签
 // 对应 Bun: src/runtime/webcore/EncodingLabel.zig
 // 严格翻译自: src/runtime/webcore/EncodingLabel.zig
-package bao_runtime
+package bao_runtime.webcore
 
 import bao_core.*
 

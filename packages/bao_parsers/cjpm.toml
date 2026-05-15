@@ -1,8 +1,11 @@
 [package]
+cjc-version = "1.0.0"
 name = "bao_parsers"
 version = "0.1.0"
 description = "General-purpose parsers: JSON, TOML, YAML, CSV"
 
+output-type = "static"
+src-dir = "src"
 [dependencies]
 bao_core = { path = "../bao_core" }
 bao_collections = { path = "../bao_collections" }

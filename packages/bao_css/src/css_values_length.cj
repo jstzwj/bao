@@ -3,7 +3,7 @@
 //   对应: values/length.zig - LengthValue, Length, LengthOrNumber, LengthPercentage, LengthPercentageOrAuto
 //   对应: values/position.zig - Position, PositionComponent, HorizontalPosition, VerticalPosition
 //   对应: values/angle.zig - Angle, AnglePercentage
-package bao.css
+package bao_css
 
 import bao_core.*
 import bao_collections.*

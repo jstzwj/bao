@@ -2,7 +2,7 @@
 // 对应 Bun 源文件: src/runtime/napi/napi.zig
 // 实现 Node.js 的 N-API 接口，使原生模块可以在 Bao 运行时中加载
 
-package bao_runtime
+package bao_runtime.napi
 
 // ============================================================================
 // N-API 状态码

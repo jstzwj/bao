@@ -2,7 +2,7 @@
 // 单个文件的打包源映射数据。
 // 由一个 IncrementalGraph 文件和/或多个 SourceMapStore 条目拥有。
 
-package bao_runtime
+package bao_runtime.bake.dev_server
 
 /// PackedMap - 单个文件的打包源映射数据。
 /// 由一个 IncrementalGraph 文件和/或多个 SourceMapStore 条目拥有。

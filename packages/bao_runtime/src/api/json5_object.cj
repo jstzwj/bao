@@ -1,5 +1,5 @@
 // 严格翻译自: src/runtime/api/JSON5Object.zig
-package bao_runtime
+package bao_runtime.api
 
 import bao_jsc.*
 import bao_core.*

@@ -6,7 +6,7 @@
 //     - PathPair 路径对
 //     - Dirname 路径工具
 //     - 完整的模块解析算法 (node_modules 遍历、exports 解析、tsconfig paths)
-package bao.resolver
+package bao_resolver
 
 import bao_core.*
 import bao_sys.*

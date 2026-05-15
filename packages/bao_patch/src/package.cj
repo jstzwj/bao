@@ -2,7 +2,7 @@
 // 严格翻译自: bun/src/patch/patch.zig
 //   统一差异格式的补丁文件解析与应用
 //   支持: 文件修改、文件创建、文件删除、文件重命名、模式更改
-package bao.patch
+package bao_patch
 
 import bao_core.*
 

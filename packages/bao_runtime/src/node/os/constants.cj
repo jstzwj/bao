@@ -1,7 +1,7 @@
 // 操作系统常量定义
 // 对应 Bun: src/runtime/node/os/constants.zig
 // 严格翻译自: src/runtime/node/os/constants.zig
-package bao_runtime
+package bao_runtime.node.os
 
 // ============================================================================
 // OS 常量创建

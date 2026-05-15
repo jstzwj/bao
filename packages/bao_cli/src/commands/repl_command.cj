@@ -1,6 +1,6 @@
 // 严格翻译自: src/cli/repl_command.zig
 // bao repl - 交互式 JavaScript REPL
-package bao_cli
+package bao_cli.commands
 
 import bao_core.*
 import bao_collections.*

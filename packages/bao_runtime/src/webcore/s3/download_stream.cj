@@ -1,7 +1,7 @@
 // 严格翻译自: src/runtime/webcore/s3/download_stream.zig
 // S3HttpDownloadStreamingTask - S3 流式下载任务
 // 通过 HTTP 流式下载 S3 对象，支持回调式数据报告
-package bao_runtime
+package bao_runtime.webcore.s3
 
 import bao_core.*
 import bao_collections.*

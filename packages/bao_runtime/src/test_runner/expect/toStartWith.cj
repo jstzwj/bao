@@ -1,10 +1,10 @@
 // 严格翻译自: src/runtime/test_runner/expect/toStartWith.zig
 
-package bao_runtime
+package bao_runtime.test_runner.expect
 
 /// toStartWith() - 检查字符串是否以指定前缀开头
 /// 用法: expect(received).toStartWith(expected)
-public func toStartWith(this: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toStartWith(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()

@@ -6,7 +6,7 @@
 //   对应: DependencyOptions - 依赖分析选项
 //   对应: SourceRange - 源码位置范围
 //   对应: Location - 行列位置
-package bao.css
+package bao_css
 
 import bao_core.*
 import bao_collections.*

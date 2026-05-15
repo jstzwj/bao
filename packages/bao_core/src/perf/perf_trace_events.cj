@@ -2,7 +2,7 @@
 // 严格翻译自: src/perf/generated_perf_trace_events.zig
 //   由 scripts/generate-perf-trace-events.sh 自动生成
 //   Bun 的每个 trace() 调用必须对应此枚举中的一个值
-package bao_core
+package bao_core.perf
 
 /// 性能追踪事件
 /// 严格对应 Bun: PerfEvent = enum(i32)

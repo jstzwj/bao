@@ -1,7 +1,7 @@
 // bao_css - CSS @counter-style 计数器样式规则
 // 严格翻译自: bun/src/css/rules/counter_style.rs
 //   对应: rules/counter_style.zig - CounterStyleRule
-package bao.css
+package bao_css.rules
 
 import bao_core.*
 import bao_collections.*

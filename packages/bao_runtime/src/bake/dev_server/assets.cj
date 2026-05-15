@@ -1,7 +1,7 @@
 // 翻译自 Bun: src/runtime/bake/DevServer/Assets.zig
 // 用于 /_bun/asset/{hash}.ext 上的哈希资产存储
 
-package bao_runtime
+package bao_runtime.bake.dev_server
 
 /// 哈希资产存储。通过 /_bun/asset/{hash}.ext 提供。
 /// 键是绝对路径，与 IncrementalGraph(.client) 中的键共享内存。

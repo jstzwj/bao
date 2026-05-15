@@ -1,6 +1,6 @@
 // 严格翻译自: src/runtime/socket/uws_jsc.zig
 // JSC 桥接 — uws 类型的 JS 绑定
-package bao_runtime
+package bao_runtime.socket
 
 import bao_core.*
 import bao_collections.*

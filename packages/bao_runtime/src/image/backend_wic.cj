@@ -13,7 +13,7 @@
 // 每线程调用一次 CoInitializeEx(COINIT_MULTITHREADED); MTA 对 WIC 没问题,
 // 意味着工厂指针可以在池线程之间共享。
 
-package bao_runtime
+package bao_runtime.image
 
 // ============================================================================
 // COM 基础类型

@@ -1,6 +1,6 @@
 // 严格翻译自: src/css/values/color.zig
 // CSS 颜色值类型 - 完整的颜色空间支持
-package bao.css
+package bao_css.values
 
 import bao_core.*
 import bao_collections.*

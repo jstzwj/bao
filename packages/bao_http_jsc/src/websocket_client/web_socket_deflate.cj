@@ -1,6 +1,6 @@
 // 严格翻译自: src/http_jsc/websocket_client/WebSocketDeflate.zig
 //! Manages the DEFLATE compression and decompression streams for a WebSocket connection.
-package bao_http_jsc
+package bao_http_jsc.websocket_client
 
 import bao_jsc.*
 import bao_core.*

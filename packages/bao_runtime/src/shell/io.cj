@@ -2,7 +2,7 @@
 // 对应 Bun: src/runtime/shell/IO.zig
 // 严格翻译Bun shell IO到仓颉
 
-package bao_runtime
+package bao_runtime.shell
 
 import bao_core.*
 import bao_jsc.*

@@ -1,7 +1,7 @@
 // 严格翻译自: src/sql_jsc/mysql/protocol/Signature.zig
 // MySQL 查询签名 - 生成预处理语句的参数类型签名
 
-package bao_sql_jsc
+package bao_sql_jsc.mysql.protocol
 
 import bao_core.*
 import bao_jsc.*

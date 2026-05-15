@@ -1,7 +1,7 @@
 // Node.js process 模块 — 进程信息与控制
 // 对应 Bun: src/runtime/node/process.zig
 // 严格翻译 Bun 的 Node.js process 兼容层
-package bao_runtime
+package bao_runtime.node_api
 
 import bao_core.*
 import bao_collections.*

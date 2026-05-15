@@ -4,7 +4,7 @@
 //   对应: Property::variant_tag, property_id_mixin, property_mixin
 // ============================================================================
 
-package bao.css
+package bao_css.properties
 
 import bao_core.*
 

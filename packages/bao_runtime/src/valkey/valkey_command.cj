@@ -1,10 +1,10 @@
 // Valkey 命令 - RESP 协议命令序列化与 Promise 管理
 // 严格翻译自: bun/src/runtime/valkey_jsc/ValkeyCommand.zig
-package bao_runtime
+package bao_runtime.valkey
 
 import bao_core.*
 import bao_collections.*
-import bao.valkey.*
+import bao_valkey.*
 
 // ============================================================================
 // ValkeyCommand - Redis 命令

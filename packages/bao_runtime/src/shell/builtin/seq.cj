@@ -2,7 +2,7 @@
 // 对应 Bun: src/runtime/shell/builtin/seq.zig
 // 严格翻译Bun shell seq命令到仓颉
 
-package bao_runtime
+package bao_runtime.shell.builtin
 
 import bao_core.*
 
@@ -17,11 +17,11 @@ public class SeqCmd {
     /// 缓冲区
     public var buf: ArrayList<Byte> = ArrayList<Byte>()
     /// 起始值
-    public var startVal: Float32 = 1.0f
+    public var startVal: Float32 = 1.0f32
     /// 结束值
-    public var endVal: Float32 = 1.0f
+    public var endVal: Float32 = 1.0f32
     /// 增量
-    public var increment: Float32 = 1.0f
+    public var increment: Float32 = 1.0f32
     /// 分隔符
     public var separator: String = "\n"
     /// 终止符
@@ -96,7 +96,7 @@ public class SeqCmd {
         }
         this.endVal = int1
         if (this.startVal > this.endVal) {
-            this.increment = -1.0f
+            this.increment = -1.0f32
         }
         iterIdx++
 
@@ -113,10 +113,10 @@ public class SeqCmd {
         this.startVal = int1
         this.endVal = int2
         if (this.startVal < this.endVal) {
-            this.increment = 1.0f
+            this.increment = 1.0f32
         }
         if (this.startVal > this.endVal) {
-            this.increment = -1.0f
+            this.increment = -1.0f32
         }
         iterIdx++
 
@@ -134,13 +134,13 @@ public class SeqCmd {
         this.increment = int2
         this.endVal = int3
 
-        if (this.increment == 0.0f) {
+        if (this.increment == 0.0f32) {
             return this.fail("seq: zero increment\n")
         }
-        if (this.startVal > this.endVal && this.increment > 0.0f) {
+        if (this.startVal > this.endVal && this.increment > 0.0f32) {
             return this.fail("seq: needs negative decrement\n")
         }
-        if (this.startVal < this.endVal && this.increment < 0.0f) {
+        if (this.startVal < this.endVal && this.increment < 0.0f32) {
             return this.fail("seq: needs positive increment\n")
         }
 

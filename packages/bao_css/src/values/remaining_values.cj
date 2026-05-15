@@ -10,7 +10,7 @@
 //   对应: values/syntax.zig - SyntaxString, ParsedComponent
 //   对应: values/time.zig - Time
 //   对应: values/url.zig - Url
-package bao.css
+package bao_css.values
 
 import bao_core.*
 import bao_collections.*

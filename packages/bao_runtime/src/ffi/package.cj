@@ -1,7 +1,7 @@
 // FFI 模块入口
 // 对应 Bun: src/runtime/ffi/mod.rs
 // 汇总导出所有 FFI 相关类型
-package bao_runtime
+package bao_runtime.ffi
 
 // ABI 类型
 public typealias FfiAbiType = AbiType

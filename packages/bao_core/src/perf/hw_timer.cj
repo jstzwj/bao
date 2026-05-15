@@ -6,7 +6,7 @@
 //   - 回退: clock_gettime(CLOCK_MONOTONIC) 通过 vDSO (~20ns)
 //   - nowNs(): 校准到与 OS 单调时钟相同的纪元
 //   仓颉: 通过 C FFI 调用 clock_gettime 实现等价功能
-package bao_core
+package bao_core.perf
 
 // ============================================================================
 // C FFI 声明

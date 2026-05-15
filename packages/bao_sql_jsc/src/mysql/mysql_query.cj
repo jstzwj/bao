@@ -1,7 +1,7 @@
 // 严格翻译自: src/sql_jsc/mysql/MySQLQuery.zig
 // MySQL 查询 - 查询状态和执行管理
 
-package bao_sql_jsc
+package bao_sql_jsc.mysql
 
 import bao_core.*
 import bao_jsc.*

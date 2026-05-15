@@ -1,10 +1,10 @@
 // 严格翻译自: src/runtime/test_runner/expect/toHaveBeenCalledWith.zig
 
-package bao_runtime
+package bao_runtime.test_runner.expect
 
 /// toHaveBeenCalledWith() - 检查mock函数是否以指定参数被调用
 /// 用法: expect(mockFn).toHaveBeenCalledWith(...expected)
-public func toHaveBeenCalledWith(this: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toHaveBeenCalledWith(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()

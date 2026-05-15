@@ -1,6 +1,6 @@
 // 严格翻译自: src/http_jsc/websocket_client/WebSocketProxyTunnel.zig
 //! WebSocketProxyTunnel handles TLS inside an HTTP CONNECT tunnel for wss:// through HTTP proxy.
-package bao_http_jsc
+package bao_http_jsc.websocket_client
 
 import bao_jsc.*
 import bao_core.*

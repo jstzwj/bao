@@ -1,10 +1,10 @@
 // 严格翻译自: src/runtime/test_runner/expect/toHaveBeenNthCalledWith.zig
 
-package bao_runtime
+package bao_runtime.test_runner.expect
 
 /// toHaveBeenNthCalledWith() - 检查mock函数第N次调用的参数
 /// 用法: expect(mockFn).toHaveBeenNthCalledWith(n, ...expected)
-public func toHaveBeenNthCalledWith(this: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toHaveBeenNthCalledWith(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()

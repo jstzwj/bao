@@ -1,7 +1,7 @@
 // bao_css - CSS Alpha 值类型
 // 严格翻译自: bun/src/css/values/alpha.rs
 //   对应: values/alpha.zig - AlphaValue
-package bao.css
+package bao_css.values
 
 import bao_core.*
 

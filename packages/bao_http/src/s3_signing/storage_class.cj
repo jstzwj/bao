@@ -4,7 +4,7 @@
 //   - StorageClass enum: STANDARD, STANDARD_IA, INTELLIGENT_TIERING, ...
 //   - toString(): 返回 S3 API 格式字符串
 //   - ComptimeStringMap: 字符串反向查找
-package bao_http
+package bao_http.s3_signing
 
 // ============================================================================
 // S3StorageClass - S3 存储类别

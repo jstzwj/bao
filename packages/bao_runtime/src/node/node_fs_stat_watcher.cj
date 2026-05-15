@@ -1,7 +1,7 @@
 // 文件系统 Stat 监视器
 // 对应 Bun: src/runtime/node/node_fs_stat_watcher.zig
 // 严格翻译自: src/runtime/node/node_fs_stat_watcher.zig
-package bao_runtime
+package bao_runtime.node
 
 // ============================================================================
 // Stat 监视器事件

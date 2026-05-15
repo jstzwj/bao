@@ -18,10 +18,7 @@ import bao_core.*
 // ============================================================================
 
 // 可执行文件格式检测 - 严格翻译自 src/exe_format/macho.zig utils + src/exe_format/pe.zig utils
-public import bao_exe_format.exe_format.*
 
 // Mach-O 格式解析 - 严格翻译自 src/exe_format/macho.zig + macho.rs
-public import bao_exe_format.macho.*
 
 // PE/COFF 格式解析 - 严格翻译自 src/exe_format/pe.zig + pe.rs
-public import bao_exe_format.pe.*

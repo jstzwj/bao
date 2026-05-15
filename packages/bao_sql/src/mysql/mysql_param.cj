@@ -1,6 +1,6 @@
 // MySQL 参数描述符
 // 对应 Bun: src/sql/mysql/MySQLParam.zig
-package bao_sql
+package bao_sql.mysql
 
 /// MySQL 预编译语句参数描述
 /// 对应 Bun: MySQLParam.Param (struct)

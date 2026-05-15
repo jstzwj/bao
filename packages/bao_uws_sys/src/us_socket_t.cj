@@ -90,10 +90,10 @@ foreign func us_socket_start_tls_handshake(s: CPointer<Unit>): Unit
 
 /// 关闭代码
 /// 对应 Bun: pub const CloseCode = enum(i32)
-public enum CloseCode <: Int32 {
-    normal = 0
-    failure = 1
-    fast_shutdown = 2
+public enum CloseCode {
+    | normal
+    | failure
+    | fast_shutdown
 }
 
 /// 对应 Bun: pub const us_socket_t = opaque

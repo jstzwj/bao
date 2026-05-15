@@ -1,7 +1,7 @@
 // 严格翻译自: src/sql_jsc/postgres/DataCell.zig
 // Postgres 数据单元格 - 处理各种 PostgreSQL 数据类型
 
-package bao_sql_jsc
+package bao_sql_jsc.postgres
 
 import bao_core.*
 import bao_jsc.*

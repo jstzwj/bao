@@ -1,7 +1,7 @@
 // Web API URL 模块
 // 对应 Bun: src/runtime/api/URL.zig
 // 严格翻译 Bun 的 URL API
-package bao_runtime
+package bao_runtime.web_api
 
 import bao_core.*
 import bao_collections.*

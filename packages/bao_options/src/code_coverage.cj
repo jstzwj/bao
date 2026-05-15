@@ -1,7 +1,7 @@
 // CodeCoverageOptions - 代码覆盖率选项
 // 严格翻译自: bun/src/options_types/CodeCoverageOptions.zig
 //   pub const CodeCoverageOptions = struct { ... };
-package bao.options
+package bao_options
 
 import bao_core.*
 

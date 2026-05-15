@@ -1,7 +1,7 @@
 // bao_picohttp - HTTP/1.x 协议解析器类型与常量
 // 严格翻译自: bun/src/picohttp/picohttp.zig (387行)
 //   基于 picohttpparser 的 HTTP 请求/响应解析类型
-package bao.picohttp
+package bao_picohttp
 
 import bao_core.*
 

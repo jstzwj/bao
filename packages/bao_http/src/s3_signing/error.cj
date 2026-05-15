@@ -5,7 +5,7 @@
 //   - getSignErrorMessage(): 获取签名错误的用户友好消息
 //   - getSignErrorCodeAndMessage(): 获取签名错误的错误码和消息
 //   - S3Error: 完整的 S3 错误结构
-package bao_http
+package bao_http.s3_signing
 
 import bao_core.*
 

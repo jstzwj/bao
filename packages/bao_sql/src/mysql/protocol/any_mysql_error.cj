@@ -1,6 +1,6 @@
 // MySQL 错误类型定义
 // 对应 Bun: src/sql/mysql/protocol/AnyMySQLError.zig
-package bao_sql
+package bao_sql.mysql.protocol
 
 /// MySQL 错误枚举
 /// 对应 Bun: AnyMySQLError.Error (error set)

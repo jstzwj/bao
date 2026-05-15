@@ -6,27 +6,8 @@ package bao_jsc
 // ========== CommonStringsForZig 枚举 ==========
 // 严格翻译自 CommonStrings.zig CommonStringsForZig
 // 常用字符串的枚举标识符，所有 getter 返回 JSC::JSString
-public enum CommonStringsForZig <: UInt8 {
-    | IPv4(0)
-    | IPv6(1)
-    | IN4Loopback(2)
-    | IN6Any(3)
-    | IPv4Lower(4)
-    | IPv6Lower(5)
-    | FetchDefault(6)
-    | FetchError(7)
-    | FetchInclude(8)
-    | Buffer(9)
-    | BinaryTypeArrayBuffer(10)
-    | BinaryTypeNodeBuffer(11)
-    | BinaryTypeUint8Array(12)
-
-    // 严格翻译自 toJS
-    // 转换为 JS 值（通过 FFI 调用 Bun__CommonStringsForZig__toJS）
-    public func toJS(globalObject: JsGlobalObject) -> JsValue {
-        // FFI: extern "c" fn Bun__CommonStringsForZig__toJS(commonString, globalObject) JsValue
-        JsValue.undefined()
-    }
+public enum CommonStringsForZig {
+}
 }
 
 // ========== CommonStrings ==========

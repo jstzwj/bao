@@ -1,7 +1,7 @@
 // Node.js path 模块 — 路径操作 API
 // 对应 Bun: src/runtime/node/path.zig
 // 严格翻译 Bun 的 Node.js path 兼容层
-package bao_runtime
+package bao_runtime.node_api
 
 import bao_core.*
 import bao_path.*

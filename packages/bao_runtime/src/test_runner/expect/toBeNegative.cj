@@ -1,10 +1,10 @@
 // 严格翻译自: src/runtime/test_runner/expect/toBeNegative.zig
 
-package bao_runtime
+package bao_runtime.test_runner.expect
 
 /// toBeNegative() - 检查值是否为负数
 /// 用法: expect(received).toBeNegative()
-public func toBeNegative(this: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toBeNegative(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()

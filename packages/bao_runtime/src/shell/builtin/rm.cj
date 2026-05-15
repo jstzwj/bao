@@ -2,7 +2,7 @@
 // 对应 Bun: src/runtime/shell/builtin/rm.zig
 // 严格翻译Bun shell rm命令到仓颉
 
-package bao_runtime
+package bao_runtime.shell.builtin
 
 import bao_core.*
 
@@ -30,6 +30,8 @@ public class RmCmd {
     }
 
     /// 解析选项状态
+    /// 对应 Bun: parse_opts struct in Rm state
+    public struct ParseOptsState {
         public var argsSlice: Array<String>
         public var idx: UInt32 = 0
         public var innerState: ParseOptsInnerState = .normal
@@ -42,6 +44,8 @@ public class RmCmd {
     }
 
     /// 执行状态
+    /// 对应 Bun: exec struct in Rm state
+    public struct ExecState {
         public var filepathArgs: Array<String>
         public var totalTasks: UIntPtr = 0
         public var err: ?SyscallError = None

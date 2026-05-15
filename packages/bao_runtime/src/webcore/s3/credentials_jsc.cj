@@ -1,7 +1,7 @@
 // 严格翻译自: src/runtime/webcore/s3/credentials_jsc.zig
 // S3Credentials.getCredentialsWithOptions - 从 JS 选项对象解析为 S3CredentialsWithOptions
 // 因为它需要访问 jsc.JSValue，所以放在 runtime/webcore/s3/ 而非 s3_signing/
-package bao_runtime
+package bao_runtime.webcore.s3
 
 import bao_core.*
 import bao_collections.*

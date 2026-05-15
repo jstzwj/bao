@@ -6,7 +6,7 @@
 // 会被调用，计算所需的总长度。调用 takeJSBundle 连接所有 chunk，
 // 产生发送到客户端或在服务器上执行的代码。
 
-package bao_runtime
+package bao_runtime.bake.dev_server
 
 /// 增量图 - 存储 Bake 的增量捆绑状态。
 /// 此泛型结构根据 side 参数为客户端和服务器端分别实例化。

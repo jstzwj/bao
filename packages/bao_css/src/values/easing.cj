@@ -1,7 +1,7 @@
 // bao_css - CSS 缓动函数
 // 严格翻译自: bun/src/css/values/easing.rs
 //   对应: values/easing.zig - EasingFunction, CubicBezier, Steps, StepPosition
-package bao.css
+package bao_css.values
 
 import bao_core.*
 

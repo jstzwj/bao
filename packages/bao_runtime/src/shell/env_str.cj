@@ -2,7 +2,7 @@
 // 对应 Bun: src/runtime/shell/EnvStr.zig
 // 严格翻译Bun环境变量字符串到仓颉
 
-package bao_runtime
+package bao_runtime.shell
 
 import bao_core.*
 

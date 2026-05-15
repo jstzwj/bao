@@ -1,7 +1,7 @@
 // Crypto - Web Crypto API
 // 对应 Bun: src/runtime/webcore/Crypto.zig
 // 严格翻译自: src/runtime/webcore/Crypto.zig
-package bao_runtime
+package bao_runtime.webcore
 
 import bao_core.*
 

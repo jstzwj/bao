@@ -4,7 +4,6 @@
 //   包含: Log/Msg/Location/Range/Source 等类型
 package bao_core
 
-import bao_collections.*
 
 // ============================================================================
 // Kind - 日志消息类型

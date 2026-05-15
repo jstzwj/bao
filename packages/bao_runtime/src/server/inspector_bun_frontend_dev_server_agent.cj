@@ -1,6 +1,6 @@
 // 严格翻译自: src/runtime/server/InspectorBunFrontendDevServerAgent.zig
 // Inspector Bun 前端开发服务器代理 - 用于通知 Inspector 关于开发服务器事件
-package bao_runtime
+package bao_runtime.server
 
 import bao_core.*
 import bao_jsc.*

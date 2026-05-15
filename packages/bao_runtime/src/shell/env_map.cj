@@ -2,7 +2,7 @@
 // 对应 Bun: src/runtime/shell/EnvMap.zig
 // 严格翻译Bun环境变量映射到仓颉
 
-package bao_runtime
+package bao_runtime.shell
 
 import bao_core.*
 import bao_collections.*
@@ -19,7 +19,7 @@ public class EnvMap {
     var map: HashMap<EnvStr, EnvStr>
 
     /// 初始化
-    public static func init(alloc: Allocator): EnvMap {
+    public static func initFunc(alloc: Allocator): EnvMap {
         EnvMap(map: HashMap<EnvStr, EnvStr>())
     }
 

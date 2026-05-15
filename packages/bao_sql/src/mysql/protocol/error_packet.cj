@@ -1,6 +1,6 @@
 // MySQL 错误包
 // 对应 Bun: src/sql/mysql/protocol/ErrorPacket.zig
-package bao_sql
+package bao_sql.mysql.protocol
 
 /// MySQL 错误包选项
 /// 对应 Bun: MySQLErrorOptions (struct)

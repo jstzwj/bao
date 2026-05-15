@@ -1,6 +1,6 @@
 // 严格翻译自: src/runtime/socket/tls_socket_functions.zig
 // TLS Socket 函数 — TLS 连接的各种属性和方法
-package bao_runtime
+package bao_runtime.socket
 
 import bao_core.*
 import bao_collections.*

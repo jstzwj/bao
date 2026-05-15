@@ -1,7 +1,7 @@
 // 严格翻译自: src/cli/run_command.zig
 // Run 命令 — 运行脚本和文件的核心命令
 // 对应 Bun: bun run <script> / bun <file> / bun run <bin>
-package bao_cli
+package bao_cli.commands
 
 import bao_core.*
 import bao_collections.*

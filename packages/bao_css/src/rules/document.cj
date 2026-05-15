@@ -1,7 +1,7 @@
 // bao_css - CSS @-moz-document 规则
 // 严格翻译自: bun/src/css/rules/document.rs
 //   对应: rules/document.zig - MozDocumentRule
-package bao.css
+package bao_css.rules
 
 import bao_core.*
 import bao_collections.*

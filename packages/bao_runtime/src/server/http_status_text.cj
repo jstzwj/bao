@@ -1,7 +1,7 @@
 // HTTPStatusText - HTTP 状态码对应的文本描述
 // 严格翻译自: Bun src/runtime/server/HTTPStatusText.zig
 // 对应: HTTPStatusText.get(code) => ?[]const u8
-package bao_runtime
+package bao_runtime.server
 
 // ============================================================================
 // HTTPStatusText - HTTP 状态码文本映射

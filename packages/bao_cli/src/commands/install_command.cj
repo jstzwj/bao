@@ -1,7 +1,7 @@
 // 严格翻译自: src/cli/install_command.zig
 // Install 命令 — 包安装管理
 // 对应 Bun: bun install / bun add <pkg> / bun remove <pkg>
-package bao_cli
+package bao_cli.commands
 
 import bao_core.*
 import bao_collections.*

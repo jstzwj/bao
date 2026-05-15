@@ -30,7 +30,7 @@
 //   ├────────────────────────────────┤
 //   │ "\n---- Bun! ----\n" (trailer)  │
 //   └────────────────────────────────┘
-package bao.standalone_graph
+package bao_standalone_graph
 
 import bao_core.*
 

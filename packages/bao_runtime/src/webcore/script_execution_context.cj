@@ -1,7 +1,7 @@
 // ScriptExecutionContext - 脚本执行上下文
 // 对应 Bun: src/runtime/webcore/ScriptExecutionContext.zig
 // 严格翻译自: src/runtime/webcore/ScriptExecutionContext.zig
-package bao_runtime
+package bao_runtime.webcore
 
 // ============================================================================
 // ScriptExecutionContextIdentifier - 脚本执行上下文标识符

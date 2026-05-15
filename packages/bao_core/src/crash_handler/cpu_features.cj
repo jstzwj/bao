@@ -5,7 +5,7 @@
 //   - aarch64: neon, fp, aes, crc32, atomics, sve
 //   - 通过 C FFI bun_cpu_features() 获取
 //   - 用于崩溃报告中的 CPU 信息
-package bao_core
+package bao_core.crash_handler
 
 // ============================================================================
 // C FFI 声明

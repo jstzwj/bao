@@ -5,7 +5,7 @@
 //        GradientItem, ColorStop, WebKitGradientPoint, WebKitGradientPointComponent,
 //        WebKitColorStop, HorizontalPositionKeyword, VerticalPositionKeyword
 
-package bao.css
+package bao_css.values
 
 import bao_core.*
 import bao_collections.*

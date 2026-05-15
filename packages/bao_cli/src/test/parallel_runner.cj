@@ -1,5 +1,5 @@
 // 严格翻译自: src/cli/test/ParallelRunner.zig
-package bao_cli
+package bao_cli.test
 
 // ============================================================================
 // ParallelRunner — 并行测试运行器门面

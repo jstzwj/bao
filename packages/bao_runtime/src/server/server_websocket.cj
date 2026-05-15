@@ -1,7 +1,7 @@
 // ServerWebSocket - 服务端 WebSocket 连接
 // 严格翻译自: Bun src/runtime/server/ServerWebSocket.zig
 // 对应: WebSocket 连接的完整生命周期管理
-package bao_runtime
+package bao_runtime.server
 
 import bao_core.*
 import bao_collections.*

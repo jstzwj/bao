@@ -3,7 +3,7 @@
 //   pub const GlobalCache = enum {
 //       allow_install, read_only, auto, force, fallback, disable,
 //   };
-package bao.options
+package bao_options
 
 // ============================================================================
 // GlobalCache - 全局缓存策略

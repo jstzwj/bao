@@ -2,7 +2,7 @@
 // 对应 Bun: src/runtime/node/child_process.zig
 // 严格翻译自: src/runtime/node/child_process.zig
 // 严格翻译 Bun 的 Node.js child_process 兼容层
-package bao_runtime
+package bao_runtime.node_api
 
 import bao_core.*
 import bao_collections.*

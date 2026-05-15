@@ -1,7 +1,7 @@
 // execution.cj - 测试执行器
 // 严格翻译自 bun/src/runtime/test_runner/Execution.zig
 
-package bao_runtime
+package bao_runtime.test_runner
 
 // ========== Execution - 测试执行阶段 ==========
 

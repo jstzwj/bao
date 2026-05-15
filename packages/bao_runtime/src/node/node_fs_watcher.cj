@@ -1,7 +1,7 @@
 // 文件系统监视器 (FSWatcher)
 // 对应 Bun: src/runtime/node/node_fs_watcher.zig
 // 严格翻译自: src/runtime/node/node_fs_watcher.zig
-package bao_runtime
+package bao_runtime.node
 
 // ============================================================================
 // 文件系统事件类型

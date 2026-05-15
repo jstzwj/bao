@@ -9,7 +9,7 @@
 //   CodeCoverageOptions.zig - 代码覆盖率选项
 //   import_record.zig - 导入记录类型
 //   schema.zig - 序列化 schema
-package bao.options
+package bao_options
 
 import bao_core.*
 import bao_collections.*

@@ -1,7 +1,7 @@
 // 严格翻译自: src/sql_jsc/mysql/MySQLStatement.zig
 // MySQL 预处理语句
 
-package bao_sql_jsc
+package bao_sql_jsc.mysql
 
 import bao_core.*
 import bao_jsc.*

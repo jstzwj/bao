@@ -1,7 +1,7 @@
 // bao_css - CSS @scope 范围规则
 // 严格翻译自: bun/src/css/rules/scope.rs
 //   对应: rules/scope.zig - ScopeRule
-package bao.css
+package bao_css.rules
 
 import bao_core.*
 import bao_collections.*

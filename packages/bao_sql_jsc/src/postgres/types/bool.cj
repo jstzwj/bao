@@ -1,7 +1,7 @@
 // 严格翻译自: src/sql_jsc/postgres/types/bool.zig
 // Postgres 布尔类型 JS 转换
 
-package bao_sql_jsc
+package bao_sql_jsc.postgres.types
 
 import bao_core.*
 import bao_jsc.*

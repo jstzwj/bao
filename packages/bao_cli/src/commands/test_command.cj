@@ -1,7 +1,7 @@
 // 严格翻译自: src/cli/test_command.zig
 // Test 命令 — 内置测试运行器
 // 对应 Bun: bun test
-package bao_cli
+package bao_cli.commands
 
 import bao_core.*
 import bao_collections.*

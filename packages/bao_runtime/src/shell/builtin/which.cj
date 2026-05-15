@@ -4,7 +4,7 @@
 // 1个参数 => 返回参数的绝对路径 (未找到则退出码1)
 // N个参数 => 返回每个参数的绝对路径，用换行符分隔
 
-package bao_runtime
+package bao_runtime.shell.builtin
 
 import bao_core.*
 
@@ -26,6 +26,8 @@ public class WhichCmd {
     }
 
     /// 多参数状态
+    /// 对应 Bun: multi_args struct in Which state
+    public struct MultiArgsState {
         public var argsSlice: Array<String>
         public var argIdx: UInt32 = 0
         public var hadNotFound: Boolean = false

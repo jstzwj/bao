@@ -1,6 +1,6 @@
 // MySQL 长度编码整数编解码
 // 对应 Bun: src/sql/mysql/protocol/EncodeInt.zig
-package bao_sql
+package bao_sql.mysql.protocol
 
 /// MySQL 长度编码整数结果
 /// 对应 Bun: decodeLengthInt 返回的匿名结构体

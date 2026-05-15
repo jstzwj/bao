@@ -1,6 +1,6 @@
 // MySQL 握手 V10 包
 // 对应 Bun: src/sql/mysql/protocol/HandshakeV10.zig
-package bao_sql
+package bao_sql.mysql.protocol
 
 /// MySQL 服务器初始握手包 (协议版本 10)
 /// 对应 Bun: HandshakeV10 (struct)

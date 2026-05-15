@@ -1,7 +1,7 @@
 // 严格翻译自: src/sql_jsc/shared/ObjectIterator.zig
 // 对象迭代器 - 遍历行数据中的属性
 
-package bao_sql_jsc
+package bao_sql_jsc.shared
 
 import bao_core.*
 import bao_jsc.*

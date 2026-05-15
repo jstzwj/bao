@@ -1,7 +1,7 @@
 // 严格翻译自: src/sql_jsc/postgres/protocol/error_response_jsc.zig
 // Postgres 错误响应 JS 转换
 
-package bao_sql_jsc
+package bao_sql_jsc.postgres.protocol
 
 import bao_core.*
 import bao_jsc.*

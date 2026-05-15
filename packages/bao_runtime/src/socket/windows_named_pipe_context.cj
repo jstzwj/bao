@@ -1,6 +1,6 @@
 // 严格翻译自: src/runtime/socket/WindowsNamedPipeContext.zig
 // Windows Named Pipe 上下文 — 管理 Named Pipe 的生命周期和事件分发
-package bao_runtime
+package bao_runtime.socket
 
 import bao_core.*
 import bao_collections.*

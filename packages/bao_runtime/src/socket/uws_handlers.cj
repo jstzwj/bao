@@ -1,6 +1,6 @@
 // 严格翻译自: src/runtime/socket/uws_handlers.zig
 // Socket 种类处理器适配器 — 将事件分发与具体类型连接
-package bao_runtime
+package bao_runtime.socket
 
 import bao_core.*
 import bao_collections.*

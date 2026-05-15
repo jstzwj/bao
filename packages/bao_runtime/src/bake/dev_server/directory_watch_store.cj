@@ -3,7 +3,7 @@
 // 以便当匹配的文件创建时，依赖可以重新构建。
 // 这处理了用户在创建文件之前编写导入或移动文件的 HMR 情况。
 
-package bao_runtime
+package bao_runtime.bake.dev_server
 
 /// 目录监控存储。管理文件解析失败时的目录监控器。
 /// 此结构不是线程安全的。

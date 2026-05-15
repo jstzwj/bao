@@ -4,7 +4,7 @@
 //   对应: FallbackHandler (color, text_shadow)
 // ============================================================================
 
-package bao.css
+package bao_css.properties
 
 import bao_core.*
 

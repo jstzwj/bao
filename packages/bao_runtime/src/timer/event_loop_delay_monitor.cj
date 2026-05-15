@@ -1,7 +1,7 @@
 // 严格翻译自: src/runtime/timer/EventLoopDelayMonitor.zig
 // 事件循环延迟监控器
 
-package bao_runtime
+package bao_runtime.timer
 
 import bao_core.*
 import bao_jsc.*

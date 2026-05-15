@@ -1,10 +1,10 @@
 // 严格翻译自: src/runtime/test_runner/expect/toEqualIgnoringWhitespace.zig
 
-package bao_runtime
+package bao_runtime.test_runner.expect
 
 /// toEqualIgnoringWhitespace() - 检查去除空白后是否相等
 /// 用法: expect(received).toEqualIgnoringWhitespace(expected)
-public func toEqualIgnoringWhitespace(this: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toEqualIgnoringWhitespace(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()

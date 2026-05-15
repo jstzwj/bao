@@ -1,10 +1,10 @@
 // 严格翻译自: src/runtime/test_runner/expect/toHaveBeenLastCalledWith.zig
 
-package bao_runtime
+package bao_runtime.test_runner.expect
 
 /// toHaveBeenLastCalledWith() - 检查mock函数最后一次调用的参数
 /// 用法: expect(mockFn).toHaveBeenLastCalledWith(...expected)
-public func toHaveBeenLastCalledWith(this: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toHaveBeenLastCalledWith(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()

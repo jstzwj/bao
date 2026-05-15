@@ -1,11 +1,11 @@
 // toBe.cj - Object.is()严格相等断言
 // 严格翻译自 bun/src/runtime/test_runner/expect/toBe.zig
 
-package bao_runtime
+package bao_runtime.test_runner.expect
 
 /// toBe() - Object.is()严格相等比较
 /// 用法: expect(received).toBe(expected)
-public func toBe(this: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toBe(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     this.incrementExpectCallCounter()

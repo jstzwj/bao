@@ -1,7 +1,7 @@
 // 翻译自 Bun: src/runtime/bake/DevServer/HotReloadEvent.zig
 // 此任务通知 DevServer 线程有关要捆绑的新文件。
 
-package bao_runtime
+package bao_runtime.bake.dev_server
 
 /// 热重载事件 - 通知 DevServer 线程有关要捆绑的新文件。
 /// 对齐到缓存行以消除虚假共享。

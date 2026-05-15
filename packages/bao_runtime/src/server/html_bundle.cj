@@ -1,7 +1,7 @@
 // HTMLBundle - HTML 打包导入
 // 严格翻译自: Bun src/runtime/server/HTMLBundle.zig
 // 对应: 通过 import 导入 HTML 文件作为路由
-package bao_runtime
+package bao_runtime.server
 
 import bao_core.*
 import bao_collections.*

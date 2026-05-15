@@ -1,7 +1,7 @@
 // 文件系统事件 — macOS FSEvents 类型定义
 // 对应 Bun: src/runtime/node/fs_events.zig
 // 严格翻译自: src/runtime/node/fs_events.zig
-package bao_runtime
+package bao_runtime.node
 
 // ============================================================================
 // FSEvents 类型定义

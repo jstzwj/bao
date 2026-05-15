@@ -3,7 +3,7 @@
 //   每 VM 的 Valkey 状态。四个缓存的 us_socket_context_t 已经被移除 --
 //   连接现在通过 RareData.valkey_group / valkey_tls_group 来关联，
 //   默认 TLS SSL_CTX 由 RareData.defaultClientSslCtx() 提供。
-package bao_runtime
+package bao_runtime.valkey
 
 // ============================================================================
 // ValkeyContext - 每 VM 的 Valkey 状态

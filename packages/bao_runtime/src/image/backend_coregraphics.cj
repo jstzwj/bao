@@ -9,7 +9,7 @@
 // 即使在 thunked 明显的 by-value struct 之后，所以整个分发在 C++ 中，
 // 其中 clang 拥有 ABI。此文件只是分配缓冲区并映射错误。
 
-package bao_runtime
+package bao_runtime.image
 
 // ============================================================================
 // CoreGraphics 后端

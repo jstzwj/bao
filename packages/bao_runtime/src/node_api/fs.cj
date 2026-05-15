@@ -1,7 +1,7 @@
 // Node.js fs 模块 — 文件系统 API
 // 对应 Bun: src/runtime/node/fs.zig
 // 严格翻译 Bun 的 Node.js fs 兼容层
-package bao_runtime
+package bao_runtime.node_api
 
 import bao_core.*
 import bao_collections.*

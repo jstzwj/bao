@@ -240,46 +240,46 @@ public type UvThreadCb = CFunc<(CPointer<Unit>) -> Unit>
 
 /// Handle 类型
 /// 严格翻译自: Handle.Type
-public enum UvHandleType <: UInt32 {
-    unknown = 0
-    async = 1
-    check = 2
-    fs_event = 3
-    fs_poll = 4
-    handle = 5
-    idle = 6
-    named_pipe = 7
-    poll = 8
-    prepare = 9
-    process = 10
-    stream = 11
-    tcp = 12
-    timer = 13
-    tty = 14
-    udp = 15
-    signal = 16
-    file = 17
+public enum UvHandleType {
+    | unknown
+    | async
+    | check
+    | fs_event
+    | fs_poll
+    | handle
+    | idle
+    | named_pipe
+    | poll
+    | prepare
+    | process
+    | stream
+    | tcp
+    | timer
+    | tty
+    | udp
+    | signal
+    | file
 }
 
 /// Run 模式
 /// 严格翻译自: RunMode
-public enum UvRunMode <: UInt32 {
-    default = 0
-    once = 1
-    nowait = 2
+public enum UvRunMode {
+    | default
+    | once
+    | nowait
 }
 
 /// TTY 模式
 /// 严格翻译自: struct_uv_tty_s.Mode
-public enum UvTtyMode <: UInt32 {
-    normal = 0
-    raw = 1
-    io = 2
-    vt = 3
+public enum UvTtyMode {
+    | normal
+    | raw
+    | io
+    | vt
 }
 
 /// fs 事件类型
-public enum UvFsEvent <: UInt32 {
-    rename = 1
-    change = 2
+public enum UvFsEvent {
+    | rename
+    | change
 }

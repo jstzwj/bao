@@ -1,11 +1,11 @@
 // Valkey JS 函数绑定 - Redis 命令的 JavaScript API
 // 严格翻译自: bun/src/runtime/valkey_jsc/js_valkey_functions.zig
 //   包含所有 Redis 命令的 JS 函数绑定实现
-package bao_runtime
+package bao_runtime.valkey
 
 import bao_core.*
 import bao_collections.*
-import bao.valkey.*
+import bao_valkey.*
 
 // ============================================================================
 // 辅助函数

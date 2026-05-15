@@ -1,7 +1,7 @@
 // bao_analytics - 遥测与分析数据结构
 // 严格翻译自: bun/src/analytics/analytics.zig (381行) + schema.zig (527行)
 //   匿名使用统计、平台检测、事件收集
-package bao.analytics
+package bao_analytics
 
 import bao_core.*
 
@@ -27,27 +27,8 @@ public enum TriState {
 // ============================================================================
 
 /// 操作系统枚举 - 对应 Bun analytics.OperatingSystem
-public enum OperatingSystem <: UInt8 {
-    | None(0)
-    | Linux(1)
-    | MacOS(2)
-    | Windows(3)
-    | WSL(4)
-    | Android(5)
-    | FreeBSD(6)
-    | Other(255)
-
-    public func name(): String {
-        match (this) {
-            case None => "_none"
-            case Linux => "linux"
-            case MacOS => "macos"
-            case Windows => "windows"
-            case WSL => "wsl"
-            case Android => "android"
-            case FreeBSD => "freebsd"
-            case Other => "unknown"
-        }
+public enum OperatingSystem {
+}
     }
 }
 
@@ -58,19 +39,8 @@ public enum OperatingSystem <: UInt8 {
 // ============================================================================
 
 /// CPU 架构枚举 - 对应 Bun analytics.Architecture
-public enum Architecture <: UInt8 {
-    | None(0)
-    | X64(1)
-    | ARM(2)
-    | Other(255)
-
-    public func name(): String {
-        match (this) {
-            case None => "_none"
-            case X64 => "x64"
-            case ARM => "arm"
-            case Other => "unknown"
-        }
+public enum Architecture {
+}
     }
 }
 
@@ -141,25 +111,8 @@ public class Platform {
 // ============================================================================
 
 /// 事件类型枚举 - 对应 Bun analytics.EventKind
-public enum EventKind <: UInt32 {
-    | None(0)
-    | BundleSuccess(1)
-    | BundleFail(2)
-    | HttpStart(3)
-    | HttpBuild(4)
-    | BundleStart(5)
-    | Other(0xFFFFFFFF)
-
-    public func name(): String {
-        match (this) {
-            case None => "_none"
-            case BundleSuccess => "bundle_success"
-            case BundleFail => "bundle_fail"
-            case HttpStart => "http_start"
-            case HttpBuild => "http_build"
-            case BundleStart => "bundle_start"
-            case Other => "unknown"
-        }
+public enum EventKind {
+}
     }
 
     public static func fromName(name: String): ?EventKind {
@@ -170,7 +123,7 @@ public enum EventKind <: UInt32 {
             case "http_start" => EventKind.HttpStart
             case "http_build" => EventKind.HttpBuild
             case "bundle_start" => EventKind.BundleStart
-            case _ => None
+            | _ => None
         }
     }
 }
@@ -184,12 +137,7 @@ public enum EventKind <: UInt32 {
 // ============================================================================
 
 /// 事件名称枚举 - 对应 Bun analytics.EventName
-public enum EventName <: UInt8 {
-    | BundleSuccess(0)
-    | BundleFail(1)
-    | BundleStart(2)
-    | HttpStart(3)
-    | HttpBuild(4)
+public enum EventName {
 }
 
 // ============================================================================
@@ -753,9 +701,9 @@ public class AnalyticsState {
     /// 检查 DO_NOT_TRACK 环境变量, 默认启用
     public static func isEnabled(): Bool {
         match (enabled) {
-            case Yes => true
-            case No => false
-            case Unknown => {
+            | Yes => true
+            | No => false
+            | Unknown => {
                 // 检查 DO_NOT_TRACK 环境变量
                 let doNotTrack = System.env("DO_NOT_TRACK")
                 if (doNotTrack.isSome()) {
@@ -772,9 +720,9 @@ public class AnalyticsState {
     /// 检测是否 CI 环境
     public static func isCIEnvironment(): Bool {
         match (isCI) {
-            case Yes => true
-            case No => false
-            case Unknown => {
+            | Yes => true
+            | No => false
+            | Unknown => {
                 // 检查常见 CI 环境变量
                 let ci = System.env("CI")
                 if (ci.isSome()) {
@@ -825,13 +773,13 @@ public class GeneratePlatform {
             case "windows" => OperatingSystem.Windows
             case "freebsd" => OperatingSystem.FreeBSD
             case "android" => OperatingSystem.Android
-            case _ => OperatingSystem.Other
+            | _ => OperatingSystem.Other
         }
 
         let arch = match (archName) {
             case "x86_64" | "x64" | "amd64" => Architecture.X64
             case "aarch64" | "arm64" => Architecture.ARM
-            case _ => Architecture.Other
+            | _ => Architecture.Other
         }
 
         let version = System.osVersion()

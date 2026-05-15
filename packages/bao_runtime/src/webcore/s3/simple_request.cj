@@ -1,6 +1,6 @@
 // 严格翻译自: src/runtime/webcore/s3/simple_request.zig
 // S3 简单请求 - 包含所有 S3 操作的结果类型、S3HttpSimpleTask 和 executeSimpleS3Request
-package bao_runtime
+package bao_runtime.webcore.s3
 
 import bao_core.*
 import bao_collections.*

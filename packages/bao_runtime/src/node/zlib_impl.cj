@@ -1,7 +1,7 @@
 // Zlib 实现 — FFI 桥接层
 // 对应 Bun: src/runtime/node/node_zlib_binding.zig 及 zlib/NativeZlib.zig 等
 // 严格翻译自: src/runtime/node/node_zlib_binding.zig - CompressionStream
-package bao_runtime
+package bao_runtime.node
 
 // ============================================================================
 // Zlib 实现桥接

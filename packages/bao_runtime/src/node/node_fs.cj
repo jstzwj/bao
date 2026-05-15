@@ -2,7 +2,7 @@
 // This file contains the underlying implementation for sync & async functions
 // for interacting with the filesystem from JavaScript.
 // The top-level functions assume the arguments are already validated
-package bao_runtime
+package bao_runtime.node
 
 import bao_core.*
 import bao_sys.*

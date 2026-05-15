@@ -1,7 +1,7 @@
 // 严格翻译自: src/http_jsc/websocket_client/WebSocketUpgradeClient.zig
 //! WebSocketUpgradeClient handles the HTTP upgrade process for WebSocket connections.
 //! Implements the client-side of the WebSocket protocol handshake as defined in RFC 6455.
-package bao_http_jsc
+package bao_http_jsc.websocket_client
 
 import bao_jsc.*
 import bao_core.*

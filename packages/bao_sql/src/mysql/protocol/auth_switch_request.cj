@@ -1,6 +1,6 @@
 // MySQL 认证切换请求
 // 对应 Bun: src/sql/mysql/protocol/AuthSwitchRequest.zig
-package bao_sql
+package bao_sql.mysql.protocol
 
 /// MySQL 认证切换请求包
 /// 对应 Bun: AuthSwitchRequest (struct)

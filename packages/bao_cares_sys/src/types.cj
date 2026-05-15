@@ -5,176 +5,113 @@ package bao_cares_sys
 // NSClass - DNS 记录类别枚举
 // 严格翻译自: c_ares.zig NSClass
 // ============================================================================
-public enum NSClass <: Int32 {
-    ns_c_invalid = 0
-    /// Internet
-    ns_c_in = 1
-    /// unallocated/unsupported
-    ns_c_2 = 2
-    /// MIT Chaos-net
-    ns_c_chaos = 3
-    /// MIT Hesiod
-    ns_c_hs = 4
-    /// Query class values which do not appear in resource records
-    ns_c_none = 254
-    /// Wildcard match
-    ns_c_any = 255
-    ns_c_max = 65536
+public enum NSClass {
+    | ns_c_invalid
+    | ns_c_in
+    | ns_c_2
+    | ns_c_chaos
+    | ns_c_hs
+    | ns_c_none
+    | ns_c_any
+    | ns_c_max
 }
 
 // ============================================================================
 // NSType - DNS 记录类型枚举
 // 严格翻译自: c_ares.zig NSType
 // ============================================================================
-public enum NSType <: Int32 {
-    /// Cookie
-    ns_t_invalid = 0
-    /// Host address
-    ns_t_a = 1
-    /// Authoritative server
-    ns_t_ns = 2
-    /// Mail destination
-    ns_t_md = 3
-    /// Mail forwarder
-    ns_t_mf = 4
-    /// Canonical name
-    ns_t_cname = 5
-    /// Start of authority zone
-    ns_t_soa = 6
-    /// Mailbox domain name
-    ns_t_mb = 7
-    /// Mail group member
-    ns_t_mg = 8
-    /// Mail rename name
-    ns_t_mr = 9
-    /// Null resource record
-    ns_t_null = 10
-    /// Well known service
-    ns_t_wks = 11
-    /// Domain name pointer
-    ns_t_ptr = 12
-    /// Host information
-    ns_t_hinfo = 13
-    /// Mailbox information
-    ns_t_minfo = 14
-    /// Mail routing information
-    ns_t_mx = 15
-    /// Text strings
-    ns_t_txt = 16
-    /// Responsible person
-    ns_t_rp = 17
-    /// AFS cell database
-    ns_t_afsdb = 18
-    /// X_25 calling address
-    ns_t_x25 = 19
-    /// ISDN calling address
-    ns_t_isdn = 20
-    /// Router
-    ns_t_rt = 21
-    /// NSAP address
-    ns_t_nsap = 22
-    /// Reverse NSAP lookup (deprecated)
-    ns_t_nsap_ptr = 23
-    /// Security signature
-    ns_t_sig = 24
-    /// Security key
-    ns_t_key = 25
-    /// X.400 mail mapping
-    ns_t_px = 26
-    /// Geographical position (withdrawn)
-    ns_t_gpos = 27
-    /// Ip6 Address
-    ns_t_aaaa = 28
-    /// Location Information
-    ns_t_loc = 29
-    /// Next domain (security)
-    ns_t_nxt = 30
-    /// Endpoint identifier
-    ns_t_eid = 31
-    /// Nimrod Locator
-    ns_t_nimloc = 32
-    /// Server Selection
-    ns_t_srv = 33
-    /// ATM Address
-    ns_t_atma = 34
-    /// Naming Authority PoinTeR
-    ns_t_naptr = 35
-    /// Key Exchange
-    ns_t_kx = 36
-    /// Certification record
-    ns_t_cert = 37
-    /// IPv6 address (deprecates AAAA)
-    ns_t_a6 = 38
-    /// Non-terminal DNAME (for IPv6)
-    ns_t_dname = 39
-    /// Kitchen sink (experimental)
-    ns_t_sink = 40
-    /// EDNS0 option (meta-RR)
-    ns_t_opt = 41
-    /// Address prefix list (RFC3123)
-    ns_t_apl = 42
-    /// Delegation Signer (RFC4034)
-    ns_t_ds = 43
-    /// SSH Key Fingerprint (RFC4255)
-    ns_t_sshfp = 44
-    /// Resource Record Signature (RFC4034)
-    ns_t_rrsig = 46
-    /// Next Secure (RFC4034)
-    ns_t_nsec = 47
-    /// DNS Public Key (RFC4034)
-    ns_t_dnskey = 48
-    /// Transaction key
-    ns_t_tkey = 249
-    /// Transaction signature
-    ns_t_tsig = 250
-    /// Incremental zone transfer
-    ns_t_ixfr = 251
-    /// Transfer zone of authority
-    ns_t_axfr = 252
-    /// Transfer mailbox records
-    ns_t_mailb = 253
-    /// Transfer mail agent records
-    ns_t_maila = 254
-    /// Wildcard match
-    ns_t_any = 255
-    /// Uniform Resource Identifier (RFC7553)
-    ns_t_uri = 256
-    /// Certification Authority Authorization
-    ns_t_caa = 257
-    ns_t_max = 65536
+public enum NSType {
+    | ns_t_invalid
+    | ns_t_a
+    | ns_t_ns
+    | ns_t_md
+    | ns_t_mf
+    | ns_t_cname
+    | ns_t_soa
+    | ns_t_mb
+    | ns_t_mg
+    | ns_t_mr
+    | ns_t_null
+    | ns_t_wks
+    | ns_t_ptr
+    | ns_t_hinfo
+    | ns_t_minfo
+    | ns_t_mx
+    | ns_t_txt
+    | ns_t_rp
+    | ns_t_afsdb
+    | ns_t_x25
+    | ns_t_isdn
+    | ns_t_rt
+    | ns_t_nsap
+    | ns_t_nsap_ptr
+    | ns_t_sig
+    | ns_t_key
+    | ns_t_px
+    | ns_t_gpos
+    | ns_t_aaaa
+    | ns_t_loc
+    | ns_t_nxt
+    | ns_t_eid
+    | ns_t_nimloc
+    | ns_t_srv
+    | ns_t_atma
+    | ns_t_naptr
+    | ns_t_kx
+    | ns_t_cert
+    | ns_t_a6
+    | ns_t_dname
+    | ns_t_sink
+    | ns_t_opt
+    | ns_t_apl
+    | ns_t_ds
+    | ns_t_sshfp
+    | ns_t_rrsig
+    | ns_t_nsec
+    | ns_t_dnskey
+    | ns_t_tkey
+    | ns_t_tsig
+    | ns_t_ixfr
+    | ns_t_axfr
+    | ns_t_mailb
+    | ns_t_maila
+    | ns_t_any
+    | ns_t_uri
+    | ns_t_caa
+    | ns_t_max
 }
 
 // ============================================================================
 // AresError - c-ares 错误码枚举
 // 严格翻译自: c_ares.zig Error
 // ============================================================================
-public enum AresError <: Int32 {
-    ENODATA = 1
-    EFORMERR = 2
-    ESERVFAIL = 3
-    ENOTFOUND = 4
-    ENOTIMP = 5
-    EREFUSED = 6
-    EBADQUERY = 7
-    EBADNAME = 8
-    EBADFAMILY = 9
-    EBADRESP = 10
-    ECONNREFUSED = 11
-    ETIMEOUT = 12
-    EOF = 13
-    EFILE = 14
-    ENOMEM = 15
-    EDESTRUCTION = 16
-    EBADSTR = 17
-    EBADFLAGS = 18
-    ENONAME = 19
-    EBADHINTS = 20
-    ENOTINITIALIZED = 21
-    ELOADIPHLPAPI = 22
-    EADDRGETNETWORKPARAMS = 23
-    ECANCELLED = 24
-    ESERVICE = 25
-    ENOSERVER = 26
+public enum AresError {
+    | ENODATA
+    | EFORMERR
+    | ESERVFAIL
+    | ENOTFOUND
+    | ENOTIMP
+    | EREFUSED
+    | EBADQUERY
+    | EBADNAME
+    | EBADFAMILY
+    | EBADRESP
+    | ECONNREFUSED
+    | ETIMEOUT
+    | EOF
+    | EFILE
+    | ENOMEM
+    | EDESTRUCTION
+    | EBADSTR
+    | EBADFLAGS
+    | ENONAME
+    | EBADHINTS
+    | ENOTINITIALIZED
+    | ELOADIPHLPAPI
+    | EADDRGETNETWORKPARAMS
+    | ECANCELLED
+    | ESERVICE
+    | ENOSERVER
 }
 
 // ============================================================================

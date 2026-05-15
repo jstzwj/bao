@@ -1,7 +1,7 @@
 // 参数验证工具函数
 // 对应 Bun: src/runtime/node/util/validators.zig
 // 严格翻译自: src/runtime/node/util/validators.zig
-package bao_runtime
+package bao_runtime.node.util
 
 // ============================================================================
 // 参数验证器

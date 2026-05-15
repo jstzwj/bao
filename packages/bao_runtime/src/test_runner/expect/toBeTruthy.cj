@@ -1,10 +1,10 @@
 // 严格翻译自: src/runtime/test_runner/expect/toBeTruthy.zig
 
-package bao_runtime
+package bao_runtime.test_runner.expect
 
 /// toBeTruthy() - 检查值是否为真值
 /// 用法: expect(received).toBeTruthy()
-public func toBeTruthy(this: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toBeTruthy(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()

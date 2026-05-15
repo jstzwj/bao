@@ -1,7 +1,7 @@
 // S3File - S3 文件对象
 // 对应 Bun: src/runtime/webcore/S3File.zig
 // 严格翻译自: src/runtime/webcore/S3File.zig
-package bao_runtime
+package bao_runtime.webcore.s3
 
 import bao_core.*
 

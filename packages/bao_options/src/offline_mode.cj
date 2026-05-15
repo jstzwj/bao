@@ -1,7 +1,7 @@
 // OfflineMode - 离线模式
 // 严格翻译自: bun/src/options_types/OfflineMode.zig
 //   pub const OfflineMode = enum { online, latest, offline };
-package bao.options
+package bao_options
 
 // ============================================================================
 // OfflineMode - 离线模式

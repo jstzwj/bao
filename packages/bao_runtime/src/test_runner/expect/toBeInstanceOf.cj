@@ -1,10 +1,10 @@
 // 严格翻译自: src/runtime/test_runner/expect/toBeInstanceOf.zig
 
-package bao_runtime
+package bao_runtime.test_runner.expect
 
 /// toBeInstanceOf() - 检查值是否为指定类的实例
 /// 用法: expect(received).toBeInstanceOf(Expected)
-public func toBeInstanceOf(this: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toBeInstanceOf(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()

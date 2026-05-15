@@ -1,6 +1,6 @@
 // MySQL 本地文件加载请求
 // 对应 Bun: src/sql/mysql/protocol/LocalInfileRequest.zig
-package bao_sql
+package bao_sql.mysql.protocol
 
 /// MySQL 本地文件加载请求包
 /// 对应 Bun: LocalInfileRequest (struct)

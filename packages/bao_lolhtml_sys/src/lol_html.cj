@@ -35,18 +35,18 @@ public struct HTMLString {
 // Directive - 指令枚举
 // 严格翻译自: lol_html.zig Directive
 // ============================================================================
-public enum Directive <: UInt32 {
-    continue_ = 0
-    stop = 1
+public enum Directive {
+    | continue_
+    | stop
 }
 
 // ============================================================================
 // Encoding - 编码枚举
 // 严格翻译自: lol_html.zig Encoding
 // ============================================================================
-public enum Encoding <: Int32 {
-    UTF8 = 0
-    UTF16 = 1
+public enum Encoding {
+    | UTF8
+    | UTF16
 }
 
 // ============================================================================

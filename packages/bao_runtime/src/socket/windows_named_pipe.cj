@@ -1,6 +1,6 @@
 // 严格翻译自: src/runtime/socket/WindowsNamedPipe.zig
 // Windows 命名管道 — 为 Windows Named Pipes 提供 socket 风格 API
-package bao_runtime
+package bao_runtime.socket
 
 import bao_core.*
 import bao_collections.*

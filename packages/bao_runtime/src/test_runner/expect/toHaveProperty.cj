@@ -1,10 +1,10 @@
 // 严格翻译自: src/runtime/test_runner/expect/toHaveProperty.zig
 
-package bao_runtime
+package bao_runtime.test_runner.expect
 
 /// toHaveProperty() - 检查对象是否具有指定属性
 /// 用法: expect(obj).toHaveProperty(path) / expect(obj).toHaveProperty(path, value)
-public func toHaveProperty(this: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toHaveProperty(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()

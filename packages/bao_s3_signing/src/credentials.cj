@@ -13,8 +13,8 @@
 package bao_s3_signing
 
 import bao_core.*
-import bao_hash.sha.*
-import bao_hash.hmac.*
+import bao_hash.*
+import bao_hash.*
 
 // ============================================================================
 // S3Credentials - S3 凭证

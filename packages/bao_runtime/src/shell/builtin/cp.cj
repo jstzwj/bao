@@ -2,7 +2,7 @@
 // 对应 Bun: src/runtime/shell/builtin/cp.zig
 // 严格翻译Bun shell cp命令到仓颉
 
-package bao_runtime
+package bao_runtime.shell.builtin
 
 import bao_core.*
 
@@ -28,6 +28,8 @@ public class CpCmd {
     }
 
     /// 执行状态
+    /// 对应 Bun: exec struct in Cp state
+    public struct ExecState {
         public var targetPath: String = ""
         public var pathsToCopy: Array<String>
         public var started: Boolean = false

@@ -1,10 +1,10 @@
 // 严格翻译自: src/runtime/test_runner/expect/toBeArrayOfSize.zig
 
-package bao_runtime
+package bao_runtime.test_runner.expect
 
 /// toBeArrayOfSize() - 检查值是否为指定大小的数组
 /// 用法: expect(received).toBeArrayOfSize(size)
-public func toBeArrayOfSize(this: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toBeArrayOfSize(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()

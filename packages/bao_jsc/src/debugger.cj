@@ -393,22 +393,8 @@ public class ResolveMessage {
 // ========== AsyncCallType ==========
 // 严格翻译自 Debugger.zig AsyncCallType
 // 异步调用的类型，用于 Inspector 调试器追踪异步操作
-public enum AsyncCallType <: UInt8 {
-    | DOMTimer(1)                    // DOM 定时器 (setTimeout/setInterval)
-    | EventListener(2)               // 事件监听器
-    | PostMessage(3)                 // postMessage
-    | RequestAnimationFrame(4)       // requestAnimationFrame
-    | Microtask(5)                   // 微任务
-
-    public init(value: UInt8) {
-        match (value) {
-            case 1 => this = DOMTimer
-            case 2 => this = EventListener
-            case 3 => this = PostMessage
-            case 4 => this = RequestAnimationFrame
-            case 5 => this = Microtask
-            case _ => this = EventListener
-        }
+public enum AsyncCallType {
+}
     }
 }
 
@@ -543,19 +529,11 @@ public class TestReporterAgent {
 }
 
 // 测试状态 - 与 c++ InspectorTestReporterAgent.cpp enum class BunTestStatus 保持同步
-public enum TestStatus <: UInt8 {
-    | Pass
-    | Fail
-    | Timeout
-    | Skip
-    | Todo
-    | SkippedBecauseLabel
+public enum TestStatus {
 }
 
 // 测试类型
-public enum TestType <: UInt8 {
-    | Test(0)
-    | Describe(1)
+public enum TestType {
 }
 
 // 测试报告器句柄 (opaque)

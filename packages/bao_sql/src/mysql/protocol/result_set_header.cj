@@ -1,6 +1,6 @@
 // MySQL 结果集头包
 // 对应 Bun: src/sql/mysql/protocol/ResultSetHeader.zig
-package bao_sql
+package bao_sql.mysql.protocol
 
 /// MySQL 结果集头包
 /// 对应 Bun: ResultSetHeader (struct)

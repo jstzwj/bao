@@ -1,7 +1,7 @@
 // 严格翻译自: src/sql_jsc/mysql/JSMySQLConnection.zig
 // MySQL JS 连接 - MySQL 连接的 JS 绑定
 
-package bao_sql_jsc
+package bao_sql_jsc.mysql
 
 import bao_core.*
 import bao_jsc.*

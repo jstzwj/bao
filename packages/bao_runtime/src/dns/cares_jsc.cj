@@ -3,7 +3,7 @@
 // JSC bridges for c-ares reply structs. Keeps `src/cares_sys/` free of
 // `JSValue`/`JSGlobalObject`/`CallFrame` types.
 
-package bao_runtime
+package bao_runtime.dns
 
 // ============================================================================
 // struct_hostent -> JS 响应

@@ -8,8 +8,8 @@
 package bao_s3_signing
 
 import bao_core.*
-import bao_hash.sha.*
-import bao_hash.hmac.*
+import bao_hash.*
+import bao_hash.*
 
 // ============================================================================
 // S3 签名模块子模块引用

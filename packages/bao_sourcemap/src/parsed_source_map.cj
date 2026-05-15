@@ -6,11 +6,9 @@
 //   external_source_names: []const []const u8 = &.{},
 //   is_standalone_module_graph: bool = false,
 //   pub fn findMapping, writeVLQs, memoryCost
-package bao_sourcemap.parsed_source_map
+package bao_sourcemap
 
 import bao_core.*
-import bao_sourcemap.vlq.*
-import bao_sourcemap.mapping.*
 
 // ============================================================================
 // ParsedSourceMap - 解析后的 SourceMap

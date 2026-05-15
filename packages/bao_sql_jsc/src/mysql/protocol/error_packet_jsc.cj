@@ -1,7 +1,7 @@
 // 严格翻译自: src/sql_jsc/mysql/protocol/error_packet_jsc.zig
 // MySQL 错误包到 JS 错误的转换
 
-package bao_sql_jsc
+package bao_sql_jsc.mysql.protocol
 
 import bao_core.*
 import bao_jsc.*

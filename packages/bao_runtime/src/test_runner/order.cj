@@ -1,7 +1,7 @@
 // order.cj - 测试排序
 // 严格翻译自 bun/src/runtime/test_runner/Order.zig
 
-package bao_runtime
+package bao_runtime.test_runner
 
 // ========== Order - 测试排序 ==========
 

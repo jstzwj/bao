@@ -1,10 +1,10 @@
 // 严格翻译自: src/runtime/test_runner/expect/toInclude.zig
 
-package bao_runtime
+package bao_runtime.test_runner.expect
 
 /// toInclude() - 检查值是否包含期望子串
 /// 用法: expect(received).toInclude(expected)
-public func toInclude(this: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toInclude(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()

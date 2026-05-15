@@ -1,7 +1,7 @@
 // 严格翻译自: src/runtime/timer/DateHeaderTimer.zig
 // Date 头定时器 - HTTP 响应中 "Date" 头的定期更新
 
-package bao_runtime
+package bao_runtime.timer
 
 import bao_core.*
 import bao_jsc.*

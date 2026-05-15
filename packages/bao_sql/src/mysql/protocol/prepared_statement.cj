@@ -1,6 +1,6 @@
 // MySQL 预编译语句协议
 // 对应 Bun: src/sql/mysql/protocol/PreparedStatement.zig
-package bao_sql
+package bao_sql.mysql.protocol
 
 /// MySQL 预编译语句 PrepareOK 响应
 /// 对应 Bun: PreparedStatement.PrepareOK (struct)

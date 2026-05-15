@@ -7,7 +7,7 @@
 //   - pathWithoutAssetPrefix(): 去除资源前缀路径
 // 注意: Bun 使用 PercentEncoding.decodeFaultTolerant 进行 URL 解码
 //       此处提供简化实现
-package bao.http_types
+package bao_http_types
 
 import bao_core.*
 

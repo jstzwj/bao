@@ -2,7 +2,7 @@
 // 严格翻译自: src/runtime/webcore/FileReader.zig
 // 包含: FileReader 完整实现, 包括 IOReader, Lazy, ReadDuringJSOnPullResult,
 //        onStart, onPull, onReadChunk, onReaderDone, onReaderError, drain, setFlowing 等
-package bao_runtime
+package bao_runtime.webcore
 
 import bao_core.*
 

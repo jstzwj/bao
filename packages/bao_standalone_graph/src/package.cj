@@ -13,7 +13,7 @@
 //   [modules array bytes] [string data] [Offsets struct] ["\n---- Bun! ----\n"]
 //
 // 运行时通过 MachO/ELF/PE 段加载，通过 trailer 验证完整性
-package bao.standalone_graph
+package bao_standalone_graph
 
 import bao_core.*
 import bao_sourcemap.*

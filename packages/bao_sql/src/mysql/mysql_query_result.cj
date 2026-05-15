@@ -1,6 +1,6 @@
 // MySQL 查询结果结构
 // 对应 Bun: src/sql/mysql/MySQLQueryResult.zig
-package bao_sql
+package bao_sql.mysql
 
 /// MySQL 查询结果统计
 /// 对应 Bun: MySQLQueryResult (struct)

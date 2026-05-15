@@ -1,6 +1,6 @@
 // MySQL EOF 包
 // 对应 Bun: src/sql/mysql/protocol/EOFPacket.zig
-package bao_sql
+package bao_sql.mysql.protocol
 
 /// MySQL EOF 包
 /// 对应 Bun: EOFPacket (struct)

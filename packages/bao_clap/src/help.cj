@@ -10,7 +10,7 @@
 //   pub fn usage(stream, params) !void { ... }
 //   pub fn simplePrintParam(param: Param(Help)) !void { ... }
 //   fn printParam(stream, Id, param, Error, context, valueText) !void { ... }
-package bao.clap
+package bao_clap
 
 import bao_core.*
 import bao_collections.*

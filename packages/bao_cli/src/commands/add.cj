@@ -1,6 +1,6 @@
 // 严格翻译自: src/cli/add_command.zig, src/cli/install_command.zig
 // bao add - 添加包依赖并安装
-package bao_cli
+package bao_cli.commands
 
 import bao_core.*
 import bao_collections.*

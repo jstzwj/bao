@@ -1,7 +1,7 @@
 // 严格翻译自: src/sql_jsc/shared/QueryBindingIterator.zig
 // 查询绑定迭代器 - 支持数组和对象两种模式
 
-package bao_sql_jsc
+package bao_sql_jsc.shared
 
 import bao_core.*
 import bao_jsc.*

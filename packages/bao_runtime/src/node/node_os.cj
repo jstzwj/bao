@@ -1,7 +1,7 @@
 // 操作系统信息模块（完整翻译）
 // 对应 Bun: src/runtime/node/node_os.zig
 // 严格翻译自: src/runtime/node/node_os.zig
-package bao_runtime
+package bao_runtime.node
 
 import bao_core.*
 import bao_sys.*

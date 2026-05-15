@@ -1,7 +1,7 @@
 // 严格翻译自: src/sql_jsc/postgres/command_tag_jsc.zig
 // Postgres 命令标签 JS 转换
 
-package bao_sql_jsc
+package bao_sql_jsc.postgres
 
 import bao_core.*
 import bao_jsc.*

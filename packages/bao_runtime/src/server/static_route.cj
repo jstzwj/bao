@@ -1,7 +1,7 @@
 // StaticRoute - 静态路由 (静态 Blob 响应)
 // 严格翻译自: Bun src/runtime/server/StaticRoute.zig
 // 对应: 存储和提供静态 Blob 响应
-package bao_runtime
+package bao_runtime.server
 
 import bao_core.*
 import bao_collections.*

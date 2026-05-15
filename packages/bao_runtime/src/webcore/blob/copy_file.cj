@@ -1,7 +1,7 @@
 // CopyFile - 文件复制操作
 // 对应 Bun: src/runtime/webcore/blob/copy_file.zig
 // 严格翻译自: src/runtime/webcore/blob/copy_file.zig
-package bao_runtime
+package bao_runtime.webcore.blob
 
 import bao_core.*
 

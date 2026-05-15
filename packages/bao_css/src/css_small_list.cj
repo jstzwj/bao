@@ -8,7 +8,7 @@
 //
 // 当 capacity <= N 时，元素内联存储，capacity 即为长度。
 // 当 capacity > N 时，元素存储在堆上，成为类似 ArrayList 的结构。
-package bao.css
+package bao_css
 
 import bao_core.*
 import bao_collections.*

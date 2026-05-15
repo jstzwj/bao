@@ -1,7 +1,7 @@
 // 严格翻译自: src/http_jsc/websocket_client/CppWebSocket.zig
 //! Wrapper between Cangjie and C++ for WebSocket client functionality.
 //! Corresponds to the `WebCore::WebSocket` class (WebSocket.cpp).
-package bao_http_jsc
+package bao_http_jsc.websocket_client
 
 import bao_jsc.*
 import bao_core.*

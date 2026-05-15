@@ -1,10 +1,10 @@
 // 严格翻译自: src/runtime/test_runner/expect/toBeDefined.zig
 
-package bao_runtime
+package bao_runtime.test_runner.expect
 
 /// toBeDefined() - 检查值是否已定义（非undefined）
 /// 用法: expect(received).toBeDefined()
-public func toBeDefined(this: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toBeDefined(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()

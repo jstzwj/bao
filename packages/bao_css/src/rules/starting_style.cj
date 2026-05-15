@@ -1,7 +1,7 @@
 // bao_css - CSS @starting-style 起始样式规则
 // 严格翻译自: bun/src/css/rules/starting_style.rs
 //   对应: rules/starting_style.zig - StartingStyleRule
-package bao.css
+package bao_css.rules
 
 import bao_core.*
 import bao_collections.*

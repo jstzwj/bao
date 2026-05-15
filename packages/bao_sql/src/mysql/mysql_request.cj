@@ -1,6 +1,6 @@
 // MySQL 请求构造
 // 对应 Bun: src/sql/mysql/MySQLRequest.zig
-package bao_sql
+package bao_sql.mysql
 
 /// MySQL 请求构造工具
 /// 对应 Bun: MySQLRequest

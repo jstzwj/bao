@@ -1,7 +1,7 @@
 // scope_functions.cj - 作用域函数
 // 严格翻译自 bun/src/runtime/test_runner/ScopeFunctions.zig
 
-package bao_runtime
+package bao_runtime.test_runner
 
 // ========== ScopeFunctions - 作用域函数 ==========
 

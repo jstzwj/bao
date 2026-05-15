@@ -1,3 +1,10 @@
 [package]
+cjc-version = "1.0.0"
 name = "bao_zstd"
 version = "0.1.0"
+output-type = "static"
+src-dir = "src"
+
+[dependencies]
+bao_core = { path = "../bao_core" }
+bao_collections = { path = "../bao_collections" }

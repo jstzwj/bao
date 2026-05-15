@@ -1,10 +1,10 @@
 // 严格翻译自: src/runtime/test_runner/expect/toHaveBeenCalledTimes.zig
 
-package bao_runtime
+package bao_runtime.test_runner.expect
 
 /// toHaveBeenCalledTimes() - 检查mock函数被调用的次数
 /// 用法: expect(mockFn).toHaveBeenCalledTimes(times)
-public func toHaveBeenCalledTimes(this: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toHaveBeenCalledTimes(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()

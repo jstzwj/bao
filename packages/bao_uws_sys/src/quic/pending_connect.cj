@@ -1,5 +1,5 @@
 // 严格翻译自: src/uws_sys/quic/PendingConnect.zig
-package bao_uws_sys
+package bao_uws_sys.quic
 
 import bao_sys.*
 

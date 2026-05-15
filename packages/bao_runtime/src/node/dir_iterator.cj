@@ -1,7 +1,7 @@
 // 目录迭代器（完整翻译）
 // 对应 Bun: src/runtime/node/dir_iterator.zig
 // 严格翻译自: src/runtime/node/dir_iterator.zig
-package bao_runtime
+package bao_runtime.node
 
 import bao_core.*
 import bao_sys.*

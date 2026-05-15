@@ -1,7 +1,7 @@
 // 路径处理模块（完整翻译）
 // 对应 Bun: src/runtime/node/path.zig
 // 严格翻译自: src/runtime/node/path.zig
-package bao_runtime
+package bao_runtime.node
 
 import bao_core.*
 

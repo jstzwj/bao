@@ -1,7 +1,7 @@
 // Socket 事件处理器 — TCP/TLS 连接的回调管理
 // 对应 Bun: src/runtime/socket/Handlers.zig
 // 管理 onOpen, onClose, onData, onWritable 等回调的生命周期
-package bao_runtime
+package bao_runtime.socket
 
 import bao_core.*
 import bao_collections.*

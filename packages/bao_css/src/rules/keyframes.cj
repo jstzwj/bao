@@ -1,7 +1,7 @@
 // bao_css - CSS @keyframes 关键帧规则
 // 严格翻译自: bun/src/css/rules/keyframes.rs
 //   对应: rules/keyframes.zig - KeyframesName, KeyframeSelector, Keyframe, KeyframesRule
-package bao.css
+package bao_css.rules
 
 import bao_core.*
 import bao_collections.*

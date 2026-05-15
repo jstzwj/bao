@@ -1,5 +1,5 @@
 // 严格翻译自: src/uws_sys/quic/Header.zig
-package bao_uws_sys
+package bao_uws_sys.quic
 
 import bao_sys.*
 
@@ -38,39 +38,39 @@ public class QuicHeader {
 //  enum lsqpack_tnv. Only the entries a request encoder actually emits are
 //  named; the rest are still reachable via @enumFromInt.
 // ============================================================================
-public enum Qpack <: UInt8 {
-    authority = 0
-    path = 1
-    content_disposition = 3
-    content_length = 4
-    cookie = 5
-    date = 6
-    etag = 7
-    if_modified_since = 8
-    if_none_match = 9
-    last_modified = 10
-    link = 11
-    location = 12
-    referer = 13
-    set_cookie = 14
-    method_get = 17
-    scheme_https = 23
-    accept = 29
-    accept_encoding = 31
-    accept_ranges = 32
-    cache_control = 36
-    content_encoding = 43
-    content_type = 44
-    range = 55
-    vary = 59
-    accept_language = 72
-    authorization = 84
-    forwarded = 88
-    if_range = 89
-    origin = 90
-    server = 92
-    user_agent = 95
-    x_forwarded_for = 96
+public enum Qpack {
+    | authority
+    | path
+    | content_disposition
+    | content_length
+    | cookie
+    | date
+    | etag
+    | if_modified_since
+    | if_none_match
+    | last_modified
+    | link
+    | location
+    | referer
+    | set_cookie
+    | method_get
+    | scheme_https
+    | accept
+    | accept_encoding
+    | accept_ranges
+    | cache_control
+    | content_encoding
+    | content_type
+    | range
+    | vary
+    | accept_language
+    | authorization
+    | forwarded
+    | if_range
+    | origin
+    | server
+    | user_agent
+    | x_forwarded_for
 }
 
 // ============================================================================

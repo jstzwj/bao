@@ -1,7 +1,7 @@
 // ServerConfig - HTTP 服务器配置
 // 严格翻译自: Bun src/runtime/server/ServerConfig.zig
 // 对应: Bun.serve() 的配置选项
-package bao_runtime
+package bao_runtime.server
 
 import bao_core.*
 import bao_collections.*

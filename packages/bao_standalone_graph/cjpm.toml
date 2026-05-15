@@ -1,0 +1,16 @@
+[package]
+cjc-version = "1.0.0"
+name = "bao_standalone_graph"
+organization = "bao"
+description = "Bao bao_standalone_graph module"
+version = "0.1.0"
+compile-option = ""
+override-compile-option = ""
+link-option = ""
+output-type = "static"
+src-dir = "src"
+target-dir = ""
+
+[dependencies]
+bao_sourcemap = { path = "../bao_sourcemap" }
+bao_core = { path = "../bao_core" }

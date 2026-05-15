@@ -1,6 +1,6 @@
 // MySQL 栈读取器
 // 对应 Bun: src/sql/mysql/protocol/StackReader.zig
-package bao_sql
+package bao_sql.mysql.protocol
 
 /// MySQL 栈上包读取器
 /// 对应 Bun: StackReader (struct)

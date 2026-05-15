@@ -1,7 +1,7 @@
 // Web API TextEncoder / TextDecoder
 // 对应 Bun: src/runtime/api/text_encoder.zig
 // 严格翻译自: src/api/text_encoder.zig
-package bao_runtime
+package bao_runtime.web_api
 
 import bao_core.*
 import bao_collections.*

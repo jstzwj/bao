@@ -1,7 +1,7 @@
 // ResumableSink - 可恢复 Sink
 // 对应 Bun: src/runtime/webcore/ResumableSink.zig
 // 严格翻译自: src/runtime/webcore/ResumableSink.zig
-package bao_runtime
+package bao_runtime.webcore
 
 import bao_core.*
 

@@ -6,7 +6,7 @@
 //   - 可选: allocation tracking, callstack depth
 //   - 通过动态加载避免硬依赖
 //   仓颉: 提供 Tracy 兼容的接口框架, 通过 C FFI dlsym 动态加载
-package bao_core
+package bao_core.perf
 
 // ============================================================================
 // C FFI 声明

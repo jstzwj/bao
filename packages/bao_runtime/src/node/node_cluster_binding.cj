@@ -1,7 +1,7 @@
 // 集群绑定模块
 // 对应 Bun: src/runtime/node/node_cluster_binding.zig
 // 严格翻译自: src/runtime/node/node_cluster_binding.zig
-package bao_runtime
+package bao_runtime.node
 
 // ============================================================================
 // 集群绑定 — IPC 进程间通信

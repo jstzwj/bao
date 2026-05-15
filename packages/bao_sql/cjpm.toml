@@ -7,11 +7,12 @@ version = "0.1.0"
 compile-option = ""
 override-compile-option = ""
 link-option = ""
-output-type = "library"
+output-type = "static"
 src-dir = "src"
 target-dir = ""
 
 [dependencies]
 bao_core = { path = "../bao_core" }
+bao_collections = { path = "../bao_collections" }
 bao_io = { path = "../bao_io" }
 bao_sys = { path = "../bao_sys" }

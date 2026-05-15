@@ -8,7 +8,7 @@
 //   - CFFileDescriptor 处理子进程端
 //   - Socket EOF = 父进程死亡 = 子进程退出
 //   仓颉: 提供兼容的宿主进程管理接口
-package bao_runtime
+package bao_runtime.webview
 
 import bao_core.*
 

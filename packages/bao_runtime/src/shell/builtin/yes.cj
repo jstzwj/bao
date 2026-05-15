@@ -2,7 +2,7 @@
 // 对应 Bun: src/runtime/shell/builtin/yes.zig
 // 严格翻译Bun shell yes命令到仓颉
 
-package bao_runtime
+package bao_runtime.shell.builtin
 
 import bao_core.*
 

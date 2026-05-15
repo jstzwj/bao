@@ -1,10 +1,10 @@
 // 严格翻译自: src/runtime/test_runner/expect/toContainValue.zig
 
-package bao_runtime
+package bao_runtime.test_runner.expect
 
 /// toContainValue() - 检查对象是否包含指定值
 /// 用法: expect(received).toContainValue(expected)
-public func toContainValue(this: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toContainValue(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()

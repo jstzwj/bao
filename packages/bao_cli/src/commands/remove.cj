@@ -1,6 +1,6 @@
 // 严格翻译自: src/cli/remove_command.zig, src/cli/install_command.zig
 // bao remove - 移除包依赖
-package bao_cli
+package bao_cli.commands
 
 import bao_core.*
 import bao_collections.*

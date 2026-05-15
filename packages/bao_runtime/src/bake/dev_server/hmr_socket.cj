@@ -1,7 +1,7 @@
 // 翻译自 Bun: src/runtime/bake/DevServer/HmrSocket.zig
 // HMR WebSocket 连接处理器。处理客户端与服务器的热模块重载通信。
 
-package bao_runtime
+package bao_runtime.bake.dev_server
 
 /// HMR Socket - WebSocket 连接处理器
 public class HmrSocket {

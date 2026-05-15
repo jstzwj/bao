@@ -1,7 +1,7 @@
 // ArrayBufferSink - ArrayBuffer 接收器
 // 对应 Bun: src/runtime/webcore/ArrayBufferSink.zig
 // 严格翻译自: src/runtime/webcore/ArrayBufferSink.zig
-package bao_runtime
+package bao_runtime.webcore
 
 import bao_core.*
 import bao_collections.*

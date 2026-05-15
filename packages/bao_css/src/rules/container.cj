@@ -2,7 +2,7 @@
 // 严格翻译自: bun/src/css/rules/container.rs
 //   对应: rules/container.zig - ContainerName, ContainerSizeFeatureId,
 //     ContainerCondition, StyleQuery, ContainerRule
-package bao.css
+package bao_css.rules
 
 import bao_core.*
 import bao_collections.*

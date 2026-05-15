@@ -2,7 +2,7 @@
 // 严格翻译自: bun/src/options_types/import_record.zig
 //   pub const ImportKind = enum(u8) { ... };
 //   pub const ImportRecord = struct { ... };
-package bao.options
+package bao_options
 
 import bao_core.*
 

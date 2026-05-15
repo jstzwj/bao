@@ -1,7 +1,7 @@
 // 严格翻译自: src/sql_jsc/shared/CachedStructure.zig
 // 缓存的 JS 结构体
 
-package bao_sql_jsc
+package bao_sql_jsc.shared
 
 import bao_core.*
 import bao_jsc.*

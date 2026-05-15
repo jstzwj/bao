@@ -1,10 +1,10 @@
 // 严格翻译自: src/runtime/test_runner/expect/toBeLessThan.zig
 
-package bao_runtime
+package bao_runtime.test_runner.expect
 
 /// toBeLessThan() - 检查值是否小于期望值
 /// 用法: expect(received).toBeLessThan(expected)
-public func toBeLessThan(this: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toBeLessThan(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()

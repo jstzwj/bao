@@ -2,7 +2,7 @@
 // 对应 Bun: src/runtime/shell/util.zig
 // 严格翻译Bun shell工具函数到仓颉
 
-package bao_runtime
+package bao_runtime.shell
 
 import bao_core.*
 

@@ -1,10 +1,10 @@
 // 严格翻译自: src/runtime/test_runner/expect/toThrow.zig
 
-package bao_runtime
+package bao_runtime.test_runner.expect
 
 /// toThrow() - 检查函数是否抛出异常
 /// 用法: expect(fn).toThrow() / expect(fn).toThrow("message") / expect(fn).toThrow(ErrorClass)
-public func toThrow(this: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toThrow(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()

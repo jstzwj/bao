@@ -56,15 +56,10 @@ public class TransformOptions {
 
 // ========== TransformTarget ==========
 // 转换目标平台
-public enum TransformTarget <: UInt8 {
-    | Bun(0)
-    | Browser(1)
-    | Node(2)
+public enum TransformTarget {
 }
 
 // ========== ResolveMode ==========
 // 解析模式
-public enum ResolveMode <: UInt8 {
-    | Lazy(0)
-    | Eager(1)
+public enum ResolveMode {
 }

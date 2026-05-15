@@ -3,7 +3,7 @@
 // 严格1:1翻译自 Bun boringssl_jsc.zig
 // JSC bridge for BoringSSL error formatting. Keeps `src/boringssl/` free of JSC types.
 
-package bao_runtime
+package bao_runtime.crypto
 
 import bao_core.*
 

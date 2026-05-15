@@ -1,6 +1,6 @@
 // MySQL 连接状态
 // 对应 Bun: src/sql/mysql/ConnectionState.zig
-package bao_sql
+package bao_sql.mysql
 
 /// MySQL 连接状态枚举
 /// 对应 Bun: ConnectionState (enum)

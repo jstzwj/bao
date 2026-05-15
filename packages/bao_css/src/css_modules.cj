@@ -6,7 +6,7 @@
 //   对应: CssModule struct - CSS 模块处理器
 //   对应: CssModuleExport - 导出映射
 //   对应: CssModuleReference - 引用类型 (local, global, dependency)
-package bao.css
+package bao_css
 
 import bao_core.*
 import bao_collections.*

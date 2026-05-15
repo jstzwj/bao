@@ -6,7 +6,7 @@
 // - cd ~username 将切换到指定用户的主目录
 // - cd - 将切换到前一个目录
 
-package bao_runtime
+package bao_runtime.shell.builtin
 
 import bao_core.*
 

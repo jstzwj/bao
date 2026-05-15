@@ -1,7 +1,7 @@
 // bao_css - CSS 角度值类型
 // 严格翻译自: bun/src/css/values/angle.rs
 //   对应: values/angle.zig - Angle, AnglePercentage
-package bao.css
+package bao_css.values
 
 import bao_core.*
 

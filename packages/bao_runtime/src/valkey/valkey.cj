@@ -1,10 +1,10 @@
 // Valkey 客户端核心 - Valkey 连接、协议处理与命令管理
 // 严格翻译自: bun/src/runtime/valkey_jsc/valkey.zig
-package bao_runtime
+package bao_runtime.valkey
 
 import bao_core.*
 import bao_collections.*
-import bao.valkey.*
+import bao_valkey.*
 
 // ============================================================================
 // ConnectionFlags - 连接标志

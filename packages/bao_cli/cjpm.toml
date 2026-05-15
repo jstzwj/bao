@@ -12,14 +12,17 @@ src-dir = "src"
 target-dir = ""
 
 [dependencies]
+bao_sys = { path = "../bao_sys" }
+bao_sql = { path = "../bao_sql" }
+bao_runtime = { path = "../bao_runtime" }
+bao_resolver = { path = "../bao_resolver" }
+bao_path = { path = "../bao_path" }
+bao_parser = { path = "../bao_parser" }
+bao_jsc = { path = "../bao_jsc" }
+bao_io = { path = "../bao_io" }
+bao_install = { path = "../bao_install" }
+bao_http = { path = "../bao_http" }
+bao_hash = { path = "../bao_hash" }
 bao_core = { path = "../bao_core" }
 bao_collections = { path = "../bao_collections" }
-bao_runtime = { path = "../bao_runtime" }
 bao_bundler = { path = "../bao_bundler" }
-bao_install = { path = "../bao_install" }
-bao_parser = { path = "../bao_parser" }
-bao_io = { path = "../bao_io" }
-bao_sys = { path = "../bao_sys" }
-bao_http = { path = "../bao_http" }
-bao_sql = { path = "../bao_sql" }
-bao_path = { path = "../bao_path" }

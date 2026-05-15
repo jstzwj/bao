@@ -1,7 +1,7 @@
 // Native zlib 压缩流
 // 对应 Bun: src/runtime/node/zlib/NativeZlib.zig
 // 严格翻译自: src/runtime/node/zlib/NativeZlib.zig
-package bao_runtime
+package bao_runtime.node.zlib
 
 // ============================================================================
 // zlib 压缩模式

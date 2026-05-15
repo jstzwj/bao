@@ -1,7 +1,7 @@
 // bao_codegen - 代码生成回调包装工具
 // 严格翻译自: bun/src/jsc/codegen.zig (~73行)
 //   JSC 绑定代码生成用的回调 getter/setter 包装器
-package bao.codegen
+package bao_codegen
 
 import bao_core.*
 

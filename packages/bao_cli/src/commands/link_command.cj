@@ -1,6 +1,6 @@
 // 严格翻译自: src/cli/link_command.zig
 // bao link - 链接本地包到全局 / 从全局链接到项目
-package bao_cli
+package bao_cli.commands
 
 import bao_core.*
 import bao_collections.*

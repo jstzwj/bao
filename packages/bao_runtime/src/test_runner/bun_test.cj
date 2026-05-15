@@ -1,7 +1,7 @@
 // bun_test.cj - 测试框架主入口
 // 严格翻译自 bun/src/runtime/test_runner/bun_test.zig
 
-package bao_runtime
+package bao_runtime.test_runner
 
 // ========== 公共辅助函数 ==========
 

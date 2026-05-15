@@ -2,7 +2,7 @@
 // 对应 Bun: src/runtime/shell/states/Base.zig
 // 严格翻译Bun shell状态基类到仓颉
 
-package bao_runtime
+package bao_runtime.shell.states
 
 import bao_core.*
 

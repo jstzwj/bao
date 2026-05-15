@@ -1,7 +1,7 @@
 // Node.js 错误码定义
 // 对应 Bun: src/runtime/node/nodejs_error_code.zig
 // 严格翻译自: src/runtime/node/nodejs_error_code.zig
-package bao_runtime
+package bao_runtime.node
 
 // ============================================================================
 // Node.js 错误码枚举

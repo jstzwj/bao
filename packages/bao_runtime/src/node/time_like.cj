@@ -1,7 +1,7 @@
 // TimeLike — 时间值类型及转换
 // 对应 Bun: src/runtime/node/time_like.zig
 // 严格翻译自: src/runtime/node/time_like.zig
-package bao_runtime
+package bao_runtime.node
 
 // ============================================================================
 // TimeLike — 时间表示

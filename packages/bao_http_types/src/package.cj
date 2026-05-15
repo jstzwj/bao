@@ -9,6 +9,6 @@
 //   - FetchCacheMode.zig: Fetch API 缓存模式
 //   - FetchRedirect.zig: Fetch API 重定向策略
 //   - FetchRequestMode.zig: Fetch API 请求模式
-package bao.http_types
+package bao_http_types
 
 import bao_core.*

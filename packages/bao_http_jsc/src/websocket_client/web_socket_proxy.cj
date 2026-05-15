@@ -1,7 +1,7 @@
 // 严格翻译自: src/http_jsc/websocket_client/WebSocketProxy.zig
 //! WebSocketProxy encapsulates proxy state for WebSocket connections through HTTP/HTTPS proxies.
 //! This struct holds only the fields needed after the initial CONNECT request.
-package bao_http_jsc
+package bao_http_jsc.websocket_client
 
 import bao_jsc.*
 import bao_core.*

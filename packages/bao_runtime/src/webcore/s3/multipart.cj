@@ -1,7 +1,7 @@
 // S3 Multipart - S3 分块上传
 // 对应 Bun: src/runtime/webcore/s3/multipart.zig, multipart_options.zig
 // 严格翻译自: src/runtime/webcore/s3/multipart.zig
-package bao_runtime
+package bao_runtime.webcore.s3
 
 import bao_core.*
 

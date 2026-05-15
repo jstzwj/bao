@@ -2,7 +2,7 @@
 // CSS 过渡属性: Transition 值类型, TransitionHandler 处理器
 // 包含: Transition, TransitionHandler, expandProperties, getLogicalProperties, isTransitionProperty
 
-package bao.css
+package bao_css.properties
 
 import bao_core.*
 import bao_collections.*

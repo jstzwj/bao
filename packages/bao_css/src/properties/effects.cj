@@ -4,7 +4,7 @@
 //   对应: FilterList, Filter (11 variants), DropShadow
 // ============================================================================
 
-package bao.css
+package bao_css.properties
 
 import bao_core.*
 

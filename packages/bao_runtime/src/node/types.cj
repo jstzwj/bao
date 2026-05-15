@@ -1,7 +1,7 @@
 // Node.js 运行时类型定义（完整翻译）
 // 对应 Bun: src/runtime/node/types.zig
 // 严格翻译自: src/runtime/node/types.zig
-package bao_runtime
+package bao_runtime.node
 
 import bao_core.*
 

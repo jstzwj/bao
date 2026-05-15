@@ -1,7 +1,7 @@
 // 严格翻译自: src/sql_jsc/postgres/PostgresSQLConnection.zig
 // Postgres SQL 连接 - Postgres 协议层连接实现
 
-package bao_sql_jsc
+package bao_sql_jsc.postgres
 
 import bao_core.*
 import bao_jsc.*

@@ -1,7 +1,7 @@
 // RangeRequest - HTTP Range 请求头解析
 // 严格翻译自: Bun src/runtime/server/RangeRequest.zig
 // 对应: 解析 HTTP Range: bytes=... 请求头
-package bao_runtime
+package bao_runtime.server
 
 // ============================================================================
 // RangeRequest - HTTP Range 请求解析

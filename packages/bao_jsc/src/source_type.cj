@@ -7,11 +7,5 @@ package bao_jsc
 // 严格翻译自 SourceType.zig SourceType
 // 源代码类型枚举，来自 WebKit SourceProvider.h
 // 用于标识 JavaScript 源代码是普通脚本、ES 模块还是 WebAssembly
-public enum SourceType <: UInt8 {
-    // 普通脚本（Program）
-    | Program(0)
-    // ES 模块
-    | Module(1)
-    // WebAssembly 模块
-    | WebAssembly(2)
+public enum SourceType {
 }

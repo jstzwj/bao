@@ -1,7 +1,7 @@
 // bao_css - CSS calc() 数学表达式
 // 严格翻译自: bun/src/css/values/calc.rs
 //   对应: values/calc.zig - Calc, MathFunction, CalcUnit, RoundingStrategy, Constant
-package bao.css
+package bao_css.values
 
 import bao_core.*
 import bao_collections.*

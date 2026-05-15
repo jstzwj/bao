@@ -1,7 +1,7 @@
 // Windows 文件监视器
 // 对应 Bun: src/runtime/node/win_watcher.zig
 // 严格翻译自: src/runtime/node/win_watcher.zig
-package bao_runtime
+package bao_runtime.node
 
 // ============================================================================
 // Windows 路径监视管理器

@@ -1,7 +1,7 @@
 // bao_css - CSS @import 导入规则
 // 严格翻译自: bun/src/css/rules/import.rs
 //   对应: rules/import.zig - ImportRule, ImportConditions, Layer
-package bao.css
+package bao_css.rules
 
 import bao_core.*
 import bao_collections.*

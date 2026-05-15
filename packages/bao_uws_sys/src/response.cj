@@ -88,18 +88,14 @@ foreign func uws_res_cork(ssl: Int32, res: CPointer<Unit>, ctx: CPointer<Unit>, 
 // State - HTTP 响应状态
 // 严格翻译自: Response.zig State = enum(u8)
 // ============================================================================
-public enum State <: UInt8 {
-    HTTP_STATUS_CALLED = 1
-    HTTP_WRITE_CALLED = 2
-    HTTP_END_CALLED = 4
-    HTTP_RESPONSE_PENDING = 8
-    HTTP_CONNECTION_CLOSE = 16
-    HTTP_WROTE_CONTENT_LENGTH_HEADER = 32
-
-    /// 对应 Bun: pub inline fn isResponsePending(this) bool
-    public func isResponsePending(): Bool {
-        return (UInt8(this) & UInt8(State.HTTP_RESPONSE_PENDING)) != 0
-    }
+public enum State {
+    | HTTP_STATUS_CALLED
+    | HTTP_WRITE_CALLED
+    | HTTP_END_CALLED
+    | HTTP_RESPONSE_PENDING
+    | HTTP_CONNECTION_CLOSE
+    | HTTP_WROTE_CONTENT_LENGTH_HEADER
+}
 
     /// 对应 Bun: pub inline fn hasWrittenContentLengthHeader(this) bool
     public func hasWrittenContentLengthHeader(): Bool {
@@ -536,18 +532,18 @@ public class AnyResponse {
     /// 对应 Bun: pub fn end(this, data, close_connection) void
     public func end(data: Array<UInt8>, closeConnection: Bool): Unit {
         match (responseType) {
-            case ResponseType.tcp => if (let Some(r) <- tcpResp) { r.end(data, closeConnection) }
-            case ResponseType.ssl => if (let Some(r) <- tlsResp) { r.end(data, closeConnection) }
-            case ResponseType.h3 => {}
+            | ResponseType.tcp => if (let Some(r) <- tcpResp) { r.end(data, closeConnection) }
+            | ResponseType.ssl => if (let Some(r) <- tlsResp) { r.end(data, closeConnection) }
+            | ResponseType.h3 => {}
         }
     }
 
     /// 对应 Bun: pub fn tryEnd(this, data, total_size, close_connection) bool
     public func tryEnd(data: Array<UInt8>, totalSize: UIntNative, closeConnection: Bool): Bool {
         match (responseType) {
-            case ResponseType.tcp => if (let Some(r) <- tcpResp) { return r.tryEnd(data, totalSize, closeConnection) }
-            case ResponseType.ssl => if (let Some(r) <- tlsResp) { return r.tryEnd(data, totalSize, closeConnection) }
-            case ResponseType.h3 => {}
+            | ResponseType.tcp => if (let Some(r) <- tcpResp) { return r.tryEnd(data, totalSize, closeConnection) }
+            | ResponseType.ssl => if (let Some(r) <- tlsResp) { return r.tryEnd(data, totalSize, closeConnection) }
+            | ResponseType.h3 => {}
         }
         return false
     }
@@ -555,27 +551,27 @@ public class AnyResponse {
     /// 对应 Bun: pub fn writeStatus(this, status) void
     public func writeStatus(status: Array<UInt8>): Unit {
         match (responseType) {
-            case ResponseType.tcp => if (let Some(r) <- tcpResp) { r.writeStatus(status) }
-            case ResponseType.ssl => if (let Some(r) <- tlsResp) { r.writeStatus(status) }
-            case ResponseType.h3 => {}
+            | ResponseType.tcp => if (let Some(r) <- tcpResp) { r.writeStatus(status) }
+            | ResponseType.ssl => if (let Some(r) <- tlsResp) { r.writeStatus(status) }
+            | ResponseType.h3 => {}
         }
     }
 
     /// 对应 Bun: pub fn writeHeader(this, key, value) void
     public func writeHeader(key: Array<UInt8>, value: Array<UInt8>): Unit {
         match (responseType) {
-            case ResponseType.tcp => if (let Some(r) <- tcpResp) { r.writeHeader(key, value) }
-            case ResponseType.ssl => if (let Some(r) <- tlsResp) { r.writeHeader(key, value) }
-            case ResponseType.h3 => {}
+            | ResponseType.tcp => if (let Some(r) <- tcpResp) { r.writeHeader(key, value) }
+            | ResponseType.ssl => if (let Some(r) <- tlsResp) { r.writeHeader(key, value) }
+            | ResponseType.h3 => {}
         }
     }
 
     /// 对应 Bun: pub fn write(this, data) WriteResult
     public func write(data: Array<UInt8>): WriteResult {
         match (responseType) {
-            case ResponseType.tcp => if (let Some(r) <- tcpResp) { return r.write(data) }
-            case ResponseType.ssl => if (let Some(r) <- tlsResp) { return r.write(data) }
-            case ResponseType.h3 => {}
+            | ResponseType.tcp => if (let Some(r) <- tcpResp) { return r.write(data) }
+            | ResponseType.ssl => if (let Some(r) <- tlsResp) { return r.write(data) }
+            | ResponseType.h3 => {}
         }
         return WriteResultBackpressure(0)
     }
@@ -583,63 +579,63 @@ public class AnyResponse {
     /// 对应 Bun: pub fn writeHeaderInt(this, key, value) void
     public func writeHeaderInt(key: Array<UInt8>, value: UInt64): Unit {
         match (responseType) {
-            case ResponseType.tcp => if (let Some(r) <- tcpResp) { r.writeHeaderInt(key, value) }
-            case ResponseType.ssl => if (let Some(r) <- tlsResp) { r.writeHeaderInt(key, value) }
-            case ResponseType.h3 => {}
+            | ResponseType.tcp => if (let Some(r) <- tcpResp) { r.writeHeaderInt(key, value) }
+            | ResponseType.ssl => if (let Some(r) <- tlsResp) { r.writeHeaderInt(key, value) }
+            | ResponseType.h3 => {}
         }
     }
 
     /// 对应 Bun: pub fn endWithoutBody(this, close_connection) void
     public func endWithoutBody(closeConnection: Bool): Unit {
         match (responseType) {
-            case ResponseType.tcp => if (let Some(r) <- tcpResp) { r.endWithoutBody(closeConnection) }
-            case ResponseType.ssl => if (let Some(r) <- tlsResp) { r.endWithoutBody(closeConnection) }
-            case ResponseType.h3 => {}
+            | ResponseType.tcp => if (let Some(r) <- tcpResp) { r.endWithoutBody(closeConnection) }
+            | ResponseType.ssl => if (let Some(r) <- tlsResp) { r.endWithoutBody(closeConnection) }
+            | ResponseType.h3 => {}
         }
     }
 
     /// 对应 Bun: pub fn endSendFile(this, write_offset, close_connection) void
     public func endSendFile(writeOffset: UInt64, closeConnection: Bool): Unit {
         match (responseType) {
-            case ResponseType.tcp => if (let Some(r) <- tcpResp) { r.endSendFile(writeOffset, closeConnection) }
-            case ResponseType.ssl => if (let Some(r) <- tlsResp) { r.endSendFile(writeOffset, closeConnection) }
-            case ResponseType.h3 => {}
+            | ResponseType.tcp => if (let Some(r) <- tcpResp) { r.endSendFile(writeOffset, closeConnection) }
+            | ResponseType.ssl => if (let Some(r) <- tlsResp) { r.endSendFile(writeOffset, closeConnection) }
+            | ResponseType.h3 => {}
         }
     }
 
     /// 对应 Bun: pub fn timeout(this, seconds) void
     public func timeout(seconds: UInt8): Unit {
         match (responseType) {
-            case ResponseType.tcp => if (let Some(r) <- tcpResp) { r.timeout(seconds) }
-            case ResponseType.ssl => if (let Some(r) <- tlsResp) { r.timeout(seconds) }
-            case ResponseType.h3 => {}
+            | ResponseType.tcp => if (let Some(r) <- tcpResp) { r.timeout(seconds) }
+            | ResponseType.ssl => if (let Some(r) <- tlsResp) { r.timeout(seconds) }
+            | ResponseType.h3 => {}
         }
     }
 
     /// 对应 Bun: pub fn pause(this) void
     public func pause(): Unit {
         match (responseType) {
-            case ResponseType.tcp => if (let Some(r) <- tcpResp) { r.pause() }
-            case ResponseType.ssl => if (let Some(r) <- tlsResp) { r.pause() }
-            case ResponseType.h3 => {}
+            | ResponseType.tcp => if (let Some(r) <- tcpResp) { r.pause() }
+            | ResponseType.ssl => if (let Some(r) <- tlsResp) { r.pause() }
+            | ResponseType.h3 => {}
         }
     }
 
     /// 对应 Bun: pub fn @"resume"(this) void
     public func resume(): Unit {
         match (responseType) {
-            case ResponseType.tcp => if (let Some(r) <- tcpResp) { r.resume() }
-            case ResponseType.ssl => if (let Some(r) <- tlsResp) { r.resume() }
-            case ResponseType.h3 => {}
+            | ResponseType.tcp => if (let Some(r) <- tcpResp) { r.resume() }
+            | ResponseType.ssl => if (let Some(r) <- tlsResp) { r.resume() }
+            | ResponseType.h3 => {}
         }
     }
 
     /// 对应 Bun: pub fn shouldCloseConnection(this) bool
     public func shouldCloseConnection(): Bool {
         match (responseType) {
-            case ResponseType.tcp => if (let Some(r) <- tcpResp) { return r.shouldCloseConnection() }
-            case ResponseType.ssl => if (let Some(r) <- tlsResp) { return r.shouldCloseConnection() }
-            case ResponseType.h3 => {}
+            | ResponseType.tcp => if (let Some(r) <- tcpResp) { return r.shouldCloseConnection() }
+            | ResponseType.ssl => if (let Some(r) <- tlsResp) { return r.shouldCloseConnection() }
+            | ResponseType.h3 => {}
         }
         return false
     }
@@ -647,9 +643,9 @@ public class AnyResponse {
     /// 对应 Bun: pub fn getWriteOffset(this) u64
     public func getWriteOffset(): UInt64 {
         match (responseType) {
-            case ResponseType.tcp => if (let Some(r) <- tcpResp) { return r.getWriteOffset() }
-            case ResponseType.ssl => if (let Some(r) <- tlsResp) { return r.getWriteOffset() }
-            case ResponseType.h3 => {}
+            | ResponseType.tcp => if (let Some(r) <- tcpResp) { return r.getWriteOffset() }
+            | ResponseType.ssl => if (let Some(r) <- tlsResp) { return r.getWriteOffset() }
+            | ResponseType.h3 => {}
         }
         return 0
     }
@@ -657,9 +653,9 @@ public class AnyResponse {
     /// 对应 Bun: pub fn getBufferedAmount(this) u64
     public func getBufferedAmount(): UInt64 {
         match (responseType) {
-            case ResponseType.tcp => if (let Some(r) <- tcpResp) { return r.getBufferedAmount() }
-            case ResponseType.ssl => if (let Some(r) <- tlsResp) { return r.getBufferedAmount() }
-            case ResponseType.h3 => {}
+            | ResponseType.tcp => if (let Some(r) <- tcpResp) { return r.getBufferedAmount() }
+            | ResponseType.ssl => if (let Some(r) <- tlsResp) { return r.getBufferedAmount() }
+            | ResponseType.h3 => {}
         }
         return 0
     }
@@ -667,18 +663,18 @@ public class AnyResponse {
     /// 对应 Bun: pub fn writeContinue(this) void
     public func writeContinue(): Unit {
         match (responseType) {
-            case ResponseType.tcp => if (let Some(r) <- tcpResp) { r.writeContinue() }
-            case ResponseType.ssl => if (let Some(r) <- tlsResp) { r.writeContinue() }
-            case ResponseType.h3 => {}
+            | ResponseType.tcp => if (let Some(r) <- tcpResp) { r.writeContinue() }
+            | ResponseType.ssl => if (let Some(r) <- tlsResp) { r.writeContinue() }
+            | ResponseType.h3 => {}
         }
     }
 
     /// 对应 Bun: pub fn state(this) State
     public func state(): State {
         match (responseType) {
-            case ResponseType.tcp => if (let Some(r) <- tcpResp) { return r.state() }
-            case ResponseType.ssl => if (let Some(r) <- tlsResp) { return r.state() }
-            case ResponseType.h3 => {}
+            | ResponseType.tcp => if (let Some(r) <- tcpResp) { return r.state() }
+            | ResponseType.ssl => if (let Some(r) <- tlsResp) { return r.state() }
+            | ResponseType.h3 => {}
         }
         return State.HTTP_RESPONSE_PENDING
     }
@@ -686,9 +682,9 @@ public class AnyResponse {
     /// 对应 Bun: pub fn hasResponded - via state
     public func hasResponded(): Bool {
         match (responseType) {
-            case ResponseType.tcp => if (let Some(r) <- tcpResp) { return r.hasResponded() }
-            case ResponseType.ssl => if (let Some(r) <- tlsResp) { return r.hasResponded() }
-            case ResponseType.h3 => {}
+            | ResponseType.tcp => if (let Some(r) <- tcpResp) { return r.hasResponded() }
+            | ResponseType.ssl => if (let Some(r) <- tlsResp) { return r.hasResponded() }
+            | ResponseType.h3 => {}
         }
         return false
     }
@@ -696,9 +692,9 @@ public class AnyResponse {
     /// 对应 Bun: pub fn isCorked(this) bool
     public func isCorked(): Bool {
         match (responseType) {
-            case ResponseType.tcp => if (let Some(r) <- tcpResp) { return r.isCorked() }
-            case ResponseType.ssl => if (let Some(r) <- tlsResp) { return r.isCorked() }
-            case ResponseType.h3 => return false
+            | ResponseType.tcp => if (let Some(r) <- tcpResp) { return r.isCorked() }
+            | ResponseType.ssl => if (let Some(r) <- tlsResp) { return r.isCorked() }
+            | ResponseType.h3 => return false
         }
         return false
     }
@@ -706,81 +702,81 @@ public class AnyResponse {
     /// 对应 Bun: pub fn uncork(this) void
     public func uncork(): Unit {
         match (responseType) {
-            case ResponseType.tcp => if (let Some(r) <- tcpResp) { r.uncork() }
-            case ResponseType.ssl => if (let Some(r) <- tlsResp) { r.uncork() }
-            case ResponseType.h3 => {}
+            | ResponseType.tcp => if (let Some(r) <- tcpResp) { r.uncork() }
+            | ResponseType.ssl => if (let Some(r) <- tlsResp) { r.uncork() }
+            | ResponseType.h3 => {}
         }
     }
 
     /// 对应 Bun: pub fn markNeedsMore(this) void
     public func markNeedsMore(): Unit {
         match (responseType) {
-            case ResponseType.tcp => if (let Some(r) <- tcpResp) { r.markNeedsMore() }
-            case ResponseType.ssl => {}
-            case ResponseType.h3 => {}
+            | ResponseType.tcp => if (let Some(r) <- tcpResp) { r.markNeedsMore() }
+            | ResponseType.ssl => {}
+            | ResponseType.h3 => {}
         }
     }
 
     /// 对应 Bun: pub fn markWroteContentLengthHeader(this) void
     public func markWroteContentLengthHeader(): Unit {
         match (responseType) {
-            case ResponseType.tcp => if (let Some(r) <- tcpResp) { r.markWroteContentLengthHeader() }
-            case ResponseType.ssl => if (let Some(r) <- tlsResp) { r.markWroteContentLengthHeader() }
-            case ResponseType.h3 => {}
+            | ResponseType.tcp => if (let Some(r) <- tcpResp) { r.markWroteContentLengthHeader() }
+            | ResponseType.ssl => if (let Some(r) <- tlsResp) { r.markWroteContentLengthHeader() }
+            | ResponseType.h3 => {}
         }
     }
 
     /// 对应 Bun: pub fn writeMark(this) void
     public func writeMark(): Unit {
         match (responseType) {
-            case ResponseType.tcp => if (let Some(r) <- tcpResp) { r.writeMark() }
-            case ResponseType.ssl => if (let Some(r) <- tlsResp) { r.writeMark() }
-            case ResponseType.h3 => {}
+            | ResponseType.tcp => if (let Some(r) <- tcpResp) { r.writeMark() }
+            | ResponseType.ssl => if (let Some(r) <- tlsResp) { r.writeMark() }
+            | ResponseType.h3 => {}
         }
     }
 
     /// 对应 Bun: pub fn clearAborted(this) void
     public func clearAborted(): Unit {
         match (responseType) {
-            case ResponseType.tcp => if (let Some(r) <- tcpResp) { r.clearAborted() }
-            case ResponseType.ssl => if (let Some(r) <- tlsResp) { r.clearAborted() }
-            case ResponseType.h3 => {}
+            | ResponseType.tcp => if (let Some(r) <- tcpResp) { r.clearAborted() }
+            | ResponseType.ssl => if (let Some(r) <- tlsResp) { r.clearAborted() }
+            | ResponseType.h3 => {}
         }
     }
 
     /// 对应 Bun: pub fn clearTimeout(this) void
     public func clearTimeout(): Unit {
         match (responseType) {
-            case ResponseType.tcp => if (let Some(r) <- tcpResp) { r.clearTimeout() }
-            case ResponseType.ssl => if (let Some(r) <- tlsResp) { r.clearTimeout() }
-            case ResponseType.h3 => {}
+            | ResponseType.tcp => if (let Some(r) <- tcpResp) { r.clearTimeout() }
+            | ResponseType.ssl => if (let Some(r) <- tlsResp) { r.clearTimeout() }
+            | ResponseType.h3 => {}
         }
     }
 
     /// 对应 Bun: pub fn clearOnWritable(this) void
     public func clearOnWritable(): Unit {
         match (responseType) {
-            case ResponseType.tcp => if (let Some(r) <- tcpResp) { r.clearOnWritable() }
-            case ResponseType.ssl => if (let Some(r) <- tlsResp) { r.clearOnWritable() }
-            case ResponseType.h3 => {}
+            | ResponseType.tcp => if (let Some(r) <- tcpResp) { r.clearOnWritable() }
+            | ResponseType.ssl => if (let Some(r) <- tlsResp) { r.clearOnWritable() }
+            | ResponseType.h3 => {}
         }
     }
 
     /// 对应 Bun: pub fn clearOnData(this) void
     public func clearOnData(): Unit {
         match (responseType) {
-            case ResponseType.tcp => if (let Some(r) <- tcpResp) { r.clearOnData() }
-            case ResponseType.ssl => if (let Some(r) <- tlsResp) { r.clearOnData() }
-            case ResponseType.h3 => {}
+            | ResponseType.tcp => if (let Some(r) <- tcpResp) { r.clearOnData() }
+            | ResponseType.ssl => if (let Some(r) <- tlsResp) { r.clearOnData() }
+            | ResponseType.h3 => {}
         }
     }
 
     /// 对应 Bun: pub fn isConnectRequest(this) bool
     public func isConnectRequest(): Bool {
         match (responseType) {
-            case ResponseType.tcp => if (let Some(r) <- tcpResp) { return r.isConnectRequest() }
-            case ResponseType.ssl => if (let Some(r) <- tlsResp) { return r.isConnectRequest() }
-            case ResponseType.h3 => return false
+            | ResponseType.tcp => if (let Some(r) <- tcpResp) { return r.isConnectRequest() }
+            | ResponseType.ssl => if (let Some(r) <- tlsResp) { return r.isConnectRequest() }
+            | ResponseType.h3 => return false
         }
         return false
     }
@@ -788,27 +784,27 @@ public class AnyResponse {
     /// 对应 Bun: pub fn endStream(this, close_connection) void
     public func endStream(closeConnection: Bool): Unit {
         match (responseType) {
-            case ResponseType.tcp => if (let Some(r) <- tcpResp) { r.endStream(closeConnection) }
-            case ResponseType.ssl => if (let Some(r) <- tlsResp) { r.endStream(closeConnection) }
-            case ResponseType.h3 => {}
+            | ResponseType.tcp => if (let Some(r) <- tcpResp) { r.endStream(closeConnection) }
+            | ResponseType.ssl => if (let Some(r) <- tlsResp) { r.endStream(closeConnection) }
+            | ResponseType.h3 => {}
         }
     }
 
     /// 对应 Bun: pub fn prepareForSendfile(this) void
     public func prepareForSendfile(): Unit {
         match (responseType) {
-            case ResponseType.tcp => if (let Some(r) <- tcpResp) { r.prepareForSendfile() }
-            case ResponseType.ssl => if (let Some(r) <- tlsResp) { r.prepareForSendfile() }
-            case ResponseType.h3 => {}
+            | ResponseType.tcp => if (let Some(r) <- tcpResp) { r.prepareForSendfile() }
+            | ResponseType.ssl => if (let Some(r) <- tlsResp) { r.prepareForSendfile() }
+            | ResponseType.h3 => {}
         }
     }
 
     /// 对应 Bun: pub fn getNativeHandle(this) bun.FD
     public func getNativeHandle(): CPointer<Unit> {
         match (responseType) {
-            case ResponseType.tcp => if (let Some(r) <- tcpResp) { return r.getNativeHandle() }
-            case ResponseType.ssl => if (let Some(r) <- tlsResp) { return r.getNativeHandle() }
-            case ResponseType.h3 => return CPointer<Unit>.null
+            | ResponseType.tcp => if (let Some(r) <- tcpResp) { return r.getNativeHandle() }
+            | ResponseType.ssl => if (let Some(r) <- tlsResp) { return r.getNativeHandle() }
+            | ResponseType.h3 => return CPointer<Unit>.null
         }
         return CPointer<Unit>.null
     }
@@ -816,9 +812,9 @@ public class AnyResponse {
     /// 对应 Bun: pub fn getSocketData(this) ?*anyopaque
     public func getSocketData(): CPointer<Unit> {
         match (responseType) {
-            case ResponseType.tcp => if (let Some(r) <- tcpResp) { return r.getSocketData() }
-            case ResponseType.ssl => if (let Some(r) <- tlsResp) { return r.getSocketData() }
-            case ResponseType.h3 => return CPointer<Unit>.null
+            | ResponseType.tcp => if (let Some(r) <- tcpResp) { return r.getSocketData() }
+            | ResponseType.ssl => if (let Some(r) <- tlsResp) { return r.getSocketData() }
+            | ResponseType.h3 => return CPointer<Unit>.null
         }
         return CPointer<Unit>.null
     }
@@ -831,15 +827,15 @@ public class AnyResponse {
     /// 对应 Bun: pub fn forceClose(this) void
     public func forceClose(): Unit {
         match (responseType) {
-            case ResponseType.tcp => if (let Some(r) <- tcpResp) {
+            | ResponseType.tcp => if (let Some(r) <- tcpResp) {
                 let socket = UsSocket(r.getPtr())
                 socket.close(CloseCode.failure)
             }
-            case ResponseType.ssl => if (let Some(r) <- tlsResp) {
+            | ResponseType.ssl => if (let Some(r) <- tlsResp) {
                 let socket = UsSocket(r.getPtr())
                 socket.close(CloseCode.failure)
             }
-            case ResponseType.h3 => {}
+            | ResponseType.h3 => {}
         }
     }
 }

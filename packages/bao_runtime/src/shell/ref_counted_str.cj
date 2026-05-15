@@ -2,7 +2,7 @@
 // 对应 Bun: src/runtime/shell/RefCountedStr.zig
 // 严格翻译Bun引用计数字符串到仓颉
 
-package bao_runtime
+package bao_runtime.shell
 
 import bao_core.*
 
@@ -22,7 +22,7 @@ public class RefCountedStr {
     public var ptr: Array<Byte>
 
     /// 从切片初始化
-    public static func init(slice: Array<Byte>): RefCountedStr {
+    public static func initFunc(slice: Array<Byte>): RefCountedStr {
         let this = RefCountedStr()
         this.refcount = 1
         this.len = UInt32(slice.length)

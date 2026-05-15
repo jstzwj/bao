@@ -2,7 +2,7 @@
 // 严格翻译自: bun/src/css/rules/page.rs
 //   对应: rules/page.zig - PageRule, PageSelector, PageMarginRule,
 //     PagePseudoClass, PageMarginBox
-package bao.css
+package bao_css.rules
 
 import bao_core.*
 import bao_collections.*

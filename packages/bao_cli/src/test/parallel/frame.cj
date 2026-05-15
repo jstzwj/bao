@@ -1,5 +1,5 @@
 // 严格翻译自: src/cli/test/parallel/Frame.zig
-package bao_cli
+package bao_cli.test.parallel
 
 import bao_core.*
 

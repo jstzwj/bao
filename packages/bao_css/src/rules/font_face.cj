@@ -2,7 +2,7 @@
 // 严格翻译自: bun/src/css/rules/font_face.rs
 //   对应: rules/font_face.zig - FontFaceRule, FontFaceProperty, Source,
 //     FontStyle, FontFormat, FontTechnology, UnicodeRange, UrlSource
-package bao.css
+package bao_css.rules
 
 import bao_core.*
 import bao_collections.*

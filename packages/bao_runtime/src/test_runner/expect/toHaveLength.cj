@@ -1,10 +1,10 @@
 // 严格翻译自: src/runtime/test_runner/expect/toHaveLength.zig
 
-package bao_runtime
+package bao_runtime.test_runner.expect
 
 /// toHaveLength() - 检查值是否具有指定长度
 /// 用法: expect(received).toHaveLength(expected)
-public func toHaveLength(this: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toHaveLength(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()

@@ -4,7 +4,7 @@
 //   对应: Overflow, OverflowKeyword, TextOverflow
 // ============================================================================
 
-package bao.css
+package bao_css.properties
 
 import bao_core.*
 

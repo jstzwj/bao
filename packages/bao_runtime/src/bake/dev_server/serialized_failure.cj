@@ -4,7 +4,7 @@
 // 序列化失败包含文件或路由来源的句柄，
 // 允许 bundler 通过索引消除或更新过期的失败，而不是重新发送新的载荷。
 
-package bao_runtime
+package bao_runtime.bake.dev_server
 
 /// 序列化失败 - 发送到 HMR 客户端的序列化错误
 public class SerializedFailure {
@@ -27,10 +27,10 @@ public class SerializedFailure {
         /// 编码为 Packed
         public func encode(): Packed {
             return match (this) {
-                case none => Packed(kind: OwnerKind.none, data: 0)
-                case client(let data) => Packed(kind: OwnerKind.client, data: data.get())
-                case server(let data) => Packed(kind: OwnerKind.server, data: data.get())
-                case route(let data) => Packed(kind: OwnerKind.route, data: data.get())
+                | none => Packed(kind: OwnerKind.none, data: 0)
+                | client(let data) => Packed(kind: OwnerKind.client, data: data.get())
+                | server(let data) => Packed(kind: OwnerKind.server, data: data.get())
+                | route(let data) => Packed(kind: OwnerKind.route, data: data.get())
             }
         }
     }
@@ -53,10 +53,10 @@ public class SerializedFailure {
     public func getOwner(): Owner {
         let packed: Packed = bitCast<Packed>(data[0..4])
         return match (packed.kind) {
-            case none => Owner.none
-            case client => Owner.client(IncrementalGraphClientFileIndex.init(packed.data))
-            case server => Owner.server(IncrementalGraphServerFileIndex.init(packed.data))
-            case route => Owner.route(RouteBundle.Index.init(packed.data))
+            | none => Owner.none
+            | client => Owner.client(IncrementalGraphClientFileIndex.init(packed.data))
+            | server => Owner.server(IncrementalGraphServerFileIndex.init(packed.data))
+            | route => Owner.route(RouteBundle.Index.init(packed.data))
         }
     }
 
@@ -83,19 +83,7 @@ public class SerializedFailure {
     }
 
     /// 错误种类
-    public enum ErrorKind <: UInt8 {
-        | bundler_log_err       // bundler 错误日志
-        | bundler_log_warn      // bundler 警告日志
-        | bundler_log_note      // bundler 注释日志
-        | bundler_log_debug     // bundler 调试日志
-        | bundler_log_verbose   // bundler 详细日志
-        | js_error              // new Error(message)
-        | js_error_type         // new TypeError(message)
-        | js_error_range        // new RangeError(message)
-        | js_error_extra        // 其他 Error 对象
-        | js_primitive_exception // 非错误的带堆栈跟踪值
-        | js_primitive          // 非 Error 的 JS 值
-        | js_aggregate          // new AggregateError(errors, message)
+    public enum ErrorKind {
     }
 
     /// 从日志初始化
@@ -128,11 +116,11 @@ public class SerializedFailure {
     /// 写入日志消息
     static func writeLogMsg(msg: LogMsg, w: Writer): Unit {
         w.writeByte(match (msg.kind) {
-            case err => ErrorKind.bundler_log_err
-            case warn => ErrorKind.bundler_log_warn
-            case note => ErrorKind.bundler_log_note
-            case debug => ErrorKind.bundler_log_debug
-            case verbose => ErrorKind.bundler_log_verbose
+            | err => ErrorKind.bundler_log_err
+            | warn => ErrorKind.bundler_log_warn
+            | note => ErrorKind.bundler_log_note
+            | debug => ErrorKind.bundler_log_debug
+            | verbose => ErrorKind.bundler_log_verbose
         })
         writeLogData(msg.data, w)
         w.writeInt(UInt32, msg.notes.length)

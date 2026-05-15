@@ -1,7 +1,7 @@
 // CommandTag - CLI 命令标签
 // 严格翻译自: bun/src/options_types/CommandTag.zig
 //   pub const Tag = enum { AddCommand, AutoCommand, BuildCommand, ... };
-package bao.options
+package bao_options
 
 // ============================================================================
 // CommandTag - CLI 命令标签枚举

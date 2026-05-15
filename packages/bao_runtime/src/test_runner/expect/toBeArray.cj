@@ -1,10 +1,10 @@
 // 严格翻译自: src/runtime/test_runner/expect/toBeArray.zig
 
-package bao_runtime
+package bao_runtime.test_runner.expect
 
 /// toBeArray() - 检查值是否为数组类型
 /// 用法: expect(received).toBeArray()
-public func toBeArray(this: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toBeArray(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()

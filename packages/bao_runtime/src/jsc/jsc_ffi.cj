@@ -2,7 +2,7 @@
 // 对应 Bun: src/jsc/ 绑定的 JSC C API
 // 仓颉没有 JSC 绑定，这些声明供未来切换到真正 JSC 时使用
 // 当前使用 AST 解释器代替 JSC 执行
-package bao_runtime
+package bao_runtime.jsc
 
 // ============================================================================
 // JSC FFI — JavaScriptCore C API 声明

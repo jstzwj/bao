@@ -1,7 +1,7 @@
 // bao_css - CSS @tailwind 规则 (Tailwind CSS 专用)
 // 严格翻译自: bun/src/css/rules/tailwind.rs
 //   对应: rules/tailwind.zig - TailwindAtRule, TailwindStyleName
-package bao.css
+package bao_css.rules
 
 import bao_core.*
 import bao_collections.*

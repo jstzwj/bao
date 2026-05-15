@@ -1,7 +1,7 @@
 // pretty_format.cj - 格式化输出
 // 严格翻译自 bun/src/runtime/test_runner/pretty_format.zig
 
-package bao_runtime
+package bao_runtime.test_runner
 
 // ========== JestPrettyFormat - Jest美化格式化 ==========
 
@@ -18,30 +18,11 @@ public class JestPrettyFormat {
     }
 
     /// 格式化消息级别
-    public enum MessageLevel <: UInt32 {
-        case log = 0
-        case warning = 1
-        case error = 2
-        case debug = 3
-        case info = 4
+    public enum MessageLevel {
     }
 
     /// 格式化消息类型
-    public enum MessageType <: UInt32 {
-        case log = 0
-        case dir = 1
-        case dirXML = 2
-        case table = 3
-        case trace = 4
-        case startGroup = 5
-        case startGroupCollapsed = 6
-        case endGroup = 7
-        case clear = 8
-        case assert = 9
-        case timing = 10
-        case profile = 11
-        case profileEnd = 12
-        case image = 13
+    public enum MessageType {
     }
 
     /// 格式化入口
@@ -88,31 +69,31 @@ public class JestPrettyFormat {
 
         /// JS值类型标签
         public enum Tag {
-            case stringPossiblyFormatted
-            case string
-            case undefined
-            case double
-            case integer
-            case null
-            case boolean
-            case array
-            case object
-            case function
-            case class_
-            case error
-            case typedArray
-            case map
-            case set
-            case symbol
-            case bigInt
-            case globalObject
-            case private_
-            case promise
-            case json
-            case nativeCode
-            case arrayBuffer
-            case jsx
-            case event
+            | stringPossiblyFormatted
+            | string
+            | undefined
+            | double
+            | integer
+            | null
+            | boolean
+            | array
+            | object
+            | function
+            | class_
+            | error
+            | typedArray
+            | map
+            | set
+            | symbol
+            | bigInt
+            | globalObject
+            | private_
+            | promise
+            | json
+            | nativeCode
+            | arrayBuffer
+            | jsx
+            | event
 
             /// 是否为原始类型
             public func isPrimitive(): Bool {
@@ -184,23 +165,7 @@ public class JestPrettyFormat {
 // ========== EventType - 事件类型 ==========
 
 /// 事件类型枚举
-public enum EventType <: UInt8 {
-    case event = 0
-    case messageEvent = 1
-    case closeEvent = 2
-    case errorEvent = 3
-    case openEvent = 4
-    case unknown = 254
-
-    /// 获取标签
-    public func label(): String {
-        switch this {
-        case .event: return "event"
-        case .messageEvent: return "message"
-        case .closeEvent: return "close"
-        case .errorEvent: return "error"
-        case .openEvent: return "open"
-        default: return "event"
-        }
+public enum EventType {
+}
     }
 }

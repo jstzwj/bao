@@ -1,7 +1,7 @@
 // 严格翻译自: src/sql_jsc/postgres/PostgresRequest.zig
 // Postgres 请求 - 查询写入和消息调度
 
-package bao_sql_jsc
+package bao_sql_jsc.postgres
 
 import bao_core.*
 import bao_jsc.*

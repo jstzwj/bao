@@ -1,7 +1,7 @@
 // Socket 地址 — IP 套接字地址表示
 // 对应 Bun: src/runtime/socket/SocketAddress.zig
 // 用于 TCP/UDP 连接的地址解析、格式化和 JS 绑定
-package bao_runtime
+package bao_runtime.socket
 
 import bao_core.*
 import bao_collections.*

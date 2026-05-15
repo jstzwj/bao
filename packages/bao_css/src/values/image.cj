@@ -1,7 +1,7 @@
 // bao_css - CSS 图像值类型
 // 严格翻译自: bun/src/css/values/image.rs
 //   对应: values/image.zig - Image, ImageSet
-package bao.css
+package bao_css.values
 
 import bao_core.*
 import bao_collections.*

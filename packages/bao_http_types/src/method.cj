@@ -2,7 +2,7 @@
 // 严格翻译自: src/http_types/Method.zig
 //   Bun 支持全部 36 种标准及扩展 HTTP 方法
 //   包含方法查找 (大小写不敏感)、幂等性判断、请求体/响应体判断
-package bao.http_types
+package bao_http_types
 
 import bao_core.*
 

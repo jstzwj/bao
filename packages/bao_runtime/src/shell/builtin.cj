@@ -7,7 +7,7 @@
 // 1. 可以重用Bun中大量现有代码，通常更快
 // 2. 内置命令在Bun进程内运行，无需生成新子进程
 
-package bao_runtime
+package bao_runtime.shell
 
 import bao_core.*
 import bao_collections.*
@@ -320,7 +320,7 @@ public class BuiltinImpl {
     // ========================================================================
 
     /// 初始化内置命令
-    public static func init(
+    public static func initFunc(
         cmd: CmdState,
         interpreter: Interpreter,
         kind: Kind,

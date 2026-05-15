@@ -1,7 +1,7 @@
 // FFI — 外部函数接口
 // 对应 Bun: src/runtime/ffi/ffi.zig
 // 提供动态库加载 (dlopen)、C 函数绑定、指针操作、内存读写等 FFI 能力
-package bao_runtime
+package bao_runtime.ffi
 
 import bao_core.*
 import bao_collections.*

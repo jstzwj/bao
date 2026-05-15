@@ -1,10 +1,10 @@
 // 严格翻译自: src/runtime/test_runner/expect/toBeInteger.zig
 
-package bao_runtime
+package bao_runtime.test_runner.expect
 
 /// toBeInteger() - 检查值是否为整数
 /// 用法: expect(received).toBeInteger()
-public func toBeInteger(this: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toBeInteger(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()

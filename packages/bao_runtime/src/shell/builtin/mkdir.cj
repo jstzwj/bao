@@ -2,7 +2,7 @@
 // 对应 Bun: src/runtime/shell/builtin/mkdir.zig
 // 严格翻译Bun shell mkdir命令到仓颉
 
-package bao_runtime
+package bao_runtime.shell.builtin
 
 import bao_core.*
 
@@ -27,6 +27,8 @@ public class MkdirCmd {
     }
 
     /// 执行状态
+    /// 对应 Bun: exec struct in Mkdir state
+    public struct ExecState {
         public var started: Boolean = false
         public var tasksCount: UIntPtr = 0
         public var tasksDone: UIntPtr = 0

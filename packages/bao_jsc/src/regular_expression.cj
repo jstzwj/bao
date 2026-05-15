@@ -6,21 +6,8 @@ package bao_jsc
 // ========== RegularExpressionFlags ==========
 // 严格翻译自 RegularExpression.zig Flags
 // 正则表达式标志位 (位掩码)
-public enum RegularExpressionFlags <: UInt16 {
-    | None(0)
-    | HasIndices(1 << 0)     // d 标志 - 返回匹配索引
-    | Global(1 << 1)         // g 标志 - 全局匹配
-    | IgnoreCase(1 << 2)     // i 标志 - 忽略大小写
-    | Multiline(1 << 3)      // m 标志 - 多行模式
-    | DotAll(1 << 4)         // s 标志 - dotAll 模式
-    | Unicode(1 << 5)        // u 标志 - Unicode 模式
-    | UnicodeSets(1 << 6)    // v 标志 - Unicode Sets 模式
-    | Sticky(1 << 7)         // y 标志 - 粘性匹配
-
-    // 检查是否包含指定标志
-    public func has(flag: RegularExpressionFlags) -> Bool {
-        (this.value & flag.value) != 0
-    }
+public enum RegularExpressionFlags {
+}
 
     // 合并标志
     public func union(other: RegularExpressionFlags) -> RegularExpressionFlags {
@@ -125,7 +112,7 @@ public class RegularExpression {
                 case 'v' => flags = flags | RegularExpressionFlags.UnicodeSets.value
                 case 'y' => flags = flags | RegularExpressionFlags.Sticky.value
                 case 'd' => flags = flags | RegularExpressionFlags.HasIndices.value
-                case _ => {}
+                | _ => {}
             }
         }
         RegularExpressionFlags(flags)

@@ -1,7 +1,7 @@
 // Web API AbortController / AbortSignal
 // 对应 Bun: src/runtime/api/abort.zig
 // 严格翻译自: src/api/abort.zig
-package bao_runtime
+package bao_runtime.web_api
 
 import bao_core.*
 import bao_collections.*

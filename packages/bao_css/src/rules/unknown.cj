@@ -1,7 +1,7 @@
 // bao_css - CSS 未知 @规则
 // 严格翻译自: bun/src/css/rules/unknown.rs
 //   对应: rules/unknown.zig - UnknownAtRule
-package bao.css
+package bao_css.rules
 
 import bao_core.*
 import bao_collections.*

@@ -4,7 +4,7 @@
 // 所有操作在 RGBA8 上进行
 // 分发逻辑位于 codecs.zig; 此文件是编解码器主体
 
-package bao_runtime
+package bao_runtime.image
 
 // ============================================================================
 // libspng 外部结构

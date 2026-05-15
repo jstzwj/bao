@@ -1,7 +1,7 @@
 // BakeResponse - Bake 响应
 // 对应 Bun: src/runtime/webcore/BakeResponse.zig
 // 严格翻译自: src/runtime/webcore/BakeResponse.zig
-package bao_runtime
+package bao_runtime.webcore
 
 import bao_core.*
 

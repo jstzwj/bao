@@ -1,6 +1,6 @@
 // MySQL 查询协议
 // 对应 Bun: src/sql/mysql/protocol/Query.zig
-package bao_sql
+package bao_sql.mysql.protocol
 
 /// MySQL 查询执行 (带参数绑定)
 /// 对应 Bun: Query.Execute (struct)

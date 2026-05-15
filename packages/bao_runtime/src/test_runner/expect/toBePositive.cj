@@ -1,10 +1,10 @@
 // 严格翻译自: src/runtime/test_runner/expect/toBePositive.zig
 
-package bao_runtime
+package bao_runtime.test_runner.expect
 
 /// toBePositive() - 检查值是否为正数
 /// 用法: expect(received).toBePositive()
-public func toBePositive(this: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toBePositive(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()

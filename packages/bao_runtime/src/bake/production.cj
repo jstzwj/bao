@@ -1,7 +1,7 @@
 // 翻译自 Bun: src/runtime/bake/production.zig
 // 实现将 Bake 应用构建为生产版本
 
-package bao_runtime
+package bao_runtime.bake
 
 /// 实现生产构建命令
 public func buildCommand(ctx: CommandContext): Unit {

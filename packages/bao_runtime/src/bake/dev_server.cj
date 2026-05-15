@@ -5,7 +5,7 @@
 // 编辑文件内容（除了调整导入）必须始终只重新 bundle 那一个文件。
 //
 // 所有工作都在内存中保存，使用手动管理的数据导向设计。
-package bao_runtime
+package bao_runtime.bake
 
 import bao_core.*
 import bao_collections.*
@@ -19,18 +19,8 @@ import bao_jsc.*
 // 对应 Bun: pub const RouteBundle = @import("./DevServer/RouteBundle.zig")
 // ============================================================================
 
-public import assets.Assets
-public import directory_watch_store.DirectoryWatchStore
-public import error_report_request.ErrorReportRequest
-public import hmr_socket.HmrSocket
-public import hot_reload_event.HotReloadEvent
-public import incremental_graph.IncrementalGraph
-public import packed_map.PackedMap
-public import route_bundle.RouteBundle
-public import serialized_failure.SerializedFailure
-public import source_map_store.SourceMapStore
-public import watcher_atomics.WatcherAtomics
-public import memory_cost.MemoryCost
+// Assets is in the same package
+// DirectoryWatchStore is in the same package
 
 // ============================================================================
 // 类型别名
@@ -389,29 +379,15 @@ public class RequestEnsureRouteBundledCtx {
 
 /// HMR主题
 /// 对应 Bun: pub const HmrTopic = ...
-public enum HmrTopic <: UInt8 {
-    | hot_update
-    | testingWatchSynchronization
-    | incrementalVisualizer
-    | memoryVisualizer
-    | consoleLogTopic
+public enum HmrTopic {
 }
 
 /// 消息ID
-public enum MessageId <: UInt8 {
-    | version
-    | setUrlResponse
-    | testingWatchSynchronization
+public enum MessageId {
 }
 
 /// 传入消息ID
-public enum IncomingMessageId <: UInt8 {
-    | init
-    | subscribe
-    | setUrl
-    | testingBatchEvents
-    | consoleLog
-    | unrefSourceMap
+public enum IncomingMessageId {
 }
 
 /// 控制台日志种类

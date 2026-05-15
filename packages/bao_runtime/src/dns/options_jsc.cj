@@ -3,7 +3,7 @@
 // `fromJS`/`toJS` for `GetAddrInfo` and its nested option types, plus
 // `addressToJS`/`addrInfoToJSArray`. The pure types stay in `src/dns/`.
 
-package bao_runtime
+package bao_runtime.dns
 
 // ============================================================================
 // 从 JS 值解析 DNS 选项

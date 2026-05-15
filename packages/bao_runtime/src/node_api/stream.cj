@@ -2,7 +2,7 @@
 // 严格翻译自: src/runtime/node/stream.zig
 //   Bun 实现了 Node.js Readable/Writable 流以兼容 Node 生态
 //   连接 bao_io 的底层流抽象
-package bao_runtime
+package bao_runtime.node_api
 
 import bao_core.*
 import bao_collections.*

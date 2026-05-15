@@ -1,7 +1,7 @@
 // SSL/TLS 配置
 // 对应 Bun: src/runtime/socket/SSLConfig.zig
 // 管理 TLS 证书、密钥、密码套件等配置
-package bao_runtime
+package bao_runtime.socket
 
 import bao_core.*
 import bao_collections.*

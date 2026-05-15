@@ -2,7 +2,7 @@
 // 对应 Bun: src/runtime/shell/IOReader.zig
 // 严格翻译Bun shell IO读取器到仓颉
 
-package bao_runtime
+package bao_runtime.shell
 
 import bao_core.*
 import bao_collections.*
@@ -68,7 +68,7 @@ public class IOReader {
     }
 
     /// 初始化
-    public static func init(fd: FD, evtloop: EventLoopHandle): IOReader {
+    public static func initFunc(fd: FD, evtloop: EventLoopHandle): IOReader {
         let this = IOReader()
         this.refCount = 1
         this.fd = fd
@@ -237,7 +237,7 @@ public class IOReader {
             this.ptr = None
         }
 
-        public static func init(p: Any): IOReaderChildPtr {
+        public static func initFunc(p: Any): IOReaderChildPtr {
             let cptr = IOReaderChildPtr()
             cptr.ptr = p
             return cptr

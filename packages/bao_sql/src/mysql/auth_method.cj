@@ -1,6 +1,6 @@
 // MySQL 认证方法
 // 对应 Bun: src/sql/mysql/AuthMethod.zig
-package bao_sql
+package bao_sql.mysql
 
 /// MySQL 认证方法枚举
 /// 对应 Bun: AuthMethod (enum)

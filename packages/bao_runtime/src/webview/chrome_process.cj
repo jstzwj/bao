@@ -9,7 +9,7 @@
 //   - findPlaywrightShell: 扫描 Playwright 缓存目录
 //   - readDevToolsActivePort: 读取已运行 Chrome 的调试端口
 //   仓颉: 提供兼容的 Chrome 进程管理接口
-package bao_runtime
+package bao_runtime.webview
 
 import bao_core.*
 

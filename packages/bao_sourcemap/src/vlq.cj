@@ -20,7 +20,7 @@
 //     -1 -> "D"   (6位: 符号1, 值0000, 继续0 = 000001 = 'D')
 //     16 -> "gB"  (第一字节: 符号0, 值0000, 继续1 = 100000 = 'g')
 //                    (第二字节: 符号0, 值0001, 继续0 = 000001 = 'B')
-package bao_sourcemap.vlq
+package bao_sourcemap
 
 import bao_core.*
 

@@ -1,7 +1,7 @@
 // 严格翻译自: src/sql_jsc/postgres/types/tag_jsc.zig
 // Postgres Tag JS 转换 - 标签到 JS 值和类型判断
 
-package bao_sql_jsc
+package bao_sql_jsc.postgres.types
 
 import bao_core.*
 import bao_jsc.*

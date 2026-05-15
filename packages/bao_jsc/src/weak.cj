@@ -6,10 +6,7 @@ package bao_jsc
 // ========== WeakRefType ==========
 // 严格翻译自 Weak.zig WeakRefType
 // 弱引用的类型标记，用于区分不同来源的弱引用
-public enum WeakRefType <: UInt32 {
-    | None(0)
-    | FetchResponse(1)
-    | PostgreSQLQueryClient(2)
+public enum WeakRefType {
 }
 
 // ========== WeakImpl ==========

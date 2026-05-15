@@ -1,10 +1,10 @@
 // 严格翻译自: src/runtime/test_runner/expect/toBeOneOf.zig
 
-package bao_runtime
+package bao_runtime.test_runner.expect
 
 /// toBeOneOf() - 检查值是否在给定集合中
 /// 用法: expect(received).toBeOneOf(list)
-public func toBeOneOf(this: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toBeOneOf(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()

@@ -8,7 +8,7 @@
 //   对应: rules/ - CSS 规则 (StyleRule, AtRule, ImportRule, ...)
 //   对应: values/ - CSS 值类型
 //   对应: selectors/ - CSS 选择器
-package bao.css
+package bao_css
 
 import bao_core.*
 import bao_collections.*

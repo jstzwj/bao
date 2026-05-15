@@ -1,6 +1,6 @@
 // MySQL TLS 状态
 // 对应 Bun: src/sql/mysql/TLSStatus.zig
-package bao_sql
+package bao_sql.mysql
 
 /// MySQL TLS 连接状态
 /// 对应 Bun: TLSStatus (union enum)

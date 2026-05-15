@@ -2,7 +2,7 @@
 // 严格翻译自: bun/src/which/which.zig (173行)
 //   类似 /usr/bin/which 但不需要启动子进程
 //   在 PATH 环境变量中查找可执行文件
-package bao.which
+package bao_which
 
 import bao_core.*
 import bao_sys.*

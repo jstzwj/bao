@@ -12,14 +12,6 @@
 package bao_hash
 
 import bao_core.*
-import bao_hash.adler32.*
-import bao_hash.city_hash.*
-import bao_hash.rapid_hash.*
-import bao_hash.wyhash.*
-import bao_hash.hmac.*
-import bao_hash.sha.*
-import bao_hash.murmur.*
-import bao_hash.xxhash.*
 
 // ============================================================================
 // WyHash - 快速非加密哈希

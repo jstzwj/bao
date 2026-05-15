@@ -2,7 +2,7 @@
 // Windows DIB / BMP 仅解码。
 // 支持 BITMAPINFOHEADER (40) 和 BITMAPV4/V5HEADER (108/124)，未压缩或 BI_BITFIELDS，24/32位。
 
-package bao_runtime
+package bao_runtime.image
 
 // ============================================================================
 // BMP 头部

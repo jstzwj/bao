@@ -6,7 +6,7 @@
 //   - macOS: OSLog signpost interval
 //   - Linux: 自定义 trace 事件 (通过 C FFI)
 //   仓颉: 提供兼容的 trace 接口
-package bao_core
+package bao_core.perf
 
 // ============================================================================
 // PerfTraceCtx - 追踪上下文

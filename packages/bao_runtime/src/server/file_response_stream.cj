@@ -1,7 +1,7 @@
 // FileResponseStream - 文件响应流
 // 严格翻译自: Bun src/runtime/server/FileResponseStream.zig
 // 对应: 流式传输文件到 HTTP 响应，处理背压和中止
-package bao_runtime
+package bao_runtime.server
 
 import bao_core.*
 import bao_collections.*

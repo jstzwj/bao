@@ -4,7 +4,7 @@
 //   src/http_types/FetchRedirect.zig - Fetch 重定向策略
 //   src/http_types/FetchRequestMode.zig - Fetch 请求模式
 // 参考: https://developer.mozilla.org/en-US/docs/Web/API/Request
-package bao.http_types
+package bao_http_types
 
 import bao_core.*
 

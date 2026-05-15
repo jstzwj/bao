@@ -1,5 +1,5 @@
 // 严格翻译自: src/runtime/api/bun/h2_frame_parser.zig
-package bao_runtime
+package bao_runtime.api
 
 import bao_jsc.*
 import bao_core.*

@@ -1,10 +1,10 @@
 // 严格翻译自: src/runtime/test_runner/expect/toMatchSnapshot.zig
 
-package bao_runtime
+package bao_runtime.test_runner.expect
 
 /// toMatchSnapshot() - 快照匹配
 /// 用法: expect(received).toMatchSnapshot() / expect(received).toMatchSnapshot(hint) / expect(received).toMatchSnapshot(properties, hint)
-public func toMatchSnapshot(this: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toMatchSnapshot(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()

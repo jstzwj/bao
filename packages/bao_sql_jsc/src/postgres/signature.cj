@@ -1,7 +1,7 @@
 // 严格翻译自: src/sql_jsc/postgres/Signature.zig
 // Postgres 查询签名
 
-package bao_sql_jsc
+package bao_sql_jsc.postgres
 
 import bao_core.*
 import bao_jsc.*

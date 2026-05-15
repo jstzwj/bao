@@ -7,27 +7,9 @@ package bao_jsc
 // 严格翻译自 ResolvedSourceTag (lib.rs resolved_source_tag)
 // 解析源码的类型标签
 // 使用 UInt32 透明表示以支持 (1 << 9) | id 的内部模块 ID 编码
-public enum ResolvedSourceTag <: UInt32 {
-    | Javascript(0)                // 普通 JavaScript 源码
-    | PackageJsonTypeModule(1)     // package.json "type": "module"
-    | PackageJsonTypeCommonjs(2)   // package.json "type": "commonjs"
-    | Wasm(3)                      // WebAssembly 模块
-    | Object(4)                    // JSON 对象
-    | CommonJS(5)                  // CommonJS 模块
-    | InternalModule(512)          // 内部模块基值 (1 << 9)
-
-    public init(value: UInt32) {
-        match (value) {
-            case 0 => this = Javascript
-            case 1 => this = PackageJsonTypeModule
-            case 2 => this = PackageJsonTypeCommonjs
-            case 3 => this = Wasm
-            case 4 => this = Object
-            case 5 => this = CommonJS
-            case _ => {
-                if (value >= 512) {
-                    this = InternalModule
-                } else {
+public enum ResolvedSourceTag {
+    | this
+}
                     this = Javascript
                 }
             }

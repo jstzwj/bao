@@ -7,11 +7,11 @@ version = "0.1.0"
 compile-option = ""
 override-compile-option = ""
 link-option = ""
-output-type = "library"
+output-type = "static"
 src-dir = "src"
 target-dir = ""
 
 [dependencies]
+bao_parser = { path = "../bao_parser" }
 bao_jsc = { path = "../bao_jsc" }
 bao_core = { path = "../bao_core" }
-bao_parser = { path = "../bao_parser" }

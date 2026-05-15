@@ -1,6 +1,6 @@
 // MySQL 包头
 // 对应 Bun: src/sql/mysql/protocol/PacketHeader.zig
-package bao_sql
+package bao_sql.mysql.protocol
 
 /// MySQL 协议包头
 /// 对应 Bun: PacketHeader (struct)

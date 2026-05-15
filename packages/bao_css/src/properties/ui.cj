@@ -6,7 +6,7 @@
 //   对应: Resize, CursorKeyword, CaretShape, Caret, UserSelect (占位)
 // ============================================================================
 
-package bao.css
+package bao_css.properties
 
 import bao_core.*
 

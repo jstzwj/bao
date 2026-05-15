@@ -2,7 +2,7 @@
 // 对应 Bun: src/runtime/shell/states/Expansion.zig
 // 严格翻译Bun shell展开状态到仓颉
 
-package bao_runtime
+package bao_runtime.shell.states
 
 import bao_core.*
 
@@ -65,7 +65,7 @@ public class ExpansionState {
     /// 父节点指针
     public class ParentPtr {
         public var ptr: Any
-        public static func init(p: Any): ParentPtr {
+        public static func initFunc(p: Any): ParentPtr {
             let pp = ParentPtr()
             pp.ptr = p
             return pp
@@ -77,7 +77,7 @@ public class ExpansionState {
     /// 子节点指针
     public class ChildPtr {
         public var ptr: Any
-        public static func init(p: Any): ChildPtr {
+        public static func initFunc(p: Any): ChildPtr {
             let cp = ChildPtr()
             cp.ptr = p
             return cp
@@ -88,7 +88,7 @@ public class ExpansionState {
     }
 
     /// 初始化
-    public static func init(
+    public static func initFunc(
         interpreter: Interpreter,
         shellState: ShellExecEnv,
         expansion: ExpansionState,

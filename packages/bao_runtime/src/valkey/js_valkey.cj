@@ -1,11 +1,11 @@
 // Valkey JavaScript 客户端包装器
 // 严格翻译自: bun/src/runtime/valkey_jsc/js_valkey.zig
 //   JavaScript 层面的 Redis 客户端，管理订阅、连接、重连等
-package bao_runtime
+package bao_runtime.valkey
 
 import bao_core.*
 import bao_collections.*
-import bao.valkey.*
+import bao_valkey.*
 
 // ============================================================================
 // SubscriptionCtx - 订阅上下文

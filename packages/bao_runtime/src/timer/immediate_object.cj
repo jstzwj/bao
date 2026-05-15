@@ -1,7 +1,7 @@
 // 严格翻译自: src/runtime/timer/ImmediateObject.zig
 // Immediate 对象 - setImmediate 的内部实现
 
-package bao_runtime
+package bao_runtime.timer
 
 import bao_core.*
 import bao_jsc.*

@@ -5,7 +5,7 @@
 //   - 其他: std.time.Timer (操作系统高精度定时器)
 //   接口: start(), read(), lap(), reset()
 //   仓颉: 通过 HwTimer 实现等价的纳秒级定时器
-package bao_core
+package bao_core.perf
 
 // ============================================================================
 // SystemTimer - 系统高精度定时器

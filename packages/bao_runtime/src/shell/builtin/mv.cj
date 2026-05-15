@@ -2,7 +2,7 @@
 // 对应 Bun: src/runtime/shell/builtin/mv.zig
 // 严格翻译Bun shell mv命令到仓颉
 
-package bao_runtime
+package bao_runtime.shell.builtin
 
 import bao_core.*
 
@@ -50,6 +50,8 @@ public class MvCmd {
     }
 
     /// 执行状态
+    /// 对应 Bun: executing struct in Mv state
+    public struct ExecutingState {
         public var taskCount: UIntPtr = 0
         public var tasksDone: UIntPtr = 0
         public var errorSignal: AtomicBool = AtomicBool()

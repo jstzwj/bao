@@ -2,7 +2,7 @@
 // 对应 Bun 源文件: src/runtime/dns_jsc/dns.zig
 // JSC 绑定层：Resolver, GetAddrInfoRequest, DNSLookup, 全局 DNS 缓存等
 
-package bao_runtime
+package bao_runtime.dns
 
 // ============================================================================
 // 常量

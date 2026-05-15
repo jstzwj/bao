@@ -1,10 +1,10 @@
 // 严格翻译自: src/runtime/test_runner/expect/toContainKeys.zig
 
-package bao_runtime
+package bao_runtime.test_runner.expect
 
 /// toContainKeys() - 检查对象是否包含所有指定键
 /// 用法: expect(received).toContainKeys(expected)
-public func toContainKeys(this: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toContainKeys(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()

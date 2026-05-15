@@ -54,22 +54,22 @@ foreign func uws_ws_get_remote_address_as_text(ssl: Int32, ws: CPointer<Unit>, d
 // Opcode - WebSocket 操作码
 // 严格翻译自: WebSocket.zig (from uws.Opcode)
 // ============================================================================
-public enum Opcode <: Int32 {
-    text = 0
-    binary = 1
-    close = 2
-    ping = 3
-    pong = 4
+public enum Opcode {
+    | text
+    | binary
+    | close
+    | ping
+    | pong
 }
 
 // ============================================================================
 // SendStatus - WebSocket 发送状态
 // 严格翻译自: WebSocket.zig (from uws.SendStatus)
 // ============================================================================
-public enum SendStatus <: Int32 {
-    backpressure = 0
-    success = 1
-    dropped = 2
+public enum SendStatus {
+    | backpressure
+    | success
+    | dropped
 }
 
 // ============================================================================

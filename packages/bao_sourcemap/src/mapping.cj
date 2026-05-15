@@ -7,10 +7,9 @@
 //   name_index: i32 = -1,
 //   pub fn generatedLine, generatedColumn, sourceIndex,
 //          originalLine, originalColumn, nameIndex, parse
-package bao_sourcemap.mapping
+package bao_sourcemap
 
 import bao_core.*
-import bao_sourcemap.vlq.*
 
 // ============================================================================
 // LineColumnOffset - 行列偏移

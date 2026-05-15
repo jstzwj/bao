@@ -1,6 +1,6 @@
 // BundleEnums - 打包格式与 Windows 选项
 // 严格翻译自: bun/src/options_types/BundleEnums.zig
-package bao.options
+package bao_options
 
 import bao_core.*
 

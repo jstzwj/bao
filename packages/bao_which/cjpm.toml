@@ -1,0 +1,16 @@
+[package]
+cjc-version = "1.0.0"
+name = "bao_which"
+organization = "bao"
+description = "Bao bao_which module"
+version = "0.1.0"
+compile-option = ""
+override-compile-option = ""
+link-option = ""
+output-type = "static"
+src-dir = "src"
+target-dir = ""
+
+[dependencies]
+bao_sys = { path = "../bao_sys" }
+bao_core = { path = "../bao_core" }

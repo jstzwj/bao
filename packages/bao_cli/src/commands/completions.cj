@@ -1,6 +1,6 @@
 // 严格翻译自: src/cli/shell_completions.zig, src/cli/add_completions.zig
 // bao completions - Shell 补全生成
-package bao_cli
+package bao_cli.commands
 
 import bao_core.*
 import bao_collections.*

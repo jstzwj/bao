@@ -1,7 +1,7 @@
 // 工具绑定模块
 // 对应 Bun: src/runtime/node/node_util_binding.zig
 // 严格翻译自: src/runtime/node/node_util_binding.zig
-package bao_runtime
+package bao_runtime.node
 
 // ============================================================================
 // 错误名称映射

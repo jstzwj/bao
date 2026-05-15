@@ -4,7 +4,7 @@
 //   对应: TokenKind enum - CSS token 类型
 //   对应: Token union - CSS token 值
 //   对应: Num struct / Dimension struct - 数值与维度 token
-package bao.css
+package bao_css
 
 import bao_core.*
 import bao_collections.*

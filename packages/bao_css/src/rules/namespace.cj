@@ -1,7 +1,7 @@
 // bao_css - CSS @namespace 命名空间规则
 // 严格翻译自: bun/src/css/rules/namespace.rs
 //   对应: rules/namespace.zig - NamespaceRule
-package bao.css
+package bao_css.rules
 
 import bao_core.*
 import bao_collections.*

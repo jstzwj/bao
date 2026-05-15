@@ -1,7 +1,7 @@
 // bao_css - CSS 标识符值类型
 // 严格翻译自: bun/src/css/values/ident.rs
 //   对应: values/ident.zig - CustomIdent, DashedIdent, Ident
-package bao.css
+package bao_css.values
 
 import bao_core.*
 

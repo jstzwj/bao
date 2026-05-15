@@ -8,7 +8,7 @@
 // 终端 (bytes/buffer/blob/toBase64/metadata) 被 await 时通过
 // jsc.ConcurrentPromiseTask 在离线线程上进行。
 
-package bao_runtime
+package bao_runtime.image
 
 // ============================================================================
 // Image - 图像处理主类

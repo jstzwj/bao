@@ -1,7 +1,7 @@
 // bao_css - CSS @media 媒体规则
 // 严格翻译自: bun/src/css/rules/media.rs
 //   对应: rules/media.zig - MediaRule
-package bao.css
+package bao_css.rules
 
 import bao_core.*
 import bao_collections.*

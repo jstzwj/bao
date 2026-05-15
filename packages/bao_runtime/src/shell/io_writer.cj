@@ -2,7 +2,7 @@
 // 对应 Bun: src/runtime/shell/IOWriter.zig
 // 严格翻译Bun shell IO写入器到仓颉
 
-package bao_runtime
+package bao_runtime.shell
 
 import bao_core.*
 import bao_collections.*
@@ -78,7 +78,7 @@ public class IOWriter {
     }
 
     /// 初始化
-    public static func init(fd: FD, flags: Flags, evtloop: EventLoopHandle): IOWriter {
+    public static func initFunc(fd: FD, flags: Flags, evtloop: EventLoopHandle): IOWriter {
         let this = IOWriter()
         this.refCount = 1
         this.fd = fd
@@ -426,7 +426,7 @@ public class IOWriter {
             this.ptr = None
         }
 
-        public static func init(p: Any): IOWriterChildPtr {
+        public static func initFunc(p: Any): IOWriterChildPtr {
             let cptr = IOWriterChildPtr()
             cptr.ptr = p
             return cptr

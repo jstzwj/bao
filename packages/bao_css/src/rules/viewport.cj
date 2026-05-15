@@ -1,7 +1,7 @@
 // bao_css - CSS @viewport 视口规则
 // 严格翻译自: bun/src/css/rules/viewport.rs
 //   对应: rules/viewport.zig - ViewportRule
-package bao.css
+package bao_css.rules
 
 import bao_core.*
 import bao_collections.*

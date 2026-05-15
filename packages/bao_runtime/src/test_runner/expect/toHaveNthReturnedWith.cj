@@ -1,10 +1,10 @@
 // 严格翻译自: src/runtime/test_runner/expect/toHaveNthReturnedWith.zig
 
-package bao_runtime
+package bao_runtime.test_runner.expect
 
 /// toHaveNthReturnedWith() - 检查mock函数第N次返回的值
 /// 用法: expect(mockFn).toHaveNthReturnedWith(n, expected)
-public func toHaveNthReturnedWith(this: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toHaveNthReturnedWith(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()

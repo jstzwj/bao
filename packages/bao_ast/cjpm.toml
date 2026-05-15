@@ -1,9 +1,12 @@
 [package]
+cjc-version = "1.0.0"
 name = "bao_ast"
 version = "0.1.0"
 description = "AST extended analysis: visitor, walker, printer, comparer, scope analysis, control/data flow, transformations"
 
+output-type = "static"
+src-dir = "src"
 [dependencies]
+bao_parser = { path = "../bao_parser" }
 bao_core = { path = "../bao_core" }
 bao_collections = { path = "../bao_collections" }
-bao_parser = { path = "../bao_parser" }

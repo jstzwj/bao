@@ -1,7 +1,7 @@
 // ReadableStream - 可读流
 // 对应 Bun: src/runtime/webcore/ReadableStream.zig
 // 严格翻译自: src/runtime/webcore/ReadableStream.zig
-package bao_runtime
+package bao_runtime.webcore
 
 import bao_core.*
 import bao_collections.*

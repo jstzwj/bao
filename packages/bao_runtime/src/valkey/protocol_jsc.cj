@@ -4,11 +4,11 @@
 //   协议解析器、RESPValue union 和 ValkeyReader 保持在 valkey/ 中；
 //   只有涉及 JSGlobalObject/JSValue 的转换才放在这里，
 //   以使 valkey/ 不依赖 JSC。
-package bao_runtime
+package bao_runtime.valkey
 
 import bao_core.*
 import bao_collections.*
-import bao.valkey.*
+import bao_valkey.*
 
 // ============================================================================
 // ProtocolJsc - RESP 值与 JS 值的转换桥接

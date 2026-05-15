@@ -2,7 +2,7 @@
 // 对应 Bun: src/runtime/shell/ParsedShellScript.zig
 // 严格翻译Bun已解析Shell脚本到仓颉
 
-package bao_runtime
+package bao_runtime.shell
 
 import bao_core.*
 import bao_collections.*
@@ -125,7 +125,7 @@ public class ParsedShellScript {
         }
 
         /// 初始化
-        public static func init(): ShellArgs {
+        public static func initFunc(): ShellArgs {
             let args = ShellArgs()
             args.arena = ArenaAllocator.init(DefaultAllocator.instance)
             return args

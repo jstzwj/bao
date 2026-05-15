@@ -1,7 +1,7 @@
 // 严格翻译自: src/cli/create_command.zig
 // Create 命令 — 从模板创建新项目
 // 对应 Bun: bun create <template> [dest]
-package bao_cli
+package bao_cli.commands
 
 import bao_core.*
 import bao_collections.*

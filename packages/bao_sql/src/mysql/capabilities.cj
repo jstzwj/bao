@@ -1,6 +1,6 @@
 // MySQL 能力标志
 // 对应 Bun: src/sql/mysql/Capabilities.zig
-package bao_sql
+package bao_sql.mysql
 
 /// MySQL 客户端/服务器能力标志
 /// 对应 Bun: Capabilities (struct)

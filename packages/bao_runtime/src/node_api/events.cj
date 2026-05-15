@@ -1,7 +1,7 @@
 // Node.js events 模块 — EventEmitter
 // 对应 Bun: src/runtime/node/events.zig
 // 严格翻译 Bun 的 Node.js events 兼容层
-package bao_runtime
+package bao_runtime.node_api
 
 import bao_core.*
 import bao_collections.*

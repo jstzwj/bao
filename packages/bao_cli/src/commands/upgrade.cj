@@ -1,6 +1,6 @@
 // 严格翻译自: src/cli/upgrade_command.zig
 // bao upgrade - 自升级 Bao 运行时
-package bao_cli
+package bao_cli.commands
 
 import bao_core.*
 import bao_collections.*

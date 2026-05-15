@@ -1,6 +1,6 @@
 // 严格翻译自: src/runtime/socket/UpgradedDuplex.zig
 // UpgradedDuplex — 为 Node.js 风格双工流提供 TLS/SSL 加密
-package bao_runtime
+package bao_runtime.socket
 
 import bao_core.*
 import bao_collections.*

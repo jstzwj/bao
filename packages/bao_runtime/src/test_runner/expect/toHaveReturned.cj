@@ -1,10 +1,10 @@
 // 严格翻译自: src/runtime/test_runner/expect/toHaveReturned.zig
 
-package bao_runtime
+package bao_runtime.test_runner.expect
 
 /// toHaveReturned() - 检查mock函数是否有返回
 /// 用法: expect(mockFn).toHaveReturned()
-public func toHaveReturned(this: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toHaveReturned(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
@@ -55,7 +55,7 @@ public func toHaveReturned(this: Expect, globalThis: JSGlobalObject, callFrame: 
 
 /// toHaveReturnedTimes() - 检查mock函数返回的次数
 /// 用法: expect(mockFn).toHaveReturnedTimes(times)
-public func toHaveReturnedTimes(this: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toHaveReturnedTimes(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()

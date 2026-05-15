@@ -1,7 +1,7 @@
 // bao_csrf - CSRF 令牌生成与验证
 // 严格翻译自: bun/src/csrf/csrf.zig (220行)
 //   使用 HMAC 签名保护跨站请求伪造攻击
-package bao.csrf
+package bao_csrf
 
 import bao_core.*
 import bao_hash.*

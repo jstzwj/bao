@@ -2,7 +2,7 @@
 // 对应 Bun: src/runtime/webcore/s3/credentials_jsc.zig, download_stream.zig,
 //           error_jsc.zig, list_objects.zig, multipart_options.zig, simple_request.zig
 // 严格翻译自: src/runtime/webcore/s3/*.zig
-package bao_runtime
+package bao_runtime.webcore.s3
 
 import bao_core.*
 import bao_collections.*

@@ -1,10 +1,10 @@
 // 严格翻译自: src/runtime/test_runner/expect/toHaveLastReturnedWith.zig
 
-package bao_runtime
+package bao_runtime.test_runner.expect
 
 /// toHaveLastReturnedWith() - 检查mock函数最后一次返回的值
 /// 用法: expect(mockFn).toHaveLastReturnedWith(expected)
-public func toHaveLastReturnedWith(this: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toHaveLastReturnedWith(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()

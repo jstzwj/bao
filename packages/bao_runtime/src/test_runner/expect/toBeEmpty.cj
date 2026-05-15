@@ -1,10 +1,10 @@
 // 严格翻译自: src/runtime/test_runner/expect/toBeEmpty.zig
 
-package bao_runtime
+package bao_runtime.test_runner.expect
 
 /// toBeEmpty() - 检查值是否为空（空字符串、空数组、空对象等）
 /// 用法: expect(received).toBeEmpty()
-public func toBeEmpty(this: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toBeEmpty(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()

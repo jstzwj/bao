@@ -11,6 +11,6 @@
 //   - ParseResult: 解析结果 (对应 ComptimeClap 实例)
 //   - formatHelp(): 帮助文本生成 (对应 clap.help/simpleHelp)
 //   - formatUsage(): 用法行生成 (对应 clap.usage/usageFull)
-package bao.clap
+package bao_clap
 
 import bao_core.*

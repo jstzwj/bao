@@ -3,7 +3,7 @@
 //   对应: values/easing.zig - EasingFunction, StepPosition (缓动函数)
 //   对应: values/syntax.zig - SyntaxString, SyntaxComponent (CSS 属性语法字符串)
 //   对应: values/url.zig - Url (CSS url() 值)
-package bao.css
+package bao_css
 
 import bao_core.*
 import bao_collections.*

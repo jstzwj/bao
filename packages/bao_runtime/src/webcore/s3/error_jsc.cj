@@ -1,7 +1,7 @@
 // 严格翻译自: src/runtime/webcore/s3/error_jsc.zig
 // JSC bridges for s3_signing/error.zig - 纯错误码/消息表在 s3_signing/，
 // 而 *JSGlobalObject 相关的变体在此文件中
-package bao_runtime
+package bao_runtime.webcore.s3
 
 import bao_core.*
 import bao_jsc.*

@@ -1,6 +1,6 @@
 // MySQL 握手响应 4.1
 // 对应 Bun: src/sql/mysql/protocol/HandshakeResponse41.zig
-package bao_sql
+package bao_sql.mysql.protocol
 
 /// MySQL 客户端认证响应 (协议 4.1)
 /// 对应 Bun: HandshakeResponse41 (struct)

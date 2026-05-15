@@ -1,6 +1,6 @@
 // MySQL SSL 请求包
 // 对应 Bun: src/sql/mysql/protocol/SSLRequest.zig
-package bao_sql
+package bao_sql.mysql.protocol
 
 /// MySQL SSL 连接请求包
 /// 对应 Bun: SSLRequest (struct)

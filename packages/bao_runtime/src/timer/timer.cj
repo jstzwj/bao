@@ -1,7 +1,7 @@
 // 严格翻译自: src/runtime/timer/Timer.zig
 // Bun 定时器核心实现
 
-package bao_runtime
+package bao_runtime.timer
 
 import bao_core.*
 import bao_jsc.*

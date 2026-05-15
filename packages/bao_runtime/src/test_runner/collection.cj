@@ -1,7 +1,7 @@
 // collection.cj - 测试收集
 // 严格翻译自 bun/src/runtime/test_runner/Collection.zig
 
-package bao_runtime
+package bao_runtime.test_runner
 
 // ========== Collection - 测试收集阶段 ==========
 

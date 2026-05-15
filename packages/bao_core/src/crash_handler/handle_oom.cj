@@ -8,7 +8,7 @@
 //   用法:
 //     const thing = bun.handleOom(allocateThing());
 //     const thing = allocateThing() catch |err| bun.handleOom(err);
-package bao_core
+package bao_core.crash_handler
 
 // ============================================================================
 // handleOom - OOM 处理

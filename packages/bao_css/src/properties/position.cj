@@ -4,7 +4,7 @@
 //   对应: Position (5 variants, with vendor prefix for sticky)
 // ============================================================================
 
-package bao.css
+package bao_css.properties
 
 import bao_core.*
 

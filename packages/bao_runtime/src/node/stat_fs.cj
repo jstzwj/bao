@@ -1,7 +1,7 @@
 // StatFS 和 BigIntStatFS 文件系统状态类
 // 对应 Bun: src/runtime/node/StatFS.zig
 // 严格翻译自: src/runtime/node/StatFS.zig
-package bao_runtime
+package bao_runtime.node
 
 // ============================================================================
 // StatFS 类 — 文件系统统计信息

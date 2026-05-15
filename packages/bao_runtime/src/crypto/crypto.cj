@@ -2,15 +2,9 @@
 // 对应 Bun: src/runtime/crypto/crypto.zig
 // 严格1:1翻译自 Bun crypto.zig
 
-package bao_runtime
+package bao_runtime.crypto
 
 import bao_core.*
-import bao_runtime.crypto.CryptoHasher
-import bao_runtime.crypto.EVP
-import bao_runtime.crypto.HMAC
-import bao_runtime.crypto.PasswordObject
-import bao_runtime.crypto.PBKDF2
-import bao_runtime.crypto.BoringSSLJsc
 
 // ============================================================================
 // 加密错误创建

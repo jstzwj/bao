@@ -1,7 +1,7 @@
 // ByteStream - 字节流
 // 对应 Bun: src/runtime/webcore/ByteStream.zig
 // 严格翻译自: src/runtime/webcore/ByteStream.zig
-package bao_runtime
+package bao_runtime.webcore
 
 import bao_core.*
 import bao_collections.*

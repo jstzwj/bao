@@ -1,7 +1,7 @@
 // 严格翻译自: src/runtime/timer/TimerObjectInternals.zig
 // TimerObject 和 ImmediateObject 共有的内部数据
 
-package bao_runtime
+package bao_runtime.timer
 
 import bao_core.*
 import bao_jsc.*

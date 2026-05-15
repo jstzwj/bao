@@ -1,7 +1,7 @@
 // Windows UV 信号句柄（仅 Windows）
 // 对应 Bun: src/runtime/node/uv_signal_handle_windows.zig
 // 严格翻译自: src/runtime/node/uv_signal_handle_windows.zig
-package bao_runtime
+package bao_runtime.node
 
 // ============================================================================
 // UV 信号句柄 — Windows 平台实现

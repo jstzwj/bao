@@ -1,7 +1,7 @@
 // CompileTarget - 编译目标
 // 严格翻译自: bun/src/options_types/CompileTarget.zig
 //   用于 `bun build --compile` 的编译目标配置
-package bao.options
+package bao_options
 
 import bao_core.*
 

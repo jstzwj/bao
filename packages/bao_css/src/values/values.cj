@@ -1,6 +1,6 @@
 // 严格翻译自: src/css/values/values.zig
 // CSS 值类型模块入口 (re-exports)
-package bao.css
+package bao_css.values
 
 // ============================================================================
 // values.zig 是 CSS 值类型的总入口

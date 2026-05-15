@@ -9,7 +9,7 @@
 //   - byExtension(): 根据扩展名查找 MIME 类型
 //   - byName(): 根据名称字符串解析 MIME 类型
 //   - sniff(): 根据文件头字节嗅探图片类型
-package bao.http_types
+package bao_http_types
 
 import bao_core.*
 

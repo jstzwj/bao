@@ -1,7 +1,7 @@
 // 严格翻译自: src/css/selectors/builder.zig
 // 选择器构建器模块 - 从 servo/lightningcss 移植
 // 用于在解析过程中安全高效地构建选择器
-package bao.css
+package bao_css.selectors
 
 import bao_core.*
 import bao_collections.*

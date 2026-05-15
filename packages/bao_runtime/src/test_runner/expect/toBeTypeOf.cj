@@ -1,10 +1,10 @@
 // 严格翻译自: src/runtime/test_runner/expect/toBeTypeOf.zig
 
-package bao_runtime
+package bao_runtime.test_runner.expect
 
 /// toBeTypeOf() - 检查值的类型名称
 /// 用法: expect(received).toBeTypeOf("string")
-public func toBeTypeOf(this: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toBeTypeOf(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()

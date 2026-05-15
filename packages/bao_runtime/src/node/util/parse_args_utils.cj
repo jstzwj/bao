@@ -1,7 +1,7 @@
 // 参数解析工具
 // 对应 Bun: src/runtime/node/util/parse_args_utils.zig
 // 严格翻译自: src/runtime/node/util/parse_args_utils.zig
-package bao_runtime
+package bao_runtime.node.util
 
 // ============================================================================
 // 参数选项类型

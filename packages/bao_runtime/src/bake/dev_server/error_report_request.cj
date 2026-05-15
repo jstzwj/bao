@@ -16,7 +16,7 @@
 //   - u32: 函数名长度（0 表示不可用）
 //   - [n]u8: 函数名
 
-package bao_runtime
+package bao_runtime.bake.dev_server
 
 /// 错误报告请求处理器
 public class ErrorReportRequest {

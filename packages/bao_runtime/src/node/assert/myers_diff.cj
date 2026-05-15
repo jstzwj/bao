@@ -1,7 +1,7 @@
 // Myers diff 算法核心实现
 // 对应 Bun: src/runtime/node/assert/myers_diff.zig
 // 严格翻译自: src/runtime/node/assert/myers_diff.zig
-package bao_runtime
+package bao_runtime.node.assert
 
 // ============================================================================
 // Myers diff 选项

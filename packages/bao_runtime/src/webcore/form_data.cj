@@ -1,7 +1,7 @@
 // FormData - 表单数据
 // 对应 Bun: src/runtime/webcore/FormData.zig
 // 严格翻译自: src/runtime/webcore/FormData.zig
-package bao_runtime
+package bao_runtime.webcore
 
 import bao_core.*
 import bao_collections.*

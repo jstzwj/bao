@@ -1,7 +1,7 @@
 // bao_valkey - Valkey/Redis RESP 协议实现
 // 严格翻译自: bun/src/valkey/valkey_protocol.zig (564行)
 //   支持 RESP2 和 RESP3 协议类型
-package bao.valkey
+package bao_valkey
 
 import bao_core.*
 

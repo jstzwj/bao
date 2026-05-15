@@ -2,7 +2,7 @@
 // 对应 Bun: src/runtime/shell/states/Script.zig
 // 严格翻译Bun shell脚本状态到仓颉
 
-package bao_runtime
+package bao_runtime.shell.states
 
 import bao_core.*
 
@@ -33,7 +33,7 @@ public class ScriptState {
     public class ParentPtr {
         public var ptr: Any
 
-        public static func init(p: Any): ParentPtr {
+        public static func initFunc(p: Any): ParentPtr {
             let pp = ParentPtr()
             pp.ptr = p
             return pp
@@ -44,7 +44,7 @@ public class ScriptState {
     public class ChildPtr {
         public var val: StmtState
 
-        public static func init(child: StmtState): ChildPtr {
+        public static func initFunc(child: StmtState): ChildPtr {
             let cp = ChildPtr()
             cp.val = child
             return cp
@@ -56,7 +56,7 @@ public class ScriptState {
     }
 
     /// 初始化
-    public static func init(
+    public static func initFunc(
         interpreter: Interpreter,
         shellState: ShellExecEnv,
         node: Script,

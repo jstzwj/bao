@@ -1,6 +1,6 @@
 // MySQL OK 包
 // 对应 Bun: src/sql/mysql/protocol/OKPacket.zig
-package bao_sql
+package bao_sql.mysql.protocol
 
 /// MySQL OK 响应包
 /// 对应 Bun: OKPacket (struct)

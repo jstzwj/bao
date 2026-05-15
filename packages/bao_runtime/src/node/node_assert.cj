@@ -1,7 +1,7 @@
 // 断言模块 — Myers diff 算法实现
 // 对应 Bun: src/runtime/node/node_assert.zig
 // 严格翻译自: src/runtime/node/node_assert.zig
-package bao_runtime
+package bao_runtime.node
 
 // ============================================================================
 // Diff 类型枚举

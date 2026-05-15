@@ -1,7 +1,7 @@
 // TextEncoderStreamEncoder - 文本编码流
 // 对应 Bun: src/runtime/webcore/TextEncoderStreamEncoder.zig
 // 严格翻译自: src/runtime/webcore/TextEncoderStreamEncoder.zig
-package bao_runtime
+package bao_runtime.webcore
 
 import bao_core.*
 

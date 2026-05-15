@@ -1,3 +1,6 @@
 [package]
+cjc-version = "1.0.0"
 name = "bao_jsc"
 version = "0.1.0"
+output-type = "static"
+src-dir = "src"

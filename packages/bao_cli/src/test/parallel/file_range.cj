@@ -1,5 +1,5 @@
 // 严格翻译自: src/cli/test/parallel/FileRange.zig
-package bao_cli
+package bao_cli.test.parallel
 
 // ============================================================================
 // FileRange — 连续的文件索引范围

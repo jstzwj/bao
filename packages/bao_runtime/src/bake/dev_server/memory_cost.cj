@@ -1,7 +1,7 @@
 // 翻译自 Bun: src/runtime/bake/DevServer/memory_cost.zig
 // DevServer 内存成本估算工具
 
-package bao_runtime
+package bao_runtime.bake.dev_server
 
 /// 内存成本分类
 public class MemoryCost {

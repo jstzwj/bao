@@ -1,6 +1,6 @@
 // 严格翻译自: src/runtime/socket/uws_dispatch.zig
 // Socket 事件分发 — 事件循环调用的核心分发函数
-package bao_runtime
+package bao_runtime.socket
 
 import bao_core.*
 import bao_collections.*

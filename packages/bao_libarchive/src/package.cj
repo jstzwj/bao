@@ -1,7 +1,7 @@
 // bao_libarchive - 归档文件提取工具 (tar, gzip)
 // 严格翻译自: bun/src/libarchive/libarchive.zig (689行)
 //   使用 libarchive 提取 tar/gzip 归档到磁盘
-package bao.libarchive
+package bao_libarchive
 
 import bao_core.*
 
@@ -16,10 +16,7 @@ import bao_core.*
 // ============================================================================
 
 /// 定位基准枚举 - 对应 Bun libarchive.Seek
-public enum SeekWhence <: Int32 {
-    | Set(0)     // SEEK_SET
-    | Current(1) // SEEK_CUR
-    | End(2)     // SEEK_END
+public enum SeekWhence {
 }
 
 // ============================================================================
@@ -29,18 +26,9 @@ public enum SeekWhence <: Int32 {
 // ============================================================================
 
 /// 归档操作结果 - 对应 Bun Archive.Result
-public enum ArchiveResult <: Int32 {
-    | Ok(0)
-    | Eof(1)
-    | Retry(-100)
-    | Warn(-10)
-    | Failed(-25)
-    | Fatal(-30)
-
-    /// 是否成功
-    public func isOk(): Bool {
-        this == ArchiveResult.Ok
-    }
+public enum ArchiveResult {
+    | this
+}
 
     /// 是否可继续 (非致命错误)
     public func isContinuable(): Bool {
@@ -65,10 +53,10 @@ public enum EntryType {
     public static func fromMode(mode: UInt32): EntryType {
         let fileType = (mode >> 12) & 0xF000
         match (fileType) {
-            case 0x8000 => EntryType.File       // S_IFREG
-            case 0x4000 => EntryType.Directory   // S_IFDIR
-            case 0xA000 => EntryType.SymLink     // S_IFLNK
-            case _ => EntryType.Other
+            | 0x8000 => EntryType.File       // S_IFREG
+            | 0x4000 => EntryType.Directory   // S_IFDIR
+            | 0xA000 => EntryType.SymLink     // S_IFLNK
+            | _ => EntryType.Other
         }
     }
 }
@@ -219,9 +207,9 @@ public class BufferReadStream {
     public func seek(offset: Int64, whence: SeekWhence): Int64 {
         let bufLen = Int64(buf.size)
         let newPos = match (whence) {
-            case Current => max(min(pos + offset, bufLen - 1), 0)
-            case End => max(min(bufLen - offset, bufLen), 0)
-            case Set => max(min(offset, bufLen - 1), 0)
+            | Current => max(min(pos + offset, bufLen - 1), 0)
+            | End => max(min(bufLen - offset, bufLen), 0)
+            | Set => max(min(offset, bufLen - 1), 0)
         }
         pos = newPos
         newPos
@@ -483,8 +471,8 @@ public class Archiver {
             // 读取下一个条目标头
             let entryResult = readNextEntry(stream)
             match (entryResult) {
-                case None => break // EOF
-                case Some(entry) => {
+                | None => break // EOF
+                | Some(entry) => {
                     // 跳过指定深度的路径前缀
                     var pathname = stripPathDepth(entry.pathname, options.depthToSkip)
 
@@ -512,10 +500,10 @@ public class Archiver {
                     if (entry.entryType == EntryType.File && entry.size > 0) {
                         let dataResult = readFileData(stream, entry.size)
                         match (dataResult) {
-                            case Some(data) => {
+                            | Some(data) => {
                                 // 成功读取
                             }
-                            case None => {
+                            | None => {
                                 // 读取失败, 继续处理下一个条目
                             }
                         }
@@ -553,8 +541,8 @@ public class Archiver {
         while (true) {
             let entryResult = readNextEntry(stream)
             match (entryResult) {
-                case None => break
-                case Some(entry) => {
+                | None => break
+                | Some(entry) => {
                     if (entry.entryType != EntryType.File || entry.size <= 0) {
                         continue
                     }
@@ -728,13 +716,13 @@ public class TarHeader {
         // 解析类型标志
         let typeFlag = data[Int64(TYPEFLAG_OFFSET)]
         entry.entryType = match (typeFlag) {
-            case v where v == TYPE_REGULAR || v == TYPE_REGULAR_ALT => EntryType.File
-            case v where v == TYPE_DIRECTORY => EntryType.Directory
-            case v where v == TYPE_SYMLINK => {
+            | v where v == TYPE_REGULAR || v == TYPE_REGULAR_ALT => EntryType.File
+            | v where v == TYPE_DIRECTORY => EntryType.Directory
+            | v where v == TYPE_SYMLINK => {
                 entry.symlink = readString(data, LINKNAME_OFFSET, LINKNAME_LEN)
                 EntryType.SymLink
             }
-            case _ => EntryType.Other
+            | _ => EntryType.Other
         }
 
         // 解析权限

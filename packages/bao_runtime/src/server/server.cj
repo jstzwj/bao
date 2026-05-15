@@ -1,6 +1,6 @@
 // 严格翻译自: src/runtime/server/server.zig
 // HTTP服务器核心 - 包含writeStatus, AnyRoute, NewServer, 请求分发, WebSocket升级等
-package bao_runtime
+package bao_runtime.server
 
 import bao_core.*
 import bao_collections.*

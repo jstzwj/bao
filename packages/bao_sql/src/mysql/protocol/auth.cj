@@ -1,6 +1,6 @@
 // MySQL 认证方法实现
 // 对应 Bun: src/sql/mysql/protocol/Auth.zig
-package bao_sql
+package bao_sql.mysql.protocol
 
 /// MySQL 原生密码认证
 /// 对应 Bun: Auth.mysql_native_password
@@ -67,9 +67,7 @@ public class CachingSHA2Password {
 
     /// 快速认证状态
     /// 对应 Bun: caching_sha2_password.FastAuthStatus (enum u8)
-    public enum FastAuthStatus <: UInt8 {
-        | success(UInt8)        // 0x03 - 认证成功
-        | continueAuth(UInt8)   // 0x04 - 继续认证
+    public enum FastAuthStatus {
     }
 
     /// 计算 scramble 值

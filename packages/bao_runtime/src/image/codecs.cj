@@ -4,7 +4,7 @@
 // 内存所有权: 解码返回 default_allocator 所有的 RGBA
 // 编码返回 Encoded{bytes, free} 携带编解码器自己的释放器
 
-package bao_runtime
+package bao_runtime.image
 
 // ============================================================================
 // 图像格式

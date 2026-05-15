@@ -2,7 +2,7 @@
 // 严格翻译自: src/runtime/webcore/streams.zig
 // 包含: Start, Result, Result.Writable, Result.Pending, Signal, HTTPServerWritable,
 //        NetworkSink, BufferAction, ReadResult 等
-package bao_runtime
+package bao_runtime.webcore
 
 import bao_core.*
 

@@ -1,7 +1,7 @@
 // Socket 模块入口
 // 对应 Bun: src/runtime/socket/mod.rs + socket.zig
 // 汇总导出所有 Socket 相关类型
-package bao_runtime
+package bao_runtime.socket
 
 // 地址相关
 public typealias SocketAddr = SocketAddress

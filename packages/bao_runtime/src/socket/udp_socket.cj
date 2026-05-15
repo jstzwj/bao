@@ -1,7 +1,7 @@
 // UDP Socket — 数据报套接字
 // 对应 Bun: src/runtime/socket/udp_socket.zig
 // 管理 UDP 数据报的发送、接收和事件处理
-package bao_runtime
+package bao_runtime.socket
 
 import bao_core.*
 import bao_collections.*

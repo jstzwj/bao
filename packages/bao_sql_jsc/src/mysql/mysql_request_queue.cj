@@ -1,7 +1,7 @@
 // 严格翻译自: src/sql_jsc/mysql/MySQLRequestQueue.zig
 // MySQL 请求队列 - 管理流水线和非流水线请求
 
-package bao_sql_jsc
+package bao_sql_jsc.mysql
 
 import bao_core.*
 import bao_jsc.*

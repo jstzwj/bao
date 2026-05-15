@@ -1,7 +1,7 @@
 // Web API Fetch 模块
 // 对应 Bun: src/runtime/api/fetch.zig
 // 严格翻译自: src/api/fetch.zig
-package bao_runtime
+package bao_runtime.web_api
 
 import bao_core.*
 import bao_collections.*

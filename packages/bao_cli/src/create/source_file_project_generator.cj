@@ -1,5 +1,5 @@
 // 严格翻译自: src/cli/create/SourceFileProjectGenerator.zig
-package bao_cli
+package bao_cli.create
 
 import bao_core.*
 import bao_install.*

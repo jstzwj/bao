@@ -1,7 +1,7 @@
 // 命令行参数解析器（完整翻译）
 // 对应 Bun: src/runtime/node/util/parse_args.zig
 // 严格翻译自: src/runtime/node/util/parse_args.zig
-package bao_runtime
+package bao_runtime.node.util
 
 import bao_core.*
 

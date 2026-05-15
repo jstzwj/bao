@@ -8,7 +8,7 @@
 // 注意: 此文件由 build-prefixes.js 自动生成
 // 版本号编码: (major << 16) | (minor << 8) | patch
 // 例如: Chrome 4.0 = 262144, Chrome 12 = 786432
-package bao.css
+package bao_css
 
 import bao_core.*
 import bao_collections.*

@@ -1,7 +1,7 @@
 // bao_css - CSS @layer 层规则
 // 严格翻译自: bun/src/css/rules/layer.rs
 //   对应: rules/layer.zig - LayerName, LayerBlockRule, LayerStatementRule
-package bao.css
+package bao_css.rules
 
 import bao_core.*
 import bao_collections.*

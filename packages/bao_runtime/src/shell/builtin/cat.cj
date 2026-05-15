@@ -2,7 +2,7 @@
 // 对应 Bun: src/runtime/shell/builtin/cat.zig
 // 严格翻译Bun shell cat命令到仓颉
 
-package bao_runtime
+package bao_runtime.shell.builtin
 
 import bao_core.*
 
@@ -36,6 +36,8 @@ public class CatCmd {
     }
 
     /// 从文件路径执行的状态
+    /// 对应 Bun: exec_filepath_args struct in Cat state
+    public struct ExecFilepathArgsState {
         public var args: Array<String>
         public var idx: UInt32 = 0
         public var reader: ?IOReader = None

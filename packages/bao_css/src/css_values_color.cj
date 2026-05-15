@@ -4,7 +4,7 @@
 //   对应: values/css_string.zig - CSSString (引号字符串)
 //   对应: values/number.zig - CSSNumber, CSSInteger (数值基础类型)
 //   对应: values/percentage.zig - Percentage, NumberOrPercentage (百分比)
-package bao.css
+package bao_css
 
 import bao_core.*
 import bao_collections.*

@@ -10,7 +10,7 @@
 //   - 预崩溃钩子
 //   - OOM 处理 (handle_oom.zig)
 //   - CPU 特性检测 (CPUFeatures.zig)
-package bao_core
+package bao_core.crash_handler
 
 // ============================================================================
 // C FFI 声明

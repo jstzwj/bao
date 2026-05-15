@@ -1,7 +1,7 @@
 // bao_css - CSS StyleRule 样式规则
 // 严格翻译自: bun/src/css/rules/style.rs
 //   对应: rules/style.zig - StyleRule
-package bao.css
+package bao_css.rules
 
 import bao_core.*
 import bao_collections.*

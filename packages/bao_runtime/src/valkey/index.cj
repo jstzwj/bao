@@ -6,11 +6,11 @@
 // - JavaScript 包装器 (js_valkey.cj)
 // - Valkey 协议实现 (bao_valkey 包)
 
-package bao_runtime
+package bao_runtime.valkey
 
 import bao_core.*
 import bao_collections.*
-import bao.valkey.*
+import bao_valkey.*
 
 // 导入模块
 // pub const valkey = @import("./valkey.zig");
