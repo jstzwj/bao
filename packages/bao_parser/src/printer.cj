@@ -1416,3 +1416,254 @@ public class Printer {
         }
     }
 }
+
+// ============================================================================
+// SourceMap — Source Map 生成
+// 严格翻译自: src/js_printer/source_map.zig
+//   Bun 生成 VLQ 编码的 source map 用于调试
+//   记录生成代码位置 → 原始源码位置的映射
+//   格式: { version: 3, mappings: "AAAA;AACA,SAAS...", sources: [...], ... }
+// ============================================================================
+
+/// 源码位置映射条目
+public class SourceMapEntry {
+    /// 生成的行号 (0-based)
+    public var genLine: Int64
+    /// 生成的列号 (0-based)
+    public var genCol: Int64
+    /// 原始文件索引
+    public var sourceIndex: Int64
+    /// 原始行号 (0-based)
+    public var origLine: Int64
+    /// 原始列号 (0-based)
+    public var origCol: Int64
+    /// 原始名称索引 (可选)
+    public var nameIndex: Int64
+
+    public init(genLine: Int64, genCol: Int64, sourceIndex: Int64,
+                origLine: Int64, origCol: Int64) {
+        this.genLine = genLine
+        this.genCol = genCol
+        this.sourceIndex = sourceIndex
+        this.origLine = origLine
+        this.origCol = origCol
+        this.nameIndex = -1
+    }
+}
+
+/// Source Map 生成器 — 对应 Bun SourceMap
+public class SourceMapGenerator {
+    /// 映射条目列表
+    private var entries: ArrayList<SourceMapEntry>
+    /// 源文件列表
+    private var sources: ArrayList<String>
+    /// 名称列表
+    private var names: ArrayList<String>
+    /// 当前生成行号
+    private var currentLine: Int64
+    /// 当前生成列号
+    private var currentCol: Int64
+
+    public init() {
+        entries = ArrayList<SourceMapEntry>()
+        sources = ArrayList<String>()
+        names = ArrayList<String>()
+        currentLine = 0
+        currentCol = 0
+    }
+
+    /// 添加映射
+    //  严格翻译自: Bun addMapping
+    public func addMapping(genLine: Int64, genCol: Int64,
+                            sourceIndex: Int64, origLine: Int64, origCol: Int64): Unit {
+        entries.append(SourceMapEntry(genLine, genCol, sourceIndex, origLine, origCol))
+    }
+
+    /// 添加源文件
+    public func addSource(source: String): Int64 {
+        let index = sources.size
+        sources.append(source)
+        return index
+    }
+
+    /// 添加名称
+    public func addName(name: String): Int64 {
+        let index = names.size
+        names.append(name)
+        return index
+    }
+
+    /// 生成 VLQ 编码的 mappings 字符串
+    //  严格翻译自: Bun VLQ 编码
+    //   每个 segment: genCol, sourceIndex, origLine, origCol [, nameIndex]
+    //   使用 Base64 VLQ 编码，相对前一个值进行差值编码
+    public func generateMappings(): String {
+        let sb = StringBuilder()
+        var prevGenCol: Int64 = 0
+        var prevSourceIndex: Int64 = 0
+        var prevOrigLine: Int64 = 0
+        var prevOrigCol: Int64 = 0
+        var prevNameIndex: Int64 = 0
+        var prevLine: Int64 = 0
+
+        // 按行排序
+        let sorted = entries
+
+        for (i in 0..sorted.size) {
+            let entry = sorted[i]
+
+            // 新行分隔符
+            if (entry.genLine != prevLine) {
+                // 添加分号分隔符
+                for (_ in prevLine..entry.genLine) {
+                    sb.append(";")
+                }
+                prevGenCol = 0
+                prevLine = entry.genLine
+            } else if (i > 0) {
+                sb.append(",")  // 同行段分隔符
+            }
+
+            // VLQ 编码各字段 (相对值)
+            sb.append(vlqEncode(entry.genCol - prevGenCol))
+            sb.append(vlqEncode(entry.sourceIndex - prevSourceIndex))
+            sb.append(vlqEncode(entry.origLine - prevOrigLine))
+            sb.append(vlqEncode(entry.origCol - prevOrigCol))
+
+            if (entry.nameIndex >= 0) {
+                sb.append(vlqEncode(entry.nameIndex - prevNameIndex))
+                prevNameIndex = entry.nameIndex
+            }
+
+            prevGenCol = entry.genCol
+            prevSourceIndex = entry.sourceIndex
+            prevOrigLine = entry.origLine
+            prevOrigCol = entry.origCol
+        }
+
+        return sb.toString()
+    }
+
+    /// 生成完整的 Source Map JSON
+    public func generate(sourceRoot: String): String {
+        let sb = StringBuilder()
+        sb.append("{\"version\":3")
+        if (sourceRoot.length > 0) {
+            sb.append(",\"sourceRoot\":\"${sourceRoot}\"")
+        }
+        sb.append(",\"sources\":[")
+        for (i in 0..sources.size) {
+            if (i > 0) { sb.append(",") }
+            sb.append("\"${escapeJson(sources[Int64(i)])}\"")
+        }
+        sb.append("]")
+        if (names.size > 0) {
+            sb.append(",\"names\":[")
+            for (i in 0..names.size) {
+                if (i > 0) { sb.append(",") }
+                sb.append("\"${escapeJson(names[Int64(i)])}\"")
+            }
+            sb.append("]")
+        }
+        sb.append(",\"mappings\":\"${generateMappings()}\"")
+        sb.append("}")
+        return sb.toString()
+    }
+
+    /// VLQ 编码 — 对应 Base64 VLQ 编码
+    //  严格翻译自: Source Map VLQ 编码规范
+    //   将整数编码为 Base64 VLQ 序列
+    private static func vlqEncode(value: Int64): String {
+        let BASE64_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+        var vlq = if (value < 0) { (-value << 1) + 1 } else { value << 1 }
+        let sb = StringBuilder()
+        while (true) {
+            let digit = Int32(vlq & 0x1F)  // 低 5 位
+            vlq = vlq >> 5
+            if (vlq > 0) {
+                // 还有更多位，设置 continuation 标志
+                let ch = BASE64_CHARS[Int64(digit | 0x20)]
+                sb.append(ch)
+            } else {
+                let ch = BASE64_CHARS[Int64(digit)]
+                sb.append(ch)
+                break
+            }
+        }
+        return sb.toString()
+    }
+
+    /// 转义 JSON 字符串
+    private static func escapeJson(s: String): String {
+        let sb = StringBuilder()
+        for (c in s) {
+            match (c) {
+                case '"' => sb.append("\\\"")
+                case '\\' => sb.append("\\\\")
+                case '\n' => sb.append("\\n")
+                case '\r' => sb.append("\\r")
+                case '\t' => sb.append("\\t")
+                case _ => sb.append(c)
+            }
+        }
+        return sb.toString()
+    }
+}
+
+// ============================================================================
+// ModuleWrapper — ESM/CJS 模块包装打印
+// 严格翻译自: src/js_printer/js_printer.zig 中的模块包装逻辑
+//   Bun 在打包时将模块包装为不同格式:
+//   - ESM: 保持 import/export 语法
+//   - CJS: 将 import 转为 require(), export 转为 module.exports
+//   - IIFE: 包装为立即执行函数
+// ============================================================================
+
+/// 模块包装格式
+public enum ModuleFormat {
+    | Esm      // ES Module
+    | Cjs      // CommonJS
+    | Iife     // Immediately Invoked Function Expression
+    | Eval     // eval() 包装
+}
+
+/// 模块包装器 — 对应 Bun bundle 中的模块包装
+public class ModuleWrapper {
+    /// 将 AST 语句列表包装为指定格式
+    //  严格翻译自: Bun 的模块包装逻辑
+    //   ESM: 保持原样，将 import/export 转为变量引用
+    //   CJS: 包装为 (function(require, module, exports) { ... })
+    //   IIFE: 包装为 (function() { ... })()
+    public static func wrap(stmts: ArrayList<Stmt>, format: ModuleFormat,
+                            opts: PrintOptions): String {
+        let printer = Printer(opts)
+        let code = printer.printProgram(stmts)
+
+        match (format) {
+            case Esm => return code
+            case Cjs => return wrapCjs(code)
+            case Iife => return wrapIife(code)
+            case Eval => return code
+        }
+    }
+
+    /// CJS 包装 — 对应 Node.js 模块包装
+    //  (function(require, module, exports, __filename, __dirname) { ... })
+    private static func wrapCjs(code: String): String {
+        let sb = StringBuilder()
+        sb.append("(function(require, module, exports, __filename, __dirname) {\n")
+        sb.append(code)
+        sb.append("\n});")
+        return sb.toString()
+    }
+
+    /// IIFE 包装 — 对应浏览器立即执行函数
+    //  (function() { ... })();
+    private static func wrapIife(code: String): String {
+        let sb = StringBuilder()
+        sb.append("(function() {\n")
+        sb.append(code)
+        sb.append("\n})();")
+        return sb.toString()
+    }
+}

@@ -590,11 +590,13 @@ public class ModuleResolver {
     private var errors: ArrayList<String>
 
     public init() {
+        // 严格翻译自: resolver.zig:462 extension_order
+        // Bun 完整的 ESM 扩展名搜索顺序
         this.esmExtensionOrder = [
-            ".tsx", ".ts", ".jsx", ".js", ".mjs", ".cjs", ".json"
+            ".tsx", ".ts", ".mts", ".jsx", ".js", ".mjs", ".cjs", ".json", ".wasm", ".node"
         ]
         this.defaultExtensionOrder = [
-            ".tsx", ".ts", ".jsx", ".js", ".mjs", ".cjs", ".json"
+            ".tsx", ".ts", ".mts", ".jsx", ".js", ".mjs", ".cjs", ".json", ".wasm", ".node"
         ]
         this.cssExtensionOrder = [".css"]
         this.mainFields = ["module", "main"]
@@ -620,6 +622,7 @@ public class ModuleResolver {
         }
 
         // 内置模块 (node:*, bun:*)
+        // 严格翻译自: resolver.zig 中 bunResolution / nodeResolution 逻辑
         if (importPath.startsWith("node:") || importPath.startsWith("bun:")) {
             let pathPair = PathPair(ResolvedPath(importPath, "node"))
             let result = ResolveResult(pathPair)
@@ -627,6 +630,44 @@ public class ModuleResolver {
             result.isExternal = true
             result.sideEffects = SideEffects.NoSideEffects_PureData
             result.moduleType = ModuleType.JavaScript
+
+            // bun: 前缀: 内建 Bun API (fs, path, http, etc.)
+            // 严格翻译自: resolver.zig 中 bun:builtins 映射
+            if (importPath.startsWith("bun:")) {
+                let moduleName = importPath.substring(4)
+                // 已知的 bun 内建模块
+                let bunBuiltins = [
+                    "fs", "path", "http", "https", "os", "crypto",
+                    "stream", "buffer", "util", "process", "child_process",
+                    "net", "tls", "url", "querystring", "zlib",
+                    "assert", "events", "string_decoder", "tty",
+                    "dns", "dgram", "readline", "repl", "vm",
+                    "ffi", "test", "sqlite", "ws", "ffi/ffi", "ffi/symbol",
+                    "shell", "spawn", "print", "inspect",
+                    "transpiler", "bun", "ffi/ffi_converter"
+                ]
+                var isBuiltin = false
+                for (name in bunBuiltins) {
+                    if (moduleName == name || moduleName.startsWith(name + "/")) {
+                        isBuiltin = true
+                        break
+                    }
+                }
+                if (!isBuiltin) {
+                    // 未知 bun: 模块: 尝试解析为 JS 文件
+                    result.moduleType = ModuleType.JavaScript
+                }
+            }
+
+            // node: 前缀映射
+            // 严格翻译自: resolver.zig 中 node_fallbacks 逻辑
+            if (importPath.startsWith("node:")) {
+                let moduleName = importPath.substring(5)
+                // 去除 node: 前缀后可能是裸模块名或带路径
+                // 如 node:fs/promises -> 在 node_modules 中查找
+                result.moduleType = ModuleType.JavaScript
+            }
+
             return ResolveResult.Union.Success(result)
         }
 
@@ -678,6 +719,27 @@ public class ModuleResolver {
         // 相对路径
         if (importPath.startsWith("./") || importPath.startsWith("../")) {
             return resolveRelativePath(sourceDir, importPath, kind, extOrder)
+        }
+
+        // CSS @import / url() 特殊解析
+        // 严格翻译自: resolver.zig 中 CSS 导入走不同的扩展名顺序
+        if (kind == ImportKind.At || kind == ImportKind.AtConditional || kind == ImportKind.Url) {
+            let cssResult = resolveCssImport(sourceDir, importPath, kind)
+            match (cssResult) {
+                case ResolveResult.Union.Success(_) => return cssResult
+                case _ => {}
+            }
+        }
+
+        // package.json imports (# 前缀导入)
+        // 严格翻译自: resolver.zig 中 #imports 解析
+        if (importPath.startsWith("#")) {
+            let importResult = resolvePackageImport(sourceDir, importPath, kind, extOrder)
+            match (importResult) {
+                case ResolveResult.Union.Success(_) => return importResult
+                case _ => {}
+            }
+            return ResolveResult.Union.NotFound
         }
 
         // 包路径 (node_modules 查找)
@@ -1499,6 +1561,102 @@ public class ModuleResolver {
             i++
         }
         return None
+    }
+
+    /// 解析 package.json imports 字段中的 # 前缀导入
+    // 严格翻译自: resolver.zig 中 resolvePackageImports 逻辑
+    // Node.js 的 Package Imports 规范: # 开头的导入必须匹配 package.json "imports" 字段
+    private func resolvePackageImport(sourceDir: String, importPath: String, kind: ImportKind, extOrder: Array<String>): ResolveResult.Union {
+        // importPath 必须以 # 开头
+        if (!importPath.startsWith("#")) {
+            return ResolveResult.Union.NotFound
+        }
+
+        // 查找 enclosing package.json
+        let pkgJson = findEnclosingPackageJson(sourceDir)
+        match (pkgJson) {
+            case Some(pkg) =>
+                // 在 imports 中查找
+                match (pkg.imports.get(importPath)) {
+                    case Some(mappedPath) =>
+                        // 映射到的路径相对于 package.json 所在目录
+                        let pkgDir = Path.dirname(pkg.path)
+                        let resolved = if (mappedPath.startsWith("./") || mappedPath.startsWith("../")) {
+                            tryResolveWithExtensions(Path.join([pkgDir, mappedPath]), extOrder)
+                        } else if (Path.isAbsolute(mappedPath)) {
+                            tryResolveWithExtensions(mappedPath, extOrder)
+                        } else {
+                            // 非相对路径: 作为包导入递归解析
+                            resolvePackagePath(pkgDir, mappedPath, kind, extOrder).match(
+                                { r => Some(r.pathPair.primary.text) },
+                                { None }
+                            )
+                        }
+                        match (resolved) {
+                            case Some(path) =>
+                                let pathPair = PathPair(ResolvedPath(path))
+                                let result = ResolveResult(pathPair)
+                                result.importKind = kind
+                                result.packageJson = Some(pkg)
+                                result.moduleType = detectModuleTypeFromPkg(pkg)
+                                finalizeResult(result)
+                                return ResolveResult.Union.Success(result)
+                            case None => {}
+                        }
+                    case None => {}
+                }
+            case None => {}
+        }
+
+        return ResolveResult.Union.NotFound
+    }
+
+    /// 检测文件是否为原生 Node 插件 (.node)
+    // 严格翻译自: resolver.zig 中 .node 文件的特殊处理
+    private func isNativeAddon(path: String): Bool {
+        return path.endsWith(".node")
+    }
+
+    /// 解析 CSS 中的 @import / url()
+    // 严格翻译自: resolver.zig 中 CSS 解析分支
+    // CSS 导入支持: @import url(), url(), @import "file.css"
+    private func resolveCssImport(sourceDir: String, importPath: String, kind: ImportKind): ResolveResult.Union {
+        // CSS 文件只解析 CSS 扩展
+        let cssOrder = cssExtensionOrder
+        let fullPath = Path.join([sourceDir, importPath])
+        let resolved = tryResolveWithExtensions(fullPath, cssOrder)
+        match (resolved) {
+            case Some(path) =>
+                let pathPair = PathPair(ResolvedPath(path))
+                let result = ResolveResult(pathPair)
+                result.importKind = kind
+                result.moduleType = ModuleType.CSS
+                finalizeResult(result)
+                return ResolveResult.Union.Success(result)
+            case None =>
+                // CSS url() 中可能包含查询参数或哈希
+                let suffixIdx = importPath.indexOfAny("?#")
+                match (suffixIdx) {
+                    case Some(idx) =>
+                        if (idx > 0) {
+                            let trimmed = importPath.substring(0, idx)
+                            let fullTrimmed = Path.join([sourceDir, trimmed])
+                            let retry = tryResolveWithExtensions(fullTrimmed, cssOrder)
+                            match (retry) {
+                                case Some(path) =>
+                                    let pathPair = PathPair(ResolvedPath(path))
+                                    let result = ResolveResult(pathPair)
+                                    result.importKind = kind
+                                    result.moduleType = ModuleType.CSS
+                                    finalizeResult(result)
+                                    return ResolveResult.Union.Success(result)
+                                case None => {}
+                            }
+                        }
+                    case None => {}
+                }
+                return ResolveResult.Union.NotFound
+        }
     }
 
     /// 判断是否为外部模块模式

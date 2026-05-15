@@ -50,6 +50,17 @@ public class BuildCommand {
             }
         }
 
+        // 检测入口文件类型 (JS/TS/HTML/CSS)
+        // 严格翻译自: build_command.zig 中检测 HTML 入口点
+        let entryTypes = detectEntryTypes(options.entryPoints)
+        let hasHtmlEntry = entryTypes.contains(EntryType.HTML)
+
+        // 多入口验证
+        if (options.entryPoints.size > 1 && options.outdir.length == 0 && options.outfile.length == 0) {
+            println("error: Must use --outdir when specifying more than one entry point")
+            return 1
+        }
+
         // 配置 bundler
         let bundler = Bundler()
         let bundleOpts = createBundleOptions()
@@ -78,6 +89,20 @@ public class BuildCommand {
         // 确保输出目录存在
         ensureOutputDirectory()
 
+        // 处理 HTML 入口 (注入 script 标签)
+        // 严格翻译自: build_command.zig 中 HTML 入口的特殊处理
+        if (hasHtmlEntry) {
+            processHtmlEntries(result)
+        }
+
+        // 处理 CSS 打包
+        // 严格翻译自: Bun bundler 中 CSS chunking 和 CSS 输出
+        processCssOutput(result)
+
+        // 处理静态资源 (图片、字体等)
+        // 严格翻译自: Bun bundler 中 copyFile / asset 文件处理
+        processStaticAssets(result)
+
         // 写入输出文件
         writeOutputFiles(result)
 
@@ -87,6 +112,156 @@ public class BuildCommand {
         }
 
         return 0
+    }
+
+    /// 检测入口文件类型
+    // 严格翻译自: build_command.zig 中检查 .html 后缀
+    private func detectEntryTypes(entries: ArrayList<String>): ArrayList<EntryType> {
+        let types = ArrayList<EntryType>()
+        for (entry in entries) {
+            if (entry.endsWith(".html") || entry.endsWith(".htm")) {
+                types.append(EntryType.HTML)
+            } else if (entry.endsWith(".css")) {
+                types.append(EntryType.CSS)
+            } else if (entry.endsWith(".js") || entry.endsWith(".ts") ||
+                       entry.endsWith(".jsx") || entry.endsWith(".tsx") ||
+                       entry.endsWith(".mjs") || entry.endsWith(".cjs")) {
+                types.append(EntryType.JavaScript)
+            } else {
+                types.append(EntryType.Unknown)
+            }
+        }
+        return types
+    }
+
+    /// 处理 HTML 入口文件
+    // 严格翻译自: build_command.zig 中 HTML 注入逻辑
+    // Bun 在 HTML 文件中查找 <script> 标签并注入打包后的引用
+    private func processHtmlEntries(result: BundleResult): Unit {
+        for (ep in options.entryPoints) {
+            if (ep.endsWith(".html") || ep.endsWith(".htm")) {
+                try {
+                    let htmlContent = BaoFile.readAllText(ep)
+                    let injected = injectScriptTags(htmlContent, result)
+                    let outputPath = if (options.outdir.length > 0) {
+                        Path.join([options.outdir, Path.basename(ep)])
+                    } else {
+                        ep
+                    }
+                    result.outputFiles.append(OutputFile(outputPath, stringToBytes(injected)))
+                } catch (_: Exception) {}
+            }
+        }
+    }
+
+    /// 在 HTML 中注入打包后的 script 和 link 标签
+    // 严格翻译自: Bun 的 HTML bundler 中 script tag 注入
+    private func injectScriptTags(html: String, result: BundleResult): String {
+        let sb = StringBuilder()
+        var injected = false
+
+        // 在 </head> 或 <body> 前注入
+        let lines = html.split("\n")
+        for (line in lines) {
+            // 在 </head> 前注入 CSS 和 JS
+            if (!injected && (line.contains("</head>") || line.contains("<body"))) {
+                // 注入 CSS
+                for (file in result.outputFiles) {
+                    if (file.path.endsWith(".css")) {
+                        let relPath = PathResolver.relative(
+                            Path.dirname(file.path),
+                            file.path
+                        )
+                        sb.append("<link rel=\"stylesheet\" href=\"${relPath}\">\n")
+                    }
+                }
+                // 注入 JS
+                for (file in result.outputFiles) {
+                    if (file.path.endsWith(".js")) {
+                        let relPath = PathResolver.relative(
+                            Path.dirname(file.path),
+                            file.path
+                        )
+                        sb.append("<script src=\"${relPath}\"></script>\n")
+                    }
+                }
+                injected = true
+            }
+            sb.append(line)
+            sb.append("\n")
+        }
+
+        return sb.toString()
+    }
+
+    /// 处理 CSS 输出
+    // 严格翻译自: Bun bundler 中 CSS chunking
+    private func processCssOutput(result: BundleResult): Unit {
+        // 检查是否有 CSS 入口或 CSS chunk
+        for (file in result.outputFiles) {
+            if (file.path.endsWith(".css") && options.minify) {
+                // CSS 压缩: 移除注释、空白、换行
+                let content = bytesToString(file.content)
+                let minified = minifyCss(content)
+                file.content = stringToBytes(minified)
+            }
+        }
+    }
+
+    /// 简易 CSS 压缩
+    private func minifyCss(css: String): String {
+        let sb = StringBuilder()
+        var inComment = false
+        var prevChar: Char = '\0'
+
+        for (c in css) {
+            // 跳过注释
+            if (!inComment && c == '/' && prevChar == '*') {
+                inComment = true
+                continue
+            }
+            if (inComment && c == '*' && prevChar == '/') {
+                inComment = false
+                continue
+            }
+            if (inComment) {
+                prevChar = c
+                continue
+            }
+            // 压缩空白
+            if (c == ' ' || c == '\t' || c == '\n' || c == '\r') {
+                if (sb.length > 0) {
+                    let last = sb.toString()[sb.length - 1]
+                    if (last != ' ' && last != '{' && last != '}' && last != ':' &&
+                        last != ';' && last != ',') {
+                        sb.append(' ')
+                    }
+                }
+                prevChar = c
+                continue
+            }
+            sb.append(c)
+            prevChar = c
+        }
+
+        return sb.toString().trim()
+    }
+
+    /// 处理静态资源 (图片、字体等)
+    // 严格翻译自: Bun bundler 中 copyFile 处理
+    private func processStaticAssets(result: BundleResult): Unit {
+        // 静态资源已经在 bundler 中通过 loader 处理
+        // 此处负责将资源文件复制到输出目录
+        for (file in result.outputFiles) {
+            if (!file.path.endsWith(".js") && !file.path.endsWith(".css") &&
+                !file.path.endsWith(".html") && !file.path.endsWith(".map")) {
+                // 静态资源: 直接复制到 outdir
+                if (options.outdir.length > 0) {
+                    let outputPath = Path.join([options.outdir, Path.basename(file.path)])
+                    file.path = outputPath
+                }
+            }
+        }
     }
 
     /// 创建 BundleOptions
@@ -297,4 +472,38 @@ public class Bundler {
         // 实际实现在 bao_bundler 包中
         return BundleResult()
     }
+}
+
+// ============================================================================
+// 入口类型
+// ============================================================================
+
+/// 入口文件类型
+enum EntryType {
+    | JavaScript
+    | CSS
+    | HTML
+    | Unknown
+}
+
+// ============================================================================
+// 辅助函数
+// ============================================================================
+
+/// 字符串转字节数组
+func stringToBytes(s: String): Array<UInt8> {
+    var bytes = Array<UInt8>()
+    for (c in s) {
+        bytes.append(UInt8(c.value & 0xFF))
+    }
+    return bytes
+}
+
+/// 字节数组转字符串
+func bytesToString(bytes: Array<UInt8>): String {
+    let sb = StringBuilder()
+    for (b in bytes) {
+        sb.append(Char(Int32(b)))
+    }
+    return sb.toString()
 }

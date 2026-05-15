@@ -126,6 +126,20 @@ public class ArgSpec {
     /// 是否必须
     public var required: Bool
 
+    /// 是否允许多值 (如 --external pkg1 --external pkg2)
+    // 严格翻译自: clap 中 Values.many
+    public var allowsMultiple: Bool
+
+    /// 长名称别名
+    // 严格翻译自: clap Names.long_aliases
+    public var longAliases: ArrayList<String>
+
+    /// 值名称 (用于帮助文本, 如 <file>, <dir>)
+    public var valueName: String
+
+    /// 是否为隐藏选项 (不出现在帮助文本中)
+    public var hidden: Bool
+
     public init(longName: String, shortName: String, argType: ArgType, description: String) {
         this.longName = longName
         this.shortName = shortName
@@ -133,6 +147,10 @@ public class ArgSpec {
         this.description = description
         this.defaultValue = None
         this.required = false
+        this.allowsMultiple = false
+        this.longAliases = ArrayList<String>()
+        this.valueName = ""
+        this.hidden = false
     }
 }
 
@@ -207,6 +225,42 @@ public class ArgParser {
         return this
     }
 
+    /// 注册带默认值的选项
+    public func addOption(longName: String, shortName: String, description: String, defaultValue: String): ArgParser {
+        let spec = ArgSpec(longName, shortName, ArgType.Option, description)
+        spec.defaultValue = Some(defaultValue)
+        specs.append(spec)
+        return this
+    }
+
+    /// 注册可变参数选项 (如 --external 可多次使用)
+    // 严格翻译自: clap 中 Values.many
+    public func addVariadicOption(longName: String, shortName: String, description: String): ArgParser {
+        let spec = ArgSpec(longName, shortName, ArgType.Option, description)
+        spec.allowsMultiple = true
+        specs.append(spec)
+        return this
+    }
+
+    /// 注册必选选项
+    public func addRequiredOption(longName: String, shortName: String, description: String): ArgParser {
+        let spec = ArgSpec(longName, shortName, ArgType.Option, description)
+        spec.required = true
+        specs.append(spec)
+        return this
+    }
+
+    /// 注册带别名的选项
+    // 严格翻译自: clap Names.long_aliases (如 --test-name-pattern/--grep)
+    public func addOptionWithAlias(longName: String, shortName: String, description: String, aliases: Array<String>): ArgParser {
+        let spec = ArgSpec(longName, shortName, ArgType.Option, description)
+        for (alias in aliases) {
+            spec.longAliases.append(alias)
+        }
+        specs.append(spec)
+        return this
+    }
+
     /// 注册位置参数
     public func addPositional(name: String, description: String): ArgParser {
         specs.append(ArgSpec(name, "", ArgType.Positional, description))
@@ -216,6 +270,14 @@ public class ArgParser {
     /// 注册子命令
     public func addCommand(name: String, description: String): ArgParser {
         commands.append((name, description))
+        return this
+    }
+
+    /// 注册隐藏选项 (不出现在帮助文本中)
+    public func addHiddenOption(longName: String, shortName: String, description: String): ArgParser {
+        let spec = ArgSpec(longName, shortName, ArgType.Option, description)
+        spec.hidden = true
+        specs.append(spec)
         return this
     }
 
@@ -460,16 +522,44 @@ public class ArgParser {
         if (specs.size > 0) {
             help += "Options:\n"
             for (spec in specs) {
-                let names = if (spec.shortName.length > 0) {
-                    "-${spec.shortName}, --${spec.longName}"
-                } else {
-                    "--${spec.longName}"
+                // 跳过隐藏选项
+                if (spec.hidden) {
+                    continue
                 }
-                help += "  ${names.padEnd(24)}${spec.description}"
+
+                // 构建选项名称字符串
+                var names = ""
+                if (spec.shortName.length > 0) {
+                    names += "-${spec.shortName}, "
+                }
+                names += "--${spec.longName}"
+
+                // 添加值占位符
+                if (spec.argType == ArgType.Option) {
+                    let valuePlaceholder = if (spec.valueName.length > 0) {
+                        spec.valueName
+                    } else {
+                        "<value>"
+                    }
+                    names += " ${valuePlaceholder}"
+                    if (spec.allowsMultiple) {
+                        names += " ..."
+                    }
+                }
+
+                help += "  ${names.padEnd(32)}${spec.description}"
+
+                // 添加默认值
                 match (spec.defaultValue) {
                     case Some(v) => help += " (default: ${v})"
-                    case None => ()
+                    case None => {}
                 }
+
+                // 添加必需标记
+                if (spec.required) {
+                    help += " [required]"
+                }
+
                 help += "\n"
             }
         }

@@ -4,9 +4,22 @@
 //   src/wyhash/ - WyHash 算法实现 (通过 bun_wyhash crate)
 //   src/highway/highway.zig - HighwayHash SIMD 加速 (通过 C++ FFI)
 //   src/hash/ - 通用哈希接口
+//   src/hash/adler32.rs - Adler-32 校验和
+//   src/hash/cityhash.rs - CityHash32/CityHash64
+//   src/hash/rapidhash.rs - RapidHash
+//   src/wyhash/ - Wyhash (final4) + Wyhash11 (legacy 5-prime)
+//   src/sha_hmac/ - SHA 哈希 + HMAC 消息认证码
 package bao_hash
 
 import bao_core.*
+import bao_hash.adler32.*
+import bao_hash.city_hash.*
+import bao_hash.rapid_hash.*
+import bao_hash.wyhash.*
+import bao_hash.hmac.*
+import bao_hash.sha.*
+import bao_hash.murmur.*
+import bao_hash.xxhash.*
 
 // ============================================================================
 // WyHash - 快速非加密哈希

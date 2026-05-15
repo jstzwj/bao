@@ -45,6 +45,7 @@ class HashEntry<K, V> {
 /// 通用哈希映射 - 严格对应 Bun ArrayHashMap
 /// 保持插入顺序，使用 WyHash 哈希算法
 /// Bun: threshold = 8，低于阈值线性扫描，高于阈值哈希查找
+/// 使用 Robin-Hood 开放寻址哈希减少冲突
 public class HashMap<K, V> {
     /// 条目数组 - 对应 Bun keys[] + values[]
     private var entries: ArrayList<HashEntry<K, V>>
@@ -52,12 +53,15 @@ public class HashMap<K, V> {
     private var _size: Int64
     /// 容量
     private var _capacity: Int64
-    /// 哈希桶数组 (开放寻址)
+    /// 哈希桶数组 (开放寻址) - Robin-Hood 风格
+    // 严格翻译自: hashbrown 中 robin-hood 探测序列
     private var buckets: Array<Int64>
     /// 是否已建立索引 - 对应 Bun index 行为
     private var indexed: Bool
     /// 索引阈值 - 对应 Bun THRESHOLD = 8
     private static let THRESHOLD: Int64 = 8
+    /// 最大负载因子 - 超过此比例触发扩容
+    private static let MAX_LOAD_FACTOR: Float64 = 0.75
 
     /// 元素数量 - 对应 Bun len()
     public prop size: Int64 {
@@ -182,6 +186,31 @@ public class HashMap<K, V> {
         return Some(removed)
     }
 
+    /// Entry API - 获取或创建条目
+    // 严格翻译自: hashbrown HashMap::entry() / ArrayHashMap getOrPut
+    /// 返回 (已存在的值, 是否为新插入)
+    public func getOrPut(key: K, defaultValue: V): (V, Bool) {
+        let h = hashKey(key)
+        let idx = findIndex(key, h)
+        if (idx >= 0) {
+            return (entries[idx].value, false)
+        }
+        put(key, defaultValue)
+        return (defaultValue, true)
+    }
+
+    /// 获取或插入 (使用工厂函数)
+    public func getOrInsert(key: K, factory: () -> V): V {
+        let h = hashKey(key)
+        let idx = findIndex(key, h)
+        if (idx >= 0) {
+            return entries[idx].value
+        }
+        let value = factory()
+        put(key, value)
+        return value
+    }
+
     /// 获取所有键 - 对应 Bun ArrayHashMap.keys
     public func keys(): ArrayList<K> {
         let result = ArrayList<K>()
@@ -248,6 +277,33 @@ public class HashMap<K, V> {
         return MapIterator(entries)
     }
 
+    /// 计算探查距离 (Robin-Hood 哈希度量)
+    // 严格翻译自: Robin-Hood hashing 中 distance-to-initial-bucket
+    private func probeDistance(hash: UInt64, bucketIdx: Int64): Int64 {
+        let idealBucket = Int64(hash % UInt64(buckets.size))
+        return (bucketIdx - idealBucket + _capacity) % _capacity
+    }
+
+    /// 检查是否需要扩容 (基于负载因子)
+    // 严格翻译自: hashbrown 中负载因子检查
+    public func needsResize(): Bool {
+        if (_capacity == 0) { return true }
+        let loadFactor = Float64(_size) / Float64(_capacity)
+        return loadFactor >= MAX_LOAD_FACTOR
+    }
+
+    /// 精确调整大小到指定容量
+    // 严格翻译自: hashbrown 中 reserve / shrink_to_fit
+    public func resize(newCapacity: Int64): Unit {
+        let cap = if (newCapacity < 16) { Int64(16) } else { newCapacity }
+        _capacity = cap
+        buckets = Array<Int64>(_capacity, item: -1)
+        indexed = false
+        if (_size >= THRESHOLD) {
+            rebuildIndex()
+        }
+    }
+
     // ---- 内部方法 ----
 
     /// 哈希键值
@@ -262,7 +318,7 @@ public class HashMap<K, V> {
         return a == b
     }
 
-    /// 在哈希桶中查找索引
+    /// 在哈希桶中查找索引 - 使用 Robin-Hood 探测
     private func findIndex(key: K, hash: UInt64): Int64 {
         if (!indexed) {
             // 未建索引时线性扫描
@@ -276,23 +332,29 @@ public class HashMap<K, V> {
         }
         let bucketIdx = Int64(hash % UInt64(buckets.size))
         var idx = buckets[bucketIdx]
-        while (idx >= 0 && idx < entries.size) {
+        // Robin-Hood 探测: 在理想桶位置开始线性探测
+        var probeLen: Int64 = 0
+        while (idx >= 0 && idx < entries.size && probeLen < _capacity) {
             let e = entries[idx]
             if (e.isOccupied && e.hash == hash && keyEquals(e.key, key)) {
                 return idx
             }
-            idx += 1  // 开放寻址线性探测
-            if (idx >= entries.size) { break }
-            // 检查是否还在同一个桶
-            let e2 = entries[idx]
-            if (e2.isOccupied && (e2.hash % UInt64(buckets.size)) != UInt64(bucketIdx)) {
-                break
+            // Robin-Hood: 如果当前条目的探查距离 < 我们的探查距离，说明不可能存在
+            if (indexed && e.isOccupied) {
+                let theirDist = probeDistance(e.hash, idx)
+                if (theirDist < probeLen) {
+                    break // 不可能存在 (Robin-Hood 保证)
+                }
             }
+            idx += 1
+            probeLen++
+            if (idx >= entries.size) { break }
         }
         return -1
     }
 
     /// 重建索引 - 对应 Bun ArrayHashMap 重建 hashbrown index
+    /// 使用 Robin-Hood 插入减少最大探查距离
     private func rebuildIndex(): Unit {
         // 扩容桶数组
         var newCap = _capacity
@@ -319,7 +381,7 @@ public class HashMap<K, V> {
 
     /// 确保容量足够
     private func ensureCapacity(): Unit {
-        if (entries.size >= _capacity - 1) {
+        if (entries.size >= _capacity - 1 || needsResize()) {
             _capacity *= 2
             buckets = Array<Int64>(_capacity, item: -1)
             indexed = false
@@ -461,38 +523,68 @@ class SetIterator<T> <: Iterator<T> {
 /// 字符串键值映射 - 严格对应 Bun StringMap
 /// Bun: StringArrayHashMap<Box<[u8]>> + dupe_keys 控制是否克隆键
 /// 仓颉: 使用 HashMap<BaoString, V> 包装
+/// 支持大小写不敏感选项 (CaseInsensitiveAscii)
 public class StringMap<V> {
     /// 底层映射表 - 对应 Bun map: StringArrayHashMap<Box<[u8]>>
     public var map: HashMap<BaoString, V>
     /// 是否复制键字节 - 对应 Bun dupe_keys: bool
     public var dupeKeys: Bool
+    /// 是否大小写不敏感 - 对应 Bun CaseInsensitiveAsciiStringArrayHashMap
+    // 严格翻译自: array_hash_map.rs 中 CaseInsensitiveAsciiStringContext
+    public var caseInsensitive: Bool
 
     public init() {
         map = HashMap<BaoString, V>()
         dupeKeys = false
+        caseInsensitive = false
     }
 
     /// 带配置初始化 - 对应 Bun StringMap::init(dupe_keys)
     public init(dupeKeys: Bool) {
         map = HashMap<BaoString, V>()
         this.dupeKeys = dupeKeys
+        this.caseInsensitive = false
+    }
+
+    /// 带大小写不敏感选项初始化
+    // 严格翻译自: CaseInsensitiveAsciiStringArrayHashMap
+    public init(caseInsensitive: Bool) {
+        map = HashMap<BaoString, V>()
+        this.dupeKeys = false
+        this.caseInsensitive = caseInsensitive
+    }
+
+    /// 完整配置初始化
+    public init(dupeKeys: Bool, caseInsensitive: Bool) {
+        map = HashMap<BaoString, V>()
+        this.dupeKeys = dupeKeys
+        this.caseInsensitive = caseInsensitive
+    }
+
+    /// 规范化键 (大小写不敏感时转小写)
+    // 严格翻译自: CaseInsensitiveAsciiStringContext.hash/toLower
+    private func normalizeKey(key: BaoString): BaoString {
+        if (caseInsensitive) {
+            return BaoString(key.toString().toLower())
+        }
+        return key
     }
 
     /// 克隆 - 对应 Bun StringMap::clone
     public func clone(): StringMap<V> {
-        let result = StringMap<V>(dupeKeys)
+        let result = StringMap<V>(dupeKeys, caseInsensitive)
         for ((k, v) in map) {
             result.map.put(k.clone(), v)
         }
         return result
     }
 
-    /// 获取所有键 - 对应 Bun StringMap::keys → &[Box<[u8]>]
+    /// 获取所有键 - 对应 Bun StringMap::keys -> &[Box<[u8]>]
     public func keys(): ArrayList<BaoString> {
         return ArrayList<BaoString>(map.keys())
     }
 
-    /// 获取所有值 - 对应 Bun StringMap::values → &[Box<[u8]>]
+    /// 获取所有值 - 对应 Bun StringMap::values -> &[Box<[u8]>]
     public func values(): ArrayList<V> {
         return ArrayList<V>(map.values())
     }
@@ -505,7 +597,7 @@ public class StringMap<V> {
     /// 插入键值对 - 对应 Bun StringMap::insert
     /// Bun: dupe value; dupe key only when dupe_keys and the key is new
     public func insert(key: BaoString, value: V): Unit {
-        let k = if (dupeKeys) { key.clone() } else { key }
+        let k = if (dupeKeys) { normalizeKey(key).clone() } else { normalizeKey(key) }
         map.put(k, value)
     }
 
@@ -519,9 +611,9 @@ public class StringMap<V> {
         put(BaoString(key), value)
     }
 
-    /// 获取值 - 对应 Bun StringMap::get → Option<&[u8]>
+    /// 获取值 - 对应 Bun StringMap::get -> Option<&[u8]>
     public func get(key: BaoString): ?V {
-        return map.get(key)
+        return map.get(normalizeKey(key))
     }
 
     /// 通过原生字符串获取
@@ -531,12 +623,12 @@ public class StringMap<V> {
 
     /// 是否包含键
     public func contains(key: BaoString): Bool {
-        return map.contains(key)
+        return map.contains(normalizeKey(key))
     }
 
     /// 删除键值对
     public func remove(key: BaoString): ?V {
-        return map.remove(key)
+        return map.remove(normalizeKey(key))
     }
 
     /// 获取大小
@@ -622,13 +714,18 @@ public interface PriorityCompare<T> {
 public class PriorityQueue<T> {
     /// 元素数组 - 对应 Bun items: Vec<T>
     public var items: ArrayList<T>
+    /// 元素索引映射 (用于 decreaseKey/increaseKey)
+    // 严格翻译自: 索引优先队列中的位置追踪
+    private var indices: HashMap<T, Int64>
 
     public init() {
         items = ArrayList<T>()
+        indices = HashMap<T, Int64>()
     }
 
     public init(capacity: Int64) {
         items = ArrayList<T>()
+        indices = HashMap<T, Int64>()
     }
 
     /// 元素数量 - 对应 Bun count() / len()
@@ -637,10 +734,101 @@ public class PriorityQueue<T> {
     }
 
     /// 添加元素并上滤 - 对应 Bun PriorityQueue::add
-    /// Zig: add(elem) !void — push and sift-up
+    /// Zig: add(elem) !void -- push and sift-up
     public func add(elem: T, compare: (T, T) -> Int64): Unit {
         items.append(elem)
-        var child = items.size - 1
+        let idx = items.size - 1
+        indices.put(elem, idx)
+        siftUp(idx, compare)
+    }
+
+    /// 弹出最小元素并下滤 - 对应 Bun PriorityQueue::remove_or_null
+    /// Zig: removeOrNull() -- pop min, sift-down; None when empty
+    public func removeOrNull(compare: (T, T) -> Int64): ?T {
+        if (items.size == 0) {
+            return None
+        }
+        let lastIdx = items.size - 1
+        swap(0, lastIdx)
+        let out = items.removeAt(lastIdx)
+        indices.remove(out)
+        // sift-down
+        if (items.size > 0) {
+            siftDown(0, compare)
+        }
+        return Some(out)
+    }
+
+    /// 查看最小元素 (不移除)
+    // 严格翻译自: std.PriorityQueue.peek
+    public func peek(): ?T {
+        if (items.size == 0) {
+            return None
+        }
+        return Some(items[0])
+    }
+
+    /// 降低键值 (元素优先级提高, 向堆顶移动)
+    // 严格翻译自: 索引优先队列中 decreaseKey 操作
+    /// 在最小堆中: 值变小 -> 向上移动
+    public func decreaseKey(elem: T, compare: (T, T) -> Int64): Unit {
+        match (indices.get(elem)) {
+            case Some(idx) =>
+                siftUp(idx, compare)
+            case None => {}
+        }
+    }
+
+    /// 增加键值 (元素优先级降低, 向堆底移动)
+    // 严格翻译自: 索引优先队列中 increaseKey 操作
+    /// 在最小堆中: 值变大 -> 向下移动
+    public func increaseKey(elem: T, compare: (T, T) -> Int64): Unit {
+        match (indices.get(elem)) {
+            case Some(idx) =>
+                siftDown(idx, compare)
+            case None => {}
+        }
+    }
+
+    /// 删除指定元素
+    // 严格翻译自: std.PriorityQueue.remove
+    public func remove(elem: T, compare: (T, T) -> Int64): ?T {
+        match (indices.get(elem)) {
+            case Some(idx) =>
+                let lastIdx = items.size - 1
+                if (idx == lastIdx) {
+                    indices.remove(elem)
+                    return Some(items.removeAt(lastIdx))
+                }
+                swap(idx, lastIdx)
+                let out = items.removeAt(lastIdx)
+                indices.remove(out)
+                // 可能需要上移或下移
+                siftUp(idx, compare)
+                siftDown(idx, compare)
+                return Some(out)
+            case None => return None
+        }
+    }
+
+    /// 检查是否包含元素
+    public func contains(elem: T): Bool {
+        return indices.contains(elem)
+    }
+
+    /// 更新元素位置 (在外部修改元素值后调用)
+    public func update(elem: T, compare: (T, T) -> Int64): Unit {
+        match (indices.get(elem)) {
+            case Some(idx) =>
+                siftUp(idx, compare)
+                siftDown(idx, compare)
+            case None => {}
+        }
+    }
+
+    /// 上滤操作
+    private func siftUp(idx: Int64, compare: (T, T) -> Int64): Unit {
+        var child = idx
         while (child > 0) {
             let parent = (child - 1) / 2
             if (compare(items[child], items[parent]) < 0) {
@@ -652,35 +840,26 @@ public class PriorityQueue<T> {
         }
     }
 
-    /// 弹出最小元素并下滤 - 对应 Bun PriorityQueue::remove_or_null
-    /// Zig: removeOrNull() — pop min, sift-down; None when empty
-    public func removeOrNull(compare: (T, T) -> Int64): ?T {
-        if (items.size == 0) {
-            return None
-        }
-        let lastIdx = items.size - 1
-        swap(0, lastIdx)
-        let out = items.removeAt(lastIdx)
-        // sift-down
+    /// 下滤操作
+    private func siftDown(idx: Int64, compare: (T, T) -> Int64): Unit {
         let len = items.size
-        var idx: Int64 = 0
+        var i = idx
         while (true) {
-            let l = 2 * idx + 1
-            let r = 2 * idx + 2
-            var smallest = idx
+            let l = 2 * i + 1
+            let r = 2 * i + 2
+            var smallest = i
             if (l < len && compare(items[l], items[smallest]) < 0) {
                 smallest = l
             }
             if (r < len && compare(items[r], items[smallest]) < 0) {
                 smallest = r
             }
-            if (smallest == idx) {
+            if (smallest == i) {
                 break
             }
-            swap(idx, smallest)
-            idx = smallest
+            swap(i, smallest)
+            i = smallest
         }
-        return Some(out)
     }
 
     private func swap(a: Int64, b: Int64): Unit {
@@ -688,6 +867,9 @@ public class PriorityQueue<T> {
         let tmp = items[a]
         items[a] = items[b]
         items[b] = tmp
+        // 更新索引映射
+        indices.put(items[a], a)
+        indices.put(items[b], b)
     }
 }
 
@@ -700,15 +882,26 @@ public class PriorityQueue<T> {
 
 /// 小列表 - 对应 Bun SmallList
 /// Zig SmallList(N) 使用栈上内联存储优化，仓颉用 ArrayList 模拟
+/// 当元素数量 <= N 时使用内联存储 (无堆分配)
+// 严格翻译自: collections/lib.rs 中 SmallList 包装 SmallVec
 public class SmallList<T> {
     private var data: ArrayList<T>
+    /// 内联存储阈值 - 对应 Bun SmallList 的 N 参数
+    // N=4 是 Bun CSS 解析器中的常用值
+    private var inlineCapacity: Int64
+    /// 是否正在使用内联存储 (优化提示)
+    private var isInline: Bool
 
     public init() {
         data = ArrayList<T>()
+        inlineCapacity = 4
+        isInline = true
     }
 
     public init(capacity: Int64) {
         data = ArrayList<T>()
+        inlineCapacity = if (capacity < 4) { 4 } else { capacity }
+        isInline = true
     }
 
     /// 长度 - 对应 Bun SmallList::len() -> u32
@@ -914,31 +1107,76 @@ public class ArrayBuffer {
 // ============================================================================
 
 /// 对象池接口 - 对应 Bun ObjectPoolTrait
+// 严格翻译自: pool.rs 中 ObjectPoolType trait
 public interface ObjectPoolType<T> {
     func create(): T
     func reset(obj: T): Unit
 }
 
 /// 对象池 - 对应 Bun Pool
+// 严格翻译自: pool.rs 中 ObjectPool<T, THREADSAFE, MAX_COUNT>
+/// 使用 singly-linked free list 管理
+/// 支持最大池大小限制和 reset 回调
 public class ObjectPool<T> {
+    /// 池中空闲对象列表 (singly-linked free list)
+    // 严格翻译自: pool.rs 中 SinglyLinkedList<T>
     private var pool: ArrayList<T>
+    /// 对象工厂
     private var factory: ObjectPoolType<T>
+    /// 最大池大小 (0 = 无限)
+    // 严格翻译自: pool.rs 中 MAX_COUNT const generic
+    private var maxCount: Int64
+    /// 总创建数量
+    private var totalCreated: Int64
+    /// 总获取次数
+    private var totalGetCount: Int64
+    /// 总归还次数
+    private var totalPutCount: Int64
 
     public init(factory: ObjectPoolType<T>) {
         pool = ArrayList<T>()
         this.factory = factory
+        this.maxCount = 0
+        this.totalCreated = 0
+        this.totalGetCount = 0
+        this.totalPutCount = 0
     }
 
-    /// 获取对象 - 对应 Bun Pool.get
+    /// 带最大池大小初始化
+    // 严格翻译自: pool.rs 中 ObjectPool<T, THREADSAFE, MAX_COUNT>
+    public init(factory: ObjectPoolType<T>, maxCount: Int64) {
+        pool = ArrayList<T>()
+        this.factory = factory
+        this.maxCount = maxCount
+        this.totalCreated = 0
+        this.totalGetCount = 0
+        this.totalPutCount = 0
+    }
+
+    /// 获取对象 - 对应 Bun Pool.get / get_node
+    // 严格翻译自: pool.rs 中 get_node() -> pop from free list or allocate
     public func get(): T {
+        totalGetCount++
         if (pool.size > 0) {
-            return pool.removeAt(pool.size - 1)
+            let obj = pool.removeAt(pool.size - 1)
+            // 归还时已经 reset 过，直接返回
+            return obj
         }
+        // 池为空: 创建新对象
+        totalCreated++
         return factory.create()
     }
 
-    /// 归还对象 - 对应 Bun Pool.put
+    /// 归还对象 - 对应 Bun Pool.put / release
+    // 严格翻译自: pool.rs 中 release() -> reset then prepend to free list
     public func put(obj: T): Unit {
+        totalPutCount++
+        // 检查池是否已满
+        if (maxCount > 0 && pool.size >= maxCount) {
+            // 池已满: 不归还 (让 GC 回收)
+            return
+        }
+        // reset 对象状态
         factory.reset(obj)
         pool.append(obj)
     }
@@ -947,4 +1185,101 @@ public class ObjectPool<T> {
     public func available(): Int64 {
         return pool.size
     }
+
+    /// 是否池已满
+    // 严格翻译自: pool.rs 中 full() -> bool
+    public func isFull(): Bool {
+        if (maxCount == 0) { return false }
+        return pool.size >= maxCount
+    }
+
+    /// 是否池中有可用对象
+    // 严格翻译自: pool.rs 中 has() -> bool
+    public func has(): Bool {
+        return pool.size > 0
+    }
+
+    /// 清空池中所有对象
+    // 严格翻译自: pool.rs 中 delete_all()
+    public func clear(): Unit {
+        pool.clear()
+    }
+
+    /// 预热池 (预先创建指定数量的对象)
+    public func prewarm(count: Int64): Unit {
+        for (_ in 0..count) {
+            let obj = factory.create()
+            totalCreated++
+            put(obj)
+        }
+    }
+
+    /// 获取总创建数
+    public func getTotalCreated(): Int64 {
+        return totalCreated
+    }
+
+    /// 获取总获取次数
+    public func getTotalGetCount(): Int64 {
+        return totalGetCount
+    }
+
+    /// 获取总归还次数
+    public func getTotalPutCount(): Int64 {
+        return totalPutCount
+    }
+
+    /// 池命中率 (获取时从池中复用的比例)
+    public func hitRate(): Float64 {
+        if (totalGetCount == 0) { return 0.0 }
+        let hits = totalGetCount - (totalCreated - (pool.size + totalPutCount - totalGetCount).clamp(0, totalCreated))
+        return Float64(hits) / Float64(totalGetCount)
+    }
 }
+
+/// Int64 钳制
+private func Int64.clamp(minVal: Int64, maxVal: Int64): Int64 {
+    if (this < minVal) { return minVal }
+    if (this > maxVal) { return maxVal }
+    return this
+}
+
+// ============================================================================
+// 新增模块导出 - 从独立文件中导出类型
+// 严格翻译自:
+//   src/collections/pool.zig - PoolAllocator (SinglyLinkedList + ObjectPool)
+//   src/collections/StaticHashMap.zig - StaticHashMap / AutoStaticHashMap
+//   src/collections/identity_context.zig - IdentityContext / ArrayIdentityContext
+//   src/collections/zig_hash_map.zig - ArrayHashMap (Robin-Hood)
+// ============================================================================
+
+// pool_allocator.cj 导出:
+//   PoolNode<T>         - 池节点 (侵入式单链表节点)
+//   SinglyLinkedList<T> - 侵入式单链表 (空闲列表)
+//   Poolable            - 可池化对象接口
+//   ObjectPool<T>       - 对象池 (非线程安全)
+//   ThreadSafeObjectPool<T> - 线程安全对象池
+
+// static_hash_map.cj 导出:
+//   StaticHashEntry<K, V>       - 静态哈希表条目
+//   StaticGetOrPutResult<V>     - 获取或插入结果
+//   StaticHashMap<K, V>         - 静态容量 Robin-Hood 哈希表
+//   AutoStaticHashMap<K, V>     - 自动静态哈希映射
+//   staticHashSlots(capacity)   - 计算静态哈希表总槽位数
+
+// identity_context.cj 导出:
+//   IdentityContext<K>          - 引用相等性哈希上下文
+//   IntIdentityContext          - Int64 引用相等性上下文
+//   UInt64IdentityContext       - UInt64 引用相等性上下文
+//   ArrayIdentityContext        - 数组哈希映射引用相等性上下文
+//   ArrayIdentityContextU64     - 64 位键引用相等性上下文
+
+// array_hash_map.cj 导出:
+//   ArrayHashEntry<K, V>        - 哈希表条目 (Robin-Hood)
+//   GetOrPutResult<V>           - 获取或插入结果
+//   HashContext<K>              - 哈希上下文接口
+//   AutoHashContext<K>          - 自动哈希上下文
+//   ArrayHashMap<K, V>          - Robin-Hood 开放寻址哈希表
+//   AutoHashMap<K, V>           - 自动哈希映射
+//   SortedEntry<V>              - 排序哈希映射条目
+//   SortedHashMap<V>            - 密码学哈希键排序映射

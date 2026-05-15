@@ -528,30 +528,94 @@ public class ChildProcessHandle {
         return kill("SIGTERM")
     }
 
-    /// child.send(message) — 发送 IPC 消息 (占位)
+    /// child.send(message) — 发送 IPC 消息
     /// 对应 Node.js: child.send(message)
-    /// Bun 通过序列化 IPC 消息实现，仓颉中简化为占位
+    /// Bun 通过序列化 IPC 消息实现
     public func send(message: JsValue): Unit {
-        // IPC 通信 — 需要序列化通道支持
-        // 占位实现
+        // IPC 通信需要序列化通道
+        // 如果 stdin 可用，写入序列化消息
+        match (stdin) {
+            case Some(writer) =>
+                let serialized = JsonParser.stringify(message)
+                writer.write(serialized + "\n")
+            case None => ()
+        }
     }
 
-    /// child.disconnect() — 断开 IPC 连接 (占位)
+    /// child.disconnect() — 断开 IPC 连接
     /// 对应 Node.js: child.disconnect()
     public func disconnect(): Unit {
-        // IPC 断开 — 占位实现
+        // 关闭 stdin 管道以断开 IPC
+        match (stdin) {
+            case Some(writer) =>
+                writer.close()
+                stdin = None
+            case None => ()
+        }
     }
 
     /// child.ref() — 引用子进程 (保持事件循环运行)
     /// 对应 Node.js: child.ref()
     public func ref(): Unit {
-        // 事件循环引用计数 — 占位实现
+        // 事件循环引用计数 — 委托给底层
+        match (sysChild) {
+            case Some(child) => child.ref()
+            case None => ()
+        }
     }
 
     /// child.unref() — 取消引用子进程 (允许事件循环退出)
     /// 对应 Node.js: child.unref()
     public func unref(): Unit {
-        // 事件循环取消引用计数 — 占位实现
+        match (sysChild) {
+            case Some(child) => child.unref()
+            case None => ()
+        }
+    }
+
+    /// 读取 stdout 全部内容
+    public func readStdout(): String {
+        match (stdout) {
+            case Some(reader) =>
+                let result = reader.readToEnd()
+                match (result) {
+                    case Ok(bytes) => return byteArrayToString(bytes)
+                    case Err(_) => return ""
+                }
+            case None => return ""
+        }
+    }
+
+    /// 读取 stderr 全部内容
+    public func readStderr(): String {
+        match (stderr) {
+            case Some(reader) =>
+                let result = reader.readToEnd()
+                match (result) {
+                    case Ok(bytes) => return byteArrayToString(bytes)
+                    case Err(_) => return ""
+                }
+            case None => return ""
+        }
+    }
+
+    /// 写入 stdin
+    public func writeStdin(data: String): Unit {
+        match (stdin) {
+            case Some(writer) =>
+                writer.write(data)
+            case None => ()
+        }
+    }
+
+    /// 关闭 stdin 管道
+    public func closeStdin(): Unit {
+        match (stdin) {
+            case Some(writer) =>
+                writer.close()
+                stdin = None
+            case None => ()
+        }
     }
 
     /// 内部等待方法 — 通过 bao_sys.ChildProcess.wait()

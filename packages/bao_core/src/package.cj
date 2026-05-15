@@ -1,6 +1,7 @@
 // bao_core - 核心类型和原语
 // 严格翻译自: src/bun_core/lib.rs, src/bun_core/result.rs, src/bun_core/env.rs
 // 以及 src/bun.zig 中的 Environment, Global 等模块
+// 以及 src/string/ 下的字符串类型
 package bao_core
 
 // ============================================================================
@@ -466,3 +467,55 @@ public func exit(code: Int64): Nothing {
 public func throwStackOverflow(): Result<Unit> {
     return Result<Unit>.Err(BaoError(ErrorCode.StackOverflow))
 }
+
+// ============================================================================
+// 字符串类型导出
+// 严格翻译自: src/string/string.zig (模块导出)
+//   pub const HashedString = @import("./HashedString.zig");
+//   pub const MutableString = @import("./MutableString.zig");
+//   pub const PathString = @import("./PathString.zig").PathString;
+//   pub const SmolStr = @import("./SmolStr.zig").SmolStr;
+//   pub const StringBuilder = @import("./StringBuilder.zig");
+//   pub const StringJoiner = @import("./StringJoiner.zig");
+// ============================================================================
+
+// 重导出字符串类型 (这些类型在各 .cj 文件中定义)
+
+/// 带哈希字符串视图 - 对应 Bun HashedString
+/// 严格翻译自: src/string/HashedString.zig
+/// 用于需要频繁比较的字符串 (标识符查找、属性名匹配)
+// HashedStringView 在 hashed_string.cj 中定义
+
+/// 小字符串优化 - 对应 Bun SmolStr
+/// 严格翻译自: src/string/SmolStr.zig
+/// <=22 字节内联存储, >22 字节自动降级为堆存储
+// SmolStr 在 smol_str.cj 中定义
+
+/// 路径字符串视图 - 对应 Bun PathString
+/// 严格翻译自: src/string/PathString.zig
+/// 轻量级路径视图, 零拷贝借用
+// PathStringView 在 path_string.cj 中定义
+
+/// 可变字符串 - 对应 Bun MutableString
+/// 严格翻译自: src/string/MutableString.zig
+/// 动态增长的可变字节缓冲区
+// MutableString 在 mutable_string.cj 中定义
+
+/// 字符串拼接构建器 - 对应 Bun StringJoiner
+/// 严格翻译自: src/string/StringJoiner.zig
+/// Rope-like 数据结构, 链表拼接多个字符串片段
+// StringJoiner 在 string_builder.cj 中定义
+
+/// 正则转义工具 - 对应 Bun escapeRegExp
+/// 严格翻译自: src/string/escapeRegExp.zig
+// RegexEscape 在 escape_regex.cj 中定义
+
+/// 环境变量工具 - 对应 Bun env_var
+/// 严格翻译自: src/bun_core/env_var.zig
+/// 类型安全的环境变量访问器 (string/boolean/unsigned)
+// EnvVar, Env 在 env.cj 中定义
+
+/// 终端进度条 - 对应 Bun Progress
+/// 严格翻译自: src/bun_core/Progress.zig
+/// 非分配、非失败、线程安全的进度指示器
+// Progress 在 progress.cj 中定义

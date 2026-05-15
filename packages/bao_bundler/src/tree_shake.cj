@@ -927,3 +927,266 @@ public class DeadCodeEliminator {
         }
     }
 }
+
+// ============================================================================
+// CSS Tree Shaking
+// 严格翻译自: src/css/ 中 CSS tree-shaking 逻辑
+//   分析 CSS 中未使用的 @keyframes, @layer, unused class selectors
+//   对应 Bun bundler 中 CSS 优化流程
+// ============================================================================
+
+/// CSS 规则使用信息
+// 严格翻译自: CSS 分析中各规则的使用追踪
+public class CssRuleUse {
+    public var ruleName: String
+    public var ruleType: CssRuleType
+    public var useCount: Int64
+    public var selector: String
+
+    public init(ruleName: String, ruleType: CssRuleType) {
+        this.ruleName = ruleName
+        this.ruleType = ruleType
+        this.useCount = 0
+        this.selector = ""
+    }
+}
+
+/// CSS 规则类型
+public enum CssRuleType {
+    | Keyframes         // @keyframes
+    | Layer             // @layer
+    | Media             // @media
+    | FontFace          // @font-face
+    | CounterStyle      // @counter-style
+    | Container         // @container
+    | Selector          // 普通 CSS 选择器
+}
+
+/// CSS Tree Shaker
+// 严格翻译自: Bun CSS bundler 中的未使用规则消除
+public class CssTreeShaker {
+    /// 已声明的 CSS 规则
+    private var declaredRules: HashMap<String, CssRuleUse>
+    /// 已使用的动画名称 (从 JS/CSS 中引用的 @keyframes 名称)
+    private var usedAnimationNames: StringSet
+    /// 已使用的 CSS 类名
+    private var usedClassNames: StringSet
+    /// 已使用的 @layer 名称
+    private var usedLayerNames: StringSet
+
+    public init() {
+        this.declaredRules = HashMap<String, CssRuleUse>()
+        this.usedAnimationNames = StringSet()
+        this.usedClassNames = StringSet()
+        this.usedLayerNames = StringSet()
+    }
+
+    /// 从 CSS 源代码中提取声明的规则
+    // 严格翻译自: Bun CSS parser 中 @keyframes/@layer 提取
+    public func extractDeclaredRules(cssSource: String): Unit {
+        var pos: Int64 = 0
+        while (pos < cssSource.length) {
+            // 查找 @ 规则
+            let atIdx = cssSource.indexOf("@", pos)
+            match (atIdx) {
+                case Some(idx) =>
+                    let afterAt = idx + 1
+                    if (afterAt >= cssSource.length) { break }
+                    pos = afterAt
+
+                    // @keyframes
+                    if (cssSource.substring(afterAt).startsWith("keyframes")) {
+                        let nameStart = afterAt + "keyframes".length
+                        let name = extractIdentifier(cssSource, nameStart)
+                        if (name.length > 0) {
+                            declaredRules.put("keyframes:${name}", CssRuleUse(name, CssRuleType.Keyframes))
+                        }
+                    }
+                    // @layer
+                    else if (cssSource.substring(afterAt).startsWith("layer")) {
+                        let nameStart = afterAt + "layer".length
+                        let name = extractIdentifier(cssSource, nameStart)
+                        if (name.length > 0) {
+                            declaredRules.put("layer:${name}", CssRuleUse(name, CssRuleType.Layer))
+                        }
+                    }
+                    // @font-face
+                    else if (cssSource.substring(afterAt).startsWith("font-face")) {
+                        declaredRules.put("font-face", CssRuleUse("font-face", CssRuleType.FontFace))
+                    }
+                    // @media
+                    else if (cssSource.substring(afterAt).startsWith("media")) {
+                        let nameStart = afterAt + "media".length
+                        let query = extractUntilBrace(cssSource, nameStart)
+                        declaredRules.put("media:${query}", CssRuleUse(query, CssRuleType.Media))
+                    }
+                    // @container
+                    else if (cssSource.substring(afterAt).startsWith("container")) {
+                        let nameStart = afterAt + "container".length
+                        let name = extractIdentifier(cssSource, nameStart)
+                        if (name.length > 0) {
+                            declaredRules.put("container:${name}", CssRuleUse(name, CssRuleType.Container))
+                        }
+                    }
+                case None => break
+            }
+        }
+    }
+
+    /// 标记动画名称为已使用
+    // 严格翻译自: JS 代码中使用 animation/animation-name 属性时标记
+    public func markAnimationUsed(name: String): Unit {
+        usedAnimationNames.insert(name)
+        match (declaredRules.get("keyframes:${name}")) {
+            case Some(rule) => rule.useCount++
+            case None => {}
+        }
+    }
+
+    /// 标记 CSS 类名为已使用
+    public func markClassUsed(className: String): Unit {
+        usedClassNames.insert(className)
+    }
+
+    /// 标记 @layer 名称为已使用
+    public func markLayerUsed(layerName: String): Unit {
+        usedLayerNames.insert(layerName)
+        match (declaredRules.get("layer:${layerName}")) {
+            case Some(rule) => rule.useCount++
+            case None => {}
+        }
+    }
+
+    /// 执行 CSS tree shaking - 移除未使用的 @keyframes
+    // 严格翻译自: Bun CSS bundler 中移除未使用的 CSS 规则
+    public func shake(cssSource: String): String {
+        let sb = StringBuilder()
+        var pos: Int64 = 0
+
+        while (pos < cssSource.length) {
+            // 检查当前位置是否是 @keyframes
+            if (cssSource[pos] == '@' && pos + 1 < cssSource.length) {
+                let remaining = cssSource.substring(pos)
+
+                // @keyframes: 检查是否被使用
+                if (remaining.startsWith("@keyframes")) {
+                    let nameStart = pos + "@keyframes".length
+                    let name = extractIdentifier(cssSource, nameStart)
+                    if (name.length > 0 && !usedAnimationNames.contains(name)) {
+                        // 未使用: 跳过整个 @keyframes 块
+                        let braceStart = cssSource.indexOf("{", nameStart + name.length)
+                        match (braceStart) {
+                            case Some(bs) =>
+                                let braceEnd = findMatchingBrace(cssSource, bs)
+                                match (braceEnd) {
+                                    case Some(be) =>
+                                        pos = be + 1
+                                        continue
+                                    case None => {}
+                                }
+                            case None => {}
+                        }
+                    }
+                }
+
+                // @font-face: 保留 (可能有副作用)
+                // @media: 保留 (条件可能生效)
+                // @layer: 检查是否被使用
+                if (remaining.startsWith("@layer")) {
+                    let nameStart = pos + "@layer".length
+                    let name = extractIdentifier(cssSource, nameStart)
+                    if (name.length > 0 && !usedLayerNames.contains(name)) {
+                        // 未使用的命名 @layer - 跳过
+                        let braceStart = cssSource.indexOf("{", nameStart + name.length)
+                        match (braceStart) {
+                            case Some(bs) =>
+                                let braceEnd = findMatchingBrace(cssSource, bs)
+                                match (braceEnd) {
+                                    case Some(be) =>
+                                        pos = be + 1
+                                        continue
+                                    case None => {}
+                                }
+                            case None => {}
+                        }
+                    }
+                }
+            }
+
+            sb.append(cssSource[pos])
+            pos++
+        }
+
+        return sb.toString()
+    }
+
+    /// 提取标识符 (跳过空白)
+    private func extractIdentifier(source: String, start: Int64): String {
+        var pos = start
+        // 跳过空白
+        while (pos < source.length && (source[pos] == ' ' || source[pos] == '\t' || source[pos] == '\n')) {
+            pos++
+        }
+        let nameStart = pos
+        while (pos < source.length && isIdentChar(source[pos])) {
+            pos++
+        }
+        if (pos > nameStart) {
+            return source.substring(nameStart, pos)
+        }
+        return ""
+    }
+
+    /// 提取直到左大括号
+    private func extractUntilBrace(source: String, start: Int64): String {
+        var pos = start
+        while (pos < source.length && source[pos] != '{') {
+            pos++
+        }
+        return source.substring(start, pos).trim()
+    }
+
+    /// 判断字符是否为 CSS 标识符字符
+    private func isIdentChar(c: Char): Bool {
+        let v = c.value
+        return (v >= 97 && v <= 122) ||  // a-z
+               (v >= 65 && v <= 90) ||   // A-Z
+               (v >= 48 && v <= 57) ||   // 0-9
+               v == 45 || v == 95         // - _
+    }
+
+    /// 查找匹配的右大括号
+    private func findMatchingBrace(source: String, openIdx: Int64): ?Int64 {
+        var depth: Int64 = 0
+        var i = openIdx
+        while (i < source.length) {
+            if (source[i] == '{') {
+                depth++
+            } else if (source[i] == '}') {
+                depth--
+                if (depth == 0) {
+                    return Some(i)
+                }
+            }
+            i++
+        }
+        return None
+    }
+
+    /// 获取未使用的 CSS 规则统计
+    public func getUnusedStats(): ArrayList<String> {
+        let unused = ArrayList<String>()
+        for ((key, rule) in declaredRules) {
+            if (rule.useCount == 0) {
+                match (rule.ruleType) {
+                    case CssRuleType.Keyframes =>
+                        unused.append("@keyframes ${rule.ruleName}")
+                    case CssRuleType.Layer =>
+                        unused.append("@layer ${rule.ruleName}")
+                    case _ => {}
+                }
+            }
+        }
+        return unused
+    }
+}

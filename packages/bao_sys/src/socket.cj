@@ -254,12 +254,65 @@ public class TcpSocket {
         return SysMaybe<TcpSocket>.Ok(TcpSocket(Int64(sockFd)))
     }
 
-    /// 绑定地址
+    /// 绑定地址 — 完整实现，构造 sockaddr_in
     /// 对应 Bun: sys.bind(fd, addr, len)
     public func bind(addr: SocketAddr): SysMaybe<Unit> {
-        // 简化: 直接调用 bind
-        // 完整实现需要构造 sockaddr_in/sockaddr_in6 结构
-        return SysMaybe<Unit>.Ok(())
+        unsafe {
+            match (addr) {
+                case V4(v4) =>
+                    // 分配 sockaddr_in (16 bytes)
+                    let addrBuf = malloc(UIntNative(16))
+                    // 清零
+                    for (i in 0..16) {
+                        let bytePtr = CPointer<Int8>(addrBuf) + IntNative(i)
+                        bytePtr.write(Int8(0))
+                    }
+                    // sin_family = AF_INET
+                    let familyPtr = CPointer<Int16>(addrBuf)
+                    familyPtr.write(Int16(2))  // AF_INET
+                    // sin_port = htons(port)
+                    let portPtr = CPointer<UInt16>(addrBuf + UIntNative(2))
+                    portPtr.write(htons(v4.port))
+                    // sin_addr
+                    let addrPtr = CPointer<UInt8>(addrBuf + UIntNative(4))
+                    for (i in 0..4) {
+                        let bytePtr = addrPtr + IntNative(i)
+                        bytePtr.write(v4.addr[Int64(i)])
+                    }
+                    let rc = bao_sys.bind(Int32(fd), addrBuf, UInt32(16))
+                    free(addrBuf)
+                    if (rc != 0) {
+                        return SysMaybe<Unit>.Err(
+                            SysError(UInt16(Int64(OS.errno())), SysTag.Bind))
+                    }
+                case V6(v6) =>
+                    // 分配 sockaddr_in6 (28 bytes)
+                    let addrBuf = malloc(UIntNative(28))
+                    for (i in 0..28) {
+                        let bytePtr = CPointer<Int8>(addrBuf) + IntNative(i)
+                        bytePtr.write(Int8(0))
+                    }
+                    // sin6_family = AF_INET6
+                    let familyPtr = CPointer<Int16>(addrBuf)
+                    familyPtr.write(Int16(10))  // AF_INET6
+                    // sin6_port = htons(port)
+                    let portPtr = CPointer<UInt16>(addrBuf + UIntNative(2))
+                    portPtr.write(htons(v6.port))
+                    // sin6_addr (16 bytes at offset 8)
+                    let addrPtr = CPointer<UInt8>(addrBuf + UIntNative(8))
+                    for (i in 0..16) {
+                        let bytePtr = addrPtr + IntNative(i)
+                        bytePtr.write(v6.addr[Int64(i)])
+                    }
+                    let rc = bao_sys.bind(Int32(fd), addrBuf, UInt32(28))
+                    free(addrBuf)
+                    if (rc != 0) {
+                        return SysMaybe<Unit>.Err(
+                            SysError(UInt16(Int64(OS.errno())), SysTag.Bind))
+                    }
+            }
+            return SysMaybe<Unit>.Ok(())
+        }
     }
 
     /// 监听
@@ -285,26 +338,191 @@ public class TcpSocket {
         return SysMaybe<TcpSocket>.Ok(TcpSocket(Int64(clientFd)))
     }
 
-    /// 连接远程
+    /// 连接远程 — 完整实现，构造 sockaddr_in
     /// 对应 Bun: sys.connect(fd, addr, len)
     public func connect(addr: SocketAddr): SysMaybe<Unit> {
-        return SysMaybe<Unit>.Ok(())
+        unsafe {
+            match (addr) {
+                case V4(v4) =>
+                    let addrBuf = malloc(UIntNative(16))
+                    for (i in 0..16) {
+                        let bytePtr = CPointer<Int8>(addrBuf) + IntNative(i)
+                        bytePtr.write(Int8(0))
+                    }
+                    let familyPtr = CPointer<Int16>(addrBuf)
+                    familyPtr.write(Int16(2))
+                    let portPtr = CPointer<UInt16>(addrBuf + UIntNative(2))
+                    portPtr.write(htons(v4.port))
+                    let addrPtr = CPointer<UInt8>(addrBuf + UIntNative(4))
+                    for (i in 0..4) {
+                        let bytePtr = addrPtr + IntNative(i)
+                        bytePtr.write(v4.addr[Int64(i)])
+                    }
+                    let rc = bao_sys.connect(Int32(fd), addrBuf, UInt32(16))
+                    free(addrBuf)
+                    if (rc != 0) {
+                        return SysMaybe<Unit>.Err(
+                            SysError(UInt16(Int64(OS.errno())), SysTag.Connect))
+                    }
+                case V6(v6) =>
+                    let addrBuf = malloc(UIntNative(28))
+                    for (i in 0..28) {
+                        let bytePtr = CPointer<Int8>(addrBuf) + IntNative(i)
+                        bytePtr.write(Int8(0))
+                    }
+                    let familyPtr = CPointer<Int16>(addrBuf)
+                    familyPtr.write(Int16(10))
+                    let portPtr = CPointer<UInt16>(addrBuf + UIntNative(2))
+                    portPtr.write(htons(v6.port))
+                    let addrPtr = CPointer<UInt8>(addrBuf + UIntNative(8))
+                    for (i in 0..16) {
+                        let bytePtr = addrPtr + IntNative(i)
+                        bytePtr.write(v6.addr[Int64(i)])
+                    }
+                    let rc = bao_sys.connect(Int32(fd), addrBuf, UInt32(28))
+                    free(addrBuf)
+                    if (rc != 0) {
+                        return SysMaybe<Unit>.Err(
+                            SysError(UInt16(Int64(OS.errno())), SysTag.Connect))
+                    }
+            }
+            return SysMaybe<Unit>.Ok(())
+        }
     }
 
-    /// 设置非阻塞
-    /// 对应 Bun: sys.setNonblocking(fd)
+    /// 设置非阻塞 — 通过 fcntl F_SETFL O_NONBLOCK
+    //  严格翻译自: POSIX fcntl(fd, F_SETFL, O_NONBLOCK)
+    @C
+    foreign func fcntl(fd: Int32, cmd: Int32, arg: Int32): Int32
+
     public func setNonblocking(nonblocking: Bool): SysMaybe<Unit> {
-        return SysMaybe<Unit>.Ok(())
+        unsafe {
+            // F_GETFL = 3, F_SETFL = 4
+            let flags = fcntl(Int32(fd), 3, 0)
+            if (flags < 0) {
+                return SysMaybe<Unit>.Err(
+                    SysError(UInt16(Int64(OS.errno())), SysTag.TODO))
+            }
+            let newFlags = if (nonblocking) {
+                flags | 2048  // O_NONBLOCK
+            } else {
+                flags & ~2048
+            }
+            let rc = fcntl(Int32(fd), 4, newFlags)  // F_SETFL
+            if (rc < 0) {
+                return SysMaybe<Unit>.Err(
+                    SysError(UInt16(Int64(OS.errno())), SysTag.TODO))
+            }
+            return SysMaybe<Unit>.Ok(())
+        }
     }
 
-    /// 设置 SO_REUSEADDR
+    /// 设置 SO_REUSEADDR — 完整实现
+    //  严格翻译自: POSIX setsockopt(SOL_SOCKET, SO_REUSEADDR)
     public func setReuseAddr(reuse: Bool): SysMaybe<Unit> {
-        return SysMaybe<Unit>.Ok(())
+        unsafe {
+            let valBuf = malloc(UIntNative(4))
+            let valPtr = CPointer<Int32>(valBuf)
+            valPtr.write(if (reuse) { 1 } else { 0 })
+            let rc = setsockopt(Int32(fd), SocketOption.SOL_SOCKET,
+                                SocketOption.SO_REUSEADDR, valBuf, UInt32(4))
+            free(valBuf)
+            if (rc != 0) {
+                return SysMaybe<Unit>.Err(
+                    SysError(UInt16(Int64(OS.errno())), SysTag.Bind))
+            }
+            return SysMaybe<Unit>.Ok(())
+        }
     }
 
-    /// 设置 TCP_NODELAY
+    /// 设置 TCP_NODELAY — 完整实现
+    //  严格翻译自: POSIX setsockopt(IPPROTO_TCP, TCP_NODELAY)
     public func setNoDelay(noDelay: Bool): SysMaybe<Unit> {
-        return SysMaybe<Unit>.Ok(())
+        unsafe {
+            let valBuf = malloc(UIntNative(4))
+            let valPtr = CPointer<Int32>(valBuf)
+            valPtr.write(if (noDelay) { 1 } else { 0 })
+            let rc = setsockopt(Int32(fd), SocketOption.IPPROTO_TCP,
+                                SocketOption.TCP_NODELAY, valBuf, UInt32(4))
+            free(valBuf)
+            if (rc != 0) {
+                return SysMaybe<Unit>.Err(
+                    SysError(UInt16(Int64(OS.errno())), SysTag.Connect))
+            }
+            return SysMaybe<Unit>.Ok(())
+        }
+    }
+
+    /// 设置 SO_KEEPALIVE
+    public func setKeepalive(enable: Bool): SysMaybe<Unit> {
+        unsafe {
+            let valBuf = malloc(UIntNative(4))
+            let valPtr = CPointer<Int32>(valBuf)
+            valPtr.write(if (enable) { 1 } else { 0 })
+            let rc = setsockopt(Int32(fd), SocketOption.SOL_SOCKET,
+                                SocketOption.SO_KEEPALIVE, valBuf, UInt32(4))
+            free(valBuf)
+            if (rc != 0) {
+                return SysMaybe<Unit>.Err(
+                    SysError(UInt16(Int64(OS.errno())), SysTag.Connect))
+            }
+            return SysMaybe<Unit>.Ok(())
+        }
+    }
+
+    /// 设置 SO_RCVBUF
+    public func setRecvBufSize(size: Int32): SysMaybe<Unit> {
+        unsafe {
+            let valBuf = malloc(UIntNative(4))
+            let valPtr = CPointer<Int32>(valBuf)
+            valPtr.write(size)
+            let rc = setsockopt(Int32(fd), SocketOption.SOL_SOCKET,
+                                SocketOption.SO_RCVBUF, valBuf, UInt32(4))
+            free(valBuf)
+            if (rc != 0) {
+                return SysMaybe<Unit>.Err(
+                    SysError(UInt16(Int64(OS.errno())), SysTag.TODO))
+            }
+            return SysMaybe<Unit>.Ok(())
+        }
+    }
+
+    /// 设置 SO_SNDBUF
+    public func setSendBufSize(size: Int32): SysMaybe<Unit> {
+        unsafe {
+            let valBuf = malloc(UIntNative(4))
+            let valPtr = CPointer<Int32>(valBuf)
+            valPtr.write(size)
+            let rc = setsockopt(Int32(fd), SocketOption.SOL_SOCKET,
+                                SocketOption.SO_SNDBUF, valBuf, UInt32(4))
+            free(valBuf)
+            if (rc != 0) {
+                return SysMaybe<Unit>.Err(
+                    SysError(UInt16(Int64(OS.errno())), SysTag.TODO))
+            }
+            return SysMaybe<Unit>.Ok(())
+        }
+    }
+
+    /// 获取 SO_ERROR (pending error)
+    public func getError(): SysMaybe<Int32> {
+        unsafe {
+            let valBuf = malloc(UIntNative(4))
+            let lenBuf = malloc(UIntNative(4))
+            let lenPtr = CPointer<UInt32>(lenBuf)
+            lenPtr.write(UInt32(4))
+            let rc = getsockopt(Int32(fd), SocketOption.SOL_SOCKET,
+                                Int32(4), valBuf, lenBuf)  // SO_ERROR = 4
+            let valPtr = CPointer<Int32>(valBuf)
+            let err = valPtr.read()
+            free(valBuf)
+            free(lenBuf)
+            if (rc != 0) {
+                return SysMaybe<Int32>.Err(
+                    SysError(UInt16(Int64(OS.errno())), SysTag.TODO))
+            }
+            return SysMaybe<Int32>.Ok(err)
+        }
     }
 
     /// 读取数据
@@ -372,7 +590,7 @@ public class TcpListener {
         this.socket = socket
     }
 
-    /// 绑定并监听
+    /// 绑定并监听 — 完整实现，设置 SO_REUSEADDR
     /// 对应 Bun: net.listen(addr, backlog)
     public static func listen(addr: SocketAddr, backlog: Int64): SysMaybe<TcpListener> {
         let family = addr.family()
@@ -380,7 +598,18 @@ public class TcpListener {
         match (sockResult) {
             case Err(e) => return SysMaybe<TcpListener>.Err(e)
             case Ok(sock) =>
-                // TODO: set SO_REUSEADDR
+                // 设置 SO_REUSEADDR — 对应 Bun: setsockopt SO_REUSEADDR
+                _ = sock.setReuseAddr(true)
+                // 设置 TCP_NODELAY
+                _ = sock.setNoDelay(true)
+                // 绑定地址
+                let bindResult = sock.bind(addr)
+                match (bindResult) {
+                    case Err(e) => sock.close()
+                        return SysMaybe<TcpListener>.Err(e)
+                    case Ok(_) => ()
+                }
+                // 开始监听
                 let listenResult = sock.listen(backlog)
                 match (listenResult) {
                     case Err(e) => sock.close()

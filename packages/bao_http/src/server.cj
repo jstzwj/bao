@@ -443,16 +443,71 @@ public class HttpServer {
     /// 在 keep-alive 超时前持续读取并处理请求
     public func handleConnection(conn: ClientConnection): Unit {
         var keepAlive = true
+        var requestCount: Int64 = 0
 
         while (keepAlive && conn.isOpen()) {
+            // 检查 keep-alive 超时
+            // 严格翻译自: HTTPContext 中 idle_timeout_seconds 检测
+            let elapsed = conn.getElapsedSinceLastActivity()
+            if (elapsed > config.keepAliveTimeout * 1000) {
+                // 超时: 关闭连接
+                keepAlive = false
+                break
+            }
+
             // 读取请求数据
             let data = conn.readRequest()
             match (data) {
                 case Some(rawData) => {
+                    // 检查请求大小限制
+                    // 严格翻译自: Bun 中 max_http_header_size / maxBodySize 检查
+                    let headerEnd = findHeaderEnd(rawData)
+                    let headerSize = if (headerEnd >= 0) { headerEnd } else { rawData.size }
+                    if (headerSize > config.maxHeaderSize) {
+                        // 请求头过大 - 返回 431
+                        let errResp = Response(431, "Request Header Fields Too Large")
+                        errResp.headers.set("Connection", "close")
+                        writeResponse(conn.fd, errResp)
+                        keepAlive = false
+                        break
+                    }
+
+                    let bodySize = if (headerEnd >= 0) { rawData.size - headerEnd - 4 } else { 0 }
+                    if (bodySize > config.maxBodySize) {
+                        // 请求体过大 - 返回 413
+                        let errResp = Response(413, "Payload Too Large")
+                        errResp.headers.set("Connection", "close")
+                        writeResponse(conn.fd, errResp)
+                        keepAlive = false
+                        break
+                    }
+
                     // 解析请求
                     let parsed = parseRequest(rawData)
                     match (parsed) {
                         case Some(rawReq) => {
+                            requestCount++
+                            conn.updateLastActivity()
+
+                            // 检测 chunked 传输编码
+                            // 严格翻译自: Bun HTTP 解析中 chunked body 处理
+                            let isChunked = isChunkedTransfer(rawReq)
+
+                            // 如果是 chunked, 读取剩余的 chunk
+                            if (isChunked) {
+                                let remainingChunks = readChunkedBody(conn, rawReq)
+                                match (remainingChunks) {
+                                    case Some(body) => rawReq.body = body
+                                    case None => {
+                                        let errResp = Response(400, "Bad Request - malformed chunked body")
+                                        errResp.headers.set("Connection", "close")
+                                        writeResponse(conn.fd, errResp)
+                                        keepAlive = false
+                                        break
+                                    }
+                                }
+                            }
+
                             // 构造 Request 对象
                             let request = buildRequest(rawReq, conn)
 
@@ -466,13 +521,23 @@ public class HttpServer {
                             let connHeader = rawReq.headers
                             keepAlive = shouldKeepAlive(rawReq)
 
-                            // 设置响应 Connection 头
-                            if (!keepAlive) {
-                                response.headers.set("Connection", "close")
+                            // 检查响应是否需要流式传输
+                            // 严格翻译自: Bun 中对 ReadableStream body 的流式写入
+                            if (response.isStreamBody) {
+                                // 流式响应: 使用 chunked 编码
+                                response.headers.set("Transfer-Encoding", "chunked")
+                                let headerBytes = stringToBytes(serializeResponseHeaders(response))
+                                conn.write(headerBytes)
+                                // 流式写入 body
+                                streamResponseBody(conn, response)
+                            } else {
+                                // 设置响应 Connection 头
+                                if (!keepAlive) {
+                                    response.headers.set("Connection", "close")
+                                }
+                                // 写入完整响应
+                                writeResponse(conn.fd, response)
                             }
-
-                            // 写入响应
-                            writeResponse(conn.fd, response)
                         }
                         case None => {
                             // 解析失败 - 返回 400
@@ -491,6 +556,133 @@ public class HttpServer {
 
         conn.close()
         activeConnections -= 1
+    }
+
+    /// 检测是否为 chunked 传输编码
+    // 严格翻译自: HTTP/1.1 Transfer-Encoding: chunked 检测
+    private static func isChunkedTransfer(rawReq: RawRequest): Bool {
+        for (h in rawReq.headers) {
+            if (h.name.toLower() == "transfer-encoding" && h.value.toLower().contains("chunked")) {
+                return true
+            }
+        }
+        return false
+    }
+
+    /// 读取 chunked 编码的请求体
+    // 严格翻译自: HTTP/1.1 chunked body 解析
+    /// chunk 格式: <hex-size>\r\n<data>\r\n ... 0\r\n\r\n
+    private func readChunkedBody(conn: ClientConnection, rawReq: RawRequest): ?Array<UInt8> {
+        let body = ArrayBuffer(8192)
+        var chunkData = conn.readChunk()
+
+        // 简化: 读取直到收到 0 长度块
+        var maxChunks: Int64 = 1024
+        while (maxChunks > 0) {
+            maxChunks--
+            let data = conn.readChunk()
+            if (data.size == 0) { break }
+
+            // 解析 chunk 大小 (十六进制)
+            let str = bytesToString(data)
+            let crlfIdx = str.indexOf("\r\n")
+            match (crlfIdx) {
+                case Some(idx) =>
+                    let sizeStr = str.substring(0, idx).trim()
+                    // 跳过 chunk 扩展 (; 后面的部分)
+                    let semiIdx = sizeStr.indexOf(";")
+                    let cleanSize = if (semiIdx >= 0) { sizeStr.substring(0, semiIdx) } else { sizeStr }
+                    let chunkSize = parseHexInt(cleanSize)
+                    if (chunkSize == 0) {
+                        break // 终止块
+                    }
+                    // 读取 chunk 数据
+                    let chunkBodyStart = idx + 2
+                    for (i in chunkBodyStart..min(chunkBodyStart + chunkSize, str.length)) {
+                        body.append(UInt8(str[Int64(i)].value))
+                    }
+                case None => break
+            }
+        }
+
+        return Some(body.slice())
+    }
+
+    /// 流式写入响应体
+    // 严格翻译自: Bun HTTP 中 ReadableStream body 的流式写入
+    private func streamResponseBody(conn: ClientConnection, response: Response): Unit {
+        // 从 response 的流中读取并写入 chunk
+        var done = false
+        while (!done) {
+            let chunk = response.readBodyChunk(8192)
+            match (chunk) {
+                case Some(data) =>
+                    if (data.size > 0) {
+                        writeChunk(conn.fd, data)
+                    } else {
+                        done = true
+                    }
+                case None =>
+                    done = true
+            }
+        }
+        writeChunkEnd(conn.fd)
+    }
+
+    /// 序列化响应头 (不含 body)
+    // 严格翻译自: HTTP 响应头序列化
+    public static func serializeResponseHeaders(response: Response): String {
+        let sb = StringBuilder()
+
+        // 状态行
+        sb.append("HTTP/1.1 ")
+        sb.append(response.status.toString())
+        sb.append(" ")
+        sb.append(response.statusText)
+        sb.append("\r\n")
+
+        // Server 头
+        sb.append("Server: bao/${BAO_VERSION}\r\n")
+
+        // Date 头
+        sb.append("Date: ")
+        sb.append(formatHttpDate())
+        sb.append("\r\n")
+
+        // 写入响应头
+        for (key in response.headers.keys()) {
+            match (response.headers.get(key)) {
+                case Some(v) => sb.append("${key}: ${v}\r\n")
+                case None => ()
+            }
+        }
+
+        sb.append("\r\n")
+        return sb.toString()
+    }
+
+    /// 解析十六进制整数
+    private static func parseHexInt(s: String): Int64 {
+        var result: Int64 = 0
+        for (c in s) {
+            let v = c.value
+            if (v >= 48 && v <= 57) {       // 0-9
+                result = result * 16 + Int64(v - 48)
+            } else if (v >= 97 && v <= 102) { // a-f
+                result = result * 16 + Int64(v - 87)
+            } else if (v >= 65 && v <= 70) {  // A-F
+                result = result * 16 + Int64(v - 55)
+            } else {
+                break
+            }
+        }
+        return result
+    }
+
+    /// 取最小值
+    private static func min(a: Int64, b: Int64): Int64 {
+        if (a < b) { return a }
+        return b
     }
 
     /// 判断是否应该 keep-alive
@@ -579,6 +771,11 @@ public class ClientConnection {
     public var remoteAddress: String
     /// 远端端口
     public var remotePort: Int64
+    /// 最后活动时间 (毫秒时间戳) - 用于 keep-alive 超时检测
+    // 严格翻译自: HTTPContext 中 idle_timeout_seconds 检测
+    private var lastActivityTime: Int64
+    /// 已处理的请求数
+    public var requestCount: Int64
 
     public init(fd: Int64, server: HttpServer, keepAliveTimeout: Int64) {
         this.fd = fd
@@ -588,11 +785,29 @@ public class ClientConnection {
         this.readBuffer = Array<UInt8>(4096, item: UInt8(0))
         this.remoteAddress = ""
         this.remotePort = 0
+        this.lastActivityTime = currentTimeMillis()
+        this.requestCount = 0
     }
 
     /// 是否打开
     public func isOpen(): Bool {
         return open
+    }
+
+    /// 更新最后活动时间
+    public func updateLastActivity(): Unit {
+        lastActivityTime = currentTimeMillis()
+    }
+
+    /// 获取自上次活动以来的毫秒数
+    public func getElapsedSinceLastActivity(): Int64 {
+        return currentTimeMillis() - lastActivityTime
+    }
+
+    /// 获取当前时间戳 (毫秒)
+    private static func currentTimeMillis(): Int64 {
+        // 简化: 使用系统时间
+        return Int64(OS.time()) * 1000
     }
 
     /// 读取完整 HTTP 请求

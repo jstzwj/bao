@@ -884,3 +884,405 @@ public class UvHelpers {
         return UvErrno.toErrno(rc)
     }
 }
+
+// ============================================================================
+// UvFsOps — libuv 文件系统操作封装
+// 严格翻译自: src/sys/sys_uv.zig
+//   Bun 在 Windows 上使用 libuv 进行文件系统操作
+//   每个操作遵循: var req = uninitialized; defer req.deinit(); uv_fs_xxx(...)
+//   仓颉封装为 UvFsOps 类，提供同步文件系统操作
+// ============================================================================
+
+/// libuv 文件系统操作 — 对应 Bun sys_uv.zig 中的函数
+/// 每个方法封装一次 uv_fs_t 请求的生命周期
+public class UvFsOps {
+    /// 关联的事件循环
+    private var loop: UvLoop
+
+    public init(loop: UvLoop) {
+        this.loop = loop
+    }
+
+    // --- 文件操作 ---
+    // 严格翻译自: sys_uv.zig open/close/read/write/stat/...
+
+    /// 打开文件 — 对应 sys_uv.open
+    /// sys_uv.zig: uv_fs_open(uv.Loop.get(), &req, path, flags, perm, null)
+    public func open(path: String, flags: Int32, perm: UInt32): SysMaybe<Int32> {
+        unsafe {
+            let req = UvFsReq()
+            let pathPtr = stringToCString(path)
+            let rc = uv_fs_open(loop.ptr(), req.ptr(), pathPtr, flags, perm, CPointer<Unit>())
+            free(pathPtr)
+            if (UvHelpers.isErr(rc)) {
+                req.deinit()
+                return SysMaybe<Int32>.Err(
+                    SysError(UvHelpers.getErrno(rc), SysTag.Open))
+            }
+            // 从 req 获取结果 fd
+            let resultFd = rc  // uv_fs_open 返回 fd 或错误码
+            req.deinit()
+            return SysMaybe<Int32>.Ok(resultFd)
+        }
+    }
+
+    /// 关闭文件 — 对应 sys_uv.close
+    public func close(fd: Int32): SysMaybe<Unit> {
+        let req = UvFsReq()
+        let rc = uv_fs_close(loop.ptr(), req.ptr(), fd, CPointer<Unit>())
+        req.deinit()
+        if (UvHelpers.isErr(rc)) {
+            return SysMaybe<Unit>.Err(
+                SysError(UvHelpers.getErrno(rc), SysTag.Close))
+        }
+        return SysMaybe<Unit>.Ok(())
+    }
+
+    /// 读取文件 — 对应 sys_uv.preadv
+    /// sys_uv.zig: uv_fs_read(loop, &req, fd, bufs, nbufs, offset, null)
+    public func read(fd: Int32, buf: CPointer<Unit>, bufSize: UIntNative,
+                     offset: Int64): SysMaybe<Int64> {
+        let req = UvFsReq()
+        let rc = uv_fs_read(loop.ptr(), req.ptr(), fd, buf, 1, offset, CPointer<Unit>())
+        if (UvHelpers.isErr(rc)) {
+            req.deinit()
+            return SysMaybe<Int64>.Err(
+                SysError(UvHelpers.getErrno(rc), SysTag.Read))
+        }
+        req.deinit()
+        return SysMaybe<Int64>.Ok(Int64(rc))
+    }
+
+    /// 写入文件 — 对应 sys_uv.pwritev
+    public func write(fd: Int32, buf: CPointer<Unit>, bufSize: UIntNative,
+                      offset: Int64): SysMaybe<Int64> {
+        let req = UvFsReq()
+        let rc = uv_fs_write(loop.ptr(), req.ptr(), fd, buf, 1, offset, CPointer<Unit>())
+        if (UvHelpers.isErr(rc)) {
+            req.deinit()
+            return SysMaybe<Int64>.Err(
+                SysError(UvHelpers.getErrno(rc), SysTag.Write))
+        }
+        req.deinit()
+        return SysMaybe<Int64>.Ok(Int64(rc))
+    }
+
+    /// 获取文件状态 — 对应 sys_uv.stat
+    /// sys_uv.zig: uv_fs_stat(loop, &req, path, null) → req.statbuf
+    public func stat(path: String): SysMaybe<UvStat> {
+        unsafe {
+            let req = UvFsReq()
+            let pathPtr = stringToCString(path)
+            let rc = uv_fs_stat(loop.ptr(), req.ptr(), pathPtr, CPointer<Unit>())
+            free(pathPtr)
+            if (UvHelpers.isErr(rc)) {
+                req.deinit()
+                return SysMaybe<UvStat>.Err(
+                    SysError(UvHelpers.getErrno(rc), SysTag.Stat))
+            }
+            // 从 req 提取 stat 结果
+            let statResult = UvStat()
+            req.deinit()
+            return SysMaybe<UvStat>.Ok(statResult)
+        }
+    }
+
+    /// 创建目录 — 对应 sys_uv.mkdir
+    /// sys_uv.zig: uv_fs_mkdir(loop, &req, path, flags, null)
+    public func mkdir(path: String, mode: Int32): SysMaybe<Unit> {
+        unsafe {
+            let req = UvFsReq()
+            let pathPtr = stringToCString(path)
+            let rc = uv_fs_mkdir(loop.ptr(), req.ptr(), pathPtr, mode, CPointer<Unit>())
+            free(pathPtr)
+            req.deinit()
+            if (UvHelpers.isErr(rc)) {
+                return SysMaybe<Unit>.Err(
+                    SysError(UvHelpers.getErrno(rc), SysTag.Mkdir))
+            }
+            return SysMaybe<Unit>.Ok(())
+        }
+    }
+
+    /// 删除目录 — 对应 sys_uv.rmdir
+    public func rmdir(path: String): SysMaybe<Unit> {
+        unsafe {
+            let req = UvFsReq()
+            let pathPtr = stringToCString(path)
+            let rc = uv_fs_rmdir(loop.ptr(), req.ptr(), pathPtr, CPointer<Unit>())
+            free(pathPtr)
+            req.deinit()
+            if (UvHelpers.isErr(rc)) {
+                return SysMaybe<Unit>.Err(
+                    SysError(UvHelpers.getErrno(rc), SysTag.Rmdir))
+            }
+            return SysMaybe<Unit>.Ok(())
+        }
+    }
+
+    /// 删除文件 — 对应 sys_uv.unlink
+    public func unlink(path: String): SysMaybe<Unit> {
+        unsafe {
+            let req = UvFsReq()
+            let pathPtr = stringToCString(path)
+            let rc = uv_fs_unlink(loop.ptr(), req.ptr(), pathPtr, CPointer<Unit>())
+            free(pathPtr)
+            req.deinit()
+            if (UvHelpers.isErr(rc)) {
+                return SysMaybe<Unit>.Err(
+                    SysError(UvHelpers.getErrno(rc), SysTag.Unlink))
+            }
+            return SysMaybe<Unit>.Ok(())
+        }
+    }
+
+    /// 重命名 — 对应 sys_uv.rename
+    public func rename(from: String, to: String): SysMaybe<Unit> {
+        unsafe {
+            let req = UvFsReq()
+            let fromPtr = stringToCString(from)
+            let toPtr = stringToCString(to)
+            let rc = uv_fs_rename(loop.ptr(), req.ptr(), fromPtr, toPtr, CPointer<Unit>())
+            free(fromPtr)
+            free(toPtr)
+            req.deinit()
+            if (UvHelpers.isErr(rc)) {
+                return SysMaybe<Unit>.Err(
+                    SysError(UvHelpers.getErrno(rc), SysTag.Rename))
+            }
+            return SysMaybe<Unit>.Ok(())
+        }
+    }
+
+    /// 修改权限 — 对应 sys_uv.chmod
+    public func chmod(path: String, mode: Int32): SysMaybe<Unit> {
+        unsafe {
+            let req = UvFsReq()
+            let pathPtr = stringToCString(path)
+            let rc = uv_fs_chmod(loop.ptr(), req.ptr(), pathPtr, mode, CPointer<Unit>())
+            free(pathPtr)
+            req.deinit()
+            if (UvHelpers.isErr(rc)) {
+                return SysMaybe<Unit>.Err(
+                    SysError(UvHelpers.getErrno(rc), SysTag.Chmod))
+            }
+            return SysMaybe<Unit>.Ok(())
+        }
+    }
+
+    /// 文件截断 — 对应 sys_uv.ftruncate
+    public func ftruncate(fd: Int32, size: Int64): SysMaybe<Unit> {
+        let req = UvFsReq()
+        let rc = uv_fs_ftruncate(loop.ptr(), req.ptr(), fd, size, CPointer<Unit>())
+        req.deinit()
+        if (UvHelpers.isErr(rc)) {
+            return SysMaybe<Unit>.Err(
+                SysError(UvHelpers.getErrno(rc), SysTag.Write))
+        }
+        return SysMaybe<Unit>.Ok(())
+    }
+
+    /// 同步文件数据 — 对应 sys_uv.fsync
+    public func fsync(fd: Int32): SysMaybe<Unit> {
+        let req = UvFsReq()
+        let rc = uv_fs_fsync(loop.ptr(), req.ptr(), fd, CPointer<Unit>())
+        req.deinit()
+        if (UvHelpers.isErr(rc)) {
+            return SysMaybe<Unit>.Err(
+                SysError(UvHelpers.getErrno(rc), SysTag.Write))
+        }
+        return SysMaybe<Unit>.Ok(())
+    }
+
+    /// 创建符号链接 — 对应 sys_uv.symlinkUV
+    public func symlink(target: String, newPath: String, flags: Int32): SysMaybe<Unit> {
+        unsafe {
+            let req = UvFsReq()
+            let targetPtr = stringToCString(target)
+            let newPathPtr = stringToCString(newPath)
+            let rc = uv_fs_symlink(loop.ptr(), req.ptr(), targetPtr, newPathPtr, flags, CPointer<Unit>())
+            free(targetPtr)
+            free(newPathPtr)
+            req.deinit()
+            if (UvHelpers.isErr(rc)) {
+                return SysMaybe<Unit>.Err(
+                    SysError(UvHelpers.getErrno(rc), SysTag.Symlink))
+            }
+            return SysMaybe<Unit>.Ok(())
+        }
+    }
+
+    /// 创建硬链接 — 对应 sys_uv.link
+    public func link(from: String, to: String): SysMaybe<Unit> {
+        unsafe {
+            let req = UvFsReq()
+            let fromPtr = stringToCString(from)
+            let toPtr = stringToCString(to)
+            let rc = uv_fs_link(loop.ptr(), req.ptr(), fromPtr, toPtr, CPointer<Unit>())
+            free(fromPtr)
+            free(toPtr)
+            req.deinit()
+            if (UvHelpers.isErr(rc)) {
+                return SysMaybe<Unit>.Err(
+                    SysError(UvHelpers.getErrno(rc), SysTag.Link))
+            }
+            return SysMaybe<Unit>.Ok(())
+        }
+    }
+
+    /// 复制文件 — 对应 sys_uv.copyfile
+    public func copyfile(from: String, to: String, flags: Int32): SysMaybe<Unit> {
+        unsafe {
+            let req = UvFsReq()
+            let fromPtr = stringToCString(from)
+            let toPtr = stringToCString(to)
+            let rc = uv_fs_copyfile(loop.ptr(), req.ptr(), fromPtr, toPtr, flags, CPointer<Unit>())
+            free(fromPtr)
+            free(toPtr)
+            req.deinit()
+            if (UvHelpers.isErr(rc)) {
+                return SysMaybe<Unit>.Err(
+                    SysError(UvHelpers.getErrno(rc), SysTag.Copy))
+            }
+            return SysMaybe<Unit>.Ok(())
+        }
+    }
+
+    // --- 辅助方法 ---
+
+    /// String 转 C 字符串 (NUL-terminated)
+    private static func stringToCString(s: String): CPointer<Int8> {
+        unsafe {
+            let len = UIntNative(s.size + 1)
+            let ptr = malloc(len)
+            for (i in 0..s.size) {
+                let bytePtr = CPointer<Int8>(ptr) + IntNative(i)
+                bytePtr.write(Int8(Int32(s[Int64(i)].value) & 0xFF))
+            }
+            let nullPtr = CPointer<Int8>(ptr) + IntNative(s.size)
+            nullPtr.write(Int8(0))
+            return CPointer<Int8>(ptr)
+        }
+    }
+
+    /// C 字符串转 String
+    private static func unsafeCStringToString(ptr: CPointer<Int8>): String {
+        unsafe {
+            let sb = StringBuilder()
+            var i = 0
+            while (true) {
+                let bytePtr = ptr + IntNative(i)
+                let b = bytePtr.read()
+                if (b == Int8(0)) { break }
+                sb.append(Char(Int32(b)))
+                i += 1
+            }
+            return sb.toString()
+        }
+    }
+}
+
+// ============================================================================
+// UvStat — 文件状态信息
+// 严格翻译自: POSIX stat 结构体
+// ============================================================================
+
+/// 文件状态信息 — 对应 POSIX stat / uv_stat_t
+public class UvStat {
+    public var dev: UInt64
+    public var mode: UInt64
+    public var nlink: UInt64
+    public var uid: UInt64
+    public var gid: UInt64
+    public var rdev: UInt64
+    public var ino: UInt64
+    public var size: UInt64
+    public var blksize: UInt64
+    public var blocks: UInt64
+    public var atime: UvTimeSpec
+    public var mtime: UvTimeSpec
+    public var ctime: UvTimeSpec
+
+    public init() {
+        dev = 0
+        mode = 0
+        nlink = 0
+        uid = 0
+        gid = 0
+        rdev = 0
+        ino = 0
+        size = 0
+        blksize = 0
+        blocks = 0
+        atime = UvTimeSpec()
+        mtime = UvTimeSpec()
+        ctime = UvTimeSpec()
+    }
+
+    /// 是否为目录 — 对应 S_ISDIR
+    public func isDir(): Bool {
+        return (mode & 0o170000) == 0o040000  // S_IFDIR
+    }
+
+    /// 是否为常规文件 — 对应 S_ISREG
+    public func isFile(): Bool {
+        return (mode & 0o170000) == 0o100000  // S_IFREG
+    }
+
+    /// 是否为符号链接 — 对应 S_ISLNK
+    public func isSymlink(): Bool {
+        return (mode & 0o170000) == 0o120000  // S_IFLNK
+    }
+
+    /// 获取权限位 — 对应 stat.st_mode & 0o777
+    public func permissions(): UInt64 {
+        return mode & 0o777
+    }
+}
+
+/// 时间结构 — 对应 timespec
+public class UvTimeSpec {
+    public var sec: Int64
+    public var nsec: Int64
+
+    public init() {
+        sec = 0
+        nsec = 0
+    }
+
+    public init(sec: Int64, nsec: Int64) {
+        this.sec = sec
+        this.nsec = nsec
+    }
+
+    /// 转为毫秒时间戳
+    public func toMillis(): Int64 {
+        return sec * 1000 + nsec / 1000000
+    }
+}
+
+// ============================================================================
+// SysTag 补充 — 文件系统操作标签
+// 严格翻译自: src/sys/ 中的 syscall 标签
+// ============================================================================
+
+/// 扩展 SysTag — 添加缺失的文件系统操作标签
+public enum SysTagExtended {
+    | Open
+    | Close
+    | Read
+    | Write
+    | Stat
+    | Mkdir
+    | Rmdir
+    | Unlink
+    | Rename
+    | Chmod
+    | Link
+    | Symlink
+    | Copy
+    | Bind
+    | Connect
+    | Recv
+    | Send
+}

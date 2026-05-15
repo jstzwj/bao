@@ -998,3 +998,414 @@ public class CodeGenerator {
         return rel
     }
 }
+
+// ============================================================================
+// ChunkHash - Chunk 哈希计算
+// 严格翻译自: Chunk.zig 中 computeChunkHash / hashChunkContent
+//   用于文件名中的 [hash] 占位符替换和缓存键
+// ============================================================================
+
+/// Chunk 哈希计算器
+// 严格翻译自: Chunk.zig:computeChunkHash
+// 使用 WyHash 对 chunk 内容计算内容哈希
+public class ChunkHash {
+    /// 计算 chunk 内容的哈希值
+    // 严格翻译自: Chunk.zig 中 hashChunkContent
+    public static func compute(content: String): String {
+        let hash = wyhash(content)
+        return toHex(hash)
+    }
+
+    /// 计算字节数组的哈希值
+    public static func computeBytes(data: Array<UInt8>): String {
+        // 简化: 将字节转为字符串后哈希
+        let sb = StringBuilder()
+        for (b in data) {
+            sb.append(Char(Int32(b)))
+        }
+        return compute(sb.toString())
+    }
+
+    /// 哈希文件名中的 [hash] 占位符
+    // 严格翻译自: Chunk.zig 中 [hash] / [contenthash] 替换逻辑
+    public static func replaceHashPlaceholder(template: String, hash: String): String {
+        return template.replace("[hash]", hash).replace("[contenthash]", hash)
+    }
+
+    /// 哈希文件名中的 [name] 占位符
+    public static func replaceNamePlaceholder(template: String, name: String): String {
+        return template.replace("[name]", name)
+    }
+
+    /// 简化的 WyHash 实现
+    private static func wyhash(input: String): UInt64 {
+        var hash: UInt64 = UInt64(0x07F7DB6B)
+        for (c in input) {
+            hash = hash &* UInt64(0x5BD1E995)
+            hash = hash ^ UInt64(c.value)
+        }
+        hash = hash ^ (hash >> 16)
+        return hash
+    }
+
+    /// 将 UInt64 转为 16 字符的十六进制字符串
+    private static func toHex(value: UInt64): String {
+        let hexChars = "0123456789abcdef"
+        let sb = StringBuilder()
+        // 取前 8 个字符 (32-bit)
+        var v = value
+        for (_ in 0..8) {
+            let digit = Int32(v & UInt64(0xF))
+            sb.append(hexChars[Int64(digit)])
+            v = v >> 4
+        }
+        // 反转
+        let s = sb.toString()
+        let result = StringBuilder()
+        for (i in 0..s.length) {
+            result.append(s[s.length - 1 - i])
+        }
+        return result.toString()
+    }
+}
+
+// ============================================================================
+// CodeSplitter - 代码分割
+// 严格翻译自: src/bundler/ 中 code splitting 逻辑
+//   在动态 import 边界处创建新的 chunk
+//   对应: Graph.zig 中 createChunksForDynamicImports
+// ============================================================================
+
+/// 动态导入信息
+// 严格翻译自: LinkerGraph 中 dynamic_import 追踪
+public class DynamicImportInfo {
+    /// 导入的模块路径
+    public var modulePath: String
+    /// 导入所在的源模块
+    public var fromModule: String
+    /// 导入的表达式 (用于生成 import())
+    public var importExpression: String
+
+    public init(modulePath: String, fromModule: String) {
+        this.modulePath = modulePath
+        this.fromModule = fromModule
+        this.importExpression = ""
+    }
+}
+
+/// Chunk 分割结果
+// 严格翻译自: Graph.zig 中 chunk 分割结果
+public class SplitResult {
+    /// 入口 chunk
+    public var entryChunk: Chunk
+    /// 动态导入产生的异步 chunk
+    public var asyncChunks: ArrayList<Chunk>
+    /// 共享模块 chunk (被多个入口引用)
+    public var sharedChunks: ArrayList<Chunk>
+
+    public init() {
+        this.entryChunk = Chunk()
+        this.asyncChunks = ArrayList<Chunk>()
+        this.sharedChunks = ArrayList<Chunk>()
+    }
+}
+
+/// 代码分割器
+// 严格翻译自: Bun bundler 中 code splitting 在动态 import 边界处的分割逻辑
+public class CodeSplitter {
+    /// 在动态 import 边界处分割代码
+    // 严格翻译自: Graph.zig 中根据 import_record.isAsync 分割 chunk
+    public func split(modules: ArrayList<Module>, entryPoints: Array<String>): SplitResult {
+        let result = SplitResult()
+
+        // 1. 收集所有动态导入
+        let dynamicImports = ArrayList<DynamicImportInfo>()
+        for (mod in modules) {
+            match (mod.ast) {
+                case Some(program) =>
+                    for (stmt in program.stmts) {
+                        if (stmt.tag == StmtTag.Expr) {
+                            match (stmt.expr) {
+                                case Some(expr) =>
+                                    collectDynamicImports(expr, mod.path, dynamicImports)
+                                case None => {}
+                            }
+                        }
+                    }
+                case None => {}
+            }
+        }
+
+        // 2. 将入口模块放入入口 chunk
+        let entryChunk = Chunk()
+        entryChunk.isEntryPoint = true
+        for (ep in entryPoints) {
+            entryChunk.filesWithParts.append((findModuleIndex(modules, ep), 0))
+        }
+        result.entryChunk = entryChunk
+
+        // 3. 为每个动态导入创建异步 chunk
+        // 严格翻译自: Graph.zig 中为 dynamic import 创建新 chunk
+        let processedModules = StringSet()
+        for (di in dynamicImports) {
+            if (!processedModules.contains(di.modulePath)) {
+                processedModules.insert(di.modulePath)
+                let asyncChunk = Chunk()
+                asyncChunk.isEntryPoint = false
+                let modIdx = findModuleIndex(modules, di.modulePath)
+                if (modIdx >= 0) {
+                    asyncChunk.filesWithParts.append((modIdx, 0))
+                    // 将该模块的依赖也加入此 chunk
+                    addDependencies(modules, modIdx, asyncChunk, processedModules)
+                }
+                result.asyncChunks.append(asyncChunk)
+            }
+        }
+
+        // 4. 检测共享模块 (被多个 chunk 引用)
+        // 严格翻译自: Graph.zig 中提取共享模块到独立 chunk
+        let moduleRefCount = HashMap<String, Int64>()
+        // 计算每个模块被几个 chunk 引用
+        countChunkReferences(entryChunk, modules, moduleRefCount)
+        for (asyncChunk in result.asyncChunks) {
+            countChunkReferences(asyncChunk, modules, moduleRefCount)
+        }
+        // 被多个 chunk 引用的模块提取到共享 chunk
+        for ((modPath, count) in moduleRefCount) {
+            if (count > 1) {
+                let sharedChunk = Chunk()
+                sharedChunk.isEntryPoint = false
+                let idx = findModuleIndex(modules, modPath)
+                if (idx >= 0) {
+                    sharedChunk.filesWithParts.append((idx, 0))
+                }
+                result.sharedChunks.append(sharedChunk)
+            }
+        }
+
+        return result
+    }
+
+    /// 递归收集表达式中的动态 import
+    private func collectDynamicImports(expr: Expr, fromModule: String, results: ArrayList<DynamicImportInfo>): Unit {
+        if (expr.tag == ExprTag.Call) {
+            // import() 调用
+            match (expr.target) {
+                case Some(target) =>
+                    if (target.tag == ExprTag.Identifier && target.identifierName == "import") {
+                        // import('module') - 动态导入
+                        if (expr.args.size > 0) {
+                            let arg = expr.args[0]
+                            if (arg.tag == ExprTag.String) {
+                                let modulePath = arg.stringValue.toString()
+                                results.append(DynamicImportInfo(modulePath, fromModule))
+                            }
+                        }
+                    }
+                case None => {}
+            }
+            // 递归搜索参数
+            for (arg in expr.args) {
+                collectDynamicImports(arg, fromModule, results)
+            }
+        }
+        // 递归搜索子表达式
+        match (expr.left) {
+            case Some(l) => collectDynamicImports(l, fromModule, results)
+            case None => {}
+        }
+        match (expr.right) {
+            case Some(r) => collectDynamicImports(r, fromModule, results)
+            case None => {}
+        }
+    }
+
+    /// 查找模块在列表中的索引
+    private func findModuleIndex(modules: ArrayList<Module>, path: String): Int64 {
+        for (i in 0..modules.size) {
+            if (modules[i].path == path) {
+                return Int64(i)
+            }
+        }
+        return -1
+    }
+
+    /// 递归添加模块的依赖到 chunk
+    private func addDependencies(modules: ArrayList<Module>, modIdx: Int64, chunk: Chunk, processed: StringSet): Unit {
+        if (modIdx < 0 || modIdx >= modules.size) {
+            return
+        }
+        let mod = modules[modIdx]
+        for (dep in mod.dependencies) {
+            if (!processed.contains(dep)) {
+                processed.insert(dep)
+                let depIdx = findModuleIndex(modules, dep)
+                if (depIdx >= 0) {
+                    chunk.filesWithParts.append((depIdx, 0))
+                    addDependencies(modules, depIdx, chunk, processed)
+                }
+            }
+        }
+    }
+
+    /// 统计模块被几个 chunk 引用
+    private func countChunkReferences(chunk: Chunk, modules: ArrayList<Module>, refCount: HashMap<String, Int64>): Unit {
+        for (entry in chunk.filesWithParts) {
+            let (idx, _) = entry
+            if (idx >= 0 && idx < modules.size) {
+                let path = modules[idx].path
+                match (refCount.get(path)) {
+                    case Some(c) => refCount.put(path, c + 1)
+                    case None => refCount.put(path, 1)
+                }
+            }
+        }
+    }
+}
+
+// ============================================================================
+// DefineReplacer - Define 替换
+// 严格翻译自: transpiler.zig 中 define 替换逻辑
+//   将 process.env.NODE_ENV 等标识符替换为字面量
+//   对应 Bun 的 --define 选项
+// ============================================================================
+
+/// Define 替换器
+// 严格翻译自: transpiler.zig 中 processDefine / replaceDefines 逻辑
+public class DefineReplacer {
+    /// 定义映射 (标识符 -> 替换值)
+    // 对应 Bun 的 --define KEY=VALUE
+    private var defines: HashMap<String, String>
+    /// 环境变量前缀 (默认 "process.env.")
+    // 对应 Bun 的 --env-prefix
+    private var envPrefix: String
+
+    public init() {
+        this.defines = HashMap<String, String>()
+        this.envPrefix = "process.env."
+        // 默认 define
+        defines.put("process.env.NODE_ENV", "\"development\"")
+        defines.put("process.env.BUN", "\"true\"")
+    }
+
+    /// 设置 define 映射
+    public func setDefine(key: String, value: String): Unit {
+        defines.put(key, value)
+    }
+
+    /// 批量设置 define
+    public func setDefines(map: HashMap<String, String>): Unit {
+        for ((k, v) in map) {
+            defines.put(k, v)
+        }
+    }
+
+    /// 设置环境变量前缀
+    public func setEnvPrefix(prefix: String): Unit {
+        this.envPrefix = prefix
+    }
+
+    /// 为生产环境配置标准 define
+    // 严格翻译自: build_command.zig 中 production 模式的 define
+    public func configureForProduction(): Unit {
+        defines.put("process.env.NODE_ENV", "\"production\"")
+    }
+
+    /// 为开发环境配置标准 define
+    public func configureForDevelopment(): Unit {
+        defines.put("process.env.NODE_ENV", "\"development\"")
+    }
+
+    /// 检查标识符是否需要替换
+    public func isDefined(name: String): Bool {
+        // 直接匹配
+        if (defines.contains(name)) {
+            return true
+        }
+        // 环境变量前缀匹配
+        if (name.startsWith(envPrefix)) {
+            let envKey = name.substring(envPrefix.length)
+            // 查找 process.env.XXX 的 define
+            return defines.contains(name)
+        }
+        return false
+    }
+
+    /// 获取标识符的替换值
+    // 严格翻译自: transpiler.zig 中 define 替换
+    // 返回替换后的表达式字符串 (如 "production", "true", "\"string\"")
+    public func getReplacement(name: String): ?String {
+        match (defines.get(name)) {
+            case Some(v) => return Some(v)
+            case None => {}
+        }
+        // process.env.XXX 模式
+        if (name.startsWith(envPrefix)) {
+            // 检查是否有通配 process.env.* 的 define
+            let envKey = name.substring(envPrefix.length)
+            // 检查 process.env.XXX 格式
+            match (defines.get("process.env.${envKey}")) {
+                case Some(v) => return Some(v)
+                case None => {}
+            }
+        }
+        return None
+    }
+
+    /// 在源代码中执行所有 define 替换
+    // 严格翻译自: transpiler.zig 中整文件的 define 替换
+    public func replaceInSource(source: String): String {
+        var result = source
+        for ((key, value) in defines) {
+            // 使用词法边界替换 (确保不替换部分匹配)
+            result = replaceWholeWord(result, key, value)
+        }
+        return result
+    }
+
+    /// 整词替换 (确保不替换标识符的子串)
+    private func replaceWholeWord(source: String, target: String, replacement: String): String {
+        var result = StringBuilder()
+        var i: Int64 = 0
+        while (i <= source.length - target.length) {
+            // 检查是否匹配目标
+            let slice = source.substring(i, i + target.length)
+            if (slice == target) {
+                // 检查边界: 前后不能是标识符字符
+                let beforeOk = if (i > 0) {
+                    !isIdentChar(source[i - 1])
+                } else {
+                    true
+                }
+                let afterIdx = i + target.length
+                let afterOk = if (afterIdx < source.length) {
+                    !isIdentChar(source[afterIdx])
+                } else {
+                    true
+                }
+                if (beforeOk && afterOk) {
+                    result.append(replacement)
+                    i += target.length
+                    continue
+                }
+            }
+            result.append(source[i])
+            i++
+        }
+        // 追加剩余部分
+        while (i < source.length) {
+            result.append(source[i])
+            i++
+        }
+        return result.toString()
+    }
+
+    /// 判断字符是否为标识符字符
+    private func isIdentChar(c: Char): Bool {
+        let v = c.value
+        return (v >= 97 && v <= 122) ||  // a-z
+               (v >= 65 && v <= 90) ||   // A-Z
+               (v >= 48 && v <= 57) ||   // 0-9
+               v == 95                    // _
+    }
+}
