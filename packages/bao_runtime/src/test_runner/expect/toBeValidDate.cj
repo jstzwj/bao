@@ -1,26 +1,37 @@
-// toBeValidDate.cj - 检查值是否为有效Date
-// 严格翻译自 bun/src/runtime/test_runner/expect/toBeValidDate.zig
+// 严格翻译自: src/runtime/test_runner/expect/toBeValidDate.zig
 
 package bao_runtime
 
-/// () - 检查值是否为有效Date
-/// 用法: expect(received).(expected)
-public func (this: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+/// toBeValidDate() - 检查值是否为有效Date
+/// 用法: expect(received).toBeValidDate()
+public func toBeValidDate(this: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
     defer { this.postMatch(globalThis: globalThis) }
+
+    let thisValue = callFrame.this_()
+    let value: JSValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toBeValidDate", matcherParamsFmt: "")
 
     this.incrementExpectCallCounter()
 
     let not = this.flags.not
     var pass = false
 
-    // TODO: 实现具体的匹配逻辑
+    if value.isDate() {
+        let time = value.getDateValue(globalThis: globalThis)
+        pass = !time.isNaN()
+    }
 
     if not { pass = !pass }
     if pass { return JSValue.jsUndefined }
 
-    // 处理失败
-    let signature = Expect.getSignature(matcherName: "", args: "<green>expected<r>", not: not)
-    return this.throw_(globalThis: globalThis, signature: signature,
-        fmt: "\n\nExpected: <green>{s}<r>\nReceived: <red>{s}<r>\n",
-        args: ["expected", "received"])
+    let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
+    defer { formatter.deinit() }
+    let received = value.toFmt(formatter)
+
+    if not {
+        let signature = Expect.getSignature(matcherName: "toBeValidDate", args: "", not: true)
+        return this.throw_(globalThis: globalThis, signature: signature, fmt: "\n\nReceived: <red>{f}<r>\n", args: [received])
+    }
+
+    let signature = Expect.getSignature(matcherName: "toBeValidDate", args: "", not: false)
+    return this.throw_(globalThis: globalThis, signature: signature, fmt: "\n\nReceived: <red>{f}<r>\n", args: [received])
 }

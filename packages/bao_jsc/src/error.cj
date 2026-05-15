@@ -1,34 +1,11 @@
-// 严格翻译自: src/jsc/Exception.zig + ZigException.zig + ZigErrorType.zig +
-//   ZigStackFrame.zig + ZigStackFramePosition.zig + ZigStackFrameCode.zig + ZigStackTrace.zig +
+// 严格翻译自: src/jsc/ZigErrorType.zig + ZigStackFrameCode.zig +
 //   Errorable.zig + ErrorCode.zig + DeferredError.zig +
-//   GetterSetter.zig + CustomGetterSetter.zig + DeprecatedStrong.zig + Strong.zig + Weak.zig
+//   GetterSetter.zig + CustomGetterSetter.zig + DeprecatedStrong.zig + JSRef.zig +
+//   JSPropertyIterator.zig + TopExceptionScope.zig
 // JavaScriptCore 错误处理、引用管理和辅助类型
+// 注意: Exception 移至 exception.cj, Strong 移至 strong.cj, Weak 移至 weak.cj
 
 package bao_jsc
-
-// ========== Exception ==========
-// 严格翻译自 Exception.zig
-// JS 异常的不透明表示
-public class JsException {
-    public var value: JsValue = JsValue.undefined()
-    public var stackTrace: ZigStackTrace = ZigStackTrace()
-
-    public init() {}
-
-    public init(value: JsValue) {
-        this.value = value
-    }
-
-    // 严格翻译自 Exception.getStackTrace
-    public func getStackTrace(global: JsObject) {
-        // 获取堆栈追踪
-    }
-
-    // 严格翻译自 Exception.value
-    public func value_() -> JsValue {
-        value
-    }
-}
 
 // ========== ZigErrorType ==========
 // 严格翻译自 ZigErrorType.zig
@@ -209,81 +186,6 @@ public class CustomGetterSetter {
     }
 }
 
-// ========== Strong<T> ==========
-// 严格翻译自 Strong.zig
-// 持有 JS 值的强引用，保护其不被 GC 回收
-public class Strong<T> {
-    var value: ?T = None
-    var global: ?JsObject = None
-
-    public init() {}
-
-    // 严格翻译自 Strong.create
-    public static func create<T>(value: T, global: JsObject) -> Strong<T> {
-        let s = Strong<T>()
-        s.value = value
-        s.global = global
-        s
-    }
-
-    // 严格翻译自 Strong.deinit
-    public func deinit() {
-        value = None
-        global = None
-    }
-
-    // 严格翻译自 Strong.get
-    public func get() -> ?T {
-        value
-    }
-
-    // 严格翻译自 Strong.set
-    public func set(global: JsObject, newValue: T) {
-        this.value = newValue
-        this.global = global
-    }
-
-    // 严格翻译自 Strong.swap
-    public func swap(global: JsObject, newValue: T) -> ?T {
-        let old = value
-        value = newValue
-        this.global = global
-        old
-    }
-}
-
-// ========== StrongOptional<T> ==========
-// 严格翻译自 Strong.Optional
-// 可能为空的强引用
-public class StrongOptional<T> {
-    var value: ?T = None
-    var global: ?JsObject = None
-
-    public init() {}
-
-    public static let empty<T> = StrongOptional<T>()
-
-    public static func create<T>(value: T, global: JsObject) -> StrongOptional<T> {
-        let s = StrongOptional<T>()
-        s.value = value
-        s.global = global
-        s
-    }
-
-    public func deinit() {
-        value = None
-        global = None
-    }
-
-    public func get() -> ?T {
-        value
-    }
-
-    public func clearWithoutDeallocation() {
-        value = None
-    }
-}
-
 // ========== DeprecatedStrong<T> ==========
 // 严格翻译自 DeprecatedStrong.zig
 // 已弃用的强引用，功能类似 Strong 但带弃用警告
@@ -305,52 +207,9 @@ public class DeprecatedStrong<T> {
     }
 }
 
-// ========== Weak<T> ==========
-// 严格翻译自 Weak.zig
-// JS 值的弱引用
-public enum WeakRefType {
-    | None(0)
-    | FetchResponse(1)
-    | PostgreSQLQueryClient(2)
-}
-
-public class Weak<T> {
-    var ref: ?T = None
-    var global: ?JsObject = None
-    var refType: WeakRefType = WeakRefType.None
-
-    public init() {}
-
-    // 严格翻译自 Weak.create
-    public static func create<T>(value: T, global: JsObject, refType: WeakRefType) -> Weak<T> {
-        let w = Weak<T>()
-        w.ref = value
-        w.global = global
-        w.refType = refType
-        w
-    }
-
-    // 严格翻译自 Weak.get
-    public func get() -> ?T {
-        ref
-    }
-
-    // 严格翻译自 Weak.clear
-    public func clear() {
-        ref = None
-    }
-
-    // 严格翻译自 Weak.deinit
-    public func deinit() {
-        ref = None
-        global = None
-    }
-
-    // 严格翻译自 Weak.trySwap
-    public func trySwap() -> ?T {
-        ref
-    }
-}
+// 注意: Strong<T> 已移至 strong.cj
+// 注意: Weak<T> 已移至 weak.cj
+// 注意: WeakRefType 已移至 weak.cj
 
 // ========== JSRef ==========
 // 严格翻译自 JSRef.zig

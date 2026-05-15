@@ -1,5 +1,4 @@
-// toStrictEqual.cj - 严格深度相等断言
-// 严格翻译自 bun/src/runtime/test_runner/expect/toStrictEqual.zig
+// 严格翻译自: src/runtime/test_runner/expect/toStrictEqual.zig
 
 package bao_runtime
 
@@ -8,10 +7,18 @@ package bao_runtime
 public func toStrictEqual(this: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
     defer { this.postMatch(globalThis: globalThis) }
 
+    let thisValue = callFrame.this_()
+    let arguments_ = callFrame.argumentsOld(1)
+    let arguments = arguments_.slice()
+
+    if arguments.length < 1 {
+        return globalThis.throwInvalidArguments("toStrictEqual() requires 1 argument")
+    }
+
     this.incrementExpectCallCounter()
 
-    let expected = callFrame.argument(0) ?? return JSValue.zero
-    let value = this.getValue(globalThis: globalThis, thisValue: callFrame.this_(), matcherName: "toStrictEqual", matcherParamsFmt: "<green>expected<r>")
+    let expected = arguments[0]
+    let value: JSValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toStrictEqual", matcherParamsFmt: "<green>expected<r>")
 
     let not = this.flags.not
     var pass = value.jestStrictDeepEquals(expected, globalThis: globalThis)
@@ -19,6 +26,7 @@ public func toStrictEqual(this: Expect, globalThis: JSGlobalObject, callFrame: C
     if not { pass = !pass }
     if pass { return JSValue.jsUndefined }
 
+    // 处理失败
     let diffFormatter = DiffFormatter(received: value, expected: expected, globalThis: globalThis, not: not)
 
     if not {

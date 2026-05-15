@@ -1,0 +1,16 @@
+[package]
+cjc-version = "1.0.0"
+name = "bao_string"
+organization = "bao"
+description = "Bao string utilities: immutable strings, StringBuilder, SmolStr, WTF encoding"
+version = "0.1.0"
+compile-option = ""
+override-compile-option = ""
+link-option = ""
+output-type = "library"
+src-dir = "src"
+target-dir = ""
+
+[dependencies]
+bao_core = { path = "../bao_core" }
+bao_unicode = { path = "../bao_unicode" }

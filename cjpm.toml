@@ -33,6 +33,13 @@ members = [
     "packages/bao_router",
     "packages/bao_url",
     "packages/bao_ini",
+    "packages/bao_dns",
+    "packages/bao_glob",
+    "packages/bao_bun_alloc",
+    "packages/bao_ptr",
+    "packages/bao_string",
+    "packages/bao_s3_signing",
+    "packages/bao_md",
 ]
 build-members = [
     "packages/bao_core",
@@ -68,6 +75,13 @@ build-members = [
     "packages/bao_router",
     "packages/bao_url",
     "packages/bao_ini",
+    "packages/bao_dns",
+    "packages/bao_glob",
+    "packages/bao_bun_alloc",
+    "packages/bao_ptr",
+    "packages/bao_string",
+    "packages/bao_s3_signing",
+    "packages/bao_md",
 ]
 test-members = [
     "packages/bao_core",

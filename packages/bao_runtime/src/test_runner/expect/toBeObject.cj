@@ -1,26 +1,35 @@
-// toBeObject.cj - 检查值是否为对象类型
-// 严格翻译自 bun/src/runtime/test_runner/expect/toBeObject.zig
+// 严格翻译自: src/runtime/test_runner/expect/toBeObject.zig
 
 package bao_runtime
 
-/// () - 检查值是否为对象类型
-/// 用法: expect(received).(expected)
-public func (this: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+/// toBeObject() - 检查值是否为对象类型
+/// 用法: expect(received).toBeObject()
+public func toBeObject(this: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
     defer { this.postMatch(globalThis: globalThis) }
+
+    let thisValue = callFrame.this_()
+    let value: JSValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toBeObject", matcherParamsFmt: "")
 
     this.incrementExpectCallCounter()
 
     let not = this.flags.not
-    var pass = false
+    let pass = value.isObject() != not
 
-    // TODO: 实现具体的匹配逻辑
+    if pass { return thisValue }
 
-    if not { pass = !pass }
-    if pass { return JSValue.jsUndefined }
+    let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
+    defer { formatter.deinit() }
+    let received = value.toFmt(formatter)
 
-    // 处理失败
-    let signature = Expect.getSignature(matcherName: "", args: "<green>expected<r>", not: not)
+    if not {
+        let signature = Expect.getSignature(matcherName: "toBeObject", args: "", not: true)
+        return this.throw_(globalThis: globalThis, signature: signature,
+            fmt: "\n\nExpected value <b>not<r> to be an object\n\nReceived: <red>{f}<r>\n",
+            args: [received])
+    }
+
+    let signature = Expect.getSignature(matcherName: "toBeObject", args: "", not: false)
     return this.throw_(globalThis: globalThis, signature: signature,
-        fmt: "\n\nExpected: <green>{s}<r>\nReceived: <red>{s}<r>\n",
-        args: ["expected", "received"])
+        fmt: "\n\nExpected value to be an object\n\nReceived: <red>{f}<r>\n",
+        args: [received])
 }

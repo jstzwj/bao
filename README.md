@@ -30,19 +30,6 @@ Bun 使用 Rust 和 Zig 编写，而 Bao 使用仓颉语言重新实现，同时
 - **文件 I/O** — 基于 libuv 的高效文件操作
 - **SQLite 客户端** — 内置 SQLite 数据库支持
 
-## 项目状态
-
-Bao 目前处于 **早期开发阶段**，按照 6 个阶段逐步翻译 Bun 源码：
-
-| 阶段 | 内容 | 状态 |
-|------|------|------|
-| 阶段 0 | 项目骨架搭建 | 已完成 |
-| 阶段 1 | 基础库（核心类型 / 集合 / Unicode / Hash） | 开发中 |
-| 阶段 2 | 平台层（IO / 网络 / 线程 / 事件循环） | 计划中 |
-| 阶段 3 | 解析器（JS/TS 词法 / 语法分析 / AST） | 计划中 |
-| 阶段 4 | 运行时（JSC 绑定 / Node.js API / Web API） | 计划中 |
-| 阶段 5 | 应用层（Bundler / 包管理器 / CLI） | 计划中 |
-
 ## 架构概览
 
 ```
@@ -89,98 +76,6 @@ cjpm test
 # 运行指定包的测试
 cjpm test -p bao_core
 ```
-
-## 项目结构
-
-```
-bao/
-├── cjpm.toml                  # 根工作区配置
-├── docs/                       # 文档
-│   ├── plan.md                 # 翻译总体规划
-│   ├── architecture.md         # 架构设计
-│   ├── ffi-bridge.md           # FFI 桥接规范
-│   └── translation-guide.md    # 翻译规范
-├── packages/                   # 55+ 仓颉包
-│   ├── bao_core/               # 核心类型和工具
-│   ├── bao_collections/        # 集合数据结构
-│   ├── bao_unicode/            # Unicode 处理
-│   ├── bao_hash/               # 哈希算法 (WyHash, HighwayHash)
-│   ├── bao_path/               # 文件路径处理
-│   ├── bao_sys/                # 系统调用和 C FFI 绑定
-│   ├── bao_io/                 # 文件 I/O 操作
-│   ├── bao_threading/          # 线程和并发
-│   ├── bao_event_loop/         # 事件循环 (libuv)
-│   ├── bao_parser/             # JS/TS 解析器
-│   ├── bao_runtime/            # JavaScript 运行时
-│   ├── bao_http/               # HTTP 服务和客户端
-│   ├── bao_bundler/            # 模块打包器
-│   ├── bao_install/            # 包管理器
-│   ├── bao_sql/                # SQLite 数据库
-│   ├── bao_jsc/                # JavaScriptCore 绑定
-│   ├── bao_cli/                # 命令行工具
-│   └── ...                     # 更多模块
-├── test/                       # 集成测试
-└── tools/                      # 开发辅助工具
-```
-
-## 包一览
-
-### 基础层
-| 包名 | 说明 |
-|------|------|
-| `bao_core` | 核心类型、错误处理、内存管理 |
-| `bao_collections` | HashMap、ArrayList 等数据结构 |
-| `bao_unicode` | Unicode 字素分析和字符表 |
-| `bao_hash` | WyHash、HighwayHash、SHA 等哈希算法 |
-| `bao_path` | 跨平台文件路径处理 |
-
-### 平台层
-| 包名 | 说明 |
-|------|------|
-| `bao_sys` | POSIX 系统调用和 C FFI 绑定 |
-| `bao_io` | 文件读写、流、缓冲区 |
-| `bao_threading` | 线程池、互斥锁、条件变量 |
-| `bao_event_loop` | 基于 libuv 的事件循环 |
-| `bao_spawn` | 子进程管理 |
-
-### 解析器层
-| 包名 | 说明 |
-|------|------|
-| `bao_parser` | JavaScript/TypeScript 解析器 |
-| `bao_ast` | 抽象语法树 (AST) 定义 |
-| `bao_parsers` | 辅助解析器集合 |
-| `bao_shell_parser` | Shell 语法解析 |
-
-### 运行时层
-| 包名 | 说明 |
-|------|------|
-| `bao_runtime` | JavaScript 运行时核心 |
-| `bao_jsc` | JavaScriptCore C API 绑定 |
-| `bao_http` | HTTP/WebSocket 服务端和客户端 |
-| `bao_sql` | SQLite 数据库客户端 |
-| `bao_url` | URL 解析和处理 |
-
-### 应用层
-| 包名 | 说明 |
-|------|------|
-| `bao_bundler` | JavaScript 模块打包器 |
-| `bao_install` | npm 兼容包管理器 |
-| `bao_resolver` | 模块解析器 |
-| `bao_cli` | 命令行入口 |
-| `bao_transpiler` | TypeScript/JSX 转译器 |
-
-### 工具库
-| 包名 | 说明 |
-|------|------|
-| `bao_zlib` | zlib 压缩 |
-| `bao_brotli` | Brotli 压缩 |
-| `bao_zstd` | Zstandard 压缩 |
-| `bao_base64` | Base64 编解码 |
-| `bao_semver` | 语义版本号解析 |
-| `bao_sourcemap` | Source Map 处理 |
-| `bao_dotenv` | .env 文件解析 |
-| `bao_ini` | INI 配置文件解析 |
-| `bao_router` | 路由系统 |
 
 ## 技术特点
 

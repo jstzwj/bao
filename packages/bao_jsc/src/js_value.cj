@@ -115,7 +115,7 @@ public class JsValue {
     }
 
     public func isCallable() -> Bool {
-        if (isbject()) {
+        if (isObject()) {
             let obj = objectValue.getOrThrow()
             return obj.isFunction
         }

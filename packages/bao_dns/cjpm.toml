@@ -1,0 +1,16 @@
+[package]
+cjc-version = "1.0.0"
+name = "bao_dns"
+organization = "bao"
+description = "Bao DNS resolution: getaddrinfo wrapper, c-ares backend, address types"
+version = "0.1.0"
+compile-option = ""
+override-compile-option = ""
+link-option = ""
+output-type = "library"
+src-dir = "src"
+target-dir = ""
+
+[dependencies]
+bao_core = { path = "../bao_core" }
+bao_hash = { path = "../bao_hash" }

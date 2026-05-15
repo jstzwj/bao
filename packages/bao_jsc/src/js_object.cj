@@ -195,7 +195,7 @@ public class JsObject {
         if (!extensible) {
             throw JsTypeError("Cannot add property '" + name + "', object is not extensible")
         }
-        properties.put(name, PropertyDescriptor(value: v))
+        properties.put(name, PropertyDescriptor(value: value))
     }
 
     // [[HasProperty]] 内部方法
@@ -261,7 +261,7 @@ public class JsObject {
     // getOwnPropertySymbols - Object.getOwnPropertySymbols
     public func getOwnPropertySymbols() -> Array<JsSymbol> {
         var syms = Array<JsSymbol>()
-        for ((id, _)) in symbolProperties) {
+        for ((id, _)) in symbolProperties {
             syms.append(JsSymbol(id: id, description: "", isWellKnown: false))
         }
         return syms
@@ -438,7 +438,7 @@ public class JsObject {
     }
 
     // 函数调用辅助
-    func callFunction(fn: JsValue, thisObj: JsObject, args: JsValue...) -> JsValue {
+    public func callFunction(fn: JsValue, thisObj: JsObject, args: Array<JsValue>) -> JsValue {
         // 简化实现 - 真实实现需要 VM 执行
         JsValue.undefined()
     }

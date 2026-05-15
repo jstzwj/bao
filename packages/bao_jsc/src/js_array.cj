@@ -1,5 +1,6 @@
-// 严格翻译自: src/jsc/JSArray.zig + JSArrayIterator.zig + JSBigInt.zig + JSUint8Array.zig + JSCell.zig + JSMap.zig
-// JavaScriptCore 数组、迭代器、BigInt、Uint8Array、Cell 和 Map 绑定
+// 严格翻译自: src/jsc/JSArray.zig + JSArrayIterator.zig + JSUint8Array.zig + JSCell.zig + JSMap.zig
+// JavaScriptCore 数组、迭代器、Uint8Array、Cell 和 Map 绑定
+// 注意: JSBigInt 已移至 js_big_int.cj
 
 package bao_jsc
 
@@ -67,64 +68,7 @@ public class JsArrayIterator {
     }
 }
 
-// ========== JSBigInt ==========
-// 严格翻译自 JSBigInt.zig
-public class JsBigInt {
-    public var value: String = "0"
-
-    public init() {}
-
-    public init(value: String) {
-        this.value = value
-    }
-
-    public init(value: Int64) {
-        this.value = String(value)
-    }
-
-    // 严格翻译自 JSBigInt.fromJS
-    public static func fromJS(value: JsValue) -> ?JsBigInt {
-        if (value.isBigInt()) {
-            return JsBigInt(value: value.bigIntValue)
-        }
-        None
-    }
-
-    // 严格翻译自 JSBigInt.order
-    // 比较大整数与 double
-    public func orderDouble(num: Float64) -> Int64 {
-        let bigNum = Float64.parseDouble(value).getOr(0.0)
-        if (bigNum < num) { return -1 }
-        if (bigNum > num) { return 1 }
-        0
-    }
-
-    // 严格翻译自 JSBigInt.order (Int64 版本)
-    public func orderInt64(num: Int64) -> Int64 {
-        let bigNum = Int64.parseInt(value).getOr(0)
-        if (bigNum < num) { return -1 }
-        if (bigNum > num) { return 1 }
-        0
-    }
-
-    // 严格翻译自 JSBigInt.toInt64
-    public func toInt64() -> Int64 {
-        Int64.parseInt(value).getOr(0)
-    }
-
-    // 严格翻译自 JSBigInt.toString
-    public func toString() -> String {
-        value
-    }
-
-    // 转为 JsValue
-    public func toJsValue() -> JsValue {
-        let v = JsValue()
-        v.valueType = JsValueType.BigInt
-        v.bigIntValue = value
-        v
-    }
-}
+// 注意: JsBigInt 已移至 js_big_int.cj
 
 // ========== JSUint8Array ==========
 // 严格翻译自 JSUint8Array.zig

@@ -1,0 +1,17 @@
+[package]
+cjc-version = "1.0.0"
+name = "bao_s3_signing"
+organization = "bao"
+description = "Bao AWS S3 request signing: credentials, ACL, storage class"
+version = "0.1.0"
+compile-option = ""
+override-compile-option = ""
+link-option = ""
+output-type = "library"
+src-dir = "src"
+target-dir = ""
+
+[dependencies]
+bao_core = { path = "../bao_core" }
+bao_hash = { path = "../bao_hash" }
+bao_http = { path = "../bao_http" }

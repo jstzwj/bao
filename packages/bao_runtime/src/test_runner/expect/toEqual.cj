@@ -1,5 +1,4 @@
-// toEqual.cj - 深度相等断言
-// 严格翻译自 bun/src/runtime/test_runner/expect/toEqual.zig
+// 严格翻译自: src/runtime/test_runner/expect/toEqual.zig
 
 package bao_runtime
 
@@ -8,10 +7,18 @@ package bao_runtime
 public func toEqual(this: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
     defer { this.postMatch(globalThis: globalThis) }
 
+    let thisValue = callFrame.this_()
+    let arguments_ = callFrame.argumentsOld(1)
+    let arguments = arguments_.slice()
+
+    if arguments.length < 1 {
+        return globalThis.throwInvalidArguments("toEqual() requires 1 argument")
+    }
+
     this.incrementExpectCallCounter()
 
-    let expected = callFrame.argument(0) ?? return JSValue.zero
-    let value = this.getValue(globalThis: globalThis, thisValue: callFrame.this_(), matcherName: "toEqual", matcherParamsFmt: "<green>expected<r>")
+    let expected = arguments[0]
+    let value: JSValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toEqual", matcherParamsFmt: "<green>expected<r>")
 
     let not = this.flags.not
     var pass = value.jestDeepEquals(expected, globalThis: globalThis)

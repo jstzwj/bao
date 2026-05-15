@@ -1,0 +1,17 @@
+[package]
+cjc-version = "1.0.0"
+name = "bao_glob"
+organization = "bao"
+description = "Bao glob pattern matching: glob syntax, brace expansion, glob walker"
+version = "0.1.0"
+compile-option = ""
+override-compile-option = ""
+link-option = ""
+output-type = "library"
+src-dir = "src"
+target-dir = ""
+
+[dependencies]
+bao_core = { path = "../bao_core" }
+bao_unicode = { path = "../bao_unicode" }
+bao_io = { path = "../bao_io" }

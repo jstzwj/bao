@@ -1,0 +1,259 @@
+// 严格翻译自: src/md/unicode.zig
+// Unicode 大小写折叠映射（用于 Markdown 链接标签比较）
+package bao_md
+
+// ============================================================================
+// 折叠信息
+// ============================================================================
+
+/// Unicode 大小写折叠结果
+public class FoldInfo {
+    public var codepoints: Array<UInt32> = [0, 0, 0]
+    public var n_codepoints: UInt8 = 0
+    public init() {}
+    public init(codepoints: Array<UInt32>, n_codepoints: UInt8) {
+        this.codepoints = codepoints
+        this.n_codepoints = n_codepoints
+    }
+}
+
+// ============================================================================
+// 映射表标志
+// ============================================================================
+
+const range_start_flag: UInt32 = 0x40000000
+const range_end_flag: UInt32 = 0x80000000
+const codepoint_mask: UInt32 = 0x00ffffff
+
+/// 从映射条目中提取原始码点值
+func rawCodepoint(entry: UInt32): UInt32 {
+    return entry & codepoint_mask
+}
+
+/// 二分查找排序的码点映射表，支持单值和范围
+func unicodeBsearch(codepoint: UInt32, map: Array<UInt32>): ?Int64 {
+    if (map.isEmpty) {
+        return None
+    }
+    var beg: Int64 = 0
+    var end: Int64 = map.length - 1
+
+    while (beg <= end) {
+        var pivot_beg = (beg + end) / 2
+        var pivot_end = pivot_beg
+
+        if ((map[Int64(pivot_end)] & range_start_flag) != 0) {
+            pivot_end += 1
+        }
+        if ((map[Int64(pivot_beg)] & range_end_flag) != 0) {
+            if (pivot_beg == 0) {
+                return None
+            }
+            pivot_beg -= 1
+        }
+
+        let lo_cp = rawCodepoint(map[Int64(pivot_beg)])
+        let hi_cp = rawCodepoint(map[Int64(pivot_end)])
+
+        if (codepoint < lo_cp) {
+            if (pivot_beg == 0) {
+                return None
+            }
+            end = pivot_beg - 1
+        } else if (codepoint > hi_cp) {
+            beg = pivot_end + 1
+        } else {
+            return pivot_beg
+        }
+    }
+    return None
+}
+
+// ============================================================================
+// 折叠映射 1: 单码点映射
+// ============================================================================
+
+let fold_map_1: Array<UInt32> = [
+    range_start_flag | 0x0041, range_end_flag | 0x005A,
+    0x00B5, range_start_flag | 0x00C0, range_end_flag | 0x00D6,
+    range_start_flag | 0x00D8, range_end_flag | 0x00DE,
+    range_start_flag | 0x0100, range_end_flag | 0x012E,
+    range_start_flag | 0x0132, range_end_flag | 0x0136,
+    range_start_flag | 0x0139, range_end_flag | 0x0147,
+    range_start_flag | 0x014A, range_end_flag | 0x0176,
+    0x0178, range_start_flag | 0x0179, range_end_flag | 0x017D,
+    0x017F, 0x0181, 0x0182, 0x0184, 0x0186, 0x0187,
+    0x0189, 0x018A, 0x018B, 0x018E, 0x018F, 0x0190,
+    0x0191, 0x0193, 0x0194, 0x0196, 0x0197, 0x0198,
+    0x019C, 0x019D, 0x019F,
+    range_start_flag | 0x01A0, range_end_flag | 0x01A4,
+    0x01A6, 0x01A7, 0x01A9, 0x01AC, 0x01AE, 0x01AF,
+    0x01B1, 0x01B2, 0x01B3, 0x01B5, 0x01B7, 0x01B8, 0x01BC,
+    0x01C4, 0x01C5, 0x01C7, 0x01C8, 0x01CA,
+    range_start_flag | 0x01CB, range_end_flag | 0x01DB,
+    range_start_flag | 0x01DE, range_end_flag | 0x01EE,
+    0x01F1, 0x01F2, 0x01F4, 0x01F6, 0x01F7,
+    range_start_flag | 0x01F8, range_end_flag | 0x021E,
+    0x0220, range_start_flag | 0x0222, range_end_flag | 0x0232,
+    0x023A, 0x023B, 0x023D, 0x023E, 0x0241, 0x0243, 0x0244, 0x0245,
+    range_start_flag | 0x0246, range_end_flag | 0x024E,
+    0x0345, 0x0370, 0x0372, 0x0376, 0x037F, 0x0386,
+    range_start_flag | 0x0388, range_end_flag | 0x038A,
+    0x038C, 0x038E, 0x038F,
+    range_start_flag | 0x0391, range_end_flag | 0x03A1,
+    range_start_flag | 0x03A3, range_end_flag | 0x03AB,
+    0x03C2, 0x03CF, 0x03D0, 0x03D1, 0x03D5, 0x03D6,
+    range_start_flag | 0x03D8, range_end_flag | 0x03EE,
+    0x03F0, 0x03F1, 0x03F4, 0x03F5, 0x03F7, 0x03F9, 0x03FA,
+    range_start_flag | 0x03FD, range_end_flag | 0x03FF,
+    range_start_flag | 0x0400, range_end_flag | 0x040F,
+    range_start_flag | 0x0410, range_end_flag | 0x042F,
+    range_start_flag | 0x0460, range_end_flag | 0x0480,
+    range_start_flag | 0x048A, range_end_flag | 0x04BE,
+    0x04C0, range_start_flag | 0x04C1, range_end_flag | 0x04CD,
+    range_start_flag | 0x04D0, range_end_flag | 0x052E,
+    range_start_flag | 0x0531, range_end_flag | 0x0556,
+    range_start_flag | 0x10A0, range_end_flag | 0x10C5,
+    0x10C7, 0x10CD,
+    range_start_flag | 0x13F8, range_end_flag | 0x13FD,
+    0x1C80, 0x1C81, 0x1C82, 0x1C83, 0x1C84, 0x1C85, 0x1C86, 0x1C87, 0x1C88,
+    range_start_flag | 0x1C90, range_end_flag | 0x1CBA,
+    range_start_flag | 0x1CBD, range_end_flag | 0x1CBF,
+    range_start_flag | 0x1E00, range_end_flag | 0x1E94,
+    0x1E9B, range_start_flag | 0x1EA0, range_end_flag | 0x1EFE,
+    range_start_flag | 0x1F08, range_end_flag | 0x1F0F,
+    range_start_flag | 0x1F18, range_end_flag | 0x1F1D,
+    range_start_flag | 0x1F28, range_end_flag | 0x1F2F,
+    range_start_flag | 0x1F38, range_end_flag | 0x1F3F,
+    range_start_flag | 0x1F48, range_end_flag | 0x1F4D,
+    0x1F59, 0x1F5B, 0x1F5D, 0x1F5F,
+    range_start_flag | 0x1F68, range_end_flag | 0x1F6F,
+    0x1FB8, 0x1FB9, 0x1FBA, 0x1FBB, 0x1FBE,
+    range_start_flag | 0x1FC8, range_end_flag | 0x1FCB,
+    0x1FD8, 0x1FD9, 0x1FDA, 0x1FDB, 0x1FE8, 0x1FE9, 0x1FEA, 0x1FEB, 0x1FEC,
+    0x1FF8, 0x1FF9, 0x1FFA, 0x1FFB,
+    0x2126, 0x212A, 0x212B, 0x2132,
+    range_start_flag | 0x2160, range_end_flag | 0x216F,
+    0x2183, range_start_flag | 0x24B6, range_end_flag | 0x24CF,
+    range_start_flag | 0x2C00, range_end_flag | 0x2C2F,
+    0x2C60, 0x2C62, 0x2C63, 0x2C64,
+    range_start_flag | 0x2C67, range_end_flag | 0x2C6B,
+    0x2C6D, 0x2C6E, 0x2C6F, 0x2C70, 0x2C72, 0x2C75, 0x2C7E, 0x2C7F,
+    range_start_flag | 0x2C80, range_end_flag | 0x2CE2,
+    0x2CEB, 0x2CED, 0x2CF2,
+    range_start_flag | 0xA640, range_end_flag | 0xA66C,
+    range_start_flag | 0xA680, range_end_flag | 0xA69A,
+    range_start_flag | 0xA722, range_end_flag | 0xA72E,
+    range_start_flag | 0xA732, range_end_flag | 0xA76E,
+    0xA779, 0xA77B, 0xA77D,
+    range_start_flag | 0xA77E, range_end_flag | 0xA786,
+    0xA78B, 0xA78D, 0xA790, 0xA792,
+    range_start_flag | 0xA796, range_end_flag | 0xA7A8,
+    0xA7AA, 0xA7AB, 0xA7AC, 0xA7AD, 0xA7AE, 0xA7B0, 0xA7B1, 0xA7B2, 0xA7B3,
+    range_start_flag | 0xA7B4, range_end_flag | 0xA7C2,
+    0xA7C4, 0xA7C5, 0xA7C6, 0xA7C7, 0xA7C9, 0xA7D0, 0xA7D6, 0xA7D8, 0xA7F5,
+    range_start_flag | 0xAB70, range_end_flag | 0xABBf,
+    range_start_flag | 0xFF21, range_end_flag | 0xFF3A,
+    range_start_flag | 0x10400, range_end_flag | 0x10427,
+    range_start_flag | 0x104B0, range_end_flag | 0x104D3,
+    range_start_flag | 0x10570, range_end_flag | 0x1057A,
+    range_start_flag | 0x1057C, range_end_flag | 0x1058A,
+    range_start_flag | 0x1058C, range_end_flag | 0x10592,
+    0x10594, 0x10595,
+    range_start_flag | 0x10C80, range_end_flag | 0x10CB2,
+    range_start_flag | 0x118A0, range_end_flag | 0x118BF,
+    range_start_flag | 0x16E40, range_end_flag | 0x16E5F,
+    range_start_flag | 0x1E900, range_end_flag | 0x1E921,
+]
+
+let fold_map_1_data: Array<UInt32> = [
+    0x0061, 0x007A, 0x03BC, 0x00E0, 0x00F6, 0x00F8, 0x00FE, 0x0101, 0x012F,
+    0x0133, 0x0137, 0x013A, 0x0148, 0x014B, 0x0177, 0x00FF, 0x017A, 0x017E,
+    0x0073, 0x0253, 0x0183, 0x0185, 0x0254, 0x0188, 0x0256, 0x0257, 0x018C,
+    0x01DD, 0x0259, 0x025B, 0x0192, 0x0260, 0x0263, 0x0269, 0x0268, 0x0199,
+    0x026F, 0x0272, 0x0275, 0x01A1, 0x01A5, 0x0280, 0x01A8, 0x0283, 0x01AD,
+    0x0288, 0x01B0, 0x028A, 0x028B, 0x01B4, 0x01B6, 0x0292, 0x01B9, 0x01BD,
+    0x01C6, 0x01C6, 0x01C9, 0x01C9, 0x01CC, 0x01CC, 0x01DC, 0x01DF, 0x01EF,
+    0x01F3, 0x01F3, 0x01F5, 0x0195, 0x01BF, 0x01F9, 0x021F, 0x019E, 0x0223,
+    0x0233, 0x2C65, 0x023C, 0x019A, 0x2C66, 0x0242, 0x0180, 0x0289, 0x028C,
+    0x0247, 0x024F, 0x03B9, 0x0371, 0x0373, 0x0377, 0x03F3, 0x03AC, 0x03AD,
+    0x03AF, 0x03CC, 0x03CD, 0x03CE, 0x03B1, 0x03C1, 0x03C3, 0x03CB, 0x03C3,
+    0x03D7, 0x03B2, 0x03B8, 0x03C6, 0x03C0, 0x03D9, 0x03EF, 0x03BA, 0x03C1,
+    0x03B8, 0x03B5, 0x03F8, 0x03F2, 0x03FB, 0x037B, 0x037D, 0x0450, 0x045F,
+    0x0430, 0x044F, 0x0461, 0x0481, 0x048B, 0x04BF, 0x04CF, 0x04C2, 0x04CE,
+    0x04D1, 0x052F, 0x0561, 0x0586, 0x2D00, 0x2D25, 0x2D27, 0x2D2D, 0x13F0,
+    0x13F5, 0x0432, 0x0434, 0x043E, 0x0441, 0x0442, 0x0442, 0x044A, 0x0463,
+    0xA64B, 0x10D0, 0x10FA, 0x10FD, 0x10FF, 0x1E01, 0x1E95, 0x1E61, 0x1EA1,
+    0x1EFF, 0x1F00, 0x1F07, 0x1F10, 0x1F15, 0x1F20, 0x1F27, 0x1F30, 0x1F37,
+    0x1F40, 0x1F45, 0x1F51, 0x1F53, 0x1F55, 0x1F57, 0x1F60, 0x1F67, 0x1FB0,
+    0x1FB1, 0x1F70, 0x1F71, 0x03B9, 0x1F72, 0x1F75, 0x1FD0, 0x1FD1, 0x1F76,
+    0x1F77, 0x1FE0, 0x1FE1, 0x1F7A, 0x1F7B, 0x1FE5, 0x1F78, 0x1F79, 0x1F7C,
+    0x1F7D, 0x03C9, 0x006B, 0x00E5, 0x214E, 0x2170, 0x217F, 0x2184, 0x24D0,
+    0x24E9, 0x2C30, 0x2C5F, 0x2C61, 0x026B, 0x1D7D, 0x027D, 0x2C68, 0x2C6C,
+    0x0251, 0x0271, 0x0250, 0x0252, 0x2C73, 0x2C76, 0x023F, 0x0240, 0x2C81,
+    0x2CE3, 0x2CEC, 0x2CEE, 0x2CF3, 0xA641, 0xA66D, 0xA681, 0xA69B, 0xA723,
+    0xA72F, 0xA733, 0xA76F, 0xA77A, 0xA77C, 0x1D79, 0xA77F, 0xA787, 0xA78C,
+    0x0265, 0xA791, 0xA793, 0xA797, 0xA7A9, 0x0266, 0x025C, 0x0261, 0x026C,
+    0x026A, 0x029E, 0x0287, 0x029D, 0xAB53, 0xA7B5, 0xA7C3, 0xA794, 0x0282,
+    0x1D8E, 0xA7C8, 0xA7CA, 0xA7D1, 0xA7D7, 0xA7D9, 0xA7F6, 0x13A0, 0x13EF,
+    0xFF41, 0xFF5A, 0x10428, 0x1044F, 0x104D8, 0x104FB, 0x10597, 0x105A1,
+    0x105A3, 0x105B1, 0x105B3, 0x105B9, 0x105BB, 0x105BC, 0x10CC0, 0x10CF2,
+    0x118C0, 0x118DF, 0x16E60, 0x16E7F, 0x1E922, 0x1E943,
+]
+
+// ============================================================================
+// 公共 API
+// ============================================================================
+
+/// 获取 Unicode 码点的大小写折叠版本
+/// 直接移植 md4c 的 `md_get_unicode_fold_info`
+public func caseFold(codepoint: UInt32): FoldInfo {
+    // ASCII 快速路径
+    if (codepoint <= 0x7F) {
+        if (codepoint >= UInt32('A') && codepoint <= UInt32('Z')) {
+            return FoldInfo([codepoint + (UInt32('a') - UInt32('A')), 0, 0], 1)
+        }
+        return FoldInfo([codepoint, 0, 0], 1)
+    }
+
+    // 尝试折叠映射 1: 单码点
+    if (let Some(index) <- unicodeBsearch(codepoint, fold_map_1)) {
+        if (let Some(info) <- caseFoldFromMap(1, fold_map_1, fold_map_1_data, codepoint, index)) {
+            return info
+        }
+    }
+
+    // 无映射: 码点映射到自身
+    return FoldInfo([codepoint, 0, 0], 1)
+}
+
+func caseFoldFromMap(n: Int64, map: Array<UInt32>, data: Array<UInt32>,
+                     codepoint: UInt32, index: Int64): ?FoldInfo {
+    let data_offset = index * n
+    var codepoints = Array<UInt32>(3, item: 0)
+
+    // 复制基础码点
+    for (k in 0..n) {
+        if (data_offset + k < data.length) {
+            codepoints[Int64(k)] = data[Int64(data_offset + k)]
+        }
+    }
+
+    // 如果码点不完全匹配映射条目，需要调整
+    let map_cp = rawCodepoint(map[Int64(index)])
+    if (map_cp != codepoint) {
+        if (map_cp + 1 == codepoints[0]) {
+            // 交替类型范围
+            if ((codepoint & 0x1) == (map_cp & 0x1)) {
+                codepoints[0] = codepoint + 1
+            } else {
+                codepoints[0] = codepoint
+            }
+        } else {
+            // 范围到范围映射
+            codepoints[0] = codepoints[0] + (codepoint - map_cp)
+        }
+    }
+
+    return FoldInfo(codepoints, UInt8(n))
+}
