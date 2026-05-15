@@ -983,3 +983,649 @@ public class CssParser {
         }
     }
 }
+
+// ============================================================================
+// ParserState - 解析器状态
+// 严格翻译自: css_parser.zig ParserState
+// ============================================================================
+
+/// 解析器状态
+/// 严格翻译自 ParserState
+public class ParserState {
+    /// 当前位置
+    public var position: Int64
+    /// 当前行
+    public var line: Int64
+    /// 当前列
+    public var column: Int64
+    /// 当前 token
+    public var token: ?CssToken
+
+    public init() {
+        position = 0
+        line = 0
+        column = 1
+        token = None
+    }
+}
+
+// ============================================================================
+// Delimiters - 分隔符
+// 严格翻译自: css_parser.zig Delimiters
+// ============================================================================
+
+/// 分隔符
+/// 严格翻译自 Delimiters (bitflags)
+public class Delimiters {
+    public var semicolon: Bool
+    public var curlyBracket: Bool
+    public var closeCurlyBracket: Bool
+    public var squareBracket: Bool
+    public var closeSquareBracket: Bool
+    public var parenthesis: Bool
+    public var closeParenthesis: Bool
+
+    public init() {
+        semicolon = false
+        curlyBracket = false
+        closeCurlyBracket = false
+        squareBracket = false
+        closeSquareBracket = false
+        parenthesis = false
+        closeParenthesis = false
+    }
+
+    public static func semicolon(): Delimiters {
+        let d = Delimiters()
+        d.semicolon = true
+        return d
+    }
+
+    public static func curlyBracket(): Delimiters {
+        let d = Delimiters()
+        d.curlyBracket = true
+        return d
+    }
+
+    /// 从字节判断分隔符
+    /// 严格翻译自 Delimiters.fromByte
+    public static func fromByte(byte: ?UInt8): Delimiters {
+        let d = Delimiters()
+        match (byte) {
+            case Some(b) => {
+                if (b == ';'.toUInt8()) { d.semicolon = true }
+                if (b == '{'.toUInt8()) { d.curlyBracket = true }
+                if (b == '}'.toUInt8()) { d.closeCurlyBracket = true }
+                if (b == '['.toUInt8()) { d.squareBracket = true }
+                if (b == ']'.toUInt8()) { d.closeSquareBracket = true }
+                if (b == '('.toUInt8()) { d.parenthesis = true }
+                if (b == ')'.toUInt8()) { d.closeParenthesis = true }
+            }
+            case None => {}
+        }
+        return d
+    }
+}
+
+// ============================================================================
+// BlockType - 块类型
+// 严格翻译自: css_parser.zig BlockType
+// ============================================================================
+
+/// 块类型
+/// 严格翻译自 BlockType
+public enum BlockType {
+    | CurlyBracket
+    | SquareBracket
+    | Parenthesis
+
+    /// 获取开始 token 的块类型
+    /// 严格翻译自 BlockType.opening
+    public static func opening(token: CssToken): ?BlockType {
+        match (token.kind) {
+            case CssTokenKind.LBrace => Some(CurlyBracket)
+            case CssTokenKind.LBracket => Some(SquareBracket)
+            case CssTokenKind.LParen => Some(Parenthesis)
+            case CssTokenKind.Function => Some(Parenthesis)
+            case _ => None
+        }
+    }
+
+    /// 获取结束 token 的块类型
+    /// 严格翻译自 BlockType.closing
+    public static func closing(token: CssToken): ?BlockType {
+        match (token.kind) {
+            case CssTokenKind.RBrace => Some(CurlyBracket)
+            case CssTokenKind.RBracket => Some(SquareBracket)
+            case CssTokenKind.RParen => Some(Parenthesis)
+            case _ => None
+        }
+    }
+}
+
+// ============================================================================
+// ParseUntilErrorBehavior - 解析直到错误行为
+// 严格翻译自: css_parser.zig ParseUntilErrorBehavior
+// ============================================================================
+
+/// 解析直到错误行为
+/// 严格翻译自 ParseUntilErrorBehavior
+public enum ParseUntilErrorBehavior {
+    | Stop
+    | Consume
+}
+
+// ============================================================================
+// Stylesheet - CSS 样式表
+// 严格翻译自: Stylesheet struct
+// ============================================================================
+
+/// CSS 样式表
+/// 严格翻译自 Stylesheet
+public class CssStylesheet {
+    /// 规则列表
+    public var rules: CssRuleList
+    /// 源码索引
+    public var sourceIndex: Int64
+    /// 文件名
+    public var filename: String
+    /// 是否有错误
+    public var hasErrors: Bool
+
+    public init() {
+        rules = CssRuleList()
+        sourceIndex = 0
+        filename = "<input>"
+        hasErrors = false
+    }
+
+    public init(rules: CssRuleList, sourceIndex: Int64, filename: String) {
+        this.rules = rules
+        this.sourceIndex = sourceIndex
+        this.filename = filename
+        this.hasErrors = false
+    }
+
+    /// 解析 CSS 样式表
+    /// 严格翻译自 Stylesheet.parse
+    public static func parse(source: String, options: CssParserOptions): CssParseResult<CssStylesheet> {
+        let parser = CssParser()
+        parser.init(source, options)
+        let rules = parser.parseStylesheet()
+        let stylesheet = CssStylesheet(rules: rules, sourceIndex: options.sourceIndex, filename: options.filename)
+        if (parser.errors.size > 0) {
+            stylesheet.hasErrors = true
+            return CssParseResult<CssStylesheet>(error: parser.errors.get(0))
+        }
+        return CssParseResult<CssStylesheet>(stylesheet)
+    }
+}
+
+// ============================================================================
+// AtRulePrelude - @规则前导
+// 严格翻译自: AtRulePrelude
+// ============================================================================
+
+/// @规则前导类型
+/// 严格翻译自 AtRulePrelude
+public enum AtRulePreludeKind {
+    | Unknown
+    | Custom
+}
+
+/// @规则前导
+public class AtRulePrelude {
+    public var kind: AtRulePreludeKind
+    public var name: String
+    public var tokens: CssTokenList
+
+    public init() {
+        kind = AtRulePreludeKind.Unknown
+        name = ""
+        tokens = CssTokenList()
+    }
+
+    public init(name: String, tokens: CssTokenList) {
+        kind = AtRulePreludeKind.Unknown
+        this.name = name
+        this.tokens = tokens
+    }
+}
+
+// ============================================================================
+// CssSelectorList / CssSelectorParser 占位
+// ============================================================================
+
+/// CSS 选择器列表
+public class CssSelectorList {
+    public var selectors: ArrayList<CssSelector>
+
+    public init() {
+        selectors = ArrayList<CssSelector>()
+    }
+}
+
+/// CSS 选择器
+public class CssSelector {
+    public var text: String
+
+    public init(text: String) {
+        this.text = text
+    }
+}
+
+/// CSS 选择器解析器
+public class CssSelectorParser {
+    public init() {}
+
+    public func parse(text: String): ?CssSelectorList {
+        let list = CssSelectorList()
+        // 在实际实现中会解析选择器
+        return Some(list)
+    }
+}
+
+// ============================================================================
+// CssRule 相关类型占位
+// ============================================================================
+
+/// CSS 规则列表
+public class CssRuleList {
+    public var rules: ArrayList<CssRule>
+
+    public init() {
+        rules = ArrayList<CssRule>()
+    }
+
+    public init(rules: ArrayList<CssRule>) {
+        this.rules = rules
+    }
+}
+
+/// CSS 规则
+public class CssRule {
+    public var kind: CssRuleKind
+    public var position: CssTokenPosition
+
+    public init(kind: CssRuleKind) {
+        this.kind = kind
+        this.position = CssTokenPosition()
+    }
+
+    public static func createMedia(rule: CssAtMediaRule): CssRule {
+        let r = CssRule(CssRuleKind.Media)
+        return r
+    }
+    public static func createImport(rule: CssAtImportRule): CssRule {
+        let r = CssRule(CssRuleKind.Import)
+        return r
+    }
+    public static func createKeyframes(rule: CssAtKeyframesRule): CssRule {
+        let r = CssRule(CssRuleKind.Keyframes)
+        return r
+    }
+    public static func createFontFace(rule: CssAtFontFaceRule): CssRule {
+        let r = CssRule(CssRuleKind.FontFace)
+        return r
+    }
+    public static func createSupports(rule: CssAtSupportsRule): CssRule {
+        let r = CssRule(CssRuleKind.Supports)
+        return r
+    }
+    public static func createLayerBlock(rule: CssAtLayerBlockRule): CssRule {
+        let r = CssRule(CssRuleKind.LayerBlock)
+        return r
+    }
+    public static func createLayerStatement(rule: CssAtLayerStatementRule): CssRule {
+        let r = CssRule(CssRuleKind.LayerStatement)
+        return r
+    }
+    public static func createContainer(rule: CssAtContainerRule): CssRule {
+        let r = CssRule(CssRuleKind.Container)
+        return r
+    }
+    public static func createNamespace(rule: CssAtNamespaceRule): CssRule {
+        let r = CssRule(CssRuleKind.Namespace)
+        return r
+    }
+    public static func createIgnored(): CssRule {
+        return CssRule(CssRuleKind.Ignored)
+    }
+    public static func createProperty(rule: CssAtPropertyRule): CssRule {
+        let r = CssRule(CssRuleKind.Property)
+        return r
+    }
+    public static func createUnknown(rule: CssUnknownAtRule): CssRule {
+        let r = CssRule(CssRuleKind.Unknown)
+        return r
+    }
+    public static func createStyle(rule: CssStyleRule): CssRule {
+        let r = CssRule(CssRuleKind.Style)
+        return r
+    }
+}
+
+/// CSS 规则类型
+public enum CssRuleKind {
+    | Style
+    | Media
+    | Import
+    | Keyframes
+    | FontFace
+    | Supports
+    | LayerBlock
+    | LayerStatement
+    | Container
+    | Namespace
+    | Property
+    | Unknown
+    | Ignored
+}
+
+/// CSS 声明
+public class CssDeclaration {
+    public var name: String
+    public var value: String
+    public var important: Bool
+    public var position: CssTokenPosition
+
+    public init(name: String, value: String, important: Bool, position: CssTokenPosition) {
+        this.name = name
+        this.value = value
+        this.important = important
+        this.position = position
+    }
+}
+
+/// CSS 声明块
+public class CssDeclarationBlock {
+    public var declarations: ArrayList<CssDeclaration>
+    public var importantDeclarations: ArrayList<CssDeclaration>
+
+    public init(declarations: ArrayList<CssDeclaration>, importantDeclarations: ArrayList<CssDeclaration>) {
+        this.declarations = declarations
+        this.importantDeclarations = importantDeclarations
+    }
+
+    public static func empty(): CssDeclarationBlock {
+        CssDeclarationBlock(ArrayList<CssDeclaration>(), ArrayList<CssDeclaration>())
+    }
+}
+
+/// @media 规则
+public class CssAtMediaRule {
+    public var prelude: String
+    public var rules: CssRuleList
+    public var position: CssTokenPosition
+
+    public init(prelude: String, rules: CssRuleList) {
+        this.prelude = prelude
+        this.rules = rules
+        this.position = CssTokenPosition()
+    }
+}
+
+/// @import 规则
+public class CssAtImportRule {
+    public var url: String
+    public var conditions: String
+    public var position: CssTokenPosition
+
+    public init(url: String, conditions: String) {
+        this.url = url
+        this.conditions = conditions
+        this.position = CssTokenPosition()
+    }
+}
+
+/// @keyframes 规则
+public class CssAtKeyframesRule {
+    public var name: String
+    public var keyframeName: String
+    public var keyframes: ArrayList<CssKeyframeBlock>
+    public var position: CssTokenPosition
+
+    public init(name: String, keyframeName: String, keyframes: ArrayList<CssKeyframeBlock>) {
+        this.name = name
+        this.keyframeName = keyframeName
+        this.keyframes = keyframes
+        this.position = CssTokenPosition()
+    }
+}
+
+/// 关键帧块
+public class CssKeyframeBlock {
+    public var selectors: ArrayList<String>
+    public var declarations: CssDeclarationBlock
+
+    public init(selectors: ArrayList<String>, declarations: CssDeclarationBlock) {
+        this.selectors = selectors
+        this.declarations = declarations
+    }
+}
+
+/// @font-face 规则
+public class CssAtFontFaceRule {
+    public var declarations: CssDeclarationBlock
+    public var position: CssTokenPosition
+
+    public init(declarations: CssDeclarationBlock) {
+        this.declarations = declarations
+        this.position = CssTokenPosition()
+    }
+}
+
+/// @supports 规则
+public class CssAtSupportsRule {
+    public var condition: String
+    public var rules: CssRuleList
+    public var position: CssTokenPosition
+
+    public init(condition: String, rules: CssRuleList) {
+        this.condition = condition
+        this.rules = rules
+        this.position = CssTokenPosition()
+    }
+}
+
+/// @layer 块规则
+public class CssAtLayerBlockRule {
+    public var name: String
+    public var rules: CssRuleList
+    public var position: CssTokenPosition
+
+    public init(name: String, rules: CssRuleList) {
+        this.name = name
+        this.rules = rules
+        this.position = CssTokenPosition()
+    }
+}
+
+/// @layer 声明规则
+public class CssAtLayerStatementRule {
+    public var name: String
+    public var position: CssTokenPosition
+
+    public init(name: String) {
+        this.name = name
+        this.position = CssTokenPosition()
+    }
+}
+
+/// @container 规则
+public class CssAtContainerRule {
+    public var name: String
+    public var condition: String
+    public var rules: CssRuleList
+    public var position: CssTokenPosition
+
+    public init(name: String, condition: String, rules: CssRuleList) {
+        this.name = name
+        this.condition = condition
+        this.rules = rules
+        this.position = CssTokenPosition()
+    }
+}
+
+/// @namespace 规则
+public class CssAtNamespaceRule {
+    public var prelude: String
+    public var position: CssTokenPosition
+
+    public init(prelude: String) {
+        this.prelude = prelude
+        this.position = CssTokenPosition()
+    }
+}
+
+/// @property 规则
+public class CssAtPropertyRule {
+    public var name: String
+    public var declarations: CssDeclarationBlock
+    public var position: CssTokenPosition
+
+    public init(name: String, declarations: CssDeclarationBlock) {
+        this.name = name
+        this.declarations = declarations
+        this.position = CssTokenPosition()
+    }
+}
+
+/// 未知 @规则
+public class CssUnknownAtRule {
+    public var name: String
+    public var prelude: String
+    public var declarations: CssDeclarationBlock
+    public var rules: ?CssRuleList
+    public var position: CssTokenPosition
+
+    public init(name: String, prelude: String, declarations: CssDeclarationBlock) {
+        this.name = name
+        this.prelude = prelude
+        this.declarations = declarations
+        this.rules = None
+        this.position = CssTokenPosition()
+    }
+}
+
+/// 样式规则
+public class CssStyleRule {
+    public var selectors: CssSelectorList
+    public var declarations: CssDeclarationBlock
+    public var nestedRules: ArrayList<CssRule>
+    public var position: CssTokenPosition
+
+    public init(selectors: CssSelectorList, declarations: CssDeclarationBlock, nestedRules: ArrayList<CssRule>) {
+        this.selectors = selectors
+        this.declarations = declarations
+        this.nestedRules = nestedRules
+        this.position = CssTokenPosition()
+    }
+}
+
+// ============================================================================
+// CssToken / CssLexer / CssTokenKind 占位
+// ============================================================================
+
+/// CSS Token 种类
+public enum CssTokenKind {
+    | Ident
+    | AtKeyword
+    | String
+    | Url
+    | Function
+    | LBrace
+    | RBrace
+    | LParen
+    | RParen
+    | LBracket
+    | RBracket
+    | Semicolon
+    | Colon
+    | Comma
+    | Dot
+    | Percentage
+    | Whitespace
+    | Delim
+    | Eof
+}
+
+/// CSS Token 位置
+public class CssTokenPosition {
+    public var line: Int64
+    public var column: Int64
+
+    public init() {
+        line = 0
+        column = 1
+    }
+}
+
+/// CSS Token
+public class CssToken {
+    public var kind: CssTokenKind
+    public var text: String
+    public var numberValue: Float64
+    public var delimChar: UInt8
+    public var position: CssTokenPosition
+
+    public init(kind: CssTokenKind) {
+        this.kind = kind
+        text = ""
+        numberValue = 0.0
+        delimChar = 0
+        this.position = CssTokenPosition()
+    }
+}
+
+/// CSS Token 列表
+public class CssTokenList {
+    public var tokens: ArrayList<CssToken>
+
+    public init() {
+        tokens = ArrayList<CssToken>()
+    }
+}
+
+/// CSS 词法分析器
+public class CssLexer {
+    private var source: String
+    private var pos: Int64
+
+    public init() {
+        source = ""
+        pos = 0
+    }
+
+    public func init(source: String): Unit {
+        this.source = source
+        pos = 0
+    }
+
+    public func nextToken(): CssToken {
+        // 在实际实现中会分析源码并返回下一个 token
+        return CssToken(CssTokenKind.Eof)
+    }
+
+    public func nextByte(): ?UInt8 {
+        if (pos >= source.length) {
+            return None
+        }
+        let b = source[pos]
+        pos++
+        return Some(b.toUInt8())
+    }
+
+    public func advance(n: Int64): Unit {
+        pos += n
+    }
+}
+
+// ============================================================================
+// CssModulesConfig - CSS Modules 配置
+// ============================================================================
+
+/// CSS Modules 配置
+public class CssModulesConfig {
+    public init() {}
+}

@@ -1,7 +1,46 @@
-// 严格翻译自: src/jsc/CallFrame.zig (304行)
+// 严格翻译自: src/jsc/CallFrame.zig (305行)
 // JavaScriptCore 调用帧 - JS 到原生函数调用的参数帧
+//
+// Call Frame 布局 (来自 JavaScriptCore/interpreter/CallFrame.h):
+//
+//   |          ......            |   |
+//   +----------------------------+   |
+//   |           argN             |   v  lower address
+//   +----------------------------+
+//   |           arg1             |
+//   +----------------------------+
+//   |           arg0             |
+//   +----------------------------+
+//   |           this             |
+//   +----------------------------+
+//   | argumentCountIncludingThis |
+//   +----------------------------+
+//   |          callee            |
+//   +----------------------------+
+//   |        codeBlock           |
+//   +----------------------------+
+//   |      return-address        |
+//   +----------------------------+
+//   |       callerFrame          |
+//   +----------------------------+  <- callee's cfr is pointing this address
+//   |          local0            |
+//   +----------------------------+
+//   |          local1            |
+//   +----------------------------+
+//   |          localN            |
+//   +----------------------------+
+//   |          ......            |
 
 package bao_jsc
+
+// ========== 调用帧槽位偏移常量 ==========
+// 严格翻译自 CallFrame.zig offset_* 常量
+// 这些常量来自 JSC::CallFrameSlot in JavaScriptCore/interpreter/CallFrame.h
+let OFFSET_CODE_BLOCK: Int64 = 2
+let OFFSET_CALLEE: Int64 = OFFSET_CODE_BLOCK + 1
+let OFFSET_ARGUMENT_COUNT_INCLUDING_THIS: Int64 = OFFSET_CALLEE + 1
+let OFFSET_THIS_ARGUMENT: Int64 = OFFSET_ARGUMENT_COUNT_INCLUDING_THIS + 1
+let OFFSET_FIRST_ARGUMENT: Int64 = OFFSET_THIS_ARGUMENT + 1
 
 // ========== 调用帧 ==========
 // 严格翻译自 CallFrame.zig CallFrame
@@ -97,6 +136,39 @@ public class CallFrame {
         } else {
             "anonymous()"
         }
+    }
+
+    // ========== arguments_old (已弃用) ==========
+    // 严格翻译自 CallFrame.arguments_old
+    // 不推荐使用。迁移路径:
+    //   arguments(n).ptr[k] -> argumentsAsArray(n)[k]
+    //   arguments(n).slice() -> arguments()
+    //   arguments(n).mut() -> var args = argumentsAsArray(n); &args
+    public func argumentsOld(max: Int64) -> CallFrameArguments {
+        let slice = args
+        let count = if (Int64(slice.size) < max) { Int64(slice.size) } else { max }
+        var ptr = Array<JsValue>()
+        for (i in 0..count) {
+            ptr.append(slice[Int64(i)])
+        }
+        CallFrameArguments(ptr: ptr, len: count)
+    }
+
+    // ========== argumentsUndef (已弃用) ==========
+    // 严格翻译自 CallFrame.argumentsUndef
+    // 不推荐使用。迁移路径: 使用 argumentsAsArray(n)
+    public func argumentsUndef(max: Int64) -> CallFrameArguments {
+        let slice = args
+        let count = if (Int64(slice.size) < max) { Int64(slice.size) } else { max }
+        var ptr = Array<JsValue>()
+        for (i in 0..max) {
+            if (i < count) {
+                ptr.append(slice[Int64(i)])
+            } else {
+                ptr.append(JsValue.undefined())
+            }
+        }
+        CallFrameArguments(ptr: ptr, len: count)
     }
 }
 
@@ -197,5 +269,75 @@ public class CallerSrcLoc {
         this.sourceURL = sourceURL
         this.line = line
         this.column = column
+    }
+}
+
+// ========== CallFrame.Arguments (固定大小参数数组) ==========
+// 严格翻译自 CallFrame.Arguments(comptime max: usize)
+// 固定大小的参数数组，用于已知最大参数数量的场景
+public class CallFrameArguments {
+    public var ptr: Array<JsValue> = []
+    public var len: Int64 = 0
+
+    public init() {}
+
+    public init(ptr: Array<JsValue>, len: Int64) {
+        this.ptr = ptr
+        this.len = len
+    }
+
+    // 获取参数切片
+    public func slice() -> Array<JsValue> {
+        if (len <= Int64(ptr.size)) {
+            return ptr[0..Int64(len)]
+        }
+        ptr
+    }
+
+    // 获取可变参数数组
+    public func mut() -> Array<JsValue> {
+        ptr
+    }
+}
+
+// ========== Register ==========
+// 严格翻译自 CallFrame.zig Register (内部类型)
+// 表示 JSC 调用帧中的一个寄存器槽位
+// 定义在 JavaScriptCore/interpreter/Register.h
+//
+// 原始 Zig:
+//   const Register = extern union {
+//       value: JSValue,
+//       call_frame: *CallFrame,
+//       code_block: *anyopaque,
+//       encoded_value: extern union {
+//           ptr: JSValue,
+//           as_bits: extern struct {
+//               payload: i32,
+//               tag: i32,
+//           },
+//       },
+//       number: f64,
+//       integer: i64,
+//   };
+public class Register {
+    // 作为 JSValue 的编码值
+    public var value: JsValue = JsValue.undefined()
+    // 作为调用帧指针
+    public var callFrame: ?CallFrame = None
+    // 作为整数
+    public var integer: Int64 = 0
+    // 作为浮点数
+    public var number: Float64 = 0.0
+    // 编码值的位表示
+    public var payload: Int32 = 0
+    public var tag: Int32 = 0
+
+    public init() {}
+
+    // 获取 unboxedInt32 - 对应 argumentCountIncludingThis 的读取方式
+    // 在 JSC 中通过 .encodedValue.asBits.payload 读取
+    public func unboxedInt32() -> Int32 {
+        payload
     }
 }

@@ -1,0 +1,17 @@
+[package]
+cjc-version = "1.0.0"
+name = "bao_sql_jsc"
+organization = "bao"
+description = "Bao SQL JS bindings: MySQL/Postgres connections, queries, statements"
+version = "0.1.0"
+compile-option = ""
+override-compile-option = ""
+link-option = ""
+output-type = "library"
+src-dir = "src"
+target-dir = ""
+
+[dependencies]
+bao_core = { path = "../bao_core" }
+bao_jsc = { path = "../bao_jsc" }
+bao_sql = { path = "../bao_sql" }

@@ -1,0 +1,17 @@
+[package]
+cjc-version = "1.0.0"
+name = "bao_css_jsc"
+organization = "bao"
+description = "Bao CSS JSC bindings"
+version = "0.1.0"
+compile-option = ""
+override-compile-option = ""
+link-option = ""
+output-type = "library"
+src-dir = "src"
+target-dir = ""
+
+[dependencies]
+bao_jsc = { path = "../bao_jsc" }
+bao_core = { path = "../bao_core" }
+bao_css = { path = "../bao_css" }

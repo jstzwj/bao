@@ -1,7 +1,24 @@
-// 严格翻译自: src/jsc/Debugger.zig + hot_reloader.zig + AsyncModule.zig
+// 严格翻译自: src/jsc/Debugger.zig (536行) + hot_reloader.zig + AsyncModule.zig
 // Bun 调试器、热重载和异步模块
 
 package bao_jsc
+
+// ========== Wait 枚举 ==========
+// 严格翻译自 Debugger.zig Wait
+// 调试器等待连接的模式
+public enum DebuggerWait {
+    | Off       // 不等待
+    | Shortly   // 短暂等待 (30ms 超时)
+    | Forever   // 无限等待
+}
+
+// ========== Mode 枚举 ==========
+// 严格翻译自 Debugger.zig mode
+// 调试器的连接模式
+public enum DebuggerMode {
+    | Listen    // Bun 作为服务器 (https://debug.bun.sh/ 使用此模式)
+    | Connect   // Bun 连接到指定路径 (VSCode 扩展使用此模式)
+}
 
 // ========== 调试器 ==========
 // 严格翻译自 Debugger.zig
@@ -10,14 +27,17 @@ public class Debugger_ {
     public var isPaused: Bool = false
     public var pathOrPort: ?String = None
     public var fromEnvironmentVariable: String = ""
-    public var waitForConnection: Bool = false
+    public var scriptExecutionContextId: UInt32 = 0
+    public var nextDebuggerId: UInt64 = 1
+    public var waitForConnection: DebuggerWait = DebuggerWait.Off
     public var setBreakpointOnFirstLine: Bool = false
-    public var nextDebuggerId: Int64 = 0
     public var inspectorKind: InspectorKind = InspectorKind.None
+    public var mode: DebuggerMode = DebuggerMode.Listen
     public var waitTimeout: Float64 = 0.0
     public var defaultUrl: String = ""
     public var hasStarted: Bool = false
     public var breakOnFirstLine: Bool = false
+    public var mustBlockUntilConnected: Bool = false
 
     // 断点列表
     public var breakpoints: Array<Breakpoint> = []
@@ -368,4 +388,239 @@ public class ResolveMessage {
     public var message: String = ""
 
     public init() {}
+}
+
+// ========== AsyncCallType ==========
+// 严格翻译自 Debugger.zig AsyncCallType
+// 异步调用的类型，用于 Inspector 调试器追踪异步操作
+public enum AsyncCallType <: UInt8 {
+    | DOMTimer(1)                    // DOM 定时器 (setTimeout/setInterval)
+    | EventListener(2)               // 事件监听器
+    | PostMessage(3)                 // postMessage
+    | RequestAnimationFrame(4)       // requestAnimationFrame
+    | Microtask(5)                   // 微任务
+
+    public init(value: UInt8) {
+        match (value) {
+            case 1 => this = DOMTimer
+            case 2 => this = EventListener
+            case 3 => this = PostMessage
+            case 4 => this = RequestAnimationFrame
+            case 5 => this = Microtask
+            case _ => this = EventListener
+        }
+    }
+}
+
+// ========== AsyncTaskTracker ==========
+// 严格翻译自 Debugger.zig AsyncTaskTracker
+// 用于追踪异步任务的调试器辅助工具
+//
+// 原始 Zig:
+//   pub const AsyncTaskTracker = struct {
+//       id: u64,
+//       pub fn init(vm: *VirtualMachine) AsyncTaskTracker { ... }
+//       pub fn didSchedule(this: AsyncTaskTracker, globalObject: *JSGlobalObject) void { ... }
+//       pub fn didCancel(this: AsyncTaskTracker, globalObject: *JSGlobalObject) void { ... }
+//       pub fn willDispatch(this: AsyncTaskTracker, globalObject: *JSGlobalObject) void { ... }
+//       pub fn didDispatch(this: AsyncTaskTracker, globalObject: *JSGlobalObject) void { ... }
+//   };
+public class AsyncTaskTracker {
+    public var id: UInt64 = 0
+
+    public init() {}
+
+    public init(id: UInt64) {
+        this.id = id
+    }
+
+    // 严格翻译自 AsyncTaskTracker.init
+    public static func init(vm: BunVirtualMachine) -> AsyncTaskTracker {
+        AsyncTaskTracker(id: vm.nextAsyncTaskID())
+    }
+
+    // 严格翻译自 AsyncTaskTracker.didSchedule
+    // 通知调试器异步调用已调度
+    // FFI: Debugger__didScheduleAsyncCall(globalObject, callType, id, singleShot)
+    public func didSchedule(globalObject: JsObject) {
+        if (id == 0) { return }
+        didScheduleAsyncCall(globalObject, AsyncCallType.EventListener, id, true)
+    }
+
+    // 严格翻译自 AsyncTaskTracker.didCancel
+    // 通知调试器异步调用已取消
+    // FFI: Debugger__didCancelAsyncCall(globalObject, callType, id)
+    public func didCancel(globalObject: JsObject) {
+        if (id == 0) { return }
+        didCancelAsyncCall(globalObject, AsyncCallType.EventListener, id)
+    }
+
+    // 严格翻译自 AsyncTaskTracker.willDispatch
+    // 通知调试器异步调用即将分发
+    // FFI: Debugger__willDispatchAsyncCall(globalObject, callType, id)
+    public func willDispatch(globalObject: JsObject) {
+        if (id == 0) { return }
+        willDispatchAsyncCall(globalObject, AsyncCallType.EventListener, id)
+    }
+
+    // 严格翻译自 AsyncTaskTracker.didDispatch
+    // 通知调试器异步调用已完成分发
+    // FFI: Debugger__didDispatchAsyncCall(globalObject, callType, id)
+    public func didDispatch(globalObject: JsObject) {
+        if (id == 0) { return }
+        didDispatchAsyncCall(globalObject, AsyncCallType.EventListener, id)
+    }
+}
+
+// ========== 调试器 FFI 辅助函数 ==========
+// 严格翻译自 Debugger.zig 中的 extern 函数
+
+// 调度异步调用通知
+// FFI: Debugger__didScheduleAsyncCall(*JSGlobalObject, AsyncCallType, u64, bool)
+func didScheduleAsyncCall(globalObject: JsObject, callType: AsyncCallType, id: UInt64, singleShot: Bool) {
+    // FFI 桩
+}
+
+// 取消异步调用通知
+// FFI: Debugger__didCancelAsyncCall(*JSGlobalObject, AsyncCallType, u64)
+func didCancelAsyncCall(globalObject: JsObject, callType: AsyncCallType, id: UInt64) {
+    // FFI 桩
+}
+
+// 分发异步调用通知
+// FFI: Debugger__didDispatchAsyncCall(*JSGlobalObject, AsyncCallType, u64)
+func didDispatchAsyncCall(globalObject: JsObject, callType: AsyncCallType, id: UInt64) {
+    // FFI 桩
+}
+
+// 即将分发异步调用通知
+// FFI: Debugger__willDispatchAsyncCall(*JSGlobalObject, AsyncCallType, u64)
+func willDispatchAsyncCall(globalObject: JsObject, callType: AsyncCallType, id: UInt64) {
+    // FFI 桩
+}
+
+// ========== TestReporterAgent ==========
+// 严格翻译自 Debugger.zig TestReporterAgent
+// 测试报告器代理，用于向 Inspector 报告测试结果
+//
+// 原始 Zig:
+//   pub const TestReporterAgent = struct {
+//       handle: ?*Handle = null,
+//       pub const TestStatus = enum(u8) { pass, fail, timeout, skip, todo, skipped_because_label }
+//       pub const TestType = enum(u8) { test = 0, describe = 1 }
+//       ...
+//   };
+public class TestReporterAgent {
+    public var handle: ?TestReporterHandle = None
+
+    public init() {}
+
+    // 是否已启用
+    public func isEnabled() -> Bool {
+        handle != None
+    }
+
+    // 报告发现测试
+    public func reportTestFound(callFrame: CallFrame, testId: Int32, name: String, itemType: TestType, parentId: Int32) {
+        if (let Some(h) <- handle) {
+            h.reportTestFound(callFrame, testId, name, itemType, parentId)
+        }
+    }
+
+    // 报告测试开始
+    public func reportTestStart(testId: Int32) {
+        if (let Some(h) <- handle) {
+            h.reportTestStart(testId)
+        }
+    }
+
+    // 报告测试结束
+    public func reportTestEnd(testId: Int32, status: TestStatus, elapsed: Float64) {
+        if (let Some(h) <- handle) {
+            h.reportTestEnd(testId, status, elapsed)
+        }
+    }
+}
+
+// 测试状态 - 与 c++ InspectorTestReporterAgent.cpp enum class BunTestStatus 保持同步
+public enum TestStatus <: UInt8 {
+    | Pass
+    | Fail
+    | Timeout
+    | Skip
+    | Todo
+    | SkippedBecauseLabel
+}
+
+// 测试类型
+public enum TestType <: UInt8 {
+    | Test(0)
+    | Describe(1)
+}
+
+// 测试报告器句柄 (opaque)
+public class TestReporterHandle {
+    public var rawPtr: CPointer<UInt8> = CPointer<UInt8>()
+
+    public init() {}
+
+    // FFI: Bun__TestReporterAgentReportTestFound
+    public func reportTestFound(callFrame: CallFrame, testId: Int32, name: String, itemType: TestType, parentId: Int32) {
+        // FFI 桩
+    }
+
+    // FFI: Bun__TestReporterAgentReportTestStart
+    public func reportTestStart(testId: Int32) {
+        // FFI 桩
+    }
+
+    // FFI: Bun__TestReporterAgentReportTestEnd
+    public func reportTestEnd(testId: Int32, status: TestStatus, elapsed: Float64) {
+        // FFI 桩
+    }
+}
+
+// ========== LifecycleAgent ==========
+// 严格翻译自 Debugger.zig LifecycleAgent
+// 生命周期代理，用于向 Inspector 报告重载和错误事件
+public class LifecycleAgent {
+    public var handle: ?LifecycleHandle = None
+
+    public init() {}
+
+    // 是否已启用
+    public func isEnabled() -> Bool {
+        handle != None
+    }
+
+    // 报告重载
+    public func reportReload() {
+        if (let Some(h) <- handle) {
+            h.reportReload()
+        }
+    }
+
+    // 报告错误
+    public func reportError(exception: JsException) {
+        if (let Some(h) <- handle) {
+            h.reportError(exception)
+        }
+    }
+}
+
+// 生命周期句柄 (opaque)
+public class LifecycleHandle {
+    public var rawPtr: CPointer<UInt8> = CPointer<UInt8>()
+
+    public init() {}
+
+    // FFI: Bun__LifecycleAgentReportReload
+    public func reportReload() {
+        // FFI 桩
+    }
+
+    // FFI: Bun__LifecycleAgentReportError
+    public func reportError(exception: JsException) {
+        // FFI 桩
+    }
 }

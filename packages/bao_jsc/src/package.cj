@@ -27,6 +27,30 @@ public type JscWebWorker = WebWorker
 public type JscRareData = RareData
 public type JscModuleLoader = ModuleLoader
 
+// Phase 5 - JSC 绑定和基础设施类型重新导出
+public type JscJSModuleLoader = JSModuleLoader_
+public type JscJsInternalPromise = JsInternalPromise
+public type JscSourceProvider = SourceProvider_
+public type JscResolvedSourceTag = ResolvedSourceTag
+public type JscResolvedSource = ResolvedSource_
+public type JscScriptExecutionStatus = ScriptExecutionStatus
+public type JscCounters = Counters
+public type JscCounterField = CounterField
+public type JscJsArrayIterator_ = JsArrayIterator_
+public type JscJsMap_ = JsMap_
+public type JscJsUint8Array_ = JsUint8Array_
+public type JscJsCell_ = JsCell_
+public type JscRegister = Register
+public type JscCallFrameArguments = CallFrameArguments
+public type JscAsyncCallType = AsyncCallType
+public type JscAsyncTaskTracker = AsyncTaskTracker
+public type JscTestReporterAgent = TestReporterAgent
+public type JscTestStatus = TestStatus
+public type JscTestType = TestType
+public type JscLifecycleAgent = LifecycleAgent
+public type JscDebuggerWait = DebuggerWait
+public type JscDebuggerMode = DebuggerMode
+
 // FFI 类型
 public type JscContextRef = JSContextRef
 public type JscValueRef = JSValueRef
@@ -75,6 +99,26 @@ public type JscDeferredError = DeferredError
 public type JscGetterSetter = GetterSetter
 public type JscCustomGetterSetter = CustomGetterSetter
 
+// 错误码/类型
+public type JscZigException = ZigException
+public type JscZigErrorType = ZigErrorType
+public type JscZigStackFrame = ZigStackFrame
+public type JscZigStackTrace = ZigStackTrace
+public type JscErrorCode_ = ErrorCode
+public type JscJSErrorCode = JSErrorCode
+public type JscDOMExceptionCode = DOMExceptionCode
+public type JscTopExceptionScope = TopExceptionScope
+public type JscExceptionValidationScope = ExceptionValidationScope
+
+// 消息
+public type JscBuildMessage = BuildMessage
+public type JscResolveMessage = ResolveMessage
+public type JscLoggerMsg = LoggerMsg
+
+// Promise
+public type JscAnyPromise = AnyPromise
+public type JscConcurrentPromiseTask = ConcurrentPromiseTaskGeneric
+
 // 引用
 public type JscStrong<T> = Strong<T>
 public type JscWeak<T> = Weak<T>
@@ -118,6 +162,52 @@ public type JscHTTPServerAgent = HTTPServerAgent
 
 // UUID
 public type JscUUID = UUID
+
+// Phase 6 - 新翻译类型重新导出
+
+// 异步模块
+public type JscAsyncModule = AsyncModule
+public type JscAsyncModuleQueue = AsyncModuleQueue
+
+// CPU/Heap 分析器
+public type JscBunCPUProfiler = BunCPUProfiler
+public type JscBunHeapProfiler = BunHeapProfiler
+
+// 字符串
+public type JscBunString = BunString
+public type JscRefString = RefString
+public type JscStringBuilder = StringBuilder
+
+// 字节码/缓存
+public type JscCachedBytecode = CachedBytecode
+public type JscRuntimeTranspilerCache = RuntimeTranspilerCache
+public type JscRuntimeTranspilerStore = RuntimeTranspilerStore
+
+// 字符串映射
+public type JscComptimeStringMap = ComptimeStringMap
+
+// DOM 效果
+public type JscDOMEffect = DOMEffect
+public type JscHostFn = HostFn
+
+// 垃圾回收控制器
+public type JscGarbageCollectionController = GarbageCollectionController
+
+// JSON 行缓冲区
+public type JscJSONLineBuffer = JSONLineBuffer
+
+// Node 模块
+public type JscNodeModuleModule = NodeModuleModule
+
+// 进程自动终止器
+public type JscProcessAutoKiller = ProcessAutoKiller
+
+// 虚拟机导出
+public type JscVirtualMachineExports = VirtualMachineExports
+
+// 堆栈帧
+public type JscZigStackFrameCode = ZigStackFrameCode
+public type JscZigStackFramePosition = ZigStackFramePosition
 
 // 包版本信息
 public let BAO_JSC_VERSION = "0.1.0"

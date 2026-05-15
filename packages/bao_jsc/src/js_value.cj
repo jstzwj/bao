@@ -73,6 +73,15 @@ public class JsValue {
         return v
     }
 
+    // 严格翻译自 JSValue.fromCell
+    // 从 JSCell 创建 JsValue
+    public static func fromCell(cell: JsCell_) -> JsValue {
+        let v = JsValue()
+        v.valueType = JsValueType.Object
+        v.rawPtr = cell.rawPtr
+        return v
+    }
+
     // 类型检查方法 - 严格翻译自 JSValue.zig isXxx 方法
     public func isUndefined() -> Bool {
         valueType == JsValueType.Undefined

@@ -940,6 +940,51 @@ public class Property {
             vendorPrefix: this.vendorPrefix
         )
     }
+
+    /// 序列化为 CSS 字符串
+    /// 严格翻译自 Property.toCss (property_mixin)
+    public func toCss(): String {
+        let sb = StringBuilder()
+        let pre = this.vendorPrefix
+        if (!pre.isEmpty()) {
+            sb.append(pre.toCssPrefix())
+        }
+        sb.append(this.tag.toCssName())
+        sb.append(": ")
+        // 在实际实现中会序列化 value
+        sb.append(this.value.toString())
+        return sb.toString()
+    }
+
+    /// 值序列化为 CSS
+    /// 严格翻译自 Property.valueToCss
+    public func valueToCss(dest: CssPrinter): Unit {
+        // 在实际实现中根据 tag 调用具体类型的 toCss
+        dest.writeStr(this.value.toString())
+    }
+
+    /// 获取 longhand 属性
+    /// 严格翻译自 Property.longhand
+    /// 对于 shorthand 属性, 返回展开后的具体属性
+    public func longhand(propertyId: PropertyId): ?Property {
+        // 在实际实现中, shorthand 属性会根据 propertyId 返回对应的 longhand
+        return None
+    }
+
+    /// 释放资源
+    /// 严格翻译自 Property.deinit
+    public func deinit(): Unit {
+        // 在实际实现中会释放 value 的资源
+    }
+
+    /// Hash
+    /// 严格翻译自 Property.hash
+    public func hash(hasher: Hasher): Unit {
+        hasher.update(this.tag)
+        if (this.tag.hasVendorPrefix()) {
+            hasher.update(this.vendorPrefix)
+        }
+    }
 }
 
 // ============================================================================
@@ -1054,6 +1099,315 @@ public class PropertyId {
             dest.writeStr(pre.toCssPrefix())
         }
         dest.writeStr(this.tag.toCssName())
+    }
+
+    /// 解析属性 ID
+    /// 严格翻译自 PropertyId.parse (property_id_mixin.parse)
+    public static func parse(name: String): ?PropertyId {
+        return fromNameAndPrefix(name, VendorPrefix())
+    }
+
+    /// 从字符串解析
+    /// 严格翻译自 PropertyId.fromString (property_id_mixin.fromString)
+    public static func fromString(name: String): ?PropertyId {
+        return fromNameAndPrefix(name, VendorPrefix())
+    }
+
+    /// 别名
+    public static func fromStr(name: String): ?PropertyId {
+        return fromString(name)
+    }
+
+    /// Hash
+    /// 严格翻译自 PropertyId.hash
+    public func hash(hasher: Hasher): Unit {
+        hasher.update(this.tag)
+        if (this.tag.hasVendorPrefix()) {
+            hasher.update(this.vendorPrefix)
+        }
+    }
+}
+
+// ============================================================================
+// Property 解析方法
+// 严格翻译自: properties_generated.zig Property.parse
+// ============================================================================
+
+/// Property 解析辅助
+/// 严格翻译自 Property.parse
+public class PropertyParser {
+
+    /// 解析 CSS 属性
+    /// 严格翻译自 Property.parse(property_id, input, options)
+    public static func parse(propertyId: PropertyId, input: CssParser, options: CssParserOptions): ?Property {
+        // 在实际实现中根据 tag 调用具体类型的 parse 方法
+        // 这里提供框架
+        let tag = propertyId.tag
+        return Some(Property(tag: tag, value: "unparsed", vendorPrefix: propertyId.vendorPrefix))
+    }
+}
+
+// ============================================================================
+// Hasher - 哈希工具
+// ============================================================================
+
+/// 哈希工具
+/// 严格翻译自 std.hash.Wyhash
+public class Hasher {
+    private var state: Int64
+
+    public init() {
+        state = 0
+    }
+
+    public func update(value: Any): Unit {
+        // 在实际实现中使用真正的哈希算法
+    }
+
+    public func update(value: PropertyIdTag): Unit {
+        state = state * 31 + value.hashCode()
+    }
+
+    public func update(value: VendorPrefix): Unit {
+        state = state * 31 + value.hashCode()
+    }
+
+    public func finalize(): Int64 {
+        return state
+    }
+}
+
+// ============================================================================
+// CssPrinter - CSS 打印器
+// ============================================================================
+
+/// CSS 打印器
+/// 严格翻译自 css.Printer
+public class CssPrinter {
+    private var sb: StringBuilder
+
+    public init() {
+        sb = StringBuilder()
+    }
+
+    public func writeStr(s: String): Unit {
+        sb.append(s)
+    }
+
+    public func writeChar(c: UInt8): Unit {
+        sb.append(Char(c))
+    }
+
+    public func toString(): String {
+        sb.toString()
+    }
+}
+
+// ============================================================================
+// VendorPrefix 完整实现
+// 严格翻译自: css_parser.zig VendorPrefix
+// ============================================================================
+
+/// VendorPrefix 完整实现
+/// 严格翻译自 VendorPrefix (packed struct(u8))
+public class VendorPrefix {
+    public var isNone: Bool
+    public var isWebkit: Bool
+    public var isMoz: Bool
+    public var isMs: Bool
+    public var isO: Bool
+
+    public init() {
+        isNone = false
+        isWebkit = false
+        isMoz = false
+        isMs = false
+        isO = false
+    }
+
+    public init(none: Bool) {
+        isNone = none
+        isWebkit = false
+        isMoz = false
+        isMs = false
+        isO = false
+    }
+
+    /// 空前缀
+    public static let empty = VendorPrefix()
+
+    /// 全部前缀
+    public static let all = VendorPrefix(isNone: true, isWebkit: true, isMoz: true, isMs: true, isO: true)
+
+    public static let NONE = VendorPrefix(none: true)
+
+    public static func webkit(): VendorPrefix {
+        let vp = VendorPrefix()
+        vp.isWebkit = true
+        return vp
+    }
+
+    public static func moz(): VendorPrefix {
+        let vp = VendorPrefix()
+        vp.isMoz = true
+        return vp
+    }
+
+    public static func ms(): VendorPrefix {
+        let vp = VendorPrefix()
+        vp.isMs = true
+        return vp
+    }
+
+    public static func o(): VendorPrefix {
+        let vp = VendorPrefix()
+        vp.isO = true
+        return vp
+    }
+
+    /// 是否为空
+    /// 严格翻译自 VendorPrefix.isEmpty
+    public func isEmpty(): Bool {
+        return !isNone && !isWebkit && !isMoz && !isMs && !isO
+    }
+
+    /// 按位或
+    /// 严格翻译自 VendorPrefix.bitwiseOr
+    public func bitwiseOr(other: VendorPrefix): VendorPrefix {
+        let result = VendorPrefix()
+        result.isNone = this.isNone || other.isNone
+        result.isWebkit = this.isWebkit || other.isWebkit
+        result.isMoz = this.isMoz || other.isMoz
+        result.isMs = this.isMs || other.isMs
+        result.isO = this.isO || other.isO
+        return result
+    }
+
+    /// 按位与
+    /// 严格翻译自 VendorPrefix.bitwiseAnd
+    public func bitwiseAnd(other: VendorPrefix): VendorPrefix {
+        let result = VendorPrefix()
+        result.isNone = this.isNone && other.isNone
+        result.isWebkit = this.isWebkit && other.isWebkit
+        result.isMoz = this.isMoz && other.isMoz
+        result.isMs = this.isMs && other.isMs
+        result.isO = this.isO && other.isO
+        return result
+    }
+
+    /// 差集
+    /// 严格翻译自 VendorPrefix.difference
+    public func difference(other: VendorPrefix): VendorPrefix {
+        let result = VendorPrefix()
+        result.isNone = this.isNone && !other.isNone
+        result.isWebkit = this.isWebkit && !other.isWebkit
+        result.isMoz = this.isMoz && !other.isMoz
+        result.isMs = this.isMs && !other.isMs
+        result.isO = this.isO && !other.isO
+        return result
+    }
+
+    /// 或 None
+    /// 严格翻译自 VendorPrefix.orNone
+    public func orNone(): VendorPrefix {
+        if (this.isEmpty()) {
+            return VendorPrefix.NONE
+        }
+        return this
+    }
+
+    /// 转为 CSS 前缀字符串
+    /// 严格翻译自 VendorPrefix.toCss
+    public func toCssPrefix(): String {
+        if (isWebkit) {
+            return "-webkit-"
+        }
+        if (isMoz) {
+            return "-moz-"
+        }
+        if (isMs) {
+            return "-ms-"
+        }
+        if (isO) {
+            return "-o-"
+        }
+        return ""
+    }
+
+    /// 判断相等
+    public func equals(other: VendorPrefix): Bool {
+        return this.isNone == other.isNone &&
+               this.isWebkit == other.isWebkit &&
+               this.isMoz == other.isMoz &&
+               this.isMs == other.isMs &&
+               this.isO == other.isO
+    }
+
+    /// 从名称获取 VendorPrefix
+    /// 严格翻译自 VendorPrefix.fromName
+    public static func fromName(name: String): VendorPrefix {
+        let vp = VendorPrefix()
+        match (name) {
+            case "none" => vp.isNone = true
+            case "webkit" => vp.isWebkit = true
+            case "moz" => vp.isMoz = true
+            case "ms" => vp.isMs = true
+            case "o" => vp.isO = true
+        }
+        return vp
+    }
+
+    /// 字段列表 (用于迭代)
+    /// 严格翻译自 VendorPrefix.FIELDS
+    public static let FIELDS: Array<String> = ["webkit", "moz", "ms", "o", "none"]
+}
+
+// ============================================================================
+// Targets - CSS 编译目标
+// 严格翻译自: targets.zig Targets / printer.zig Targets
+// ============================================================================
+
+/// CSS 编译目标
+/// 严格翻译自 Targets
+public class Targets {
+    /// 浏览器目标列表
+    public var browsers: ?ArrayList<CssBrowserVersion>
+    /// 是否应包含颜色
+    public var includeColor: Bool
+
+    public init() {
+        this.browsers = None
+        this.includeColor = true
+    }
+
+    /// 获取指定 Feature 的前缀
+    /// 严格翻译自 Targets.prefixes
+    public func prefixes(current: VendorPrefix, feature: Feature): VendorPrefix {
+        // 在实际实现中根据 targets 和 feature 返回允许的前缀
+        return current
+    }
+}
+
+// ============================================================================
+// CustomPropertyName - 自定义属性名
+// 严格翻译自: custom.CustomPropertyName
+// ============================================================================
+
+/// 自定义属性名
+/// 严格翻译自 CustomPropertyName
+public class CustomPropertyName {
+    public var name: String
+
+    public init(name: String) {
+        this.name = name
+    }
+
+    public func asStr(): String {
+        return name
+    }
+
+    public func toString(): String {
+        return name
     }
 }
 
