@@ -67,6 +67,10 @@ public enum ErrorCode {
     | ParseError
     | BundlerError
     | StackOverflow
+    | NotImplemented
+    | Panic
+    | AssertionFailed
+    | Unreachable
     | Unknown
 
     /// 转为 u16 编码 (对应 Bun Error.as_u16)
@@ -120,6 +124,10 @@ public enum ErrorCode {
             case ParseError => UInt16(100)
             case BundlerError => UInt16(252)
             case StackOverflow => UInt16(253)
+            case NotImplemented => UInt16(254)
+            case Panic => UInt16(255)
+            case AssertionFailed => UInt16(256)
+            case Unreachable => UInt16(257)
             case Unknown => UInt16(0)
         }
     }
@@ -175,6 +183,10 @@ public enum ErrorCode {
             case ParseError => "ParseError"
             case BundlerError => "BundlerError"
             case StackOverflow => "StackOverflow"
+            case NotImplemented => "NotImplemented"
+            case Panic => "Panic"
+            case AssertionFailed => "AssertionFailed"
+            case Unreachable => "Unreachable"
             case Unknown => "Unknown"
         }
     }
@@ -431,6 +443,283 @@ public func currentPlatform(): Platform {
 /// 获取当前架构
 public func currentArch(): Arch {
     return Arch.X86_64
+}
+
+// ============================================================================
+// Environment - 编译/运行环境
+// 严格翻译自: src/bun_core/env.zig
+//   pub const BuildTarget = enum { native, wasm, wasi };
+//   pub const isNative = build_target == .native;
+//   pub const isMac = build_target == .native and builtin.target.os.tag == .macos;
+//   pub const isWindows = builtin.target.os.tag == .windows;
+//   pub const isLinux = builtin.target.os.tag == .linux;
+//   pub const isDebug = builtin.mode == .Debug;
+//   pub const OperatingSystem = enum { mac, linux, freebsd, windows, wasm, ... };
+//   pub const Architecture = enum { x64, arm64, wasm, ... };
+//   pub const os: OperatingSystem = ...
+//   pub const arch: Architecture = ...
+//   pub const version_string = ...
+// ============================================================================
+
+/// 编译/运行环境 - 对应 Bun Environment (env.zig)
+/// Bun 使用编译时 (comptime) 确定平台属性
+/// 仓颉使用运行时检测, 但值在程序启动时确定
+public class Environment {
+    // ========================================================================
+    // 构建目标 - 对应 Bun BuildTarget
+    //   pub const BuildTarget = enum { native, wasm, wasi };
+    // ========================================================================
+    public enum BuildTarget {
+        | Native   // 对应 Bun native
+        | Wasm     // 对应 Bun wasm
+        | Wasi     // 对应 Bun wasi
+    }
+
+    /// 当前构建目标
+    public static let BUILD_TARGET: BuildTarget = BuildTarget.Native
+
+    // ========================================================================
+    // 平台布尔常量 - 对应 Bun env.zig 中的 pub const
+    // ========================================================================
+
+    /// 是否为原生平台 - 对应 Bun isNative = build_target == .native
+    public static let IS_NATIVE: Bool = true
+
+    /// 是否为 Wasm - 对应 Bun isWasm = build_target == .wasm
+    public static let IS_WASM: Bool = false
+
+    /// 是否为 Wasi - 对应 Bun isWasi = build_target == .wasi
+    public static let IS_WASI: Bool = false
+
+    /// 是否为 macOS - 对应 Bun isMac
+    public static let IS_MAC: Bool = currentPlatform() == Platform.MacOS
+
+    /// 是否为 Linux - 对应 Bun isLinux
+    public static let IS_LINUX: Bool = currentPlatform() == Platform.Linux
+
+    /// 是否为 Windows - 对应 Bun isWindows
+    public static let IS_WINDOWS: Bool = currentPlatform() == Platform.Windows
+
+    /// 是否为 POSIX - 对应 Bun isPosix = !isWindows and !isWasm
+    public static let IS_POSIX: Bool = !IS_WINDOWS && !IS_WASM
+
+    /// 是否为 Debug 构建 - 对应 Bun isDebug = builtin.mode == .Debug
+    public static let IS_DEBUG: Bool = false
+
+    /// 是否为 Test 构建 - 对应 Bun isTest = builtin.is_test
+    public static let IS_TEST: Bool = false
+
+    /// 是否为 FreeBSD - 对应 Bun isFreeBSD
+    public static let IS_FREEBSD: Bool = false
+
+    /// 是否为 kqueue 平台 - 对应 Bun isKqueue = isMac or isFreeBSD
+    public static let IS_KQUEUE: Bool = IS_MAC || IS_FREEBSD
+
+    /// 是否为 AArch64 - 对应 Bun isAarch64
+    public static let IS_AARCH64: Bool = currentArch() == Arch.ARM64
+
+    /// 是否为 x86 - 对应 Bun isX86
+    public static let IS_X86: Bool = currentArch() == Arch.X86
+
+    /// 是否为 x64 - 对应 Bun isX64
+    public static let IS_X64: Bool = currentArch() == Arch.X86_64
+
+    /// 是否为 Android - 对应 Bun isAndroid
+    public static let IS_ANDROID: Bool = false
+
+    /// 是否为浏览器 - 对应 Bun isBrowser = !isWasi and isWasm
+    public static let IS_BROWSER: Bool = false
+
+    /// 是否允许断言 - 对应 Bun allow_assert
+    public static let ALLOW_ASSERT: Bool = IS_DEBUG || IS_TEST
+
+    /// 是否启用日志 - 对应 Bun enable_logs
+    public static let ENABLE_LOGS: Bool = IS_DEBUG
+
+    /// 是否启用 ASAN - 对应 Bun enable_asan
+    public static let ENABLE_ASAN: Bool = false
+
+    /// 是否为 Canary 构建 - 对应 Bun is_canary
+    public static let IS_CANARY: Bool = false
+
+    /// 是否启用 SIMD - 对应 Bun enableSIMD
+    public static let ENABLE_SIMD: Bool = IS_NATIVE && !IS_WASM
+
+    // ========================================================================
+    // 操作系统枚举 - 对应 Bun OperatingSystem
+    //   pub const OperatingSystem = enum {
+    //       mac, linux, freebsd, windows, wasm,
+    //       pub fn displayString(self) []const u8 { ... }
+    //       pub fn nameString(self) []const u8 { ... }
+    //       pub fn npmName(self) []const u8 { ... }
+    //   };
+    // ========================================================================
+
+    /// 操作系统 - 对应 Bun OperatingSystem
+    public enum OperatingSystem {
+        | Mac       // 对应 Bun mac
+        | Linux     // 对应 Bun linux
+        | FreeBSD   // 对应 Bun freebsd
+        | Windows   // 对应 Bun windows
+        | Wasm      // 对应 Bun wasm
+
+        /// 显示名称 - 对应 Bun OperatingSystem.displayString()
+        /// pub fn displayString(self: OperatingSystem) []const u8 {
+        ///     return switch (self) { .mac => "macOS", .linux => "Linux", ... };
+        /// }
+        public func displayString(): String {
+            match (this) {
+                case Mac => return "macOS"
+                case Linux => return "Linux"
+                case FreeBSD => return "FreeBSD"
+                case Windows => return "Windows"
+                case Wasm => return "WASM"
+            }
+        }
+
+        /// 名称字符串 - 对应 Bun OperatingSystem.nameString()
+        /// pub fn nameString(self: OperatingSystem) []const u8 {
+        ///     return switch (self) { .mac => "darwin", .linux => "linux", ... };
+        /// }
+        public func nameString(): String {
+            match (this) {
+                case Mac => return "darwin"
+                case Linux => return "linux"
+                case FreeBSD => return "freebsd"
+                case Windows => return "win32"
+                case Wasm => return "wasm"
+            }
+        }
+
+        /// npm 包名 - 对应 Bun OperatingSystem.npmName()
+        /// pub fn npmName(self: OperatingSystem) []const u8 { ... }
+        public func npmName(): String {
+            match (this) {
+                case Mac => return "darwin"
+                case Linux => return "linux"
+                case FreeBSD => return "freebsd"
+                case Windows => return "windows"
+                case Wasm => return "wasm"
+            }
+        }
+
+        /// OS 名称查找 - 对应 Bun OperatingSystem.names
+        public static func fromString(name: String): ?OperatingSystem {
+            let lower = name.toLower()
+            if (lower == "windows" || lower == "win32" || lower == "win" || lower == "win64") {
+                return Some(Windows)
+            }
+            if (lower == "darwin" || lower == "macos" || lower == "mac" || lower == "apple") {
+                return Some(Mac)
+            }
+            if (lower == "linux" || lower == "linux-gnu" || lower == "gnu/linux") {
+                return Some(Linux)
+            }
+            if (lower == "freebsd") {
+                return Some(FreeBSD)
+            }
+            if (lower == "wasm") {
+                return Some(Wasm)
+            }
+            return None
+        }
+    }
+
+    // ========================================================================
+    // 架构枚举 - 对应 Bun Architecture
+    //   pub const Architecture = enum {
+    //       x64, arm64, wasm,
+    //       pub fn npmName(this) []const u8 { ... }
+    //   };
+    // ========================================================================
+
+    /// 架构 - 对应 Bun Architecture
+    public enum Architecture {
+        | X64       // 对应 Bun x64
+        | ARM64     // 对应 Bun arm64
+        | Wasm      // 对应 Bun wasm
+
+        /// npm 包名 - 对应 Bun Architecture.npmName()
+        /// pub fn npmName(this: Architecture) []const u8 {
+        ///     return switch (this) { .x64 => "x64", .arm64 => "aarch64", .wasm => "wasm" };
+        /// }
+        public func npmName(): String {
+            match (this) {
+                case X64 => return "x64"
+                case ARM64 => return "aarch64"
+                case Wasm => return "wasm"
+            }
+        }
+
+        /// 从字符串查找 - 对应 Bun Architecture.names
+        public static func fromString(name: String): ?Architecture {
+            let lower = name.toLower()
+            if (lower == "x86_64" || lower == "x64" || lower == "amd64") {
+                return Some(X64)
+            }
+            if (lower == "aarch64" || lower == "arm64") {
+                return Some(ARM64)
+            }
+            if (lower == "wasm") {
+                return Some(Wasm)
+            }
+            return None
+        }
+    }
+
+    // ========================================================================
+    // 实例属性
+    // ========================================================================
+
+    /// 当前操作系统 - 对应 Bun os
+    /// pub const os: OperatingSystem = if (isMac) .mac else if (isLinux) .linux ...
+    public static let OS: OperatingSystem = {
+        if (IS_MAC) { OperatingSystem.Mac }
+        else if (IS_LINUX) { OperatingSystem.Linux }
+        else if (IS_FREEBSD) { OperatingSystem.FreeBSD }
+        else if (IS_WINDOWS) { OperatingSystem.Windows }
+        else if (IS_WASM) { OperatingSystem.Wasm }
+        else { OperatingSystem.Linux }
+    }
+
+    /// 当前架构 - 对应 Bun arch
+    /// pub const arch: Architecture = if (isWasm) .wasm else if (isX64) .x64 ...
+    public static let ARCH: Architecture = {
+        if (IS_WASM) { Architecture.Wasm }
+        else if (IS_X64) { Architecture.X64 }
+        else if (IS_AARCH64) { Architecture.ARM64 }
+        else { Architecture.X64 }
+    }
+
+    // ========================================================================
+    // 版本信息 - 对应 Bun version / version_string
+    //   pub const version: std.SemanticVersion = build_options.version;
+    //   pub const version_string = std.fmt.comptimePrint("{d}.{d}.{d}", .{ ... });
+    // ========================================================================
+
+    /// 版本字符串 - 对应 Bun version_string
+    /// pub const version_string = std.fmt.comptimePrint("{d}.{d}.{d}", .{ version.major, version.minor, version.patch });
+    public static let VERSION_STRING: String = BAO_VERSION
+
+    /// Git SHA - 对应 Bun git_sha
+    /// pub const git_sha = build_options.sha;
+    public static let GIT_SHA: String = ""
+
+    /// 短 Git SHA - 对应 Bun git_sha_short
+    /// pub const git_sha_short = if (build_options.sha.len > 0) build_options.sha[0..9] else "";
+    public static let GIT_SHA_SHORT: String = ""
+
+    /// 基路径 - 对应 Bun base_path
+    /// pub const base_path = build_options.base_path;
+    public static let BASE_PATH: String = ""
+
+    /// 仅 macOS 断言 - 对应 Bun onlyMac()
+    /// pub inline fn onlyMac() void { if (comptime !isMac) { unreachable; } }
+    public static func onlyMac(): Unit {
+        if (!IS_MAC) {
+            Util.unreachableCode("onlyMac() called on non-macOS platform")
+        }
+    }
 }
 
 // ============================================================================

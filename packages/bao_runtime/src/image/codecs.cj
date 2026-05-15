@@ -240,7 +240,7 @@ public class Codecs {
 
         match (fmt!) {
             case ImageFormat.jpeg =>
-                return CodecJpeg.decode(bytes, maxPixels, hint.targetW, hint.targetH)
+                return CodecJpeg.decode(bytes, maxPixels, hint)
             case ImageFormat.png =>
                 return CodecPng.decode(bytes, maxPixels)
             case ImageFormat.webp =>
@@ -251,7 +251,8 @@ public class Codecs {
             case ImageFormat.gif =>
                 return CodecGif.decode(bytes, maxPixels)
             case ImageFormat.heic | ImageFormat.avif | ImageFormat.tiff =>
-                // 需要系统后端
+                // 需要系统后端; 静态编解码器覆盖我们提供的所有内容;
+                // 分析表明 ImageIO 不更快。OS 后端纯粹是能力回退。
                 return None
         }
     }

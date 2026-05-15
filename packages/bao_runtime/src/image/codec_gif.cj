@@ -187,7 +187,7 @@ public class CodecGif {
                 if (ct.size == 0) { return None }
 
                 if (ii >= bytes.size) { return None }
-                var minCode: Int32 = Int32(bytes[ii)
+                var minCode: Int32 = Int32(bytes[ii])
                 if (minCode < 2) { minCode = 2 }
                 if (minCode > 11) { minCode = 11 }
                 ii += 1

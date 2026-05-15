@@ -1,0 +1,15 @@
+[package]
+cjc-version = "1.0.0"
+name = "bao_lolhtml_sys"
+organization = "bao"
+description = "Bao lolhtml FFI bindings for HTML rewriting"
+version = "0.1.0"
+compile-option = ""
+override-compile-option = ""
+link-option = ""
+output-type = "library"
+src-dir = "src"
+target-dir = ""
+
+[dependencies]
+bao_core = { path = "../bao_core" }

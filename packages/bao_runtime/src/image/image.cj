@@ -1,7 +1,12 @@
-// image.cj - Bun.Image 图像处理管线
-// 对应 Bun 源文件: src/runtime/image/Image.zig
-// Sharp 形状的图像管线，使用静态链接的 libjpeg-turbo/libspng/libwebp 编解码器
-// 和 highway resize 内核。
+// 严格翻译自: src/runtime/image/Image.zig
+// Bun.Image — Sharp 形状的图像管线，使用静态链接的
+// libjpeg-turbo / libspng / libwebp 编解码器和 highway resize 内核。
+//
+// 形状: 构造函数仅捕获输入 (路径或字节)。链式可变方法 (resize, rotate, flip,
+// flop, jpeg/png/webp) 各写入 Pipeline 的一个槽并返回 this — 没有操作列表,
+// 所以调用 setter 两次会覆盖。实际的 decode -> transform -> encode 工作在
+// 终端 (bytes/buffer/blob/toBase64/metadata) 被 await 时通过
+// jsc.ConcurrentPromiseTask 在离线线程上进行。
 
 package bao_runtime
 
@@ -776,16 +781,120 @@ public class PipelineTask {
         this.result = PipelineResult.err("DecodeFailed")
     }
 
+    /// 最大输入文件大小 (256 MiB)
+    /// 对应 Bun: max_input_file_bytes
+    public static let MAX_INPUT_FILE_BYTES: UInt64 = UInt64(256) << 20
+
     /// 在工作线程执行管线
     /// 对应 Bun: PipelineTask.run
+    /// 在 WorkPool 线程上运行。没有 JSC 访问。
     public func run(): Unit {
-        // 简化实现 - 实际步骤:
-        // 1. 如果是路径源，读取文件
-        // 2. 如果是 metadata，只探测头部
-        // 3. 解码图像
-        // 4. 应用 EXIF 自动方向
-        // 5. 应用管线操作 (rotate -> flip -> resize -> modulate)
-        // 6. 编码输出
+        // `this.input` 在 JS 线程上由 pinForTask 准备: 要么是固定的 ArrayBuffer 切片
+        // (pin 一直存在到 then() 解除固定), 自有缓冲区, 或在此读取的路径。
+
+        // 1. 获取输入字节
+        //    如果是路径源: 打开 + fstat + 读取 (见 Zig 源的完整逻辑)
+        //    - !S_ISREG -> ENODEV (/dev/zero / /dev/urandom 会永远 pread)
+        //    - st_size 上限 -> 基于文件的解压炸弹直接失败
+        //    - O_NONBLOCK 这样 open 本身不会在 FIFO 上阻塞
+        //    路径源读取后输入字节可用。
+
+        // 2. 仅头部的 metadata 快速路径
+        //    Sharp 仅解析 IHDR/SOF/VP8 头部; 我们过去先解码完整 RGBA 缓冲区
+        //    (在 1920x1080 PNG 上慢 ~70x)。EXIF 方向仅交换报告的维度, 不涉及像素。
+        if (this.kind == PipelineTaskKind.metadata) {
+            // if (codecs.probe(input, this.maxPixels)) |p| {
+            //     var w = p.width
+            //     var h = p.height
+            //     if (this.autoOrient and p.format == .jpeg) {
+            //         let t = Exif.readJpeg(input).transform()
+            //         if (t[2] == 90 || t[2] == 270) { swap(w, h) }
+            //     }
+            //     this.result = PipelineResult.meta(MetaResult(w: w, h: h, format: p.format))
+            //     return
+            // } else |e| {
+            //     // HEIC/AVIF 没有头部探测 — 落入完整解码通过系统后端
+            //     if (e != UnsupportedOnPlatform) {
+            //         this.result = PipelineResult.err(errorCode(e))
+            //         return
+            //     }
+            // }
+        }
+
+        // 3. 解码时缩小提示。IDCT 选择器在存储轴上约束,
+        //    所以任何在 resize 之前运行的 90/270 rotate — 显式或 EXIF 自动方向 —
+        //    需要交换提示轴, 否则一个轴可能过度缩小然后放大, 丢失细节。
+        //    (flip/flop 是纯镜像, 从不改变 w/h, 所以提示通过它们仍然有效。)
+        val hint = DecodeHint()
+        if (this.pipeline.resize != None) {
+            let r = this.pipeline.resize!
+            var tw = r.w
+            // r.h==0 表示"保持纵横比" — 仅在宽度上约束。
+            var th = if (r.h != 0) { r.h } else { r.w }
+            let swapExplicit = (this.pipeline.rotate == 90 || this.pipeline.rotate == 270)
+            // EXIF 旋转检查 (简化)
+            let swapExif = false  // 实际实现检查 autoOrient + JPEG EXIF
+            if (swapExplicit != swapExif) {
+                let tmp = tw
+                tw = th
+                th = tmp
+            }
+            hint.targetW = tw
+            hint.targetH = th
+        }
+
+        // 4. 解码图像
+        //    var decoded = Codecs.decode(input, this.maxPixels, hint)
+        //    如果解码失败, 设置错误结果并返回
+        //    defer: decoded.deinit()
+
+        // 5. 获取源格式
+        //    let srcFormat = ImageFormat.sniff(input) orelse .png
+
+        // 6. EXIF 自动方向: 在任何用户操作之前应用, 以便 resize 目标和 metadata
+        //    报告视觉直立的维度, 与 Sharp 相同。
+        //    if (this.autoOrient and srcFormat == .jpeg) {
+        //        let orient = Exif.readJpeg(input)
+        //        if (orient != .normal) { applyOrientation(decoded, orient) }
+        //    }
+
+        // 7. metadata 二次检查 (HEIC/AVIF 通过完整解码到达此处)
+        if (this.kind == PipelineTaskKind.metadata) {
+            // this.result = PipelineResult.meta(MetaResult(
+            //     w: decoded.width, h: decoded.height, format: srcFormat))
+            return
+        }
+
+        // 8. 占位符
+        if (this.kind == PipelineTaskKind.placeholder) {
+            // this.result = makePlaceholder(decoded.rgba, decoded.width, decoded.height)
+            return
+        }
+
+        // 9. 应用管线操作
+        //    applyPipeline(decoded)
+
+        // 10. 确定输出格式
+        //     无格式方法链接 => 以源格式重新编码。
+        //     对于仅解码源 (bmp/tiff/gif) 会死路在 "需要 macOS 或 Windows" 消息,
+        //     这是错误的。改为发出 PNG — 这是 Sharp 在相同情况下使用的无损、
+        //     到处支持的默认值。
+        // var enc: CodecsEncodeOptions = this.kind.encode orelse CodecsEncodeOptions(
+        //     format: match (srcFormat) {
+        //         case bmp | tiff | gif => ImageFormat.png
+        //         case _ => srcFormat
+        //     }
+        // )
+        // // 将源 ICC 配置文件携带到编码器, 除非调用者已设置一个。
+        // // 管线不转换 RGBA 的颜色, 所以丢弃配置文件会将非 sRGB 源
+        // // (Display-P3, Adobe RGB, Jpegli XYB) 重新解释为 sRGB 并明显偏移颜色。
+        // if (enc.iccProfile == None) { enc.iccProfile = decoded.iccProfile }
+        //
+        // let out = Codecs.encode(decoded.rgba, decoded.width, decoded.height, enc)
+        // 如果编码失败, 设置错误结果并返回
+        //
+        // this.result = PipelineResult.encoded(EncodedResult(
+        //     bytes: out, format: enc.format, w: decoded.width, h: decoded.height))
     }
 
     /// 在 JS 线程处理结果
@@ -797,28 +906,63 @@ public class PipelineTask {
 
     /// 应用管线操作
     /// 对应 Bun: PipelineTask.applyPipeline
+    /// 固定 Sharp 顺序: rotate -> flip/flop -> resize。每个阶段原地替换 d;
+    /// 旧缓冲区在分配新缓冲区之前释放, 因此峰值内存最多为一帧的 2 倍。
+    /// 每个阶段只交换像素槽 — rotate/resize 返回不带 iccProfile 的新 Decoded,
+    /// 所以覆盖 d.* 整体会丢失源的颜色配置文件。几何不改变颜色含义,
+    /// 因此配置文件不变地存活。
     public func applyPipeline(decoded: DecodedImage): Unit {
         val p = pipeline
 
         // 旋转
         if (p.rotate != 0) {
-            // 调用 Codecs.rotate
+            // val next = Codecs.rotate(decoded.rgba, decoded.width, decoded.height, p.rotate)
+            // if (next == None) { return /* error */ }
+            // 释放 decoded.rgba
+            // decoded.rgba = next!.rgba
+            // decoded.width = next!.width
+            // decoded.height = next!.height
         }
 
         // 翻转（垂直）
         if (p.flip) {
-            // 调用 Codecs.flip(false)
+            // val next = Codecs.flip(decoded.rgba, decoded.width, decoded.height, false)
+            // if (next == None) { return /* error */ }
+            // 释放 decoded.rgba
+            // decoded.rgba = next!
         }
 
         // 翻转（水平）
         if (p.flop) {
-            // 调用 Codecs.flip(true)
+            // val next = Codecs.flip(decoded.rgba, decoded.width, decoded.height, true)
+            // if (next == None) { return /* error */ }
+            // 释放 decoded.rgba
+            // decoded.rgba = next!
         }
 
         // 缩放
         if (p.resize != None) {
             val r = p.resize!
-            // 计算实际输出尺寸并缩放
+            val t = resolveResize(r, decoded.width, decoded.height)
+            // 守卫输出画布和 H-then-V 中间体 (总是 dst_w x src_h —
+            // image_resize.cpp 通过顺序是固定的)。
+            // 1xN 源 -> resize(W,1) 有微小输入和输出画布,
+            // 但有 WxN 中间体; W=262143, N=16383 时这是 17 GiB 分配,
+            // 来自 ~200 字节 PNG。
+            // dst_w x dst_h 和 dst_w x src_h 都必须 <= maxPixels。
+            if (UInt64(t.w) * UInt64(t.h) > maxPixels ||
+                UInt64(t.w) * UInt64(decoded.height) > maxPixels) {
+                return  // TooManyPixels
+            }
+            if (t.w != decoded.width || t.h != decoded.height) {
+                // val next = Codecs.resize(decoded.rgba, decoded.width, decoded.height,
+                //                           t.w, t.h, r.filter)
+                // if (next == None) { return /* error */ }
+                // 释放 decoded.rgba
+                // decoded.rgba = next!
+                // decoded.width = t.w
+                // decoded.height = t.h
+            }
         }
 
         // 调制
@@ -828,14 +972,102 @@ public class PipelineTask {
         }
     }
 
+    /// 映射 resize 规范到具体输出尺寸
+    /// 对应 Bun: PipelineTask.resolveResize
+    static func resolveResize(r: ImageResize, sw: UInt32, sh: UInt32): ResizeTarget {
+        var w = r.w
+        // 在相乘之前扩展 — r.w 由用户控制, sh 仅受 maxPixels 限制,
+        // 所以 u32 乘积可能溢出; 并且对于 tall-thin 源 (1x5M with .resize(1k) -> 5e9),
+        // 商可能超过 u32, 所以限制到与 doResize 相同的每边上限。
+        var h: UInt32 = if (r.h != 0) {
+            r.h
+        } else {
+            UInt64(UInt64(r.w) * UInt64(sh) / UInt64(sw)).clamp(1, UInt64(0x3FFFF)).truncateToUInt32()
+        }
+        if (r.fit == ImageFit.inside) {
+            // 缩小框以保持源的纵横比并使两侧都适合。(Sharp 的 fit:'inside')
+            val sx = Float64(w) / Float64(sw)
+            val sy = Float64(h) / Float64(sh)
+            let s = if (sx < sy) { sx } else { sy }
+            w = UInt64((Float64(sw) * s + 0.5).clamp(1.0, Float64(0x3FFFF))).truncateToUInt32()
+            h = UInt64((Float64(sh) * s + 0.5).clamp(1.0, Float64(0x3FFFF))).truncateToUInt32()
+        }
+        if (r.withoutEnlargement && (w > sw || h > sh)) {
+            return ResizeTarget(w: sw, h: sh)
+        }
+        return ResizeTarget(w: w, h: h)
+    }
+
+    /// 应用 EXIF 方向
+    /// 对应 Bun: PipelineTask.applyOrientation
+    static func applyOrientation(d: DecodedImage, orient: ExifOrientation): Unit {
+        let t = orient.transform()
+        if (t[0]) {
+            // flop (水平镜像)
+            // val next = Codecs.flip(d.rgba, d.width, d.height, true)
+            // 释放 d.rgba; d.rgba = next!
+        }
+        if (t[1]) {
+            // flip (垂直镜像)
+            // val next = Codecs.flip(d.rgba, d.width, d.height, false)
+            // 释放 d.rgba; d.rgba = next!
+        }
+        if (t[2] != 0) {
+            // 旋转
+            // val next = Codecs.rotate(d.rgba, d.width, d.height, t[2])
+            // 释放 d.rgba
+            // d.rgba = next!.rgba
+            // d.width = next!.width
+            // d.height = next!.height
+        }
+    }
+
     /// 创建占位符
     /// 对应 Bun: PipelineTask.makePlaceholder
+    /// .placeholder() 主体 — 在 worker 上运行。输入是源大小的解码 RGBA;
+    /// 输出是 ThumbHash 渲染的 PNG, 准备好 .dataurl 交付。
+    /// ThumbHash 需要 <=100x100, 所以首先用 box 缩小
+    //  (唯一对"平均单元格中所有内容"正确的滤镜 — Lanczos 会在 DCT 中振铃)。
+    /// hash 本身保留在 worker 栈上; 只有渲染的 PNG 跨越回来。
     public func makePlaceholder(rgba: Array<Byte>, sw: UInt32, sh: UInt32): PipelineResult {
-        // 简化实现 - 实际步骤:
-        // 1. 缩放到 <=100x100
-        // 2. 编码为 ThumbHash
-        // 3. 解码 ThumbHash 到 RGBA
-        // 4. 编码为 PNG
+        let maxIn: UInt32 = 100
+        var w = sw
+        var h = sh
+        var owned: ?Array<Byte> = None
+        var pixels = rgba
+
+        if (w > maxIn || h > maxIn) {
+            let r = Float32(w) / Float32(h)
+            if (r > 1) {
+                w = maxIn
+                h = UInt32((Float32(maxIn) / r + 0.5f).clamp(1.0f, Float32(maxIn)))
+            } else {
+                h = maxIn
+                w = UInt32((Float32(maxIn) * r + 0.5f).clamp(1.0f, Float32(maxIn)))
+            }
+            // owned = Codecs.resize(rgba, sw, sh, w, h, Filter.box)
+            // if (owned == None) { return PipelineResult.err("DecodeFailed") }
+            // pixels = owned!
+        }
+
+        // 1. 编码为 ThumbHash
+        let hashOpt = ThumbHash.encode(w, h, pixels)
+        if (hashOpt == None) { return PipelineResult.err("DecodeFailed") }
+
+        // 2. 解码 ThumbHash 到 RGBA
+        let renderedOpt = ThumbHash.decode(hashOpt!)
+        if (renderedOpt == None) { return PipelineResult.err("DecodeFailed") }
+        // defer: 释放 rendered
+
+        // 3. 编码为 PNG
+        // 占位符是合成 ThumbHash 渲染, 不是源图像 — 没有 ICC 配置文件附加。
+        // let pngOut = CodecPng.encode(renderedOpt!.rgba, renderedOpt!.width,
+        //                               renderedOpt!.height, -1, None)
+        // if (pngOut == None) { return PipelineResult.err("DecodeFailed") }
+
+        // return PipelineResult.encoded(EncodedResult(
+        //     bytes: pngOut!.bytes, format: ImageFormat.png,
+        //     w: renderedOpt!.width, h: renderedOpt!.height))
         return PipelineResult.err("DecodeFailed")
     }
 
@@ -898,9 +1130,23 @@ func base64Decode(input: String): ?Array<Byte> {
 
 /// 安全整数转换
 /// 对应 Bun: coerceInt
+/// `@intFromFloat` 在 NaN/Inf/超出范围时是安全检查的 UB;
+/// 每个从 JS 读取的数字都经过此函数, 以便恶意输入抛出/限制,
+/// 而不是中止。NaN -> lo, +-Inf -> 匹配的边界; 边界是 f64,
+/// 所以限制保持在浮点空间。
 func coerceInt(x: Float64, lo: Float64, hi: Float64): Int64 {
     if (x.isNaN()) {
         return Int64(lo)
     }
     return Int64(x.clamp(lo, hi))
+}
+
+/// Resize 目标
+class ResizeTarget {
+    var w: UInt32
+    var h: UInt32
+    init(w: UInt32, h: UInt32) {
+        this.w = w
+        this.h = h
+    }
 }

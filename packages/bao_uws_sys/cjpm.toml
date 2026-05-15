@@ -1,0 +1,16 @@
+[package]
+cjc-version = "1.0.0"
+name = "bao_uws_sys"
+organization = "bao"
+description = "Bao uWebSocket system bindings"
+version = "0.1.0"
+compile-option = ""
+override-compile-option = ""
+link-option = ""
+output-type = "library"
+src-dir = "src"
+target-dir = ""
+
+[dependencies]
+bao_core = { path = "../bao_core" }
+bao_sys = { path = "../bao_sys" }

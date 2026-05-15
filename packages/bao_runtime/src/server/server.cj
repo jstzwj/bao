@@ -50,6 +50,15 @@ public typealias NodeHTTPResponse = node_http_response.NodeHTTPResponse
 /// 请求对象
 public typealias Request = request.Request
 
+/// Inspector Bun 前端开发服务器代理
+public typealias BunFrontendDevServerAgent = inspector_bun_frontend_dev_server_agent.BunFrontendDevServerAgent
+
+/// Inspector 句柄
+public typealias InspectorBunFrontendDevServerAgentHandle = inspector_bun_frontend_dev_server_agent.InspectorBunFrontendDevServerAgentHandle
+
+/// 控制台日志类型
+public typealias ConsoleLogKind = inspector_bun_frontend_dev_server_agent.ConsoleLogKind
+
 // ============================================================================
 // 写入HTTP状态行
 // 对应 Bun: pub fn writeStatus(comptime ssl: bool, resp_ptr: ?*uws.NewApp(ssl).Response, status: u16) void
