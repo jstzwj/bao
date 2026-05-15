@@ -19,6 +19,14 @@ public type JscContext = JsContext
 public type JscVM = JsVirtualMachine
 public type JscModule = JsModule
 
+// 新翻译的类型重新导出
+public type JscVirtualMachine = BunVirtualMachine
+public type JscConsoleObject = ConsoleObject
+public type JscJSGlobalObject = JSGlobalObject
+public type JscWebWorker = WebWorker
+public type JscRareData = RareData
+public type JscModuleLoader = ModuleLoader
+
 // FFI 类型
 public type JscContextRef = JSContextRef
 public type JscValueRef = JSValueRef
