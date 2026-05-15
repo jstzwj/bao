@@ -225,7 +225,7 @@ public class PerMessageDeflate {
     ///       }
     ///       return self;
     ///   }
-    public static func init(alloc: Allocator, params: WebSocketDeflateParams, rareData: UIntNative): ?PerMessageDeflate {
+    public static func initFunc(alloc: Allocator, params: WebSocketDeflateParams, rareData: UIntNative): ?PerMessageDeflate {
         let self = PerMessageDeflate()
         self.allocator_ = alloc
         self.params = params

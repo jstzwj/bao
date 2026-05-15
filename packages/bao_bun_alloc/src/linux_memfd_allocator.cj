@@ -247,7 +247,7 @@ public class MemFdAllocatorVTable {
         switch (munmapResult) {
             case .err(let err) =>
                 Output.debugWarn("Failed to munmap memfd: ${err}", [])
-            case .result => {}
+            case .result => ()
         }
     }
 }

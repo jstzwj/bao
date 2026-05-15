@@ -52,7 +52,7 @@ public enum Token {
     | EqualsGreaterThan // =>
     | Exclamation      // !
     | ExclamationEquals // !=
-    | ExclamationEqualsEquals // !==
+    | ExclamationEqualsEquals // !=
     | GreaterThan      // >
     | GreaterThanEquals // >=
     | GreaterThanGreaterThan // >>
@@ -227,7 +227,7 @@ public enum Token {
             case EqualsGreaterThan => "=>"
             case Exclamation => "!"
             case ExclamationEquals => "!="
-            case ExclamationEqualsEquals => "!=="
+            case ExclamationEqualsEquals => "!="
             case GreaterThan => ">"
             case GreaterThanEquals => ">="
             case GreaterThanGreaterThan => ">>"

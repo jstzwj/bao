@@ -33,7 +33,7 @@ public class SemVer {
         var s = "${major}.${minor}.${patch}"
         match (prerelease) {
             case Some(pre) => s = s + "-${pre}"
-            case None => {}
+            case None => ()
         }
         return s
     }

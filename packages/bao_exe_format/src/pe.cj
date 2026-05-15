@@ -645,7 +645,7 @@ public class PEFileInfo {
             match (sectOpt) {
                 case Some(sect) =>
                     info.sections.append(sect)
-                case None => {}
+                case None => ()
             }
         }
 

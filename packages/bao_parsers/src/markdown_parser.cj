@@ -425,7 +425,7 @@ public class MarkdownParser {
                     doc.addChild(result.node)
                     i++
                     continue
-                case None => {}
+                case None => ()
             }
 
             // 水平线 --- *** ___
@@ -442,7 +442,7 @@ public class MarkdownParser {
                     doc.addChild(result.node)
                     i = result.nextLine
                     continue
-                case None => {}
+                case None => ()
             }
 
             // 引用块 >
@@ -453,7 +453,7 @@ public class MarkdownParser {
                         doc.addChild(result.node)
                         i = result.nextLine
                         continue
-                    case None => {}
+                    case None => ()
                 }
             }
 
@@ -464,7 +464,7 @@ public class MarkdownParser {
                     doc.addChild(result.node)
                     i = result.nextLine
                     continue
-                case None => {}
+                case None => ()
             }
 
             // 表格 (需要至少 2 行)
@@ -474,7 +474,7 @@ public class MarkdownParser {
                     doc.addChild(result.node)
                     i = result.nextLine
                     continue
-                case None => {}
+                case None => ()
             }
 
             // HTML 块
@@ -485,7 +485,7 @@ public class MarkdownParser {
                         doc.addChild(result.node)
                         i = result.nextLine
                         continue
-                    case None => {}
+                    case None => ()
                 }
             }
 
@@ -496,7 +496,7 @@ public class MarkdownParser {
                     doc.addChild(result.node)
                     i = result.nextLine
                     continue
-                case None => {}
+                case None => ()
             }
 
             i++
@@ -1183,7 +1183,7 @@ public class MarkdownParser {
                         parent.addChild(r.node)
                         i = r.nextPos
                         continue
-                    case None => {}
+                    case None => ()
                 }
             }
 
@@ -1195,7 +1195,7 @@ public class MarkdownParser {
                         parent.addChild(r.node)
                         i = r.nextPos
                         continue
-                    case None => {}
+                    case None => ()
                 }
             }
 
@@ -1207,7 +1207,7 @@ public class MarkdownParser {
                         parent.addChild(r.node)
                         i = r.nextPos
                         continue
-                    case None => {}
+                    case None => ()
                 }
             }
 
@@ -1219,7 +1219,7 @@ public class MarkdownParser {
                         parent.addChild(r.node)
                         i = r.nextPos
                         continue
-                    case None => {}
+                    case None => ()
                 }
             }
 
@@ -1231,7 +1231,7 @@ public class MarkdownParser {
                         parent.addChild(r.node)
                         i = r.nextPos
                         continue
-                    case None => {}
+                    case None => ()
                 }
             }
 
@@ -1243,7 +1243,7 @@ public class MarkdownParser {
                         parent.addChild(r.node)
                         i = r.nextPos
                         continue
-                    case None => {}
+                    case None => ()
                 }
             }
 
@@ -1266,7 +1266,7 @@ public class MarkdownParser {
                         parent.addChild(r.node)
                         i = r.nextPos
                         continue
-                    case None => {}
+                    case None => ()
                 }
             }
 
@@ -1814,7 +1814,7 @@ public class MdRenderer {
                     case MdTableAlign.Left => sb.append(" align=\"left\"")
                     case MdTableAlign.Center => sb.append(" align=\"center\"")
                     case MdTableAlign.Right => sb.append(" align=\"right\"")
-                    case MdTableAlign.Default => {}
+                    case MdTableAlign.Default => ()
                 }
                 sb.append(">")
                 for (child in node.children) { renderHtmlNode(child, sb) }
@@ -1825,7 +1825,7 @@ public class MdRenderer {
                 sb.append("<br />")
             case MdNodeType.SoftBreak =>
                 sb.append("\n")
-            case MdNodeType.TaskListMarker => {}
+            case MdNodeType.TaskListMarker => ()
         }
     }
 
@@ -1923,7 +1923,7 @@ public class MdRenderer {
                 sb.append("  \n")
             case MdNodeType.SoftBreak =>
                 sb.append("\n")
-            case MdNodeType.TaskListMarker => {}
+            case MdNodeType.TaskListMarker => ()
             case MdNodeType.TableRow | MdNodeType.TableCell =>
                 sb.append(node.textContent())
         }

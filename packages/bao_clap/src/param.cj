@@ -75,7 +75,7 @@ public class ClapNames {
                 if (l == name) {
                     return true
                 }
-            case None => {}
+            case None => ()
         }
         for (alias in longAliases) {
             if (alias == name) {
@@ -309,11 +309,11 @@ public class ClapDiagnostic {
     private func formatName(): String {
         match (name.shortName) {
             case Some(s) => return "-${s}"
-            case None => {}
+            case None => ()
         }
         match (name.longName) {
             case Some(l) => return "--${l}"
-            case None => {}
+            case None => ()
         }
         return arg
     }

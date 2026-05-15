@@ -5,4 +5,5 @@ package bao_sql.mysql.protocol
 /// MySQL 协议包类型标识
 /// 对应 Bun: PacketType (enum u8)
 public enum PacketType {
+    | None
 }

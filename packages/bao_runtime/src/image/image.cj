@@ -48,7 +48,7 @@ public class BunImage {
         var img = BunImage(ImageSource.jsBuffer)
 
         // 解析源
-        val source = sourceFromJS(global, args[0])
+        let source = sourceFromJS(global, args[0])
         if (source == None) {
             return None
         }
@@ -68,12 +68,12 @@ public class BunImage {
         if (!opt.isObject()) {
             return
         }
-        val obj = opt.getObject()
-        val maxPixelsVal = obj.get("maxPixels")
+        let obj = opt.getObject()
+        let maxPixelsVal = obj.get("maxPixels")
         if (maxPixelsVal != None && maxPixelsVal.isNumber()) {
             img.maxPixels = UInt64(maxPixelsVal.toNumber().clamp(0.0, 1e15))
         }
-        val autoOrientVal = obj.get("autoOrient")
+        let autoOrientVal = obj.get("autoOrient")
         if (autoOrientVal != None) {
             img.autoOrient = autoOrientVal.toBoolean()
         }
@@ -84,21 +84,21 @@ public class BunImage {
     public static func sourceFromJS(global: JsObject, value: JsValue): ?ImageSource {
         // 字符串 -> 文件路径或 data: URL
         if (value.valueType == JsValueType.String) {
-            val s = value.toString()
+            let s = value.toString()
 
             // data: URL
             if (s.startsWith("data:")) {
-                val commaIdx = s.indexOf(',')
+                let commaIdx = s.indexOf(',')
                 if (commaIdx == None) {
                     return None
                 }
-                val meta = s.subString(5, commaIdx!)
-                val payload = s.subString(commaIdx! + 1)
+                let meta = s.subString(5, commaIdx!)
+                let payload = s.subString(commaIdx! + 1)
                 if (!meta.contains(";base64")) {
                     return None
                 }
                 // 解码 base64
-                val decoded = base64Decode(payload)
+                let decoded = base64Decode(payload)
                 if (decoded == None) {
                     return None
                 }
@@ -143,16 +143,16 @@ public class BunImage {
         )
 
         if (args.size > 2 && args[2].valueType == JsValueType.Object) {
-            val opt = args[2].getObject()
-            val filterVal = opt.get("filter")
+            let opt = args[2].getObject()
+            let filterVal = opt.get("filter")
             if (filterVal != None && filterVal.valueType == JsValueType.String) {
                 resize.filter = ImageFilter.fromString(filterVal.toString())
             }
-            val fitVal = opt.get("fit")
+            let fitVal = opt.get("fit")
             if (fitVal != None && fitVal.valueType == JsValueType.String) {
                 resize.fit = ImageFit.fromString(fitVal.toString())
             }
-            val withoutEnlargement = opt.get("withoutEnlargement")
+            let withoutEnlargement = opt.get("withoutEnlargement")
             if (withoutEnlargement != None) {
                 resize.withoutEnlargement = withoutEnlargement.toBoolean()
             }
@@ -169,8 +169,8 @@ public class BunImage {
             return this
         }
 
-        val raw = Int64(args[0].toNumber().clamp(-1e15, 1e15))
-        val deg = ((raw % 360) + 360) % 360
+        let raw = Int64(args[0].toNumber().clamp(-1e15, 1e15))
+        let deg = ((raw % 360) + 360) % 360
         if (deg != 0 && deg != 90 && deg != 180 && deg != 270) {
             return this
         }
@@ -203,16 +203,16 @@ public class BunImage {
         }
 
         if (args.size > 0 && args[0].valueType == JsValueType.Object) {
-            val opt = args[0].getObject()
-            val brightness = opt.get("brightness")
+            let opt = args[0].getObject()
+            let brightness = opt.get("brightness")
             if (brightness != None && brightness.isNumber()) {
-                val x = brightness.toNumber()
-                m.brightness = if (x.isFinite()) { Float32(x.clamp(0.0, 10000.0)) } else { 1.0f }
+                let x = brightness.toNumber()
+                m.brightness = if (x.isFinite()) { Float32(x.clamp(0.0, 10000.0)) } else { 1.0f32 }
             }
-            val saturation = opt.get("saturation")
+            let saturation = opt.get("saturation")
             if (saturation != None && saturation.isNumber()) {
-                val x = saturation.toNumber()
-                m.saturation = if (x.isFinite()) { Float32(x.clamp(0.0, 10000.0)) } else { 1.0f }
+                let x = saturation.toNumber()
+                m.saturation = if (x.isFinite()) { Float32(x.clamp(0.0, 10000.0)) } else { 1.0f32 }
             }
         }
 
@@ -266,32 +266,32 @@ public class BunImage {
         enc.format = fmt
 
         if (args.size > 0 && args[0].valueType == JsValueType.Object) {
-            val opt = args[0].getObject()
-            val quality = opt.get("quality")
+            let opt = args[0].getObject()
+            let quality = opt.get("quality")
             if (quality != None && quality.isNumber()) {
                 enc.quality = UInt8(quality.toNumber().clamp(1.0, 100.0))
             }
-            val lossless = opt.get("lossless")
+            let lossless = opt.get("lossless")
             if (lossless != None) {
                 enc.lossless = lossless.toBoolean()
             }
-            val compressionLevel = opt.get("compressionLevel")
+            let compressionLevel = opt.get("compressionLevel")
             if (compressionLevel != None && compressionLevel.isNumber()) {
                 enc.compressionLevel = Int8(compressionLevel.toNumber().clamp(0.0, 9.0))
             }
-            val palette = opt.get("palette")
+            let palette = opt.get("palette")
             if (palette != None) {
                 enc.palette = palette.toBoolean()
             }
-            val colors = opt.get("colors")
+            let colors = opt.get("colors")
             if (colors != None && colors.isNumber()) {
                 enc.colors = UInt16(colors.toNumber().clamp(2.0, 256.0))
             }
-            val dither = opt.get("dither")
+            let dither = opt.get("dither")
             if (dither != None) {
                 enc.dither = dither.toBoolean()
             }
-            val progressive = opt.get("progressive")
+            let progressive = opt.get("progressive")
             if (progressive != None) {
                 enc.progressive = progressive.toBoolean()
             }
@@ -310,7 +310,7 @@ public class BunImage {
     /// 对应 Bun: doMetadata
     public func doMetadata(global: JsObject): JsValue {
         // 简化实现：同步探测头部
-        val obj = JsObject()
+        let obj = JsObject()
         obj.set("width", JsValue(Float64(lastWidth)))
         obj.set("height", JsValue(Float64(lastHeight)))
         obj.set("format", JsValue("png"))
@@ -351,7 +351,7 @@ public class BunImage {
     /// 对应 Bun: doPlaceholder
     public func doPlaceholder(global: JsObject, args: ArrayList<JsValue>): JsValue {
         if (args.size > 0 && !args[0].isUndefinedOrNull()) {
-            val s = args[0].toString()
+            let s = args[0].toString()
             if (s != "dataurl") {
                 return JsValue.UNDEFINED
             }
@@ -369,8 +369,8 @@ public class BunImage {
         var output = pipeline.output
         // 如果目标为字符串且未指定格式，从扩展名推断
         if (output == None && args[0].valueType == JsValueType.String) {
-            val path = args[0].toString()
-            val fmt = ImageFormat.fromExtension(path)
+            let path = args[0].toString()
+            let fmt = ImageFormat.fromExtension(path)
             if (fmt != None) {
                 output = EncodeOptions(format: fmt!)
             }
@@ -382,7 +382,7 @@ public class BunImage {
     /// 调度异步任务
     /// 对应 Bun: schedule
     func schedule(global: JsObject, kind: PipelineTaskKind, deliver: DeliverKind): JsValue {
-        val promise = JsPromise()
+        let promise = JsPromise()
         pendingTasks += 1
         // 实际实现会将任务提交到工作池
         return promise.value()
@@ -438,9 +438,9 @@ public enum ImageSource {
 
     public func deinit(): Unit {
         match (this) {
-            case ImageSource.jsBuffer | ImageSource.blob => {}
-            case ImageSource.owned(bytes) => {} // bytes 由分配器释放
-            case ImageSource.path(p) => {}
+            case ImageSource.jsBuffer | ImageSource.blob => ()
+            case ImageSource.owned(bytes) => () // bytes 由分配器释放
+            case ImageSource.path(p) => ()
         }
     }
 }
@@ -496,9 +496,9 @@ public class ImageResize {
 /// 图像调制参数
 public class ImageModulate {
     /// 亮度乘数; 1.0 = 不变
-    public var brightness: Float32 = 1.0f
+    public var brightness: Float32 = 1.0f32
     /// 饱和度; 0 = 灰度, 1 = 不变, >1 = 增强
-    public var saturation: Float32 = 1.0f
+    public var saturation: Float32 = 1.0f32
 
     public init() {}
 }
@@ -537,7 +537,7 @@ public enum ImageFormat {
     }
 
     public static func fromExtension(path: String): ?ImageFormat {
-        val lower = path.toLower()
+        let lower = path.toLower()
         if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return jpeg
         if (lower.endsWith(".png")) return png
         if (lower.endsWith(".webp")) return webp
@@ -825,7 +825,7 @@ public class PipelineTask {
         //    所以任何在 resize 之前运行的 90/270 rotate — 显式或 EXIF 自动方向 —
         //    需要交换提示轴, 否则一个轴可能过度缩小然后放大, 丢失细节。
         //    (flip/flop 是纯镜像, 从不改变 w/h, 所以提示通过它们仍然有效。)
-        val hint = DecodeHint()
+        let hint = DecodeHint()
         if (this.pipeline.resize != None) {
             let r = this.pipeline.resize!
             var tw = r.w
@@ -912,16 +912,16 @@ public class PipelineTask {
     /// 所以覆盖 d.* 整体会丢失源的颜色配置文件。几何不改变颜色含义,
     /// 因此配置文件不变地存活。
     public func applyPipeline(decoded: DecodedImage): Unit {
-        val p = pipeline
+        let p = pipeline
 
         // 旋转
         if (p.rotate != 0) {
             // val next = Codecs.rotate(decoded.rgba, decoded.width, decoded.height, p.rotate)
             // if (next == None) { return /* error */ }
             // 释放 decoded.rgba
-            // decoded.rgba = next!.rgba
-            // decoded.width = next!.width
-            // decoded.height = next!.height
+            // decoded.rgba = next.getOrThrow().rgba
+            // decoded.width = next.getOrThrow().width
+            // decoded.height = next.getOrThrow().height
         }
 
         // 翻转（垂直）
@@ -942,8 +942,8 @@ public class PipelineTask {
 
         // 缩放
         if (p.resize != None) {
-            val r = p.resize!
-            val t = resolveResize(r, decoded.width, decoded.height)
+            let r = p.resize!
+            let t = resolveResize(r, decoded.width, decoded.height)
             // 守卫输出画布和 H-then-V 中间体 (总是 dst_w x src_h —
             // image_resize.cpp 通过顺序是固定的)。
             // 1xN 源 -> resize(W,1) 有微小输入和输出画布,
@@ -967,7 +967,7 @@ public class PipelineTask {
 
         // 调制
         if (p.modulate != None) {
-            val m = p.modulate!
+            let m = p.modulate!
             Codecs.modulate(decoded.rgba, m.brightness, m.saturation)
         }
     }
@@ -986,8 +986,8 @@ public class PipelineTask {
         }
         if (r.fit == ImageFit.inside) {
             // 缩小框以保持源的纵横比并使两侧都适合。(Sharp 的 fit:'inside')
-            val sx = Float64(w) / Float64(sw)
-            val sy = Float64(h) / Float64(sh)
+            let sx = Float64(w) / Float64(sw)
+            let sy = Float64(h) / Float64(sh)
             let s = if (sx < sy) { sx } else { sy }
             w = UInt64((Float64(sw) * s + 0.5).clamp(1.0, Float64(0x3FFFF))).truncateToUInt32()
             h = UInt64((Float64(sh) * s + 0.5).clamp(1.0, Float64(0x3FFFF))).truncateToUInt32()
@@ -1016,9 +1016,9 @@ public class PipelineTask {
             // 旋转
             // val next = Codecs.rotate(d.rgba, d.width, d.height, t[2])
             // 释放 d.rgba
-            // d.rgba = next!.rgba
-            // d.width = next!.width
-            // d.height = next!.height
+            // d.rgba = next.getOrThrow().rgba
+            // d.width = next.getOrThrow().width
+            // d.height = next.getOrThrow().height
         }
     }
 
@@ -1040,10 +1040,10 @@ public class PipelineTask {
             let r = Float32(w) / Float32(h)
             if (r > 1) {
                 w = maxIn
-                h = UInt32((Float32(maxIn) / r + 0.5f).clamp(1.0f, Float32(maxIn)))
+                h = UInt32((Float32(maxIn) / r + 0.5f32).clamp(1.0f32, Float32(maxIn)))
             } else {
                 h = maxIn
-                w = UInt32((Float32(maxIn) * r + 0.5f).clamp(1.0f, Float32(maxIn)))
+                w = UInt32((Float32(maxIn) * r + 0.5f32).clamp(1.0f32, Float32(maxIn)))
             }
             // owned = Codecs.resize(rgba, sw, sh, w, h, Filter.box)
             // if (owned == None) { return PipelineResult.err("DecodeFailed") }
@@ -1061,13 +1061,13 @@ public class PipelineTask {
 
         // 3. 编码为 PNG
         // 占位符是合成 ThumbHash 渲染, 不是源图像 — 没有 ICC 配置文件附加。
-        // let pngOut = CodecPng.encode(renderedOpt!.rgba, renderedOpt!.width,
-        //                               renderedOpt!.height, -1, None)
+        // let pngOut = CodecPng.encode(renderedOpt.getOrThrow().rgba, renderedOpt.getOrThrow().width,
+        //                               renderedOpt.getOrThrow().height, -1, None)
         // if (pngOut == None) { return PipelineResult.err("DecodeFailed") }
 
         // return PipelineResult.encoded(EncodedResult(
-        //     bytes: pngOut!.bytes, format: ImageFormat.png,
-        //     w: renderedOpt!.width, h: renderedOpt!.height))
+        //     bytes: pngOut.getOrThrow().bytes, format: ImageFormat.png,
+        //     w: renderedOpt.getOrThrow().width, h: renderedOpt.getOrThrow().height))
         return PipelineResult.err("DecodeFailed")
     }
 
@@ -1080,14 +1080,12 @@ public class PipelineTask {
 
 /// 管线结果
 public enum PipelineResult {
-    | encoded(EncodedResult)
-    | meta(MetaResult)
-    | err(String)
-    | ioErr(String)
-
-    public init() {
-        this = PipelineResult.err("DecodeFailed")
-    }
+    | encoded
+    | meta
+    | err
+    | ioErr
+    | this
+}
 }
 
 /// 编码结果

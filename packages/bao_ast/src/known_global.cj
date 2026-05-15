@@ -180,7 +180,7 @@ public class KnownGlobalOptimizer {
                         case ExprTag.Object | ExprTag.Array => return arg
                         case ExprTag.Null | ExprTag.Undefined =>
                             return ExprFactory.object(ArrayList<GProperty>(), loc)
-                        case _ => {}
+                        case _ => ()
                     }
                 }
                 // 其他情况: 去掉 new

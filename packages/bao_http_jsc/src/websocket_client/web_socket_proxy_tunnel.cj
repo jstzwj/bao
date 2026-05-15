@@ -182,7 +182,7 @@ public class WebSocketProxyTunnel {
     ///       sni_hostname: []const u8,
     ///       reject_unauthorized: bool,
     ///   ) !*WebSocketProxyTunnel
-    public static func init(
+    public static func initFunc(
         ssl: Bool,
         upgradeClient: HTTPUpgradeClient,
         socket: UWSSocket,

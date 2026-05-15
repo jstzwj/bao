@@ -151,7 +151,7 @@ public class NpmRegistryMap {
             let scopeHash = NpmRegistryScope.hashURL(scopeName)
             match (scopes.get(scopeHash)) {
                 case Some(scope) => return scope
-                case None => {}
+                case None => ()
             }
         }
         // 返回默认 scope
@@ -324,7 +324,7 @@ public class NpmClient {
             let json = bao_json.JsonParser.parse(body)
             match (json.get("error")) {
                 case Some(e) => message = message + ": ${e.asString()}"
-                case None => {}
+                case None => ()
             }
         } catch (_: Exception) {
             // 无法解析 JSON, 使用原始 body
@@ -342,7 +342,7 @@ public class NpmClient {
                         case None => message = message + "\n - '${name}' does not exist in this registry"
                     }
                 }
-                case None => {}
+                case None => ()
             }
         }
 

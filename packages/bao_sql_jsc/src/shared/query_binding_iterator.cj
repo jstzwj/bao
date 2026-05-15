@@ -21,7 +21,7 @@ public class QueryBindingIterator {
 
     /// 初始化迭代器
     /// 对应 Bun: QueryBindingIterator.init
-    public static func init(array: JscValue, columns: JscValue,
+    public static func initFunc(array: JscValue, columns: JscValue,
                             globalObject: JscJSGlobalObject): ?QueryBindingIterator {
         if (columns.isEmptyOrUndefinedOrNull()) {
             let arrayIter = JsArrayIterator.init(array, globalObject)

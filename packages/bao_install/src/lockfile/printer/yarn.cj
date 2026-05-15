@@ -128,7 +128,7 @@ public class YarnPrinter {
                                         continue
                                     }
                                 }
-                                case None => {}
+                                case None => ()
                             }
                             sb.append(", ")
                             needsComma = false

@@ -29,7 +29,7 @@ public func msgFromJS(allocator: Allocator, globalObject: JSGlobalObject, file: 
 
 /// 将 Msg 转换为 JS 值 - 严格对应 Bun msgToJS
 /// Bun: switch (this.metadata) { .build => ..., .resolve => ... }
-public func msgToJS(this: Msg, globalObject: JSGlobalObject, allocator: Allocator): JSValue {
+public func msgToJS(`this`: Msg, globalObject: JSGlobalObject, allocator: Allocator): JSValue {
     // 在 Bun 中，根据 metadata 类型创建 BuildMessage 或 ResolveMessage
     // 这里简化为创建一个 Error 对象
     let text = this.data.text
@@ -53,7 +53,7 @@ public func levelFromJS(globalThis: JSGlobalObject, value: JSValue): ?LogLevel {
 
 /// 将 Log 转换为 JS 值 - 严格对应 Bun logToJS
 /// Zig: pub fn logToJS(this: Log, global, allocator, message) bun.JSError!jsc.JSValue
-public func logToJS(this: Log, global: JSGlobalObject, allocator: Allocator, message: String): JSValue {
+public func logToJS(`this`: Log, global: JSGlobalObject, allocator: Allocator, message: String): JSValue {
     let msgs: Array<Msg> = this.msgs.items
     let count = msgs.size
 
@@ -77,14 +77,14 @@ public func logToJS(this: Log, global: JSGlobalObject, allocator: Allocator, mes
 
 /// 将 Log 转换为 AggregateError - 严格对应 Bun logToJSAggregateError
 /// Zig: pub fn logToJSAggregateError(this: Log, global, message) bun.JSError!jsc.JSValue
-public func logToJSAggregateError(this: Log, global: JSGlobalObject, message: BaoString): JSValue {
+public func logToJSAggregateError(`this`: Log, global: JSGlobalObject, message: BaoString): JSValue {
     let jsArray = logToJSArray(this, global, Allocator.default)
     return global.createAggregateErrorWithArray(message, jsArray)
 }
 
 /// 将 Log 转换为 JS 数组 - 严格对应 Bun logToJSArray
 /// Zig: pub fn logToJSArray(this: Log, global, allocator) bun.JSError!jsc.JSValue
-public func logToJSArray(this: Log, global: JSGlobalObject, allocator: Allocator): JSValue {
+public func logToJSArray(`this`: Log, global: JSGlobalObject, allocator: Allocator): JSValue {
     let msgs: Array<Msg> = this.msgs.items
     let arr = JSValue.createEmptyArray(global, msgs.size)
     for (i in 0..msgs.size) {

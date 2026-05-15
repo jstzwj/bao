@@ -35,7 +35,7 @@ public class FilterScriptConfig {
 /// 使用 --filter/--workspaces 运行脚本
 /// 对应 Bun: runScriptsWithFilter()
 public func runScriptsWithFilter(ctx: CommandContext): Unit {
-    val scriptName = if (ctx.positionals.size > 1) {
+    let scriptName = if (ctx.positionals.size > 1) {
         ctx.positionals[1]
     } else if (ctx.positionals.size > 0) {
         ctx.positionals[0]
@@ -45,10 +45,10 @@ public func runScriptsWithFilter(ctx: CommandContext): Unit {
         return
     }
 
-    val preScriptName = "pre${scriptName}"
-    val postScriptName = "post${scriptName}"
+    let preScriptName = "pre${scriptName}"
+    let postScriptName = "post${scriptName}"
 
-    val fsInstance = FileSystem.init()
+    let fsInstance = FileSystem.init()
 
     // 确定 filter
     var filtersToUse = ctx.filters
@@ -57,52 +57,52 @@ public func runScriptsWithFilter(ctx: CommandContext): Unit {
         filtersToUse.append("*")
     }
 
-    val filterInstance = FilterSet(ctx.allocator, filtersToUse, fsInstance.topLevelDir)
-    val patterns = ArrayList<String>()
+    let filterInstance = FilterSet(ctx.allocator, filtersToUse, fsInstance.topLevelDir)
+    let patterns = ArrayList<String>()
 
-    val rootBuf = StringBuilder()
-    val resolveRoot = getCandidatePackagePatterns(ctx.allocator, ctx.log, patterns, fsInstance.topLevelDir, rootBuf)
+    let rootBuf = StringBuilder()
+    let resolveRoot = getCandidatePackagePatterns(ctx.allocator, ctx.log, patterns, fsInstance.topLevelDir, rootBuf)
 
     // 配置环境
-    val thisTranspiler = Transpiler()
+    let thisTranspiler = Transpiler()
     RunCommand.configureEnvForRun(ctx, thisTranspiler, None, true, false)
 
-    val packageJsonIter = PackageFilterIterator(ctx.allocator, patterns, resolveRoot)
+    let packageJsonIter = PackageFilterIterator(ctx.allocator, patterns, resolveRoot)
 
     // 收集脚本配置
-    val scripts = ArrayList<FilterScriptConfig>()
+    let scripts = ArrayList<FilterScriptConfig>()
 
     while (true) {
-        val packageJsonPath = packageJsonIter.next()
+        let packageJsonPath = packageJsonIter.next()
         if (packageJsonPath == None) {
             break
         }
 
-        val dirpath = Path.dirname(packageJsonPath!!)
-        val path = Strings.withoutTrailingSlash(dirpath)
+        let dirpath = Path.dirname(packageJsonPath!!)
+        let path = Strings.withoutTrailingSlash(dirpath)
 
         // 使用 --workspaces 时跳过根包
         if (ctx.workspaces && path == resolveRoot) {
             continue
         }
 
-        val pkgjson = PackageJSON.parse(thisTranspiler.resolver, dirpath)
+        let pkgjson = PackageJSON.parse(thisTranspiler.resolver, dirpath)
         if (pkgjson == None) {
             continue
         }
 
-        val pkgscripts = pkgjson!!.scripts ?: continue
+        let pkgscripts = pkgjson!!.scripts ?: continue
 
         if (!filterInstance.matches(path, pkgjson!!.name)) {
             continue
         }
 
-        val pkgPATH = RunCommand.configurePathForRunWithPackageJsonDir(ctx, dirpath, thisTranspiler, None, dirpath, ctx.debug.runInBun)
+        let pkgPATH = RunCommand.configurePathForRunWithPackageJsonDir(ctx, dirpath, thisTranspiler, None, dirpath, ctx.debug.runInBun)
 
         // pre/main/post 脚本
-        val scriptNames = [preScriptName, scriptName, postScriptName]
+        let scriptNames = [preScriptName, scriptName, postScriptName]
         for ((i, name) in scriptNames.iterator().indexed()) {
-            val originalContent = pkgscripts.get(name)
+            let originalContent = pkgscripts.get(name)
             if (originalContent == None) {
                 if (i == 1 && ctx.workspaces && !ctx.ifPresent) {
                     Output.errGeneric("Missing '${scriptName}' script at '${path}'")
@@ -113,14 +113,14 @@ public func runScriptsWithFilter(ctx: CommandContext): Unit {
 
             var copyScript = StringBuilder()
             copyScript.append(RunCommand.replacePackageManagerRun(originalContent!!))
-            val lenCommandOnly = copyScript.length
+            let lenCommandOnly = copyScript.length
 
             for (part in ctx.passthrough) {
                 copyScript.append(' ')
                 copyScript.append(Shell.escape(part))
             }
 
-            val config = FilterScriptConfig()
+            let config = FilterScriptConfig()
             config.packageJsonPath = packageJsonPath!!
             config.packageName = pkgjson!!.name
             config.scriptName = name
@@ -146,11 +146,11 @@ public func runScriptsWithFilter(ctx: CommandContext): Unit {
         Global.exit(1)
     }
 
-    val eventLoop = MiniEventLoop.initGlobal(thisTranspiler.env, None)
-    val shellBin = RunCommand.findShell(thisTranspiler.env.get("PATH") ?: "", fsInstance.topLevelDir)
+    let eventLoop = MiniEventLoop.initGlobal(thisTranspiler.env, None)
+    let shellBin = RunCommand.findShell(thisTranspiler.env.get("PATH") ?: "", fsInstance.topLevelDir)
         ?: { Output.prettyErrorLn("error: Missing shell"); Global.exit(1) }()
 
-    val state = FilterRunState()
+    let state = FilterRunState()
     state.handles = ArrayList<FilterProcessHandle>()
     state.eventLoop = eventLoop
     state.prettyOutput = Output.enableAnsiColorsStdout
@@ -158,9 +158,9 @@ public func runScriptsWithFilter(ctx: CommandContext): Unit {
     state.env = thisTranspiler.env
 
     // 初始化 handles
-    val map = HashMap<String, ArrayList<FilterProcessHandle>>()
+    let map = HashMap<String, ArrayList<FilterProcessHandle>>()
     for (script in scripts) {
-        val handle = FilterProcessHandle()
+        let handle = FilterProcessHandle()
         handle.state = state
         handle.config = script
         handle.options = SpawnOptions()
@@ -171,16 +171,16 @@ public func runScriptsWithFilter(ctx: CommandContext): Unit {
         handle.options.stream = true
         state.handles.append(handle)
 
-        val res = map.getOrPut(script.packageName, { ArrayList<FilterProcessHandle>() })
+        let res = map.getOrPut(script.packageName, { ArrayList<FilterProcessHandle>() })
         res.append(handle)
     }
 
     // 计算依赖
     for (handle in state.handles) {
-        val deps = handle.config.deps
+        let deps = handle.config.deps
         for ((name, _) in deps) {
             if (map.contains(name)) {
-                val pkgs = map.get(name)!!
+                let pkgs = map.get(name)!!
                 for (dep in pkgs) {
                     dep.dependents.append(handle)
                     handle.remainingDependencies += 1
@@ -229,7 +229,7 @@ public func runScriptsWithFilter(ctx: CommandContext): Unit {
         eventLoop.tickOnce(state)
     }
 
-    val status = state.finalize()
+    let status = state.finalize()
     Global.exit(status)
 }
 
@@ -269,24 +269,24 @@ public class FilterRunState {
             handle.buffer.append(chunk)
             redraw(false)
         } else {
-            val content = chunk
+            let content = chunk
             drawBuf.clear()
             if (handle.buffer.length > 0) {
-                val newlineIdx = content.indexOf('\n')
+                let newlineIdx = content.indexOf('\n')
                 if (newlineIdx >= 0) {
                     handle.buffer.append(content.substring(0, newlineIdx + 1))
-                    val rest = content.substring(newlineIdx + 1)
+                    let rest = content.substring(newlineIdx + 1)
                     drawBuf.append("${handle.config.packageName} ${handle.config.scriptName}: ${handle.buffer.toString()}")
                     handle.buffer.clear()
                     // 处理剩余行
                     var remaining = rest
                     while (true) {
-                        val idx = remaining.indexOf('\n')
+                        let idx = remaining.indexOf('\n')
                         if (idx < 0) {
                             handle.buffer.append(remaining)
                             break
                         }
-                        val line = remaining.substring(0, idx + 1)
+                        let line = remaining.substring(0, idx + 1)
                         drawBuf.append("${handle.config.packageName} ${handle.config.scriptName}: ${line}")
                         remaining = remaining.substring(idx + 1)
                     }
@@ -338,7 +338,7 @@ public class FilterRunState {
         }
         drawBuf.clear()
         for (handle in handles) {
-            val elideLines = if (isAbort) None else handle.config.elideCount ?: 10
+            let elideLines = if (isAbort) None else handle.config.elideCount ?: 10
             drawBuf.append("${handle.config.packageName} ${handle.config.scriptName} $ ${handle.config.scriptContent}\n")
             // 简化: 显示缓冲区内容
             if (handle.buffer.length > 0) {
@@ -442,7 +442,7 @@ public class FilterProcessHandle {
     public func start(): Unit {
         state.remainingScripts += 1
 
-        val argv = [state.shellBin, "-c", config.combined]
+        let argv = [state.shellBin, "-c", config.combined]
         process = Sys.spawnProcess(options, argv)
         status = ProcessStatus.running
     }

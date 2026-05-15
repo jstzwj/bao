@@ -367,7 +367,7 @@ public class CodeGenerator {
                 case Some(chunk) =>
                     let output = generateChunkOutput(chunk, modules, chunks)
                     outputs.append(output)
-                case None => {}
+                case None => ()
             }
         }
 
@@ -424,7 +424,7 @@ public class CodeGenerator {
                         let renamed = rewriter.rewriteSymbol(sym)
                         sb.append("import { ${sym} as ${renamed} } from \"${relPath}\";\n")
                     }
-                case None => {}
+                case None => ()
             }
         }
 
@@ -509,7 +509,7 @@ public class CodeGenerator {
                     let relPath = computeRelativePath(chunk.finalRelPath, targetChunk.finalRelPath)
                     sb.append("// Cross-chunk import: ${relPath}\n")
                     sb.append("var __chunk_${crossImport.chunkIndex} = require(\"${relPath}\");\n")
-                case None => {}
+                case None => ()
             }
         }
 
@@ -589,7 +589,7 @@ public class CodeGenerator {
             var result = "if${sep}(${cond})${sep}{\n"
             match (stmt.thenBody) {
                 case Some(body) => result += "  ${printStatement(body, minify)}\n"
-                case None => {}
+                case None => ()
             }
             result += "}"
             match (stmt.elseBody) {
@@ -597,7 +597,7 @@ public class CodeGenerator {
                     result += "${sep}else${sep}{\n"
                     result += "  ${printStatement(elseBody, minify)}\n"
                     result += "}"
-                case None => {}
+                case None => ()
             }
             return result
         }
@@ -714,7 +714,7 @@ public class CodeGenerator {
                 }
 
                 sb.append("${sep}from${sep}\"${path}\";")
-            case None => {}
+            case None => ()
         }
 
         return sb.toString()
@@ -747,7 +747,7 @@ public class CodeGenerator {
                 if (!minify) { sb.append(" ") }
                 sb.append("}${sep}from${sep}\"${pathStr}\";")
                 return sb.toString()
-            case None => {}
+            case None => ()
         }
 
         // export { ... }
@@ -974,7 +974,7 @@ public class CodeGenerator {
                         es.exportedNames.append(name)
                     }
                     return rewriter.rewriteExportStatement(moduleId, es)
-                case None => {}
+                case None => ()
             }
             // 本地导出
             let sb = StringBuilder()
@@ -1128,11 +1128,11 @@ public class CodeSplitter {
                             match (stmt.expr) {
                                 case Some(expr) =>
                                     collectDynamicImports(expr, mod.path, dynamicImports)
-                                case None => {}
+                                case None => ()
                             }
                         }
                     }
-                case None => {}
+                case None => ()
             }
         }
 
@@ -1202,7 +1202,7 @@ public class CodeSplitter {
                             }
                         }
                     }
-                case None => {}
+                case None => ()
             }
             // 递归搜索参数
             for (arg in expr.args) {
@@ -1212,11 +1212,11 @@ public class CodeSplitter {
         // 递归搜索子表达式
         match (expr.left) {
             case Some(l) => collectDynamicImports(l, fromModule, results)
-            case None => {}
+            case None => ()
         }
         match (expr.right) {
             case Some(r) => collectDynamicImports(r, fromModule, results)
-            case None => {}
+            case None => ()
         }
     }
 
@@ -1337,7 +1337,7 @@ public class DefineReplacer {
     public func getReplacement(name: String): ?String {
         match (defines.get(name)) {
             case Some(v) => return Some(v)
-            case None => {}
+            case None => ()
         }
         // process.env.XXX 模式
         if (name.startsWith(envPrefix)) {
@@ -1346,7 +1346,7 @@ public class DefineReplacer {
             // 检查 process.env.XXX 格式
             match (defines.get("process.env.${envKey}")) {
                 case Some(v) => return Some(v)
-                case None => {}
+                case None => ()
             }
         }
         return None

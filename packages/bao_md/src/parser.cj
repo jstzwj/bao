@@ -69,7 +69,7 @@ public class Parser {
     public init() {}
 
     /// 初始化解析器
-    public static func init(text: String, flags: Flags, rend: Renderer): Parser {
+    public static func initFunc(text: String, flags: Flags, rend: Renderer): Parser {
         let size: OFF = OFF(text.length)
         let p = Parser()
         p.text = text

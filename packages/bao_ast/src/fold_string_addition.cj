@@ -40,7 +40,7 @@ public func joinStrings(left: EString, right: EString, hasInlinedEnumPoison: Boo
     }
 
     // 右侧也需要克隆 (枚举 rope)
-    val rhsClone = EString(right.data)
+    let rhsClone = EString(right.data)
     rhsClone.preferTemplate = right.preferTemplate
     rhsClone.isUtf16 = right.isUtf16
     rhsClone.ropeLen = right.ropeLen
@@ -69,7 +69,7 @@ public func foldStringAddition(l: ASTNode, r: ASTNode, kind: FoldStringAdditionK
                     lhs = strExpr.orElse(lhs)
                 }
             }
-            case _ => {}
+            case _ => ()
         }
     }
 
@@ -126,7 +126,7 @@ public func foldStringAddition(l: ASTNode, r: ASTNode, kind: FoldStringAdditionK
             return None
         }
 
-        case _ => {}
+        case _ => ()
     }
 
     // x + "" => x (如果 x 是字符串)

@@ -126,7 +126,7 @@ public class FsPath {
     }
 
     /// 从字符串创建 - 对应 Bun Fs.Path.init()
-    public static func init(text: String): FsPath {
+    public static func initFunc(text: String): FsPath {
         return FsPath(text: text)
     }
 

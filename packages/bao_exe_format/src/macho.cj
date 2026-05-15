@@ -114,12 +114,12 @@ public let S_ATTR_NO_DEAD_STRIP: UInt32 = UInt32(0x200000)
 
 /// __BUN 段名称 (16 字节, 零填充)
 // 对应 macho.zig:
-//   pub const SEGNAME_BUN = "__BUN\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00".*
+//   pub const SEGNAME_BUN = "__BUN\u{00}\u{00}\u{00}\u{00}\u{00}\u{00}\u{00}\u{00}\u{00}\u{00}\u{00}".*
 public let SEGNAME_BUN: String = "__BUN"
 
 /// __bun 节名称 (16 字节, 零填充)
 // 对应 macho.zig:
-//   pub const SECTNAME = "__bun\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00".*
+//   pub const SECTNAME = "__bun\u{00}\u{00}\u{00}\u{00}\u{00}\u{00}\u{00}\u{00}\u{00}\u{00}\u{00}".*
 public let SECTNAME_BUN: String = "__bun"
 
 /// __LINKEDIT 段名称
@@ -712,13 +712,13 @@ public class MachOFileInfo {
                             match (segOpt) {
                                 case Some(seg) =>
                                     info.segments.append(seg)
-                                case None => {}
+                                case None => ()
                             }
                         case LC_CODE_SIGNATURE =>
                             info.codeSignature = entry.toLinkEditData()
                         case LC_BUILD_VERSION =>
                             info.buildVersion = entry.toBuildVersion()
-                        case _ => {}
+                        case _ => ()
                     }
                 case None =>
                     break

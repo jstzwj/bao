@@ -370,7 +370,7 @@ public class UTF8Slice {
 public class CppTask {}
 
 public class TaskInit {
-    public static func init(_ task: CppTask) -> Task { Task() }
+    public static func initFunc(_ task: CppTask) -> Task { Task() }
 }
 
 public class Task {}
@@ -431,7 +431,7 @@ public enum VerboseFetchMode {
 }
 
 public class ManagedTaskNew {
-    public static func init(_ context: HandledPromiseContext, _ callback: (HandledPromiseContext) -> Void) -> Task { Task() }
+    public static func initFunc(_ context: HandledPromiseContext, _ callback: (HandledPromiseContext) -> Void) -> Task { Task() }
 }
 
 public class Math {

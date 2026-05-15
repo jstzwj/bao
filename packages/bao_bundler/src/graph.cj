@@ -327,7 +327,7 @@ public class BundlerThreadPool {
         if (workerPoolIsOwned) {
             match (workerPool) {
                 case Some(pool) => pool.deinit()
-                case None => {}
+                case None => ()
             }
         }
         if (usesIOPool()) {
@@ -340,11 +340,11 @@ public class BundlerThreadPool {
     public func start(): Unit {
         match (workerPool) {
             case Some(pool) => pool.warm(8)
-            case None => {}
+            case None => ()
         }
         match (ioPool) {
             case Some(pool) => pool.warm(1)
-            case None => {}
+            case None => ()
         }
     }
 

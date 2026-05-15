@@ -246,7 +246,7 @@ public class Binding {
                     }
                 }
             }
-            case Missing => {}
+            case Missing => ()
         }
     }
 }

@@ -235,7 +235,7 @@ public class JsCallbackRenderer {
         public var detail: SpanDetail
     }
 
-    public static func init(globalObject: JsGlobalObject, srcText: String, headingIds: Bool): JsCallbackRenderer {
+    public static func initFunc(globalObject: JsGlobalObject, srcText: String, headingIds: Bool): JsCallbackRenderer {
         return JsCallbackRenderer(
             globalObject: globalObject,
             srcText: srcText,

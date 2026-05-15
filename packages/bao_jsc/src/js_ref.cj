@@ -132,7 +132,7 @@ public class JSRef {
     //   }
     public func setWeak(value: JsValue) {
         match (_tag) {
-            case JSRefTag.Weak => {}
+            case JSRefTag.Weak => ()
             case JSRefTag.Strong => {
                 strongDeinitFFI(_strongHandle)
                 _strongHandle = CPointer<UInt8>()
@@ -189,7 +189,7 @@ public class JSRef {
                 _tag = JSRefTag.Strong
                 _strongHandle = strongCreateFFI(_weakValue, globalThis)
             }
-            case JSRefTag.Strong => {}
+            case JSRefTag.Strong => ()
             case JSRefTag.Finalized => {
                 // debugAssert(false) - 在调试模式下会崩溃
             }
@@ -215,7 +215,7 @@ public class JSRef {
     //   }
     public func downgrade() {
         match (_tag) {
-            case JSRefTag.Weak => {}
+            case JSRefTag.Weak => ()
             case JSRefTag.Strong => {
                 // FFI: strong.trySwap() -> JSValue
                 let value = strongTrySwapFFI(_strongHandle)
@@ -226,7 +226,7 @@ public class JSRef {
                 _tag = JSRefTag.Weak
                 _weakValue = value
             }
-            case JSRefTag.Finalized => {}
+            case JSRefTag.Finalized => ()
         }
     }
 
@@ -274,7 +274,7 @@ public class JSRef {
                 strongDeinitFFI(_strongHandle)
                 _strongHandle = CPointer<UInt8>()
             }
-            case JSRefTag.Finalized => {}
+            case JSRefTag.Finalized => ()
         }
     }
 

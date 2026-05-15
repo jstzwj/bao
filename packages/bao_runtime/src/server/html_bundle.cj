@@ -49,7 +49,7 @@ public class HTMLBundle {
 
     /// 初始化
     /// 对应 Bun: pub fn init(global, path) !*HTMLBundle
-    public static func init(path: String): HTMLBundle {
+    public static func initFunc(path: String): HTMLBundle {
         return HTMLBundle(path)
     }
 
@@ -123,7 +123,7 @@ public class HTMLBundleRoute {
 
     /// 初始化
     /// 对应 Bun: pub fn init(html_bundle) RefPtr(Route)
-    public static func init(htmlBundle: HTMLBundle): HTMLBundleRoute {
+    public static func initFunc(htmlBundle: HTMLBundle): HTMLBundleRoute {
         let route = HTMLBundleRoute()
         route.bundle = Some(htmlBundle)
         htmlBundle.ref()

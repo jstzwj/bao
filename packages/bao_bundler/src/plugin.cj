@@ -351,7 +351,7 @@ public class PluginSystem {
         // 执行 setup 函数
         match (plugin.setup) {
             case Some(setup) => setup(this)
-            case None => {}
+            case None => ()
         }
 
         // 收集钩子
@@ -388,8 +388,8 @@ public class PluginSystem {
                     case PluginResult.Error(msg) =>
                         errors.append("[${hook.pluginName}] ${msg}")
                         return None
-                    case PluginResult.None => {}
-                    case _ => {}
+                    case PluginResult.None => ()
+                    case _ => ()
                 }
             }
         }
@@ -411,8 +411,8 @@ public class PluginSystem {
                     case PluginResult.Error(msg) =>
                         errors.append("[${hook.pluginName}] ${msg}")
                         return None
-                    case PluginResult.None => {}
-                    case _ => {}
+                    case PluginResult.None => ()
+                    case _ => ()
                 }
             }
         }
@@ -429,7 +429,7 @@ public class PluginSystem {
             match (result) {
                 case PluginResult.Error(msg) =>
                     errors.append("[${hook.pluginName}] ${msg}")
-                case _ => {}
+                case _ => ()
             }
         }
     }
@@ -439,7 +439,7 @@ public class PluginSystem {
         let ext = Path.extname(path)
         match (builtinLoaders.get(ext)) {
             case Some(_) => return true
-            case None => {}
+            case None => ()
         }
         // 检查插件 onLoad
         for (hook in loadHooks) {

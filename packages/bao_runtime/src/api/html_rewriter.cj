@@ -117,7 +117,7 @@ public class ElementHandler {
     public var onCommentCallback: ?JsValue
     public var onTextCallback: ?JsValue
 
-    public static func init(global: JsGlobalObject, listener: JsValue): ElementHandler {
+    public static func initFunc(global: JsGlobalObject, listener: JsValue): ElementHandler {
         var handler = ElementHandler(
             onElementCallback: none,
             onCommentCallback: none,
@@ -173,7 +173,7 @@ public class DocumentHandler {
     public var onTextCallback: ?JsValue
     public var onEndCallback: ?JsValue
 
-    public static func init(global: JsGlobalObject, listener: JsValue): DocumentHandler {
+    public static func initFunc(global: JsGlobalObject, listener: JsValue): DocumentHandler {
         var handler = DocumentHandler(
             onDocTypeCallback: none,
             onCommentCallback: none,

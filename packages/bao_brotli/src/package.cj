@@ -378,7 +378,7 @@ public class BrotliEncoderStream {
 
     /// 初始化编码器
     /// 对应 Bun: BrotliEncoderCreateInstance + BrotliEncoderSetParameter
-    public func init(): Unit {
+    public func initFunc(): Unit {
         // 实际实现:
         // unsafe {
         //     let encoder = BrotliEncoderCreateInstance(null, null, null)

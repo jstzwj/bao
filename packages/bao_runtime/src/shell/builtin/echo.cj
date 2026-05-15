@@ -175,7 +175,7 @@ public class EchoCmd {
                     var val: Byte = 0.toByte()
                     var digits: UInt32 = 0
                     while (digits < 2 && i < input.length) {
-                        if let hv = hexDigitValue(input[i]) {
+                        if (let Some(hv) <- hexDigitValue(input[i])) {
                             val = ((val.toInt() * 16) + hv.toInt()).toByte()
                             i++
                             digits++

@@ -7,6 +7,128 @@ package bao_sql.mysql.protocol
 ///
 /// 使用 SHA1 进行密码混淆:
 /// SHA1(password) XOR SHA1(nonce + SHA1(SHA1(password)))
+public enum FastAuthStatus {
+    | None
+}
+
+public class Response {
+    /// 认证状态
+    public var status: FastAuthStatus
+
+    /// 附加数据
+    public var data: Array<UInt8>
+
+    public init() {
+        status = FastAuthStatus.success(0x03)
+        data = Array<UInt8>()
+    }
+
+    /// 释放资源
+    public func deinit(): Unit {
+        data = Array<UInt8>()
+    }
+
+    /// 从读取器解码响应
+    /// 对应 Bun: Response.decodeInternal
+    public func decode(reader: MySQLPacketReader): Unit {
+        let statusCode = reader.int8()
+        status = FastAuthStatus.success(statusCode)
+
+        // 读取剩余数据
+        let remaining = reader.peek()
+        if (remaining.size > 0) {
+            data = reader.read(Int64(remaining.size))
+        }
+    }
+}
+
+public class EncryptedPassword {
+    /// 用户密码
+    public var password: Array<UInt8>
+
+    /// 服务器公钥
+    public var publicKey: Array<UInt8>
+
+    /// 服务器随机数
+    public var nonce: Array<UInt8>
+
+    /// 序列号
+    public var sequenceId: UInt8
+
+    public init(password: Array<UInt8>, publicKey: Array<UInt8>, nonce: Array<UInt8>, sequenceId: UInt8) {
+        this.password = password
+        this.publicKey = publicKey
+        this.nonce = nonce
+        this.sequenceId = sequenceId
+    }
+
+    /// 将加密密码写入到写入器
+    /// 对应 Bun: EncryptedPassword.writeInternal
+    public func write(writer: MySQLPacketWriter): Unit {
+        // 空 nonce 会导致除零错误
+        if (nonce.size == 0) {
+            throw MySQLError.MissingAuthData
+        }
+        // 空公钥无效
+        if (publicKey.size == 0) {
+            throw MySQLError.InvalidPublicKey
+        }
+
+        // 构建明文: password + '\0'
+        var plainPassword = Array<UInt8>()
+        for (i in 0..password.size) {
+            plainPassword.append(password[i])
+        }
+        plainPassword.append(0)
+
+        // XOR 密码与 nonce
+        for (i in 0..plainPassword.size) {
+            plainPassword[i] = plainPassword[i] ^ nonce[i % nonce.size]
+        }
+
+        // RSA 加密 (实际实现需要 BoringSSL/加密库支持)
+        // let encrypted = RSA.encrypt(plainPassword, publicKey, RSA_PKCS1_OAEP_PADDING)
+        let encrypted = plainPassword // 占位，实际需要 RSA 加密
+
+        var packet = writer.start(sequenceId)
+        writer.write(encrypted)
+        packet.end()
+    }
+}
+
+public class PublicKeyResponse {
+    /// 公钥数据
+    public var data: Array<UInt8>
+
+    public init() {
+        data = Array<UInt8>()
+    }
+
+    /// 释放资源
+    public func deinit(): Unit {
+        data = Array<UInt8>()
+    }
+
+    /// 从读取器解码公钥响应
+    /// 对应 Bun: PublicKeyResponse.decodeInternal
+    public func decode(reader: MySQLPacketReader): Unit {
+        let remaining = reader.peek()
+        if (remaining.size > 0) {
+            data = reader.read(Int64(remaining.size))
+        }
+    }
+}
+
+public class PublicKeyRequest {
+    public init() {}
+
+    /// 写入公钥请求
+    /// 对应 Bun: PublicKeyRequest.writeInternal
+    public func write(writer: MySQLPacketWriter): Unit {
+        writer.int1(0x02) // 请求公钥
+    }
+}
+
 public class MySQLNativePassword {
     /// 计算 scramble 值
     /// 对应 Bun: mysql_native_password.scramble
@@ -67,8 +189,6 @@ public class CachingSHA2Password {
 
     /// 快速认证状态
     /// 对应 Bun: caching_sha2_password.FastAuthStatus (enum u8)
-    public enum FastAuthStatus {
-    }
 
     /// 计算 scramble 值
     /// 对应 Bun: caching_sha2_password.scramble
@@ -108,132 +228,18 @@ public class CachingSHA2Password {
 
     /// 快速认证响应
     /// 对应 Bun: caching_sha2_password.Response (struct)
-    public class Response {
-        /// 认证状态
-        public var status: FastAuthStatus
-
-        /// 附加数据
-        public var data: Array<UInt8>
-
-        public init() {
-            status = FastAuthStatus.success(0x03)
-            data = Array<UInt8>()
-        }
-
-        /// 释放资源
-        public func deinit(): Unit {
-            data = Array<UInt8>()
-        }
-
-        /// 从读取器解码响应
-        /// 对应 Bun: Response.decodeInternal
-        public func decode(reader: MySQLPacketReader): Unit {
-            let statusCode = reader.int8()
-            status = FastAuthStatus.success(statusCode)
-
-            // 读取剩余数据
-            let remaining = reader.peek()
-            if (remaining.size > 0) {
-                data = reader.read(Int64(remaining.size))
-            }
-        }
-    }
 
     /// 加密密码 (使用服务器公钥进行 RSA 加密)
     /// 对应 Bun: caching_sha2_password.EncryptedPassword (struct)
     ///
     /// 参考: https://mariadb.com/kb/en/sha256_password-plugin/#rsa-encrypted-password
     /// 使用 RSA_PKCS1_OAEP_PADDING 对 XOR(password, seed) 进行 RSA 加密
-    public class EncryptedPassword {
-        /// 用户密码
-        public var password: Array<UInt8>
-
-        /// 服务器公钥
-        public var publicKey: Array<UInt8>
-
-        /// 服务器随机数
-        public var nonce: Array<UInt8>
-
-        /// 序列号
-        public var sequenceId: UInt8
-
-        public init(password: Array<UInt8>, publicKey: Array<UInt8>, nonce: Array<UInt8>, sequenceId: UInt8) {
-            this.password = password
-            this.publicKey = publicKey
-            this.nonce = nonce
-            this.sequenceId = sequenceId
-        }
-
-        /// 将加密密码写入到写入器
-        /// 对应 Bun: EncryptedPassword.writeInternal
-        public func write(writer: MySQLPacketWriter): Unit {
-            // 空 nonce 会导致除零错误
-            if (nonce.size == 0) {
-                throw MySQLError.MissingAuthData
-            }
-            // 空公钥无效
-            if (publicKey.size == 0) {
-                throw MySQLError.InvalidPublicKey
-            }
-
-            // 构建明文: password + '\0'
-            var plainPassword = Array<UInt8>()
-            for (i in 0..password.size) {
-                plainPassword.append(password[i])
-            }
-            plainPassword.append(0)
-
-            // XOR 密码与 nonce
-            for (i in 0..plainPassword.size) {
-                plainPassword[i] = plainPassword[i] ^ nonce[i % nonce.size]
-            }
-
-            // RSA 加密 (实际实现需要 BoringSSL/加密库支持)
-            // let encrypted = RSA.encrypt(plainPassword, publicKey, RSA_PKCS1_OAEP_PADDING)
-            let encrypted = plainPassword // 占位，实际需要 RSA 加密
-
-            var packet = writer.start(sequenceId)
-            writer.write(encrypted)
-            packet.end()
-        }
-    }
 
     /// 公钥响应
     /// 对应 Bun: caching_sha2_password.PublicKeyResponse (struct)
-    public class PublicKeyResponse {
-        /// 公钥数据
-        public var data: Array<UInt8>
-
-        public init() {
-            data = Array<UInt8>()
-        }
-
-        /// 释放资源
-        public func deinit(): Unit {
-            data = Array<UInt8>()
-        }
-
-        /// 从读取器解码公钥响应
-        /// 对应 Bun: PublicKeyResponse.decodeInternal
-        public func decode(reader: MySQLPacketReader): Unit {
-            let remaining = reader.peek()
-            if (remaining.size > 0) {
-                data = reader.read(Int64(remaining.size))
-            }
-        }
-    }
 
     /// 公钥请求
     /// 对应 Bun: caching_sha2_password.PublicKeyRequest (struct)
-    public class PublicKeyRequest {
-        public init() {}
-
-        /// 写入公钥请求
-        /// 对应 Bun: PublicKeyRequest.writeInternal
-        public func write(writer: MySQLPacketWriter): Unit {
-            writer.int1(0x02) // 请求公钥
-        }
-    }
 }
 
 /// SHA1 哈希工具 (占位)

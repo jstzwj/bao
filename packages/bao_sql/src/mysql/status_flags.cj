@@ -5,6 +5,7 @@ package bao_sql.mysql
 /// MySQL 服务器状态标志位
 /// 对应 Bun: StatusFlag (enum u16)
 public enum StatusFlag {
+    | None
 }
     }
 }

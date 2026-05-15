@@ -21,7 +21,7 @@ public class DeprecatedStrong {
     }
 
     // 严格翻译自 DeprecatedStrong.init
-    public static func init(value: JsValue) -> DeprecatedStrong {
+    public static func initFunc(value: JsValue) -> DeprecatedStrong {
         let strong = DeprecatedStrong()
         strong.raw = value
         strong.safety = None
@@ -76,7 +76,7 @@ public class DeprecatedStrong {
             opt
         }
 
-        public static func init(value: JsValue) -> Optional {
+        public static func initFunc(value: JsValue) -> Optional {
             let opt = Optional()
             opt.backing = DeprecatedStrong.init(value: value)
             opt

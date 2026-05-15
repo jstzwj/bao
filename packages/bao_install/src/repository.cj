@@ -151,10 +151,10 @@ public class Repository {
                         let path = url.substring(Int64(colon) + 1)
                         return Some("https://${host}/${path}")
                     }
-                    case None => {}
+                    case None => ()
                 }
             }
-            case None => {}
+            case None => ()
         }
         return None
     }

@@ -144,7 +144,7 @@ public class SourceFileProjectGenerator {
         entryPoint: String,
         result: DependenciesScannerResult
     ): Unit {
-        val reactComponentExport = findReactComponentExport(result.bundleV2)
+        let reactComponentExport = findReactComponentExport(result.bundleV2)
         if (reactComponentExport == None) {
             Output.errGeneric("No component export found in <b>${entryPoint}<r>")
             Output.flush()
@@ -159,7 +159,7 @@ public class SourceFileProjectGenerator {
         }
 
         // 检查 Tailwind 依赖
-        val hasTailwindInDependencies = result.dependencies.contains("tailwindcss") ||
+        let hasTailwindInDependencies = result.dependencies.contains("tailwindcss") ||
             result.dependencies.contains("bao-plugin-tailwind")
         var needsToInjectTailwind = false
         if (!hasTailwindInDependencies) {
@@ -191,7 +191,7 @@ public class SourceFileProjectGenerator {
             result.dependencies.insert("lucide-react")
         }
 
-        val usesTailwind = hasTailwindInDependencies || needsToInjectTailwind
+        let usesTailwind = hasTailwindInDependencies || needsToInjectTailwind
 
         // 强制 React 19
         result.dependencies.swapRemove("react")
@@ -199,10 +199,10 @@ public class SourceFileProjectGenerator {
         result.dependencies.insert("react-dom@19")
         result.dependencies.insert("react@19")
 
-        val devDependencies = ["@types/bun", "@types/react@19", "@types/react-dom@19"]
+        let devDependencies = ["@types/bun", "@types/react@19", "@types/react-dom@19"]
 
         // 选择模板
-        val template: Template = if (needsToInjectShadcnUi) {
+        let template: Template = if (needsToInjectShadcnUi) {
             Template(TemplateTag.reactShadcnSpa, shadcn)
         } else if (usesTailwind) {
             Template(TemplateTag.reactTailwindSpa, StringSet())
@@ -233,9 +233,9 @@ public class SourceFileProjectGenerator {
         template: Template,
         reactComponentExport: String
     ): Unit {
-        val log = TemplateLogger(template.tag)
+        let log = TemplateLogger(template.tag)
         var basename = Path.basename(entryPoint)
-        val extension = Path.extension(basename)
+        let extension = Path.extension(basename)
         if (extension.length > 0) {
             basename = basename.substring(0, basename.length - extension.length)
         }
@@ -253,11 +253,11 @@ public class SourceFileProjectGenerator {
         }
 
         // 获取模板文件
-        val files = template.files()
+        let files = template.files()
 
         var maxFilenameLen: Int64 = 0
-        val filenames = ArrayList<String>()
-        val createdFiles = ArrayList<Bool>()
+        let filenames = ArrayList<String>()
+        let createdFiles = ArrayList<Bool>()
 
         for (i in 0..files.size) {
             createdFiles.append(false)
@@ -266,15 +266,15 @@ public class SourceFileProjectGenerator {
 
         // 创建所有模板文件
         for (index in 0..files.size) {
-            val file = files[index]
-            val fileName = stringWithReplacements(
+            let file = files[index]
+            let fileName = stringWithReplacements(
                 file.name, basename, normalizedName, reactComponentExport, allocator
             )
             if (file.overwrite || !Syscall.exists(fileName)) {
-                val fileContent = stringWithReplacements(
+                let fileContent = stringWithReplacements(
                     file.content, basename, normalizedName, reactComponentExport, DefaultAllocator.get()
                 )
-                val created = createFile(fileName, fileContent)
+                let created = createFile(fileName, fileContent)
                 if (created.isErr) {
                     Output.errGeneric("failed to create ${fileName}")
                     Global.crash()
@@ -301,7 +301,7 @@ public class SourceFileProjectGenerator {
         }
 
         if (dependencies.size > 0) {
-            val argv = ArrayList<String>()
+            let argv = ArrayList<String>()
             argv.append("bao")
             argv.append("--only-missing")
             argv.append("install")
@@ -312,7 +312,7 @@ public class SourceFileProjectGenerator {
         }
 
         if (devDependencies.size > 0) {
-            val argv = ArrayList<String>()
+            let argv = ArrayList<String>()
             argv.append("bao")
             argv.append("--only-missing")
             argv.append("add")
@@ -325,7 +325,7 @@ public class SourceFileProjectGenerator {
 
         // shadcn 组件安装
         if (template.tag == TemplateTag.reactShadcnSpa && template.components.keys().size > 0) {
-            val shadcnArgv = ArrayList<String>()
+            let shadcnArgv = ArrayList<String>()
             shadcnArgv.append("bao")
             shadcnArgv.append("x")
             shadcnArgv.append("shadcn@canary")
@@ -344,7 +344,7 @@ public class SourceFileProjectGenerator {
 
             shadcnArgv[0] = Sys.selfExePath() ?: "bao"
 
-            val shadcnProcess = Process.spawnSync(shadcnArgv.toArray(), FileSystem.instance.topLevelDir)
+            let shadcnProcess = Process.spawnSync(shadcnArgv.toArray(), FileSystem.instance.topLevelDir)
             if (!shadcnProcess.isOK()) {
                 Global.crash()
             }
@@ -361,8 +361,8 @@ public class SourceFileProjectGenerator {
         Output.flush()
 
         // 启动开发服务器
-        val startArgv = [Sys.selfExePath() ?: "bao", "dev"]
-        val startProcess = Process.spawnSync(startArgv, FileSystem.instance.topLevelDir)
+        let startArgv = [Sys.selfExePath() ?: "bao", "dev"]
+        let startProcess = Process.spawnSync(startArgv, FileSystem.instance.topLevelDir)
         if (!startProcess.isOK()) {
             Global.crash()
         }
@@ -374,13 +374,13 @@ public class SourceFileProjectGenerator {
     /// 对应 Bun: createFile
     private static func createFile(filename: String, contents: String): Result<Bool> {
         // 检查文件是否已存在且内容相同
-        val sourceContents = BaoFile.readAllText(filename)
+        let sourceContents = BaoFile.readAllText(filename)
         if (sourceContents != None && sourceContents!! == contents) {
             return Result<Bool>.ok(false)
         }
 
         // 创建父目录
-        val dirname = Path.dirname(filename)
+        let dirname = Path.dirname(filename)
         if (dirname.length > 0) {
             BaoFile.mkdirRecursive(dirname)
         }
@@ -396,7 +396,7 @@ public class SourceFileProjectGenerator {
         var remaining = input
         var count: Int64 = 0
         while (remaining.length > 0) {
-            val index = remaining.indexOf(needle)
+            let index = remaining.indexOf(needle)
             if (index >= 0) {
                 remaining = remaining.substring(index + needle.length)
                 count += 1
@@ -412,10 +412,10 @@ public class SourceFileProjectGenerator {
     private static func replaceAllOccurrencesOfString(
         allocator: Allocator, input: String, needle: String, replacement: String
     ): String {
-        val result = StringBuilder()
+        let result = StringBuilder()
         var remaining = input
         while (remaining.length > 0) {
-            val index = remaining.indexOf(needle)
+            let index = remaining.indexOf(needle)
             if (index >= 0) {
                 result.append(remaining.substring(0, index))
                 result.append(replacement)
@@ -465,7 +465,7 @@ public class SourceFileProjectGenerator {
 
         argv[0] = Sys.selfExePath() ?: "bao"
 
-        val process = Process.spawnSync(argv.toArray(), FileSystem.instance.topLevelDir)
+        let process = Process.spawnSync(argv.toArray(), FileSystem.instance.topLevelDir)
         if (process.isErr) {
             Output.errGeneric("failed to install dependencies")
             Global.crash()
@@ -483,22 +483,22 @@ public class SourceFileProjectGenerator {
     private static func hasAnyTailwindClassesInSourceFiles(
         bundler: BundleV2, reachableFiles: ArrayList<AstIndex>
     ): Bool {
-        val commonTailwindPatterns = [
+        let commonTailwindPatterns = [
             "bg-", "text-", "p-", "m-", "flex", "grid", "border", "rounded",
             "shadow", "hover:", "focus:", "dark:", "sm:", "md:", "lg:", "xl:",
             "w-", "h-", "space-", "gap-", "items-", "justify-", "font-"
         ]
 
         for (file in reachableFiles) {
-            val loader = bundler.graph.inputFiles.loaders[file.get()]
+            let loader = bundler.graph.inputFiles.loaders[file.get()]
             when (loader) {
                 case Loader.tsx, Loader.jsx => {
-                    val sourceCode = bundler.graph.inputFiles.sources[file.get()].contents
+                    let sourceCode = bundler.graph.inputFiles.sources[file.get()].contents
 
                     // 检查 className=" 或 className='
                     var searchCode = sourceCode
                     while (true) {
-                        val idx = searchCode.indexOf("className=")
+                        let idx = searchCode.indexOf("className=")
                         if (idx < 0) {
                             break
                         }
@@ -508,13 +508,13 @@ public class SourceFileProjectGenerator {
                         }
                         when (searchCode[0]) {
                             case '\'', '"' => {
-                                val quote = searchCode[0]
+                                let quote = searchCode[0]
                                 searchCode = searchCode.substring(1)
-                                val endQuote = searchCode.indexOf(quote)
+                                let endQuote = searchCode.indexOf(quote)
                                 if (endQuote < 0) {
                                     continue
                                 }
-                                val className = searchCode.substring(0, endQuote)
+                                let className = searchCode.substring(0, endQuote)
                                 for (pattern in commonTailwindPatterns) {
                                     if (className.contains(pattern)) {
                                         return true
@@ -528,7 +528,7 @@ public class SourceFileProjectGenerator {
                     }
                 }
                 case Loader.html => {
-                    val sourceCode = bundler.graph.inputFiles.sources[file.get()].contents
+                    let sourceCode = bundler.graph.inputFiles.sources[file.get()].contents
                     var i: Int64 = 0
                     while (i < sourceCode.length) {
                         if (i + 7 >= sourceCode.length) {
@@ -540,8 +540,8 @@ public class SourceFileProjectGenerator {
                                 j += 1
                             }
                             if (j < sourceCode.length && (sourceCode[j.toInt()] == '"' || sourceCode[j.toInt()] == '\'')) {
-                                val searchEnd = Math.min(j + 1000, sourceCode.length)
-                                val classSection = sourceCode.substring(j.toInt(), searchEnd.toInt())
+                                let searchEnd = Math.min(j + 1000, sourceCode.length)
+                                let classSection = sourceCode.substring(j.toInt(), searchEnd.toInt())
                                 for (pattern in commonTailwindPatterns) {
                                     if (classSection.contains(pattern)) {
                                         return true
@@ -553,7 +553,7 @@ public class SourceFileProjectGenerator {
                         i += 1
                     }
                 }
-                case _ => {}
+                case _ => ()
             }
         }
 
@@ -565,21 +565,21 @@ public class SourceFileProjectGenerator {
     private static func getShadcnComponents(
         bundler: BundleV2, reachableFiles: ArrayList<AstIndex>
     ): StringSet {
-        val icons = StringSet()
-        val all = bundler.graph.ast.importRecords
+        let icons = StringSet()
+        let all = bundler.graph.ast.importRecords
 
         for (file in reachableFiles) {
-            val loader = bundler.graph.inputFiles.loaders[file.get()]
+            let loader = bundler.graph.inputFiles.loaders[file.get()]
             when (loader) {
                 case Loader.tsx, Loader.jsx => {
-                    val importRecords = all[file.get()]
+                    let importRecords = all[file.get()]
                     for (importRecord in importRecords) {
                         if (importRecord.path.text.startsWith("@/components/ui/")) {
                             icons.insert(importRecord.path.text.substring("@/components/ui/".length))
                         }
                     }
                 }
-                case _ => {}
+                case _ => ()
             }
         }
 
@@ -589,25 +589,25 @@ public class SourceFileProjectGenerator {
     /// 查找 React 组件导出
     /// 对应 Bun: findReactComponentExport
     private static func findReactComponentExport(bundler: BundleV2): ?String {
-        val inputFiles = bundler.graph.inputFiles
-        val loaders = inputFiles.loaders
-        val resolvedExports = bundler.linker.graph.meta.resolvedExports
-        val sources = inputFiles.sources
+        let inputFiles = bundler.graph.inputFiles
+        let loaders = inputFiles.loaders
+        let resolvedExports = bundler.linker.graph.meta.resolvedExports
+        let sources = inputFiles.sources
 
-        val entryPointIds = bundler.graph.entryPoints
+        let entryPointIds = bundler.graph.entryPoints
 
         for (entryPointId in entryPointIds) {
-            val loader = loaders[entryPointId.get()]
+            let loader = loaders[entryPointId.get()]
             if (loader == Loader.jsx || loader == Loader.tsx) {
-                val source = sources[entryPointId.get()]
-                val exports = resolvedExports[entryPointId.get()]
+                let source = sources[entryPointId.get()]
+                let exports = resolvedExports[entryPointId.get()]
 
                 // 1. 优先默认导出
                 if (exports.contains("default")) {
                     return "default"
                 }
 
-                val exportNames = exports.keys()
+                let exportNames = exports.keys()
                 if (exportNames.size == 1) {
                     return exportNames[0]
                 }
@@ -616,7 +616,7 @@ public class SourceFileProjectGenerator {
                     continue
                 }
 
-                val filename = source.path.name.nonUniqueNameStringBase()
+                let filename = source.path.name.nonUniqueNameStringBase()
                 if (filename.length == 0) {
                     continue
                 }
@@ -630,21 +630,21 @@ public class SourceFileProjectGenerator {
 
                 // 3. 尝试首字母大写
                 if (filename[0] >= 'a' && filename[0] <= 'z') {
-                    val duped = filename
-                    val capitalized = duped[0].toUpperCase() + duped.substring(1)
+                    let duped = filename
+                    let capitalized = duped[0].toUpperCase() + duped.substring(1)
                     if (JsLexer.isIdentifier(capitalized) && exports.contains(capitalized)) {
                         return capitalized
                     }
 
                     // PascalCase 转换
-                    val pascalCase = toPascalCase(duped)
+                    let pascalCase = toPascalCase(duped)
                     if (exports.contains(pascalCase)) {
                         return pascalCase
                     }
 
                     // 极端简化的 PascalCase
                     if (pascalCase.length > 1) {
-                        val lowerRest = pascalCase[0] + pascalCase.substring(1).toLowerCase()
+                        let lowerRest = pascalCase[0] + pascalCase.substring(1).toLowerCase()
                         if (exports.contains(lowerRest)) {
                             return lowerRest
                         }
@@ -652,7 +652,7 @@ public class SourceFileProjectGenerator {
                 }
 
                 // 4. 确保为有效标识符
-                val nameToTry = MutableString.ensureValidIdentifier(filename)
+                let nameToTry = MutableString.ensureValidIdentifier(filename)
                 if (nameToTry != None && exports.contains(nameToTry!!)) {
                     return nameToTry
                 }
@@ -677,7 +677,7 @@ public class SourceFileProjectGenerator {
     /// 转换为 PascalCase
     /// 对应 Bun: 极端简化的 pascal case 转换
     private static func toPascalCase(input: String): String {
-        val result = StringBuilder()
+        let result = StringBuilder()
         var capitalizeNext = false
         var outputIndex = 0
 
@@ -711,7 +711,7 @@ public class SourceFileProjectGenerator {
     /// React + Tailwind SPA 文件列表
     /// 对应 Bun: ReactTailwindSpa.files
     private static func reactTailwindSpaFiles(): ArrayList<TemplateFile> {
-        val result = ArrayList<TemplateFile>()
+        let result = ArrayList<TemplateFile>()
         result.append(TemplateFile(
             "REPLACE_ME_WITH_YOUR_APP_FILE_NAME.build.ts",
             sharedBuildTs(),
@@ -750,7 +750,7 @@ public class SourceFileProjectGenerator {
     /// React SPA 文件列表
     /// 对应 Bun: ReactSpa.files
     private static func reactSpaFiles(): ArrayList<TemplateFile> {
-        val result = ArrayList<TemplateFile>()
+        let result = ArrayList<TemplateFile>()
         result.append(TemplateFile(
             "REPLACE_ME_WITH_YOUR_APP_FILE_NAME.build.ts",
             sharedBuildTs(),
@@ -784,7 +784,7 @@ public class SourceFileProjectGenerator {
     /// React + shadcn SPA 文件列表
     /// 对应 Bun: ReactShadcnSpa.files
     private static func reactShadcnSpaFiles(): ArrayList<TemplateFile> {
-        val result = ArrayList<TemplateFile>()
+        let result = ArrayList<TemplateFile>()
         result.append(TemplateFile("lib/utils.ts", shadcnUtilsTs(), Reason.shadcn))
         result.append(TemplateFile("index.css", shadcnIndexCss(), Reason.shadcn))
         result.append(TemplateFile(

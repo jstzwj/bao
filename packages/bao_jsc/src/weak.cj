@@ -7,6 +7,7 @@ package bao_jsc
 // 严格翻译自 Weak.zig WeakRefType
 // 弱引用的类型标记，用于区分不同来源的弱引用
 public enum WeakRefType {
+    | None
 }
 
 // ========== WeakImpl ==========
@@ -25,7 +26,7 @@ class WeakImpl {
 
     // 严格翻译自 WeakImpl.init
     // FFI: Bun__WeakRef__new(globalThis, value, refType, ctx)
-    static func init(globalThis: JsObject, value: JsValue, refType: WeakRefType, ctx: Any?) -> WeakImpl {
+    static func initFunc(globalThis: JsObject, value: JsValue, refType: WeakRefType, ctx: Any?) -> WeakImpl {
         WeakImpl(value: value, refType: refType, ctx: ctx)
     }
 
@@ -62,7 +63,7 @@ public class Weak<T> {
     public init() {}
 
     // 严格翻译自 Weak.init
-    public static func init() -> Weak<T> {
+    public static func initFunc() -> Weak<T> {
         Weak<T>()
     }
 

@@ -15,7 +15,7 @@ public class UpdateCommand {
     /// 执行 update 命令
     /// 对应 Bun: UpdateCommand.exec()
     public static func exec(ctx: CommandContext): Unit {
-        val cli = PackageManager.CommandLineArguments.parse(ctx, Subcommand.update)
+        let cli = PackageManager.CommandLineArguments.parse(ctx, Subcommand.update)
 
         if (cli.interactive) {
             UpdateInteractiveCommand.exec(ctx)

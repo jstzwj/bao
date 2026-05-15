@@ -28,7 +28,7 @@ public class Composes {
         var result = String.join(" ", names)
         match (from) {
             case Some(f) => result = result + " from " + f.toCss()
-            case None => {}
+            case None => ()
         }
         return result
     }

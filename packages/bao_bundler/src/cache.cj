@@ -93,7 +93,7 @@ public class FileSystemCache {
         let entry = entries.get(path)
         match (entry) {
             case Some(e) => return e
-            case None => {}
+            case None => ()
         }
 
         // 读取文件内容

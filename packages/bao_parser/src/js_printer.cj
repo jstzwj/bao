@@ -1015,7 +1015,7 @@ public class JSPrinter {
 
             match (c) {
                 case 0x07 =>
-                    print("\\x07")
+                    print("\u{07}")
                     i += 1
                 case 0x08 =>
                     print("\\b")

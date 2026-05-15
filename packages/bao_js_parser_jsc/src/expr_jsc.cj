@@ -15,13 +15,13 @@ import bao_parser.*
 
 /// Expr 转 JS - 严格对应 Bun exprToJS
 /// Zig: pub fn exprToJS(this: Expr, allocator: std.mem.Allocator, globalObject: *jsc.JSGlobalObject) ToJSError!jsc.JSValue
-public func exprToJS(this: Expr, allocator: Allocator, globalObject: JSGlobalObject): ?JSValue {
+public func exprToJS(`this`: Expr, allocator: Allocator, globalObject: JSGlobalObject): ?JSValue {
     return dataToJS(this.data, allocator, globalObject)
 }
 
 /// Expr.Data 转 JS - 严格对应 Bun dataToJS
 /// Zig: pub fn dataToJS(this: Expr.Data, allocator: std.mem.Allocator, globalObject: *jsc.JSGlobalObject) ToJSError!jsc.JSValue
-public func dataToJS(this: ExprData, allocator: Allocator, globalObject: JSGlobalObject): ?JSValue {
+public func dataToJS(`this`: ExprData, allocator: Allocator, globalObject: JSGlobalObject): ?JSValue {
     return match (this) {
         case .e_array => e =>
             arrayToJS(e, allocator, globalObject)
@@ -58,7 +58,7 @@ public func dataToJS(this: ExprData, allocator: Allocator, globalObject: JSGloba
 
 /// Array 转 JS - 严格对应 Bun arrayToJS
 /// Zig: pub fn arrayToJS(this: E.Array, allocator: std.mem.Allocator, globalObject: *jsc.JSGlobalObject) ToJSError!jsc.JSValue
-public func arrayToJS(this: EArray, allocator: Allocator, globalObject: JSGlobalObject): ?JSValue {
+public func arrayToJS(`this`: EArray, allocator: Allocator, globalObject: JSGlobalObject): ?JSValue {
     let items = this.items.slice()
     var array = JSValue.createEmptyArray(globalObject, items.length)
     array.protect()
@@ -78,26 +78,26 @@ public func arrayToJS(this: EArray, allocator: Allocator, globalObject: JSGlobal
 
 /// Boolean 转 JS - 严格对应 Bun boolToJS
 /// Zig: pub fn boolToJS(this: E.Boolean, ctx: *jsc.C.JSContextRef) jsc.C.JSValueRef
-public func boolToJS(this: EBoolean, ctx: JSContextRef): JSValueRef {
+public func boolToJS(`this`: EBoolean, ctx: JSContextRef): JSValueRef {
     return JSValueMakeBoolean(ctx, this.value)
 }
 
 /// Number 转 JS - 严格对应 Bun numberToJS
 /// Zig: pub fn numberToJS(this: E.Number) jsc.JSValue
-public func numberToJS(this: ENumber): JSValue {
+public func numberToJS(`this`: ENumber): JSValue {
     return JSValue.jsNumber(this.value)
 }
 
 /// BigInt 转 JS - 严格对应 Bun bigIntToJS
 /// Zig: pub fn bigIntToJS(_: E.BigInt) jsc.JSValue
-public func bigIntToJS(this: EBigInt): JSValue {
+public func bigIntToJS(`this`: EBigInt): JSValue {
     // TODO:
     return JSValue.jsNumber(0)
 }
 
 /// Object 转 JS - 严格对应 Bun objectToJS
 /// Zig: pub fn objectToJS(this: *E.Object, allocator: std.mem.Allocator, globalObject: *jsc.JSGlobalObject) ToJSError!jsc.JSValue
-public func objectToJS(this: EObject, allocator: Allocator, globalObject: JSGlobalObject): ?JSValue {
+public func objectToJS(`this`: EObject, allocator: Allocator, globalObject: JSGlobalObject): ?JSValue {
     var obj = JSValue.createEmptyObject(globalObject, this.properties.length)
     obj.protect()
 

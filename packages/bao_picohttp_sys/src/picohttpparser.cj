@@ -20,12 +20,12 @@ public class PhrHeader {
 // ============================================================================
 
 public enum ChunkedEncodingState {
-    CHUNKED_IN_CHUNK_SIZE = 0
-    CHUNKED_IN_CHUNK_EXT = 1
-    CHUNKED_IN_CHUNK_DATA = 2
-    CHUNKED_IN_CHUNK_CRLF = 3
-    CHUNKED_IN_TRAILERS_LINE_HEAD = 4
-    CHUNKED_IN_TRAILERS_LINE_MIDDLE = 5
+    | CHUNKED_IN_CHUNK_SIZE
+    | CHUNKED_IN_CHUNK_EXT
+    | CHUNKED_IN_CHUNK_DATA
+    | CHUNKED_IN_CHUNK_CRLF
+    | CHUNKED_IN_TRAILERS_LINE_HEAD
+    | CHUNKED_IN_TRAILERS_LINE_MIDDLE
 }
 
 // ============================================================================
@@ -45,8 +45,7 @@ public class PhrChunkedDecoder {
 // FFI extern functions
 // ============================================================================
 
-@Extern
-public func phr_parse_request(
+foreign func phr_parse_request(
     buf: CPointer<UInt8>,
     len: UInt64,
     method: CPointer<CPointer<UInt8>>,
@@ -59,8 +58,7 @@ public func phr_parse_request(
     last_len: UInt64
 ): Int32
 
-@Extern
-public func phr_parse_response(
+foreign func phr_parse_response(
     _buf: CPointer<UInt8>,
     len: UInt64,
     minor_version: CPointer<Int32>,
@@ -72,8 +70,7 @@ public func phr_parse_response(
     last_len: UInt64
 ): Int32
 
-@Extern
-public func phr_parse_headers(
+foreign func phr_parse_headers(
     buf: CPointer<UInt8>,
     len: UInt64,
     headers: CPointer<PhrHeader>,
@@ -81,15 +78,13 @@ public func phr_parse_headers(
     last_len: UInt64
 ): Int32
 
-@Extern
-public func phr_decode_chunked(
+foreign func phr_decode_chunked(
     decoder: CPointer<PhrChunkedDecoder>,
     buf: CPointer<UInt8>,
     bufsz: CPointer<UInt64>
 ): Int64
 
-@Extern
-public func phr_decode_chunked_is_in_data(
+foreign func phr_decode_chunked_is_in_data(
     decoder: CPointer<PhrChunkedDecoder>
 ): Int32
 

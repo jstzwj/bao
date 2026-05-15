@@ -340,7 +340,7 @@ public class BinLinkingShim {
                 buf.append(Byte((argByteLen >> 16) & UInt32(0xFF)))
                 buf.append(Byte((argByteLen >> 24) & UInt32(0xFF)))
             }
-            case None => {}
+            case None => ()
         }
 
         // 写入 flags (u16)

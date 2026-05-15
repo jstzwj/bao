@@ -111,7 +111,7 @@ public class ConsoleModule {
     /// console.clear()
     public static func clear(): Unit {
         // 清屏 — 发送 ANSI 转义序列
-        outputFn("\x1b[2J\x1b[H")
+        outputFn("\u{1b}[2J\u{1b}[H")
     }
 
     /// console.table(data)

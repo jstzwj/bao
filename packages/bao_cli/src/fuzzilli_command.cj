@@ -34,14 +34,14 @@ public class FuzzilliCommand {
         }
 
         // REPRL 脚本 (嵌入)
-        val reprlScript = FuzzilliReprl.getScript()
+        let reprlScript = FuzzilliReprl.getScript()
 
         // 打开 /tmp 目录
-        val tempDir = "/tmp"
+        let tempDir = "/tmp"
 
         // 创建临时文件
-        val tempFileName = "bun-fuzzilli-reprl.js"
-        val tempPath = "${tempDir}/${tempFileName}"
+        let tempFileName = "bun-fuzzilli-reprl.js"
+        let tempPath = "${tempDir}/${tempFileName}"
 
         // 写入脚本到临时文件
         BaoFile.writeAllText(tempPath, reprlScript)
@@ -49,7 +49,7 @@ public class FuzzilliCommand {
         Output.prettyErrorLn("[FUZZILLI] Temp file written, booting JS runtime")
 
         // 运行临时文件
-        val runOpts = RunOptions()
+        let runOpts = RunOptions()
         runOpts.script = tempPath
         RunCommand.execute(ctx, runOpts)
     }

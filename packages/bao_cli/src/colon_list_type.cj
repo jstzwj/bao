@@ -31,8 +31,8 @@ public class ColonListType {
     public func load(input: ArrayList<String>): Unit {
         for (str in input) {
             // 查找分隔符: 支持 ":" 或 "=", 优先使用先出现的
-            val colonIdx = str.indexOf(':')
-            val equalIdx = str.indexOf('=')
+            let colonIdx = str.indexOf(':')
+            let equalIdx = str.indexOf('=')
 
             var midpoint = -1
             if (colonIdx >= 0 && equalIdx >= 0) {
@@ -48,8 +48,8 @@ public class ColonListType {
                 Global.exit(1)
             }
 
-            val key = str.substring(0, midpoint)
-            val value = str.substring(midpoint + 1)
+            let key = str.substring(0, midpoint)
+            let value = str.substring(midpoint + 1)
 
             keys.append(key)
             values.append(value)
@@ -59,7 +59,7 @@ public class ColonListType {
     /// 解析并创建 ColonListType
     /// 对应 Bun: ColonListType.resolve()
     public static func resolve(input: ArrayList<String>): ColonListType {
-        val list = ColonListType(input.size)
+        let list = ColonListType(input.size)
         list.load(input)
         return list
     }

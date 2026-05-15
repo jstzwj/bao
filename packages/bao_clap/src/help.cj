@@ -88,7 +88,7 @@ public func formatParamNames(param: ClapParam): String {
     }
 
     match (param.takesValue) {
-        case ClapValues.None => {}  // 不追加值部分
+        case ClapValues.None => ()  // 不追加值部分
         case ClapValues.One =>
             sb.append(" <")
             sb.append(valueName)
@@ -238,7 +238,7 @@ public func formatHelpWithCommands(programName: String, description: String, par
         // 默认值
         match (param.defaultValue) {
             case Some(v) => sb.append(" (default: ${v})")
-            case None => {}
+            case None => ()
         }
 
         // 必选标记
@@ -344,7 +344,7 @@ public func formatUsage(programName: String, params: ArrayList<ClapParam>): Stri
             "value"
         }
         match (param.takesValue) {
-            case ClapValues.None => {}
+            case ClapValues.None => ()
             case ClapValues.One => sb.append(" <${valueName}>")
             case ClapValues.OneOptional => sb.append(" <${valueName}>?")
             case ClapValues.Many => sb.append(" <${valueName}>...")
@@ -359,7 +359,7 @@ public func formatUsage(programName: String, params: ArrayList<ClapParam>): Stri
         case Some(p) =>
             let valueName = if (p.help.valueName.size > 0) { p.help.valueName } else { "arg" }
             sb.append(" <${valueName}>")
-        case None => {}
+        case None => ()
     }
 
     return sb.toString()

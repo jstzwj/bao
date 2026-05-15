@@ -91,11 +91,11 @@ public class PackStats {
         println("Total files: ${totalFiles}")
         match (shasum) {
             case Some(s) => println("Shasum: ${s}")
-            case None => {}
+            case None => ()
         }
         match (integrity) {
             case Some(i) => println("Integrity: ${i}")
-            case None => {}
+            case None => ()
         }
         println("Unpacked size: ${formatSize(unpackedSize)}")
         if (packedSize > 0) {
@@ -350,7 +350,7 @@ public class PackCommand {
         let fileSize = BaoFile.getFileSize(outputPath)
         match (fileSize) {
             case Some(s) => stats.packedSize = s
-            case None => {}
+            case None => ()
         }
 
         // 打印摘要
@@ -384,7 +384,7 @@ public class PackCommand {
                         case JsonValue.Str(name) => {
                             result.append(BundledDep(name, true))
                         }
-                        case _ => {}
+                        case _ => ()
                     }
                 }
             }
@@ -398,11 +398,11 @@ public class PackCommand {
                                 result.append(BundledDep(key, true))
                             }
                         }
-                        case _ => {}
+                        case _ => ()
                     }
                 }
             }
-            case _ => {}
+            case _ => ()
         }
 
         return result
@@ -440,7 +440,7 @@ public class PackCommand {
                     }
                 }
             }
-            case None => {}
+            case None => ()
         }
 
         // 添加命令行排除模式

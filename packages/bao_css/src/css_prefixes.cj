@@ -795,7 +795,7 @@ public class CssPrefixLookup {
                 }
             }
             // 其他特性: 默认不加前缀
-            case _ => {}
+            case _ => ()
         }
 
         return prefixes

@@ -23,13 +23,13 @@ public class UnlinkCommand {
     /// unlink 内部实现
     /// 对应 Bun: unlink()
     private static func unlink(ctx: CommandContext): Unit {
-        val cli = PackageManager.CommandLineArguments.parse(ctx, Subcommand.unlink)
+        let cli = PackageManager.CommandLineArguments.parse(ctx, Subcommand.unlink)
         val (manager, originalCwd) = match (PackageManager.init(ctx, cli, Subcommand.unlink)) {
             case Some((pm, dir)) => (pm, dir)
             case None => {
                 // 尝试创建 package.json
                 PackageManager.attemptToCreatePackageJSON()
-                val retry = PackageManager.init(ctx, cli, Subcommand.unlink)
+                let retry = PackageManager.init(ctx, cli, Subcommand.unlink)
                 if (retry == None) {
                     Output.errGeneric("Failed to initialize package manager")
                     Global.exit(1)
@@ -50,7 +50,7 @@ public class UnlinkCommand {
             var pkg = LockfilePackage()
 
             // Step 1. 解析最近的 package.json 文件
-            val packageJsonSource = BaoFile.readSource(manager.originalPackageJsonPath, ctx.allocator)
+            let packageJsonSource = BaoFile.readSource(manager.originalPackageJsonPath, ctx.allocator)
             if (packageJsonSource == None) {
                 Output.errGeneric("failed to read \"${manager.originalPackageJsonPath}\" for unlinking")
                 Global.crash()
@@ -73,8 +73,8 @@ public class UnlinkCommand {
             }
 
             // Step 2. 检查全局链接目录中的符号链接
-            val linkPath = Path.joinAbsStringZ(manager.globalLinkDirPath(), name)
-            val statResult = Syscall.lstat(linkPath)
+            let linkPath = Path.joinAbsStringZ(manager.globalLinkDirPath(), name)
+            let statResult = Syscall.lstat(linkPath)
             if (statResult.isErr) {
                 Output.prettyErrorLn("<r><green>success:<r> package \"${name}\" is not globally linked, so there's nothing to do.")
                 Global.exit(0)
@@ -93,11 +93,11 @@ public class UnlinkCommand {
             manager.globalDir = Options.openGlobalDir(explicitGlobalDir)
             manager.setupGlobalDir(ctx)
 
-            val nodeModules = manager.globalDir!!.makeOpenPath("node_modules")
+            let nodeModules = manager.globalDir!!.makeOpenPath("node_modules")
 
             // Step 3b. 取消链接全局 bins
             if (pkg.bin.tag != BinTag.none) {
-                val binLinker = BinLinker()
+                let binLinker = BinLinker()
                 binLinker.targetNodeModulesPath = nodeModules.getPath()
                 binLinker.targetPackageName = name
                 binLinker.bin = pkg.bin

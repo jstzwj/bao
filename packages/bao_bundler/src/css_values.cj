@@ -970,7 +970,7 @@ public class CssValueParser {
             let color = CssColorParser.parseHex(s)
             match (color) {
                 case Some(c) => return CssValue.color(c)
-                case None => {}
+                case None => ()
             }
         }
 
@@ -981,7 +981,7 @@ public class CssValueParser {
             let color = CssColorParser.parse(s)
             match (color) {
                 case Some(c) => return CssValue.color(c)
-                case None => {}
+                case None => ()
             }
         }
 
@@ -990,7 +990,7 @@ public class CssValueParser {
         if (namedColor != None) {
             match (namedColor) {
                 case Some(c) => return CssValue.color(c)
-                case None => {}
+                case None => ()
             }
         }
 
@@ -1027,7 +1027,7 @@ public class CssValueParser {
                         return CssValue.number(v)
                     }
                     return CssValue.integer(Int64(v))
-                case None => {}
+                case None => ()
             }
         }
 

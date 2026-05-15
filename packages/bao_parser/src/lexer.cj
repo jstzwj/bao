@@ -307,7 +307,7 @@ public class Lexer {
 
     /// 初始化并读取第一个 token - 对应 Bun init()
     /// Bun: pub fn init(log, source, allocator) !LexerType
-    public static func init(log: Log, source: Source): Lexer {
+    public static func initFunc(log: Log, source: Source): Lexer {
         let lexer = Lexer(log, source)
         lexer.step()
         lexer.nextToken()
@@ -315,7 +315,7 @@ public class Lexer {
     }
 
     /// 初始化并读取第一个 token (带配置)
-    public static func init(log: Log, source: Source, options: LexerOptions): Lexer {
+    public static func initFunc(log: Log, source: Source, options: LexerOptions): Lexer {
         let lexer = Lexer(log, source, options)
         lexer.step()
         lexer.nextToken()
@@ -724,7 +724,7 @@ public class Lexer {
                 step()
                 if (codePoint == 61) { // '!='
                     step()
-                    if (codePoint == 61) { // '!=='
+                    if (codePoint == 61) { // '!='
                         step()
                         token = Token.ExclamationEqualsEquals
                     } else {

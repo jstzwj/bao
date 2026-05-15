@@ -64,21 +64,21 @@ public class RegistryConfig {
         let npmToken = bao_sys.SysModule.getEnv("NPM_TOKEN")
         match (npmToken) {
             case Some(t) => token = t
-            case None => {}
+            case None => ()
         }
 
         // NPM_CONFIG_REGISTRY - 覆盖默认 registry
         let registryEnv = bao_sys.SysModule.getEnv("NPM_CONFIG_REGISTRY")
         match (registryEnv) {
             case Some(r) => if (r.length > 0) { url = r }
-            case None => {}
+            case None => ()
         }
 
         // Bun 翻译: 支持 Bun 特有的环境变量
         let bunToken = bao_sys.SysModule.getEnv("BUN_CONFIG_TOKEN")
         match (bunToken) {
             case Some(t) => token = t
-            case None => {}
+            case None => ()
         }
 
         // 如果有 token, 自动设置 alwaysAuth
@@ -98,10 +98,10 @@ public class RegistryConfig {
                         // 构建 Base64 编码的 Basic auth
                         auth = bao_hash.Base64.encode(Array<UInt8>(u.length + p.length + 1, item: 0))
                     }
-                    case None => {}
+                    case None => ()
                 }
             }
-            case None => {}
+            case None => ()
         }
     }
 
@@ -148,10 +148,10 @@ public class RegistryConfig {
                         case Some(r) => if (r.length > 0) {
                             return RegistryConfig(r)
                         }
-                        case None => {}
+                        case None => ()
                     }
                 }
-                case None => {}
+                case None => ()
             }
         }
         return this
@@ -321,7 +321,7 @@ public class PackageMetadata {
             let latest = latestVersion()
             match (latest) {
                 case Some(v) => return getVersion(v)
-                case None => {}
+                case None => ()
             }
         }
 
@@ -353,14 +353,14 @@ public class PackageMetadata {
                                             best = Some(vi)
                                         }
                                     }
-                                    case None => {}
+                                    case None => ()
                                 }
                             }
                             case None => best = Some(vi)
                         }
                     }
                 }
-                case None => {}
+                case None => ()
             }
         }
         return best
@@ -441,7 +441,7 @@ public class RegistryCache {
                                 return None  // 过期
                             }
                         }
-                        case None => {}
+                        case None => ()
                     }
                 }
                 return Some(m)
@@ -577,7 +577,7 @@ public class RegistryClient {
         let cached = cache.get(name)
         match (cached) {
             case Some(m) => return Some(m)
-            case None => {}
+            case None => ()
         }
 
         // 获取该包的 scope 配置
@@ -638,11 +638,11 @@ public class RegistryClient {
                             // 保存 ETag 和 Last-Modified
                             match (resp.getHeader("ETag")) {
                                 case Some(etag) => m.etag = etag
-                                case None => {}
+                                case None => ()
                             }
                             match (resp.getHeader("Last-Modified")) {
                                 case Some(lm) => m.lastModified = lm
-                                case None => {}
+                                case None => ()
                             }
                             cache.put(name, m)
                             return Some(m)
@@ -667,13 +667,13 @@ public class RegistryClient {
                 let exact = m.getVersion(version)
                 match (exact) {
                     case Some(v) => return Some(v)
-                    case None => {}
+                    case None => ()
                 }
                 // 再尝试 dist-tag
                 let tagVersion = m.getDistTag(version)
                 match (tagVersion) {
                     case Some(v) => return m.getVersion(v)
-                    case None => {}
+                    case None => ()
                 }
                 // 最后尝试版本范围
                 return m.findBestVersion(version)
@@ -818,11 +818,11 @@ public class RegistryClient {
                         for (k in tags.keys()) {
                             match (tags.get(k)) {
                                 case Some(JsonValue.Str(v)) => meta.distTags.put(k, v)
-                                case _ => {}
+                                case _ => ()
                             }
                         }
                     }
-                    case _ => {}
+                    case _ => ()
                 }
 
                 // time: { "created": "...", "modified": "...", "1.0.0": "..." }
@@ -831,11 +831,11 @@ public class RegistryClient {
                         for (k in timeObj.keys()) {
                             match (timeObj.get(k)) {
                                 case Some(JsonValue.Str(v)) => meta.time.put(k, v)
-                                case _ => {}
+                                case _ => ()
                             }
                         }
                     }
-                    case _ => {}
+                    case _ => ()
                 }
 
                 // versions: { "1.0.0": { ... }, "1.1.0": { ... } }
@@ -876,7 +876,7 @@ public class RegistryClient {
                                                 case None => ""
                                             }
                                         }
-                                        case _ => {}
+                                        case _ => ()
                                     }
 
                                     // 依赖
@@ -896,16 +896,16 @@ public class RegistryClient {
                                                             match (metaObj.get(mk)) {
                                                                 case Some(JsonValue.Bool(b)) => meta2.put(mk, if (b) { "true" } else { "false" })
                                                                 case Some(JsonValue.Str(s)) => meta2.put(mk, s)
-                                                                case _ => {}
+                                                                case _ => ()
                                                             }
                                                         }
                                                         vi.peerDependenciesMeta.put(k, meta2)
                                                     }
-                                                    case _ => {}
+                                                    case _ => ()
                                                 }
                                             }
                                         }
-                                        case _ => {}
+                                        case _ => ()
                                     }
 
                                     // bundledDependencies
@@ -914,11 +914,11 @@ public class RegistryClient {
                                             for (item in arr) {
                                                 match (item) {
                                                     case JsonValue.Str(s) => vi.bundledDependencies.append(s)
-                                                    case _ => {}
+                                                    case _ => ()
                                                 }
                                             }
                                         }
-                                        case _ => {}
+                                        case _ => ()
                                     }
 
                                     // deprecated
@@ -939,16 +939,16 @@ public class RegistryClient {
                                                 let preinstallScript = scriptsObj.get("preinstall")
                                                 match (installScript) {
                                                     case Some(JsonValue.Str(s)) => if (s.length > 0) { vi.hasInstallScript = true }
-                                                    case _ => {}
+                                                    case _ => ()
                                                 }
                                                 if (!vi.hasInstallScript) {
                                                     match (postinstallScript) {
                                                         case Some(JsonValue.Str(s)) => if (s.length > 0) { vi.hasInstallScript = true }
-                                                        case _ => {}
+                                                        case _ => ()
                                                     }
                                                 }
                                             }
-                                            case _ => {}
+                                            case _ => ()
                                         }
                                     }
 
@@ -958,22 +958,22 @@ public class RegistryClient {
                                             for (item in arr) {
                                                 match (item) {
                                                     case JsonValue.Str(s) => vi.os.append(s)
-                                                    case _ => {}
+                                                    case _ => ()
                                                 }
                                             }
                                         }
-                                        case _ => {}
+                                        case _ => ()
                                     }
                                     match (JsonHelper.getField(verObj, "cpu")) {
                                         case Some(JsonValue.Array(arr)) => {
                                             for (item in arr) {
                                                 match (item) {
                                                     case JsonValue.Str(s) => vi.cpu.append(s)
-                                                    case _ => {}
+                                                    case _ => ()
                                                 }
                                             }
                                         }
-                                        case _ => {}
+                                        case _ => ()
                                     }
 
                                     // license
@@ -988,7 +988,7 @@ public class RegistryClient {
                                             for (k in binObj.keys()) {
                                                 match (binObj.get(k)) {
                                                     case Some(JsonValue.Str(v)) => vi.bin.put(k, v)
-                                                    case _ => {}
+                                                    case _ => ()
                                                 }
                                             }
                                         }
@@ -996,7 +996,7 @@ public class RegistryClient {
                                             // bin: "single-bin.js" -> { name: "single-bin.js" }
                                             vi.bin.put(name, binStr)
                                         }
-                                        case _ => {}
+                                        case _ => ()
                                     }
 
                                     // main / module / types
@@ -1009,11 +1009,11 @@ public class RegistryClient {
 
                                     meta.versions.append(vi)
                                 }
-                                case _ => {}
+                                case _ => ()
                             }
                         }
                     }
-                    case _ => {}
+                    case _ => ()
                 }
 
                 return Some(meta)
@@ -1170,12 +1170,12 @@ public class HttpResponse {
         // 直接查找
         match (headers.get(name)) {
             case Some(v) => return Some(v)
-            case None => {}
+            case None => ()
         }
         // 小写查找
         match (headers.get(name.toLower())) {
             case Some(v) => return Some(v)
-            case None => {}
+            case None => ()
         }
         return None
     }

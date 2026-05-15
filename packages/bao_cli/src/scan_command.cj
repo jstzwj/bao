@@ -15,7 +15,7 @@ public class ScanCommand {
     /// 执行 scan 命令
     /// 对应 Bun: ScanCommand.exec()
     public static func exec(ctx: CommandContext): Unit {
-        val cli = PackageManager.CommandLineArguments.parse(ctx, Subcommand.scan)
+        let cli = PackageManager.CommandLineArguments.parse(ctx, Subcommand.scan)
 
         val (manager, cwd) = match (PackageManager.init(ctx, cli, Subcommand.scan)) {
             case Some((pm, dir)) => (pm, dir)
@@ -51,7 +51,7 @@ public class ScanCommand {
         Output.prettyError("bao pm scan v${Global.packageJsonVersionWithSha}\n")
         Output.flush()
 
-        val loadLockfile = manager.lockfile.loadFromCwd(manager, ctx.allocator, ctx.log, true)
+        let loadLockfile = manager.lockfile.loadFromCwd(manager, ctx.allocator, ctx.log, true)
         if (loadLockfile == LoadLockfileResult.not_found) {
             Output.errGeneric("Lockfile not found. Run 'bao install' first to generate a lockfile.")
             Global.exit(1)
@@ -61,13 +61,13 @@ public class ScanCommand {
             Global.exit(1)
         }
 
-        val scanResults = SecurityScanner.performSecurityScanForAll(manager, ctx, originalCwd)
+        let scanResults = SecurityScanner.performSecurityScanForAll(manager, ctx, originalCwd)
         if (scanResults == None) {
             Output.errGeneric("Could not perform security scan")
             Global.exit(1)
         }
 
-        val results = scanResults!!
+        let results = scanResults!!
         SecurityScanner.printSecurityAdvisories(manager, results)
 
         if (results.hasAdvisories()) {

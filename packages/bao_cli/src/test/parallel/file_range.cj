@@ -43,7 +43,7 @@ public class FileRange {
         if (isEmpty()) {
             return None
         }
-        val val_ = lo
+        let val_ = lo
         lo += 1
         return Some(val_)
     }
@@ -59,8 +59,8 @@ public class FileRange {
         if (isEmpty()) {
             return None
         }
-        val mid = lo + len() / 2
-        val stolen = FileRange(mid, hi)
+        let mid = lo + len() / 2
+        let stolen = FileRange(mid, hi)
         hi = mid
         return Some(stolen)
     }

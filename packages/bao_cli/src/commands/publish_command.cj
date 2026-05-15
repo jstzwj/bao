@@ -153,7 +153,7 @@ public class PublishCommand {
                         println("")
                         println(" + ${cfg.packageName}@${cfg.packageVersion}${dryRunSuffix}")
                     }
-                    case _ => {}
+                    case _ => ()
                 }
                 return result
             }
@@ -270,18 +270,18 @@ public class PublishCommand {
                                     let accessVal = JsonHelper.getString(pc, "access")
                                     match (accessVal) {
                                         case Some(a) => opts.access = Some(a)
-                                        case None => {}
+                                        case None => ()
                                     }
                                 }
                                 if (opts.tag == "latest") {
                                     let tagVal = JsonHelper.getString(pc, "tag")
                                     match (tagVal) {
                                         case Some(t) => opts.tag = t
-                                        case None => {}
+                                        case None => ()
                                     }
                                 }
                             }
-                            case _ => {}
+                            case _ => ()
                         }
 
                         // 使用 PackCommand 打包
@@ -488,23 +488,23 @@ public class PublishCommand {
                                     case Some(JsonValue.Str(script)) => {
                                         Process.spawn(["sh", "-c", script], ".")
                                     }
-                                    case _ => {}
+                                    case _ => ()
                                 }
                                 // 运行 postpublish 脚本
                                 match (scripts.get("postpublish")) {
                                     case Some(JsonValue.Str(script)) => {
                                         Process.spawn(["sh", "-c", script], ".")
                                     }
-                                    case _ => {}
+                                    case _ => ()
                                 }
                             }
-                            case None => {}
+                            case None => ()
                         }
                     }
-                    case None => {}
+                    case None => ()
                 }
             }
-            case None => {}
+            case None => ()
         }
     }
 
@@ -527,12 +527,12 @@ public class PublishCommand {
                             case Some(i) => {
                                 info.token = trimmed.substring(i + ":_authToken=".length)
                             }
-                            case None => {}
+                            case None => ()
                         }
                     }
                 }
             }
-            case None => {}
+            case None => ()
         }
 
         // 也检查环境变量
@@ -543,7 +543,7 @@ public class PublishCommand {
                     info.token = t
                 }
             }
-            case None => {}
+            case None => ()
         }
 
         return info

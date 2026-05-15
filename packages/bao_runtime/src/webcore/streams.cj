@@ -246,7 +246,7 @@ public class StreamResult {
             case Err => {
                 // JSValue 类型的错误需要取消保护
             }
-            case _ => {}
+            case _ => ()
         }
     }
 
@@ -441,7 +441,7 @@ public class WritablePending {
             case Handler => {
                 // 在实际实现中会调用 handler 回调
             }
-            case None => {}
+            case None => ()
         }
     }
 }
@@ -562,7 +562,7 @@ public class StreamSignal {
         }
         match (vtable) {
             case Some(vt) => vt.onClose(err)
-            case None => {}
+            case None => ()
         }
     }
 
@@ -574,7 +574,7 @@ public class StreamSignal {
         }
         match (vtable) {
             case Some(vt) => vt.onReady(amount, offset)
-            case None => {}
+            case None => ()
         }
     }
 
@@ -586,7 +586,7 @@ public class StreamSignal {
         }
         match (vtable) {
             case Some(vt) => vt.onStart()
-            case None => {}
+            case None => ()
         }
     }
 }
@@ -696,7 +696,7 @@ public class HTTPServerWritable {
                     highWaterMark = streamStart.chunkSize
                 }
             }
-            case _ => {}
+            case _ => ()
         }
 
         done = false
@@ -974,7 +974,7 @@ public class NetworkSink {
                     highWaterMark = streamStart.chunkSize
                 }
             }
-            case _ => {}
+            case _ => ()
         }
 
         ended = false
@@ -1002,7 +1002,7 @@ public class NetworkSink {
             case Some(t) => {
                 t.writeBytes(bytes, false)
             }
-            case None => {}
+            case None => ()
         }
 
         return StreamResultWritable.owned(len)
@@ -1022,7 +1022,7 @@ public class NetworkSink {
             case Some(t) => {
                 t.writeLatin1(bytes, false)
             }
-            case None => {}
+            case None => ()
         }
 
         return StreamResultWritable.owned(len)
@@ -1040,7 +1040,7 @@ public class NetworkSink {
             case Some(t) => {
                 t.writeUTF16(bytes, false)
             }
-            case None => {}
+            case None => ()
         }
 
         return StreamResultWritable.owned(bytes.size)
@@ -1059,7 +1059,7 @@ public class NetworkSink {
             case Some(t) => {
                 t.writeBytes(Array<UInt8>(), true)
             }
-            case None => {}
+            case None => ()
         }
 
         signal.close(err)
@@ -1103,7 +1103,7 @@ public class NetworkSink {
                 task = None
                 t.deref()
             }
-            case None => {}
+            case None => ()
         }
     }
 }

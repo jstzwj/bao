@@ -283,7 +283,7 @@ public class Snapshots {
     /// - Return: 是否成功
     public func getSnapshotFile(fileId: UInt32): Bool {
         // 检查是否已加载此文件的快照
-        if currentFile != None && currentFile!.id == fileId {
+        if currentFile != None && currentFile.getOrThrow().id == fileId {
             return true
         }
 

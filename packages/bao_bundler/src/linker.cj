@@ -291,7 +291,7 @@ public class DependencyGraph {
                         }
                     }
                 }
-                case None => {}
+                case None => ()
             }
         }
 
@@ -332,7 +332,7 @@ public class DependencyGraph {
                     cycle.append(current)
                     cycles.append(cycle)
                 }
-                case None => {}
+                case None => ()
             }
             return
         }
@@ -348,7 +348,7 @@ public class DependencyGraph {
                     dfsDetectCycles(dep, visited, stack, path, cycles)
                 }
             }
-            case None => {}
+            case None => ()
         }
 
         path.removeAt(path.size - 1)
@@ -519,7 +519,7 @@ public class Linker {
                     case ModuleType.JSON => {
                         // JSON 没有导入
                     }
-                    case _ => {}
+                    case _ => ()
                 }
             }
             case None => {
@@ -639,7 +639,7 @@ public class Linker {
                     let withExt = resolver.resolve(fromPath, specifier + ext)
                     match (withExt) {
                         case Some(path) => return Some(path)
-                        case None => {}
+                        case None => ()
                     }
                 }
                 // 尝试 index
@@ -647,7 +647,7 @@ public class Linker {
                     let indexPath = resolver.resolve(fromPath, specifier + "/index" + ext)
                     match (indexPath) {
                         case Some(path) => return Some(path)
-                        case None => {}
+                        case None => ()
                     }
                 }
                 // 尝试 package.json 的 main/module
@@ -666,16 +666,16 @@ public class Linker {
                                         let mainPath = resolver.resolve(fromPath, specifier + "/" + main)
                                         match (mainPath) {
                                             case Some(p) => return Some(p)
-                                            case None => {}
+                                            case None => ()
                                         }
                                     }
-                                    case None => {}
+                                    case None => ()
                                 }
                             }
-                            case None => {}
+                            case None => ()
                         }
                     }
-                    case None => {}
+                    case None => ()
                 }
             }
         }
@@ -730,7 +730,7 @@ public class Linker {
                             imp.kind = ImportKind.Static
                             result.append(imp)
                         }
-                        case None => {}
+                        case None => ()
                     }
                 }
                 case Statement.ExpressionStatement(expr) => {
@@ -744,7 +744,7 @@ public class Linker {
                                 imp.isDeferred = options.deferDynamicImports
                                 result.append(imp)
                             }
-                            case None => {}
+                            case None => ()
                         }
                     }
                     // require()
@@ -756,11 +756,11 @@ public class Linker {
                                 imp.kind = ImportKind.Require
                                 result.append(imp)
                             }
-                            case None => {}
+                            case None => ()
                         }
                     }
                 }
-                case _ => {}
+                case _ => ()
             }
         }
 
@@ -785,7 +785,7 @@ public class Linker {
                                 exp.kind = ExportKind.ReexportNamed
                                 exp.reexportFrom = Some(src)
                             }
-                            case None => {}
+                            case None => ()
                         }
                         result.append(exp)
                     }
@@ -793,7 +793,7 @@ public class Linker {
                 case Statement.ExportAllDeclaration(decl) => {
                     result.append(ExportRecord(ExportKind.ReexportAll, "*"))
                 }
-                case _ => {}
+                case _ => ()
             }
         }
 

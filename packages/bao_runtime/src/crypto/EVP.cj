@@ -287,12 +287,12 @@ public class EVP {
                         let mdByName = BoringSSL.evpGetDigestByName(alg.name())
                         match (mdByName) {
                             case Some(mdVal2) => return EVP(alg, mdVal2, engine)
-                            case None => {}
+                            case None => ()
                         }
                     }
                 }
             }
-            case None => {}
+            case None => ()
         }
         return None
     }

@@ -28,6 +28,7 @@ public enum TriState {
 
 /// 操作系统枚举 - 对应 Bun analytics.OperatingSystem
 public enum OperatingSystem {
+    | None
 }
     }
 }
@@ -40,6 +41,7 @@ public enum OperatingSystem {
 
 /// CPU 架构枚举 - 对应 Bun analytics.Architecture
 public enum Architecture {
+    | None
 }
     }
 }
@@ -112,6 +114,7 @@ public class Platform {
 
 /// 事件类型枚举 - 对应 Bun analytics.EventKind
 public enum EventKind {
+    | None
 }
     }
 
@@ -138,6 +141,7 @@ public enum EventKind {
 
 /// 事件名称枚举 - 对应 Bun analytics.EventName
 public enum EventName {
+    | None
 }
 
 // ============================================================================

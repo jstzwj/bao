@@ -107,7 +107,7 @@ public class DotEnvMap {
 /// .env 文件解析器 - 对应 Bun env_loader.Parser
 public class DotEnv {
     // 空白字符集 - 对应 Bun Parser.whitespace_chars
-    // const whitespace_chars = "\t\x0B\x0C \xA0\n\r"
+    // const whitespace_chars = "\t\u{0B}\u{0C} \u{A0}\n\r"
     private static let WHITESPACE: String = "\t\u{0B}\u{0C} \u{A0}\n\r"
 
     // ========================================================================

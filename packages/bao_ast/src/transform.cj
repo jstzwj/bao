@@ -70,7 +70,7 @@ public open class ASTTransformer {
                     let transformed = applyExpr(child)
                     match (transformResultFor(transformed)) {
                         case Int64(0) => newChildren.append(transformed) // keep
-                        case Int64(1) => {} // removed
+                        case Int64(1) => () // removed
                         case _ => newChildren.append(transformed)
                     }
                 }
@@ -229,9 +229,9 @@ public class ESVersionDowngrader <: ASTTransformer {
                             if (!targetVersion.isAtLeast(ESVersion.ES2020)) {
                                 return downgradeOptionalChain(node)
                             }
-                        case _ => {}
+                        case _ => ()
                     }
-                    case None => {}
+                    case None => ()
                 }
                 return TransformResult.Continue
             }
@@ -245,9 +245,9 @@ public class ESVersionDowngrader <: ASTTransformer {
                             if (!targetVersion.isAtLeast(ESVersion.ES2020)) {
                                 return downgradeNullishCoalescing(node)
                             }
-                        case _ => {}
+                        case _ => ()
                     }
-                    case None => {}
+                    case None => ()
                 }
                 return TransformResult.Continue
             }
@@ -261,9 +261,9 @@ public class ESVersionDowngrader <: ASTTransformer {
                             if (!targetVersion.isAtLeast(ESVersion.ES2021)) {
                                 return downgradeLogicalAssignment(node)
                             }
-                        case _ => {}
+                        case _ => ()
                     }
-                    case None => {}
+                    case None => ()
                 }
                 return TransformResult.Continue
             }
@@ -432,9 +432,9 @@ public class CommonJSTransformer <: ASTTransformer {
                     if (!processedImports.contains(sourcePath)) {
                         processedImports.append(sourcePath)
                     }
-                case None => {}
+                case None => ()
             }
-            case None => {}
+            case None => ()
         }
         // 替换为 Local (变量声明) 语句
         let localStmt = StmtNode(StmtTag.Local, node.loc)
@@ -786,8 +786,8 @@ public class HoistTransformer <: ASTTransformer {
                     collectHoisted(stmt.stmts, depth + Int64(1))
                 }
                 // 函数创建新的作用域边界
-                case StmtTag.Function => {} // 已处理
-                case _ => {}
+                case StmtTag.Function => () // 已处理
+                case _ => ()
             }
             idx += Int64(1)
         }

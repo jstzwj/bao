@@ -53,7 +53,7 @@ public class UpdateInteractiveCommand {
     /// 执行交互式更新
     /// 对应 Bun: UpdateInteractiveCommand.exec()
     public static func exec(ctx: CommandContext): Unit {
-        val cli = PackageManager.CommandLineArguments.parse(ctx, Subcommand.update)
+        let cli = PackageManager.CommandLineArguments.parse(ctx, Subcommand.update)
         val (manager, cwd) = match (PackageManager.init(ctx, cli, Subcommand.update)) {
             case Some((pm, dir)) => (pm, dir)
             case None => {
@@ -63,11 +63,11 @@ public class UpdateInteractiveCommand {
         }
 
         // 加载 lockfile
-        val loadLockfile = manager.lockfile.loadFromCwd(manager, ctx.allocator, ctx.log, true)
+        let loadLockfile = manager.lockfile.loadFromCwd(manager, ctx.allocator, ctx.log, true)
         PackageManagerCommand.handleLoadLockfileErrors(loadLockfile, manager)
 
         // 收集过时的包
-        val outdatedPackages = collectOutdatedPackages(manager)
+        let outdatedPackages = collectOutdatedPackages(manager)
 
         if (outdatedPackages.size == 0) {
             Output.prettyLn("All packages are up to date")
@@ -109,24 +109,24 @@ public class UpdateInteractiveCommand {
     /// 收集过时的包
     /// 对应 Bun: collectOutdatedPackages
     private static func collectOutdatedPackages(manager: PackageManager): ArrayList<OutdatedPackage> {
-        val result = ArrayList<OutdatedPackage>()
-        val packages = manager.lockfile.packages
+        let result = ArrayList<OutdatedPackage>()
+        let packages = manager.lockfile.packages
 
         for (pkgIdx in 0..packages.length) {
-            val pkgName = packages.getName(pkgIdx)
+            let pkgName = packages.getName(pkgIdx)
             if (pkgName.length == 0) {
                 continue
             }
 
-            val resolution = packages.getResolution(pkgIdx)
+            let resolution = packages.getResolution(pkgIdx)
             if (resolution.tag != ResolutionTag.npm) {
                 continue
             }
 
-            val currentVersion = resolution.formatVersion()
+            let currentVersion = resolution.formatVersion()
 
             // 查询最新版本
-            val manifest = manager.manifests.byNameAllowExpired(
+            let manifest = manager.manifests.byNameAllowExpired(
                 manager, manager.scopeForPackageName(pkgName),
                 pkgName, false
             )
@@ -134,7 +134,7 @@ public class UpdateInteractiveCommand {
                 continue
             }
 
-            val latestVersion = manifest!!.findByDistTag("latest")
+            let latestVersion = manifest!!.findByDistTag("latest")
             if (latestVersion == None) {
                 continue
             }
@@ -144,7 +144,7 @@ public class UpdateInteractiveCommand {
                 continue
             }
 
-            val pkg = OutdatedPackage()
+            let pkg = OutdatedPackage()
             pkg.name = pkgName
             pkg.current = currentVersion
             pkg.update = latestVersion!!.version
@@ -159,7 +159,7 @@ public class UpdateInteractiveCommand {
     /// 对应 Bun: updateSelectedPackages / updatePackageJSONAndInstall
     private static func updatePackages(manager: PackageManager, packages: ArrayList<OutdatedPackage>): Unit {
         // 读取 package.json
-        val pkgContent = BaoFile.readAllText("package.json")
+        let pkgContent = BaoFile.readAllText("package.json")
         if (pkgContent == None) {
             Output.errGeneric("No package.json found")
             return
@@ -192,14 +192,14 @@ public class UpdateInteractiveCommand {
         var result = content
 
         // 在 "packageName": "oldVersion" 中替换
-        val patterns = ["\"${packageName}\": \"", "\"${packageName}\" : \""]
+        let patterns = ["\"${packageName}\": \"", "\"${packageName}\" : \""]
         for (pattern in patterns) {
-            val idx = result.indexOf(pattern)
+            let idx = result.indexOf(pattern)
             if (idx >= 0) {
-                val start = idx + pattern.length
-                val end = result.indexOf('"', start)
+                let start = idx + pattern.length
+                let end = result.indexOf('"', start)
                 if (end >= 0) {
-                    val oldVersion = result.substring(start, end)
+                    let oldVersion = result.substring(start, end)
                     result = result.substring(0, start) + newVersion + result.substring(end)
                 }
             }
@@ -212,7 +212,7 @@ public class UpdateInteractiveCommand {
     /// 对应 Bun: updateCatalog
     public static func updateCatalog(catalogName: String, packageName: String, newVersion: String): Unit {
         // 读取 package.json
-        val pkgContent = BaoFile.readAllText("package.json") ?: return
+        let pkgContent = BaoFile.readAllText("package.json") ?: return
 
         // 简化: 在 catalogs 节中更新版本
         // 完整实现需要 JSON 路径操作

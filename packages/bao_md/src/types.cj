@@ -20,18 +20,22 @@ public typealias SZ = UInt32
 
 /// 块级元素类型，通过 enterBlock / leaveBlock 回调报告
 public enum BlockType {
+    | None
 }
 
 /// 行内元素类型，通过 enterSpan / leaveSpan 回调报告
 public enum SpanType {
+    | None
 }
 
 /// 文本类型，通过 text 回调报告
 public enum TextType {
+    | None
 }
 
 /// 表格单元格对齐方式
 public enum Align {
+    | None
 }
 
 // ============================================================================
@@ -202,6 +206,7 @@ public class SpanDetail {
 
 /// 子串类型
 public enum SubstrType {
+    | None
 }
 
 /// 子串偏移
@@ -246,6 +251,7 @@ public class Attribute {
 
 /// 块分析期间的行类型
 public enum LineType {
+    | None
 }
 
 /// 行分析结果

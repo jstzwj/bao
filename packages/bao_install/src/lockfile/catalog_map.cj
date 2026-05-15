@@ -176,7 +176,7 @@ public class CatalogMap {
                     }
                 }
             }
-            case None => {}
+            case None => ()
         }
 
         match (expr.get("catalogs")) {
@@ -195,7 +195,7 @@ public class CatalogMap {
                     }
                 }
             }
-            case None => {}
+            case None => ()
         }
 
         return total
@@ -227,7 +227,7 @@ public class CatalogMap {
                     }
                 }
             }
-            case None => {}
+            case None => ()
         }
 
         // 解析命名 catalogs
@@ -255,7 +255,7 @@ public class CatalogMap {
                     }
                 }
             }
-            case None => {}
+            case None => ()
         }
 
         return foundAny

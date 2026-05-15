@@ -226,7 +226,7 @@ public class FfiFunction {
         for (arg in argTypes) {
             match (arg) {
                 case NapiEnv | NapiValue => return true
-                case _ => {}
+                case _ => ()
             }
         }
         return false
@@ -238,12 +238,12 @@ public class FfiFunction {
         for (arg in argTypes) {
             match (arg) {
                 case NapiEnv | NapiValue => return true
-                case _ => {}
+                case _ => ()
             }
         }
         match (returnType) {
             case NapiValue => return true
-            case _ => {}
+            case _ => ()
         }
         return false
     }
@@ -391,7 +391,7 @@ public class Ffi {
                         case FfiStep.Pending => {
                             return JsValue("Failed to compile (nothing happened!)")
                         }
-                        case FfiStep.Compiled(_) => {}
+                        case FfiStep.Compiled(_) => ()
                     }
                 }
 
@@ -467,7 +467,7 @@ public class Ffi {
                 lib.close()
                 dylib = None
             }
-            case None => {}
+            case None => ()
         }
 
         // 释放函数
@@ -576,7 +576,7 @@ public class Ffi {
                                 }
                             }
                         }
-                        case None => {}
+                        case None => ()
                     }
                 }
 

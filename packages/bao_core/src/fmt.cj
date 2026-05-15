@@ -1180,7 +1180,7 @@ public class GithubActionFormatter {
                 sb.append("%0A")
                 i += 2
             } else if (c.value == 0x1b && i + 1 < chars.size && chars[i + 1] == '[') {
-                // ANSI 转义序列: \x1b[...m -> 跳过
+                // ANSI 转义序列: \u{1b}[...m -> 跳过
                 var j = i + 2
                 while (j < chars.size && j < i + 8) {
                     if (chars[j] == 'm') {
@@ -1345,11 +1345,11 @@ public class IntegrityFormatter {
 /// JS 关键字颜色 - 对应 Bun ColorCode
 /// 严格翻译自: fmt.zig:712-728
 public enum JsHighlightColor {
-    | Magenta   // \x1b[35m - 关键字
-    | Blue      // \x1b[34m - 类型关键字
-    | Orange    // \x1b[33m - true/false/null/undefined
-    | Red       // \x1b[31m - delete
-    | Pink      // \x1b[38;5;206m - this
+    | Magenta   // \u{1b}[35m - 关键字
+    | Blue      // \u{1b}[34m - 类型关键字
+    | Orange    // \u{1b}[33m - true/false/null/undefined
+    | Red       // \u{1b}[31m - delete
+    | Pink      // \u{1b}[38;5;206m - this
 
     public func ansiCode(): String {
         match (this) {

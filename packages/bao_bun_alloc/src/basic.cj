@@ -63,7 +63,7 @@ public class SingleAllocation {
 
     /// 初始化分配器
     /// 对应 Zig: pub fn init(self: *Self, allocator: std.mem.Allocator) std.mem.Allocator
-    public static func init(allocator: Allocator): SingleAllocation {
+    public static func initFunc(allocator: Allocator): SingleAllocation {
         let sa = SingleAllocation()
         sa.arrayList = ArrayList<Byte>()
         return sa

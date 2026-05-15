@@ -101,19 +101,15 @@ public enum ImportKind {
 
 /// 导入标签 - 对应 Bun ImportRecord.Tag
 public enum ImportTag {
-    | None          // 普通用户源文件导入
-    | Bun           // 导入 'bun'
-    | Builtin       // 内置模块 (如 node:fs, bun:sqlite)
-    | Runtime       // 内部运行时导入
-    | Macro         // macro: 导入命名空间或 with { type: "macro" }
-    | BakeResolveToSSRGraph  // Bake Kit SSR 图交叉引用
-    | Tailwind      // Tailwind 导入
-
-    /// 是否为运行时导入
-    /// 对应 Bun ImportRecord.Tag.isRuntime()
-    public func isRuntime(): Bool {
-        this == ImportTag.Runtime
-    }
+    | None
+    | Bun
+    | Builtin
+    | Runtime
+    | Macro
+    | BakeResolveToSSRGraph
+    | Tailwind
+    | this
+}
 
     /// 是否为内部导入
     /// 对应 Bun ImportRecord.Tag.isInternal()

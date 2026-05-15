@@ -86,7 +86,7 @@ public class BundlerThreadPoolV2 {
         if (workerPoolIsOwned) {
             match (workerPool) {
                 case Some(pool) => pool.deinit()
-                case None => {}
+                case None => ()
             }
         }
         if (BundlerThreadPoolV2.usesIOPool()) {
@@ -99,11 +99,11 @@ public class BundlerThreadPoolV2 {
     public func start(): Unit {
         match (workerPool) {
             case Some(pool) => pool.warm(8)
-            case None => {}
+            case None => ()
         }
         match (ioPool) {
             case Some(pool) => pool.warm(1)
-            case None => {}
+            case None => ()
         }
     }
 
@@ -172,7 +172,7 @@ public class BundlerThreadPoolV2 {
                 // 简化: 实际需要调度 ThreadPoolTask
                 parseTask.runFromThreadPool()
             }
-            case None => {}
+            case None => ()
         }
     }
 
@@ -183,7 +183,7 @@ public class BundlerThreadPoolV2 {
                 // 简化: 实际需要调度 IO 任务
                 parseTask.runFromThreadPool()
             }
-            case None => {}
+            case None => ()
         }
     }
 

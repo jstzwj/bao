@@ -5,6 +5,7 @@ package bao_sql.mysql
 /// MySQL SSL 连接模式
 /// 对应 Bun: SSLMode (enum u8)
 public enum SSLMode {
+    | None
 }
 
     /// 从整数值创建

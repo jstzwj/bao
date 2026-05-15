@@ -234,7 +234,7 @@ public class CssUrlSource {
         sb.append("url(${url})")
         match (format) {
             case Some(f) => sb.append(" format(${f.toCss()})")
-            case None => {}
+            case None => ()
         }
         if (tech.size > 0) {
             let techStrs = ArrayList<String>()

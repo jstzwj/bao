@@ -405,7 +405,7 @@ public class ObjectPool<T> where T <: Poolable {
                         data.count -= 1
                     }
                     return node.data
-                case None => {}
+                case None => ()
             }
         }
 
@@ -427,7 +427,7 @@ public class ObjectPool<T> where T <: Poolable {
                         data.count -= 1
                     }
                     return node
-                case None => {}
+                case None => ()
             }
         }
 
@@ -667,7 +667,7 @@ public class ThreadSafeObjectPool<T> where T <: Poolable {
                         data.count -= 1
                     }
                     return node.data
-                case None => {}
+                case None => ()
             }
         }
 

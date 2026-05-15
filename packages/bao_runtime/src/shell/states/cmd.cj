@@ -194,7 +194,7 @@ public class CmdState {
                 case .idle =>
                     // 展开赋值
                     this.state = CmdStateKind.expandingAssigns(AssignsState())
-                    return this.state.expandingAssigns!.start()
+                    return this.state.expandingAssigns.getOrThrow().start()
                 case .expandingAssigns =>
                     return Yield.suspended
                 case .expandingRedirect =>
@@ -278,7 +278,7 @@ public class CmdState {
         }
         if (this.exec != .none) {
             if (this.exec == .subproc) {
-                return this.exec.subproc!.bufferedClosed.allClosed()
+                return this.exec.subproc.getOrThrow().bufferedClosed.allClosed()
             }
             return false
         }
@@ -307,15 +307,15 @@ public class CmdState {
 
         if (this.exec != .none) {
             if (this.exec == .subproc) {
-                let cmd = this.exec.subproc!.child
+                let cmd = this.exec.subproc.getOrThrow().child
                 if (!cmd.hasExited()) {
                     cmd.tryKill(9)
                 }
                 cmd.unref()
                 cmd.deinit()
-                this.exec.subproc!.bufferedClosed.deinit()
+                this.exec.subproc.getOrThrow().bufferedClosed.deinit()
             } else if (this.exec == .bltn) {
-                this.exec.bltn!.deinit()
+                this.exec.bltn.getOrThrow().deinit()
             }
             this.exec = Exec.none
         }

@@ -18,9 +18,9 @@ public type LPCSTR = CPointer<UInt8>
 public type LPWSTR = CPointer<UInt16>
 public type LPCWSTR = CPointer<UInt16>
 public type PWSTR = CPointer<UInt16>
-public type LPVOID = CPointer<None>
+public type LPVOID = CPointer<Unit>
 public type LPDWORD = CPointer<DWORD>
-public type HPCON = CPointer<None>
+public type HPCON = CPointer<Unit>
 public type DWORD_PTR = UInt64
 
 // ============================================================================
@@ -53,190 +53,168 @@ public class FILETIME {
 // BY_HANDLE_FILE_INFORMATION struct (opaque reference - defined elsewhere)
 // ============================================================================
 
-public opaque type BY_HANDLE_FILE_INFORMATION {}
+@C
+public struct BY_HANDLE_FILE_INFORMATION {}
 
 // ============================================================================
 // SECURITY_ATTRIBUTES struct (opaque reference)
 // ============================================================================
 
-public opaque type SECURITY_ATTRIBUTES {}
+@C
+public struct SECURITY_ATTRIBUTES {}
 
 // ============================================================================
 // FILE_INFO_BY_HANDLE_CLASS enum
 // ============================================================================
 
 public enum FILE_INFO_BY_HANDLE_CLASS {
-    FileBasicInfo = 0
-    FileStandardInfo = 1
-    FileNameInfo = 2
-    FileRenameInfo = 3
-    FileDispositionInfo = 4
-    FileAllocationInfo = 5
-    FileEndOfFileInfo = 6
-    FileStreamInfo = 7
-    FileCompressionInfo = 8
-    FileAttributeTagInfo = 9
-    FileIdBothDirectoryInfo = 10
-    FileIdBothDirectoryRestartInfo = 11
-    FileIoPriorityHintInfo = 12
-    FileRemoteProtocolInfo = 13
-    FileFullDirectoryInfo = 14
-    FileFullDirectoryRestartInfo = 15
-    FileStorageInfo = 16
-    FileAlignmentInfo = 17
-    FileIdInfo = 18
-    FileIdExtdDirectoryInfo = 19
-    FileIdExtdDirectoryRestartInfo = 20
-    FileDispositionInfoEx = 21
-    FileRenameInfoEx = 22
-    FileCaseSensitiveInfo = 23
-    FileNormalizedNameInfo = 24
-    MaximumFileInfoByHandleClass = 25
+    | FileBasicInfo
+    | FileStandardInfo
+    | FileNameInfo
+    | FileRenameInfo
+    | FileDispositionInfo
+    | FileAllocationInfo
+    | FileEndOfFileInfo
+    | FileStreamInfo
+    | FileCompressionInfo
+    | FileAttributeTagInfo
+    | FileIdBothDirectoryInfo
+    | FileIdBothDirectoryRestartInfo
+    | FileIoPriorityHintInfo
+    | FileRemoteProtocolInfo
+    | FileFullDirectoryInfo
+    | FileFullDirectoryRestartInfo
+    | FileStorageInfo
+    | FileAlignmentInfo
+    | FileIdInfo
+    | FileIdExtdDirectoryInfo
+    | FileIdExtdDirectoryRestartInfo
+    | FileDispositionInfoEx
+    | FileRenameInfoEx
+    | FileCaseSensitiveInfo
+    | FileNormalizedNameInfo
+    | MaximumFileInfoByHandleClass
 }
 
 // ============================================================================
 // kernel32 FFI extern functions
 // ============================================================================
 
-@Extern
-public func GetFileInformationByHandle(
+foreign func GetFileInformationByHandle(
     hFile: HANDLE,
     lpFileInformation: CPointer<BY_HANDLE_FILE_INFORMATION>
 ): BOOL
 
-@Extern
-public func GetBinaryTypeW(
+foreign func GetBinaryTypeW(
     lpApplicationName: LPCWSTR,
     lpBinaryType: LPDWORD
 ): BOOL
 
-@Extern
-public func SetCurrentDirectoryW(
+foreign func SetCurrentDirectoryW(
     lpPathName: LPCWSTR
 ): BOOL
 
-@Extern
-public func CopyFileW(
+foreign func CopyFileW(
     source: LPCWSTR,
     dest: LPCWSTR,
     bFailIfExists: BOOL
 ): BOOL
 
-@Extern
-public func SetFileInformationByHandle(
+foreign func SetFileInformationByHandle(
     file: HANDLE,
     fileInformationClass: FILE_INFO_BY_HANDLE_CLASS,
     fileInformation: LPVOID,
     bufferSize: DWORD
 ): BOOL
 
-@Extern
-public func GetHostNameW(
+foreign func GetHostNameW(
     lpBuffer: PWSTR,
     nSize: Int32
 ): BOOL
 
-@Extern
-public func GetTempPathW(
+foreign func GetTempPathW(
     nBufferLength: DWORD,
     lpBuffer: LPCWSTR
 ): DWORD
 
-@Extern
-public func CreateJobObjectA(
-    lpJobAttributes: CPointer<None>,
+foreign func CreateJobObjectA(
+    lpJobAttributes: CPointer<Unit>,
     lpName: LPCSTR
 ): HANDLE
 
-@Extern
-public func AssignProcessToJobObject(
+foreign func AssignProcessToJobObject(
     hJob: HANDLE,
     hProcess: HANDLE
 ): BOOL
 
-@Extern
-public func ResumeThread(
+foreign func ResumeThread(
     hJob: HANDLE
 ): DWORD
 
-@Extern
-public func SetInformationJobObject(
+foreign func SetInformationJobObject(
     hJob: HANDLE,
     JobObjectInformationClass: DWORD,
     lpJobObjectInformation: LPVOID,
     cbJobObjectInformationLength: DWORD
 ): BOOL
 
-@Extern
-public func OpenProcess(
+foreign func OpenProcess(
     dwDesiredAccess: DWORD,
     bInheritHandle: BOOL,
     dwProcessId: DWORD
 ): HANDLE
 
-@Extern
-public func CreateDirectoryExW(
+foreign func CreateDirectoryExW(
     lpTemplateDirectory: CPointer<UInt16>,
     lpNewDirectory: CPointer<UInt16>,
     lpSecurityAttributes: CPointer<SECURITY_ATTRIBUTES>
 ): BOOL
 
-@Extern
-public func GetModuleHandleExW(
+foreign func GetModuleHandleExW(
     dwFlags: UInt32,
-    lpModuleName: CPointer<None>,
+    lpModuleName: CPointer<Unit>,
     phModule: CPointer<HMODULE>
 ): BOOL
 
-@Extern
-public func GetModuleFileNameW(
+foreign func GetModuleFileNameW(
     hModule: HMODULE,
     lpFilename: LPWSTR,
     nSize: DWORD
 ): BOOL
 
-@Extern
-public func GetThreadDescription(
-    thread: CPointer<None>,
+foreign func GetThreadDescription(
+    thread: CPointer<Unit>,
     ppszThreadDescription: CPointer<PWSTR>
 ): HRESULT
 
-@Extern
-public func SetStdHandle(nStdHandle: UInt32, hHandle: CPointer<None>): UInt32
+foreign func SetStdHandle(nStdHandle: UInt32, hHandle: CPointer<Unit>): UInt32
 
-@Extern
-public func GetConsoleOutputCP(): UInt32
+foreign func GetConsoleOutputCP(): UInt32
 
-@Extern
-public func GetConsoleCP(): UInt32
+foreign func GetConsoleCP(): UInt32
 
-@Extern
-public func SetConsoleCP(wCodePageID: UINT): BOOL
+foreign func SetConsoleCP(wCodePageID: UINT): BOOL
 
-@Extern
-public func InitializeProcThreadAttributeList(
+foreign func InitializeProcThreadAttributeList(
     lpAttributeList: CPointer<UInt8>,
     dwAttributeCount: DWORD,
     dwFlags: DWORD,
     size: CPointer<UInt64>
 ): BOOL
 
-@Extern
-public func UpdateProcThreadAttribute(
+foreign func UpdateProcThreadAttribute(
     lpAttributeList: CPointer<UInt8>,
     dwFlags: DWORD,
     Attribute: DWORD_PTR,
-    lpValue: CPointer<None>,
+    lpValue: CPointer<Unit>,
     cbSize: UInt64,
-    lpPreviousValue: CPointer<None>,
+    lpPreviousValue: CPointer<Unit>,
     lpReturnSize: CPointer<UInt64>
 ): BOOL
 
-@Extern
-public func IsProcessInJob(process: HANDLE, job: HANDLE, result: CPointer<BOOL>): BOOL
+foreign func IsProcessInJob(process: HANDLE, job: HANDLE, result: CPointer<BOOL>): BOOL
 
-@Extern
-public func CreatePseudoConsole(
+foreign func CreatePseudoConsole(
     size: COORD,
     hInput: HANDLE,
     hOutput: HANDLE,
@@ -244,53 +222,42 @@ public func CreatePseudoConsole(
     phPC: CPointer<HPCON>
 ): HRESULT
 
-@Extern
-public func ResizePseudoConsole(
+foreign func ResizePseudoConsole(
     hPC: HPCON,
     size: COORD
 ): HRESULT
 
-@Extern
-public func ClosePseudoConsole(hPC: HPCON): Unit
+foreign func ClosePseudoConsole(hPC: HPCON): Unit
 
-@Extern
-public func CloseHandle(hObject: HANDLE): BOOL
+foreign func CloseHandle(hObject: HANDLE): BOOL
 
-@Extern
-public func GetFinalPathNameByHandleW(
+foreign func GetFinalPathNameByHandleW(
     hFile: HANDLE,
     lpszFilePath: CPointer<UInt16>,
     cchFilePath: DWORD,
     dwFlags: DWORD
 ): DWORD
 
-@Extern
-public func DeleteFileW(lpFileName: CPointer<UInt16>): BOOL
+foreign func DeleteFileW(lpFileName: CPointer<UInt16>): BOOL
 
-@Extern
-public func CreateSymbolicLinkW(
+foreign func CreateSymbolicLinkW(
     lpSymlinkFileName: CPointer<UInt16>,
     lpTargetFileName: CPointer<UInt16>,
     dwFlags: DWORD
 ): BOOLEAN
 
-@Extern
-public func GetCurrentThread(): HANDLE
+foreign func GetCurrentThread(): HANDLE
 
-@Extern
-public func GetCommandLineW(): LPWSTR
+foreign func GetCommandLineW(): LPWSTR
 
-@Extern
-public func CreateDirectoryW(
+foreign func CreateDirectoryW(
     lpPathName: CPointer<UInt16>,
     lpSecurityAttributes: CPointer<SECURITY_ATTRIBUTES>
 ): BOOL
 
-@Extern
-public func SetEndOfFile(hFile: HANDLE): BOOL
+foreign func SetEndOfFile(hFile: HANDLE): BOOL
 
-@Extern
-public func GetProcessTimes(
+foreign func GetProcessTimes(
     in_hProcess: HANDLE,
     out_lpCreationTime: CPointer<FILETIME>,
     out_lpExitTime: CPointer<FILETIME>,
@@ -302,8 +269,7 @@ public func GetProcessTimes(
 // shell32 FFI extern functions
 // ============================================================================
 
-@Extern
-public func CommandLineToArgvW(
+foreign func CommandLineToArgvW(
     lpCmdLine: LPCWSTR,
     pNumArgs: CPointer<Int32>
 ): CPointer<LPWSTR>
@@ -312,14 +278,12 @@ public func CommandLineToArgvW(
 // advapi32 FFI extern functions
 // ============================================================================
 
-@Extern
-public func SaferiIsExecutableFileType(
+foreign func SaferiIsExecutableFileType(
     szFullPathname: LPCWSTR,
     bFromShellExecute: BOOLEAN
 ): BOOL
 
-@Extern
-public func GetUserNameW(
+foreign func GetUserNameW(
     lpBuffer: LPWSTR,
     pcbBuffer: LPDWORD
 ): BOOL
@@ -328,16 +292,13 @@ public func GetUserNameW(
 // Generic FFI extern functions (no library annotation)
 // ============================================================================
 
-@Extern
-public func GetProcAddress(
-    ptr: CPointer<None>,
+foreign func GetProcAddress(
+    ptr: CPointer<Unit>,
     procName: CPointer<UInt16>
-): CPointer<None>
+): CPointer<Unit>
 
-@Extern
-public func LoadLibraryA(
+foreign func LoadLibraryA(
     lpLibFileName: CPointer<UInt8>
-): CPointer<None>
+): CPointer<Unit>
 
-@Extern
-public func windows_enable_stdio_inheritance(): Unit
+foreign func windows_enable_stdio_inheritance(): Unit

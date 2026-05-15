@@ -340,7 +340,7 @@ public class CssPrinter {
         if (parent != None) {
             match (parent) {
                 case Some(p) => ctx.parent = Some(p)
-                case None => {}
+                case None => ()
             }
         }
         context = Some(ctx)

@@ -17,6 +17,7 @@ import bao_core.*
 /// Zig 源码为 DefineEnumProperty(@compileError(...)) 占位
 /// 严格翻译自 FillRule
 public enum FillRule {
+    | None
 }
 
 // ============================================================================

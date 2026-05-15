@@ -53,12 +53,12 @@ public class AnyRequestContext {
 
     /// 初始化
     /// 对应 Bun: pub fn init(request_ctx: anytype) AnyRequestContext
-    public static func init(ctx: RequestContext): AnyRequestContext {
+    public static func initFunc(ctx: RequestContext): AnyRequestContext {
         return AnyRequestContext(AnyRequestContextTag.Http, ctx)
     }
 
     /// 初始化 (带标签)
-    public static func init(tag: AnyRequestContextTag, ctx: RequestContext): AnyRequestContext {
+    public static func initFunc(tag: AnyRequestContextTag, ctx: RequestContext): AnyRequestContext {
         return AnyRequestContext(tag, ctx)
     }
 

@@ -53,7 +53,7 @@ public class CdCmd {
                 switch (this.bltn().parentCmd().base.shell.changePrevCwd(
                     this.bltn().parentCmd().base.interpreter
                 )) {
-                    case .result => {}
+                    case .result => ()
                     case .err(let err) =>
                         return this.handleChangeCwdErr(
                             err,
@@ -67,7 +67,7 @@ public class CdCmd {
                 switch (this.bltn().parentCmd().base.shell.changeCwd(
                     this.bltn().parentCmd().base.interpreter, homedir.slice()
                 )) {
-                    case .result => {}
+                    case .result => ()
                     case .err(let err) =>
                         return this.handleChangeCwdErr(err, homedir.slice())
                 }
@@ -76,7 +76,7 @@ public class CdCmd {
                 switch (this.bltn().parentCmd().base.shell.changeCwd(
                     this.bltn().parentCmd().base.interpreter, firstArg
                 )) {
-                    case .result => {}
+                    case .result => ()
                     case .err(let err) =>
                         return this.handleChangeCwdErr(err, firstArg)
                 }

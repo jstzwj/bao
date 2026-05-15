@@ -94,7 +94,7 @@ public class CacheMetadata {
     public func put(entry: CacheEntry): Unit {
         match (entries.get(entry.key())) {
             case Some(old) => totalSize -= old.size
-            case None => {}
+            case None => ()
         }
         entries.put(entry.key(), entry)
         totalSize += entry.size
@@ -146,7 +146,7 @@ public class CacheMetadata {
         for (key in entries.keys()) {
             match (entries.get(key)) {
                 case Some(e) => result.append(e)
-                case None => {}
+                case None => ()
             }
         }
         return result
@@ -340,7 +340,7 @@ public class PackageCache {
                             ]))
                             BaoFile.mkdir(scopeDir, true)
                         }
-                        case None => {}
+                        case None => ()
                     }
                 }
 
@@ -376,7 +376,7 @@ public class PackageCache {
                             ]))
                             BaoFile.mkdir(scopeDir, true)
                         }
-                        case None => {}
+                        case None => ()
                     }
                 }
 
@@ -637,12 +637,12 @@ public class PackageCache {
                         let fileSize = BaoFile.getFileSize(path)
                         match (fileSize) {
                             case Some(s) => size += s
-                            case None => {}
+                            case None => ()
                         }
                     }
                 }
             }
-            case None => {}
+            case None => ()
         }
         return (count, size)
     }
@@ -711,14 +711,14 @@ public class PackageCache {
                                     }
                                     metadata.put(entry)
                                 }
-                                case _ => {}
+                                case _ => ()
                             }
                         }
                     }
-                    case _ => {}
+                    case _ => ()
                 }
             }
-            case _ => {}
+            case _ => ()
         }
     }
 

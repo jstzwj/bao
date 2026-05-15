@@ -17,7 +17,7 @@ public class PmTrustedCommand {
     /// 执行 trust 命令
     /// 对应 Bun: TrustCommand.exec()
     public static func execTrust(ctx: CommandContext, pm: PackageManager): Unit {
-        val positionals = ctx.positionals
+        let positionals = ctx.positionals
         if (positionals.size < 1) {
             // trust all packages in the lockfile
             trustAll(ctx, pm)
@@ -26,7 +26,7 @@ public class PmTrustedCommand {
 
         // trust specific packages
         for (i in 0..positionals.size) {
-            val packageName = positionals[i]
+            let packageName = positionals[i]
             trustPackage(ctx, pm, packageName)
         }
     }
@@ -34,31 +34,31 @@ public class PmTrustedCommand {
     /// 执行 untrusted 命令: 列出不受信任的包
     /// 对应 Bun: UntrustedCommand.exec()
     public static func execUntrusted(ctx: CommandContext, pm: PackageManager): Unit {
-        val loadLockfile = pm.lockfile.loadFromCwd(pm, ctx.allocator, ctx.log, true)
+        let loadLockfile = pm.lockfile.loadFromCwd(pm, ctx.allocator, ctx.log, true)
         PackageManagerCommand.handleLoadLockfileErrors(loadLockfile, pm)
 
-        val packages = pm.lockfile.packages
+        let packages = pm.lockfile.packages
         var hasUntrusted = false
 
         for (pkgIdx in 0..packages.length) {
-            val pkgName = packages.getName(pkgIdx)
+            let pkgName = packages.getName(pkgIdx)
             if (pkgName.length == 0) {
                 continue
             }
 
-            val resolution = packages.getResolution(pkgIdx)
+            let resolution = packages.getResolution(pkgIdx)
             if (resolution.tag != ResolutionTag.npm) {
                 continue
             }
 
             // 检查是否有 lifecycle 脚本
-            val hasScripts = packages.hasLifecycleScripts(pkgIdx)
+            let hasScripts = packages.hasLifecycleScripts(pkgIdx)
             if (hasScripts && !isTrusted(pkgName)) {
                 if (!hasUntrusted) {
                     Output.prettyLn("Untrusted packages with lifecycle scripts:")
                     hasUntrusted = true
                 }
-                val version = resolution.formatVersion()
+                let version = resolution.formatVersion()
                 Output.prettyLn("  ${pkgName}@${version}")
             }
         }
@@ -71,19 +71,19 @@ public class PmTrustedCommand {
     /// 信任所有包
     /// 对应 Bun: DefaultTrustedCommand
     private static func trustAll(ctx: CommandContext, pm: PackageManager): Unit {
-        val loadLockfile = pm.lockfile.loadFromCwd(pm, ctx.allocator, ctx.log, true)
+        let loadLockfile = pm.lockfile.loadFromCwd(pm, ctx.allocator, ctx.log, true)
         PackageManagerCommand.handleLoadLockfileErrors(loadLockfile, pm)
 
-        val packages = pm.lockfile.packages
+        let packages = pm.lockfile.packages
         var count = 0
 
         for (pkgIdx in 0..packages.length) {
-            val pkgName = packages.getName(pkgIdx)
+            let pkgName = packages.getName(pkgIdx)
             if (pkgName.length == 0) {
                 continue
             }
 
-            val hasScripts = packages.hasLifecycleScripts(pkgIdx)
+            let hasScripts = packages.hasLifecycleScripts(pkgIdx)
             if (hasScripts && !isTrusted(pkgName)) {
                 addTrusted(pkgName)
                 count += 1
@@ -102,7 +102,7 @@ public class PmTrustedCommand {
     /// 检查包是否受信任
     /// 对应 Bun: trustedPackages check
     public static func isTrusted(packageName: String): Bool {
-        val trustFile = BaoFile.readAllText("node_modules/.trusted")
+        let trustFile = BaoFile.readAllText("node_modules/.trusted")
         if (trustFile == None) {
             return false
         }
@@ -111,9 +111,9 @@ public class PmTrustedCommand {
 
     /// 添加受信任的包
     public static func addTrusted(packageName: String): Unit {
-        val trustFile = BaoFile.readAllText("node_modules/.trusted") ?: ""
+        let trustFile = BaoFile.readAllText("node_modules/.trusted") ?: ""
         if (!trustFile.contains(packageName)) {
-            val updated = if (trustFile.length > 0) {
+            let updated = if (trustFile.length > 0) {
                 "${trustFile}\n${packageName}"
             } else {
                 packageName
@@ -125,9 +125,9 @@ public class PmTrustedCommand {
 
     /// 移除受信任的包
     public static func removeTrusted(packageName: String): Unit {
-        val trustFile = BaoFile.readAllText("node_modules/.trusted") ?: return
-        val lines = trustFile.split('\n')
-        val updated = lines.filter { it != packageName && it.length > 0 }.joinToString("\n")
+        let trustFile = BaoFile.readAllText("node_modules/.trusted") ?: return
+        let lines = trustFile.split('\n')
+        let updated = lines.filter { it != packageName && it.length > 0 }.joinToString("\n")
         BaoFile.writeAllText("node_modules/.trusted", updated)
     }
 

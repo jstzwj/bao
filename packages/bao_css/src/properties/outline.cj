@@ -73,7 +73,7 @@ public class Outline {
 
         // 样式
         match (style) {
-            case OutlineStyle.LineStyle(LineStyle.None) => {}
+            case OutlineStyle.LineStyle(LineStyle.None) => ()
             case _ => parts.append(style.toCss())
         }
 

@@ -30,18 +30,18 @@ public class PmVersionCommand {
     /// 执行 version 命令
     /// 对应 Bun: PmVersionCommand.exec()
     public static func exec(ctx: CommandContext, pm: PackageManager): Unit {
-        val positionals = ctx.positionals
+        let positionals = ctx.positionals
         if (positionals.size < 1) {
             // 无参数: 显示当前版本
             printCurrentVersion()
             return
         }
 
-        val bumpTypeStr = positionals[0]
-        val bumpType = parseBumpType(bumpTypeStr)
+        let bumpTypeStr = positionals[0]
+        let bumpType = parseBumpType(bumpTypeStr)
         if (bumpType == None) {
             // 可能是显式版本号
-            val version = SemVer.parse(bumpTypeStr)
+            let version = SemVer.parse(bumpTypeStr)
             if (version != None) {
                 setVersion(version!!.format())
                 return
@@ -69,15 +69,15 @@ public class PmVersionCommand {
 
     /// 打印当前版本
     private static func printCurrentVersion(): Unit {
-        val pkgContent = BaoFile.readAllText("package.json")
+        let pkgContent = BaoFile.readAllText("package.json")
         if (pkgContent == None) {
             Output.errGeneric("No package.json found")
             return
         }
 
-        val json = JsonParser.parse(pkgContent!!)
+        let json = JsonParser.parse(pkgContent!!)
         if (json != None && json!!.isObject()) {
-            val version = json!!.asObject().get("version")
+            let version = json!!.asObject().get("version")
             if (version != None && version!!.isString()) {
                 Output.println(version!!.asString())
                 return
@@ -88,10 +88,10 @@ public class PmVersionCommand {
 
     /// 获取当前版本
     private static func getCurrentVersion(): ?SemVer {
-        val pkgContent = BaoFile.readAllText("package.json") ?: return None
-        val json = JsonParser.parse(pkgContent)
+        let pkgContent = BaoFile.readAllText("package.json") ?: return None
+        let json = JsonParser.parse(pkgContent)
         if (json != None && json!!.isObject()) {
-            val version = json!!.asObject().get("version")
+            let version = json!!.asObject().get("version")
             if (version != None && version!!.isString()) {
                 return SemVer.parse(version!!.asString())
             }
@@ -102,13 +102,13 @@ public class PmVersionCommand {
     /// 递增版本号
     /// 对应 Bun: bumpVersion (semver 递增逻辑)
     public static func bumpVersion(bumpType: VersionBumpType): Unit {
-        val current = getCurrentVersion()
+        let current = getCurrentVersion()
         if (current == None) {
             Output.errGeneric("No version found in package.json")
             return
         }
 
-        val newVersion = when (bumpType) {
+        let newVersion = when (bumpType) {
             case VersionBumpType.patch => SemVer(current!!.major, current!!.minor, current!!.patch + 1)
             case VersionBumpType.minor => SemVer(current!!.major, current!!.minor + 1, 0)
             case VersionBumpType.major => SemVer(current!!.major + 1, 0, 0)
@@ -130,14 +130,14 @@ public class PmVersionCommand {
     /// 设置版本号
     /// 对应 Bun: setVersion (修改 package.json 并 git commit)
     public static func setVersion(version: String): Unit {
-        val pkgContent = BaoFile.readAllText("package.json")
+        let pkgContent = BaoFile.readAllText("package.json")
         if (pkgContent == None) {
             Output.errGeneric("No package.json found")
             return
         }
 
         // 修改 version 字段
-        val modified = JsonHelper.setField(pkgContent!!, "version", version)
+        let modified = JsonHelper.setField(pkgContent!!, "version", version)
         BaoFile.writeAllText("package.json", modified)
 
         Output.println("v${version}")
@@ -158,16 +158,16 @@ public class PmVersionCommand {
     /// 执行 lifecycle 脚本
     /// 对应 Bun: 执行 npm lifecycle 脚本
     private static func executeLifecycleScript(scriptName: String): Unit {
-        val pkgContent = BaoFile.readAllText("package.json")
+        let pkgContent = BaoFile.readAllText("package.json")
         if (pkgContent == None) {
             return
         }
 
-        val json = JsonParser.parse(pkgContent!!)
+        let json = JsonParser.parse(pkgContent!!)
         if (json != None && json!!.isObject()) {
-            val scripts = json!!.asObject().get("scripts")
+            let scripts = json!!.asObject().get("scripts")
             if (scripts != None && scripts!!.isObject()) {
-                val script = scripts!!.asObject().get(scriptName)
+                let script = scripts!!.asObject().get(scriptName)
                 if (script != None && script!!.isString()) {
                     try {
                         Sys.exec(script!!.asString())
@@ -224,7 +224,7 @@ public class SemVer {
 
     /// 格式化为字符串
     public func format(): String {
-        val base = "${major}.${minor}.${patch}"
+        let base = "${major}.${minor}.${patch}"
         if (prerelease != None) {
             return "${base}-${prereleaseTag}.${prereleaseNum}"
         }
@@ -233,26 +233,26 @@ public class SemVer {
 
     /// 从字符串解析
     public static func parse(s: String): ?SemVer {
-        val parts = s.split('.')
+        let parts = s.split('.')
         if (parts.length < 3) {
             return None
         }
-        val major = Int64.parse(parts[0]) ?: return None
-        val minor = Int64.parse(parts[1]) ?: return None
-        val patchPart = parts[2]
-        val dashIdx = patchPart.indexOf('-')
+        let major = Int64.parse(parts[0]) ?: return None
+        let minor = Int64.parse(parts[1]) ?: return None
+        let patchPart = parts[2]
+        let dashIdx = patchPart.indexOf('-')
         if (dashIdx >= 0) {
-            val patch = Int64.parse(patchPart.substring(0, dashIdx)) ?: return None
-            val pre = patchPart.substring(dashIdx + 1)
-            val dotIdx = pre.indexOf('.')
+            let patch = Int64.parse(patchPart.substring(0, dashIdx)) ?: return None
+            let pre = patchPart.substring(dashIdx + 1)
+            let dotIdx = pre.indexOf('.')
             if (dotIdx >= 0) {
-                val tag = pre.substring(0, dotIdx)
-                val num = Int64.parse(pre.substring(dotIdx + 1)) ?: 0
+                let tag = pre.substring(0, dotIdx)
+                let num = Int64.parse(pre.substring(dotIdx + 1)) ?: 0
                 return Some(SemVer(major, minor, patch, tag, num))
             }
             return Some(SemVer(major, minor, patch, pre, 0))
         }
-        val patch = Int64.parse(patchPart) ?: return None
+        let patch = Int64.parse(patchPart) ?: return None
         return Some(SemVer(major, minor, patch))
     }
 }

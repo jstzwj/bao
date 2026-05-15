@@ -17,20 +17,20 @@ public class PmViewCommand {
     /// 执行 view 命令
     /// 对应 Bun: PmViewCommand.exec()
     public static func exec(ctx: CommandContext, pm: PackageManager): Unit {
-        val positionals = ctx.positionals
+        let positionals = ctx.positionals
         if (positionals.size < 1) {
             Output.errGeneric("Package name required")
             return
         }
 
-        val packageSpec = positionals[0]
-        val propertyPath = if (positionals.size > 1) positionals[1] else None
+        let packageSpec = positionals[0]
+        let propertyPath = if (positionals.size > 1) positionals[1] else None
 
         // 解析包名和版本
         val (packageName, version) = parsePackageSpec(packageSpec)
 
         // 从 registry 获取元数据
-        val metadata = fetchPackageMetadata(pm, packageName, version)
+        let metadata = fetchPackageMetadata(pm, packageName, version)
         if (metadata == None) {
             Output.errGeneric("Package not found: ${packageName}")
             return
@@ -38,7 +38,7 @@ public class PmViewCommand {
 
         // 打印结果
         if (propertyPath != None) {
-            val value = PackageManagerCommand.resolveJsonPath(metadata!!, propertyPath!!)
+            let value = PackageManagerCommand.resolveJsonPath(metadata!!, propertyPath!!)
             if (value != None) {
                 Output.println(formatJsonValue(value!!))
             } else {
@@ -53,21 +53,21 @@ public class PmViewCommand {
     /// 对应 Bun: parsePackageSpec()
     private static func parsePackageSpec(spec: String): (String, ?String) {
         // 处理 @scope/package@version 格式
-        val atCount = spec.countChars('@')
+        let atCount = spec.countChars('@')
         if (spec[0] == '@' && atCount > 1) {
             // @scope/package@version
-            val secondAt = spec.indexOf('@', 1)
+            let secondAt = spec.indexOf('@', 1)
             if (secondAt >= 0) {
-                val name = spec.substring(0, secondAt)
-                val version = spec.substring(secondAt + 1)
+                let name = spec.substring(0, secondAt)
+                let version = spec.substring(secondAt + 1)
                 return (name, Some(version))
             }
         } else if (atCount == 1 && spec[0] != '@') {
             // package@version
-            val atIdx = spec.indexOf('@')
+            let atIdx = spec.indexOf('@')
             if (atIdx >= 0) {
-                val name = spec.substring(0, atIdx)
-                val version = spec.substring(atIdx + 1)
+                let name = spec.substring(0, atIdx)
+                let version = spec.substring(atIdx + 1)
                 return (name, Some(version))
             }
         }
@@ -78,19 +78,19 @@ public class PmViewCommand {
     /// 从 registry 获取包元数据
     /// 对应 Bun: fetchPackageMetadata (HTTP GET)
     private static func fetchPackageMetadata(pm: PackageManager, packageName: String, version: ?String): ?JsonValue {
-        val scope = pm.scopeForPackageName(packageName)
+        let scope = pm.scopeForPackageName(packageName)
         var url = "${Strings.withoutTrailingSlash(scope.url)}/${packageName}"
         if (version != None) {
             url += "/${version!!}"
         }
 
-        val headers = HashMap<String, String>()
+        let headers = HashMap<String, String>()
         headers.put("accept", "application/json")
         if (scope.token.length > 0) {
             headers.put("authorization", "Bearer ${scope.token}")
         }
 
-        val response = HttpClient.getSynchronous(url, headers)
+        let response = HttpClient.getSynchronous(url, headers)
         if (response == None) {
             return None
         }

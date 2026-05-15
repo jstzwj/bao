@@ -101,7 +101,7 @@ public class ServerWebSocket {
 
     /// 初始化
     /// 对应 Bun: pub fn init(handler, data_value, signal) *ServerWebSocket
-    public static func init(handler: WebSocketHandler, dataValue: ?Object,
+    public static func initFunc(handler: WebSocketHandler, dataValue: ?Object,
                             signal: ?AbortSignalRef): ServerWebSocket {
         let ws = ServerWebSocket()
         ws.handler = Some(handler)

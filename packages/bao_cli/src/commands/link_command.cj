@@ -151,7 +151,7 @@ public class LinkCommand {
                                                 BaoFile.mkdir(scopeDir, false)
                                             }
                                         }
-                                        case None => {}
+                                        case None => ()
                                     }
                                 }
 
@@ -230,7 +230,7 @@ public class LinkCommand {
                         BaoFile.mkdir(scopeDir, false)
                     }
                 }
-                case None => {}
+                case None => ()
             }
         }
 
@@ -264,10 +264,10 @@ public class LinkCommand {
                     case Some(root) => {
                         linkBins(root, packageName, localNodeModules, opts.binDir)
                     }
-                    case None => {}
+                    case None => ()
                 }
             }
-            case None => {}
+            case None => ()
         }
 
         if (!opts.silent) {
@@ -308,7 +308,7 @@ public class LinkCommand {
                     BaoFile.createSymlink(targetPath, binLinkPath)
                 }
             }
-            case _ => {}
+            case _ => ()
         }
     }
 
@@ -320,7 +320,7 @@ public class LinkCommand {
                 // 简化: 在实际实现中需要 JSON 操作
                 // 添加 "dependencies": { "<name>": "link:<name>" }
             }
-            case None => {}
+            case None => ()
         }
     }
 

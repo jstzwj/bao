@@ -474,7 +474,7 @@ public class LinkerContext {
                         // 标记需要导出
                         node.needsRuntime = true
                     }
-                    case None => {}
+                    case None => ()
                 }
             }
         }
@@ -532,7 +532,7 @@ public class LinkerContext {
                     markFileLiveForTreeShaking(dep)
                 }
             }
-            case None => {}
+            case None => ()
         }
     }
 
@@ -548,7 +548,7 @@ public class LinkerContext {
                     markFileReachableForCodeSplitting(dep, entryIndex)
                 }
             }
-            case None => {}
+            case None => ()
         }
     }
 
@@ -582,7 +582,7 @@ public class LinkerContext {
             let sharedChunk = extractSharedModules(chunks, chunkId)
             match (sharedChunk) {
                 case Some(sc) => chunks.append(sc)
-                case None => {}
+                case None => ()
             }
         }
 
@@ -612,7 +612,7 @@ public class LinkerContext {
                         }
                     }
                 }
-                case None => {}
+                case None => ()
             }
         }
 
@@ -632,7 +632,7 @@ public class LinkerContext {
                         let count = moduleRefCount.get(p) ?? 0
                         moduleRefCount.put(p, count + 1)
                     }
-                    case None => {}
+                    case None => ()
                 }
             }
         }
@@ -697,10 +697,10 @@ public class LinkerContext {
                                     }
                                 }
                             }
-                            case None => {}
+                            case None => ()
                         }
                     }
-                    case None => {}
+                    case None => ()
                 }
             }
         }
@@ -737,10 +737,10 @@ public class LinkerContext {
                         case MatchImportKind.Ambiguous => {
                             // 报告歧义
                         }
-                        case _ => {}
+                        case _ => ()
                     }
                 }
-                case None => {}
+                case None => ()
             }
         }
     }
@@ -832,7 +832,7 @@ public class LinkerContext {
                 case Some(p) => {
                     hasher.write(p)
                 }
-                case None => {}
+                case None => ()
             }
         }
 

@@ -215,7 +215,7 @@ public class MimallocArena {
 
     /// 初始化新区域
     /// 对应 Zig: pub fn init() Self
-    public static func init(): MimallocArena {
+    public static func initFunc(): MimallocArena {
         let mimallocHeap = MimallocLib.miHeapNew()
         if (mimallocHeap == None) {
             Output.outOfMemory()

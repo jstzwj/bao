@@ -302,7 +302,7 @@ public class TimerObjectInternals {
                 idleTimeout = TimeoutObject.jsIdleTimeoutGetCached(thisObject)
                 repeat = TimeoutObject.jsRepeatGetCached(thisObject)
             }
-            case KindBig.setImmediate => {}
+            case KindBig.setImmediate => ()
         }
 
         let isTimerDone = checkTimerDone(kind, repeat, idleTimeout, thisObject, timeBeforeCall, vm, globalThis)
@@ -457,7 +457,7 @@ public class TimerObjectInternals {
     // ========================================================================
 
     /// 初始化定时器内部数据 - 对应 Bun init
-    public func init(
+    public func initFunc(
         timer: JSValue,
         global: JSGlobalObject,
         id: Int32,

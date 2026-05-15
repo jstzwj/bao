@@ -47,7 +47,7 @@ public class RunTasks {
                     node.completedItems = completedItems
                     node.estimatedTotalItems = manager.totalTasks
                 }
-                case None => {}
+                case None => ()
             }
         }
 
@@ -141,11 +141,11 @@ public class RunTasks {
                             // 缓存 manifest
                             manager.manifests.put(cb.name, m)
                         }
-                        case None => {}
+                        case None => ()
                     }
                 }
             }
-            case None => {}
+            case None => ()
         }
     }
 
@@ -168,7 +168,7 @@ public class RunTasks {
                     }
                 }
             }
-            case None => {}
+            case None => ()
         }
     }
 

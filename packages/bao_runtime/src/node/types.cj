@@ -424,7 +424,7 @@ public class Valid {
     // 对应 Bun: Valid.pathNullBytes
     // 如果包含空字节则抛出 ERR_INVALID_ARG_VALUE
     public static func pathNullBytes(path: String): Bool {
-        return !path.contains('\x00')
+        return !path.contains('\u{00}')
     }
 
     // 验证路径缓冲区

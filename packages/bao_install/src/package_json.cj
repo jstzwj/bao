@@ -203,19 +203,19 @@ public class PackageBin {
                     result.name = Some(keys[0])
                     match (obj.get(keys[0])) {
                         case Some(JsonValue.Str(v)) => result.namedPath = Some(v)
-                        case _ => {}
+                        case _ => ()
                     }
                 } else if (keys.size > 1) {
                     result.tag = BinTag.Map
                     for (key in keys) {
                         match (obj.get(key)) {
                             case Some(JsonValue.Str(v)) => result.binMap.put(key, v)
-                            case _ => {}
+                            case _ => ()
                         }
                     }
                 }
             }
-            case _ => {}
+            case _ => ()
         }
         return result
     }
@@ -224,7 +224,7 @@ public class PackageBin {
     public func getBinNames(): ArrayList<String> {
         let names = ArrayList<String>()
         match (tag) {
-            case BinTag.None => {}
+            case BinTag.None => ()
             case BinTag.File => {
                 // 用包名作为 bin 名
                 names.append("<package-name>")
@@ -232,7 +232,7 @@ public class PackageBin {
             case BinTag.NamedFile => {
                 match (name) {
                     case Some(n) => names.append(n)
-                    case None => {}
+                    case None => ()
                 }
             }
             case BinTag.Map => {
@@ -372,7 +372,7 @@ public class PackageJson {
         pkg.moduleEntry = JsonHelper.getString(json, "module")
         pkg.types = JsonHelper.getString(json, "types")
         match (pkg.types) {
-            case Some(_) => {}
+            case Some(_) => ()
             case None => pkg.types = JsonHelper.getString(json, "typings")
         }
         pkg.moduleType = JsonHelper.getString(json, "type") ?? "commonjs"
@@ -390,11 +390,11 @@ public class PackageJson {
                 for (key in obj.keys()) {
                     match (obj.get(key)) {
                         case Some(JsonValue.Str(v)) => pkg.imports.put(key, v)
-                        case _ => {}
+                        case _ => ()
                     }
                 }
             }
-            case _ => {}
+            case _ => ()
         }
 
         // bin
@@ -409,10 +409,10 @@ public class PackageJson {
                             pkg.bin.dirPath = Some(binDir)
                         }
                     }
-                    case _ => {}
+                    case _ => ()
                 }
             }
-            case _ => {}
+            case _ => ()
         }
 
         // scripts
@@ -421,11 +421,11 @@ public class PackageJson {
                 for (key in obj.keys()) {
                     match (obj.get(key)) {
                         case Some(JsonValue.Str(v)) => pkg.scripts.put(key, v)
-                        case _ => {}
+                        case _ => ()
                     }
                 }
             }
-            case _ => {}
+            case _ => ()
         }
 
         // dependencies
@@ -440,11 +440,11 @@ public class PackageJson {
                 for (item in arr) {
                     match (item) {
                         case JsonValue.Str(s) => pkg.trustedDependencies.append(s)
-                        case _ => {}
+                        case _ => ()
                     }
                 }
             }
-            case _ => {}
+            case _ => ()
         }
 
         // cpu, os
@@ -454,7 +454,7 @@ public class PackageJson {
         // private
         match (JsonHelper.getBool(json, "private")) {
             case Some(b) => pkg.isPrivate = b
-            case None => {}
+            case None => ()
         }
 
         // sideEffects
@@ -464,7 +464,7 @@ public class PackageJson {
                 // 可能是数组
                 match (JsonHelper.getField(json, "sideEffects")) {
                     case Some(JsonValue.Array(_)) => pkg.sideEffects = Some(true)
-                    case _ => {}
+                    case _ => ()
                 }
             }
         }
@@ -478,11 +478,11 @@ public class PackageJson {
                 for (key in obj.keys()) {
                     match (obj.get(key)) {
                         case Some(JsonValue.Str(v)) => pkg.engines.put(key, v)
-                        case _ => {}
+                        case _ => ()
                     }
                 }
             }
-            case _ => {}
+            case _ => ()
         }
 
         // workspaces
@@ -491,7 +491,7 @@ public class PackageJson {
                 for (item in arr) {
                     match (item) {
                         case JsonValue.Str(s) => pkg.workspaces.append(s)
-                        case _ => {}
+                        case _ => ()
                     }
                 }
             }
@@ -502,14 +502,14 @@ public class PackageJson {
                         for (item in arr) {
                             match (item) {
                                 case JsonValue.Str(s) => pkg.workspaces.append(s)
-                                case _ => {}
+                                case _ => ()
                             }
                         }
                     }
-                    case _ => {}
+                    case _ => ()
                 }
             }
-            case _ => {}
+            case _ => ()
         }
 
         // repository
@@ -518,7 +518,7 @@ public class PackageJson {
             case Some(JsonValue.Object(obj)) => {
                 pkg.repository = JsonHelper.getString(obj, "url")
             }
-            case _ => {}
+            case _ => ()
         }
 
         // bundledDependencies
@@ -527,11 +527,11 @@ public class PackageJson {
                 for (item in arr) {
                     match (item) {
                         case JsonValue.Str(s) => pkg.bundledDependencies.append(s)
-                        case _ => {}
+                        case _ => ()
                     }
                 }
             }
-            case _ => {}
+            case _ => ()
         }
 
         return pkg
@@ -657,10 +657,10 @@ public class PackageJson {
                 let resolved = resolveExports(exp, importPath ?? ".")
                 match (resolved) {
                     case Some(path) => return Some(path)
-                    case None => {}
+                    case None => ()
                 }
             }
-            case None => {}
+            case None => ()
         }
 
         // 2. 如果有 importPath, 不走 main
@@ -668,13 +668,13 @@ public class PackageJson {
             case Some(p) => {
                 if (p != ".") { return None }
             }
-            case None => {}
+            case None => ()
         }
 
         // 3. module (ESM)
         match (moduleEntry) {
             case Some(m) => return Some(m)
-            case None => {}
+            case None => ()
         }
 
         // 4. main
@@ -693,7 +693,7 @@ public class PackageJson {
                 // 直接匹配
                 match (obj.get(importPath)) {
                     case Some(JsonValue.Str(path)) => return Some(path)
-                    case _ => {}
+                    case _ => ()
                 }
 
                 // 条件匹配 (import, require, default, node, browser)
@@ -704,14 +704,14 @@ public class PackageJson {
                         case Some(JsonValue.Object(inner)) => {
                             match (inner.get(importPath)) {
                                 case Some(JsonValue.Str(path)) => return Some(path)
-                                case _ => {}
+                                case _ => ()
                             }
                         }
-                        case _ => {}
+                        case _ => ()
                     }
                 }
             }
-            case _ => {}
+            case _ => ()
         }
         return None
     }

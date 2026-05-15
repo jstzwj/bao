@@ -173,7 +173,7 @@ public class SslWrapper<T> {
     }
 
     /// 使用 SSL 配置选项初始化
-    public func init(sslOptions: SSLConfig, isClient: Bool, userCtx: T, handlers: SslHandlers<T>): Unit {
+    public func initFunc(sslOptions: SSLConfig, isClient: Bool, userCtx: T, handlers: SslHandlers<T>): Unit {
         let ctxOpts = sslOptions.asUSockets()
         var err: CreateBunSocketError = CreateBunSocketError.NONE
         let sslCtx = ctxOpts.createSSLContext(err)

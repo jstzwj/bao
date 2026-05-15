@@ -24,6 +24,7 @@ package bao_jsc
 //       _,
 //   };
 public enum JSRuntimeType {
+    | None
 }
     }
 

@@ -338,7 +338,7 @@ public class Watcher {
                 let cycleResult = p.watchLoopCycle(this)
                 match (cycleResult) {
                     case Err(err) => return SysMaybe<Unit>.Err(err)
-                    case Ok(_) => { } // 继续循环
+                    case Ok(_) => () // 继续循环
                 }
             } else {
                 // 无平台实现, 无法继续
@@ -854,7 +854,7 @@ public class Watcher {
 /// 仓颉通过接口抽象实现跨平台
 public interface PlatformWatcher {
     /// 初始化 - 对应 INotifyWatcher.init / KEventWatcher.init
-    func init(topLevelDir: String): SysMaybe<Unit>
+    func initFunc(topLevelDir: String): SysMaybe<Unit>
 
     /// 监视文件路径 - 对应 INotifyWatcher.watchPath
     /// 返回平台特定的 watch descriptor

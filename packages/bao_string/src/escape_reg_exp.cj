@@ -21,7 +21,7 @@ public const SPECIAL_CHARACTERS = "|\\{}()[]^$+*?.-"
 /// 转义正则表达式特殊字符
 /// 严格翻译自 escapeRegExp.zig escapeRegExp
 /// 将输入字符串中的正则特殊字符转义,添加反斜杠前缀
-/// '-' 被转义为 "\\x2d"
+/// '-' 被转义为 "\u{2d}"
 ///
 /// @param input  输入字符串
 /// @return       转义后的字符串
@@ -41,7 +41,7 @@ public func escapeRegExp(input: String): String {
         let char = remain[i]
 
         if (char == '-') {
-            result.append("\\x2d")
+            result.append("\u{2d}")
         } else if (char == '|' || char == '\\' || char == '{' || char == '}' ||
                    char == '(' || char == ')' || char == '[' || char == ']' ||
                    char == '^' || char == '$' || char == '+' || char == '*' ||
@@ -82,7 +82,7 @@ public func escapeRegExpForPackageNameMatching(input: String): String {
         let char = remain[i]
 
         if (char == '-') {
-            result.append("\\x2d")
+            result.append("\u{2d}")
         } else if (char == '*') {
             result.append(".*")
         } else if (char == '|' || char == '\\' || char == '{' || char == '}' ||

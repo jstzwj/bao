@@ -52,7 +52,7 @@ public class PackageLink {
             let slashIdx = packageName.indexOf("/")
             match (slashIdx) {
                 case Some(idx) => scopeName = Some(packageName.substring(0, idx))
-                case None => {}
+                case None => ()
             }
         }
     }
@@ -368,7 +368,7 @@ public class PackageLinker {
                             result.removed.append(pkgName)
                         }
                     }
-                    case None => {}
+                    case None => ()
                 }
             }
         }

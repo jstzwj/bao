@@ -930,7 +930,7 @@ public class Headers8Bit {
     }
 
     /// 初始化 - 严格对应 Bun Headers8Bit.init
-    public static func init(
+    public static func initFunc(
         alloc: Allocator,
         namesPtr: ?Array<BaoString>,
         valuesPtr: ?Array<BaoString>,
@@ -1313,7 +1313,7 @@ public class HTTPHeaderValueIterator {
         pos = 0
     }
 
-    public static func init(value: String): HTTPHeaderValueIterator {
+    public static func initFunc(value: String): HTTPHeaderValueIterator {
         let it = HTTPHeaderValueIterator()
         it.value = value
         return it
@@ -1332,7 +1332,7 @@ public class StringSet {
         items = HashSet<String>()
     }
 
-    public func init(alloc: Allocator): Unit {
+    public func initFunc(alloc: Allocator): Unit {
         items = HashSet<String>()
     }
 
@@ -1386,7 +1386,7 @@ public class Strings {
 
 /// 异步 KeepAlive 引用
 public class AsyncKeepAliveRef {
-    public static func init(): AsyncKeepAliveRef { return AsyncKeepAliveRef() }
+    public static func initFunc(): AsyncKeepAliveRef { return AsyncKeepAliveRef() }
     public func ref(vm: VirtualMachine): Unit {}
     public func unref(vm: VirtualMachine): Unit {}
 }

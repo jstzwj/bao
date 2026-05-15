@@ -318,23 +318,10 @@ public class MethodUtil {
 /// 方法可选集合 - 对应 Bun Method.Optional
 public enum MethodOptional {
     | Any
-    | Methods(HashSet<HttpMethod>)
-
-    /// 检查两个方法集合是否有交集 - 对应 Bun Optional.contains()
-    public func contains(other: MethodOptional): Bool {
-        match (this) {
-            case MethodOptional.Any => true
-            case MethodOptional.Methods(set1) =>
-                match (other) {
-                    case MethodOptional.Any => true
-                    case MethodOptional.Methods(set2) =>
-                        // 检查是否有交集
-                        var hasOverlap = false
-                        for (m in set1) {
-                            if (set2.contains(m)) {
-                                hasOverlap = true
-                                break
-                            }
+    | Methods
+    | hasOverlap
+    | break
+}
                         }
                         hasOverlap
                 }

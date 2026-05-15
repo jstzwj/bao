@@ -375,7 +375,7 @@ public enum OpCode {
     | BinEq          // ==
     | BinNe          // !=
     | BinEqStrict    // ===
-    | BinNeStrict    // !==
+    | BinNeStrict    // !=
     | BinAnd         // &
     | BinOr          // |
     | BinXor         // ^
@@ -441,7 +441,7 @@ public enum OpCode {
             case BinEq => "=="
             case BinNe => "!="
             case BinEqStrict => "==="
-            case BinNeStrict => "!=="
+            case BinNeStrict => "!="
             case BinAnd => "&"
             case BinOr => "|"
             case BinXor => "^"
@@ -485,7 +485,7 @@ public enum OpLevel {
     | BitwiseOr   // |
     | BitwiseXor  // ^
     | BitwiseAnd  // &
-    | Equality    // == != === !==
+    | Equality    // == != === !=
     | Relational  // < > <= >= in instanceof
     | Shift       // << >> >>>
     | Additive    // + -

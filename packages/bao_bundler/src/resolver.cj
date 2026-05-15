@@ -65,7 +65,7 @@ public class PathPair {
                 if (!s.isDisabled) {
                     return Some(s)
                 }
-            case None => {}
+            case None => ()
         }
         return None
     }
@@ -234,7 +234,7 @@ public class PackageJsonInfo {
         // 精确匹配子路径
         match (exports.get(subpath)) {
             case Some(entry) => return resolveExportCondition(entry, conditions)
-            case None => {}
+            case None => ()
         }
 
         // 通配符匹配 exports 中的 "./*" 模式
@@ -261,9 +261,9 @@ public class PackageJsonInfo {
                                         return Some(r.replace("*", starMatch))
                                     }
                                     return Some(r)
-                                case None => {}
+                                case None => ()
                             }
-                        case None => {}
+                        case None => ()
                     }
                 }
             }
@@ -282,14 +282,14 @@ public class PackageJsonInfo {
         for (cond in conditions) {
             match (entry.conditions.get(cond)) {
                 case Some(value) => return Some(value)
-                case None => {}
+                case None => ()
             }
         }
 
         // 回退到 "default" 条件
         match (entry.conditions.get("default")) {
             case Some(value) => return Some(value)
-            case None => {}
+            case None => ()
         }
 
         return None
@@ -348,7 +348,7 @@ public class TsConfigPaths {
                 if (mapped.size > 0) {
                     return Some(resolveBaseUrl(mapped[0]))
                 }
-            case None => {}
+            case None => ()
         }
 
         // 通配符匹配 (如 "@/*" -> "src/*")
@@ -372,10 +372,10 @@ public class TsConfigPaths {
                                         return Some(fullPath)
                                     }
                                 }
-                            case None => {}
+                            case None => ()
                         }
                     }
-                case None => {}
+                case None => ()
             }
         }
 
@@ -727,7 +727,7 @@ public class ModuleResolver {
             let cssResult = resolveCssImport(sourceDir, importPath, kind)
             match (cssResult) {
                 case ResolveResult.Union.Success(_) => return cssResult
-                case _ => {}
+                case _ => ()
             }
         }
 
@@ -737,7 +737,7 @@ public class ModuleResolver {
             let importResult = resolvePackageImport(sourceDir, importPath, kind, extOrder)
             match (importResult) {
                 case ResolveResult.Union.Success(_) => return importResult
-                case _ => {}
+                case _ => ()
             }
             return ResolveResult.Union.NotFound
         }
@@ -747,7 +747,7 @@ public class ModuleResolver {
         let tsconfigResult = resolveViaTSConfigPaths(sourceDir, importPath, kind)
         match (tsconfigResult) {
             case Some(r) => return ResolveResult.Union.Success(r)
-            case None => {}
+            case None => ()
         }
 
         // node_modules 查找
@@ -813,10 +813,10 @@ public class ModuleResolver {
                                         result.importKind = kind
                                         finalizeResult(result)
                                         return ResolveResult.Union.Success(result)
-                                    case None => {}
+                                    case None => ()
                                 }
                             }
-                        case None => {}
+                        case None => ()
                     }
                 }
                 return ResolveResult.Union.NotFound
@@ -883,7 +883,7 @@ public class ModuleResolver {
                                     }
                                     return ResolveResult.Union.Success(result)
                                 }
-                            case None => {}
+                            case None => ()
                         }
 
                         // 2. exports 不匹配，回退到 main/module 字段 + subpath
@@ -899,7 +899,7 @@ public class ModuleResolver {
                                     result.packageJson = Some(pkg)
                                     result.moduleType = detectModuleTypeFromPkg(pkg)
                                     return ResolveResult.Union.Success(result)
-                                case None => {}
+                                case None => ()
                             }
                         } else {
                             // 无 subpath: 按 mainFields 顺序查找
@@ -913,7 +913,7 @@ public class ModuleResolver {
                                     result.packageJson = Some(pkg)
                                     result.moduleType = detectModuleTypeFromPkg(pkg)
                                     return ResolveResult.Union.Success(result)
-                                case None => {}
+                                case None => ()
                             }
                         }
 
@@ -927,9 +927,9 @@ public class ModuleResolver {
                                 result.isFromNodeModules = true
                                 result.packageJson = Some(pkg)
                                 return ResolveResult.Union.Success(result)
-                            case None => {}
+                            case None => ()
                         }
-                    case None => {}
+                    case None => ()
                 }
 
                 // 没有 package.json: 直接在目录中查找
@@ -941,7 +941,7 @@ public class ModuleResolver {
                         result.importKind = kind
                         result.isFromNodeModules = true
                         return ResolveResult.Union.Success(result)
-                    case None => {}
+                    case None => ()
                 }
             }
 
@@ -978,9 +978,9 @@ public class ModuleResolver {
                             result.importKind = kind
                             return result
                         }
-                    case None => {}
+                    case None => ()
                 }
-            case None => {}
+            case None => ()
         }
         return None
     }
@@ -1010,7 +1010,7 @@ public class ModuleResolver {
                     result.pathPair.primary.text = remapped
                 }
                 return
-            case None => {}
+            case None => ()
         }
 
         // 尝试模块名映射 (如 "jquery" -> "./vendor/jquery.js")
@@ -1023,7 +1023,7 @@ public class ModuleResolver {
                 } else {
                     result.pathPair.primary.text = remapped
                 }
-            case None => {}
+            case None => ()
         }
     }
 
@@ -1069,7 +1069,7 @@ public class ModuleResolver {
             let resolved = tryResolveWithExtensions(modulePath, extOrder)
             match (resolved) {
                 case Some(p) => return Some(p)
-                case None => {}
+                case None => ()
             }
         }
 
@@ -1079,7 +1079,7 @@ public class ModuleResolver {
             let resolved = tryResolveWithExtensions(mainPath, extOrder)
             match (resolved) {
                 case Some(p) => return Some(p)
-                case None => {}
+                case None => ()
             }
         }
 
@@ -1089,7 +1089,7 @@ public class ModuleResolver {
             let resolved = tryResolveWithExtensions(modulePath, extOrder)
             match (resolved) {
                 case Some(p) => return Some(p)
-                case None => {}
+                case None => ()
             }
         }
 
@@ -1167,7 +1167,7 @@ public class ModuleResolver {
                 if (careAboutBrowserField) {
                     applyBrowserField(result, pkg)
                 }
-            case None => {}
+            case None => ()
         }
     }
 
@@ -1179,7 +1179,7 @@ public class ModuleResolver {
             let pkgPath = Path.join([current, "package.json"])
             match (packageJsonCache.get(pkgPath)) {
                 case Some(pkg) => return Some(pkg)
-                case None => {}
+                case None => ()
             }
             if (fileExists(pkgPath)) {
                 let pkg = loadPackageJson(current)
@@ -1187,7 +1187,7 @@ public class ModuleResolver {
                     case Some(p) =>
                         packageJsonCache.put(pkgPath, p)
                         return Some(p)
-                    case None => {}
+                    case None => ()
                 }
             }
             let parent = Path.dirname(current)
@@ -1207,7 +1207,7 @@ public class ModuleResolver {
         while (depth < 32) {
             match (tsconfigCache.get(current)) {
                 case Some(ts) => return Some(ts)
-                case None => {}
+                case None => ()
             }
             let tsPath = Path.join([current, "tsconfig.json"])
             if (fileExists(tsPath)) {
@@ -1216,7 +1216,7 @@ public class ModuleResolver {
                     case Some(t) =>
                         tsconfigCache.put(current, t)
                         return Some(t)
-                    case None => {}
+                    case None => ()
                 }
             }
             let parent = Path.dirname(current)
@@ -1263,35 +1263,35 @@ public class ModuleResolver {
         let nameVal = extractJsonString(content, "name")
         match (nameVal) {
             case Some(n) => pkg.name = n
-            case None => {}
+            case None => ()
         }
 
         // 提取 "version" 字段
         let versionVal = extractJsonString(content, "version")
         match (versionVal) {
             case Some(v) => pkg.version = v
-            case None => {}
+            case None => ()
         }
 
         // 提取 "main" 字段
         let mainVal = extractJsonString(content, "main")
         match (mainVal) {
             case Some(m) => pkg.mainField = m
-            case None => {}
+            case None => ()
         }
 
         // 提取 "module" 字段
         let moduleVal = extractJsonString(content, "module")
         match (moduleVal) {
             case Some(m) => pkg.moduleField = m
-            case None => {}
+            case None => ()
         }
 
         // 提取 "type" 字段
         let typeVal = extractJsonString(content, "type")
         match (typeVal) {
             case Some(t) => pkg.moduleType = t
-            case None => {}
+            case None => ()
         }
 
         // 提取 "sideEffects" 字段
@@ -1305,28 +1305,28 @@ public class ModuleResolver {
                     let patterns = parseJsonStringArray(v)
                     pkg.sideEffects = SideEffectsField.Glob(patterns)
                 }
-            case None => {}
+            case None => ()
         }
 
         // 提取 "browser" 字段 (对象映射)
         let browserVal = extractJsonObject(content, "browser")
         match (browserVal) {
             case Some(obj) => parseBrowserField(obj, pkg)
-            case None => {}
+            case None => ()
         }
 
         // 提取 "exports" 字段
         let exportsVal = extractJsonObject(content, "exports")
         match (exportsVal) {
             case Some(obj) => parseExportsField(obj, pkg)
-            case None => {}
+            case None => ()
         }
 
         // 提取 "imports" 字段
         let importsVal = extractJsonObject(content, "imports")
         match (importsVal) {
             case Some(obj) => parseImportsField(obj, pkg)
-            case None => {}
+            case None => ()
         }
     }
 
@@ -1335,7 +1335,7 @@ public class ModuleResolver {
         let baseUrlVal = extractJsonString(content, "baseUrl")
         match (baseUrlVal) {
             case Some(b) => ts.baseUrl = b
-            case None => {}
+            case None => ()
         }
 
         let compilerOptions = extractJsonObject(content, "compilerOptions")
@@ -1344,16 +1344,16 @@ public class ModuleResolver {
                 let baseUrl = extractJsonString(obj, "baseUrl")
                 match (baseUrl) {
                     case Some(b) => ts.baseUrl = b
-                    case None => {}
+                    case None => ()
                 }
-            case None => {}
+            case None => ()
         }
 
         // paths 映射 (简化解析)
         let pathsObj = extractJsonObject(content, "paths")
         match (pathsObj) {
             case Some(obj) => parseTsconfigPaths(obj, ts)
-            case None => {}
+            case None => ()
         }
     }
 
@@ -1601,11 +1601,11 @@ public class ModuleResolver {
                                 result.moduleType = detectModuleTypeFromPkg(pkg)
                                 finalizeResult(result)
                                 return ResolveResult.Union.Success(result)
-                            case None => {}
+                            case None => ()
                         }
-                    case None => {}
+                    case None => ()
                 }
-            case None => {}
+            case None => ()
         }
 
         return ResolveResult.Union.NotFound
@@ -1650,10 +1650,10 @@ public class ModuleResolver {
                                     result.moduleType = ModuleType.CSS
                                     finalizeResult(result)
                                     return ResolveResult.Union.Success(result)
-                                case None => {}
+                                case None => ()
                             }
                         }
-                    case None => {}
+                    case None => ()
                 }
                 return ResolveResult.Union.NotFound
         }
@@ -1712,13 +1712,13 @@ public class ModuleResolver {
                                 let valEnd = content.indexOf("\"", vs + 1)
                                 match (valEnd) {
                                     case Some(ve) => return Some(content.substring(vs + 1, ve))
-                                    case None => {}
+                                    case None => ()
                                 }
-                            case None => {}
+                            case None => ()
                         }
-                    case None => {}
+                    case None => ()
                 }
-            case None => {}
+            case None => ()
         }
         return None
     }
@@ -1742,7 +1742,7 @@ public class ModuleResolver {
                                 let end = content.indexOf("\"", idx + 1)
                                 match (end) {
                                     case Some(e) => return Some(content.substring(idx + 1, e))
-                                    case None => {}
+                                    case None => ()
                                 }
                             } else {
                                 // 非字符串值 (false, true, number, [, {)
@@ -1753,9 +1753,9 @@ public class ModuleResolver {
                                 return Some(content.substring(idx, end).trim())
                             }
                         }
-                    case None => {}
+                    case None => ()
                 }
-            case None => {}
+            case None => ()
         }
         return None
     }
@@ -1787,9 +1787,9 @@ public class ModuleResolver {
                                 i++
                             }
                         }
-                    case None => {}
+                    case None => ()
                 }
-            case None => {}
+            case None => ()
         }
         return None
     }

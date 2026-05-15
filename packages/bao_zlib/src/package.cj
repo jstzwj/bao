@@ -425,7 +425,7 @@ public class ZlibDecompressor {
         //                 state = Error
         //                 throw ZlibError.bufError()
         //             }
-        //             case Z_OK => {}
+        //             case Z_OK => ()
         //             case _ => {
         //                 inflateEnd(strm)
         //                 state = Error
@@ -474,7 +474,7 @@ public class DeflateStream {
 
     /// 初始化流 (zlib 格式)
     /// 对应 Bun: deflateInit2_ with windowBits = -wbits
-    public func init(level: CompressionLevel): Unit {
+    public func initFunc(level: CompressionLevel): Unit {
         this.level = level
         this.gzip = false
         this.state = State.Compressing
@@ -617,7 +617,7 @@ public class InflateStream {
 
     /// 初始化流 (自动检测 zlib/gzip)
     /// 对应 Bun: inflateInit2_ with windowBits = 15 + 32
-    public func init(): Unit {
+    public func initFunc(): Unit {
         this.windowBits = ZlibConstants.DEFAULT_WBITS + ZlibConstants.AUTO_DETECT_WBITS_OFFSET
         this.state = State.Inflating
         // 实际实现:
@@ -630,7 +630,7 @@ public class InflateStream {
     }
 
     /// 初始化流 (指定窗口位数)
-    public func init(windowBits: Int64): Unit {
+    public func initFunc(windowBits: Int64): Unit {
         this.windowBits = windowBits
         this.state = State.Inflating
         // 实际实现: inflateInit2_ with given windowBits

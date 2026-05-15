@@ -8,6 +8,7 @@ package bao_jsc
 // JSType 是 JavaScriptCore 中的关键性能优化，实现 O(1) 类型识别
 // 该枚举提供了 JavaScript 运行时类型的完整分类
 public enum JSType {
+    | None
 }
     }
 
@@ -124,20 +125,24 @@ public enum JSType {
 // 严格翻译自 JSRuntimeType.zig
 // 表示 JavaScript 运行时值类型 (位标志)
 public enum JSRuntimeType {
+    | None
 }
 
 // ========== JSErrorCode 枚举 ==========
 // 严格翻译自 JSErrorCode.zig
 // 表示 JavaScript 错误类型
 public enum JSErrorCode {
+    | None
 }
 
 // ========== DOMExceptionCode 枚举 ==========
 // 严格翻译自 JSErrorCode.zig DOMExceptionCode
 public enum DOMExceptionCode {
+    | None
 }
 
 // ========== JSPromiseRejectionOperation 枚举 ==========
 // 严格翻译自 JSPromiseRejectionOperation.zig
 public enum JSPromiseRejectionOperation {
+    | None
 }

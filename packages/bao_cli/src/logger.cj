@@ -47,12 +47,12 @@ public class AnsiColors {
         // 检查 NO_COLOR 环境变量
         match (Sys.getEnv("NO_COLOR")) {
             case Some(_) => return false
-            case None => {}
+            case None => ()
         }
         // 检查 FORCE_COLOR
         match (Sys.getEnv("FORCE_COLOR")) {
             case Some(_) => return true
-            case None => {}
+            case None => ()
         }
         // 检查 TERM
         match (Sys.getEnv("TERM")) {
@@ -60,7 +60,7 @@ public class AnsiColors {
                 if (term == "dumb") { return false }
                 if (term.contains("color") || term.contains("256")) { return true }
             }
-            case None => {}
+            case None => ()
         }
         // 检查是否是 TTY
         return Sys.isTerminal()

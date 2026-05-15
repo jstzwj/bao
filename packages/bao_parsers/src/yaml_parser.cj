@@ -466,7 +466,7 @@ public class YamlParser <: BaseParser {
             match (source[Int64(pos)]) {
                 case '-' => chomp = "strip"; advance()
                 case '+' => chomp = "keep"; advance()
-                case _ => {}
+                case _ => ()
             }
         }
         skipToNextLine()
@@ -500,7 +500,7 @@ public class YamlParser <: BaseParser {
         }
         // Chomp 控制
         match (chomp) {
-            case "strip" => {} // 不添加尾部换行
+            case "strip" => () // 不添加尾部换行
             case "keep" =>
                 while (trailingNewlines > Int64(0)) {
                     sb.append('\n')
@@ -652,7 +652,7 @@ public class YamlParser <: BaseParser {
         // 整数
         match (parseIntStrict(text)) {
             case Some(n) => return YamlValue(YamlKind.Int, n)
-            case None => {}
+            case None => ()
         }
         // 浮点数
         if (text == ".inf" || text == ".Inf" || text == ".INF") {
@@ -666,7 +666,7 @@ public class YamlParser <: BaseParser {
         }
         match (parseFloatStrict(text)) {
             case Some(n) => return YamlValue(YamlKind.Float, n)
-            case None => {}
+            case None => ()
         }
         // 字符串
         return YamlValue(YamlKind.String, text)

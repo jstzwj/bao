@@ -35,7 +35,7 @@ public class SavedFileJSC {
 
 /// 将 OutputFile 转换为 JS - 严格对应 Bun toJS
 /// Zig: pub fn toJS(this: *OutputFile, owned_pathname, globalObject) bun.jsc.JSValue
-public func outputFileToJS(this: OutputFile, ownedPathname: ?String, globalObject: JSGlobalObject): JSValue {
+public func outputFileToJS(`this`: OutputFile, ownedPathname: ?String, globalObject: JSGlobalObject): JSValue {
     return match (this.value) {
         case .noop => JSValue.jsUndefined
         case .copy => copy =>
@@ -97,7 +97,7 @@ public func outputFileToJS(this: OutputFile, ownedPathname: ?String, globalObjec
 }
 
 /// 将 OutputFile 转换为 Blob - 严格对应 Bun toBlob
-public func outputFileToBlob(this: OutputFile, allocator: Allocator, globalThis: JSGlobalObject): Blob {
+public func outputFileToBlob(`this`: OutputFile, allocator: Allocator, globalThis: JSGlobalObject): Blob {
     return match (this.value) {
         case .copy => copy =>
             let fileBlob = BlobStore.initFile(

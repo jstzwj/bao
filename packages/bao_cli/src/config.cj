@@ -255,7 +255,7 @@ public class Config {
             let content = BaoFile.readAllText(globalConfigPath)
             match (content) {
                 case Some(text) => config.parseBunfig(text)
-                case None => {}
+                case None => ()
             }
         }
 
@@ -265,7 +265,7 @@ public class Config {
             let content = BaoFile.readAllText(projectConfigPath)
             match (content) {
                 case Some(text) => config.parseBunfig(text)
-                case None => {}
+                case None => ()
             }
         }
 
@@ -299,10 +299,10 @@ public class Config {
                     case Some(level) => {
                         match (LogLevel.fromString(level)) {
                             case Some(l) => logLevel = l
-                            case None => {}
+                            case None => ()
                         }
                     }
-                    case None => {}
+                    case None => ()
                 }
 
                 // target
@@ -310,10 +310,10 @@ public class Config {
                     case Some(t) => {
                         match (BuildTarget.fromString(t)) {
                             case Some(bt) => target = bt
-                            case None => {}
+                            case None => ()
                         }
                     }
-                    case None => {}
+                    case None => ()
                 }
 
                 // define
@@ -322,11 +322,11 @@ public class Config {
                         for (key in table.keys()) {
                             match (table.get(key)) {
                                 case Some(v) => defines.set(key, v)
-                                case None => {}
+                                case None => ()
                             }
                         }
                     }
-                    case None => {}
+                    case None => ()
                 }
 
                 // loader
@@ -337,14 +337,14 @@ public class Config {
                                 case Some(v) => {
                                     match (Loader.fromString(v)) {
                                         case Some(loader) => loaderMap.put(key, loader)
-                                        case None => {}
+                                        case None => ()
                                     }
                                 }
-                                case None => {}
+                                case None => ()
                             }
                         }
                     }
-                    case None => {}
+                    case None => ()
                 }
 
                 // external
@@ -354,7 +354,7 @@ public class Config {
                             externals.append(item)
                         }
                     }
-                    case None => {}
+                    case None => ()
                 }
 
                 // install.registry
@@ -362,7 +362,7 @@ public class Config {
                     case Some(url) => {
                         registry = Some(NpmRegistry(url))
                     }
-                    case None => {}
+                    case None => ()
                 }
 
                 // install.token
@@ -377,37 +377,37 @@ public class Config {
                             }
                         }
                     }
-                    case None => {}
+                    case None => ()
                 }
 
                 // install.offline
                 match (TomlHelper.getBool(root, "install.offline")) {
                     case Some(b) => offlineMode = b
-                    case None => {}
+                    case None => ()
                 }
 
                 // install.production
                 match (TomlHelper.getBool(root, "install.production")) {
                     case Some(b) => production = b
-                    case None => {}
+                    case None => ()
                 }
 
                 // install.frozenLockfile
                 match (TomlHelper.getBool(root, "install.frozenLockfile")) {
                     case Some(b) => frozenLockfile = b
-                    case None => {}
+                    case None => ()
                 }
 
                 // install.saveLockfile
                 match (TomlHelper.getBool(root, "install.saveLockfile")) {
                     case Some(b) => saveLockfile = b
-                    case None => {}
+                    case None => ()
                 }
 
                 // preload
                 match (TomlHelper.getString(root, "preload")) {
                     case Some(p) => preloads.modules.append(p)
-                    case None => {}
+                    case None => ()
                 }
                 match (TomlHelper.getArray(root, "preload")) {
                     case Some(arr) => {
@@ -415,7 +415,7 @@ public class Config {
                             preloads.modules.append(item)
                         }
                     }
-                    case None => {}
+                    case None => ()
                 }
 
                 // env
@@ -425,13 +425,13 @@ public class Config {
                             disableDefaultEnvFiles = true
                         }
                     }
-                    case None => {}
+                    case None => ()
                 }
 
                 // tsconfig
                 match (TomlHelper.getString(root, "tsconfig")) {
                     case Some(path) => tsconfig = Some(path)
-                    case None => {}
+                    case None => ()
                 }
 
                 // macros
@@ -440,32 +440,32 @@ public class Config {
                         for (key in table.keys()) {
                             match (table.get(key)) {
                                 case Some(v) => macros.put(key, v)
-                                case None => {}
+                                case None => ()
                             }
                         }
                     }
-                    case None => {}
+                    case None => ()
                 }
 
                 // outdir
                 match (TomlHelper.getString(root, "outdir")) {
                     case Some(d) => outdir = Some(d)
-                    case None => {}
+                    case None => ()
                 }
 
                 // sourcemap
                 match (TomlHelper.getBool(root, "sourcemap")) {
                     case Some(b) => sourcemap = b
-                    case None => {}
+                    case None => ()
                 }
 
                 // minify
                 match (TomlHelper.getBool(root, "minify")) {
                     case Some(b) => minify = b
-                    case None => {}
+                    case None => ()
                 }
             }
-            case None => {}
+            case None => ()
         }
     }
 
@@ -492,11 +492,11 @@ public class Config {
                                 for (key in scripts.keys()) {
                                     match (scripts.get(key)) {
                                         case Some(JsonValue.Str(v)) => info.scripts.put(key, v)
-                                        case _ => {}
+                                        case _ => ()
                                     }
                                 }
                             }
-                            case _ => {}
+                            case _ => ()
                         }
 
                         // dependencies
@@ -535,7 +535,7 @@ public class Config {
                                             defines.set(key, key)
                                         }
                                     }
-                                    case _ => {}
+                                    case _ => ()
                                 }
                                 // baseUrl
                                 match (JsonHelper.getString(opts, "baseUrl")) {
@@ -543,16 +543,16 @@ public class Config {
                                         // 解析路径
                                         defines.set("TS_CONFIG_BASEURL", baseUrl)
                                     }
-                                    case None => {}
+                                    case None => ()
                                 }
                             }
-                            case _ => {}
+                            case _ => ()
                         }
                     }
-                    case None => {}
+                    case None => ()
                 }
             }
-            case None => {}
+            case None => ()
         }
     }
 
@@ -566,11 +566,11 @@ public class Config {
                     let content = BaoFile.readAllText(path)
                     match (content) {
                         case Some(text) => parseBunfig(text)
-                        case None => {}
+                        case None => ()
                     }
                 }
             }
-            case None => {}
+            case None => ()
         }
 
         // BAO_INSTALL_REGISTRY
@@ -579,17 +579,17 @@ public class Config {
                 let reg = NpmRegistry(url)
                 match (Sys.getEnv("BAO_INSTALL_TOKEN")) {
                     case Some(token) => reg.token = Some(token)
-                    case None => {}
+                    case None => ()
                 }
                 registry = Some(reg)
             }
-            case None => {}
+            case None => ()
         }
 
         // BAO_INSTALL_OFFLINE
         match (Sys.getEnv("BAO_INSTALL_OFFLINE")) {
             case Some(v) => offlineMode = (v == "1" || v == "true")
-            case None => {}
+            case None => ()
         }
 
         // NODE_ENV
@@ -597,7 +597,7 @@ public class Config {
             case Some(v) => {
                 if (v == "production") { production = true }
             }
-            case None => {}
+            case None => ()
         }
     }
 }
@@ -633,7 +633,7 @@ public class PackageJsonInfo {
         // 优先: scripts.start
         match (scripts.get("start")) {
             case Some(cmd) => return Some(cmd)
-            case None => {}
+            case None => ()
         }
         // 回退: main 文件
         if (!main.isEmpty()) {
@@ -646,7 +646,7 @@ public class PackageJsonInfo {
     public func getDevCommand(): ?String {
         match (scripts.get("dev")) {
             case Some(cmd) => return Some(cmd)
-            case None => {}
+            case None => ()
         }
         // 回退到 start
         return getStartCommand()
@@ -698,7 +698,7 @@ public class TomlParser {
                     }
                     table.set(fullKey, value)
                 }
-                case None => {}
+                case None => ()
             }
         }
         return Some(table)
@@ -752,7 +752,7 @@ public class TomlHelper {
                 let subKey = key.substring(prefixDot.length)
                 match (table.get(key)) {
                     case Some(v) => result.set(subKey, v)
-                    case None => {}
+                    case None => ()
                 }
                 found = true
             }

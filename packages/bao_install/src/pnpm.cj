@@ -345,7 +345,7 @@ public class PnpmMigrator {
                     case Some(JsonValue.Object(catalogs)) => {
                         data.catalogs.fromPnpmLockfile(catalogs)
                     }
-                    case _ => {}
+                    case _ => ()
                 }
 
                 // 解析 overrides
@@ -357,11 +357,11 @@ public class PnpmMigrator {
                                 case Some(JsonValue.Str(value)) => {
                                     data.overrides.put(key, value)
                                 }
-                                case _ => {}
+                                case _ => ()
                             }
                         }
                     }
-                    case _ => {}
+                    case _ => ()
                 }
 
                 // 解析 patchedDependencies
@@ -385,11 +385,11 @@ public class PnpmMigrator {
                                         data.patchedDependencies.put(depName, patch)
                                     }
                                 }
-                                case _ => {}
+                                case _ => ()
                             }
                         }
                     }
-                    case _ => {}
+                    case _ => ()
                 }
 
                 // 解析 importers
@@ -403,11 +403,11 @@ public class PnpmMigrator {
                                     parseImporterDeps(importerObj, importer)
                                     data.importers.put(importerPath, importer)
                                 }
-                                case _ => {}
+                                case _ => ()
                             }
                         }
                     }
-                    case _ => {}
+                    case _ => ()
                 }
 
                 // 解析 packages 和 snapshots
@@ -426,38 +426,38 @@ public class PnpmMigrator {
                                                     for (k in deps.keys()) {
                                                         match (deps.get(k)) {
                                                             case Some(JsonValue.Str(v)) => snap.dependencies.put(k, v)
-                                                            case _ => {}
+                                                            case _ => ()
                                                         }
                                                     }
                                                 }
-                                                case _ => {}
+                                                case _ => ()
                                             }
                                             match (snapObj.get("optionalDependencies")) {
                                                 case Some(JsonValue.Object(deps)) => {
                                                     for (k in deps.keys()) {
                                                         match (deps.get(k)) {
                                                             case Some(JsonValue.Str(v)) => snap.optionalDependencies.put(k, v)
-                                                            case _ => {}
+                                                            case _ => ()
                                                         }
                                                     }
                                                 }
-                                                case _ => {}
+                                                case _ => ()
                                             }
                                             match (snapObj.get("peerDependencies")) {
                                                 case Some(JsonValue.Object(deps)) => {
                                                     for (k in deps.keys()) {
                                                         match (deps.get(k)) {
                                                             case Some(JsonValue.Str(v)) => snap.peerDependencies.put(k, v)
-                                                            case _ => {}
+                                                            case _ => ()
                                                         }
                                                     }
                                                 }
-                                                case _ => {}
+                                                case _ => ()
                                             }
                                             let keyWithoutSuffix = removeDepPathSuffix(snapKey)
                                             data.snapshots.put(keyWithoutSuffix, snap)
                                         }
-                                        case _ => {}
+                                        case _ => ()
                                     }
                                 }
 
@@ -468,17 +468,17 @@ public class PnpmMigrator {
                                             let pkgInfo = parsePackageInfo(pkgKey, pkgObj)
                                             match (pkgInfo) {
                                                 case Some(info) => data.packages.put(pkgKey, info)
-                                                case None => {}
+                                                case None => ()
                                             }
                                         }
-                                        case _ => {}
+                                        case _ => ()
                                     }
                                 }
                             }
-                            case _ => {}
+                            case _ => ()
                         }
                     }
-                    case _ => {}
+                    case _ => ()
                 }
 
                 return data
@@ -511,11 +511,11 @@ public class PnpmMigrator {
                             let depVer = PnpmDepVersion(version, resolved)
                             importer.dependencies.put(name, depVer)
                         }
-                        case _ => {}
+                        case _ => ()
                     }
                 }
             }
-            case _ => {}
+            case _ => ()
         }
 
         // devDependencies
@@ -527,11 +527,11 @@ public class PnpmMigrator {
                             let depVer = parseDepVersion(v)
                             importer.devDependencies.put(name, depVer)
                         }
-                        case _ => {}
+                        case _ => ()
                     }
                 }
             }
-            case _ => {}
+            case _ => ()
         }
 
         // optionalDependencies
@@ -543,11 +543,11 @@ public class PnpmMigrator {
                             let depVer = parseDepVersion(v)
                             importer.optionalDependencies.put(name, depVer)
                         }
-                        case _ => {}
+                        case _ => ()
                     }
                 }
             }
-            case _ => {}
+            case _ => ()
         }
 
         // peerDependencies
@@ -559,11 +559,11 @@ public class PnpmMigrator {
                             let depVer = parseDepVersion(v)
                             importer.peerDependencies.put(name, depVer)
                         }
-                        case _ => {}
+                        case _ => ()
                     }
                 }
             }
-            case _ => {}
+            case _ => ()
         }
     }
 
@@ -610,23 +610,23 @@ public class PnpmMigrator {
                     case Some(JsonValue.Str(s)) => {
                         info.resolution = LockfileResolution.fromPnpmLockfile(version)
                     }
-                    case _ => {}
+                    case _ => ()
                 }
                 match (resObj.get("tarball")) {
                     case Some(JsonValue.Str(s)) => {
                         info.resolution.tag = DependencyTag.Tarball
                         info.resolution.tarballUrl = s
                     }
-                    case _ => {}
+                    case _ => ()
                 }
             }
-            case _ => {}
+            case _ => ()
         }
 
         // hasInstallScript
         match (pkgObj.get("hasInstallScript")) {
             case Some(JsonValue.Bool(b)) => info.hasInstallScript = b
-            case _ => {}
+            case _ => ()
         }
 
         // dependencies
@@ -635,11 +635,11 @@ public class PnpmMigrator {
                 for (k in deps.keys()) {
                     match (deps.get(k)) {
                         case Some(JsonValue.Str(v)) => info.dependencies.put(k, v)
-                        case _ => {}
+                        case _ => ()
                     }
                 }
             }
-            case _ => {}
+            case _ => ()
         }
 
         // peerDependencies
@@ -648,11 +648,11 @@ public class PnpmMigrator {
                 for (k in deps.keys()) {
                     match (deps.get(k)) {
                         case Some(JsonValue.Str(v)) => info.peerDependencies.put(k, v)
-                        case _ => {}
+                        case _ => ()
                     }
                 }
             }
-            case _ => {}
+            case _ => ()
         }
 
         // bin
@@ -661,20 +661,20 @@ public class PnpmMigrator {
                 for (k in binObj.keys()) {
                     match (binObj.get(k)) {
                         case Some(JsonValue.Str(v)) => info.bin.put(k, v)
-                        case _ => {}
+                        case _ => ()
                     }
                 }
             }
             case Some(JsonValue.Str(s)) => {
                 info.bin.put(name, s)
             }
-            case _ => {}
+            case _ => ()
         }
 
         // deprecated
         match (pkgObj.get("deprecated")) {
             case Some(JsonValue.Str(s)) => info.deprecated = s
-            case _ => {}
+            case _ => ()
         }
 
         return info
@@ -725,7 +725,7 @@ public class PnpmMigrator {
                                     let dep = LockfileDependency(depName, Wyhash11.hash(depName), depVer.version)
                                     rootPkg.dependencies.append(dep)
                                 }
-                                case None => {}
+                                case None => ()
                             }
                         }
                         for (depName in rootImporter.devDependencies.keys()) {
@@ -735,11 +735,11 @@ public class PnpmMigrator {
                                     dep.behavior.isDev = true
                                     rootPkg.dependencies.append(dep)
                                 }
-                                case None => {}
+                                case None => ()
                             }
                         }
                     }
-                    case None => {}
+                    case None => ()
                 }
 
                 // 创建包条目
@@ -764,7 +764,7 @@ public class PnpmMigrator {
                                                 let dep = LockfileDependency(depName, Wyhash11.hash(depName), depVer)
                                                 pkg.dependencies.append(dep)
                                             }
-                                            case None => {}
+                                            case None => ()
                                         }
                                     }
                                     for (depName in snapshot.peerDependencies.keys()) {
@@ -774,7 +774,7 @@ public class PnpmMigrator {
                                                 dep.behavior.isPeer = true
                                                 pkg.dependencies.append(dep)
                                             }
-                                            case None => {}
+                                            case None => ()
                                         }
                                     }
                                 }
@@ -786,7 +786,7 @@ public class PnpmMigrator {
                                                 let dep = LockfileDependency(depName, Wyhash11.hash(depName), depVer)
                                                 pkg.dependencies.append(dep)
                                             }
-                                            case None => {}
+                                            case None => ()
                                         }
                                     }
                                 }
@@ -794,7 +794,7 @@ public class PnpmMigrator {
 
                             result.packages.append(pkg)
                         }
-                        case None => {}
+                        case None => ()
                     }
                 }
 

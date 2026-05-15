@@ -444,7 +444,7 @@ public class AsyncOps {
     }
 
     /// 初始化并绑定事件循环
-    public func init(loop: MiniEventLoop, workerCount: Int64): Unit {
+    public func initFunc(loop: MiniEventLoop, workerCount: Int64): Unit {
         let pool = ThreadPool(workerCount)
         pool.start()
         threadPool = pool

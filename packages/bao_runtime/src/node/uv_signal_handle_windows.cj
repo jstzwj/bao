@@ -10,7 +10,7 @@ package bao_runtime.node
 public class UvSignalHandle {
     // 初始化 UV 信号句柄
     // 对应 Bun: src/runtime/node/uv_signal_handle_windows.zig - Bun__UVSignalHandle__init
-    public static func init(signalNum: Int32, callback: (Int32) -> Unit): ?UvSignalHandle {
+    public static func initFunc(signalNum: Int32, callback: (Int32) -> Unit): ?UvSignalHandle {
         // Windows 实现使用 libuv uv_signal_t
         // 在非 Windows 平台上不执行任何操作
         return None

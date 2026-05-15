@@ -324,10 +324,10 @@ public class Transpiler {
                             options.emitDecoratorMetadata = tsconfig.emitDecoratorMetadata
                             options.experimentalDecorators = tsconfig.experimentalDecorators
                         }
-                        case None => {}
+                        case None => ()
                     }
                 }
-                case None => {}
+                case None => ()
             }
         }
     }
@@ -352,7 +352,7 @@ public class Transpiler {
                     // 简化处理
                 }
             }
-            case None => {}
+            case None => ()
         }
     }
 
@@ -416,7 +416,7 @@ public class Transpiler {
         // 空文件处理
         if (source.contents.length == 0) {
             match (loader) {
-                case Loader.Wasm | Loader.File | Loader.Text => {}
+                case Loader.Wasm | Loader.File | Loader.Text => ()
                 case _ => {
                     let result = ParseResult()
                     result.source = source
@@ -573,7 +573,7 @@ public class Transpiler {
                 case Some(outputFile) => {
                     outputFiles.append(outputFile)
                 }
-                case None => {}
+                case None => ()
             }
         }
     }

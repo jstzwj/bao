@@ -41,7 +41,7 @@ public class BoundedArray<T> {
 
     /// 从指定长度初始化 - 对应 Bun init(len)
     /// 如果 len > capacity 返回 None
-    public static func init(len: Int64, capacity: Int64): ?BoundedArray<T> {
+    public static func initFunc(len: Int64, capacity: Int64): ?BoundedArray<T> {
         if (len > capacity) {
             return None
         }
@@ -314,7 +314,7 @@ public class BoundedArray<T> {
         let last = pop()
         match (last) {
             case Some(l) => buffer[index] = l
-            case None => {}
+            case None => ()
         }
         return Some(oldItem)
     }

@@ -67,9 +67,9 @@ public class Worker {
     /// 启动 worker 进程
     /// 对应 Bun: Worker.start()
     public func start(): Unit {
-        val coord_ = coord
+        let coord_ = coord
 
-        val options = SpawnOptions()
+        let options = SpawnOptions()
         options.stdin = StdioKind.ignore
         options.stdout = StdioKind.buffer
         options.stderr = StdioKind.buffer
@@ -78,7 +78,7 @@ public class Worker {
         options.stream = true
         options.newProcessGroup = true
 
-        val spawned = Sys.spawnProcess(options, coord_.argv, coord_.envps[idx.toInt()])
+        let spawned = Sys.spawnProcess(options, coord_.argv, coord_.envps[idx.toInt()])
         process = spawned.toProcess(coord_.vm.eventLoop(), false)
 
         if (spawned.stdout != None) {
@@ -117,7 +117,7 @@ public class Worker {
     /// 分发文件给 worker
     /// 对应 Bun: Worker.dispatch()
     public func dispatch(fileIdx: Int64, file: String): Unit {
-        val f = coord.frame
+        let f = coord.frame
         f.begin(FrameKind.run)
         f.u32_(fileIdx)
         f.str(file)
@@ -129,7 +129,7 @@ public class Worker {
     /// 关闭 worker
     /// 对应 Bun: Worker.shutdown()
     public func shutdown(): Unit {
-        val f = coord.frame
+        let f = coord.frame
         f.begin(FrameKind.shutdown)
         ipc.send(f.finish())
     }

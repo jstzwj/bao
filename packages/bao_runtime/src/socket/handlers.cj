@@ -181,7 +181,7 @@ public class Handlers {
                     binaryType = BinaryType.fromString(bt.toString())
                 }
             }
-            case None => {}
+            case None => ()
         }
 
         // 创建 Handlers
@@ -237,7 +237,7 @@ public class Handlers {
                     handlers.onHandshake = onHandshake
                 }
             }
-            case None => {}
+            case None => ()
         }
 
         // 至少需要 onData 或 onWritable

@@ -115,7 +115,7 @@ public class CssSmallList<T> {
             for (i in 0..len) {
                 match (inlined[i]) {
                     case Some(v) => heap.append(v)
-                    case None => {}
+                    case None => ()
                 }
             }
             heap.append(item)
@@ -178,7 +178,7 @@ public class CssSmallList<T> {
         if (spilled) {
             match (item) {
                 case Some(v) => heap[index] = v
-                case None => {}
+                case None => ()
             }
         } else {
             inlined[index] = item
@@ -207,7 +207,7 @@ public class CssSmallList<T> {
         for (i in 0..len) {
             match (inlined[i]) {
                 case Some(v) => arr[i] = v
-                case None => {}
+                case None => ()
             }
         }
         arr
@@ -247,7 +247,7 @@ public class CssSmallList<T> {
             for (i in 0..len) {
                 match (inlined[i]) {
                     case Some(v) => clone.inlined[i] = Some(cloneFn(v))
-                    case None => {}
+                    case None => ()
                 }
             }
         }
@@ -278,7 +278,7 @@ public class CssSmallList<T> {
                 match (inlined[i]) {
                     case Some(v) =>
                         if (predicate(v)) { return true }
-                    case None => {}
+                    case None => ()
                 }
             }
         }
@@ -294,7 +294,7 @@ public class CssSmallList<T> {
             for (i in 0..len) {
                 match (inlined[i]) {
                     case Some(v) => fn(v)
-                    case None => {}
+                    case None => ()
                 }
             }
         }

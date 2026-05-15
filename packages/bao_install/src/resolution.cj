@@ -557,11 +557,11 @@ public class ResolutionTree {
                 for (depKey in deps) {
                     match (packages.get(depKey)) {
                         case Some(pkg) => result.append(pkg)
-                        case None => {}
+                        case None => ()
                     }
                 }
             }
-            case None => {}
+            case None => ()
         }
         return result
     }
@@ -584,16 +584,16 @@ public class ResolutionTree {
                                                 best = Some(pkg)
                                             }
                                         }
-                                        case None => {}
+                                        case None => ()
                                     }
-                                    case None => {}
+                                    case None => ()
                                 }
                             }
                             case None => best = Some(pkg)
                         }
                     }
                 }
-                case None => {}
+                case None => ()
             }
         }
         return best
@@ -610,7 +610,7 @@ public class ResolutionTree {
                         return true
                     }
                 }
-                case None => {}
+                case None => ()
             }
         }
         return false
@@ -631,7 +631,7 @@ public class ResolutionTree {
                     }
                 }
             }
-            case None => {}
+            case None => ()
         }
 
         inStack.remove(node)
@@ -653,7 +653,7 @@ public class ResolutionTree {
                         allDepended.put(dep)
                     }
                 }
-                case None => {}
+                case None => ()
             }
         }
         for (key in packages.keys()) {
@@ -663,7 +663,7 @@ public class ResolutionTree {
                         rootPkgs.append(k)
                     }
                 }
-                case None => {}
+                case None => ()
             }
         }
 
@@ -684,12 +684,12 @@ public class ResolutionTree {
                     flattenDfs(dep, visited, result)
                 }
             }
-            case None => {}
+            case None => ()
         }
 
         match (packages.get(node)) {
             case Some(pkg) => result.append(pkg)
-            case None => {}
+            case None => ()
         }
     }
 
@@ -868,11 +868,11 @@ public class DependencyResolver {
                     var effectiveVer = ver
                     match (overrides.get(name)) {
                         case Some(overrideVer) => effectiveVer = overrideVer
-                        case None => {}
+                        case None => ()
                     }
                     rootDeps.append(Dependency(name, effectiveVer))
                 }
-                case None => {}
+                case None => ()
             }
         }
 
@@ -911,7 +911,7 @@ public class DependencyResolver {
                     let dep = Dependency(name, applyOverride(name, ver))
                     resolveDependency(dep, tree, 0)
                 }
-                case None => {}
+                case None => ()
             }
         }
 
@@ -924,7 +924,7 @@ public class DependencyResolver {
                         dep.behavior.isDev = true
                         resolveDependency(dep, tree, 0)
                     }
-                    case None => {}
+                    case None => ()
                 }
             }
         }
@@ -937,7 +937,7 @@ public class DependencyResolver {
                     dep.behavior.isPeer = true
                     resolveDependency(dep, tree, 0)
                 }
-                case None => {}
+                case None => ()
             }
         }
 
@@ -949,7 +949,7 @@ public class DependencyResolver {
                     dep.behavior.isOptional = true
                     resolveDependency(dep, tree, 0)
                 }
-                case None => {}
+                case None => ()
             }
         }
 
@@ -968,7 +968,7 @@ public class DependencyResolver {
         // 对应 Bun: PackageManager 中同一包不同版本的处理
         match (resolved.get(depKey)) {
             case Some(existing) => return Some(existing)
-            case None => {}
+            case None => ()
         }
 
         // 检查同包名是否已有解析版本 (扁平化去重)
@@ -986,13 +986,13 @@ public class DependencyResolver {
                                     return Some(existing)
                                 }
                             }
-                            case None => {}
+                            case None => ()
                         }
                     }
-                    case None => {}
+                    case None => ()
                 }
             }
-            case None => {}
+            case None => ()
         }
 
         // 检查循环
@@ -1179,7 +1179,7 @@ public class DependencyResolver {
                 let peerDeps = JsonHelper.getStringMap(root, "peerDependencies")
                 resolvePeerDependencies(pkg, peerDeps, HashMap<String, HashMap<String, String>>(), tree, depth + 1)
             }
-            case None => {}
+            case None => ()
         }
 
         return Some(pkg)
@@ -1233,7 +1233,7 @@ public class DependencyResolver {
                 // workspace 包的路径在安装时确定
                 pkg.packagePath = dep.name
             }
-            case None => {}
+            case None => ()
         }
 
         tree.workspacePackages.append(pkg.key())
@@ -1255,7 +1255,7 @@ public class DependencyResolver {
                     let subDeps = JsonHelper.getStringMap(root, "dependencies")
                     resolveSubDependencies(pkg, subDeps, tree, depth + 1)
                 }
-                case None => {}
+                case None => ()
             }
         }
 
@@ -1315,10 +1315,10 @@ public class DependencyResolver {
                             tree.addEdge(pkg.key(), c.key())
                             pkg.dependencies.append(dep)
                         }
-                        case None => {}
+                        case None => ()
                     }
                 }
-                case None => {}
+                case None => ()
             }
         }
     }
@@ -1346,10 +1346,10 @@ public class DependencyResolver {
                         case Some(meta) => {
                             match (meta.get("optional")) {
                                 case Some("true") => dep.behavior.isOptional = true
-                                case _ => {}
+                                case _ => ()
                             }
                         }
-                        case None => {}
+                        case None => ()
                     }
 
                     let child = resolveDependency(dep, tree, depth)
@@ -1372,7 +1372,7 @@ public class DependencyResolver {
                         }
                     }
                 }
-                case None => {}
+                case None => ()
             }
         }
     }
@@ -1399,10 +1399,10 @@ public class DependencyResolver {
                             tree.addEdge(pkg.key(), c.key())
                             pkg.optionalDependencies.append(dep)
                         }
-                        case None => {}  // 静默忽略
+                        case None => ()  // 静默忽略
                     }
                 }
-                case None => {}
+                case None => ()
             }
         }
     }
@@ -1426,10 +1426,10 @@ public class DependencyResolver {
                                 }
                             }
                         }
-                        case None => {}
+                        case None => ()
                     }
                 }
-                case None => {}
+                case None => ()
             }
         }
 
@@ -1465,18 +1465,18 @@ public class DependencyResolver {
                                                 }
                                                 case None => bestVer = ver
                                             }
-                                            case None => {}
+                                            case None => ()
                                         }
                                     }
                                 }
-                                case None => {}
+                                case None => ()
                             }
                         }
                         conflict.resolvedVersion = Some(bestVer)
                         tree.conflicts.append(conflict)
                     }
                 }
-                case None => {}
+                case None => ()
             }
         }
     }
@@ -1496,7 +1496,7 @@ public class DependencyResolver {
                         // 检查直接匹配
                         match (tree.packages.get(peerKey)) {
                             case Some(_) => found = true
-                            case None => {}
+                            case None => ()
                         }
 
                         // 检查按名称匹配
@@ -1511,10 +1511,10 @@ public class DependencyResolver {
                                                 found = true
                                             }
                                         }
-                                        case None => {}
+                                        case None => ()
                                     }
                                 }
-                                case None => {}
+                                case None => ()
                             }
                         }
 
@@ -1538,7 +1538,7 @@ public class DependencyResolver {
                         }
                     }
                 }
-                case None => {}
+                case None => ()
             }
         }
     }

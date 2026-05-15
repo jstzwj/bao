@@ -1088,7 +1088,7 @@ public class ValkeyClient {
                                 }
                             }
                         }
-                        case _ => {}
+                        case _ => ()
                     }
                 }
 
@@ -1168,7 +1168,7 @@ public class ValkeyClient {
                         }
                     }
                 }
-                case _ => {}
+                case _ => ()
             }
         }
 
@@ -1386,7 +1386,7 @@ public class ValkeyClient {
                 command.writeToBuffer(buf)
                 writeBuffer.write(buf.toByteArray())
             }
-            case _ => {}
+            case _ => ()
         }
 
         // 添加到在途队列

@@ -322,7 +322,7 @@ public class JSPrinter {
     /// 打印绑定 - 对应 printBinding()
     public func printBinding(binding: Binding, tlm: TopLevel): Unit {
         match (binding.tag) {
-            case BindingTag.BMissing => {}
+            case BindingTag.BMissing => ()
             case BindingTag.BIdentifier => {
                 printSpaceBeforeIdentifier()
                 addSourceMapping(binding.loc)
@@ -916,7 +916,7 @@ public class JSPrinter {
                                 printNewline()
                                 continue
                             }
-                            case _ => {}
+                            case _ => ()
                         }
                     }
 
@@ -1009,7 +1009,7 @@ public class JSPrinter {
                            ExprFlags.exprResultIsUnusedFlags())
                 printSemicolonAfterStatement()
             }
-            case _ => {}
+            case _ => ()
         }
     }
 
@@ -1100,8 +1100,8 @@ public class JSPrinter {
                 printDecls(keyword, initStmt.decls,
                             ExprFlags(true, true, false, false), TopLevel())
             }
-            case StmtTag.SEmpty => {}
-            case _ => {}
+            case StmtTag.SEmpty => ()
+            case _ => ()
         }
     }
 

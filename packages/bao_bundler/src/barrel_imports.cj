@@ -123,8 +123,8 @@ public class BarrelImportOptimizer {
         let existing = requestedExports.get(sourceIndex)
         match (existing) {
             case RequestedExports.All => return  // import * 已请求 — 加载所有
-            case RequestedExports.Partial(_) => {}
-            case null => {}
+            case RequestedExports.Partial(_) => ()
+            case null => ()
         }
 
         // 构建需要的导入记录索引集合
@@ -148,7 +148,7 @@ public class BarrelImportOptimizer {
                     }
                 }
             }
-            case _ => {}
+            case _ => ()
         }
 
         // 标记未使用的导入记录

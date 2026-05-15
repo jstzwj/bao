@@ -72,7 +72,7 @@ public class SideEffectsAnalysis {
         // 检查缓存
         match (moduleEffects.get(module.path)) {
             case Some(level) => return level
-            case None => {}
+            case None => ()
         }
 
         // 1. package.json sideEffects 字段
@@ -80,8 +80,8 @@ public class SideEffectsAnalysis {
             case Some(false) =>
                 moduleEffects.put(module.path, SideEffectLevel.SideEffectsFreeByPkgJson)
                 return SideEffectLevel.SideEffectsFreeByPkgJson
-            case None => {}
-            case Some(true) => {}
+            case None => ()
+            case Some(true) => ()
         }
 
         // 2. 类型声明文件 - 纯
@@ -103,7 +103,7 @@ public class SideEffectsAnalysis {
                     moduleEffects.put(module.path, SideEffectLevel.Pure)
                     return SideEffectLevel.Pure
                 }
-            case None => {}
+            case None => ()
         }
 
         // 5. 分析语句级别副作用
@@ -136,7 +136,7 @@ public class SideEffectsAnalysis {
                     analyzeStatement(stmts[i], sa)
                     analyses.append(sa)
                 }
-            case None => {}
+            case None => ()
         }
         return analyses
     }
@@ -153,7 +153,7 @@ public class SideEffectsAnalysis {
                     for (binding in bindings) {
                         sa.declares.append(binding.localName)
                     }
-                case None => {}
+                case None => ()
             }
             return
         }
@@ -166,7 +166,7 @@ public class SideEffectsAnalysis {
                     sa.hasSideEffects = false
                     sa.isPure = true
                     return
-                case None => {}
+                case None => ()
             }
             // export { name } 无副作用
             if (stmt.exportNames.size > 0 && stmt.exportValue == None) {
@@ -185,14 +185,14 @@ public class SideEffectsAnalysis {
             sa.isPure = true
             match (stmt.declName) {
                 case Some(name) => sa.declares.append(name)
-                case None => {}
+                case None => ()
             }
             // 函数/类体可能有副作用，保守标记
             match (stmt.declValue) {
                 case Some(_) =>
                     sa.hasSideEffects = true
                     sa.isPure = false
-                case None => {}
+                case None => ()
             }
             return
         }
@@ -366,7 +366,7 @@ public class ReachabilityGraph {
                 }
                 // 使用了该模块中的符号，标记模块为已使用
                 usedModules.insert(modulePath)
-            case None => {}
+            case None => ()
         }
     }
 
@@ -397,7 +397,7 @@ public class ReachabilityGraph {
                             queue.append(imp)
                         }
                     }
-                case None => {}
+                case None => ()
             }
         }
 
@@ -668,18 +668,18 @@ public class TreeShaker {
                         // export const/let/var/function/class
                         match (stmt.declName) {
                             case Some(name) => symbols.append(name)
-                            case None => {}
+                            case None => ()
                         }
                     }
                     // 声明语句也可能是导出 (如果被 export 修饰)
                     if (stmt.tag == StmtTag.Decl && stmt.isExported) {
                         match (stmt.declName) {
                             case Some(name) => symbols.append(name)
-                            case None => {}
+                            case None => ()
                         }
                     }
                 }
-            case None => {}
+            case None => ()
         }
         return symbols.toArray()
     }
@@ -697,11 +697,11 @@ public class TreeShaker {
                                 if (spec.length > 0 && !symbols.contains(spec)) {
                                     symbols.append(spec)
                                 }
-                            case None => {}
+                            case None => ()
                         }
                     }
                 }
-            case None => {}
+            case None => ()
         }
         // 也从 dependencies 获取
         for (dep in module.dependencies) {
@@ -752,13 +752,13 @@ public class TreeShaker {
                                                                     mod.path
                                                                 )
                                                                 changed = true
-                                                            case None => {}
+                                                            case None => ()
                                                         }
-                                                    case None => {}
+                                                    case None => ()
                                                 }
                                             }
                                         }
-                                    case None => {}
+                                    case None => ()
                                 }
                             }
 
@@ -777,15 +777,15 @@ public class TreeShaker {
                                                             mod.path
                                                         )
                                                         changed = true
-                                                    case None => {}
+                                                    case None => ()
                                                 }
                                             }
                                         }
-                                    case None => {}
+                                    case None => ()
                                 }
                             }
                         }
-                    case None => {}
+                    case None => ()
                 }
             }
         }
@@ -811,7 +811,7 @@ public class DeadCodeEliminator {
                     let optimized = optimizeStatement(stmt)
                     match (optimized) {
                         case Some(s) => optimizedStmts.append(s)
-                        case None => {} // 已被消除
+                        case None => () // 已被消除
                     }
                 }
 
@@ -846,7 +846,7 @@ public class DeadCodeEliminator {
                             case None => return None
                         }
                     }
-                case None => {}
+                case None => ()
             }
         }
 
@@ -1039,7 +1039,7 @@ public class CssTreeShaker {
         usedAnimationNames.insert(name)
         match (declaredRules.get("keyframes:${name}")) {
             case Some(rule) => rule.useCount++
-            case None => {}
+            case None => ()
         }
     }
 
@@ -1053,7 +1053,7 @@ public class CssTreeShaker {
         usedLayerNames.insert(layerName)
         match (declaredRules.get("layer:${layerName}")) {
             case Some(rule) => rule.useCount++
-            case None => {}
+            case None => ()
         }
     }
 
@@ -1082,9 +1082,9 @@ public class CssTreeShaker {
                                     case Some(be) =>
                                         pos = be + 1
                                         continue
-                                    case None => {}
+                                    case None => ()
                                 }
-                            case None => {}
+                            case None => ()
                         }
                     }
                 }
@@ -1105,9 +1105,9 @@ public class CssTreeShaker {
                                     case Some(be) =>
                                         pos = be + 1
                                         continue
-                                    case None => {}
+                                    case None => ()
                                 }
-                            case None => {}
+                            case None => ()
                         }
                     }
                 }
@@ -1183,7 +1183,7 @@ public class CssTreeShaker {
                         unused.append("@keyframes ${rule.ruleName}")
                     case CssRuleType.Layer =>
                         unused.append("@layer ${rule.ruleName}")
-                    case _ => {}
+                    case _ => ()
                 }
             }
         }

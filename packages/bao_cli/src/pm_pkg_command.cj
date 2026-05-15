@@ -17,13 +17,13 @@ public class PmPkgCommand {
     /// 执行 pkg 命令
     /// 对应 Bun: PmPkgCommand.exec()
     public static func exec(ctx: CommandContext, pm: PackageManager): Unit {
-        val positionals = ctx.positionals
+        let positionals = ctx.positionals
         if (positionals.size < 1) {
             printUsage()
             return
         }
 
-        val subcommand = positionals[0]
+        let subcommand = positionals[0]
         when (subcommand) {
             case "get" => execGet(ctx, pm)
             case "set" => execSet(ctx, pm)
@@ -39,26 +39,26 @@ public class PmPkgCommand {
     /// get 子命令: 获取 package.json 中的值
     /// 对应 Bun: PmPkgCommand get
     public static func execGet(ctx: CommandContext, pm: PackageManager): Unit {
-        val positionals = ctx.positionals
+        let positionals = ctx.positionals
         if (positionals.size < 2) {
             Output.errGeneric("pkg get requires a field name")
             return
         }
 
-        val fieldPath = positionals[1]
-        val pkgContent = BaoFile.readAllText("package.json")
+        let fieldPath = positionals[1]
+        let pkgContent = BaoFile.readAllText("package.json")
         if (pkgContent == None) {
             Output.errGeneric("No package.json found")
             return
         }
 
-        val json = JsonParser.parse(pkgContent!!)
+        let json = JsonParser.parse(pkgContent!!)
         if (json == None) {
             Output.errGeneric("Failed to parse package.json")
             return
         }
 
-        val value = resolveJsonPath(json!!, fieldPath)
+        let value = resolveJsonPath(json!!, fieldPath)
         if (value != None) {
             Output.println(formatJsonValue(value!!))
         }
@@ -67,22 +67,22 @@ public class PmPkgCommand {
     /// set 子命令: 设置 package.json 中的值
     /// 对应 Bun: PmPkgCommand set
     public static func execSet(ctx: CommandContext, pm: PackageManager): Unit {
-        val positionals = ctx.positionals
+        let positionals = ctx.positionals
         if (positionals.size < 3) {
             Output.errGeneric("pkg set requires a field name and value")
             return
         }
 
-        val fieldPath = positionals[1]
-        val fieldValue = positionals[2]
-        val pkgContent = BaoFile.readAllText("package.json")
+        let fieldPath = positionals[1]
+        let fieldValue = positionals[2]
+        let pkgContent = BaoFile.readAllText("package.json")
         if (pkgContent == None) {
             Output.errGeneric("No package.json found")
             return
         }
 
         // 解析 JSON, 修改值, 写回
-        val modified = setJsonValue(pkgContent!!, fieldPath, fieldValue)
+        let modified = setJsonValue(pkgContent!!, fieldPath, fieldValue)
         BaoFile.writeAllText("package.json", modified)
         Output.println("Set ${fieldPath} = ${fieldValue}")
     }
@@ -90,20 +90,20 @@ public class PmPkgCommand {
     /// delete 子命令: 删除 package.json 中的字段
     /// 对应 Bun: PmPkgCommand delete
     public static func execDelete(ctx: CommandContext, pm: PackageManager): Unit {
-        val positionals = ctx.positionals
+        let positionals = ctx.positionals
         if (positionals.size < 2) {
             Output.errGeneric("pkg delete requires a field name")
             return
         }
 
-        val fieldPath = positionals[1]
-        val pkgContent = BaoFile.readAllText("package.json")
+        let fieldPath = positionals[1]
+        let pkgContent = BaoFile.readAllText("package.json")
         if (pkgContent == None) {
             Output.errGeneric("No package.json found")
             return
         }
 
-        val modified = deleteJsonField(pkgContent!!, fieldPath)
+        let modified = deleteJsonField(pkgContent!!, fieldPath)
         BaoFile.writeAllText("package.json", modified)
         Output.println("Deleted ${fieldPath}")
     }
@@ -111,16 +111,16 @@ public class PmPkgCommand {
     /// fix 子命令: 修复 package.json
     /// 对应 Bun: PmPkgCommand fix
     public static func execFix(ctx: CommandContext, pm: PackageManager): Unit {
-        val pkgContent = BaoFile.readAllText("package.json")
+        let pkgContent = BaoFile.readAllText("package.json")
         if (pkgContent == None) {
             Output.errGeneric("No package.json found")
             return
         }
 
         // 简化: 重新格式化 JSON
-        val json = JsonParser.parse(pkgContent!!)
+        let json = JsonParser.parse(pkgContent!!)
         if (json != None) {
-            val formatted = JsonFormatter.format(json!!)
+            let formatted = JsonFormatter.format(json!!)
             BaoFile.writeAllText("package.json", formatted)
             Output.println("Fixed package.json")
         }
@@ -129,12 +129,12 @@ public class PmPkgCommand {
     /// 解析 JSON 路径 (点分隔)
     /// 对应 Bun: resolveJsonPath()
     public static func resolveJsonPath(json: JsonValue, path: String): ?JsonValue {
-        val parts = path.split('.')
+        let parts = path.split('.')
         var current: JsonValue = json
 
         for (part in parts) {
             if (current.isObject()) {
-                val obj = current.asObject()
+                let obj = current.asObject()
                 if (obj.contains(part)) {
                     current = obj.get(part)!!
                 } else {
@@ -151,16 +151,16 @@ public class PmPkgCommand {
     /// 设置 JSON 值
     private static func setJsonValue(content: String, path: String, value: String): String {
         // 简化实现: 解析 JSON, 修改, 重新格式化
-        val json = JsonParser.parse(content)
+        let json = JsonParser.parse(content)
         if (json == None) {
             return content
         }
 
-        val parts = path.split('.')
+        let parts = path.split('.')
         // 简化: 只支持一级路径
         if (parts.length == 1) {
             // 直接修改顶级字段
-            val modifiedContent = JsonHelper.setField(content, parts[0], value)
+            let modifiedContent = JsonHelper.setField(content, parts[0], value)
             return modifiedContent
         }
 
@@ -169,12 +169,12 @@ public class PmPkgCommand {
 
     /// 删除 JSON 字段
     private static func deleteJsonField(content: String, path: String): String {
-        val json = JsonParser.parse(content)
+        let json = JsonParser.parse(content)
         if (json == None) {
             return content
         }
 
-        val parts = path.split('.')
+        let parts = path.split('.')
         if (parts.length == 1) {
             return JsonHelper.removeField(content, parts[0])
         }

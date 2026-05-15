@@ -52,7 +52,7 @@ public class RawRefCount {
     }
 
     /// 创建指定初始值的 RawRefCount
-    public static func init(initialCount: UInt32, threadSafety: ThreadSafety): RawRefCount {
+    public static func initFunc(initialCount: UInt32, threadSafety: ThreadSafety): RawRefCount {
         let rc = RawRefCount()
         rc.threadSafety = threadSafety
         rc.rawValue.store(initialCount)

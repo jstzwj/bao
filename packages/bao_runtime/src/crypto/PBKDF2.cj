@@ -174,7 +174,7 @@ public class PBKDF2Job {
                 this.promise.reject(createCryptoError(globalThis, err))
                 return
             }
-            case None => {}
+            case None => ()
         }
 
         // const output_slice = this.output;

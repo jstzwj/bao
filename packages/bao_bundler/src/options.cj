@@ -573,7 +573,7 @@ public class ExternalModules {
     }
 
     /// 初始化外部模块
-    public func init(externals: Array<String>, target: Target): Unit {
+    public func initFunc(externals: Array<String>, target: Target): Unit {
         // 添加默认外部模式
         patterns = [WildcardPattern(prefix: "/bun:", suffix: "")]
 

@@ -113,7 +113,7 @@ public class CssPageSelector {
         let sb = StringBuilder()
         match (name) {
             case Some(n) => sb.append(n)
-            case None => {}
+            case None => ()
         }
         for (pseudo in pseudoClasses) {
             sb.append(":${pseudo.toCss()}")

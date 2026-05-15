@@ -535,7 +535,7 @@ public func canMergeSymbols(
                      SymbolKind.HoistedFunction |
                      SymbolKind.GeneratorOrAsyncFunction | SymbolKind.Class =>
                     return SymbolMergeResult.KeepExisting
-                case _ => {}
+                case _ => ()
             }
         }
     }

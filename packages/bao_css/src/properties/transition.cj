@@ -446,7 +446,7 @@ public class TransitionHandler {
             case "durations" => this.durations = TransitionTimeList(values: values, vendorPrefix: vp)
             case "delays" => this.delays = TransitionTimeList(values: values, vendorPrefix: vp)
             case "timingFunctions" => this.timingFunctions = TransitionEasingList(values: values, vendorPrefix: vp)
-            case _ => {}
+            case _ => ()
         }
     }
 }

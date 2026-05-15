@@ -62,10 +62,10 @@ public class ServerComponentParseTask {
                 // 仓颉中简化为直接回调
                 match (c.getLoop()) {
                     case Some(loop) => loop.enqueueTaskConcurrent(result)
-                    case None => {}
+                    case None => ()
                 }
             }
-            case None => {}
+            case None => ()
         }
     }
 
@@ -243,10 +243,10 @@ public class ServerComponentParseTask {
                             }
                         }
                     }
-                    case None => {}
+                    case None => ()
                 }
             }
-            case None => {}
+            case None => ()
         }
     }
 

@@ -175,7 +175,7 @@ public class WindowsNamedPipe {
     /// 写入回调
     func onWriteInternal(amount: Int64, status: WriteStatus): Unit {
         match (status) {
-            case PENDING => {}
+            case PENDING => ()
             case DRAINED => {
                 // 发送完所有数据后取消引用
                 if (writer.source != None) {
@@ -759,7 +759,7 @@ public enum WriteStatus {
 
 /// UvPipe 不透明类型
 public class UvPipe {
-    public func init(loop: AsyncLoop, ipc: Bool): SysMaybeVoid { ... }
+    public func initFunc(loop: AsyncLoop, ipc: Bool): SysMaybeVoid { ... }
     public func open(fd: Fd): SysMaybeVoid { ... }
     public func accept(client: UvPipe): SysMaybeVoid { ... }
     public func connect(req: UvConnectT, path: String, ctx: Any, callback: (UvReturnCode) -> Unit): SysMaybeVoid { ... }

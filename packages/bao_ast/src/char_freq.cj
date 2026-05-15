@@ -73,7 +73,7 @@ public class NameMinifier {
     }
 
     /// 初始化 - 对应 Bun NameMinifier.init()
-    public static func init(allocator: Any): NameMinifier {
+    public static func initFunc(allocator: Any): NameMinifier {
         return NameMinifier()
     }
 

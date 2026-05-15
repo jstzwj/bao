@@ -16,7 +16,7 @@ import bao_core.*
 /// Zig: var str = try bun.String.createFormat("{f}", .{this.kind})
 /// Zig: defer str.deref()
 /// Zig: return str.toErrorInstance(globalThis)
-public func cssErrorToErrorInstance(this: CssError, globalThis: JSGlobalObject): JSValue {
+public func cssErrorToErrorInstance(`this`: CssError, globalThis: JSGlobalObject): JSValue {
     var str = BaoString.createFormat("${this.kind}")
     defer {
         str.deref()

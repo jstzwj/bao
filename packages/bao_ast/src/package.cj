@@ -691,21 +691,21 @@ public class ASTPrinter {
                     let v = node.stringValue()
                     match (v) {
                         case Some(s) => sb.append(" \"").append(s).append("\"")
-                        case None => {}
+                        case None => ()
                     }
                 }
                 case ExprTag.Number => {
                     let v = node.numberValue()
                     match (v) {
                         case Some(n) => sb.append(" ").append(n.toString())
-                        case None => {}
+                        case None => ()
                     }
                 }
                 case ExprTag.Boolean => {
                     let v = node.boolValue()
                     match (v) {
                         case Some(b) => sb.append(" ").append(b.toString())
-                        case None => {}
+                        case None => ()
                     }
                 }
                 case ExprTag.Null => sb.append(" null")
@@ -714,10 +714,10 @@ public class ASTPrinter {
                     let v = node.value as String
                     match (v) {
                         case Some(s) => sb.append(" ").append(s)
-                        case None => {}
+                        case None => ()
                     }
                 }
-                case _ => {}
+                case _ => ()
             }
         }
         if (node.children.size > Int64(0)) {
@@ -854,8 +854,8 @@ public class ASTComparer {
                     case None => if (vb.isSome()) { return false }
                 }
             }
-            case ExprTag.Null | ExprTag.Undefined => {} // 标签匹配即可
-            case _ => {}
+            case ExprTag.Null | ExprTag.Undefined => () // 标签匹配即可
+            case _ => ()
         }
         // 递归比较子节点
         let aChildren = a.children

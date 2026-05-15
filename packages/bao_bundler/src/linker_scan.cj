@@ -105,7 +105,7 @@ public func scanImportsAndExportsExt(linker: LinkerContext): Unit {
                         }
                     }
                 }
-                case _ => {}
+                case _ => ()
             }
         }
 

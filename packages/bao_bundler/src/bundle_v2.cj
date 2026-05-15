@@ -116,7 +116,7 @@ public class ReachableFileVisitor {
                           wasDynamicImport, checkDynamicImports)
                     return
                 }
-                case None => {}
+                case None => ()
             }
         }
 
@@ -301,7 +301,7 @@ public class BundleV2 {
 
     /// 初始化 BundleV2
     // 严格翻译自: bundle_v2.zig:898 init()
-    public func init(transpiler: Transpiler): Unit {
+    public func initFunc(transpiler: Transpiler): Unit {
         // 设置链接器选项
         linker.options.minifySyntax = transpiler.minifySyntax
         linker.options.minifyIdentifiers = transpiler.minifyIdentifiers
@@ -368,7 +368,7 @@ public class BundleV2 {
         let pathMap = pathToSourceIndexMap(target)
         match (pathMap.get(pathText)) {
             case Some(_) => return None  // 已存在
-            case None => {}
+            case None => ()
         }
 
         incrementScanCounter()
@@ -502,7 +502,7 @@ public class BundleV2 {
                         case Some(secondarySourceIndex) => {
                             record.sourceIndex = SourceIndex.fromValue(secondarySourceIndex)
                         }
-                        case None => {}
+                        case None => ()
                     }
                 }
             }
@@ -1331,12 +1331,12 @@ public class ParseTask {
     }
 
     /// 初始化
-    public func init(resolveResult: ResolverResult, sourceIndex: SourceIndex, ctx: BundleV2): Unit {
+    public func initFunc(resolveResult: ResolverResult, sourceIndex: SourceIndex, ctx: BundleV2): Unit {
         this.ctx = ctx
         this.sourceIndex = sourceIndex
         match (resolveResult.path()) {
             case Some(p) => this.path = p
-            case None => {}
+            case None => ()
         }
     }
 
@@ -1366,7 +1366,7 @@ public class ParseTask {
                 // 递减计数器
                 bundle.decrementScanCounter()
             }
-            case None => {}
+            case None => ()
         }
     }
 }

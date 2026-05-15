@@ -14,6 +14,7 @@ package bao_jsc
 //       stopped = 2,
 //   };
 public enum ScriptExecutionStatus {
+    | None
 }
     }
 

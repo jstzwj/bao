@@ -26,20 +26,20 @@ public func Bun__FetchCacheMode__toJS(v: UInt8, global: JSGlobalObject): JSValue
 /// 将 FetchRedirect 转换为 JS - 严格对应 Bun fetchRedirectToJS
 /// Zig: pub fn fetchRedirectToJS(this: bun.http.FetchRedirect, global) jsc.JSValue
 /// Zig: return Bun__FetchRedirect__toJS(@intFromEnum(this), global)
-public func fetchRedirectToJS(this: FetchRedirect, global: JSGlobalObject): JSValue {
+public func fetchRedirectToJS(`this`: FetchRedirect, global: JSGlobalObject): JSValue {
     return Bun__FetchRedirect__toJS(UInt8(this), global)
 }
 
 /// 将 FetchRequestMode 转换为 JS - 严格对应 Bun fetchRequestModeToJS
 /// Zig: pub fn fetchRequestModeToJS(this: bun.http.FetchRequestMode, global) jsc.JSValue
 /// Zig: return Bun__FetchRequestMode__toJS(@intFromEnum(this), global)
-public func fetchRequestModeToJS(this: FetchRequestMode, global: JSGlobalObject): JSValue {
+public func fetchRequestModeToJS(`this`: FetchRequestMode, global: JSGlobalObject): JSValue {
     return Bun__FetchRequestMode__toJS(UInt8(this), global)
 }
 
 /// 将 FetchCacheMode 转换为 JS - 严格对应 Bun fetchCacheModeToJS
 /// Zig: pub fn fetchCacheModeToJS(this: bun.http.FetchCacheMode, global) jsc.JSValue
 /// Zig: return Bun__FetchCacheMode__toJS(@intFromEnum(this), global)
-public func fetchCacheModeToJS(this: FetchCacheMode, global: JSGlobalObject): JSValue {
+public func fetchCacheModeToJS(`this`: FetchCacheMode, global: JSGlobalObject): JSValue {
     return Bun__FetchCacheMode__toJS(UInt8(this), global)
 }

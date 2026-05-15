@@ -221,7 +221,7 @@ public class Listener {
                                 socket.connection = Some(ConnectionTarget.Unix(path))
                                 socket.doConnect(ConnectionTarget.Unix(path))
                             }
-                            case _ => {}
+                            case _ => ()
                         }
                     }
                     case ConnectionTarget.Fd(fd) => {
@@ -270,14 +270,14 @@ public class Listener {
             case ConnectionTarget.Unix(path) => {
                 unlinkUnixSocketPath(path)
             }
-            case _ => {}
+            case _ => ()
         }
 
         // 关闭监听器
         match (listener) {
             case ListenerType.Uws(socket) => socket.close()
-            case ListenerType.NamedPipe(ctx) => {}
-            case ListenerType.None => {}
+            case ListenerType.NamedPipe(ctx) => ()
+            case ListenerType.None => ()
         }
         listener = ListenerType.None
 
@@ -301,12 +301,12 @@ public class Listener {
             case ListenerType.Uws(socket) => {
                 match (connection) {
                     case ConnectionTarget.Unix(path) => unlinkUnixSocketPath(path)
-                    case _ => {}
+                    case _ => ()
                 }
                 socket.close()
             }
-            case ListenerType.NamedPipe(ctx) => {}
-            case ListenerType.None => {}
+            case ListenerType.NamedPipe(ctx) => ()
+            case ListenerType.None => ()
         }
 
         deinit()
@@ -327,7 +327,7 @@ public class Listener {
             case ConnectionTarget.Host(_, _) | ConnectionTarget.Unix(_) => {
                 connection.deinit()
             }
-            case _ => {}
+            case _ => ()
         }
 
         protos = None
@@ -449,7 +449,7 @@ public class Listener {
             return
         }
         // Linux 抽象套接字以 NUL 字节开头, 无文件系统入口
-        if (path.size > 0 && path.subString(0, 1) == "\x00") {
+        if (path.size > 0 && path.subString(0, 1) == "\u{00}") {
             return
         }
         // 通过 bao_sys unlink 删除文件

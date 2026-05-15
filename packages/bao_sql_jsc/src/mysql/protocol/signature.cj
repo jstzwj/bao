@@ -107,7 +107,7 @@ public class SignatureParam {
 public class Wyhash {
     var state: UInt64 = 0
 
-    public static func init(seed: UInt64): Wyhash {
+    public static func initFunc(seed: UInt64): Wyhash {
         let h = Wyhash()
         h.state = seed
         return h

@@ -343,7 +343,7 @@ public class DataURL {
         var trailingStart = text.length
         while (trailingStart > 0) {
             let c = text[trailingStart - 1]
-            if (c > '\x20' || c == '\t' || c == '\n' || c == '\r') {
+            if (c > '\u{20}' || c == '\t' || c == '\n' || c == '\r') {
                 break
             }
             trailingStart -= 1

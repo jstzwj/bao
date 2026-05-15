@@ -40,29 +40,31 @@ package bao_core.crash_handler
 public func handleOom(result: Result<Unit>): Unit {
     match (result) {
         case Ok(_) => return  // 成功, 直接返回
-        case Err(e) => {
-            if (e.code == ErrorCode.OutOfMemory) {
-                // 对应 Bun: bun.outOfMemory() -> noreturn
-                CrashHandler.handleOutOfMemory()
-            }
-            // 非 OOM 错误: 重新抛出
-            throw e
-        }
+        case Err(e) => handleOomError(e)
     }
+}
+
+private func handleOomError(e: BaoError): Unit {
+    if (e.code == ErrorCode.OutOfMemory) {
+        CrashHandler.handleOutOfMemory()
+    }
+    throw e
 }
 
 /// 处理可能包含 OOM 的泛型结果
 /// 对应 Bun: handleOom 的泛型版本
 public func handleOom<T>(result: Result<T>): T {
     match (result) {
-        case Ok(value) => return value
-        case Err(e) => {
-            if (e.code == ErrorCode.OutOfMemory) {
-                CrashHandler.handleOutOfMemory()
-            }
-            throw e
-        }
+        case Ok(value) => value
+        case Err(e) => handleOomErrorGeneric<T>(e)
     }
+}
+
+private func handleOomErrorGeneric<T>(e: BaoError): T {
+    if (e.code == ErrorCode.OutOfMemory) {
+        CrashHandler.handleOutOfMemory()
+    }
+    throw e
 }
 
 /// 检查错误是否仅为 OOM

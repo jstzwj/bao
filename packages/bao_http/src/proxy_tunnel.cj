@@ -111,7 +111,7 @@ public class SSLWrapper {
 
     /// 初始化 SSL 包装器
     /// 严格翻译自: SSLWrapper.init
-    public static func init(rejectUnauthorized: Bool, ctx: ?HTTPClient): SSLWrapper {
+    public static func initFunc(rejectUnauthorized: Bool, ctx: ?HTTPClient): SSLWrapper {
         let w = SSLWrapper()
         w.rejectUnauthorized = rejectUnauthorized
         w.ctx = ctx

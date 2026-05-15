@@ -149,7 +149,7 @@ public class Stringifier {
         case number(Int64)
         case str(BunString)
 
-        public static func init(global: JsGlobalObject, spaceValue: JsValue): Space {
+        public static func initFunc(global: JsGlobalObject, spaceValue: JsValue): Space {
             let space = try spaceValue.unwrapBoxedPrimitive(global)
             if (space.isNumber()) {
                 let numF = space.asNumber()
@@ -171,8 +171,8 @@ public class Stringifier {
 
         public func deinit() {
             switch (this) {
-                case .minified => {}
-                case .number => {}
+                case .minified => ()
+                case .number => ()
                 case .str(let str) => str.deref()
             }
         }
@@ -193,7 +193,7 @@ public class Stringifier {
         var used: Bool
         var name: Name
 
-        public static func init(origin: ValueOrigin): AnchorAlias {
+        public static func initFunc(origin: ValueOrigin): AnchorAlias {
             return AnchorAlias{
                 anchored = false,
                 used = false,
@@ -219,7 +219,7 @@ public class Stringifier {
 
     public typealias ValueOrigin = AnchorOrigin
 
-    public static func init(allocator: Allocator, global: JsGlobalObject, spaceValue: JsValue): Stringifier {
+    public static func initFunc(allocator: Allocator, global: JsGlobalObject, spaceValue: JsValue): Stringifier {
         var propNames = StringHashMap<Int64>.init(allocator)
         // 避免与 root anchor 冲突
         try propNames.put("root", 0)
@@ -506,7 +506,7 @@ public class Stringifier {
     func newline() {
         let indentCount = this.indent
         switch (this.space) {
-            case .minified => {}
+            case .minified => ()
             case .number(let spaceNum) => {
                 this.builder.append(.lchar, '\n')
                 this.builder.ensureUnusedCapacity(indentCount * spaceNum)
@@ -542,7 +542,7 @@ public class Stringifier {
             else if (c == 0x1b) { this.builder.append(.latin1, "\\e") }
             else if (c == 0x22) { this.builder.append(.latin1, "\\\"") }
             else if (c == 0x5c) { this.builder.append(.latin1, "\\\\") }
-            else if (c == 0x7f) { this.builder.append(.latin1, "\\x7f") }
+            else if (c == 0x7f) { this.builder.append(.latin1, "\u{7f}") }
             else if (c == 0x85) { this.builder.append(.latin1, "\\N") }
             else if (c == 0xa0) { this.builder.append(.latin1, "\\_") }
             else if (c == 0xa8) { this.builder.append(.latin1, "\\L") }

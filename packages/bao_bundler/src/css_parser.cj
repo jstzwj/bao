@@ -182,7 +182,7 @@ public class CssComplexSelector {
                     case CssCombinator.Child => sb.append(" > ")
                     case CssCombinator.AdjacentSibling => sb.append(" + ")
                     case CssCombinator.GeneralSibling => sb.append(" ~ ")
-                    case CssCombinator.None => {}
+                    case CssCombinator.None => ()
                 }
             }
             sb.append(selectors[i].toString())

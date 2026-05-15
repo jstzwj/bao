@@ -60,7 +60,7 @@ public class OutdatedCommand {
         Output.prettyLn("bao outdated v${Global.packageJsonVersionWithSha}")
         Output.flush()
 
-        val cli = PackageManager.CommandLineArguments.parse(ctx, Subcommand.outdated)
+        let cli = PackageManager.CommandLineArguments.parse(ctx, Subcommand.outdated)
         val (manager, originalCwd) = match (PackageManager.init(ctx, cli, Subcommand.outdated)) {
             case Some((pm, dir)) => (pm, dir)
             case None => {
@@ -77,7 +77,7 @@ public class OutdatedCommand {
     /// 执行过时检查
     /// 对应 Bun: OutdatedCommand.outdated()
     private static func outdated(ctx: CommandContext, originalCwd: String, manager: PackageManager): Unit {
-        val loadLockfileResult = manager.lockfile.loadFromCwd(manager, manager.allocator, manager.log, true)
+        let loadLockfileResult = manager.lockfile.loadFromCwd(manager, manager.allocator, manager.log, true)
         if (loadLockfileResult == LoadLockfileResult.notFound) {
             Output.errGeneric("missing lockfile, nothing outdated")
             Global.crash()
@@ -87,18 +87,18 @@ public class OutdatedCommand {
             Global.crash()
         }
 
-        val enableAnsiColors = Output.enableAnsiColorsStdout
+        let enableAnsiColors = Output.enableAnsiColorsStdout
 
         if (manager.options.filterPatterns.size > 0) {
-            val workspacePkgIds = findMatchingWorkspaces(originalCwd, manager, manager.options.filterPatterns)
+            let workspacePkgIds = findMatchingWorkspaces(originalCwd, manager, manager.options.filterPatterns)
             manager.populateManifestCache(workspacePkgIds)
             printOutdatedInfoTable(manager, workspacePkgIds, true, enableAnsiColors)
         } else if (manager.options.doRecursive) {
-            val allWorkspaces = getAllWorkspaces(manager)
+            let allWorkspaces = getAllWorkspaces(manager)
             manager.populateManifestCache(allWorkspaces)
             printOutdatedInfoTable(manager, allWorkspaces, true, enableAnsiColors)
         } else {
-            val rootPkgId = manager.rootPackageId
+            let rootPkgId = manager.rootPackageId
             manager.populateManifestCache([rootPkgId])
             printOutdatedInfoTable(manager, [rootPkgId], false, enableAnsiColors)
         }
@@ -107,12 +107,12 @@ public class OutdatedCommand {
     /// 获取所有工作区
     /// 对应 Bun: OutdatedCommand.getAllWorkspaces()
     private static func getAllWorkspaces(manager: PackageManager): ArrayList<Int64> {
-        val lockfile = manager.lockfile
-        val packages = lockfile.packages
-        val workspacePkgIds = ArrayList<Int64>()
+        let lockfile = manager.lockfile
+        let packages = lockfile.packages
+        let workspacePkgIds = ArrayList<Int64>()
 
         for (pkgIdx in 0..packages.length) {
-            val resolution = packages.getResolution(pkgIdx)
+            let resolution = packages.getResolution(pkgIdx)
             if (resolution.tag == ResolutionTag.workspace || resolution.tag == ResolutionTag.root) {
                 workspacePkgIds.append(pkgIdx)
             }
@@ -128,23 +128,23 @@ public class OutdatedCommand {
         manager: PackageManager,
         filters: ArrayList<String>
     ): ArrayList<Int64> {
-        val lockfile = manager.lockfile
-        val packages = lockfile.packages
-        val workspacePkgIds = ArrayList<Int64>()
+        let lockfile = manager.lockfile
+        let packages = lockfile.packages
+        let workspacePkgIds = ArrayList<Int64>()
 
         // 收集所有工作区
         for (pkgIdx in 0..packages.length) {
-            val resolution = packages.getResolution(pkgIdx)
+            let resolution = packages.getResolution(pkgIdx)
             if (resolution.tag == ResolutionTag.workspace || resolution.tag == ResolutionTag.root) {
                 workspacePkgIds.append(pkgIdx)
             }
         }
 
         // 过滤匹配的
-        val matched = ArrayList<Int64>()
+        let matched = ArrayList<Int64>()
         for (pkgId in workspacePkgIds) {
-            val pkgName = packages.getName(pkgId)
-            val resolution = packages.getResolution(pkgId)
+            let pkgName = packages.getName(pkgId)
+            let resolution = packages.getResolution(pkgId)
 
             for (filter in filters) {
                 if (filter == "*" || filter == "**") {
@@ -172,30 +172,30 @@ public class OutdatedCommand {
         var maxLatest: Int64 = 0
         var maxWorkspace: Int64 = 0
 
-        val lockfile = manager.lockfile
-        val packages = lockfile.packages
-        val outdatedIds = ArrayList<OutdatedInfo>()
+        let lockfile = manager.lockfile
+        let packages = lockfile.packages
+        let outdatedIds = ArrayList<OutdatedInfo>()
 
         // 收集过时的包
         for (workspacePkgId in workspacePkgIds) {
-            val pkgDeps = packages.getDependencies(workspacePkgId)
+            let pkgDeps = packages.getDependencies(workspacePkgId)
             for (depIdx in 0..pkgDeps.length) {
-                val packageId = packages.getResolutionIndex(depIdx)
+                let packageId = packages.getResolutionIndex(depIdx)
                 if (packageId < 0) {
                     continue
                 }
 
-                val dep = pkgDeps[depIdx]
-                val resolution = packages.getResolution(packageId)
+                let dep = pkgDeps[depIdx]
+                let resolution = packages.getResolution(packageId)
                 if (resolution.tag != ResolutionTag.npm) {
                     continue
                 }
 
-                val packageName = packages.getName(packageId)
-                val currentVersion = resolution.formatVersion()
+                let packageName = packages.getName(packageId)
+                let currentVersion = resolution.formatVersion()
 
                 // 查询最新版本
-                val manifest = manager.manifests.byNameAllowExpired(
+                let manifest = manager.manifests.byNameAllowExpired(
                     manager, manager.scopeForPackageName(packageName),
                     packageName, true
                 )
@@ -203,7 +203,7 @@ public class OutdatedCommand {
                     continue
                 }
 
-                val latestVersion = manifest!!.findByDistTag("latest") ?: continue
+                let latestVersion = manifest!!.findByDistTag("latest") ?: continue
 
                 // 检查是否有更新
                 if (currentVersion == latestVersion.version) {
@@ -221,7 +221,7 @@ public class OutdatedCommand {
                     maxLatest = latestVersion.version.length
                 }
 
-                val info = OutdatedInfo()
+                let info = OutdatedInfo()
                 info.packageId = packageId
                 info.depId = depIdx
                 info.workspacePkgId = workspacePkgId
@@ -235,16 +235,16 @@ public class OutdatedCommand {
         }
 
         // 打印表格头
-        val showWorkspaceColumn = wasFiltered
+        let showWorkspaceColumn = wasFiltered
         if (showWorkspaceColumn) {
             maxWorkspace = 10
         }
 
-        val columnPad = 1
-        val nameWidth = Math.max("Package".length, maxName) + columnPad * 2
-        val currentWidth = Math.max("Current".length, maxCurrent) + columnPad * 2
-        val updateWidth = Math.max("Update".length, maxUpdate) + columnPad * 2
-        val latestWidth = Math.max("Latest".length, maxLatest) + columnPad * 2
+        let columnPad = 1
+        let nameWidth = Math.max("Package".length, maxName) + columnPad * 2
+        let currentWidth = Math.max("Current".length, maxCurrent) + columnPad * 2
+        let updateWidth = Math.max("Update".length, maxUpdate) + columnPad * 2
+        let latestWidth = Math.max("Latest".length, maxLatest) + columnPad * 2
 
         // 打印分隔线
         printTableSeparator(nameWidth, currentWidth, updateWidth, latestWidth, if (showWorkspaceColumn) maxWorkspace + columnPad * 2 else 0)
@@ -257,18 +257,18 @@ public class OutdatedCommand {
 
         // 打印每个过时的包
         for (info in outdatedIds) {
-            val packageName = packages.getName(info.packageId)
-            val resolution = packages.getResolution(info.packageId)
-            val currentVersion = resolution.formatVersion()
+            let packageName = packages.getName(info.packageId)
+            let resolution = packages.getResolution(info.packageId)
+            let currentVersion = resolution.formatVersion()
 
-            val manifest = manager.manifests.byNameAllowExpired(
+            let manifest = manager.manifests.byNameAllowExpired(
                 manager, manager.scopeForPackageName(packageName),
                 packageName, true
             )
-            val latestVersion = manifest!!.findByDistTag("latest")
-            val latestStr = latestVersion?.version ?: currentVersion
+            let latestVersion = manifest!!.findByDistTag("latest")
+            let latestStr = latestVersion?.version ?: currentVersion
 
-            val updateStr = latestStr
+            let updateStr = latestStr
 
             printTableRow([packageName, currentVersion, updateStr, latestStr], [nameWidth, currentWidth, updateWidth, latestWidth], enableAnsiColors)
         }
@@ -279,7 +279,7 @@ public class OutdatedCommand {
 
     /// 打印表格分隔线
     private static func printTableSeparator(widths: Array<Int64>): Unit {
-        val sb = StringBuilder()
+        let sb = StringBuilder()
         for (w in widths) {
             sb.append("+")
             for (_ in 0..w) {
@@ -292,11 +292,11 @@ public class OutdatedCommand {
 
     /// 打印表格行
     private static func printTableRow(cells: Array<String>, widths: Array<Int64>, colors: Bool): Unit {
-        val sb = StringBuilder()
+        let sb = StringBuilder()
         for ((i, cell) in cells.iterator().indexed()) {
             sb.append("| ")
             sb.append(cell)
-            val padding = widths[i] - cell.length - 2
+            let padding = widths[i] - cell.length - 2
             for (_ in 0..padding) {
                 sb.append(" ")
             }
@@ -313,18 +313,18 @@ public class OutdatedCommand {
         outdatedItems: ArrayList<OutdatedInfo>,
         workspacePkgIds: ArrayList<Int64>
     ): ArrayList<GroupedOutdatedInfo> {
-        val result = ArrayList<GroupedOutdatedInfo>()
+        let result = ArrayList<GroupedOutdatedInfo>()
 
         for (item in outdatedItems) {
             if (!item.isCatalog) {
-                val grouped = GroupedOutdatedInfo()
+                let grouped = GroupedOutdatedInfo()
                 grouped.packageId = item.packageId
                 grouped.depId = item.depId
                 grouped.workspacePkgId = item.workspacePkgId
                 grouped.isCatalog = false
                 result.append(grouped)
             } else {
-                val grouped = GroupedOutdatedInfo()
+                let grouped = GroupedOutdatedInfo()
                 grouped.packageId = item.packageId
                 grouped.depId = item.depId
                 grouped.workspacePkgId = item.workspacePkgId

@@ -360,11 +360,11 @@ public class FileReader {
                         reader.nonblocking = opened.nonblocking
                         reader.pollable = opened.pollable
                     }
-                    case None => {}
+                    case None => ()
                 }
                 lazy = FileReaderLazy()
             }
-            case None => {}
+            case None => ()
         }
 
         started = true
@@ -460,7 +460,7 @@ public class FileReader {
                     }
                     return StreamResult.owned(buffered)
                 }
-                case _ => {}
+                case _ => ()
             }
 
             readInsideOnPull = ReadDuringJSOnPullResult.none()
@@ -506,7 +506,7 @@ public class FileReader {
                         hasMore = false
                     }
                 }
-                case None => {}
+                case None => ()
             }
         }
 
@@ -536,7 +536,7 @@ public class FileReader {
                     }
                     readInsideOnPull = ReadDuringJSOnPullResult.useBuffered(buf.size + original)
                 }
-                case _ => {}
+                case _ => ()
             }
         } else if (pending.state == PendingState.Pending) {
             // 0 字节读取但不是 EOF

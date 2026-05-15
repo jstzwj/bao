@@ -13,14 +13,14 @@ import bao_core.*
 /// 将 sys.Error 转换为 JS 值 - 严格对应 Bun toJS
 /// Zig: pub fn toJS(this: Error, ptr: *jsc.JSGlobalObject) bun.JSError!jsc.JSValue
 /// Zig: return this.toSystemError().toErrorInstance(ptr)
-public func sysErrorToJS(this: SysError, ptr: JSGlobalObject): JSValue {
+public func sysErrorToJS(`this`: SysError, ptr: JSGlobalObject): JSValue {
     return this.toSystemError().toErrorInstance(ptr)
 }
 
 /// 带有异步栈跟踪的 toJS - 严格对应 Bun toJSWithAsyncStack
 /// Zig: pub fn toJSWithAsyncStack(this: Error, ptr, promise) bun.JSError!jsc.JSValue
 /// Zig: return this.toSystemError().toErrorInstanceWithAsyncStack(ptr, promise)
-public func sysErrorToJSWithAsyncStack(this: SysError, ptr: JSGlobalObject, promise: JSPromise): JSValue {
+public func sysErrorToJSWithAsyncStack(`this`: SysError, ptr: JSGlobalObject, promise: JSPromise): JSValue {
     return this.toSystemError().toErrorInstanceWithAsyncStack(ptr, promise)
 }
 

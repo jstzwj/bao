@@ -205,15 +205,15 @@ public class CssColorConverters {
 
     /// SRGB <-> RGBA (8位整数 <-> 浮点)
     static func srgbFromRGBA(rgba: CssRGBA): Float32[] {
-        [Float32(rgba.red) / 255.0f, Float32(rgba.green) / 255.0f, Float32(rgba.blue) / 255.0f, Float32(rgba.alpha) / 255.0f]
+        [Float32(rgba.red) / 255.0f32, Float32(rgba.green) / 255.0f32, Float32(rgba.blue) / 255.0f32, Float32(rgba.alpha) / 255.0f32]
     }
 
     static func rgbaFromSRGB(srgb: Float32[]): CssRGBA {
         CssRGBA(
-            UInt32(srgb[0] * 255.0f + 0.5f),
-            UInt32(srgb[1] * 255.0f + 0.5f),
-            UInt32(srgb[2] * 255.0f + 0.5f),
-            UInt32(srgb[3] * 255.0f + 0.5f)
+            UInt32(srgb[0] * 255.0f32 + 0.5f32),
+            UInt32(srgb[1] * 255.0f32 + 0.5f32),
+            UInt32(srgb[2] * 255.0f32 + 0.5f32),
+            UInt32(srgb[3] * 255.0f32 + 0.5f32)
         )
     }
 
@@ -224,46 +224,46 @@ public class CssColorConverters {
         let b = srgb[2]
         let max = r.max(g).max(b)
         let min = r.min(g).min(b)
-        let l = (max + min) / 2.0f
-        var h: Float32 = 0.0f
-        var s: Float32 = 0.0f
+        let l = (max + min) / 2.0f32
+        var h: Float32 = 0.0f32
+        var s: Float32 = 0.0f32
 
         if (max != min) {
             let d = max - min
-            s = if (l > 0.5f) { d / (2.0f - max - min) } else { d / (max + min) }
-            if (max == r) { h = (g - b) / d + (if (g < b) { 6.0f } else { 0.0f }) }
-            else if (max == g) { h = (b - r) / d + 2.0f }
-            else { h = (r - g) / d + 4.0f }
-            h = h * 60.0f
+            s = if (l > 0.5f32) { d / (2.0f32 - max - min) } else { d / (max + min) }
+            if (max == r) { h = (g - b) / d + (if (g < b) { 6.0f32 } else { 0.0f32 }) }
+            else if (max == g) { h = (b - r) / d + 2.0f32 }
+            else { h = (r - g) / d + 4.0f32 }
+            h = h * 60.0f32
         }
 
         return CssHSL(h, s, l, srgb[3])
     }
 
     static func srgbFromHSL(hsl: CssHSL): Float32[] {
-        if (hsl.s == 0.0f) {
+        if (hsl.s == 0.0f32) {
             return [hsl.l, hsl.l, hsl.l, hsl.alpha]
         }
 
-        let q = if (hsl.l < 0.5f) { hsl.l * (1.0f + hsl.s) } else { hsl.l + hsl.s - hsl.l * hsl.s }
-        let p = 2.0f * hsl.l - q
-        let h = hsl.h / 360.0f
+        let q = if (hsl.l < 0.5f32) { hsl.l * (1.0f32 + hsl.s) } else { hsl.l + hsl.s - hsl.l * hsl.s }
+        let p = 2.0f32 * hsl.l - q
+        let h = hsl.h / 360.0f32
 
         return [
-            hueToRGB(p, q, h + 1.0f / 3.0f),
+            hueToRGB(p, q, h + 1.0f32 / 3.0f32),
             hueToRGB(p, q, h),
-            hueToRGB(p, q, h - 1.0f / 3.0f),
+            hueToRGB(p, q, h - 1.0f32 / 3.0f32),
             hsl.alpha
         ]
     }
 
     static func hueToRGB(p: Float32, q: Float32, t: Float32): Float32 {
         var tt = t
-        if (tt < 0.0f) { tt += 1.0f }
-        if (tt > 1.0f) { tt -= 1.0f }
-        if (tt < 1.0f / 6.0f) { return p + (q - p) * 6.0f * tt }
-        if (tt < 1.0f / 2.0f) { return q }
-        if (tt < 2.0f / 3.0f) { return p + (q - p) * (2.0f / 3.0f - tt) * 6.0f }
+        if (tt < 0.0f32) { tt += 1.0f32 }
+        if (tt > 1.0f32) { tt -= 1.0f32 }
+        if (tt < 1.0f32 / 6.0f32) { return p + (q - p) * 6.0f32 * tt }
+        if (tt < 1.0f32 / 2.0f32) { return q }
+        if (tt < 2.0f32 / 3.0f32) { return p + (q - p) * (2.0f32 / 3.0f32 - tt) * 6.0f32 }
         return p
     }
 
@@ -271,56 +271,56 @@ public class CssColorConverters {
     static func hwbFromSRGB(srgb: Float32[]): CssHWB {
         let hsl = hslFromSRGB(srgb)
         let w = srgb[0].min(srgb[1]).min(srgb[2])
-        let b = 1.0f - srgb[0].max(srgb[1]).max(srgb[2])
+        let b = 1.0f32 - srgb[0].max(srgb[1]).max(srgb[2])
         return CssHWB(hsl.h, w, b, srgb[3])
     }
 
     static func srgbFromHWB(hwb: CssHWB): Float32[] {
-        let hsl = CssHSL(hwb.h, 0.0f, 0.0f, hwb.alpha)
+        let hsl = CssHSL(hwb.h, 0.0f32, 0.0f32, hwb.alpha)
         return srgbFromHSL(hsl)  // 简化
     }
 
     /// XYZd65 <-> LAB
     static func labFromXYZD65(xyz: Float32[]): CssLAB {
         // D65 白点
-        let xn = 0.3127f * 100.0f
-        let yn = 0.3290f * 100.0f
-        let zn = 0.3583f * 100.0f
+        let xn = 0.3127f32 * 100.0f32
+        let yn = 0.3290f32 * 100.0f32
+        let zn = 0.3583f32 * 100.0f32
 
-        let fx = labF(xyz[0] / 95.047f)
-        let fy = labF(xyz[1] / 100.0f)
-        let fz = labF(xyz[2] / 108.883f)
+        let fx = labF(xyz[0] / 95.047f32)
+        let fy = labF(xyz[1] / 100.0f32)
+        let fz = labF(xyz[2] / 108.883f32)
 
         return CssLAB(
-            116.0f * fy - 16.0f,
-            500.0f * (fx - fy),
-            200.0f * (fy - fz),
+            116.0f32 * fy - 16.0f32,
+            500.0f32 * (fx - fy),
+            200.0f32 * (fy - fz),
             xyz[3]
         )
     }
 
     static func xyzD65FromLAB(lab: CssLAB): Float32[] {
-        let fy = (lab.l + 16.0f) / 116.0f
-        let fx = lab.a / 500.0f + fy
-        let fz = fy - lab.b / 200.0f
+        let fy = (lab.l + 16.0f32) / 116.0f32
+        let fx = lab.a / 500.0f32 + fy
+        let fz = fy - lab.b / 200.0f32
 
         return [
-            labFInv(fx) * 95.047f,
-            labFInv(fy) * 100.0f,
-            labFInv(fz) * 108.883f,
+            labFInv(fx) * 95.047f32,
+            labFInv(fy) * 100.0f32,
+            labFInv(fz) * 108.883f32,
             lab.alpha
         ]
     }
 
     static func labF(t: Float32): Float32 {
-        if (t > 0.008856f) { return t.pow(1.0f / 3.0f) }
-        return 7.787f * t + 16.0f / 116.0f
+        if (t > 0.008856f32) { return t.pow(1.0f32 / 3.0f32) }
+        return 7.787f32 * t + 16.0f32 / 116.0f32
     }
 
     static func labFInv(t: Float32): Float32 {
         let t3 = t * t * t
-        if (t3 > 0.008856f) { return t3 }
-        return (t - 16.0f / 116.0f) / 7.787f
+        if (t3 > 0.008856f32) { return t3 }
+        return (t - 16.0f32 / 116.0f32) / 7.787f32
     }
 
     /// LAB <-> LCH
@@ -328,44 +328,44 @@ public class CssColorConverters {
         let lab = labFromXYZD65(xyz)
         let c = (lab.a * lab.a + lab.b * lab.b).sqrt()
         let h = lab.b.atan2(lab.a).toDegrees()
-        return CssLCH(lab.l, c, if (h < 0.0f) { h + 360.0f } else { h }, lab.alpha)
+        return CssLCH(lab.l, c, if (h < 0.0f32) { h + 360.0f32 } else { h }, lab.alpha)
     }
 
     /// XYZd65 <-> OKLAB
     static func oklabFromXYZD65(xyz: Float32[]): CssOKLAB {
-        let x = xyz[0] / 100.0f
-        let y = xyz[1] / 100.0f
-        let z = xyz[2] / 100.0f
+        let x = xyz[0] / 100.0f32
+        let y = xyz[1] / 100.0f32
+        let z = xyz[2] / 100.0f32
 
-        let l_ = 0.8189330101f * y + 0.3618667424f * x - 0.1288597137f * z
-        let m_ = 0.0329845436f * y + 0.9293118715f * x + 0.0361456387f * z
-        let s_ = 0.0482003018f * y + 0.2643662691f * x + 0.6338517070f * z
+        let l_ = 0.8189330101f32 * y + 0.3618667424f32 * x - 0.1288597137f32 * z
+        let m_ = 0.0329845436f32 * y + 0.9293118715f32 * x + 0.0361456387f32 * z
+        let s_ = 0.0482003018f32 * y + 0.2643662691f32 * x + 0.6338517070f32 * z
 
         let l__ = l_.cbrt()
         let m__ = m_.cbrt()
         let s__ = s_.cbrt()
 
         return CssOKLAB(
-            0.2104542553f * l__ + 0.7936177850f * m__ - 0.0040720468f * s__,
-            1.9779984951f * l__ - 2.4285922050f * m__ + 0.4505937099f * s__,
-            0.0259040371f * l__ + 0.7827717662f * m__ - 0.8086757660f * s__,
+            0.2104542553f32 * l__ + 0.7936177850f32 * m__ - 0.0040720468f32 * s__,
+            1.9779984951f32 * l__ - 2.4285922050f32 * m__ + 0.4505937099f32 * s__,
+            0.0259040371f32 * l__ + 0.7827717662f32 * m__ - 0.8086757660f32 * s__,
             xyz[3]
         )
     }
 
     static func xyzD65FromOKLAB(oklab: CssOKLAB): Float32[] {
-        let l__ = oklab.l + 0.3963377774f * oklab.a + 0.2158037573f * oklab.b
-        let m__ = oklab.l - 0.1055613458f * oklab.a - 0.0638541728f * oklab.b
-        let s__ = oklab.l - 0.0894841775f * oklab.a - 1.2914855480f * oklab.b
+        let l__ = oklab.l + 0.3963377774f32 * oklab.a + 0.2158037573f32 * oklab.b
+        let m__ = oklab.l - 0.1055613458f32 * oklab.a - 0.0638541728f32 * oklab.b
+        let s__ = oklab.l - 0.0894841775f32 * oklab.a - 1.2914855480f32 * oklab.b
 
         let l_ = l__ * l__ * l__
         let m_ = m__ * m__ * m__
         let s_ = s__ * s__ * s__
 
         return [
-            (4.0767416621f * l_ - 3.3077115913f * m_ + 0.2309699292f * s_) * 100.0f,
-            (-1.2684380046f * l_ + 2.6097574011f * m_ - 0.3413193965f * s_) * 100.0f,
-            (-0.0041960863f * l_ - 0.7034186147f * m_ + 1.7076147010f * s_) * 100.0f,
+            (4.0767416621f32 * l_ - 3.3077115913f32 * m_ + 0.2309699292f32 * s_) * 100.0f32,
+            (-1.2684380046f32 * l_ + 2.6097574011f32 * m_ - 0.3413193965f32 * s_) * 100.0f32,
+            (-0.0041960863f32 * l_ - 0.7034186147f32 * m_ + 1.7076147010f32 * s_) * 100.0f32,
             oklab.alpha
         ]
     }
@@ -375,7 +375,7 @@ public class CssColorConverters {
         let oklab = oklabFromXYZD65(xyz)
         let c = (oklab.a * oklab.a + oklab.b * oklab.b).sqrt()
         let h = oklab.b.atan2(oklab.a).toDegrees()
-        return CssOKLCH(oklab.l, c, if (h < 0.0f) { h + 360.0f } else { h }, oklab.alpha)
+        return CssOKLCH(oklab.l, c, if (h < 0.0f32) { h + 360.0f32 } else { h }, oklab.alpha)
     }
 
     static func xyzD65FromOKLCH(oklch: CssOKLCH): Float32[] {
@@ -390,27 +390,27 @@ public class CssColorConverters {
         let g = srgbLinearize(srgb[1])
         let b = srgbLinearize(srgb[2])
         return [
-            0.4124564f * r + 0.3575761f * g + 0.1804375f * b,
-            0.2126729f * r + 0.7151522f * g + 0.0721750f * b,
-            0.0193339f * r + 0.1191920f * g + 0.9503041f * b,
+            0.4124564f32 * r + 0.3575761f32 * g + 0.1804375f32 * b,
+            0.2126729f32 * r + 0.7151522f32 * g + 0.0721750f32 * b,
+            0.0193339f32 * r + 0.1191920f32 * g + 0.9503041f32 * b,
             srgb[3]
         ]
     }
 
     static func srgbFromXYZD65(xyz: Float32[]): Float32[] {
-        let r =  3.2404542f * xyz[0] - 1.5371385f * xyz[1] - 0.4985314f * xyz[2]
-        let g = -0.9692660f * xyz[0] + 1.8760108f * xyz[1] + 0.0415560f * xyz[2]
-        let b =  0.0556434f * xyz[0] - 0.2040259f * xyz[1] + 1.0572252f * xyz[2]
+        let r =  3.2404542f32 * xyz[0] - 1.5371385f32 * xyz[1] - 0.4985314f32 * xyz[2]
+        let g = -0.9692660f32 * xyz[0] + 1.8760108f32 * xyz[1] + 0.0415560f32 * xyz[2]
+        let b =  0.0556434f32 * xyz[0] - 0.2040259f32 * xyz[1] + 1.0572252f32 * xyz[2]
         return [srgbDelinearize(r), srgbDelinearize(g), srgbDelinearize(b), xyz[3]]
     }
 
     static func srgbLinearize(c: Float32): Float32 {
-        if (c <= 0.04045f) { return c / 12.92f }
-        return ((c + 0.055f) / 1.055f).pow(2.4f)
+        if (c <= 0.04045f32) { return c / 12.92f32 }
+        return ((c + 0.055f32) / 1.055f32).pow(2.4f32)
     }
 
     static func srgbDelinearize(c: Float32): Float32 {
-        if (c <= 0.0031308f) { return 12.92f * c }
-        return 1.055f * c.pow(1.0f / 2.4f) - 0.055f
+        if (c <= 0.0031308f32) { return 12.92f32 * c }
+        return 1.055f32 * c.pow(1.0f32 / 2.4f32) - 0.055f32
     }
 }

@@ -146,7 +146,7 @@ public class DependencyBehavior {
             case "peer" => result.peer = true
             case "workspace" => result.workspace = true
             case "bundled" => result.bundled = true
-            case _ => {}
+            case _ => ()
         }
         return result
     }
@@ -162,7 +162,7 @@ public class DependencyBehavior {
             case "peer" => result.peer = value
             case "workspace" => result.workspace = value
             case "bundled" => result.bundled = value
-            case _ => {}
+            case _ => ()
         }
         return result
     }

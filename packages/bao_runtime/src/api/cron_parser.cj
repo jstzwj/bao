@@ -279,7 +279,7 @@ public class CronExpression {
                 if (let v = weekdayMap.getASCIICaseInsensitive(str)) { return v }
             case .month =>
                 if (let v = monthMap.getASCIICaseInsensitive(str)) { return v }
-            case .none => {}
+            case .none => ()
         }
 
         guard let val = Int.parse(str, radix: 10) else {

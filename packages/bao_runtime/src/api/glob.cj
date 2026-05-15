@@ -183,7 +183,7 @@ public class Glob {
                 case .err(let err) => {
                     this.err = Err.syscall(err)
                 }
-                case .result => {}
+                case .result => ()
             }
         }
 
@@ -298,7 +298,7 @@ public class Glob {
             case .err(let err) => {
                 return globalThis.throwValue(try err.toJS(globalThis))
             }
-            case .result => {}
+            case .result => ()
         }
 
         let matchedPaths = globWalkResultToJS(globWalker, globalThis)

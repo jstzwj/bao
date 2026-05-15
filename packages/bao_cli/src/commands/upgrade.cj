@@ -307,15 +307,15 @@ public class UpgradeCommand {
                                                                 size = JsonHelper.getInt64(asset, "size") ?? 0
                                                             }
                                                         }
-                                                        case None => {}
+                                                        case None => ()
                                                     }
                                                 }
                                             }
-                                            case None => {}
+                                            case None => ()
                                         }
                                     }
                                 }
-                                case _ => {}
+                                case _ => ()
                             }
 
                             if (tag.length > 0 && zipUrl.length > 0) {
@@ -325,7 +325,7 @@ public class UpgradeCommand {
                                 return Some(ver)
                             }
                         }
-                        case None => {}
+                        case None => ()
                     }
                 } else if (resp.statusCode == 404) {
                     logger.error("No releases found")

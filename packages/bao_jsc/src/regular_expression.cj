@@ -7,6 +7,7 @@ package bao_jsc
 // 严格翻译自 RegularExpression.zig Flags
 // 正则表达式标志位 (位掩码)
 public enum RegularExpressionFlags {
+    | None
 }
 
     // 合并标志
@@ -36,7 +37,7 @@ public class RegularExpression {
     // 严格翻译自 RegularExpression.init
     // FFI: Yarr__RegularExpression__init(pattern, flags)
     // 创建并编译正则表达式
-    public static func init(pattern: String, flags: RegularExpressionFlags) -> RegularExpression {
+    public static func initFunc(pattern: String, flags: RegularExpressionFlags) -> RegularExpression {
         let regex = RegularExpression()
         regex.pattern = pattern
         regex.flags = flags

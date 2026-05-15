@@ -291,7 +291,7 @@ public class ScopeAnalysis {
         scopeIdCounter += Int64(1)
         match (currentScope) {
             case Some(parent) => parent.addChild(scope)
-            case None => {}
+            case None => ()
         }
         allScopes.append(scope)
         currentScope = Some(scope)
@@ -314,7 +314,7 @@ public class ScopeAnalysis {
         match (currentScope) {
             case Some(scope) =>
                 scope.addMember(name, symbol)
-            case None => {}
+            case None => ()
         }
         return symbol
     }
@@ -363,7 +363,7 @@ public class ScopeAnalysis {
         for (ref in refs) {
             let localDecl = scope.getMember(ref)
             match (localDecl) {
-                case Some(_) => {}  // 已声明，不是自由变量
+                case Some(_) => ()  // 已声明，不是自由变量
                 case None =>
                     // 检查是否在父作用域链中
                     let resolved = scope.resolve(ref)
@@ -373,7 +373,7 @@ public class ScopeAnalysis {
                             if (!freeVars.contains(ref)) {
                                 freeVars.append(ref)
                             }
-                        case Some(_) => {}  // 在父作用域中找到
+                        case Some(_) => ()  // 在父作用域中找到
                     }
             }
         }
@@ -519,11 +519,11 @@ public class ControlFlowGraph {
         edges.append(edge)
         match (blocks.get(from)) {
             case Some(b) => b.addSuccessor(to)
-            case None => {}
+            case None => ()
         }
         match (blocks.get(to)) {
             case Some(b) => b.addPredecessor(from)
-            case None => {}
+            case None => ()
         }
     }
 
@@ -627,10 +627,10 @@ public class ControlFlowGraph {
                                     s.isReachable = true
                                     queue.append(succ)
                                 }
-                            case None => {}
+                            case None => ()
                         }
                     }
-                case None => {}
+                case None => ()
             }
         }
     }
@@ -729,7 +729,7 @@ public class DataFlowAnalysis {
                     case StmtTag.Expr => {
                         // 赋值表达式: 可能定义变量
                     }
-                    case _ => {}
+                    case _ => ()
                 }
             }
             result.gen.put(block.id, genSet)
@@ -752,7 +752,7 @@ public class DataFlowAnalysis {
                                     inSet.append(def)
                                 }
                             }
-                        case None => {}
+                        case None => ()
                     }
                 }
                 // OUT[B] = GEN[B] union (IN[B] - KILL[B])
@@ -774,7 +774,7 @@ public class DataFlowAnalysis {
                                 outSet.append(def)
                             }
                         }
-                    case None => {}
+                    case None => ()
                 }
                 // 检查是否变化
                 if (!defsEqual(match (result.in_.get(block.id)) {
@@ -808,7 +808,7 @@ public class DataFlowAnalysis {
                     case StmtTag.Local => defSet.append("decl")
                     case StmtTag.Expr => useSet.append("ref")
                     case StmtTag.Return => useSet.append("retval")
-                    case _ => {}
+                    case _ => ()
                 }
             }
             result.use.put(block.id, useSet)
@@ -831,7 +831,7 @@ public class DataFlowAnalysis {
                                     outSet.append(v)
                                 }
                             }
-                        case None => {}
+                        case None => ()
                     }
                 }
                 // IN[B] = USE[B] union (OUT[B] - DEF[B])
@@ -843,7 +843,7 @@ public class DataFlowAnalysis {
                                 inSet.append(v)
                             }
                         }
-                    case None => {}
+                    case None => ()
                 }
                 let defList = match (result.def.get(block.id)) {
                     case Some(d) => d

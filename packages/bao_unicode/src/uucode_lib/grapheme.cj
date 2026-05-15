@@ -117,7 +117,7 @@ public class GraphemeBreakIterator {
             if (result == None) {
                 return None
             }
-            if (result!.isBreak) {
+            if (result.getOrThrow().isBreak) {
                 return Grapheme(start, i)
             }
         }
@@ -189,7 +189,7 @@ public func computeGraphemeBreak(
                 case _ => currentState = BreakState.Default
             }
         }
-        case Default => {}
+        case Default => ()
     }
 
     // GB3: CR x LF

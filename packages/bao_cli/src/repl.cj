@@ -172,20 +172,20 @@ public class History {
     /// 从文件加载历史
     /// 对应 Bun: History.load
     public func load(): Unit {
-        val homePath = EnvVar.HOME.get()
+        let homePath = EnvVar.HOME.get()
         if (homePath == None || homePath!!.length == 0) {
             return
         }
 
-        val path = Path.join([homePath!!, HISTORY_FILENAME])
+        let path = Path.join([homePath!!, HISTORY_FILENAME])
         filePath = path
 
-        val content = BaoFile.readAllText(path)
+        let content = BaoFile.readAllText(path)
         if (content == None) {
             return
         }
 
-        val lines = content!!.split('\n')
+        let lines = content!!.split('\n')
         for (line in lines) {
             if (line.length > 0) {
                 entries.append(line)
@@ -206,15 +206,15 @@ public class History {
         if (!modified) {
             return
         }
-        val path = filePath ?: return
+        let path = filePath ?: return
 
-        val start = if (entries.size > MAX_HISTORY_SIZE) {
+        let start = if (entries.size > MAX_HISTORY_SIZE) {
             entries.size - MAX_HISTORY_SIZE
         } else {
             0
         }
 
-        val content = StringBuilder()
+        let content = StringBuilder()
         for (i in start..entries.size) {
             content.append(entries[i.toInt()])
             content.append('\n')
@@ -233,7 +233,7 @@ public class History {
 
         // 不添加与最后一条重复的条目
         if (entries.size > 0) {
-            val last = entries[entries.size - 1]
+            let last = entries[entries.size - 1]
             if (last == line) {
                 position = entries.size
                 return
@@ -471,12 +471,12 @@ public class LineEditor {
     /// 对应 Bun: LineEditor.swap
     public func swap(): Unit {
         if (cursor > 0 && cursor < buffer.size) {
-            val temp = buffer[(cursor - 1).toInt()]
+            let temp = buffer[(cursor - 1).toInt()]
             buffer[(cursor - 1).toInt()] = buffer[cursor.toInt()]
             buffer[cursor.toInt()] = temp
             cursor += 1
         } else if (cursor > 1 && cursor == buffer.size) {
-            val temp = buffer[(cursor - 2).toInt()]
+            let temp = buffer[(cursor - 2).toInt()]
             buffer[(cursor - 2).toInt()] = buffer[(cursor - 1).toInt()]
             buffer[(cursor - 1).toInt()] = temp
         }
@@ -485,7 +485,7 @@ public class LineEditor {
     /// 获取当前行
     /// 对应 Bun: LineEditor.getLine
     public func getLine(): String {
-        val sb = StringBuilder()
+        let sb = StringBuilder()
         for (b in buffer) {
             sb.append(b.toChar())
         }
@@ -525,7 +525,7 @@ public class ReplCommandDef {
     /// 所有命令
     /// 对应 Bun: ReplCommand.all
     public static func all(): ArrayList<ReplCommandDef> {
-        val result = ArrayList<ReplCommandDef>()
+        let result = ArrayList<ReplCommandDef>()
         result.append(ReplCommandDef(".help", "Print this help message", ReplCommandHandlers.cmdHelp))
         result.append(ReplCommandDef(".exit", "Exit the REPL", ReplCommandHandlers.cmdExit))
         result.append(ReplCommandDef(".clear", "Clear the screen", ReplCommandHandlers.cmdClear))
@@ -589,7 +589,7 @@ public class ReplCommandHandlers {
     }
 
     public static func cmdCopy(repl: Repl, args: String): ReplResult {
-        val code = args.trim(" \t")
+        let code = args.trim(" \t")
         if (code.length == 0) {
             // .copy 无参数 -> 复制上次结果
             repl.copyValueToClipboard(repl.lastResult)
@@ -601,13 +601,13 @@ public class ReplCommandHandlers {
     }
 
     public static func cmdLoad(repl: Repl, args: String): ReplResult {
-        val filename = args.trim(" \t")
+        let filename = args.trim(" \t")
         if (filename.length == 0) {
             repl.printError("Usage: .load <filename>\n")
             return ReplResult.skipEval
         }
 
-        val content = BaoFile.readAllText(filename)
+        let content = BaoFile.readAllText(filename)
         if (content == None) {
             repl.printError("Failed to read ${filename}\n")
             return ReplResult.skipEval
@@ -619,13 +619,13 @@ public class ReplCommandHandlers {
     }
 
     public static func cmdSave(repl: Repl, args: String): ReplResult {
-        val filename = args.trim(" \t")
+        let filename = args.trim(" \t")
         if (filename.length == 0) {
             repl.printError("Usage: .save <filename>\n")
             return ReplResult.skipEval
         }
 
-        val content = StringBuilder()
+        let content = StringBuilder()
         for (entry in repl.history.entries) {
             content.append(entry)
             content.append('\n')
@@ -652,13 +652,13 @@ public class ReplCommandHandlers {
 
     public static func cmdHistory(repl: Repl, args: String): ReplResult {
         repl.print("\n${Color.bold}Command History:${Color.reset}\n")
-        val start = if (repl.history.entries.size > 20) {
+        let start = if (repl.history.entries.size > 20) {
             repl.history.entries.size - 20
         } else {
             0
         }
         for (i in start..repl.history.entries.size) {
-            val num = (i + 1).toString().padStart(4)
+            let num = (i + 1).toString().padStart(4)
             repl.print("  ${Color.dim}${num}${Color.reset}  ${repl.history.entries[i.toInt()]}\n")
         }
         repl.print("\n")
@@ -765,13 +765,13 @@ public class Repl {
     /// 对应 Bun: Repl.readByte
     public func readByte(): ?UInt8 {
         if (stdinBufStart < stdinBufEnd) {
-            val b = stdinBuf[stdinBufStart.toInt()]
+            let b = stdinBuf[stdinBufStart.toInt()]
             stdinBufStart += 1
             return b
         }
         // 重新填充缓冲区
-        val stdin = Stdio.stdin()
-        val n = stdin.read(stdinBuf)
+        let stdin = Stdio.stdin()
+        let n = stdin.read(stdinBuf)
         if (n == 0) {
             return None
         }
@@ -783,14 +783,14 @@ public class Repl {
     /// 读取按键
     /// 对应 Bun: Repl.readKey
     public func readKey(): ?Key {
-        val byte = readByte() ?: return None
+        let byte = readByte() ?: return None
 
         // 处理转义序列
         if (byte == 27) { // ESC
-            val second = readByte() ?: return Key.escape
+            let second = readByte() ?: return Key.escape
 
             if (second == '['.toUInt8()) { // CSI
-                val third = readByte() ?: return Key.escape
+                let third = readByte() ?: return Key.escape
 
                 when (third) {
                     case 'A'.toUInt8() => return Key.arrowUp
@@ -802,7 +802,7 @@ public class Repl {
                     case _ => {
                         // 处理数字后跟 ~
                         if (third >= '1'.toUInt8() && third <= '6'.toUInt8()) {
-                            val fourth = readByte() ?: return Key.unknown
+                            let fourth = readByte() ?: return Key.unknown
                             if (fourth == '~'.toUInt8()) {
                                 when (third) {
                                     case '1'.toUInt8() => return Key.home
@@ -813,8 +813,8 @@ public class Repl {
                                     case _ => return Key.unknown
                                 }
                             } else if (fourth == ';'.toUInt8()) {
-                                val mod = readByte() ?: return Key.unknown
-                                val dir = readByte() ?: return Key.unknown
+                                let mod = readByte() ?: return Key.unknown
+                                let dir = readByte() ?: return Key.unknown
                                 if (mod == '5'.toUInt8() || mod == '3'.toUInt8()) {
                                     when (dir) {
                                         case 'C'.toUInt8() => return Key.altRight
@@ -829,7 +829,7 @@ public class Repl {
                     }
                 }
             } else if (second == 'O'.toUInt8()) { // SS3
-                val third = readByte() ?: return Key.escape
+                let third = readByte() ?: return Key.escape
                 when (third) {
                     case 'H'.toUInt8() => return Key.home
                     case 'F'.toUInt8() => return Key.end
@@ -878,9 +878,9 @@ public class Repl {
     public func refreshLine(): Unit {
         Output.flush()
 
-        val prompt = getPrompt()
-        val promptLen = getPromptLength()
-        val line = lineEditor.getLine()
+        let prompt = getPrompt()
+        let promptLen = getPromptLength()
+        let line = lineEditor.getLine()
 
         // 移动到行首
         write("\r")
@@ -897,7 +897,7 @@ public class Repl {
         }
 
         // 定位光标
-        val cursorPos = promptLen + lineEditor.cursor
+        let cursorPos = promptLen + lineEditor.cursor
         if (cursorPos < terminalWidth) {
             write("\r")
             if (cursorPos > 0) {
@@ -911,8 +911,8 @@ public class Repl {
     /// 写入带语法高亮的文本
     /// 对应 Bun: Repl.writeHighlighted
     public func writeHighlighted(text: String): Unit {
-        val highlighter = QuickAndDirtyJavaScriptSyntaxHighlighter(text, true)
-        val highlighted = highlighter.format()
+        let highlighter = QuickAndDirtyJavaScriptSyntaxHighlighter(text, true)
+        let highlighted = highlighter.format()
         Output.writer().writeAll(highlighted)
     }
 
@@ -972,7 +972,7 @@ public class Repl {
                 case ']' => bracketCount -= 1
                 case '(' => parenCount += 1
                 case ')' => parenCount -= 1
-                case _ => {}
+                case _ => ()
             }
         }
 
@@ -982,11 +982,11 @@ public class Repl {
     /// 评估并打印结果
     /// 对应 Bun: Repl.evaluateAndPrint
     public func evaluateAndPrint(code: String): Unit {
-        val global = this.global ?: return
-        val vm = this.vm ?: return
+        let global = this.global ?: return
+        let vm = this.vm ?: return
 
         // 转换代码
-        val transformedCode = transformForRepl(code)
+        let transformedCode = transformForRepl(code)
         if (transformedCode == None) {
             evaluateRaw(code)
             return
@@ -1004,7 +1004,7 @@ public class Repl {
 
         // 处理异步结果
         var resolvedResult = result
-        val promise = result.asPromise()
+        let promise = result.asPromise()
         if (promise != None) {
             promise!!.setHandled()
             vm.waitForPromise(promise)
@@ -1021,7 +1021,7 @@ public class Repl {
                     resolvedResult = promise!!.result()
                 }
                 case PromiseStatus.rejected => {
-                    val rejection = promise!!.result()
+                    let rejection = promise!!.result()
                     setLastError(rejection)
                     printJSError(rejection)
                     return
@@ -1036,7 +1036,7 @@ public class Repl {
         // 提取结果值
         var actualResult = resolvedResult
         if (resolvedResult.isObject()) {
-            val maybeValue = resolvedResult.getOwn(global, "value")
+            let maybeValue = resolvedResult.getOwn(global, "value")
             if (maybeValue != None) {
                 actualResult = maybeValue!!
             }
@@ -1065,10 +1065,10 @@ public class Repl {
     /// 评估脚本 (非交互式, 用于 -e/--eval)
     /// 对应 Bun: Repl.evalScript
     public func evalScript(code: String, printResult: Bool): Bool {
-        val global = this.global ?: return true
-        val vm = this.vm ?: return true
+        let global = this.global ?: return true
+        let vm = this.vm ?: return true
 
-        val noColor = EnvVar.NO_COLOR.get()
+        let noColor = EnvVar.NO_COLOR.get()
         useColors = Output.enableAnsiColorsStdout && !noColor
 
         // 空脚本
@@ -1083,7 +1083,7 @@ public class Repl {
             return false
         }
 
-        val transformedCode = transformForRepl(code)
+        let transformedCode = transformForRepl(code)
         if (transformedCode == None) {
             val (result, exception) = JscREPL.evaluate(global, code, "[eval]")
             if (!exception.isUndefined() && !exception.isNull()) {
@@ -1101,7 +1101,7 @@ public class Repl {
 
         // 处理异步
         var resolvedResult = result
-        val promise = result.asPromise()
+        let promise = result.asPromise()
         if (promise != None) {
             promise!!.setHandled()
             vm.waitForPromise(promise)
@@ -1117,7 +1117,7 @@ public class Repl {
 
         var actualResult = resolvedResult
         if (resolvedResult.isObject()) {
-            val maybeValue = resolvedResult.getOwn(global, "value")
+            let maybeValue = resolvedResult.getOwn(global, "value")
             if (maybeValue != None) {
                 actualResult = maybeValue!!
             }
@@ -1147,7 +1147,7 @@ public class Repl {
     /// 原始评估 (无 REPL 转换)
     /// 对应 Bun: Repl.evaluateRaw
     public func evaluateRaw(code: String): Unit {
-        val global = this.global ?: return
+        let global = this.global ?: return
 
         val (result, exception) = JscREPL.evaluate(global, code, "[repl]")
 
@@ -1177,10 +1177,10 @@ public class Repl {
     /// 评估并复制到剪贴板
     /// 对应 Bun: Repl.evaluateAndCopy
     public func evaluateAndCopy(code: String): Unit {
-        val global = this.global ?: return
-        val vm = this.vm ?: return
+        let global = this.global ?: return
+        let vm = this.vm ?: return
 
-        val transformedCode = transformForRepl(code)
+        let transformedCode = transformForRepl(code)
         if (transformedCode == None) {
             evaluateRaw(code)
             return
@@ -1195,7 +1195,7 @@ public class Repl {
         }
 
         var resolvedResult = result
-        val promise = result.asPromise()
+        let promise = result.asPromise()
         if (promise != None) {
             promise!!.setHandled()
             vm.waitForPromise(promise)
@@ -1212,7 +1212,7 @@ public class Repl {
 
         var actualResult = resolvedResult
         if (resolvedResult.isObject()) {
-            val maybeValue = resolvedResult.getOwn(global, "value")
+            let maybeValue = resolvedResult.getOwn(global, "value")
             if (maybeValue != None) {
                 actualResult = maybeValue!!
             }
@@ -1230,19 +1230,19 @@ public class Repl {
     /// 为 REPL 转换代码
     /// 对应 Bun: Repl.transformForRepl
     public func transformForRepl(code: String): ?String {
-        val vm = this.vm ?: return None
+        let vm = this.vm ?: return None
 
         if (code.length == 0 || code.trim(" \t\n\r").length == 0) {
             return None
         }
 
         // 检查是否可能为对象字面量
-        val isObjectLiteral = isLikelyObjectLiteral(code)
-        val processedCode = if (isObjectLiteral) "(${code})" else code
+        let isObjectLiteral = isLikelyObjectLiteral(code)
+        let processedCode = if (isObjectLiteral) "(${code})" else code
 
         // 解析并转换
         // 对应 Bun: 使用 js_parser 并启用 repl_mode
-        val transformed = JsParser.transformForReplMode(processedCode, vm.transpiler)
+        let transformed = JsParser.transformForReplMode(processedCode, vm.transpiler)
         return transformed
     }
 
@@ -1288,21 +1288,21 @@ public class Repl {
         if (errorValue == None || errorValue.isUndefined()) {
             return
         }
-        val formatted = ConsoleObject.formatError(errorValue, useColors)
+        let formatted = ConsoleObject.formatError(errorValue, useColors)
         Output.writer().writeAll(formatted)
     }
 
     /// 格式化打印 JS 值
     /// 对应 Bun: Repl.printFormattedValue
     public func printFormattedValue(value: JSValue): Unit {
-        val formatted = ConsoleObject.formatLog(value, useColors)
+        let formatted = ConsoleObject.formatLog(value, useColors)
         Output.writer().writeAll(formatted)
     }
 
     /// 复制值到剪贴板
     /// 对应 Bun: Repl.copyValueToClipboard
     public func copyValueToClipboard(value: JSValue): Unit {
-        val text = valueToClipboardString(value)
+        let text = valueToClipboardString(value)
         if (text == None) {
             printError("Failed to format value for clipboard\n")
             return
@@ -1335,7 +1335,7 @@ public class Repl {
     /// 通过 OSC52 复制到剪贴板
     /// 对应 Bun: Repl.copyToClipboardOSC52
     public func copyToClipboardOSC52(text: String): Unit {
-        val encoded = Base64.encode(text)
+        let encoded = Base64.encode(text)
         write("\u001b]52;c;${encoded}\u0007")
     }
 
@@ -1369,14 +1369,14 @@ public class Repl {
         refreshLine()
 
         while (running) {
-            val key = readKey()
+            let key = readKey()
             if (key == None) {
                 // EOF
                 print("\n")
                 break
             }
 
-            val k = key!!
+            let k = key!!
 
             // 在任何其他按键时重置双 Ctrl+C 状态
             if (k != Key.ctrlC) {
@@ -1389,7 +1389,7 @@ public class Repl {
                 case Key.ctrlD => {
                     if (editorMode) {
                         print("\n")
-                        val code = editorBufferToString()
+                        let code = editorBufferToString()
                         if (code.length > 0) {
                             evaluateAndPrint(code)
                         }
@@ -1462,14 +1462,14 @@ public class Repl {
                     refreshLine()
                 }
                 case Key.arrowUp, Key.ctrlP => {
-                    val prevLine = history.prev(lineEditor.getLine())
+                    let prevLine = history.prev(lineEditor.getLine())
                     if (prevLine != None) {
                         lineEditor.set(prevLine!!)
                         refreshLine()
                     }
                 }
                 case Key.arrowDown, Key.ctrlN => {
-                    val nextLine = history.next()
+                    let nextLine = history.next()
                     if (nextLine != None) {
                         lineEditor.set(nextLine!!)
                     } else {
@@ -1490,7 +1490,7 @@ public class Repl {
                     lineEditor.insert(c)
                     refreshLine()
                 }
-                case _ => {}
+                case _ => ()
             }
         }
 
@@ -1499,7 +1499,7 @@ public class Repl {
 
     /// 获取编辑器缓冲区字符串
     private func editorBufferToString(): String {
-        val sb = StringBuilder()
+        let sb = StringBuilder()
         for (b in editorBuffer) {
             sb.append(b.toChar())
         }
@@ -1511,10 +1511,10 @@ public class Repl {
     public func handleEnter(): Unit {
         print("\n")
 
-        val line = lineEditor.getLine()
+        let line = lineEditor.getLine()
 
         if (editorMode) {
-            val trimmed = line.trim(" \t")
+            let trimmed = line.trim(" \t")
             if (trimmed.length == 0) {
                 editorBuffer.append('\n'.toUInt8())
             } else {
@@ -1530,13 +1530,13 @@ public class Repl {
 
         // 检查 REPL 命令
         if (line.length > 0 && line[0] == '.') {
-            val spaceIdx = line.indexOf(' ')
-            val cmdName = if (spaceIdx >= 0) line.substring(0, spaceIdx) else line
-            val args = if (spaceIdx >= 0) line.substring(spaceIdx + 1) else ""
+            let spaceIdx = line.indexOf(' ')
+            let cmdName = if (spaceIdx >= 0) line.substring(0, spaceIdx) else line
+            let args = if (spaceIdx >= 0) line.substring(spaceIdx + 1) else ""
 
-            val cmd = ReplCommandDef.find(cmdName)
+            let cmd = ReplCommandDef.find(cmdName)
             if (cmd != None) {
-                val result = cmd!!.handler(this, args)
+                let result = cmd!!.handler(this, args)
                 when (result) {
                     case ReplResult.exitRepl => {
                         running = false
@@ -1548,7 +1548,7 @@ public class Repl {
                         refreshLine()
                         return
                     }
-                    case ReplResult.continueRepl => {}
+                    case ReplResult.continueRepl => ()
                 }
             } else {
                 printError("Unknown command: ${cmdName}\n")
@@ -1568,7 +1568,7 @@ public class Repl {
         // 多行输入
         var fullCode = line
         if (inMultiline) {
-            val sb = StringBuilder()
+            let sb = StringBuilder()
             for (b in multilineBuffer) {
                 sb.append(b.toChar())
             }
@@ -1593,7 +1593,7 @@ public class Repl {
         // 完整代码 - 评估
         var codeToEval = line
         if (inMultiline) {
-            val sb = StringBuilder()
+            let sb = StringBuilder()
             for (b in multilineBuffer) {
                 sb.append(b.toChar())
             }
@@ -1642,11 +1642,11 @@ public class Repl {
     /// 处理 Tab 补全
     /// 对应 Bun: Repl.handleTab
     public func handleTab(): Unit {
-        val line = lineEditor.getLine()
+        let line = lineEditor.getLine()
 
         // 补全 REPL 命令
         if (line.length > 0 && line[0] == '.') {
-            val matches = ArrayList<String>()
+            let matches = ArrayList<String>()
             for (cmd in ReplCommandDef.all()) {
                 if (cmd.name.startsWith(line)) {
                     matches.append(cmd.name)
@@ -1678,17 +1678,17 @@ public class Repl {
         // 查找正在补全的单词
         var wordStart: Int64 = line.length
         while (wordStart > 0) {
-            val c = line[(wordStart - 1).toInt()]
+            let c = line[(wordStart - 1).toInt()]
             if (!c.isAlphanumeric() && c != '_' && c != '$') {
                 break
             }
             wordStart -= 1
         }
 
-        val prefix = line.substring(wordStart)
+        let prefix = line.substring(wordStart)
 
         // 从全局对象获取补全
-        val completions = JscREPL.getCompletions(global!!, JSValue.jsUndefined(), prefix)
+        let completions = JscREPL.getCompletions(global!!, JSValue.jsUndefined(), prefix)
 
         if (completions == None || !completions!!.isArray()) {
             lineEditor.insert(' '.toUInt8())
@@ -1697,7 +1697,7 @@ public class Repl {
             return
         }
 
-        val len = completions!!.getLength()
+        let len = completions!!.getLength()
         if (len == 0) {
             lineEditor.insert(' '.toUInt8())
             lineEditor.insert(' '.toUInt8())
@@ -1707,9 +1707,9 @@ public class Repl {
 
         if (len == 1) {
             // 单个补全
-            val item = completions!!.getIndex(0)
+            let item = completions!!.getIndex(0)
             if (item.isString()) {
-                val completion = item.asString()
+                let completion = item.asString()
                 while (lineEditor.cursor > wordStart) {
                     lineEditor.backspace()
                 }
@@ -1720,7 +1720,7 @@ public class Repl {
             // 多个补全 - 显示它们
             print("\n")
             for (i in 0..len) {
-                val item = completions!!.getIndex(i)
+                let item = completions!!.getIndex(i)
                 if (item.isString()) {
                     print("  ${Color.cyan}${item.asString()}${Color.reset}\n")
                 }
@@ -1739,7 +1739,7 @@ public class Repl {
     /// CLI 入口
     /// 对应 Bun: Repl.exec
     public static func exec(ctx: CommandContext): Unit {
-        val repl = Repl(ctx.allocator)
+        let repl = Repl(ctx.allocator)
         repl.run()
     }
 }

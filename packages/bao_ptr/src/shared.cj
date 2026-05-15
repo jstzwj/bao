@@ -46,7 +46,7 @@ class NonAtomicCount {
         this.value = value
     }
 
-    static func init(value: UInt32): NonAtomicCount {
+    static func initFunc(value: UInt32): NonAtomicCount {
         NonAtomicCount(value: value)
     }
 
@@ -86,7 +86,7 @@ class AtomicCount {
         this.value.store(value)
     }
 
-    static func init(value: UInt32): AtomicCount {
+    static func initFunc(value: UInt32): AtomicCount {
         AtomicCount(value: value)
     }
 

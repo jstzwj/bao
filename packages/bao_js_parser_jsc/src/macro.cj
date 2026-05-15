@@ -52,7 +52,7 @@ public class MacroContext {
 
     /// 初始化宏上下文 - 严格对应 Bun MacroContext.init
     /// Zig: pub fn init(transpiler: *Transpiler) MacroContext
-    public static func init(transpiler: Transpiler): MacroContext {
+    public static func initFunc(transpiler: Transpiler): MacroContext {
         let ctx = MacroContext()
         ctx.macros = MacroMap.init(Allocator.default)
         ctx.resolver = transpiler.resolver
@@ -203,7 +203,7 @@ public class Macro {
 
     /// 初始化宏 - 严格对应 Bun Macro.init
     /// Zig: pub fn init(_: std.mem.Allocator, resolver, input_specifier, log, env, function_name, specifier, hash) !Macro
-    public static func init(
+    public static func initFunc(
         allocator: Allocator,
         resolver: Resolver,
         inputSpecifier: String,

@@ -23,7 +23,7 @@ public func noticeResponseToJS(noticeResponse: NoticeResponse,
             case Message(m) => builder.append(m)
             case Detail(d) => builder.append(d)
             case Hint(h) => builder.append(h)
-            case _ => {}
+            case _ => ()
         }
         builder.append("\n")
     }

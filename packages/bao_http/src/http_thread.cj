@@ -246,7 +246,7 @@ public class HTTPThread {
     // ========================================================================
 
     /// 初始化
-    public func init(opts: HTTPThreadInitOpts): Unit {
+    public func initFunc(opts: HTTPThreadInitOpts): Unit {
         // 初始化 HTTP 上下文
         httpContext.init_()
 

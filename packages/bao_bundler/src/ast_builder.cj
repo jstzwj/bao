@@ -289,7 +289,7 @@ public class AstBuilder {
     // 严格翻译自: AstBuilder.zig:308 recordExportedBinding
     public func recordExportedBinding(binding: BindingNode): Unit {
         match (binding.tag) {
-            case BindingTag.Missing => {}
+            case BindingTag.Missing => ()
             case BindingTag.Identifier => {
                 let name = symbols.get(Int64(binding.ref.innerIndex)).originalName
                 recordExport(binding.loc, name, binding.ref)

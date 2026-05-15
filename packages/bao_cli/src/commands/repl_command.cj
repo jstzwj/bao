@@ -55,7 +55,7 @@ public class ReplCommand {
             case Some(script) => {
                 return executeEval(script, opts.evalAndPrint)
             }
-            case None => {}
+            case None => ()
         }
 
         // 步骤1: 初始化 JavaScript 虚拟机
@@ -143,7 +143,7 @@ public class ReplCommand {
                     vm.setTimeZone(t)
                 }
             }
-            case None => {}
+            case None => ()
         }
 
         // 加载 Tracy (性能追踪)
@@ -302,7 +302,7 @@ public class ReplCommand {
                 case "--help" | "-h" => {
                     printReplHelp()
                 }
-                case _ => {}
+                case _ => ()
             }
             i++
         }

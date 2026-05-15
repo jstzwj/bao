@@ -411,7 +411,7 @@ public class NapiFunctions {
     /// napi_create_array_with_length
     /// 对应 Bun: napi_create_array_with_length
     public static func createArrayWithLength(env: NapiEnv, length: Int64): NapiValue {
-        val len = if (length > 0) { UInt32(length) } else { 0 }
+        let len = if (length > 0) { UInt32(length) } else { 0 }
         return NapiValue.create(env, JsValue.array(ArrayList<JsValue>()))
     }
 
@@ -490,7 +490,7 @@ public class NapiFunctions {
     /// napi_create_error
     /// 对应 Bun: napi_create_error (extern)
     public static func createError(env: NapiEnv, code: NapiValue, msg: NapiValue): NapiValue {
-        val errorObj = JsObject()
+        let errorObj = JsObject()
         errorObj.set("message", msg.get())
         if (!code.get().isUndefinedOrNull()) {
             errorObj.set("code", code.get())
@@ -501,7 +501,7 @@ public class NapiFunctions {
     /// napi_create_type_error
     /// 对应 Bun: napi_create_type_error (extern)
     public static func createTypeError(env: NapiEnv, code: NapiValue, msg: NapiValue): NapiValue {
-        val errorObj = JsObject()
+        let errorObj = JsObject()
         errorObj.set("message", msg.get())
         if (!code.get().isUndefinedOrNull()) {
             errorObj.set("code", code.get())
@@ -513,7 +513,7 @@ public class NapiFunctions {
     /// napi_create_range_error
     /// 对应 Bun: napi_create_range_error (extern)
     public static func createRangeError(env: NapiEnv, code: NapiValue, msg: NapiValue): NapiValue {
-        val errorObj = JsObject()
+        let errorObj = JsObject()
         errorObj.set("message", msg.get())
         if (!code.get().isUndefinedOrNull()) {
             errorObj.set("code", code.get())
@@ -529,7 +529,7 @@ public class NapiFunctions {
     /// napi_typeof
     /// 对应 Bun: napi_typeof (extern)
     public static func typeOf(env: NapiEnv, value: NapiValue): NapiValueType {
-        val v = value.get()
+        let v = value.get()
         match (v.valueType) {
             case JsValueType.Undefined => return NapiValueType.undefined
             case JsValueType.Null => return NapiValueType.nNull
@@ -623,7 +623,7 @@ public class NapiFunctions {
     /// napi_get_array_length
     /// 对应 Bun: napi_get_array_length
     public static func getArrayLength(env: NapiEnv, value: NapiValue): UInt32 {
-        val v = value.get()
+        let v = value.get()
         match (v.arrayData) {
             case Some(arr) => return UInt32(arr.size)
             case None => return 0
@@ -670,7 +670,7 @@ public class NapiFunctions {
     /// napi_get_prototype
     /// 对应 Bun: napi_get_prototype
     public static func getPrototype(env: NapiEnv, object: NapiValue): NapiValue {
-        val v = object.get()
+        let v = object.get()
         if (!v.isObject()) {
             return NapiValue.create(env, JsValue.NULL)
         }
@@ -720,7 +720,7 @@ public class NapiFunctions {
     /// napi_create_reference
     /// 对应 Bun: napi_create_reference (extern)
     public static func createReference(env: NapiEnv, value: NapiValue, initialRefCount: UInt32): NapiRef {
-        val ref = NapiRef()
+        let ref = NapiRef()
         ref.value = value.get()
         ref.refCount = initialRefCount
         return ref
@@ -764,7 +764,7 @@ public class NapiFunctions {
     /// napi_create_promise
     /// 对应 Bun: napi_create_promise
     public static func createPromise(env: NapiEnv): NapiDeferred {
-        val deferred = NapiDeferred()
+        let deferred = NapiDeferred()
         deferred.promise = JsPromise()
         return deferred
     }
@@ -859,7 +859,7 @@ public class NapiFunctions {
     /// napi_wrap
     /// 对应 Bun: napi_wrap (extern)
     public static func wrap(env: NapiEnv, jsObject: NapiValue, nativeObject: ?Any): NapiRef {
-        val ref = NapiRef()
+        let ref = NapiRef()
         ref.value = jsObject.get()
         ref.refCount = 0
         return ref

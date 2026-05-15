@@ -23,20 +23,20 @@ public class PackageManagerCommand {
                 Output.errGeneric("Error loading lockfile")
                 Global.exit(1)
             }
-            case LoadLockfileResult.ok => {}
+            case LoadLockfileResult.ok => ()
         }
     }
 
     /// node_modules 目录树打印
     /// 对应 Bun: PackageManagerCommand.printNodeModulesTree()
     public static func printNodeModulesTree(pm: PackageManager): Unit {
-        val packages = pm.lockfile.packages
+        let packages = pm.lockfile.packages
 
         Output.prettyLn("node_modules:")
         for (pkgIdx in 0..packages.length) {
-            val pkgName = packages.getName(pkgIdx)
+            let pkgName = packages.getName(pkgIdx)
             if (pkgName.length > 0) {
-                val version = packages.getResolution(pkgIdx).formatVersion()
+                let version = packages.getResolution(pkgIdx).formatVersion()
                 Output.prettyLn("  ${pkgName}@${version}")
             }
         }
@@ -50,16 +50,16 @@ public class PackageManagerCommand {
 
     /// ls 子命令: 列出安装的包
     public static func execLs(ctx: CommandContext, pm: PackageManager): Unit {
-        val loadLockfile = pm.lockfile.loadFromCwd(pm, ctx.allocator, ctx.log, true)
+        let loadLockfile = pm.lockfile.loadFromCwd(pm, ctx.allocator, ctx.log, true)
         handleLoadLockfileErrors(loadLockfile, pm)
 
-        val packages = pm.lockfile.packages
-        val names = ArrayList<String>()
+        let packages = pm.lockfile.packages
+        let names = ArrayList<String>()
 
         for (pkgIdx in 0..packages.length) {
-            val pkgName = packages.getName(pkgIdx)
+            let pkgName = packages.getName(pkgIdx)
             if (pkgName.length > 0) {
-                val resolution = packages.getResolution(pkgIdx)
+                let resolution = packages.getResolution(pkgIdx)
                 if (resolution.tag == ResolutionTag.npm) {
                     names.append("${pkgName}@${resolution.formatVersion()}")
                 }
@@ -74,8 +74,8 @@ public class PackageManagerCommand {
 
     /// bin 子命令: 显示 bin 目录
     public static func execBin(ctx: CommandContext, pm: PackageManager): Unit {
-        val cwd = FileSystem.instance.topLevelDir
-        val binPath = Path.join(cwd, "node_modules", ".bin")
+        let cwd = FileSystem.instance.topLevelDir
+        let binPath = Path.join(cwd, "node_modules", ".bin")
         if (BaoFile.exists(binPath)) {
             Output.println(binPath)
         } else {
@@ -90,14 +90,14 @@ public class PackageManagerCommand {
 
     /// hash 子命令: 打印 lockfile hash
     public static func execHash(ctx: CommandContext, pm: PackageManager): Unit {
-        val loadLockfile = pm.lockfile.loadFromCwd(pm, ctx.allocator, ctx.log, true)
+        let loadLockfile = pm.lockfile.loadFromCwd(pm, ctx.allocator, ctx.log, true)
         handleLoadLockfileErrors(loadLockfile, pm)
         Output.println(pm.lockfile.hash())
     }
 
     /// whoami 子命令
     public static func execWhoami(ctx: CommandContext, pm: PackageManager): Unit {
-        val token = pm.options.scope.token
+        let token = pm.options.scope.token
         if (token.length > 0) {
             Output.println("Authenticated")
         } else {

@@ -1102,7 +1102,7 @@ public class ANSIIterator {
         // 跳过 ANSI 转义序列
         var start = cursor
         while (cursor < input.size) {
-            if (input[cursor] == Byte('\x1b')) {
+            if (input[cursor] == Byte('\u{1b}')) {
                 // 找到 ESC 序列,返回之前的文本
                 if (cursor > start) {
                     let result = input[start:cursor]
@@ -1331,7 +1331,7 @@ public func mustEscapeYAMLString(contents: String): Bool {
     if ((first >= Byte('A') && first <= Byte('Z')) || (first >= Byte('a') && first <= Byte('z'))) {
         return hasPrefix(contents, "Yes") || hasPrefix(contents, "No") ||
                hasPrefix(contents, "true") || hasPrefix(contents, "false") ||
-               indexOfAny(contents[1:], ": \t\r\n\x0B\x0C\\\",[]") >= 0
+               indexOfAny(contents[1:], ": \t\r\n\u{0B}\u{0C}\\\",[]") >= 0
     }
     return true
 }

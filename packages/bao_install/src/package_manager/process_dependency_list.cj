@@ -204,7 +204,7 @@ public class ProcessDependencyList {
                             return None
                         }
                     }
-                    case None => {}
+                    case None => ()
                 }
                 return None
             }
@@ -252,10 +252,10 @@ public class ProcessDependencyList {
                             ref.value = true
                         }
                     }
-                    case None => {}
+                    case None => ()
                 }
             }
-            case _ => {}
+            case _ => ()
         }
     }
 

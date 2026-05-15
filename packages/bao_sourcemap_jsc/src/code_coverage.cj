@@ -407,9 +407,9 @@ public class Report {
         ): Unit {
             if (enableColors) {
                 if (failed) {
-                    writer.writeAll("\x1b[0m\x1b[1m\x1b[31m")
+                    writer.writeAll("\u{1b}[0m\u{1b}[1m\u{1b}[31m")
                 } else {
-                    writer.writeAll("\x1b[0m\x1b[1m\x1b[32m")
+                    writer.writeAll("\u{1b}[0m\u{1b}[1m\u{1b}[32m")
                 }
             }
 
@@ -421,31 +421,31 @@ public class Report {
             let padding = maxFilenameLength - filename.length + (indentName ? 0 : 1)
             writer.splatByteAll(' ', padding)
             if (enableColors) {
-                writer.writeAll("\x1b[0m\x1b[2m | \x1b[0m")
+                writer.writeAll("\u{1b}[0m\u{1b}[2m | \u{1b}[0m")
             } else {
                 writer.writeAll(" | ")
             }
 
             if (enableColors) {
                 if (vals.functions < failing.functions) {
-                    writer.writeAll("\x1b[1m\x1b[31m")
+                    writer.writeAll("\u{1b}[1m\u{1b}[31m")
                 } else {
-                    writer.writeAll("\x1b[1m\x1b[32m")
+                    writer.writeAll("\u{1b}[1m\u{1b}[32m")
                 }
             }
 
             writer.printFormat("${functions_pct >7.2}", vals.functions * 100.0)
             if (enableColors) {
-                writer.writeAll("\x1b[0m\x1b[2m | \x1b[0m")
+                writer.writeAll("\u{1b}[0m\u{1b}[2m | \u{1b}[0m")
             } else {
                 writer.writeAll(" | ")
             }
 
             if (enableColors) {
                 if (vals.lines < failing.lines) {
-                    writer.writeAll("\x1b[1m\x1b[31m")
+                    writer.writeAll("\u{1b}[1m\u{1b}[31m")
                 } else {
-                    writer.writeAll("\x1b[1m\x1b[32m")
+                    writer.writeAll("\u{1b}[1m\u{1b}[32m")
                 }
             }
 
@@ -501,7 +501,7 @@ public class Report {
             )
 
             if (enableColors) {
-                writer.writeAll("\x1b[0m\x1b[2m | \x1b[0m")
+                writer.writeAll("\u{1b}[0m\u{1b}[2m | \u{1b}[0m")
             } else {
                 writer.writeAll(" | ")
             }
@@ -533,7 +533,7 @@ public class Report {
                     isFirst = false
                 } else {
                     if (enableColors) {
-                        writer.writeAll("\x1b[0m\x1b[2m,\x1b[0m")
+                        writer.writeAll("\u{1b}[0m\u{1b}[2m,\u{1b}[0m")
                     } else {
                         writer.writeAll(",")
                     }
@@ -541,13 +541,13 @@ public class Report {
 
                 if (startOfLineRange == prevLine) {
                     if (enableColors) {
-                        writer.printFormat("\x1b[31m${d}", startOfLineRange + 1)
+                        writer.printFormat("\u{1b}[31m${d}", startOfLineRange + 1)
                     } else {
                         writer.printFormat("${d}", startOfLineRange + 1)
                     }
                 } else {
                     if (enableColors) {
-                        writer.printFormat("\x1b[31m${d}-${d}", startOfLineRange + 1, prevLine + 1)
+                        writer.printFormat("\u{1b}[31m${d}-${d}", startOfLineRange + 1, prevLine + 1)
                     } else {
                         writer.printFormat("${d}-${d}", startOfLineRange + 1, prevLine + 1)
                     }
@@ -564,7 +564,7 @@ public class Report {
                     isFirst = false
                 } else {
                     if (enableColors) {
-                        writer.writeAll("\x1b[0m\x1b[2m,\x1b[0m")
+                        writer.writeAll("\u{1b}[0m\u{1b}[2m,\u{1b}[0m")
                     } else {
                         writer.writeAll(",")
                     }
@@ -572,13 +572,13 @@ public class Report {
 
                 if (startOfLineRange == prevLine) {
                     if (enableColors) {
-                        writer.printFormat("\x1b[31m${d}", startOfLineRange + 1)
+                        writer.printFormat("\u{1b}[31m${d}", startOfLineRange + 1)
                     } else {
                         writer.printFormat("${d}", startOfLineRange + 1)
                     }
                 } else {
                     if (enableColors) {
-                        writer.printFormat("\x1b[31m${d}-${d}", startOfLineRange + 1, prevLine + 1)
+                        writer.printFormat("\u{1b}[31m${d}-${d}", startOfLineRange + 1, prevLine + 1)
                     } else {
                         writer.printFormat("${d}-${d}", startOfLineRange + 1, prevLine + 1)
                     }
@@ -1109,7 +1109,7 @@ public class AllocatingWriter {
         buffer = MutableString.initEmpty(Allocator.default)
     }
 
-    public static func init(alloc: Allocator): AllocatingWriter {
+    public static func initFunc(alloc: Allocator): AllocatingWriter {
         let aw = AllocatingWriter()
         aw.buffer = MutableString.initEmpty(alloc)
         return aw

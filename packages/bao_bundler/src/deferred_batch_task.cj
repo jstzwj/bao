@@ -28,7 +28,7 @@ public class DeferredBatchTask {
 
     /// 初始化 - 对应 Bun DeferredBatchTask.init()
     /// Bun: pub fn init(this: *DeferredBatchTask) void
-    public func init(): Unit {
+    public func initFunc(): Unit {
         running = false
     }
 

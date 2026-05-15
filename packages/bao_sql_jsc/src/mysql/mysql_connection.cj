@@ -271,7 +271,7 @@ public class MySQLConnection {
                 case Authenticating | AuthenticationAwaitingPK =>
                     handleAuth(packetData, headerLength)
                 case Connected => handleCommand(packetData, headerLength)
-                case _ => {}
+                case _ => ()
             }
 
             offset += packetLength
@@ -322,7 +322,7 @@ public class MySQLConnection {
             case 0xFE =>
                 // AUTH_SWITCH
                 handleAuthSwitch(data, headerLength)
-            case _ => {}
+            case _ => ()
         }
     }
 
@@ -360,7 +360,7 @@ public class MySQLConnection {
                     flags.isReadyForQuery = true
                     queue.markAsReadyForQuery()
                     queue.markCurrentRequestAsFinished(request.getOrThrow())
-                case _ => {}
+                case _ => ()
             }
         }
     }

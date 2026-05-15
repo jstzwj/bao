@@ -38,7 +38,7 @@ public class CssRGBA {
     }
 
     public func alphaF32(): Float32 {
-        return Float32(alpha) / 255.0f
+        return Float32(alpha) / 255.0f32
     }
 
     public func toHex(): String {
@@ -149,7 +149,7 @@ public enum CssLABColor {
     }
 
     func alphaSuffix(alpha: Float32): String {
-        if (alpha < 1.0f) {
+        if (alpha < 1.0f32) {
             return " / ${alpha}"
         }
         return ""
@@ -238,7 +238,7 @@ public enum CssPredefinedColor {
     }
 
     func alphaSuffix(alpha: Float32): String {
-        if (alpha < 1.0f) { return " / ${alpha}" }
+        if (alpha < 1.0f32) { return " / ${alpha}" }
         return ""
     }
 }
@@ -277,7 +277,7 @@ public class CssFloatColor {
         }
 
         match (alpha) {
-            case Some(a) => if (a < 1.0f) { result = result + " / ${a}" }
+            case Some(a) => if (a < 1.0f32) { result = result + " / ${a}" }
             case None => result = result + " / none"
         }
 
@@ -306,11 +306,11 @@ public class CssHSL {
     }
 
     public func toCss(): String {
-        return "hsl(${h} ${s * 100.0f}% ${l * 100.0f}%${alphaSuffix()})"
+        return "hsl(${h} ${s * 100.0f32}% ${l * 100.0f32}%${alphaSuffix()})"
     }
 
     func alphaSuffix(): String {
-        if (alpha < 1.0f) { return " / ${alpha}" }
+        if (alpha < 1.0f32) { return " / ${alpha}" }
         return ""
     }
 }
@@ -331,11 +331,11 @@ public class CssHWB {
     }
 
     public func toCss(): String {
-        return "hwb(${h} ${w * 100.0f}% ${b * 100.0f}%${alphaSuffix()})"
+        return "hwb(${h} ${w * 100.0f32}% ${b * 100.0f32}%${alphaSuffix()})"
     }
 
     func alphaSuffix(): String {
-        if (alpha < 1.0f) { return " / ${alpha}" }
+        if (alpha < 1.0f32) { return " / ${alpha}" }
         return ""
     }
 }

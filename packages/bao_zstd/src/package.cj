@@ -422,7 +422,7 @@ public class ZstdCompressStream {
 
     /// 初始化压缩流
     /// 对应 Bun: ZSTD_createCStream + ZSTD_initCStream
-    public func init(): Unit {
+    public func initFunc(): Unit {
         // 实际实现:
         // unsafe {
         //     let cstream = ZSTD_createCStream()
@@ -558,7 +558,7 @@ public class ZstdDecompressStream {
 
     /// 初始化解压流
     /// 对应 Bun: ZSTD_createDStream + ZSTD_initDStream
-    public func init(): Unit {
+    public func initFunc(): Unit {
         // 实际实现:
         // unsafe {
         //     let dstream = ZSTD_createDStream()

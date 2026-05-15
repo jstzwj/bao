@@ -135,7 +135,7 @@ public class PipelineState {
     public func childDone(child: ChildPtr, exitCode: ExitCode): Yield {
         child.deinit()
         this.exitedCount += 1
-        if (this.exitedCount >= this.cmds!.length) {
+        if (this.exitedCount >= this.cmds.getOrThrow().length) {
             this.state = PipelineStateKind.done(exitCode: exitCode)
             return Yield.pipeline(this)
         }

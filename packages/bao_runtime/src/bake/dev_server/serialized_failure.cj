@@ -7,6 +7,42 @@
 package bao_runtime.bake.dev_server
 
 /// 序列化失败 - 发送到 HMR 客户端的序列化错误
+public struct Packed <: UInt32 {
+    public var data: UInt30
+    public var kind: OwnerKind
+}
+
+public enum OwnerKind <: UInt2 {
+    | none
+    | route
+    | client
+    | server
+}
+
+public class ArrayHashContextViaOwner {
+    public static func hash(k: SerializedFailure): UInt32 {
+        return std.hash.int(bitCast<UInt32>(k.getOwner().encode()))
+    }
+
+    public static func eql(a: SerializedFailure, b: SerializedFailure): Bool {
+        return bitCast<UInt32>(a.getOwner().encode()) == bitCast<UInt32>(b.getOwner().encode())
+    }
+}
+
+public class ArrayHashAdapter {
+    public static func hash(own: Owner): UInt32 {
+        return std.hash.int(bitCast<UInt32>(own.encode()))
+    }
+
+    public static func eql(a: Owner, b: SerializedFailure): Bool {
+        return bitCast<UInt32>(a.encode()) == bitCast<UInt32>(b.getOwner().encode())
+    }
+}
+
+public enum ErrorKind {
+    | None
+}
+
 public class SerializedFailure {
     /// 序列化数据始终由 dev.allocator() 拥有
     /// 前 32 位包含所有者信息
@@ -36,18 +72,8 @@ public class SerializedFailure {
     }
 
     /// 打包的所有者信息
-    public struct Packed <: UInt32 {
-        public var data: UInt30
-        public var kind: OwnerKind
-    }
 
     /// 所有者种类
-    public enum OwnerKind <: UInt2 {
-        | none
-        | route
-        | client
-        | server
-    }
 
     /// 获取所有者
     public func getOwner(): Owner {
@@ -61,30 +87,10 @@ public class SerializedFailure {
     }
 
     /// 通过所有者的数组哈希上下文
-    public class ArrayHashContextViaOwner {
-        public static func hash(k: SerializedFailure): UInt32 {
-            return std.hash.int(bitCast<UInt32>(k.getOwner().encode()))
-        }
-
-        public static func eql(a: SerializedFailure, b: SerializedFailure): Bool {
-            return bitCast<UInt32>(a.getOwner().encode()) == bitCast<UInt32>(b.getOwner().encode())
-        }
-    }
 
     /// 通过所有者的数组哈希适配器
-    public class ArrayHashAdapter {
-        public static func hash(own: Owner): UInt32 {
-            return std.hash.int(bitCast<UInt32>(own.encode()))
-        }
-
-        public static func eql(a: Owner, b: SerializedFailure): Bool {
-            return bitCast<UInt32>(a.encode()) == bitCast<UInt32>(b.getOwner().encode())
-        }
-    }
 
     /// 错误种类
-    public enum ErrorKind {
-    }
 
     /// 从日志初始化
     public static func initFromLog(

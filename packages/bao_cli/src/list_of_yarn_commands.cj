@@ -78,7 +78,7 @@ public class ListOfYarnCommands {
     /// 检查给定名称是否是 yarn 命令
     public static func isYarnCommand(name: String): Bool {
         if (allCommandsSet == None) {
-            val set = HashSet<String>()
+            let set = HashSet<String>()
             for (cmd in yarnV2Commands) {
                 set.put(cmd)
             }
@@ -88,12 +88,12 @@ public class ListOfYarnCommands {
             // yarn v2 命令也包含部分 v1 命令 (如 add, bin 等)
             allCommandsSet = Some(set)
         }
-        return allCommandsSet!.contains(name)
+        return allCommandsSet.getOrThrow().contains(name)
     }
 
     /// 获取所有命令名称列表
     public static func allCommands(): ArrayList<String> {
-        val result = ArrayList<String>()
+        let result = ArrayList<String>()
         for (cmd in yarnV2Commands) {
             result.append(cmd)
         }

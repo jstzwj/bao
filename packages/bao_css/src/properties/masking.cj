@@ -19,20 +19,12 @@ import bao_core.*
 /// clip-path 属性值
 /// 严格翻译自 ClipPath
 public enum ClipPath {
-    | None                       // 无裁剪路径
-    | Url(String)                // SVG 路径引用
-    | Shape(BasicShape, GeometryBox) // 基本形状 + 参考盒
-    | Box(GeometryBox)           // 仅参考盒
-
-    public func toCss(): String {
-        match (this) {
-            case None => "none"
-            case Url(u) => "url(" + u + ")"
-            case Shape(shape, box_) => {
-                var result = shape.toCss()
-                if (box_ != GeometryBox.BorderBox) {
-                    result = result + " " + box_.toCss()
-                }
+    | None
+    | Url
+    | Shape
+    | Box
+    | result
+}
                 return result
             }
             case Box(b) => b.toCss()

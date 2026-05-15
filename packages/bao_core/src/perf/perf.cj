@@ -153,7 +153,7 @@ public class DarwinTracer {
 
     /// 创建追踪上下文
     /// 对应 Bun: Darwin.init(name) -> interval = os_log.signpost(name).interval(.PointsOfInterest)
-    public static func init(event: PerfEvent): PerfTraceCtx {
+    public static func initTrace(event: PerfEvent): PerfTraceCtx {
         return PerfTraceCtx(event, true)
     }
 }
@@ -190,7 +190,7 @@ public class LinuxTracer {
 
     /// 初始化追踪上下文
     /// 对应 Bun: Linux.init(event) -> start_time = timespec.now(.force_real_time).ns()
-    public static func init(event: PerfEvent): PerfTraceCtx {
+    public static func initTrace(event: PerfEvent): PerfTraceCtx {
         return PerfTraceCtx(event, true)
     }
 }

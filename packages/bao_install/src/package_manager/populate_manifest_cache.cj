@@ -86,7 +86,7 @@ public class PopulateManifestCache {
                                 needsExtendedManifest: false
                             )
                         }
-                        case Some(_) => {} // 已有缓存
+                        case Some(_) => () // 已有缓存
                     }
 
                     manager.flushNetworkQueue()
@@ -127,7 +127,7 @@ public class PopulateManifestCache {
                                 manager.flushNetworkQueue()
                                 manager.scheduleTasks()
                             }
-                            case Some(_) => {}
+                            case Some(_) => ()
                         }
                     }
                 }

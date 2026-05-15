@@ -684,7 +684,7 @@ public func isGitHubShorthand(npaStr: String): Bool {
                 // : 和 @ 只能在 # 之后出现
                 match (poundIdx) {
                     case None => return false
-                    case Some(_) => {}
+                    case Some(_) => ()
                 }
             }
             case '#' => {
@@ -741,7 +741,7 @@ public func normalizeProtocol(npaStr: String): Tuple2<UrlProtocol, String> {
                     }
                     return Tuple2(UrlProtocol.WellFormed(proto), postColon)
                 }
-                case None => {}
+                case None => ()
             }
 
             // 检查 @ 字符
@@ -756,7 +756,7 @@ public func normalizeProtocol(npaStr: String): Tuple2<UrlProtocol, String> {
                         return Tuple2(UrlProtocol.WellFormed(WellDefinedProtocol.GitPlusSsh), npaStr)
                     }
                 }
-                case None => {}
+                case None => ()
             }
 
             // 检查 //
@@ -769,7 +769,7 @@ public func normalizeProtocol(npaStr: String): Tuple2<UrlProtocol, String> {
                         return Tuple2(UrlProtocol.Custom(customProto), rest)
                     }
                 }
-                case None => {}
+                case None => ()
             }
 
             // 自定义协议

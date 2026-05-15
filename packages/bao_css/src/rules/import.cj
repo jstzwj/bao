@@ -95,13 +95,13 @@ public class CssImportConditions {
         let sb = StringBuilder()
         match (layer) {
             case Some(l) => sb.append(l.toCss())
-            case None => {}
+            case None => ()
         }
         match (supports) {
             case Some(s) => {
                 sb.append(" supports(${s})")
             }
-            case None => {}
+            case None => ()
         }
         if (media.length > 0) {
             sb.append(" ${media}")
@@ -183,7 +183,7 @@ public class CssImportRuleFull {
         // 层条件
         match (layer) {
             case Some(l) => sb.append(l.toCss())
-            case None => {}
+            case None => ()
         }
 
         // supports 条件
@@ -191,7 +191,7 @@ public class CssImportRuleFull {
             case Some(s) => {
                 sb.append(" supports(${s})")
             }
-            case None => {}
+            case None => ()
         }
 
         // 媒体查询

@@ -437,7 +437,7 @@ public class MatchedRoute {
     // ========================================================================
 
     /// 创建 MatchedRoute
-    public static func init(
+    public static func initFunc(
         allocator: Allocator,
         match: Router.Match,
         origin: RefString,
@@ -518,7 +518,7 @@ public class MatchedRoute {
         public static let OPTIONAL_CATCH_ALL = "optional-catch-all"
         public static let DYNAMIC = "dynamic"
 
-        public static func init(name: String): ZigString {
+        public static func initFunc(name: String): ZigString {
             if (Strings.contains(name, "[[")) {
                 return ZigString.init(OPTIONAL_CATCH_ALL)
             } else if (Strings.contains(name, "[...")) {

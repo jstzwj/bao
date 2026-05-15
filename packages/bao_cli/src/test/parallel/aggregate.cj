@@ -14,29 +14,29 @@ import bao_core.*
 /// 合并 JUnit XML 片段
 /// 对应 Bun: mergeJUnitFragments()
 public func mergeJUnitFragments(coord: Coordinator, outfile: String, summary: TestRunnerSummary): Unit {
-    val body = StringBuilder()
+    let body = StringBuilder()
 
     var totalTests: Int64 = 0
     var totalFailures: Int64 = 0
     var totalSkipped: Int64 = 0
 
     for (path in coord.junitFragments) {
-        val file = BaoFile.readAllText(path)
+        let file = BaoFile.readAllText(path)
         if (file == None) {
             continue
         }
-        val content = file!!
+        let content = file!!
 
         // 每个 fragment 是完整的 <testsuites> 文档
-        val openStart = content.indexOf("<testsuites")
+        let openStart = content.indexOf("<testsuites")
         if (openStart < 0) {
             continue
         }
-        val headEnd = content.indexOf('>', openStart)
+        let headEnd = content.indexOf('>', openStart)
         if (headEnd < 0) {
             continue
         }
-        val head = content.substring(openStart, headEnd)
+        let head = content.substring(openStart, headEnd)
 
         // 提取头部属性
         totalTests += attrValue(head, "tests")
@@ -44,12 +44,12 @@ public func mergeJUnitFragments(coord: Coordinator, outfile: String, summary: Te
         totalSkipped += attrValue(head, "skipped")
 
         // 提取主体内容
-        val bodyStart = headEnd + 1
-        val bodyEnd = content.lastIndexOf("</testsuites>")
+        let bodyStart = headEnd + 1
+        let bodyEnd = content.lastIndexOf("</testsuites>")
         if (bodyEnd < 0 || bodyStart >= bodyEnd) {
             continue
         }
-        val inner = content.substring(bodyStart, bodyEnd).trim()
+        let inner = content.substring(bodyStart, bodyEnd).trim()
         if (inner.length > 0) {
             body.append(inner)
             body.append('\n')
@@ -58,7 +58,7 @@ public func mergeJUnitFragments(coord: Coordinator, outfile: String, summary: Te
 
     // 处理崩溃的文件
     for (idx in coord.crashedFiles) {
-        val rel = coord.relPath(idx)
+        let rel = coord.relPath(idx)
         body.append("  <testsuite name=\"${escapeXml(rel)}\" tests=\"1\" assertions=\"0\" failures=\"1\" skipped=\"0\" time=\"0\">\n")
         body.append("    <testcase name=\"(worker crashed)\" classname=\"${escapeXml(rel)}\">\n")
         body.append("      <failure message=\"worker process crashed before reporting results\"></failure>\n")
@@ -69,7 +69,7 @@ public func mergeJUnitFragments(coord: Coordinator, outfile: String, summary: Te
     }
 
     // 写入合并后的文件
-    val contents = StringBuilder()
+    let contents = StringBuilder()
     contents.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")
     contents.append("<testsuites name=\"bao test\" tests=\"${totalTests}\" assertions=\"${summary.expectations}\" failures=\"${totalFailures}\" skipped=\"${totalSkipped}\" time=\"0\">\n")
     contents.append(body.toString())
@@ -81,13 +81,13 @@ public func mergeJUnitFragments(coord: Coordinator, outfile: String, summary: Te
 /// 从属性头中提取数值属性
 /// 对应 Bun: attrValue()
 private func attrValue(head: String, name: String): Int64 {
-    val needle = " ${name}=\""
-    val start = head.indexOf(needle)
+    let needle = " ${name}=\""
+    let start = head.indexOf(needle)
     if (start < 0) {
         return 0
     }
-    val valStart = start + needle.length
-    val end = head.indexOf('"', valStart)
+    let valStart = start + needle.length
+    let end = head.indexOf('"', valStart)
     if (end < 0) {
         return 0
     }
@@ -125,20 +125,20 @@ public class FileCoverage {
 /// 合并 per-worker LCOV 片段为单一报告
 /// 对应 Bun: mergeCoverageFragments()
 public func mergeCoverageFragments(paths: ArrayList<String>, opts: TestCommand.CodeCoverageOptions, enableColors: Bool): Unit {
-    val byFile = HashMap<String, FileCoverage>()
+    let byFile = HashMap<String, FileCoverage>()
 
     for (path in paths) {
-        val data = BaoFile.readAllText(path)
+        let data = BaoFile.readAllText(path)
         if (data == None) {
             continue
         }
 
         var cur: ?FileCoverage = None
-        val lines = data!!.split('\n')
+        let lines = data!!.split('\n')
         for (line in lines) {
-            val trimmed = line.trimEnd('\r')
+            let trimmed = line.trimEnd('\r')
             if (trimmed.startsWith("SF:")) {
-                val name = trimmed.substring(3)
+                let name = trimmed.substring(3)
                 if (!byFile.contains(name)) {
                     byFile.put(name, FileCoverage(name))
                 }
@@ -146,20 +146,20 @@ public func mergeCoverageFragments(paths: ArrayList<String>, opts: TestCommand.C
             } else if (trimmed == "end_of_record") {
                 cur = None
             } else if (cur != None) {
-                val fc = cur!!
+                let fc = cur!!
                 if (trimmed.startsWith("DA:")) {
-                    val parts = trimmed.substring(3).split(',')
+                    let parts = trimmed.substring(3).split(',')
                     if (parts.length >= 2) {
-                        val ln = Int64.parse(parts[0]) ?: continue
-                        val cnt = Int64.parse(parts[1]) ?: continue
-                        val existing = fc.da.get(ln) ?: 0
+                        let ln = Int64.parse(parts[0]) ?: continue
+                        let cnt = Int64.parse(parts[1]) ?: continue
+                        let existing = fc.da.get(ln) ?: 0
                         fc.da.put(ln, existing + cnt)
                     }
                 } else if (trimmed.startsWith("FNF:")) {
-                    val val_ = Int64.parse(trimmed.substring(4)) ?: 0
+                    let val_ = Int64.parse(trimmed.substring(4)) ?: 0
                     fc.fnf = Math.max(fc.fnf, val_)
                 } else if (trimmed.startsWith("FNH:")) {
-                    val val_ = Int64.parse(trimmed.substring(4)) ?: 0
+                    let val_ = Int64.parse(trimmed.substring(4)) ?: 0
                     fc.fnh = Math.max(fc.fnh, val_)
                 }
             }
@@ -172,8 +172,8 @@ public func mergeCoverageFragments(paths: ArrayList<String>, opts: TestCommand.C
 
     // 写入 lcov.info
     if (opts.reporters.lcov) {
-        val outPath = Path.join(opts.reportsDirectory, "lcov.info")
-        val writer = StringBuilder()
+        let outPath = Path.join(opts.reportsDirectory, "lcov.info")
+        let writer = StringBuilder()
         for ((_, fc) in byFile) {
             writer.append("TN:\nSF:${fc.path}\nFNF:${fc.fnf}\nFNH:${fc.fnh}\n")
             for ((ln, cnt) in fc.da) {
@@ -189,11 +189,11 @@ public func mergeCoverageFragments(paths: ArrayList<String>, opts: TestCommand.C
         var failing = false
 
         for ((_, fc) in byFile) {
-            val lf = fc.da.size.toDouble()
-            val lh_ = fc.lh().toDouble()
+            let lf = fc.da.size.toDouble()
+            let lh_ = fc.lh().toDouble()
 
-            val linesFraction = if (lf > 0) lh_ / lf else 1.0
-            val funcsFraction = if (fc.fnf > 0) fc.fnh.toDouble() / fc.fnf.toDouble() else 1.0
+            let linesFraction = if (lf > 0) lh_ / lf else 1.0
+            let funcsFraction = if (fc.fnf > 0) fc.fnh.toDouble() / fc.fnf.toDouble() else 1.0
 
             if (funcsFraction < opts.fractions.functions || linesFraction < opts.fractions.lines) {
                 failing = true

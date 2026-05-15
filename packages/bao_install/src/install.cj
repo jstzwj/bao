@@ -348,7 +348,7 @@ public class PackageInstallRequest {
                     )
                 }
             }
-            case None => {}
+            case None => ()
         }
 
         return PackageInstallResult.Success

@@ -43,7 +43,7 @@ public class NewStore {
 
     /// 初始化 - 对应 Bun NewStore.init()
     /// Bun: pub fn init() *Store
-    public static func init(): NewStore {
+    public static func initFunc(): NewStore {
         let store = NewStore()
         store.initialized = true
         return store
@@ -156,7 +156,7 @@ public class StoreManager {
         if (!disableReset) {
             match (instance) {
                 case Some(s) => s.reset()
-                case None => {}
+                case None => ()
             }
         }
     }
@@ -168,7 +168,7 @@ public class StoreManager {
         }
         match (instance) {
             case Some(s) => s.reset()
-            case None => {}
+            case None => ()
         }
     }
 
@@ -179,7 +179,7 @@ public class StoreManager {
         }
         match (instance) {
             case Some(s) => s.deinit()
-            case None => {}
+            case None => ()
         }
         instance = None
     }

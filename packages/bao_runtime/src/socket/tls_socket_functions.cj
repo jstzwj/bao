@@ -487,7 +487,7 @@ public class TlsSocketFunctions {
                 result.put(globalObject, ZigString.static("name"), ZigString.fromUTF8(curveName).toJS(globalObject))
                 result.put(globalObject, ZigString.static("size"), JsValue.jsNumber(bits))
             }
-            case _ => {}
+            case _ => ()
         }
         return result
     }

@@ -158,7 +158,7 @@ public class ProgressBarManager {
                 node.estimatedTotalItems = manager.totalTasks + Int64(manager.extractedCount)
                 node.completedItems = manager.totalTasks - manager.pendingTasks
             }
-            case None => {}
+            case None => ()
         }
     }
 
@@ -166,7 +166,7 @@ public class ProgressBarManager {
     /// 翻译自: startProgressBarIfNone
     public static func startIfNone(manager: PackageManager): Unit {
         match (manager.downloadsNode) {
-            case Some(_) => {}  // 已存在
+            case Some(_) => ()  // 已存在
             case None => start(manager)
         }
     }
@@ -179,7 +179,7 @@ public class ProgressBarManager {
                 node.completedItems = node.estimatedTotalItems
                 manager.downloadsNode = None
             }
-            case None => {}
+            case None => ()
         }
     }
 

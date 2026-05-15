@@ -333,7 +333,7 @@ public class CssLexer {
     }
 
     /// 初始化词法分析器
-    public func init(source: String): Unit {
+    public func initFunc(source: String): Unit {
         this.source = source
         this.pos = 0
         this.line = 1

@@ -79,13 +79,13 @@ public class WorkspacePackage {
         for (key in dependencies.keys()) {
             match (dependencies.get(key)) {
                 case Some(v) => all.put(key, v)
-                case None => {}
+                case None => ()
             }
         }
         for (key in devDependencies.keys()) {
             match (devDependencies.get(key)) {
                 case Some(v) => all.put(key, v)
-                case None => {}
+                case None => ()
             }
         }
         return all
@@ -124,7 +124,7 @@ public class WorkspaceGlob {
                 for (item in arr) {
                     match (item) {
                         case JsonValue.Str(s) => globs.append(s)
-                        case _ => {}
+                        case _ => ()
                     }
                 }
             }
@@ -138,14 +138,14 @@ public class WorkspaceGlob {
                         for (item in arr) {
                             match (item) {
                                 case JsonValue.Str(s) => globs.append(s)
-                                case _ => {}
+                                case _ => ()
                             }
                         }
                     }
-                    case _ => {}
+                    case _ => ()
                 }
             }
-            case _ => {}
+            case _ => ()
         }
         return globs
     }
@@ -199,7 +199,7 @@ public class WorkspaceGlob {
                         }
                     }
                 }
-                case None => {}
+                case None => ()
             }
         } else if (glob.endsWith("/**")) {
             // 递归 glob: packages/**
@@ -237,7 +237,7 @@ public class WorkspaceGlob {
                     }
                 }
             }
-            case None => {}
+            case None => ()
         }
     }
 }
@@ -307,7 +307,7 @@ public class PackageGraph {
         for (key in packages.keys()) {
             match (key) {
                 case Some(k) => names.append(k)
-                case None => {}
+                case None => ()
             }
         }
         return names
@@ -324,7 +324,7 @@ public class PackageGraph {
     public func topologicalSort(): ArrayList<String> {
         match (topoOrder) {
             case Some(order) => return order
-            case None => {}
+            case None => ()
         }
 
         let result = ArrayList<String>()
@@ -334,14 +334,14 @@ public class PackageGraph {
         // 从根包开始
         match (rootPackage) {
             case Some(root) => topoVisit(root, visited, inStack, result)
-            case None => {}
+            case None => ()
         }
 
         // 处理未连接到根的包
         for (key in packages.keys()) {
             match (key) {
                 case Some(k) => topoVisit(k, visited, inStack, result)
-                case None => {}
+                case None => ()
             }
         }
 
@@ -373,7 +373,7 @@ public class PackageGraph {
                     topoVisit(dep, visited, inStack, result)
                 }
             }
-            case None => {}
+            case None => ()
         }
 
         inStack.remove(node)
@@ -393,7 +393,7 @@ public class PackageGraph {
                         return true
                     }
                 }
-                case None => {}
+                case None => ()
             }
         }
         return false
@@ -415,7 +415,7 @@ public class PackageGraph {
                     }
                 }
             }
-            case None => {}
+            case None => ()
         }
 
         inStack.remove(node)
@@ -432,7 +432,7 @@ public class PackageGraph {
                         result.append(key)
                     }
                 }
-                case None => {}
+                case None => ()
             }
         }
         return result
@@ -498,7 +498,7 @@ public class WorkspaceResolver {
                         graph.addPackage(pkg)
                         workspaceVersions.put(pkg.name, pkg.version.toString())
                     }
-                    case None => {}
+                    case None => ()
                 }
 
                 // 2. 获取 workspaces 配置
@@ -528,17 +528,17 @@ public class WorkspaceResolver {
                                     graph.addPackage(pkg)
                                     workspaceVersions.put(pkg.name, pkg.version.toString())
                                 }
-                                case None => {}
+                                case None => ()
                             }
                         }
-                        case None => {}
+                        case None => ()
                     }
                 }
 
                 // 5. 构建依赖图边
                 buildDependencyEdges()
             }
-            case None => {}
+            case None => ()
         }
 
         return graph
@@ -586,16 +586,16 @@ public class WorkspaceResolver {
                                 match (metaObj.get(mk)) {
                                     case Some(JsonValue.Bool(b)) => meta.put(mk, if (b) { "true" } else { "false" })
                                     case Some(JsonValue.Str(s)) => meta.put(mk, s)
-                                    case _ => {}
+                                    case _ => ()
                                 }
                             }
                             pkg.peerDependenciesMeta.put(k, meta)
                         }
-                        case _ => {}
+                        case _ => ()
                     }
                 }
             }
-            case _ => {}
+            case _ => ()
         }
 
         // scripts
@@ -604,11 +604,11 @@ public class WorkspaceResolver {
                 for (k in scripts.keys()) {
                     match (scripts.get(k)) {
                         case Some(JsonValue.Str(v)) => pkg.scripts.put(k, v)
-                        case _ => {}
+                        case _ => ()
                     }
                 }
             }
-            case _ => {}
+            case _ => ()
         }
 
         // bin
@@ -617,14 +617,14 @@ public class WorkspaceResolver {
                 for (k in binObj.keys()) {
                     match (binObj.get(k)) {
                         case Some(JsonValue.Str(v)) => pkg.bin.put(k, v)
-                        case _ => {}
+                        case _ => ()
                     }
                 }
             }
             case Some(JsonValue.Str(binStr)) => {
                 pkg.bin.put(name, binStr)
             }
-            case _ => {}
+            case _ => ()
         }
 
         // trustedDependencies
@@ -633,11 +633,11 @@ public class WorkspaceResolver {
                 for (item in arr) {
                     match (item) {
                         case JsonValue.Str(s) => pkg.trustedDependencies.append(s)
-                        case _ => {}
+                        case _ => ()
                     }
                 }
             }
-            case _ => {}
+            case _ => ()
         }
 
         // overrides
@@ -646,11 +646,11 @@ public class WorkspaceResolver {
                 for (k in overridesObj.keys()) {
                     match (overridesObj.get(k)) {
                         case Some(JsonValue.Str(v)) => pkg.overrides.put(k, v)
-                        case _ => {}
+                        case _ => ()
                     }
                 }
             }
-            case _ => {}
+            case _ => ()
         }
 
         // workspaces (仅根包)
@@ -687,11 +687,11 @@ public class WorkspaceResolver {
                                     graph.addDependency(pkgName, depName)
                                 }
                             }
-                            case None => {}
+                            case None => ()
                         }
                     }
                 }
-                case None => {}
+                case None => ()
             }
         }
     }
@@ -810,11 +810,11 @@ public class Hoisting {
                                     }
                                 }
                             }
-                            case None => {}
+                            case None => ()
                         }
                     }
                 }
-                case None => {}
+                case None => ()
             }
         }
 
@@ -832,7 +832,7 @@ public class Hoisting {
                                 case Some(_) => {
                                     result.hoisted.append("${depName}@${ver}")
                                 }
-                                case None => {}
+                                case None => ()
                             }
                         }
                     } else {
@@ -868,14 +868,14 @@ public class Hoisting {
                                                 result.local.put("${depName}@${ver}", source)
                                             }
                                         }
-                                        case None => {}
+                                        case None => ()
                                     }
                                 }
                             }
                         }
                     }
                 }
-                case None => {}
+                case None => ()
             }
         }
 
@@ -906,11 +906,11 @@ public class Hoisting {
                                     }
                                 }
                             }
-                            case None => {}
+                            case None => ()
                         }
                     }
                 }
-                case None => {}
+                case None => ()
             }
         }
 
@@ -924,7 +924,7 @@ public class Hoisting {
                         for (v in uniqueVersions) {
                             match (v) {
                                 case Some(val) => vers.append(val)
-                                case None => {}
+                                case None => ()
                             }
                         }
                         if (vers.size >= 2) {
@@ -938,7 +938,7 @@ public class Hoisting {
                         }
                     }
                 }
-                case None => {}
+                case None => ()
             }
         }
 
@@ -986,13 +986,13 @@ public class Hoisting {
                                         best = Some(v)
                                     }
                                 }
-                                case None => {}
+                                case None => ()
                             }
                         }
                         case None => best = Some(v)
                     }
                 }
-                case None => {}
+                case None => ()
             }
         }
         return best
@@ -1123,7 +1123,7 @@ public class IsolatedInstaller {
                         ]))
                         BaoFile.mkdir(scopeDir, true)
                     }
-                    case None => {}
+                    case None => ()
                 }
             }
 

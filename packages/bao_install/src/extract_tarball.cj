@@ -148,7 +148,7 @@ public class ExtractTarball {
                             data.integrity = Integrity.forBytes(tarballBytes)
                         }
                     }
-                    case _ => {}
+                    case _ => ()
                 }
                 return data
             }
@@ -350,13 +350,13 @@ public class ExtractTarball {
             case Some(pre) => {
                 suffix = suffix + "-${pre}"
             }
-            case None => {}
+            case None => ()
         }
         match (build) {
             case Some(b) => {
                 suffix = suffix + "+${b}"
             }
-            case None => {}
+            case None => ()
         }
 
         return "${reg}/${fullName}/-/${namePart}-${baseVersion}${suffix}.tgz"

@@ -7,8 +7,8 @@ package bao_runtime.node.zlib
 // Zstd 压缩模式
 // ============================================================================
 public enum ZstdMode {
-    compress = 10,
-    decompress = 11
+    | compress
+    | decompress
 }
 
 // ============================================================================
@@ -64,7 +64,7 @@ public class NativeZstd {
     }
 
     // 初始化
-    public func init(params: Array<Pair<Int32, Int32>>): Unit {
+    public func initFunc(params: Array<Pair<Int32, Int32>>): Unit {
         for (pair in params) {
             // 设置参数
         }

@@ -93,7 +93,7 @@ public class ProxyEnvStorage {
                     return s
                 }
             }
-            case _ => {}
+            case _ => ()
         }
         None
     }

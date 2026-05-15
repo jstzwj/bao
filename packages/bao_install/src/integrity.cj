@@ -308,7 +308,7 @@ public class IntegrityStreaming {
     public func update(bytes: ArrayList<Byte>): Unit {
         if (bytes.size == 0) { return }
         match (hasher) {
-            case StreamingHasher.None => {}
+            case StreamingHasher.None => ()
             case StreamingHasher.SHA1(h) => h.update(bytes)
             case StreamingHasher.SHA256(h) => h.update(bytes)
             case StreamingHasher.SHA384(h) => h.update(bytes)

@@ -5,6 +5,7 @@ package bao_sql.mysql.protocol
 /// MySQL 命令包类型
 /// 对应 Bun: CommandType (enum u8)
 public enum CommandType {
+    | None
 }
     }
 

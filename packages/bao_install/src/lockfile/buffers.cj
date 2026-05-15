@@ -154,7 +154,7 @@ public class LockfileBuffers {
                         if (visited.isSet(i)) { continue }
                         visited.set(i)
                     }
-                    case None => {}
+                    case None => ()
                 }
                 return UInt32(i)
             }

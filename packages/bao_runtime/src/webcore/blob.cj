@@ -315,7 +315,7 @@ public class Blob {
 
     /// 从字节数组创建 Blob
     /// 对应 Bun: Blob.init(bytes, allocator, global)
-    public static func init(bytes: Array<UInt8>, allocator: String, global: JsGlobalObject): Blob {
+    public static func initFunc(bytes: Array<UInt8>, allocator: String, global: JsGlobalObject): Blob {
         let store = BlobStore(bytes)
         let blob = Blob(store, 0, Int64(bytes.length))
         blob.globalThis = Some(global)
@@ -777,14 +777,14 @@ public class Blob {
     public func getText(global: JsGlobalObject): JsValue {
         let s = store
         if (s != None) {
-            s!.ref()
+            s.getOrThrow().ref()
         }
         let self = this
         return JsPromise.wrap(global) { =>
             let bytes = self.sharedView()
             let text = Utf8Codec.decode(bytes)
             if (s != None) {
-                s!.deref()
+                s.getOrThrow().deref()
             }
             JsValue(BaoString(text))
         }
@@ -795,13 +795,13 @@ public class Blob {
     public func getJSON(global: JsGlobalObject): JsValue {
         let s = store
         if (s != None) {
-            s!.ref()
+            s.getOrThrow().ref()
         }
         let self = this
         return JsPromise.wrap(global) { =>
             let text = self.toString()
             if (s != None) {
-                s!.deref()
+                s.getOrThrow().deref()
             }
             JsValue(BaoString(text))
         }
@@ -812,13 +812,13 @@ public class Blob {
     public func getArrayBuffer(global: JsGlobalObject): JsValue {
         let s = store
         if (s != None) {
-            s!.ref()
+            s.getOrThrow().ref()
         }
         let self = this
         return JsPromise.wrap(global) { =>
             let bytes = self.sharedView()
             if (s != None) {
-                s!.deref()
+                s.getOrThrow().deref()
             }
             JsValue.fromArrayBuffer(global, bytes)
         }
@@ -829,13 +829,13 @@ public class Blob {
     public func getBytes(global: JsGlobalObject): JsValue {
         let s = store
         if (s != None) {
-            s!.ref()
+            s.getOrThrow().ref()
         }
         let self = this
         return JsPromise.wrap(global) { =>
             let bytes = self.sharedView()
             if (s != None) {
-                s!.deref()
+                s.getOrThrow().deref()
             }
             JsValue.fromUint8Array(global, bytes)
         }
@@ -846,12 +846,12 @@ public class Blob {
     public func getFormData(global: JsGlobalObject): JsValue {
         let s = store
         if (s != None) {
-            s!.ref()
+            s.getOrThrow().ref()
         }
         let self = this
         return JsPromise.wrap(global) { =>
             if (s != None) {
-                s!.deref()
+                s.getOrThrow().deref()
             }
             self.toFormData()
         }
@@ -869,7 +869,7 @@ public class Blob {
         if (s == None) {
             return JsPromise.reject(global, JsValue(BaoString("Cannot write to a detached Blob")))
         }
-        if (s!.kind == BlobStoreKind.Memory) {
+        if (s.getOrThrow().kind == BlobStoreKind.Memory) {
             return JsPromise.reject(global, JsValue(BaoString("Cannot write to a Blob backed by bytes, which are always read-only")))
         }
         // 使用 writeFileInternal 实现
@@ -889,15 +889,15 @@ public class Blob {
                 match (s.kind) {
                     case BlobStoreKind.File => {
                         if (s.isFd) {
-                            System.writeFd(s.fileFd, buffer: bytes!, offset: 0, length: Int64(bytes!.length), position: -1)
+                            System.writeFd(s.fileFd, buffer: bytes!, offset: 0, length: Int64(bytes.getOrThrow().length), position: -1)
                         } else {
                             System.writeFile(s.filePath, data: bytes!)
                         }
-                        return JsPromise.resolve(global, JsValue(Int64(bytes!.length)))
+                        return JsPromise.resolve(global, JsValue(Int64(bytes.getOrThrow().length)))
                     }
                     case BlobStoreKind.S3 => {
                         // S3 写入需要异步上传
-                        return JsPromise.resolve(global, JsValue(Int64(bytes!.length)))
+                        return JsPromise.resolve(global, JsValue(Int64(bytes.getOrThrow().length)))
                     }
                     case BlobStoreKind.Memory => {
                         return JsPromise.reject(global, JsValue(BaoString("Cannot write to a Blob backed by bytes")))
@@ -942,16 +942,16 @@ public class Blob {
         // 解析选项
         if (!options.isNull() && !options.isUndefined()) {
             let typeVal = options.get("type")
-            if (typeVal != None && typeVal!.isString()) {
-                let typeStr = typeVal!.toString()
+            if (typeVal != None && typeVal.getOrThrow().isString()) {
+                let typeStr = typeVal.getOrThrow().toString()
                 if (isAllAscii(typeStr)) {
                     blob.contentType = typeStr.toLowerAscii()
                     blob.contentTypeWasSet = true
                 }
             }
             let lmVal = options.get("lastModified")
-            if (lmVal != None && lmVal!.isNumber()) {
-                blob.lastModified = lmVal!.toFloat64()
+            if (lmVal != None && lmVal.getOrThrow().isNumber()) {
+                blob.lastModified = lmVal.getOrThrow().toFloat64()
             }
         }
 

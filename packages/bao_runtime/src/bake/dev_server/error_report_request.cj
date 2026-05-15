@@ -26,13 +26,13 @@ public class ErrorReportRequest {
     /// 运行错误报告请求
     public static func run(dev: DevServer, req: Request, resp: AnyResponse): Unit {
         let ctx = ErrorReportRequest(dev: dev, body: BodyReaderMixin.init(dev.allocator()))
-        ctx.dev.server!.onPendingRequest()
+        ctx.dev.server.getOrThrow().onPendingRequest()
         ctx.body.readBody(resp)
     }
 
     /// 最终化
     public func finalize(): Unit {
-        dev.server!.onStaticRequestComplete()
+        dev.server.getOrThrow().onStaticRequestComplete()
         // 释放 ctx
     }
 

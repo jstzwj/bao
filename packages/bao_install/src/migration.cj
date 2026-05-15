@@ -352,19 +352,19 @@ public class LockfileMigrator {
                     // 跳过 link 包
                     match (pkg.get("link")) {
                         case Some(_) => continue
-                        case None => {}
+                        case None => ()
                     }
 
                     // 跳过 inBundle 包
                     match (pkg.get("inBundle")) {
                         case Some(JsonValue.Bool(true)) => continue
-                        case _ => {}
+                        case _ => ()
                     }
 
                     // 跳过 extraneous 包
                     match (pkg.get("extraneous")) {
                         case Some(JsonValue.Bool(true)) => continue
-                        case _ => {}
+                        case _ => ()
                     }
 
                     let name = packageNameFromPath(pkgPath)
@@ -398,11 +398,11 @@ public class LockfileMigrator {
                                         case Some(JsonValue.Str(depVer)) => {
                                             entry.dependencies.put(depName, depVer)
                                         }
-                                        case _ => {}
+                                        case _ => ()
                                     }
                                 }
                             }
-                            case _ => {}
+                            case _ => ()
                         }
                     }
 
@@ -417,11 +417,11 @@ public class LockfileMigrator {
                                     case Some(JsonValue.Str(binPath)) => {
                                         entry.binMap.put(binName, binPath)
                                     }
-                                    case _ => {}
+                                    case _ => ()
                                 }
                             }
                         }
-                        case _ => {}
+                        case _ => ()
                     }
 
                     // 解析 OS/CPU 限制
@@ -430,27 +430,27 @@ public class LockfileMigrator {
                             for (item in osArr) {
                                 match (item) {
                                     case JsonValue.Str(s) => entry.osList.append(s)
-                                    case _ => {}
+                                    case _ => ()
                                 }
                             }
                         }
-                        case _ => {}
+                        case _ => ()
                     }
                     match (pkg.get("cpu")) {
                         case Some(JsonValue.Array(cpuArr)) => {
                             for (item in cpuArr) {
                                 match (item) {
                                     case JsonValue.Str(s) => entry.cpuList.append(s)
-                                    case _ => {}
+                                    case _ => ()
                                 }
                             }
                         }
-                        case _ => {}
+                        case _ => ()
                     }
 
                     entries.append(entry)
                 }
-                case _ => {}
+                case _ => ()
             }
         }
 

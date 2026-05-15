@@ -274,7 +274,7 @@ public class PatchTask {
                             if (!success) { return false }
                         }
                     }
-                    case None => {}
+                    case None => ()
                 }
                 hunks.clear()
                 continue
@@ -288,7 +288,7 @@ public class PatchTask {
                     return applyHunksToFile(hunks, bao_path.PathModule.join(ArrayList<String>([targetDir, filePath])))
                 }
             }
-            case None => {}
+            case None => ()
         }
 
         return true

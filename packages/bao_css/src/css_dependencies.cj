@@ -266,7 +266,7 @@ public class CssDependencyAnalyzer {
                             importRule.url.length + 2
                         )
                         dependencies.append(CssDependency(dep))
-                    case None => {}
+                    case None => ()
                 }
             case CssRuleKind.Style =>
                 match (rule.styleRule) {
@@ -277,31 +277,31 @@ public class CssDependencyAnalyzer {
                         for (nestedRule in styleRule.rules) {
                             analyzeRule(nestedRule, filePath, dependencies)
                         }
-                    case None => {}
+                    case None => ()
                 }
             case CssRuleKind.Media =>
                 match (rule.mediaRule) {
                     case Some(mediaRule) =>
                         analyzeRules(mediaRule.rules, filePath, dependencies)
-                    case None => {}
+                    case None => ()
                 }
             case CssRuleKind.Supports =>
                 match (rule.supportsRule) {
                     case Some(supportsRule) =>
                         analyzeRules(supportsRule.rules, filePath, dependencies)
-                    case None => {}
+                    case None => ()
                 }
             case CssRuleKind.LayerBlock =>
                 match (rule.layerBlockRule) {
                     case Some(layerRule) =>
                         analyzeRules(layerRule.rules, filePath, dependencies)
-                    case None => {}
+                    case None => ()
                 }
             case CssRuleKind.Container =>
                 match (rule.containerRule) {
                     case Some(containerRule) =>
                         analyzeRules(containerRule.rules, filePath, dependencies)
-                    case None => {}
+                    case None => ()
                 }
             case CssRuleKind.Keyframes =>
                 match (rule.keyframesRule) {
@@ -309,15 +309,15 @@ public class CssDependencyAnalyzer {
                         for (block in kfRule.keyframes) {
                             analyzeDeclarations(block.declarations, filePath, dependencies)
                         }
-                    case None => {}
+                    case None => ()
                 }
             case CssRuleKind.FontFace =>
                 match (rule.fontFaceRule) {
                     case Some(ffRule) =>
                         analyzeDeclarations(ffRule.declarations, filePath, dependencies)
-                    case None => {}
+                    case None => ()
                 }
-            case _ => {}
+            case _ => ()
         }
     }
 

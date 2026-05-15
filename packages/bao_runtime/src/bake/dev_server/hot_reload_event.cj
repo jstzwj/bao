@@ -41,7 +41,7 @@ public class HotReloadEvent {
     /// 重置事件以供重用
     public func reset(): Unit {
         if (debug_mutex != None) {
-            debug_mutex!.unlock()
+            debug_mutex.getOrThrow().unlock()
         }
         files.clearRetainingCapacity()
         dirs.clearRetainingCapacity()

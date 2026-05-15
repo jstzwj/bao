@@ -13,30 +13,8 @@ import bao_io.*
 
 /// Writable 表示子进程的可写输入流 (stdin)
 public enum Writable {
-    /// 使用 FileSink 管道
-    case pipe(FileSink)
-    /// 使用文件描述符
-    case fd(FD)
-    /// 使用静态管道写入器 (Blob/ArrayBuffer 输入)
-    case buffer(StaticPipeWriter)
-    /// 使用内存文件描述符
-    case memfd(FD)
-    /// 继承父进程
-    case inherit
-    /// 忽略
-    case ignore
-
-    // ========================================================================
-    // 方法
-    // ========================================================================
-
-    /// 内存占用
-    public func memoryCost(): Int64 {
-        return switch (this) {
-            case .pipe(let pipe) => pipe.memoryCost()
-            case .buffer(let buffer) => buffer.memoryCost()
-            else => 0
-        }
+    | else
+}
     }
 
     /// 是否有待处理活动
@@ -98,7 +76,7 @@ public enum Writable {
     public func onStart() {}
 
     /// 初始化 Writable
-    public static func init(
+    public static func initFunc(
         stdio: Stdio,
         eventLoop: EventLoop,
         subprocess: Subprocess,
@@ -114,7 +92,7 @@ public enum Writable {
                         let pipe = FileSink.createWithPipe(eventLoop, result.buffer)
 
                         switch (pipe.writer.startWithCurrentPipe()) {
-                            case .result => {}
+                            case .result => ()
                             case .err => {
                                 pipe.deref()
                                 if (stdio == .readable_stream) {
@@ -183,7 +161,7 @@ public enum Writable {
                 let pipe = FileSink.create(eventLoop, result)
 
                 switch (pipe.writer.start(pipe.fd, true)) {
-                    case .result => {}
+                    case .result => ()
                     case .err => {
                         pipe.deref()
                         if (stdio == .readable_stream) {
@@ -295,8 +273,8 @@ public enum Writable {
                 fd.close()
                 this = .ignore()
             }
-            case .ignore => {}
-            case .fd, .inherit => {}
+            case .ignore => ()
+            case .fd, .inherit => ()
         }
     }
 
@@ -316,8 +294,8 @@ public enum Writable {
             case .buffer => {
                 this.buffer.close()
             }
-            case .ignore => {}
-            case .inherit => {}
+            case .ignore => ()
+            case .inherit => ()
         }
     }
 }

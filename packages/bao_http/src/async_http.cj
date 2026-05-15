@@ -275,7 +275,7 @@ public class AsyncHTTP {
 
     /// 初始化 AsyncHTTP
     /// 严格翻译自: AsyncHTTP.init
-    public static func init(
+    public static func initFunc(
         method: HttpMethod,
         url: ParsedUrl,
         headers: HeaderEntryList,

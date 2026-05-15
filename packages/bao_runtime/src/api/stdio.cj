@@ -475,7 +475,7 @@ public enum Stdio {
                 }
 
                 switch (i) {
-                    case 0 => {}
+                    case 0 => ()
                     case 1 => {
                         return globalThis.throwInvalidArguments("ReadableStream cannot be used for stdout yet. For now, do .stdout")
                     }

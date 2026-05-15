@@ -72,7 +72,7 @@ public class Scanner {
 
     /// 取出找到的测试文件列表
     public func takeFoundTestFiles(): ArrayList<String> {
-        val result = testFiles
+        let result = testFiles
         testFiles = ArrayList<String>()
         return result
     }
@@ -80,9 +80,9 @@ public class Scanner {
     /// 扫描指定路径
     /// 对应 Bun: Scanner.scan()
     public func scan(pathLiteral: String): Unit {
-        val path = Path.join(fs.topLevelDir, pathLiteral)
+        let path = Path.join(fs.topLevelDir, pathLiteral)
 
-        val root = fs.readDirectoryWithName(path, None)
+        let root = fs.readDirectoryWithName(path, None)
 
         if (root.isErr) {
             when (root.error) {
@@ -108,11 +108,11 @@ public class Scanner {
 
         // 处理待扫描目录
         while (dirsToScan.readItem() != None) {
-            val entry = dirsToScan.readItem()!!
-            val childPath = Path.join(entry.dirPath, entry.name)
-            val childDir = BaoFile.openDir(childPath)
+            let entry = dirsToScan.readItem()!!
+            let childPath = Path.join(entry.dirPath, entry.name)
+            let childDir = BaoFile.openDir(childPath)
             if (childDir != None) {
-                val absPath = childPath
+                let absPath = childPath
                 readDirWithName(absPath, childDir)
             }
         }
@@ -126,14 +126,14 @@ public class Scanner {
     /// 判断文件名是否可能是测试文件
     /// 对应 Bun: Scanner.couldBeTestFile()
     public func couldBeTestFile(name: String, needsTestSuffix: Bool): Bool {
-        val extname = Path.extension(name)
+        let extname = Path.extension(name)
         if (extname.length == 0 || !options.loader(extname).isJavaScriptLike()) {
             return false
         }
         if (!needsTestSuffix) {
             return true
         }
-        val nameWithoutExtension = name.substring(0, name.length - extname.length)
+        let nameWithoutExtension = name.substring(0, name.length - extname.length)
         for (suffix in TEST_NAME_SUFFIXES) {
             if (nameWithoutExtension.endsWith(suffix)) {
                 return true
@@ -176,7 +176,7 @@ public class Scanner {
         if (pathIgnorePatterns.size == 0) {
             return false
         }
-        val relPath = Path.relative(fs.topLevelDir, absPath)
+        let relPath = Path.relative(fs.topLevelDir, absPath)
 
         // 构建 relPath + '/' 一次
         var relWithSlash: ?String = None
@@ -206,7 +206,7 @@ public class Scanner {
     /// 处理目录迭代中的下一个条目
     /// 对应 Bun: Scanner.next()
     public func next(entry: FileSystemEntry, fd: FileDescriptor): Unit {
-        val name = entry.baseLowercase()
+        let name = entry.baseLowercase()
         hasIterated = true
 
         when (entry.kind) {
@@ -225,7 +225,7 @@ public class Scanner {
 
                 // 提前修剪被忽略的目录树
                 if (pathIgnorePatterns.size > 0) {
-                    val dirPath = Path.join(entry.dir, entry.base())
+                    let dirPath = Path.join(entry.dir, entry.base())
                     if (matchesPathIgnorePattern(dirPath)) {
                         return
                     }
@@ -245,10 +245,10 @@ public class Scanner {
                     return
                 }
 
-                val path = Path.join(entry.dir, entry.base())
+                let path = Path.join(entry.dir, entry.base())
 
                 if (!doesAbsolutePathMatchFilter(path)) {
-                    val relPath = Path.relative(fs.topLevelDir, path)
+                    let relPath = Path.relative(fs.topLevelDir, path)
                     if (!doesPathMatchFilter(relPath)) {
                         return
                     }

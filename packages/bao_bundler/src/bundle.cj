@@ -431,7 +431,7 @@ public class Bundler {
         // 检查缓存
         match (parseCache.get(absPath)) {
             case Some(m) => return Some(m)
-            case None => {}
+            case None => ()
         }
 
         let source = BaoFile.readAllText(absPath)
@@ -513,7 +513,7 @@ public class Bundler {
                         }
                     }
                 }
-                case None => {}
+                case None => ()
             }
         }
 
@@ -537,7 +537,7 @@ public class Bundler {
                         }
                     }
                 }
-                case None => {}
+                case None => ()
             }
         }
     }
@@ -608,7 +608,7 @@ public class Bundler {
                         outputFiles.append(cssFile)
                     }
                 }
-                case None => {}
+                case None => ()
             }
 
             // Source map
@@ -620,7 +620,7 @@ public class Bundler {
                         mapFile.isSourceMap = true
                         outputFiles.append(mapFile)
                     }
-                    case None => {}
+                    case None => ()
                 }
             }
         }
@@ -699,7 +699,7 @@ public class TreeShaker {
                         }
                     }
                 }
-                case None => {}
+                case None => ()
             }
         }
 
@@ -717,7 +717,7 @@ public class CodeGenerator {
         // Banner
         match (opts.banner) {
             case Some(b) => output = output + b + "\n"
-            case None => {}
+            case None => ()
         }
 
         // 模块导入声明 (ESM)
@@ -737,7 +737,7 @@ public class CodeGenerator {
                     let moduleContent = wrapModule(node, opts)
                     output = output + moduleContent + "\n"
                 }
-                case None => {}
+                case None => ()
             }
         }
 
@@ -749,17 +749,17 @@ public class CodeGenerator {
                         case Some(node) => {
                             output = output + generateExports(node, opts)
                         }
-                        case None => {}
+                        case None => ()
                     }
                 }
-                case None => {}
+                case None => ()
             }
         }
 
         // Footer
         match (opts.footer) {
             case Some(f) => output = output + f + "\n"
-            case None => {}
+            case None => ()
         }
 
         return output

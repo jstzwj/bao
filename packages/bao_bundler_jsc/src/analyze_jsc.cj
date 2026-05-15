@@ -81,7 +81,7 @@ public func moduleInfoDeserializedToJSModuleRecord(
     for (k in res.recordKinds) {
         let kLen = k.len()
         match (k) {
-            case .declaredVariable, .lexicalVariable => {}
+            case .declaredVariable, .lexicalVariable => ()
             case .importInfoSingle =>
                 moduleRecord.addImportEntrySingle(identifiers, res.buffer[idx + 1], res.buffer[idx + 2], res.buffer[idx])
             case .importInfoSingleTypeScript =>

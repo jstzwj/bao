@@ -90,7 +90,7 @@ public class ExternalSlice<T> {
 
     /// 从数组初始化
     /// 翻译自: pub fn init(buf: []const Type, in: []const Type) Slice
-    public static func init(buffer: ArrayList<T>, slice: ArrayList<T>): ExternalSlice<T> {
+    public static func initFunc(buffer: ArrayList<T>, slice: ArrayList<T>): ExternalSlice<T> {
         // 在 Zig 中, 通过指针算术计算偏移量
         // 在仓颉中, 我们需要找到 slice 在 buffer 中的位置
         // 简化: 使用第一个元素的引用

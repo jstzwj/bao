@@ -22,7 +22,7 @@ public class RegexEscape {
     ///         switch (remain[i]) {
     ///             '|', '\\', '{', '}', '(', ')', '[', ']', '^', '$', '+', '*', '?', '.',
     ///             => |c| try writer.writeAll(&.{ '\\', c }),
-    ///             '-' => try writer.writeAll("\\x2d"),
+    ///             '-' => try writer.writeAll("\u{2d}"),
     ///             else => ...
     ///         }
     ///         remain = remain[i + 1 ..];
@@ -37,8 +37,8 @@ public class RegexEscape {
             let c = chars[Int64(i)]
             if (isSpecialChar(c)) {
                 if (c == '-') {
-                    // 对应 Bun: '-' => try writer.writeAll("\\x2d")
-                    sb.append("\\x2d")
+                    // 对应 Bun: '-' => try writer.writeAll("\u{2d}")
+                    sb.append("\u{2d}")
                 } else {
                     // 对应 Bun: => |c| try writer.writeAll(&.{ '\\', c })
                     sb.append('\\')
@@ -73,7 +73,7 @@ public class RegexEscape {
                 // '*' 变为 '.*' - 通配符匹配
                 sb.append(".*")
             } else if (c == '-') {
-                sb.append("\\x2d")
+                sb.append("\u{2d}")
             } else if (isSpecialChar(c)) {
                 sb.append('\\')
                 sb.append(c)

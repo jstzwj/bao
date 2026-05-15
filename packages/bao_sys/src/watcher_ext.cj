@@ -176,7 +176,7 @@ public class RecursiveWatcher {
 
     /// 初始化监视器
     /// 对应 Bun Watcher.init()
-    public func init(): SysMaybe<Unit> {
+    public func initFunc(): SysMaybe<Unit> {
         let fd = inotify_init1(Int32(InotifyMask.IN_NONBLOCK | InotifyMask.IN_CLOEXEC))
         if (fd < 0) {
             return SysMaybe<Unit>.Err(

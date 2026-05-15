@@ -20,7 +20,7 @@ public func isCI(): Bool {
     match (cachedIsCI) {
         case Some(v) => return v
         case None => {
-            val result = isCIUncached()
+            let result = isCIUncached()
             cachedIsCI = Some(result)
             return result
         }
@@ -34,7 +34,7 @@ public func detectCIName(): ?String {
     match (cachedCIName) {
         case Some(v) => return v
         case None => {
-            val result = detectUncached()
+            let result = detectUncached()
             cachedCIName = Some(result)
             return result
         }
@@ -43,14 +43,14 @@ public func detectCIName(): ?String {
 
 /// 未缓存的 CI 检测实现
 private func isCIUncached(): Bool {
-    val ciEnv = Env.get("CI")
-    val generatedIsCI = CIInfoGenerated.isCIUncachedGenerated()
+    let ciEnv = Env.get("CI")
+    let generatedIsCI = CIInfoGenerated.isCIUncachedGenerated()
     return ciEnv != None || generatedIsCI || detectCIName() != None
 }
 
 /// 未缓存的 CI 名称检测实现
 private func detectUncached(): ?String {
-    val ciEnv = Env.get("CI")
+    let ciEnv = Env.get("CI")
     if (ciEnv == None) {
         return None
     }

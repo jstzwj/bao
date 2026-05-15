@@ -294,7 +294,7 @@ public class TarballExtractor {
             let slashIdx = name.indexOf("/")
             match (slashIdx) {
                 case Some(idx) => name = name.substring(idx + 1)
-                case None => {}
+                case None => ()
             }
         }
         let verStr = version.toString()
@@ -371,7 +371,7 @@ public class TarballExtractor {
                             case Some(idx) => {
                                 // 检查是否所有条目都有相同前缀
                             }
-                            case None => {}
+                            case None => ()
                         }
                         firstEntry = false
                     }
@@ -496,7 +496,7 @@ public class TarballDownloader {
                     return Some(resp.bodyBytes)
                 }
             }
-            case None => {}
+            case None => ()
         }
         return None
     }

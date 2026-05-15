@@ -85,7 +85,7 @@ public class PackageJSONEditor {
                     patchedDeps = query
                 }
             }
-            case None => {}
+            case None => ()
         }
 
         // 添加补丁条目
@@ -115,7 +115,7 @@ public class PackageJSONEditor {
                     }
                 }
             }
-            case None => {}
+            case None => ()
         }
 
         // 去重: 移除已存在的名称
@@ -190,7 +190,7 @@ public class PackageJSONEditor {
                                         }
                                         aliasAtIndex = idx
                                     }
-                                    case None => {}
+                                    case None => ()
                                 }
                             }
 
@@ -208,7 +208,7 @@ public class PackageJSONEditor {
                         // 简化: 实际需要从锁文件获取解析后的版本
                     }
                 }
-                case None => {}
+                case None => ()
             }
         }
     }

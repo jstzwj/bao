@@ -57,13 +57,9 @@ public enum Result<T, E> {
     public func unwrap(): T {
         match (this) {
             case Ok(v) => v
-            case Err(e) => {
-                match (e) {
-                    case err <: BaoError => throw err
-                    case _ => throw BaoError(ErrorCode.Unexpected, "unwrap on Err value")
-                }
-            }
+            case Err(e) => throw e
         }
+    }
     }
 
     /// 获取值，失败则返回默认值

@@ -197,7 +197,7 @@ public class StrongImpl {
 
     // 严格翻译自 Strong.Impl.init
     // FFI: Bun__StrongRef__new(global, value)
-    public static func init(global: JsObject, value: JsValue) -> StrongImpl {
+    public static func initFunc(global: JsObject, value: JsValue) -> StrongImpl {
         StrongImpl(value: value)
     }
 

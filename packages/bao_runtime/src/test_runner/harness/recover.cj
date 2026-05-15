@@ -25,7 +25,7 @@ public class Recover {
         ctx.hasRecovered = true
 
         // 提取错误消息
-        if let err = error.toError() {
+        if (let Some(err) <- error.toError()) {
             let name: JSValue = err.getTruthyComptime(globalThis: globalThis, key: "name") ?? JSValue.jsUndefined
             let message: JSValue = err.getTruthyComptime(globalThis: globalThis, key: "message") ?? JSValue.jsUndefined
             ctx.errorMessage = "${name.toSliceOrNull(globalThis: globalThis) ?? ""}: ${message.toSliceOrNull(globalThis: globalThis) ?? ""}"

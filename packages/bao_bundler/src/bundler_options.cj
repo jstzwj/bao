@@ -234,7 +234,7 @@ public class ExternalModules {
 
     /// 初始化外部模块
     // 严格翻译自: options.zig:112 init()
-    public static func init(
+    public static func initFunc(
         externals: ArrayList<String>,
         log: Log,
         target: BundleTarget
@@ -608,7 +608,7 @@ public class BundlerOptions {
     public func deinit(allocator: Allocator): Unit {
         match (define) {
             case Some(d) => d.deinit()
-            case None => {}
+            case None => ()
         }
     }
 }
@@ -650,7 +650,7 @@ public class ESMConditions {
     }
 
     /// 初始化
-    public static func init(
+    public static func initFunc(
         defaults: ArrayList<String>,
         allowAddons: Bool,
         conditions: ArrayList<String>

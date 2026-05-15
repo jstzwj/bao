@@ -31,7 +31,7 @@ public class MaybeOwnedAllocator {
 
     /// 创建拥有的分配器 (使用默认初始化的父分配器)
     /// 对应 Zig: pub fn init() Self
-    public static func init(): MaybeOwnedAllocator {
+    public static func initFunc(): MaybeOwnedAllocator {
         return MaybeOwnedAllocator(parent: Allocator.default())
     }
 

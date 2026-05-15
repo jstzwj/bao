@@ -127,7 +127,7 @@ public class PackageManifestMap {
                     case None => return None
                 }
             }
-            case LoadFromMemoryFallbackToDisk => {}
+            case LoadFromMemoryFallbackToDisk => ()
         }
 
         // 回退到磁盘模式: 查找或插入

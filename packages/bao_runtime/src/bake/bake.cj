@@ -20,12 +20,14 @@ public enum Mode {
 
 /// Side 枚举
 public enum Side {
+    | None
 }
     }
 }
 
 /// Graph 枚举
 public enum Graph {
+    | None
 }
 
 /// Zig 版本的 TypeScript 定义 'Bake.Options'

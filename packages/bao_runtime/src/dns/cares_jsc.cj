@@ -48,24 +48,24 @@ public func hostentWithTtlsToJSResponse(hostentWithTtls: HostentWithTtls, lookup
             return JsValue.array(ArrayList<JsValue>())
         }
 
-        val addrList = hostentWithTtls.hostent.addrList
+        let addrList = hostentWithTtls.hostent.addrList
         var arr = ArrayList<JsValue>()
 
         var count = 0
         for (addr in addrList) {
-            val addrString = if (hostentWithTtls.hostent.addrType == AF_INET6) {
+            let addrString = if (hostentWithTtls.hostent.addrType == AF_INET6) {
                 addressToJS(NetworkAddress(family: AF_INET6, address: addr), globalThis)
             } else {
                 addressToJS(NetworkAddress(family: AF_INET, address: addr), globalThis)
             }
 
-            val ttl: ?Int32 = if (count < hostentWithTtls.ttls.size) {
+            let ttl: ?Int32 = if (count < hostentWithTtls.ttls.size) {
                 hostentWithTtls.ttls[count]
             } else {
                 None
             }
 
-            val resultObj = JsObject()
+            let resultObj = JsObject()
             resultObj.set("address", addrString)
             if (ttl != None) {
                 resultObj.set("ttl", JsValue(Float64(ttl)))
@@ -124,12 +124,12 @@ public func caresAddrInfoToJSArray(addrInfo: CaresAddrInfo, globalThis: JsObject
     var current: ?CaresAddrInfoNode = addrInfo.node
 
     while (current != None) {
-        val node = current!
-        val address = NetworkAddress(
+        let node = current!
+        let address = NetworkAddress(
             family: if (node.family == AF_INET6) { AF_INET6 } else { AF_INET },
             address: node.address
         )
-        val result = DnsResult(addr: address, ttl: node.ttl)
+        let result = DnsResult(addr: address, ttl: node.ttl)
         arr.append(resultToJS(result, globalThis))
         current = node.next
     }
@@ -149,7 +149,7 @@ public func caaReplyToJSResponse(caaReply: CaaReply, globalThis: JsObject): JsVa
     var current: ?CaaReply = Some(caaReply)
 
     while (current != None) {
-        val node = current!
+        let node = current!
         arr.append(caaReplyToJS(node, globalThis))
         current = node.next
     }
@@ -160,12 +160,12 @@ public func caaReplyToJSResponse(caaReply: CaaReply, globalThis: JsObject): JsVa
 /// 单个 CAA 记录转 JS 对象
 /// 对应 Bun: caaReplyToJS
 public func caaReplyToJS(caa: CaaReply, globalThis: JsObject): JsValue {
-    val obj = JsObject()
+    let obj = JsObject()
     obj.set("critical", JsValue(Float64(caa.critical)))
 
     // 属性名作为 key，值作为 value
-    val propKey = caa.property
-    val propVal = JsValue(caa.value)
+    let propKey = caa.property
+    let propVal = JsValue(caa.value)
     obj.set(propKey, propVal)
 
     return JsValue(obj)
@@ -183,7 +183,7 @@ public func srvReplyToJSResponse(srvReply: SrvReply, globalThis: JsObject): JsVa
     var current: ?SrvReply = Some(srvReply)
 
     while (current != None) {
-        val node = current!
+        let node = current!
         arr.append(srvReplyToJS(node, globalThis))
         current = node.next
     }
@@ -194,7 +194,7 @@ public func srvReplyToJSResponse(srvReply: SrvReply, globalThis: JsObject): JsVa
 /// 单个 SRV 记录转 JS 对象
 /// 对应 Bun: srvReplyToJS
 public func srvReplyToJS(srv: SrvReply, globalThis: JsObject): JsValue {
-    val obj = JsObject()
+    let obj = JsObject()
     obj.set("priority", JsValue(Float64(srv.priority)))
     obj.set("weight", JsValue(Float64(srv.weight)))
     obj.set("port", JsValue(Float64(srv.port)))
@@ -214,7 +214,7 @@ public func mxReplyToJSResponse(mxReply: MxReply, globalThis: JsObject): JsValue
     var current: ?MxReply = Some(mxReply)
 
     while (current != None) {
-        val node = current!
+        let node = current!
         arr.append(mxReplyToJS(node, globalThis))
         current = node.next
     }
@@ -225,7 +225,7 @@ public func mxReplyToJSResponse(mxReply: MxReply, globalThis: JsObject): JsValue
 /// 单个 MX 记录转 JS 对象
 /// 对应 Bun: mxReplyToJS
 public func mxReplyToJS(mx: MxReply, globalThis: JsObject): JsValue {
-    val obj = JsObject()
+    let obj = JsObject()
     obj.set("priority", JsValue(Float64(mx.priority)))
     obj.set("exchange", JsValue(mx.host))
     return JsValue(obj)
@@ -243,7 +243,7 @@ public func txtReplyToJSResponse(txtReply: TxtReply, globalThis: JsObject): JsVa
     var current: ?TxtReply = Some(txtReply)
 
     while (current != None) {
-        val node = current!
+        let node = current!
         arr.append(txtReplyToJS(node, globalThis))
         current = node.next
     }
@@ -266,13 +266,13 @@ public func txtReplyToJSForAny(txtReply: TxtReply, lookupName: String, globalThi
     var current: ?TxtReply = Some(txtReply)
 
     while (current != None) {
-        val node = current!
+        let node = current!
         arr.append(JsValue(node.text))
         current = node.next
     }
 
     // 返回 { entries: [...] }
-    val obj = JsObject()
+    let obj = JsObject()
     obj.set("entries", JsValue.array(arr))
     return JsValue(obj)
 }
@@ -289,7 +289,7 @@ public func naptrReplyToJSResponse(naptrReply: NaptrReply, globalThis: JsObject)
     var current: ?NaptrReply = Some(naptrReply)
 
     while (current != None) {
-        val node = current!
+        let node = current!
         arr.append(naptrReplyToJS(node, globalThis))
         current = node.next
     }
@@ -300,7 +300,7 @@ public func naptrReplyToJSResponse(naptrReply: NaptrReply, globalThis: JsObject)
 /// 单个 NAPTR 记录转 JS 对象
 /// 对应 Bun: naptrReplyToJS
 public func naptrReplyToJS(naptr: NaptrReply, globalThis: JsObject): JsValue {
-    val obj = JsObject()
+    let obj = JsObject()
     obj.set("preference", JsValue(Float64(naptr.preference)))
     obj.set("order", JsValue(Float64(naptr.order)))
     obj.set("flags", JsValue(naptr.flags))
@@ -324,7 +324,7 @@ public func soaReplyToJSResponse(soaReply: SoaReply, globalThis: JsObject): JsVa
 /// 单个 SOA 记录转 JS 对象
 /// 对应 Bun: soaReplyToJS
 public func soaReplyToJS(soa: SoaReply, globalThis: JsObject): JsValue {
-    val obj = JsObject()
+    let obj = JsObject()
     obj.set("serial", JsValue(Float64(soa.serial)))
     obj.set("refresh", JsValue(Float64(soa.refresh)))
     obj.set("retry", JsValue(Float64(soa.retry)))
@@ -355,7 +355,7 @@ public func anyReplyToJS(reply: AnyReply, globalThis: JsObject): JsValue {
         var i = 0
         var current = reply.caaReply
         while (current != None) {
-            val node = current!
+            let node = current!
             anyReplyAppend(globalThis, arr, i, caaReplyToJS(node, globalThis), "caa")
             i += 1
             current = node.next
@@ -365,7 +365,7 @@ public func anyReplyToJS(reply: AnyReply, globalThis: JsObject): JsValue {
         var i = 0
         var current = reply.srvReply
         while (current != None) {
-            val node = current!
+            let node = current!
             anyReplyAppend(globalThis, arr, i, srvReplyToJS(node, globalThis), "srv")
             i += 1
             current = node.next
@@ -375,7 +375,7 @@ public func anyReplyToJS(reply: AnyReply, globalThis: JsObject): JsValue {
         var i = 0
         var current = reply.mxReply
         while (current != None) {
-            val node = current!
+            let node = current!
             anyReplyAppend(globalThis, arr, i, mxReplyToJS(node, globalThis), "mx")
             i += 1
             current = node.next
@@ -385,7 +385,7 @@ public func anyReplyToJS(reply: AnyReply, globalThis: JsObject): JsValue {
         var i = 0
         var current = reply.txtReply
         while (current != None) {
-            val node = current!
+            let node = current!
             anyReplyAppend(globalThis, arr, i, JsValue(node.text), "txt")
             i += 1
             current = node.next
@@ -395,26 +395,26 @@ public func anyReplyToJS(reply: AnyReply, globalThis: JsObject): JsValue {
         var i = 0
         var current = reply.naptrReply
         while (current != None) {
-            val node = current!
+            let node = current!
             anyReplyAppend(globalThis, arr, i, naptrReplyToJS(node, globalThis), "naptr")
             i += 1
             current = node.next
         }
     }
     if (reply.soaReply != None) {
-        val idx = arr.size
+        let idx = arr.size
         anyReplyAppend(globalThis, arr, idx, soaReplyToJS(reply.soaReply!, globalThis), "soa")
     }
     if (reply.nsReply != None) {
-        val idx = arr.size
+        let idx = arr.size
         anyReplyAppend(globalThis, arr, idx, hostentToJSResponse(reply.nsReply!, "ns", globalThis), "ns")
     }
     if (reply.cnameReply != None) {
-        val idx = arr.size
+        let idx = arr.size
         anyReplyAppend(globalThis, arr, idx, hostentToJSResponse(reply.cnameReply!, "cname", globalThis), "cname")
     }
     if (reply.ptrReply != None) {
-        val idx = arr.size
+        let idx = arr.size
         anyReplyAppend(globalThis, arr, idx, hostentToJSResponse(reply.ptrReply!, "ptr", globalThis), "ptr")
     }
 
@@ -425,15 +425,15 @@ public func anyReplyToJS(reply: AnyReply, globalThis: JsObject): JsValue {
 /// 对应 Bun: anyReplyAppend
 func anyReplyAppend(globalThis: JsObject, arr: ArrayList<JsValue>, index: Int64, response: JsValue, lookupName: String): Unit {
     // 如果响应是字符串，包装为 { value: str, type: UPPER }
-    val transformed = if (response.valueType == JsValueType.String) {
-        val obj = JsObject()
+    let transformed = if (response.valueType == JsValueType.String) {
+        let obj = JsObject()
         obj.set("value", response)
         JsValue(obj)
     } else {
         response
     }
 
-    val upper = lookupName.toUpper()
+    let upper = lookupName.toUpper()
     if (transformed.valueType == JsValueType.Object && transformed.objectData != None) {
         transformed.objectData.set("type", JsValue(upper))
     }
@@ -463,13 +463,13 @@ public class DnsErrorDeferred {
     /// 拒绝 Promise 并创建 DNSException
     /// 对应 Bun: ErrorDeferred.reject
     public func reject(globalThis: JsObject): Unit {
-        val message = if (hostname != None) {
+        let message = if (hostname != None) {
             "${syscall} ${errno.code().subString(4)} ${hostname}"
         } else {
             "${syscall} ${errno.code().subString(4)}"
         }
 
-        val errorObj = JsObject()
+        let errorObj = JsObject()
         errorObj.set("name", JsValue("DNSException"))
         errorObj.set("code", JsValue(errno.code()))
         errorObj.set("message", JsValue(message))
@@ -504,9 +504,9 @@ public func errorToDeferred(err: DnsError, syscall: String, hostname: ?String, p
 /// 将 c-ares 错误转为 JS 错误（带 syscall）
 /// 对应 Bun: errorToJSWithSyscall
 public func errorToJSWithSyscall(err: DnsError, globalThis: JsObject, syscall: String): JsValue {
-    val message = "${syscall} ${err.code().subString(4)}"
+    let message = "${syscall} ${err.code().subString(4)}"
 
-    val errorObj = JsObject()
+    let errorObj = JsObject()
     errorObj.set("name", JsValue("DNSException"))
     errorObj.set("code", JsValue(err.code()))
     errorObj.set("message", JsValue(message))
@@ -518,9 +518,9 @@ public func errorToJSWithSyscall(err: DnsError, globalThis: JsObject, syscall: S
 /// 将 c-ares 错误转为 JS 错误（带 syscall 和 hostname）
 /// 对应 Bun: errorToJSWithSyscallAndHostname
 public func errorToJSWithSyscallAndHostname(err: DnsError, globalThis: JsObject, syscall: String, hostname: String): JsValue {
-    val message = "${syscall} ${err.code().subString(4)} ${hostname}"
+    let message = "${syscall} ${err.code().subString(4)} ${hostname}"
 
-    val errorObj = JsObject()
+    let errorObj = JsObject()
     errorObj.set("name", JsValue("DNSException"))
     errorObj.set("code", JsValue(err.code()))
     errorObj.set("message", JsValue(message))
@@ -543,13 +543,13 @@ public func canonicalizeIP(globalThis: JsObject, args: ArrayList<JsValue>): JsVa
     }
 
     // IPv6 地址字符串最大长度 46 字节 (Windows 上 65)
-    val INET6_ADDRSTRLEN = 46
+    let INET6_ADDRSTRLEN = 46
 
-    val addrArg = args[0]
+    let addrArg = args[0]
     if (addrArg.valueType != JsValueType.String) {
         return JsValue.UNDEFINED
     }
-    val addrStr = addrArg.toString()
+    let addrStr = addrArg.toString()
     if (addrStr.size >= INET6_ADDRSTRLEN) {
         return JsValue.UNDEFINED
     }
@@ -562,7 +562,7 @@ public func canonicalizeIP(globalThis: JsObject, args: ArrayList<JsValue>): JsVa
     // 尝试解析为 IPv4 或 IPv6
     // 使用 FFI 调用 ares_inet_pton / ares_inet_ntop
     // 简化版本：直接返回输入（实际实现需要 FFI）
-    val normalized = tryParseAndFormatIp(addrStr)
+    let normalized = tryParseAndFormatIp(addrStr)
     if (normalized == None) {
         return JsValue.UNDEFINED
     }
@@ -786,7 +786,7 @@ public class JsPromise {
 
     public func value(): JsValue {
         // 返回 Promise 对象
-        val obj = JsObject()
+        let obj = JsObject()
         obj.set("__promise__", JsValue.TRUE)
         return JsValue(obj)
     }

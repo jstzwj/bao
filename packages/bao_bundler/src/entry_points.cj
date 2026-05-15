@@ -153,7 +153,7 @@ public class ServerEntryPoint {
         code.append("import * as start from '${pathToUse}';\n")
         code.append("var entryNamespace = start;\n")
         code.append("function isServerConfig(def) {\n")
-        code.append("  return def && def !== globalThis && (typeof def.fetch === 'function' || def.app != undefined) && typeof def.stop !== 'function';\n")
+        code.append("  return def && def != globalThis && (typeof def.fetch === 'function' || def.app != undefined) && typeof def.stop != 'function';\n")
         code.append("}\n")
 
         if (isHotReloadEnabled) {

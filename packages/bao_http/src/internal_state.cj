@@ -427,7 +427,7 @@ public class InternalState {
 
     /// 初始化内部状态
     /// 严格翻译自: InternalState.init
-    public static func init(body: HTTPRequestBody, bodyOutStr: MutableString): InternalState {
+    public static func initFunc(body: HTTPRequestBody, bodyOutStr: MutableString): InternalState {
         let state = InternalState()
         state.originalRequestBody = body
         state.requestBody = match (body) {

@@ -18,7 +18,7 @@ public enum ImportWatcher {
         match (this) {
             case hot(let w) => w.start()
             case watch(let w) => w.start()
-            case none => {}
+            case none => ()
         }
     }
 

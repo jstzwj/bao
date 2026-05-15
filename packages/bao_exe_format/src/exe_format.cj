@@ -14,7 +14,7 @@ import bao_core.*
 // 严格翻译自各格式头文件
 // ============================================================================
 
-// ELF 魔数 - "\x7fELF" 大端读取为 0x7f454c46
+// ELF 魔数 - "\u{7f}ELF" 大端读取为 0x7f454c46
 // 对应 macho.zig utils.isElf: mem.readInt(u32, data[0..4], .big) == 0x7f454c46
 public let ELF_MAGIC: UInt32 = UInt32(0x7f454c46)
 
@@ -228,7 +228,7 @@ public func detectFormat(bytes: Array<UInt8>): ExeFormat {
     // ELF 魔数检测 (大端读取比较)
     // 对应 macho.zig utils.isElf:
     //   mem.readInt(u32, data[0..4], .big) == 0x7f454c46
-    // 注意: ELF 魔数 "\x7fELF" 在大端和小端读取时值相同 (字节序无关)
+    // 注意: ELF 魔数 "\u{7f}ELF" 在大端和小端读取时值相同 (字节序无关)
     if (magic == ELF_MAGIC) {
         return ExeFormat.Elf
     }
@@ -285,7 +285,7 @@ public func parseExe(bytes: Array<UInt8>): ExeInfo {
             parsePE(bytes, info)
         case Wasm =>
             parseWasm(bytes, info)
-        case Unknown => {}
+        case Unknown => ()
     }
 
     return info
@@ -334,7 +334,7 @@ private func parseElf(bytes: Array<UInt8>, info: ExeInfo): Unit {
 
     // 验证 ELF 魔数
     // 对应 elf.rs:
-    //   if &data[0..4] != b"\x7fELF" { return Err(InvalidElfFile) }
+    //   if &data[0..4] != b"\u{7f}ELF" { return Err(InvalidElfFile) }
     if (readUInt32LE(bytes, 0) != ELF_MAGIC) {
         return
     }

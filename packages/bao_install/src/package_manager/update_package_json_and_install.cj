@@ -88,7 +88,7 @@ public class UpdatePackageJSONAndInstall {
                     bao_core.Output.error("Failed to load lockfile: ${cause.message}")
                 }
             }
-            case _ => {}
+            case _ => ()
         }
 
         // 3. 创建新锁文件 (如果需要)
@@ -134,10 +134,10 @@ public class UpdatePackageJSONAndInstall {
                             }
                         }
                     }
-                    case None => {}
+                    case None => ()
                 }
             }
-            case None => {}
+            case None => ()
         }
 
         // 7. 安装包

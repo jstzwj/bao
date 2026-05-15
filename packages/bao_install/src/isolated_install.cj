@@ -480,7 +480,7 @@ public class IsolatedInstaller {
                     // 检查全局存储链接
                     match (globalStorePath) {
                         case Some(_) => linkProjectToGlobalStore(entryId)
-                        case None => {}
+                        case None => ()
                     }
                     if (entry.hoisted) {
                         linkToHiddenNodeModules(entryId)

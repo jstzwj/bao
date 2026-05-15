@@ -286,7 +286,7 @@ public class Buffer {
     /// readFloatLE — 小端序读取 32 位浮点数
     public func readFloatLE(offset: Int64): Float32 {
         if (offset < 0 || offset + 4 > length) {
-            return 0.0f
+            return 0.0f32
         }
         // 通过 Int32 位模式转 Float32 (IEEE 754)
         let bits = readInt32LE(offset)

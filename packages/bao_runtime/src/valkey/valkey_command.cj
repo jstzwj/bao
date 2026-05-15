@@ -275,7 +275,7 @@ public class ValkeyCommand {
                     }
                 }
             }
-            case _ => {}
+            case _ => ()
         }
     }
 

@@ -281,7 +281,7 @@ public class HoistedInstaller {
             case Tarball => {
                 // enqueueTarballForDownload
             }
-            case _ => {}
+            case _ => ()
         }
     }
 

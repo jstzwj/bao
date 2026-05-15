@@ -132,14 +132,14 @@ public class CssAttributeSelector {
         }
         sb.append(name)
         match (operator) {
-            case CssAttrOperator.Exists => {}
+            case CssAttrOperator.Exists => ()
             case _ =>
                 sb.append(operator.toString())
                 sb.append("\"${value}\"")
                 match (caseSensitivity) {
                     case CssCaseSensitivity.AsciiCaseInsensitive => sb.append(" i")
                     case CssCaseSensitivity.ExplicitCaseSensitive => sb.append(" s")
-                    case _ => {}
+                    case _ => ()
                 }
         }
         sb.append("]")
@@ -625,7 +625,7 @@ public class CssSelectorParser {
                     let attrComp = parseAttributeSelectorComponent()
                     match (attrComp) {
                         case Some(comp) => components.append(comp)
-                        case None => {}
+                        case None => ()
                     }
                 case ':' =>
                     advance()
@@ -637,7 +637,7 @@ public class CssSelectorParser {
                         let pseudoComp = parsePseudoClassComponent()
                         match (pseudoComp) {
                             case Some(comp) => components.append(comp)
-                            case None => {}
+                            case None => ()
                         }
                     }
                 case _ =>
@@ -714,7 +714,7 @@ public class CssSelectorParser {
                 let nth = parseNthExpression(info.argument)
                 match (nth) {
                     case Some(expr) => info.nthA = expr.a; info.nthB = expr.b
-                    case None => {}
+                    case None => ()
                 }
             }
         }

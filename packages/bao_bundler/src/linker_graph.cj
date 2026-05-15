@@ -180,14 +180,14 @@ public class LinkerGraph {
         let overlay = meta.get(Int64(id)).topLevelSymbolToPartsOverlay
         match (overlay.get(ref)) {
             case Some(list) => return list.slice()
-            case None => {}
+            case None => ()
         }
 
         // 再检查原始映射
         let original = ast.get(Int64(id)).topLevelSymbolsToParts
         match (original.get(ref)) {
             case Some(list) => return list.slice()
-            case None => {}
+            case None => ()
         }
 
         return []
@@ -276,7 +276,7 @@ public class LinkerGraph {
                     case ImportKind.EntryPointRun | ImportKind.EntryPointBuild => continue
                     case ImportKind.At | ImportKind.AtConditional | ImportKind.Url | ImportKind.Composes => continue
                     case ImportKind.HtmlManifest | ImportKind.Internal => continue
-                    case ImportKind.Stmt => {}
+                    case ImportKind.Stmt => ()
                 }
 
                 let importIndex = Int64(record.sourceIndex)

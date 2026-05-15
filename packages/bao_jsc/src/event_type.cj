@@ -7,6 +7,7 @@ package bao_jsc
 // 严格翻译自 EventType.zig EventType
 // 事件类型枚举，用于 WebSocket 和其他事件系统
 public enum EventType {
+    | None
 }
     }
 

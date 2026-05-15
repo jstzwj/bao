@@ -380,7 +380,7 @@ public class TokenList {
                     if (ev.fallback.isSome()) {
                         fallbacks.insert(ev.fallback.getOrThrow().getNecessaryFallbacks(targets: targets))
                     }
-                case _ => {}
+                case _ => ()
             }
         }
         return fallbacks
@@ -395,18 +395,11 @@ public class TokenList {
 /// 具有未解析 alpha 的颜色值
 /// 严格翻译自 UnresolvedColor
 public enum UnresolvedColor {
-    | RGB(Float32, Float32, Float32, TokenList)
-    | HSL(Float32, Float32, Float32, TokenList)
-    | LightDark(TokenList, TokenList)
-
-    public func toCss(): String {
-        match (this) {
-            case RGB(r, g, b, alpha) => {
-                var result = "rgb(" + r.toString() + " " + g.toString() + " " + b.toString()
-                let alphaStr = alpha.toCss()
-                if (alphaStr != "") {
-                    result = result + " / " + alphaStr
-                }
+    | RGB
+    | HSL
+    | LightDark
+    | result
+}
                 return result + ")"
             }
             case HSL(h, s, l, alpha) => {
@@ -433,15 +426,15 @@ public enum UnresolvedColor {
         match (funcName) {
             case "rgb" | "rgba" =>
                 // rgb(r g b / alpha)
-                let r = parser.parseNumber().getOr(0.0f)
-                let g = parser.parseNumber().getOr(0.0f)
-                let b = parser.parseNumber().getOr(0.0f)
+                let r = parser.parseNumber().getOr(0.0f32)
+                let g = parser.parseNumber().getOr(0.0f32)
+                let b = parser.parseNumber().getOr(0.0f32)
                 let alpha = TokenList.parse(parser, options: options).unwrapOr(TokenList())
                 return CssParseResult.ok(RGB(r, g, b, alpha))
             case "hsl" | "hsla" =>
-                let h = parser.parseNumber().getOr(0.0f)
-                let s = parser.parseNumber().getOr(0.0f)
-                let l = parser.parseNumber().getOr(0.0f)
+                let h = parser.parseNumber().getOr(0.0f32)
+                let s = parser.parseNumber().getOr(0.0f32)
+                let l = parser.parseNumber().getOr(0.0f32)
                 let alpha = TokenList.parse(parser, options: options).unwrapOr(TokenList())
                 return CssParseResult.ok(HSL(h, s, l, alpha))
             case "light-dark" =>
@@ -596,7 +589,7 @@ public class EnvironmentVariable {
         }
         match (fallback) {
             case Some(fb) => result = result + ", " + fb.toCss()
-            case None => {}
+            case None => ()
         }
         return result + ")"
     }

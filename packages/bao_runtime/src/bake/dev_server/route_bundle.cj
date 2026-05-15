@@ -4,8 +4,48 @@
 package bao_runtime.bake.dev_server
 
 /// 路由 Bundle - 每个可导航路由的捆绑状态
+public struct Index <: UInt30 {}
+
+public class Framework {
+    public var route_index: Route.Index
+    /// 缓存以避免每次请求重新创建数组
+    public var cached_module_list: Strong.Optional
+    /// 缓存的客户端 bundle URL
+    public var cached_client_bundle_url: Strong.Optional
+    /// 缓存的 CSS 文件数组
+    public var cached_css_file_array: Strong.Optional
+    /// 当 state == .evaluation_failure 时填充
+    public var evaluate_failure: ?SerializedFailure = None
+}
+
+public class HTML {
+    public var html_bundle: RefPtr<HTMLBundleRoute>
+    public var bundled_file: IncrementalGraphClientFileIndex
+    /// 当 HTML 文件被修改（非其导入）时失效
+    public var script_injection_offset: ByteOffset.Optional
+    /// bundler 输出的 HTML 文本
+    public var bundled_html_text: ?String = None
+    /// 从 bundled_html_text + client_script_generation 派生
+    public var cached_response: ?StaticRoute = None
+
+    public struct ByteOffset <: UInt32 {}
+}
+
+public enum State {
+    | unqueued                    // 从未构建
+    | bundling                    // 正在捆绑
+    | deferred_to_next_bundle     // 将在下一个 bundle 中发生
+    | possible_bundling_failures  // 标记有捆绑失败
+    | evaluation_failure          // 运行时加载失败
+    | loaded                      // 已加载
+}
+
+public enum UnresolvedIndex {
+    | framework(Route.Index)      // FrameworkRouter 提供的路由
+    | html(HTMLBundleRoute)       // HTMLBundle 提供的路由
+}
+
 public class RouteBundle {
-    public struct Index <: UInt30 {}
 
     public var server_state: State
     /// 有两种不同类型的路由 bundle
@@ -22,47 +62,12 @@ public class RouteBundle {
     public var active_viewers: UInt32
 
     /// 框架路由数据
-    public class Framework {
-        public var route_index: Route.Index
-        /// 缓存以避免每次请求重新创建数组
-        public var cached_module_list: Strong.Optional
-        /// 缓存的客户端 bundle URL
-        public var cached_client_bundle_url: Strong.Optional
-        /// 缓存的 CSS 文件数组
-        public var cached_css_file_array: Strong.Optional
-        /// 当 state == .evaluation_failure 时填充
-        public var evaluate_failure: ?SerializedFailure = None
-    }
 
     /// HTML 路由数据
-    public class HTML {
-        public var html_bundle: RefPtr<HTMLBundleRoute>
-        public var bundled_file: IncrementalGraphClientFileIndex
-        /// 当 HTML 文件被修改（非其导入）时失效
-        public var script_injection_offset: ByteOffset.Optional
-        /// bundler 输出的 HTML 文本
-        public var bundled_html_text: ?String = None
-        /// 从 bundled_html_text + client_script_generation 派生
-        public var cached_response: ?StaticRoute = None
-
-        public struct ByteOffset <: UInt32 {}
-    }
 
     /// 路由 Bundle 状态
-    public enum State {
-        | unqueued                    // 从未构建
-        | bundling                    // 正在捆绑
-        | deferred_to_next_bundle     // 将在下一个 bundle 中发生
-        | possible_bundling_failures  // 标记有捆绑失败
-        | evaluation_failure          // 运行时加载失败
-        | loaded                      // 已加载
-    }
 
     /// 未解析的索引
-    public enum UnresolvedIndex {
-        | framework(Route.Index)      // FrameworkRouter 提供的路由
-        | html(HTMLBundleRoute)       // HTMLBundle 提供的路由
-    }
 
     /// 析构
     public func deinit(allocator: Allocator): Unit {

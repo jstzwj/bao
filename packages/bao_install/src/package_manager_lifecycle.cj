@@ -136,7 +136,7 @@ public class LifecycleScriptList {
         for (item in items) {
             match (item) {
                 case Some(_) => return true
-                case None => {}
+                case None => ()
             }
         }
         return false
@@ -224,7 +224,7 @@ public class LifecycleScriptRunner {
                                 bao_core.Output.command(script)
                             }
                         }
-                        case None => {}
+                        case None => ()
                     }
                 }
             }

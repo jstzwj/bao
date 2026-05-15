@@ -24,9 +24,9 @@ public class DiffConfig {
 
 /// 差异操作类型
 public enum DiffOperation {
-    case insert
-    case delete
-    case equal
+    | insert
+    | delete
+    | equal
 }
 
 /// 差异项
@@ -45,9 +45,9 @@ public class Diff {
 
     public func toString(): String {
         let opStr = match (operation) {
-            case equal => "="
-            case insert => "+"
-            case delete => "-"
+            | equal => "="
+            | insert => "+"
+            | delete => "-"
         }
         return "(${opStr}, \"${text}\")"
     }
@@ -277,7 +277,7 @@ public class DiffMatchPatch {
         let hm2 = halfMatchI(longText: longText, shortText: shortText, i: Int64(longText.length) / 2)
         var best: ?HalfMatchResult = None
         if hm1 != None && hm2 != None {
-            best = hm1!.commonMid.length > hm2!.commonMid.length ? hm1 : hm2
+            best = hm1.getOrThrow().commonMid.length > hm2.getOrThrow().commonMid.length ? hm1 : hm2
         } else {
             best = hm1 != None ? hm1 : hm2
         }

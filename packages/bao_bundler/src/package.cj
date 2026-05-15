@@ -106,7 +106,7 @@ public class Resolver {
             let resolved = tryResolve(nmPath)
             match (resolved) {
                 case Some(p) => return Some(p)
-                case None => {}
+                case None => ()
             }
             // 尝试 package.json
             let pkgPath = Path.join([nmPath, "package.json"])

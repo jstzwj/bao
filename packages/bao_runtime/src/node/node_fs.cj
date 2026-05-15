@@ -736,7 +736,7 @@ public class StatOrNotFound {
             return JsValue()
         }
         if (stats != None) {
-            return stats!.toJsValue(globalObject)
+            return stats.getOrThrow().toJsValue(globalObject)
         }
         return JsValue()
     }
@@ -1325,7 +1325,7 @@ public class NodeFS {
         if (args.path == None) {
             return Maybe<Bool>(result: false)
         }
-        let path = args.path!.slice()
+        let path = args.path.getOrThrow().slice()
         return Maybe<Bool>(result: System.access(path, mode: 0))
     }
 

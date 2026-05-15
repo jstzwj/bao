@@ -113,7 +113,7 @@ public class SecurityAdvisory {
                     sb.append("    ${desc}\n")
                 }
             }
-            case None => {}
+            case None => ()
         }
 
         match (url) {
@@ -122,7 +122,7 @@ public class SecurityAdvisory {
                     sb.append("    ${u}\n")
                 }
             }
-            case None => {}
+            case None => ()
         }
 
         return sb.toString()

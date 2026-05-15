@@ -72,11 +72,11 @@ public class UdpSocketConfig {
                                 ))
                             }
                         }
-                        case None => {}
+                        case None => ()
                     }
                 }
             }
-            case None => {}
+            case None => ()
         }
 
         return config
@@ -209,7 +209,7 @@ public class UdpSocket {
             case Some(conn) => {
                 connectSocket(fd, conn.address, conn.port)
             }
-            case None => {}
+            case None => ()
         }
     }
 

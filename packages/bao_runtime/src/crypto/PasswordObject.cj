@@ -129,7 +129,7 @@ public class PasswordObject {
                     let alg = Algorithm.fromLabel(algorithmString)
                     match (alg) {
                         case None => return None
-                        case _ => {}
+                        case _ => ()
                     }
                     let algorithm = alg!!
 
@@ -689,7 +689,7 @@ public class JSPasswordObject {
             let algOpt = PasswordObject.AlgorithmValue.fromJs(globalObject, args[1])
             match (algOpt) {
                 case Some(a) => algorithm = a
-                case None => {}
+                case None => ()
             }
         }
 
@@ -715,7 +715,7 @@ public class JSPasswordObject {
             let algOpt = PasswordObject.AlgorithmValue.fromJs(globalObject, args[1])
             match (algOpt) {
                 case Some(a) => algorithm = a
-                case None => {}
+                case None => ()
             }
         }
 

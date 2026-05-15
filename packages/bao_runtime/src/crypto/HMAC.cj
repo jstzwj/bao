@@ -27,12 +27,12 @@ public class HMAC {
 
     /// 初始化 HMAC
     /// 对应 Bun: pub fn init(algorithm: EVP.Algorithm, key: []const u8) ?*HMAC
-    public static func init(algorithm: EVP.Algorithm, key: Array<Byte>): ?HMAC {
+    public static func initFunc(algorithm: EVP.Algorithm, key: Array<Byte>): ?HMAC {
         // const md = algorithm.md() orelse return null;
         let md = algorithm.md()
         match (md) {
             case None => return None
-            case _ => {}
+            case _ => ()
         }
         let mdVal = md!!
 

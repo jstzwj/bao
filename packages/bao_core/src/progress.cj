@@ -6,6 +6,118 @@
 // 仓颉: 使用仓颉并发原语实现等价功能
 package bao_core
 
+/// 进度节点单位类型 - 对应 Bun Node.unit
+/// pub const unit: enum { none, files, bytes } = .none
+public enum ProgressUnit {
+    | None
+    | Files
+    | Bytes
+}
+
+/// 进度节点 - 对应 Bun Progress.Node
+/// pub const Node = struct {
+///     context: *Progress,
+///     parent: ?*Node,
+///     name: []const u8,
+///     unit: enum { none, files, bytes } = .none,
+///     recently_updated_child: ?*Node = null,
+///     unprotected_estimated_total_items: usize,
+///     unprotected_completed_items: usize,
+/// };
+public class ProgressNode {
+    /// 所属 Progress 上下文
+    public let context: Progress
+    /// 父节点
+    public let parent: ?ProgressNode
+    /// 节点名称
+    public var name: String
+    /// 单位类型
+    public var unit: ProgressUnit
+    /// 预估总数 (0 表示未知)
+    public var estimatedTotalItems: Int64
+    /// 已完成数
+    public var completedItems: Int64
+    /// 最近更新的子节点
+    public var recentlyUpdatedChild: ?ProgressNode
+
+    public init(context: Progress, parent: ?ProgressNode, name: String, estimatedTotalItems: Int64) {
+        this.context = context
+        this.parent = parent
+        this.name = name
+        this.unit = ProgressUnit.None
+        this.estimatedTotalItems = estimatedTotalItems
+        this.completedItems = 0
+        this.recentlyUpdatedChild = None
+    }
+
+    /// 创建子节点 - 对应 Bun Node.start
+    public func start(name: String, estimatedTotalItems: Int64): ProgressNode {
+        let child = ProgressNode(context: context, parent: Some(this), name: name, estimatedTotalItems: estimatedTotalItems)
+        this.recentlyUpdatedChild = Some(child)
+        return child
+    }
+
+    /// 完成一个项目 - 对应 Bun Node.completeOne
+    public func completeOne(): Unit {
+        if (parent != None) {
+            parent.getOrThrow().recentlyUpdatedChild = Some(this)
+        }
+        completedItems += 1
+        context.maybeRefresh()
+    }
+
+    /// 结束节点 - 对应 Bun Node.end
+    public func end(): Unit {
+        context.maybeRefresh()
+        match (parent) {
+            case Some(p) =>
+                if (p.recentlyUpdatedChild == Some(this)) {
+                    p.recentlyUpdatedChild = None
+                }
+                p.completeOne()
+            case None =>
+                context.done = true
+                context.refresh()
+        }
+    }
+
+    /// 激活节点 - 对应 Bun Node.activate
+    public func activate(): Unit {
+        match (parent) {
+            case Some(p) =>
+                p.recentlyUpdatedChild = Some(this)
+                context.maybeRefresh()
+            case None => ()
+        }
+    }
+
+    /// 设置名称 - 对应 Bun Node.setName
+    public func setName(name: String): Unit {
+        this.name = name
+        match (parent) {
+            case Some(p) =>
+                p.recentlyUpdatedChild = Some(this)
+                context.maybeRefresh()
+            case None => ()
+        }
+    }
+
+    /// 设置单位 - 对应 Bun Node.setUnit
+    public func setUnit(unit: ProgressUnit): Unit {
+        this.unit = unit
+    }
+
+    /// 设置预估总数 - 对应 Bun Node.setEstimatedTotalItems
+    public func setEstimatedTotalItems(count: Int64): Unit {
+        estimatedTotalItems = count
+    }
+
+    /// 设置已完成数 - 对应 Bun Node.setCompletedItems
+    public func setCompletedItems(count: Int64): Unit {
+        completedItems = count
+    }
+}
+
 /// 终端进度条 - 严格对应 Bun Progress
 /// Bun: 非分配、非失败、线程安全的进度指示器
 /// 仓颉: 简化实现, 保持核心 API 语义
@@ -15,161 +127,9 @@ package bao_core
 ///   - 初始延迟 (initial_delay_ns)
 ///   - 支持 ANSI 转义码的终端输出
 public class Progress {
-    /// 进度节点单位类型 - 对应 Bun Node.unit
-    /// pub const unit: enum { none, files, bytes } = .none
-    public enum Unit {
-        | None
-        | Files
-        | Bytes
-    }
-
-    /// 进度节点 - 对应 Bun Progress.Node
-    /// pub const Node = struct {
-    ///     context: *Progress,
-    ///     parent: ?*Node,
-    ///     name: []const u8,
-    ///     unit: enum { none, files, bytes } = .none,
-    ///     recently_updated_child: ?*Node = null,
-    ///     unprotected_estimated_total_items: usize,
-    ///     unprotected_completed_items: usize,
-    /// };
-    public class Node {
-        /// 所属 Progress 上下文
-        public let context: Progress
-        /// 父节点
-        public let parent: ?Node
-        /// 节点名称
-        public var name: String
-        /// 单位类型
-        public var unit: Unit
-        /// 预估总数 (0 表示未知)
-        public var estimatedTotalItems: Int64
-        /// 已完成数
-        public var completedItems: Int64
-        /// 最近更新的子节点
-        public var recentlyUpdatedChild: ?Node
-
-        public init(context: Progress, parent: ?Node, name: String, estimatedTotalItems: Int64) {
-            this.context = context
-            this.parent = parent
-            this.name = name
-            this.unit = Unit.None
-            this.estimatedTotalItems = estimatedTotalItems
-            this.completedItems = 0
-            this.recentlyUpdatedChild = None
-        }
-
-        /// 创建子节点 - 对应 Bun Node.start
-        /// pub fn start(self: *Node, name: []const u8, estimated_total_items: usize) Node {
-        ///     return Node{
-        ///         .context = self.context,
-        ///         .parent = self,
-        ///         .name = name,
-        ///         .unprotected_estimated_total_items = estimated_total_items,
-        ///         .unprotected_completed_items = 0,
-        ///     };
-        /// }
-        public func start(name: String, estimatedTotalItems: Int64): Node {
-            let child = Node(context: context, parent: Some(this), name: name, estimatedTotalItems: estimatedTotalItems)
-            this.recentlyUpdatedChild = Some(child)
-            return child
-        }
-
-        /// 完成一个项目 - 对应 Bun Node.completeOne
-        /// pub fn completeOne(self: *Node) void {
-        ///     if (self.parent) |parent| {
-        ///         @atomicStore(?*Node, &parent.recently_updated_child, self, .release);
-        ///     }
-        ///     _ = @atomicRmw(usize, &self.unprotected_completed_items, .Add, 1, .monotonic);
-        ///     self.context.maybeRefresh();
-        /// }
-        public func completeOne(): Unit {
-            if (parent != None) {
-                parent.getOrThrow().recentlyUpdatedChild = Some(this)
-            }
-            completedItems += 1
-            context.maybeRefresh()
-        }
-
-        /// 结束节点 - 对应 Bun Node.end
-        /// pub fn end(self: *Node) void {
-        ///     self.context.maybeRefresh();
-        ///     if (self.parent) |parent| {
-        ///         _ = @cmpxchgStrong(?*Node, &parent.recently_updated_child, self, null, .monotonic, .monotonic);
-        ///         parent.completeOne();
-        ///     } else {
-        ///         self.context.update_mutex.lock();
-        ///         defer self.context.update_mutex.unlock();
-        ///         self.context.done = true;
-        ///         self.context.refreshWithHeldLock();
-        ///     }
-        /// }
-        public func end(): Unit {
-            context.maybeRefresh()
-            match (parent) {
-                case Some(p) =>
-                    if (p.recentlyUpdatedChild == Some(this)) {
-                        p.recentlyUpdatedChild = None
-                    }
-                    p.completeOne()
-                case None =>
-                    context.done = true
-                    context.refresh()
-            }
-        }
-
-        /// 激活节点 - 对应 Bun Node.activate
-        /// pub fn activate(self: *Node) void {
-        ///     if (self.parent) |parent| {
-        ///         @atomicStore(?*Node, &parent.recently_updated_child, self, .release);
-        ///         self.context.maybeRefresh();
-        ///     }
-        /// }
-        public func activate(): Unit {
-            match (parent) {
-                case Some(p) =>
-                    p.recentlyUpdatedChild = Some(this)
-                    context.maybeRefresh()
-                case None => {}
-            }
-        }
-
-        /// 设置名称 - 对应 Bun Node.setName
-        /// pub fn setName(self: *Node, name: []const u8) void
-        public func setName(name: String): Unit {
-            this.name = name
-            match (parent) {
-                case Some(p) =>
-                    p.recentlyUpdatedChild = Some(this)
-                    context.maybeRefresh()
-                case None => {}
-            }
-        }
-
-        /// 设置单位 - 对应 Bun Node.setUnit
-        public func setUnit(unit: Unit): Unit {
-            this.unit = unit
-        }
-
-        /// 设置预估总数 - 对应 Bun Node.setEstimatedTotalItems
-        /// pub fn setEstimatedTotalItems(self: *Node, count: usize) void {
-        ///     @atomicStore(usize, &self.unprotected_estimated_total_items, count, .monotonic);
-        /// }
-        public func setEstimatedTotalItems(count: Int64): Unit {
-            estimatedTotalItems = count
-        }
-
-        /// 设置已完成数 - 对应 Bun Node.setCompletedItems
-        /// pub fn setCompletedItems(self: *Node, completed_items: usize) void {
-        ///     @atomicStore(usize, &self.unprotected_completed_items, completed_items, .monotonic);
-        /// }
-        public func setCompletedItems(count: Int64): Unit {
-            completedItems = count
-        }
-    }
 
     /// 根节点
-    private var root: ?Node
+    private var root: ?ProgressNode
     /// 是否完成
     public var done: Bool
     /// 是否支持 ANSI 转义码
@@ -215,8 +175,8 @@ public class Progress {
     ///     self.done = false;
     ///     return &self.root;
     /// }
-    public func start(name: String, estimatedTotalItems: Int64): Node {
-        let node = Node(context: this, parent: None, name: name, estimatedTotalItems: estimatedTotalItems)
+    public func start(name: String, estimatedTotalItems: Int64): ProgressNode {
+        let node = ProgressNode(context: this, parent: None, name: name, estimatedTotalItems: estimatedTotalItems)
         root = Some(node)
         done = false
         prevRefreshTimestamp = 0

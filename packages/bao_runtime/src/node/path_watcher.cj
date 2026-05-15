@@ -31,15 +31,15 @@ public class PosixPathWatcherManager {
             watcher = PathWatcher(path: path, recursive: recursive)
             watchers.put(path, watcher!)
         }
-        watcher!.addHandler(handler)
+        watcher.getOrThrow().addHandler(handler)
     }
 
     // 取消监视
     public func unwatch(path: String, handler: PathWatchHandler): Unit {
         let watcher = watchers.get(path)
         if (watcher != None) {
-            watcher!.removeHandler(handler)
-            if (watcher!.handlerCount() == 0) {
+            watcher.getOrThrow().removeHandler(handler)
+            if (watcher.getOrThrow().handlerCount() == 0) {
                 watchers.remove(path)
             }
         }

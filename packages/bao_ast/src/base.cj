@@ -136,7 +136,7 @@ public class Ref {
 
     /// 初始化 - 对应 Bun Ref.init()
     /// Bun: pub fn init(inner_index: Int, source_index: u32, is_source_contents_slice: bool) Ref
-    public static func init(innerIndex: Int32, sourceIndex: Int32, isSourceContentsSlice: Bool): Ref {
+    public static func initFunc(innerIndex: Int32, sourceIndex: Int32, isSourceContentsSlice: Bool): Ref {
         return Ref(
             innerIndex,
             if (isSourceContentsSlice) { RefTag.SourceContentsSlice } else { RefTag.AllocatedName },

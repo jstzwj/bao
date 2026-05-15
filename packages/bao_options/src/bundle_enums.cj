@@ -12,15 +12,12 @@ import bao_core.*
 
 /// 输出格式 - 对应 Bun Format
 public enum BundleFormat {
-    | Esm       // ES module 格式 (默认)
-    | Iife      // 立即执行函数表达式
-    | Cjs       // CommonJS
-    | InternalBakeDev  // Bake 开发模式
-
-    /// 是否保留 ES6 import/export 语法
-    public func keepES6ImportExportSyntax(): Bool {
-        this == BundleFormat.Esm
-    }
+    | Esm
+    | Iife
+    | Cjs
+    | InternalBakeDev
+    | this
+}
 
     /// 是否为 ESM 格式
     public func isESM(): Bool {

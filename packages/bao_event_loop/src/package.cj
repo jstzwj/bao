@@ -367,7 +367,7 @@ public class MiniEventLoop {
     }
 
     /// 静态初始化 - 对应 Bun MiniEventLoop.init()
-    public static func init(): MiniEventLoop {
+    public static func initFunc(): MiniEventLoop {
         return MiniEventLoop()
     }
 

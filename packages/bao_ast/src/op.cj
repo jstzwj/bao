@@ -57,7 +57,7 @@ public enum OpCode {
     | BinLooseEq     // ==       左结合
     | BinLooseNe     // !=       左结合
     | BinStrictEq    // ===      左结合
-    | BinStrictNe    // !==      左结合
+    | BinStrictNe    // !=      左结合
     | BinNullishCoalescing // ?? 左结合
     | BinLogicalOr   // ||       左结合
     | BinLogicalAnd  // &&       左结合
@@ -242,7 +242,7 @@ public enum OpCode {
             case BinLooseEq => "=="
             case BinLooseNe => "!="
             case BinStrictEq => "==="
-            case BinStrictNe => "!=="
+            case BinStrictNe => "!="
             case BinNullishCoalescing => "??"
             case BinLogicalOr => "||"
             case BinLogicalAnd => "&&"
@@ -306,7 +306,7 @@ public enum OpLevel {
     | BitwiseOr            // 9  - |
     | BitwiseXor           // 10 - ^
     | BitwiseAnd           // 11 - &
-    | Equals               // 12 - == != === !==
+    | Equals               // 12 - == != === !=
     | Compare              // 13 - < > <= >= in instanceof
     | Shift                // 14 - << >> >>>
     | Add                  // 15 - + -
@@ -446,7 +446,7 @@ public class Op {
 
     /// 从三元组初始化 - 对应 Bun Op.init(triple)
     /// Bun: pub fn init(triple: anytype) Op
-    public static func init(text: String, level: OpLevel, isKeyword: Bool): Op {
+    public static func initFunc(text: String, level: OpLevel, isKeyword: Bool): Op {
         return Op(text, level, isKeyword)
     }
 }
@@ -466,7 +466,7 @@ public class OpTable {
     private static var table: HashMap<OpCode, Op>
 
     /// 初始化查找表 - 对应 Bun Op.Table 的编译期生成
-    public static func init(): HashMap<OpCode, Op> {
+    public static func initFunc(): HashMap<OpCode, Op> {
         let t = HashMap<OpCode, Op>()
 
         // 前缀一元操作符
@@ -505,7 +505,7 @@ public class OpTable {
         t.put(OpCode.BinLooseEq, Op.init("==", OpLevel.Equals, false))
         t.put(OpCode.BinLooseNe, Op.init("!=", OpLevel.Equals, false))
         t.put(OpCode.BinStrictEq, Op.init("===", OpLevel.Equals, false))
-        t.put(OpCode.BinStrictNe, Op.init("!==", OpLevel.Equals, false))
+        t.put(OpCode.BinStrictNe, Op.init("!=", OpLevel.Equals, false))
         t.put(OpCode.BinNullishCoalescing, Op.init("??", OpLevel.NullishCoalescing, false))
         t.put(OpCode.BinLogicalOr, Op.init("||", OpLevel.LogicalOr, false))
         t.put(OpCode.BinLogicalAnd, Op.init("&&", OpLevel.LogicalAnd, false))

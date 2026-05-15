@@ -29,14 +29,14 @@ public class WindowsPathWatcherManager {
             watcher = WindowsPathWatcher(path: path)
             watchers.put(path, watcher!)
         }
-        watcher!.addHandler(handler)
+        watcher.getOrThrow().addHandler(handler)
     }
 
     // 取消监视
     public func unwatch(path: String, handler: PathWatchHandler): Unit {
         let watcher = watchers.get(path)
         if (watcher != None) {
-            watcher!.removeHandler(handler)
+            watcher.getOrThrow().removeHandler(handler)
         }
     }
 }

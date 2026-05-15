@@ -458,7 +458,7 @@ public class MetafileOutput {
                 sb.append(",\n      \"entryPoint\": ")
                 MetafileBuilder.writeJSONString(sb, ep)
             }
-            case None => {}
+            case None => ()
         }
 
         // cssBundle
@@ -467,7 +467,7 @@ public class MetafileOutput {
                 sb.append(",\n      \"cssBundle\": ")
                 MetafileBuilder.writeJSONString(sb, css)
             }
-            case None => {}
+            case None => ()
         }
 
         sb.append("\n    }")

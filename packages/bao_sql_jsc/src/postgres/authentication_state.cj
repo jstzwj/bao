@@ -11,15 +11,10 @@ public enum AuthenticationState {
     | Pending
     | None
     | OK
-    | SASL(PostgresSASL)
+    | SASL
     | MD5
-
-    /// 重置状态
-    /// 对应 Bun: AuthenticationState.zero
-    public mutating func zero(): Unit {
-        // 释放 SASL 资源
-        this = None
-    }
+    | this
+}
 }
 
 /// Postgres SASL 认证

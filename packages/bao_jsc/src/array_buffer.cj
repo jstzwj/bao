@@ -15,6 +15,7 @@ package bao_jsc
 //       TypeBigInt64, TypeBigUint64, TypeDataView,
 //   };
 public enum TypedArrayType {
+    | None
 }
     }
 
@@ -65,6 +66,7 @@ public enum TypedArrayType {
 // 严格翻译自 array_buffer.zig ArrayBuffer.BinaryType
 // 用于 WebSocket/Buffer 二进制类型选择
 public enum BinaryType {
+    | None
 }
     }
 

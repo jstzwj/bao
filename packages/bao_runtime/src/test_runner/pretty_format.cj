@@ -166,6 +166,7 @@ public class JestPrettyFormat {
 
 /// 事件类型枚举
 public enum EventType {
+    | None
 }
     }
 }

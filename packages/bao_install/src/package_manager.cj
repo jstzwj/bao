@@ -539,7 +539,7 @@ public class PackageManager {
     ///   3. 设置 HTTP 线程
     ///   4. 加载 npmrc 配置
     ///   5. 加载锁文件
-    public static func init(
+    public static func initFunc(
         allocator: Allocator,
         log: Log,
         env: DotEnvLoader,
@@ -565,7 +565,7 @@ public class PackageManager {
         // 检查详细安装标志
         match (env.get("BUN_INSTALL_VERBOSE")) {
             case Some(_) => PackageManager.verboseInstall = true
-            case None => {}
+            case None => ()
         }
 
         return manager
@@ -595,7 +595,7 @@ public class PackageManager {
     public func wake(): Unit {
         match (onWake.onWake) {
             case Some(handler) => handler()
-            case None => {}
+            case None => ()
         }
     }
 
@@ -628,7 +628,7 @@ public class PackageManager {
     public func failRootResolution(dependency: DependencyInfo, dependencyId: UInt32, err: Exception): Unit {
         match (onWake.onDependencyError) {
             case Some(handler) => handler(dependency, dependencyId, err)
-            case None => {}
+            case None => ()
         }
     }
 
@@ -640,7 +640,7 @@ public class PackageManager {
         // BUN_INSTALL_CACHE_DIR
         match (env.get("BUN_INSTALL_CACHE_DIR")) {
             case Some(dir) => return dir
-            case None => {}
+            case None => ()
         }
         // 默认: ~/.bun/install/cache
         match (bao_sys.SysModule.getEnv("HOME")) {
@@ -705,7 +705,7 @@ public class PackageManager {
         var folderName = "${name}@${version}"
         match (patchHash) {
             case Some(hash) => folderName = "${folderName}_${bao_hash.Wyhash.toHexString(hash)}"
-            case None => {}
+            case None => ()
         }
         return folderName.replace("/", "+")
     }
@@ -716,11 +716,11 @@ public class PackageManager {
         var folderName = "git_${repo.owner}_${repo.repo}"
         match (repo.committish) {
             case c if c.length > 0 => folderName = "${folderName}_${c}"
-            case _ => {}
+            case _ => ()
         }
         match (patchHash) {
             case Some(hash) => folderName = "${folderName}_${bao_hash.Wyhash.toHexString(hash)}"
-            case None => {}
+            case None => ()
         }
         return folderName
     }
@@ -731,11 +731,11 @@ public class PackageManager {
         var folderName = "github_${repo.owner}_${repo.repo}"
         match (repo.committish) {
             case c if c.length > 0 => folderName = "${folderName}_${c}"
-            case _ => {}
+            case _ => ()
         }
         match (patchHash) {
             case Some(hash) => folderName = "${folderName}_${bao_hash.Wyhash.toHexString(hash)}"
-            case None => {}
+            case None => ()
         }
         return folderName
     }
@@ -747,7 +747,7 @@ public class PackageManager {
         var folderName = "tar_${bao_hash.Wyhash.toHexString(hash)}"
         match (patchHash) {
             case Some(h) => folderName = "${folderName}_${bao_hash.Wyhash.toHexString(h)}"
-            case None => {}
+            case None => ()
         }
         return folderName
     }
@@ -789,9 +789,9 @@ public class PackageManager {
         match (task.taskType) {
             case NetworkTaskType.PackageManifest => processManifestResponse(task)
             case NetworkTaskType.Extract => processExtractResponse(task)
-            case NetworkTaskType.GitClone => {}
-            case NetworkTaskType.GitCheckout => {}
-            case NetworkTaskType.LocalTarball => {}
+            case NetworkTaskType.GitClone => ()
+            case NetworkTaskType.GitCheckout => ()
+            case NetworkTaskType.LocalTarball => ()
         }
         decrementPendingTasks()
     }
@@ -815,7 +815,7 @@ public class PackageManager {
                     case PackageVersionResponseTag.Fresh => {
                         match (response.manifest) {
                             case Some(m) => manifests.put(cb.name, m)
-                            case None => {}
+                            case None => ()
                         }
                     }
                     case PackageVersionResponseTag.Cached => {
@@ -829,7 +829,7 @@ public class PackageManager {
                     }
                 }
             }
-            case None => {}
+            case None => ()
         }
     }
 
@@ -845,7 +845,7 @@ public class PackageManager {
                     bao_core.Output.error("Failed to download tarball for ${cb.name}: HTTP ${task.statusCode}")
                 }
             }
-            case None => {}
+            case None => ()
         }
     }
 
@@ -869,7 +869,7 @@ public class PackageManager {
             // 已有相同任务在运行, 添加回调
             match (taskQueue.get(taskId)) {
                 case Some(list) => list.append(context)
-                case None => {}
+                case None => ()
             }
             return
         }
@@ -971,11 +971,11 @@ public class PackageManager {
     public func httpProxy(url: String): ?String {
         match (env.get("http_proxy")) {
             case Some(p) => return p
-            case None => {}
+            case None => ()
         }
         match (env.get("https_proxy")) {
             case Some(p) => return p
-            case None => {}
+            case None => ()
         }
         return None
     }
@@ -997,7 +997,7 @@ public class PackageManager {
         for (v in ciVars) {
             match (env.get(v)) {
                 case Some(_) => return true
-                case None => {}
+                case None => ()
             }
         }
         return false

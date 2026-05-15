@@ -31,7 +31,7 @@ public class JSPrinter {
     /// 打印表达式 - 对应 printExpr()
     public func printExpr(expr: Expr, level: OpLevel, flags: ExprFlags): Unit {
         match (expr.tag) {
-            case ExprTag.Missing => {}
+            case ExprTag.Missing => ()
             case ExprTag.Undefined => {
                 addSourceMapping(expr.loc)
                 printUndefined(expr.loc, level)
@@ -164,7 +164,7 @@ public class JSPrinter {
             case ExprTag.JsxElement | ExprTag.JsxFragment => {
                 // JSX 不应出现在打印机中
             }
-            case _ => {}
+            case _ => ()
         }
     }
 
@@ -751,7 +751,7 @@ public class JSPrinter {
                 case ExprTag.Object => {
                     // wrap = true  -- 需要括号包裹
                 }
-                case _ => {}
+                case _ => ()
             }
         }
 
@@ -919,7 +919,7 @@ public class JSPrinter {
             case OpCode.BinEq => OpEntry("==", OpLevel.Equality, false, op)
             case OpCode.BinNe => OpEntry("!=", OpLevel.Equality, false, op)
             case OpCode.BinEqStrict => OpEntry("===", OpLevel.Equality, false, op)
-            case OpCode.BinNeStrict => OpEntry("!==", OpLevel.Equality, false, op)
+            case OpCode.BinNeStrict => OpEntry("!=", OpLevel.Equality, false, op)
             case OpCode.BinAnd => OpEntry("&", OpLevel.BitwiseAnd, false, op)
             case OpCode.BinOr => OpEntry("|", OpLevel.BitwiseOr, false, op)
             case OpCode.BinXor => OpEntry("^", OpLevel.BitwiseXor, false, op)

@@ -14,6 +14,6 @@ import bao_core.*
 /// 将 Semver String 转换为 JS 值 - 严格对应 Bun toJS
 /// Zig: pub fn toJS(this: *const String, buffer: []const u8, globalThis) bun.JSError!jsc.JSValue
 /// Zig: return bun.String.createUTF8ForJS(globalThis, this.slice(buffer))
-public func semverStringToJS(this: SemverString, buffer: Array<Byte>, globalThis: JSGlobalObject): JSValue {
+public func semverStringToJS(`this`: SemverString, buffer: Array<Byte>, globalThis: JSGlobalObject): JSValue {
     return BaoString.createUTF8ForJS(globalThis, this.slice(buffer))
 }

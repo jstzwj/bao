@@ -75,7 +75,7 @@ public class ParentDeathWatchdog {
             return
         }
         let envValue = getEnv("BUN_FEATURE_FLAG_NO_ORPHANS")
-        if (envValue == None || envValue!.isEmpty) {
+        if (envValue == None || envValue.getOrThrow().isEmpty) {
             return
         }
         enable()

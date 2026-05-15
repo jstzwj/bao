@@ -135,7 +135,7 @@ public class LifecycleScriptSubprocessFull {
                     // 翻译自: 使用 shell -c 或 bun exec 执行
                     executeScript(combinedScript)
                 }
-                case None => {}
+                case None => ()
             }
         }
     }

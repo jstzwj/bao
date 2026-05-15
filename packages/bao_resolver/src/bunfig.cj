@@ -301,7 +301,7 @@ public class BunfigParser {
                     case "external" => {
                         result.external = parseArrayValue(value)
                     }
-                    case _ => {}
+                    case _ => ()
                 }
             }
             case "define" => {
@@ -347,7 +347,7 @@ public class BunfigParser {
             case "filter" | "path" => {
                 config.testFilter.append(stripQuotes(value))
             }
-            case _ => {}
+            case _ => ()
         }
     }
 
@@ -362,7 +362,7 @@ public class BunfigParser {
             case "lockfile" => config.lockfile = stripQuotes(value)
             case "peer" => config.peer = parseBool(value)
             case "dryRun" => config.dryRun = parseBool(value)
-            case _ => {}
+            case _ => ()
         }
     }
 
@@ -372,7 +372,7 @@ public class BunfigParser {
             case "silent" => config.silent = parseBool(value)
             case "shell" => config.shell = stripQuotes(value)
             case "cwd" => config.cwd = stripQuotes(value)
-            case _ => {}
+            case _ => ()
         }
     }
 
@@ -388,7 +388,7 @@ public class BunfigParser {
             case "name" => config.name = stripQuotes(value)
             case "rootdir" => config.rootdir = stripQuotes(value)
             case "splitting" => config.splitting = parseBool(value)
-            case _ => {}
+            case _ => ()
         }
     }
 

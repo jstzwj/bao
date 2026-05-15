@@ -691,7 +691,7 @@ public class HttpServer {
 
     /// 从配置初始化
     /// 对应 Bun: pub fn init(config: *ServerConfig, global: *JSGlobalObject) bun.JSOOM!*ThisServer
-    public static func init(config: ServerConfig, global: JSGlobalObject): HttpServer {
+    public static func initFunc(config: ServerConfig, global: JSGlobalObject): HttpServer {
         let baseUrl = DefaultAllocator().dupe(config.baseUrl.href.trim('/'))
         let devServer = if (let bakeOptions = config.bake) {
             DevServer.init(DevServer.Options(

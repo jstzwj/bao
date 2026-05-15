@@ -40,13 +40,13 @@ public func getCandidatePackagePatterns(
     var currentDir = workdir
 
     while (true) {
-        val jsonPath = Path.join(currentDir, "package.json")
+        let jsonPath = Path.join(currentDir, "package.json")
 
         log.clear()
 
-        val jsonSource = BaoFile.readAllText(jsonPath)
+        let jsonSource = BaoFile.readAllText(jsonPath)
         if (jsonSource == None) {
-            val parent = Path.dirname(currentDir)
+            let parent = Path.dirname(currentDir)
             if (parent == currentDir || parent.length == 0) {
                 break
             }
@@ -54,11 +54,11 @@ public func getCandidatePackagePatterns(
             continue
         }
 
-        val json = JsonParser.parse(jsonSource!!)
+        let json = JsonParser.parse(jsonSource!!)
 
-        val workspacesProp = json?.getProperty("workspaces")
+        let workspacesProp = json?.getProperty("workspaces")
         if (workspacesProp == None) {
-            val parent = Path.dirname(currentDir)
+            let parent = Path.dirname(currentDir)
             if (parent == currentDir || parent.length == 0) {
                 break
             }
@@ -71,7 +71,7 @@ public func getCandidatePackagePatterns(
         if (workspacesProp!!.isArray()) {
             jsonArr = workspacesProp!!.asArray()
         } else if (workspacesProp!!.isObject()) {
-            val packages = workspacesProp!!.getProperty("packages")
+            let packages = workspacesProp!!.getProperty("packages")
             if (packages != None && packages!!.isArray()) {
                 jsonArr = packages!!.asArray()
             }
@@ -80,8 +80,8 @@ public func getCandidatePackagePatterns(
         if (jsonArr != None) {
             for (expr in jsonArr!!) {
                 if (expr.isString()) {
-                    val patternExpr = expr.asString()
-                    val pattern = patternExpr + "/package.json"
+                    let patternExpr = expr.asString()
+                    let pattern = patternExpr + "/package.json"
                     outPatterns.append(pattern)
                 } else {
                     Output.prettyErrorLn("error: Failed to parse \"workspaces\" property: all items must be strings")
@@ -90,14 +90,14 @@ public func getCandidatePackagePatterns(
             }
         }
 
-        val parentTrimmed = Strings.withoutTrailingSlash(currentDir)
+        let parentTrimmed = Strings.withoutTrailingSlash(currentDir)
         rootBuf.append(parentTrimmed)
         return parentTrimmed
     }
 
     // 未找到 workspace root, 使用通配符
     outPatterns.append("**/package.json")
-    val rootDir = Strings.withoutTrailingSlash(workdir)
+    let rootDir = Strings.withoutTrailingSlash(workdir)
     rootBuf.append(rootDir)
     return rootDir
 }
@@ -128,9 +128,9 @@ public class FilterSet {
                 continue
             }
 
-            val isPath = filterUtf8.length > 0 && filterUtf8[0] == '.'
+            let isPath = filterUtf8.length > 0 && filterUtf8[0] == '.'
             if (isPath) {
-                val resolved = Path.resolve(cwd, filterUtf8).replace('\\', '/')
+                let resolved = Path.resolve(cwd, filterUtf8).replace('\\', '/')
                 this.filters.append(Pattern(resolved, PatternKind.path))
             } else {
                 this.hasNameFilters = true
@@ -167,7 +167,7 @@ public class FilterSet {
     /// 匹配路径或名称
     public func matchesPathName(path: String, name: String): Bool {
         for (filter in filters) {
-            val target = when (filter.kind) {
+            let target = when (filter.kind) {
                 case PatternKind.name => name
                 case PatternKind.path => path
             }
@@ -244,7 +244,7 @@ public class PackageFilterIterator {
                 }
             }
 
-            val path = walkerNext()
+            let path = walkerNext()
             if (path != None) {
                 return path
             } else {
@@ -257,7 +257,7 @@ public class PackageFilterIterator {
 
     /// 初始化 walker
     private func initWalker(): Unit {
-        val pattern = patterns[patternIdx.toInt()]
+        let pattern = patterns[patternIdx.toInt()]
         walker = GlobWalker(rootDir, pattern, true, true, false, true, true)
         walker!!.init()
     }
@@ -276,7 +276,7 @@ public class PackageFilterIterator {
             return None
         }
         while (true) {
-            val result = walker!!.next()
+            let result = walker!!.next()
             when (result) {
                 case Some(path) => return path
                 case None => return None

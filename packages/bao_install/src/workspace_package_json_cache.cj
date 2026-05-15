@@ -129,7 +129,7 @@ public class WorkspacePackageJsonCache {
         // 检查缓存
         match (map.get(absPackageJsonPath)) {
             case Some(entry) => return PackageJsonGetResult.Entry(entry)
-            case None => {}
+            case None => ()
         }
 
         // 从磁盘读取
@@ -169,7 +169,7 @@ public class WorkspacePackageJsonCache {
         // 检查缓存
         match (map.get(path)) {
             case Some(entry) => return PackageJsonGetResult.Entry(entry)
-            case None => {}
+            case None => ()
         }
 
         // 解析 JSON

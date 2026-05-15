@@ -6,6 +6,8 @@ package bao_runtime.bake.dev_server
 /// 哈希资产存储。通过 /_bun/asset/{hash}.ext 提供。
 /// 键是绝对路径，与 IncrementalGraph(.client) 中的键共享内存。
 /// 值是文件的索引。
+public struct EntryIndex <: UInt30 {}
+
 public class Assets {
     /// 键是绝对路径，与 IncrementalGraph(.client) 中的键共享内存
     public var path_map: StringArrayHashMapUnmanaged<EntryIndex>
@@ -17,7 +19,6 @@ public class Assets {
     public var needs_reindex: Bool = false
 
     /// EntryIndex
-    public struct EntryIndex <: UInt30 {}
 
     /// 获取路径对应的哈希值
     public func getHash(path: String): ?UInt64 {

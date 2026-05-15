@@ -54,7 +54,7 @@ public class FfiObject {
                             }
                         }
                     }
-                    case None => {}
+                    case None => ()
                 }
 
                 // 安全检查
@@ -158,7 +158,7 @@ public class FfiObject {
                     }
                 }
             }
-            case None => {}
+            case None => ()
         }
 
         // 安全检查
@@ -186,7 +186,7 @@ public class FfiObject {
                     return FfiSliceResult.Slice(slice)
                 }
             }
-            case None => {}
+            case None => ()
         }
 
         // 无长度: 读取到 NUL 终止符 (C 字符串)
@@ -352,7 +352,7 @@ public class FfiObject {
     // @C foreign func read_i64(addr: Int64): Int64
     private static func readI64FromMemory(addr: Int64): Int64 { 0 }
     // @C foreign func read_f32(addr: Int64): Float32
-    private static func readF32FromMemory(addr: Int64): Float32 { 0.0f }
+    private static func readF32FromMemory(addr: Int64): Float32 { 0.0f32 }
     // @C foreign func read_f64(addr: Int64): Float64
     private static func readF64FromMemory(addr: Int64): Float64 { 0.0 }
 }

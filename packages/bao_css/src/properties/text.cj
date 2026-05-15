@@ -35,7 +35,7 @@ public class TextTransform {
     public func toCss(): String {
         var parts = ArrayList<String>()
         match (case_) {
-            case TextTransformCase.None => {}
+            case TextTransformCase.None => ()
             case _ => parts.append(case_.toCss())
         }
         if (other != TextTransformOther.None) {

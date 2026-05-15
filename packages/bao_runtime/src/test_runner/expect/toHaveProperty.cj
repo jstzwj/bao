@@ -54,7 +54,7 @@ public func toHaveProperty(`this`: Expect, globalThis: JSGlobalObject, callFrame
             if receivedProperty != JSValue.zero {
                 return this.throw_(globalThis: globalThis, signature: signature,
                     fmt: "\n\nExpected path: <green>{f}<r>\n\nExpected value: not <green>{f}<r>\n",
-                    args: [expectedPropertyPath.toFmt(formatter), expectedProperty!.toFmt(formatter)])
+                    args: [expectedPropertyPath.toFmt(formatter), expectedProperty.getOrThrow().toFmt(formatter)])
             }
         }
 
@@ -75,7 +75,7 @@ public func toHaveProperty(`this`: Expect, globalThis: JSGlobalObject, callFrame
         let fmt = "\n\nExpected path: <green>{f}<r>\n\nExpected value: <green>{f}<r>\n\n" +
             "Unable to find property\n"
         return this.throw_(globalThis: globalThis, signature: signature, fmt: fmt,
-            args: [expectedPropertyPath.toFmt(formatter), expectedProperty!.toFmt(formatter)])
+            args: [expectedPropertyPath.toFmt(formatter), expectedProperty.getOrThrow().toFmt(formatter)])
     }
 
     let signature = Expect.getSignature(matcherName: "toHaveProperty", args: "<green>path<r>", not: false)

@@ -66,10 +66,10 @@ public class Frame {
     /// 写入字符串 (长度前缀)
     /// 对应 Bun: Frame.str()
     public func str(s: String): Unit {
-        val trunc = "\n... [output truncated: would exceed --parallel IPC frame limit]\n"
-        val headroom = 256
-        val used = (buf.size - 5) + 4  // 当前载荷 + str-len 前缀
-        val room = if (MAX_PAYLOAD > used + headroom) MAX_PAYLOAD - used - headroom else 0
+        let trunc = "\n... [output truncated: would exceed --parallel IPC frame limit]\n"
+        let headroom = 256
+        let used = (buf.size - 5) + 4  // 当前载荷 + str-len 前缀
+        let room = if (MAX_PAYLOAD > used + headroom) MAX_PAYLOAD - used - headroom else 0
 
         if (s.length <= room) {
             u32_(s.length)
@@ -79,7 +79,7 @@ public class Frame {
             return
         }
 
-        val keep = if (room > trunc.length) room - trunc.length else 0
+        let keep = if (room > trunc.length) room - trunc.length else 0
         u32_(keep + trunc.length)
         for (i in 0..keep) {
             buf.append(s[i].toByte())
@@ -92,7 +92,7 @@ public class Frame {
     /// 完成帧并返回编码字节
     /// 对应 Bun: Frame.finish()
     public func finish(): Array<Byte> {
-        val payloadLen = buf.size - 5
+        let payloadLen = buf.size - 5
         // 写入 payload_len (小端)
         buf[0] = Byte(payloadLen & 0xFF)
         buf[1] = Byte((payloadLen >> 8) & 0xFF)
@@ -141,7 +141,7 @@ public class FrameReader {
         if (pos + 4 > data.length) {
             return 0
         }
-        val v = (data[pos].toInt() and 0xFF) or
+        let v = (data[pos].toInt() and 0xFF) or
                 ((data[pos + 1].toInt() and 0xFF) << 8) or
                 ((data[pos + 2].toInt() and 0xFF) << 16) or
                 ((data[pos + 3].toInt() and 0xFF) << 24)
@@ -152,11 +152,11 @@ public class FrameReader {
     /// 读取字符串
     /// 对应 Bun: Reader.str()
     public func str(): String {
-        val n = u32_()
+        let n = u32_()
         if (pos + n > data.length) {
             return ""
         }
-        val bytes = ByteArray(n.toInt())
+        let bytes = ByteArray(n.toInt())
         for (i in 0..n) {
             bytes[i.toInt()] = data[pos + i]
         }

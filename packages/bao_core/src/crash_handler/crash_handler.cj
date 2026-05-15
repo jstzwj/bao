@@ -474,7 +474,7 @@ public class CrashHandler {
     /// 对应 Bun: pub fn init() void
     ///   Windows: AddVectoredExceptionHandler
     ///   POSIX: sigaction(SIGSEGV/SIGILL/SIGBUS/SIGFPE, handler)
-    public static func init(): Unit {
+    public static func initFunc(): Unit {
         if (!CRASH_HANDLER_ENABLE) { return }
         if (initialized) { return }
         initialized = true
@@ -569,18 +569,9 @@ public class CrashHandler {
     public static func handleRootError(err: ErrorCode): Nothing {
         match (err) {
             case OutOfMemory => handleOutOfMemory()
-            case InvalidArgument => {
-                // exit(1) 如果不显示追踪
-                abort()
-            }
-            case ENOENT => {
-                // 输出 ENOENT 错误
-                abort()
-            }
-            case _ => {
-                // 通用内部错误处理
-                abort()
-            }
+            case InvalidArgument => abort()
+            case ENOENT => abort()
+            case _ => abort()
         }
     }
 
@@ -610,7 +601,7 @@ public class CrashHandler {
     public static func removePreCrashHandler(handler: (CrashReport) -> Unit): Unit {
         var newHandlers = ArrayList<(CrashReport) -> Unit>()
         for (h in preCrashHandlers) {
-            if (h !== handler) {
+            if (h != handler) {
                 newHandlers.append(h)
             }
         }

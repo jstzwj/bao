@@ -399,7 +399,7 @@ public class Socket {
                 twin = None
                 raw.onClose(errno)
             }
-            case None => {}
+            case None => ()
         }
 
         defer {
@@ -442,7 +442,7 @@ public class Socket {
                     return
                 }
             }
-            case NativeCallback.None => {}
+            case NativeCallback.None => ()
         }
 
         let h = getHandlers()
@@ -470,7 +470,7 @@ public class Socket {
                     return
                 }
             }
-            case NativeCallback.None => {}
+            case NativeCallback.None => ()
         }
 
         let h = getHandlers()
@@ -571,7 +571,7 @@ public class Socket {
         if (isClosed()) {
             match (socketState) {
                 case Shutdown => return -1
-                case _ => {}
+                case _ => ()
             }
         }
 
@@ -869,7 +869,7 @@ public class Socket {
                         handlers = None
                     }
                 }
-                case None => {}
+                case None => ()
             }
         }
     }
@@ -888,7 +888,7 @@ public class Socket {
             case NativeCallback.H2(h2) => {
                 nativeCallback = NativeCallback.None
             }
-            case NativeCallback.None => {}
+            case NativeCallback.None => ()
         }
     }
 
@@ -973,7 +973,7 @@ public class Socket {
                 c.deinit()
                 connection = None
             }
-            case None => {}
+            case None => ()
         }
     }
 

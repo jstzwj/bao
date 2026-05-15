@@ -101,7 +101,7 @@ public class JSONTransformer {
                         sb.append(generateValue(value))
                         sb.append(";\n")
                     }
-                    case None => {}
+                    case None => ()
                 }
             }
         }

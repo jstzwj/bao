@@ -552,7 +552,7 @@ public class ArgParser {
                 // 添加默认值
                 match (spec.defaultValue) {
                     case Some(v) => help += " (default: ${v})"
-                    case None => {}
+                    case None => ()
                 }
 
                 // 添加必需标记

@@ -412,13 +412,13 @@ public class FileSink {
                     case Some(opts) => {
                         match (setup(opts)) {
                             case Some(err) => return Some(err)
-                            case None => {}
+                            case None => ()
                         }
                     }
-                    case None => {}
+                    case None => ()
                 }
             }
-            case _ => {}
+            case _ => ()
         }
 
         done = false

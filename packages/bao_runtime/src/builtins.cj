@@ -622,7 +622,7 @@ public class JsonParser {
         // 应用 replacer
         match (replacer) {
             case Some(r) => v = r(key, v)
-            case None => {}
+            case None => ()
         }
 
         match (v.valueType) {

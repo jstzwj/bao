@@ -25,12 +25,12 @@ public class NodeModuleModule {
         // 搜索每个路径
         if let paths = pathsMaybe {
             for (path in paths.iterator(global)) {
-                if let found = findPathInner(request, path, global) {
+                if (let Some(found) <- findPathInner(request, path, global)) {
                     return found
                 }
             }
         } else {
-            if let found = findPathInner(request, "", global) {
+            if (let Some(found) <- findPathInner(request, "", global)) {
                 return found
             }
         }

@@ -76,7 +76,7 @@ public class Zone {
 
     /// 初始化分区
     /// 对应 Zig: pub fn init(comptime name: [:0]const u8) *Zone
-    public static func init(name: String): Zone {
+    public static func initFunc(name: String): Zone {
         let zone = Zone(name: name)
         // 调用 malloc_create_zone 创建区域
         zone.zonePtr = MallocZoneFFI.mallocCreateZone(0, 0)

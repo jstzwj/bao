@@ -206,7 +206,7 @@ public class Installer {
                 // 调度任务
                 scheduleTask(task)
             }
-            case _ => {}
+            case _ => ()
         }
     }
 
@@ -225,7 +225,7 @@ public class Installer {
                     startTask(entryId)
                 }
             }
-            case None => {}
+            case None => ()
         }
     }
 

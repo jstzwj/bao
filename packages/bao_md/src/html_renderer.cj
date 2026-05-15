@@ -51,7 +51,7 @@ public class HtmlRenderer {
     /// 进入块
     public func enterBlock(blockType: BlockType, data: UInt32, flags: UInt32): Unit {
         match (blockType) {
-            case BlockType.doc => {}
+            case BlockType.doc => ()
             case BlockType.quote => {
                 ensureNewline()
                 write("<blockquote>\n")
@@ -160,12 +160,12 @@ public class HtmlRenderer {
     /// 离开块
     public func leaveBlock(blockType: BlockType, data: UInt32): Unit {
         match (blockType) {
-            case BlockType.doc => {}
+            case BlockType.doc => ()
             case BlockType.quote => write("</blockquote>\n")
             case BlockType.ul => write("</ul>\n")
             case BlockType.ol => write("</ol>\n")
             case BlockType.li => write("</li>\n")
-            case BlockType.hr => {}
+            case BlockType.hr => ()
             case BlockType.h => {
                 if (heading_tracker.enabled && in_heading) {
                     let slug = heading_tracker.leaveHeading()
@@ -229,7 +229,7 @@ public class HtmlRenderer {
                 in_heading = false
             }
             case BlockType.code => write("</code></pre>\n")
-            case BlockType.html => {}
+            case BlockType.html => ()
             case BlockType.p => write("</p>\n")
             case BlockType.table => write("</table>\n")
             case BlockType.thead => write("</thead>\n")
@@ -337,7 +337,7 @@ public class HtmlRenderer {
             case SpanType.latexmath => write("</x-equation>")
             case SpanType.latexmath_display => write("</x-equation>")
             case SpanType.wikilink => write("</x-wikilink>")
-            case SpanType.img => {} // 在上方处理
+            case SpanType.img => () // 在上方处理
         }
     }
 
@@ -353,7 +353,7 @@ public class HtmlRenderer {
         heading_tracker.trackText(textType, content)
 
         match (textType) {
-            case TextType.null_char => write("\xEF\xBF\xBD")
+            case TextType.null_char => write("\u{EF}\u{BF}\u{BD}")
             case TextType.br => {
                 if (inImage) {
                     write(" ")

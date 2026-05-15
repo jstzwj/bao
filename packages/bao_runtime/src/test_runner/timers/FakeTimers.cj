@@ -103,7 +103,7 @@ public class FakeTimers {
         while true {
             let peek = timers.peek()
             if peek == None { break }
-            if peek!.next.greater(until) { break }
+            if peek.getOrThrow().next.greater(until) { break }
             let next = timers.deleteMin()
             if next != None {
                 fire(globalObject: globalObject, next: next!)
@@ -115,7 +115,7 @@ public class FakeTimers {
     public func executeOnlyPendingTimers(globalObject: JSGlobalObject) {
         let target = timers.findMax()
         if target == None { return }
-        let until = target!.next
+        let until = target.getOrThrow().next
         executeUntil(globalObject: globalObject, until: until)
     }
 
@@ -236,7 +236,7 @@ public class FakeTimers {
         // 当advanceTimersByTime(0)时, 推进1ms以触发setTimeout(fn, 0)
         // 这是因为setTimeout(fn, 0)内部按HTML规范有1ms延迟
         let effectiveAdvance = argNumber == 0 ? 1.0 : argNumber
-        let target = current!.addMsFloat(effectiveAdvance)
+        let target = current.getOrThrow().addMsFloat(effectiveAdvance)
 
         fakeTimers.executeUntil(globalObject: globalObject, until: target)
         FakeTimers.currentTime.set(globalObject, offset: target)

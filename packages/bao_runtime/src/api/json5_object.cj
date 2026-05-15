@@ -122,7 +122,7 @@ public class Stringifier {
         case str(BunString)
     }
 
-    public static func init(global: JsGlobalObject, spaceValue: JsValue): Stringifier {
+    public static func initFunc(global: JsGlobalObject, spaceValue: JsValue): Stringifier {
         return Stringifier(
             stackCheck: StackCheck.init(),
             builder: StringBuilder.init(),
@@ -250,7 +250,7 @@ public class Stringifier {
     /// 换行和缩进
     public func newline(): Unit {
         match (space) {
-            case .minified => {}
+            case .minified => ()
             case .number(let spaceNum) =>
                 builder.appendChar('\n')
                 for (_ in 0..(indent * Int(spaceNum))) {

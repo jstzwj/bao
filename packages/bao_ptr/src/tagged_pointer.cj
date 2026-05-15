@@ -40,7 +40,7 @@ public struct TaggedPointer {
     /// 初始化标记指针
     /// ptr: 任意指针类型
     /// data: 标记数据 (Tag)
-    public static func init(ptr: UInt64, data: UInt16): TaggedPointer {
+    public static func initFunc(ptr: UInt64, data: UInt16): TaggedPointer {
         TaggedPointer(_ptr: ptr, data: data)
     }
 
@@ -197,7 +197,7 @@ public class TaggedPointerUnion {
     }
 
     /// 初始化 (使用指定指针和类型标记)
-    public static func init(ptr: UInt64, tag: UInt16): TaggedPointerUnion {
+    public static func initFunc(ptr: UInt64, tag: UInt16): TaggedPointerUnion {
         let union_ = TaggedPointerUnion()
         union_.repr = TaggedPointer.init(ptr, tag)
         return union_

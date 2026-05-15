@@ -380,14 +380,17 @@ public class RequestEnsureRouteBundledCtx {
 /// HMR主题
 /// 对应 Bun: pub const HmrTopic = ...
 public enum HmrTopic {
+    | None
 }
 
 /// 消息ID
 public enum MessageId {
+    | None
 }
 
 /// 传入消息ID
 public enum IncomingMessageId {
+    | None
 }
 
 /// 控制台日志种类
@@ -609,7 +612,7 @@ public class DevServer {
 
     /// 初始化DevServer
     /// 对应 Bun: pub fn init(options: Options) bun.JSOOM!*DevServer
-    public static func init(options: Options): ?DevServer {
+    public static func initFunc(options: Options): ?DevServer {
         let dev = DevServer()
         dev.allocationScope = AllocationScope.initDefault()
         dev.root = options.root
@@ -1075,7 +1078,7 @@ public class DevServer {
                         resp.end("Plugin Error", false)
                         return
                     }
-                    case .loaded => {}
+                    case .loaded => ()
                 }
 
                 // 准备bundle
@@ -1412,14 +1415,14 @@ public enum DevResponse {
     public func writeStatus(status: String): Unit {
         switch (this) {
             case .http(let resp) => resp.writeStatus(status)
-            case .none => {}
+            case .none => ()
         }
     }
 
     public func end(body: String, close: Bool): Unit {
         switch (this) {
             case .http(let resp) => resp.end(body, close)
-            case .none => {}
+            case .none => ()
         }
     }
 }

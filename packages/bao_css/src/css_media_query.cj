@@ -902,7 +902,7 @@ public enum MediaFeatureValue {
         match (this) {
             case length(l) => MediaFeatureValue.length(l.add(allocator, CssLength.px(other)))
             case number(n) => MediaFeatureValue.number(n + other)
-            case integer(i) => MediaFeatureValue.integer(i + (if (other >= 0.0f) 1 else -1))
+            case integer(i) => MediaFeatureValue.integer(i + (if (other >= 0.0f32) 1 else -1))
             case boolean(b) => MediaFeatureValue.boolean(b)
             case resolution(r) => MediaFeatureValue.resolution(r.addF32(allocator, other))
             case ratio(r) => MediaFeatureValue.ratio(r.addF32(allocator, other))

@@ -314,8 +314,8 @@ public class S3Signer {
         }
 
         // URI 编码
-        val encodedBucket = encodeURIComponent(bucket, false)
-        val encodedPath = encodeURIComponent(path, false)
+        let encodedBucket = encodeURIComponent(bucket, false)
+        let encodedPath = encodeURIComponent(path, false)
 
         // 构建主机
         var host = credentials.endpoint
@@ -335,38 +335,38 @@ public class S3Signer {
         }
 
         // 规范化路径
-        val normalizedPath = if (credentials.virtualHostedStyle) {
+        let normalizedPath = if (credentials.virtualHostedStyle) {
             "${extraPath}/${encodedPath}"
         } else {
             "${extraPath}/${encodedBucket}/${encodedPath}"
         }
 
         // 获取 AMZ 日期
-        val amzDate = getAmzDate()
-        val amzDay = amzDate.substring(0, 8)
+        let amzDate = getAmzDate()
+        let amzDay = amzDate.substring(0, 8)
 
         // 内容哈希
-        val awsContentHash = match (options.contentHash) {
+        let awsContentHash = match (options.contentHash) {
             case Some(h) => h
             case None => "UNSIGNED-PAYLOAD"
         }
 
         // 构建 signed headers 列表
         // 对应 Bun: SignedHeaders.get(key)
-        val hasContentDisposition = options.contentDisposition != None &&
+        let hasContentDisposition = options.contentDisposition != None &&
                                      match (options.contentDisposition) {
                                          case Some(s) => s.size > 0
                                          case None => false
                                      }
-        val hasContentEncoding = options.contentEncoding != None &&
+        let hasContentEncoding = options.contentEncoding != None &&
                                   match (options.contentEncoding) {
                                       case Some(s) => s.size > 0
                                       case None => false
                                   }
-        val hasContentMd5 = options.contentMd5 != None
-        val hasAcl = options.acl != None
-        val hasSessionToken = credentials.sessionToken.size > 0
-        val hasStorageClass = options.storageClass != None
+        let hasContentMd5 = options.contentMd5 != None
+        let hasAcl = options.acl != None
+        let hasSessionToken = credentials.sessionToken.size > 0
+        let hasStorageClass = options.storageClass != None
 
         var signedHeaders = StringBuilder()
         if (hasContentDisposition) { signedHeaders.append("content-disposition;") }
@@ -382,12 +382,12 @@ public class S3Signer {
 
         // 构建 Canonical Request
         // 对应 Bun: CanonicalRequest.format()
-        val queryString = match (options.searchParams) {
+        let queryString = match (options.searchParams) {
             case Some(p) => if (p.startsWith("?")) { p.substring(1) } else { p }
             case None => ""
         }
 
-        val canonicalRequest = buildCanonicalRequest(
+        let canonicalRequest = buildCanonicalRequest(
             options.method, normalizedPath, queryString,
             hasContentDisposition, hasContentEncoding, hasContentMd5,
             options.contentDisposition, options.contentEncoding, options.contentMd5,
@@ -400,26 +400,26 @@ public class S3Signer {
         )
 
         // 计算 canonical request 的 SHA256 哈希
-        val canonicalHash = Sha256.hashHex(stringToBytes(canonicalRequest))
+        let canonicalHash = Sha256.hashHex(stringToBytes(canonicalRequest))
 
         // 构建 String-to-Sign
         // 对应 Bun: "AWS4-HMAC-SHA256\n{date}\n{day}/{region}/s3/aws4_request\n{hash}"
-        val stringToSign = "AWS4-HMAC-SHA256\n${amzDate}\n${amzDay}/${region}/${SERVICE_NAME}/aws4_request\n${canonicalHash}"
+        let stringToSign = "AWS4-HMAC-SHA256\n${amzDate}\n${amzDay}/${region}/${SERVICE_NAME}/aws4_request\n${canonicalHash}"
 
         // 派生签名密钥
         // 对应 Bun: sigDate -> sigDateRegion -> sigDateRegionService -> sigDateRegionServiceReq
-        val signingKey = deriveSigningKey(credentials.secretAccessKey, amzDay, region)
+        let signingKey = deriveSigningKey(credentials.secretAccessKey, amzDay, region)
 
         // 计算签名
-        val signature = HmacSha256.hmacHex(signingKey, stringToSign)
+        let signature = HmacSha256.hmacHex(signingKey, stringToSign)
 
         // 构建 Authorization header
         // 对应 Bun: "AWS4-HMAC-SHA256 Credential={key}/{day}/{region}/s3/aws4_request, SignedHeaders={headers}, Signature={sig}"
-        val authorization = "AWS4-HMAC-SHA256 Credential=${credentials.accessKeyId}/${amzDay}/${region}/${SERVICE_NAME}/aws4_request, SignedHeaders=${signedHeadersStr}, Signature=${signature}"
+        let authorization = "AWS4-HMAC-SHA256 Credential=${credentials.accessKeyId}/${amzDay}/${region}/${SERVICE_NAME}/aws4_request, SignedHeaders=${signedHeadersStr}, Signature=${signature}"
 
         // 构建结果
-        val protocol = if (credentials.insecureHttp) { "http" } else { "https" }
-        val result = SignResult()
+        let protocol = if (credentials.insecureHttp) { "http" } else { "https" }
+        let result = SignResult()
         result.amzDate = amzDate
         result.host = host
         result.authorization = authorization
@@ -499,7 +499,7 @@ public class S3Signer {
         if (path.startsWith("/")) { path = path.substring(1) }
         path = normalizePath(path)
 
-        val encodedPath = encodeURIComponent(path, false)
+        let encodedPath = encodeURIComponent(path, false)
 
         var host = if (credentials.endpoint.size > 0) {
             credentials.endpoint
@@ -507,18 +507,18 @@ public class S3Signer {
             "s3.${region}.amazonaws.com"
         }
 
-        val normalizedPath = "/${encodedPath}"
-        val amzDate = getAmzDate()
-        val amzDay = amzDate.substring(0, 8)
-        val awsContentHash = "UNSIGNED-PAYLOAD"
-        val protocol = if (credentials.insecureHttp) { "http" } else { "https" }
+        let normalizedPath = "/${encodedPath}"
+        let amzDate = getAmzDate()
+        let amzDay = amzDate.substring(0, 8)
+        let awsContentHash = "UNSIGNED-PAYLOAD"
+        let protocol = if (credentials.insecureHttp) { "http" } else { "https" }
 
         // 派生签名密钥
-        val signingKey = deriveSigningKey(credentials.secretAccessKey, amzDay, region)
+        let signingKey = deriveSigningKey(credentials.secretAccessKey, amzDay, region)
 
         // 构建 presigned URL 的 canonical request
         // 查询参数按字母序排列
-        val credential = "${credentials.accessKeyId}/${amzDay}/${region}/${SERVICE_NAME}/aws4_request"
+        let credential = "${credentials.accessKeyId}/${amzDay}/${region}/${SERVICE_NAME}/aws4_request"
 
         var queryParts = ArrayList<String>()
         queryParts.append("X-Amz-Algorithm=AWS4-HMAC-SHA256")
@@ -531,17 +531,17 @@ public class S3Signer {
         queryParts.append("X-Amz-SignedHeaders=host")
 
         // 构建查询字符串
-        val queryString = queryParts.toArray().toString("&")
+        let queryString = queryParts.toArray().toString("&")
 
         // Canonical request for presigned URL
-        val canonicalRequest = "${options.method}\n${normalizedPath}\n${queryString}\nhost:${host}\n\nhost\n${awsContentHash}"
+        let canonicalRequest = "${options.method}\n${normalizedPath}\n${queryString}\nhost:${host}\n\nhost\n${awsContentHash}"
 
-        val canonicalHash = Sha256.hashHex(stringToBytes(canonicalRequest))
-        val stringToSign = "AWS4-HMAC-SHA256\n${amzDate}\n${amzDay}/${region}/${SERVICE_NAME}/aws4_request\n${canonicalHash}"
-        val signature = HmacSha256.hmacHex(signingKey, stringToSign)
+        let canonicalHash = Sha256.hashHex(stringToBytes(canonicalRequest))
+        let stringToSign = "AWS4-HMAC-SHA256\n${amzDate}\n${amzDay}/${region}/${SERVICE_NAME}/aws4_request\n${canonicalHash}"
+        let signature = HmacSha256.hmacHex(signingKey, stringToSign)
 
         // 构建最终 URL
-        val url = "${protocol}://${host}${normalizedPath}?${queryString}&X-Amz-Signature=${signature}"
+        let url = "${protocol}://${host}${normalizedPath}?${queryString}&X-Amz-Signature=${signature}"
 
         return Result<String>.Ok(url)
     }
@@ -624,10 +624,10 @@ public class S3Signer {
     /// HMAC key derivation: date/region/service/aws4_request
     private static func deriveSigningKey(secretKey: String, date: String,
                                           region: String): Array<UInt8> {
-        val kDate = HmacSha256.hmac("AWS4${secretKey}", date)
-        val kRegion = HmacSha256.hmac(kDate, region)
-        val kService = HmacSha256.hmac(kRegion, SERVICE_NAME)
-        val kSigning = HmacSha256.hmac(kService, "aws4_request")
+        let kDate = HmacSha256.hmac("AWS4${secretKey}", date)
+        let kRegion = HmacSha256.hmac(kDate, region)
+        let kService = HmacSha256.hmac(kRegion, SERVICE_NAME)
+        let kSigning = HmacSha256.hmac(kService, "aws4_request")
         return kSigning
     }
 
@@ -706,7 +706,7 @@ public class S3Signer {
         // Zeller 算法简化版
         var y = Int64(1970)
         var d = days
-        val daysInMonth = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+        let daysInMonth = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
 
         // 年
         var yearDays = if (isLeapYear(y)) { 366 } else { 365 }

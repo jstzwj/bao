@@ -221,7 +221,7 @@ public class LockfileFormat {
         for (key in tree.packages.keys()) {
             match (tree.packages.get(key)) {
                 case Some(pkg) => sortedPkgs.append(pkg)
-                case None => {}
+                case None => ()
             }
         }
         sortedPkgs.sortBy(func(a: ResolvedPackage, b: ResolvedPackage): Int64 {
@@ -414,7 +414,7 @@ public class LockfileFormat {
                     sb.append("${escapeJson(key)}: ${escapeJson(val)}")
                     first = false
                 }
-                case None => {}
+                case None => ()
             }
         }
         sb.append(" }")
@@ -448,7 +448,7 @@ public class LockfileFormat {
                                     let entry = parsePackageEntry(pkgKey, arr)
                                     match (entry) {
                                         case Some(e) => result.append(e)
-                                        case None => {}
+                                        case None => ()
                                     }
                                 }
                                 // 兼容旧格式: 对象格式
@@ -456,17 +456,17 @@ public class LockfileFormat {
                                     let entry = parseLegacyPackageEntry(pkgKey, pkgObj)
                                     match (entry) {
                                         case Some(e) => result.append(e)
-                                        case None => {}
+                                        case None => ()
                                     }
                                 }
-                                case _ => {}
+                                case _ => ()
                             }
                         }
                     }
-                    case _ => {}
+                    case _ => ()
                 }
             }
-            case None => {}
+            case None => ()
         }
 
         return result
@@ -502,13 +502,13 @@ public class LockfileFormat {
                                     case JsonValue.Object(depsObj) => {
                                         extractDeps(depsObj, p)
                                     }
-                                    case _ => {}
+                                    case _ => ()
                                 }
                             }
                             if (arr.size >= 4) {
                                 match (arr[3]) {
                                     case JsonValue.Str(integrity) => p.integrity = integrity
-                                    case _ => {}
+                                    case _ => ()
                                 }
                             }
                         }
@@ -523,17 +523,17 @@ public class LockfileFormat {
                                             p.integrity = integrityOrRef
                                         }
                                     }
-                                    case _ => {}
+                                    case _ => ()
                                 }
                                 if (arr.size >= 4) {
                                     match (arr[3]) {
                                         case JsonValue.Str(integrity) => p.integrity = integrity
-                                        case _ => {}
+                                        case _ => ()
                                     }
                                 }
                             }
                         }
-                        case _ => {}
+                        case _ => ()
                     }
                 }
                 return Some(p)
@@ -630,11 +630,11 @@ public class LockfileFormat {
                 for (k in m.keys()) {
                     match (m.get(k)) {
                         case Some(JsonValue.Str(v)) => pkg.dependencies.put(k, v)
-                        case _ => {}
+                        case _ => ()
                     }
                 }
             }
-            case _ => {}
+            case _ => ()
         }
         // devDependencies
         match (depsObj.get("devDependencies")) {
@@ -642,11 +642,11 @@ public class LockfileFormat {
                 for (k in m.keys()) {
                     match (m.get(k)) {
                         case Some(JsonValue.Str(v)) => pkg.devDependencies.put(k, v)
-                        case _ => {}
+                        case _ => ()
                     }
                 }
             }
-            case _ => {}
+            case _ => ()
         }
         // peerDependencies
         match (depsObj.get("peerDependencies")) {
@@ -654,11 +654,11 @@ public class LockfileFormat {
                 for (k in m.keys()) {
                     match (m.get(k)) {
                         case Some(JsonValue.Str(v)) => pkg.peerDependencies.put(k, v)
-                        case _ => {}
+                        case _ => ()
                     }
                 }
             }
-            case _ => {}
+            case _ => ()
         }
         // optionalDependencies
         match (depsObj.get("optionalDependencies")) {
@@ -666,11 +666,11 @@ public class LockfileFormat {
                 for (k in m.keys()) {
                     match (m.get(k)) {
                         case Some(JsonValue.Str(v)) => pkg.optionalDependencies.put(k, v)
-                        case _ => {}
+                        case _ => ()
                     }
                 }
             }
-            case _ => {}
+            case _ => ()
         }
         // optionalPeers
         match (depsObj.get("optionalPeers")) {
@@ -678,11 +678,11 @@ public class LockfileFormat {
                 for (item in arr) {
                     match (item) {
                         case JsonValue.Str(s) => pkg.optionalPeers.append(s)
-                        case _ => {}
+                        case _ => ()
                     }
                 }
             }
-            case _ => {}
+            case _ => ()
         }
         // bin
         match (depsObj.get("bin")) {
@@ -690,26 +690,26 @@ public class LockfileFormat {
                 for (k in m.keys()) {
                     match (m.get(k)) {
                         case Some(JsonValue.Str(v)) => pkg.bin.put(k, v)
-                        case _ => {}
+                        case _ => ()
                     }
                 }
             }
-            case _ => {}
+            case _ => ()
         }
         // binDir
         match (depsObj.get("binDir")) {
             case Some(JsonValue.Str(s)) => pkg.binDir = Some(s)
-            case _ => {}
+            case _ => ()
         }
         // hasInstallScript
         match (depsObj.get("hasInstallScript")) {
             case Some(JsonValue.Bool(b)) => pkg.hasInstallScript = b
-            case _ => {}
+            case _ => ()
         }
         // bundled
         match (depsObj.get("bundled")) {
             case Some(JsonValue.Bool(b)) => pkg.isBundled = b
-            case _ => {}
+            case _ => ()
         }
         // os
         match (depsObj.get("os")) {
@@ -717,11 +717,11 @@ public class LockfileFormat {
                 for (item in arr) {
                     match (item) {
                         case JsonValue.Str(s) => pkg.os.append(s)
-                        case _ => {}
+                        case _ => ()
                     }
                 }
             }
-            case _ => {}
+            case _ => ()
         }
         // cpu
         match (depsObj.get("cpu")) {
@@ -729,11 +729,11 @@ public class LockfileFormat {
                 for (item in arr) {
                     match (item) {
                         case JsonValue.Str(s) => pkg.cpu.append(s)
-                        case _ => {}
+                        case _ => ()
                     }
                 }
             }
-            case _ => {}
+            case _ => ()
         }
     }
 
@@ -896,7 +896,7 @@ public class Lockfile {
         let result = read(LockfileFormat.DEFAULT_FILENAME)
         match (result) {
             case Some(pkgs) => return Some(pkgs)
-            case None => {}
+            case None => ()
         }
         // 回退: bun.lock
         return read("bun.lock")
@@ -939,21 +939,21 @@ public class Lockfile {
         // 查找新增和变更
         for (pkg in newPackages) {
             match (oldMap.get(pkg.key())) {
-                case Some(_) => {}  // 已存在, 检查是否变更
+                case Some(_) => ()  // 已存在, 检查是否变更
                 case None => result.added.append(pkg)
             }
 
             // 检查变更 (同名但不同版本)
             match (oldMap.get("${pkg.name}@*")) {
-                case Some(_) => {}  // 不需要
-                case None => {}
+                case Some(_) => ()  // 不需要
+                case None => ()
             }
         }
 
         // 查找删除
         for (pkg in oldPackages) {
             match (newMap.get(pkg.key())) {
-                case Some(_) => {}
+                case Some(_) => ()
                 case None => result.removed.append(pkg)
             }
         }
@@ -982,10 +982,10 @@ public class Lockfile {
                                 result.changed.append(change)
                             }
                         }
-                        case None => {}
+                        case None => ()
                     }
                 }
-                case None => {}
+                case None => ()
             }
         }
 
@@ -1049,7 +1049,7 @@ public class Lockfile {
             if (trimmed == "[[package]]") {
                 match (currentPkg) {
                     case Some(p) => result.append(p)
-                    case None => {}
+                    case None => ()
                 }
                 currentPkg = None
                 section = "package"
@@ -1108,32 +1108,32 @@ public class Lockfile {
             if (section == "dependencies") {
                 match (currentPkg) {
                     case Some(pkg) => pkg.dependencies.put(key, value)
-                    case None => {}
+                    case None => ()
                 }
             }
             if (section == "devDependencies") {
                 match (currentPkg) {
                     case Some(pkg) => pkg.devDependencies.put(key, value)
-                    case None => {}
+                    case None => ()
                 }
             }
             if (section == "peerDependencies") {
                 match (currentPkg) {
                     case Some(pkg) => pkg.peerDependencies.put(key, value)
-                    case None => {}
+                    case None => ()
                 }
             }
             if (section == "optionalDependencies") {
                 match (currentPkg) {
                     case Some(pkg) => pkg.optionalDependencies.put(key, value)
-                    case None => {}
+                    case None => ()
                 }
             }
         }
 
         match (currentPkg) {
             case Some(p) => result.append(p)
-            case None => {}
+            case None => ()
         }
 
         if (result.size > 0) {

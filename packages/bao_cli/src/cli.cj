@@ -41,7 +41,7 @@ public class Cli {
     public static func start(allocator: Allocator): Unit {
         isMainThread = true
         startTime = Time.nanoTimestamp()
-        val log = Log(allocator)
+        let log = Log(allocator)
 
         try {
             Command.start(allocator, log)
@@ -148,19 +148,19 @@ public class HelpCommand {
     /// 按原因打印帮助
     /// 对应 Bun: HelpCommand.printWithReason
     public static func printWithReason(reason: Reason, showAllFlags: Bool): Unit {
-        val rand = Random(Math.max(Time.milliTimestamp(), 0))
-        val packageXI = rand.uintAtMost(packagesToXFiller.size - 1)
-        val packageAddI = rand.uintAtMost(packagesToAddFiller.size - 1)
-        val packageRemoveI = rand.uintAtMost(packagesToRemoveFiller.size - 1)
-        val packageCreateI = rand.uintAtMost(packagesToCreateFiller.size - 1)
+        let rand = Random(Math.max(Time.milliTimestamp(), 0))
+        let packageXI = rand.uintAtMost(packagesToXFiller.size - 1)
+        let packageAddI = rand.uintAtMost(packagesToAddFiller.size - 1)
+        let packageRemoveI = rand.uintAtMost(packagesToRemoveFiller.size - 1)
+        let packageCreateI = rand.uintAtMost(packagesToCreateFiller.size - 1)
 
-        val packageX = packagesToXFiller[packageXI]
-        val packageAdd = packagesToAddFiller[packageAddI]
-        val packageRemove = packagesToRemoveFiller[packageRemoveI]
-        val packageAdd2 = packagesToAddFiller[(packageAddI + 1) % packagesToAddFiller.size]
-        val packageAdd3 = packagesToAddFiller[(packageAddI + 2) % packagesToAddFiller.size]
-        val packageAdd4 = packagesToAddFiller[(packageAddI + 3) % packagesToAddFiller.size]
-        val packageCreate = packagesToCreateFiller[packageCreateI]
+        let packageX = packagesToXFiller[packageXI]
+        let packageAdd = packagesToAddFiller[packageAddI]
+        let packageRemove = packagesToRemoveFiller[packageRemoveI]
+        let packageAdd2 = packagesToAddFiller[(packageAddI + 1) % packagesToAddFiller.size]
+        let packageAdd3 = packagesToAddFiller[(packageAddI + 2) % packagesToAddFiller.size]
+        let packageAdd4 = packagesToAddFiller[(packageAddI + 3) % packagesToAddFiller.size]
+        let packageCreate = packagesToCreateFiller[packageCreateI]
 
         when (reason) {
             case Reason.explicit => {
@@ -299,16 +299,16 @@ public class Command {
     /// 确定当前命令
     /// 对应 Bun: Command.which()
     public static func which(): CommandTag {
-        val args = BunArgv.getArgs()
+        let args = BunArgv.getArgs()
 
-        val argv0 = if (args.length > 0) args[0] else ""
+        let argv0 = if (args.length > 0) args[0] else ""
         if (argv0.length == 0) {
             return CommandTag.HelpCommand
         }
 
         if (isBunX(argv0)) {
             if (args.length > 1) {
-                val next = args[1]
+                let next = args[1]
                 if (next == "add") {
                     return CommandTag.AddCommand
                 } else if (next == "exec") {
@@ -334,7 +334,7 @@ public class Command {
             nextArg = args[argIdx]
         }
 
-        val firstArgName = nextArg
+        let firstArgName = nextArg
         return matchCommand(firstArgName, args)
     }
 
@@ -405,7 +405,7 @@ public class Command {
     /// 命令启动入口
     /// 对应 Bun: Command.start()
     public static func start(allocator: Allocator, log: Log): Unit {
-        val tag = which()
+        let tag = which()
 
         when (tag) {
             case CommandTag.DiscordCommand => DiscordCommand.exec(allocator)
@@ -414,79 +414,79 @@ public class Command {
             case CommandTag.InitCommand => InitCommand.exec(allocator, BunArgv.getArgs().slice(Math.min(2, BunArgv.getArgs().length)))
             case CommandTag.InfoCommand => execInfoCommand(allocator, log)
             case CommandTag.BuildCommand => {
-                val ctx = Command.initContext(allocator, log, CommandTag.BuildCommand)
+                let ctx = Command.initContext(allocator, log, CommandTag.BuildCommand)
                 BuildCommand.exec(ctx, None)
             }
             case CommandTag.InstallCompletionsCommand => {
                 InstallCompletionsCommand.exec(allocator)
             }
             case CommandTag.InstallCommand => {
-                val ctx = Command.initContext(allocator, log, CommandTag.InstallCommand)
+                let ctx = Command.initContext(allocator, log, CommandTag.InstallCommand)
                 InstallCommand.exec(ctx)
             }
             case CommandTag.AddCommand => {
-                val ctx = Command.initContext(allocator, log, CommandTag.AddCommand)
+                let ctx = Command.initContext(allocator, log, CommandTag.AddCommand)
                 AddCommand.exec(ctx)
             }
             case CommandTag.UpdateCommand => {
-                val ctx = Command.initContext(allocator, log, CommandTag.UpdateCommand)
+                let ctx = Command.initContext(allocator, log, CommandTag.UpdateCommand)
                 UpdateCommand.exec(ctx)
             }
             case CommandTag.PatchCommand => {
-                val ctx = Command.initContext(allocator, log, CommandTag.PatchCommand)
+                let ctx = Command.initContext(allocator, log, CommandTag.PatchCommand)
                 PatchCommand.exec(ctx)
             }
             case CommandTag.PatchCommitCommand => {
-                val ctx = Command.initContext(allocator, log, CommandTag.PatchCommitCommand)
+                let ctx = Command.initContext(allocator, log, CommandTag.PatchCommitCommand)
                 PatchCommitCommand.exec(ctx)
             }
             case CommandTag.OutdatedCommand => {
-                val ctx = Command.initContext(allocator, log, CommandTag.OutdatedCommand)
+                let ctx = Command.initContext(allocator, log, CommandTag.OutdatedCommand)
                 OutdatedCommand.exec(ctx)
             }
             case CommandTag.UpdateInteractiveCommand => {
-                val ctx = Command.initContext(allocator, log, CommandTag.UpdateInteractiveCommand)
+                let ctx = Command.initContext(allocator, log, CommandTag.UpdateInteractiveCommand)
                 UpdateInteractiveCommand.exec(ctx)
             }
             case CommandTag.PublishCommand => {
-                val ctx = Command.initContext(allocator, log, CommandTag.PublishCommand)
+                let ctx = Command.initContext(allocator, log, CommandTag.PublishCommand)
                 PublishCommand.exec(ctx)
             }
             case CommandTag.AuditCommand => {
-                val ctx = Command.initContext(allocator, log, CommandTag.AuditCommand)
+                let ctx = Command.initContext(allocator, log, CommandTag.AuditCommand)
                 AuditCommand.exec(ctx)
             }
             case CommandTag.WhyCommand => {
-                val ctx = Command.initContext(allocator, log, CommandTag.WhyCommand)
+                let ctx = Command.initContext(allocator, log, CommandTag.WhyCommand)
                 WhyCommand.exec(ctx)
             }
             case CommandTag.BunxCommand => {
-                val ctx = Command.initContext(allocator, log, CommandTag.BunxCommand)
-                val offset = if (isBunxExe) 0 else 1
+                let ctx = Command.initContext(allocator, log, CommandTag.BunxCommand)
+                let offset = if (isBunxExe) 0 else 1
                 BunxCommand.exec(ctx, BunArgv.getArgs().slice(offset))
             }
             case CommandTag.ReplCommand => {
-                val ctx = Command.initContext(allocator, log, CommandTag.RunCommand)
+                let ctx = Command.initContext(allocator, log, CommandTag.RunCommand)
                 ReplCommand.exec(ctx)
             }
             case CommandTag.RemoveCommand => {
-                val ctx = Command.initContext(allocator, log, CommandTag.RemoveCommand)
+                let ctx = Command.initContext(allocator, log, CommandTag.RemoveCommand)
                 RemoveCommand.exec(ctx)
             }
             case CommandTag.LinkCommand => {
-                val ctx = Command.initContext(allocator, log, CommandTag.LinkCommand)
+                let ctx = Command.initContext(allocator, log, CommandTag.LinkCommand)
                 LinkCommand.exec(ctx)
             }
             case CommandTag.UnlinkCommand => {
-                val ctx = Command.initContext(allocator, log, CommandTag.UnlinkCommand)
+                let ctx = Command.initContext(allocator, log, CommandTag.UnlinkCommand)
                 UnlinkCommand.exec(ctx)
             }
             case CommandTag.PackageManagerCommand => {
-                val ctx = Command.initContext(allocator, log, CommandTag.PackageManagerCommand)
+                let ctx = Command.initContext(allocator, log, CommandTag.PackageManagerCommand)
                 PackageManagerCommand.exec(ctx)
             }
             case CommandTag.TestCommand => {
-                val ctx = Command.initContext(allocator, log, CommandTag.TestCommand)
+                let ctx = Command.initContext(allocator, log, CommandTag.TestCommand)
                 TestCommand.exec(ctx)
             }
             case CommandTag.GetCompletionsCommand => {
@@ -496,7 +496,7 @@ public class Command {
                 execCreate(allocator, log)
             }
             case CommandTag.RunCommand => {
-                val ctx = Command.initContext(allocator, log, CommandTag.RunCommand)
+                let ctx = Command.initContext(allocator, log, CommandTag.RunCommand)
                 ctx.args.target = Target.bun
 
                 if (ctx.parallel || ctx.sequential) {
@@ -525,15 +525,15 @@ public class Command {
                 }
             }
             case CommandTag.RunAsNodeCommand => {
-                val ctx = Command.initContext(allocator, log, CommandTag.RunAsNodeCommand)
+                let ctx = Command.initContext(allocator, log, CommandTag.RunAsNodeCommand)
                 RunCommand.execAsIfNode(ctx)
             }
             case CommandTag.UpgradeCommand => {
-                val ctx = Command.initContext(allocator, log, CommandTag.UpgradeCommand)
+                let ctx = Command.initContext(allocator, log, CommandTag.UpgradeCommand)
                 UpgradeCommand.exec(ctx)
             }
             case CommandTag.AutoCommand => {
-                val ctx = try {
+                let ctx = try {
                     Command.initContext(allocator, log, CommandTag.AutoCommand)
                 } catch (e: Exception) {
                     HelpCommand.execWithReason(allocator, HelpCommand.Reason.explicit)
@@ -575,7 +575,7 @@ public class Command {
                 HelpCommand.exec(allocator)
             }
             case CommandTag.ExecCommand => {
-                val ctx = Command.initContext(allocator, log, CommandTag.ExecCommand)
+                let ctx = Command.initContext(allocator, log, CommandTag.ExecCommand)
                 if (ctx.positionals.length > 1) {
                     ExecCommand.exec(ctx)
                 } else {
@@ -583,7 +583,7 @@ public class Command {
                 }
             }
             case CommandTag.FuzzilliCommand => {
-                val ctx = Command.initContext(allocator, log, CommandTag.FuzzilliCommand)
+                let ctx = Command.initContext(allocator, log, CommandTag.FuzzilliCommand)
                 FuzzilliCommand.exec(ctx)
             }
             case _ => {
@@ -596,7 +596,7 @@ public class Command {
     /// 对应 Bun: Command.init / createContextData
     public static func initContext(allocator: Allocator, log: Log, command: CommandTag): CommandContext {
         Cli.cmd = command
-        val ctx = CommandContext()
+        let ctx = CommandContext()
         ctx.allocator = allocator
         ctx.log = log
         ctx.startTime = startTime
@@ -611,7 +611,7 @@ public class Command {
     /// 执行 getcompletes
     /// 对应 Bun: @"bun getcompletes"
     private static func execGetCompletions(allocator: Allocator, log: Log): Unit {
-        val ctx = Command.initContext(allocator, log, CommandTag.GetCompletionsCommand)
+        let ctx = Command.initContext(allocator, log, CommandTag.GetCompletionsCommand)
         var filter = ctx.positionals
 
         // 过滤掉 "getcompletes" 参数
@@ -652,8 +652,8 @@ public class Command {
     /// 执行 create 命令
     /// 对应 Bun: @"bun create"
     private static func execCreate(allocator: Allocator, log: Log): Unit {
-        val ctx = Command.initContext(allocator, log, CommandTag.CreateCommand)
-        val args = Sys.getArgsAlloc(allocator)
+        let ctx = Command.initContext(allocator, log, CommandTag.CreateCommand)
+        let args = Sys.getArgsAlloc(allocator)
 
         if (args.length <= 2) {
             CommandTag.printHelp(CommandTag.CreateCommand, false)
@@ -667,9 +667,9 @@ public class Command {
         var dashDashBun = false
         var printHelp = false
 
-        val remainder = args.slice(1)
+        let remainder = args.slice(1)
         for (i in 0..remainder.length) {
-            val slice = remainder[i].trim(" \t\n")
+            let slice = remainder[i].trim(" \t\n")
             if (slice.length > 0) {
                 if (!slice.startsWith("--")) {
                     if (positionalI == 1) {
@@ -694,7 +694,7 @@ public class Command {
             return
         }
 
-        val templateName = positionals[1]
+        let templateName = positionals[1]
 
         // 弃用提示
         if (templateName == "react") {
@@ -709,17 +709,17 @@ public class Command {
             return
         }
 
-        val createCommandInfo = CreateCommand.extractInfo(ctx)
-        val template = createCommandInfo.template
-        val exampleTag = createCommandInfo.exampleTag
+        let createCommandInfo = CreateCommand.extractInfo(ctx)
+        let template = createCommandInfo.template
+        let exampleTag = createCommandInfo.exampleTag
 
         // 检查是否应使用 bunx
-        val useBunx = !isHardcodedNonBunXList(templateName) &&
+        let useBunx = !isHardcodedNonBunXList(templateName) &&
             (!templateName.contains("/") || templateName[0] == '@') &&
             exampleTag != CreateCommandExample.Tag.localFolder
 
         if (useBunx) {
-            val bunxArgs = ArrayList<String>()
+            let bunxArgs = ArrayList<String>()
             bunxArgs.append("baox")
             if (dashDashBun) {
                 bunxArgs.append("--bun")
@@ -743,19 +743,19 @@ public class Command {
     /// 执行 info 命令
     /// 对应 Bun: @"bun info"
     private static func execInfoCommand(allocator: Allocator, log: Log): Unit {
-        val cli = PackageManager.CommandLineArguments.parse(allocator, Subcommand.info)
-        val ctx = Command.initContext(allocator, log, CommandTag.InfoCommand)
+        let cli = PackageManager.CommandLineArguments.parse(allocator, Subcommand.info)
+        let ctx = Command.initContext(allocator, log, CommandTag.InfoCommand)
         val (pm, _) = PackageManager.init(ctx, cli, Subcommand.info)
 
         var packageName = ""
         var propertyPath: ?String = None
         var foundPackage = false
 
-        val args = BunArgv.getArgs()
+        let args = BunArgv.getArgs()
         var argIdx: Int64 = 2
 
         while (argIdx < args.length) {
-            val arg = args[argIdx.toInt()]
+            let arg = args[argIdx.toInt()]
 
             // 跳过 flags
             if (arg.length > 0 && arg[0] == '-') {
@@ -779,9 +779,9 @@ public class Command {
     /// 执行 --eval --print
     /// 对应 Bun: @"bun --eval --print"
     private static func execEvalPrint(ctx: CommandContext): Unit {
-        val trigger = "/[eval]"
-        val cwd = Sys.getcwd()
-        val entryPoint = "${cwd}${trigger}"
+        let trigger = "/[eval]"
+        let cwd = Sys.getcwd()
+        let entryPoint = "${cwd}${trigger}"
         ctx.passthrough = ctx.positionals.concat(ctx.passthrough)
         BunJsRun.boot(ctx, entryPoint, None)
     }
@@ -932,7 +932,7 @@ public enum CommandTag {
             }
             case CommandTag.OutdatedCommand, CommandTag.UpdateInteractiveCommand,
                  CommandTag.PublishCommand, CommandTag.AuditCommand => {
-                val subcmd = when (cmd) {
+                let subcmd = when (cmd) {
                     case CommandTag.OutdatedCommand => Subcommand.outdated
                     case CommandTag.UpdateInteractiveCommand => Subcommand.update
                     case CommandTag.PublishCommand => Subcommand.publish

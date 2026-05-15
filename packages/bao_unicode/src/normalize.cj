@@ -352,7 +352,7 @@ private func canonicalDecomposeCodepoint(cp: UInt32): Array<UInt32> {
             let decompSecond = canonicalDecomposeCodepoint(second)
             for (c in decompSecond) { result.append(c) }
             return result
-        case None => {}
+        case None => ()
     }
     return [cp]
 }

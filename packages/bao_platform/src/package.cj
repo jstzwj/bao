@@ -231,13 +231,8 @@ public enum RWFFlagSupport {
     | Unknown
     | Unsupported
     | Supported
-
-    /// 检查是否为有问题的 Linux 内核版本
-    /// 对应: isLinuxKernelVersionWithBuggyRWF_NONBLOCK()
-    /// Linux 5.9 和 5.10 有 RWF_NONBLOCK bug
-    public static func hasBuggyRWFNonblock(major: Int64, minor: Int64): Bool {
-        major == 5 && (minor == 9 || minor == 10)
-    }
+    | major
+}
 }
 
 // ============================================================================

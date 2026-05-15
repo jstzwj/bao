@@ -9,6 +9,7 @@ import bao_jsc.*
 /// SQL 数据单元格标签
 /// 对应 Bun: SQLDataCell.Tag
 public enum DataCellTag {
+    | None
 }
 
 /// SQL 数据单元格

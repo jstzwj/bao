@@ -88,7 +88,7 @@ public class PackageManagerEnqueue {
             // 已有解析结果, 检查是否需要更新
             match (successFn) {
                 case Some(fn) => fn(depId, resolution)
-                case None => {}
+                case None => ()
             }
             return
         }
@@ -204,7 +204,7 @@ public class PackageManagerEnqueue {
                         // 版本解析失败
                         match (failFn) {
                             case Some(fn) => fn(depId, "Failed to resolve version")
-                            case None => {}
+                            case None => ()
                         }
                     }
                 }

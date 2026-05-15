@@ -13,32 +13,8 @@ import bao_io.*
 
 /// Readable 表示子进程的可读输出流
 public enum Readable {
-    /// 使用文件描述符
-    case fd(FD)
-    /// 使用内存文件描述符 (Linux)
-    case memfd(FD)
-    /// 使用管道读取器
-    case pipe(PipeReader)
-    /// 继承父进程
-    case inherit
-    /// 忽略
-    case ignore
-    /// 已关闭
-    case closed
-    /// 使用缓冲区
-    case buffer(CowString)
-
-    // ========================================================================
-    // 方法
-    // ========================================================================
-
-    /// 内存占用
-    public func memoryCost(): Int64 {
-        return switch (this) {
-            case .pipe => sizeof(PipeReader) + this.pipe.memoryCost()
-            case .buffer => this.buffer.length()
-            else => 0
-        }
+    | else
+}
     }
 
     /// 是否有待处理活动
@@ -66,7 +42,7 @@ public enum Readable {
     }
 
     /// 初始化 Readable
-    public static func init(
+    public static func initFunc(
         stdio: Stdio,
         eventLoop: EventLoop,
         process: Subprocess,

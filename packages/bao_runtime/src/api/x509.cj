@@ -24,7 +24,7 @@ public class X509Jsc {
                 case '"', '\\', ',', '\'' => return false
                 default =>
                     if (utf8) {
-                        if (c < ' ' || c == '\x7f') { return false }
+                        if (c < ' ' || c == '\u{7f}') { return false }
                     } else {
                         if (c < ' ' || c > '~') { return false }
                     }

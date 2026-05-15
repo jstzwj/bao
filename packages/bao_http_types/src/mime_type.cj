@@ -91,7 +91,7 @@ public class MimeTypeCategoryUtil {
 
     /// 从 MIME 类型字符串推断分类 - 对应 Bun Category.init(str)
     /// 解析 "text/css" => Css, "image/png" => Image 等
-    public static func init(str: String): MimeTypeCategory {
+    public static func initFunc(str: String): MimeTypeCategory {
         let slashIdx = str.indexOf("/")
         if (slashIdx < 0) {
             return MimeTypeCategory.Other

@@ -30,7 +30,7 @@ public enum Shell {
     /// 从环境变量检测 shell 类型
     /// 对应 Bun: Shell.fromEnv()
     public static func fromEnv(shell: String): Shell {
-        val basename = Path.basename(shell)
+        let basename = Path.basename(shell)
         if (basename == "bash") {
             return Shell.bash
         } else if (basename == "zsh") {
@@ -76,7 +76,7 @@ public class ShellCompletions {
         }
 
         // fish 使用空格分隔，其他使用换行
-        val delimiter = if (shell == Shell.fish) " " else "\n"
+        let delimiter = if (shell == Shell.fish) " " else "\n"
 
         // 第一个命令
         Output.write(commands[0])

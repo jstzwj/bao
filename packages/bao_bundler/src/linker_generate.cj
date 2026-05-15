@@ -225,7 +225,7 @@ private func collectReachableLiveModules(linker: LinkerContext, entry: Int64): A
                     }
                 }
             }
-            case None => {}
+            case None => ()
         }
     }
 
@@ -318,21 +318,21 @@ public func generateChunksInParallelExt(linker: LinkerContext,
                 let result = postProcessJSChunk(linker, chunk, chunks, i)
                 match (result) {
                     case Some(outputFile) => outputFiles.append(outputFile)
-                    case None => {}
+                    case None => ()
                 }
             }
             case ChunkContentType.CSS => {
                 let result = postProcessCSSChunk(linker, chunk, chunks)
                 match (result) {
                     case Some(outputFile) => outputFiles.append(outputFile)
-                    case None => {}
+                    case None => ()
                 }
             }
             case ChunkContentType.HTML => {
                 let result = postProcessHTMLChunk(linker, chunk, chunks)
                 match (result) {
                     case Some(outputFile) => outputFiles.append(outputFile)
-                    case None => {}
+                    case None => ()
                 }
             }
         }
@@ -567,7 +567,7 @@ public func postProcessJSChunk(linker: LinkerContext, chunk: Chunk,
             case CompileResultKind.JavaScript => {
                 sb.append(result.code)
             }
-            case _ => {}
+            case _ => ()
         }
     }
 
@@ -614,7 +614,7 @@ private func postProcessCSSChunk(linker: LinkerContext, chunk: Chunk,
             case CompileResultKind.CSS => {
                 sb.append(result.code)
             }
-            case _ => {}
+            case _ => ()
         }
     }
 
@@ -636,7 +636,7 @@ private func postProcessHTMLChunk(linker: LinkerContext, chunk: Chunk,
             case CompileResultKind.HTML => {
                 sb.append(result.code)
             }
-            case _ => {}
+            case _ => ()
         }
     }
 

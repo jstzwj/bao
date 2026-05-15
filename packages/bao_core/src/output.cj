@@ -86,7 +86,7 @@ public class OutputSource {
 
     /// 初始化 - 对应 Bun Source.init()
     /// pub fn init(out: *Source, stream: StreamType, err_stream: StreamType) void { ... }
-    public func init(): Unit {
+    public func initFunc(): Unit {
         initialized = true
         stdoutBuffer = StringBuilder()
         stderrBuffer = StringBuilder()
@@ -151,7 +151,7 @@ public class OutputSource {
         let forceDepth = getForceColorDepth()
         match (forceDepth) {
             case Some(d) => return d
-            case None => {}
+            case None => ()
         }
 
         if (isNoColor()) {
@@ -378,7 +378,7 @@ public class Output {
     /// ANSI 颜色映射 - 对应 Bun color_map
     /// pub const color_map = ComptimeStringMap(string, .{ ... });
     public static func ansiColor(name: String): String {
-        let CSI = "\x1b["
+        let CSI = "\u{1b}["
         if (name == "b") { return "${CSI}1m" }
         if (name == "d") { return "${CSI}2m" }
         if (name == "i") { return "${CSI}3m" }
@@ -393,7 +393,7 @@ public class Output {
         if (name == "white") { return "${CSI}37m" }
         if (name == "bgred") { return "${CSI}41m" }
         if (name == "bggreen") { return "${CSI}42m" }
-        if (name == "r") { return "\x1b[0m" }
+        if (name == "r") { return "\u{1b}[0m" }
         return ""
     }
 
@@ -422,7 +422,7 @@ public class Output {
                 let colorName = fmt.substring(Int64(start), Int64(j))
                 if (colorName == "r") {
                     isReset = true
-                    result.append("\x1b[0m")
+                    result.append("\u{1b}[0m")
                 } else {
                     let ansi = ansiColor(colorName)
                     result.append(ansi)
@@ -612,21 +612,21 @@ public class Output {
     // ========================================================================
 
     /// 重置终端 - 对应 Bun resetTerminal()
-    /// pub fn resetTerminal() void { ... source.error_stream.writeAll("\x1B[2J\x1B[3J\x1B[H") ... }
+    /// pub fn resetTerminal() void { ... source.error_stream.writeAll("\u{1B}[2J\u{1B}[3J\u{1B}[H") ... }
     public static func resetTerminal(): Unit {
-        print("\x1B[2J\x1B[3J\x1B[H")
+        print("\u{1B}[2J\u{1B}[3J\u{1B}[H")
     }
 
     /// 向上移动光标 - 对应 Bun up()
-    /// pub fn up(n: usize) void { print("\x1B[{d}A", .{n}); }
+    /// pub fn up(n: usize) void { print("\u{1B}[{d}A", .{n}); }
     public static func up(n: Int64): Unit {
-        print("\x1B[${n}A")
+        print("\u{1B}[${n}A")
     }
 
     /// 清除到行尾 - 对应 Bun clearToEnd()
-    /// pub fn clearToEnd() void { print("\x1B[0J", .{}); }
+    /// pub fn clearToEnd() void { print("\u{1B}[0J", .{}); }
     public static func clearToEnd(): Unit {
-        print("\x1B[0J")
+        print("\u{1B}[0J")
     }
 
     // ========================================================================
@@ -634,11 +634,11 @@ public class Output {
     // ========================================================================
 
     /// 同步开始序列 - 对应 Bun synchronized_start
-    /// pub const synchronized_start = "\x1b[?2026h";
-    public static let SYNCHRONIZED_START: String = "\x1b[?2026h"
+    /// pub const synchronized_start = "\u{1b}[?2026h";
+    public static let SYNCHRONIZED_START: String = "\u{1b}[?2026h"
     /// 同步结束序列 - 对应 Bun synchronized_end
-    /// pub const synchronized_end = "\x1b[?2026l";
-    public static let SYNCHRONIZED_END: String = "\x1b[?2026l"
+    /// pub const synchronized_end = "\u{1b}[?2026l";
+    public static let SYNCHRONIZED_END: String = "\u{1b}[?2026l"
 
     /// 开始同步输出 - 对应 Bun synchronized()
     public static func synchronized(): Synchronized {

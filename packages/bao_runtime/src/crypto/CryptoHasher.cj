@@ -60,7 +60,7 @@ public class CryptoHasher {
                 hasher.zigValue = inner
                 return hasher
             }
-            case None => {}
+            case None => ()
         }
 
         // const algorithm = EVP.Algorithm.map.get(name) orelse return null
@@ -80,7 +80,7 @@ public class CryptoHasher {
                                 hasher.evpValue = EVP(alg, mdVal, engine)
                                 return hasher
                             }
-                            case None => {}
+                            case None => ()
                         }
                     }
                     case _ => return None
@@ -276,7 +276,7 @@ public class CryptoHasher {
                 }
                 outputDigestSlice = bytes[0..size.toInt64()]
             }
-            case None => {}
+            case None => ()
         }
 
         let engine = RareData.getBoringEngine(globalThis)
@@ -562,7 +562,7 @@ public class CryptoHasher {
             case CryptoHasherTag.HMAC_TAG => {
                 match (this.hmacValue) {
                     case Some(h) => h.deinit()
-                    case None => {}
+                    case None => ()
                 }
             }
         }
@@ -637,7 +637,7 @@ public class CryptoHasherZig {
 
     /// 初始化
     /// 对应 Bun: pub fn init(algorithm: []const u8) ?CryptoHasherZig
-    public static func init(algorithm: String): ?CryptoHasherZig {
+    public static func initFunc(algorithm: String): ?CryptoHasherZig {
         for (entry in ALGO_MAP) {
             if (algorithm == entry.name) {
                 let state = HashState(entry.algorithm)
@@ -1378,7 +1378,7 @@ public class JsPromise {
         rejectedValue = None
     }
 
-    public static func init(globalThis: JsObject): JsPromise {
+    public static func initFunc(globalThis: JsObject): JsPromise {
         return JsPromise()
     }
 

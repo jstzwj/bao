@@ -40,7 +40,7 @@ public func openURL(url: String): Unit {
         return
     }
 
-    val args: ArrayList<String> = ArrayList<String>()
+    let args: ArrayList<String> = ArrayList<String>()
     if (Environment.isAndroid) {
         args.append("/system/bin/am")
         args.append("start")
@@ -53,14 +53,14 @@ public func openURL(url: String): Unit {
         args.append(url)
     }
 
-    val result = Sys.spawnSync(args, null, Stdio.inherit, Stdio.inherit, Stdio.inherit)
+    let result = Sys.spawnSync(args, null, Stdio.inherit, Stdio.inherit, Stdio.inherit)
     match (result) {
         case Some(procResult) => {
             if (procResult.isOK()) {
                 return
             }
         }
-        case None => {}
+        case None => ()
     }
 
     // 失败时回退到打印 URL
@@ -86,7 +86,7 @@ public enum Editor {
     /// 对应 Bun: Editor.byName()
     public static func byName(name: String): ?Editor {
         // 处理名称中包含空格的情况 (如路径)
-        val cleanName = if (name.indexOf(' ') >= 0) {
+        let cleanName = if (name.indexOf(' ') >= 0) {
             name.substring(0, name.indexOf(' '))
         } else {
             name
@@ -98,12 +98,12 @@ public enum Editor {
     /// 从环境变量检测编辑器
     /// 对应 Bun: Editor.detect()
     public static func detect(env: DotEnvLoader): ?Editor {
-        val varNames = ["EDITOR", "VISUAL"]
+        let varNames = ["EDITOR", "VISUAL"]
         for (varName in varNames) {
-            val value = env.get(varName)
+            let value = env.get(varName)
             if (value != None) {
-                val basename = Path.basename(value!)
-                val editor = byName(basename)
+                let basename = Path.basename(value!)
+                let editor = byName(basename)
                 if (editor != None) {
                     return editor
                 }
@@ -115,12 +115,12 @@ public enum Editor {
     /// 从 PATH 查找编辑器
     /// 对应 Bun: Editor.byPATH()
     public static func byPATH(env: DotEnvLoader, cwd: String): ?Editor {
-        val pathEnv = env.get("PATH") ?: return None
+        let pathEnv = env.get("PATH") ?: return None
 
         for (editor in defaultPreferenceList) {
-            val binName = binNameFor(editor)
+            let binName = binNameFor(editor)
             if (binName.length > 0) {
-                val bin = Which.which(pathEnv, cwd, binName)
+                let bin = Which.which(pathEnv, cwd, binName)
                 if (bin != None) {
                     return Some(editor)
                 }
@@ -133,10 +133,10 @@ public enum Editor {
     /// 为指定编辑器从 PATH 查找
     /// 对应 Bun: Editor.byPATHForEditor()
     public static func byPATHForEditor(env: DotEnvLoader, editor: Editor, cwd: String): Bool {
-        val pathEnv = env.get("PATH") ?: return false
-        val binName = binNameFor(editor)
+        let pathEnv = env.get("PATH") ?: return false
+        let binName = binNameFor(editor)
         if (binName.length > 0) {
-            val bin = Which.which(pathEnv, cwd, binName)
+            let bin = Which.which(pathEnv, cwd, binName)
             return bin != None
         }
         return false
@@ -145,7 +145,7 @@ public enum Editor {
     /// 通过回退路径查找编辑器
     /// 对应 Bun: Editor.byFallbackPathForEditor()
     public static func byFallbackPathForEditor(editor: Editor): Bool {
-        val paths = binPathFor(editor)
+        let paths = binPathFor(editor)
         if (paths != None) {
             for (path in paths!!) {
                 if (BaoFile.exists(path)) {
@@ -179,7 +179,7 @@ public enum Editor {
     /// 使用编辑器打开文件
     /// 对应 Bun: Editor.open()
     public func openFile(binary: String, file: String, line: ?String, column: ?String): Unit {
-        val args = ArrayList<String>()
+        let args = ArrayList<String>()
 
         // vim/emacs/neovim 需要通过终端打开
         if (this == Editor.vim || this == Editor.emacs || this == Editor.neovim) {
@@ -291,7 +291,7 @@ public func binPathFor(editor: Editor): ?Array<String> {
 /// 对应 Bun: Editor.name_map (ComptimeStringMap)
 public class EditorNameMap {
     private static let map: HashMap<String, Editor> = {
-        val m = HashMap<String, Editor>()
+        let m = HashMap<String, Editor>()
         m.put("sublime", Editor.sublime)
         m.put("subl", Editor.sublime)
         m.put("vscode", Editor.vscode)
@@ -355,7 +355,7 @@ public class EditorContext {
             }
 
             // 名称查找
-            val editor_ = Editor.byName(Path.basename(name))
+            let editor_ = Editor.byName(Path.basename(name))
             if (editor_ != None) {
                 if (Editor.byPATHForEditor(env, editor_!!, Fs.instance.topLevelDir)) {
                     editor = editor_
@@ -370,7 +370,7 @@ public class EditorContext {
         }
 
         // 2. EDITOR 环境变量
-        val envEditor = Editor.detect(env)
+        let envEditor = Editor.detect(env)
         if (envEditor != None) {
             if (Editor.byPATHForEditor(env, envEditor!!, Fs.instance.topLevelDir)) {
                 editor = envEditor
@@ -383,7 +383,7 @@ public class EditorContext {
         }
 
         // 3. 通过 PATH 回退检测
-        val fallbackEditor = Editor.byFallback(env, Fs.instance.topLevelDir)
+        let fallbackEditor = Editor.byFallback(env, Fs.instance.topLevelDir)
         if (fallbackEditor != None) {
             editor = fallbackEditor
             return

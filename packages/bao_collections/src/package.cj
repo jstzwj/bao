@@ -775,7 +775,7 @@ public class PriorityQueue<T> {
         match (indices.get(elem)) {
             case Some(idx) =>
                 siftUp(idx, compare)
-            case None => {}
+            case None => ()
         }
     }
 
@@ -786,7 +786,7 @@ public class PriorityQueue<T> {
         match (indices.get(elem)) {
             case Some(idx) =>
                 siftDown(idx, compare)
-            case None => {}
+            case None => ()
         }
     }
 
@@ -822,7 +822,7 @@ public class PriorityQueue<T> {
             case Some(idx) =>
                 siftUp(idx, compare)
                 siftDown(idx, compare)
-            case None => {}
+            case None => ()
         }
     }
 

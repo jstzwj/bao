@@ -304,7 +304,7 @@ public class PackageInstaller {
                 incrementTreeInstallCount(currentTreeId)
                 return
             }
-            case Some(_) => {}
+            case Some(_) => ()
         }
 
         // 执行安装

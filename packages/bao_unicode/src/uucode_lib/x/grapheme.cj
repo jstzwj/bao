@@ -28,14 +28,14 @@ public func wcwidthNext(it: GraphemeBreakIterator): UInt8 {
     let first = it.nextCodePoint()
     if (first == None) { return 0 }
 
-    let firstCp = first!.codePoint
+    let firstCp = first.getOrThrow().codePoint
     let standalone = wcwidthStandalone(firstCp,
         GeneralCategory.OtherNotAssigned,
         EastAsianWidthType.Neutral,
         false, false, GraphemeBreakProperty.Other)
 
     // 单码点字素
-    if (first!.isBreak) { return standalone }
+    if (first.getOrThrow().isBreak) { return standalone }
 
     // 多码点字素: 累加宽度
     var width: UInt8 = if (wcwidthZeroInGrapheme(firstCp,
@@ -52,7 +52,7 @@ public func wcwidthNext(it: GraphemeBreakIterator): UInt8 {
         let result = it.nextCodePoint()
         if (result == None) { break }
 
-        var cp = result!.codePoint
+        var cp = result.getOrThrow().codePoint
 
         if (cp == 0xFE0F) {
             // Emoji presentation selector
@@ -64,8 +64,8 @@ public func wcwidthNext(it: GraphemeBreakIterator): UInt8 {
             // ZWJ: 跳过下一个 emoji base
             let next = it.nextCodePoint()
             if (next == None) { break }
-            if (next!.isBreak) { break }
-            cp = next!.codePoint
+            if (next.getOrThrow().isBreak) { break }
+            cp = next.getOrThrow().codePoint
         } else {
             if (!wcwidthZeroInGrapheme(cp,
                     GeneralCategory.OtherNotAssigned,
@@ -82,7 +82,7 @@ public func wcwidthNext(it: GraphemeBreakIterator): UInt8 {
             }
         }
 
-        if (result!.isBreak) { break }
+        if (result.getOrThrow().isBreak) { break }
         prevCp = cp
     }
 

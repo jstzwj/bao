@@ -102,7 +102,7 @@ public class EventEmitter {
                 // 通过引用相等移除
                 let newArr = ArrayList<EventListener>()
                 for (l in arr) {
-                    if (l !== listener) {
+                    if (l != listener) {
                         newArr.append(l)
                     }
                 }

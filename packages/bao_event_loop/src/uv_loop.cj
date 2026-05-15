@@ -110,7 +110,7 @@ public class UvLoop {
 
     /// 初始化 libuv 循环 - 对应 uv_loop_init
     /// Bun: MiniEventLoop.init(allocator) -> .{ .tasks = Queue.init(allocator), .loop = uws.Loop.get() }
-    public func init(): Int64 {
+    public func initFunc(): Int64 {
         unsafe {
             let result = uv_loop_init(loopPtr)
             if (result < 0) {

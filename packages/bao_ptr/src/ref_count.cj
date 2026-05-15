@@ -38,7 +38,7 @@ public struct RefCountOptions {
 ///         var refCount: RefCount = RefCount()
 ///         var otherField: UInt32 = 0
 ///
-///         static func init(field: UInt32): Thing {
+///         static func initFunc(field: UInt32): Thing {
 ///             let thing = Thing()
 ///             thing.otherField = field
 ///             return thing
@@ -59,7 +59,7 @@ public class RefCount {
     public init() {}
 
     /// 初始化，设置初始计数
-    public static func init(): RefCount {
+    public static func initFunc(): RefCount {
         RefCount.initExactRefs(1)
     }
 
@@ -174,7 +174,7 @@ public class ThreadSafeRefCount {
     public init() {}
 
     /// 初始化
-    public static func init(): ThreadSafeRefCount {
+    public static func initFunc(): ThreadSafeRefCount {
         ThreadSafeRefCount.initExactRefs(1)
     }
 

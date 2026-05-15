@@ -65,7 +65,7 @@ public class PackageSpecifier {
                     remaining = remaining.substring(idx + 1)
                     spec.alias = Some(aliasPart)
                 }
-                case None => {}
+                case None => ()
             }
         } else if (atCount >= 1 && !remaining.startsWith("@")) {
             // non-scoped: name@npm:package@version or name@version
@@ -88,7 +88,7 @@ public class PackageSpecifier {
                         return Some(spec)
                     }
                 }
-                case None => {}
+                case None => ()
             }
         }
 
@@ -171,7 +171,7 @@ public class PackageSpecifier {
         var s = name
         match (version) {
             case Some(v) => s = s + "@${v}"
-            case None => {}
+            case None => ()
         }
         return s
     }
@@ -235,7 +235,7 @@ public class AddCommand {
 
         // 加载配置 (bunfig.toml, package.json)
         match (config) {
-            case Some(cfg) => {} // 已加载
+            case Some(cfg) => () // 已加载
             case None => config = Some(Config.load("."))
         }
 
@@ -286,7 +286,7 @@ public class AddCommand {
         installOpts.force = opts.force
         match (opts.registry) {
             case Some(reg) => installOpts.registry = reg
-            case None => {}
+            case None => ()
         }
 
         try {

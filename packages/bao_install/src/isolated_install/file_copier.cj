@@ -83,7 +83,7 @@ public class FileCopier {
 
                             // 复制文件
                             match (bao_sys.Syscall.copyFile(src: src, dest: dest)) {
-                                case Success => {}
+                                case Success => ()
                                 case Err(firstErr) => {
                                     // 复制失败, 尝试创建父目录后重试
                                     let entryDirname = Path.dirname(entry.path)
@@ -94,7 +94,7 @@ public class FileCopier {
                                     }
 
                                     match (bao_sys.Syscall.copyFile(src: src, dest: dest)) {
-                                        case Success => {}
+                                        case Success => ()
                                         case Err(err) => {
                                             bao_core.Output.error(
                                                 "copy file: ${err.message()}"
@@ -109,7 +109,7 @@ public class FileCopier {
                     }
                 }
             }
-            case None => {}
+            case None => ()
         }
 
         return SyscallResult.Success

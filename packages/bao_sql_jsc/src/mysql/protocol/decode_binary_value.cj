@@ -166,7 +166,7 @@ func readInt64LE(data: Array<UInt8>, offset: Int64): Int64 {
 
 func readFloat32LE(data: Array<UInt8>, offset: Int64): Float32 {
     // 简化实现
-    return 0.0f
+    return 0.0f32
 }
 
 func readFloat64LE(data: Array<UInt8>, offset: Int64): Float64 {

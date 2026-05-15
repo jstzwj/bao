@@ -161,7 +161,7 @@ public class BundleThread<T <: BundleCompletion> {
 public class Waker {
     public init() {}
 
-    public func init(): Unit {}
+    public func initFunc(): Unit {}
 
     public func wake(): Unit {}
 

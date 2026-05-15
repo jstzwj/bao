@@ -134,7 +134,7 @@ public class NodeOs {
     public static func homedir(): String {
         // 先检查 HOME 环境变量（POSIX 实现）
         let homeEnv = System.getenv("HOME")
-        if (homeEnv != None && homeEnv!.size > 0) {
+        if (homeEnv != None && homeEnv.getOrThrow().size > 0) {
             return homeEnv!
         }
         return System.homedir()

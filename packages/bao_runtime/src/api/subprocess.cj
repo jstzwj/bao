@@ -393,7 +393,7 @@ public class Subprocess {
         if (globalThis.hasException()) { return JsValue.zero }
 
         switch (this.tryKill(sig)) {
-            case .result => {}
+            case .result => ()
             case .err(let err) => {
                 return globalThis.throwValue(try err.toJS(globalThis))
             }
@@ -434,7 +434,7 @@ public class Subprocess {
         this.stderr.unref()
 
         switch (this.tryKill(this.killSignal)) {
-            case .result => {}
+            case .result => ()
             case .err(let err) => {
                 return global.throwValue(try err.toJS(global))
             }
@@ -651,7 +651,7 @@ public class Subprocess {
         for (item in this.stdioPipes.items) {
             switch (item) {
                 case .owned_fd(let fd) => fd.close()
-                case .unowned_fd, .unavailable => {}
+                case .unowned_fd, .unavailable => ()
             }
         }
         this.stdioPipes.clearAndFree(default_allocator)

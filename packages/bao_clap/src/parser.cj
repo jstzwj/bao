@@ -191,7 +191,7 @@ public class ParseResult {
         if (flags.contains(name)) {
             match (flags.get(name)) {
                 case Some(v) => if (v) { return true }
-                case None => {}
+                case None => ()
             }
         }
         if (options.contains(name)) { return true }
@@ -897,7 +897,7 @@ public class ClapParser {
                                 // 从迭代器取值
                                 match (iter.next()) {
                                     case Some(v) => results.append(ParsedArg(param, v))
-                                    case None => {}  // 缺少值
+                                    case None => ()  // 缺少值
                                 }
                             }
                             break  // 值参数终止链
@@ -939,7 +939,7 @@ public class ClapParser {
             // 严格翻译自: try pos.append(arg.value.?);
             match (parsedArg.value) {
                 case Some(v) => result.positionals.append(v)
-                case None => {}
+                case None => ()
             }
         } else if (param.takesValue == ClapValues.One || param.takesValue == ClapValues.OneOptional) {
             // 单值选项
@@ -958,7 +958,7 @@ public class ClapParser {
                         }
                         result.options.put(longName, val2)
                     }
-                case None => {}
+                case None => ()
             }
         } else if (param.takesValue == ClapValues.Many) {
             // 多值选项
@@ -967,19 +967,19 @@ public class ClapParser {
                 case Some(list) =>
                     match (parsedArg.value) {
                         case Some(v) => list.append(v)
-                        case None => {}
+                        case None => ()
                     }
                 case None =>
                     let list = ArrayList<String>()
                     match (parsedArg.value) {
                         case Some(v) => list.append(v)
-                        case None => {}
+                        case None => ()
                     }
                     result.multiOptions.put(paramId, list)
                     // 同时按长名称存储
                     match (param.names.longName) {
                         case Some(longName) => result.multiOptions.put(longName, list)
-                        case None => {}
+                        case None => ()
                     }
             }
         } else {
@@ -989,7 +989,7 @@ public class ClapParser {
             // 同时按长名称存储
             match (param.names.longName) {
                 case Some(longName) => result.flags.put(longName, true)
-                case None => {}
+                case None => ()
             }
         }
     }

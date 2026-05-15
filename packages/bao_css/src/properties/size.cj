@@ -137,7 +137,7 @@ public class AspectRatio {
         }
         match (ratio) {
             case Some(r) => parts.append(r)
-            case None => {}
+            case None => ()
         }
         if (parts.isEmpty()) {
             return "auto"

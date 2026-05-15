@@ -17,6 +17,7 @@ import bao_core.*
 
 /// 定位基准枚举 - 对应 Bun libarchive.Seek
 public enum SeekWhence {
+    | None
 }
 
 // ============================================================================

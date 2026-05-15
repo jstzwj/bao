@@ -346,7 +346,7 @@ public class TsConfigParser {
                             result.jsx.runtime = runtime
                             result.jsx.runtimeWasSet = true
                         }
-                        case None => {}
+                        case None => ()
                     }
                 }
                 case "jsxFactory" => {
@@ -376,7 +376,7 @@ public class TsConfigParser {
                         case "preserve" | "error" => {
                             result.preserveImportsNotUsedAsValues = true
                         }
-                        case _ => {}
+                        case _ => ()
                     }
                 }
                 case "emitDecoratorMetadata" => {
@@ -587,14 +587,14 @@ public class TsConfigParser {
         for (key in parentKeys) {
             match (parent.paths.get(key)) {
                 case Some(v) => result.paths.put(key, v)
-                case None => {}
+                case None => ()
             }
         }
         let childKeys = child.paths.keys()
         for (key in childKeys) {
             match (child.paths.get(key)) {
                 case Some(v) => result.paths.put(key, v)
-                case None => {}
+                case None => ()
             }
         }
 

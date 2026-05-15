@@ -108,7 +108,7 @@ public class WindowsNamedPipeContext {
                 let s = TCPSocket.Socket.fromNamedPipe(namedPipe)
                 tcp.onOpen(s)
             }
-            case NONE => {}
+            case NONE => ()
         }
     }
 
@@ -124,7 +124,7 @@ public class WindowsNamedPipeContext {
                 let s = TCPSocket.Socket.fromNamedPipe(namedPipe)
                 tcp.onData(s, decodedData)
             }
-            case NONE => {}
+            case NONE => ()
         }
     }
 
@@ -140,7 +140,7 @@ public class WindowsNamedPipeContext {
                 let s = TCPSocket.Socket.fromNamedPipe(namedPipe)
                 tcp.onHandshake(s, if (success) 1 else 0, sslError)
             }
-            case NONE => {}
+            case NONE => ()
         }
     }
 
@@ -156,7 +156,7 @@ public class WindowsNamedPipeContext {
                 let s = TCPSocket.Socket.fromNamedPipe(namedPipe)
                 tcp.onEnd(s)
             }
-            case NONE => {}
+            case NONE => ()
         }
     }
 
@@ -172,7 +172,7 @@ public class WindowsNamedPipeContext {
                 let s = TCPSocket.Socket.fromNamedPipe(namedPipe)
                 tcp.onWritable(s)
             }
-            case NONE => {}
+            case NONE => ()
         }
     }
 
@@ -187,7 +187,7 @@ public class WindowsNamedPipeContext {
                 case TCP(tcp) => {
                     tcp.handleError(err.toJS(globalThis))
                 }
-                case NONE => {}
+                case NONE => ()
             }
         } else {
             match (socket) {
@@ -197,7 +197,7 @@ public class WindowsNamedPipeContext {
                 case TCP(tcp) => {
                     tcp.handleConnectError(err.errno)
                 }
-                case NONE => {}
+                case NONE => ()
             }
         }
     }
@@ -214,7 +214,7 @@ public class WindowsNamedPipeContext {
                 let s = TCPSocket.Socket.fromNamedPipe(namedPipe)
                 tcp.onTimeout(s)
             }
-            case NONE => {}
+            case NONE => ()
         }
     }
 
@@ -232,7 +232,7 @@ public class WindowsNamedPipeContext {
                 tcp.onClose(TCPSocket.Socket.fromNamedPipe(namedPipe), 0, None)
                 tcp.deref()
             }
-            case NONE => {}
+            case NONE => ()
         }
 
         deref()
@@ -294,9 +294,9 @@ public class WindowsNamedPipeContext {
         this.task = AnyTask.new(WindowsNamedPipeContext, WindowsNamedPipeContext.runEvent).init(this)
 
         match (socket) {
-            case TLS(tls) => { tls.ref() }
-            case TCP(tcp) => { tcp.ref() }
-            case NONE => {}
+            case TLS(tls) => tls.ref()
+            case TCP(tcp) => tcp.ref()
+            case NONE => ()
         }
 
         return this
@@ -319,9 +319,9 @@ public class WindowsNamedPipeContext {
             this.namedPipe.open(fd, sslConfig, ownedCtx).unwrap()
         } catch _ {
             match (socket) {
-                case TLS(tls) => { tls.handleConnectError(SysErrno.ENOENT) }
-                case TCP(tcp) => { tcp.handleConnectError(SysErrno.ENOENT) }
-                case NONE => {}
+                case TLS(tls) => tls.handleConnectError(SysErrno.ENOENT)
+                case TCP(tcp) => tcp.handleConnectError(SysErrno.ENOENT)
+                case NONE => ()
             }
             this.deref()
             throw SslError.ConnectionClosed
@@ -353,9 +353,9 @@ public class WindowsNamedPipeContext {
             }
         } catch _ {
             match (socket) {
-                case TLS(tls) => { tls.handleConnectError(SysErrno.ENOENT) }
-                case TCP(tcp) => { tcp.handleConnectError(SysErrno.ENOENT) }
-                case NONE => {}
+                case TLS(tls) => tls.handleConnectError(SysErrno.ENOENT)
+                case TCP(tcp) => tcp.handleConnectError(SysErrno.ENOENT)
+                case NONE => ()
             }
             this.deref()
             throw SslError.ConnectionClosed
@@ -369,9 +369,9 @@ public class WindowsNamedPipeContext {
         let currentSocket = socket
         socket = SocketType.NONE
         match (currentSocket) {
-            case TLS(tls) => { tls.deref() }
-            case TCP(tcp) => { tcp.deref() }
-            case NONE => {}
+            case TLS(tls) => tls.deref()
+            case TCP(tcp) => tcp.deref()
+            case NONE => ()
         }
 
         namedPipe.deinit()
@@ -410,12 +410,12 @@ public class RefCount {
 /// AnyTask 不透明类型
 public class AnyTask {
     public static func new(cls: Class, method: Func): AnyTask { ... }
-    public func init(ctx: Any): AnyTask { ... }
+    public func initFunc(ctx: Any): AnyTask { ... }
 }
 
 /// Task 不透明类型
 public class Task {
-    public static func init(task: AnyTask): Task { ... }
+    public static func initFunc(task: AnyTask): Task { ... }
 }
 
 /// VirtualMachine 不透明类型

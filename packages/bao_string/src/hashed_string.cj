@@ -35,7 +35,7 @@ public class HashedString {
 
     /// 从字节数组初始化,同时计算哈希
     /// 严格翻译自 HashedString.init
-    public static func init(buf: Array<Byte>): HashedString {
+    public static func initFunc(buf: Array<Byte>): HashedString {
         return HashedString(
             data: buf,
             len: UInt32(buf.size),
@@ -44,7 +44,7 @@ public class HashedString {
     }
 
     /// 从字符串初始化,同时计算哈希
-    public static func init(str: String): HashedString {
+    public static func initFunc(str: String): HashedString {
         let buf = str.toArray()
         return HashedString(
             data: buf,

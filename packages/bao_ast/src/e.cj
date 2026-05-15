@@ -618,7 +618,7 @@ public class EObject {
 
     /// 获取属性 - 对应 Bun E.Object.get()
     public func get(key: String): ?ASTNode {
-        val query = asProperty(key)
+        let query = asProperty(key)
         if (query.isSome()) {
             return query.orElse(PropertyQuery(ASTNode(ExprTag.Missing, Loc.Empty), Loc.Empty, UInt32(0))).expr
         }
@@ -627,7 +627,7 @@ public class EObject {
 
     /// 设置属性 - 对应 Bun E.Object.put()
     public func put(key: String, expr: ASTNode): Unit {
-        val query = asProperty(key)
+        let query = asProperty(key)
         if (query.isSome()) {
             let q = query.orElse(PropertyQuery(ASTNode(ExprTag.Missing, Loc.Empty), UInt32(0), UInt32(0)))
             properties[Int64(q.i)] = GProperty(ASTNode(ExprTag.String, q.loc, key), expr)
@@ -1307,7 +1307,7 @@ public enum OpCode {
             case BinLe => "<="
             case BinGe => ">="
             case BinStrictEq => "==="
-            case BinStrictNe => "!=="
+            case BinStrictNe => "!="
             case BinLooseEq => "=="
             case BinLooseNe => "!="
             case BinLogicalOr => "||"

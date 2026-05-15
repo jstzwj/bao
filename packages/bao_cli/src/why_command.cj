@@ -82,9 +82,9 @@ public class WhyCommand {
             versionPattern = ""
 
             // 检查是否包含 @ 分隔的版本模式
-            val atPos = pattern.indexOf('@')
+            let atPos = pattern.indexOf('@')
             if (atPos > 0 && atPos < pattern.length - 1) {
-                val pkgPattern = pattern.substring(0, atPos)
+                let pkgPattern = pattern.substring(0, atPos)
                 versionPattern = pattern.substring(atPos + 1)
                 initForName(pkgPattern)
                 return
@@ -101,7 +101,7 @@ public class WhyCommand {
 
             // **子串**
             if (pattern.length >= 3 && pattern[0] == '*' && pattern[pattern.length - 1] == '*') {
-                val sub = pattern.substring(1, pattern.length - 1)
+                let sub = pattern.substring(1, pattern.length - 1)
                 if (sub.length > 0 && !sub.contains('*')) {
                     patternType = PatternType.contains
                     substring = sub
@@ -110,7 +110,7 @@ public class WhyCommand {
             }
 
             // 查找通配符位置
-            val wildcardPos = pattern.indexOf('*')
+            let wildcardPos = pattern.indexOf('*')
             if (wildcardPos >= 0) {
                 if (wildcardPos == pattern.length - 1) {
                     // prefix*
@@ -122,7 +122,7 @@ public class WhyCommand {
                     suffix = pattern.substring(1)
                 } else {
                     // prefix*suffix
-                    val secondStar = pattern.indexOf('*', wildcardPos + 1)
+                    let secondStar = pattern.indexOf('*', wildcardPos + 1)
                     if (secondStar >= 0) {
                         patternType = PatternType.invalid
                     } else {
@@ -193,8 +193,8 @@ public class WhyCommand {
 
     /// 执行命令
     public static func exec(ctx: CommandContext): Unit {
-        val cli = PackageManager.CommandLineArguments.parse(ctx, Subcommand.why)
-        val pm = PackageManager.init(ctx, cli, Subcommand.why)
+        let cli = PackageManager.CommandLineArguments.parse(ctx, Subcommand.why)
+        let pm = PackageManager.init(ctx, cli, Subcommand.why)
 
         if (cli.positionals.size < 1) {
             printUsage()
@@ -224,7 +224,7 @@ public class WhyCommand {
 
     /// 使用指定的 PackageManager 执行
     public static func execWithManager(ctx: CommandContext, pm: PackageManager, packagePattern: String, topOnly: Bool): Unit {
-        val loadLockfile = pm.lockfile.loadFromCwd(pm, ctx.allocator, ctx.log, true)
+        let loadLockfile = pm.lockfile.loadFromCwd(pm, ctx.allocator, ctx.log, true)
         PackageManagerCommand.handleLoadLockfileErrors(loadLockfile, pm)
 
         if (topOnly) {
@@ -235,31 +235,31 @@ public class WhyCommand {
             maxDepth = 100
         }
 
-        val lockfile = loadLockfile.lockfile
-        val stringBytes = lockfile.stringBytes
-        val packages = lockfile.packages
+        let lockfile = loadLockfile.lockfile
+        let stringBytes = lockfile.stringBytes
+        let packages = lockfile.packages
 
         // 目标版本列表
-        val targetVersions = ArrayList<VersionInfo>()
+        let targetVersions = ArrayList<VersionInfo>()
         // 所有依赖者映射
-        val allDependents = HashMap<Int64, ArrayList<DependentInfo>>()
+        let allDependents = HashMap<Int64, ArrayList<DependentInfo>>()
 
-        val glob = GlobPattern(packagePattern)
+        let glob = GlobPattern(packagePattern)
 
         // 遍历所有包
         for (pkgIdx in 0..packages.length) {
-            val pkg = packages[pkgIdx]
-            val pkgName = pkg.name.slice(stringBytes)
+            let pkg = packages[pkgIdx]
+            let pkgName = pkg.name.slice(stringBytes)
             if (pkgName.length == 0) {
                 continue
             }
 
             // 收集依赖者信息
-            val dependencies = pkg.dependencies
-            val resolutions = pkg.resolutions
+            let dependencies = pkg.dependencies
+            let resolutions = pkg.resolutions
 
             for (depIdx in 0..dependencies.length) {
-                val targetId = resolutions[depIdx]
+                let targetId = resolutions[depIdx]
                 if (targetId >= packages.length) {
                     continue
                 }
@@ -270,7 +270,7 @@ public class WhyCommand {
                     allDependents.put(targetId, dependentsEntry!!)
                 }
 
-                val dep = DependentInfo()
+                let dep = DependentInfo()
                 dep.name = pkgName
                 dep.version = packages.getResolution(pkgIdx).format(stringBytes)
                 dep.spec = dependencies[depIdx].version.literal.slice(stringBytes)
@@ -298,7 +298,7 @@ public class WhyCommand {
                 continue
             }
 
-            val version = packages.getResolution(pkgIdx).format(stringBytes)
+            let version = packages.getResolution(pkgIdx).format(stringBytes)
             if (!glob.matchesVersion(version)) {
                 continue
             }
@@ -314,13 +314,13 @@ public class WhyCommand {
 
         // 打印结果
         for (targetVersion in targetVersions) {
-            val targetPkg = packages[targetVersion.pkgId]
-            val targetName = targetPkg.name.slice(stringBytes)
+            let targetPkg = packages[targetVersion.pkgId]
+            let targetName = targetPkg.name.slice(stringBytes)
             Output.prettyLn("${targetName}@${targetVersion.version}")
 
-            val dependents = allDependents.get(targetVersion.pkgId)
+            let dependents = allDependents.get(targetVersion.pkgId)
             if (dependents != None) {
-                val deps = dependents!!
+                let deps = dependents!!
                 if (deps.size == 0) {
                     Output.prettyLn("  └─ No dependents found")
                 } else if (maxDepth == 0) {
@@ -330,12 +330,12 @@ public class WhyCommand {
                     sortDependents(deps)
 
                     for (depIdx in 0..deps.size) {
-                        val dep = deps[depIdx]
-                        val isLast = depIdx == deps.size - 1
-                        val prefix = if (isLast) PREFIX_LAST else PREFIX_MIDDLE
+                        let dep = deps[depIdx]
+                        let isLast = depIdx == deps.size - 1
+                        let prefix = if (isLast) PREFIX_LAST else PREFIX_MIDDLE
                         printPackageWithType(prefix, dep)
                         if (!topOnly) {
-                            val nextPrefix = if (isLast) PREFIX_SPACE else PREFIX_CONTINUE
+                            let nextPrefix = if (isLast) PREFIX_SPACE else PREFIX_CONTINUE
                             printDependencyTree(allDependents, dep.pkgId, nextPrefix, 1, isLast, dep.workspace)
                         }
                     }
@@ -358,7 +358,7 @@ public class WhyCommand {
             case DependencyType.peer => Output.pretty("peer ")
             case DependencyType.optional => Output.pretty("optional ")
             case DependencyType.optionalPeer => Output.pretty("optional peer ")
-            case DependencyType.prod => {}
+            case DependencyType.prod => ()
         }
 
         if (pkg.workspace) {
@@ -392,19 +392,19 @@ public class WhyCommand {
         // 循环检测
         // (简化实现: 使用 visited 集合)
 
-        val dependents = allDependents.get(currentPkgId)
+        let dependents = allDependents.get(currentPkgId)
         if (dependents == None) {
             return
         }
 
-        val sortedDependents = ArrayList<DependentInfo>(dependents!!.size)
+        let sortedDependents = ArrayList<DependentInfo>(dependents!!.size)
         for (d in dependents!!) {
             sortedDependents.append(d)
         }
         sortDependents(sortedDependents)
 
         for (depIdx in 0..sortedDependents.size) {
-            val dep = sortedDependents[depIdx]
+            let dep = sortedDependents[depIdx]
 
             if (parentIsWorkspace && dep.version.length == 0) {
                 continue
@@ -415,13 +415,13 @@ public class WhyCommand {
                 return
             }
 
-            val isDepLast = depIdx == sortedDependents.size - 1
-            val prefixChar = if (isDepLast) "└─ " else "├─ "
-            val fullPrefix = prefix + prefixChar
+            let isDepLast = depIdx == sortedDependents.size - 1
+            let prefixChar = if (isDepLast) "└─ " else "├─ "
+            let fullPrefix = prefix + prefixChar
             printPackageWithType(fullPrefix, dep)
 
-            val nextPrefix = prefix + if (isDepLast) "   " else "│  "
-            val printBreakLine = isDepLast && sortedDependents.size > 1 && !printedBreakLine
+            let nextPrefix = prefix + if (isDepLast) "   " else "│  "
+            let printBreakLine = isDepLast && sortedDependents.size > 1 && !printedBreakLine
             printDependencyTree(allDependents, dep.pkgId, nextPrefix, depth + 1, printedBreakLine || printBreakLine, dep.workspace)
 
             if (printBreakLine) {
@@ -458,7 +458,7 @@ public class WhyCommand {
     private static func sortDependents(dependents: ArrayList<DependentInfo>): Unit {
         // 简化的插入排序
         for (i in 1..dependents.size) {
-            val key = dependents[i]
+            let key = dependents[i]
             var j = i - 1
             while (j >= 0 && compareDependents(dependents[j], key) > 0) {
                 dependents[j + 1] = dependents[j]
@@ -470,14 +470,14 @@ public class WhyCommand {
 
     /// 比较两个依赖者
     private static func compareDependents(a: DependentInfo, b: DependentInfo): Int64 {
-        val aSpec = getSpecifierSpecificity(a.spec)
-        val bSpec = getSpecifierSpecificity(b.spec)
+        let aSpec = getSpecifierSpecificity(a.spec)
+        let bSpec = getSpecifierSpecificity(b.spec)
         if (aSpec != bSpec) {
             return if (aSpec > bSpec) -1 else 1
         }
 
-        val aType = getDependencyTypePriority(a.depType)
-        val bType = getDependencyTypePriority(b.depType)
+        let aType = getDependencyTypePriority(a.depType)
+        let bType = getDependencyTypePriority(b.depType)
         if (aType != bType) {
             return if (aType > bType) -1 else 1
         }

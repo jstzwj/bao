@@ -92,7 +92,7 @@ public class TomlDatetime {
                         let m = absOffset % Int64(60)
                         s += "${sign}${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}"
                     }
-                case None => {}
+                case None => ()
             }
         }
         return s
@@ -989,7 +989,7 @@ public class TOMLStringify {
                         stringifyValue(v, sb)
                         sb.append('\n')
                     }
-                case None => {}
+                case None => ()
             }
         }
         // 输出子表和数组表
@@ -1009,7 +1009,7 @@ public class TOMLStringify {
                             stringifyTable(item, sb, newPrefix)
                         }
                     }
-                case None => {}
+                case None => ()
             }
         }
     }

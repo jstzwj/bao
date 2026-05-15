@@ -34,8 +34,8 @@ public class ParallelRunner {
         ctx: CommandContext,
         coverageOpts: TestCommand.CodeCoverageOptions
     ): Bool {
-        val N = files.length
-        val K = Math.min(ctx.testOptions.parallel, N)
+        let N = files.length
+        let K = Math.min(ctx.testOptions.parallel, N)
         if (K <= 1) {
             // 即使 --maxWorkers=1 也设置 JEST_WORKER_ID
             vm.transpiler.env.map.put("JEST_WORKER_ID", "1")
@@ -51,7 +51,7 @@ public class ParallelRunner {
 
         var workerTmpdir: ?String = None
         if (ctx.testOptions.reporters.junit || coverageOpts.enabled) {
-            val dir = "${FileSystem.RealFS.getDefaultTempDir()}/bao-test-worker-${Sys.getpid()}"
+            let dir = "${FileSystem.RealFS.getDefaultTempDir()}/bao-test-worker-${Sys.getpid()}"
             BaoFile.mkdir(dir, true)
             workerTmpdir = dir
             vm.transpiler.env.map.put("BAO_TEST_WORKER_TMP", dir)
@@ -62,17 +62,17 @@ public class ParallelRunner {
         }
 
         // 每个 worker 获得唯一的 JEST_WORKER_ID / BAO_TEST_WORKER_ID (1-indexed)
-        val envps = ArrayList<Array<String>>()
+        let envps = ArrayList<Array<String>>()
         for (i in 0..K) {
-            val id = "${i + 1}"
+            let id = "${i + 1}"
             vm.transpiler.env.map.put("JEST_WORKER_ID", id)
             vm.transpiler.env.map.put("BAO_TEST_WORKER_ID", id)
             envps.append(vm.transpiler.env.map.toNullDelimitedEnvMap())
         }
-        val argv = buildWorkerArgv(ctx)
+        let argv = buildWorkerArgv(ctx)
 
         // 按字典序排序以共享父目录
-        val sorted = ArrayList<PathString>()
+        let sorted = ArrayList<PathString>()
         for (f in files) {
             sorted.append(f)
         }
@@ -80,12 +80,12 @@ public class ParallelRunner {
             sorted.sort { a, b -> a.slice().compareTo(b.slice()) }
         }
 
-        val workers = ArrayList<Worker>(K)
+        let workers = ArrayList<Worker>(K)
         for (i in 0..K) {
             workers.append(Worker())
         }
 
-        val coord = Coordinator()
+        let coord = Coordinator()
         coord.vm = vm
         coord.reporter = reporter
         coord.files = sorted.toArray()
@@ -98,7 +98,7 @@ public class ParallelRunner {
         coord.scaleUpAfterMs = if (ctx.testOptions.parallelDelayMs != None) {
             ctx.testOptions.parallelDelayMs!!
         } else {
-            val envMs = vm.transpiler.env.get("BAO_TEST_PARALLEL_SCALE_MS")
+            let envMs = vm.transpiler.env.get("BAO_TEST_PARALLEL_SCALE_MS")
             if (envMs != None) {
                 Math.max(0, Int64.parse(envMs!!) ?: DEFAULT_SCALE_UP_AFTER_MS)
             } else {
@@ -111,8 +111,8 @@ public class ParallelRunner {
         Coordinator.AbortHandler.install()
 
         for (i in 0..K) {
-            val idx = i.toInt()
-            val w = workers[idx]
+            let idx = i.toInt()
+            let w = workers[idx]
             w.coord = coord
             w.idx = idx
             w.range = FileRange(idx * N / K, (idx + 1) * N / K)
@@ -145,12 +145,12 @@ public class ParallelRunner {
 
         vm.eventLoop().ensureWaker()
 
-        val workerTmp = vm.transpiler.env.get("BAO_TEST_WORKER_TMP")
+        let workerTmp = vm.transpiler.env.get("BAO_TEST_WORKER_TMP")
         if (vm.transpiler.env.get("BAO_TEST_WORKER_JUNIT") != None && reporter.reporters.junit == None) {
             reporter.reporters.junit = TestCommand.JunitReporter.init()
         }
 
-        val cmds = WorkerCommands()
+        let cmds = WorkerCommands()
         cmds.vm = vm
 
         // 发送 ready 帧
@@ -164,7 +164,7 @@ public class ParallelRunner {
                 vm.eventLoop().tick()
             }
 
-            val idx = cmds.pendingIdx ?: break
+            let idx = cmds.pendingIdx ?: break
             cmds.pendingIdx = None
 
             // 发送 file_start
@@ -174,14 +174,14 @@ public class ParallelRunner {
             cmds.send(workerFrame.finish())
 
             // 运行测试文件
-            val before = reporter.summary().copy()
-            val beforeUnhandled = reporter.jest.unhandledErrorsBetweenTests
+            let before = reporter.summary().copy()
+            let beforeUnhandled = reporter.jest.unhandledErrorsBetweenTests
 
             TestCommand.run(reporter, vm, cmds.pendingPath, true, true)
             vm.swapGlobalForTestIsolation()
 
             // 发送 file_done
-            val after = reporter.summary()
+            let after = reporter.summary()
             workerFrame.begin(FrameKind.fileDone)
             workerFrame.u32_(idx)
             workerFrame.u32_(after.pass - before.pass)
@@ -203,7 +203,7 @@ public class ParallelRunner {
     /// 工作器发出测试完成事件
     /// 对应 Bun: workerEmitTestDone()
     public static func workerEmitTestDone(fileIdx: Int64, formattedLine: String): Unit {
-        val cmds = workerCmds ?: return
+        let cmds = workerCmds ?: return
         workerFrame.begin(FrameKind.testDone)
         workerFrame.u32_(fileIdx)
         workerFrame.str(formattedLine)
@@ -213,8 +213,8 @@ public class ParallelRunner {
     /// 构建工作器 argv
     /// 对应 Bun: buildWorkerArgv()
     private static func buildWorkerArgv(ctx: CommandContext): Array<String> {
-        val argv = ArrayList<String>()
-        val opts = ctx.testOptions
+        let argv = ArrayList<String>()
+        let opts = ctx.testOptions
 
         argv.append(Sys.selfExePath() ?: "bao")
         argv.append("test")
@@ -261,9 +261,9 @@ public class ParallelRunner {
 
         // JUnit 和覆盖率片段
         if (workerTmp != None) {
-            val pid = Sys.getpid()
+            let pid = Sys.getpid()
             if (reporter.reporters.junit != None) {
-                val path = "${workerTmp!!}/w${pid}.xml"
+                let path = "${workerTmp!!}/w${pid}.xml"
                 if (reporter.reporters.junit!!.writeToFile(path)) {
                     workerFrame.begin(FrameKind.junitFile)
                     workerFrame.str(path)
@@ -271,7 +271,7 @@ public class ParallelRunner {
                 }
             }
             if (ctx.testOptions.coverage.enabled) {
-                val path = "${workerTmp!!}/cov${pid}.lcov"
+                let path = "${workerTmp!!}/cov${pid}.lcov"
                 if (reporter.writeLcovOnly(vm, ctx.testOptions.coverage, path)) {
                     workerFrame.begin(FrameKind.coverageFile)
                     workerFrame.str(path)

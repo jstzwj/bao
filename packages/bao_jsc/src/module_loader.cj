@@ -163,7 +163,7 @@ public class RuntimeTranspilerStore {
 
     public init() {}
 
-    public static func init() -> RuntimeTranspilerStore {
+    public static func initFunc() -> RuntimeTranspilerStore {
         RuntimeTranspilerStore()
     }
 }

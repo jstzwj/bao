@@ -295,7 +295,7 @@ public class YarnLockEntry {
                 commit = url.substring(idx + 1)
                 url = url.substring(0, idx)
             }
-            case None => {}
+            case None => ()
         }
 
         // github: 前缀
@@ -331,7 +331,7 @@ public class YarnLockEntry {
                             repo = afterOwner
                         }
                     }
-                    case None => {}
+                    case None => ()
                 }
             }
         }
@@ -389,7 +389,7 @@ public class YarnLockEntry {
                     return url.substring(Int64(lastSlash) + 1, Int64(dIdx))
                 }
             }
-            case None => {}
+            case None => ()
         }
         return None
     }
@@ -486,7 +486,7 @@ public class YarnLock {
                         entry.devDependencies = currentDevDeps
                         consolidateAndAppend(entry)
                     }
-                    case None => {}
+                    case None => ()
                 }
 
                 // 解析 specs (逗号分隔)
@@ -526,7 +526,7 @@ public class YarnLock {
             // 没有当前条目则跳过
             match (currentEntry) {
                 case None => continue
-                case Some(_) => {}
+                case Some(_) => ()
             }
 
             // 缩进行
@@ -564,32 +564,32 @@ public class YarnLock {
                                 case YarnDependencyType.Production => {
                                     match (currentDeps) {
                                         case Some(m) => m.put(key, value)
-                                        case None => {}
+                                        case None => ()
                                     }
                                 }
                                 case YarnDependencyType.Optional => {
                                     match (currentOptionalDeps) {
                                         case Some(m) => m.put(key, value)
-                                        case None => {}
+                                        case None => ()
                                     }
                                 }
                                 case YarnDependencyType.Peer => {
                                     match (currentPeerDeps) {
                                         case Some(m) => m.put(key, value)
-                                        case None => {}
+                                        case None => ()
                                     }
                                 }
                                 case YarnDependencyType.Development => {
                                     match (currentDevDeps) {
                                         case Some(m) => m.put(key, value)
-                                        case None => {}
+                                        case None => ()
                                     }
                                 }
                             }
                         }
                         continue
                     }
-                    case None => {}
+                    case None => ()
                 }
 
                 // 属性行
@@ -617,7 +617,7 @@ public class YarnLock {
                                     entry.commit = gitInfo.commit
                                     match (gitInfo.repo) {
                                         case Some(repoName) => entry.gitRepoName = repoName
-                                        case None => {}
+                                        case None => ()
                                     }
                                 } else if (YarnLockEntry.isNpmAlias(value)) {
                                     let aliasInfo = YarnLockEntry.parseNpmAlias(value)
@@ -633,7 +633,7 @@ public class YarnLock {
                                     entry.commit = gitInfo.commit
                                     match (gitInfo.repo) {
                                         case Some(repoName) => entry.gitRepoName = repoName
-                                        case None => {}
+                                        case None => ()
                                     }
                                 }
                             } else if (key == "integrity") {
@@ -664,7 +664,7 @@ public class YarnLock {
                                 }
                             }
                         }
-                        case None => {}
+                        case None => ()
                     }
                 }
             }
@@ -679,7 +679,7 @@ public class YarnLock {
                 entry.devDependencies = currentDevDeps
                 consolidateAndAppend(entry)
             }
-            case None => {}
+            case None => ()
         }
     }
 
@@ -864,7 +864,7 @@ public class YarnMigrator {
             // 设置 integrity
             match (entry.integrity) {
                 case Some(s) => pkg.meta.integrity = Integrity.parse(s)
-                case None => {}
+                case None => ()
             }
 
             // 设置依赖
@@ -876,11 +876,11 @@ public class YarnMigrator {
                                 let dep = LockfileDependency(depName, Wyhash11.hash(depName), depVer)
                                 pkg.dependencies.append(dep)
                             }
-                            case None => {}
+                            case None => ()
                         }
                     }
                 }
-                case None => {}
+                case None => ()
             }
             match (entry.optionalDependencies) {
                 case Some(deps) => {
@@ -891,11 +891,11 @@ public class YarnMigrator {
                                 dep.behavior.isOptional = true
                                 pkg.dependencies.append(dep)
                             }
-                            case None => {}
+                            case None => ()
                         }
                     }
                 }
-                case None => {}
+                case None => ()
             }
             match (entry.peerDependencies) {
                 case Some(deps) => {
@@ -906,11 +906,11 @@ public class YarnMigrator {
                                 dep.behavior.isPeer = true
                                 pkg.dependencies.append(dep)
                             }
-                            case None => {}
+                            case None => ()
                         }
                     }
                 }
-                case None => {}
+                case None => ()
             }
 
             result.packages.append(pkg)

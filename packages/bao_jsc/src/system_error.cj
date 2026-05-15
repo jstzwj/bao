@@ -179,7 +179,7 @@ public class RegularExpression {
                 case 'u' => isUnicode = true
                 case 'y' => isSticky = true
                 case 'd' => isHasIndices = true
-                case _ => {}
+                case _ => ()
             }
         }
     }

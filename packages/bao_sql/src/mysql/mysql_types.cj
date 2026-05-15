@@ -15,6 +15,7 @@ public type MySQLInt64 = UInt64 // int8 = u64
 /// 对应 Bun: CharacterSet (enum u8)
 /// 参考: https://dev.mysql.com/doc/refman/8.0/en/charset-charsets.html
 public enum CharacterSet {
+    | None
 }
         return "(unknown)"
     }
@@ -24,6 +25,7 @@ public enum CharacterSet {
 /// 对应 Bun: FieldType (enum u8)
 /// 参考: https://dev.mysql.com/doc/dev/mysql-server/latest/binary__log__types_8h.html
 public enum FieldType {
+    | None
 }
     }
 

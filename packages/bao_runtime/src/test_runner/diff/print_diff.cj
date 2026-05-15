@@ -366,7 +366,7 @@ func printModifiedSegment(segment: DiffSegment, writer: StringWriter, config: Di
         match (item.operation) {
             case DiffOperation.delete => deletedHighlightedLength += UInt64(item.text.length)
             case DiffOperation.insert => insertedHighlightedLength += UInt64(item.text.length)
-            case DiffOperation.equal => {}
+            case DiffOperation.equal => ()
         }
     }
 
@@ -389,7 +389,7 @@ func printModifiedSegment(segment: DiffSegment, writer: StringWriter, config: Di
                     printSegment(text: item.text, writer: writer, config: config, style: BaseStyles.greenFgRemoved)
                 }
             }
-            case DiffOperation.insert => {}
+            case DiffOperation.insert => ()
             case DiffSegmentMode.equal => {
                 printSegment(text: item.text, writer: writer, config: config, style: BaseStyles.dimEqual)
             }
@@ -401,7 +401,7 @@ func printModifiedSegment(segment: DiffSegment, writer: StringWriter, config: Di
     printLinePrefix(writer: writer, config: config, prefix: insertedPrefix)
     for item in charDiff {
         match (item.operation) {
-            case DiffOperation.delete => {}
+            case DiffOperation.delete => ()
             case DiffOperation.insert => {
                 let onlyHighlightable = shouldHighlightCharAll(text: item.text)
                 if onlyHighlightable {

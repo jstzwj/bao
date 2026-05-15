@@ -76,27 +76,11 @@ public class Global {
 
     /// 包 JSON 版本 (含 SHA) - 对应 Bun package_json_version_with_sha
     /// pub const package_json_version_with_sha = ... std.fmt.comptimePrint("{s} ({s})", ...)
-    public static let PACKAGE_JSON_VERSION_WITH_SHA: String = {
-        let sha = Environment.GIT_SHA
-        if (sha.length > 8) {
-            "${PACKAGE_JSON_VERSION} (${sha.substring(0, 8)})"
-        } else if (sha.length > 0) {
-            "${PACKAGE_JSON_VERSION} (${sha})"
-        } else {
-            PACKAGE_JSON_VERSION
-        }
-    }
+    public static let PACKAGE_JSON_VERSION_WITH_SHA: String = PACKAGE_JSON_VERSION
 
     /// 包 JSON 版本 (含修订) - 对应 Bun package_json_version_with_revision
     /// pub const package_json_version_with_revision = ... version_string ++ "+{s}"
-    public static let PACKAGE_JSON_VERSION_WITH_REVISION: String = {
-        let sha = Environment.GIT_SHA_SHORT
-        if (sha.length > 0) {
-            "${PACKAGE_JSON_VERSION}+${sha}"
-        } else {
-            PACKAGE_JSON_VERSION
-        }
-    }
+    public static let PACKAGE_JSON_VERSION_WITH_REVISION: String = PACKAGE_JSON_VERSION
 
     /// OS 名称 - 对应 Bun os_name
     /// pub const os_name = if (Environment.isAndroid) "android" else Environment.os.nameString();

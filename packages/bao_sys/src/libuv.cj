@@ -390,7 +390,7 @@ public class UvLoop {
 
     /// 初始化事件循环
     /// 对应: uv_loop_init(&loop) 或 uv_loop_new()
-    public func init(): SysMaybe<Unit> {
+    public func initFunc(): SysMaybe<Unit> {
         unsafe {
             let ptr = uv_loop_new()
             if (ptr.isNull()) {
@@ -575,7 +575,7 @@ public class UvTcp {
 
     /// 初始化 TCP 句柄
     /// 对应: uv_tcp_init(loop, &handle)
-    public func init(): SysMaybe<Unit> {
+    public func initFunc(): SysMaybe<Unit> {
         let rc = uv_tcp_init(loop.ptr(), handle)
         if (rc != 0) {
             return SysMaybe<Unit>.Err(
@@ -659,7 +659,7 @@ public class UvTimer {
 
     /// 初始化定时器
     /// 对应: uv_timer_init(loop, &handle)
-    public func init(): SysMaybe<Unit> {
+    public func initFunc(): SysMaybe<Unit> {
         let rc = uv_timer_init(loop.ptr(), handle)
         if (rc != 0) {
             return SysMaybe<Unit>.Err(

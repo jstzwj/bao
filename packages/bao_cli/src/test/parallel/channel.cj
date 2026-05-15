@@ -63,7 +63,7 @@ public class Channel {
         }
 
         // 尝试直接写入
-        val wrote = backend.write(frameBytes)
+        let wrote = backend.write(frameBytes)
         if (wrote < frameBytes.length) {
             for (i in wrote..frameBytes.length) {
                 out.append(frameBytes[i])
@@ -81,7 +81,7 @@ public class Channel {
     /// 对应 Bun: Channel.flush()
     public func flush(): Unit {
         while (out.size > 0 && !done) {
-            val wrote = backend.write(out.toArray())
+            let wrote = backend.write(out.toArray())
             if (wrote <= 0) {
                 return
             }
@@ -126,7 +126,7 @@ public class Channel {
         var head = 0
         while (in_.size - head >= 5) {
             // 读取 payload 长度 (小端 u32)
-            val len = (in_[head].toInt() and 0xFF) or
+            let len = (in_[head].toInt() and 0xFF) or
                       ((in_[head + 1].toInt() and 0xFF) << 8) or
                       ((in_[head + 2].toInt() and 0xFF) << 16) or
                       ((in_[head + 3].toInt() and 0xFF) << 24)
@@ -141,15 +141,15 @@ public class Channel {
             }
 
             // 解码 kind
-            val kindByte = in_[head + 4]
-            val kind = byteToFrameKind(kindByte)
+            let kindByte = in_[head + 4]
+            let kind = byteToFrameKind(kindByte)
 
             // 创建 Reader
-            val payload = ByteArray(len)
+            let payload = ByteArray(len)
             for (i in 0..len) {
                 payload[i] = in_[head + 5 + i]
             }
-            val rd = FrameReader(payload.toArray())
+            let rd = FrameReader(payload.toArray())
 
             if (onFrame != None) {
                 onFrame!!(kind, rd)
@@ -160,7 +160,7 @@ public class Channel {
 
         // 移除已处理的字节
         if (head > 0) {
-            val rest = in_.size - head
+            let rest = in_.size - head
             for (i in 0..rest) {
                 in_[i] = in_[head + i]
             }

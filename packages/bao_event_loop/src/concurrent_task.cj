@@ -93,7 +93,7 @@ public class PackedNextPtr {
     ///       const ptr_bits = if (ptr) |p| @intFromPtr(p) else 0
     ///       return @enumFromInt(ptr_bits | @intFromBool(auto_del))
     ///   }
-    public static func init(next: ?ConcurrentTask, autoDelete: Bool): PackedNextPtr {
+    public static func initFunc(next: ?ConcurrentTask, autoDelete: Bool): PackedNextPtr {
         return PackedNextPtr(next, autoDelete)
     }
 

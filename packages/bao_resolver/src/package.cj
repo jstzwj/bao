@@ -314,7 +314,7 @@ public class Resolver {
                     }
                     return ResolveResult(ResolveStatus.Exact, remapped)
                 }
-                case None => {}
+                case None => ()
             }
         }
 
@@ -388,7 +388,7 @@ public class Resolver {
         // 尝试 TypeScript 路径映射
         match (resolveWithTsconfigPaths(specifier, fromPath)) {
             case Some(result) => return result
-            case None => {}
+            case None => ()
         }
 
         return ResolveResult(ResolveStatus.ModuleNotFound, specifier)
@@ -417,13 +417,13 @@ public class Resolver {
                                 // 解析条件
                                 return resolveExportTarget(pkgPath, target, matchResult)
                             }
-                            case None => {}
+                            case None => ()
                         }
                     }
                 }
                 return ResolveResult(ResolveStatus.PackagePathNotExported, importPath)
             }
-            case None => {}
+            case None => ()
         }
         return ResolveResult(ResolveStatus.Undefined, "")
     }
@@ -490,7 +490,7 @@ public class Resolver {
                         }
                     }
                 }
-                case None => {}
+                case None => ()
             }
         }
 
@@ -514,7 +514,7 @@ public class Resolver {
                     return resolveWithPaths(specifier, fromPath, config)
                 }
             }
-            case None => {}
+            case None => ()
         }
         return None
     }
@@ -563,7 +563,7 @@ public class Resolver {
                         }
                     }
                 }
-                case None => {}
+                case None => ()
             }
         }
         return None
@@ -624,7 +624,7 @@ public class Resolver {
     private func loadPackageJson(path: String): ?PackageJson {
         match (packageJsonCache.get(path)) {
             case Some(pkg) => return Some(pkg)
-            case None => {}
+            case None => ()
         }
 
         // 读取并解析
@@ -648,7 +648,7 @@ public class Resolver {
             let tsconfigPath = Path.join([dir, "tsconfig.json"])
             match (tsconfigCache.get(tsconfigPath)) {
                 case Some(config) => return Some(config)
-                case None => {}
+                case None => ()
             }
 
             let content = readFileContent(tsconfigPath)
@@ -660,7 +660,7 @@ public class Resolver {
                     tsconfigCache.put(tsconfigPath, config)
                     return Some(config)
                 }
-                case None => {}
+                case None => ()
             }
 
             let parent = Path.dirname(dir)

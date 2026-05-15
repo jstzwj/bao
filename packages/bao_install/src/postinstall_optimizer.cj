@@ -174,11 +174,11 @@ public class PostinstallOptimizerList {
                                 dynamic.put(name, PostinstallOptimizer.NativeBinlink)
                             }
                         }
-                        case _ => {}
+                        case _ => ()
                     }
                 }
             }
-            case _ => {}
+            case _ => ()
         }
 
         // 解析 ignoreScripts
@@ -191,11 +191,11 @@ public class PostinstallOptimizerList {
                                 dynamic.put(name, PostinstallOptimizer.Ignore)
                             }
                         }
-                        case _ => {}
+                        case _ => ()
                     }
                 }
             }
-            case _ => {}
+            case _ => ()
         }
     }
 
@@ -208,7 +208,7 @@ public class PostinstallOptimizerList {
         // 先检查动态配置
         match (dynamic.get(packageName)) {
             case Some(mode) => return mode
-            case None => {}
+            case None => ()
         }
 
         // 检查默认 native binlinks

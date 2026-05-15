@@ -244,7 +244,7 @@ func readBEInt64(data: Array<UInt8>): Int64 {
 }
 
 func readBEFloat32(data: Array<UInt8>): Float32 {
-    return 0.0f
+    return 0.0f32
 }
 
 func readBEFloat64(data: Array<UInt8>): Float64 {

@@ -87,7 +87,7 @@ public class WatcherTrace {
     ///
     /// 如果设置了 BUN_WATCHER_TRACE 环境变量, 打开追踪文件
     /// 只检查一次, 后续调用直接返回
-    public func init(): Unit {
+    public func initFunc(): Unit {
         // 只初始化一次 - 对应 if (trace_file != null) return
         if (initialized) {
             return
@@ -267,8 +267,8 @@ public class WatcherTrace {
         let output = sb.toString()
         let bytes = stringToBytes(output)
         match (SysFs.write(traceFdValue, bytes)) {
-            case Ok(_) => { }  // 成功
-            case Err(_) => { } // 静默忽略 - 对应 catch return
+            case Ok(_) => ()  // 成功
+            case Err(_) => () // 静默忽略 - 对应 catch return
         }
     }
 

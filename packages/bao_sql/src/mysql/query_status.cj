@@ -5,6 +5,7 @@ package bao_sql.mysql
 /// MySQL 查询状态枚举
 /// 对应 Bun: QueryStatus.Status (enum u8)
 public enum QueryStatus {
+    | None
 }
 
     /// 判断查询是否正在运行

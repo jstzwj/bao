@@ -1120,12 +1120,12 @@ public class CatalogMap {
                 for (key in obj.keys()) {
                     // 计数字符串
                     match (obj.get(key)) {
-                        case Some(JsonValue.Str(_)) => {} // 计入
-                        case _ => {}
+                        case Some(JsonValue.Str(_)) => () // 计入
+                        case _ => ()
                     }
                 }
             }
-            case _ => {}
+            case _ => ()
         }
 
         // 解析 "catalogs" (命名 catalog)
@@ -1136,16 +1136,16 @@ public class CatalogMap {
                         case Some(JsonValue.Object(obj)) => {
                             for (key in obj.keys()) {
                                 match (obj.get(key)) {
-                                    case Some(JsonValue.Str(_)) => {}
-                                    case _ => {}
+                                    case Some(JsonValue.Str(_)) => ()
+                                    case _ => ()
                                 }
                             }
                         }
-                        case _ => {}
+                        case _ => ()
                     }
                 }
             }
-            case _ => {}
+            case _ => ()
         }
     }
 
@@ -1166,11 +1166,11 @@ public class CatalogMap {
                             let dep = LockfileDependency(depName, Wyhash11.hash(depName), versionStr)
                             group.put(depName, dep)
                         }
-                        case _ => {}
+                        case _ => ()
                     }
                 }
             }
-            case _ => {}
+            case _ => ()
         }
 
         // 解析 "catalogs" (命名)
@@ -1187,15 +1187,15 @@ public class CatalogMap {
                                         let dep = LockfileDependency(depName, Wyhash11.hash(depName), versionStr)
                                         group.put(depName, dep)
                                     }
-                                    case _ => {}
+                                    case _ => ()
                                 }
                             }
                         }
-                        case _ => {}
+                        case _ => ()
                     }
                 }
             }
-            case _ => {}
+            case _ => ()
         }
 
         return foundAny
@@ -1214,7 +1214,7 @@ public class CatalogMap {
                         putEntriesFromPnpm(group, entriesObj)
                     }
                 }
-                case _ => {}
+                case _ => ()
             }
         }
     }
@@ -1230,14 +1230,14 @@ public class CatalogMap {
                             let dep = LockfileDependency(depName, Wyhash11.hash(depName), versionStr)
                             catalogMap.put(depName, dep)
                         }
-                        case None => {}
+                        case None => ()
                     }
                 }
                 case Some(JsonValue.Str(versionStr)) => {
                     let dep = LockfileDependency(depName, Wyhash11.hash(depName), versionStr)
                     catalogMap.put(depName, dep)
                 }
-                case _ => {}
+                case _ => ()
             }
         }
     }
@@ -1259,7 +1259,7 @@ public class CatalogMap {
                     builder.count(Array<UInt8>(depName.length, item: UInt8(0)))
                     builder.count(Array<UInt8>(dep.version.length, item: UInt8(0)))
                 }
-                case None => {}
+                case None => ()
             }
         }
         for (catalogName in groups.keys()) {
@@ -1272,11 +1272,11 @@ public class CatalogMap {
                                 builder.count(Array<UInt8>(depName.length, item: UInt8(0)))
                                 builder.count(Array<UInt8>(dep.version.length, item: UInt8(0)))
                             }
-                            case None => {}
+                            case None => ()
                         }
                     }
                 }
-                case None => {}
+                case None => ()
             }
         }
     }
@@ -1441,7 +1441,7 @@ public class WorkspaceMap {
         for (key in map.keys()) {
             match (map.get(key)) {
                 case Some(v) => result.append(v)
-                case None => {}
+                case None => ()
             }
         }
         return result
@@ -1474,7 +1474,7 @@ public class WorkspaceMap {
                         return key
                     }
                 }
-                case None => {}
+                case None => ()
             }
         }
         return None
@@ -1517,7 +1517,7 @@ public class WorkspaceMap {
                             insert(absPath, entry)
                         }
                     }
-                    case None => {}
+                    case None => ()
                 }
             }
         }

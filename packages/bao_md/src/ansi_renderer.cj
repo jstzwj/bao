@@ -46,15 +46,15 @@ public enum AnsiColor {
 /// 获取 ANSI 颜色转义序列
 public func ansiColor(c: AnsiColor): String {
     return match (c) {
-        case black => "\x1b[30m"
-        case red => "\x1b[31m"
-        case green => "\x1b[32m"
-        case yellow => "\x1b[33m"
-        case blue => "\x1b[34m"
-        case magenta => "\x1b[35m"
-        case cyan => "\x1b[36m"
-        case white => "\x1b[37m"
-        case dim => "\x1b[2m"
+        case black => "\u{1b}[30m"
+        case red => "\u{1b}[31m"
+        case green => "\u{1b}[32m"
+        case yellow => "\u{1b}[33m"
+        case blue => "\u{1b}[34m"
+        case magenta => "\u{1b}[35m"
+        case cyan => "\u{1b}[36m"
+        case white => "\u{1b}[37m"
+        case dim => "\u{1b}[2m"
     }
 }
 
@@ -69,21 +69,21 @@ public enum AnsiStyle {
 /// 获取 ANSI 样式转义序列
 public func ansiStyle(s: AnsiStyle): String {
     return match (s) {
-        case bold => "\x1b[1m"
-        case italic => "\x1b[3m"
-        case underline => "\x1b[4m"
-        case strikethrough => "\x1b[9m"
+        case bold => "\u{1b}[1m"
+        case italic => "\u{1b}[3m"
+        case underline => "\u{1b}[4m"
+        case strikethrough => "\u{1b}[9m"
     }
 }
 
 /// ANSI 重置序列
 public func ansiReset(): String {
-    return "\x1b[0m"
+    return "\u{1b}[0m"
 }
 
 /// 内联代码跨距打开序列
 public func codeSpanOpen(light: Bool): String {
-    return if (light) "\x1b[48;5;254m\x1b[38;5;124m" else "\x1b[48;5;236m\x1b[38;5;215m"
+    return if (light) "\u{1b}[48;5;254m\u{1b}[38;5;124m" else "\u{1b}[48;5;236m\u{1b}[38;5;215m"
 }
 
 // ============================================================================
@@ -328,7 +328,7 @@ public class AnsiRenderer {
     public init() {}
 
     /// 初始化
-    public static func init(src_text: String, theme: Theme): AnsiRenderer {
+    public static func initFunc(src_text: String, theme: Theme): AnsiRenderer {
         let r = AnsiRenderer()
         r.src_text = src_text
         r.theme = theme
@@ -353,7 +353,7 @@ public class AnsiRenderer {
     /// 进入块
     public func enterBlock(block_type: BlockType, data: UInt32, flags: UInt32): Unit {
         match (block_type) {
-            case BlockType.doc => {}
+            case BlockType.doc => ()
             case BlockType.quote => {
                 ensureBlankLine()
                 block_stack.append(BlockContext(BlockContextKind.quote, 0, 0, 2))
@@ -493,7 +493,7 @@ public class AnsiRenderer {
     /// 离开块
     public func leaveBlock(block_type: BlockType, data: UInt32): Unit {
         match (block_type) {
-            case BlockType.doc => {}
+            case BlockType.doc => ()
             case BlockType.quote => {
                 if (!block_stack.isEmpty) block_stack = block_stack.slice(0, block_stack.length - 1)
                 ensureNewline()
@@ -510,7 +510,7 @@ public class AnsiRenderer {
                 if (!block_stack.isEmpty) block_stack = block_stack.slice(0, block_stack.length - 1)
                 ensureNewline()
             }
-            case BlockType.hr => {}
+            case BlockType.hr => ()
             case BlockType.h => {
                 flushHeading()
                 heading_level = 0
@@ -532,8 +532,8 @@ public class AnsiRenderer {
                 flushTable()
                 ensureNewline()
             }
-            case BlockType.thead => {}
-            case BlockType.tbody => {}
+            case BlockType.thead => ()
+            case BlockType.tbody => ()
             case BlockType.tr => {
                 // 将收集的单元格移入表格行
                 let cells_copy: Array<TableCell> = []
@@ -590,9 +590,9 @@ public class AnsiRenderer {
                     link_href = resolveHref(detail)
                     if (theme.colors && theme.hyperlinks) {
                         if (let Some(href) <- link_href) {
-                            writeRawNoColor("\x1b]8;;")
+                            writeRawNoColor("\u{1b}]8;;")
                             writeRawNoColor(href)
-                            writeRawNoColor("\x1b\\")
+                            writeRawNoColor("\u{1b}\\")
                         }
                     }
                     writeStyled(ansiColor(AnsiColor.blue), "")
@@ -624,43 +624,43 @@ public class AnsiRenderer {
         match (span_type) {
             case SpanType.em => {
                 span_flags = span_flags & ~AnsiRenderer.SPAN_EM
-                writeStyled("\x1b[23m", "")
+                writeStyled("\u{1b}[23m", "")
                 if (heading_level > 0) reapplyStyles()
             }
             case SpanType.strong => {
                 span_flags = span_flags & ~AnsiRenderer.SPAN_STRONG
-                writeStyled("\x1b[22m", "")
+                writeStyled("\u{1b}[22m", "")
                 if (heading_level > 0) reapplyStyles()
             }
             case SpanType.u => {
                 span_flags = span_flags & ~AnsiRenderer.SPAN_U
-                writeStyled("\x1b[24m", "")
+                writeStyled("\u{1b}[24m", "")
                 if (heading_level > 0) reapplyStyles()
             }
             case SpanType.del => {
                 span_flags = span_flags & ~AnsiRenderer.SPAN_DEL
-                writeStyled("\x1b[29m", "")
+                writeStyled("\u{1b}[29m", "")
                 if (heading_level > 0) reapplyStyles()
             }
             case SpanType.code => {
                 span_flags = span_flags & ~AnsiRenderer.SPAN_CODE
-                writeStyled("\x1b[39m\x1b[49m", "")
+                writeStyled("\u{1b}[39m\u{1b}[49m", "")
                 reapplyStyles()
             }
             case SpanType.a => {
                 if (link_depth == 1) {
                     link_depth = 0
                     let had_href = link_href != None
-                    writeStyled("\x1b[24m\x1b[39m", "")
+                    writeStyled("\u{1b}[24m\u{1b}[39m", "")
                     reapplyStyles()
                     if (theme.colors && theme.hyperlinks) {
-                        if (had_href) writeRawNoColor("\x1b]8;;\x1b\\")
+                        if (had_href) writeRawNoColor("\u{1b}]8;;\u{1b}\\")
                     } else if (let Some(href) <- link_href) {
                         if (href.length > 0 && image_depth == 0) {
                             writeStyled(ansiColor(AnsiColor.dim), " (")
                             writeStyled("", href)
                             writeStyled(ansiColor(AnsiColor.dim), ")")
-                            writeStyled("\x1b[39m\x1b[22m", "")
+                            writeStyled("\u{1b}[39m\u{1b}[22m", "")
                             reapplyStyles()
                         }
                     }
@@ -680,17 +680,17 @@ public class AnsiRenderer {
             }
             case SpanType.wikilink => {
                 writeNoWrap("]]")
-                writeStyled("\x1b[39m", "")
+                writeStyled("\u{1b}[39m", "")
                 reapplyStyles()
             }
             case SpanType.latexmath => {
                 writeNoWrap("$")
-                writeStyled("\x1b[39m", "")
+                writeStyled("\u{1b}[39m", "")
                 reapplyStyles()
             }
             case SpanType.latexmath_display => {
                 writeNoWrap("$$")
-                writeStyled("\x1b[39m", "")
+                writeStyled("\u{1b}[39m", "")
                 reapplyStyles()
             }
         }
@@ -703,13 +703,13 @@ public class AnsiRenderer {
     /// 文本回调
     public func text(text_type: TextType, content: String): Unit {
         match (text_type) {
-            case TextType.null_char => writeContent("\xEF\xBF\xBD")
+            case TextType.null_char => writeContent("\u{EF}\u{BF}\u{BD}")
             case TextType.br => writeContent("\n")
             case TextType.softbr => writeContent(" ")
             case TextType.html => {
                 writeStyled(ansiColor(AnsiColor.dim), "")
                 writeContent(content)
-                writeStyled("\x1b[22m", "")
+                writeStyled("\u{1b}[22m", "")
                 reapplyStyles()
             }
             case TextType.entity => {
@@ -862,7 +862,7 @@ public class AnsiRenderer {
     /// 软换行
     func wrapBreak(): Unit {
         let has_style = span_flags != 0 || link_depth > 0
-        if (theme.colors && has_style) out.write("\x1b[39m\x1b[49m")
+        if (theme.colors && has_style) out.write("\u{1b}[39m\u{1b}[49m")
         out.writeByte('\n'.toUInt8())
         last_was_newline = true
         col = 0
@@ -978,7 +978,7 @@ public class AnsiRenderer {
         }
         let bar = if (theme.colors) "\u2502 " else "| "
         if (theme.colors && quote_bars > 0) {
-            out.write("\x1b[38;5;242m")
+            out.write("\u{1b}[38;5;242m")
         }
         var i: UInt32 = 0
         while (i < quote_bars) {
@@ -987,7 +987,7 @@ public class AnsiRenderer {
             i += 1
         }
         if (theme.colors && quote_bars > 0) {
-            out.write("\x1b[39m")
+            out.write("\u{1b}[39m")
             reapplyStyles()
         }
         var j: UInt32 = 0
@@ -1015,14 +1015,14 @@ public class AnsiRenderer {
         }
         if (quote_bars == 0) return
         let bar = if (theme.colors) "\u2502" else "|"
-        if (theme.colors) out.write("\x1b[38;5;242m")
+        if (theme.colors) out.write("\u{1b}[38;5;242m")
         var i: UInt32 = 0
         while (i < quote_bars) {
             out.write(bar)
             col += 1
             i += 1
         }
-        if (theme.colors) out.write("\x1b[39m")
+        if (theme.colors) out.write("\u{1b}[39m")
     }
 
     /// 确保换行
@@ -1077,11 +1077,11 @@ public class AnsiRenderer {
         let content = heading_buf.toString()
         writeIndent()
         if (theme.colors) {
-            out.write("\x1b[1m") // 粗体
+            out.write("\u{1b}[1m") // 粗体
             out.write(headingColor(level))
         }
         out.write(content)
-        if (theme.colors) out.write("\x1b[0m")
+        if (theme.colors) out.write("\u{1b}[0m")
         out.writeByte('\n'.toUInt8())
         last_was_newline = true
         col = 0
@@ -1102,7 +1102,7 @@ public class AnsiRenderer {
                 out.write(char)
                 i += 1
             }
-            if (theme.colors) out.write("\x1b[0m")
+            if (theme.colors) out.write("\u{1b}[0m")
             out.writeByte('\n'.toUInt8())
             last_was_newline = true
             col = 0
@@ -1142,14 +1142,14 @@ public class AnsiRenderer {
         writeIndent()
         if (code_lang.length > 0) {
             out.write(top_border)
-            if (theme.colors) out.write("\x1b[0m")
-            if (theme.colors) out.write("\x1b[2m\x1b[3m")
+            if (theme.colors) out.write("\u{1b}[0m")
+            if (theme.colors) out.write("\u{1b}[2m\u{1b}[3m")
             out.write(code_lang)
-            if (theme.colors) out.write("\x1b[0m")
+            if (theme.colors) out.write("\u{1b}[0m")
         } else {
             if (theme.colors) out.write(ansiColor(AnsiColor.dim))
             out.write(top_bare)
-            if (theme.colors) out.write("\x1b[0m")
+            if (theme.colors) out.write("\u{1b}[0m")
         }
         out.writeByte('\n'.toUInt8())
         last_was_newline = true
@@ -1163,7 +1163,7 @@ public class AnsiRenderer {
                 writeIndent()
                 if (theme.colors) out.write(ansiColor(AnsiColor.dim))
                 out.write(side)
-                if (theme.colors) out.write("\x1b[0m")
+                if (theme.colors) out.write("\u{1b}[0m")
                 out.write(line)
                 out.writeByte('\n'.toUInt8())
                 last_was_newline = true
@@ -1175,7 +1175,7 @@ public class AnsiRenderer {
         writeIndent()
         if (theme.colors) out.write(ansiColor(AnsiColor.dim))
         out.write(bottom)
-        if (theme.colors) out.write("\x1b[0m")
+        if (theme.colors) out.write("\u{1b}[0m")
         out.writeByte('\n'.toUInt8())
         col = 0
         last_was_newline = true
@@ -1244,7 +1244,7 @@ public class AnsiRenderer {
             while (j < widths[Int64(i)] + 2) { out.write(h_char); j += 1 }
             out.write(if (i == widths.length - 1) tr_char else t_char)
         }
-        if (theme.colors) out.write("\x1b[0m")
+        if (theme.colors) out.write("\u{1b}[0m")
         out.writeByte('\n'.toUInt8())
         last_was_newline = true
 
@@ -1261,7 +1261,7 @@ public class AnsiRenderer {
                     while (j < widths[Int64(i)] + 2) { out.write(h_char); j += 1 }
                     out.write(if (i == widths.length - 1) mr_char else x_char)
                 }
-                if (theme.colors) out.write("\x1b[0m")
+                if (theme.colors) out.write("\u{1b}[0m")
                 out.writeByte('\n'.toUInt8())
                 last_was_newline = true
                 has_separated_header = true
@@ -1277,7 +1277,7 @@ public class AnsiRenderer {
             while (j < widths[Int64(i)] + 2) { out.write(h_char); j += 1 }
             out.write(if (i == widths.length - 1) br_char else b_char)
         }
-        if (theme.colors) out.write("\x1b[0m")
+        if (theme.colors) out.write("\u{1b}[0m")
         out.writeByte('\n'.toUInt8())
         last_was_newline = true
         col = 0
@@ -1293,11 +1293,11 @@ public class AnsiRenderer {
         writeIndent()
         if (theme.colors) out.write(ansiColor(AnsiColor.dim))
         out.write(v_char)
-        if (theme.colors) out.write("\x1b[0m")
+        if (theme.colors) out.write("\u{1b}[0m")
         for (i in 0..widths.length) {
             let seg: String = if (i < row.cells.length) row.cells[Int64(i)].content else ""
             out.writeByte(' '.toUInt8())
-            if (row.is_header && theme.colors) out.write("\x1b[1m")
+            if (row.is_header && theme.colors) out.write("\u{1b}[1m")
             let cw = visibleWidth(seg)
             let cell_align = if (i < row.cells.length) row.cells[Int64(i)].alignment else Align.default
             let alignment = if (cell_align != Align.default) cell_align else aligns[Int64(i)]
@@ -1310,12 +1310,12 @@ public class AnsiRenderer {
             let right = pad - left
             writePadding(left)
             out.write(seg)
-            if (theme.colors && row.is_header) out.write("\x1b[0m")
+            if (theme.colors && row.is_header) out.write("\u{1b}[0m")
             writePadding(right)
             out.writeByte(' '.toUInt8())
             if (theme.colors) out.write(ansiColor(AnsiColor.dim))
             out.write(v_char)
-            if (theme.colors) out.write("\x1b[0m")
+            if (theme.colors) out.write("\u{1b}[0m")
         }
         out.writeByte('\n'.toUInt8())
         last_was_newline = true
@@ -1362,9 +1362,9 @@ public class AnsiRenderer {
         let link_ok = theme.colors && theme.hyperlinks && has_src &&
             link_depth == 0 && !(src.get().startsWith("data:"))
         if (link_ok) {
-            writeRawNoColor("\x1b]8;;")
+            writeRawNoColor("\u{1b}]8;;")
             writeRawNoColor(src.get())
-            writeRawNoColor("\x1b\\")
+            writeRawNoColor("\u{1b}\\")
         }
         let img_marker = if (theme.colors) "\uD83D\uDCF7 " else "[img] "
         writeStyled(ansiColor(AnsiColor.magenta), img_marker)
@@ -1382,7 +1382,7 @@ public class AnsiRenderer {
         writeStyled(ansiReset(), "")
         reapplyStyles()
         if (link_ok) {
-            writeRawNoColor("\x1b]8;;\x1b\\")
+            writeRawNoColor("\u{1b}]8;;\u{1b}\\")
         }
         image_depth = saved_depth
     }
@@ -1390,9 +1390,9 @@ public class AnsiRenderer {
     /// 发射 Kitty 图片文件
     func emitKittyImageFile(path: String): Unit {
         // 简化: 编码文件路径为 base64
-        writeRawNoColor("\x1b_Ga=T,t=f,f=100,q=2;")
+        writeRawNoColor("\u{1b}_Ga=T,t=f,f=100,q=2;")
         // 实际实现需要 base64 编码路径
-        writeRawNoColor("\x1b\\")
+        writeRawNoColor("\u{1b}\\")
         writeRaw("\n")
         col = 0
         last_was_newline = true
@@ -1401,9 +1401,9 @@ public class AnsiRenderer {
 
     /// 发射 Kitty 直接图片
     func emitKittyImageDirect(base64_payload: String): Unit {
-        writeRawNoColor("\x1b_Ga=T,t=d,f=100,q=2;")
+        writeRawNoColor("\u{1b}_Ga=T,t=d,f=100,q=2;")
         writeRawNoColor(base64_payload)
-        writeRawNoColor("\x1b\\")
+        writeRawNoColor("\u{1b}\\")
         writeRaw("\n")
         col = 0
         last_was_newline = true

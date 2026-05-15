@@ -34,7 +34,7 @@ public struct NullableAllocator {
 
     /// 从可选的 Allocator 初始化
     /// 对应 Zig: pub inline fn init(allocator: ?std.mem.Allocator) NullableAllocator
-    public static func init(allocator: ?Allocator): NullableAllocator {
+    public static func initFunc(allocator: ?Allocator): NullableAllocator {
         if (let a = allocator) {
             return NullableAllocator(
                 ptr: a.getContext(),

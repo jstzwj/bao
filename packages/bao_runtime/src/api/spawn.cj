@@ -26,7 +26,7 @@ public class Action {
     var flags: Int32 = 0
     var mode: Int32 = 0
 
-    public static func init(): Action {
+    public static func initFunc(): Action {
         return Action{}
     }
 
@@ -45,7 +45,7 @@ public class Actions {
     var actions: ArrayListUnmanaged<Action> = ArrayListUnmanaged()
     var detached: Bool = false
 
-    public static func init(): Actions {
+    public static func initFunc(): Actions {
         return Actions{}
     }
 
@@ -117,7 +117,7 @@ public class Attr {
     var resetSignals: Bool = false
     var linuxPdeathsig: Int32 = 0
 
-    public static func init(): Attr {
+    public static func initFunc(): Attr {
         return Attr{}
     }
 
@@ -156,7 +156,7 @@ public class PosixSpawnAttr {
     var detached: Bool = false
     var ptySlaveFd: Int32 = -1
 
-    public static func init(): PosixSpawnAttr {
+    public static func initFunc(): PosixSpawnAttr {
         var attr = PosixSpawnattrT()
         switch (Posix.errno(Posix.posix_spawnattr_init(attr))) {
             case .SUCCESS => return PosixSpawnAttr{ attr = attr }
@@ -201,7 +201,7 @@ public class PosixSpawnAttr {
 public class PosixSpawnActions {
     var actions: PosixSpawnFileActionsT
 
-    public static func init(): PosixSpawnActions {
+    public static func initFunc(): PosixSpawnActions {
         var actions = PosixSpawnFileActionsT()
         switch (Posix.errno(Posix.posix_spawn_file_actions_init(actions))) {
             case .SUCCESS => return PosixSpawnActions{ actions = actions }
@@ -363,7 +363,7 @@ public func spawnZ(
                 case .close => posixActions.close(FD.fromNative(action.fds[0])) catch {}
                 case .dup2 => posixActions.dup2(FD.fromNative(action.fds[0]), FD.fromNative(action.fds[1])) catch {}
                 case .open => posixActions.openZ(FD.fromNative(action.fds[0]), action.path, UInt32(action.flags), Int32(action.mode)) catch {}
-                case .none => {}
+                case .none => ()
             }
         }
 

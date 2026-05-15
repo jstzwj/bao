@@ -37,7 +37,7 @@ public class WatcherAtomics {
     }
 
     /// 初始化
-    public static func init(dev: DevServer): WatcherAtomics {
+    public static func initFunc(dev: DevServer): WatcherAtomics {
         var self = WatcherAtomics(events: Array<HotReloadEvent>(3))
         for (event in self.events) {
             event = HotReloadEvent.initEmpty(dev)

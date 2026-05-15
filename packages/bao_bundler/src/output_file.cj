@@ -117,7 +117,7 @@ public class BundlerOutputFile {
 
     /// 从选项创建
     // 严格翻译自: OutputFile.zig:214 init()
-    public static func init(opts: OutputFileOptions): BundlerOutputFile {
+    public static func initFunc(opts: OutputFileOptions): BundlerOutputFile {
         let f = BundlerOutputFile()
         f.loader = opts.loader
         f.inputLoader = opts.inputLoader
@@ -187,8 +187,8 @@ public class BundlerOutputFile {
     // 严格翻译自: OutputFile.zig:251 writeToDisk()
     public func writeToDisk(rootDir: FileDescriptor, rootDirPath: String): Unit {
         match (value.kind) {
-            case OutputFileKind.Noop => {}
-            case OutputFileKind.Saved => { /* 已写入磁盘 */ }
+            case OutputFileKind.Noop => ()
+            case OutputFileKind.Saved => /* 已写入磁盘 */
             case OutputFileKind.Buffer => {
                 // 写入缓冲区数据到磁盘
                 // 简化
@@ -199,7 +199,7 @@ public class BundlerOutputFile {
             case OutputFileKind.Copy => {
                 copyToDisk(rootDirPath, value.operation.pathname, rootDir)
             }
-            case OutputFileKind.Pending => { /* 不应该在这里 */ }
+            case OutputFileKind.Pending => /* 不应该在这里 */
         }
     }
 

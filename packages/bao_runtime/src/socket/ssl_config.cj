@@ -161,7 +161,7 @@ public class SSLConfig {
                     config.lowMemoryMode = lowMem.toBoolean()
                 }
             }
-            case None => {}
+            case None => ()
         }
 
         return config
@@ -190,23 +190,23 @@ public class SSLConfig {
 
         match (keyFileName) {
             case Some(f) => opts.keyFileName = f
-            case None => {}
+            case None => ()
         }
         match (certFileName) {
             case Some(f) => opts.certFileName = f
-            case None => {}
+            case None => ()
         }
         match (caFileName) {
             case Some(f) => opts.caFileName = f
-            case None => {}
+            case None => ()
         }
         match (dhParamsFileName) {
             case Some(f) => opts.dhParamsFileName = f
-            case None => {}
+            case None => ()
         }
         match (passphrase) {
             case Some(p) => opts.passphrase = p
-            case None => {}
+            case None => ()
         }
 
         opts.lowMemory = lowMemoryMode

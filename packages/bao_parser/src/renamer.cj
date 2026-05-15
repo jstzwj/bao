@@ -139,7 +139,7 @@ public class InlineString {
 
     /// 初始化 - 严格对应 Bun InlineString.init
     /// Zig: pub fn init(str: []const u8) InlineString
-    public static func init(str: String): InlineString {
+    public static func initFunc(str: String): InlineString {
         let this = InlineString()
         this.len = UInt8(min(str.length, 15))
         for (i in 0..this.len) {
@@ -170,7 +170,7 @@ public class TinyString {
 
     /// 初始化 - 严格对应 Bun TinyString.init
     /// Zig: pub fn init(input: string, allocator: std.mem.Allocator) !TinyString
-    public static func init(input: String, allocator: Allocator): TinyString {
+    public static func initFunc(input: String, allocator: Allocator): TinyString {
         if (input.length <= 15) {
             let ts = TinyString()
             ts.isInline = true
@@ -240,7 +240,7 @@ public class MinifyRenamer {
 
     /// 初始化 - 严格对应 Bun MinifyRenamer.init
     /// Zig: pub fn init(allocator, symbols, first_top_level_slots, reserved_names) !*MinifyRenamer
-    public static func init(
+    public static func initFunc(
         allocator: Allocator,
         symbols: SymbolMap,
         firstTopLevelSlots: SlotCounts,
@@ -665,7 +665,7 @@ public class NumberRenamer {
 
     /// 初始化 - 严格对应 Bun NumberRenamer.init
     /// Zig: pub fn init(allocator, temp_allocator, symbols, root_names) !*NumberRenamer
-    public static func init(
+    public static func initFunc(
         allocator: Allocator,
         tempAllocator: Allocator,
         symbols: SymbolMap,

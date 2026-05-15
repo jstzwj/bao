@@ -121,13 +121,13 @@ public class InternalSocket {
     /// 对应 Bun: pub fn close(this, code) void
     public func close(code: CloseCode): Unit {
         match (tag) {
-            case InternalSocketTag.detached => {}
+            case InternalSocketTag.detached => ()
             case InternalSocketTag.connected =>
                 if (let Some(socket) <- connectedSocket) { socket.close(code) }
             case InternalSocketTag.connecting =>
                 if (let Some(cs) <- connectingSocket) { cs.close() }
-            case InternalSocketTag.upgraded_duplex => {}
-            case InternalSocketTag.pipe => {}
+            case InternalSocketTag.upgraded_duplex => ()
+            case InternalSocketTag.pipe => ()
         }
     }
 
@@ -256,13 +256,13 @@ public class SocketHandler {
     /// 对应 Bun: pub fn timeout(this, seconds) void
     public func timeout(seconds: UInt32): Unit {
         match (socket.tag) {
-            case InternalSocketTag.upgraded_duplex => {}
-            case InternalSocketTag.pipe => {}
+            case InternalSocketTag.upgraded_duplex => ()
+            case InternalSocketTag.pipe => ()
             case InternalSocketTag.connected =>
                 if (let Some(s) <- socket.connectedSocket) { s.setTimeout(seconds) }
             case InternalSocketTag.connecting =>
                 if (let Some(cs) <- socket.connectingSocket) { cs.timeout(seconds) }
-            case InternalSocketTag.detached => {}
+            case InternalSocketTag.detached => ()
         }
     }
 
@@ -289,9 +289,9 @@ public class SocketHandler {
                         cs.longTimeout(0)
                     }
                 }
-            case InternalSocketTag.detached => {}
-            case InternalSocketTag.upgraded_duplex => {}
-            case InternalSocketTag.pipe => {}
+            case InternalSocketTag.detached => ()
+            case InternalSocketTag.upgraded_duplex => ()
+            case InternalSocketTag.pipe => ()
         }
     }
 
@@ -302,9 +302,9 @@ public class SocketHandler {
                 if (let Some(s) <- socket.connectedSocket) { s.shutdown() }
             case InternalSocketTag.connecting =>
                 if (let Some(cs) <- socket.connectingSocket) { cs.shutdown() }
-            case InternalSocketTag.detached => {}
-            case InternalSocketTag.upgraded_duplex => {}
-            case InternalSocketTag.pipe => {}
+            case InternalSocketTag.detached => ()
+            case InternalSocketTag.upgraded_duplex => ()
+            case InternalSocketTag.pipe => ()
         }
     }
 
@@ -315,9 +315,9 @@ public class SocketHandler {
                 if (let Some(s) <- socket.connectedSocket) { s.shutdownRead() }
             case InternalSocketTag.connecting =>
                 if (let Some(cs) <- socket.connectingSocket) { cs.shutdownRead() }
-            case InternalSocketTag.upgraded_duplex => {}
-            case InternalSocketTag.pipe => {}
-            case InternalSocketTag.detached => {}
+            case InternalSocketTag.upgraded_duplex => ()
+            case InternalSocketTag.pipe => ()
+            case InternalSocketTag.detached => ()
         }
     }
 
@@ -392,11 +392,11 @@ public class SocketHandler {
     /// 对应 Bun: pub fn flush(this) void
     public func flush(): Unit {
         match (socket.tag) {
-            case InternalSocketTag.upgraded_duplex => {}
+            case InternalSocketTag.upgraded_duplex => ()
             case InternalSocketTag.connected =>
                 if (let Some(s) <- socket.connectedSocket) { s.flush() }
             case InternalSocketTag.connecting, InternalSocketTag.detached => return
-            case InternalSocketTag.pipe => {}
+            case InternalSocketTag.pipe => ()
         }
     }
 

@@ -297,7 +297,7 @@ public class DefineData {
         let parsed = Float64.parse(value)
         match (parsed) {
             case Some(n) => return DefineExpr(tag: DefineExprTag.Number, numberValue: n)
-            case None => {}
+            case None => ()
         }
         // 去掉引号后作为字符串
         if (value.length >= 2) {
@@ -488,7 +488,7 @@ public class Define {
 
     /// 初始化 Define
     // 严格翻译自: defines.zig:345 init()
-    public static func init(
+    public static func initFunc(
         allocator: Allocator,
         userDefines: ?HashMap<String, DefineData>,
         stringDefines: ?HashMap<String, DefineData>,
@@ -534,7 +534,7 @@ public class Define {
                     define.insert(entry.key, entry.value)
                 }
             }
-            case None => {}
+            case None => ()
         }
 
         // 4. 加载环境变量 define
@@ -544,7 +544,7 @@ public class Define {
                     define.insert(entry.key, entry.value)
                 }
             }
-            case None => {}
+            case None => ()
         }
 
         return define
@@ -556,13 +556,13 @@ public class Define {
         // 先查找用户 define
         match (identifiers.get(name)) {
             case Some(data) => return Some(data)
-            case None => {}
+            case None => ()
         }
 
         // 再查找全局无副作用标识符
         match (pureGlobalIdentifierMap.get(name)) {
             case Some(data) => return Some(data)
-            case None => {}
+            case None => ()
         }
 
         return None

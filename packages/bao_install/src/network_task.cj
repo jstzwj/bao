@@ -224,12 +224,12 @@ public class NetworkTask {
         cb.isExtendedManifest = needsExtended
         match (loadedManifest) {
             case Some(m) => cb.loadedManifest = loadedManifest
-            case None => {}
+            case None => ()
         }
         manifestCallback = Some(cb)
 
         // Accept 头
-        val acceptHeader = if (needsExtended) { ACCEPT_HEADER_VALUE_EXTENDED } else { ACCEPT_HEADER_VALUE }
+        let acceptHeader = if (needsExtended) { ACCEPT_HEADER_VALUE_EXTENDED } else { ACCEPT_HEADER_VALUE }
 
         // 缓存头: If-None-Match (etag), If-Modified-Since
         // 翻译自: NetworkTask.forManifest 中 etag/last_modified 逻辑
@@ -446,12 +446,12 @@ public class PackageManifestData {
                         for (key in tagObj.keys()) {
                             match (tagObj.get(key)) {
                                 case Some(v) => manifest.distTags.put(key, v.asString())
-                                case None => {}
+                                case None => ()
                             }
                         }
                     }
                 }
-                case None => {}
+                case None => ()
             }
             // versions
             match (json.get("versions")) {
@@ -463,7 +463,7 @@ public class PackageManifestData {
                         }
                     }
                 }
-                case None => {}
+                case None => ()
             }
             return manifest
         } catch (_: Exception) {
@@ -497,7 +497,7 @@ public class PackageManifestData {
                         case Some(parsed) => {
                             if (parsed.compare(target) == 0) { return v }
                         }
-                        case None => {}
+                        case None => ()
                     }
                 }
                 // 最新兼容版本

@@ -80,7 +80,7 @@ public class BinaryState {
             this.currentlyExecuting = this.makeChild(false)
             this.left = 0
         }
-        return this.currentlyExecuting!.start()
+        return this.currentlyExecuting.getOrThrow().start()
     }
 
     /// 创建子节点
@@ -105,7 +105,7 @@ public class BinaryState {
                 this.right = 0
                 return this.parent.childDone(this, 0)
             }
-            return this.currentlyExecuting!.start()
+            return this.currentlyExecuting.getOrThrow().start()
         }
 
         this.right = exitCode

@@ -20,13 +20,13 @@ public let THUMBHASH_MAX_LEN: Int64 = 25
 // ============================================================================
 
 class ThumbHashChannel {
-    var dc: Float32 = 0.0f
-    var scale: Float32 = 0.0f
+    var dc: Float32 = 0.0f32
+    var scale: Float32 = 0.0f32
     var ac: Array<Float32>  // 最多 49 个
     var n: Int64 = 0
 
     init() {
-        ac = Array<Float32>(49, item: 0.0f)
+        ac = Array<Float32>(49, item: 0.0f32)
     }
 }
 
@@ -65,7 +65,7 @@ class NibbleReader {
             while (cx * ny < nx * (ny - cy)) {
                 let nib = next()
                 if (nib == None) { return None }
-                out[n] = (Float32(nib!) / 7.5 - 1.0f) * scale
+                out[n] = (Float32(nib!) / 7.5 - 1.0f32) * scale
                 n += 1
                 cx += 1
             }
@@ -94,13 +94,13 @@ public class ThumbHash {
         var out = Array<UInt8>(THUMBHASH_MAX_LEN, item: 0)
 
         // 平均颜色 (alpha 加权)
-        var avg = Array<Float32>(4, item: 0.0f)
+        var avg = Array<Float32>(4, item: 0.0f32)
         var ii: Int64 = 0
         while (ii < rgba.size) {
-            let a: Float32 = Float32(rgba[ii + 3]) / 255.0f
-            avg[0] += a / 255.0f * Float32(rgba[ii + 0])
-            avg[1] += a / 255.0f * Float32(rgba[ii + 1])
-            avg[2] += a / 255.0f * Float32(rgba[ii + 2])
+            let a: Float32 = Float32(rgba[ii + 3]) / 255.0f32
+            avg[0] += a / 255.0f32 * Float32(rgba[ii + 0])
+            avg[1] += a / 255.0f32 * Float32(rgba[ii + 1])
+            avg[2] += a / 255.0f32 * Float32(rgba[ii + 2])
             avg[3] += a
             ii += 4
         }
@@ -112,27 +112,27 @@ public class ThumbHash {
 
         let npix: Float32 = Float32(w * h)
         let hasAlpha = avg[3] < npix
-        let lLimit: Float32 = if (hasAlpha) { 5.0f } else { 7.0f }
+        let lLimit: Float32 = if (hasAlpha) { 5.0f32 } else { 7.0f32 }
         let maxDim: Float32 = Float32(max(w, h))
         let lx = max(1, UInt32(round(lLimit * Float32(w) / maxDim)))
         let ly = max(1, UInt32(round(lLimit * Float32(h) / maxDim)))
 
         // RGBA -> LPQA
         let pixCount = Int64(w) * Int64(h)
-        var l = Array<Float32>(pixCount, item: 0.0f)
-        var p = Array<Float32>(pixCount, item: 0.0f)
-        var q = Array<Float32>(pixCount, item: 0.0f)
-        var a = Array<Float32>(pixCount, item: 0.0f)
+        var l = Array<Float32>(pixCount, item: 0.0f32)
+        var p = Array<Float32>(pixCount, item: 0.0f32)
+        var q = Array<Float32>(pixCount, item: 0.0f32)
+        var a = Array<Float32>(pixCount, item: 0.0f32)
 
         ii = 0
         var px: Int64 = 0
         while (ii < rgba.size) {
-            let al: Float32 = Float32(rgba[ii + 3]) / 255.0f
-            let r = avg[0] * (1 - al) + al / 255.0f * Float32(rgba[ii + 0])
-            let g = avg[1] * (1 - al) + al / 255.0f * Float32(rgba[ii + 1])
-            let b = avg[2] * (1 - al) + al / 255.0f * Float32(rgba[ii + 2])
-            l[px] = (r + g + b) / 3.0f
-            p[px] = (r + g) / 2.0f - b
+            let al: Float32 = Float32(rgba[ii + 3]) / 255.0f32
+            let r = avg[0] * (1 - al) + al / 255.0f32 * Float32(rgba[ii + 0])
+            let g = avg[1] * (1 - al) + al / 255.0f32 * Float32(rgba[ii + 1])
+            let b = avg[2] * (1 - al) + al / 255.0f32 * Float32(rgba[ii + 2])
+            l[px] = (r + g + b) / 3.0f32
+            p[px] = (r + g) / 2.0f32 - b
             q[px] = r - g
             a[px] = al
             ii += 4
@@ -144,8 +144,8 @@ public class ThumbHash {
         let qc = dct(q, px, w, h, 3, 3)
         let ac = if (hasAlpha) { dct(a, px, w, h, 5, 5) } else {
             let c = ThumbHashChannel()
-            c.dc = 1.0f
-            c.scale = 1.0f
+            c.dc = 1.0f32
+            c.scale = 1.0f32
             c
         }
 
@@ -199,40 +199,40 @@ public class ThumbHash {
         let h24: UInt32 = UInt32(hash[0]) | (UInt32(hash[1]) << 8) | (UInt32(hash[2]) << 16)
         let h16: UInt16 = UInt16(hash[3]) | (UInt16(hash[4]) << 8)
 
-        let lDc: Float32 = Float32(h24 & 63) / 63.0f
-        let pDc: Float32 = Float32((h24 >> 6) & 63) / 31.5f - 1.0f
-        let qDc: Float32 = Float32((h24 >> 12) & 63) / 31.5f - 1.0f
-        let lScale: Float32 = Float32((h24 >> 18) & 31) / 31.0f
+        let lDc: Float32 = Float32(h24 & 63) / 63.0f32
+        let pDc: Float32 = Float32((h24 >> 6) & 63) / 31.5f32 - 1.0f32
+        let qDc: Float32 = Float32((h24 >> 12) & 63) / 31.5f32 - 1.0f32
+        let lScale: Float32 = Float32((h24 >> 18) & 31) / 31.0f32
         let hasAlpha = (h24 >> 23) != 0
-        let pScale: Float32 = Float32((h16 >> 3) & 63) / 63.0f
-        let qScale: Float32 = Float32((h16 >> 9) & 63) / 63.0f
+        let pScale: Float32 = Float32((h16 >> 3) & 63) / 63.0f32
+        let qScale: Float32 = Float32((h16 >> 9) & 63) / 63.0f32
         let land = (h16 >> 15) != 0
         let lMax: UInt16 = if (hasAlpha) { 5 } else { 7 }
         let lx = max(3, if (land) { lMax } else { h16 & 7 })
         let ly = max(3, if (land) { h16 & 7 } else { lMax })
 
-        var aDc: Float32 = 1.0f
-        var aScale: Float32 = 1.0f
+        var aDc: Float32 = 1.0f32
+        var aScale: Float32 = 1.0f32
         var off: Int64 = 5
         if (hasAlpha) {
             if (hash.size < 6) { return None }
-            aDc = Float32(hash[5] & 15) / 15.0f
-            aScale = Float32(hash[5] >> 4) / 15.0f
+            aDc = Float32(hash[5] & 15) / 15.0f32
+            aScale = Float32(hash[5] >> 4) / 15.0f32
             off = 6
         }
 
         let nibbles = NibbleReader(hash, off)
-        var lAc = Array<Float32>(49, item: 0.0f)
-        var pAc = Array<Float32>(5, item: 0.0f)
-        var qAc = Array<Float32>(5, item: 0.0f)
-        var aAc = Array<Float32>(14, item: 0.0f)
+        var lAc = Array<Float32>(49, item: 0.0f32)
+        var pAc = Array<Float32>(5, item: 0.0f32)
+        var qAc = Array<Float32>(5, item: 0.0f32)
+        var aAc = Array<Float32>(14, item: 0.0f32)
 
         let ln = nibbles.channel(lAc, lx, ly, lScale)
         if (ln == None) { return None }
         // 1.25x 饱和度提升补偿 4 位量化
-        let pn = nibbles.channel(pAc, 3, 3, pScale * 1.25f)
+        let pn = nibbles.channel(pAc, 3, 3, pScale * 1.25f32)
         if (pn == None) { return None }
-        let qn = nibbles.channel(qAc, 3, 3, qScale * 1.25f)
+        let qn = nibbles.channel(qAc, 3, 3, qScale * 1.25f32)
         if (qn == None) { return None }
         let an = if (hasAlpha) { nibbles.channel(aAc, 5, 5, aScale) } else { Int64(0) }
         if (hasAlpha && an == None) { return None }
@@ -242,8 +242,8 @@ public class ThumbHash {
         let h: UInt32 = if (ratio > 1) { UInt32(round(32 / ratio)) } else { 32 }
         let rgba = Array<UInt8>(Int64(w) * Int64(h) * 4, item: 0)
 
-        var fx = Array<Float32>(7, item: 0.0f)
-        var fy = Array<Float32>(7, item: 0.0f)
+        var fx = Array<Float32>(7, item: 0.0f32)
+        var fy = Array<Float32>(7, item: 0.0f32)
 
         var y: UInt32 = 0
         while (y < h) {
@@ -257,13 +257,13 @@ public class ThumbHash {
                 let nf = max(lx, if (hasAlpha) { UInt32(5) } else { UInt32(3) })
                 var cc: UInt32 = 0
                 while (cc < nf) {
-                    fx[Int64(cc)] = cos(Float32.pi / Float32(w) * (Float32(x) + 0.5f) * Float32(cc))
+                    fx[Int64(cc)] = cos(Float32.pi / Float32(w) * (Float32(x) + 0.5f32) * Float32(cc))
                     cc += 1
                 }
                 let nfY = max(ly, if (hasAlpha) { UInt32(5) } else { UInt32(3) })
                 cc = 0
                 while (cc < nfY) {
-                    fy[Int64(cc)] = cos(Float32.pi / Float32(h) * (Float32(y) + 0.5f) * Float32(cc))
+                    fy[Int64(cc)] = cos(Float32.pi / Float32(h) * (Float32(y) + 0.5f32) * Float32(cc))
                     cc += 1
                 }
 
@@ -272,7 +272,7 @@ public class ThumbHash {
                 qv += idct(qAc, qn!, 3, 3, fx, fy)
                 if (hasAlpha) { av += idct(aAc, an!, 5, 5, fx, fy) }
 
-                let b = lv - 2.0f / 3.0f * pv
+                let b = lv - 2.0f32 / 3.0f32 * pv
                 let r = (3 * lv - b + qv) / 2
                 let g = r - qv
                 let o = Int64((y * w + x) * 4)
@@ -299,20 +299,20 @@ public class ThumbHash {
     /// 三角 DCT-II
     static func dct(chan: Array<Float32>, pixCount: Int64, w: UInt32, h: UInt32, nx: UInt32, ny: UInt32): ThumbHashChannel {
         var c = ThumbHashChannel()
-        var fx = Array<Float32>(100, item: 0.0f)
+        var fx = Array<Float32>(100, item: 0.0f32)
         var cy: UInt32 = 0
         while (cy < ny) {
             var cx: UInt32 = 0
             while (cx * ny < nx * (ny - cy)) {
                 var xi: UInt32 = 0
                 while (xi < w) {
-                    fx[Int64(xi)] = cos(Float32.pi / Float32(w) * Float32(cx) * (Float32(xi) + 0.5f))
+                    fx[Int64(xi)] = cos(Float32.pi / Float32(w) * Float32(cx) * (Float32(xi) + 0.5f32))
                     xi += 1
                 }
-                var f: Float32 = 0.0f
+                var f: Float32 = 0.0f32
                 var yi: UInt32 = 0
                 while (yi < h) {
-                    let fyVal = cos(Float32.pi / Float32(h) * Float32(cy) * (Float32(yi) + 0.5f))
+                    let fyVal = cos(Float32.pi / Float32(h) * Float32(cy) * (Float32(yi) + 0.5f32))
                     xi = 0
                     while (xi < w) {
                         f += chan[Int64(xi + yi * w)] * fx[Int64(xi)] * fyVal
@@ -335,7 +335,7 @@ public class ThumbHash {
         if (c.scale > 0) {
             var i: Int64 = 0
             while (i < c.n) {
-                c.ac[i] = 0.5f + 0.5f / c.scale * c.ac[i]
+                c.ac[i] = 0.5f32 + 0.5f32 / c.scale * c.ac[i]
                 i += 1
             }
         }
@@ -345,12 +345,12 @@ public class ThumbHash {
     /// 逆 DCT
     static func idct(ac: Array<Float32>, n: Int64, nx: UInt32, ny: UInt32,
         fx: Array<Float32>, fy: Array<Float32>): Float32 {
-        var v: Float32 = 0.0f
+        var v: Float32 = 0.0f32
         var j: Int64 = 0
         var cy: UInt32 = 0
         while (cy < ny) {
             var cx: UInt32 = if (cy > 0) { 0 } else { 1 }
-            let fy2 = fy[Int64(cy)] * 2.0f
+            let fy2 = fy[Int64(cy)] * 2.0f32
             while (cx * ny < nx * (ny - cy)) {
                 v += ac[j] * fx[Int64(cx)] * fy2
                 j += 1
@@ -362,9 +362,9 @@ public class ThumbHash {
     }
 
     static func clamp8(v: Float32): UInt8 {
-        if (v < 0.0f) { return 0 }
-        if (v > 1.0f) { return 255 }
-        return UInt8(v * 255.0f)
+        if (v < 0.0f32) { return 0 }
+        if (v > 1.0f32) { return 255 }
+        return UInt8(v * 255.0f32)
     }
 
     static func max(a: UInt32, b: UInt32): UInt32 {
@@ -380,7 +380,7 @@ public class ThumbHash {
     }
 
     static func round(v: Float32): Int64 {
-        Int64(v + 0.5f)
+        Int64(v + 0.5f32)
     }
 
     static func cos(v: Float32): Float32 {

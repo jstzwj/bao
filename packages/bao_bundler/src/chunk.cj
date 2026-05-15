@@ -482,7 +482,7 @@ public class ChunkGraph {
                 if (!deps.contains(to)) {
                     deps.append(to)
                 }
-            case None => {}
+            case None => ()
         }
     }
 
@@ -521,7 +521,7 @@ public class ChunkGraph {
                     for (dep in deps) {
                         visit(dep)
                     }
-                case None => {}
+                case None => ()
             }
             visiting.remove(index)
             visited.put(index)
@@ -567,7 +567,7 @@ public class ChunkGraph {
                                 queue.append(dep)
                         }
                     }
-                case None => {}
+                case None => ()
             }
         }
 
@@ -629,7 +629,7 @@ public class DynamicImportBoundary {
                             boundaries.append(info)
                         }
                     }
-                case None => {}
+                case None => ()
             }
         }
         return boundaries
@@ -643,7 +643,7 @@ public class DynamicImportBoundary {
             match (stmt.expr) {
                 case Some(expr) =>
                     findDynamicImportsInExpr(expr, modulePath, result)
-                case None => {}
+                case None => ()
             }
         }
 
@@ -652,7 +652,7 @@ public class DynamicImportBoundary {
             match (stmt.declValue) {
                 case Some(expr) =>
                     findDynamicImportsInExpr(expr, modulePath, result)
-                case None => {}
+                case None => ()
             }
         }
 
@@ -678,7 +678,7 @@ public class DynamicImportBoundary {
                             }
                         }
                     }
-                case None => {}
+                case None => ()
             }
         }
     }

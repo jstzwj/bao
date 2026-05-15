@@ -98,7 +98,7 @@ public class PathWatcherManager {
         if (list == None) {
             list = Array<FsWatchCallback>()
         }
-        list!.add(callback!)
+        list.getOrThrow().add(callback!)
         watchers.put(path, list!)
     }
 

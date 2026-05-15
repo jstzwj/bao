@@ -14,7 +14,7 @@ import bao_sys.*
 public class ProcessExitHandler {
     var ptr: TaggedPointer = TaggedPointer.Null
 
-    public static func init(this: ProcessExitHandler, ptr: Any) {
+    public static func initFunc(`this`: ProcessExitHandler, ptr: Any) {
         this.ptr = TaggedPointer.init(ptr)
     }
 
@@ -82,18 +82,8 @@ public typealias PidFDType = Int32
 
 /// 进程状态
 public enum Status {
-    case running
-    case exited(ExitStatus)
-    case signaled(SignalCode)
-    case err(SysError)
-
-    /// 获取退出码
-    public func exitCode(): Int32 {
-        return switch (this) {
-            case .exited(let exit) => exit.code
-            case .signaled(let sig) => 128 + Int32(sig.rawValue)
-            else => -1
-        }
+    | else
+}
     }
 
     /// 获取信号码
@@ -209,7 +199,7 @@ public class Process {
 
         let status = Status.from(pid, waitpidResult) ?? {
             switch (this.rewatchPosix()) {
-                case .result => {}
+                case .result => ()
                 case .err(let err) => {
                     if (Environment.isMac) {
                         if (err.getErrno() == .SRCH) {
@@ -280,7 +270,7 @@ public class Process {
         if (this.poller == .fd) {
             let maybe = this.poller.fd.register(this.eventLoop.loop(), .process, !Environment.isLinux)
             switch (maybe) {
-                case .err => {}
+                case .err => ()
                 case .result => this.ref()
             }
             return maybe

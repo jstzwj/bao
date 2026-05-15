@@ -50,6 +50,251 @@ func isIPv6Address(s: String): Bool {
 }
 
 /// 规范化结果
+public class CacheConfig {
+    public var pendingCache: Bool = false
+    public var entryCache: Bool = false
+    public var posInPending: UInt8 = 0
+    public var nameLen: UInt16 = 0
+
+    public init() {}
+    public init(pendingCache: Bool, entryCache: Bool, posInPending: UInt8, nameLen: UInt16) {
+        this.pendingCache = pendingCache
+        this.entryCache = entryCache
+        this.posInPending = posInPending
+        this.nameLen = nameLen
+    }
+}
+
+public class PendingCacheKey {
+    public var hash: UInt64 = 0
+    public var len: UInt16 = 0
+    public var lookup: ?ResolveInfoRequest = None
+
+    public init() {}
+
+    public static func initFromName(name: String): PendingCacheKey {
+        let key = PendingCacheKey()
+        let hasher = Wyhash.init(0)
+        hasher.update(name)
+        key.hash = hasher.final()
+        key.len = UInt16(name.size)
+        return key
+    }
+}
+
+public class CacheConfig {
+    public var pendingCache: Bool = false
+    public var entryCache: Bool = false
+    public var posInPending: UInt8 = 0
+    public var nameLen: UInt16 = 0
+
+    public init() {}
+}
+
+public class PendingCacheKey {
+    public var hash: UInt64 = 0
+    public var len: UInt16 = 0
+    public var lookup: ?GetHostByAddrInfoRequest = None
+
+    public init() {}
+
+    public static func initFromName(name: String): PendingCacheKey {
+        let key = PendingCacheKey()
+        let hasher = Wyhash.init(0)
+        hasher.update(name)
+        key.hash = hasher.final()
+        key.len = UInt16(name.size)
+        return key
+    }
+}
+
+public class CacheConfig {
+    public var pendingCache: Bool = false
+    public var entryCache: Bool = false
+    public var posInPending: UInt8 = 0
+    public var nameLen: UInt16 = 0
+
+    public init() {}
+}
+
+public class PendingCacheKey {
+    public var hash: UInt64 = 0
+    public var len: UInt16 = 0
+    public var lookup: ?GetNameInfoRequest = None
+
+    public init() {}
+
+    public static func initFromName(name: String): PendingCacheKey {
+        let key = PendingCacheKey()
+        let hasher = Wyhash.init(0)
+        hasher.update(name)
+        key.hash = hasher.final()
+        key.len = UInt16(name.size)
+        return key
+    }
+}
+
+public class CacheConfig {
+    public var pendingCache: Bool = false
+    public var entryCache: Bool = false
+    public var posInPending: UInt8 = 0
+    public var nameLen: UInt16 = 0
+
+    public init() {}
+}
+
+public class PendingCacheKey {
+    public var hash: UInt64 = 0
+    public var len: UInt16 = 0
+    public var lookup: ?GetAddrInfoRequest = None
+
+    public init() {}
+
+    public static func initFromQuery(query: GetAddrInfo): PendingCacheKey {
+        let key = PendingCacheKey()
+        key.hash = query.hash()
+        key.len = UInt16(query.name.size)
+        return key
+    }
+
+    public func append(dnsLookup: DNSLookup): Unit {
+        var tailNode = lookup.getOrThrow().tail
+        tailNode.next = dnsLookup
+        lookup.getOrThrow().tail = dnsLookup
+    }
+}
+
+public class DnsRequest {
+    public var key: RequestKey
+    public var result: ?RequestResult = None
+    public var notify: ArrayList<DNSRequestOwner> = ArrayList<DNSRequestOwner>()
+    public var refcount: UInt32 = 0
+    public var createdAt: UInt32 = 0xFFFFFFFF.toInt32().toUInt32()
+    public var valid: Bool = true
+
+    public init(key: RequestKey) {
+        this.key = key
+    }
+
+    /// 检查是否过期
+    /// 对应 Bun: internal.Request.isExpired
+    public func isExpired(timestampToStore: Ref<UInt32>): Bool {
+        if (result == None) {
+            return false
+        }
+
+        let now = if (timestampToStore.value == 0) {
+            GlobalCache.getCacheTimestamp()
+        } else {
+            timestampToStore.value
+        }
+        timestampToStore.value = now
+
+        if (now - createdAt > getMaxDNSTimeToLiveSeconds()) {
+            valid = false
+            return true
+        }
+
+        return false
+    }
+}
+
+public class RequestKey {
+    public var host: ?String = None
+    public var port: UInt16 = 0
+    public var hash: UInt64 = 0
+
+    public init(host: ?String, port: UInt16) {
+        this.host = host
+        this.port = port
+        this.hash = if (host != None) { generateHash(host!) } else { 0 }
+    }
+
+    public static func generateHash(name: String): UInt64 {
+        let hasher = Wyhash.init(0)
+        hasher.update(name)
+        return hasher.final()
+    }
+}
+
+public class RequestResult {
+    public var info: ?ArrayList<ResultEntry> = None
+    public var err: Int32 = 0
+
+    public init() {}
+}
+
+public class ResultEntry {
+    public var family: Int64 = 0
+    public var address: String = ""
+    public var next: ?ResultEntry = None
+
+    public init() {}
+}
+
+public class GlobalCache {
+    public static let MAX_ENTRIES: Int64 = 256
+
+    public var lock: Mutex = Mutex()
+    public var cache: ArrayList<DnsRequest> = ArrayList<DnsRequest>()
+    public var len: Int64 = 0
+
+    /// 获取缓存时间戳
+    /// 对应 Bun: internal.GlobalCache.getCacheTimestamp
+    public static func getCacheTimestamp(): UInt32 {
+        // 简化实现：使用当前时间的秒数
+        return 0
+    }
+
+    /// 获取缓存中的请求
+    public func get(key: RequestKey, timestampToStore: Ref<UInt32>): ?DnsRequest {
+        var i = 0
+        while (i < cache.size) {
+            let entry = cache[i]
+            if (entry.key.hash == key.hash && entry.valid) {
+                if (entry.isExpired(timestampToStore)) {
+                    if (entry.refcount == 0) {
+                        cache.removeAt(i)
+                        i -= 1
+                    }
+                    i += 1
+                    continue
+                }
+                return entry
+            }
+            i += 1
+        }
+        return None
+    }
+
+    /// 尝试推入缓存
+    public func tryPush(entry: DnsRequest): Bool {
+        if (cache.size >= MAX_ENTRIES) {
+            // 查找可驱逐的条目
+            for (i in 0..cache.size) {
+                if (cache[i].refcount == 0) {
+                    cache[i] = entry
+                    return true
+                }
+            }
+            return false
+        } else {
+            cache.append(entry)
+            return true
+        }
+    }
+
+    /// 移除条目
+    public func remove(entry: DnsRequest): Unit {
+        for (i in 0..cache.size) {
+            if (cache[i] === entry) {
+                cache.removeAt(i)
+                return
+            }
+        }
+    }
+}
+
 public class NormalizeResult {
     public var name: String
     public var backend: DnsBackend
@@ -75,11 +320,11 @@ public class ResolveInfoRequest {
     public var tail: CAresLookup
 
     public init(cacheHit: LookupCacheHit, resolver: ?DnsResolver, name: String, globalThis: JsObject, cacheField: String) {
-        val hasher = Wyhash.init(0)
+        let hasher = Wyhash.init(0)
         hasher.update(name)
-        val hash = hasher.final()
+        let hash = hasher.final()
 
-        val pollRef = KeepAlive()
+        let pollRef = KeepAlive()
         pollRef.ref(globalThis)
 
         head = CAresLookup(resolver: resolver, globalThis: globalThis, pollRef: pollRef, promise: JsPromise(), name: name)
@@ -95,7 +340,7 @@ public class ResolveInfoRequest {
     /// 对应 Bun: ResolveInfoRequest.onCaresComplete
     public func onCaresComplete(err: ?DnsError, timeout: Int32, result: AnyReply): Unit {
         if (resolverForCaching != None) {
-            val resolver = resolverForCaching!
+            let resolver = resolverForCaching!
             resolver.requestCompleted()
             if (cache.pendingCache) {
                 resolver.drainPendingCares(cache.posInPending, err, timeout, result)
@@ -108,39 +353,9 @@ public class ResolveInfoRequest {
 
     /// 缓存配置
     /// 对应 Bun: ResolveInfoRequest.CacheConfig
-    public class CacheConfig {
-        public var pendingCache: Bool = false
-        public var entryCache: Bool = false
-        public var posInPending: UInt8 = 0
-        public var nameLen: UInt16 = 0
-
-        public init() {}
-        public init(pendingCache: Bool, entryCache: Bool, posInPending: UInt8, nameLen: UInt16) {
-            this.pendingCache = pendingCache
-            this.entryCache = entryCache
-            this.posInPending = posInPending
-            this.nameLen = nameLen
-        }
-    }
 
     /// 待处理缓存键
     /// 对应 Bun: ResolveInfoRequest.PendingCacheKey
-    public class PendingCacheKey {
-        public var hash: UInt64 = 0
-        public var len: UInt16 = 0
-        public var lookup: ?ResolveInfoRequest = None
-
-        public init() {}
-
-        public static func initFromName(name: String): PendingCacheKey {
-            val key = PendingCacheKey()
-            val hasher = Wyhash.init(0)
-            hasher.update(name)
-            key.hash = hasher.final()
-            key.len = UInt16(name.size)
-            return key
-        }
-    }
 }
 
 // ============================================================================
@@ -158,11 +373,11 @@ public class GetHostByAddrInfoRequest {
     public var tail: CAresReverse
 
     public init(cacheHit: LookupCacheHit, resolver: ?DnsResolver, name: String, globalThis: JsObject, cacheField: String) {
-        val hasher = Wyhash.init(0)
+        let hasher = Wyhash.init(0)
         hasher.update(name)
-        val hash = hasher.final()
+        let hash = hasher.final()
 
-        val pollRef = KeepAlive()
+        let pollRef = KeepAlive()
         pollRef.ref(globalThis)
 
         head = CAresReverse(resolver: resolver, globalThis: globalThis, promise: JsPromise(), pollRef: pollRef, name: name)
@@ -174,7 +389,7 @@ public class GetHostByAddrInfoRequest {
     public func onCaresComplete(err: ?DnsError, timeout: Int32, result: ?Hostent): Unit {
         if (resolverForCaching != None) {
             if (cache.pendingCache) {
-                resolverForCaching!.drainPendingAddrCares(cache.posInPending, err, timeout, result)
+                resolverForCaching.getOrThrow().drainPendingAddrCares(cache.posInPending, err, timeout, result)
                 return
             }
         }
@@ -183,32 +398,8 @@ public class GetHostByAddrInfoRequest {
     }
 
     /// 缓存配置
-    public class CacheConfig {
-        public var pendingCache: Bool = false
-        public var entryCache: Bool = false
-        public var posInPending: UInt8 = 0
-        public var nameLen: UInt16 = 0
-
-        public init() {}
-    }
 
     /// 待处理缓存键
-    public class PendingCacheKey {
-        public var hash: UInt64 = 0
-        public var len: UInt16 = 0
-        public var lookup: ?GetHostByAddrInfoRequest = None
-
-        public init() {}
-
-        public static func initFromName(name: String): PendingCacheKey {
-            val key = PendingCacheKey()
-            val hasher = Wyhash.init(0)
-            hasher.update(name)
-            key.hash = hasher.final()
-            key.len = UInt16(name.size)
-            return key
-        }
-    }
 }
 
 // ============================================================================
@@ -237,18 +428,18 @@ public class CAresNameInfo {
     /// 对应 Bun: CAresNameInfo.processResolve
     public func processResolve(err: ?DnsError, timeout: Int32, result: ?NameInfo): Unit {
         if (err != None) {
-            val deferred = errorToDeferred(err!, "getnameinfo", name, promise)
+            let deferred = errorToDeferred(err!, "getnameinfo", name, promise)
             deferred.rejectLater(globalThis)
             deinit()
             return
         }
         if (result == None) {
-            val deferred = errorToDeferred(DnsError.ENOTFOUND, "getnameinfo", name, promise)
+            let deferred = errorToDeferred(DnsError.ENOTFOUND, "getnameinfo", name, promise)
             deferred.rejectLater(globalThis)
             deinit()
             return
         }
-        val array = nameinfoToJSResponse(result!, globalThis)
+        let array = nameinfoToJSResponse(result!, globalThis)
         onComplete(array)
     }
 
@@ -281,11 +472,11 @@ public class GetNameInfoRequest {
     public var tail: CAresNameInfo
 
     public init(cacheHit: LookupCacheHit, resolver: ?DnsResolver, name: String, globalThis: JsObject, cacheField: String) {
-        val hasher = Wyhash.init(0)
+        let hasher = Wyhash.init(0)
         hasher.update(name)
-        val hash = hasher.final()
+        let hash = hasher.final()
 
-        val pollRef = KeepAlive()
+        let pollRef = KeepAlive()
         pollRef.ref(globalThis)
 
         head = CAresNameInfo(globalThis: globalThis, name: name)
@@ -297,7 +488,7 @@ public class GetNameInfoRequest {
     /// 对应 Bun: GetNameInfoRequest.onCaresComplete
     public func onCaresComplete(err: ?DnsError, timeout: Int32, result: ?NameInfo): Unit {
         if (resolverForCaching != None) {
-            val resolver = resolverForCaching!
+            let resolver = resolverForCaching!
             resolver.requestCompleted()
             if (cache.pendingCache) {
                 resolver.drainPendingNameInfoCares(cache.posInPending, err, timeout, result)
@@ -309,32 +500,8 @@ public class GetNameInfoRequest {
     }
 
     /// 缓存配置
-    public class CacheConfig {
-        public var pendingCache: Bool = false
-        public var entryCache: Bool = false
-        public var posInPending: UInt8 = 0
-        public var nameLen: UInt16 = 0
-
-        public init() {}
-    }
 
     /// 待处理缓存键
-    public class PendingCacheKey {
-        public var hash: UInt64 = 0
-        public var len: UInt16 = 0
-        public var lookup: ?GetNameInfoRequest = None
-
-        public init() {}
-
-        public static func initFromName(name: String): PendingCacheKey {
-            val key = PendingCacheKey()
-            val hasher = Wyhash.init(0)
-            hasher.update(name)
-            key.hash = hasher.final()
-            key.len = UInt16(name.size)
-            return key
-        }
-    }
 }
 
 // ============================================================================
@@ -353,7 +520,7 @@ public class GetAddrInfoRequest {
     public var tail: DNSLookup
 
     public init(cacheHit: CacheHit, backend: DnsBackend, resolver: ?DnsResolver, query: GetAddrInfo, globalThis: JsObject, cacheField: String) {
-        val pollRef = KeepAlive()
+        let pollRef = KeepAlive()
         pollRef.ref(globalThis)
 
         this.backend = backend
@@ -369,44 +536,16 @@ public class GetAddrInfoRequest {
 
     /// 缓存配置
     /// 对应 Bun: GetAddrInfoRequest.CacheConfig
-    public class CacheConfig {
-        public var pendingCache: Bool = false
-        public var entryCache: Bool = false
-        public var posInPending: UInt8 = 0
-        public var nameLen: UInt16 = 0
-
-        public init() {}
-    }
 
     /// 待处理缓存键
     /// 对应 Bun: GetAddrInfoRequest.PendingCacheKey
-    public class PendingCacheKey {
-        public var hash: UInt64 = 0
-        public var len: UInt16 = 0
-        public var lookup: ?GetAddrInfoRequest = None
-
-        public init() {}
-
-        public static func initFromQuery(query: GetAddrInfo): PendingCacheKey {
-            val key = PendingCacheKey()
-            key.hash = query.hash()
-            key.len = UInt16(query.name.size)
-            return key
-        }
-
-        public func append(dnsLookup: DNSLookup): Unit {
-            var tailNode = lookup!.tail
-            tailNode.next = dnsLookup
-            lookup!.tail = dnsLookup
-        }
-    }
 
     /// getaddrinfo 异步回调
     /// 对应 Bun: GetAddrInfoRequest.getAddrInfoAsyncCallback
     public func getAddrInfoAsyncCallback(status: Int32, addrInfo: ?AddrInfo): Unit {
         if (resolverForCaching != None) {
             if (cache.pendingCache) {
-                resolverForCaching!.drainPendingHostNative(cache.posInPending, head.globalThis, status, DnsResultAny.addrinfo(addrInfo))
+                resolverForCaching.getOrThrow().drainPendingHostNative(cache.posInPending, head.globalThis, status, DnsResultAny.addrinfo(addrInfo))
                 return
             }
         }
@@ -433,7 +572,7 @@ public class GetAddrInfoRequest {
     public func onCaresComplete(err: ?DnsError, timeout: Int32, result: ?CaresAddrInfo): Unit {
         if (resolverForCaching != None) {
             if (cache.pendingCache) {
-                resolverForCaching!.drainPendingHostCares(cache.posInPending, err, timeout, result)
+                resolverForCaching.getOrThrow().drainPendingHostCares(cache.posInPending, err, timeout, result)
                 return
             }
         }
@@ -470,18 +609,18 @@ public class CAresReverse {
     /// 对应 Bun: CAresReverse.processResolve
     public func processResolve(err: ?DnsError, timeout: Int32, result: ?Hostent): Unit {
         if (err != None) {
-            val deferred = errorToDeferred(err!, "getHostByAddr", name, promise)
+            let deferred = errorToDeferred(err!, "getHostByAddr", name, promise)
             deferred.rejectLater(globalThis)
             deinit()
             return
         }
         if (result == None) {
-            val deferred = errorToDeferred(DnsError.ENOTFOUND, "getHostByAddr", name, promise)
+            let deferred = errorToDeferred(DnsError.ENOTFOUND, "getHostByAddr", name, promise)
             deferred.rejectLater(globalThis)
             deinit()
             return
         }
-        val array = hostentToJSResponse(result!, "", globalThis)
+        let array = hostentToJSResponse(result!, "", globalThis)
         onComplete(array)
     }
 
@@ -490,7 +629,7 @@ public class CAresReverse {
     public func onComplete(result: JsValue): Unit {
         promise.resolve(result)
         if (resolver != None) {
-            resolver!.requestCompleted()
+            resolver.getOrThrow().requestCompleted()
         }
         deinit()
     }
@@ -500,7 +639,7 @@ public class CAresReverse {
     public func deinit(): Unit {
         pollRef.unref(globalThis)
         if (resolver != None) {
-            resolver!.deref()
+            resolver.getOrThrow().deref()
         }
     }
 }
@@ -541,7 +680,7 @@ public class CAresLookup {
     /// 对应 Bun: CAresLookup.processResolve
     public func processResolve(err: ?DnsError, timeout: Int32, result: AnyReply): Unit {
         if (err != None) {
-            val deferred = errorToDeferred(err!, "query", name, promise)
+            let deferred = errorToDeferred(err!, "query", name, promise)
             deferred.rejectLater(globalThis)
             deinit()
             return
@@ -555,7 +694,7 @@ public class CAresLookup {
     public func onComplete(result: JsValue): Unit {
         promise.resolve(result)
         if (resolver != None) {
-            resolver!.requestCompleted()
+            resolver.getOrThrow().requestCompleted()
         }
         deinit()
     }
@@ -565,7 +704,7 @@ public class CAresLookup {
     public func deinit(): Unit {
         pollRef.unref(globalThis)
         if (resolver != None) {
-            resolver!.deref()
+            resolver.getOrThrow().deref()
         }
     }
 }
@@ -602,7 +741,7 @@ public class DNSLookup {
     /// 原生 getaddrinfo 完成回调
     /// 对应 Bun: DNSLookup.onCompleteNative
     public func onCompleteNative(result: DnsResultAny): Unit {
-        val array = resultAnyToJS(result, globalThis)
+        let array = resultAnyToJS(result, globalThis)
         if (array != None) {
             onCompleteWithArray(array!)
         }
@@ -611,9 +750,9 @@ public class DNSLookup {
     /// 处理原生 getaddrinfo 结果
     /// 对应 Bun: DNSLookup.processGetAddrInfoNative
     public func processGetAddrInfoNative(status: Int32, result: ?AddrInfo): Unit {
-        val err = DnsError.initEAI(status)
+        let err = DnsError.initEAI(status)
         if (err != None) {
-            val deferred = errorToDeferred(err!, "getaddrinfo", None, promise)
+            let deferred = errorToDeferred(err!, "getaddrinfo", None, promise)
             deferred.rejectLater(globalThis)
             deinit()
             return
@@ -625,14 +764,14 @@ public class DNSLookup {
     /// 对应 Bun: DNSLookup.processGetAddrInfo
     public func processGetAddrInfo(err: ?DnsError, timeout: Int32, result: ?CaresAddrInfo): Unit {
         if (err != None) {
-            val deferred = errorToDeferred(err!, "getaddrinfo", None, promise)
+            let deferred = errorToDeferred(err!, "getaddrinfo", None, promise)
             deferred.rejectLater(globalThis)
             deinit()
             return
         }
 
         if (result == None || result!!.node == None) {
-            val deferred = errorToDeferred(DnsError.ENOTFOUND, "getaddrinfo", None, promise)
+            let deferred = errorToDeferred(DnsError.ENOTFOUND, "getaddrinfo", None, promise)
             deferred.rejectLater(globalThis)
             deinit()
             return
@@ -643,7 +782,7 @@ public class DNSLookup {
     /// 完成回调（c-ares 版本）
     /// 对应 Bun: DNSLookup.onComplete
     public func onComplete(result: CaresAddrInfo): Unit {
-        val array = caresAddrInfoToJSArray(result, globalThis)
+        let array = caresAddrInfoToJSArray(result, globalThis)
         onCompleteWithArray(array)
     }
 
@@ -652,7 +791,7 @@ public class DNSLookup {
     public func onCompleteWithArray(result: JsValue): Unit {
         promise.resolve(result)
         if (resolver != None) {
-            resolver!.requestCompleted()
+            resolver.getOrThrow().requestCompleted()
         }
         deinit()
     }
@@ -662,7 +801,7 @@ public class DNSLookup {
     public func deinit(): Unit {
         pollRef.unref(globalThis)
         if (resolver != None) {
-            resolver!.deref()
+            resolver.getOrThrow().deref()
         }
     }
 }
@@ -700,151 +839,25 @@ public class DnsInternal {
             return maxDnsTimeToLiveSeconds!
         }
         // 从环境变量 BUN_CONFIG_DNS_TIME_TO_LIVE_SECONDS 读取
-        val value: UInt32 = 300  // 默认 5 分钟
+        let value: UInt32 = 300  // 默认 5 分钟
         maxDnsTimeToLiveSeconds = value
         return value
     }
 
     /// DNS 请求
     /// 对应 Bun: internal.Request
-    public class DnsRequest {
-        public var key: RequestKey
-        public var result: ?RequestResult = None
-        public var notify: ArrayList<DNSRequestOwner> = ArrayList<DNSRequestOwner>()
-        public var refcount: UInt32 = 0
-        public var createdAt: UInt32 = 0xFFFFFFFF.toInt32().toUInt32()
-        public var valid: Bool = true
-
-        public init(key: RequestKey) {
-            this.key = key
-        }
-
-        /// 检查是否过期
-        /// 对应 Bun: internal.Request.isExpired
-        public func isExpired(timestampToStore: Ref<UInt32>): Bool {
-            if (result == None) {
-                return false
-            }
-
-            val now = if (timestampToStore.value == 0) {
-                GlobalCache.getCacheTimestamp()
-            } else {
-                timestampToStore.value
-            }
-            timestampToStore.value = now
-
-            if (now - createdAt > getMaxDNSTimeToLiveSeconds()) {
-                valid = false
-                return true
-            }
-
-            return false
-        }
-    }
 
     /// DNS 请求键
     /// 对应 Bun: internal.Request.Key
-    public class RequestKey {
-        public var host: ?String = None
-        public var port: UInt16 = 0
-        public var hash: UInt64 = 0
-
-        public init(host: ?String, port: UInt16) {
-            this.host = host
-            this.port = port
-            this.hash = if (host != None) { generateHash(host!) } else { 0 }
-        }
-
-        public static func generateHash(name: String): UInt64 {
-            val hasher = Wyhash.init(0)
-            hasher.update(name)
-            return hasher.final()
-        }
-    }
 
     /// DNS 请求结果
     /// 对应 Bun: internal.Request.Result
-    public class RequestResult {
-        public var info: ?ArrayList<ResultEntry> = None
-        public var err: Int32 = 0
-
-        public init() {}
-    }
 
     /// DNS 结果条目
     /// 对应 Bun: internal.ResultEntry
-    public class ResultEntry {
-        public var family: Int64 = 0
-        public var address: String = ""
-        public var next: ?ResultEntry = None
-
-        public init() {}
-    }
 
     /// 全局 DNS 缓存
     /// 对应 Bun: internal.GlobalCache
-    public class GlobalCache {
-        public static let MAX_ENTRIES: Int64 = 256
-
-        public var lock: Mutex = Mutex()
-        public var cache: ArrayList<DnsRequest> = ArrayList<DnsRequest>()
-        public var len: Int64 = 0
-
-        /// 获取缓存时间戳
-        /// 对应 Bun: internal.GlobalCache.getCacheTimestamp
-        public static func getCacheTimestamp(): UInt32 {
-            // 简化实现：使用当前时间的秒数
-            return 0
-        }
-
-        /// 获取缓存中的请求
-        public func get(key: RequestKey, timestampToStore: Ref<UInt32>): ?DnsRequest {
-            var i = 0
-            while (i < cache.size) {
-                val entry = cache[i]
-                if (entry.key.hash == key.hash && entry.valid) {
-                    if (entry.isExpired(timestampToStore)) {
-                        if (entry.refcount == 0) {
-                            cache.removeAt(i)
-                            i -= 1
-                        }
-                        i += 1
-                        continue
-                    }
-                    return entry
-                }
-                i += 1
-            }
-            return None
-        }
-
-        /// 尝试推入缓存
-        public func tryPush(entry: DnsRequest): Bool {
-            if (cache.size >= MAX_ENTRIES) {
-                // 查找可驱逐的条目
-                for (i in 0..cache.size) {
-                    if (cache[i].refcount == 0) {
-                        cache[i] = entry
-                        return true
-                    }
-                }
-                return false
-            } else {
-                cache.append(entry)
-                return true
-            }
-        }
-
-        /// 移除条目
-        public func remove(entry: DnsRequest): Unit {
-            for (i in 0..cache.size) {
-                if (cache[i] === entry) {
-                    cache.removeAt(i)
-                    return
-                }
-            }
-        }
-    }
 
     /// DNS 缓存统计
     public static var dnsCacheHitsCompleted: Int64 = 0
@@ -860,7 +873,7 @@ public class DnsInternal {
     /// 获取 DNS 缓存统计
     /// 对应 Bun: internal.getDNSCacheStats
     public static func getDNSCacheStats(globalObject: JsObject): JsValue {
-        val obj = JsObject()
+        let obj = JsObject()
         obj.set("cacheHitsCompleted", JsValue(Float64(dnsCacheHitsCompleted)))
         obj.set("cacheHitsInflight", JsValue(Float64(dnsCacheHitsInflight)))
         obj.set("cacheMisses", JsValue(Float64(dnsCacheMisses)))
@@ -873,21 +886,21 @@ public class DnsInternal {
     /// getaddrinfo 主入口
     /// 对应 Bun: internal.getaddrinfo
     public static func getaddrinfo(loop_: EventLoop, host: ?String, port: UInt16, isCacheHit: ?Ref<Bool>): ?DnsRequest {
-        val preload = isCacheHit == None
-        val key = RequestKey(host, port)
+        let preload = isCacheHit == None
+        let key = RequestKey(host, port)
         globalCache.lock.lock()
         getaddrinfoCalls += 1
 
         // 检查缓存命中
         var timestampToStore = Ref<UInt32>(0)
-        val entry = globalCache.get(key, timestampToStore)
+        let entry = globalCache.get(key, timestampToStore)
         if (entry != None) {
             if (preload) {
                 globalCache.lock.unlock()
                 return None
             }
 
-            val e = entry!
+            let e = entry!
             e.refcount += 1
 
             if (e.result != None) {
@@ -904,7 +917,7 @@ public class DnsInternal {
         }
 
         // 缓存未命中，创建新请求
-        val req = DnsRequest(key)
+        let req = DnsRequest(key)
         req.refcount = (if (!preload) { 1 } else { 0 }) + 1
         req.createdAt = if (timestampToStore.value == 0) {
             GlobalCache.getCacheTimestamp()
@@ -933,13 +946,13 @@ public class DnsInternal {
             return JsValue.UNDEFINED
         }
 
-        val hostnameOrUrl = args[0]
+        let hostnameOrUrl = args[0]
         if (!hostnameOrUrl.valueType == JsValueType.String) {
             return JsValue.UNDEFINED
         }
 
-        val hostname = hostnameOrUrl.toString()
-        val port: UInt16 = if (args.size > 1 && args[1].isNumber()) {
+        let hostname = hostnameOrUrl.toString()
+        let port: UInt16 = if (args.size > 1 && args[1].isNumber()) {
             UInt16(Int64(args[1].toNumber()).clamp(0, 65535))
         } else {
             443
@@ -1006,7 +1019,7 @@ public class DnsResolver {
 
     /// 初始化解析器
     /// 对应 Bun: Resolver.init
-    public static func init(allocator: Allocator, vm: VirtualMachine): DnsResolver {
+    public static func initFunc(allocator: Allocator, vm: VirtualMachine): DnsResolver {
         return DnsResolver(vm)
     }
 
@@ -1026,7 +1039,7 @@ public class DnsResolver {
     /// 清理
     public func deinit(): Unit {
         if (channel != None) {
-            channel!.deinit()
+            channel.getOrThrow().deinit()
         }
     }
 
@@ -1042,8 +1055,8 @@ public class DnsResolver {
     /// 全局解析
     /// 对应 Bun: Resolver.globalResolve
     public static func globalResolve(globalThis: JsObject, args: ArrayList<JsValue>): JsValue {
-        val vm = globalThis.getInterpreter().getGlobalEnv().vm
-        val resolver = DnsResolver(vm)
+        let vm = globalThis.getInterpreter().getGlobalEnv().vm
+        let resolver = DnsResolver(vm)
         return resolver.resolve(globalThis, args)
     }
 
@@ -1054,19 +1067,19 @@ public class DnsResolver {
             return JsValue.UNDEFINED
         }
 
-        val nameValue = args[0]
+        let nameValue = args[0]
         if (nameValue.isEmptyOrUndefinedOrNull() || nameValue.valueType != JsValueType.String) {
             return JsValue.UNDEFINED
         }
 
-        val nameStr = nameValue.toString()
+        let nameStr = nameValue.toString()
         if (nameStr.isEmpty()) {
             return JsValue.UNDEFINED
         }
 
         // 确定记录类型
-        val recordType = if (args.size > 1 && args[1].valueType == JsValueType.String) {
-            val rtStr = args[1].toString()
+        let recordType = if (args.size > 1 && args[1].valueType == JsValueType.String) {
+            let rtStr = args[1].toString()
             DnsRecordType.fromString(rtStr)
         } else {
             DnsRecordType.A
@@ -1082,12 +1095,12 @@ public class DnsResolver {
             return JsValue.UNDEFINED
         }
 
-        val nameValue = args[0]
+        let nameValue = args[0]
         if (nameValue.isEmptyOrUndefinedOrNull() || nameValue.valueType != JsValueType.String) {
             return JsValue.UNDEFINED
         }
 
-        val nameStr = nameValue.toString()
+        let nameStr = nameValue.toString()
         if (nameStr.isEmpty()) {
             return JsValue.UNDEFINED
         }
@@ -1096,20 +1109,20 @@ public class DnsResolver {
         var port: UInt16 = 0
 
         if (args.size > 1 && args[1].valueType == JsValueType.Object) {
-            val optsObj = args[1].getObject()
-            val portVal = optsObj.get("port")
+            let optsObj = args[1].getObject()
+            let portVal = optsObj.get("port")
             if (portVal != None && portVal.isNumber()) {
                 port = UInt16(Int64(portVal.toNumber()).clamp(0, 65535))
             }
 
-            val parsedOpts = optionsFromJS(args[1], globalThis)
+            let parsedOpts = optionsFromJS(args[1], globalThis)
             if (parsedOpts != None) {
                 options = parsedOpts!
             }
         }
 
-        val vm = globalThis.getInterpreter().getGlobalEnv().vm
-        val resolver = DnsResolver(vm)
+        let vm = globalThis.getInterpreter().getGlobalEnv().vm
+        let resolver = DnsResolver(vm)
         return resolver.doLookup(nameStr, port, options, globalThis)
     }
 
@@ -1118,18 +1131,18 @@ public class DnsResolver {
     public func doLookup(name: String, port: UInt16, options: DnsOptions, globalThis: JsObject): JsValue {
         // 主机名长度检查
         if (name.size >= 4096) {
-            val promise = JsPromise()
-            val deferred = errorToDeferred(DnsError.ENOTFOUND, "getaddrinfo", name, promise)
+            let promise = JsPromise()
+            let deferred = errorToDeferred(DnsError.ENOTFOUND, "getaddrinfo", name, promise)
             deferred.rejectLater(globalThis)
             return promise.value()
         }
 
         var opts = options
         var backend = opts.backend
-        val normalized = normalizeDNSName(name, backend)
+        let normalized = normalizeDNSName(name, backend)
         opts.backend = normalized.backend
 
-        val query = GetAddrInfo(
+        let query = GetAddrInfo(
             options: opts,
             port: port,
             name: normalized.name
@@ -1146,26 +1159,26 @@ public class DnsResolver {
     /// c-ares 查找
     /// 对应 Bun: Resolver.c_aresLookupWithNormalizedName
     public func cAresLookupWithNormalizedName(query: GetAddrInfo, globalThis: JsObject): JsValue {
-        val channelResult = getChannel()
+        let channelResult = getChannel()
         match (channelResult) {
             case ChannelResult.err(err) => {
-                val errorObj = JsObject()
+                let errorObj = JsObject()
                 errorObj.set("errno", JsValue(-1.0))
                 errorObj.set("code", JsValue(err.code()))
                 errorObj.set("message", JsValue(err.label()))
                 return JsValue(errorObj)
             }
             case ChannelResult.result(channel) => {
-                val key = GetAddrInfoRequest.PendingCacheKey.initFromQuery(query)
-                val cache = getOrPutIntoPendingCache(key, "pendingHostCacheCares")
+                let key = GetAddrInfoRequest.PendingCacheKey.initFromQuery(query)
+                let cache = getOrPutIntoPendingCache(key, "pendingHostCacheCares")
 
                 if (cache.isInflight()) {
-                    val dnsLookup = DNSLookup(resolver: this, globalThis: globalThis, pollRef: KeepAlive(), promise: JsPromise())
+                    let dnsLookup = DNSLookup(resolver: this, globalThis: globalThis, pollRef: KeepAlive(), promise: JsPromise())
                     cache.inflight.append(dnsLookup)
                     return dnsLookup.promise.value()
                 }
 
-                val request = GetAddrInfoRequest(
+                let request = GetAddrInfoRequest(
                     cacheHit: cache,
                     backend: DnsBackend.c_ares,
                     resolver: this,
@@ -1183,16 +1196,16 @@ public class DnsResolver {
     /// libc 查找（系统解析器）
     /// 对应 Bun: LibC.lookup / LibInfo.lookup / LibUVBackend.lookup
     public func libcLookup(query: GetAddrInfo, globalThis: JsObject): JsValue {
-        val key = GetAddrInfoRequest.PendingCacheKey.initFromQuery(query)
-        val cache = getOrPutIntoPendingCache(key, "pendingHostCacheNative")
+        let key = GetAddrInfoRequest.PendingCacheKey.initFromQuery(query)
+        let cache = getOrPutIntoPendingCache(key, "pendingHostCacheNative")
 
         if (cache.isInflight()) {
-            val dnsLookup = DNSLookup(resolver: this, globalThis: globalThis, pollRef: KeepAlive(), promise: JsPromise())
+            let dnsLookup = DNSLookup(resolver: this, globalThis: globalThis, pollRef: KeepAlive(), promise: JsPromise())
             cache.inflight.append(dnsLookup)
             return dnsLookup.promise.value()
         }
 
-        val request = GetAddrInfoRequest(
+        let request = GetAddrInfoRequest(
             cacheHit: cache,
             backend: DnsBackend.libc,
             resolver: this,
@@ -1212,8 +1225,8 @@ public class DnsResolver {
     /// 全局解析 SRV
     /// 对应 Bun: Resolver.globalResolveSrv
     public static func globalResolveSrv(globalThis: JsObject, args: ArrayList<JsValue>): JsValue {
-        val vm = globalThis.getInterpreter().getGlobalEnv().vm
-        val resolver = DnsResolver(vm)
+        let vm = globalThis.getInterpreter().getGlobalEnv().vm
+        let resolver = DnsResolver(vm)
         return resolver.resolveSrv(globalThis, args)
     }
 
@@ -1273,35 +1286,35 @@ public class DnsResolver {
             return JsValue.UNDEFINED
         }
 
-        val nameValue = args[0]
+        let nameValue = args[0]
         if (nameValue.isEmptyOrUndefinedOrNull() || nameValue.valueType != JsValueType.String) {
             return JsValue.UNDEFINED
         }
 
-        val name = nameValue.toString()
+        let name = nameValue.toString()
         if (name.isEmpty()) {
             return JsValue.UNDEFINED
         }
 
-        val recordType = DnsRecordType.fromString(typeName)
+        let recordType = DnsRecordType.fromString(typeName)
         return doResolveCAres(recordType, name, globalThis)
     }
 
     /// 执行 c-ares 解析
     /// 对应 Bun: Resolver.doResolveCAres
     public func doResolveCAres(recordType: DnsRecordType, name: String, globalThis: JsObject): JsValue {
-        val channelResult = getChannel()
+        let channelResult = getChannel()
         match (channelResult) {
             case ChannelResult.err(err) => {
                 return errorToJSWithSyscall(err, globalThis, "query${recordType.name}")
             }
             case ChannelResult.result(channel) => {
-                val key = ResolveInfoRequest.PendingCacheKey.initFromName(name)
-                val cacheName = "pending${recordType.name}CacheCares"
-                val cache = getOrPutIntoResolvePendingCache(key, cacheName)
+                let key = ResolveInfoRequest.PendingCacheKey.initFromName(name)
+                let cacheName = "pending${recordType.name}CacheCares"
+                let cache = getOrPutIntoResolvePendingCache(key, cacheName)
 
                 if (cache.isInflight()) {
-                    val caresLookup = CAresLookup(
+                    let caresLookup = CAresLookup(
                         resolver: this,
                         globalThis: globalThis,
                         pollRef: KeepAlive(),
@@ -1311,7 +1324,7 @@ public class DnsResolver {
                     return caresLookup.promise.value()
                 }
 
-                val request = ResolveInfoRequest(
+                let request = ResolveInfoRequest(
                     cacheHit: cache,
                     resolver: this,
                     name: name,
@@ -1332,31 +1345,31 @@ public class DnsResolver {
             return JsValue.UNDEFINED
         }
 
-        val ipValue = args[0]
+        let ipValue = args[0]
         if (ipValue.isEmptyOrUndefinedOrNull() || ipValue.valueType != JsValueType.String) {
             return JsValue.UNDEFINED
         }
 
-        val ip = ipValue.toString()
+        let ip = ipValue.toString()
         if (ip.isEmpty()) {
             return JsValue.UNDEFINED
         }
 
-        val channelResult = getChannel()
+        let channelResult = getChannel()
         match (channelResult) {
             case ChannelResult.err(err) => {
                 return errorToJSWithSyscallAndHostname(err, globalThis, "getHostByAddr", ip)
             }
             case ChannelResult.result(channel) => {
-                val key = GetHostByAddrInfoRequest.PendingCacheKey.initFromName(ip)
-                val cache = getOrPutIntoResolvePendingCache(key, "pendingAddrCacheCares")
+                let key = GetHostByAddrInfoRequest.PendingCacheKey.initFromName(ip)
+                let cache = getOrPutIntoResolvePendingCache(key, "pendingAddrCacheCares")
 
                 if (cache.isInflight()) {
-                    val caresReverse = CAresReverse(resolver: this, globalThis: globalThis, name: ip)
+                    let caresReverse = CAresReverse(resolver: this, globalThis: globalThis, name: ip)
                     return caresReverse.promise.value()
                 }
 
-                val request = GetHostByAddrInfoRequest(
+                let request = GetHostByAddrInfoRequest(
                     cacheHit: cache,
                     resolver: this,
                     name: ip,
@@ -1377,29 +1390,29 @@ public class DnsResolver {
             return JsValue.UNDEFINED
         }
 
-        val addrValue = args[0]
-        val portValue = args[1]
+        let addrValue = args[0]
+        let portValue = args[1]
 
         if (addrValue.isEmptyOrUndefinedOrNull() || addrValue.valueType != JsValueType.String) {
             return JsValue.UNDEFINED
         }
 
-        val addr = addrValue.toString()
-        val port = UInt16(Int64(portValue.toNumber()).clamp(0, 65535))
+        let addr = addrValue.toString()
+        let port = UInt16(Int64(portValue.toNumber()).clamp(0, 65535))
 
-        val vm = globalThis.getInterpreter().getGlobalEnv().vm
-        val resolver = DnsResolver(vm)
+        let vm = globalThis.getInterpreter().getGlobalEnv().vm
+        let resolver = DnsResolver(vm)
 
-        val cacheName = "${addr}|${port}"
-        val key = GetNameInfoRequest.PendingCacheKey.initFromName(cacheName)
-        val cache = resolver.getOrPutIntoResolvePendingCache(key, "pendingNameinfoCacheCares")
+        let cacheName = "${addr}|${port}"
+        let key = GetNameInfoRequest.PendingCacheKey.initFromName(cacheName)
+        let cache = resolver.getOrPutIntoResolvePendingCache(key, "pendingNameinfoCacheCares")
 
         if (cache.isInflight()) {
-            val info = CAresNameInfo(globalThis: globalThis, name: cacheName)
+            let info = CAresNameInfo(globalThis: globalThis, name: cacheName)
             return info.promise.value()
         }
 
-        val request = GetNameInfoRequest(
+        let request = GetNameInfoRequest(
             cacheHit: cache,
             resolver: resolver,
             name: cacheName,
@@ -1418,7 +1431,7 @@ public class DnsResolver {
     /// 获取 DNS 服务器列表
     /// 对应 Bun: Resolver.getServers
     public static func getGlobalServers(globalThis: JsObject, args: ArrayList<JsValue>): JsValue {
-        val arr = ArrayList<JsValue>()
+        let arr = ArrayList<JsValue>()
         // 简化实现：返回空数组
         return JsValue.array(arr)
     }
@@ -1433,16 +1446,16 @@ public class DnsResolver {
     /// 创建新解析器
     /// 对应 Bun: Resolver.newResolver
     public static func newResolver(globalThis: JsObject, args: ArrayList<JsValue>): JsValue {
-        val vm = globalThis.getInterpreter().getGlobalEnv().vm
-        val resolver = DnsResolver(vm)
+        let vm = globalThis.getInterpreter().getGlobalEnv().vm
+        let resolver = DnsResolver(vm)
 
         if (args.size > 0 && args[0].valueType == JsValueType.Object) {
-            val opts = args[0].getObject()
-            val timeout = opts.get("timeout")
+            let opts = args[0].getObject()
+            let timeout = opts.get("timeout")
             if (timeout != None && timeout.isNumber()) {
                 resolver.options.timeout = Int32(timeout.toNumber())
             }
-            val tries = opts.get("tries")
+            let tries = opts.get("tries")
             if (tries != None && tries.isNumber()) {
                 resolver.options.tries = Int32(tries.toNumber())
             }
@@ -1627,7 +1640,7 @@ public class GetAddrInfo {
     }
 
     public func hash(): UInt64 {
-        val hasher = Wyhash.init(0)
+        let hasher = Wyhash.init(0)
         hasher.update(name)
         return hasher.final()
     }
@@ -1670,7 +1683,7 @@ public class CacheHit {
     public func isNew(): Bool { return isNew }
 
     public static func newEntry(): CacheHit {
-        val hit = CacheHit()
+        let hit = CacheHit()
         hit.isNew = true
         return hit
     }
@@ -1686,7 +1699,7 @@ public class LookupCacheHit {
     public func isNew(): Bool { return isNew }
 
     public static func newEntry(): LookupCacheHit {
-        val hit = LookupCacheHit()
+        let hit = LookupCacheHit()
         hit.isNew = true
         return hit
     }
@@ -1736,7 +1749,7 @@ public class Ref<T> {
 public class Wyhash {
     private var state: UInt64 = 0
 
-    public static func init(seed: UInt64): Wyhash {
+    public static func initFunc(seed: UInt64): Wyhash {
         return Wyhash()
     }
 

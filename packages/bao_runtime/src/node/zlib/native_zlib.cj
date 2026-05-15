@@ -8,13 +8,13 @@ package bao_runtime.node.zlib
 // 对应 Bun: src/runtime/node/zlib/NativeZlib.zig - Context.Mode
 // ============================================================================
 public enum ZlibMode {
-    deflate = 1,
-    inflate = 2,
-    gzip = 3,
-    gunzip = 4,
-    deflateRaw = 5,
-    inflateRaw = 6,
-    unzip = 7
+    | deflate
+    | inflate
+    | gzip
+    | gunzip
+    | deflateRaw
+    | inflateRaw
+    | unzip
 }
 
 // ============================================================================
@@ -41,7 +41,7 @@ public class NativeZlib {
 
     // 初始化压缩流
     // 对应 Bun: src/runtime/node/zlib/NativeZlib.zig - init
-    public func init(windowBits: Int32, level: Int32, memLevel: Int32, strategy: Int32): Unit {
+    public func initFunc(windowBits: Int32, level: Int32, memLevel: Int32, strategy: Int32): Unit {
         this.windowBits = windowBits
         this.level = level
         this.memLevel = memLevel

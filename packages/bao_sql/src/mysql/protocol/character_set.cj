@@ -11,6 +11,7 @@ package bao_sql.mysql.protocol
 ///
 /// 与 MySQLTypes.zig 中的 CharacterSet 定义相同
 public enum ProtocolCharacterSet {
+    | None
 }
         return "(unknown)"
     }

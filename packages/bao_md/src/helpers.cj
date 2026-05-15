@@ -482,9 +482,9 @@ public class HeadingIdTracker {
             return
         }
         match (text_type) {
-            case TextType.null_char => text_buf.append("\xEF\xBF\xBD")
+            case TextType.null_char => text_buf.append("\u{EF}\u{BF}\u{BD}")
             case TextType.br | TextType.softbr => text_buf.append(' ')
-            case TextType.html => {} // 跳过 slug 中的 HTML 标签
+            case TextType.html => () // 跳过 slug 中的 HTML 标签
             case TextType.entity => {
                 if (let Some(decoded) <- decodeEntityToUtf8(content)) {
                     text_buf.append(decoded)

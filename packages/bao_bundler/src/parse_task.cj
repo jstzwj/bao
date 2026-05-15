@@ -134,7 +134,7 @@ public class ParseTask {
 
     /// 从解析结果创建
     // 严格翻译自: ParseTask.zig:111 init()
-    public static func init(resolveResult: ResolveResult, sourceIndex: Int32, ctx: BundlerContext): ParseTask {
+    public static func initFunc(resolveResult: ResolveResult, sourceIndex: Int32, ctx: BundlerContext): ParseTask {
         let task = ParseTask()
         task.ctx = Some(ctx)
         task.path = resolveResult.path

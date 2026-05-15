@@ -157,7 +157,7 @@ public class Expect {
         match (flags.promise) {
             | PromiseMode.resolves, PromiseMode.rejects => {
                 let resolution = flags.promise
-                if let promise = value.asAnyPromise() {
+                if (let Some(promise) <- value.asAnyPromise()) {
                     let vm = globalThis.vm()
                     promise.setHandled(vm)
 
@@ -232,22 +232,22 @@ public class Expect {
     /// 读取标志并处理Promise
     public static func readFlagsAndProcessPromise(instanceValue: JSValue, globalThis: JSGlobalObject, outFlags: UInt8, value: JSValue, anyConstructorType: UInt8): Bool {
         var flags = Flags()
-        if let instance = ExpectCustomAsymmetricMatcher.fromJS(instanceValue) {
+        if (let Some(instance) <- ExpectCustomAsymmetricMatcher.fromJS(instanceValue)) {
             flags = instance.flags
-        } else if let instance = ExpectAny.fromJS(instanceValue) {
+        } else if (let Some(instance) <- ExpectAny.fromJS(instanceValue)) {
             anyConstructorType = instance.flags.asymmetricMatcherConstructorType.rawValue
             flags = instance.flags
-        } else if let instance = ExpectAnything.fromJS(instanceValue) {
+        } else if (let Some(instance) <- ExpectAnything.fromJS(instanceValue)) {
             flags = instance.flags
-        } else if let instance = ExpectStringMatching.fromJS(instanceValue) {
+        } else if (let Some(instance) <- ExpectStringMatching.fromJS(instanceValue)) {
             flags = instance.flags
-        } else if let instance = ExpectCloseTo.fromJS(instanceValue) {
+        } else if (let Some(instance) <- ExpectCloseTo.fromJS(instanceValue)) {
             flags = instance.flags
-        } else if let instance = ExpectObjectContaining.fromJS(instanceValue) {
+        } else if (let Some(instance) <- ExpectObjectContaining.fromJS(instanceValue)) {
             flags = instance.flags
-        } else if let instance = ExpectStringContaining.fromJS(instanceValue) {
+        } else if (let Some(instance) <- ExpectStringContaining.fromJS(instanceValue)) {
             flags = instance.flags
-        } else if let instance = ExpectArrayContaining.fromJS(instanceValue) {
+        } else if (let Some(instance) <- ExpectArrayContaining.fromJS(instanceValue)) {
             flags = instance.flags
         }
 
@@ -271,7 +271,7 @@ public class Expect {
         var currScope = executionEntry.base.parent
         while currScope != None {
             let scope = currScope!
-            if scope.base.name != None && scope.base.name!.length > 0 {
+            if scope.base.name != None && scope.base.name.getOrThrow().length > 0 {
                 scopes.append(scope.base.name!)
             }
             currScope = scope.base.parent
@@ -406,7 +406,7 @@ public class Expect {
         if globalThis.hasException() {
             threwResult = globalThis.takeException()
         } else {
-            if let promise = returnValue.asAnyPromise() {
+            if (let Some(promise) <- returnValue.asAnyPromise()) {
                 if promise.status() == PromiseStatus.rejected {
                     threwResult = promise.result(globalThis.vm())
                 }

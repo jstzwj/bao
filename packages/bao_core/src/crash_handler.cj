@@ -471,7 +471,7 @@ public class CrashHandler {
     /// 初始化崩溃处理器
     /// 对应 Bun: crash_handler.init()
     /// 注册 SIGSEGV, SIGILL, SIGBUS, SIGFPE 的处理函数
-    public static func init(): Unit {
+    public static func initFunc(): Unit {
         if (initialized) { return }
         initialized = true
 
@@ -578,7 +578,7 @@ public class PreCrashHandlers {
     public static func remove(handler: (CrashReport) -> Unit): Unit {
         var newHandlers = ArrayList<(CrashReport) -> Unit>()
         for (h in handlers) {
-            if (h !== handler) {
+            if (h != handler) {
                 newHandlers.append(h)
             }
         }

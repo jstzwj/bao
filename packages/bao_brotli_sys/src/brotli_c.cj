@@ -6,17 +6,21 @@ package bao_brotli_sys
 // Callback function types
 // ============================================================================
 
-public type BrotliAllocFunc = CFunctionPointer<(CPointer<None>, UInt64) -> CPointer<None>>
-public type BrotliFreeFunc = CFunctionPointer<(CPointer<None>, CPointer<None>) -> Unit>
+public type BrotliAllocFunc = CFunc<(CPointer<Unit>, UInt64) -> CPointer<Unit>>
+public type BrotliFreeFunc = CFunc<(CPointer<Unit>, CPointer<Unit>) -> Unit>
 
 // ============================================================================
 // Opaque types
 // ============================================================================
 
-public opaque type BrotliSharedDictionary {}
-public opaque type BrotliEncoderPreparedDictionary {}
-public opaque type BrotliDecoder {}
-public opaque type BrotliEncoder {}
+@C
+public struct BrotliSharedDictionary {}
+@C
+public struct BrotliEncoderPreparedDictionary {}
+@C
+public struct BrotliDecoder {}
+@C
+public struct BrotliEncoder {}
 
 // ============================================================================
 // Shared Dictionary constants
@@ -125,103 +129,103 @@ public let BROTLI_DEFAULT_MODE: Int32 = 0 // BROTLI_MODE_GENERIC
 // ============================================================================
 
 public enum BrotliDecoderResult {
-    err = 0
-    success = 1
-    needs_more_input = 2
-    needs_more_output = 3
+    | err
+    | success
+    | needs_more_input
+    | needs_more_output
 }
 
 public enum BrotliDecoderErrorCode {
-    FORMAT_EXUBERANT_NIBBLE = -1
-    FORMAT_RESERVED = -2
-    FORMAT_EXUBERANT_META_NIBBLE = -3
-    FORMAT_SIMPLE_HUFFMAN_ALPHABET = -4
-    FORMAT_SIMPLE_HUFFMAN_SAME = -5
-    FORMAT_CL_SPACE = -6
-    FORMAT_HUFFMAN_SPACE = -7
-    FORMAT_CONTEXT_MAP_REPEAT = -8
-    FORMAT_BLOCK_LENGTH_1 = -9
-    FORMAT_BLOCK_LENGTH_2 = -10
-    FORMAT_TRANSFORM = -11
-    FORMAT_DICTIONARY = -12
-    FORMAT_WINDOW_BITS = -13
-    FORMAT_PADDING_1 = -14
-    FORMAT_PADDING_2 = -15
-    FORMAT_DISTANCE = -16
-    COMPOUND_DICTIONARY = -18
-    DICTIONARY_NOT_SET = -19
-    INVALID_ARGUMENTS = -20
-    ALLOC_CONTEXT_MODES = -21
-    ALLOC_TREE_GROUPS = -22
-    ALLOC_CONTEXT_MAP = -25
-    ALLOC_RING_BUFFER_1 = -26
-    ALLOC_RING_BUFFER_2 = -27
-    ALLOC_BLOCK_TYPE_TREES = -30
-    UNREACHABLE = -31
+    | FORMAT_EXUBERANT_NIBBLE
+    | FORMAT_RESERVED
+    | FORMAT_EXUBERANT_META_NIBBLE
+    | FORMAT_SIMPLE_HUFFMAN_ALPHABET
+    | FORMAT_SIMPLE_HUFFMAN_SAME
+    | FORMAT_CL_SPACE
+    | FORMAT_HUFFMAN_SPACE
+    | FORMAT_CONTEXT_MAP_REPEAT
+    | FORMAT_BLOCK_LENGTH_1
+    | FORMAT_BLOCK_LENGTH_2
+    | FORMAT_TRANSFORM
+    | FORMAT_DICTIONARY
+    | FORMAT_WINDOW_BITS
+    | FORMAT_PADDING_1
+    | FORMAT_PADDING_2
+    | FORMAT_DISTANCE
+    | COMPOUND_DICTIONARY
+    | DICTIONARY_NOT_SET
+    | INVALID_ARGUMENTS
+    | ALLOC_CONTEXT_MODES
+    | ALLOC_TREE_GROUPS
+    | ALLOC_CONTEXT_MAP
+    | ALLOC_RING_BUFFER_1
+    | ALLOC_RING_BUFFER_2
+    | ALLOC_BLOCK_TYPE_TREES
+    | UNREACHABLE
 }
 
 public enum BrotliDecoderErrorCode2 {
-    NO_ERROR = 0
-    SUCCESS = 1
-    NEEDS_MORE_INPUT = 2
-    NEEDS_MORE_OUTPUT = 3
-    ERROR_FORMAT_EXUBERANT_NIBBLE = -1
-    ERROR_FORMAT_RESERVED = -2
-    ERROR_FORMAT_EXUBERANT_META_NIBBLE = -3
-    ERROR_FORMAT_SIMPLE_HUFFMAN_ALPHABET = -4
-    ERROR_FORMAT_SIMPLE_HUFFMAN_SAME = -5
-    ERROR_FORMAT_CL_SPACE = -6
-    ERROR_FORMAT_HUFFMAN_SPACE = -7
-    ERROR_FORMAT_CONTEXT_MAP_REPEAT = -8
-    ERROR_FORMAT_BLOCK_LENGTH_1 = -9
-    ERROR_FORMAT_BLOCK_LENGTH_2 = -10
-    ERROR_FORMAT_TRANSFORM = -11
-    ERROR_FORMAT_DICTIONARY = -12
-    ERROR_FORMAT_WINDOW_BITS = -13
-    ERROR_FORMAT_PADDING_1 = -14
-    ERROR_FORMAT_PADDING_2 = -15
-    ERROR_FORMAT_DISTANCE = -16
-    ERROR_COMPOUND_DICTIONARY = -18
-    ERROR_DICTIONARY_NOT_SET = -19
-    ERROR_INVALID_ARGUMENTS = -20
-    ERROR_ALLOC_CONTEXT_MODES = -21
-    ERROR_ALLOC_TREE_GROUPS = -22
-    ERROR_ALLOC_CONTEXT_MAP = -25
-    ERROR_ALLOC_RING_BUFFER_1 = -26
-    ERROR_ALLOC_RING_BUFFER_2 = -27
-    ERROR_ALLOC_BLOCK_TYPE_TREES = -30
-    ERROR_UNREACHABLE = -31
+    | NO_ERROR
+    | SUCCESS
+    | NEEDS_MORE_INPUT
+    | NEEDS_MORE_OUTPUT
+    | ERROR_FORMAT_EXUBERANT_NIBBLE
+    | ERROR_FORMAT_RESERVED
+    | ERROR_FORMAT_EXUBERANT_META_NIBBLE
+    | ERROR_FORMAT_SIMPLE_HUFFMAN_ALPHABET
+    | ERROR_FORMAT_SIMPLE_HUFFMAN_SAME
+    | ERROR_FORMAT_CL_SPACE
+    | ERROR_FORMAT_HUFFMAN_SPACE
+    | ERROR_FORMAT_CONTEXT_MAP_REPEAT
+    | ERROR_FORMAT_BLOCK_LENGTH_1
+    | ERROR_FORMAT_BLOCK_LENGTH_2
+    | ERROR_FORMAT_TRANSFORM
+    | ERROR_FORMAT_DICTIONARY
+    | ERROR_FORMAT_WINDOW_BITS
+    | ERROR_FORMAT_PADDING_1
+    | ERROR_FORMAT_PADDING_2
+    | ERROR_FORMAT_DISTANCE
+    | ERROR_COMPOUND_DICTIONARY
+    | ERROR_DICTIONARY_NOT_SET
+    | ERROR_INVALID_ARGUMENTS
+    | ERROR_ALLOC_CONTEXT_MODES
+    | ERROR_ALLOC_TREE_GROUPS
+    | ERROR_ALLOC_CONTEXT_MAP
+    | ERROR_ALLOC_RING_BUFFER_1
+    | ERROR_ALLOC_RING_BUFFER_2
+    | ERROR_ALLOC_BLOCK_TYPE_TREES
+    | ERROR_UNREACHABLE
 }
 
 public enum BrotliDecoderParameter {
-    DISABLE_RING_BUFFER_REALLOCATION = 0
-    LARGE_WINDOW = 1
+    | DISABLE_RING_BUFFER_REALLOCATION
+    | LARGE_WINDOW
 }
 
 public enum BrotliEncoderMode {
-    generic = 0
-    text = 1
-    font = 2
+    | generic
+    | text
+    | font
 }
 
 public enum BrotliEncoderParameter {
-    mode = 0
-    quality = 1
-    lgwin = 2
-    lgblock = 3
-    disable_literal_context_modeling = 4
-    size_hint = 5
-    large_window = 6
-    npostfix = 7
-    ndirect = 8
-    stream_offset = 9
+    | mode
+    | quality
+    | lgwin
+    | lgblock
+    | disable_literal_context_modeling
+    | size_hint
+    | large_window
+    | npostfix
+    | ndirect
+    | stream_offset
 }
 
 public enum BrotliEncoderOperation {
-    process = 0
-    flush = 1
-    finish = 2
-    emit_metadata = 3
+    | process
+    | flush
+    | finish
+    | emit_metadata
 }
 
 // ============================================================================
@@ -245,106 +249,75 @@ public class CompressionResult {
 // Decoder FFI extern functions
 // ============================================================================
 
-@Extern
-public func BrotliDecoderSetParameter(state: CPointer<BrotliDecoder>, param: UInt32, value: UInt32): Int32
+foreign func BrotliDecoderSetParameter(state: CPointer<BrotliDecoder>, param: UInt32, value: UInt32): Int32
 
-@Extern
-public func BrotliDecoderAttachDictionary(state: CPointer<BrotliDecoder>, typ: BrotliSharedDictionaryType, data_size: UInt64, data: CPointer<UInt8>): Int32
+foreign func BrotliDecoderAttachDictionary(state: CPointer<BrotliDecoder>, typ: BrotliSharedDictionaryType, data_size: UInt64, data: CPointer<UInt8>): Int32
 
-@Extern
-public func BrotliDecoderCreateInstance(alloc_func: BrotliAllocFunc, free_func: BrotliFreeFunc, opaque: CPointer<None>): CPointer<BrotliDecoder>
+foreign func BrotliDecoderCreateInstance(alloc_func: BrotliAllocFunc, free_func: BrotliFreeFunc, opaque: CPointer<Unit>): CPointer<BrotliDecoder>
 
-@Extern
-public func BrotliDecoderDestroyInstance(state: CPointer<BrotliDecoder>): Unit
+foreign func BrotliDecoderDestroyInstance(state: CPointer<BrotliDecoder>): Unit
 
-@Extern
-public func BrotliDecoderDecompress(encoded_size: UInt64, encoded_buffer: CPointer<UInt8>, decoded_size: CPointer<UInt64>, decoded_buffer: CPointer<UInt8>): Int32
+foreign func BrotliDecoderDecompress(encoded_size: UInt64, encoded_buffer: CPointer<UInt8>, decoded_size: CPointer<UInt64>, decoded_buffer: CPointer<UInt8>): Int32
 
-@Extern
-public func BrotliDecoderDecompressStream(state: CPointer<BrotliDecoder>, available_in: CPointer<UInt64>, next_in: CPointer<CPointer<UInt8>>, available_out: CPointer<UInt64>, next_out: CPointer<CPointer<UInt8>>, total_out: CPointer<UInt64>): Int32
+foreign func BrotliDecoderDecompressStream(state: CPointer<BrotliDecoder>, available_in: CPointer<UInt64>, next_in: CPointer<CPointer<UInt8>>, available_out: CPointer<UInt64>, next_out: CPointer<CPointer<UInt8>>, total_out: CPointer<UInt64>): Int32
 
-@Extern
-public func BrotliDecoderHasMoreOutput(state: CPointer<BrotliDecoder>): Int32
+foreign func BrotliDecoderHasMoreOutput(state: CPointer<BrotliDecoder>): Int32
 
-@Extern
-public func BrotliDecoderTakeOutput(state: CPointer<BrotliDecoder>, size: CPointer<UInt64>): CPointer<UInt8>
+foreign func BrotliDecoderTakeOutput(state: CPointer<BrotliDecoder>, size: CPointer<UInt64>): CPointer<UInt8>
 
-@Extern
-public func BrotliDecoderIsUsed(state: CPointer<BrotliDecoder>): Int32
+foreign func BrotliDecoderIsUsed(state: CPointer<BrotliDecoder>): Int32
 
-@Extern
-public func BrotliDecoderIsFinished(state: CPointer<BrotliDecoder>): Int32
+foreign func BrotliDecoderIsFinished(state: CPointer<BrotliDecoder>): Int32
 
-@Extern
-public func BrotliDecoderGetErrorCode(state: CPointer<BrotliDecoder>): Int32
+foreign func BrotliDecoderGetErrorCode(state: CPointer<BrotliDecoder>): Int32
 
-@Extern
-public func BrotliDecoderErrorString(c: Int32): CPointer<UInt8>
+foreign func BrotliDecoderErrorString(c: Int32): CPointer<UInt8>
 
-@Extern
-public func BrotliDecoderVersion(): UInt32
+foreign func BrotliDecoderVersion(): UInt32
 
 // ============================================================================
 // Shared Dictionary FFI extern functions
 // ============================================================================
 
-@Extern
-public func BrotliSharedDictionaryCreateInstance(alloc_func: BrotliAllocFunc, free_func: BrotliFreeFunc, opaque: CPointer<None>): CPointer<BrotliSharedDictionary>
+foreign func BrotliSharedDictionaryCreateInstance(alloc_func: BrotliAllocFunc, free_func: BrotliFreeFunc, opaque: CPointer<Unit>): CPointer<BrotliSharedDictionary>
 
-@Extern
-public func BrotliSharedDictionaryDestroyInstance(dict: CPointer<BrotliSharedDictionary>): Unit
+foreign func BrotliSharedDictionaryDestroyInstance(dict: CPointer<BrotliSharedDictionary>): Unit
 
-@Extern
-public func BrotliSharedDictionaryAttach(dict: CPointer<BrotliSharedDictionary>, typ: BrotliSharedDictionaryType, data_size: UInt64, data: CPointer<UInt8>): Int32
+foreign func BrotliSharedDictionaryAttach(dict: CPointer<BrotliSharedDictionary>, typ: BrotliSharedDictionaryType, data_size: UInt64, data: CPointer<UInt8>): Int32
 
 // ============================================================================
 // Encoder FFI extern functions
 // ============================================================================
 
-@Extern
-public func BrotliEncoderSetParameter(state: CPointer<BrotliEncoder>, param: UInt32, value: UInt32): Int32
+foreign func BrotliEncoderSetParameter(state: CPointer<BrotliEncoder>, param: UInt32, value: UInt32): Int32
 
-@Extern
-public func BrotliEncoderCreateInstance(alloc_func: BrotliAllocFunc, free_func: BrotliFreeFunc, opaque: CPointer<None>): CPointer<BrotliEncoder>
+foreign func BrotliEncoderCreateInstance(alloc_func: BrotliAllocFunc, free_func: BrotliFreeFunc, opaque: CPointer<Unit>): CPointer<BrotliEncoder>
 
-@Extern
-public func BrotliEncoderDestroyInstance(state: CPointer<BrotliEncoder>): Unit
+foreign func BrotliEncoderDestroyInstance(state: CPointer<BrotliEncoder>): Unit
 
-@Extern
-public func BrotliEncoderPrepareDictionary(typ: BrotliSharedDictionaryType, data_size: UInt64, data: CPointer<UInt8>, quality: Int32, alloc_func: BrotliAllocFunc, free_func: BrotliFreeFunc, opaque: CPointer<None>): CPointer<BrotliEncoderPreparedDictionary>
+foreign func BrotliEncoderPrepareDictionary(typ: BrotliSharedDictionaryType, data_size: UInt64, data: CPointer<UInt8>, quality: Int32, alloc_func: BrotliAllocFunc, free_func: BrotliFreeFunc, opaque: CPointer<Unit>): CPointer<BrotliEncoderPreparedDictionary>
 
-@Extern
-public func BrotliEncoderDestroyPreparedDictionary(dictionary: CPointer<BrotliEncoderPreparedDictionary>): Unit
+foreign func BrotliEncoderDestroyPreparedDictionary(dictionary: CPointer<BrotliEncoderPreparedDictionary>): Unit
 
-@Extern
-public func BrotliEncoderAttachPreparedDictionary(state: CPointer<BrotliEncoder>, dictionary: CPointer<BrotliEncoderPreparedDictionary>): Int32
+foreign func BrotliEncoderAttachPreparedDictionary(state: CPointer<BrotliEncoder>, dictionary: CPointer<BrotliEncoderPreparedDictionary>): Int32
 
-@Extern
-public func BrotliEncoderMaxCompressedSize(input_size: UInt64): UInt64
+foreign func BrotliEncoderMaxCompressedSize(input_size: UInt64): UInt64
 
-@Extern
-public func BrotliEncoderCompress(quality: Int32, lgwin: Int32, mode: UInt32, input_size: UInt64, input_buffer: CPointer<UInt8>, encoded_size: CPointer<UInt64>, encoded_buffer: CPointer<UInt8>): Int32
+foreign func BrotliEncoderCompress(quality: Int32, lgwin: Int32, mode: UInt32, input_size: UInt64, input_buffer: CPointer<UInt8>, encoded_size: CPointer<UInt64>, encoded_buffer: CPointer<UInt8>): Int32
 
-@Extern
-public func BrotliEncoderCompressStream(state: CPointer<BrotliEncoder>, op: UInt32, available_in: CPointer<UInt64>, next_in: CPointer<CPointer<UInt8>>, available_out: CPointer<UInt64>, next_out: CPointer<CPointer<UInt8>>, total_out: CPointer<UInt64>): Int32
+foreign func BrotliEncoderCompressStream(state: CPointer<BrotliEncoder>, op: UInt32, available_in: CPointer<UInt64>, next_in: CPointer<CPointer<UInt8>>, available_out: CPointer<UInt64>, next_out: CPointer<CPointer<UInt8>>, total_out: CPointer<UInt64>): Int32
 
-@Extern
-public func BrotliEncoderIsFinished(state: CPointer<BrotliEncoder>): Int32
+foreign func BrotliEncoderIsFinished(state: CPointer<BrotliEncoder>): Int32
 
-@Extern
-public func BrotliEncoderHasMoreOutput(state: CPointer<BrotliEncoder>): Int32
+foreign func BrotliEncoderHasMoreOutput(state: CPointer<BrotliEncoder>): Int32
 
-@Extern
-public func BrotliEncoderTakeOutput(state: CPointer<BrotliEncoder>, size: CPointer<UInt64>): CPointer<UInt8>
+foreign func BrotliEncoderTakeOutput(state: CPointer<BrotliEncoder>, size: CPointer<UInt64>): CPointer<UInt8>
 
-@Extern
-public func BrotliEncoderEstimatePeakMemoryUsage(quality: Int32, lgwin: Int32, input_size: UInt64): UInt64
+foreign func BrotliEncoderEstimatePeakMemoryUsage(quality: Int32, lgwin: Int32, input_size: UInt64): UInt64
 
-@Extern
-public func BrotliEncoderGetPreparedDictionarySize(dictionary: CPointer<BrotliEncoderPreparedDictionary>): UInt64
+foreign func BrotliEncoderGetPreparedDictionarySize(dictionary: CPointer<BrotliEncoderPreparedDictionary>): UInt64
 
-@Extern
-public func BrotliEncoderVersion(): UInt32
+foreign func BrotliEncoderVersion(): UInt32
 
 // ============================================================================
 // BROTLI_UINT32_MAX and BROTLI_SIZE_MAX

@@ -501,8 +501,8 @@ public class ParseArgs {
             if (optDef.multiple) {
                 // 多值布尔: 累积到数组
                 let existing = result.values.get(name)
-                if (existing != None && existing!.isArray) {
-                    existing!.arrayValues.add(newValue)
+                if (existing != None && existing.getOrThrow().isArray) {
+                    existing.getOrThrow().arrayValues.add(newValue)
                     result.values.put(name, existing!)
                 } else {
                     let arr = ParseArgValue.fromArray(Array<ParseArgValue>([newValue]))
@@ -522,8 +522,8 @@ public class ParseArgs {
 
             if (optDef.multiple) {
                 let existing = result.values.get(name)
-                if (existing != None && existing!.isArray) {
-                    existing!.arrayValues.add(newValue)
+                if (existing != None && existing.getOrThrow().isArray) {
+                    existing.getOrThrow().arrayValues.add(newValue)
                     result.values.put(name, existing!)
                 } else {
                     let arr = ParseArgValue.fromArray(Array<ParseArgValue>([newValue]))

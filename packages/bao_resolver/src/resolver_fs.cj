@@ -400,7 +400,7 @@ public class PathPair {
                 if (!sec.isDisabled) {
                     result.append(sec)
                 }
-            case None => {}
+            case None => ()
         }
         return result
     }
@@ -778,13 +778,13 @@ public class ResolverFileSystem {
                                 if (entries.generation >= generation) {
                                     return cached
                                 }
-                            case None => {}
+                            case None => ()
                         }
                     }
                     case EntriesOptionKind.Err => return cached
                 }
             }
-            case None => {}
+            case None => ()
         }
 
         // 读取目录
@@ -879,7 +879,7 @@ public func findInvalidSegment(path: String): ?String {
                 if (segment == "node_modules") {
                     return Some(segment)
                 }
-            case _ => {}
+            case _ => ()
         }
     }
 

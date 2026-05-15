@@ -140,7 +140,7 @@ public class UpdateRequestFull {
                         continue
                     }
                 }
-                case _ => {}
+                case _ => ()
             }
 
             // 解析 name@version 格式
@@ -191,7 +191,7 @@ public class UpdateRequestFull {
                     return Tuple2(input.substring(0, idx), input.substring(Int64(idx) + 1))
                 }
             }
-            case None => {}
+            case None => ()
         }
         return Tuple2("", input)
     }

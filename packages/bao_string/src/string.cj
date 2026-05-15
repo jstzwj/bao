@@ -105,7 +105,7 @@ public class BunString {
 
     /// 从字符串创建(借用)
     /// 严格翻译自 String.init (byte slice 分支)
-    public static func init(str: String): BunString {
+    public static func initFunc(str: String): BunString {
         return BunString(tag: BunStringTag.ZigString, utf8Data: str.toArray(), utf16Data: [], wtfImpl: None)
     }
 

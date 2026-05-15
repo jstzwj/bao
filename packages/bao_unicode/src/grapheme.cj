@@ -85,7 +85,7 @@ public func graphemeBreak(codepoint: UInt32): GraphemeBreak {
             return GraphemeBreak.IndicConjunctBreakLinker
         case Some(GraphemeBreak.IndicConjunctBreakExtend) =>
             return GraphemeBreak.IndicConjunctBreakExtend
-        case _ => {}
+        case _ => ()
     }
 
     return GraphemeBreak.Other
@@ -359,7 +359,7 @@ public func computeGraphemeBreak(
                      GraphemeBreak.ZWJ => {}
                 case _ => s = BreakState.Default
             }
-        case BreakState.Default => {}
+        case BreakState.Default => ()
     }
 
     // GB3: CR x LF

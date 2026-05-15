@@ -337,7 +337,7 @@ public class TextLockfileStringifier {
                     sb.append("${escapeJson(key)}: ${escapeJson(val)}")
                     first = false
                 }
-                case None => {}
+                case None => ()
             }
         }
         sb.append(" }")
@@ -358,7 +358,7 @@ public class TextLockfileStringifier {
                     }
                     sorted.append(PkgMapEntry(key: path, package: pkg))
                 }
-                case None => {}
+                case None => ()
             }
         }
 
@@ -529,7 +529,7 @@ public class BinaryLockfileData {
                     writeTag(bytes, HAS_EMPTY_TRUSTED_DEPENDENCIES_TAG)
                 }
             }
-            case None => {}
+            case None => ()
         }
 
         // overrides
@@ -640,7 +640,7 @@ public class BinaryLockfileData {
                         bytes.append(UInt8(c.value))
                     }
                 }
-                case None => {}
+                case None => ()
             }
         }
     }
@@ -763,7 +763,7 @@ public class LockfileJsonStringifier {
                     sb.append("    ")
                     appendPackageJson(sb, pkg)
                 }
-                case None => {}
+                case None => ()
             }
         }
 
@@ -780,7 +780,7 @@ public class LockfileJsonStringifier {
                         wsFirst = false
                         sb.append("    \"${hash}\": \"${ver}\"")
                     }
-                    case None => {}
+                    case None => ()
                 }
             }
             sb.append("\n  },\n")
@@ -798,7 +798,7 @@ public class LockfileJsonStringifier {
                 }
                 sb.append("],\n")
             }
-            case None => {}
+            case None => ()
         }
 
         // catalogs
@@ -809,7 +809,7 @@ public class LockfileJsonStringifier {
                 sb.append(",\n")
                 match (lockfileData.catalogs.groups.get(name)) {
                     case Some(group) => appendCatalogJson(sb, name, group)
-                    case None => {}
+                    case None => ()
                 }
             }
             sb.append("\n  },\n")
@@ -826,7 +826,7 @@ public class LockfileJsonStringifier {
                         pdFirst = false
                         sb.append("    \"${hash}\": { \"path\": \"${patch.path}\" }")
                     }
-                    case None => {}
+                    case None => ()
                 }
             }
             sb.append("\n  },\n")
@@ -843,7 +843,7 @@ public class LockfileJsonStringifier {
                         ovFirst = false
                         sb.append("    \"${hash}\": \"${dep.name}@${dep.version}\"")
                     }
-                    case None => {}
+                    case None => ()
                 }
             }
             sb.append("\n  },\n")
@@ -902,7 +902,7 @@ public class LockfileJsonStringifier {
                         binFirst = false
                         sb.append("\"${binName}\": \"${binPath}\"")
                     }
-                    case None => {}
+                    case None => ()
                 }
             }
             sb.append(" },\n")
@@ -947,7 +947,7 @@ public class LockfileJsonStringifier {
                     first = false
                     sb.append("\n      \"${depName}\": \"${dep.version}\"")
                 }
-                case None => {}
+                case None => ()
             }
         }
         if (!first) { sb.append("\n    ") }
@@ -980,7 +980,7 @@ public class TextLockfileParser {
                     case Some(JsonValue.Number(n)) => {
                         data.format = TextLockfileVersion.fromInt(Int64(n))
                     }
-                    case _ => {}
+                    case _ => ()
                 }
 
                 // 解析 workspaces
@@ -989,7 +989,7 @@ public class TextLockfileParser {
                     case Some(JsonValue.Object(ws)) => {
                         // workspace 信息
                     }
-                    case _ => {}
+                    case _ => ()
                 }
 
                 // 解析 packages
@@ -1007,14 +1007,14 @@ public class TextLockfileParser {
                                     let pkg = parsePackageArray(pkgKey, arr)
                                     match (pkg) {
                                         case Some(p) => data.packages.put(p.key(), p)
-                                        case None => {}
+                                        case None => ()
                                     }
                                 }
-                                case _ => {}
+                                case _ => ()
                             }
                         }
                     }
-                    case _ => {}
+                    case _ => ()
                 }
 
                 return data
@@ -1045,7 +1045,7 @@ public class TextLockfileParser {
                 if (arr.size >= 2) {
                     match (arr[1]) {
                         case JsonValue.Str(registryUrl) => pkg.resolution.npmUrl = registryUrl
-                        case _ => {}
+                        case _ => ()
                     }
                 }
             }
@@ -1055,7 +1055,7 @@ public class TextLockfileParser {
             case DependencyTag.Workspace => pkg.resolution.workspacePath = version
             case DependencyTag.Git => pkg.resolution.gitRepo = version
             case DependencyTag.Github => pkg.resolution.githubRepo = version
-            case _ => {}
+            case _ => ()
         }
 
         // 解析依赖和元数据
@@ -1066,14 +1066,14 @@ public class TextLockfileParser {
                     if (arr.size >= 3) {
                         match (arr[2]) {
                             case JsonValue.Object(depsObj) => extractDeps(depsObj, pkg)
-                            case _ => {}
+                            case _ => ()
                         }
                     }
                     // 第四个是 integrity
                     if (arr.size >= 4) {
                         match (arr[3]) {
                             case JsonValue.Str(integrity) => pkg.meta.integrity = Integrity.parse(integrity)
-                            case _ => {}
+                            case _ => ()
                         }
                     }
                 }
@@ -1087,11 +1087,11 @@ public class TextLockfileParser {
                                     pkg.meta.integrity = Integrity.parse(s)
                                 }
                             }
-                            case _ => {}
+                            case _ => ()
                         }
                     }
                 }
-                case _ => {}
+                case _ => ()
             }
         }
 
@@ -1156,11 +1156,11 @@ public class TextLockfileParser {
                             let dep = LockfileDependency(k, Wyhash11.hash(k), v)
                             pkg.dependencies.append(dep)
                         }
-                        case _ => {}
+                        case _ => ()
                     }
                 }
             }
-            case _ => {}
+            case _ => ()
         }
         // peerDependencies
         match (depsObj.get("peerDependencies")) {
@@ -1172,11 +1172,11 @@ public class TextLockfileParser {
                             dep.behavior.isPeer = true
                             pkg.dependencies.append(dep)
                         }
-                        case _ => {}
+                        case _ => ()
                     }
                 }
             }
-            case _ => {}
+            case _ => ()
         }
         // optionalDependencies
         match (depsObj.get("optionalDependencies")) {
@@ -1188,16 +1188,16 @@ public class TextLockfileParser {
                             dep.behavior.isOptional = true
                             pkg.dependencies.append(dep)
                         }
-                        case _ => {}
+                        case _ => ()
                     }
                 }
             }
-            case _ => {}
+            case _ => ()
         }
         // hasInstallScript
         match (depsObj.get("hasInstallScript")) {
             case Some(JsonValue.Bool(b)) => pkg.meta.hasInstallScript = b
-            case _ => {}
+            case _ => ()
         }
         // bin
         match (depsObj.get("bin")) {
@@ -1205,11 +1205,11 @@ public class TextLockfileParser {
                 for (k in m.keys()) {
                     match (m.get(k)) {
                         case Some(JsonValue.Str(v)) => pkg.bin.put(k, v)
-                        case _ => {}
+                        case _ => ()
                     }
                 }
             }
-            case _ => {}
+            case _ => ()
         }
     }
 }

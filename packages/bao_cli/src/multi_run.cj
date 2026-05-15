@@ -109,12 +109,12 @@ public class MultiRunProcessHandle {
     public func start(): Unit {
         state.remainingScripts += 1
 
-        val argv = [state.shellBin, "-c", config.command]
+        let argv = [state.shellBin, "-c", config.command]
         startTime = TimeInstant.now()
 
-        val originalPath = state.env.map.get("PATH") ?: ""
+        let originalPath = state.env.map.get("PATH") ?: ""
         state.env.map.put("PATH", config.PATH)
-        val envp = state.env.map.toNullDelimitedEnvMap()
+        let envp = state.env.map.toNullDelimitedEnvMap()
         state.env.map.put("PATH", originalPath)
 
         process = Sys.spawnProcess(options, argv, envp)
@@ -165,16 +165,16 @@ public class MultiRunState {
         pipe.lineBuffer.append(chunk)
 
         // 路由到正确的父流
-        val writer = if (pipe.isStderr) Output.errorWriter() else Output.writer()
+        let writer = if (pipe.isStderr) Output.errorWriter() else Output.writer()
 
         // 处理完整行
         var buf = pipe.lineBuffer.toString()
         while (true) {
-            val newlinePos = buf.indexOf('\n')
+            let newlinePos = buf.indexOf('\n')
             if (newlinePos < 0) {
                 break
             }
-            val line = buf.substring(0, newlinePos + 1)
+            let line = buf.substring(0, newlinePos + 1)
             writeLineWithPrefix(pipe.handle!!, line, writer)
             buf = buf.substring(newlinePos + 1)
         }
@@ -195,7 +195,7 @@ public class MultiRunState {
         }
 
         writer.writeAll(handle.config.label)
-        val padding = maxLabelLen - handle.config.label.length
+        let padding = maxLabelLen - handle.config.label.length
         for (_ in 0..padding) {
             writer.writeByte(' ')
         }
@@ -210,9 +210,9 @@ public class MultiRunState {
     /// 刷新管道缓冲区
     public func flushPipeBuffer(handle: MultiRunProcessHandle, pipe: MultiRunPipeReader): Unit {
         if (pipe.lineBuffer.length > 0) {
-            val line = pipe.lineBuffer.toString()
-            val needsNewline = line.length > 0 && line[line.length - 1] != '\n'
-            val writer = if (pipe.isStderr) Output.errorWriter() else Output.writer()
+            let line = pipe.lineBuffer.toString()
+            let needsNewline = line.length > 0 && line[line.length - 1] != '\n'
+            let writer = if (pipe.isStderr) Output.errorWriter() else Output.writer()
             writeLineWithPrefix(handle, line, writer)
             if (needsNewline) {
                 writer.writeAll("\n")
@@ -230,7 +230,7 @@ public class MultiRunState {
         flushPipeBuffer(handle, handle.stderrReader)
 
         // 打印退出状态到 stderr
-        val writer = Output.errorWriter()
+        let writer = Output.errorWriter()
         writePrefix(handle, writer)
 
         when (handle.status) {
@@ -239,8 +239,8 @@ public class MultiRunState {
                     writer.println("Exited with code ${code}")
                 } else {
                     if (handle.startTime != None && handle.endTime != None) {
-                        val duration = handle.endTime!!.since(handle.startTime!!)
-                        val ms = duration.toDouble() / 1_000_000.0
+                        let duration = handle.endTime!!.since(handle.startTime!!)
+                        let ms = duration.toDouble() / 1_000_000.0
                         if (ms > 1000.0) {
                             writer.println("Done in ${ms / 1000.0} s")
                         } else {
@@ -260,7 +260,7 @@ public class MultiRunState {
         }
 
         // 检查是否应中止
-        val failed = when (handle.status) {
+        let failed = when (handle.status) {
             case ProcessStatus.exited(code) => code != 0
             case ProcessStatus.signaled(_) => true
             else => true
@@ -393,26 +393,26 @@ private func addScriptConfigs(
     path: String,
     labelPrefix: ?String
 ): Unit {
-    val groupStart = configs.size
+    let groupStart = configs.size
 
-    val label = if (labelPrefix != None) {
+    let label = if (labelPrefix != None) {
         "${labelPrefix!!}:${rawName}"
     } else {
         rawName
     }
 
-    val scriptContent = if (scriptsMap != None) scriptsMap!!.get(rawName) else None
+    let scriptContent = if (scriptsMap != None) scriptsMap!!.get(rawName) else None
 
     if (scriptContent != None) {
         // package.json 脚本 - 检查 pre/post
-        val preName = "pre${rawName}"
-        val postName = "post${rawName}"
+        let preName = "pre${rawName}"
+        let postName = "post${rawName}"
 
-        val preContent = if (scriptsMap != None) scriptsMap!!.get(preName) else None
-        val postContent = if (scriptsMap != None) scriptsMap!!.get(postName) else None
+        let preContent = if (scriptsMap != None) scriptsMap!!.get(preName) else None
+        let postContent = if (scriptsMap != None) scriptsMap!!.get(postName) else None
 
         if (preContent != None) {
-            val config = MultiScriptConfig()
+            let config = MultiScriptConfig()
             config.label = label
             config.command = preContent!!
             config.cwd = cwd
@@ -421,7 +421,7 @@ private func addScriptConfigs(
         }
 
         // 主脚本
-        val mainConfig = MultiScriptConfig()
+        let mainConfig = MultiScriptConfig()
         mainConfig.label = label
         mainConfig.command = scriptContent!!
         mainConfig.cwd = cwd
@@ -429,7 +429,7 @@ private func addScriptConfigs(
         configs.append(mainConfig)
 
         if (postContent != None) {
-            val config = MultiScriptConfig()
+            let config = MultiScriptConfig()
             config.label = label
             config.command = postContent!!
             config.cwd = cwd
@@ -438,8 +438,8 @@ private func addScriptConfigs(
         }
     } else {
         // 非 package.json 脚本 - 作为原始命令运行
-        val command = rawName
-        val config = MultiScriptConfig()
+        let command = rawName
+        let config = MultiScriptConfig()
         config.label = label
         config.command = command
         config.cwd = cwd
@@ -460,7 +460,7 @@ public func multiRun(ctx: CommandContext): Unit {
     }
 
     // 收集脚本名称
-    val scriptNames = ArrayList<String>()
+    let scriptNames = ArrayList<String>()
     var positionals = ctx.positionals
     if (positionals.size > 0 && (positionals[0] == "run" || positionals[0] == "r")) {
         positionals = positionals.subList(1, positionals.size)
@@ -482,28 +482,28 @@ public func multiRun(ctx: CommandContext): Unit {
     }
 
     // 配置环境
-    val fsInstance = FileSystem.init()
-    val thisTranspiler = Transpiler()
+    let fsInstance = FileSystem.init()
+    let thisTranspiler = Transpiler()
     RunCommand.configureEnvForRun(ctx, thisTranspiler, None, true, false)
-    val cwd = fsInstance.topLevelDir
+    let cwd = fsInstance.topLevelDir
 
-    val eventLoop = MiniEventLoop.initGlobal(thisTranspiler.env, None)
-    val shellBin = RunCommand.findShell(thisTranspiler.env.get("PATH") ?: "", cwd)
+    let eventLoop = MiniEventLoop.initGlobal(thisTranspiler.env, None)
+    let shellBin = RunCommand.findShell(thisTranspiler.env.get("PATH") ?: "", cwd)
         ?: { Output.prettyErrorLn("error: Missing shell"); Global.exit(1) }()
 
     // 构建配置
-    val configs = ArrayList<MultiScriptConfig>()
-    val groupInfos = ArrayList<GroupInfo>()
+    let configs = ArrayList<MultiScriptConfig>()
+    let groupInfos = ArrayList<GroupInfo>()
 
     // 单包模式
-    val rootPath = RunCommand.configurePathForRunWithPackageJsonDir(ctx, "", thisTranspiler, None, cwd, ctx.debug.runInBun)
-    val scriptsMap = PackageJSON.readScripts(cwd)
+    let rootPath = RunCommand.configurePathForRunWithPackageJsonDir(ctx, "", thisTranspiler, None, cwd, ctx.debug.runInBun)
+    let scriptsMap = PackageJSON.readScripts(cwd)
 
     for (rawName in scriptNames) {
         // 检查是否为 glob 模式
         if (rawName.contains('*')) {
             if (scriptsMap != None) {
-                val matches = ArrayList<String>()
+                let matches = ArrayList<String>()
                 for (key in scriptsMap!!.keys()) {
                     if (matchesGlob(rawName, key)) {
                         matches.append(key)
@@ -539,9 +539,9 @@ public func multiRun(ctx: CommandContext): Unit {
         }
     }
 
-    val useColors = Output.enableAnsiColorsStderr
+    let useColors = Output.enableAnsiColorsStderr
 
-    val state = MultiRunState()
+    let state = MultiRunState()
     state.handles = ArrayList<MultiRunProcessHandle>(configs.size)
     state.eventLoop = eventLoop
     state.maxLabelLen = maxLabelLen
@@ -561,7 +561,7 @@ public func multiRun(ctx: CommandContext): Unit {
             }
         }
 
-        val handle = MultiRunProcessHandle()
+        let handle = MultiRunProcessHandle()
         handle.state = state
         handle.config = config
         handle.colorIdx = colorIdx
@@ -590,10 +590,10 @@ public func multiRun(ctx: CommandContext): Unit {
     if (ctx.sequential) {
         var gi = 0
         while (gi < groupInfos.size - 1) {
-            val currentGroup = groupInfos[gi]
-            val nextGroup = groupInfos[gi + 1]
-            val lastInCurrent = currentGroup.start + currentGroup.count - 1
-            val firstInNext = nextGroup.start
+            let currentGroup = groupInfos[gi]
+            let nextGroup = groupInfos[gi + 1]
+            let lastInCurrent = currentGroup.start + currentGroup.count - 1
+            let firstInNext = nextGroup.start
             state.handles[lastInCurrent.toInt()].nextDependents.append(state.handles[firstInNext.toInt()])
             state.handles[firstInNext.toInt()].remainingDependencies += 1
             gi += 1
@@ -607,7 +607,7 @@ public func multiRun(ctx: CommandContext): Unit {
         }
     }
 
-    val multiAbortHandler = MultiRunAbortHandler()
+    let multiAbortHandler = MultiRunAbortHandler()
     multiAbortHandler.install()
 
     while (!state.isDone()) {
@@ -618,7 +618,7 @@ public func multiRun(ctx: CommandContext): Unit {
         eventLoop.tickOnce(state)
     }
 
-    val status = state.finalize()
+    let status = state.finalize()
     Global.exit(status)
 }
 

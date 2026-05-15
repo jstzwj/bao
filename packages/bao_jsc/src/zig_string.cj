@@ -37,7 +37,7 @@ public class ZigString {
     }
 
     // 严格翻译自 ZigString.init
-    public static func init(slice: String) -> ZigString {
+    public static func initFunc(slice: String) -> ZigString {
         ZigString(slice)
     }
 

@@ -256,7 +256,7 @@ public class Transpiler {
             match (msg.level) {
                 case LogLevel.Error => result.errors.append(tMsg)
                 case LogLevel.Warn => result.warnings.append(tMsg)
-                case _ => {}
+                case _ => ()
             }
         }
 
@@ -291,7 +291,7 @@ public class Transpiler {
                 case Some(value) => {
                     result = result.replace(key, value)
                 }
-                case None => {}
+                case None => ()
             }
         }
         return result

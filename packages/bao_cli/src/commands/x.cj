@@ -112,7 +112,7 @@ public class XCommand {
                 runBinary(binPath, opts.passthroughArgs)
                 return
             }
-            case None => {}
+            case None => ()
         }
 
         // 步骤2: 在全局缓存中查找
@@ -128,7 +128,7 @@ public class XCommand {
                 }
                 logger.debug("Cached binary is stale, re-installing...")
             }
-            case None => {}
+            case None => ()
         }
 
         // 步骤3: 安装到临时目录
@@ -196,7 +196,7 @@ public class XCommand {
                     return
                 }
             }
-            case None => {}
+            case None => ()
         }
 
         logger.error("Could not determine executable to run for package '${updateName}'")
@@ -262,7 +262,7 @@ public class XCommand {
                     for (r in remaining) { passthrough.append(r) }
                 }
             }
-            case None => {}
+            case None => ()
         }
 
         let opts = XOptions(packageName)
@@ -345,7 +345,7 @@ public class XCommand {
                                     return Some(keys[0])
                                 }
                             }
-                            case _ => {}
+                            case _ => ()
                         }
 
                         // 检查 directories.bin
@@ -363,16 +363,16 @@ public class XCommand {
                                             }
                                         }
                                     }
-                                    case _ => {}
+                                    case _ => ()
                                 }
                             }
-                            case _ => {}
+                            case _ => ()
                         }
                     }
-                    case None => {}
+                    case None => ()
                 }
             }
-            case None => {}
+            case None => ()
         }
         return None
     }

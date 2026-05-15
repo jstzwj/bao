@@ -168,7 +168,7 @@ public class TracyProfiler {
     /// 初始化 Tracy (检测库是否存在)
     /// 对应 Bun: tracy.init() -> bool
     /// 通过 dlsym 检测 ___tracy_emit_message 是否存在
-    public static func init(): Bool {
+    public static func initTracy(): Bool {
         if (enable) { return true }
 
         // 尝试加载 Tracy 库
@@ -555,7 +555,4 @@ private func unsafeCStringToString(ptr: CPointer<Int8>): String {
     }
 }
 
-@C
-foreign func malloc(size: UIntNative): CPointer<Unit>
-@C
-foreign func free(ptr: CPointer<Unit>): Unit
+// malloc and free are declared in hw_timer.cj

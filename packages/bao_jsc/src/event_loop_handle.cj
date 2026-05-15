@@ -67,7 +67,7 @@ public class EventLoopHandle {
     public func enter() {
         match (kind) {
             case Js => jsLoop.enter()
-            case Mini => {}
+            case Mini => ()
         }
     }
 
@@ -75,7 +75,7 @@ public class EventLoopHandle {
     public func exit() {
         match (kind) {
             case Js => jsLoop.exit()
-            case Mini => {}
+            case Mini => ()
         }
     }
 

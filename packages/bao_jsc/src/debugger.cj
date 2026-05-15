@@ -394,6 +394,7 @@ public class ResolveMessage {
 // 严格翻译自 Debugger.zig AsyncCallType
 // 异步调用的类型，用于 Inspector 调试器追踪异步操作
 public enum AsyncCallType {
+    | None
 }
     }
 }
@@ -421,7 +422,7 @@ public class AsyncTaskTracker {
     }
 
     // 严格翻译自 AsyncTaskTracker.init
-    public static func init(vm: BunVirtualMachine) -> AsyncTaskTracker {
+    public static func initFunc(vm: BunVirtualMachine) -> AsyncTaskTracker {
         AsyncTaskTracker(id: vm.nextAsyncTaskID())
     }
 
@@ -530,10 +531,12 @@ public class TestReporterAgent {
 
 // 测试状态 - 与 c++ InspectorTestReporterAgent.cpp enum class BunTestStatus 保持同步
 public enum TestStatus {
+    | None
 }
 
 // 测试类型
 public enum TestType {
+    | None
 }
 
 // 测试报告器句柄 (opaque)

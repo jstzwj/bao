@@ -8,9 +8,9 @@ package bao_runtime.node
 // 对应 Bun: src/runtime/node/node_assert_binding.zig - DiffType
 // ============================================================================
 public enum DiffKind {
-    insert = 0,
-    delete = 1,
-    equal = 2
+    | insert
+    | delete
+    | equal
 }
 
 // ============================================================================

@@ -45,7 +45,7 @@ public class JsArrayIterator_ {
     //       }
     //       return .{ .array = value, .global = global, .len = @truncate(try value.getLength(global)) };
     //   }
-    public static func init(value: JsValue, global: JsObject) -> JsArrayIterator_ {
+    public static func initFunc(value: JsValue, global: JsObject) -> JsArrayIterator_ {
         let iter = JsArrayIterator_()
         iter.array = value
         iter.global = global

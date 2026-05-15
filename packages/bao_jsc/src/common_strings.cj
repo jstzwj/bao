@@ -7,6 +7,7 @@ package bao_jsc
 // 严格翻译自 CommonStrings.zig CommonStringsForZig
 // 常用字符串的枚举标识符，所有 getter 返回 JSC::JSString
 public enum CommonStringsForZig {
+    | None
 }
 }
 

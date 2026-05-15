@@ -56,7 +56,7 @@ public enum OpCode8 {
     | BinaryEq        // a == b (抽象相等)
     | BinaryNe        // a != b
     | BinaryEqStrict  // a === b
-    | BinaryNeStrict  // a !== b
+    | BinaryNeStrict  // a != b
 
     // === 逻辑运算 ===
     | LogicalAnd      // a && b

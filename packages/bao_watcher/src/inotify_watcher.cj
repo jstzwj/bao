@@ -219,7 +219,7 @@ public class InotifyWatcher <: PlatformWatcher {
 
     /// 初始化 inotify - 对应 Bun INotifyWatcher.init
     /// 严格翻译自: INotifyWatcher.zig:93-103
-    public func init(topLevelDir: String): SysMaybe<Unit> {
+    public func initFunc(topLevelDir: String): SysMaybe<Unit> {
         if (loaded) {
             return SysMaybe<Unit>.Ok(())
         }
@@ -418,7 +418,7 @@ public class InotifyWatcher <: PlatformWatcher {
                                 // 合并: 将追加字节追加到主缓冲区
                                 effectiveCount = effectiveCount + moreCount
                             }
-                            case Err(_) => { } // 忽略追加读取错误
+                            case Err(_) => () // 忽略追加读取错误
                         }
                     }
                 }
@@ -569,7 +569,7 @@ public class InotifyWatcher <: PlatformWatcher {
                 watcher, eventId, tempNameList, tempNameOff)
             match (batchResult) {
                 case Err(err) => return SysMaybe<Unit>.Err(err)
-                case Ok(_) => { }
+                case Ok(_) => ()
             }
         }
 

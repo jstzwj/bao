@@ -1311,7 +1311,7 @@ public class ResolveBuiltins {
         // 第三方覆盖包
         match (hardcodedMap.get(name)) {
             case Some(mod) => return Some(mod.category())
-            case None => {}
+            case None => ()
         }
 
         return None

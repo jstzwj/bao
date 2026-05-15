@@ -99,7 +99,7 @@ public class PatchPackage {
         let pkgInfo = pkgInfoForNameAndVersion(packageJsonPath)
         match (pkgInfo) {
             case None => return None
-            case Some(_) => {}
+            case Some(_) => ()
         }
 
         let info = pkgInfo!

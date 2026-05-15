@@ -50,15 +50,15 @@ public class ChangedFilesFilter {
         testFiles: ArrayList<PathString>,
         changedSince: String
     ): ChangedFilesResult {
-        val result = ChangedFilesResult()
-        val topLevelDir = vm.transpiler.fs.topLevelDir
+        let result = ChangedFilesResult()
+        let topLevelDir = vm.transpiler.fs.topLevelDir
 
         // 获取变更文件集
         var changedFiles = consumeWatchTrigger(ctx.allocator)
         if (changedFiles == None) {
             changedFiles = getChangedFiles(ctx.allocator, topLevelDir, changedSince)
         }
-        val changed = changedFiles!!
+        let changed = changedFiles!!
 
         result.changedCount = changed.size
         result.totalTests = testFiles.size
@@ -73,7 +73,7 @@ public class ChangedFilesFilter {
         }
 
         // 构建模块图
-        val scanTranspiler = Transpiler(ctx.allocator, ctx.log, ctx.args, vm.transpiler.env)
+        let scanTranspiler = Transpiler(ctx.allocator, ctx.log, ctx.args, vm.transpiler.env)
         scanTranspiler.options.target = TargetKind.bun
         scanTranspiler.options.packages = PackageKind.external
         scanTranspiler.options.ignoreModuleResolutionErrors = true
@@ -82,20 +82,20 @@ public class ChangedFilesFilter {
         scanTranspiler.configureLinker()
         scanTranspiler.configureDefines()
 
-        val bundle = BundleV2.scanModuleGraphFromCLI(
+        let bundle = BundleV2.scanModuleGraphFromCLI(
             scanTranspiler,
             ctx.allocator,
             entryPoints
         )
 
         // 构建路径 -> 索引映射和反向 import 图
-        val pathToIndex = HashMap<String, Int64>()
-        val importers = ArrayList<ArrayList<Int64>>()
-        val graphFiles = ArrayList<String>()
+        let pathToIndex = HashMap<String, Int64>()
+        let importers = ArrayList<ArrayList<Int64>>()
+        let graphFiles = ArrayList<String>()
 
         for (idx in 0..bundle.sourceCount) {
-            val source = bundle.getSource(idx)
-            val pathText = source.path.text
+            let source = bundle.getSource(idx)
+            let pathText = source.path.text
             if (pathText.length == 0 || !source.path.isFile()) {
                 continue
             }
@@ -104,9 +104,9 @@ public class ChangedFilesFilter {
         }
 
         for (idx in 0..bundle.sourceCount) {
-            val records = bundle.getImportRecords(idx)
+            let records = bundle.getImportRecords(idx)
             for (record in records) {
-                val dep = record.sourceIndex
+                let dep = record.sourceIndex
                 if (!dep.isValid() || dep.isRuntime()) {
                     continue
                 }
@@ -118,17 +118,17 @@ public class ChangedFilesFilter {
         }
 
         // 映射测试文件到 bundler 源索引
-        val slotToSource = ArrayList<Int64>(testFiles.size)
+        let slotToSource = ArrayList<Int64>(testFiles.size)
         for (tf in testFiles) {
             slotToSource.append(pathToIndex.getOrDefault(tf.slice(), -1))
         }
 
         // 从变更文件反向 BFS
-        val affected = DynamicBitSet(bundle.sourceCount)
-        val queue = ArrayList<Int64>()
+        let affected = DynamicBitSet(bundle.sourceCount)
+        let queue = ArrayList<Int64>()
 
         for (changedPath in changed) {
-            val idx = pathToIndex.get(changedPath)
+            let idx = pathToIndex.get(changedPath)
             if (idx != None && !affected.isSet(idx!!)) {
                 affected.set(idx!!)
                 queue.append(idx!!)
@@ -136,7 +136,7 @@ public class ChangedFilesFilter {
         }
 
         while (queue.size > 0) {
-            val idx = queue.removeAt(0)
+            let idx = queue.removeAt(0)
             if (importers[idx] != None) {
                 for (importer in importers[idx]) {
                     if (!affected.isSet(importer)) {
@@ -150,9 +150,9 @@ public class ChangedFilesFilter {
         // 过滤测试文件
         var write = 0
         for (i in 0..testFiles.size) {
-            val tf = testFiles[i]
-            val maybeSource = slotToSource[i]
-            val keep = changed.contains(tf.slice()) ||
+            let tf = testFiles[i]
+            let maybeSource = slotToSource[i]
+            let keep = changed.contains(tf.slice()) ||
                        (maybeSource >= 0 && affected.isSet(maybeSource))
 
             if (keep) {
@@ -172,17 +172,17 @@ public class ChangedFilesFilter {
             return
         }
 
-        val path = if (Env.get(TRIGGER_FILE_ENV_VAR) != None) {
+        let path = if (Env.get(TRIGGER_FILE_ENV_VAR) != None) {
             Env.get(TRIGGER_FILE_ENV_VAR)!!
         } else {
-            val rng = Random()
-            val tmpdir = FileSystem.RealFS.tmpdirPath()
-            val fresh = "${Strings.withoutTrailingSlash(tmpdir)}/.bao-test-changed-${rng.nextUInt64()}.trigger"
+            let rng = Random()
+            let tmpdir = FileSystem.RealFS.tmpdirPath()
+            let fresh = "${Strings.withoutTrailingSlash(tmpdir)}/.bao-test-changed-${rng.nextUInt64()}.trigger"
             Env.set(TRIGGER_FILE_ENV_VAR, fresh)
             fresh
         }
 
-        val set = StringSet(allocator)
+        let set = StringSet(allocator)
         HotReloader.watchChangedPaths = set
         HotReloader.watchChangedTriggerFile = path
     }
@@ -194,13 +194,13 @@ public class ChangedFilesFilter {
             return None
         }
 
-        val triggerPathRaw = Env.get(TRIGGER_FILE_ENV_VAR)
+        let triggerPathRaw = Env.get(TRIGGER_FILE_ENV_VAR)
         if (triggerPathRaw == None || triggerPathRaw!!.length == 0) {
             return None
         }
-        val triggerPath = triggerPathRaw!!
+        let triggerPath = triggerPathRaw!!
 
-        val contents = BaoFile.readAllText(triggerPath)
+        let contents = BaoFile.readAllText(triggerPath)
         if (contents == None) {
             return None
         }
@@ -208,10 +208,10 @@ public class ChangedFilesFilter {
         // 消费一次: 删除触发文件
         BaoFile.remove(triggerPath)
 
-        val set = StringSet(allocator)
-        val lines = contents!!.split('\n')
+        let set = StringSet(allocator)
+        let lines = contents!!.split('\n')
         for (path in lines) {
-            val trimmed = path.trim()
+            let trimmed = path.trim()
             if (trimmed.length == 0) {
                 continue
             }
@@ -230,36 +230,36 @@ public class ChangedFilesFilter {
     /// 获取变更文件集
     /// 对应 Bun: ChangedFilesFilter.getChangedFiles()
     private static func getChangedFiles(allocator: Allocator, topLevelDir: String, since: String): StringSet {
-        val gitPath = Which.which(Env.get("PATH") ?: "", topLevelDir, "git")
+        let gitPath = Which.which(Env.get("PATH") ?: "", topLevelDir, "git")
             ?: throw GitError.GitNotFound
 
         // 查找 git 仓库根目录
-        val gitRootResult = runGit(allocator, gitPath, topLevelDir, ["rev-parse", "--show-toplevel"])
+        let gitRootResult = runGit(allocator, gitPath, topLevelDir, ["rev-parse", "--show-toplevel"])
         if (!gitRootResult.ok) {
             throw GitError.GitFailed
         }
-        val gitRoot = gitRootResult.stdout.trim()
+        let gitRoot = gitRootResult.stdout.trim()
 
-        val set = StringSet(allocator)
+        let set = StringSet(allocator)
 
         if (since.length == 0) {
             // 未提交 (未暂存 + 已暂存)
-            val diff = runGit(allocator, gitPath, topLevelDir, ["diff", "--name-only", "HEAD", "--"])
+            let diff = runGit(allocator, gitPath, topLevelDir, ["diff", "--name-only", "HEAD", "--"])
             if (diff.ok) {
                 appendPaths(set, gitRoot, diff.stdout)
             } else {
                 // 无提交时的回退
-                val unstaged = runGit(allocator, gitPath, topLevelDir, ["diff", "--name-only", "--"])
+                let unstaged = runGit(allocator, gitPath, topLevelDir, ["diff", "--name-only", "--"])
                 if (unstaged.ok) {
                     appendPaths(set, gitRoot, unstaged.stdout)
                 }
-                val staged = runGit(allocator, gitPath, topLevelDir, ["diff", "--name-only", "--cached", "--"])
+                let staged = runGit(allocator, gitPath, topLevelDir, ["diff", "--name-only", "--cached", "--"])
                 if (staged.ok) {
                     appendPaths(set, gitRoot, staged.stdout)
                 }
             }
         } else {
-            val diff = runGit(allocator, gitPath, topLevelDir, ["diff", "--name-only", since, "--"])
+            let diff = runGit(allocator, gitPath, topLevelDir, ["diff", "--name-only", since, "--"])
             if (!diff.ok) {
                 throw GitError.GitFailed
             }
@@ -267,7 +267,7 @@ public class ChangedFilesFilter {
         }
 
         // 未跟踪文件始终被视为变更
-        val untracked = runGit(allocator, gitPath, topLevelDir, ["ls-files", "--others", "--exclude-standard", "--full-name"])
+        let untracked = runGit(allocator, gitPath, topLevelDir, ["ls-files", "--others", "--exclude-standard", "--full-name"])
         if (untracked.ok) {
             appendPaths(set, gitRoot, untracked.stdout)
         }
@@ -278,7 +278,7 @@ public class ChangedFilesFilter {
     /// 执行 git 命令
     /// 对应 Bun: ChangedFilesFilter.runGit()
     private static func runGit(allocator: Allocator, gitPath: String, cwd: String, args: ArrayList<String>): GitResult {
-        val allArgs = ArrayList<String>()
+        let allArgs = ArrayList<String>()
         allArgs.append(gitPath)
         allArgs.append("-c")
         allArgs.append("core.quotePath=off")
@@ -286,7 +286,7 @@ public class ChangedFilesFilter {
             allArgs.append(arg)
         }
 
-        val proc = Sys.spawnSyncArgs(allArgs, cwd, Stdio.buffer, Stdio.buffer, Stdio.ignore)
+        let proc = Sys.spawnSyncArgs(allArgs, cwd, Stdio.buffer, Stdio.buffer, Stdio.ignore)
         when (proc) {
             case Some(result) => {
                 return GitResult(
@@ -305,13 +305,13 @@ public class ChangedFilesFilter {
     /// 解析 git 输出中的路径并加入集合
     /// 对应 Bun: ChangedFilesFilter.appendPaths()
     private static func appendPaths(set: StringSet, gitRoot: String, stdout: String): Unit {
-        val lines = stdout.split('\n')
+        let lines = stdout.split('\n')
         for (line in lines) {
-            val rel = line.trim(' ', '\t', '\r')
+            let rel = line.trim(' ', '\t', '\r')
             if (rel.length == 0) {
                 continue
             }
-            val abs = Path.join(gitRoot, rel)
+            let abs = Path.join(gitRoot, rel)
             if (!BaoFile.exists(abs)) {
                 continue
             }

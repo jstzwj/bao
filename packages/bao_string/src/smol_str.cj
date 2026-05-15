@@ -219,7 +219,7 @@ public class SmolStrInlined {
 
     /// 从字符串初始化
     /// 严格翻译自 SmolStr.Inlined.init
-    public static func init(str: String): SmolStrInlined {
+    public static func initFunc(str: String): SmolStrInlined {
         let bytes = str.toArray()
         if (bytes.size > MAX_INLINE_LEN) {
             panic("SmolStrInlined: 字符串太长,无法内联")

@@ -100,7 +100,7 @@ public class BinManager {
                             case None => result.failed.append(binName)
                         }
                     }
-                    case None => {}
+                    case None => ()
                 }
             }
             case BinTag.NamedFile => {
@@ -155,7 +155,7 @@ public class BinManager {
                             }
                         }
                     }
-                    case None => {}
+                    case None => ()
                 }
             }
         }
@@ -314,7 +314,7 @@ public class BinManager {
                         BaoFile.createSymlink(sourcePath, linkPath)
                         result.installed.append(binName)
                     }
-                    case None => {}
+                    case None => ()
                 }
             }
             case BinTag.NamedFile => {

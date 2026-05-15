@@ -14,6 +14,18 @@ package bao_core
 ///   - 零拷贝拼接多个字符串片段
 ///   - 支持静态引用和克隆两种模式
 ///   - 最终一次性分配并合并
+public class Watcher {
+    public var input: String
+    public var estimatedCount: Int64
+    public var needsNewline: Bool
+
+    public init() {
+        input = ""
+        estimatedCount = 0
+        needsNewline = false
+    }
+}
+
 public class StringJoiner {
     /// 节点列表 (对应 Bun 链表)
     private var nodes: ArrayList<String>
@@ -32,17 +44,6 @@ public class StringJoiner {
     ///     estimated_count: u32 = 0,
     ///     needs_newline: bool = false,
     /// };
-    public class Watcher {
-        public var input: String
-        public var estimatedCount: Int64
-        public var needsNewline: Bool
-
-        public init() {
-            input = ""
-            estimatedCount = 0
-            needsNewline = false
-        }
-    }
 
     public init() {
         nodes = ArrayList<String>()

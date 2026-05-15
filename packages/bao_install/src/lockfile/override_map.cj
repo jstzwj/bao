@@ -95,7 +95,7 @@ public class OverrideMap {
                                         total += Int64(dot.asString().length)
                                     }
                                 }
-                                case None => {}
+                                case None => ()
                             }
                         }
                     }
@@ -110,12 +110,12 @@ public class OverrideMap {
                                 total += Int64(prop.key.length)
                                 match (prop.value.asString()) {
                                     case s: String => total += Int64(s.length)
-                                    case _: None => {}
+                                    case _: None => ()
                                 }
                             }
                         }
                     }
-                    case None => {}
+                    case None => ()
                 }
             }
         }
@@ -135,7 +135,7 @@ public class OverrideMap {
                 parseFromOverrides(overrides)
                 return
             }
-            case None => {}
+            case None => ()
         }
 
         // 从 "resolutions" 解析
@@ -143,7 +143,7 @@ public class OverrideMap {
             case Some(resolutions) => {
                 parseFromResolutions(resolutions)
             }
-            case None => {}
+            case None => ()
         }
     }
 
@@ -184,7 +184,7 @@ public class OverrideMap {
                     dep.nameHash = nameHash
                     map.put(nameHash, dep)
                 }
-                case None => {}
+                case None => ()
             }
         }
     }
@@ -216,7 +216,7 @@ public class OverrideMap {
                             continue
                         }
                     }
-                    case None => {}
+                    case None => ()
                 }
             } else {
                 if (k.indexOf("/") != None) {
@@ -250,7 +250,7 @@ public class JsonExpr {
                 case Some(dot) => {
                     if (dot.isString()) { return dot.asString() }
                 }
-                case None => {}
+                case None => ()
             }
         }
         return None

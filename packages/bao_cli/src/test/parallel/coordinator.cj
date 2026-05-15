@@ -152,7 +152,7 @@ public class Coordinator {
     public func abortAll(): Unit {
         AbortHandler.uninstall()
         for (i in 0..spawnedCount) {
-            val w = workers[i.toInt()]
+            let w = workers[i.toInt()]
             if (w.process != None) {
                 w.process!!.kill()
             }
@@ -163,7 +163,7 @@ public class Coordinator {
     /// 生成 worker
     /// 对应 Bun: Coordinator.spawnWorker()
     public func spawnWorker(): Bool {
-        val w = workers[spawnedCount.toInt()]
+        let w = workers[spawnedCount.toInt()]
         w.ipc = Channel()
         w.start()
         spawnedCount += 1
@@ -179,9 +179,9 @@ public class Coordinator {
         if (bailed || !hasUndispatchedFiles()) {
             return
         }
-        val now = Sys.milliTimestamp()
+        let now = Sys.milliTimestamp()
         for (i in 0..spawnedCount) {
-            val w = workers[i.toInt()]
+            let w = workers[i.toInt()]
             if (!w.alive) {
                 continue
             }
@@ -192,7 +192,7 @@ public class Coordinator {
                 return
             }
         }
-        val want = Math.min(parallelLimit, files.length - filesDone)
+        let want = Math.min(parallelLimit, files.length - filesDone)
         while (spawnedCount < want) {
             if (!spawnWorker()) {
                 break
@@ -209,20 +209,20 @@ public class Coordinator {
         }
 
         // 从自己的范围取
-        val popResult = w.range.popFront()
+        let popResult = w.range.popFront()
         if (popResult != None) {
-            val idx = popResult!!
+            let idx = popResult!!
             w.dispatch(idx, files[idx.toInt()].slice())
             return
         }
 
         // 偷取
-        val victim = findStealVictim()
+        let victim = findStealVictim()
         if (victim != None) {
-            val stolen = victim!!.range.stealBackHalf()
+            let stolen = victim!!.range.stealBackHalf()
             if (stolen != None) {
                 w.range = stolen!!
-                val popResult2 = w.range.popFront()
+                let popResult2 = w.range.popFront()
                 if (popResult2 != None) {
                     w.dispatch(popResult2!!, files[popResult2!!.toInt()].slice())
                     return
@@ -240,12 +240,12 @@ public class Coordinator {
         }
         bailed = true
         breakDots()
-        val suffix = if (bail == 1) "" else "s"
+        let suffix = if (bail == 1) "" else "s"
         Output.prettyError("\nBailed out after ${bail} failure${suffix}\n")
         Output.flush()
 
         for (i in 0..spawnedCount) {
-            val other = workers[i.toInt()]
+            let other = workers[i.toInt()]
             if (other.alive && other.inflight == None) {
                 other.shutdown()
             }
@@ -298,10 +298,10 @@ public class Coordinator {
     public func onFrame(w: Worker, kind: FrameKind, rd: FrameReader): Unit {
         when (kind) {
             case FrameKind.ready => assignWork(w)
-            case FrameKind.fileStart => { rd.u32_() }
+            case FrameKind.fileStart => rd.u32_()
             case FrameKind.testDone => {
-                val idx = rd.u32_()
-                val formatted = rd.str()
+                let idx = rd.u32_()
+                let formatted = rd.str()
                 if (w.inflight != idx) {
                     return
                 }
@@ -309,7 +309,7 @@ public class Coordinator {
                 if (formatted.length == 0) {
                     return
                 }
-                val isDot = dots && !formatted.endsWith('\n')
+                let isDot = dots && !formatted.endsWith('\n')
                 if (!isDot) {
                     breakDots()
                     ensureHeader(idx)
@@ -319,15 +319,15 @@ public class Coordinator {
                 Output.flush()
             }
             case FrameKind.fileDone => {
-                val idx = rd.u32_()
-                val pass = rd.u32_()
-                val fail = rd.u32_()
-                val skip = rd.u32_()
-                val todo = rd.u32_()
-                val expectations = rd.u32_()
-                val skippedLabel = rd.u32_()
-                val files = rd.u32_()
-                val unhandled = rd.u32_()
+                let idx = rd.u32_()
+                let pass = rd.u32_()
+                let fail = rd.u32_()
+                let skip = rd.u32_()
+                let todo = rd.u32_()
+                let expectations = rd.u32_()
+                let skippedLabel = rd.u32_()
+                let files = rd.u32_()
+                let unhandled = rd.u32_()
 
                 flushCaptured(w)
 
@@ -335,7 +335,7 @@ public class Coordinator {
                     return
                 }
 
-                val summary = reporter.summary()
+                let summary = reporter.summary()
                 summary.pass += pass
                 summary.fail += fail
                 summary.skip += skip
@@ -355,22 +355,22 @@ public class Coordinator {
                 }
             }
             case FrameKind.repeatBufs => {
-                val failures = rd.str()
-                val skips = rd.str()
-                val todos = rd.str()
+                let failures = rd.str()
+                let skips = rd.str()
+                let todos = rd.str()
                 reporter.failuresToRepeatBuf += failures
                 reporter.skipsToRepeatBuf += skips
                 reporter.todosToRepeatBuf += todos
             }
             case FrameKind.junitFile | FrameKind.coverageFile => {
-                val path = rd.str()
+                let path = rd.str()
                 if (path.length == 0) {
                     return
                 }
-                val list = if (kind == FrameKind.junitFile) junitFragments else coverageFragments
+                let list = if (kind == FrameKind.junitFile) junitFragments else coverageFragments
                 list.append(path)
             }
-            case FrameKind.run | FrameKind.shutdown => {}
+            case FrameKind.run | FrameKind.shutdown => ()
         }
     }
 
@@ -382,7 +382,7 @@ public class Coordinator {
 
     /// 尝试收割 worker
     public func tryReap(w: Worker): Unit {
-        val status = w.exitStatus ?: return
+        let status = w.exitStatus ?: return
         if (!w.ipc.done) {
             return
         }
@@ -396,10 +396,10 @@ public class Coordinator {
         flushCaptured(w)
 
         if (w.inflight != None) {
-            val idx = w.inflight!!
+            let idx = w.inflight!!
             breakDots()
             ensureHeader(idx)
-            val panicked = isPanicStatus(status)
+            let panicked = isPanicStatus(status)
             accountCrash(idx, status)
             Output.flush()
             w.inflight = None
@@ -439,7 +439,7 @@ public class Coordinator {
 
     /// 判断是否为 panic 状态
     public static func isPanicStatus(status: ProcessStatus): Bool {
-        val sig = status.signalCode() ?: return false
+        let sig = status.signalCode() ?: return false
         return when (sig) {
             "SIGILL" | "SIGTRAP" | "SIGABRT" | "SIGBUS" | "SIGFPE" | "SIGSEGV" | "SIGSYS" => true
             else => false
@@ -464,7 +464,7 @@ public class Coordinator {
         Output.flush()
 
         for (i in 0..spawnedCount) {
-            val other = workers[i.toInt()]
+            let other = workers[i.toInt()]
             if (!other.alive) {
                 continue
             }
@@ -483,9 +483,9 @@ public class Coordinator {
     /// 中止所有排队的文件
     public func abortQueuedFiles(reason: String): Unit {
         for (w in workers) {
-            val pop = w.range.popFront()
+            let pop = w.range.popFront()
             if (pop != None) {
-                val idx = pop!!
+                let idx = pop!!
                 Output.prettyErrorLn("✗ ${relPath(idx)} (${reason})")
                 reporter.summary().fail += 1
                 reporter.summary().files += 1

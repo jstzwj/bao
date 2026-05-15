@@ -344,7 +344,7 @@ public class ExprFactory {
                 // 二元表达式取反的简化:
                 // !(a == b) => a != b, etc.
             }
-            case _ => {}
+            case _ => ()
         }
         return None
     }
@@ -494,7 +494,7 @@ public class ExprFactory {
             case ExprTag.RegExp => {
                 // RegExp 的值
             }
-            case _ => {}
+            case _ => ()
         }
         return None
     }

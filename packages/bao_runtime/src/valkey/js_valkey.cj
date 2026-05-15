@@ -50,7 +50,7 @@ public class SubscriptionCtx {
 
     /// 初始化订阅上下文
     /// 对应 Bun SubscriptionCtx.init()
-    public static func init(parent: JSValkeyClient): SubscriptionCtx {
+    public static func initFunc(parent: JSValkeyClient): SubscriptionCtx {
         let ctx = SubscriptionCtx(parent)
         ctx.originalEnableOfflineQueue = parent.client.flags.enableOfflineQueue
         ctx.originalEnableAutoPipelining = parent.client.flags.enableAutoPipelining
@@ -149,7 +149,7 @@ public class SubscriptionCtx {
                 case Some(fn) => {
                     fn.call(args)
                 }
-                case None => {}
+                case None => ()
             }
         }
     }
@@ -410,7 +410,7 @@ public class JSValkeyClient {
                 client.retryAttempts = 0
                 reconnect()
             }
-            case _ => {}
+            case _ => ()
         }
 
         deref()

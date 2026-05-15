@@ -51,6 +51,56 @@ private let state_utf8d: Array<UInt8> = [
 
 /// UTF-8 编码工具
 /// 严格翻译自 src/unicode/uucode_lib/src/utf8.zig
+public class Iterator {
+    private var bytes: Array<UInt8>
+    public var i: Int64
+
+    public init(bytes: Array<UInt8>) {
+        this.bytes = bytes
+        this.i = 0
+    }
+
+    /// 获取下一个码点，返回 None 表示结束
+    public func next(): ?UInt32 {
+        if (i >= bytes.size) {
+            return None
+        }
+
+        var state: Int64 = Int64(UTF8_ACCEPT)
+        var cp: UInt32 = 0
+
+        while (true) {
+            let byte = bytes[i]
+            let charClass = Int64(utf8d[Int64(byte)])
+
+            if (state != Int64(UTF8_ACCEPT)) {
+                cp = (UInt32(byte) & 0x3F) | (cp << 6)
+            } else {
+                cp = (UInt32(0xFF) >> UInt32(charClass)) & UInt32(byte)
+            }
+
+            state = Int64(state_utf8d[state + charClass])
+            i += 1
+
+            if (state == Int64(UTF8_ACCEPT) || state == Int64(UTF8_REJECT) || i >= bytes.size) {
+                break
+            }
+        }
+
+        if (state == Int64(UTF8_ACCEPT)) {
+            return Some(cp)
+        }
+        return Some(0xFFFD)
+    }
+
+    /// 预览下一个码点但不移动迭代器
+    public func peek(): ?UInt32 {
+        var it = Iterator(bytes)
+        it.i = i
+        return it.next()
+    }
+}
+
 public class Utf8 {
 
     /// 计算编码码点所需的 UTF-8 字节数
@@ -226,55 +276,6 @@ public class Utf8 {
 
     /// UTF-8 迭代器
     /// 严格翻译自 src/unicode/uucode_lib/src/utf8.zig Iterator
-    public class Iterator {
-        private var bytes: Array<UInt8>
-        public var i: Int64
-
-        public init(bytes: Array<UInt8>) {
-            this.bytes = bytes
-            this.i = 0
-        }
-
-        /// 获取下一个码点，返回 None 表示结束
-        public func next(): ?UInt32 {
-            if (i >= bytes.size) {
-                return None
-            }
-
-            var state: Int64 = Int64(UTF8_ACCEPT)
-            var cp: UInt32 = 0
-
-            while (true) {
-                let byte = bytes[i]
-                let charClass = Int64(utf8d[Int64(byte)])
-
-                if (state != Int64(UTF8_ACCEPT)) {
-                    cp = (UInt32(byte) & 0x3F) | (cp << 6)
-                } else {
-                    cp = (UInt32(0xFF) >> UInt32(charClass)) & UInt32(byte)
-                }
-
-                state = Int64(state_utf8d[state + charClass])
-                i += 1
-
-                if (state == Int64(UTF8_ACCEPT) || state == Int64(UTF8_REJECT) || i >= bytes.size) {
-                    break
-                }
-            }
-
-            if (state == Int64(UTF8_ACCEPT)) {
-                return Some(cp)
-            }
-            return Some(0xFFFD)
-        }
-
-        /// 预览下一个码点但不移动迭代器
-        public func peek(): ?UInt32 {
-            var it = Iterator(bytes)
-            it.i = i
-            return it.next()
-        }
-    }
 }
 
 /// 解码结果

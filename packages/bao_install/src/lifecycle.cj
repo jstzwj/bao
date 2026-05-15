@@ -202,7 +202,7 @@ public class ScriptEnvironment {
         let homeEnv = bao_sys.SysModule.getEnv("HOME")
         match (homeEnv) {
             case Some(h) => env.put("HOME", h)
-            case None => {}
+            case None => ()
         }
 
         // npm_package_* 变量
@@ -230,7 +230,7 @@ public class ScriptEnvironment {
         for (key in extraEnv.keys()) {
             match (extraEnv.get(key)) {
                 case Some(v) => env.put(key, v)
-                case None => {}
+                case None => ()
             }
         }
 
@@ -299,7 +299,7 @@ public class ScriptRunner {
         for (key in envMap.keys()) {
             match (envMap.get(key)) {
                 case Some(v) => envArgs.append("${key}=${v}")
-                case None => {}
+                case None => ()
             }
         }
 
@@ -485,7 +485,7 @@ public class LifecycleScripts {
                         }
                     }
                 }
-                case None => {}
+                case None => ()
             }
         }
 
@@ -513,7 +513,7 @@ public class LifecycleScripts {
                     ))
                     if (exitCode != 0 && !runner.env.optional) { break }
                 }
-                case None => {}
+                case None => ()
             }
         }
 
@@ -540,7 +540,7 @@ public class LifecycleScripts {
                     ))
                     if (exitCode != 0) { break }
                 }
-                case None => {}
+                case None => ()
             }
         }
 

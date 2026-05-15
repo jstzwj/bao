@@ -54,7 +54,7 @@ public class BunInstallJsBindings {
             case .notFound =>
                 globalObject.throw("lockfile not found: '${lockfilePath}'")
                 return JSValue.zero
-            case .ok => {}
+            case .ok => ()
         }
 
         let stringified = handleOom(fmtAllocPrint(allocator, "${lockfile}"))

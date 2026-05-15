@@ -177,7 +177,7 @@ public class PackageScripts {
                 }
                 scriptIndex += 2
             }
-            case _ => {}
+            case _ => ()
         }
 
         return ScriptEntriesResult(
@@ -330,7 +330,7 @@ public class ScriptsList {
                         bao_core.Output.print(fmt)
                     }
                 }
-                case None => {}
+                case None => ()
             }
         }
     }
@@ -346,7 +346,7 @@ public class ScriptsList {
                         lockfileScripts[Int64(i)].append(script)
                     }
                 }
-                case None => {}
+                case None => ()
             }
         }
     }

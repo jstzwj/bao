@@ -57,9 +57,11 @@ public class TransformOptions {
 // ========== TransformTarget ==========
 // 转换目标平台
 public enum TransformTarget {
+    | None
 }
 
 // ========== ResolveMode ==========
 // 解析模式
 public enum ResolveMode {
+    | None
 }

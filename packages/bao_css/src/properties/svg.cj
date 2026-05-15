@@ -31,7 +31,7 @@ public enum SVGPaint {
                 var result = "url(" + u + ")"
                 match (fallback) {
                     case Some(f) => result = result + " " + f.toCss()
-                    case None => {}
+                    case None => ()
                 }
                 return result
             }

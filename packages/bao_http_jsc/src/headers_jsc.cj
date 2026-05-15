@@ -13,7 +13,7 @@ import bao_core.*
 
 /// 将 Headers 转换为 FetchHeaders - 严格对应 Bun toFetchHeaders
 /// Zig: pub fn toFetchHeaders(this: *Headers, global: *bun.jsc.JSGlobalObject) bun.JSError!*FetchHeaders
-public func headersToFetchHeaders(this: Headers, global: JSGlobalObject): FetchHeaders {
+public func headersToFetchHeaders(`this`: Headers, global: JSGlobalObject): FetchHeaders {
     if (this.entries.size == 0) {
         return FetchHeaders.createEmpty()
     }

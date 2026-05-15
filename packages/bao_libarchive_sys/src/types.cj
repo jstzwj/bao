@@ -17,24 +17,29 @@ public type WCharT = UInt16
 // Opaque types
 // ============================================================================
 
-public opaque type StructArchive {}
-public opaque type StructArchiveEntry {}
-public opaque type StructStat {}
-public opaque type StructArchiveAcl {}
-public opaque type StructArchiveEntryLinkresolver {}
+@C
+public struct StructArchive {}
+@C
+public struct StructArchiveEntry {}
+@C
+public struct StructStat {}
+@C
+public struct StructArchiveAcl {}
+@C
+public struct StructArchiveEntryLinkresolver {}
 
 // ============================================================================
 // FileType enum
 // ============================================================================
 
 public enum FileType {
-    regular = 0o100000
-    link = 0o120000
-    socket = 0o140000
-    character_oriented_device = 0o020000
-    block_oriented_device = 0o060000
-    directory = 0o040000
-    fifo = 0o010000
+    | regular
+    | link
+    | socket
+    | character_oriented_device
+    | block_oriented_device
+    | directory
+    | fifo
 }
 
 // ============================================================================
@@ -42,9 +47,9 @@ public enum FileType {
 // ============================================================================
 
 public enum SymlinkType {
-    none = 0
-    file = 1
-    directory = 2
+    | none
+    | file
+    | directory
 }
 
 // ============================================================================
@@ -63,12 +68,12 @@ public let ARCHIVE_FATAL: Int32 = -30
 // ============================================================================
 
 public enum ArchiveResult {
-    eof = 1      // ARCHIVE_EOF
-    ok = 0       // ARCHIVE_OK
-    retry = -10  // ARCHIVE_RETRY
-    warn = -20   // ARCHIVE_WARN
-    failed = -25 // ARCHIVE_FAILED
-    fatal = -30  // ARCHIVE_FATAL
+    | eof
+    | ok
+    | retry
+    | warn
+    | failed
+    | fatal
 }
 
 // ============================================================================
@@ -233,103 +238,103 @@ public let OLD_ARCHIVE_ENTRY_ACL_STYLE_MARK_DEFAULT: Int32 = 2048
 // ============================================================================
 
 public enum FlagsExtract {
-    owner = 0x0001                       // ARCHIVE_EXTRACT_OWNER
-    perm = 0x0002                        // ARCHIVE_EXTRACT_PERM
-    time = 0x0004                        // ARCHIVE_EXTRACT_TIME
-    no_overwrite = 0x0008               // ARCHIVE_EXTRACT_NO_OVERWRITE
-    unlink = 0x0010                     // ARCHIVE_EXTRACT_UNLINK
-    acl = 0x0020                        // ARCHIVE_EXTRACT_ACL
-    fflags = 0x0040                     // ARCHIVE_EXTRACT_FFLAGS
-    xattr = 0x0080                      // ARCHIVE_EXTRACT_XATTR
-    secure_symlinks = 0x0100            // ARCHIVE_EXTRACT_SECURE_SYMLINKS
-    secure_nodotdot = 0x0200            // ARCHIVE_EXTRACT_SECURE_NODOTDOT
-    no_autodir = 0x0400                 // ARCHIVE_EXTRACT_NO_AUTODIR
-    no_overwrite_newer = 0x0800         // ARCHIVE_EXTRACT_NO_OVERWRITE_NEWER
-    sparse = 0x1000                     // ARCHIVE_EXTRACT_SPARSE
-    mac_metadata = 0x2000               // ARCHIVE_EXTRACT_MAC_METADATA
-    no_hfs_compression = 0x4000         // ARCHIVE_EXTRACT_NO_HFS_COMPRESSION
-    hfs_compression_forced = 0x8000     // ARCHIVE_EXTRACT_HFS_COMPRESSION_FORCED
-    secure_noabsolutepaths = 0x00010000 // ARCHIVE_EXTRACT_SECURE_NOABSOLUTEPATHS
-    clear_nochange_fflags = 0x00020000  // ARCHIVE_EXTRACT_CLEAR_NOCHANGE_FFLAGS
-    safe_writes = 0x00040000            // ARCHIVE_EXTRACT_SAFE_WRITES
+    | owner
+    | perm
+    | time
+    | no_overwrite
+    | unlink
+    | acl
+    | fflags
+    | xattr
+    | secure_symlinks
+    | secure_nodotdot
+    | no_autodir
+    | no_overwrite_newer
+    | sparse
+    | mac_metadata
+    | no_hfs_compression
+    | hfs_compression_forced
+    | secure_noabsolutepaths
+    | clear_nochange_fflags
+    | safe_writes
 }
 
 public enum FlagsFormat {
-    base_mask = 0x00ff0000               // ARCHIVE_FORMAT_BASE_MASK
-    cpio = 0x00010000                    // ARCHIVE_FORMAT_CPIO
-    cpio_posix = 0x00010001              // ARCHIVE_FORMAT_CPIO_POSIX
-    cpio_bin_le = 0x00010002             // ARCHIVE_FORMAT_CPIO_BIN_LE
-    cpio_bin_be = 0x00010003             // ARCHIVE_FORMAT_CPIO_BIN_BE
-    cpio_svr4_nocrc = 0x00010004        // ARCHIVE_FORMAT_CPIO_SVR4_NOCRC
-    cpio_svr4_crc = 0x00010005          // ARCHIVE_FORMAT_CPIO_SVR4_CRC
-    cpio_afio_large = 0x00010006        // ARCHIVE_FORMAT_CPIO_AFIO_LARGE
-    cpio_pwb = 0x00010007               // ARCHIVE_FORMAT_CPIO_PWB
-    shar = 0x00020000                    // ARCHIVE_FORMAT_SHAR
-    shar_base = 0x00020001               // ARCHIVE_FORMAT_SHAR_BASE
-    shar_dump = 0x00020002               // ARCHIVE_FORMAT_SHAR_DUMP
-    tar = 0x00030000                     // ARCHIVE_FORMAT_TAR
-    tar_ustar = 0x00030001               // ARCHIVE_FORMAT_TAR_USTAR
-    tar_pax_interchange = 0x00030002    // ARCHIVE_FORMAT_TAR_PAX_INTERCHANGE
-    tar_pax_restricted = 0x00030003     // ARCHIVE_FORMAT_TAR_PAX_RESTRICTED
-    tar_gnutar = 0x00030004              // ARCHIVE_FORMAT_TAR_GNUTAR
-    iso9660 = 0x00040000                 // ARCHIVE_FORMAT_ISO9660
-    iso9660_rockridge = 0x00040001      // ARCHIVE_FORMAT_ISO9660_ROCKRIDGE
-    zip = 0x00050000                     // ARCHIVE_FORMAT_ZIP
-    empty = 0x00060000                   // ARCHIVE_FORMAT_EMPTY
-    ar = 0x00070000                      // ARCHIVE_FORMAT_AR
-    ar_gnu = 0x00070001                  // ARCHIVE_FORMAT_AR_GNU
-    ar_bsd = 0x00070002                  // ARCHIVE_FORMAT_AR_BSD
-    mtree = 0x00080000                   // ARCHIVE_FORMAT_MTREE
-    raw = 0x00090000                     // ARCHIVE_FORMAT_RAW
-    xar = 0x000A0000                     // ARCHIVE_FORMAT_XAR
-    lha = 0x000B0000                     // ARCHIVE_FORMAT_LHA
-    cab = 0x000C0000                     // ARCHIVE_FORMAT_CAB
-    rar = 0x000D0000                     // ARCHIVE_FORMAT_RAR
-    sevenzip = 0x000E0000                // ARCHIVE_FORMAT_7ZIP
-    warc = 0x000F0000                    // ARCHIVE_FORMAT_WARC
-    rar_v5 = 0x00100000                  // ARCHIVE_FORMAT_RAR_V5
+    | base_mask
+    | cpio
+    | cpio_posix
+    | cpio_bin_le
+    | cpio_bin_be
+    | cpio_svr4_nocrc
+    | cpio_svr4_crc
+    | cpio_afio_large
+    | cpio_pwb
+    | shar
+    | shar_base
+    | shar_dump
+    | tar
+    | tar_ustar
+    | tar_pax_interchange
+    | tar_pax_restricted
+    | tar_gnutar
+    | iso9660
+    | iso9660_rockridge
+    | zip
+    | empty
+    | ar
+    | ar_gnu
+    | ar_bsd
+    | mtree
+    | raw
+    | xar
+    | lha
+    | cab
+    | rar
+    | sevenzip
+    | warc
+    | rar_v5
 }
 
 public enum FlagsFilter {
-    none = 0        // ARCHIVE_FILTER_NONE
-    gzip = 1        // ARCHIVE_FILTER_GZIP
-    bzip2 = 2       // ARCHIVE_FILTER_BZIP2
-    compress = 3    // ARCHIVE_FILTER_COMPRESS
-    program = 4     // ARCHIVE_FILTER_PROGRAM
-    lzma = 5        // ARCHIVE_FILTER_LZMA
-    xz = 6          // ARCHIVE_FILTER_XZ
-    uu = 7          // ARCHIVE_FILTER_UU
-    rpm = 8         // ARCHIVE_FILTER_RPM
-    lzip = 9        // ARCHIVE_FILTER_LZIP
-    lrzip = 10      // ARCHIVE_FILTER_LRZIP
-    lzop = 11       // ARCHIVE_FILTER_LZOP
-    grzip = 12      // ARCHIVE_FILTER_GRZIP
-    lz4 = 13        // ARCHIVE_FILTER_LZ4
-    zstd = 14       // ARCHIVE_FILTER_ZSTD
+    | none
+    | gzip
+    | bzip2
+    | compress
+    | program
+    | lzma
+    | xz
+    | uu
+    | rpm
+    | lzip
+    | lrzip
+    | lzop
+    | grzip
+    | lz4
+    | zstd
 }
 
 public enum FlagsEntryDigest {
-    md5 = 0x00000001      // ARCHIVE_ENTRY_DIGEST_MD5
-    rmd160 = 0x00000002   // ARCHIVE_ENTRY_DIGEST_RMD160
-    sha1 = 0x00000003     // ARCHIVE_ENTRY_DIGEST_SHA1
-    sha256 = 0x00000004   // ARCHIVE_ENTRY_DIGEST_SHA256
-    sha384 = 0x00000005   // ARCHIVE_ENTRY_DIGEST_SHA384
-    sha512 = 0x00000006   // ARCHIVE_ENTRY_DIGEST_SHA512
+    | md5
+    | rmd160
+    | sha1
+    | sha256
+    | sha384
+    | sha512
 }
 
 // ============================================================================
 // Callback function types
 // ============================================================================
 
-public type ArchiveReadCallback = CFunctionPointer<(CPointer<StructArchive>, CPointer<None>, CPointer<CPointer<None>>) -> LaSsizeT>
-public type ArchiveSkipCallback = CFunctionPointer<(CPointer<StructArchive>, CPointer<None>, LaInt64T) -> LaInt64T>
-public type ArchiveSeekCallback = CFunctionPointer<(CPointer<StructArchive>, CPointer<None>, LaInt64T, Int32) -> LaInt64T>
-public type ArchiveWriteCallback = CFunctionPointer<(CPointer<StructArchive>, CPointer<None>, CPointer<None>, UInt64) -> LaSsizeT>
-public type ArchiveOpenCallback = CFunctionPointer<(CPointer<StructArchive>, CPointer<None>) -> Int32>
-public type ArchiveCloseCallback = CFunctionPointer<(CPointer<StructArchive>, CPointer<None>) -> Int32>
-public type ArchiveFreeCallback = CFunctionPointer<(CPointer<StructArchive>, CPointer<None>) -> Int32>
-public type ArchiveSwitchCallback = CFunctionPointer<(CPointer<StructArchive>, CPointer<None>, CPointer<None>) -> Int32>
-public type ArchivePassphraseCallback = CFunctionPointer<(CPointer<StructArchive>, CPointer<None>) -> CPointer<UInt8>>
+public type ArchiveReadCallback = CFunc<(CPointer<StructArchive>, CPointer<Unit>, CPointer<CPointer<Unit>>) -> LaSsizeT>
+public type ArchiveSkipCallback = CFunc<(CPointer<StructArchive>, CPointer<Unit>, LaInt64T) -> LaInt64T>
+public type ArchiveSeekCallback = CFunc<(CPointer<StructArchive>, CPointer<Unit>, LaInt64T, Int32) -> LaInt64T>
+public type ArchiveWriteCallback = CFunc<(CPointer<StructArchive>, CPointer<Unit>, CPointer<Unit>, UInt64) -> LaSsizeT>
+public type ArchiveOpenCallback = CFunc<(CPointer<StructArchive>, CPointer<Unit>) -> Int32>
+public type ArchiveCloseCallback = CFunc<(CPointer<StructArchive>, CPointer<Unit>) -> Int32>
+public type ArchiveFreeCallback = CFunc<(CPointer<StructArchive>, CPointer<Unit>) -> Int32>
+public type ArchiveSwitchCallback = CFunc<(CPointer<StructArchive>, CPointer<Unit>, CPointer<Unit>) -> Int32>
+public type ArchivePassphraseCallback = CFunc<(CPointer<StructArchive>, CPointer<Unit>) -> CPointer<UInt8>>
 
 // ============================================================================
 // Block struct (from Archive.next)

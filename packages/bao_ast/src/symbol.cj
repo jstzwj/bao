@@ -538,7 +538,7 @@ public class SymbolMap {
                     s.link = merge(oldLink, newRef)
                     return s.link
                 }
-            case None => {}
+            case None => ()
         }
 
         let newSymbol = get(newRef)
@@ -549,7 +549,7 @@ public class SymbolMap {
                     s.link = merge(old, newLink)
                     return s.link
                 }
-            case None => {}
+            case None => ()
         }
 
         match (oldSymbol) {
@@ -557,9 +557,9 @@ public class SymbolMap {
                 os.link = newRef
                 match (newSymbol) {
                     case Some(ns) => ns.mergeContentsWith(os)
-                    case None => {}
+                    case None => ()
                 }
-            case None => {}
+            case None => ()
         }
         return newRef
     }

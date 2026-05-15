@@ -48,7 +48,7 @@ public class CssScopeRule {
             case Some(start) => {
                 sb.append(" (${start})")
             }
-            case None => {}
+            case None => ()
         }
 
         // scope-end
@@ -56,7 +56,7 @@ public class CssScopeRule {
             case Some(end) => {
                 sb.append(" to (${end})")
             }
-            case None => {}
+            case None => ()
         }
 
         sb.append(" {\n")

@@ -88,7 +88,7 @@ public class Hardlinker {
                                         destDir: FileDescriptor.cwd(),
                                         destPath: destPath
                                     )) {
-                                        case Success => {}
+                                        case Success => ()
                                         case Err(linkErr1) => {
                                             match (linkErr1.errno) {
                                                 case Errno.EXIST => {
@@ -100,7 +100,7 @@ public class Hardlinker {
                                                         destDir: FileDescriptor.cwd(),
                                                         destPath: destPath
                                                     )) {
-                                                        case Success => {}
+                                                        case Success => ()
                                                         case Err(linkErr2) => return SyscallResult.Err(linkErr2)
                                                     }
                                                 }
@@ -117,7 +117,7 @@ public class Hardlinker {
                                                         destDir: FileDescriptor.cwd(),
                                                         destPath: destPath
                                                     )) {
-                                                        case Success => {}
+                                                        case Success => ()
                                                         case Err(linkErr2) => return SyscallResult.Err(linkErr2)
                                                     }
                                                 }
@@ -126,14 +126,14 @@ public class Hardlinker {
                                         }
                                     }
                                 }
-                                case _ => {}
+                                case _ => ()
                             }
                         }
                         case None => break
                     }
                 }
             }
-            case None => {}
+            case None => ()
         }
 
         return SyscallResult.Success

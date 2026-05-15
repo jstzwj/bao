@@ -303,7 +303,7 @@ public class CssParser {
     }
 
     /// 初始化解析器
-    public func init(source: String): Unit {
+    public func initFunc(source: String): Unit {
         lexer.init(source)
         options = CssParserOptions()
         errors = ArrayList<CssParseError>()
@@ -312,7 +312,7 @@ public class CssParser {
     }
 
     /// 初始化解析器 (带选项)
-    public func init(source: String, options: CssParserOptions): Unit {
+    public func initFunc(source: String, options: CssParserOptions): Unit {
         lexer.init(source)
         this.options = options
         errors = ArrayList<CssParseError>()
@@ -1061,7 +1061,7 @@ public class Delimiters {
                 if (b == '('.toUInt8()) { d.parenthesis = true }
                 if (b == ')'.toUInt8()) { d.closeParenthesis = true }
             }
-            case None => {}
+            case None => ()
         }
         return d
     }
@@ -1597,7 +1597,7 @@ public class CssLexer {
         pos = 0
     }
 
-    public func init(source: String): Unit {
+    public func initFunc(source: String): Unit {
         this.source = source
         pos = 0
     }

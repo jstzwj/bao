@@ -1761,7 +1761,7 @@ public class CssGradient {
                             fallbacks.merge(item.getNecessaryFallbacks(targets))
                         }
                     }
-                    case None => {}
+                    case None => ()
                 }
             }
             case Radial | RepeatingRadial => {
@@ -1771,7 +1771,7 @@ public class CssGradient {
                             fallbacks.merge(item.getNecessaryFallbacks(targets))
                         }
                     }
-                    case None => {}
+                    case None => ()
                 }
             }
             case Conic | RepeatingConic => {
@@ -1781,10 +1781,10 @@ public class CssGradient {
                             fallbacks.merge(item.getNecessaryFallbacks(targets))
                         }
                     }
-                    case None => {}
+                    case None => ()
                 }
             }
-            case WebkitGradient => {} // webkit 不需要
+            case WebkitGradient => () // webkit 不需要
         }
         return fallbacks
     }

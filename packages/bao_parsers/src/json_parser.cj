@@ -216,7 +216,7 @@ public class JsonValue {
         for (key in keys) {
             match (objectValue.get(key)) {
                 case Some(v) => clone.objectValue.put(key, v.deepClone())
-                case None => {}
+                case None => ()
             }
         }
         return clone
@@ -274,7 +274,7 @@ public class LinkedHashMap<K, V> {
         for (key in entries) {
             match (values.get(key)) {
                 case Some(v) => result.append(v)
-                case None => {}
+                case None => ()
             }
         }
         return result
@@ -767,7 +767,7 @@ public class JSONStringify {
                                 sb.append(' ')
                             }
                             doStringify(v, sb, newIndent)
-                        case None => {}
+                        case None => ()
                     }
                 }
                 if (newIndent >= Int64(0)) {
@@ -865,7 +865,7 @@ public class StreamingJSONParser {
                     parsedValues.append(v)
                     output.value = Some(parsedValues)
                     output.state = ParseState.Success
-                case None => {}
+                case None => ()
             }
             completed = true
         } else {

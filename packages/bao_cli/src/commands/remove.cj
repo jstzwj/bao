@@ -57,7 +57,7 @@ public class RemoveCommand {
 
         // 加载配置
         match (config) {
-            case Some(_) => {}
+            case Some(_) => ()
             case None => config = Some(Config.load("."))
         }
 
@@ -120,7 +120,7 @@ public class RemoveCommand {
                         logger.info("Cleaned up ${summary.removed} unused packages")
                     }
                 }
-                case None => {}
+                case None => ()
             }
         } catch (e: Exception) {
             logger.error("Post-remove install failed: ${e.message}")

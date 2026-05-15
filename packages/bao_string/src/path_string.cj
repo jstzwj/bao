@@ -42,7 +42,7 @@ public class PathString {
 
     /// 创建一个借用切片的 PathString(不分配)
     /// 严格翻译自 PathString.init
-    public static func init(str: String): PathString {
+    public static func initFunc(str: String): PathString {
         return PathString(str)
     }
 
