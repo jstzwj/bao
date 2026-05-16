@@ -156,7 +156,10 @@ public enum Writable {
         }
 
         switch (stdio) {
-            case .dup2 => panic("TODO dup2 stdio")
+            case .dup2(let dup2) => {
+                // 严格翻译自 Bun src/runtime/api/bun/subprocess/Writable.zig Writable.init Windows dup2 arm: stdin exposes the target fd.
+                return Writable.fd(dup2.to.toFd())
+            }
             case .pipe, .readable_stream => {
                 let pipe = FileSink.create(eventLoop, result)
 

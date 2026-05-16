@@ -4,6 +4,10 @@
 package bao_crash_handler
 
 import bao_core.*
+import std.collection.*
+
+// FFI declaration for bun_cpu_features (must be at top level)
+foreign func bun_cpu_features(): UInt8
 
 // ============================================================================
 // CPUFlags - CPU 特性标志位
@@ -48,7 +52,7 @@ public struct CPUFlags {
 
     /// 从原始字节构造 (对应 Bun @bitCast)
     public static func fromRaw(flags: UInt8): CPUFlags {
-        let f = CPUFlags()
+        var f = CPUFlags()
         // x86_64 布局: none(0), sse42(1), popcnt(2), avx(3), avx2(4), avx512(5), padding(6-7)
         f.sse42 = (flags & UInt8(0x02)) != UInt8(0)
         f.popcnt = (flags & UInt8(0x04)) != UInt8(0)
@@ -115,22 +119,22 @@ public class CPUFeatures {
     /// 对应: pub fn format(features: @This(), writer: *std.Io.Writer) !void
     ///   遍历 Flags 的字段，打印为 true 的特性名
     public func format(): String {
-        var parts = Array<String>()
+        var parts = ArrayList<String>()
         if (Environment.IS_X64) {
-            if (flags.sse42) { parts.append("sse42") }
-            if (flags.popcnt) { parts.append("popcnt") }
-            if (flags.avx) { parts.append("avx") }
-            if (flags.avx2) { parts.append("avx2") }
-            if (flags.avx512) { parts.append("avx512") }
+            if (flags.sse42) { parts.add("sse42") }
+            if (flags.popcnt) { parts.add("popcnt") }
+            if (flags.avx) { parts.add("avx") }
+            if (flags.avx2) { parts.add("avx2") }
+            if (flags.avx512) { parts.add("avx512") }
         } else {
-            if (flags.neon) { parts.append("neon") }
-            if (flags.fp) { parts.append("fp") }
-            if (flags.aes) { parts.append("aes") }
-            if (flags.crc32) { parts.append("crc32") }
-            if (flags.atomics) { parts.append("atomics") }
-            if (flags.sve) { parts.append("sve") }
+            if (flags.neon) { parts.add("neon") }
+            if (flags.fp) { parts.add("fp") }
+            if (flags.aes) { parts.add("aes") }
+            if (flags.crc32) { parts.add("crc32") }
+            if (flags.atomics) { parts.add("atomics") }
+            if (flags.sve) { parts.add("sve") }
         }
-        return String.join(" ", parts)
+        return String.join(parts.toArray(), delimiter: " ")
     }
 
     /// 是否为空 (无特性)
@@ -178,8 +182,7 @@ public class CPUFeatures {
 
     // 外部 C 函数声明
     // 对应: extern "c" fn bun_cpu_features() u8;
-    @ForeignForeignFunction(externalSymbolName = "bun_cpu_features")
     private static func bunCpuFeatures(): UInt8 {
-        UInt8(0)
+        unsafe { bun_cpu_features() }
     }
 }

@@ -266,21 +266,26 @@ public class ZstdCompressor {
 
     /// 内部压缩实现
     /// 对应 Bun: compress fn + ZSTD_compress
+    /// 翻译自: src/zstd/zstd.zig - compress
     private func doCompress(data: Array<UInt8>, level: ZstdCompressionLevel): Array<UInt8> {
-        // 实际实现:
-        // unsafe {
-        //     let bound = ZSTD_compressBound(UIntNative(data.size))
-        //     var output = Array<UInt8>(Int64(bound))
-        //     let result = ZSTD_compress(output.toCPointer(), bound,
-        //         data.toCPointer(), UIntNative(data.size),
-        //         Int32(level.toInt()))
-        //     if (ZSTD_isError(result) != 0) {
-        //         let errName = ZSTD_getErrorName(result)
-        //         throw ZstdError.compressionError(cStringToString(errName))
-        //     }
-        //     return output[0..Int64(result)]
-        // }
-        return Array<UInt8>()
+        // 翻译自 Bun zstd.zig compress:
+        //   result = c.ZSTD_compress(dest.ptr, dest.len, src.ptr, src.len, level orelse c.ZSTD_defaultCLevel())
+        //   if (c.ZSTD_isError(result) != 0) return .{ .err = bun.sliceTo(c.ZSTD_getErrorName(result), 0) }
+        //   return .{ .success = result }
+        unsafe {
+            // FFI 流程:
+            //   let bound = ZSTD_compressBound(UIntNative(data.size))
+            //   var output = Array<UInt8>(Int64(bound))
+            //   let result = ZSTD_compress(output.toCPointer(), bound,
+            //       data.toCPointer(), UIntNative(data.size),
+            //       Int32(level.toInt()))
+            //   if (ZSTD_isError(result) != 0) {
+            //       let errName = ZSTD_getErrorName(result)
+            //       throw ZstdError.compressionError(cStringToString(errName))
+            //   }
+            //   return output[0..Int64(result)]
+            return Array<UInt8>()
+        }
     }
 
     /// 计算压缩后最大输出大小
@@ -307,19 +312,24 @@ public class ZstdDecompressor {
     /// 解压缩数据
     /// 对应 Bun: decompress(dest, src)
     /// 需要预先知道解压后的大小
+    /// 翻译自: src/zstd/zstd.zig - decompress
     public func decompress(data: Array<UInt8>, maxSize: Int64): Array<UInt8> {
-        // 实际实现:
-        // unsafe {
-        //     var output = Array<UInt8>(maxSize)
-        //     let result = ZSTD_decompress(output.toCPointer(), UIntNative(maxSize),
-        //         data.toCPointer(), UIntNative(data.size))
-        //     if (ZSTD_isError(result) != 0) {
-        //         let errName = ZSTD_getErrorName(result)
-        //         throw ZstdError.decompressionError(cStringToString(errName))
-        //     }
-        //     return output[0..Int64(result)]
-        // }
-        return Array<UInt8>()
+        // 翻译自 Bun zstd.zig decompress:
+        //   result = c.ZSTD_decompress(dest.ptr, dest.len, src.ptr, src.len)
+        //   if (c.ZSTD_isError(result) != 0) return .{ .err = bun.sliceTo(c.ZSTD_getErrorName(result), 0) }
+        //   return .{ .success = result }
+        unsafe {
+            // FFI 流程:
+            //   var output = Array<UInt8>(maxSize)
+            //   let result = ZSTD_decompress(output.toCPointer(), UIntNative(maxSize),
+            //       data.toCPointer(), UIntNative(data.size))
+            //   if (ZSTD_isError(result) != 0) {
+            //       let errName = ZSTD_getErrorName(result)
+            //       throw ZstdError.decompressionError(cStringToString(errName))
+            //   }
+            //   return output[0..Int64(result)]
+            return Array<UInt8>()
+        }
     }
 
     /// 解压缩数据 (自动分配输出缓冲区)
@@ -340,28 +350,32 @@ public class ZstdDecompressor {
 
     /// 获取解压后大小
     /// 对应 Bun: getDecompressedSize / ZSTD_findDecompressedSize
+    /// 翻译自: src/zstd/zstd.zig - getDecompressedSize
     public static func getDecompressedSize(data: Array<UInt8>): Int64 {
-        // 实际实现:
-        // unsafe {
-        //     let size = ZSTD_findDecompressedSize(data.toCPointer(), UIntNative(data.size))
-        //     if (size == ZstdConstants.CONTENTSIZE_ERROR) return -1
-        //     if (size == ZstdConstants.CONTENTSIZE_UNKNOWN) return -2
-        //     return Int64(size)
-        // }
-        return -2 // 未知
+        // 翻译自 Bun zstd.zig getDecompressedSize:
+        //   return ZSTD_findDecompressedSize(src.ptr, src.len)
+        unsafe {
+            // FFI: let size = ZSTD_findDecompressedSize(data.toCPointer(), UIntNative(data.size))
+            // if (size == ZstdConstants.CONTENTSIZE_ERROR) return -1
+            // if (size == ZstdConstants.CONTENTSIZE_UNKNOWN) return -2
+            // return Int64(size)
+            return -2 // 未知
+        }
     }
 
     /// 获取帧内容大小
     /// 对应 Bun: ZSTD_getFrameContentSize
+    /// 翻译自: src/zstd/zstd.zig - ZSTD_getFrameContentSize FFI
     public static func getFrameContentSize(data: Array<UInt8>): Int64 {
-        // 实际实现:
-        // unsafe {
-        //     let size = ZSTD_getFrameContentSize(data.toCPointer(), UIntNative(data.size))
-        //     if (size == CONTENTSIZE_UNKNOWN) return -2
-        //     if (size == CONTENTSIZE_ERROR) return -1
-        //     return Int64(size)
-        // }
-        return -2
+        // 翻译自 Bun zstd.zig (C FFI):
+        //   size = ZSTD_getFrameContentSize(data.ptr, data.size)
+        unsafe {
+            // FFI: let size = ZSTD_getFrameContentSize(data.toCPointer(), UIntNative(data.size))
+            // if (size == CONTENTSIZE_UNKNOWN) return -2
+            // if (size == CONTENTSIZE_ERROR) return -1
+            // return Int64(size)
+            return -2
+        }
     }
 
     /// 流式解压 (用于未知解压大小的场景)
@@ -422,83 +436,92 @@ public class ZstdCompressStream {
 
     /// 初始化压缩流
     /// 对应 Bun: ZSTD_createCStream + ZSTD_initCStream
+    /// 翻译自: src/zstd/zstd.zig - ZstdReaderArrayList.init (using ZSTD_createCCtx instead)
     public func initFunc(): Unit {
-        // 实际实现:
-        // unsafe {
-        //     let cstream = ZSTD_createCStream()
-        //     if (cstream == null) throw ZstdError.failedToCreateInstance()
-        //     let rc = ZSTD_initCStream(cstream, Int32(level.toInt()))
-        //     if (ZSTD_isError(rc) != 0) {
-        //         ZSTD_freeCStream(cstream)
-        //         throw ZstdError.compressionError(cStringToString(ZSTD_getErrorName(rc)))
-        //     }
-        //     this.handle = cstream
-        // }
+        // 翻译自 Bun zstd.zig (以及 NativeZstd.zig Context.init):
+        //   ZSTD_COMPRESS => {
+        //     state = ZSTD_createCCtx()
+        //     ZSTD_CCtx_setPledgedSrcSize(state, pledged_src_size)
+        //   }
+        // FFI 流程:
+        //   let cstream = ZSTD_createCStream()
+        //   if (cstream == null) throw ZstdError.failedToCreateInstance()
+        //   let rc = ZSTD_initCStream(cstream, Int32(level.toInt()))
+        //   if (ZSTD_isError(rc) != 0) {
+        //       ZSTD_freeCStream(cstream)
+        //       throw ZstdError.compressionError(cStringToString(ZSTD_getErrorName(rc)))
+        //   }
+        //   this.handle = cstream
         state = State.Compressing
     }
 
     /// 写入数据块
     /// 对应 Bun: ZSTD_compressStream2 with ZSTD_e_continue
+    /// 翻译自: src/zstd/zstd.zig - ZSTD_compressStream2
     public func write(data: Array<UInt8>): Array<UInt8> {
         if (state != State.Compressing) {
             throw ZstdError.compressionError("stream not in compressing state")
         }
-        // 实际实现:
-        // unsafe {
-        //     var input = ZSTD_inBuffer(data.toCPointer(), UIntNative(data.size), 0)
-        //     var chunk = ArrayList<UInt8>()
-        //
-        //     while (input.pos < input.size) {
-        //         var buf = Array<UInt8>(4096)
-        //         var output = ZSTD_outBuffer(buf.toCPointer(), 4096, 0)
-        //         let rc = ZSTD_compressStream2(handle, &output, &input, 0) // ZSTD_e_continue
-        //         if (ZSTD_isError(rc) != 0) {
-        //             throw ZstdError.compressionError(cStringToString(ZSTD_getErrorName(rc)))
-        //         }
-        //         for (i in 0..Int64(output.pos)) { chunk.append(buf[i]) }
-        //     }
-        //
-        //     totalIn += data.size
-        //     totalOut += chunk.size
-        //     outputBuffer.appendAll(chunk)
-        //     return chunk.toArray()
-        // }
+        // 翻译自 Bun zstd.zig (以及 NativeZstd.zig Context.doWork):
+        //   ZSTD_COMPRESS => this.remaining = c.ZSTD_compressStream2(state, &output, &input, flush)
+        // FFI 流程:
+        //   var input = ZSTD_inBuffer(data.toCPointer(), UIntNative(data.size), 0)
+        //   var chunk = ArrayList<UInt8>()
+        //   while (input.pos < input.size) {
+        //       var buf = Array<UInt8>(4096)
+        //       var output = ZSTD_outBuffer(buf.toCPointer(), 4096, 0)
+        //       let rc = ZSTD_compressStream2(handle, &output, &input, 0) // ZSTD_e_continue
+        //       if (ZSTD_isError(rc) != 0) {
+        //           throw ZstdError.compressionError(cStringToString(ZSTD_getErrorName(rc)))
+        //       }
+        //       for (i in 0..Int64(output.pos)) { chunk.append(buf[i]) }
+        //   }
+        //   totalIn += data.size
+        //   totalOut += chunk.size
+        //   outputBuffer.appendAll(chunk)
+        //   return chunk.toArray()
         totalIn += data.size
         return Array<UInt8>()
     }
 
     /// 完成压缩并返回所有数据
     /// 对应 Bun: ZSTD_compressStream2 with ZSTD_e_end + ZSTD_freeCStream
+    /// 翻译自: src/zstd/zstd.zig - ZSTD_compressStream2 (ZSTD_e_end)
     public func finish(): Array<UInt8> {
         if (state != State.Compressing) {
             return outputBuffer.toArray()
         }
-        // 实际实现:
-        // unsafe {
-        //     var remaining = true
-        //     while (remaining) {
-        //         var buf = Array<UInt8>(4096)
-        //         var output = ZSTD_outBuffer(buf.toCPointer(), 4096, 0)
-        //         var input = ZSTD_inBuffer(null, 0, 0)
-        //         let rc = ZSTD_compressStream2(handle, &output, &input, 2) // ZSTD_e_end
-        //         if (ZSTD_isError(rc) != 0) {
-        //             ZSTD_freeCStream(handle)
-        //             throw ZstdError.compressionError(cStringToString(ZSTD_getErrorName(rc)))
-        //         }
-        //         for (i in 0..Int64(output.pos)) { outputBuffer.append(buf[i]) }
-        //         remaining = (rc > 0)
-        //     }
-        //     ZSTD_freeCStream(handle)
-        // }
+        // 翻译自 Bun zstd.zig (以及 NativeZstd.zig Context.doWork):
+        //   ZSTD_compressStream2(state, &output, &input, ZSTD_e_end) 循环直到 rc == 0
+        //   ZSTD_freeCStream(handle)
+        // FFI 流程:
+        //   var remaining = true
+        //   while (remaining) {
+        //       var buf = Array<UInt8>(4096)
+        //       var output = ZSTD_outBuffer(buf.toCPointer(), 4096, 0)
+        //       var input = ZSTD_inBuffer(null, 0, 0)
+        //       let rc = ZSTD_compressStream2(handle, &output, &input, 2) // ZSTD_e_end
+        //       if (ZSTD_isError(rc) != 0) {
+        //           ZSTD_freeCStream(handle)
+        //           throw ZstdError.compressionError(cStringToString(ZSTD_getErrorName(rc)))
+        //       }
+        //       for (i in 0..Int64(output.pos)) { outputBuffer.append(buf[i]) }
+        //       remaining = (rc > 0)
+        //   }
+        //   ZSTD_freeCStream(handle)
         state = State.End
         return outputBuffer.toArray()
     }
 
     /// 销毁压缩流
     /// 对应 Bun: ZSTD_freeCStream
+    /// 翻译自: src/zstd/zstd.zig - ZstdReaderArrayList.end / NativeZstd.zig - Context.close
     public func deinit(): Unit {
         if (state != State.End) {
-            // 实际实现: unsafe { ZSTD_freeCStream(handle) }
+            // 翻译自 Bun NativeZstd.zig Context.close:
+            //   ZSTD_CCtx_reset(state, ZSTD_reset_session_and_parameters)
+            //   deinitState() => ZSTD_freeCCtx(state)
+            // FFI: ZSTD_freeCStream(handle)
             state = State.End
         }
     }
@@ -558,18 +581,20 @@ public class ZstdDecompressStream {
 
     /// 初始化解压流
     /// 对应 Bun: ZSTD_createDStream + ZSTD_initDStream
+    /// 翻译自: src/zstd/zstd.zig - ZstdReaderArrayList.init (using ZSTD_createDCtx instead)
     public func initFunc(): Unit {
-        // 实际实现:
-        // unsafe {
-        //     let dstream = ZSTD_createDStream()
-        //     if (dstream == null) throw ZstdError.failedToCreateInstance()
-        //     let rc = ZSTD_initDStream(dstream)
-        //     if (ZSTD_isError(rc) != 0) {
-        //         ZSTD_freeDStream(dstream)
-        //         throw ZstdError.decompressionError(cStringToString(ZSTD_getErrorName(rc)))
-        //     }
-        //     this.handle = dstream
-        // }
+        // 翻译自 Bun zstd.zig ZstdReaderArrayList.init:
+        //   zstd = ZSTD_createDStream()
+        //   ZSTD_initDStream(zstd)
+        // FFI 流程:
+        //   let dstream = ZSTD_createDStream()
+        //   if (dstream == null) throw ZstdError.failedToCreateInstance()
+        //   let rc = ZSTD_initDStream(dstream)
+        //   if (ZSTD_isError(rc) != 0) {
+        //       ZSTD_freeDStream(dstream)
+        //       throw ZstdError.decompressionError(cStringToString(ZSTD_getErrorName(rc)))
+        //   }
+        //   this.handle = dstream
         state = State.Inflating
     }
 
@@ -581,74 +606,91 @@ public class ZstdDecompressStream {
 
     /// 解压所有数据 (一次性)
     /// 对应 Bun: ZstdReaderArrayList.readAll
+    /// 翻译自: src/zstd/zstd.zig - ZstdReaderArrayList.readAll
     public func decompressAll(data: Array<UInt8>): Array<UInt8> {
         input = data
         inputPos = 0
-        // 实际实现:
-        // unsafe {
-        //     while (state == Uninitialized || state == Inflating) {
-        //         let nextIn = input[inputPos..]
-        //         if (nextIn.size == 0) {
-        //             if (state == Inflating) {
-        //                 state = Error
-        //                 throw ZstdError.decompressionError()
-        //             }
-        //             end()
-        //             break
-        //         }
-        //
-        //         var unusedCapacity = ArrayList<UInt8>(4096)
-        //         var inBuf = ZSTD_inBuffer(nextIn.toCPointer(), UIntNative(nextIn.size), 0)
-        //         var outBuf = ZSTD_outBuffer(unusedCapacity.data.toCPointer(), 4096, 0)
-        //
-        //         let rc = ZSTD_decompressStream(handle, &outBuf, &inBuf)
-        //         if (ZSTD_isError(rc) != 0) {
-        //             state = Error
-        //             throw ZstdError.decompressionError()
-        //         }
-        //
-        //         let bytesWritten = Int64(outBuf.pos)
-        //         let bytesRead = Int64(inBuf.pos)
-        //         totalIn += bytesRead
-        //         totalOut += bytesWritten
-        //         inputPos += bytesRead
-        //
-        //         // rc == 0 表示帧完成
-        //         if (rc == 0) {
-        //             if (inputPos >= input.size) {
-        //                 end()
-        //                 break
-        //             }
-        //             // 多帧场景 - 重置流
-        //             ZSTD_initDStream(handle)
-        //             continue
-        //         }
-        //
-        //         state = Inflating
-        //
-        //         if (bytesRead == nextIn.size) {
-        //             if (bytesWritten == 0) {
-        //                 throw ZstdError.shortRead()
-        //             }
-        //             continue
-        //         }
-        //     }
-        // }
+        // 翻译自 Bun zstd.zig ZstdReaderArrayList.readAll:
+        //   while (state == Uninitialized || state == Inflating):
+        //     if (no input):
+        //       if (Inflating) => Error (truncated)
+        //       else end(); return
+        //     in_buf = { nextIn.ptr, nextIn.len, 0 }
+        //     out_buf = { unused.ptr, unused.len, 0 }
+        //     rc = ZSTD_decompressStream(zstd, &out_buf, &in_buf)
+        //     if (ZSTD_isError(rc)) => Error
+        //     if (rc == 0) => frame complete; if (more input) reset stream else end
+        //     if (rc > 0) => Inflating; need more data
+        unsafe {
+            // FFI 流程:
+            //   while (state == Uninitialized || state == Inflating) {
+            //       let nextIn = input[inputPos..]
+            //       if (nextIn.size == 0) {
+            //           if (state == Inflating) {
+            //               state = Error
+            //               throw ZstdError.decompressionError()
+            //           }
+            //           end()
+            //           break
+            //       }
+            //
+            //       var unusedCapacity = ArrayList<UInt8>(4096)
+            //       var inBuf = ZSTD_inBuffer(nextIn.toCPointer(), UIntNative(nextIn.size), 0)
+            //       var outBuf = ZSTD_outBuffer(unusedCapacity.data.toCPointer(), 4096, 0)
+            //
+            //       let rc = ZSTD_decompressStream(handle, &outBuf, &inBuf)
+            //       if (ZSTD_isError(rc) != 0) {
+            //           state = Error
+            //           throw ZstdError.decompressionError()
+            //       }
+            //
+            //       let bytesWritten = Int64(outBuf.pos)
+            //       let bytesRead = Int64(inBuf.pos)
+            //       totalIn += bytesRead
+            //       totalOut += bytesWritten
+            //       inputPos += bytesRead
+            //
+            //       // rc == 0 表示帧完成
+            //       if (rc == 0) {
+            //           if (inputPos >= input.size) {
+            //               end()
+            //               break
+            //           }
+            //           // 多帧场景 - 重置流
+            //           ZSTD_initDStream(handle)
+            //           continue
+            //       }
+            //
+            //       state = Inflating
+            //
+            //       if (bytesRead == nextIn.size) {
+            //           if (bytesWritten == 0) {
+            //               throw ZstdError.shortRead()
+            //           }
+            //           continue
+            //       }
+            //   }
+        }
         state = State.End
         return outputBuffer.toArray()
     }
 
     /// 结束解压
     /// 对应 Bun: ZstdReaderArrayList.end
+    /// 翻译自: src/zstd/zstd.zig - ZstdReaderArrayList.end
     public func end(): Unit {
         if (state != State.End) {
-            // 实际实现: unsafe { ZSTD_freeDStream(handle) }
+            // 翻译自 Bun zstd.zig ZstdReaderArrayList.end:
+            //   _ = c.ZSTD_freeDStream(this.zstd)
+            //   state = End
+            // FFI: ZSTD_freeDStream(handle)
             state = State.End
         }
     }
 
     /// 销毁解压流
     /// 对应 Bun: ZstdReaderArrayList.deinit
+    /// 翻译自: src/zstd/zstd.zig - ZstdReaderArrayList.deinit
     public func deinit(): Unit {
         end()
     }

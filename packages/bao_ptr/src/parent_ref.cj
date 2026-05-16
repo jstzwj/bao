@@ -4,6 +4,7 @@
 package bao_ptr
 
 import bao_core.*
+import bao_threading.*
 
 // ============================================================================
 // LiveMarker - 活性标记哨兵
@@ -32,7 +33,7 @@ public class LiveMarker {
 
     /// 获取当前 generation 值
     public func getGeneration(): UInt64 {
-        if (Environment.isDebug) {
+        if (Environment.IS_DEBUG) {
             return this.generation.load()
         }
         return 1
@@ -41,11 +42,11 @@ public class LiveMarker {
     /// Debug 断言 generation == expected
     /// Release 构建中为 no-op
     public func assertLive(expected: UInt64): Unit {
-        if (Environment.isDebug) {
+        if (Environment.IS_DEBUG) {
             let live = this.generation.load()
             Assert.assertTrue(
                 live == expected,
-                "ParentRef: use-after-parent-drop (marker=0x${live.toString(16)}, expected=0x${expected.toString(16)})"
+                "ParentRef: use-after-parent-drop (marker=0x${live.toString()}, expected=0x${expected.toString()})"
             )
         }
     }
@@ -123,7 +124,7 @@ public class ParentRef<T> {
     public static func anchored(parent: T, marker: LiveMarker): ParentRef<T> {
         let ref_ = ParentRef<T>()
         ref_.ptr = 0
-        if (Environment.isDebug) {
+        if (Environment.IS_DEBUG) {
             ref_._generation = marker.getGeneration()
             ref_._marker = Some(marker)
         }
@@ -160,7 +161,7 @@ public class ParentRef<T> {
 
     /// Debug-only 的 anchored 引用的活性断言
     func debugAssertLive(): Unit {
-        if (Environment.isDebug) {
+        if (Environment.IS_DEBUG) {
             match (this._marker) {
                 case Some(marker) =>
                     marker.assertLive(this._generation)
@@ -214,9 +215,9 @@ public class ParentRef<T> {
 
     /// Debug 字符串表示
     public func toString(): String {
-        if (Environment.isDebug) {
-            return "ParentRef(0x${this.ptr.toString(16)}, generation=0x${this._generation.toString(16)})"
+        if (Environment.IS_DEBUG) {
+            return "ParentRef(0x${this.ptr.toString()}, generation=0x${this._generation.toString()})"
         }
-        return "ParentRef(0x${this.ptr.toString(16)})"
+        return "ParentRef(0x${this.ptr.toString()})"
     }
 }

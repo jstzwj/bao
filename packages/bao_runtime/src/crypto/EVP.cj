@@ -37,22 +37,22 @@ public enum EvpAlgorithm {
     /// 获取算法对应的 EVP_MD
     public func md(): ?EvpMd {
         match (this) {
-            | EvpAlgorithm.blake2b256 => BoringSSL.evpBlake2b256()
-            | EvpAlgorithm.blake2b512 => BoringSSL.evpBlake2b512()
-            | EvpAlgorithm.md4 => BoringSSL.evpMd4()
-            | EvpAlgorithm.md5 => BoringSSL.evpMd5()
-            | EvpAlgorithm.ripemd160 => BoringSSL.evpRipemd160()
-            | EvpAlgorithm.sha1 => BoringSSL.evpSha1()
-            | EvpAlgorithm.sha224 => BoringSSL.evpSha224()
-            | EvpAlgorithm.sha256 => BoringSSL.evpSha256()
-            | EvpAlgorithm.sha384 => BoringSSL.evpSha384()
-            | EvpAlgorithm.sha512 => BoringSSL.evpSha512()
-            | EvpAlgorithm.sha512_224 => BoringSSL.evpSha512224()
-            | EvpAlgorithm.sha512_256 => BoringSSL.evpSha512256()
-            | EvpAlgorithm.sha3_224 => BoringSSL.evpSha3_224()
-            | EvpAlgorithm.sha3_256 => BoringSSL.evpSha3_256()
-            | EvpAlgorithm.sha3_384 => BoringSSL.evpSha3_384()
-            | EvpAlgorithm.sha3_512 => BoringSSL.evpSha3_512()
+            case EvpAlgorithm.blake2b256 => BoringSSL.evpBlake2b256()
+            case EvpAlgorithm.blake2b512 => BoringSSL.evpBlake2b512()
+            case EvpAlgorithm.md4 => BoringSSL.evpMd4()
+            case EvpAlgorithm.md5 => BoringSSL.evpMd5()
+            case EvpAlgorithm.ripemd160 => BoringSSL.evpRipemd160()
+            case EvpAlgorithm.sha1 => BoringSSL.evpSha1()
+            case EvpAlgorithm.sha224 => BoringSSL.evpSha224()
+            case EvpAlgorithm.sha256 => BoringSSL.evpSha256()
+            case EvpAlgorithm.sha384 => BoringSSL.evpSha384()
+            case EvpAlgorithm.sha512 => BoringSSL.evpSha512()
+            case EvpAlgorithm.sha512_224 => BoringSSL.evpSha512224()
+            case EvpAlgorithm.sha512_256 => BoringSSL.evpSha512256()
+            case EvpAlgorithm.sha3_224 => BoringSSL.evpSha3_224()
+            case EvpAlgorithm.sha3_256 => BoringSSL.evpSha3_256()
+            case EvpAlgorithm.sha3_384 => BoringSSL.evpSha3_384()
+            case EvpAlgorithm.sha3_512 => BoringSSL.evpSha3_512()
             case _ => None
         }
     }
@@ -60,64 +60,64 @@ public enum EvpAlgorithm {
     /// 获取算法名称
     public func name(): String {
         match (this) {
-            | EvpAlgorithm.blake2b256 => "blake2b256"
-            | EvpAlgorithm.blake2b512 => "blake2b512"
-            | EvpAlgorithm.blake2s256 => "blake2s256"
-            | EvpAlgorithm.md4 => "md4"
-            | EvpAlgorithm.md5 => "md5"
-            | EvpAlgorithm.ripemd160 => "ripemd160"
-            | EvpAlgorithm.sha1 => "sha1"
-            | EvpAlgorithm.sha224 => "sha224"
-            | EvpAlgorithm.sha256 => "sha256"
-            | EvpAlgorithm.sha384 => "sha384"
-            | EvpAlgorithm.sha512 => "sha512"
-            | EvpAlgorithm.sha512_224 => "sha512-224"
-            | EvpAlgorithm.sha512_256 => "sha512-256"
-            | EvpAlgorithm.sha3_224 => "sha3-224"
-            | EvpAlgorithm.sha3_256 => "sha3-256"
-            | EvpAlgorithm.sha3_384 => "sha3-384"
-            | EvpAlgorithm.sha3_512 => "sha3-512"
-            | EvpAlgorithm.shake128 => "shake128"
-            | EvpAlgorithm.shake256 => "shake256"
+            case EvpAlgorithm.blake2b256 => "blake2b256"
+            case EvpAlgorithm.blake2b512 => "blake2b512"
+            case EvpAlgorithm.blake2s256 => "blake2s256"
+            case EvpAlgorithm.md4 => "md4"
+            case EvpAlgorithm.md5 => "md5"
+            case EvpAlgorithm.ripemd160 => "ripemd160"
+            case EvpAlgorithm.sha1 => "sha1"
+            case EvpAlgorithm.sha224 => "sha224"
+            case EvpAlgorithm.sha256 => "sha256"
+            case EvpAlgorithm.sha384 => "sha384"
+            case EvpAlgorithm.sha512 => "sha512"
+            case EvpAlgorithm.sha512_224 => "sha512-224"
+            case EvpAlgorithm.sha512_256 => "sha512-256"
+            case EvpAlgorithm.sha3_224 => "sha3-224"
+            case EvpAlgorithm.sha3_256 => "sha3-256"
+            case EvpAlgorithm.sha3_384 => "sha3-384"
+            case EvpAlgorithm.sha3_512 => "sha3-512"
+            case EvpAlgorithm.shake128 => "shake128"
+            case EvpAlgorithm.shake256 => "shake256"
         }
     }
 
     /// 算法名称映射表
-    public static func fromName(name: String): ?EvpAlgorithm {
+    public static func fromName(s: String): ?EvpAlgorithm {
         let nameLower = name.toLowerCase()
         match (nameLower) {
-            | "blake2b256" => EvpAlgorithm.blake2b256
-            | "blake2b512" => EvpAlgorithm.blake2b512
-            | "blake2s256" => EvpAlgorithm.blake2s256
-            | "ripemd160" => EvpAlgorithm.ripemd160
-            | "rmd160" => EvpAlgorithm.ripemd160
-            | "md4" => EvpAlgorithm.md4
-            | "md5" => EvpAlgorithm.md5
-            | "sha1" => EvpAlgorithm.sha1
-            | "sha128" => EvpAlgorithm.sha1
-            | "sha224" => EvpAlgorithm.sha224
-            | "sha256" => EvpAlgorithm.sha256
-            | "sha384" => EvpAlgorithm.sha384
-            | "sha512" => EvpAlgorithm.sha512
-            | "sha-1" => EvpAlgorithm.sha1
-            | "sha-224" => EvpAlgorithm.sha224
-            | "sha-256" => EvpAlgorithm.sha256
-            | "sha-384" => EvpAlgorithm.sha384
-            | "sha-512" => EvpAlgorithm.sha512
-            | "sha-512/224" => EvpAlgorithm.sha512_224
-            | "sha-512_224" => EvpAlgorithm.sha512_224
-            | "sha-512224" => EvpAlgorithm.sha512_224
-            | "sha512-224" => EvpAlgorithm.sha512_224
-            | "sha-512/256" => EvpAlgorithm.sha512_256
-            | "sha-512_256" => EvpAlgorithm.sha512_256
-            | "sha-512256" => EvpAlgorithm.sha512_256
-            | "sha512-256" => EvpAlgorithm.sha512_256
-            | "sha3-224" => EvpAlgorithm.sha3_224
-            | "sha3-256" => EvpAlgorithm.sha3_256
-            | "sha3-384" => EvpAlgorithm.sha3_384
-            | "sha3-512" => EvpAlgorithm.sha3_512
-            | "shake128" => EvpAlgorithm.shake128
-            | "shake256" => EvpAlgorithm.shake256
+            case "blake2b256" => EvpAlgorithm.blake2b256
+            case "blake2b512" => EvpAlgorithm.blake2b512
+            case "blake2s256" => EvpAlgorithm.blake2s256
+            case "ripemd160" => EvpAlgorithm.ripemd160
+            case "rmd160" => EvpAlgorithm.ripemd160
+            case "md4" => EvpAlgorithm.md4
+            case "md5" => EvpAlgorithm.md5
+            case "sha1" => EvpAlgorithm.sha1
+            case "sha128" => EvpAlgorithm.sha1
+            case "sha224" => EvpAlgorithm.sha224
+            case "sha256" => EvpAlgorithm.sha256
+            case "sha384" => EvpAlgorithm.sha384
+            case "sha512" => EvpAlgorithm.sha512
+            case "sha-1" => EvpAlgorithm.sha1
+            case "sha-224" => EvpAlgorithm.sha224
+            case "sha-256" => EvpAlgorithm.sha256
+            case "sha-384" => EvpAlgorithm.sha384
+            case "sha-512" => EvpAlgorithm.sha512
+            case "sha-512/224" => EvpAlgorithm.sha512_224
+            case "sha-512_224" => EvpAlgorithm.sha512_224
+            case "sha-512224" => EvpAlgorithm.sha512_224
+            case "sha512-224" => EvpAlgorithm.sha512_224
+            case "sha-512/256" => EvpAlgorithm.sha512_256
+            case "sha-512_256" => EvpAlgorithm.sha512_256
+            case "sha-512256" => EvpAlgorithm.sha512_256
+            case "sha512-256" => EvpAlgorithm.sha512_256
+            case "sha3-224" => EvpAlgorithm.sha3_224
+            case "sha3-256" => EvpAlgorithm.sha3_256
+            case "sha3-384" => EvpAlgorithm.sha3_384
+            case "sha3-512" => EvpAlgorithm.sha3_512
+            case "shake128" => EvpAlgorithm.shake128
+            case "shake256" => EvpAlgorithm.shake256
             case _ => None
         }
     }
@@ -172,84 +172,53 @@ public class EVP {
     }
 
     /// 区分大小写的算法名称查找
-    public static func lookup(bytes: Array<Byte>): ?EvpAlgorithm {
-        let len = bytes.size
-        match (len) {
-            case 3 => {
-                if (byteEqualsStr(bytes, "md4")) { return EvpAlgorithm.md4 }
-                if (byteEqualsStr(bytes, "md5")) { return EvpAlgorithm.md5 }
-                return None
-            }
-            case 4 => {
-                if (byteEqualsStr(bytes, "sha1")) { return EvpAlgorithm.sha1 }
-                return None
-            }
-            case 5 => {
-                if (byteEqualsStr(bytes, "sha-1")) { return EvpAlgorithm.sha1 }
-                return None
-            }
-            case 6 => {
-                let first = bytes[0]
-                if (first == Byte('s')) {
-                    if (byteEqualsStr(bytes, "sha128")) { return EvpAlgorithm.sha1 }
-                    if (byteEqualsStr(bytes, "sha224")) { return EvpAlgorithm.sha224 }
-                    if (byteEqualsStr(bytes, "sha256")) { return EvpAlgorithm.sha256 }
-                    if (byteEqualsStr(bytes, "sha384")) { return EvpAlgorithm.sha384 }
-                    if (byteEqualsStr(bytes, "sha512")) { return EvpAlgorithm.sha512 }
-                }
-                if (first == Byte('r')) {
-                    if (byteEqualsStr(bytes, "rmd160")) { return EvpAlgorithm.ripemd160 }
-                }
-                return None
-            }
-            case 7 => {
-                if (byteEqualsStr(bytes, "sha-224")) { return EvpAlgorithm.sha224 }
-                if (byteEqualsStr(bytes, "sha-256")) { return EvpAlgorithm.sha256 }
-                if (byteEqualsStr(bytes, "sha-384")) { return EvpAlgorithm.sha384 }
-                if (byteEqualsStr(bytes, "sha-512")) { return EvpAlgorithm.sha512 }
-                return None
-            }
-            case 8 => {
-                if (byteEqualsStr(bytes, "sha3-224")) { return EvpAlgorithm.sha3_224 }
-                if (byteEqualsStr(bytes, "sha3-256")) { return EvpAlgorithm.sha3_256 }
-                if (byteEqualsStr(bytes, "sha3-384")) { return EvpAlgorithm.sha3_384 }
-                if (byteEqualsStr(bytes, "sha3-512")) { return EvpAlgorithm.sha3_512 }
-                if (byteEqualsStr(bytes, "shake128")) { return EvpAlgorithm.shake128 }
-                if (byteEqualsStr(bytes, "shake256")) { return EvpAlgorithm.shake256 }
-                return None
-            }
-            case 9 => {
-                if (byteEqualsStr(bytes, "ripemd160")) { return EvpAlgorithm.ripemd160 }
-                return None
-            }
-            case 10 => {
-                let first = bytes[0]
-                if (first == Byte('b')) {
-                    if (byteEqualsStr(bytes, "blake2b256")) { return EvpAlgorithm.blake2b256 }
-                    if (byteEqualsStr(bytes, "blake2b512")) { return EvpAlgorithm.blake2b512 }
-                    if (byteEqualsStr(bytes, "blake2s256")) { return EvpAlgorithm.blake2s256 }
-                }
-                if (first == Byte('s')) {
-                    if (byteEqualsStr(bytes, "sha-512224")) { return EvpAlgorithm.sha512_224 }
-                    if (byteEqualsStr(bytes, "sha512-224")) { return EvpAlgorithm.sha512_224 }
-                    if (byteEqualsStr(bytes, "sha-512256")) { return EvpAlgorithm.sha512_256 }
-                    if (byteEqualsStr(bytes, "sha512-256")) { return EvpAlgorithm.sha512_256 }
-                }
-                return None
-            }
-            case 11 => {
-                if (byteEqualsStr(bytes, "sha-512/224")) { return EvpAlgorithm.sha512_224 }
-                if (byteEqualsStr(bytes, "sha-512_224")) { return EvpAlgorithm.sha512_224 }
-                if (byteEqualsStr(bytes, "sha-512/256")) { return EvpAlgorithm.sha512_256 }
-                if (byteEqualsStr(bytes, "sha-512_256")) { return EvpAlgorithm.sha512_256 }
-                return None
-            }
-            case _ => None
+    public static func lookup(arr: Array<Byte>): ?EvpAlgorithm {
+        let name = String.fromUtf8(arr)
+        match (name) {
+            case "md4" => return EvpAlgorithm.md4
+            case "md5" => return EvpAlgorithm.md5
+            case "sha1" => return EvpAlgorithm.sha1
+            case "sha-1" => return EvpAlgorithm.sha1
+            case "sha128" => return EvpAlgorithm.sha1
+            case "sha224" => return EvpAlgorithm.sha224
+            case "sha256" => return EvpAlgorithm.sha256
+            case "sha384" => return EvpAlgorithm.sha384
+            case "sha512" => return EvpAlgorithm.sha512
+            case "rmd160" => return EvpAlgorithm.ripemd160
+            case "sha-224" => return EvpAlgorithm.sha224
+            case "sha-256" => return EvpAlgorithm.sha256
+            case "sha-384" => return EvpAlgorithm.sha384
+            case "sha-512" => return EvpAlgorithm.sha512
+            case "sha3-224" => return EvpAlgorithm.sha3_224
+            case "sha3-256" => return EvpAlgorithm.sha3_256
+            case "sha3-384" => return EvpAlgorithm.sha3_384
+            case "sha3-512" => return EvpAlgorithm.sha3_512
+            case "shake128" => return EvpAlgorithm.shake128
+            case "shake256" => return EvpAlgorithm.shake256
+            case "ripemd160" => return EvpAlgorithm.ripemd160
+            case "blake2b256" => return EvpAlgorithm.blake2b256
+            case "blake2b512" => return EvpAlgorithm.blake2b512
+            case "blake2s256" => return EvpAlgorithm.blake2s256
+            case "sha-512224" => return EvpAlgorithm.sha512_224
+            case "sha512-224" => return EvpAlgorithm.sha512_224
+            case "sha-512256" => return EvpAlgorithm.sha512_256
+            case "sha512-256" => return EvpAlgorithm.sha512_256
+            case "sha-512/224" => return EvpAlgorithm.sha512_224
+            case "sha-512_224" => return EvpAlgorithm.sha512_224
+            case "sha-512/256" => return EvpAlgorithm.sha512_256
+            case "sha-512_256" => return EvpAlgorithm.sha512_256
+            case _ => return None
         }
     }
 
+    private static func lookupOld(arr: Array<Byte>): ?EvpAlgorithm {
+        return None
+    }
+
+    
+
     /// 不区分大小写的算法名称查找
-    public static func lookupIgnoreCase(bytes: Array<Byte>): ?EvpAlgorithm {
+    public static func lookupIgnoreCase(arr: Array<Byte>): ?EvpAlgorithm {
         var lowerBytes = Array<Byte>(bytes.size, repeat: 0)
         for (i in 0..bytes.size) {
             let b = bytes[i]
@@ -309,7 +278,7 @@ public class EVP {
     }
 
     /// 更新哈希数据
-    public func update(input: Array<Byte>): Unit {
+    public func update(arr: Array<Byte>): Unit {
         BoringSSL.errClearError()
         BoringSSL.evpDigestUpdate(this.ctx, input, input.size.toInt64())
     }
@@ -336,28 +305,25 @@ public class EVP {
     public static func byNameAndEngine(engine: ?Engine, name: String): ?EVP {
         let algorithm = EvpAlgorithm.fromName(name)
         match (algorithm) {
-            case Some(alg) => {
+            case Some(alg) =>
                 let md = alg.md()
                 match (md) {
-                    case Some(mdVal) => {
+                    case Some(mdVal) =>
                         return EVP(alg, mdVal, engine)
-                    }
-                    case None => {
+                    case None =>
                         let mdByName = BoringSSL.evpGetDigestByName(alg.name())
                         match (mdByName) {
                             case Some(mdVal2) => return EVP(alg, mdVal2, engine)
                             case None => ()
                         }
-                    }
                 }
-            }
             case None => ()
         }
         return None
     }
 
     /// 根据名称获取 EVP
-    public static func byName(name: String, globalThis: JsObject): ?EVP {
+    public static func byName(s: String, globalThis: JsObject): ?EVP {
         let engine = RareData.getBoringEngine(globalThis)
         return byNameAndEngine(engine, name)
     }

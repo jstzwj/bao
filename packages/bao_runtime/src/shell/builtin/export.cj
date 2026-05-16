@@ -5,6 +5,7 @@
 package bao_runtime.shell.builtin
 
 import bao_core.*
+import bao_runtime.shell.*
 
 // ============================================================================
 // export命令 - 设置或导出环境变量
@@ -24,29 +25,29 @@ public struct Entry {
 
 public class ExportCmd {
     /// 是否正在打印
-    public var printing: Boolean = false
+    public var printing: Bool = false
 
     /// 环境变量条目
 
 
     /// 写入输出
-    public func writeOutput(fmt: String, args: Array<Any>): Yield {
-        if (let safeguard = this.bltn().stdout.needsIO()) {
+    public func writeOutput(s: String, args: Array<Any>): Yield {
+        if (let Some(safeguard) <- this.bltn().stdout.needsIO()) {
             this.printing = true
             return this.bltn().stdout.enqueueFmtBltn(this, "export", fmt, args, safeguard)
         }
 
         let buf = this.bltn().fmtErrorArena("export", fmt, args)
-        this.bltn().writeNoIO(.stdout, buf.toByteArray())
+        this.bltn().writeNoIO(OutKind.stdout, buf.toByteArray())
         return this.bltn().done(0)
     }
 
     /// IO写入器数据块回调
-    public func onIOWriterChunk(amount: UInt64, e: ?SystemError): Yield {
-        let exitCode: ExitCode = if (let err = e) {
+    public func onIOWriterChunk(chunk: UInt64, e: ?SystemError): Yield {
+        let exitCode: ExitCode = if (let Some(err) <- e) {
             defer { err.deref() }
             err.getErrno()
-        } else 0
+        } else { 0 }
 
         return this.bltn().done(exitCode)
     }
@@ -56,11 +57,11 @@ public class ExportCmd {
         let args = this.bltn().argsSlice()
 
         // 不带参数调用`export`时按字典序打印所有导出的变量
-        if (args.length == 0) {
+        if (args.size == 0) {
             var keys = ArrayList<Entry>()
             var iter = this.bltn().exportEnv.iterator()
-            while (let entry = iter.next()) {
-                keys.append(Entry(key: entry.key, value: entry.value))
+            while (let Some(entry) <- iter.next()) {
+                keys.append(Entry(entry.key, value: entry.value))
             }
 
             // 按字典序排序
@@ -69,7 +70,7 @@ public class ExportCmd {
             // 计算总长度
             var totalLen: UInt32 = 0
             for (entry in keys) {
-                totalLen += "${entry.key.slice()}=${entry.value.slice()}\n".length
+                totalLen += "${entry.key.slice()}=${entry.value.slice()}\n".size
             }
 
             var buf = ArrayList<Byte>()
@@ -78,19 +79,19 @@ public class ExportCmd {
                 buf.appendAll(line.toByteArray())
             }
 
-            if (let safeguard = this.bltn().stdout.needsIO()) {
+            if (let Some(safeguard) <- this.bltn().stdout.needsIO()) {
                 this.printing = true
                 return this.bltn().stdout.enqueue(this, buf.toArray(), safeguard)
             }
 
-            this.bltn().writeNoIO(.stdout, buf.toArray())
+            this.bltn().writeNoIO(OutKind.stdout, buf.toArray())
             return this.bltn().done(0)
         }
 
         // 处理赋值参数
         for (argRaw in args) {
             let arg = argRaw
-            if (arg.length == 0) {
+            if (arg.size == 0) {
                 continue
             }
 
@@ -107,7 +108,7 @@ public class ExportCmd {
                     this.bltn().parentCmd().base.interpreter,
                     labelEnvStr,
                     EnvStr.initSlice(""),
-                    .exported
+                    AssignCtx.exported
                 )
                 continue
             }
@@ -124,7 +125,7 @@ public class ExportCmd {
                 this.bltn().parentCmd().base.interpreter,
                 labelEnvStr,
                 valueEnvStr,
-                .exported
+                AssignCtx.exported
             )
         }
 
@@ -132,12 +133,12 @@ public class ExportCmd {
     }
 
     /// 写入标准错误
-    func writeStderr(msg: String): Yield {
-        if (let safeguard = this.bltn().stderr.needsIO()) {
+    func writeStderr(s: String): Yield {
+        if (let Some(safeguard) <- this.bltn().stderr.needsIO()) {
             this.printing = true
-            return this.bltn().stderr.enqueue(this, msg.toByteArray(), safeguard)
+            return this.bltn().stderr.enqueue(this, s.toByteArray(), safeguard)
         }
-        this.bltn().writeNoIO(.stderr, msg.toByteArray())
+        this.bltn().writeNoIO(OutKind.stderr, s.toByteArray())
         return this.bltn().done(1)
     }
 

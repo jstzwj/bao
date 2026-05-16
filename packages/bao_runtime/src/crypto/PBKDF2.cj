@@ -5,6 +5,7 @@
 package bao_runtime.crypto
 
 import bao_core.*
+import bao_runtime.*
 
 // ============================================================================
 // PBKDF2 - 基于密码的密钥派生函数2
@@ -32,12 +33,12 @@ public class PBKDF2Params {
         this.password = password
         this.salt = salt
         this.iterationCount = iterationCount
-        this.length = length
+        this.size = length
         this.algorithm = algorithm
     }
 
     /// 运行 PBKDF2 派生
-    /// 对应 Bun: pub fn run(this: *PBKDF2, output: []u8) bool
+    /// 对应 Bun: pub fn run(*PBKDF2, output: []u8) bool
     public func run(output: Array<Byte>): Bool {
         // @memset(output, 0);
         for (i in 0..output.size) {
@@ -69,7 +70,7 @@ public class PBKDF2Params {
             this.salt.size.toInt64(),
             this.iterationCount,
             md.getOrThrow(),
-            this.length.toInt64(),
+            this.size.toInt64(),
             output
         )
 
@@ -83,7 +84,7 @@ public class PBKDF2Params {
     }
 
     /// 释放并清除敏感数据
-    /// 对应 Bun: pub fn deinitAndUnprotect(this: *PBKDF2) void
+    /// 对应 Bun: pub fn deinitAndUnprotect(*PBKDF2) void
     public func deinitAndUnprotect(): Unit {
         // this.password.deinitAndUnprotect();
         // this.salt.deinitAndUnprotect();
@@ -92,7 +93,7 @@ public class PBKDF2Params {
     }
 
     /// 释放
-    /// 对应 Bun: pub fn deinit(this: *PBKDF2) void
+    /// 对应 Bun: pub fn deinit(*PBKDF2) void
     public func deinit(): Unit {
         // this.password.deinit();
         // this.salt.deinit();
@@ -129,13 +130,13 @@ public class PBKDF2Job {
     }
 
     /// 运行任务（在线程池中执行）
-    /// 对应 Bun: pub fn runTask(task: *jsc.WorkPoolTask) void
+    /// 对应 Bun: pub fn runTask(*jsc.WorkPoolTask) void
     public func runTask(): Unit {
-        // job.output = bun.default_allocator.alloc(u8, @as(usize, @intCast(job.pbkdf2.length))) catch {
+        // job.output = bun.default_allocator.alloc(u8, @as(usize, @intCast(job.pbkdf2.size))) catch {
         //     job.err = BoringSSL.EVP_R_MEMORY_LIMIT_EXCEEDED;
         //     return;
         // };
-        this.output = Array<Byte>(this.pbkdf2.length.toInt64(), repeat: 0)
+        this.output = Array<Byte>(this.pbkdf2.size.toInt64(), repeat: 0)
 
         // if (!job.pbkdf2.run(job.output))
         if (!this.pbkdf2.run(this.output)) {
@@ -149,7 +150,7 @@ public class PBKDF2Job {
     }
 
     /// 从 JS 运行（任务完成后回调）
-    /// 对应 Bun: pub fn runFromJS(this: *Job) bun.JSTerminated!void
+    /// 对应 Bun: pub fn runFromJS(*Job) bun.JSTerminated!void
     public func runFromJs(): Unit {
         defer(this.deinit())
 
@@ -162,11 +163,10 @@ public class PBKDF2Job {
 
         // if (this.err) |err|
         match (this.err) {
-            case Some(err) => {
+            case Some(err) =>
                 // try promise.rejectWithAsyncStack(globalThis, createCryptoError(globalThis, err));
                 this.promise.reject(createCryptoError(globalThis, err))
                 return
-            }
             case None => ()
         }
 
@@ -180,7 +180,7 @@ public class PBKDF2Job {
     }
 
     /// 释放任务
-    /// 对应 Bun: pub fn deinit(this: *Job) void
+    /// 对应 Bun: pub fn deinit(*Job) void
     public func deinit(): Unit {
         // this.poll.unref(this.vm);
         // this.pbkdf2.deinitAndUnprotect();
@@ -190,11 +190,11 @@ public class PBKDF2Job {
     }
 
     /// 创建异步 PBKDF2 Job
-    /// 对应 Bun: pub fn create(vm: *jsc.VirtualMachine, globalThis: *jsc.JSGlobalObject, data: *const PBKDF2) *Job
+    /// 对应 Bun: pub fn create(*jsc.VirtualMachine, globalThis: *jsc.JSGlobalObject, data: *const PBKDF2) *Job
     public static func create(vm: VirtualMachine, globalThis: JsObject, data: PBKDF2Params): PBKDF2Job {
         let job = PBKDF2Job(data, vm)
-        // job.promise = jsc.JSPromise.Strong.init(globalThis);
-        job.promise = JsPromise.init(globalThis)
+        // job.promise = jsc.JSPromise.Strong.`init`(globalThis);
+        job.promise = JsPromise.`init`(globalThis)
 
         // jsc.WorkPool.schedule(&job.task);
         WorkPool.schedule(job)
@@ -209,7 +209,7 @@ public class PBKDF2Job {
 // ============================================================================
 
 /// PBKDF2 密钥派生便捷函数
-/// 对应 Bun: pub fn pbkdf2(output: []u8, password: []const u8, salt: []const u8,
+/// 对应 Bun: pub fn pbkdf2([]u8, password: []const u8, salt: []const u8,
 ///     iteration_count: u32, algorithm: Algorithm) ?[]const u8
 public func pbkdf2(output: Array<Byte>, password: Array<Byte>, salt: Array<Byte>,
                    iterationCount: UInt32, algorithm: EvpAlgorithm): ?Array<Byte> {

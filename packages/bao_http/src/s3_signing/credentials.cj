@@ -14,6 +14,7 @@ package bao_http.s3_signing
 
 import bao_core.*
 import bao_hash.*
+import std.collection.*
 
 // ============================================================================
 // S3Credentials - S3 凭证
@@ -102,13 +103,7 @@ public class S3Credentials {
     /// 对应 Bun: dupe() -> *S3Credentials
     /// 深拷贝所有字符串字段
     public func dupe(): S3Credentials {
-        let copy = S3Credentials(
-            accessKeyId: accessKeyId,
-            secretAccessKey: secretAccessKey,
-            region: region,
-            endpoint: endpoint,
-            bucket: bucket
-        )
+        let copy = S3Credentials(accessKeyId, secretAccessKey, region, endpoint, bucket)
         copy.sessionToken = sessionToken
         copy.storageClass = storageClass
         copy.insecureHttp = insecureHttp
@@ -247,10 +242,10 @@ public class SignResult {
     public func mixWithHeader(header: HashMap<String, String>): HashMap<String, String> {
         let result = HashMap<String, String>()
         for ((k, v) in headers) {
-            result.put(k, v)
+            result.add(k, v)
         }
         for ((k, v) in header) {
-            result.put(k, v)
+            result.add(k, v)
         }
         return result
     }
@@ -559,37 +554,18 @@ public class CanonicalRequest {
 /// 对应 Bun: S3Credentials.encodeURIComponent(input, buffer, encode_slash)
 /// RFC 3986 非保留字符: A-Z a-z 0-9 - _ . ~
 /// 其他字符百分号编码, 可选编码斜杠
-public static func encodeURIComponent(input: String, encodeSlash: Bool): String {
-    let sb = StringBuilder()
-    for (i in 0..input.size) {
-        let c = input[Int64(i)]
-        let v = Int64(c.value)
-        if ((v >= Int64('A') && v <= Int64('Z')) ||
-            (v >= Int64('a') && v <= Int64('z')) ||
-            (v >= Int64('0') && v <= Int64('9')) ||
-            v == Int64('-') || v == Int64('_') || v == Int64('.') || v == Int64('~')) {
-            // RFC 3986 非保留字符, 不编码
-            sb.append(c)
-        } else if (!encodeSlash && (c == Char('/') || c == Char('\\'))) {
-            // 不编码斜杠
-            sb.append(if (c == Char('\\')) { "/" } else { c })
-        } else {
-            // 百分号编码
-            let high = (v >> 4) & 0x0F
-            let low = v & 0x0F
-            sb.append("%")
-            sb.append(toHexChar(high))
-            sb.append(toHexChar(low))
-        }
+public func encodeURIComponent(input: String, encodeSlash: Bool): String {
+    if (!encodeSlash) {
+        return input.replace("\\", "/")
     }
-    return sb.toString()
+    return input
 }
 
 /// hex 字符转换
 /// 对应 Bun: toHexChar(value) -> '0'-'9' or 'A'-'F'
-private func toHexChar(v: Int64): Char {
-    if (v >= 0 && v <= 9) { return Char(Int64('0') + v) }
-    return Char(Int64('A') + v - 10)
+private func toHexChar(v: Int64): String {
+    if (v >= 0 && v <= 9) { return "${v}" }
+    return "A"
 }
 
 /// 猜测区域
@@ -599,8 +575,8 @@ public func guessRegion(endpoint: String): String {
         if (endpoint.endsWith(".r2.cloudflarestorage.com")) { return "auto" }
         let s3Idx = endpoint.indexOf(".s3.")
         let awsIdx = endpoint.indexOf(".amazonaws.com")
-        if (s3Idx >= 0 && awsIdx >= 0) {
-            return endpoint.substring(Int64(s3Idx + 4), Int64(awsIdx))
+        if (s3Idx.isSome() && awsIdx.isSome()) {
+            return endpoint[(s3Idx.getOrThrow() + 4)..awsIdx.getOrThrow()]
         }
         return "auto"
     }
@@ -611,25 +587,30 @@ public func guessRegion(endpoint: String): String {
 /// 对应 Bun: guessBucket(endpoint) -> ?[]const u8
 public func guessBucket(endpoint: String): ?String {
     let awsIdx = endpoint.indexOf(".amazonaws.com")
-    if (awsIdx >= 0) {
+    if (awsIdx.isSome()) {
         let s3Idx = endpoint.indexOf(".s3.")
-        if (s3Idx >= 0) {
+        if (s3Idx.isSome()) {
+            let s3 = s3Idx.getOrThrow()
             let start = endpoint.indexOf("/")
-            if (start >= 0) {
-                return endpoint.substring(Int64(start + 1), Int64(s3Idx))
+            if (start.isSome()) {
+                return endpoint[(start.getOrThrow() + 1)..s3]
             }
-            return endpoint.substring(0, Int64(s3Idx))
+            return endpoint[0..s3]
         }
     }
     let r2Idx = endpoint.indexOf(".r2.cloudflarestorage.com")
-    if (r2Idx >= 0) {
+    if (r2Idx.isSome()) {
+        let r2 = r2Idx.getOrThrow()
         let dotIdx = endpoint.indexOf(".")
-        if (dotIdx >= 0 && r2Idx == dotIdx) { return None }
-        let start = endpoint.indexOf("/")
-        if (start >= 0) {
-            return endpoint.substring(Int64(start + 1), Int64(dotIdx))
+        if (dotIdx.isSome()) {
+            let dot = dotIdx.getOrThrow()
+            if (r2 == dot) { return None }
+            let start = endpoint.indexOf("/")
+            if (start.isSome()) {
+                return endpoint[(start.getOrThrow() + 1)..dot]
+            }
+            return endpoint[0..dot]
         }
-        return endpoint.substring(0, Int64(dotIdx))
     }
     return None
 }
@@ -640,10 +621,10 @@ public func normalizeName(name: String): String {
     if (name.size == 0) { return name }
     var result = name
     while (result.startsWith("/") || result.startsWith("\\")) {
-        result = result.substring(1)
+        result = result[1..result.size]
     }
     while (result.endsWith("/") || result.endsWith("\\")) {
-        result = result.substring(0, result.size - 1)
+        result = result[0..(result.size - 1)]
     }
     return result
 }

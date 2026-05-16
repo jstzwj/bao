@@ -5,6 +5,7 @@
 package bao_runtime.shell.builtin
 
 import bao_core.*
+import bao_runtime.shell.*
 
 // ============================================================================
 // mv命令 - 移动或重命名文件
@@ -29,7 +30,7 @@ public enum MvState {
 
 public struct CheckTargetState {
     public var task: ShellMvCheckTargetTask
-    public var innerState: CheckTargetInnerState = .running
+    public var innerState: CheckTargetInnerState = CheckTargetInnerState.running
 }
 
 public enum CheckTargetInnerState {
@@ -43,7 +44,7 @@ public struct ExecutingState {
     public var errorSignal: AtomicBool = AtomicBool()
     public var tasks: Array<ShellMvBatchedTask>
     public var err: ?SyscallError = None
-    public var errPathOwned: Boolean = false
+    public var errPathOwned: Bool = false
 }
 
 public class MvCmd {
@@ -76,25 +77,25 @@ public class MvCmd {
     }
 
     /// 写入失败错误
-    public func writeFailingError(buf: String, exitCode: ExitCode): Yield {
-        if (let safeguard = this.bltn().stderr.needsIO()) {
-            this.state = MvState.waitingWriteErr(exitCode)
+    public func writeFailingError(s: String, exitCode: ExitCode): Yield {
+        if (let Some(safeguard) <- this.bltn().stderr.needsIO()) {
+            this.state = MvStateMultiArgsInnerState.waitingWriteErr(exitCode)
             return this.bltn().stderr.enqueue(this, buf.toByteArray(), safeguard)
         }
-        this.bltn().writeNoIO(.stderr, buf.toByteArray())
+        this.bltn().writeNoIO(OutKind.stderr, buf.toByteArray())
         return this.bltn().done(exitCode)
     }
 
     /// 下一步
     public func next(): Yield {
-        while (this.state != .done && this.state != .err) {
-            switch (this.state) {
-                case .idle =>
-                    if (let e = this.parseOpts().getErr()) {
-                        let buf = switch (e) {
-                            case .illegalOption(let optStr) =>
+        while (this.state != CheckTargetInnerState.done && this.state != CheckTargetInnerState.err) {
+            match (this.state) {
+                case idle =>
+                    if (let Some(e) <- this.parseOpts().getErr()) {
+                        let buf = match (e) {
+                            case illegalOption(optStr) =>
                                 this.bltn().fmtErrorArena("mv", "illegal option -- ${optStr}\n", [])
-                            case .showUsage =>
+                            case showUsage =>
                                 Builtin.Kind.usageString("mv")
                         }
                         return this.writeFailingError(buf, 1)
@@ -103,24 +104,24 @@ public class MvCmd {
                     // 调度检查目标任务
                     return Yield.suspended
 
-                case .checkTarget =>
+                case checkTarget => ()
                     // 等待检查目标完成
                     return Yield.suspended
 
-                case .executing =>
+                case executing => ()
                     // 等待所有任务完成
                     return Yield.suspended
 
-                case .waitingWriteErr =>
+                case waitingWriteErr =>
                     return Yield.failed
 
-                case .done, .err =>
+                case MvState.done(_) | MvState.err(_) =>
                     panic("不可达状态")
             }
         }
 
-        switch (this.state) {
-            case .done =>
+        match (this.state) {
+            case done =>
                 return this.bltn().done(0)
             case _ =>
                 return this.bltn().done(1)
@@ -128,12 +129,12 @@ public class MvCmd {
     }
 
     /// IO写入器数据块回调
-    public func onIOWriterChunk(amount: UInt64, e: ?SystemError): Yield {
-        if (let err = e) {
+    public func onIOWriterChunk(chunk: UInt64, e: ?SystemError): Yield {
+        if (let Some(err) <- e) {
             err.deref()
         }
-        switch (this.state) {
-            case .waitingWriteErr =>
+        match (this.state) {
+            case waitingWriteErr =>
                 if (e != None) {
                     this.state = MvState.err
                     return this.next()
@@ -148,39 +149,39 @@ public class MvCmd {
     func parseOpts(): MvParseResult {
         let args = this.bltn().argsSlice()
         var idx: UInt32 = 0
-        if (args.length == 0) {
-            return .err(.showUsage)
+        if (args.size == 0) {
+            return MvParseResult.err(MvParseError.showUsage)
         }
 
-        while (idx < args.length) {
+        while (idx < args.size) {
             let flag = args[idx]
-            switch (this.parseFlag(flag)) {
-                case .done =>
+            match (this.parseFlag(flag)) {
+                case FlagParseResult.done =>
                     let filepathArgs = args[idx..]
-                    if (filepathArgs.length < 2) {
-                        return .err(.showUsage)
+                    if (filepathArgs.size < 2) {
+                        return MvParseResult.err(MvParseError.showUsage)
                     }
-                    this.args.sources = filepathArgs[0..(filepathArgs.length - 1)]
-                    this.args.target = filepathArgs[filepathArgs.length - 1]
-                    return .ok(())
-                case .continueParsing =>
+                    this.args.sources = filepathArgs[0..(filepathArgs.size - 1)]
+                    this.args.target = filepathArgs[filepathArgs.size - 1]
+                    return MvParseResult.ok(())
+                case FlagParseResult.continueParsing =>
                     idx++
-                case .illegalOption(let optStr) =>
-                    return .err(.illegalOption(optStr))
+                case FlagParseResult.illegalOption(optStr) =>
+                    return MvParseResult.err(MvParseError.illegalOption(optStr))
             }
             idx++
         }
 
-        return .err(.showUsage)
+        return MvParseResult.err(MvParseError.showUsage)
     }
 
     /// 解析单个标志
-    func parseFlag(flag: String): FlagParseResult {
-        if (flag.length == 0) {
-            return .done
+    func parseFlag(s: String): FlagParseResult {
+        if (flag.size == 0) {
+            return FlagParseResult.done
         }
         if (flag[0] != '-') {
-            return .done
+            return FlagParseResult.done
         }
 
         let smallFlags = flag.substring(1)
@@ -202,15 +203,15 @@ public class MvCmd {
             } else if (c == 'v') {
                 this.opts.verboseOutput = true
             } else {
-                return .illegalOption("-")
+                return FlagParseResult.illegalOption("-")
             }
         }
-        return .continueParsing
+        return FlagParseResult.continueParsing
     }
 
     /// 去初始化
     public func deinit() {
-        if (let fd = this.args.targetFd) {
+        if (let Some(fd) <- this.args.targetFd) {
             fd.close()
         }
     }
@@ -224,15 +225,15 @@ public class MvCmd {
 /// mv命令选项
 public struct MvOpts {
     /// -f: 强制覆盖
-    public var forceOverwrite: Boolean = true
+    public var forceOverwrite: Bool = true
     /// -h: 不解引用符号链接
-    public var noDereference: Boolean = false
+    public var noDereference: Bool = false
     /// -i: 交互模式
-    public var interactiveMode: Boolean = false
+    public var interactiveMode: Bool = false
     /// -n: 不覆盖
-    public var noOverwrite: Boolean = false
+    public var noOverwrite: Bool = false
     /// -v: 详细输出
-    public var verboseOutput: Boolean = false
+    public var verboseOutput: Bool = false
 }
 
 /// mv解析结果
@@ -268,10 +269,17 @@ public class ShellMvBatchedTask {
     public var targetFd: ?FD = None
     public var cwd: FD
     public var err: ?SyscallError = None
-    public var errPathOwned: Boolean = false
+    public var errPathOwned: Bool = false
 
     /// 调度
     public func schedule() {
         // 排队到线程池
     }
+}
+
+/// 标志解析结果
+public enum FlagParseResult {
+    | done
+    | continueParsing
+    | illegalOption(String)
 }

@@ -5,6 +5,7 @@
 package bao_runtime.shell.states
 
 import bao_core.*
+import bao_runtime.shell.*
 
 // ============================================================================
 // if条件执行状态
@@ -13,7 +14,7 @@ import bao_core.*
 /// if状态类型（提取到顶层）
 public enum IfStateKind {
     | idle
-    | execKind(execState: IfExecState)
+    | execKind(IfExecState)
     | waitingWriteErr
     | done
 }
@@ -22,7 +23,7 @@ public enum IfStateKind {
 public enum IfInnerState {
     | cond
     | then
-    | elif(idx: UInt32)
+    | elif(UInt32)
     | `else`
 }
 
@@ -101,18 +102,18 @@ public class IfState {
     /// 下一步
     public func next(): Yield {
         while (this.state != IfStateKind.done) {
-            switch (this.state) {
+            match (this.state) {
                 case IfStateKind.`idle` =>
-                    this.state = IfStateKind.execKind(execState: IfExecState(
+                    this.state = IfStateKind.execKind(IfExecState(
                         execState: IfInnerState.cond,
                         stmts: this.node.cond,
                         stmtIdx: 0,
                         lastExitCode: 0
                     ))
-                case IfStateKind.execKind(var execState) =>
+                case IfStateKind.execKind(execState) =>
                     let stmts = execState.stmts
                     if (execState.stmtIdx >= stmts.size) {
-                        switch (execState.execState) {
+                        match (execState.execState) {
                             case IfInnerState.cond =>
                                 if (execState.lastExitCode == 0) {
                                     execState.execState = IfInnerState.then
@@ -133,11 +134,11 @@ public class IfState {
                     let idx = execState.stmtIdx
                     execState.stmtIdx += 1
                     let stmt = stmts[idx]
-                    let newStmt = StmtState.init(
+                    let newStmt = StmtState.`init`(
                         interpreter: this.base.interpreter,
                         shellState: this.base.shell,
                         node: stmt,
-                        parent: StmtParentPtr.init(this),
+                        parent: StmtParentPtr.`init`(this),
                         io: this.io.copy()
                     )
                     return newStmt.start()

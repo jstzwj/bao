@@ -5,6 +5,7 @@
 package bao_runtime.shell.states
 
 import bao_core.*
+import bao_runtime.shell.*
 
 // ============================================================================
 // 语句执行状态
@@ -64,7 +65,7 @@ public class StmtState {
         let stmt = StmtState()
         stmt.base = Base.initWithNewAllocScope(StateKind.stmt, interpreter, shellState)
         stmt.node = node
-        stmt.parent = StmtParentPtr.init(parent)
+        stmt.parent = StmtParentPtr.`init`(parent)
         stmt.idx = 0
         stmt.lastExitCode = None
         stmt.currentlyExecuting = None
@@ -84,8 +85,8 @@ public class StmtState {
         }
 
         let child = this.node.exprs[this.idx]
-        switch (child) {
-            case .binary =>
+        match (child) {
+            case binary =>
                 let binary = BinaryState.initFunc(
                     interpreter: this.base.interpreter,
                     shellState: this.base.shell,
@@ -95,7 +96,7 @@ public class StmtState {
                 )
                 this.currentlyExecuting = StmtChildPtr.initFunc(binary)
                 return binary.start()
-            case .cmd =>
+            case cmd =>
                 let cmd = CmdState.initFunc(
                     interpreter: this.base.interpreter,
                     shellState: this.base.shell,
@@ -105,7 +106,7 @@ public class StmtState {
                 )
                 this.currentlyExecuting = StmtChildPtr.initFunc(cmd)
                 return cmd.start()
-            case .pipeline =>
+            case pipeline =>
                 let pipeline = PipelineState.initFunc(
                     interpreter: this.base.interpreter,
                     shellState: this.base.shell,
@@ -115,7 +116,7 @@ public class StmtState {
                 )
                 this.currentlyExecuting = StmtChildPtr.initFunc(pipeline)
                 return pipeline.start()
-            case .assign =>
+            case assign =>
                 let assignMachine = AssignsState.initFunc(
                     interpreter: this.base.interpreter,
                     shellState: this.base.shell,
@@ -125,7 +126,7 @@ public class StmtState {
                     io: this.io.copy()
                 )
                 return assignMachine.start()
-            case .subshell =>
+            case subshell =>
                 let subshell = SubshellState.initFunc(
                     interpreter: this.base.interpreter,
                     shellState: this.base.shell,
@@ -134,7 +135,7 @@ public class StmtState {
                     io: this.io.copy()
                 )
                 return subshell.start()
-            case .ifClause =>
+            case ifClause =>
                 let ifClause = IfState.initFunc(
                     interpreter: this.base.interpreter,
                     shellState: this.base.shell,
@@ -143,7 +144,7 @@ public class StmtState {
                     io: this.io.copy()
                 )
                 return ifClause.start()
-            case .condexpr =>
+            case condexpr =>
                 let condexpr = CondExprState.initFunc(
                     interpreter: this.base.interpreter,
                     shellState: this.base.shell,
@@ -152,7 +153,7 @@ public class StmtState {
                     io: this.io.copy()
                 )
                 return condexpr.start()
-            case .async =>
+            case async =>
                 let asyncCmd = AsyncState.initFunc(
                     interpreter: this.base.interpreter,
                     shellState: this.base.shell,

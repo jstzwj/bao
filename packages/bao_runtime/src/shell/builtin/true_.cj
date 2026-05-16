@@ -5,6 +5,7 @@
 package bao_runtime.shell.builtin
 
 import bao_core.*
+import bao_runtime.shell.*
 
 // ============================================================================
 // true命令 - 总是返回退出码0
@@ -21,7 +22,7 @@ public class TrueCmd {
     public func deinit() {}
 
     /// IO写入器数据块回调
-    public func onIOWriterChunk(amount: UInt64, err: ?SystemError): Yield {
+    public func onIOWriterChunk(chunk: UInt64, err: ?SystemError): Yield {
         return Yield.done
     }
 

@@ -6,6 +6,7 @@
 //   此处提供纯仓颉实现, 支持 SHA-1/224/256/384/512 算法
 package bao_hash
 
+import std.collection.*
 
 // ============================================================================
 // HMAC 通用实现
@@ -22,23 +23,25 @@ public class HmacSha1 {
 
     /// 计算 HMAC-SHA1
     public static func hmac(key: Array<UInt8>, message: Array<UInt8>): Array<UInt8> {
-        var k = key
-        if (k.size > BLOCK_SIZE) {
-            k = Sha1.hash(k)
+        var keyMaterial = key
+        if (keyMaterial.size > BLOCK_SIZE) {
+            keyMaterial = Sha1.hash(keyMaterial)
         }
-        while (k.size < BLOCK_SIZE) { k.append(UInt8(0)) }
+        var k = ArrayList<UInt8>()
+        k.add(all: keyMaterial)
+        while (k.size < BLOCK_SIZE) { k.add(UInt8(0)) }
 
         // 内部: K XOR ipad || message
-        var innerData = Array<UInt8>()
-        for (i in 0..BLOCK_SIZE) { innerData.append(k[i] ^ UInt8(0x36)) }
-        for (b in message) { innerData.append(b) }
-        let innerHash = Sha1.hash(innerData)
+        var innerData = ArrayList<UInt8>()
+        for (i in 0..BLOCK_SIZE) { innerData.add(k[i] ^ UInt8(0x36)) }
+        for (b in message) { innerData.add(b) }
+        let innerHash = Sha1.hash(innerData.toArray())
 
         // 外部: K XOR opad || innerHash
-        var outerData = Array<UInt8>()
-        for (i in 0..BLOCK_SIZE) { outerData.append(k[i] ^ UInt8(0x5C)) }
-        for (b in innerHash) { outerData.append(b) }
-        return Sha1.hash(outerData)
+        var outerData = ArrayList<UInt8>()
+        for (i in 0..BLOCK_SIZE) { outerData.add(k[i] ^ UInt8(0x5C)) }
+        for (b in innerHash) { outerData.add(b) }
+        return Sha1.hash(outerData.toArray())
     }
 
     public static func hmac(key: String, message: String): Array<UInt8> {
@@ -62,21 +65,23 @@ public class HmacSha224 {
 
     /// 计算 HMAC-SHA224
     public static func hmac(key: Array<UInt8>, message: Array<UInt8>): Array<UInt8> {
-        var k = key
-        if (k.size > BLOCK_SIZE) {
-            k = Sha256.hash(k)
+        var keyMaterial = key
+        if (keyMaterial.size > BLOCK_SIZE) {
+            keyMaterial = Sha256.hash(keyMaterial)
         }
-        while (k.size < BLOCK_SIZE) { k.append(UInt8(0)) }
+        var k = ArrayList<UInt8>()
+        k.add(all: keyMaterial)
+        while (k.size < BLOCK_SIZE) { k.add(UInt8(0)) }
 
-        var innerData = Array<UInt8>()
-        for (i in 0..BLOCK_SIZE) { innerData.append(k[i] ^ UInt8(0x36)) }
-        for (b in message) { innerData.append(b) }
-        let innerHash = Sha256.hash(innerData)
+        var innerData = ArrayList<UInt8>()
+        for (i in 0..BLOCK_SIZE) { innerData.add(k[i] ^ UInt8(0x36)) }
+        for (b in message) { innerData.add(b) }
+        let innerHash = Sha256.hash(innerData.toArray())
 
-        var outerData = Array<UInt8>()
-        for (i in 0..BLOCK_SIZE) { outerData.append(k[i] ^ UInt8(0x5C)) }
-        for (b in innerHash) { outerData.append(b) }
-        return Sha256.hash(outerData)
+        var outerData = ArrayList<UInt8>()
+        for (i in 0..BLOCK_SIZE) { outerData.add(k[i] ^ UInt8(0x5C)) }
+        for (b in innerHash) { outerData.add(b) }
+        return Sha256.hash(outerData.toArray())
     }
 
     public static func hmac(key: String, message: String): Array<UInt8> {
@@ -100,21 +105,23 @@ public class HmacSha384 {
 
     /// 计算 HMAC-SHA384
     public static func hmac(key: Array<UInt8>, message: Array<UInt8>): Array<UInt8> {
-        var k = key
-        if (k.size > BLOCK_SIZE) {
-            k = Sha512.hash(k)
+        var keyMaterial = key
+        if (keyMaterial.size > BLOCK_SIZE) {
+            keyMaterial = Sha512.hash(keyMaterial)
         }
-        while (k.size < BLOCK_SIZE) { k.append(UInt8(0)) }
+        var k = ArrayList<UInt8>()
+        k.add(all: keyMaterial)
+        while (k.size < BLOCK_SIZE) { k.add(UInt8(0)) }
 
-        var innerData = Array<UInt8>()
-        for (i in 0..BLOCK_SIZE) { innerData.append(k[i] ^ UInt8(0x36)) }
-        for (b in message) { innerData.append(b) }
-        let innerHash = Sha512.hash(innerData)
+        var innerData = ArrayList<UInt8>()
+        for (i in 0..BLOCK_SIZE) { innerData.add(k[i] ^ UInt8(0x36)) }
+        for (b in message) { innerData.add(b) }
+        let innerHash = Sha512.hash(innerData.toArray())
 
-        var outerData = Array<UInt8>()
-        for (i in 0..BLOCK_SIZE) { outerData.append(k[i] ^ UInt8(0x5C)) }
-        for (b in innerHash) { outerData.append(b) }
-        return Sha512.hash(outerData)
+        var outerData = ArrayList<UInt8>()
+        for (i in 0..BLOCK_SIZE) { outerData.add(k[i] ^ UInt8(0x5C)) }
+        for (b in innerHash) { outerData.add(b) }
+        return Sha512.hash(outerData.toArray())
     }
 
     public static func hmac(key: String, message: String): Array<UInt8> {
@@ -132,7 +139,5 @@ public class HmacSha384 {
 
 /// 字符串转字节数组
 private func stringToBytes(s: String): Array<UInt8> {
-    var bytes = Array<UInt8>()
-    for (c in s) { bytes.append(UInt8(c.value)) }
-    return bytes
+    return s.toArray()
 }

@@ -5,6 +5,8 @@
 //   用于高效连接大量字符串而无需预计算总长度
 package bao_string
 
+import std.collection.*
+
 
 // ============================================================================
 // StringJoiner 节点
@@ -108,13 +110,13 @@ public class StringJoiner {
         }
         this.len += data.size
 
-        let newTail = SJNode(slice: data, owned: owned)
+        let newTail = SJNode(data, owned)
 
         if (data.size > 0) {
             if (this.watcher.input.size > 0 && contains(data, this.watcher.input)) {
                 this.watcher.estimatedCount += 1
             }
-            this.watcher.needsNewline = data[data.size - 1] != Byte('\n')
+            this.watcher.needsNewline = data[data.size - 1] != UInt8(0x0A)
         }
 
         match (this.tail) {
@@ -133,21 +135,21 @@ public class StringJoiner {
             case None =>
                 return ""
             case Some(_) =>
-                var result = Array<Byte>()
+                var result = ArrayList<Byte>()
                 var current = this.head
                 while (true) {
                     match (current) {
                         case Some(node) =>
                             let bytes = node.slice.toArray()
                             for (b in bytes) {
-                                result.append(b)
+                                result.add(b)
                             }
                             current = node.next
                         case None =>
                             break
                     }
                 }
-                return String.fromUtf8(result)
+                return String.fromUtf8(result.toArray())
         }
     }
 
@@ -161,14 +163,14 @@ public class StringJoiner {
                 }
                 return ""
             case Some(_) =>
-                var result = Array<Byte>()
+                var result = ArrayList<Byte>()
                 var current = this.head
                 while (true) {
                     match (current) {
                         case Some(node) =>
                             let bytes = node.slice.toArray()
                             for (b in bytes) {
-                                result.append(b)
+                                result.add(b)
                             }
                             current = node.next
                         case None =>
@@ -178,9 +180,9 @@ public class StringJoiner {
                 // 追加 end
                 let endBytes = end.toArray()
                 for (b in endBytes) {
-                    result.append(b)
+                    result.add(b)
                 }
-                return String.fromUtf8(result)
+                return String.fromUtf8(result.toArray())
         }
     }
 
@@ -208,11 +210,11 @@ public class StringJoiner {
         match (this.tail) {
             case Some(node) =>
                 if (node.slice.size == 0) {
-                    return Byte(0)
+                    return UInt8(0)
                 }
                 return node.slice[node.slice.size - 1]
             case None =>
-                return Byte(0)
+                return UInt8(0)
         }
     }
 

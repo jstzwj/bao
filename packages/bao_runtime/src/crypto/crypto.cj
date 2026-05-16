@@ -32,8 +32,8 @@ public func pbkdf2(output: Array<Byte>, password: Array<Byte>, salt: Array<Byte>
 
     let md = algorithm.md()
     match (md) {
-| None => return None
-| Some(mdVal) => {
+        case None => return None
+        case Some(mdVal) =>
             let passwordPtr: ?Array<Byte> = if (password.size > 0) { password } else { None }
 
             let rc = BoringSSL.pkcs5Pbkdf2Hmac(
@@ -48,7 +48,6 @@ public func pbkdf2(output: Array<Byte>, password: Array<Byte>, salt: Array<Byte>
                 return None
             }
             return output
-        }
     }
 }
 

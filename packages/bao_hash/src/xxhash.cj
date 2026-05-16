@@ -4,6 +4,8 @@
 //   Bun 在缓存等场景使用
 package bao_hash
 
+import std.collection.*
+
 // ============================================================================
 // xxHash64
 // 严格翻译自: xxHash 的 XXH64 算法
@@ -13,10 +15,10 @@ package bao_hash
 /// xxHash64 - 对应 Bun 使用的 xxhash 库
 /// 高性能64位哈希, 适用于缓存和哈希表
 public class XxHash64 {
-    private static let PRIME1: UInt64 = UInt64(0x9E3779B185EBCA87)
-    private static let PRIME2: UInt64 = UInt64(0xC2B2AE3D27D4EB4F)
+    private static let PRIME1: UInt64 = (UInt64(0x9E3779B1) << UInt64(32)) | UInt64(0x85EBCA87)
+    private static let PRIME2: UInt64 = (UInt64(0xC2B2AE3D) << UInt64(32)) | UInt64(0x27D4EB4F)
     private static let PRIME3: UInt64 = UInt64(0x165667B19E3779F9)
-    private static let PRIME4: UInt64 = UInt64(0x85EBCA77C2B2AE63)
+    private static let PRIME4: UInt64 = (UInt64(0x85EBCA77) << UInt64(32)) | UInt64(0xC2B2AE63)
     private static let PRIME5: UInt64 = UInt64(0x27D4EB2F165667C5)
 
     /// 计算哈希 (种子为0)
@@ -26,9 +28,9 @@ public class XxHash64 {
 
     /// 计算字符串哈希
     public static func hash(s: String): UInt64 {
-        var bytes = Array<UInt8>()
-        for (c in s) { bytes.append(UInt8(c.value)) }
-        return hash(bytes)
+        var bytes = ArrayList<UInt8>()
+        for (c in s) { bytes.add(UInt8(UInt32(c))) }
+        return hash(bytes.toArray())
     }
 
     /// 带种子计算哈希

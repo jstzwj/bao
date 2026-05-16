@@ -36,9 +36,9 @@ public class MaxHeapAllocator {
     }
 
     /// resize - 不支持
-    /// 对应 Zig: fn resize(...) bool { @panic("not implemented") }
+    /// 对应 Bun: resize 始终 panic
     public func resize(ctx: CPointer<Byte>, buf: Array<Byte>, alignment: Alignment, newLen: UInt64, retAddr: UInt64): Bool {
-        panic("not implemented: MaxHeapAllocator.resize")
+        panic("MaxHeapAllocator.resize is unsupported")
     }
 
     /// 释放 - 空操作

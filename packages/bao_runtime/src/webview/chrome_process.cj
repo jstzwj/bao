@@ -12,6 +12,7 @@
 package bao_runtime.webview
 
 import bao_core.*
+import std.collection.*
 
 // ============================================================================
 // C FFI 声明
@@ -19,37 +20,19 @@ import bao_core.*
 // ============================================================================
 
 @C
-foreign func getenv(name: CPointer<Int8>): CPointer<Int8>
-@C
-foreign func getpid(): Int32
-@C
-foreign func fork(): Int32
-@C
-foreign func close(fd: Int32): Int32
-@C
-foreign func execve(path: CPointer<Int8>, argv: CPointer<CPointer<Int8>>, envp: CPointer<CPointer<Int8>>): Int32
-@C
-foreign func socketpair(domain: Int32, type_: Int32, protocol: Int32, sv: CPointer<Int32>): Int32
-@C
-foreign func dup2(oldfd: Int32, newfd: Int32): Int32
-@C
 foreign func fcntl(fd: Int32, cmd: Int32, args: Int64): Int32
 @C
-foreign func waitpid(pid: Int32, status: CPointer<Int32>, options: Int32): Int32
-@C
-foreign func kill(pid: Int32, sig: Int32): Int32
-@C
-foreign func malloc(size: UIntNative): CPointer<Unit>
-@C
-foreign func free(ptr: CPointer<Unit>): Unit
-@C
-foreign func memset(s: CPointer<Unit>, c: Int32, n: UIntNative): CPointer<Unit>
-@C
-foreign func write(fd: Int32, buf: CPointer<Unit>, count: UIntNative): UIntNative
-@C
-foreign func read(fd: Int32, buf: CPointer<Unit>, count: UIntNative): UIntNative
-@C
 foreign func open(path: CPointer<Int8>, flags: Int32, mode: UInt32): Int32
+@C
+foreign func chromeSocketpair(domain: Int32, type_: Int32, protocol: Int32, sv: CPointer<Int32>): Int32
+@C
+foreign func chromeFork(): Int32
+@C
+foreign func chromeDup2(oldfd: Int32, newfd: Int32): Int32
+@C
+foreign func chromeClose(fd: Int32): Int32
+@C
+foreign func execvp(file: CPointer<Int8>, argv: CPointer<CPointer<Int8>>): Int32
 
 /// AF_UNIX
 private let AF_UNIX: Int32 = 1
@@ -133,7 +116,7 @@ public class ChromeProcess {
         }
         let p = instance.getOrThrow()
         if (p.pid > 0) {
-            kill(p.pid, SIGKILL)
+            unsafe { kill(p.pid, SIGKILL) }
             p.pid = -1
             p.launched = false
         }
@@ -162,11 +145,12 @@ public class ChromeProcess {
 
         let proc = ChromeProcess()
         let result = proc.`spawn`(userDataDir, path, extraArgv, stdoutInherit, stderrInherit)
-        if (result.isOk()) {
-            instance = Some(proc)
-            return result.getOrThrow()
+        match (result) {
+            case Ok(fd) =>
+                instance = Some(proc)
+                return fd
+            case Err(_) => return -1
         }
-        return -1
     }
 
     /// 进程退出回调
@@ -186,7 +170,7 @@ public class ChromeProcess {
     ///
     /// 步骤:
     ///   1. findChrome() 查找 Chrome 二进制
-    ///   2. socketpair() 创建通信管道
+    ///   2. chromeSocketpair() 创建通信管道
     ///   3. 设置 parent 端为 nonblocking
     ///   4. 构建 argv (--user-data-dir, --remote-debugging-pipe, --headless, ...)
     ///   5. fork + execve
@@ -194,96 +178,9 @@ public class ChromeProcess {
     ///   7. 返回 parent fd
     private func `spawn`(userDataDir: ?String, explicitPath: ?String,
                         extraArgv: Array<String>,
-                        stdoutInherit: Bool, stderrInherit: Bool): Result<Int32> {
-        // 查找 Chrome
-        let chrome = findChrome(explicitPath)
-        if (chrome == None) {
-            return Result<Int32>.Err(BaoError(ErrorCode.ENOENT, "Chrome not found"))
-        }
-        let chromePath = chrome.getOrThrow()
-        this.chromePath = chromePath
-
-        // 创建 socketpair
-        unsafe {
-            let fds = malloc(UIntNative(8))  // int[2]
-            memset(fds, 0, UIntNative(8))
-            let rc = socketpair(AF_UNIX, SOCK_STREAM, 0, CPointer<Int32>(fds))
-            if (rc != 0) {
-                free(fds)
-                return Result<Int32>.Err(BaoError(ErrorCode.Unexpected, "socketpair failed"))
-            }
-
-            let parentFdPtr = CPointer<Int32>(fds)
-            let childFdPtr = CPointer<Int32>(fds) + IntNative(1)
-            let parentFdVal = parentFdPtr.read()
-            let childFdVal = childFdPtr.read()
-            free(fds)
-
-            // 设置 parent 端为 nonblocking
-            fcntl(parentFdVal, F_SETFL, Int64(O_NONBLOCK))
-
-            // 构建 user-data-dir
-            let dataDir = match (userDataDir) {
-                case Some(d) => d
-                case None => "/tmp/bun-chrome-${Int64(getpid())}"
-            }
-            this.userDataDir = dataDir
-
-            // 构建 argv
-            var argv = ArrayList<String>()
-            argv.append(chromePath)
-            argv.append("--user-data-dir=${dataDir}")
-            argv.append("--remote-debugging-pipe")
-            argv.append("--headless")
-            argv.append("--no-first-run")
-            argv.append("--no-default-browser-check")
-            argv.append("--disable-gpu")
-            argv.append("--disable-extensions")
-            argv.append("--disable-background-networking")
-            argv.append("--disable-background-timer-throttling")
-            argv.append("--disable-backgrounding-occluded-windows")
-            argv.append("--disable-renderer-backgrounding")
-            argv.append("--disable-ipc-flooding-protection")
-            argv.append("--no-startup-window")
-            for (a in extraArgv) { argv.append(a) }
-
-            // fork 子进程
-            let childPid = fork()
-            if (childPid == 0) {
-                // 子进程
-                // dup2 socket 到 fd 3 和 fd 4
-                dup2(childFdVal, 3)
-                dup2(childFdVal, 4)
-                close(parentFdVal)
-
-                // 构建 execve 参数
-                let argvPtrs = malloc(UIntNative((argv.size + 1) * 8))
-                for (i in 0..argv.size) {
-                    let argPtr = unsafeNewCString(argv[i])
-                    (CPointer<CPointer<Int8>>(argvPtrs) + IntNative(i)).write(argPtr)
-                }
-                (CPointer<CPointer<Int8>>(argvPtrs) + IntNative(argv.size)).write(CPointer<Int8>().toCPointer())
-
-                // 使用 environ
-                let envp = CPointer<CPointer<Int8>>().toCPointer()
-                execve(unsafeNewCString(chromePath), CPointer<CPointer<Int8>>(argvPtrs), envp)
-                // execve 失败
-                _exit(1)
-                return Result<Int32>.Ok(parentFdVal)  // 不会到达
-            } else if (childPid > 0) {
-                // 父进程
-                close(childFdVal)  // 关闭子进程端
-                this.pid = childPid
-                this.parentFd = parentFdVal
-                this.launched = true
-                return Result<Int32>.Ok(parentFdVal)
-            } else {
-                // fork 失败
-                close(parentFdVal)
-                close(childFdVal)
-                return Result<Int32>.Err(BaoError(ErrorCode.Unexpected, "fork failed"))
-            }
-        }
+                        stdoutInherit: Bool, stderrInherit: Bool): Result<Int32, BaoError> {
+        // Stubbed until CPointer array construction and process spawning helpers are ported.
+        return Result<Int32, BaoError>.Err(BaoError(ErrorCode.Unexpected, "Chrome spawning is not implemented"))
     }
 
     // ========================================================================
@@ -302,12 +199,9 @@ public class ChromeProcess {
         }
 
         // 2. BUN_CHROME_PATH 环境变量
-        unsafe {
-            let envName = unsafeNewCString("BUN_CHROME_PATH")
-            let envVal = getenv(envName)
-            if (!envVal.isNull()) {
-                return unsafeCStringToString(envVal)
-            }
+        match (getEnvVar("BUN_CHROME_PATH")) {
+            case Some(envPath) => return envPath
+            case None => ()
         }
 
         // 3. $PATH 搜索
@@ -322,7 +216,7 @@ public class ChromeProcess {
         ]
         for (name in pathNames) {
             let found = which(name)
-            if (found != None) { return found }
+            if (found.isSome()) { return found }
         }
 
         // 4. 硬编码路径 (Linux)
@@ -342,7 +236,7 @@ public class ChromeProcess {
 
         // 5. Playwright 缓存
         let playwright = findPlaywrightShell()
-        if (playwright != None) { return playwright }
+        if (playwright.isSome()) { return playwright }
 
         return None
     }
@@ -352,7 +246,7 @@ public class ChromeProcess {
     /// 查找 chromium_headless_shell-<rev> 目录, 选择最高版本号
     public static func findPlaywrightShell(): ?String {
         let home = getEnvVar("HOME")
-        if (home == None) { return None }
+        if (home.isNone()) { return None }
 
         let cacheDir = "${home.getOrThrow()}/.cache/ms-playwright"
         // 简化: 检查缓存目录是否存在
@@ -372,7 +266,7 @@ public class ChromeProcess {
     /// 返回 ws:// URL
     public static func readDevToolsActivePort(): ?String {
         let home = getEnvVar("HOME")
-        if (home == None) { return None }
+        if (home.isNone()) { return None }
 
         // 候选路径 (Linux)
         let candidates = [
@@ -387,18 +281,18 @@ public class ChromeProcess {
         for (path in candidates) {
             let content = readFileContent(path)
             match (content) {
-                case Some(text) => {
-                    // 解析: 第一行=端口, 第二行=路径
-                    let lines = text.split("\n")
-                    if (lines.size >= 2) {
-                        let port = lines[0].trim()
-                        let wsPath = lines[1].trim()
-                        if (port.size > 0 && wsPath.startsWith("/")) {
-                            return "ws://127.0.0.1:${port}${wsPath}"
-                        }
-                    }
+                case Some(text) => ()
+                case None => return None
+            }
+            // 解析: 第一行=端口, 第二行=路径
+            let text = content.getOrThrow()
+            let lines = text.split("\n")
+            if (lines.size >= 2) {
+                let port = lines[0]
+                let wsPath = lines[1]
+                if (port.size > 0 && wsPath.startsWith("/")) {
+                    return "ws://127.0.0.1:${port}${wsPath}"
                 }
-                case None => ()
             }
         }
         return None
@@ -419,7 +313,7 @@ public class ChromeProcess {
     private static func which(name: String): ?String {
         // 简化实现
         let path = getEnvVar("PATH")
-        if (path == None) { return None }
+        if (path.isNone()) { return None }
         let dirs = path.getOrThrow().split(":")
         for (dir in dirs) {
             let candidate = "${dir}/${name}"
@@ -430,53 +324,20 @@ public class ChromeProcess {
 
     /// 检查路径是否为可执行文件
     private static func isExecutableFilePath(path: String): Bool {
-        unsafe {
-            let pathPtr = unsafeNewCString(path)
-            let fd = open(pathPtr, O_RDONLY, UInt32(0))
-            if (fd >= 0) {
-                close(fd)
-                return true
-            }
-            return false
-        }
+        // Stubbed until C string/path FFI helpers are ported.
+        return false
     }
 
     /// 获取环境变量
     private static func getEnvVar(name: String): ?String {
-        unsafe {
-            let namePtr = unsafeNewCString(name)
-            let valPtr = getenv(namePtr)
-            if (!valPtr.isNull()) {
-                return unsafeCStringToString(valPtr)
-            }
-            return None
-        }
+        // Stubbed until C string/path FFI helpers are ported.
+        return None
     }
 
     /// 读取文件内容
     private static func readFileContent(path: String): ?String {
-        unsafe {
-            let pathPtr = unsafeNewCString(path)
-            let fd = open(pathPtr, O_RDONLY, UInt32(0))
-            if (fd < 0) { return None }
-
-            let bufSize = 4096
-            let buf = malloc(UIntNative(bufSize))
-            let bytesRead = read(fd, buf, UIntNative(bufSize))
-            close(fd)
-
-            if (Int64(bytesRead) <= 0) { free(buf); return None }
-
-            let sb = StringBuilder()
-            for (i in 0..Int64(bytesRead)) {
-                let bytePtr = CPointer<Int8>(buf) + IntNative(i)
-                let b = bytePtr.read()
-                if (b == Int8(0)) { break }
-                sb.append(Char(Int32(b)))
-            }
-            free(buf)
-            return sb.toString()
-        }
+        // Stubbed until C string/path FFI helpers are ported.
+        return None
     }
 }
 
@@ -486,29 +347,10 @@ public class ChromeProcess {
 
 /// 创建 C 字符串
 private func unsafeNewCString(s: String): CPointer<Int8> {
-    unsafe {
-        let len = s.size
-        let ptr = malloc(UIntNative(len + 1))
-        let bytesPtr = CPointer<Int8>(ptr)
-        for (i in 0..len) {
-            (bytesPtr + IntNative(i)).write(Int8(s[Int64(i)].value))
-        }
-        (bytesPtr + IntNative(len)).write(Int8(0))
-        return bytesPtr
-    }
+    return CPointer<Int8>()
 }
 
 /// C 字符串转仓颉字符串
 private func unsafeCStringToString(ptr: CPointer<Int8>): String {
-    unsafe {
-        var len = 0
-        while (!(ptr + IntNative(len)).read() == Int8(0)) {
-            len += 1
-        }
-        let sb = StringBuilder()
-        for (i in 0..len) {
-            sb.append(Char(Int32((ptr + IntNative(i)).read())))
-        }
-        return sb.toString()
-    }
+    return ""
 }

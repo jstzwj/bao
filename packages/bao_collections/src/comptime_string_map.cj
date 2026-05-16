@@ -47,8 +47,8 @@ public class ComptimeStringMap {
         for (pair in pairs) {
             entries.append(StringMapEntry(pair[0], pair[1]))
         }
-        sortEntries()
         sorted = true
+        sortEntries()
     }
 
     /// 从条目数组构建
@@ -57,36 +57,36 @@ public class ComptimeStringMap {
         for (entry in entries) {
             this.entries.append(entry)
         }
-        sortEntries()
         sorted = true
+        sortEntries()
     }
 
     /// 查找 - 对应 Bun ComptimeStringMap.get
     /// 二分查找, O(log n)
     public func get(key: String): ?Int64 {
         if (entries.size == 0) {
-            return None
+            return Option<Int64>.None
         }
         ensureSorted()
         var lo: Int64 = 0
         var hi: Int64 = entries.size - 1
         while (lo <= hi) {
             let mid = lo + (hi - lo) / 2
-            let cmp = entries[mid].key.compareTo(key)
-            if (cmp == 0) {
+            let midKey = entries[mid].key
+            if (midKey == key) {
                 return Some(entries[mid].value)
-            } else if (cmp < 0) {
+            } else if (midKey < key) {
                 lo = mid + 1
             } else {
                 hi = mid - 1
             }
         }
-        return None
+        return Option<Int64>.None
     }
 
     /// 是否包含键 - 对应 Bun ComptimeStringMap.has
     public func has(key: String): Bool {
-        return get(key) != None
+        return get(key) != Option<Int64>.None
     }
 
     /// 条目数量
@@ -133,7 +133,7 @@ public class ComptimeStringMap {
         // 使用简单的冒泡排序 (条目通常不多)
         for (i in 0..entries.size - 1) {
             for (j in 0..entries.size - 1 - i) {
-                if (entries[Int64(j)].key.compareTo(entries[Int64(j + 1)].key) > 0) {
+                if (entries[Int64(j)].key > entries[Int64(j + 1)].key) {
                     let tmp = entries[Int64(j)]
                     entries[Int64(j)] = entries[Int64(j + 1)]
                     entries[Int64(j + 1)] = tmp

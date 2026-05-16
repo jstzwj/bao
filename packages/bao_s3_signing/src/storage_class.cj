@@ -1,3 +1,4 @@
+// bao_http - S3 存储类别
 // 严格翻译自: src/s3_signing/storage_class.zig
 //   Bun 的 S3 存储类别:
 //   - StorageClass enum: STANDARD, STANDARD_IA, INTELLIGENT_TIERING, ...
@@ -6,15 +7,9 @@
 package bao_s3_signing
 
 // ============================================================================
-// StorageClass - S3 存储类别
-// 严格翻译自: storage_class.zig pub const StorageClass = enum {
-//   STANDARD, STANDARD_IA, INTELLIGENT_TIERING, EXPRESS_ONEZONE,
-//   ONEZONE_IA, GLACIER, GLACIER_IR, REDUCED_REDUNDANCY,
-//   OUTPOSTS, DEEP_ARCHIVE, SNOW
-//
-//   pub fn toString(this: @This()) []const u8 { ... }
-//   pub const Map = bun.ComptimeStringMap(StorageClass, .{ ... });
-// }
+// S3StorageClass - S3 存储类别
+// 严格翻译自: storage_class.zig StorageClass = enum
+//   对应 AWS S3 的所有存储类别
 // ============================================================================
 
 /// S3 存储类别
@@ -23,7 +18,7 @@ package bao_s3_signing
 ///   ONEZONE_IA, GLACIER, GLACIER_IR, REDUCED_REDUNDANCY,
 ///   OUTPOSTS, DEEP_ARCHIVE, SNOW
 /// }
-public enum StorageClass {
+public enum S3StorageClass {
     | Standard            // STANDARD - 标准存储, 适用于频繁访问的数据
     | StandardIa          // STANDARD_IA - 标准低频访问, 适用于不频繁访问的数据
     | IntelligentTiering  // INTELLIGENT_TIERING - 智能分层, 自动优化存储成本
@@ -37,14 +32,7 @@ public enum StorageClass {
     | Snow                // SNOW - AWS Snow 设备存储
 
     /// 转为 S3 API 字符串
-    /// 对应 Bun:
-    ///   pub fn toString(this: @This()) []const u8 {
-    ///       return switch (this) {
-    ///           .STANDARD => "STANDARD",
-    ///           .STANDARD_IA => "STANDARD_IA",
-    ///           ...
-    ///       };
-    ///   }
+    /// 对应 Bun: StorageClass.toString() -> []const u8
     /// 返回 x-amz-storage-class 头使用的字符串值
     public func toString(): String {
         match (this) {
@@ -63,14 +51,9 @@ public enum StorageClass {
     }
 
     /// 从 S3 API 字符串解析
-    /// 对应 Bun:
-    ///   pub const Map = bun.ComptimeStringMap(StorageClass, .{
-    ///       .{ "STANDARD", .STANDARD },
-    ///       .{ "STANDARD_IA", .STANDARD_IA },
-    ///       ...
-    ///   });
-    /// 字符串反向查找表 (ComptimeStringMap 等价)
-    public static func fromString(s: String): ?StorageClass {
+    /// 对应 Bun: StorageClass.Map = bun.ComptimeStringMap(StorageClass, .{ ... })
+    /// 字符串反向查找表
+    public static func fromString(s: String): ?S3StorageClass {
         match (s) {
             case "STANDARD" => Standard
             case "STANDARD_IA" => StandardIa
@@ -84,6 +67,48 @@ public enum StorageClass {
             case "DEEP_ARCHIVE" => DeepArchive
             case "SNOW" => Snow
             case _ => None
+        }
+    }
+
+    /// 获取存储类别描述
+    public func description(): String {
+        match (this) {
+            case Standard => "Standard storage class for frequently accessed data"
+            case StandardIa => "Standard-Infrequent Access for less frequently accessed data"
+            case IntelligentTiering => "Intelligent-Tiering auto-optimizes storage costs"
+            case ExpressOnezone => "Single-zone express storage"
+            case OnezoneIa => "Single-zone Infrequent Access"
+            case Glacier => "Glacier archival storage (minute-to-hour retrieval)"
+            case GlacierIr => "Glacier Instant Retrieval (millisecond retrieval)"
+            case ReducedRedundancy => "Reduced Redundancy for reproducible data"
+            case Outposts => "AWS Outposts on-premises storage"
+            case DeepArchive => "Deep Archive (12-48 hour retrieval)"
+            case Snow => "AWS Snow device storage"
+        }
+    }
+
+    /// 是否为归档类别 (需要恢复才能访问)
+    public func isArchive(): Bool {
+        match (this) {
+            case Glacier => true
+            case DeepArchive => true
+            case _ => false
+        }
+    }
+
+    /// 是否支持即时检索
+    public func supportsInstantRetrieval(): Bool {
+        match (this) {
+            case Standard => true
+            case StandardIa => true
+            case IntelligentTiering => true
+            case ExpressOnezone => true
+            case OnezoneIa => true
+            case GlacierIr => true
+            case ReducedRedundancy => true
+            case Outposts => true
+            case Snow => true
+            case _ => false  // Glacier, DeepArchive 需要恢复
         }
     }
 }

@@ -30,16 +30,16 @@ public class HashedString {
     /// 空 HashedString
     /// 严格翻译自 HashedString.empty
     public static func empty(): HashedString {
-        return HashedString(data: [], len: 0, hash: 0)
+        return HashedString(Array<Byte>(), 0, 0)
     }
 
     /// 从字节数组初始化,同时计算哈希
     /// 严格翻译自 HashedString.init
     public static func initFunc(buf: Array<Byte>): HashedString {
         return HashedString(
-            data: buf,
-            len: UInt32(buf.size),
-            hash: UInt32(truncate32(hashBytes(buf)))
+            buf,
+            UInt32(buf.size),
+            UInt32(truncate32(hashBytes(buf)))
         )
     }
 
@@ -47,9 +47,9 @@ public class HashedString {
     public static func initFunc(str: String): HashedString {
         let buf = str.toArray()
         return HashedString(
-            data: buf,
-            len: UInt32(buf.size),
-            hash: UInt32(truncate32(hashBytes(buf)))
+            buf,
+            UInt32(buf.size),
+            UInt32(truncate32(hashBytes(buf)))
         )
     }
 
@@ -57,9 +57,9 @@ public class HashedString {
     /// 严格翻译自 HashedString.initNoHash
     public static func initNoHash(buf: Array<Byte>): HashedString {
         return HashedString(
-            data: buf,
-            len: UInt32(buf.size),
-            hash: 0
+            buf,
+            UInt32(buf.size),
+            0
         )
     }
 

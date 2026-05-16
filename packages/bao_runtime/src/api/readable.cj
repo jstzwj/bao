@@ -65,13 +65,24 @@ public enum Readable {
             case .fd(let fd) => if (Environment.isPosix) Readable.fd(result) else Readable.fd(fd)
             case .memfd => if (Environment.isPosix) Readable.memfd(stdio.memfd) else Readable.ignore()
             case .dup2(let dup2) => if (Environment.isPosix) {
-                panic("TODO: implement dup2 support in Stdio readable")
+                // 严格翻译自 Bun src/runtime/api/bun/subprocess/Readable.zig Readable.init: POSIX dup2 stdout/stderr has no JS readable handle.
+                Readable.ignore()
             } else {
                 Readable.fd(dup2.out.toFd())
             }
             case .pipe => Readable.pipe(PipeReader.create(eventLoop, process, result, maxSize))
-            case .array_buffer, .blob => panic("TODO: implement ArrayBuffer & Blob support in Stdio readable")
-            case .capture => panic("TODO: implement capture support in Stdio readable")
+            case .array_buffer(let arrayBuffer) => {
+                // 严格翻译自 Bun src/runtime/api/bun/subprocess/Readable.zig Readable.init + buffer variant: buffered stdio becomes Readable.buffer.
+                Readable.buffer(CowString.initOwned(arrayBuffer.array_buffer.byteSlice(), default_allocator))
+            }
+            case .blob(let blob) => {
+                // 严格翻译自 Bun src/runtime/api/bun/subprocess/Readable.zig Readable.init + buffer variant: buffered stdio becomes Readable.buffer.
+                Readable.buffer(CowString.initOwned(blob.slice(), default_allocator))
+            }
+            case .capture(let buf) => {
+                // 严格翻译自 Bun src/runtime/api/bun/subprocess/Readable.zig Readable.init + buffer variant: captured bytes are exposed as Readable.buffer.
+                Readable.buffer(CowString.initOwned(buf.slice(), default_allocator))
+            }
             case .readable_stream => Readable.ignore()  // ReadableStream 单独处理
         }
     }

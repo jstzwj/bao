@@ -14,6 +14,7 @@
 package bao_sourcemap
 
 import bao_core.*
+import std.collection.*
 
 // ============================================================================
 // Chunk - SourceMap 块
@@ -121,8 +122,10 @@ public class VLQSourceMap {
     public func append(currentState: SourceMapState,
                        prevState: SourceMapState): Unit {
         // 获取最后一个字节 - 用于判断是否需要逗号
-        let lastByte = if (data.size() > 0) {
-            Int64(data.toString().toArray()[data.size() - 1])
+        let dataString = data.toString()
+        let dataBytes = dataString.toArray()
+        let lastByte = if (dataBytes.size > 0) {
+            Int64(dataBytes[dataBytes.size - 1])
         } else {
             0
         }
@@ -178,8 +181,8 @@ public class VLQSourceMap {
                                        prevState: SourceMapState,
                                        currentState: SourceMapState): Unit {
         // 判断是否需要逗号 - 对应 Bun needs_comma
-        let needsComma = lastByte != 0 && lastByte != Int64(';') &&
-                         lastByte != Int64('"')
+        let needsComma = lastByte != 0 && lastByte != Int64(0x3B) &&
+                         lastByte != Int64(0x22)
 
         // 编码 4 个增量值 - 对应 Bun vlqs
         // 使用饱和减法 -| 对应 Zig 的 saturating subtraction
@@ -308,14 +311,14 @@ public class ChunkBuilder {
         var i = lastGeneratedUpdate
         while (i < output.size) {
             let ch = output[i]
-            let code = Int64(ch.value)
+            let code = Int64(ch)
 
             if (code >= 14 && code <= 127) {
                 // ASCII 快速路径
                 var j = i + 1
                 while (j < output.size) {
-                    let c = Int64(output[j].value)
-                    if (c == Int64('\r') || c == Int64('\n') || c > 127) {
+                    let c = Int64(output[j])
+                    if (c == Int64(0x0D) || c == Int64(0x0A) || c > 127) {
                         break
                     }
                     j += 1
@@ -325,11 +328,11 @@ public class ChunkBuilder {
                 continue
             }
 
-            if (code == Int64('\r') || code == Int64('\n') ||
+            if (code == Int64(0x0D) || code == Int64(0x0A) ||
                 code == 0x2028 || code == 0x2029) {
                 // Windows 换行 \r\n
-                if (code == Int64('\r') && i + 1 < output.size &&
-                    Int64(output[i + 1].value) == Int64('\n')) {
+                if (code == Int64(0x0D) && i + 1 < output.size &&
+                    Int64(output[i + 1]) == Int64(0x0A)) {
                     i += 1
                     continue
                 }
@@ -448,31 +451,31 @@ public class SourceMapChunkJoiner {
     public func appendSourceMapChunk(prevEndState: SourceMapState,
                                      startState: SourceMapState,
                                      sourceMap: String): Unit {
-        var prevEndState = prevEndState.copy()
-        var startState = startState.copy()
+        var prevEnd = prevEndState.copy()
+        var startSt = startState.copy()
 
         // 处理行分隔
-        if (startState.generatedLine != 0) {
+        if (startSt.generatedLine != 0) {
             var semicolons = StringBuilder()
-            for (_ in 0..startState.generatedLine) {
+            for (_ in 0..startSt.generatedLine) {
                 semicolons.append(';')
             }
-            parts.append(semicolons.toString())
-            prevEndState.generatedColumn = 0
+            parts.add(semicolons.toString())
+            prevEnd.generatedColumn = 0
         }
 
         // 跳过前导分号
         var sourceMapStr = sourceMap
         var semicolonCount = 0
         while (semicolonCount < sourceMapStr.size &&
-               sourceMapStr[semicolonCount] == ';') {
+               sourceMapStr[semicolonCount] == UInt8(0x3B)) {
             semicolonCount += 1
         }
         if (semicolonCount > 0) {
-            parts.append(sourceMapStr.subString(0, semicolonCount))
-            sourceMapStr = sourceMapStr.subString(semicolonCount)
-            prevEndState.generatedColumn = 0
-            startState.generatedColumn = 0
+            parts.add(sourceMapStr[0..semicolonCount])
+            sourceMapStr = sourceMapStr[semicolonCount..]
+            prevEnd.generatedColumn = 0
+            startSt.generatedColumn = 0
         }
 
         // 剥离第一个映射
@@ -488,17 +491,16 @@ public class SourceMapChunkJoiner {
         i = origCol.start
 
         let remaining = if (i < sourceMapStr.size) {
-            sourceMapStr.subString(i)
+            sourceMapStr[i..]
         } else {
             ""
         }
 
         // 重写第一个映射，使其相对于前一个 chunk 的结束状态
-        startState.sourceIndex += srcIdx.value
-        startState.generatedColumn += genCol.value
-        startState.originalLine += origLine.value
-        startState.originalColumn += origCol.value
-
+        startSt.sourceIndex += srcIdx.value
+        startSt.generatedColumn += genCol.value
+        startSt.originalLine += origLine.value
+        startSt.originalColumn += origCol.value
         // 编码重写后的映射
         let sb = StringBuilder()
         let lastByte = if (parts.size > 0 && parts[parts.size - 1].size > 0) {
@@ -507,31 +509,31 @@ public class SourceMapChunkJoiner {
             0
         }
 
-        let needsComma = lastByte != 0 && lastByte != Int64(';') &&
-                         lastByte != Int64('"')
+        let needsComma = lastByte != 0 && lastByte != Int64(0x3B) &&
+                         lastByte != Int64(0x22)
         if (needsComma) {
             sb.append(',')
         }
 
         // 编码 4 个增量值
-        sb.append(VLQ.encode(VLQ.saturatingSub(startState.generatedColumn,
-            prevEndState.generatedColumn)))
-        sb.append(VLQ.encode(VLQ.saturatingSub(startState.sourceIndex,
-            prevEndState.sourceIndex)))
-        sb.append(VLQ.encode(VLQ.saturatingSub(startState.originalLine,
-            prevEndState.originalLine)))
-        sb.append(VLQ.encode(VLQ.saturatingSub(startState.originalColumn,
-            prevEndState.originalColumn)))
+        sb.append(VLQ.encode(VLQ.saturatingSub(startSt.generatedColumn,
+            prevEnd.generatedColumn)))
+        sb.append(VLQ.encode(VLQ.saturatingSub(startSt.sourceIndex,
+            prevEnd.sourceIndex)))
+        sb.append(VLQ.encode(VLQ.saturatingSub(startSt.originalLine,
+            prevEnd.originalLine)))
+        sb.append(VLQ.encode(VLQ.saturatingSub(startSt.originalColumn,
+            prevEnd.originalColumn)))
 
-        parts.append(sb.toString())
+        parts.add(sb.toString())
 
         // 追加剩余部分
         if (remaining.size > 0) {
-            parts.append(remaining)
+            parts.add(remaining)
         }
 
         // 更新 prev state
-        prevState = startState.copy()
+        prevState = startSt.copy()
     }
 
     /// 获取合并后的结果

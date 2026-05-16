@@ -5,6 +5,7 @@
 package bao_patch
 
 import bao_core.*
+import std.collection.*
 
 // ============================================================================
 // ParseError - 解析错误类型
@@ -65,6 +66,14 @@ public enum PatchPartType {
     | Context    // 上下文行 (未修改)
     | Insertion  // 插入行 (+)
     | Deletion   // 删除行 (-)
+
+    public operator func ==(right: PatchPartType): Bool {
+        match (this) {
+            case Context => match (right) { case Context => true case _ => false }
+            case Insertion => match (right) { case Insertion => true case _ => false }
+            case Deletion => match (right) { case Deletion => true case _ => false }
+        }
+    }
 }
 
 // ============================================================================
@@ -553,14 +562,14 @@ class PatchLinesParser {
 
         // 移除末尾空行
         var end = file.size
-        if (end > 0 && file[end - 1] == '\n') {
+        if (end > 0 && file[end - 1] == UInt8(0x0A)) {
             end -= 1
         }
         if (end == 0) {
             return None
         }
 
-        let content = file.subString(0, end)
+        let content = file[0..end]
         let lines = content.split("\n")
 
         for (line in lines) {
@@ -577,41 +586,31 @@ class PatchLinesParser {
                     }
                     let paths = parseDiffLinePaths(line)
                     if (paths.isSome()) {
-                        currentFilePatch.diffLineFromPath = paths.getOrThrow()[0]
-                        currentFilePatch.diffLineToPath = paths.getOrThrow()[1]
+                        currentFilePatch.diffLineFromPath = paths.getOrThrow().getFirst()
+                        currentFilePatch.diffLineToPath = paths.getOrThrow().getSecond()
                     }
                 } else if (line.startsWith("old mode ")) {
-                    currentFilePatch.oldMode = line.subString("old mode ".size).trim()
-                } else if (line.startsWith("new mode ")) {
-                    currentFilePatch.newMode = line.subString("new mode ".size).trim()
-                } else if (line.startsWith("deleted file mode ")) {
-                    currentFilePatch.deletedFileMode = line.subString("deleted file mode ".size).trim()
-                } else if (line.startsWith("new file mode ")) {
-                    currentFilePatch.newFileMode = line.subString("new file mode ".size).trim()
-                } else if (line.startsWith("rename from ")) {
-                    currentFilePatch.renameFrom = line.subString("rename from ".size).trim()
-                } else if (line.startsWith("rename to ")) {
-                    currentFilePatch.renameTo = line.subString("rename to ".size).trim()
-                } else if (line.startsWith("index ")) {
-                    let hashes = parseDiffHashes(line.subString("index ".size))
+                    currentFilePatch.oldMode = line["old mode ".size..]                } else if (line.startsWith("new mode ")) {
+                    currentFilePatch.newMode = line["new mode ".size..]                } else if (line.startsWith("deleted file mode ")) {
+                    currentFilePatch.deletedFileMode = line["deleted file mode ".size..]                } else if (line.startsWith("new file mode ")) {
+                    currentFilePatch.newFileMode = line["new file mode ".size..]                } else if (line.startsWith("rename from ")) {
+                    currentFilePatch.renameFrom = line["rename from ".size..]                } else if (line.startsWith("rename to ")) {
+                    currentFilePatch.renameTo = line["rename to ".size..]                } else if (line.startsWith("index ")) {
+                    let hashes = parseDiffHashes(line["index ".size..])
                     if (hashes.isSome()) {
-                        currentFilePatch.beforeHash = hashes.getOrThrow()[0]
-                        currentFilePatch.afterHash = hashes.getOrThrow()[1]
+                        currentFilePatch.beforeHash = hashes.getOrThrow().getFirst()
+                        currentFilePatch.afterHash = hashes.getOrThrow().getSecond()
                     }
                 } else if (line.startsWith("--- ")) {
-                    let path = line.subString("--- ".size)
+                    let path = line["--- ".size..]
                     if (path.startsWith("a/")) {
-                        currentFilePatch.fromPath = path.subString(2).trim()
-                    } else {
-                        currentFilePatch.fromPath = path.trim()
-                    }
+                        currentFilePatch.fromPath = path[2..]                    } else {
+                        currentFilePatch.fromPath = path                    }
                 } else if (line.startsWith("+++ ")) {
-                    let path = line.subString("+++ ".size)
+                    let path = line["+++ ".size..]
                     if (path.startsWith("b/")) {
-                        currentFilePatch.toPath = path.subString(2).trim()
-                    } else {
-                        currentFilePatch.toPath = path.trim()
-                    }
+                        currentFilePatch.toPath = path[2..]                    } else {
+                        currentFilePatch.toPath = path                    }
                 }
             } else {
                 parseHunkState(line, supportLegacyDiffs)
@@ -692,8 +691,8 @@ class PatchLinesParser {
 
             // 如果类型变化，提交当前 part
             if (currentHunkMutationPart.isSome() &&
-                currentHunkMutationPart.getOrThrow().partType != toPartType(hlt)) {
-                currentHunk.getOrThrow().parts.append(currentHunkMutationPart.getOrThrow())
+                !(currentHunkMutationPart.getOrThrow().partType == toPartType(hlt))) {
+                currentHunk.getOrThrow().parts.add(currentHunkMutationPart.getOrThrow())
                 currentHunkMutationPart = None
             }
 
@@ -703,8 +702,8 @@ class PatchLinesParser {
             }
 
             // 添加行内容 (去掉第一个字符前缀)
-            let lineContent = if (line.size > 1) line.subString(1) else ""
-            currentHunkMutationPart.getOrThrow().lines.append(lineContent)
+            let lineContent = if (line.size > 1) { line[1..] } else { "" }
+            currentHunkMutationPart.getOrThrow().lines.add(lineContent)
         }
     }
 
@@ -720,23 +719,23 @@ class PatchLinesParser {
     func handleContextLine(line: String): Unit {
         if (currentHunk.isNone()) { return }
         if (currentHunkMutationPart.isSome() &&
-            currentHunkMutationPart.getOrThrow().partType != PatchPartType.Context) {
-            currentHunk.getOrThrow().parts.append(currentHunkMutationPart.getOrThrow())
+            !(currentHunkMutationPart.getOrThrow().partType == PatchPartType.Context)) {
+            currentHunk.getOrThrow().parts.add(currentHunkMutationPart.getOrThrow())
             currentHunkMutationPart = None
         }
         if (currentHunkMutationPart.isNone()) {
             currentHunkMutationPart = PatchMutationPart(PatchPartType.Context)
         }
-        currentHunkMutationPart.getOrThrow().lines.append(line)
+        currentHunkMutationPart.getOrThrow().lines.add(line)
     }
 
     func commitHunk(): Unit {
         if (currentHunk.isSome()) {
             if (currentHunkMutationPart.isSome()) {
-                currentHunk.getOrThrow().parts.append(currentHunkMutationPart.getOrThrow())
+                currentHunk.getOrThrow().parts.add(currentHunkMutationPart.getOrThrow())
                 currentHunkMutationPart = None
             }
-            currentFilePatch.hunks.append(currentHunk.getOrThrow())
+            currentFilePatch.hunks.add(currentHunk.getOrThrow())
             currentHunk = None
         }
     }
@@ -744,7 +743,7 @@ class PatchLinesParser {
     func commitFilePatch(): Unit {
         commitHunk()
         currentFilePatch.nullifyEmptyStrings()
-        result.append(currentFilePatch)
+        result.add(currentFilePatch)
         currentFilePatch = FileDeets()
     }
 
@@ -752,14 +751,13 @@ class PatchLinesParser {
     /// 对应 Bun PatchLinesParser.parseHunkHeaderLine()
     /// @@ -100,32 +100,32 @@
     func parseHunkHeaderLine(line: String): ?Hunk {
-        var trimmed = line.trim()
-        // 检查 @@ - 前缀
-        if (trimmed.size < 4 || trimmed[0] != '@' || trimmed[1] != '@' ||
-            trimmed[2] != ' ' || trimmed[3] != '-') {
+        var trimmed = line        // 检查 @@ - 前缀
+        if (trimmed.size < 4 || trimmed[0] != UInt8(0x40) || trimmed[1] != UInt8(0x40) ||
+            trimmed[2] != UInt8(0x20) || trimmed[3] != UInt8(0x2D)) {
             return None
         }
         if (trimmed.size <= 4) { return None }
-        trimmed = trimmed.subString(4)
+        trimmed = trimmed[4..]
 
         // 解析第一部分 (原始范围)
         let firstResult = parseHunkHeaderLineImpl(trimmed)
@@ -768,8 +766,8 @@ class PatchLinesParser {
 
         // 检查 " +" 前缀
         var rest = fr.rest
-        if (rest.size < 2 || rest[1] != '+') { return None }
-        rest = rest.subString(2)
+        if (rest.size < 2 || rest[1] != UInt8(0x2B)) { return None }
+        rest = rest[2..]
 
         // 解析第二部分 (修补范围)
         let secondResult = parseHunkHeaderLineImpl(rest)
@@ -778,7 +776,7 @@ class PatchLinesParser {
 
         // 检查 " @@" 后缀
         rest = sr.rest
-        if (rest.size >= 3 && rest[0] == ' ' && rest[1] == '@' && rest[2] == '@') {
+        if (rest.size >= 3 && rest[0] == UInt8(0x20) && rest[1] == UInt8(0x40) && rest[2] == UInt8(0x40)) {
             return Hunk(HunkHeader(
                 fr.lineNr, fr.lineCount,
                 sr.lineNr, sr.lineCount
@@ -799,13 +797,13 @@ class PatchLinesParser {
 
         while (lineNrEnd < text.size) {
             let ch = text[lineNrEnd]
-            if (ch == ',') {
+            if (ch == UInt8(0x2C)) {
                 sawComma = true
                 break
-            } else if (ch == ' ') {
+            } else if (ch == UInt8(0x20)) {
                 sawWhitespace = true
                 break
-            } else if (ch.value < '0' || ch.value > '9') {
+            } else if (ch < UInt8(0x30) || ch > UInt8(0x39)) {
                 return None // bad_header_line
             }
             lineNrEnd += 1
@@ -813,34 +811,34 @@ class PatchLinesParser {
 
         if (!sawComma && !sawWhitespace) { return None }
 
-        let lineNrStr = text.subString(0, lineNrEnd)
+        let lineNrStr = text[0..lineNrEnd]
         var lineNrCountStr = "1"
-        var rest = if (lineNrEnd + 1 < text.size) text.subString(lineNrEnd) else ""
+        var rest = if (lineNrEnd + 1 < text.size) { text[lineNrEnd..] } else { "" }
         if (rest.size == 0) { return None }
 
         if (sawComma) {
-            rest = rest.subString(1)
+            rest = rest[1..]
             var firstColEnd = 0
             while (firstColEnd < rest.size) {
                 let ch = rest[firstColEnd]
-                if (ch == ' ') {
+                if (ch == UInt8(0x20)) {
                     sawWhitespace = true
                     break
-                } else if (ch.value < '0' || ch.value > '9') {
+                } else if (ch < UInt8(0x30) || ch > UInt8(0x39)) {
                     return None
                 }
                 firstColEnd += 1
             }
             if (!sawWhitespace) { return None }
-            lineNrCountStr = rest.subString(0, firstColEnd)
-            rest = rest.subString(firstColEnd)
+            lineNrCountStr = rest[0..firstColEnd]
+            rest = rest[firstColEnd..]
         }
 
-        let lineNr = Int64.parse(lineNrStr).getOr(1)
-        let lineCount = Int64.parse(lineNrCountStr).getOr(1)
+        let lineNr = IntParser.parseInt(lineNrStr, 10)
+        let lineCount = IntParser.parseInt(lineNrCountStr, 10)
 
         HunkHeaderImplResult(
-            if (lineNr >= 1) lineNr else 1,
+            if (lineNr >= 1) { lineNr } else { 1 },
             lineCount,
             rest
         )
@@ -851,21 +849,18 @@ class PatchLinesParser {
     func parseDiffLinePaths(line: String): ?Tuple2<String, String> {
         let prefix = "diff --git a/"
         if (!line.startsWith(prefix)) { return None }
-        var rest = line.subString(prefix.size)
+        var rest = line[prefix.size..]
         if (rest.size == 0) { return None }
 
         // 查找 " b/" 分隔符
         var i = 0
-        while (i < rest.size) {
-            let idx = rest.indexOfFrom("b/", i)
-            if (idx.isNone()) { return None }
-            let bIdx = idx.getOrThrow()
-            if (bIdx > 0 && rest[bIdx - 1] == ' ' && bIdx + 2 < rest.size) {
-                let aPath = rest.subString(0, bIdx - 1)
-                let bPath = rest.subString(bIdx + 2).trimRight(" \n\r\t".toArray())
+        while (i + 2 < rest.size) {
+            if (rest[i] == UInt8(0x20) && rest[i + 1] == UInt8(0x62) && rest[i + 2] == UInt8(0x2F)) {
+                let aPath = rest[0..i]
+                let bPath = rest[i + 3..]
                 return Tuple2(aPath, bPath)
             }
-            i = bIdx + 1
+            i += 1
         }
 
         return None
@@ -878,7 +873,7 @@ class PatchLinesParser {
         if (delimiterIdx.isNone()) { return None }
         let dIdx = delimiterIdx.getOrThrow()
 
-        let aPart = line.subString(0, dIdx)
+        let aPart = line[0..dIdx]
         let bStart = dIdx + 2
         if (bStart >= line.size) { return None }
 
@@ -886,12 +881,12 @@ class PatchLinesParser {
         var bEnd = line.size
         for (j in bStart..line.size) {
             let ch = line[j]
-            if (ch == ' ' || ch == '\n' || ch == '\r' || ch == '\t') {
+            if (ch == UInt8(0x20) || ch == UInt8(0x0A) || ch == UInt8(0x0D) || ch == UInt8(0x09)) {
                 bEnd = j
                 break
             }
         }
-        let bPart = line.subString(bStart, bEnd)
+        let bPart = line[bStart..bEnd]
 
         Tuple2(aPart, bPart)
     }
@@ -917,14 +912,13 @@ class PatchLinesParser {
             var destinationFilePath: ?String = None
 
             match (kind) {
-                case FileRename => {
+                case FileRename =>
                     let fromPath = file.renameFrom.getOrThrow()
                     let toPath = file.renameTo.getOrThrow()
-                    patchFile.parts.append(PatchFilePart(FileRename(fromPath, toPath)))
+                    patchFile.parts.add(PatchFilePart(FileRename(fromPath, toPath)))
                     destinationFilePath = toPath
-                }
-                case FileDeletion => {
-                    let path = file.diffLineFromPath.getOr(file.fromPath.getOr(""))
+                case FileDeletion =>
+                    let path = if (file.diffLineFromPath.isSome()) { file.diffLineFromPath.getOrThrow() } else if (file.fromPath.isSome()) { file.fromPath.getOrThrow() } else { "" }
                     let modeStr = file.deletedFileMode.getOrThrow()
                     let mode = parseFileMode(modeStr)
                     if (mode.isSome()) {
@@ -933,11 +927,10 @@ class PatchLinesParser {
                             deletion.hunk = file.hunks[0]
                         }
                         deletion.hash = file.beforeHash
-                        patchFile.parts.append(PatchFilePart(deletion))
+                        patchFile.parts.add(PatchFilePart(deletion))
                     }
-                }
-                case FileCreation => {
-                    let path = file.diffLineToPath.getOr(file.toPath.getOr(""))
+                case FileCreation =>
+                    let path = if (file.diffLineToPath.isSome()) { file.diffLineToPath.getOrThrow() } else if (file.toPath.isSome()) { file.toPath.getOrThrow() } else { "" }
                     let modeStr = file.newFileMode.getOrThrow()
                     let mode = parseFileMode(modeStr)
                     if (mode.isSome()) {
@@ -946,12 +939,10 @@ class PatchLinesParser {
                             creation.hunk = file.hunks[0]
                         }
                         creation.hash = file.afterHash
-                        patchFile.parts.append(PatchFilePart(creation))
+                        patchFile.parts.add(PatchFilePart(creation))
                     }
-                }
-                case FilePatch | FileModeChange => {
-                    destinationFilePath = file.toPath.getOr(file.diffLineToPath)
-                }
+                case FilePatch | FileModeChange =>
+                    destinationFilePath = if (file.toPath.isSome()) { file.toPath } else { file.diffLineToPath }
             }
 
             // 处理模式更改
@@ -961,7 +952,7 @@ class PatchLinesParser {
                 let oldMode = parseFileMode(file.oldMode.getOrThrow())
                 let newMode = parseFileMode(file.newMode.getOrThrow())
                 if (oldMode.isSome() && newMode.isSome()) {
-                    patchFile.parts.append(PatchFilePart(
+                    patchFile.parts.add(PatchFilePart(
                         FileModeChange(destinationFilePath.getOrThrow(),
                                        oldMode.getOrThrow(), newMode.getOrThrow())
                     ))
@@ -974,7 +965,7 @@ class PatchLinesParser {
                 fp.hunks = file.takeHunks()
                 fp.beforeHash = file.beforeHash
                 fp.afterHash = file.afterHash
-                patchFile.parts.append(PatchFilePart(fp))
+                patchFile.parts.add(PatchFilePart(fp))
             }
         }
 
@@ -984,7 +975,7 @@ class PatchLinesParser {
     /// 解析文件模式字符串
     func parseFileMode(mode: String): ?FileMode {
         // 解析八进制模式
-        let parsed = Int64.parse(mode).getOr(-1)
+        let parsed = IntParser.parseInt(mode, 10)
         if (parsed < 0) { return None }
         let masked = parsed % 512 // & 0o777
         FileMode.fromU32(masked)
@@ -1018,7 +1009,7 @@ class Tuple2<T1, T2> {
         this.v2 = v2
     }
 
-    operator func [](index: Int64): T1 where T1 == T2 {
-        if (index == 0) { v1 } else { v2 }
-    }
+    func getFirst(): T1 { v1 }
+
+    func getSecond(): T2 { v2 }
 }

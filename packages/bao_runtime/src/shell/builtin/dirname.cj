@@ -5,6 +5,7 @@
 package bao_runtime.shell.builtin
 
 import bao_core.*
+import bao_runtime.shell.*
 
 // ============================================================================
 // dirname命令 - 返回路径的目录部分
@@ -30,7 +31,7 @@ public class DirnameCmd {
     public func start(): Yield {
         let args = this.bltn().argsSlice()
 
-        if (args.length == 0) {
+        if (args.size == 0) {
             return this.fail(Builtin.Kind.usageString("dirname"))
         }
 
@@ -41,44 +42,44 @@ public class DirnameCmd {
         }
 
         this.state = DirnameState.done
-        if (let safeguard = this.bltn().stdout.needsIO()) {
+        if (let Some(safeguard) <- this.bltn().stdout.needsIO()) {
             return this.bltn().stdout.enqueue(this, this.buf.toArray(), safeguard)
         }
         return this.bltn().done(0)
     }
 
     /// 失败处理
-    func fail(msg: String): Yield {
-        if (let safeguard = this.bltn().stderr.needsIO()) {
+    func fail(s: String): Yield {
+        if (let Some(safeguard) <- this.bltn().stderr.needsIO()) {
             this.state = DirnameState.err
             return this.bltn().stderr.enqueue(this, msg.toByteArray(), safeguard)
         }
-        this.bltn().writeNoIO(.stderr, msg.toByteArray())
+        this.bltn().writeNoIO(OutKind.stderr, msg.toByteArray())
         return this.bltn().done(1)
     }
 
     /// 打印到缓冲区或直接输出
-    func print(msg: String): Unit {
+    func print(s: String): Unit {
         if (this.bltn().stdout.needsIO() != None) {
             this.buf.appendAll(msg.toByteArray())
             return
         }
-        this.bltn().writeNoIO(.stdout, msg.toByteArray())
+        this.bltn().writeNoIO(OutKind.stdout, msg.toByteArray())
     }
 
     /// IO写入器数据块回调
-    public func onIOWriterChunk(amount: UInt64, maybeErr: ?SystemError): Yield {
-        if (let e = maybeErr) {
+    public func onIOWriterChunk(chunk: UInt64, maybeErr: ?SystemError): Yield {
+        if (let Some(e) <- maybeErr) {
             e.deref()
             this.state = DirnameState.err
             return this.bltn().done(1)
         }
-        switch (this.state) {
-            case .done =>
+        match (this.state) {
+            case done =>
                 return this.bltn().done(0)
-            case .err =>
+            case err =>
                 return this.bltn().done(1)
-            case .idle =>
+            case idle =>
                 unreachableState("Dirname.onIOWriterChunk", "idle")
         }
     }

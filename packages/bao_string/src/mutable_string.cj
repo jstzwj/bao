@@ -31,7 +31,7 @@ public class MutableString {
     /// 带初始容量初始化
     /// 严格翻译自 MutableString.init
     public init(capacity: Int64) {
-        this.buffer = Array<Byte>(capacity, repeat: Byte(0))
+        this.buffer = Array<UInt8>(capacity, { _ => UInt8(0) })
         this.used = 0
         this.capacity = capacity
     }
@@ -111,7 +111,7 @@ public class MutableString {
     public func growIfNeeded(amount: Int64): Unit {
         if (this.used + amount > this.capacity) {
             let newCapacity = max(this.capacity * 2, this.used + amount)
-            var newBuffer = Array<Byte>(newCapacity, repeat: Byte(0))
+            var newBuffer = Array<UInt8>(newCapacity, { _ => UInt8(0) })
             for (i in 0..this.used) {
                 newBuffer[i] = this.buffer[i]
             }
@@ -374,7 +374,7 @@ public class MutableStringBufferedWriter {
 
     public init(context: MutableString) {
         this.context = context
-        this.buf = Array<Byte>(MAX, repeat: Byte(0))
+        this.buf = Array<UInt8>(MAX, { _ => UInt8(0) })
         this.pos = 0
     }
 
@@ -422,7 +422,7 @@ public class MutableStringBufferedWriter {
         while (items.size > 0) {
             var j: Int64 = -1
             for (i in 0..items.size) {
-                if (items[i] == Byte('"') || items[i] == Byte('<') || items[i] == Byte('>')) {
+                if (items[i] == UInt8(0x22) || items[i] == UInt8(0x3C) || items[i] == UInt8(0x3E)) {
                     j = i
                     break
                 }
@@ -430,9 +430,9 @@ public class MutableStringBufferedWriter {
 
             if (j >= 0) {
                 writeAll(items[0..j])
-                if (items[j] == Byte('"')) {
+                if (items[j] == UInt8(0x22)) {
                     writeAll("&quot;")
-                } else if (items[j] == Byte('<')) {
+                } else if (items[j] == UInt8(0x3C)) {
                     writeAll("&lt;")
                 } else {
                     writeAll("&gt;")

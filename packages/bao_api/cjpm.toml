@@ -1,0 +1,19 @@
+[package]
+cjc-version = "1.0.0"
+name = "bao_api"
+organization = "bao"
+description = "Bao API facade: re-exports bao_options schema types, npm registry parser, peechy schema codec (encode/decode), websocket protocol types"
+version = "0.1.0"
+compile-option = ""
+override-compile-option = ""
+link-option = ""
+output-type = "static"
+src-dir = "src"
+target-dir = ""
+
+[dependencies]
+bao_options = { path = "../bao_options" }
+bao_url = { path = "../bao_url" }
+bao_core = { path = "../bao_core" }
+bao_collections = { path = "../bao_collections" }
+bao_hash = { path = "../bao_hash" }

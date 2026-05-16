@@ -46,7 +46,7 @@ class HashEntry<K, V> {
 /// 保持插入顺序，使用 WyHash 哈希算法
 /// Bun: threshold = 8，低于阈值线性扫描，高于阈值哈希查找
 /// 使用 Robin-Hood 开放寻址哈希减少冲突
-public class HashMap<K, V> {
+public class HashMap<K, V> where K <: ToString {
     /// 条目数组 - 对应 Bun keys[] + values[]
     private var entries: ArrayList<HashEntry<K, V>>
     /// 当前元素数量
@@ -72,7 +72,7 @@ public class HashMap<K, V> {
         entries = ArrayList<HashEntry<K, V>>()
         _size = 0
         _capacity = 16
-        buckets = Array<Int64>(_capacity, item: -1)
+        buckets = Array<Int64>(_capacity, repeat: -1)
         indexed = false
     }
 
@@ -80,7 +80,7 @@ public class HashMap<K, V> {
         entries = ArrayList<HashEntry<K, V>>()
         _size = 0
         _capacity = if (capacity < 16) { 16 } else { capacity }
-        buckets = Array<Int64>(_capacity, item: -1)
+        buckets = Array<Int64>(_capacity, repeat: -1)
         indexed = false
     }
 
@@ -236,7 +236,7 @@ public class HashMap<K, V> {
     }
 
     /// 获取所有条目
-    public func entries(): ArrayList<(K, V)> {
+    public func allEntries(): ArrayList<(K, V)> {
         let result = ArrayList<(K, V)>()
         for (i in 0..entries.size) {
             let e = entries[i]
@@ -297,7 +297,7 @@ public class HashMap<K, V> {
     public func resize(newCapacity: Int64): Unit {
         let cap = if (newCapacity < 16) { Int64(16) } else { newCapacity }
         _capacity = cap
-        buckets = Array<Int64>(_capacity, item: -1)
+        buckets = Array<Int64>(_capacity, repeat: -1)
         indexed = false
         if (_size >= THRESHOLD) {
             rebuildIndex()
@@ -315,7 +315,7 @@ public class HashMap<K, V> {
 
     /// 键相等比较
     private func keyEquals(a: K, b: K): Bool {
-        return a == b
+        return a.toString() == b.toString()
     }
 
     /// 在哈希桶中查找索引 - 使用 Robin-Hood 探测
@@ -363,7 +363,7 @@ public class HashMap<K, V> {
         }
         if (newCap != _capacity) {
             _capacity = newCap
-            buckets = Array<Int64>(_capacity, item: -1)
+            buckets = Array<Int64>(_capacity, repeat: -1)
         } else {
             for (i in 0..buckets.size) {
                 buckets[i] = -1
@@ -383,7 +383,7 @@ public class HashMap<K, V> {
     private func ensureCapacity(): Unit {
         if (entries.size >= _capacity - 1 || needsResize()) {
             _capacity *= 2
-            buckets = Array<Int64>(_capacity, item: -1)
+            buckets = Array<Int64>(_capacity, repeat: -1)
             indexed = false
         }
     }
@@ -409,10 +409,13 @@ class MapIterator<K, V> <: Iterator<(K, V)> {
         return false
     }
 
-    public func next(): (K, V) {
+    public func next(): ?(K, V) {
+        if (!hasNext()) {
+            return None
+        }
         let e = entries[pos]
         pos += 1
-        return (e.key, e.value)
+        return Some((e.key, e.value))
     }
 }
 
@@ -424,7 +427,7 @@ class MapIterator<K, V> <: Iterator<(K, V)> {
 
 /// 通用哈希集合 - 对应 Bun ArrayHashSet
 /// 保持插入顺序，基于 HashMap 实现
-public class HashSet<T> {
+public class HashSet<T> where T <: ToString {
     private var map: HashMap<T, Bool>
     /// 标记值 - HashSet 不需要值，用 true 占位
     private static let PRESENT: Bool = true
@@ -494,20 +497,26 @@ public class HashSet<T> {
 }
 
 /// HashSet 迭代器
-class SetIterator<T> <: Iterator<T> {
-    private var iter: MapIterator<T, Bool>
+class SetIterator<T> <: Iterator<T> where T <: ToString {
+    private let items: ArrayList<T>
+    private var index: Int64
 
     public init(map: HashMap<T, Bool>) {
-        this.iter = map.iterator()
+        this.items = map.keys()
+        this.index = 0
     }
 
     public func hasNext(): Bool {
-        return iter.hasNext()
+        return index < items.size
     }
 
-    public func next(): T {
-        let (k, _) = iter.next()
-        return k
+    public func next(): ?T {
+        if (!hasNext()) {
+            return None
+        }
+        let value = items[index]
+        index += 1
+        return Some(value)
     }
 }
 
@@ -524,7 +533,7 @@ class SetIterator<T> <: Iterator<T> {
 /// Bun: StringArrayHashMap<Box<[u8]>> + dupe_keys 控制是否克隆键
 /// 仓颉: 使用 HashMap<BaoString, V> 包装
 /// 支持大小写不敏感选项 (CaseInsensitiveAscii)
-public class StringMap<V> {
+public class PackageStringMap<V> {
     /// 底层映射表 - 对应 Bun map: StringArrayHashMap<Box<[u8]>>
     public var map: HashMap<BaoString, V>
     /// 是否复制键字节 - 对应 Bun dupe_keys: bool
@@ -546,14 +555,6 @@ public class StringMap<V> {
         this.caseInsensitive = false
     }
 
-    /// 带大小写不敏感选项初始化
-    // 严格翻译自: CaseInsensitiveAsciiStringArrayHashMap
-    public init(caseInsensitive: Bool) {
-        map = HashMap<BaoString, V>()
-        this.dupeKeys = false
-        this.caseInsensitive = caseInsensitive
-    }
-
     /// 完整配置初始化
     public init(dupeKeys: Bool, caseInsensitive: Bool) {
         map = HashMap<BaoString, V>()
@@ -565,28 +566,31 @@ public class StringMap<V> {
     // 严格翻译自: CaseInsensitiveAsciiStringContext.hash/toLower
     private func normalizeKey(key: BaoString): BaoString {
         if (caseInsensitive) {
-            return BaoString(key.toString().toLower())
+            return BaoString(key.toString().toAsciiLower())
         }
         return key
     }
 
     /// 克隆 - 对应 Bun StringMap::clone
-    public func clone(): StringMap<V> {
-        let result = StringMap<V>(dupeKeys, caseInsensitive)
-        for ((k, v) in map) {
-            result.map.put(k.clone(), v)
+    public func clone(): PackageStringMap<V> {
+        let result = PackageStringMap<V>(dupeKeys, caseInsensitive)
+        for (k in map.keys()) {
+            match (map.get(k)) {
+                case Some(v) => result.map.put(k.clone(), v)
+                case None => ()
+            }
         }
         return result
     }
 
     /// 获取所有键 - 对应 Bun StringMap::keys -> &[Box<[u8]>]
     public func keys(): ArrayList<BaoString> {
-        return ArrayList<BaoString>(map.keys())
+        return map.keys()
     }
 
     /// 获取所有值 - 对应 Bun StringMap::values -> &[Box<[u8]>]
     public func values(): ArrayList<V> {
-        return ArrayList<V>(map.values())
+        return map.values()
     }
 
     /// 获取条目数 - 对应 Bun StringMap::count
@@ -683,7 +687,7 @@ public class StringSet {
     }
 
     public func remove(value: BaoString): Bool {
-        return set.remove(value) != None
+        return set.remove(value) != Option<Bool>.None
     }
 
     public func count(): Int64 {
@@ -711,7 +715,7 @@ public interface PriorityCompare<T> {
 }
 
 /// 最小堆优先队列 - 严格对应 Bun PriorityQueue
-public class PriorityQueue<T> {
+public class PriorityQueue<T> where T <: ToString {
     /// 元素数组 - 对应 Bun items: Vec<T>
     public var items: ArrayList<T>
     /// 元素索引映射 (用于 decreaseKey/increaseKey)
@@ -986,9 +990,6 @@ public class SmallList<T> {
 
     /// 设置长度 - 对应 Bun SmallList::set_len
     public func setLen(newLen: UInt32): Unit {
-        while (data.size < Int64(newLen)) {
-            data.append(default<T>())  // 需要 T 有默认值
-        }
         while (data.size > Int64(newLen)) {
             data.removeAt(data.size - 1)
         }
@@ -996,7 +997,7 @@ public class SmallList<T> {
 
     /// 转为数组
     public func toArray(): Array<T> {
-        return data.toArray()
+        return data.items()
     }
 
     /// 遍历
@@ -1017,9 +1018,9 @@ public class SmallList<T> {
     }
 
     /// 映射 - 对应 Bun SmallList::map
-    public func map(func: (T) -> T): Unit {
+    public func map(mapper: (T) -> T): Unit {
         for (i in 0..data.size) {
-            data[i] = func(data[i])
+            data[i] = mapper(data[i])
         }
     }
 }
@@ -1035,12 +1036,12 @@ public class ArrayBuffer {
     private var length: Int64
 
     public init() {
-        data = Array<UInt8>(256, item: 0)
+        data = Array<UInt8>(256, repeat: 0)
         length = 0
     }
 
     public init(capacity: Int64) {
-        data = Array<UInt8>(capacity, item: 0)
+        data = Array<UInt8>(capacity, repeat: 0)
         length = 0
     }
 
@@ -1060,16 +1061,12 @@ public class ArrayBuffer {
 
     public func appendString(s: String): Unit {
         for (c in s) {
-            append(UInt8(c.value))
+            append(UInt8(c))
         }
     }
 
     public func slice(): Array<UInt8> {
-        var result = Array<UInt8>()
-        for (i in 0..length) {
-            result.append(data[i])
-        }
-        return result
+        return Array<UInt8>(length, { i => data[i] })
     }
 
     public func len(): Int64 {
@@ -1092,7 +1089,7 @@ public class ArrayBuffer {
         if (newCap < needed) {
             newCap = needed
         }
-        var newData = Array<UInt8>(newCap, item: 0)
+        var newData = Array<UInt8>(newCap, repeat: 0)
         for (i in 0..length) {
             newData[i] = data[i]
         }
@@ -1117,7 +1114,7 @@ public interface ObjectPoolType<T> {
 // 严格翻译自: pool.rs 中 ObjectPool<T, THREADSAFE, MAX_COUNT>
 /// 使用 singly-linked free list 管理
 /// 支持最大池大小限制和 reset 回调
-public class ObjectPool<T> {
+public class PackageObjectPool<T> {
     /// 池中空闲对象列表 (singly-linked free list)
     // 严格翻译自: pool.rs 中 SinglyLinkedList<T>
     private var pool: ArrayList<T>
@@ -1232,16 +1229,16 @@ public class ObjectPool<T> {
     /// 池命中率 (获取时从池中复用的比例)
     public func hitRate(): Float64 {
         if (totalGetCount == 0) { return 0.0 }
-        let hits = totalGetCount - (totalCreated - (pool.size + totalPutCount - totalGetCount).clamp(0, totalCreated))
+        let hits = totalGetCount - (totalCreated - clampInt64(pool.size + totalPutCount - totalGetCount, 0, totalCreated))
         return Float64(hits) / Float64(totalGetCount)
     }
 }
 
 /// Int64 钳制
-private func Int64.clamp(minVal: Int64, maxVal: Int64): Int64 {
-    if (this < minVal) { return minVal }
-    if (this > maxVal) { return maxVal }
-    return this
+private func clampInt64(value: Int64, minVal: Int64, maxVal: Int64): Int64 {
+    if (value < minVal) { return minVal }
+    if (value > maxVal) { return maxVal }
+    return value
 }
 
 // ============================================================================
@@ -1286,7 +1283,7 @@ private func Int64.clamp(minVal: Int64, maxVal: Int64): Int64 {
 
 // string_map.cj 导出:
 //   StringMapEntry<V>           - 字符串映射条目
-//   StringMap<V>                - 字符串键值映射 (支持大小写不敏感)
+//   PackageStringMap<V>                - 字符串键值映射 (支持大小写不敏感)
 
 // vec_ext.cj 导出:
 //   ArrayList<T> 扩展方法       - VecExt<T> (vecInitCapacity, vecSlice, vecAppend 等)

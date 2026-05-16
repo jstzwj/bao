@@ -5,6 +5,7 @@
 package bao_runtime.shell.states
 
 import bao_core.*
+import bao_runtime.shell.*
 
 // ============================================================================
 // 脚本执行状态
@@ -13,7 +14,7 @@ import bao_core.*
 
 /// 脚本状态类型（提取到顶层）
 public enum ScriptStateKind {
-| `normal`(idx: UInt64)
+| `normal`(UInt64)
 }
 
 /// 脚本状态父节点指针（提取到顶层）
@@ -68,7 +69,7 @@ public class ScriptState {
         script.node = node
         script.parent = parentPtr
         script.io = io
-        script.state = ScriptStateKind.`normal`(idx: 0)
+        script.state = ScriptStateKind.`normal`(0)
         return script
     }
 
@@ -82,18 +83,18 @@ public class ScriptState {
 
     /// 下一步
     public func next(): Yield {
-        switch (this.state) {
-            case ScriptStateKind.`normal`(let idx) =>
+        match (this.state) {
+            case ScriptStateKind.`normal`(idx) =>
                 if (idx >= this.node.stmts.size) {
                     return Yield.suspended
                 }
                 let stmtNode = this.node.stmts[idx]
-                this.state = ScriptStateKind.`normal`(idx: idx + 1)
-                let stmt = StmtState.init(
+                this.state = ScriptStateKind.`normal`(idx + 1)
+                let stmt = StmtState.`init`(
                     interpreter: this.base.interpreter,
                     shellState: this.base.shell,
                     node: stmtNode,
-                    parent: StmtParentPtr.init(this),
+                    parent: StmtParentPtr.`init`(this),
                     io: this.io.ref()
                 )
                 return stmt.start()
@@ -108,8 +109,8 @@ public class ScriptState {
     /// 子节点完成
     public func childDone(child: ScriptChildPtr, exitCode: ExitCode): Yield {
         child.deinit()
-        switch (this.state) {
-            case ScriptStateKind.`normal`(let idx) =>
+        match (this.state) {
+            case ScriptStateKind.`normal`(idx) =>
                 if (idx >= this.node.stmts.size) {
                     return this.finish(exitCode)
                 }

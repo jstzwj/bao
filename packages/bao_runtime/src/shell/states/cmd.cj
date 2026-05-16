@@ -5,6 +5,7 @@
 package bao_runtime.shell.states
 
 import bao_core.*
+import bao_runtime.shell.*
 import std.collection.*
 
 // ============================================================================
@@ -16,8 +17,8 @@ import std.collection.*
 public enum CmdStateKind {
 | `idle`
 | expandingAssigns(AssignsState)
-| expandingRedirect(idx: UInt32, expansion: ExpansionState)
-| expandingArgs(idx: UInt32, expansion: ExpansionState)
+| expandingRedirect(UInt32, ExpansionState)
+| expandingArgs(UInt32, ExpansionState)
 | `exec`
 | done
 | waitingWriteErr
@@ -67,7 +68,7 @@ public class CmdChildPtr {
         return cp
     }
 
-    public func is(type: Any): Boolean {
+    public func `is`(`type`: Any): Bool {
         return true
     }
 
@@ -82,12 +83,12 @@ public class CmdChildPtr {
 
 /// 缓冲IO关闭状态（提取到顶层）
 public class CmdBufferedIoClosed {
-    public var stdin: ?Boolean = None
+    public var stdin: ?Bool = None
     public var stdout: ?CmdBufferedIoState = None
     public var stderr: ?CmdBufferedIoState = None
 
     /// 是否全部关闭
-    public func allClosed(): Boolean {
+    public func allClosed(): Bool {
         let stdinClosed = this.stdin ?? true
         let stdoutClosed = if (let Some(s) <- this.stdout) { s.closed() } else { true }
         let stderrClosed = if (let Some(s) <- this.stderr) { s.closed() } else { true }
@@ -116,7 +117,7 @@ public class CmdBufferedIoState {
     public var state: CmdBufferedIoStateKind = CmdBufferedIoStateKind.open
 
     /// 是否已关闭
-    public func closed(): Boolean {
+    public func closed(): Bool {
         return this.state == CmdBufferedIoStateKind.closed
     }
 
@@ -148,7 +149,7 @@ public class CmdState {
     /// spawn用的arena
     public var spawnArena: ArenaAllocator
     /// spawn arena是否已释放
-    public var spawnArenaFreed: Boolean = false
+    public var spawnArenaFreed: Bool = false
 
     /// 参数
     public var args: ArrayList<?String>
@@ -179,7 +180,7 @@ public class CmdState {
         cmd.base = Base.initWithNewAllocScope(StateKind.cmd, interpreter, shellState)
         cmd.node = node
         cmd.parent = parent
-        cmd.spawnArena = ArenaAllocator.init(cmd.base.allocator())
+        cmd.spawnArena = ArenaAllocator.`init`(cmd.base.allocator())
         cmd.args = ArrayList<?String>()
         cmd.redirectionFile = ArrayList<Byte>()
         cmd.exitCode = None
@@ -191,26 +192,26 @@ public class CmdState {
     /// 下一步
     public func next(): Yield {
         while (this.state != CmdStateKind.done) {
-            switch (this.state) {
-                case CmdStateKind.`idle` =>
+            match (this.state) {
+                case CmdStateKind.`idle` => ()
                     // 展开赋值
                     this.state = CmdStateKind.expandingAssigns(AssignsState())
                 case CmdStateKind.expandingAssigns =>
                     return Yield.suspended
                 case CmdStateKind.expandingRedirect =>
-                    this.state = CmdStateKind.expandingArgs(idx: 0, expansion: ExpansionState())
+                    this.state = CmdStateKind.expandingArgs(0, ExpansionState())
                     continue
-                case CmdStateKind.expandingArgs(let idx, let expansion) =>
+                case CmdStateKind.expandingArgs(idx, expansion) =>
                     if (idx >= this.node.nameAndArgs.size) {
                         return this.transitionToExecStateAndYield()
                     }
-                    this.state = CmdStateKind.expandingArgs(idx: idx + 1, expansion: expansion)
+                    this.state = CmdStateKind.expandingArgs(idx + 1, expansion)
                     return expansion.start()
                 case CmdStateKind.waitingWriteErr =>
                     unreachableState("Cmd.next", "waitingWriteErr")
                 case CmdStateKind.`exec` =>
                     unreachableState("Cmd.next", "exec")
-                case CmdStateKind.done =>
+                case CmdStateKind.done => ()
                     // 不可达
             }
         }
@@ -229,9 +230,9 @@ public class CmdState {
     }
 
     /// IO写入器数据块回调
-    public func onIOWriterChunk(amount: UInt64, err: ?SystemError): Yield {
+    public func onIOWriterChunk(chunk: UInt64, err: ?SystemError): Yield {
         if (let Some(e) <- err) {
-            this.base.throw(ShellErr.newSys(e))
+            this.base.`throw`(ShellErr.newSys(e))
             return Yield.failed
         }
         return this.parent.childDone(this, 1)
@@ -272,7 +273,7 @@ public class CmdState {
     }
 
     /// 是否已完成
-    public func hasFinished(): Boolean {
+    public func hasFinished(): Bool {
         if (this.exitCode == None) {
             return false
         }
@@ -286,7 +287,7 @@ public class CmdState {
     }
 
     /// 写入失败错误
-    public func writeFailingError(fmt: String): Yield {
+    public func writeFailingError(s: String): Yield {
         return this.base.shell.writeFailingErrorFmt(this, { _ => Yield.done }, fmt, [])
     }
 

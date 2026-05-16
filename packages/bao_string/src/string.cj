@@ -9,6 +9,7 @@
 //   仓颉实现提供等价的 Tagged Union 语义
 package bao_string
 
+import std.collection.*
 
 // ============================================================================
 // Tag 枚举
@@ -88,55 +89,55 @@ public class BunString {
     /// 空字符串
     /// 严格翻译自 String.empty
     public static func empty(): BunString {
-        return BunString(tag: BunStringTag.Empty, utf8Data: [], utf16Data: [], wtfImpl: None)
+        return BunString(BunStringTag.Empty, [], [], Option<WTFStringImplStruct>.None)
     }
 
     /// 死亡字符串
     /// 严格翻译自 String.dead
     public static func dead(): BunString {
-        return BunString(tag: BunStringTag.Dead, utf8Data: [], utf16Data: [], wtfImpl: None)
+        return BunString(BunStringTag.Dead, [], [], Option<WTFStringImplStruct>.None)
     }
 
     /// 从 ASCII 字节创建
     /// 严格翻译自 String.ascii
     public static func ascii(bytes: Array<Byte>): BunString {
-        return BunString(tag: BunStringTag.ZigString, utf8Data: bytes, utf16Data: [], wtfImpl: None)
+        return BunString(BunStringTag.ZigString, bytes, [], Option<WTFStringImplStruct>.None)
     }
 
     /// 从字符串创建(借用)
     /// 严格翻译自 String.init (byte slice 分支)
     public static func initFunc(str: String): BunString {
-        return BunString(tag: BunStringTag.ZigString, utf8Data: str.toArray(), utf16Data: [], wtfImpl: None)
+        return BunString(BunStringTag.ZigString, str.toArray(), [], Option<WTFStringImplStruct>.None)
     }
 
     /// 创建静态字符串
     /// 严格翻译自 String.static
     public static func `static`(input: String): BunString {
-        return BunString(tag: BunStringTag.StaticZigString, utf8Data: input.toArray(), utf16Data: [], wtfImpl: None)
+        return BunString(BunStringTag.StaticZigString, input.toArray(), [], Option<WTFStringImplStruct>.None)
     }
 
     /// 借用 UTF-8 字符串
     /// 严格翻译自 String.borrowUTF8
     public static func borrowUTF8(value: String): BunString {
-        return BunString(tag: BunStringTag.ZigString, utf8Data: value.toArray(), utf16Data: [], wtfImpl: None)
+        return BunString(BunStringTag.ZigString, value.toArray(), [], Option<WTFStringImplStruct>.None)
     }
 
     /// 借用 UTF-16 字符串
     /// 严格翻译自 String.borrowUTF16
     public static func borrowUTF16(value: Array<UInt16>): BunString {
-        return BunString(tag: BunStringTag.ZigString, utf8Data: [], utf16Data: value, wtfImpl: None)
+        return BunString(BunStringTag.ZigString, [], value, Option<WTFStringImplStruct>.None)
     }
 
     /// 从字节创建(自动检测编码)
     /// 严格翻译自 String.fromBytes
     public static func fromBytes(value: String): BunString {
-        return BunString(tag: BunStringTag.ZigString, utf8Data: value.toArray(), utf16Data: [], wtfImpl: None)
+        return BunString(BunStringTag.ZigString, value.toArray(), [], Option<WTFStringImplStruct>.None)
     }
 
     /// 克隆 UTF-8 字符串
     /// 严格翻译自 String.cloneUTF8
     public static func cloneUTF8(bytes: String): BunString {
-        return BunString(tag: BunStringTag.ZigString, utf8Data: bytes.toArray(), utf16Data: [], wtfImpl: None)
+        return BunString(BunStringTag.ZigString, bytes.toArray(), [], Option<WTFStringImplStruct>.None)
     }
 
     /// 克隆 Latin1 字符串
@@ -145,7 +146,7 @@ public class BunString {
         if (bytes.size == 0) {
             return BunString.empty()
         }
-        return BunString(tag: BunStringTag.ZigString, utf8Data: bytes.toArray(), utf16Data: [], wtfImpl: None)
+        return BunString(BunStringTag.ZigString, bytes.toArray(), [], Option<WTFStringImplStruct>.None)
     }
 
     /// 克隆 UTF-16 字符串
@@ -154,13 +155,13 @@ public class BunString {
         if (bytes.size == 0) {
             return BunString.empty()
         }
-        return BunString(tag: BunStringTag.ZigString, utf8Data: [], utf16Data: bytes, wtfImpl: None)
+        return BunString(BunStringTag.ZigString, [], bytes, Option<WTFStringImplStruct>.None)
     }
 
     /// 从 WTFStringImpl 创建
     /// 严格翻译自 String.init (WTFStringImpl 分支)
     public static func fromWTF(impl: WTFStringImplStruct): BunString {
-        return BunString(tag: BunStringTag.WTFStringImpl, utf8Data: [], utf16Data: [], wtfImpl: Some(impl))
+        return BunString(BunStringTag.WTFStringImpl, [], [], Some(impl))
     }
 
     // ========================================================================
@@ -170,7 +171,10 @@ public class BunString {
     /// 判断是否为空
     /// 严格翻译自 String.isEmpty
     public func isEmpty(): Bool {
-        return this.tag == BunStringTag.Empty || length() == 0
+        match (this.tag) {
+            case BunStringTag.Empty => return true
+            case _ => return length() == 0
+        }
     }
 
     /// 获取长度
@@ -215,10 +219,10 @@ public class BunString {
     /// 判断是否为 UTF-8 编码
     /// 严格翻译自 String.isUTF8
     public func isUTF8(): Bool {
-        if (!(this.tag == BunStringTag.ZigString || this.tag == BunStringTag.StaticZigString)) {
-            return false
+        match (this.tag) {
+            case BunStringTag.ZigString | BunStringTag.StaticZigString => return this.utf16Data.size == 0
+            case _ => return false
         }
-        return this.utf16Data.size == 0
     }
 
     /// 判断是否为 8 位编码
@@ -339,9 +343,6 @@ public class BunString {
     /// 获取 UTF-16 字符串视图
     /// 严格翻译自 String.utf16
     public func utf16(): Array<UInt16> {
-        if (this.tag == BunStringTag.Empty) {
-            return []
-        }
         match (this.tag) {
             case BunStringTag.WTFStringImpl =>
                 match (this.wtfImpl) {
@@ -360,9 +361,6 @@ public class BunString {
     /// 获取 Latin1 视图
     /// 严格翻译自 String.latin1
     public func latin1(): Array<Byte> {
-        if (this.tag == BunStringTag.Empty) {
-            return []
-        }
         match (this.tag) {
             case BunStringTag.WTFStringImpl =>
                 match (this.wtfImpl) {
@@ -402,7 +400,7 @@ public class BunString {
                 } else {
                     let s = if (startIndex < this.utf8Data.size) { startIndex } else { this.utf8Data.size }
                     let e = if (endIndex < this.utf8Data.size) { endIndex } else { this.utf8Data.size }
-                    return BunString(tag: this.tag, utf8Data: this.utf8Data[s..e], utf16Data: [], wtfImpl: None)
+                    return BunString(this.tag, this.utf8Data[s..e], [], Option<WTFStringImplStruct>.None)
                 }
             case BunStringTag.WTFStringImpl =>
                 match (this.wtfImpl) {
@@ -566,8 +564,9 @@ public class BunString {
     /// 克隆
     /// 严格翻译自 String.clone
     public func clone(): BunString {
-        if (this.tag == BunStringTag.WTFStringImpl) {
-            return dupeRef()
+        match (this.tag) {
+            case BunStringTag.WTFStringImpl => return dupeRef()
+            case _ => ()
         }
 
         if (isEmpty()) {
@@ -589,39 +588,40 @@ public class BunString {
     /// 转换为 UTF-8 字符串
     /// 严格翻译自 String.toUTF8
     public func toUTF8String(): String {
-        if (this.tag == BunStringTag.Empty || this.tag == BunStringTag.Dead) {
-            return ""
+        match (this.tag) {
+            case BunStringTag.Empty | BunStringTag.Dead => return ""
+            case _ => ()
         }
 
         if (isUTF16()) {
             // UTF-16 转 UTF-8
-            var result = Array<Byte>()
+            var result = ArrayList<Byte>()
             var i: Int64 = 0
             while (i < this.utf16Data.size) {
                 let w = this.utf16Data[i]
                 if (w <= 0x7F) {
-                    result.append(Byte(w))
+                    result.add(UInt8(w))
                 } else if (w <= 0x7FF) {
-                    result.append(Byte(0xC0 | ((w >> 6) & 0x1F)))
-                    result.append(Byte(0x80 | (w & 0x3F)))
+                    result.add(UInt8(0xC0 | ((w >> 6) & 0x1F)))
+                    result.add(UInt8(0x80 | (w & 0x3F)))
                 } else if (w >= 0xD800 && w <= 0xDBFF && i + 1 < this.utf16Data.size) {
                     // 代理对
                     let hi = UInt32(w)
                     let lo = UInt32(this.utf16Data[i + 1])
                     let cp = ((hi - 0xD800) << 10) + (lo - 0xDC00) + 0x10000
-                    result.append(Byte(0xF0 | ((cp >> 18) & 0x07)))
-                    result.append(Byte(0x80 | ((cp >> 12) & 0x3F)))
-                    result.append(Byte(0x80 | ((cp >> 6) & 0x3F)))
-                    result.append(Byte(0x80 | (cp & 0x3F)))
+                    result.add(UInt8(0xF0 | ((cp >> 18) & 0x07)))
+                    result.add(UInt8(0x80 | ((cp >> 12) & 0x3F)))
+                    result.add(UInt8(0x80 | ((cp >> 6) & 0x3F)))
+                    result.add(UInt8(0x80 | (cp & 0x3F)))
                     i += 1
                 } else {
-                    result.append(Byte(0xE0 | ((w >> 12) & 0x0F)))
-                    result.append(Byte(0x80 | ((w >> 6) & 0x3F)))
-                    result.append(Byte(0x80 | (w & 0x3F)))
+                    result.add(UInt8(0xE0 | ((w >> 12) & 0x0F)))
+                    result.add(UInt8(0x80 | ((w >> 6) & 0x3F)))
+                    result.add(UInt8(0x80 | (w & 0x3F)))
                 }
                 i += 1
             }
-            return String.fromUtf8(result)
+            return String.fromUtf8(result.toArray())
         }
 
         return String.fromUtf8(this.utf8Data)
@@ -661,8 +661,10 @@ public class BunString {
                     return true
                 }
                 return false
-            case BunStringTag.Dead | BunStringTag.Empty =>
-                return this.tag == BunStringTag.Empty
+            case BunStringTag.Dead =>
+                return false
+            case BunStringTag.Empty =>
+                return true
         }
     }
 
@@ -770,7 +772,7 @@ public class SliceWithUnderlyingString {
     /// 从 UTF-8 创建
     /// 严格翻译自 SliceWithUnderlyingString.fromUTF8
     public static func fromUTF8(utf8: String): SliceWithUnderlyingString {
-        return SliceWithUnderlyingString(utf8: utf8.toArray(), underlying: BunString.dead())
+        return SliceWithUnderlyingString(utf8.toArray(), BunString.dead())
     }
 
     /// 获取切片
@@ -794,6 +796,6 @@ public class SliceWithUnderlyingString {
     /// 复制引用
     /// 严格翻译自 SliceWithUnderlyingString.dupeRef
     public func dupeRef(): SliceWithUnderlyingString {
-        return SliceWithUnderlyingString(utf8: [], underlying: this.underlying.dupeRef())
+        return SliceWithUnderlyingString([], this.underlying.dupeRef())
     }
 }

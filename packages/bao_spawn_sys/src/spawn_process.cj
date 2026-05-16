@@ -979,7 +979,7 @@ public func spawnProcessPosix(
 
         match (ipc) {
             case PosixStdio.Dup2(_) =>
-                throw BaoError(ErrorCode.NotImplemented, "TODO dup2 extra fd")
+                panic("TODO dup2 extra fd")
             case PosixStdio.Inherit =>
                 let inheritResult = actions.inherit(fileno)
                 match (inheritResult) {

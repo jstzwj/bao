@@ -5,6 +5,7 @@
 package bao_runtime.shell.builtin
 
 import bao_core.*
+import bao_runtime.shell.*
 
 // ============================================================================
 // touch命令 - 更新文件时间戳或创建文件
@@ -20,7 +21,7 @@ public enum TouchState {
 }
 
 public struct ExecState {
-    public var started: Boolean = false
+    public var started: Bool = false
     public var tasksCount: UIntPtr = 0
     public var tasksDone: UIntPtr = 0
     public var outputDone: UIntPtr = 0
@@ -48,38 +49,38 @@ public class TouchCmd {
     /// 启动
     public func start(): Yield {
         let parseResult = this.opts.parse(this.bltn().argsSlice())
-        let filepathArgs = switch (parseResult) {
-            case .ok(let args) => args
-            case .err(let e) =>
-                let buf = switch (e) {
-                    case .illegalOption(let optStr) =>
-                        this.bltn().fmtErrorArena("touch", "illegal option -- ${optStr}\n", [])
-                    case .showUsage =>
+        let filepathArgs = match (parseResult) {
+            case TouchParseResult.ok(args) => args
+            case TouchParseResult.err(e) =>
+                let buf = match (e) {
+                    case TouchParseError.illegalOption(optStr) =>
+                        this.bltn().fmtErrorArena("touch", "illegal option -- " + optStr + "\n", [])
+                    case TouchParseError.showUsage =>
                         Builtin.Kind.usageString("touch")
-                    case .unsupported(let unsupported) =>
-                        this.bltn().fmtErrorArena("touch", "unsupported option, please open a GitHub issue -- ${unsupported}\n", [])
+                    case TouchParseError.unsupported(unsupported) =>
+                        this.bltn().fmtErrorArena("touch", "unsupported option, please open a GitHub issue -- " + unsupported + "\n", [])
                 }
                 return this.writeFailingError(buf, 1)
         }
 
-        if (filepathArgs == None || filepathArgs.length == 0) {
+        if (filepathArgs == None || filepathArgs.size == 0) {
             return this.writeFailingError(Builtin.Kind.usageString("touch"), 1)
         }
 
-        this.state = TouchState.exec(ExecState(args: filepathArgs))
+        this.state = TouchState.exec(ExecState(filepathArgs))
         return this.next()
     }
 
     /// 下一步
     public func next(): Yield {
-        switch (this.state) {
-            case .idle =>
+        match (this.state) {
+            case idle =>
                 panic("Invalid state")
-            case .exec(let exec) =>
+            case exec(exec) =>
                 if (exec.started) {
                     if (exec.tasksDone >= exec.tasksCount && exec.outputDone >= exec.outputWaiting) {
-                        let exitCode: ExitCode = if (exec.err != None) 1 else 0
-                        if (let e = exec.err) {
+                        let exitCode: ExitCode = if (exec.err != None) { 1 } else { 0 }
+                        if (let Some(e) <- exec.err) {
                             e.deref()
                         }
                         this.state = TouchState.done
@@ -91,31 +92,31 @@ public class TouchCmd {
                 // 为每个参数启动touch任务
                 return Yield.suspended
 
-            case .waitingWriteErr =>
+            case waitingWriteErr =>
                 return Yield.failed
-            case .done =>
+            case done =>
                 return this.bltn().done(0)
         }
     }
 
     /// IO写入器数据块回调
-    public func onIOWriterChunk(amount: UInt64, e: ?SystemError): Yield {
-        if (let err = e) {
+    public func onIOWriterChunk(chunk: UInt64, e: ?SystemError): Yield {
+        if (let Some(err) <- e) {
             err.deref()
         }
-        if (this.state == .waitingWriteErr) {
+        if (this.state == TouchState.waitingWriteErr) {
             return this.bltn().done(1)
         }
         return this.next()
     }
 
     /// 写入失败错误
-    public func writeFailingError(buf: String, exitCode: ExitCode): Yield {
-        if (let safeguard = this.bltn().stderr.needsIO()) {
+    public func writeFailingError(s: String, exitCode: ExitCode): Yield {
+        if (let Some(safeguard) <- this.bltn().stderr.needsIO()) {
             this.state = TouchState.waitingWriteErr
             return this.bltn().stderr.enqueue(this, buf.toByteArray(), safeguard)
         }
-        this.bltn().writeNoIO(.stderr, buf.toByteArray())
+        this.bltn().writeNoIO(OutKind.stderr, buf.toByteArray())
         return this.bltn().done(exitCode)
     }
 
@@ -133,15 +134,15 @@ public class TouchCmd {
 /// touch命令选项
 public struct TouchOpts {
     /// -a: 仅更改访问时间
-    public var accessTimeOnly: Boolean = false
+    public var accessTimeOnly: Bool = false
     /// -c: 不创建文件
-    public var noCreate: Boolean = false
+    public var noCreate: Bool = false
     /// -d: 使用指定日期
     public var date: ?String = None
     /// -h: 不解引用符号链接
-    public var noDereference: Boolean = false
+    public var noDereference: Bool = false
     /// -m: 仅更改修改时间
-    public var modificationTimeOnly: Boolean = false
+    public var modificationTimeOnly: Bool = false
     /// -r: 使用参考文件的时间
     public var reference: ?String = None
     /// -t: 使用指定时间戳
@@ -150,27 +151,27 @@ public struct TouchOpts {
     public var time: ?String = None
 
     /// 解析参数
-    public func parse(args: Array<String>): TouchParseResult {
+    public func parse(arr: Array<String>): TouchParseResult {
         var idx: UInt32 = 0
-        while (idx < args.length) {
+        while (idx < args.size) {
             let arg = args[idx]
-            if (arg.length == 0 || arg[0] != '-') {
+            if (arg.size == 0 || arg[0] != '-') {
                 break
             }
             for (c in arg.substring(1)) {
                 if (c == 'a' || c == 'c' || c == 'd' || c == 'h' || c == 'm' || c == 'r' || c == 't') {
-                    return .err(.unsupported("-${c}"))
+                    return TouchParseResult.err(TouchParseError.unsupported("-" + c.toString()))
                 } else {
-                    return .err(.illegalOption("-${c}"))
+                    return TouchParseResult.err(TouchParseError.illegalOption("-" + c.toString()))
                 }
             }
             idx++
         }
 
-        if (idx >= args.length) {
-            return .ok(None)
+        if (idx >= args.size) {
+            return TouchParseResult.ok(None)
         }
-        return .ok(args[idx..])
+        return TouchParseResult.ok(args[idx..])
     }
 }
 
@@ -227,7 +228,7 @@ public class ShellTouchTask {
 
     /// 去初始化
     public func deinit() {
-        if (let e = this.err) {
+        if (let Some(e) <- this.err) {
             e.deref()
         }
     }

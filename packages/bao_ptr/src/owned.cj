@@ -22,7 +22,7 @@ import bao_core.*
 /// 这是 OwnedIn(Pointer, bun.DefaultAllocator) 的别名
 public class Owned<T> {
     var _pointer: ?T = None<T>
-    var _allocator: Allocator = Allocator()
+    var _allocator: ?Allocator = None<Allocator>
 
     public init() {}
 
@@ -37,7 +37,7 @@ public class Owned<T> {
     public static func fromRawIn(data: T, allocator: Allocator): Owned<T> {
         let owned = Owned<T>()
         owned._pointer = Some(data)
-        owned._allocator = allocator
+        owned._allocator = Some(allocator)
         return owned
     }
 
@@ -52,7 +52,7 @@ public class Owned<T> {
     public static func allocIn(value: T, allocator: Allocator): Owned<T> {
         let owned = Owned<T>()
         owned._pointer = Some(value)
-        owned._allocator = allocator
+        owned._allocator = Some(allocator)
         return owned
     }
 
@@ -97,7 +97,7 @@ public class Owned<T> {
     }
 
     /// 将所有权指针转换为原始指针和分配器
-    public func intoRawWithAllocator(): (?T, Allocator) {
+    public func intoRawWithAllocator(): (?T, ?Allocator) {
         let result = (this._pointer, this._allocator)
         this._pointer = None<T>
         return result
@@ -137,7 +137,7 @@ public class Owned<T> {
     }
 
     /// 返回借用版本的分配器
-    public func allocator(): Allocator {
+    public func allocator(): ?Allocator {
         this._allocator
     }
 }
@@ -150,7 +150,7 @@ public class Owned<T> {
 /// 这是 OwnedIn(Pointer, Allocator) 的别名，在运行时存储 Allocator
 public class Dynamic<T> {
     var _pointer: ?T = None<T>
-    var _allocator: Allocator = Allocator()
+    var _allocator: ?Allocator = None<Allocator>
 
     public init() {}
 
@@ -165,7 +165,7 @@ public class Dynamic<T> {
     public static func fromRawIn(data: T, allocator: Allocator): Dynamic<T> {
         let dyn = Dynamic<T>()
         dyn._pointer = Some(data)
-        dyn._allocator = allocator
+        dyn._allocator = Some(allocator)
         return dyn
     }
 
@@ -187,7 +187,7 @@ public class Dynamic<T> {
     }
 
     /// 返回分配器
-    public func allocator(): Allocator {
+    public func allocator(): ?Allocator {
         this._allocator
     }
 
@@ -200,7 +200,7 @@ public class Dynamic<T> {
     public static func allocDupeIn(data: T, allocator: Allocator): Dynamic<T> {
         let dyn = Dynamic<T>()
         dyn._pointer = Some(data)
-        dyn._allocator = allocator
+        dyn._allocator = Some(allocator)
         return dyn
     }
 }
@@ -213,7 +213,7 @@ public class Dynamic<T> {
 /// 如果 Allocator 是零大小类型，所有权指针与原始指针相比没有额外开销
 public class OwnedIn<T> {
     var _pointer: ?T = None<T>
-    var _allocator: Allocator = Allocator()
+    var _allocator: ?Allocator = None<Allocator>
 
     public init() {}
 
@@ -228,7 +228,7 @@ public class OwnedIn<T> {
     public static func allocIn(value: T, allocator: Allocator): OwnedIn<T> {
         let owned = OwnedIn<T>()
         owned._pointer = Some(value)
-        owned._allocator = allocator
+        owned._allocator = Some(allocator)
         return owned
     }
 
@@ -258,7 +258,7 @@ public class OwnedIn<T> {
     public static func fromRawIn(data: T, allocator: Allocator): OwnedIn<T> {
         let owned = OwnedIn<T>()
         owned._pointer = Some(data)
-        owned._allocator = allocator
+        owned._allocator = Some(allocator)
         return owned
     }
 
@@ -285,7 +285,7 @@ public class OwnedIn<T> {
     }
 
     /// 转换为原始指针和分配器
-    public func intoRawWithAllocator(): (?T, Allocator) {
+    public func intoRawWithAllocator(): (?T, ?Allocator) {
         let result = (this._pointer, this._allocator)
         this._pointer = None<T>
         return result
@@ -334,7 +334,7 @@ public class OwnedIn<T> {
     }
 
     /// 获取分配器
-    public func allocator(): Allocator {
+    public func allocator(): ?Allocator {
         this._allocator
     }
 }

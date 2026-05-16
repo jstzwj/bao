@@ -77,7 +77,7 @@ public class BitSet {
         let maskIdx = index / BITS_PER_MASK
         let bitIdx = index % BITS_PER_MASK
         if (maskIdx < masks.size) {
-            masks[maskIdx] = masks[maskIdx] & ~(UInt64(1) << UInt64(bitIdx))
+            masks[maskIdx] = masks[maskIdx] & (UInt64.Max - (UInt64(1) << UInt64(bitIdx)))
         }
     }
 
@@ -137,7 +137,7 @@ public class BitSet {
     public func setDifference(other: BitSet): Unit {
         let minMasks = if (masks.size < other.masks.size) { masks.size } else { other.masks.size }
         for (i in 0..minMasks) {
-            masks[i] = masks[i] & ~other.masks[i]
+            masks[i] = masks[i] & (UInt64.Max - other.masks[i])
         }
     }
 
@@ -165,10 +165,9 @@ public class BitSet {
     public func toggleFirstSet(): ?Int64 {
         let idx = findFirstSet()
         match (idx) {
-            case Some(i) => {
+            case Some(i) =>
                 unset(i)
                 return Some(i)
-            }
             case None => return None
         }
     }
@@ -226,7 +225,7 @@ public class BitSet {
     /// 设置所有位
     public func setAll(): Unit {
         for (i in 0..masks.size) {
-            masks[i] = ~UInt64(0)
+            masks[i] = UInt64.Max
         }
     }
 
@@ -236,7 +235,7 @@ public class BitSet {
             var mask = masks[i]
             var bit: Int64 = 0
             while (mask != UInt64(0)) {
-                if (mask & UInt64(1) != UInt64(0)) {
+                if ((mask & UInt64(1)) != UInt64(0)) {
                     let idx = i * BITS_PER_MASK + bit
                     if (idx < bitCount) {
                         fn(idx)
@@ -317,7 +316,7 @@ public class BitSet {
     /// 所有位取反
     public func complement(): Unit {
         for (i in 0..masks.size) {
-            masks[i] = ~masks[i]
+            masks[i] = masks[i] ^ UInt64.Max
         }
     }
 
@@ -337,7 +336,7 @@ public class BitSet {
             let bitIdx = idx % BITS_PER_MASK
             if (maskIdx < masks.size) {
                 // 掩码掉 bitIdx 以下的位
-                var mask = masks[maskIdx] & (~UInt64(0) << UInt64(bitIdx))
+                var mask = masks[maskIdx] & (UInt64.Max << UInt64(bitIdx))
                 while (mask != UInt64(0)) {
                     let tz = trailingZeros(mask)
                     let result = maskIdx * BITS_PER_MASK + tz

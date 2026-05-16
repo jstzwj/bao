@@ -67,9 +67,6 @@ public class HwTimer {
     /// 纳秒每毫秒 - 对应 Zig: std.time.ns_per_ms = 1_000_000
     public static let NS_PER_MS: UInt64 = 1_000_000
 
-    /// 校准数据实例 - 对应 Zig: var calibration: Calibration = .{}
-    public static let calibrationData: CalibrationData = CalibrationData()
-
     /// 是否已校准 - 对应 Zig: var calibrate_once = std.once(calibrate)
     public static var isCalibrated: Bool = false
 
@@ -126,7 +123,7 @@ public class HwTimer {
                 let ticks = readCounter() - calibrationData.startCounter
                 // 对应 Zig: std.math.mulWide(u64, ticks, calibration.mult) >> shift
                 // u64 * u64 宽乘法后右移 32 位
-                let ns = UInt64((UInt128(ticks) * UInt128(calibrationData.mult)) >> UInt128(SHIFT))
+                let ns = ((UInt128(ticks) * UInt128(calibrationData.mult)) >> UInt128(SHIFT)).low
                 return calibrationData.startNs + ns
             }
         }
@@ -179,7 +176,7 @@ public class HwTimer {
         calibrationData.startNs = startNs
         // mult = ((ns_per_s << shift) + (freq / 2)) / freq
         // 使用 UInt128 避免溢出
-        calibrationData.mult = UInt64(((UInt128(NS_PER_S) << UInt128(SHIFT)) + UInt128(freq / 2)) / UInt128(freq))
+        calibrationData.mult = (((UInt128(NS_PER_S) << UInt128(SHIFT)) + UInt128(freq / 2)) / UInt128(freq)).low
     }
 
     // ========================================================================
@@ -283,17 +280,62 @@ public class HwTimer {
 /// 用于硬件计时器校准中的宽乘法运算
 /// 对应 Zig 的 u128 类型
 public struct UInt128 {
-    public let high: UInt64
-    public let low: UInt64
+    public var high: UInt64
+    public var low: UInt64
+
+    public init(high: UInt64, low: UInt64) {
+        this.high = high
+        this.low = low
+    }
 
     public init(value: UInt64) {
         this.high = 0
         this.low = value
     }
 
-    public init(high: UInt64, low: UInt64) {
-        this.high = high
-        this.low = low
+    public init(value: Int64) {
+        this.high = 0
+        this.low = UInt64(value)
+    }
+
+    /// 加法运算
+    public operator func +(other: UInt128): UInt128 {
+        let newLow = this.low + other.low
+        let carry = if (newLow < this.low) { UInt64(1) } else { UInt64(0) }
+        let newHigh = this.high + other.high + carry
+        return UInt128(newHigh, newLow)
+    }
+
+    /// 除法运算 (简化: 仅支持小除数)
+    public operator func /(other: UInt128): UInt128 {
+        // 简化实现: 假设 other 高位为 0 (64 位除数)
+        if (other.high != 0) {
+            return UInt128(0, 0)
+        }
+        let divisor = other.low
+        if (divisor == 0) {
+            return UInt128(0, 0)
+        }
+        if (this.high == 0) {
+            return UInt128(0, this.low / divisor)
+        }
+        // 128 位除法: 使用二分搜索
+        var quotient = UInt64(0)
+        var remainder = UInt64(0)
+        // 高 64 位除法；低 64 位 quotient 无法表示 (high/divisor)<<64，截断为 0
+        if (this.high >= divisor) {
+            remainder = this.high % divisor
+        } else {
+            remainder = this.high
+        }
+        // 低 64 位
+        let combined = (remainder << 32) | (this.low >> 32)
+        let q1 = combined / divisor
+        remainder = combined % divisor
+        let combined2 = (remainder << 32) | (this.low & UInt64(0xFFFFFFFF))
+        let q2 = combined2 / divisor
+        quotient = quotient | (q1 << 32) | q2
+        return UInt128(0, quotient)
     }
 
     /// 左移运算
@@ -303,37 +345,37 @@ public struct UInt128 {
             return this
         }
         if (s >= 128) {
-            return UInt128(high: 0, low: 0)
+            return UInt128(0, 0)
         }
         if (s >= 64) {
-            return UInt128(high: low << UInt64(s - 64), low: 0)
+            return UInt128(low << UInt64(s - 64), 0)
         }
         return UInt128(
-            high: (high << UInt64(s)) | (low >> UInt64(64 - s)),
-            low: low << UInt64(s)
+            (high << UInt64(s)) | (low >> UInt64(64 - s)),
+            low << UInt64(s)
         )
     }
 
     /// 右移运算
-    public func >>(shift: UInt128): UInt128 {
+    public operator func >>(shift: UInt128): UInt128 {
         let s = shift.low
         if (s == 0) {
             return this
         }
         if (s >= 128) {
-            return UInt128(high: 0, low: 0)
+            return UInt128(0, 0)
         }
         if (s >= 64) {
-            return UInt128(high: 0, low: high >> UInt64(s - 64))
+            return UInt128(0, high >> UInt64(s - 64))
         }
         return UInt128(
-            high: high >> UInt64(s),
-            low: (low >> UInt64(s)) | (high << UInt64(64 - s))
+            high >> UInt64(s),
+            (low >> UInt64(s)) | (high << UInt64(64 - s))
         )
     }
 
     /// 乘法运算 (宽乘法)
-    public func *(other: UInt128): UInt128 {
+    public operator func *(other: UInt128): UInt128 {
         // 将每个 128 位值拆分为高 64 位和低 64 位
         // result = (a.high * b.high) << 128 + (a.high * b.low + a.low * b.high) << 64 + a.low * b.low
         // 简化: 仅保留低 128 位
@@ -355,6 +397,6 @@ public struct UInt128 {
         let lowResult = p0 + ((p1 + p2) << 32)
         let highResult = p3 + carry + this.low * other.high + this.high * bLow
 
-        return UInt128(high: highResult, low: lowResult)
+        return UInt128(highResult, lowResult)
     }
 }

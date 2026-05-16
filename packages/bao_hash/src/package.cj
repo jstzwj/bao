@@ -11,6 +11,8 @@
 //   src/sha_hmac/ - SHA 哈希 + HMAC 消息认证码
 package bao_hash
 
+import std.collection.*
+
 import bao_core.*
 
 // ============================================================================
@@ -33,11 +35,11 @@ public class WyHash {
 
     /// 计算字符串哈希
     public static func hash(s: String): UInt64 {
-        var bytes = Array<UInt8>()
+        var bytes = ArrayList<UInt8>()
         for (c in s) {
-            bytes.append(UInt8(c.value))
+            bytes.add(UInt8(UInt32(c)))
         }
-        return hash(bytes)
+        return hash(bytes.toArray())
     }
 
     /// 带种子的哈希 - 完整 WyHash final3 实现
@@ -45,9 +47,9 @@ public class WyHash {
     public static func hashWithSeed(data: Array<UInt8>, seed: UInt64): UInt64 {
         let len = data.size
         // WyHash final3 常量 (wyp0-wyp4)
-        let WYP0: UInt64 = 0xa0761d6478bd642f
-        let WYP1: UInt64 = 0xe7037ed1a0b428db
-        let WYP2: UInt64 = 0x8ebc6af09c88c6e3
+        let WYP0: UInt64 = ((UInt64(0xa0761d64) << UInt64(32)) | UInt64(0x78bd642f))
+        let WYP1: UInt64 = ((UInt64(0xe7037ed1) << UInt64(32)) | UInt64(0xa0b428db))
+        let WYP2: UInt64 = ((UInt64(0x8ebc6af0) << UInt64(32)) | UInt64(0x9c88c6e3))
         let WYP3: UInt64 = 0x589965cc75374cc3
         let WYP4: UInt64 = 0x1d8e4e27c47d124f
 
@@ -112,7 +114,7 @@ public class WyHash {
         var y = b
         x = x ^ (x >> 32)
         y = y ^ (y >> 32)
-        return (x * 0xa0761d6478bd642f) ^ (y * 0xe7037ed1a0b428db)
+        return (x * ((UInt64(0xa0761d64) << UInt64(32)) | UInt64(0x78bd642f))) ^ (y * ((UInt64(0xe7037ed1) << UInt64(32)) | UInt64(0xa0b428db)))
     }
 
     /// 从字节数组读取小端 UInt64
@@ -327,18 +329,18 @@ public class Crc32 {
     public static func hash(data: Array<UInt8>): UInt32 {
         var crc: UInt32 = 0xFFFFFFFF
         for (b in data) {
-            let index = Int32((crc ^ UInt32(b)) & 0xFF)
+            let index = Int64((crc ^ UInt32(b)) & 0xFF)
             crc = TABLE[index] ^ (crc >> 8)
         }
         return crc ^ 0xFFFFFFFF
     }
 
     public static func hash(s: String): UInt32 {
-        var bytes = Array<UInt8>()
+        var bytes = ArrayList<UInt8>()
         for (c in s) {
-            bytes.append(UInt8(c.value))
+            bytes.add(UInt8(UInt32(c)))
         }
-        return hash(bytes)
+        return hash(bytes.toArray())
     }
 
     private static func buildTable(): Array<UInt32> {
@@ -364,7 +366,7 @@ public class Crc32 {
 
 /// FNV-1a 哈希算法
 public class Fnv1a {
-    private static let OFFSET_BASIS: UInt64 = 14695981039346656037
+    private static let OFFSET_BASIS: UInt64 = ((UInt64(0xcbf29ce4) << UInt64(32)) | UInt64(0x84222325))
     private static let PRIME: UInt64 = 1099511628211
 
     public static func hash(data: Array<UInt8>): UInt64 {
@@ -379,7 +381,7 @@ public class Fnv1a {
     public static func hash(s: String): UInt64 {
         var h = OFFSET_BASIS
         for (c in s) {
-            h = h ^ UInt64(c.value)
+            h = h ^ UInt64(UInt32(c))
             h = h * PRIME
         }
         return h

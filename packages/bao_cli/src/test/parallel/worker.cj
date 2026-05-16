@@ -2,6 +2,8 @@
 package bao_cli.test.parallel
 
 import bao_core.*
+import bao_runtime.*
+import std.collection.*
 
 // ============================================================================
 // Worker — 并行测试工作器

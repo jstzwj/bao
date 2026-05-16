@@ -13,11 +13,11 @@
 //   wait(): lock -> while(permits==0) cond.wait -> permits-- -> if(permits>0) cond.signal -> unlock
 //   post(): lock -> permits++ -> cond.signal -> unlock
 //
-// 仓颉使用 std.sync.Semaphore + Mutex/Condition 实现等价语义
+// 仓颉使用 Semaphore + Mutex/Condition 实现等价语义
 package bao_threading
 
 import std.sync.*
-import std.time.Duration
+import std.time.*
 
 // ============================================================================
 // Semaphore - 计数信号量
@@ -40,7 +40,7 @@ import std.time.Duration
 //   3. cond.signal()
 //   4. mutex.unlock()
 //
-// 仓颉 std.sync.Semaphore 原生提供 acquire/release
+// 仓颉 Semaphore 原生提供 acquire/release
 // 本实现严格对应 Bun 的 Mutex + Condition + permits 模式
 // ============================================================================
 
@@ -57,7 +57,7 @@ import std.time.Duration
 /// 仓颉使用 Mutex + Condition 实现等价语义
 public class Semaphore {
     /// 互斥锁 - 对应 Bun Semaphore.mutex
-    private let mutex: std.sync.Mutex
+    private let mutex: Mutex
     /// 条件变量 - 对应 Bun Semaphore.cond
     private let cond: Condition
     /// 许可数 - 对应 Bun Semaphore.permits (UnsafeCell<usize>)
@@ -68,7 +68,7 @@ public class Semaphore {
     /// 严格翻译自: Semaphore.rs:33-35
     ///   Self::with_permits(0)
     public init() {
-        mutex = std.sync.Mutex()
+        mutex = Mutex()
         cond = mutex.condition()
         permits = 0
     }
@@ -77,7 +77,7 @@ public class Semaphore {
     /// 严格翻译自: Semaphore.rs:38-44
     ///   Self { mutex: Mutex::new(), cond: Condition::new(), permits: UnsafeCell::new(permits) }
     public init(permits: Int64) {
-        mutex = std.sync.Mutex()
+        mutex = Mutex()
         cond = mutex.condition()
         this.permits = permits
     }

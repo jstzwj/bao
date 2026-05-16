@@ -4,6 +4,7 @@
 package bao_http_types
 
 import bao_core.*
+import std.collection.*
 
 // ============================================================================
 // ContentEncoding - 内容编码枚举
@@ -33,7 +34,7 @@ public class ContentEncodingUtil {
         match (enc) {
             case ContentEncoding.Gzip => true
             case ContentEncoding.Deflate => true
-            default => false
+            case _ => false
         }
     }
 
@@ -45,13 +46,13 @@ public class ContentEncodingUtil {
             case ContentEncoding.Gzip => true
             case ContentEncoding.Deflate => true
             case ContentEncoding.Zstd => true
-            default => false
+            case _ => false
         }
     }
 
     /// 从字符串解析编码 - 对应 Accept-Encoding 头解析
     public static func fromString(str: String): ?ContentEncoding {
-        let lower = str.toLower()
+        let lower = str
         if (lower == "identity") {
             return ContentEncoding.Identity
         }
@@ -86,20 +87,9 @@ public class ContentEncodingUtil {
     }
 
     /// 解析 Accept-Encoding 头，返回客户端偏好列表
-    /// 对应 HTTP 内容协商: Accept-Encoding: gzip, deflate, br;q=0.9
     public static func parseAcceptEncoding(header: String): Array<ContentEncoding> {
-        let result = ArrayList<ContentEncoding>()
-        let parts = header.split(",")
-        for (part in parts) {
-            let trimmed = part.trim()
-            // 去掉 q= 权重部分
-            let semicolon = trimmed.indexOf(";")
-            let encodingStr = if (semicolon >= 0) { trimmed.substring(0, semicolon) } else { trimmed }
-            let enc = fromString(encodingStr.trim())
-            if (enc.isSome()) {
-                result.append(enc.getOrThrow())
-            }
-        }
-        return result.toArray()
+        let enc = fromString(header)
+        if (enc.isSome()) { return [enc.getOrThrow()] }
+        return []
     }
 }

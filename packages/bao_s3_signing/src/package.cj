@@ -9,7 +9,6 @@ package bao_s3_signing
 
 import bao_core.*
 import bao_hash.*
-import bao_hash.*
 
 // ============================================================================
 // S3 签名模块子模块引用
@@ -17,8 +16,8 @@ import bao_hash.*
 
 /// ACL (Access Control List) - S3 访问控制列表
 /// 对应 Bun: src/s3_signing/acl.zig ACL = enum
-/// 用法: ACL.Private, ACL.PublicRead, ACL.fromString("public-read")
-public typealias S3Acl = ACL
+/// 用法: S3Acl.Private, S3Acl.PublicRead, S3Acl.fromString("public-read")
+// S3Acl 已在 acl.cj 中定义
 
 /// StorageClass - S3 存储类别
 /// 对应 Bun: src/s3_signing/storage_class.zig StorageClass = enum

@@ -5,6 +5,7 @@
 package bao_runtime.shell.states
 
 import bao_core.*
+import bao_runtime.shell.*
 import std.collection.*
 
 // ============================================================================
@@ -24,15 +25,15 @@ public enum ExpansionStateKind {
 /// 子状态类型（提取到顶层）
 public enum ExpansionChildStateKind {
 | `idle`
-| cmdSubst(cmd: ScriptState, quoted: Boolean)
-| globWalker(walker: Any)
+| cmdSubst(ScriptState, Bool)
+| globWalker(Any)
 }
 
 /// 展开结果类型（提取到顶层）
 public enum ExpansionResult {
 | arrayOfSlice(ArrayList<String>)
 | arrayOfPtr(ArrayList<?String>)
-| single(list: ArrayList<Byte>, done: Boolean)
+| single(ArrayList<Byte>, Bool)
 }
 
 /// 展开状态父节点指针（提取到顶层）
@@ -55,7 +56,7 @@ public class ExpansionChildPtr {
         cp.ptr = p
         return cp
     }
-    public func is(type: Any): Boolean { true }
+    public func `is`(`type`: Any): Bool { true }
     public func `as`<T>(): T { this.ptr as T }
     public func deinit() {}
 }
@@ -86,7 +87,7 @@ public class ExpansionState {
     /// 输出索引
     public var outIdx: UInt32 = 0
     /// 是否包含引号空字符串
-    public var hasQuotedEmpty: Boolean = false
+    public var hasQuotedEmpty: Bool = false
 
     /// 初始化
     public static func initFunc(
@@ -126,7 +127,7 @@ public class ExpansionState {
     /// 下一步
     public func next(): Yield {
         while (this.state != ExpansionStateKind.done && this.state != ExpansionStateKind.err) {
-            switch (this.state) {
+            match (this.state) {
                 case ExpansionStateKind.`normal` =>
                     while (this.wordIdx < this.node.atomsLen()) {
                         if (let Some(y) <- this.expandVarAndCmdSubst(this.wordIdx)) {
@@ -139,13 +140,13 @@ public class ExpansionState {
                         continue
                     }
                     return Yield.suspended
-                case ExpansionStateKind.braces =>
+                case ExpansionStateKind.braces => ()
                     // 大括号展开
                     this.state = ExpansionStateKind.done
                     continue
                 case ExpansionStateKind.glob =>
                     return this.transitionToGlobState()
-                case ExpansionStateKind.done | ExpansionStateKind.err =>
+                case ExpansionStateKind.done | ExpansionStateKind.err => ()
                     // 不可达
             }
         }
@@ -156,7 +157,7 @@ public class ExpansionState {
     }
 
     /// 展开变量和命令替换
-    public func expandVarAndCmdSubst(startWordIdx: UInt32): ?Yield {
+    public func expandVarAndCmdSubst(n: UInt32): ?Yield {
         // 检查是否为命令替换
         // 如果是则创建子脚本执行
         this.wordIdx += 1
@@ -184,7 +185,7 @@ public class ExpansionState {
     }
 
     /// 展开变量
-    func expandVar(label: String): String {
+    func expandVar(s: String): String {
         let value = this.base.shell.shellEnv.get(EnvStr.initSlice(label.toByteArray())) ??
             this.base.shell.exportEnv.get(EnvStr.initSlice(label.toByteArray())) ?? ""
         return value.slice().toString()

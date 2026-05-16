@@ -16,8 +16,36 @@
 //   - 字符排序 (sortAsc, sortDesc)
 package bao_string
 
+import std.collection.*
+
 import bao_core.*
 import bao_unicode.*
+
+// ============================================================================
+// Tuple types (Cangjie does not have built-in Tuple)
+// ============================================================================
+
+/// Byte和String的元组
+public type Byte = UInt8
+
+public class ByteStringTuple {
+    public var first: UInt8
+    public var second: String
+    public init(first: UInt8, second: String) {
+        this.first = first
+        this.second = second
+    }
+}
+
+/// Int64和Int64的元组
+public class Int64Tuple {
+    public var first: Int64
+    public var second: Int64
+    public init(first: Int64, second: Int64) {
+        this.first = first
+        this.second = second
+    }
+}
 
 // ============================================================================
 // 类型别名
@@ -436,13 +464,13 @@ public func hasPrefixCaseInsensitive(str: String, prefix: String): Bool {
 /// 复制并转为小写
 /// 严格翻译自 immutable.zig copyLowercase
 public func copyLowercase(input: String): String {
-    var bytes = Array<Byte>()
+    var bytes = Array<Byte>(input.size, repeat: 0)
     for (i in 0..input.size) {
         let c = input[i]
-        if (c >= Byte('A') && c <= Byte('Z')) {
-            bytes.append(toLowerASCII(c))
+        if (c >= 65 && c <= 90) {
+            bytes[i] = toLowerASCII(c)
         } else {
-            bytes.append(c)
+            bytes[i] = c
         }
     }
     return String.fromUtf8(bytes)
@@ -452,9 +480,9 @@ public func copyLowercase(input: String): String {
 /// 严格翻译自 immutable.zig copy
 public func copy(buf: Array<Byte>, src: Array<Byte>): Array<Byte> {
     let len = if (buf.size < src.size) { buf.size } else { src.size }
-    var result = Array<Byte>()
+    var result = Array<Byte>(len, repeat: 0)
     for (i in 0..len) {
-        result.append(src[i])
+        result[i] = src[i]
     }
     return result
 }
@@ -506,7 +534,7 @@ public func repeatingBuf(buf: Array<Byte>, char: Byte): Unit {
 public func quotedAlloc(self: String): String {
     var count: Int64 = 0
     for (i in 0..self.size) {
-        if (self[i] == Byte('"')) {
+        if (self[i] == 34) {
             count += 1
         }
     }
@@ -515,14 +543,14 @@ public func quotedAlloc(self: String): String {
         return self
     }
 
-    var result = StringBuilder()
+    var result = ArrayList<Byte>()
     for (i in 0..self.size) {
-        if (self[i] == Byte('"')) {
-            result.append("\\")
+        if (self[i] == 34) {
+            result.add(UInt8(0x5C))
         }
-        result.append(String.fromByte(self[i]))
+        result.add(self[i])
     }
-    return result.toString()
+    return String.fromUtf8(result.toArray())
 }
 
 // ============================================================================
@@ -586,12 +614,12 @@ public func split(self: String, delimiter: String): SplitIterator {
 
 /// 分割第一个字节
 /// 严格翻译自 immutable.zig splitFirst
-public func splitFirst(self: String): ?Tuple<Byte, String> {
+public func splitFirst(self: String): ?ByteStringTuple {
     if (self.size == 0) {
         return None
     }
     let first = self[0]
-    return Some((first, self[1..self.size]))
+    return ByteStringTuple(first, self[1..self.size])
 }
 
 // ============================================================================
@@ -600,11 +628,11 @@ public func splitFirst(self: String): ?Tuple<Byte, String> {
 
 /// 空白字符集
 /// 严格翻译自 immutable.zig whitespace_chars
-public const WHITESPACE_CHARS: Array<Byte> = Array<Byte>([
-    Byte(0x20), Byte(0x09), Byte(0x0A), Byte(0x0D),
-    Byte(0x0B),
-    Byte(0x0C)
-])
+public let WHITESPACE_CHARS: Array<Byte> = [
+    32, 9, 10, 13,
+    11,
+    12
+]
 
 /// 修剪字符串两端指定字符
 /// 严格翻译自 immutable.zig trim
@@ -742,7 +770,7 @@ public func decodeHexToBytes(source: String): ?Array<Byte> {
         return None
     }
 
-    var result = Array<Byte>()
+    var result = ArrayList<Byte>()
     var i: Int64 = 0
     while (i + 1 < source.size) {
         let a = hexTable[Int64(source[i])]
@@ -750,10 +778,10 @@ public func decodeHexToBytes(source: String): ?Array<Byte> {
         if (a == INVALID_CHAR || b == INVALID_CHAR) {
             return None
         }
-        result.append((a << 4) | b)
+        result.add((a << 4) | b)
         i += 2
     }
-    return result
+    return result.toArray()
 }
 
 /// 十六进制解码(截断无效部分)
@@ -765,9 +793,9 @@ public func decodeHexToBytesTruncate(source: String): Array<Byte> {
 /// 字节转十六进制字符
 private func byte2hex(char: Byte): Byte {
     if (char <= 9) {
-        return char + Byte('0')
+        return char + 48
     }
-    return char - 10 + Byte('a')
+    return char - 10 + 97
 }
 
 /// 十六进制编码
@@ -777,12 +805,12 @@ public func encodeBytesToHex(source: Array<Byte>): String {
         return ""
     }
 
-    var result = Array<Byte>()
+    var result = ArrayList<Byte>()
     for (c in source) {
-        result.append(byte2hex((c >> 4) & 0xF))
-        result.append(byte2hex(c & 0xF))
+        result.add(byte2hex((c >> 4) & 0xF))
+        result.add(byte2hex(c & 0xF))
     }
-    return String.fromUtf8(result)
+    return String.fromUtf8(result.toArray())
 }
 
 // ============================================================================
@@ -806,7 +834,7 @@ public func isUUID(str: String): Bool {
             return false
         }
     }
-    if (str[8] != Byte('-')) {
+    if (str[8] != UInt8(0x2D)) {
         return false
     }
     // 4 hex chars
@@ -815,7 +843,7 @@ public func isUUID(str: String): Bool {
             return false
         }
     }
-    if (str[13] != Byte('-')) {
+    if (str[13] != UInt8(0x2D)) {
         return false
     }
     // 4 hex chars
@@ -824,7 +852,7 @@ public func isUUID(str: String): Bool {
             return false
         }
     }
-    if (str[18] != Byte('-')) {
+    if (str[18] != UInt8(0x2D)) {
         return false
     }
     // 4 hex chars
@@ -833,7 +861,7 @@ public func isUUID(str: String): Bool {
             return false
         }
     }
-    if (str[23] != Byte('-')) {
+    if (str[23] != UInt8(0x2D)) {
         return false
     }
     // 12 hex chars
@@ -871,12 +899,12 @@ public func isNPMPackageNameIgnoreLength(target: String): Bool {
     let firstChar = target[0]
     var scoped = false
 
-    if ((firstChar >= Byte('A') && firstChar <= Byte('Z')) ||
-        (firstChar >= Byte('a') && firstChar <= Byte('z')) ||
-        (firstChar >= Byte('0') && firstChar <= Byte('9')) ||
-        firstChar == Byte('$') || firstChar == Byte('-')) {
+    if ((firstChar >= 65 && firstChar <= 90) ||
+        (firstChar >= 97 && firstChar <= UInt8(0x7A)) ||
+        (firstChar >= 48 && firstChar <= UInt8(0x39)) ||
+        firstChar == UInt8(0x24) || firstChar == UInt8(0x2D)) {
         scoped = false
-    } else if (firstChar == Byte('@')) {
+    } else if (firstChar == UInt8(0x40)) {
         scoped = true
     } else {
         return false
@@ -885,12 +913,12 @@ public func isNPMPackageNameIgnoreLength(target: String): Bool {
     var slashIndex: Int64 = 0
     for (i in 1..target.size) {
         let c = target[i]
-        if ((c >= Byte('A') && c <= Byte('Z')) ||
-            (c >= Byte('a') && c <= Byte('z')) ||
-            (c >= Byte('0') && c <= Byte('9')) ||
-            c == Byte('-') || c == Byte('_') || c == Byte('.')) {
+        if ((c >= 65 && c <= 90) ||
+            (c >= 97 && c <= UInt8(0x7A)) ||
+            (c >= 48 && c <= UInt8(0x39)) ||
+            c == UInt8(0x2D) || c == UInt8(0x5F) || c == UInt8(0x2E)) {
             // ok
-        } else if (c == Byte('/')) {
+        } else if (c == UInt8(0x2F)) {
             if (!scoped) {
                 return false
             }
@@ -898,8 +926,8 @@ public func isNPMPackageNameIgnoreLength(target: String): Bool {
                 return false
             }
             slashIndex = i
-        } else if (c == Byte('!') || c == Byte('~') || c == Byte('*') ||
-                   c == Byte('\'') || c == Byte('(') || c == Byte(')')) {
+        } else if (c == UInt8(0x21) || c == UInt8(0x7E) || c == UInt8(0x2A) ||
+                   c == UInt8(0x27) || c == UInt8(0x28) || c == UInt8(0x29)) {
             if (!scoped || slashIndex > 0) {
                 return false
             }
@@ -925,11 +953,11 @@ public func startsWithNpmSecret(str: String): Int64 {
 
     var i: Int64 = 3
 
-    if (str[i] == Byte('_')) {
+    if (str[i] == UInt8(0x5F)) {
         i += 1
-    } else if (str[i] == Byte('s') || str[i] == Byte('S')) {
+    } else if (str[i] == UInt8(0x73) || str[i] == UInt8(0x53)) {
         i += 1
-        if (i >= str.size || str[i] != Byte('_')) {
+        if (i >= str.size || str[i] != UInt8(0x5F)) {
             return 0
         }
         i += 1
@@ -946,9 +974,9 @@ public func startsWithNpmSecret(str: String): Int64 {
         }
 
         let c = str[i]
-        if ((c >= Byte('0') && c <= Byte('9')) ||
-            (c >= Byte('a') && c <= Byte('z')) ||
-            (c >= Byte('A') && c <= Byte('Z'))) {
+        if ((c >= 48 && c <= UInt8(0x39)) ||
+            (c >= 97 && c <= UInt8(0x7A)) ||
+            (c >= 65 && c <= 90)) {
             i += 1
         } else {
             return if (i >= minLen) { i } else { 0 }
@@ -989,13 +1017,19 @@ public func order(a: String, b: String): Order {
 /// 升序比较器
 /// 严格翻译自 immutable.zig cmpStringsAsc
 public func cmpStringsAsc(a: String, b: String): Bool {
-    return order(a, b) == Order.LT
+    match (order(a, b)) {
+        case LT => return true
+        case _ => return false
+    }
 }
 
 /// 降序比较器
 /// 严格翻译自 immutable.zig cmpStringsDesc
 public func cmpStringsDesc(a: String, b: String): Bool {
-    return order(a, b) == Order.GT
+    match (order(a, b)) {
+        case GT => return true
+        case _ => return false
+    }
 }
 
 // ============================================================================
@@ -1017,10 +1051,10 @@ public class LineRange {
 /// 查找文本中的行范围
 /// 严格翻译自 immutable.zig indexOfLineRanges
 public func indexOfLineRanges(text: String, targetLine: UInt32, lineRangeCount: Int64): Array<LineRange> {
-    var ranges = Array<LineRange>()
+    var ranges = ArrayList<LineRange>()
 
     if (text.size == 0) {
-        return ranges
+        return ranges.toArray()
     }
 
     var currentLine: UInt32 = 0
@@ -1031,41 +1065,41 @@ public func indexOfLineRanges(text: String, targetLine: UInt32, lineRangeCount: 
     while (i < text.size) {
         let c = text[i]
 
-        if (c == Byte('\n')) {
+        if (c == UInt8(0x0A)) {
             if (currentLine == UInt32(0)) {
-                ranges.append(LineRange(start: 0, end: UInt32(i)))
+                ranges.add(LineRange(0, UInt32(i)))
             } else {
-                ranges.append(LineRange(start: prevEnd, end: UInt32(i) + 1))
+                ranges.add(LineRange(prevEnd, UInt32(i) + 1))
             }
             prevEnd = UInt32(i) + 1
 
             if (ranges.size > lineRangeCount && currentLine <= targetLine) {
-                ranges.remove(0)
+                ranges.remove(at: 0)
             }
 
             currentLine += 1
 
             if (currentLine > targetLine) {
-                return ranges
+                return ranges.toArray()
             }
-        } else if (c == Byte('\r')) {
-            if (i + 1 < text.size && text[i + 1] == Byte('\n')) {
+        } else if (c == UInt8(0x0D)) {
+            if (i + 1 < text.size && text[i + 1] == UInt8(0x0A)) {
                 if (currentLine == UInt32(0)) {
-                    ranges.append(LineRange(start: 0, end: UInt32(i)))
+                    ranges.add(LineRange(0, UInt32(i)))
                 } else {
-                    ranges.append(LineRange(start: prevEnd, end: UInt32(i)))
+                    ranges.add(LineRange(prevEnd, UInt32(i)))
                 }
                 prevEnd = UInt32(i) + 1
                 i += 1
 
                 if (ranges.size > lineRangeCount && currentLine <= targetLine) {
-                    ranges.remove(0)
+                    ranges.remove(at: 0)
                 }
 
                 currentLine += 1
 
                 if (currentLine > targetLine) {
-                    return ranges
+                    return ranges.toArray()
                 }
             }
         }
@@ -1073,7 +1107,7 @@ public func indexOfLineRanges(text: String, targetLine: UInt32, lineRangeCount: 
         i += 1
     }
 
-    return ranges
+    return ranges.toArray()
 }
 
 // ============================================================================
@@ -1102,7 +1136,7 @@ public class ANSIIterator {
         // 跳过 ANSI 转义序列
         var start = cursor
         while (cursor < input.size) {
-            if (input[cursor] == Byte('\u{1b}')) {
+            if (input[cursor] == UInt8(0x1B)) {
                 // 找到 ESC 序列,返回之前的文本
                 if (cursor > start) {
                     let result = input[start..cursor]
@@ -1110,12 +1144,12 @@ public class ANSIIterator {
                 }
                 // 跳过 ANSI 序列
                 cursor += 1
-                if (cursor < input.size && input[cursor] == Byte('[')) {
+                if (cursor < input.size && input[cursor] == UInt8(0x5B)) {
                     cursor += 1
                     while (cursor < input.size) {
                         let c = input[cursor]
                         cursor += 1
-                        if ((c >= Byte('@') && c <= Byte('~'))) {
+                        if ((c >= UInt8(0x40) && c <= UInt8(0x7E))) {
                             break
                         }
                     }
@@ -1163,7 +1197,7 @@ public func isUtf8CharBoundary(c: Byte): Bool {
 
 /// ASCII 大写转小写
 private func toLowerASCII(c: Byte): Byte {
-    if (c >= Byte('A') && c <= Byte('Z')) {
+    if (c >= 65 && c <= 90) {
         return c + 32
     }
     return c
@@ -1171,7 +1205,7 @@ private func toLowerASCII(c: Byte): Byte {
 
 /// ASCII 小写转大写
 public func toUpperASCII(c: Byte): Byte {
-    if (c >= Byte('a') && c <= Byte('z')) {
+    if (c >= 97 && c <= UInt8(0x7A)) {
         return c - 32
     }
     return c
@@ -1180,25 +1214,25 @@ public func toUpperASCII(c: Byte): Byte {
 /// 判断是否为十六进制字符
 /// 严格翻译自 immutable.zig isASCIIHexDigit
 public func isASCIIHexDigit(c: Byte): Bool {
-    return (c >= Byte('0') && c <= Byte('9')) ||
-           (c >= Byte('A') && c <= Byte('F')) ||
-           (c >= Byte('a') && c <= Byte('f'))
+    return (c >= 48 && c <= UInt8(0x39)) ||
+           (c >= 65 && c <= UInt8(0x46)) ||
+           (c >= 97 && c <= UInt8(0x66))
 }
 
 /// 十六进制字符转数值
 /// 严格翻译自 immutable.zig toASCIIHexValue
 public func toASCIIHexValue(character: Byte): Byte {
-    if (character < Byte('A')) {
-        return character - Byte('0')
+    if (character < 65) {
+        return character - 48
     }
-    return (character - Byte('A') + 10) & 0xF
+    return (character - 65 + 10) & 0xF
 }
 
 /// 判断字符是否为十六进制字符的辅助函数
 private func isHexChar(c: Byte): Bool {
-    return (c >= Byte('0') && c <= Byte('9')) ||
-           (c >= Byte('a') && c <= Byte('f')) ||
-           (c >= Byte('A') && c <= Byte('F'))
+    return (c >= 48 && c <= UInt8(0x39)) ||
+           (c >= 97 && c <= UInt8(0x66)) ||
+           (c >= 65 && c <= UInt8(0x46))
 }
 
 // ============================================================================
@@ -1215,10 +1249,10 @@ public func indexOfNeedsURLEncode(slice: String): Int64 {
     for (i in 0..slice.size) {
         let char = slice[i]
         if (char > 127 || char < 0x20 ||
-            char == Byte('%') || char == Byte('\\') || char == Byte('"') ||
-            char == Byte('#') || char == Byte('?') || char == Byte('[') ||
-            char == Byte(']') || char == Byte('^') || char == Byte('|') ||
-            char == Byte('~')) {
+            char == UInt8(0x25) || char == UInt8(0x5C) || char == 34 ||
+            char == UInt8(0x23) || char == UInt8(0x3F) || char == UInt8(0x5B) ||
+            char == UInt8(0x5D) || char == UInt8(0x5E) || char == UInt8(0x7C) ||
+            char == UInt8(0x7E)) {
             return i
         }
     }
@@ -1228,7 +1262,7 @@ public func indexOfNeedsURLEncode(slice: String): Int64 {
 /// URL 百分号编码
 /// 严格翻译自 immutable.zig percentEncodeWrite
 public func percentEncodeWrite(utf8Input: String): String {
-    var result = StringBuilder()
+    var result = ArrayList<Byte>()
     var remaining = utf8Input
 
     while (true) {
@@ -1237,12 +1271,16 @@ public func percentEncodeWrite(utf8Input: String): String {
             break
         }
 
-        result.append(remaining[0..j])
+        for (b in remaining[0..j].toArray()) {
+            result.add(b)
+        }
 
         let codePointLen = wtf8ByteSequenceLengthWithInvalid(remaining[j])
         if (j + codePointLen > remaining.size) {
             // 不完整的 UTF-8 序列
-            result.append(remaining[j..remaining.size])
+            for (b in remaining[j..remaining.size].toArray()) {
+                result.add(b)
+            }
             break
         }
 
@@ -1251,14 +1289,16 @@ public func percentEncodeWrite(utf8Input: String): String {
 
         // URL 编码
         for (b in toEncode.toArray()) {
-            result.append(String.fromByte(Byte('%')))
-            result.append(String.fromByte(byte2hex((b >> 4) & 0xF)))
-            result.append(String.fromByte(byte2hex(b & 0xF)))
+            result.add(UInt8(0x25))
+            result.add(byte2hex((b >> 4) & 0xF))
+            result.add(byte2hex(b & 0xF))
         }
     }
 
-    result.append(remaining)
-    return result.toString()
+    for (b in remaining.toArray()) {
+        result.add(b)
+    }
+    return String.fromUtf8(result.toArray())
 }
 
 // ============================================================================
@@ -1271,23 +1311,31 @@ public func join(slices: Array<String>, delimiter: String): String {
     if (slices.size == 0) {
         return ""
     }
-    var result = StringBuilder()
-    result.append(slices[0])
-    for (i in 1..slices.size) {
-        result.append(delimiter)
-        result.append(slices[i])
+    var result = ArrayList<Byte>()
+    for (b in slices[0].toArray()) {
+        result.add(b)
     }
-    return result.toString()
+    for (i in 1..slices.size) {
+        for (b in delimiter.toArray()) {
+            result.add(b)
+        }
+        for (b in slices[i].toArray()) {
+            result.add(b)
+        }
+    }
+    return String.fromUtf8(result.toArray())
 }
 
 /// 连接字符串数组(带总长度)
 /// 严格翻译自 immutable.zig concatWithLength
 public func concatWithLength(args: Array<String>, length: Int64): String {
-    var result = StringBuilder()
+    var result = ArrayList<Byte>(length)
     for (arg in args) {
-        result.append(arg)
+        for (b in arg.toArray()) {
+            result.add(b)
+        }
     }
-    return result.toString()
+    return String.fromUtf8(result.toArray())
 }
 
 /// 连接字符串数组
@@ -1328,7 +1376,7 @@ public func mustEscapeYAMLString(contents: String): Bool {
     }
 
     let first = contents[0]
-    if ((first >= Byte('A') && first <= Byte('Z')) || (first >= Byte('a') && first <= Byte('z'))) {
+    if ((first >= 65 && first <= 90) || (first >= 97 && first <= UInt8(0x7A))) {
         return hasPrefix(contents, "Yes") || hasPrefix(contents, "No") ||
                hasPrefix(contents, "true") || hasPrefix(contents, "false") ||
                indexOfAny(contents[1..contents.size], ": \t\r\n\u{0B}\u{0C}\\\",[]") >= 0
@@ -1338,7 +1386,7 @@ public func mustEscapeYAMLString(contents: String): Bool {
 
 /// 查找 URL 中的密码部分
 /// 严格翻译自 immutable.zig findUrlPassword
-public func findUrlPassword(text: String): ?Tuple<Int64, Int64> {
+public func findUrlPassword(text: String): ?Int64Tuple {
     if (!hasPrefix(text, "http")) {
         return None
     }
@@ -1352,15 +1400,19 @@ public func findUrlPassword(text: String): ?Tuple<Int64, Int64> {
     }
 
     let remain = text[offset..text.size]
-    let end = indexOfChar(remain, Byte('\n')) ?? remain.size
+    let newlineIndex = indexOfChar(remain, UInt8(0x0A))
+    let end = if (newlineIndex >= 0) { newlineIndex } else { remain.size }
     let afterNewline = remain[0..end]
-    let at = indexOfChar(afterNewline, Byte('@')) ?? return None
+    let at = indexOfChar(afterNewline, UInt8(0x40))
+    if (at < 0) {
+        return None
+    }
     let beforeAt = afterNewline[0..at]
-    let colon = indexOfCharNeg(beforeAt, Byte(':'))
+    let colon = indexOfCharNeg(beforeAt, UInt8(0x3A))
     if (colon < 0 || Int64(colon) == at - 1) {
         return None
     }
     offset += Int64(colon) + 1
     let len: Int64 = at - Int64(colon) - 1
-    return (offset, len)
+    return Int64Tuple(offset, len)
 }

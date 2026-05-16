@@ -36,7 +36,7 @@ public class LinearFifo<T> {
             cap *= 2
         }
         this.capacity = cap
-        this.buffer = Array<T>(cap, item: defaultValue)
+        this.buffer = Array<T>(cap, repeat: defaultValue)
         this.head = 0
         this.tail = 0
         this.count = 0
@@ -163,7 +163,7 @@ public class LinearFifo<T> {
             tail = 0
             return
         }
-        var newBuf = Array<T>(capacity, item: buffer[0])
+        var newBuf = Array<T>(capacity, repeat: buffer[0])
         for (i in 0..count) {
             newBuf[i] = buffer[(head + i) % capacity]
         }
@@ -183,7 +183,7 @@ public class LinearFifo<T> {
         while (newCap < minCapacity) {
             newCap *= 2
         }
-        var newBuf = Array<T>(newCap, item: buffer[0])
+        var newBuf = Array<T>(newCap, repeat: buffer[0])
         for (i in 0..count) {
             newBuf[i] = buffer[i]
         }
@@ -197,7 +197,7 @@ public class LinearFifo<T> {
             return
         }
         realign()
-        var newBuf = Array<T>(newCapacity, item: buffer[0])
+        var newBuf = Array<T>(newCapacity, repeat: buffer[0])
         for (i in 0..count) {
             newBuf[i] = buffer[i]
         }
@@ -232,35 +232,23 @@ public class LinearFifo<T> {
     /// 排空队列到数组 - 对应 Bun LinearFifo.drain
     /// 读取并移除所有元素
     public func drain(): Array<T> {
-        var result = Array<T>()
-        while (count > 0) {
-            match (readItem()) {
-                case Some(item) => result.append(item)
-                case None => break
-            }
-        }
+        let n = count
+        let result = Array<T>(n, { i => buffer[(head + i) % capacity] })
+        clear()
         return result
     }
 
     /// 获取可写切片的视图 (不移动指针)
     /// 对应 Bun LinearFifo.writableSlice
     public func writableSlice(): Array<T> {
-        var result = Array<T>()
         let available = writableLength()
-        for (i in 0..available) {
-            result.append(buffer[(tail + i) % capacity])
-        }
-        return result
+        return Array<T>(available, { i => buffer[(tail + i) % capacity] })
     }
 
     /// 获取可读切片的视图 (不移动指针)
     /// 对应 Bun LinearFifo.readableSlice
     public func readableSlice(): Array<T> {
-        var result = Array<T>()
-        for (i in 0..count) {
-            result.append(buffer[(head + i) % capacity])
-        }
-        return result
+        return Array<T>(count, { i => buffer[(head + i) % capacity] })
     }
 
     /// 转为 Owned 切片并重置 - 对应 Bun LinearFifo.toOwnedSlice

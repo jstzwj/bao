@@ -394,13 +394,13 @@ public class UvLoop {
         unsafe {
             let ptr = uv_loop_new()
             if (ptr.isNull()) {
-                return SysMaybe<Unit>.Err(SysError(12, SysTag.TODO))  // ENOMEM
+                return SysMaybe<Unit>.Err(SysError(12, SysTag.UvLoopInit))  // ENOMEM
             }
             let rc = uv_loop_init(ptr)
             if (rc != 0) {
                 uv_loop_delete(ptr)
                 return SysMaybe<Unit>.Err(
-                    SysError(UvErrno.toErrno(rc), SysTag.TODO)
+                    SysError(UvErrno.toErrno(rc), SysTag.UvLoopInit)
                 )
             }
             loop = ptr
@@ -663,7 +663,7 @@ public class UvTimer {
         let rc = uv_timer_init(loop.ptr(), handle)
         if (rc != 0) {
             return SysMaybe<Unit>.Err(
-                SysError(UvErrno.toErrno(rc), SysTag.TODO)
+                SysError(UvErrno.toErrno(rc), SysTag.UvTimer)
             )
         }
         return SysMaybe<Unit>.Ok(())
@@ -677,7 +677,7 @@ public class UvTimer {
         let rc = uv_timer_start(handle, CPointer<Unit>(), timeout, repeat)
         if (rc != 0) {
             return SysMaybe<Unit>.Err(
-                SysError(UvErrno.toErrno(rc), SysTag.TODO)
+                SysError(UvErrno.toErrno(rc), SysTag.UvTimer)
             )
         }
         return SysMaybe<Unit>.Ok(())
@@ -689,7 +689,7 @@ public class UvTimer {
         let rc = uv_timer_stop(handle)
         if (rc != 0) {
             return SysMaybe<Unit>.Err(
-                SysError(UvErrno.toErrno(rc), SysTag.TODO)
+                SysError(UvErrno.toErrno(rc), SysTag.UvTimer)
             )
         }
         return SysMaybe<Unit>.Ok(())
@@ -701,7 +701,7 @@ public class UvTimer {
         let rc = uv_timer_again(handle)
         if (rc != 0) {
             return SysMaybe<Unit>.Err(
-                SysError(UvErrno.toErrno(rc), SysTag.TODO)
+                SysError(UvErrno.toErrno(rc), SysTag.UvTimer)
             )
         }
         return SysMaybe<Unit>.Ok(())

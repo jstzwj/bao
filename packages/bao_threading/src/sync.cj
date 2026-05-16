@@ -10,8 +10,11 @@
 package bao_threading
 
 import std.sync.*
-import std.time.Duration
-import std.time.DateTime
+import std.sync.Mutex as StdMutex
+import std.sync.Condition as StdCondition
+import std.sync.Semaphore as StdSemaphore
+import std.sync.Barrier as StdBarrier
+import std.time.*
 
 // ============================================================================
 // Mutex - 互斥锁
@@ -23,7 +26,7 @@ import std.time.DateTime
 //   lock: CAS unlocked -> locked (失败则 swap -> contended 并 futex wait)
 //   unlock: swap 回 unlocked，如果之前是 contended 则 futex wake
 //
-// 仓颉 std.sync.Mutex 是可重入互斥锁，底层使用 OS pthread_mutex
+// 仓颉 Mutex 是可重入互斥锁，底层使用 OS pthread_mutex
 // 我们使用仓颉原生 Mutex 实现等价语义
 // ============================================================================
 
@@ -36,12 +39,12 @@ import std.time.DateTime
 ///   lock: tryLock 或 swap(contended) + futex.waitForever
 ///   unlock: swap(unlocked) + 如果旧状态==contended 则 futex.wake(1)
 ///
-/// 仓颉使用 std.sync.Mutex (可重入 pthread_mutex) 实现等价语义
-public class Mutex {
-    private let inner: std.sync.Mutex
+/// 仓颉使用 Mutex (可重入 pthread_mutex) 实现等价语义
+public class Mutex <: Lock {
+    private let inner: StdMutex
 
     public init() {
-        inner = std.sync.Mutex()
+        inner = StdMutex()
     }
 
     /// 加锁 - 对应 Bun Mutex.lock()
@@ -78,7 +81,7 @@ public class Mutex {
 
     /// 创建关联的条件变量 - 对应 Bun Condition 使用同一 Mutex
     /// 严格翻译自: Condition.zig 中 Condition.wait 需要传入 Mutex
-    public func condition(): Condition {
+    public func condition(): StdCondition {
         return inner.condition()
     }
 }
@@ -108,7 +111,7 @@ public class Mutex {
 ///   broadcast(): 增加所有signals -> 增加epoch -> futexWake(all)
 public class Condvar {
     private let mutex: Mutex
-    private let cond: Condition
+    private let cond: StdCondition
 
     public init(mutex: Mutex) {
         this.mutex = mutex
@@ -150,65 +153,65 @@ public class Condvar {
 // 严格翻译自: Zig std.Thread.RwLock / Bun guarded 模式
 //
 // Bun 使用 Mutex + reader_count 实现 RwLock 语义
-// 仓颉 std.sync.ReadWriteLock 原生提供多读者/单写者
+// 仓颉 ReadWriteLock 原生提供多读者/单写者
 // ============================================================================
 
 /// 读写锁 - 对应 Bun RwLock 模式 / Zig std.Thread.RwLock
 /// 使用仓颉原生 ReadWriteLock 实现
 public class RwLock {
     private let inner: ReadWriteLock
-    private let readLock: Lock
-    private let writeLock: UniqueLock
+    private let readLockInner: Lock
+    private let writeLockInner: UniqueLock
 
     public init() {
         inner = ReadWriteLock()
-        readLock = inner.readLock
-        writeLock = inner.writeLock
+        readLockInner = inner.readLock
+        writeLockInner = inner.writeLock
     }
 
     public init(fair: Bool) {
         inner = ReadWriteLock(fair: fair)
-        readLock = inner.readLock
-        writeLock = inner.writeLock
+        readLockInner = inner.readLock
+        writeLockInner = inner.writeLock
     }
 
     /// 获取读锁 - 对应 RwLock.readLock
     public func readLock(): Unit {
-        readLock.lock()
+        readLockInner.lock()
     }
 
     /// 释放读锁 - 对应 RwLock.readUnlock
     public func readUnlock(): Unit {
-        readLock.unlock()
+        readLockInner.unlock()
     }
 
     /// 获取写锁 - 对应 RwLock.writeLock
     public func writeLock(): Unit {
-        writeLock.lock()
+        writeLockInner.lock()
     }
 
     /// 释放写锁 - 对应 RwLock.writeUnlock
     public func writeUnlock(): Unit {
-        writeLock.unlock()
+        writeLockInner.unlock()
     }
 
     /// 在读锁保护下执行
     public func withReadLock<T>(fn: () -> T): T {
-        readLock.lock()
+        readLockInner.lock()
         try {
             return fn()
         } finally {
-            readLock.unlock()
+            readLockInner.unlock()
         }
     }
 
     /// 在写锁保护下执行
     public func withWriteLock<T>(fn: () -> T): T {
-        writeLock.lock()
+        writeLockInner.lock()
         try {
             return fn()
         } finally {
-            writeLock.unlock()
+            writeLockInner.unlock()
         }
     }
 }
@@ -244,7 +247,7 @@ public class GuardedValue<T> {
 // Semaphore - 计数信号量
 // 严格翻译自: Zig std.Thread.Semaphore / Bun threading patterns
 //
-// 仓颉 std.sync.Semaphore 原生提供 acquire/release/tryAcquire
+// 仓颉 Semaphore 原生提供 acquire/release/tryAcquire
 // ============================================================================
 
 /// 计数信号量 - 对应 Zig std.Thread.Semaphore
@@ -253,15 +256,15 @@ public class GuardedValue<T> {
 ///   post/named.post: permits++; wake
 ///
 /// 使用仓颉原生 Semaphore 实现
-public class Semaphore {
-    private let inner: std.sync.Semaphore
+public class NativeSemaphore {
+    private let inner: StdSemaphore
 
     public init() {
-        inner = std.sync.Semaphore(0)
+        inner = StdSemaphore(0)
     }
 
     public init(permits: Int64) {
-        inner = std.sync.Semaphore(permits)
+        inner = StdSemaphore(permits)
     }
 
     /// 获取一个许可 (阻塞) - 对应 Zig Semaphore.wait
@@ -304,18 +307,18 @@ public class Semaphore {
 // Barrier - 循环栅栏
 // 严格翻译自: Zig std.Thread.Barrier / Bun 线程池 Event 模式
 //
-// 仓颉 std.sync.Barrier 原生提供 N 线程同步点等待
+// 仓颉 Barrier 原生提供 N 线程同步点等待
 // ============================================================================
 
 /// 循环栅栏 - 对应 Zig std.Thread.Barrier
 /// 严格翻译自: Barrier 让 N 个线程在同步点等待，全部到达后继续
 ///
-/// 仓颉 std.sync.Barrier 实现等价语义
+/// 仓颉 Barrier 实现等价语义
 public class Barrier {
-    private let inner: std.sync.Barrier
+    private let inner: StdBarrier
 
     public init(count: Int64) {
-        inner = std.sync.Barrier(count)
+        inner = StdBarrier(count)
     }
 
     /// 等待所有线程到达 - 对应 Zig Barrier.wait
@@ -342,12 +345,12 @@ public class Barrier {
 /// 使用仓颉 Mutex + done 标志实现 (仓颉没有原生 Once)
 /// Bun/Zig 使用 futex 原子实现，仓颉使用 Mutex 等价
 public class Once {
-    private let mutex: std.sync.Mutex
+    private let mutex: Mutex
     private let done: AtomicBool
-    private let cond: Condition
+    private let cond: StdCondition
 
     public init() {
-        mutex = std.sync.Mutex()
+        mutex = Mutex()
         done = AtomicBool(false)
         cond = mutex.condition()
     }
@@ -378,13 +381,13 @@ public class Once {
 // ============================================================================
 // CountDownLatch - 倒数计数器
 // 严格翻译自: Java CountDownLatch / Rust 等价模式
-//   对应仓颉 std.sync.SyncCounter
+//   对应仓颉 SyncCounter
 // ============================================================================
 
 /// 倒数计数器 - 对应 Java CountDownLatch
 /// 严格翻译自: 初始化 N，countDown 减一，await 等待到零
 ///
-/// 仓颉 std.sync.SyncCounter 实现等价语义
+/// 仓颉 SyncCounter 实现等价语义
 public class CountDownLatch {
     private let inner: SyncCounter
 

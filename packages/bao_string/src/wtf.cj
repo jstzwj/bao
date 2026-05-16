@@ -9,6 +9,8 @@
 //   仓颉实现提供等价的数据结构和操作
 package bao_string
 
+import std.collection.*
+
 import bao_core.*
 
 // ============================================================================
@@ -153,7 +155,7 @@ public class WTFStringImplStruct {
     /// 严格翻译自 WTFStringImplStruct.ref
     public func ref(): Unit {
         if (!hasAtLeastOneRef()) {
-            panic("WTFStringImpl: ref() 在没有引用时调用")
+            throw IllegalStateException("WTFStringImpl: ref() 在没有引用时调用")
         }
         if (!isStatic()) {
             this.mRefCount += sRefCountIncrement
@@ -164,7 +166,7 @@ public class WTFStringImplStruct {
     /// 严格翻译自 WTFStringImplStruct.deref
     public func deref(): Unit {
         if (!hasAtLeastOneRef()) {
-            panic("WTFStringImpl: deref() 在没有引用时调用")
+            throw IllegalStateException("WTFStringImpl: deref() 在没有引用时调用")
         }
         if (!isStatic()) {
             if (this.mRefCount >= sRefCountIncrement) {
@@ -257,12 +259,12 @@ public class WTFStringImplStruct {
             return latin1Slice()
         } else {
             // UTF-16: 返回原始字节视图
-            var result = Array<Byte>()
+            var result = ArrayList<Byte>()
             for (w in utf16Slice()) {
-                result.append(Byte(w & 0xFF))
-                result.append(Byte((w >> 8) & 0xFF))
+                result.add(UInt8(w & 0xFF))
+                result.add(UInt8((w >> 8) & 0xFF))
             }
-            return result
+            return result.toArray()
         }
     }
 

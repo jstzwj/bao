@@ -18,7 +18,7 @@
 package bao_threading
 
 import std.sync.*
-import std.time.{Duration, DateTime}
+import std.time.*
 
 // ============================================================================
 // Linux futex 系统调用 FFI 声明
@@ -58,7 +58,7 @@ public class FutexWord {
     /// 原子值 - 对应 Bun atomic.Value(u32)
     private let value: AtomicUInt32
     /// 等待互斥锁 - 模拟 futex 内核等待队列
-    private let waitMutex: std.sync.Mutex
+    private let waitMutex: Mutex
     /// 等待条件 - 模拟 futex 唤醒
     private let waitCond: Condition
     /// 等待线程计数
@@ -66,14 +66,14 @@ public class FutexWord {
 
     public init(initialValue: UInt32) {
         value = AtomicUInt32(initialValue)
-        waitMutex = std.sync.Mutex()
+        waitMutex = Mutex()
         waitCond = waitMutex.condition()
         waiters = AtomicInt64(0)
     }
 
     public init() {
         value = AtomicUInt32(0)
-        waitMutex = std.sync.Mutex()
+        waitMutex = Mutex()
         waitCond = waitMutex.condition()
         waiters = AtomicInt64(0)
     }
@@ -231,7 +231,7 @@ public class FutexDeadline {
     ///   if (deadline.timeout != null) deadline.started = Timer.start()
     public init(timeoutNs: ?Int64) {
         this.timeoutNs = timeoutNs
-        this.startNs = if (timeoutNs != None) { monoTimeNs() } else { Int64(0) }
+        this.startNs = if (timeoutNs.isSome()) { monoTimeNs() } else { Int64(0) }
     }
 
     /// 等待直到 futex 值变化或截止时间到期
@@ -281,7 +281,7 @@ public class FutexDeadline {
     /// 获取单调时间 (纳秒)
     /// 仓颉使用 DateTime.now() 作为时间源
     private static func monoTimeNs(): Int64 {
-        return DateTime.now().toUnixTimestamp() * Int64(1_000_000_000)
+        return DateTime.now().toUnixTimeStamp().toNanoseconds()
     }
 }
 

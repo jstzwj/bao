@@ -180,7 +180,7 @@ public class Termios {
             if (rc != 0) {
                 free(buf)
                 return SysMaybe<Termios>.Err(
-                    SysError(UInt16(Int64(OS.errno())), SysTag.TODO)
+                    SysError(UInt16(Int64(OS.errno())), SysTag.Tcgetattr)
                 )
             }
             let t = Termios()
@@ -220,7 +220,7 @@ public class Termios {
             free(buf)
             if (rc != 0) {
                 return SysMaybe<Unit>.Err(
-                    SysError(UInt16(Int64(OS.errno())), SysTag.TODO)
+                    SysError(UInt16(Int64(OS.errno())), SysTag.Tcsetattr)
                 )
             }
             return SysMaybe<Unit>.Ok(())
@@ -300,7 +300,7 @@ public class TerminalSize {
             if (rc != 0) {
                 free(buf)
                 return SysMaybe<TerminalSize>.Err(
-                    SysError(UInt16(Int64(OS.errno())), SysTag.TODO)
+                    SysError(UInt16(Int64(OS.errno())), SysTag.Ioctl)
                 )
             }
             // 读取 winsize 字段 (unsigned short = UInt16)

@@ -15,7 +15,7 @@ import bao_core.*
 // ============================================================================
 
 /// HTTP/2 客户端连接前缀 (RFC 7540 §3.5)
-public const CLIENT_PREFACE: Array<UInt8> = [
+public let CLIENT_PREFACE: Array<UInt8> = [
     80 /*'P'*/, 82 /*'R'*/, 73 /*'I'*/, 32 /*' '*/,
     42 /*'*'*/, 32 /*' '*/, 72 /*'H'*/, 84 /*'T'*/,
     84 /*'T'*/, 80 /*'P'*/, 47 /*'/'*/, 50 /*'2'*/,
@@ -278,7 +278,7 @@ public class UInt31WithReserved {
     }
 
     public init(value: UInt32, reserved: Bool) {
-        raw = (value & 0x7FFFFFFF) | (reserved ? 0x80000000 : 0)
+        raw = (value & 0x7FFFFFFF) | if (reserved) { 0x80000000 } else { 0 }
     }
 
     /// 获取保留位
@@ -302,7 +302,7 @@ public class UInt31WithReserved {
                   (UInt32(src[1]) << 16) |
                   (UInt32(src[2]) << 8) |
                   UInt32(src[3])
-        return UInt31WithReserved(raw: val)
+        return UInt31WithReserved(val)
     }
 
     /// 编码为大端字节数组
@@ -411,15 +411,7 @@ public class FrameHeader {
 
     /// 从 9 字节大端帧头解码
     public static func decode(raw: Array<UInt8>): FrameHeader {
-        FrameHeader(
-            length: (UInt32(raw[0]) << 16) | (UInt32(raw[1]) << 8) | UInt32(raw[2]),
-            typeValue: raw[3],
-            flags: raw[4],
-            streamIdentifier: (UInt32(raw[5]) << 24) |
-                              (UInt32(raw[6]) << 16) |
-                              (UInt32(raw[7]) << 8) |
-                              UInt32(raw[8])
-        )
+        FrameHeader((UInt32(raw[0]) << 16) | (UInt32(raw[1]) << 8) | UInt32(raw[2]), raw[3], raw[4], (UInt32(raw[5]) << 24) | (UInt32(raw[6]) << 16) | (UInt32(raw[7]) << 8) | UInt32(raw[8]))
     }
 
     /// 编码为 9 字节大端帧头

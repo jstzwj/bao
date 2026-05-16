@@ -5,6 +5,7 @@
 package bao_runtime.shell.states
 
 import bao_core.*
+import bao_runtime.shell.*
 
 // ============================================================================
 // 异步命令状态
@@ -14,7 +15,7 @@ import bao_core.*
 /// 异步状态类型（提取到顶层）
 public enum AsyncStateKind {
 | `idle`
-| `exec`(child: ?AsyncChildPtr)
+| `exec`(?AsyncChildPtr)
 | done(ExitCode)
 }
 
@@ -87,19 +88,19 @@ public class AsyncState {
 
     /// 下一步
     public func next(): Yield {
-        switch (this.state) {
+        match (this.state) {
             case AsyncStateKind.`idle` =>
-                this.state = AsyncStateKind.`exec`(child: None)
+                this.state = AsyncStateKind.`exec`(None)
                 this.enqueueSelf()
                 return Yield.suspended
-            case AsyncStateKind.`exec`(let child) =>
+            case AsyncStateKind.`exec`(child) =>
                 if (let Some(c) <- child) {
                     return c.start()
                 }
                 // 创建子状态
                 this.enqueueSelf()
                 return Yield.suspended
-            case AsyncStateKind.done(let exitCode) =>
+            case AsyncStateKind.done(exitCode) =>
                 this.base.interpreter.asyncCmdDone(this)
                 return Yield.done
         }
@@ -111,7 +112,7 @@ public class AsyncState {
     }
 
     /// 子节点完成
-    public func childDone(childPtr: AsyncChildPtr, exitCode: ExitCode): Yield {
+    public func childDone(child: AsyncChildPtr, exitCode: ExitCode): Yield {
         childPtr.deinit()
         this.state = AsyncStateKind.done(exitCode)
         this.enqueueSelf()

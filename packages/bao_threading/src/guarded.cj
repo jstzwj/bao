@@ -21,7 +21,7 @@ import std.sync.*
 
 /// 互斥保护的值
 /// 严格翻译自 guarded.zig:16-63 GuardedBy(Value, Mutex)
-///   仓颉使用泛型 + std.sync.Mutex 实现
+///   仓颉使用泛型 + Mutex 实现
 public class Guarded<T> {
     /// 内部值 (不保证同步安全)
     /// 严格翻译自: unsynchronized_value: Value
@@ -153,12 +153,3 @@ public interface Lockable {
     func unlock(): Unit
 }
 
-// Extension: Mutex implements Lockable
-extend Mutex <: Lockable {
-    public func lock(): Unit {
-        this.lock()
-    }
-    public func unlock(): Unit {
-        this.unlock()
-    }
-}

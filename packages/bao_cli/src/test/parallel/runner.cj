@@ -2,6 +2,8 @@
 package bao_cli.test.parallel
 
 import bao_core.*
+import bao_runtime.*
+import std.collection.*
 
 // ============================================================================
 // Runner — 协调器和工作器入口点
@@ -148,7 +150,7 @@ public class ParallelRunner {
 
         let workerTmp = vm.transpiler.env.get("BAO_TEST_WORKER_TMP")
         if (vm.transpiler.env.get("BAO_TEST_WORKER_JUNIT") != None && reporter.reporters.junit == None) {
-            reporter.reporters.junit = TestCommand.JunitReporter.init()
+            reporter.reporters.junit = TestCommand.JunitReporter.`init`()
         }
 
         let cmds = WorkerCommands()
@@ -217,29 +219,29 @@ public class ParallelRunner {
         let argv = ArrayList<String>()
         let opts = ctx.testOptions
 
-        argv.append(match (Sys.selfExePath()) { case Some(v) => v case None => "bao" })
-        argv.append("test")
-        argv.append("--test-worker")
-        argv.append("--isolate")
-        argv.append("--timeout=${opts.defaultTimeoutMs}")
+        argv.add(match (Sys.selfExePath()) { case Some(v) => v case None => "bao" })
+        argv.add("test")
+        argv.add("--test-worker")
+        argv.add("--isolate")
+        argv.add("--timeout=${opts.defaultTimeoutMs}")
 
-        if (opts.runTodo) argv.append("--todo")
-        if (opts.only) argv.append("--only")
-        if (opts.reporters.dots) argv.append("--dots")
-        if (opts.reporters.onlyFailures) argv.append("--only-failures")
-        if (opts.updateSnapshots) argv.append("--update-snapshots")
-        if (opts.concurrent) argv.append("--concurrent")
-        if (opts.randomize) argv.append("--randomize")
-        if (opts.seed != None) argv.append("--seed=${opts.seed.getOrThrow()}")
-        if (opts.repeatCount > 0) argv.append("--rerun-each=${opts.repeatCount}")
-        if (opts.retry > 0) argv.append("--retry=${opts.retry}")
-        argv.append("--max-concurrency=${opts.maxConcurrency}")
+        if (opts.runTodo) { argv.add("--todo") }
+        if (opts.only) { argv.add("--only") }
+        if (opts.reporters.dots) { argv.add("--dots") }
+        if (opts.reporters.onlyFailures) { argv.add("--only-failures") }
+        if (opts.updateSnapshots) { argv.add("--update-snapshots") }
+        if (opts.concurrent) { argv.add("--concurrent") }
+        if (opts.randomize) { argv.add("--randomize") }
+        if (opts.seed != None) { argv.add("--seed=${opts.seed.getOrThrow()}") }
+        if (opts.repeatCount > 0) { argv.add("--rerun-each=${opts.repeatCount}") }
+        if (opts.retry > 0) { argv.add("--retry=${opts.retry}") }
+        argv.add("--max-concurrency=${opts.maxConcurrency}")
         if (opts.testFilterPattern != None) {
-            argv.append("-t")
-            argv.append(opts.testFilterPattern.getOrThrow())
+            argv.add("-t")
+            argv.add(opts.testFilterPattern.getOrThrow())
         }
         if (opts.coverage.enabled) {
-            argv.append("--coverage")
+            argv.add("--coverage")
         }
 
         return argv.toArray()

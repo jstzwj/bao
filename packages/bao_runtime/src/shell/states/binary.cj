@@ -5,6 +5,7 @@
 package bao_runtime.shell.states
 
 import bao_core.*
+import bao_runtime.shell.*
 
 // ============================================================================
 // 二元表达式状态
@@ -84,7 +85,7 @@ public class BinaryState {
     }
 
     /// 创建子节点
-    func makeChild(isLeft: Boolean): ?BinaryChildPtr {
+    func makeChild(flag: Bool): ?BinaryChildPtr {
         // 根据AST节点类型创建对应的子状态
         return None
     }
@@ -97,7 +98,7 @@ public class BinaryState {
         if (this.left == None) {
             this.left = exitCode
             // && 和 || 的短路逻辑
-            if ((this.node.op == .and && exitCode != 0) || (this.node.op == .or && exitCode == 0)) {
+            if ((this.node.op == BinaryOp.and && exitCode != 0) || (this.node.op == BinaryOp.or && exitCode == 0)) {
                 return this.parent.childDone(this, exitCode)
             }
             this.currentlyExecuting = this.makeChild(false)

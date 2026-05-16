@@ -93,6 +93,6 @@ public class BackRef<T> {
 
     /// Debug 字符串表示
     public func toString(): String {
-        "BackRef(0x${this.ptr.toString(16)})"
+        "BackRef(0x${this.ptr})"
     }
 }

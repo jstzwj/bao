@@ -22,7 +22,7 @@ import bao_hash.*
 /// 字符串映射条目 - 存储键值对
 /// Bun: Box<[u8]> 存储字节数组
 /// 仓颉: 使用 BaoString 作为键
-public class StringMapEntry<V> {
+public class RuntimeStringMapEntry<V> {
     /// 键
     public var key: BaoString
     /// 值
@@ -47,7 +47,7 @@ public class StringMapEntry<V> {
 //   - dupe_keys 控制 insert 是否克隆键字节
 //   - 值总是被克隆 (Box::from(value))
 //   - Zig init(allocator, dupe_keys) — allocator dropped (global mimalloc)
-//   - 仓颉: 使用 ArrayList<StringMapEntry<V>> 作为底层存储
+//   - 仓颉: 使用 ArrayList<RuntimeStringMapEntry<V>> 作为底层存储
 //     低于阈值线性扫描，高于阈值构建哈希索引
 // ============================================================================
 
@@ -56,10 +56,10 @@ public class StringMapEntry<V> {
 /// 和大小写不敏感匹配
 ///
 /// Bun: StringArrayHashMap<Box<[u8]>> + dupe_keys
-/// 仓颉: ArrayList<StringMapEntry<V>> + 哈希索引
+/// 仓颉: ArrayList<RuntimeStringMapEntry<V>> + 哈希索引
 public class StringMap<V> {
     /// 条目数组 - 对应 Bun map.entries
-    private var entries: ArrayList<StringMapEntry<V>>
+    private var entries: ArrayList<RuntimeStringMapEntry<V>>
     /// 是否复制键字节 - 对应 Bun dupe_keys: bool
     /// Zig: dupe_keys 控制 insert 是否调用 allocator.dupe(u8, key)
     /// 仓颉: BaoString 本身是值类型，此标志影响 clone 行为
@@ -87,47 +87,35 @@ public class StringMap<V> {
     /// 默认构造 - 对应 Bun StringMap::default()
     /// Zig: init(allocator, dupe_keys=false)
     public init() {
-        entries = ArrayList<StringMapEntry<V>>()
+        entries = ArrayList<RuntimeStringMapEntry<V>>()
         dupeKeys = false
         caseInsensitive = false
         _size = 0
         _capacity = 16
-        buckets = Array<Int64>(_capacity, item: -1)
+        buckets = Array<Int64>(_capacity, { _ => -1 })
         indexed = false
     }
 
     /// 带配置初始化 - 对应 Bun StringMap::init(dupe_keys)
     /// Zig: pub fn init(dupe_keys: bool) Self
     public init(dupeKeys: Bool) {
-        entries = ArrayList<StringMapEntry<V>>()
+        entries = ArrayList<RuntimeStringMapEntry<V>>()
         this.dupeKeys = dupeKeys
         this.caseInsensitive = false
         _size = 0
         _capacity = 16
-        buckets = Array<Int64>(_capacity, item: -1)
-        indexed = false
-    }
-
-    /// 带大小写不敏感选项初始化
-    // 严格翻译自: CaseInsensitiveAsciiStringArrayHashMap
-    public init(caseInsensitive: Bool) {
-        entries = ArrayList<StringMapEntry<V>>()
-        this.dupeKeys = false
-        this.caseInsensitive = caseInsensitive
-        _size = 0
-        _capacity = 16
-        buckets = Array<Int64>(_capacity, item: -1)
+        buckets = Array<Int64>(_capacity, { _ => -1 })
         indexed = false
     }
 
     /// 完整配置初始化
     public init(dupeKeys: Bool, caseInsensitive: Bool) {
-        entries = ArrayList<StringMapEntry<V>>()
+        entries = ArrayList<RuntimeStringMapEntry<V>>()
         this.dupeKeys = dupeKeys
         this.caseInsensitive = caseInsensitive
         _size = 0
         _capacity = 16
-        buckets = Array<Int64>(_capacity, item: -1)
+        buckets = Array<Int64>(_capacity, { _ => -1 })
         indexed = false
     }
 
@@ -153,7 +141,7 @@ public class StringMap<V> {
             return
         }
         // 添加新条目
-        let entry = StringMapEntry<V>(k, value)
+        let entry = RuntimeStringMapEntry<V>(k, value)
         entries.append(entry)
         _size += 1
         if (_size >= THRESHOLD) {
@@ -297,7 +285,7 @@ public class StringMap<V> {
         let result = StringMap<V>(dupeKeys, caseInsensitive)
         for (i in 0..entries.size) {
             let e = entries[i]
-            result.entries.append(StringMapEntry<V>(e.key.clone(), e.value))
+            result.entries.append(RuntimeStringMapEntry<V>(e.key.clone(), e.value))
         }
         result._size = _size
         return result
@@ -331,7 +319,7 @@ public class StringMap<V> {
     // 严格翻译自: CaseInsensitiveAsciiStringContext.hash/toLower
     private func normalizeKey(key: BaoString): BaoString {
         if (caseInsensitive) {
-            return BaoString(key.toString().toLower())
+            return BaoString(key.toString().toAsciiLower())
         }
         return key
     }
@@ -341,7 +329,7 @@ public class StringMap<V> {
         if (!indexed || _size < THRESHOLD) {
             // 线性扫描
             for (i in 0..entries.size) {
-                if (entries[i].key == key) {
+                if (entries[i].key.equals(key)) {
                     return i
                 }
             }
@@ -352,7 +340,7 @@ public class StringMap<V> {
         let bucketIdx = Int64(h % UInt64(buckets.size))
         var idx = buckets[bucketIdx]
         while (idx >= 0 && idx < entries.size) {
-            if (entries[idx].key == key) {
+            if (entries[idx].key.equals(key)) {
                 return idx
             }
             idx += 1
@@ -360,7 +348,7 @@ public class StringMap<V> {
         }
         // 回退线性扫描
         for (i in 0..entries.size) {
-            if (entries[i].key == key) {
+            if (entries[i].key.equals(key)) {
                 return i
             }
         }
@@ -380,7 +368,7 @@ public class StringMap<V> {
         }
         if (newCap != _capacity) {
             _capacity = newCap
-            buckets = Array<Int64>(_capacity, item: -1)
+            buckets = Array<Int64>(_capacity, { _ => -1 })
         } else {
             for (i in 0..buckets.size) {
                 buckets[i] = -1

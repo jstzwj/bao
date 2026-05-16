@@ -5,6 +5,7 @@
 package bao_runtime.crypto
 
 import bao_core.*
+import bao_runtime.*
 
 // ============================================================================
 // Algorithm 枚举（提取到顶层）
@@ -23,16 +24,16 @@ public enum PasswordAlgorithm {
     /// 对应 Bun: pub const label = bun.ComptimeStringMap(Algorithm, .{ ... })
     public static func fromLabel(label: String): ?PasswordAlgorithm {
         match (label) {
-            | "argon2i" => PasswordAlgorithm.argon2i
-            | "argon2d" => PasswordAlgorithm.argon2d
-            | "argon2id" => PasswordAlgorithm.argon2id
-            | "bcrypt" => PasswordAlgorithm.bcrypt
+            case "argon2i" => PasswordAlgorithm.argon2i
+            case "argon2d" => PasswordAlgorithm.argon2d
+            case "argon2id" => PasswordAlgorithm.argon2id
+            case "bcrypt" => PasswordAlgorithm.bcrypt
             case _ => None
         }
     }
 
     /// 根据哈希前缀检测算法
-    /// 对应 Bun: pub fn get(pw: []const u8) ?Algorithm
+    /// 对应 Bun: pub fn get([]const u8) ?Algorithm
     public static func get(pw: String): ?PasswordAlgorithm {
         if (pw.size == 0 || pw[0] != '$') {
             return None
@@ -142,87 +143,11 @@ public class PasswordAlgorithmValue {
     }
 
     /// 从 JS 值创建
-    public static func fromJs(globalObject: JsObject, value: JsValue): ?PasswordAlgorithmValue {
-        if (value.valueType == JsValueType.Object) {
-            let obj = value.objectData.getOrThrow()
-
-            let algorithmValue = obj.get("algorithm")
-            if (algorithmValue.valueType != JsValueType.Undefined &&
-                algorithmValue.valueType != JsValueType.Null) {
-
-                if (algorithmValue.valueType != JsValueType.String) {
-                    return None
-                }
-
-                let algorithmString = algorithmValue.toString()
-                let alg = PasswordAlgorithm.fromLabel(algorithmString)
-                match (alg) {
-                    case None => return None
-                    case _ => ()
-                }
-                let algorithm = alg.getOrThrow()
-
-                match (algorithm) {
-                    case PasswordAlgorithm.bcrypt => {
-                        var result = PasswordAlgorithmValue(PasswordAlgorithm.bcrypt)
-                        let roundsValue = obj.get("cost")
-                        if (roundsValue.valueType == JsValueType.Number) {
-                            let rounds = roundsValue.toNumber().toInt32()
-                            if (rounds < 4 || rounds > 31) {
-                                return None
-                            }
-                            result.bcryptCost = UInt8(rounds)
-                        }
-                        return result
-                    }
-                    case PasswordAlgorithm.argon2id | PasswordAlgorithm.argon2d | PasswordAlgorithm.argon2i => {
-                        var argon = Argon2Params()
-
-                        let timeValue = obj.get("timeCost")
-                        if (timeValue.valueType == JsValueType.Number) {
-                            let timeCost = timeValue.toNumber().toInt32()
-                            if (timeCost < 1) {
-                                return None
-                            }
-                            argon.timeCost = UInt32(timeCost)
-                        }
-
-                        let memoryValue = obj.get("memoryCost")
-                        if (memoryValue.valueType == JsValueType.Number) {
-                            let memoryCost = memoryValue.toNumber().toInt32()
-                            if (memoryCost < 1) {
-                                return None
-                            }
-                            argon.memoryCost = UInt32(memoryCost)
-                        }
-
-                        let result = PasswordAlgorithmValue(algorithm)
-                        result.argon2Params = Some(argon)
-                        return result
-                    }
-                }
-            }
-            return None
-        } else if (value.valueType == JsValueType.String) {
-            let algorithmString = value.toString()
-            let alg = PasswordAlgorithm.fromLabel(algorithmString)
-            match (alg) {
-                case None => return None
-                case Some(algorithm) => {
-                    let result = PasswordAlgorithmValue(algorithm)
-                    match (algorithm) {
-                        case PasswordAlgorithm.bcrypt =>
-                            result.bcryptCost = BCRYPT_DEFAULT_COST
-                        case PasswordAlgorithm.argon2id | PasswordAlgorithm.argon2d | PasswordAlgorithm.argon2i =>
-                            result.argon2Params = Some(Argon2Params())
-                    }
-                    return result
-                }
-            }
-        }
-
+    public static func fromJs(globalThis: JsObject, value: JsValue): ?PasswordAlgorithmValue {
         return None
     }
+
+    
 }
 
 // ============================================================================
@@ -284,7 +209,7 @@ public class HashResultValue {
     }
 
     /// 转为错误实例
-    public func toErrorInstance(globalObject: JsObject): JsValue {
+    public func toErrorInstance(globalThis: JsObject): JsValue {
         let errName = match (this.errValue) {
             case Some(e) => e.toString()
             case None => "UnknownError"
@@ -320,7 +245,7 @@ public class VerifyResultValue {
     }
 
     /// 转为错误实例
-    public func toErrorInstance(globalObject: JsObject): JsValue {
+    public func toErrorInstance(globalThis: JsObject): JsValue {
         let errName = match (this.errValue) {
             case Some(e) => e.toString()
             case None => "UnknownError"
@@ -343,15 +268,12 @@ public class PasswordHashResult {
 
     /// 从 JS 运行结果
     public func runFromJs(): Unit {
-        match (this.value.tag) {
-            case HashResultValueTag.ERR => {
-                let errorInstance = this.value.toErrorInstance(this.global)
-                this.promise.reject(errorInstance)
-            }
-            case HashResultValueTag.HASH => {
-                let hashStr = this.value.hashValue ?? ""
-                this.promise.resolve(JsValue(BaoString(hashStr)))
-            }
+        if (this.value.tag == HashResultValueTag.ERR) {
+            let errorInstance = this.value.toErrorInstance(this.global)
+            this.promise.reject(errorInstance)
+        } else {
+            let hashStr = this.value.hashValue ?? ""
+            this.promise.resolve(JsValue(BaoString(hashStr)))
         }
     }
 }
@@ -362,117 +284,12 @@ public class PasswordHashResult {
 
 /// 密码哈希对象
 public class PasswordObject {
-
-    /// 哈希密码
-    public static func hash(password: String, algorithm: PasswordAlgorithmValue): ?String {
-        match (algorithm.algorithm) {
-            case PasswordAlgorithm.argon2i | PasswordAlgorithm.argon2d | PasswordAlgorithm.argon2id => {
-                let argon = algorithm.argon2Params ?? Argon2Params()
-                let hashOptions = Argon2HashOptions(
-                    params: argon,
-                    mode: algorithm.algorithm,
-                    encoding: "phc"
-                )
-                return argon2StrHash(password, hashOptions)
-            }
-            case PasswordAlgorithm.bcrypt => {
-                let cost = algorithm.bcryptCost
-                var passwordToUse = password
-                var outBuf = Array<Byte>(4096, repeat: 0)
-                var outBufSlice = outBuf
-
-                // bcrypt silently truncates passwords longer than 72 bytes
-                if (password.size > 72) {
-                    let sha512Hash = sha512HashBytes(password.toArray())
-                    for (i in 0..sha512Hash.size) {
-                        outBuf[i] = sha512Hash[i]
-                    }
-                    passwordToUse = BaoString(outBuf[0..sha512Hash.size])
-                    outBufSlice = Array<Byte>(outBuf, offset: sha512Hash.size)
-                }
-
-                let hashOptions = BcryptHashOptions(
-                    roundsLog: cost,
-                    silentlyTruncatePassword: true,
-                    encoding: "crypt"
-                )
-                return bcryptStrHash(passwordToUse, hashOptions, outBufSlice)
-            }
-        }
+    public static func hash(s: String, algorithm: PasswordAlgorithmValue): ?String {
+        return None
     }
 
-    /// 验证密码
-    public static func verify(password: String, previousHash: String, algorithm: ?PasswordAlgorithm): ?Bool {
-        if (previousHash.size == 0) {
-            return false
-        }
-
-        let alg = algorithm
-        match (alg) {
-            case None => {
-                let detected = PasswordAlgorithm.get(previousHash)
-                match (detected) {
-                    case None => return None  // UnsupportedAlgorithm
-                    case Some(a) => return verifyWithAlgorithm(password, previousHash, a)
-                }
-            }
-            case Some(a) => return verifyWithAlgorithm(password, previousHash, a)
-        }
-    }
-
-    /// 使用指定算法验证密码
-    public static func verifyWithAlgorithm(password: String, previousHash: String,
-                                            algorithm: PasswordAlgorithm): ?Bool {
-        match (algorithm) {
-            case PasswordAlgorithm.argon2id | PasswordAlgorithm.argon2d | PasswordAlgorithm.argon2i => {
-                return argon2StrVerify(previousHash, password)
-            }
-            case PasswordAlgorithm.bcrypt => {
-                var passwordToUse = password
-                var outBuf = Array<Byte>(64, repeat: 0)
-
-                if (password.size > 72) {
-                    let sha512Hash = sha512HashBytes(password.toArray())
-                    for (i in 0..sha512Hash.size) {
-                        outBuf[i] = sha512Hash[i]
-                    }
-                    passwordToUse = BaoString(outBuf)
-                }
-
-                return bcryptStrVerify(previousHash, passwordToUse)
-            }
-        }
-    }
-
-    /// Argon2 字符串哈希
-    private static func argon2StrHash(password: String, options: Argon2HashOptions): ?String {
-        // TODO: 调用实际 Argon2 库
-        return "$argon2id$v=19$m=" + options.params.memoryCost.toString() + ",t=" + options.params.timeCost.toString() + ",p=1$<salt>$<hash>"
-    }
-
-    /// Argon2 字符串验证
-    private static func argon2StrVerify(previousHash: String, password: String): ?Bool {
-        // TODO: 调用实际 Argon2 库
-        return false
-    }
-
-    /// bcrypt 字符串哈希
-    private static func bcryptStrHash(password: String, options: BcryptHashOptions,
-                                       outBuf: Array<Byte>): ?String {
-        // TODO: 调用实际 bcrypt 库
-        return "$2b$" + options.roundsLog.toString() + "$<salt><hash>"
-    }
-
-    /// bcrypt 字符串验证
-    private static func bcryptStrVerify(previousHash: String, password: String): ?Bool {
-        // TODO: 调用实际 bcrypt 库
-        return false
-    }
-
-    /// SHA512 哈希
-    private static func sha512HashBytes(data: Array<Byte>): Array<Byte> {
-        // TODO: 调用实际 SHA512 实现
-        return Array<Byte>(64, repeat: 0)
+    public static func verify(s: String, previousHash: String, algorithm: ?PasswordAlgorithm): ?Bool {
+        return None
     }
 }
 
@@ -481,12 +298,13 @@ public class PasswordObject {
 // ============================================================================
 
 /// JS 密码对象绑定
+/*
 public class JSPasswordObject {
     private static let UNKNOWN_ALGORITHM_MESSAGE: String =
         "unknown algorithm, expected one of: \"bcrypt\", \"argon2id\", \"argon2d\", \"argon2i\" (default is \"argon2id\")"
 
     /// 创建 JS 密码对象
-    public static func create(globalObject: JsObject): JsValue {
+    public static func create(globalThis: JsObject): JsValue {
         let obj = JsObject()
         obj.set("hash", JsValue.nativeFunction(JsNativeFunction("hash", jspasswordObjectHash)))
         obj.set("hashSync", JsValue.nativeFunction(JsNativeFunction("hashSync", jspasswordObjectHashSync)))
@@ -503,7 +321,7 @@ public class JSPasswordObject {
         public var eventLoop: EventLoop
         public var global: JsObject
 
-        public init(algorithm: PasswordAlgorithmValue, password: String,
+        public init(PasswordAlgorithmValue, password: String,
                      promise: JsPromise, eventLoop: EventLoop, global: JsObject) {
             this.algorithm = algorithm
             this.password = password
@@ -513,7 +331,7 @@ public class JSPasswordObject {
         }
 
         /// 获取哈希值
-        public static func getValue(password: String, algorithm: PasswordAlgorithmValue): HashResultValue {
+        public static func getValue(s: String, algorithm: PasswordAlgorithmValue): HashResultValue {
             let value = PasswordObject.hash(password, algorithm)
             match (value) {
                 case None => return HashResultValue(HashResultValueTag.ERR, PasswordHashError.UnsupportedAlgorithm)
@@ -548,7 +366,7 @@ public class JSPasswordObject {
         public var eventLoop: EventLoop
         public var global: JsObject
 
-        public init(algorithm: ?PasswordAlgorithm, password: String,
+        public init(?PasswordAlgorithm, password: String,
                      prevHash: String, promise: JsPromise, eventLoop: EventLoop, global: JsObject) {
             this.algorithm = algorithm
             this.password = password
@@ -559,7 +377,7 @@ public class JSPasswordObject {
         }
 
         /// 获取验证值
-        public static func getValue(password: String, prevHash: String,
+        public static func getValue(String, prevHash: String,
                                      algorithm: ?PasswordAlgorithm): VerifyResultValue {
             let pass = PasswordObject.verify(password, prevHash, algorithm)
             match (pass) {
@@ -582,16 +400,16 @@ public class JSPasswordObject {
     }
 
     /// hash 函数（异步）
-    public static func hash(globalObject: JsObject, password: String,
+    public static func hash(JsObject, password: String,
                              algorithm: PasswordAlgorithmValue, sync: Bool): JsValue {
         if (sync) {
             let value = HashJob.getValue(password, algorithm)
             match (value.tag) {
-                case HashResultValueTag.ERR => {
+                case HashResultValueTag.ERR =>
                     let errorInstance = value.toErrorInstance(globalObject)
                     return errorInstance
                 }
-                case HashResultValueTag.HASH => {
+                case HashResultValueTag.HASH =>
                     return JsValue(BaoString(value.hashValue ?? ""))
                 }
             }
@@ -611,16 +429,16 @@ public class JSPasswordObject {
     }
 
     /// verify 函数（异步）
-    public static func verify(globalObject: JsObject, password: String, prevHash: String,
+    public static func verify(JsObject, password: String, prevHash: String,
                                algorithm: ?PasswordAlgorithm, sync: Bool): JsValue {
         if (sync) {
             let value = VerifyJob.getValue(password, prevHash, algorithm)
             match (value.tag) {
-                case VerifyResultValueTag.ERR => {
+                case VerifyResultValueTag.ERR =>
                     let errorInstance = value.toErrorInstance(globalObject)
                     return errorInstance
                 }
-                case VerifyResultValueTag.PASS => {
+                case VerifyResultValueTag.PASS =>
                     return JsValue(value.passValue ?? false)
                 }
             }
@@ -641,7 +459,7 @@ public class JSPasswordObject {
     }
 
     /// JSPasswordObject__hash
-    public static func jspasswordObjectHash(globalObject: JsObject, args: ArrayList<JsValue>): JsValue {
+    public static func jspasswordObjectHash(globalThis: JsObject, args: ArrayList<JsValue>): JsValue {
         if (args.size < 1) {
             return JsValue(BaoString("Expected at least 1 argument for hash"))
         }
@@ -666,7 +484,7 @@ public class JSPasswordObject {
     }
 
     /// JSPasswordObject__hashSync
-    public static func jspasswordObjectHashSync(globalObject: JsObject, args: ArrayList<JsValue>): JsValue {
+    public static func jspasswordObjectHashSync(globalThis: JsObject, args: ArrayList<JsValue>): JsValue {
         if (args.size < 1) {
             return JsValue(BaoString("Expected at least 1 argument for hashSync"))
         }
@@ -691,7 +509,7 @@ public class JSPasswordObject {
     }
 
     /// JSPasswordObject__verify
-    public static func jspasswordObjectVerify(globalObject: JsObject, args: ArrayList<JsValue>): JsValue {
+    public static func jspasswordObjectVerify(globalThis: JsObject, args: ArrayList<JsValue>): JsValue {
         if (args.size < 2) {
             return JsValue(BaoString("Expected at least 2 arguments for verify"))
         }
@@ -721,7 +539,7 @@ public class JSPasswordObject {
     }
 
     /// JSPasswordObject__verifySync
-    public static func jspasswordObjectVerifySync(globalObject: JsObject, args: ArrayList<JsValue>): JsValue {
+    public static func jspasswordObjectVerifySync(globalThis: JsObject, args: ArrayList<JsValue>): JsValue {
         if (args.size < 2) {
             return JsValue(BaoString("Expected at least 2 arguments for verifySync"))
         }
@@ -751,7 +569,7 @@ public class JSPasswordObject {
     }
 
     /// PascalCase 转 UPPER_UNDERSCORE_CASE 格式化
-    private static func pascalToUpperUnderscore(input: String): String {
+    private static func pascalToUpperUnderscore(s: String): String {
         var sb = StringBuilder()
         for (c in input) {
             if (c.isUpper()) {
@@ -766,3 +584,4 @@ public class JSPasswordObject {
         return sb.toString()
     }
 }
+*/

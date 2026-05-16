@@ -4,6 +4,8 @@
 package bao_bun_alloc
 
 import bao_core.*
+import bao_crash_handler.*
+import bao_collections.*
 
 // ============================================================================
 // Allocation - 分配记录
@@ -75,8 +77,7 @@ public struct AllocScopeStats {
 
 /// 释放错误
 public enum FreeError {
-    /// 尝试释放未由此 AllocationScope 分配的内存，或已被释放的内存
-    case notAllocated
+    | notAllocated
 }
 
 // ============================================================================
@@ -174,7 +175,7 @@ public class LockedState {
     /// 断言指针不由本作用域拥有
     /// 对应 Zig: fn assertUnowned(self: Self, ptr: anytype) void
     public func assertUnowned(ptr: CPointer<Byte>): Unit {
-        if (let owned = this.history.allocations.get(ptr)) {
+        if (let Some(owned) <- this.history.allocations.get(ptr)) {
             Output.warn("Owned pointer allocated here:", [])
             CrashHandler.dumpStackTrace(owned.allocatedAt, TRACE_LIMITS, TRACE_LIMITS)
             panic("this pointer was owned by the allocation scope when it was not supposed to be")
@@ -202,7 +203,7 @@ public class LockedState {
         if (entry == None) {
             Output.errGeneric("Invalid free, pointer ${ptr}, len ${buf.size}", [])
 
-            if (let freeEntry = this.history.frees.get(ptr)) {
+            if (let Some(freeEntry) <- this.history.frees.get(ptr)) {
                 Output.printErrorln("Pointer allocated here:", [])
                 CrashHandler.dumpStackTrace(freeEntry.allocatedAt, TRACE_LIMITS)
                 Output.printErrorln("Pointer first freed here:", [])
@@ -277,7 +278,7 @@ public class AllocScopeState {
 
         var n: Int64 = 0
         var it = history.allocations.iterator()
-        while (let entry = it.next()) {
+        while (let Some(entry) <- it.next()) {
             if (n >= 10) {
                 Output.prettyErrorln("(only showing first 10 leaks)", [])
                 break
@@ -285,7 +286,7 @@ public class AllocScopeState {
             Output.prettyErrorln("- ${entry.key}, len ${entry.value.len}, at:", [])
             CrashHandler.dumpStackTrace(entry.value.allocatedAt, TRACE_LIMITS)
             let extra = entry.value.extra
-            if (let extraVtable = extra.vtable) {
+            if (let Some(extraVtable) <- extra.vtable) {
                 extraVtable.onAllocationLeak(extra.ptr, Array<Byte>())
             }
             n++
@@ -343,115 +344,113 @@ public class AllocScopeState {
 /// 也允许测量作用域分配了多少内存。
 ///
 /// 对应 Zig: pub fn AllocationScopeIn(comptime Allocator: type) type
+public class AllocationScopeBorrowed {
+    /// 借用的父分配器
+    public var parentAlloc: Allocator
+    /// 借用的状态
+    public var state: ?AllocScopeState
+
+    public init(parentAlloc: Allocator, state: ?AllocScopeState) {
+        this.parentAlloc = parentAlloc
+        this.state = state
+    }
+
+    /// 获取分配器
+    /// 对应 Zig: pub fn allocator(self: Self) std.mem.Allocator
+    public func allocator(): Allocator {
+        if (ALLOCATION_SCOPE_ENABLED) {
+            if (let Some(s) <- this.state) {
+                return Allocator.fromContext(s, AllocationScopeVTable.get())
+            }
+        }
+        return this.parentAlloc
+    }
+
+    /// 获取父分配器
+    public func parent(): Allocator {
+        return this.parentAlloc
+    }
+
+    /// 借用版本的销毁
+    public func deinit(): Unit {
+        // 借用版本不销毁 AllocationScope 本身
+    }
+
+    /// 获取统计信息
+    public func stats(): AllocScopeStats {
+        if (!ALLOCATION_SCOPE_ENABLED) {
+            panic("AllocationScope must be enabled")
+        }
+        if (let Some(s) <- this.state) {
+            let locked = s.lock()
+            defer {
+                s.unlock()
+            }
+            return AllocScopeStats(
+                totalMemoryAllocated: locked.history.totalMemoryAllocated,
+                numAllocations: UInt64(locked.history.allocations.size())
+            )
+        }
+        return AllocScopeStats(totalMemoryAllocated: 0, numAllocations: 0)
+    }
+
+    /// 断言指针由本作用域拥有
+    public func assertOwned(ptr: CPointer<Byte>): Unit {
+        if (!ALLOCATION_SCOPE_ENABLED) {
+            return
+        }
+        if (let Some(s) <- this.state) {
+            let locked = s.lock()
+            defer {
+                s.unlock()
+            }
+            locked.assertOwned(ptr)
+        }
+    }
+
+    /// 断言指针不由本作用域拥有
+    public func assertUnowned(ptr: CPointer<Byte>): Unit {
+        if (!ALLOCATION_SCOPE_ENABLED) {
+            return
+        }
+        if (let Some(s) <- this.state) {
+            let locked = s.lock()
+            defer {
+                s.unlock()
+            }
+            locked.assertUnowned(ptr)
+        }
+    }
+
+    /// 追踪外部分配
+    public func trackExternalAllocation(ptr: Array<Byte>, retAddr: ?UInt64, extra: Extra): Unit {
+        if (ALLOCATION_SCOPE_ENABLED) {
+            this.state?.trackExternalAllocation(ptr, retAddr, extra)
+        }
+    }
+
+    /// 追踪外部释放
+    public func trackExternalFree(slice: Array<Byte>, retAddr: ?UInt64): Bool {
+        if (ALLOCATION_SCOPE_ENABLED) {
+            return this.state?.trackExternalFree(slice, retAddr) ?? true
+        }
+        return true
+    }
+
+    /// 设置指针额外数据
+    public func setPointerExtra(ptr: CPointer<Byte>, extra: Extra): Unit {
+        if (ALLOCATION_SCOPE_ENABLED) {
+            this.state?.setPointerExtra(ptr, extra)
+        }
+    }
+}
+
 public class AllocationScope {
 
     /// 父分配器
     private var parentAlloc: Allocator
     /// 状态 (仅在启用时有效)
     private var state: ?AllocScopeState
-
-    /// 借用版本
-    /// 对应 Zig: const BorrowedScope
-    public class Borrowed {
-        /// 借用的父分配器
-        public var parentAlloc: Allocator
-        /// 借用的状态
-        public var state: ?AllocScopeState
-
-        public init(parentAlloc: Allocator, state: ?AllocScopeState) {
-            this.parentAlloc = parentAlloc
-            this.state = state
-        }
-
-        /// 获取分配器
-        /// 对应 Zig: pub fn allocator(self: Self) std.mem.Allocator
-        public func allocator(): Allocator {
-            if (ALLOCATION_SCOPE_ENABLED) {
-                if (let s = this.state) {
-                    return Allocator.fromContext(s, AllocationScopeVTable.get())
-                }
-            }
-            return this.parentAlloc
-        }
-
-        /// 获取父分配器
-        public func parent(): Allocator {
-            return this.parentAlloc
-        }
-
-        /// 借用版本的销毁
-        public func deinit(): Unit {
-            // 借用版本不销毁 AllocationScope 本身
-        }
-
-        /// 获取统计信息
-        public func stats(): AllocScopeStats {
-            if (!ALLOCATION_SCOPE_ENABLED) {
-                panic("AllocationScope must be enabled")
-            }
-            if (let s = this.state) {
-                let locked = s.lock()
-                defer {
-                    s.unlock()
-                }
-                return AllocScopeStats(
-                    totalMemoryAllocated: locked.history.totalMemoryAllocated,
-                    numAllocations: UInt64(locked.history.allocations.size())
-                )
-            }
-            return AllocScopeStats(totalMemoryAllocated: 0, numAllocations: 0)
-        }
-
-        /// 断言指针由本作用域拥有
-        public func assertOwned(ptr: CPointer<Byte>): Unit {
-            if (!ALLOCATION_SCOPE_ENABLED) {
-                return
-            }
-            if (let s = this.state) {
-                let locked = s.lock()
-                defer {
-                    s.unlock()
-                }
-                locked.assertOwned(ptr)
-            }
-        }
-
-        /// 断言指针不由本作用域拥有
-        public func assertUnowned(ptr: CPointer<Byte>): Unit {
-            if (!ALLOCATION_SCOPE_ENABLED) {
-                return
-            }
-            if (let s = this.state) {
-                let locked = s.lock()
-                defer {
-                    s.unlock()
-                }
-                locked.assertUnowned(ptr)
-            }
-        }
-
-        /// 追踪外部分配
-        public func trackExternalAllocation(ptr: Array<Byte>, retAddr: ?UInt64, extra: Extra): Unit {
-            if (ALLOCATION_SCOPE_ENABLED) {
-                this.state?.trackExternalAllocation(ptr, retAddr, extra)
-            }
-        }
-
-        /// 追踪外部释放
-        public func trackExternalFree(slice: Array<Byte>, retAddr: ?UInt64): Bool {
-            if (ALLOCATION_SCOPE_ENABLED) {
-                return this.state?.trackExternalFree(slice, retAddr) ?? true
-            }
-            return true
-        }
-
-        /// 设置指针额外数据
-        public func setPointerExtra(ptr: CPointer<Byte>, extra: Extra): Unit {
-            if (ALLOCATION_SCOPE_ENABLED) {
-                this.state?.setPointerExtra(ptr, extra)
-            }
-        }
-    }
 
     /// 初始化
     /// 对应 Zig: pub fn init(parent_alloc: Allocator) Self
@@ -471,9 +470,9 @@ public class AllocationScope {
     }
 
     /// 借用此分配作用域
-    /// 对应 Zig: pub fn borrow(self: Self) Borrowed
-    public func borrow(): Borrowed {
-        return Borrowed(
+    /// 对应 Zig: pub fn borrow(self: Self) AllocationScopeBorrowed
+    public func borrow(): AllocationScopeBorrowed {
+        return AllocationScopeBorrowed(
             parentAlloc: this.parentAlloc,
             state: this.state
         )
@@ -489,7 +488,7 @@ public class AllocationScope {
     /// 对应 Zig: pub fn deinit(self: *Self) void
     public func deinit(): Unit {
         if (ALLOCATION_SCOPE_ENABLED) {
-            if (let s = this.state) {
+            if (let Some(s) <- this.state) {
                 s.deinit()
             }
         }

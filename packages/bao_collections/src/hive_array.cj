@@ -184,32 +184,6 @@ public class HiveArray<T> {
         return totalCount
     }
 
-    /// 是否包含指定元素
-    public func contains(item: T): Bool where T <: Equatable<T> {
-        for (chunk in chunks) {
-            for (elem in chunk) {
-                if (elem == item) {
-                    return true
-                }
-            }
-        }
-        return false
-    }
-
-    /// 查找元素索引 - 对应 Bun HiveArray.indexOf
-    public func indexOf(item: T): ?Int64 where T <: Equatable<T> {
-        var idx: Int64 = 0
-        for (chunk in chunks) {
-            for (elem in chunk) {
-                if (elem == item) {
-                    return Some(idx)
-                }
-                idx += 1
-            }
-        }
-        return None
-    }
-
     /// 获取第一个元素
     public func first(): ?T {
         if (totalCount == 0 || chunks.size == 0) {

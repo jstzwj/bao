@@ -5,6 +5,7 @@
 package bao_runtime.shell.states
 
 import bao_core.*
+import bao_runtime.shell.*
 import std.collection.*
 
 // ============================================================================
@@ -14,7 +15,7 @@ import std.collection.*
 /// 子Shell状态类型（提取到顶层）
 public enum SubshellStateKind {
 | `idle`
-| expandingRedirect(idx: UInt32, expansion: ExpansionState)
+| expandingRedirect(UInt32, ExpansionState)
 | `exec`
 | waitWriteErr
 | done
@@ -41,7 +42,7 @@ public class SubshellChildPtr {
         cp.ptr = p
         return cp
     }
-    public func is(type: Any): Boolean { true }
+    public func `is`(`type`: Any): Bool { true }
     public func `as`<T>(): T { this.ptr as T }
     public func deinit() {}
 }
@@ -115,11 +116,11 @@ public class SubshellState {
     /// 下一步
     public func next(): Yield {
         while (this.state != SubshellStateKind.done) {
-            switch (this.state) {
+            match (this.state) {
                 case SubshellStateKind.`idle` =>
-                    this.state = SubshellStateKind.expandingRedirect(idx: 0, expansion: ExpansionState())
+                    this.state = SubshellStateKind.expandingRedirect(0, expansion: ExpansionState())
                     return Yield.subshell(this)
-                case SubshellStateKind.expandingRedirect(let idx, let expansion) =>
+                case SubshellStateKind.expandingRedirect(idx, expansion) =>
                     if (idx >= 1) {
                         return this.transitionToExec()
                     }
@@ -147,9 +148,9 @@ public class SubshellState {
     }
 
     /// 子节点完成
-    public func childDone(childPtr: SubshellChildPtr, exitCode: ExitCode): Yield {
+    public func childDone(child: SubshellChildPtr, exitCode: ExitCode): Yield {
         this.exitCode = exitCode
-        if (childPtr.is(ScriptState())) {
+        if (childPtr.`is`(ScriptState())) {
             childPtr.deinit()
             return this.parent.childDone(this, exitCode)
         }
@@ -157,7 +158,7 @@ public class SubshellState {
     }
 
     /// IO写入器数据块回调
-    public func onIOWriterChunk(amount: UInt64, err: ?SystemError): Yield {
+    public func onIOWriterChunk(chunk: UInt64, err: ?SystemError): Yield {
         if (let Some(e) <- err) {
             e.deref()
         }
@@ -174,7 +175,7 @@ public class SubshellState {
     }
 
     /// 写入失败错误
-    public func writeFailingError(fmt: String): Yield {
+    public func writeFailingError(s: String): Yield {
         return this.base.shell.writeFailingErrorFmt(this, { _ => Yield.done }, fmt, [])
     }
 }

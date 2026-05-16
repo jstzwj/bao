@@ -39,23 +39,17 @@ public class ETag {
 
     /// 解析单个 ETag 字符串 - 对应 Bun ETag.parse()
     /// 返回去除引号后的标签值和是否为弱标记
-    /// 示例:
-    ///   "abc"    => { tag: "abc", is_weak: false }
-    ///   W/"abc"  => { tag: "abc", is_weak: true }
     public static func parse(tagStr: String): ETagParseResult {
-        var str = tagStr.trim()
+        var str = tagStr.trimAscii()
 
-        // 检查弱标记前缀 "W/"
         var isWeak = false
         if (str.startsWith("W/")) {
             isWeak = true
-            str = str.substring(2)
-            str = str.trimStart()
+            str = str[2..str.size].trimAsciiStart()
         }
 
-        // 去除两端引号
-        if (str.length >= 2 && str[0] == '"' && str[str.length - 1] == '"') {
-            str = str.substring(1, str.length - 1)
+        if (str.size >= 2 && str[0] == UInt8(34) && str[str.size - 1] == UInt8(34)) {
+            str = str[1..(str.size - 1)]
         }
 
         return ETagParseResult(str, isWeak)
@@ -88,7 +82,7 @@ public class ETag {
 
     /// 基于字符串内容生成 ETag
     public static func generateFromString(content: String): String {
-        let bytes = content.toArray().map({ c => UInt8(c) })
+        let bytes = Array<UInt8>(content.size, { i => content[i] })
         return generate(bytes)
     }
 
@@ -103,7 +97,7 @@ public class ETag {
         let ourParsed = parse(etag)
 
         // 处理 "*" 通配情况
-        let trimmed = ifNoneMatchHeader.trim()
+        let trimmed = ifNoneMatchHeader.trimAscii()
         if (trimmed == "*") {
             return true  // 条件为假，应返回 304
         }
@@ -129,13 +123,13 @@ public class ETag {
     private static func xxHash64(data: Array<UInt8>): Array<UInt8> {
         // 使用 FNV-1a 64-bit 作为简化替代
         // 生产环境应替换为真正的 xxHash64
-        var hash: UInt64 = 14695981039346656037UL
-        let prime: UInt64 = 1099511628211UL
+        var hash: UInt64 = 14695981039346656037
+        let prime: UInt64 = 1099511628211
         for (b in data) {
             hash = hash ^ UInt64(b)
             hash = hash * prime
         }
-        return Array<UInt8>([
+        return [
             UInt8((hash >> 56) & 0xFF),
             UInt8((hash >> 48) & 0xFF),
             UInt8((hash >> 40) & 0xFF),
@@ -144,6 +138,6 @@ public class ETag {
             UInt8((hash >> 16) & 0xFF),
             UInt8((hash >> 8) & 0xFF),
             UInt8(hash & 0xFF)
-        ])
+        ]
     }
 }

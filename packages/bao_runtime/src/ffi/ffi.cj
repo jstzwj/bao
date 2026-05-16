@@ -726,4 +726,10 @@ public class DynamicLibrary {
         // 占位: 实际通过仓颉 FFI 调用 C dlerror
         return ""
     }
+
+    /// 获取最后一次 dlopen/dlsym/dlclose 错误信息 (公共 API)
+    /// 对应 Bun: mod.rs — get_dl_error()
+    public static func getLastError(): String {
+        return dlerror()
+    }
 }

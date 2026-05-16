@@ -2354,7 +2354,7 @@ public class MimeTypeList {
     "video/x-smv",
     "x-conference/x-cooltalk",
     "x-shader/x-fragment",
-    "x-shader/x-vertex",
+    "x-shader/x-vertex"
     ]
 
     /// 从字符串查找 MIME 类型是否存在

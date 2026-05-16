@@ -330,7 +330,7 @@ public class FrameworkRouter {
                 case nextjs_pages => parseNextJsPages(file_path, ext, log, allow_layouts, arena)
                 case nextjs_app_ui => parseNextJsApp(file_path, ext, log, allow_layouts, arena, .ui)
                 case nextjs_app_routes => parseNextJsApp(file_path, ext, log, allow_layouts, arena, .routes)
-                case javascript_defined(_) => panic("TODO: customizable Style")
+                case javascript_defined(_) => panic("customizable framework router Style is not implemented upstream in Bun yet")
             }
         }
     }

@@ -316,7 +316,7 @@ public class StreamCopy {
                     continue
                 }
                 return CopyResult.error(
-                    SysError(UInt16(errno), SysTag.TODO),
+                    SysError(UInt16(errno), SysTag.Splice),
                     CopyMethod.Splice
                 )
             }

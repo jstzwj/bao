@@ -114,7 +114,7 @@ public class UnlinkCommand {
             Output.prettyLn("<r><green>success:<r> unlinked package \"${name}\"")
             Global.exit(0)
         } else {
-            Output.prettyLn("<r><red>error:<r> bun unlink {packageName} not implemented yet")
+            Output.prettyLn("<r><red>error:<r> bun unlink {packageName} is unsupported")
             Global.crash()
         }
     }

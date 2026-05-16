@@ -5,6 +5,7 @@
 package bao_runtime.shell.builtin
 
 import bao_core.*
+import bao_runtime.shell.*
 
 // ============================================================================
 // ls命令 - 列出目录内容
@@ -54,51 +55,51 @@ public class LsCmd {
     }
 
     /// 写入失败错误
-    public func writeFailingError(buf: String, exitCode: ExitCode): Yield {
-        if (let safeguard = this.bltn().stderr.needsIO()) {
+    public func writeFailingError(s: String, exitCode: ExitCode): Yield {
+        if (let Some(safeguard) <- this.bltn().stderr.needsIO()) {
             this.state = LsState.waitingWriteErr
             return this.bltn().stderr.enqueue(this, buf.toByteArray(), safeguard)
         }
-        this.bltn().writeNoIO(.stderr, buf.toByteArray())
+        this.bltn().writeNoIO(OutKind.stderr, buf.toByteArray())
         return this.bltn().done(exitCode)
     }
 
     /// 下一步
     func next(): Yield {
-        while (this.state != .done) {
-            switch (this.state) {
-                case .idle =>
+        while (this.state != CheckTargetInnerState.done) {
+            match (this.state) {
+                case idle => ()
                     // 解析选项
-                    let paths = switch (this.parseOpts()) {
-                        case .ok(let p) => p
-                        case .err(let e) =>
-                            let buf = switch (e) {
-                                case .illegalOption(let optStr) =>
+                    let paths = match (this.parseOpts()) {
+                        case ok(p) => p
+                        case err(e) =>
+                            let buf = match (e) {
+                                case illegalOption(optStr) =>
                                     this.bltn().fmtErrorArena("ls", "illegal option -- ${optStr}\n", [])
-                                case .showUsage =>
+                                case showUsage =>
                                     Builtin.Kind.usageString("ls")
                             }
                             return this.writeFailingError(buf, 1)
                     }
 
-                    let taskCount = if (let p = paths) p.length else 1
+                    let taskCount = if (let Some(p) <- paths) { p.size } else { 1 }
 
                     this.state = LsState.exec(ExecState())
                     // 注意: 实际的任务调度需要线程池支持
 
-                case .exec(let exec) =>
+                case LsState.exec(exec) => ()
                     // 检查是否完成
                     if (exec.tasksDone >= exec.taskCount.load() && exec.outputDone >= exec.outputWaiting) {
-                        let exitCode: ExitCode = if (exec.err != None) 1 else 0
+                        let exitCode: ExitCode = if (exec.err != None) { 1 } else { 0 }
                         this.state = LsState.done
                         return this.bltn().done(exitCode)
                     }
                     return Yield.suspended
 
-                case .waitingWriteErr =>
+                case waitingWriteErr =>
                     return Yield.failed
 
-                case .done =>
+                case done =>
                     panic("不可达状态")
             }
         }
@@ -107,14 +108,14 @@ public class LsCmd {
     }
 
     /// IO写入器数据块回调
-    public func onIOWriterChunk(amount: UInt64, e: ?SystemError): Yield {
-        if (let err = e) {
+    public func onIOWriterChunk(chunk: UInt64, e: ?SystemError): Yield {
+        if (let Some(err) <- e) {
             err.deref()
         }
-        if (this.state == .waitingWriteErr) {
+        if (this.state == LsState.waitingWriteErr) {
             return this.bltn().done(1)
         }
-        if (let exec = this.state.getExec()) {
+        if (let Some(exec) <- this.state.getExec()) {
             // exec.outputDone++
         }
         return this.next()
@@ -138,43 +139,43 @@ public class LsCmd {
     /// 解析标志
     func parseFlags(): LsParseResult {
         let args = this.bltn().argsSlice()
-        if (args.length == 0) {
-            return .ok(None)
+        if (args.size == 0) {
+            return LsParseResult.ok(None)
         }
 
         var idx: UInt32 = 0
-        while (idx < args.length) {
+        while (idx < args.size) {
             let flag = args[idx]
-            switch (this.parseFlag(flag)) {
-                case .done =>
-                    return .ok(args[idx..])
-                case .continueParsing =>
+            match (this.parseFlag(flag)) {
+                case FlagParseResult.done =>
+                    return LsParseResult.ok(args[idx..])
+                case FlagParseResult.continueParsing =>
                     idx++
-                case .illegalOption(let optStr) =>
-                    return .err(.illegalOption(optStr))
+                case FlagParseResult.illegalOption(optStr) =>
+                    return LsParseResult.err(LsParseError.illegalOption(optStr))
             }
             idx++
         }
 
-        return .ok(None)
+        return LsParseResult.ok(None)
     }
 
     /// 解析单个标志
-    /// 对应 Bun: pub fn parseFlag(this: *Ls, flag: []const u8)
-    func parseFlag(flag: String): FlagParseResult {
-        if (flag.length == 0) {
-            return .done
+    /// 对应 Bun: pub fn parseFlag(*Ls, flag: []const u8)
+    func parseFlag(s: String): FlagParseResult {
+        if (flag.size == 0) {
+            return FlagParseResult.done
         }
         if (flag[0] != '-') {
-            return .done
+            return FlagParseResult.done
         }
-        if (flag.length == 1) {
-            return .illegalOption("-")
+        if (flag.size == 1) {
+            return FlagParseResult.illegalOption("-")
         }
 
         let smallFlags = flag.substring(1)
         for (c in smallFlags) {
-            switch (c) {
+            match (c) {
                 case 'a' => this.opts.showAll = true
                 case 'A' => this.opts.showAlmostAll = true
                 case 'b' => this.opts.escape = true
@@ -215,10 +216,10 @@ public class LsCmd {
                 case 'X' => this.opts.sortByExtension = true
                 case 'Z' => this.opts.showContext = true
                 case '1' => this.opts.oneFilePerLine = true
-                case _ => return .illegalOption(flag.substring(1, 2))
+                case _ => return FlagParseResult.illegalOption(flag.substring(1, 2))
             }
         }
-        return .continueParsing
+        return FlagParseResult.continueParsing
     }
 
     /// 获取Builtin引用
@@ -231,51 +232,51 @@ public class LsCmd {
 /// 对应 Bun: Opts struct in ls.zig
 public struct LsOpts {
     /// -a, --all: 显示所有条目（包括以.开头的）
-    public var showAll: Boolean = false
+    public var showAll: Bool = false
     /// -A, --almost-all: 显示几乎所有条目（不包括.和..）
-    public var showAlmostAll: Boolean = false
+    public var showAlmostAll: Bool = false
     /// --author: 配合-l打印文件作者
-    public var showAuthor: Boolean = false
+    public var showAuthor: Bool = false
     /// -b, --escape: 打印C风格转义的非图形字符
-    public var escape: Boolean = false
+    public var escape: Bool = false
     /// --block-size=SIZE: 配合-l按指定大小单位显示
     public var blockSize: ?UIntPtr = None
     /// -B, --ignore-backups: 不列出以~结尾的条目
-    public var ignoreBackups: Boolean = false
+    public var ignoreBackups: Bool = false
     /// -c: 按ctime排序和显示
-    public var useCtime: Boolean = false
+    public var useCtime: Bool = false
     /// -C: 按列列出
-    public var listByColumns: Boolean = false
+    public var listByColumns: Bool = false
     /// --color[=WHEN]: 彩色输出
     public var color: ?String = None
     /// -d, --directory: 列出目录本身，而非其内容
-    public var listDirectories: Boolean = false
+    public var listDirectories: Bool = false
     /// -D, --dired: 生成Emacs dired模式输出
-    public var diredMode: Boolean = false
+    public var diredMode: Bool = false
     /// -f: 不排序
-    public var unsorted: Boolean = false
+    public var unsorted: Bool = false
     /// -F, --classify[=WHEN]: 追加文件类型指示符
     public var classify: ?String = None
     /// --file-type: 同-F但不追加*
-    public var fileType: Boolean = false
+    public var fileType: Bool = false
     /// --format=WORD: 指定格式
     public var format: ?String = None
     /// --full-time: 类似-l --time-style=full-iso
-    public var fullTime: Boolean = false
+    public var fullTime: Bool = false
     /// -g: 类似-l但不列出所有者
-    public var noOwner: Boolean = false
+    public var noOwner: Bool = false
     /// --group-directories-first: 目录排在文件前
-    public var groupDirectoriesFirst: Boolean = false
+    public var groupDirectoriesFirst: Bool = false
     /// -G, --no-group: 长列表不打印组名
-    public var noGroup: Boolean = false
+    public var noGroup: Bool = false
     /// -h, --human-readable: 人类可读的大小
-    public var humanReadable: Boolean = false
+    public var humanReadable: Bool = false
     /// --si: 使用1000而非1024作为单位
-    public var siUnits: Boolean = false
+    public var siUnits: Bool = false
     /// -H, --dereference-command-line: 跟随命令行符号链接
-    public var dereferenceCmdSymlinks: Boolean = false
+    public var dereferenceCmdSymlinks: Bool = false
     /// --dereference-command-line-symlink-to-dir: 跟随指向目录的命令行符号链接
-    public var dereferenceCmdDirSymlinks: Boolean = false
+    public var dereferenceCmdDirSymlinks: Bool = false
     /// --hide=PATTERN: 不列出匹配Shell模式的条目
     public var hidePattern: ?String = None
     /// --hyperlink[=WHEN]: 超链接文件名
@@ -283,41 +284,41 @@ public struct LsOpts {
     /// --indicator-style=WORD: 追加指定风格的指示符
     public var indicatorStyle: ?String = None
     /// -i, --inode: 显示inode号
-    public var showInode: Boolean = false
+    public var showInode: Bool = false
     /// -I, --ignore=PATTERN: 不列出匹配Shell模式的条目
     public var ignorePattern: ?String = None
     /// -k, --kibibytes: 默认使用1024字节块
-    public var kibibytes: Boolean = false
+    public var kibibytes: Bool = false
     /// -l: 使用长列表格式
-    public var longListing: Boolean = false
+    public var longListing: Bool = false
     /// -L, --dereference: 显示符号链接引用的文件信息
-    public var dereference: Boolean = false
+    public var dereference: Bool = false
     /// -m: 逗号分隔列表
-    public var commaSeparated: Boolean = false
+    public var commaSeparated: Bool = false
     /// -n, --numeric-uid-gid: 显示数字UID/GID
-    public var numericUidGid: Boolean = false
+    public var numericUidGid: Bool = false
     /// -N, --literal: 不加引号打印条目名
-    public var literal: Boolean = false
+    public var literal: Bool = false
     /// -o: 类似-l但不列出组信息
-    public var noGroupInfo: Boolean = false
+    public var noGroupInfo: Bool = false
     /// -p, --indicator-style=slash: 目录追加/指示符
-    public var slashIndicator: Boolean = false
+    public var slashIndicator: Bool = false
     /// -q, --hide-control-chars: 用?替代非图形字符
-    public var hideControlChars: Boolean = false
+    public var hideControlChars: Bool = false
     /// --show-control-chars: 原样显示非图形字符
-    public var showControlChars: Boolean = false
+    public var showControlChars: Bool = false
     /// -Q, --quote-name: 用双引号括起条目名
-    public var quoteName: Boolean = false
+    public var quoteName: Bool = false
     /// --quoting-style=WORD: 使用指定引用风格
     public var quotingStyle: ?String = None
     /// -r, --reverse: 反转排序顺序
-    public var reverseOrder: Boolean = false
+    public var reverseOrder: Bool = false
     /// -R, --recursive: 递归列出子目录
-    public var recursive: Boolean = false
+    public var recursive: Bool = false
     /// -s, --size: 显示每个文件的分配大小
-    public var showSize: Boolean = false
+    public var showSize: Bool = false
     /// -S: 按文件大小排序（最大的在前）
-    public var sortBySize: Boolean = false
+    public var sortBySize: Bool = false
     /// --sort=WORD: 按指定属性排序
     public var sortMethod: ?String = None
     /// --time=WORD: 选择用于显示或排序的时间戳
@@ -325,31 +326,31 @@ public struct LsOpts {
     /// --time-style=TIME_STYLE: 配合-l的时间/日期格式
     public var timeStyle: ?String = None
     /// -t: 按时间排序（最新的在前）
-    public var sortByTime: Boolean = false
+    public var sortByTime: Bool = false
     /// -T, --tabsize=COLS: 设置制表符宽度
     public var tabsize: ?UIntPtr = None
     /// -u: 按访问时间排序和显示
-    public var useAtime: Boolean = false
+    public var useAtime: Bool = false
     /// -U: 不排序，按目录顺序列出
-    public var noSort: Boolean = false
+    public var noSort: Bool = false
     /// -v: 文本中数字的自然排序
-    public var naturalSort: Boolean = false
+    public var naturalSort: Bool = false
     /// -w, --width=COLS: 设置输出宽度
     public var outputWidth: ?UIntPtr = None
     /// -x: 按行列出而非按列
-    public var listByLines: Boolean = false
+    public var listByLines: Bool = false
     /// -X: 按扩展名字母排序
-    public var sortByExtension: Boolean = false
+    public var sortByExtension: Bool = false
     /// -Z, --context: 打印安全上下文
-    public var showContext: Boolean = false
+    public var showContext: Bool = false
     /// --zero: 用NUL而非换行结束每行
-    public var endWithNul: Boolean = false
+    public var endWithNul: Bool = false
     /// -1: 每行一个文件
-    public var oneFilePerLine: Boolean = false
+    public var oneFilePerLine: Bool = false
     /// --help: 显示帮助
-    public var showHelp: Boolean = false
+    public var showHelp: Bool = false
     /// --version: 显示版本信息
-    public var showVersion: Boolean = false
+    public var showVersion: Bool = false
 }
 
 /// ls解析结果
@@ -382,11 +383,11 @@ public class ShellLsTask {
     /// 错误
     public var err: ?SyscallError = None
     /// 是否打印目录名
-    public var printDirectory: Boolean = false
+    public var printDirectory: Bool = false
     /// 是否为绝对路径
-    public var isAbsolute: Boolean = false
+    public var isAbsolute: Bool = false
     /// 是否拥有字符串
-    public var ownedString: Boolean = false
+    public var ownedString: Bool = false
     /// 结果类型
     public var resultKind: ResultKind = ResultKind.idk
 
@@ -417,8 +418,8 @@ public class ShellLsTask {
     }
 
     /// 判断是否应跳过条目
-    /// 对应 Bun: fn shouldSkipEntry(this: *@This(), name: [:0]const u8) bool
-    public func shouldSkipEntry(name: String): Boolean {
+    /// 对应 Bun: fn shouldSkipEntry(*@This(), name: [:0]const u8) bool
+    public func shouldSkipEntry(s: String): Bool {
         if (this.opts.showAll) {
             return false
         }
@@ -435,8 +436,8 @@ public class ShellLsTask {
     }
 
     /// 添加条目
-    /// 对应 Bun: fn addEntry(this: *@This(), name: [:0]const u8, dir_fd: bun.FD) void
-    public func addEntry(name: String, dirFd: FD) {
+    /// 对应 Bun: fn addEntry(*@This(), name: [:0]const u8, dir_fd: bun.FD) void
+    public func addEntry(s: String, dirFd: FD) {
         if (this.shouldSkipEntry(name)) {
             return
         }
@@ -449,18 +450,18 @@ public class ShellLsTask {
     }
 
     /// 添加长列表格式条目
-    /// 对应 Bun: fn addEntryLong(this: *@This(), name: [:0]const u8, dir_fd: bun.FD) void
-    public func addEntryLong(name: String, dirFd: FD) {
+    /// 对应 Bun: fn addEntryLong(*@This(), name: [:0]const u8, dir_fd: bun.FD) void
+    public func addEntryLong(s: String, dirFd: FD) {
         // 使用lstatat获取文件信息（不跟随符号链接）
         let statResult = Syscall.lstatat(dirFd, name)
-        switch (statResult) {
-            case .err =>
+        match (statResult) {
+            case err => ()
                 // stat失败时输出占位符
                 this.output.appendAll("?????????? ? ? ? ?            ? ".toByteArray())
                 this.output.appendAll(name.toByteArray())
                 this.output.append('\n'.toByte())
                 return
-            case .result(let stat) =>
+            case result(stat) =>
                 let mode: UInt32 = stat.mode
                 let fileTypeChar = ShellLsTask.getFileTypeChar(mode)
                 let perms = ShellLsTask.formatPermissions(mode)
@@ -489,8 +490,8 @@ public class ShellLsTask {
     }
 
     /// 获取文件类型字符
-    /// 对应 Bun: fn getFileTypeChar(mode: u32) u8
-    public static func getFileTypeChar(mode: UInt32): Char {
+    /// 对应 Bun: fn getFileTypeChar(u32) u8
+    public static func getFileTypeChar(n: UInt32): Char {
         let fileType = mode & S.IFMT
         if (fileType == S.IFDIR) {
             return 'd'
@@ -509,8 +510,8 @@ public class ShellLsTask {
     }
 
     /// 格式化权限字符串
-    /// 对应 Bun: fn formatPermissions(mode: u32) [9]u8
-    public static func formatPermissions(mode: UInt32): String {
+    /// 对应 Bun: fn formatPermissions(u32) [9]u8
+    public static func formatPermissions(n: UInt32): String {
         var perms = StringBuilder()
         // Owner permissions
         perms.append(if ((mode & S.IRUSR) != 0) 'r' else '-')
@@ -534,8 +535,8 @@ public class ShellLsTask {
     }
 
     /// 格式化时间戳
-    /// 对应 Bun: fn formatTime(timestamp: i64, now_secs: u64) [12]u8
-    public static func formatTime(timestamp: Int64): String {
+    /// 对应 Bun: fn formatTime(i64, now_secs: u64) [12]u8
+    public static func formatTime(n: Int64): String {
         // 简化实现 - 返回基本的时间格式
         if (timestamp < 0) {
             return "??? ?? ??:??"
@@ -551,7 +552,7 @@ public class ShellLsTask {
         // 近似计算月和日
         let year = 1970 + Int64(daysSinceEpoch / 365)
         let dayOfYear = Int64(daysSinceEpoch % 365)
-        let monthIdx = if (dayOfYear / 30 > 11) 11 else Int64(dayOfYear / 30)
+        let monthIdx = if (dayOfYear / 30 > 11) { 11 } else { Int64 }(dayOfYear / 30)
         let day = dayOfYear % 30 + 1
         return "${months[Int64(monthIdx)]} ${String.formatInt(day, minWidth: 2)} ${String.formatInt(Int64(hours), minWidth: 2)}:${String.formatInt(Int64(minutes), minWidth: 2)}"
     }

@@ -311,7 +311,7 @@ public class SignalHandler {
     public static func register(sig: SignalCode, handler: (SignalCode) -> Unit): SysMaybe<Unit> {
         if (!sig.isCatchable()) {
             return SysMaybe<Unit>.Err(
-                SysError(22, SysTag.TODO, "Cannot catch ${sig.name()}")
+                SysError(22, SysTag.Signal, "Cannot catch ${sig.name()}")
             )
         }
         // 注意: 仓颉无法直接将闭包传递给 C signal handler
@@ -326,14 +326,14 @@ public class SignalHandler {
     public static func ignore(sig: SignalCode): SysMaybe<Unit> {
         if (!sig.isCatchable()) {
             return SysMaybe<Unit>.Err(
-                SysError(22, SysTag.TODO, "Cannot ignore ${sig.name()}")
+                SysError(22, SysTag.Signal, "Cannot ignore ${sig.name()}")
             )
         }
         unsafe {
             let result = signal(sig.toInt(), CPointer<Unit>(Int64(SigHandler.SIG_IGN)))
             if (result == CPointer<Unit>(Int64(SigHandler.SIG_ERR))) {
                 return SysMaybe<Unit>.Err(
-                    SysError(UInt16(Int64(OS.errno())), SysTag.TODO)
+                    SysError(UInt16(Int64(OS.errno())), SysTag.Signal)
                 )
             }
         }
@@ -347,7 +347,7 @@ public class SignalHandler {
             let result = signal(sig.toInt(), CPointer<Unit>(Int64(SigHandler.SIG_DFL)))
             if (result == CPointer<Unit>(Int64(SigHandler.SIG_ERR))) {
                 return SysMaybe<Unit>.Err(
-                    SysError(UInt16(Int64(OS.errno())), SysTag.TODO)
+                    SysError(UInt16(Int64(OS.errno())), SysTag.Signal)
                 )
             }
         }
@@ -360,7 +360,7 @@ public class SignalHandler {
         let rc = raise(sig.toInt())
         if (rc != 0) {
             return SysMaybe<Unit>.Err(
-                SysError(UInt16(Int64(OS.errno())), SysTag.TODO)
+                SysError(UInt16(Int64(OS.errno())), SysTag.Signal)
             )
         }
         return SysMaybe<Unit>.Ok(())
@@ -379,7 +379,7 @@ public class SignalHandler {
             free(set)
             if (rc != 0) {
                 return SysMaybe<Unit>.Err(
-                    SysError(UInt16(Int64(OS.errno())), SysTag.TODO)
+                    SysError(UInt16(Int64(OS.errno())), SysTag.Signal)
                 )
             }
             return SysMaybe<Unit>.Ok(())
@@ -399,7 +399,7 @@ public class SignalHandler {
             free(set)
             if (rc != 0) {
                 return SysMaybe<Unit>.Err(
-                    SysError(UInt16(Int64(OS.errno())), SysTag.TODO)
+                    SysError(UInt16(Int64(OS.errno())), SysTag.Signal)
                 )
             }
             return SysMaybe<Unit>.Ok(())

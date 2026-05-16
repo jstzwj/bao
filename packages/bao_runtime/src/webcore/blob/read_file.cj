@@ -4,6 +4,10 @@
 package bao_runtime.webcore.blob
 
 import bao_core.*
+import bao_collections.*
+import bao_io.*
+
+public type BlobSizeType = Int64
 
 // ============================================================================
 // ReadFileResultType - 文件读取结果类型
@@ -80,22 +84,22 @@ public class ReadFile {
     /// 同步读取文件
     /// 对应 Bun: read_file.ReadFile.run()
     public func run(): ReadFileResultType {
-        try {
-            let bytes = BaoFile.readAllBytes(path)
-            // 应用偏移和大小
-            let start = offset
-            let end = if (size > 0) { offset + size } else { bytes.size }
-            if (start >= bytes.size) {
-                return ReadFileResultType.Success(ReadFileSuccess(Array<UInt8>()))
-            }
-            let actualEnd = if (end > bytes.size) { bytes.size } else { end }
-            let result = ArrayList<UInt8>()
-            for (i in start..actualEnd) {
-                result.append(bytes[Int64(i)])
-            }
-            return ReadFileResultType.Success(ReadFileSuccess(result.toArray()))
-        } catch (e: Exception) {
-            return ReadFileResultType.Error(ReadFileError(e.message))
+        match (BaoFile.readAllBytes(path)) {
+            case SysMaybe<Array<UInt8>>.Ok(bytes) =>
+                // 应用偏移和大小
+                let start = offset
+                let end = if (size > 0) { offset + size } else { bytes.size }
+                if (start >= bytes.size) {
+                    return ReadFileResultType.Success(ReadFileSuccess(Array<UInt8>()))
+                }
+                let actualEnd = if (end > bytes.size) { bytes.size } else { end }
+                let result = ArrayList<UInt8>()
+                for (i in start..actualEnd) {
+                    result.append(bytes[Int64(i)])
+                }
+                return ReadFileResultType.Success(ReadFileSuccess(result.toOwnedSlice()))
+            case SysMaybe<Array<UInt8>>.Err(err) =>
+                return ReadFileResultType.Error(ReadFileError(err.message))
         }
     }
 }

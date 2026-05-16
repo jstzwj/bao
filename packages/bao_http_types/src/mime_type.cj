@@ -12,6 +12,7 @@
 package bao_http_types
 
 import bao_core.*
+import std.collection.*
 
 // ============================================================================
 // MimeTypeCategory - MIME 类型分类
@@ -39,6 +40,34 @@ public enum MimeTypeCategory {
     | XShader       // x-shader
     | Chemical
     | Multipart
+
+    public operator func ==(right: MimeTypeCategory): Bool {
+        match (this) {
+            case None => match (right) { case None => true case _ => false }
+            case Image => match (right) { case Image => true case _ => false }
+            case Text => match (right) { case Text => true case _ => false }
+            case Html => match (right) { case Html => true case _ => false }
+            case Font => match (right) { case Font => true case _ => false }
+            case Other => match (right) { case Other => true case _ => false }
+            case Css => match (right) { case Css => true case _ => false }
+            case Json => match (right) { case Json => true case _ => false }
+            case Audio => match (right) { case Audio => true case _ => false }
+            case Video => match (right) { case Video => true case _ => false }
+            case JavaScript => match (right) { case JavaScript => true case _ => false }
+            case Wasm => match (right) { case Wasm => true case _ => false }
+            case Application => match (right) { case Application => true case _ => false }
+            case Model => match (right) { case Model => true case _ => false }
+            case Message => match (right) { case Message => true case _ => false }
+            case XConference => match (right) { case XConference => true case _ => false }
+            case XShader => match (right) { case XShader => true case _ => false }
+            case Chemical => match (right) { case Chemical => true case _ => false }
+            case Multipart => match (right) { case Multipart => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: MimeTypeCategory): Bool {
+        !(this == right)
+    }
 }
 
 // ============================================================================
@@ -47,7 +76,7 @@ public enum MimeTypeCategory {
 // ============================================================================
 
 /// MIME 类型分类工具
-public class MimeTypeCategoryUtil {
+public class MimeType {
     /// 是否为代码类型 - 对应 Bun Category.isCode()
     public static func isCode(cat: MimeTypeCategory): Bool {
         match (cat) {
@@ -56,7 +85,7 @@ public class MimeTypeCategoryUtil {
             case MimeTypeCategory.Css => true
             case MimeTypeCategory.Html => true
             case MimeTypeCategory.JavaScript => true
-            default => false
+            case _ => false
         }
     }
 
@@ -68,7 +97,7 @@ public class MimeTypeCategoryUtil {
             case MimeTypeCategory.Text => true
             case MimeTypeCategory.Css => true
             case MimeTypeCategory.Json => true
-            default => false
+            case _ => false
         }
     }
 
@@ -85,106 +114,60 @@ public class MimeTypeCategoryUtil {
             case MimeTypeCategory.Text => false
             case MimeTypeCategory.Css => false
             case MimeTypeCategory.Json => false
-            default => true
+            case _ => true
         }
     }
 
-    /// 从 MIME 类型字符串推断分类 - 对应 Bun Category.init(str)
-    /// 解析 "text/css" => Css, "image/png" => Image 等
+    /// 从 MIME 类型字符串推断分类
     public static func initFunc(str: String): MimeTypeCategory {
         let slashIdx = str.indexOf("/")
-        if (slashIdx < 0) {
+        if (slashIdx.isNone()) {
             return MimeTypeCategory.Other
         }
 
-        let category = str.substring(0, slashIdx)
-        var afterSlash = if (str.length > slashIdx + 1) {
-            str.substring(slashIdx + 1)
+        let slash = slashIdx.getOrThrow()
+        let category = str[0..slash]
+        var afterSlash = if (str.size > slash + 1) {
+            str[(slash + 1)..str.size]
         } else {
             ""
         }
 
-        // 去掉分号参数部分
         let semicolonIdx = afterSlash.indexOf(";")
-        if (semicolonIdx >= 0) {
-            afterSlash = afterSlash.substring(0, semicolonIdx)
+        if (semicolonIdx.isSome()) {
+            afterSlash = afterSlash[0..semicolonIdx.getOrThrow()]
         }
 
         if (category == "text") {
-            if (afterSlash == "javascript") {
-                return MimeTypeCategory.JavaScript
-            }
-            if (afterSlash == "css") {
-                return MimeTypeCategory.Css
-            }
-            if (afterSlash == "html") {
-                return MimeTypeCategory.Html
-            }
-            if (afterSlash == "json") {
-                return MimeTypeCategory.Json
-            }
+            if (afterSlash == "javascript") { return MimeTypeCategory.JavaScript }
+            if (afterSlash == "css") { return MimeTypeCategory.Css }
+            if (afterSlash == "html") { return MimeTypeCategory.Html }
+            if (afterSlash == "json") { return MimeTypeCategory.Json }
             return MimeTypeCategory.Text
         }
 
         if (category == "application") {
-            if (afterSlash == "wasm") {
-                return MimeTypeCategory.Wasm
-            }
-            if (afterSlash == "javascript") {
-                return MimeTypeCategory.JavaScript
-            }
-            if (afterSlash == "json") {
-                return MimeTypeCategory.Json
-            }
-            if (afterSlash == "octet-stream") {
-                return MimeTypeCategory.Other
-            }
+            if (afterSlash == "wasm") { return MimeTypeCategory.Wasm }
+            if (afterSlash == "javascript") { return MimeTypeCategory.JavaScript }
+            if (afterSlash == "json") { return MimeTypeCategory.Json }
+            if (afterSlash == "octet-stream") { return MimeTypeCategory.Other }
             return MimeTypeCategory.Application
         }
 
-        if (category == "image") {
-            return MimeTypeCategory.Image
-        }
-        if (category == "video") {
-            return MimeTypeCategory.Video
-        }
-        if (category == "audio") {
-            return MimeTypeCategory.Audio
-        }
-        if (category == "font") {
-            return MimeTypeCategory.Font
-        }
-        if (category == "multipart") {
-            return MimeTypeCategory.Multipart
-        }
-        if (category == "model") {
-            return MimeTypeCategory.Model
-        }
-        if (category == "message") {
-            return MimeTypeCategory.Message
-        }
-        if (category == "x-conference") {
-            return MimeTypeCategory.XConference
-        }
-        if (category == "x-shader") {
-            return MimeTypeCategory.XShader
-        }
-        if (category == "chemical") {
-            return MimeTypeCategory.Chemical
-        }
+        if (category == "image") { return MimeTypeCategory.Image }
+        if (category == "video") { return MimeTypeCategory.Video }
+        if (category == "audio") { return MimeTypeCategory.Audio }
+        if (category == "font") { return MimeTypeCategory.Font }
+        if (category == "multipart") { return MimeTypeCategory.Multipart }
+        if (category == "model") { return MimeTypeCategory.Model }
+        if (category == "message") { return MimeTypeCategory.Message }
+        if (category == "x-conference") { return MimeTypeCategory.XConference }
+        if (category == "x-shader") { return MimeTypeCategory.XShader }
+        if (category == "chemical") { return MimeTypeCategory.Chemical }
 
         return MimeTypeCategory.Other
     }
-}
 
-// ============================================================================
-// MimeType - MIME 类型
-// 严格翻译自: MimeType.zig const MimeType = @This()
-// ============================================================================
-
-/// MIME 类型 - 对应 Bun MimeType
-/// 包含类型值和分类
-public class MimeType {
     /// MIME 类型值 (如 "text/css;charset=utf-8")
     public var value: String
     /// 类型分类
@@ -197,7 +180,7 @@ public class MimeType {
 
     /// 是否可在编辑器中打开 - 对应 Bun MimeType.canOpenInEditor()
     public func canOpenInEditor(): Bool {
-        if (category == MimeTypeCategory.Text || MimeTypeCategoryUtil.isCode(category)) {
+        if (category == MimeTypeCategory.Text || MimeType.isCode(category)) {
             return true
         }
         if (category == MimeTypeCategory.Image) {
@@ -260,66 +243,44 @@ public class MimeTypeUtil {
         return initFromName(name)
     }
 
-    /// 从名称初始化 MIME 类型 - 对应 Bun MimeType.init()
-    /// 解析类型字符串，识别常见类型并返回对应常量
+    /// 从名称初始化 MIME 类型
     public static func initFromName(str: String): MimeType {
         let slashIdx = str.indexOf("/")
-        if (slashIdx < 0) {
+        if (slashIdx.isNone()) {
             return MimeTypeConstants.OTHER
         }
 
-        let categoryStr = str.substring(0, slashIdx)
-        if (categoryStr.length == 0 || categoryStr[0] == '*' || str.length <= slashIdx + 1) {
+        let slash = slashIdx.getOrThrow()
+        let categoryStr = str[0..slash]
+        if (categoryStr.size == 0 || categoryStr[0] == UInt8(42) || str.size <= slash + 1) {
             return MimeTypeConstants.OTHER
         }
 
-        var subType = str.substring(slashIdx + 1)
+        var subType = str[(slash + 1)..str.size]
         let semicolonIdx = subType.indexOf(";")
-        if (semicolonIdx >= 0) {
-            subType = subType.substring(0, semicolonIdx)
+        if (semicolonIdx.isSome()) {
+            subType = subType[0..semicolonIdx.getOrThrow()]
         }
 
         if (categoryStr == "application") {
-            if (subType == "json" || subType == "geo+json") {
-                return MimeTypeConstants.JSON
-            }
-            if (subType == "octet-stream") {
-                return MimeTypeConstants.OTHER
-            }
-            if (subType == "wasm") {
-                return MimeTypeConstants.WASM
-            }
+            if (subType == "json" || subType == "geo+json") { return MimeTypeConstants.JSON }
+            if (subType == "octet-stream") { return MimeTypeConstants.OTHER }
+            if (subType == "wasm") { return MimeTypeConstants.WASM }
             return MimeType(str, MimeTypeCategory.Application)
         }
 
         if (categoryStr == "text") {
-            if (subType == "css") {
-                return MimeTypeConstants.CSS
-            }
-            if (subType == "html") {
-                return MimeTypeConstants.HTML
-            }
-            if (subType == "javascript") {
-                return MimeTypeConstants.JAVASCRIPT
-            }
-            if (subType == "plain") {
-                return MimeTypeConstants.TEXT
-            }
+            if (subType == "css") { return MimeTypeConstants.CSS }
+            if (subType == "html") { return MimeTypeConstants.HTML }
+            if (subType == "javascript") { return MimeTypeConstants.JAVASCRIPT }
+            if (subType == "plain") { return MimeTypeConstants.TEXT }
             return MimeType(str, MimeTypeCategory.Text)
         }
 
-        if (categoryStr == "image") {
-            return MimeType(str, MimeTypeCategory.Image)
-        }
-        if (categoryStr == "audio") {
-            return MimeType(str, MimeTypeCategory.Audio)
-        }
-        if (categoryStr == "video") {
-            return MimeType(str, MimeTypeCategory.Video)
-        }
-        if (categoryStr == "font") {
-            return MimeType(str, MimeTypeCategory.Font)
-        }
+        if (categoryStr == "image") { return MimeType(str, MimeTypeCategory.Image) }
+        if (categoryStr == "audio") { return MimeType(str, MimeTypeCategory.Audio) }
+        if (categoryStr == "video") { return MimeType(str, MimeTypeCategory.Video) }
+        if (categoryStr == "font") { return MimeType(str, MimeTypeCategory.Font) }
 
         return MimeType(str, MimeTypeCategory.Other)
     }
@@ -327,33 +288,33 @@ public class MimeTypeUtil {
     /// 根据文件头字节嗅探图片类型 - 对应 Bun MimeType.sniff()
     /// 通过魔数字节识别 BMP/JPEG/TIFF/GIF/PNG
     public static func sniff(bytes: Array<UInt8>): ?MimeType {
-        if (bytes.length < 2) {
+        if (bytes.size < 2) {
             return None<MimeType>
         }
 
         // BMP: 42 4D
-        if (bytes.length >= 2 && bytes[0] == 0x42 && bytes[1] == 0x4D) {
+        if (bytes.size >= 2 && bytes[0] == 0x42 && bytes[1] == 0x4D) {
             return MimeType("image/bmp", MimeTypeCategory.Image)
         }
         // JPEG: FF D8 FF
-        if (bytes.length >= 3 && bytes[0] == 0xFF && bytes[1] == 0xD8 && bytes[2] == 0xFF) {
+        if (bytes.size >= 3 && bytes[0] == 0xFF && bytes[1] == 0xD8 && bytes[2] == 0xFF) {
             return MimeType("image/jpeg", MimeTypeCategory.Image)
         }
         // TIFF (LE): 49 49 2A 00
-        if (bytes.length >= 4 && bytes[0] == 0x49 && bytes[1] == 0x49 && bytes[2] == 0x2A && bytes[3] == 0x00) {
+        if (bytes.size >= 4 && bytes[0] == 0x49 && bytes[1] == 0x49 && bytes[2] == 0x2A && bytes[3] == 0x00) {
             return MimeType("image/tiff", MimeTypeCategory.Image)
         }
         // TIFF (BE): 4D 4D 00 2A
-        if (bytes.length >= 4 && bytes[0] == 0x4D && bytes[1] == 0x4D && bytes[2] == 0x00 && bytes[3] == 0x2A) {
+        if (bytes.size >= 4 && bytes[0] == 0x4D && bytes[1] == 0x4D && bytes[2] == 0x00 && bytes[3] == 0x2A) {
             return MimeType("image/tiff", MimeTypeCategory.Image)
         }
         // GIF: 47 49 46 38 39 61
-        if (bytes.length >= 6 && bytes[0] == 0x47 && bytes[1] == 0x49 && bytes[2] == 0x46 &&
+        if (bytes.size >= 6 && bytes[0] == 0x47 && bytes[1] == 0x49 && bytes[2] == 0x46 &&
             bytes[3] == 0x38 && bytes[4] == 0x39 && bytes[5] == 0x61) {
             return MimeType("image/gif", MimeTypeCategory.Image)
         }
         // PNG: 89 50 4E 47 0D 0A 1A 0A
-        if (bytes.length >= 8 && bytes[0] == 0x89 && bytes[1] == 0x50 && bytes[2] == 0x4E &&
+        if (bytes.size >= 8 && bytes[0] == 0x89 && bytes[1] == 0x50 && bytes[2] == 0x4E &&
             bytes[3] == 0x47 && bytes[4] == 0x0D && bytes[5] == 0x0A && bytes[6] == 0x1A &&
             bytes[7] == 0x0A) {
             return MimeType("image/png", MimeTypeCategory.Image)
@@ -378,355 +339,355 @@ public class MimeTypeExtensionMap {
         let m = HashMap<String, MimeType>()
         // 严格翻译自 Bun MimeType.zig 中的 extensions ComptimeStringMap
         // 常用类型
-        m.put("html", MimeType("text/html", MimeTypeCategory.Html))
-        m.put("htm", MimeType("text/html", MimeTypeCategory.Html))
-        m.put("css", MimeType("text/css", MimeTypeCategory.Css))
-        m.put("js", MimeType("application/javascript", MimeTypeCategory.JavaScript))
-        m.put("mjs", MimeType("application/javascript", MimeTypeCategory.JavaScript))
-        m.put("cjs", MimeType("application/javascript", MimeTypeCategory.JavaScript))
-        m.put("ts", MimeType("application/javascript", MimeTypeCategory.JavaScript))
-        m.put("tsx", MimeType("application/javascript", MimeTypeCategory.JavaScript))
-        m.put("mts", MimeType("application/javascript", MimeTypeCategory.JavaScript))
-        m.put("mtsx", MimeType("application/javascript", MimeTypeCategory.JavaScript))
-        m.put("jsx", MimeType("text/jsx", MimeTypeCategory.JavaScript))
-        m.put("json", MimeType("application/json", MimeTypeCategory.Json))
-        m.put("json5", MimeType("application/json5", MimeTypeCategory.Application))
-        m.put("jsonld", MimeType("application/ld+json", MimeTypeCategory.Application))
-        m.put("jsonml", MimeType("application/jsonml+json", MimeTypeCategory.Application))
-        m.put("map", MimeType("application/json", MimeTypeCategory.Json))
-        m.put("wasm", MimeType("application/webassembly", MimeTypeCategory.Wasm))
-        m.put("txt", MimeType("text/plain", MimeTypeCategory.Text))
-        m.put("text", MimeType("text/plain", MimeTypeCategory.Text))
-        m.put("conf", MimeType("text/plain", MimeTypeCategory.Text))
-        m.put("log", MimeType("text/plain", MimeTypeCategory.Text))
-        m.put("ini", MimeType("text/plain", MimeTypeCategory.Text))
-        m.put("list", MimeType("text/plain", MimeTypeCategory.Text))
-        m.put("in", MimeType("text/plain", MimeTypeCategory.Text))
-        m.put("def", MimeType("text/plain", MimeTypeCategory.Text))
-        m.put("csv", MimeType("text/csv", MimeTypeCategory.Text))
-        m.put("tsv", MimeType("text/tab-separated-values", MimeTypeCategory.Text))
-        m.put("md", MimeType("text/markdown", MimeTypeCategory.Text))
-        m.put("markdown", MimeType("text/markdown", MimeTypeCategory.Text))
-        m.put("mkd", MimeType("text/x-markdown", MimeTypeCategory.Text))
-        m.put("svg", MimeType("image/svg+xml", MimeTypeCategory.Image))
-        m.put("svgz", MimeType("image/svg+xml", MimeTypeCategory.Image))
+        m.add("html", MimeType("text/html", MimeTypeCategory.Html))
+        m.add("htm", MimeType("text/html", MimeTypeCategory.Html))
+        m.add("css", MimeType("text/css", MimeTypeCategory.Css))
+        m.add("js", MimeType("application/javascript", MimeTypeCategory.JavaScript))
+        m.add("mjs", MimeType("application/javascript", MimeTypeCategory.JavaScript))
+        m.add("cjs", MimeType("application/javascript", MimeTypeCategory.JavaScript))
+        m.add("ts", MimeType("application/javascript", MimeTypeCategory.JavaScript))
+        m.add("tsx", MimeType("application/javascript", MimeTypeCategory.JavaScript))
+        m.add("mts", MimeType("application/javascript", MimeTypeCategory.JavaScript))
+        m.add("mtsx", MimeType("application/javascript", MimeTypeCategory.JavaScript))
+        m.add("jsx", MimeType("text/jsx", MimeTypeCategory.JavaScript))
+        m.add("json", MimeType("application/json", MimeTypeCategory.Json))
+        m.add("json5", MimeType("application/json5", MimeTypeCategory.Application))
+        m.add("jsonld", MimeType("application/ld+json", MimeTypeCategory.Application))
+        m.add("jsonml", MimeType("application/jsonml+json", MimeTypeCategory.Application))
+        m.add("map", MimeType("application/json", MimeTypeCategory.Json))
+        m.add("wasm", MimeType("application/webassembly", MimeTypeCategory.Wasm))
+        m.add("txt", MimeType("text/plain", MimeTypeCategory.Text))
+        m.add("text", MimeType("text/plain", MimeTypeCategory.Text))
+        m.add("conf", MimeType("text/plain", MimeTypeCategory.Text))
+        m.add("log", MimeType("text/plain", MimeTypeCategory.Text))
+        m.add("ini", MimeType("text/plain", MimeTypeCategory.Text))
+        m.add("list", MimeType("text/plain", MimeTypeCategory.Text))
+        m.add("in", MimeType("text/plain", MimeTypeCategory.Text))
+        m.add("def", MimeType("text/plain", MimeTypeCategory.Text))
+        m.add("csv", MimeType("text/csv", MimeTypeCategory.Text))
+        m.add("tsv", MimeType("text/tab-separated-values", MimeTypeCategory.Text))
+        m.add("md", MimeType("text/markdown", MimeTypeCategory.Text))
+        m.add("markdown", MimeType("text/markdown", MimeTypeCategory.Text))
+        m.add("mkd", MimeType("text/x-markdown", MimeTypeCategory.Text))
+        m.add("svg", MimeType("image/svg+xml", MimeTypeCategory.Image))
+        m.add("svgz", MimeType("image/svg+xml", MimeTypeCategory.Image))
 
         // 图片
-        m.put("png", MimeType("image/png", MimeTypeCategory.Image))
-        m.put("jpg", MimeType("image/jpeg", MimeTypeCategory.Image))
-        m.put("jpeg", MimeType("image/jpeg", MimeTypeCategory.Image))
-        m.put("jpe", MimeType("image/jpeg", MimeTypeCategory.Image))
-        m.put("gif", MimeType("image/gif", MimeTypeCategory.Image))
-        m.put("bmp", MimeType("image/x-ms-bmp", MimeTypeCategory.Image))
-        m.put("ico", MimeType("image/x-icon", MimeTypeCategory.Image))
-        m.put("webp", MimeType("image/webp", MimeTypeCategory.Image))
-        m.put("avif", MimeType("image/avif", MimeTypeCategory.Image))
-        m.put("heic", MimeType("image/heic", MimeTypeCategory.Image))
-        m.put("heif", MimeType("image/heif", MimeTypeCategory.Image))
-        m.put("tiff", MimeType("image/tiff", MimeTypeCategory.Image))
-        m.put("tif", MimeType("image/tiff", MimeTypeCategory.Image))
-        m.put("apng", MimeType("image/apng", MimeTypeCategory.Image))
-        m.put("jp2", MimeType("image/jp2", MimeTypeCategory.Image))
-        m.put("jpg2", MimeType("image/jp2", MimeTypeCategory.Image))
-        m.put("jpf", MimeType("image/jpx", MimeTypeCategory.Image))
-        m.put("jpx", MimeType("image/jpx", MimeTypeCategory.Image))
+        m.add("png", MimeType("image/png", MimeTypeCategory.Image))
+        m.add("jpg", MimeType("image/jpeg", MimeTypeCategory.Image))
+        m.add("jpeg", MimeType("image/jpeg", MimeTypeCategory.Image))
+        m.add("jpe", MimeType("image/jpeg", MimeTypeCategory.Image))
+        m.add("gif", MimeType("image/gif", MimeTypeCategory.Image))
+        m.add("bmp", MimeType("image/x-ms-bmp", MimeTypeCategory.Image))
+        m.add("ico", MimeType("image/x-icon", MimeTypeCategory.Image))
+        m.add("webp", MimeType("image/webp", MimeTypeCategory.Image))
+        m.add("avif", MimeType("image/avif", MimeTypeCategory.Image))
+        m.add("heic", MimeType("image/heic", MimeTypeCategory.Image))
+        m.add("heif", MimeType("image/heif", MimeTypeCategory.Image))
+        m.add("tiff", MimeType("image/tiff", MimeTypeCategory.Image))
+        m.add("tif", MimeType("image/tiff", MimeTypeCategory.Image))
+        m.add("apng", MimeType("image/apng", MimeTypeCategory.Image))
+        m.add("jp2", MimeType("image/jp2", MimeTypeCategory.Image))
+        m.add("jpg2", MimeType("image/jp2", MimeTypeCategory.Image))
+        m.add("jpf", MimeType("image/jpx", MimeTypeCategory.Image))
+        m.add("jpx", MimeType("image/jpx", MimeTypeCategory.Image))
 
         // 音频
-        m.put("mp3", MimeType("audio/mpeg", MimeTypeCategory.Audio))
-        m.put("mp2", MimeType("audio/mpeg", MimeTypeCategory.Audio))
-        m.put("mpga", MimeType("audio/mpeg", MimeTypeCategory.Audio))
-        m.put("m2a", MimeType("audio/mpeg", MimeTypeCategory.Audio))
-        m.put("m3a", MimeType("audio/mpeg", MimeTypeCategory.Audio))
-        m.put("wav", MimeType("audio/x-wav", MimeTypeCategory.Audio))
-        m.put("ogg", MimeType("audio/ogg", MimeTypeCategory.Audio))
-        m.put("oga", MimeType("audio/ogg", MimeTypeCategory.Audio))
-        m.put("opus", MimeType("audio/ogg", MimeTypeCategory.Audio))
-        m.put("flac", MimeType("audio/x-flac", MimeTypeCategory.Audio))
-        m.put("aac", MimeType("audio/x-aac", MimeTypeCategory.Audio))
-        m.put("m4a", MimeType("audio/x-m4a", MimeTypeCategory.Audio))
-        m.put("mid", MimeType("audio/midi", MimeTypeCategory.Audio))
-        m.put("midi", MimeType("audio/midi", MimeTypeCategory.Audio))
-        m.put("kar", MimeType("audio/midi", MimeTypeCategory.Audio))
-        m.put("rmi", MimeType("audio/midi", MimeTypeCategory.Audio))
-        m.put("weba", MimeType("audio/webm", MimeTypeCategory.Audio))
-        m.put("mka", MimeType("audio/x-matroska", MimeTypeCategory.Audio))
-        m.put("s3m", MimeType("audio/s3m", MimeTypeCategory.Audio))
-        m.put("amr", MimeType("audio/amr", MimeTypeCategory.Audio))
-        m.put("aif", MimeType("audio/x-aiff", MimeTypeCategory.Audio))
-        m.put("aiff", MimeType("audio/x-aiff", MimeTypeCategory.Audio))
-        m.put("aifc", MimeType("audio/x-aiff", MimeTypeCategory.Audio))
-        m.put("caf", MimeType("audio/x-caf", MimeTypeCategory.Audio))
-        m.put("sil", MimeType("audio/silk", MimeTypeCategory.Audio))
-        m.put("spx", MimeType("audio/ogg", MimeTypeCategory.Audio))
+        m.add("mp3", MimeType("audio/mpeg", MimeTypeCategory.Audio))
+        m.add("mp2", MimeType("audio/mpeg", MimeTypeCategory.Audio))
+        m.add("mpga", MimeType("audio/mpeg", MimeTypeCategory.Audio))
+        m.add("m2a", MimeType("audio/mpeg", MimeTypeCategory.Audio))
+        m.add("m3a", MimeType("audio/mpeg", MimeTypeCategory.Audio))
+        m.add("wav", MimeType("audio/x-wav", MimeTypeCategory.Audio))
+        m.add("ogg", MimeType("audio/ogg", MimeTypeCategory.Audio))
+        m.add("oga", MimeType("audio/ogg", MimeTypeCategory.Audio))
+        m.add("opus", MimeType("audio/ogg", MimeTypeCategory.Audio))
+        m.add("flac", MimeType("audio/x-flac", MimeTypeCategory.Audio))
+        m.add("aac", MimeType("audio/x-aac", MimeTypeCategory.Audio))
+        m.add("m4a", MimeType("audio/x-m4a", MimeTypeCategory.Audio))
+        m.add("mid", MimeType("audio/midi", MimeTypeCategory.Audio))
+        m.add("midi", MimeType("audio/midi", MimeTypeCategory.Audio))
+        m.add("kar", MimeType("audio/midi", MimeTypeCategory.Audio))
+        m.add("rmi", MimeType("audio/midi", MimeTypeCategory.Audio))
+        m.add("weba", MimeType("audio/webm", MimeTypeCategory.Audio))
+        m.add("mka", MimeType("audio/x-matroska", MimeTypeCategory.Audio))
+        m.add("s3m", MimeType("audio/s3m", MimeTypeCategory.Audio))
+        m.add("amr", MimeType("audio/amr", MimeTypeCategory.Audio))
+        m.add("aif", MimeType("audio/x-aiff", MimeTypeCategory.Audio))
+        m.add("aiff", MimeType("audio/x-aiff", MimeTypeCategory.Audio))
+        m.add("aifc", MimeType("audio/x-aiff", MimeTypeCategory.Audio))
+        m.add("caf", MimeType("audio/x-caf", MimeTypeCategory.Audio))
+        m.add("sil", MimeType("audio/silk", MimeTypeCategory.Audio))
+        m.add("spx", MimeType("audio/ogg", MimeTypeCategory.Audio))
 
         // 视频
-        m.put("mp4", MimeType("video/mp4", MimeTypeCategory.Video))
-        m.put("mp4v", MimeType("video/mp4", MimeTypeCategory.Video))
-        m.put("mpg4", MimeType("video/mp4", MimeTypeCategory.Video))
-        m.put("mpeg", MimeType("video/mpeg", MimeTypeCategory.Video))
-        m.put("mpg", MimeType("video/mpeg", MimeTypeCategory.Video))
-        m.put("mpe", MimeType("video/mpeg", MimeTypeCategory.Video))
-        m.put("m1v", MimeType("video/mpeg", MimeTypeCategory.Video))
-        m.put("m2v", MimeType("video/mpeg", MimeTypeCategory.Video))
-        m.put("webm", MimeType("video/webm", MimeTypeCategory.Video))
-        m.put("mkv", MimeType("video/x-matroska", MimeTypeCategory.Video))
-        m.put("mk3d", MimeType("video/x-matroska", MimeTypeCategory.Video))
-        m.put("mks", MimeType("video/x-matroska", MimeTypeCategory.Video))
-        m.put("avi", MimeType("video/x-msvideo", MimeTypeCategory.Video))
-        m.put("mov", MimeType("video/quicktime", MimeTypeCategory.Video))
-        m.put("qt", MimeType("video/quicktime", MimeTypeCategory.Video))
-        m.put("flv", MimeType("video/x-flv", MimeTypeCategory.Video))
-        m.put("wmv", MimeType("video/x-ms-wmv", MimeTypeCategory.Video))
-        m.put("m4v", MimeType("video/x-m4v", MimeTypeCategory.Video))
-        m.put("3gp", MimeType("video/3gpp", MimeTypeCategory.Video))
-        m.put("3gpp", MimeType("video/3gpp", MimeTypeCategory.Video))
-        m.put("3g2", MimeType("video/3gpp2", MimeTypeCategory.Video))
-        m.put("f4v", MimeType("video/x-f4v", MimeTypeCategory.Video))
-        m.put("fli", MimeType("video/x-fli", MimeTypeCategory.Video))
-        m.put("mng", MimeType("video/x-mng", MimeTypeCategory.Video))
-        m.put("asf", MimeType("video/x-ms-asf", MimeTypeCategory.Video))
-        m.put("asx", MimeType("video/x-ms-asf", MimeTypeCategory.Video))
-        m.put("vob", MimeType("video/x-ms-vob", MimeTypeCategory.Video))
-        m.put("ogv", MimeType("video/ogg", MimeTypeCategory.Video))
-        m.put("m4s", MimeType("video/iso.segment", MimeTypeCategory.Video))
-        m.put("m4u", MimeType("video/vnd.mpegurl", MimeTypeCategory.Video))
-        m.put("mxu", MimeType("video/vnd.mpegurl", MimeTypeCategory.Video))
-        m.put("movie", MimeType("video/x-sgi-movie", MimeTypeCategory.Video))
+        m.add("mp4", MimeType("video/mp4", MimeTypeCategory.Video))
+        m.add("mp4v", MimeType("video/mp4", MimeTypeCategory.Video))
+        m.add("mpg4", MimeType("video/mp4", MimeTypeCategory.Video))
+        m.add("mpeg", MimeType("video/mpeg", MimeTypeCategory.Video))
+        m.add("mpg", MimeType("video/mpeg", MimeTypeCategory.Video))
+        m.add("mpe", MimeType("video/mpeg", MimeTypeCategory.Video))
+        m.add("m1v", MimeType("video/mpeg", MimeTypeCategory.Video))
+        m.add("m2v", MimeType("video/mpeg", MimeTypeCategory.Video))
+        m.add("webm", MimeType("video/webm", MimeTypeCategory.Video))
+        m.add("mkv", MimeType("video/x-matroska", MimeTypeCategory.Video))
+        m.add("mk3d", MimeType("video/x-matroska", MimeTypeCategory.Video))
+        m.add("mks", MimeType("video/x-matroska", MimeTypeCategory.Video))
+        m.add("avi", MimeType("video/x-msvideo", MimeTypeCategory.Video))
+        m.add("mov", MimeType("video/quicktime", MimeTypeCategory.Video))
+        m.add("qt", MimeType("video/quicktime", MimeTypeCategory.Video))
+        m.add("flv", MimeType("video/x-flv", MimeTypeCategory.Video))
+        m.add("wmv", MimeType("video/x-ms-wmv", MimeTypeCategory.Video))
+        m.add("m4v", MimeType("video/x-m4v", MimeTypeCategory.Video))
+        m.add("3gp", MimeType("video/3gpp", MimeTypeCategory.Video))
+        m.add("3gpp", MimeType("video/3gpp", MimeTypeCategory.Video))
+        m.add("3g2", MimeType("video/3gpp2", MimeTypeCategory.Video))
+        m.add("f4v", MimeType("video/x-f4v", MimeTypeCategory.Video))
+        m.add("fli", MimeType("video/x-fli", MimeTypeCategory.Video))
+        m.add("mng", MimeType("video/x-mng", MimeTypeCategory.Video))
+        m.add("asf", MimeType("video/x-ms-asf", MimeTypeCategory.Video))
+        m.add("asx", MimeType("video/x-ms-asf", MimeTypeCategory.Video))
+        m.add("vob", MimeType("video/x-ms-vob", MimeTypeCategory.Video))
+        m.add("ogv", MimeType("video/ogg", MimeTypeCategory.Video))
+        m.add("m4s", MimeType("video/iso.segment", MimeTypeCategory.Video))
+        m.add("m4u", MimeType("video/vnd.mpegurl", MimeTypeCategory.Video))
+        m.add("mxu", MimeType("video/vnd.mpegurl", MimeTypeCategory.Video))
+        m.add("movie", MimeType("video/x-sgi-movie", MimeTypeCategory.Video))
 
         // 字体
-        m.put("woff", MimeType("font/woff", MimeTypeCategory.Font))
-        m.put("woff2", MimeType("font/woff2", MimeTypeCategory.Font))
-        m.put("ttf", MimeType("font/ttf", MimeTypeCategory.Font))
-        m.put("otf", MimeType("font/otf", MimeTypeCategory.Font))
-        m.put("ttc", MimeType("font/collection", MimeTypeCategory.Font))
-        m.put("eot", MimeType("application/vnd.ms-fontobject", MimeTypeCategory.Font))
+        m.add("woff", MimeType("font/woff", MimeTypeCategory.Font))
+        m.add("woff2", MimeType("font/woff2", MimeTypeCategory.Font))
+        m.add("ttf", MimeType("font/ttf", MimeTypeCategory.Font))
+        m.add("otf", MimeType("font/otf", MimeTypeCategory.Font))
+        m.add("ttc", MimeType("font/collection", MimeTypeCategory.Font))
+        m.add("eot", MimeType("application/vnd.ms-fontobject", MimeTypeCategory.Font))
 
         // 文档
-        m.put("pdf", MimeType("application/pdf", MimeTypeCategory.Application))
-        m.put("doc", MimeType("application/msword", MimeTypeCategory.Application))
-        m.put("docx", MimeType("application/vnd.openxmlformats-officedocument.wordprocessingml.document", MimeTypeCategory.Application))
-        m.put("xls", MimeType("application/vnd.ms-excel", MimeTypeCategory.Application))
-        m.put("xlsx", MimeType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", MimeTypeCategory.Application))
-        m.put("ppt", MimeType("application/vnd.ms-powerpoint", MimeTypeCategory.Application))
-        m.put("pptx", MimeType("application/vnd.openxmlformats-officedocument.presentationml.presentation", MimeTypeCategory.Application))
-        m.put("odt", MimeType("application/vnd.oasis.opendocument.text", MimeTypeCategory.Application))
-        m.put("ods", MimeType("application/vnd.oasis.opendocument.spreadsheet", MimeTypeCategory.Application))
-        m.put("odp", MimeType("application/vnd.oasis.opendocument.presentation", MimeTypeCategory.Application))
-        m.put("odg", MimeType("application/vnd.oasis.opendocument.graphics", MimeTypeCategory.Application))
-        m.put("rtf", MimeType("text/rtf", MimeTypeCategory.Text))
+        m.add("pdf", MimeType("application/pdf", MimeTypeCategory.Application))
+        m.add("doc", MimeType("application/msword", MimeTypeCategory.Application))
+        m.add("docx", MimeType("application/vnd.openxmlformats-officedocument.wordprocessingml.document", MimeTypeCategory.Application))
+        m.add("xls", MimeType("application/vnd.ms-excel", MimeTypeCategory.Application))
+        m.add("xlsx", MimeType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", MimeTypeCategory.Application))
+        m.add("ppt", MimeType("application/vnd.ms-powerpoint", MimeTypeCategory.Application))
+        m.add("pptx", MimeType("application/vnd.openxmlformats-officedocument.presentationml.presentation", MimeTypeCategory.Application))
+        m.add("odt", MimeType("application/vnd.oasis.opendocument.text", MimeTypeCategory.Application))
+        m.add("ods", MimeType("application/vnd.oasis.opendocument.spreadsheet", MimeTypeCategory.Application))
+        m.add("odp", MimeType("application/vnd.oasis.opendocument.presentation", MimeTypeCategory.Application))
+        m.add("odg", MimeType("application/vnd.oasis.opendocument.graphics", MimeTypeCategory.Application))
+        m.add("rtf", MimeType("text/rtf", MimeTypeCategory.Text))
 
         // 压缩包
-        m.put("zip", MimeType("application/zip", MimeTypeCategory.Application))
-        m.put("gz", MimeType("application/gzip", MimeTypeCategory.Application))
-        m.put("tar", MimeType("application/x-tar", MimeTypeCategory.Application))
-        m.put("rar", MimeType("application/x-rar-compressed", MimeTypeCategory.Application))
-        m.put("7z", MimeType("application/x-7z-compressed", MimeTypeCategory.Application))
-        m.put("bz", MimeType("application/x-bzip", MimeTypeCategory.Application))
-        m.put("bz2", MimeType("application/x-bzip2", MimeTypeCategory.Application))
-        m.put("xz", MimeType("application/x-xz", MimeTypeCategory.Application))
-        m.put("jar", MimeType("application/java-archive", MimeTypeCategory.Application))
-        m.put("war", MimeType("application/java-archive", MimeTypeCategory.Application))
-        m.put("ear", MimeType("application/java-archive", MimeTypeCategory.Application))
+        m.add("zip", MimeType("application/zip", MimeTypeCategory.Application))
+        m.add("gz", MimeType("application/gzip", MimeTypeCategory.Application))
+        m.add("tar", MimeType("application/x-tar", MimeTypeCategory.Application))
+        m.add("rar", MimeType("application/x-rar-compressed", MimeTypeCategory.Application))
+        m.add("7z", MimeType("application/x-7z-compressed", MimeTypeCategory.Application))
+        m.add("bz", MimeType("application/x-bzip", MimeTypeCategory.Application))
+        m.add("bz2", MimeType("application/x-bzip2", MimeTypeCategory.Application))
+        m.add("xz", MimeType("application/x-xz", MimeTypeCategory.Application))
+        m.add("jar", MimeType("application/java-archive", MimeTypeCategory.Application))
+        m.add("war", MimeType("application/java-archive", MimeTypeCategory.Application))
+        m.add("ear", MimeType("application/java-archive", MimeTypeCategory.Application))
 
         // Web
-        m.put("xml", MimeType("application/xml", MimeTypeCategory.Application))
-        m.put("xhtml", MimeType("application/xhtml+xml", MimeTypeCategory.Application))
-        m.put("xht", MimeType("application/xhtml+xml", MimeTypeCategory.Application))
-        m.put("rss", MimeType("application/rss+xml", MimeTypeCategory.Application))
-        m.put("atom", MimeType("application/atom+xml", MimeTypeCategory.Application))
-        m.put("webmanifest", MimeType("application/manifest+json", MimeTypeCategory.Application))
-        m.put("appcache", MimeType("text/cache-manifest", MimeTypeCategory.Text))
-        m.put("manifest", MimeType("text/cache-manifest", MimeTypeCategory.Text))
-        m.put("vtt", MimeType("text/vtt", MimeTypeCategory.Text))
-        m.put("webapp", MimeType("application/x-web-app-manifest+json", MimeTypeCategory.Application))
+        m.add("xml", MimeType("application/xml", MimeTypeCategory.Application))
+        m.add("xhtml", MimeType("application/xhtml+xml", MimeTypeCategory.Application))
+        m.add("xht", MimeType("application/xhtml+xml", MimeTypeCategory.Application))
+        m.add("rss", MimeType("application/rss+xml", MimeTypeCategory.Application))
+        m.add("atom", MimeType("application/atom+xml", MimeTypeCategory.Application))
+        m.add("webmanifest", MimeType("application/manifest+json", MimeTypeCategory.Application))
+        m.add("appcache", MimeType("text/cache-manifest", MimeTypeCategory.Text))
+        m.add("manifest", MimeType("text/cache-manifest", MimeTypeCategory.Text))
+        m.add("vtt", MimeType("text/vtt", MimeTypeCategory.Text))
+        m.add("webapp", MimeType("application/x-web-app-manifest+json", MimeTypeCategory.Application))
 
         // 编程语言
-        m.put("c", MimeType("text/x-c", MimeTypeCategory.Text))
-        m.put("cc", MimeType("text/x-c", MimeTypeCategory.Text))
-        m.put("cpp", MimeType("text/x-c", MimeTypeCategory.Text))
-        m.put("cxx", MimeType("text/x-c", MimeTypeCategory.Text))
-        m.put("h", MimeType("text/x-c", MimeTypeCategory.Text))
-        m.put("hh", MimeType("text/x-c", MimeTypeCategory.Text))
-        m.put("java", MimeType("text/x-java-source", MimeTypeCategory.Text))
-        m.put("py", MimeType("text/x-python", MimeTypeCategory.Text))
-        m.put("pl", MimeType("application/x-perl", MimeTypeCategory.Application))
-        m.put("pm", MimeType("application/x-perl", MimeTypeCategory.Application))
-        m.put("rb", MimeType("text/x-ruby", MimeTypeCategory.Text))
-        m.put("php", MimeType("application/x-httpd-php", MimeTypeCategory.Application))
-        m.put("sh", MimeType("application/x-sh", MimeTypeCategory.Application))
-        m.put("bash", MimeType("application/x-sh", MimeTypeCategory.Application))
-        m.put("zsh", MimeType("application/x-sh", MimeTypeCategory.Application))
-        m.put("lua", MimeType("text/x-lua", MimeTypeCategory.Text))
-        m.put("rs", MimeType("text/rust", MimeTypeCategory.Text))
-        m.put("go", MimeType("text/go", MimeTypeCategory.Text))
-        m.put("sql", MimeType("application/x-sql", MimeTypeCategory.Application))
-        m.put("r", MimeType("text/x-r", MimeTypeCategory.Text))
-        m.put("swift", MimeType("text/x-swift", MimeTypeCategory.Text))
-        m.put("kt", MimeType("text/x-kotlin", MimeTypeCategory.Text))
-        m.put("kts", MimeType("text/x-kotlin", MimeTypeCategory.Text))
-        m.put("scala", MimeType("text/x-scala", MimeTypeCategory.Text))
-        m.put("coffee", MimeType("text/coffeescript", MimeTypeCategory.Text))
-        m.put("litcoffee", MimeType("text/coffeescript", MimeTypeCategory.Text))
-        m.put("dart", MimeType("application/vnd.dart", MimeTypeCategory.Application))
-        m.put("less", MimeType("text/less", MimeTypeCategory.Text))
-        m.put("sass", MimeType("text/x-sass", MimeTypeCategory.Text))
-        m.put("scss", MimeType("text/x-scss", MimeTypeCategory.Text))
-        m.put("styl", MimeType("text/stylus", MimeTypeCategory.Text))
-        m.put("stylus", MimeType("text/stylus", MimeTypeCategory.Text))
-        m.put("svelte", MimeType("text/svelte", MimeTypeCategory.Text))
-        m.put("vue", MimeType("text/vue", MimeTypeCategory.Text))
-        m.put("toml", MimeType("application/toml", MimeTypeCategory.Application))
-        m.put("yaml", MimeType("text/yaml", MimeTypeCategory.Text))
-        m.put("yml", MimeType("text/yaml", MimeTypeCategory.Text))
+        m.add("c", MimeType("text/x-c", MimeTypeCategory.Text))
+        m.add("cc", MimeType("text/x-c", MimeTypeCategory.Text))
+        m.add("cpp", MimeType("text/x-c", MimeTypeCategory.Text))
+        m.add("cxx", MimeType("text/x-c", MimeTypeCategory.Text))
+        m.add("h", MimeType("text/x-c", MimeTypeCategory.Text))
+        m.add("hh", MimeType("text/x-c", MimeTypeCategory.Text))
+        m.add("java", MimeType("text/x-java-source", MimeTypeCategory.Text))
+        m.add("py", MimeType("text/x-python", MimeTypeCategory.Text))
+        m.add("pl", MimeType("application/x-perl", MimeTypeCategory.Application))
+        m.add("pm", MimeType("application/x-perl", MimeTypeCategory.Application))
+        m.add("rb", MimeType("text/x-ruby", MimeTypeCategory.Text))
+        m.add("php", MimeType("application/x-httpd-php", MimeTypeCategory.Application))
+        m.add("sh", MimeType("application/x-sh", MimeTypeCategory.Application))
+        m.add("bash", MimeType("application/x-sh", MimeTypeCategory.Application))
+        m.add("zsh", MimeType("application/x-sh", MimeTypeCategory.Application))
+        m.add("lua", MimeType("text/x-lua", MimeTypeCategory.Text))
+        m.add("rs", MimeType("text/rust", MimeTypeCategory.Text))
+        m.add("go", MimeType("text/go", MimeTypeCategory.Text))
+        m.add("sql", MimeType("application/x-sql", MimeTypeCategory.Application))
+        m.add("r", MimeType("text/x-r", MimeTypeCategory.Text))
+        m.add("swift", MimeType("text/x-swift", MimeTypeCategory.Text))
+        m.add("kt", MimeType("text/x-kotlin", MimeTypeCategory.Text))
+        m.add("kts", MimeType("text/x-kotlin", MimeTypeCategory.Text))
+        m.add("scala", MimeType("text/x-scala", MimeTypeCategory.Text))
+        m.add("coffee", MimeType("text/coffeescript", MimeTypeCategory.Text))
+        m.add("litcoffee", MimeType("text/coffeescript", MimeTypeCategory.Text))
+        m.add("dart", MimeType("application/vnd.dart", MimeTypeCategory.Application))
+        m.add("less", MimeType("text/less", MimeTypeCategory.Text))
+        m.add("sass", MimeType("text/x-sass", MimeTypeCategory.Text))
+        m.add("scss", MimeType("text/x-scss", MimeTypeCategory.Text))
+        m.add("styl", MimeType("text/stylus", MimeTypeCategory.Text))
+        m.add("stylus", MimeType("text/stylus", MimeTypeCategory.Text))
+        m.add("svelte", MimeType("text/svelte", MimeTypeCategory.Text))
+        m.add("vue", MimeType("text/vue", MimeTypeCategory.Text))
+        m.add("toml", MimeType("application/toml", MimeTypeCategory.Application))
+        m.add("yaml", MimeType("text/yaml", MimeTypeCategory.Text))
+        m.add("yml", MimeType("text/yaml", MimeTypeCategory.Text))
 
         // 模板
-        m.put("hbs", MimeType("text/x-handlebars-template", MimeTypeCategory.Text))
-        m.put("pde", MimeType("text/x-processing", MimeTypeCategory.Text))
+        m.add("hbs", MimeType("text/x-handlebars-template", MimeTypeCategory.Text))
+        m.add("pde", MimeType("text/x-processing", MimeTypeCategory.Text))
 
         // 数据
-        m.put("protobuf", MimeType("application/protobuf", MimeTypeCategory.Application))
-        m.put("graphql", MimeType("application/graphql", MimeTypeCategory.Application))
+        m.add("protobuf", MimeType("application/protobuf", MimeTypeCategory.Application))
+        m.add("graphql", MimeType("application/graphql", MimeTypeCategory.Application))
 
         // 二进制/可执行
-        m.put("bin", MimeType("application/octet-stream", MimeTypeCategory.Other))
-        m.put("exe", MimeType("application/x-msdownload", MimeTypeCategory.Application))
-        m.put("dll", MimeType("application/x-msdownload", MimeTypeCategory.Application))
-        m.put("so", MimeType("application/octet-stream", MimeTypeCategory.Other))
-        m.put("img", MimeType("application/octet-stream", MimeTypeCategory.Other))
-        m.put("iso", MimeType("application/x-iso9660-image", MimeTypeCategory.Application))
-        m.put("dmg", MimeType("application/x-apple-diskimage", MimeTypeCategory.Application))
-        m.put("deb", MimeType("application/x-debian-package", MimeTypeCategory.Application))
-        m.put("rpm", MimeType("application/x-redhat-package-manager", MimeTypeCategory.Application))
-        m.put("msi", MimeType("application/x-msdownload", MimeTypeCategory.Application))
-        m.put("bat", MimeType("application/x-msdownload", MimeTypeCategory.Application))
-        m.put("com", MimeType("application/x-msdownload", MimeTypeCategory.Application))
-        m.put("class", MimeType("application/java-vm", MimeTypeCategory.Application))
-        m.put("swf", MimeType("application/x-shockwave-flash", MimeTypeCategory.Application))
+        m.add("bin", MimeType("application/octet-stream", MimeTypeCategory.Other))
+        m.add("exe", MimeType("application/x-msdownload", MimeTypeCategory.Application))
+        m.add("dll", MimeType("application/x-msdownload", MimeTypeCategory.Application))
+        m.add("so", MimeType("application/octet-stream", MimeTypeCategory.Other))
+        m.add("img", MimeType("application/octet-stream", MimeTypeCategory.Other))
+        m.add("iso", MimeType("application/x-iso9660-image", MimeTypeCategory.Application))
+        m.add("dmg", MimeType("application/x-apple-diskimage", MimeTypeCategory.Application))
+        m.add("deb", MimeType("application/x-debian-package", MimeTypeCategory.Application))
+        m.add("rpm", MimeType("application/x-redhat-package-manager", MimeTypeCategory.Application))
+        m.add("msi", MimeType("application/x-msdownload", MimeTypeCategory.Application))
+        m.add("bat", MimeType("application/x-msdownload", MimeTypeCategory.Application))
+        m.add("com", MimeType("application/x-msdownload", MimeTypeCategory.Application))
+        m.add("class", MimeType("application/java-vm", MimeTypeCategory.Application))
+        m.add("swf", MimeType("application/x-shockwave-flash", MimeTypeCategory.Application))
 
         // 证书/密钥
-        m.put("pem", MimeType("application/x-x509-ca-cert", MimeTypeCategory.Application))
-        m.put("crt", MimeType("application/x-x509-ca-cert", MimeTypeCategory.Application))
-        m.put("cer", MimeType("application/pkix-cert", MimeTypeCategory.Application))
-        m.put("key", MimeType("application/x-iwork-keynote-sffkey", MimeTypeCategory.Application))
-        m.put("p12", MimeType("application/x-pkcs12", MimeTypeCategory.Application))
-        m.put("pfx", MimeType("application/x-pkcs12", MimeTypeCategory.Application))
-        m.put("der", MimeType("application/x-x509-ca-cert", MimeTypeCategory.Application))
-        m.put("p7b", MimeType("application/x-pkcs7-certificates", MimeTypeCategory.Application))
-        m.put("p7c", MimeType("application/pkcs7-mime", MimeTypeCategory.Application))
+        m.add("pem", MimeType("application/x-x509-ca-cert", MimeTypeCategory.Application))
+        m.add("crt", MimeType("application/x-x509-ca-cert", MimeTypeCategory.Application))
+        m.add("cer", MimeType("application/pkix-cert", MimeTypeCategory.Application))
+        m.add("key", MimeType("application/x-iwork-keynote-sffkey", MimeTypeCategory.Application))
+        m.add("p12", MimeType("application/x-pkcs12", MimeTypeCategory.Application))
+        m.add("pfx", MimeType("application/x-pkcs12", MimeTypeCategory.Application))
+        m.add("der", MimeType("application/x-x509-ca-cert", MimeTypeCategory.Application))
+        m.add("p7b", MimeType("application/x-pkcs7-certificates", MimeTypeCategory.Application))
+        m.add("p7c", MimeType("application/pkcs7-mime", MimeTypeCategory.Application))
 
         // OpenDocument
-        m.put("odc", MimeType("application/vnd.oasis.opendocument.chart", MimeTypeCategory.Application))
-        m.put("odf", MimeType("application/vnd.oasis.opendocument.formula", MimeTypeCategory.Application))
-        m.put("odi", MimeType("application/vnd.oasis.opendocument.image", MimeTypeCategory.Application))
-        m.put("odm", MimeType("application/vnd.oasis.opendocument.text-master", MimeTypeCategory.Application))
-        m.put("ott", MimeType("application/vnd.oasis.opendocument.text-template", MimeTypeCategory.Application))
-        m.put("ots", MimeType("application/vnd.oasis.opendocument.spreadsheet-template", MimeTypeCategory.Application))
-        m.put("otp", MimeType("application/vnd.oasis.opendocument.presentation-template", MimeTypeCategory.Application))
-        m.put("otg", MimeType("application/vnd.oasis.opendocument.graphics-template", MimeTypeCategory.Application))
-        m.put("otf", MimeType("font/otf", MimeTypeCategory.Font))  // 字体，覆盖上面的 OpenDocument
+        m.add("odc", MimeType("application/vnd.oasis.opendocument.chart", MimeTypeCategory.Application))
+        m.add("odf", MimeType("application/vnd.oasis.opendocument.formula", MimeTypeCategory.Application))
+        m.add("odi", MimeType("application/vnd.oasis.opendocument.image", MimeTypeCategory.Application))
+        m.add("odm", MimeType("application/vnd.oasis.opendocument.text-master", MimeTypeCategory.Application))
+        m.add("ott", MimeType("application/vnd.oasis.opendocument.text-template", MimeTypeCategory.Application))
+        m.add("ots", MimeType("application/vnd.oasis.opendocument.spreadsheet-template", MimeTypeCategory.Application))
+        m.add("otp", MimeType("application/vnd.oasis.opendocument.presentation-template", MimeTypeCategory.Application))
+        m.add("otg", MimeType("application/vnd.oasis.opendocument.graphics-template", MimeTypeCategory.Application))
+        m.add("otf", MimeType("font/otf", MimeTypeCategory.Font))  // 字体，覆盖上面的 OpenDocument
 
         // Microsoft Office (旧格式)
-        m.put("dot", MimeType("application/msword", MimeTypeCategory.Application))
-        m.put("xla", MimeType("application/vnd.ms-excel", MimeTypeCategory.Application))
-        m.put("xlc", MimeType("application/vnd.ms-excel", MimeTypeCategory.Application))
-        m.put("xlm", MimeType("application/vnd.ms-excel", MimeTypeCategory.Application))
-        m.put("xlt", MimeType("application/vnd.ms-excel", MimeTypeCategory.Application))
-        m.put("xlw", MimeType("application/vnd.ms-excel", MimeTypeCategory.Application))
-        m.put("pps", MimeType("application/vnd.ms-powerpoint", MimeTypeCategory.Application))
-        m.put("pot", MimeType("application/vnd.ms-powerpoint", MimeTypeCategory.Application))
+        m.add("dot", MimeType("application/msword", MimeTypeCategory.Application))
+        m.add("xla", MimeType("application/vnd.ms-excel", MimeTypeCategory.Application))
+        m.add("xlc", MimeType("application/vnd.ms-excel", MimeTypeCategory.Application))
+        m.add("xlm", MimeType("application/vnd.ms-excel", MimeTypeCategory.Application))
+        m.add("xlt", MimeType("application/vnd.ms-excel", MimeTypeCategory.Application))
+        m.add("xlw", MimeType("application/vnd.ms-excel", MimeTypeCategory.Application))
+        m.add("pps", MimeType("application/vnd.ms-powerpoint", MimeTypeCategory.Application))
+        m.add("pot", MimeType("application/vnd.ms-powerpoint", MimeTypeCategory.Application))
 
         // Microsoft Office (新格式 - macroenabled)
-        m.put("docm", MimeType("application/vnd.ms-word.document.macroenabled.12", MimeTypeCategory.Application))
-        m.put("dotm", MimeType("application/vnd.ms-word.template.macroenabled.12", MimeTypeCategory.Application))
-        m.put("xlsb", MimeType("application/vnd.ms-excel.sheet.binary.macroenabled.12", MimeTypeCategory.Application))
-        m.put("xlsm", MimeType("application/vnd.ms-excel.sheet.macroenabled.12", MimeTypeCategory.Application))
-        m.put("xltm", MimeType("application/vnd.ms-excel.template.macroenabled.12", MimeTypeCategory.Application))
-        m.put("pptm", MimeType("application/vnd.ms-powerpoint.presentation.macroenabled.12", MimeTypeCategory.Application))
-        m.put("potm", MimeType("application/vnd.ms-powerpoint.template.macroenabled.12", MimeTypeCategory.Application))
-        m.put("ppsm", MimeType("application/vnd.ms-powerpoint.slideshow.macroenabled.12", MimeTypeCategory.Application))
-        m.put("ppsx", MimeType("application/vnd.openxmlformats-officedocument.presentationml.slideshow", MimeTypeCategory.Application))
-        m.put("sldx", MimeType("application/vnd.openxmlformats-officedocument.presentationml.slide", MimeTypeCategory.Application))
-        m.put("sldm", MimeType("application/vnd.ms-powerpoint.slide.macroenabled.12", MimeTypeCategory.Application))
-        m.put("ppam", MimeType("application/vnd.ms-powerpoint.addin.macroenabled.12", MimeTypeCategory.Application))
-        m.put("xlam", MimeType("application/vnd.ms-excel.addin.macroenabled.12", MimeTypeCategory.Application))
-        m.put("dotx", MimeType("application/vnd.openxmlformats-officedocument.wordprocessingml.template", MimeTypeCategory.Application))
-        m.put("potx", MimeType("application/vnd.openxmlformats-officedocument.presentationml.template", MimeTypeCategory.Application))
-        m.put("xltx", MimeType("application/vnd.openxmlformats-officedocument.spreadsheetml.template", MimeTypeCategory.Application))
+        m.add("docm", MimeType("application/vnd.ms-word.document.macroenabled.12", MimeTypeCategory.Application))
+        m.add("dotm", MimeType("application/vnd.ms-word.template.macroenabled.12", MimeTypeCategory.Application))
+        m.add("xlsb", MimeType("application/vnd.ms-excel.sheet.binary.macroenabled.12", MimeTypeCategory.Application))
+        m.add("xlsm", MimeType("application/vnd.ms-excel.sheet.macroenabled.12", MimeTypeCategory.Application))
+        m.add("xltm", MimeType("application/vnd.ms-excel.template.macroenabled.12", MimeTypeCategory.Application))
+        m.add("pptm", MimeType("application/vnd.ms-powerpoint.presentation.macroenabled.12", MimeTypeCategory.Application))
+        m.add("potm", MimeType("application/vnd.ms-powerpoint.template.macroenabled.12", MimeTypeCategory.Application))
+        m.add("ppsm", MimeType("application/vnd.ms-powerpoint.slideshow.macroenabled.12", MimeTypeCategory.Application))
+        m.add("ppsx", MimeType("application/vnd.openxmlformats-officedocument.presentationml.slideshow", MimeTypeCategory.Application))
+        m.add("sldx", MimeType("application/vnd.openxmlformats-officedocument.presentationml.slide", MimeTypeCategory.Application))
+        m.add("sldm", MimeType("application/vnd.ms-powerpoint.slide.macroenabled.12", MimeTypeCategory.Application))
+        m.add("ppam", MimeType("application/vnd.ms-powerpoint.addin.macroenabled.12", MimeTypeCategory.Application))
+        m.add("xlam", MimeType("application/vnd.ms-excel.addin.macroenabled.12", MimeTypeCategory.Application))
+        m.add("dotx", MimeType("application/vnd.openxmlformats-officedocument.wordprocessingml.template", MimeTypeCategory.Application))
+        m.add("potx", MimeType("application/vnd.openxmlformats-officedocument.presentationml.template", MimeTypeCategory.Application))
+        m.add("xltx", MimeType("application/vnd.openxmlformats-officedocument.spreadsheetml.template", MimeTypeCategory.Application))
 
         // 3D 模型
-        m.put("gltf", MimeType("model/gltf+json", MimeTypeCategory.Model))
-        m.put("glb", MimeType("model/gltf-binary", MimeTypeCategory.Model))
-        m.put("obj", MimeType("model/obj", MimeTypeCategory.Model))
-        m.put("stl", MimeType("model/stl", MimeTypeCategory.Model))
-        m.put("dae", MimeType("model/vnd.collada+xml", MimeTypeCategory.Model))
-        m.put("3mf", MimeType("model/3mf", MimeTypeCategory.Model))
-        m.put("fbx", MimeType("model/fbx", MimeTypeCategory.Model))
-        m.put("u3d", MimeType("model/u3d", MimeTypeCategory.Model))
-        m.put("prc", MimeType("model/prc", MimeTypeCategory.Model))
-        m.put("dwf", MimeType("model/vnd.dwf", MimeTypeCategory.Model))
-        m.put("mtl", MimeType("model/mtl", MimeTypeCategory.Model))
-        m.put("bsp", MimeType("model/vnd.valve.source.compiled-map", MimeTypeCategory.Model))
+        m.add("gltf", MimeType("model/gltf+json", MimeTypeCategory.Model))
+        m.add("glb", MimeType("model/gltf-binary", MimeTypeCategory.Model))
+        m.add("obj", MimeType("model/obj", MimeTypeCategory.Model))
+        m.add("stl", MimeType("model/stl", MimeTypeCategory.Model))
+        m.add("dae", MimeType("model/vnd.collada+xml", MimeTypeCategory.Model))
+        m.add("3mf", MimeType("model/3mf", MimeTypeCategory.Model))
+        m.add("fbx", MimeType("model/fbx", MimeTypeCategory.Model))
+        m.add("u3d", MimeType("model/u3d", MimeTypeCategory.Model))
+        m.add("prc", MimeType("model/prc", MimeTypeCategory.Model))
+        m.add("dwf", MimeType("model/vnd.dwf", MimeTypeCategory.Model))
+        m.add("mtl", MimeType("model/mtl", MimeTypeCategory.Model))
+        m.add("bsp", MimeType("model/vnd.valve.source.compiled-map", MimeTypeCategory.Model))
 
         // 其他常见格式
-        m.put("ics", MimeType("text/calendar", MimeTypeCategory.Text))
-        m.put("ifb", MimeType("text/calendar", MimeTypeCategory.Text))
-        m.put("vcf", MimeType("text/x-vcard", MimeTypeCategory.Text))
-        m.put("vcard", MimeType("text/vcard", MimeTypeCategory.Text))
-        m.put("torrent", MimeType("application/x-bittorrent", MimeTypeCategory.Application))
-        m.put("crx", MimeType("application/x-chrome-extension", MimeTypeCategory.Application))
-        m.put("xpi", MimeType("application/x-xpinstall", MimeTypeCategory.Application))
-        m.put("apk", MimeType("application/vnd.android.package-archive", MimeTypeCategory.Application))
-        m.put("m3u", MimeType("audio/x-mpegurl", MimeTypeCategory.Audio))
-        m.put("m3u8", MimeType("application/vnd.apple.mpegurl", MimeTypeCategory.Application))
-        m.put("swf", MimeType("application/x-shockwave-flash", MimeTypeCategory.Application))
+        m.add("ics", MimeType("text/calendar", MimeTypeCategory.Text))
+        m.add("ifb", MimeType("text/calendar", MimeTypeCategory.Text))
+        m.add("vcf", MimeType("text/x-vcard", MimeTypeCategory.Text))
+        m.add("vcard", MimeType("text/vcard", MimeTypeCategory.Text))
+        m.add("torrent", MimeType("application/x-bittorrent", MimeTypeCategory.Application))
+        m.add("crx", MimeType("application/x-chrome-extension", MimeTypeCategory.Application))
+        m.add("xpi", MimeType("application/x-xpinstall", MimeTypeCategory.Application))
+        m.add("apk", MimeType("application/vnd.android.package-archive", MimeTypeCategory.Application))
+        m.add("m3u", MimeType("audio/x-mpegurl", MimeTypeCategory.Audio))
+        m.add("m3u8", MimeType("application/vnd.apple.mpegurl", MimeTypeCategory.Application))
+        m.add("swf", MimeType("application/x-shockwave-flash", MimeTypeCategory.Application))
 
         // 编程相关
-        m.put("asm", MimeType("text/x-asm", MimeTypeCategory.Text))
-        m.put("s", MimeType("text/x-asm", MimeTypeCategory.Text))
-        m.put("pas", MimeType("text/x-pascal", MimeTypeCategory.Text))
-        m.put("p", MimeType("text/x-pascal", MimeTypeCategory.Text))
-        m.put("f", MimeType("text/x-fortran", MimeTypeCategory.Text))
-        m.put("f77", MimeType("text/x-fortran", MimeTypeCategory.Text))
-        m.put("f90", MimeType("text/x-fortran", MimeTypeCategory.Text))
-        m.put("for", MimeType("text/x-fortran", MimeTypeCategory.Text))
-        m.put("dtd", MimeType("application/xml-dtd", MimeTypeCategory.Application))
-        m.put("xsd", MimeType("application/xml", MimeTypeCategory.Application))
-        m.put("xsl", MimeType("application/xslt+xml", MimeTypeCategory.Application))
-        m.put("xslt", MimeType("application/xslt+xml", MimeTypeCategory.Application))
-        m.put("wsdl", MimeType("application/wsdl+xml", MimeTypeCategory.Application))
+        m.add("asm", MimeType("text/x-asm", MimeTypeCategory.Text))
+        m.add("s", MimeType("text/x-asm", MimeTypeCategory.Text))
+        m.add("pas", MimeType("text/x-pascal", MimeTypeCategory.Text))
+        m.add("p", MimeType("text/x-pascal", MimeTypeCategory.Text))
+        m.add("f", MimeType("text/x-fortran", MimeTypeCategory.Text))
+        m.add("f77", MimeType("text/x-fortran", MimeTypeCategory.Text))
+        m.add("f90", MimeType("text/x-fortran", MimeTypeCategory.Text))
+        m.add("for", MimeType("text/x-fortran", MimeTypeCategory.Text))
+        m.add("dtd", MimeType("application/xml-dtd", MimeTypeCategory.Application))
+        m.add("xsd", MimeType("application/xml", MimeTypeCategory.Application))
+        m.add("xsl", MimeType("application/xslt+xml", MimeTypeCategory.Application))
+        m.add("xslt", MimeType("application/xslt+xml", MimeTypeCategory.Application))
+        m.add("wsdl", MimeType("application/wsdl+xml", MimeTypeCategory.Application))
 
         // 其他
-        m.put("ps", MimeType("application/postscript", MimeTypeCategory.Application))
-        m.put("eps", MimeType("application/postscript", MimeTypeCategory.Application))
-        m.put("ai", MimeType("application/postscript", MimeTypeCategory.Application))
-        m.put("epub", MimeType("application/epub+zip", MimeTypeCategory.Application))
-        m.put("mobi", MimeType("application/x-mobipocket-ebook", MimeTypeCategory.Application))
-        m.put("azw", MimeType("application/vnd.amazon.ebook", MimeTypeCategory.Application))
-        m.put("tex", MimeType("application/x-tex", MimeTypeCategory.Application))
-        m.put("latex", MimeType("application/x-latex", MimeTypeCategory.Application))
-        m.put("tcl", MimeType("application/x-tcl", MimeTypeCategory.Application))
-        m.put("tk", MimeType("application/x-tcl", MimeTypeCategory.Application))
-        m.put("csh", MimeType("application/x-csh", MimeTypeCategory.Application))
-        m.put("shar", MimeType("application/x-shar", MimeTypeCategory.Application))
-        m.put("cpio", MimeType("application/x-cpio", MimeTypeCategory.Application))
-        m.put("gtar", MimeType("application/x-gtar", MimeTypeCategory.Application))
-        m.put("ustar", MimeType("application/x-ustar", MimeTypeCategory.Application))
-        m.put("arc", MimeType("application/x-freearc", MimeTypeCategory.Application))
-        m.put("lha", MimeType("application/x-lzh-compressed", MimeTypeCategory.Application))
-        m.put("lzh", MimeType("application/x-lzh-compressed", MimeTypeCategory.Application))
-        m.put("sit", MimeType("application/x-stuffit", MimeTypeCategory.Application))
-        m.put("sitx", MimeType("application/x-stuffitx", MimeTypeCategory.Application))
-        m.put("sea", MimeType("application/x-sea", MimeTypeCategory.Application))
-        m.put("pgp", MimeType("application/pgp-encrypted", MimeTypeCategory.Application))
-        m.put("asc", MimeType("application/pgp-signature", MimeTypeCategory.Application))
-        m.put("sig", MimeType("application/pgp-signature", MimeTypeCategory.Application))
+        m.add("ps", MimeType("application/postscript", MimeTypeCategory.Application))
+        m.add("eps", MimeType("application/postscript", MimeTypeCategory.Application))
+        m.add("ai", MimeType("application/postscript", MimeTypeCategory.Application))
+        m.add("epub", MimeType("application/epub+zip", MimeTypeCategory.Application))
+        m.add("mobi", MimeType("application/x-mobipocket-ebook", MimeTypeCategory.Application))
+        m.add("azw", MimeType("application/vnd.amazon.ebook", MimeTypeCategory.Application))
+        m.add("tex", MimeType("application/x-tex", MimeTypeCategory.Application))
+        m.add("latex", MimeType("application/x-latex", MimeTypeCategory.Application))
+        m.add("tcl", MimeType("application/x-tcl", MimeTypeCategory.Application))
+        m.add("tk", MimeType("application/x-tcl", MimeTypeCategory.Application))
+        m.add("csh", MimeType("application/x-csh", MimeTypeCategory.Application))
+        m.add("shar", MimeType("application/x-shar", MimeTypeCategory.Application))
+        m.add("cpio", MimeType("application/x-cpio", MimeTypeCategory.Application))
+        m.add("gtar", MimeType("application/x-gtar", MimeTypeCategory.Application))
+        m.add("ustar", MimeType("application/x-ustar", MimeTypeCategory.Application))
+        m.add("arc", MimeType("application/x-freearc", MimeTypeCategory.Application))
+        m.add("lha", MimeType("application/x-lzh-compressed", MimeTypeCategory.Application))
+        m.add("lzh", MimeType("application/x-lzh-compressed", MimeTypeCategory.Application))
+        m.add("sit", MimeType("application/x-stuffit", MimeTypeCategory.Application))
+        m.add("sitx", MimeType("application/x-stuffitx", MimeTypeCategory.Application))
+        m.add("sea", MimeType("application/x-sea", MimeTypeCategory.Application))
+        m.add("pgp", MimeType("application/pgp-encrypted", MimeTypeCategory.Application))
+        m.add("asc", MimeType("application/pgp-signature", MimeTypeCategory.Application))
+        m.add("sig", MimeType("application/pgp-signature", MimeTypeCategory.Application))
 
         return m
     }
 
     /// 查找扩展名对应的 MIME 类型
     public static func lookup(ext: String): ?MimeType {
-        return MAP.get(ext.toLower())
+        return MAP.get(ext)
     }
 
     /// 获取所有已知扩展名

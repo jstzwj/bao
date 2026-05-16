@@ -1,0 +1,15 @@
+[package]
+cjc-version = "1.0.0"
+name = "bao_js_parser"
+organization = "bao"
+description = "Compatibility wrapper for Bun js_parser naming; re-exports bao_parser"
+version = "0.1.0"
+compile-option = ""
+override-compile-option = ""
+link-option = ""
+output-type = "static"
+src-dir = "src"
+target-dir = ""
+
+[dependencies]
+bao_parser = { path = "../bao_parser" }

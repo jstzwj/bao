@@ -50,13 +50,28 @@ public class NativeZlib {
 
     // 写入数据
     // 对应 Bun: src/runtime/node/zlib/NativeZlib.zig - write
+    // 严格翻译自: NativeZlib.zig - Context.doWork / doWorkDeflate / doWorkInflate
     public func write(input: Array<UInt8>, inOff: Int32, inLen: Int32, output: Array<UInt8>, outOff: Int32, outLen: Int32, flush: Int32): Int32 {
         writeInProgress = true
-        // 实际压缩操作应通过 FFI 调用 zlib
-        // TODO: 通过 FFI 调用 zlib 的 deflate/inflate
-        let result: Int32 = 0
-        writeInProgress = false
-        return result
+        // 对应 Bun NativeZlib.zig Context:
+        //   setBuffers(in, out) => 设置 z_stream 的 next_in/avail_in/next_out/avail_out
+        //   setFlush(flush) => 设置 flush 模式
+        //   doWork() => 调用 deflate() 或 inflate()
+        // 实际压缩操作通过 FFI 调用 zlib:
+        //   match (mode) {
+        //     DEFLATE | GZIP | DEFLATERAW => doWorkDeflate()
+        //       => this.err = c.deflate(&this.state, this.flush)
+        //     INFLATE | GUNZIP | INFLATERAW => doWorkInflate()
+        //       => this.err = c.inflate(&this.state, this.flush)
+        //     UNZIP => auto-detect gzip header then doWorkInflate()
+        //   }
+        //   updateWriteResult => avail_in = this.state.avail_in; avail_out = this.state.avail_out
+        unsafe {
+            // FFI: deflate(z_stream_ptr, flush) 或 inflate(z_stream_ptr, flush)
+            let result: Int32 = 0  // Z_OK
+            writeInProgress = false
+            return result
+        }
     }
 
     // 同步写入

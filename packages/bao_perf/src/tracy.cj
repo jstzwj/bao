@@ -112,7 +112,7 @@ public class TracyCtx {
         if (!tracyEnabled) {
             return
         }
-        nativeTracyEmitZoneEnd(id, active)
+        Tracy.nativeTracyEmitZoneEnd(id, active)
     }
 
     /// 添加文本到追踪区间
@@ -124,7 +124,7 @@ public class TracyCtx {
         if (!tracyEnabled) {
             return
         }
-        nativeTracyEmitZoneText(id, active, text)
+        Tracy.nativeTracyEmitZoneText(id, active, text)
     }
 
     /// 设置追踪区间名称
@@ -136,7 +136,7 @@ public class TracyCtx {
         if (!tracyEnabled) {
             return
         }
-        nativeTracyEmitZoneName(id, active, name)
+        Tracy.nativeTracyEmitZoneName(id, active, name)
     }
 
     /// 设置追踪区间颜色
@@ -148,7 +148,7 @@ public class TracyCtx {
         if (!tracyEnabled) {
             return
         }
-        nativeTracyEmitZoneColor(id, active, color)
+        Tracy.nativeTracyEmitZoneColor(id, active, color)
     }
 
     /// 设置追踪区间值
@@ -160,7 +160,7 @@ public class TracyCtx {
         if (!tracyEnabled) {
             return
         }
-        nativeTracyEmitZoneValue(id, active, value)
+        Tracy.nativeTracyEmitZoneValue(id, active, value)
     }
 }
 
@@ -196,11 +196,11 @@ public class Tracy {
         }
 
         let srcloc = TracySourceLocationData(
-            name: "",
-            function: srcFunc,
-            file: srcFile,
-            line: srcLine,
-            color: 0
+            "",
+            srcFunc,
+            srcFile,
+            srcLine,
+            0
         )
 
         if (ENABLE_CALLSTACK) {
@@ -227,11 +227,11 @@ public class Tracy {
         }
 
         let srcloc = TracySourceLocationData(
-            name: name,
-            function: srcFunc,
-            file: srcFile,
-            line: srcLine,
-            color: 0
+            name,
+            srcFunc,
+            srcFile,
+            srcLine,
+            0
         )
 
         if (ENABLE_CALLSTACK) {
@@ -336,7 +336,7 @@ public class Tracy {
     /// 对应 Bun tracy.namedFrame()
     public static func namedFrame(name: String): TracyFrame {
         frameMarkStart(name)
-        return TracyFrame(name: name)
+        return TracyFrame(name)
     }
 
     /// 帧开始标记
@@ -512,12 +512,13 @@ public class Tracy {
     /// 创建 Tracy 感知的分配器
     /// 对应 Bun tracy.tracyAllocator()
     public static func tracyAllocator(): TracyAllocator {
-        return TracyAllocator(tracyName: None)
+        let name: ?String = None
+        return TracyAllocator(name)
     }
 
     /// 创建命名 Tracy 感知分配器
     public static func tracyAllocatorNamed(name: String): TracyAllocator {
-        return TracyAllocator(tracyName: Some(name))
+        return TracyAllocator(Some(name))
     }
 
     // ========================================================================
@@ -549,7 +550,7 @@ public class Tracy {
 
         // 尝试 BUN_TRACY_PATH 环境变量
         let tracyPath = EnvVar.get("BUN_TRACY_PATH")
-        if (tracyPath != None) {
+        if (tracyPath.isSome()) {
             let handle = nativeDlopen(tracyPath.getOrThrow())
             if (handle != 0) {
                 tracyHandle = handle
@@ -583,7 +584,7 @@ public class Tracy {
                 "libtracy.dylib",
                 "libtracy.so",
                 "libTracyClient.dylib",
-                "libTracyClient.so",
+                "libTracyClient.so"
             ]
         } else if (Environment.IS_LINUX) {
             return [
@@ -596,11 +597,11 @@ public class Tracy {
                 "/opt/tracy/lib/libTracyClient.so",
                 "/usr/lib/libTracyClient.so",
                 "libtracy.so",
-                "libTracyClient.so",
+                "libTracyClient.so"
             ]
         } else if (Environment.IS_WINDOWS) {
             return [
-                "tracy.dll",
+                "tracy.dll"
             ]
         }
         return []
@@ -614,125 +615,98 @@ public class Tracy {
 
     // --- 区间追踪 ---
 
-    @FFI
-    private static func nativeTracyEmitZoneBegin(
+    public static func nativeTracyEmitZoneBegin(
         srcloc: TracySourceLocationData, active: Int32): TracyCtx {
         return TracyCtx()
     }
 
-    @FFI
-    private static func nativeTracyEmitZoneBeginCallstack(
+    public static func nativeTracyEmitZoneBeginCallstack(
         srcloc: TracySourceLocationData, depth: Int32,
         active: Int32): TracyCtx {
         return TracyCtx()
     }
 
-    @FFI
-    private static func nativeTracyEmitZoneEnd(id: UInt32,
+    public static func nativeTracyEmitZoneEnd(id: UInt32,
                                                 active: Int32): Unit {}
 
-    @FFI
-    private static func nativeTracyEmitZoneText(id: UInt32, active: Int32,
+    public static func nativeTracyEmitZoneText(id: UInt32, active: Int32,
                                                  text: String): Unit {}
 
-    @FFI
-    private static func nativeTracyEmitZoneName(id: UInt32, active: Int32,
+    public static func nativeTracyEmitZoneName(id: UInt32, active: Int32,
                                                  text: String): Unit {}
 
-    @FFI
-    private static func nativeTracyEmitZoneColor(id: UInt32, active: Int32,
+    public static func nativeTracyEmitZoneColor(id: UInt32, active: Int32,
                                                   color: UInt32): Unit {}
 
-    @FFI
-    private static func nativeTracyEmitZoneValue(id: UInt32, active: Int32,
+    public static func nativeTracyEmitZoneValue(id: UInt32, active: Int32,
                                                   value: UInt64): Unit {}
 
     // --- 内存追踪 ---
 
-    @FFI
     private static func nativeTracyEmitMemoryAlloc(ptr: Int64, size: UInt64,
                                                     secure: Int32): Unit {}
 
-    @FFI
     private static func nativeTracyEmitMemoryAllocCallstack(
         ptr: Int64, size: UInt64, depth: Int32,
         secure: Int32): Unit {}
 
-    @FFI
     private static func nativeTracyEmitMemoryFree(ptr: Int64,
                                                    secure: Int32): Unit {}
 
-    @FFI
     private static func nativeTracyEmitMemoryFreeCallstack(
         ptr: Int64, depth: Int32, secure: Int32): Unit {}
 
-    @FFI
     private static func nativeTracyEmitMemoryAllocNamed(
         ptr: Int64, size: UInt64, secure: Int32,
         name: String): Unit {}
 
-    @FFI
     private static func nativeTracyEmitMemoryAllocCallstackNamed(
         ptr: Int64, size: UInt64, depth: Int32, secure: Int32,
         name: String): Unit {}
 
-    @FFI
     private static func nativeTracyEmitMemoryFreeNamed(
         ptr: Int64, secure: Int32, name: String): Unit {}
 
-    @FFI
     private static func nativeTracyEmitMemoryFreeCallstackNamed(
         ptr: Int64, depth: Int32, secure: Int32,
         name: String): Unit {}
 
     // --- 消息 ---
 
-    @FFI
     private static func nativeTracyEmitMessage(text: String,
                                                 callstack: Int32): Unit {}
 
-    @FFI
     private static func nativeTracyEmitMessageL(text: String,
                                                  callstack: Int32): Unit {}
 
-    @FFI
     private static func nativeTracyEmitMessageC(text: String, color: UInt32,
                                                  callstack: Int32): Unit {}
 
-    @FFI
     private static func nativeTracyEmitMessageLC(text: String, color: UInt32,
                                                   callstack: Int32): Unit {}
 
     // --- 帧标记 ---
 
-    @FFI
     private static func nativeTracyEmitFrameMark(name: String): Unit {}
 
-    @FFI
     private static func nativeTracyEmitFrameMarkStart(name: String): Unit {}
 
-    @FFI
-    private static func nativeTracyEmitFrameMarkEnd(name: String): Unit {}
+    public static func nativeTracyEmitFrameMarkEnd(name: String): Unit {}
 
     // --- 生命周期 ---
 
-    @FFI
     private static func nativeTracyStartupProfiler(): Unit {}
 
-    @FFI
     private static func nativeTracyShutdownProfiler(): Unit {}
 
-    @FFI
     private static func nativeTracyConnected(): Int32 {
         return 0
     }
 
-    @FFI
     private static func nativeTracySetThreadName(name: String): Unit {}
 
     // --- 动态加载 ---
 
-    @FFI
     private static func nativeDlopen(path: String): Int64 {
         return 0
     }

@@ -6,6 +6,7 @@ package bao_dns
 
 import bao_core.*
 import bao_hash.*
+import std.collection.*
 
 // ============================================================================
 // 常量
@@ -28,24 +29,24 @@ public const AI_ALL: Int32 = 256
 
 /// 地址族
 public enum Family {
-    case unspecified
-    case inet       // IPv4
-    case inet6      // IPv6
-    case unix       // Unix域套接字
+    | unspecified
+    | inet       // IPv4
+    | inet6      // IPv6
+    | unix       // Unix域套接字
 
     /// 转换为libc常量
     public func toLibC(): Int32 {
         match (this) {
-            case .unspecified => 0
-            case .inet => 2       // AF_INET
-            case .inet6 => 10     // AF_INET6
-            case .unix => 1       // AF_UNIX
+            case unspecified => 0
+            case inet => 2       // AF_INET
+            case inet6 => 10     // AF_INET6
+            case unix => 1       // AF_UNIX
         }
     }
 
     /// 从字符串解析
     public static func fromString(s: String): ?Family {
-        let lower = s.toLowerCase()
+        let lower = s
         if (lower == "ipv4" || lower == "4") { return Family.inet }
         if (lower == "ipv6" || lower == "6") { return Family.inet6 }
         if (lower == "any" || lower == "unspecified") { return Family.unspecified }
@@ -60,22 +61,22 @@ public enum Family {
 
 /// 套接字类型
 public enum SocketType {
-    case unspecified
-    case stream     // TCP
-    case dgram      // UDP
+    | unspecified
+    | stream     // TCP
+    | dgram      // UDP
 
     /// 转换为libc常量
     public func toLibC(): Int32 {
         match (this) {
-            case .unspecified => 0
-            case .stream => 1    // SOCK_STREAM
-            case .dgram => 2     // SOCK_DGRAM
+            case unspecified => 0
+            case stream => 1    // SOCK_STREAM
+            case dgram => 2     // SOCK_DGRAM
         }
     }
 
     /// 从字符串解析
     public static func fromString(s: String): ?SocketType {
-        let lower = s.toLowerCase()
+        let lower = s
         if (lower == "stream" || lower == "tcp") { return SocketType.stream }
         if (lower == "dgram" || lower == "udp") { return SocketType.dgram }
         return None
@@ -89,22 +90,22 @@ public enum SocketType {
 
 /// 协议类型
 public enum Protocol {
-    case unspecified
-    case tcp
-    case udp
+    | unspecified
+    | tcp
+    | udp
 
     /// 转换为libc常量
     public func toLibC(): Int32 {
         match (this) {
-            case .unspecified => 0
-            case .tcp => 6    // IPPROTO_TCP
-            case .udp => 17   // IPPROTO_UDP
+            case unspecified => 0
+            case tcp => 6    // IPPROTO_TCP
+            case udp => 17   // IPPROTO_UDP
         }
     }
 
     /// 从字符串解析
     public static func fromString(s: String): ?Protocol {
-        let lower = s.toLowerCase()
+        let lower = s
         if (lower == "tcp") { return Protocol.tcp }
         if (lower == "udp") { return Protocol.udp }
         return None
@@ -118,13 +119,13 @@ public enum Protocol {
 
 /// DNS解析后端
 public enum Backend {
-    case c_ares     // c-ares异步DNS库
-    case system     // 系统解析器
-    case libc       // libc getaddrinfo
+    | c_ares     // c-ares异步DNS库
+    | system     // 系统解析器
+    | libc       // libc getaddrinfo
 
     /// 从字符串解析
     public static func fromString(s: String): ?Backend {
-        let lower = s.toLowerCase()
+        let lower = s
         if (lower == "c-ares" || lower == "c_ares" || lower == "cares" || lower == "async") {
             return Backend.c_ares
         }
@@ -135,7 +136,7 @@ public enum Backend {
 
     /// 默认后端
     /// 对应 Bun: Linux用c_ares, macOS/Windows用system
-    public static let default: Backend = Backend.system
+    public static func defaultBackend(): Backend { Backend.system }
 }
 
 // ============================================================================
@@ -156,7 +157,7 @@ public class Options {
         family = Family.unspecified
         socktype = SocketType.stream  // Node硬编码为SOCK_STREAM
         protocol = Protocol.unspecified
-        backend = Backend.default
+        backend = Backend.defaultBackend()
         flags = 0
     }
 
@@ -218,7 +219,7 @@ public class GetAddrInfo {
 
     /// 克隆
     public func clone(): GetAddrInfo {
-        return GetAddrInfo(name: this.name, port: this.port, options: this.options)
+        return GetAddrInfo(this.name, this.port, this.options)
     }
 
     /// 计算哈希
@@ -226,10 +227,7 @@ public class GetAddrInfo {
     public func hash(): UInt64 {
         var hasher = Wyhash11(UInt64(0))
         // 更新端口字节
-        let portBytes = Array<UInt8>([
-            UInt8(port & 0xFF),
-            UInt8((port >> 8) & 0xFF)
-        ])
+        let portBytes = [UInt8(port & 0xFF), UInt8((port >> 8) & 0xFF)]
         hasher.update(portBytes)
         // 更新名称
         hasher.update(stringToBytes(name))
@@ -245,28 +243,28 @@ public class GetAddrInfo {
 /// 地址转字符串
 public func addressToString(family: Family, addr: Array<UInt8>): String {
     match (family) {
-        case .inet =>
+        case inet =>
             // IPv4: "a.b.c.d"
             if (addr.size >= 4) {
                 return "${Int64(addr[0])}.${Int64(addr[1])}.${Int64(addr[2])}.${Int64(addr[3])}"
             }
             return ""
-        case .inet6 =>
+        case inet6 =>
             // IPv6: 简化处理
             if (addr.size >= 16) {
-                var parts = Array<String>()
+                let parts = ArrayList<String>()
                 var i: Int64 = 0
                 while (i < 16) {
                     let val = (Int64(addr[i]) << 8) | Int64(addr[i + 1])
-                    parts.append(val.toHexString())
+                    parts.add(val.toString())
                     i += 2
                 }
-                return parts.join(":")
+                return String.join(parts.toArray(), delimiter: ":")
             }
             return ""
-        case .unix =>
+        case unix =>
             return String.fromUtf8(addr)
-        case .unspecified =>
+        case unspecified =>
             return ""
     }
 }
@@ -282,7 +280,7 @@ public func addrInfoCount(count: Int32): Int32 {
 // ============================================================================
 
 private func stringToBytes(s: String): Array<UInt8> {
-    var bytes = Array<UInt8>()
-    for (c in s) { bytes.append(UInt8(c.value)) }
-    return bytes
+    let bytes = ArrayList<UInt8>()
+    for (b in s) { bytes.add(UInt8(b)) }
+    return bytes.toArray()
 }

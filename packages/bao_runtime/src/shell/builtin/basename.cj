@@ -5,10 +5,18 @@
 package bao_runtime.shell.builtin
 
 import bao_core.*
+import bao_runtime.shell.*
 
 // ============================================================================
 // basename命令 - 返回路径的基本名称
 // ============================================================================
+
+/// basename状态类型（提取到顶层）
+public enum BasenameState {
+    | idle
+    | err
+    | done
+}
 
 /// basename命令
 public class BasenameCmd {
@@ -17,18 +25,11 @@ public class BasenameCmd {
     /// 缓冲区
     public var buf: ArrayList<Byte> = ArrayList<Byte>()
 
-    /// 状态类型
-    public enum BasenameState {
-| idle
-| err
-| done
-    }
-
     /// 启动
     public func start(): Yield {
         let args = this.bltn().argsSlice()
 
-        if (args.length == 0) {
+        if (args.size == 0) {
             return this.fail(Builtin.Kind.usageString("basename"))
         }
 
@@ -39,7 +40,7 @@ public class BasenameCmd {
         }
 
         this.state = BasenameState.done
-        if (let safeguard = this.bltn().stdout.needsIO()) {
+        if (let Some(safeguard) <- this.bltn().stdout.needsIO()) {
             return this.bltn().stdout.enqueue(this, this.buf.toArray(), safeguard)
         }
         return this.bltn().done(0)
@@ -47,11 +48,11 @@ public class BasenameCmd {
 
     /// 失败处理
     func fail(msg: String): Yield {
-        if (let safeguard = this.bltn().stderr.needsIO()) {
+        if (let Some(safeguard) <- this.bltn().stderr.needsIO()) {
             this.state = BasenameState.err
             return this.bltn().stderr.enqueue(this, msg.toByteArray(), safeguard)
         }
-        this.bltn().writeNoIO(.stderr, msg.toByteArray())
+        this.bltn().writeNoIO(OutKind.stderr, msg.toByteArray())
         return this.bltn().done(1)
     }
 
@@ -61,22 +62,22 @@ public class BasenameCmd {
             this.buf.appendAll(msg.toByteArray())
             return
         }
-        this.bltn().writeNoIO(.stdout, msg.toByteArray())
+        this.bltn().writeNoIO(OutKind.stdout, msg.toByteArray())
     }
 
     /// IO写入器数据块回调
-    public func onIOWriterChunk(amount: UInt64, maybeErr: ?SystemError): Yield {
-        if (let e = maybeErr) {
+    public func onIOWriterChunk(chunk: UInt64, maybeErr: ?SystemError): Yield {
+        if (let Some(e) <- maybeErr) {
             e.deref()
             this.state = BasenameState.err
             return this.bltn().done(1)
         }
-        switch (this.state) {
-            case .done =>
+        match (this.state) {
+            case done =>
                 return this.bltn().done(0)
-            case .err =>
+            case err =>
                 return this.bltn().done(1)
-            case .idle =>
+            case idle =>
                 unreachableState("Basename.onIOWriterChunk", "idle")
         }
     }

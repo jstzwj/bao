@@ -236,9 +236,23 @@ public class PerThread {
 
 /// 加载模块
 func loadModule(vm: VirtualMachine, global: JSGlobalObject, key: JSValue): JSValue {
-    // TODO: 完整实现
-    return JSValue.null
+    let promise = BakeLoadModuleByKey(global, key).asAnyPromise().get().internal
+    promise.setHandled()
+    vm.waitForPromise(PromiseRef(internal: promise))
+    vm.eventLoop().drainMicrotasks() match {
+        case ok(()) => ()
+        case err(_) => bun.Global.crash()
+    }
+    match (promise.unwrap(vm.jsc_vm, PromiseUnwrapMode.mark_handled)) {
+        case pending => unreachable()
+        case fulfilled(_) => return BakeGetModuleNamespace(global, key)
+        case rejected(err) => return vm.global.throwValue(err)
+    }
 }
+
+extern func BakeGetDefaultExportFromModule(global: JSGlobalObject, key: JSValue): JSValue
+extern func BakeGetModuleNamespace(global: JSGlobalObject, key: JSValue): JSValue
+extern func BakeLoadModuleByKey(global: JSGlobalObject, key: JSValue): JSValue
 
 /// TypeAndFlags - 路由类型和标志的打包结构
 public struct TypeAndFlags <: Int32 {
@@ -260,9 +274,8 @@ public func BakeProdLoad(pt: PerThread, key: bun.String): bun.String {
 public func BakeProdResolve(global: JSGlobalObject, a_str: bun.String, specifier_str: bun.String): bun.String {
     let specifier = specifier_str.toUTF8(bun.default_allocator)
 
-    if (jsc.ModuleLoader.HardcodedModule.Alias.get(specifier.slice(), .bun, .{})) {
-        // 返回硬编码模块路径
-        return bun.String.dead // placeholder
+    if (let Some(alias) = jsc.ModuleLoader.HardcodedModule.Alias.get(specifier.slice(), .bun, .{})) {
+        return bun.String.static(alias.path)
     }
 
     let referrer = a_str.toUTF8(bun.default_allocator)

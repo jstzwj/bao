@@ -28,10 +28,10 @@ import bao_core.*
 /// 性能追踪上下文基类
 /// 对应 Bun perf.Ctx (tagged union)
 /// 使用密封类层次结构替代 Zig 的 union(enum)
-public sealed class PerfCtx {
+public abstract class PerfCtx {
     /// 结束追踪区间
     /// 对应 Zig: pub fn end(this: *const @This()) void
-    public func end(): Unit {}
+    public open func end(): Unit {}
 }
 
 /// 禁用状态的追踪上下文
@@ -142,7 +142,7 @@ public class Perf {
     private static func checkEnabledOnce(): Unit {
         if (Environment.IS_MAC) {
             checkEnabledMacOS()
-            if (Darwin.getOsLog() == None) {
+            if (Darwin.getOsLog().isNone()) {
                 enabledValue = false
             }
         } else if (Environment.IS_LINUX) {
@@ -164,7 +164,7 @@ public class Perf {
         // 简化实现: 检查环境变量
         let dyldRoot = EnvVar.get("DYLD_ROOT_PATH")
         let bunInstruments = EnvVar.get("BUN_INSTRUMENTS")
-        if (dyldRoot != None || bunInstruments != None) {
+        if (dyldRoot.isSome() || bunInstruments.isSome()) {
             enabledValue = true
         }
     }
@@ -177,7 +177,7 @@ public class Perf {
         //       is_enabled.store(true, .seq_cst);
         //   }
         let bunTrace = EnvVar.get("BUN_TRACE")
-        if (bunTrace != None) {
+        if (bunTrace.isSome()) {
             enabledValue = true
         }
     }
@@ -211,9 +211,9 @@ public class Perf {
         }
 
         if (Environment.IS_MAC) {
-            return Darwin.`init`(event)
+            return Darwin.initFunc(event)
         } else if (Environment.IS_LINUX) {
-            return Linux.`init`(event)
+            return Linux.initFunc(event)
         }
 
         return DisabledCtx()
@@ -224,7 +224,7 @@ public class Perf {
     /// 仓颉没有编译时字符串检查，使用运行时查找
     public static func traceByName(name: String): PerfCtx {
         let event = fromPerfTag(name)
-        if (event == None) {
+        if (event.isNone()) {
             return DisabledCtx()
         }
         return trace(event.getOrThrow())
@@ -273,13 +273,13 @@ public class Darwin {
     ///   return .{ .interval = os_log.?.signpost(name).interval(.PointsOfInterest) }
     public static func initFunc(event: PerfEvent): DarwinCtx {
         let log = getOsLog()
-        if (log == None) {
-            return DarwinCtx(intervalId: 0)
+        if (log.isNone()) {
+            return DarwinCtx(0)
         }
         // 创建 OSLog signpost interval
         // 对应 Zig: os_log.?.signpost(name).interval(.PointsOfInterest)
         let intervalId = osLogSignpostBegin(log.getOrThrow(), event.toInt())
-        return DarwinCtx(intervalId: intervalId)
+        return DarwinCtx(intervalId)
     }
 
     /// 结束 OSLog signpost interval
@@ -297,7 +297,6 @@ public class Darwin {
     // ========================================================================
 
     /// 创建 OSLog - 对应 os_log_create("", "")
-    @FFI
     private static func osLogCreate(): Int64 {
         // macOS FFI: os_log_create("dev.bao", "perf")
         // 返回 os_log_t 句柄
@@ -305,14 +304,12 @@ public class Darwin {
     }
 
     /// 开始 signpost interval - 对应 os_signpost_interval_begin
-    @FFI
     private static func osLogSignpostBegin(logHandle: Int64, eventId: Int64): Int64 {
         // macOS FFI: os_signpost_interval_begin(log, id, "perf", "%d", eventId)
         return 0
     }
 
     /// 结束 signpost interval - 对应 os_signpost_interval_end
-    @FFI
     private static func nativeOsLogEndInterval(intervalId: Int64): Unit {
         // macOS FFI: os_signpost_interval_end(log, id, "perf")
     }
@@ -355,7 +352,6 @@ public class Linux {
 
     /// 初始化 Linux 追踪
     /// 对应 Zig: extern "c" fn Bun__linux_trace_init() c_int
-    @FFI
     private static func linuxTraceInit(): Int64 {
         // FFI 调用 C 函数 Bun__linux_trace_init()
         // 设置 perf event buffer
@@ -364,14 +360,12 @@ public class Linux {
 
     /// 关闭 Linux 追踪
     /// 对应 Zig: extern "c" fn Bun__linux_trace_close() void
-    @FFI
     private static func linuxTraceClose(): Unit {
         // FFI 调用 C 函数 Bun__linux_trace_close()
     }
 
     /// 发出追踪事件
     /// 对应 Zig: extern "c" fn Bun__linux_trace_emit(event_name: [*:0]const u8, duration_ns: i64) c_int
-    @FFI
     private static func linuxTraceEmit(eventName: String, durationNs: Int64): Int64 {
         // FFI 调用 C 函数 Bun__linux_trace_emit(name_ptr, duration_ns)
         return 0
@@ -401,8 +395,8 @@ public class Linux {
     ///   };
     public static func initFunc(event: PerfEvent): LinuxCtx {
         return LinuxCtx(
-            startTime: HwTimer.osMonotonicNs(),
-            event: event
+            HwTimer.osMonotonicNs(),
+            event
         )
     }
 
@@ -420,72 +414,64 @@ public class Linux {
 /// PerfEvent 扩展: 通过 Bun 原始名称查找
 public func fromPerfTag(tag: String): ?PerfEvent {
     // 所有事件的名称映射
-    let allEvents: Array<(String, PerfEvent)> = [
-        ("Bundler.BindImportsToExports", PerfEvent.BundlerBindImportsToExports),
-        ("Bundler.breakOutputIntoPieces", PerfEvent.BundlerBreakOutputIntoPieces),
-        ("Bundler.cloneAST", PerfEvent.BundlerCloneAST),
-        ("Bundler.CloneLinkerGraph", PerfEvent.BundlerCloneLinkerGraph),
-        ("Bundler.computeChunks", PerfEvent.BundlerComputeChunks),
-        ("Bundler.CreateNamespaceExports", PerfEvent.BundlerCreateNamespaceExports),
-        ("Bundler.FigureOutCommonJS", PerfEvent.BundlerFigureOutCommonJS),
-        ("Bundler.findAllImportedPartsInJSOrder", PerfEvent.BundlerFindAllImportedPartsInJSOrder),
-        ("Bundler.findReachableFiles", PerfEvent.BundlerFindReachableFiles),
-        ("Bundler.generateChunksInParallel", PerfEvent.BundlerGenerateChunksInParallel),
-        ("Bundler.generateCodeForFileInChunkCss", PerfEvent.BundlerGenerateCodeForFileInChunkCss),
-        ("Bundler.generateCodeForFileInChunkJS", PerfEvent.BundlerGenerateCodeForFileInChunkJS),
-        ("Bundler.generateIsolatedHash", PerfEvent.BundlerGenerateIsolatedHash),
-        ("Bundler.generateSourceMapForChunk", PerfEvent.BundlerGenerateSourceMapForChunk),
-        ("Bundler.markFileLiveForTreeShaking", PerfEvent.BundlerMarkFileLiveForTreeShaking),
-        ("Bundler.markFileReachableForCodeSplitting", PerfEvent.BundlerMarkFileReachableForCodeSplitting),
-        ("Bundler.MatchImportsWithExports", PerfEvent.BundlerMatchImportsWithExports),
-        ("Bundler.onParseTaskComplete", PerfEvent.BundlerOnParseTaskComplete),
-        ("Bundler.ParseJS", PerfEvent.BundlerParseJS),
-        ("Bundler.ParseJSON", PerfEvent.BundlerParseJSON),
-        ("Bundler.ParseJSON5", PerfEvent.BundlerParseJSON5),
-        ("Bundler.ParseTOML", PerfEvent.BundlerParseTOML),
-        ("Bundler.ParseYAML", PerfEvent.BundlerParseYAML),
-        ("Bundler.postProcessJSChunk", PerfEvent.BundlerPostProcessJSChunk),
-        ("Bundler.readFile", PerfEvent.BundlerReadFile),
-        ("Bundler.renameSymbolsInChunk", PerfEvent.BundlerRenameSymbolsInChunk),
-        ("Bundler.ResolveExportStarStatements", PerfEvent.BundlerResolveExportStarStatements),
-        ("Bundler.scanImportsAndExports", PerfEvent.BundlerScanImportsAndExports),
-        ("Bundler.treeShakingAndCodeSplitting", PerfEvent.BundlerTreeShakingAndCodeSplitting),
-        ("Bundler.Worker.create", PerfEvent.BundlerWorkerCreate),
-        ("Bundler.WrapDependencies", PerfEvent.BundlerWrapDependencies),
-        ("Bundler.writeChunkToDisk", PerfEvent.BundlerWriteChunkToDisk),
-        ("Bundler.writeOutputFilesToDisk", PerfEvent.BundlerWriteOutputFilesToDisk),
-        ("ExtractTarball.extract", PerfEvent.ExtractTarballExtract),
-        ("FolderResolver.readPackageJSONFromDisk.folder", PerfEvent.FolderResolverReadPackageJSONFromDiskFolder),
-        ("FolderResolver.readPackageJSONFromDisk.workspace", PerfEvent.FolderResolverReadPackageJSONFromDiskWorkspace),
-        ("JSBundler.addPlugin", PerfEvent.JSBundlerAddPlugin),
-        ("JSBundler.hasAnyMatches", PerfEvent.JSBundlerHasAnyMatches),
-        ("JSBundler.matchOnLoad", PerfEvent.JSBundlerMatchOnLoad),
-        ("JSBundler.matchOnResolve", PerfEvent.JSBundlerMatchOnResolve),
-        ("JSGlobalObject.create", PerfEvent.JSGlobalObjectCreate),
-        ("JSParser.analyze", PerfEvent.JSParserAnalyze),
-        ("JSParser.parse", PerfEvent.JSParserParse),
-        ("JSParser.postvisit", PerfEvent.JSParserPostvisit),
-        ("JSParser.visit", PerfEvent.JSParserVisit),
-        ("JSPrinter.print", PerfEvent.JSPrinterPrint),
-        ("JSPrinter.printWithSourceMap", PerfEvent.JSPrinterPrintWithSourceMap),
-        ("ModuleResolver.resolve", PerfEvent.ModuleResolverResolve),
-        ("PackageInstaller.install", PerfEvent.PackageInstallerInstall),
-        ("PackageManifest.Serializer.loadByFile", PerfEvent.PackageManifestSerializerLoadByFile),
-        ("PackageManifest.Serializer.save", PerfEvent.PackageManifestSerializerSave),
-        ("RuntimeTranspilerCache.fromFile", PerfEvent.RuntimeTranspilerCacheFromFile),
-        ("RuntimeTranspilerCache.save", PerfEvent.RuntimeTranspilerCacheSave),
-        ("RuntimeTranspilerCache.toFile", PerfEvent.RuntimeTranspilerCacheToFile),
-        ("StandaloneModuleGraph.serialize", PerfEvent.StandaloneModuleGraphSerialize),
-        ("Symbols.followAll", PerfEvent.SymbolsFollowAll),
-        ("TestCommand.printCodeCoverageLCov", PerfEvent.TestCommandPrintCodeCoverageLCov),
-        ("TestCommand.printCodeCoverageLCovAndText", PerfEvent.TestCommandPrintCodeCoverageLCovAndText),
-        ("TestCommand.printCodeCoverageText", PerfEvent.TestCommandPrintCodeCoverageText),
-    ]
-
-    for ((tagStr, event) in allEvents) {
-        if (tagStr == tag) {
-            return Some(event)
-        }
-    }
+    if (tag == "Bundler.BindImportsToExports") { return PerfEvent.BundlerBindImportsToExports }
+    if (tag == "Bundler.breakOutputIntoPieces") { return PerfEvent.BundlerBreakOutputIntoPieces }
+    if (tag == "Bundler.cloneAST") { return PerfEvent.BundlerCloneAST }
+    if (tag == "Bundler.CloneLinkerGraph") { return PerfEvent.BundlerCloneLinkerGraph }
+    if (tag == "Bundler.computeChunks") { return PerfEvent.BundlerComputeChunks }
+    if (tag == "Bundler.CreateNamespaceExports") { return PerfEvent.BundlerCreateNamespaceExports }
+    if (tag == "Bundler.FigureOutCommonJS") { return PerfEvent.BundlerFigureOutCommonJS }
+    if (tag == "Bundler.findAllImportedPartsInJSOrder") { return PerfEvent.BundlerFindAllImportedPartsInJSOrder }
+    if (tag == "Bundler.findReachableFiles") { return PerfEvent.BundlerFindReachableFiles }
+    if (tag == "Bundler.generateChunksInParallel") { return PerfEvent.BundlerGenerateChunksInParallel }
+    if (tag == "Bundler.generateCodeForFileInChunkCss") { return PerfEvent.BundlerGenerateCodeForFileInChunkCss }
+    if (tag == "Bundler.generateCodeForFileInChunkJS") { return PerfEvent.BundlerGenerateCodeForFileInChunkJS }
+    if (tag == "Bundler.generateIsolatedHash") { return PerfEvent.BundlerGenerateIsolatedHash }
+    if (tag == "Bundler.generateSourceMapForChunk") { return PerfEvent.BundlerGenerateSourceMapForChunk }
+    if (tag == "Bundler.markFileLiveForTreeShaking") { return PerfEvent.BundlerMarkFileLiveForTreeShaking }
+    if (tag == "Bundler.markFileReachableForCodeSplitting") { return PerfEvent.BundlerMarkFileReachableForCodeSplitting }
+    if (tag == "Bundler.MatchImportsWithExports") { return PerfEvent.BundlerMatchImportsWithExports }
+    if (tag == "Bundler.onParseTaskComplete") { return PerfEvent.BundlerOnParseTaskComplete }
+    if (tag == "Bundler.ParseJS") { return PerfEvent.BundlerParseJS }
+    if (tag == "Bundler.ParseJSON") { return PerfEvent.BundlerParseJSON }
+    if (tag == "Bundler.ParseJSON5") { return PerfEvent.BundlerParseJSON5 }
+    if (tag == "Bundler.ParseTOML") { return PerfEvent.BundlerParseTOML }
+    if (tag == "Bundler.ParseYAML") { return PerfEvent.BundlerParseYAML }
+    if (tag == "Bundler.postProcessJSChunk") { return PerfEvent.BundlerPostProcessJSChunk }
+    if (tag == "Bundler.readFile") { return PerfEvent.BundlerReadFile }
+    if (tag == "Bundler.renameSymbolsInChunk") { return PerfEvent.BundlerRenameSymbolsInChunk }
+    if (tag == "Bundler.ResolveExportStarStatements") { return PerfEvent.BundlerResolveExportStarStatements }
+    if (tag == "Bundler.scanImportsAndExports") { return PerfEvent.BundlerScanImportsAndExports }
+    if (tag == "Bundler.treeShakingAndCodeSplitting") { return PerfEvent.BundlerTreeShakingAndCodeSplitting }
+    if (tag == "Bundler.Worker.create") { return PerfEvent.BundlerWorkerCreate }
+    if (tag == "Bundler.WrapDependencies") { return PerfEvent.BundlerWrapDependencies }
+    if (tag == "Bundler.writeChunkToDisk") { return PerfEvent.BundlerWriteChunkToDisk }
+    if (tag == "Bundler.writeOutputFilesToDisk") { return PerfEvent.BundlerWriteOutputFilesToDisk }
+    if (tag == "ExtractTarball.extract") { return PerfEvent.ExtractTarballExtract }
+    if (tag == "FolderResolver.readPackageJSONFromDisk.folder") { return PerfEvent.FolderResolverReadPackageJSONFromDiskFolder }
+    if (tag == "FolderResolver.readPackageJSONFromDisk.workspace") { return PerfEvent.FolderResolverReadPackageJSONFromDiskWorkspace }
+    if (tag == "JSBundler.addPlugin") { return PerfEvent.JSBundlerAddPlugin }
+    if (tag == "JSBundler.hasAnyMatches") { return PerfEvent.JSBundlerHasAnyMatches }
+    if (tag == "JSBundler.matchOnLoad") { return PerfEvent.JSBundlerMatchOnLoad }
+    if (tag == "JSBundler.matchOnResolve") { return PerfEvent.JSBundlerMatchOnResolve }
+    if (tag == "JSGlobalObject.create") { return PerfEvent.JSGlobalObjectCreate }
+    if (tag == "JSParser.analyze") { return PerfEvent.JSParserAnalyze }
+    if (tag == "JSParser.parse") { return PerfEvent.JSParserParse }
+    if (tag == "JSParser.postvisit") { return PerfEvent.JSParserPostvisit }
+    if (tag == "JSParser.visit") { return PerfEvent.JSParserVisit }
+    if (tag == "JSPrinter.print") { return PerfEvent.JSPrinterPrint }
+    if (tag == "JSPrinter.printWithSourceMap") { return PerfEvent.JSPrinterPrintWithSourceMap }
+    if (tag == "ModuleResolver.resolve") { return PerfEvent.ModuleResolverResolve }
+    if (tag == "PackageInstaller.install") { return PerfEvent.PackageInstallerInstall }
+    if (tag == "PackageManifest.Serializer.loadByFile") { return PerfEvent.PackageManifestSerializerLoadByFile }
+    if (tag == "PackageManifest.Serializer.save") { return PerfEvent.PackageManifestSerializerSave }
+    if (tag == "RuntimeTranspilerCache.fromFile") { return PerfEvent.RuntimeTranspilerCacheFromFile }
+    if (tag == "RuntimeTranspilerCache.save") { return PerfEvent.RuntimeTranspilerCacheSave }
+    if (tag == "RuntimeTranspilerCache.toFile") { return PerfEvent.RuntimeTranspilerCacheToFile }
+    if (tag == "StandaloneModuleGraph.serialize") { return PerfEvent.StandaloneModuleGraphSerialize }
+    if (tag == "Symbols.followAll") { return PerfEvent.SymbolsFollowAll }
+    if (tag == "TestCommand.printCodeCoverageLCov") { return PerfEvent.TestCommandPrintCodeCoverageLCov }
+    if (tag == "TestCommand.printCodeCoverageLCovAndText") { return PerfEvent.TestCommandPrintCodeCoverageLCovAndText }
+    if (tag == "TestCommand.printCodeCoverageText") { return PerfEvent.TestCommandPrintCodeCoverageText }
     return None
 }

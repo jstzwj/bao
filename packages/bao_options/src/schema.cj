@@ -141,6 +141,18 @@ public enum MessageLevel {
             case Debug => 5
         }
     }
+
+    public static func fromRaw(value: UInt8): MessageLevel {
+        match (value) {
+            case 0 => MessageLevel.None
+            case 1 => MessageLevel.Err
+            case 2 => MessageLevel.Warn
+            case 3 => MessageLevel.Note
+            case 4 => MessageLevel.Info
+            case 5 => MessageLevel.Debug
+            case _ => MessageLevel.None
+        }
+    }
 }
 
 // ============================================================================
@@ -213,6 +225,16 @@ public enum SourceMapMode {
             case Inline => 1
             case External => 2
             case Linked => 3
+        }
+    }
+
+    public static func fromRaw(value: UInt8): SourceMapMode {
+        match (value) {
+            case 0 => SourceMapMode.None
+            case 1 => SourceMapMode.Inline
+            case 2 => SourceMapMode.External
+            case 3 => SourceMapMode.Linked
+            case _ => SourceMapMode.None
         }
     }
 }
@@ -376,6 +398,21 @@ public enum SchemaImportKind {
             case Internal => 8
         }
     }
+
+    public static func fromRaw(value: UInt8): SchemaImportKind {
+        match (value) {
+            case 0 => SchemaImportKind.None
+            case 1 => SchemaImportKind.EntryPoint
+            case 2 => SchemaImportKind.Stmt
+            case 3 => SchemaImportKind.Require
+            case 4 => SchemaImportKind.Dynamic
+            case 5 => SchemaImportKind.RequireResolve
+            case 6 => SchemaImportKind.At
+            case 7 => SchemaImportKind.Url
+            case 8 => SchemaImportKind.Internal
+            case _ => SchemaImportKind.None
+        }
+    }
 }
 
 // ============================================================================
@@ -398,6 +435,16 @@ public enum CssInJsBehavior {
             case Facade => 1
             case FacadeOnImportCss => 2
             case AutoOnImportCss => 3
+        }
+    }
+
+    public static func fromRaw(value: UInt8): CssInJsBehavior {
+        match (value) {
+            case 0 => CssInJsBehavior.None
+            case 1 => CssInJsBehavior.Facade
+            case 2 => CssInJsBehavior.FacadeOnImportCss
+            case 3 => CssInJsBehavior.AutoOnImportCss
+            case _ => CssInJsBehavior.None
         }
     }
 }
@@ -555,6 +602,28 @@ public enum DotEnvBehavior {
     | Auto        // 自动加载
     | LoadAll     // 加载所有 .env 文件
     | Prefix      // 仅加载带前缀的变量
+    | LoadAllWithoutInlining // 不内联加载所有
+
+    public func toRaw(): UInt8 {
+        match (this) {
+            case Disable => 1
+            case Auto => 0
+            case LoadAll => 3
+            case Prefix => 2
+            case LoadAllWithoutInlining => 4
+        }
+    }
+
+    public static func fromRaw(value: UInt8): DotEnvBehavior {
+        match (value) {
+            case 0 => DotEnvBehavior.Auto
+            case 1 => DotEnvBehavior.Disable
+            case 2 => DotEnvBehavior.Prefix
+            case 3 => DotEnvBehavior.LoadAll
+            case 4 => DotEnvBehavior.LoadAllWithoutInlining
+            case _ => DotEnvBehavior.Auto
+        }
+    }
 }
 
 // ============================================================================
@@ -593,6 +662,16 @@ public enum FrameworkEntryPointType {
             case Client => 1
             case Server => 2
             case Fallback => 3
+        }
+    }
+
+    public static func fromRaw(value: UInt8): FrameworkEntryPointType {
+        match (value) {
+            case 0 => FrameworkEntryPointType.None
+            case 1 => FrameworkEntryPointType.Client
+            case 2 => FrameworkEntryPointType.Server
+            case 3 => FrameworkEntryPointType.Fallback
+            case _ => FrameworkEntryPointType.None
         }
     }
 }
@@ -970,6 +1049,21 @@ public enum FallbackStep {
             case LoadEntryPoint => 6
             case EvalEntryPoint => 7
             case FetchEventHandler => 8
+        }
+    }
+
+    public static func fromRaw(value: UInt8): FallbackStep {
+        match (value) {
+            case 0 => FallbackStep.None
+            case 1 => FallbackStep.SsrDisabled
+            case 2 => FallbackStep.CreateVM
+            case 3 => FallbackStep.ConfigureRouter
+            case 4 => FallbackStep.ConfigureDefines
+            case 5 => FallbackStep.ResolveEntryPoint
+            case 6 => FallbackStep.LoadEntryPoint
+            case 7 => FallbackStep.EvalEntryPoint
+            case 8 => FallbackStep.FetchEventHandler
+            case _ => FallbackStep.None
         }
     }
 }

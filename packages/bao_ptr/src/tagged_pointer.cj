@@ -36,18 +36,23 @@ public struct TaggedPointer {
 
     public init() {}
 
+    public init(ptr: UInt64, data: UInt16) {
+        this._ptr = ptr
+        this.data = data
+    }
+
     // Tag type moved to top level: public type TaggedPointerTag = UInt16
 
     /// 初始化标记指针
     /// ptr: 任意指针类型
     /// data: 标记数据 (Tag)
     public static func initFunc(ptr: UInt64, data: UInt16): TaggedPointer {
-        TaggedPointer(_ptr: ptr, data: data)
+        TaggedPointer(ptr,data)
     }
 
     /// 从指针值创建，截断到 AddressableSize
     public static func initFromPtr(ptr: UInt64, data: UInt16): TaggedPointer {
-        TaggedPointer(_ptr: ptr, data: data)
+        TaggedPointer(ptr,data)
     }
 
     /// 获取指针，转换为指定类型
@@ -57,12 +62,12 @@ public struct TaggedPointer {
 
     /// 从 f64/i64/u64/指针值创建
     public static func from(val: UInt64): TaggedPointer {
-        TaggedPointer(_ptr: val, data: 0)
+        TaggedPointer(val,0)
     }
 
     /// 从指针地址创建
     public static func fromPtr(ptr: UInt64): TaggedPointer {
-        TaggedPointer(_ptr: ptr, data: 0)
+        TaggedPointer(ptr,0)
     }
 
     /// 转换为不透明指针
@@ -127,7 +132,7 @@ public class TaggedPointerUnion {
 
     /// 根据标记值获取类型名称
     public func typeNameFromTag(tag: UInt16): ?String {
-        for (i in 0..this.typeMap.length) {
+        for (i in 0..this.typeMap.size) {
             if (this.typeMap[i].value == tag) {
                 return Some(this.typeMap[i].typeName)
             }
@@ -162,19 +167,19 @@ public class TaggedPointerUnion {
 
     /// 设置指针
     public func set(ptr: UInt64, tag: UInt16): Unit {
-        this.repr = TaggedPointer(_ptr: ptr, data: tag)
+        this.repr = TaggedPointer(ptr,tag)
     }
 
     /// 检查是否为有效指针 (标记在有效范围内)
     public func isValid(): Bool {
-        if (this.typeMap.length == 0) {
+        if (this.typeMap.size == 0) {
             return false
         }
         let tagVal = this.repr.data
         // 检查标记是否在类型映射范围内
         var minVal: UInt16 = this.typeMap[0].value
         var maxVal: UInt16 = this.typeMap[0].value
-        for (i in 1..this.typeMap.length) {
+        for (i in 1..this.typeMap.size) {
             if (this.typeMap[i].value < minVal) {
                 minVal = this.typeMap[i].value
             }
@@ -200,7 +205,7 @@ public class TaggedPointerUnion {
     /// 初始化 (使用指定指针和类型标记)
     public static func initFunc(ptr: UInt64, tag: UInt16): TaggedPointerUnion {
         let union_ = TaggedPointerUnion()
-        union_.repr = TaggedPointer.`init`(ptr, tag)
+        union_.repr = TaggedPointer(ptr, tag)
         return union_
     }
 
@@ -216,7 +221,7 @@ public class TaggedPointerUnion {
     public func call(fnName: String, args: Array<Any>): Any {
         // 在仓颉中通过反射实现
         // 查找类型映射中与当前标记匹配的条目
-        for (i in 0..this.typeMap.length) {
+        for (i in 0..this.typeMap.size) {
             if (this.repr.data == this.typeMap[i].value) {
                 // 找到匹配类型，执行方法调用
                 // 这里简化实现
@@ -238,13 +243,6 @@ public class TagTypeEnumBuilder {
     /// 构建类型映射
     /// 为每个类型分配一个标记值 (从 1024 递减)
     public static func buildTypeMap(typeNames: Array<String>): Array<TypeMapEntry> {
-        var map = Array<TypeMapEntry>(typeNames.length)
-        for (i in 0..typeNames.length) {
-            map[i] = TypeMapEntry(
-                value: UInt16(1024 - i),
-                typeName: typeNames[i]
-            )
-        }
-        return map
+        return Array<TypeMapEntry>(typeNames.size, { i => TypeMapEntry(UInt16(1024 - i), typeNames[i]) })
     }
 }

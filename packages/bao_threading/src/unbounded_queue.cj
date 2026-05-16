@@ -183,11 +183,11 @@ public class UnboundedQueue<T> {
     /// 互斥锁 - 保护并发 push 操作
     /// Bun 中 push 是 lock-free 的 (原子 swap)
     /// 仓颉中使用 Mutex 实现等价的线程安全
-    private let mutex: std.sync.Mutex
+    private let mutex: Mutex
 
     public init() {
         items = ArrayList<T>()
-        mutex = std.sync.Mutex()
+        mutex = Mutex()
     }
 
     /// 推入单个元素 - 对应 Bun UnboundedQueue.push(item)
@@ -207,7 +207,7 @@ public class UnboundedQueue<T> {
         synchronized(mutex) {
             // 严格对应 Bun: setNext(last, null)
             // 严格对应 Bun: back.swap(last) + old_back.next = first
-            items.append(item)
+            items.add(item)
         }
     }
 
@@ -228,7 +228,7 @@ public class UnboundedQueue<T> {
         }
         synchronized(mutex) {
             for (item in newItems) {
-                items.append(item)
+                items.add(item)
             }
         }
     }
@@ -240,7 +240,7 @@ public class UnboundedQueue<T> {
         }
         synchronized(mutex) {
             for (item in newItems) {
-                items.append(item)
+                items.add(item)
             }
         }
     }
@@ -279,7 +279,7 @@ public class UnboundedQueue<T> {
                 return None
             }
             // 严格对应 Bun: front.CAS(first, next) -> return first
-            return Some(items.removeAt(Int64(0)))
+            return Some(items.remove(at: 0))
         }
     }
 
@@ -306,7 +306,7 @@ public class UnboundedQueue<T> {
             // 严格对应 Bun: front.swap(null) + back.swap(null)
             // 一次性取走所有元素
             for (item in items) {
-                batch.items.append(item)
+                batch.items.add(item)
             }
             items.clear()
         }

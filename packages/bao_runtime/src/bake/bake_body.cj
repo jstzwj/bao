@@ -9,7 +9,7 @@ import bao_bun_alloc.*
 import bao_collections.*
 import bao_core.*
 import bao_jsc.*
-import bao_options.schema as bun_schema
+import bao_options as bun_schema
 import bao_path.*
 
 // ============================================================================
@@ -322,11 +322,17 @@ public func frameworkReact(arena: Arena): Framework {
         )),
         react_fast_refresh: Some(ReactFastRefresh()),
         built_in_modules: StringArrayHashMap<BuiltInModule>.fromEntries([
-            ("bun-framework-react/client.tsx", BuiltInModule.code("// client placeholder")),
-            ("bun-framework-react/server.tsx", BuiltInModule.code("// server placeholder")),
-            ("bun-framework-react/ssr.tsx", BuiltInModule.code("// ssr placeholder")),
+            ("bun-framework-react/client.tsx", BuiltInModule.code(bunFrameworkReactClientSource)),
+            ("bun-framework-react/server.tsx", BuiltInModule.code(bunFrameworkReactServerSource)),
+            ("bun-framework-react/ssr.tsx", BuiltInModule.code(bunFrameworkReactSsrSource)),
         ]),
     )
+}
+
+/// 读取 codegen 嵌入资源。
+/// 对应 Bun: bun.runtimeEmbedFile(.codegen, path) / runtime_embed_file!(Codegen, path)。
+public func runtimeEmbedFileCodegen(path: String): String {
+    return RuntimeEmbedFile.codegen(path)
 }
 
 /// Framework 自动检测。
@@ -354,7 +360,7 @@ public func frameworkAuto(
         ))
         fw.built_in_modules.put(
             "react-refresh/runtime/index.js",
-            BuiltInModule.code("// react-refresh fallback placeholder"),
+            BuiltInModule.code(runtimeEmbedFileCodegen("node-fallbacks/react-refresh.js")),
         )
     }
 

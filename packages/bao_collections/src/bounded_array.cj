@@ -25,7 +25,7 @@ public class BoundedArray<T> {
     /// 对应 Bun BoundedArray.init()
     public init(capacity: Int64, defaultValue: T) {
         maxCapacity = capacity
-        data = Array<T>(capacity, item: defaultValue)
+        data = Array<T>(capacity, repeat: defaultValue)
         len = 0
     }
 
@@ -33,7 +33,7 @@ public class BoundedArray<T> {
     /// 对应 Bun BoundedArray.fromSlice()
     public init(capacity: Int64, items: Array<T>, defaultValue: T) {
         maxCapacity = capacity
-        var arr = Array<T>(capacity, item: defaultValue)
+        var arr = Array<T>(capacity, repeat: defaultValue)
         let copyLen = if (items.size < capacity) { items.size } else { capacity }
         for (i in 0..copyLen) {
             arr[i] = items[i]
@@ -132,11 +132,7 @@ public class BoundedArray<T> {
 
     /// 获取已使用的切片 - 对应 Bun BoundedArray.constSlice()
     public func slice(): Array<T> {
-        var result = Array<T>()
-        for (i in 0..len) {
-            result.append(data[i])
-        }
-        return result
+        return Array<T>(len, { i => data[i] })
     }
 
     /// 获取可变引用 - 对应 Bun BoundedArray.slice()
@@ -180,14 +176,10 @@ public class BoundedArray<T> {
 
     /// 获取指定范围切片 - 对应 Bun BoundedArray.slice(start, end)
     public func slice(start: Int64, end: Int64): Array<T> {
+        let s = if (start < 0) { 0 } else { start }
         let e = if (end > len) { len } else { end }
-        var result = Array<T>()
-        for (i in start..e) {
-            if (i >= 0) {
-                result.append(data[i])
-            }
-        }
-        return result
+        let count = if (e > s) { e - s } else { 0 }
+        return Array<T>(count, { i => data[s + i] })
     }
 
     /// 在指定位置插入 - 对应 Bun BoundedArray.insert
@@ -245,36 +237,9 @@ public class BoundedArray<T> {
         return Some(data[index])
     }
 
-    /// 检查是否包含元素
-    public func contains(item: T): Bool where T <: Equatable<T> {
-        for (i in 0..len) {
-            if (data[i] == item) {
-                return true
-            }
-        }
-        return false
-    }
-
-    /// 从头查找元素索引 - 对应 Bun BoundedArray.indexOf
-    public func indexOf(item: T): ?Int64 where T <: Equatable<T> {
-        for (i in 0..len) {
-            if (data[i] == item) {
-                return Some(i)
-            }
-        }
-        return None
-    }
-
     /// 转为字符串 - 调试用
     public func toString(): String {
-        var sb = StringBuilder()
-        sb.append("BoundedArray(len=${len}, cap=${maxCapacity}, [")
-        for (i in 0..len) {
-            if (i > 0) { sb.append(", ") }
-            sb.append("${data[i]}")
-        }
-        sb.append("])")
-        return sb.toString()
+        return "BoundedArray(len=${len}, cap=${maxCapacity})"
     }
 }
 

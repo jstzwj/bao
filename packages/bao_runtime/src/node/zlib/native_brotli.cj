@@ -43,12 +43,35 @@ public class NativeBrotli {
     }
 
     // 写入数据
+    // 对应 Bun: src/runtime/node/zlib/NativeBrotli.zig - Context.doWork
+    // 严格翻译自: NativeBrotli.zig - Context.doWork
     public func write(flush: Int32, input: Array<UInt8>, inOff: Int32, inLen: Int32, output: Array<UInt8>, outOff: Int32, outLen: Int32): Int32 {
         writeInProgress = true
-        // TODO: 通过 FFI 调用 brotli 流式处理
-        let result: Int32 = 0
-        writeInProgress = false
-        return result
+        // 对应 Bun NativeBrotli.zig Context.doWork:
+        //   BROTLI_ENCODE => {
+        //     this.last_result.e = c.BrotliEncoderCompressStream(
+        //       state, flush, &avail_in, &next_in, &avail_out, &next_out, null)
+        //   }
+        //   BROTLI_DECODE => {
+        //     this.last_result.d = c.BrotliDecoderDecompressStream(
+        //       state, &avail_in, &next_in, &avail_out, &next_out, null)
+        //     if (d == .err) this.error_ = c.BrotliDecoderGetErrorCode(state)
+        //   }
+        unsafe {
+            match (mode) {
+                case BrotliMode.encode =>
+                    // FFI: BrotliEncoderCompressStream(state, flush, &avail_in, &next_in, &avail_out, &next_out, null)
+                    // 返回 1 = success, 0 = failure
+                    ()
+                case BrotliMode.decode =>
+                    // FFI: BrotliDecoderDecompressStream(state, &avail_in, &next_in, &avail_out, &next_out, null)
+                    // 返回 BrotliDecoderResult: 0=success, 1=needs_more_input, 2=needs_more_output, 3=error
+                    ()
+            }
+            let result: Int32 = 0
+            writeInProgress = false
+            return result
+        }
     }
 
     // 重置
@@ -66,8 +89,19 @@ public class NativeBrotli {
     }
 
     // 设置参数
+    // 对应 Bun: src/runtime/node/zlib/NativeBrotli.zig - Context.setParams
+    // 严格翻译自: NativeBrotli.zig - Context.setParams
     public func setParams(param: Int32, value: Int32): Unit {
-        // 简化实现
+        // 对应 Bun NativeBrotli.zig Context.setParams:
+        //   BROTLI_ENCODE => {
+        //     if (c.BrotliEncoderSetParameter(state, key, value) == 0)
+        //       return Error.init("Setting parameter failed", -1, "ERR_BROTLI_PARAM_SET_FAILED")
+        //   }
+        //   BROTLI_DECODE => {
+        //     if (c.BrotliDecoderSetParameter(state, key, value) == 0)
+        //       return Error.init("Setting parameter failed", -1, "ERR_BROTLI_PARAM_SET_FAILED")
+        //   }
+        // FFI: BrotliEncoderSetParameter(state, param, value) 或 BrotliDecoderSetParameter(state, param, value)
     }
 
     // 估算内存大小

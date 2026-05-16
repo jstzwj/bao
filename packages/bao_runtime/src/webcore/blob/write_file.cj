@@ -4,6 +4,7 @@
 package bao_runtime.webcore.blob
 
 import bao_core.*
+import bao_io.*
 
 // ============================================================================
 // WriteFileResult - 文件写入结果
@@ -42,15 +43,14 @@ public class WriteFile {
     /// 写入数据到文件
     /// 对应 Bun: write_file
     public func write(data: Array<UInt8>): WriteFileResult {
-        try {
-            if (append) {
-                BaoFile.appendAllBytes(path, data)
-            } else {
-                BaoFile.writeAllBytes(path, data)
-            }
-            return WriteFileResult.Success(data.size)
-        } catch (e: Exception) {
-            return WriteFileResult.Error(e.message)
+        let result = if (append) {
+            BaoFile.appendAllBytes(path, data)
+        } else {
+            BaoFile.writeAllBytes(path, data)
+        }
+        match (result) {
+            case SysMaybe<Unit>.Ok(_) => return WriteFileResult.Success(data.size)
+            case SysMaybe<Unit>.Err(err) => return WriteFileResult.Error(err.message)
         }
     }
 }

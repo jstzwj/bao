@@ -22,7 +22,7 @@ package bao_threading
 
 import std.sync.*
 import std.collection.ArrayList
-import std.time.Duration
+import std.time.*
 
 // ============================================================================
 // ThreadPoolTask - 线程池任务接口
@@ -78,7 +78,7 @@ public class TaskBatch {
     ///   return Batch{ .len = 1, .head = task, .tail = task }
     public static func from(task: ThreadPoolTask): TaskBatch {
         let batch = TaskBatch()
-        batch.tasks.append(task)
+        batch.tasks.add(task)
         batch.len = 1
         return batch
     }
@@ -93,7 +93,7 @@ public class TaskBatch {
             return
         }
         for (task in batch.tasks) {
-            tasks.append(task)
+            tasks.add(task)
         }
         len += batch.len
     }
@@ -104,7 +104,7 @@ public class TaskBatch {
         if (len == 0) {
             return None
         }
-        let task = tasks.removeAt(0)
+        let task = tasks.remove(at: 0)
         len -= 1
         return Some(task)
     }
@@ -213,7 +213,7 @@ public class ThreadPool {
     /// 空闲线程数 - 对应 Bun sync.idle
     private let idleCount: AtomicInt64
     /// 互斥锁 - 保护内部状态
-    private let mutex: std.sync.Mutex
+    private let mutex: Mutex
     /// 空闲等待条件 - 对应 Bun idle_event: Event
     private let idleCond: Condition
     /// 退出等待条件 - 对应 Bun join_event: Event
@@ -227,13 +227,13 @@ public class ThreadPool {
         let config = ThreadPoolConfig()
         workers = ArrayList<Future<Unit>>()
         taskQueue = ConcurrentQueue<ThreadPoolTask>()
-        state = AtomicEnum<ThreadPoolState>(ThreadPoolState.Pending)
+        state = AtomicEnum<ThreadPoolState>(Int64(0))
         running = AtomicBool(false)
         spawnedCount = AtomicInt64(0)
         maxThreads = config.maxThreads
         stackSize = config.stackSize
         idleCount = AtomicInt64(0)
-        mutex = std.sync.Mutex()
+        mutex = Mutex()
         idleCond = mutex.condition()
         joinCond = mutex.condition()
         waitGroup = WaitGroup()
@@ -243,13 +243,13 @@ public class ThreadPool {
     public init(config: ThreadPoolConfig) {
         workers = ArrayList<Future<Unit>>()
         taskQueue = ConcurrentQueue<ThreadPoolTask>()
-        state = AtomicEnum<ThreadPoolState>(ThreadPoolState.Pending)
+        state = AtomicEnum<ThreadPoolState>(Int64(0))
         running = AtomicBool(false)
         spawnedCount = AtomicInt64(0)
         maxThreads = config.maxThreads
         stackSize = config.stackSize
         idleCount = AtomicInt64(0)
-        mutex = std.sync.Mutex()
+        mutex = Mutex()
         idleCond = mutex.condition()
         joinCond = mutex.condition()
         waitGroup = WaitGroup()
@@ -333,7 +333,7 @@ public class ThreadPool {
     ///   }
     public func shutdown(): Unit {
         running.store(false)
-        state.store(Int64(ThreadPoolState.Shutdown.ordinal()))
+        state.store(Int64(3))
         // 唤醒所有等待的线程
         synchronized(mutex) {
             idleCond.notifyAll()
@@ -384,10 +384,9 @@ public class ThreadPool {
     /// 严格翻译自: ThreadPool.zig:553-588 Thread.run
     private func spawnWorker(): Unit {
         let count = spawnedCount.fetchAdd(1) + 1
-        let fut = spawn {
+        spawn {
             workerLoop()
         }
-        workers.append(fut)
     }
 
     /// 工作线程循环 - 对应 Bun Thread.run 中的主循环
@@ -406,14 +405,14 @@ public class ThreadPool {
     private func workerLoop(): Unit {
         while (running.load()) {
             // 尝试从队列获取任务 - 对应 Bun Thread.pop
-            let task = taskQueue.pop()
-            if (task != None) {
-                // 执行任务 - 对应 Bun (task.callback)(task)
-                task.unwrap().execute()
-                // 完成等待组 - 对应 Bun wait_group.finish()
-                waitGroup.finish()
-                pendingCount.fetchSub(1)
-            } else {
+            match (taskQueue.pop()) {
+                case Some(task) =>
+                    // 执行任务 - 对应 Bun (task.callback)(task)
+                    task.execute()
+                    // 完成等待组 - 对应 Bun wait_group.finish()
+                    waitGroup.finish()
+                    pendingCount.fetchSub(1)
+                case None =>
                 // 没有任务，进入空闲等待 - 对应 Bun idle_event.wait()
                 synchronized(mutex) {
                     if (!running.load()) {
@@ -444,7 +443,7 @@ class ClosureTask <: ThreadPoolTask {
     init(fn: () -> Unit) {
         this.fn = fn
     }
-    func execute(): Unit {
+    public func execute(): Unit {
         fn()
     }
 }
@@ -468,9 +467,9 @@ class ClosureTask <: ThreadPoolTask {
 ///   lazy init (bun.once) -> 获取线程数 -> 创建 ThreadPool
 ///   schedule(task): 提交单个任务
 ///   go(allocator, ctx, function): 提交闭包任务
-public class WorkPool {
+public class ThreadPoolWorkPool {
     /// 单例线程池
-    private static var pool: ?ThreadPool
+    private static var pool: ?ThreadPool = None
     /// 一次性初始化标志 - 对应 Bun bun.once
     private static let once: Once = Once()
 
@@ -479,11 +478,18 @@ public class WorkPool {
     ///   createOnce.call({})
     ///   return &pool
     public static func get(): ThreadPool {
-        once.callOnce({
-            pool = ThreadPool(ThreadPoolConfig())
-            pool.warm(8)
+        once.callOnce({ =>
+            let newPool = ThreadPool(ThreadPoolConfig())
+            newPool.warm(8)
+            pool = newPool
         })
-        return pool.unwrap()
+        match (pool) {
+            case Some(p) => return p
+            case None =>
+                let newPool = ThreadPool(ThreadPoolConfig())
+                pool = newPool
+                return newPool
+        }
     }
 
     /// 调度任务 - 对应 Bun WorkPool.schedule(task)

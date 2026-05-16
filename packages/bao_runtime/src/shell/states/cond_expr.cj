@@ -5,6 +5,7 @@
 package bao_runtime.shell.states
 
 import bao_core.*
+import bao_runtime.shell.*
 import std.collection.*
 
 // ============================================================================
@@ -15,9 +16,9 @@ import std.collection.*
 /// 条件表达式状态类型（提取到顶层）
 public enum CondExprStateKind {
 | `idle`
-| expandingArgs(idx: UInt32, expansion: ExpansionState, lastExitCode: ExitCode)
+| expandingArgs(UInt32, ExpansionState, ExitCode)
 | waitingStat
-| statComplete(stat: Maybe<Stat>)
+| statComplete(Maybe<Stat>)
 | waitingWriteErr
 | done
 }
@@ -43,7 +44,7 @@ public class CondExprChildPtr {
         cp.ptr = p
         return cp
     }
-    public func is(type: Any): Boolean { true }
+    public func `is`(`type`: Any): Bool { true }
     public func `as`<T>(): T { this.ptr as T }
     public func deinit() {}
 }
@@ -89,36 +90,36 @@ public class CondExprState {
     /// 下一步
     public func next(): Yield {
         while (this.state != CondExprStateKind.done) {
-            switch (this.state) {
+            match (this.state) {
                 case CondExprStateKind.`idle` =>
                     this.state = CondExprStateKind.expandingArgs(
-                        idx: 0,
-                        expansion: ExpansionState(),
-                        lastExitCode: 0
+                        0,
+                        ExpansionState(),
+                        0
                     )
                     continue
-                case CondExprStateKind.expandingArgs(let idx, let expansion, let lastExitCode) =>
+                case CondExprStateKind.expandingArgs(idx, expansion, lastExitCode) =>
                     if (idx >= this.node.args.size) {
                         return this.commandImplStart()
                     }
                     this.state = CondExprStateKind.expandingArgs(
-                        idx: idx + 1,
-                        expansion: expansion,
-                        lastExitCode: lastExitCode
+                        idx + 1,
+                        expansion,
+                        lastExitCode
                     )
                     return expansion.start()
                 case CondExprStateKind.waitingStat =>
                     return Yield.suspended
-                case CondExprStateKind.statComplete(let stat) =>
+                case CondExprStateKind.statComplete(stat) => ()
                     // 根据操作符和stat结果返回退出码
-                    switch (this.node.op) {
-                        case "-f" =>
+                    match (this.node.op) {
+                        case "-f" => ()
                             // 检查是否为普通文件
                             return this.parent.childDone(this, 0)
-                        case "-d" =>
+                        case "-d" => ()
                             // 检查是否为目录
                             return this.parent.childDone(this, 0)
-                        case "-c" =>
+                        case "-c" => ()
                             // 检查是否为字符设备
                             return this.parent.childDone(this, 0)
                         case "-z" | "-n" | "==" | "!=" =>
@@ -137,23 +138,25 @@ public class CondExprState {
 
     /// 命令实现启动
     func commandImplStart(): Yield {
-        switch (this.node.op) {
+        match (this.node.op) {
             case "-f" | "-d" | "-c" =>
                 this.state = CondExprStateKind.waitingStat
                 return this.doStat()
             case "-z" =>
-                return this.parent.childDone(this,
-                    if (this.args.size == 0 || this.args[0].size == 0) 0 else 1)
+                let exitCode = if (this.args.size == 0 || this.args[0].size == 0) { 0 } else { 1 }
+                return this.parent.childDone(this, exitCode)
             case "-n" =>
-                return this.parent.childDone(this,
-                    if (this.args.size > 0 && this.args[0].size != 0) 0 else 1)
+                let exitCode = if (this.args.size > 0 && this.args[0].size != 0) { 0 } else { 1 }
+                return this.parent.childDone(this, exitCode)
             case "==" =>
                 let isEq = this.args.size == 0 ||
                     (this.args.size >= 2 && this.args[0] == this.args[1])
-                return this.parent.childDone(this, if (isEq) 0 else 1)
+                let exitCode = if (isEq) { 0 } else { 1 }
+                return this.parent.childDone(this, exitCode)
             case "!=" =>
                 let isNeq = this.args.size >= 2 && this.args[0] != this.args[1]
-                return this.parent.childDone(this, if (isNeq) 0 else 1)
+                let exitCode = if (isNeq) { 0 } else { 1 }
+                return this.parent.childDone(this, exitCode)
             case _ =>
                 panic("无效的条件表达式操作符")
         }
@@ -185,18 +188,18 @@ public class CondExprState {
     }
 
     /// stat任务完成
-    public func onStatTaskComplete(result: Maybe<Stat>) {
-        this.state = CondExprStateKind.statComplete(stat: result)
+    public func onStatTaskComplete(val: Maybe<Stat>) {
+        this.state = CondExprStateKind.statComplete(result)
         this.next().run()
     }
 
     /// 写入失败错误
-    public func writeFailingError(fmt: String): Yield {
+    public func writeFailingError(s: String): Yield {
         return this.base.shell.writeFailingErrorFmt(this, { _ => Yield.done }, fmt, [])
     }
 
     /// IO写入器数据块回调
-    public func onIOWriterChunk(amount: UInt64, err: ?SystemError): Yield {
+    public func onIOWriterChunk(chunk: UInt64, err: ?SystemError): Yield {
         if (err != None) {
             let exitCode: ExitCode = 1
             return this.parent.childDone(this, exitCode)

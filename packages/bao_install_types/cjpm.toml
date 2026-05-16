@@ -1,0 +1,18 @@
+[package]
+cjc-version = "1.0.0"
+name = "bao_install_types"
+organization = "bao"
+description = "Bao install types: shared type definitions extracted from bun_install_types (NodeLinker, ExternalSlice, Behavior, Dependency, Resolution, PnpmMatcher, SemverString, ExternalString, SlicedString)"
+version = "0.1.0"
+compile-option = ""
+override-compile-option = ""
+link-option = ""
+output-type = "static"
+src-dir = "src"
+target-dir = ""
+
+[dependencies]
+bao_core = { path = "../bao_core" }
+bao_semver = { path = "../bao_semver" }
+bao_hash = { path = "../bao_hash" }
+bao_collections = { path = "../bao_collections" }

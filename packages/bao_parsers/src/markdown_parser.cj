@@ -16,6 +16,59 @@ package bao_parsers
 import bao_core.*
 import bao_collections.*
 
+extend String {
+    public func trimSpace(): String {
+        var start = Int64(0)
+        var end = this.size
+        while (start < end && (this[start] == UInt8(32) || this[start] == UInt8(9) || this[start] == UInt8(10) || this[start] == UInt8(13))) {
+            start += 1
+        }
+        while (end > start && (this[end - 1] == UInt8(32) || this[end - 1] == UInt8(9) || this[end - 1] == UInt8(10) || this[end - 1] == UInt8(13))) {
+            end -= 1
+        }
+        return this[start..end]
+    }
+
+    public func trimStartSpace(): String {
+        var start = Int64(0)
+        while (start < this.size && (this[start] == UInt8(32) || this[start] == UInt8(9) || this[start] == UInt8(10) || this[start] == UInt8(13))) {
+            start += 1
+        }
+        return this[start..this.size]
+    }
+
+    public func sliceString(start: Int64): String {
+        return this[start..this.size]
+    }
+
+    public func sliceString(start: Int64, end: Int64): String {
+        return this[start..end]
+    }
+
+    public func toLowerCase(): String {
+        let sb = StringBuilder()
+        for (ch in this) {
+            if (ch >= UInt8(65) && ch <= UInt8(90)) {
+                sb.append(UInt8(ch + UInt8(32)))
+            } else {
+                sb.append(ch)
+            }
+        }
+        return sb.toString()
+    }
+}
+
+private func joinStrings(delimiter: String, parts: ArrayList<String>): String {
+    let sb = StringBuilder()
+    var first = true
+    for (part in parts) {
+        if (!first) { sb.append(delimiter) }
+        first = false
+        sb.append(part)
+    }
+    return sb.toString()
+}
+
 // ============================================================================
 // Markdown AST 节点类型
 // 严格翻译自: md/types.zig BlockType + SpanType
@@ -45,6 +98,14 @@ public enum MdNodeType {
     | SoftBreak         // 软换行
     | HardBreak         // 硬换行
     | TaskListMarker    // 任务列表标记 [ ] / [x]
+
+    public operator func ==(right: MdNodeType): Bool {
+        return this.name() == right.name()
+    }
+
+    public operator func !=(right: MdNodeType): Bool {
+        return !(this == right)
+    }
 
     /// 获取节点类型名称
     public func name(): String {
@@ -136,7 +197,7 @@ public class MdNode {
     public var listStart: Int64
     /// 列表是否紧凑
     public var listTight: Bool
-    /// 任务列表标记: ' ' 未完成, 'x' 已完成
+    /// 任务列表标记: UInt8(32) 未完成, UInt8(120) 已完成
     public var taskMark: UInt8
     /// 表格列数
     public var tableColCount: Int64
@@ -174,7 +235,7 @@ public class MdNode {
     }
 
     /// 创建文本节点
-    public static func text(content: String): MdNode {
+    public static func textNode(content: String): MdNode {
         let node = MdNode(MdNodeType.Text)
         node.text = content
         return node
@@ -413,7 +474,7 @@ public class MarkdownParser {
             let line = lines[i]
 
             // 空行
-            if (line.trim().length == 0) {
+            if (line.trimSpace().size == 0) {
                 i++
                 continue
             }
@@ -446,7 +507,7 @@ public class MarkdownParser {
             }
 
             // 引用块 >
-            if (line.trim().startsWith(">")) {
+            if (line.trimSpace().startsWith(">")) {
                 let quoteResult = parseBlockquote(lines, i)
                 match (quoteResult) {
                     case Some(result) =>
@@ -510,13 +571,13 @@ public class MarkdownParser {
     // 严格翻译自: line_analysis 中的 atxheader 检测
     // ========================================================================
 
-    private func tryParseAtxHeading(line: String, lineIdx: Int64): ?ParseResult {
-        let trimmed = line.trimStart()
+    private func tryParseAtxHeading(line: String, lineIdx: Int64): ?MdParseResult {
+        let trimmed = line.trimStartSpace()
         var level: Int64 = 0
         var i: Int64 = 0
 
         // 统计 # 数量
-        while (i < trimmed.length && trimmed[i] == '#' && level < 6) {
+        while (i < trimmed.size && trimmed[i] == UInt8(35) && level < 6) {
             level++
             i++
         }
@@ -524,39 +585,39 @@ public class MarkdownParser {
         if (level == 0) { return None }
 
         // # 后面必须有空格或行尾
-        if (i < trimmed.length && trimmed[i] != ' ' && trimmed[i] != '\t') {
+        if (i < trimmed.size && trimmed[i] != UInt8(32) && trimmed[i] != UInt8(9)) {
             return None
         }
 
         // 跳过 # 后的空格
-        while (i < trimmed.length && (trimmed[i] == ' ' || trimmed[i] == '\t')) {
+        while (i < trimmed.size && (trimmed[i] == UInt8(32) || trimmed[i] == UInt8(9))) {
             i++
         }
 
         // 获取标题文本
-        var content = trimmed.substring(i)
+        var content = trimmed.sliceString(i)
         // 移除尾部 # 序列
-        var end = content.length
-        while (end > 0 && content[end - 1] == '#') { end-- }
+        var end = content.size
+        while (end > 0 && content[end - 1] == UInt8(35)) { end-- }
         // 如果 # 前面有空格, 移除空格和 #
-        if (end > 0 && end < content.length && content[end] == '#') {
+        if (end > 0 && end < content.size && content[end] == UInt8(35)) {
             // 验证 # 序列
             var hashOnly = true
-            for (j in end..content.length) {
-                if (content[j] != '#') { hashOnly = false; break }
+            for (j in end..content.size) {
+                if (content[j] != UInt8(35)) { hashOnly = false; break }
             }
-            if (hashOnly && end > 0 && content[end - 1] == ' ') {
+            if (hashOnly && end > 0 && content[end - 1] == UInt8(32)) {
                 end--
-                while (end > 0 && content[end - 1] == ' ') { end-- }
+                while (end > 0 && content[end - 1] == UInt8(32)) { end-- }
             } else {
-                end = content.length
+                end = content.size
             }
         }
-        content = content.substring(0, end).trim()
+        content = content.sliceString(0, end).trimSpace()
 
         let node = MdNode.heading(level)
         parseInlineContent(content, node)
-        return Some(ParseResult(node, lineIdx + 1))
+        return Some(MdParseResult(node, lineIdx + 1))
     }
 
     // ========================================================================
@@ -564,20 +625,20 @@ public class MarkdownParser {
     // 严格翻译自: blocks 中的 fencedcode 处理
     // ========================================================================
 
-    private func tryParseFencedCodeBlock(lines: ArrayList<String>, startLine: Int64): ?ParseResult {
+    private func tryParseFencedCodeBlock(lines: ArrayList<String>, startLine: Int64): ?MdParseResult {
         let line = lines[startLine]
-        let trimmed = line.trimStart()
-        let indent = line.length - trimmed.length
+        let trimmed = line.trimStartSpace()
+        let indent = line.size - trimmed.size
 
         // 检查围栏字符 ``` 或 ~~~
-        if (trimmed.length < 3) { return None }
+        if (trimmed.size < 3) { return None }
         let fenceChar = trimmed[0]
-        if (fenceChar != '`' && fenceChar != '~') { return None }
+        if (fenceChar != UInt8(96) && fenceChar != UInt8(126)) { return None }
 
         // 统计围栏字符数
         var fenceLen: Int64 = 0
         var i: Int64 = 0
-        while (i < trimmed.length && trimmed[i] == fenceChar) {
+        while (i < trimmed.size && trimmed[i] == fenceChar) {
             fenceLen++
             i++
         }
@@ -587,9 +648,9 @@ public class MarkdownParser {
         if (indent >= 4) { return None }
 
         // 提取信息字符串 (语言)
-        var infoStr = trimmed.substring(i).trim()
+        var infoStr = trimmed.sliceString(i).trimSpace()
         // ~~~ 的信息字符串不能包含 ~~~
-        if (fenceChar == '~' && infoStr.contains("~~~")) {
+        if (fenceChar == UInt8(126) && infoStr.contains("~~~")) {
             return None
         }
 
@@ -603,8 +664,8 @@ public class MarkdownParser {
             let codeLine = lines[j]
 
             // 检查关闭围栏
-            let codeTrimmed = codeLine.trimStart()
-            if (codeTrimmed.length >= fenceLen) {
+            let codeTrimmed = codeLine.trimStartSpace()
+            if (codeTrimmed.size >= fenceLen) {
                 var isClose = true
                 var k: Int64 = 0
                 while (k < fenceLen) {
@@ -613,9 +674,9 @@ public class MarkdownParser {
                 }
                 // 关闭围栏后面只能是空格
                 if (isClose) {
-                    var rest = codeTrimmed.substring(fenceLen)
-                    rest = rest.trim()
-                    if (rest.length == 0) {
+                    var rest = codeTrimmed.sliceString(fenceLen)
+                    rest = rest.trimSpace()
+                    if (rest.size == 0) {
                         j++ // 跳过关闭行
                         break
                     }
@@ -626,27 +687,27 @@ public class MarkdownParser {
             var contentLine = codeLine
             var removeSpaces = indent
             var ci: Int64 = 0
-            while (ci < contentLine.length && removeSpaces > 0 && contentLine[ci] == ' ') {
+            while (ci < contentLine.size && removeSpaces > 0 && contentLine[ci] == UInt8(32)) {
                 ci++
                 removeSpaces--
             }
             if (ci > 0) {
-                contentLine = contentLine.substring(ci)
+                contentLine = contentLine.sliceString(ci)
             }
             codeLines.append(contentLine)
             j++
         }
 
         let node = MdNode.codeBlock(language, infoStr)
-        node.text = String.join("\n", codeLines)
-        return Some(ParseResult(node, j))
+        node.text = joinStrings("\n", codeLines)
+        return Some(MdParseResult(node, j))
     }
 
     private static func extractLanguage(info: String): String {
-        let trimmed = info.trim()
+        let trimmed = info.trimSpace()
         let sb = StringBuilder()
         for (c in trimmed) {
-            if (c == ' ' || c == '\t') { break }
+            if (c == UInt8(32) || c == UInt8(9)) { break }
             sb.append(c)
         }
         return sb.toString()
@@ -656,20 +717,20 @@ public class MarkdownParser {
     // 引用块解析
     // ========================================================================
 
-    private func parseBlockquote(lines: ArrayList<String>, startLine: Int64): ?ParseResult {
+    private func parseBlockquote(lines: ArrayList<String>, startLine: Int64): ?MdParseResult {
         // 收集连续的引用行
         let quoteLines = ArrayList<String>()
         var j = startLine
 
         while (j < lines.size) {
             let line = lines[j]
-            if (line.trim().length == 0) { break }
-            let trimmed = line.trimStart()
+            if (line.trimSpace().size == 0) { break }
+            let trimmed = line.trimStartSpace()
             if (trimmed.startsWith(">")) {
                 // 移除 > 和可选的空格
-                var content = trimmed.substring(1)
-                if (content.length > 0 && content[0] == ' ') {
-                    content = content.substring(1)
+                var content = trimmed.sliceString(1)
+                if (content.size > 0 && content[0] == UInt8(32)) {
+                    content = content.sliceString(1)
                 }
                 quoteLines.append(content)
                 j++
@@ -683,7 +744,7 @@ public class MarkdownParser {
         // 递归解析引用内容
         let innerParser = MarkdownParser()
         innerParser.options = this.options
-        let innerText = String.join("\n", quoteLines)
+        let innerText = joinStrings("\n", quoteLines)
         let innerDoc = innerParser.parse(innerText)
 
         let node = MdNode(MdNodeType.Blockquote)
@@ -692,7 +753,7 @@ public class MarkdownParser {
             node.addChild(child)
         }
 
-        return Some(ParseResult(node, j))
+        return Some(MdParseResult(node, j))
     }
 
     // ========================================================================
@@ -700,9 +761,9 @@ public class MarkdownParser {
     // 严格翻译自: blocks 中的 ul/ol 处理
     // ========================================================================
 
-    private func tryParseList(lines: ArrayList<String>, startLine: Int64): ?ParseResult {
+    private func tryParseList(lines: ArrayList<String>, startLine: Int64): ?MdParseResult {
         let line = lines[startLine]
-        let trimmed = line.trimStart()
+        let trimmed = line.trimStartSpace()
 
         // 检测列表标记
         var listType = MdListType.Unordered
@@ -728,7 +789,7 @@ public class MarkdownParser {
         }
 
         // 检查缩进
-        let indent = line.length - trimmed.length
+        let indent = line.size - trimmed.size
         if (indent >= 4) { return None }
 
         // 收集列表项
@@ -738,13 +799,13 @@ public class MarkdownParser {
 
         while (j < lines.size) {
             let curLine = lines[j]
-            let curTrimmed = curLine.trimStart()
+            let curTrimmed = curLine.trimStartSpace()
 
             // 空行结束列表 (除非后面跟着缩进内容)
-            if (curTrimmed.length == 0) {
+            if (curTrimmed.size == 0) {
                 // 查看下一行是否还是列表项
                 if (j + 1 < lines.size) {
-                    let nextTrimmed = lines[j + 1].trimStart()
+                    let nextTrimmed = lines[j + 1].trimStartSpace()
                     if (isListMarker(nextTrimmed)) {
                         j++
                         continue
@@ -767,7 +828,7 @@ public class MarkdownParser {
             }
 
             // 缩进内容 (属于当前列表项)
-            let curIndent = curLine.length - curTrimmed.length
+            let curIndent = curLine.size - curTrimmed.size
             if (curIndent >= 2) {
                 j++
                 continue
@@ -785,24 +846,24 @@ public class MarkdownParser {
 
         if (listNode.children.size == 0) { return None }
 
-        return Some(ParseResult(listNode, j))
+        return Some(MdParseResult(listNode, j))
     }
 
     /// 解析有序列表标记
     private static func parseOrderedMarker(s: String): ?OrderedMarker {
-        if (s.length < 2) { return None }
+        if (s.size < 2) { return None }
 
         var num: Int64 = 0
         var i: Int64 = 0
-        while (i < s.length && s[i] >= '0' && s[i] <= '9') {
-            num = num * 10 + Int64(s[i] - '0')
+        while (i < s.size && s[i] >= UInt8(48) && s[i] <= UInt8(57)) {
+            num = num * 10 + Int64(s[i] - UInt8(48))
             i++
         }
 
         if (i == 0 || i > 9) { return None }
 
-        if (i < s.length && (s[i] == '.' || s[i] == ')')) {
-            if (i + 1 < s.length && s[i + 1] == ' ') {
+        if (i < s.size && (s[i] == UInt8(46) || s[i] == UInt8(41))) {
+            if (i + 1 < s.size && s[i + 1] == UInt8(32)) {
                 return Some(OrderedMarker(num, i + 1, i + 2))
             }
         }
@@ -815,14 +876,21 @@ public class MarkdownParser {
             return true
         }
         let numResult = parseOrderedMarker(trimmed)
-        return numResult != None
+        match (numResult) {
+            case Some(_) => return true
+            case None => return false
+        }
     }
 
     private static func isSameLevelListMarker(trimmed: String, listType: MdListType): Bool {
         match (listType) {
             case MdListType.Unordered =>
                 trimmed.startsWith("- ") || trimmed.startsWith("* ") || trimmed.startsWith("+ ")
-            case MdListType.Ordered => parseOrderedMarker(trimmed) != None
+            case MdListType.Ordered =>
+                match (parseOrderedMarker(trimmed)) {
+                    case Some(_) => true
+                    case None => false
+                }
         }
     }
 
@@ -834,47 +902,47 @@ public class MarkdownParser {
         let contentLines = ArrayList<String>()
         var firstLine = true
         for (line in itemLines) {
-            let trimmed = line.trimStart()
+            let trimmed = line.trimStartSpace()
             if (firstLine) {
                 // 移除标记
                 if (trimmed.startsWith("- ") || trimmed.startsWith("* ") || trimmed.startsWith("+ ")) {
-                    contentLines.append(trimmed.substring(2))
+                    contentLines.append(trimmed.sliceString(2))
                 } else {
                     let numResult = parseOrderedMarker(trimmed)
                     match (numResult) {
-                        case Some(r) => contentLines.append(trimmed.substring(r.contentStart))
+                        case Some(r) => contentLines.append(trimmed.sliceString(r.contentStart))
                         case None => contentLines.append(line)
                     }
                 }
                 firstLine = false
 
                 // 检查任务列表标记
-                let content = contentLines[contentLines.size - 1].trimStart()
-                if (options.tasklists && content.startsWith("[") && content.length >= 3 &&
-                    (content[1] == ' ' || content[1] == 'x' || content[1] == 'X') &&
-                    content[2] == ']') {
+                let content = contentLines[contentLines.size - 1].trimStartSpace()
+                if (options.tasklists && content.startsWith("[") && content.size >= 3 &&
+                    (content[1] == UInt8(32) || content[1] == UInt8(120) || content[1] == UInt8(88)) &&
+                    content[2] == UInt8(93)) {
                     let mark = content[1]
-                    contentLines[contentLines.size - 1] = content.substring(3).trimStart()
-                    if (mark != ' ') {
-                        itemNode.taskMark = 'x'
+                    contentLines[contentLines.size - 1] = content.sliceString(3).trimStartSpace()
+                    if (mark != UInt8(32)) {
+                        itemNode.taskMark = UInt8(120)
                     } else {
-                        itemNode.taskMark = ' '
+                        itemNode.taskMark = UInt8(32)
                     }
                 }
             } else {
                 // 移除列表项缩进 (2 空格)
                 var removeCount: Int64 = 2
                 var ci: Int64 = 0
-                while (ci < line.length && removeCount > 0 && line[ci] == ' ') {
+                while (ci < line.size && removeCount > 0 && line[ci] == UInt8(32)) {
                     ci++
                     removeCount--
                 }
-                contentLines.append(line.substring(ci))
+                contentLines.append(line.sliceString(ci))
             }
         }
 
         // 递归解析内容
-        let innerText = String.join("\n", contentLines)
+        let innerText = joinStrings("\n", contentLines)
         let innerParser = MarkdownParser()
         innerParser.options = this.options
         let innerDoc = innerParser.parse(innerText)
@@ -890,12 +958,12 @@ public class MarkdownParser {
     // 严格翻译自: blocks 中的 table 处理
     // ========================================================================
 
-    private func tryParseTable(lines: ArrayList<String>, startLine: Int64): ?ParseResult {
+    private func tryParseTable(lines: ArrayList<String>, startLine: Int64): ?MdParseResult {
         if (!options.tables) { return None }
         if (startLine + 1 >= lines.size) { return None }
 
-        let headerLine = lines[startLine].trim()
-        let sepLine = lines[startLine + 1].trim()
+        let headerLine = lines[startLine].trimSpace()
+        let sepLine = lines[startLine + 1].trimSpace()
 
         // 验证分隔行 (|---|---|)
         if (!isTableSeparator(sepLine)) { return None }
@@ -916,7 +984,7 @@ public class MarkdownParser {
             let cell = MdNode(MdNodeType.TableCell)
             cell.cellIsHeader = true
             cell.cellAlignment = if (i < alignments.size) { alignments[i] } else { MdTableAlign.Default }
-            parseInlineContent(headerCells[i].trim(), cell)
+            parseInlineContent(headerCells[i].trimSpace(), cell)
             headerRow.addChild(cell)
         }
         tableNode.addChild(headerRow)
@@ -924,8 +992,8 @@ public class MarkdownParser {
         // 解析数据行
         var j = startLine + 2
         while (j < lines.size) {
-            let rowLine = lines[j].trim()
-            if (rowLine.length == 0 || !rowLine.contains("|")) { break }
+            let rowLine = lines[j].trimSpace()
+            if (rowLine.size == 0 || !rowLine.contains("|")) { break }
 
             let cells = parseTableRow(rowLine, colCount)
             let dataRow = MdNode(MdNodeType.TableRow)
@@ -933,7 +1001,7 @@ public class MarkdownParser {
                 let cell = MdNode(MdNodeType.TableCell)
                 cell.cellIsHeader = false
                 cell.cellAlignment = if (i < alignments.size) { alignments[i] } else { MdTableAlign.Default }
-                parseInlineContent(cells[i].trim(), cell)
+                parseInlineContent(cells[i].trimSpace(), cell)
                 dataRow.addChild(cell)
             }
             tableNode.addChild(dataRow)
@@ -942,18 +1010,18 @@ public class MarkdownParser {
 
         if (j == startLine + 2) { return None }
 
-        return Some(ParseResult(tableNode, j))
+        return Some(MdParseResult(tableNode, j))
     }
 
     private static func isTableSeparator(line: String): Bool {
-        if (line.length == 0) { return false }
-        let trimmed = line.trim()
-        if (trimmed[0] != '|' && trimmed[trimmed.length - 1] != '|') {
+        if (line.size == 0) { return false }
+        let trimmed = line.trimSpace()
+        if (trimmed[0] != UInt8(124) && trimmed[trimmed.size - 1] != UInt8(124)) {
             // 无外围 | 的情况
         }
         // 简化: 检查是否只包含 |, -, :, 空格
         for (c in trimmed) {
-            if (c != '|' && c != '-' && c != ':' && c != ' ' && c != '\t') {
+            if (c != UInt8(124) && c != UInt8(45) && c != UInt8(58) && c != UInt8(32) && c != UInt8(9)) {
                 return false
             }
         }
@@ -964,10 +1032,10 @@ public class MarkdownParser {
         let alignments = ArrayList<MdTableAlign>()
         let cells = splitTableLine(sepLine)
         for (cell in cells) {
-            let trimmed = cell.trim()
-            if (trimmed.length == 0) { continue }
-            let leftColon = trimmed.length > 0 && trimmed[0] == ':'
-            let rightColon = trimmed.length > 0 && trimmed[trimmed.length - 1] == ':'
+            let trimmed = cell.trimSpace()
+            if (trimmed.size == 0) { continue }
+            let leftColon = trimmed.size > 0 && trimmed[0] == UInt8(58)
+            let rightColon = trimmed.size > 0 && trimmed[trimmed.size - 1] == UInt8(58)
             if (leftColon && rightColon) {
                 alignments.append(MdTableAlign.Center)
             } else if (rightColon) {
@@ -987,26 +1055,26 @@ public class MarkdownParser {
 
     private static func splitTableLine(line: String): ArrayList<String> {
         let cells = ArrayList<String>()
-        var trimmed = line.trim()
+        var trimmed = line.trimSpace()
         // 移除前后的 |
-        if (trimmed.length > 0 && trimmed[0] == '|') {
-            trimmed = trimmed.substring(1)
+        if (trimmed.size > 0 && trimmed[0] == UInt8(124)) {
+            trimmed = trimmed.sliceString(1)
         }
-        if (trimmed.length > 0 && trimmed[trimmed.length - 1] == '|') {
-            trimmed = trimmed.substring(0, trimmed.length - 1)
+        if (trimmed.size > 0 && trimmed[trimmed.size - 1] == UInt8(124)) {
+            trimmed = trimmed.sliceString(0, trimmed.size - 1)
         }
 
         // 按分割 | (忽略转义)
-        let sb = StringBuilder()
+        var current = ""
         for (c in trimmed) {
-            if (c == '|') {
-                cells.append(sb.toString())
-                sb.clear()
+            if (c == UInt8(124)) {
+                cells.append(current)
+                current = ""
             } else {
-                sb.append(c)
+                current += "${c}"
             }
         }
-        cells.append(sb.toString())
+        cells.append(current)
         return cells
     }
 
@@ -1015,7 +1083,7 @@ public class MarkdownParser {
     // ========================================================================
 
     private func isHtmlBlockStart(line: String): Bool {
-        let trimmed = line.trimStart()
+        let trimmed = line.trimStartSpace()
         if (!trimmed.startsWith("<")) { return false }
         let lower = trimmed.toLowerCase()
         // 块级 HTML 标签
@@ -1041,12 +1109,12 @@ public class MarkdownParser {
         return false
     }
 
-    private func parseHtmlBlock(lines: ArrayList<String>, startLine: Int64): ?ParseResult {
+    private func parseHtmlBlock(lines: ArrayList<String>, startLine: Int64): ?MdParseResult {
         let sb = StringBuilder()
         var j = startLine
 
         // 第一行确定 HTML 块类型
-        let firstLine = lines[startLine].trimStart().toLowerCase()
+        let firstLine = lines[startLine].trimStartSpace().toLowerCase()
         var endOnBlank = true
 
         if (firstLine.startsWith("<!--") || firstLine.startsWith("<script") ||
@@ -1061,7 +1129,7 @@ public class MarkdownParser {
 
         while (j < lines.size) {
             let line = lines[j]
-            if (endOnBlank && line.trim().length == 0) { break }
+            if (endOnBlank && line.trimSpace().size == 0) { break }
             if (!endOnBlank) {
                 let lower = line.toLowerCase()
                 // 检查关闭标签
@@ -1093,27 +1161,27 @@ public class MarkdownParser {
 
         let node = MdNode(MdNodeType.Html)
         node.text = sb.toString()
-        return Some(ParseResult(node, j))
+        return Some(MdParseResult(node, j))
     }
 
     // ========================================================================
     // 段落解析 (包含 Setext 标题)
     // ========================================================================
 
-    private func parseParagraph(lines: ArrayList<String>, startLine: Int64): ?ParseResult {
+    private func parseParagraph(lines: ArrayList<String>, startLine: Int64): ?MdParseResult {
         let sb = StringBuilder()
         var j = startLine
 
         while (j < lines.size) {
             let line = lines[j]
             // 空行结束段落
-            if (line.trim().length == 0) { break }
+            if (line.trimSpace().size == 0) { break }
             // 水平线结束段落
             if (isHrLine(line)) { break }
             // ATX 标题结束段落
-            if (line.trimStart().startsWith("#")) { break }
+            if (line.trimStartSpace().startsWith("#")) { break }
             // 围栏代码块结束段落
-            let trimmed = line.trimStart()
+            let trimmed = line.trimStartSpace()
             if (trimmed.startsWith("```") || trimmed.startsWith("~~~")) { break }
             // 列表标记结束段落 (如果不在段落开头)
             if (j > startLine && isListMarker(trimmed)) { break }
@@ -1122,13 +1190,13 @@ public class MarkdownParser {
 
             // 检查 Setext 标题 (下一行是 === 或 ---)
             if (j + 1 < lines.size) {
-                let nextLine = lines[j + 1].trim()
+                let nextLine = lines[j + 1].trimSpace()
                 if (isSetextUnderline(nextLine)) {
                     // 这是一个 Setext 标题
-                    let level = if (nextLine[0] == '=') { 1 } else { 2 }
+                    let level = if (nextLine[0] == UInt8(61)) { 1 } else { 2 }
                     let node = MdNode.heading(level)
-                    parseInlineContent(line.trim(), node)
-                    return Some(ParseResult(node, j + 2))
+                    parseInlineContent(line.trimSpace(), node)
+                    return Some(MdParseResult(node, j + 2))
                 }
             }
 
@@ -1141,13 +1209,13 @@ public class MarkdownParser {
 
         let node = MdNode(MdNodeType.Paragraph)
         parseInlineContent(sb.toString(), node)
-        return Some(ParseResult(node, j))
+        return Some(MdParseResult(node, j))
     }
 
     private static func isSetextUnderline(line: String): Bool {
-        if (line.length == 0) { return false }
+        if (line.size == 0) { return false }
         let c = line[0]
-        if (c != '=' && c != '-') { return false }
+        if (c != UInt8(61) && c != UInt8(45)) { return false }
         for (ch in line) {
             if (ch != c) { return false }
         }
@@ -1165,18 +1233,18 @@ public class MarkdownParser {
         var text = input
         var i: Int64 = 0
 
-        while (i < text.length) {
+        while (i < text.size) {
             let c = text[i]
 
             // 转义字符
-            if (c == '\\' && i + 1 < text.length && isAsciiPunctuation(text[i + 1])) {
-                parent.addChild(MdNode.text("${text[i + 1]}"))
+            if (c == UInt8(92) && i + 1 < text.size && isAsciiPunctuation(text[i + 1])) {
+                parent.addChild(MdNode.textNode("${text[i + 1]}"))
                 i += 2
                 continue
             }
 
             // 行内代码 `code`
-            if (c == '`') {
+            if (c == UInt8(96)) {
                 let result = parseInlineCode(text, i)
                 match (result) {
                     case Some(r) =>
@@ -1188,7 +1256,7 @@ public class MarkdownParser {
             }
 
             // 粗体/斜体 **bold** *italic* __bold__ _italic_
-            if (c == '*' || c == '_') {
+            if (c == UInt8(42) || c == UInt8(95)) {
                 let result = parseEmphasis(text, i)
                 match (result) {
                     case Some(r) =>
@@ -1200,7 +1268,7 @@ public class MarkdownParser {
             }
 
             // 删除线 ~~strikethrough~~
-            if (c == '~' && options.strikethrough && i + 1 < text.length && text[i + 1] == '~') {
+            if (c == UInt8(126) && options.strikethrough && i + 1 < text.size && text[i + 1] == UInt8(126)) {
                 let result = parseStrikethrough(text, i)
                 match (result) {
                     case Some(r) =>
@@ -1212,7 +1280,7 @@ public class MarkdownParser {
             }
 
             // 图片 ![alt](url)
-            if (c == '!' && i + 1 < text.length && text[i + 1] == '[') {
+            if (c == UInt8(33) && i + 1 < text.size && text[i + 1] == UInt8(91)) {
                 let result = parseImage(text, i)
                 match (result) {
                     case Some(r) =>
@@ -1224,7 +1292,7 @@ public class MarkdownParser {
             }
 
             // 链接 [text](url)
-            if (c == '[') {
+            if (c == UInt8(91)) {
                 let result = parseLink(text, i)
                 match (result) {
                     case Some(r) =>
@@ -1236,7 +1304,7 @@ public class MarkdownParser {
             }
 
             // 自动链接 <url>
-            if (c == '<' && options.autolinks) {
+            if (c == UInt8(60) && options.autolinks) {
                 let result = parseAutolink(text, i)
                 match (result) {
                     case Some(r) =>
@@ -1248,8 +1316,8 @@ public class MarkdownParser {
             }
 
             // 硬换行 (两个以上空格 + 换行)
-            if (c == '\n') {
-                if (i > 0 && text[i - 1] == ' ' && i > 1 && text[i - 2] == ' ') {
+            if (c == UInt8(10)) {
+                if (i > 0 && text[i - 1] == UInt8(32) && i > 1 && text[i - 2] == UInt8(32)) {
                     parent.addChild(MdNode(MdNodeType.HardBreak))
                 } else {
                     parent.addChild(MdNode(MdNodeType.SoftBreak))
@@ -1259,7 +1327,7 @@ public class MarkdownParser {
             }
 
             // HTML 行内标签
-            if (c == '<' && !options.noHtmlSpans) {
+            if (c == UInt8(60) && !options.noHtmlSpans) {
                 let result = parseHtmlTag(text, i)
                 match (result) {
                     case Some(r) =>
@@ -1272,19 +1340,19 @@ public class MarkdownParser {
 
             // 普通文本
             let textStart = i
-            while (i < text.length) {
+            while (i < text.size) {
                 let ch = text[i]
-                if (ch == '*' || ch == '_' || ch == '`' || ch == '[' || ch == '!' ||
-                    ch == '\\' || ch == '<' || ch == '~' || ch == '\n') {
+                if (ch == UInt8(42) || ch == UInt8(95) || ch == UInt8(96) || ch == UInt8(91) || ch == UInt8(33) ||
+                    ch == UInt8(92) || ch == UInt8(60) || ch == UInt8(126) || ch == UInt8(10)) {
                     break
                 }
                 i++
             }
             if (i > textStart) {
-                parent.addChild(MdNode.text(text.substring(textStart, i)))
+                parent.addChild(MdNode.textNode(text.sliceString(textStart, i)))
             } else {
                 // 无进度, 推进一个字符
-                parent.addChild(MdNode.text("${text[i]}"))
+                parent.addChild(MdNode.textNode("${text[i]}"))
                 i++
             }
         }
@@ -1292,29 +1360,29 @@ public class MarkdownParser {
 
     /// 解析行内代码
     /// 严格翻译自 findCodeSpanEnd
-    private static func parseInlineCode(text: String, start: Int64): ?InlineParseResult {
+    private static func parseInlineCode(text: String, start: Int64): ?InlineMdParseResult {
         var i = start
         let c = text[i]
         var openLen: Int64 = 0
-        while (i < text.length && text[i] == c) {
+        while (i < text.size && text[i] == c) {
             openLen++
             i++
         }
 
         // 寻找关闭的 `
         var closeStart: Int64 = -1
-        while (i < text.length) {
+        while (i < text.size) {
             if (text[i] == c) {
                 var closeLen: Int64 = 0
                 let j = i
-                while (i < text.length && text[i] == c) {
+                while (i < text.size && text[i] == c) {
                     closeLen++
                     i++
                 }
                 if (closeLen == openLen) {
-                    let content = text.substring(start + openLen, j)
+                    let content = text.sliceString(start + openLen, j)
                     let node = MdNode.code(normalizeCodeSpan(content))
-                    return Some(InlineParseResult(node, i))
+                    return Some(InlineMdParseResult(node, i))
                 }
             } else {
                 i++
@@ -1327,11 +1395,11 @@ public class MarkdownParser {
     private static func normalizeCodeSpan(content: String): String {
         var result = content
         // 移除首尾换行
-        if (result.length > 0 && result[0] == '\n') {
-            result = result.substring(1)
+        if (result.size > 0 && result[0] == UInt8(10)) {
+            result = result.sliceString(1)
         }
-        if (result.length > 0 && result[result.length - 1] == '\n') {
-            result = result.substring(0, result.length - 1)
+        if (result.size > 0 && result[result.size - 1] == UInt8(10)) {
+            result = result.sliceString(0, result.size - 1)
         }
         // 折叠空白
         result = collapseWhitespace(result)
@@ -1342,9 +1410,9 @@ public class MarkdownParser {
         let sb = StringBuilder()
         var prevSpace = false
         for (c in s) {
-            if (c == ' ' || c == '\t' || c == '\n') {
+            if (c == UInt8(32) || c == UInt8(9) || c == UInt8(10)) {
                 if (!prevSpace) {
-                    sb.append(' ')
+                    sb.append(UInt8(32))
                     prevSpace = true
                 }
             } else {
@@ -1357,42 +1425,42 @@ public class MarkdownParser {
 
     /// 解析强调/粗体
     /// 严格翻译自 emphasis 相关处理
-    private static func parseEmphasis(text: String, start: Int64): ?InlineParseResult {
+    private static func parseEmphasis(text: String, start: Int64): ?InlineMdParseResult {
         let c = text[start]
         var runLen: Int64 = 0
         var i = start
-        while (i < text.length && text[i] == c) {
+        while (i < text.size && text[i] == c) {
             runLen++
             i++
         }
 
         // 寻找关闭
         var closePos: Int64 = -1
-        while (i < text.length) {
+        while (i < text.size) {
             if (text[i] == c) {
                 let j = i
                 var closeLen: Int64 = 0
-                while (i < text.length && text[i] == c) {
+                while (i < text.size && text[i] == c) {
                     closeLen++
                     i++
                 }
                 // 匹配数量
                 if (closeLen >= 2 && runLen >= 2) {
                     // 粗体
-                    let content = text.substring(start + 2, j)
+                    let content = text.sliceString(start + 2, j)
                     let node = MdNode(MdNodeType.Bold)
                     // 递归解析内部内容 (不通过 MarkdownParser, 直接在这里处理简单情况)
-                    let textNode = MdNode.text(content)
+                    let textNode = MdNode.textNode(content)
                     node.addChild(textNode)
-                    return Some(InlineParseResult(node, start + 2 + content.length + closeLen))
+                    return Some(InlineMdParseResult(node, start + 2 + content.size + closeLen))
                 }
                 if (closeLen >= 1 && runLen >= 1) {
                     let useLen = if (runLen >= 2 && closeLen >= 2) { 2 } else { 1 }
                     let kind = if (useLen == 2) { MdNodeType.Bold } else { MdNodeType.Italic }
-                    let content = text.substring(start + useLen, j)
+                    let content = text.sliceString(start + useLen, j)
                     let node = MdNode(kind)
-                    node.addChild(MdNode.text(content))
-                    return Some(InlineParseResult(node, start + useLen + content.length + useLen))
+                    node.addChild(MdNode.textNode(content))
+                    return Some(InlineMdParseResult(node, start + useLen + content.size + useLen))
                 }
             } else {
                 i++
@@ -1403,15 +1471,15 @@ public class MarkdownParser {
     }
 
     /// 解析删除线
-    private static func parseStrikethrough(text: String, start: Int64): ?InlineParseResult {
+    private static func parseStrikethrough(text: String, start: Int64): ?InlineMdParseResult {
         var i = start + 2 // 跳过 ~~
 
-        while (i + 1 < text.length) {
-            if (text[i] == '~' && text[i + 1] == '~') {
-                let content = text.substring(start + 2, i)
+        while (i + 1 < text.size) {
+            if (text[i] == UInt8(126) && text[i + 1] == UInt8(126)) {
+                let content = text.sliceString(start + 2, i)
                 let node = MdNode(MdNodeType.Strikethrough)
-                node.addChild(MdNode.text(content))
-                return Some(InlineParseResult(node, i + 2))
+                node.addChild(MdNode.textNode(content))
+                return Some(InlineMdParseResult(node, i + 2))
             }
             i++
         }
@@ -1421,32 +1489,32 @@ public class MarkdownParser {
 
     /// 解析链接 [text](url "title")
     /// 严格翻译自 links 中的 processLink
-    private static func parseLink(text: String, start: Int64): ?InlineParseResult {
-        if (start >= text.length || text[start] != '[') { return None }
+    private static func parseLink(text: String, start: Int64): ?InlineMdParseResult {
+        if (start >= text.size || text[start] != UInt8(91)) { return None }
         var i = start + 1
 
         // 找到 ]
         var closeBracket: Int64 = -1
         var depth: Int64 = 1
-        while (i < text.length) {
-            if (text[i] == '[') { depth++ }
-            if (text[i] == ']') {
+        while (i < text.size) {
+            if (text[i] == UInt8(91)) { depth++ }
+            if (text[i] == UInt8(93)) {
                 depth--
                 if (depth == 0) {
                     closeBracket = i
                     break
                 }
             }
-            if (text[i] == '\\' && i + 1 < text.length) { i++ }
+            if (text[i] == UInt8(92) && i + 1 < text.size) { i++ }
             i++
         }
 
         if (closeBracket == -1) { return None }
 
-        let linkText = text.substring(start + 1, closeBracket)
+        let linkText = text.sliceString(start + 1, closeBracket)
 
         // 检查 (
-        if (closeBracket + 1 >= text.length || text[closeBracket + 1] != '(') {
+        if (closeBracket + 1 >= text.size || text[closeBracket + 1] != UInt8(40)) {
             return None
         }
 
@@ -1454,34 +1522,34 @@ public class MarkdownParser {
         i = closeBracket + 2
         var urlStart = i
         var parenDepth: Int64 = 1
-        while (i < text.length) {
-            if (text[i] == '(') { parenDepth++ }
-            if (text[i] == ')') {
+        while (i < text.size) {
+            if (text[i] == UInt8(40)) { parenDepth++ }
+            if (text[i] == UInt8(41)) {
                 parenDepth--
                 if (parenDepth == 0) { break }
             }
             i++
         }
 
-        let urlContent = text.substring(urlStart, i).trim()
+        let urlContent = text.sliceString(urlStart, i).trimSpace()
 
         // 解析 url 和 title
         var url = ""
         var title = ""
-        if (urlContent.length > 0) {
-            if (urlContent[0] == '"' || urlContent[0] == '\'') {
+        if (urlContent.size > 0) {
+            if (urlContent[0] == UInt8(34) || urlContent[0] == UInt8(39)) {
                 // 没有 url, 只有 title
             } else {
                 // 查找 title
-                let spaceIdx = urlContent.indexOf(' ')
+                let spaceIdx = urlContent.indexOf(UInt8(32))
                 match (spaceIdx) {
                     case Some(idx) =>
-                        url = urlContent.substring(0, idx)
-                        let titlePart = urlContent.substring(idx + 1).trim()
-                        if (titlePart.length >= 2 &&
-                            ((titlePart[0] == '"' && titlePart[titlePart.length - 1] == '"') ||
-                             (titlePart[0] == '\'' && titlePart[titlePart.length - 1] == '\''))) {
-                            title = titlePart.substring(1, titlePart.length - 1)
+                        url = urlContent.sliceString(0, idx)
+                        let titlePart = urlContent.sliceString(idx + 1).trimSpace()
+                        if (titlePart.size >= 2 &&
+                            ((titlePart[0] == UInt8(34) && titlePart[titlePart.size - 1] == UInt8(34)) ||
+                             (titlePart[0] == UInt8(39) && titlePart[titlePart.size - 1] == UInt8(39)))) {
+                            title = titlePart.sliceString(1, titlePart.size - 1)
                         }
                     case None => url = urlContent
                 }
@@ -1489,19 +1557,19 @@ public class MarkdownParser {
         }
 
         let node = MdNode.link(url, title)
-        node.addChild(MdNode.text(linkText))
-        return Some(InlineParseResult(node, i + 1))
+        node.addChild(MdNode.textNode(linkText))
+        return Some(InlineMdParseResult(node, i + 1))
     }
 
     /// 解析图片 ![alt](url "title")
-    private static func parseImage(text: String, start: Int64): ?InlineParseResult {
-        if (start + 1 >= text.length || text[start + 1] != '[') { return None }
+    private static func parseImage(text: String, start: Int64): ?InlineMdParseResult {
+        if (start + 1 >= text.size || text[start + 1] != UInt8(91)) { return None }
         var i = start + 2
 
         // 找到 ]
         var closeBracket: Int64 = -1
-        while (i < text.length) {
-            if (text[i] == ']') {
+        while (i < text.size) {
+            if (text[i] == UInt8(93)) {
                 closeBracket = i
                 break
             }
@@ -1510,91 +1578,91 @@ public class MarkdownParser {
 
         if (closeBracket == -1) { return None }
 
-        let altText = text.substring(start + 2, closeBracket)
+        let altText = text.sliceString(start + 2, closeBracket)
 
         // 检查 (
-        if (closeBracket + 1 >= text.length || text[closeBracket + 1] != '(') {
+        if (closeBracket + 1 >= text.size || text[closeBracket + 1] != UInt8(40)) {
             return None
         }
 
         // 找到 )
         i = closeBracket + 2
         var urlStart = i
-        while (i < text.length && text[i] != ')') {
+        while (i < text.size && text[i] != UInt8(41)) {
             i++
         }
 
-        let urlContent = text.substring(urlStart, i).trim()
+        let urlContent = text.sliceString(urlStart, i).trimSpace()
         var url = ""
         var title = ""
-        let spaceIdx = urlContent.indexOf(' ')
+        let spaceIdx = urlContent.indexOf(UInt8(32))
         match (spaceIdx) {
             case Some(idx) =>
-                url = urlContent.substring(0, idx)
-                let titlePart = urlContent.substring(idx + 1).trim()
-                if (titlePart.length >= 2 &&
-                    titlePart[0] == '"' && titlePart[titlePart.length - 1] == '"') {
-                    title = titlePart.substring(1, titlePart.length - 1)
+                url = urlContent.sliceString(0, idx)
+                let titlePart = urlContent.sliceString(idx + 1).trimSpace()
+                if (titlePart.size >= 2 &&
+                    titlePart[0] == UInt8(34) && titlePart[titlePart.size - 1] == UInt8(34)) {
+                    title = titlePart.sliceString(1, titlePart.size - 1)
                 }
             case None => url = urlContent
         }
 
         let node = MdNode.image(url, altText, title)
-        return Some(InlineParseResult(node, i + 1))
+        return Some(InlineMdParseResult(node, i + 1))
     }
 
     /// 解析自动链接 <url>
     /// 严格翻译自 autolinks
-    private static func parseAutolink(text: String, start: Int64): ?InlineParseResult {
-        if (start >= text.length || text[start] != '<') { return None }
+    private static func parseAutolink(text: String, start: Int64): ?InlineMdParseResult {
+        if (start >= text.size || text[start] != UInt8(60)) { return None }
         var i = start + 1
-        while (i < text.length && text[i] != '>') {
-            if (text[i] == '<' || text[i] == '\n') { return None }
+        while (i < text.size && text[i] != UInt8(62)) {
+            if (text[i] == UInt8(60) || text[i] == UInt8(10)) { return None }
             i++
         }
-        if (i >= text.length) { return None }
+        if (i >= text.size) { return None }
 
-        let content = text.substring(start + 1, i)
+        let content = text.sliceString(start + 1, i)
 
         // 判断是 URL 还是 email
         if (content.toLowerCase().startsWith("http://") ||
             content.toLowerCase().startsWith("https://")) {
             let node = MdNode.link(content, "")
-            node.addChild(MdNode.text(content))
-            return Some(InlineParseResult(node, i + 1))
+            node.addChild(MdNode.textNode(content))
+            return Some(InlineMdParseResult(node, i + 1))
         }
         if (content.contains("@") && content.contains(".")) {
             let node = MdNode.link("mailto:${content}", "")
-            node.addChild(MdNode.text(content))
-            return Some(InlineParseResult(node, i + 1))
+            node.addChild(MdNode.textNode(content))
+            return Some(InlineMdParseResult(node, i + 1))
         }
 
         return None
     }
 
     /// 解析 HTML 行内标签
-    private static func parseHtmlTag(text: String, start: Int64): ?InlineParseResult {
-        if (start >= text.length || text[start] != '<') { return None }
+    private static func parseHtmlTag(text: String, start: Int64): ?InlineMdParseResult {
+        if (start >= text.size || text[start] != UInt8(60)) { return None }
         var i = start + 1
 
         // 关闭标签
-        if (i < text.length && text[i] == '/') { i++ }
+        if (i < text.size && text[i] == UInt8(47)) { i++ }
 
         // 标签名
-        if (i >= text.length || !((text[i] >= 'a' && text[i] <= 'z') || (text[i] >= 'A' && text[i] <= 'Z'))) {
+        if (i >= text.size || !((text[i] >= UInt8(97) && text[i] <= UInt8(122)) || (text[i] >= UInt8(65) && text[i] <= UInt8(90)))) {
             return None
         }
 
-        while (i < text.length && text[i] != '>') {
-            if (text[i] == '<') { return None }
+        while (i < text.size && text[i] != UInt8(62)) {
+            if (text[i] == UInt8(60)) { return None }
             i++
         }
-        if (i >= text.length) { return None }
+        if (i >= text.size) { return None }
 
-        let tag = text.substring(start, i + 1)
+        let tag = text.sliceString(start, i + 1)
         let node = MdNode(MdNodeType.Html)
         node.text = tag
-        return Some(InlineParseResult(node, i + 1))
+        return Some(InlineMdParseResult(node, i + 1))
     }
 
     // ========================================================================
@@ -1604,40 +1672,39 @@ public class MarkdownParser {
     /// 是否为水平线
     /// 严格翻译自 isHrLine
     private static func isHrLine(line: String): Bool {
-        let trimmed = line.trim()
-        if (trimmed.length < 3) { return false }
+        let trimmed = line.trimSpace()
+        if (trimmed.size < 3) { return false }
         let c = trimmed[0]
-        if (c != '-' && c != '*' && c != '_') { return false }
+        if (c != UInt8(45) && c != UInt8(42) && c != UInt8(95)) { return false }
         var count: Int64 = 0
         for (ch in trimmed) {
             if (ch == c) { count++ }
-            else if (ch != ' ' && ch != '\t') { return false }
+            else if (ch != UInt8(32) && ch != UInt8(9)) { return false }
         }
         return count >= 3
     }
 
     /// 是否为 ASCII 标点
     private static func isAsciiPunctuation(c: UInt8): Bool {
-        (c >= '!' && c <= '/') || (c >= ':' && c <= '@') ||
-        (c >= '[' && c <= '`') || (c >= '{' && c <= '~')
+        (c >= UInt8(33) && c <= UInt8(47)) || (c >= UInt8(58) && c <= UInt8(64)) ||
+        (c >= UInt8(91) && c <= UInt8(96)) || (c >= UInt8(123) && c <= UInt8(126))
     }
 
     /// 分割行
     private static func splitLines(input: String): ArrayList<String> {
         let lines = ArrayList<String>()
-        let sb = StringBuilder()
+        var current = ""
         for (c in input) {
-            if (c == '\r') { continue }
-            if (c == '\n') {
-                lines.append(sb.toString())
-                sb.clear()
+            if (c == UInt8(13)) { continue }
+            if (c == UInt8(10)) {
+                lines.append(current)
+                current = ""
             } else {
-                sb.append(c)
+                current += "${c}"
             }
         }
-        let last = sb.toString()
-        if (last.length > 0) {
-            lines.append(last)
+        if (current.size > 0) {
+            lines.append(current)
         }
         return lines
     }
@@ -1657,7 +1724,7 @@ public class MarkdownParser {
 // ============================================================================
 
 /// 解析结果 (节点 + 下一个要解析的行号)
-private class ParseResult {
+private class MdParseResult {
     public var node: MdNode
     public var nextLine: Int64
 
@@ -1668,7 +1735,7 @@ private class ParseResult {
 }
 
 /// 行内解析结果 (节点 + 下一个要解析的位置)
-private class InlineParseResult {
+private class InlineMdParseResult {
     public var node: MdNode
     public var nextPos: Int64
 
@@ -1696,15 +1763,15 @@ private class OrderedMarker {
 // 严格翻译自: md/html_renderer.zig HtmlRenderer
 // ============================================================================
 
+/// 渲染模式
+public enum MdRenderMode {
+    | Html              // 渲染为 HTML
+    | Markdown          // 渲染为 Markdown
+}
+
 /// Markdown 渲染器
 /// 将 AST 渲染为 HTML 或 Markdown 文本
 public class MdRenderer {
-    /// 渲染模式
-    public enum RenderMode {
-        | Html              // 渲染为 HTML
-        | Markdown          // 渲染为 Markdown
-    }
-
     /// 渲染 AST 为 HTML
     /// 严格翻译自 HtmlRenderer
     public static func renderHtml(node: MdNode): String {
@@ -1747,13 +1814,13 @@ public class MdRenderer {
                 sb.append("<code>${escapeHtml(node.text)}</code>")
             case MdNodeType.CodeBlock =>
                 sb.append("<pre><code")
-                if (node.codeLanguage.length > 0) {
+                if (node.codeLanguage.size > 0) {
                     sb.append(" class=\"language-${escapeHtml(node.codeLanguage)}\"")
                 }
                 sb.append(">${escapeHtml(node.text)}</code></pre>")
             case MdNodeType.Link =>
                 sb.append("<a href=\"${escapeHtml(node.linkUrl)}\"")
-                if (node.linkTitle.length > 0) {
+                if (node.linkTitle.size > 0) {
                     sb.append(" title=\"${escapeHtml(node.linkTitle)}\"")
                 }
                 sb.append(">")
@@ -1761,7 +1828,7 @@ public class MdRenderer {
                 sb.append("</a>")
             case MdNodeType.Image =>
                 sb.append("<img src=\"${escapeHtml(node.linkUrl)}\" alt=\"${escapeHtml(node.imageAlt)}\"")
-                if (node.linkTitle.length > 0) {
+                if (node.linkTitle.size > 0) {
                     sb.append(" title=\"${escapeHtml(node.linkTitle)}\"")
                 }
                 sb.append(" />")
@@ -1785,7 +1852,7 @@ public class MdRenderer {
                 sb.append("<li>")
                 // 任务列表
                 if (node.taskMark != 0) {
-                    if (node.taskMark == 'x' || node.taskMark == 'X') {
+                    if (node.taskMark == UInt8(120) || node.taskMark == UInt8(88)) {
                         sb.append("<input type=\"checkbox\" disabled checked /> ")
                     } else {
                         sb.append("<input type=\"checkbox\" disabled /> ")
@@ -1870,7 +1937,7 @@ public class MdRenderer {
                 sb.append("`${node.text}`")
             case MdNodeType.CodeBlock =>
                 sb.append("```")
-                if (node.codeLanguage.length > 0) {
+                if (node.codeLanguage.size > 0) {
                     sb.append(node.codeLanguage)
                 }
                 sb.append("\n")
@@ -1880,13 +1947,13 @@ public class MdRenderer {
                 sb.append("[")
                 for (child in node.children) { renderMarkdownNode(child, sb, indentLevel) }
                 sb.append("](${node.linkUrl}")
-                if (node.linkTitle.length > 0) {
+                if (node.linkTitle.size > 0) {
                     sb.append(" \"${node.linkTitle}\"")
                 }
                 sb.append(")")
             case MdNodeType.Image =>
                 sb.append("![${node.imageAlt}](${node.linkUrl}")
-                if (node.linkTitle.length > 0) {
+                if (node.linkTitle.size > 0) {
                     sb.append(" \"${node.linkTitle}\"")
                 }
                 sb.append(")")
@@ -1900,7 +1967,7 @@ public class MdRenderer {
             case MdNodeType.ListItem =>
                 for (i in 0..indentLevel - 1) { sb.append("  ") }
                 if (node.taskMark != 0) {
-                    if (node.taskMark == 'x' || node.taskMark == 'X') {
+                    if (node.taskMark == UInt8(120) || node.taskMark == UInt8(88)) {
                         sb.append("- [x] ")
                     } else {
                         sb.append("- [ ] ")
@@ -1935,10 +2002,10 @@ public class MdRenderer {
         for (c in s) {
             match (c) {
                 case '&' => sb.append("&amp;")
-                case '<' => sb.append("&lt;")
-                case '>' => sb.append("&gt;")
-                case '"' => sb.append("&quot;")
-                case '\'' => sb.append("&#39;")
+                case 60 => sb.append("&lt;")
+                case 62 => sb.append("&gt;")
+                case 34 => sb.append("&quot;")
+                case 39 => sb.append("&#39;")
                 case _ => sb.append(c)
             }
         }

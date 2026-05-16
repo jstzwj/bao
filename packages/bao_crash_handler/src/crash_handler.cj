@@ -4,6 +4,26 @@
 package bao_crash_handler
 
 import bao_core.*
+import std.collection.*
+
+// Helper: convert Int64 to hex string
+func int64ToHex(n: Int64): String {
+    if (n == 0) { return "0" }
+    let hexChars = "0123456789abcdef"
+    var result = ""
+    var num = n
+    while (num > 0) {
+        let digit = num % 16
+        result = hexChars[digit..digit+1].toString() + result
+        num = num / 16
+    }
+    return result
+}
+
+// Helper: convert Int32 to hex string
+func int32ToHex(n: Int32): String {
+    return int64ToHex(Int64(n))
+}
 
 // ============================================================================
 // 常量和全局状态
@@ -73,23 +93,23 @@ public enum CrashReason {
     /// 对应: pub fn format(reason: CrashReason, writer: *std.Io.Writer) !void
     public func format(): String {
         match (this) {
-            case Panic(let message) =>
+            case Panic(message) =>
                 message
             case Unreachable =>
                 "reached unreachable code"
-            case SegmentationFault(let addr) =>
-                "Segmentation fault at address 0x${addr.toHexString()}"
-            case IllegalInstruction(let addr) =>
-                "Illegal instruction at address 0x${addr.toHexString()}"
-            case BusError(let addr) =>
-                "Bus error at address 0x${addr.toHexString()}"
-            case FloatingPointError(let addr) =>
-                "Floating point error at address 0x${addr.toHexString()}"
+            case SegmentationFault(addr) =>
+                "Segmentation fault at address 0x${int64ToHex(addr)}"
+            case IllegalInstruction(addr) =>
+                "Illegal instruction at address 0x${int64ToHex(addr)}"
+            case BusError(addr) =>
+                "Bus error at address 0x${int64ToHex(addr)}"
+            case FloatingPointError(addr) =>
+                "Floating point error at address 0x${int64ToHex(addr)}"
             case DatatypeMisalignment =>
                 "Unaligned memory access"
             case StackOverflow =>
                 "Stack overflow"
-            case ZigError(let errName) =>
+            case ZigError(errName) =>
                 "error.${errName}"
             case OutOfMemory =>
                 "Bao ran out of memory"
@@ -124,17 +144,17 @@ public enum Action {
     /// 对应: pub fn format(act: Action, writer: *std.Io.Writer) !void
     public func format(): String {
         match (this) {
-            case Parse(let path) =>
+            case Parse(path) =>
                 "parsing ${path}"
-            case Visit(let path) =>
+            case Visit(path) =>
                 "visiting ${path}"
-            case Print(let path) =>
+            case Print(path) =>
                 "printing ${path}"
             case BundleGenerateChunk =>
                 "generating bundler chunk"
-            case Resolver(let importPath, let sourceDir) =>
+            case Resolver(importPath, sourceDir) =>
                 "resolving ${importPath} from ${sourceDir}"
-            case Dlopen(let path) =>
+            case Dlopen(path) =>
                 "loading native module: ${path}"
         }
     }
@@ -160,7 +180,7 @@ public struct StackTrace {
     }
 
     public init(capacity: Int64) {
-        instructionAddresses = Array<Int64>(capacity)
+        instructionAddresses = Array<Int64>(capacity, repeat: Int64(0))
         index = 0
     }
 }
@@ -210,7 +230,7 @@ public struct StackLine {
     public func writeEncoded(): String {
         if (objectName.isSome()) {
             let obj = objectName.getOrThrow()
-            "1:${obj.length}:${obj}${address}"
+            "1:${obj.size}:${obj}${address}"
         } else {
             "_"
         }
@@ -220,9 +240,9 @@ public struct StackLine {
     /// 对应: pub fn format(line: StackLine, writer: *std.Io.Writer) !void
     public func format(): String {
         if (objectName.isSome()) {
-            "0x${address.toHexString()} @ ${objectName.getOrThrow()}"
+            "0x${int32ToHex(address)} @ ${objectName.getOrThrow()}"
         } else {
-            "0x${address.toHexString()}"
+            "0x${int32ToHex(address)}"
         }
     }
 }
@@ -249,22 +269,24 @@ public struct StoredTrace {
     public var index: Int64
 
     public init() {
-        data = Array<Int64>(31)
+        data = Array<Int64>(31, repeat: Int64(0))
         index = 0
     }
 
     /// 空追踪
     /// 对应: pub const empty: StoredTrace = .{ .data = .{0} ** 31, .index = 0 };
-    public static let EMPTY: StoredTrace = {
-        let trace = StoredTrace()
+    public static func createEmpty(): StoredTrace {
+        var trace = StoredTrace()
         trace.index = 0
-        trace
+        return trace
     }
+
+    public static let EMPTY: StoredTrace = createEmpty()
 
     /// 获取 StackTrace 视图
     /// 对应: pub fn trace(stored: *StoredTrace) std.builtin.StackTrace
     public func trace(): StackTrace {
-        let st = StackTrace()
+        var st = StackTrace()
         st.instructionAddresses = data
         st.index = index
         st
@@ -284,10 +306,10 @@ public struct StoredTrace {
     public static func from(stackTrace: ?StackTrace): StoredTrace {
         if (stackTrace.isSome()) {
             let st = stackTrace.getOrThrow()
-            let result = StoredTrace()
+            var result = StoredTrace()
             let count = if (st.index < 31) { st.index } else { 31 }
             for (i in 0..count) {
-                result.data.append(st.instructionAddresses[i])
+                result.data[i] = st.instructionAddresses[i]
             }
             result.index = count
             result
@@ -385,28 +407,28 @@ public struct TraceString {
         // 崩溃原因编码
         // 对应: switch (opts.reason) { ... }
         match (reason) {
-            case Panic(let message) =>
+            case Panic(message) =>
                 sb.append("0")
                 sb.append(encodeBase64(message))
             case Unreachable =>
                 sb.append("1")
-            case SegmentationFault(let addr) =>
+            case SegmentationFault(addr) =>
                 sb.append("2")
                 sb.append(writeU64AsTwoVLQs(addr))
-            case IllegalInstruction(let addr) =>
+            case IllegalInstruction(addr) =>
                 sb.append("3")
                 sb.append(writeU64AsTwoVLQs(addr))
-            case BusError(let addr) =>
+            case BusError(addr) =>
                 sb.append("4")
                 sb.append(writeU64AsTwoVLQs(addr))
-            case FloatingPointError(let addr) =>
+            case FloatingPointError(addr) =>
                 sb.append("5")
                 sb.append(writeU64AsTwoVLQs(addr))
             case DatatypeMisalignment =>
                 sb.append("6")
             case StackOverflow =>
                 sb.append("7")
-            case ZigError(let errName) =>
+            case ZigError(errName) =>
                 sb.append("8")
                 sb.append(errName)
             case OutOfMemory =>
@@ -415,8 +437,9 @@ public struct TraceString {
 
         // 动作后缀
         // 对应: if (opts.action == .view_trace) { try writer.writeAll("/view") }
-        if (action == TraceStringAction.ViewTrace) {
-            sb.append("/view")
+        match (action) {
+            case ViewTrace => sb.append("/view")
+            case _ => ()
         }
 
         sb.toString()
@@ -426,7 +449,7 @@ public struct TraceString {
     /// 对应: pub fn writeU64AsTwoVLQs(writer: anytype, addr: usize) !void
     private static func writeU64AsTwoVLQs(addr: Int64): String {
         // 简化实现: 十六进制表示
-        addr.toHexString()
+        int64ToHex(addr)
     }
 
     /// Base64 编码辅助
@@ -550,7 +573,7 @@ public struct WriteStackTraceLimits {
     public var skipFunctionPatterns: Array<String>
 
     public init() {
-        frameCount = Int64.MAX_VALUE
+        frameCount = Int64.Max
         stopAtJscLlint = false
         skipStdlib = false
         skipFilePatterns = Array<String>()
@@ -656,7 +679,7 @@ public class CrashHandler {
 
     /// 崩溃前处理器列表
     /// 对应: var before_crash_handlers: std.ArrayListUnmanaged(...)
-    private static var beforeCrashHandlers: Array<BeforeCrashHandlerEntry> = Array<BeforeCrashHandlerEntry>()
+    private static var beforeCrashHandlers: ArrayList<BeforeCrashHandlerEntry> = ArrayList<BeforeCrashHandlerEntry>()
 
     /// 当前正在执行的动作
     /// 对应: pub threadlocal var current_action: ?Action = null
@@ -1004,24 +1027,22 @@ public class CrashHandler {
     /// 添加崩溃前处理器
     /// 对应: pub fn appendPreCrashHandler(comptime T: type, ptr: *T, comptime handler) !void
     public static func appendPreCrashHandler(id: Int64, callback: OnBeforeCrashCallback): Unit {
-        beforeCrashHandlers.append(BeforeCrashHandlerEntry(id, callback))
+        beforeCrashHandlers.add(BeforeCrashHandlerEntry(id, callback))
     }
 
     /// 移除崩溃前处理器
     /// 对应: pub fn removePreCrashHandler(ptr: *anyopaque) void
     public static func removePreCrashHandler(id: Int64): Unit {
-        let index = {
-            var found = -1
-            for (i in 0..beforeCrashHandlers.size) {
-                if (beforeCrashHandlers[i].id == id) {
-                    found = i
-                    break
-                }
+        var found: Int64 = -1
+        for (i in 0..beforeCrashHandlers.size) {
+            if (beforeCrashHandlers[i].id == id) {
+                found = i
+                break
             }
-            found
         }
+        let index = found
         if (index >= 0) {
-            beforeCrashHandlers.removeAt(index)
+            beforeCrashHandlers.remove(at: index)
         }
     }
 
@@ -1153,6 +1174,6 @@ public class CrashHandler {
 
     /// 打印到 stderr
     private static func printStderr(message: String): Unit {
-        std.console.println(message)
+        println(message)
     }
 }

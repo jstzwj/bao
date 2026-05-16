@@ -17,7 +17,7 @@ package bao_threading
 
 import std.sync.*
 import std.collection.ArrayList
-import std.time.Duration
+import std.time.*
 
 // ============================================================================
 // 常量定义 - 对应 Bun RwLock.rs:30-51 位布局常量
@@ -175,7 +175,7 @@ public class RawRwLock {
     ///   mutex.unlock()                          // 释放互斥锁
     public func unlock(): Unit {
         // 严格对应 Bun: 清除 IS_WRITING 位
-        state.fetchAnd(IS_WRITING ^ UInt32.Max)
+        state.fetchAnd(IS_WRITING ^ Int64(-1))
         // 释放互斥锁，允许等待的读者/写者竞争
         mutex.unlock()
     }

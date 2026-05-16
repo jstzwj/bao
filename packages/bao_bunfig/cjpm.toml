@@ -1,0 +1,25 @@
+[package]
+cjc-version = "1.0.0"
+name = "bao_bunfig"
+organization = "bao"
+description = "Bao bunfig.toml parser and config loader — strict port of Bun src/bunfig/"
+version = "0.1.0"
+compile-option = ""
+override-compile-option = ""
+link-option = ""
+output-type = "static"
+src-dir = "src"
+target-dir = ""
+
+[dependencies]
+bao_core = { path = "../bao_core" }
+bao_collections = { path = "../bao_collections" }
+bao_ast = { path = "../bao_ast" }
+bao_options = { path = "../bao_options" }
+bao_parsers = { path = "../bao_parsers" }
+bao_output = { path = "../bao_output" }
+bao_install_types = { path = "../bao_install_types" }
+bao_resolver = { path = "../bao_resolver" }
+bao_analytics = { path = "../bao_analytics" }
+bao_io = { path = "../bao_io" }
+bao_api = { path = "../bao_api" }

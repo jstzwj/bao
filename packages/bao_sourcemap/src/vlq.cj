@@ -23,6 +23,7 @@
 package bao_sourcemap
 
 import bao_core.*
+import std.collection.*
 
 // ============================================================================
 // 常量
@@ -33,11 +34,15 @@ public let VLQ_BASE64: String = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstu
 
 /// Base64 查找表构建函数
 private func buildBase64LUT(): Array<UInt8> {
-    var lut = Array<UInt8>(128, repeat: UInt8(0xFF))
-    for (i in 0..64) {
-        lut[UInt8(VLQ_BASE64[i])] = UInt8(i)
-    }
-    return lut
+    Array<UInt8>(128, { index =>
+        var value = UInt8(0xFF)
+        for (i in 0..64) {
+            if (Int64(VLQ_BASE64[i]) == index) {
+                value = UInt8(i)
+            }
+        }
+        value
+    })
 }
 
 /// Base64 查找表 - 对应 Bun VLQ.base64_lut
@@ -59,7 +64,7 @@ public class VLQEncoded {
     public var len: Int64
 
     public init() {
-        bytes = Array<UInt8>(VLQ_MAX_BYTES, item: 0)
+        bytes = Array<UInt8>(VLQ_MAX_BYTES, { _ => UInt8(0) })
         len = 0
     }
 
@@ -70,13 +75,13 @@ public class VLQEncoded {
 
     /// 获取有效字节切片 - 对应 Bun VLQ.slice()
     public func slice(): Array<UInt8> {
-        bytes.subArray(0, len)
+        Array<UInt8>(len, { i => bytes[i] })
     }
 
     /// 写入到 StringBuilder
     public func writeTo(sb: StringBuilder): Unit {
         for (i in 0..len) {
-            sb.append(Char(Int32(bytes[i])))
+            sb.append(String.fromUtf8(Array<UInt8>(1, { _ => bytes[i] })))
         }
     }
 
@@ -207,7 +212,7 @@ public class VLQ {
                 digit = digit | 32
             }
 
-            result.bytes[count] = VLQ_BASE64[digit].toUInt8()
+            result.bytes[count] = VLQ_BASE64[digit]
             result.len += 1
             count += 1
 
@@ -284,11 +289,11 @@ public class VLQ {
         while (i < len && (i - start) < VLQ_MAX_BYTES + 1) {
             let ch = encoded[i]
             // 查找字符索引 - 对应 Bun base64_lut[@as(u7, @truncate(encoded_[i]))]
-            if (ch.toUInt8() >= 128) {
+            if (ch >= 128) {
                 return VLQResult(0, i)
             }
-            let idx = VLQ_BASE64_LUT[ch.toUInt8()]
-            if (idx == 0xFF.toUInt8()) {
+            let idx = VLQ_BASE64_LUT[Int64(ch)]
+            if (idx == UInt8(0xFF)) {
                 return VLQResult(0, i)
             }
 
@@ -324,7 +329,7 @@ public class VLQ {
         while (i < len && (i - start) < VLQ_MAX_BYTES + 1) {
             let ch = encoded[i]
             // 直接查找 - 假设输入合法
-            let idx = VLQ_BASE64_LUT[ch.toUInt8()]
+            let idx = VLQ_BASE64_LUT[Int64(ch)]
 
             vlq = vlq | ((Int64(idx) & 31) << shift)
             shift += 5
@@ -367,7 +372,7 @@ public class VLQ {
             if (r.start == pos) {
                 break  // 无法继续解码
             }
-            result.append(r.value)
+            result.add(r.value)
             pos = r.start
         }
         return result.toArray()

@@ -33,7 +33,7 @@ package bao_collections
 /// ArrayList<T> 扩展方法 - 对应 Bun VecExt<T>
 /// 为 ArrayList 提供 Zig 风格的方法名
 /// Bun: 所有方法都是 infallible (Vec aborts on OOM)
-public extend<T> ArrayList<T> {
+extend<T> ArrayList<T> {
     // ========================================================================
     // 构造器扩展 - 对应 Bun VecExt 构造方法
     // ========================================================================
@@ -41,21 +41,21 @@ public extend<T> ArrayList<T> {
     /// 使用初始容量创建 - 对应 Bun VecExt::init_capacity
     /// Zig: pub fn initCapacity(n: usize) Self
     public static func vecInitCapacity(n: Int64): ArrayList<T> {
-        return ArrayList<T>(n)
+        return ArrayList<T>()
     }
 
     /// 创建包含一个元素的列表 - 对应 Bun VecExt::init_one
     /// Zig: pub fn initOne(value: T) Self
     public static func vecInitOne(value: T): ArrayList<T> {
-        let v = ArrayList<T>(1)
+        let v = ArrayList<T>()
         v.append(value)
         return v
     }
 
     /// 从数组复制 - 对应 Bun VecExt::from_slice
     /// Zig: pub fn fromSlice(items: []const T) Self
-    public static func vecFromSlice(items: Array<T>): ArrayList<T> where T <: Cloneable<T> {
-        let v = ArrayList<T>(items.size)
+    public static func vecFromSlice(items: Array<T>): ArrayList<T> {
+        let v = ArrayList<T>()
         for (item in items) {
             v.append(item)
         }
@@ -100,7 +100,7 @@ public extend<T> ArrayList<T> {
     /// 长度 (u32) - 对应 Bun VecExt::len_u32
     /// Zig: u32 长度字段
     public func vecLenU32(): UInt32 {
-        return UInt32(size())
+        return UInt32(size)
     }
 
     /// 容量 (u32) - 对应 Bun VecExt::cap_u32
@@ -179,9 +179,9 @@ public extend<T> ArrayList<T> {
 
     /// 从前面移除 N 个元素 - 对应 Bun VecExt::drain_front
     /// Zig: copy_within(n.., 0) + truncate
-    public func vecDrainFront(n: Int64): Unit where T <: Cloneable<T> {
+    public func vecDrainFront(n: Int64): Unit {
         if (n <= 0) { return }
-        let len = size()
+        let len = size
         if (n >= len) {
             clearRetainingCapacity()
             return
@@ -267,8 +267,8 @@ public extend<T> ArrayList<T> {
     /// 深度克隆 - 对应 Bun VecExt::deep_clone_with
     /// Zig: 使用克隆函数逐个克隆元素
     public func vecDeepCloneWith(cloneOne: (T) -> T): ArrayList<T> {
-        let result = ArrayList<T>(size())
-        for (i in 0..size()) {
+        let result = ArrayList<T>()
+        for (i in 0..size) {
             result.append(cloneOne(vecAt(i)))
         }
         return result
@@ -276,8 +276,8 @@ public extend<T> ArrayList<T> {
 
     /// 尝试深度克隆 - 对应 Bun VecExt::try_deep_clone_with
     public func vecTryDeepCloneWith<E>(cloneOne: (T) -> ?E): ?ArrayList<E> {
-        let result = ArrayList<E>(size())
-        for (i in 0..size()) {
+        let result = ArrayList<E>()
+        for (i in 0..size) {
             let cloned = cloneOne(vecAt(i))
             match (cloned) {
                 case Some(v) => result.append(v)
@@ -316,7 +316,7 @@ public interface Cloneable<T> {
 
 /// ArrayList<UInt8> 扩展 - 对应 Bun ByteVecExt
 /// 为字节数组提供格式化写入方法
-public extend ArrayList<UInt8> {
+extend ArrayList<UInt8> {
     /// 写入字节 - 对应 Bun ByteVecExt::write
     /// Zig:
     ///   pub fn write(self: *Self, str: []const u8) !u32 {
@@ -325,18 +325,18 @@ public extend ArrayList<UInt8> {
     ///       return @intCast(self.items.len - initial);
     ///   }
     public func byteWrite(str: Array<UInt8>): Int64 {
-        let initial = size()
+        let initial = size
         appendSlice(str)
-        return size() - initial
+        return size - initial
     }
 
     /// 写入字符串 - 对应 Bun ByteVecExt::write (String 变体)
     public func byteWriteString(str: String): Int64 {
-        let initial = size()
+        let initial = size
         for (c in str) {
-            append(UInt8(c.value))
+            append(UInt8(c))
         }
-        return size() - initial
+        return size - initial
     }
 
     /// 写入 Latin-1 编码字符串 - 对应 Bun ByteVecExt::write_latin1
@@ -344,9 +344,9 @@ public extend ArrayList<UInt8> {
     ///   pub fn writeLatin1(self: *Self, str: []const u8) !u32
     ///   仓颉: 简化实现，直接追加字节
     public func byteWriteLatin1(str: Array<UInt8>): Int64 {
-        let initial = size()
+        let initial = size
         appendSlice(str)
-        return size() - initial
+        return size - initial
     }
 
     /// 写入 UTF-16 编码字符串 - 对应 Bun ByteVecExt::write_utf16
@@ -354,7 +354,7 @@ public extend ArrayList<UInt8> {
     ///   pub fn writeUtf16(self: *Self, str: []const u16) !u32
     ///   仓颉: 将 UTF-16 转为 UTF-8 后追加
     public func byteWriteUtf16(str: Array<UInt16>): Int64 {
-        let initial = size()
+        let initial = size
         // 简化: 假设 ASCII 范围，逐字节转换
         for (codeUnit in str) {
             if (codeUnit < UInt16(128)) {
@@ -368,7 +368,7 @@ public extend ArrayList<UInt8> {
                 append(UInt8(UInt16(128) | (codeUnit & UInt16(63))))
             }
         }
-        return size() - initial
+        return size - initial
     }
 
     /// 将任意类型作为字节写入 (假定有足够容量) - 对应 Bun ByteVecExt::write_type_as_bytes_assume_capacity
@@ -431,7 +431,7 @@ public extend ArrayList<UInt8> {
 
 /// 带偏移的字节列表 - 对应 Bun OffsetByteList
 /// 维护一个读取偏移量 head 和底层字节缓冲区
-public class OffsetByteList {
+public class VecExtOffsetByteList {
     /// 头部偏移 - 对应 Bun OffsetByteList.head: u32
     public var head: UInt32 = 0
 
@@ -461,7 +461,7 @@ public class OffsetByteList {
     /// Zig: pub fn slice(&self) -> &[u8] { &self.byte_list[..self.head as usize] }
     public func slice(): Array<UInt8> {
         let h = Int64(head)
-        if (h >= byteList.size()) {
+        if (h >= byteList.size) {
             return []
         }
         return byteList.items()[0..h]
@@ -471,10 +471,10 @@ public class OffsetByteList {
     /// Zig: pub fn remaining(&self) -> &[u8] { &self.byte_list[self.head as usize..] }
     public func remaining(): Array<UInt8> {
         let h = Int64(head)
-        if (h >= byteList.size()) {
+        if (h >= byteList.size) {
             return []
         }
-        return byteList.items()[h..byteList.size()]
+        return byteList.items()[h..byteList.size]
     }
 
     /// 消费指定字节数 - 对应 Bun OffsetByteList::consume
@@ -488,7 +488,7 @@ public class OffsetByteList {
     ///   }
     public func consume(bytes: UInt32): Unit {
         head = head + bytes
-        if (Int64(head) >= byteList.size()) {
+        if (Int64(head) >= byteList.size) {
             head = 0
             byteList.clearRetainingCapacity()
         }
@@ -497,7 +497,7 @@ public class OffsetByteList {
     /// 获取有效长度 - 对应 Bun OffsetByteList::len
     /// Zig: pub fn len(&self) -> u32 { self.byte_list.len() as u32 - self.head }
     public func len(): UInt32 {
-        return UInt32(byteList.size()) - head
+        return UInt32(byteList.size) - head
     }
 
     /// 清空 - 对应 Bun OffsetByteList::clear

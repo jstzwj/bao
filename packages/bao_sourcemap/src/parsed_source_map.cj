@@ -9,6 +9,7 @@
 package bao_sourcemap
 
 import bao_core.*
+import std.collection.*
 
 // ============================================================================
 // ParsedSourceMap - 解析后的 SourceMap

@@ -13,17 +13,25 @@ package bao_threading
 
 import std.sync.*
 import std.collection.ArrayList
-import std.time.Duration
+import std.time.*
 
 // ============================================================================
 // FutureState - Future 状态
 // ============================================================================
 
 /// Future 状态 - 对应 JS Promise 状态
-public enum FutureState {
+public enum FutureState <: Equatable<FutureState> {
     | Pending    // 等待中 (对应 JS "pending")
     | Completed  // 已完成 (对应 JS "fulfilled")
     | Failed     // 已失败 (对应 JS "rejected")
+
+    public operator func ==(other: FutureState): Bool {
+        match (this) {
+            case Pending => return match (other) { case Pending => true; case _ => false }
+            case Completed => return match (other) { case Completed => true; case _ => false }
+            case Failed => return match (other) { case Failed => true; case _ => false }
+        }
+    }
 }
 
 // ============================================================================
@@ -54,7 +62,7 @@ public class Future<T> {
     /// 状态
     private var state: FutureState
     /// 互斥锁 - 对应 Bun Condition 模式中的 Mutex
-    private let mutex: std.sync.Mutex
+    private let mutex: Mutex
     /// 条件变量 - 对应 Bun Condition
     private let cond: Condition
     /// 完成回调列表 - 对应 JS .then() 链
@@ -70,7 +78,7 @@ public class Future<T> {
         result = None
         error = None
         state = FutureState.Pending
-        mutex = std.sync.Mutex()
+        mutex = Mutex()
         cond = mutex.condition()
         onCompleteCallbacks = ArrayList<(T) -> Unit>()
         onErrorCallbacks = ArrayList<(String) -> Unit>()
@@ -196,7 +204,7 @@ public class Future<T> {
                 }
                 return
             }
-            onCompleteCallbacks.append(callback)
+            onCompleteCallbacks.add(callback)
         }
     }
 
@@ -210,7 +218,7 @@ public class Future<T> {
                 }
                 return
             }
-            onErrorCallbacks.append(callback)
+            onErrorCallbacks.add(callback)
         }
     }
 
@@ -221,7 +229,7 @@ public class Future<T> {
                 callback()
                 return
             }
-            onAlwaysCallbacks.append(callback)
+            onAlwaysCallbacks.add(callback)
         }
     }
 
@@ -270,9 +278,8 @@ public class Future<T> {
 
 /// Future 错误
 public class BaoFutureError <: Exception {
-    public let message: String
     public init(message: String) {
-        this.message = message
+        super(message)
     }
 }
 
@@ -284,25 +291,25 @@ public class BaoFutureError <: Exception {
 /// Promise - Future 的便捷包装
 /// 对应 JS Promise 的 resolve/reject 接口
 public class Promise<T> {
-    private let future: Future<T>
+    private let innerFuture: Future<T>
 
     public init() {
-        future = Future<T>()
+        innerFuture = Future<T>()
     }
 
     /// 获取内部 Future
     public func future(): Future<T> {
-        return future
+        return innerFuture
     }
 
     /// resolve - 对应 JS resolve(value)
     public func resolve(value: T): Unit {
-        future.complete(value)
+        innerFuture.complete(value)
     }
 
     /// reject - 对应 JS reject(error)
     public func reject(error: String): Unit {
-        future.fail(error)
+        innerFuture.fail(error)
     }
 
     /// 静态工厂 - 从执行函数创建
@@ -326,7 +333,7 @@ public class Futures {
     public static func all<T>(futures: Array<Future<T>>): Array<T> {
         var results = ArrayList<T>()
         for (f in futures) {
-            results.append(f.get())
+            results.add(f.get())
         }
         return results.toArray()
     }
@@ -383,7 +390,7 @@ public class Futures {
             } catch (e: BaoFutureError) {
                 // 忽略错误，只关心状态
             }
-            states.append(f.getState())
+            states.add(f.getState())
         }
         return states.toArray()
     }
@@ -404,29 +411,29 @@ public class Futures {
 
     /// 异步执行任务 - 对应 JS new Promise 的异步模式
     public static func supplyAsync<T>(fn: () -> T): Future<T> {
-        let future = Future<T>()
+        let innerFuture = Future<T>()
         spawn {
             try {
                 let result = fn()
-                future.complete(result)
+                innerFuture.complete(result)
             } catch (e: Exception) {
-                future.fail(e.message)
+                innerFuture.fail(e.message)
             }
         }
-        return future
+        return innerFuture
     }
 
     /// 带超时的异步执行
     public static func supplyAsync<T>(fn: () -> T, timeout: Duration): Future<T> {
-        let future = Future<T>()
+        let innerFuture = Future<T>()
         spawn {
             try {
                 let result = fn()
-                future.complete(result)
+                innerFuture.complete(result)
             } catch (e: Exception) {
-                future.fail(e.message)
+                innerFuture.fail(e.message)
             }
         }
-        return future
+        return innerFuture
     }
 }

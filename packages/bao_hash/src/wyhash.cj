@@ -14,9 +14,9 @@ package bao_hash
 // ============================================================================
 
 /// 5 个 Wyhash 素数常量
-private let WYHASH_PRIMES_0: UInt64 = UInt64(0xa0761d6478bd642f)
-private let WYHASH_PRIMES_1: UInt64 = UInt64(0xe7037ed1a0b428db)
-private let WYHASH_PRIMES_2: UInt64 = UInt64(0x8ebc6af09c88c6e3)
+private let WYHASH_PRIMES_0: UInt64 = (UInt64(0xa0761d64) << UInt64(32)) | UInt64(0x78bd642f)
+private let WYHASH_PRIMES_1: UInt64 = (UInt64(0xe7037ed1) << UInt64(32)) | UInt64(0xa0b428db)
+private let WYHASH_PRIMES_2: UInt64 = (UInt64(0x8ebc6af0) << UInt64(32)) | UInt64(0x9c88c6e3)
 private let WYHASH_PRIMES_3: UInt64 = UInt64(0x589965cc75374cc3)
 private let WYHASH_PRIMES_4: UInt64 = UInt64(0x1d8e4e27c47d124f)
 
@@ -227,7 +227,7 @@ public class Wyhash11 {
     public init(seed: UInt64) {
         this.seed = seed
         this.msgLen = 0
-        this.buf = Array<UInt8>(32, item: UInt8(0))
+        this.buf = Array<UInt8>(32, repeat: UInt8(0))
         this.bufLen = 0
     }
 
@@ -329,9 +329,9 @@ public class Wyhash11 {
 // ============================================================================
 
 /// 4 个 Wyhash final4 秘钥
-private let WYHASH_SECRET_0: UInt64 = UInt64(0xa0761d6478bd642f)
-private let WYHASH_SECRET_1: UInt64 = UInt64(0xe7037ed1a0b428db)
-private let WYHASH_SECRET_2: UInt64 = UInt64(0x8ebc6af09c88c6e3)
+private let WYHASH_SECRET_0: UInt64 = (UInt64(0xa0761d64) << UInt64(32)) | UInt64(0x78bd642f)
+private let WYHASH_SECRET_1: UInt64 = (UInt64(0xe7037ed1) << UInt64(32)) | UInt64(0xa0b428db)
+private let WYHASH_SECRET_2: UInt64 = (UInt64(0x8ebc6af0) << UInt64(32)) | UInt64(0x9c88c6e3)
 private let WYHASH_SECRET_3: UInt64 = UInt64(0x589965cc75374cc3)
 
 // Wyhash final4 mix: (a*b) 的低64位和高64位的异或
@@ -404,7 +404,7 @@ public class Wyhash {
         this.state1 = s0
         this.state2 = s0
         this.totalLen = 0
-        this.buf = Array<UInt8>(48, item: UInt8(0))
+        this.buf = Array<UInt8>(48, repeat: UInt8(0))
         this.bufLen = 0
     }
 
@@ -528,7 +528,7 @@ public class Wyhash {
         }
 
         while (i + 48 < input.size) {
-            var block = Array<UInt8>(48, item: UInt8(0))
+            var block = Array<UInt8>(48, repeat: UInt8(0))
             var j: Int64 = 0
             while (j < 48) {
                 block[j] = input[i + j]
@@ -583,7 +583,7 @@ public class Wyhash {
             }
         } else {
             // 构建 input_lb 和 offset
-            var scratch = Array<UInt8>(16, item: UInt8(0))
+            var scratch = Array<UInt8>(16, repeat: UInt8(0))
             var offset: Int64 = 0
 
             if (bufLen < 16) {
@@ -684,7 +684,7 @@ public class HashInt {
     /// UInt64 哈希
     /// 来源: https://github.com/jonmaiga/mx3
     public static func hash64(x: UInt64): UInt64 {
-        let c: UInt64 = UInt64(0xbea225f9eb34556d)
+        let c: UInt64 = (UInt64(0xbea225f9) << UInt64(32)) | UInt64(0xeb34556d)
         var v = x
         v = (v ^ (v >> UInt64(32))) * c
         v = (v ^ (v >> UInt64(29))) * c
@@ -759,7 +759,7 @@ public class OneShotHasher {
 // 便捷哈希函数
 // 严格翻译自: src/wyhash/lib.rs 底部的 public 函数
 //   hash(bytes) -> u64           // Bun.hash(bytes)
-//   hash32(bytes) -> u32         // 截断为 32 位
+//   hash32(bytes.toArray()) -> u32         // 截断为 32 位
 //   hash_with_seed(seed, bytes)  // Bun.hashWithSeed(seed, bytes)
 //   hash_ascii_lowercase         // ASCII 小写化后哈希
 //   auto_hash                    // 通用哈希函数
@@ -792,10 +792,10 @@ public func wyhashHashAsciiLowercase(seed: UInt64, bytes: Array<UInt8>): UInt64 
     let len = bytes.size
     // 快速路径: 一次性哈希 (无需流式)
     if (len <= 48) {
-        var lowered = Array<UInt8>(len, item: UInt8(0))
+        var lowered = Array<UInt8>(len, repeat: UInt8(0))
         for (i in 0..len) {
             let b = bytes[i]
-            if (b >= UInt8('A') && b <= UInt8('Z')) {
+            if (b >= UInt8(0x41) && b <= UInt8(0x5a)) {
                 lowered[i] = b + UInt8(32)  // to lowercase
             } else {
                 lowered[i] = b
@@ -808,10 +808,10 @@ public func wyhashHashAsciiLowercase(seed: UInt64, bytes: Array<UInt8>): UInt64 
     var off: Int64 = 0
     while (off < len) {
         let chunkLen = if (off + 48 <= len) { Int64(48) } else { len - off }
-        var chunk = Array<UInt8>(chunkLen, item: UInt8(0))
+        var chunk = Array<UInt8>(chunkLen, repeat: UInt8(0))
         for (i in 0..chunkLen) {
             let b = bytes[off + i]
-            if (b >= UInt8('A') && b <= UInt8('Z')) {
+            if (b >= UInt8(0x41) && b <= UInt8(0x5a)) {
                 chunk[i] = b + UInt8(32)
             } else {
                 chunk[i] = b
@@ -843,7 +843,5 @@ public func wyhashHashConst(seed: UInt64, input: Array<UInt8>): UInt64 {
 
 /// 字符串转字节数组
 private func stringToBytes(s: String): Array<UInt8> {
-    var bytes = Array<UInt8>()
-    for (c in s) { bytes.append(UInt8(c.value)) }
-    return bytes
+    return s.toArray()
 }

@@ -5,6 +5,7 @@
 package bao_ptr
 
 import bao_core.*
+import bao_threading.*
 
 // ============================================================================
 // RefCountOptions - 引用计数选项
@@ -74,7 +75,7 @@ public class RefCount {
 
     /// 增加引用计数
     public static func ref<T>(obj: T, refCount: RefCount): Unit {
-        if (Environment.isDebug) {
+        if (Environment.IS_DEBUG) {
             refCount.assertValid()
         }
         refCount.assertSingleThreaded()
@@ -83,7 +84,7 @@ public class RefCount {
 
     /// 减少引用计数，如果为 0 则调用析构器
     public static func deref<T>(obj: T, refCount: RefCount, destructor: (T) -> Unit): Unit {
-        if (Environment.isDebug) {
+        if (Environment.IS_DEBUG) {
             refCount.assertValid()  // 可能是双重 deref
         }
         refCount.assertSingleThreaded()
@@ -95,7 +96,7 @@ public class RefCount {
 
     /// 带上下文的减少引用计数
     public static func derefWithContext<T, C>(obj: T, refCount: RefCount, destructor: (T, C) -> Unit, ctx: C): Unit {
-        if (Environment.isDebug) {
+        if (Environment.IS_DEBUG) {
             refCount.assertValid()
         }
         refCount.assertSingleThreaded()
@@ -124,15 +125,15 @@ public class RefCount {
 
     /// 转储活跃引用
     public func dumpActiveRefs(typeName: String, ptr: UInt64): Unit {
-        if (Environment.isDebug) {
+        if (Environment.IS_DEBUG) {
             // 转储引用信息
-            Output.printError("${typeName}@0x${ptr.toString(16)} has ${this.rawCount} refs")
+            Output.printError("${typeName}@0x${ptr.toString()} has ${this.rawCount} refs")
         }
     }
 
     /// 断言没有引用 (在析构器调用后计数为 0)
     public func assertNoRefs(): Unit {
-        if (Environment.isDebug) {
+        if (Environment.IS_DEBUG) {
             Assert.assertTrue(this.rawCount == 0)
         }
     }
@@ -188,7 +189,7 @@ public class ThreadSafeRefCount {
 
     /// 增加引用计数 (线程安全)
     public static func ref<T>(obj: T, refCount: ThreadSafeRefCount): Unit {
-        if (Environment.isDebug) {
+        if (Environment.IS_DEBUG) {
             refCount.assertValid()
         }
         let oldCount = refCount.rawCount.fetchAdd(1)
@@ -197,7 +198,7 @@ public class ThreadSafeRefCount {
 
     /// 减少引用计数 (线程安全)，如果为 0 则调用析构器
     public static func deref<T>(obj: T, refCount: ThreadSafeRefCount, destructor: (T) -> Unit): Unit {
-        if (Environment.isDebug) {
+        if (Environment.IS_DEBUG) {
             refCount.assertValid()
         }
         let oldCount = refCount.rawCount.fetchSub(1)
@@ -209,7 +210,7 @@ public class ThreadSafeRefCount {
 
     /// 复制引用
     public static func dupeRef<T>(obj: T, refCount: ThreadSafeRefCount): RefPtr<T> {
-        if (Environment.isDebug) {
+        if (Environment.IS_DEBUG) {
             refCount.assertValid()
         }
         ThreadSafeRefCount.ref(obj, refCount)
@@ -223,7 +224,7 @@ public class ThreadSafeRefCount {
 
     /// 是否只有一个引用
     public func hasOneRef(): Bool {
-        if (Environment.isDebug) {
+        if (Environment.IS_DEBUG) {
             this.assertValid()
         }
         this.get() == 1
@@ -231,14 +232,14 @@ public class ThreadSafeRefCount {
 
     /// 转储活跃引用
     public func dumpActiveRefs(typeName: String, ptr: UInt64): Unit {
-        if (Environment.isDebug) {
-            Output.printError("${typeName}@0x${ptr.toString(16)} has ${this.rawCount.load()} refs")
+        if (Environment.IS_DEBUG) {
+            Output.printError("${typeName}@0x${ptr.toString()} has ${this.rawCount.load()} refs")
         }
     }
 
     /// 断言没有引用
     public func assertNoRefs(): Unit {
-        if (Environment.isDebug) {
+        if (Environment.IS_DEBUG) {
             Assert.assertTrue(this.rawCount.load() == 0)
         }
     }
@@ -302,7 +303,10 @@ public class RefPtr<T> {
 
     /// 复制引用
     public func dupeRef(): RefPtr<T> {
-        RefPtr<T>.initRef(this.data)
+        match (this.data) {
+            case Some(d) => return RefPtr<T>.initRef(d)
+            case None => return RefPtr<T>()
+        }
     }
 
     /// 分配新对象并返回 RefPtr
@@ -345,8 +349,8 @@ public class RefPtr<T> {
     /// 获取内部数据 (非空断言版本)
     public func getUnchecked(): T {
         match (this.data) {
-            case Some(d) => d
-            case None => Assert.assertTrue(false, "RefPtr.getUnchecked: data is null")
+            case Some(d) => return d
+            case None => throw Exception("RefPtr.getUnchecked: data is null")
         }
     }
 

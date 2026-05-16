@@ -21,14 +21,15 @@ public struct WeakPtrData {
     public init() {}
 
     /// 空值
-    public static let empty: WeakPtrData = WeakPtrData(referenceCount: 0, finalized: false)
+    public static func empty(): WeakPtrData {
+        return WeakPtrData()
+    }
 
     /// 在终结时调用
     /// 返回 true 如果引用计数为 0 (可以立即释放)
     public func onFinalize(): Bool {
         Assert.assertTrue(!this.finalized)
-        this.finalized = true
-        this.referenceCount == 0
+        return this.referenceCount == 0
     }
 
     /// 是否已终结
@@ -59,14 +60,16 @@ public class WeakPtr<T> {
     /// 原始指针
     public var rawPtr: ?T = None<T>
     /// 弱指针数据访问器
-    var dataAccessor: (?T) -> WeakPtrData = { _ => WeakPtrData.empty }
+    var dataAccessor: (?T) -> WeakPtrData = { _ => WeakPtrData.empty() }
     /// 析构器
     var destructor: (T) -> Unit = { _ => () }
 
     public init() {}
 
     /// 空值
-    public static let empty: WeakPtr<T> = WeakPtr<T>()
+    public static func empty(): WeakPtr<T> {
+        return WeakPtr<T>()
+    }
 
     /// 初始化引用
     /// 增加弱引用计数
@@ -137,7 +140,7 @@ public class WeakPtr<T> {
                 ptr.destructor = this.destructor
                 return ptr
             case None =>
-                return WeakPtr<T>.empty
+                return WeakPtr<T>.empty()
         }
     }
 }

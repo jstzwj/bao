@@ -1,0 +1,14 @@
+[package]
+cjc-version = "1.0.0"
+name = "bao_wyhash"
+organization = "bao"
+description = "Bao Wyhash: fast non-cryptographic 64-bit hash — Wyhash11 (legacy 5-prime) + Wyhash (final4 48-byte rounds)"
+version = "0.1.0"
+compile-option = ""
+override-compile-option = ""
+link-option = ""
+output-type = "static"
+src-dir = "src"
+target-dir = ""
+
+[dependencies]

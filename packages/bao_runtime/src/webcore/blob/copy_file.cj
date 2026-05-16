@@ -4,6 +4,7 @@
 package bao_runtime.webcore.blob
 
 import bao_core.*
+import bao_io.*
 
 // ============================================================================
 // CopyFileResult - 文件复制结果
@@ -37,12 +38,14 @@ public class CopyFile {
     /// 执行文件复制
     /// 对应 Bun: copy_file copyFileRange/sendfile
     public func run(): CopyFileResult {
-        try {
-            let bytes = BaoFile.readAllBytes(sourcePath)
-            BaoFile.writeAllBytes(destinationPath, bytes)
-            return CopyFileResult.Success(bytes.size)
-        } catch (e: Exception) {
-            return CopyFileResult.Error(e.message)
+        match (BaoFile.readAllBytes(sourcePath)) {
+            case SysMaybe<Array<UInt8>>.Ok(bytes) =>
+                match (BaoFile.writeAllBytes(destinationPath, bytes)) {
+                    case SysMaybe<Unit>.Ok(_) => return CopyFileResult.Success(bytes.size)
+                    case SysMaybe<Unit>.Err(err) => return CopyFileResult.Error(err.message)
+                }
+            case SysMaybe<Array<UInt8>>.Err(err) =>
+                return CopyFileResult.Error(err.message)
         }
     }
 }

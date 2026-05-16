@@ -8,6 +8,7 @@
 package bao_sourcemap
 
 import bao_core.*
+import std.collection.*
 
 // ============================================================================
 // LineOffsetTable - 行偏移表
@@ -235,7 +236,7 @@ public class LineOffsetTableList {
         var offset = 0
         while (offset < contents.size) {
             let ch = contents[offset]
-            let code = Int64(ch.value)
+            let code = Int64(ch)
 
             // 记录行首字节偏移
             if (column == 0) {
@@ -245,7 +246,7 @@ public class LineOffsetTableList {
             // 检测非 ASCII 字符
             if (code > 0x7F && columnsForNonAscii.size == 0) {
                 // 遇到第一个非 ASCII 字符
-                columnsForNonAscii.append(column)
+                columnsForNonAscii.add(column)
                 columnByteOffset = offset - lineByteOffset
                 byteOffsetToFirstNonAscii = columnByteOffset
             }
@@ -254,7 +255,7 @@ public class LineOffsetTableList {
             if (columnsForNonAscii.size > 0) {
                 let lineBytesSoFar = offset - lineByteOffset
                 while (columnByteOffset <= lineBytesSoFar) {
-                    columnsForNonAscii.append(column)
+                    columnsForNonAscii.add(column)
                     columnByteOffset += 1
                 }
             } else if (code > 0x7F) {
@@ -263,8 +264,8 @@ public class LineOffsetTableList {
                 // ASCII 快速路径 - 跳到下一个换行符或非 ASCII
                 var j = offset + 1
                 while (j < contents.size) {
-                    let c = Int64(contents[j].value)
-                    if (c == Int64('\r') || c == Int64('\n') || c > 127) {
+                    let c = Int64(contents[j])
+                    if (c == Int64(0x0D) || c == Int64(0x0A) || c > 127) {
                         break
                     }
                     j += 1
@@ -275,11 +276,11 @@ public class LineOffsetTableList {
             }
 
             // 处理换行
-            if (code == Int64('\r') || code == Int64('\n') ||
+            if (code == Int64(0x0D) || code == Int64(0x0A) ||
                 code == 0x2028 || code == 0x2029) {
                 // Windows 换行 \r\n
-                if (code == Int64('\r') && offset + 1 < contents.size &&
-                    Int64(contents[offset + 1].value) == Int64('\n')) {
+                if (code == Int64(0x0D) && offset + 1 < contents.size &&
+                    Int64(contents[offset + 1]) == Int64(0x0A)) {
                     column += 1
                     offset += 1
                     offset += 1
@@ -292,8 +293,8 @@ public class LineOffsetTableList {
                     byteOffsetToFirstNonAscii,
                     lineByteOffset
                 )
-                list.tables.append(table)
-                list.byteOffsetList.append(lineByteOffset)
+                list.tables.add(table)
+                list.byteOffsetList.add(lineByteOffset)
 
                 // 重置状态
                 column = 0
@@ -325,7 +326,7 @@ public class LineOffsetTableList {
         if (columnsForNonAscii.size > 0) {
             let lineBytesSoFar = contents.size - lineByteOffset
             while (columnByteOffset <= lineBytesSoFar) {
-                columnsForNonAscii.append(column)
+                columnsForNonAscii.add(column)
                 columnByteOffset += 1
             }
         }
@@ -335,8 +336,8 @@ public class LineOffsetTableList {
             byteOffsetToFirstNonAscii,
             lineByteOffset
         )
-        list.tables.append(lastTable)
-        list.byteOffsetList.append(lineByteOffset)
+        list.tables.add(lastTable)
+        list.byteOffsetList.add(lineByteOffset)
 
         return list
     }

@@ -9,6 +9,7 @@
 package bao_runtime.shell.builtin
 
 import bao_core.*
+import bao_runtime.shell.*
 
 // ============================================================================
 // cd命令 - 切换当前工作目录
@@ -30,13 +31,13 @@ public class CdCmd {
 
 
     /// 写入标准错误（非阻塞）
-    func writeStderrNonBlocking(fmt: String, args: Array<Any>): Yield {
-        this.state = CdState.waitingWriteStderr
-        if (let safeguard = this.bltn().stderr.needsIO()) {
+    func writeStderrNonBlocking(s: String, args: Array<Any>): Yield {
+        this.state = CdStateMultiArgsInnerState.waitingWriteStderr
+        if (let Some(safeguard) <- this.bltn().stderr.needsIO()) {
             return this.bltn().stderr.enqueueFmtBltn(this, "cd", fmt, args, safeguard)
         }
         let buf = this.bltn().fmtErrorArena("cd", fmt, args)
-        this.bltn().writeNoIO(.stderr, buf.toByteArray())
+        this.bltn().writeNoIO(OutKind.stderr, buf.toByteArray())
         this.state = CdState.done
         return this.bltn().done(1)
     }
@@ -44,19 +45,19 @@ public class CdCmd {
     /// 启动
     public func start(): Yield {
         let args = this.bltn().argsSlice()
-        if (args.length > 1) {
+        if (args.size > 1) {
             return this.writeStderrNonBlocking("too many arguments\n", [])
         }
 
-        if (args.length == 1) {
+        if (args.size == 1) {
             let firstArg = args[0]
             if (firstArg[0] == '-') {
                 // cd - 切换到前一个目录
-                switch (this.bltn().parentCmd().base.shell.changePrevCwd(
+                match (this.bltn().parentCmd().base.shell.changePrevCwd(
                     this.bltn().parentCmd().base.interpreter
                 )) {
-                    case .result => ()
-                    case .err(let err) =>
+                    case result => ()
+                    case err(err) =>
                         return this.handleChangeCwdErr(
                             err,
                             this.bltn().parentCmd().base.shell.prevCwdZ()
@@ -66,20 +67,20 @@ public class CdCmd {
                 // cd ~ 切换到主目录
                 let homedir = this.bltn().parentCmd().base.shell.getHomedir()
                 homedir.deref()
-                switch (this.bltn().parentCmd().base.shell.changeCwd(
+                match (this.bltn().parentCmd().base.shell.changeCwd(
                     this.bltn().parentCmd().base.interpreter, homedir.slice()
                 )) {
-                    case .result => ()
-                    case .err(let err) =>
+                    case result => ()
+                    case err(err) =>
                         return this.handleChangeCwdErr(err, homedir.slice())
                 }
             } else {
                 // cd <dir> 切换到指定目录
-                switch (this.bltn().parentCmd().base.shell.changeCwd(
+                match (this.bltn().parentCmd().base.shell.changeCwd(
                     this.bltn().parentCmd().base.interpreter, firstArg
                 )) {
-                    case .result => ()
-                    case .err(let err) =>
+                    case result => ()
+                    case err(err) =>
                         return this.handleChangeCwdErr(err, firstArg)
                 }
             }
@@ -95,7 +96,7 @@ public class CdCmd {
         if (errno == Syscall.E.NOTDIR) {
             if (this.bltn().stderr.needsIO() == None) {
                 let buf = this.bltn().fmtErrorArena("cd", "not a directory: ${newCwd}\n", [])
-                this.bltn().writeNoIO(.stderr, buf.toByteArray())
+                this.bltn().writeNoIO(OutKind.stderr, buf.toByteArray())
                 this.state = CdState.done
                 return this.bltn().done(1)
             }
@@ -105,7 +106,7 @@ public class CdCmd {
         if (errno == Syscall.E.NOENT) {
             if (this.bltn().stderr.needsIO() == None) {
                 let buf = this.bltn().fmtErrorArena("cd", "not a directory: ${newCwd}\n", [])
-                this.bltn().writeNoIO(.stderr, buf.toByteArray())
+                this.bltn().writeNoIO(OutKind.stderr, buf.toByteArray())
                 this.state = CdState.done
                 return this.bltn().done(1)
             }
@@ -115,7 +116,7 @@ public class CdCmd {
         if (errno == Syscall.E.NAMETOOLONG) {
             if (this.bltn().stderr.needsIO() == None) {
                 let buf = this.bltn().fmtErrorArena("cd", "file name too long\n", [])
-                this.bltn().writeNoIO(.stderr, buf.toByteArray())
+                this.bltn().writeNoIO(OutKind.stderr, buf.toByteArray())
                 this.state = CdState.done
                 return this.bltn().done(1)
             }
@@ -126,7 +127,7 @@ public class CdCmd {
         let errmsg = err.msg() ?? err.name()
         if (this.bltn().stderr.needsIO() == None) {
             let buf = this.bltn().fmtErrorArena("cd", "${errmsg}: ${newCwd}\n", [])
-            this.bltn().writeNoIO(.stderr, buf.toByteArray())
+            this.bltn().writeNoIO(OutKind.stderr, buf.toByteArray())
             this.state = CdState.done
             return this.bltn().done(1)
         }
@@ -134,8 +135,8 @@ public class CdCmd {
     }
 
     /// IO写入器数据块回调
-    public func onIOWriterChunk(amount: UInt64, e: ?SystemError): Yield {
-        if (let err = e) {
+    public func onIOWriterChunk(chunk: UInt64, e: ?SystemError): Yield {
+        if (let Some(err) <- e) {
             err.deref()
             return this.bltn().done(err.getErrno())
         }

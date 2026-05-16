@@ -13,11 +13,11 @@ import bao_core.*
 
 /// libc 分配器
 /// 对应 Zig: pub const c_allocator = basic.c_allocator
-public let c_allocator: Allocator = Allocator.default()
+public let bun_c_allocator: Allocator = Allocator.default()
 
 /// 零初始化分配器
 /// 对应 Zig: pub const z_allocator = basic.z_allocator
-public let z_allocator: Allocator = Allocator.zeroInitialized()
+public let bun_z_allocator: Allocator = Allocator.zeroInitialized()
 
 /// 无大小释放
 /// 对应 Zig: pub const freeWithoutSize = basic.freeWithoutSize
@@ -137,9 +137,9 @@ public let UNASSIGNED: IndexType = IndexType(index: (Int32.MAX_VALUE >> 1) - 1, 
 /// 条目状态
 /// 对应 Zig: pub const ItemStatus = enum(u3) { unknown, exists, not_found }
 public enum ItemStatus {
-    case unknown
-    case exists
-    case notFound
+    | unknown
+    | exists
+    | notFound
 }
 
 // ============================================================================
@@ -149,7 +149,7 @@ public enum ItemStatus {
 
 /// 哈希键类型
 /// 对应 Zig: const HashKeyType = u64
-public typealias HashKeyType = UInt64
+public type HashKeyType = UInt64
 
 /// 索引映射上下文
 /// 对应 Zig: const IndexMapContext = struct { ... }
@@ -416,7 +416,7 @@ public class OverflowList<T> {
     /// 按索引访问 (只读)
     /// 对应 Zig: pub inline fn atIndex(this: *const This, index: IndexType) *const ValueType
     public func atIndex(index: IndexType): T {
-        let blockId = if (index.index > 0) index.index / Int32(this.blockSize) else 0
+        let blockId = if (index.index > 0) { index.index / Int32(this.blockSize) } else { 0 }
 
         Assert.assert(index.isOverflow)
         Assert.assert(this.list.used >= blockId)
@@ -428,7 +428,7 @@ public class OverflowList<T> {
     /// 按索引访问 (可变)
     /// 对应 Zig: pub inline fn atIndexMut(this: *This, index: IndexType) *ValueType
     public func atIndexMut(index: IndexType): T {
-        let blockId = if (index.index > 0) index.index / Int32(this.blockSize) else 0
+        let blockId = if (index.index > 0) { index.index / Int32(this.blockSize) } else { 0 }
 
         Assert.assert(index.isOverflow)
         Assert.assert(this.list.used >= blockId)
@@ -549,7 +549,7 @@ public class BSSList<T> {
     /// 是否溢出
     /// 对应 Zig: pub fn isOverflowing() bool
     public static func isOverflowing(): Bool {
-        if (let inst = instance) {
+        if (let Some(inst) <- instance) {
             return inst.used >= UInt16(inst.count)
         }
         return false
@@ -584,7 +584,7 @@ public class BSSList<T> {
         defer {
             this.mutex.unlock()
         }
-        if (let inst = BSSList<T>.instance) {
+        if (let Some(inst) <- BSSList<T>.instance) {
             if (inst.used > UInt32(inst.maxIndex)) {
                 return this.appendOverflow(value)
             } else {
@@ -631,7 +631,7 @@ public class BSSOverflowBlock<T> {
 
     /// 销毁
     public func deinit(): Unit {
-        if (let p = this.prev) {
+        if (let Some(p) <- this.prev) {
             p.deinit()
         }
     }
@@ -711,7 +711,7 @@ public class BSSStringList {
     /// 是否溢出
     /// 对应 Zig: pub inline fn isOverflowing() bool
     public static func isOverflowing(): Bool {
-        if (let inst = instance) {
+        if (let Some(inst) <- instance) {
             return inst.sliceBufUsed >= UInt16(inst.count)
         }
         return false
@@ -882,7 +882,7 @@ public class BSSMap<T> {
     /// 是否溢出
     /// 对应 Zig: pub fn isOverflowing() bool
     public static func isOverflowing(): Bool {
-        if (let inst = instance) {
+        if (let Some(inst) <- instance) {
             return inst.backingBufUsed >= UInt16(inst.maxIndex + 1)
         }
         return false
@@ -908,10 +908,12 @@ public class BSSMap<T> {
             return AllocResult(
                 hash: hashKey,
                 index: idx,
-                status: when (idx.index) {
-                    NOT_FOUND.index => ItemStatus.notFound
-                    UNASSIGNED.index => ItemStatus.unknown
-                    else => ItemStatus.exists
+                status: if (idx.index == NOT_FOUND.index) {
+                    ItemStatus.notFound
+                } else if (idx.index == UNASSIGNED.index) {
+                    ItemStatus.unknown
+                } else {
+                    ItemStatus.exists
                 }
             )
         }
@@ -1050,7 +1052,6 @@ public func asStd(allocator: Allocator): Allocator {
 /// 获取借用类型的分配器
 /// 对应 Zig: pub fn Borrowed(comptime Allocator: type) type
 /// 如果分配器定义了 Borrowed 类型，返回它，否则返回原类型
-public typealias BorrowedAllocator = Allocator
 
 /// 借用分配器
 /// 对应 Zig: pub fn borrow(allocator: anytype) Borrowed(@TypeOf(allocator))
@@ -1063,12 +1064,11 @@ public func borrow(allocator: Allocator): Allocator {
 /// 对于 std.mem.Allocator 返回 NullableAllocator
 /// 否则如果定义了 Nullable 则使用它
 /// 否则使用 ?Allocator
-public typealias NullableAlloc = NullableAllocator
 
 /// 创建可空分配器
 /// 对应 Zig: pub fn initNullable(comptime Allocator: type, allocator: ?Allocator) Nullable(Allocator)
 public func initNullable(allocator: ?Allocator): NullableAllocator {
-    return NullableAllocator.init(allocator)
+    return NullableAllocator(allocator)
 }
 
 /// 解包可空分配器
@@ -1093,4 +1093,3 @@ public class DefaultAllocator {
 
 /// 包级别名
 /// 对应 Zig 中的重新导出
-public typealias AllocationScope = allocation_scope.AllocationScope

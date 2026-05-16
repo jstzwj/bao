@@ -78,10 +78,7 @@ public class S3Error {
 
     /// 从 S3ErrorCode 创建
     public static func fromErrorCode(errorCode: S3ErrorCode): S3Error {
-        return S3Error(
-            code: errorCode.code(),
-            message: getSignErrorMessage(errorCode)
-        )
+        return S3Error(errorCode.code(), getSignErrorMessage(errorCode))
     }
 
     /// 格式化为字符串
@@ -118,10 +115,7 @@ public func getSignErrorMessage(errorCode: S3ErrorCode): String {
 /// 对应 Bun: pub fn getSignErrorCodeAndMessage(err: anyerror) ErrorCodeAndMessage
 /// 返回错误码常量 (保持内部错误码一致性)
 public func getSignErrorCodeAndMessage(errorCode: S3ErrorCode): S3ErrorCodeAndMessage {
-    return S3ErrorCodeAndMessage(
-        code: errorCode.code(),
-        message: getSignErrorMessage(errorCode)
-    )
+    return S3ErrorCodeAndMessage(errorCode.code(), getSignErrorMessage(errorCode))
 }
 
 /// 从异常创建 S3 错误
@@ -129,10 +123,7 @@ public func getSignErrorCodeAndMessage(errorCode: S3ErrorCode): S3ErrorCodeAndMe
 public func s3ErrorFromException(e: BaoError): S3Error {
     match (e.code) {
         case InvalidArgument => S3Error.fromErrorCode(S3ErrorCode.MissingCredentials)
-        case _ => S3Error(
-            code: "ERR_S3_UNKNOWN",
-            message: e.message
-        )
+        case _ => S3Error("ERR_S3_UNKNOWN", e.message)
     }
 }
 
@@ -142,7 +133,7 @@ public func s3ErrorFromException(e: BaoError): S3Error {
 public func containsNewlineOrCR(value: String): Bool {
     for (i in 0..value.size) {
         let c = value[Int64(i)]
-        if (c == Char('\r') || c == Char('\n')) {
+        if (c == UInt8(13) || c == UInt8(10)) {
             return true
         }
     }

@@ -5,6 +5,7 @@
 package bao_ptr
 
 import bao_core.*
+import bao_threading.*
 
 // ============================================================================
 // SharedOptions - 共享指针选项
@@ -47,7 +48,7 @@ class NonAtomicCount {
     }
 
     static func initFunc(value: UInt32): NonAtomicCount {
-        NonAtomicCount(value: value)
+        NonAtomicCount(value)
     }
 
     func get(): UInt32 {
@@ -87,7 +88,7 @@ class AtomicCount {
     }
 
     static func initFunc(value: UInt32): AtomicCount {
-        AtomicCount(value: value)
+        AtomicCount(value)
     }
 
     func get(): UInt32 {
@@ -100,7 +101,7 @@ class AtomicCount {
     /// - 此线程中没有其他线程依赖的副作用，所以存储可以是 .monotonic
     func increment(): Unit {
         let old = this.value.fetchAdd(1)
-        Assert.assertTrue(old != UInt32.max, "overflow of atomic ref count")
+        Assert.assertTrue(old != UInt32.Max, "overflow of atomic ref count")
     }
 
     /// 尝试增加计数
@@ -116,8 +117,10 @@ class AtomicCount {
             if (this.value.compareExchangeWeak(current, current + 1)) {
                 return true
             }
-            // CAS 失败，current 已被更新为当前值，重试
+            // CAS 失败，重新读取当前值
+            current = this.value.load()
         }
+        return false
     }
 
     /// 减少计数并返回新值
@@ -142,7 +145,7 @@ class SharedData<T> {
     /// 弱引用计数 (如果 allow_weak 为 false 则不使用)
     var weakCount: NonAtomicCount = NonAtomicCount(1)
     /// 分配器
-    var allocator: Allocator = Allocator()
+    var allocator: ?Allocator = None<Allocator>
     /// 线程锁 (仅非原子模式使用)
     var threadLock: ThreadLock = ThreadLock()
     /// 选项
@@ -156,16 +159,16 @@ class SharedData<T> {
     /// 从值指针获取 SharedData
     public static func fromValuePtr(ptr: T): SharedData<T> {
         // 在仓颉中简化实现
-        SharedData<T>(value: ptr, options: SharedOptions())
+        SharedData<T>(ptr, SharedOptions())
     }
 
     /// 分配新的 SharedData
     public static func alloc(value: T, allocator: Allocator, options: SharedOptions): SharedData<T> {
-        SharedData<T>(value: value, options: options)
+        SharedData<T>(value, options)
     }
 
     /// 获取强引用计数
-    public func strongCount(): UInt32 {
+    public func getStrongCount(): UInt32 {
         this.strongCount.get()
     }
 
@@ -211,7 +214,7 @@ class SharedData<T> {
         // 如果 allow_weak 为 false，此方法仅在最后一个强引用被反初始化时调用
         // 所以在这种情况下无条件释放内存
         if (!this.options.allowWeak || this.weakCount.decrement() == 0) {
-            if (Environment.isDebug) {
+            if (Environment.IS_DEBUG) {
                 Assert.assertTrue(this.strongCount.get() == 0)
             }
             this.destroy()
@@ -252,7 +255,7 @@ class AtomicSharedData<T> {
     /// 弱引用计数 (原子)
     var weakCount: AtomicCount = AtomicCount(1)
     /// 分配器
-    var allocator: Allocator = Allocator()
+    var allocator: ?Allocator = None<Allocator>
     /// 选项
     var options: SharedOptions = SharedOptions()
 
@@ -263,11 +266,11 @@ class AtomicSharedData<T> {
 
     /// 分配
     public static func alloc(value: T, allocator: Allocator, options: SharedOptions): AtomicSharedData<T> {
-        AtomicSharedData<T>(value: value, options: options)
+        AtomicSharedData<T>(value, options)
     }
 
     /// 获取强引用计数
-    public func strongCount(): UInt32 {
+    public func getStrongCount(): UInt32 {
         this.strongCount.get()
     }
 
@@ -306,7 +309,7 @@ class AtomicSharedData<T> {
     /// 减少弱引用
     public func decrementWeak(): Unit {
         if (!this.options.allowWeak || this.weakCount.decrement() == 0) {
-            if (Environment.isDebug) {
+            if (Environment.IS_DEBUG) {
                 Assert.assertTrue(this.strongCount.get() == 0)
             }
             this.destroy()
@@ -344,7 +347,7 @@ public class Shared<T> {
     /// 分配共享值
     public static func alloc(value: T): Shared<T> {
         let shared = Shared<T>()
-        let data = SharedData<T>(value: value, options: SharedOptions())
+        let data = SharedData<T>(value, SharedOptions())
         shared._data = Some(data)
         shared._pointer = Some(value)
         return shared
@@ -353,8 +356,8 @@ public class Shared<T> {
     /// 使用指定分配器分配共享值
     public static func allocIn(value: T, allocator: Allocator): Shared<T> {
         let shared = Shared<T>()
-        let data = SharedData<T>(value: value, options: SharedOptions())
-        data.allocator = allocator
+        let data = SharedData<T>(value, SharedOptions())
+        data.allocator = Some(allocator)
         shared._data = Some(data)
         shared._pointer = Some(value)
         return shared
@@ -407,7 +410,7 @@ public class Shared<T> {
     /// 获取强引用计数
     public func strongCount(): UInt64 {
         match (this._data) {
-            case Some(data) => UInt64(data.strongCount())
+            case Some(data) => UInt64(data.getStrongCount())
             case None => UInt64(0)
         }
     }
@@ -461,7 +464,7 @@ public class AtomicShared<T> {
     /// 分配共享值
     public static func alloc(value: T): AtomicShared<T> {
         let shared = AtomicShared<T>()
-        let data = AtomicSharedData<T>(value: value, options: SharedOptions(atomic: true, allowWeak: false, deinit: true))
+        let data = AtomicSharedData<T>(value, SharedOptions(true, false, true))
         shared._data = Some(data)
         shared._pointer = Some(value)
         return shared
@@ -470,8 +473,8 @@ public class AtomicShared<T> {
     /// 使用指定分配器分配
     public static func allocIn(value: T, allocator: Allocator): AtomicShared<T> {
         let shared = AtomicShared<T>()
-        let data = AtomicSharedData<T>(value: value, options: SharedOptions(atomic: true, allowWeak: false, deinit: true))
-        data.allocator = allocator
+        let data = AtomicSharedData<T>(value, SharedOptions(true, false, true))
+        data.allocator = Some(allocator)
         shared._data = Some(data)
         shared._pointer = Some(value)
         return shared
@@ -520,7 +523,7 @@ public class AtomicShared<T> {
     /// 获取强引用计数
     public func strongCount(): UInt64 {
         match (this._data) {
-            case Some(data) => UInt64(data.strongCount())
+            case Some(data) => UInt64(data.getStrongCount())
             case None => UInt64(0)
         }
     }
@@ -632,7 +635,7 @@ public class SharedWeak<T> {
     /// 获取强引用计数
     public func strongCount(): UInt64 {
         match (this._data) {
-            case Some(data) => UInt64(data.strongCount())
+            case Some(data) => UInt64(data.getStrongCount())
             case None => UInt64(0)
         }
     }
@@ -642,7 +645,7 @@ public class SharedWeak<T> {
         match (this._data) {
             case Some(data) =>
                 let rawWeak = UInt64(data.rawWeakCount())
-                let strong = UInt64(data.strongCount())
+                let strong = UInt64(data.getStrongCount())
                 if (strong > 0) {
                     rawWeak - 1
                 } else {

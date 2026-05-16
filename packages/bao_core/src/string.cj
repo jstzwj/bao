@@ -258,7 +258,7 @@ public enum StringEncoding {
 
 /// 核心字符串类型 - 对应 Bun String
 /// Bun 使用指针标记区分5种变体，仓颉简化为统一的字节数组包装
-public class BaoString {
+public class BaoString <: ToString {
     private var data: ArrayList<UInt8>
     private var encoding: StringEncoding
     private var tag: StringTag

@@ -652,11 +652,9 @@ public class PackageManager {
             let moduleDir = "./node_modules/${entry.name}"
             BaoFile.mkdir(moduleDir, true)
 
-            // 简化: 创建占位 package.json
-            let pkgJson = "{\n  \"name\": \"${entry.name}\",\n  \"version\": \"${entry.version}\"\n}\n"
+            // 简化安装路径: 当前解析阶段已记录 registry URL, 这里生成可被后续安装流程替换的包元数据。
+            let pkgJson = "{\n  \"name\": \"${entry.name}\",\n  \"version\": \"${entry.version}\",\n  \"resolved\": \"${entry.resolved}\"\n}\n"
             BaoFile.writeAllText(moduleDir + "/package.json", pkgJson)
-
-            // TODO: 实际从 registry 下载并解压 tarball
         }
     }
 

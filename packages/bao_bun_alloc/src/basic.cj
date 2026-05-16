@@ -37,9 +37,9 @@ public class SingleAllocation {
     }
 
     /// 调整大小 - 不支持
-    /// 对应 Zig: fn resize(...) bool { @panic("not implemented") }
+    /// 对应 Bun: resize 始终 panic
     public func resize(ctx: CPointer<Byte>, buf: Array<Byte>, alignment: Alignment, newLen: UInt64, retAddr: UInt64): Bool {
-        panic("not implemented: SingleAllocation.resize")
+        panic("SingleAllocation.resize is unsupported")
     }
 
     /// 释放 - 空操作

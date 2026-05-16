@@ -20,7 +20,7 @@ package bao_collections
 ///   #unmanaged: Unmanaged
 ///   #allocator: Allocator
 ///   items(), capacity(), deinit(), append(), insert(), remove() 等
-public class ArrayList<T> {
+public class ArrayList<T> <: Iterable<T> {
     /// 内部存储
     private var items_: Array<T>
     /// 元素数量
@@ -28,19 +28,32 @@ public class ArrayList<T> {
     /// 容量
     private var capacity_: Int64
 
+    /// 元素数量
+    public prop size: Int64 {
+        get() { length }
+    }
+
+    public operator func [](i: Int64): T {
+        return items_[i]
+    }
+
+    public operator func [](i: Int64, value!: T): Unit {
+        items_[i] = value
+    }
+
     /// 创建空列表
     /// 翻译自: pub fn init() Self
     public init() {
-        items_ = Array<T>(0)
+        items_ = Array<T>()
         length = 0
         capacity_ = 0
     }
 
     /// 使用初始容量创建
     /// 翻译自: pub fn initCapacity(num: usize) AllocError!Self
-    public init(capacity: Int64) {
+    public init(capacity: Int64, initValue: T) {
         capacity_ = capacity
-        items_ = Array<T>(capacity)
+        items_ = Array<T>(capacity, repeat: initValue)
         length = 0
     }
 
@@ -78,7 +91,7 @@ public class ArrayList<T> {
     /// 浅清理 (不调用元素 deinit)
     /// 翻译自: pub fn deinitShallow(self: *Self) void
     public func deinitShallow(): Unit {
-        items_ = Array<T>(0)
+        items_ = Array<T>()
         length = 0
         capacity_ = 0
     }
@@ -107,11 +120,15 @@ public class ArrayList<T> {
     /// 浅克隆
     /// 翻译自: pub fn clone(self: *const Self) AllocError!Self
     public func clone(): ArrayList<T> {
-        let result = ArrayList<T>(capacity_)
+        let result = ArrayList<T>()
         for (i in 0..length) {
             result.append(items_[i])
         }
         return result
+    }
+
+    public func iterator(): Iterator<T> {
+        return ArrayListIterator<T>(this)
     }
 
     /// 插入元素
@@ -179,6 +196,11 @@ public class ArrayList<T> {
         }
         return item
     }
+
+    public func removeAt(i: Int64): T {
+        return orderedRemove(i)
+    }
+
 
     /// 弹出最后一个元素
     /// 翻译自: pub fn pop(self: *Self) ?T
@@ -266,10 +288,14 @@ public class ArrayList<T> {
         length = 0
     }
 
+    public func clear(): Unit {
+        clearRetainingCapacity()
+    }
+
     /// 清除并释放
     /// 翻译自: pub fn clearAndFree(self: *Self) void
     public func clearAndFree(): Unit {
-        items_ = Array<T>(0)
+        items_ = Array<T>()
         length = 0
         capacity_ = 0
     }
@@ -334,13 +360,37 @@ public class ArrayList<T> {
             while (newCap < needed) {
                 newCap *= 2
             }
-            let newItems = Array<T>(newCap)
+            let fill = if (length > 0) { items_[0] } else { throw Exception("ArrayList requires an existing element to grow") }
+            let newItems = Array<T>(newCap, repeat: fill)
             for (i in 0..length) {
                 newItems[i] = items_[i]
             }
             items_ = newItems
             capacity_ = newCap
         }
+    }
+}
+
+class ArrayListIterator<T> <: Iterator<T> {
+    private let list: ArrayList<T>
+    private var index: Int64
+
+    public init(list: ArrayList<T>) {
+        this.list = list
+        this.index = 0
+    }
+
+    public func hasNext(): Bool {
+        return index < list.size
+    }
+
+    public func next(): ?T {
+        if (!hasNext()) {
+            return None
+        }
+        let value = list[index]
+        index += 1
+        return Some(value)
     }
 }
 

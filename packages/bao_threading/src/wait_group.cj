@@ -62,7 +62,7 @@ public class WaitGroup {
 
     /// 互斥锁 - 对应 Bun WaitGroup.mutex
     /// 严格翻译自: WaitGroup.zig:14 mutex: Mutex = .{}
-    private let mutex: std.sync.Mutex
+    private let mutex: Mutex
 
     /// 条件变量 - 对应 Bun WaitGroup.cond
     /// 严格翻译自: WaitGroup.zig:15 cond: Condition = .{}
@@ -73,7 +73,7 @@ public class WaitGroup {
     ///   return .{}
     public init() {
         count = AtomicInt64(Int64(0))
-        mutex = std.sync.Mutex()
+        mutex = Mutex()
         cond = mutex.condition()
     }
 
@@ -82,7 +82,7 @@ public class WaitGroup {
     ///   return .{ .raw_count = .init(count) }
     public init(initialCount: Int64) {
         count = AtomicInt64(initialCount)
-        mutex = std.sync.Mutex()
+        mutex = Mutex()
         cond = mutex.condition()
     }
 

@@ -30,7 +30,7 @@
 package bao_threading
 
 import std.sync.*
-import std.time.Duration
+import std.time.*
 
 // ============================================================================
 // 常量定义 - 对应 Bun Condition.rs:329-333
@@ -100,12 +100,12 @@ public class FutexCondition {
     private let epoch: FutexWord
 
     /// 内部互斥锁 - 保护 state 和 epoch 的 CAS 操作
-    private let casMutex: std.sync.Mutex
+    private let casMutex: Mutex
 
     public init() {
         state = AtomicU32(UInt32(0))
         epoch = FutexWord(UInt32(0))
-        casMutex = std.sync.Mutex()
+        casMutex = Mutex()
     }
 
     /// 等待条件变量 - 对应 Bun FutexImpl.wait()

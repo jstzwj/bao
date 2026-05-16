@@ -4,29 +4,7 @@
 package bao_runtime.node.util
 
 import bao_core.*
-
-// ============================================================================
-// 选项值类型
-// 对应 Bun: parse_args_utils.zig - OptionValueType
-// ============================================================================
-public enum OptionValueType {
-    | boolean_
-    | string_
-}
-
-// ============================================================================
-// Token 子类型
-// 对应 Bun: parse_args_utils.zig - TokenSubtype
-// ============================================================================
-public enum TokenSubtype {
-    | optionTerminator
-    | loneShortOption
-    | shortOptionGroup
-    | shortOptionAndValue
-    | loneLongOption
-    | longOptionAndValue
-    | positional
-}
+import std.collection.*
 
 // ============================================================================
 // 选项定义
@@ -42,7 +20,7 @@ public class OptionDefinition {
     public var shortName: String = ""
 
     // 值类型
-    public var `type`: OptionValueType = OptionValueType.boolean__
+    public var `type`: ParseArgType = ParseArgType.boolean_
 
     // 是否允许多个值
     public var multiple: Bool = false
@@ -52,7 +30,7 @@ public class OptionDefinition {
 
     public init() {}
 
-    public init(longName: String, shortName: String, `type`: OptionValueType, multiple: Bool) {
+    public init(longName: String, shortName: String, `type`: ParseArgType, multiple: Bool) {
         this.longName = longName
         this.shortName = shortName
         this.`type` = `type`
@@ -66,11 +44,11 @@ public class OptionDefinition {
 // ============================================================================
 public class ParseArgsResult {
     // 选项值映射
-    public var values: Map<String, ParseArgValue> = HashMap<String, ParseArgValue>()
+    public var values: HashMap<String, ParseArgValue> = HashMap<String, ParseArgValue>()
     // 位置参数
-    public var positionals: Array<String> = Array<String>()
+    public var positionals: ArrayList<String> = ArrayList<String>()
     // 解析 tokens（仅在 returnTokens=true 时填充）
-    public var tokens: Array<ParseToken> = Array<ParseToken>()
+    public var tokens: ArrayList<ParseToken> = ArrayList<ParseToken>()
 
     public init() {}
 }
@@ -83,7 +61,7 @@ public class ParseArgValue {
     public var stringValue: String = ""
     public var isBool: Bool = true
     public var isArray: Bool = false
-    public var arrayValues: Array<ParseArgValue> = Array<ParseArgValue>()
+    public var arrayValues: ArrayList<ParseArgValue> = ArrayList<ParseArgValue>()
 
     public init() {}
 
@@ -101,7 +79,7 @@ public class ParseArgValue {
         return v
     }
 
-    public static func fromArray(values: Array<ParseArgValue>): ParseArgValue {
+    public static func fromArray(values: ArrayList<ParseArgValue>): ParseArgValue {
         let v = ParseArgValue()
         v.isArray = true
         v.arrayValues = values
@@ -142,9 +120,9 @@ public class ParseArgs {
     // parse — 主解析入口
     // 对应 Bun: parse_args.zig parseArgs()
     // ============================================================================
-    public static func parse(args: Array<String>, options: Array<OptionDefinition>, strict: Bool = true,
-                             allowPositionals: Bool = false, returnTokens: Bool = false,
-                             allowNegative: Bool = false): ParseArgsResult {
+    public static func parse(args: Array<String>, options: Array<OptionDefinition>, strict: Bool,
+                             allowPositionals: Bool, returnTokens: Bool,
+                             allowNegative: Bool): ParseArgsResult {
         let result = ParseArgsResult()
 
         // 如果未指定 allowPositionals，在非 strict 模式下默认允许
@@ -159,7 +137,7 @@ public class ParseArgs {
 
         while (i < args.size) {
             let arg = args[Int64(i)]
-            let tokenType = classifyToken(arg, options: options)
+            let tokenType = classifyToken(arg, options)
 
             // "--" 选项终止符
             if (tokenType == TokenSubtype.optionTerminator && !optionTerminatorSeen) {
@@ -189,8 +167,8 @@ public class ParseArgs {
             // 位置参数
             if (optionTerminatorSeen || tokenType == TokenSubtype.positional) {
                 if (!allowPos && strict) {
-                    throw NodeError(code: "ERR_PARSE_ARGS_UNEXPECTED_POSITIONAL",
-                        message: "Unexpected argument '${arg}'. This command does not take positional arguments")
+                    throw NodeError("ERR_PARSE_ARGS_UNEXPECTED_POSITIONAL",
+                        "Unexpected argument '${arg}'. This command does not take positional arguments")
                 }
                 result.positionals.add(arg)
                 if (returnTokens) {
@@ -207,9 +185,7 @@ public class ParseArgs {
             // 处理长选项 "--option"
             if (tokenType == TokenSubtype.longOptionAndValue ||
                 tokenType == TokenSubtype.loneLongOption) {
-                i = handleLongOption(result: result, arg: arg, index: i, args: args,
-                    options: options, strict: strict, allowNegative: allowNegative,
-                    returnTokens: returnTokens)
+                i = handleLongOption(result, arg, i, args, options, strict, allowNegative, returnTokens)
                 continue
             }
 
@@ -217,9 +193,7 @@ public class ParseArgs {
             if (tokenType == TokenSubtype.loneShortOption ||
                 tokenType == TokenSubtype.shortOptionGroup ||
                 tokenType == TokenSubtype.shortOptionAndValue) {
-                i = handleShortOption(result: result, arg: arg, index: i, args: args,
-                    options: options, strict: strict, returnTokens: returnTokens,
-                    tokenType: tokenType)
+                i = handleShortOption(result, arg, i, args, options, strict, returnTokens, tokenType)
                 continue
             }
 
@@ -228,9 +202,9 @@ public class ParseArgs {
 
         // Phase 3: 填充默认值
         for (optDef in options) {
-            if (!result.values.contains(optDef.longName) && optDef.defaultValue != None) {
+            if (!result.values.contains(optDef.longName) && optDef.defaultValue.isSome()) {
                 if (optDef.longName != "__proto__") {
-                    result.values.put(optDef.longName, optDef.defaultValue.getOrThrow())
+                    result.values.add(optDef.longName, optDef.defaultValue.getOrThrow())
                 }
             }
         }
@@ -255,15 +229,15 @@ public class ParseArgs {
         } else if (len > 2) {
             if (arg.startsWith("--")) {
                 let eqIdx = arg.indexOf('=')
-                if (eqIdx != None && eqIdx.getOrThrow() >= 3) {
+                if (eqIdx.isSome() && eqIdx.getOrThrow() >= 3) {
                     return TokenSubtype.longOptionAndValue
                 }
                 return TokenSubtype.loneLongOption
             } else if (arg.startsWith("-")) {
                 let firstChar = arg[1..2]
-                let optIdx = findOptionByShortName(firstChar, options: options)
+                let optIdx = findOptionByShortName(firstChar, options)
                 if (optIdx >= 0) {
-                    if (options[optIdx].`type` == OptionValueType.string_) {
+                    if (options[optIdx].`type` == ParseArgType.string_) {
                         return TokenSubtype.shortOptionAndValue
                     }
                     return TokenSubtype.shortOptionGroup
@@ -295,7 +269,7 @@ public class ParseArgs {
         var inlineValue: Bool = false
         var negative: Bool = false
 
-        if (eqIdx != None) {
+        if (eqIdx.isSome()) {
             // --foo=bar
             name = arg[2..eqIdx.getOrThrow()]
             value = arg[(eqIdx.getOrThrow() + 1)..arg.size]
@@ -311,19 +285,18 @@ public class ParseArgs {
             }
 
             // 查找选项定义
-            let optIdx = findOptionByLongName(name, options: options)
-            let optType = if (optIdx >= 0) { options[optIdx].`type` } else { OptionValueType.boolean_ }
+            let optIdx = findOptionByLongName(name, options)
+            let optType = if (optIdx >= 0) { options[optIdx].`type` } else { ParseArgType.boolean_ }
 
             // 字符串选项需要消费下一个参数
-            if (optType == OptionValueType.string_ && i + 1 < args.size && !negative) {
+            if (optType == ParseArgType.string_ && i + 1 < args.size && !negative) {
                 i += 1
                 value = args[Int64(i)]
             }
         }
 
         // 存储选项值
-        storeOption(result: result, name: name, value: value, options: options,
-            strict: strict, negative: negative)
+        storeOption(result, name, value, options, strict, negative)
 
         // 添加 token
         if (returnTokens) {
@@ -331,7 +304,7 @@ public class ParseArgs {
             token.kind = "option"
             token.index = index
             token.name = name
-            token.rawName = if (negative) { "--no-" + name } else { arg[0..(if (eqIdx != None) { eqIdx.getOrThrow() } else { arg.size })] }
+            token.rawName = if (negative) { "--no-" + name } else { arg[0..(if (eqIdx.isSome()) { eqIdx.getOrThrow() } else { arg.size })] }
             token.value = value
             token.inlineValue = inlineValue
             token.negative = negative
@@ -359,11 +332,10 @@ public class ParseArgs {
             // -fFILE
             let shortName = arg[1..2]
             let value = arg[2..]
-            let optIdx = findOptionByShortName(shortName, options: options)
+            let optIdx = findOptionByShortName(shortName, options)
             let longName = if (optIdx >= 0) { options[optIdx].longName } else { shortName }
 
-            storeOption(result: result, name: longName, value: value, options: options,
-                strict: strict, negative: false)
+            storeOption(result, longName, value, options, strict, false)
 
             if (returnTokens) {
                 let token = ParseToken()
@@ -381,20 +353,19 @@ public class ParseArgs {
         if (tokenType == TokenSubtype.loneShortOption) {
             // -f 或 -f FILE
             let shortName = arg[1..2]
-            let optIdx = findOptionByShortName(shortName, options: options)
-            let optType = if (optIdx >= 0) { options[optIdx].`type` } else { OptionValueType.boolean_ }
+            let optIdx = findOptionByShortName(shortName, options)
+            let optType = if (optIdx >= 0) { options[optIdx].`type` } else { ParseArgType.boolean_ }
             let longName = if (optIdx >= 0) { options[optIdx].longName } else { shortName }
 
             var value: String = ""
             var hasValue = false
-            if (optType == OptionValueType.string_ && i + 1 < args.size) {
+            if (optType == ParseArgType.string_ && i + 1 < args.size) {
                 i += 1
                 value = args[Int64(i)]
                 hasValue = true
             }
 
-            storeOption(result: result, name: longName, value: value, options: options,
-                strict: strict, negative: false)
+            storeOption(result, longName, value, options, strict, false)
 
             if (returnTokens) {
                 let token = ParseToken()
@@ -414,22 +385,21 @@ public class ParseArgs {
             var j: Int64 = 1
             while (j < arg.size) {
                 let shortName = arg[j..(j + 1)]
-                let optIdx = findOptionByShortName(shortName, options: options)
-                let optType = if (optIdx >= 0) { options[optIdx].`type` } else { OptionValueType.boolean_ }
+                let optIdx = findOptionByShortName(shortName, options)
+                let optType = if (optIdx >= 0) { options[optIdx].`type` } else { ParseArgType.boolean_ }
                 let longName = if (optIdx >= 0) { options[optIdx].longName } else { shortName }
 
-                if (optType != OptionValueType.string_ || j == arg.size - 1) {
+                if (optType != ParseArgType.string_ || j == arg.size - 1) {
                     // 布尔选项，或短选项组的最后一个
                     var value: String = ""
                     var hasValue = false
-                    if (optType == OptionValueType.string_ && i + 1 < args.size) {
+                    if (optType == ParseArgType.string_ && i + 1 < args.size) {
                         i += 1
                         value = args[Int64(i)]
                         hasValue = true
                     }
 
-                    storeOption(result: result, name: longName, value: value, options: options,
-                        strict: strict, negative: false)
+                    storeOption(result, longName, value, options, strict, false)
 
                     if (returnTokens) {
                         let token = ParseToken()
@@ -448,8 +418,7 @@ public class ParseArgs {
                 } else {
                     // 字符串选项在中间，例如 -abfFILE -> -a -b -fFILE
                     let value = arg[(j + 1)..]
-                    storeOption(result: result, name: longName, value: value, options: options,
-                        strict: strict, negative: false)
+                    storeOption(result, longName, value, options, strict, false)
 
                     if (returnTokens) {
                         let token = ParseToken()
@@ -485,52 +454,56 @@ public class ParseArgs {
             return
         }
 
-        let optIdx = findOptionByLongName(name, options: options)
+        let optIdx = findOptionByLongName(name, options)
         if (optIdx < 0) {
             if (strict) {
-                throw NodeError(code: "ERR_PARSE_ARGS_UNKNOWN_OPTION",
-                    message: "Unknown option '--${name}'")
+                throw NodeError("ERR_PARSE_ARGS_UNKNOWN_OPTION",
+                    "Unknown option '--${name}'")
             }
             return
         }
 
         let optDef = options[optIdx]
-        if (optDef.`type` == OptionValueType.boolean_) {
+        if (optDef.`type` == ParseArgType.boolean_) {
             let newValue = ParseArgValue.fromBool(!negative)
 
             if (optDef.multiple) {
                 // 多值布尔: 累积到数组
                 let existing = result.values.get(name)
-                if (existing != None && existing.getOrThrow().isArray) {
+                if (existing.isSome() && existing.getOrThrow().isArray) {
                     existing.getOrThrow().arrayValues.add(newValue)
-                    result.values.put(name, existing.getOrThrow())
+                    result.values.add(name, existing.getOrThrow())
                 } else {
-                    let arr = ParseArgValue.fromArray(Array<ParseArgValue>([newValue]))
-                    result.values.put(name, arr)
+                    let list = ArrayList<ParseArgValue>()
+                    list.add(newValue)
+                    let arr = ParseArgValue.fromArray(list)
+                    result.values.add(name, arr)
                 }
             } else {
-                result.values.put(name, newValue)
+                result.values.add(name, newValue)
             }
         } else {
             // 字符串选项
             if (strict && value.size == 0) {
                 // 检查值是否看起来像选项（可能导致歧义）
-                throw NodeError(code: "ERR_PARSE_ARGS_INVALID_OPTION_VALUE",
-                    message: "Option '--${name}' argument missing")
+                throw NodeError("ERR_PARSE_ARGS_INVALID_OPTION_VALUE",
+                    "Option '--${name}' argument missing")
             }
             let newValue = ParseArgValue.fromString(value)
 
             if (optDef.multiple) {
                 let existing = result.values.get(name)
-                if (existing != None && existing.getOrThrow().isArray) {
+                if (existing.isSome() && existing.getOrThrow().isArray) {
                     existing.getOrThrow().arrayValues.add(newValue)
-                    result.values.put(name, existing.getOrThrow())
+                    result.values.add(name, existing.getOrThrow())
                 } else {
-                    let arr = ParseArgValue.fromArray(Array<ParseArgValue>([newValue]))
-                    result.values.put(name, arr)
+                    let list = ArrayList<ParseArgValue>()
+                    list.add(newValue)
+                    let arr = ParseArgValue.fromArray(list)
+                    result.values.add(name, arr)
                 }
             } else {
-                result.values.put(name, newValue)
+                result.values.add(name, newValue)
             }
         }
     }
@@ -582,45 +555,27 @@ public class ParseArgs {
     // 如果 execArgv 包含 -e/--eval/-p/--print，则只跳过第一个
     // ========================================================================
     public static func getDefaultArgs(): Array<String> {
-        let argv = NodeProcess.getArgv()
-        if (argv.size <= 2) {
-            return Array<String>()
-        }
-
-        // 检查 execArgv 是否包含 eval 标志
-        let execArgv = NodeProcess.getExecArgv()
-        var hasEval = false
-        for (arg in execArgv) {
-            if (arg == "-e" || arg == "--eval" || arg == "-p" || arg == "--print") {
-                hasEval = true
-                break
-            }
-        }
-
-        let start: Int64 = if (hasEval) { 1 } else { 2 }
-        var result = Array<String>()
-        for (i in start..argv.size) {
-            result.add(argv[Int64(i)])
-        }
-        return result
+        // Stubbed until NodeProcess is ported into Cangjie.
+        return Array<String>()
     }
 }
 
 // ============================================================================
 // Node 错误类
 // ============================================================================
-public class NodeError {
+public class NodeError <: Exception {
     public var code: String = ""
-    public var message: String = ""
 
-    public init() {}
+    public init() {
+        super("")
+    }
 
     public init(code: String, message: String) {
+        super(message)
         this.code = code
-        this.message = message
     }
 
     public func toString(): String {
-        return "[${code}]: ${message}"
+        return "[${code}]: ${this.message}"
     }
 }

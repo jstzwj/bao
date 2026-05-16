@@ -115,21 +115,21 @@ private func nextPowerOfTwo(n: UInt32): UInt32 {
 /// 哈希表槽位 - 模拟 Rust Option<(K, V)>
 class ZigHashEntry<K, V> {
     /// 键
-    public var key: K
+    public var key: ?K
     /// 值
-    public var value: V
+    public var value: ?V
     /// 是否占用
     public var occupied: Bool
 
     public init() {
-        key = default<K>()
-        value = defaultValue()
+        key = Option<K>.None
+        value = Option<V>.None
         occupied = false
     }
 
     public init(key: K, value: V) {
-        this.key = key
-        this.value = value
+        this.key = Some(key)
+        this.value = Some(value)
         this.occupied = true
     }
 }
@@ -147,13 +147,13 @@ class ZigHashEntry<K, V> {
 /// Zig 返回 *V 指针; 仓颉使用索引 + 引用语义容器模拟
 public class ZigGetOrPutResult<V> {
     /// 值
-    public var value: V
+    public var value: ?V
     /// 是否已存在
     public var foundExisting: Bool
     /// 槽位索引 (内部使用)
     public var slotIndex: Int64
 
-    public init(value: V, foundExisting: Bool, slotIndex: Int64) {
+    public init(value: ?V, foundExisting: Bool, slotIndex: Int64) {
         this.value = value
         this.foundExisting = foundExisting
         this.slotIndex = slotIndex
@@ -215,7 +215,7 @@ public class ZigKV<K, V> {
 ///   V: type         - 值类型
 ///   C: type         - 哈希上下文 (仓颉中内置)
 ///   max_load_percentage: 80
-public class ZigHashMap<K, V> where K <: Equatable<K> {
+public class ZigHashMap<K, V> where K <: Hashable & Equatable<K> & ToString {
     /// 元数据数组 - 对应 Bun metadata: Vec<u8>
     /// 每个槽位一个字节: bit7=used, bits0..6=fingerprint
     private var metadata: Array<UInt8>
@@ -369,7 +369,7 @@ public class ZigHashMap<K, V> where K <: Equatable<K> {
         if (idx >= 0) {
             let slot = slots[idx]
             if (slot.occupied) {
-                return Some(slot.value)
+                return Some(slot.value.getOrThrow())
             }
         }
         return None
@@ -393,7 +393,7 @@ public class ZigHashMap<K, V> where K <: Equatable<K> {
         if (idx >= 0) {
             let slot = slots[idx]
             if (slot.occupied) {
-                return Some((slot.key, slot.value))
+                return Some((slot.key.getOrThrow(), slot.value.getOrThrow()))
             }
         }
         return None
@@ -411,13 +411,13 @@ public class ZigHashMap<K, V> where K <: Equatable<K> {
         let (idx, foundExisting) = getOrPutSlot(key)
         if (foundExisting) {
             let slot = slots[idx]
-            let oldValue = slot.value
-            slot.value = value
+            let oldValue = slot.value.getOrThrow()
+            slot.value = Some(value)
             return Some(oldValue)
         } else {
             let slot = slots[idx]
-            slot.key = key
-            slot.value = value
+            slot.key = Some(key)
+            slot.value = Some(value)
             slot.occupied = true
             return None
         }
@@ -445,8 +445,8 @@ public class ZigHashMap<K, V> where K <: Equatable<K> {
         let (idx, foundExisting) = getOrPutSlot(key)
         if (!foundExisting) {
             let slot = slots[idx]
-            slot.key = key
-            slot.value = defaultValue()
+            slot.key = Some(key)
+            slot.value = Option<V>.None
             slot.occupied = true
         }
         let slot = slots[idx]
@@ -522,12 +522,12 @@ public class ZigHashMap<K, V> where K <: Equatable<K> {
         let (idx, foundExisting) = getOrPutSlot(key)
         if (!foundExisting) {
             let slot = slots[idx]
-            slot.key = key
-            slot.value = defaultValue
+            slot.key = Some(key)
+            slot.value = Some(defaultValue)
             slot.occupied = true
-            return slot.value
+            return defaultValue
         }
-        return slots[idx].value
+        return slots[idx].value.getOrThrow()
     }
 
     /// 获取或插入工厂值 - 对应 Bun Entry::or_insert_with
@@ -535,12 +535,13 @@ public class ZigHashMap<K, V> where K <: Equatable<K> {
         let (idx, foundExisting) = getOrPutSlot(key)
         if (!foundExisting) {
             let slot = slots[idx]
-            slot.key = key
-            slot.value = factory()
+            let value = factory()
+            slot.key = Some(key)
+            slot.value = Some(value)
             slot.occupied = true
-            return slot.value
+            return value
         }
-        return slots[idx].value
+        return slots[idx].value.getOrThrow()
     }
 
     // ========================================================================
@@ -556,7 +557,7 @@ public class ZigHashMap<K, V> where K <: Equatable<K> {
         var i: Int64 = 0
         while (i < metadata.size && remaining > 0) {
             if (metaIsUsed(metadata[Int64(i)])) {
-                result.append(slots[i].key)
+                result.append(slots[i].key.getOrThrow())
                 remaining -= 1
             }
             i += 1
@@ -572,7 +573,7 @@ public class ZigHashMap<K, V> where K <: Equatable<K> {
         var i: Int64 = 0
         while (i < metadata.size && remaining > 0) {
             if (metaIsUsed(metadata[Int64(i)])) {
-                result.append(slots[i].value)
+                result.append(slots[i].value.getOrThrow())
                 remaining -= 1
             }
             i += 1
@@ -588,7 +589,7 @@ public class ZigHashMap<K, V> where K <: Equatable<K> {
         var i: Int64 = 0
         while (i < metadata.size && remaining > 0) {
             if (metaIsUsed(metadata[Int64(i)])) {
-                result.append((slots[i].key, slots[i].value))
+                result.append((slots[i].key.getOrThrow(), slots[i].value.getOrThrow()))
                 remaining -= 1
             }
             i += 1
@@ -604,7 +605,7 @@ public class ZigHashMap<K, V> where K <: Equatable<K> {
         var i: Int64 = 0
         while (i < metadata.size && remaining > 0) {
             if (metaIsUsed(metadata[Int64(i)])) {
-                fn(slots[i].key, slots[i].value)
+                fn(slots[i].key.getOrThrow(), slots[i].value.getOrThrow())
                 remaining -= 1
             }
             i += 1
@@ -645,7 +646,7 @@ public class ZigHashMap<K, V> where K <: Equatable<K> {
         // debug_assert!(newCap > metadata.size)
 
         // 创建新表
-        var newMetadata = Array<UInt8>(Int64(newCap), item: SLOT_FREE)
+        var newMetadata = Array<UInt8>(Int64(newCap), repeat: SLOT_FREE)
         var newSlots = ArrayList<ZigHashEntry<K, V>>()
         for (_ in 0..Int64(newCap)) {
             newSlots.append(ZigHashEntry<K, V>())
@@ -662,7 +663,7 @@ public class ZigHashMap<K, V> where K <: Equatable<K> {
                 if (slot.occupied) {
                     putAssumeCapacityNoClobber(
                         newMetadata, newSlots, newCap,
-                        slot.key, slot.value
+                        slot.key.getOrThrow(), slot.value.getOrThrow()
                     )
                 }
             }
@@ -702,8 +703,8 @@ public class ZigHashMap<K, V> where K <: Equatable<K> {
         let fp = takeFingerprint(hash)
         meta[idx] = metaFill(fp)
         let slot = slotArr[idx]
-        slot.key = key
-        slot.value = value
+        slot.key = Some(key)
+        slot.value = Some(value)
         slot.occupied = true
         _size += 1
     }
@@ -728,7 +729,7 @@ public class ZigHashMap<K, V> where K <: Equatable<K> {
         while (!metaIsFree(metadata[Int64(idx)]) && limit > 0) {
             if (metaIsUsed(metadata[Int64(idx)]) && metaFingerprint(metadata[Int64(idx)]) == fp) {
                 let slot = slots[Int64(idx)]
-                if (slot.occupied && key == slot.key) {
+                if (slot.occupied && key == slot.key.getOrThrow()) {
                     return Int64(idx)
                 }
             }
@@ -756,7 +757,7 @@ public class ZigHashMap<K, V> where K <: Equatable<K> {
         while (!metaIsFree(metadata[Int64(idx)]) && limit > 0) {
             if (metaIsUsed(metadata[Int64(idx)]) && metaFingerprint(metadata[Int64(idx)]) == fp) {
                 let slot = slots[Int64(idx)]
-                if (slot.occupied && key == slot.key) {
+                if (slot.occupied && key == slot.key.getOrThrow()) {
                     return (Int64(idx), true)
                 }
             } else if (firstTombstoneIdx == cap && metaIsTombstone(metadata[Int64(idx)])) {
@@ -785,8 +786,8 @@ public class ZigHashMap<K, V> where K <: Equatable<K> {
     private func removeByIndex(idx: Int64): (K, V) {
         metadata[Int64(idx)] = SLOT_TOMBSTONE
         let slot = slots[Int64(idx)]
-        let k = slot.key
-        let v = slot.value
+        let k = slot.key.getOrThrow()
+        let v = slot.value.getOrThrow()
         slot.occupied = false
         _size -= 1
         available += 1

@@ -27,8 +27,11 @@ public enum SysTag {
     | Chmod
     | Chown
     | Clonefile
+    | Clonefileat
     | Close
     | CopyFileRange
+    | Copyfile
+    | Copy
     | Fchmod
     | Fchmodat
     | Fchown
@@ -39,8 +42,20 @@ public enum SysTag {
     | Fsync
     | Ftruncate
     | Futimens
+    | Getdents64
+    | Getdirentries64
+    | Lchmod
+    | Lchown
+    | Link
     | Lseek
+    | Lstat
+    | Lutime
     | Mkdir
+    | Mkdtemp
+    | Fnctl
+    | MemfdCreate
+    | Mmap
+    | Munmap
     | Open
     | Pread
     | Pwrite
@@ -48,32 +63,68 @@ public enum SysTag {
     | Readlink
     | Rename
     | Stat
+    | Statfs
     | Symlink
     | Symlinkat
     | Unlink
+    | Utime
+    | Utimensat
     | Write
     | Getcwd
+    | Getenv
     | Chdir
+    | Fcopyfile
     | Recv
     | Send
     | Sendfile
+    | Sendmmsg
+    | Splice
     | Rmdir
     | Truncate
     | Realpath
+    | Futime
+    | PidfdOpen
     | Poll
+    | Ppoll
+    | Watch
+    | Scandir
+    | Kevent
+    | Kqueue
+    | EpollCtl
     | Kill
     | Waitpid
-    | Pipe
-    | Socketpair
-    | EpollCtl
-    | Watch
+    | PosixSpawn
+    | Getaddrinfo
     | Writev
+    | Pwritev
     | Readv
-    // spawn 相关标签 - 严格对应 Bun sys.Tag 中的 spawn/memfd/pidfd/setsockopt 等
-    | PosixSpawn      // posix_spawn
-    | MemfdCreate     // memfd_create
-    | PidfdOpen       // pidfd_open
-    | Setsockopt      // setsockopt
+    | Preadv
+    | IoctlFiclone
+    | Accept
+    | Bind
+    | Bind2
+    | Connect2
+    | Listen
+    | Pipe
+    | TryWrite
+    | Socketpair
+    | Setsockopt
+    | Statx
+    | Rm
+    | UvSpawn
+    | UvPipe
+    | UvTtySetMode
+    | UvOpenOsfhandle
+    | UvOsHomedir
+    | Tcgetattr
+    | Tcsetattr
+    | Ioctl
+    | Shutdown
+    | Signal
+    | Raise
+    | PthreadSigmask
+    | UvLoopInit
+    | UvTimer
 
     /// 获取标签名称字符串 - 对应 Bun @tagName(syscall)
     public func name(): String {
@@ -85,8 +136,11 @@ public enum SysTag {
             case Chmod => "chmod"
             case Chown => "chown"
             case Clonefile => "clonefile"
+            case Clonefileat => "clonefileat"
             case Close => "close"
             case CopyFileRange => "copy_file_range"
+            case Copyfile => "copyfile"
+            case Copy => "copyfile"
             case Fchmod => "fchmod"
             case Fchmodat => "fchmodat"
             case Fchown => "fchown"
@@ -97,8 +151,20 @@ public enum SysTag {
             case Fsync => "fsync"
             case Ftruncate => "ftruncate"
             case Futimens => "futimens"
+            case Getdents64 => "getdents64"
+            case Getdirentries64 => "getdirentries64"
+            case Lchmod => "lchmod"
+            case Lchown => "lchown"
+            case Link => "link"
             case Lseek => "lseek"
+            case Lstat => "lstat"
+            case Lutime => "lutime"
             case Mkdir => "mkdir"
+            case Mkdtemp => "mkdtemp"
+            case Fnctl => "fnctl"
+            case MemfdCreate => "memfd_create"
+            case Mmap => "mmap"
+            case Munmap => "munmap"
             case Open => "open"
             case Pread => "pread"
             case Pwrite => "pwrite"
@@ -106,31 +172,68 @@ public enum SysTag {
             case Readlink => "readlink"
             case Rename => "rename"
             case Stat => "stat"
+            case Statfs => "statfs"
             case Symlink => "symlink"
             case Symlinkat => "symlinkat"
             case Unlink => "unlink"
+            case Utime => "utime"
+            case Utimensat => "utimensat"
             case Write => "write"
             case Getcwd => "getcwd"
+            case Getenv => "getenv"
             case Chdir => "chdir"
+            case Fcopyfile => "fcopyfile"
             case Recv => "recv"
             case Send => "send"
             case Sendfile => "sendfile"
+            case Sendmmsg => "sendmmsg"
+            case Splice => "splice"
             case Rmdir => "rmdir"
             case Truncate => "truncate"
             case Realpath => "realpath"
+            case Futime => "futime"
+            case PidfdOpen => "pidfd_open"
             case Poll => "poll"
+            case Ppoll => "ppoll"
+            case Watch => "watch"
+            case Scandir => "scandir"
+            case Kevent => "kevent"
+            case Kqueue => "kqueue"
+            case EpollCtl => "epoll_ctl"
             case Kill => "kill"
             case Waitpid => "waitpid"
-            case Pipe => "pipe"
-            case Socketpair => "socketpair"
-            case EpollCtl => "epoll_ctl"
-            case Watch => "watch"
-            case Writev => "writev"
-            case Readv => "readv"
             case PosixSpawn => "posix_spawn"
-            case MemfdCreate => "memfd_create"
-            case PidfdOpen => "pidfd_open"
+            case Getaddrinfo => "getaddrinfo"
+            case Writev => "writev"
+            case Pwritev => "pwritev"
+            case Readv => "readv"
+            case Preadv => "preadv"
+            case IoctlFiclone => "ioctl_ficlone"
+            case Accept => "accept"
+            case Bind => "bind"
+            case Bind2 => "bind2"
+            case Connect2 => "connect2"
+            case Listen => "listen"
+            case Pipe => "pipe"
+            case TryWrite => "try_write"
+            case Socketpair => "socketpair"
             case Setsockopt => "setsockopt"
+            case Statx => "statx"
+            case Rm => "rm"
+            case UvSpawn => "uv_spawn"
+            case UvPipe => "uv_pipe"
+            case UvTtySetMode => "uv_tty_set_mode"
+            case UvOpenOsfhandle => "uv_open_osfhandle"
+            case UvOsHomedir => "uv_os_homedir"
+            case Tcgetattr => "tcgetattr"
+            case Tcsetattr => "tcsetattr"
+            case Ioctl => "ioctl"
+            case Shutdown => "shutdown"
+            case Signal => "signal"
+            case Raise => "raise"
+            case PthreadSigmask => "pthread_sigmask"
+            case UvLoopInit => "uv_loop_init"
+            case UvTimer => "uv_timer"
         }
     }
 }

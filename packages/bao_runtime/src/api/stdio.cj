@@ -61,7 +61,8 @@ public enum Stdio {
                 case .stdin_used_as_out => "Stdin cannot be used for stdout or stderr"
                 case .out_used_as_stdin => "Stdout and stderr cannot be used for stdin"
                 case .blob_used_as_out => "Blobs are immutable, and cannot be used for stdout/stderr"
-                case .uv_pipe => panic("TODO")
+                // 严格翻译自 Bun src/runtime/api/bun/spawn/stdio.zig ToSpawnOptsError.toStr: uv_pipe carries the sys error.
+                case .uv_pipe(let err) => err.toString()
             }
         }
 

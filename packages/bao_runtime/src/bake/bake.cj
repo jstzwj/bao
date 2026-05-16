@@ -20,14 +20,15 @@ public enum Mode {
 
 /// Side 枚举
 public enum Side {
-    | None
-}
-    }
+    | client
+    | server
 }
 
-/// Graph 枚举
+/// Graph 枚举 — 渲染目标
 public enum Graph {
-    | None
+    | client
+    | server
+    | ssr
 }
 
 /// Zig 版本的 TypeScript 定义 'Bake.Options'
@@ -156,6 +157,16 @@ public class Framework {
     public static let react_install_command: String = "bun i react@experimental react-dom@experimental react-server-dom-bun react-refresh@experimental"
 }
 
+/// 运行时嵌入资源加载器。
+/// 对应 Bun: bun.runtimeEmbedFile / bun_core::runtime_embed_file!。
+public class RuntimeEmbedFile {
+    public static func codegen(path: String): String {
+        return runtimeEmbedFileCodegenFFI(path)
+    }
+}
+
+extern func runtimeEmbedFileCodegenFFI(path: String): String
+
 /// HMR 运行时
 public class HmrRuntime {
     public var code: String
@@ -170,10 +181,10 @@ public class HmrRuntime {
 
 /// 获取 HMR 运行时代码
 public func getHmrRuntime(side: Side): HmrRuntime {
-    // 在实际实现中，这些会加载嵌入的 JS 代码
+    // 对应 Bun bake.zig 中嵌入的 hmr-runtime-client.ts / hmr-runtime-server.ts。
     match (side) {
-        | client => HmrRuntime(code: "// bake.client.js HMR runtime placeholder")
-        | server => HmrRuntime(code: "// bake.server.js HMR runtime placeholder")
+        | client => HmrRuntime(code: hmrRuntimeClientSource)
+        | server => HmrRuntime(code: hmrRuntimeServerSource)
     }
 }
 

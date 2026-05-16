@@ -32,7 +32,7 @@ import bao_collections.*
 /// YAML 值类型标签
 public enum YamlKind {
     | Null       // null / ~
-    | Bool       // true / false / True / False / TRUE / FALSE
+    | Boolean    // true / false / True / False / TRUE / FALSE
     | Int        // 整数
     | Float      // 浮点数 (含 .inf, .nan)
     | String     // 字符串
@@ -63,9 +63,9 @@ public class YamlValue {
     /// 别名引用
     public var alias: String
 
-    public static let NULL: YamlValue = YamlValue(YamlKind.Null)
-    public static let TRUE: YamlValue = YamlValue(YamlKind.Bool, true)
-    public static let FALSE: YamlValue = YamlValue(YamlKind.Bool, false)
+    public static func nullValue(): YamlValue { return YamlValue(YamlKind.Null) }
+    public static func trueValue(): YamlValue { return YamlValue(YamlKind.Boolean, true) }
+    public static func falseValue(): YamlValue { return YamlValue(YamlKind.Boolean, false) }
 
     public init(kind: YamlKind) {
         this.kind = kind
@@ -189,7 +189,7 @@ public class YamlValue {
 
     /// 获取布尔值
     public func asBool(): ?Bool {
-        if (kind == YamlKind.Bool) { Some(boolValue) } else { None }
+        if (kind == YamlKind.Boolean) { Some(boolValue) } else { None }
     }
 }
 
@@ -223,7 +223,7 @@ public class YamlParser <: BaseParser {
     /// 对应 Bun: pub fn parse(source, log, allocator) ParseError!Expr
     public func parse(): ParseResult<YamlValue> {
         if (source.size == Int64(0)) {
-            return ParseResult<YamlValue>(YamlValue.NULL)
+            return ParseResult<YamlValue>(YamlValue.nullValue())
         }
         let result = ParseResult<YamlValue>()
         skipWhitespace()
@@ -266,13 +266,13 @@ public class YamlParser <: BaseParser {
     private func parseDocument(): YamlValue {
         skipWhitespace()
         if (pos >= source.size) {
-            return YamlValue.NULL
+            return YamlValue.nullValue()
         }
         // 空文档
         if (pos + Int64(3) <= source.size &&
             (source[Int64(pos)..Int64(pos + Int64(3))] == "---" ||
              source[Int64(pos)..Int64(pos + Int64(3))] == "...")) {
-            return YamlValue.NULL
+            return YamlValue.nullValue()
         }
         return parseNode(Int64(0))
     }
@@ -282,7 +282,7 @@ public class YamlParser <: BaseParser {
     private func parseNode(minIndent: Int64): YamlValue {
         skipWhitespace()
         if (pos >= source.size) {
-            return YamlValue.NULL
+            return YamlValue.nullValue()
         }
         let ch = source[Int64(pos)]
         // 流式映射
@@ -407,7 +407,7 @@ public class YamlParser <: BaseParser {
             skipWhitespaceNoNewline()
             if (pos >= source.size || source[Int64(pos)] == '\n') {
                 // 空项或嵌套块
-                arr.arrayValue.append(YamlValue.NULL)
+                arr.arrayValue.append(YamlValue.nullValue())
                 skipToNextLine()
                 continue
             }
@@ -514,16 +514,16 @@ public class YamlParser <: BaseParser {
 
     /// 解析 YAML 引号字符串
     private func parseYAMLString(): YamlValue {
-        let quote = source[Int64(pos)]
+        let quoteChar = source[Int64(pos)]
         advance() // consume quote
         let sb = StringBuilder()
         while (pos < source.size) {
             let ch = source[Int64(pos)]
-            if (ch == quote) {
+            if (ch == quoteChar) {
                 advance()
                 break
             }
-            if (ch == '\\' && quote == '"') {
+            if (ch == '\\' && quoteChar == '"') {
                 advance()
                 if (pos < source.size) {
                     let escaped = source[Int64(pos)]
@@ -640,14 +640,14 @@ public class YamlParser <: BaseParser {
         }
         // null
         if (text == "null" || text == "~" || text == "Null" || text == "NULL") {
-            return YamlValue.NULL
+            return YamlValue.nullValue()
         }
         // bool
         if (text == "true" || text == "True" || text == "TRUE") {
-            return YamlValue.TRUE
+            return YamlValue.trueValue()
         }
         if (text == "false" || text == "False" || text == "FALSE") {
-            return YamlValue.FALSE
+            return YamlValue.falseValue()
         }
         // 整数
         match (parseIntStrict(text)) {

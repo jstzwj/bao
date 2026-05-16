@@ -10,6 +10,17 @@ package bao_runtime.node.util
 public enum ParseArgType {
     | boolean_
     | string_
+
+    public operator func ==(right: ParseArgType): Bool {
+        match (this) {
+            case boolean_ => match (right) { case boolean_ => true case _ => false }
+            case string_ => match (right) { case string_ => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: ParseArgType): Bool {
+        !(this == right)
+    }
 }
 
 // ============================================================================
@@ -19,7 +30,7 @@ public enum ParseArgType {
 public class ParseArgOption {
     public var longName: String = ""
     public var shortName: String = ""
-    public var `type`: ParseArgType = ParseArgType.boolean__
+    public var `type`: ParseArgType = ParseArgType.boolean_
     public var multiple: Bool = false
     public var defaultValue: ?ParseArgValue = None
 
@@ -45,6 +56,22 @@ public enum TokenSubtype {
     | loneLongOption
     | longOptionAndValue
     | positional
+
+    public operator func ==(right: TokenSubtype): Bool {
+        match (this) {
+            case optionTerminator => match (right) { case optionTerminator => true case _ => false }
+            case loneShortOption => match (right) { case loneShortOption => true case _ => false }
+            case shortOptionGroup => match (right) { case shortOptionGroup => true case _ => false }
+            case shortOptionAndValue => match (right) { case shortOptionAndValue => true case _ => false }
+            case loneLongOption => match (right) { case loneLongOption => true case _ => false }
+            case longOptionAndValue => match (right) { case longOptionAndValue => true case _ => false }
+            case positional => match (right) { case positional => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: TokenSubtype): Bool {
+        !(this == right)
+    }
 }
 
 // ============================================================================
@@ -71,8 +98,8 @@ public class TokenClassifier {
                 return TokenSubtype.loneLongOption
             } else if (arg.startsWith("-")) {
                 let firstChar = arg[1..2]
-                let optIdx = findOptionByShortName(firstChar, options: options)
-                if (optIdx != None) {
+                let optIdx = findOptionByShortName(firstChar, options)
+                if (optIdx.isSome()) {
                     if (options[Int64(optIdx.getOrThrow())].`type` == ParseArgType.string_) {
                         return TokenSubtype.shortOptionAndValue
                     }

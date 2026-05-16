@@ -9,6 +9,7 @@
 package bao_hash
 
 import bao_core.*
+import std.collection.*
 
 // ============================================================================
 // Hex/Base64 编码工具
@@ -17,13 +18,13 @@ import bao_core.*
 /// Hex 编码工具
 public class HexEncode {
     private static let HEX_CHARS: Array<UInt8> = [
-        UInt8('0'), UInt8('1'), UInt8('2'), UInt8('3'), UInt8('4'), UInt8('5'), UInt8('6'), UInt8('7'),
-        UInt8('8'), UInt8('9'), UInt8('a'), UInt8('b'), UInt8('c'), UInt8('d'), UInt8('e'), UInt8('f')
+        UInt8(0x30), UInt8(0x31), UInt8(0x32), UInt8(0x33), UInt8(0x34), UInt8(0x35), UInt8(0x36), UInt8(0x37),
+        UInt8(0x38), UInt8(0x39), UInt8(0x61), UInt8(0x62), UInt8(0x63), UInt8(0x64), UInt8(0x65), UInt8(0x66)
     ]
 
     private static let HEX_CHARS_UPPER: Array<UInt8> = [
-        UInt8('0'), UInt8('1'), UInt8('2'), UInt8('3'), UInt8('4'), UInt8('5'), UInt8('6'), UInt8('7'),
-        UInt8('8'), UInt8('9'), UInt8('A'), UInt8('B'), UInt8('C'), UInt8('D'), UInt8('E'), UInt8('F')
+        UInt8(0x30), UInt8(0x31), UInt8(0x32), UInt8(0x33), UInt8(0x34), UInt8(0x35), UInt8(0x36), UInt8(0x37),
+        UInt8(0x38), UInt8(0x39), UInt8(0x41), UInt8(0x42), UInt8(0x43), UInt8(0x44), UInt8(0x45), UInt8(0x46)
     ]
 
     /// 字节数组转小写 hex 字符串
@@ -32,8 +33,8 @@ public class HexEncode {
         for (b in bytes) {
             let high = (Int64(b) >> 4) & 0x0F
             let low = Int64(b) & 0x0F
-            sb.append(Char(Int32(HEX_CHARS[high])))
-            sb.append(Char(Int32(HEX_CHARS[low])))
+            sb.append(Rune(Int32(HEX_CHARS[high])))
+            sb.append(Rune(Int32(HEX_CHARS[low])))
         }
         return sb.toString()
     }
@@ -44,30 +45,30 @@ public class HexEncode {
         for (b in bytes) {
             let high = (Int64(b) >> 4) & 0x0F
             let low = Int64(b) & 0x0F
-            sb.append(Char(Int32(HEX_CHARS_UPPER[high])))
-            sb.append(Char(Int32(HEX_CHARS_UPPER[low])))
+            sb.append(Rune(Int32(HEX_CHARS_UPPER[high])))
+            sb.append(Rune(Int32(HEX_CHARS_UPPER[low])))
         }
         return sb.toString()
     }
 
     /// Hex 字符串解码为字节数组
     public static func decode(hex: String): Array<UInt8> {
-        var bytes = Array<UInt8>()
+        var bytes = ArrayList<UInt8>()
         var i = 0
         while (i + 1 < hex.size) {
             let high = hexCharValue(hex[Int64(i)])
             let low = hexCharValue(hex[Int64(i + 1)])
-            bytes.append(UInt8((high << 4) | low))
+            bytes.add(UInt8((high << 4) | low))
             i += 2
         }
-        return bytes
+        return bytes.toArray()
     }
 
-    private static func hexCharValue(ch: Char): Int64 {
-        let v = Int64(ch.value)
-        if (v >= Int64('0') && v <= Int64('9')) { return v - Int64('0') }
-        if (v >= Int64('a') && v <= Int64('f')) { return v - Int64('a') + 10 }
-        if (v >= Int64('A') && v <= Int64('F')) { return v - Int64('A') + 10 }
+    private static func hexCharValue(ch: UInt8): Int64 {
+        let v = Int64(ch)
+        if (v >= 0x30 && v <= 0x39) { return v - 0x30 }
+        if (v >= 0x61 && v <= 0x66) { return v - 0x61 + 10 }
+        if (v >= 0x41 && v <= 0x46) { return v - 0x41 + 10 }
         return 0
     }
 }
@@ -75,14 +76,14 @@ public class HexEncode {
 /// Base64 编码工具
 public class Base64Encode {
     private static let TABLE: Array<UInt8> = [
-        UInt8('A'), UInt8('B'), UInt8('C'), UInt8('D'), UInt8('E'), UInt8('F'), UInt8('G'), UInt8('H'),
-        UInt8('I'), UInt8('J'), UInt8('K'), UInt8('L'), UInt8('M'), UInt8('N'), UInt8('O'), UInt8('P'),
-        UInt8('Q'), UInt8('R'), UInt8('S'), UInt8('T'), UInt8('U'), UInt8('V'), UInt8('W'), UInt8('X'),
-        UInt8('Y'), UInt8('Z'), UInt8('a'), UInt8('b'), UInt8('c'), UInt8('d'), UInt8('e'), UInt8('f'),
-        UInt8('g'), UInt8('h'), UInt8('i'), UInt8('j'), UInt8('k'), UInt8('l'), UInt8('m'), UInt8('n'),
-        UInt8('o'), UInt8('p'), UInt8('q'), UInt8('r'), UInt8('s'), UInt8('t'), UInt8('u'), UInt8('v'),
-        UInt8('w'), UInt8('x'), UInt8('y'), UInt8('z'), UInt8('0'), UInt8('1'), UInt8('2'), UInt8('3'),
-        UInt8('4'), UInt8('5'), UInt8('6'), UInt8('7'), UInt8('8'), UInt8('9'), UInt8('+'), UInt8('/')
+        UInt8(0x41), UInt8(0x42), UInt8(0x43), UInt8(0x44), UInt8(0x45), UInt8(0x46), UInt8(0x47), UInt8(0x48),
+        UInt8(0x49), UInt8(0x4a), UInt8(0x4b), UInt8(0x4c), UInt8(0x4d), UInt8(0x4e), UInt8(0x4f), UInt8(0x50),
+        UInt8(0x51), UInt8(0x52), UInt8(0x53), UInt8(0x54), UInt8(0x55), UInt8(0x56), UInt8(0x57), UInt8(0x58),
+        UInt8(0x59), UInt8(0x5a), UInt8(0x61), UInt8(0x62), UInt8(0x63), UInt8(0x64), UInt8(0x65), UInt8(0x66),
+        UInt8(0x67), UInt8(0x68), UInt8(0x69), UInt8(0x6a), UInt8(0x6b), UInt8(0x6c), UInt8(0x6d), UInt8(0x6e),
+        UInt8(0x6f), UInt8(0x70), UInt8(0x71), UInt8(0x72), UInt8(0x73), UInt8(0x74), UInt8(0x75), UInt8(0x76),
+        UInt8(0x77), UInt8(0x78), UInt8(0x79), UInt8(0x7a), UInt8(0x30), UInt8(0x31), UInt8(0x32), UInt8(0x33),
+        UInt8(0x34), UInt8(0x35), UInt8(0x36), UInt8(0x37), UInt8(0x38), UInt8(0x39), UInt8(0x2b), UInt8(0x2f)
     ]
 
     /// 编码为 Base64 字符串
@@ -94,14 +95,14 @@ public class Base64Encode {
             let b1 = if (i + 1 < bytes.size) { Int64(bytes[i + 1]) } else { 0 }
             let b2 = if (i + 2 < bytes.size) { Int64(bytes[i + 2]) } else { 0 }
 
-            sb.append(Char(Int32(TABLE[(b0 >> 2) & 0x3F])))
-            sb.append(Char(Int32(TABLE[((b0 << 4) | (b1 >> 4)) & 0x3F])))
+            sb.append(Rune(Int32(TABLE[(b0 >> 2) & 0x3F])))
+            sb.append(Rune(Int32(TABLE[((b0 << 4) | (b1 >> 4)) & 0x3F])))
 
             if (i + 1 < bytes.size) {
-                sb.append(Char(Int32(TABLE[((b1 << 2) | (b2 >> 6)) & 0x3F])))
+                sb.append(Rune(Int32(TABLE[((b1 << 2) | (b2 >> 6)) & 0x3F])))
             }
             if (i + 2 < bytes.size) {
-                sb.append(Char(Int32(TABLE[b2 & 0x3F])))
+                sb.append(Rune(Int32(TABLE[b2 & 0x3F])))
             }
             i += 3
         }
@@ -132,29 +133,29 @@ private class ShaPadding {
     /// 填充 512 位块的消息 (SHA-1/256)
     public static func pad512(data: Array<UInt8>): Array<UInt8> {
         let bitLen = Int64(data.size) * 8
-        var padded = Array<UInt8>()
-        for (b in data) { padded.append(b) }
-        padded.append(UInt8(0x80))
-        while ((padded.size % 64) != 56) { padded.append(UInt8(0)) }
+        var padded = ArrayList<UInt8>()
+        for (b in data) { padded.add(b) }
+        padded.add(UInt8(0x80))
+        while ((padded.size % 64) != 56) { padded.add(UInt8(0)) }
         // 追加 64 位大端长度
         for (i in 0..7) {
-            padded.append(UInt8((bitLen >> (56 - i * 8)) & 0xFF))
+            padded.add(UInt8((bitLen >> (56 - i * 8)) & 0xFF))
         }
-        return padded
+        return padded.toArray()
     }
 
     /// 填充 1024 位块的消息 (SHA-384/512)
     public static func pad1024(data: Array<UInt8>): Array<UInt8> {
         let bitLen = Int64(data.size) * 8
-        var padded = Array<UInt8>()
-        for (b in data) { padded.append(b) }
-        padded.append(UInt8(0x80))
-        while ((padded.size % 128) != 112) { padded.append(UInt8(0)) }
+        var padded = ArrayList<UInt8>()
+        for (b in data) { padded.add(b) }
+        padded.add(UInt8(0x80))
+        while ((padded.size % 128) != 112) { padded.add(UInt8(0)) }
         // 追加 128 位大端长度
         for (i in 0..15) {
-            padded.append(UInt8((bitLen >> (120 - i * 8)) & 0xFF))
+            padded.add(UInt8((bitLen >> (120 - i * 8)) & 0xFF))
         }
-        return padded
+        return padded.toArray()
     }
 }
 
@@ -191,7 +192,7 @@ public class Sha1 {
 
     public init() {
         h0 = H0[0]; h1 = H0[1]; h2 = H0[2]; h3 = H0[3]; h4 = H0[4]
-        buffer = Array<UInt8>(64, item: UInt8(0))
+        buffer = Array<UInt8>(64, repeat: UInt8(0))
         bufferSize = 0
         totalBytes = 0
     }
@@ -235,7 +236,7 @@ public class Sha1 {
 
         // 处理完整的 64 字节块
         while (offset + 64 <= data.size) {
-            var block = Array<UInt8>(64, item: UInt8(0))
+            var block = Array<UInt8>(64, repeat: UInt8(0))
             for (i in 0..64) { block[i] = data[offset + i] }
             processBlock(block)
             offset += 64
@@ -278,20 +279,20 @@ public class Sha1 {
         processBlock(buffer)
 
         // 输出
-        var result = Array<UInt8>()
+        var result = ArrayList<UInt8>()
         for (h in [h0, h1, h2, h3, h4]) {
-            result.append(UInt8((h >> 24) & UInt32(0xFF)))
-            result.append(UInt8((h >> 16) & UInt32(0xFF)))
-            result.append(UInt8((h >> 8) & UInt32(0xFF)))
-            result.append(UInt8(h & UInt32(0xFF)))
+            result.add(UInt8((h >> 24) & UInt32(0xFF)))
+            result.add(UInt8((h >> 16) & UInt32(0xFF)))
+            result.add(UInt8((h >> 8) & UInt32(0xFF)))
+            result.add(UInt8(h & UInt32(0xFF)))
         }
-        return result
+        return result.toArray()
     }
 
     /// 处理一个 512 位 (64 字节) 块
     private func processBlock(block: Array<UInt8>): Unit {
         // 展开消息调度
-        var w = Array<UInt32>(80, item: UInt32(0))
+        var w = Array<UInt32>(80, repeat: UInt32(0))
         for (j in 0..16) {
             let off = j * 4
             w[j] = (UInt32(block[off]) << 24) | (UInt32(block[off + 1]) << 16) |
@@ -307,7 +308,7 @@ public class Sha1 {
             var f: UInt32 = UInt32(0)
             var k: UInt32 = UInt32(0)
             if (j < 20) {
-                f = (b & c) | (~b & d); k = UInt32(0x5A827999)
+                f = (b & c) | ((b ^ UInt32(0xFFFFFFFF)) & d); k = UInt32(0x5A827999)
             } else if (j < 40) {
                 f = b ^ c ^ d; k = UInt32(0x6ED9EBA1)
             } else if (j < 60) {
@@ -376,7 +377,7 @@ public class Sha256 {
     public init() {
         h0 = H0[0]; h1 = H0[1]; h2 = H0[2]; h3 = H0[3]
         h4 = H0[4]; h5 = H0[5]; h6 = H0[6]; h7 = H0[7]
-        buffer = Array<UInt8>(64, item: UInt8(0))
+        buffer = Array<UInt8>(64, repeat: UInt8(0))
         bufferSize = 0
         totalBytes = 0
     }
@@ -409,7 +410,7 @@ public class Sha256 {
         }
 
         while (offset + 64 <= data.size) {
-            var block = Array<UInt8>(64, item: UInt8(0))
+            var block = Array<UInt8>(64, repeat: UInt8(0))
             for (i in 0..64) { block[i] = data[offset + i] }
             processBlock(block)
             offset += 64
@@ -431,18 +432,18 @@ public class Sha256 {
         for (i in 0..7) { buffer[56 + i] = UInt8((bitLen >> (56 - i * 8)) & 0xFF) }
         processBlock(buffer)
 
-        var result = Array<UInt8>()
+        var result = ArrayList<UInt8>()
         for (h in [h0, h1, h2, h3, h4, h5, h6, h7]) {
-            result.append(UInt8((h >> 24) & UInt32(0xFF)))
-            result.append(UInt8((h >> 16) & UInt32(0xFF)))
-            result.append(UInt8((h >> 8) & UInt32(0xFF)))
-            result.append(UInt8(h & UInt32(0xFF)))
+            result.add(UInt8((h >> 24) & UInt32(0xFF)))
+            result.add(UInt8((h >> 16) & UInt32(0xFF)))
+            result.add(UInt8((h >> 8) & UInt32(0xFF)))
+            result.add(UInt8(h & UInt32(0xFF)))
         }
-        return result
+        return result.toArray()
     }
 
     private func processBlock(block: Array<UInt8>): Unit {
-        var w = Array<UInt32>(64, item: UInt32(0))
+        var w = Array<UInt32>(64, repeat: UInt32(0))
         for (j in 0..16) {
             let off = j * 4
             w[j] = (UInt32(block[off]) << 24) | (UInt32(block[off + 1]) << 16) |
@@ -459,7 +460,7 @@ public class Sha256 {
 
         for (j in 0..64) {
             let S1 = rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25)
-            let ch = (e & f) ^ (~e & g)
+            let ch = (e & f) ^ ((e ^ UInt32(0xFFFFFFFF)) & g)
             let temp1 = h + S1 + ch + K[j] + w[j]
             let S0 = rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22)
             let maj = (a & b) ^ (a & c) ^ (b & c)
@@ -493,34 +494,34 @@ public class Sha512 {
 
     // 初始哈希值 (前8个素数的立方根的小数部分前64位)
     private static let H0: Array<UInt64> = [
-        UInt64(0x6a09e667f3bcc908), UInt64(0xbb67ae8584caa73b),
-        UInt64(0x3c6ef372fe94f82b), UInt64(0xa54ff53a5f1d36f1),
-        UInt64(0x510e527fade682d1), UInt64(0x9b05688c2b3e6c1f),
-        UInt64(0x1f83d9abfb41bd6b), UInt64(0x5be0cd19137e2179)
+        ((UInt64(0x6a09e667) << UInt64(32)) | UInt64(0xf3bcc908)), ((UInt64(0xbb67ae85) << UInt64(32)) | UInt64(0x84caa73b)),
+        ((UInt64(0x3c6ef372) << UInt64(32)) | UInt64(0xfe94f82b)), ((UInt64(0xa54ff53a) << UInt64(32)) | UInt64(0x5f1d36f1)),
+        ((UInt64(0x510e527f) << UInt64(32)) | UInt64(0xade682d1)), ((UInt64(0x9b05688c) << UInt64(32)) | UInt64(0x2b3e6c1f)),
+        ((UInt64(0x1f83d9ab) << UInt64(32)) | UInt64(0xfb41bd6b)), ((UInt64(0x5be0cd19) << UInt64(32)) | UInt64(0x137e2179))
     ]
 
     // 80 个轮常量 (前80个素数的立方根的小数部分前64位)
     private static let K: Array<UInt64> = [
-        UInt64(0x428a2f98d728ae22), UInt64(0x7137449123ef65cd), UInt64(0xb5c0fbcfec4d3b2f), UInt64(0xe9b5dba58189dbbc),
-        UInt64(0x3956c25bf348b538), UInt64(0x59f111f1b605d019), UInt64(0x923f82a4af194f9b), UInt64(0xab1c5ed5da6d8118),
-        UInt64(0xd807aa98a3030242), UInt64(0x12835b0145706fbe), UInt64(0x243185be4ee4b28c), UInt64(0x550c7dc3d5ffb4e2),
-        UInt64(0x72be5d74f27b896f), UInt64(0x80deb1fe3b1696b1), UInt64(0x9bdc06a725c71235), UInt64(0xc19bf174cf692694),
-        UInt64(0xe49b69c19ef14ad2), UInt64(0xefbe4786384f25e3), UInt64(0x0fc19dc68b8cd5b5), UInt64(0x240ca1cc77ac9c65),
-        UInt64(0x2de92c6f592b0275), UInt64(0x4a7484aa6ea6e483), UInt64(0x5cb0a9dcbd41fbd4), UInt64(0x76f988da831153b5),
-        UInt64(0x983e5152ee66dfab), UInt64(0xa831c66d2db43210), UInt64(0xb00327c898fb213f), UInt64(0xbf597fc7beef0ee4),
-        UInt64(0xc6e00bf33da88fc2), UInt64(0xd5a79147930aa725), UInt64(0x06ca6351e003826f), UInt64(0x142929670a0e6e70),
-        UInt64(0x27b70a8546d22ffc), UInt64(0x2e1b21385c26c926), UInt64(0x4d2c6dfc5ac42aed), UInt64(0x53380d139d95b3df),
-        UInt64(0x650a73548baf63de), UInt64(0x766a0abb3c77b2a8), UInt64(0x81c2c92e47edaee6), UInt64(0x92722c851482353b),
-        UInt64(0xa2bfe8a14cf10364), UInt64(0xa81a664bbc423001), UInt64(0xc24b8b70d0f89791), UInt64(0xc76c51a30654be30),
-        UInt64(0xd192e819d6ef5218), UInt64(0xd69906245565a910), UInt64(0xf40e35855771202a), UInt64(0x106aa07032bbd1b8),
-        UInt64(0x19a4c116b8d2d0c8), UInt64(0x1e376c085141ab53), UInt64(0x2748774cdf8eeb99), UInt64(0x34b0bcb5e19b48a8),
-        UInt64(0x391c0cb3c5c95a63), UInt64(0x4ed8aa4ae3418acb), UInt64(0x5b9cca4f7763e373), UInt64(0x682e6ff3d6b2b8a3),
-        UInt64(0x748f82ee5defb2fc), UInt64(0x78a5636f43172f60), UInt64(0x84c87814a1f0ab72), UInt64(0x8cc702081a6439ec),
-        UInt64(0x90befffa23631e28), UInt64(0xa4506cebde82bde9), UInt64(0xbef9a3f7b2c67915), UInt64(0xc67178f2e372532b),
-        UInt64(0xca273eceea26619c), UInt64(0xd186b8c721c0c207), UInt64(0xeada7dd6cde0eb1e), UInt64(0xf57d4f7fee6ed178),
-        UInt64(0x06f067aa72176fba), UInt64(0x0a637dc5a2c898a6), UInt64(0x113f9804bef90dae), UInt64(0x1b710b35131c471b),
-        UInt64(0x28db77f523047d84), UInt64(0x32caab7b40c72493), UInt64(0x3c9ebe0a15c9bebc), UInt64(0x431d67c49c100d4c),
-        UInt64(0x4cc5d4becb3e42b6), UInt64(0x597f299cfc657e2a), UInt64(0x5fcb6fab3ad6faec), UInt64(0x6c44198c4a475817)
+        ((UInt64(0x428a2f98) << UInt64(32)) | UInt64(0xd728ae22)), ((UInt64(0x71374491) << UInt64(32)) | UInt64(0x23ef65cd)), ((UInt64(0xb5c0fbcf) << UInt64(32)) | UInt64(0xec4d3b2f)), ((UInt64(0xe9b5dba5) << UInt64(32)) | UInt64(0x8189dbbc)),
+        ((UInt64(0x3956c25b) << UInt64(32)) | UInt64(0xf348b538)), ((UInt64(0x59f111f1) << UInt64(32)) | UInt64(0xb605d019)), ((UInt64(0x923f82a4) << UInt64(32)) | UInt64(0xaf194f9b)), ((UInt64(0xab1c5ed5) << UInt64(32)) | UInt64(0xda6d8118)),
+        ((UInt64(0xd807aa98) << UInt64(32)) | UInt64(0xa3030242)), ((UInt64(0x12835b01) << UInt64(32)) | UInt64(0x45706fbe)), ((UInt64(0x243185be) << UInt64(32)) | UInt64(0x4ee4b28c)), ((UInt64(0x550c7dc3) << UInt64(32)) | UInt64(0xd5ffb4e2)),
+        ((UInt64(0x72be5d74) << UInt64(32)) | UInt64(0xf27b896f)), ((UInt64(0x80deb1fe) << UInt64(32)) | UInt64(0x3b1696b1)), ((UInt64(0x9bdc06a7) << UInt64(32)) | UInt64(0x25c71235)), ((UInt64(0xc19bf174) << UInt64(32)) | UInt64(0xcf692694)),
+        ((UInt64(0xe49b69c1) << UInt64(32)) | UInt64(0x9ef14ad2)), ((UInt64(0xefbe4786) << UInt64(32)) | UInt64(0x384f25e3)), ((UInt64(0x0fc19dc6) << UInt64(32)) | UInt64(0x8b8cd5b5)), ((UInt64(0x240ca1cc) << UInt64(32)) | UInt64(0x77ac9c65)),
+        ((UInt64(0x2de92c6f) << UInt64(32)) | UInt64(0x592b0275)), ((UInt64(0x4a7484aa) << UInt64(32)) | UInt64(0x6ea6e483)), ((UInt64(0x5cb0a9dc) << UInt64(32)) | UInt64(0xbd41fbd4)), ((UInt64(0x76f988da) << UInt64(32)) | UInt64(0x831153b5)),
+        ((UInt64(0x983e5152) << UInt64(32)) | UInt64(0xee66dfab)), ((UInt64(0xa831c66d) << UInt64(32)) | UInt64(0x2db43210)), ((UInt64(0xb00327c8) << UInt64(32)) | UInt64(0x98fb213f)), ((UInt64(0xbf597fc7) << UInt64(32)) | UInt64(0xbeef0ee4)),
+        ((UInt64(0xc6e00bf3) << UInt64(32)) | UInt64(0x3da88fc2)), ((UInt64(0xd5a79147) << UInt64(32)) | UInt64(0x930aa725)), ((UInt64(0x06ca6351) << UInt64(32)) | UInt64(0xe003826f)), ((UInt64(0x14292967) << UInt64(32)) | UInt64(0x0a0e6e70)),
+        ((UInt64(0x27b70a85) << UInt64(32)) | UInt64(0x46d22ffc)), ((UInt64(0x2e1b2138) << UInt64(32)) | UInt64(0x5c26c926)), ((UInt64(0x4d2c6dfc) << UInt64(32)) | UInt64(0x5ac42aed)), ((UInt64(0x53380d13) << UInt64(32)) | UInt64(0x9d95b3df)),
+        ((UInt64(0x650a7354) << UInt64(32)) | UInt64(0x8baf63de)), ((UInt64(0x766a0abb) << UInt64(32)) | UInt64(0x3c77b2a8)), ((UInt64(0x81c2c92e) << UInt64(32)) | UInt64(0x47edaee6)), ((UInt64(0x92722c85) << UInt64(32)) | UInt64(0x1482353b)),
+        ((UInt64(0xa2bfe8a1) << UInt64(32)) | UInt64(0x4cf10364)), ((UInt64(0xa81a664b) << UInt64(32)) | UInt64(0xbc423001)), ((UInt64(0xc24b8b70) << UInt64(32)) | UInt64(0xd0f89791)), ((UInt64(0xc76c51a3) << UInt64(32)) | UInt64(0x0654be30)),
+        ((UInt64(0xd192e819) << UInt64(32)) | UInt64(0xd6ef5218)), ((UInt64(0xd6990624) << UInt64(32)) | UInt64(0x5565a910)), ((UInt64(0xf40e3585) << UInt64(32)) | UInt64(0x5771202a)), ((UInt64(0x106aa070) << UInt64(32)) | UInt64(0x32bbd1b8)),
+        ((UInt64(0x19a4c116) << UInt64(32)) | UInt64(0xb8d2d0c8)), ((UInt64(0x1e376c08) << UInt64(32)) | UInt64(0x5141ab53)), ((UInt64(0x2748774c) << UInt64(32)) | UInt64(0xdf8eeb99)), ((UInt64(0x34b0bcb5) << UInt64(32)) | UInt64(0xe19b48a8)),
+        ((UInt64(0x391c0cb3) << UInt64(32)) | UInt64(0xc5c95a63)), ((UInt64(0x4ed8aa4a) << UInt64(32)) | UInt64(0xe3418acb)), ((UInt64(0x5b9cca4f) << UInt64(32)) | UInt64(0x7763e373)), ((UInt64(0x682e6ff3) << UInt64(32)) | UInt64(0xd6b2b8a3)),
+        ((UInt64(0x748f82ee) << UInt64(32)) | UInt64(0x5defb2fc)), ((UInt64(0x78a5636f) << UInt64(32)) | UInt64(0x43172f60)), ((UInt64(0x84c87814) << UInt64(32)) | UInt64(0xa1f0ab72)), ((UInt64(0x8cc70208) << UInt64(32)) | UInt64(0x1a6439ec)),
+        ((UInt64(0x90befffa) << UInt64(32)) | UInt64(0x23631e28)), ((UInt64(0xa4506ceb) << UInt64(32)) | UInt64(0xde82bde9)), ((UInt64(0xbef9a3f7) << UInt64(32)) | UInt64(0xb2c67915)), ((UInt64(0xc67178f2) << UInt64(32)) | UInt64(0xe372532b)),
+        ((UInt64(0xca273ece) << UInt64(32)) | UInt64(0xea26619c)), ((UInt64(0xd186b8c7) << UInt64(32)) | UInt64(0x21c0c207)), ((UInt64(0xeada7dd6) << UInt64(32)) | UInt64(0xcde0eb1e)), ((UInt64(0xf57d4f7f) << UInt64(32)) | UInt64(0xee6ed178)),
+        ((UInt64(0x06f067aa) << UInt64(32)) | UInt64(0x72176fba)), ((UInt64(0x0a637dc5) << UInt64(32)) | UInt64(0xa2c898a6)), ((UInt64(0x113f9804) << UInt64(32)) | UInt64(0xbef90dae)), ((UInt64(0x1b710b35) << UInt64(32)) | UInt64(0x131c471b)),
+        ((UInt64(0x28db77f5) << UInt64(32)) | UInt64(0x23047d84)), ((UInt64(0x32caab7b) << UInt64(32)) | UInt64(0x40c72493)), ((UInt64(0x3c9ebe0a) << UInt64(32)) | UInt64(0x15c9bebc)), ((UInt64(0x431d67c4) << UInt64(32)) | UInt64(0x9c100d4c)),
+        ((UInt64(0x4cc5d4be) << UInt64(32)) | UInt64(0xcb3e42b6)), ((UInt64(0x597f299c) << UInt64(32)) | UInt64(0xfc657e2a)), ((UInt64(0x5fcb6fab) << UInt64(32)) | UInt64(0x3ad6faec)), ((UInt64(0x6c44198c) << UInt64(32)) | UInt64(0x4a475817))
     ]
 
     private var h0: UInt64; private var h1: UInt64
@@ -534,7 +535,7 @@ public class Sha512 {
     public init() {
         h0 = H0[0]; h1 = H0[1]; h2 = H0[2]; h3 = H0[3]
         h4 = H0[4]; h5 = H0[5]; h6 = H0[6]; h7 = H0[7]
-        buffer = Array<UInt8>(128, item: UInt8(0))
+        buffer = Array<UInt8>(128, repeat: UInt8(0))
         bufferSize = 0
         totalBytes = 0
     }
@@ -567,7 +568,7 @@ public class Sha512 {
         }
 
         while (offset + 128 <= data.size) {
-            var block = Array<UInt8>(128, item: UInt8(0))
+            var block = Array<UInt8>(128, repeat: UInt8(0))
             for (i in 0..128) { block[i] = data[offset + i] }
             processBlock(block)
             offset += 128
@@ -591,22 +592,22 @@ public class Sha512 {
         for (i in 0..7) { buffer[120 + i] = UInt8((bitLen >> (56 - i * 8)) & 0xFF) }
         processBlock(buffer)
 
-        var result = Array<UInt8>()
+        var result = ArrayList<UInt8>()
         for (h in [h0, h1, h2, h3, h4, h5, h6, h7]) {
-            result.append(UInt8((h >> 56) & UInt64(0xFF)))
-            result.append(UInt8((h >> 48) & UInt64(0xFF)))
-            result.append(UInt8((h >> 40) & UInt64(0xFF)))
-            result.append(UInt8((h >> 32) & UInt64(0xFF)))
-            result.append(UInt8((h >> 24) & UInt64(0xFF)))
-            result.append(UInt8((h >> 16) & UInt64(0xFF)))
-            result.append(UInt8((h >> 8) & UInt64(0xFF)))
-            result.append(UInt8(h & UInt64(0xFF)))
+            result.add(UInt8((h >> 56) & UInt64(0xFF)))
+            result.add(UInt8((h >> 48) & UInt64(0xFF)))
+            result.add(UInt8((h >> 40) & UInt64(0xFF)))
+            result.add(UInt8((h >> 32) & UInt64(0xFF)))
+            result.add(UInt8((h >> 24) & UInt64(0xFF)))
+            result.add(UInt8((h >> 16) & UInt64(0xFF)))
+            result.add(UInt8((h >> 8) & UInt64(0xFF)))
+            result.add(UInt8(h & UInt64(0xFF)))
         }
-        return result
+        return result.toArray()
     }
 
     private func processBlock(block: Array<UInt8>): Unit {
-        var w = Array<UInt64>(80, item: UInt64(0))
+        var w = Array<UInt64>(80, repeat: UInt64(0))
         for (j in 0..16) {
             let off = j * 8
             w[j] = (UInt64(block[off]) << 56) | (UInt64(block[off + 1]) << 48) |
@@ -625,7 +626,7 @@ public class Sha512 {
 
         for (j in 0..80) {
             let S1 = rotr64(e, 14) ^ rotr64(e, 18) ^ rotr64(e, 41)
-            let ch = (e & f) ^ (~e & g)
+            let ch = (e & f) ^ ((e ^ ((UInt64(0xFFFFFFFF) << UInt64(32)) | UInt64(0xFFFFFFFF))) & g)
             let temp1 = h + S1 + ch + K[j] + w[j]
             let S0 = rotr64(a, 28) ^ rotr64(a, 34) ^ rotr64(a, 39)
             let maj = (a & b) ^ (a & c) ^ (b & c)
@@ -659,25 +660,27 @@ public class HmacSha256 {
 
     /// 计算 HMAC-SHA256
     public static func hmac(key: Array<UInt8>, message: Array<UInt8>): Array<UInt8> {
-        var k = key
+        var keyMaterial = key
         // 如果 key > block size, 先哈希
-        if (k.size > BLOCK_SIZE) {
-            k = Sha256.hash(k)
+        if (keyMaterial.size > BLOCK_SIZE) {
+            keyMaterial = Sha256.hash(keyMaterial)
         }
         // 填充到 block size
-        while (k.size < BLOCK_SIZE) { k.append(UInt8(0)) }
+        var k = ArrayList<UInt8>()
+        k.add(all: keyMaterial)
+        while (k.size < BLOCK_SIZE) { k.add(UInt8(0)) }
 
         // 内部: K XOR ipad || message
-        var innerData = Array<UInt8>()
-        for (i in 0..BLOCK_SIZE) { innerData.append(k[i] ^ UInt8(0x36)) }
-        for (b in message) { innerData.append(b) }
-        let innerHash = Sha256.hash(innerData)
+        var innerData = ArrayList<UInt8>()
+        for (i in 0..BLOCK_SIZE) { innerData.add(k[i] ^ UInt8(0x36)) }
+        for (b in message) { innerData.add(b) }
+        let innerHash = Sha256.hash(innerData.toArray())
 
         // 外部: K XOR opad || innerHash
-        var outerData = Array<UInt8>()
-        for (i in 0..BLOCK_SIZE) { outerData.append(k[i] ^ UInt8(0x5C)) }
-        for (b in innerHash) { outerData.append(b) }
-        return Sha256.hash(outerData)
+        var outerData = ArrayList<UInt8>()
+        for (i in 0..BLOCK_SIZE) { outerData.add(k[i] ^ UInt8(0x5C)) }
+        for (b in innerHash) { outerData.add(b) }
+        return Sha256.hash(outerData.toArray())
     }
 
     public static func hmac(key: String, message: String): Array<UInt8> {
@@ -701,21 +704,23 @@ public class HmacSha512 {
     public static let DIGEST_SIZE: Int64 = 64
 
     public static func hmac(key: Array<UInt8>, message: Array<UInt8>): Array<UInt8> {
-        var k = key
-        if (k.size > BLOCK_SIZE) {
-            k = Sha512.hash(k)
+        var keyMaterial = key
+        if (keyMaterial.size > BLOCK_SIZE) {
+            keyMaterial = Sha512.hash(keyMaterial)
         }
-        while (k.size < BLOCK_SIZE) { k.append(UInt8(0)) }
+        var k = ArrayList<UInt8>()
+        k.add(all: keyMaterial)
+        while (k.size < BLOCK_SIZE) { k.add(UInt8(0)) }
 
-        var innerData = Array<UInt8>()
-        for (i in 0..BLOCK_SIZE) { innerData.append(k[i] ^ UInt8(0x36)) }
-        for (b in message) { innerData.append(b) }
-        let innerHash = Sha512.hash(innerData)
+        var innerData = ArrayList<UInt8>()
+        for (i in 0..BLOCK_SIZE) { innerData.add(k[i] ^ UInt8(0x36)) }
+        for (b in message) { innerData.add(b) }
+        let innerHash = Sha512.hash(innerData.toArray())
 
-        var outerData = Array<UInt8>()
-        for (i in 0..BLOCK_SIZE) { outerData.append(k[i] ^ UInt8(0x5C)) }
-        for (b in innerHash) { outerData.append(b) }
-        return Sha512.hash(outerData)
+        var outerData = ArrayList<UInt8>()
+        for (i in 0..BLOCK_SIZE) { outerData.add(k[i] ^ UInt8(0x5C)) }
+        for (b in innerHash) { outerData.add(b) }
+        return Sha512.hash(outerData.toArray())
     }
 
     public static func hmac(key: String, message: String): Array<UInt8> {
@@ -733,7 +738,5 @@ public class HmacSha512 {
 
 /// 字符串转字节数组
 private func stringToBytes(s: String): Array<UInt8> {
-    var bytes = Array<UInt8>()
-    for (c in s) { bytes.append(UInt8(c.value)) }
-    return bytes
+    return s.toArray()
 }

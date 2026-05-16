@@ -5,6 +5,7 @@
 package bao_runtime.shell.builtin
 
 import bao_core.*
+import bao_runtime.shell.*
 
 // ============================================================================
 // pwd命令 - 打印当前工作目录
@@ -12,16 +13,16 @@ import bao_core.*
 
 /// pwd状态类型（提取到顶层）
 public enum PwdState {
-    case idle
-    case waitingIO(WaitingIOKind)
-    case err
-    case done
+    | idle
+    | waitingIO(WaitingIOKind)
+    | err
+    | done
 }
 
 /// 等待IO类型（提取到顶层）
 public enum WaitingIOKind {
-    case stdout
-    case stderr
+    | stdout
+    | stderr
 }
 
 /// pwd命令
@@ -35,58 +36,49 @@ public class PwdCmd {
         if (args.size > 0) {
             let msg = "pwd: too many arguments\n"
             if (let Some(safeguard) <- this.bltn().stderr.needsIO()) {
-                this.state = PwdState.waitingIO(.stderr)
+                this.state = PwdState.waitingIO(WaitingIOKind.stderr)
                 return this.bltn().stderr.enqueue(this, msg.toByteArray(), safeguard)
             }
-            this.bltn().writeNoIO(.stderr, msg.toByteArray())
+            this.bltn().writeNoIO(OutKind.stderr, msg.toByteArray())
             return this.bltn().done(1)
         }
 
         let cwdStr = this.bltn().parentCmd().base.shell.cwd()
         if (let Some(safeguard) <- this.bltn().stdout.needsIO()) {
-            this.state = PwdState.waitingIO(.stdout)
+            this.state = PwdState.waitingIO(WaitingIOKind.stdout)
             return this.bltn().stdout.enqueueFmtBltn(this, "", cwdStr + "\n", [], safeguard)
         }
         let buf = cwdStr + "\n"
-        this.bltn().writeNoIO(.stdout, buf.toByteArray())
+        this.bltn().writeNoIO(OutKind.stdout, buf.toByteArray())
         this.state = PwdState.done
         return this.bltn().done(0)
     }
 
     /// 下一步
     public func next(): Yield {
-        while (this.state != .err && this.state != .done) {
-            switch (this.state) {
-                case .waitingIO =>
-                    return Yield.suspended
-                case .idle =>
-                    panic("Unexpected \"idle\" state in Pwd.")
-                case .done, .err =>
-                    panic("不可达状态")
-            }
-        }
-
-        switch (this.state) {
-            case .done =>
+        match (this.state) {
+            case PwdState.waitingIO(_) =>
+                return Yield.suspended
+            case PwdState.idle =>
+                panic("Unexpected \"idle\" state in Pwd.")
+            case PwdState.done =>
                 return this.bltn().done(0)
-            case .err =>
+            case PwdState.err =>
                 return this.bltn().done(1)
-            case _ =>
-                panic("不可达状态")
         }
     }
 
     /// IO写入器数据块回调
-    public func onIOWriterChunk(amount: UInt64, e: ?SystemError): Yield {
+    public func onIOWriterChunk(chunk: UInt64, e: ?SystemError): Yield {
         if (let Some(err) <- e) {
             err.deref()
             this.state = PwdState.err
             return this.next()
         }
 
-        this.state = switch (this.state) {
-            case .waitingIO(let kind) =>
-                if (kind == .stdout) PwdState.done else PwdState.err
+        this.state = match (this.state) {
+            case PwdState.waitingIO(kind) =>
+                if (kind == WaitingIOKind.stdout) { PwdState.done } else { PwdState.err }
             case _ => PwdState.done
         }
 

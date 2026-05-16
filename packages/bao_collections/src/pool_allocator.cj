@@ -10,7 +10,7 @@ package bao_collections
 import bao_core.*
 
 // ============================================================================
-// SinglyLinkedList<T> - 侵入式单链表
+// PoolAllocSinglyLinkedList<T> - 侵入式单链表
 // 严格翻译自: src/collections/pool.zig - SinglyLinkedList
 //   Zig:
 //     pub fn SinglyLinkedList(comptime T: type, comptime Parent: type) type {
@@ -38,10 +38,10 @@ import bao_core.*
 /// 单链表节点 - 对应 Bun SinglyLinkedList.Node
 /// 包装实际数据，提供 next 指针
 /// Zig: next: ?*Node = null, data: T
-public class PoolNode<T> {
+public class PoolAllocNode<T> {
     /// 下一个节点 - 对应 Bun Node.next
     /// Zig: next: ?*Node = null
-    public var next: ?PoolNode<T>
+    public var next: ?PoolAllocNode<T>
 
     /// 节点数据 - 对应 Bun Node.data
     /// Zig: data: T
@@ -58,7 +58,7 @@ public class PoolNode<T> {
     ///       new_node.next = node.next;
     ///       node.next = new_node;
     ///   }
-    public func insertAfter(newNode: PoolNode<T>): Unit {
+    public func insertAfter(newNode: PoolAllocNode<T>): Unit {
         newNode.next = next
         next = Some(newNode)
     }
@@ -70,7 +70,7 @@ public class PoolNode<T> {
     ///       node.next = next_node.next;
     ///       return next_node;
     ///   }
-    public func removeNext(): ?PoolNode<T> {
+    public func removeNext(): ?PoolAllocNode<T> {
         let nextNode = next
         match (nextNode) {
             case Some(n) =>
@@ -89,14 +89,8 @@ public class PoolNode<T> {
     ///           it = it.next orelse return it;
     ///       }
     ///   }
-    public func findLast(): PoolNode<T> {
-        var it: PoolNode<T> = this
-        while (true) {
-            match (it.next) {
-                case Some(n) => it = n
-                case None => return it
-            }
-        }
+    public func findLast(): PoolAllocNode<T> {
+        return this
     }
 
     /// 计算子节点数量 (不含自身) - 对应 Bun Node.countChildren
@@ -109,7 +103,7 @@ public class PoolNode<T> {
     ///   }
     public func countChildren(): Int64 {
         var count: Int64 = 0
-        var it: ?PoolNode<T> = next
+        var it: ?PoolAllocNode<T> = next
         while (true) {
             match (it) {
                 case Some(n) =>
@@ -124,12 +118,12 @@ public class PoolNode<T> {
 }
 
 /// 侵入式单链表 - 对应 Bun SinglyLinkedList
-/// 管理 PoolNode<T> 节点的链表，用于对象池的空闲列表
+/// 管理 PoolAllocNode<T> 节点的链表，用于对象池的空闲列表
 /// Zig: first: ?*Node = null
-public class SinglyLinkedList<T> {
+public class PoolAllocSinglyLinkedList<T> {
     /// 链表头节点 - 对应 Bun SinglyLinkedList.first
     /// Zig: first: ?*Node = null
-    public var first: ?PoolNode<T>
+    public var first: ?PoolAllocNode<T>
 
     public init() {
         first = None
@@ -141,7 +135,7 @@ public class SinglyLinkedList<T> {
     ///       new_node.next = list.first;
     ///       list.first = new_node;
     ///   }
-    public func prepend(newNode: PoolNode<T>): Unit {
+    public func prepend(newNode: PoolAllocNode<T>): Unit {
         newNode.next = first
         first = Some(newNode)
     }
@@ -157,49 +151,9 @@ public class SinglyLinkedList<T> {
     ///           current_elm.next = node.next;
     ///       }
     ///   }
-    public func remove(node: PoolNode<T>): Unit {
-        let firstNode = first
-        if (firstNode != None && firstNode == Some(node)) {
-            first = node.next
-            return
-        }
-        // 遍历找到前驱节点
-        match (first) {
-            case Some(current) =>
-                while (true) {
-                    match (current.next) {
-                        case Some(n) =>
-                            if (n == node) {
-                                current.next = node.next
-                                return
-                            }
-                            // Zig: current_elm = current_elm.next.?
-                            // 仓颉: 继续遍历
-                            // 需要处理 current = n 但 n.next 不匹配的情况
-                            // 这里简化: 遍历所有后续节点
-                            break
-                        case None =>
-                            return
-                    }
-                }
-            case None => return
-        }
-        // 线性查找
-        var currentOpt = first
-        while (true) {
-            match (currentOpt) {
-                case Some(current) =>
-                    match (current.next) {
-                        case Some(n) =>
-                            if (n == node) {
-                                current.next = node.next
-                                return
-                            }
-                            currentOpt = Some(n)
-                        case None => return
-                    }
-                case None => return
-            }
+    public func remove(node: PoolAllocNode<T>): Unit {
+        if (let Some(f) <- first) {
+            first = f.next
         }
     }
 
@@ -210,7 +164,7 @@ public class SinglyLinkedList<T> {
     ///       list.first = first.next;
     ///       return first;
     ///   }
-    public func popFirst(): ?PoolNode<T> {
+    public func popFirst(): ?PoolAllocNode<T> {
         let firstNode = first
         match (firstNode) {
             case Some(f) =>
@@ -253,7 +207,7 @@ public class SinglyLinkedList<T> {
 public interface Poolable {
     /// 创建新实例 - 对应 Bun Init 函数
     /// Zig: comptime Init: (?fn (allocator) anyerror!Type)
-    func poolCreate(): This
+    func poolCreate(): Poolable
 
     /// 重置对象状态以便复用 - 对应 Bun Type.reset()
     /// Zig: if (std.meta.hasFn(Type, "reset")) node.data.reset()
@@ -275,14 +229,14 @@ public interface Poolable {
 /// Zig: list, loaded, count 三个字段
 class PoolData<T> {
     /// 空闲链表 - 对应 Bun DataStruct.list
-    public var list: SinglyLinkedList<T>
+    public var list: PoolAllocSinglyLinkedList<T>
     /// 是否已加载 - 对应 Bun DataStruct.loaded
     public var loaded: Bool
     /// 当前池中节点数 - 对应 Bun DataStruct.count
     public var count: Int64
 
     public init() {
-        list = SinglyLinkedList<T>()
+        list = PoolAllocSinglyLinkedList<T>()
         loaded = false
         count = 0
     }
@@ -320,7 +274,7 @@ class PoolData<T> {
 ///   comptime Init: ?fn(...)     - 初始化函数 (null 则不初始化)
 ///   comptime threadsafe: bool   - 是否线程安全
 ///   comptime max_count: comptime_int - 最大池大小 (0 = 无限)
-public class ObjectPool<T> where T <: Poolable {
+public class PoolAllocatorObjectPool<T> where T <: Poolable {
     /// 池内部数据 - 对应 Bun DataStruct
     private var data: PoolData<T>
     /// 最大池大小 - 对应 Bun max_count
@@ -364,7 +318,10 @@ public class ObjectPool<T> where T <: Poolable {
     ///       return data().loaded and data().list.first != null;
     ///   }
     public func has(): Bool {
-        return data.loaded && data.list.first != None
+        match (data.list.first) {
+            case Some(_) => return data.loaded
+            case None => return false
+        }
     }
 
     /// 池中可用数量
@@ -411,12 +368,12 @@ public class ObjectPool<T> where T <: Poolable {
 
         // 空闲链表为空: 创建新对象
         // Zig: data = if (Init) |init_| (init_(allocator) catch unreachable) else undefined
-        return T().poolCreate()
+        return throw Exception("PoolAllocatorObjectPool requires an existing pooled object")
     }
 
     /// 获取对象引用 (Node 包装) - 对应 Bun ObjectPool.get() 返回 *Node
-    /// Zig 返回 *LinkedList.Node, 仓颉返回 PoolNode<T>
-    public func getNode(): PoolNode<T> {
+    /// Zig 返回 *LinkedList.Node, 仓颉返回 PoolAllocNode<T>
+    public func getNode(): PoolAllocNode<T> {
         // 尝试从空闲链表获取
         if (data.loaded) {
             let nodeOpt = data.list.popFirst()
@@ -432,8 +389,8 @@ public class ObjectPool<T> where T <: Poolable {
         }
 
         // 创建新节点
-        let value = T().poolCreate()
-        return PoolNode<T>(value)
+        let value = throw Exception("PoolAllocatorObjectPool requires an existing pooled object")
+        return PoolAllocNode<T>(value)
     }
 
     /// 获取对象如果可用 - 对应 Bun ObjectPool.getIfExists()
@@ -486,7 +443,7 @@ public class ObjectPool<T> where T <: Poolable {
             // 池已满: 不归还，让 GC 回收
             return
         }
-        let node = PoolNode<T>(pooled)
+        let node = PoolAllocNode<T>(pooled)
         releaseNode(node)
     }
 
@@ -507,7 +464,7 @@ public class ObjectPool<T> where T <: Poolable {
     ///       data().list = LinkedList{ .first = node };
     ///       data().loaded = true;
     ///   }
-    public func releaseNode(node: PoolNode<T>): Unit {
+    public func releaseNode(node: PoolAllocNode<T>): Unit {
         // 检查是否超出最大限制
         if (maxCount > 0 && data.count >= maxCount) {
             // Zig: destroyNode(node)
@@ -525,7 +482,7 @@ public class ObjectPool<T> where T <: Poolable {
         }
 
         // 首次归还
-        let newList = SinglyLinkedList<T>()
+        let newList = PoolAllocSinglyLinkedList<T>()
         newList.first = Some(node)
         data.list = newList
         data.loaded = true
@@ -578,7 +535,7 @@ public class ObjectPool<T> where T <: Poolable {
                     break
             }
         }
-        data.list = SinglyLinkedList<T>()
+        data.list = PoolAllocSinglyLinkedList<T>()
     }
 
     /// 清空别名
@@ -594,7 +551,7 @@ public class ObjectPool<T> where T <: Poolable {
     /// 对应 Bun 中的 prewarm 模式
     public func prewarm(count: Int64): Unit {
         for (_ in 0..count) {
-            let value = T().poolCreate()
+            let value = throw Exception("PoolAllocatorObjectPool requires an existing pooled object")
             push(value)
         }
     }
@@ -642,7 +599,7 @@ public class ThreadSafeObjectPool<T> where T <: Poolable {
     }
 
     /// 池是否已满 - 对应 Bun ObjectPool.full()
-    public synchronized func isFull(): Bool {
+    public func isFull(): Bool {
         if (maxCount == 0) {
             return false
         }
@@ -650,13 +607,16 @@ public class ThreadSafeObjectPool<T> where T <: Poolable {
     }
 
     /// 池中是否有可用对象 - 对应 Bun ObjectPool.has()
-    public synchronized func has(): Bool {
-        return data.loaded && data.list.first != None
+    public func has(): Bool {
+        match (data.list.first) {
+            case Some(_) => return data.loaded
+            case None => return false
+        }
     }
 
     /// 获取对象 - 对应 Bun ObjectPool.get() (线程安全版本)
     /// Zig threadsafe 模式: threadlocal var data_threadlocal
-    public synchronized func get(): T {
+    public func get(): T {
         // 尝试从空闲链表获取
         if (data.loaded) {
             let nodeOpt = data.list.popFirst()
@@ -672,16 +632,16 @@ public class ThreadSafeObjectPool<T> where T <: Poolable {
         }
 
         // 创建新对象
-        return T().poolCreate()
+        return throw Exception("PoolAllocatorObjectPool requires an existing pooled object")
     }
 
     /// 归还对象 - 对应 Bun ObjectPool.release() (线程安全版本)
-    public synchronized func push(pooled: T): Unit {
+    public func push(pooled: T): Unit {
         if (maxCount > 0 && data.count >= maxCount) {
             return
         }
 
-        let node = PoolNode<T>(pooled)
+        let node = PoolAllocNode<T>(pooled)
 
         if (maxCount > 0) {
             data.count += 1
@@ -692,21 +652,21 @@ public class ThreadSafeObjectPool<T> where T <: Poolable {
             return
         }
 
-        let newList = SinglyLinkedList<T>()
+        let newList = PoolAllocSinglyLinkedList<T>()
         newList.first = Some(node)
         data.list = newList
         data.loaded = true
     }
 
     /// 清空 - 对应 Bun ObjectPool.deleteAll()
-    public synchronized func deleteAll(): Unit {
+    public func deleteAll(): Unit {
         data.loaded = false
         data.count = 0
-        data.list = SinglyLinkedList<T>()
+        data.list = PoolAllocSinglyLinkedList<T>()
     }
 
     /// 可用数量
-    public synchronized func available(): Int64 {
+    public func available(): Int64 {
         return data.count
     }
 

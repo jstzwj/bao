@@ -2,6 +2,9 @@
 package bao_cli.test
 
 import bao_core.*
+import bao_runtime.*
+import bao_collections.*
+import std.collection.*
 
 // ============================================================================
 // Scanner — 测试文件扫描器

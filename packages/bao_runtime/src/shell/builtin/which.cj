@@ -7,6 +7,7 @@
 package bao_runtime.shell.builtin
 
 import bao_core.*
+import bao_runtime.shell.*
 
 // ============================================================================
 // which命令 - 查找可执行文件的路径
@@ -23,8 +24,8 @@ public enum WhichState {
 public struct MultiArgsState {
     public var argsSlice: Array<String>
     public var argIdx: UInt32 = 0
-    public var hadNotFound: Boolean = false
-    public var innerState: MultiArgsInnerState = .none
+    public var hadNotFound: Bool = false
+    public var innerState: MultiArgsInnerState = MultiArgsInnerState.none
 }
 
 public enum MultiArgsInnerState {
@@ -49,12 +50,12 @@ public class WhichCmd {
     /// 启动
     public func start(): Yield {
         let args = this.bltn().argsSlice()
-        if (args.length == 0) {
-            if (let safeguard = this.bltn().stdout.needsIO()) {
+        if (args.size == 0) {
+            if (let Some(safeguard) <- this.bltn().stdout.needsIO()) {
                 this.state = WhichState.oneArg
                 return this.bltn().stdout.enqueue(this, "\n".toByteArray(), safeguard)
             }
-            this.bltn().writeNoIO(.stdout, "\n".toByteArray())
+            this.bltn().writeNoIO(OutKind.stdout, "\n".toByteArray())
             return this.bltn().done(1)
         }
 
@@ -68,27 +69,27 @@ public class WhichCmd {
                 if (resolved == None) {
                     hadNotFound = true
                     let buf = this.bltn().fmtErrorArena("which", "${arg} not found\n", [])
-                    this.bltn().writeNoIO(.stdout, buf.toByteArray())
+                    this.bltn().writeNoIO(OutKind.stdout, buf.toByteArray())
                     continue
                 }
-                this.bltn().writeNoIO(.stdout, resolved)
+                this.bltn().writeNoIO(OutKind.stdout, resolved)
             }
-            return this.bltn().done(if (hadNotFound) 1 else 0)
+            return this.bltn().done(if (hadNotFound) { 1 } else { 0 })
         }
 
         this.state = WhichState.multiArgs(MultiArgsState(
             argsSlice: args,
             argIdx: 0,
-            innerState: .none
+            innerState: MultiArgsInnerState.none
         ))
         return this.next()
     }
 
     /// 下一步
     public func next(): Yield {
-        if (let multiArgs = this.state.getMultiArgs()) {
-            if (multiArgs.argIdx >= multiArgs.argsSlice.length) {
-                return this.bltn().done(if (multiArgs.hadNotFound) 1 else 0)
+        if (let Some(multiArgs) <- this.state.getMultiArgs()) {
+            if (multiArgs.argIdx >= multiArgs.argsSlice.size) {
+                return this.bltn().done(if (multiArgs.hadNotFound) { 1 } else { 0 })
             }
 
             let arg = multiArgs.argsSlice[multiArgs.argIdx]
@@ -103,34 +104,34 @@ public class WhichCmd {
                     argsSlice: multiArgs.argsSlice,
                     argIdx: multiArgs.argIdx,
                     hadNotFound: true,
-                    innerState: .none
+                    innerState: MultiArgsInnerState.none
                 ))
-                if (let safeguard = this.bltn().stdout.needsIO()) {
+                if (let Some(safeguard) <- this.bltn().stdout.needsIO()) {
                     this.state = WhichState.multiArgs(MultiArgsState(
                         argsSlice: multiArgs.argsSlice,
                         argIdx: multiArgs.argIdx,
                         hadNotFound: true,
-                        innerState: .waitingWrite
+                        innerState: MultiArgsInnerState.waitingWrite
                     ))
                     return this.bltn().stdout.enqueueFmtBltn(this, "", "${arg} not found\n", [], safeguard)
                 }
                 let buf = this.bltn().fmtErrorArena("", "${arg} not found\n", [])
-                this.bltn().writeNoIO(.stdout, buf.toByteArray())
+                this.bltn().writeNoIO(OutKind.stdout, buf.toByteArray())
                 return this.argComplete()
             }
 
-            if (let safeguard = this.bltn().stdout.needsIO()) {
+            if (let Some(safeguard) <- this.bltn().stdout.needsIO()) {
                 this.state = WhichState.multiArgs(MultiArgsState(
                     argsSlice: multiArgs.argsSlice,
                     argIdx: multiArgs.argIdx,
                     hadNotFound: multiArgs.hadNotFound,
-                    innerState: .waitingWrite
+                    innerState: MultiArgsInnerState.waitingWrite
                 ))
                 return this.bltn().stdout.enqueueFmtBltn(this, "", "${resolved}\n", [], safeguard)
             }
 
             let buf = this.bltn().fmtErrorArena("", "${resolved}\n", [])
-            this.bltn().writeNoIO(.stdout, buf.toByteArray())
+            this.bltn().writeNoIO(OutKind.stdout, buf.toByteArray())
             return this.argComplete()
         }
 
@@ -139,12 +140,12 @@ public class WhichCmd {
 
     /// 参数处理完成
     func argComplete(): Yield {
-        if (let multiArgs = this.state.getMultiArgs()) {
+        if (let Some(multiArgs) <- this.state.getMultiArgs()) {
             this.state = WhichState.multiArgs(MultiArgsState(
                 argsSlice: multiArgs.argsSlice,
                 argIdx: multiArgs.argIdx + 1,
                 hadNotFound: multiArgs.hadNotFound,
-                innerState: .none
+                innerState: MultiArgsInnerState.none
             ))
             return this.next()
         }
@@ -152,13 +153,13 @@ public class WhichCmd {
     }
 
     /// IO写入器数据块回调
-    public func onIOWriterChunk(amount: UInt64, e: ?SystemError): Yield {
-        if (let err = e) {
+    public func onIOWriterChunk(chunk: UInt64, e: ?SystemError): Yield {
+        if (let Some(err) <- e) {
             defer { err.deref() }
             return this.bltn().done(err.getErrno())
         }
 
-        if (this.state == .oneArg) {
+        if (this.state == WhichState.oneArg) {
             // 不带参数调用which返回退出码1
             return this.bltn().done(1)
         }

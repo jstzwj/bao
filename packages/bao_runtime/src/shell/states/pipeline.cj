@@ -5,6 +5,7 @@
 package bao_runtime.shell.states
 
 import bao_core.*
+import bao_runtime.shell.*
 
 // ============================================================================
 // 管道执行状态
@@ -14,10 +15,10 @@ import bao_core.*
 
 /// 管道状态类型（提取到顶层）
 public enum PipelineStateKind {
-| startingCmds(idx: UInt32)
+| startingCmds(UInt32)
 | pending
 | waitingWriteErr
-| done(exitCode: ExitCode)
+| done(ExitCode)
 }
 
 /// 管道父节点指针（提取到顶层）
@@ -87,7 +88,7 @@ public class PipelineState {
         pipeline.cmds = None
         pipeline.pipes = None
         pipeline.io = io
-        pipeline.state = PipelineStateKind.startingCmds(idx: 0)
+        pipeline.state = PipelineStateKind.startingCmds(0)
         return pipeline
     }
 
@@ -95,7 +96,7 @@ public class PipelineState {
     public func start(): Yield {
         // 设置命令
         if (this.cmds == None) {
-            this.state = PipelineStateKind.done(exitCode: 0)
+            this.state = PipelineStateKind.done(0)
             return Yield.done
         }
         return Yield.pipeline(this)
@@ -103,29 +104,29 @@ public class PipelineState {
 
     /// 下一步
     public func next(): Yield {
-        switch (this.state) {
-            case PipelineStateKind.startingCmds(let idx) =>
+        match (this.state) {
+            case PipelineStateKind.startingCmds(idx) =>
                 let cmds = this.cmds.getOrThrow()
                 if (idx >= cmds.size) {
                     this.state = PipelineStateKind.pending
                     return Yield.suspended
                 }
-                this.state = PipelineStateKind.startingCmds(idx: idx + 1)
+                this.state = PipelineStateKind.startingCmds(idx + 1)
                 let cmdOrResult = cmds[idx]
                 return Yield.pipeline(this)
             case PipelineStateKind.pending =>
                 unreachableState("Pipeline.next", "pending")
             case PipelineStateKind.waitingWriteErr =>
                 unreachableState("Pipeline.next", "waitingWriteErr")
-            case PipelineStateKind.done(let exitCode) =>
+            case PipelineStateKind.done(exitCode) =>
                 return this.parent.childDone(this, exitCode)
         }
     }
 
     /// IO写入器数据块回调
-    public func onIOWriterChunk(amount: UInt64, err: ?SystemError): Yield {
+    public func onIOWriterChunk(chunk: UInt64, err: ?SystemError): Yield {
         if (let Some(e) <- err) {
-            this.base.throw(ShellErr.newSys(e))
+            this.base.`throw`(ShellErr.newSys(e))
             return Yield.failed
         }
         return this.parent.childDone(this, 1)
@@ -136,7 +137,7 @@ public class PipelineState {
         child.deinit()
         this.exitedCount += 1
         if (this.exitedCount >= this.cmds.getOrThrow().size) {
-            this.state = PipelineStateKind.done(exitCode: exitCode)
+            this.state = PipelineStateKind.done(exitCode)
             return Yield.pipeline(this)
         }
         return Yield.suspended

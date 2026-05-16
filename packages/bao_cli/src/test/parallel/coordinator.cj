@@ -2,6 +2,8 @@
 package bao_cli.test.parallel
 
 import bao_core.*
+import bao_runtime.*
+import std.collection.*
 
 // ============================================================================
 // Coordinator — 进程池协调器
@@ -241,7 +243,7 @@ public class Coordinator {
         }
         bailed = true
         breakDots()
-        let suffix = if (bail == 1) "" else "s"
+        let suffix = if (bail == 1) { "" } else { "s" }
         Output.prettyError("\nBailed out after ${bail} failure${suffix}\n")
         Output.flush()
 
@@ -438,7 +440,7 @@ public class Coordinator {
     public static func isPanicStatus(status: ProcessStatus): Bool {
         let sig = match (status.signalCode()) { case Some(v) => v case None => return false }
         return match (sig) {
-            "SIGILL" | "SIGTRAP" | "SIGABRT" | "SIGBUS" | "SIGFPE" | "SIGSEGV" | "SIGSYS" => true
+            case "SIGILL" | "SIGTRAP" | "SIGABRT" | "SIGBUS" | "SIGFPE" | "SIGSEGV" | "SIGSYS" => true
             case _ => false
         }
     }
@@ -498,19 +500,20 @@ public class Coordinator {
         assignWork(w)
     }
 
-    /// 中止信号处理器
-    /// 对应 Bun: Coordinator.AbortHandler
-    public class AbortHandler {
-        public static var shouldAbort: Bool = false
+}
 
-        public static func install(): Unit {
-            shouldAbort = false
-            SignalHandler.install(SIGINT, { shouldAbort = true })
-            SignalHandler.install(SIGTERM, { shouldAbort = true })
-        }
+/// 中止信号处理器
+/// 对应 Bun: Coordinator.AbortHandler
+public class AbortHandler {
+    public static var shouldAbort: Bool = false
 
-        public static func uninstall(): Unit {
-            SignalHandler.uninstall()
-        }
+    public static func install(): Unit {
+        shouldAbort = false
+        SignalHandler.install(SIGINT, { => shouldAbort = true })
+        SignalHandler.install(SIGTERM, { => shouldAbort = true })
+    }
+
+    public static func uninstall(): Unit {
+        SignalHandler.uninstall()
     }
 }

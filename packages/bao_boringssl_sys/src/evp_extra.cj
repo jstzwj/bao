@@ -223,6 +223,15 @@ foreign func EVP_parse_public_key(cbs: CPointer<CbsSt>): CPointer<EvpPkeySt>
 foreign func EVP_PKCS82PKEY(p8: CPointer<Unit>): CPointer<EvpPkeySt>
 foreign func EVP_PKEY2PKCS8(pkey: CPointer<EvpPkeySt>): CPointer<Unit>
 
+// --- RIPEMD160 ---
+foreign func RIPEMD160(data: CPointer<UInt8>, len: UIntNative, out: CPointer<UInt8>): CPointer<UInt8>
+foreign func RIPEMD160_Init(ctx: CPointer<Unit>): Int32
+foreign func RIPEMD160_Update(ctx: CPointer<Unit>, data: CPointer<Unit>, len: UIntNative): Int32
+foreign func RIPEMD160_Final(out: CPointer<UInt8>, ctx: CPointer<Unit>): Int32
+
+// --- EVP_MAX_MD_SIZE ---
+foreign func EVP_MAX_MD_SIZE(): UIntNative
+
 // --- PKCS5 ---
 foreign func PKCS5_PBKDF2_HMAC(password: CString, password_len: UIntNative, salt: CPointer<UInt8>, salt_len: UIntNative, iterations: UInt32, digest: CPointer<Unit>, key_len: UIntNative, out: CPointer<UInt8>): Int32
 foreign func PKCS5_PBKDF2_HMAC_SHA1(password: CString, password_len: UIntNative, salt: CPointer<UInt8>, salt_len: UIntNative, iterations: UInt32, key_len: UIntNative, out: CPointer<UInt8>): Int32

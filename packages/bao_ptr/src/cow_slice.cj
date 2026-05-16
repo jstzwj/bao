@@ -4,6 +4,7 @@
 package bao_ptr
 
 import bao_core.*
+import bao_threading.*
 
 // ============================================================================
 // CowSliceFlags - CowSlice 的标志位 (packed struct)
@@ -63,8 +64,8 @@ public class CowSlice<T> {
     public static func initOwned(data: Array<T>, allocator: Allocator): CowSlice<T> {
         let cow = CowSlice<T>()
         cow.ptr = data
-        cow.flags = CowSliceFlags(len: UInt64(data.length), isOwned: true)
-        if (Environment.isDebug) {
+        cow.flags = CowSliceFlags(UInt64(data.size),true)
+        if (Environment.IS_DEBUG) {
             cow.debug = DebugData(allocator)
         }
         return cow
@@ -72,8 +73,8 @@ public class CowSlice<T> {
 
     /// 复制 data 到新分配中创建 CowSlice
     public static func initDupe(data: Array<T>, allocator: Allocator): CowSlice<T> {
-        var copied = Array<T>(data.length)
-        for (i in 0..data.length) {
+        var copied = Array<T>(data.size, { i => data[i] })
+        for (i in 0..data.size) {
             copied[i] = data[i]
         }
         return initOwned(copied, allocator)
@@ -84,15 +85,17 @@ public class CowSlice<T> {
     public static func initStatic(data: Array<T>): CowSlice<T> {
         let cow = CowSlice<T>()
         cow.ptr = data
-        cow.flags = CowSliceFlags(len: UInt64(data.length), isOwned: false)
-        if (Environment.isDebug) {
+        cow.flags = CowSliceFlags(UInt64(data.size),false)
+        if (Environment.IS_DEBUG) {
             cow.debug = None<DebugData>
         }
         return cow
     }
 
     /// 创建空 CowSlice
-    public static let empty: CowSlice<T> = CowSlice<T>()
+    public static func empty(): CowSlice<T> {
+        return CowSlice<T>()
+    }
 
     /// 返回 true 如果此字符串拥有其数据
     public func isOwned(): Bool {
@@ -105,7 +108,7 @@ public class CowSlice<T> {
             return Array<T>()
         }
         let len = Int64(this.flags.len)
-        if (len <= this.ptr.length) {
+        if (len <= this.ptr.size) {
             return this.ptr[0..len]
         }
         return this.ptr
@@ -141,8 +144,8 @@ public class CowSlice<T> {
         let result = this.slice()
         // 重置为空状态
         this.ptr = Array<T>()
-        this.flags = CowSliceFlags(len: 0, isOwned: false)
-        if (Environment.isDebug) {
+        this.flags = CowSliceFlags(0,false)
+        if (Environment.IS_DEBUG) {
             this.debug = None<DebugData>
         }
         return result
@@ -151,7 +154,7 @@ public class CowSlice<T> {
     /// 返回借用此字符串数据的新 CowSlice
     /// 借用的字符串应该被 deinit 以便执行 debug 断言检查
     public func borrow(): CowSlice<T> {
-        if (Environment.isDebug) {
+        if (Environment.IS_DEBUG) {
             match (this.debug) {
                 case Some(debug) =>
                     debug.mutex.lock()
@@ -162,7 +165,7 @@ public class CowSlice<T> {
         }
         let result = CowSlice<T>()
         result.ptr = this.ptr
-        result.flags = CowSliceFlags(len: this.flags.len, isOwned: false)
+        result.flags = CowSliceFlags(this.flags.len,false)
         result.debug = this.debug
         return result
     }
@@ -176,9 +179,9 @@ public class CowSlice<T> {
         let endIdx = Int64(end_)
 
         var result = this.borrow()
-        if (startIdx < this.ptr.length && endIdx <= this.ptr.length && startIdx <= endIdx) {
+        if (startIdx < this.ptr.size && endIdx <= this.ptr.size && startIdx <= endIdx) {
             result.ptr = this.ptr[startIdx..endIdx]
-            result.flags = CowSliceFlags(len: UInt64(endIdx - startIdx), isOwned: false)
+            result.flags = CowSliceFlags(UInt64(endIdx - startIdx),false)
         }
         return result
     }
@@ -198,14 +201,14 @@ public class CowSlice<T> {
 
         // 复制数据
         let currentSlice = this.slice()
-        var bytes = Array<T>(currentSlice.length)
-        for (i in 0..currentSlice.length) {
+        var bytes = Array<T>(currentSlice.size, { i => currentSlice[i] })
+        for (i in 0..currentSlice.size) {
             bytes[i] = currentSlice[i]
         }
         this.ptr = bytes
         this.flags.is_owned = true
 
-        if (Environment.isDebug) {
+        if (Environment.IS_DEBUG) {
             match (this.debug) {
                 case Some(debug) =>
                     debug.mutex.lock()
@@ -223,7 +226,7 @@ public class CowSlice<T> {
     /// 在 debug 构建中，deinit 借用的字符串会执行 debug 检查
     /// 在 release 构建中是 no-op
     public func deinit(allocator: Allocator): Unit {
-        if (Environment.isDebug) {
+        if (Environment.IS_DEBUG) {
             match (this.debug) {
                 case Some(debug) =>
                     debug.mutex.lock()
@@ -248,8 +251,8 @@ public class CowSlice<T> {
     public static func initUnchecked(data: Array<T>, isOwned: Bool): CowSlice<T> {
         let cow = CowSlice<T>()
         cow.ptr = data
-        cow.flags = CowSliceFlags(len: UInt64(data.length), isOwned: isOwned)
-        if (Environment.isDebug) {
+        cow.flags = CowSliceFlags(UInt64(data.size), isOwned)
+        if (Environment.IS_DEBUG) {
             cow.debug = None<DebugData>
         }
         return cow

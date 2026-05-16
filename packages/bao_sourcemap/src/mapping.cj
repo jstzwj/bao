@@ -10,6 +10,7 @@
 package bao_sourcemap
 
 import bao_core.*
+import std.collection.*
 
 // ============================================================================
 // LineColumnOffset - 行列偏移
@@ -70,14 +71,14 @@ public class LineColumnOffset {
         var offset = 0
         while (offset < input.size) {
             let ch = input[offset]
-            let code = Int64(ch.value)
+            let code = Int64(ch)
 
             if (code >= 14 && code <= 127) {
                 // ASCII 快速路径 - 查找下一个换行符或非 ASCII 字符
                 var j = offset + 1
                 while (j < input.size) {
-                    let c = Int64(input[j].value)
-                    if (c == '\r'.toUInt8() || c == '\n'.toUInt8() ||
+                    let c = Int64(input[j])
+                    if (c == Int64(0x0D) || c == Int64(0x0A) ||
                         c > 127) {
                         break
                     }
@@ -89,11 +90,11 @@ public class LineColumnOffset {
             }
 
             // 处理换行
-            if (code == Int64('\r') || code == Int64('\n') ||
+            if (code == Int64(0x0D) || code == Int64(0x0A) ||
                 code == 0x2028 || code == 0x2029) {
                 // Windows 换行 \r\n
-                if (code == Int64('\r') && offset + 1 < input.size &&
-                    Int64(input[offset + 1].value) == Int64('\n')) {
+                if (code == Int64(0x0D) && offset + 1 < input.size &&
+                    Int64(input[offset + 1]) == Int64(0x0A)) {
                     column += 1
                     offset += 1
                     continue
@@ -369,12 +370,12 @@ public class MappingList {
 
     /// 添加映射 - 对应 Bun Mapping.List.append
     public func append(mapping: SourceMapping): Unit {
-        mappings.append(mapping)
+        mappings.add(mapping)
     }
 
     /// 添加名称 - 对应 Bun Mapping.List.names
     public func appendName(name: String): Unit {
-        names.append(name)
+        names.add(name)
     }
 
     /// 获取名称 - 对应 Bun Mapping.List.getName
@@ -397,28 +398,19 @@ public class MappingList {
 
     /// 获取 generated 位置列表
     public func generated(): Array<LineColumnOffset> {
-        var result = Array<LineColumnOffset>()
-        for (i in 0..mappings.size) {
-            result.append(mappings[i].generated)
-        }
+        var result = Array<LineColumnOffset>(mappings.size, { i => mappings[i].generated })
         return result
     }
 
     /// 获取 original 位置列表
     public func original(): Array<LineColumnOffset> {
-        var result = Array<LineColumnOffset>()
-        for (i in 0..mappings.size) {
-            result.append(mappings[i].original)
-        }
+        var result = Array<LineColumnOffset>(mappings.size, { i => mappings[i].original })
         return result
     }
 
     /// 获取源文件索引列表
     public func sourceIndex(): Array<Int64> {
-        var result = Array<Int64>()
-        for (i in 0..mappings.size) {
-            result.append(mappings[i].sourceIndex)
-        }
+        var result = Array<Int64>(mappings.size, { i => mappings[i].sourceIndex })
         return result
     }
 
@@ -496,7 +488,7 @@ public class MappingList {
     /// 使用二分查找定位 <= (line, column) 的最后一个映射
     public func find(line: Int64, column: Int64): ?SourceMapping {
         let idx = findIndexFromGenerated(line, column)
-        if (idx != None) {
+        if (idx.isSome()) {
             return Some(mappings[idx.getOrThrow()])
         }
         return None
@@ -551,7 +543,7 @@ public class MappingList {
         // 重建 mappings
         mappings = ArrayList<SourceMapping>()
         for (i in 0..arr.size) {
-            mappings.append(arr[i])
+            mappings.add(arr[i])
         }
     }
 
@@ -633,19 +625,19 @@ public class MappingParser {
             let ch = remain[0]
 
             // ';' -> 新行
-            // Bun: if (remain[0] == ';') {
+            // Bun: if (remain[0] == UInt8(0x3B)) {
             //          generated.columns = bun.Ordinal.start;
-            //          while (remain.len > 0 and remain[0] == ';') {
+            //          while (remain.len > 0 and remain[0] == UInt8(0x3B)) {
             //              generated.lines = generated.lines.addScalar(1);
             //              remain = remain[1..];
             //          }
-            if (ch == ';') {
+            if (ch == UInt8(0x3B)) {
                 generated.column = 0
 
                 // 批量处理连续的分号 - 对应 Bun 的 hasPrefixComptime 优化
-                while (remain.size > 0 && remain[0] == ';') {
+                while (remain.size > 0 && remain[0] == UInt8(0x3B)) {
                     generated.line += 1
-                    remain = remain.subString(1)
+                    remain = remain[1..]
                     byteOffset += 1
                 }
 
@@ -666,13 +658,12 @@ public class MappingParser {
 
             needsSort = needsSort || (colResult.value < 0)
             generated.column += colResult.value
-
             if (generated.column < 0) {
                 // Bun: return fail{ .msg = "Invalid generated column value", ... }
                 return MappingParseResult(mapping, inputLineCount)
             }
 
-            remain = remain.subString(colResult.start)
+            remain = remain[colResult.start..]
             byteOffset += colResult.start
 
             // 根据 Bun: if (remain.len == 0) break;
@@ -683,12 +674,12 @@ public class MappingParser {
 
             // 检查下一个字符
             let nextCh = remain[0]
-            if (nextCh == ',') {
-                remain = remain.subString(1)
+            if (nextCh == UInt8(0x2C)) {
+                remain = remain[1..]
                 byteOffset += 1
                 continue
             }
-            if (nextCh == ';') {
+            if (nextCh == UInt8(0x3B)) {
                 continue
             }
 
@@ -698,13 +689,11 @@ public class MappingParser {
                 return MappingParseResult(mapping, inputLineCount)
             }
             sourceIndex += srcResult.value
-
             // Bun: if (source_index < 0 or source_index >= sources_count) { ... }
-            if (sourceIndex < 0 || (sourceCount < Int64.MAX_VALUE &&
-                                     sourceIndex >= sourceCount)) {
+            if (sourceIndex < 0 || sourceIndex >= sourceCount) {
                 return MappingParseResult(mapping, inputLineCount)
             }
-            remain = remain.subString(srcResult.start)
+            remain = remain[srcResult.start..]
             byteOffset += srcResult.start
 
             // 读取原始行增量
@@ -713,11 +702,10 @@ public class MappingParser {
                 return MappingParseResult(mapping, inputLineCount)
             }
             original.line += lineResult.value
-
             if (original.line < 0) {
                 return MappingParseResult(mapping, inputLineCount)
             }
-            remain = remain.subString(lineResult.start)
+            remain = remain[lineResult.start..]
             byteOffset += lineResult.start
 
             // 读取原始列增量
@@ -726,24 +714,23 @@ public class MappingParser {
                 return MappingParseResult(mapping, inputLineCount)
             }
             original.column += colOrigResult.value
-
             if (original.column < 0) {
                 return MappingParseResult(mapping, inputLineCount)
             }
-            remain = remain.subString(colOrigResult.start)
+            remain = remain[colOrigResult.start..]
             byteOffset += colOrigResult.start
 
             // 可选: 读取名称索引增量 (第 5 个字段)
             var mapNameIdx = -1
             if (remain.size > 0) {
                 let afterCh = remain[0]
-                if (afterCh != ',' && afterCh != ';') {
+                if (afterCh != UInt8(0x2C) && afterCh != UInt8(0x3B)) {
                     // 第 5 个字段: 名称索引
                     let nameResult = VLQ.decode(remain, 0)
                     if (nameResult.start == 0) {
                         return MappingParseResult(mapping, inputLineCount)
                     }
-                    remain = remain.subString(nameResult.start)
+                    remain = remain[nameResult.start..]
                     byteOffset += nameResult.start
 
                     if (options.allowNames) {
@@ -752,12 +739,12 @@ public class MappingParser {
                     }
 
                     // 处理后续的分隔符
-                    if (remain.size > 0 && remain[0] == ',') {
-                        remain = remain.subString(1)
+                    if (remain.size > 0 && remain[0] == UInt8(0x2C)) {
+                        remain = remain[1..]
                         byteOffset += 1
                     }
-                } else if (afterCh == ',') {
-                    remain = remain.subString(1)
+                } else if (afterCh == UInt8(0x2C)) {
+                    remain = remain[1..]
                     byteOffset += 1
                 }
             }
@@ -780,7 +767,7 @@ public class MappingParser {
     /// 简化的 mappings 解析 (不要求排序和名称)
     public static func parseMappings(mappings: String,
                                      sourceCount: Int64): ArrayList<SourceMapping> {
-        let opts = ParseOptions(allowNames: true, sort: false)
+        let opts = ParseOptions(true, false)
         let result = parse(mappings, sourceCount, 0, opts)
         return result.mappings.getMappings()
     }

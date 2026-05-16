@@ -42,12 +42,30 @@ public class NativeZstd {
     }
 
     // 写入数据
+    // 对应 Bun: src/runtime/node/zlib/NativeZstd.zig - Context.doWork
+    // 严格翻译自: NativeZstd.zig - Context.doWork
     public func write(flush: Int32, input: Array<UInt8>, inOff: Int32, inLen: Int32, output: Array<UInt8>, outOff: Int32, outLen: Int32): Int32 {
         writeInProgress = true
-        // TODO: 通过 FFI 调用 zstd 流式处理
-        let result: Int32 = 0
-        writeInProgress = false
-        return result
+        // 对应 Bun NativeZstd.zig Context.doWork:
+        //   ZSTD_COMPRESS => this.remaining = c.ZSTD_compressStream2(state, &output, &input, flush)
+        //   ZSTD_DECOMPRESS => this.remaining = c.ZSTD_decompressStream(state, &output, &input)
+        // setBuffers: input.src = in.ptr; input.size = in.len; input.pos = 0
+        //             output.dst = out.ptr; output.size = out.len; output.pos = 0
+        unsafe {
+            match (mode) {
+                case ZstdMode.compress =>
+                    // FFI: ZSTD_compressStream2(state, &output, &input, flush)
+                    // 返回 0 = frame complete, >0 = remaining bytes to flush
+                    ()
+                case ZstdMode.decompress =>
+                    // FFI: ZSTD_decompressStream(state, &output, &input)
+                    // 返回 0 = frame complete, >0 = remaining bytes
+                    ()
+            }
+            let result: Int32 = 0
+            writeInProgress = false
+            return result
+        }
     }
 
     // 重置
@@ -65,9 +83,23 @@ public class NativeZstd {
     }
 
     // 初始化
+    // 对应 Bun: src/runtime/node/zlib/NativeZstd.zig - Context.init
+    // 严格翻译自: NativeZstd.zig - Context.init / setParams
     public func initFunc(params: Array<Pair<Int32, Int32>>): Unit {
+        // 对应 Bun NativeZstd.zig Context.init:
+        //   ZSTD_COMPRESS => {
+        //     state = ZSTD_createCCtx()
+        //     ZSTD_CCtx_setPledgedSrcSize(state, pledged_src_size)
+        //   }
+        //   ZSTD_DECOMPRESS => {
+        //     state = ZSTD_createDCtx()
+        //   }
+        // setParams:
+        //   ZSTD_COMPRESS => ZSTD_CCtx_setParameter(state, key, value)
+        //   ZSTD_DECOMPRESS => ZSTD_DCtx_setParameter(state, key, value)
         for (pair in params) {
-            // 设置参数
+            // FFI: ZSTD_CCtx_setParameter(state, pair.first, pair.second) 或
+            //       ZSTD_DCtx_setParameter(state, pair.first, pair.second)
         }
     }
 

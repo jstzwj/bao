@@ -68,7 +68,7 @@ public class MimallocAllocator {
         }
 
         if (Environment.isDebug) {
-            if (let p = ptr) {
+            if (let Some(p) <- ptr) {
                 let usable = MimallocLib.miMallocUsableSize(p)
                 if (usable < len) {
                     Output.panic("mimalloc: allocated size is too small: ${usable} < ${len}", [])
@@ -133,7 +133,7 @@ public class ZAllocator {
         }
 
         if (Environment.isDebug) {
-            if (let p = ptr) {
+            if (let Some(p) <- ptr) {
                 let usable = MimallocLib.miMallocUsableSize(p)
                 if (usable < len) {
                     Output.panic("mimalloc: allocated size is too small: ${usable} < ${len}", [])

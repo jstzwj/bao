@@ -5,6 +5,7 @@
 package bao_http_types
 
 import bao_core.*
+import std.collection.*
 
 // ============================================================================
 // HttpMethod - HTTP 方法枚举
@@ -77,109 +78,109 @@ public class MethodUtil {
 
     private static func buildNoBodySet(): HashSet<String> {
         let s = HashSet<String>()
-        s.put("HEAD")
-        s.put("TRACE")
+        s.add("HEAD")
+        s.add("TRACE")
         return s
     }
 
     private static func buildNoRequestBodySet(): HashSet<String> {
         let s = HashSet<String>()
-        s.put("GET")
-        s.put("HEAD")
-        s.put("OPTIONS")
-        s.put("TRACE")
+        s.add("GET")
+        s.add("HEAD")
+        s.add("OPTIONS")
+        s.add("TRACE")
         return s
     }
 
     private static func buildIdempotentSet(): HashSet<String> {
         let s = HashSet<String>()
-        s.put("GET")
-        s.put("HEAD")
-        s.put("PUT")
-        s.put("DELETE")
-        s.put("OPTIONS")
-        s.put("TRACE")
-        s.put("QUERY")
+        s.add("GET")
+        s.add("HEAD")
+        s.add("PUT")
+        s.add("DELETE")
+        s.add("OPTIONS")
+        s.add("TRACE")
+        s.add("QUERY")
         return s
     }
 
     private static func buildMethodMap(): HashMap<String, HttpMethod> {
         let m = HashMap<String, HttpMethod>()
         // 大写映射
-        m.put("ACL", HttpMethod.ACL)
-        m.put("BIND", HttpMethod.BIND)
-        m.put("CHECKOUT", HttpMethod.CHECKOUT)
-        m.put("CONNECT", HttpMethod.CONNECT)
-        m.put("COPY", HttpMethod.COPY)
-        m.put("DELETE", HttpMethod.DELETE)
-        m.put("GET", HttpMethod.GET)
-        m.put("HEAD", HttpMethod.HEAD)
-        m.put("LINK", HttpMethod.LINK)
-        m.put("LOCK", HttpMethod.LOCK)
-        m.put("M-SEARCH", HttpMethod.M_SEARCH)
-        m.put("MERGE", HttpMethod.MERGE)
-        m.put("MKACTIVITY", HttpMethod.MKACTIVITY)
-        m.put("MKADDRESSBOOK", HttpMethod.MKADDRESSBOOK)
-        m.put("MKCALENDAR", HttpMethod.MKCALENDAR)
-        m.put("MKCOL", HttpMethod.MKCOL)
-        m.put("MOVE", HttpMethod.MOVE)
-        m.put("NOTIFY", HttpMethod.NOTIFY)
-        m.put("OPTIONS", HttpMethod.OPTIONS)
-        m.put("PATCH", HttpMethod.PATCH)
-        m.put("POST", HttpMethod.POST)
-        m.put("PROPFIND", HttpMethod.PROPFIND)
-        m.put("PROPPATCH", HttpMethod.PROPPATCH)
-        m.put("PURGE", HttpMethod.PURGE)
-        m.put("PUT", HttpMethod.PUT)
-        m.put("QUERY", HttpMethod.QUERY)
-        m.put("REBIND", HttpMethod.REBIND)
-        m.put("REPORT", HttpMethod.REPORT)
-        m.put("SEARCH", HttpMethod.SEARCH)
-        m.put("SOURCE", HttpMethod.SOURCE)
-        m.put("SUBSCRIBE", HttpMethod.SUBSCRIBE)
-        m.put("TRACE", HttpMethod.TRACE)
-        m.put("UNBIND", HttpMethod.UNBIND)
-        m.put("UNLINK", HttpMethod.UNLINK)
-        m.put("UNLOCK", HttpMethod.UNLOCK)
-        m.put("UNSUBSCRIBE", HttpMethod.UNSUBSCRIBE)
+        m.add("ACL", HttpMethod.ACL)
+        m.add("BIND", HttpMethod.BIND)
+        m.add("CHECKOUT", HttpMethod.CHECKOUT)
+        m.add("CONNECT", HttpMethod.CONNECT)
+        m.add("COPY", HttpMethod.COPY)
+        m.add("DELETE", HttpMethod.DELETE)
+        m.add("GET", HttpMethod.GET)
+        m.add("HEAD", HttpMethod.HEAD)
+        m.add("LINK", HttpMethod.LINK)
+        m.add("LOCK", HttpMethod.LOCK)
+        m.add("M-SEARCH", HttpMethod.M_SEARCH)
+        m.add("MERGE", HttpMethod.MERGE)
+        m.add("MKACTIVITY", HttpMethod.MKACTIVITY)
+        m.add("MKADDRESSBOOK", HttpMethod.MKADDRESSBOOK)
+        m.add("MKCALENDAR", HttpMethod.MKCALENDAR)
+        m.add("MKCOL", HttpMethod.MKCOL)
+        m.add("MOVE", HttpMethod.MOVE)
+        m.add("NOTIFY", HttpMethod.NOTIFY)
+        m.add("OPTIONS", HttpMethod.OPTIONS)
+        m.add("PATCH", HttpMethod.PATCH)
+        m.add("POST", HttpMethod.POST)
+        m.add("PROPFIND", HttpMethod.PROPFIND)
+        m.add("PROPPATCH", HttpMethod.PROPPATCH)
+        m.add("PURGE", HttpMethod.PURGE)
+        m.add("PUT", HttpMethod.PUT)
+        m.add("QUERY", HttpMethod.QUERY)
+        m.add("REBIND", HttpMethod.REBIND)
+        m.add("REPORT", HttpMethod.REPORT)
+        m.add("SEARCH", HttpMethod.SEARCH)
+        m.add("SOURCE", HttpMethod.SOURCE)
+        m.add("SUBSCRIBE", HttpMethod.SUBSCRIBE)
+        m.add("TRACE", HttpMethod.TRACE)
+        m.add("UNBIND", HttpMethod.UNBIND)
+        m.add("UNLINK", HttpMethod.UNLINK)
+        m.add("UNLOCK", HttpMethod.UNLOCK)
+        m.add("UNSUBSCRIBE", HttpMethod.UNSUBSCRIBE)
 
         // 小写映射
-        m.put("acl", HttpMethod.ACL)
-        m.put("bind", HttpMethod.BIND)
-        m.put("checkout", HttpMethod.CHECKOUT)
-        m.put("connect", HttpMethod.CONNECT)
-        m.put("copy", HttpMethod.COPY)
-        m.put("delete", HttpMethod.DELETE)
-        m.put("get", HttpMethod.GET)
-        m.put("head", HttpMethod.HEAD)
-        m.put("link", HttpMethod.LINK)
-        m.put("lock", HttpMethod.LOCK)
-        m.put("m-search", HttpMethod.M_SEARCH)
-        m.put("merge", HttpMethod.MERGE)
-        m.put("mkactivity", HttpMethod.MKACTIVITY)
-        m.put("mkaddressbook", HttpMethod.MKADDRESSBOOK)
-        m.put("mkcalendar", HttpMethod.MKCALENDAR)
-        m.put("mkcol", HttpMethod.MKCOL)
-        m.put("move", HttpMethod.MOVE)
-        m.put("notify", HttpMethod.NOTIFY)
-        m.put("options", HttpMethod.OPTIONS)
-        m.put("patch", HttpMethod.PATCH)
-        m.put("post", HttpMethod.POST)
-        m.put("propfind", HttpMethod.PROPFIND)
-        m.put("proppatch", HttpMethod.PROPPATCH)
-        m.put("purge", HttpMethod.PURGE)
-        m.put("put", HttpMethod.PUT)
-        m.put("query", HttpMethod.QUERY)
-        m.put("rebind", HttpMethod.REBIND)
-        m.put("report", HttpMethod.REPORT)
-        m.put("search", HttpMethod.SEARCH)
-        m.put("source", HttpMethod.SOURCE)
-        m.put("subscribe", HttpMethod.SUBSCRIBE)
-        m.put("trace", HttpMethod.TRACE)
-        m.put("unbind", HttpMethod.UNBIND)
-        m.put("unlink", HttpMethod.UNLINK)
-        m.put("unlock", HttpMethod.UNLOCK)
-        m.put("unsubscribe", HttpMethod.UNSUBSCRIBE)
+        m.add("acl", HttpMethod.ACL)
+        m.add("bind", HttpMethod.BIND)
+        m.add("checkout", HttpMethod.CHECKOUT)
+        m.add("connect", HttpMethod.CONNECT)
+        m.add("copy", HttpMethod.COPY)
+        m.add("delete", HttpMethod.DELETE)
+        m.add("get", HttpMethod.GET)
+        m.add("head", HttpMethod.HEAD)
+        m.add("link", HttpMethod.LINK)
+        m.add("lock", HttpMethod.LOCK)
+        m.add("m-search", HttpMethod.M_SEARCH)
+        m.add("merge", HttpMethod.MERGE)
+        m.add("mkactivity", HttpMethod.MKACTIVITY)
+        m.add("mkaddressbook", HttpMethod.MKADDRESSBOOK)
+        m.add("mkcalendar", HttpMethod.MKCALENDAR)
+        m.add("mkcol", HttpMethod.MKCOL)
+        m.add("move", HttpMethod.MOVE)
+        m.add("notify", HttpMethod.NOTIFY)
+        m.add("options", HttpMethod.OPTIONS)
+        m.add("patch", HttpMethod.PATCH)
+        m.add("post", HttpMethod.POST)
+        m.add("propfind", HttpMethod.PROPFIND)
+        m.add("proppatch", HttpMethod.PROPPATCH)
+        m.add("purge", HttpMethod.PURGE)
+        m.add("put", HttpMethod.PUT)
+        m.add("query", HttpMethod.QUERY)
+        m.add("rebind", HttpMethod.REBIND)
+        m.add("report", HttpMethod.REPORT)
+        m.add("search", HttpMethod.SEARCH)
+        m.add("source", HttpMethod.SOURCE)
+        m.add("subscribe", HttpMethod.SUBSCRIBE)
+        m.add("trace", HttpMethod.TRACE)
+        m.add("unbind", HttpMethod.UNBIND)
+        m.add("unlink", HttpMethod.UNLINK)
+        m.add("unlock", HttpMethod.UNLOCK)
+        m.add("unsubscribe", HttpMethod.UNSUBSCRIBE)
         return m
     }
 
@@ -311,32 +312,10 @@ public class MethodUtil {
 
 // ============================================================================
 // MethodOptional - 方法可选集
-// 严格翻译自: Method.zig Optional union
-// 用于表示 "任意方法" 或 "特定方法集合" 的过滤器
 // ============================================================================
 
-/// 方法可选集合 - 对应 Bun Method.Optional
+/// 方法可选集合 - 简化占位
 public enum MethodOptional {
     | Any
     | Methods
-    | hasOverlap
-    | break
-}
-                        }
-                        hasOverlap
-                }
-        }
-    }
-
-    /// 插入一个方法 - 对应 Bun Optional.insert()
-    /// 如果集合已包含所有方法，则变为 Any
-    public func insert(method: HttpMethod): MethodOptional {
-        match (this) {
-            case MethodOptional.Any => MethodOptional.Any
-            case MethodOptional.Methods(set) =>
-                set.put(method)
-                // 简化: 不检测是否已满，保持为 Methods
-                MethodOptional.Methods(set)
-        }
-    }
 }

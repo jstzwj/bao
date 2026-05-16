@@ -249,7 +249,7 @@ public class TcpSocket {
                             SocketProtocol.Default.toInt())
         if (sockFd < 0) {
             return SysMaybe<TcpSocket>.Err(
-                SysError(UInt16(Int64(OS.errno())), SysTag.TODO))
+                SysError(UInt16(Int64(OS.errno())), SysTag.Connect))
         }
         return SysMaybe<TcpSocket>.Ok(TcpSocket(Int64(sockFd)))
     }
@@ -321,7 +321,7 @@ public class TcpSocket {
         let rc = bao_sys.listen(Int32(fd), Int32(backlog))
         if (rc != 0) {
             return SysMaybe<Unit>.Err(
-                SysError(UInt16(Int64(OS.errno())), SysTag.TODO))
+                SysError(UInt16(Int64(OS.errno())), SysTag.Listen))
         }
         return SysMaybe<Unit>.Ok(())
     }
@@ -333,7 +333,7 @@ public class TcpSocket {
                                        CPointer<UInt32>())
         if (clientFd < 0) {
             return SysMaybe<TcpSocket>.Err(
-                SysError(UInt16(Int64(OS.errno())), SysTag.TODO))
+                SysError(UInt16(Int64(OS.errno())), SysTag.Accept))
         }
         return SysMaybe<TcpSocket>.Ok(TcpSocket(Int64(clientFd)))
     }
@@ -401,7 +401,7 @@ public class TcpSocket {
             let flags = fcntl(Int32(fd), 3, 0)
             if (flags < 0) {
                 return SysMaybe<Unit>.Err(
-                    SysError(UInt16(Int64(OS.errno())), SysTag.TODO))
+                    SysError(UInt16(Int64(OS.errno())), SysTag.Fcntl))
             }
             let newFlags = if (nonblocking) {
                 flags | 2048  // O_NONBLOCK
@@ -411,7 +411,7 @@ public class TcpSocket {
             let rc = fcntl(Int32(fd), 4, newFlags)  // F_SETFL
             if (rc < 0) {
                 return SysMaybe<Unit>.Err(
-                    SysError(UInt16(Int64(OS.errno())), SysTag.TODO))
+                    SysError(UInt16(Int64(OS.errno())), SysTag.Fcntl))
             }
             return SysMaybe<Unit>.Ok(())
         }
@@ -481,7 +481,7 @@ public class TcpSocket {
             free(valBuf)
             if (rc != 0) {
                 return SysMaybe<Unit>.Err(
-                    SysError(UInt16(Int64(OS.errno())), SysTag.TODO))
+                    SysError(UInt16(Int64(OS.errno())), SysTag.Setsockopt))
             }
             return SysMaybe<Unit>.Ok(())
         }
@@ -498,7 +498,7 @@ public class TcpSocket {
             free(valBuf)
             if (rc != 0) {
                 return SysMaybe<Unit>.Err(
-                    SysError(UInt16(Int64(OS.errno())), SysTag.TODO))
+                    SysError(UInt16(Int64(OS.errno())), SysTag.Setsockopt))
             }
             return SysMaybe<Unit>.Ok(())
         }
@@ -519,7 +519,7 @@ public class TcpSocket {
             free(lenBuf)
             if (rc != 0) {
                 return SysMaybe<Int32>.Err(
-                    SysError(UInt16(Int64(OS.errno())), SysTag.TODO))
+                    SysError(UInt16(Int64(OS.errno())), SysTag.Setsockopt))
             }
             return SysMaybe<Int32>.Ok(err)
         }
@@ -576,7 +576,7 @@ public class TcpSocket {
         let rc = shutdown(Int32(fd), SocketOption.SHUT_WR)
         if (rc != 0) {
             return SysMaybe<Unit>.Err(
-                SysError(UInt16(Int64(OS.errno())), SysTag.TODO))
+                SysError(UInt16(Int64(OS.errno())), SysTag.Shutdown))
         }
         return SysMaybe<Unit>.Ok(())
     }

@@ -5,6 +5,7 @@
 package bao_runtime.shell.builtin
 
 import bao_core.*
+import bao_runtime.shell.*
 
 // ============================================================================
 // cat命令 - 连接并打印文件内容
@@ -21,7 +22,7 @@ public enum CatState {
 }
 
 public struct ExecStdinState {
-    public var inDone: Boolean = false
+    public var inDone: Bool = false
     public var chunksQueued: UInt32 = 0
     public var chunksDone: UInt32 = 0
     public var errno: ExitCode = 0
@@ -33,11 +34,11 @@ public struct ExecFilepathArgsState {
     public var reader: ?IOReader = None
     public var chunksQueued: UInt32 = 0
     public var chunksDone: UInt32 = 0
-    public var outDone: Boolean = false
-    public var inDone: Boolean = false
+    public var outDone: Bool = false
+    public var inDone: Bool = false
 
     public func deinit() {
-        if (let r = this.reader) {
+        if (let Some(r) <- this.reader) {
             r.deref()
         }
     }
@@ -60,12 +61,12 @@ public class CatCmd {
 
 
     /// 写入失败错误
-    public func writeFailingError(buf: String, exitCode: ExitCode): Yield {
-        if (let safeguard = this.bltn().stderr.needsIO()) {
-            this.state = CatState.waitingWriteErr
+    public func writeFailingError(s: String, exitCode: ExitCode): Yield {
+        if (let Some(safeguard) <- this.bltn().stderr.needsIO()) {
+            this.state = CatStateMultiArgsInnerState.waitingWriteErr
             return this.bltn().stderr.enqueue(this, buf.toByteArray(), safeguard)
         }
-        this.bltn().writeNoIO(.stderr, buf.toByteArray())
+        this.bltn().writeNoIO(OutKind.stderr, buf.toByteArray())
         return this.bltn().done(exitCode)
     }
 
@@ -73,9 +74,9 @@ public class CatCmd {
     public func start(): Yield {
         // 解析参数
         let parseResult = this.opts.parse(this.bltn().argsSlice())
-        switch (parseResult) {
-            case .ok(let filepathArgs) =>
-                let shouldReadFromStdin = filepathArgs == None || filepathArgs.length == 0
+        match (parseResult) {
+            case ok(filepathArgs) =>
+                let shouldReadFromStdin = filepathArgs == None || filepathArgs.size == 0
                 if (shouldReadFromStdin) {
                     this.state = CatState.execStdin(ExecStdinState())
                 } else {
@@ -83,14 +84,14 @@ public class CatCmd {
                         args: filepathArgs
                     ))
                 }
-            case .err(let e) =>
-                let buf = switch (e) {
-                    case .illegalOption(let optStr) =>
-                        this.bltn().fmtErrorArena("cat", "illegal option -- ${optStr}\n", [])
-                    case .showUsage =>
+            case ParseResult.err(e) =>
+                let buf = match (e) {
+                    case ParseError.illegalOption(optStr) =>
+                        this.bltn().fmtErrorArena("cat", "illegal option -- " + optStr + "\n", [])
+                    case ParseError.showUsage =>
                         Builtin.Kind.usageString("cat")
-                    case .unsupported(let unsupported) =>
-                        this.bltn().fmtErrorArena("cat", "unsupported option, please open a GitHub issue -- ${unsupported}\n", [])
+                    case ParseError.unsupported(unsupported) =>
+                        this.bltn().fmtErrorArena("cat", "unsupported option, please open a GitHub issue -- " + unsupported + "\n", [])
                 }
                 return this.writeFailingError(buf, 1)
         }
@@ -100,59 +101,59 @@ public class CatCmd {
 
     /// 下一步
     public func next(): Yield {
-        switch (this.state) {
-            case .idle =>
+        match (this.state) {
+            case idle =>
                 panic("Invalid state")
-            case .execStdin =>
+            case execStdin =>
                 if (!this.bltn().stdin.needsIO()) {
                     let buf = this.bltn().readStdinNoIO()
-                    if (let safeguard = this.bltn().stdout.needsIO()) {
+                    if (let Some(safeguard) <- this.bltn().stdout.needsIO()) {
                         return this.bltn().stdout.enqueue(this, buf, safeguard)
                     }
-                    this.bltn().writeNoIO(.stdout, buf)
+                    this.bltn().writeNoIO(OutKind.stdout, buf)
                     return this.bltn().done(0)
                 }
                 this.bltn().stdin.fd.addReader(this)
                 return this.bltn().stdin.fd.start()
-            case .execFilepathArgs =>
+            case execFilepathArgs => ()
                 // 处理文件路径参数
                 return Yield.suspended
-            case .waitingWriteErr =>
+            case waitingWriteErr =>
                 return Yield.failed
-            case .done =>
+            case done =>
                 return this.bltn().done(0)
         }
     }
 
     /// IO写入器数据块回调
-    public func onIOWriterChunk(amount: UInt64, err: ?SystemError): Yield {
+    public func onIOWriterChunk(chunk: UInt64, err: ?SystemError): Yield {
         // 写入stdout出错，取消所有操作并写入错误
-        if (let e = err) {
+        if (let Some(e) <- err) {
             defer { e.deref() }
             let errno: ExitCode = e.getErrno()
-            switch (this.state) {
-                case .execStdin =>
+            match (this.state) {
+                case execStdin => ()
                     // 取消reader
                     if (this.bltn().stdin.needsIO()) {
                         this.bltn().stdin.fd.removeReader(this)
                     }
                     return this.bltn().done(errno)
-                case .execFilepathArgs =>
+                case execFilepathArgs =>
                     return this.bltn().done(errno)
-                case .waitingWriteErr =>
+                case waitingWriteErr =>
                     return this.bltn().done(e.getErrno())
                 case _ =>
                     panic("Invalid state")
             }
         }
 
-        switch (this.state) {
-            case .execStdin =>
+        match (this.state) {
+            case execStdin => ()
                 // 检查是否所有块都已写入
                 return Yield.suspended
-            case .execFilepathArgs =>
+            case execFilepathArgs =>
                 return this.next()
-            case .waitingWriteErr =>
+            case waitingWriteErr =>
                 return this.bltn().done(1)
             case _ =>
                 panic("Invalid state")
@@ -160,28 +161,28 @@ public class CatCmd {
     }
 
     /// IO读取器数据块回调
-    public func onIOReaderChunk(chunk: Array<Byte>, remove: Boolean): Yield {
-        if (let safeguard = this.bltn().stdout.needsIO()) {
+    public func onIOReaderChunk(arr: Array<Byte>, remove: Bool): Yield {
+        if (let Some(safeguard) <- this.bltn().stdout.needsIO()) {
             return this.bltn().stdout.enqueue(this, chunk, safeguard)
         }
-        this.bltn().writeNoIO(.stdout, chunk)
+        this.bltn().writeNoIO(OutKind.stdout, chunk)
         return Yield.done
     }
 
     /// IO读取器完成回调
-    public func onIOReaderDone(err: ?SystemError): Yield {
-        let errno: ExitCode = if (let e = err) {
+    public func onIOReaderDone(systemError: ?SystemError): Yield {
+        let errno: ExitCode = if (let Some(e) <- err) {
             defer { e.deref() }
             e.getErrno()
-        } else 0
+        } else { 0 }
 
-        switch (this.state) {
-            case .execStdin =>
+        match (this.state) {
+            case execStdin =>
                 if (errno != 0) {
                     return this.bltn().done(errno)
                 }
                 return this.bltn().done(0)
-            case .execFilepathArgs =>
+            case execFilepathArgs =>
                 return this.next()
             case _ =>
                 return Yield.suspended
@@ -200,26 +201,26 @@ public class CatCmd {
 /// cat命令选项
 public struct CatOpts {
     /// -b: 编号非空行
-    public var numberNonblank: Boolean = false
+    public var numberNonblank: Bool = false
     /// -e: 显示非打印字符和行尾$
-    public var showEnds: Boolean = false
+    public var showEnds: Bool = false
     /// -n: 编号所有行
-    public var numberAll: Boolean = false
+    public var numberAll: Bool = false
     /// -s: 压缩连续空行
-    public var squeezeBlank: Boolean = false
+    public var squeezeBlank: Bool = false
     /// -t: 显示制表符为^I
-    public var showTabs: Boolean = false
+    public var showTabs: Bool = false
     /// -u: 禁用输出缓冲
-    public var disableOutputBuffering: Boolean = false
+    public var disableOutputBuffering: Bool = false
     /// -v: 显示非打印字符
-    public var showNonprinting: Boolean = false
+    public var showNonprinting: Bool = false
 
     /// 解析参数
-    public func parse(args: Array<String>): ParseResult {
+    public func parse(arr: Array<String>): ParseResult {
         var idx: UInt32 = 0
-        while (idx < args.length) {
+        while (idx < args.size) {
             let arg = args[idx]
-            if (arg.length < 2 || arg[0] != '-') {
+            if (arg.size < 2 || arg[0] != '-') {
                 break
             }
             for (c in arg.substring(1)) {
@@ -233,7 +234,7 @@ public struct CatOpts {
             idx++
         }
 
-        if (idx >= args.length) {
+        if (idx >= args.size) {
             return ParseResult.ok(None)
         }
         return ParseResult.ok(args[idx..])

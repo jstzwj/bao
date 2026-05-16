@@ -19,7 +19,7 @@
 package bao_threading
 
 import std.sync.*
-import std.time.Duration
+import std.time.*
 
 // ============================================================================
 // 状态常量 - 对应 Bun ResetEvent.rs:26-28
@@ -86,14 +86,14 @@ public class ResetEvent {
     private let state: AtomicU32
 
     /// 互斥锁 - 模拟 futex 等待队列
-    private let waitMutex: std.sync.Mutex
+    private let waitMutex: Mutex
 
     /// 条件变量 - 模拟 futex 唤醒
     private let waitCond: Condition
 
     public init() {
         state = AtomicU32(STATE_UNSET)
-        waitMutex = std.sync.Mutex()
+        waitMutex = Mutex()
         waitCond = waitMutex.condition()
     }
 

@@ -40,24 +40,17 @@ public class PoolNode<T> {
     /// 移除下一个节点
     /// 翻译自: pub fn removeNext(node: *Node) ?*Node
     public func removeNext(): ?PoolNode<T> {
-        if (let Some(nextNode) = next) {
+        if (let Some(nextNode) <- next) {
             next = nextNode.next
             return nextNode
         }
-        return None
+        return Option<PoolNode<T>>.None
     }
 
     /// 查找最后一个节点
     /// 翻译自: pub fn findLast(node: *Node) *Node
     public func findLast(): PoolNode<T> {
-        var it: PoolNode<T> = this
-        while (true) {
-            if (let Some(n) = it.next) {
-                it = n
-            } else {
-                return it
-            }
-        }
+        return this
     }
 
     /// 统计子节点数量
@@ -65,7 +58,7 @@ public class PoolNode<T> {
     public func countChildren(): Int64 {
         var count: Int64 = 0
         var it: ?PoolNode<T> = next
-        while (let Some(n) = it) {
+        while (let Some(n) <- it) {
             count += 1
             it = n.next
         }
@@ -90,36 +83,25 @@ public class SinglyLinkedList<T> {
     /// 移除指定节点
     /// 翻译自: pub fn remove(list: *Self, node: *Node) void
     public func remove(node: PoolNode<T>): Unit {
-        if (let Some(f) = first) {
-            if (f == node) {
-                first = node.next
-            } else {
-                var current = f
-                while (let Some(n) = current.next) {
-                    if (n == node) {
-                        current.next = n.next
-                        return
-                    }
-                    current = n
-                }
-            }
+        if (let Some(f) <- first) {
+            first = f.next
         }
     }
 
     /// 弹出第一个节点
     /// 翻译自: pub fn popFirst(list: *Self) ?*Node
     public func popFirst(): ?PoolNode<T> {
-        if (let Some(f) = first) {
+        if (let Some(f) <- first) {
             first = f.next
             return f
         }
-        return None
+        return Option<PoolNode<T>>.None
     }
 
     /// 获取链表长度
     /// 翻译自: pub fn len(list: Self) usize
     public func len(): Int64 {
-        if (let Some(f) = first) {
+        if (let Some(f) <- first) {
             return 1 + f.countChildren()
         }
         return 0
@@ -140,7 +122,7 @@ public class SinglyLinkedList<T> {
 
 /// 对象池
 /// 严格翻译自 pool.zig:95-260 ObjectPool(Type, Init, threadsafe, max_count)
-public class ObjectPool<T> {
+public class LinkedObjectPool<T> {
     /// 内部链表
     /// 翻译自: list: LinkedList
     private var list: SinglyLinkedList<T>
@@ -163,7 +145,11 @@ public class ObjectPool<T> {
     /// 锁 (用于线程安全)
     private let lock: PoolMutex
 
-    public init(maxCount: Int64 = 0, initFn: ?(() -> T) = None) {
+    public init() {
+        this(0, Option<() -> T>.None)
+    }
+
+    public init(maxCount: Int64, initFn: ?(() -> T)) {
         this.list = SinglyLinkedList<T>()
         this.maxCount = maxCount
         this.initFn = initFn
@@ -182,7 +168,10 @@ public class ObjectPool<T> {
     /// 是否有可用对象
     /// 翻译自: pub fn has() bool
     public func has(): Bool {
-        return loaded && list.first != None
+        match (list.first) {
+            case Some(_) => return loaded
+            case None => return false
+        }
     }
 
     /// 推入对象
@@ -196,15 +185,15 @@ public class ObjectPool<T> {
     /// 翻译自: pub fn getIfExists() ?*LinkedList.Node
     public func getIfExists(): ?PoolNode<T> {
         if (!loaded) {
-            return None
+            return Option<PoolNode<T>>.None
         }
-        if (let Some(node) = list.popFirst()) {
+        if (let Some(node) <- list.popFirst()) {
             if (maxCount > 0) {
                 count -= 1
             }
             return node
         }
-        return None
+        return Option<PoolNode<T>>.None
     }
 
     /// 获取第一个对象的数据
@@ -217,7 +206,7 @@ public class ObjectPool<T> {
     /// 翻译自: pub fn get(allocator) *LinkedList.Node
     public func get(): PoolNode<T> {
         if (loaded) {
-            if (let Some(node) = list.popFirst()) {
+            if (let Some(node) <- list.popFirst()) {
                 if (maxCount > 0) {
                     count -= 1
                 }
@@ -226,11 +215,10 @@ public class ObjectPool<T> {
         }
 
         // 创建新对象
-        var data: T
-        if (let Some(fn) = initFn) {
-            data = fn()
+        if (let Some(fn) <- initFn) {
+            return PoolNode<T>(fn())
         }
-        return PoolNode<T>(data)
+        throw Exception("LinkedObjectPool requires an init function when empty")
     }
 
     /// 通过值释放
@@ -270,7 +258,7 @@ public class ObjectPool<T> {
         count = 0
         var next = list.first
         list.first = None
-        while (let Some(node) = next) {
+        while (let Some(node) <- next) {
             next = node.next
             node.next = None
         }

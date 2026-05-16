@@ -30,7 +30,7 @@ import bao_hash.*
 ///   IdentityContext 用于 HashMap 中不重新哈希的场景
 ///   ArrayIdentityContext 用于 ArrayHashMap (u32 hash)
 ///   U64 变体用于 64 位键截断为 32 位 hash 的场景
-public class IdentityContext<K> where K <: Equatable<K> {
+public class IdentityContext<K> where K <: Equatable<K> & ToString {
     /// 默认构造
     public init() {}
 

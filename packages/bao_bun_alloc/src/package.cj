@@ -34,8 +34,8 @@ public type MaybeOwnedAlloc = MaybeOwnedAllocator
 
 // mimalloc 堆区域
 public type MimallocArena_ = MimallocArena
-public type MimallocBorrowed = MimallocArena.Borrowed
-public type MimallocDefault = MimallocArena.Default
+public type MimallocBorrowed = MimallocArenaBorrowed
+public type MimallocDefault = MimallocArenaDefault
 
 // 内存工具
 public type MemUtils = MemoryUtils
@@ -73,7 +73,7 @@ public type BSSMap_<T> = BSSMap<T>
 // 分配作用域类型
 public type AllocScopeState_ = AllocScopeState
 public type AllocScopeStats_ = AllocScopeStats
-public type AllocScopeBorrowed = AllocationScope.Borrowed
+public type AllocScopeBorrowed = AllocationScopeBorrowed
 
 // 内存相关
 public type MemFdBytes_ = MemFdBytes

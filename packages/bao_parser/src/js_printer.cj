@@ -940,7 +940,14 @@ public class JSPrinter {
     /// 混淆属性名 - 对应 mangledPropName()
     public func mangledPropName(ref: Ref): String {
         let resolved = symbols().follow(ref)
-        // TODO: mangled_props 查找
+        match (options.mangledProps) {
+            case Some(props) =>
+                match (props.get(resolved)) {
+                    case Some(name) => return name
+                    case None => ()
+                }
+            case None => ()
+        }
         return renamer.nameForSymbol(resolved)
     }
 
@@ -1756,6 +1763,8 @@ public class PrinterOptions {
     public var commonjsNamedExportsRef: Ref
     /// CommonJS 模块引用
     public var commonjsModuleRef: Ref
+    /// 混淆属性名映射 - 对应 mangled_props
+    public var mangledProps: ?HashMap<Ref, String>
 
     public init() {
         bundling = false
@@ -1782,6 +1791,7 @@ public class PrinterOptions {
         commonjsModuleExportsAssignedDeoptimized = false
         commonjsNamedExportsRef = Ref.NONE
         commonjsModuleRef = Ref.NONE
+        mangledProps = None
     }
 }
 

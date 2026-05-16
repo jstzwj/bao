@@ -55,5 +55,5 @@ public func toThrowErrorMatchingInlineSnapshot(`this`: Expect, globalThis: JSGlo
     }
     let value: JSValue = valueOrNull.getOrThrow()
 
-    return this.inlineSnapshot(globalThis: globalThis, callFrame: callFrame, value: value, propertyMatchers: None, expected: expectedSlice, matcherName: "toThrowErrorMatchingInlineSnapshot")
+    return this.inlineSnapshot(globalThis: globalThis, callFrame: callFrame, value: value, propertyMatchers: None, result: expectedSlice, fnName: "toThrowErrorMatchingInlineSnapshot")
 }

@@ -7,6 +7,7 @@
 package bao_http_types
 
 import bao_core.*
+import std.collection.*
 
 // ============================================================================
 // FetchCacheMode - Fetch 缓存模式
@@ -35,12 +36,12 @@ public class FetchCacheModeUtil {
 
     private static func buildMap(): HashMap<String, FetchCacheMode> {
         let m = HashMap<String, FetchCacheMode>()
-        m.put("default", FetchCacheMode.Default)
-        m.put("no-store", FetchCacheMode.NoStore)
-        m.put("reload", FetchCacheMode.Reload)
-        m.put("no-cache", FetchCacheMode.NoCache)
-        m.put("force-cache", FetchCacheMode.ForceCache)
-        m.put("only-if-cached", FetchCacheMode.OnlyIfCached)
+        m.add("default", FetchCacheMode.Default)
+        m.add("no-store", FetchCacheMode.NoStore)
+        m.add("reload", FetchCacheMode.Reload)
+        m.add("no-cache", FetchCacheMode.NoCache)
+        m.add("force-cache", FetchCacheMode.ForceCache)
+        m.add("only-if-cached", FetchCacheMode.OnlyIfCached)
         return m
     }
 
@@ -85,9 +86,9 @@ public class FetchRedirectUtil {
 
     private static func buildMap(): HashMap<String, FetchRedirect> {
         let m = HashMap<String, FetchRedirect>()
-        m.put("follow", FetchRedirect.Follow)
-        m.put("manual", FetchRedirect.Manual)
-        m.put("error", FetchRedirect.Error)
+        m.add("follow", FetchRedirect.Follow)
+        m.add("manual", FetchRedirect.Manual)
+        m.add("error", FetchRedirect.Error)
         return m
     }
 
@@ -131,10 +132,10 @@ public class FetchRequestModeUtil {
 
     private static func buildMap(): HashMap<String, FetchRequestMode> {
         let m = HashMap<String, FetchRequestMode>()
-        m.put("same-origin", FetchRequestMode.SameOrigin)
-        m.put("no-cors", FetchRequestMode.NoCors)
-        m.put("cors", FetchRequestMode.Cors)
-        m.put("navigate", FetchRequestMode.Navigate)
+        m.add("same-origin", FetchRequestMode.SameOrigin)
+        m.add("no-cors", FetchRequestMode.NoCors)
+        m.add("cors", FetchRequestMode.Cors)
+        m.add("navigate", FetchRequestMode.Navigate)
         return m
     }
 

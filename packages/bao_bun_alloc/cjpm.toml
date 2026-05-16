@@ -13,3 +13,5 @@ target-dir = ""
 
 [dependencies]
 bao_core = { path = "../bao_core" }
+bao_crash_handler = { path = "../bao_crash_handler" }
+bao_collections = { path = "../bao_collections" }

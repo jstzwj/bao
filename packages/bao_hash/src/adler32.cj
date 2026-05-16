@@ -135,7 +135,5 @@ public class Adler32 {
 
 /// 字符串转字节数组
 private func stringToBytes(s: String): Array<UInt8> {
-    var bytes = Array<UInt8>()
-    for (c in s) { bytes.append(UInt8(c.value)) }
-    return bytes
+    return s.toArray()
 }

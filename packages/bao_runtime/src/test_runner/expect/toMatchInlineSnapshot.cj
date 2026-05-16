@@ -59,5 +59,5 @@ public func toMatchInlineSnapshot(`this`: Expect, globalThis: JSGlobalObject, ca
     let expectedSlice: ?String = if (hasExpected) { expected.slice() } else { None }
 
     let value = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toMatchInlineSnapshot", matcherParamsFmt: "<green>properties<r><d>, <r>hint")
-    return this.inlineSnapshot(globalThis: globalThis, callFrame: callFrame, value: value, propertyMatchers: propertyMatchers, expected: expectedSlice, matcherName: "toMatchInlineSnapshot")
+    return this.inlineSnapshot(globalThis: globalThis, callFrame: callFrame, value: value, propertyMatchers: propertyMatchers, result: expectedSlice, fnName: "toMatchInlineSnapshot")
 }

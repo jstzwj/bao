@@ -5,6 +5,49 @@ package bao_ptr
 import bao_core.*
 // 同包内的所有类型自动可见，无需 import
 
+public class Assert {
+    public static func assertTrue(condition: Bool): Unit {
+        if (!condition) {
+            throw Exception("assertion failed")
+        }
+    }
+
+    public static func assertTrue(condition: Bool, message: String): Unit {
+        if (!condition) {
+            throw Exception(message)
+        }
+    }
+}
+
+public class ThreadLock {
+    public func lock(): Unit {}
+    public func unlock(): Unit {}
+    public func assertLocked(): Unit {}
+    public func lockOrAssert(): Unit {}
+}
+
+public class AtomicUInt64 {
+    private var value: UInt64
+
+    public init(value: UInt64) {
+        this.value = value
+    }
+
+    public func load(): UInt64 {
+        return value
+    }
+
+    public func store(value: UInt64): Unit {
+        this.value = value
+    }
+
+    public func fetchAdd(delta: UInt64): UInt64 {
+        let old = value
+        value += delta
+        return old
+    }
+}
+
 // ============================================================================
 // 公开导出的类型别名 (对应 ptr.zig 中的 pub const)
 // ============================================================================

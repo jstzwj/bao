@@ -3,7 +3,10 @@
 //   支持 RESP2 和 RESP3 协议类型
 package bao_valkey
 
+import std.convert.*
+
 import bao_core.*
+import std.collection.*
 
 // ============================================================================
 // RedisError - Redis 错误类型
@@ -127,44 +130,42 @@ public enum RESPType {
 
     /// 从字节解析类型
     public static func fromByte(byte: UInt8): ?RESPType {
-        match (byte) {
-            case '+' => RESPType.SimpleString
-            case '-' => RESPType.Error
-            case ':' => RESPType.Integer
-            case '$' => RESPType.BulkString
-            case '*' => RESPType.Array
-            case '_' => RESPType.Null
-            case ',' => RESPType.Double
-            case '#' => RESPType.Boolean
-            case '!' => RESPType.BlobError
-            case '=' => RESPType.VerbatimString
-            case '%' => RESPType.Map
-            case '~' => RESPType.Set
-            case '|' => RESPType.Attribute
-            case '>' => RESPType.Push
-            case '(' => RESPType.BigNumber
-            case _ => None
-        }
+        if (byte == UInt8(0x2B)) { RESPType.SimpleString }
+        else if (byte == UInt8(0x2D)) { RESPType.Error }
+        else if (byte == UInt8(0x3A)) { RESPType.Integer }
+        else if (byte == UInt8(0x24)) { RESPType.BulkString }
+        else if (byte == UInt8(0x2A)) { RESPType.Array }
+        else if (byte == UInt8(0x5F)) { RESPType.Null }
+        else if (byte == UInt8(0x2C)) { RESPType.Double }
+        else if (byte == UInt8(0x23)) { RESPType.Boolean }
+        else if (byte == UInt8(0x21)) { RESPType.BlobError }
+        else if (byte == UInt8(0x3D)) { RESPType.VerbatimString }
+        else if (byte == UInt8(0x25)) { RESPType.Map }
+        else if (byte == UInt8(0x7E)) { RESPType.Set }
+        else if (byte == UInt8(0x7C)) { RESPType.Attribute }
+        else if (byte == UInt8(0x3E)) { RESPType.Push }
+        else if (byte == UInt8(0x28)) { RESPType.BigNumber }
+        else { None }
     }
 
     /// 转换为字节
     public func toByte(): UInt8 {
         match (this) {
-            case SimpleString => '+'
-            case Error => '-'
-            case Integer => ':'
-            case BulkString => '$'
-            case Array => '*'
-            case Null => '_'
-            case Double => ','
-            case Boolean => '#'
-            case BlobError => '!'
-            case VerbatimString => '='
-            case Map => '%'
-            case Set => '~'
-            case Attribute => '|'
-            case Push => '>'
-            case BigNumber => '('
+            case SimpleString => UInt8(0x2B)
+            case Error => UInt8(0x2D)
+            case Integer => UInt8(0x3A)
+            case BulkString => UInt8(0x24)
+            case Array => UInt8(0x2A)
+            case Null => UInt8(0x5F)
+            case Double => UInt8(0x2C)
+            case Boolean => UInt8(0x23)
+            case BlobError => UInt8(0x21)
+            case VerbatimString => UInt8(0x3D)
+            case Map => UInt8(0x25)
+            case Set => UInt8(0x7E)
+            case Attribute => UInt8(0x7C)
+            case Push => UInt8(0x3E)
+            case BigNumber => UInt8(0x28)
         }
     }
 }
@@ -279,14 +280,14 @@ public class RESPValue {
     }
 
     /// 创建 SimpleString 值
-    public static func simpleString(s: String): RESPValue {
+    public static func createSimpleString(s: String): RESPValue {
         let v = RESPValue(RESPType.SimpleString)
         v.simpleString = s
         v
     }
 
     /// 创建 Error 值
-    public static func error(s: String): RESPValue {
+    public static func createError(s: String): RESPValue {
         let v = RESPValue(RESPType.Error)
         v.error = s
         v
@@ -300,7 +301,7 @@ public class RESPValue {
     }
 
     /// 创建 BulkString 值
-    public static func bulkString(s: ?String): RESPValue {
+    public static func createBulkString(s: ?String): RESPValue {
         let v = RESPValue(RESPType.BulkString)
         v.bulkString = s
         v
@@ -312,14 +313,14 @@ public class RESPValue {
     }
 
     /// 创建 Double 值
-    public static func doubleValue(d: Float64): RESPValue {
+    public static func createDoubleValue(d: Float64): RESPValue {
         let v = RESPValue(RESPType.Double)
         v.doubleValue = d
         v
     }
 
     /// 创建 Boolean 值
-    public static func booleanValue(b: Bool): RESPValue {
+    public static func createBooleanValue(b: Bool): RESPValue {
         let v = RESPValue(RESPType.Boolean)
         v.booleanValue = b
         v
@@ -344,12 +345,12 @@ public class RESPValue {
         }
         if (respType == RESPType.Array) {
             let sb = StringBuilder()
-            sb.append('[')
+            sb.append("[")
             for (i in 0..array.size) {
                 if (i > 0) { sb.append(", ") }
                 sb.append(array[i].format())
             }
-            sb.append(']')
+            sb.append("]")
             return sb.toString()
         }
         if (respType == RESPType.VerbatimString) {
@@ -361,14 +362,14 @@ public class RESPValue {
         }
         if (respType == RESPType.Map) {
             let sb = StringBuilder()
-            sb.append('{')
+            sb.append("{")
             for (i in 0..map.size) {
                 if (i > 0) { sb.append(", ") }
                 sb.append(map[i].key.format())
                 sb.append(": ")
                 sb.append(map[i].value.format())
             }
-            sb.append('}')
+            sb.append("}")
             return sb.toString()
         }
         if (respType == RESPType.Set) {
@@ -378,7 +379,7 @@ public class RESPValue {
                 if (i > 0) { sb.append(", ") }
                 sb.append(set[i].format())
             }
-            sb.append('}')
+            sb.append("}")
             return sb.toString()
         }
         if (respType == RESPType.Attribute) {
@@ -394,7 +395,7 @@ public class RESPValue {
                 }
                 sb.append("} => ")
                 sb.append(attr.value.format())
-                sb.append(')')
+                sb.append(")")
                 return sb.toString()
             }
             return "(nil)"
@@ -464,11 +465,7 @@ public class ValkeyReader {
         let remaining = buffer[pos..]
         var i = 0
         while (i < remaining.size - 1) {
-            if (remaining[i] == '\r' && remaining[i + 1] == '\n') {
-                let result = String(remaining[pos - pos..]) // 从当前 pos 开始
-                // 重新实现：用 subArray
-                let bytes = Array<Byte>(remaining.size)
-                // 简化实现
+            if (remaining[i] == 13 && remaining[i + 1] == 10) {
                 let result2 = String.fromUtf8(buffer[pos..(pos + i)])
                 pos += i + 2
                 return result2
@@ -493,9 +490,9 @@ public class ValkeyReader {
         if (str.isNone()) { return None }
         let s = str.getOrThrow()
         // 处理特殊值
-        if (s == "inf") { return Float64.infinity }
-        if (s == "-inf") { return -Float64.infinity }
-        if (s == "nan") { return Float64.nan }
+        if (s == "inf") { return Float64.Inf }
+        if (s == "-inf") { return -Float64.Inf }
+        if (s == "nan") { return Float64.NaN }
         Float64.parse(s)
     }
 
@@ -525,7 +522,7 @@ public class ValkeyReader {
         let typeByte = readByte()
         if (typeByte.isNone()) { return None }
 
-        let respType = RESPType.fromByte(typeByte.getOrThrow().value)
+        let respType = RESPType.fromByte(typeByte.getOrThrow())
         if (respType.isNone()) { return None }
 
         let rt = respType.getOrThrow()
@@ -534,12 +531,12 @@ public class ValkeyReader {
         if (rt == RESPType.SimpleString) {
             let str = readUntilCRLF()
             if (str.isNone()) { return None }
-            return RESPValue.simpleString(str.getOrThrow())
+            return RESPValue.createSimpleString(str.getOrThrow())
         }
         if (rt == RESPType.Error) {
             let str = readUntilCRLF()
             if (str.isNone()) { return None }
-            return RESPValue.error(str.getOrThrow())
+            return RESPValue.createError(str.getOrThrow())
         }
         if (rt == RESPType.Integer) {
             let i = readInteger()
@@ -550,7 +547,7 @@ public class ValkeyReader {
             let len = readInteger()
             if (len.isNone()) { return None }
             if (len.getOrThrow() < 0) {
-                return RESPValue.bulkString(None)
+                return RESPValue.createBulkString(Option<String>.None)
             }
             let n = len.getOrThrow()
             if (pos + n > buffer.size) { return None }
@@ -558,7 +555,7 @@ public class ValkeyReader {
             pos += n
             // 跳过 CRLF
             let crlf = readUntilCRLF()
-            return RESPValue.bulkString(str)
+            return RESPValue.createBulkString(str)
         }
         if (rt == RESPType.Array) {
             if (depth >= MAX_NESTING_DEPTH) { return None }
@@ -571,7 +568,7 @@ public class ValkeyReader {
             for (_ in 0..len.getOrThrow()) {
                 let v = readValueWithDepth(depth + 1)
                 if (v.isNone()) { return None }
-                arr.append(v.getOrThrow())
+                arr.add(v.getOrThrow())
             }
             let result = RESPValue(RESPType.Array)
             result.array = arr
@@ -585,12 +582,12 @@ public class ValkeyReader {
         if (rt == RESPType.Double) {
             let d = readDouble()
             if (d.isNone()) { return None }
-            return RESPValue.doubleValue(d.getOrThrow())
+            return RESPValue.createDoubleValue(d.getOrThrow())
         }
         if (rt == RESPType.Boolean) {
             let b = readBoolean()
             if (b.isNone()) { return None }
-            return RESPValue.booleanValue(b.getOrThrow())
+            return RESPValue.createBooleanValue(b.getOrThrow())
         }
         if (rt == RESPType.BlobError) {
             let len = readInteger()
@@ -613,9 +610,9 @@ public class ValkeyReader {
             pos += n
             readUntilCRLF()
             // 格式: "xxx:content"
-            if (content.size < 4 || content[3] != ':') { return None }
-            let fmt = content.subString(0, 3)
-            let body = content.subString(4)
+            if (content.size < 4 || content[3] != 58) { return None }
+            let fmt = content[0..3]
+            let body = content[4..]
             let result = RESPValue(RESPType.VerbatimString)
             result.verbatimString = VerbatimString(fmt, body)
             return result
@@ -630,7 +627,7 @@ public class ValkeyReader {
                 if (key.isNone()) { return None }
                 let val = readValueWithDepth(depth + 1)
                 if (val.isNone()) { return None }
-                entries.append(RESPMapEntry(key.getOrThrow(), val.getOrThrow()))
+                entries.add(RESPMapEntry(key.getOrThrow(), val.getOrThrow()))
             }
             let result = RESPValue(RESPType.Map)
             result.map = entries
@@ -644,7 +641,7 @@ public class ValkeyReader {
             for (_ in 0..len.getOrThrow()) {
                 let v = readValueWithDepth(depth + 1)
                 if (v.isNone()) { return None }
-                items.append(v.getOrThrow())
+                items.add(v.getOrThrow())
             }
             let result = RESPValue(RESPType.Set)
             result.set = items
@@ -660,7 +657,7 @@ public class ValkeyReader {
                 if (key.isNone()) { return None }
                 let val = readValueWithDepth(depth + 1)
                 if (val.isNone()) { return None }
-                attrs.append(RESPMapEntry(key.getOrThrow(), val.getOrThrow()))
+                attrs.add(RESPMapEntry(key.getOrThrow(), val.getOrThrow()))
             }
             // 读取属性后的实际值
             let val = readValueWithDepth(depth + 1)
@@ -681,14 +678,14 @@ public class ValkeyReader {
             if (pt.respType == RESPType.SimpleString) {
                 kind = pt.simpleString
             } else if (pt.respType == RESPType.BulkString) {
-                kind = pt.bulkString.getOr("")
+                kind = match (pt.bulkString) { case Some(v) => v case None => "" }
             }
             // 读取剩余数据
             let data = ArrayList<RESPValue>()
             for (_ in 0..(len.getOrThrow() - 1)) {
                 let v = readValueWithDepth(depth + 1)
                 if (v.isNone()) { return None }
-                data.append(v.getOrThrow())
+                data.add(v.getOrThrow())
             }
             let result = RESPValue(RESPType.Push)
             result.push = RESPPush(kind, data)

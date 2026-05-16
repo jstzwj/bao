@@ -11,6 +11,42 @@ output-type = "static"
 src-dir = "src"
 target-dir = ""
 
+[native_sources]
+ffi = [
+  "native/ffi/FFI.h",
+  "native/ffi/ffi-stdalign.h",
+  "native/ffi/ffi-stdarg.h",
+  "native/ffi/ffi-stdatomic.h",
+  "native/ffi/ffi-stdbool.h",
+  "native/ffi/ffi-stddef.h",
+  "native/ffi/ffi-stdnoreturn.h",
+  "native/ffi/ffi-tgmath.h",
+  "native/ffi/libtcc1.c",
+]
+napi = [
+  "native/napi/js_native_api.h",
+  "native/napi/js_native_api_types.h",
+  "native/napi/node_api.h",
+  "native/napi/node_api_types.h",
+]
+webview = [
+  "native/webview/ChromeBackend.cpp",
+  "native/webview/ChromeBackend.h",
+  "native/webview/host_main.cpp",
+  "native/webview/ipc_protocol.h",
+  "native/webview/JSWebViewConstructor.cpp",
+  "native/webview/JSWebView.cpp",
+  "native/webview/JSWebView.h",
+  "native/webview/JSWebViewPrototype.cpp",
+  "native/webview/ObjCRuntime.cpp",
+  "native/webview/ObjCRuntime.h",
+  "native/webview/WebKitBackend.cpp",
+  "native/webview/WebKitBackend.h",
+  "native/webview/WebViewEventTarget.h",
+  "native/webview/WebViewHost.cpp",
+  "native/webview/WebViewHost.h",
+]
+
 [dependencies]
 bao_valkey = { path = "../bao_valkey" }
 bao_threading = { path = "../bao_threading" }

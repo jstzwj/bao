@@ -64,6 +64,6 @@ public class ThisPtr<T> {
 
     /// Debug 字符串表示
     public func toString(): String {
-        "ThisPtr(0x${this.ptr.toString(16)})"
+        "ThisPtr(0x${this.ptr})"
     }
 }

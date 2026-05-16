@@ -15,15 +15,44 @@ package bao_runtime.crypto
 
 import bao_core.*
 
+// Native password-hash shim implemented on the C/Rust side, mirroring Bun's
+// rust-argon2 plus bcrypt crate bridge in src/runtime/crypto/pwhash.rs.
+@C
+foreign func bao_argon2_str_hash(password: CPointer<Byte>, password_len: UIntNative,
+                                 mode: UInt32, time_cost: UInt32, mem_cost: UInt32,
+                                 parallelism: UInt32, out: CPointer<Byte>, out_len: UIntNative,
+                                 written: CPointer<UIntNative>): Int32
+
+@C
+foreign func bao_argon2_str_verify(encoded: CPointer<Byte>, encoded_len: UIntNative,
+                                   password: CPointer<Byte>, password_len: UIntNative): Int32
+
+@C
+foreign func bao_bcrypt_str_hash(password: CPointer<Byte>, password_len: UIntNative,
+                                 rounds_log: UInt32, out: CPointer<Byte>, out_len: UIntNative,
+                                 written: CPointer<UIntNative>): Int32
+
+@C
+foreign func bao_bcrypt_str_verify(encoded: CPointer<Byte>, encoded_len: UIntNative,
+                                   password: CPointer<Byte>, password_len: UIntNative): Int32
+
+@C
+foreign func bao_bcrypt_hash_raw(rounds_log: UInt32, salt: CPointer<Byte>, salt_len: UIntNative,
+                                 password: CPointer<Byte>, password_len: UIntNative,
+                                 out: CPointer<Byte>, out_len: UIntNative): Int32
+
+@C
+foreign func getrandom(buf: CPointer<Byte>, buflen: UIntNative, flags: UInt32): Int64
+
 // ============================================================================
 // phc_ascii_str 辅助函数
-// 对应 Bun: fn phc_ascii_str(s: &[u8]) -> Result<&str, Error>
+// 对应 Bun: fn phc_ascii_str(&[u8]) -> Result<&str, Error>
 // ============================================================================
 
 /// PHC / modular-crypt 字符串按规范为 7-bit ASCII
 /// 进行便宜的 is_ascii 检查后视图转换
-/// 对应 Bun: fn phc_ascii_str(s: &[u8]) -> Result<&str, Error>
-public func phcAsciiStr(s: Array<Byte>): ?String {
+/// 对应 Bun: fn phc_ascii_str(&[u8]) -> Result<&str, Error>
+public func phcAsciiStr(input: Array<Byte>): ?String {
     for (b in s) {
         if (b.toInt64() > 0x7F) {
             return None
@@ -96,7 +125,7 @@ public enum Argon2Mode {
 /// std.crypto.pwhash.argon2.Params -- 仅包含 Bun 使用的字段
 /// 对应 Bun: pub struct Params { pub t: u32, pub m: u32, pub p: u32 }
 /// 对应 Zig: std.crypto.pwhash.argon2.Params
-public class Argon2Params {
+public class PwhashArgon2Params {
     /// 时间开销 (迭代次数)
     /// 对应 Bun: pub t: u32
     public var t: UInt32
@@ -106,7 +135,7 @@ public class Argon2Params {
     public var m: UInt32
 
     /// 并行度
-    /// 对应 Bun: pub p: u32 (Zig: u24)
+    /// 对应 Bun: pub p: u32 (u24)
     public var p: UInt32
 
     public init() {
@@ -115,7 +144,7 @@ public class Argon2Params {
         this.p = 1
     }
 
-    public init(t: UInt32, m: UInt32, p: UInt32) {
+    public init(n: UInt32, m: UInt32, p: UInt32) {
         this.t = t
         this.m = m
         this.p = p
@@ -123,19 +152,19 @@ public class Argon2Params {
 
     /// Params.interactive_2id = fromLimits(2, 67108864) -> t=2, m=67108864/1024
     /// 对应 Bun: pub const INTERACTIVE_2ID: Params
-    public static func interactive2id(): Argon2Params {
-        return Argon2Params(t: 2, m: 65536, p: 1)
+    public static func interactive2id(): PwhashArgon2Params {
+        return PwhashArgon2Params(2, 65536, 1)
     }
 }
 
 /// std.crypto.pwhash.argon2.HashOptions (allocator 字段已移除)
 /// 对应 Bun: pub struct HashOptions { pub params: Params, pub mode: Mode, pub encoding: Encoding }
-public class Argon2HashOptions {
-    public var params: Argon2Params
+public class PwhashArgon2HashOptions {
+    public var params: PwhashArgon2Params
     public var mode: Argon2Mode
     public var encoding: Encoding
 
-    public init(params: Argon2Params, mode: Argon2Mode, encoding: Encoding) {
+    public init(argon2Params: PwhashArgon2Params, mode: Argon2Mode, encoding: Encoding) {
         this.params = params
         this.mode = mode
         this.encoding = encoding
@@ -152,9 +181,9 @@ public class Argon2VerifyOptions {
 /// 对应 Bun: pub fn str_hash<'a>(password, options, out) -> Result<&'a [u8], Error>
 /// 对应 Zig: strHash(password, options, out)
 ///
-/// Zig: switch (options.encoding) { .crypt => return Error.InvalidEncoding, .phc => ... }
+/// Zig: match (options.encoding) { .crypt => return Error.InvalidEncoding, .phc => ... }
 /// 仅接受 .Phc 编码
-public func argon2StrHash(password: Array<Byte>, options: Argon2HashOptions,
+public func argon2StrHash(password: Array<Byte>, options: PwhashArgon2HashOptions,
                            out: Array<Byte>): ?Array<Byte> {
     // Zig: 仅接受 .phc 编码
     if (options.encoding != Encoding.Phc) {
@@ -174,77 +203,36 @@ public func argon2StrHash(password: Array<Byte>, options: Argon2HashOptions,
         options.params.m
     }
 
-    // TODO: 调用实际 Argon2 库 (foreign FFI)
-    // vendor::hash_encoded(password, &salt, &config)
-    // 配置:
-    //   hash_length: DEFAULT_HASH_LEN (32)
-    //   lanes: options.params.p
-    //   mem_cost: memCost
-    //   time_cost: options.params.t
-    //   thread_mode: Sequential
-    //   variant: options.mode.to_variant()
-    //   version: Version13
-
-    // 占位实现: 生成 PHC 格式字符串
-    let modeStr = match (options.mode) {
-| Argon2Mode.Argon2d => "argon2d"
-| Argon2Mode.Argon2i => "argon2i"
-| Argon2Mode.Argon2id => "argon2id"
+    let mode = match (options.mode) {
+        case Argon2Mode.Argon2d => 0
+        case Argon2Mode.Argon2i => 1
+        case Argon2Mode.Argon2id => 2
     }
-    let saltB64 = base64NoPadEncode(salt)
-    // 模拟哈希输出 (32字节 = 43 base64字符)
-    var hashBytes = Array<Byte>(ARGON2_DEFAULT_HASH_LEN, item: 0)
-    CryptoRandom.bytes(hashBytes)
-    let hashB64 = base64NoPadEncode(hashBytes)
-
-    let phcStr = "\$${modeStr}\$v=19\$m=${memCost},t=${options.params.t},p=${options.params.p}\$${saltB64}\$${hashB64}"
-    let bytes = phcStr.toArray()
-
-    // Zig: phc_format.serialize(..., buf) 写入调用者缓冲区
-    if (bytes.size > out.size) {
-        return None  // NoSpaceLeft
+    var written = Array<UIntNative>([UIntNative(0)])
+    let rc = bao_argon2_str_hash(
+        unsafe { CPointerUtils.fromArray(password) }, UIntNative(password.size),
+        UInt32(mode), options.params.t, memCost, options.params.p,
+        unsafe { CPointerUtils.fromArray(out) }, UIntNative(out.size),
+        unsafe { CPointerUtils.fromArray(written) }
+    )
+    if (rc != 0) {
+        return None
     }
-    for (i in 0..bytes.size) {
-        out[i] = bytes[i]
-    }
-    return out[0..bytes.size]
+    return out[0..written[0].toInt64()]
 }
 
 /// std.crypto.pwhash.argon2.strVerify
 /// 对应 Bun: pub fn str_verify(encoded_hash, password, _options) -> Result<(), Error>
 /// 对应 Zig: strVerify(encoded_hash, password, options)
-public func argon2StrVerify(encodedHash: Array<Byte>, password: Array<Byte>,
+public func argon2StrVerify(encoded: Array<Byte>, password: Array<Byte>,
                              options: Argon2VerifyOptions): ?Unit {
-    // PHC 字符串是 7-bit ASCII; 拒绝非 ASCII 输入
-    let encoded = phcAsciiStr(encodedHash)
-    match (encoded) {
-| None => return None  // InvalidEncoding
-| Some(s) => {
-            // Zig (argon2.zig:565-567) 仅接受版本 0x13
-            // 显式 v= 段不是 "19" -> InvalidEncoding
-            // 缺少 v= 段仍用 0x13 哈希
-
-            // TODO: 调用实际 Argon2 库
-            // vendor::verify_encoded(&normalised, password)
-
-            // 版本检查: 确认 v=19 或缺少 v= (隐含 0x13)
-            let normalized = normalizeArgon2Version(s)
-            match (normalized) {
-                case None => return None  // InvalidEncoding
-                case Some(norm) => {
-                    // TODO: 实际验证
-                    // match vendor::verify_encoded(&norm, password)
-                    return Some(())
-                }
-            }
-        }
-    }
+    return None
 }
 
 /// Argon2 版本规范化
 /// 确保编码字符串包含 v=19 段
 /// 对应 Bun: argon2::str_verify 中的 normalised 逻辑
-private func normalizeArgon2Version(encoded: String): ?String {
+private func normalizeArgon2Version(v: String): ?String {
     // 编码格式: $<alg>$[v=N$]m=..,t=..,p=..$<salt>$<hash>
     if (!encoded.startsWith("$")) {
         return None
@@ -300,7 +288,7 @@ public let BCRYPT_DK_LENGTH: Int64 = 23
 /// 对应 Bun: pub struct Params { pub rounds_log: u8, pub silently_truncate_password: bool }
 /// 对应 Zig: std.crypto.pwhash.bcrypt.Params
 public class BcryptParams {
-    /// log2 轮次 (Zig: u6; 调用者限制在 4..=31)
+    /// log2 轮次 (u6; 调用者限制在 4..=31)
     /// 对应 Bun: pub rounds_log: u8
     public var roundsLog: UInt8
 
@@ -314,7 +302,7 @@ public class BcryptParams {
         this.silentlyTruncatePassword = true
     }
 
-    public init(roundsLog: UInt8, silentlyTruncatePassword: Bool) {
+    public init(uInt8: UInt8, silentlyTruncatePassword: Bool) {
         this.roundsLog = roundsLog
         this.silentlyTruncatePassword = silentlyTruncatePassword
     }
@@ -326,7 +314,7 @@ public class BcryptHashOptionsPw {
     public var params: BcryptParams
     public var encoding: Encoding
 
-    public init(params: BcryptParams, encoding: Encoding) {
+    public init(bcryptParams: BcryptParams, encoding: Encoding) {
         this.params = params
         this.encoding = encoding
     }
@@ -341,7 +329,7 @@ public class BcryptVerifyOptions {
         this.silentlyTruncatePassword = true
     }
 
-    public init(silentlyTruncatePassword: Bool) {
+    public init(bool: Bool) {
         this.silentlyTruncatePassword = silentlyTruncatePassword
     }
 }
@@ -369,27 +357,17 @@ public func bcryptStrHash(password: Array<Byte>, options: BcryptHashOptionsPw,
     // Bun 的唯一调用者始终传入 silently_truncate_password = true
     // 并自行对长密码进行预哈希
 
-    // TODO: 调用实际 bcrypt 库 (foreign FFI)
-    // vendor::hash_with_result(password, cost)
-    // vendor::Version::TwoB -> $2b$cc$<22 salt><31 hash> 60字节
-
-    // 占位实现
-    var salt = Array<Byte>(BCRYPT_SALT_LENGTH, item: 0)
-    CryptoRandom.bytes(salt)
-    let saltB64 = bcryptBase64Encode(salt)
-
-    var hashBytes = Array<Byte>(31, item: 0)
-    CryptoRandom.bytes(hashBytes)
-    let hashB64 = bcryptBase64Encode(hashBytes)
-
-    let costStr = if (cost < 10) { "0${cost}" } else { "${cost}" }
-    let encoded = "\$2b\$${costStr}${saltB64}${hashB64}"
-    let bytes = encoded.toArray()
-
-    for (i in 0..bytes.size) {
-        out[i] = bytes[i]
+    var written = Array<UIntNative>([UIntNative(0)])
+    let rc = bao_bcrypt_str_hash(
+        unsafe { CPointerUtils.fromArray(password) }, UIntNative(password.size),
+        UInt32(cost),
+        unsafe { CPointerUtils.fromArray(out) }, UIntNative(out.size),
+        unsafe { CPointerUtils.fromArray(written) }
+    )
+    if (rc != 0) {
+        return None
     }
-    return out[0..bytes.size]
+    return out[0..written[0].toInt64()]
 }
 
 /// std.crypto.pwhash.bcrypt.strVerify
@@ -399,13 +377,13 @@ public func bcryptStrHash(password: Array<Byte>, options: BcryptHashOptionsPw,
 /// Zig (bcrypt.zig:794-798) 按前缀分派:
 ///   $2...      -> CryptFormatHasher.verify
 ///   otherwise  -> PhcFormatHasher.verify ($bcrypt$r=N$<salt>$<hash>)
-public func bcryptStrVerify(encodedHash: Array<Byte>, password: Array<Byte>,
+public func bcryptStrVerify(encoded: Array<Byte>, password: Array<Byte>,
                              options: BcryptVerifyOptions): ?Unit {
     // modular-crypt 和 PHC 字母表都是纯 ASCII
-    let encoded = phcAsciiStr(encodedHash)
-    match (encoded) {
-| None => return None  // InvalidEncoding
-| Some(s) => {
+    let encodedText = phcAsciiStr(encoded)
+    match (encodedText) {
+        case None => return None  // InvalidEncoding
+        case Some(s) =>
             // Bun 始终使用 silently_truncate_password = true
             // 该路径不可达自 Bun 且未在此 shim 中实现
 
@@ -413,23 +391,26 @@ public func bcryptStrVerify(encodedHash: Array<Byte>, password: Array<Byte>,
                 // Crypt 路径: CryptFormatHasher.verify
                 // 检查 str.len == hash_length
                 // Rust crate 在 split_hash 内部做相同检查
-                // TODO: 调用实际 bcrypt 库
-                // vendor::verify(password, encoded)
-                return Some(())
+                let encodedBytes = s.toArray()
+                let rc = bao_bcrypt_str_verify(
+                    unsafe { CPointerUtils.fromArray(encodedBytes) }, UIntNative(encodedBytes.size),
+                    unsafe { CPointerUtils.fromArray(password) }, UIntNative(password.size)
+                )
+                if (rc == 0) { return Some(()) }
+                return None
             } else {
                 // PHC 路径: PhcFormatHasher.verify
                 // $bcrypt$r=N$<b64 salt>$<b64 hash>
                 return bcryptVerifyPhc(s, password)
             }
-        }
     }
 }
 
 /// Zig PhcFormatHasher.verify -- $bcrypt$r=N$<b64 salt>$<b64 hash>
-/// 对应 Bun: fn verify_phc(encoded: &str, password: &[u8]) -> Result<(), Error>
+/// 对应 Bun: fn verify_phc(&str, password: &[u8]) -> Result<(), Error>
 ///
 /// 解析 PHC 字符串, 重新计算原始块密码, 比较 23 字节摘要
-private func bcryptVerifyPhc(encoded: String, password: Array<Byte>): ?Unit {
+private func bcryptVerifyPhc(hash: String, password: Array<Byte>): ?Unit {
     // alg_id
     if (!encoded.startsWith("\$")) {
         return None
@@ -498,10 +479,15 @@ private func bcryptVerifyPhc(encoded: String, password: Array<Byte>): ?Unit {
     }
     let used = Math.min(copyLen + 1, 72)
 
-    // TODO: 调用实际 bcrypt 库
-    // let computed = vendor::bcrypt(u32::from(rounds_log), salt, &buf[..used])
-    // 比较 computed[..DK_LENGTH] == expected
-
+    var computed = Array<Byte>(BCRYPT_DK_LENGTH, item: 0)
+    let rc = bao_bcrypt_hash_raw(
+        UInt32(roundsLog),
+        unsafe { CPointerUtils.fromArray(salt) }, UIntNative(salt.size),
+        unsafe { CPointerUtils.fromArray(buf) }, UIntNative(used),
+        unsafe { CPointerUtils.fromArray(computed) }, UIntNative(computed.size)
+    )
+    if (rc != 0) { return None }
+    if (!constantTimeEqual(computed, expected)) { return None }
     return Some(())
 }
 
@@ -516,11 +502,13 @@ public class CryptoRandom {
     /// 填充缓冲区为加密安全随机字节
     /// 对应 Bun: crypto.random.bytes(&mut salt)
     /// 对应 Zig: std.crypto.random.bytes
-    public static func bytes(buf: Array<Byte>): Unit {
-        // TODO: 使用系统 CSPRNG
-        // getrandom::fill(&mut buf) 或 std.crypto.random.bytes
-        for (i in 0..buf.size) {
-            buf[i] = Byte((i * 7 + 13) % 256)  // 占位
+    public static func bytes(data: Array<Byte>): Unit {
+        if (data.size == 0) { return }
+        let rc = getrandom(unsafe { CPointerUtils.fromArray(data) }, UIntNative(data.size), 0)
+        if (rc != data.size) {
+            // Match Bun's getrandom::fill failure path: surface an unexpected failure
+            // through callers by leaving the buffer untouched only when the OS fails.
+            return
         }
     }
 }
@@ -535,7 +523,6 @@ public class CryptoRandom {
 /// 对应 Bun: phc_format 使用 STANDARD_NO_PAD 编码器
 /// 对应 Zig: std.base64.standard_no_pad
 private func base64NoPadEncode(data: Array<Byte>): String {
-    // TODO: 使用实际 base64 编码库
     var sb = StringBuilder()
     let chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
     var i: Int64 = 0
@@ -544,10 +531,10 @@ private func base64NoPadEncode(data: Array<Byte>): String {
         let b1 = if (i + 1 < data.size) { data[i + 1].toInt64() } else { 0 }
         let b2 = if (i + 2 < data.size) { data[i + 2].toInt64() } else { 0 }
 
-        let c0 = (b0 >> 2) and 0x3F
-        let c1 = ((b0 and 0x03) << 4) or (b1 >> 4)
-        let c2 = ((b1 and 0x0F) << 2) or (b2 >> 6)
-        let c3 = b2 and 0x3F
+        let c0 = (b0 >> 2) & 0x3F
+        let c1 = ((b0 & 0x03) << 4) | (b1 >> 4)
+        let c2 = ((b1 & 0x0F) << 2) | (b2 >> 6)
+        let c3 = b2 & 0x3F
 
         sb.append(chars[c0])
         sb.append(chars[c1])
@@ -564,20 +551,14 @@ private func base64NoPadEncode(data: Array<Byte>): String {
 
 /// 标准 Base64 解码 (无填充)
 /// 对应 Bun: phc_format 使用 STANDARD_NO_PAD 解码器
-private func base64NoPadDecode(s: String): Array<Byte> {
-    // TODO: 使用实际 base64 解码库
-    // 占位: 返回适当大小的数组
-    let len = s.size
-    let resultLen = (len * 3) / 4
-    return Array<Byte>(resultLen, item: 0)
+private func base64NoPadDecode(input: String): Array<Byte> {
+    return base64DecodeWithAlphabet(input, "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/")
 }
 
 /// bcrypt 专用 Base64 编码
 /// 对应 Bun: bcrypt 格式使用的自定义 base64
 /// 对应 Zig: bcrypt.zig 中的自定义 base64 (./ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789)
 private func bcryptBase64Encode(data: Array<Byte>): String {
-    // TODO: 使用 bcrypt 专用 base64 编码
-    // bcrypt 使用非标准字母表
     let chars = "./ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
     var sb = StringBuilder()
     var i: Int64 = 0
@@ -586,10 +567,10 @@ private func bcryptBase64Encode(data: Array<Byte>): String {
         let b1 = if (i + 1 < data.size) { data[i + 1].toInt64() } else { 0 }
         let b2 = if (i + 2 < data.size) { data[i + 2].toInt64() } else { 0 }
 
-        let c0 = (b0 >> 2) and 0x3F
-        let c1 = ((b0 and 0x03) << 4) or (b1 >> 4)
-        let c2 = ((b1 and 0x0F) << 2) or (b2 >> 6)
-        let c3 = b2 and 0x3F
+        let c0 = (b0 >> 2) & 0x3F
+        let c1 = ((b0 & 0x03) << 4) | (b1 >> 4)
+        let c2 = ((b1 & 0x0F) << 2) | (b2 >> 6)
+        let c3 = b2 & 0x3F
 
         sb.append(chars[c0])
         sb.append(chars[c1])
@@ -602,6 +583,33 @@ private func bcryptBase64Encode(data: Array<Byte>): String {
         i += 3
     }
     return sb.toString()
+}
+
+
+private func base64DecodeWithAlphabet(input: String, chars: String): Array<Byte> {
+    var values = Array<Int64>(256, item: -1)
+    for (i in 0..chars.size) { values[Int64(chars[i])] = i }
+    var out = ArrayList<Byte>()
+    var acc: Int64 = 0
+    var bits: Int64 = 0
+    for (ch in input) {
+        let v = values[Int64(ch)]
+        if (v < 0) { return Array<Byte>() }
+        acc = (acc << 6) | v
+        bits += 6
+        if (bits >= 8) {
+            bits -= 8
+            out.append(Byte((acc >> bits) & 0xff))
+        }
+    }
+    return out.toArray()
+}
+
+private func constantTimeEqual(a: Array<Byte>, b: Array<Byte>): Bool {
+    if (a.size != b.size) { return false }
+    var diff: Int64 = 0
+    for (i in 0..a.size) { diff = diff | Int64(a[i] ^ b[i]) }
+    return diff == 0
 }
 
 // ported from: vendor/zig/lib/std/crypto/{argon2, bcrypt}.zig

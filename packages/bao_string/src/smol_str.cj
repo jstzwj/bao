@@ -10,6 +10,8 @@
 //   - Heap: 堆分配,存储字节数组和容量
 package bao_string
 
+import std.collection.*
+
 import bao_core.*
 
 // ============================================================================
@@ -61,11 +63,11 @@ public class SmolStr {
     public static func fromBytes(values: Array<Byte>): SmolStr {
         if (values.size > MAX_INLINE_LEN) {
             // 堆分配
-            var arr = Array<Byte>()
+            var arr = ArrayList<Byte>()
             for (b in values) {
-                arr.append(b)
+                arr.add(b)
             }
-            return SmolStr(StorageMode.Heap(arr, arr.size))
+            return SmolStr(StorageMode.Heap(arr.toArray(), arr.size))
         }
         // 内联存储
         return SmolStr(StorageMode.Inlined(values))
@@ -122,19 +124,27 @@ public class SmolStr {
             case StorageMode.Inlined(bytes) =>
                 if (bytes.size + 1 > MAX_INLINE_LEN) {
                     // 升级为堆分配
-                    var arr = Array<Byte>()
+                    var arr = ArrayList<Byte>()
                     for (b in bytes) {
-                        arr.append(b)
+                        arr.add(b)
                     }
-                    arr.append(char)
-                    storage = StorageMode.Heap(arr, arr.size)
+                    arr.add(char)
+                    storage = StorageMode.Heap(arr.toArray(), arr.size)
                 } else {
-                    var newBytes = bytes
-                    newBytes.append(char)
-                    storage = StorageMode.Inlined(newBytes)
+                    var newBytes = ArrayList<Byte>()
+                    for (b in bytes) {
+                        newBytes.add(b)
+                    }
+                    newBytes.add(char)
+                    storage = StorageMode.Inlined(newBytes.toArray())
                 }
             case StorageMode.Heap(bytes, cap) =>
-                bytes.append(char)
+                var bytesList = ArrayList<Byte>()
+                for (b in bytes) {
+                    bytesList.add(b)
+                }
+                bytesList.add(char)
+                storage = StorageMode.Heap(bytesList.toArray(), cap + 1)
         }
     }
 
@@ -145,25 +155,33 @@ public class SmolStr {
             case StorageMode.Inlined(bytes) =>
                 if (bytes.size + values.size > MAX_INLINE_LEN) {
                     // 升级为堆分配
-                    var arr = Array<Byte>()
+                    var arr = ArrayList<Byte>()
                     for (b in bytes) {
-                        arr.append(b)
+                        arr.add(b)
                     }
                     for (b in values) {
-                        arr.append(b)
+                        arr.add(b)
                     }
-                    storage = StorageMode.Heap(arr, arr.size)
+                    storage = StorageMode.Heap(arr.toArray(), arr.size)
                 } else {
-                    var newBytes = bytes
-                    for (b in values) {
-                        newBytes.append(b)
+                    var newBytes = ArrayList<Byte>()
+                    for (b in bytes) {
+                        newBytes.add(b)
                     }
-                    storage = StorageMode.Inlined(newBytes)
+                    for (b in values) {
+                        newBytes.add(b)
+                    }
+                    storage = StorageMode.Inlined(newBytes.toArray())
                 }
-            case StorageMode.Heap(bytes, _) =>
+            case StorageMode.Heap(bytes, cap) =>
+                var bytesList = ArrayList<Byte>()
+                for (b in bytes) {
+                    bytesList.add(b)
+                }
                 for (b in values) {
-                    bytes.append(b)
+                    bytesList.add(b)
                 }
+                storage = StorageMode.Heap(bytesList.toArray(), max(cap, bytesList.size))
         }
     }
 
@@ -222,7 +240,7 @@ public class SmolStrInlined {
     public static func initFunc(str: String): SmolStrInlined {
         let bytes = str.toArray()
         if (bytes.size > MAX_INLINE_LEN) {
-            panic("SmolStrInlined: 字符串太长,无法内联")
+            throw IllegalArgumentException("SmolStrInlined: 字符串太长,无法内联")
         }
         return SmolStrInlined(bytes)
     }

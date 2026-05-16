@@ -5,6 +5,7 @@
 package bao_runtime.shell.builtin
 
 import bao_core.*
+import bao_runtime.shell.*
 
 // ============================================================================
 // rm命令 - 删除文件或目录
@@ -25,7 +26,7 @@ public enum RmState {
 public struct ParseOptsState {
     public var argsSlice: Array<String>
     public var idx: UInt32 = 0
-    public var innerState: ParseOptsInnerState = .normal
+    public var innerState: ParseOptsInnerState = ParseOptsInnerState.normal
 }
 
 public enum ParseOptsInnerState {
@@ -39,7 +40,7 @@ public struct ExecState {
     public var err: ?SyscallError = None
     public var outputDone: AtomicUIntPtr = AtomicUIntPtr()
     public var outputCount: AtomicUIntPtr = AtomicUIntPtr()
-    public var innerState: ExecInnerState = .idle
+    public var innerState: ExecInnerState = ExecInnerState.idle
 }
 
 public enum ExecInnerState {
@@ -51,20 +52,20 @@ public struct WaitingState {
     public var tasksDone: UIntPtr = 0
 }
 
+/// 条目类型提示（提取到顶层）
+public enum EntryKindHint {
+    | idk
+    | dir
+    | file
+}
+
 public class DirTask {
     public var taskManager: ShellRmTask
     public var parentTask: ?DirTask = None
     public var path: String = ""
     public var subtaskCount: AtomicUIntPtr = AtomicUIntPtr()
     public var deletedEntries: ArrayList<Byte> = ArrayList<Byte>()
-    public var kindHint: EntryKindHint = .idk
-
-    /// 条目类型提示
-    public enum EntryKindHint {
-| idk
-| dir
-| file
-    }
+    public var kindHint: EntryKindHint = EntryKindHint.idk
 
     /// 去初始化
     public func deinit() {
@@ -105,56 +106,56 @@ public class RmCmd {
 
     /// 下一步
     public func next(): Yield {
-        while (this.state != .done(0) && this.state != .err(0)) {
-            switch (this.state) {
-                case .waitingWriteErr =>
+        while (this.state != CheckTargetInnerState.done(0) && this.state != CheckTargetInnerState.err(0)) {
+            match (this.state) {
+                case waitingWriteErr =>
                     return Yield.suspended
 
-                case .idle =>
+                case idle =>
                     this.state = RmState.parseOpts(ParseOptsState(
                         argsSlice: this.bltn().argsSlice()
                     ))
 
-                case .parseOpts(let parseOpts) =>
-                    switch (parseOpts.innerState) {
-                        case .normal =>
-                            if (parseOpts.idx >= parseOpts.argsSlice.length) {
+                case parseOpts(parseOpts) =>
+                    match (parseOpts.innerState) {
+                        case normal =>
+                            if (parseOpts.idx >= parseOpts.argsSlice.size) {
                                 let errorString = Builtin.Kind.usageString("rm")
-                                if (let safeguard = this.bltn().stderr.needsIO()) {
+                                if (let Some(safeguard) <- this.bltn().stderr.needsIO()) {
                                     return this.bltn().stderr.enqueue(this, errorString.toByteArray(), safeguard)
                                 }
-                                this.bltn().writeNoIO(.stderr, errorString.toByteArray())
+                                this.bltn().writeNoIO(OutKind.stderr, errorString.toByteArray())
                                 return this.bltn().done(1)
                             }
 
                             let arg = parseOpts.argsSlice[parseOpts.idx]
-                            switch (this.parseFlag(arg)) {
-                                case .continueParsing =>
+                            match (this.parseFlag(arg)) {
+                                case continueParsing => ()
                                     // idx++
-                                case .done =>
+                                case done => ()
                                     // 检查根目录保护并转换到exec状态
-                                case .illegalOption =>
+                                case illegalOption =>
                                     return this.bltn().done(1)
-                                case .illegalOptionWithFlag =>
+                                case illegalOptionWithFlag =>
                                     return this.bltn().done(1)
                             }
-                        case .waitWriteErr =>
+                        case waitWriteErr =>
                             panic("Invalid")
                     }
 
-                case .exec =>
+                case exec => ()
                     // 调度或等待任务完成
                     return Yield.suspended
 
-                case .done, .err =>
+                case RmState.done(_) | RmState.err(_) =>
                     panic("不可达状态")
             }
         }
 
-        switch (this.state) {
-            case .done(let exitCode) =>
+        match (this.state) {
+            case done(exitCode) =>
                 return this.bltn().done(exitCode)
-            case .err(let exitCode) =>
+            case err(exitCode) =>
                 return this.bltn().done(exitCode)
             case _ =>
                 panic("不可达状态")
@@ -162,12 +163,12 @@ public class RmCmd {
     }
 
     /// IO写入器数据块回调
-    public func onIOWriterChunk(amount: UInt64, e: ?SystemError): Yield {
-        if (let err = e) {
+    public func onIOWriterChunk(chunk: UInt64, e: ?SystemError): Yield {
+        if (let Some(err) <- e) {
             err.deref()
         }
 
-        if (let exec = this.state.getExec()) {
+        if (let Some(exec) <- this.state.getExec()) {
             // 增加outputDone
             return Yield.suspended
         }
@@ -182,47 +183,47 @@ public class RmCmd {
 
     /// 解析标志
     func parseFlag(flag: String): RmFlagResult {
-        if (flag.length == 0) {
-            return .done
+        if (flag.size == 0) {
+            return RmFlagResult.done
         }
         if (flag[0] != '-') {
-            return .done
+            return RmFlagResult.done
         }
-        if (flag.length > 2 && flag[1] == '-') {
+        if (flag.size > 2 && flag[1] == '-') {
             // 长选项
             if (flag == "--preserve-root") {
                 this.opts.preserveRoot = true
-                return .continueParsing
+                return RmFlagResult.continueParsing
             } else if (flag == "--no-preserve-root") {
                 this.opts.preserveRoot = false
-                return .continueParsing
+                return RmFlagResult.continueParsing
             } else if (flag == "--recursive") {
                 this.opts.recursive = true
-                return .continueParsing
+                return RmFlagResult.continueParsing
             } else if (flag == "--verbose") {
                 this.opts.verbose = true
-                return .continueParsing
+                return RmFlagResult.continueParsing
             } else if (flag == "--dir") {
                 this.opts.removeEmptyDirs = true
-                return .continueParsing
+                return RmFlagResult.continueParsing
             } else if (flag == "--interactive=never") {
-                this.opts.promptBehaviour = .never
-                return .continueParsing
+                this.opts.promptBehaviour = PromptBehaviour.never
+                return RmFlagResult.continueParsing
             } else if (flag == "--interactive=once") {
-                this.opts.promptBehaviour = .once(OnceState())
-                return .continueParsing
+                this.opts.promptBehaviour = PromptBehaviour.once(OnceState())
+                return RmFlagResult.continueParsing
             } else if (flag == "--interactive=always") {
-                this.opts.promptBehaviour = .always
-                return .continueParsing
+                this.opts.promptBehaviour = PromptBehaviour.always
+                return RmFlagResult.continueParsing
             }
-            return .illegalOption
+            return RmFlagResult.illegalOption
         }
 
         let smallFlags = flag.substring(1)
         for (c in smallFlags) {
             if (c == 'f') {
                 this.opts.force = true
-                this.opts.promptBehaviour = .never
+                this.opts.promptBehaviour = PromptBehaviour.never
             } else if (c == 'r' || c == 'R') {
                 this.opts.recursive = true
             } else if (c == 'v') {
@@ -230,23 +231,23 @@ public class RmCmd {
             } else if (c == 'd') {
                 this.opts.removeEmptyDirs = true
             } else if (c == 'i') {
-                this.opts.promptBehaviour = .once(OnceState())
+                this.opts.promptBehaviour = PromptBehaviour.once(OnceState())
             } else if (c == 'I') {
-                this.opts.promptBehaviour = .always
+                this.opts.promptBehaviour = PromptBehaviour.always
             } else {
-                return .illegalOptionWithFlag
+                return RmFlagResult.illegalOptionWithFlag
             }
         }
-        return .continueParsing
+        return RmFlagResult.continueParsing
     }
 
     /// 写入失败错误
     public func writeFailingError(buf: String, exitCode: ExitCode): Yield {
-        if (let safeguard = this.bltn().stderr.needsIO()) {
-            this.state = RmState.waitingWriteErr
+        if (let Some(safeguard) <- this.bltn().stderr.needsIO()) {
+            this.state = RmStateMultiArgsInnerState.waitingWriteErr
             return this.bltn().stderr.enqueue(this, buf.toByteArray(), safeguard)
         }
-        this.bltn().writeNoIO(.stderr, buf.toByteArray())
+        this.bltn().writeNoIO(OutKind.stderr, buf.toByteArray())
         return this.bltn().done(exitCode)
     }
 
@@ -262,17 +263,17 @@ public class RmCmd {
 /// rm命令选项
 public struct RmOpts {
     /// --preserve-root: 保护根目录
-    public var preserveRoot: Boolean = true
+    public var preserveRoot: Bool = true
     /// -f: 强制删除
-    public var force: Boolean = false
+    public var force: Bool = false
     /// 提示行为
-    public var promptBehaviour: PromptBehaviour = .never
+    public var promptBehaviour: PromptBehaviour = PromptBehaviour.never
     /// -r/-R: 递归删除
-    public var recursive: Boolean = false
+    public var recursive: Bool = false
     /// -v: 详细输出
-    public var verbose: Boolean = false
+    public var verbose: Bool = false
     /// -d: 删除空目录
-    public var removeEmptyDirs: Boolean = false
+    public var removeEmptyDirs: Bool = false
 }
 
 /// 提示行为

@@ -52,7 +52,7 @@ public class StringBuilder {
     public init(capacity: Int64) {
         this.len = 0
         this.cap = capacity
-        this.buffer = Array<Byte>(capacity, item: Byte(0))
+        this.buffer = Array<UInt8>(capacity, { _ => UInt8(0) })
     }
 
     /// 计数: 包含 null 终止符
@@ -71,7 +71,7 @@ public class StringBuilder {
     /// 严格翻译自 StringBuilder.allocate
     public func allocate(): Unit {
         if (this.cap > 0) {
-            this.buffer = Array<Byte>(this.cap, item: Byte(0))
+            this.buffer = Array<UInt8>(this.cap, { _ => UInt8(0) })
         }
         this.len = 0
     }
@@ -105,7 +105,7 @@ public class StringBuilder {
             this.buffer[this.len] = bytes[i]
             this.len += 1
         }
-        this.buffer[this.len] = Byte(0)
+        this.buffer[this.len] = 0
         this.len += 1
         return slice
     }
@@ -148,7 +148,7 @@ public class StringBuilder {
     public func add(len: Int64): StringPointer {
         let start = this.len
         this.len += len
-        return StringPointer(offset: UInt32(start), length: UInt32(len))
+        return StringPointer(UInt32(start), UInt32(len))
     }
 
     /// 追加并计数
@@ -160,7 +160,7 @@ public class StringBuilder {
             this.buffer[this.len] = b
             this.len += 1
         }
-        return StringPointer(offset: UInt32(start), length: UInt32(bytes.size))
+        return StringPointer(UInt32(start), UInt32(bytes.size))
     }
 
     /// 追加并计数(带 null 终止)
@@ -173,7 +173,7 @@ public class StringBuilder {
             this.len += 1
         }
         this.len += 1 // null 终止符
-        return StringPointer(offset: UInt32(start), length: UInt32(bytes.size))
+        return StringPointer(UInt32(start), UInt32(bytes.size))
     }
 
     /// 格式化写入

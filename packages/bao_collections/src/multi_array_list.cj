@@ -50,7 +50,14 @@ public class MultiArrayList {
 
     /// 注册列 - 对应 Bun MultiArrayList 的结构体字段定义
     public func addColumn(name: String): Unit {
-        if (!columnNames.contains(name)) {
+        var exists = false
+        for (columnName in columnNames) {
+            if (columnName == name) {
+                exists = true
+                break
+            }
+        }
+        if (!exists) {
             columnNames.append(name)
             columns.put(name, ArrayList<Any>())
         }
@@ -71,12 +78,12 @@ public class MultiArrayList {
         for (name in columnNames) {
             let list = columns.get(name)
             match (list) {
-                case Some(arr) => {
+                case Some(arr) =>
+
                     match (entry.get(name)) {
                         case Some(val) => arr.append(val)
                         case None => () // 缺失列填空
                     }
-                }
                 case None => ()
             }
         }
@@ -89,12 +96,12 @@ public class MultiArrayList {
             return None
         }
         match (columns.get(column)) {
-            case Some(arr) => {
+            case Some(arr) =>
+
                 if (row < arr.size) {
                     return Some(arr[row])
                 }
                 return None
-            }
             case None => return None
         }
     }
@@ -105,11 +112,11 @@ public class MultiArrayList {
             return
         }
         match (columns.get(column)) {
-            case Some(arr) => {
+            case Some(arr) =>
+
                 if (row < arr.size) {
                     arr[row] = value
                 }
-            }
             case None => ()
         }
     }
@@ -120,7 +127,7 @@ public class MultiArrayList {
     }
 
     /// 获取所有列名
-    public func columnNames(): ArrayList<String> {
+    public func getColumnNames(): ArrayList<String> {
         return columnNames
     }
 
@@ -132,11 +139,11 @@ public class MultiArrayList {
         }
         for (name in columnNames) {
             match (columns.get(name)) {
-                case Some(arr) => {
+                case Some(arr) =>
+
                     if (index < arr.size) {
                         entry.set(name, arr[index])
                     }
-                }
                 case None => ()
             }
         }
@@ -151,11 +158,11 @@ public class MultiArrayList {
         rowCount -= 1
         for (name in columnNames) {
             match (columns.get(name)) {
-                case Some(arr) => {
+                case Some(arr) =>
+
                     if (arr.size > 0) {
                         arr.removeAt(arr.size - 1)
                     }
-                }
                 case None => ()
             }
         }
@@ -173,7 +180,8 @@ public class MultiArrayList {
         // 将最后一行数据复制到要删除的位置
         for (name in columnNames) {
             match (columns.get(name)) {
-                case Some(arr) => {
+                case Some(arr) =>
+
                     if (arr.size > 0) {
                         let lastIdx = arr.size - 1
                         if (index < arr.size) {
@@ -181,7 +189,6 @@ public class MultiArrayList {
                         }
                         arr.removeAt(lastIdx)
                     }
-                }
                 case None => ()
             }
         }
@@ -229,14 +236,14 @@ public class MultiArrayList {
     public func columnSlice(name: String, start: Int64, end: Int64): ArrayList<Any> {
         let result = ArrayList<Any>()
         match (columns.get(name)) {
-            case Some(arr) => {
+            case Some(arr) =>
+
                 let e = if (end > arr.size) { arr.size } else { Int64(end) }
                 for (i in start..e) {
                     if (i >= 0 && i < arr.size) {
                         result.append(arr[i])
                     }
                 }
-            }
             case None => ()
         }
         return result
@@ -248,11 +255,11 @@ public class MultiArrayList {
         var maxCap: Int64 = 0
         for (name in columnNames) {
             match (columns.get(name)) {
-                case Some(arr) => {
+                case Some(arr) =>
+
                     if (arr.size > maxCap) {
                         maxCap = arr.size
                     }
-                }
                 case None => ()
             }
         }
@@ -265,12 +272,12 @@ public class MultiArrayList {
         let needed = rowCount + additionalCount
         for (name in columnNames) {
             match (columns.get(name)) {
-                case Some(arr) => {
+                case Some(arr) =>
+
                     while (arr.size < needed) {
                         // 填充占位值
                         arr.append("placeholder" as Any)
                     }
-                }
                 case None => ()
             }
         }
@@ -281,12 +288,12 @@ public class MultiArrayList {
         for (name in columnNames) {
             let list = columns.get(name)
             match (list) {
-                case Some(arr) => {
+                case Some(arr) =>
+
                     match (entry.get(name)) {
                         case Some(val) => arr.append(val)
                         case None => ()
                     }
-                }
                 case None => ()
             }
         }
@@ -308,13 +315,13 @@ public class MultiArrayList {
     /// 按条件查找行 - 对应 Bun MultiArrayList 中遍历查找模式
     public func findColumnValue(columnName: String, predicate: (Any) -> Bool): ?Int64 {
         match (columns.get(columnName)) {
-            case Some(arr) => {
+            case Some(arr) =>
+
                 for (i in 0..arr.size) {
                     if (predicate(arr[i])) {
                         return Some(i)
                     }
                 }
-            }
             case None => ()
         }
         return None
@@ -327,16 +334,16 @@ public class MultiArrayList {
         }
         for (name in columnNames) {
             match (columns.get(name)) {
-                case Some(arr) => {
+                case Some(arr) =>
+
                     match (entry.get(name)) {
-                        case Some(val) => {
+                        case Some(val) =>
+
                             if (index < arr.size) {
                                 arr[index] = val
                             }
-                        }
                         case None => ()
                     }
-                }
                 case None => ()
             }
         }

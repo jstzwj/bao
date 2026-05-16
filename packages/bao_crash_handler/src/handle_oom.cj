@@ -46,18 +46,18 @@ public class HandleOom {
     ///
     /// 用法 1: 直接传递 Result
     /// 对应 Zig: const thing = bun.handleOom(allocateThing());
-    public static func handle<T>(result: Result<T>): T {
-        if (result.isErr()) {
-            let err = result.errValue
-            if (err is BaoError) {
-                let baoErr = err as BaoError
-                if (baoErr.code == ErrorCode.OutOfMemory) {
-                    outOfMemory()
+    public static func handle<T>(result: Result<T, Exception>): T {
+        match (result) {
+            case Ok(value) => value
+            case Err(err) =>
+                if (err is BaoError) {
+                    let baoErr = (err as BaoError).getOrThrow()
+                    if (baoErr.code.toU16() == ErrorCode.OutOfMemory.toU16()) {
+                        outOfMemory()
+                    }
                 }
-            }
-            throw err
+                throw err
         }
-        result.value
     }
 
     /// 处理错误码 - 如果是 OutOfMemory 则终止，否则抛出
@@ -67,8 +67,8 @@ public class HandleOom {
     /// 对应 Zig: const thing = allocateThing() catch |err| bun.handleOom(err);
     public static func handleError(err: Exception): Nothing {
         if (err is BaoError) {
-            let baoErr = err as BaoError
-            if (baoErr.code == ErrorCode.OutOfMemory) {
+            let baoErr = (err as BaoError).getOrThrow()
+            if (baoErr.code.toU16() == ErrorCode.OutOfMemory.toU16()) {
                 outOfMemory()
             }
         }
@@ -82,8 +82,8 @@ public class HandleOom {
     /// 在仓颉中简化为运行时检查
     public static func isOomOnlyError(err: Exception): Bool {
         if (err is BaoError) {
-            let baoErr = err as BaoError
-            baoErr.code == ErrorCode.OutOfMemory
+            let baoErr = (err as BaoError).getOrThrow()
+            baoErr.code.toU16() == ErrorCode.OutOfMemory.toU16()
         } else {
             false
         }
@@ -96,6 +96,6 @@ public class HandleOom {
 public func outOfMemory(): Nothing {
     // 对应 Bun 的 bun.outOfMemory() 行为
     // 打印 OOM 消息并终止
-    std.console.println("Bao has run out of memory.")
+    println("Bao has run out of memory.")
     exit(1)
 }

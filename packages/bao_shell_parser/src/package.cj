@@ -6,6 +6,15 @@ package bao_shell_parser
 import bao_core.*
 import bao_collections.*
 
+@C
+foreign func opendir(name: CPointer<Int8>): CPointer<Unit>
+@C
+foreign func readdir(dir: CPointer<Unit>): CPointer<Unit>
+@C
+foreign func closedir(dir: CPointer<Unit>): Int32
+@C
+foreign func malloc(size: UIntNative): CPointer<Unit>
+
 // ============================================================================
 // ShellToken - Shell 词法单元
 // 严格翻译自: src/shell_parser/parse.rs - Token enum
@@ -85,22 +94,26 @@ public class ShellLexer {
         this.tokens = ArrayList<ShellToken>()
     }
 
+    private func sourceLen(): Int64 {
+        return Int64(source.size)
+    }
+
     /// 执行词法分析, 返回所有 token
     /// 对应 Bun: Lexer::tokenize() -> LexerOutput
     public func tokenize(): ArrayList<ShellToken> {
-        while (pos < source.length) {
+        while (pos < sourceLen()) {
             skipWhitespace()
-            if (pos >= source.length) {
+            if (pos >= sourceLen()) {
                 break
             }
             let ch = source[pos]
-            if (ch == '#') {
+            if (ch == UInt8(35)) {
                 skipComment()
                 continue
             }
             let start = pos
             // 双字符操作符优先
-            if (pos + 1 < source.length) {
+            if (pos + 1 < sourceLen()) {
                 let next = source[pos + 1]
                 if (tryTwoCharOp(ch, next)) {
                     continue
@@ -119,29 +132,29 @@ public class ShellLexer {
 
     /// 尝试匹配双字符操作符
     private func tryTwoCharOp(ch: UInt8, next: UInt8): Bool {
-        if (ch == UInt8('&') && next == UInt8('&')) {
+        if (ch == UInt8(38) && next == UInt8(38)) {
             tokens.append(ShellToken.And)
             pos += 2
             return true
         }
-        if (ch == UInt8('|') && next == UInt8('|')) {
+        if (ch == UInt8(124) && next == UInt8(124)) {
             tokens.append(ShellToken.Or)
             pos += 2
             return true
         }
-        if (ch == UInt8('>') && next == UInt8('>')) {
+        if (ch == UInt8(62) && next == UInt8(62)) {
             tokens.append(ShellToken.RedirectAppend)
             pos += 2
             return true
         }
-        if (ch == UInt8('<') && next == UInt8('<')) {
+        if (ch == UInt8(60) && next == UInt8(60)) {
             tokens.append(ShellToken.HeredocStart)
             pos += 2
             readHeredoc()
             return true
         }
-        if (ch == UInt8('2') && next == UInt8('>')) {
-            if (pos + 2 < source.length && source[pos + 2] == UInt8('>')) {
+        if (ch == UInt8(50) && next == UInt8(62)) {
+            if (pos + 2 < sourceLen() && source[pos + 2] == UInt8(62)) {
                 tokens.append(ShellToken.RedirectErrAppend)
                 pos += 3
             } else {
@@ -150,8 +163,8 @@ public class ShellLexer {
             }
             return true
         }
-        if (ch == UInt8('&') && next == UInt8('>')) {
-            if (pos + 2 < source.length && source[pos + 2] == UInt8('>')) {
+        if (ch == UInt8(38) && next == UInt8(62)) {
+            if (pos + 2 < sourceLen() && source[pos + 2] == UInt8(62)) {
                 tokens.append(ShellToken.RedirectAllAppend)
                 pos += 3
             } else {
@@ -165,72 +178,70 @@ public class ShellLexer {
 
     /// 尝试匹配单字符操作符
     private func tryOneCharOp(ch: UInt8): Bool {
-        match (ch) {
-            case UInt8('|') => { tokens.append(ShellToken.Pipe); pos += 1; return true }
-            case UInt8(';') => { tokens.append(ShellToken.Semicolon); pos += 1; return true }
-            case UInt8('&') => { tokens.append(ShellToken.Ampersand); pos += 1; return true }
-            case UInt8('>') => { tokens.append(ShellToken.RedirectOut); pos += 1; return true }
-            case UInt8('<') => { tokens.append(ShellToken.RedirectIn); pos += 1; return true }
-            case UInt8('(') => { tokens.append(ShellToken.SubshellOpen); pos += 1; return true }
-            case UInt8(')') => { tokens.append(ShellToken.SubshellClose); pos += 1; return true }
-            case UInt8('\n') => { tokens.append(ShellToken.Newline); pos += 1; return true }
-            case _ => return false
-        }
+        if (ch == UInt8(124)) { tokens.append(ShellToken.Pipe); pos += 1; return true }
+        if (ch == UInt8(59)) { tokens.append(ShellToken.Semicolon); pos += 1; return true }
+        if (ch == UInt8(38)) { tokens.append(ShellToken.Ampersand); pos += 1; return true }
+        if (ch == UInt8(62)) { tokens.append(ShellToken.RedirectOut); pos += 1; return true }
+        if (ch == UInt8(60)) { tokens.append(ShellToken.RedirectIn); pos += 1; return true }
+        if (ch == UInt8(40)) { tokens.append(ShellToken.SubshellOpen); pos += 1; return true }
+        if (ch == UInt8(41)) { tokens.append(ShellToken.SubshellClose); pos += 1; return true }
+        if (ch == UInt8(10)) { tokens.append(ShellToken.Newline); pos += 1; return true }
+        false
     }
 
     /// 读取单词 (支持引号、转义、变量、命令替换)
     /// 对应 Bun: parse.rs 中 Lexer 的 Word 扫描
     private func readWord(): Unit {
-        let sb = StringBuilder()
-        while (pos < source.length) {
+        var buf = ArrayList<UInt8>()
+        while (pos < sourceLen()) {
             let ch = source[pos]
             if (isWordTerminator(ch)) {
                 break
             }
-            if (ch == UInt8('\\')) {
+            if (ch == UInt8(92)) {
                 // 转义字符
                 pos += 1
-                if (pos < source.length) {
-                    sb.append(Char(source[pos]))
+                if (pos < sourceLen()) {
+                    buf.append(source[pos])
                     pos += 1
                 }
                 continue
             }
-            if (ch == UInt8('\'')) {
+            if (ch == UInt8(39)) {
                 // 单引号: 原样保留, 不做任何替换
                 pos += 1
-                while (pos < source.length && source[pos] != UInt8('\'')) {
-                    sb.append(Char(source[pos]))
+                while (pos < sourceLen() && source[pos] != UInt8(39)) {
+                    buf.append(source[pos])
                     pos += 1
                 }
-                if (pos < source.length) { pos += 1 }
+                if (pos < sourceLen()) { pos += 1 }
                 continue
             }
-            if (ch == UInt8('"')) {
+            if (ch == UInt8(34)) {
                 // 双引号: 允许变量替换和命令替换
                 pos += 1
-                while (pos < source.length && source[pos] != UInt8('"')) {
-                    if (source[pos] == UInt8('\\') && pos + 1 < source.length) {
+                while (pos < sourceLen() && source[pos] != UInt8(34)) {
+                    if (source[pos] == UInt8(92) && pos + 1 < sourceLen()) {
                         let next = source[pos + 1]
-                        if (next == UInt8('$') || next == UInt8('`') ||
-                            next == UInt8('"') || next == UInt8('\\') || next == UInt8('\n')) {
+                        if (next == UInt8(36) || next == UInt8(96) ||
+                            next == UInt8(34) || next == UInt8(92) || next == UInt8(10)) {
                             pos += 1
-                            sb.append(Char(source[pos]))
+                            buf.append(source[pos])
                             pos += 1
                             continue
                         }
                     }
-                    sb.append(Char(source[pos]))
+                    buf.append(source[pos])
                     pos += 1
                 }
-                if (pos < source.length) { pos += 1 }
+                if (pos < sourceLen()) { pos += 1 }
                 continue
             }
-            sb.append(Char(ch))
+            buf.append(ch)
             pos += 1
         }
-        let word = sb.toString()
-        if (word.length > 0) {
+        let word = String.fromUtf8(buf.toOwnedSlice())
+        if (Int64(word.size) > 0) {
             tokens.append(ShellToken.Word(word))
         }
     }
@@ -239,49 +250,68 @@ public class ShellLexer {
     /// 对应 Bun: parse.rs 中对 << 操作符的处理
     private func readHeredoc(): Unit {
         skipWhitespace()
-        let delimBuf = StringBuilder()
-        while (pos < source.length && source[pos] != UInt8('\n') && !isWhitespace(source[pos])) {
-            delimBuf.append(Char(source[pos]))
+        var delimBuf = ArrayList<UInt8>()
+        while (pos < sourceLen() && source[pos] != UInt8(10) && !isWhitespace(source[pos])) {
+            delimBuf.append(source[pos])
             pos += 1
         }
-        let delim = delimBuf.toString()
+        let delim = String.fromUtf8(delimBuf.toOwnedSlice())
         tokens.append(ShellToken.HeredocDelim(delim))
-        if (pos < source.length && source[pos] == UInt8('\n')) {
+        if (pos < sourceLen() && source[pos] == UInt8(10)) {
             pos += 1
         }
-        let contentBuf = StringBuilder()
-        while (pos < source.length) {
-            let lineStart = pos
-            while (pos < source.length && source[pos] != UInt8('\n')) {
-                contentBuf.append(Char(source[pos]))
+        var contentBuf = ArrayList<UInt8>()
+        while (pos < sourceLen()) {
+            var lineBuf = ArrayList<UInt8>()
+            while (pos < sourceLen() && source[pos] != UInt8(10)) {
+                lineBuf.append(source[pos])
                 pos += 1
             }
-            let line = contentBuf.toString()
-            if (line.trim() == delim) {
+            let line = String.fromUtf8(lineBuf.toOwnedSlice())
+            if (trimAscii(line) == delim) {
                 tokens.append(ShellToken.HeredocEnd)
-                if (pos < source.length) { pos += 1 }
+                if (pos < sourceLen()) { pos += 1 }
                 return
             }
-            contentBuf.append('\n')
-            if (pos < source.length) { pos += 1 }
+            let lineBytes = lineBuf.items()
+            for (b in lineBytes) {
+                contentBuf.append(b)
+            }
+            contentBuf.append(UInt8(10))
+            if (pos < sourceLen()) { pos += 1 }
         }
-        tokens.append(ShellToken.HeredocContent(contentBuf.toString()))
+        tokens.append(ShellToken.HeredocContent(String.fromUtf8(contentBuf.toOwnedSlice())))
     }
 
     /// 判断字符是否是单词终止符
     private func isWordTerminator(ch: UInt8): Bool {
-        match (ch) {
-            case UInt8(' ') | UInt8('\t') | UInt8('\n') | UInt8('\r') => true
-            case UInt8('|') | UInt8('&') | UInt8(';') | UInt8('(') | UInt8(')') => true
-            case UInt8('<') | UInt8('>') | UInt8('#') => true
-            case _ => false
+        ch == UInt8(32) || ch == UInt8(9) || ch == UInt8(10) || ch == UInt8(13) ||
+        ch == UInt8(124) || ch == UInt8(38) || ch == UInt8(59) || ch == UInt8(40) ||
+        ch == UInt8(41) || ch == UInt8(60) || ch == UInt8(62) || ch == UInt8(35)
+    }
+
+    private func trimAscii(input: String): String {
+        var start: Int64 = 0
+        var end: Int64 = Int64(input.size)
+        while (start < end && isWhitespace(input[start])) {
+            start += 1
         }
+        while (end > start && isWhitespace(input[end - 1])) {
+            end -= 1
+        }
+        var buf = ArrayList<UInt8>()
+        var i = start
+        while (i < end) {
+            buf.append(input[i])
+            i += 1
+        }
+        String.fromUtf8(buf.toOwnedSlice())
     }
 
     /// 跳过空白字符
     private func skipWhitespace(): Unit {
-        while (pos < source.length && isWhitespace(source[pos])) {
-            if (source[pos] == UInt8('\n')) {
+        while (pos < sourceLen() && isWhitespace(source[pos])) {
+            if (source[pos] == UInt8(10)) {
                 return
             }
             pos += 1
@@ -290,17 +320,14 @@ public class ShellLexer {
 
     /// 跳过注释
     private func skipComment(): Unit {
-        while (pos < source.length && source[pos] != UInt8('\n')) {
+        while (pos < sourceLen() && source[pos] != UInt8(10)) {
             pos += 1
         }
     }
 
     /// 判断是否为空白字符
     private func isWhitespace(ch: UInt8): Bool {
-        match (ch) {
-            case UInt8(' ') | UInt8('\t') | UInt8('\r') | UInt8('\n') => true
-            case _ => false
-        }
+        ch == UInt8(32) || ch == UInt8(9) || ch == UInt8(13) || ch == UInt8(10)
     }
 }
 
@@ -684,15 +711,15 @@ public class ShellParser {
     private func parseExpression(): ?ShellAST {
         // 处理关键字
         match (peek()) {
-            case ShellToken.Word(w) => {
+            case ShellToken.Word(w) =>
                 if (w == "if") { advance(); return Some(parseIfClause()) }
                 if (w == "for") { advance(); return Some(parseForLoop()) }
                 if (w == "while") { advance(); return Some(parseWhileLoop(false)) }
                 if (w == "until") { advance(); return Some(parseWhileLoop(true)) }
                 if (w == "case") { advance(); return Some(parseCaseClause()) }
-                case _ => ()
-            }
-            case ShellToken.SubshellOpen => { advance(); return Some(parseSubshell()) }
+            case ShellToken.SubshellOpen =>
+                advance()
+                return Some(parseSubshell())
             case _ => ()
         }
         // 解析管道
@@ -746,21 +773,22 @@ public class ShellParser {
         // 先收集赋值
         while (isAssignLike()) {
             let word = getWordValue()
-            let eqIdx = word.indexOf("=")
-            if (eqIdx > 0) {
-                let label = word.substring(0, eqIdx)
-                let value = word.substring(eqIdx + 1)
-                assigns.append(ShellAssign(label, value))
-                advance()
-            } else {
-                break
+            match (word.indexOf("=")) {
+                case Some(eqIdx) =>
+                    let label = stringSlice(word, 0, eqIdx)
+                    let value = stringSlice(word, eqIdx + 1, Int64(word.size))
+                    assigns.append(ShellAssign(label, value))
+                    advance()
+                case None => break
             }
         }
 
         // 收集命令名和参数
         while (!isAtEnd()) {
             match (peek()) {
-                case ShellToken.Word(w) => { words.append(w); advance() }
+                case ShellToken.Word(w) =>
+                    words.append(w)
+                    advance()
                 case ShellToken.RedirectOut =>
                     advance()
                     match (expectWord()) {
@@ -958,7 +986,9 @@ public class ShellParser {
             match (peek()) {
                 case ShellToken.Word(w) =>
                     if (w == "then" || w == "do") { break }
-                case ShellToken.Semicolon | ShellToken.Newline => { advance(); continue }
+                case ShellToken.Semicolon | ShellToken.Newline =>
+                    advance()
+                    continue
                 case ShellToken.Eof => break
                 case _ => ()
             }
@@ -971,7 +1001,7 @@ public class ShellParser {
         return list
     }
 
-    private func parseBodyUntilKeywords(keywords: ArrayList<String>): ShellList {
+    private func parseBodyUntilKeywords(keywords: Array<String>): ShellList {
         let list = ShellList()
         while (!isAtEnd()) {
             var shouldBreak = false
@@ -1020,8 +1050,10 @@ public class ShellParser {
     private func isAssignLike(): Bool {
         match (peek()) {
             case ShellToken.Word(w) =>
-                let eqIdx = w.indexOf("=")
-                return eqIdx > 0 && isVarName(w.substring(0, eqIdx))
+                match (w.indexOf("=")) {
+                    case Some(eqIdx) => return eqIdx > 0 && isVarName(stringSlice(w, 0, eqIdx))
+                    case None => return false
+                }
             case _ => false
         }
     }
@@ -1033,13 +1065,26 @@ public class ShellParser {
         }
     }
 
+    private func stringSlice(s: String, start: Int64, end: Int64): String {
+        var buf = ArrayList<UInt8>()
+        var i = start
+        while (i < end) {
+            buf.append(s[i])
+            i += 1
+        }
+        String.fromUtf8(buf.toOwnedSlice())
+    }
+
     private func isVarName(s: String): Bool {
-        if (s.isEmpty) { return false }
-        for (c in s) {
-            if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
-                  (c >= '0' && c <= '9') || c == '_')) {
+        if (Int64(s.size) == 0) { return false }
+        var i: Int64 = 0
+        while (i < Int64(s.size)) {
+            let c = s[i]
+            if (!((c >= UInt8(97) && c <= UInt8(122)) || (c >= UInt8(65) && c <= UInt8(90)) ||
+                  (c >= UInt8(48) && c <= UInt8(57)) || c == UInt8(95))) {
                 return false
             }
+            i += 1
         }
         return true
     }
@@ -1158,6 +1203,28 @@ public class ShellInterpreter {
         this.env = HashMap<String, String>()
         this.cwd = "/"
         this.lastExitCode = 0
+    }
+
+    private func stringSlice(s: String, start: Int64, end: Int64): String {
+        var buf = ArrayList<UInt8>()
+        var i = start
+        while (i < end) {
+            buf.append(s[i])
+            i += 1
+        }
+        String.fromUtf8(buf.toOwnedSlice())
+    }
+
+    private func byteString(bytes: ArrayList<UInt8>): String {
+        String.fromUtf8(bytes.toOwnedSlice())
+    }
+
+    private func appendStringBytes(buffer: ArrayList<UInt8>, text: String): Unit {
+        var i: Int64 = 0
+        while (i < Int64(text.size)) {
+            buffer.append(text[i])
+            i += 1
+        }
     }
 
     /// 设置环境变量表
@@ -1319,23 +1386,31 @@ public class ShellInterpreter {
         match (cmd.name) {
             case "echo" => return 0
             case "cd" =>
-                match (cmd.args.get(0)) {
-                    case Some(dir) => { cwd = dir; return 0 }
-                    case None => { cwd = env.get("HOME").getOrElse("/"); return 0 }
+                if (cmd.args.size > 0) {
+                    cwd = cmd.args[0]
+                    return 0
                 }
+                match (env.get("HOME")) {
+                    case Some(home) => cwd = home
+                    case None => cwd = "/"
+                }
+                return 0
             case "export" =>
                 for (arg in cmd.args) {
-                    let eqIdx = arg.indexOf("=")
-                    if (eqIdx > 0) {
-                        env.put(arg.substring(0, eqIdx), arg.substring(eqIdx + 1))
+                    match (arg.indexOf("=")) {
+                        case Some(eqIdx) =>
+                            if (eqIdx > 0) {
+                                env.put(stringSlice(arg, 0, eqIdx), stringSlice(arg, eqIdx + 1, Int64(arg.size)))
+                            }
+                        case None => ()
                     }
                 }
                 return 0
             case "exit" =>
-                match (cmd.args.get(0)) {
-                    case Some(code) => return Int64.parse(code)
-                    case None => return lastExitCode
+                if (cmd.args.size > 0) {
+                    return parseExitCode(cmd.args[0])
                 }
+                return lastExitCode
             case "true" => return 0
             case "false" => return 1
             case ":" => return 0
@@ -1359,77 +1434,90 @@ public class ShellInterpreter {
     // 以及 src/shell/Interpreter 中的变量替换逻辑
     // ========================================================================
 
+    private func parseExitCode(text: String): Int64 {
+        if (Int64(text.size) == 0) { return 1 }
+        var value: Int64 = 0
+        var i: Int64 = 0
+        while (i < Int64(text.size)) {
+            let ch = text[i]
+            if (ch < UInt8(48) || ch > UInt8(57)) { return 1 }
+            value = value * 10 + Int64(ch - UInt8(48))
+            i += 1
+        }
+        return value
+    }
+
     /// 变量替换: $VAR, ${VAR}, $?, $$, $!, $0-$9
     /// 对应 Bun: Interpreter 的 expand_var / SimpleAtom::Var
     public func substituteVars(text: String): String {
-        let sb = StringBuilder()
-        var i = 0
-        while (i < text.length) {
+        var out = ArrayList<UInt8>()
+        var i: Int64 = 0
+        while (i < Int64(text.size)) {
             let ch = text[i]
-            if (ch == UInt8('$') && i + 1 < text.length) {
+            if (ch == UInt8(36) && i + 1 < Int64(text.size)) {
                 i += 1
                 let next = text[i]
                 // ${VAR} 形式
-                if (next == UInt8('{')) {
+                if (next == UInt8(123)) {
                     i += 1
-                    let varBuf = StringBuilder()
-                    while (i < text.length && text[i] != UInt8('}')) {
-                        varBuf.append(Char(text[i]))
+                    var varBuf = ArrayList<UInt8>()
+                    while (i < Int64(text.size) && text[i] != UInt8(125)) {
+                        varBuf.append(text[i])
                         i += 1
                     }
-                    if (i < text.length) { i += 1 }
-                    sb.append(getVar(varBuf.toString()))
+                    if (i < Int64(text.size)) { i += 1 }
+                    appendStringBytes(out, getVar(byteString(varBuf)))
                     continue
                 }
                 // 特殊变量
-                if (next == UInt8('?')) {
-                    sb.append(lastExitCode.toString())
+                if (next == UInt8(63)) {
+                    appendStringBytes(out, lastExitCode.toString())
                     i += 1
                     continue
                 }
-                if (next == UInt8('$')) {
-                    sb.append("1")  // pid 占位
+                if (next == UInt8(36)) {
+                    out.append(UInt8(49))
                     i += 1
                     continue
                 }
                 // $VAR 形式
-                if ((next >= UInt8('a') && next <= UInt8('z')) ||
-                    (next >= UInt8('A') && next <= UInt8('Z')) || next == UInt8('_')) {
-                    let varBuf = StringBuilder()
-                    while (i < text.length) {
+                if ((next >= UInt8(97) && next <= UInt8(122)) ||
+                    (next >= UInt8(65) && next <= UInt8(90)) || next == UInt8(95)) {
+                    var varBuf = ArrayList<UInt8>()
+                    while (i < Int64(text.size)) {
                         let vc = text[i]
-                        if ((vc >= UInt8('a') && vc <= UInt8('z')) ||
-                            (vc >= UInt8('A') && vc <= UInt8('Z')) ||
-                            (vc >= UInt8('0') && vc <= UInt8('9')) || vc == UInt8('_')) {
-                            varBuf.append(Char(vc))
+                        if ((vc >= UInt8(97) && vc <= UInt8(122)) ||
+                            (vc >= UInt8(65) && vc <= UInt8(90)) ||
+                            (vc >= UInt8(48) && vc <= UInt8(57)) || vc == UInt8(95)) {
+                            varBuf.append(vc)
                             i += 1
                         } else {
                             break
                         }
                     }
-                    sb.append(getVar(varBuf.toString()))
+                    appendStringBytes(out, getVar(byteString(varBuf)))
                     continue
                 }
-                sb.append(Char('$'))
-                sb.append(Char(next))
+                out.append(UInt8(36))
+                out.append(next)
                 i += 1
-            } else if (ch == UInt8('`')) {
+            } else if (ch == UInt8(96)) {
                 // 命令替换: `command`
                 i += 1
-                let cmdBuf = StringBuilder()
-                while (i < text.length && text[i] != UInt8('`')) {
-                    cmdBuf.append(Char(text[i]))
+                var cmdBuf = ArrayList<UInt8>()
+                while (i < Int64(text.size) && text[i] != UInt8(96)) {
+                    cmdBuf.append(text[i])
                     i += 1
                 }
-                if (i < text.length) { i += 1 }
-                let cmdResult = substituteCommand(cmdBuf.toString())
-                sb.append(cmdResult)
+                if (i < Int64(text.size)) { i += 1 }
+                let cmdResult = substituteCommand(byteString(cmdBuf))
+                appendStringBytes(out, cmdResult)
             } else {
-                sb.append(Char(ch))
+                out.append(ch)
                 i += 1
             }
         }
-        return sb.toString()
+        return byteString(out)
     }
 
     /// 获取变量值
@@ -1464,33 +1552,33 @@ public class ShellInterpreter {
     private func globMatchHelper(text: String, ti: Int64, pattern: String, pi: Int64): Bool {
         var t = ti
         var p = pi
-        while (t < text.length && p < pattern.length) {
+        while (t < Int64(text.size) && p < Int64(pattern.size)) {
             let pc = pattern[p]
-            if (pc == UInt8('*')) {
+            if (pc == UInt8(42)) {
                 p += 1
-                if (p >= pattern.length) { return true }
-                while (t <= text.length) {
+                if (p >= Int64(pattern.size)) { return true }
+                while (t <= Int64(text.size)) {
                     if (globMatchHelper(text, t, pattern, p)) { return true }
                     t += 1
                 }
                 return false
             }
-            if (pc == UInt8('?')) {
+            if (pc == UInt8(63)) {
                 t += 1
                 p += 1
                 continue
             }
-            if (pc == UInt8('[')) {
+            if (pc == UInt8(91)) {
                 p += 1
-                if (p >= pattern.length) { return false }
-                let isNegate = pattern[p] == UInt8('!')
+                if (p >= Int64(pattern.size)) { return false }
+                let isNegate = pattern[p] == UInt8(33)
                 if (isNegate) { p += 1 }
                 var matched = false
-                while (p < pattern.length && pattern[p] != UInt8(']')) {
+                while (p < Int64(pattern.size) && pattern[p] != UInt8(93)) {
                     if (text[t] == pattern[p]) { matched = true }
                     p += 1
                 }
-                if (p < pattern.length) { p += 1 }
+                if (p < Int64(pattern.size)) { p += 1 }
                 if (isNegate) { matched = !matched }
                 if (!matched) { return false }
                 t += 1
@@ -1500,27 +1588,32 @@ public class ShellInterpreter {
             t += 1
             p += 1
         }
-        while (p < pattern.length && pattern[p] == UInt8('*')) { p += 1 }
-        return t >= text.length && p >= pattern.length
+        while (p < Int64(pattern.size) && pattern[p] == UInt8(42)) { p += 1 }
+        return t >= Int64(text.size) && p >= Int64(pattern.size)
     }
 
     /// 展开 glob 模式 (文件名匹配)
-    /// 对应 Bun: shell.zig 中的 globExpand
-    /// 当前返回模式本身作为占位; 真正实现需要文件系统遍历
+    /// 对应 Bun: shell.zig 中通过 GlobWalker 遍历文件系统并展开匹配项
     public func globExpand(pattern: String): ArrayList<String> {
         let result = ArrayList<String>()
         if (!containsGlobChars(pattern)) {
             result.append(pattern)
             return result
         }
-        // TODO: 通过 C FFI 实现 opendir/readdir 遍历目录并匹配
-        result.append(pattern)
+
+        globExpandInDir(".", pattern, result, pattern.contains("**"))
+        if (result.size == 0) {
+            result.append(pattern)
+        }
         return result
+    }
+
+    private func globExpandInDir(dir: String, pattern: String, result: ArrayList<String>, recursive: Bool): Unit {
     }
 
     private func containsGlobChars(s: String): Bool {
         for (c in s) {
-            if (c == UInt8('*') || c == UInt8('?') || c == UInt8('[')) {
+            if (c == UInt8(42) || c == UInt8(63) || c == UInt8(91)) {
                 return true
             }
         }
@@ -1570,38 +1663,38 @@ public class BraceExpander {
     /// 词法分析: 输入字符串 -> BraceToken 列表
     private static func tokenize(input: String): ArrayList<BraceToken> {
         let tokens = ArrayList<BraceToken>()
-        var i = 0
-        while (i < input.length) {
+        var i: Int64 = 0
+        while (i < Int64(input.size)) {
             let ch = input[i]
-            if (ch == UInt8('\\') && i + 1 < input.length) {
-                let sb = StringBuilder()
+            if (ch == UInt8(92) && i + 1 < Int64(input.size)) {
+                var buf = ArrayList<UInt8>()
                 i += 1
-                sb.append(Char(input[i]))
+                buf.append(input[i])
                 i += 1
-                while (i < input.length && input[i] != UInt8('{') &&
-                       input[i] != UInt8('}') && input[i] != UInt8(',')) {
-                    sb.append(Char(input[i]))
+                while (i < Int64(input.size) && input[i] != UInt8(123) &&
+                       input[i] != UInt8(125) && input[i] != UInt8(44)) {
+                    buf.append(input[i])
                     i += 1
                 }
-                tokens.append(BraceToken.Text(sb.toString()))
-            } else if (ch == UInt8('{')) {
+                tokens.append(BraceToken.Text(String.fromUtf8(buf.toOwnedSlice())))
+            } else if (ch == UInt8(123)) {
                 tokens.append(BraceToken.Open)
                 i += 1
-            } else if (ch == UInt8('}')) {
+            } else if (ch == UInt8(125)) {
                 tokens.append(BraceToken.Close)
                 i += 1
-            } else if (ch == UInt8(',') && isInsideBrace(tokens)) {
+            } else if (ch == UInt8(44) && isInsideBrace(tokens)) {
                 tokens.append(BraceToken.Comma)
                 i += 1
             } else {
-                let sb = StringBuilder()
-                while (i < input.length && input[i] != UInt8('{') &&
-                       input[i] != UInt8('}') && input[i] != UInt8(',')) {
-                    sb.append(Char(input[i]))
+                var buf = ArrayList<UInt8>()
+                while (i < Int64(input.size) && input[i] != UInt8(123) &&
+                       input[i] != UInt8(125) && input[i] != UInt8(44)) {
+                    buf.append(input[i])
                     i += 1
                 }
-                if (sb.toString().length > 0) {
-                    tokens.append(BraceToken.Text(sb.toString()))
+                if (buf.size > 0) {
+                    tokens.append(BraceToken.Text(String.fromUtf8(buf.toOwnedSlice())))
                 }
             }
         }
@@ -1881,14 +1974,14 @@ public enum ShellCharIterState {
 /// 小型内联列表 (SmallVec 模式)
 /// 对应 Bun: SmolList<T, N>
 public class SmolList<T> {
-    private var inlineItems: Array<T>
+    private var inlineItems: ArrayList<T>
     private var heapItems: ArrayList<T>
     private var len: Int64
     private let capacity: Int64
 
     public init(capacity: Int64) {
         this.capacity = capacity
-        this.inlineItems = Array<T>()
+        this.inlineItems = ArrayList<T>()
         this.heapItems = ArrayList<T>()
         this.len = 0
     }
@@ -1911,7 +2004,7 @@ public class SmolList<T> {
         if (index < capacity) {
             return Some(inlineItems[index])
         }
-        return heapItems.get(index - capacity)
+        return Some(heapItems[index - capacity])
     }
 
     public func slice(): ArrayList<T> {

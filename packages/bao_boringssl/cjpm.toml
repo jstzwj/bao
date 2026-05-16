@@ -1,0 +1,17 @@
+[package]
+cjc-version = "1.0.0"
+name = "bao_boringssl"
+organization = "bao"
+description = "Bao BoringSSL wrapper module"
+version = "0.1.0"
+compile-option = ""
+override-compile-option = ""
+link-option = ""
+output-type = "static"
+src-dir = "src"
+target-dir = ""
+
+[dependencies]
+bao_core = { path = "../bao_core" }
+bao_boringssl_sys = { path = "../bao_boringssl_sys" }
+bao_cares_sys = { path = "../bao_cares_sys" }

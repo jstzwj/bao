@@ -96,15 +96,15 @@ public class LinuxMemFdAllocator {
             offset
         )
 
-        switch (result) {
-            case .result(let slice) =>
+        match (result) {
+            case SyscallResult.result(slice) =>
                 return SyscallResult.result(MemFdBytes(
                     cap: UInt32(slice.size),
                     ptr: CPointer<Byte>.fromArray(slice),
                     len: UInt32(len),
                     allocator: this.allocator()
                 ))
-            case .err(let errno) =>
+            case SyscallResult.err(errno) =>
                 return SyscallResult.err(errno)
         }
     }
@@ -137,13 +137,13 @@ public class LinuxMemFdAllocator {
         }
 
         let counter = memfdCounter.fetchAdd(1, MemoryOrder.monotonic)
-        let label = "memfd-num-${counter}"
+        let label = "memfd-num-" + counter.toString()
 
         // 使用 huge pages 更慢
         let fdResult = Syscall.memfdCreate(label, MemFdCreateFlags.nonExecutable())
-        let fd = switch (fdResult) {
-            case .result(let f) => f
-            case .err(let err) => return SyscallResult.err(SyscallError.fromCode(err.getErrno(), SyscallOperation.open))
+        let fd = match (fdResult) {
+            case SyscallResult.result(f) => f
+            case SyscallResult.err(err) => return SyscallResult.err(SyscallError.fromCode(err.getErrno(), SyscallOperation.open))
         }
 
         if (bytes.size > 0) {
@@ -159,15 +159,15 @@ public class LinuxMemFdAllocator {
         while (remainLen > 0) {
             let remainSlice = bytes.slice(remainStart, remainLen)
             let writeResult = Syscall.pwrite(fd, remainSlice, written)
-            switch (writeResult) {
-                case .err(let err) =>
+            match (writeResult) {
+                case SyscallResult.err(err) =>
                     if (err.getErrno() == Errno.AGAIN) {
                         continue
                     }
                     Output.debugWarn("Failed to write to memfd: ${err}", [])
                     fd.close()
                     return SyscallResult.err(err)
-                case .result(let result) =>
+                case SyscallResult.result(result) =>
                     if (result == 0) {
                         Output.debugWarn("Failed to write to memfd: EOF", [])
                         fd.close()
@@ -185,10 +185,10 @@ public class LinuxMemFdAllocator {
         linuxMemFdAllocator.size = UInt64(bytes.size)
 
         let allocResult = linuxMemFdAllocator.alloc(UInt64(bytes.size), 0, MMapFlags.shared())
-        switch (allocResult) {
-            case .result(let res) =>
+        match (allocResult) {
+            case SyscallResult.result(res) =>
                 return SyscallResult.result(res)
-            case .err(let err) =>
+            case SyscallResult.err(err) =>
                 linuxMemFdAllocator.deref()
                 return SyscallResult.err(err)
         }
@@ -244,10 +244,10 @@ public class MemFdAllocatorVTable {
             self.deref()
         }
         let munmapResult = Syscall.munmap(CPointer<Byte>.fromArray(buf))
-        switch (munmapResult) {
-            case .err(let err) =>
+        match (munmapResult) {
+            case SyscallResult.err(err) =>
                 Output.debugWarn("Failed to munmap memfd: ${err}", [])
-            case .result => ()
+            case SyscallResult.result(_) => ()
         }
     }
 }
@@ -278,7 +278,7 @@ public struct MMapFlags {
     }
 
     /// 设置为 SHARED 类型
-    public mutating func setTypeShared(): Unit {
+    public func setTypeShared(): Unit {
         this.value = this.value | MMapFlags.MAP_SHARED
     }
 

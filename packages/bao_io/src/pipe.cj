@@ -7,6 +7,22 @@ package bao_io
 import bao_core.*
 import bao_sys.*
 
+@C
+foreign func fcntl(fd: Int32, cmd: Int32, arg: Int32): Int32
+
+private func setFdNonblocking(fd: Int64, nonblocking: Bool): SysMaybe<Unit> {
+    let flags = fcntl(Int32(fd), 3, 0)
+    if (flags < 0) {
+        return SysMaybe<Unit>.Err(SysError(UInt16(Int64(OS.errno())), SysTag.Fcntl))
+    }
+    let newFlags = if (nonblocking) { flags | 2048 } else { flags & ~2048 }
+    let rc = fcntl(Int32(fd), 4, newFlags)
+    if (rc < 0) {
+        return SysMaybe<Unit>.Err(SysError(UInt16(Int64(OS.errno())), SysTag.Fcntl))
+    }
+    SysMaybe<Unit>.Ok(())
+}
+
 // ============================================================================
 // PipeReader - 管道读取端
 // 严格翻译自: src/io/PipeReader.zig
@@ -136,7 +152,7 @@ public class PipeReader {
     /// 设置非阻塞
     /// 对应 Bun: PipeReader.setNonblocking()
     public func setNonblocking(nonblocking: Bool): Unit {
-        // TODO: fcntl F_SETFL O_NONBLOCK
+        setFdNonblocking(fd, nonblocking)
     }
 }
 

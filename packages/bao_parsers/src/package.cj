@@ -10,6 +10,8 @@ package bao_parsers
 import bao_core.*
 import bao_collections.*
 
+public type Char = UInt8
+
 // ============================================================================
 // ParseResult - 解析结果
 // 严格翻译自: src/parsers/ 中各解析器的返回值
@@ -58,7 +60,10 @@ public class ParseResult<T> {
 
     /// 是否成功
     public func isSuccess(): Bool {
-        state == ParseState.Success && errors.size == Int64(0)
+        match (state) {
+            case ParseState.Success => errors.size == Int64(0)
+            case _ => false
+        }
     }
 
     /// 是否有错误
@@ -227,7 +232,7 @@ public class ParseError {
                 let end = findLineEnd(source, i)
                 return source[i..end]
             }
-            if (source[i] == '\n') {
+            if (source[i] == UInt8(10)) {
                 currentLine += Int64(1)
             }
         }
@@ -236,7 +241,7 @@ public class ParseError {
 
     private func findLineEnd(source: String, start: Int64): Int64 {
         for (i in start..source.size) {
-            if (source[i] == '\n') {
+            if (source[i] == UInt8(10)) {
                 return i
             }
         }
@@ -314,7 +319,7 @@ public enum TokenKind {
     | Colon          // :
     | Comma          // ,
     | Dot            // .
-    | String         // 字符串字面量
+    | StringLiteral  // 字符串字面量
     | Number         // 数字字面量
     | Boolean        // true/false
     | Null           // null
@@ -353,7 +358,7 @@ public enum TokenKind {
             case Colon => ":"
             case Comma => ","
             case Dot => "."
-            case String => "string"
+            case StringLiteral => "string"
             case Number => "number"
             case Boolean => "boolean"
             case Null => "null"
@@ -503,7 +508,7 @@ public abstract class BaseParser {
         if (pos >= Int64(0) && pos < source.size) {
             source[Int64(pos)]
         } else {
-            Char(0)
+            UInt8(0)
         }
     }
 
@@ -513,18 +518,18 @@ public abstract class BaseParser {
         if (idx >= Int64(0) && idx < source.size) {
             source[Int64(idx)]
         } else {
-            Char(0)
+            UInt8(0)
         }
     }
 
     /// 前进一个字符 - 对应 Bun lexer.step()
     protected func advance(): Char {
         if (pos >= source.size) {
-            return Char(0)
+            return UInt8(0)
         }
         let ch = source[Int64(pos)]
         pos += Int64(1)
-        if (ch == '\n') {
+        if (ch == UInt8(10)) {
             line += Int64(1)
             column = Int64(1)
         } else {
@@ -547,7 +552,7 @@ public abstract class BaseParser {
     protected func skipWhitespace(): Unit {
         while (pos < source.size) {
             let ch = source[Int64(pos)]
-            if (ch == ' ' || ch == '\t' || ch == '\r' || ch == '\n') {
+            if (ch == UInt8(32) || ch == UInt8(9) || ch == UInt8(13) || ch == UInt8(10)) {
                 advance()
             } else {
                 break
@@ -559,7 +564,7 @@ public abstract class BaseParser {
     protected func skipWhitespaceNoNewline(): Unit {
         while (pos < source.size) {
             let ch = source[Int64(pos)]
-            if (ch == ' ' || ch == '\t' || ch == '\r') {
+            if (ch == UInt8(32) || ch == UInt8(9) || ch == UInt8(13)) {
                 advance()
             } else {
                 break
@@ -573,18 +578,18 @@ public abstract class BaseParser {
             let ch = source[Int64(pos)]
             let next = source[Int64(pos + Int64(1))]
             // 单行注释: // 或 #
-            if ((ch == '/' && next == '/') || ch == '#') {
-                while (pos < source.size && source[Int64(pos)] != '\n') {
+            if ((ch == UInt8(47) && next == UInt8(47)) || ch == UInt8(35)) {
+                while (pos < source.size && source[Int64(pos)] != UInt8(10)) {
                     advance()
                 }
                 return true
             }
             // 块注释: /* ... */
-            if (ch == '/' && next == '*') {
+            if (ch == UInt8(47) && next == UInt8(42)) {
                 advance()
                 advance()
                 while (pos + Int64(1) < source.size) {
-                    if (source[Int64(pos)] == '*' && source[Int64(pos + Int64(1))] == '/') {
+                    if (source[Int64(pos)] == UInt8(42) && source[Int64(pos + Int64(1))] == UInt8(47)) {
                         advance()
                         advance()
                         return true
@@ -642,7 +647,7 @@ public abstract class BaseParser {
     /// 读取到行尾
     protected func readLine(): String {
         let start = pos
-        while (pos < source.size && source[Int64(pos)] != '\n') {
+        while (pos < source.size && source[Int64(pos)] != UInt8(10)) {
             pos += Int64(1)
         }
         return source[Int64(start)..Int64(pos)]

@@ -19,7 +19,7 @@ import bao_hash.*
 /// 空条目标记哈希 - 对应 Bun empty_hash = math.maxInt(u64)
 /// Zig: const empty_hash = math.maxInt(u64)
 /// 当 Entry.hash == STATIC_EMPTY_HASH 时表示该槽位为空
-private let STATIC_EMPTY_HASH: UInt64 = UInt64.MAX
+private let STATIC_EMPTY_HASH: UInt64 = UInt64.Max
 
 /// Robin-Hood 哈希默认最大负载百分比
 /// Zig: max_load_percentage comptime_int (典型值 50)
@@ -40,30 +40,20 @@ private let STATIC_DEFAULT_MAX_LOAD_PERCENTAGE: Int64 = 50
 /// 静态哈希表条目 - 对应 Bun StaticHashMap.Entry
 /// hash == STATIC_EMPTY_HASH 表示空槽位
 public class StaticHashEntry<K, V> {
-    /// 哈希值 - 对应 Bun Entry.hash
-    /// Zig: hash: u64 = empty_hash
     public var hash: UInt64
+    public var key: ?K
+    public var value: ?V
 
-    /// 键 - 对应 Bun Entry.key
-    public var key: K
-
-    /// 值 - 对应 Bun Entry.value
-    public var value: V
-
-    public init(key: K, value: V, hash: UInt64) {
+    public init(key: ?K, value: ?V, hash: UInt64) {
         this.key = key
         this.value = value
         this.hash = hash
     }
 
-    /// 创建空条目 - 对应 Zig Entry{} 默认值
-    /// Zig: hash: u64 = empty_hash, key = zeroes(K), value = zeroes(V)
     public static func empty<K2, V2>(): StaticHashEntry<K2, V2> {
-        return StaticHashEntry<K2, V2>(default<K2>(), default<V2>(), STATIC_EMPTY_HASH)
+        return StaticHashEntry<K2, V2>(Option<K2>.None, Option<V2>.None, STATIC_EMPTY_HASH)
     }
 
-    /// 是否为空槽位 - 对应 Bun Entry.isEmpty
-    /// Zig: pub fn isEmpty(self: Entry) bool { return self.hash == empty_hash; }
     public func isEmpty(): Bool {
         return hash == STATIC_EMPTY_HASH
     }
@@ -82,12 +72,10 @@ public class StaticHashEntry<K, V> {
 
 /// 获取或插入的结果 - 对应 Bun HashMap.GetOrPutResult
 public class StaticGetOrPutResult<V> {
-    /// 值引用
-    public var value: V
-    /// 是否已存在
+    public var value: ?V
     public var foundExisting: Bool
 
-    public init(value: V, foundExisting: Bool) {
+    public init(value: ?V, foundExisting: Bool) {
         this.value = value
         this.foundExisting = foundExisting
     }
@@ -122,7 +110,7 @@ public class StaticGetOrPutResult<V> {
 ///   comptime V: type         - 值类型
 ///   comptime Context: type   - 哈希上下文
 ///   comptime capacity: usize - 固定容量 (必须是 2 的幂)
-public class StaticHashMap<K, V> where K <: Equatable<K> {
+public class StaticHashMap<K, V> where K <: Hashable & Equatable<K> & ToString {
     /// 条目数组 - 对应 Bun entries: [capacity + overflow]Entry
     private var entries: ArrayList<StaticHashEntry<K, V>>
     /// 当前元素数量 - 对应 Bun len
@@ -149,7 +137,7 @@ public class StaticHashMap<K, V> where K <: Equatable<K> {
         let overflow = staticComputeOverflow(cap, shift)
         let totalSlots = cap + overflow
         for (_ in 0..totalSlots) {
-            entries.append(StaticHashEntry<K, V>(default<K>(), default<V>(), STATIC_EMPTY_HASH))
+            entries.append(StaticHashEntry<K, V>(Option<K>.None, Option<V>.None, STATIC_EMPTY_HASH))
         }
     }
 
@@ -163,7 +151,7 @@ public class StaticHashMap<K, V> where K <: Equatable<K> {
         let overflow = staticComputeOverflow(cap, shift)
         let totalSlots = cap + overflow
         for (_ in 0..totalSlots) {
-            entries.append(StaticHashEntry<K, V>(default<K>(), default<V>(), STATIC_EMPTY_HASH))
+            entries.append(StaticHashEntry<K, V>(Option<K>.None, Option<V>.None, STATIC_EMPTY_HASH))
         }
     }
 
@@ -216,23 +204,23 @@ public class StaticHashMap<K, V> where K <: Equatable<K> {
     public func getOrPutAssumeCapacity(key: K): StaticGetOrPutResult<V> {
         let h = ctx.hash(key)
         if (h == STATIC_EMPTY_HASH) {
-            let entry = StaticHashEntry<K, V>(key, default<V>(), STATIC_EMPTY_HASH)
+            let entry = StaticHashEntry<K, V>(Some(key), Option<V>.None, STATIC_EMPTY_HASH)
             entries.append(entry)
             _len += 1
-            return StaticGetOrPutResult<V>(default<V>(), false)
+            return StaticGetOrPutResult<V>(Option<V>.None, false)
         }
 
-        var it = StaticHashEntry<K, V>(key, default<V>(), h)
+        var it = StaticHashEntry<K, V>(Some(key), Option<V>.None, h)
         var i = Int64(h >> UInt64(shift))
-        var insertedAt: ?Int64 = None
+        var insertedAt: ?Int64 = Option<Int64>.None
 
         // Zig: while (true) : (i += 1)
         while (i < entries.size) {
             let entry = entries[i]
             // Zig: if (entry.hash >= it.hash)
             if (entry.hash >= it.hash) {
-                // Zig: if (ctx.eql(entry.key, key))
-                if (ctx.eql(entry.key, key)) {
+                // Zig: if (entry.key != Option<K>.None && ctx.eql(entry.key.getOrThrow(), key))
+                if (entry.key != Option<K>.None && ctx.eql(entry.key.getOrThrow(), key)) {
                     // 找到已存在的键
                     return StaticGetOrPutResult<V>(entry.value, true)
                 }
@@ -241,11 +229,14 @@ public class StaticHashMap<K, V> where K <: Equatable<K> {
                 // Zig: if (entry.isEmpty())
                 if (entry.isEmpty()) {
                     _len += 1
-                    let idx = if (insertedAt != None) { insertedAt } else { i }
-                    return StaticGetOrPutResult<V>(entries[Int64(idx)].value, false)
+                    let idx = match (insertedAt) {
+                        case Some(value) => value
+                        case None => i
+                    }
+                    return StaticGetOrPutResult<V>(entries[idx].value, false)
                 }
                 // Zig: if (inserted_at == null) inserted_at = i
-                if (insertedAt == None) {
+                if (insertedAt == Option<Int64>.None) {
                     insertedAt = i
                 }
                 it = entry  // 继续探测被踢出的条目
@@ -256,7 +247,7 @@ public class StaticHashMap<K, V> where K <: Equatable<K> {
         // 简化处理: 追加到末尾
         entries.append(it)
         _len += 1
-        return StaticGetOrPutResult<V>(default<V>(), false)
+        return StaticGetOrPutResult<V>(Option<V>.None, false)
     }
 
     // ========================================================================
@@ -269,7 +260,7 @@ public class StaticHashMap<K, V> where K <: Equatable<K> {
     ///       const hash = ctx.hash(key);
     ///       for (self.entries[hash >> self.shift ..]) |entry| {
     ///           if (entry.hash >= hash) {
-    ///               if (!ctx.eql(entry.key, key)) return null;
+    ///               if (entry.key == Option<K>.None && ctx.eql(entry.key.getOrThrow(), key)) return null;
     ///               return entry.value;
     ///           }
     ///       }
@@ -284,10 +275,14 @@ public class StaticHashMap<K, V> where K <: Equatable<K> {
         while (i < entries.size) {
             let entry = entries[i]
             if (entry.hash >= h) {
-                if (!ctx.eql(entry.key, key)) {
-                    return None
+                match (entry.key) {
+                    case Some(entryKey) =>
+                        if (ctx.eql(entryKey, key)) {
+                            return entry.value
+                        }
+                        return None
+                    case None => return None
                 }
-                return Some(entry.value)
             }
             i += 1
         }
@@ -305,10 +300,14 @@ public class StaticHashMap<K, V> where K <: Equatable<K> {
         while (i < entries.size) {
             let entry = entries[i]
             if (entry.hash >= h) {
-                if (!ctx.eql(entry.key, key)) {
-                    return None
+                match (entry.key) {
+                    case Some(entryKey) =>
+                        if (ctx.eql(entryKey, key)) {
+                            return entry.value
+                        }
+                        return None
+                    case None => return None
                 }
-                return Some(entry.value)
             }
             i += 1
         }
@@ -326,10 +325,10 @@ public class StaticHashMap<K, V> where K <: Equatable<K> {
         while (i < entries.size) {
             let entry = entries[i]
             if (entry.hash >= h) {
-                if (!ctx.eql(entry.key, key)) {
-                    return false
+                match (entry.key) {
+                    case Some(entryKey) => return ctx.eql(entryKey, key)
+                    case None => return false
                 }
-                return true
             }
             i += 1
         }
@@ -371,10 +370,10 @@ public class StaticHashMap<K, V> where K <: Equatable<K> {
         while (i < entries.size) {
             let entry = entries[i]
             if (entry.hash >= h) {
-                if (!ctx.eql(entry.key, key)) {
-                    return false
+                match (entry.key) {
+                    case Some(entryKey) => return ctx.eql(entryKey, key)
+                    case None => return false
                 }
-                return true
             }
             i += 1
         }
@@ -394,7 +393,7 @@ public class StaticHashMap<K, V> where K <: Equatable<K> {
     ///       while (true) : (i += 1) {
     ///           const entry = self.entries[i];
     ///           if (entry.hash >= hash) {
-    ///               if (!ctx.eql(entry.key, key)) return null;
+    ///               if (entry.key == Option<K>.None && ctx.eql(entry.key.getOrThrow(), key)) return null;
     ///               break;
     ///           }
     ///       }
@@ -418,7 +417,7 @@ public class StaticHashMap<K, V> where K <: Equatable<K> {
         while (i < entries.size) {
             let entry = entries[i]
             if (entry.hash >= h) {
-                if (!ctx.eql(entry.key, key)) {
+                if (entry.key == Option<K>.None && ctx.eql(entry.key.getOrThrow(), key)) {
                     return None
                 }
                 break
@@ -441,10 +440,10 @@ public class StaticHashMap<K, V> where K <: Equatable<K> {
             i += 1
         }
         // 清空最终位置
-        entries[i] = StaticHashEntry<K, V>(default<K>(), default<V>(), STATIC_EMPTY_HASH)
+        entries[i] = StaticHashEntry<K, V>(Option<K>.None, Option<V>.None, STATIC_EMPTY_HASH)
         _len -= 1
 
-        return Some(value)
+        return value
     }
 
     /// 按上下文删除 - 对应 Bun HashMapMixin.deleteContext
@@ -457,7 +456,7 @@ public class StaticHashMap<K, V> where K <: Equatable<K> {
         while (i < entries.size) {
             let entry = entries[i]
             if (entry.hash >= h) {
-                if (!ctx.eql(entry.key, key)) {
+                if (entry.key == Option<K>.None && ctx.eql(entry.key.getOrThrow(), key)) {
                     return None
                 }
                 break
@@ -478,9 +477,9 @@ public class StaticHashMap<K, V> where K <: Equatable<K> {
             entries[i] = next
             i += 1
         }
-        entries[i] = StaticHashEntry<K, V>(default<K>(), default<V>(), STATIC_EMPTY_HASH)
+        entries[i] = StaticHashEntry<K, V>(Option<K>.None, Option<V>.None, STATIC_EMPTY_HASH)
         _len -= 1
-        return Some(value)
+        return value
     }
 
     // ========================================================================
@@ -495,7 +494,7 @@ public class StaticHashMap<K, V> where K <: Equatable<K> {
     ///   }
     public func clearRetainingCapacity(): Unit {
         for (i in 0..entries.size) {
-            entries[i] = StaticHashEntry<K, V>(default<K>(), default<V>(), STATIC_EMPTY_HASH)
+            entries[i] = StaticHashEntry<K, V>(Option<K>.None, Option<V>.None, STATIC_EMPTY_HASH)
         }
         _len = 0
     }
@@ -510,12 +509,12 @@ public class StaticHashMap<K, V> where K <: Equatable<K> {
     // ========================================================================
 
     /// 获取所有键值对
-    public func entries(): ArrayList<(K, V)> {
+    public func allEntries(): ArrayList<(K, V)> {
         let result = ArrayList<(K, V)>()
         for (i in 0..entries.size) {
             let e = entries[i]
             if (!e.isEmpty()) {
-                result.append((e.key, e.value))
+                result.append((e.key.getOrThrow(), e.value.getOrThrow()))
             }
         }
         return result
@@ -527,7 +526,7 @@ public class StaticHashMap<K, V> where K <: Equatable<K> {
         for (i in 0..entries.size) {
             let e = entries[i]
             if (!e.isEmpty()) {
-                result.append(e.key)
+                result.append(e.key.getOrThrow())
             }
         }
         return result
@@ -539,7 +538,7 @@ public class StaticHashMap<K, V> where K <: Equatable<K> {
         for (i in 0..entries.size) {
             let e = entries[i]
             if (!e.isEmpty()) {
-                result.append(e.value)
+                result.append(e.value.getOrThrow())
             }
         }
         return result
@@ -550,7 +549,7 @@ public class StaticHashMap<K, V> where K <: Equatable<K> {
         for (i in 0..entries.size) {
             let e = entries[i]
             if (!e.isEmpty()) {
-                fn(e.key, e.value)
+                fn(e.key.getOrThrow(), e.value.getOrThrow())
             }
         }
     }
@@ -619,7 +618,7 @@ public class StaticHashMap<K, V> where K <: Equatable<K> {
 
 /// 自动静态哈希映射 - 对应 Bun AutoStaticHashMap
 /// 使用 AutoHashContext (WyHash + == 比较)
-public class AutoStaticHashMap<K, V> where K <: Equatable<K> {
+public class AutoStaticHashMap<K, V> where K <: Hashable & Equatable<K> & ToString {
     private var inner: StaticHashMap<K, V>
 
     public init(capacity: Int64) {

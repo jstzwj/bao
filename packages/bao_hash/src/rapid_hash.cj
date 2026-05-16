@@ -28,11 +28,11 @@ private class MumResult {
 public class RapidHash {
 
     /// 默认种子
-    public static let RAPID_SEED: UInt64 = UInt64(0xbdd89aa982704029)
+    public static let RAPID_SEED: UInt64 = (UInt64(0xbdd89aa9) << UInt64(32)) | UInt64(0x82704029)
 
     // RapidHash 秘钥常量
     private static let RAPID_SECRET_0: UInt64 = UInt64(0x2d358dccaa6c78a5)
-    private static let RAPID_SECRET_1: UInt64 = UInt64(0x8bb84b93962eacc9)
+    private static let RAPID_SECRET_1: UInt64 = (UInt64(0x8bb84b93) << UInt64(32)) | UInt64(0x962eacc9)
     private static let RAPID_SECRET_2: UInt64 = UInt64(0x4b33a62ed433d4a3)
 
     /// 计算哈希 (使用默认种子)
@@ -199,7 +199,5 @@ public class RapidHash {
 
 /// 字符串转字节数组
 private func stringToBytes(s: String): Array<UInt8> {
-    var bytes = Array<UInt8>()
-    for (c in s) { bytes.append(UInt8(c.value)) }
-    return bytes
+    return s.toArray()
 }

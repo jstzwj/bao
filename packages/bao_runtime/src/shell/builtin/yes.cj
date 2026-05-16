@@ -5,6 +5,7 @@
 package bao_runtime.shell.builtin
 
 import bao_core.*
+import bao_runtime.shell.*
 
 // ============================================================================
 // yes命令 - 重复输出字符串直到被杀死
@@ -43,13 +44,13 @@ public class YesCmd {
 
         // 计算缓冲区大小
         var bufAlloc: UIntPtr = 0
-        if (args.length == 0) {
+        if (args.size == 0) {
             bufAlloc = 2 // "y\n"
         } else {
-            for (i in 0..args.length) {
+            for (i in 0..args.size) {
                 let argSlice = args[i]
-                bufAlloc += argSlice.length
-                if (i < args.length - 1) {
+                bufAlloc += argSlice.size
+                if (i < args.size - 1) {
                     bufAlloc += 1 // 空格
                 }
             }
@@ -66,18 +67,18 @@ public class YesCmd {
 
         // 用一次输出填充缓冲区
         this.bufferUsed = 0
-        if (args.length == 0) {
+        if (args.size == 0) {
             this.buffer[0] = 'y'.toByte()
             this.buffer[1] = '\n'.toByte()
             this.bufferUsed = 2
         } else {
-            for (i in 0..args.length) {
+            for (i in 0..args.size) {
                 let argSlice = args[i]
-                for (j in 0..argSlice.length) {
+                for (j in 0..argSlice.size) {
                     this.buffer[this.bufferUsed.toInt() + j] = argSlice[j].toByte()
                 }
-                this.bufferUsed += argSlice.length
-                if (i < args.length - 1) {
+                this.bufferUsed += argSlice.size
+                if (i < args.size - 1) {
                     this.buffer[this.bufferUsed.toInt()] = ' '.toByte()
                     this.bufferUsed += 1
                 }
@@ -92,7 +93,7 @@ public class YesCmd {
         var filled = this.bufferUsed
         while (copies > 1) {
             let remaining = bufAlloc - filled
-            let toCopy = if (copySize < remaining) copySize else remaining
+            let toCopy = if (copySize < remaining) { copySize } else { remaining }
             for (j in 0..toCopy) {
                 this.buffer[filled.toInt() + j] = this.buffer[j]
             }
@@ -101,7 +102,7 @@ public class YesCmd {
         }
         this.bufferUsed = filled
 
-        if (let safeguard = this.bltn().stdout.needsIO()) {
+        if (let Some(safeguard) <- this.bltn().stdout.needsIO()) {
             this.state = YesState.waitingIO
             return this.bltn().stdout.enqueue(this, this.buffer[0..this.bufferUsed.toInt()], safeguard)
         }
@@ -112,16 +113,16 @@ public class YesCmd {
     /// 写入非IO
     func writeNoIO(): Yield {
         // 写入4个8KB块然后暂停执行到任务
-        if (let y = this.writeOnceNoIO(this.buffer[0..this.bufferUsed.toInt()])) {
+        if (let Some(y) <- this.writeOnceNoIO(this.buffer[0..this.bufferUsed.toInt()])) {
             return y
         }
-        if (let y = this.writeOnceNoIO(this.buffer[0..this.bufferUsed.toInt()])) {
+        if (let Some(y) <- this.writeOnceNoIO(this.buffer[0..this.bufferUsed.toInt()])) {
             return y
         }
-        if (let y = this.writeOnceNoIO(this.buffer[0..this.bufferUsed.toInt()])) {
+        if (let Some(y) <- this.writeOnceNoIO(this.buffer[0..this.bufferUsed.toInt()])) {
             return y
         }
-        if (let y = this.writeOnceNoIO(this.buffer[0..this.bufferUsed.toInt()])) {
+        if (let Some(y) <- this.writeOnceNoIO(this.buffer[0..this.bufferUsed.toInt()])) {
             return y
         }
         this.task.enqueue()
@@ -129,10 +130,10 @@ public class YesCmd {
     }
 
     /// 单次非IO写入
-    func writeOnceNoIO(buf: Array<Byte>): ?Yield {
-        switch (this.bltn().writeNoIO(.stdout, buf)) {
-            case .result => None
-            case .err(let e) =>
+    func writeOnceNoIO(arr: Array<Byte>): ?Yield {
+        match (this.bltn().writeNoIO(OutKind.stdout, arr)) {
+            case result => None
+            case err(e) =>
                 this.state = YesState.waitingWriteErr
                 let errBuf = this.bltn().fmtErrorArena("yes", "${e.name()}\n", [])
                 return this.writeFailingError(errBuf, 1)
@@ -140,23 +141,23 @@ public class YesCmd {
     }
 
     /// 写入失败错误
-    public func writeFailingError(buf: String, exitCode: ExitCode): Yield {
-        if (let safeguard = this.bltn().stderr.needsIO()) {
+    public func writeFailingError(s: String, exitCode: ExitCode): Yield {
+        if (let Some(safeguard) <- this.bltn().stderr.needsIO()) {
             this.state = YesState.waitingWriteErr
-            return this.bltn().stderr.enqueue(this, buf.toByteArray(), safeguard)
+            return this.bltn().stderr.enqueue(this, s.toByteArray(), safeguard)
         }
-        this.bltn().writeNoIO(.stderr, buf.toByteArray())
+        this.bltn().writeNoIO(OutKind.stderr, s.toByteArray())
         return this.bltn().done(exitCode)
     }
 
     /// IO写入器数据块回调
-    public func onIOWriterChunk(amount: UInt64, maybeErr: ?SystemError): Yield {
-        if (let e = maybeErr) {
+    public func onIOWriterChunk(chunk: UInt64, maybeErr: ?SystemError): Yield {
+        if (let Some(e) <- maybeErr) {
             e.deref()
             this.state = YesState.err
             return this.bltn().done(1)
         }
-        if (this.state == .waitingWriteErr) {
+        if (this.state == YesState.waitingWriteErr) {
             return this.bltn().done(1)
         }
         return this.bltn().stdout.enqueue(this, this.buffer[0..this.bufferUsed.toInt()], .outputNeedsIO)

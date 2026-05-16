@@ -104,7 +104,7 @@ public class MemoryUtils {
     /// 不释放 ptr_or_slice 本身
     public static func deinit<T>(ptr: CPointer<T>): Unit {
         let typeInfo = TypeInfo.of<T>()
-        switch (typeInfo.kind) {
+        match (typeInfo.kind) {
             case TypeKind.void_ =>
                 return
             case TypeKind.bool_ =>
@@ -139,7 +139,7 @@ public class MemoryUtils {
                 // 如果可选值非空，递归 deinit 载荷
                 // (仓颉中用 Option 类型处理)
                 return
-            default =>
+            case _ =>
                 return
         }
     }
@@ -202,7 +202,7 @@ public class MemoryUtils {
     ): ?Array<Byte> {
         // 尝试 remap 到相同长度 (去掉哨兵)
         let remapResult = allocator.remap(slice, UInt64(slice.size))
-        if (let newSlice = remapResult) {
+        if (let Some(newSlice) <- remapResult) {
             return newSlice
         }
         // remap 失败，回退到 dup 然后 free
@@ -228,6 +228,6 @@ public class MemoryUtils {
     /// 向前对齐
     public static func alignForward(addr: UInt64, alignment: UInt64): UInt64 {
         let mask = alignment - 1
-        return (addr + mask) & ~mask
+        return (addr + mask) & (UInt64.Max - mask)
     }
 }

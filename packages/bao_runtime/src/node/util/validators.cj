@@ -12,7 +12,7 @@ public class Validators {
     // 对应 Bun: src/runtime/node/util/validators.zig - validateInteger
     public static func validateInteger(value: Int64, name: String, min: Int64, max: Int64): ?NodeError {
         if (value < min || value > max) {
-            return NodeError(code: "ERR_OUT_OF_RANGE", message: "The value of \"${name}\" is out of range. It must be >= ${min} and <= ${max}. Received ${value}")
+            return NodeError("ERR_OUT_OF_RANGE","The value of \"${name}\" is out of range. It must be >= ${min} and <= ${max}. Received ${value}")
         }
         return None
     }
@@ -68,9 +68,9 @@ public class Validators {
     }
 
     // 验证端口号
-    public static func validatePort(value: Int64, name: String = "port"): ?NodeError {
+    public static func validatePort(value: Int64, name: String): ?NodeError {
         if (value < 0 || value > 65535) {
-            return NodeError(code: "ERR_SOCKET_BAD_PORT", message: "Port should be >= 0 and < 65536. Received ${value}.")
+            return NodeError("ERR_SOCKET_BAD_PORT","Port should be >= 0 and < 65536. Received ${value}.")
         }
         return None
     }
@@ -85,6 +85,6 @@ public class Validators {
     // 抛出无效参数类型错误
     // 对应 Bun: src/runtime/node/util/validators.zig - throwErrInvalidArgType
     public static func throwErrInvalidArgType(name: String, expected: String, actual: String): NodeError {
-        return NodeError(code: "ERR_INVALID_ARG_TYPE", message: "The \"${name}\" argument must be of type ${expected}. Received ${actual}")
+        return NodeError("ERR_INVALID_ARG_TYPE","The \"${name}\" argument must be of type ${expected}. Received ${actual}")
     }
 }

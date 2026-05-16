@@ -40,17 +40,17 @@ public func escapeRegExp(input: String): String {
 
         let char = remain[i]
 
-        if (char == '-') {
-            result.append("\u{2d}")
-        } else if (char == '|' || char == '\\' || char == '{' || char == '}' ||
-                   char == '(' || char == ')' || char == '[' || char == ']' ||
-                   char == '^' || char == '$' || char == '+' || char == '*' ||
-                   char == '?' || char == '.')
+        if (char == UInt8(0x2d)) {
+            result.append("\\u{2d}")
+        } else if (char == UInt8(0x7c) || char == UInt8(0x5c) || char == UInt8(0x7b) || char == UInt8(0x7d) ||
+                   char == UInt8(0x28) || char == UInt8(0x29) || char == UInt8(0x5b) || char == UInt8(0x5d) ||
+                   char == UInt8(0x5e) || char == UInt8(0x24) || char == UInt8(0x2b) || char == UInt8(0x2a) ||
+                   char == UInt8(0x3f) || char == UInt8(0x2e))
         {
             result.append("\\")
-            result.append(String.fromByte(char))
+            result.append(String(Rune(char)))
         } else {
-            result.append(String.fromByte(char))
+            result.append(String(Rune(char)))
         }
 
         remain = remain[i + 1..remain.size]
@@ -81,19 +81,19 @@ public func escapeRegExpForPackageNameMatching(input: String): String {
 
         let char = remain[i]
 
-        if (char == '-') {
-            result.append("\u{2d}")
-        } else if (char == '*') {
+        if (char == UInt8(0x2d)) {
+            result.append("\\u{2d}")
+        } else if (char == UInt8(0x2a)) {
             result.append(".*")
-        } else if (char == '|' || char == '\\' || char == '{' || char == '}' ||
-                   char == '(' || char == ')' || char == '[' || char == ']' ||
-                   char == '^' || char == '$' || char == '+' || char == '?' ||
-                   char == '.')
+        } else if (char == UInt8(0x7c) || char == UInt8(0x5c) || char == UInt8(0x7b) || char == UInt8(0x7d) ||
+                   char == UInt8(0x28) || char == UInt8(0x29) || char == UInt8(0x5b) || char == UInt8(0x5d) ||
+                   char == UInt8(0x5e) || char == UInt8(0x24) || char == UInt8(0x2b) || char == UInt8(0x3f) ||
+                   char == UInt8(0x2e))
         {
             result.append("\\")
-            result.append(String.fromByte(char))
+            result.append(String(Rune(char)))
         } else {
-            result.append(String.fromByte(char))
+            result.append(String(Rune(char)))
         }
 
         remain = remain[i + 1..remain.size]

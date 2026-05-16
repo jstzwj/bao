@@ -2,6 +2,8 @@
 package bao_cli.test.parallel
 
 import bao_core.*
+import bao_runtime.*
+import std.collection.*
 
 // ============================================================================
 // Aggregate — Per-worker JUnit XML 和 LCOV 覆盖率片段合并
@@ -197,8 +199,8 @@ public func mergeCoverageFragments(paths: ArrayList<String>, opts: TestCommand.C
             let lf = fc.da.size.toDouble()
             let lh_ = fc.lh().toDouble()
 
-            let linesFraction = if (lf > 0) lh_ / lf else 1.0
-            let funcsFraction = if (fc.fnf > 0) fc.fnh.toDouble() / fc.fnf.toDouble() else 1.0
+            let linesFraction = if (lf > 0.0) { lh_ / lf } else { 1.0 }
+            let funcsFraction = if (fc.fnf > 0) { fc.fnh.toDouble() / fc.fnf.toDouble() } else { 1.0 }
 
             if (funcsFraction < opts.fractions.functions || linesFraction < opts.fractions.lines) {
                 failing = true

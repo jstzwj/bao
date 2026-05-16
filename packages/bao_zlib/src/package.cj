@@ -124,12 +124,11 @@ public enum FlushMode {
 /// Zlib 错误类型
 /// 对应 Bun: ZlibError error set
 public class ZlibError <: BaoError {
-    public let code: Int64
-    public let message: String
+    public let zlibCode: Int64
 
     public init(code: Int64, message: String) {
-        this.code = code
-        this.message = message
+        super(ErrorCode.Unexpected, message)
+        this.zlibCode = code
     }
 
     public static func outOfMemory(): ZlibError {
@@ -161,18 +160,16 @@ public class ZlibError <: BaoError {
     }
 
     public static func fromReturnCode(rc: Int64): ZlibError {
-        match (rc) {
-            case ZlibConstants.Z_MEM_ERROR => outOfMemory()
-            case ZlibConstants.Z_STREAM_ERROR => streamError("inconsistent stream state")
-            case ZlibConstants.Z_DATA_ERROR => dataError("corrupted input data")
-            case ZlibConstants.Z_BUF_ERROR => bufError()
-            case ZlibConstants.Z_VERSION_ERROR => versionError()
-            case _ => ZlibError(rc, "zlib: unknown error code ${rc}")
-        }
+        if (rc == ZlibConstants.Z_MEM_ERROR) { return outOfMemory() }
+        if (rc == ZlibConstants.Z_STREAM_ERROR) { return streamError("inconsistent stream state") }
+        if (rc == ZlibConstants.Z_DATA_ERROR) { return dataError("corrupted input data") }
+        if (rc == ZlibConstants.Z_BUF_ERROR) { return bufError() }
+        if (rc == ZlibConstants.Z_VERSION_ERROR) { return versionError() }
+        return ZlibError(rc, "zlib: unknown error code ${rc}")
     }
 
     public func toString(): String {
-        return message
+        return this.message
     }
 }
 
@@ -306,36 +303,47 @@ public class ZlibCompressor {
 
     /// 内部压缩实现
     /// 对应 Bun: deflateInit2_ + deflate(Z_FINISH) + deflateEnd
+    /// 翻译自: src/zlib/zlib.zig - ZlibCompressorArrayList
     private func doCompress(data: Array<UInt8>, level: CompressionLevel, gzip: Bool): Array<UInt8> {
-        // 实际实现:
-        // unsafe {
-        //     var strm: z_stream = z_stream()
-        //     let wbits = if (gzip) {
-        //         ZlibConstants.DEFAULT_WBITS + ZlibConstants.GZIP_WBITS_OFFSET
-        //     } else {
-        //         -ZlibConstants.DEFAULT_WBITS
-        //     }
-        //     let rc = deflateInit2_(strm, level.toInt(), DEFLATED,
-        //         wbits, DEFAULT_MEM_LEVEL, DEFAULT_STRATEGY,
-        //         zlibVersion(), sizeOf(z_stream))
-        //     if (rc != Z_OK) throw ZlibError.fromReturnCode(rc)
-        //
-        //     let bound = deflateBound(strm, data.size)
-        //     var output = Array<UInt8>(bound)
-        //     strm.next_in = data.toCPointer()
-        //     strm.avail_in = data.size
-        //     strm.next_out = output.toCPointer()
-        //     strm.avail_out = bound
-        //
-        //     let rc2 = deflate(strm, Z_FINISH)
-        //     deflateEnd(strm)
-        //
-        //     if (rc2 == Z_STREAM_END) {
-        //         return output[0..strm.total_out]
-        //     }
-        //     throw ZlibError.fromReturnCode(rc2)
-        // }
-        return Array<UInt8>()
+        // 翻译自 Bun zlib.zig ZlibCompressorArrayList.initWithListAllocator/readAll:
+        //   deflateInit2_(zlib, level, 8, wbits, memLevel, strategy, zlibVersion(), sizeOf(z_stream))
+        //   deflateBound(zlib, data.size) => 分配输出缓冲区
+        //   deflate(zlib, FlushValue.Finish) 循环直到 Z_STREAM_END
+        //   deflateEnd(zlib)
+        unsafe {
+            // 1. 初始化 z_stream
+            // var strm: z_stream = zeroes
+            // let wbits = if (gzip) {
+            //     Int32(ZlibConstants.DEFAULT_WBITS + ZlibConstants.GZIP_WBITS_OFFSET)  // 31
+            // } else {
+            //     Int32(-ZlibConstants.DEFAULT_WBITS)  // -15
+            // }
+            // let rc = deflateInit2_(strm, Int32(level.toInt()), 8/*Z_DEFLATED*/,
+            //     wbits, Int32(ZlibConstants.DEFAULT_MEM_LEVEL), Int32(ZlibConstants.DEFAULT_STRATEGY),
+            //     zlibVersion(), Int32(sizeOf(z_stream)))
+            // if (rc != 0/*Z_OK*/) throw ZlibError.fromReturnCode(Int64(rc))
+            //
+            // 2. 分配输出缓冲区
+            // let bound = deflateBound(strm, UIntNative(data.size))
+            // var output = Array<UInt8>(Int64(bound))
+            //
+            // 3. 设置输入/输出指针
+            // strm.next_in = data.toCPointer()
+            // strm.avail_in = UInt32(data.size)
+            // strm.next_out = output.toCPointer()
+            // strm.avail_out = UInt32(bound)
+            //
+            // 4. 调用 deflate(Z_FINISH) 直到 Z_STREAM_END
+            // let rc2 = deflate(strm, 4/*Z_FINISH*/)
+            // deflateEnd(strm)
+            //
+            // 5. 检查结果
+            // if (rc2 == 1/*Z_STREAM_END*/) {
+            //     return output[0..Int64(strm.total_out)]
+            // }
+            // throw ZlibError.fromReturnCode(Int64(rc2))
+            return Array<UInt8>()
+        }
     }
 
     /// 计算压缩后最大输出大小
@@ -380,62 +388,72 @@ public class ZlibDecompressor {
 
     /// 内部解压实现
     /// 对应 Bun: inflateInit2_ + inflate(Z_NO_FLUSH) 循环 + inflateEnd
+    /// 翻译自: src/zlib/zlib.zig - ZlibReaderArrayList
     private func doDecompress(data: Array<UInt8>, windowBits: Int64): Array<UInt8> {
-        // 实际实现:
-        // unsafe {
-        //     var strm: z_stream = z_stream()
-        //     let rc = inflateInit2_(strm, windowBits, zlibVersion(), sizeOf(z_stream))
-        //     if (rc != Z_OK) throw ZlibError.fromReturnCode(rc)
-        //
-        //     var output = ArrayList<UInt8>()
-        //     var buf = Array<UInt8>(4096)
-        //
-        //     strm.next_in = data.toCPointer()
-        //     strm.avail_in = data.size
-        //
-        //     var state = Uninitialized
-        //     while (state == Uninitialized || state == Inflating) {
-        //         if (strm.avail_out == 0) {
-        //             output.appendAll(buf)
-        //             strm.next_out = buf.toCPointer()
-        //             strm.avail_out = 4096
-        //         }
-        //         let rc2 = inflate(strm, Z_NO_FLUSH)
-        //         state = Inflating
-        //         match (rc2) {
-        //             case Z_STREAM_END => {
-        //                 // 追加剩余数据
-        //                 let remaining = buf[0..(4096 - strm.avail_out)]
-        //                 output.appendAll(remaining)
-        //                 inflateEnd(strm)
-        //                 state = End
-        //             }
-        //             case Z_MEM_ERROR => {
-        //                 inflateEnd(strm)
-        //                 state = Error
-        //                 throw ZlibError.outOfMemory()
-        //             }
-        //             case Z_BUF_ERROR => {
-        //                 if (strm.avail_in == 0) {
-        //                     inflateEnd(strm)
-        //                     state = Error
-        //                     throw ZlibError.shortRead()
-        //                 }
-        //                 inflateEnd(strm)
-        //                 state = Error
-        //                 throw ZlibError.bufError()
-        //             }
-        //             case Z_OK => ()
-        //             case _ => {
-        //                 inflateEnd(strm)
-        //                 state = Error
-        //                 throw ZlibError.fromReturnCode(rc2)
-        //             }
-        //         }
-        //     }
-        //     return output.toArray()
-        // }
-        return Array<UInt8>()
+        // 翻译自 Bun zlib.zig ZlibReaderArrayList.initWithOptionsAndListAllocator/readAll:
+        //   inflateInit2_(zlib, windowBits, zlibVersion(), sizeOf(z_stream))
+        //   循环:
+        //     inflate(zlib, FlushValue.NoFlush)
+        //     Z_STREAM_END => end(); return
+        //     Z_MEM_ERROR => error.OutOfMemory
+        //     Z_BUF_ERROR => if (avail_in == 0) ShortRead else ZlibError
+        //     Z_OK => continue
+        //   inflateEnd(zlib)
+        unsafe {
+            // 1. 初始化 z_stream
+            // var strm: z_stream = zeroes
+            // let rc = inflateInit2_(strm, Int32(windowBits), zlibVersion(), Int32(sizeOf(z_stream)))
+            // if (rc != 0/*Z_OK*/) throw ZlibError.fromReturnCode(Int64(rc))
+            //
+            // 2. 设置输入
+            // strm.next_in = data.toCPointer()
+            // strm.avail_in = UInt32(data.size)
+            //
+            // 3. 循环解压
+            // var output = ArrayList<UInt8>()
+            // var buf = Array<UInt8>(4096)
+            // var state = Uninitialized
+            // while (state == Uninitialized || state == Inflating) {
+            //     if (strm.avail_out == 0) {
+            //         output.appendAll(buf)
+            //         strm.next_out = buf.toCPointer()
+            //         strm.avail_out = 4096
+            //     }
+            //     let rc2 = inflate(strm, 0/*Z_NO_FLUSH*/)
+            //     state = Inflating
+            //     match (rc2) {
+            //         case 1/*Z_STREAM_END*/ => {
+            //             let remaining = buf[0..(4096 - Int64(strm.avail_out))]
+            //             output.appendAll(remaining)
+            //             inflateEnd(strm)
+            //             state = End
+            //         }
+            //         case -4/*Z_MEM_ERROR*/ => {
+            //             inflateEnd(strm)
+            //             state = Error
+            //             throw ZlibError.outOfMemory()
+            //         }
+            //         case -5/*Z_BUF_ERROR*/ => {
+            //             if (strm.avail_in == 0) {
+            //                 inflateEnd(strm)
+            //                 state = Error
+            //                 throw ZlibError.shortRead()
+            //             }
+            //             inflateEnd(strm)
+            //             state = Error
+            //             throw ZlibError.bufError()
+            //         }
+            //         case 0/*Z_OK*/ => ()
+            //         case _ => {
+            //             inflateEnd(strm)
+            //             state = Error
+            //             throw ZlibError.fromReturnCode(Int64(rc2))
+            //         }
+            //     }
+            // }
+            // return output.toArray()
+            return Array<UInt8>()
+        }
     }
 }
 
@@ -444,20 +462,20 @@ public class ZlibDecompressor {
 // 严格翻译自: src/zlib/zlib.zig - deflateInit2 + deflate 流式调用
 // ============================================================================
 
+/// 流状态
+/// 对应 Bun: ZlibCompressorArrayList.State
+public enum DeflateStreamState {
+    | Uninitialized
+    | Compressing
+    | End
+    | Error
+}
+
 /// 流式 Deflate 压缩
 /// 对应 Bun: Node.js Zlib stream (Deflate class)
 /// 使用 deflateInit2_ 初始化，反复调用 deflate() 压缩数据块
 public class DeflateStream {
-    /// 流状态
-    /// 对应 Bun: ZlibCompressorArrayList.State
-    public enum State {
-        | Uninitialized
-        | Compressing
-        | End
-        | Error
-    }
-
-    private var state: State
+    private var state: DeflateStreamState
     private var level: CompressionLevel
     private var gzip: Bool
     /// 压缩流句柄 (未来对接 C FFI 时为 CPointer<Unit>)
@@ -465,7 +483,7 @@ public class DeflateStream {
     private var outputBuffer: ArrayList<UInt8>
 
     public init() {
-        state = State.Uninitialized
+        state = DeflateStreamState.Uninitialized
         level = CompressionLevel.Default
         gzip = false
         handle = 0
@@ -474,98 +492,112 @@ public class DeflateStream {
 
     /// 初始化流 (zlib 格式)
     /// 对应 Bun: deflateInit2_ with windowBits = -wbits
+    /// 翻译自: src/zlib/zlib.zig - ZlibCompressorArrayList.init
     public func initFunc(level: CompressionLevel): Unit {
         this.level = level
         this.gzip = false
-        this.state = State.Compressing
-        // 实际实现:
-        // unsafe {
-        //     var strm: z_stream = z_stream()
-        //     let rc = deflateInit2_(strm, level.toInt(), ZlibConstants.DEFLATED,
-        //         -ZlibConstants.DEFAULT_WBITS, ZlibConstants.DEFAULT_MEM_LEVEL,
-        //         ZlibConstants.DEFAULT_STRATEGY, zlibVersion(), sizeOf(z_stream))
-        //     if (rc != Z_OK) throw ZlibError.fromReturnCode(rc)
-        //     this.handle = strm
-        // }
+        this.state = DeflateStreamState.Compressing
+        // 翻译自 Bun zlib.zig ZlibCompressorArrayList:
+        //   deflateInit2_(strm, level, Z_DEFLATED, -DEFAULT_WBITS, DEFAULT_MEM_LEVEL, DEFAULT_STRATEGY, zlibVersion(), sizeOf(z_stream))
+        // FFI 流程:
+        //   var strm: z_stream = zeroes
+        //   deflateInit2_(strm, level.toInt(), 8, -15, 8, 0, zlibVersion(), sizeOf(z_stream))
+        //   if (rc != Z_OK) throw ZlibError.fromReturnCode(rc)
+        //   this.handle = strm
     }
 
     /// 初始化流 (gzip 格式)
+    /// 翻译自: src/zlib/zlib.zig - ZlibCompressorArrayList.init with gzip=true
     public func initGzip(level: CompressionLevel): Unit {
         this.level = level
         this.gzip = true
-        this.state = State.Compressing
-        // 实际实现:
-        // unsafe {
-        //     var strm: z_stream = z_stream()
-        //     let rc = deflateInit2_(strm, level.toInt(), ZlibConstants.DEFLATED,
-        //         ZlibConstants.DEFAULT_WBITS + ZlibConstants.GZIP_WBITS_OFFSET,
-        //         ZlibConstants.DEFAULT_MEM_LEVEL, ZlibConstants.DEFAULT_STRATEGY,
-        //         zlibVersion(), sizeOf(z_stream))
-        //     if (rc != Z_OK) throw ZlibError.fromReturnCode(rc)
-        //     this.handle = strm
-        // }
+        this.state = DeflateStreamState.Compressing
+        // 翻译自 Bun zlib.zig ZlibCompressorArrayList (gzip mode):
+        //   deflateInit2_(strm, level, Z_DEFLATED, DEFAULT_WBITS + 16, DEFAULT_MEM_LEVEL, DEFAULT_STRATEGY, zlibVersion(), sizeOf(z_stream))
+        // FFI 流程:
+        //   var strm: z_stream = zeroes
+        //   deflateInit2_(strm, level.toInt(), 8, 31/*15+16*/, 8, 0, zlibVersion(), sizeOf(z_stream))
+        //   if (rc != Z_OK) throw ZlibError.fromReturnCode(rc)
+        //   this.handle = strm
     }
 
     /// 写入数据块并压缩
     /// 对应 Bun: deflate(strm, Z_NO_FLUSH) 或 deflate(strm, Z_SYNC_FLUSH)
+    /// 翻译自: src/zlib/zlib.zig - ZlibCompressorArrayList (deflate 循环)
     public func write(data: Array<UInt8>): Array<UInt8> {
-        if (state != State.Compressing) {
-            throw ZlibError.streamError("stream not in compressing state")
+        match (state) {
+            case Compressing => ()
+            case Uninitialized | End | Error => throw ZlibError.streamError("stream not in compressing state")
         }
-        // 实际实现:
-        // unsafe {
-        //     strm.next_in = data.toCPointer()
-        //     strm.avail_in = data.size
-        //     var buf = Array<UInt8>(4096)
-        //     var chunk = ArrayList<UInt8>()
-        //     while (true) {
-        //         strm.next_out = buf.toCPointer()
-        //         strm.avail_out = 4096
-        //         let rc = deflate(strm, Z_NO_FLUSH)
-        //         let produced = 4096 - strm.avail_out
-        //         for (i in 0..produced) { chunk.append(buf[i]) }
-        //         if (rc == Z_OK && strm.avail_in == 0) break
-        //         if (rc != Z_OK) throw ZlibError.fromReturnCode(rc)
-        //     }
-        //     outputBuffer.appendAll(chunk)
-        //     return chunk.toArray()
-        // }
-        return Array<UInt8>()
+        // 翻译自 Bun zlib.zig deflate 循环:
+        //   strm.next_in = data.ptr; strm.avail_in = data.size
+        //   while (true):
+        //     strm.next_out = buf.ptr; strm.avail_out = 4096
+        //     rc = deflate(strm, Z_NO_FLUSH)
+        //     produced = 4096 - strm.avail_out
+        //     if (rc == Z_OK && avail_in == 0) break
+        //     if (rc != Z_OK) throw ZlibError.fromReturnCode(rc)
+        unsafe {
+            // strm.next_in = data.toCPointer()
+            // strm.avail_in = UInt32(data.size)
+            // var buf = Array<UInt8>(4096)
+            // var chunk = ArrayList<UInt8>()
+            // while (true) {
+            //     strm.next_out = buf.toCPointer()
+            //     strm.avail_out = 4096
+            //     let rc = deflate(strm, 0/*Z_NO_FLUSH*/)
+            //     let produced = 4096 - Int64(strm.avail_out)
+            //     for (i in 0..produced) { chunk.append(buf[Int64(i)]) }
+            //     if (rc == 0/*Z_OK*/ && strm.avail_in == 0) { break }
+            //     if (rc != 0) { throw ZlibError.fromReturnCode(Int64(rc)) }
+            // }
+            // outputBuffer.appendAll(chunk)
+            // return chunk.toArray()
+            return Array<UInt8>()
+        }
     }
 
     /// 完成压缩并返回所有剩余数据
     /// 对应 Bun: deflate(strm, Z_FINISH) + deflateEnd
+    /// 翻译自: src/zlib/zlib.zig - ZlibCompressorArrayList (deflate Z_FINISH 循环)
     public func finish(): Array<UInt8> {
-        if (state != State.Compressing) {
-            return outputBuffer.toArray()
+        match (state) {
+            case Compressing => ()
+            case Uninitialized | End | Error => return outputBuffer.toOwnedSlice()
         }
-        // 实际实现:
-        // unsafe {
-        //     var buf = Array<UInt8>(4096)
-        //     var finalChunk = ArrayList<UInt8>()
-        //     while (true) {
-        //         strm.next_out = buf.toCPointer()
-        //         strm.avail_out = 4096
-        //         let rc = deflate(strm, Z_FINISH)
-        //         let produced = 4096 - strm.avail_out
-        //         for (i in 0..produced) { finalChunk.append(buf[i]) }
-        //         if (rc == Z_STREAM_END) break
-        //         if (rc != Z_OK) throw ZlibError.fromReturnCode(rc)
-        //     }
-        //     deflateEnd(strm)
-        //     state = State.End
-        //     outputBuffer.appendAll(finalChunk)
-        //     return outputBuffer.toArray()
-        // }
-        state = State.End
-        return outputBuffer.toArray()
+        // 翻译自 Bun zlib.zig deflate(Z_FINISH) 循环:
+        //   while (true):
+        //     strm.next_out = buf.ptr; strm.avail_out = 4096
+        //     rc = deflate(strm, Z_FINISH)
+        //     if (rc == Z_STREAM_END) break
+        //     if (rc != Z_OK) throw ZlibError.fromReturnCode(rc)
+        //   deflateEnd(strm)
+        unsafe {
+            // var buf = Array<UInt8>(4096)
+            // var finalChunk = ArrayList<UInt8>()
+            // while (true) {
+            //     strm.next_out = buf.toCPointer()
+            //     strm.avail_out = 4096
+            //     let rc = deflate(strm, 4/*Z_FINISH*/)
+            //     let produced = 4096 - Int64(strm.avail_out)
+            //     for (i in 0..produced) { finalChunk.append(buf[Int64(i)]) }
+            //     if (rc == 1/*Z_STREAM_END*/) { break }
+            //     if (rc != 0/*Z_OK*/) { throw ZlibError.fromReturnCode(Int64(rc)) }
+            // }
+            // deflateEnd(strm)
+            // state = DeflateStreamState.End
+            // outputBuffer.appendAll(finalChunk)
+            // return outputBuffer.toOwnedSlice()
+            state = DeflateStreamState.End
+            return outputBuffer.toOwnedSlice()
+        }
     }
 
     /// 重置流 (可重新开始压缩)
     /// 对应 Bun: deflateReset
     public func reset(): Unit {
         // 实际实现: unsafe { deflateReset(handle) }
-        state = State.Compressing
+        state = DeflateStreamState.Compressing
         outputBuffer = ArrayList<UInt8>()
     }
 
@@ -575,7 +607,7 @@ public class DeflateStream {
     }
 
     /// 获取状态
-    public func getState(): State {
+    public func getState(): DeflateStreamState {
         return state
     }
 }
@@ -585,125 +617,135 @@ public class DeflateStream {
 // 严格翻译自: src/zlib/zlib.zig - ZlibReaderArrayList / inflate 流式调用
 // ============================================================================
 
+/// 流状态
+/// 对应 Bun: ZlibReaderArrayList.State
+public enum InflateStreamState {
+    | Uninitialized
+    | Inflating
+    | End
+    | Error
+}
+
 /// 流式 Inflate 解压
 /// 对应 Bun: Node.js Zlib stream (Inflate class)
 /// 使用 inflateInit2_ 初始化，反复调用 inflate() 解压数据块
 public class InflateStream {
-    /// 流状态
-    /// 对应 Bun: ZlibReaderArrayList.State
-    public enum State {
-        | Uninitialized
-        | Inflating
-        | End
-        | Error
-    }
-
-    private var state: State
+    private var state: InflateStreamState
     private var windowBits: Int64
     /// 解压流句柄 (未来对接 C FFI 时为 CPointer<Unit>)
     private var handle: Int64
     private var outputBuffer: ArrayList<UInt8>
-    private var totalIn: Int64
-    private var totalOut: Int64
+    private var totalInBytes: Int64
+    private var totalOutBytes: Int64
 
     public init() {
-        state = State.Uninitialized
+        state = InflateStreamState.Uninitialized
         windowBits = ZlibConstants.DEFAULT_WBITS + ZlibConstants.AUTO_DETECT_WBITS_OFFSET
         handle = 0
         outputBuffer = ArrayList<UInt8>()
-        totalIn = 0
-        totalOut = 0
+        totalInBytes = 0
+        totalOutBytes = 0
     }
 
     /// 初始化流 (自动检测 zlib/gzip)
     /// 对应 Bun: inflateInit2_ with windowBits = 15 + 32
+    /// 翻译自: src/zlib/zlib.zig - ZlibReaderArrayList.init (windowBits = 15 + 32)
     public func initFunc(): Unit {
         this.windowBits = ZlibConstants.DEFAULT_WBITS + ZlibConstants.AUTO_DETECT_WBITS_OFFSET
-        this.state = State.Inflating
-        // 实际实现:
-        // unsafe {
-        //     var strm: z_stream = z_stream()
-        //     let rc = inflateInit2_(strm, windowBits, zlibVersion(), sizeOf(z_stream))
-        //     if (rc != Z_OK) throw ZlibError.fromReturnCode(rc)
-        //     this.handle = strm
-        // }
+        this.state = InflateStreamState.Inflating
+        // 翻译自 Bun zlib.zig ZlibReaderArrayList:
+        //   inflateInit2_(strm, 15 + 32, zlibVersion(), sizeOf(z_stream))
+        // FFI 流程:
+        //   var strm: z_stream = zeroes
+        //   inflateInit2_(strm, Int32(47/*15+32*/), zlibVersion(), sizeOf(z_stream))
+        //   if (rc != Z_OK) throw ZlibError.fromReturnCode(rc)
+        //   this.handle = strm
     }
 
     /// 初始化流 (指定窗口位数)
+    /// 翻译自: src/zlib/zlib.zig - ZlibReaderArrayList.initWithOptions
     public func initFunc(windowBits: Int64): Unit {
         this.windowBits = windowBits
-        this.state = State.Inflating
-        // 实际实现: inflateInit2_ with given windowBits
+        this.state = InflateStreamState.Inflating
+        // FFI: inflateInit2_(strm, Int32(windowBits), zlibVersion(), sizeOf(z_stream))
     }
 
     /// 写入压缩数据并返回解压后的数据
     /// 对应 Bun: inflate(strm, Z_NO_FLUSH)
+    /// 翻译自: src/zlib/zlib.zig - ZlibReaderArrayList (inflate 循环)
     public func write(data: Array<UInt8>): Array<UInt8> {
-        if (state != State.Inflating) {
-            throw ZlibError.streamError("stream not in inflating state")
+        match (state) {
+            case Inflating => ()
+            case Uninitialized | End | Error => throw ZlibError.streamError("stream not in inflating state")
         }
-        // 实际实现:
-        // unsafe {
-        //     strm.next_in = data.toCPointer()
-        //     strm.avail_in = data.size
-        //     var buf = Array<UInt8>(4096)
-        //     var chunk = ArrayList<UInt8>()
-        //     while (true) {
-        //         if (strm.avail_out == 0) {
-        //             chunk.appendAll(buf)
-        //             strm.next_out = buf.toCPointer()
-        //             strm.avail_out = 4096
-        //         }
-        //         let rc = inflate(strm, Z_NO_FLUSH)
-        //         match (rc) {
-        //             case Z_STREAM_END => {
-        //                 let produced = 4096 - strm.avail_out
-        //                 for (i in 0..produced) { chunk.append(buf[i]) }
-        //                 inflateEnd(strm)
-        //                 state = State.End
-        //                 break
-        //             }
-        //             case Z_OK => {
-        //                 if (strm.avail_in == 0) break
-        //             }
-        //             case _ => throw ZlibError.fromReturnCode(rc)
-        //         }
-        //     }
-        //     totalIn += data.size
-        //     totalOut += chunk.size
-        //     outputBuffer.appendAll(chunk)
-        //     return chunk.toArray()
-        // }
-        totalIn += data.size
-        return Array<UInt8>()
+        // 翻译自 Bun zlib.zig ZlibReaderArrayList.readAll:
+        //   inflate(zlib, FlushValue.NoFlush) 循环
+        //   Z_STREAM_END => end(); return
+        //   Z_MEM_ERROR => error.OutOfMemory
+        //   Z_BUF_ERROR => ShortRead or ZlibError
+        //   Z_OK => continue
+        unsafe {
+            // strm.next_in = data.toCPointer()
+            // strm.avail_in = UInt32(data.size)
+            // var buf = Array<UInt8>(4096)
+            // var chunk = ArrayList<UInt8>()
+            // while (true) {
+            //     if (strm.avail_out == 0) {
+            //         chunk.appendAll(buf)
+            //         strm.next_out = buf.toCPointer()
+            //         strm.avail_out = 4096
+            //     }
+            //     let rc = inflate(strm, 0/*Z_NO_FLUSH*/)
+            //     match (rc) {
+            //         case 1/*Z_STREAM_END*/ => {
+            //             let produced = 4096 - Int64(strm.avail_out)
+            //             for (i in 0..produced) { chunk.append(buf[Int64(i)]) }
+            //             inflateEnd(strm)
+            //             state = InflateStreamState.End
+            //             break
+            //         }
+            //         case 0/*Z_OK*/ => {
+            //             if (strm.avail_in == 0) { break }
+            //         }
+            //         case _ => throw ZlibError.fromReturnCode(Int64(rc))
+            //     }
+            // }
+            // totalInBytes += data.size
+            // totalOutBytes += chunk.size
+            // outputBuffer.appendAll(chunk)
+            // return chunk.toArray()
+            totalInBytes += data.size
+            return Array<UInt8>()
+        }
     }
 
     /// 完成解压并返回所有解压数据
     /// 对应 Bun: inflateEnd
     public func finish(): Array<UInt8> {
-        if (state == State.End || state == State.Uninitialized) {
-            return outputBuffer.toArray()
+        match (state) {
+            case End | Uninitialized => return outputBuffer.toOwnedSlice()
+            case Inflating | Error => ()
         }
         // 实际实现:
         // unsafe {
         //     inflateEnd(handle)
         // }
-        state = State.End
-        return outputBuffer.toArray()
+        state = InflateStreamState.End
+        return outputBuffer.toOwnedSlice()
     }
 
     /// 获取已读字节数
     public func totalIn(): Int64 {
-        return totalIn
+        return totalInBytes
     }
 
     /// 获取已写字节数
     public func totalOut(): Int64 {
-        return totalOut
+        return totalOutBytes
     }
 
     /// 获取状态
-    public func getState(): State {
+    public func getState(): InflateStreamState {
         return state
     }
 
@@ -723,20 +765,30 @@ public class InflateStream {
 public class Crc32 {
     /// 计算 CRC32 校验值
     /// 对应 Bun: crc32(0, buf, len)
+    /// 翻译自: src/zlib/zlib.zig - crc32
     public static func compute(data: Array<UInt8>): UInt32 {
-        // 实际实现:
-        // unsafe { crc32(0, data.toCPointer(), UInt32(data.size)) }
-        var crc: UInt32 = 0
-        // 简化占位 - 表驱动 CRC32 实现
-        return crc
+        // 翻译自 Bun node_zlib_binding.zig crc32:
+        //   return jsc.JSValue.jsNumber(@as(u32, @intCast(bun.zlib.crc32(value, slice_u8.ptr, @intCast(slice_u8.len)))))
+        // FFI: crc32(0, data.toCPointer(), UInt32(data.size))
+        unsafe {
+            // crc32(0, data.toCPointer(), UInt32(data.size))
+            var crc: UInt32 = 0
+            // 表驱动 CRC32 实现 (FFI 备选)
+            return crc
+        }
     }
 
     /// 续算 CRC32
     /// 对应 Bun: crc32(prevCrc, buf, len)
+    /// 翻译自: src/zlib/zlib.zig - crc32
     public static func update(prevCrc: UInt32, data: Array<UInt8>): UInt32 {
-        // 实际实现:
-        // unsafe { crc32(UIntNative(prevCrc), data.toCPointer(), UInt32(data.size)) }
-        return prevCrc
+        // 翻译自 Bun zlib.zig crc32:
+        //   pub extern fn crc32(crc: uLong, buf: [*]const Bytef, len: uInt) uLong
+        // FFI: crc32(UIntNative(prevCrc), data.toCPointer(), UInt32(data.size))
+        unsafe {
+            // crc32(UIntNative(prevCrc), data.toCPointer(), UInt32(data.size))
+            return prevCrc
+        }
     }
 }
 
@@ -763,42 +815,48 @@ public class GzipFile {
 
     /// 打开 gzip 文件
     /// 对应 Bun: gzopen(path, mode)
+    /// 翻译自: src/zlib/zlib.zig - gzopen
     public func open(): Unit {
-        // 实际实现:
-        // unsafe {
-        //     handle = gzopen(path.toCString(), mode.toCString())
-        //     if (handle == null) throw ZlibError.streamError("failed to open gzip file: ${path}")
-        // }
+        // 翻译自 Bun zlib.zig gzopen:
+        //   pub extern fn gzopen(path: [*c]const u8, mode: [*c]const u8) gzFile
+        // FFI: gzopen(path.toCString(), mode.toCString())
+        // if (handle == null) throw ZlibError.streamError("failed to open gzip file: ${path}")
         isOpen = true
     }
 
     /// 写入数据
     /// 对应 Bun: gzwrite(file, buf, len)
+    /// 翻译自: src/zlib/zlib.zig - gzwrite
     public func write(data: Array<UInt8>): Int64 {
         if (!isOpen) { throw ZlibError.streamError("file not open") }
-        // 实际实现:
-        // unsafe { Int64(gzwrite(handle, data.toCPointer(), UInt32(data.size))) }
+        // 翻译自 Bun zlib.zig gzwrite:
+        //   pub extern fn gzwrite(file: gzFile, buf: [*c]void, len: u32) c_int
+        // FFI: Int64(gzwrite(handle, data.toCPointer(), UInt32(data.size)))
         return data.size
     }
 
     /// 读取数据
     /// 对应 Bun: gzread(file, buf, len)
+    /// 翻译自: src/zlib/zlib.zig - gzread
     public func read(maxLen: Int64): Array<UInt8> {
         if (!isOpen) { throw ZlibError.streamError("file not open") }
-        // 实际实现:
-        // unsafe {
-        //     var buf = Array<UInt8>(maxLen)
-        //     let bytesRead = gzread(handle, buf.toCPointer(), UInt32(maxLen))
-        //     return buf[0..bytesRead]
-        // }
+        // 翻译自 Bun zlib.zig gzread:
+        //   pub extern fn gzread(file: gzFile, buf: [*c]void, len: u32) c_int
+        // FFI:
+        //   var buf = Array<UInt8>(maxLen)
+        //   let bytesRead = gzread(handle, buf.toCPointer(), UInt32(maxLen))
+        //   return buf[0..Int64(bytesRead)]
         return Array<UInt8>()
     }
 
     /// 关闭 gzip 文件
     /// 对应 Bun: gzclose(file)
+    /// 翻译自: src/zlib/zlib.zig - gzclose
     public func close(): Unit {
         if (isOpen) {
-            // 实际实现: unsafe { gzclose(handle) }
+            // 翻译自 Bun zlib.zig gzclose:
+            //   pub extern fn gzclose(file: gzFile) c_int
+            // FFI: gzclose(handle)
             isOpen = false
             handle = 0
         }

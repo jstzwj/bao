@@ -2,6 +2,8 @@
 package bao_cli.test.parallel
 
 import bao_core.*
+import bao_runtime.*
+import std.collection.*
 
 // ============================================================================
 // Channel — 双向 IPC 通道
@@ -126,10 +128,10 @@ public class Channel {
         var head = 0
         while (in_.size - head >= 5) {
             // 读取 payload 长度 (小端 u32)
-            let len = (in_[head].toInt() and 0xFF) or
-                      ((in_[head + 1].toInt() and 0xFF) << 8) or
-                      ((in_[head + 2].toInt() and 0xFF) << 16) or
-                      ((in_[head + 3].toInt() and 0xFF) << 24)
+            let len = (in_[head].toInt() & 0xFF) |
+                      ((in_[head + 1].toInt() & 0xFF) << 8) |
+                      ((in_[head + 2].toInt() & 0xFF) << 16) |
+                      ((in_[head + 3].toInt() & 0xFF) << 24)
 
             if (len > MAX_PAYLOAD) {
                 markDone()

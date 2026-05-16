@@ -2,6 +2,8 @@
 package bao_cli.test.parallel
 
 import bao_core.*
+import bao_runtime.*
+import std.collection.*
 
 // ============================================================================
 // Frame — fd-3 IPC 通道的线协议
@@ -141,10 +143,10 @@ public class FrameReader {
         if (pos + 4 > data.size) {
             return 0
         }
-        let v = (data[pos].toInt() and 0xFF) or
-                ((data[pos + 1].toInt() and 0xFF) << 8) or
-                ((data[pos + 2].toInt() and 0xFF) << 16) or
-                ((data[pos + 3].toInt() and 0xFF) << 24)
+        let v = (data[pos].toInt() & 0xFF) |
+                ((data[pos + 1].toInt() & 0xFF) << 8) |
+                ((data[pos + 2].toInt() & 0xFF) << 16) |
+                ((data[pos + 3].toInt() & 0xFF) << 24)
         pos += 4
         return v
     }

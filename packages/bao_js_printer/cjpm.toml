@@ -1,0 +1,16 @@
+[package]
+cjc-version = "1.0.0"
+name = "bao_js_printer"
+organization = "bao"
+description = "Bao JavaScript code printer: AST-to-source code generation, symbol renaming, source map generation"
+version = "0.1.0"
+compile-option = ""
+override-compile-option = ""
+link-option = ""
+output-type = "static"
+src-dir = "src"
+target-dir = ""
+
+[dependencies]
+bao_core = { path = "../bao_core" }
+bao_collections = { path = "../bao_collections" }

@@ -84,11 +84,15 @@ public class Base64 {
 
     /// 构建查找表 - 对应 Bun Base64Decoder.init
     private static func buildLUT(alphabet: String): Array<UInt8> {
-        var lut = Array<UInt8>(256, repeat: INVALID_CHAR)
-        for (i in 0..64) {
-            lut[UInt8(alphabet[i])] = UInt8(i)
+        var lut = ArrayList<UInt8>()
+        for (_ in 0..256) {
+            lut.add(INVALID_CHAR)
         }
-        return lut
+        for (i in 0..64) {
+            let idx = UInt8(alphabet[i])
+            lut[Int64(idx)] = UInt8(i)
+        }
+        return lut.toArray()
     }
 
     // ========================================================================
@@ -213,9 +217,9 @@ public class Base64 {
 
         // 预计算解码长度 - 对应 Bun decodeLen
         // Bun: source.len / 4 * 3 + 2
-        var acc = 0
-        var accLen = 0
-        var i = 0
+        var acc: Int64 = 0
+        var accLen: Int64 = 0
+        var i: Int64 = 0
 
         while (i < len) {
             let ch = src[i]
@@ -244,7 +248,7 @@ public class Base64 {
             }
 
             // 查找字符索引
-            let idx = if (ch < 256) { standardLUT[ch] } else { INVALID_CHAR }
+            let idx = if (Int64(ch) < 256) { standardLUT[Int64(ch)] } else { INVALID_CHAR }
             if (idx == INVALID_CHAR) {
                 i += 1
                 continue  // 跳过非法字符
@@ -259,7 +263,7 @@ public class Base64 {
             // Bun: if (acc_len >= 8) { acc_len -= 8; dest[dest_idx] = truncate(acc >> acc_len); }
             if (accLen >= 8) {
                 accLen -= 8
-                result.append(UInt8((acc >> accLen) & 0xFF))
+                result.add(UInt8((acc >> accLen) & Int64(0xFF)))
             }
 
             i += 1
@@ -333,9 +337,9 @@ public class Base64 {
         let len = src.size
         let result = ArrayList<UInt8>()
 
-        var acc = 0
-        var accLen = 0
-        var i = 0
+        var acc: Int64 = 0
+        var accLen: Int64 = 0
+        var i: Int64 = 0
 
         while (i < len) {
             let ch = src[i]
@@ -356,11 +360,11 @@ public class Base64 {
             // URL-safe 字符查找，也接受标准 Base64 字符
             // 对应 Bun mixed_decoder: 合并 url_safe + standard 查找表
             var idx = INVALID_CHAR
-            if (ch < 256) {
-                idx = urlSafeLUT[ch]
+            if (Int64(ch) < 256) {
+                idx = urlSafeLUT[Int64(ch)]
                 // 宽容: 如果 URL-safe 表找不到，尝试标准表
                 if (idx == INVALID_CHAR) {
-                    idx = standardLUT[ch]
+                    idx = standardLUT[Int64(ch)]
                 }
             }
             if (idx == INVALID_CHAR) {
@@ -373,7 +377,7 @@ public class Base64 {
 
             if (accLen >= 8) {
                 accLen -= 8
-                result.append(UInt8((acc >> accLen) & 0xFF))
+                result.add(UInt8((acc >> accLen) & Int64(0xFF)))
             }
 
             i += 1
@@ -413,7 +417,7 @@ public class Base64 {
     public static func decodeLen(str: String): Int64 {
         // 去除 padding 字符计算
         var len = str.size
-        while (len > 0 && str[len - 1] == '=') {
+        while (len > 0 && UInt8(str[len - 1]) == UInt8(0x3D)) {
             len -= 1
         }
         (len * 3 + 3) / 4

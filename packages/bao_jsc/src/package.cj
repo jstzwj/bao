@@ -234,6 +234,9 @@ public type JscSerializeTag = SerializeTag
 // AnyTaskJob
 public type JscAnyTaskJob<C> = AnyTaskJob<C>
 
+// Bun JSC native 源码清单
+public type JscNativeSourcesManifest = JscNativeSources
+
 // 包版本信息
 public let BAO_JSC_VERSION = "0.1.0"
 

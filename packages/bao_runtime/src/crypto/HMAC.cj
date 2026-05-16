@@ -26,8 +26,8 @@ public class HMAC {
     }
 
     /// 初始化 HMAC
-    /// 对应 Bun: pub fn init(algorithm: EVP.Algorithm, key: []const u8) ?*HMAC
-    public static func initFunc(algorithm: EvpAlgorithm, key: Array<Byte>): ?HMAC {
+    /// 对应 Bun: pub fn init(EVP.Algorithm, key: []const u8) ?*HMAC
+    public static func initFunc(algo: EvpAlgorithm, key: Array<Byte>): ?HMAC {
         let md = algorithm.md()
         match (md) {
             case None => return None
@@ -53,21 +53,21 @@ public class HMAC {
     }
 
     /// 更新 HMAC 数据
-    /// 对应 Bun: pub fn update(this: *HMAC, data: []const u8) void
-    public func update(data: Array<Byte>): Unit {
+    /// 对应 Bun: pub fn update(*HMAC, data: []const u8) void
+    public func update(arr: Array<Byte>): Unit {
         // _ = BoringSSL.HMAC_Update(&this.ctx, data.ptr, data.len);
         BoringSSL.hmacUpdate(this.ctx, data, data.size.toInt64())
     }
 
     /// 获取 HMAC 输出大小
-    /// 对应 Bun: pub fn size(this: *const HMAC) usize
+    /// 对应 Bun: pub fn size(*const HMAC) usize
     public func size(): Int64 {
         // return BoringSSL.HMAC_size(&this.ctx);
         return BoringSSL.hmacSize(this.ctx)
     }
 
     /// 复制 HMAC
-    /// 对应 Bun: pub fn copy(this: *HMAC) !*HMAC
+    /// 对应 Bun: pub fn copy(*HMAC) !*HMAC
     public func copy(): ?HMAC {
         // var ctx: BoringSSL.HMAC_CTX = undefined;
         // BoringSSL.HMAC_CTX_init(&ctx);
@@ -87,8 +87,8 @@ public class HMAC {
     }
 
     /// 获取 HMAC 最终结果
-    /// 对应 Bun: pub fn final(this: *HMAC, out: []u8) []u8
-    public func final(out: Array<Byte>): Array<Byte> {
+    /// 对应 Bun: pub fn final(*HMAC, out: []u8) []u8
+    public func final(arr: Array<Byte>): Array<Byte> {
         var outLen = Array<UInt32>(1, repeat: UInt32(0))
 
         // _ = BoringSSL.HMAC_Final(&this.ctx, out.ptr, &outlen);
@@ -103,7 +103,7 @@ public class HMAC {
     }
 
     /// 释放 HMAC
-    /// 对应 Bun: pub fn deinit(this: *HMAC) void
+    /// 对应 Bun: pub fn deinit(*HMAC) void
     public func deinit(): Unit {
         // BoringSSL.HMAC_CTX_cleanup(&this.ctx);
         BoringSSL.hmacCtxCleanup(this.ctx)

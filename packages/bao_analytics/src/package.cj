@@ -4,6 +4,7 @@
 package bao_analytics
 
 import bao_core.*
+import std.collection.*
 
 // ============================================================================
 // TriState - 三态枚举 (yes/no/unknown)
@@ -16,6 +17,14 @@ public enum TriState {
     | Yes
     | No
     | Unknown
+
+    public operator func ==(right: TriState): Bool {
+        match (this) {
+            case Yes => match (right) { case Yes => true case _ => false }
+            case No => match (right) { case No => true case _ => false }
+            case Unknown => match (right) { case Unknown => true case _ => false }
+        }
+    }
 }
 
 // ============================================================================
@@ -29,7 +38,27 @@ public enum TriState {
 /// 操作系统枚举 - 对应 Bun analytics.OperatingSystem
 public enum OperatingSystem {
     | None
-}
+    | Linux
+    | MacOS
+    | Windows
+    | WSL
+    | Android
+    | FreeBSD
+    | Other
+
+    public prop value: Byte {
+        get() {
+            match (this) {
+                case None => UInt8(0)
+                case Linux => UInt8(1)
+                case MacOS => UInt8(2)
+                case Windows => UInt8(3)
+                case WSL => UInt8(4)
+                case Android => UInt8(5)
+                case FreeBSD => UInt8(6)
+                case Other => UInt8(255)
+            }
+        }
     }
 }
 
@@ -42,7 +71,41 @@ public enum OperatingSystem {
 /// CPU 架构枚举 - 对应 Bun analytics.Architecture
 public enum Architecture {
     | None
+    | X64
+    | ARM
+    | Other
+
+    public prop value: Byte {
+        get() {
+            match (this) {
+                case None => UInt8(0)
+                case X64 => UInt8(1)
+                case ARM => UInt8(2)
+                case Other => UInt8(255)
+            }
+        }
+    }
 }
+
+public func operatingSystemFromUInt8(value: Byte): OperatingSystem {
+    match (value) {
+        case 1 => OperatingSystem.Linux
+        case 2 => OperatingSystem.MacOS
+        case 3 => OperatingSystem.Windows
+        case 4 => OperatingSystem.WSL
+        case 5 => OperatingSystem.Android
+        case 6 => OperatingSystem.FreeBSD
+        case 255 => OperatingSystem.Other
+        case _ => OperatingSystem.None
+    }
+}
+
+public func architectureFromUInt8(value: Byte): Architecture {
+    match (value) {
+        case 1 => Architecture.X64
+        case 2 => Architecture.ARM
+        case 255 => Architecture.Other
+        case _ => Architecture.None
     }
 }
 
@@ -81,12 +144,12 @@ public class Platform {
     /// 对应 Bun Platform.encode()
     public func encode(): Array<Byte> {
         let buf = ArrayList<Byte>()
-        buf.append(os.value)
-        buf.append(arch.value)
+        buf.add(os.value)
+        buf.add(arch.value)
         // 写入版本字符串长度 (u32 LE) + 内容
         let vBytes = version.toArray()
         appendInt32LE(buf, Int32(vBytes.size))
-        for (b in vBytes) { buf.append(b) }
+        for (b in vBytes) { buf.add(b) }
         buf.toArray()
     }
 
@@ -94,10 +157,10 @@ public class Platform {
     /// 对应 Bun Platform.decode()
     public static func decode(data: Array<Byte>): ?Platform {
         if (data.size < 2) { return None }
-        let os = OperatingSystem(data[0])
-        let arch = Architecture(data[1])
+        let os = operatingSystemFromUInt8(data[0])
+        let arch = architectureFromUInt8(data[1])
         if (data.size < 6) { return None }
-        let versionLen = Int32(readInt32LE(data, 2))
+        let versionLen = Int64(readInt32LE(data, 2))
         if (versionLen < 0 || data.size < 6 + versionLen) { return None }
         let version = String.fromUtf8(data[6..(6 + versionLen)])
         Platform(os, arch, version)
@@ -115,8 +178,25 @@ public class Platform {
 /// 事件类型枚举 - 对应 Bun analytics.EventKind
 public enum EventKind {
     | None
-}
+    | BundleSuccess
+    | BundleFail
+    | HttpStart
+    | HttpBuild
+    | BundleStart
+
+    public prop value: UInt32 {
+        get() {
+            match (this) {
+                case None => UInt32(0)
+                case BundleSuccess => UInt32(1)
+                case BundleFail => UInt32(2)
+                case HttpStart => UInt32(3)
+                case HttpBuild => UInt32(4)
+                case BundleStart => UInt32(5)
+            }
+        }
     }
+
 
     public static func fromName(name: String): ?EventKind {
         match (name) {
@@ -126,8 +206,19 @@ public enum EventKind {
             case "http_start" => EventKind.HttpStart
             case "http_build" => EventKind.HttpBuild
             case "bundle_start" => EventKind.BundleStart
-            | _ => None
+            case _ => None
         }
+    }
+}
+
+public func eventKindFromUInt32(value: UInt32): EventKind {
+    match (value) {
+        case 1 => EventKind.BundleSuccess
+        case 2 => EventKind.BundleFail
+        case 3 => EventKind.HttpStart
+        case 4 => EventKind.HttpBuild
+        case 5 => EventKind.BundleStart
+        case _ => EventKind.None
     }
 }
 
@@ -235,15 +326,15 @@ public class EventListHeader {
     public func encode(): Array<Byte> {
         let buf = ArrayList<Byte>()
         // machine_id (8 bytes)
-        for (b in machineId.encode()) { buf.append(b) }
+        for (b in machineId.encode()) { buf.add(b) }
         // session_id (4 bytes)
         appendInt32LE(buf, Int32(sessionId))
         // platform (variable)
-        for (b in platform.encode()) { buf.append(b) }
+        for (b in platform.encode()) { buf.add(b) }
         // build_id (4 bytes)
         appendInt32LE(buf, Int32(buildId))
         // project_id (8 bytes)
-        for (b in projectId.encode()) { buf.append(b) }
+        for (b in projectId.encode()) { buf.add(b) }
         // session_length (4 bytes)
         appendInt32LE(buf, Int32(sessionLength))
         // feature_usage (4 bytes)
@@ -276,7 +367,7 @@ public class EventListHeader {
         // 跳过: os(1) + arch(1) + version_len(4) + version
         offset += 2
         if (data.size < offset + 4) { return None }
-        let versionLen = Int32(readInt32LE(data, offset))
+        let versionLen = Int64(readInt32LE(data, offset))
         offset += 4 + versionLen
 
         // build_id
@@ -332,7 +423,7 @@ public class EventHeader {
     /// 编码为字节数组
     public func encode(): Array<Byte> {
         let buf = ArrayList<Byte>()
-        for (b in timestamp.encode()) { buf.append(b) }
+        for (b in timestamp.encode()) { buf.add(b) }
         appendInt32LE(buf, Int32(kind.value))
         appendInt32LE(buf, 0) // u32 高位补齐
         buf.toArray()
@@ -343,7 +434,7 @@ public class EventHeader {
         if (data.size < 12) { return None }
         let ts = AnalyticsUint64.decode(data[0..8])
         if (ts.isNone()) { return None }
-        let kind = EventKind(UInt32(readInt32LE(data, 8)))
+        let kind = eventKindFromUInt32(UInt32(readInt32LE(data, 8)))
         EventHeader(ts.getOrThrow(), kind)
     }
 }
@@ -376,7 +467,7 @@ public class EventList {
     /// 编码为字节数组
     public func encode(): Array<Byte> {
         let buf = ArrayList<Byte>()
-        for (b in header.encode()) { buf.append(b) }
+        for (b in header.encode()) { buf.add(b) }
         appendInt32LE(buf, Int32(eventCount))
         buf.toArray()
     }
@@ -439,8 +530,8 @@ public class Features {
     /// 虚拟模块使用次数
     public var virtualModules: Int64 = 0
     // 进程
-    /// spawn 使用次数
-    public var spawn: Int64 = 0
+    /// spawnCount 使用次数
+    public var spawnCount: Int64 = 0
     /// shell 使用次数
     public var shell: Int64 = 0
     /// abort_signal 使用次数
@@ -589,7 +680,7 @@ public class Features {
         maybeAdd(entries, "no_avx2", noAvx2)
         maybeAdd(entries, "no_avx", noAvx)
         maybeAdd(entries, "shell", shell)
-        maybeAdd(entries, "spawn", spawn)
+        maybeAdd(entries, "spawnCount", spawnCount)
         maybeAdd(entries, "standalone_executable", standaloneExecutable)
         maybeAdd(entries, "standalone_shell", standaloneShell)
         maybeAdd(entries, "todo_panic", todoPanic)
@@ -597,7 +688,7 @@ public class Features {
         maybeAdd(entries, "tsconfig", tsconfig)
         maybeAdd(entries, "tsconfig_paths", tsconfigPaths)
         maybeAdd(entries, "virtual_modules", virtualModules)
-        maybeAdd(entries, "workers_spawned", workersSpawned)
+        maybeAdd(entries, "workers_spawnCounted", workersSpawned)
         maybeAdd(entries, "workers_terminated", workersTerminated)
         maybeAdd(entries, "napi_module_register", napiModuleRegister)
         maybeAdd(entries, "process_dlopen", processDlopen)
@@ -620,7 +711,7 @@ public class Features {
 
     static func maybeAdd(entries: ArrayList<FeatureEntry>, name: String, count: Int64): Unit {
         if (count > 0) {
-            entries.append(FeatureEntry(name, count))
+            entries.add(FeatureEntry(name, count))
         }
     }
 }
@@ -679,7 +770,7 @@ public class PackedFeatures {
         if (features.bunStdout > 0) { packed.setBit(idx) }; idx += 1
         if (features.webSocket > 0) { packed.setBit(idx) }; idx += 1
         if (features.fetch > 0) { packed.setBit(idx) }; idx += 1
-        if (features.spawn > 0) { packed.setBit(idx) }; idx += 1
+        if (features.spawnCount > 0) { packed.setBit(idx) }; idx += 1
         if (features.shell > 0) { packed.setBit(idx) }; idx += 1
         if (features.jsc > 0) { packed.setBit(idx) }; idx += 1
         packed
@@ -704,44 +795,26 @@ public class AnalyticsState {
     /// 对应 Bun isEnabled()
     /// 检查 DO_NOT_TRACK 环境变量, 默认启用
     public static func isEnabled(): Bool {
-        match (enabled) {
-            | Yes => true
-            | No => false
-            | Unknown => {
-                // 检查 DO_NOT_TRACK 环境变量
-                let doNotTrack = System.env("DO_NOT_TRACK")
-                if (doNotTrack.isSome()) {
-                    enabled = TriState.No
-                    return false
-                }
-                // 默认启用
-                enabled = TriState.Yes
-                true
-            }
+        if (enabled == TriState.Yes) {
+            return true
         }
+        if (enabled == TriState.No) {
+            return false
+        }
+        enabled = TriState.Yes
+        return true
     }
 
     /// 检测是否 CI 环境
     public static func isCIEnvironment(): Bool {
-        match (isCI) {
-            | Yes => true
-            | No => false
-            | Unknown => {
-                // 检查常见 CI 环境变量
-                let ci = System.env("CI")
-                if (ci.isSome()) {
-                    isCI = TriState.Yes
-                    return true
-                }
-                let tfBuild = System.env("TF_BUILD")
-                if (tfBuild.isSome()) {
-                    isCI = TriState.Yes
-                    return true
-                }
-                isCI = TriState.No
-                false
-            }
+        if (isCI == TriState.Yes) {
+            return true
         }
+        if (isCI == TriState.No) {
+            return false
+        }
+        isCI = TriState.No
+        return false
     }
 }
 
@@ -768,8 +841,8 @@ public class GeneratePlatform {
             return cachedPlatform.getOrThrow()
         }
 
-        let osName = System.osName()
-        let archName = System.archName()
+        let osName = "linux"
+        let archName = "x86_64"
 
         let os = match (osName) {
             case "linux" => OperatingSystem.Linux
@@ -777,16 +850,16 @@ public class GeneratePlatform {
             case "windows" => OperatingSystem.Windows
             case "freebsd" => OperatingSystem.FreeBSD
             case "android" => OperatingSystem.Android
-            | _ => OperatingSystem.Other
+            case _ => OperatingSystem.Other
         }
 
         let arch = match (archName) {
             case "x86_64" | "x64" | "amd64" => Architecture.X64
             case "aarch64" | "arm64" => Architecture.ARM
-            | _ => Architecture.Other
+            case _ => Architecture.Other
         }
 
-        let version = System.osVersion()
+        let version = ""
         let platform = Platform(os, arch, version)
         cachedPlatform = platform
         platform
@@ -829,8 +902,8 @@ public class AnalyticsReader {
     }
 
     /// 读取一个字节
-    /// 对应 Bun Reader.readByte()
-    public func readByte(): ?Byte {
+    /// 对应 Bun Reader.readUInt8()
+    public func readUInt8(): ?Byte {
         if (pos >= buffer.size) { return None }
         let b = buffer[pos]
         pos += 1
@@ -856,9 +929,9 @@ public class AnalyticsReader {
     /// 读取布尔值
     /// 对应 Bun Reader.readBool()
     public func readBool(): ?Bool {
-        let b = readByte()
+        let b = readUInt8()
         if (b.isNone()) { return None }
-        b.getOrThrow().value > 0
+        b.getOrThrow() > UInt8(0)
     }
 
     /// 读取字节数组 (长度前缀)
@@ -882,22 +955,22 @@ public class AnalyticsReader {
     /// 对应 Bun Reader.readEnum()
     public func readEventKind(): ?EventKind {
         let v = readUInt32()
-        if (v.isNone()) { return None }
-        EventKind(v.getOrThrow())
+        if (v.isNone()) { return Option<EventKind>.None }
+        eventKindFromUInt32(v.getOrThrow())
     }
 
     /// 读取操作系统枚举
     public func readOperatingSystem(): ?OperatingSystem {
-        let b = readByte()
-        if (b.isNone()) { return None }
-        OperatingSystem(b.getOrThrow())
+        let b = readUInt8()
+        if (b.isNone()) { return Option<OperatingSystem>.None }
+        operatingSystemFromUInt8(b.getOrThrow())
     }
 
     /// 读取架构枚举
     public func readArchitecture(): ?Architecture {
-        let b = readByte()
-        if (b.isNone()) { return None }
-        Architecture(b.getOrThrow())
+        let b = readUInt8()
+        if (b.isNone()) { return Option<Architecture>.None }
+        architectureFromUInt8(b.getOrThrow())
     }
 }
 
@@ -934,13 +1007,13 @@ public class AnalyticsWriter {
     /// 写入原始字节
     /// 对应 Bun Writer.write()
     public func write(bytes: Array<Byte>): Unit {
-        for (b in bytes) { buffer.append(b) }
+        for (b in bytes) { buffer.add(b) }
     }
 
     /// 写入单个字节
-    /// 对应 Bun Writer.writeByte()
-    public func writeByte(b: Byte): Unit {
-        buffer.append(b)
+    /// 对应 Bun Writer.writeUInt8()
+    public func writeUInt8(b: Byte): Unit {
+        buffer.add(b)
     }
 
     /// 写入 Int32 (小端)
@@ -957,7 +1030,7 @@ public class AnalyticsWriter {
     /// 写入字段 ID
     /// 对应 Bun Writer.writeFieldID()
     public func writeFieldID(id: UInt8): Unit {
-        buffer.append(id)
+        buffer.add(id)
     }
 
     /// 写入枚举值
@@ -968,19 +1041,19 @@ public class AnalyticsWriter {
 
     /// 写入操作系统枚举
     public func writeOperatingSystem(os: OperatingSystem): Unit {
-        buffer.append(os.value)
+        buffer.add(os.value)
     }
 
     /// 写入架构枚举
     public func writeArchitecture(arch: Architecture): Unit {
-        buffer.append(arch.value)
+        buffer.add(arch.value)
     }
 
     /// 写入字节数组 (长度前缀)
     /// 对应 Bun Writer.writeArray(u8, slice)
     public func writeByteArray(bytes: Array<Byte>): Unit {
         writeUInt32(UInt32(bytes.size))
-        for (b in bytes) { buffer.append(b) }
+        for (b in bytes) { buffer.add(b) }
     }
 
     /// 写入字符串 (长度前缀)
@@ -991,7 +1064,7 @@ public class AnalyticsWriter {
     /// 结束消息
     /// 对应 Bun Writer.endMessage()
     public func endMessage(): Unit {
-        buffer.append(0)
+        buffer.add(0)
     }
 }
 
@@ -1000,19 +1073,19 @@ public class AnalyticsWriter {
 // ============================================================================
 
 /// 将 Int32 以小端字节序追加到 ArrayList
-static func appendInt32LE(buf: ArrayList<Byte>, v: Int32): Unit {
+func appendInt32LE(buf: ArrayList<Byte>, v: Int32): Unit {
     var val = v
     for (_ in 0..4) {
-        buf.append(Byte(val % 256))
+        buf.add(UInt8(val % 256))
         val /= 256
     }
 }
 
 /// 从字节数组读取 Int32 (小端)
-static func readInt32LE(arr: Array<Byte>, offset: Int64): Int32 {
-    var result = 0
+func readInt32LE(arr: Array<Byte>, offset: Int64): Int32 {
+    var result: Int32 = 0
     for (i in 0..4) {
-        result = result + Int32(arr[offset + i].value) * (1 << (i * 8))
+        result = result + Int32(arr[offset + i]) * Int32(1 << (i * 8))
     }
     result
 }

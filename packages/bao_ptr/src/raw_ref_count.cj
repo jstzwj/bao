@@ -4,6 +4,7 @@
 package bao_ptr
 
 import bao_core.*
+import bao_threading.*
 
 // ============================================================================
 // ThreadSafety - 线程安全枚举
@@ -61,28 +62,30 @@ public class RawRefCount {
 
     /// 增加引用计数
     public func increment(): Unit {
-        if (this.threadSafety == ThreadSafety.SingleThreaded) {
-            this.threadLock.lockOrAssert()
-            let old = this.rawValue.load()
-            this.rawValue.store(old + 1)
-        } else {
-            let old = this.rawValue.fetchAdd(1)
-            Assert.assertTrue(old != UInt32.max, "overflow of thread-safe ref count")
+        match (this.threadSafety) {
+            case ThreadSafety.SingleThreaded =>
+                this.threadLock.lockOrAssert()
+                let old = this.rawValue.load()
+                this.rawValue.store(old + 1)
+            case ThreadSafety.ThreadSafe =>
+                let old = this.rawValue.fetchAdd(1)
+                Assert.assertTrue(old != UInt32.Max, "overflow of thread-safe ref count")
         }
     }
 
     /// 减少引用计数，返回结果
     public func decrement(): DecrementResult {
-        let newCount: UInt32
-        if (this.threadSafety == ThreadSafety.SingleThreaded) {
-            this.threadLock.lockOrAssert()
-            let old = this.rawValue.load()
-            this.rawValue.store(old - 1)
-            newCount = old - 1
-        } else {
-            let old = this.rawValue.fetchSub(1)
-            Assert.assertTrue(old != 0, "underflow of thread-safe ref count")
-            newCount = old - 1
+        var newCount: UInt32 = 0
+        match (this.threadSafety) {
+            case ThreadSafety.SingleThreaded =>
+                this.threadLock.lockOrAssert()
+                let old = this.rawValue.load()
+                this.rawValue.store(old - 1)
+                newCount = old - 1
+            case ThreadSafety.ThreadSafe =>
+                let old = this.rawValue.fetchSub(1)
+                Assert.assertTrue(old != 0, "underflow of thread-safe ref count")
+                newCount = old - 1
         }
         if (newCount == 0) {
             return DecrementResult.ShouldDestroy

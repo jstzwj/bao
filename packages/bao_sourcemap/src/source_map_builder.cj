@@ -7,6 +7,7 @@
 package bao_sourcemap
 
 import bao_core.*
+import std.collection.*
 
 // ============================================================================
 // SourceMapPieces - SourceMap 片段
@@ -41,7 +42,7 @@ public class SourceMapPieces {
     //               this.suffix.items.len) > 0;
     //   }
     public func hasContent(): Bool {
-        prefix.size() + mappings.size() + suffix.size() > 0
+        prefix.size + mappings.size + suffix.size > 0
     }
 
     // ========================================================================
@@ -87,7 +88,7 @@ public class SourceMapPieces {
 
         while (current < mappingsBytes.size) {
             let b = mappingsBytes[current]
-            if (b == UInt8(';')) {
+            if (b == UInt8(0x3B)) {
                 generatedLine += 1
                 generatedColumn = 0
                 prevShiftColumnDelta = 0
@@ -115,13 +116,13 @@ public class SourceMapPieces {
             // 可选的第 5 字段
             if (current < mappingsBytes.size) {
                 let c = mappingsBytes[current]
-                if (c != UInt8(',') && c != UInt8(';')) {
+                if (c != UInt8(0x2C) && c != UInt8(0x3B)) {
                     let ni = VLQ.decodeAssumeValid(mappingsStr, current)
                     current = ni.start
                 }
             }
 
-            if (current < mappingsBytes.size && mappingsBytes[current] == UInt8(',')) {
+            if (current < mappingsBytes.size && mappingsBytes[current] == UInt8(0x2C)) {
                 current += 1
             }
 
@@ -147,7 +148,7 @@ public class SourceMapPieces {
             }
 
             // 写入到 potentialEndOfRun 的部分
-            sb.append(mappingsStr.subString(startOfRun, potentialEndOfRun))
+            sb.append(mappingsStr[startOfRun..potentialEndOfRun])
 
             // 计算偏移后的列增量
             let shiftColumnDelta = shift.after.column - shift.before.column
@@ -159,7 +160,7 @@ public class SourceMapPieces {
         }
 
         // 写入剩余部分
-        sb.append(mappingsStr.subString(startOfRun))
+        sb.append(mappingsStr[startOfRun..])
         // 写入后缀
         sb.append(suffix.toString())
 
@@ -253,24 +254,24 @@ public class DebugIDFormatter {
         // 将 u64 格式化为 16 个 hex 字符 (大写)
         var hex = StringBuilder()
         var remaining = id
-        var hexChars = Array<UInt8>()
+        var hexChars = ArrayList<UInt8>()
         // 转为 hex (从高位到低位)
         if (remaining == 0) {
-            hexChars.append(UInt8('0'))
+            hexChars.add(UInt8(0x30))
         } else {
             while (remaining > 0) {
                 let digit = remaining % 16
                 remaining = remaining / 16
                 if (digit < 10) {
-                    hexChars.append(UInt8('0') + UInt8(digit))
+                    hexChars.add(UInt8(0x30) + UInt8(digit))
                 } else {
-                    hexChars.append(UInt8('A') + UInt8(digit - 10))
+                    hexChars.add(UInt8(0x41) + UInt8(digit - 10))
                 }
             }
         }
         // 补齐到 16 个字符
         while (hexChars.size < 16) {
-            hexChars.append(UInt8('0'))
+            hexChars.add(UInt8(0x30))
         }
         // 反转 (因为是从低位到高位)
         for (i in 0..hexChars.size / 2) {
@@ -279,7 +280,8 @@ public class DebugIDFormatter {
             hexChars[hexChars.size - 1 - i] = tmp
         }
         for (i in 0..hexChars.size) {
-            hex.append(Char(Int32(hexChars[i])))
+            let b = hexChars[i]
+            hex.append(String.fromUtf8(Array<UInt8>(1, { _ => b })))
         }
         // 追加 "64756E2164756E21" ("bun!bun!" hex 编码)
         hex.append("64756E2164756E21")
@@ -324,8 +326,8 @@ public class SourceMapBuilder {
     public static func appendMappingToString(lastByte: Int64,
                                              prevState: SourceMapState,
                                              currentState: SourceMapState): String {
-        let needsComma = lastByte != 0 && lastByte != Int64(';') &&
-                         lastByte != Int64('"')
+        let needsComma = lastByte != 0 && lastByte != Int64(0x3B) &&
+                         lastByte != Int64(0x22)
 
         let sb = StringBuilder()
 
@@ -377,19 +379,19 @@ public class SourceMapBuilder {
                                             prevEndState: SourceMapState,
                                             startState: SourceMapState,
                                             sourceMap: String): Unit {
-        var prevEndState = prevEndState.copy()
-        var startState = startState.copy()
+        var prevEnd = prevEndState.copy()
+        var startSt = startState.copy()
 
         // 处理行分隔 - 对应 Bun
         // if (start_state.generated_line != 0) {
         //     j.push(repeatingAlloc(allocator, start_state.generated_line, ';'));
         //     prev_end_state.generated_column = 0;
         // }
-        if (startState.generatedLine != 0) {
-            for (_ in 0..startState.generatedLine) {
+        if (startSt.generatedLine != 0) {
+            for (_ in 0..startSt.generatedLine) {
                 sb.append(';')
             }
-            prevEndState.generatedColumn = 0
+            prevEnd.generatedColumn = 0
         }
 
         // 跳过前导分号 - 对应 Bun
@@ -404,14 +406,14 @@ public class SourceMapBuilder {
         var sourceMapStr = sourceMap
         var semicolonCount = 0
         while (semicolonCount < sourceMapStr.size &&
-               sourceMapStr[semicolonCount] == ';') {
+               sourceMapStr[semicolonCount] == UInt8(0x3B)) {
             semicolonCount += 1
         }
         if (semicolonCount > 0) {
-            sb.append(sourceMapStr.subString(0, semicolonCount))
-            sourceMapStr = sourceMapStr.subString(semicolonCount)
-            prevEndState.generatedColumn = 0
-            startState.generatedColumn = 0
+            sb.append(sourceMapStr[0..semicolonCount])
+            sourceMapStr = sourceMapStr[semicolonCount..]
+            prevEnd.generatedColumn = 0
+            startSt.generatedColumn = 0
         }
 
         // 剥离第一个映射 - 对应 Bun
@@ -430,7 +432,7 @@ public class SourceMapBuilder {
         i = origCol.start
 
         let remaining = if (i < sourceMapStr.size) {
-            sourceMapStr.subString(i)
+            sourceMapStr[i..]
         } else {
             ""
         }
@@ -441,20 +443,20 @@ public class SourceMapBuilder {
         //   start_state.generated_column += generated_column.value;
         //   start_state.original_line += original_line.value;
         //   start_state.original_column += original_column.value;
-        startState.sourceIndex += srcIdx.value
-        startState.generatedColumn += genCol.value
-        startState.originalLine += origLine.value
-        startState.originalColumn += origCol.value
+        startSt.sourceIndex += srcIdx.value
+        startSt.generatedColumn += genCol.value
+        startSt.originalLine += origLine.value
+        startSt.originalColumn += origCol.value
 
         // 编码重写后的映射
         sb.append(appendMappingToString(
-            if (sb.size() > 0) {
-                Int64(sb.toString().toArray()[sb.size() - 1])
+            if (sb.size > 0) {
+                Int64(sb.toString().toArray()[sb.size - 1])
             } else {
                 0
             },
-            prevEndState,
-            startState
+            prevEnd,
+            startSt
         ))
 
         // 追加剩余部分
@@ -482,27 +484,27 @@ public class SourceMapBuilder {
     public static func findSourceMappingURL(source: String): ?String {
         let needle = "\n//# sourceMappingURL="
         let found = source.lastIndexOf(needle)
-        if (found < 0) {
+        if (found.isNone()) {
             return None
         }
 
-        let urlStart = found + needle.size
+        let urlStart = found.getOrThrow() + needle.size
         var urlEnd = source.size
 
         // 查找行尾
         for (i in urlStart..source.size) {
-            if (source[i] == '\n') {
+            if (source[i] == UInt8(0x0A)) {
                 urlEnd = i
                 break
             }
         }
 
         // 去除尾部空格和 \r
-        var url = source.subString(urlStart, urlEnd)
+        var url = source[urlStart..urlEnd]
         while (url.size > 0) {
             let last = url[url.size - 1]
-            if (last == ' ' || last == '\r') {
-                url = url.subString(0, url.size - 1)
+            if (last == UInt8(0x20) || last == UInt8(0x0D)) {
+                url = url[0..url.size - 1]
             } else {
                 break
             }
@@ -551,26 +553,27 @@ public class SourceMapBuilder {
         var jsonBytes: ?String = None
 
         let afterPrefix = source[dataPrefix.size]
-        if (afterPrefix == ';') {
+        if (afterPrefix == UInt8(0x3B)) {
             // 可能是 base64 编码: data:application/json;base64,...
-            let rest = source.subString(dataPrefix.size + 1)
-            let commaIdx = rest.indexOf(',')
-            if (commaIdx < 0) {
+            let rest = source[dataPrefix.size + 1..]
+            let commaIdx = rest.indexOf(",")
+            if (commaIdx.isNone()) {
                 return SourceMapParseResult.fail("UnsupportedFormat")
             }
-            let encoding = rest.subString(0, commaIdx)
+            let comma = commaIdx.getOrThrow()
+            let encoding = rest[0..comma]
             if (encoding == "base64") {
                 // 解码 base64 - 这里简单处理，实际需要 base64 解码器
                 // 在仓颉中暂时直接传递编码字符串
-                let base64Data = rest.subString(commaIdx + 1)
+                let base64Data = rest[comma + 1..]
                 jsonBytes = Some(base64Decode(base64Data))
             }
-        } else if (afterPrefix == ',') {
+        } else if (afterPrefix == UInt8(0x2C)) {
             // 直接 JSON: data:application/json,...
-            jsonBytes = Some(source.subString(dataPrefix.size + 1))
+            jsonBytes = Some(source[dataPrefix.size + 1..])
         }
 
-        if (jsonBytes == None) {
+        if (jsonBytes.isNone()) {
             return SourceMapParseResult.fail("UnsupportedFormat")
         }
 
@@ -602,41 +605,43 @@ public class SourceMapBuilder {
         // 检查版本
         let versionKey = "\"version\""
         let versionIdx = jsonStr.indexOf(versionKey)
-        if (versionIdx < 0) {
+        if (versionIdx.isNone()) {
             // version 字段可选
         }
 
         // 提取 mappings
         let mappingsKey = "\"mappings\""
         let mappingsIdx = jsonStr.indexOf(mappingsKey)
-        if (mappingsIdx < 0) {
+        if (mappingsIdx.isNone()) {
             return SourceMapParseResult.fail("InvalidSourceMap: missing mappings")
         }
+        let mappingsPos = mappingsIdx.getOrThrow()
 
         // 查找 mappings 值 (双引号字符串)
-        let mappingsValueStart = findStringValueStart(jsonStr, mappingsIdx + mappingsKey.size)
+        let mappingsValueStart = findStringValueStart(jsonStr, mappingsPos + mappingsKey.size)
         if (mappingsValueStart < 0) {
             return SourceMapParseResult.fail("InvalidSourceMap: invalid mappings value")
         }
-        let mappingsValueEnd = jsonStr.indexOf('"', mappingsValueStart + 1)
-        if (mappingsValueEnd < 0) {
+        let mappingsValueEnd = jsonStr.indexOf("\"", mappingsValueStart + 1)
+        if (mappingsValueEnd.isNone()) {
             return SourceMapParseResult.fail("InvalidSourceMap: unterminated mappings")
         }
-        let mappingsValue = jsonStr.subString(mappingsValueStart + 1, mappingsValueEnd)
+        let mappingsEnd = mappingsValueEnd.getOrThrow()
+        let mappingsValue = jsonStr[mappingsValueStart + 1..mappingsEnd]
 
         // 提取 sources
         let sourcesKey = "\"sources\""
         let sourcesIdx = jsonStr.indexOf(sourcesKey)
         let sourceNames = ArrayList<String>()
-        if (sourcesIdx >= 0) {
-            extractStringArray(jsonStr, sourcesIdx + sourcesKey.size, sourceNames)
+        if (sourcesIdx.isSome()) {
+            extractStringArray(jsonStr, sourcesIdx.getOrThrow() + sourcesKey.size, sourceNames)
         }
 
         // 解析 mappings
-        let parseOpts = ParseOptions(allowNames: true, sort: true)
+        let parseOpts = ParseOptions(true, true)
         let mappingResult = MappingParser.parse(
             mappingsValue,
-            Int64.MAX_VALUE,  // sourceCount
+            sourceNames.size,  // sourceCount
             0,                // inputLineCount
             parseOpts
         )
@@ -647,7 +652,7 @@ public class SourceMapBuilder {
             mappingResult.mappings
         )
         for (i in 0..sourceNames.size) {
-            parsedMap.externalSourceNames.append(sourceNames[i])
+            parsedMap.externalSourceNames.add(sourceNames[i])
         }
 
         return SourceMapParseResult.success(parsedMap)
@@ -702,13 +707,13 @@ public class SourceMapBuilder {
             var b3 = base64CharValue(table, encoded[i + 3])
 
             let v0 = (b0 << 18) | (b1 << 12) | (b2 << 6) | b3
-            sb.append(Char(Int32((v0 >> 16) & 0xFF)))
-            sb.append(Char(Int32((v0 >> 8) & 0xFF)))
-            sb.append(Char(Int32(v0 & 0xFF)))
+            sb.append(String.fromUtf8(Array<UInt8>(1, { _ => UInt8((v0 >> 16) & 0xFF) })))
+            sb.append(String.fromUtf8(Array<UInt8>(1, { _ => UInt8((v0 >> 8) & 0xFF) })))
+            sb.append(String.fromUtf8(Array<UInt8>(1, { _ => UInt8(v0 & 0xFF) })))
             i += 4
         }
         // 处理剩余字符
-        if (i < encoded.size && encoded[encoded.size - 1] != '=') {
+        if (i < encoded.size && encoded[encoded.size - 1] != UInt8(0x3D)) {
             // 不完整组，忽略
         } else if (i < encoded.size) {
             // 有 padding
@@ -716,21 +721,21 @@ public class SourceMapBuilder {
                 let b0 = base64CharValue(table, encoded[i])
                 let b1 = base64CharValue(table, encoded[i + 1])
                 let v = (b0 << 18) | (b1 << 12)
-                sb.append(Char(Int32((v >> 16) & 0xFF)))
+                sb.append(String.fromUtf8(Array<UInt8>(1, { _ => UInt8((v >> 16) & 0xFF) })))
             }
-            if (i + 3 <= encoded.size && encoded[i + 2] != '=') {
+            if (i + 3 <= encoded.size && encoded[i + 2] != UInt8(0x3D)) {
                 let b0 = base64CharValue(table, encoded[i])
                 let b1 = base64CharValue(table, encoded[i + 1])
                 let b2 = base64CharValue(table, encoded[i + 2])
                 let v = (b0 << 18) | (b1 << 12) | (b2 << 6)
-                sb.append(Char(Int32((v >> 16) & 0xFF)))
-                sb.append(Char(Int32((v >> 8) & 0xFF)))
+                sb.append(String.fromUtf8(Array<UInt8>(1, { _ => UInt8((v >> 16) & 0xFF) })))
+                sb.append(String.fromUtf8(Array<UInt8>(1, { _ => UInt8((v >> 8) & 0xFF) })))
             }
         }
         return sb.toString()
     }
 
-    private static func base64CharValue(table: String, ch: Char): Int64 {
+    private static func base64CharValue(table: String, ch: UInt8): Int64 {
         for (i in 0..table.size) {
             if (table[i] == ch) {
                 return Int64(i)
@@ -745,16 +750,16 @@ public class SourceMapBuilder {
         sb.append('"')
         for (i in 0..str.size) {
             let ch = str[i]
-            let code = Int64(ch.value)
-            if (code == Int64('"')) {
+            let code = Int64(ch)
+            if (code == Int64(0x22)) {
                 sb.append("\\\"")
-            } else if (code == Int64('\\')) {
+            } else if (code == Int64(0x5C)) {
                 sb.append("\\\\")
-            } else if (code == Int64('\n')) {
+            } else if (code == Int64(0x0A)) {
                 sb.append("\\n")
-            } else if (code == Int64('\r')) {
+            } else if (code == Int64(0x0D)) {
                 sb.append("\\r")
-            } else if (code == Int64('\t')) {
+            } else if (code == Int64(0x09)) {
                 sb.append("\\t")
             } else if (code < 32) {
                 // 控制字符 -> \uXXXX
@@ -783,9 +788,9 @@ public class SourceMapBuilder {
         // 跳过冒号和空格
         while (i < json.size) {
             let ch = json[i]
-            if (ch == ':' || ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r') {
+            if (ch == UInt8(0x3A) || ch == UInt8(0x20) || ch == UInt8(0x09) || ch == UInt8(0x0A) || ch == UInt8(0x0D)) {
                 i += 1
-            } else if (ch == '"') {
+            } else if (ch == UInt8(0x22)) {
                 return i
             } else {
                 return -1
@@ -799,12 +804,12 @@ public class SourceMapBuilder {
                                            result: ArrayList<String>): Unit {
         var i = from
         // 跳过冒号和空格
-        while (i < json.size && (json[i] == ':' || json[i] == ' ' ||
-               json[i] == '\t' || json[i] == '\n' || json[i] == '\r')) {
+        while (i < json.size && (json[i] == UInt8(0x3A) || json[i] == UInt8(0x20) ||
+               json[i] == UInt8(0x09) || json[i] == UInt8(0x0A) || json[i] == UInt8(0x0D))) {
             i += 1
         }
         // 检查 '['
-        if (i >= json.size || json[i] != '[') {
+        if (i >= json.size || json[i] != UInt8(0x5B)) {
             return
         }
         i += 1
@@ -812,24 +817,24 @@ public class SourceMapBuilder {
         // 解析数组元素
         while (i < json.size) {
             // 跳过空格和逗号
-            while (i < json.size && (json[i] == ' ' || json[i] == ',' ||
-                   json[i] == '\t' || json[i] == '\n' || json[i] == '\r')) {
+            while (i < json.size && (json[i] == UInt8(0x20) || json[i] == UInt8(0x2C) ||
+                   json[i] == UInt8(0x09) || json[i] == UInt8(0x0A) || json[i] == UInt8(0x0D))) {
                 i += 1
             }
-            if (i >= json.size || json[i] == ']') {
+            if (i >= json.size || json[i] == UInt8(0x5D)) {
                 break
             }
-            if (json[i] == '"') {
+            if (json[i] == UInt8(0x22)) {
                 // 读取字符串值
                 i += 1
                 let start = i
-                while (i < json.size && json[i] != '"') {
-                    if (json[i] == '\\') {
+                while (i < json.size && json[i] != UInt8(0x22)) {
+                    if (json[i] == UInt8(0x5C)) {
                         i += 1  // 跳过转义字符
                     }
                     i += 1
                 }
-                result.append(unescapeJSON(json.subString(start, i)))
+                result.add(unescapeJSON(json[start..i]))
                 i += 1  // 跳过结束引号
             } else {
                 break
@@ -842,20 +847,20 @@ public class SourceMapBuilder {
         let sb = StringBuilder()
         var i = 0
         while (i < str.size) {
-            if (str[i] == '\\' && i + 1 < str.size) {
+            if (str[i] == UInt8(0x5C) && i + 1 < str.size) {
                 let next = str[i + 1]
-                if (next == '"') { sb.append('"'); i += 2 }
-                else if (next == '\\') { sb.append('\\'); i += 2 }
-                else if (next == 'n') { sb.append('\n'); i += 2 }
-                else if (next == 'r') { sb.append('\r'); i += 2 }
-                else if (next == 't') { sb.append('\t'); i += 2 }
-                else if (next == '/') { sb.append('/'); i += 2 }
-                else if (next == 'u') {
+                if (next == UInt8(0x22)) { sb.append('"'); i += 2 }
+                else if (next == UInt8(0x5C)) { sb.append('\\'); i += 2 }
+                else if (next == UInt8(0x6E)) { sb.append('\n'); i += 2 }
+                else if (next == UInt8(0x72)) { sb.append('\r'); i += 2 }
+                else if (next == UInt8(0x74)) { sb.append('\t'); i += 2 }
+                else if (next == UInt8(0x2F)) { sb.append('/'); i += 2 }
+                else if (next == UInt8(0x75)) {
                     // Unicode escape: \uXXXX
                     if (i + 5 < str.size) {
-                        let hex = str.subString(i + 2, i + 6)
+                        let hex = str[i + 2..i + 6]
                         let codePoint = hexToInt(hex)
-                        sb.append(Char(Int32(codePoint)))
+                        sb.append(String.fromUtf8(Array<UInt8>(1, { _ => UInt8(codePoint) })))
                         i += 6
                     } else {
                         sb.append(str[i])
@@ -878,13 +883,13 @@ public class SourceMapBuilder {
         var result = 0
         for (i in 0..hex.size) {
             let ch = hex[i]
-            let code = Int64(ch.value)
-            if (code >= Int64('0') && code <= Int64('9')) {
-                result = result * 16 + (code - Int64('0'))
-            } else if (code >= Int64('a') && code <= Int64('f')) {
-                result = result * 16 + (code - Int64('a') + 10)
-            } else if (code >= Int64('A') && code <= Int64('F')) {
-                result = result * 16 + (code - Int64('A') + 10)
+            let code = Int64(ch)
+            if (code >= Int64(0x30) && code <= Int64(0x39)) {
+                result = result * 16 + (code - Int64(0x30))
+            } else if (code >= Int64(0x61) && code <= Int64(0x66)) {
+                result = result * 16 + (code - Int64(0x61) + 10)
+            } else if (code >= Int64(0x41) && code <= Int64(0x46)) {
+                result = result * 16 + (code - Int64(0x41) + 10)
             }
         }
         return result

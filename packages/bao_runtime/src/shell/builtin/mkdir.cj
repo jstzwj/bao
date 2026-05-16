@@ -5,6 +5,7 @@
 package bao_runtime.shell.builtin
 
 import bao_core.*
+import bao_runtime.shell.*
 
 // ============================================================================
 // mkdir命令 - 创建目录
@@ -20,7 +21,7 @@ public enum MkdirState {
 }
 
 public struct ExecState {
-    public var started: Boolean = false
+    public var started: Bool = false
     public var tasksCount: UIntPtr = 0
     public var tasksDone: UIntPtr = 0
     public var outputWaiting: UInt16 = 0
@@ -43,17 +44,17 @@ public class MkdirCmd {
 
 
     /// IO写入器数据块回调
-    public func onIOWriterChunk(amount: UInt64, e: ?SystemError): Yield {
-        if (let err = e) {
+    public func onIOWriterChunk(chunk: UInt64, e: ?SystemError): Yield {
+        if (let Some(err) <- e) {
             err.deref()
         }
 
-        switch (this.state) {
-            case .waitingWriteErr =>
+        match (this.state) {
+            case waitingWriteErr =>
                 return this.bltn().done(1)
-            case .exec =>
+            case exec => ()
                 // outputDone++
-            case .idle, .done =>
+            case MkdirState.idle | MkdirState.done =>
                 panic("Invalid state")
         }
 
@@ -61,12 +62,12 @@ public class MkdirCmd {
     }
 
     /// 写入失败错误
-    public func writeFailingError(buf: String, exitCode: ExitCode): Yield {
-        if (let safeguard = this.bltn().stderr.needsIO()) {
-            this.state = MkdirState.waitingWriteErr
+    public func writeFailingError(s: String, exitCode: ExitCode): Yield {
+        if (let Some(safeguard) <- this.bltn().stderr.needsIO()) {
+            this.state = MkdirStateMultiArgsInnerState.waitingWriteErr
             return this.bltn().stderr.enqueue(this, buf.toByteArray(), safeguard)
         }
-        this.bltn().writeNoIO(.stderr, buf.toByteArray())
+        this.bltn().writeNoIO(OutKind.stderr, buf.toByteArray())
         return this.bltn().done(exitCode)
     }
 
@@ -74,38 +75,38 @@ public class MkdirCmd {
     public func start(): Yield {
         // 解析参数
         let parseResult = this.opts.parse(this.bltn().argsSlice())
-        let filepathArgs = switch (parseResult) {
-            case .ok(let args) => args
-            case .err(let e) =>
-                let buf = switch (e) {
-                    case .illegalOption(let optStr) =>
-                        this.bltn().fmtErrorArena("mkdir", "illegal option -- ${optStr}\n", [])
-                    case .showUsage =>
+        let filepathArgs = match (parseResult) {
+            case MkdirParseResult.ok(args) => args
+            case MkdirParseResult.err(e) =>
+                let buf = match (e) {
+                    case MkdirParseError.illegalOption(optStr) =>
+                        this.bltn().fmtErrorArena("mkdir", "illegal option -- " + optStr + "\n", [])
+                    case MkdirParseError.showUsage =>
                         Builtin.Kind.usageString("mkdir")
-                    case .unsupported(let unsupported) =>
-                        this.bltn().fmtErrorArena("mkdir", "unsupported option, please open a GitHub issue -- ${unsupported}\n", [])
+                    case MkdirParseError.unsupported(unsupported) =>
+                        this.bltn().fmtErrorArena("mkdir", "unsupported option, please open a GitHub issue -- " + unsupported + "\n", [])
                 }
                 return this.writeFailingError(buf, 1)
         }
 
-        if (filepathArgs == None || filepathArgs.length == 0) {
+        if (filepathArgs == None || filepathArgs.size == 0) {
             return this.writeFailingError(Builtin.Kind.usageString("mkdir"), 1)
         }
 
-        this.state = MkdirState.exec(ExecState(args: filepathArgs))
+        this.state = MkdirState.exec(ExecState(filepathArgs))
         return this.next()
     }
 
     /// 下一步
     public func next(): Yield {
-        switch (this.state) {
-            case .idle =>
+        match (this.state) {
+            case idle =>
                 panic("Invalid state")
-            case .exec(let exec) =>
+            case exec(exec) =>
                 if (exec.started) {
                     if (exec.tasksDone >= exec.tasksCount && exec.outputDone >= exec.outputWaiting) {
-                        let exitCode: ExitCode = if (exec.err != None) 1 else 0
-                        if (let e = exec.err) {
+                        let exitCode: ExitCode = if (exec.err != None) { 1 } else { 0 }
+                        if (let Some(e) <- exec.err) {
                             e.deref()
                         }
                         this.state = MkdirState.done
@@ -118,9 +119,9 @@ public class MkdirCmd {
                 // 注意: 需要线程池支持
                 return Yield.suspended
 
-            case .waitingWriteErr =>
+            case waitingWriteErr =>
                 return Yield.failed
-            case .done =>
+            case done =>
                 return this.bltn().done(0)
         }
     }
@@ -144,20 +145,20 @@ public struct MkdirOpts {
     /// -m, --mode: 设置文件模式
     public var mode: ?UInt32 = None
     /// -p, --parents: 递归创建父目录
-    public var parents: Boolean = false
+    public var parents: Bool = false
     /// -v, --verbose: 打印创建的每个目录
-    public var verbose: Boolean = false
+    public var verbose: Bool = false
 
     /// 解析参数
-    public func parse(args: Array<String>): MkdirParseResult {
+    public func parse(arr: Array<String>): MkdirParseResult {
         var idx: UInt32 = 0
-        while (idx < args.length) {
+        while (idx < args.size) {
             let arg = args[idx]
-            if (arg.length == 0 || arg[0] != '-') {
+            if (arg.size == 0 || arg[0] != '-') {
                 break
             }
             if (arg == "--mode") {
-                return .err(.unsupported("--mode"))
+                return MkdirParseResult.err(MkdirParseError.unsupported("--mode"))
             } else if (arg == "--parents") {
                 this.parents = true
             } else if (arg == "--verbose") {
@@ -165,23 +166,23 @@ public struct MkdirOpts {
             } else {
                 for (c in arg.substring(1)) {
                     if (c == 'm') {
-                        return .err(.unsupported("-m"))
+                        return MkdirParseResult.err(MkdirParseError.unsupported("-m"))
                     } else if (c == 'p') {
                         this.parents = true
                     } else if (c == 'v') {
                         this.verbose = true
                     } else {
-                        return .err(.illegalOption("-${c}"))
+                        return MkdirParseResult.err(MkdirParseError.illegalOption("-" + c.toString()))
                     }
                 }
             }
             idx++
         }
 
-        if (idx >= args.length) {
-            return .ok(None)
+        if (idx >= args.size) {
+            return MkdirParseResult.ok(None)
         }
-        return .ok(args[idx..])
+        return MkdirParseResult.ok(args[idx..])
     }
 }
 

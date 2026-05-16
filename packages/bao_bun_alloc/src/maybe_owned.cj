@@ -22,8 +22,8 @@ import bao_core.*
 public class MaybeOwnedAllocator {
 
     /// 父分配器 (可空)
-    /// 对应 Zig: _parent: bun.allocators.Nullable(Allocator)
-    private var parent: ?Allocator
+    /// 对应 Zig: _parentAllocOpt: bun.allocators.Nullable(Allocator)
+    private var parentAllocOpt: ?Allocator
 
     /// 借用版本的静态常量
     /// 对应 Zig: pub const borrowed = .initBorrowed()
@@ -32,30 +32,30 @@ public class MaybeOwnedAllocator {
     /// 创建拥有的分配器 (使用默认初始化的父分配器)
     /// 对应 Zig: pub fn init() Self
     public static func initFunc(): MaybeOwnedAllocator {
-        return MaybeOwnedAllocator(parent: Allocator.default())
+        return MaybeOwnedAllocator(parentAllocOpt: Allocator.default())
     }
 
     /// 创建拥有的分配器 (使用指定的父分配器)
     /// 对应 Zig: pub fn initOwned(parent_alloc: Allocator) Self
     public static func initOwned(parentAlloc: Allocator): MaybeOwnedAllocator {
-        return MaybeOwnedAllocator(parent: parentAlloc)
+        return MaybeOwnedAllocator(parentAllocOpt: parentAlloc)
     }
 
     /// 创建借用的分配器 (不拥有任何内存)
     /// 对应 Zig: pub fn initBorrowed() Self
     public static func initBorrowed(): MaybeOwnedAllocator {
-        return MaybeOwnedAllocator(parent: None)
+        return MaybeOwnedAllocator(parentAllocOpt: None)
     }
 
     /// 创建借用实例
     private static func borrowedInstance(): MaybeOwnedAllocator {
-        return MaybeOwnedAllocator(parent: None)
+        return MaybeOwnedAllocator(parentAllocOpt: None)
     }
 
     /// 销毁
     /// 对应 Zig: pub fn deinit(self: *Self) void
     public func deinit(): Unit {
-        if (let Some(parentAlloc) <- this.parent) {
+        if (let Some(parentAlloc) <- this.parentAllocOpt) {
             // 释放父分配器资源
         }
     }
@@ -63,13 +63,13 @@ public class MaybeOwnedAllocator {
     /// 是否拥有
     /// 对应 Zig: pub fn isOwned(self: Self) bool
     public func isOwned(): Bool {
-        return this.parent != None
+        return this.parentAllocOpt != None
     }
 
     /// 获取分配器
     /// 对应 Zig: pub fn allocator(self: Self) std.mem.Allocator
     public func allocator(): Allocator {
-        if (let Some(parentAlloc) <- this.parent) {
+        if (let Some(parentAlloc) <- this.parentAllocOpt) {
             return parentAlloc
         }
         // 返回空分配器 (所有操作都会 panic)
@@ -79,21 +79,21 @@ public class MaybeOwnedAllocator {
     /// 获取父分配器
     /// 对应 Zig: pub fn parent(self: Self) ?BorrowedParent
     public func parent(): ?Allocator {
-        return this.parent
+        return this.parentAllocOpt
     }
 
     /// 将自身转为父分配器并清空自身
     /// 对应 Zig: pub fn intoParent(self: *Self) ?Allocator
     public func intoParent(): ?Allocator {
-        let result = this.parent
-        this.parent = None
+        let result = this.parentAllocOpt
+        this.parentAllocOpt = None
         return result
     }
 
     /// 借用此分配器
     /// 对应 Zig: pub fn borrow(self: Self) Borrowed
     public func borrow(): MaybeOwnedAllocator {
-        return MaybeOwnedAllocator(parent: this.parent)
+        return MaybeOwnedAllocator(parentAllocOpt: this.parentAllocOpt)
     }
 }
 

@@ -21,7 +21,7 @@ public class CsvOptions {
     /// 分隔符 (默认逗号)
     public var delimiter: Char
     /// 引号字符 (默认双引号)
-    public var quote: Char
+    public var quoteChar: Char
     /// 转义字符 (默认与引号相同，即 "" 表示一个 ")
     public var escape: Char
     /// 是否允许字段内换行
@@ -36,9 +36,9 @@ public class CsvOptions {
     public var encoding: String
 
     public init() {
-        delimiter = ','
-        quote = '"'
-        escape = '"'
+        delimiter = UInt8(44)
+        quoteChar = UInt8(34)
+        escape = UInt8(34)
         allowNewlineInField = true
         skipEmptyLines = false
         hasHeaders = true
@@ -54,7 +54,7 @@ public class CsvOptions {
     /// TSV (Tab-Separated Values) 配置
     public static func tsv(): CsvOptions {
         let opts = CsvOptions()
-        opts.delimiter = '\t'
+        opts.delimiter = UInt8(9)
         return opts
     }
 
@@ -98,7 +98,13 @@ public class CsvResult {
 
     /// 通过标题名获取值
     public func get(row: Int64, header: String): ?String {
-        let colIndex = headers.indexOf(header)
+        var colIndex = Int64(-1)
+        for (i in 0..headers.size) {
+            if (headers[i] == header) {
+                colIndex = i
+                break
+            }
+        }
         if (colIndex < Int64(0)) {
             return None
         }
@@ -202,7 +208,7 @@ public class CsvParser {
         let fields = ArrayList<String>()
         while (pos < size) {
             let ch = text[Int64(pos)]
-            if (ch == '\r' || ch == '\n') {
+            if (ch == UInt8(13) || ch == UInt8(10)) {
                 // 行尾
                 pos = skipNewline(text, pos, size)
                 break
@@ -217,10 +223,10 @@ public class CsvParser {
                 if (nextCh == options.delimiter) {
                     pos += Int64(1) // consume delimiter
                     // 如果分隔符后面紧跟行尾，添加空字段
-                    if (pos < size && (text[Int64(pos)] == '\r' || text[Int64(pos)] == '\n')) {
+                    if (pos < size && (text[Int64(pos)] == UInt8(13) || text[Int64(pos)] == UInt8(10))) {
                         fields.append("")
                     }
-                } else if (nextCh == '\r' || nextCh == '\n') {
+                } else if (nextCh == UInt8(13) || nextCh == UInt8(10)) {
                     pos = skipNewline(text, pos, size)
                     break
                 }
@@ -236,29 +242,29 @@ public class CsvParser {
             return ParseFieldResult("", pos)
         }
         let ch = text[Int64(pos)]
-        if (ch == options.quote) {
+        if (ch == options.quoteChar) {
             // 引号字段
             return parseQuotedField(text, pos, size)
         } else {
             // 非引号字段
-            return parseUnquotedField(text, pos, size)
+            return parseUnquoteChardField(text, pos, size)
         }
     }
 
-    /// 解析引号字段 - RFC 4180: "field with ""embedded"" quotes"
+    /// 解析引号字段 - RFC 4180: "field with ""embedded"" quoteChars"
     private func parseQuotedField(text: String, start: Int64, size: Int64): ParseFieldResult {
-        var pos = start + Int64(1) // skip opening quote
+        var pos = start + Int64(1) // skip opening quoteChar
         let sb = StringBuilder()
         while (pos < size) {
             let ch = text[Int64(pos)]
             if (ch == options.escape) {
                 // 检查是否为转义引号 ("")
-                if (pos + Int64(1) < size && text[Int64(pos + Int64(1))] == options.quote) {
-                    sb.append(options.quote)
+                if (pos + Int64(1) < size && text[Int64(pos + Int64(1))] == options.quoteChar) {
+                    sb.append(options.quoteChar)
                     pos += Int64(2)
                 } else {
                     // 结束引号
-                    pos += Int64(1) // skip closing quote
+                    pos += Int64(1) // skip closing quoteChar
                     break
                 }
             } else {
@@ -270,12 +276,12 @@ public class CsvParser {
     }
 
     /// 解析非引号字段
-    private func parseUnquotedField(text: String, start: Int64, size: Int64): ParseFieldResult {
+    private func parseUnquoteChardField(text: String, start: Int64, size: Int64): ParseFieldResult {
         var pos = start
         let sb = StringBuilder()
         while (pos < size) {
             let ch = text[Int64(pos)]
-            if (ch == options.delimiter || ch == '\r' || ch == '\n') {
+            if (ch == options.delimiter || ch == UInt8(13) || ch == UInt8(10)) {
                 break
             }
             sb.append(ch)
@@ -287,12 +293,12 @@ public class CsvParser {
     /// 跳过换行 (\r\n 或 \n)
     private func skipNewline(text: String, pos: Int64, size: Int64): Int64 {
         if (pos >= size) { return pos }
-        if (text[Int64(pos)] == '\r') {
+        if (text[Int64(pos)] == UInt8(13)) {
             pos += Int64(1)
-            if (pos < size && text[Int64(pos)] == '\n') {
+            if (pos < size && text[Int64(pos)] == UInt8(10)) {
                 pos += Int64(1)
             }
-        } else if (text[Int64(pos)] == '\n') {
+        } else if (text[Int64(pos)] == UInt8(10)) {
             pos += Int64(1)
         }
         return pos
@@ -301,7 +307,7 @@ public class CsvParser {
     /// 跳过整行
     private func skipLine(text: String, pos: Int64, size: Int64): Int64 {
         var p = pos
-        while (p < size && text[Int64(p)] != '\r' && text[Int64(p)] != '\n') {
+        while (p < size && text[Int64(p)] != UInt8(13) && text[Int64(p)] != UInt8(10)) {
             p += Int64(1)
         }
         return skipNewline(text, p, size)
@@ -397,7 +403,7 @@ public class CsvWriter {
     /// 写入数据行
     public func writeRow(fields: ArrayList<String>): Unit {
         if (sb.size > Int64(0)) {
-            sb.append('\n')
+            sb.append(UInt8(10))
         }
         var first = true
         for (field in fields) {
@@ -436,7 +442,7 @@ public class CsvWriter {
         var needsQuoting = false
         // 检查是否需要引号
         for (ch in field) {
-            if (ch == options.delimiter || ch == options.quote || ch == '\n' || ch == '\r') {
+            if (ch == options.delimiter || ch == options.quoteChar || ch == UInt8(10) || ch == UInt8(13)) {
                 needsQuoting = true
                 break
             }
@@ -449,16 +455,16 @@ public class CsvWriter {
         }
         // 用引号包围，转义内部引号
         let escaped = StringBuilder()
-        escaped.append(options.quote)
+        escaped.append(options.quoteChar)
         for (ch in field) {
-            if (ch == options.quote) {
+            if (ch == options.quoteChar) {
                 escaped.append(options.escape)
-                escaped.append(options.quote)
+                escaped.append(options.quoteChar)
             } else {
                 escaped.append(ch)
             }
         }
-        escaped.append(options.quote)
+        escaped.append(options.quoteChar)
         return escaped.toString()
     }
 
@@ -518,7 +524,7 @@ public class StreamingCsvParser {
         let completedRows = ArrayList<ArrayList<String>>()
         for (ch in chunk) {
             buffer.append(ch)
-            if (!inQuote && ch == '\n') {
+            if (!inQuote && ch == UInt8(10)) {
                 // 行完成
                 let line = buffer.toString()
                 buffer = StringBuilder()
@@ -533,7 +539,7 @@ public class StreamingCsvParser {
                     }
                 }
             }
-            if (ch == options.quote) {
+            if (ch == options.quoteChar) {
                 inQuote = !inQuote
             }
         }
@@ -569,20 +575,20 @@ public class StreamingCsvParser {
         let size = line.size
         // 去掉行尾换行
         var endPos = size
-        while (endPos > Int64(0) && (line[endPos - Int64(1)] == '\r' || line[endPos - Int64(1)] == '\n')) {
+        while (endPos > Int64(0) && (line[endPos - Int64(1)] == UInt8(13) || line[endPos - Int64(1)] == UInt8(10))) {
             endPos -= Int64(1)
         }
         while (pos < endPos) {
             let ch = line[pos]
-            if (ch == options.quote) {
+            if (ch == options.quoteChar) {
                 // 引号字段
                 pos += Int64(1)
                 let sb = StringBuilder()
                 while (pos < endPos) {
                     let c = line[pos]
-                    if (c == options.quote) {
-                        if (pos + Int64(1) < endPos && line[pos + Int64(1)] == options.quote) {
-                            sb.append(options.quote)
+                    if (c == options.quoteChar) {
+                        if (pos + Int64(1) < endPos && line[pos + Int64(1)] == options.quoteChar) {
+                            sb.append(options.quoteChar)
                             pos += Int64(2)
                         } else {
                             pos += Int64(1)

@@ -5,6 +5,7 @@
 package bao_runtime.shell.builtin
 
 import bao_core.*
+import bao_runtime.shell.*
 
 // ============================================================================
 // cp命令 - 复制文件和目录
@@ -23,7 +24,7 @@ public enum CpState {
 public struct ExecState {
     public var targetPath: String = ""
     public var pathsToCopy: Array<String>
-    public var started: Boolean = false
+    public var started: Bool = false
     public var tasksCount: UInt32 = 0
     public var outputWaiting: UInt32 = 0
     public var outputDone: UInt32 = 0
@@ -46,27 +47,27 @@ public class CpCmd {
     /// 启动
     public func start(): Yield {
         let parseResult = this.opts.parse(this.bltn().argsSlice())
-        let maybeFilepathArgs = switch (parseResult) {
-            case .ok(let args) => args
-            case .err(let e) =>
-                let buf = switch (e) {
-                    case .illegalOption(let optStr) =>
-                        this.bltn().fmtErrorArena("cp", "illegal option -- ${optStr}\n", [])
-                    case .showUsage =>
+        let maybeFilepathArgs = match (parseResult) {
+            case CpParseResult.ok(args) => args
+            case CpParseResult.err(e) =>
+                let buf = match (e) {
+                    case CpParseError.illegalOption(optStr) =>
+                        this.bltn().fmtErrorArena("cp", "illegal option -- " + optStr + "\n", [])
+                    case CpParseError.showUsage =>
                         Builtin.Kind.usageString("cp")
-                    case .unsupported(let unsupported) =>
-                        this.bltn().fmtErrorArena("cp", "unsupported option, please open a GitHub issue -- ${unsupported}\n", [])
+                    case CpParseError.unsupported(unsupported) =>
+                        this.bltn().fmtErrorArena("cp", "unsupported option, please open a GitHub issue -- " + unsupported + "\n", [])
                 }
                 return this.writeFailingError(buf, 1)
         }
 
-        if (maybeFilepathArgs == None || maybeFilepathArgs.length <= 1) {
+        if (maybeFilepathArgs == None || maybeFilepathArgs.size <= 1) {
             return this.writeFailingError(Builtin.Kind.usageString("cp"), 1)
         }
 
         let args = maybeFilepathArgs
-        let pathsToCopy = args[0..(args.length - 1)]
-        let tgtPath = args[args.length - 1]
+        let pathsToCopy = args[0..(args.size - 1)]
+        let tgtPath = args[args.size - 1]
 
         this.state = CpState.exec(ExecState(
             targetPath: tgtPath,
@@ -78,14 +79,14 @@ public class CpCmd {
 
     /// 下一步
     public func next(): Yield {
-        while (this.state != .done) {
-            switch (this.state) {
-                case .idle =>
+        while (this.state != CheckTargetInnerState.done) {
+            match (this.state) {
+                case idle =>
                     panic("Invalid state for \"Cp\": idle")
-                case .exec(let exec) =>
+                case exec(exec) =>
                     if (exec.started) {
                         if (exec.tasksCount <= 0 && exec.outputDone >= exec.outputWaiting) {
-                            let exitCode: ExitCode = if (exec.err != None) 1 else 0
+                            let exitCode: ExitCode = if (exec.err != None) { 1 } else { 0 }
                             this.state = CpState.done
                             return this.bltn().done(exitCode)
                         }
@@ -95,9 +96,9 @@ public class CpCmd {
                     // 为每个参数启动复制任务
                     return Yield.suspended
 
-                case .waitingWriteErr =>
+                case waitingWriteErr =>
                     return Yield.failed
-                case .done =>
+                case done =>
                     panic("不可达状态")
             }
         }
@@ -106,24 +107,24 @@ public class CpCmd {
     }
 
     /// 写入失败错误
-    public func writeFailingError(buf: String, exitCode: ExitCode): Yield {
-        if (let safeguard = this.bltn().stderr.needsIO()) {
-            this.state = CpState.waitingWriteErr
+    public func writeFailingError(s: String, exitCode: ExitCode): Yield {
+        if (let Some(safeguard) <- this.bltn().stderr.needsIO()) {
+            this.state = CpStateMultiArgsInnerState.waitingWriteErr
             return this.bltn().stderr.enqueue(this, buf.toByteArray(), safeguard)
         }
-        this.bltn().writeNoIO(.stderr, buf.toByteArray())
+        this.bltn().writeNoIO(OutKind.stderr, buf.toByteArray())
         return this.bltn().done(exitCode)
     }
 
     /// IO写入器数据块回调
-    public func onIOWriterChunk(amount: UInt64, e: ?SystemError): Yield {
-        if (let err = e) {
+    public func onIOWriterChunk(chunk: UInt64, e: ?SystemError): Yield {
+        if (let Some(err) <- e) {
             err.deref()
         }
-        if (this.state == .waitingWriteErr) {
+        if (this.state == MultiArgsInnerState.waitingWriteErr) {
             return this.bltn().done(1)
         }
-        if (let exec = this.state.getExec()) {
+        if (let Some(exec) <- this.state.getExec()) {
             // exec.outputDone++
         }
         return this.next()
@@ -146,30 +147,30 @@ public class CpCmd {
 /// cp命令选项（位标志）
 public struct CpOpts {
     /// -f: 强制覆盖
-    public var removeAndCreateNewFileIfNotFound: Boolean = false
+    public var removeAndCreateNewFileIfNotFound: Bool = false
     /// -H: 解引用命令行符号链接
-    public var dereferenceCommandLineSymlinks: Boolean = false
+    public var dereferenceCommandLineSymlinks: Bool = false
     /// -i: 交互模式
-    public var interactive: Boolean = false
+    public var interactive: Bool = false
     /// -L: 解引用所有符号链接
-    public var dereferenceAllSymlinks: Boolean = false
+    public var dereferenceAllSymlinks: Bool = false
     /// -P: 保留符号链接
-    public var preserveSymlinks: Boolean = false
+    public var preserveSymlinks: Bool = false
     /// -p: 保留文件属性
-    public var preserveFileAttributes: Boolean = false
+    public var preserveFileAttributes: Bool = false
     /// -R: 递归复制
-    public var recursive: Boolean = false
+    public var recursive: Bool = false
     /// -v: 详细输出
-    public var verbose: Boolean = false
+    public var verbose: Bool = false
     /// -n: 不覆盖现有文件
-    public var overwriteExistingFile: Boolean = true
+    public var overwriteExistingFile: Bool = true
 
     /// 解析参数
-    public func parse(args: Array<String>): CpParseResult {
+    public func parse(arr: Array<String>): CpParseResult {
         var idx: UInt32 = 0
-        while (idx < args.length) {
+        while (idx < args.size) {
             let arg = args[idx]
-            if (arg.length == 0 || arg[0] != '-') {
+            if (arg.size == 0 || arg[0] != '-') {
                 break
             }
             for (c in arg.substring(1)) {
@@ -189,7 +190,7 @@ public struct CpOpts {
             idx++
         }
 
-        if (idx >= args.length) {
+        if (idx >= args.size) {
             return .ok(None)
         }
         return .ok(args[idx..])

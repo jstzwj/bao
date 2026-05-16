@@ -41,10 +41,7 @@ public class Interned {
     public static func fromString(s: String): Interned {
         let interned = Interned()
         // 在仓颉中将字符串转换为字节数组
-        interned.data = Array<Byte>(s.length)
-        for (i in 0..s.length) {
-            interned.data[i] = Byte(s[i])
-        }
+        interned.data = s.toArray()
         return interned
     }
 
@@ -74,20 +71,20 @@ public class Interned {
 
     /// 获取长度
     public func length(): Int64 {
-        Int64(this.data.length)
+        Int64(this.data.size)
     }
 
     /// 是否为空
     public func isEmpty(): Bool {
-        this.data.length == 0
+        this.data.size == 0
     }
 
     /// 相等比较
     public func equals(other: Interned): Bool {
-        if (this.data.length != other.data.length) {
+        if (this.data.size != other.data.size) {
             return false
         }
-        for (i in 0..this.data.length) {
+        for (i in 0..this.data.size) {
             if (this.data[i] != other.data[i]) {
                 return false
             }
@@ -98,7 +95,7 @@ public class Interned {
     /// 哈希码
     public func hashCode(): Int64 {
         var hash: Int64 = 0
-        for (i in 0..this.data.length) {
+        for (i in 0..this.data.size) {
             hash = hash * 31 + Int64(this.data[i])
         }
         return hash
@@ -107,10 +104,6 @@ public class Interned {
     /// Debug 字符串表示
     public func toString(): String {
         // bstr 风格: 打印为 (可能是 UTF-8 的) 字符串
-        var sb = StringBuilder()
-        for (i in 0..this.data.length) {
-            sb.append(Char(this.data[i]))
-        }
-        sb.toString()
+        String.fromUtf8(this.data)
     }
 }

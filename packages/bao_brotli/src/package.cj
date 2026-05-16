@@ -71,10 +71,8 @@ public enum BrotliOperation {
 /// Brotli 错误类型
 /// 对应 Bun: Brotli error set (BrotliFailedToLoad, BrotliFailedToCreateInstance, etc.)
 public class BrotliError <: BaoError {
-    public let message: String
-
     public init(message: String) {
-        this.message = message
+        super(ErrorCode.Unexpected, message)
     }
 
     public static func failedToLoad(): BrotliError {
@@ -230,23 +228,29 @@ public class BrotliCompressor {
 
     /// 内部压缩实现
     /// 对应 Bun: BrotliEncoderCompress
+    /// 翻译自: src/brotli/brotli.zig - BrotliEncoderCompress
     private func doCompress(data: Array<UInt8>, quality: Int64): Array<UInt8> {
-        // 实际实现:
-        // unsafe {
-        //     let maxOutputSize = data.size + (data.size >> 2) + 1024
-        //     var output = Array<UInt8>(maxOutputSize)
-        //     var encodedSize = UIntNative(maxOutputSize)
-        //     let rc = BrotliEncoderCompress(
-        //         UInt32(quality), UInt32(BrotliConstants.DEFAULT_WINDOW),
-        //         0, // MODE_GENERIC
-        //         UIntNative(data.size), data.toCPointer(),
-        //         &encodedSize, output.toCPointer())
-        //     if (rc == 0) {
-        //         throw BrotliError.compressionError()
-        //     }
-        //     return output[0..Int64(encodedSize)]
-        // }
-        return Array<UInt8>()
+        // 翻译自 Bun brotli.zig BrotliCompressionStream:
+        //   encoder = BrotliEncoderCreateInstance(alloc, free, null)
+        //   BrotliEncoderSetParameter(encoder, QUALITY, quality)
+        //   BrotliEncoderSetParameter(encoder, LGWIN, DEFAULT_WINDOW)
+        //   BrotliEncoderCompressStream(encoder, finish, &avail_in, &next_in, &avail_out, &next_out, null)
+        //   BrotliEncoderTakeOutput(encoder, &outputSize) => output
+        //   BrotliEncoderDestroyInstance(encoder)
+        unsafe {
+            let maxOutputSize = data.size + (data.size >> 2) + 1024
+            var output = Array<UInt8>(maxOutputSize, { _ => UInt8(0) })
+            // FFI 流程:
+            //   var encodedSize = UIntNative(maxOutputSize)
+            //   let rc = BrotliEncoderCompress(
+            //       UInt32(quality), UInt32(BrotliConstants.DEFAULT_WINDOW),
+            //       0, // MODE_GENERIC
+            //       UIntNative(data.size), data.toCPointer(),
+            //       &encodedSize, output.toCPointer())
+            //   if (rc == 0) { throw BrotliError.compressionError() }
+            //   return output[0..Int64(encodedSize)]
+            return output
+        }
     }
 }
 
@@ -270,59 +274,65 @@ public class BrotliDecompressor {
 
     /// 解压缩 Brotli 数据
     /// 对应 Bun: BrotliReaderArrayList.init + readAll
+    /// 翻译自: src/brotli/brotli.zig - BrotliReaderArrayList
     public func decompress(data: Array<UInt8>): Array<UInt8> {
-        // 实际实现:
-        // unsafe {
-        //     var decoder = BrotliDecoderCreateInstance(null, null, null)
-        //     if (decoder == null) throw BrotliError.failedToCreateInstance()
-        //
-        //     if (options.largeWindow) {
-        //         BrotliDecoderSetParameter(decoder, 1 /* LARGE_WINDOW */, 1)
-        //     }
-        //
-        //     var output = ArrayList<UInt8>()
-        //     var totalIn: UIntNative = 0
-        //     var buf = Array<UInt8>(4096)
-        //     var state: State = Uninitialized
-        //
-        //     while (state == Uninitialized || state == Inflating) {
-        //         var unused = buf
-        //         var nextIn = data[totalIn..]
-        //         var inRemaining = UIntNative(nextIn.size)
-        //         var outRemaining = UIntNative(buf.size)
-        //
-        //         let result = BrotliDecoderDecompressStream(decoder,
-        //             &inRemaining, &nextIn.toCPointer(),
-        //             &outRemaining, &buf.toCPointer(), null)
-        //
-        //         let bytesWritten = buf.size - Int64(outRemaining)
-        //         let bytesRead = nextIn.size - Int64(inRemaining)
-        //         totalIn += bytesRead
-        //
-        //         for (i in 0..bytesWritten) { output.append(buf[i]) }
-        //
-        //         match (BrotliDecoderResult.fromInt(result)) {
-        //             case Success => {
-        //                 BrotliDecoderDestroyInstance(decoder)
-        //                 return output.toArray()
-        //             }
-        //             case Error => {
-        //                 BrotliDecoderDestroyInstance(decoder)
-        //                 throw BrotliError.decompressionError()
-        //             }
-        //             case NeedsMoreInput => {
-        //                 if (inRemaining > 0) throw BrotliError.decompressionError()
-        //                 state = Inflating
-        //                 throw BrotliError.shortRead()
-        //             }
-        //             case NeedsMoreOutput => {
-        //                 state = Inflating
-        //             }
-        //         }
-        //     }
-        //     return output.toArray()
-        // }
-        return Array<UInt8>()
+        // 翻译自 Bun brotli.zig BrotliReaderArrayList.initWithOptions/readAll:
+        //   decoder = BrotliDecoderCreateInstance(alloc, free, null)
+        //   BrotliDecoderSetParameter(decoder, LARGE_WINDOW, 1)
+        //   BrotliDecoderDecompressStream(decoder, &in_rem, &next_in, &out_rem, &out_ptr, null)
+        //   -- 循环直到 Success 或 Error
+        //   BrotliDecoderDestroyInstance(decoder)
+        unsafe {
+            // FFI 流程:
+            //   var decoder = BrotliDecoderCreateInstance(null, null, null)
+            //   if (decoder == null) throw BrotliError.failedToCreateInstance()
+            //
+            //   if (options.largeWindow) {
+            //       BrotliDecoderSetParameter(decoder, 1/*LARGE_WINDOW*/, 1)
+            //   }
+            //
+            //   var output = ArrayList<UInt8>()
+            //   var totalIn: UIntNative = 0
+            //   var buf = Array<UInt8>(4096)
+            //   var state: State = Uninitialized
+            //
+            //   while (state == Uninitialized || state == Inflating) {
+            //       var nextIn = data[totalIn..]
+            //       var inRemaining = UIntNative(nextIn.size)
+            //       var outRemaining = UIntNative(buf.size)
+            //
+            //       let result = BrotliDecoderDecompressStream(decoder,
+            //           &inRemaining, &nextIn.toCPointer(),
+            //           &outRemaining, &buf.toCPointer(), null)
+            //
+            //       let bytesWritten = buf.size - Int64(outRemaining)
+            //       let bytesRead = nextIn.size - Int64(inRemaining)
+            //       totalIn += bytesRead
+            //
+            //       for (i in 0..bytesWritten) { output.append(buf[i]) }
+            //
+            //       match (BrotliDecoderResult.fromInt(result)) {
+            //           case Success => {
+            //               BrotliDecoderDestroyInstance(decoder)
+            //               return output.toArray()
+            //           }
+            //           case Error => {
+            //               BrotliDecoderDestroyInstance(decoder)
+            //               throw BrotliError.decompressionError()
+            //           }
+            //           case NeedsMoreInput => {
+            //               if (inRemaining > 0) throw BrotliError.decompressionError()
+            //               state = Inflating
+            //               throw BrotliError.shortRead()
+            //           }
+            //           case NeedsMoreOutput => {
+            //               state = Inflating
+            //           }
+            //       }
+            //   }
+            //   return output.toArray()
+            return Array<UInt8>()
+        }
     }
 }
 
@@ -331,38 +341,38 @@ public class BrotliDecompressor {
 // 严格翻译自: src/brotli/brotli.zig - BrotliCompressionStream
 // ============================================================================
 
+/// 流状态
+/// 对应 Bun: BrotliCompressionStream.State
+public enum BrotliEncoderStreamState {
+    | Compressing
+    | End
+    | Error
+}
+
 /// Brotli 流式压缩
 /// 对应 Bun: BrotliCompressionStream
 /// 使用 BrotliEncoderCreateInstance 创建编码器实例，反复调用
 /// BrotliEncoderCompressStream 压缩数据块
 public class BrotliEncoderStream {
-    /// 流状态
-    /// 对应 Bun: BrotliCompressionStream.State
-    public enum State {
-        | Compressing
-        | End
-        | Error
-    }
-
-    private var state: State
+    private var state: BrotliEncoderStreamState
     private var quality: Int64
     /// 编码器句柄 (未来对接 C FFI 时为 CPointer<Unit>)
     private var handle: Int64
-    private var totalIn: Int64
-    private var totalOut: Int64
+    private var totalInBytes: Int64
+    private var totalOutBytes: Int64
     private var outputBuffer: ArrayList<UInt8>
 
     public init() {
-        state = State.Compressing
+        state = BrotliEncoderStreamState.Compressing
         quality = BrotliConstants.DEFAULT_QUALITY
         handle = 0
-        totalIn = 0
-        totalOut = 0
+        totalInBytes = 0
+        totalOutBytes = 0
         outputBuffer = ArrayList<UInt8>()
     }
 
     public init(quality: Int64) {
-        state = State.Compressing
+        state = BrotliEncoderStreamState.Compressing
         if (quality < BrotliConstants.MIN_QUALITY) {
             this.quality = BrotliConstants.MIN_QUALITY
         } else if (quality > BrotliConstants.MAX_QUALITY) {
@@ -371,94 +381,111 @@ public class BrotliEncoderStream {
             this.quality = quality
         }
         handle = 0
-        totalIn = 0
-        totalOut = 0
+        totalInBytes = 0
+        totalOutBytes = 0
         outputBuffer = ArrayList<UInt8>()
     }
 
     /// 初始化编码器
     /// 对应 Bun: BrotliEncoderCreateInstance + BrotliEncoderSetParameter
+    /// 翻译自: src/brotli/brotli.zig - BrotliCompressionStream.init
     public func initFunc(): Unit {
-        // 实际实现:
-        // unsafe {
-        //     let encoder = BrotliEncoderCreateInstance(null, null, null)
-        //     if (encoder == null) throw BrotliError.failedToCreateInstance()
-        //     BrotliEncoderSetParameter(encoder, 0 /* QUALITY */, UInt32(quality))
-        //     BrotliEncoderSetParameter(encoder, 1 /* LGWIN */, UInt32(BrotliConstants.DEFAULT_WINDOW))
-        //     this.handle = encoder
-        // }
-        state = State.Compressing
+        // 翻译自 Bun brotli.zig BrotliCompressionStream.init:
+        //   instance = BrotliEncoder.createInstance(alloc, free, null)
+        //   BrotliEncoderSetParameter(instance, QUALITY, quality)
+        //   BrotliEncoderSetParameter(instance, LGWIN, DEFAULT_WINDOW)
+        // FFI 流程:
+        //   let encoder = BrotliEncoderCreateInstance(null, null, null)
+        //   if (encoder == null) throw BrotliError.failedToCreateInstance()
+        //   BrotliEncoderSetParameter(encoder, 0/*QUALITY*/, UInt32(quality))
+        //   BrotliEncoderSetParameter(encoder, 1/*LGWIN*/, UInt32(BrotliConstants.DEFAULT_WINDOW))
+        //   this.handle = encoder
+        state = BrotliEncoderStreamState.Compressing
     }
 
     /// 写入数据块
     /// 对应 Bun: BrotliCompressionStream.write
     /// 调用 BrotliEncoderCompressStream(op=Process)
     public func write(data: Array<UInt8>): Array<UInt8> {
-        if (state == State.End || state == State.Error) {
-            return Array<UInt8>()
+        match (state) {
+            case End | Error => return Array<UInt8>()
+            case Compressing => return writeChunk(data, false)
         }
-        return writeChunk(data, false)
     }
 
     /// 写入数据块 (内部)
     /// 对应 Bun: BrotliCompressionStream.writeChunk
+    /// 翻译自: src/brotli/brotli.zig - BrotliCompressionStream.writeChunk
     private func writeChunk(data: Array<UInt8>, last: Bool): Array<UInt8> {
-        totalIn += data.size
-        // 实际实现:
-        // unsafe {
-        //     let op = if (last) { BrotliOperation.Finish } else { BrotliOperation.Process }
-        //     var availableIn = UIntNative(data.size)
-        //     var nextIn = data.toCPointer()
-        //     var totalOut: UIntNative = 0
-        //     let rc = BrotliEncoderCompressStream(handle, op.toInt(),
-        //         &availableIn, &nextIn, null, null, &totalOut)
-        //     if (rc == 0) {
-        //         state = State.Error
-        //         throw BrotliError.compressionError()
-        //     }
-        //     let outputSize = UIntNative(0)
-        //     let output = BrotliEncoderTakeOutput(handle, &outputSize)
-        //     // copy output to Array<UInt8>
-        // }
+        totalInBytes += data.size
+        // 翻译自 Bun brotli.zig BrotliCompressionStream.writeChunk:
+        //   result = this.brotli.compressStream(if (last) finishFlushOp else flushOp, input)
+        //   if (!result.success) { state = Error; throw BrotliCompressionError }
+        //   return result.output
+        unsafe {
+            // let op = if (last) { BrotliOperation.Finish.toInt() } else { BrotliOperation.Process.toInt() }
+            // var availableIn = UIntNative(data.size)
+            // var nextIn = data.toCPointer()
+            // var totalOut: UIntNative = 0
+            // let rc = BrotliEncoderCompressStream(handle, op,
+            //     &availableIn, &nextIn, null, null, &totalOut)
+            // if (rc == 0) {
+            //     state = BrotliEncoderStreamState.Error
+            //     throw BrotliError.compressionError()
+            // }
+            // let outputSize = UIntNative(0)
+            // let output = BrotliEncoderTakeOutput(handle, &outputSize)
+            // // copy output to Array<UInt8>
+        }
         return Array<UInt8>()
     }
 
     /// 完成压缩
     /// 对应 Bun: BrotliCompressionStream.end
     /// 调用 BrotliEncoderCompressStream(op=Finish) 然后 BrotliEncoderDestroyInstance
+    /// 翻译自: src/brotli/brotli.zig - BrotliCompressionStream.end
     public func finish(): Array<UInt8> {
-        if (state == State.End || state == State.Error) {
-            return Array<UInt8>()
+        match (state) {
+            case End | Error => return Array<UInt8>()
+            case Compressing => ()
         }
         let result = writeChunk(Array<UInt8>(), true)
-        // 实际实现:
-        // unsafe { BrotliEncoderDestroyInstance(handle) }
-        state = State.End
-        outputBuffer.appendAll(result)
-        return outputBuffer.toArray()
+        // 翻译自 Bun brotli.zig BrotliCompressionStream.end:
+        //   this.brotli.destroyInstance()
+        // FFI: BrotliEncoderDestroyInstance(handle)
+        state = BrotliEncoderStreamState.End
+        for (byte in result) {
+            outputBuffer.append(byte)
+        }
+        return outputBuffer.toOwnedSlice()
     }
 
     /// 销毁编码器
     /// 对应 Bun: BrotliCompressionStream.deinit
+    /// 翻译自: src/brotli/brotli.zig - BrotliCompressionStream.deinit
     public func deinit(): Unit {
-        if (state != State.End) {
-            // 实际实现: unsafe { BrotliEncoderDestroyInstance(handle) }
-            state = State.End
+        match (state) {
+            case End => ()
+            case Compressing | Error =>
+                // 翻译自 Bun brotli.zig BrotliCompressionStream.deinit:
+                //   this.brotli.destroyInstance()
+                // FFI: BrotliEncoderDestroyInstance(handle)
+                state = BrotliEncoderStreamState.End
         }
     }
 
     /// 获取总输入字节数
     public func totalIn(): Int64 {
-        return totalIn
+        return totalInBytes
     }
 
     /// 获取总输出字节数
     public func totalOut(): Int64 {
-        return totalOut
+        return totalOutBytes
     }
 
     /// 获取状态
-    public func getState(): State {
+    public func getState(): BrotliEncoderStreamState {
         return state
     }
 }

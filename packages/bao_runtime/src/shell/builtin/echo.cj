@@ -5,6 +5,7 @@
 package bao_runtime.shell.builtin
 
 import bao_core.*
+import bao_runtime.shell.*
 
 // ============================================================================
 // echo命令 - 输出文本到标准输出
@@ -39,12 +40,12 @@ public class EchoCmd {
         var flagsDone = false
         var argsStart: UInt32 = 0
 
-        for (i in 0..args.length) {
+        for (i in 0..args.size) {
             if (flagsDone) {
                 break
             }
             let flag = args[i]
-            if (flag.length < 2 || flag[0] != '-') {
+            if (flag.size < 2 || flag[0] != '-') {
                 flagsDone = true
                 break
             }
@@ -75,11 +76,11 @@ public class EchoCmd {
 
         // 跳过标志参数
         var remainingArgs = ArrayList<String>()
-        for (i in argsStart..args.length) {
+        for (i in argsStart..args.size) {
             remainingArgs.append(args[i])
         }
 
-        let argsLen = remainingArgs.length
+        let argsLen = remainingArgs.size
         var hasLeadingNewline = false
         var stopOutput = false
 
@@ -94,7 +95,7 @@ public class EchoCmd {
                 stopOutput = appendWithEscapes(this.output, theArg.toByteArray())
             } else {
                 if (isLast) {
-                    if (theArg.length > 0 && theArg[theArg.length - 1] == '\n') {
+                    if (theArg.size > 0 && theArg[theArg.size - 1] == '\n') {
                         hasLeadingNewline = true
                     }
                     let trimmed = trimSubsequentLeadingChars(theArg, '\n')
@@ -113,21 +114,21 @@ public class EchoCmd {
             this.output.append('\n'.toByte())
         }
 
-        if (let safeguard = this.bltn().stdout.needsIO()) {
+        if (let Some(safeguard) <- this.bltn().stdout.needsIO()) {
             this.state = EchoState.waiting
             return this.bltn().stdout.enqueue(this, this.output.toArray(), safeguard)
         }
-        this.bltn().writeNoIO(.stdout, this.output.toArray())
+        this.bltn().writeNoIO(OutKind.stdout, this.output.toArray())
         this.state = EchoState.done
         return this.bltn().done(0)
     }
 
     /// 追加带转义序列的内容
     /// 返回true如果遇到\c转义（表示停止所有输出）
-    public static func appendWithEscapes(output: ArrayList<Byte>, input: Array<Byte>): Boolean {
+    public static func appendWithEscapes(lis: ArrayList<Byte>, input: Array<Byte>): Bool {
         var i: UInt32 = 0
-        while (i < input.length) {
-            if (input[i] == '\\'.toByte() && i + 1 < input.length) {
+        while (i < input.size) {
+            if (input[i] == '\\'.toByte() && i + 1 < input.size) {
                 let next = input[i + 1]
                 if (next == '\\'.toByte()) {
                     output.append('\\'.toByte())
@@ -164,7 +165,7 @@ public class EchoCmd {
                     i += 2
                     var val: Byte = 0.toByte()
                     var digits: UInt32 = 0
-                    while (digits < 3 && i < input.length &&
+                    while (digits < 3 && i < input.size &&
                            input[i] >= '0'.toByte() && input[i] <= '7'.toByte()) {
                         val = ((val.toInt() * 8) + (input[i] - '0'.toByte())).toByte()
                         i++
@@ -176,7 +177,7 @@ public class EchoCmd {
                     i += 2
                     var val: Byte = 0.toByte()
                     var digits: UInt32 = 0
-                    while (digits < 2 && i < input.length) {
+                    while (digits < 2 && i < input.size) {
                         if (let Some(hv) <- hexDigitValue(input[i])) {
                             val = ((val.toInt() * 16) + hv.toInt()).toByte()
                             i++
@@ -206,7 +207,7 @@ public class EchoCmd {
     }
 
     /// 十六进制数字值
-    public static func hexDigitValue(c: Byte): ?Byte {
+    public static func hexDigitValue(b: Byte): ?Byte {
         if (c >= '0'.toByte() && c <= '9'.toByte()) {
             return (c.toInt() - '0'.toInt()).toByte()
         }
@@ -220,14 +221,14 @@ public class EchoCmd {
     }
 
     /// IO写入器数据块回调
-    public func onIOWriterChunk(amount: UInt64, e: ?SystemError): Yield {
-        if (let err = e) {
+    public func onIOWriterChunk(chunk: UInt64, e: ?SystemError): Yield {
+        if (let Some(err) <- e) {
             err.deref()
             return this.bltn().done(err.getErrno())
         }
 
         this.state = EchoState.done
-        let exitCode: ExitCode = if (this.state == .waitingWriteErr) 1 else 0
+        let exitCode: ExitCode = if (this.state == MultiArgsInnerState.waitingWriteErr) { 1 } else { 0 }
         return this.bltn().done(exitCode)
     }
 
@@ -244,7 +245,7 @@ public class EchoCmd {
     /// 修剪连续前导字符
     func trimSubsequentLeadingChars(s: String, c: Char): String {
         var result = s
-        while (result.length > 0 && result[0] == c) {
+        while (result.size > 0 && result[0] == c) {
             result = result.substring(1)
         }
         return result

@@ -81,7 +81,7 @@ public class CityHash32 {
             // Zig: @bitCast(@intCast(@bitCast(v) as i8) as i32) — 符号扩展字节
             let sv = Int64(v)
             let signExtended = if (sv >= 128) { sv - 256 } else { sv }
-            b = b * C1 + UInt32(signExtended & UInt64(0xFFFFFFFF))
+            b = b * C1 + UInt32(signExtended & Int64(0xFFFFFFFF))
             c = c ^ b
         }
         return fmix32(mur(b, mur(len, c)))
@@ -235,12 +235,13 @@ private class WeakPair {
 /// 支持带种子哈希
 public class CityHash64 {
     // 2^63 到 2^64 之间的素数
-    private static let K0: UInt64 = UInt64(0xc3a5c85c97cb3127)
-    private static let K1: UInt64 = UInt64(0xb492b66fbe98f273)
-    private static let K2: UInt64 = UInt64(0x9ae16a3b2f90404f)
+    private static let K0: UInt64 = (UInt64(0xc3a5c85c) << UInt64(32)) | UInt64(0x97cb3127)
+    private static let K1: UInt64 = (UInt64(0xb492b66f) << UInt64(32)) | UInt64(0xbe98f273)
+    private static let K2: UInt64 = (UInt64(0x9ae16a3b) << UInt64(32)) | UInt64(0x2f90404f)
 
     private static func rotr64(x: UInt64, r: UInt32): UInt64 {
-        return (x >> r) | (x << (UInt64(64) - r))
+        let shift = UInt64(r)
+        return (x >> shift) | (x << (UInt64(64) - shift))
     }
 
     private static func shiftmix(v: UInt64): UInt64 {
@@ -260,7 +261,7 @@ public class CityHash64 {
     }
 
     private static func hash128to64(low: UInt64, high: UInt64): UInt64 {
-        return hashLen16Mul(low, high, UInt64(0x9ddfea08eb382d69))
+        return hashLen16Mul(low, high, (UInt64(0x9ddfea08) << UInt64(32)) | UInt64(0xeb382d69))
     }
 
     // 0-16 字节
@@ -383,7 +384,7 @@ public class CityHash64 {
         var w = weakHashLen32WithSeeds(str, str.size - 32, y + K1, x)
 
         x = x * K1 + fetch64(str, 0)
-        len = (len - UInt64(1)) & (^(UInt64(63)))  // ~63u64
+        len = (len - UInt64(1)) & (UInt64(0xFFFFFFFF) << UInt64(6))  // ~63u64
 
         var off: Int64 = 0
         while (true) {
@@ -447,7 +448,5 @@ public class CityHash64 {
 
 /// 字符串转字节数组
 private func stringToBytes(s: String): Array<UInt8> {
-    var bytes = Array<UInt8>()
-    for (c in s) { bytes.append(UInt8(c.value)) }
-    return bytes
+    return s.toArray()
 }

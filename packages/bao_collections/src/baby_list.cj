@@ -26,19 +26,15 @@ public class BabyList<T> {
     /// 容量
     private var capacity_: UInt32
 
-    /// 空列表
-    /// 翻译自: pub const empty: Self = .{}
-    public static let EMPTY: BabyList<T> = BabyList<T>()
-
     public init() {
-        items_ = Array<T>(0)
+        items_ = Array<T>(0, { _ => unsafe { zeroValue<T>() } })
         length = 0
         capacity_ = 0
     }
 
     public init(capacity: UInt32) {
         capacity_ = capacity
-        items_ = Array<T>(Int64(capacity))
+        items_ = Array<T>(Int64(capacity), { _ => unsafe { zeroValue<T>() } })
         length = 0
     }
 
@@ -61,6 +57,11 @@ public class BabyList<T> {
         return slice()
     }
 
+    /// 获取长度
+    public func len(): UInt32 {
+        return length
+    }
+
     /// 获取指定位置元素 (只读)
     /// 翻译自: pub fn at(this: Self, index: usize) *const Type
     public func at(index: UInt32): T {
@@ -69,7 +70,7 @@ public class BabyList<T> {
 
     /// 获取指定位置元素 (可变)
     /// 翻译自: pub fn mut(this: Self, index: usize) *Type
-    public func mut(index: UInt32): T {
+    public func `mut`(index: UInt32): T {
         return items_[Int64(index)]
     }
 
@@ -153,7 +154,7 @@ public class BabyList<T> {
     /// 清理
     /// 翻译自: pub fn deinit(this: *Self, allocator) void
     public func deinit(): Unit {
-        items_ = Array<T>(0)
+        items_ = Array<T>(0, { _ => unsafe { zeroValue<T>() } })
         length = 0
         capacity_ = 0
     }
@@ -344,7 +345,7 @@ public class BabyList<T> {
 
     /// 排序
     /// 翻译自: pub fn sortAsc(this: *Self) void
-    public func sortAsc(): Unit where T <: Comparable<T> {
+    public func sortAsc(): Unit {
         // 使用仓颉标准排序
     }
 
@@ -358,7 +359,7 @@ public class BabyList<T> {
             while (newCap < needed) {
                 newCap = newCap * 2
             }
-            let newItems = Array<T>(Int64(newCap))
+            let newItems = Array<T>(Int64(newCap), { _ => unsafe { zeroValue<T>() } })
             for (i in 0..Int64(length)) {
                 newItems[i] = items_[i]
             }
@@ -375,7 +376,7 @@ public class BabyList<T> {
 
 /// 字节列表
 /// 翻译自: pub const ByteList = BabyList(u8)
-public typealias ByteList = BabyList<UInt8>
+public type ByteList = BabyList<UInt8>
 
 // ============================================================================
 // OffsetByteList - 带偏移的字节列表
@@ -415,7 +416,7 @@ public class OffsetByteList {
         if (Int64(head) >= data.size) {
             return []
         }
-        return data[Int64(head)..Int64(byteList.length)]
+        return data[Int64(head)..Int64(byteList.len())]
     }
 
     /// 获取剩余空间
@@ -432,7 +433,7 @@ public class OffsetByteList {
     /// 翻译自: pub fn consume(self: *Self, bytes: u32) void
     public func consume(bytes: UInt32): Unit {
         head += bytes
-        if (head >= byteList.length) {
+        if (head >= byteList.len()) {
             head = 0
             byteList.clearRetainingCapacity()
         }
@@ -441,7 +442,7 @@ public class OffsetByteList {
     /// 获取有效长度
     /// 翻译自: pub fn len(self: *const Self) u32
     public func len(): UInt32 {
-        return byteList.length - head
+        return byteList.len() - head
     }
 
     /// 清除

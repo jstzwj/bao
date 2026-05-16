@@ -38,7 +38,7 @@ package bao_threading
 
 import std.sync.*
 import std.collection.ArrayList
-import std.time.Duration
+import std.time.*
 
 // ============================================================================
 // ChannelError - 通道操作错误
@@ -46,9 +46,8 @@ import std.time.Duration
 
 /// 通道关闭错误 - 对应 Bun channel.zig 中的 error.Closed
 public class ChannelError <: Exception {
-    public let message: String
     public init(message: String) {
-        this.message = message
+        super(message)
     }
 }
 
@@ -110,7 +109,7 @@ public class Channel<T> {
 
     /// 互斥锁 - 对应 Bun Channel.mutex
     /// 严格翻译自: channel.zig:9 mutex: Mutex
-    private let mutex: std.sync.Mutex
+    private let mutex: Mutex
 
     /// 消费者等待条件 - 对应 Bun Channel.getters
     /// 严格翻译自: channel.zig:11 getters: Condition
@@ -134,7 +133,7 @@ public class Channel<T> {
     public init() {
         buffer = ArrayList<T>()
         closed = false
-        mutex = std.sync.Mutex()
+        mutex = Mutex()
         getters = mutex.condition()
         putters = mutex.condition()
         capacity = Int64(-1)
@@ -145,7 +144,7 @@ public class Channel<T> {
     public init(capacity: Int64) {
         buffer = ArrayList<T>()
         closed = false
-        mutex = std.sync.Mutex()
+        mutex = Mutex()
         getters = mutex.condition()
         putters = mutex.condition()
         this.capacity = capacity
@@ -195,7 +194,7 @@ public class Channel<T> {
     /// 返回 true 表示写入成功，false 表示缓冲区满或已关闭
     public func trySend(value: T): Bool {
         synchronized(mutex) {
-            return writeItemsInternal(Array<T>([value]), false) == Int64(1)
+            return writeItemsInternal([value], false) == Int64(1)
         }
     }
 
@@ -209,7 +208,7 @@ public class Channel<T> {
     /// 如果缓冲区满，阻塞等待
     public func send(value: T): Bool {
         synchronized(mutex) {
-            return writeItemsInternal(Array<T>([value]), true) == Int64(1)
+            return writeItemsInternal([value], true) == Int64(1)
         }
     }
 
@@ -362,7 +361,7 @@ public class Channel<T> {
             // 严格对应 Bun: self.buffer.write(items)
             // 检查缓冲区是否有空间
             if (capacity <= Int64(0) || buffer.size < capacity) {
-                buffer.append(items[pushed])
+                buffer.add(items[pushed])
                 pushed += Int64(1)
                 // 严格对应 Bun: self.getters.signal()
                 getters.notify()
@@ -422,8 +421,8 @@ public class Channel<T> {
                 }
             } else {
                 // 严格对应 Bun: const item = self.buffer.readItem()
-                let item = buffer.removeAt(Int64(0))
-                result.append(item)
+                let item = buffer.remove(at: Int64(0))
+                result.add(item)
                 // 严格对应 Bun: self.putters.signal()
                 putters.notify()
             }

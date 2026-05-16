@@ -17,7 +17,7 @@ package bao_threading
 
 import std.sync.*
 import std.collection.{ArrayList, HashMap}
-import std.time.Duration
+import std.time.*
 
 // ============================================================================
 // ConcurrentQueue<T> - 线程安全队列
@@ -42,13 +42,13 @@ public class ConcurrentQueue<T> {
     /// 内部存储
     private var items: ArrayList<T>
     /// 互斥锁
-    private let mutex: std.sync.Mutex
+    private let mutex: Mutex
     /// 条件变量 - 用于 take() 阻塞等待
     private let notEmpty: Condition
 
     public init() {
         items = ArrayList<T>()
-        mutex = std.sync.Mutex()
+        mutex = Mutex()
         notEmpty = mutex.condition()
     }
 
@@ -59,7 +59,7 @@ public class ConcurrentQueue<T> {
     ///   else front.store(first)
     public func push(item: T): Unit {
         synchronized(mutex) {
-            items.append(item)
+            items.add(item)
             notEmpty.notify()
         }
     }
@@ -72,7 +72,7 @@ public class ConcurrentQueue<T> {
         }
         synchronized(mutex) {
             for (item in items) {
-                this.items.append(item)
+                this.items.add(item)
             }
             notEmpty.notifyAll()
         }
@@ -87,7 +87,7 @@ public class ConcurrentQueue<T> {
             if (items.size == 0) {
                 return None
             }
-            return Some(items.removeAt(0))
+            return Some(items.remove(at: 0))
         }
     }
 
@@ -98,7 +98,7 @@ public class ConcurrentQueue<T> {
         synchronized(mutex) {
             let result = ArrayList<T>()
             for (item in items) {
-                result.append(item)
+                result.add(item)
             }
             items.clear()
             return result
@@ -112,7 +112,7 @@ public class ConcurrentQueue<T> {
             while (items.size == 0) {
                 notEmpty.wait()
             }
-            return items.removeAt(0)
+            return items.remove(at: 0)
         }
     }
 
@@ -125,7 +125,7 @@ public class ConcurrentQueue<T> {
                     return None
                 }
             }
-            return Some(items.removeAt(0))
+            return Some(items.remove(at: 0))
         }
     }
 
@@ -175,19 +175,19 @@ public class ConcurrentQueue<T> {
 
 /// 线程安全哈希表 - 对应 Bun Guarded<HashMap> 模式
 /// 严格翻译自: guarded.zig 中 Mutex + value 的使用模式
-public class ConcurrentMap<K, V> where K <: Hashable<K> & Equatable<K> {
+public class ConcurrentMap<K, V> where K <: Hashable & Equatable<K> {
     private var map: HashMap<K, V>
-    private let mutex: std.sync.Mutex
+    private let mutex: Mutex
 
     public init() {
         map = HashMap<K, V>()
-        mutex = std.sync.Mutex()
+        mutex = Mutex()
     }
 
     /// 插入 - 对应 HashMap.put
     public func put(key: K, value: V): Unit {
         synchronized(mutex) {
-            map.put(key, value)
+            map.add(key, value)
         }
     }
 
@@ -222,7 +222,7 @@ public class ConcurrentMap<K, V> where K <: Hashable<K> & Equatable<K> {
     /// 是否为空
     public func isEmpty(): Bool {
         synchronized(mutex) {
-            return map.isEmpty
+            return map.isEmpty()
         }
     }
 
@@ -249,7 +249,7 @@ public class ConcurrentMap<K, V> where K <: Hashable<K> & Equatable<K> {
                 case None => ()
             }
             let v = defaultValue()
-            map.put(key, v)
+            map.add(key, v)
             return v
         }
     }
@@ -277,10 +277,9 @@ public class ConcurrentMap<K, V> where K <: Hashable<K> & Equatable<K> {
 // ============================================================================
 
 /// 通道关闭错误
-public class ChannelError <: Exception {
-    public let message: String
+public class ConcurrentChannelError <: Exception {
     public init(message: String) {
-        this.message = message
+        super(message)
     }
 }
 
@@ -292,13 +291,13 @@ public class ChannelError <: Exception {
 ///   getters: 消费者等待条件 (缓冲区空时阻塞)
 ///   buffer: 内部缓冲区
 ///   is_closed: 关闭标志
-public class Channel<T> {
+public class ConcurrentChannel<T> {
     /// 内部缓冲区
     private var buffer: ArrayList<T>
     /// 是否已关闭
     private var closed: Bool
     /// 互斥锁 - 对应 Bun Channel.mutex
-    private let mutex: std.sync.Mutex
+    private let mutex: Mutex
     /// 消费者等待条件 - 对应 Bun Channel.getters
     private let getters: Condition
     /// 生产者等待条件 - 对应 Bun Channel.putters
@@ -310,7 +309,7 @@ public class Channel<T> {
     public init() {
         buffer = ArrayList<T>()
         closed = false
-        mutex = std.sync.Mutex()
+        mutex = Mutex()
         getters = mutex.condition()
         putters = mutex.condition()
         capacity = -1
@@ -320,7 +319,7 @@ public class Channel<T> {
     public init(capacity: Int64) {
         buffer = ArrayList<T>()
         closed = false
-        mutex = std.sync.Mutex()
+        mutex = Mutex()
         getters = mutex.condition()
         putters = mutex.condition()
         this.capacity = capacity
@@ -341,7 +340,7 @@ public class Channel<T> {
                 return false
             }
             // 写入缓冲区
-            buffer.append(value)
+            buffer.add(value)
             // 严格翻译自: channel.zig:117 self.getters.signal()
             getters.notify()
             return true
@@ -362,7 +361,7 @@ public class Channel<T> {
                     return
                 }
             }
-            buffer.append(value)
+            buffer.add(value)
             getters.notify()
         }
     }
@@ -379,7 +378,7 @@ public class Channel<T> {
                 }
                 return None
             }
-            let item = buffer.removeAt(0)
+            let item = buffer.remove(at: 0)
             // 严格翻译自: channel.zig:149 self.putters.signal()
             putters.notify()
             return Some(item)
@@ -397,7 +396,7 @@ public class Channel<T> {
                 // 严格翻译自: channel.zig:157 getters.wait
                 getters.wait()
             }
-            let item = buffer.removeAt(0)
+            let item = buffer.remove(at: 0)
             putters.notify()
             return Some(item)
         }
@@ -409,7 +408,7 @@ public class Channel<T> {
             if (buffer.size == 0) {
                 return None
             }
-            let item = buffer.removeAt(0)
+            let item = buffer.remove(at: 0)
             putters.notify()
             return Some(item)
         }
@@ -482,24 +481,24 @@ public class Channel<T> {
 ///   addUnsynchronized(n): 非同步增加 (已知没有并发)
 ///   finish(): 原子减少计数，最后一个完成时 signal
 ///   wait(): 等待计数归零
-public class WaitGroup {
+public class ConcurrentWaitGroup {
     /// 原子计数器 - 对应 Bun raw_count: Atomic(usize)
     private let count: AtomicInt64
     /// 互斥锁 - 对应 Bun WaitGroup.mutex
-    private let mutex: std.sync.Mutex
+    private let mutex: Mutex
     /// 条件变量 - 对应 Bun WaitGroup.cond
     private let cond: Condition
 
     public init() {
         count = AtomicInt64(0)
-        mutex = std.sync.Mutex()
+        mutex = Mutex()
         cond = mutex.condition()
     }
 
     /// 初始化指定计数
     public init(initialCount: Int64) {
         count = AtomicInt64(initialCount)
-        mutex = std.sync.Mutex()
+        mutex = Mutex()
         cond = mutex.condition()
     }
 

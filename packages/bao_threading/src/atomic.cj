@@ -8,8 +8,8 @@
 // 本文件提供与 Bun/Zig atomic 对应的统一包装层
 package bao_threading
 
-import std.sync.*
-import std.time.Duration
+import std.sync.{AtomicBool as StdAtomicBool, AtomicInt32 as StdAtomicInt32, AtomicInt64 as StdAtomicInt64, AtomicUInt32 as StdAtomicUInt32, AtomicUInt64 as StdAtomicUInt64, AtomicOptionReference}
+import std.time.*
 
 // ============================================================================
 // Ordering - 内存排序
@@ -34,16 +34,16 @@ public enum Ordering {
 // AtomicBool - 原子布尔
 // 严格翻译自: Zig std.atomic.Value(bool) / Rust AtomicBool
 //   load, store, swap, compareAndSwap (fetchAnd/fetchOr 对 bool 意义不大)
-// 仓颉原生提供 std.sync.AtomicBool
+// 仓颉原生提供 AtomicBool
 // ============================================================================
 
 /// 原子布尔 - 对应 Zig std.atomic.Value(bool)
 /// 严格翻译自: std.atomic.Value(bool) 的 load/store/swap/cmpxchg
 public class AtomicBool {
-    private let inner: std.sync.AtomicBool
+    private let inner: StdAtomicBool
 
     public init(value: Bool) {
-        inner = std.sync.AtomicBool(value)
+        inner = StdAtomicBool(value)
     }
 
     /// 读取 - 对应 Zig atomic.load(.acquire)
@@ -78,10 +78,10 @@ public class AtomicBool {
 
 /// 原子 Int32 - 对应 Zig std.atomic.Value(i32)
 public class AtomicI32 {
-    private let inner: std.sync.AtomicInt32
+    private let inner: StdAtomicInt32
 
     public init(value: Int32) {
-        inner = std.sync.AtomicInt32(value)
+        inner = StdAtomicInt32(value)
     }
 
     public func load(): Int32 {
@@ -145,10 +145,10 @@ public class AtomicI32 {
 
 /// 原子 Int64 - 对应 Zig std.atomic.Value(i64)
 public class AtomicI64 {
-    private let inner: std.sync.AtomicInt64
+    private let inner: StdAtomicInt64
 
     public init(value: Int64) {
-        inner = std.sync.AtomicInt64(value)
+        inner = StdAtomicInt64(value)
     }
 
     public func load(): Int64 {
@@ -197,10 +197,10 @@ public class AtomicI64 {
 /// 原子 UInt32 - 对应 Zig std.atomic.Value(u32)
 /// 这也是 Futex 操作所使用的类型
 public class AtomicU32 {
-    private let inner: std.sync.AtomicUInt32
+    private let inner: StdAtomicUInt32
 
     public init(value: UInt32) {
-        inner = std.sync.AtomicUInt32(value)
+        inner = StdAtomicUInt32(value)
     }
 
     public func load(): UInt32 {
@@ -247,10 +247,10 @@ public class AtomicU32 {
 
 /// 原子 UInt64 - 对应 Zig std.atomic.Value(u64)
 public class AtomicU64 {
-    private let inner: std.sync.AtomicUInt64
+    private let inner: StdAtomicUInt64
 
     public init(value: UInt64) {
-        inner = std.sync.AtomicUInt64(value)
+        inner = StdAtomicUInt64(value)
     }
 
     public func load(): UInt64 {
@@ -299,14 +299,14 @@ public class AtomicU64 {
 /// 原子引用 - 对应 Zig std.atomic.Value(?*T)
 /// 仓颉使用 AtomicReference<T> (引用类型) 实现等价语义
 public class AtomicPointer<T> where T <: Object {
-    private let inner: AtomicReference<T>
+    private let inner: AtomicOptionReference<T>
 
     public init() {
-        inner = AtomicReference<T>()
+        inner = AtomicOptionReference<T>()
     }
 
     public init(value: T) {
-        inner = AtomicReference<T>(value)
+        inner = AtomicOptionReference<T>(Some(value))
     }
 
     /// 读取 - 对应 Zig atomic.load(.acquire)
@@ -316,43 +316,17 @@ public class AtomicPointer<T> where T <: Object {
 
     /// 写入 - 对应 Zig atomic.store(.release)
     public func store(value: ?T): Unit {
-        match (value) {
-            case Some(v) => inner.store(v)
-            case None => ()
-        }
+        inner.store(value)
     }
 
     /// 交换 - 对应 Zig atomic.swap(.acq_rel)
     public func swap(value: ?T): ?T {
-        if (value.isSome()) {
-            return inner.swap(value.getOrThrow())
-        }
-        // AtomicReference 不支持 store None
-        // 使用 compareAndSwap 循环来实现 null swap
-        let current = inner.load()
-        if (current.compareAndSwap(current, current)) {
-            // 无法原子地设置为 null，返回当前值
-            return current
-        }
-        return current
+        return inner.swap(value)
     }
 
     /// 比较并交换 - 对应 Zig atomic.cmpxchgWeak
     public func compareAndSwap(expected: ?T, desired: ?T): Bool {
-        if (expected.isSome()) {
-            let exp = expected.getOrThrow()
-            if (desired.isSome()) {
-                let des = desired.getOrThrow()
-                return inner.compareAndSwap(exp, des)
-            }
-            return false
-        }
-        if (desired.isSome()) {
-            let des = desired.getOrThrow()
-            let current = inner.load()
-            return inner.compareAndSwap(current, des)
-        }
-        return true
+        return inner.compareAndSwap(expected, desired)
     }
 }
 
@@ -363,20 +337,20 @@ public class AtomicPointer<T> where T <: Object {
 // ============================================================================
 
 /// 原子枚举 - 对应 Zig 中使用原子整数表示枚举的惯用法
-/// 仓颉枚举没有直接的原子支持，使用 AtomicInt64 存储序号
-public class AtomicEnum<T> where T <: Enum<T> {
+/// 仓颉枚举没有直接的原子支持，使用 StdAtomicInt64 存储序号
+public class AtomicEnum<T> {
     private let inner: AtomicI64
 
-    public init(value: T) {
-        inner = AtomicI64(Int64(value.ordinal()))
+    public init(ordinal: Int64) {
+        inner = AtomicI64(ordinal)
     }
 
-    /// 读取枚举值
+    /// 读取枚举序号
     public func load(): Int64 {
         return inner.load()
     }
 
-    /// 写入枚举值
+    /// 写入枚举序号
     public func store(ordinal: Int64): Unit {
         inner.store(ordinal)
     }

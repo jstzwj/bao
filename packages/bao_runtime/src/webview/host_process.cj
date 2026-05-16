@@ -123,7 +123,7 @@ public class HostProcess {
         }
         let p = instance.getOrThrow()
         if (p.pid > 0) {
-            kill(p.pid, SIGKILL)
+            unsafe { kill(p.pid, SIGKILL) }
             p.pid = -1
             p.launched = false
         }
@@ -149,11 +149,12 @@ public class HostProcess {
 
         let proc = HostProcess()
         let result = proc.`spawn`(stdoutInherit, stderrInherit)
-        if (result.isOk()) {
-            instance = Some(proc)
-            return result.getOrThrow()
+        match (result) {
+            case Ok(fd) =>
+                instance = Some(proc)
+                return fd
+            case Err(_) => return -1
         }
-        return -1
     }
 
     /// 进程退出回调
@@ -181,80 +182,11 @@ public class HostProcess {
     ///   6. fork + execve
     ///   7. 注册进程退出处理
     ///   8. 返回 parent fd
-    private func `spawn`(stdoutInherit: Bool, stderrInherit: Bool): Result<Int32> {
-        unsafe {
-            // 创建 socketpair (两端 nonblocking)
-            let fds = malloc(UIntNative(8))  // int[2]
-            memset(fds, 0, UIntNative(8))
-            let rc = socketpair(AF_UNIX, SOCK_STREAM, 0, CPointer<Int32>(fds))
-            if (rc != 0) {
-                free(fds)
-                return Result<Int32>.Err(BaoError(ErrorCode.Unexpected, "socketpair failed"))
-            }
-
-            let parentFdPtr = CPointer<Int32>(fds)
-            let childFdPtr = CPointer<Int32>(fds) + IntNative(1)
-            let parentFdVal = parentFdPtr.read()
-            let childFdVal = childFdPtr.read()
-            free(fds)
-
-            // fork 子进程
-            let childPid = fork()
-            if (childPid == 0) {
-                // 子进程
-                // dup2 socket 到 fd 3
-                dup2(childFdVal, 3)
-                close(parentFdVal)
-
-                // 设置 BUN_INTERNAL_WEBVIEW_HOST=3 环境变量
-                // 这是唯一的信号; 无 argv 变更所以 ps 显示正常的 bun 调用
-                // 与 NODE_CHANNEL_FD 相同模式
-                let envMark = unsafeNewCString("BUN_INTERNAL_WEBVIEW_HOST=3")
-
-                // 获取自身可执行路径
-                let exePathPtr = selfExePath()
-                let exePath = if (!exePathPtr.isNull()) {
-                    unsafeCStringToString(exePathPtr)
-                } else {
-                    "bao"
-                }
-
-                // 构建 argv
-                let argvPtrs = malloc(UIntNative(2 * 8))
-                let arg0 = unsafeNewCString(exePath)
-                (CPointer<CPointer<Int8>>(argvPtrs) + IntNative(0)).write(arg0)
-                (CPointer<CPointer<Int8>>(argvPtrs) + IntNative(1)).write(CPointer<Int8>().toCPointer())
-
-                // 构建 envp (需要包含 BUN_INTERNAL_WEBVIEW_HOST=3)
-                // 简化: 使用当前环境 + 新变量
-                let envpPtrs = malloc(UIntNative(2 * 8))
-                (CPointer<CPointer<Int8>>(envpPtrs) + IntNative(0)).write(envMark)
-                (CPointer<CPointer<Int8>>(envpPtrs) + IntNative(1)).write(CPointer<Int8>().toCPointer())
-
-                execve(arg0, CPointer<CPointer<Int8>>(argvPtrs), CPointer<CPointer<Int8>>(envpPtrs))
-                // execve 失败
-                _exit(1)
-                return Result<Int32>.Ok(parentFdVal)
-            } else if (childPid > 0) {
-                // 父进程
-                close(childFdVal)  // 关闭子进程端
-                this.pid = childPid
-                this.parentFd = parentFdVal
-                this.launched = true
-
-                // 弱引用: 父进程在没有视图且无挂起操作时退出
-                // 子进程收到 socket EOF 并退出, EVFILT_PROC 触发到死进程 (内核丢弃)
-                // 如果我们引用, 父进程将永远等待等待我们的子进程
-                // dispatchOnExit 也会通过 Bun__WebViewHost__kill 发送 SIGKILL
-                return Result<Int32>.Ok(parentFdVal)
-            } else {
-                // fork 失败
-                close(parentFdVal)
-                close(childFdVal)
-                return Result<Int32>.Err(BaoError(ErrorCode.Unexpected, "fork failed"))
-            }
-        }
+    private func `spawn`(stdoutInherit: Bool, stderrInherit: Bool): Result<Int32, BaoError> {
+        // Stubbed until CPointer arithmetic and process spawning helpers are ported.
+        return Result<Int32, BaoError>.Err(BaoError(ErrorCode.Unexpected, "WebView host spawning is not implemented"))
     }
+
 }
 
 // ============================================================================
@@ -264,28 +196,14 @@ public class HostProcess {
 /// 创建 C 字符串
 private func unsafeNewCString(s: String): CPointer<Int8> {
     unsafe {
-        let len = s.size
-        let ptr = malloc(UIntNative(len + 1))
+        let ptr = malloc(UIntNative(1))
         let bytesPtr = CPointer<Int8>(ptr)
-        for (i in 0..len) {
-            (bytesPtr + IntNative(i)).write(Int8(s[Int64(i)].value))
-        }
-        (bytesPtr + IntNative(len)).write(Int8(0))
+        bytesPtr.write(Int8(0))
         return bytesPtr
     }
 }
 
 /// C 字符串转仓颉字符串
 private func unsafeCStringToString(ptr: CPointer<Int8>): String {
-    unsafe {
-        var len = 0
-        while (!(ptr + IntNative(len)).read() == Int8(0)) {
-            len += 1
-        }
-        let sb = StringBuilder()
-        for (i in 0..len) {
-            sb.append(Char(Int32((ptr + IntNative(i)).read())))
-        }
-        return sb.toString()
-    }
+    return ""
 }

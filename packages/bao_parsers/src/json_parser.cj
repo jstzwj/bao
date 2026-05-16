@@ -12,6 +12,7 @@ package bao_parsers
 
 import bao_core.*
 import bao_collections.*
+import std.convert.*
 
 // ============================================================================
 // JsonValue - JSON 值类型
@@ -26,11 +27,26 @@ import bao_collections.*
 /// Bun: switch(expr.data) { .e_null, .e_boolean, .e_string, .e_number, .e_array, .e_object }
 public enum JsonKind {
     | Null
-    | Bool
+    | Boolean
     | Number
     | String
     | Array
     | Object
+
+    public operator func ==(right: JsonKind): Bool {
+        match (this) {
+            case Null => match (right) { case Null => true; case _ => false }
+            case Boolean => match (right) { case Boolean => true; case _ => false }
+            case Number => match (right) { case Number => true; case _ => false }
+            case String => match (right) { case String => true; case _ => false }
+            case Array => match (right) { case Array => true; case _ => false }
+            case Object => match (right) { case Object => true; case _ => false }
+        }
+    }
+
+    public operator func !=(right: JsonKind): Bool {
+        return !(this == right)
+    }
 }
 
 /// JSON 值 - 对应 Bun Expr (JSON 场景)
@@ -53,13 +69,13 @@ public class JsonValue {
     public var offset: Int64
 
     /// 空值 - 对应 Bun E.Null{}
-    public static let NULL: JsonValue = JsonValue(JsonKind.Null)
+    public static func nullValue(): JsonValue { return JsonValue(JsonKind.Null) }
 
     /// 真值
-    public static let TRUE: JsonValue = JsonValue(JsonKind.Bool, true)
+    public static func trueValue(): JsonValue { return JsonValue(JsonKind.Boolean, true) }
 
     /// 假值
-    public static let FALSE: JsonValue = JsonValue(JsonKind.Bool, false)
+    public static func falseValue(): JsonValue { return JsonValue(JsonKind.Boolean, false) }
 
     public init(kind: JsonKind) {
         this.kind = kind
@@ -108,7 +124,7 @@ public class JsonValue {
 
     /// 是否为布尔值
     public func isBool(): Bool {
-        kind == JsonKind.Bool
+        kind == JsonKind.Boolean
     }
 
     /// 是否为数字
@@ -184,7 +200,7 @@ public class JsonValue {
 
     /// 获取布尔值
     public func asBool(): ?Bool {
-        if (kind == JsonKind.Bool) {
+        if (kind == JsonKind.Boolean) {
             Some(boolValue)
         } else {
             None
@@ -229,33 +245,43 @@ public class JsonValue {
 // ============================================================================
 
 /// 保持插入顺序的 Map - 对应 Bun E.Object.properties 的有序特性
-public class LinkedHashMap<K, V> {
+public class LinkedHashMap<K, V> where K <: ToString {
     private var entries: ArrayList<K>
-    private var values: HashMap<K, V>
+    private var valueMap: HashMap<K, V>
 
     public init() {
         entries = ArrayList<K>()
-        values = HashMap<K, V>()
+        valueMap = HashMap<K, V>()
     }
 
     public func put(key: K, value: V): Unit {
-        if (!values.containsKey(key)) {
-            entries.append(key)
+        match (valueMap.get(key)) {
+            case None => entries.append(key)
+            case Some(_) => ()
         }
-        values.put(key, value)
+        valueMap.put(key, value)
     }
 
     public func get(key: K): ?V {
-        values.get(key)
+        valueMap.get(key)
     }
 
     public func containsKey(key: K): Bool {
-        values.containsKey(key)
+        match (valueMap.get(key)) {
+            case Some(_) => true
+            case None => false
+        }
     }
 
     public func remove(key: K): Unit {
-        values.remove(key)
-        let idx = entries.indexOf(key)
+        valueMap.remove(key)
+        var idx = Int64(-1)
+        for (i in 0..entries.size) {
+            if (entries[i].toString() == key.toString()) {
+                idx = i
+                break
+            }
+        }
         if (idx >= Int64(0)) {
             entries.removeAt(idx)
         }
@@ -269,10 +295,10 @@ public class LinkedHashMap<K, V> {
         entries
     }
 
-    public func values(): ArrayList<V> {
+    public func valueList(): ArrayList<V> {
         let result = ArrayList<V>()
         for (key in entries) {
-            match (values.get(key)) {
+            match (valueMap.get(key)) {
                 case Some(v) => result.append(v)
                 case None => ()
             }
@@ -282,7 +308,7 @@ public class LinkedHashMap<K, V> {
 
     public func clear(): Unit {
         entries.clear()
-        values.clear()
+        valueMap.clear()
     }
 }
 
@@ -350,35 +376,35 @@ public class JSONParser <: BaseParser {
     /// Bun: switch(p.lexer.token) { .t_false => ..., .t_true => ..., ... }
     private func parseValue(): JsonValue {
         if (!enterRecursive()) {
-            return JsonValue.NULL
+            return JsonValue.nullValue()
         }
         skipWhitespace()
         if (pos >= source.size) {
             addError(ParseErrorKind.UnexpectedEof, "Unexpected end of input")
             exitRecursive()
-            return JsonValue.NULL
+            return JsonValue.nullValue()
         }
         let ch = source[Int64(pos)]
         let value = match (ch) {
-            case '{' => parseObject()
-            case '[' => parseArray()
-            case '"' => parseString()
-            case '\'' =>
+            case 123 => parseObject()
+            case 91 => parseArray()
+            case 34 => parseString()
+            case 39 =>
                 if (!strictJson) {
                     parseString()
                 } else {
                     addError(ParseErrorKind.UnexpectedCharacter,
                         "Single quotes are not allowed in strict JSON")
-                    JsonValue.NULL
+                    JsonValue.nullValue()
                 }
-            case 't' => parseLiteral("true", JsonValue.TRUE)
-            case 'f' => parseLiteral("false", JsonValue.FALSE)
-            case 'n' => parseLiteral("null", JsonValue.NULL)
-            case '-' | '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' => parseNumber()
+            case 116 => parseLiteral("true", JsonValue.trueValue())
+            case 102 => parseLiteral("false", JsonValue.falseValue())
+            case 110 => parseLiteral("null", JsonValue.nullValue())
+            case 45 | 48 | 49 | 50 | 51 | 52 | 53 | 54 | 55 | 56 | 57 => parseNumber()
             case _ =>
                 addError(ParseErrorKind.UnexpectedCharacter,
                     "Unexpected character '${ch}'")
-                JsonValue.NULL
+                JsonValue.nullValue()
         }
         exitRecursive()
         return value
@@ -389,10 +415,10 @@ public class JSONParser <: BaseParser {
     private func parseObject(): JsonValue {
         let obj = JsonValue(JsonKind.Object)
         obj.offset = pos
-        advance() // consume '{'
+        advance() // consume UInt8(123)
         skipWhitespace()
         // 空对象
-        if (pos < source.size && source[Int64(pos)] == '}') {
+        if (pos < source.size && source[Int64(pos)] == UInt8(125)) {
             advance()
             return obj
         }
@@ -405,9 +431,9 @@ public class JSONParser <: BaseParser {
             // 解析键
             var key = ""
             let ch = source[Int64(pos)]
-            if (ch == '"') {
+            if (ch == UInt8(34)) {
                 key = parseStringContent()
-            } else if (ch == '\'' && !strictJson) {
+            } else if (ch == UInt8(39) && !strictJson) {
                 key = parseStringContent()
             } else if (!strictJson && isIdentifierStart(ch)) {
                 // JSON5 允许无引号键
@@ -418,11 +444,11 @@ public class JSONParser <: BaseParser {
             }
             skipWhitespace()
             // 期望冒号
-            if (pos >= source.size || source[Int64(pos)] != ':') {
-                addError(ParseErrorKind.ExpectedColon, "Expected ':' after key")
+            if (pos >= source.size || source[Int64(pos)] != UInt8(58)) {
+                addError(ParseErrorKind.ExpectedColon, "Expected UInt8(58) after key")
                 return obj
             }
-            advance() // consume ':'
+            advance() // consume UInt8(58)
             skipWhitespace()
             // 解析值
             let value = parseValue()
@@ -433,22 +459,22 @@ public class JSONParser <: BaseParser {
                 return obj
             }
             let next = source[Int64(pos)]
-            if (next == '}') {
+            if (next == UInt8(125)) {
                 advance()
                 return obj
             }
-            if (next == ',') {
+            if (next == UInt8(44)) {
                 advance()
                 // 允许尾逗号
                 if (!strictJson || options.allowTrailingCommas) {
                     skipWhitespace()
-                    if (pos < source.size && source[Int64(pos)] == '}') {
+                    if (pos < source.size && source[Int64(pos)] == UInt8(125)) {
                         advance()
                         return obj
                     }
                 }
             } else {
-                addError(ParseErrorKind.ExpectedComma, "Expected ',' or '}'")
+                addError(ParseErrorKind.ExpectedComma, "Expected UInt8(44) or UInt8(125)")
                 return obj
             }
         }
@@ -460,10 +486,10 @@ public class JSONParser <: BaseParser {
     private func parseArray(): JsonValue {
         let arr = JsonValue(JsonKind.Array)
         arr.offset = pos
-        advance() // consume '['
+        advance() // consume UInt8(91)
         skipWhitespace()
         // 空数组
-        if (pos < source.size && source[Int64(pos)] == ']') {
+        if (pos < source.size && source[Int64(pos)] == UInt8(93)) {
             advance()
             return arr
         }
@@ -481,22 +507,22 @@ public class JSONParser <: BaseParser {
                 return arr
             }
             let next = source[Int64(pos)]
-            if (next == ']') {
+            if (next == UInt8(93)) {
                 advance()
                 return arr
             }
-            if (next == ',') {
+            if (next == UInt8(44)) {
                 advance()
                 // 允许尾逗号
                 if (!strictJson || options.allowTrailingCommas) {
                     skipWhitespace()
-                    if (pos < source.size && source[Int64(pos)] == ']') {
+                    if (pos < source.size && source[Int64(pos)] == UInt8(93)) {
                         advance()
                         return arr
                     }
                 }
             } else {
-                addError(ParseErrorKind.ExpectedComma, "Expected ',' or ']'")
+                addError(ParseErrorKind.ExpectedComma, "Expected UInt8(44) or UInt8(93)")
                 return arr
             }
         }
@@ -512,16 +538,16 @@ public class JSONParser <: BaseParser {
 
     /// 解析字符串内容 - 对应 Bun lexer 中的字符串解码
     private func parseStringContent(): String {
-        let quote = source[Int64(pos)]
+        let quoteChar = source[Int64(pos)]
         advance() // consume quote char
         let sb = StringBuilder()
         while (pos < source.size) {
             let ch = source[Int64(pos)]
-            if (ch == quote) {
+            if (ch == quoteChar) {
                 advance()
                 return sb.toString()
             }
-            if (ch == '\\') {
+            if (ch == UInt8(92)) {
                 advance()
                 if (pos >= source.size) {
                     addError(ParseErrorKind.UnterminatedString, "Unterminated string escape")
@@ -530,15 +556,15 @@ public class JSONParser <: BaseParser {
                 let escaped = source[Int64(pos)]
                 advance()
                 match (escaped) {
-                    case '"' => sb.append('"')
-                    case '\\' => sb.append('\\')
-                    case '/' => sb.append('/')
-                    case 'b' => sb.append('\b')
-                    case 'f' => sb.append('\f')
-                    case 'n' => sb.append('\n')
-                    case 'r' => sb.append('\r')
-                    case 't' => sb.append('\t')
-                    case 'u' => {
+                    case 34 => sb.append(UInt8(34))
+                    case 92 => sb.append(UInt8(92))
+                    case 47 => sb.append(UInt8(47))
+                    case 98 => sb.append(UInt8(8))
+                    case 102 => sb.append(UInt8(12))
+                    case 110 => sb.append(UInt8(10))
+                    case 114 => sb.append(UInt8(13))
+                    case 116 => sb.append(UInt8(9))
+                    case 117 =>
                         // Unicode 转义 \uXXXX
                         if (pos + Int64(4) > source.size) {
                             addError(ParseErrorKind.InvalidEscape, "Incomplete unicode escape")
@@ -547,7 +573,6 @@ public class JSONParser <: BaseParser {
                         let hex = source[Int64(pos)..Int64(pos + Int64(4))]
                         pos += Int64(4)
                         sb.append(decodeHexEscape(hex))
-                    }
                     case _ =>
                         if (strictJson) {
                             addError(ParseErrorKind.InvalidEscape,
@@ -557,7 +582,7 @@ public class JSONParser <: BaseParser {
                         }
                 }
             } else {
-                if (ch == '\n' || ch == '\r') {
+                if (ch == UInt8(10) || ch == UInt8(13)) {
                     addError(ParseErrorKind.UnterminatedString, "Unterminated string")
                     return sb.toString()
                 }
@@ -575,45 +600,45 @@ public class JSONParser <: BaseParser {
         let start = pos
         var isFloat = false
         // 可选负号
-        if (pos < source.size && source[Int64(pos)] == '-') {
+        if (pos < source.size && source[Int64(pos)] == UInt8(45)) {
             advance()
         }
         // 整数部分
-        if (pos < source.size && source[Int64(pos)] == '0') {
+        if (pos < source.size && source[Int64(pos)] == UInt8(48)) {
             advance()
             // 严格模式禁止前导零
             if (strictJson && pos < source.size) {
                 let next = source[Int64(pos)]
-                if (next >= '0' && next <= '9') {
+                if (next >= UInt8(48) && next <= UInt8(57)) {
                     addError(ParseErrorKind.LeadingZeros, "Leading zeros not allowed")
                 }
             }
         } else {
-            while (pos < source.size && source[Int64(pos)] >= '0' && source[Int64(pos)] <= '9') {
+            while (pos < source.size && source[Int64(pos)] >= UInt8(48) && source[Int64(pos)] <= UInt8(57)) {
                 advance()
             }
         }
         // 小数部分
-        if (pos < source.size && source[Int64(pos)] == '.') {
+        if (pos < source.size && source[Int64(pos)] == UInt8(46)) {
             isFloat = true
             advance()
-            while (pos < source.size && source[Int64(pos)] >= '0' && source[Int64(pos)] <= '9') {
+            while (pos < source.size && source[Int64(pos)] >= UInt8(48) && source[Int64(pos)] <= UInt8(57)) {
                 advance()
             }
         }
         // 指数部分
-        if (pos < source.size && (source[Int64(pos)] == 'e' || source[Int64(pos)] == 'E')) {
+        if (pos < source.size && (source[Int64(pos)] == UInt8(101) || source[Int64(pos)] == UInt8(69))) {
             isFloat = true
             advance()
-            if (pos < source.size && (source[Int64(pos)] == '+' || source[Int64(pos)] == '-')) {
+            if (pos < source.size && (source[Int64(pos)] == UInt8(43) || source[Int64(pos)] == UInt8(45))) {
                 advance()
             }
-            while (pos < source.size && source[Int64(pos)] >= '0' && source[Int64(pos)] <= '9') {
+            while (pos < source.size && source[Int64(pos)] >= UInt8(48) && source[Int64(pos)] <= UInt8(57)) {
                 advance()
             }
         }
         let numStr = source[Int64(start)..Int64(pos)]
-        let num = Float64(numStr)
+        let num = try { Float64.parse(numStr) } catch (_: Exception) { Float64(0) }
         return JsonValue(JsonKind.Number, num)
     }
 
@@ -631,7 +656,7 @@ public class JSONParser <: BaseParser {
         }
         addError(ParseErrorKind.InvalidSyntax,
             "Expected '${expected}'")
-        return JsonValue.NULL
+        return JsonValue.nullValue()
     }
 
     /// 解析标识符 (JSON5 无引号键)
@@ -650,12 +675,12 @@ public class JSONParser <: BaseParser {
 
     /// 是否是标识符起始字符
     private func isIdentifierStart(ch: Char): Bool {
-        (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || ch == '_' || ch == '$'
+        (ch >= UInt8(97) && ch <= UInt8(122)) || (ch >= UInt8(65) && ch <= UInt8(90)) || ch == UInt8(95) || ch == UInt8(36)
     }
 
     /// 是否是标识符字符
     private func isIdentifierPart(ch: Char): Bool {
-        isIdentifierStart(ch) || (ch >= '0' && ch <= '9')
+        isIdentifierStart(ch) || (ch >= UInt8(48) && ch <= UInt8(57))
     }
 
     /// 解码十六进制转义
@@ -664,15 +689,15 @@ public class JSONParser <: BaseParser {
         for (i in Int64(0)..hex.size) {
             let ch = hex[i]
             code = code * Int32(16)
-            if (ch >= '0' && ch <= '9') {
-                code += Int32(ch.value) - Int32('0'.value)
-            } else if (ch >= 'a' && ch <= 'f') {
-                code += Int32(ch.value) - Int32('a'.value) + Int32(10)
-            } else if (ch >= 'A' && ch <= 'F') {
-                code += Int32(ch.value) - Int32('A'.value) + Int32(10)
+            if (ch >= UInt8(48) && ch <= UInt8(57)) {
+                code += Int32(ch) - Int32(48)
+            } else if (ch >= UInt8(97) && ch <= UInt8(102)) {
+                code += Int32(ch) - Int32(97) + Int32(10)
+            } else if (ch >= UInt8(65) && ch <= UInt8(70)) {
+                code += Int32(ch) - Int32(65) + Int32(10)
             }
         }
-        Char(code)
+        UInt8(code)
     }
 }
 
@@ -700,51 +725,44 @@ public class JSONStringify {
     private static func doStringify(value: JsonValue, sb: StringBuilder, indent: Int64): Unit {
         match (value.kind) {
             case JsonKind.Null => sb.append("null")
-            case JsonKind.Bool => sb.append(if (value.boolValue) { "true" } else { "false" })
-            case JsonKind.Number => {
+            case JsonKind.Boolean => sb.append(if (value.boolValue) { "true" } else { "false" })
+            case JsonKind.Number =>
                 let n = value.numberValue
-                if (n == Float64(Int64(n)) && !n.isNaN() && !n.isInfinite()) {
-                    sb.append(Int64(n).toString())
-                } else {
-                    sb.append(n.toString())
-                }
-            }
-            case JsonKind.String => {
-                sb.append('"')
+                sb.append(n.toString())
+            case JsonKind.String =>
+                sb.append(UInt8(34))
                 escapeString(value.stringValue, sb)
-                sb.append('"')
-            }
-            case JsonKind.Array => {
+                sb.append(UInt8(34))
+            case JsonKind.Array =>
                 if (value.arrayValue.size == Int64(0)) {
                     sb.append("[]")
                     return
                 }
-                sb.append('[')
+                sb.append(UInt8(91))
                 let newIndent = if (indent >= Int64(0)) { indent + Int64(1) } else { Int64(-1) }
                 var first = true
                 for (item in value.arrayValue) {
                     if (!first) {
-                        sb.append(',')
+                        sb.append(UInt8(44))
                     }
                     first = false
                     if (newIndent >= Int64(0)) {
-                        sb.append('\n')
+                        sb.append(UInt8(10))
                         writeIndent(sb, newIndent)
                     }
                     doStringify(item, sb, newIndent)
                 }
                 if (newIndent >= Int64(0)) {
-                    sb.append('\n')
+                    sb.append(UInt8(10))
                     writeIndent(sb, indent)
                 }
-                sb.append(']')
-            }
-            case JsonKind.Object => {
+                sb.append(UInt8(93))
+            case JsonKind.Object =>
                 if (value.objectValue.size == Int64(0)) {
                     sb.append("{}")
                     return
                 }
-                sb.append('{')
+                sb.append(UInt8(123))
                 let newIndent = if (indent >= Int64(0)) { indent + Int64(1) } else { Int64(-1) }
                 var first = true
                 let keys = value.objectValue.keys()
@@ -752,17 +770,17 @@ public class JSONStringify {
                     match (value.objectValue.get(key)) {
                         case Some(v) =>
                             if (!first) {
-                                sb.append(',')
+                                sb.append(UInt8(44))
                             }
                             first = false
                             if (newIndent >= Int64(0)) {
-                                sb.append('\n')
+                                sb.append(UInt8(10))
                                 writeIndent(sb, newIndent)
                             }
-                            sb.append('"')
+                            sb.append(UInt8(34))
                             escapeString(key, sb)
-                            sb.append('"')
-                            sb.append(':')
+                            sb.append(UInt8(34))
+                            sb.append(UInt8(58))
                             if (newIndent >= Int64(0)) {
                                 sb.append(' ')
                             }
@@ -771,11 +789,10 @@ public class JSONStringify {
                     }
                 }
                 if (newIndent >= Int64(0)) {
-                    sb.append('\n')
+                    sb.append(UInt8(10))
                     writeIndent(sb, indent)
                 }
-                sb.append('}')
-            }
+                sb.append(UInt8(125))
         }
     }
 
@@ -784,17 +801,17 @@ public class JSONStringify {
     private static func escapeString(s: String, sb: StringBuilder): Unit {
         for (ch in s) {
             match (ch) {
-                case '"' => sb.append("\\\"")
-                case '\\' => sb.append("\\\\")
-                case '\b' => sb.append("\\b")
-                case '\f' => sb.append("\\f")
-                case '\n' => sb.append("\\n")
-                case '\r' => sb.append("\\r")
-                case '\t' => sb.append("\\t")
+                case 34 => sb.append("\\\"")
+                case 92 => sb.append("\\\\")
+                case 8 => sb.append("\\b")
+                case 12 => sb.append("\\f")
+                case 10 => sb.append("\\n")
+                case 13 => sb.append("\\r")
+                case 9 => sb.append("\\t")
                 case _ =>
-                    if (ch.value < Int32(0x20)) {
+                    if (ch < UInt8(0x20)) {
                         sb.append("\\u")
-                        sb.append(hex4(UInt16(ch.value)))
+                        sb.append(hex4(UInt16(ch)))
                     } else {
                         sb.append(ch)
                     }
@@ -805,10 +822,10 @@ public class JSONStringify {
     private static func hex4(value: UInt16): String {
         let hex = "0123456789abcdef"
         var result = ""
-        result += hex[Int32((value >> UInt16(12)) & UInt16(0xF))]
-        result += hex[Int32((value >> UInt16(8)) & UInt16(0xF))]
-        result += hex[Int32((value >> UInt16(4)) & UInt16(0xF))]
-        result += hex[Int32(value & UInt16(0xF))]
+        result += "${hex[Int64((value >> UInt16(12)) & UInt16(0xF))]}"
+        result += "${hex[Int64((value >> UInt16(8)) & UInt16(0xF))]}"
+        result += "${hex[Int64((value >> UInt16(4)) & UInt16(0xF))]}"
+        result += "${hex[Int64(value & UInt16(0xF))]}"
         return result
     }
 

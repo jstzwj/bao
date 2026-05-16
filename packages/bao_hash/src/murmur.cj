@@ -4,6 +4,8 @@
 //   Bun 在 resolver 等模块中使用
 package bao_hash
 
+import std.collection.*
+
 // ============================================================================
 // MurmurHash3 - x86_64 变体
 // 严格翻译自: src/hash/murmur.zig
@@ -59,9 +61,9 @@ public class MurmurHash3 {
     }
 
     public static func hash32(s: String): UInt32 {
-        var bytes = Array<UInt8>()
-        for (c in s) { bytes.append(UInt8(c.value)) }
-        return hash32(bytes)
+        var bytes = ArrayList<UInt8>()
+        for (c in s) { bytes.add(UInt8(UInt32(c))) }
+        return hash32(bytes.toArray())
     }
 
     private static func rotl32(x: UInt32, r: Int64): UInt32 {

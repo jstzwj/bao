@@ -50,27 +50,43 @@ public class CryptoClasses {
     ///   randomUUID: fn "randomUUID", length: 1
     ///   timingSafeEqual: fn "timingSafeEqual", length: 2
     /// klass: {}
-    public static func createCryptoClass(globalObject: JsObject): JsValue {
+    public static func createCryptoClass(globalThis: JsObject): JsValue {
         let obj = JsObject()
         // getRandomValues
         obj.set("getRandomValues", JsValue.nativeFunction(
-            JsNativeFunction("getRandomValues", { global, args ->
-                // TODO: 实现 getRandomValues
-                return args[0]
+            JsNativeFunction("getRandomValues", { global, args  =>
+                if (args.size == 0) { return JsValue.UNDEFINED }
+                let value = args[0]
+                match (value.arrayData) {
+                    case Some(list) =>
+                        var bytes = Array<Byte>(list.size, repeat: 0)
+                        CryptoRandom.bytes(bytes)
+                        for (i in 0..list.size) { list[i] = JsValue(Float64(Int64(bytes[i]))) }
+                    case None => ()
+                }
+                return value
             })
         ))
         // randomUUID
         obj.set("randomUUID", JsValue.nativeFunction(
-            JsNativeFunction("randomUUID", { global, _ ->
-                // TODO: 实现 randomUUID
-                return JsValue(BaoString("00000000-0000-0000-0000-000000000000"))
+            JsNativeFunction("randomUUID", { global, _  =>
+                var bytes = Array<Byte>(16, repeat: 0)
+                CryptoRandom.bytes(bytes)
+                bytes[6] = (bytes[6] & 0x0f) | 0x40
+                bytes[8] = (bytes[8] & 0x3f) | 0x80
+                return JsValue(BaoString(formatUuid(bytes)))
             })
         ))
         // timingSafeEqual
         obj.set("timingSafeEqual", JsValue.nativeFunction(
-            JsNativeFunction("timingSafeEqual", { global, args ->
-                // TODO: 实现 timingSafeEqual
-                return JsValue(false)
+            JsNativeFunction("timingSafeEqual", { global, args  =>
+                if (args.size < 2) { return JsValue(false) }
+                let a = jsValueToBytes(args[0])
+                let b = jsValueToBytes(args[1])
+                if (a.size != b.size) { return JsValue(false) }
+                var diff: Int64 = 0
+                for (i in 0..a.size) { diff = diff | Int64(a[i] ^ b[i]) }
+                return JsValue(diff == 0)
             })
         ))
         return JsValue(obj)
@@ -87,14 +103,16 @@ public class CryptoClasses {
     ///     digest: fn "digest", length: 0
     ///     update: fn "update", length: 1
     ///     byteLength: getter "getByteLength"
-    public static func createHasherClass(globalObject: JsObject, name: String): JsValue {
+    public static func createHasherClass(globalThis: JsObject, name: String): JsValue {
         let obj = JsObject()
 
         // 静态方法: hash(input, output)
         obj.set("hash", JsValue.nativeFunction(
-            JsNativeFunction("hash", { global, args ->
-                // TODO: 分派到具体哈希器的静态 hash 方法
-                return JsValue.UNDEFINED
+            JsNativeFunction("hash", { global, args  =>
+                if (args.size == 0) { return JsValue.UNDEFINED }
+                let input = jsValueToBytes(args[0])
+                let output = if (args.size > 1 && args[1].valueType == JsValueType.String) { Some(args[1].stringValue.toString()) } else { None }
+                return CryptoHasher.hashStatic(global, name, input, output)
             })
         ))
 
@@ -116,14 +134,17 @@ public class CryptoClasses {
     ///   update: fn "update", length: 2
     ///   copy: fn "copy", length: 0
     ///   byteLength: getter "getByteLength"
-    public static func createCryptoHasherClass(globalObject: JsObject): JsValue {
+    public static func createCryptoHasherClass(globalThis: JsObject): JsValue {
         let obj = JsObject()
 
         // 静态方法: hash(algorithm, input, output)
         obj.set("hash", JsValue.nativeFunction(
-            JsNativeFunction("hash", { global, args ->
-                // TODO: 调用 CryptoHasher.hash_
-                return JsValue.UNDEFINED
+            JsNativeFunction("hash", { global, args  =>
+                if (args.size < 2) { return JsValue.UNDEFINED }
+                let algorithm = args[0].stringValue.toString()
+                let input = jsValueToBytes(args[1])
+                let output = if (args.size > 2 && args[2].valueType == JsValueType.String) { Some(args[2].stringValue.toString()) } else { None }
+                return CryptoHasher.hashStatic(global, algorithm, input, output)
             })
         ))
 
@@ -134,7 +155,7 @@ public class CryptoClasses {
     }
 
     /// 注册所有加密类到全局对象
-    public static func register(globalObject: JsObject): Unit {
+    public static func register(globalThis: JsObject): Unit {
         // Crypto 类
         globalObject.set("Crypto", createCryptoClass(globalObject))
 
@@ -146,4 +167,28 @@ public class CryptoClasses {
         // CryptoHasher 类
         globalObject.set("CryptoHasher", createCryptoHasherClass(globalObject))
     }
+}
+
+
+private func jsValueToBytes(value: JsValue): Array<Byte> {
+    match (value.valueType) {
+        case JsValueType.String => return value.stringValue.toString().toArray()
+        case JsValueType.Array =>
+            let list = value.arrayData.getOrThrow()
+            var out = Array<Byte>(list.size, { _ => Byte(0) })
+            for (i in 0..list.size) { out[i] = Byte(Int64(list[i].toNumber()) & 0xff) }
+            return out
+        case _ => return Array<Byte>()
+    }
+}
+
+private func formatUuid(bytes: Array<Byte>): String {
+    let hex = "0123456789abcdef"
+    var sb = StringBuilder()
+    for (i in 0..16) {
+        if (i == 4 || i == 6 || i == 8 || i == 10) { sb.append("-") }
+        sb.append(hex[(bytes[i].toInt64() >> 4) & 0x0f])
+        sb.append(hex[bytes[i].toInt64() & 0x0f])
+    }
+    return sb.toString()
 }

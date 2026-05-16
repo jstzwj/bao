@@ -5,6 +5,7 @@
 package bao_runtime.shell.states
 
 import bao_core.*
+import bao_runtime.shell.*
 
 // ============================================================================
 // 赋值展开状态
@@ -14,7 +15,7 @@ import bao_core.*
 /// 赋值状态类型（提取到顶层）
 public enum AssignsStateKind {
 | `idle`
-| expanding(idx: UInt32, expansion: ExpansionState)
+| expanding(UInt32, ExpansionState)
 | err(ShellErr)
 | done
 }
@@ -40,7 +41,7 @@ public class AssignsChildPtr {
         cp.ptr = p
         return cp
     }
-    public func is(type: Any): Boolean { true }
+    public func `is`(`type`: Any): Bool { true }
     public func `as`<T>(): T { this.ptr as T }
     public func deinit() {}
 }
@@ -58,7 +59,7 @@ public class AssignsState {
     /// 赋值上下文
     public var ctx: AssignCtx
     /// 是否拥有
-    public var owned: Boolean = true
+    public var owned: Bool = true
     /// IO
     public var io: IO
 
@@ -76,7 +77,7 @@ public class AssignsState {
         parent: AssignsParentPtr,
         io: IO
     ): AssignsState {
-        let this = AssignsState()
+        let self_ = AssignsState()
         this.base = Base.initWithNewAllocScope(StateKind.assign, interpreter, shellState)
         this.node = node
         this.parent = parent
@@ -89,18 +90,18 @@ public class AssignsState {
     /// 下一步
     public func next(): Yield {
         while (this.state != AssignsStateKind.done) {
-            switch (this.state) {
+            match (this.state) {
                 case AssignsStateKind.`idle` =>
-                    this.state = AssignsStateKind.expanding(idx: 0, expansion: ExpansionState())
+                    this.state = AssignsStateKind.expanding(0, ExpansionState())
                     continue
-                case AssignsStateKind.expanding(let idx, let expansion) =>
+                case AssignsStateKind.expanding(idx, expansion) =>
                     if (idx >= this.node.size) {
                         this.state = AssignsStateKind.done
                         continue
                     }
                     return expansion.start()
                 case AssignsStateKind.done =>
-                    // 不可达
+                    ()
                 case AssignsStateKind.err =>
                     return this.parent.childDone(this, 1)
             }

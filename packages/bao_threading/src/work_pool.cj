@@ -23,7 +23,7 @@ import bao_core.*
 /// 全局工作线程池
 /// 严格翻译自 work_pool.zig:3-55 WorkPool
 ///   使用懒初始化模式, 首次访问时创建线程池
-public type WorkPoolBatch = ThreadPoolBatch
+public type WorkPoolBatch = TaskBatch
 
 public type WorkPoolTask = ThreadPoolTask
 
@@ -46,22 +46,25 @@ public class WorkPool {
         if (!initialized) {
             initLock.lock()
             if (!initialized) {
-                pool = ThreadPool.create(
-                    maxThreads = getThreadCount(),
-                    stackSize = ThreadPool.DEFAULT_THREAD_STACK_SIZE
-                )
+                pool = ThreadPool(ThreadPoolConfig(getThreadCount()))
                 initialized = true
             }
             initLock.unlock()
         }
-        return pool.getOrThrow()
+        match (pool) {
+            case Some(p) => return p
+            case None =>
+                let newPool = ThreadPool(ThreadPoolConfig(getThreadCount()))
+                pool = newPool
+                return newPool
+        }
     }
 
     /// 调度任务批次
     /// 严格翻译自: pub fn scheduleBatch(batch: ThreadPool.Batch) void
     ///   get().schedule(batch)
-    public static func scheduleBatch(batch: ThreadPoolBatch): Unit {
-        get().scheduleBatch(batch)
+    public static func scheduleBatch(batch: TaskBatch): Unit {
+        get().schedule(batch)
     }
 
     /// 调度单个任务
@@ -75,10 +78,7 @@ public class WorkPool {
     /// 严格翻译自: pub fn go(allocator, comptime Context, context, comptime function) !void
     ///   创建包装任务, 调度到线程池, 回调中执行函数并释放
     public static func go(context: WorkPoolContext, function: (WorkPoolContext) -> Unit): Unit {
-        let task = WorkPoolTask()
-        task.context = context
-        task.callback = function
-        schedule(task)
+        schedule(WorkPoolClosureTask(context, function))
     }
 
     /// 获取线程数
@@ -88,58 +88,21 @@ public class WorkPool {
     }
 }
 
-// ============================================================================
-// 辅助类型
-// ============================================================================
-
-/// 线程池接口
-/// 翻译自: bun.ThreadPool
-public class ThreadPool {
-    /// 默认线程栈大小
-    /// 翻译自: ThreadPool.default_thread_stack_size
-    public static let DEFAULT_THREAD_STACK_SIZE: Int64 = 8 * 1024 * 1024 // 8MB
-
-    public var maxThreads: Int64
-
-    public init(maxThreads: Int64) {
-        this.maxThreads = maxThreads
-    }
-
-    public static func create(maxThreads: Int64, stackSize: Int64): ThreadPool {
-        return ThreadPool(maxThreads)
-    }
-
-    public func scheduleBatch(batch: ThreadPoolBatch): Unit {}
-
-    public func schedule(task: ThreadPoolTask): Unit {}
-}
-
-/// 线程池任务批次
-/// 翻译自: ThreadPool.Batch
-public class ThreadPoolBatch {
-    public var tasks: Array<ThreadPoolTask> = []
-
-    public static func from(task: ThreadPoolTask): ThreadPoolBatch {
-        let batch = ThreadPoolBatch()
-        batch.tasks = [task]
-        return batch
-    }
-}
-
-/// 线程池任务
-/// 翻译自: ThreadPool.Task
-public class ThreadPoolTask {
-    public var context: WorkPoolContext = WorkPoolContext()
-    public var callback: (WorkPoolContext) -> Unit = { _ => }
-}
-
 /// 工作池上下文
 public class WorkPoolContext {
     public init() {}
 }
 
-/// 互斥锁 (引用 bao_threading)
-private class Mutex {
-    public func lock(): Unit {}
-    public func unlock(): Unit {}
+private class WorkPoolClosureTask <: ThreadPoolTask {
+    private let context: WorkPoolContext
+    private let callback: (WorkPoolContext) -> Unit
+
+    public init(context: WorkPoolContext, callback: (WorkPoolContext) -> Unit) {
+        this.context = context
+        this.callback = callback
+    }
+
+    public func execute(): Unit {
+        callback(context)
+    }
 }

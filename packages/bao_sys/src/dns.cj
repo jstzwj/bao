@@ -94,7 +94,7 @@ public class DnsResolver {
             if (rc != 0) {
                 free(resPtr)
                 return SysMaybe<Array<SocketAddr>>.Err(
-                    SysError(UInt16(Int64(rc)), SysTag.TODO))
+                    SysError(UInt16(Int64(rc)), SysTag.Getaddrinfo))
             }
 
             // 遍历结果链表

@@ -29,12 +29,30 @@ public enum TomlKind {
     | String      // 基本字符串、多行字符串、字面量字符串
     | Integer     // 十进制、十六进制、八进制、二进制
     | Float       // 浮点数 (含 inf, nan)
-    | Bool        // true / false
+    | Boolean     // true / false
     | Datetime    // RFC 3339 日期时间
     | Date        // 本地日期
     | Time        // 本地时间
     | Array       // TOML 数组
     | Table       // TOML 表 (内联或标准)
+
+    public operator func ==(right: TomlKind): Bool {
+        match (this) {
+            case String => match (right) { case String => true; case _ => false }
+            case Integer => match (right) { case Integer => true; case _ => false }
+            case Float => match (right) { case Float => true; case _ => false }
+            case Boolean => match (right) { case Boolean => true; case _ => false }
+            case Datetime => match (right) { case Datetime => true; case _ => false }
+            case Date => match (right) { case Date => true; case _ => false }
+            case Time => match (right) { case Time => true; case _ => false }
+            case Array => match (right) { case Array => true; case _ => false }
+            case Table => match (right) { case Table => true; case _ => false }
+        }
+    }
+
+    public operator func !=(right: TomlKind): Bool {
+        return !(this == right)
+    }
 }
 
 /// TOML 日期时间 - 对应 RFC 3339
@@ -76,11 +94,11 @@ public class TomlDatetime {
     /// 格式化为 ISO 8601 字符串
     public func toISO(): String {
         if (isTimeOnly) {
-            return "${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}:${second.toString().padStart(2, '0')}"
+            return "${hour.toString().padStart(2, padding: "0")}:${minute.toString().padStart(2, padding: "0")}:${second.toString().padStart(2, padding: "0")}"
         }
-        var s = "${year.toString().padStart(4, '0')}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}"
+        var s = "${year.toString().padStart(4, padding: "0")}-${month.toString().padStart(2, padding: "0")}-${day.toString().padStart(2, padding: "0")}"
         if (!isDateOnly) {
-            s += "T${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}:${second.toString().padStart(2, '0')}"
+            s += "T${hour.toString().padStart(2, padding: "0")}:${minute.toString().padStart(2, padding: "0")}:${second.toString().padStart(2, padding: "0")}"
             match (tzOffset) {
                 case Some(offset) =>
                     if (offset == Int64(0)) {
@@ -90,7 +108,7 @@ public class TomlDatetime {
                         let absOffset = if (offset >= Int64(0)) { offset } else { -offset }
                         let h = absOffset / Int64(60)
                         let m = absOffset % Int64(60)
-                        s += "${sign}${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}"
+                        s += "${sign}${h.toString().padStart(2, padding: "0")}:${m.toString().padStart(2, padding: "0")}"
                     }
                 case None => ()
             }
@@ -161,7 +179,7 @@ public class TomlValue {
 
     /// 创建布尔值
     public static func bool(value: Bool): TomlValue {
-        let v = TomlValue(TomlKind.Bool)
+        let v = TomlValue(TomlKind.Boolean)
         v.boolValue = value
         return v
     }
@@ -210,7 +228,7 @@ public class TomlValue {
 
     /// 获取布尔
     public func asBool(): ?Bool {
-        if (kind == TomlKind.Bool) { Some(boolValue) } else { None }
+        if (kind == TomlKind.Boolean) { Some(boolValue) } else { None }
     }
 
     /// 大小 (数组/表)
@@ -300,11 +318,11 @@ public class TomlParser <: BaseParser {
     private func skipWhitespaceAndComments(): Unit {
         while (pos < source.size) {
             let ch = source[Int64(pos)]
-            if (ch == ' ' || ch == '\t' || ch == '\r') {
+            if (ch == UInt8(32) || ch == UInt8(9) || ch == UInt8(13)) {
                 advance()
-            } else if (ch == '#') {
+            } else if (ch == UInt8(35)) {
                 // 跳过行注释
-                while (pos < source.size && source[Int64(pos)] != '\n') {
+                while (pos < source.size && source[Int64(pos)] != UInt8(10)) {
                     advance()
                 }
             } else {
@@ -317,7 +335,7 @@ public class TomlParser <: BaseParser {
     /// [table] 或 [[array-of-tables]]
     private func parseTableHeader(): Bool {
         advance() // consume first '['
-        let isArray = pos < source.size && source[Int64(pos)] == '['
+        let isArray = pos < source.size && source[Int64(pos)] == UInt8(91)
         if (isArray) {
             advance() // consume second '['
         }
@@ -331,12 +349,12 @@ public class TomlParser <: BaseParser {
         skipWhitespace()
         // 期望 ] 或 ]]
         if (isArray) {
-            if (!expect(']') || !expect(']')) {
+            if (!expect(UInt8(93)) || !expect(UInt8(93))) {
                 addError(ParseErrorKind.ExpectedClosingBracket, "Expected ']]'")
                 return false
             }
         } else {
-            if (!expect(']')) {
+            if (!expect(UInt8(93))) {
                 addError(ParseErrorKind.ExpectedClosingBracket, "Expected ']'")
                 return false
             }
@@ -364,7 +382,7 @@ public class TomlParser <: BaseParser {
         }
         skipWhitespace()
         // 期望 =
-        if (!expect('=')) {
+        if (!expect(UInt8(61))) {
             addError(ParseErrorKind.ExpectedColon, "Expected '=' after key")
             return false
         }
@@ -772,7 +790,7 @@ public class TomlParser <: BaseParser {
                 return tbl
             }
             skipWhitespace()
-            if (!expect('=')) {
+            if (!expect(UInt8(61))) {
                 addError(ParseErrorKind.ExpectedColon, "Expected '=' in inline table")
                 return tbl
             }
@@ -1016,15 +1034,14 @@ public class TOMLStringify {
 
     private static func stringifyValue(value: TomlValue, sb: StringBuilder): Unit {
         match (value.kind) {
-            case TomlKind.String => {
+            case TomlKind.String =>
                 sb.append('"')
                 escapeTOMLString(value.stringValue, sb)
                 sb.append('"')
-            }
             case TomlKind.Integer => sb.append(value.intValue.toString())
             case TomlKind.Float => sb.append(value.floatValue.toString())
-            case TomlKind.Bool => sb.append(if (value.boolValue) { "true" } else { "false" })
-            case TomlKind.Array => {
+            case TomlKind.Boolean => sb.append(if (value.boolValue) { "true" } else { "false" })
+            case TomlKind.Array =>
                 sb.append('[')
                 var first = true
                 for (item in value.arrayValue) {
@@ -1033,7 +1050,6 @@ public class TOMLStringify {
                     stringifyValue(item, sb)
                 }
                 sb.append(']')
-            }
             case _ => sb.append("\"unknown\"")
         }
     }

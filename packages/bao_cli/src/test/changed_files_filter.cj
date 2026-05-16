@@ -2,6 +2,9 @@
 package bao_cli.test
 
 import bao_core.*
+import bao_runtime.*
+import bao_collections.*
+import std.collection.*
 
 // ============================================================================
 // ChangedFilesFilter — 基于变更文件的测试过滤器
@@ -300,7 +303,6 @@ public class ChangedFilesFilter {
                     match (result.stdout) { case Some(s) => s case None => "" },
                     match (result.stderr) { case Some(s) => s case None => "" }
                 )
-            }
             case None =>
                 return GitResult(false, true, "", "")
         }

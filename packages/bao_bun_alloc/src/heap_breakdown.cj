@@ -88,10 +88,10 @@ public class Zone {
     /// 获取或创建分区 (延迟初始化)
     /// 对应 Zig: comptime 中使用 std.once 实现的延迟初始化
     public static func getOrCreate(name: String): Zone {
-        if (let existing = zoneCache.get(name)) {
+        if (let Some(existing) <- zoneCache.get(name)) {
             return existing
         }
-        let zone = init(name)
+        let zone = Zone(name)
         zoneCache.put(name, zone)
         return zone
     }

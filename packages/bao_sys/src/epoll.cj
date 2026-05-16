@@ -130,7 +130,7 @@ public class Epoll {
         let fd = epoll_create1(EpollCreateFlags.EPOLL_CLOEXEC)
         if (fd < 0) {
             return SysMaybe<Epoll>.Err(
-                SysError(UInt16(Int64(OS.errno())), SysTag.TODO))
+                SysError(UInt16(Int64(OS.errno())), SysTag.EpollCtl))
         }
         return SysMaybe<Epoll>.Ok(Epoll(Int64(fd)))
     }

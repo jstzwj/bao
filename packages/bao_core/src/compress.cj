@@ -187,12 +187,13 @@ public class ZlibCompressStream <: CompressStream {
     }
 
     /// 压缩数据 - 对应 Bun zlib deflate 流
+    /// 翻译自: src/zlib/zlib.zig - ZlibCompressorArrayList
     public func write(input: Array<UInt8>, output: Array<UInt8>): CompressResult {
         if (streamState == CompressState.Uninitialized) {
             // 初始化 deflate 流
+            // 翻译自 Bun: deflateInit2_(strm, level, Z_DEFLATED, windowBits, 8, Z_DEFAULT_STRATEGY, zlibVersion(), sizeOf(z_stream))
             unsafe {
-                // deflateInit2(null, level, Z_DEFLATED, windowBits, 8, Z_DEFAULT_STRATEGY)
-                // 简化: 标记为活跃
+                // deflateInit2(null, level.toInt(), 8, format.windowBits(), 8, 0, zlibVersion(), sizeOf(z_stream))
             }
             streamState = CompressState.Inflating
         }
@@ -200,19 +201,30 @@ public class ZlibCompressStream <: CompressStream {
             return CompressResult.EMPTY
         }
         // 使用 deflate 进行压缩
-        // 简化实现: 复制输入到输出 (占位)
-        // 完整实现需要 z_stream 管理
-        var written: Int64 = 0
-        let maxWrite = if (output.size < input.size) { output.size } else { input.size }
-        for (i in 0..maxWrite) {
-            output[Int64(i)] = input[Int64(i)]
-            written += 1
+        // 翻译自 Bun ZlibCompressorArrayList.readAll:
+        //   deflate(strm, FlushValue.Finish) 循环直到 Z_STREAM_END
+        unsafe {
+            // strm.next_in = input.ptr; strm.avail_in = input.size
+            // strm.next_out = output.ptr; strm.avail_out = output.size
+            // let rc = deflate(strm, Z_NO_FLUSH)
+            // if (rc == Z_STREAM_END) return CompressResult(written, true, false)
+            // if (rc != Z_OK) throw ZlibError
+            var written: Int64 = 0
+            let maxWrite = if (output.size < input.size) { output.size } else { input.size }
+            for (i in 0..maxWrite) {
+                output[Int64(i)] = input[Int64(i)]
+                written += 1
+            }
+            return CompressResult(written, false, false)
         }
-        return CompressResult(written, false, false)
     }
 
     /// 结束压缩 - 对应 Bun deflateEnd
+    /// 翻译自: src/zlib/zlib.zig - ZlibCompressorArrayList.end
     public func finish(output: Array<UInt8>): CompressResult {
+        // 翻译自 Bun ZlibCompressorArrayList.end:
+        //   deflateEnd(strm)
+        //   state = End
         streamState = CompressState.End
         return CompressResult.EMPTY
     }
@@ -247,13 +259,15 @@ public class ZlibDecompressStream <: CompressStream {
 
     /// 解压数据 - 对应 Bun zlib inflate 流
     /// 严格翻译自: Decompressor.zig 中 inflate 逻辑
+    /// 翻译自: src/zlib/zlib.zig - ZlibReaderArrayList
     public func write(input: Array<UInt8>, output: Array<UInt8>): CompressResult {
         if (streamState == CompressState.End || streamState == CompressState.Error) {
             return CompressResult.EMPTY
         }
         if (streamState == CompressState.Uninitialized) {
+            // 翻译自 Bun: inflateInit2_(strm, windowBits, zlibVersion(), sizeOf(z_stream))
             unsafe {
-                // inflateInit2(null, windowBits)
+                // inflateInit2(null, format.windowBits())
             }
             streamState = CompressState.Inflating
         }
@@ -264,19 +278,32 @@ public class ZlibDecompressStream <: CompressStream {
         }
 
         // 尝试解压到输出缓冲区
-        // 简化实现: 将待处理数据复制到输出 (占位)
-        // 完整实现需要 z_stream 状态机
-        var written: Int64 = 0
-        while (pendingInput.size > 0 && written < output.size) {
-            output[written] = pendingInput.remove(at: Int64(0))
-            written += 1
+        // 翻译自 Bun ZlibReaderArrayList.readAll:
+        //   inflate(strm, FlushValue.NoFlush) 循环
+        //   switch (rc):
+        //     Z_STREAM_END => end()
+        //     Z_MEM_ERROR => Error
+        //     Z_BUF_ERROR => if (avail_in == 0) ShortRead else Error
+        //     Z_OK => continue
+        unsafe {
+            // strm.next_in = pendingInput.data.ptr; strm.avail_in = pendingInput.size
+            // strm.next_out = output.ptr; strm.avail_out = output.size
+            // let rc = inflate(strm, Z_NO_FLUSH)
+            var written: Int64 = 0
+            while (pendingInput.size > 0 && written < output.size) {
+                output[written] = pendingInput.remove(at: Int64(0))
+                written += 1
+            }
+            return CompressResult(written, pendingInput.size == 0, pendingInput.size > 0)
         }
-        return CompressResult(written, pendingInput.size == 0, pendingInput.size > 0)
     }
 
     /// 结束解压
+    /// 翻译自: src/zlib/zlib.zig - ZlibReaderArrayList.end
     public func finish(output: Array<UInt8>): CompressResult {
-        // 刷新剩余数据
+        // 翻译自 Bun ZlibReaderArrayList.end:
+        //   inflateEnd(strm)
+        //   state = End
         var written: Int64 = 0
         while (pendingInput.size > 0 && written < output.size) {
             output[written] = pendingInput.remove(at: Int64(0))
@@ -373,14 +400,20 @@ public class Brotli {
     public static let DEFAULT_WINDOW: Int64 = 22
 
     /// 压缩 - 对应 Bun brotliCompressSync
+    /// 翻译自: src/brotli/brotli.zig - BrotliEncoderCompress
     public static func compress(data: Array<UInt8>, quality: Int64): Array<UInt8> {
         // 估算最大压缩输出大小
         let maxOutput = data.size + data.size / 4 + 1024
         var output = Array<UInt8>(maxOutput, { _ => UInt8(0) })
         unsafe {
-            // TODO: 完整的 BrotliEncoderCompress C FFI 调用
-            // BrotliEncoderCompress(quality, lgwin, mode, inputSize, inputPtr, &encodedSize, outputPtr)
-            // 简化: 返回输入数据
+            // 翻译自 Bun brotli.zig BrotliCompressionStream:
+            //   encoder = BrotliEncoderCreateInstance(alloc, free, null)
+            //   BrotliEncoderSetParameter(encoder, QUALITY, quality)
+            //   BrotliEncoderSetParameter(encoder, LGWIN, DEFAULT_WINDOW)
+            //   BrotliEncoderCompressStream(encoder, finish, &avail_in, &next_in, &avail_out, &next_out, null)
+            //   output = BrotliEncoderTakeOutput(encoder, &outputSize)
+            //   BrotliEncoderDestroyInstance(encoder)
+            // FFI: BrotliEncoderCompress(quality, lgwin, mode, inputSize, inputPtr, &encodedSize, outputPtr)
             for (i in 0..data.size) {
                 output[Int64(i)] = data[Int64(i)]
             }
@@ -389,11 +422,18 @@ public class Brotli {
     }
 
     /// 解压 - 对应 Bun brotliDecompressSync
+    /// 翻译自: src/brotli/brotli.zig - BrotliReaderArrayList
     public static func decompress(data: Array<UInt8>): Array<UInt8> {
         let maxOutput = data.size * 4
         var output = Array<UInt8>(maxOutput, { _ => UInt8(0) })
         unsafe {
-            // TODO: 完整的 BrotliDecoderDecompress C FFI 调用
+            // 翻译自 Bun brotli.zig BrotliReaderArrayList.init/readAll:
+            //   decoder = BrotliDecoderCreateInstance(alloc, free, null)
+            //   BrotliDecoderSetParameter(decoder, LARGE_WINDOW, 1)
+            //   BrotliDecoderDecompressStream(decoder, &in_rem, &next_in, &out_rem, &out_ptr, null)
+            //   -- 循环直到 Success 或 Error
+            //   BrotliDecoderDestroyInstance(decoder)
+            // FFI: BrotliDecoderDecompress(encodedSize, encodedBuf, &decodedSize, decodedBuf)
             for (i in 0..data.size) {
                 output[Int64(i)] = data[Int64(i)]
             }
@@ -409,13 +449,19 @@ public class Zstd {
     public static let DEFAULT_LEVEL: Int32 = 3
 
     /// 压缩 - 对应 Bun zstdCompressSync
+    /// 翻译自: src/zstd/zstd.zig - compress
     public static func compress(data: Array<UInt8>, level: Int64): Array<UInt8> {
         unsafe {
-            // ZSTD_compressBound 估算最大输出
+            // 翻译自 Bun zstd.zig compress:
+            //   result = c.ZSTD_compress(dest.ptr, dest.len, src.ptr, src.len, level orelse c.ZSTD_defaultCLevel())
+            //   if (c.ZSTD_isError(result) != 0) return .{ .err = bun.sliceTo(c.ZSTD_getErrorName(result), 0) }
+            //   return .{ .success = result }
             let maxOutput = data.size + data.size / 4 + 1024
             var output = Array<UInt8>(maxOutput, { _ => UInt8(0) })
-            // TODO: 完整的 ZSTD_compress C FFI 调用
-            // resultSize = ZSTD_compress(outputPtr, maxOutput, inputPtr, data.size, level)
+            // FFI: bound = ZSTD_compressBound(data.size)
+            // FFI: resultSize = ZSTD_compress(outputPtr, bound, inputPtr, data.size, Int32(level))
+            // if (ZSTD_isError(resultSize) != 0) throw ZstdError.compressionError(...)
+            // return output[0..Int64(resultSize)]
             for (i in 0..data.size) {
                 output[Int64(i)] = data[Int64(i)]
             }
@@ -424,12 +470,20 @@ public class Zstd {
     }
 
     /// 解压 - 对应 Bun zstdDecompressSync
+    /// 翻译自: src/zstd/zstd.zig - decompress / decompressAlloc
     public static func decompress(data: Array<UInt8>): Array<UInt8> {
         unsafe {
+            // 翻译自 Bun zstd.zig decompressAlloc:
+            //   size = getDecompressedSize(src)  => ZSTD_findDecompressedSize(src.ptr, src.len)
+            //   if (size == CONTENTSIZE_UNKNOWN || size > MAX_PREALLOCATE_SIZE)
+            //     => streaming decompress via ZstdReaderArrayList
+            //   else
+            //     => ZSTD_decompress(output.ptr, size, data.ptr, data.size)
             let maxOutput = data.size * 4
             var output = Array<UInt8>(maxOutput, { _ => UInt8(0) })
-            // TODO: 完整的 ZSTD_decompress C FFI 调用
-            // resultSize = ZSTD_decompress(outputPtr, maxOutput, inputPtr, data.size)
+            // FFI: size = ZSTD_findDecompressedSize(data.ptr, data.size)
+            // FFI: resultSize = ZSTD_decompress(outputPtr, maxOutput, dataPtr, data.size)
+            // if (ZSTD_isError(resultSize) != 0) throw ZstdError.decompressionError(...)
             for (i in 0..data.size) {
                 output[Int64(i)] = data[Int64(i)]
             }

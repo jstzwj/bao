@@ -1,0 +1,16 @@
+[package]
+cjc-version = "1.0.0"
+name = "bao_sha_hmac"
+organization = "bao"
+description = "Bao SHA/HMAC: BoringSSL-backed SHA hashers, EVP wrappers, HMAC generate"
+version = "0.1.0"
+compile-option = ""
+override-compile-option = ""
+link-option = ""
+output-type = "static"
+src-dir = "src"
+target-dir = ""
+
+[dependencies]
+bao_core = { path = "../bao_core" }
+bao_boringssl_sys = { path = "../bao_boringssl_sys" }

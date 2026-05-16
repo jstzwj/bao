@@ -38,13 +38,8 @@ public enum Cow<T> {
 
     /// 替换当前值
     /// 如果当前是拥有的，先释放旧值
-    public func replace(allocator: Allocator, newval: T): Unit {
-        match (this) {
-            case Owned(_) =>
-                this.deinit(allocator)
-            case _ => ()
-        }
-        this = Cow<T>.Owned(newval)
+    public static func replace(cow: Cow<T>, allocator: Allocator, newval: T): Cow<T> {
+        return Cow<T>.Owned(newval)
     }
 
     /// 获取底层值的引用
