@@ -60,13 +60,14 @@ private let STATE_UTF8D: Array<UInt8> = [
 /// 翻译自: fn decodeByte(state: *usize, cp: *u21, byte: u8) void
 private func decodeByte(state: Int64, cp: Int64, byte: UInt8): DecodeResult {
     let byteIdx = Int64(byte)
-    let class_ = if (byteIdx < UTF8D.size) { UTF8D[byteIdx] } else { 0 }
+    let class_ = if (byteIdx < UTF8D.size) { Int64(UTF8D[byteIdx]) } else { Int64(0) }
     let mask: UInt32 = 0xFF
 
-    let newCp = if (state != Int64(UTF8_ACCEPT))
+    let newCp = if (state != Int64(UTF8_ACCEPT)) {
         ((UInt32(byte) & 0x3F) | (UInt32(cp) << 6))
-    else
+    } else {
         ((mask >> UInt32(class_)) & UInt32(byte))
+    }
 
     let stateIdx = state + Int64(class_)
     let newState = if (stateIdx < STATE_UTF8D.size) { Int64(STATE_UTF8D[stateIdx]) } else { 12 }
@@ -110,7 +111,7 @@ public class Utf8Iterator {
 
     /// 底层字节
     /// 翻译自: bytes: []const u8
-    private var bytes: Array<UInt8> = []
+    public var bytes: Array<UInt8> = []
 
     public init(bytes: Array<UInt8>) {
         this.bytes = bytes

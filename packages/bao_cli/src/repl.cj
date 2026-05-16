@@ -114,7 +114,7 @@ public enum Key {
     | altRight
 
     // 可打印字符
-    | char_(c: UInt8)
+    | char_(UInt8)
 
     // 未知按键
     | unknown

@@ -693,6 +693,154 @@ public class HashInt {
     }
 }
 
+// ============================================================================
+// OneShotHasher - 一次性哈希器
+// 严格翻译自: src/wyhash/lib.rs OneShotHasher
+//   用于 std::collections::HashMap 的 Hasher 实现
+//   与 Wyhash 的流式 Hasher (48字节缓冲区) 不同，
+//   此哈希器直接通过 stateless 路径计算，无缓冲开销
+//   匹配 Zig 的 std.hash_map.getAutoHashFn 形状
+// ============================================================================
+
+/// 一次性哈希器
+/// 对应 Bun: OneShotHasher - 用于 HashMap 的快速哈希
+/// 不缓冲数据，每次 write 直接通过 Wyhash11 计算
+/// 哈希值在运行间确定性 (种子 0)，但与 Zig 的 Wyhash.hash(0, key)
+/// 不一定 bit-identical (因为 Rust 的 Hash for [T] 会添加长度前缀)
+public class OneShotHasher {
+    private var hashValue: UInt64
+
+    public init() {
+        this.hashValue = UInt64(0)
+    }
+
+    /// 写入字节数据
+    /// 对应 Bun: OneShotHasher::write - 每次调用重新种子
+    /// 多次 write 时，每次用前一次输出作为种子
+    public func write(bytes: Array<UInt8>): Unit {
+        hashValue = Wyhash11.hashWithSeed(bytes, hashValue)
+    }
+
+    /// 写入 UInt8
+    public func writeU8(n: UInt8): Unit {
+        writeU64(UInt64(n))
+    }
+
+    /// 写入 UInt16
+    public func writeU16(n: UInt16): Unit {
+        writeU64(UInt64(n))
+    }
+
+    /// 写入 UInt32
+    public func writeU32(n: UInt32): Unit {
+        writeU64(UInt64(n))
+    }
+
+    /// 写入 UInt64
+    /// 对应 Bun: OneShotHasher::write_u64 - 一个 128 位乘法扩散
+    public func writeU64(n: UInt64): Unit {
+        hashValue = wyMum(hashValue ^ n, WYHASH_PRIMES_4)
+    }
+
+    /// 写入长度前缀 (空操作)
+    /// 对应 Bun: OneShotHasher::write_length_prefix - no-op
+    /// 跳过长度前缀使 <[u8] as Hash> 简化为单次 write(bytes)
+    public func writeLengthPrefix(len: Int64): Unit {
+        // 故意空操作
+    }
+
+    /// 获取哈希值
+    public func finish(): UInt64 {
+        return hashValue
+    }
+}
+
+// ============================================================================
+// 便捷哈希函数
+// 严格翻译自: src/wyhash/lib.rs 底部的 public 函数
+//   hash(bytes) -> u64           // Bun.hash(bytes)
+//   hash32(bytes) -> u32         // 截断为 32 位
+//   hash_with_seed(seed, bytes)  // Bun.hashWithSeed(seed, bytes)
+//   hash_ascii_lowercase         // ASCII 小写化后哈希
+//   auto_hash                    // 通用哈希函数
+// ============================================================================
+
+/// bun.hash(bytes) - std.hash.Wyhash 种子为 0
+/// 对应 Bun: pub fn hash(bytes: &[u8]) -> u64
+public func wyhashHash(bytes: Array<UInt8>): UInt64 {
+    return Wyhash.hashWithSeed(bytes, UInt64(0))
+}
+
+/// bun.hash 截断为 UInt32
+/// 对应 Bun: pub fn hash32(bytes: &[u8]) -> u32
+public func wyhashHash32(bytes: Array<UInt8>): UInt32 {
+    return UInt32(wyhashHash(bytes) & UInt64(0xFFFFFFFF))
+}
+
+/// bun.hashWithSeed(seed, bytes) - std.hash.Wyhash 显式种子
+/// 对应 Bun: pub fn hash_with_seed(seed: u64, bytes: &[u8]) -> u64
+public func wyhashHashWithSeed(seed: UInt64, bytes: Array<UInt8>): UInt64 {
+    return Wyhash.hashWithSeed(bytes, seed)
+}
+
+/// std.hash.Wyhash 对 ASCII 小写化后的字节流哈希
+/// 严格翻译自: src/wyhash/lib.rs hash_ascii_lowercase
+///   流式处理，48字节栈缓冲区，无堆分配
+///   仅处理 ASCII (A-Z -> a-z)，非 ASCII 字节原样传递
+///   用于 http::hash_header_name, s3_signing, collections 等
+public func wyhashHashAsciiLowercase(seed: UInt64, bytes: Array<UInt8>): UInt64 {
+    let len = bytes.size
+    // 快速路径: 一次性哈希 (无需流式)
+    if (len <= 48) {
+        var lowered = Array<UInt8>(len, item: UInt8(0))
+        for (i in 0..len) {
+            let b = bytes[i]
+            if (b >= UInt8('A') && b <= UInt8('Z')) {
+                lowered[i] = b + UInt8(32)  // to lowercase
+            } else {
+                lowered[i] = b
+            }
+        }
+        return Wyhash.hashWithSeed(lowered, seed)
+    }
+    // 长输入: 流式 48 字节分块
+    let h = Wyhash(seed)
+    var off: Int64 = 0
+    while (off < len) {
+        let chunkLen = if (off + 48 <= len) { Int64(48) } else { len - off }
+        var chunk = Array<UInt8>(chunkLen, item: UInt8(0))
+        for (i in 0..chunkLen) {
+            let b = bytes[off + i]
+            if (b >= UInt8('A') && b <= UInt8('Z')) {
+                chunk[i] = b + UInt8(32)
+            } else {
+                chunk[i] = b
+            }
+        }
+        h.update(chunk)
+        off += chunkLen
+    }
+    return h.finalize()
+}
+
+/// 通用自动哈希函数
+/// 对应 Bun: pub fn auto_hash<K: Hash + ?Sized>(key: &K) -> u64
+/// 使用 OneShotHasher 计算任意值的哈希
+public func autoHash(data: Array<UInt8>): UInt64 {
+    let h = OneShotHasher()
+    h.write(data)
+    return h.finish()
+}
+
+/// 编译时常量哈希 (运行时模拟)
+/// 严格翻译自: src/wyhash/lib.rs hash_const
+///   在 Rust 中此函数为 const fn，用于编译时符号名生成
+///   仓颉无编译时求值，此处提供运行时等价实现
+///   与 Wyhash::hash 结果完全一致
+public func wyhashHashConst(seed: UInt64, input: Array<UInt8>): UInt64 {
+    return Wyhash.hashWithSeed(input, seed)
+}
+
 /// 字符串转字节数组
 private func stringToBytes(s: String): Array<UInt8> {
     var bytes = Array<UInt8>()

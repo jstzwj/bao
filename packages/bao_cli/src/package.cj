@@ -1,5 +1,9 @@
-// bao_cli - CLI 入口
-// 对应 Bun: src/runtime/cli/, src/cli/
+// 严格翻译自: src/cli/mod.rs
+// bao_cli — CLI 入口包
+//
+// 对应 Bun: src/cli/mod.rs (Rust) + src/cli/cli.zig (Zig)
+// 包含: 模块声明, 全局变量, CLI 入口函数,
+//        process-lifetime arena, 辅助工具函数
 package bao_cli
 
 import bao_core.*
@@ -15,11 +19,75 @@ import bao_sql.*
 import bao_path.*
 
 // ============================================================================
-// CLI 命令定义
+// 模块声明
+// 严格翻译自: src/cli/mod.rs 中的 #[path = "..."] pub mod ...
+// ============================================================================
+
+// ci_info 模块: CI 环境检测
+// 对应: src/cli/ci_info.zig
+
+// colon_list_type 模块: 冒号分隔列表类型
+// 对应: src/cli/colon_list_type.zig
+
+// shell_completions 模块: Shell 补全
+// 对应: src/cli/shell_completions.zig
+
+// which_npm_client 模块: NPM 客户端检测
+// 对应: src/cli/which_npm_client.zig
+
+// discord_command 模块: 打开 Discord
+// 对应: src/cli/discord_command.zig
+
+// list_of_yarn_commands 模块: yarn 命令列表
+// 对应: src/cli/list-of-yarn-commands.zig
+
+// open 模块: URL 打开 / 编辑器
+// 对应: src/cli/open.zig
+
+// init_command 模块: bao init
+// 对应: src/cli/init_command.zig (commands/init_cmd.cj)
+
+// install_completions_command 模块: 补全安装
+// 对应: src/cli/install_completions_command.zig
+
+// package_manager_command 模块: bao pm
+// 对应: src/cli/package_manager_command.zig
+
+// test_command 模块: bao test
+// 对应: src/cli/test_command.zig (commands/test_command.cj)
+
+// test 子模块:
+//   scanner: test/Scanner.zig
+//   changed_files_filter: test/ChangedFilesFilter.zig
+//   parallel_runner: test/ParallelRunner.zig
+//   parallel/aggregate, channel, coordinator, file_range, frame, runner, worker
+
+// arguments 模块: 参数解析
+// 对应: src/cli/Arguments.zig (args.cj)
+
+// bunfig 模块: bunfig.toml 配置
+// 对应: src/cli/bunfig.zig
+
+// run_command 模块: bao run
+// 对应: src/cli/run_command.zig (commands/run_command.cj)
+
+// per-subcommand 模块:
+//   build_command, bunx_command (x), create_command, exec_command,
+//   fuzzilli_command, install_command, repl_command, upgrade_command,
+//   add_command, audit_command, filter_arg, filter_run,
+//   link_command, outdated_command, pack_command, patch_command,
+//   patch_commit_command, pm_pkg_command, pm_trusted_command,
+//   pm_update_package_json, pm_version_command, pm_view_command,
+//   pm_why_command, publish_command, remove_command, scan_command,
+//   unlink_command, update_command, update_interactive_command, why_command,
+//   multi_run
+
+// ============================================================================
+// CLI 命令定义 (兼容旧代码)
 // 对应 Bun: src/runtime/cli/command.zig
 // ============================================================================
 
-/// CLI 命令类型
+/// CLI 命令类型 (简化版, 实际命令路由在 cli.cj 中)
 public enum Command {
     | Run(RunOptions)         // bun run
     | Build(BuildOptions)     // bun build

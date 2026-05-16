@@ -4,27 +4,20 @@ package bao_sql.mysql.protocol
 
 /// MySQL 预编译语句 PrepareOK 响应
 /// 对应 Bun: PreparedStatement.PrepareOK (struct)
-///
-/// 服务器在成功处理 COM_STMT_PREPARE 后发送此包
 public class PrepareOK {
     /// 状态 (固定为 0)
-    /// 对应 Bun: status u8
     public var status: UInt8
 
     /// 语句 ID
-    /// 对应 Bun: statement_id u32
     public var statementId: UInt32
 
     /// 列数
-    /// 对应 Bun: num_columns u16
     public var numColumns: UInt16
 
     /// 参数数
-    /// 对应 Bun: num_params u16
     public var numParams: UInt16
 
     /// 警告计数
-    /// 对应 Bun: warning_count u16
     public var warningCount: UInt16
 
     public init() {
@@ -36,11 +29,10 @@ public class PrepareOK {
     }
 
     /// 从读取器解码 PrepareOK 包
-    /// 对应 Bun: PrepareOK.decodeInternal
     public func decode(reader: MySQLPacketReader): Unit {
         status = reader.int8()
         if (status != 0) {
-            throw MySQLError.InvalidPrepareOKPacket
+            throw MySQLProtocolException("InvalidPrepareOKPacket")
         }
 
         statementId = reader.int32()
@@ -53,58 +45,49 @@ public class PrepareOK {
 
 /// MySQL 预编译语句执行请求
 /// 对应 Bun: PreparedStatement.Execute (struct)
-///
-/// 客户端发送此包执行之前准备好的语句
 public class PreparedStatementExecute {
-    /// 语句 ID (由 COM_STMT_PREPARE 返回)
-    /// 对应 Bun: statement_id u32
+    /// 语句 ID
     public var statementId: UInt32
 
-    /// 执行标志 (目前只支持 CURSOR_TYPE_READ_ONLY = 0x01)
-    /// 对应 Bun: flags u8
+    /// 执行标志
     public var flags: UInt8
 
-    /// 迭代次数 (通常为 1)
-    /// 对应 Bun: iteration_count u32
+    /// 迭代次数
     public var iterationCount: UInt32
 
     /// 参数值列表
-    /// 对应 Bun: params []Value
     public var params: Array<Array<UInt8>>
 
     /// 参数类型列表
-    /// 对应 Bun: param_types []const Param
     public var paramTypes: Array<MySQLParam>
 
-    /// 是否发送参数类型 (首次执行为 true，后续为 false)
-    /// 对应 Bun: new_params_bind_flag bool
+    /// 是否发送参数类型
     public var newParamsBindFlag: Bool
 
     public init() {
         statementId = 0
         flags = 0
         iterationCount = 1
-        params = Array<Array<UInt8>>()
-        paramTypes = Array<MySQLParam>()
+        params = []
+        paramTypes = []
         newParamsBindFlag = true
     }
 
     /// 释放资源
-    /// 对应 Bun: Execute.deinit
-    public func deinit(): Unit {
-        params = Array<Array<UInt8>>()
+    public func release(): Unit {
+        params = []
     }
 
     /// 写入 null 位图
-    /// 对应 Bun: Execute.writeNullBitmap
     private func writeNullBitmap(writer: MySQLPacketWriter): Unit {
-        // MySQL 最大参数数 = (u16_max / 8) + 1
         let bitmapBytes = (params.size + 7) / 8
-        let nullBitmap = Array<UInt8>(bitmapBytes) // 初始化为 0
+        let nullBitmap = Array<UInt8>(bitmapBytes, repeat: UInt8(0))
 
         for (i in 0..params.size) {
             if (params[i].size == 0) {
-                nullBitmap[i >> 3] = nullBitmap[i >> 3] | UInt8(1 << UInt8(i & 7))
+                let byteIdx = Int64(i >> 3)
+                let bitIdx = Int64(i & 7)
+                nullBitmap[byteIdx] = nullBitmap[byteIdx] | UInt8(1 << bitIdx)
             }
         }
 
@@ -112,9 +95,53 @@ public class PreparedStatementExecute {
     }
 
     /// 将执行请求写入到写入器
-    /// 对应 Bun: Execute.writeInternal
+    private func fieldTypeToByte(ft: FieldType): UInt8 {
+        match (ft) {
+            case FieldType.MYSQL_TYPE_DECIMAL(v) => v
+            case FieldType.MYSQL_TYPE_TINY(v) => v
+            case FieldType.MYSQL_TYPE_SHORT(v) => v
+            case FieldType.MYSQL_TYPE_LONG(v) => v
+            case FieldType.MYSQL_TYPE_FLOAT(v) => v
+            case FieldType.MYSQL_TYPE_DOUBLE(v) => v
+            case FieldType.MYSQL_TYPE_NULL(v) => v
+            case FieldType.MYSQL_TYPE_TIMESTAMP(v) => v
+            case FieldType.MYSQL_TYPE_LONGLONG(v) => v
+            case FieldType.MYSQL_TYPE_INT24(v) => v
+            case FieldType.MYSQL_TYPE_DATE(v) => v
+            case FieldType.MYSQL_TYPE_TIME(v) => v
+            case FieldType.MYSQL_TYPE_DATETIME(v) => v
+            case FieldType.MYSQL_TYPE_YEAR(v) => v
+            case FieldType.MYSQL_TYPE_NEWDATE(v) => v
+            case FieldType.MYSQL_TYPE_VARCHAR(v) => v
+            case FieldType.MYSQL_TYPE_BIT(v) => v
+            case FieldType.MYSQL_TYPE_TIMESTAMP2(v) => v
+            case FieldType.MYSQL_TYPE_DATETIME2(v) => v
+            case FieldType.MYSQL_TYPE_TIME2(v) => v
+            case FieldType.MYSQL_TYPE_JSON(v) => v
+            case FieldType.MYSQL_TYPE_NEWDECIMAL(v) => v
+            case FieldType.MYSQL_TYPE_ENUM(v) => v
+            case FieldType.MYSQL_TYPE_SET(v) => v
+            case FieldType.MYSQL_TYPE_TINY_BLOB(v) => v
+            case FieldType.MYSQL_TYPE_MEDIUM_BLOB(v) => v
+            case FieldType.MYSQL_TYPE_LONG_BLOB(v) => v
+            case FieldType.MYSQL_TYPE_BLOB(v) => v
+            case FieldType.MYSQL_TYPE_VAR_STRING(v) => v
+            case FieldType.MYSQL_TYPE_STRING(v) => v
+            case FieldType.MYSQL_TYPE_GEOMETRY(v) => v
+        }
+    }
+
+    private func isBinaryFieldType(ft: FieldType): Bool {
+        match (ft) {
+            case FieldType.MYSQL_TYPE_BLOB(_) | FieldType.MYSQL_TYPE_MEDIUM_BLOB(_) |
+                 FieldType.MYSQL_TYPE_LONG_BLOB(_) | FieldType.MYSQL_TYPE_TINY_BLOB(_) |
+                 FieldType.MYSQL_TYPE_GEOMETRY(_) => true
+            case _ => false
+        }
+    }
+
     public func write(writer: MySQLPacketWriter): Unit {
-        writer.int1(CommandType.COM_STMT_EXECUTE.value())
+        writer.int1(UInt8(0x17)) // COM_STMT_EXECUTE
         writer.int4(statementId)
         writer.int1(flags)
         writer.int4(iterationCount)
@@ -123,29 +150,37 @@ public class PreparedStatementExecute {
             writeNullBitmap(writer)
 
             // 写入新参数绑定标志
-            writer.int1(if (newParamsBindFlag) 1 else 0)
+            writer.int1(if (newParamsBindFlag) { UInt8(1) } else { UInt8(0) })
 
             if (newParamsBindFlag) {
                 // 写入参数类型
                 for (i in 0..paramTypes.size) {
-                    writer.int1(paramTypes[i].paramType.toUInt8())
-                    writer.int1(if (paramTypes[i].flags.UNSIGNED) 0x80 else 0)
+                    writer.int1(fieldTypeToByte(paramTypes[i].paramType))
+                    writer.int1(if (paramTypes[i].flags.UNSIGNED) { UInt8(0x80) } else { UInt8(0) })
                 }
             }
 
             // 写入参数值
             for (i in 0..params.size) {
-                if (params[i].size == 0 || paramTypes[i].paramType == FieldType.MYSQL_TYPE_NULL(0x06)) {
+                let isNullType = isFieldTypeNull(paramTypes[i].paramType)
+                if (params[i].size == 0 || isNullType) {
                     continue
                 }
 
                 let value = params[i]
-                if (paramTypes[i].paramType.isBinaryFormatSupported()) {
+                if (isBinaryFieldType(paramTypes[i].paramType)) {
                     writer.write(value)
                 } else {
                     writer.writeLengthEncodedString(value)
                 }
             }
+        }
+    }
+
+    private func isFieldTypeNull(ft: FieldType): Bool {
+        match (ft) {
+            case FieldType.MYSQL_TYPE_NULL(_) => true
+            case _ => false
         }
     }
 }

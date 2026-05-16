@@ -155,7 +155,7 @@ public typealias Border = GenericBorder
 
 // ============================================================================
 // BorderColor (Rect shorthand: top/right/bottom/left)
-// 严格翻译自 BorderColor (define_rect_shorthand!)
+// 严格翻译自 BorderColor (define_rect_shorthand.getOrThrow())
 // ============================================================================
 
 /// border-color 简写属性值
@@ -180,7 +180,7 @@ public class BorderColor {
 
 // ============================================================================
 // BorderStyle (Rect shorthand: top/right/bottom/left)
-// 严格翻译自 BorderStyle (define_rect_shorthand!)
+// 严格翻译自 BorderStyle (define_rect_shorthand.getOrThrow())
 // ============================================================================
 
 /// border-style 简写属性值
@@ -205,7 +205,7 @@ public class BorderStyle {
 
 // ============================================================================
 // BorderWidth (Rect shorthand: top/right/bottom/left)
-// 严格翻译自 BorderWidth (define_rect_shorthand!)
+// 严格翻译自 BorderWidth (define_rect_shorthand.getOrThrow())
 // ============================================================================
 
 /// border-width 简写属性值
@@ -230,7 +230,7 @@ public class BorderWidth {
 
 // ============================================================================
 // BorderBlockColor (Size shorthand: start/end)
-// 严格翻译自 BorderBlockColor (define_size_shorthand!)
+// 严格翻译自 BorderBlockColor (define_size_shorthand.getOrThrow())
 // ============================================================================
 
 /// border-block-color 简写属性值
@@ -251,7 +251,7 @@ public class BorderBlockColor {
 
 // ============================================================================
 // BorderBlockStyle (Size shorthand: start/end)
-// 严格翻译自 BorderBlockStyle (define_size_shorthand!)
+// 严格翻译自 BorderBlockStyle (define_size_shorthand.getOrThrow())
 // ============================================================================
 
 /// border-block-style 简写属性值
@@ -272,7 +272,7 @@ public class BorderBlockStyle {
 
 // ============================================================================
 // BorderBlockWidth (Size shorthand: start/end)
-// 严格翻译自 BorderBlockWidth (define_size_shorthand!)
+// 严格翻译自 BorderBlockWidth (define_size_shorthand.getOrThrow())
 // ============================================================================
 
 /// border-block-width 简写属性值
@@ -293,7 +293,7 @@ public class BorderBlockWidth {
 
 // ============================================================================
 // BorderInlineColor (Size shorthand: start/end)
-// 严格翻译自 BorderInlineColor (define_size_shorthand!)
+// 严格翻译自 BorderInlineColor (define_size_shorthand.getOrThrow())
 // ============================================================================
 
 /// border-inline-color 简写属性值
@@ -314,7 +314,7 @@ public class BorderInlineColor {
 
 // ============================================================================
 // BorderInlineStyle (Size shorthand: start/end)
-// 严格翻译自 BorderInlineStyle (define_size_shorthand!)
+// 严格翻译自 BorderInlineStyle (define_size_shorthand.getOrThrow())
 // ============================================================================
 
 /// border-inline-style 简写属性值
@@ -335,7 +335,7 @@ public class BorderInlineStyle {
 
 // ============================================================================
 // BorderInlineWidth (Size shorthand: start/end)
-// 严格翻译自 BorderInlineWidth (define_size_shorthand!)
+// 严格翻译自 BorderInlineWidth (define_size_shorthand.getOrThrow())
 // ============================================================================
 
 /// border-inline-width 简写属性值

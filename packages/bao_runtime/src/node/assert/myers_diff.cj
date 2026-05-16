@@ -3,6 +3,8 @@
 // 严格翻译自: src/runtime/node/assert/myers_diff.zig
 package bao_runtime.node.assert
 
+import bao_runtime.node.*
+
 // ============================================================================
 // Myers diff 选项
 // 对应 Bun: src/runtime/node/assert/myers_diff.zig - Options

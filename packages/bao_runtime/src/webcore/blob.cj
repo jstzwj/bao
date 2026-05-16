@@ -891,7 +891,7 @@ public class Blob {
                         if (s.isFd) {
                             System.writeFd(s.fileFd, buffer: bytes!, offset: 0, length: Int64(bytes.getOrThrow().length), position: -1)
                         } else {
-                            System.writeFile(s.filePath, data: bytes!)
+                            System.writeFile(s.filePath, data: bytes.getOrThrow())
                         }
                         return JsPromise.resolve(global, JsValue(Int64(bytes.getOrThrow().length)))
                     }
@@ -981,7 +981,7 @@ public class Blob {
         if (global == None) {
             return JsValue()
         }
-        return toJsValue(global!)
+        return toJsValue(global.getOrThrow())
     }
 
     /// 将 Blob 转为 JsValue（带全局对象）

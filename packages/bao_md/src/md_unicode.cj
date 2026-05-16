@@ -36,7 +36,7 @@ func unicodeBsearch(codepoint: UInt32, map: Array<UInt32>): ?Int64 {
         return None
     }
     var beg: Int64 = 0
-    var end: Int64 = map.length - 1
+    var end: Int64 = map.size - 1
 
     while (beg <= end) {
         var pivot_beg = (beg + end) / 2
@@ -234,7 +234,7 @@ func caseFoldFromMap(n: Int64, map: Array<UInt32>, data: Array<UInt32>,
 
     // 复制基础码点
     for (k in 0..n) {
-        if (data_offset + k < data.length) {
+        if (data_offset + k < data.size) {
             codepoints[Int64(k)] = data[Int64(data_offset + k)]
         }
     }

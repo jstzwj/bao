@@ -80,7 +80,7 @@ public enum UnicodeField {
 ///   根据 field 和 code point 返回属性值
 public func getUnicodeProperty(field: UnicodeField, cp: UInt32): UnicodeValue {
     // 由具体属性表实现提供
-    return UnicodeValue.None
+    return UnicodeValue.NoValue
 }
 
 /// 查询所有 Unicode 属性
@@ -91,13 +91,13 @@ public func getAllUnicodeProperties(tableName: String, cp: UInt32): UnicodeData 
 
 /// Unicode 值
 public enum UnicodeValue {
-    | None
-    | BoolValue(val: Bool)
-    | IntValue(val: Int64)
-    | UInt32Value(val: UInt32)
-    | StringValue(val: String)
-    | CategoryValue(val: GeneralCategory)
-    | GraphemeBreakValue(val: GraphemeBreakProperty)
+    | NoValue
+    | BoolValue(Bool)
+    | IntValue(Int64)
+    | UInt32Value(UInt32)
+    | StringValue(String)
+    | CategoryValue(GeneralCategory)
+    | GraphemeBreakValue(GraphemeBreakProperty)
 }
 
 /// Unicode 数据集合
@@ -170,6 +170,41 @@ public enum GeneralCategory {
     | OtherSurrogate
     | OtherPrivateUse
     | OtherNotAssigned
+
+    public operator func ==(other: GeneralCategory): Bool {
+        match (this) {
+            case LetterUppercase => match (other) { case LetterUppercase => true case _ => false }
+            case LetterLowercase => match (other) { case LetterLowercase => true case _ => false }
+            case LetterTitlecase => match (other) { case LetterTitlecase => true case _ => false }
+            case LetterModifier => match (other) { case LetterModifier => true case _ => false }
+            case LetterOther => match (other) { case LetterOther => true case _ => false }
+            case MarkNonspacing => match (other) { case MarkNonspacing => true case _ => false }
+            case MarkSpacingCombining => match (other) { case MarkSpacingCombining => true case _ => false }
+            case MarkEnclosing => match (other) { case MarkEnclosing => true case _ => false }
+            case NumberDecimalDigit => match (other) { case NumberDecimalDigit => true case _ => false }
+            case NumberLetter => match (other) { case NumberLetter => true case _ => false }
+            case NumberOther => match (other) { case NumberOther => true case _ => false }
+            case PunctuationConnector => match (other) { case PunctuationConnector => true case _ => false }
+            case PunctuationDash => match (other) { case PunctuationDash => true case _ => false }
+            case PunctuationOpen => match (other) { case PunctuationOpen => true case _ => false }
+            case PunctuationClose => match (other) { case PunctuationClose => true case _ => false }
+            case PunctuationInitialQuote => match (other) { case PunctuationInitialQuote => true case _ => false }
+            case PunctuationFinalQuote => match (other) { case PunctuationFinalQuote => true case _ => false }
+            case PunctuationOther => match (other) { case PunctuationOther => true case _ => false }
+            case SymbolMath => match (other) { case SymbolMath => true case _ => false }
+            case SymbolCurrency => match (other) { case SymbolCurrency => true case _ => false }
+            case SymbolModifier => match (other) { case SymbolModifier => true case _ => false }
+            case SymbolOther => match (other) { case SymbolOther => true case _ => false }
+            case SeparatorSpace => match (other) { case SeparatorSpace => true case _ => false }
+            case SeparatorLine => match (other) { case SeparatorLine => true case _ => false }
+            case SeparatorParagraph => match (other) { case SeparatorParagraph => true case _ => false }
+            case OtherControl => match (other) { case OtherControl => true case _ => false }
+            case OtherFormat => match (other) { case OtherFormat => true case _ => false }
+            case OtherSurrogate => match (other) { case OtherSurrogate => true case _ => false }
+            case OtherPrivateUse => match (other) { case OtherPrivateUse => true case _ => false }
+            case OtherNotAssigned => match (other) { case OtherNotAssigned => true case _ => false }
+        }
+    }
 }
 
 /// East Asian Width

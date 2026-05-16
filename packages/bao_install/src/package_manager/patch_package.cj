@@ -102,7 +102,7 @@ public class PatchPackage {
             case Some(_) => ()
         }
 
-        let info = pkgInfo!
+        let info = pkgInfo.getOrThrow()
         let patchKey = "${info.name}@${info.version}"
 
         // 2. 转义文件名

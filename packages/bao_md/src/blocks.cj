@@ -9,7 +9,7 @@ package bao_md
 /// 处理整个文档
 public func processDoc(parser: Parser): Unit {
     let dummyBlank = Line()
-    dummyBlank.type = LineType.blank
+    dummyBlank.`type` = LineType.blank
 
     var pivotLine = dummyBlank
     var lineBuf: Array<Line> = [Line(), Line()]
@@ -122,7 +122,7 @@ public func analyzeLine(parser: Parser, offStart: OFF, pivotLine: Line): Analyze
     }
 
     // 跟踪有效枢轴类型
-    var effectivePivotType = pivotLine.type
+    var effectivePivotType = pivotLine.`type`
 
     // 确定行类型
     var done = false
@@ -134,7 +134,7 @@ public func analyzeLine(parser: Parser, offStart: OFF, pivotLine: Line): Analyze
             // 检查关闭围栏
             if (line.indent < parser.code_indent_offset) {
                 if (isClosingCodeFence(parser, off, pivotLine.data)) {
-                    line.type = LineType.blank
+                    line.`type` = LineType.blank
                     parser.last_line_has_list_loosening_effect = false
                     break
                 }
@@ -147,7 +147,7 @@ public func analyzeLine(parser: Parser, offStart: OFF, pivotLine: Line): Analyze
                 } else {
                     line.indent = 0
                 }
-                line.type = LineType.fencedcode
+                line.`type` = LineType.fencedcode
                 break
             }
         }
@@ -162,12 +162,12 @@ public func analyzeLine(parser: Parser, offStart: OFF, pivotLine: Line): Analyze
                     parser.html_block_type = 0
 
                     if (endedType == 6 || endedType == 7) {
-                        line.type = LineType.blank
+                        line.`type` = LineType.blank
                         line.indent = 0
                         break
                     }
                 }
-                line.type = LineType.html
+                line.`type` = LineType.html
                 nParents = parser.n_containers
                 break
             }
@@ -177,7 +177,7 @@ public func analyzeLine(parser: Parser, offStart: OFF, pivotLine: Line): Analyze
         if (off >= parser.size || isNewline(UInt8(parser.text[Int64(off)]))) {
             // 缩进代码通过空行延续
             if (effectivePivotType == LineType.indentedcode && nParents == parser.n_containers) {
-                line.type = LineType.indentedcode
+                line.`type` = LineType.indentedcode
                 if (line.indent > parser.code_indent_offset) {
                     line.indent -= parser.code_indent_offset
                 } else {
@@ -185,7 +185,7 @@ public func analyzeLine(parser: Parser, offStart: OFF, pivotLine: Line): Analyze
                 }
                 parser.last_line_has_list_loosening_effect = false
             } else {
-                line.type = LineType.blank
+                line.`type` = LineType.blank
                 parser.last_line_has_list_loosening_effect = (nParents > 0 &&
                     nBrothers + nChildren == 0 &&
                     parser.containers[Int64(nParents - 1)].ch != '>'.toUInt8())
@@ -198,9 +198,9 @@ public func analyzeLine(parser: Parser, offStart: OFF, pivotLine: Line): Analyze
                 // 追踪以 2+ 空行开头的空列表项
                 if (nParents > 0 && parser.containers[Int64(nParents - 1)].ch != '>'.toUInt8() &&
                     nBrothers + nChildren == 0 && parser.current_block == None &&
-                    parser.block_bytes.length > 16) {
-                    let topOff = parser.block_bytes.length - 16
-                    if (topOff >= 0 && topOff + 16 <= parser.block_bytes.length) {
+                    parser.block_bytes.size > 16) {
+                    let topOff = parser.block_bytes.size - 16
+                    if (topOff >= 0 && topOff + 16 <= parser.block_bytes.size) {
                         let topHdr = parser.getBlockHeaderAt(topOff)
                         if (topHdr.block_type == BlockType.li) {
                             parser.last_list_item_starts_with_two_blank_lines = true
@@ -215,8 +215,8 @@ public func analyzeLine(parser: Parser, offStart: OFF, pivotLine: Line): Analyze
                 if (nParents > 0 && nParents == parser.n_containers &&
                     parser.containers[Int64(nParents - 1)].ch != '>'.toUInt8() &&
                     nBrothers + nChildren == 0 && parser.current_block == None &&
-                    parser.block_bytes.length > 16) {
-                    let topHdr = parser.getBlockHeaderAt(parser.block_bytes.length - 16)
+                    parser.block_bytes.size > 16) {
+                    let topHdr = parser.getBlockHeaderAt(parser.block_bytes.size - 16)
                     if (topHdr.block_type == BlockType.li) {
                         nParents -= 1
                         line.indent = totalIndent
@@ -238,7 +238,7 @@ public func analyzeLine(parser: Parser, offStart: OFF, pivotLine: Line): Analyze
         // 缩进代码延续
         if (effectivePivotType == LineType.indentedcode) {
             if (line.indent >= parser.code_indent_offset) {
-                line.type = LineType.indentedcode
+                line.`type` = LineType.indentedcode
                 line.indent -= parser.code_indent_offset
                 line.data = 0
                 break
@@ -251,7 +251,7 @@ public func analyzeLine(parser: Parser, offStart: OFF, pivotLine: Line): Analyze
             nParents == parser.n_containers) {
             let setextResult = isSetextUnderline(parser, off)
             if (setextResult.is_setext) {
-                line.type = LineType.setextunderline
+                line.`type` = LineType.setextunderline
                 line.data = setextResult.level
                 break
             }
@@ -261,7 +261,7 @@ public func analyzeLine(parser: Parser, offStart: OFF, pivotLine: Line): Analyze
         if (line.indent < parser.code_indent_offset && off < parser.size &&
             (UInt8(parser.text[Int64(off)]) == '-'.toUInt8() || UInt8(parser.text[Int64(off)]) == '_'.toUInt8() || UInt8(parser.text[Int64(off)]) == '*'.toUInt8())) {
             if (isHrLine(parser, off)) {
-                line.type = LineType.hr
+                line.`type` = LineType.hr
                 break
             }
         }
@@ -308,7 +308,7 @@ public func analyzeLine(parser: Parser, offStart: OFF, pivotLine: Line): Analyze
 
         // 检查缩进代码
         if (line.indent >= parser.code_indent_offset && effectivePivotType != LineType.text) {
-            line.type = LineType.indentedcode
+            line.`type` = LineType.indentedcode
             line.indent -= parser.code_indent_offset
             line.data = 0
             break
@@ -397,7 +397,7 @@ public func analyzeLine(parser: Parser, offStart: OFF, pivotLine: Line): Analyze
 
         // 检查表格延续
         if (effectivePivotType == LineType.table && nParents == parser.n_containers) {
-            line.type = LineType.table
+            line.`type` = LineType.table
             break
         }
 
@@ -405,7 +405,7 @@ public func analyzeLine(parser: Parser, offStart: OFF, pivotLine: Line): Analyze
         if (line.indent < parser.code_indent_offset && off < parser.size && UInt8(parser.text[Int64(off)]) == '#'.toUInt8()) {
             let atxResult = isAtxHeaderLine(parser, off)
             if (atxResult.is_atx) {
-                line.type = LineType.atxheader
+                line.`type` = LineType.atxheader
                 line.data = atxResult.level
                 line.beg = atxResult.content_beg
 
@@ -437,7 +437,7 @@ public func analyzeLine(parser: Parser, offStart: OFF, pivotLine: Line): Analyze
             (UInt8(parser.text[Int64(off)]) == '`'.toUInt8() || UInt8(parser.text[Int64(off)]) == '~'.toUInt8())) {
             let fenceResult = isOpeningCodeFence(parser, off)
             if (fenceResult.is_fence) {
-                line.type = LineType.fencedcode
+                line.`type` = LineType.fencedcode
                 line.data = fenceResult.fence_data
                 line.enforce_new_block = true
                 break
@@ -458,7 +458,7 @@ public func analyzeLine(parser: Parser, offStart: OFF, pivotLine: Line): Analyze
                     parser.html_block_type = 0
                 }
                 line.enforce_new_block = true
-                line.type = LineType.html
+                line.`type` = LineType.html
                 break
             }
         }
@@ -468,20 +468,20 @@ public func analyzeLine(parser: Parser, offStart: OFF, pivotLine: Line): Analyze
             off < parser.size && (UInt8(parser.text[Int64(off)]) == '|'.toUInt8() || UInt8(parser.text[Int64(off)]) == '-'.toUInt8() || UInt8(parser.text[Int64(off)]) == ':'.toUInt8()) &&
             nParents == parser.n_containers) {
             let tblResult = isTableUnderline(parser, off)
-            if (tblResult.is_underline && parser.current_block != None && parser.current_block_lines.length >= 1) {
+            if (tblResult.is_underline && parser.current_block != None && parser.current_block_lines.size >= 1) {
                 // 验证标题行列数与分隔符行列数匹配
-                let headerLine = parser.current_block_lines[Int64(parser.current_block_lines.length - 1)]
+                let headerLine = parser.current_block_lines[Int64(parser.current_block_lines.size - 1)]
                 let headerCols = countTableRowColumns(parser, headerLine.beg, headerLine.end)
                 if (headerCols == tblResult.col_count) {
                     line.data = tblResult.col_count
-                    line.type = LineType.tableunderline
+                    line.`type` = LineType.tableunderline
                     break
                 }
             }
         }
 
         // 默认: 普通文本行
-        line.type = LineType.text
+        line.`type` = LineType.text
         if (effectivePivotType == LineType.text && nBrothers + nChildren == 0) {
             // 惰性延续
             nParents = parser.n_containers
@@ -525,7 +525,7 @@ public func analyzeLine(parser: Parser, offStart: OFF, pivotLine: Line): Analyze
     line.end = off
 
     // 修剪 ATX 标题的尾部关闭标记
-    if (line.type == LineType.atxheader) {
+    if (line.`type` == LineType.atxheader) {
         var tmp = line.end
         while (tmp > line.beg && isBlank(UInt8(parser.text[Int64(tmp - 1)]))) {
             tmp -= 1
@@ -539,7 +539,7 @@ public func analyzeLine(parser: Parser, offStart: OFF, pivotLine: Line): Analyze
     }
 
     // 修剪尾部空格（代码/HTML/文本除外）
-    if (line.type != LineType.indentedcode && line.type != LineType.fencedcode && line.type != LineType.html && line.type != LineType.text) {
+    if (line.`type` != LineType.indentedcode && line.`type` != LineType.fencedcode && line.`type` != LineType.html && line.`type` != LineType.text) {
         while (line.end > line.beg && isBlank(UInt8(parser.text[Int64(line.end - 1)]))) {
             line.end -= 1
         }
@@ -554,9 +554,9 @@ public func analyzeLine(parser: Parser, offStart: OFF, pivotLine: Line): Analyze
     }
 
     // 松散列表检测
-    if (prevLineHasListLooseningEffect && line.type != LineType.blank && nParents + nBrothers > 0) {
+    if (prevLineHasListLooseningEffect && line.`type` != LineType.blank && nParents + nBrothers > 0) {
         let ci = nParents + nBrothers - 1
-        if (ci < parser.containers.length && parser.containers[Int64(ci)].ch != '>'.toUInt8()) {
+        if (ci < parser.containers.size && parser.containers[Int64(ci)].ch != '>'.toUInt8()) {
             parser.containers[Int64(ci)].is_loose = true
         }
     }
@@ -574,9 +574,9 @@ public func analyzeLine(parser: Parser, offStart: OFF, pivotLine: Line): Analyze
     // 进入兄弟容器
     if (nBrothers > 0) {
         // 关闭旧 LI，打开新 LI
-        let liDataOld: UInt32 = if (parser.containers[Int64(nParents)].is_task) UInt32(UInt8(parser.text[Int64(parser.containers[Int64(nParents)].task_mark_off)])) else 0
+        let liDataOld: UInt32 = if (parser.containers[Int64(nParents)].is_task) { UInt32(UInt8(parser.text[Int64(parser.containers[Int64(nParents)].task_mark_off)])) } else { 0 }
         pushContainerBytes(parser, BlockType.li, liDataOld, BLOCK_CONTAINER_CLOSER)
-        let liDataNew: UInt32 = if (container.is_task) UInt32(UInt8(parser.text[Int64(container.task_mark_off)])) else 0
+        let liDataNew: UInt32 = if (container.is_task) { UInt32(UInt8(parser.text[Int64(container.task_mark_off)])) } else { 0 }
         pushContainerBytes(parser, BlockType.li, liDataNew, BLOCK_CONTAINER_OPENER)
         parser.containers[Int64(nParents)].is_task = container.is_task
         parser.containers[Int64(nParents)].task_mark_off = container.task_mark_off
@@ -592,13 +592,13 @@ public func analyzeLine(parser: Parser, offStart: OFF, pivotLine: Line): Analyze
 /// 处理一行
 public func processLine(parser: Parser, pivotLine: Line, line: Line): Unit {
     // 空行结束当前叶块
-    if (line.type == LineType.blank) {
+    if (line.`type` == LineType.blank) {
         endCurrentBlock(parser)
         return
     }
 
     // 打开的代码围栏: 开始块但不包含围栏行作为内容
-    if (line.type == LineType.fencedcode && line.enforce_new_block) {
+    if (line.`type` == LineType.fencedcode && line.enforce_new_block) {
         endCurrentBlock(parser)
         startNewBlock(parser, line)
         parser.fence_indent = line.indent
@@ -625,7 +625,7 @@ public func processLine(parser: Parser, pivotLine: Line, line: Line): Unit {
     }
 
     // 单行块
-    if (line.type == LineType.hr || line.type == LineType.atxheader) {
+    if (line.`type` == LineType.hr || line.`type` == LineType.atxheader) {
         endCurrentBlock(parser)
         startNewBlock(parser, line)
         addLineToCurrentBlock(parser, line)
@@ -634,7 +634,7 @@ public func processLine(parser: Parser, pivotLine: Line, line: Line): Unit {
     }
 
     // Setext 下划线将当前块改为标题
-    if (line.type == LineType.setextunderline) {
+    if (line.`type` == LineType.setextunderline) {
         if (parser.current_block != None) {
             let cbOff = parser.current_block.get()
             var hdr = parser.getBlockHeaderAt(cbOff)
@@ -655,15 +655,15 @@ public func processLine(parser: Parser, pivotLine: Line, line: Line): Unit {
     }
 
     // 表格下划线
-    if (line.type == LineType.tableunderline) {
+    if (line.`type` == LineType.tableunderline) {
         if (parser.current_block != None) {
             let cbOff = parser.current_block.get()
-            if (parser.current_block_lines.length > 1) {
+            if (parser.current_block_lines.size > 1) {
                 // 表格中断段落。拆分: 行 0..N-2 保持为段落，
                 // 最后一行成为表格标题。
-                let lastLine = parser.current_block_lines[Int64(parser.current_block_lines.length - 1)]
+                let lastLine = parser.current_block_lines[Int64(parser.current_block_lines.size - 1)]
                 // 移除当前段落块中的最后一行
-                parser.current_block_lines = parser.current_block_lines[0..parser.current_block_lines.length - 1]
+                parser.current_block_lines = parser.current_block_lines[0..parser.current_block_lines.size - 1]
                 var hdr = parser.getBlockHeaderAt(cbOff)
                 hdr.n_lines -= 1
                 parser.setBlockHeaderAt(cbOff, hdr)
@@ -671,7 +671,7 @@ public func processLine(parser: Parser, pivotLine: Line, line: Line): Unit {
                 endCurrentBlock(parser)
                 // 用保存的标题行开始新的表格块
                 let headerAsLine = Line()
-                headerAsLine.type = LineType.table
+                headerAsLine.`type` = LineType.table
                 headerAsLine.beg = lastLine.beg
                 headerAsLine.end = lastLine.end
                 headerAsLine.indent = lastLine.indent
@@ -692,7 +692,7 @@ public func processLine(parser: Parser, pivotLine: Line, line: Line): Unit {
     }
 
     // 不同行类型结束当前块
-    if (line.type != pivotLine.type) {
+    if (line.`type` != pivotLine.`type`) {
         endCurrentBlock(parser)
     }
 
@@ -707,7 +707,7 @@ public func processLine(parser: Parser, pivotLine: Line, line: Line): Unit {
 
 /// 开始新块
 public func startNewBlock(parser: Parser, line: Line): Unit {
-    let blockType: BlockType = match (line.type) {
+    let blockType: BlockType = match (line.`type`) {
         case LineType.hr => BlockType.hr
         case LineType.atxheader => BlockType.h
         case LineType.fencedcode => BlockType.code
@@ -720,15 +720,15 @@ public func startNewBlock(parser: Parser, line: Line): Unit {
 
     // 对齐 block_bytes
     let alignMask: Int64 = 15
-    let curLen = parser.block_bytes.length
+    let curLen = parser.block_bytes.size
     let aligned = (curLen + alignMask) & ~alignMask
     let needed = aligned + 16
 
     // 填充零对齐
-    while (parser.block_bytes.length < aligned) {
+    while (parser.block_bytes.size < aligned) {
         parser.block_bytes.append(0)
     }
-    while (parser.block_bytes.length < needed) {
+    while (parser.block_bytes.size < needed) {
         parser.block_bytes.append(0)
     }
 
@@ -768,7 +768,7 @@ public func endCurrentBlock(parser: Parser): Unit {
         // 从 setext 标题消费链接引用定义
         let isSetext = hdr.block_type == BlockType.h && (hdr.flags & BLOCK_SETEXT_HEADER) != 0
         if (isSetext && hdr.n_lines > 0 &&
-            parser.current_block_lines.length > 0 &&
+            parser.current_block_lines.size > 0 &&
             parser.current_block_lines[0].beg < parser.size &&
             UInt8(parser.text[Int64(parser.current_block_lines[0].beg)]) == '['.toUInt8()) {
             consumeRefDefsFromCurrentBlock(parser)
@@ -780,13 +780,13 @@ public func endCurrentBlock(parser: Parser): Unit {
             if (hdr.n_lines > 1) {
                 // 移除下划线（最后一行）
                 hdr.n_lines -= 1
-                parser.current_block_lines = parser.current_block_lines[0..parser.current_block_lines.length - 1]
+                parser.current_block_lines = parser.current_block_lines[0..parser.current_block_lines.size - 1]
                 parser.setBlockHeaderAt(cbOff, hdr)
             } else if (hdr.n_lines == 1) {
                 // 引用定义消费后只剩下划线 → 转换为段落，
                 // 保持块打开以便后续行加入此段落
                 hdr.block_type = BlockType.p
-                hdr.flags &= ~BLOCK_SETEXT_HEADER
+                hdr.flags &= (BLOCK_SETEXT_HEADER ^ UInt32.Max)
                 parser.setBlockHeaderAt(cbOff, hdr)
                 return // 不关闭块
             } else {
@@ -797,12 +797,12 @@ public func endCurrentBlock(parser: Parser): Unit {
         }
 
         // 写入累积的行到 block_bytes
-        for (i in 0..parser.current_block_lines.length) {
+        for (i in 0..parser.current_block_lines.size) {
             let vl = parser.current_block_lines[i]
             // 将 VerbatimLine 的字段写入 block_bytes
-            let base = parser.block_bytes.length
+            let base = parser.block_bytes.size
             // 确保足够空间
-            while (parser.block_bytes.length < base + 12) {
+            while (parser.block_bytes.size < base + 12) {
                 parser.block_bytes.append(0)
             }
             writeU32LE(parser.block_bytes, base, UInt32(vl.beg))
@@ -817,18 +817,18 @@ public func endCurrentBlock(parser: Parser): Unit {
 /// 从当前块消费引用定义
 public func consumeRefDefsFromCurrentBlock(parser: Parser): Unit {
     let items = parser.current_block_lines
-    if (items.length == 0) {
+    if (items.size == 0) {
         return
     }
 
     // 合并行到缓冲区用于引用定义解析
     parser.buffer = StringBuilder()
-    for (i in 0..items.length) {
+    for (i in 0..items.size) {
         let vline = items[i]
         if (vline.beg > vline.end || vline.end > parser.size) {
             continue
         }
-        if (parser.buffer.length > 0) {
+        if (parser.buffer.size > 0) {
             parser.buffer.append('\n')
         }
         parser.buffer.append(parser.text.substring(vline.beg, vline.end))
@@ -838,7 +838,7 @@ public func consumeRefDefsFromCurrentBlock(parser: Parser): Unit {
     var pos: Int64 = 0
     var linesConsumed: UInt32 = 0
 
-    while (pos < merged.length) {
+    while (pos < merged.size) {
         let resultOpt = parseRefDef(parser, merged, pos)
         if (resultOpt == None) {
             break
@@ -852,7 +852,7 @@ public func consumeRefDefsFromCurrentBlock(parser: Parser): Unit {
 
         // 第一个定义优先
         var alreadyExists = false
-        for (i in 0..parser.ref_defs.length) {
+        for (i in 0..parser.ref_defs.size) {
             if (parser.ref_defs[i].label == normLabel) {
                 alreadyExists = true
                 break
@@ -872,7 +872,7 @@ public func consumeRefDefsFromCurrentBlock(parser: Parser): Unit {
                 newlines += 1
             }
         }
-        if (result.end_pos >= merged.length && (result.end_pos == pos || merged[Int64(result.end_pos - 1)] != '\n')) {
+        if (result.end_pos >= merged.size && (result.end_pos == pos || merged[Int64(result.end_pos - 1)] != '\n')) {
             newlines += 1
         }
         linesConsumed += newlines
@@ -889,9 +889,9 @@ public func consumeRefDefsFromCurrentBlock(parser: Parser): Unit {
                 hdr.n_lines = 0
             } else {
                 // 移除前 linesConsumed 行
-                let remaining = items.length - Int64(linesConsumed)
+                let remaining = items.size - Int64(linesConsumed)
                 var newLines: Array<VerbatimLine> = []
-                for (i in Int64(linesConsumed)..items.length) {
+                for (i in Int64(linesConsumed)..items.size) {
                     newLines.append(items[i])
                 }
                 parser.current_block_lines = newLines

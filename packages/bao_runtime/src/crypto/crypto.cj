@@ -1,6 +1,6 @@
 // crypto.cj - 加密模块入口
-// 对应 Bun: src/runtime/crypto/crypto.zig
-// 严格1:1翻译自 Bun crypto.zig
+// 对应 Bun: src/runtime/crypto/crypto.zig + mod.rs
+// 严格1:1翻译自 Bun crypto.zig / mod.rs
 
 package bao_runtime.crypto
 
@@ -8,18 +8,67 @@ import bao_core.*
 
 // ============================================================================
 // 加密错误创建
-// 对应 Bun: crypto.zig - createCryptoError
+// 对应 Bun: crypto.zig - createCryptoError / mod.rs - create_crypto_error
 // ============================================================================
 
 /// 创建加密错误
 /// 对应 Bun: pub fn createCryptoError(globalThis: *jsc.JSGlobalObject, err_code: u32) JSValue
+/// 对应 Bun mod.rs: pub fn create_crypto_error(global_this: &JSGlobalObject, err_code: u32) -> JSValue
 public func createCryptoError(globalThis: JsObject, errCode: UInt32): JsValue {
     return BoringSSLJsc.errToJs(globalThis, errCode)
 }
 
 // ============================================================================
+// PBKDF2 顶层函数
+// 对应 Bun: mod.rs - pub fn pbkdf2(output, password, salt, iteration_count, algorithm) -> Option<&[u8]>
+// ============================================================================
+
+/// PBKDF2 密码派生函数
+/// 对应 Bun mod.rs: pub fn pbkdf2<'a>(output, password, salt, iteration_count, algorithm) -> Option<&'a [u8]>
+/// 用于 Rust 端 PBKDF2 (对应 Zig: src/runtime/crypto/PBKDF2.zig pub fn pbkdf2)
+///
+/// 返回 Some(output) 成功, None BoringSSL 错误
+public func pbkdf2(output: Array<Byte>, password: Array<Byte>, salt: Array<Byte>,
+                    iterationCount: UInt32, algorithm: EVP.Algorithm): ?Array<Byte> {
+    // output.fill(0)
+    for (i in 0..output.size) {
+        output[i] = 0
+    }
+
+    // BoringSSL.ERR_clear_error()
+    BoringSSL.errClearError()
+
+    // algorithm.md() 获取 EVP_MD; 如果不支持则返回 None
+    let md = algorithm.md()
+    match (md) {
+        case None => return None
+        case Some(mdVal) => {
+            // PKCS5_PBKDF2_HMAC(password, password.len, salt, salt.len,
+            //                    iteration_count, digest, output.len, output)
+            let passwordPtr = if (password.size == 0) {
+                CPointer<Byte>.null()
+            } else {
+                CPointer<Byte>.fromArray(password)
+            }
+
+            let rc = BoringSSL.pkcs5Pbkdf2Hmac(
+                password, password.size.toInt64(),
+                salt, salt.size.toInt64(),
+                iterationCount, mdVal,
+                output.size.toInt64(), output
+            )
+
+            if (rc <= 0) {
+                return None
+            }
+            return output
+        }
+    }
+}
+
+// ============================================================================
 // 模块重导出
-// 对应 Bun: crypto.zig 中的 pub const 声明
+// 对应 Bun: mod.rs / crypto.zig 中的 pub const 声明
 // ============================================================================
 
 // PasswordObject - 密码哈希对象
@@ -44,3 +93,9 @@ public func createCryptoError(globalThis: JsObject, errCode: UInt32): JsValue {
 
 // EVP - 高级加密接口
 // 对应 Bun: pub const EVP = @import("./EVP.zig")
+
+// pwhash - 密码哈希 shim (argon2 + bcrypt)
+// 对应 Bun: #[path = "pwhash.rs"] pub mod pwhash
+// 已在 pwhash.cj 中实现
+
+// ported from: src/runtime/crypto/crypto.zig + mod.rs

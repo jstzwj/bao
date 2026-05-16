@@ -60,14 +60,14 @@ public class ErrorPacket {
     public func decode(reader: MySQLPacketReader): Unit {
         header = reader.int8()
         if (header != 0xff) {
-            throw MySQLError.InvalidErrorPacket
+            throw MySQLProtocolException("InvalidErrorPacket")
         }
 
         errorCode = reader.int16()
 
         // 检查是否有 SQL 状态标记
         let nextByte = reader.int8()
-        if (nextByte == UInt8('#')) {
+        if (nextByte == 0x23) {
             sqlStateMarker = Some(nextByte)
             let sqlStateData = reader.read(5)
             sqlState = Some(sqlStateData)

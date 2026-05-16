@@ -481,10 +481,10 @@ public class ModeUtils {
     // 从通用值解析模式
     public static func fromValue(modeStr: ?String, modeNum: ?Int64): ?UInt32 {
         if (modeStr != None) {
-            return fromString(modeStr!)
+            return fromString(modeStr.getOrThrow())
         }
         if (modeNum != None) {
-            return fromNumber(modeNum!)
+            return fromNumber(modeNum.getOrThrow())
         }
         return None
     }

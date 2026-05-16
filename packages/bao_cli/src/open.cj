@@ -102,7 +102,7 @@ public enum Editor {
         for (varName in varNames) {
             let value = env.get(varName)
             if (value != None) {
-                let basename = Path.basename(value!)
+                let basename = Path.basename(value.getOrThrow())
                 let editor = byName(basename)
                 if (editor != None) {
                     return editor

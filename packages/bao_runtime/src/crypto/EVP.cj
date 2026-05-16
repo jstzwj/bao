@@ -1,6 +1,6 @@
 // EVP.cj - 高级加密接口 (Envelope)
 // 对应 Bun: src/runtime/crypto/EVP.zig
-// 严格1:1翻译自 Bun EVP.zig
+// 严格1:1翻译自 Bun EVP.zig + EVP.rs
 
 package bao_runtime.crypto
 
@@ -164,6 +164,7 @@ public class EVP {
 
         /// 所有算法名称列表
         /// 对应 Bun: pub const names: std.EnumArray(Algorithm, bun.String)
+        /// 对应 Bun Rust: fn names() -> &'static [BunString]
         public static func allNames(): ArrayList<String> {
             return ArrayList<String>([
                 "blake2b256", "blake2b512", "blake2s256", "ripemd160",
@@ -172,7 +173,134 @@ public class EVP {
                 "sha3-384", "sha3-512", "shake128", "shake256"
             ])
         }
+
+        /// 所有算法值列表 (声明顺序)
+        /// 对应 Bun Rust: const ALL: [Algorithm; 19]
+        public static func allAlgorithms(): ArrayList<Algorithm> {
+            return ArrayList<Algorithm>([
+                Algorithm.blake2b256, Algorithm.blake2b512, Algorithm.blake2s256,
+                Algorithm.md4, Algorithm.md5, Algorithm.ripemd160,
+                Algorithm.sha1, Algorithm.sha224, Algorithm.sha256,
+                Algorithm.sha384, Algorithm.sha512, Algorithm.sha512_224,
+                Algorithm.sha512_256, Algorithm.sha3_224, Algorithm.sha3_256,
+                Algorithm.sha3_384, Algorithm.sha3_512, Algorithm.shake128,
+                Algorithm.shake256
+            ])
+        }
     }
+
+    // ========================================================================
+    // lookup - 高效名称查找
+    // 对应 Bun Rust: pub fn lookup(bytes: &[u8]) -> Option<Algorithm>
+    // 对应 Bun Zig: Algorithm.map.get(name)
+    //
+    // 长度分派的精确匹配 (区分大小写)
+    // 替代 phf::Map; 32 个键分布在长度 3..=11
+    // ========================================================================
+
+    /// 区分大小写的算法名称查找
+    /// 对应 Bun Rust: pub fn lookup(bytes: &[u8]) -> Option<Algorithm>
+    /// 高效的按长度分派匹配
+    public static func lookup(bytes: Array<Byte>): ?Algorithm {
+        let len = bytes.size
+        match (len) {
+            case 3 => {
+                if (byteEqualsStr(bytes, "md4")) { return Algorithm.md4 }
+                if (byteEqualsStr(bytes, "md5")) { return Algorithm.md5 }
+                return None
+            }
+            case 4 => {
+                if (byteEqualsStr(bytes, "sha1")) { return Algorithm.sha1 }
+                return None
+            }
+            case 5 => {
+                if (byteEqualsStr(bytes, "sha-1")) { return Algorithm.sha1 }
+                return None
+            }
+            case 6 => {
+                let first = bytes[0]
+                if (first == Byte('s')) {
+                    if (byteEqualsStr(bytes, "sha128")) { return Algorithm.sha1 }
+                    if (byteEqualsStr(bytes, "sha224")) { return Algorithm.sha224 }
+                    if (byteEqualsStr(bytes, "sha256")) { return Algorithm.sha256 }
+                    if (byteEqualsStr(bytes, "sha384")) { return Algorithm.sha384 }
+                    if (byteEqualsStr(bytes, "sha512")) { return Algorithm.sha512 }
+                }
+                if (first == Byte('r')) {
+                    if (byteEqualsStr(bytes, "rmd160")) { return Algorithm.ripemd160 }
+                }
+                return None
+            }
+            case 7 => {
+                if (byteEqualsStr(bytes, "sha-224")) { return Algorithm.sha224 }
+                if (byteEqualsStr(bytes, "sha-256")) { return Algorithm.sha256 }
+                if (byteEqualsStr(bytes, "sha-384")) { return Algorithm.sha384 }
+                if (byteEqualsStr(bytes, "sha-512")) { return Algorithm.sha512 }
+                return None
+            }
+            case 8 => {
+                if (byteEqualsStr(bytes, "sha3-224")) { return Algorithm.sha3_224 }
+                if (byteEqualsStr(bytes, "sha3-256")) { return Algorithm.sha3_256 }
+                if (byteEqualsStr(bytes, "sha3-384")) { return Algorithm.sha3_384 }
+                if (byteEqualsStr(bytes, "sha3-512")) { return Algorithm.sha3_512 }
+                if (byteEqualsStr(bytes, "shake128")) { return Algorithm.shake128 }
+                if (byteEqualsStr(bytes, "shake256")) { return Algorithm.shake256 }
+                return None
+            }
+            case 9 => {
+                if (byteEqualsStr(bytes, "ripemd160")) { return Algorithm.ripemd160 }
+                return None
+            }
+            case 10 => {
+                let first = bytes[0]
+                if (first == Byte('b')) {
+                    if (byteEqualsStr(bytes, "blake2b256")) { return Algorithm.blake2b256 }
+                    if (byteEqualsStr(bytes, "blake2b512")) { return Algorithm.blake2b512 }
+                    if (byteEqualsStr(bytes, "blake2s256")) { return Algorithm.blake2s256 }
+                }
+                if (first == Byte('s')) {
+                    if (byteEqualsStr(bytes, "sha-512224")) { return Algorithm.sha512_224 }
+                    if (byteEqualsStr(bytes, "sha512-224")) { return Algorithm.sha512_224 }
+                    if (byteEqualsStr(bytes, "sha-512256")) { return Algorithm.sha512_256 }
+                    if (byteEqualsStr(bytes, "sha512-256")) { return Algorithm.sha512_256 }
+                }
+                return None
+            }
+            case 11 => {
+                if (byteEqualsStr(bytes, "sha-512/224")) { return Algorithm.sha512_224 }
+                if (byteEqualsStr(bytes, "sha-512_224")) { return Algorithm.sha512_224 }
+                if (byteEqualsStr(bytes, "sha-512/256")) { return Algorithm.sha512_256 }
+                if (byteEqualsStr(bytes, "sha-512_256")) { return Algorithm.sha512_256 }
+                return None
+            }
+            case _ => None
+        }
+    }
+
+    /// 不区分大小写的算法名称查找
+    /// 对应 Bun Rust: pub fn lookup_ignore_case(bytes: &[u8]) -> Option<Algorithm>
+    /// 对应 Bun Zig: Algorithm.map.getWithEql(name, strings.eqlCaseInsensitiveASCIIIgnoreLength)
+    public static func lookupIgnoreCase(bytes: Array<Byte>): ?Algorithm {
+        // 将字节转为小写后查找
+        var lowerBytes = Array<Byte>(bytes.size, item: 0)
+        for (i in 0..bytes.size) {
+            let b = bytes[i]
+            if (b >= 0x41 && b <= 0x5A) {  // A-Z
+                lowerBytes[i] = b + 0x20
+            } else {
+                lowerBytes[i] = b
+            }
+        }
+        return lookup(lowerBytes)
+    }
+
+    /// 算法名称 "one of" 描述字符串
+    /// 对应 Bun Rust: pub const ALGORITHM_ONE_OF: &str
+    /// 用于 JS 端错误消息中列出所有支持的算法名
+    public static let ALGORITHM_ONE_OF: String =
+        "'blake2b256', 'blake2b512', 'blake2s256', 'md4', 'md5', " +
+        "'ripemd160', 'sha1', 'sha224', 'sha256', 'sha384', 'sha512', 'sha512-224', 'sha512-256', " +
+        "'sha3-224', 'sha3-256', 'sha3-384', 'sha3-512', 'shake128' or 'shake256'"
 
     // ========================================================================
     // EVP 方法
@@ -316,3 +444,14 @@ public class EVP {
     /// 对应 Bun: pub const PBKDF2 = @import("./PBKDF2.zig")
     /// pub const pbkdf2 = PBKDF2.pbkdf2
 }
+
+// ============================================================================
+// Digest - 摘要缓冲区类型
+// 对应 Bun: pub type Digest = [u8; EVP_MAX_MD_SIZE]
+// 对应 Bun Zig: pub const Digest = [BoringSSL.EVP_MAX_MD_SIZE]u8
+// ============================================================================
+
+/// 摘要缓冲区类型别名
+/// 对应 Bun: pub type Digest = [u8; EVP_MAX_MD_SIZE as usize]
+/// 大小为 EVP_MAX_MD_SIZE (64) 字节的固定数组
+public typealias Digest = Array<Byte>

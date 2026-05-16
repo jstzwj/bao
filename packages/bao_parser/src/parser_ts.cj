@@ -230,7 +230,7 @@ public class TSParser {
     }
 
     /// 解析后缀类型 - 对应 Bun p.parsePostfixType()
-    /// 处理数组后缀 T[] 和非空断言 T!
+    /// 处理数组后缀 T[] 和非空断言 T.getOrThrow()
     private static func parsePostfixTypeOrHigher(loc: Loc, tokens: TokenStream): TSType {
         var type_ = parseNonArrayType(tokens.currentLoc(), tokens)
 

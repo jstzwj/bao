@@ -3,6 +3,7 @@
 //   Bun 的编译器/运行时日志系统
 //   包含: Log/Msg/Location/Range/Source 等类型
 package bao_core
+import std.collection.*
 
 
 // ============================================================================
@@ -30,7 +31,7 @@ public enum LogKind {
                 case Error | Warning | Note => true
                 case _ => false
             }
-            case Info | Debug => this != Verbose
+            case Info | Debug => match (this) { case Verbose => false case _ => true }
             case Verbose => true
         }
     }
@@ -255,7 +256,7 @@ public class LogMsg {
 
     /// 添加注释 - 对应 Bun Msg 带注释
     public func addNote(note: MsgData): Unit {
-        notes.append(note)
+        notes.add(note)
     }
 
     /// 格式化输出
@@ -313,33 +314,36 @@ public class Log {
 
     /// 添加错误 - 对应 Bun Log.addError
     public func addError(source: ?SourceLocation, text: String): Unit {
-        let data = MsgData(text, source)
-        msgs.append(LogMsg(LogKind.Error, data))
+        let noRange: ?Range = None
+        let data = MsgData(text, source, noRange)
+        msgs.add(LogMsg(LogKind.Error, data))
         errors += 1
     }
 
     /// 添加错误 (带范围)
     public func addRangeError(range: Range, text: String): Unit {
-        let data = MsgData(text, None, Some(range))
-        msgs.append(LogMsg(LogKind.Error, data))
+        let noSource: ?SourceLocation = None
+        let data = MsgData(text, noSource, Some(range))
+        msgs.add(LogMsg(LogKind.Error, data))
         errors += 1
     }
 
     /// 添加警告 - 对应 Bun Log.addWarning
     public func addWarning(source: ?SourceLocation, text: String): Unit {
-        let data = MsgData(text, source)
-        msgs.append(LogMsg(LogKind.Warning, data))
+        let noRange: ?Range = None
+        let data = MsgData(text, source, noRange)
+        msgs.add(LogMsg(LogKind.Warning, data))
         warnings += 1
     }
 
     /// 添加调试信息 - 对应 Bun Log.addDebug
     public func addDebug(text: String): Unit {
-        msgs.append(LogMsg(LogKind.Debug, text))
+        msgs.add(LogMsg(LogKind.Debug, text))
     }
 
     /// 添加注释 - 对应 Bun Log.addNote
     public func addNote(text: String): Unit {
-        msgs.append(LogMsg(LogKind.Note, text))
+        msgs.add(LogMsg(LogKind.Note, text))
     }
 
     /// 是否有错误
@@ -406,7 +410,7 @@ public class Log {
     public func addRangeErrorFmt(source: ?SourceLocation, text: String, range: ?Range): Unit {
         let data = MsgData(text, source, range)
         let msg = LogMsg(LogKind.Error, data)
-        msgs.append(msg)
+        msgs.add(msg)
         errors += 1
     }
 
@@ -415,36 +419,39 @@ public class Log {
     public func addRangeWarningFmt(source: ?SourceLocation, text: String, range: ?Range): Unit {
         let data = MsgData(text, source, range)
         let msg = LogMsg(LogKind.Warning, data)
-        msgs.append(msg)
+        msgs.add(msg)
         warnings += 1
     }
 
     /// 添加 verbose 日志 - 对应 Bun Log.addVerbose
     /// 严格翻译自: logger.zig:676-684
     public func addVerbose(source: ?SourceLocation, text: String): Unit {
-        let data = MsgData(text, source)
-        msgs.append(LogMsg(LogKind.Verbose, data))
+        let noRangeVar: ?Range = None
+        let data = MsgData(text, source, noRangeVar)
+        msgs.add(LogMsg(LogKind.Verbose, data))
     }
 
     /// 添加带注释的 verbose 日志 - 对应 Bun Log.addVerboseWithNotes
     /// 严格翻译自: logger.zig:770-779
     public func addVerboseWithNotes(source: ?SourceLocation, text: String, notes: ArrayList<MsgData>): Unit {
-        let data = MsgData(text, source)
+        let noRangeVar: ?Range = None
+        let data = MsgData(text, source, noRangeVar)
         let msg = LogMsg(LogKind.Verbose, data)
         for (note in notes) {
             msg.addNote(note)
         }
-        msgs.append(msg)
+        msgs.add(msg)
     }
 
     /// 添加带注释的错误 - 对应 Bun Log 中带 notes 的错误
     public func addErrorWithNotes(source: ?SourceLocation, text: String, notes: ArrayList<MsgData>): Unit {
-        let data = MsgData(text, source)
+        let noRangeVar: ?Range = None
+        let data = MsgData(text, source, noRangeVar)
         let msg = LogMsg(LogKind.Error, data)
         for (note in notes) {
             msg.addNote(note)
         }
-        msgs.append(msg)
+        msgs.add(msg)
         errors += 1
     }
 
@@ -452,7 +459,7 @@ public class Log {
     /// 严格翻译自: logger.zig:690-716
     public func cloneTo(other: Log): Unit {
         for (msg in msgs) {
-            other.msgs.append(msg)
+            other.msgs.add(msg)
         }
         other.warnings += warnings
         other.errors += errors

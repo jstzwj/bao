@@ -23,7 +23,8 @@ public type MiErrorFun = CFunc<(Int32, CPointer<Unit>) -> Unit>
 // mi_heap_area_t struct
 // ============================================================================
 
-public class MiHeapArea {
+@C
+public struct MiHeapArea {
     public var blocks: CPointer<Unit> = CPointer<Unit>()
     public var reserved: UInt64 = 0
     public var committed: UInt64 = 0
@@ -330,23 +331,23 @@ foreign func mi_thread_set_in_threadpool(): Unit
 // Option functions
 // ============================================================================
 
-foreign func mi_option_is_enabled(option: MiOption): Bool
+foreign func mi_option_is_enabled(option: Int32): Bool
 
-foreign func mi_option_enable(option: MiOption): Unit
+foreign func mi_option_enable(option: Int32): Unit
 
-foreign func mi_option_disable(option: MiOption): Unit
+foreign func mi_option_disable(option: Int32): Unit
 
-foreign func mi_option_set_enabled(option: MiOption, enable: Bool): Unit
+foreign func mi_option_set_enabled(option: Int32, enable: Bool): Unit
 
-foreign func mi_option_set_enabled_default(option: MiOption, enable: Bool): Unit
+foreign func mi_option_set_enabled_default(option: Int32, enable: Bool): Unit
 
-foreign func mi_option_get(option: MiOption): Int64
+foreign func mi_option_get(option: Int32): Int64
 
-foreign func mi_option_get_clamp(option: MiOption, min: Int64, max: Int64): Int64
+foreign func mi_option_get_clamp(option: Int32, min: Int64, max: Int64): Int64
 
-foreign func mi_option_set(option: MiOption, value: Int64): Unit
+foreign func mi_option_set(option: Int32, value: Int64): Unit
 
-foreign func mi_option_set_default(option: MiOption, value: Int64): Unit
+foreign func mi_option_set_default(option: Int32, value: Int64): Unit
 
 // ============================================================================
 // POSIX / stdlib compatibility functions

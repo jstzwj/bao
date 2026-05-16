@@ -110,9 +110,14 @@ public class HwTimer {
             memset(tp, 0, UIntNative(16))
             let rc = clock_gettime(CLOCK_MONOTONIC, tp)
             if (rc == 0) {
+                // struct timespec { time_t tv_sec; long tv_nsec; }
+                // On 64-bit Linux: both are 8 bytes
                 let secPtr = CPointer<Int64>(tp)
                 let sec = secPtr.read()
-                let nsecPtr = CPointer<Int64>(tp) + IntNative(1)
+                // Advance by 8 bytes for tv_nsec
+                let bytePtr = CPointer<UInt8>(tp)
+                let nsecBytePtr = bytePtr + 8
+                let nsecPtr = CPointer<Int64>(nsecBytePtr)
                 let nsec = nsecPtr.read()
                 free(tp)
                 return sec * 1000000000 + nsec

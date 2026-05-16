@@ -65,7 +65,7 @@ public enum DecompositionType {
 /// Numeric Type (数字类型)
 /// 翻译自: pub const NumericType = enum(u2)
 public enum NumericType {
-    | None
+    | NotNumeric
     | Decimal
     | Digit
     | Numeric
@@ -74,7 +74,7 @@ public enum NumericType {
 /// Indic Conjunct Break (印度语连接断点)
 /// 翻译自: pub const IndicConjunctBreak = enum(u2)
 public enum IndicConjunctBreak {
-    | None
+    | NoBreak
     | Consonant
     | Extend
     | Linker
@@ -129,9 +129,9 @@ public enum SpecialCasingCondition {
 /// Bidi Paired Bracket (双向配对括号)
 /// 翻译自: pub const BidiPairedBracket = union(enum)
 public enum BidiPairedBracket {
-    | None
-    | Open(cp: UInt32)
-    | Close(cp: UInt32)
+    | NoBracket
+    | Open(UInt32)
+    | Close(UInt32)
 }
 
 /// Emoji Odd or Even (扩展字段)
@@ -167,7 +167,7 @@ public class ShiftField {
     /// 反移位: 将存储值还原为实际值
     /// 翻译自: pub fn unshift(self: @This(), cp: u21) ?u21
     public func unshift(cp: UInt32): ?UInt32 {
-        let shifted = value +% cp
+        let shifted = value + cp
         if (shifted == 0) {
             return None
         }

@@ -6,6 +6,8 @@
 //   - PercentEncoding: URL 百分比编码/解码
 //   - URL resolution: 相对 URL 解析
 //   - URLPattern (简化版): URL 模式匹配
+//   - Punycode: RFC 3492 Punycode 编码/解码
+//   - IDNA: RFC 3490 国际化域名处理
 package bao_url
 
 import bao_core.*
@@ -1310,61 +1312,465 @@ public class URLPattern {
 }
 
 // ============================================================================
-// IDNA 域名处理 (占位)
+// Punycode 编码/解码 (RFC 3492)
+// 翻译自: src/node-fallbacks/punycode.js (Node.js punycode module)
+// Bun 通过 node-fallbacks/punycode.js 提供完整的 RFC 3492 Punycode 实现
+// 仓颉版本: 完整实现 Punycode 编解码 + IDNA 域名处理
+// ============================================================================
+
+/// Punycode 编码/解码工具
+/// 完整翻译自 Bun: src/node-fallbacks/punycode.js
+/// 实现 RFC 3492 Bootstring 编码算法
+public class Punycode {
+
+    // RFC 3492 Bootstring 参数
+    private static let BASE: Int64 = 36
+    private static let TMIN: Int64 = 1
+    private static let TMAX: Int64 = 26
+    private static let SKEW: Int64 = 38
+    private static let DAMP: Int64 = 700
+    private static let INITIAL_BIAS: Int64 = 72
+    private static let INITIAL_N: Int64 = 128  // 0x80
+    private static let DELIMITER: String = "-"  // '\x2D'
+    private static let MAX_INT: Int64 = 2147483647  // 2^31 - 1
+    private static let BASE_MINUS_TMIN: Int64 = 35  // BASE - TMIN
+
+    /// 将基本码点转换为数字 (digit)
+    /// '0'-'9' -> 26-35, 'A'-'Z' -> 0-25, 'a'-'z' -> 0-25
+    /// 对应 Bun punycode.js: basicToDigit
+    private static func basicToDigit(codePoint: Int64): Int64 {
+        if (codePoint >= 0x30 && codePoint < 0x3A) {
+            return 26 + (codePoint - 0x30)
+        }
+        if (codePoint >= 0x41 && codePoint < 0x5B) {
+            return codePoint - 0x41
+        }
+        if (codePoint >= 0x61 && codePoint < 0x7B) {
+            return codePoint - 0x61
+        }
+        return BASE
+    }
+
+    /// 将数字转换为基本码点 (digit)
+    /// 0-25 -> 'a'-'z' (或 'A'-'Z' 当 flag != 0), 26-35 -> '0'-'9'
+    /// 对应 Bun punycode.js: digitToBasic
+    private static func digitToBasic(digit: Int64, flag: Bool): Char {
+        // 0..25 map to ASCII a..z or A..Z
+        // 26..35 map to ASCII 0..9
+        let code = digit + 22
+        if (digit < 26) {
+            // 75 = 0x4B; digit < 26 时加上 75 (但 flag 非零时减 32)
+            if (flag) {
+                return Char(code + 75 - 32)
+            }
+            return Char(code + 75)
+        }
+        return Char(code)
+    }
+
+    /// RFC 3492 Section 3.4 偏差自适应函数
+    /// 对应 Bun punycode.js: adapt
+    private static func adapt(delta: Int64, numPoints: Int64, firstTime: Bool): Int64 {
+        var delta = delta
+        delta = if (firstTime) { delta / DAMP } else { delta >> 1 }
+        delta += delta / numPoints
+        var k: Int64 = 0
+        while (delta > (BASE_MINUS_TMIN * TMAX) >> 1) {
+            delta = delta / BASE_MINUS_TMIN
+            k += BASE
+        }
+        return k + (BASE_MINUS_TMIN + 1) * delta / (delta + SKEW)
+    }
+
+    /// 将字符串转换为 Unicode 码点数组 (UCS-2 解码)
+    /// 对应 Bun punycode.js: ucs2decode
+    /// JavaScript 使用 UCS-2 内部表示，需要处理代理对
+    public static func ucs2Decode(input: String): Array<Int64> {
+        let output = ArrayList<Int64>()
+        var counter = 0
+        while (counter < input.size) {
+            let value = Int64(input[counter].value)
+            counter += 1
+            if (value >= 0xD800 && value <= 0xDBFF && counter < input.size) {
+                // 高代理项，检查下一个字符是否为低代理项
+                let extra = Int64(input[counter].value)
+                if ((extra & 0xFC00) == 0xDC00) {
+                    // 有效的代理对
+                    counter += 1
+                    output.append(((value & 0x3FF) << 10) + (extra & 0x3FF) + 0x10000)
+                } else {
+                    // 未匹配的高代理项
+                    output.append(value)
+                    counter -= 1
+                }
+            } else {
+                output.append(value)
+            }
+        }
+        return output.toArray()
+    }
+
+    /// 将 Unicode 码点数组转换为字符串 (UCS-2 编码)
+    /// 对应 Bun punycode.js: ucs2encode = codePoints => String.fromCodePoint(...codePoints)
+    public static func ucs2Encode(codePoints: Array<Int64>): String {
+        var sb = StringBuilder()
+        for (cp in codePoints) {
+            sb.append(charFromCodePoint(cp))
+        }
+        return sb.toString()
+    }
+
+    /// 从码点创建字符 (支持补充平面)
+    private static func charFromCodePoint(cp: Int64): String {
+        if (cp <= 0xFFFF) {
+            return String(Char(cp))
+        }
+        // 补充平面: 需要代理对
+        let hi = ((cp - 0x10000) >> 10) + 0xD800
+        let lo = ((cp - 0x10000) & 0x3FF) + 0xDC00
+        return String(Char(hi)) + String(Char(lo))
+    }
+
+    /// Punycode 解码: 将 ASCII Punycode 字符串转换为 Unicode 字符串
+    /// 对应 Bun punycode.js: decode
+    /// RFC 3492 Section 6.2: Decoding procedure
+    public static func decode(input: String): String {
+        let output = ArrayList<Int64>()
+        let inputLength = input.size
+        var i: Int64 = 0
+        var n: Int64 = INITIAL_N
+        var bias: Int64 = INITIAL_BIAS
+
+        // 处理基本码点: 找到最后一个分隔符的位置
+        let basicIdx = input.lastIndexOf(DELIMITER)
+        let basic = if (basicIdx >= 0) { basicIdx } else { 0 }
+
+        // 复制基本码点到输出
+        var j = 0
+        while (j < basic) {
+            let cp = Int64(input[j].value)
+            if (cp >= 0x80) {
+                // 非基本码点 - 非法输入
+                return input
+            }
+            output.append(cp)
+            j += 1
+        }
+
+        // 主解码循环
+        var index = if (basic > 0) { basic + 1 } else { 0 }
+        while (index < inputLength) {
+            let oldi = i
+            var w: Int64 = 1
+            var k = BASE
+            while (true) {
+                if (index >= inputLength) {
+                    return input  // 无效输入，返回原字符串
+                }
+                let digit = basicToDigit(Int64(input[index].value))
+                index += 1
+                if (digit >= BASE) {
+                    return input  // 无效输入
+                }
+                if (digit > (MAX_INT - i) / w) {
+                    return input  // 溢出，返回原字符串
+                }
+                i += digit * w
+                let t = if (k <= bias) { TMIN } else if (k >= bias + TMAX) { TMAX } else { k - bias }
+                if (digit < t) {
+                    break
+                }
+                let baseMinusT = BASE - t
+                if (w > MAX_INT / baseMinusT) {
+                    return input  // 溢出
+                }
+                w *= baseMinusT
+                k += BASE
+            }
+
+            let out = output.size + 1
+            bias = adapt(i - oldi, out, oldi == 0)
+
+            if (i / out > MAX_INT - n) {
+                return input  // 溢出
+            }
+            n += i / out
+            i = i % out
+
+            // 在位置 i 处插入码点 n
+            output.insert(Int64(i), n)
+            i += 1
+        }
+
+        // 将码点数组转换为字符串
+        var sb = StringBuilder()
+        for (cp in output) {
+            sb.append(charFromCodePoint(cp))
+        }
+        return sb.toString()
+    }
+
+    /// Punycode 编码: 将 Unicode 字符串转换为 ASCII Punycode 字符串
+    /// 对应 Bun punycode.js: encode
+    /// RFC 3492 Section 6.3: Encoding procedure
+    public static func encode(input: String): String {
+        // 将输入转换为码点数组
+        let codePoints = ucs2Decode(input)
+        let inputLength = codePoints.size
+
+        let output = ArrayList<Char>()
+        var n: Int64 = INITIAL_N
+        var delta: Int64 = 0
+        var bias: Int64 = INITIAL_BIAS
+
+        // 处理基本码点 (ASCII < 0x80)
+        for (cp in codePoints) {
+            if (cp < 0x80) {
+                output.append(Char(cp))
+            }
+        }
+
+        let basicLength = output.size
+        var handledCPCount = basicLength
+
+        // 如果有基本码点，在末尾添加分隔符
+        if (basicLength > 0) {
+            output.append(Char('-'))  // DELIMITER
+        }
+
+        // 主编码循环
+        while (handledCPCount < inputLength) {
+            // 找到下一个最小的未处理码点
+            var m: Int64 = MAX_INT
+            for (cp in codePoints) {
+                if (cp >= n && cp < m) {
+                    m = cp
+                }
+            }
+
+            // 增加 delta 以推进解码器状态
+            let handledCPCountPlusOne = handledCPCount + 1
+            if (m - n > (MAX_INT - delta) / handledCPCountPlusOne) {
+                return input  // 溢出
+            }
+            delta += (m - n) * handledCPCountPlusOne
+            n = m
+
+            for (cp in codePoints) {
+                if (cp < n) {
+                    delta += 1
+                    if (delta > MAX_INT) {
+                        return input  // 溢出
+                    }
+                }
+                if (cp == n) {
+                    // 将 delta 表示为广义变长整数
+                    var q = delta
+                    var k = BASE
+                    while (true) {
+                        let t = if (k <= bias) { TMIN } else if (k >= bias + TMAX) { TMAX } else { k - bias }
+                        if (q < t) {
+                            break
+                        }
+                        let qMinusT = q - t
+                        let baseMinusT = BASE - t
+                        output.append(digitToBasic(t + (qMinusT % baseMinusT), false))
+                        q = qMinusT / baseMinusT
+                        k += BASE
+                    }
+                    output.append(digitToBasic(q, false))
+                    bias = adapt(delta, handledCPCountPlusOne, handledCPCount == basicLength)
+                    delta = 0
+                    handledCPCount += 1
+                }
+            }
+            delta += 1
+            n += 1
+        }
+
+        var sb = StringBuilder()
+        for (c in output) {
+            sb.append(c.toString())
+        }
+        return sb.toString()
+    }
+}
+
+// ============================================================================
+// IDNA 域名处理
 // Bun 使用 WTF::URL 的 IDNA 支持 (通过 C++ FFI)
-// 仓颉暂时提供存根实现
+// 也提供 Node.js punycode 模块的域名转换 (toASCII/toUnicode)
+// 仓颉版本: 完整实现 Punycode + IDNA 域名编码/解码
 // ============================================================================
 
 /// IDNA 域名处理工具
 /// 对应 Bun 通过 WHATWG URL C++ 层的 IDNA 处理
-/// TODO: 完整的 Punycode/IDNA2008 支持
+/// 以及 Node.js punycode 模块的 toASCII/toUnicode
+/// 基于 RFC 3490 (IDNA) + RFC 3492 (Punycode Bootstring)
 public class IDNA {
+
+    /// RFC 3490 域名分隔符: U+002E (.), U+3002 (。), U+FF0E (．), U+FF61 (｡)
+    private static func isSeparator(c: Char): Bool {
+        let v = c.value
+        return v == 0x002E || v == 0x3002 || v == 0xFF0E || v == 0xFF61
+    }
+
+    /// 将域名的分隔符统一替换为 ASCII 点 '.'
+    /// 对应 Bun punycode.js: domain.replace(regexSeparators, "\x2E")
+    private static func normalizeSeparators(domain: String): String {
+        var sb = StringBuilder()
+        for (c in domain) {
+            if (isSeparator(c)) {
+                sb.append(".")
+            } else {
+                sb.append(c.toString())
+            }
+        }
+        return sb.toString()
+    }
+
+    /// 将域名按点分割为标签列表
+    private static func splitLabels(domain: String): ArrayList<String> {
+        let normalized = normalizeSeparators(domain)
+        let result = ArrayList<String>()
+        var current = StringBuilder()
+        for (c in normalized) {
+            if (c == '.') {
+                result.append(current.toString())
+                current = StringBuilder()
+            } else {
+                current.append(c.toString())
+            }
+        }
+        let last = current.toString()
+        result.append(last)
+        return result
+    }
+
+    /// 检查字符串是否包含非 ASCII 字符
+    private static func hasNonASCII(s: String): Bool {
+        for (c in s) {
+            if (c.value > 0x7F) {
+                return true
+            }
+        }
+        return false
+    }
 
     /// 将 Unicode 域名编码为 ASCII (Punycode)
     /// 对应 Bun URL 解析器的自动 Punycode 编码
+    /// 以及 Node.js punycode.toASCII
     /// 例如: "例子.中国" -> "xn--fsq.xn--fiqs8s"
+    ///       "münchen.de" -> "xn--mnchen-3ya.de"
     public static func toASCII(domain: String): String {
-        // 简化实现: 如果全部为 ASCII，直接返回
-        var allAscii = true
-        for (c in domain) {
-            if (c.codePoint > 127) {
-                allAscii = false
-                break
-            }
-        }
-        if (allAscii) {
+        if (domain.isEmpty) {
             return domain
         }
-        // TODO: Punycode 编码
-        return domain
+
+        // 处理邮件地址: 只编码 @ 后面的域名部分
+        let atIdx = domain.lastIndexOf('@')
+        var prefix = ""
+        var domainPart = domain
+        if (atIdx >= 0) {
+            prefix = domain.substring(0, atIdx + 1)
+            domainPart = domain.substring(atIdx + 1)
+        }
+
+        // 分割标签并逐个编码
+        let labels = splitLabels(domainPart)
+        let encoded = ArrayList<String>()
+        for (label in labels) {
+            if (label.isEmpty) {
+                encoded.append("")
+            } else if (hasNonASCII(label)) {
+                encoded.append("xn--" + Punycode.encode(label))
+            } else {
+                encoded.append(label.toLowerCase())
+            }
+        }
+
+        var sb = StringBuilder()
+        sb.append(prefix)
+        for (i in 0..encoded.size) {
+            if (i > 0) {
+                sb.append(".")
+            }
+            sb.append(encoded[i])
+        }
+        return sb.toString()
     }
 
     /// 将 Punycode 域名解码为 Unicode
     /// 对应 Bun URL 解析器的自动 Punycode 解码
+    /// 以及 Node.js punycode.toUnicode
+    /// 例如: "xn--fsq.xn--fiqs8s" -> "例子.中国"
+    ///       "xn--mnchen-3ya.de" -> "münchen.de"
     public static func toUnicode(domain: String): String {
-        if (domain.startsWith("xn--") || domain.contains(".xn--")) {
-            // TODO: Punycode 解码
+        if (domain.isEmpty) {
             return domain
         }
-        return domain
+
+        // 处理邮件地址: 只解码 @ 后面的域名部分
+        let atIdx = domain.lastIndexOf('@')
+        var prefix = ""
+        var domainPart = domain
+        if (atIdx >= 0) {
+            prefix = domain.substring(0, atIdx + 1)
+            domainPart = domain.substring(atIdx + 1)
+        }
+
+        // 分割标签并逐个解码
+        let labels = splitLabels(domainPart)
+        let decoded = ArrayList<String>()
+        for (label in labels) {
+            if (label.startsWith("xn--") || label.startsWith("XN--")) {
+                // 去除 "xn--" 前缀，解码剩余部分
+                let punycodePart = label.substring(4).toLowerCase()
+                decoded.append(Punycode.decode(punycodePart))
+            } else {
+                decoded.append(label)
+            }
+        }
+
+        var sb = StringBuilder()
+        sb.append(prefix)
+        for (i in 0..decoded.size) {
+            if (i > 0) {
+                sb.append(".")
+            }
+            sb.append(decoded[i])
+        }
+        return sb.toString()
     }
 
     /// 验证域名的有效性
+    /// 包含标签长度、域名总长度的检查
     public static func isValidDomain(domain: String): Bool {
         if (domain.isEmpty) {
             return false
         }
-        // 简化检查
+        // 域名总长度不超过 253 字符
         if (domain.size > 253) {
             return false
         }
-        let labels = domain.split(".")
+        let labels = splitLabels(domain)
         for (label in labels) {
             if (label.isEmpty || label.size > 63) {
                 return false
             }
         }
         return true
+    }
+
+    /// 检查域名是否包含 Punycode 编码的标签 (以 "xn--" 开头)
+    public static func hasPunycode(domain: String): Bool {
+        let labels = splitLabels(domain)
+        for (label in labels) {
+            if (label.startsWith("xn--") || label.startsWith("XN--")) {
+                return true
+            }
+        }
+        return false
     }
 }
 

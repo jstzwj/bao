@@ -9,6 +9,7 @@ package bao_core
 
 import std.console.*
 import std.time.*
+import std.convert.*
 
 // ============================================================================
 // OutputStreamDescriptor - 输出流描述符
@@ -98,7 +99,7 @@ public class OutputSource {
         if (initialized) {
             return
         }
-        init()
+        initFunc()
     }
 
     /// 配置命名线程 - 对应 Bun Source.configureNamedThread()
@@ -124,7 +125,9 @@ public class OutputSource {
                 else if (v == 1) { return Some(ColorDepth.C16) }
                 else if (v == 2) { return Some(ColorDepth.C256) }
                 else { return Some(ColorDepth.C16M) }
-            case None => return None
+            case None =>
+                let noDepth: Option<ColorDepth> = Option<ColorDepth>.None
+                return noDepth
         }
     }
 
@@ -133,7 +136,11 @@ public class OutputSource {
     public static func isForceColor(): Bool {
         let depth = getForceColorDepth()
         match (depth) {
-            case Some(d) => return d != ColorDepth.None
+            case Some(d) =>
+                match (d) {
+                    case ColorDepth.None => return false
+                    case _ => return true
+                }
             case None => return false
         }
     }
@@ -141,7 +148,11 @@ public class OutputSource {
     /// 是否彩色终端 - 对应 Bun Source.isColorTerminal()
     /// pub fn isColorTerminal() bool { ... return colorDepth() != .none; }
     public static func isColorTerminal(): Bool {
-        return colorDepth() != ColorDepth.None
+        let depth = colorDepth()
+        match (depth) {
+            case ColorDepth.None => return false
+            case _ => return true
+        }
     }
 
     /// 颜色深度 - 对应 Bun Source.colorDepth()
@@ -163,7 +174,8 @@ public class OutputSource {
             return ColorDepth.None
         }
 
-        if (Env.get("TMUX") != None) {
+        let tmux: ?String = Env.get("TMUX")
+        if (tmux.isSome()) {
             return ColorDepth.C256
         }
 
@@ -362,11 +374,11 @@ public class Output {
         match (dest) {
             case Stdout =>
                 try {
-                    std.console.println(message)
+                    Console.stdOut.write(message)
                 } catch (_: Exception) {}
             case Stderr =>
                 try {
-                    std.console.println(message)
+                    Console.stdErr.write(message)
                 } catch (_: Exception) {}
         }
     }
@@ -406,20 +418,20 @@ public class Output {
         }
         var result = StringBuilder()
         var i = Int64(0)
-        while (i < fmt.length) {
+        while (i < fmt.size) {
             let ch = fmt[i]
-            if (ch == '<') {
+            if (ch == UInt8(60)) { // '<'
                 var j = i + 1
                 var isReset = false
-                if (j < fmt.length && fmt[j] == '/') {
+                if (j < fmt.size && fmt[j] == UInt8(47)) { // '/'
                     isReset = true
                     j += 1
                 }
                 let start = j
-                while (j < fmt.length && fmt[j] != '>') {
+                while (j < fmt.size && fmt[j] != UInt8(62)) { // '>'
                     j += 1
                 }
-                let colorName = fmt.substring(Int64(start), Int64(j))
+                let colorName = fmt[start..j]
                 if (colorName == "r") {
                     isReset = true
                     result.append("\u{1b}[0m")
@@ -428,17 +440,17 @@ public class Output {
                     result.append(ansi)
                 }
                 i = j + 1
-            } else if (ch == '\\' && i + 1 < fmt.length) {
+            } else if (ch == UInt8(92) && i + 1 < fmt.size) { // '\'
                 let next = fmt[i + 1]
-                if (next == '<' || next == '>') {
-                    result.append(next)
+                if (next == UInt8(60) || next == UInt8(62)) { // '<' or '>'
+                    result.append(Rune(Int32(next)))
                     i += 2
                 } else {
-                    result.append(ch)
+                    result.append(Rune(Int32(ch)))
                     i += 1
                 }
             } else {
-                result.append(ch)
+                result.append(Rune(Int32(ch)))
                 i += 1
             }
         }
@@ -449,28 +461,28 @@ public class Output {
     private static func stripPrettyTags(fmt: String): String {
         var result = StringBuilder()
         var i = Int64(0)
-        while (i < fmt.length) {
+        while (i < fmt.size) {
             let ch = fmt[i]
-            if (ch == '<') {
+            if (ch == UInt8(60)) { // '<'
                 var j = i + 1
-                if (j < fmt.length && fmt[j] == '/') {
+                if (j < fmt.size && fmt[j] == UInt8(47)) { // '/'
                     j += 1
                 }
-                while (j < fmt.length && fmt[j] != '>') {
+                while (j < fmt.size && fmt[j] != UInt8(62)) { // '>'
                     j += 1
                 }
                 i = j + 1
-            } else if (ch == '\\' && i + 1 < fmt.length) {
+            } else if (ch == UInt8(92) && i + 1 < fmt.size) { // '\'
                 let next = fmt[i + 1]
-                if (next == '<' || next == '>') {
-                    result.append(next)
+                if (next == UInt8(60) || next == UInt8(62)) { // '<' or '>'
+                    result.append(Rune(Int32(next)))
                     i += 2
                 } else {
-                    result.append(ch)
+                    result.append(Rune(Int32(ch)))
                     i += 1
                 }
             } else {
-                result.append(ch)
+                result.append(Rune(Int32(ch)))
                 i += 1
             }
         }
@@ -516,9 +528,9 @@ public class Output {
     public static func printElapsed(elapsed: Float64): Unit {
         let ms = elapsed
         if (ms < 1500.0) {
-            prettyError("<r><d>[<b>${String.format("%.2f", ms)}ms<r><d>]<r>")
+            prettyError("<r><d>[<b>${ms.format(".2")}ms<r><d>]<r>")
         } else {
-            prettyError("<r><d>[<b>${String.format("%.2f", ms / 1000.0)}s<r><d>]<r>")
+            prettyError("<r><d>[<b>${(ms / 1000.0).format(".2")}s<r><d>]<r>")
         }
     }
 
@@ -526,9 +538,9 @@ public class Output {
     public static func printElapsedStdout(elapsed: Float64): Unit {
         let ms = elapsed
         if (ms < 1500.0) {
-            pretty("<r><d>[<b>${String.format("%.2f", ms)}ms<r><d>]<r>")
+            pretty("<r><d>[<b>${ms.format(".2")}ms<r><d>]<r>")
         } else {
-            pretty("<r><d>[<b>${String.format("%.2f", ms / 1000.0)}s<r><d>]<r>")
+            pretty("<r><d>[<b>${(ms / 1000.0).format(".2")}s<r><d>]<r>")
         }
     }
 
@@ -641,7 +653,7 @@ public class Output {
     public static let SYNCHRONIZED_END: String = "\u{1b}[?2026l"
 
     /// 开始同步输出 - 对应 Bun synchronized()
-    public static func synchronized(): Synchronized {
+    public static func `synchronized`(): Synchronized {
         return Synchronized.begin()
     }
 
@@ -723,11 +735,11 @@ public class ElapsedFormatter {
     public func format(): String {
         let ms = Float64(durationNs) / 1_000_000.0
         if (durationNs < 10_000_000) {
-            return "[${String.format("%.2f", ms)}ms]"
+            return "[${ms.format(".2")}ms]"
         } else if (durationNs > 8_000_000_000) {
-            return "[${String.format("%.2f", ms)}ms]"
+            return "[${ms.format(".2")}ms]"
         } else {
-            return "[${String.format("%.2f", ms)}ms]"
+            return "[${ms.format(".2")}ms]"
         }
     }
 }
@@ -744,11 +756,11 @@ public class ElapsedFormatter {
 
 /// 调试计时器 - 对应 Bun DebugTimer
 public class DebugTimer {
-    /// 开始时间 (纳秒)
-    private var startNs: Int64
+    /// 开始时间 (MonoTime)
+    private var startTime: MonoTime
 
     public init() {
-        this.startNs = DateTime.timestampMillis() * 1_000_000
+        this.startTime = MonoTime.now()
     }
 
     /// 开始计时 - 对应 Bun DebugTimer.start()
@@ -758,17 +770,15 @@ public class DebugTimer {
 
     /// 格式化 - 对应 Bun DebugTimer.format()
     public func format(): String {
-        let now = DateTime.timestampMillis() * 1_000_000
-        let elapsedNs = now - startNs
-        let ms = Float64(elapsedNs) / 1_000_000.0
-        return "${String.format("%.3f", ms)}ms"
+        let elapsed = MonoTime.now() - startTime
+        let ms = Float64(elapsed.toNanoseconds()) / 1_000_000.0
+        return "${ms.format(".3")}ms"
     }
 
     /// 读取已用时间 (毫秒)
     public func readMs(): Float64 {
-        let now = DateTime.timestampMillis() * 1_000_000
-        let elapsedNs = now - startNs
-        return Float64(elapsedNs) / 1_000_000.0
+        let elapsed = MonoTime.now() - startTime
+        return Float64(elapsed.toNanoseconds()) / 1_000_000.0
     }
 }
 

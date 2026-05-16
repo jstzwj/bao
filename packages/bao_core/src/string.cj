@@ -4,6 +4,7 @@
 //   src/bun_core/string/StringBuilder.rs - StringBuilder struct
 //   src/bun_core/string/mod.rs - String, ZigString, OwnedString 等类型
 package bao_core
+import std.collection.*
 
 // ============================================================================
 // HashedString - 预哈希字符串视图
@@ -16,10 +17,9 @@ package bao_core
 // 仓颉不使用裸指针，改用 Array<UInt8> 引用 + 偏移量
 // ============================================================================
 
-/// 预哈希字符串视图 - 严格对应 Bun HashedString
-/// Bun: 存储裸指针 + 长度 + wyhash 哈希值
-/// 仓颉: 存储字节数组引用 + 偏移量 + 长度 + wyhash 哈希值
-public class HashedString {
+/// 预哈希字符串视图 (旧版本, 保留兼容)
+/// 推荐使用 HashedStringView (hashed_string.cj)
+public class HashedStringOld {
     /// 源数据引用 (对应 Bun ptr: *const u8)
     public let source: Array<UInt8>
     /// 起始偏移
@@ -30,11 +30,11 @@ public class HashedString {
     public let hash: UInt32
 
     /// 空值常量 - 对应 Bun HashedString::EMPTY
-    public static let EMPTY = HashedString(
-        source: [],
-        offset: 0,
-        len: UInt32(0),
-        hash: UInt32(0)
+    public static let EMPTY = HashedStringOld(
+        Array<UInt8>(),
+        0,
+        UInt32(0),
+        UInt32(0)
     )
 
     private init(source: Array<UInt8>, offset: Int64, len: UInt32, hash: UInt32) {
@@ -50,7 +50,7 @@ public class HashedString {
         this.source = buf
         this.offset = 0
         this.len = UInt32(buf.size)
-        this.hash = HashedString.wyhash32(buf)
+        this.hash = HashedStringOld.wyhash32(buf)
     }
 
     /// 初始化带偏移的子切片
@@ -59,36 +59,34 @@ public class HashedString {
         this.offset = offset
         this.len = UInt32(length)
         // 计算子切片的哈希
-        var sub = Array<UInt8>()
+        var sub = ArrayList<UInt8>()
         for (i in offset..(offset + length)) {
             if (i < buf.size) {
-                sub.append(buf[i])
+                sub.add(buf[Int64(i)])
             }
         }
-        this.hash = HashedString.wyhash32(sub)
+        this.hash = HashedStringOld.wyhash32(sub.toArray())
     }
 
     /// 从原生字符串初始化
     public init(s: String) {
-        var bytes = Array<UInt8>()
+        var bytes = ArrayList<UInt8>()
         for (c in s) {
-            bytes.append(UInt8(c.value))
+            bytes.add(c)
         }
-        this.source = bytes
+        this.source = bytes.toArray()
         this.offset = 0
-        this.len = UInt32(bytes.size)
-        this.hash = HashedString.wyhash32(bytes)
+        this.len = UInt32(source.size)
+        this.hash = HashedStringOld.wyhash32(source)
     }
 
     /// 不计算哈希的初始化 - 对应 Bun HashedString::init_no_hash
-    public static func initNoHash(buf: Array<UInt8>): HashedString {
-        return HashedString(source: buf, offset: 0, len: UInt32(buf.size), hash: UInt32(0))
+    public static func initNoHash(buf: Array<UInt8>): HashedStringOld {
+        return HashedStringOld(buf, 0, UInt32(buf.size), UInt32(0))
     }
 
     /// 比较相等 - 对应 Bun HashedString::eql
-    /// ((self.hash.max(other.hash) > 0 && self.hash == other.hash) || (self.ptr == other.ptr))
-    ///     && self.len == other.len
-    public func eql(other: HashedString): Bool {
+    public func eql(other: HashedStringOld): Bool {
         if (this.len != other.len) {
             return false
         }
@@ -115,19 +113,19 @@ public class HashedString {
         if (Int64(this.len) != other.size) {
             return false
         }
-        return this.hash == HashedString.wyhash32(other)
+        return this.hash == HashedStringOld.wyhash32(other)
     }
 
     /// 获取底层字节切片 - 对应 Bun HashedString::str → &[u8]
     public func str(): Array<UInt8> {
-        var result = Array<UInt8>()
+        var result = ArrayList<UInt8>()
         let end = offset + Int64(len)
         for (i in offset..end) {
-            if (i < source.size) {
-                result.append(source[i])
+            if (i >= 0 && i < source.size) {
+                result.add(source[Int64(i)])
             }
         }
-        return result
+        return result.toArray()
     }
 
     /// 转为仓颉字符串
@@ -135,7 +133,7 @@ public class HashedString {
         var sb = StringBuilder()
         let bytes = str()
         for (b in bytes) {
-            sb.append(Char(Int32(b)))
+            sb.append(Rune(Int32(b)))
         }
         return sb.toString()
     }
@@ -261,7 +259,7 @@ public enum StringEncoding {
 /// 核心字符串类型 - 对应 Bun String
 /// Bun 使用指针标记区分5种变体，仓颉简化为统一的字节数组包装
 public class BaoString {
-    private var data: Array<UInt8>
+    private var data: ArrayList<UInt8>
     private var encoding: StringEncoding
     private var tag: StringTag
 
@@ -269,28 +267,30 @@ public class BaoString {
     public static let EMPTY = BaoString("")
 
     public init() {
-        data = []
+        data = ArrayList<UInt8>()
         encoding = StringEncoding.UTF8
         tag = StringTag.Empty
     }
 
     public init(value: String) {
-        data = Array<UInt8>()
+        data = ArrayList<UInt8>()
         encoding = StringEncoding.UTF8
         tag = StringTag.StaticZigString
         for (c in value) {
-            data.append(UInt8(c.value))
+            data.add(c)
         }
     }
 
     public init(bytes: Array<UInt8>) {
-        data = bytes
+        data = ArrayList<UInt8>()
+        for (b in bytes) { data.add(b) }
         encoding = StringEncoding.UTF8
         tag = StringTag.ZigString
     }
 
     public init(bytes: Array<UInt8>, encoding: StringEncoding) {
-        data = bytes
+        data = ArrayList<UInt8>()
+        for (b in bytes) { data.add(b) }
         this.encoding = encoding
         tag = StringTag.ZigString
     }
@@ -304,30 +304,30 @@ public class BaoString {
 
     /// 从 UTF-16 数组创建 - 对应 Bun ZigString.borrowUTF16
     public static func fromUtf16(chars: Array<UInt16>): BaoString {
-        var bytes = Array<UInt8>()
+        var bytes = ArrayList<UInt8>()
         for (ch in chars) {
             if (ch < 0x80) {
-                bytes.append(UInt8(ch))
+                bytes.add(UInt8(ch))
             } else if (ch < 0x800) {
-                bytes.append(UInt8(0xC0 | (ch >> 6)))
-                bytes.append(UInt8(0x80 | (ch & 0x3F)))
+                bytes.add(UInt8(0xC0 | (ch >> 6)))
+                bytes.add(UInt8(0x80 | (ch & 0x3F)))
             } else if (ch >= 0xD800 && ch <= 0xDBFF) {
                 // 代理对高位 - WTF-16 处理
-                bytes.append(UInt8(0xED))
-                bytes.append(UInt8(0xA0 | ((ch >> 6) & 0x0F)))
-                bytes.append(UInt8(0x80 | (ch & 0x3F)))
+                bytes.add(UInt8(0xED))
+                bytes.add(UInt8(0xA0 | ((ch >> 6) & 0x0F)))
+                bytes.add(UInt8(0x80 | (ch & 0x3F)))
             } else {
-                bytes.append(UInt8(0xE0 | (ch >> 12)))
-                bytes.append(UInt8(0x80 | ((ch >> 6) & 0x3F)))
-                bytes.append(UInt8(0x80 | (ch & 0x3F)))
+                bytes.add(UInt8(0xE0 | (ch >> 12)))
+                bytes.add(UInt8(0x80 | ((ch >> 6) & 0x3F)))
+                bytes.add(UInt8(0x80 | (ch & 0x3F)))
             }
         }
-        return BaoString(bytes, StringEncoding.UTF8)
+        return BaoString(bytes.toArray(), StringEncoding.UTF8)
     }
 
     /// 获取 UTF-8 字节视图
     public func utf8(): Array<UInt8> {
-        return data
+        return data.toArray()
     }
 
     /// 获取字节长度 - 对应 Bun ZigString.len
@@ -354,14 +354,14 @@ public class BaoString {
     public func toString(): String {
         var sb = StringBuilder()
         for (b in data) {
-            sb.append(Char(Int32(b)))
+            sb.append(Rune(Int32(b)))
         }
         return sb.toString()
     }
 
     /// 克隆 - 对应 Bun String.clone / OwnedString
     public func clone(): BaoString {
-        return BaoString(Array<UInt8>(data), encoding)
+        return BaoString(data.toArray(), encoding)
     }
 
     /// 比较相等 - 对应 Bun strings.eql
@@ -379,25 +379,25 @@ public class BaoString {
 
     /// 连接 - 对应 Bun strings.concat
     public func concat(other: BaoString): BaoString {
-        var result = Array<UInt8>()
+        var result = ArrayList<UInt8>()
         for (b in data) {
-            result.append(b)
+            result.add(b)
         }
         for (b in other.data) {
-            result.append(b)
+            result.add(b)
         }
-        return BaoString(result)
+        return BaoString(result.toArray())
     }
 
     /// 子字符串 (字节偏移) - 对应 Bun slice
     public func slice(start: Int64, end: Int64): BaoString {
-        var result = Array<UInt8>()
+        var result = ArrayList<UInt8>()
         let s = if (start < 0) { 0 } else { start }
         let e = if (end > data.size) { data.size } else { end }
         for (i in s..e) {
-            result.append(data[i])
+            result.add(data[Int64(i)])
         }
-        return BaoString(result)
+        return BaoString(result.toArray())
     }
 
     /// 字符串分配限制 - 对应 Bun STRING_ALLOCATION_LIMIT
@@ -436,7 +436,7 @@ public class BaoStringBuilder {
     public init(capacity: Int64) {
         len = 0
         cap = capacity
-        buffer = Array<UInt8>(capacity, item: 0)
+        buffer = Array<UInt8>(capacity, { _ => UInt8(0) })
     }
 
     /// 预计算带 null 终止符的长度 - 对应 Bun StringBuilder::count_z
@@ -469,7 +469,7 @@ public class BaoStringBuilder {
 
     /// 分配缓冲区 - 对应 Bun StringBuilder::allocate
     public func allocate(): Unit {
-        buffer = Array<UInt8>(cap, item: 0)
+        buffer = Array<UInt8>(cap, { _ => UInt8(0) })
         len = 0
     }
 
@@ -503,11 +503,11 @@ public class BaoStringBuilder {
 
     /// 追加原生字符串
     public func appendString(s: String): Array<UInt8> {
-        var bytes = Array<UInt8>()
+        var bytes = ArrayList<UInt8>()
         for (c in s) {
-            bytes.append(UInt8(c.value))
+            bytes.add(c)
         }
-        return append(bytes)
+        return append(bytes.toArray())
     }
 
     /// 追加 UTF-16 编码字符串 - 对应 Bun StringBuilder::append16
@@ -541,7 +541,7 @@ public class BaoStringBuilder {
                 len += 1
             }
         }
-        return StringPointer(offset: UInt32(start), length: UInt32(len - start))
+        return StringPointer(UInt32(start), UInt32(len - start))
     }
 
     /// 追加并返回 StringPointer - 对应 Bun StringBuilder::append_count
@@ -551,7 +551,7 @@ public class BaoStringBuilder {
             buffer[len] = b
             len += 1
         }
-        return StringPointer(offset: UInt32(start), length: UInt32(slice.size))
+        return StringPointer(UInt32(start), UInt32(slice.size))
     }
 
     /// 追加带 null 并返回 StringPointer - 对应 Bun StringBuilder::append_count_z
@@ -563,14 +563,14 @@ public class BaoStringBuilder {
         }
         buffer[len] = 0
         len += 1
-        return StringPointer(offset: UInt32(start), length: UInt32(slice.size))
+        return StringPointer(UInt32(start), UInt32(slice.size))
     }
 
     /// 分配长度空间 - 对应 Bun StringBuilder::add
     public func add(length: Int64): StringPointer {
         let start = len
         len += length
-        return StringPointer(offset: UInt32(start), length: UInt32(length))
+        return StringPointer(UInt32(start), UInt32(length))
     }
 
     /// 获取已写入的切片 - 对应 Bun StringBuilder::written_slice
@@ -580,11 +580,11 @@ public class BaoStringBuilder {
 
     /// 获取可写区域 - 对应 Bun StringBuilder::writable
     public func writable(): Array<UInt8> {
-        var result = Array<UInt8>()
+        var result = ArrayList<UInt8>()
         for (i in len..cap) {
-            result.append(buffer[i])
+            result.add(buffer[i])
         }
-        return result
+        return result.toArray()
     }
 
     /// 转移为最终字节数组 - 对应 Bun StringBuilder::move_to_slice
@@ -617,13 +617,13 @@ public class BaoStringBuilder {
     }
 
     private func sliceRange(start: Int64, end: Int64): Array<UInt8> {
-        var result = Array<UInt8>()
+        var result = ArrayList<UInt8>()
         for (i in start..end) {
             if (i < buffer.size) {
-                result.append(buffer[i])
+                result.add(buffer[Int64(i)])
             }
         }
-        return result
+        return result.toArray()
     }
 }
 

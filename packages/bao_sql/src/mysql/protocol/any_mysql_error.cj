@@ -52,3 +52,11 @@ public enum MySQLError {
     | UnknownError                       // 未知错误
     | InvalidState                       // 无效状态
 }
+
+/// MySQL 协议异常
+/// 用于 throw 表达式 (Cangjie 要求 throw 的对象必须继承自 Exception)
+public class MySQLProtocolException <: Exception {
+    public init(message: String) {
+        super(message)
+    }
+}

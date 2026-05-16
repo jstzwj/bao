@@ -19,7 +19,7 @@ public class WTFStringImplStruct {
     public var mHashAndFlags: UInt32 = 0
 
     // ---------------------------------------------------------------------
-    // 这些常量必须与 WebKit 中的 WTFStringImpl.h 保持同步!
+    // 这些常量必须与 WebKit 中的 WTFStringImpl.h 保持同步.getOrThrow()
     // ---------------------------------------------------------------------
 
     // 标志位数

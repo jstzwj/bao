@@ -2,6 +2,9 @@
 
 package bao_runtime.test_runner.expect
 
+import bao_runtime.test_runner
+import bao_jsc.*
+
 /// toThrowErrorMatchingInlineSnapshot() - 检查抛出的错误是否匹配行内快照
 /// 用法: expect(fn).toThrowErrorMatchingInlineSnapshot(snapshot?)
 public func toThrowErrorMatchingInlineSnapshot(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
@@ -14,7 +17,7 @@ public func toThrowErrorMatchingInlineSnapshot(`this`: Expect, globalThis: JSGlo
     this.incrementExpectCallCounter()
 
     let not = this.flags.not
-    if not {
+    if (not) {
         let signature = Expect.getSignature(matcherName: "toThrowErrorMatchingInlineSnapshot", args: "", not: true)
         return this.throw_(globalThis: globalThis, signature: signature,
             fmt: "\n\n<b>Matcher error<r>: Snapshot matchers cannot be used with <b>not<r>\n", args: [])
@@ -22,12 +25,12 @@ public func toThrowErrorMatchingInlineSnapshot(`this`: Expect, globalThis: JSGlo
 
     var hasExpected = false
     var expectedString = ZigString.Empty
-    if arguments.length == 0 {
+    if (arguments.length == 0) {
         // 无参数
-    } else if arguments.length == 1 {
-        if arguments[0].isString() {
+    } else if (arguments.length == 1 ){
+        if (arguments[0].isString() ){
             hasExpected = true
-            arguments[0].toZigString(result: &expectedString, globalThis: globalThis)
+            arguments[0].toZigString(result: expectedString, globalThis: globalThis)
         } else {
             return this.throw_(globalThis: globalThis, signature: "",
                 fmt: "\n\nMatcher error: Expected first argument to be a string\n", args: [])
@@ -40,15 +43,17 @@ public func toThrowErrorMatchingInlineSnapshot(`this`: Expect, globalThis: JSGlo
     var expected = expectedString.toSlice(allocator: default_allocator)
     defer { expected.deinit() }
 
-    let expectedSlice: ?String = if hasExpected { expected.slice() } else { None }
+    let expectedSlice: ?String = if (hasExpected) { expected.slice() } else { None }
 
-    let value: JSValue = this.fnToErrStringOrUndefined(globalThis: globalThis,
+    let valueOrNull: ?JSValue = this.fnToErrStringOrUndefined(globalThis: globalThis,
         value: this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toThrowErrorMatchingInlineSnapshot", matcherParamsFmt: "<green>properties<r><d>, <r>hint")
-    ) ?? {
+    )
+    if (valueOrNull == None) {
         let signature = Expect.getSignature(matcherName: "toThrowErrorMatchingInlineSnapshot", args: "", not: false)
         return this.throw_(globalThis: globalThis, signature: signature,
             fmt: "\n\n<b>Matcher error<r>: Received function did not throw\n", args: [])
-    }()
+    }
+    let value: JSValue = valueOrNull.getOrThrow()
 
     return this.inlineSnapshot(globalThis: globalThis, callFrame: callFrame, value: value, propertyMatchers: None, expected: expectedSlice, matcherName: "toThrowErrorMatchingInlineSnapshot")
 }

@@ -250,7 +250,7 @@ public class CmdState {
     func initSubproc(): Yield {
         // 查找内置命令或启动子进程
         let firstArg = this.args.get(0) ?? return this.parent.childDone(this, 0)
-        if (let kind = BuiltinImpl.Kind.fromStr(firstArg!)) {
+        if (let kind = BuiltinImpl.Kind.fromStr(firstArg.getOrThrow())) {
             // 初始化内置命令
             let bltn = BuiltinImpl()
             return bltn.start()

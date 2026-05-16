@@ -58,6 +58,41 @@ public enum GeneralCategory {
     | Cs  // Other, Surrogate
     | Co  // Other, Private Use
     | Cn  // Other, Not Assigned
+
+    public operator func ==(other: GeneralCategory): Bool {
+        match (this) {
+            case Lu => match (other) { case Lu => true case _ => false }
+            case Ll => match (other) { case Ll => true case _ => false }
+            case Lt => match (other) { case Lt => true case _ => false }
+            case Lm => match (other) { case Lm => true case _ => false }
+            case Lo => match (other) { case Lo => true case _ => false }
+            case Mn => match (other) { case Mn => true case _ => false }
+            case Mc => match (other) { case Mc => true case _ => false }
+            case Me => match (other) { case Me => true case _ => false }
+            case Nd => match (other) { case Nd => true case _ => false }
+            case Nl => match (other) { case Nl => true case _ => false }
+            case No => match (other) { case No => true case _ => false }
+            case Pc => match (other) { case Pc => true case _ => false }
+            case Pd => match (other) { case Pd => true case _ => false }
+            case Ps => match (other) { case Ps => true case _ => false }
+            case Pe => match (other) { case Pe => true case _ => false }
+            case Pi => match (other) { case Pi => true case _ => false }
+            case Pf => match (other) { case Pf => true case _ => false }
+            case Po => match (other) { case Po => true case _ => false }
+            case Sm => match (other) { case Sm => true case _ => false }
+            case Sc => match (other) { case Sc => true case _ => false }
+            case Sk => match (other) { case Sk => true case _ => false }
+            case So => match (other) { case So => true case _ => false }
+            case Zs => match (other) { case Zs => true case _ => false }
+            case Zl => match (other) { case Zl => true case _ => false }
+            case Zp => match (other) { case Zp => true case _ => false }
+            case Cc => match (other) { case Cc => true case _ => false }
+            case Cf => match (other) { case Cf => true case _ => false }
+            case Cs => match (other) { case Cs => true case _ => false }
+            case Co => match (other) { case Co => true case _ => false }
+            case Cn => match (other) { case Cn => true case _ => false }
+        }
+    }
 }
 
 // ============================================================================
@@ -73,6 +108,17 @@ public enum EastAsianWidth {
     | W   // Wide
     | H   // Halfwidth
     | F   // Fullwidth
+
+    public operator func ==(other: EastAsianWidth): Bool {
+        match (this) {
+            case Na => match (other) { case Na => true case _ => false }
+            case N => match (other) { case N => true case _ => false }
+            case A => match (other) { case A => true case _ => false }
+            case W => match (other) { case W => true case _ => false }
+            case H => match (other) { case H => true case _ => false }
+            case F => match (other) { case F => true case _ => false }
+        }
+    }
 }
 
 // ============================================================================
@@ -103,6 +149,35 @@ public enum GraphemeBreak {
     | IndicConjunctBreakExtend
     | IndicConjunctBreakLinker
     | IndicConjunctBreakConsonant
+
+    public operator func ==(other: GraphemeBreak): Bool {
+        match (this) {
+            case Other => match (other) { case Other => true case _ => false }
+            case Control => match (other) { case Control => true case _ => false }
+            case Prepend => match (other) { case Prepend => true case _ => false }
+            case CR => match (other) { case CR => true case _ => false }
+            case LF => match (other) { case LF => true case _ => false }
+            case RegionalIndicator => match (other) { case RegionalIndicator => true case _ => false }
+            case SpacingMark => match (other) { case SpacingMark => true case _ => false }
+            case L => match (other) { case L => true case _ => false }
+            case V => match (other) { case V => true case _ => false }
+            case T => match (other) { case T => true case _ => false }
+            case LV => match (other) { case LV => true case _ => false }
+            case LVT => match (other) { case LVT => true case _ => false }
+            case ZWJ => match (other) { case ZWJ => true case _ => false }
+            case ZWNJ => match (other) { case ZWNJ => true case _ => false }
+            case ExtendedPictographic => match (other) { case ExtendedPictographic => true case _ => false }
+            case EmojiModifierBase => match (other) { case EmojiModifierBase => true case _ => false }
+            case EmojiModifier => match (other) { case EmojiModifier => true case _ => false }
+            case IndicConjunctBreakExtend => match (other) { case IndicConjunctBreakExtend => true case _ => false }
+            case IndicConjunctBreakLinker => match (other) { case IndicConjunctBreakLinker => true case _ => false }
+            case IndicConjunctBreakConsonant => match (other) { case IndicConjunctBreakConsonant => true case _ => false }
+        }
+    }
+
+    public operator func !=(other: GraphemeBreak): Bool {
+        return !(this == other)
+    }
 }
 
 // ============================================================================
@@ -117,6 +192,16 @@ public enum BreakState {
     | ExtendedPictographic
     | IndicConjunctBreakConsonant
     | IndicConjunctBreakLinker
+
+    public operator func ==(other: BreakState): Bool {
+        match (this) {
+            case Default => match (other) { case Default => true case _ => false }
+            case RegionalIndicator => match (other) { case RegionalIndicator => true case _ => false }
+            case ExtendedPictographic => match (other) { case ExtendedPictographic => true case _ => false }
+            case IndicConjunctBreakConsonant => match (other) { case IndicConjunctBreakConsonant => true case _ => false }
+            case IndicConjunctBreakLinker => match (other) { case IndicConjunctBreakLinker => true case _ => false }
+        }
+    }
 }
 
 // ============================================================================

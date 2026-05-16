@@ -4,6 +4,8 @@
 //   仓颉实现提供等价的 UTF-8 编解码功能
 package bao_unicode
 
+import std.collection.*
+
 // ============================================================================
 // UTF-8 编解码
 // 严格翻译自: src/unicode/uucode_lib/src/utf8.zig
@@ -171,7 +173,7 @@ public class Utf8 {
     /// 严格对应 Bun utf8.zig Iterator.next()
     public static func decode(bytes: Array<UInt8>, offset: Int64): DecodedRune {
         if (offset >= bytes.size) {
-            return DecodedRune(codepoint: 0, length: 0, valid: false)
+            return DecodedRune(0, 0, false)
         }
 
         var state: Int64 = Int64(UTF8_ACCEPT)
@@ -197,10 +199,10 @@ public class Utf8 {
         }
 
         if (state == Int64(UTF8_ACCEPT)) {
-            return DecodedRune(codepoint: cp, length: i - offset, valid: true)
+            return DecodedRune(cp, i - offset, true)
         }
         // 替换字符 U+FFFD
-        return DecodedRune(codepoint: 0xFFFD, length: i - offset, valid: false)
+        return DecodedRune(UInt32(0xFFFD), i - offset, false)
     }
 
     /// 验证 UTF-8 字节序列
@@ -247,31 +249,31 @@ public class Utf8 {
 
     /// 将 UTF-8 字节数组解码为码点数组
     public static func decodeAll(bytes: Array<UInt8>): Array<UInt32> {
-        var result = Array<UInt32>()
+        var result = ArrayList<UInt32>()
         var i: Int64 = 0
         while (i < bytes.size) {
             let decoded = decode(bytes, i)
             if (decoded.valid) {
-                result.append(decoded.codepoint)
+                result.add(decoded.codepoint)
                 i += decoded.length
             } else {
-                result.append(0xFFFD)
+                result.add(UInt32(0xFFFD))
                 i += 1
             }
         }
-        return result
+        return result.toArray()
     }
 
     /// 将码点数组编码为 UTF-8 字节数组
     public static func encodeAll(codepoints: Array<UInt32>): Array<UInt8> {
-        var result = Array<UInt8>()
+        var result = ArrayList<UInt8>()
         for (cp in codepoints) {
             let bytes = encode(cp)
             for (b in bytes) {
-                result.append(b)
+                result.add(b)
             }
         }
-        return result
+        return result.toArray()
     }
 
     /// UTF-8 迭代器

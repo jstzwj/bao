@@ -21,7 +21,7 @@ import bao_core.*
 /// 在 WebKit 中对应 WTF::StringImpl
 public class WTFStringImplStruct {
     // ---------------------------------------------------------------------
-    // 常量: 必须与 WebKit WTFStringImpl.h 保持同步!
+    // 常量: 必须与 WebKit WTFStringImpl.h 保持同步.getOrThrow()
     // 严格翻译自 wtf.zig 中的常量
     // ---------------------------------------------------------------------
 

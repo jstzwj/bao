@@ -105,7 +105,7 @@ public class PipelineState {
     public func next(): Yield {
         switch (this.state) {
             case .startingCmds(let idx) =>
-                let cmds = this.cmds!
+                let cmds = this.cmds.getOrThrow()
                 if (idx >= cmds.length) {
                     this.state = PipelineStateKind.pending
                     return Yield.suspended

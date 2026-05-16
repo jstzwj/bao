@@ -4,6 +4,10 @@
 // 以及 src/string/ 下的字符串类型
 package bao_core
 
+// C FFI
+@C
+foreign func exit(code: Int32): Unit
+
 // ============================================================================
 // Error - 错误码系统
 // 严格翻译自: src/bun_core/result.rs - Error struct
@@ -193,57 +197,55 @@ public enum ErrorCode {
 
     /// 从 u16 构建 (对应 Bun Error.from_raw)
     public static func fromRaw(code: UInt16): ErrorCode {
-        match (code) {
-            case UInt16(1) => Unexpected
-            case UInt16(2) => OutOfMemory
-            case UInt16(3) => EndOfStream
-            case UInt16(4) => StreamTooLong
-            case UInt16(5) => NoSpaceLeft
-            case UInt16(6) => WriteFailed
-            case UInt16(7) => Overflow
-            case UInt16(8) => InvalidArgument
-            case UInt16(9) => Timeout
-            case UInt16(10) => Aborted
-            case UInt16(11) => WouldBlock
-            case UInt16(12) => EPERM
-            case UInt16(13) => ENOENT
-            case UInt16(14) => ESRCH
-            case UInt16(15) => EINTR
-            case UInt16(16) => EIO
-            case UInt16(17) => ENXIO
-            case UInt16(18) => E2BIG
-            case UInt16(19) => ENOEXEC
-            case UInt16(20) => EBADF
-            case UInt16(21) => ECHILD
-            case UInt16(22) => EAGAIN
-            case UInt16(23) => ENOMEM
-            case UInt16(24) => EACCES
-            case UInt16(25) => EFAULT
-            case UInt16(26) => ENOTBLK
-            case UInt16(27) => EBUSY
-            case UInt16(28) => EEXIST
-            case UInt16(29) => EXDEV
-            case UInt16(30) => ENODEV
-            case UInt16(31) => ENOTDIR
-            case UInt16(32) => EISDIR
-            case UInt16(33) => EINVAL
-            case UInt16(34) => ENFILE
-            case UInt16(35) => EMFILE
-            case UInt16(36) => ENOTTY
-            case UInt16(37) => ETXTBSY
-            case UInt16(38) => EFBIG
-            case UInt16(39) => ENOSPC
-            case UInt16(40) => ESPIPE
-            case UInt16(41) => EROFS
-            case UInt16(42) => EMLINK
-            case UInt16(43) => EPIPE
-            case UInt16(44) => EDOM
-            case UInt16(45) => ERANGE
-            case UInt16(100) => ParseError
-            case UInt16(252) => BundlerError
-            case UInt16(253) => StackOverflow
-            case _ => Unexpected  // 0 → Unexpected, 与 Bun 一致
-        }
+        if (code == 1) { return Unexpected }
+        if (code == 2) { return OutOfMemory }
+        if (code == 3) { return EndOfStream }
+        if (code == 4) { return StreamTooLong }
+        if (code == 5) { return NoSpaceLeft }
+        if (code == 6) { return WriteFailed }
+        if (code == 7) { return Overflow }
+        if (code == 8) { return InvalidArgument }
+        if (code == 9) { return Timeout }
+        if (code == 10) { return Aborted }
+        if (code == 11) { return WouldBlock }
+        if (code == 12) { return EPERM }
+        if (code == 13) { return ENOENT }
+        if (code == 14) { return ESRCH }
+        if (code == 15) { return EINTR }
+        if (code == 16) { return EIO }
+        if (code == 17) { return ENXIO }
+        if (code == 18) { return E2BIG }
+        if (code == 19) { return ENOEXEC }
+        if (code == 20) { return EBADF }
+        if (code == 21) { return ECHILD }
+        if (code == 22) { return EAGAIN }
+        if (code == 23) { return ENOMEM }
+        if (code == 24) { return EACCES }
+        if (code == 25) { return EFAULT }
+        if (code == 26) { return ENOTBLK }
+        if (code == 27) { return EBUSY }
+        if (code == 28) { return EEXIST }
+        if (code == 29) { return EXDEV }
+        if (code == 30) { return ENODEV }
+        if (code == 31) { return ENOTDIR }
+        if (code == 32) { return EISDIR }
+        if (code == 33) { return EINVAL }
+        if (code == 34) { return ENFILE }
+        if (code == 35) { return EMFILE }
+        if (code == 36) { return ENOTTY }
+        if (code == 37) { return ETXTBSY }
+        if (code == 38) { return EFBIG }
+        if (code == 39) { return ENOSPC }
+        if (code == 40) { return ESPIPE }
+        if (code == 41) { return EROFS }
+        if (code == 42) { return EMLINK }
+        if (code == 43) { return EPIPE }
+        if (code == 44) { return EDOM }
+        if (code == 45) { return ERANGE }
+        if (code == 100) { return ParseError }
+        if (code == 252) { return BundlerError }
+        if (code == 253) { return StackOverflow }
+        return Unexpected  // 0 -> Unexpected, 与 Bun 一致
     }
 
     /// 从 POSIX errno 映射 (对应 Bun Error.from_errno)
@@ -289,7 +291,7 @@ public enum ErrorCode {
 }
 
 /// POSIX 错误消息表 (对应 Bun coreutils_error_map::BASE)
-/// 严格翻译自 src/bun_core/result.rs 中的 phf::phf_map!
+/// 严格翻译自 src/bun_core/result.rs 中的 phf::phf_map.getOrThrow()
 public func posixErrorMessage(errno: Int64): String {
     match (errno) {
         case 1 => "Operation not permitted"
@@ -347,27 +349,27 @@ public open class BaoError <: Exception {
     public let errnoValue: Int64
 
     public init(code: ErrorCode) {
+        super(code.name())
         this.code = code
         this.errnoValue = 0
-        super(code.name())
     }
 
     public init(code: ErrorCode, message: String) {
+        super(message)
         this.code = code
         this.errnoValue = 0
-        super(message)
     }
 
     public init(errno: Int64) {
+        super(posixErrorMessage(errno))
         this.code = ErrorCode.fromErrno(errno)
         this.errnoValue = errno
-        super(posixErrorMessage(errno))
     }
 
     public init(errno: Int64, message: String) {
+        super(message)
         this.code = ErrorCode.fromErrno(errno)
         this.errnoValue = errno
-        super(message)
     }
 }
 
@@ -412,6 +414,19 @@ public enum CompressState {
     | Inflating
     | End
     | Error
+
+    public operator func ==(right: CompressState): Bool {
+        match (this) {
+            case Uninitialized => match (right) { case Uninitialized => true case _ => false }
+            case Inflating => match (right) { case Inflating => true case _ => false }
+            case End => match (right) { case End => true case _ => false }
+            case Error => match (right) { case Error => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: CompressState): Bool {
+        return !(this == right)
+    }
 }
 
 // ============================================================================
@@ -425,14 +440,60 @@ public enum Platform {
     | MacOS
     | Windows
     | Unknown
+
+    public func equals(other: Platform): Bool {
+        match (this) {
+            case Linux => match (other) { case Linux => true case _ => false }
+            case MacOS => match (other) { case MacOS => true case _ => false }
+            case Windows => match (other) { case Windows => true case _ => false }
+            case Unknown => match (other) { case Unknown => true case _ => false }
+        }
+    }
 }
 
-/// CPU 架构 - 对应 Bun Environment.arch
+/// CPU 架构 - 对应 Bun Environment.arch / Architecture
 public enum Arch {
+    | X64
     | X86_64
     | ARM64
     | X86
+    | Wasm
     | Unknown
+
+    public func equals(other: Arch): Bool {
+        match (this) {
+            case X64 => match (other) { case X64 => true case _ => false }
+            case X86_64 => match (other) { case X86_64 => true case _ => false }
+            case ARM64 => match (other) { case ARM64 => true case _ => false }
+            case X86 => match (other) { case X86 => true case _ => false }
+            case Wasm => match (other) { case Wasm => true case _ => false }
+            case Unknown => match (other) { case Unknown => true case _ => false }
+        }
+    }
+
+    public func npmName(): String {
+        match (this) {
+            case X64 | X86_64 => "x64"
+            case ARM64 => "aarch64"
+            case Wasm => "wasm"
+            case X86 => "ia32"
+            case Unknown => "unknown"
+        }
+    }
+
+    public static func fromString(name: String): ?Arch {
+        let lower = name.toAsciiLower()
+        if (lower == "x86_64" || lower == "x64" || lower == "amd64") {
+            return Some(X64)
+        }
+        if (lower == "aarch64" || lower == "arm64") {
+            return Some(ARM64)
+        }
+        if (lower == "wasm") {
+            return Some(Wasm)
+        }
+        return None
+    }
 }
 
 /// 获取当前平台
@@ -461,19 +522,76 @@ public func currentArch(): Arch {
 //   pub const version_string = ...
 // ============================================================================
 
+/// 构建目标 - 对应 Bun BuildTarget
+public enum BuildTarget {
+    | Native
+    | Wasm
+    | Wasi
+}
+
+/// 操作系统 - 对应 Bun OperatingSystem
+public enum OperatingSystem {
+    | Mac
+    | Linux
+    | FreeBSD
+    | Windows
+    | Wasm
+
+    public func displayString(): String {
+        match (this) {
+            case Mac => "macOS"
+            case Linux => "Linux"
+            case FreeBSD => "FreeBSD"
+            case Windows => "Windows"
+            case Wasm => "WASM"
+        }
+    }
+
+    public func nameString(): String {
+        match (this) {
+            case Mac => "darwin"
+            case Linux => "linux"
+            case FreeBSD => "freebsd"
+            case Windows => "win32"
+            case Wasm => "wasm"
+        }
+    }
+
+    public func npmName(): String {
+        match (this) {
+            case Mac => "darwin"
+            case Linux => "linux"
+            case FreeBSD => "freebsd"
+            case Windows => "windows"
+            case Wasm => "wasm"
+        }
+    }
+
+    public static func fromString(name: String): ?OperatingSystem {
+        let lower = name.toAsciiLower()
+        if (lower == "windows" || lower == "win32" || lower == "win" || lower == "win64") {
+            return Some(Windows)
+        }
+        if (lower == "darwin" || lower == "macos" || lower == "mac" || lower == "apple") {
+            return Some(Mac)
+        }
+        if (lower == "linux" || lower == "linux-gnu" || lower == "gnu/linux") {
+            return Some(Linux)
+        }
+        if (lower == "freebsd") {
+            return Some(FreeBSD)
+        }
+        if (lower == "wasm") {
+            return Some(Wasm)
+        }
+        return None
+    }
+}
+
 /// 编译/运行环境 - 对应 Bun Environment (env.zig)
 /// Bun 使用编译时 (comptime) 确定平台属性
 /// 仓颉使用运行时检测, 但值在程序启动时确定
 public class Environment {
-    // ========================================================================
-    // 构建目标 - 对应 Bun BuildTarget
-    //   pub const BuildTarget = enum { native, wasm, wasi };
-    // ========================================================================
-    public enum BuildTarget {
-        | Native   // 对应 Bun native
-        | Wasm     // 对应 Bun wasm
-        | Wasi     // 对应 Bun wasi
-    }
 
     /// 当前构建目标
     public static let BUILD_TARGET: BuildTarget = BuildTarget.Native
@@ -492,13 +610,13 @@ public class Environment {
     public static let IS_WASI: Bool = false
 
     /// 是否为 macOS - 对应 Bun isMac
-    public static let IS_MAC: Bool = currentPlatform() == Platform.MacOS
+    public static let IS_MAC: Bool = currentPlatform().equals(Platform.MacOS)
 
     /// 是否为 Linux - 对应 Bun isLinux
-    public static let IS_LINUX: Bool = currentPlatform() == Platform.Linux
+    public static let IS_LINUX: Bool = currentPlatform().equals(Platform.Linux)
 
     /// 是否为 Windows - 对应 Bun isWindows
-    public static let IS_WINDOWS: Bool = currentPlatform() == Platform.Windows
+    public static let IS_WINDOWS: Bool = currentPlatform().equals(Platform.Windows)
 
     /// 是否为 POSIX - 对应 Bun isPosix = !isWindows and !isWasm
     public static let IS_POSIX: Bool = !IS_WINDOWS && !IS_WASM
@@ -516,13 +634,13 @@ public class Environment {
     public static let IS_KQUEUE: Bool = IS_MAC || IS_FREEBSD
 
     /// 是否为 AArch64 - 对应 Bun isAarch64
-    public static let IS_AARCH64: Bool = currentArch() == Arch.ARM64
+    public static let IS_AARCH64: Bool = currentArch().equals(Arch.ARM64)
 
     /// 是否为 x86 - 对应 Bun isX86
-    public static let IS_X86: Bool = currentArch() == Arch.X86
+    public static let IS_X86: Bool = currentArch().equals(Arch.X86)
 
     /// 是否为 x64 - 对应 Bun isX64
-    public static let IS_X64: Bool = currentArch() == Arch.X86_64
+    public static let IS_X64: Bool = currentArch().equals(Arch.X86_64)
 
     /// 是否为 Android - 对应 Bun isAndroid
     public static let IS_ANDROID: Bool = false
@@ -546,150 +664,29 @@ public class Environment {
     public static let ENABLE_SIMD: Bool = IS_NATIVE && !IS_WASM
 
     // ========================================================================
-    // 操作系统枚举 - 对应 Bun OperatingSystem
-    //   pub const OperatingSystem = enum {
-    //       mac, linux, freebsd, windows, wasm,
-    //       pub fn displayString(self) []const u8 { ... }
-    //       pub fn nameString(self) []const u8 { ... }
-    //       pub fn npmName(self) []const u8 { ... }
-    //   };
-    // ========================================================================
-
-    /// 操作系统 - 对应 Bun OperatingSystem
-    public enum OperatingSystem {
-        | Mac       // 对应 Bun mac
-        | Linux     // 对应 Bun linux
-        | FreeBSD   // 对应 Bun freebsd
-        | Windows   // 对应 Bun windows
-        | Wasm      // 对应 Bun wasm
-
-        /// 显示名称 - 对应 Bun OperatingSystem.displayString()
-        /// pub fn displayString(self: OperatingSystem) []const u8 {
-        ///     return switch (self) { .mac => "macOS", .linux => "Linux", ... };
-        /// }
-        public func displayString(): String {
-            match (this) {
-                case Mac => return "macOS"
-                case Linux => return "Linux"
-                case FreeBSD => return "FreeBSD"
-                case Windows => return "Windows"
-                case Wasm => return "WASM"
-            }
-        }
-
-        /// 名称字符串 - 对应 Bun OperatingSystem.nameString()
-        /// pub fn nameString(self: OperatingSystem) []const u8 {
-        ///     return switch (self) { .mac => "darwin", .linux => "linux", ... };
-        /// }
-        public func nameString(): String {
-            match (this) {
-                case Mac => return "darwin"
-                case Linux => return "linux"
-                case FreeBSD => return "freebsd"
-                case Windows => return "win32"
-                case Wasm => return "wasm"
-            }
-        }
-
-        /// npm 包名 - 对应 Bun OperatingSystem.npmName()
-        /// pub fn npmName(self: OperatingSystem) []const u8 { ... }
-        public func npmName(): String {
-            match (this) {
-                case Mac => return "darwin"
-                case Linux => return "linux"
-                case FreeBSD => return "freebsd"
-                case Windows => return "windows"
-                case Wasm => return "wasm"
-            }
-        }
-
-        /// OS 名称查找 - 对应 Bun OperatingSystem.names
-        public static func fromString(name: String): ?OperatingSystem {
-            let lower = name.toLower()
-            if (lower == "windows" || lower == "win32" || lower == "win" || lower == "win64") {
-                return Some(Windows)
-            }
-            if (lower == "darwin" || lower == "macos" || lower == "mac" || lower == "apple") {
-                return Some(Mac)
-            }
-            if (lower == "linux" || lower == "linux-gnu" || lower == "gnu/linux") {
-                return Some(Linux)
-            }
-            if (lower == "freebsd") {
-                return Some(FreeBSD)
-            }
-            if (lower == "wasm") {
-                return Some(Wasm)
-            }
-            return None
-        }
-    }
-
-    // ========================================================================
-    // 架构枚举 - 对应 Bun Architecture
-    //   pub const Architecture = enum {
-    //       x64, arm64, wasm,
-    //       pub fn npmName(this) []const u8 { ... }
-    //   };
-    // ========================================================================
-
-    /// 架构 - 对应 Bun Architecture
-    public enum Architecture {
-        | X64       // 对应 Bun x64
-        | ARM64     // 对应 Bun arm64
-        | Wasm      // 对应 Bun wasm
-
-        /// npm 包名 - 对应 Bun Architecture.npmName()
-        /// pub fn npmName(this: Architecture) []const u8 {
-        ///     return switch (this) { .x64 => "x64", .arm64 => "aarch64", .wasm => "wasm" };
-        /// }
-        public func npmName(): String {
-            match (this) {
-                case X64 => return "x64"
-                case ARM64 => return "aarch64"
-                case Wasm => return "wasm"
-            }
-        }
-
-        /// 从字符串查找 - 对应 Bun Architecture.names
-        public static func fromString(name: String): ?Architecture {
-            let lower = name.toLower()
-            if (lower == "x86_64" || lower == "x64" || lower == "amd64") {
-                return Some(X64)
-            }
-            if (lower == "aarch64" || lower == "arm64") {
-                return Some(ARM64)
-            }
-            if (lower == "wasm") {
-                return Some(Wasm)
-            }
-            return None
-        }
-    }
-
-    // ========================================================================
     // 实例属性
     // ========================================================================
 
     /// 当前操作系统 - 对应 Bun os
-    /// pub const os: OperatingSystem = if (isMac) .mac else if (isLinux) .linux ...
-    public static let OS: OperatingSystem = {
-        if (IS_MAC) { OperatingSystem.Mac }
-        else if (IS_LINUX) { OperatingSystem.Linux }
-        else if (IS_FREEBSD) { OperatingSystem.FreeBSD }
-        else if (IS_WINDOWS) { OperatingSystem.Windows }
-        else if (IS_WASM) { OperatingSystem.Wasm }
-        else { OperatingSystem.Linux }
+    public static func getOS(): OperatingSystem {
+        if (IS_MAC) { return OperatingSystem.Mac }
+        else if (IS_LINUX) { return OperatingSystem.Linux }
+        else if (IS_FREEBSD) { return OperatingSystem.FreeBSD }
+        else if (IS_WINDOWS) { return OperatingSystem.Windows }
+        else if (IS_WASM) { return OperatingSystem.Wasm }
+        else { return OperatingSystem.Linux }
     }
 
     /// 当前架构 - 对应 Bun arch
-    /// pub const arch: Architecture = if (isWasm) .wasm else if (isX64) .x64 ...
-    public static let ARCH: Architecture = {
-        if (IS_WASM) { Architecture.Wasm }
-        else if (IS_X64) { Architecture.X64 }
-        else if (IS_AARCH64) { Architecture.ARM64 }
-        else { Architecture.X64 }
+    public static func getArch(): Arch {
+        if (IS_WASM) { return Arch.Wasm }
+        else if (IS_X64) { return Arch.X64 }
+        else if (IS_AARCH64) { return Arch.ARM64 }
+        else { return Arch.X64 }
     }
+
+    public static let OS: OperatingSystem = getOS()
+    public static let ARCH: Arch = getArch()
 
     // ========================================================================
     // 版本信息 - 对应 Bun version / version_string
@@ -723,38 +720,33 @@ public class Environment {
 }
 
 // ============================================================================
-// Global - 全局工具
-// 对应 Bun: src/bun_core/Global.zig
+// 工具函数
 // ============================================================================
 
-/// 全局工具类
-public class Global {
-    public static let package_json_version = BAO_VERSION
-    public static let user_agent = USER_AGENT
-
-    /// 包含检查 - 对应 Bun bun::contains
-    public static func contains<T>(item: T, list: Array<T>): Bool where T <: Equatable<T> {
-        for (elem in list) {
-            if (elem == item) {
-                return true
-            }
+/// 包含检查 - 对应 Bun bun::contains
+public func contains<T>(item: T, list: Array<T>): Bool where T <: Equatable<T> {
+    for (elem in list) {
+        if (elem == item) {
+            return true
         }
-        return false
     }
+    return false
 }
 
 // ============================================================================
-// 工具函数
+// 全局常量
 // ============================================================================
 
 /// 安全退出 - 对应 Bun Global.exit
 public func exit(code: Int64): Nothing {
-    std.process.exit(Int32(code))
+    // Use C exit via FFI
+    unsafe { exit(Int32(code)) }
+    throw BaoError(ErrorCode.Unknown, "exit failed")
 }
 
 /// 栈溢出检查 - 对应 Bun throw_stack_overflow
-public func throwStackOverflow(): Result<Unit> {
-    return Result<Unit>.Err(BaoError(ErrorCode.StackOverflow))
+public func throwStackOverflow(): Result<Unit, BaoError> {
+    return Result<Unit, BaoError>.Err(BaoError(ErrorCode.StackOverflow))
 }
 
 // ============================================================================

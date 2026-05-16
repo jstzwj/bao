@@ -209,6 +209,31 @@ public type JscVirtualMachineExports = VirtualMachineExports
 public type JscZigStackFrameCode = ZigStackFrameCode
 public type JscZigStackFramePosition = ZigStackFramePosition
 
+// 插件运行器
+public type JscPluginRunner = PluginRunner
+public type JscHostFnEntry = HostFnEntry
+
+// 路径类型
+public type JscPathLike = PathLike
+public type JscPathOrFileDescriptor = PathOrFileDescriptor
+public type JscPathOrFileDescriptorSerializeTag = PathOrFileDescriptorSerializeTag
+public type JscThreadSafe = ThreadSafePathLike
+
+// Webcore 数据类型
+public type JscBlob = Blob
+public type JscStore = Store
+public type JscStoreRef = StoreRef
+public type JscStoreData = Data
+public type JscBytes = Bytes
+public type JscStoreFile = File
+public type JscS3 = S3
+public type JscClosingState = ClosingState
+public type JscDataTag = DataTag
+public type JscSerializeTag = SerializeTag
+
+// AnyTaskJob
+public type JscAnyTaskJob<C> = AnyTaskJob<C>
+
 // 包版本信息
 public let BAO_JSC_VERSION = "0.1.0"
 

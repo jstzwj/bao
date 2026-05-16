@@ -37,14 +37,14 @@ public struct ZStream {
     public var total_out: UIntNative = 0
 
     /// last error message, NULL if no error
-    public var msg: CString = CString()
+    public var msg: CString = CString(CPointer<UInt8>())
     /// not visible by applications
     public var state: CPointer<ZInternalState> = CPointer<ZInternalState>()
 
     /// used to allocate the internal state
-    public var zalloc: CFunc<(CPointer<Unit>, UInt32, UInt32) -> CPointer<Unit>> = CFunc<(CPointer<Unit>, UInt32, UInt32) -> CPointer<Unit>>()
+    public var zalloc: CFunc<(CPointer<Unit>, UInt32, UInt32) -> CPointer<Unit>> = CFunc<(CPointer<Unit>, UInt32, UInt32) -> CPointer<Unit>>(CPointer<UInt8>())
     /// used to free the internal state
-    public var zfree: CFunc<(CPointer<Unit>, CPointer<Unit>) -> Unit> = CFunc<(CPointer<Unit>, CPointer<Unit>) -> Unit>()
+    public var zfree: CFunc<(CPointer<Unit>, CPointer<Unit>) -> Unit> = CFunc<(CPointer<Unit>, CPointer<Unit>) -> Unit>(CPointer<UInt8>())
     /// private data object passed to zalloc and zfree
     public var opaque: CPointer<Unit> = CPointer<Unit>()
 

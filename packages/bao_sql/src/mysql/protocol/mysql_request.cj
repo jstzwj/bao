@@ -1,6 +1,6 @@
 // MySQL 请求构造
 // 对应 Bun: src/sql/mysql/MySQLRequest.zig
-package bao_sql.mysql
+package bao_sql.mysql.protocol
 
 /// MySQL 请求构造工具
 /// 对应 Bun: MySQLRequest
@@ -15,8 +15,8 @@ public class MySQLRequest {
     public static func executeQuery(query: String, writer: MySQLPacketWriter): Unit {
         // 重置序列 ID 为 0
         var packet = writer.start(0)
-        writer.int1(CommandType.COM_QUERY.value())
-        writer.write(query.toUtf8Bytes())
+        writer.int1(UInt8(0x03)) // COM_QUERY
+        writer.write(query.toArray())
         packet.end()
     }
 
@@ -26,8 +26,8 @@ public class MySQLRequest {
     /// 向服务器发送 COM_STMT_PREPARE 命令
     public static func prepareRequest(query: String, writer: MySQLPacketWriter): Unit {
         var packet = writer.start(0)
-        writer.int1(CommandType.COM_STMT_PREPARE.value())
-        writer.write(query.toUtf8Bytes())
+        writer.int1(UInt8(0x16)) // COM_STMT_PREPARE
+        writer.write(query.toArray())
         packet.end()
     }
 }

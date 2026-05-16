@@ -46,16 +46,16 @@ public enum OutputFormat {
 // ============================================================================
 
 public enum TCCError {
-    InvalidOptions
-    InvalidIncludePath
-    CompileError
-    InvalidOutputType
-    SyntaxError
-    InvalidLibraryPath
-    InvalidSymbol
-    ExecError
-    RelocationError
-    OutputError
+    | InvalidOptions
+    | InvalidIncludePath
+    | CompileError
+    | InvalidOutputType
+    | SyntaxError
+    | InvalidLibraryPath
+    | InvalidSymbol
+    | ExecError
+    | RelocationError
+    | OutputError
 }
 
 // ============================================================================

@@ -2,6 +2,9 @@
 
 package bao_runtime.test_runner.expect
 
+import bao_runtime.test_runner
+import bao_jsc.*
+
 /// toContainAllKeys() - 检查对象是否恰好包含所有指定键
 /// 用法: expect(received).toContainAllKeys(expected)
 public func toContainAllKeys(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
@@ -11,7 +14,7 @@ public func toContainAllKeys(`this`: Expect, globalThis: JSGlobalObject, callFra
     let arguments_ = callFrame.argumentsOld(1)
     let arguments = arguments_.slice()
 
-    if arguments.length < 1 {
+    if (arguments.length < 1) {
         return globalThis.throwInvalidArguments("toContainAllKeys() takes 1 argument")
     }
 
@@ -21,7 +24,7 @@ public func toContainAllKeys(`this`: Expect, globalThis: JSGlobalObject, callFra
     expected.ensureStillAlive()
     let value: JSValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toContainAllKeys", matcherParamsFmt: "<green>expected<r>")
 
-    if !expected.jsType().isArray() {
+    if (!expected.jsType().isArray()) {
         return globalThis.throwInvalidArgumentType("toContainAllKeys", argName: "expected", expectedType: "array")
     }
 
@@ -31,39 +34,39 @@ public func toContainAllKeys(`this`: Expect, globalThis: JSGlobalObject, callFra
     let count = expected.getLength(globalThis: globalThis)
 
     let keys = value.keys(globalThis: globalThis)
-    if keys.getLength(globalThis: globalThis) == count {
+    if (keys.getLength(globalThis: globalThis) == count) {
         var itr = keys.arrayIterator(globalThis: globalThis)
         var allMatch = true
-        while (let item = itr.next()) {
+        while (let Some(item) <- itr.next()) {
             var i: UInt32 = 0
             var found = false
-            while i < count {
+            while (i < count) {
                 let key = expected.getIndex(globalThis: globalThis, index: i)
-                if item.jestDeepEquals(key, globalThis: globalThis) {
+                if (item.jestDeepEquals(key, globalThis: globalThis)) {
                     found = true
                     break
                 }
                 i++
             }
-            if !found {
+            if (!found ){
                 allMatch = false
                 break
             }
         }
-        if allMatch {
+        if (allMatch) {
             pass = true
         }
     }
 
-    if not { pass = !pass }
-    if pass { return thisValue }
+    if (not) { pass = !pass }
+    if (pass) { return thisValue }
 
     // 处理失败
     let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
     defer { formatter.deinit() }
     let keysFmt = keys.toFmt(formatter)
     let expectedFmt = expected.toFmt(formatter)
-    if not {
+    if (not) {
         let receivedFmt = keys.toFmt(formatter)
         let expectedLine = "Expected to not contain all keys: <green>{f}<r>\nReceived: <red>{f}<r>\n"
         return this.throw_(globalThis: globalThis, signature: Expect.getSignature(matcherName: "toContainAllKeys", args: "<green>expected<r>", not: true),

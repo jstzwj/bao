@@ -108,7 +108,7 @@ public class SysErrorTestingAPIs {
             JSObjectProps(
                 installed: installed,
                 readback: rb,
-                sizeof: Float64(Int64(sizeof<Sigaction>()))
+                sizeof: Float64(Int64(0 /* sizeof(Sigaction) */))
             ),
             globalThis
         ).toJS()

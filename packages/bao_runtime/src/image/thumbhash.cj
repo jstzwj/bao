@@ -65,7 +65,7 @@ class NibbleReader {
             while (cx * ny < nx * (ny - cy)) {
                 let nib = next()
                 if (nib == None) { return None }
-                out[n] = (Float32(nib!) / 7.5 - 1.0f32) * scale
+                out[n] = (Float32(nib.getOrThrow()) / 7.5 - 1.0f32) * scale
                 n += 1
                 cx += 1
             }
@@ -267,10 +267,10 @@ public class ThumbHash {
                     cc += 1
                 }
 
-                lv += idct(lAc, ln!, lx, ly, fx, fy)
-                pv += idct(pAc, pn!, 3, 3, fx, fy)
-                qv += idct(qAc, qn!, 3, 3, fx, fy)
-                if (hasAlpha) { av += idct(aAc, an!, 5, 5, fx, fy) }
+                lv += idct(lAc, ln.getOrThrow(), lx, ly, fx, fy)
+                pv += idct(pAc, pn.getOrThrow(), 3, 3, fx, fy)
+                qv += idct(qAc, qn.getOrThrow(), 3, 3, fx, fy)
+                if (hasAlpha) { av += idct(aAc, an.getOrThrow(), 5, 5, fx, fy) }
 
                 let b = lv - 2.0f32 / 3.0f32 * pv
                 let r = (3 * lv - b + qv) / 2

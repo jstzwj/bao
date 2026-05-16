@@ -1283,3 +1283,18 @@ private func Int64.clamp(minVal: Int64, maxVal: Int64): Int64 {
 //   AutoHashMap<K, V>           - 自动哈希映射
 //   SortedEntry<V>              - 排序哈希映射条目
 //   SortedHashMap<V>            - 密码学哈希键排序映射
+
+// string_map.cj 导出:
+//   StringMapEntry<V>           - 字符串映射条目
+//   StringMap<V>                - 字符串键值映射 (支持大小写不敏感)
+
+// vec_ext.cj 导出:
+//   ArrayList<T> 扩展方法       - VecExt<T> (vecInitCapacity, vecSlice, vecAppend 等)
+//   Cloneable<T>                - 可克隆接口
+//   ArrayList<UInt8> 扩展方法   - ByteVecExt (byteWrite, byteWriteString, byteWriteUtf16 等)
+//   OffsetByteList              - 带偏移的字节列表
+
+// zig_hash_map.cj 导出:
+//   ZigGetOrPutResult<V>        - 获取或插入结果
+//   ZigKV<K, V>                 - 键值对
+//   ZigHashMap<K, V>            - 开放寻址线性探测哈希表 (墓碑删除)

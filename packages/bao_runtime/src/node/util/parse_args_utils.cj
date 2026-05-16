@@ -73,7 +73,7 @@ public class TokenClassifier {
                 let firstChar = arg.substring(1, 2)
                 let optIdx = findOptionByShortName(firstChar, options: options)
                 if (optIdx != None) {
-                    if (options[Int64(optIdx!)].type == ParseArgType.string) {
+                    if (options[Int64(optIdx.getOrThrow())].type == ParseArgType.string) {
                         return TokenSubtype.shortOptionAndValue
                     }
                     return TokenSubtype.shortOptionGroup

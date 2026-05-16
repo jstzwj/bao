@@ -230,7 +230,7 @@ public class ParseArgs {
         for (optDef in options) {
             if (!result.values.contains(optDef.longName) && optDef.defaultValue != None) {
                 if (optDef.longName != "__proto__") {
-                    result.values.put(optDef.longName, optDef.defaultValue!)
+                    result.values.put(optDef.longName, optDef.defaultValue.getOrThrow())
                 }
             }
         }
@@ -297,7 +297,7 @@ public class ParseArgs {
 
         if (eqIdx != None) {
             // --foo=bar
-            name = arg.substring(2, eqIdx!)
+            name = arg.substring(2, eqIdx.getOrThrow())
             value = arg.substring(eqIdx! + 1, arg.size)
             inlineValue = true
         } else {
@@ -503,7 +503,7 @@ public class ParseArgs {
                 let existing = result.values.get(name)
                 if (existing != None && existing.getOrThrow().isArray) {
                     existing.getOrThrow().arrayValues.add(newValue)
-                    result.values.put(name, existing!)
+                    result.values.put(name, existing.getOrThrow())
                 } else {
                     let arr = ParseArgValue.fromArray(Array<ParseArgValue>([newValue]))
                     result.values.put(name, arr)
@@ -524,7 +524,7 @@ public class ParseArgs {
                 let existing = result.values.get(name)
                 if (existing != None && existing.getOrThrow().isArray) {
                     existing.getOrThrow().arrayValues.add(newValue)
-                    result.values.put(name, existing!)
+                    result.values.put(name, existing.getOrThrow())
                 } else {
                     let arr = ParseArgValue.fromArray(Array<ParseArgValue>([newValue]))
                     result.values.put(name, arr)

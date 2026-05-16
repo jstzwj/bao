@@ -12,7 +12,11 @@ package bao_sql.mysql.protocol
 /// 与 MySQLTypes.zig 中的 CharacterSet 定义相同
 public enum ProtocolCharacterSet {
     | None
-}
-        return "(unknown)"
+
+    /// 获取字符集名称
+    public func name(): String {
+        match (this) {
+            case None => "(unknown)"
+        }
     }
 }

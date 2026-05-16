@@ -21,7 +21,7 @@ foreign func us_timer_loop(t: CPointer<Unit>): CPointer<Unit>
 // ============================================================================
 // Timer - 定时器
 // 严格翻译自: Timer.zig
-//  DEPRECATED - DO NOT USE IN NEW CODE!
+//  DEPRECATED - DO NOT USE IN NEW CODE.getOrThrow()
 //  Use JSC.EventLoopTimer instead.
 //  This code will be deleted eventually! It is very inefficient on POSIX.
 //  On Linux, it holds an entire file descriptor for every single timer.

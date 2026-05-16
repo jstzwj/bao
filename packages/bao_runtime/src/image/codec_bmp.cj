@@ -139,7 +139,7 @@ public class CodecBmp {
     public static func decode(bytes: Array<UInt8>, maxPixels: UInt64): ?DecodedImage {
         let hOpt = parseHeader(bytes)
         if (hOpt == None) { return None }
-        let h = hOpt!
+        let h = hOpt.getOrThrow()
 
         // 像素守卫
         if (UInt64(h.width) * UInt64(h.height) > maxPixels) { return None }
@@ -153,7 +153,7 @@ public class CodecBmp {
         let (rs, rw) = shiftWidth(h.rMask)
         let (gs, gw) = shiftWidth(h.gMask)
         let (bs, bw) = shiftWidth(h.bMask)
-        let (as, aw) = shiftWidth(h.aMask)
+        let (aShift, aWidth) = shiftWidth(h.aMask)
 
         let npix = UInt64(h.width) * UInt64(h.height)
         let outSize = npix * 4
@@ -194,7 +194,7 @@ public class CodecBmp {
                 out[base + 3] = if (h.aMask == 0) {
                     0xFF
                 } else {
-                    to8((pix >> Int64(as)) & aMax, aw)
+                    to8((pix >> Int64(aShift)) & aMax, aWidth)
                 }
                 x += 1
             }

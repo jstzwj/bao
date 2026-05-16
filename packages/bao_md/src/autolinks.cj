@@ -54,7 +54,7 @@ public func isEmphBoundaryResolved(content: String, al: AutolinkResult, resolved
         }
     }
     // 检查右边界
-    if (al.end < content.length) {
+    if (al.end < content.size) {
         let next = UInt8(content[al.end])
         if (next == '*'.toUInt8() || next == '_'.toUInt8() || next == '~'.toUInt8()) {
             if (!checkRightBoundary(content, al.end, false)) {
@@ -98,16 +98,16 @@ public func scanUrlComponent(content: String, start: Int64, start_char: UInt8,
     var n_components: UInt32 = 0
 
     if (start_char != 0) {
-        if (pos >= content.length || UInt8(content[pos]) != start_char) {
+        if (pos >= content.size || UInt8(content[pos]) != start_char) {
             return ScanResult(pos, min_components == 0)
         }
-        if (min_components > 0 && (pos + 1 >= content.length || !isAlphaNum(UInt8(content[pos + 1])))) {
+        if (min_components > 0 && (pos + 1 >= content.size || !isAlphaNum(UInt8(content[pos + 1])))) {
             return ScanResult(pos, min_components == 0)
         }
         pos += 1
     }
 
-    while (pos < content.length) {
+    while (pos < content.size) {
         let c = UInt8(content[pos])
         if (isAlphaNum(c)) {
             if (n_components == 0) {
@@ -119,7 +119,7 @@ public func scanUrlComponent(content: String, start: Int64, start_char: UInt8,
                                   UInt8(content[pos - 1]) == ')'.toUInt8() ||
                                   isInSet(UInt8(content[pos - 1]), allowed_nonalnum))) ||
                                   c == '('.toUInt8()) &&
-                   ((pos + 1 < content.length && (isAlphaNum(UInt8(content[pos + 1])) ||
+                   ((pos + 1 < content.size && (isAlphaNum(UInt8(content[pos + 1])) ||
                                                    UInt8(content[pos + 1]) == '('.toUInt8() ||
                                                    isInSet(UInt8(content[pos + 1]), allowed_nonalnum))) ||
                                    c == ')'.toUInt8())) {
@@ -132,7 +132,7 @@ public func scanUrlComponent(content: String, start: Int64, start_char: UInt8,
         }
     }
 
-    if (pos < content.length && optional_end_char != 0 && UInt8(content[pos]) == optional_end_char) {
+    if (pos < content.size && optional_end_char != 0 && UInt8(content[pos]) == optional_end_char) {
         pos += 1
     }
 
@@ -171,7 +171,7 @@ public func checkLeftBoundary(content: String, pos: Int64, allow_emph: Bool): Bo
 
 /// 检查宽松自动链接的右边界
 public func checkRightBoundary(content: String, pos: Int64, allow_emph: Bool): Bool {
-    if (pos >= content.length) {
+    if (pos >= content.size) {
         return true
     }
     return match (UInt8(content[pos])) {
@@ -189,7 +189,7 @@ public func checkRightBoundary(content: String, pos: Int64, allow_emph: Bool): B
 
 /// 在给定位置检测宽松自动链接
 public func findPermissiveAutolink(content: String, pos: Int64, allow_emph: Bool): ?AutolinkResult {
-    if (pos >= content.length) {
+    if (pos >= content.size) {
         return None
     }
     let c = UInt8(content[pos])
@@ -199,10 +199,10 @@ public func findPermissiveAutolink(content: String, pos: Int64, allow_emph: Bool
         let schemes: Array<String> = ["http", "https", "ftp"]
         let suffixes: Array<String> = ["//", "//", "//"]
 
-        for (i in 0..schemes.length) {
-            let slen = schemes[Int64(i)].length
-            let suflen = suffixes[Int64(i)].length
-            if (pos >= slen && pos + 1 + suflen < content.length) {
+        for (i in 0..schemes.size) {
+            let slen = schemes[Int64(i)].size
+            let suflen = suffixes[Int64(i)].size
+            if (pos >= slen && pos + 1 + suflen < content.size) {
                 if (asciiCaseEql(content.substring(pos - slen, pos), schemes[Int64(i)]) &&
                     content.substring(pos + 1, pos + 1 + suflen) == suffixes[Int64(i)]) {
                     let beg = pos - slen
@@ -231,7 +231,7 @@ public func findPermissiveAutolink(content: String, pos: Int64, allow_emph: Bool
         }
     } else if (c == '@'.toUInt8()) {
         // 电子邮件自动链接
-        if (pos == 0 || pos + 3 >= content.length) {
+        if (pos == 0 || pos + 3 >= content.size) {
             return None
         }
         if (!isAlphaNum(UInt8(content[pos - 1])) || !isAlphaNum(UInt8(content[pos + 1]))) {
@@ -316,7 +316,7 @@ func postProcessAutolinkEnd(content: String, beg: Int64, end_in: Int64): Int64 {
             end = j
         }
     }
-    if (end < content.length && UInt8(content[end]) == ';'.toUInt8() && end > beg) {
+    if (end < content.size && UInt8(content[end]) == ';'.toUInt8() && end > beg) {
         var j = end - 1
         while (j > beg && isAlphaNum(UInt8(content[j]))) {
             j -= 1

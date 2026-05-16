@@ -5,6 +5,9 @@
 
 package bao_runtime.dns
 
+import bao_jsc.*
+import std.collection.*
+
 // ============================================================================
 // 从 JS 值解析 DNS 选项
 // 对应 Bun: options_jsc.zig - optionsFromJS
@@ -21,9 +24,9 @@ public func optionsFromJS(value: JsValue, globalObject: JsObject): ?DnsOptions {
         var options = DnsOptions()
 
         let familyVal = value.getObject().get("family")
-        if (familyVal != None && !familyVal.isUndefinedOrNull()) {
+        if (familyVal.isSome() && !familyVal.isUndefinedOrNull()) {
             let fam = familyFromJS(familyVal, globalObject)
-            if (fam == None) {
+            if (fam.isNone()) {
                 return None
             }
             options.family = fam
@@ -31,41 +34,41 @@ public func optionsFromJS(value: JsValue, globalObject: JsObject): ?DnsOptions {
 
         let socktypeVal = value.getObject().get("socketType")
         let socktypeAlt = value.getObject().get("socktype")
-        let sockInput = if (socktypeVal != None && !socktypeVal.isUndefinedOrNull()) {
+        let sockInput = if (socktypeVal.isSome() && !socktypeVal.isUndefinedOrNull()) {
             socktypeVal
-        } else if (socktypeAlt != None && !socktypeAlt.isUndefinedOrNull()) {
+        } else if (socktypeAlt.isSome() && !socktypeAlt.isUndefinedOrNull()) {
             socktypeAlt
         } else {
             JsValue.UNDEFINED
         }
         if (!sockInput.isUndefinedOrNull()) {
             let st = socketTypeFromJS(sockInput, globalObject)
-            if (st == None) {
+            if (st.isNone()) {
                 return None
             }
             options.socktype = st
         }
 
         let protocolVal = value.getObject().get("protocol")
-        if (protocolVal != None && !protocolVal.isUndefinedOrNull()) {
+        if (protocolVal.isSome() && !protocolVal.isUndefinedOrNull()) {
             let proto = protocolFromJS(protocolVal, globalObject)
-            if (proto == None) {
+            if (proto.isNone()) {
                 return None
             }
             options.protocol = proto
         }
 
         let backendVal = value.getObject().get("backend")
-        if (backendVal != None && !backendVal.isUndefinedOrNull()) {
+        if (backendVal.isSome() && !backendVal.isUndefinedOrNull()) {
             let be = backendFromJS(backendVal, globalObject)
-            if (be == None) {
+            if (be.isNone()) {
                 return None
             }
             options.backend = be
         }
 
         let flagsVal = value.getObject().get("flags")
-        if (flagsVal != None && !flagsVal.isUndefinedOrNull()) {
+        if (flagsVal.isSome() && !flagsVal.isUndefinedOrNull()) {
             if (!flagsVal.isNumber()) {
                 return None
             }
@@ -229,13 +232,12 @@ public func backendFromJS(value: JsValue, globalObject: JsObject): ?DnsBackend {
 /// 对应 Bun: resultAnyToJS
 public func resultAnyToJS(result: DnsResultAny, globalThis: JsObject): ?JsValue {
     match (result) {
-        case DnsResultAny.addrinfo(addrinfo) => {
-            if (addrinfo == None) {
+        case DnsResultAny.addrinfo(addrinfo) =>
+            if (addrinfo.isNone()) {
                 return None
             }
-            return addrInfoToJSArray(addrInfo: addrInfo!, globalThis)
-        }
-        case DnsResultAny.list(list) => {
+            return addrInfoToJSArray(addrInfo: addrinfo.getOrThrow(), globalThis)
+        case DnsResultAny.list(list) =>
             let array = JsValue(JsValueType.Array)
             var items = ArrayList<JsValue>()
             for (item in list.items) {
@@ -243,7 +245,6 @@ public func resultAnyToJS(result: DnsResultAny, globalThis: JsObject): ?JsValue 
             }
             array.arrayData = Some(items)
             return array
-        }
     }
 }
 
@@ -275,11 +276,11 @@ public func addressToJS(address: NetworkAddress, globalThis: JsObject): JsValue 
 public func addrInfoToJSArray(addrInfo: AddrInfo, globalThis: JsObject): JsValue {
     var items = ArrayList<JsValue>()
     var current: ?AddrInfoNode = addrInfo.first
-    while (current != None) {
-        let node = current!
+    while (current.isSome()) {
+        let node = current.getOrThrow()
         let result = DnsResult.fromAddrInfo(node)
-        if (result != None) {
-            items.append(resultToJS(result!, globalThis))
+        if (result.isSome()) {
+            items.append(resultToJS(result.getOrThrow(), globalThis))
         }
         current = node.next
     }

@@ -84,72 +84,72 @@ public class CodecPng {
     // ========================================================================
 
     /// 创建 spng 上下文
-    public static func spngCtxNew(flags: Int32): ?CPointer<> {
+    public static func spngCtxNew(flags: Int32): ?CPointer<Unit> {
         // FFI: spng_ctx_new(flags)
         return None
     }
 
     /// 释放 spng 上下文
-    public static func spngCtxFree(ctx: CPointer<>): Unit {
+    public static func spngCtxFree(ctx: CPointer<Unit>): Unit {
         // FFI: spng_ctx_free(ctx)
     }
 
     /// 设置 PNG 缓冲区
-    public static func spngSetPngBuffer(ctx: CPointer<>, buf: CPointer<>, len: UInt64): Int32 {
+    public static func spngSetPngBuffer(ctx: CPointer<Unit>, buf: CPointer<Unit>, len: UInt64): Int32 {
         // FFI: spng_set_png_buffer(ctx, buf, len)
         return -1
     }
 
     /// 获取解码图像大小
-    public static func spngDecodedImageSize(ctx: CPointer<>, fmt: Int32, outSize: CPointer<UInt64>): Int32 {
+    public static func spngDecodedImageSize(ctx: CPointer<Unit>, fmt: Int32, outSize: CPointer<UInt64>): Int32 {
         // FFI
         return -1
     }
 
     /// 解码图像
-    public static func spngDecodeImage(ctx: CPointer<>, out: CPointer<>, len: UInt64, fmt: Int32, flags: Int32): Int32 {
+    public static func spngDecodeImage(ctx: CPointer<Unit>, out: CPointer<Unit>, len: UInt64, fmt: Int32, flags: Int32): Int32 {
         // FFI
         return -1
     }
 
     /// 获取 IHDR
-    public static func spngGetIhdr(ctx: CPointer<>, ihdr: SpngIhdr): Int32 {
+    public static func spngGetIhdr(ctx: CPointer<Unit>, ihdr: SpngIhdr): Int32 {
         // FFI
         return -1
     }
 
     /// 设置 IHDR
-    public static func spngSetIhdr(ctx: CPointer<>, ihdr: SpngIhdr): Int32 {
+    public static func spngSetIhdr(ctx: CPointer<Unit>, ihdr: SpngIhdr): Int32 {
         // FFI
         return -1
     }
 
     /// 设置 PLTE
-    public static func spngSetPlte(ctx: CPointer<>, plte: SpngPlte): Int32 {
+    public static func spngSetPlte(ctx: CPointer<Unit>, plte: SpngPlte): Int32 {
         // FFI
         return -1
     }
 
     /// 设置 tRNS
-    public static func spngSetTrns(ctx: CPointer<>, trns: SpngTrns): Int32 {
+    public static func spngSetTrns(ctx: CPointer<Unit>, trns: SpngTrns): Int32 {
         // FFI
         return -1
     }
 
     /// 编码图像
-    public static func spngEncodeImage(ctx: CPointer<>, img: CPointer<>, len: UInt64, fmt: Int32, flags: Int32): Int32 {
+    public static func spngEncodeImage(ctx: CPointer<Unit>, img: CPointer<Unit>, len: UInt64, fmt: Int32, flags: Int32): Int32 {
         // FFI
         return -1
     }
 
     /// 获取 PNG 缓冲区
-    public static func spngGetPngBuffer(ctx: CPointer<>, len: CPointer<UInt64>, err: CPointer<Int32>): ?CPointer<> {
+    public static func spngGetPngBuffer(ctx: CPointer<Unit>, len: CPointer<UInt64>, err: CPointer<Int32>): ?CPointer<Unit> {
         // FFI
         return None
     }
 
     /// 设置选项
-    public static func spngSetOption(ctx: CPointer<>, opt: Int32, value: Int32): Int32 {
+    public static func spngSetOption(ctx: CPointer<Unit>, opt: Int32, value: Int32): Int32 {
         // FFI
         return -1
     }
@@ -158,13 +158,13 @@ public class CodecPng {
     /// 返回非零表示源没有 iCCP（或块格式错误）; 我们对所有非零返回
     /// 都一视同仁 — 丢弃配置文件 — 因为像素仍然有效，
     /// 没有 iCCP 的 PNG 仍然是有效的 PNG。
-    public static func spngGetIccp(ctx: CPointer<>, iccp: SpngIccp): Int32 {
+    public static func spngGetIccp(ctx: CPointer<Unit>, iccp: SpngIccp): Int32 {
         // FFI
         return -1
     }
 
     /// 设置 iCCP
-    public static func spngSetIccp(ctx: CPointer<>, iccp: SpngIccp): Int32 {
+    public static func spngSetIccp(ctx: CPointer<Unit>, iccp: SpngIccp): Int32 {
         // FFI
         return -1
     }
@@ -181,7 +181,7 @@ public class CodecPng {
         // 1. 创建上下文
         let ctxOpt = spngCtxNew(0)
         if (ctxOpt == None) { return None }
-        let ctx = ctxOpt!
+        let ctx = ctxOpt.getOrThrow()
 
         // 2. 设置 PNG 缓冲区
         if (spngSetPngBuffer(ctx, bytes.ptr(), UInt64(bytes.size)) != 0) {
@@ -228,7 +228,7 @@ public class CodecPng {
         var iccProfile: ?Array<UInt8> = None
         // var iccp = SpngIccp()
         // if (spngGetIccp(ctx, iccp) == 0 && iccp.profileLen > 0 && iccp.profile != None) {
-        //     iccProfile = copyFromArray(iccp.profile!, 0, Int64(iccp.profileLen))
+        //     iccProfile = copyFromArray(iccp.profile.getOrThrow(), 0, Int64(iccp.profileLen))
         // }
 
         spngCtxFree(ctx)
@@ -255,9 +255,9 @@ public class CodecPng {
     /// 从真彩色 encode() 和索引 encodeIndexed() 两者调用 —
     /// PNG 规范将 iCCP 应用于每种颜色类型（索引颜色调色板也存在于源空间中，
     /// 因此在那里丢弃配置文件会悄悄将其重新解释为 sRGB，与 bug #30197 相同）。
-    static func embedIccp(ctx: CPointer<>, iccProfile: ?Array<UInt8>): Unit {
+    static func embedIccp(ctx: CPointer<Unit>, iccProfile: ?Array<UInt8>): Unit {
         if (iccProfile == None) { return }
-        let p = iccProfile!
+        let p = iccProfile.getOrThrow()
         if (p.size == 0) { return }
 
         // var iccp = SpngIccp()
@@ -285,7 +285,7 @@ public class CodecPng {
         // 1. 创建编码器上下文
         let ctxOpt = spngCtxNew(SPNG_CTX_ENCODER)
         if (ctxOpt == None) { return None }
-        let ctx = ctxOpt!
+        let ctx = ctxOpt.getOrThrow()
 
         // 2. 设置选项
         spngSetOption(ctx, SPNG_ENCODE_TO_BUFFER, 1)
@@ -348,13 +348,13 @@ public class CodecPng {
         // 1. 量化
         let qOpt = Quantize.quantize(rgba, w, h, QuantizeOptions(maxColors: colors, dither: dither))
         if (qOpt == None) { return None }
-        let q = qOpt!
+        let q = qOpt.getOrThrow()
         // defer: q.deinit()
 
         // 2. 创建编码器
         let ctxOpt = spngCtxNew(SPNG_CTX_ENCODER)
         if (ctxOpt == None) { return None }
-        let ctx = ctxOpt!
+        let ctx = ctxOpt.getOrThrow()
 
         spngSetOption(ctx, SPNG_ENCODE_TO_BUFFER, 1)
         if (level >= 0) {

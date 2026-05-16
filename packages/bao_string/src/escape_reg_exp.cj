@@ -36,7 +36,7 @@ public func escapeRegExp(input: String): String {
         }
         let i = Int64(idx)
 
-        result.append(remain[0:i])
+        result.append(remain[0..i])
 
         let char = remain[i]
 
@@ -53,7 +53,7 @@ public func escapeRegExp(input: String): String {
             result.append(String.fromByte(char))
         }
 
-        remain = remain[i + 1:]
+        remain = remain[i + 1..remain.size]
     }
 
     result.append(remain)
@@ -77,7 +77,7 @@ public func escapeRegExpForPackageNameMatching(input: String): String {
         }
         let i = Int64(idx)
 
-        result.append(remain[0:i])
+        result.append(remain[0..i])
 
         let char = remain[i]
 
@@ -96,7 +96,7 @@ public func escapeRegExpForPackageNameMatching(input: String): String {
             result.append(String.fromByte(char))
         }
 
-        remain = remain[i + 1:]
+        remain = remain[i + 1..remain.size]
     }
 
     result.append(remain)

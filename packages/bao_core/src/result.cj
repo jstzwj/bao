@@ -57,9 +57,8 @@ public enum Result<T, E> {
     public func unwrap(): T {
         match (this) {
             case Ok(v) => v
-            case Err(e) => throw e
+            case Err(_) => throw Exception("Result.unwrap: error value")
         }
-    }
     }
 
     /// 获取值，失败则返回默认值

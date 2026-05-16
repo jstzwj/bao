@@ -101,7 +101,7 @@ public class InternalErrorName {
 
         let found = errorMap.get(errInt)
         if (found != None) {
-            return found!
+            return found.getOrThrow()
         }
 
         return "Unknown system error ${errInt}"
@@ -138,7 +138,7 @@ public class ParseEnv {
             }
             let eqIdx = trimmed.indexOf('=')
             if (eqIdx != None) {
-                let idx = eqIdx!
+                let idx = eqIdx.getOrThrow()
                 let key = trimmed.substring(0, idx).trim()
                 var value = trimmed.substring(idx + 1, trimmed.size).trim()
                 // 去除引号

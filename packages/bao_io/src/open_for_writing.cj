@@ -54,7 +54,7 @@ public func openForWriting(
     if (openResult == None) {
         return None
     }
-    let fd = openResult!
+    let fd = openResult.getOrThrow()
 
     var pollable = false
     var isSocket = false
@@ -66,7 +66,7 @@ public func openForWriting(
         sysClose(fd)
         return None
     }
-    let stat = statResult!
+    let stat = statResult.getOrThrow()
 
     // 3. 检测 pollable 和 isatty
     pollable = isPollable(stat.mode)

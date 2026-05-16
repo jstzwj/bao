@@ -271,7 +271,7 @@ public class InotifyWatcher <: PlatformWatcher {
     ///   }
     public func watchPath(pathname: String): SysMaybe<Int32> {
         if (!loaded) {
-            return SysMaybe<Int32>.Err(SysError(UInt16(0), SysTag.TODO))
+            return SysMaybe<Int32>.Err(SysError(UInt16(0), SysTag.Watch))
         }
 
         let oldCount = watchCount.get()
@@ -302,7 +302,7 @@ public class InotifyWatcher <: PlatformWatcher {
     ///   }
     public func watchDir(pathname: String): SysMaybe<Int32> {
         if (!loaded) {
-            return SysMaybe<Int32>.Err(SysError(UInt16(0), SysTag.TODO))
+            return SysMaybe<Int32>.Err(SysError(UInt16(0), SysTag.Watch))
         }
 
         watchCount.add(UInt32(1))
@@ -368,7 +368,7 @@ public class InotifyWatcher <: PlatformWatcher {
     public func readEvents(): SysMaybe<Array<InotifyEvent>> {
         if (!loaded) {
             return SysMaybe<Array<InotifyEvent>>.Err(
-                SysError(UInt16(0), SysTag.TODO))
+                SysError(UInt16(0), SysTag.Read))
         }
 
         // 读取 inotify 事件到字节数组

@@ -2,6 +2,9 @@
 
 package bao_runtime.test_runner.expect
 
+import bao_runtime.test_runner
+import bao_jsc.*
+
 /// toContainValue() - 检查对象是否包含指定值
 /// 用法: expect(received).toContainValue(expected)
 public func toContainValue(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
@@ -11,7 +14,7 @@ public func toContainValue(`this`: Expect, globalThis: JSGlobalObject, callFrame
     let arguments_ = callFrame.argumentsOld(1)
     let arguments = arguments_.slice()
 
-    if arguments.length < 1 {
+    if (arguments.length < 1) {
         return globalThis.throwInvalidArguments("toContainValue() takes 1 argument")
     }
 
@@ -24,26 +27,26 @@ public func toContainValue(`this`: Expect, globalThis: JSGlobalObject, callFrame
     let not = this.flags.not
     var pass = false
 
-    if !value.isUndefinedOrNull() {
+    if (!value.isUndefinedOrNull()) {
         let values = value.values(globalThis: globalThis)
         var itr = values.arrayIterator(globalThis: globalThis)
-        while (let item = itr.next()) {
-            if item.jestDeepEquals(expected, globalThis: globalThis) {
+        while (let Some(item) <- itr.next()) {
+            if (item.jestDeepEquals(expected, globalThis: globalThis)) {
                 pass = true
                 break
             }
         }
     }
 
-    if not { pass = !pass }
-    if pass { return thisValue }
+    if (not) { pass = !pass }
+    if (pass) { return thisValue }
 
     // 处理失败
     let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
     defer { formatter.deinit() }
     let valueFmt = value.toFmt(formatter)
     let expectedFmt = expected.toFmt(formatter)
-    if not {
+    if (not) {
         let receivedFmt = value.toFmt(formatter)
         let expectedLine = "Expected to not contain: <green>{f}<r>\nReceived: <red>{f}<r>\n"
         return this.throw_(globalThis: globalThis, signature: Expect.getSignature(matcherName: "toContainValue", args: "<green>expected<r>", not: true),

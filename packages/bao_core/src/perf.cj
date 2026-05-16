@@ -11,6 +11,9 @@
 //   - PerfHistogram: record, compute p50/p90/p99
 //   - MemoryStats: current/peak RSS via /proc/self/status 或 C FFI
 package bao_core
+import std.collection.*
+import std.convert.*
+import std.sort.*
 
 // ============================================================================
 // C FFI 声明
@@ -23,10 +26,6 @@ foreign func clock_gettime(clockid: Int32, tp: CPointer<Unit>): Int32
 foreign func clock_getres(clockid: Int32, res: CPointer<Unit>): Int32
 @C
 foreign func gettimeofday(tv: CPointer<Unit>, tz: CPointer<Unit>): Int32
-@C
-foreign func malloc(size: UIntNative): CPointer<Unit>
-@C
-foreign func free(ptr: CPointer<Unit>): Unit
 @C
 foreign func open(path: CPointer<Int8>, flags: Int32, mode: UInt32): Int32
 @C
@@ -69,7 +68,7 @@ public class PerfTimer {
             if (rc == 0) {
                 let secPtr = CPointer<Int64>(tp)
                 let sec = secPtr.read()
-                let nsecPtr = CPointer<Int64>(tp) + IntNative(1)
+                let nsecPtr = CPointer<Int64>(tp) + Int64(1)
                 let nsec = nsecPtr.read()
                 free(tp)
                 return sec * 1000000000 + nsec
@@ -99,7 +98,7 @@ public class PerfTimer {
             if (rc == 0) {
                 let secPtr = CPointer<Int64>(tp)
                 let sec = secPtr.read()
-                let nsecPtr = CPointer<Int64>(tp) + IntNative(1)
+                let nsecPtr = CPointer<Int64>(tp) + Int64(1)
                 let nsec = nsecPtr.read()
                 free(tp)
                 return sec * 1000000000 + nsec
@@ -119,7 +118,7 @@ public class PerfTimer {
             if (rc == 0) {
                 let secPtr = CPointer<Int64>(res)
                 let sec = secPtr.read()
-                let nsecPtr = CPointer<Int64>(res) + IntNative(1)
+                let nsecPtr = CPointer<Int64>(res) + Int64(1)
                 let nsec = nsecPtr.read()
                 free(res)
                 return sec * 1000000000 + nsec
@@ -207,7 +206,7 @@ public class Stopwatch {
         let now = PerfTimer.nowNs()
         let lapTime = if (running) { now - lastLapNs } else { 0 }
         lastLapNs = now
-        if (running) { laps.append(lapTime) }
+        if (running) { laps.add(lapTime) }
         return lapTime
     }
 
@@ -250,7 +249,7 @@ public class Stopwatch {
         if (ns < 1000) { return "${ns}ns" }
         if (ns < 1000000) { return "${ns / 1000}us" }
         if (ns < 1000000000) { return "${ns / 1000000}ms" }
-        return "${Int64.toFloat(ns) / 1000000000.0}s"
+        return "${Float64(ns) / 1000000000.0}s"
     }
 }
 
@@ -260,7 +259,7 @@ public class Stopwatch {
 
 /// 性能计数器
 /// 用于统计事件次数 (请求计数, 缓存命中/未命中等)
-public class PerfCounter {
+public class PerfCounter <: ToString {
     private var value: Int64
     private var name: String
 
@@ -316,7 +315,7 @@ public class PerfCounter {
 
 /// 性能直方图
 /// 用于延迟分布统计: p50/p90/p99
-public class PerfHistogram {
+public class PerfHistogram <: ToString {
     private var name: String
     /// 所有记录的值
     private var values: ArrayList<Int64>
@@ -332,15 +331,15 @@ public class PerfHistogram {
     public init(name: String) {
         this.name = name
         this.values = ArrayList<Int64>()
-        this.minVal = Int64.MAX
-        this.maxVal = Int64.MIN
+        this.minVal = Int64.Max
+        this.maxVal = Int64.Min
         this.sum = 0
         this.count = 0
     }
 
     /// 记录一个值
     public func record(value: Int64): Unit {
-        values.append(value)
+        values.add(value)
         if (value < minVal) { minVal = value }
         if (value > maxVal) { maxVal = value }
         sum += value
@@ -354,12 +353,13 @@ public class PerfHistogram {
         if (count == 1) { return values[0] }
 
         // 排序
-        let sorted = values.toArray().sorted()
+        let arr = values.toArray()
+        sort(arr)
 
         // 计算百分位索引
         let idx = (p * count + 50) / 100
         let safeIdx = if (idx >= count) { count - 1 } else { idx }
-        return sorted[safeIdx]
+        return arr[safeIdx]
     }
 
     /// 中位数 (p50)
@@ -399,20 +399,20 @@ public class PerfHistogram {
     }
 
     /// 记录数
-    public func count(): Int64 {
+    public func getCount(): Int64 {
         return count
     }
 
     /// 总和
-    public func sum(): Int64 {
+    public func getSum(): Int64 {
         return sum
     }
 
     /// 重置
     public func reset(): Unit {
         values = ArrayList<Int64>()
-        minVal = Int64.MAX
-        maxVal = Int64.MIN
+        minVal = Int64.Max
+        maxVal = Int64.Min
         sum = 0
         count = 0
     }
@@ -431,7 +431,7 @@ public class PerfHistogram {
 
 /// 内存统计
 /// 对应 Bun: mimalloc.mi_process_info() 或 /proc/self/status
-public class MemoryStats {
+public class MemoryStats <: ToString {
     /// 当前 RSS (Resident Set Size, 字节)
     public var currentRss: Int64
     /// 峰值 RSS (字节)
@@ -480,10 +480,10 @@ public class MemoryStats {
             // 解析 /proc/self/status 内容
             var content = StringBuilder()
             for (i in 0..Int64(bytesRead)) {
-                let bytePtr = CPointer<Int8>(buf) + IntNative(i)
+                let bytePtr = CPointer<Int8>(buf) + Int64(i)
                 let b = bytePtr.read()
                 if (b == Int8(0)) { break }
-                content.append(Char(Int32(b)))
+                content.append(Rune(Int32(b)))
             }
             free(buf)
 
@@ -528,10 +528,10 @@ public class MemoryStats {
         let sb = StringBuilder()
         var foundDigit = false
         for (i in 0..line.size) {
-            let c = line[Int64(i)]
-            if (c >= Char('0') && c <= Char('9')) {
+            let c = line[i]
+            if (c >= UInt8(48) && c <= UInt8(57)) { // '0' to '9'
                 foundDigit = true
-                sb.append(c)
+                sb.append(Rune(Int32(c)))
             } else if (foundDigit) {
                 break
             }
@@ -570,38 +570,32 @@ public class PerfRegistry {
 
     /// 获取或创建计数器
     public static func counter(name: String): PerfCounter {
-        match (counters.get(name)) {
-            case Some(c) => return c
-            case None => {
-                let c = PerfCounter(name)
-                counters.put(name, c)
-                return c
-            }
+        if (counters.contains(name)) {
+            return counters.get(name).getOrThrow()
         }
+        let c = PerfCounter(name)
+        counters[name] = c
+        return c
     }
 
     /// 获取或创建直方图
     public static func histogram(name: String): PerfHistogram {
-        match (histograms.get(name)) {
-            case Some(h) => return h
-            case None => {
-                let h = PerfHistogram(name)
-                histograms.put(name, h)
-                return h
-            }
+        if (histograms.contains(name)) {
+            return histograms.get(name).getOrThrow()
         }
+        let h = PerfHistogram(name)
+        histograms.add(name, h)
+        return h
     }
 
     /// 获取或创建秒表
     public static func stopwatch(name: String): Stopwatch {
-        match (stopwatches.get(name)) {
-            case Some(s) => return s
-            case None => {
-                let s = Stopwatch()
-                stopwatches.put(name, s)
-                return s
-            }
+        if (stopwatches.contains(name)) {
+            return stopwatches.get(name).getOrThrow()
         }
+        let s = Stopwatch()
+        stopwatches.add(name, s)
+        return s
     }
 
     /// 获取所有计数器的快照
@@ -609,13 +603,13 @@ public class PerfRegistry {
         let snap = PerfSnapshot()
         for (key in counters.keys()) {
             match (counters.get(key)) {
-                case Some(c) => snap.counters.append("${c}")
+                case Some(c) => snap.counters.add("${c}")
                 case None => ()
             }
         }
         for (key in histograms.keys()) {
             match (histograms.get(key)) {
-                case Some(h) => snap.histograms.append("${h}")
+                case Some(h) => snap.histograms.add("${h}")
                 case None => ()
             }
         }
@@ -711,9 +705,9 @@ private func unsafeNewCString(s: String): CPointer<Int8> {
         let ptr = malloc(UIntNative(len + 1))
         let bytesPtr = CPointer<Int8>(ptr)
         for (i in 0..len) {
-            (bytesPtr + IntNative(i)).write(Int8(s[Int64(i)].value))
+            (bytesPtr + i).write(Int8(Int32(s[i])))
         }
-        (bytesPtr + IntNative(len)).write(Int8(0))
+        (bytesPtr + len).write(Int8(0))
         return bytesPtr
     }
 }

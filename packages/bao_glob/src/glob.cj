@@ -15,12 +15,12 @@ public func detectGlobSyntax(potentialPattern: String): Bool {
     let bytes = potentialPattern.toArray()
 
     // 否定只能在模式开头
-    if (bytes.size > 0 && bytes[0] == UInt8('!')) {
+    if (bytes.size > 0 && bytes[0] == UInt8(33)) {  // '!' = 33
         return true
     }
 
     // 按流行度降序排列
-    let specialSyntax: Array<UInt8> = [UInt8('*'), UInt8('{'), UInt8('['), UInt8('?')]
+    let specialSyntax: Array<UInt8> = [UInt8(42), UInt8(123), UInt8(91), UInt8(63)]  // '*', '{', '[', '?'
 
     for (token in specialSyntax) {
         var i: Int64 = 0
@@ -42,7 +42,7 @@ public func detectGlobSyntax(potentialPattern: String): Bool {
             // 检查前面的反斜杠数量 (偶数=未转义)
             var backslashCount: Int64 = 0
             var j: Int64 = idx
-            while (j > 0 && bytes[j - 1] == UInt8('\\')) {
+            while (j > 0 && bytes[j - 1] == UInt8(92)) {  // '\\' = 92
                 backslashCount += 1
                 j -= 1
             }

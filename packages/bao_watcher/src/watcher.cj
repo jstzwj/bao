@@ -342,7 +342,7 @@ public class Watcher {
                 }
             } else {
                 // 无平台实现, 无法继续
-                return SysMaybe<Unit>.Err(SysError(UInt16(0), SysTag.TODO))
+                return SysMaybe<Unit>.Err(SysError(UInt16(0), SysTag.Watch))
             }
         }
         return SysMaybe<Unit>.Ok(())

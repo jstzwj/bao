@@ -238,7 +238,7 @@ public class Codecs {
         let fmt = ImageFormat.sniff(bytes)
         if (fmt == None) { return None }
 
-        match (fmt!) {
+        match (fmt.getOrThrow()) {
             case ImageFormat.jpeg =>
                 return CodecJpeg.decode(bytes, maxPixels, hint)
             case ImageFormat.png =>
@@ -263,41 +263,35 @@ public class Codecs {
         let fmt = ImageFormat.sniff(bytes)
         if (fmt == None) { return None }
 
-        match (fmt!) {
-            case ImageFormat.png => {
+        match (fmt.getOrThrow()) {
+            case ImageFormat.png =>
                 if (bytes.size < 24) { return None }
                 let w = readUInt32BE(bytes, 16)
                 let h = readUInt32BE(bytes, 20)
                 if (w == 0 || h == 0) { return None }
                 if (!guard(w, h, maxPixels)) { return None }
-                return ProbeResult(width: w, height: h, format: fmt!)
-            }
-            case ImageFormat.bmp => {
+                return ProbeResult(width: w, height: h, format: fmt.getOrThrow())
+            case ImageFormat.bmp =>
                 let hOpt = CodecBmp.parseHeader(bytes)
                 if (hOpt == None) { return None }
-                let h = hOpt!
+                let h = hOpt.getOrThrow()
                 if (!guard(h.width, h.height, maxPixels)) { return None }
                 return ProbeResult(width: h.width, height: h.height, format: ImageFormat.bmp)
-            }
-            case ImageFormat.gif => {
+            case ImageFormat.gif =>
                 if (bytes.size < 10) { return None }
                 let w = UInt32(bytes[6]) | (UInt32(bytes[7]) << 8)
                 let h = UInt32(bytes[8]) | (UInt32(bytes[9]) << 8)
                 if (w == 0 || h == 0) { return None }
                 if (!guard(w, h, maxPixels)) { return None }
                 return ProbeResult(width: w, height: h, format: ImageFormat.gif)
-            }
-            case ImageFormat.webp => {
+            case ImageFormat.webp =>
                 // WebPGetInfo 探测
                 return None
-            }
-            case ImageFormat.jpeg => {
+            case ImageFormat.jpeg =>
                 // turbojpeg 头部解码
                 return None
-            }
-            case _ => {
+            case _ =>
                 return None
-            }
         }
     }
 
@@ -307,12 +301,11 @@ public class Codecs {
         match (opts.format) {
             case ImageFormat.jpeg =>
                 return CodecJpeg.encode(rgba, width, height, opts.quality, opts.progressive, opts.iccProfile)
-            case ImageFormat.png => {
+            case ImageFormat.png =>
                 if (opts.palette) {
                     return CodecPng.encodeIndexed(rgba, width, height, opts.compressionLevel, opts.colors, opts.dither, opts.iccProfile)
                 }
                 return CodecPng.encode(rgba, width, height, opts.compressionLevel, opts.iccProfile)
-            }
             case ImageFormat.webp =>
                 return CodecWebp.encode(rgba, width, height, opts.quality, opts.lossless, opts.iccProfile)
             case _ =>

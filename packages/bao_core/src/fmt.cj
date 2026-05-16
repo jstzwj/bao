@@ -14,6 +14,8 @@
 //   fmt.rs:  parseInt/parseUnsigned/parseDouble, Raw(VecWriter), bufPrint
 //   fmt.rs:  FormatUTF8/FormatUTF16, PathSep
 package bao_core
+import std.collection.*
+import std.convert.*
 
 // ============================================================================
 // 数字格式化
@@ -61,7 +63,7 @@ public class IntFormatter {
         var sb = StringBuilder()
         var v = UInt64(value)
         while (v > 0) {
-            sb.append(chars[Int32(v % UInt64(16))])
+            sb.append(chars[Int64(v % UInt64(16))])
             v = v / UInt64(16)
         }
         return reverse(sb.toString())
@@ -79,7 +81,7 @@ public class IntFormatter {
         var sb = StringBuilder()
         var v = value
         while (v > UInt64(0)) {
-            sb.append(chars[Int32(v % UInt64(16))])
+            sb.append(chars[Int64(v % UInt64(16))])
             v = v / UInt64(16)
         }
         return reverse(sb.toString())
@@ -103,7 +105,7 @@ public class IntFormatter {
         var sb = StringBuilder()
         var v = value
         while (v != 0) {
-            sb.append(Char(Int32('0' + (v % 8))))
+            sb.append(Rune(Int32(48 + (v % 8))))  // '0' = 48
             v = v / 8
         }
         return reverse(sb.toString())
@@ -180,7 +182,7 @@ public class IntFormatter {
     /// 例如: 1234567 -> "1,234,567"
     public static func formatWithGrouping(value: Int64): String {
         let s = value.toString()
-        if (s.length <= 3) { return s }
+        if (s.size <= 3) { return s }
         var sb = StringBuilder()
         var count: Int64 = 0
         let chars = s.toArray()
@@ -195,12 +197,12 @@ public class IntFormatter {
 
     /// 反转字符串
     private static func reverse(s: String): String {
-        let chars = s.toArray()
-        var result = Array<Char>()
+        let chars = s.toRuneArray()
+        var result = ArrayList<Rune>()
         for (i in 0..chars.size) {
-            result.append(chars[chars.size - 1 - i])
+            result.add(chars[chars.size - 1 - i])
         }
-        return String(result)
+        return String(result.toArray())
     }
 }
 
@@ -212,11 +214,13 @@ public class FloatFormatter {
     /// 严格翻译自: fmt.zig:1561-1584
     public static func toString(value: Float64, precision: Int64): String {
         var s = value.toString()
-        let dotIdx = s.indexOf(".")
-        if (dotIdx >= 0 && precision >= 0) {
-            let maxLen = dotIdx + 1 + precision
-            if (s.length > maxLen) {
-                s = s.substring(0, maxLen)
+        let dotIdxOpt = s.indexOf(".")
+        if (let Some(dotIdx) <- dotIdxOpt) {
+            if (dotIdx >= 0 && precision >= 0) {
+                let maxLen = dotIdx + 1 + precision
+                if (s.size > maxLen) {
+                    s = s[0..maxLen]
+                }
             }
         }
         return s
@@ -237,11 +241,11 @@ public class FloatFormatter {
         var s = toString(value, precision)
         // 去除尾随零
         while (s.endsWith("0") && s.contains(".")) {
-            s = s.substring(0, s.length - 1)
+            s = s[0..s.size - 1]
         }
         // 去除孤立的小数点
         if (s.endsWith(".")) {
-            s = s.substring(0, s.length - 1)
+            s = s[0..s.size - 1]
         }
         return s
     }
@@ -325,13 +329,17 @@ public class PathFormatOptions {
 public class PathFormatter {
     /// 格式化路径 (使用指定分隔符) - 对应 Bun fmt_path
     public static func format(path: String, options: PathFormatOptions): String {
-        if (options.sep == PathSep.Any && !options.escapeBackslashes) {
+        let isAny = match (options.sep) { case PathSep.Any => true case _ => false }
+        let isPosix = match (options.sep) { case PathSep.Posix => true case _ => false }
+        let isWindows = match (options.sep) { case PathSep.Windows => true case _ => false }
+
+        if (isAny && !options.escapeBackslashes) {
             return path
         }
         var result = path
-        if (options.sep == PathSep.Posix) {
+        if (isPosix) {
             result = result.replace("\\", "/")
-        } else if (options.sep == PathSep.Windows) {
+        } else if (isWindows) {
             result = result.replace("/", "\\")
         }
         if (options.escapeBackslashes) {
@@ -374,8 +382,8 @@ public class SizeFormatter {
         var magnitude = log2Value / 10  // log2(1000) ~ 10
         if (magnitude > 8) { magnitude = 8 }
         let newValue = Float64(bytes) / pow1000(magnitude)
-        let suffix = mags.toArray()[magnitude]
-        if (suffix == ' ') {
+        let suffix = mags.toArray()[Int64(magnitude)]
+        if (suffix == UInt8(32)) {  // ' ' = 32
             return "${FloatFormatter.toString(newValue / 1000.0, 2)} KB"
         }
         // 检查是否接近整数
@@ -523,8 +531,8 @@ public class HexFormatter {
         let hex = "0123456789abcdef"
         var sb = StringBuilder()
         for (b in bytes) {
-            sb.append(hex[Int32((b >> 4) & 0x0F)])
-            sb.append(hex[Int32(b & 0x0F)])
+            sb.append(hex[Int64((b >> 4) & 0x0F)])
+            sb.append(hex[Int64(b & 0x0F)])
         }
         return sb.toString()
     }
@@ -534,36 +542,36 @@ public class HexFormatter {
         let hex = "0123456789ABCDEF"
         var sb = StringBuilder()
         for (b in bytes) {
-            sb.append(hex[Int32((b >> 4) & 0x0F)])
-            sb.append(hex[Int32(b & 0x0F)])
+            sb.append(hex[Int64((b >> 4) & 0x0F)])
+            sb.append(hex[Int64(b & 0x0F)])
         }
         return sb.toString()
     }
 
     /// 十六进制字符串转字节数组
     public static func decode(hex: String): Array<UInt8> {
-        var result = Array<UInt8>()
         let chars = hex.toArray()
-        var i = 0
+        var result = ArrayList<UInt8>()
+        var i = Int64(0)
         while (i + 1 < chars.size) {
             let hi = hexDigitValue(chars[i])
             let lo = hexDigitValue(chars[i + 1])
-            result.append(UInt8(hi * 16 + lo))
+            result.add(UInt8(hi * 16 + lo))
             i += 2
         }
-        return result
+        return result.toArray()
     }
 
-    /// 解析单个十六进制字符
-    public static func hexDigitValue(c: Char): Int64 {
-        if (c >= '0' && c <= '9') {
-            return Int64(c.value - '0'.value)
+    /// 解析单个十六进制字节
+    public static func hexDigitValue(b: UInt8): Int64 {
+        if (b >= UInt8(48) && b <= UInt8(57)) {  // '0'-'9'
+            return Int64(b) - 48
         }
-        if (c >= 'a' && c <= 'f') {
-            return Int64(c.value - 'a'.value + 10)
+        if (b >= UInt8(97) && b <= UInt8(102)) {  // 'a'-'f'
+            return Int64(b) - 97 + 10
         }
-        if (c >= 'A' && c <= 'F') {
-            return Int64(c.value - 'A'.value + 10)
+        if (b >= UInt8(65) && b <= UInt8(70)) {  // 'A'-'F'
+            return Int64(b) - 65 + 10
         }
         return 0
     }
@@ -579,33 +587,33 @@ public class JsonStringFormatter {
     /// 转义 JSON 字符串中的特殊字符
     public static func escape(s: String): String {
         var sb = StringBuilder()
-        sb.append('"')
+        sb.append("\"")
         for (c in s) {
-            match (c) {
-                case '"' => sb.append("\\\"")
-                case '\\' => sb.append("\\\\")
-                case '\n' => sb.append("\\n")
-                case '\r' => sb.append("\\r")
-                case '\t' => sb.append("\\t")
-                case '\b' => sb.append("\\b")
-                case '\u{0c}' => sb.append("\\f")
-                case _ => {
-                    if (c.value < 0x20) {
-                        sb.append("\\u00")
-                        sb.append(IntFormatter.toHexString(Int64(c.value)).padStart(2, '0'))
-                    } else {
-                        sb.append(c)
-                    }
-                }
+            if (c == UInt8(34)) {         // '"'
+                sb.append("\\\"")
+            } else if (c == UInt8(92)) {  // '\\'
+                sb.append("\\\\")
+            } else if (c == UInt8(10)) {  // '\n'
+                sb.append("\\n")
+            } else if (c == UInt8(13)) {  // '\r'
+                sb.append("\\r")
+            } else if (c == UInt8(9)) {   // '\t'
+                sb.append("\\t")
+            } else if (c == UInt8(8)) {   // '\b'
+                sb.append("\\b")
+            } else if (c == UInt8(12)) {  // '\f'
+                sb.append("\\f")
+            } else {
+                sb.append(Rune(Int32(c)))
             }
         }
-        sb.append('"')
+        sb.append("\"")
         return sb.toString()
     }
 
     /// 引号包裹 - 对应 Bun quotedWriter / QuotedFormatter
     /// 严格翻译自: fmt.zig:675-693
-    public static func quote(s: String): String {
+    public static func `quote`(s: String): String {
         // 如果字符串包含特殊字符, 使用完整转义
         if (needsQuoting(s)) {
             return escape(s)
@@ -616,8 +624,8 @@ public class JsonStringFormatter {
     /// 检查字符串是否需要引号转义
     private static func needsQuoting(s: String): Bool {
         for (c in s) {
-            if (c == '"' || c == '\\' || c == '\n' || c == '\r' || c == '\t' ||
-                c.value < 0x20) {
+            if (c == UInt8(34) || c == UInt8(92) || c == UInt8(10) || c == UInt8(13) || c == UInt8(9) ||
+                UInt32(c) < 0x20) {
                 return true
             }
         }
@@ -630,58 +638,58 @@ public class JsonStringFormatter {
 // 严格翻译自: fmt.zig 中的字符串操作工具
 // ============================================================================
 
-/// 字符串填充扩展
-public extension String {
+/// 字符串填充工具
+public class StringPadding {
     /// 左填充 - 对应 Bun padLeft
-    func padStart(length: Int64, char: Char): String {
-        if (this.length >= length) {
-            return this
+    public static func padStart(s: String, length: Int64, char: Rune): String {
+        if (s.size >= length) {
+            return s
         }
         var sb = StringBuilder()
-        for (_ in 0..(length - this.length)) {
+        for (_ in 0..(length - s.size)) {
             sb.append(char)
         }
-        sb.append(this)
+        sb.append(s)
         return sb.toString()
     }
 
     /// 右填充 - 对应 Bun padRight
-    func padEnd(length: Int64, char: Char): String {
-        if (this.length >= length) {
-            return this
+    public static func padEnd(s: String, length: Int64, char: Rune): String {
+        if (s.size >= length) {
+            return s
         }
         var sb = StringBuilder()
-        sb.append(this)
-        for (_ in 0..(length - this.length)) {
+        sb.append(s)
+        for (_ in 0..(length - s.size)) {
             sb.append(char)
         }
         return sb.toString()
     }
 
     /// 居中 - 对应 Bun center
-    func center(length: Int64, char: Char): String {
-        if (this.length >= length) {
-            return this
+    public static func center(s: String, length: Int64, char: Rune): String {
+        if (s.size >= length) {
+            return s
         }
-        let totalPad = length - this.length
+        let totalPad = length - s.size
         let leftPad = totalPad / 2
         let rightPad = totalPad - leftPad
         var sb = StringBuilder()
         for (_ in 0..leftPad) { sb.append(char) }
-        sb.append(this)
+        sb.append(s)
         for (_ in 0..rightPad) { sb.append(char) }
         return sb.toString()
     }
 
     /// 截断 - 对应 Bun truncate
-    func truncate(maxLength: Int64, suffix: String): String {
-        if (this.length <= maxLength) {
-            return this
+    public static func truncate(s: String, maxLength: Int64, suffix: String): String {
+        if (s.size <= maxLength) {
+            return s
         }
-        if (maxLength <= suffix.length) {
-            return suffix.substring(0, maxLength)
+        if (maxLength <= suffix.size) {
+            return suffix[0..maxLength]
         }
-        return this.substring(0, maxLength - suffix.length) + suffix
+        return s[0..(maxLength - suffix.size)] + suffix
     }
 }
 
@@ -730,15 +738,19 @@ public class UrlFormatter {
             case None => sb.append("localhost")
         }
 
-        if (proto == UrlProto.Unix) {
+        let isUnix = match (proto) { case UrlProto.Unix => true case _ => false }
+        let isHttps = match (proto) { case UrlProto.Https => true case _ => false }
+        let isHttp = match (proto) { case UrlProto.Http => true case _ => false }
+
+        if (isUnix) {
             return sb.toString()
         }
 
         let isPortOptional = match (port) {
             case None => true
             case Some(p) =>
-                (proto == UrlProto.Https && p == UInt16(443)) ||
-                (proto == UrlProto.Http && p == UInt16(80))
+                (isHttps && p == UInt16(443)) ||
+                (isHttp && p == UInt16(80))
         }
         if (isPortOptional) {
             sb.append("/")
@@ -828,7 +840,7 @@ public class TableFormatter {
 
     /// 添加行
     public func addRow(row: ArrayList<String>): Unit {
-        rows.append(row)
+        rows.add(row)
     }
 
     /// 格式化为字符串
@@ -837,12 +849,12 @@ public class TableFormatter {
         // 计算每列最大宽度
         var widths = ArrayList<Int64>()
         for (name in columnNames) {
-            widths.append(name.length)
+            widths.add(name.size)
         }
         for (row in rows) {
             for (i in 0..row.size) {
                 if (i < widths.size) {
-                    let w = row[i].length
+                    let w = row[i].size
                     if (w > widths[i]) {
                         widths[i] = w
                     }
@@ -854,7 +866,7 @@ public class TableFormatter {
         // 打印列名
         sb.append(symbols.verticalEdge())
         for (i in 0..columnNames.size) {
-            sb.append(" ${columnNames[i].padEnd(widths[i] + 1, ' ')}")
+            sb.append(" ${columnNames[i].padEnd(widths[i] + 1, padding: ' ')}")
         }
         sb.append("\n")
         // 打印中线
@@ -864,7 +876,7 @@ public class TableFormatter {
             sb.append(symbols.verticalEdge())
             for (i in 0..row.size) {
                 if (i < widths.size) {
-                    sb.append(" ${row[i].padEnd(widths[i] + 1, ' ')}")
+                    sb.append(" ${row[i].padEnd(widths[i] + 1, padding: ' ')}")
                 }
             }
             sb.append("\n")
@@ -908,7 +920,7 @@ public class TruncatedHash32 {
         var h = hash
         // 逐字节取低 5 位 (base32 = 5 bits)
         for (_ in 0..8) {
-            sb.append(chars[Int32(h & UInt64(0x1F))])
+            sb.append(chars[Int64(h & UInt64(0x1F))])
             h = h >> 5
         }
         return sb.toString()
@@ -928,26 +940,26 @@ public class RedactedNpmUrlFormatter {
     public static func redact(url: String): String {
         var result = url
         // 隐藏 token 参数
-        let tokenIdx = result.indexOf("token=")
-        if (tokenIdx >= 0) {
-            let before = result.substring(0, tokenIdx + 6)
-            var after = result.substring(tokenIdx + 6)
-            let ampIdx = after.indexOf("&")
-            if (ampIdx >= 0) {
-                after = "***" + after.substring(ampIdx)
+        let tokenIdxOpt = result.indexOf("token=")
+        if (let Some(tokenIdx) <- tokenIdxOpt) {
+            let before = result[0..(tokenIdx + 6)]
+            var after = result[(tokenIdx + 6)..]
+            let ampIdxOpt = after.indexOf("&")
+            if (let Some(ampIdx) <- ampIdxOpt) {
+                after = "***" + after[ampIdx..]
             } else {
                 after = "***"
             }
             result = before + after
         }
         // 隐藏 _auth 参数
-        let authIdx = result.indexOf("_auth=")
-        if (authIdx >= 0) {
-            let before = result.substring(0, authIdx + 6)
-            var after = result.substring(authIdx + 6)
-            let ampIdx = after.indexOf("&")
-            if (ampIdx >= 0) {
-                after = "***" + after.substring(ampIdx)
+        let authIdxOpt = result.indexOf("_auth=")
+        if (let Some(authIdx) <- authIdxOpt) {
+            let before = result[0..(authIdx + 6)]
+            var after = result[(authIdx + 6)..]
+            let ampIdxOpt = after.indexOf("&")
+            if (let Some(ampIdx) <- ampIdxOpt) {
+                after = "***" + after[ampIdx..]
             } else {
                 after = "***"
             }
@@ -966,14 +978,15 @@ public class DependencyUrlFormatter {
         var sb = StringBuilder()
         var remain = url
         while (true) {
-            let slashIdx = remain.indexOf("/")
-            if (slashIdx < 0) {
+            let slashIdxOpt = remain.indexOf("/")
+            if (let Some(slashIdx) <- slashIdxOpt) {
+                sb.append(remain[0..slashIdx])
+                sb.append("%2f")
+                remain = remain[(slashIdx + 1)..]
+            } else {
                 sb.append(remain)
                 break
             }
-            sb.append(remain.substring(0, slashIdx))
-            sb.append("%2f")
-            remain = remain.substring(slashIdx + 1)
         }
         return sb.toString()
     }
@@ -992,21 +1005,23 @@ public class OutOfRangeFormatter {
     /// 对应 Bun NewOutOfRangeFormatter(T).format
     public static func formatInt(fieldName: String, value: Int64, min: ?Int64, max: ?Int64, message: String): String {
         var sb = StringBuilder()
-        if (fieldName.length > 0) {
+        if (fieldName.size > 0) {
             sb.append("The value of \"${fieldName}\" is out of range. It must be ")
         } else {
             sb.append("The value is out of range. It must be ")
         }
-        match (min, max) {
-            case (Some(lo), Some(hi)) => sb.append(">= ${lo} and <= ${hi}.")
-            case (Some(lo), None) => sb.append(">= ${lo}.")
-            case (None, Some(hi)) => sb.append("<= ${hi}.")
-            case (None, None) =>
-                if (message.length > 0) {
-                    sb.append("${message}.")
-                } else {
-                    sb.append("within the range of values for type Int64.")
-                }
+        if (min.isSome() && max.isSome()) {
+            sb.append(">= ${min.getOrThrow()} and <= ${max.getOrThrow()}.")
+        } else if (min.isSome()) {
+            sb.append(">= ${min.getOrThrow()}.")
+        } else if (max.isSome()) {
+            sb.append("<= ${max.getOrThrow()}.")
+        } else {
+            if (message.size > 0) {
+                sb.append("${message}.")
+            } else {
+                sb.append("within the range of values for type Int64.")
+            }
         }
         sb.append(" Received ${value}")
         return sb.toString()
@@ -1016,11 +1031,14 @@ public class OutOfRangeFormatter {
     public static func formatFloat(fieldName: String, value: Float64, min: ?Float64, max: ?Float64): String {
         var sb = StringBuilder()
         sb.append("The value of \"${fieldName}\" is out of range. It must be ")
-        match (min, max) {
-            case (Some(lo), Some(hi)) => sb.append(">= ${lo} and <= ${hi}.")
-            case (Some(lo), None) => sb.append(">= ${lo}.")
-            case (None, Some(hi)) => sb.append("<= ${hi}.")
-            case (None, None) => sb.append("within the range of values for type Float64.")
+        if (min.isSome() && max.isSome()) {
+            sb.append(">= ${min.getOrThrow()} and <= ${max.getOrThrow()}.")
+        } else if (min.isSome()) {
+            sb.append(">= ${min.getOrThrow()}.")
+        } else if (max.isSome()) {
+            sb.append("<= ${max.getOrThrow()}.")
+        } else {
+            sb.append("within the range of values for type Float64.")
         }
         sb.append(" Received ${value}")
         return sb.toString()
@@ -1075,7 +1093,7 @@ public class SliceFormatter {
         var sb = StringBuilder()
         sb.append(items[0])
         for (i in 1..items.size) {
-            if (delim.length > 0) { sb.append(delim) }
+            if (delim.size > 0) { sb.append(delim) }
             sb.append(items[i])
         }
         return sb.toString()
@@ -1118,13 +1136,13 @@ public class IdentifierFormatter {
     /// 格式化为合法标识符 - 对应 Bun fmtIdentifier
     /// 严格翻译自: fmt.zig:548-616 FormatValidIdentifier.format
     public static func format(name: String): String {
-        if (name.length == 0) { return "_" }
+        if (name.size == 0) { return "_" }
         var sb = StringBuilder()
         var needsGap = false
         let chars = name.toArray()
         for (i in 0..chars.size) {
             let c = chars[i]
-            if (isIdentContinue(c)) {
+            if (isIdentContinueByte(c)) {
                 if (needsGap) {
                     sb.append('_')
                     needsGap = false
@@ -1137,19 +1155,29 @@ public class IdentifierFormatter {
         if (needsGap) {
             sb.append('_')
         }
-        if (sb.toString().length == 0) {
+        if (sb.toString().size == 0) {
             return "_"
         }
         return sb.toString()
     }
 
-    private static func isIdentStart(c: Char): Bool {
-        return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
-               c == '_' || c == '$'
+    private static func isIdentStart(c: Rune): Bool {
+        return (c >= r'a' && c <= r'z') || (c >= r'A' && c <= r'Z') ||
+               c == r'_' || c == r'$'
     }
 
-    private static func isIdentContinue(c: Char): Bool {
-        return isIdentStart(c) || (c >= '0' && c <= '9')
+    private static func isIdentContinue(c: Rune): Bool {
+        return isIdentStart(c) || (c >= r'0' && c <= r'9')
+    }
+
+    private static func isIdentStartByte(c: UInt8): Bool {
+        return (c >= UInt8(97) && c <= UInt8(122)) ||  // a-z
+               (c >= UInt8(65) && c <= UInt8(90)) ||   // A-Z
+               c == UInt8(95) || c == UInt8(36)         // _ $
+    }
+
+    private static func isIdentContinueByte(c: UInt8): Bool {
+        return isIdentStartByte(c) || (c >= UInt8(48) && c <= UInt8(57))  // 0-9
     }
 }
 
@@ -1170,31 +1198,31 @@ public class GithubActionFormatter {
         var i = 0
         let chars = text.toArray()
         while (i < chars.size) {
-            let c = chars[i]
-            if (c == '\n') {
+            let c = chars[Int64(i)]
+            if (c == UInt8(10)) {  // '\n'
                 // 换行 -> %0A
                 sb.append("%0A")
                 i += 1
-            } else if (c == '\r' && i + 1 < chars.size && chars[i + 1] == '\n') {
+            } else if (c == UInt8(13) && i + 1 < chars.size && chars[Int64(i + 1)] == UInt8(10)) {  // '\r\n'
                 // \r\n -> %0A
                 sb.append("%0A")
                 i += 2
-            } else if (c.value == 0x1b && i + 1 < chars.size && chars[i + 1] == '[') {
+            } else if (c == UInt8(27) && i + 1 < chars.size && chars[Int64(i + 1)] == UInt8(91)) {  // ESC [
                 // ANSI 转义序列: \u{1b}[...m -> 跳过
                 var j = i + 2
                 while (j < chars.size && j < i + 8) {
-                    if (chars[j] == 'm') {
+                    if (chars[Int64(j)] == UInt8(109)) {  // 'm'
                         j += 1
                         break
                     }
                     j += 1
                 }
                 i = j
-            } else if (c.value > 0x7F) {
+            } else if (c > UInt8(127)) {
                 // 非 ASCII 字符: 跳过 (GitHub Action 不支持)
                 i += 1
             } else {
-                sb.append(c)
+                sb.append(Rune(Int32(c)))
                 i += 1
             }
         }
@@ -1222,10 +1250,10 @@ public class PowershellEscape {
                 sb.append(remain)
                 break
             }
-            sb.append(remain.substring(0, idx))
+            sb.append(remain[0..idx])
             sb.append('`')
-            sb.append(remain.toCharArray()[idx])
-            remain = remain.substring(idx + 1)
+            sb.append(Rune(Int32(remain.toArray()[idx])))
+            remain = remain[(idx + 1)..]
         }
         return sb.toString()
     }
@@ -1233,7 +1261,7 @@ public class PowershellEscape {
     private static func indexOfSpecial(s: String): Int64 {
         let chars = s.toArray()
         for (i in 0..chars.size) {
-            if (chars[i] == '"' || chars[i] == '`') {
+            if (chars[i] == UInt8(34) || chars[i] == UInt8(96)) {  // '"' or '`'
                 return Int64(i)
             }
         }
@@ -1252,7 +1280,7 @@ public class PowershellEscape {
 public class QuotedFormatter {
     /// 格式化引号字符串
     /// 对应 Bun quotedWriter: 如果包含换行/非ASCII/引号则 JSON 转义
-    public static func quote(text: String): String {
+    public static func `quote`(text: String): String {
         if (needsFullEscape(text)) {
             return JsonStringFormatter.escape(text)
         }
@@ -1261,8 +1289,8 @@ public class QuotedFormatter {
 
     private static func needsFullEscape(s: String): Bool {
         for (c in s) {
-            if (c == '"' || c == '\\' || c == '\n' || c == '\r' ||
-                c == '\t' || c.value > 0x7F || c.value < 0x20) {
+            if (c == UInt8(34) || c == UInt8(92) || c == UInt8(10) || c == UInt8(13) ||
+                c == UInt8(9) || c > UInt8(127) || c < UInt8(32)) {
                 return true
             }
         }
@@ -1289,11 +1317,11 @@ public class IntegrityFormatter {
     /// 对应 Bun IntegrityFormatter(.short).format
     public static func formatShort(bytes: Array<UInt8>): String {
         let encoded = base64Encode(bytes)
-        if (encoded.length <= 28) {
+        if (encoded.size <= 28) {
             return "sha512-${encoded}"
         }
-        let head = encoded.substring(0, 13)
-        let tail = encoded.substring(encoded.length - 15)
+        let head = encoded[0..13]
+        let tail = encoded[(encoded.size - 15)..]
         return "sha512-${head}[...]${tail}"
     }
 
@@ -1305,26 +1333,26 @@ public class IntegrityFormatter {
 
     /// Base64 编码
     private static func base64Encode(bytes: Array<UInt8>): String {
-        let chars = BASE64_CHARS.toCharArray()
+        let chars = BASE64_CHARS.toArray()
         var sb = StringBuilder()
-        var i = 0
+        var i = Int64(0)
         while (i + 2 < bytes.size) {
-            let b0 = Int32(bytes[i])
-            let b1 = Int32(bytes[i + 1])
-            let b2 = Int32(bytes[i + 2])
-            sb.append(chars[(b0 >> 2) & 0x3F])
-            sb.append(chars[((b0 & 0x03) << 4) | ((b1 >> 4) & 0x0F)])
-            sb.append(chars[((b1 & 0x0F) << 2) | ((b2 >> 6) & 0x03)])
-            sb.append(chars[b2 & 0x3F])
+            let b0 = Int64(bytes[i])
+            let b1 = Int64(bytes[i + 1])
+            let b2 = Int64(bytes[i + 2])
+            sb.append(Rune(Int32(chars[(b0 >> 2) & 0x3F])))
+            sb.append(Rune(Int32(chars[((b0 & 0x03) << 4) | ((b1 >> 4) & 0x0F)])))
+            sb.append(Rune(Int32(chars[((b1 & 0x0F) << 2) | ((b2 >> 6) & 0x03)])))
+            sb.append(Rune(Int32(chars[b2 & 0x3F])))
             i += 3
         }
         if (i < bytes.size) {
-            let b0 = Int32(bytes[i])
-            sb.append(chars[(b0 >> 2) & 0x3F])
+            let b0 = Int64(bytes[i])
+            sb.append(Rune(Int32(chars[(b0 >> 2) & 0x3F])))
             if (i + 1 < bytes.size) {
-                let b1 = Int32(bytes[i + 1])
-                sb.append(chars[((b0 & 0x03) << 4) | ((b1 >> 4) & 0x0F)])
-                sb.append(chars[(b1 & 0x0F) << 2])
+                let b1 = Int64(bytes[i + 1])
+                sb.append(Rune(Int32(chars[((b0 & 0x03) << 4) | ((b1 >> 4) & 0x0F)])))
+                sb.append(Rune(Int32(chars[(b1 & 0x0F) << 2])))
             } else {
                 sb.append(chars[(b0 & 0x03) << 4])
                 sb.append('=')
@@ -1375,21 +1403,7 @@ public class JsHighlighter {
     /// ANSI 灰色
     private static let GRAY: String = "\u{1b}[2m"
 
-    /// 高亮选项 - 对应 Bun Options
-    public class HighlightOptions {
-        public var enableColors: Bool
-        public var redactSensitiveInfo: Bool
-
-        public init() {
-            enableColors = true
-            redactSensitiveInfo = false
-        }
-
-        public init(enableColors: Bool, redactSensitiveInfo: Bool) {
-            this.enableColors = enableColors
-            this.redactSensitiveInfo = redactSensitiveInfo
-        }
-    }
+    /// 高亮选项 - 对应 Bun Options (see top-level HighlightOptions class below)
 
     /// 简化关键字表 - 对应 Bun Keywords
     /// 严格翻译自: fmt.zig:731-861 Keyword enum
@@ -1417,56 +1431,57 @@ public class JsHighlighter {
         }
     }
 
-    /// 检查字符是否为标识符起始 - 对应 Bun js_lexer.isIdentifierStart
-    /// 严格翻译自: fmt.rs:25-30 js_lexer::is_identifier_start
-    private static func isIdentStart(c: Char): Bool {
-        return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
-               c == '_' || c == '$'
+    /// 检查字节是否为标识符起始 - byte version
+    private static func isIdentStartB(c: UInt8): Bool {
+        return (c >= UInt8(97) && c <= UInt8(122)) ||  // a-z
+               (c >= UInt8(65) && c <= UInt8(90)) ||   // A-Z
+               c == UInt8(95) || c == UInt8(36)         // _ $
     }
 
-    /// 检查字符是否为标识符续接 - 对应 Bun js_lexer.isIdentifierContinue
-    /// 严格翻译自: fmt.rs:33-35 js_lexer::is_identifier_continue
-    private static func isIdentContinue(c: Char): Bool {
-        return isIdentStart(c) || (c >= '0' && c <= '9')
+    /// 检查字节是否为标识符续接 - byte version
+    private static func isIdentContinueB(c: UInt8): Bool {
+        return isIdentStartB(c) || (c >= UInt8(48) && c <= UInt8(57))  // 0-9
     }
 
-    /// 检查字符是否为十六进制数字
-    private static func isHexDigit(c: Char): Bool {
-        return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')
+    /// 检查字节是否为十六进制数字
+    private static func isHexDigitB(c: UInt8): Bool {
+        return (c >= UInt8(48) && c <= UInt8(57)) ||   // 0-9
+               (c >= UInt8(97) && c <= UInt8(102)) ||   // a-f
+               (c >= UInt8(65) && c <= UInt8(70))       // A-F
     }
 
-    /// 检查字符是否为数字
-    private static func isDigit(c: Char): Bool {
-        return c >= '0' && c <= '9'
+    /// 检查字节是否为数字
+    private static func isDigitB(c: UInt8): Bool {
+        return c >= UInt8(48) && c <= UInt8(57)  // 0-9
     }
 
     /// 高亮 JavaScript 源码 - 对应 Bun format()
     /// 严格翻译自: fmt.zig:875-1317 QuickAndDirtyJavaScriptSyntaxHighlighter.format
     public static func highlight(text: String, options: HighlightOptions): String {
-        if (!options.enableColors || text.length > 2048 || text.length == 0) {
+        if (!options.enableColors || text.size > 2048 || text.size == 0) {
             return text
         }
         // 检查是否全 ASCII
         for (c in text) {
-            if (c.value > 0x7F) {
+            if (c > UInt8(127)) {
                 return text
             }
         }
 
         var sb = StringBuilder()
-        var i = 0
-        let chars = text.toCharArray()
+        var i = Int64(0)
+        let chars = text.toArray()
 
         while (i < chars.size) {
             let c = chars[i]
 
             // 标识符/关键字
-            if (isIdentStart(c)) {
+            if (isIdentStartB(c)) {
                 var j = i + 1
-                while (j < chars.size && isIdentContinue(chars[j])) {
+                while (j < chars.size && isIdentContinueB(chars[j])) {
                     j += 1
                 }
-                let word = text.substring(Int64(i), Int64(j))
+                let word = text[i..j]
                 let color = keywordColor(word)
                 match (color) {
                     case Some(clr) => sb.append("${clr.ansiCode()}${word}${RESET}")
@@ -1475,64 +1490,80 @@ public class JsHighlighter {
                 i = j
             }
             // 数字 - 对应 Bun '0'...'9' case
-            else if (isDigit(c)) {
+            else if (isDigitB(c)) {
                 var j = i + 1
                 // 检查 0x 十六进制前缀
-                if (c == '0' && j < chars.size && (chars[j] == 'x' || chars[j] == 'X')) {
+                if (c == UInt8(48) && j < chars.size && (chars[j] == UInt8(120) || chars[j] == UInt8(88))) {  // '0', 'x', 'X'
                     j += 1
-                    while (j < chars.size && isHexDigit(chars[j])) {
+                    while (j < chars.size && isHexDigitB(chars[j])) {
                         j += 1
                     }
                 } else {
                     while (j < chars.size &&
-                           (isDigit(chars[j]) || chars[j] == '.' ||
-                            chars[j] == 'e' || chars[j] == 'E')) {
+                           (isDigitB(chars[j]) || chars[j] == UInt8(46) ||  // .
+                            chars[j] == UInt8(101) || chars[j] == UInt8(69))) {  // e, E
                         j += 1
                     }
                 }
-                sb.append("${YELLOW}${text.substring(Int64(i), Int64(j))}${RESET}")
+                sb.append("${YELLOW}${text[i..j]}${RESET}")
                 i = j
             }
             // 字符串/模板字符串 - 对应 Bun '`', '"', '\'' case
-            else if (c == '"' || c == '\'' || c == '`') {
-                let quote = c
+            else if (c == UInt8(34) || c == UInt8(39) || c == UInt8(96)) {  // '"', '\', '`'
+                let quoteChar = c
                 var j = i + 1
-                while (j < chars.size && chars[j] != quote) {
-                    if (chars[j] == '\\' && j + 1 < chars.size) {
+                while (j < chars.size && chars[j] != quoteChar) {
+                    if (chars[j] == UInt8(92) && j + 1 < chars.size) {  // '\\'
                         j += 1  // 跳过转义字符
                     }
                     j += 1
                 }
                 // 包含结束引号
                 if (j < chars.size) { j += 1 }
-                sb.append("${GREEN}${text.substring(Int64(i), Int64(j))}${RESET}")
+                sb.append("${GREEN}${text[i..j]}${RESET}")
                 i = j
             }
             // 单行注释 //
-            else if (c == '/' && i + 1 < chars.size && chars[i + 1] == '/') {
+            else if (c == UInt8(47) && i + 1 < chars.size && chars[i + 1] == UInt8(47)) {  // '/'
                 var j = i + 2
-                while (j < chars.size && chars[j] != '\n') {
+                while (j < chars.size && chars[j] != UInt8(10)) {  // '\n'
                     j += 1
                 }
-                sb.append("${GRAY}${text.substring(Int64(i), Int64(j))}${RESET}")
+                sb.append("${GRAY}${text[i..j]}${RESET}")
                 i = j
             }
             // 多行注释 /* */
-            else if (c == '/' && i + 1 < chars.size && chars[i + 1] == '*') {
+            else if (c == UInt8(47) && i + 1 < chars.size && chars[i + 1] == UInt8(42)) {  // '/*'
                 var j = i + 2
-                while (j + 1 < chars.size && !(chars[j] == '*' && chars[j + 1] == '/')) {
+                while (j + 1 < chars.size && !(chars[j] == UInt8(42) && chars[j + 1] == UInt8(47))) {  // '*/'
                     j += 1
                 }
                 if (j + 1 < chars.size) { j += 2 }
-                sb.append("${GRAY}${text.substring(Int64(i), Int64(j))}${RESET}")
+                sb.append("${GRAY}${text[i..j]}${RESET}")
                 i = j
             }
             else {
-                sb.append(c)
+                sb.append(Rune(Int32(c)))
                 i += 1
             }
         }
         return sb.toString()
+    }
+}
+
+/// 高亮选项 (提取到顶层, 因为仓颉不允许嵌套类)
+public class HighlightOptions {
+    public var enableColors: Bool
+    public var redactSensitiveInfo: Bool
+
+    public init() {
+        enableColors = true
+        redactSensitiveInfo = false
+    }
+
+    public init(enableColors: Bool, redactSensitiveInfo: Bool) {
+        this.enableColors = enableColors
+        this.redactSensitiveInfo = redactSensitiveInfo
     }
 }
 
@@ -1558,16 +1589,16 @@ public class IntParser {
     /// 严格翻译自: fmt.rs:918-944
     /// radix: 2-36, 或 0 表示自动检测 (0x/0o/0b 前缀)
     public static func parseInt(text: String, radix: Int64): Int64 {
-        if (text.length == 0) {
+        if (text.size == 0) {
             throw BaoError(ErrorCode.InvalidArgument, "Empty string for parseInt")
         }
         var s = text
         var negative = false
-        if (s.toCharArray()[0] == '+') {
-            s = s.substring(1)
-        } else if (s.toCharArray()[0] == '-') {
+        if (s.toArray()[0] == UInt8(43)) {  // '+'
+            s = s[1..]
+        } else if (s.toArray()[0] == UInt8(45)) {  // '-'
             negative = true
-            s = s.substring(1)
+            s = s[1..]
         }
         let (digits, actualRadix) = autoRadix(s, radix)
         let result = parseDigits(digits, actualRadix)
@@ -1597,16 +1628,16 @@ public class IntParser {
         if (radix != 0) {
             return (digits, radix)
         }
-        let chars = digits.toCharArray()
-        if (chars.size >= 2 && chars[0] == '0') {
-            if (chars[1] == 'x' || chars[1] == 'X') {
-                return (digits.substring(2), 16)
+        let chars = digits.toArray()
+        if (chars.size >= 2 && chars[0] == UInt8(48)) {  // '0'
+            if (chars[1] == UInt8(120) || chars[1] == UInt8(88)) {  // 'x' or 'X'
+                return (digits[2..], 16)
             }
-            if (chars[1] == 'o' || chars[1] == 'O') {
-                return (digits.substring(2), 8)
+            if (chars[1] == UInt8(111) || chars[1] == UInt8(79)) {  // 'o' or 'O'
+                return (digits[2..], 8)
             }
-            if (chars[1] == 'b' || chars[1] == 'B') {
-                return (digits.substring(2), 2)
+            if (chars[1] == UInt8(98) || chars[1] == UInt8(66)) {  // 'b' or 'B'
+                return (digits[2..], 2)
             }
         }
         return (digits, 10)
@@ -1615,15 +1646,15 @@ public class IntParser {
     /// 解析数字字符串 - 对应 Bun parse_with_sign
     /// 严格翻译自: fmt.rs:863-889
     private static func parseDigits(digits: String, radix: Int64): Int64 {
-        if (digits.length == 0) {
+        if (digits.size == 0) {
             throw BaoError(ErrorCode.InvalidArgument, "No digits to parse")
         }
         var acc: Int64 = 0
         for (c in digits) {
-            if (c == '_') {
+            if (c == UInt8(95)) {  // '_'
                 continue  // 跳过下划线分隔符
             }
-            let d = charDigitValue(c)
+            let d = byteDigitValue(c)
             if (d < 0 || d >= radix) {
                 throw BaoError(ErrorCode.InvalidArgument,
                     "Invalid character '${c}' for radix ${radix}")
@@ -1639,15 +1670,16 @@ public class IntParser {
     }
 
     /// 字符转数字 - 对应 Bun digit value extraction
-    private static func charDigitValue(c: Char): Int64 {
-        if (c >= '0' && c <= '9') {
-            return Int64(c.value - '0'.value)
+    /// 字节转数字 - byte version
+    public static func byteDigitValue(c: UInt8): Int64 {
+        if (c >= UInt8(48) && c <= UInt8(57)) {  // 0-9
+            return Int64(c) - 48
         }
-        if (c >= 'a' && c <= 'z') {
-            return Int64(c.value - 'a'.value + 10)
+        if (c >= UInt8(97) && c <= UInt8(122)) {  // a-z
+            return Int64(c) - 97 + 10
         }
-        if (c >= 'A' && c <= 'Z') {
-            return Int64(c.value - 'A'.value + 10)
+        if (c >= UInt8(65) && c <= UInt8(90)) {  // A-Z
+            return Int64(c) - 65 + 10
         }
         return -1
     }
@@ -1665,18 +1697,27 @@ public class FloatParser {
     /// 解析浮点数 - 对应 Bun bun.parseDouble
     /// 支持: 十进制、科学计数法、十六进制浮点、Infinity、NaN
     public static func parseDouble(text: String): Float64 {
-        let s = text.trim()
+        var s = text
+        // Simple trim: remove leading/trailing whitespace
+        while (s.size > 0 && (s.toArray()[0] == UInt8(32) || s.toArray()[0] == UInt8(9) ||
+               s.toArray()[0] == UInt8(10) || s.toArray()[0] == UInt8(13))) {
+            s = s[1..]
+        }
+        while (s.size > 0 && (s.toArray()[s.size - 1] == UInt8(32) || s.toArray()[s.size - 1] == UInt8(9) ||
+               s.toArray()[s.size - 1] == UInt8(10) || s.toArray()[s.size - 1] == UInt8(13))) {
+            s = s[0..(s.size - 1)]
+        }
         if (s == "Infinity" || s == "+Infinity") {
-            return Float64.positiveInfinity
+            return Float64.Inf
         }
         if (s == "-Infinity") {
-            return Float64.negativeInfinity
+            return -Float64.Inf
         }
         if (s == "NaN") {
-            return Float64.nan
+            return Float64.NaN
         }
         // 十六进制浮点: 0x...
-        if (s.length >= 2 && s.substring(0, 2) == "0x") {
+        if (s.size >= 2 && s[0..2] == "0x") {
             return parseHexFloat(s)
         }
         // 标准 parse
@@ -1686,7 +1727,7 @@ public class FloatParser {
     /// 十六进制浮点解析 - 对应 C strtod hex float
     private static func parseHexFloat(s: String): Float64 {
         // 简化: 支持 0xHH.HHpDD 格式
-        var str = s.substring(2)  // 去掉 0x
+        var str = s[2..]  // 去掉 0x
         var intPart: Int64 = 0
         var fracPart: Int64 = 0
         var fracDigits: Int64 = 0
@@ -1695,19 +1736,19 @@ public class FloatParser {
         var hasExp = false
         var negative = false
 
-        if (str.length > 0 && str.toCharArray()[0] == '-') {
+        if (str.size > 0 && str.toArray()[0] == UInt8(45)) {  // '-'
             negative = true
-            str = str.substring(1)
+            str = str[1..]
         }
 
         for (c in str) {
-            if (c == '.') {
+            if (c == UInt8(46)) {  // '.'
                 hasDot = true
-            } else if (c == 'p' || c == 'P') {
+            } else if (c == UInt8(112) || c == UInt8(80)) {  // 'p' or 'P'
                 hasExp = true
                 break
             } else {
-                let d = IntParser.charDigitValue(c)
+                let d = IntParser.byteDigitValue(c)
                 if (d < 0 || d >= 16) { break }
                 if (hasDot) {
                     fracPart = fracPart * 16 + d
@@ -1719,14 +1760,14 @@ public class FloatParser {
         }
 
         if (hasExp) {
-            let pIdx = str.indexOf("p")
-            if (pIdx < 0) {
-                let pIdx2 = str.indexOf("P")
-                if (pIdx2 >= 0) {
-                    exp = IntParser.parseInt(str.substring(Int64(pIdx2) + 1), 10)
-                }
+            let pIdxOpt = str.indexOf("p")
+            if (let Some(pIdx) <- pIdxOpt) {
+                exp = IntParser.parseInt(str[(Int64(pIdx) + 1)..], 10)
             } else {
-                exp = IntParser.parseInt(str.substring(Int64(pIdx) + 1), 10)
+                let pIdxOpt2 = str.indexOf("P")
+                if (let Some(pIdx2) <- pIdxOpt2) {
+                    exp = IntParser.parseInt(str[(Int64(pIdx2) + 1)..], 10)
+                }
             }
         }
 
@@ -1789,7 +1830,7 @@ public class DebugFormatter {
         for (i in 0..limit) {
             if (i > 0) { sb.append(" ") }
             let hex = IntFormatter.toHexString(Int64(bytes[Int64(i)]))
-            if (hex.length == 1) { sb.append("0") }
+            if (hex.size == 1) { sb.append("0") }
             sb.append(hex)
         }
         if (Int64(bytes.size) > limit) {
@@ -1839,7 +1880,7 @@ public class SliceCursor {
     private var position: Int64
 
     public init(capacity: Int64) {
-        buffer = Array<UInt8>(capacity, item: 0)
+        buffer = Array<UInt8>(capacity, { _ => UInt8(0) })
         position = 0
     }
 
@@ -1860,7 +1901,7 @@ public class SliceCursor {
     public func writeString(s: String): Bool {
         for (c in s) {
             if (position >= buffer.size) { return false }
-            buffer[position] = UInt8(c.value)
+            buffer[position] = c
             position += 1
         }
         return true
@@ -1873,11 +1914,11 @@ public class SliceCursor {
 
     /// 获取写入的内容
     public func toSlice(): Array<UInt8> {
-        var result = Array<UInt8>()
+        var result = ArrayList<UInt8>()
         for (i in 0..position) {
-            result.append(buffer[i])
+            result.add(buffer[Int64(i)])
         }
-        return result
+        return result.toArray()
     }
 
     /// 重置
@@ -1904,20 +1945,20 @@ public class VecWriter {
     /// 写入字节
     public func writeAll(bytes: Array<UInt8>): Unit {
         for (b in bytes) {
-            data.append(b)
+            data.add(b)
         }
     }
 
     /// 写入字符串 (UTF-8)
     public func writeString(s: String): Unit {
         for (c in s) {
-            data.append(UInt8(c.value))
+            data.add(c)
         }
     }
 
     /// 写入单个字节
     public func writeByte(b: UInt8): Unit {
-        data.append(b)
+        data.add(b)
     }
 
     /// 获取长度
@@ -1934,7 +1975,7 @@ public class VecWriter {
     public func toString(): String {
         var sb = StringBuilder()
         for (b in data) {
-            sb.append(Char(Int32(b)))
+            sb.append(Rune(Int32(b)))
         }
         return sb.toString()
     }

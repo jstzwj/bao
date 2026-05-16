@@ -23,7 +23,7 @@ foreign func uv_loop_size(): UIntNative
 foreign func uv_loop_alive(loop: CPointer<Unit>): Int32
 foreign func uv_loop_configure(loop: CPointer<Unit>, option: UInt32, ...): Int32
 foreign func uv_loop_fork(loop: CPointer<Unit>): Int32
-foreign func uv_run(loop: CPointer<Unit>, mode: UvRunMode): Int32
+foreign func uv_run(loop: CPointer<Unit>, mode: Int32): Int32
 foreign func uv_stop(loop: CPointer<Unit>): Unit
 foreign func uv_loop_get_data(loop: CPointer<Unit>): CPointer<Unit>
 foreign func uv_loop_set_data(loop: CPointer<Unit>, data: CPointer<Unit>): Unit

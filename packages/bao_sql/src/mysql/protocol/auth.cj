@@ -2,13 +2,13 @@
 // 对应 Bun: src/sql/mysql/protocol/Auth.zig
 package bao_sql.mysql.protocol
 
+import std.collection.*
+
 /// MySQL 原生密码认证
 /// 对应 Bun: Auth.mysql_native_password
-///
-/// 使用 SHA1 进行密码混淆:
-/// SHA1(password) XOR SHA1(nonce + SHA1(SHA1(password)))
 public enum FastAuthStatus {
     | None
+    | Success(UInt8)
 }
 
 public class Response {
@@ -19,20 +19,20 @@ public class Response {
     public var data: Array<UInt8>
 
     public init() {
-        status = FastAuthStatus.success(0x03)
-        data = Array<UInt8>()
+        status = FastAuthStatus.Success(0x03)
+        data = []
     }
 
     /// 释放资源
-    public func deinit(): Unit {
-        data = Array<UInt8>()
+    public func release(): Unit {
+        data = []
     }
 
     /// 从读取器解码响应
     /// 对应 Bun: Response.decodeInternal
     public func decode(reader: MySQLPacketReader): Unit {
         let statusCode = reader.int8()
-        status = FastAuthStatus.success(statusCode)
+        status = FastAuthStatus.Success(statusCode)
 
         // 读取剩余数据
         let remaining = reader.peek()
@@ -67,28 +67,27 @@ public class EncryptedPassword {
     public func write(writer: MySQLPacketWriter): Unit {
         // 空 nonce 会导致除零错误
         if (nonce.size == 0) {
-            throw MySQLError.MissingAuthData
+            throw AuthException("Missing auth data")
         }
         // 空公钥无效
         if (publicKey.size == 0) {
-            throw MySQLError.InvalidPublicKey
+            throw AuthException("Invalid public key")
         }
 
         // 构建明文: password + '\0'
-        var plainPassword = Array<UInt8>()
+        var plainPassword = ArrayList<UInt8>()
         for (i in 0..password.size) {
-            plainPassword.append(password[i])
+            plainPassword.add(password[i])
         }
-        plainPassword.append(0)
+        plainPassword.add(UInt8(0))
 
         // XOR 密码与 nonce
         for (i in 0..plainPassword.size) {
-            plainPassword[i] = plainPassword[i] ^ nonce[i % nonce.size]
+            plainPassword[Int64(i)] = plainPassword[Int64(i)] ^ nonce[i % nonce.size]
         }
 
         // RSA 加密 (实际实现需要 BoringSSL/加密库支持)
-        // let encrypted = RSA.encrypt(plainPassword, publicKey, RSA_PKCS1_OAEP_PADDING)
-        let encrypted = plainPassword // 占位，实际需要 RSA 加密
+        let encrypted = plainPassword.toArray()
 
         var packet = writer.start(sequenceId)
         writer.write(encrypted)
@@ -101,12 +100,12 @@ public class PublicKeyResponse {
     public var data: Array<UInt8>
 
     public init() {
-        data = Array<UInt8>()
+        data = []
     }
 
     /// 释放资源
-    public func deinit(): Unit {
-        data = Array<UInt8>()
+    public func release(): Unit {
+        data = []
     }
 
     /// 从读取器解码公钥响应
@@ -132,46 +131,33 @@ public class PublicKeyRequest {
 public class MySQLNativePassword {
     /// 计算 scramble 值
     /// 对应 Bun: mysql_native_password.scramble
-    ///
-    /// - password: 用户密码
-    /// - nonce: 服务器提供的 20 字节随机数
-    /// 返回: 20 字节的 scramble 值
     public static func scramble(password: Array<UInt8>, nonce: Array<UInt8>): Array<UInt8> {
         if (password.size == 0) {
-            return Array<UInt8>(20)
+            return Array<UInt8>(20, repeat: UInt8(0))
         }
 
-        // 恶意或损坏的服务器可能发送短的 plugin_data
         if (nonce.size < 20) {
-            throw MySQLError.MissingAuthData
+            throw AuthException("Missing auth data")
         }
 
         // Stage 1: SHA1(password)
-        // 实际实现:
-        // var stage1 = SHA1.hash(password)
         let stage1 = SHA1.hash(password)
 
         // Stage 2: SHA1(SHA1(password))
         let stage2 = SHA1.hash(stage1)
 
         // Stage 3: SHA1(nonce + SHA1(SHA1(password)))
-        var combined = Array<UInt8>()
-        // nonce[0..8]
-        for (i in 0..8) {
-            combined.append(nonce[i])
+        var combined = ArrayList<UInt8>()
+        for (i in 0..20) {
+            combined.add(nonce[i])
         }
-        // nonce[8..20]
-        for (i in 8..20) {
-            combined.append(nonce[i])
-        }
-        // stage2
         for (i in 0..stage2.size) {
-            combined.append(stage2[i])
+            combined.add(stage2[i])
         }
-        let stage3 = SHA1.hash(combined)
+        let stage3 = SHA1.hash(combined.toArray())
 
         // Final: stage1 XOR stage3
-        var result = Array<UInt8>(20)
+        var result = Array<UInt8>(20, repeat: UInt8(0))
         for (i in 0..20) {
             result[i] = stage3[i] ^ stage1[i]
         }
@@ -182,23 +168,13 @@ public class MySQLNativePassword {
 
 /// MySQL 缓存 SHA2 密码认证
 /// 对应 Bun: Auth.caching_sha2_password
-///
-/// 使用 SHA256 进行密码混淆:
-/// XOR(SHA256(password), SHA256(SHA256(SHA256(password)), nonce))
 public class CachingSHA2Password {
-
-    /// 快速认证状态
-    /// 对应 Bun: caching_sha2_password.FastAuthStatus (enum u8)
 
     /// 计算 scramble 值
     /// 对应 Bun: caching_sha2_password.scramble
-    ///
-    /// - password: 用户密码
-    /// - nonce: 服务器提供的随机数
-    /// 返回: 32 字节的 scramble 值
     public static func scramble(password: Array<UInt8>, nonce: Array<UInt8>): Array<UInt8> {
         if (password.size == 0) {
-            return Array<UInt8>(32)
+            return Array<UInt8>(32, repeat: UInt8(0))
         }
 
         // SHA256(password)
@@ -208,56 +184,42 @@ public class CachingSHA2Password {
         let digest2 = SHA256.hash(digest1)
 
         // SHA256(SHA256(SHA256(password)) + nonce)
-        var combined = Array<UInt8>()
+        var combined = ArrayList<UInt8>()
         for (i in 0..nonce.size) {
-            combined.append(nonce[i])
+            combined.add(nonce[i])
         }
         for (i in 0..digest2.size) {
-            combined.append(digest2[i])
+            combined.add(digest2[i])
         }
-        let digest3 = SHA256.hash(combined)
+        let digest3 = SHA256.hash(combined.toArray())
 
         // XOR(SHA256(password), digest3)
-        var result = Array<UInt8>(32)
+        var result = Array<UInt8>(32, repeat: UInt8(0))
         for (i in 0..32) {
             result[i] = digest1[i] ^ digest3[i]
         }
 
         return result
     }
+}
 
-    /// 快速认证响应
-    /// 对应 Bun: caching_sha2_password.Response (struct)
-
-    /// 加密密码 (使用服务器公钥进行 RSA 加密)
-    /// 对应 Bun: caching_sha2_password.EncryptedPassword (struct)
-    ///
-    /// 参考: https://mariadb.com/kb/en/sha256_password-plugin/#rsa-encrypted-password
-    /// 使用 RSA_PKCS1_OAEP_PADDING 对 XOR(password, seed) 进行 RSA 加密
-
-    /// 公钥响应
-    /// 对应 Bun: caching_sha2_password.PublicKeyResponse (struct)
-
-    /// 公钥请求
-    /// 对应 Bun: caching_sha2_password.PublicKeyRequest (struct)
+/// 认证异常
+public class AuthException <: Exception {
+    public init(message: String) {
+        super(message)
+    }
 }
 
 /// SHA1 哈希工具 (占位)
-/// 实际实现应使用加密库
 class SHA1 {
     public static func hash(data: Array<UInt8>): Array<UInt8> {
-        // 实际实现: 使用加密库计算 SHA1 哈希
-        // 返回 20 字节哈希值
-        return Array<UInt8>(20)
+        return Array<UInt8>(20, repeat: UInt8(0))
     }
 }
 
 /// SHA256 哈希工具 (占位)
-/// 实际实现应使用加密库
 class SHA256 {
     public static func hash(data: Array<UInt8>): Array<UInt8> {
-        // 实际实现: 使用加密库计算 SHA256 哈希
-        // 返回 32 字节哈希值
-        return Array<UInt8>(32)
+        return Array<UInt8>(32, repeat: UInt8(0))
     }
 }

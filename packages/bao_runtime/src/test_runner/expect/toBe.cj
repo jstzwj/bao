@@ -3,6 +3,9 @@
 
 package bao_runtime.test_runner.expect
 
+import bao_runtime.test_runner
+import bao_jsc.*
+
 /// toBe() - Object.is()严格相等比较
 /// 用法: expect(received).toBe(expected)
 public func toBe(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
@@ -17,11 +20,11 @@ public func toBe(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFram
     let not = this.flags.not
     var pass = right.isSameValue(left, globalThis: globalThis)
 
-    if not { pass = !pass }
-    if pass { return JSValue.jsUndefined }
+    if (not) { pass = !pass }
+    if (pass) { return JSValue.jsUndefined }
 
     // 处理失败 - 输出差异信息
-    if not {
+    if (not) {
         let signature = Expect.getSignature(matcherName: "toBe", args: "<green>expected<r>", not: true)
         return this.throw_(globalThis: globalThis, signature: signature, fmt: "\n\nExpected: not <green>{s}<r>\n", args: [right.toFmt()])
     }
@@ -29,14 +32,14 @@ public func toBe(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFram
     let signature = Expect.getSignature(matcherName: "toBe", args: "<green>expected<r>", not: false)
 
     // 检查是否deep equal相等
-    if left.deepEquals(right, globalThis: globalThis) || left.strictDeepEquals(right, globalThis: globalThis) {
+    if (left.deepEquals(right, globalThis: globalThis) || left.strictDeepEquals(right, globalThis: globalThis)) {
         return this.throw_(globalThis: globalThis, signature: signature,
             fmt: "\n\nIf this test should pass, replace \"toBe\" with \"toEqual\" or \"toStrictEqual\"\n\nExpected: <green>{s}<r>\nReceived: serializes to the same string\n",
             args: [right.toFmt()])
     }
 
     // 字符串差异
-    if right.isString() && left.isString() {
+    if (right.isString() && left.isString()) {
         let diffFormat = DiffFormatter(received: left, expected: right, globalThis: globalThis, not: not)
         return this.throw_(globalThis: globalThis, signature: signature, fmt: "\n\n{f}\n", args: [diffFormat])
     }

@@ -12,10 +12,10 @@ public func normalizeLabel(parser: Parser, raw: String): String {
     var in_ws = true
     var i: Int64 = 0
 
-    while (i < raw.length) {
+    while (i < raw.size) {
         let c = UInt8(raw[i])
         if (c == ' '.toUInt8() || c == '\t'.toUInt8() || c == '\n'.toUInt8() || c == '\r'.toUInt8()) {
-            if (!in_ws && result.length > 0) {
+            if (!in_ws && result.size > 0) {
                 result.append(' ')
                 in_ws = true
             }
@@ -38,8 +38,8 @@ public func normalizeLabel(parser: Parser, raw: String): String {
 
     // 修剪尾部空格
     var s = result.toString()
-    while (s.length > 0 && s[s.length - 1] == ' ') {
-        s = s.substring(0, s.length - 1)
+    while (s.size > 0 && s[s.size - 1] == ' ') {
+        s = s.substring(0, s.size - 1)
     }
     return s
 }
@@ -83,7 +83,7 @@ public func parseRefDef(parser: Parser, text: String, pos: Int64): ?RefDefResult
     var p = pos
 
     // 必须以 [ 开头
-    if (p >= text.length || text[p] != '[') {
+    if (p >= text.size || text[p] != '[') {
         return None
     }
     p += 1
@@ -91,11 +91,11 @@ public func parseRefDef(parser: Parser, text: String, pos: Int64): ?RefDefResult
     // 解析标签
     let label_start = p
     var label_len: Int64 = 0
-    while (p < text.length && text[p] != ']') {
+    while (p < text.size && text[p] != ']') {
         if (text[p] == '[') {
             return None
         }
-        if (text[p] == '\\' && p + 1 < text.length) {
+        if (text[p] == '\\' && p + 1 < text.size) {
             p += 2
             label_len += 2
         } else {
@@ -106,7 +106,7 @@ public func parseRefDef(parser: Parser, text: String, pos: Int64): ?RefDefResult
             return None
         }
     }
-    if (p >= text.length) {
+    if (p >= text.size) {
         return None
     }
     let label = text.substring(label_start, p)
@@ -116,7 +116,7 @@ public func parseRefDef(parser: Parser, text: String, pos: Int64): ?RefDefResult
     p += 1
 
     // 必须后跟 :
-    if (p >= text.length || text[p] != ':') {
+    if (p >= text.size || text[p] != ':') {
         return None
     }
     p += 1
@@ -135,18 +135,18 @@ public func parseRefDef(parser: Parser, text: String, pos: Int64): ?RefDefResult
     // 解析可选标题
     var title = ""
     var had_whitespace_before_title = false
-    if (p < text.length && (text[p] == '"' || text[p] == '\'' || text[p] == '(')) {
+    if (p < text.size && (text[p] == '"' || text[p] == '\'' || text[p] == '(')) {
         had_whitespace_before_title = (p > pos_after_dest)
         if (had_whitespace_before_title) {
             if (let Some(title_result) <- parseRefDefTitle(text, p)) {
                 var after_title = title_result.end_pos
-                while (after_title < text.length && (text[after_title] == ' ' || text[after_title] == '\t')) {
+                while (after_title < text.size && (text[after_title] == ' ' || text[after_title] == '\t')) {
                     after_title += 1
                 }
-                if (after_title >= text.length || text[after_title] == '\n') {
+                if (after_title >= text.size || text[after_title] == '\n') {
                     title = title_result.title
                     p = after_title
-                    if (p < text.length && text[p] == '\n') {
+                    if (p < text.size && text[p] == '\n') {
                         p += 1
                     }
                     return RefDefResult().also {
@@ -169,13 +169,13 @@ public func parseRefDef(parser: Parser, text: String, pos: Int64): ?RefDefResult
 
     // 无标题: 回退到目标之后
     p = pos_after_dest
-    while (p < text.length && (text[p] == ' ' || text[p] == '\t')) {
+    while (p < text.size && (text[p] == ' ' || text[p] == '\t')) {
         p += 1
     }
-    if (p < text.length && text[p] != '\n') {
+    if (p < text.size && text[p] != '\n') {
         return None
     }
-    if (p < text.length && text[p] == '\n') {
+    if (p < text.size && text[p] == '\n') {
         p += 1
     }
 
@@ -190,12 +190,12 @@ public func parseRefDef(parser: Parser, text: String, pos: Int64): ?RefDefResult
 /// 跳过引用定义空白
 public func skipRefDefWhitespace(text: String, start: Int64): Int64 {
     var p = start
-    while (p < text.length && (text[p] == ' ' || text[p] == '\t')) {
+    while (p < text.size && (text[p] == ' ' || text[p] == '\t')) {
         p += 1
     }
-    if (p < text.length && text[p] == '\n') {
+    if (p < text.size && text[p] == '\n') {
         p += 1
-        while (p < text.length && (text[p] == ' ' || text[p] == '\t')) {
+        while (p < text.size && (text[p] == ' ' || text[p] == '\t')) {
             p += 1
         }
     }
@@ -212,7 +212,7 @@ public class DestResult {
 /// 解析引用定义目标
 public func parseRefDefDest(text: String, start: Int64): ?DestResult {
     var p = start
-    if (p >= text.length) {
+    if (p >= text.size) {
         return None
     }
 
@@ -220,14 +220,14 @@ public func parseRefDefDest(text: String, start: Int64): ?DestResult {
         // 尖括号目标
         p += 1
         let dest_start = p
-        while (p < text.length && text[p] != '>' && text[p] != '\n') {
-            if (text[p] == '\\' && p + 1 < text.length) {
+        while (p < text.size && text[p] != '>' && text[p] != '\n') {
+            if (text[p] == '\\' && p + 1 < text.size) {
                 p += 2
             } else {
                 p += 1
             }
         }
-        if (p >= text.length || text[p] != '>') {
+        if (p >= text.size || text[p] != '>') {
             return None
         }
         let dest = text.substring(dest_start, p)
@@ -237,7 +237,7 @@ public func parseRefDefDest(text: String, start: Int64): ?DestResult {
         // 裸目标 — 平衡括号
         let dest_start = p
         var paren_depth: UInt32 = 0
-        while (p < text.length && !isWhitespace(UInt8(text[p]))) {
+        while (p < text.size && !isWhitespace(UInt8(text[p]))) {
             if (text[p] == '(') {
                 paren_depth += 1
             } else if (text[p] == ')') {
@@ -246,7 +246,7 @@ public func parseRefDefDest(text: String, start: Int64): ?DestResult {
                 }
                 paren_depth -= 1
             }
-            if (text[p] == '\\' && p + 1 < text.length) {
+            if (text[p] == '\\' && p + 1 < text.size) {
                 p += 2
             } else {
                 p += 1
@@ -269,7 +269,7 @@ public class TitleResult {
 /// 解析引用定义标题
 public func parseRefDefTitle(text: String, start: Int64): ?TitleResult {
     var p = start
-    if (p >= text.length) {
+    if (p >= text.size) {
         return None
     }
 
@@ -282,8 +282,8 @@ public func parseRefDefTitle(text: String, start: Int64): ?TitleResult {
     p += 1
     let title_start = p
 
-    while (p < text.length && UInt8(text[p]) != close_char) {
-        if (text[p] == '\\' && p + 1 < text.length) {
+    while (p < text.size && UInt8(text[p]) != close_char) {
+        if (text[p] == '\\' && p + 1 < text.size) {
             p += 2
         } else {
             if (open_char == '('.toUInt8() && text[p] == '(') {
@@ -292,7 +292,7 @@ public func parseRefDefTitle(text: String, start: Int64): ?TitleResult {
             p += 1
         }
     }
-    if (p >= text.length) {
+    if (p >= text.size) {
         return None
     }
     let title = text.substring(title_start, p)

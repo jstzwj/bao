@@ -95,32 +95,6 @@ public func graphemeBreak(codepoint: UInt32): GraphemeBreak {
 // Grapheme Break 分类辅助函数
 // ============================================================================
 
-/// 判断是否为 Extend 类字符
-/// 严格翻译自 Bun grapheme.zig isExtend
-private func isGraphemeExtend(cp: UInt32): Bool {
-    // Mn + Me marks
-    let gc = generalCategory(cp)
-    if (gc == GeneralCategory.Mn || gc == GeneralCategory.Me) { return true }
-    // Variation selectors
-    if (cp >= 0xFE00 && cp <= 0xFE0F) { return true }
-    if (cp >= 0xE0100 && cp <= 0xE01EF) { return true }
-    // Emoji modifiers are extend in grapheme context
-    if (cp >= 0x1F3FB && cp <= 0x1F3FF) { return true }
-    // ZWNJ
-    if (cp == 0x200C) { return true }
-    return false
-}
-
-/// SpacingMark 范围检查
-private func isSpacingMark(cp: UInt32): Bool {
-    return binarySearchRange(spacingMarkRanges, cp)
-}
-
-/// Prepend 范围检查
-private func isPrepend(cp: UInt32): Bool {
-    return binarySearchRange(prependRanges, cp)
-}
-
 /// SpacingMark 范围
 private let spacingMarkRanges: Array<(UInt32, UInt32)> = [
     (0x0903, 0x0903), (0x093B, 0x093B), (0x093E, 0x0940),
@@ -190,6 +164,32 @@ private let prependRanges: Array<(UInt32, UInt32)> = [
     (0x1193F, 0x1193F), (0x11941, 0x11941), (0x11A3A, 0x11A3A),
     (0x11A84, 0x11A89), (0x11D46, 0x11D46)
 ]
+
+/// 判断是否为 Extend 类字符
+/// 严格翻译自 Bun grapheme.zig isExtend
+private func isGraphemeExtend(cp: UInt32): Bool {
+    // Mn + Me marks
+    let gc = generalCategory(cp)
+    if (gc == GeneralCategory.Mn || gc == GeneralCategory.Me) { return true }
+    // Variation selectors
+    if (cp >= 0xFE00 && cp <= 0xFE0F) { return true }
+    if (cp >= 0xE0100 && cp <= 0xE01EF) { return true }
+    // Emoji modifiers are extend in grapheme context
+    if (cp >= 0x1F3FB && cp <= 0x1F3FF) { return true }
+    // ZWNJ
+    if (cp == 0x200C) { return true }
+    return false
+}
+
+/// SpacingMark 范围检查
+private func isSpacingMark(cp: UInt32): Bool {
+    return binarySearchRange(spacingMarkRanges, cp)
+}
+
+/// Prepend 范围检查
+private func isPrepend(cp: UInt32): Bool {
+    return binarySearchRange(prependRanges, cp)
+}
 
 /// Extended Pictographic 范围检查
 /// 严格翻译自 Bun emoji-data.txt Extended_Pictographic
@@ -319,45 +319,53 @@ public func computeGraphemeBreak(
     var s = state
 
     // Set state back to default when gb1 or gb2 is not expected in sequence
-    switch (s) {
+    match (s) {
         case BreakState.RegionalIndicator =>
             if (gb1 != GraphemeBreak.RegionalIndicator || gb2 != GraphemeBreak.RegionalIndicator) {
                 s = BreakState.Default
             }
         case BreakState.ExtendedPictographic =>
-            switch (gb1) {
-                case GraphemeBreak.IndicConjunctBreakExtend,
-                     GraphemeBreak.IndicConjunctBreakLinker,
-                     GraphemeBreak.ZWNJ, GraphemeBreak.ZWJ,
-                     GraphemeBreak.ExtendedPictographic,
-                     GraphemeBreak.EmojiModifierBase,
-                     GraphemeBreak.EmojiModifier => {}
-                case _ => s = BreakState.Default
+            if (gb1 != GraphemeBreak.IndicConjunctBreakExtend &&
+                gb1 != GraphemeBreak.IndicConjunctBreakLinker &&
+                gb1 != GraphemeBreak.ZWNJ && gb1 != GraphemeBreak.ZWJ &&
+                gb1 != GraphemeBreak.ExtendedPictographic &&
+                gb1 != GraphemeBreak.EmojiModifierBase &&
+                gb1 != GraphemeBreak.EmojiModifier) {
+                s = BreakState.Default
             }
-            switch (gb2) {
-                case GraphemeBreak.IndicConjunctBreakExtend,
-                     GraphemeBreak.IndicConjunctBreakLinker,
-                     GraphemeBreak.ZWNJ, GraphemeBreak.ZWJ,
-                     GraphemeBreak.ExtendedPictographic,
-                     GraphemeBreak.EmojiModifierBase,
-                     GraphemeBreak.EmojiModifier => {}
-                case _ => s = BreakState.Default
+            if (gb2 != GraphemeBreak.IndicConjunctBreakExtend &&
+                gb2 != GraphemeBreak.IndicConjunctBreakLinker &&
+                gb2 != GraphemeBreak.ZWNJ && gb2 != GraphemeBreak.ZWJ &&
+                gb2 != GraphemeBreak.ExtendedPictographic &&
+                gb2 != GraphemeBreak.EmojiModifierBase &&
+                gb2 != GraphemeBreak.EmojiModifier) {
+                s = BreakState.Default
             }
-        case BreakState.IndicConjunctBreakConsonant,
-             BreakState.IndicConjunctBreakLinker =>
-            switch (gb1) {
-                case GraphemeBreak.IndicConjunctBreakConsonant,
-                     GraphemeBreak.IndicConjunctBreakLinker,
-                     GraphemeBreak.IndicConjunctBreakExtend,
-                     GraphemeBreak.ZWJ => {}
-                case _ => s = BreakState.Default
+        case BreakState.IndicConjunctBreakConsonant =>
+            if (gb1 != GraphemeBreak.IndicConjunctBreakConsonant &&
+                gb1 != GraphemeBreak.IndicConjunctBreakLinker &&
+                gb1 != GraphemeBreak.IndicConjunctBreakExtend &&
+                gb1 != GraphemeBreak.ZWJ) {
+                s = BreakState.Default
             }
-            switch (gb2) {
-                case GraphemeBreak.IndicConjunctBreakConsonant,
-                     GraphemeBreak.IndicConjunctBreakLinker,
-                     GraphemeBreak.IndicConjunctBreakExtend,
-                     GraphemeBreak.ZWJ => {}
-                case _ => s = BreakState.Default
+            if (gb2 != GraphemeBreak.IndicConjunctBreakConsonant &&
+                gb2 != GraphemeBreak.IndicConjunctBreakLinker &&
+                gb2 != GraphemeBreak.IndicConjunctBreakExtend &&
+                gb2 != GraphemeBreak.ZWJ) {
+                s = BreakState.Default
+            }
+        case BreakState.IndicConjunctBreakLinker =>
+            if (gb1 != GraphemeBreak.IndicConjunctBreakConsonant &&
+                gb1 != GraphemeBreak.IndicConjunctBreakLinker &&
+                gb1 != GraphemeBreak.IndicConjunctBreakExtend &&
+                gb1 != GraphemeBreak.ZWJ) {
+                s = BreakState.Default
+            }
+            if (gb2 != GraphemeBreak.IndicConjunctBreakConsonant &&
+                gb2 != GraphemeBreak.IndicConjunctBreakLinker &&
+                gb2 != GraphemeBreak.IndicConjunctBreakExtend &&
+                gb2 != GraphemeBreak.ZWJ) {
+                s = BreakState.Default
             }
         case BreakState.Default => ()
     }
@@ -499,7 +507,7 @@ public class GraphemeIterator {
     /// 获取下一个字素簇
     public func next(): GraphemeCluster {
         if (pos >= bytes.size) {
-            return GraphemeCluster(start: pos, end: pos, bytes: [])
+            return GraphemeCluster(pos, pos, [])
         }
 
         let start = pos
@@ -521,11 +529,14 @@ public class GraphemeIterator {
             prevGb = currentGb
         }
 
-        var clusterBytes = Array<UInt8>()
+        let len = pos - start
+        var clusterBytes = Array<UInt8>(len, { _ => UInt8(0) })
+        var idx: Int64 = 0
         for (i in start..pos) {
-            clusterBytes.append(bytes[i])
+            clusterBytes[idx] = bytes[i]
+            idx += 1
         }
-        return GraphemeCluster(start: start, end: pos, bytes: clusterBytes)
+        return GraphemeCluster(start, pos, clusterBytes)
     }
 
     /// 重置迭代器

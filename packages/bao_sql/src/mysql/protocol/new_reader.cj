@@ -81,7 +81,7 @@ public class MySQLPacketReader {
     /// 对应 Bun: StackReader.read
     public func read(count: Int64): Array<UInt8> {
         if (!ensureCapacity(count)) {
-            throw MySQLError.ShortRead
+            throw MySQLProtocolException("ShortRead")
         }
 
         let start = offset
@@ -106,7 +106,7 @@ public class MySQLPacketReader {
             return remaining[0..zeroIndex]
         }
 
-        throw MySQLError.ShortRead
+        throw MySQLProtocolException("ShortRead")
     }
 
     /// 读取 1 字节无符号整数
@@ -158,39 +158,44 @@ public class MySQLPacketReader {
     /// 对应 Bun: NewReader.encodeLenString
     public func encodeLenString(): Array<UInt8> {
         let result = EncodeInt.decodeLengthInt(peek())
-        match (result) {
-            case Some(r) => {
-                skip(r.bytesRead)
-                return read(Int64(r.value))
-            }
-            case None => throw MySQLError.InvalidEncodedLength
+        if (let Some(r) <- result) {
+            skip(r.bytesRead)
+            return read(Int64(r.value))
         }
+        throw MySQLProtocolException("InvalidEncodedLength")
     }
 
     /// 读取长度编码整数
     /// 对应 Bun: NewReader.encodedLenInt
     public func encodedLenInt(): UInt64 {
         let result = EncodeInt.decodeLengthInt(peek())
-        match (result) {
-            case Some(r) => {
-                skip(r.bytesRead)
-                return r.value
-            }
-            case None => throw MySQLError.InvalidEncodedInteger
+        if (let Some(r) <- result) {
+            skip(r.bytesRead)
+            return r.value
         }
+        throw MySQLProtocolException("InvalidEncodedInteger")
     }
 
-    /// 读取长度编码整数，同时累加读取字节数
+    /// 读取长度编码整数，同时返回读取字节数
     /// 对应 Bun: NewReader.encodedLenIntWithSize
-    public func encodedLenIntWithSize(size: Int64): UInt64 {
+    /// 返回 (value, bytesRead)
+    public func encodedLenIntWithSize(): LengthIntWithSizeResult {
         let result = EncodeInt.decodeLengthInt(peek())
-        match (result) {
-            case Some(r) => {
-                skip(r.bytesRead)
-                size += r.bytesRead
-                return r.value
-            }
-            case None => throw MySQLError.InvalidEncodedInteger
+        if (let Some(r) <- result) {
+            skip(r.bytesRead)
+            return LengthIntWithSizeResult(r.value, r.bytesRead)
         }
+        throw MySQLProtocolException("InvalidEncodedInteger")
+    }
+}
+
+/// 长度编码整数及读取大小结果
+public class LengthIntWithSizeResult {
+    public var value: UInt64
+    public var bytesRead: Int64
+
+    public init(value: UInt64, bytesRead: Int64) {
+        this.value = value
+        this.bytesRead = bytesRead
     }
 }

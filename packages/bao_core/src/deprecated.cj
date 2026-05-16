@@ -39,13 +39,13 @@ public class BufferedReader {
     private var endPos: Int64
 
     public init(bufferSize: Int64) {
-        this.buffer = Array<UInt8>(bufferSize, item: UInt8(0))
+        this.buffer = Array<UInt8>(bufferSize, { _ => UInt8(0) })
         this.startPos = 0
         this.endPos = 0
     }
 
     public init() {
-        this.buffer = Array<UInt8>(DEFAULT_BUFFER_SIZE, item: UInt8(0))
+        this.buffer = Array<UInt8>(DEFAULT_BUFFER_SIZE, { _ => UInt8(0) })
         this.startPos = 0
         this.endPos = 0
     }
@@ -149,9 +149,19 @@ public class SinglyLinkedNode<T> {
     /// 数据 - 对应 Bun data: T
     public var data: T
 
+    /// Unique identity for reference comparison
+    private static var nextId: Int64 = 0
+    private let uid: Int64
+
     public init(data: T) {
         this.data = data
         this.next = None
+        this.uid = nextId
+        nextId = nextId + 1
+    }
+
+    public func equals(other: SinglyLinkedNode<T>): Bool {
+        return this.uid == other.uid
     }
 
     /// 在当前节点后插入 - 对应 Bun Node.insertAfter()
@@ -190,9 +200,10 @@ public class SinglyLinkedNode<T> {
         while (true) {
             match (it.next) {
                 case Some(n) => it = n
-                case None => return it
+                case None => break
             }
         }
+        return it
     }
 
     /// 计算子节点数量 - 对应 Bun Node.countChildren()
@@ -276,7 +287,7 @@ public class SinglyLinkedList<T> {
     public func remove(node: SinglyLinkedNode<T>): Unit {
         match (first) {
             case Some(f) =>
-                if (f === node) {
+                if (f.equals(node)) {
                     first = node.next
                     return
                 }
@@ -284,7 +295,7 @@ public class SinglyLinkedList<T> {
                 while (true) {
                     match (current.next) {
                         case Some(nextNode) =>
-                            if (nextNode === node) {
+                            if (nextNode.equals(node)) {
                                 current.next = node.next
                                 return
                             }
@@ -613,9 +624,9 @@ public class DoublyLinkedList<T> {
 /// const RAPID_SECRET: [3]u64 = .{ 0x2d358dccaa6c78a5, 0x8bb84b93962eacc9, 0x4b33a62ed433d4a3 };
 public class RapidHash {
     /// 默认种子 - 对应 Bun RAPID_SEED
-    public static const RAPID_SEED: UInt64 = UInt64(0xbdd89aa982704029)
+    public static const RAPID_SEED: UInt64 = 0xbdd89aa982704029u64
     /// 秘钥 - 对应 Bun RAPID_SECRET
-    public static let RAPID_SECRET: Array<UInt64> = [UInt64(0x2d358dccaa6c78a5), UInt64(0x8bb84b93962eacc9), UInt64(0x4b33a62ed433d4a3)]
+    public static let RAPID_SECRET: Array<UInt64> = [0x2d358dccaa6c78a5u64, 0x8bb84b93962eacc9u64, 0x4b33a62ed433d4a3u64]
 
     /// 哈希函数 - 对应 Bun RapidHash.hash()
     /// pub fn hash(seed: u64, input: []const u8) u64 { ... }

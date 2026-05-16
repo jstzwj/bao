@@ -222,7 +222,29 @@ public class Archive {
         let optionsCompress = try parseCompressionOptions(globalThis, optionsArg)
 
         // 对于 Archive 实例, 使用选项覆盖或归档的压缩设置
-        // ... 实现省略
+        if (let archive = Archive.fromJS(dataArg)) {
+            let compress = if (optionsCompress != Compression.none) optionsCompress else archive.compress
+            return startWriteTask(globalThis, WriteContextData.store(archive.store), pathSlice.slice(), compress)
+        }
+
+        // 对于 Blob, 使用 store 引用和选项压缩
+        if (let blobPtr = dataArg.as(Blob)) {
+            if (let store = blobPtr.store) {
+                return startWriteTask(globalThis, WriteContextData.store(store), pathSlice.slice(), optionsCompress)
+            }
+        }
+
+        // 对于 ArrayBuffer/TypedArray, 复制数据
+        if (let arrayBuffer = dataArg.asArrayBuffer(globalThis)) {
+            let data = try default_allocator.dupe(UInt8, arrayBuffer.slice())
+            return startWriteTask(globalThis, WriteContextData.owned(data), pathSlice.slice(), optionsCompress)
+        }
+
+        // 对于普通对象, 构建 tarball
+        if (dataArg.isObject()) {
+            let data = try buildTarballFromObject(globalThis, dataArg)
+            return startWriteTask(globalThis, WriteContextData.owned(data), pathSlice.slice(), optionsCompress)
+        }
 
         globalThis.throwInvalidArguments("Expected an object, Blob, TypedArray, ArrayBuffer, or Archive")
         return JsValue.zero
@@ -277,24 +299,72 @@ public class Archive {
         store.deref()
     }
 
-    // 异步任务启动器 (存根, 实际实现在 AsyncTask 中)
+    // 异步任务启动器
+    // 对应 Bun: Archive.zig startExtractTask / startBlobTask / startFilesTask
+
+    /// 启动异步提取任务
     public static func startExtractTask(globalThis: JsGlobalObject, store: BlobStore, path: String, globPatterns: ?Array<String>): JsValue {
-        // 启动异步提取任务, 返回 Promise
+        let pathCopy = try default_allocator.dupe(UInt8, path)
         store.ref()
-        // ... 异步任务实现
-        return JsValue.zero
+
+        let task = try ExtractTask.create(globalThis, ExtractContext(
+            store: store,
+            path: pathCopy,
+            globPatterns: globPatterns,
+        ))
+
+        let promiseJs = task.promise.value()
+        task.schedule()
+        return promiseJs
     }
 
+    /// 启动 Blob 获取任务
     public static func startBlobTask(globalThis: JsGlobalObject, store: BlobStore, compress: Compression, outputType: OutputType): JsValue {
         store.ref()
-        // ... 异步任务实现
-        return JsValue.zero
+
+        let task = try BlobTask.create(globalThis, BlobContext(
+            store: store,
+            compress: compress,
+            outputType: outputType,
+        ))
+
+        let promiseJs = task.promise.value()
+        task.schedule()
+        return promiseJs
     }
 
+    /// 启动文件列表任务
     public static func startFilesTask(globalThis: JsGlobalObject, store: BlobStore, globPatterns: ?Array<String>): JsValue {
         store.ref()
-        // ... 异步任务实现
-        return JsValue.zero
+
+        let task = try FilesTask.create(globalThis, FilesContext(
+            store: store,
+            globPatterns: globPatterns,
+        ))
+
+        let promiseJs = task.promise.value()
+        task.schedule()
+        return promiseJs
+    }
+
+    /// 启动写入任务
+    public static func startWriteTask(globalThis: JsGlobalObject, data: WriteContextData, path: String, compress: Compression): JsValue {
+        let pathZ = try default_allocator.dupeZ(UInt8, path)
+
+        // 如果使用 store 引用，增加引用计数
+        if (data == WriteContextData.store) {
+            data.store.ref()
+        }
+
+        let task = try WriteTask.create(globalThis, WriteContext(
+            data: data,
+            path: pathZ,
+            compress: compress,
+        ))
+
+        let promiseJs = task.promise.value()
+        task.schedule()
+        return promiseJs
     }
 
     /// 检查路径是否安全 (无绝对路径或路径遍历)

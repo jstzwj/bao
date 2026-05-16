@@ -31,43 +31,43 @@ public class BackendCoreGraphics {
 
     /// C shim: 两阶段解码。Phase 1 (out=null) 获取尺寸;
     /// Phase 2 使用分配的缓冲区渲染。
-    public static func cgDecode(bytes: CPointer<>, len: UInt64, maxPixels: UInt64,
-        outW: CPointer<UInt32>, outH: CPointer<UInt32>, out: CPointer<>): Int32 {
+    public static func cgDecode(bytes: CPointer<Unit>, len: UInt64, maxPixels: UInt64,
+        outW: CPointer<UInt32>, outH: CPointer<UInt32>, out: CPointer<Unit>): Int32 {
         // FFI: bun_coregraphics_decode
         return CG_UNAVAILABLE
     }
 
     /// C shim: 两阶段编码。Phase 1 (out=null) 编码到线程本地 CFData，返回大小;
     /// Phase 2 复制出来并释放 CFData。
-    public static func cgEncode(rgba: CPointer<>, width: UInt32, height: UInt32,
-        format: Int32, quality: Int32, out: CPointer<>, outLen: CPointer<UInt64>): Int32 {
+    public static func cgEncode(rgba: CPointer<Unit>, width: UInt32, height: UInt32,
+        format: Int32, quality: Int32, out: CPointer<Unit>, outLen: CPointer<UInt64>): Int32 {
         // FFI: bun_coregraphics_encode
         return CG_UNAVAILABLE
     }
 
     /// C shim: vImage 缩放
-    public static func cgScale(src: CPointer<>, sw: UInt32, sh: UInt32,
-        dst: CPointer<>, dw: UInt32, dh: UInt32): Int32 {
+    public static func cgScale(src: CPointer<Unit>, sw: UInt32, sh: UInt32,
+        dst: CPointer<Unit>, dw: UInt32, dh: UInt32): Int32 {
         // FFI: bun_coregraphics_scale
         return CG_UNAVAILABLE
     }
 
     /// C shim: vImage 旋转 90 度
-    public static func cgRotate90(src: CPointer<>, w: UInt32, h: UInt32,
-        dst: CPointer<>, quarters: UInt32): Int32 {
+    public static func cgRotate90(src: CPointer<Unit>, w: UInt32, h: UInt32,
+        dst: CPointer<Unit>, quarters: UInt32): Int32 {
         // FFI: bun_coregraphics_rotate90
         return CG_UNAVAILABLE
     }
 
     /// C shim: vImage 翻转
-    public static func cgReflect(src: CPointer<>, w: UInt32, h: UInt32,
-        dst: CPointer<>, horizontal: Int32): Int32 {
+    public static func cgReflect(src: CPointer<Unit>, w: UInt32, h: UInt32,
+        dst: CPointer<Unit>, horizontal: Int32): Int32 {
         // FFI: bun_coregraphics_reflect
         return CG_UNAVAILABLE
     }
 
     /// C shim: 剪贴板读取
-    public static func cgClipboard(out: CPointer<>, outLen: CPointer<UInt64>, probeOnly: Int32): Int32 {
+    public static func cgClipboard(out: CPointer<Unit>, outLen: CPointer<UInt64>, probeOnly: Int32): Int32 {
         // FFI: bun_coregraphics_clipboard
         return CG_UNAVAILABLE
     }
@@ -110,7 +110,7 @@ public class BackendCoreGraphics {
         // Phase 1: 仅尺寸
         let rc1 = cgDecode(bytes.ptr(), UInt64(bytes.size), maxPixels,
                             CPointer<UInt32>.addrOf(w), CPointer<UInt32>.addrOf(h),
-                            CPointer<>.null)
+                            CPointer<Unit>.null)
         if (rc1 != CG_OK) { return None }
 
         // 分配 RGBA 缓冲区
@@ -154,7 +154,7 @@ public class BackendCoreGraphics {
         // Phase 1: 编码到线程本地 CFData，获取大小
         var len: UInt64 = 0
         let rc1 = cgEncode(rgba.ptr(), width, height, fmt, Int32(opts.quality),
-                            CPointer<>.null, CPointer<UInt64>.addrOf(len))
+                            CPointer<Unit>.null, CPointer<UInt64>.addrOf(len))
         if (rc1 != CG_OK) { return None }
 
         // 分配输出缓冲区
@@ -225,7 +225,7 @@ public class BackendCoreGraphics {
     /// (PNG/TIFF/HEIC/...); 直接送入 new BunImage(...)。
     public static func clipboard(): ?Array<UInt8> {
         var len: UInt64 = 0
-        if (cgClipboard(CPointer<>.null, CPointer<UInt64>.addrOf(len), 0) != CG_OK) {
+        if (cgClipboard(CPointer<Unit>.null, CPointer<UInt64>.addrOf(len), 0) != CG_OK) {
             return None
         }
         if (len == 0) { return None }
@@ -240,7 +240,7 @@ public class BackendCoreGraphics {
     /// 检查剪贴板是否有图像
     public static func hasClipboardImage(): Bool {
         var len: UInt64 = 0
-        return cgClipboard(CPointer<>.null, CPointer<UInt64>.addrOf(len), 1) == CG_OK && len > 0
+        return cgClipboard(CPointer<Unit>.null, CPointer<UInt64>.addrOf(len), 1) == CG_OK && len > 0
     }
 
     /// 剪贴板变化计数

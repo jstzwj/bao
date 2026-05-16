@@ -35,10 +35,10 @@ public class BindgenTest {
         let bVal = b
         if (bVal == None) {
             var r = 123456 + c
-            if (d != None) { r = r + Int32(d!) }
+            if (d != None) { r = r + Int32(d.getOrThrow()) }
             return r
         }
-        var mathResult: Int32 = Int32((bVal! + Int64(abs(c))) * (if (d != None) { Int64(d!) } else { 1 }))
+        var mathResult: Int32 = Int32((bVal! + Int64(abs(c))) * (if (d != None) { Int64(d.getOrThrow()) } else { 1 }))
         if (a) {
             mathResult = -mathResult
         }

@@ -188,7 +188,7 @@ public class NodeFsImpl {
         if (statResult == None) {
             return FsResult(error: NodeError(code: "ENOENT", message: "No such file: ${args.path}"))
         }
-        return FsResult.withStats(statResult!)
+        return FsResult.withStats(statResult.getOrThrow())
     }
 
     private static func fstat(args: FsArgs): FsResult {
@@ -196,7 +196,7 @@ public class NodeFsImpl {
         if (statResult == None) {
             return FsResult(error: NodeError(code: "EBADF", message: "Bad file descriptor"))
         }
-        return FsResult.withStats(statResult!)
+        return FsResult.withStats(statResult.getOrThrow())
     }
 
     private static func lstat(args: FsArgs): FsResult {
@@ -204,7 +204,7 @@ public class NodeFsImpl {
         if (statResult == None) {
             return FsResult(error: NodeError(code: "ENOENT", message: "No such file: ${args.path}"))
         }
-        return FsResult.withStats(statResult!)
+        return FsResult.withStats(statResult.getOrThrow())
     }
 
     private static func readdir(args: FsArgs): FsResult {
@@ -284,7 +284,7 @@ public class NodeFsImpl {
         if (target == None) {
             return FsResult(error: NodeError(code: "ENOENT", message: "Readlink failed"))
         }
-        return FsResult.withString(target!)
+        return FsResult.withString(target.getOrThrow())
     }
 
     private static func symlink(args: FsArgs): FsResult {
@@ -300,7 +300,7 @@ public class NodeFsImpl {
         if (resolved == None) {
             return FsResult(error: NodeError(code: "ENOENT", message: "Realpath failed"))
         }
-        return FsResult.withString(resolved!)
+        return FsResult.withString(resolved.getOrThrow())
     }
 
     private static func truncate(args: FsArgs): FsResult {

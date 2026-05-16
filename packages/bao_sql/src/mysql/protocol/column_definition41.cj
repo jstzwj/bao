@@ -2,6 +2,7 @@
 // 对应 Bun: src/sql/mysql/protocol/ColumnDefinition41.zig
 package bao_sql.mysql.protocol
 
+
 /// MySQL 列标志位
 /// 对应 Bun: ColumnDefinition41.ColumnFlags (packed struct)
 ///
@@ -172,7 +173,7 @@ public class ColumnDefinition41 {
 
     /// 释放资源
     /// 对应 Bun: ColumnDefinition41.deinit
-    public func deinit(): Unit {
+    public func release(): Unit {
         catalog = Array<UInt8>()
         schema = Array<UInt8>()
         table = Array<UInt8>()

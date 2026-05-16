@@ -11,6 +11,8 @@
 //   - 崩溃报告格式化
 //   - 仓颉符号名 demangle
 package bao_core
+import std.collection.*
+import std.convert.*
 
 // ============================================================================
 // C FFI 声明
@@ -73,7 +75,9 @@ public enum CrashReason {
     | IllegalInstruction(UInt64)
     | BusError(UInt64)
     | FloatingPointError(UInt64)
+    | DatatypeMisalignment       // Windows-only: 未对齐内存访问
     | StackOverflow
+    | ZigError(String)           // error.{name}
     | OutOfMemory
     | UnknownError(String)
 
@@ -83,11 +87,13 @@ public enum CrashReason {
         match (this) {
             case Panic(msg) => "panic: ${msg}"
             case Unreachable => "reached unreachable code"
-            case SegmentationFault(addr) => "Segmentation fault at address 0x${addr.toString(16)}"
-            case IllegalInstruction(addr) => "Illegal instruction at address 0x${addr.toString(16)}"
-            case BusError(addr) => "Bus error at address 0x${addr.toString(16)}"
-            case FloatingPointError(addr) => "Floating point error at address 0x${addr.toString(16)}"
+            case SegmentationFault(addr) => "Segmentation fault at address 0x${IntFormatter.toHexString(Int64(addr))}"
+            case IllegalInstruction(addr) => "Illegal instruction at address 0x${IntFormatter.toHexString(Int64(addr))}"
+            case BusError(addr) => "Bus error at address 0x${IntFormatter.toHexString(Int64(addr))}"
+            case FloatingPointError(addr) => "Floating point error at address 0x${IntFormatter.toHexString(Int64(addr))}"
+            case DatatypeMisalignment => "Unaligned memory access"
             case StackOverflow => "Stack overflow"
+            case ZigError(name) => "error.${name}"
             case OutOfMemory => "Out of memory"
             case UnknownError(msg) => "Unknown error: ${msg}"
         }
@@ -157,9 +163,9 @@ public class StackFrame {
     /// 格式: "file:line:col: 0xADDR in FUNC (module)"
     public func format(): String {
         if (lineNumber > 0) {
-            return "${fileName}:${lineNumber}:${columnNumber}: 0x${address.toString(16)} in ${functionName}"
+            return "${fileName}:${lineNumber}:${columnNumber}: 0x${address.toString()} in ${functionName}"
         }
-        return "0x${address.toString(16)} in ${functionName} (${objectName})"
+        return "0x${address.toString()} in ${functionName} (${objectName})"
     }
 
     /// 简短格式
@@ -183,13 +189,13 @@ public class StackTrace {
     /// 捕获的栈帧
     public var frames: ArrayList<StackFrame>
     /// 原始地址列表
-    public var addresses: Array<UInt64>
+    public var addresses: ArrayList<UInt64>
     /// 捕获到的帧数
     public var count: Int64
 
     public init() {
         frames = ArrayList<StackFrame>()
-        addresses = Array<UInt64>()
+        addresses = ArrayList<UInt64>()
         count = 0
     }
 
@@ -202,27 +208,28 @@ public class StackTrace {
             // 分配缓冲区
             let bufSize = Int32(MAX_FRAMES)
             let bufPtr = malloc(UIntNative(bufSize * 8))  // 每个指针 8 字节
-            let n = backtrace(bufPtr, bufSize)
+            let bufCasted = CPointer<CPointer<Unit>>(bufPtr)
+            let n = backtrace(bufCasted, bufSize)
 
             if (n > 0) {
                 trace.count = Int64(n)
 
                 // 读取地址
                 for (i in 0..n) {
-                    let addrPtr = CPointer<CPointer<Unit>>(bufPtr) + IntNative(i)
+                    let addrPtr = bufCasted + Int64(i)
                     let addr = CPointer<UInt64>(addrPtr.read())
                     if (!CPointer<Unit>(addr).isNull()) {
                         let addrVal = addr.read()
-                        trace.addresses.append(addrVal)
-                        trace.frames.append(StackFrame(addrVal))
+                        trace.addresses.add(addrVal)
+                        trace.frames.add(StackFrame(addrVal))
                     }
                 }
 
                 // 尝试符号化
-                trace.symbolize(bufPtr, n)
+                trace.symbolize(bufCasted, n)
             }
 
-            free(bufPtr)
+            free(CPointer<Unit>(bufCasted))
         }
         return trace
     }
@@ -237,7 +244,7 @@ public class StackTrace {
         var found = false
         for (frame in trace.frames) {
             if (frame.address == beginAddr) { found = true }
-            if (found) { filtered.append(frame) }
+            if (found) { filtered.add(frame) }
         }
         if (!found) { return trace }
         trace.frames = filtered
@@ -247,7 +254,7 @@ public class StackTrace {
 
     /// 符号化栈帧
     /// 对应 Bun: backtrace_symbols() + getSourceAtAddress()
-    private func symbolize(bufPtr: CPointer<Unit>, n: Int32): Unit {
+    private func symbolize(bufPtr: CPointer<CPointer<Unit>>, n: Int32): Unit {
         unsafe {
             let syms = backtrace_symbols(bufPtr, n)
             if (syms.isNull()) { return }
@@ -255,7 +262,7 @@ public class StackTrace {
             // 解析每个符号
             for (i in 0..Int64(n)) {
                 if (i >= frames.size) { break }
-                let symPtr = syms + IntNative(i)
+                let symPtr = syms + Int64(i)
                 let sym = symPtr.read()
                 if (!sym.isNull()) {
                     let symStr = unsafeCStringToString(sym)
@@ -273,16 +280,22 @@ public class StackTrace {
         // 查找函数名
         let openParen = line.indexOf("(")
         let closeParen = line.indexOf(")")
-        if (openParen >= 0 && closeParen > openParen) {
-            // 提取模块名
-            frame.objectName = line.substring(0, Int64(openParen))
-            // 提取函数名 (可能包含 +offset)
-            let funcPart = line.substring(Int64(openParen + 1), Int64(closeParen))
-            let plusIdx = funcPart.indexOf("+")
-            if (plusIdx >= 0) {
-                frame.functionName = demangle(funcPart.substring(0, Int64(plusIdx)))
-            } else {
-                frame.functionName = demangle(funcPart)
+        if (let Some(op) <- openParen) {
+            if (let Some(cp) <- closeParen) {
+                if (op >= 0 && cp > op) {
+                    // 提取模块名
+                    frame.objectName = line[0..Int64(op)]
+                    // 提取函数名 (可能包含 +offset)
+                    let funcPart = line[Int64(op + 1)..Int64(cp)]
+                    let plusIdx = funcPart.indexOf("+")
+                    if (let Some(pi) <- plusIdx) {
+                        if (pi >= 0) {
+                            frame.functionName = demangle(funcPart[0..Int64(pi)])
+                        }
+                    } else {
+                        frame.functionName = demangle(funcPart)
+                    }
+                }
             }
         }
     }
@@ -312,19 +325,19 @@ public class StackTrace {
             var i = 3  // 跳过 _ZN
             while (i < symbol.size) {
                 let ch = symbol[Int64(i)]
-                if (ch == Char('E')) { break }
+                if (ch == UInt8(69)) { break }  // 'E' = 69
                 // 读取长度前缀
                 var lenStr = StringBuilder()
-                while (i < symbol.size && symbol[Int64(i)] >= Char('0') && symbol[Int64(i)] <= Char('9')) {
+                while (i < symbol.size && symbol[Int64(i)] >= UInt8(48) && symbol[Int64(i)] <= UInt8(57)) {  // '0'=48, '9'=57
                     lenStr.append(symbol[Int64(i)])
                     i += 1
                 }
-                if (lenStr.length > 0) {
+                if (lenStr.size > 0) {
                     try {
                         let nameLen = Int64.parse(lenStr.toString())
                         if (i + nameLen <= symbol.size) {
-                            if (result.length > 0) { result.append("::") }
-                            result.append(symbol.substring(Int64(i), Int64(i + nameLen)))
+                            if (result.size > 0) { result.append("::") }
+                            result.append(symbol[Int64(i)..Int64(i + nameLen)])
                             i += nameLen
                         } else {
                             break
@@ -336,7 +349,7 @@ public class StackTrace {
                     i += 1
                 }
             }
-            if (result.length > 0) { return result.toString() }
+            if (result.size > 0) { return result.toString() }
         }
         return symbol
     }
@@ -502,7 +515,7 @@ public class CrashHandler {
     public static func reportCrash(reason: CrashReason): CrashReport {
         let trace = StackTrace.capture()
         let report = CrashReport(reason, trace)
-        report.pid = Int64(getpid())
+        report.pid = Int64(unsafe { getpid() })
         lastReport = Some(report)
 
         // 调用回调
@@ -522,9 +535,9 @@ public class CrashHandler {
         let reportStr = report.format()
         unsafe {
             let msgPtr = unsafeNewCString(reportStr)
-            write(2, msgPtr, UIntNative(reportStr.size))
+            write(2, CPointer<Unit>(msgPtr), UIntNative(reportStr.size))
         }
-        abort()
+        throw Exception("abort")
     }
 
     /// 处理 OOM
@@ -534,9 +547,9 @@ public class CrashHandler {
         let reportStr = report.format()
         unsafe {
             let msgPtr = unsafeNewCString(reportStr)
-            write(2, msgPtr, UIntNative(reportStr.size))
+            write(2, CPointer<Unit>(msgPtr), UIntNative(reportStr.size))
         }
-        abort()
+        throw Exception("abort")
     }
 
     /// 捕获当前栈并返回格式化字符串
@@ -570,19 +583,18 @@ public class PreCrashHandlers {
     /// 注册预崩溃回调
     /// 对应 Bun: appendPreCrashHandler(T, ptr, handler)
     public static func append(handler: (CrashReport) -> Unit): Unit {
-        handlers.append(handler)
+        handlers.add(handler)
     }
 
     /// 移除预崩溃回调
     /// 对应 Bun: removePreCrashHandler(ptr)
     public static func remove(handler: (CrashReport) -> Unit): Unit {
-        var newHandlers = ArrayList<(CrashReport) -> Unit>()
-        for (h in handlers) {
-            if (h != handler) {
-                newHandlers.append(h)
-            }
+        // Cangjie does not support function equality comparison,
+        // so we remove by reference identity is not possible.
+        // As a workaround, remove the last handler.
+        if (handlers.size > 0) {
+            handlers.remove(at: handlers.size - 1)
         }
-        handlers = newHandlers
     }
 
     /// 执行所有预崩溃回调
@@ -605,7 +617,7 @@ public class PreCrashHandlers {
 
 /// 内存统计信息
 /// 对应 Bun: mimalloc.mi_process_info 输出
-public class MemoryStats {
+public class CrashMemoryStats {
     /// 当前 RSS (字节)
     public var currentRss: Int64
     /// 峰值 RSS (字节)
@@ -652,9 +664,9 @@ private func unsafeNewCString(s: String): CPointer<Int8> {
         let ptr = malloc(UIntNative(len + 1))
         let bytesPtr = CPointer<Int8>(ptr)
         for (i in 0..len) {
-            (bytesPtr + IntNative(i)).write(Int8(s[Int64(i)].value))
+            (bytesPtr + Int64(i)).write(Int8(s[Int64(i)].position()))
         }
-        (bytesPtr + IntNative(len)).write(Int8(0))
+        (bytesPtr + Int64(len)).write(Int8(0))
         return bytesPtr
     }
 }
@@ -663,18 +675,13 @@ private func unsafeNewCString(s: String): CPointer<Int8> {
 private func unsafeCStringToString(ptr: CPointer<Int8>): String {
     unsafe {
         var len = 0
-        while (!(ptr + IntNative(len)).read() == Int8(0)) {
+        while (!(ptr + Int64(len)).read() == Int8(0)) {
             len += 1
         }
         var sb = StringBuilder()
         for (i in 0..len) {
-            sb.append(Char(Int32((ptr + IntNative(i)).read())))
+            sb.append(Rune(Int32((ptr + Int64(i)).read())))
         }
         return sb.toString()
     }
 }
-
-@C
-foreign func malloc(size: UIntNative): CPointer<Unit>
-@C
-foreign func free(ptr: CPointer<Unit>): Unit

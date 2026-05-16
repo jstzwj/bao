@@ -12,15 +12,12 @@
 //   pub const user_agent = ...
 //   pub export fn Bun__onExit() void { ... }
 package bao_core
+import std.collection.*
 
 // ============================================================================
 // C FFI 声明
 // ============================================================================
 
-@C
-foreign func exit(code: Int32): Unit
-@C
-foreign func abort(): Unit
 @C
 foreign func raise(sig: Int32): Int32
 
@@ -35,9 +32,6 @@ foreign func pthread_setname_np(name: CPointer<UInt8>): Int32
 foreign func pthread_set_name_np(thread: UIntNative, name: CPointer<UInt8>): Unit
 @C
 foreign func pthread_self(): UIntNative
-
-@C
-foreign func getpid(): Int32
 
 // ============================================================================
 // ExitCallback - 退出回调函数类型
@@ -130,7 +124,7 @@ public class Global {
     ///     }
     /// }
     public static func addExitCallback(callback: ExitCallback): Unit {
-        exitCallbacks.append(callback)
+        exitCallbacks.add(callback)
     }
 
     /// 运行退出回调 - 对应 Bun runExitCallbacks()
@@ -164,14 +158,22 @@ public class Global {
     /// }
     public static func setThreadName(name: String): Unit {
         unsafe {
-            let cName = name.toCString()
+            let arr = name.toArray()
+            // Create null-terminated C string
+            let buf = Array<UInt8>(arr.size + 1, { _ => UInt8(0) })
+            for (i in 0..arr.size) {
+                buf[i] = arr[i]
+            }
+            let handle = unsafe { acquireArrayRawData<UInt8>(buf) }
+            let cName = handle.pointer
             if (Environment.IS_LINUX) {
                 // PR_SET_NAME = 15
-                prctl(15, cName.toCPointer())
+                // arg2 needs to be the pointer value cast to UIntNative
+                prctl(15, unsafe { cName.toUIntNative() })
             } else if (Environment.IS_MAC) {
-                pthread_setname_np(cName.toCPointer())
+                pthread_setname_np(cName)
             } else if (Environment.IS_FREEBSD) {
-                pthread_set_name_np(pthread_self(), cName.toCPointer())
+                pthread_set_name_np(pthread_self(), cName)
             }
         }
     }
@@ -229,23 +231,6 @@ public class Global {
     // 分配器配置 - 对应 Bun AllocatorConfiguration / configureAllocator / mimalloc_cleanup
     // ========================================================================
 
-    /// 分配器配置 - 对应 Bun AllocatorConfiguration
-    /// pub const AllocatorConfiguration = struct { verbose: bool = false, long_running: bool = false };
-    public class AllocatorConfiguration {
-        public var verbose: Bool
-        public var longRunning: Bool
-
-        public init() {
-            verbose = false
-            longRunning = false
-        }
-
-        public init(verbose: Bool, longRunning: Bool) {
-            this.verbose = verbose
-            this.longRunning = longRunning
-        }
-    }
-
     /// mimalloc 清理 - 对应 Bun mimalloc_cleanup()
     /// pub inline fn mimalloc_cleanup(force: bool) void { if (comptime use_mimalloc) { Mimalloc.mi_collect(force); } }
     public static func mimallocCleanup(force: Bool): Unit {
@@ -259,37 +244,13 @@ public class Global {
     }
 
     // ========================================================================
-    // BunInfo - 对应 Bun Global.BunInfo
+    // BunInfo - 对应 Bun Global.BunInfo (see top-level BaoInfo class below)
     //   pub const BunInfo = struct {
     //       bun_version: string,
     //       platform: analytics.GenerateHeader.GeneratePlatform.Platform,
     //       pub fn generate(...) !JSAst.Expr { ... }
     //   };
     // ========================================================================
-
-    /// Bao 信息 - 对应 Bun BunInfo
-    public class BaoInfo {
-        /// Bao 版本
-        public let baoVersion: String
-        /// 平台
-        public let platform: String
-
-        public init() {
-            this.baoVersion = PACKAGE_JSON_VERSION
-            this.platform = OS_DISPLAY
-        }
-
-        public init(version: String, platform: String) {
-            this.baoVersion = version
-            this.platform = platform
-        }
-
-        /// 生成 JSON 表示 - 对应 Bun BunInfo.generate()
-        /// pub fn generate(comptime Bundler: type, _: Bundler, allocator: std.mem.Allocator) !JSAst.Expr
-        public func toJson(): String {
-            return "{\"bao_version\":\"${baoVersion}\",\"platform\":\"${platform}\"}"
-        }
-    }
 
     // ========================================================================
     // OnExit - 对应 Bun Bun__onExit / Bun__atexit
@@ -314,4 +275,53 @@ public class Global {
 
     /// 进程启动时间
     private static var startTime: Int64 = 0
+}
+
+// ============================================================================
+// 分配器配置 (提取到顶层, 因为仓颉不允许嵌套类)
+// ========================================================================
+
+/// 分配器配置 - 对应 Bun AllocatorConfiguration
+/// pub const AllocatorConfiguration = struct { verbose: bool = false, long_running: bool = false };
+public class AllocatorConfiguration {
+    public var verbose: Bool
+    public var longRunning: Bool
+
+    public init() {
+        verbose = false
+        longRunning = false
+    }
+
+    public init(verbose: Bool, longRunning: Bool) {
+        this.verbose = verbose
+        this.longRunning = longRunning
+    }
+}
+
+// ============================================================================
+// BaoInfo (提取到顶层, 因为仓颉不允许嵌套类)
+// ========================================================================
+
+/// Bao 信息 - 对应 Bun BunInfo
+public class BaoInfo {
+    /// Bao 版本
+    public let baoVersion: String
+    /// 平台
+    public let platform: String
+
+    public init() {
+        this.baoVersion = BAO_VERSION
+        this.platform = "Linux"
+    }
+
+    public init(version: String, platform: String) {
+        this.baoVersion = version
+        this.platform = platform
+    }
+
+    /// 生成 JSON 表示 - 对应 Bun BunInfo.generate()
+    /// pub fn generate(comptime Bundler: type, _: Bundler, allocator: std.mem.Allocator) !JSAst.Expr
+    public func toJson(): String {
+        return "{\"bao_version\":\"${baoVersion}\",\"platform\":\"${platform}\"}"
+    }
 }

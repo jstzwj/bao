@@ -43,6 +43,6 @@ public class StandaloneGraphJsc {
             file.cachedBlob = b
         }
 
-        return file.cachedBlob!
+        return file.cachedBlob.getOrThrow()
     }
 }

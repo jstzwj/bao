@@ -5,6 +5,9 @@
 
 package bao_runtime.dns
 
+import bao_jsc.*
+import std.collection.*
+
 // ============================================================================
 // struct_hostent -> JS 响应
 // 对应 Bun: cares_jsc.zig - hostentToJSResponse
@@ -124,7 +127,7 @@ public func caresAddrInfoToJSArray(addrInfo: CaresAddrInfo, globalThis: JsObject
     var current: ?CaresAddrInfoNode = addrInfo.node
 
     while (current != None) {
-        let node = current!
+        let node = current.getOrThrow()
         let address = NetworkAddress(
             family: if (node.family == AF_INET6) { AF_INET6 } else { AF_INET },
             address: node.address
@@ -149,7 +152,7 @@ public func caaReplyToJSResponse(caaReply: CaaReply, globalThis: JsObject): JsVa
     var current: ?CaaReply = Some(caaReply)
 
     while (current != None) {
-        let node = current!
+        let node = current.getOrThrow()
         arr.append(caaReplyToJS(node, globalThis))
         current = node.next
     }
@@ -183,7 +186,7 @@ public func srvReplyToJSResponse(srvReply: SrvReply, globalThis: JsObject): JsVa
     var current: ?SrvReply = Some(srvReply)
 
     while (current != None) {
-        let node = current!
+        let node = current.getOrThrow()
         arr.append(srvReplyToJS(node, globalThis))
         current = node.next
     }
@@ -214,7 +217,7 @@ public func mxReplyToJSResponse(mxReply: MxReply, globalThis: JsObject): JsValue
     var current: ?MxReply = Some(mxReply)
 
     while (current != None) {
-        let node = current!
+        let node = current.getOrThrow()
         arr.append(mxReplyToJS(node, globalThis))
         current = node.next
     }
@@ -243,7 +246,7 @@ public func txtReplyToJSResponse(txtReply: TxtReply, globalThis: JsObject): JsVa
     var current: ?TxtReply = Some(txtReply)
 
     while (current != None) {
-        let node = current!
+        let node = current.getOrThrow()
         arr.append(txtReplyToJS(node, globalThis))
         current = node.next
     }
@@ -266,7 +269,7 @@ public func txtReplyToJSForAny(txtReply: TxtReply, lookupName: String, globalThi
     var current: ?TxtReply = Some(txtReply)
 
     while (current != None) {
-        let node = current!
+        let node = current.getOrThrow()
         arr.append(JsValue(node.text))
         current = node.next
     }
@@ -289,7 +292,7 @@ public func naptrReplyToJSResponse(naptrReply: NaptrReply, globalThis: JsObject)
     var current: ?NaptrReply = Some(naptrReply)
 
     while (current != None) {
-        let node = current!
+        let node = current.getOrThrow()
         arr.append(naptrReplyToJS(node, globalThis))
         current = node.next
     }
@@ -355,7 +358,7 @@ public func anyReplyToJS(reply: AnyReply, globalThis: JsObject): JsValue {
         var i = 0
         var current = reply.caaReply
         while (current != None) {
-            let node = current!
+            let node = current.getOrThrow()
             anyReplyAppend(globalThis, arr, i, caaReplyToJS(node, globalThis), "caa")
             i += 1
             current = node.next
@@ -365,7 +368,7 @@ public func anyReplyToJS(reply: AnyReply, globalThis: JsObject): JsValue {
         var i = 0
         var current = reply.srvReply
         while (current != None) {
-            let node = current!
+            let node = current.getOrThrow()
             anyReplyAppend(globalThis, arr, i, srvReplyToJS(node, globalThis), "srv")
             i += 1
             current = node.next
@@ -375,7 +378,7 @@ public func anyReplyToJS(reply: AnyReply, globalThis: JsObject): JsValue {
         var i = 0
         var current = reply.mxReply
         while (current != None) {
-            let node = current!
+            let node = current.getOrThrow()
             anyReplyAppend(globalThis, arr, i, mxReplyToJS(node, globalThis), "mx")
             i += 1
             current = node.next
@@ -385,7 +388,7 @@ public func anyReplyToJS(reply: AnyReply, globalThis: JsObject): JsValue {
         var i = 0
         var current = reply.txtReply
         while (current != None) {
-            let node = current!
+            let node = current.getOrThrow()
             anyReplyAppend(globalThis, arr, i, JsValue(node.text), "txt")
             i += 1
             current = node.next
@@ -395,7 +398,7 @@ public func anyReplyToJS(reply: AnyReply, globalThis: JsObject): JsValue {
         var i = 0
         var current = reply.naptrReply
         while (current != None) {
-            let node = current!
+            let node = current.getOrThrow()
             anyReplyAppend(globalThis, arr, i, naptrReplyToJS(node, globalThis), "naptr")
             i += 1
             current = node.next
@@ -403,19 +406,23 @@ public func anyReplyToJS(reply: AnyReply, globalThis: JsObject): JsValue {
     }
     if (reply.soaReply != None) {
         let idx = arr.size
-        anyReplyAppend(globalThis, arr, idx, soaReplyToJS(reply.soaReply!, globalThis), "soa")
+        let soaVal = reply.soaReply.getOrThrow()
+        anyReplyAppend(globalThis, arr, idx, soaReplyToJS(soaVal, globalThis), "soa")
     }
     if (reply.nsReply != None) {
         let idx = arr.size
-        anyReplyAppend(globalThis, arr, idx, hostentToJSResponse(reply.nsReply!, "ns", globalThis), "ns")
+        let nsVal = reply.nsReply.getOrThrow()
+        anyReplyAppend(globalThis, arr, idx, hostentToJSResponse(nsVal, "ns", globalThis), "ns")
     }
     if (reply.cnameReply != None) {
         let idx = arr.size
-        anyReplyAppend(globalThis, arr, idx, hostentToJSResponse(reply.cnameReply!, "cname", globalThis), "cname")
+        let cnameVal = reply.cnameReply.getOrThrow()
+        anyReplyAppend(globalThis, arr, idx, hostentToJSResponse(cnameVal, "cname", globalThis), "cname")
     }
     if (reply.ptrReply != None) {
         let idx = arr.size
-        anyReplyAppend(globalThis, arr, idx, hostentToJSResponse(reply.ptrReply!, "ptr", globalThis), "ptr")
+        let ptrVal = reply.ptrReply.getOrThrow()
+        anyReplyAppend(globalThis, arr, idx, hostentToJSResponse(ptrVal, "ptr", globalThis), "ptr")
     }
 
     return JsValue.array(arr)

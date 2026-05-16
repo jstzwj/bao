@@ -2,6 +2,9 @@
 
 package bao_runtime.test_runner.expect
 
+import bao_runtime.test_runner
+import bao_jsc.*
+
 /// toMatchSnapshot() - 快照匹配
 /// 用法: expect(received).toMatchSnapshot() / expect(received).toMatchSnapshot(hint) / expect(received).toMatchSnapshot(properties, hint)
 public func toMatchSnapshot(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
@@ -14,34 +17,35 @@ public func toMatchSnapshot(`this`: Expect, globalThis: JSGlobalObject, callFram
     this.incrementExpectCallCounter()
 
     let not = this.flags.not
-    if not {
+    if (not) {
         let signature = Expect.getSignature(matcherName: "toMatchSnapshot", args: "", not: true)
         return this.throw_(globalThis: globalThis, signature: signature,
             fmt: "\n\n<b>Matcher error<r>: Snapshot matchers cannot be used with <b>not<r>\n", args: [])
     }
 
-    var buntestStrong = this.bunTest() ?? {
+    var buntestStrong = this.bunTest()
+    if (buntestStrong == None) {
         let signature = Expect.getSignature(matcherName: "toMatchSnapshot", args: "", not: true)
         return this.throw_(globalThis: globalThis, signature: signature,
             fmt: "\n\n<b>Matcher error<r>: Snapshot matchers cannot be used outside of a test\n", args: [])
-    }()
+    }
     defer { buntestStrong.deinit() }
 
     var hintString = ZigString.Empty
     var propertyMatchers: ?JSValue = None
-    if arguments.length == 0 {
+    if (arguments.length == 0) {
         // 无参数
-    } else if arguments.length == 1 {
-        if arguments[0].isString() {
-            arguments[0].toZigString(result: &hintString, globalThis: globalThis)
-        } else if arguments[0].isObject() {
+    } else if (arguments.length == 1 ){
+        if (arguments[0].isString() ){
+            hintString = arguments[0].toZigString(globalThis: globalThis)
+        } else if (arguments[0].isObject()) {
             propertyMatchers = arguments[0]
         } else {
             return this.throw_(globalThis: globalThis, signature: "",
                 fmt: "\n\nMatcher error: Expected first argument to be a string or object\n", args: [])
         }
     } else {
-        if !arguments[0].isObject() {
+        if (!arguments[0].isObject()) {
             let signature = Expect.getSignature(matcherName: "toMatchSnapshot", args: "<green>properties<r><d>, <r>hint", not: false)
             return this.throw_(globalThis: globalThis, signature: signature,
                 fmt: "\n\nMatcher error: Expected <green>properties<r> must be an object\n", args: [])
@@ -49,8 +53,8 @@ public func toMatchSnapshot(`this`: Expect, globalThis: JSGlobalObject, callFram
 
         propertyMatchers = arguments[0]
 
-        if arguments[1].isString() {
-            arguments[1].toZigString(result: &hintString, globalThis: globalThis)
+        if (arguments[1].isString() ){
+            arguments[1].toZigString(result: hintString, globalThis: globalThis)
         } else {
             return this.throw_(globalThis: globalThis, signature: "",
                 fmt: "\n\nMatcher error: Expected second argument to be a string\n", args: [])

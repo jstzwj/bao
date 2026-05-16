@@ -77,6 +77,16 @@ public class BoringSSLJsc {
 /// 对应 Bun: bun.BoringSSL.c
 public class BoringSSL {
 
+    /// BoringSSL 初始化加载
+    /// 对应 Bun: bun.BoringSSL.load() / boringssl::load()
+    /// 确保所有必要的 BoringSSL 内部表和算法已注册
+    /// 通常在第一次使用 EVP 之前调用
+    public static func load(): Unit {
+        // FFI 调用: 确保算法表等已初始化
+        // 对应 Bun: boringssl::load() -> OPENSSL_init_ssl 或类似
+        // TODO: 实际调用BoringSSL的FFI初始化
+    }
+
     /// ERR_error_string_n - 获取错误描述字符串
     /// 对应 Bun: BoringSSL.ERR_error_string_n
     public static func errErrorStringN(errCode: UInt32, buf: Array<Byte>, bufLen: Int64): Unit {
@@ -410,4 +420,38 @@ public class HmacCtx {
         md = None
         key = Array<Byte>()
     }
+}
+
+// ============================================================================
+// 字节数组比较辅助
+// 用于 lookup 函数中的字面量字节比较
+// ============================================================================
+
+/// 字节数组相等比较
+/// 对应 Rust/Zig: bytes == b"literal"
+public func byteEquals(a: Array<Byte>, b: Array<Byte>): Bool {
+    if (a.size != b.size) {
+        return false
+    }
+    for (i in 0..a.size) {
+        if (a[i] != b[i]) {
+            return false
+        }
+    }
+    return true
+}
+
+/// 字节字面量比较辅助
+/// 将字符串转为字节数组并比较
+public func byteEqualsStr(a: Array<Byte>, b: String): Bool {
+    if (a.size != b.size) {
+        return false
+    }
+    let bBytes = b.toArray()
+    for (i in 0..a.size) {
+        if (a[i] != bBytes[i]) {
+            return false
+        }
+    }
+    return true
 }

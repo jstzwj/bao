@@ -6,7 +6,12 @@ package bao_sql.mysql
 /// 对应 Bun: StatusFlag (enum u16)
 public enum StatusFlag {
     | None
-}
+
+    /// 获取整数值
+    public func value(): UInt16 {
+        match (this) {
+            case None => 0
+        }
     }
 }
 

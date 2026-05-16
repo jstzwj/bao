@@ -39,7 +39,7 @@ public class Util {
         let map = HashMap<K, V>()
         for (entry in entries) {
             let (key, value) = entry
-            map.put(key, value)
+            map[key] = value
         }
         return map
     }
@@ -49,7 +49,7 @@ public class Util {
         let map = HashMap<K, V>()
         for (entry in entries) {
             let (key, value) = entry
-            map.put(key, value)
+            map[key] = value
         }
         return map
     }
@@ -61,7 +61,7 @@ public class Util {
         let map = HashMap<K, V>()
         for (entry in entries) {
             let (key, value) = entry
-            map.put(key, value)
+            map[key] = value
         }
         return map
     }
@@ -78,7 +78,7 @@ public class Util {
     public static func fromArray<T>(items: Array<T>): ArrayList<T> {
         let list = ArrayList<T>()
         for (item in items) {
-            list.append(item)
+            list.add(item)
         }
         return list
     }
@@ -89,7 +89,7 @@ public class Util {
     public static func fromSlice<T>(items: Array<T>, start: Int64, end: Int64): ArrayList<T> {
         let list = ArrayList<T>()
         for (i in start..end) {
-            list.append(items[i])
+            list.add(items[i])
         }
         return list
     }
@@ -178,46 +178,38 @@ public class Util {
 
     /// ArrayList 转数组 - 对应 Bun map.items[0..map.len]
     public static func arrayListToArray<T>(list: ArrayList<T>): Array<T> {
-        let arr = Array<T>(list.size, item: unsafe { uninitialized<T>() })
-        for (i in 0..list.size) {
-            arr[i] = list[i]
-        }
-        return arr
+        return list.toArray()
     }
 
     /// 数组转 ArrayList
     public static func arrayToArrayList<T>(arr: Array<T>): ArrayList<T> {
         let list = ArrayList<T>()
         for (item in arr) {
-            list.append(item)
+            list.add(item)
         }
         return list
     }
 
     /// 连接多个数组 - 对应 Bun 多切片连接
     public static func concat<T>(arrays: Array<Array<T>>): Array<T> {
-        var totalLen = Int64(0)
+        var list = ArrayList<T>()
         for (arr in arrays) {
-            totalLen += arr.size
-        }
-        let result = Array<T>(totalLen, item: unsafe { uninitialized<T>() })
-        var offset = Int64(0)
-        for (arr in arrays) {
-            for (i in 0..arr.size) {
-                result[offset + i] = arr[i]
+            for (item in arr) {
+                list.add(item)
             }
-            offset += arr.size
         }
-        return result
+        return list.toArray()
     }
 
     /// 反转数组 - 对应 Bun reverse
     public static func reverse<T>(arr: Array<T>): Array<T> {
-        let result = Array<T>(arr.size, item: unsafe { uninitialized<T>() })
-        for (i in 0..arr.size) {
-            result[i] = arr[arr.size - 1 - i]
+        let list = ArrayList<T>()
+        var i = arr.size - 1
+        while (i >= 0) {
+            list.add(arr[i])
+            i -= 1
         }
-        return result
+        return list.toArray()
     }
 
     /// 原地反转数组
@@ -257,7 +249,7 @@ public class Util {
     /// 对齐到上界 - 对应 Bun std.mem.alignForward
     public static func alignForward(value: Int64, alignment: Int64): Int64 {
         let mask = alignment - 1
-        return (value + mask) & ~mask
+        return (value + mask) & (!mask)
     }
 
     /// 是否对齐 - 对应 Bun std.mem.isAligned

@@ -2,6 +2,7 @@
 // 对应 Bun: src/sql/mysql/protocol/SSLRequest.zig
 package bao_sql.mysql.protocol
 
+
 /// MySQL SSL 连接请求包
 /// 对应 Bun: SSLRequest (struct)
 ///
@@ -62,7 +63,7 @@ public class SSLRequest {
         writer.int1(characterSet)
 
         // 写入 23 字节填充
-        writer.write(Array<UInt8>(23))
+        writer.write(Array<UInt8>(23, repeat: UInt8(0)))
 
         packet.end()
     }

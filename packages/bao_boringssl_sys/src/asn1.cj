@@ -348,7 +348,6 @@ foreign func ASN1_SET_ANY_it(): CPointer<Unit>
 foreign func ASN1_ANY_it(): CPointer<Unit>
 foreign func ASN1_BIT_STRING_it(): CPointer<Unit>
 foreign func ASN1_BMPSTRING_it(): CPointer<Unit>
-foreign func ASN1_BOOLEAN_it(): CPointer<Unit>
 foreign func ASN1_ENUMERATED_it(): CPointer<Unit>
 foreign func ASN1_GENERALIZEDTIME_it(): CPointer<Unit>
 foreign func ASN1_GENERALSTRING_it(): CPointer<Unit>

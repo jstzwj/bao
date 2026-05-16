@@ -14,7 +14,7 @@ public func pushContainer(parser: Parser, c: Container): Unit {
     })
 
     // 记录 block_byte 偏移
-    let block_off: UInt32 = UInt32(parser.block_bytes.length)
+    let block_off: UInt32 = UInt32(parser.block_bytes.size)
     parser.containers[parser.n_containers].block_byte_off = block_off
     parser.n_containers += 1
 }
@@ -37,14 +37,14 @@ public func enterChildContainers(parser: Parser, count: UInt32): Unit {
     while (i < parser.n_containers) {
         let c = parser.containers[Int64(i)]
         if (c.ch == '>'.toUInt8()) {
-            pushContainerBytes(parser, BlockType.quote, 0, BLOCK_CONTAINER_OPENER)
+            pushContainerBytes(parser, BlockType.`quote`, 0, BLOCK_CONTAINER_OPENER)
         } else if (c.ch == '-'.toUInt8() || c.ch == '+'.toUInt8() || c.ch == '*'.toUInt8()) {
             pushContainerBytes(parser, BlockType.ul, 0, BLOCK_CONTAINER_OPENER)
-            let li_data: UInt32 = if (c.is_task) UInt32(UInt8(parser.text[Int64(c.task_mark_off)])) else 0
+            let li_data: UInt32 = if (c.is_task) { UInt32(UInt8(parser.text[Int64(c.task_mark_off)])) } else { 0 }
             pushContainerBytes(parser, BlockType.li, li_data, BLOCK_CONTAINER_OPENER)
         } else if (c.ch == '.'.toUInt8() || c.ch == ')'.toUInt8()) {
             pushContainerBytes(parser, BlockType.ol, c.start, BLOCK_CONTAINER_OPENER)
-            let li_data: UInt32 = if (c.is_task) UInt32(UInt8(parser.text[Int64(c.task_mark_off)])) else 0
+            let li_data: UInt32 = if (c.is_task) { UInt32(UInt8(parser.text[Int64(c.task_mark_off)])) } else { 0 }
             pushContainerBytes(parser, BlockType.li, li_data, BLOCK_CONTAINER_OPENER)
         }
         i += 1
@@ -56,16 +56,16 @@ public func leaveChildContainers(parser: Parser, keep: UInt32): Unit {
     while (parser.n_containers > keep) {
         parser.n_containers -= 1
         let c = parser.containers[Int64(parser.n_containers)]
-        let loose_flag: UInt32 = if (c.is_loose) BLOCK_LOOSE_LIST else 0
+        let loose_flag: UInt32 = if (c.is_loose) { BLOCK_LOOSE_LIST } else { 0 }
 
         if (c.ch == '>'.toUInt8()) {
-            pushContainerBytes(parser, BlockType.quote, 0, BLOCK_CONTAINER_CLOSER)
+            pushContainerBytes(parser, BlockType.`quote`, 0, BLOCK_CONTAINER_CLOSER)
         } else if (c.ch == '-'.toUInt8() || c.ch == '+'.toUInt8() || c.ch == '*'.toUInt8()) {
-            let li_data: UInt32 = if (c.is_task) UInt32(UInt8(parser.text[Int64(c.task_mark_off)])) else 0
+            let li_data: UInt32 = if (c.is_task) { UInt32(UInt8(parser.text[Int64(c.task_mark_off)])) } else { 0 }
             pushContainerBytes(parser, BlockType.li, li_data, BLOCK_CONTAINER_CLOSER)
             pushContainerBytes(parser, BlockType.ul, 0, BLOCK_CONTAINER_CLOSER | loose_flag)
         } else if (c.ch == '.'.toUInt8() || c.ch == ')'.toUInt8()) {
-            let li_data: UInt32 = if (c.is_task) UInt32(UInt8(parser.text[Int64(c.task_mark_off)])) else 0
+            let li_data: UInt32 = if (c.is_task) { UInt32(UInt8(parser.text[Int64(c.task_mark_off)])) } else { 0 }
             pushContainerBytes(parser, BlockType.li, li_data, BLOCK_CONTAINER_CLOSER)
             pushContainerBytes(parser, BlockType.ol, c.start, BLOCK_CONTAINER_CLOSER | loose_flag)
         }
@@ -91,7 +91,7 @@ public func processAllBlocks(parser: Parser): Unit {
     parser.n_containers = 0
 
     for (block in parser.block_bytes) {
-        let block_type = block.type
+        let block_type = block.`type`
         let n_lines = block.n_lines
         let data = block.data
         let flags = block.flags
@@ -100,12 +100,12 @@ public func processAllBlocks(parser: Parser): Unit {
         if ((flags & BLOCK_CONTAINER_OPENER) != 0) {
             enterBlock(parser, block_type, data, flags)
             if (block_type == BlockType.ul || block_type == BlockType.ol) {
-                if (parser.n_containers < parser.containers.length) {
+                if (parser.n_containers < parser.containers.size) {
                     parser.containers[Int64(parser.n_containers)].is_loose = (flags & BLOCK_LOOSE_LIST) != 0
                     parser.n_containers += 1
                 }
-            } else if (block_type == BlockType.quote) {
-                if (parser.n_containers < parser.containers.length) {
+            } else if (block_type == BlockType.`quote`) {
+                if (parser.n_containers < parser.containers.size) {
                     parser.containers[Int64(parser.n_containers)].is_loose = true
                     parser.n_containers += 1
                 }
@@ -113,7 +113,7 @@ public func processAllBlocks(parser: Parser): Unit {
             continue
         }
         if ((flags & BLOCK_CONTAINER_CLOSER) != 0) {
-            if (block_type == BlockType.ul || block_type == BlockType.ol || block_type == BlockType.quote) {
+            if (block_type == BlockType.ul || block_type == BlockType.ol || block_type == BlockType.`quote`) {
                 if (parser.n_containers > 0) {
                     parser.n_containers -= 1
                 }

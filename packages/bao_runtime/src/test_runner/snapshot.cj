@@ -3,6 +3,9 @@
 
 package bao_runtime.test_runner
 
+import bao_jsc.*
+import std.collection.*
+
 // ========== Snapshots - 快照管理 ==========
 
 /// 快照测试管理器
@@ -35,7 +38,7 @@ public class Snapshots {
 
     /// 重置每次运行的快照计数器为0, 键保持由map持有直到writeSnapshotFile在文件切换时清理它们
     public func resetCounts() {
-        for entry in counts {
+        for (entry in counts) {
             counts[entry.key] = 0
         }
     }
@@ -45,7 +48,7 @@ public class Snapshots {
         total += 1
         let snapshotName = expect.getSnapshotName(allocator: allocator, hint: hint)
         let countEntry = counts.getOrPut(snapshotName)
-        if countEntry.foundExisting {
+        if (countEntry.foundExisting) {
             allocator.free(snapshotName)
             countEntry.value += 1
             return Tuple2<String, UInt64>(countEntry.key, countEntry.value)
@@ -66,31 +69,31 @@ public class Snapshots {
 
         // 获取快照文件
         let result = getSnapshotFile(bunTest.fileId)
-        if !result {
+        if (!result) {
             return None
         }
 
         let nameAndCounter = addCount(expect: expect, hint: hint)
-        let name = nameAndCounter.0
-        let counter = nameAndCounter.1
+        let name = nameAndCounter[0]
+        let counter = nameAndCounter[1]
 
-        let counterString = "${counter}"
+        let counterString = "" + counter + ""
         let nameWithCounter = name + " " + counterString
 
         let nameHash = hash(nameWithCounter)
 
         // 检查是否已存在
-        if values.contains(nameHash) {
+        if (values.contains(nameHash)) {
             return values[nameHash]
         }
 
         // 不存在, 追加到文件字节并添加到hashmap
         // 在CI环境中防止创建快照, 除非使用--update-snapshots
-        if bun.ci.isCI() {
-            if !updateSnapshots {
+        if (bun.ci.isCI()) {
+            if (!updateSnapshots) {
                 // 存储快照名称以用于错误报告
-                if lastErrorSnapshotName != None {
-                    allocator.free(lastErrorSnapshotName!)
+                if (lastErrorSnapshotName != None) {
+                    allocator.free(lastErrorSnapshotName.getOrThrow())
                     lastErrorSnapshotName = None
                 }
                 lastErrorSnapshotName = allocator.dupe(targetValue)
@@ -104,7 +107,7 @@ public class Snapshots {
         // 格式化转义后写入
         let escapedName = formatEscapes(nameWithCounter, quoteChar: "`")
         let escapedValue = formatEscapes(targetValue, quoteChar: "`")
-        let entry = "\nexports[\`${escapedName}\`] = \`${escapedValue}\`;\n"
+        let entry = "\nexports[" + escapedName + "] = " + escapedValue + ";\n"
         fileBuf.append(entry)
 
         added += 1
@@ -115,7 +118,7 @@ public class Snapshots {
     /// 解析快照文件
     /// 解析.snap文件中的exports, 提取快照键值对
     public func parseFile(file: SnapshotFile) {
-        if fileBuf.length == 0 { return }
+        if (fileBuf.length == 0) { return }
 
         let testFile = Jest.runner.files.get(file.id)
         let testFilename = testFile.source.path.name.filename
@@ -132,27 +135,27 @@ public class Snapshots {
 
         // 简单解析: 查找 exports[`...`] = `...` 模式
         var i = 0
-        while i < content.length {
+        while (i < content.length) {
             // 查找 exports[`
             let exportsIdx = content.indexOf("exports[`", startIndex: i)
-            if exportsIdx == None { break }
-            i = exportsIdx!
+            if (exportsIdx == None) { break }
+            i = exportsIdx.getOrThrow()
 
             // 提取键
             let keyStart = i + "exports[`".length
             let keyEnd = content.indexOf("`]", startIndex: keyStart)
-            if keyEnd == None { break }
-            let key = content[keyStart..keyEnd!]
+            if (keyEnd == None) { break }
+            let key = content[keyStart..keyEnd.getOrThrow()]
 
             // 查找 = `
-            let assignStart = content.indexOf("= `", startIndex: keyEnd! + 2)
-            if assignStart == None { break }
+            let assignStart = content.indexOf("= `", startIndex: keyEnd.getOrThrow() + 2)
+            if (assignStart == None) { break }
 
-            let valueStart = assignStart! + "= `".length
+            let valueStart = assignStart.getOrThrow() + "= `".length
             // 查找未转义的结束反引号
             var valueEnd = valueStart
-            while valueEnd < content.length {
-                if content[valueEnd] == '`' && content[valueEnd - 1] != '\\' {
+            while (valueEnd < content.length) {
+                if (content[valueEnd] == '`' && content[valueEnd - 1] != '\\') {
                     break
                 }
                 valueEnd += 1
@@ -168,19 +171,19 @@ public class Snapshots {
 
     /// 写入快照文件
     public func writeSnapshotFile() {
-        if let file = currentFile {
+        if (let Some(file) <- currentFile) {
             file.file.writeAll(fileBuf.items)
             file.file.close()
             fileBuf.clear()
 
             // 清理值
-            for entry in values {
+            for (entry in values ) {
                 allocator.free(entry.value)
             }
             values.clear()
 
             // 清理计数键
-            for entry in counts {
+            for (entry in counts) {
                 allocator.free(entry.key)
             }
             counts.clear()
@@ -190,7 +193,7 @@ public class Snapshots {
     /// 添加行内快照写入
     public func addInlineSnapshotToWrite(fileId: UInt32, value: InlineSnapshotToWrite) {
         let gpres = inlineSnapshotsToWrite.getOrPut(fileId)
-        if !gpres.foundExisting {
+        if (!gpres.foundExisting) {
             gpres.value = ArrayList<InlineSnapshotToWrite>()
         }
         gpres.value.append(value)
@@ -201,7 +204,7 @@ public class Snapshots {
     public func writeInlineSnapshots(): Bool {
         var success = true
 
-        for entry in inlineSnapshotsToWrite {
+        for (entry in inlineSnapshotsToWrite ) {
             let fileId = entry.key
             var ilsInfo = entry.value
 
@@ -213,7 +216,7 @@ public class Snapshots {
             let testFilename = testFile.source.path.text
 
             let fd = Sys.open(testFilename, O.RDWR, 0o644)
-            if fd == -1 {
+            if (fd == -1) {
                 success = false
                 continue
             }
@@ -229,9 +232,9 @@ public class Snapshots {
             var lastCol: UInt64 = 1
             var lastValue: String = ""
 
-            for ils in ilsInfo {
-                if ils.line == lastLine && ils.col == lastCol {
-                    if ils.value != lastValue {
+            for (ils in ilsInfo ) {
+                if (ils.line == lastLine && ils.col == lastCol) {
+                    if (ils.value != lastValue) {
                         // 同一行的多个行内快照必须具有相同的值
                         success = false
                     }
@@ -247,12 +250,12 @@ public class Snapshots {
                     targetCol: ils.col
                 )
 
-                if byteOffsetAdd == None {
+                if (byteOffsetAdd == None) {
                     success = false
                     continue
                 }
 
-                let byteOffset = lastByte + byteOffsetAdd!
+                let byteOffset = lastByte + byteOffsetAdd.getOrThrow()
 
                 // 写入未提交的段
                 resultText.append(fileText[uncommittedSegmentEnd..byteOffset])
@@ -283,12 +286,12 @@ public class Snapshots {
     /// - Return: 是否成功
     public func getSnapshotFile(fileId: UInt32): Bool {
         // 检查是否已加载此文件的快照
-        if currentFile != None && currentFile.getOrThrow().id == fileId {
+        if (currentFile != None && currentFile.getOrThrow().id == fileId) {
             return true
         }
 
         // 写入之前文件的快照
-        if currentFile != None {
+        if (currentFile != None) {
             writeSnapshotFile()
         }
 
@@ -299,9 +302,9 @@ public class Snapshots {
         let snapshotDirPath = dirPath + snapshotsDirName
 
         // 创建目录(如果不存在)
-        if !FileSystem.exists(snapshotDirPath) {
+        if (!FileSystem.exists(snapshotDirPath)) {
             let mkdirResult = Sys.mkdir(snapshotDirPath, 0o755)
-            if mkdirResult == -1 {
+            if (mkdirResult == -1) {
                 return false
             }
         }
@@ -310,7 +313,7 @@ public class Snapshots {
 
         // 尝试打开现有快照文件
         let fd = Sys.open(snapshotFilePath, O.RDONLY, 0)
-        if fd >= 0 {
+        if (fd >= 0) {
             let file = FileHandle(fd)
             fileBuf = file.readToEndAsArrayList()
             file.close()
@@ -324,8 +327,8 @@ public class Snapshots {
         snapshotDirPath = snapshotDirPath
 
         // 解析快照
-        if fileBuf.length > 0 {
-            parseFile(file: currentFile!)
+        if (fileBuf.length > 0) {
+            parseFile(file: currentFile.getOrThrow())
         }
 
         return true
@@ -349,9 +352,9 @@ public class InlineSnapshotToWrite {
 
     /// 比较函数（按行、列排序）
     public static func lessThanFn(a: InlineSnapshotToWrite, b: InlineSnapshotToWrite): Bool {
-        if a.line < b.line { return true }
-        if a.line > b.line { return false }
-        if a.col < b.col { return true }
+        if (a.line < b.line) { return true }
+        if (a.line > b.line) { return false }
+        if (a.col < b.col) { return true }
         return false
     }
 }
@@ -383,10 +386,10 @@ public func hash(text: String): UInt64 {
 /// 格式化转义字符
 public func formatEscapes(text: String, quoteChar: String): String {
     var result = StringBuilder()
-    for ch in text {
-        if ch == quoteChar[0] {
+    for (ch in text ) {
+        if (ch == quoteChar[0]) {
             result.append("\\")
-        } else if ch == '\\' {
+        } else if (ch == '\\') {
             result.append("\\\\")
             continue
         }
@@ -401,11 +404,11 @@ public func lineColToByteOffset(text: String, startLine: UInt64, startCol: UInt6
     var col: UInt64 = startCol
     var offset: UInt64 = 0
 
-    for ch in text {
-        if line == targetLine && col == targetCol {
+    for (ch in text ) {
+        if (line == targetLine && col == targetCol) {
             return offset
         }
-        if ch == '\n' {
+        if (ch == '\n') {
             line += 1
             col = 1
         } else {
@@ -415,7 +418,7 @@ public func lineColToByteOffset(text: String, startLine: UInt64, startCol: UInt6
     }
 
     // 检查最后一个位置
-    if line == targetLine && col == targetCol {
+    if (line == targetLine && col == targetCol) {
         return offset
     }
 

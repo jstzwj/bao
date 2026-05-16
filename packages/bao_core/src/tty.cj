@@ -62,7 +62,7 @@ public class Tty {
     ///     return Bun__ttySetMode(fd, @intFromEnum(mode));
     /// }
     public static func setMode(fd: Int32, mode: TtyMode): Int32 {
-        return Bun__ttySetMode(fd, mode.toInt32())
+        return unsafe { Bun__ttySetMode(fd, mode.toInt32()) }
     }
 
     /// 设置 TTY 为正常模式

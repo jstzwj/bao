@@ -15,11 +15,11 @@ package bao_runtime.image
 /// 当 libwebp 写入时（例如 WebPMuxAssemble 输出），内存由 WebPMalloc 拥有;
 /// 当 libwebp 读取时，由调用者拥有。
 public class WebPDataView {
-    public var bytes: ?CPointer<> = None
+    public var bytes: ?CPointer<Unit> = None
     public var size: UInt64 = 0
 
     public init() {}
-    public init(bytes: CPointer<>, size: UInt64) {
+    public init(bytes: CPointer<Unit>, size: UInt64) {
         this.bytes = bytes
         this.size = size
     }
@@ -57,56 +57,56 @@ public class CodecWebp {
     // ========================================================================
 
     /// 头部探测: 获取宽高
-    public static func webPGetInfo(data: CPointer<>, len: UInt64, w: CPointer<Int32>, h: CPointer<Int32>): Int32 {
+    public static func webPGetInfo(data: CPointer<Unit>, len: UInt64, w: CPointer<Int32>, h: CPointer<Int32>): Int32 {
         // FFI: WebPGetInfo
         return 0
     }
 
     /// 解码为 RGBA
-    public static func webPDecodeRGBA(data: CPointer<>, len: UInt64, w: CPointer<Int32>, h: CPointer<Int32>): ?CPointer<> {
+    public static func webPDecodeRGBA(data: CPointer<Unit>, len: UInt64, w: CPointer<Int32>, h: CPointer<Int32>): ?CPointer<Unit> {
         // FFI: WebPDecodeRGBA
         return None
     }
 
     /// 有损编码
-    public static func webPEncodeRGBA(rgba: CPointer<>, w: Int32, h: Int32, stride: Int32,
-        q: Float32, out: CPointer<CPointer<>>): UInt64 {
+    public static func webPEncodeRGBA(rgba: CPointer<Unit>, w: Int32, h: Int32, stride: Int32,
+        q: Float32, out: CPointer<CPointer<Unit>>): UInt64 {
         // FFI: WebPEncodeRGBA
         return 0
     }
 
     /// 无损编码
-    public static func webPEncodeLosslessRGBA(rgba: CPointer<>, w: Int32, h: Int32, stride: Int32,
-        out: CPointer<CPointer<>>): UInt64 {
+    public static func webPEncodeLosslessRGBA(rgba: CPointer<Unit>, w: Int32, h: Int32, stride: Int32,
+        out: CPointer<CPointer<Unit>>): UInt64 {
         // FFI: WebPEncodeLosslessRGBA
         return 0
     }
 
     /// 释放 libwebp 分配的内存
-    public static func webPFree(ptr: CPointer<>): Unit {
+    public static func webPFree(ptr: CPointer<Unit>): Unit {
         // FFI: WebPFree
     }
 
     /// demux: 解析 RIFF 容器
     public static func webPDemuxInternal(data: CPointer<WebPDataView>, allowPartial: Int32,
-        state: ?CPointer<Int32>, version: Int32): ?CPointer<> {
+        state: ?CPointer<Int32>, version: Int32): ?CPointer<Unit> {
         // FFI: WebPDemuxInternal
         return None
     }
 
     /// demux: 释放
-    public static func webPDemuxDelete(dmux: CPointer<>): Unit {
+    public static func webPDemuxDelete(dmux: CPointer<Unit>): Unit {
         // FFI: WebPDemuxDelete
     }
 
     /// demux: 获取整数属性
-    public static func webPDemuxGetI(dmux: CPointer<>, feature: Int32): UInt32 {
+    public static func webPDemuxGetI(dmux: CPointer<Unit>, feature: Int32): UInt32 {
         // FFI: WebPDemuxGetI
         return 0
     }
 
     /// demux: 获取块
-    public static func webPDemuxGetChunk(dmux: CPointer<>, fourcc: String, chunkNumber: Int32,
+    public static func webPDemuxGetChunk(dmux: CPointer<Unit>, fourcc: String, chunkNumber: Int32,
         iter: WebPChunkIterator): Int32 {
         // FFI: WebPDemuxGetChunk
         return 0
@@ -118,31 +118,31 @@ public class CodecWebp {
     }
 
     /// mux: 创建
-    public static func webPNewInternal(version: Int32): ?CPointer<> {
+    public static func webPNewInternal(version: Int32): ?CPointer<Unit> {
         // FFI: WebPNewInternal
         return None
     }
 
     /// mux: 释放
-    public static func webPMuxDelete(mux: CPointer<>): Unit {
+    public static func webPMuxDelete(mux: CPointer<Unit>): Unit {
         // FFI: WebPMuxDelete
     }
 
     /// mux: 设置图像
-    public static func webPMuxSetImage(mux: CPointer<>, bitstream: WebPDataView, copyData: Int32): Int32 {
+    public static func webPMuxSetImage(mux: CPointer<Unit>, bitstream: WebPDataView, copyData: Int32): Int32 {
         // FFI: WebPMuxSetImage
         return 0
     }
 
     /// mux: 设置块
-    public static func webPMuxSetChunk(mux: CPointer<>, fourcc: String, chunkData: WebPDataView,
+    public static func webPMuxSetChunk(mux: CPointer<Unit>, fourcc: String, chunkData: WebPDataView,
         copyData: Int32): Int32 {
         // FFI: WebPMuxSetChunk
         return 0
     }
 
     /// mux: 组装
-    public static func webPMuxAssemble(mux: CPointer<>, assembledData: WebPDataView): Int32 {
+    public static func webPMuxAssemble(mux: CPointer<Unit>, assembledData: WebPDataView): Int32 {
         // FFI: WebPMuxAssemble
         return 0
     }
@@ -175,7 +175,7 @@ public class CodecWebp {
         let ptrOpt = webPDecodeRGBA(bytes.ptr(), UInt64(bytes.size),
                                       CPointer<Int32>.addrOf(cw), CPointer<Int32>.addrOf(ch))
         if (ptrOpt == None) { return None }
-        let ptr = ptrOpt!
+        let ptr = ptrOpt.getOrThrow()
         // defer: WebPFree(ptr)
 
         // 4. `bytes` 是用户仍可写入的 JS ArrayBuffer 的借用视图（pin 仅阻止分离），
@@ -206,16 +206,16 @@ public class CodecWebp {
         // let data = WebPDataView(bytes: bytes.ptr(), size: UInt64(bytes.size))
         // let dmux = webPDemuxInternal(&data, 0, None, WEBP_DEMUX_ABI_VERSION)
         // if (dmux != None) {
-        //     if (webPDemuxGetI(dmux!, WEBP_FF_FORMAT_FLAGS) & ICCP_FLAG != 0) {
+        //     if (webPDemuxGetI(dmux.getOrThrow(), WEBP_FF_FORMAT_FLAGS) & ICCP_FLAG != 0) {
         //         var iter = WebPChunkIterator()
-        //         if (webPDemuxGetChunk(dmux!, "ICCP", 1, iter) != 0) {
+        //         if (webPDemuxGetChunk(dmux.getOrThrow(), "ICCP", 1, iter) != 0) {
         //             if (iter.chunk.bytes != None && iter.chunk.size > 0) {
-        //                 iccProfile = copyFromC(iter.chunk.bytes!, iter.chunk.size)
+        //                 iccProfile = copyFromC(iter.chunk.bytes.getOrThrow(), iter.chunk.size)
         //             }
         //             webPDemuxReleaseChunkIterator(iter)
         //         }
         //     }
-        //     webPDemuxDelete(dmux!)
+        //     webPDemuxDelete(dmux.getOrThrow())
         // }
 
         var result = DecodedImage()
@@ -241,12 +241,12 @@ public class CodecWebp {
         quality: UInt8, lossless: Bool, iccProfile: ?Array<UInt8>): ?EncodedImage {
 
         // 1. 编码
-        // var outPtr: CPointer<> = CPointer<>.null
+        // var outPtr: CPointer<Unit> = CPointer<Unit>.null
         let stride: Int32 = Int32(w * 4)
         let len: UInt64 = if (lossless) {
-            webPEncodeLosslessRGBA(rgba.ptr(), Int32(w), Int32(h), stride, CPointer<CPointer<>>.null)
+            webPEncodeLosslessRGBA(rgba.ptr(), Int32(w), Int32(h), stride, CPointer<CPointer<Unit>>.null)
         } else {
-            webPEncodeRGBA(rgba.ptr(), Int32(w), Int32(h), stride, Float32(quality), CPointer<CPointer<>>.null)
+            webPEncodeRGBA(rgba.ptr(), Int32(w), Int32(h), stride, Float32(quality), CPointer<CPointer<Unit>>.null)
         }
 
         if (len == 0) { return None }
@@ -259,7 +259,7 @@ public class CodecWebp {
             // return EncodedImage(bytes: bitstream, format: ImageFormat.webp, freeFunc: "WebPFree")
             return None
         }
-        let profile = iccProfile!
+        let profile = iccProfile.getOrThrow()
         if (profile.size == 0) {
             // return EncodedImage(bytes: bitstream, format: ImageFormat.webp, freeFunc: "WebPFree")
             return None
@@ -287,12 +287,12 @@ public class CodecWebp {
         // if (webPMuxAssemble(mux, assembled) != WEBP_MUX_OK) {
         //     // WebPMuxAssemble 即使在失败时也会向 assembled 写入半构建的缓冲区;
         //     // 其合同说 WebPDataClear (即 WebPFree) 在任何返回时都可安全调用。
-        //     if (assembled.bytes != None) { webPFree(assembled.bytes!) }
+        //     if (assembled.bytes != None) { webPFree(assembled.bytes.getOrThrow()) }
         //     return None
         // }
 
         // if (assembled.bytes == None) { return None }
-        // return EncodedImage(bytes: copyFromC(assembled.bytes!, assembled.size),
+        // return EncodedImage(bytes: copyFromC(assembled.bytes.getOrThrow(), assembled.size),
         //                      format: ImageFormat.webp, freeFunc: "WebPFree")
         return None
     }

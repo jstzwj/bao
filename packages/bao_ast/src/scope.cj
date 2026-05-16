@@ -112,7 +112,7 @@ public enum ScopeKind {
 
 /// 作用域成员 - 对应 Bun Scope.Member
 /// Bun: pub const Member = struct { ref: Ref, loc: logger.Loc }
-/// 不要使用 packed struct!
+/// 不要使用 packed struct.getOrThrow()
 public class ScopeMember {
     /// 符号引用 - 对应 Bun Member.ref: Ref
     public var ref: Ref

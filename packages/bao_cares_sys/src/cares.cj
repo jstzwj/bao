@@ -53,7 +53,7 @@ foreign func ares_set_socket_functions(channel: CPointer<Unit>, funcs: CPointer<
 
 // --- DNS 查询 ---
 foreign func ares_send(channel: CPointer<Unit>, qbuf: CPointer<UInt8>, qlen: Int32, callback: AresCallback, arg: CPointer<Unit>): Unit
-foreign func ares_query(channel: CPointer<Unit>, name: CString, dnsclass: NSClass, ares_type: NSType, callback: AresCallback, arg: CPointer<Unit>): Unit
+foreign func ares_query(channel: CPointer<Unit>, name: CString, dnsclass: Int32, ares_type: Int32, callback: AresCallback, arg: CPointer<Unit>): Unit
 foreign func ares_search(channel: CPointer<Unit>, name: CString, dnsclass: Int32, ares_type: Int32, callback: AresCallback, arg: CPointer<Unit>): Unit
 
 // --- 主机查询 ---

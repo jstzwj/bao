@@ -54,7 +54,7 @@ public class StmtPrepareOKPacket {
     public func decode(reader: MySQLPacketReader): Unit {
         status = reader.int8()
         if (status != 0) {
-            throw MySQLError.InvalidPrepareOKPacket
+            throw MySQLProtocolException("InvalidPrepareOKPacket")
         }
 
         statementId = reader.int32()

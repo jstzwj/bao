@@ -2,6 +2,9 @@
 
 package bao_runtime.test_runner.expect
 
+import bao_runtime.test_runner
+import bao_jsc.*
+
 /// toHaveBeenCalledWith() - 检查mock函数是否以指定参数被调用
 /// 用法: expect(mockFn).toHaveBeenCalledWith(...expected)
 public func toHaveBeenCalledWith(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
@@ -14,7 +17,7 @@ public func toHaveBeenCalledWith(`this`: Expect, globalThis: JSGlobalObject, cal
     this.incrementExpectCallCounter()
 
     let calls = JSMockFunction.getCalls(globalThis: globalThis, value: value)
-    if !calls.jsType().isArray() {
+    if (!calls.jsType().isArray()) {
         let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
         defer { formatter.deinit() }
         let signature = Expect.getSignature(matcherName: "toHaveBeenCalledWith", args: "<green>...expected<r>", not: false)
@@ -26,34 +29,34 @@ public func toHaveBeenCalledWith(`this`: Expect, globalThis: JSGlobalObject, cal
     var pass = false
 
     let callsCount: UInt32 = calls.getLength(globalThis: globalThis)
-    if callsCount > 0 {
+    if (callsCount > 0) {
         var itr = calls.arrayIterator(globalThis: globalThis)
-        while (let callItem = itr.next()) {
-            if callItem == JSValue.zero || !callItem.jsType().isArray() {
+        while (let Some(callItem) <- itr.next()) {
+            if (callItem == JSValue.zero || !callItem.jsType().isArray()) {
                 return globalThis.throw_("Internal error: expected mock call item to be an array of arguments.")
             }
 
-            if callItem.getLength(globalThis: globalThis) != arguments.length {
+            if (callItem.getLength(globalThis: globalThis) != arguments.length) {
                 continue
             }
 
             var callItr = callItem.arrayIterator(globalThis: globalThis)
-            var match = true
-            while (let callArg = callItr.next()) {
-                if !callArg.jestDeepEquals(arguments[callItr.i - 1], globalThis: globalThis) {
-                    match = false
+            var isMatch = true
+            while (let Some(callArg) <- callItr.next()) {
+                if (!callArg.jestDeepEquals(arguments[callItr.i - 1], globalThis: globalThis) ) {
+                    isMatch = false
                     break
                 }
             }
 
-            if match {
+            if (isMatch) {
                 pass = true
                 break
             }
         }
     }
 
-    if pass != this.flags.not {
+    if (pass != this.flags.not) {
         return JSValue.jsUndefined
     }
 
@@ -62,12 +65,12 @@ public func toHaveBeenCalledWith(`this`: Expect, globalThis: JSGlobalObject, cal
     defer { formatter.deinit() }
 
     let expectedArgsJsArray = JSValue.createEmptyArray(globalThis: globalThis, length: arguments.length)
-    for (arg, i) in arguments {
+    for ((arg, i) in arguments) {
         expectedArgsJsArray.putIndex(globalThis: globalThis, index: UInt32(i), value: arg)
     }
     expectedArgsJsArray.ensureStillAlive()
 
-    if this.flags.not {
+    if (this.flags.not) {
         let signature = Expect.getSignature(matcherName: "toHaveBeenCalledWith", args: "<green>...expected<r>", not: true)
         return this.throw_(globalThis: globalThis, signature: signature,
             fmt: "\n\nExpected mock function not to have been called with: <green>{f}<r>\nBut it was.",
@@ -75,14 +78,14 @@ public func toHaveBeenCalledWith(`this`: Expect, globalThis: JSGlobalObject, cal
     }
     let signature = Expect.getSignature(matcherName: "toHaveBeenCalledWith", args: "<green>...expected<r>", not: false)
 
-    if callsCount == 0 {
+    if (callsCount == 0) {
         return this.throw_(globalThis: globalThis, signature: signature,
             fmt: "\n\nExpected: <green>{f}<r>\nBut it was not called.",
             args: [expectedArgsJsArray.toFmt(formatter)])
     }
 
     // 如果只有一次调用，提供漂亮的 diff
-    if callsCount == 1 {
+    if (callsCount == 1) {
         let receivedCallArgs = calls.getIndex(globalThis: globalThis, index: 0)
         let diffFormat = DiffFormatter(received: receivedCallArgs, expected: expectedArgsJsArray, globalThis: globalThis, not: false)
         return this.throw_(globalThis: globalThis, signature: signature, fmt: "\n\n{f}\n", args: [diffFormat])

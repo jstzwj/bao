@@ -12,17 +12,14 @@ public struct Compressor {}
 public struct Decompressor {}
 
 // ============================================================================
-// Options struct
+// Options struct - must be @C struct for FFI
 // ============================================================================
 
-public class Options {
+@C
+public struct Options {
     public var sizeof_options: UInt64 = 0
-    public var malloc_func: CFunc<(UInt64) -> CPointer<Unit>> = CFunc<(UInt64) -> CPointer<Unit>>()
-    public var free_func: CFunc<(CPointer<Unit>) -> Unit> = CFunc<(CPointer<Unit>) -> Unit>()
-
-    public init() {
-        sizeof_options = 16 // sizeOf(Options) placeholder
-    }
+    public var malloc_func: CFunc<(UInt64) -> CPointer<Unit>> = CFunc<(UInt64) -> CPointer<Unit>>(CPointer<UInt8>())
+    public var free_func: CFunc<(CPointer<Unit>) -> Unit> = CFunc<(CPointer<Unit>) -> Unit>(CPointer<UInt8>())
 }
 
 // ============================================================================
@@ -43,7 +40,7 @@ public class Result {
 }
 
 // ============================================================================
-// Status enum
+// Status constants (enum cannot be used as FFI return type)
 // ============================================================================
 
 public let LIBDEFLATE_SUCCESS: UInt32 = 0
@@ -59,13 +56,17 @@ public enum Status {
 }
 
 // ============================================================================
-// Encoding enum
+// Encoding constants (enum values cannot use reserved words directly)
 // ============================================================================
 
+public let ENCODING_DEFLATE: Int32 = 0
+public let ENCODING_ZLIB: Int32 = 1
+public let ENCODING_GZIP: Int32 = 2
+
 public enum Encoding {
-    deflate
-    zlib
-    gzip
+    | deflate
+    | `zlib`
+    | `gzip`
 }
 
 // ============================================================================
@@ -98,17 +99,17 @@ foreign func libdeflate_alloc_decompressor(): CPointer<Decompressor>
 
 foreign func libdeflate_alloc_decompressor_ex(options: CPointer<Options>): CPointer<Decompressor>
 
-foreign func libdeflate_deflate_decompress(decompressor: CPointer<Decompressor>, input: CPointer<Unit>, in_nbytes: UInt64, output: CPointer<Unit>, out_nbytes_avail: UInt64, actual_out_nbytes_ret: CPointer<UInt64>): Status
+foreign func libdeflate_deflate_decompress(decompressor: CPointer<Decompressor>, input: CPointer<Unit>, in_nbytes: UInt64, output: CPointer<Unit>, out_nbytes_avail: UInt64, actual_out_nbytes_ret: CPointer<UInt64>): Int32
 
-foreign func libdeflate_deflate_decompress_ex(decompressor: CPointer<Decompressor>, input: CPointer<Unit>, in_nbytes: UInt64, output: CPointer<Unit>, out_nbytes_avail: UInt64, actual_in_nbytes_ret: CPointer<UInt64>, actual_out_nbytes_ret: CPointer<UInt64>): Status
+foreign func libdeflate_deflate_decompress_ex(decompressor: CPointer<Decompressor>, input: CPointer<Unit>, in_nbytes: UInt64, output: CPointer<Unit>, out_nbytes_avail: UInt64, actual_in_nbytes_ret: CPointer<UInt64>, actual_out_nbytes_ret: CPointer<UInt64>): Int32
 
-foreign func libdeflate_zlib_decompress(decompressor: CPointer<Decompressor>, input: CPointer<Unit>, in_nbytes: UInt64, output: CPointer<Unit>, out_nbytes_avail: UInt64, actual_out_nbytes_ret: CPointer<UInt64>): Status
+foreign func libdeflate_zlib_decompress(decompressor: CPointer<Decompressor>, input: CPointer<Unit>, in_nbytes: UInt64, output: CPointer<Unit>, out_nbytes_avail: UInt64, actual_out_nbytes_ret: CPointer<UInt64>): Int32
 
-foreign func libdeflate_zlib_decompress_ex(decompressor: CPointer<Decompressor>, input: CPointer<Unit>, in_nbytes: UInt64, output: CPointer<Unit>, out_nbytes_avail: UInt64, actual_in_nbytes_ret: CPointer<UInt64>, actual_out_nbytes_ret: CPointer<UInt64>): Status
+foreign func libdeflate_zlib_decompress_ex(decompressor: CPointer<Decompressor>, input: CPointer<Unit>, in_nbytes: UInt64, output: CPointer<Unit>, out_nbytes_avail: UInt64, actual_in_nbytes_ret: CPointer<UInt64>, actual_out_nbytes_ret: CPointer<UInt64>): Int32
 
-foreign func libdeflate_gzip_decompress(decompressor: CPointer<Decompressor>, input: CPointer<Unit>, in_nbytes: UInt64, output: CPointer<Unit>, out_nbytes_avail: UInt64, actual_out_nbytes_ret: CPointer<UInt64>): Status
+foreign func libdeflate_gzip_decompress(decompressor: CPointer<Decompressor>, input: CPointer<Unit>, in_nbytes: UInt64, output: CPointer<Unit>, out_nbytes_avail: UInt64, actual_out_nbytes_ret: CPointer<UInt64>): Int32
 
-foreign func libdeflate_gzip_decompress_ex(decompressor: CPointer<Decompressor>, input: CPointer<Unit>, in_nbytes: UInt64, output: CPointer<Unit>, out_nbytes_avail: UInt64, actual_in_nbytes_ret: CPointer<UInt64>, actual_out_nbytes_ret: CPointer<UInt64>): Status
+foreign func libdeflate_gzip_decompress_ex(decompressor: CPointer<Decompressor>, input: CPointer<Unit>, in_nbytes: UInt64, output: CPointer<Unit>, out_nbytes_avail: UInt64, actual_in_nbytes_ret: CPointer<UInt64>, actual_out_nbytes_ret: CPointer<UInt64>): Int32
 
 foreign func libdeflate_free_decompressor(decompressor: CPointer<Decompressor>): Unit
 

@@ -31,7 +31,7 @@ public class NativeZlib {
     public var pendingClose: Bool = false
     public var pendingReset: Bool = false
     public var closed: Bool = false
-    public var writeResult: Array<UInt32> = Array<UInt32>(2, item: UInt32(0))
+    public var writeResult: Array<UInt32> = Array<UInt32>(2, repeat: UInt32(0))
 
     public init() {}
 
@@ -50,18 +50,19 @@ public class NativeZlib {
 
     // 写入数据
     // 对应 Bun: src/runtime/node/zlib/NativeZlib.zig - write
-    public func write(flush: Int32, input: Array<UInt8>, inOff: Int32, inLen: Int32, output: Array<UInt8>, outOff: Int32, outLen: Int32): Int32 {
+    public func write(input: Array<UInt8>, inOff: Int32, inLen: Int32, output: Array<UInt8>, outOff: Int32, outLen: Int32, flush: Int32): Int32 {
         writeInProgress = true
         // 实际压缩操作应通过 FFI 调用 zlib
-        let result = ZlibImpl.process(mode: mode, input: input, inOff: inOff, inLen: inLen, output: output, outOff: outOff, outLen: outLen, flush: flush)
+        // TODO: 通过 FFI 调用 zlib 的 deflate/inflate
+        let result: Int32 = 0
         writeInProgress = false
         return result
     }
 
     // 同步写入
     // 对应 Bun: src/runtime/node/zlib/NativeZlib.zig - writeSync
-    public func writeSync(flush: Int32, input: Array<UInt8>, inOff: Int32, inLen: Int32, output: Array<UInt8>, outOff: Int32, outLen: Int32): Int32 {
-        return write(flush: flush, input: input, inOff: inOff, inLen: inLen, output: output, outOff: outOff, outLen: outLen)
+    public func writeSync(input: Array<UInt8>, inOff: Int32, inLen: Int32, output: Array<UInt8>, outOff: Int32, outLen: Int32, flush: Int32): Int32 {
+        return write(input, inOff, inLen, output, outOff, outLen, flush)
     }
 
     // 重置

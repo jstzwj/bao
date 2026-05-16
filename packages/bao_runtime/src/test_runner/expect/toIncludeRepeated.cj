@@ -2,6 +2,9 @@
 
 package bao_runtime.test_runner.expect
 
+import bao_runtime.test_runner
+import bao_jsc.*
+
 /// toIncludeRepeated() - 检查字符串是否包含期望子串指定次数
 /// 用法: expect(received).toIncludeRepeated(substring, count)
 public func toIncludeRepeated(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
@@ -11,7 +14,7 @@ public func toIncludeRepeated(`this`: Expect, globalThis: JSGlobalObject, callFr
     let arguments_ = callFrame.argumentsOld(2)
     let arguments = arguments_.slice()
 
-    if arguments.length < 2 {
+    if (arguments.length < 2) {
         return globalThis.throwInvalidArguments("toIncludeRepeated() requires 2 arguments")
     }
 
@@ -20,24 +23,26 @@ public func toIncludeRepeated(`this`: Expect, globalThis: JSGlobalObject, callFr
     let substring = arguments[0]
     substring.ensureStillAlive()
 
-    if !substring.isString() {
+    if (!substring.isString()) {
         return globalThis.throw_("toIncludeRepeated() requires the first argument to be a string")
     }
 
     let count = arguments[1]
     count.ensureStillAlive()
 
-    if !count.isAnyInt() {
+    if (!count.isAnyInt()) {
         return globalThis.throw_("toIncludeRepeated() requires the second argument to be a number")
     }
 
     let countAsNum = count.toU32()
 
-    let expectString = Expect.js.capturedValueGetCached(thisValue) ?? {
+    let expectStringOpt = Expect.js.capturedValueGetCached(thisValue)
+    if (expectStringOpt.isNone()) {
         return globalThis.throw_("Internal consistency error: the expect(value) was garbage collected but it should not have been!")
-    }()
+    }
+    let expectString = expectStringOpt.getOrThrow()
 
-    if !expectString.isString() {
+    if (!expectString.isString()) {
         return globalThis.throw_("toIncludeRepeated() requires the expect(value) to be a string")
     }
 
@@ -49,15 +54,15 @@ public func toIncludeRepeated(`this`: Expect, globalThis: JSGlobalObject, callFr
     let subStringAsStr = substring.toSliceOrNull(globalThis: globalThis)
     defer { subStringAsStr.deinit() }
 
-    if subStringAsStr.slice().length == 0 {
+    if (subStringAsStr.slice().length == 0) {
         return globalThis.throw_("toIncludeRepeated() requires the first argument to be a non-empty string")
     }
 
     let actualCount = std.mem.count<UInt8>(expectStringAsStr.slice(), subStringAsStr.slice())
     pass = actualCount == countAsNum
 
-    if not { pass = !pass }
-    if pass { return JSValue.jsUndefined }
+    if (not) { pass = !pass }
+    if (pass) { return JSValue.jsUndefined }
 
     let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
     defer { formatter.deinit() }
@@ -67,12 +72,12 @@ public func toIncludeRepeated(`this`: Expect, globalThis: JSGlobalObject, callFr
 
     let receivedLine = "Received: <red>{f}<r>\n"
 
-    if not {
-        if countAsNum == 0 {
+    if (not) {
+        if (countAsNum == 0) {
             let expectedLine = "Expected to include: <green>{f}<r> \n"
             let signature = Expect.getSignature(matcherName: "toIncludeRepeated", args: "<green>expected<r>", not: true)
             return this.throw_(globalThis: globalThis, signature: signature, fmt: "\n\n" + expectedLine + receivedLine, args: [substringFmt, expectStringFmt])
-        } else if countAsNum == 1 {
+        } else if (countAsNum == 1) {
             let expectedLine = "Expected not to include: <green>{f}<r> \n"
             let signature = Expect.getSignature(matcherName: "toIncludeRepeated", args: "<green>expected<r>", not: true)
             return this.throw_(globalThis: globalThis, signature: signature, fmt: "\n\n" + expectedLine + receivedLine, args: [substringFmt, expectStringFmt])
@@ -83,11 +88,11 @@ public func toIncludeRepeated(`this`: Expect, globalThis: JSGlobalObject, callFr
         }
     }
 
-    if countAsNum == 0 {
+    if (countAsNum == 0) {
         let expectedLine = "Expected to not include: <green>{f}<r>\n"
         let signature = Expect.getSignature(matcherName: "toIncludeRepeated", args: "<green>expected<r>", not: false)
         return this.throw_(globalThis: globalThis, signature: signature, fmt: "\n\n" + expectedLine + receivedLine, args: [substringFmt, expectStringFmt])
-    } else if countAsNum == 1 {
+    } else if (countAsNum == 1) {
         let expectedLine = "Expected to include: <green>{f}<r>\n"
         let signature = Expect.getSignature(matcherName: "toIncludeRepeated", args: "<green>expected<r>", not: false)
         return this.throw_(globalThis: globalThis, signature: signature, fmt: "\n\n" + expectedLine + receivedLine, args: [substringFmt, expectStringFmt])

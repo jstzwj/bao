@@ -2,6 +2,9 @@
 
 package bao_runtime.test_runner.expect
 
+import bao_runtime.test_runner
+import bao_jsc.*
+
 /// toContainKey() - 检查对象是否包含指定键
 /// 用法: expect(received).toContainKey(expected)
 public func toContainKey(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
@@ -11,7 +14,7 @@ public func toContainKey(`this`: Expect, globalThis: JSGlobalObject, callFrame: 
     let arguments_ = callFrame.argumentsOld(1)
     let arguments = arguments_.slice()
 
-    if arguments.length < 1 {
+    if (arguments.length < 1) {
         return globalThis.throwInvalidArguments("toContainKey() takes 1 argument")
     }
 
@@ -24,19 +27,19 @@ public func toContainKey(`this`: Expect, globalThis: JSGlobalObject, callFrame: 
     defer { formatter.deinit() }
 
     let not = this.flags.not
-    if !value.isObject() {
+    if (!value.isObject()) {
         return globalThis.throwInvalidArguments("Expected value must be an object\nReceived: {f}", args: [value.toFmt(formatter)])
     }
 
     var pass = value.hasOwnPropertyValue(globalThis: globalThis, key: expected)
 
-    if not { pass = !pass }
-    if pass { return thisValue }
+    if (not) { pass = !pass }
+    if (pass) { return thisValue }
 
     // 处理失败
     let valueFmt = value.toFmt(formatter)
     let expectedFmt = expected.toFmt(formatter)
-    if not {
+    if (not) {
         let receivedFmt = value.toFmt(formatter)
         let expectedLine = "Expected to not contain: <green>{f}<r>\nReceived: <red>{f}<r>\n"
         let signature = Expect.getSignature(matcherName: "toContainKey", args: "<green>expected<r>", not: true)

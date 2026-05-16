@@ -76,7 +76,7 @@ foreign func CRYPTO_THREADID_set_callback(threadid_func: CPointer<Unit>): Int32
 foreign func CRYPTO_THREADID_set_numeric(id: CPointer<Int32>, val: UInt64): Unit
 foreign func CRYPTO_THREADID_set_pointer(id: CPointer<Int32>, ptr: CPointer<Unit>): Unit
 foreign func CRYPTO_THREADID_current(id: CPointer<Int32>): Unit
-foreign func CRYPTO_set_id_callback(func: CPointer<Unit>): Unit
+foreign func CRYPTO_set_id_callback(`func`: CPointer<Unit>): Unit
 
 // --- BIO 函数 ---
 foreign func BIO_new(method: CPointer<BioMethodSt>): CPointer<Unit>

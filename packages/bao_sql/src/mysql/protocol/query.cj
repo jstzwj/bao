@@ -4,25 +4,20 @@ package bao_sql.mysql.protocol
 
 /// MySQL 查询执行 (带参数绑定)
 /// 对应 Bun: Query.Execute (struct)
-///
-/// 使用文本协议执行查询，支持参数绑定
 public class QueryExecute {
     /// SQL 查询语句
-    /// 对应 Bun: query []const u8
     public var query: Array<UInt8>
 
     /// 参数值列表
-    /// 对应 Bun: params []Data
     public var params: Array<Array<UInt8>>
 
     /// 参数类型列表
-    /// 对应 Bun: param_types []const Param
     public var paramTypes: Array<MySQLParam>
 
     public init() {
-        query = Array<UInt8>()
-        params = Array<Array<UInt8>>()
-        paramTypes = Array<MySQLParam>()
+        query = []
+        params = []
+        paramTypes = []
     }
 
     public init(query: Array<UInt8>, params: Array<Array<UInt8>>, paramTypes: Array<MySQLParam>) {
@@ -32,19 +27,20 @@ public class QueryExecute {
     }
 
     /// 释放资源
-    /// 对应 Bun: Execute.deinit
-    public func deinit(): Unit {
-        params = Array<Array<UInt8>>()
+    public func release(): Unit {
+        params = []
     }
 
     /// 写入 null 位图
     private func writeNullBitmap(writer: MySQLPacketWriter): Unit {
         let bitmapBytes = (params.size + 7) / 8
-        let nullBitmap = Array<UInt8>(bitmapBytes)
+        let nullBitmap = Array<UInt8>(bitmapBytes, repeat: UInt8(0))
 
         for (i in 0..params.size) {
             if (params[i].size == 0) {
-                nullBitmap[i >> 3] = nullBitmap[i >> 3] | UInt8(1 << UInt8(i & 7))
+                let byteIdx = Int64(i >> 3)
+                let bitIdx = Int64(i & 7)
+                nullBitmap[byteIdx] = nullBitmap[byteIdx] | UInt8(1 << bitIdx)
             }
         }
 
@@ -52,35 +48,35 @@ public class QueryExecute {
     }
 
     /// 将查询写入到写入器
-    /// 对应 Bun: Execute.writeInternal
     public func write(writer: MySQLPacketWriter): Unit {
         var packet = writer.start(0)
-        writer.int1(CommandType.COM_QUERY.value())
+        writer.int1(UInt8(0x03)) // COM_QUERY
         writer.write(query)
 
         if (params.size > 0) {
             writeNullBitmap(writer)
 
-            // 始终为 1 (格式错误如果不是 1)
+            // 始终为 1
             writer.int1(1)
 
             // 写入参数类型
             for (i in 0..paramTypes.size) {
-                writer.int1(paramTypes[i].paramType.toUInt8())
-                writer.int1(if (paramTypes[i].flags.UNSIGNED) 0x80 else 0)
+                writer.int1(fieldTypeToByte(paramTypes[i].paramType))
+                writer.int1(if (paramTypes[i].flags.UNSIGNED) { UInt8(0x80) } else { UInt8(0) })
                 // 写入参数名 (:p1, :p2, ...)
-                let paramName = ":p${i + 1}"
-                writer.writeLengthEncodedString(paramName.toUtf8Bytes())
+                let paramName = ":p${Int64(i) + 1}"
+                writer.writeLengthEncodedString(paramName.toArray())
             }
 
             // 写入参数值
             for (i in 0..params.size) {
-                if (params[i].size == 0 || paramTypes[i].paramType == FieldType.MYSQL_TYPE_NULL(0x06)) {
+                let isNullType = isFieldTypeNull(paramTypes[i].paramType)
+                if (params[i].size == 0 || isNullType) {
                     continue
                 }
 
                 let value = params[i]
-                if (paramTypes[i].paramType.isBinaryFormatSupported()) {
+                if (isBinaryFieldType(paramTypes[i].paramType)) {
                     writer.write(value)
                 } else {
                     writer.writeLengthEncodedString(value)
@@ -90,16 +86,66 @@ public class QueryExecute {
 
         packet.end()
     }
+
+    private func fieldTypeToByte(ft: FieldType): UInt8 {
+        match (ft) {
+            case FieldType.MYSQL_TYPE_DECIMAL(v) => v
+            case FieldType.MYSQL_TYPE_TINY(v) => v
+            case FieldType.MYSQL_TYPE_SHORT(v) => v
+            case FieldType.MYSQL_TYPE_LONG(v) => v
+            case FieldType.MYSQL_TYPE_FLOAT(v) => v
+            case FieldType.MYSQL_TYPE_DOUBLE(v) => v
+            case FieldType.MYSQL_TYPE_NULL(v) => v
+            case FieldType.MYSQL_TYPE_TIMESTAMP(v) => v
+            case FieldType.MYSQL_TYPE_LONGLONG(v) => v
+            case FieldType.MYSQL_TYPE_INT24(v) => v
+            case FieldType.MYSQL_TYPE_DATE(v) => v
+            case FieldType.MYSQL_TYPE_TIME(v) => v
+            case FieldType.MYSQL_TYPE_DATETIME(v) => v
+            case FieldType.MYSQL_TYPE_YEAR(v) => v
+            case FieldType.MYSQL_TYPE_NEWDATE(v) => v
+            case FieldType.MYSQL_TYPE_VARCHAR(v) => v
+            case FieldType.MYSQL_TYPE_BIT(v) => v
+            case FieldType.MYSQL_TYPE_TIMESTAMP2(v) => v
+            case FieldType.MYSQL_TYPE_DATETIME2(v) => v
+            case FieldType.MYSQL_TYPE_TIME2(v) => v
+            case FieldType.MYSQL_TYPE_JSON(v) => v
+            case FieldType.MYSQL_TYPE_NEWDECIMAL(v) => v
+            case FieldType.MYSQL_TYPE_ENUM(v) => v
+            case FieldType.MYSQL_TYPE_SET(v) => v
+            case FieldType.MYSQL_TYPE_TINY_BLOB(v) => v
+            case FieldType.MYSQL_TYPE_MEDIUM_BLOB(v) => v
+            case FieldType.MYSQL_TYPE_LONG_BLOB(v) => v
+            case FieldType.MYSQL_TYPE_BLOB(v) => v
+            case FieldType.MYSQL_TYPE_VAR_STRING(v) => v
+            case FieldType.MYSQL_TYPE_STRING(v) => v
+            case FieldType.MYSQL_TYPE_GEOMETRY(v) => v
+        }
+    }
+
+    private func isFieldTypeNull(ft: FieldType): Bool {
+        match (ft) {
+            case FieldType.MYSQL_TYPE_NULL(_) => true
+            case _ => false
+        }
+    }
+
+    private func isBinaryFieldType(ft: FieldType): Bool {
+        match (ft) {
+            case FieldType.MYSQL_TYPE_BLOB(_) | FieldType.MYSQL_TYPE_MEDIUM_BLOB(_) |
+                 FieldType.MYSQL_TYPE_LONG_BLOB(_) | FieldType.MYSQL_TYPE_TINY_BLOB(_) |
+                 FieldType.MYSQL_TYPE_GEOMETRY(_) => true
+            case _ => false
+        }
+    }
 }
 
 /// MySQL 查询工具函数
-/// 对应 Bun: Query.execute
 public class MySQLQuery {
     /// 执行简单查询
-    /// 对应 Bun: Query.execute
     public static func execute(query: Array<UInt8>, writer: MySQLPacketWriter): Unit {
         var packet = writer.start(0)
-        writer.int1(CommandType.COM_QUERY.value())
+        writer.int1(UInt8(0x03)) // COM_QUERY
         writer.write(query)
         packet.end()
     }

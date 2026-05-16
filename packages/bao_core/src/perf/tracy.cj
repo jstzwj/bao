@@ -214,11 +214,11 @@ public class TracyProfiler {
         if (!enable) { return TracyCtx() }
 
         let srcLoc = TracySourceLocationData(
-            name: "",
-            functionName: functionName,
-            file: file,
-            line: line,
-            color: 0
+            "",
+            functionName,
+            file,
+            line,
+            0
         )
         return emitZoneBegin(srcLoc, 1)
     }
@@ -230,11 +230,11 @@ public class TracyProfiler {
         if (!enable) { return TracyCtx() }
 
         let srcLoc = TracySourceLocationData(
-            name: name,
-            functionName: functionName,
-            file: file,
-            line: line,
-            color: 0
+            name,
+            functionName,
+            file,
+            line,
+            0
         )
         return emitZoneBegin(srcLoc, 1)
     }
@@ -372,23 +372,23 @@ public class TracyProfiler {
         return TracyCtx()
     }
 
-    private static func emitZoneEnd(ctx: TracyCtx): Unit {
+    static func emitZoneEnd(ctx: TracyCtx): Unit {
         // ___tracy_emit_zone_end(ctx)
     }
 
-    private static func emitZoneText(ctx: TracyCtx, text: String): Unit {
+    static func emitZoneText(ctx: TracyCtx, text: String): Unit {
         // ___tracy_emit_zone_text(ctx, text.ptr, text.len)
     }
 
-    private static func emitZoneName(ctx: TracyCtx, name: String): Unit {
+    static func emitZoneName(ctx: TracyCtx, name: String): Unit {
         // ___tracy_emit_zone_name(ctx, name.ptr, name.len)
     }
 
-    private static func emitZoneColor(ctx: TracyCtx, color: UInt32): Unit {
+    static func emitZoneColor(ctx: TracyCtx, color: UInt32): Unit {
         // ___tracy_emit_zone_color(ctx, color)
     }
 
-    private static func emitZoneValue(ctx: TracyCtx, value: UInt64): Unit {
+    static func emitZoneValue(ctx: TracyCtx, value: UInt64): Unit {
         // ___tracy_emit_zone_value(ctx, value)
     }
 
@@ -412,7 +412,7 @@ public class TracyProfiler {
         // ___tracy_emit_frame_mark_start(name.ptr)
     }
 
-    private static func frameMarkEnd(name: String): Unit {
+    static func frameMarkEnd(name: String): Unit {
         // ___tracy_emit_frame_mark_end(name.ptr)
     }
 
@@ -533,9 +533,9 @@ private func unsafeNewCString(s: String): CPointer<Int8> {
         let ptr = malloc(UIntNative(len + 1))
         let bytesPtr = CPointer<Int8>(ptr)
         for (i in 0..len) {
-            (bytesPtr + IntNative(i)).write(Int8(s[Int64(i)].value))
+            (bytesPtr + i).write(Int8(UInt32(s[Int64(i)])))
         }
-        (bytesPtr + IntNative(len)).write(Int8(0))
+        (bytesPtr + len).write(Int8(0))
         return bytesPtr
     }
 }
@@ -544,12 +544,12 @@ private func unsafeNewCString(s: String): CPointer<Int8> {
 private func unsafeCStringToString(ptr: CPointer<Int8>): String {
     unsafe {
         var len = 0
-        while (!(ptr + IntNative(len)).read() == Int8(0)) {
+        while (!((ptr + len).read() == Int8(0))) {
             len += 1
         }
         var sb = StringBuilder()
         for (i in 0..len) {
-            sb.append(Char(Int32((ptr + IntNative(i)).read())))
+            sb.append(Rune(Int32((ptr + i).read())))
         }
         return sb.toString()
     }

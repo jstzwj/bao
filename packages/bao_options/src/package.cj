@@ -8,7 +8,8 @@
 //   OfflineMode.zig - 离线模式
 //   CodeCoverageOptions.zig - 代码覆盖率选项
 //   import_record.zig - 导入记录类型
-//   schema.zig - 序列化 schema
+//   jsx.rs - JSX 转换选项 (Runtime, Pragma, ImportSource)
+//   schema.rs - 序列化 schema API 类型 (Writer, Target, Loader, etc.)
 package bao_options
 
 import bao_core.*

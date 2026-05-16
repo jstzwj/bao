@@ -36,11 +36,11 @@ public class WorkPool {
 
     /// 批次类型别名
     /// 翻译自: pub const Batch = ThreadPool.Batch
-    public typealias Batch = ThreadPoolBatch
+    public type Batch = ThreadPoolBatch
 
     /// 任务类型别名
     /// 翻译自: pub const Task = ThreadPool.Task
-    public typealias Task = ThreadPoolTask
+    public type Task = ThreadPoolTask
 
     /// 获取全局线程池 (懒初始化)
     /// 严格翻译自: pub inline fn get() *ThreadPool
@@ -58,7 +58,7 @@ public class WorkPool {
             }
             initLock.unlock()
         }
-        return pool!
+        return pool.getOrThrow()
     }
 
     /// 调度任务批次

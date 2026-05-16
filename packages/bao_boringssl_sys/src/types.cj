@@ -229,7 +229,7 @@ public type BioInfoCb = CFunc<(CPointer<Unit>, Int32, CPointer<UInt8>, Int32, In
 @C
 public struct BioMethodSt {
     public var type_: Int32 = 0
-    public var name: CString = CString()
+    public var name: CString = CString(CPointer<UInt8>())
     public var bwrite: CPointer<Unit> = CPointer<Unit>()
     public var bread: CPointer<Unit> = CPointer<Unit>()
     public var bputs: CPointer<Unit> = CPointer<Unit>()
@@ -313,7 +313,7 @@ public type SHA512_CTX = Sha512Ctx
 /// 严格翻译自: struct_srtp_protection_profile_st
 @C
 public struct SrtpProtectionProfile {
-    public var name: CString = CString()
+    public var name: CString = CString(CPointer<UInt8>())
     public var id: UInt64 = 0
 }
 
@@ -403,7 +403,7 @@ public type EVP_AEAD_CTX = EvpAeadCtx
 public struct RsaMethod {
     public var common: VArray<UInt8, $16> = VArray<UInt8, $16>(repeat: 0)  // struct_openssl_method_common_st
     public var app_data: CPointer<Unit> = CPointer<Unit>()
-    public var init: CPointer<Unit> = CPointer<Unit>()
+    public var `init`: CPointer<Unit> = CPointer<Unit>()
     public var finish: CPointer<Unit> = CPointer<Unit>()
     public var size: CPointer<Unit> = CPointer<Unit>()
     public var sign: CPointer<Unit> = CPointer<Unit>()
@@ -421,7 +421,7 @@ public type RSA_METHOD = RsaMethod
 public struct EcdsaMethod {
     public var common: VArray<UInt8, $16> = VArray<UInt8, $16>(repeat: 0)  // struct_openssl_method_common_st
     public var app_data: CPointer<Unit> = CPointer<Unit>()
-    public var init: CPointer<Unit> = CPointer<Unit>()
+    public var `init`: CPointer<Unit> = CPointer<Unit>()
     public var finish: CPointer<Unit> = CPointer<Unit>()
     public var group_order_size: CPointer<Unit> = CPointer<Unit>()
     public var sign: CPointer<Unit> = CPointer<Unit>()

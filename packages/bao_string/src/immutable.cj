@@ -29,7 +29,7 @@ public const UNICODE_REPLACEMENT: UInt32 = 0xFFFD
 
 /// 码点类型
 /// 严格翻译自 immutable.zig CodePoint
-public typealias CodePoint = Int32
+public type CodePoint = Int32
 
 // ============================================================================
 // 枚举类型
@@ -102,7 +102,7 @@ public func containsCaseInsensitiveASCII(self: String, str: String): Bool {
     }
     var start: Int64 = 0
     while (start + str.size <= self.size) {
-        if (eqlCaseInsensitiveASCIIIgnoreLength(self[start:start + str.size], str)) {
+        if (eqlCaseInsensitiveASCIIIgnoreLength(self[start..start + str.size], str)) {
             return true
         }
         start += 1
@@ -181,7 +181,7 @@ public func lastIndexOfChar(self: String, char: Byte): Int64 {
 public func lastIndexBeforeChar(input: String, char: Byte, before: Byte): Int64 {
     let beforePos = indexOfChar(input, before)
     let end = beforePos >= 0 ? beforePos : input.size
-    return lastIndexOfChar(input[0:end], char)
+    return lastIndexOfChar(input[0..end], char)
 }
 
 /// 查找子串最后一次出现的位置
@@ -195,7 +195,7 @@ public func lastIndexOf(self: String, str: String): Int64 {
     }
     var i = self.size - str.size
     while (i >= 0) {
-        if (eqlLong(self[i:i + str.size], str, false)) {
+        if (eqlLong(self[i..i + str.size], str, false)) {
             return i
         }
         i -= 1
@@ -217,7 +217,7 @@ public func indexOf(self: String, str: String): Int64 {
     // 标准 memmem 搜索
     var i: Int64 = 0
     while (i <= self.size - str.size) {
-        if (eqlLong(self[i:i + str.size], str, false)) {
+        if (eqlLong(self[i..i + str.size], str, false)) {
             return i
         }
         i += 1
@@ -366,13 +366,13 @@ public func startsWith(self: String, str: String): Bool {
     if (str.size > self.size) {
         return false
     }
-    return eqlLong(self[0:str.size], str, false)
+    return eqlLong(self[0..str.size], str, false)
 }
 
 /// 大小写不敏感的前缀检查
 /// 严格翻译自 immutable.zig startsWithCaseInsensitiveAscii
 public func startsWithCaseInsensitiveAscii(self: String, prefix: String): Bool {
-    return self.size >= prefix.size && eqlCaseInsensitiveASCII(self[0:prefix.size], prefix, false)
+    return self.size >= prefix.size && eqlCaseInsensitiveASCII(self[0..prefix.size], prefix, false)
 }
 
 /// 检查是否以指定字符开头
@@ -390,7 +390,7 @@ public func endsWith(self: String, str: String): Bool {
     if (str.size > self.size) {
         return false
     }
-    return eqlLong(self[self.size - str.size:], str, false)
+    return eqlLong(self[self.size - str.size..self.size], str, false)
 }
 
 /// 检查是否以指定字符结尾
@@ -426,7 +426,7 @@ public func hasPrefixCaseInsensitive(str: String, prefix: String): Bool {
     if (str.size < prefix.size) {
         return false
     }
-    return eqlCaseInsensitiveASCIIIgnoreLength(str[0:prefix.size], prefix)
+    return eqlCaseInsensitiveASCIIIgnoreLength(str[0..prefix.size], prefix)
 }
 
 // ============================================================================
@@ -490,7 +490,7 @@ public func substring(self: String, start: ?Int64, stop: ?Int64): String {
     let sto = stop ?? self.size
     let begin = if (sta < self.size) { sta } else { self.size }
     let end = if (sto < self.size) { sto } else { self.size }
-    return self[begin:end]
+    return self[begin..end]
 }
 
 /// 用指定字符重复填充缓冲区
@@ -552,14 +552,14 @@ public class SplitIterator {
     /// 严格翻译自 SplitIterator.next
     public func next(): ?String {
         let start = this.index ?? return None
-        let endIndex = indexOf(this.buffer[start:], this.delimiter)
+        let endIndex = indexOf(this.buffer[start..this.buffer.size], this.delimiter)
         if (endIndex >= 0) {
             let delimStart = endIndex + start
             this.index = delimStart + this.delimiter.size
-            return this.buffer[start:delimStart]
+            return this.buffer[start..delimStart]
         } else {
             this.index = None
-            return this.buffer[start:]
+            return this.buffer[start..this.buffer.size]
         }
     }
 
@@ -568,7 +568,7 @@ public class SplitIterator {
     public func rest(): String {
         let end = this.buffer.size
         let start = this.index ?? end
-        return this.buffer[start:end]
+        return this.buffer[start..end]
     }
 
     /// 重置迭代器
@@ -591,7 +591,7 @@ public func splitFirst(self: String): ?Tuple<Byte, String> {
         return None
     }
     let first = self[0]
-    return Some((first, self[1:]))
+    return Some((first, self[1..self.size]))
 }
 
 // ============================================================================
@@ -618,7 +618,7 @@ public func trim(slice: String, valuesToStrip: String): String {
     while (end > begin && containsChar(valuesToStrip, slice[end - 1])) {
         end -= 1
     }
-    return slice[begin:end]
+    return slice[begin..end]
 }
 
 /// 修剪空白字符
@@ -655,7 +655,7 @@ public func lengthOfLeadingWhitespaceASCII(slice: String): Int64 {
 public func trimLeadingChar(slice: String, char: Byte): String {
     let i = indexOfNotChar(slice, char)
     if (i >= 0) {
-        return slice[i:]
+        return slice[i..slice.size]
     }
     return ""
 }
@@ -672,7 +672,7 @@ public func trimSubsequentLeadingChars(slice: String, char: Byte): String {
         endEnd = end + 1
         end -= 1
     }
-    return slice[0:endEnd]
+    return slice[0..endEnd]
 }
 
 /// 修剪前导双字节模式
@@ -681,7 +681,7 @@ public func trimLeadingPattern2(slice: String, byte1: Byte, byte2: Byte): String
     var s = slice
     while (s.size >= 2) {
         if (s[0] == byte1 && s[1] == byte2) {
-            s = s[2:]
+            s = s[2..s.size]
         } else {
             break
         }
@@ -849,7 +849,7 @@ public func isUUID(str: String): Bool {
 /// 严格翻译自 immutable.zig startsWithUUID
 public func startsWithUUID(str: String): Bool {
     let end = if (str.size < UUID_LEN) { str.size } else { UUID_LEN }
-    return isUUID(str[0:end])
+    return isUUID(str[0..end])
 }
 
 /// 判断是否为有效的 npm 包名
@@ -919,7 +919,7 @@ public func startsWithNpmSecret(str: String): Int64 {
         return 0
     }
 
-    if (!hasPrefixCaseInsensitive(str[0:3], "npm")) {
+    if (!hasPrefixCaseInsensitive(str[0..3], "npm")) {
         return 0
     }
 
@@ -1105,7 +1105,7 @@ public class ANSIIterator {
             if (input[cursor] == Byte('\u{1b}')) {
                 // 找到 ESC 序列,返回之前的文本
                 if (cursor > start) {
-                    let result = input[start:cursor]
+                    let result = input[start..cursor]
                     return result
                 }
                 // 跳过 ANSI 序列
@@ -1127,7 +1127,7 @@ public class ANSIIterator {
         }
 
         if (cursor > start) {
-            return input[start:cursor]
+            return input[start..cursor]
         }
         return None
     }
@@ -1237,17 +1237,17 @@ public func percentEncodeWrite(utf8Input: String): String {
             break
         }
 
-        result.append(remaining[0:j])
+        result.append(remaining[0..j])
 
         let codePointLen = wtf8ByteSequenceLengthWithInvalid(remaining[j])
         if (j + codePointLen > remaining.size) {
             // 不完整的 UTF-8 序列
-            result.append(remaining[j:])
+            result.append(remaining[j..remaining.size])
             break
         }
 
-        let toEncode = remaining[j:j + codePointLen]
-        remaining = remaining[j + codePointLen:]
+        let toEncode = remaining[j..j + codePointLen]
+        remaining = remaining[j + codePointLen..remaining.size]
 
         // URL 编码
         for (b in toEncode.toArray()) {
@@ -1331,7 +1331,7 @@ public func mustEscapeYAMLString(contents: String): Bool {
     if ((first >= Byte('A') && first <= Byte('Z')) || (first >= Byte('a') && first <= Byte('z'))) {
         return hasPrefix(contents, "Yes") || hasPrefix(contents, "No") ||
                hasPrefix(contents, "true") || hasPrefix(contents, "false") ||
-               indexOfAny(contents[1:], ": \t\r\n\u{0B}\u{0C}\\\",[]") >= 0
+               indexOfAny(contents[1..contents.size], ": \t\r\n\u{0B}\u{0C}\\\",[]") >= 0
     }
     return true
 }
@@ -1343,19 +1343,19 @@ public func findUrlPassword(text: String): ?Tuple<Int64, Int64> {
         return None
     }
     var offset: Int64 = 4
-    if (hasPrefix(text[4:], "://")) {
+    if (hasPrefix(text[4..text.size], "://")) {
         offset += 3
-    } else if (hasPrefix(text[4:], "s://")) {
+    } else if (hasPrefix(text[4..text.size], "s://")) {
         offset += 4
     } else {
         return None
     }
 
-    let remain = text[offset:]
+    let remain = text[offset..text.size]
     let end = indexOfChar(remain, Byte('\n')) ?? remain.size
-    let afterNewline = remain[0:end]
+    let afterNewline = remain[0..end]
     let at = indexOfChar(afterNewline, Byte('@')) ?? return None
-    let beforeAt = afterNewline[0:at]
+    let beforeAt = afterNewline[0..at]
     let colon = indexOfCharNeg(beforeAt, Byte(':'))
     if (colon < 0 || Int64(colon) == at - 1) {
         return None

@@ -31,7 +31,7 @@ public func isSetextUnderline(parser: Parser, off: OFF): SetextResult {
     }
 
     if (pos >= parser.size || isNewline(UInt8(parser.text[pos]))) {
-        let level: UInt32 = if (c == '='.toUInt8()) 1 else 2
+        let level: UInt32 = if (c == '='.toUInt8()) { 1 } else { 2 }
         return SetextResult(true, level)
     }
 
@@ -274,20 +274,20 @@ public func isHtmlBlockEndCondition(parser: Parser, off: OFF, block_type: UInt8)
 
 /// 匹配 HTML 标签
 public func matchHtmlTag(parser: Parser, off: Int64, tag: String): Bool {
-    if (off + 1 + tag.length >= parser.size) {
+    if (off + 1 + tag.size >= parser.size) {
         return false
     }
     var pos = off + 1
     if (pos < parser.size && parser.text[pos] == '/') {
         pos += 1
     }
-    if (pos + tag.length > parser.size) {
+    if (pos + tag.size > parser.size) {
         return false
     }
-    if (!asciiCaseEql(parser.text.substring(pos, pos + tag.length), tag)) {
+    if (!asciiCaseEql(parser.text.substring(pos, pos + tag.size), tag)) {
         return false
     }
-    pos += tag.length
+    pos += tag.size
     if (pos >= parser.size) {
         return true
     }
@@ -493,7 +493,7 @@ public func isTableUnderline(parser: Parser, off: OFF): TableUnderlineResult {
             } else if (has_right_colon) {
                 Align.right
             } else {
-                Align.default
+                Align.`default`
             }
         }
 
@@ -533,21 +533,21 @@ public func countTableRowColumns(parser: Parser, beg: OFF, end: OFF): UInt32 {
     var col_count: UInt32 = 0
     var pos: Int64 = 0
 
-    while (pos < row.length && isBlank(UInt8(row[pos]))) {
+    while (pos < row.size && isBlank(UInt8(row[pos]))) {
         pos += 1
     }
 
-    if (pos < row.length && row[pos] == '|') {
+    if (pos < row.size && row[pos] == '|') {
         pos += 1
     }
 
     var in_cell = false
-    while (pos < row.length) {
+    while (pos < row.size) {
         if (row[pos] == '|') {
             col_count += 1
             in_cell = false
             pos += 1
-        } else if (row[pos] == '\\' && pos + 1 < row.length) {
+        } else if (row[pos] == '\\' && pos + 1 < row.size) {
             in_cell = true
             pos += 2
         } else if (isNewline(UInt8(row[pos]))) {

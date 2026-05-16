@@ -2,6 +2,9 @@
 
 package bao_runtime.test_runner.expect
 
+import bao_runtime.test_runner
+import bao_jsc.*
+
 /// toHaveBeenCalledTimes() - 检查mock函数被调用的次数
 /// 用法: expect(mockFn).toHaveBeenCalledTimes(times)
 public func toHaveBeenCalledTimes(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
@@ -15,13 +18,13 @@ public func toHaveBeenCalledTimes(`this`: Expect, globalThis: JSGlobalObject, ca
     this.incrementExpectCallCounter()
 
     let calls = JSMockFunction.getCalls(globalThis: globalThis, value: value)
-    if !calls.jsType().isArray() {
+    if (!calls.jsType().isArray()) {
         let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
         defer { formatter.deinit() }
         return globalThis.throw_("Expected value must be a mock function: {f}", args: [value.toFmt(formatter)])
     }
 
-    if arguments.length < 1 || !arguments[0].isUInt32AsAnyInt() {
+    if (arguments.length < 1 || !arguments[0].isUInt32AsAnyInt() ){
         return globalThis.throwInvalidArguments("toHaveBeenCalledTimes() requires 1 non-negative integer argument")
     }
 
@@ -30,11 +33,11 @@ public func toHaveBeenCalledTimes(`this`: Expect, globalThis: JSGlobalObject, ca
     var pass = Int32(calls.getLength(globalThis: globalThis)) == times
 
     let not = this.flags.not
-    if not { pass = !pass }
-    if pass { return JSValue.jsUndefined }
+    if (not) { pass = !pass }
+    if (pass) { return JSValue.jsUndefined }
 
     // 处理失败
-    if not {
+    if (not) {
         let signature = Expect.getSignature(matcherName: "toHaveBeenCalledTimes", args: "<green>expected<r>", not: true)
         return this.throw_(globalThis: globalThis, signature: signature,
             fmt: "\n\nExpected number of calls: not <green>{d}<r>\nReceived number of calls: <red>{d}<r>\n",

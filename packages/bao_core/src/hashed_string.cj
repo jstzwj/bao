@@ -5,6 +5,7 @@
 //   Bun: 存储裸指针 + 长度 + wyhash 哈希值，用于快速字符串比较
 //   仓颉: 存储字节数组引用 + 偏移量 + 长度 + wyhash 哈希值
 package bao_core
+import std.collection.*
 
 /// 带预计算哈希的字符串视图 - 严格对应 Bun HashedString
 /// 用于需要频繁比较的场景 (标识符查找、属性名匹配等)
@@ -22,12 +23,7 @@ public class HashedStringView {
 
     /// 空值常量 - 对应 Bun HashedString.empty
     /// Bun: .{ .ptr = 0xDEADBEEF, .len = 0, .hash = 0 }
-    public static let EMPTY = HashedStringView(
-        source: [],
-        offset: 0,
-        len: UInt32(0),
-        hash: UInt32(0)
-    )
+    public static let EMPTY = HashedStringView(Array<UInt8>(), 0, UInt32(0), UInt32(0))
 
     private init(source: Array<UInt8>, offset: Int64, len: UInt32, hash: UInt32) {
         this.source = source
@@ -56,25 +52,21 @@ public class HashedStringView {
         this.source = buf
         this.offset = offset
         this.len = UInt32(length)
-        var sub = Array<UInt8>()
+        var sub = ArrayList<UInt8>()
         for (i in offset..(offset + length)) {
             if (i >= 0 && i < buf.size) {
-                sub.append(buf[Int64(i)])
+                sub.add(buf[Int64(i)])
             }
         }
-        this.hash = HashedStringView.wyhash32(sub)
+        this.hash = HashedStringView.wyhash32(sub.toArray())
     }
 
     /// 从原生字符串初始化
     public init(s: String) {
-        var bytes = Array<UInt8>()
-        for (c in s) {
-            bytes.append(UInt8(c.value))
-        }
-        this.source = bytes
+        this.source = s.toArray()
         this.offset = 0
-        this.len = UInt32(bytes.size)
-        this.hash = HashedStringView.wyhash32(bytes)
+        this.len = UInt32(source.size)
+        this.hash = HashedStringView.wyhash32(source)
     }
 
     /// 不计算哈希的初始化 - 对应 Bun HashedString.initNoHash
@@ -82,7 +74,8 @@ public class HashedStringView {
     ///     return .{ .ptr = buf.ptr, .len = @truncate(buf.len), .hash = 0 };
     /// }
     public static func initNoHash(buf: Array<UInt8>): HashedStringView {
-        return HashedStringView(source: buf, offset: 0, len: UInt32(buf.size), hash: UInt32(0))
+        let view = HashedStringView(buf)
+        return view
     }
 
     /// 比较相等 - 对应 Bun HashedString.eql
@@ -120,7 +113,7 @@ public class HashedStringView {
 
     /// 与原生字符串比较
     public func eqlString(other: String): Bool {
-        if (Int64(this.len) != other.length) {
+        if (Int64(this.len) != other.size) {
             return false
         }
         let bytes = str()
@@ -129,7 +122,7 @@ public class HashedStringView {
             return false
         }
         for (i in 0..bytes.size) {
-            if (bytes[Int64(i)] != UInt8(chars[Int64(i)].value)) {
+            if (bytes[Int64(i)] != chars[Int64(i)]) {
                 return false
             }
         }
@@ -141,14 +134,14 @@ public class HashedStringView {
     ///     return this.ptr[0..this.len];
     /// }
     public func str(): Array<UInt8> {
-        var result = Array<UInt8>()
+        var result = ArrayList<UInt8>()
         let end = offset + Int64(len)
         for (i in offset..end) {
             if (i >= 0 && i < source.size) {
-                result.append(source[Int64(i)])
+                result.add(source[Int64(i)])
             }
         }
-        return result
+        return result.toArray()
     }
 
     /// 转为仓颉字符串
@@ -156,7 +149,7 @@ public class HashedStringView {
         var sb = StringBuilder()
         let bytes = str()
         for (b in bytes) {
-            sb.append(Char(Int32(b)))
+            sb.append(Rune(Int32(b)))
         }
         return sb.toString()
     }

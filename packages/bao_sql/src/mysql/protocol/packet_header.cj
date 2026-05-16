@@ -48,7 +48,7 @@ public class PacketHeader {
     /// 将包头编码为 4 字节数组
     /// 对应 Bun: PacketHeader.encode
     public func encode(): Array<UInt8> {
-        let result = Array<UInt8>(4)
+        let result = Array<UInt8>(4, repeat: UInt8(0))
         result[0] = UInt8(length & 0xff)
         result[1] = UInt8((length >> 8) & 0xff)
         result[2] = UInt8((length >> 16) & 0xff)

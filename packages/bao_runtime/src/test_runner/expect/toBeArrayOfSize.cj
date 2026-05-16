@@ -2,6 +2,9 @@
 
 package bao_runtime.test_runner.expect
 
+import bao_runtime.test_runner
+import bao_jsc.*
+
 /// toBeArrayOfSize() - 检查值是否为指定大小的数组
 /// 用法: expect(received).toBeArrayOfSize(size)
 public func toBeArrayOfSize(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
@@ -11,7 +14,7 @@ public func toBeArrayOfSize(`this`: Expect, globalThis: JSGlobalObject, callFram
     let arguments_ = callFrame.argumentsOld(1)
     let arguments = arguments_.slice()
 
-    if arguments.length < 1 {
+    if (arguments.length < 1) {
         return globalThis.throwInvalidArguments("toBeArrayOfSize() requires 1 argument")
     }
 
@@ -20,7 +23,7 @@ public func toBeArrayOfSize(`this`: Expect, globalThis: JSGlobalObject, callFram
     let size = arguments[0]
     size.ensureStillAlive()
 
-    if !size.isAnyInt() {
+    if (!size.isAnyInt()) {
         return globalThis.throw_("toBeArrayOfSize() requires the first argument to be a number")
     }
 
@@ -29,14 +32,14 @@ public func toBeArrayOfSize(`this`: Expect, globalThis: JSGlobalObject, callFram
     let not = this.flags.not
     var pass = value.jsType().isArray() && Int32(value.getLength(globalThis: globalThis)) == size.toInt32()
 
-    if not { pass = !pass }
-    if pass { return JSValue.jsUndefined }
+    if (not) { pass = !pass }
+    if (pass) { return JSValue.jsUndefined }
 
     let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
     defer { formatter.deinit() }
     let received = value.toFmt(formatter)
 
-    if not {
+    if (not) {
         let signature = Expect.getSignature(matcherName: "toBeArrayOfSize", args: "", not: true)
         return this.throw_(globalThis: globalThis, signature: signature, fmt: "\n\nReceived: <red>{f}<r>\n", args: [received])
     }

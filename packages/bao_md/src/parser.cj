@@ -56,7 +56,7 @@ public class Parser {
 
     // 表格列对齐
     public var table_col_count: UInt32 = 0
-    public var table_alignments: Array<Align> = Array<Align>(Int64(TABLE_MAXCOLCOUNT), item: Align.default)
+    public var table_alignments: Array<Align> = Array<Align>(Int64(TABLE_MAXCOLCOUNT), item: Align.`default`)
 
     // 引用定义
     public var ref_defs: Array<RefDef> = []
@@ -70,13 +70,13 @@ public class Parser {
 
     /// 初始化解析器
     public static func initFunc(text: String, flags: Flags, rend: Renderer): Parser {
-        let size: OFF = OFF(text.length)
+        let size: OFF = OFF(text.size)
         let p = Parser()
         p.text = text
         p.size = size
         p.flags = flags
         p.renderer = rend
-        p.code_indent_offset = if (flags.no_indented_code_blocks) UInt32.Max else 4
+        p.code_indent_offset = if (flags.no_indented_code_blocks) { UInt32.Max } else { 4 }
         p.doc_ends_with_newline = size > 0 && isNewline(UInt8(text[Int64(size - 1)]))
         p.max_ref_def_output = min(min(16 * UInt64(size), 1024 * 1024), UInt64(UInt32.Max))
         p.buildMarkCharMap()
@@ -145,7 +145,7 @@ public class Parser {
     public func getBlockHeaderAt(off: Int64): BlockHeader {
         let start = off
         let hdr = BlockHeader()
-        if (start + 12 <= block_bytes.length) {
+        if (start + 12 <= block_bytes.size) {
             hdr.block_type = BlockType.fromUInt8(block_bytes[Int64(start)])
             hdr.flags = readU32LE(block_bytes, start + 4)
             hdr.data = readU32LE(block_bytes, start + 8)
@@ -157,7 +157,7 @@ public class Parser {
 
     /// 设置块头
     public func setBlockHeaderAt(off: Int64, hdr: BlockHeader): Unit {
-        if (off + 16 <= block_bytes.length) {
+        if (off + 16 <= block_bytes.size) {
             block_bytes[Int64(off)] = hdr.block_type.toUInt8()
             // pad 3 bytes
             block_bytes[Int64(off + 1)] = 0

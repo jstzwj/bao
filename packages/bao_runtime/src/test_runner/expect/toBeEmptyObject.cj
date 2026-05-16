@@ -2,6 +2,9 @@
 
 package bao_runtime.test_runner.expect
 
+import bao_runtime.test_runner
+import bao_jsc.*
+
 /// toBeEmptyObject() - 检查值是否为空对象
 /// 用法: expect(received).toBeEmptyObject()
 public func toBeEmptyObject(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
@@ -13,15 +16,15 @@ public func toBeEmptyObject(`this`: Expect, globalThis: JSGlobalObject, callFram
     this.incrementExpectCallCounter()
 
     let not = this.flags.not
-    let pass = value.isObject() && value.getLength(globalThis: globalThis) == 0 != not
+    let pass = value.isObject() && (value.getLength(globalThis: globalThis) == 0) != not
 
-    if pass { return JSValue.jsUndefined }
+    if (pass) { return JSValue.jsUndefined }
 
     let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
     defer { formatter.deinit() }
     let received = value.toFmt(formatter)
 
-    if not {
+    if (not) {
         let signature = Expect.getSignature(matcherName: "toBeEmptyObject", args: "", not: true)
         return this.throw_(globalThis: globalThis, signature: signature, fmt: "\n\nReceived: <red>{f}<r>\n", args: [received])
     }

@@ -222,7 +222,7 @@ public class SimdUtil {
                 v = v | (UInt64(bytes[i + j]) << UInt64(j * 8))
             }
             // 如果任何字节 >= 0x80, 则高位会被设置
-            if ((v & UInt64(0x8080808080808080)) != UInt64(0)) {
+            if ((v & 0x8080808080808080u64) != UInt64(0)) {
                 for (j in 0..8) {
                     if (i + j < end && bytes[i + j] >= 0x80) {
                         return i + j - offset
@@ -270,7 +270,7 @@ public class SimdUtil {
     /// 如果 v 的某个字节为 0，则结果非零
     private static func hasZeroByte(v: UInt64): Bool {
         let sub = v - UInt64(0x0101010101010101)
-        let mask = (sub & (~v)) & UInt64(0x8080808080808080)
+        let mask = (sub & (!v)) & 0x8080808080808080u64
         return mask != UInt64(0)
     }
 
@@ -301,7 +301,7 @@ public class ByteWindow {
 
     public init(windowSize: Int64) {
         this.windowSize = if (windowSize < 8) { 8 } else { windowSize }
-        this.window = Array<UInt8>(this.windowSize, item: 0)
+        this.window = Array<UInt8>(this.windowSize, { _ => UInt8(0) })
         this.pos = 0
     }
 
@@ -382,7 +382,7 @@ public class AsciiClass {
     private var bitmap: Array<UInt64>
 
     public init() {
-        bitmap = Array<UInt64>(4, item: UInt64(0))
+        bitmap = Array<UInt64>(4, { _ => UInt64(0) })
     }
 
     /// 从字符列表构建字符类
@@ -440,7 +440,7 @@ public class AsciiClass {
     public func complement(): AsciiClass {
         let result = AsciiClass()
         for (i in 0..4) {
-            result.bitmap[i] = ~this.bitmap[i]
+            result.bitmap[i] = this.bitmap[i] ^ UInt64.Max
         }
         return result
     }

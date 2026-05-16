@@ -280,7 +280,7 @@ public class Interpreter {
     ): JSValue {
         // 提取参数
         let quiet = parsedShellScript.quiet
-        let args = parsedShellScript.args!
+        let args = parsedShellScript.args.getOrThrow()
 
         // 初始化解释器
         let interpreter = Interpreter.init(
@@ -385,7 +385,7 @@ public class Interpreter {
         async.actuallyDeinit()
         this.asyncCommandsExecuting -= 1
         if (this.asyncCommandsExecuting == 0 && this.exitCode != None) {
-            this.finish(this.exitCode!).run()
+            this.finish(this.exitCode.getOrThrow()).run()
         }
     }
 

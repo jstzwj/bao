@@ -2,6 +2,7 @@
 // 对应 Bun: src/sql/mysql/protocol/HandshakeV10.zig
 package bao_sql.mysql.protocol
 
+
 /// MySQL 服务器初始握手包 (协议版本 10)
 /// 对应 Bun: HandshakeV10 (struct)
 ///
@@ -48,7 +49,7 @@ public class HandshakeV10 {
         protocolVersion = 10
         serverVersion = Array<UInt8>()
         connectionId = 0
-        authPluginDataPart1 = Array<UInt8>(8)
+        authPluginDataPart1 = Array<UInt8>(8, repeat: UInt8(0))
         authPluginDataPart2 = Array<UInt8>()
         capabilityFlags = Capabilities()
         characterSet = 0
@@ -58,7 +59,7 @@ public class HandshakeV10 {
 
     /// 释放资源
     /// 对应 Bun: HandshakeV10.deinit
-    public func deinit(): Unit {
+    public func release(): Unit {
         serverVersion = Array<UInt8>()
         authPluginName = Array<UInt8>()
     }
@@ -69,7 +70,7 @@ public class HandshakeV10 {
         // 协议版本
         protocolVersion = reader.int8()
         if (protocolVersion != 10) {
-            throw MySQLError.UnsupportedProtocolVersion
+            throw MySQLProtocolException("UnsupportedProtocolVersion")
         }
 
         // 服务器版本 (null 终止字符串)
@@ -107,7 +108,8 @@ public class HandshakeV10 {
         reader.skip(10)
 
         // 认证插件数据第二部分
-        let remainingAuthLen = Int64.max(13, authPluginDataLen - 8)
+        let candidateLen = authPluginDataLen - 8
+        let remainingAuthLen = if (candidateLen > 13) { candidateLen } else { Int64(13) }
         authPluginDataPart2 = reader.read(remainingAuthLen)
 
         // 认证插件名称

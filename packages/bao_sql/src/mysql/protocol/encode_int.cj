@@ -28,24 +28,24 @@ public class EncodeInt {
     /// 对应 Bun: encodeLengthInt
     public static func encodeLengthInt(value: UInt64): Array<UInt8> {
         if (value < 0xfb) {
-            let result = Array<UInt8>(1)
+            let result = Array<UInt8>(1, repeat: UInt8(0))
             result[0] = UInt8(value)
             return result
         } else if (value < 0xffff) {
-            let result = Array<UInt8>(3)
+            let result = Array<UInt8>(3, repeat: UInt8(0))
             result[0] = 0xfc
             result[1] = UInt8(value & 0xff)
             result[2] = UInt8((value >> 8) & 0xff)
             return result
         } else if (value < 0xffffff) {
-            let result = Array<UInt8>(4)
+            let result = Array<UInt8>(4, repeat: UInt8(0))
             result[0] = 0xfd
             result[1] = UInt8(value & 0xff)
             result[2] = UInt8((value >> 8) & 0xff)
             result[3] = UInt8((value >> 16) & 0xff)
             return result
         } else {
-            let result = Array<UInt8>(9)
+            let result = Array<UInt8>(9, repeat: UInt8(0))
             result[0] = 0xfe
             result[1] = UInt8(value & 0xff)
             result[2] = UInt8((value >> 8) & 0xff)
@@ -68,34 +68,29 @@ public class EncodeInt {
 
         let firstByte = bytes[0]
 
-        match (firstByte) {
-            case 0xfc => {
-                if (bytes.size < 3) { return None }
-                let value = UInt64(bytes[1]) | (UInt64(bytes[2]) << 8)
-                return Some(LengthIntResult(value, 3))
-            }
-            case 0xfd => {
-                if (bytes.size < 4) { return None }
-                let value = UInt64(bytes[1]) |
-                    (UInt64(bytes[2]) << 8) |
-                    (UInt64(bytes[3]) << 16)
-                return Some(LengthIntResult(value, 4))
-            }
-            case 0xfe => {
-                if (bytes.size < 9) { return None }
-                let value = UInt64(bytes[1]) |
-                    (UInt64(bytes[2]) << 8) |
-                    (UInt64(bytes[3]) << 16) |
-                    (UInt64(bytes[4]) << 24) |
-                    (UInt64(bytes[5]) << 32) |
-                    (UInt64(bytes[6]) << 40) |
-                    (UInt64(bytes[7]) << 48) |
-                    (UInt64(bytes[8]) << 56)
-                return Some(LengthIntResult(value, 9))
-            }
-            case _ => {
-                return Some(LengthIntResult(UInt64(firstByte), 1))
-            }
+        if (firstByte == UInt8(0xfc)) {
+            if (bytes.size < 3) { return None }
+            let value = UInt64(bytes[1]) | (UInt64(bytes[2]) << 8)
+            return Some(LengthIntResult(value, 3))
+        } else if (firstByte == UInt8(0xfd)) {
+            if (bytes.size < 4) { return None }
+            let value = UInt64(bytes[1]) |
+                (UInt64(bytes[2]) << 8) |
+                (UInt64(bytes[3]) << 16)
+            return Some(LengthIntResult(value, 4))
+        } else if (firstByte == UInt8(0xfe)) {
+            if (bytes.size < 9) { return None }
+            let value = UInt64(bytes[1]) |
+                (UInt64(bytes[2]) << 8) |
+                (UInt64(bytes[3]) << 16) |
+                (UInt64(bytes[4]) << 24) |
+                (UInt64(bytes[5]) << 32) |
+                (UInt64(bytes[6]) << 40) |
+                (UInt64(bytes[7]) << 48) |
+                (UInt64(bytes[8]) << 56)
+            return Some(LengthIntResult(value, 9))
+        } else {
+            return Some(LengthIntResult(UInt64(firstByte), 1))
         }
     }
 }

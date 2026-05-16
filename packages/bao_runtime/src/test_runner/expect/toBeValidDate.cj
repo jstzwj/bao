@@ -2,6 +2,9 @@
 
 package bao_runtime.test_runner.expect
 
+import bao_runtime.test_runner
+import bao_jsc.*
+
 /// toBeValidDate() - 检查值是否为有效Date
 /// 用法: expect(received).toBeValidDate()
 public func toBeValidDate(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
@@ -15,19 +18,19 @@ public func toBeValidDate(`this`: Expect, globalThis: JSGlobalObject, callFrame:
     let not = this.flags.not
     var pass = false
 
-    if value.isDate() {
+    if (value.isDate()) {
         let time = value.getDateValue(globalThis: globalThis)
         pass = !time.isNaN()
     }
 
-    if not { pass = !pass }
-    if pass { return JSValue.jsUndefined }
+    if (not) { pass = !pass }
+    if (pass) { return JSValue.jsUndefined }
 
     let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
     defer { formatter.deinit() }
     let received = value.toFmt(formatter)
 
-    if not {
+    if (not) {
         let signature = Expect.getSignature(matcherName: "toBeValidDate", args: "", not: true)
         return this.throw_(globalThis: globalThis, signature: signature, fmt: "\n\nReceived: <red>{f}<r>\n", args: [received])
     }

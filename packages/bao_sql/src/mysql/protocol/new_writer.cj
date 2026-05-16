@@ -2,6 +2,8 @@
 // 对应 Bun: src/sql/mysql/protocol/NewWriter.zig
 package bao_sql.mysql.protocol
 
+import std.collection.*
+
 /// MySQL 包写入器中的活动包
 /// 对应 Bun: NewWriterWrap.Packet (struct)
 ///
@@ -57,7 +59,7 @@ public class MySQLPacketWriter {
     /// 对应 Bun: NewWriterWrap.write
     public func write(data: Array<UInt8>): Unit {
         for (i in 0..data.size) {
-            buffer.append(data[i])
+            buffer.add(data[i])
         }
     }
 
@@ -74,36 +76,36 @@ public class MySQLPacketWriter {
     public func start(sequenceId: UInt8): MySQLPacket {
         let o = offset()
         // 写入 4 字节占位包头
-        write(Array<UInt8>(4))
+        write(Array<UInt8>(4, repeat: UInt8(0)))
         return MySQLPacket(this, sequenceId, o)
     }
 
     /// 写入 1 字节整数
     /// 对应 Bun: NewWriterWrap.int1
     public func int1(value: UInt8): Unit {
-        buffer.append(value)
+        buffer.add(value)
     }
 
     /// 写入 4 字节小端整数
     /// 对应 Bun: NewWriterWrap.int4
     public func int4(value: UInt32): Unit {
-        buffer.append(UInt8(value & 0xff))
-        buffer.append(UInt8((value >> 8) & 0xff))
-        buffer.append(UInt8((value >> 16) & 0xff))
-        buffer.append(UInt8((value >> 24) & 0xff))
+        buffer.add(UInt8(value & 0xff))
+        buffer.add(UInt8((value >> 8) & 0xff))
+        buffer.add(UInt8((value >> 16) & 0xff))
+        buffer.add(UInt8((value >> 24) & 0xff))
     }
 
     /// 写入 8 字节小端整数
     /// 对应 Bun: NewWriterWrap.int8
     public func int8(value: UInt64): Unit {
-        buffer.append(UInt8(value & 0xff))
-        buffer.append(UInt8((value >> 8) & 0xff))
-        buffer.append(UInt8((value >> 16) & 0xff))
-        buffer.append(UInt8((value >> 24) & 0xff))
-        buffer.append(UInt8((value >> 32) & 0xff))
-        buffer.append(UInt8((value >> 40) & 0xff))
-        buffer.append(UInt8((value >> 48) & 0xff))
-        buffer.append(UInt8((value >> 56) & 0xff))
+        buffer.add(UInt8(value & 0xff))
+        buffer.add(UInt8((value >> 8) & 0xff))
+        buffer.add(UInt8((value >> 16) & 0xff))
+        buffer.add(UInt8((value >> 24) & 0xff))
+        buffer.add(UInt8((value >> 32) & 0xff))
+        buffer.add(UInt8((value >> 40) & 0xff))
+        buffer.add(UInt8((value >> 48) & 0xff))
+        buffer.add(UInt8((value >> 56) & 0xff))
     }
 
     /// 写入 null 终止字符串
@@ -111,7 +113,7 @@ public class MySQLPacketWriter {
     public func writeZ(value: Array<UInt8>): Unit {
         write(value)
         if (value.size == 0 || value[value.size - 1] != 0) {
-            buffer.append(0)
+            buffer.add(0)
         }
     }
 

@@ -17,9 +17,9 @@ package bao_unicode
 public func isIdentifierStart(cp: UInt32): Bool {
     // ASCII 范围快速路径
     if (cp < 0x80) {
-        return (cp >= UInt32('a') && cp <= UInt32('z')) ||
-               (cp >= UInt32('A') && cp <= UInt32('Z')) ||
-               cp == UInt32('_') || cp == UInt32('$')
+        return (cp >= 97 && cp <= 122) ||
+               (cp >= 65 && cp <= 90) ||
+               cp == 95 || cp == 36
     }
 
     // Latin-1 Supplement
@@ -533,7 +533,7 @@ public func isIdentifierContinue(cp: UInt32): Bool {
     if (isIdentifierStart(cp)) { return true }
 
     // ASCII digits
-    if (cp >= UInt32('0') && cp <= UInt32('9')) { return true }
+    if (cp >= 48 && cp <= 57) { return true }
     // ZWNJ (U+200C) and ZWJ (U+200E) - ECMAScript 允许
     if (cp == 0x200C || cp == 0x200D) { return true }
 

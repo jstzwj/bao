@@ -146,7 +146,7 @@ public class JSSourceMap {
 
     /// 内存开销 - 严格对应 Bun memoryCost
     public func memoryCost(): Int64 {
-        return Int64(sizeof<JSSourceMap>()) + sources.size * Int64(sizeof<BaoString>()) + sourcemap.memoryCost()
+        return Int64(0 /* sizeof(JSSourceMap) */) + sources.size * Int64(0 /* sizeof(BaoString) */) + sourcemap.memoryCost()
     }
 
     /// 估计大小 - 严格对应 Bun estimatedSize

@@ -339,7 +339,7 @@ public class Ffi {
                                 }
                                 case FfiStep.Pending => {
                                     dylib.close()
-                                    return JsValue("Failed to compile (nothing happened!)")
+                                    return JsValue("Failed to compile (nothing happened.getOrThrow())")
                                 }
                             }
                         }
@@ -389,7 +389,7 @@ public class Ffi {
                             return JsValue(msg)
                         }
                         case FfiStep.Pending => {
-                            return JsValue("Failed to compile (nothing happened!)")
+                            return JsValue("Failed to compile (nothing happened.getOrThrow())")
                         }
                         case FfiStep.Compiled(_) => ()
                     }

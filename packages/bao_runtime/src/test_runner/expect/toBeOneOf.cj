@@ -2,6 +2,9 @@
 
 package bao_runtime.test_runner.expect
 
+import bao_runtime.test_runner
+import bao_jsc.*
+
 /// toBeOneOf() - 检查值是否在给定集合中
 /// 用法: expect(received).toBeOneOf(list)
 public func toBeOneOf(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
@@ -11,7 +14,7 @@ public func toBeOneOf(`this`: Expect, globalThis: JSGlobalObject, callFrame: Cal
     let arguments_ = callFrame.argumentsOld(1)
     let arguments = arguments_.slice()
 
-    if arguments.length < 1 {
+    if (arguments.length < 1) {
         return globalThis.throwInvalidArguments("toBeOneOf() takes 1 argument")
     }
 
@@ -23,20 +26,20 @@ public func toBeOneOf(`this`: Expect, globalThis: JSGlobalObject, callFrame: Cal
     let not = this.flags.not
     var pass = false
 
-    if listValue.jsTypeLoose().isArrayLike() {
+    if (listValue.jsTypeLoose().isArrayLike()) {
         var itr = listValue.arrayIterator(globalThis: globalThis)
-        while (let item = itr.next()) {
+        while (let Some(item) <- itr.next()) {
             // jest-extended uses `deepEqual`, instead of `toBe`
-            if item.jestDeepEquals(expected, globalThis: globalThis) {
+            if (item.jestDeepEquals(expected, globalThis: globalThis)) {
                 pass = true
                 break
             }
         }
-    } else if listValue.isIterable(globalThis: globalThis) {
-        var expectedEntry = ExpectedEntry(globalThis: globalThis, expected: expected, pass: &pass)
-        listValue.forEach(globalThis: globalThis, context: &expectedEntry, callback: { vm, globalObject, entry_, item =>
+    } else if (listValue.isIterable(globalThis: globalThis)) {
+        var expectedEntry = ExpectedEntry(globalThis: globalThis, expected: expected)
+        listValue.forEach(globalThis: globalThis, context: expectedEntry, callback: { vm, globalObject, entry_, item =>
             let entry = entry_ as ExpectedEntry
-            if item.jestDeepEquals(entry.expected, entry.globalThis) {
+            if (item.jestDeepEquals(entry.expected, entry.globalThis)) {
                 entry.pass = true
             }
         })
@@ -44,15 +47,15 @@ public func toBeOneOf(`this`: Expect, globalThis: JSGlobalObject, callFrame: Cal
         return globalThis.throw_("Received value must be an array type, or both received and expected values must be strings.")
     }
 
-    if not { pass = !pass }
-    if pass { return JSValue.jsUndefined }
+    if (not) { pass = !pass }
+    if (pass) { return JSValue.jsUndefined }
 
     // 处理失败
     let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
     defer { formatter.deinit() }
     let valueFmt = listValue.toFmt(formatter)
     let expectedFmt = expected.toFmt(formatter)
-    if not {
+    if (not) {
         let receivedFmt = listValue.toFmt(formatter)
         let expectedLine = "Expected to not be one of: <green>{f}<r>\nReceived: <red>{f}<r>\n"
         let signature = Expect.getSignature(matcherName: "toBeOneOf", args: "<green>expected<r>", not: true)
@@ -69,5 +72,10 @@ public func toBeOneOf(`this`: Expect, globalThis: JSGlobalObject, callFrame: Cal
 private class ExpectedEntry {
     var globalThis: JSGlobalObject
     var expected: JSValue
-    var pass: Bool
+    var pass: Bool = false
+
+    init(globalThis: JSGlobalObject, expected: JSValue) {
+        this.globalThis = globalThis
+        this.expected = expected
+    }
 }

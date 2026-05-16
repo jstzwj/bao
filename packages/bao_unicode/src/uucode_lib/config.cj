@@ -17,6 +17,13 @@ package bao_unicode.uucode_lib
 public enum CpPacking {
     | Direct
     | Shift
+
+    public operator func ==(other: CpPacking): Bool {
+        match (this) {
+            case Direct => match (other) { case Direct => true case _ => false }
+            case Shift => match (other) { case Shift => true case _ => false }
+        }
+    }
 }
 
 /// 字段类型
@@ -69,8 +76,9 @@ public class UnicodeFieldConfig {
         if (maxLen > 0) {
             return FieldKind.Slice
         }
-        if (cpPacking == CpPacking.Shift) {
-            return FieldKind.Shift
+        match (cpPacking) {
+            case CpPacking.Shift => return FieldKind.Shift
+            case _ => ()
         }
         return FieldKind.Basic
     }
@@ -78,23 +86,27 @@ public class UnicodeFieldConfig {
     /// 是否可以被压缩
     /// 翻译自: pub fn canBePacked(self: Field) bool
     public func canBePacked(): Bool {
-        return kind() != FieldKind.Slice
+        let k = kind()
+        match (k) {
+            case FieldKind.Slice => return false
+            case _ => return true
+        }
     }
 
     /// 创建运行时表示
     /// 翻译自: pub fn runtime(self: Field) Runtime
     public func runtime(): FieldRuntime {
         return FieldRuntime(
-            name: name,
-            typeName: typeName,
-            cpPacking: cpPacking,
-            shiftLow: shiftLow,
-            shiftHigh: shiftHigh,
-            maxLen: maxLen,
-            maxOffset: maxOffset,
-            embeddedLen: embeddedLen,
-            minValue: minValue,
-            maxValue: maxValue
+            name,
+            typeName,
+            cpPacking,
+            shiftLow,
+            shiftHigh,
+            maxLen,
+            maxOffset,
+            embeddedLen,
+            minValue,
+            maxValue
         )
     }
 }
@@ -195,14 +207,24 @@ public class TableConfig {
     /// 解析配置
     /// 翻译自: pub fn resolve(comptime self) Table
     public func resolve(): TableConfig {
-        if (stages != Stages.Auto && packing != Packing.Auto) {
+        var needStages = true
+        var needPacking = true
+        match (stages) {
+            case Stages.Auto => ()
+            case _ => needStages = false
+        }
+        match (packing) {
+            case Packing.Auto => ()
+            case _ => needPacking = false
+        }
+        if (!needStages && !needPacking) {
             return this
         }
         // 自动选择阶段和打包方式
-        if (stages == Stages.Auto) {
+        if (needStages) {
             stages = Stages.Three
         }
-        if (packing == Packing.Auto) {
+        if (needPacking) {
             packing = Packing.Unpacked
         }
         return this

@@ -79,7 +79,7 @@ public class StackReader {
     public func read(count: Int64): Array<UInt8> {
         let currentOffset = offsetRef
         if (!ensureCapacity(count)) {
-            throw MySQLError.ShortRead
+            throw MySQLProtocolException("ShortRead")
         }
 
         skip(count)
@@ -103,6 +103,6 @@ public class StackReader {
             return remaining[0..zeroIndex]
         }
 
-        throw MySQLError.ShortRead
+        throw MySQLProtocolException("ShortRead")
     }
 }

@@ -45,6 +45,16 @@ public enum BreakState {
     | ExtendedPictographic
     | IndicConjunctBreakConsonant
     | IndicConjunctBreakLinker
+
+    public operator func ==(other: BreakState): Bool {
+        match (this) {
+            case Default => match (other) { case Default => true case _ => false }
+            case RegionalIndicator => match (other) { case RegionalIndicator => true case _ => false }
+            case ExtendedPictographic => match (other) { case ExtendedPictographic => true case _ => false }
+            case IndicConjunctBreakConsonant => match (other) { case IndicConjunctBreakConsonant => true case _ => false }
+            case IndicConjunctBreakLinker => match (other) { case IndicConjunctBreakLinker => true case _ => false }
+        }
+    }
 }
 
 /// Grapheme Break 迭代器
@@ -63,7 +73,7 @@ public class GraphemeBreakIterator {
     private var nextCpIt: Utf8Iterator
 
     /// 下一个码点
-    private var nextCp: ?UInt32 = None
+    public var nextCp: ?UInt32 = None
 
     /// 下一个 Grapheme Break 属性
     private var nextGb: GraphemeBreakProperty = GraphemeBreakProperty.Other
@@ -73,26 +83,36 @@ public class GraphemeBreakIterator {
         i = nextCpIt.i
         let cp = nextCpIt.next()
         nextCp = cp
-        if (let Some(codePoint) = cp) {
+        if (let Some(codePoint) <- cp) {
             nextGb = getGraphemeBreak(codePoint)
         } else {
             nextGb = GraphemeBreakProperty.Other
         }
     }
 
+    /// 拷贝构造
+    public init(other: GraphemeBreakIterator) {
+        i = other.i
+        state = other.state
+        nextCpIt = Utf8Iterator(other.nextCpIt.bytes)
+        nextCpIt.i = other.nextCpIt.i
+        nextCp = other.nextCp
+        nextGb = other.nextGb
+    }
+
     /// 获取下一个码点
     /// 翻译自: pub fn nextCodePoint(self: *Self) ?IteratorResult
     public func nextCodePoint(): ?IteratorResult {
-        if (nextCp == None) {
+        if (nextCp.isNone()) {
             return None
         }
 
-        let cp1 = nextCp!
+        let cp1 = nextCp.getOrThrow()
         let gb1 = nextGb
         i = nextCpIt.i
         nextCp = nextCpIt.next()
 
-        if (let Some(cp2) = nextCp) {
+        if (let Some(cp2) <- nextCp) {
             nextGb = getGraphemeBreak(cp2)
             let isBreak = precomputedGraphemeBreak(gb1, nextGb)
             return IteratorResult(cp1, isBreak)
@@ -114,13 +134,14 @@ public class GraphemeBreakIterator {
         let start = i
         while (true) {
             let result = nextCodePoint()
-            if (result == None) {
+            if (result.isNone()) {
                 return None
             }
             if (result.getOrThrow().isBreak) {
                 return Grapheme(start, i)
             }
         }
+        return None
     }
 
     /// 查看下一个字素簇
@@ -157,111 +178,171 @@ public func computeGraphemeBreak(
 ): BreakResult {
     var currentState = state
 
-    // 重置状态
-    match (currentState) {
-        case RegionalIndicator => {
-            if (gb1 != GraphemeBreakProperty.RegionalIndicator ||
-                gb2 != GraphemeBreakProperty.RegionalIndicator) {
-                currentState = BreakState.Default
-            }
+    // 重置状态 - 用 if/else 代替 match (仓颉 match case 块中不能有 if)
+    if (currentState == BreakState.RegionalIndicator) {
+        if (!isRegionalIndicator(gb1) || !isRegionalIndicator(gb2)) {
+            currentState = BreakState.Default
         }
-        case ExtendedPictographic => {
-            match (gb1) {
-                case IndicConjunctBreakExtend | IndicConjunctBreakLinker |
-                     ZWJ | ExtendedPictographic | EmojiModifierBase | EmojiModifier => {}
-                case _ => currentState = BreakState.Default
-            }
-            match (gb2) {
-                case IndicConjunctBreakExtend | IndicConjunctBreakLinker |
-                     ZWJ | ExtendedPictographic | EmojiModifierBase | EmojiModifier => {}
-                case _ => currentState = BreakState.Default
-            }
+    } else if (currentState == BreakState.ExtendedPictographic) {
+        if (!isEmojiOrModifierProp(gb1) || !isEmojiOrModifierProp(gb2)) {
+            currentState = BreakState.Default
         }
-        case IndicConjunctBreakConsonant | IndicConjunctBreakLinker => {
-            match (gb1) {
-                case IndicConjunctBreakConsonant | IndicConjunctBreakLinker |
-                     IndicConjunctBreakExtend | ZWJ => {}
-                case _ => currentState = BreakState.Default
-            }
-            match (gb2) {
-                case IndicConjunctBreakConsonant | IndicConjunctBreakLinker |
-                     IndicConjunctBreakExtend | ZWJ => {}
-                case _ => currentState = BreakState.Default
-            }
+    } else if (currentState == BreakState.IndicConjunctBreakConsonant) {
+        if (!isIndicProp(gb1) || !isIndicProp(gb2)) {
+            currentState = BreakState.Default
         }
-        case Default => ()
+    } else if (currentState == BreakState.IndicConjunctBreakLinker) {
+        if (!isIndicProp(gb1) || !isIndicProp(gb2)) {
+            currentState = BreakState.Default
+        }
     }
 
     // GB3: CR x LF
-    if (gb1 == GraphemeBreakProperty.CR && gb2 == GraphemeBreakProperty.LF) {
+    if (isCR(gb1) && isLF(gb2)) {
         return BreakResult(false, currentState)
     }
 
     // GB4: (Control|CR|LF) -> break
-    if (gb1 == GraphemeBreakProperty.Control ||
-        gb1 == GraphemeBreakProperty.CR ||
-        gb1 == GraphemeBreakProperty.LF) {
+    if (isControlOrCRLF(gb1)) {
         return BreakResult(true, currentState)
     }
 
     // GB5: -> (Control|CR|LF) break
-    if (gb2 == GraphemeBreakProperty.Control ||
-        gb2 == GraphemeBreakProperty.CR ||
-        gb2 == GraphemeBreakProperty.LF) {
+    if (isControlOrCRLF(gb2)) {
         return BreakResult(true, currentState)
     }
 
     // GB6: L x (L|V|LV|LVT)
-    if (gb1 == GraphemeBreakProperty.L) {
-        if (gb2 == GraphemeBreakProperty.L || gb2 == GraphemeBreakProperty.V ||
-            gb2 == GraphemeBreakProperty.LV || gb2 == GraphemeBreakProperty.LVT) {
-            return BreakResult(false, currentState)
-        }
+    if (isL(gb1) && isLVOrVOrLVTV(gb2)) {
+        return BreakResult(false, currentState)
     }
 
     // GB7: (LV|V) x (V|T)
-    if (gb1 == GraphemeBreakProperty.LV || gb1 == GraphemeBreakProperty.V) {
-        if (gb2 == GraphemeBreakProperty.V || gb2 == GraphemeBreakProperty.T) {
-            return BreakResult(false, currentState)
-        }
+    if (isLVOrV(gb1) && isVOrT(gb2)) {
+        return BreakResult(false, currentState)
     }
 
     // GB8: (LVT|T) x T
-    if (gb1 == GraphemeBreakProperty.LVT || gb1 == GraphemeBreakProperty.T) {
-        if (gb2 == GraphemeBreakProperty.T) {
-            return BreakResult(false, currentState)
-        }
+    if (isLVTOrT(gb1) && isT(gb2)) {
+        return BreakResult(false, currentState)
     }
 
     // GB9a: x SpacingMark
-    if (gb2 == GraphemeBreakProperty.SpacingMark) {
+    if (isSpacingMark(gb2)) {
         return BreakResult(false, currentState)
     }
 
     // GB9b: Prepend x
-    if (gb1 == GraphemeBreakProperty.Prepend) {
+    if (isPrepend(gb1)) {
         return BreakResult(false, currentState)
     }
 
     // GB12-13: Regional Indicator
-    if (gb1 == GraphemeBreakProperty.RegionalIndicator &&
-        gb2 == GraphemeBreakProperty.RegionalIndicator) {
+    if (isRegionalIndicator(gb1) && isRegionalIndicator(gb2)) {
         if (currentState == BreakState.Default) {
             currentState = BreakState.RegionalIndicator
             return BreakResult(false, currentState)
-        } else {
-            currentState = BreakState.Default
-            return BreakResult(true, currentState)
         }
+        currentState = BreakState.Default
+        return BreakResult(true, currentState)
     }
 
     // GB9: x (Extend|ZWJ)
-    if (gb2 == GraphemeBreakProperty.Extend || gb2 == GraphemeBreakProperty.ZWJ) {
+    if (isExtendOrZWJ(gb2)) {
         return BreakResult(false, currentState)
     }
 
     // GB999: Otherwise break
     return BreakResult(true, currentState)
+}
+
+// 辅助判断函数 - 使用 match 替代 == 比较 enum
+private func isCR(gb: GraphemeBreakProperty): Bool {
+    match (gb) { case GraphemeBreakProperty.CR => true case _ => false }
+}
+private func isLF(gb: GraphemeBreakProperty): Bool {
+    match (gb) { case GraphemeBreakProperty.LF => true case _ => false }
+}
+private func isControlOrCRLF(gb: GraphemeBreakProperty): Bool {
+    match (gb) {
+        case GraphemeBreakProperty.Control => true
+        case GraphemeBreakProperty.CR => true
+        case GraphemeBreakProperty.LF => true
+        case _ => false
+    }
+}
+private func isL(gb: GraphemeBreakProperty): Bool {
+    match (gb) { case GraphemeBreakProperty.L => true case _ => false }
+}
+private func isLVOrVOrLVTV(gb: GraphemeBreakProperty): Bool {
+    match (gb) {
+        case GraphemeBreakProperty.L => true
+        case GraphemeBreakProperty.V => true
+        case GraphemeBreakProperty.LV => true
+        case GraphemeBreakProperty.LVT => true
+        case _ => false
+    }
+}
+private func isLVOrV(gb: GraphemeBreakProperty): Bool {
+    match (gb) {
+        case GraphemeBreakProperty.LV => true
+        case GraphemeBreakProperty.V => true
+        case _ => false
+    }
+}
+private func isVOrT(gb: GraphemeBreakProperty): Bool {
+    match (gb) {
+        case GraphemeBreakProperty.V => true
+        case GraphemeBreakProperty.T => true
+        case _ => false
+    }
+}
+private func isLVTOrT(gb: GraphemeBreakProperty): Bool {
+    match (gb) {
+        case GraphemeBreakProperty.LVT => true
+        case GraphemeBreakProperty.T => true
+        case _ => false
+    }
+}
+private func isT(gb: GraphemeBreakProperty): Bool {
+    match (gb) { case GraphemeBreakProperty.T => true case _ => false }
+}
+private func isSpacingMark(gb: GraphemeBreakProperty): Bool {
+    match (gb) { case GraphemeBreakProperty.SpacingMark => true case _ => false }
+}
+private func isPrepend(gb: GraphemeBreakProperty): Bool {
+    match (gb) { case GraphemeBreakProperty.Prepend => true case _ => false }
+}
+private func isRegionalIndicator(gb: GraphemeBreakProperty): Bool {
+    match (gb) { case GraphemeBreakProperty.RegionalIndicator => true case _ => false }
+}
+private func isExtendOrZWJ(gb: GraphemeBreakProperty): Bool {
+    match (gb) {
+        case GraphemeBreakProperty.Extend => true
+        case GraphemeBreakProperty.ZWJ => true
+        case _ => false
+    }
+}
+/// 检查是否为 Emoji/Modifier 相关属性
+private func isEmojiOrModifierProp(gb: GraphemeBreakProperty): Bool {
+    match (gb) {
+        case GraphemeBreakProperty.Extend => true
+        case GraphemeBreakProperty.ZWJ => true
+        case GraphemeBreakProperty.ExtendedPictographic => true
+        case GraphemeBreakProperty.EmojiModifierBase => true
+        case GraphemeBreakProperty.EmojiModifier => true
+        case _ => false
+    }
+}
+
+/// 检查是否为 Indic 相关属性
+private func isIndicProp(gb: GraphemeBreakProperty): Bool {
+    match (gb) {
+        case GraphemeBreakProperty.Other => true
+        case GraphemeBreakProperty.Extend => true
+        case GraphemeBreakProperty.ZWJ => true
+        case _ => false
+    }
 }
 
 /// Break 结果

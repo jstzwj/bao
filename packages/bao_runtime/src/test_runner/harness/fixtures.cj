@@ -3,6 +3,8 @@
 
 package bao_runtime.test_runner.harness
 
+import std.collection.HashMap
+
 // ========== Fixtures - 测试夹具 ==========
 
 /// 测试夹具映射 - 内嵌文件内容
@@ -31,7 +33,7 @@ public class Fixtures {
     }
 
     /// 示例路由列表 - 用于测试路由匹配
-    public static let sampleRouteList: HashMap<String, String> = {
+    public static func getSampleRouteList(): HashMap<String, String> {
         let map = HashMap<String, String>()
         map["pages/[...catch-all-at-root].js"] = "//pages/[...catch-all-at-root].js"
         map["pages/index.js"] = "//pages/index.js"
@@ -42,10 +44,10 @@ public class Fixtures {
         map["pages/[TitleCaseParam]/[snake_case_param]/file.js"] = "//pages/[TitleCaseParam]/[snake_case_param]/file.js"
         map["pages/[TitleCaseParam]/[snake_case_param]/bacon/index.js"] = "//pages/[TitleCaseParam]/[snake_case_param]/bacon/index.js"
         return map
-    }()
+    }
 
     /// GitHub API路由列表 - 用于测试复杂路由匹配
-    public static let githubApiRoutesList: HashMap<String, String> = {
+    public static func getGithubApiRoutesList(): HashMap<String, String> {
         let map = HashMap<String, String>()
         map["pages/index.js"] = "//pages/index.js"
         map["pages/app.js"] = "//pages/app.js"
@@ -75,7 +77,6 @@ public class Fixtures {
         map["pages/search/topics.js"] = "//pages/search/topics.js"
         map["pages/search/users.js"] = "//pages/search/users.js"
         map["pages/zen.js"] = "//pages/zen.js"
-        // 部分repos路由 (翻译自Bun)
         map["pages/repos/[owner]/[repo].js"] = "//pages/repos/[owner]/[repo].js"
         map["pages/repos/[owner]/[repo]/contents/[path].js"] = "//pages/repos/[owner]/[repo]/contents/[path].js"
         map["pages/repos/[owner]/[repo]/issues.js"] = "//pages/repos/[owner]/[repo]/issues.js"
@@ -89,10 +90,10 @@ public class Fixtures {
         map["pages/repos/[owner]/[repo]/stargazers.js"] = "//pages/repos/[owner]/[repo]/stargazers.js"
         map["pages/repos/[owner]/[repo]/contributors.js"] = "//pages/repos/[owner]/[repo]/contributors.js"
         return map
-    }()
+    }
 
     /// Vercel路由列表
-    public static let vercelRoutesList: HashMap<String, String> = {
+    public static func getVercelRoutesList(): HashMap<String, String> {
         let map = HashMap<String, String>()
         map["pages/index.js"] = "// pages/index.js"
         map["pages/404.js"] = "// pages/404.js"
@@ -122,5 +123,5 @@ public class Fixtures {
         map["pages/[teamSlug]/[project]/insights.js"] = "// pages/[teamSlug]/[project]/insights.js"
         map["pages/[teamSlug]/[project]/settings.js"] = "// pages/[teamSlug]/[project]/settings.js"
         return map
-    }()
+    }
 }

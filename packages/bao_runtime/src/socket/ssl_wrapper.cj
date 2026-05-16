@@ -192,7 +192,7 @@ public class SslWrapper<T> {
     /// 触发 onOpen 回调以便用户在第一次握手前配置 SSL 连接
     public func start(): Unit {
         if (userCtx != None) {
-            handlers.onOpen(userCtx!)
+            handlers.onOpen(userCtx.getOrThrow())
         }
         handleTraffic()
     }
@@ -200,7 +200,7 @@ public class SslWrapper<T> {
     /// 使用初始载荷启动 SSL 连接
     public func startWithPayload(payload: Array<Byte>): Unit {
         if (userCtx != None) {
-            handlers.onOpen(userCtx!)
+            handlers.onOpen(userCtx.getOrThrow())
         }
         receiveData(payload)
         handleTraffic()
@@ -414,7 +414,7 @@ public class SslWrapper<T> {
         }
         flags.closedNotified = true
         if (userCtx != None) {
-            handlers.onClose(userCtx!)
+            handlers.onClose(userCtx.getOrThrow())
         }
     }
 

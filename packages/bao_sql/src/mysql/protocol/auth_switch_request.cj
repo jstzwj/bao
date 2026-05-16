@@ -25,23 +25,23 @@ public class AuthSwitchRequest {
 
     public init() {
         header = 0xfe
-        pluginName = Array<UInt8>()
-        pluginData = Array<UInt8>()
+        pluginName = []
+        pluginData = []
         packetSize = 0
     }
 
     public init(packetSize: UInt32) {
         header = 0xfe
-        pluginName = Array<UInt8>()
-        pluginData = Array<UInt8>()
+        pluginName = []
+        pluginData = []
         this.packetSize = packetSize
     }
 
     /// 释放资源
     /// 对应 Bun: AuthSwitchRequest.deinit
-    public func deinit(): Unit {
-        pluginName = Array<UInt8>()
-        pluginData = Array<UInt8>()
+    public func release(): Unit {
+        pluginName = []
+        pluginData = []
     }
 
     /// 从读取器解码认证切换请求
@@ -49,7 +49,7 @@ public class AuthSwitchRequest {
     public func decode(reader: MySQLPacketReader): Unit {
         header = reader.int8()
         if (header != 0xfe) {
-            throw MySQLError.InvalidAuthSwitchRequest
+            throw AuthException("Invalid auth switch request")
         }
 
         // 读取剩余数据
@@ -73,6 +73,6 @@ public class AuthSwitchRequest {
             return
         }
 
-        throw MySQLError.InvalidAuthSwitchRequest
+        throw AuthException("Invalid auth switch request")
     }
 }

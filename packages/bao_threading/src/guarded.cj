@@ -141,7 +141,7 @@ public class GuardedBy<T, M> where M <: Lockable {
 /// 翻译自: pub fn Debug(comptime Value: type) type
 ///   return GuardedBy(Value, bun.safety.ThreadLock)
 /// 仓颉使用普通的 Guarded<T> 替代
-public typealias Debug<T> = Guarded<T>
+public type Debug<T> = Guarded<T>
 
 // ============================================================================
 // Lockable - 互斥锁接口

@@ -36,7 +36,7 @@ public class LocalInfileRequest {
     public func decode(reader: MySQLPacketReader): Unit {
         let header = reader.int8()
         if (header != 0xfb) {
-            throw MySQLError.InvalidLocalInfileRequest
+            throw MySQLProtocolException("InvalidLocalInfileRequest")
         }
 
         filename = reader.read(Int64(packetSize) - 1)

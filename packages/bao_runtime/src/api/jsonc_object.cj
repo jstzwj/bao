@@ -30,6 +30,11 @@ public class JSONCObject {
         let allocator = arena.allocator()
         defer arena.deinit()
 
+        // 设置 AST 内存分配器 (JSON 解析所需)
+        var astMemoryAllocator = handleOom(allocator.create(ASTMemoryAllocator))
+        var astScope = astMemoryAllocator.enter(allocator)
+        defer astScope.exit()
+
         let inputValue = callframe.argument(0)
         if (inputValue.isEmptyOrUndefinedOrNull()) {
             globalThis.throwInvalidArguments("Expected a string to parse")
@@ -41,11 +46,33 @@ public class JSONCObject {
 
         let source = Logger.Source.initPathString("input.jsonc", inputSlice.slice())
 
-        let parseResult = try JSON.parseTSConfig(source, allocator, true) ?? {
-            globalThis.throwValue(globalThis.createSyntaxErrorInstance("Failed to parse JSONC"))
-            return JsValue.zero
+        var log = Logger.Log.init(default_allocator)
+        defer log.deinit()
+
+        let parseResult = try JSON.parseTSConfig(source, log, allocator, true) catch {
+            err => match (err) {
+                case Error.StackOverflow =>
+                    return globalThis.throwStackOverflow()
+                default =>
+                    if (log.msgs.items.length > 0) {
+                        let firstMsg = log.msgs.items[0]
+                        return globalThis.throwValue(
+                            globalThis.createSyntaxErrorInstance("JSONC Parse error: " + firstMsg.data.text)
+                        )
+                    }
+                    return globalThis.throwValue(
+                        globalThis.createSyntaxErrorInstance("JSONC Parse error: Unable to parse JSONC string")
+                    )
+            }
         }
 
-        return try parseResult.toJS(allocator, globalThis)
+        return try parseResult.toJS(allocator, globalThis) catch {
+            err => match (err) {
+                case Error.OutOfMemory => return Error.OutOfMemory
+                case Error.JsError => return Error.JsError
+                case Error.JsTerminated => return Error.JsTerminated
+                default => unreachable("JSONC parsing does not produce macros or identifiers")
+            }
+        }
     }
 }

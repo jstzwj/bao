@@ -9,6 +9,8 @@
 //   - FetchCacheMode.zig: Fetch API 缓存模式
 //   - FetchRedirect.zig: Fetch API 重定向策略
 //   - FetchRequestMode.zig: Fetch API 请求模式
+//   - h2.rs: HTTP/2 线格式类型 (RFC 7540/9113)
+//   - mime_type_list_enum.rs: 已知 MIME 类型列表 (2310 个)
 package bao_http_types
 
 import bao_core.*

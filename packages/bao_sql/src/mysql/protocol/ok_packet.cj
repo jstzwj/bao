@@ -2,6 +2,7 @@
 // 对应 Bun: src/sql/mysql/protocol/OKPacket.zig
 package bao_sql.mysql.protocol
 
+
 /// MySQL OK 响应包
 /// 对应 Bun: OKPacket (struct)
 ///
@@ -75,14 +76,18 @@ public class OKPacket {
 
         header = reader.int8()
         if (header != 0x00 && header != 0xfe) {
-            throw MySQLError.InvalidOKPacket
+            throw MySQLProtocolException("InvalidOKPacket")
         }
 
         // 受影响的行数 (长度编码整数)
-        affectedRows = reader.encodedLenIntWithSize(&readSize)
+        let affectedResult = reader.encodedLenIntWithSize()
+        affectedRows = affectedResult.value
+        readSize += affectedResult.bytesRead
 
         // 最后插入 ID (长度编码整数)
-        lastInsertId = reader.encodedLenIntWithSize(&readSize)
+        let lastIdResult = reader.encodedLenIntWithSize()
+        lastInsertId = lastIdResult.value
+        readSize += lastIdResult.bytesRead
 
         // 状态标志
         statusFlags = StatusFlags.fromInt(reader.int16())

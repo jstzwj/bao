@@ -37,7 +37,7 @@ foreign func BIO_push(bio: CPointer<Unit>, append: CPointer<Unit>): CPointer<Uni
 foreign func BIO_read_asn1(bio: CPointer<Unit>, out: CPointer<CPointer<Unit>>, out_len: CPointer<UIntNative>, max_len: UIntNative): Int32
 foreign func BIO_set_data(bio: CPointer<Unit>, data: CPointer<Unit>): Unit
 foreign func BIO_set_fd(bio: CPointer<Unit>, fd: Int32, close_flag: Int32): Int64
-foreign func BIO_set_init(bio: CPointer<Unit>, init: Int32): Unit
+foreign func BIO_set_init(bio: CPointer<Unit>, `init`: Int32): Unit
 foreign func BIO_set_retry_special(bio: CPointer<Unit>): Unit
 foreign func BIO_set_shutdown(bio: CPointer<Unit>, shutdown: Int32): Unit
 foreign func BIO_set_write_buffer_size(bio: CPointer<Unit>, size: UIntNative): Int64
@@ -52,7 +52,7 @@ foreign func PEM_dek_info(buf: CPointer<UInt8>, type_: CString, len: Int32, str:
 foreign func PEM_do_header(cipher: CPointer<EvpCipherInfo>, data: CPointer<CPointer<UInt8>>, plen: CPointer<UIntNative>, cb: CPointer<Unit>, u: CPointer<Unit>): Int32
 foreign func PEM_get_EVP_CIPHER_INFO(header: CPointer<UInt8>, cipher: CPointer<EvpCipherInfo>): Int32
 foreign func PEM_proc_type(buf: CPointer<UInt8>, type_: Int32): Unit
-foreign func PEM_read_bio(bp: CPointer<Unit>, name: CPointer<CString<CString>>, header: CPointer<CPointer<UInt8>>, data: CPointer<CPointer<UInt8>>): Int32
+foreign func PEM_read_bio(bp: CPointer<Unit>, name: CPointer<CString>, header: CPointer<CPointer<UInt8>>, data: CPointer<CPointer<UInt8>>): Int32
 foreign func PEM_write_bio(bp: CPointer<Unit>, name: CString, header: CString, data: CPointer<UInt8>, len: UIntNative): Int32
 foreign func PEM_read_bio_DSAparams(bp: CPointer<Unit>, x: CPointer<CPointer<Unit>>, cb: CPointer<Unit>, u: CPointer<Unit>): CPointer<Unit>
 foreign func PEM_write_bio_DSAparams(bp: CPointer<Unit>, x: CPointer<Unit>): Int32
@@ -71,7 +71,6 @@ foreign func PEM_write_bio_RSAPublicKey(bp: CPointer<Unit>, x: CPointer<Unit>): 
 foreign func PEM_read_bio_SSL_SESSION(bp: CPointer<Unit>, x: CPointer<CPointer<Unit>>, cb: CPointer<Unit>, u: CPointer<Unit>): CPointer<Unit>
 foreign func PEM_write_bio_SSL_SESSION(bp: CPointer<Unit>, x: CPointer<Unit>): Int32
 foreign func PEM_read_bio_X509_CRL(bp: CPointer<Unit>, x: CPointer<CPointer<Unit>>, cb: CPointer<Unit>, u: CPointer<Unit>): CPointer<Unit>
-foreign func PEM_write_bio_X509_CRL(bp: CPointer<Unit>, x: CPointer<Unit>): Int32
 foreign func PEM_write_bio_X509_REQ_NEW(bp: CPointer<Unit>, x: CPointer<Unit>): Int32
 foreign func PEM_write_bio_PKCS8(bp: CPointer<Unit>, x: CPointer<EvpPkeySt>): Int32
 foreign func PEM_write_bio_PKCS8PrivateKey_nid(bp: CPointer<Unit>, x: CPointer<EvpPkeySt>, nid: Int32, kstr: CPointer<UInt8>, klen: Int32, cb: CPointer<Unit>, u: CPointer<Unit>): Int32
@@ -151,11 +150,11 @@ foreign func CRYPTO_pre_sandbox_init(): Unit
 foreign func CRYPTO_secure_malloc_init(fd: Int32, size: UIntNative): Int32
 foreign func CRYPTO_secure_malloc_initialized(): Int32
 foreign func CRYPTO_secure_used(): UIntNative
-foreign func CRYPTO_set_locking_callback(func: CPointer<Unit>): Unit
-foreign func CRYPTO_set_add_lock_callback(func: CPointer<Unit>): Unit
-foreign func CRYPTO_set_dynlock_create_callback(func: CPointer<Unit>): Unit
-foreign func CRYPTO_set_dynlock_destroy_callback(func: CPointer<Unit>): Unit
-foreign func CRYPTO_set_dynlock_lock_callback(func: CPointer<Unit>): Unit
+foreign func CRYPTO_set_locking_callback(`func`: CPointer<Unit>): Unit
+foreign func CRYPTO_set_add_lock_callback(`func`: CPointer<Unit>): Unit
+foreign func CRYPTO_set_dynlock_create_callback(`func`: CPointer<Unit>): Unit
+foreign func CRYPTO_set_dynlock_destroy_callback(`func`: CPointer<Unit>): Unit
+foreign func CRYPTO_set_dynlock_lock_callback(`func`: CPointer<Unit>): Unit
 
 // --- OBJ 补充 ---
 foreign func OBJ_cbs2nid(cbs: CPointer<CbsSt>): Int32
@@ -182,9 +181,6 @@ foreign func SHA224_Update(sha: CPointer<Sha256Ctx>, data: CPointer<Unit>, len: 
 foreign func SHA224_Final(out: CPointer<UInt8>, sha: CPointer<Sha256Ctx>): Int32
 foreign func SHA256_Transform(sha: CPointer<Sha256Ctx>, data: CPointer<UInt8>): Unit
 foreign func SHA256_TransformBlocks(sha: CPointer<Sha256Ctx>, data: CPointer<UInt8>, num_blocks: UIntNative): Unit
-foreign func SHA384_Init(sha: CPointer<Sha512Ctx>): Int32
-foreign func SHA384_Update(sha: CPointer<Sha512Ctx>, data: CPointer<Unit>, len: UIntNative): Int32
-foreign func SHA384_Final(out: CPointer<UInt8>, sha: CPointer<Sha512Ctx>): Int32
 foreign func SHA512_Transform(sha: CPointer<Sha512Ctx>, data: CPointer<UInt8>): Unit
 foreign func SHA512_256(data: CPointer<UInt8>, len: UIntNative, out: CPointer<UInt8>): CPointer<UInt8>
 foreign func SHA512_256_Init(sha: CPointer<Sha512Ctx>): Int32

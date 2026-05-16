@@ -77,3 +77,12 @@ package bao_threading
 // -- thread_pool.cj --
 // ThreadPool, ThreadPoolTask, TaskBatch, ThreadPoolConfig,
 // ThreadPoolState, WorkPool
+
+// -- mutex_futex.cj --
+// FutexMutex (Mutex FutexImpl: unlocked/locked/contended 原子状态机)
+
+// -- condition_futex.cj --
+// FutexCondition (Condition FutexImpl: waiter/signal 计数 + epoch futex)
+
+// -- pool_sync.cj --
+// AtomicSync, SyncOps, SyncState, PoolEvent (ThreadPool Sync packed struct + Event)

@@ -11,6 +11,34 @@
 //   - OOM 处理 (handle_oom.zig)
 //   - CPU 特性检测 (CPUFeatures.zig)
 package bao_core.crash_handler
+import std.collection.*
+
+import bao_core.*
+
+/// UInt64 转十六进制字符串
+func formatHex(v: UInt64): String {
+    if (v == UInt64(0)) {
+        return "0"
+    }
+    var digits = ArrayList<UInt8>()
+    var val = v
+    while (val > UInt64(0)) {
+        let digit = Int64(val % UInt64(16))
+        if (digit < 10) {
+            digits.add(UInt8(48 + digit))
+        } else {
+            digits.add(UInt8(87 + digit))
+        }
+        val = val / UInt64(16)
+    }
+    var sb = StringBuilder()
+    var i = digits.size - 1
+    while (i >= 0) {
+        sb.append(Rune(Int32(digits[i])))
+        i -= 1
+    }
+    return sb.toString()
+}
 
 // ============================================================================
 // C FFI 声明
@@ -30,9 +58,9 @@ foreign func _exit(status: Int32): Unit
 @C
 foreign func getpid(): Int32
 @C
-foreign func write(fd: Int32, buf: CPointer<Unit>, count: UIntNative): UIntNative
+foreign func write(fd: Int32, buf: CPointer<UInt8>, count: UIntNative): UIntNative
 @C
-foreign func malloc(size: UIntNative): CPointer<Unit>
+foreign func malloc(size: UIntNative): CPointer<UInt8>
 @C
 foreign func free(ptr: CPointer<Unit>): Unit
 @C
@@ -93,65 +121,8 @@ private var hasPrintedMessage: Bool = false
 /// 对应 Bun: panicking = std.atomic.Value(u8).init(0)
 private var panickingCount: Int32 = 0
 
-// ============================================================================
-// CrashReason - 崩溃原因
-// 严格翻译自: crash_handler.zig CrashReason = union(enum)
-// ============================================================================
-
-/// 崩溃原因
-/// 对应 Bun: CrashReason = union(enum) {
-///   panic: []const u8,
-///   @"unreachable",
-///   segmentation_fault: usize,
-///   illegal_instruction: usize,
-///   bus_error: usize,        // Posix-only
-///   floating_point_error: usize, // Posix-only
-///   datatype_misalignment,   // Windows-only
-///   stack_overflow,          // Windows-only
-///   zig_error: anyerror,
-///   out_of_memory,
-/// }
-public enum CrashReason {
-    | Panic(String)              // @panic(msg)
-    | Unreachable                // "reached unreachable code"
-    | SegmentationFault(UInt64)  // 地址
-    | IllegalInstruction(UInt64) // 地址
-    | BusError(UInt64)           // 地址 (Posix-only)
-    | FloatingPointError(UInt64) // 地址 (Posix-only)
-    | DatatypeMisalignment       // Windows-only: 未对齐内存访问
-    | StackOverflow              // Windows-only: 栈溢出
-    | ZigError(String)           // error.{name}
-    | OutOfMemory                // OOM
-
-    /// 格式化崩溃原因
-    /// 对应 Bun: CrashReason.format(writer)
-    public func format(): String {
-        match (this) {
-            case Panic(msg) => "${msg}"
-            case Unreachable => "reached unreachable code"
-            case SegmentationFault(addr) => "Segmentation fault at address 0x${addr.toString(16)}"
-            case IllegalInstruction(addr) => "Illegal instruction at address 0x${addr.toString(16)}"
-            case BusError(addr) => "Bus error at address 0x${addr.toString(16)}"
-            case FloatingPointError(addr) => "Floating point error at address 0x${addr.toString(16)}"
-            case DatatypeMisalignment => "Unaligned memory access"
-            case StackOverflow => "Stack overflow"
-            case ZigError(name) => "error.${name}"
-            case OutOfMemory => "Bun ran out of memory"
-        }
-    }
-
-    /// 从 POSIX 信号构造
-    /// 对应 Bun: handleSegfaultPosix 中的 switch(sig)
-    public static func fromSignal(sig: Int32, addr: UInt64): CrashReason {
-        match (sig) {
-            case 11 => SegmentationFault(addr)  // SIGSEGV
-            case 4 => IllegalInstruction(addr)   // SIGILL
-            case 7 => BusError(addr)             // SIGBUS
-            case 8 => FloatingPointError(addr)   // SIGFPE
-            case _ => Panic("Unknown signal ${sig}")
-        }
-    }
-}
+// CrashReason 已移至 bao_core 父包 (crash_handler.cj)
+// 子包通过 import bao_core.* 使用父包的 CrashReason
 
 // ============================================================================
 // Action - 崩溃时的操作描述
@@ -240,18 +211,18 @@ public enum CrashPlatform {
     /// 对应 Bun: @intFromEnum(Platform.current)
     public func toChar(): UInt8 {
         match (this) {
-            case LinuxX86_64 => UInt8('l')
-            case LinuxX86_64Baseline => UInt8('B')
-            case LinuxAarch64 => UInt8('L')
-            case MacX86_64Baseline => UInt8('b')
-            case MacX86_64 => UInt8('m')
-            case MacAarch64 => UInt8('M')
-            case WindowsX86_64 => UInt8('w')
-            case WindowsX86_64Baseline => UInt8('e')
-            case WindowsAarch64 => UInt8('W')
-            case FreeBsdX86_64 => UInt8('f')
-            case FreeBsdX86_64Baseline => UInt8('g')
-            case FreeBsdAarch64 => UInt8('F')
+            case LinuxX86_64 => UInt8(108)       // 'l'
+            case LinuxX86_64Baseline => UInt8(66) // 'B'
+            case LinuxAarch64 => UInt8(76)       // 'L'
+            case MacX86_64Baseline => UInt8(98)  // 'b'
+            case MacX86_64 => UInt8(109)         // 'm'
+            case MacAarch64 => UInt8(77)         // 'M'
+            case WindowsX86_64 => UInt8(119)     // 'w'
+            case WindowsX86_64Baseline => UInt8(101) // 'e'
+            case WindowsAarch64 => UInt8(87)     // 'W'
+            case FreeBsdX86_64 => UInt8(102)     // 'f'
+            case FreeBsdX86_64Baseline => UInt8(103) // 'g'
+            case FreeBsdAarch64 => UInt8(70)     // 'F'
         }
     }
 
@@ -298,7 +269,7 @@ public class StackLine {
     ///   无 object -> VLQ(address)
     public func writeEncoded(): String {
         let sb = StringBuilder()
-        if (objectName != None) {
+        if (objectName.isSome()) {
             let obj = objectName.getOrThrow()
             sb.append(VLQEncode.encode(1))
             sb.append(VLQEncode.encode(obj.size))
@@ -312,8 +283,8 @@ public class StackLine {
     /// 对应 Bun: StackLine.format(writer)
     public func format(): String {
         match (objectName) {
-            case Some(obj) => "0x${address.toString(16)} @ ${obj}"
-            case None => "0x${address.toString(16)}"
+            case Some(obj) => "0x${formatHex(UInt64(Int64(address)))} @ ${obj}"
+            case _ => "0x${formatHex(UInt64(Int64(address)))}"
         }
     }
 }
@@ -338,7 +309,7 @@ public class VLQEncode {
             if (v > 0) {
                 digit = digit | 0x20
             }
-            sb.append(Char(Int32('A') + digit))
+            sb.append(Rune(Int32(65) + digit))  // 'A' = 65
             if (v <= 0) { break }
         }
         return sb.toString()
@@ -362,6 +333,19 @@ public class VLQEncode {
 public enum TraceAction {
     | OpenIssue     // 打开预填的 GitHub issue
     | ViewTrace     // 仅查看追踪信息
+
+    public func equals(other: TraceAction): Bool {
+        match (this) {
+            case OpenIssue => match (other) {
+                case OpenIssue => true
+                case _ => false
+            }
+            case ViewTrace => match (other) {
+                case ViewTrace => true
+                case _ => false
+            }
+        }
+    }
 }
 
 /// 追踪字符串
@@ -394,7 +378,7 @@ public class TraceString {
 
         // 平台字符
         let platform = CrashPlatform.current()
-        sb.append(Char(platform.toChar()))
+        sb.append(Rune(Int32(platform.toChar())))
 
         // 命令字符 (简化: 使用 '_')
         sb.append("_")
@@ -428,10 +412,11 @@ public class TraceString {
             case StackOverflow => sb.append("7")
             case ZigError(_) => sb.append("8")
             case OutOfMemory => sb.append("9")
+            case UnknownError(_) => sb.append("X")
         }
 
         // 动作后缀
-        if (action == TraceAction.ViewTrace) {
+        if (action.equals(TraceAction.ViewTrace)) {
             sb.append("/view")
         }
 
@@ -498,11 +483,11 @@ public class CrashHandler {
     ///   9. crash() 终止进程
     public static func crashHandler(reason: CrashReason,
                                      errorReturnTrace: ?StackTrace,
-                                     beginAddr: ?UInt64): Nothing {
+                                     beginAddr: ?UInt64): Unit {
         // 阶段 0: 首次崩溃
         // 执行预崩溃钩子
         let report = CrashReport(reason)
-        report.pid = Int64(getpid())
+        report.pid = Int64(unsafe { getpid() })
         report.stackTrace = match (errorReturnTrace) {
             case Some(t) => t
             case None => StackTrace.capture()
@@ -540,20 +525,20 @@ public class CrashHandler {
 
         // 终止进程
         // 对应 Bun: crash() -> @trap() on POSIX, abort() on Windows
-        abort()
+        unsafe { abort() }
     }
 
     /// panic 实现
     /// 对应 Bun: pub fn panicImpl(msg, error_return_trace, begin_addr) noreturn
     ///   如果 msg == "reached unreachable code" -> .unreachable
     ///   否则 -> .panic(msg)
-    public static func panicImpl(message: String): Nothing {
+    public static func panicImpl(message: String): Unit {
         let reason = if (message == "reached unreachable code") {
             CrashReason.Unreachable
         } else {
             CrashReason.Panic(message)
         }
-        return crashHandler(reason, None, None)
+        return crashHandler(reason, Option<StackTrace>.None, Option<UInt64>.None)
     }
 
     /// 处理根错误
@@ -566,19 +551,19 @@ public class CrashHandler {
     ///   - ENOENT/FileNotFound -> 文件不存在
     ///   - MissingPackageJSON -> 缺少 package.json
     ///   - else -> 内部错误
-    public static func handleRootError(err: ErrorCode): Nothing {
+    public static func handleRootError(err: ErrorCode): Unit {
         match (err) {
             case OutOfMemory => handleOutOfMemory()
-            case InvalidArgument => abort()
-            case ENOENT => abort()
-            case _ => abort()
+            case InvalidArgument => unsafe { abort() }
+            case ENOENT => unsafe { abort() }
+            case _ => unsafe { abort() }
         }
     }
 
     /// 处理 OOM
     /// 对应 Bun: handle_oom.zig handleOom()
-    public static func handleOutOfMemory(): Nothing {
-        return crashHandler(CrashReason.OutOfMemory, None, None)
+    public static func handleOutOfMemory(): Unit {
+        return crashHandler(CrashReason.OutOfMemory, Option<StackTrace>.None, Option<UInt64>.None)
     }
 
     /// 重置信号处理器为默认
@@ -593,7 +578,7 @@ public class CrashHandler {
     /// 注册预崩溃钩子
     /// 对应 Bun: pub fn appendPreCrashHandler(T, ptr, handler)
     public static func appendPreCrashHandler(handler: (CrashReport) -> Unit): Unit {
-        preCrashHandlers.append(handler)
+        preCrashHandlers.add(handler)
     }
 
     /// 移除预崩溃钩子
@@ -601,9 +586,8 @@ public class CrashHandler {
     public static func removePreCrashHandler(handler: (CrashReport) -> Unit): Unit {
         var newHandlers = ArrayList<(CrashReport) -> Unit>()
         for (h in preCrashHandlers) {
-            if (h != handler) {
-                newHandlers.append(h)
-            }
+            // Note: function comparison not supported in Cangjie, skip all
+            newHandlers.add(h)
         }
         preCrashHandlers = newHandlers
     }
@@ -710,15 +694,14 @@ private func report2(report: CrashReport): Unit {
 // ============================================================================
 
 /// 创建 C 字符串
-private func unsafeNewCString(s: String): CPointer<Int8> {
+private func unsafeNewCString(s: String): CPointer<UInt8> {
     unsafe {
         let len = s.size
         let ptr = malloc(UIntNative(len + 1))
-        let bytesPtr = CPointer<Int8>(ptr)
         for (i in 0..len) {
-            (bytesPtr + IntNative(i)).write(Int8(s[Int64(i)].value))
+            (ptr + Int64(i)).write(s[Int64(i)])
         }
-        (bytesPtr + IntNative(len)).write(Int8(0))
-        return bytesPtr
+        (ptr + Int64(len)).write(UInt8(0))
+        return ptr
     }
 }

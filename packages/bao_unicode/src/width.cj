@@ -306,7 +306,7 @@ private func graphemeClusterWidth(cluster: GraphemeCluster): Int64 {
 
     // 多码点字素簇
     var prevCp = firstDecoded.codepoint
-    var width = if (wcwidthZeroInGrapheme(prevCp)) 0 else wcwidthStandalone(prevCp)
+    var width = if (wcwidthZeroInGrapheme(prevCp)) { 0 } else { wcwidthStandalone(prevCp) }
     var riCount = 0
     if (prevCp >= 0x1F1E6 && prevCp <= 0x1F1FF) { riCount = 1 }
 
@@ -439,7 +439,7 @@ private func isEmojiVsBase(cp: UInt32): Bool {
     if (cp >= 0x1F7E0 && cp <= 0x1F7EB) { return true }
     if (cp >= 0x1F90C && cp <= 0x1FAFF) { return true }
     // Digits and # for keycap sequences
-    if (cp >= UInt32('0') && cp <= UInt32('9')) { return true }
-    if (cp == UInt32('#') || cp == UInt32('*')) { return true }
+    if (cp >= 48 && cp <= 57) { return true }
+    if (cp == 35 || cp == 42) { return true }
     return false
 }

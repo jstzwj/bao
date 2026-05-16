@@ -6,6 +6,7 @@
 //   - 通过 C FFI bun_cpu_features() 获取
 //   - 用于崩溃报告中的 CPU 信息
 package bao_core.crash_handler
+import bao_core.*
 
 // ============================================================================
 // C FFI 声明
@@ -217,7 +218,7 @@ public class CPUFeatures {
     ///   更新 analytics 中的 no_avx/no_avx2 计数
     public static func get(): CPUFeatures {
         let features = CPUFeatures()
-        let rawFlags = bun_cpu_features()
+        let rawFlags = unsafe { bun_cpu_features() }
 
         // 解析 flags 字节
         // x86_64 布局: bit0=none, bit1=sse42, bit2=popcnt, bit3=avx, bit4=avx2, bit5=avx512, bit6-7=padding
@@ -225,21 +226,21 @@ public class CPUFeatures {
         if (features.isX86) {
             let f = Int64(rawFlags)
             features.x86Flags = CpuFlagsX86(
-                sse42: (f & 0x02) != 0,
-                popcnt: (f & 0x04) != 0,
-                avx: (f & 0x08) != 0,
-                avx2: (f & 0x10) != 0,
-                avx512: (f & 0x20) != 0
+                (f & 0x02) != 0,
+                (f & 0x04) != 0,
+                (f & 0x08) != 0,
+                (f & 0x10) != 0,
+                (f & 0x20) != 0
             )
         } else {
             let f = Int64(rawFlags)
             features.armFlags = CpuFlagsArm(
-                neon: (f & 0x02) != 0,
-                fp: (f & 0x04) != 0,
-                aes: (f & 0x08) != 0,
-                crc32: (f & 0x10) != 0,
-                atomics: (f & 0x20) != 0,
-                sve: (f & 0x40) != 0
+                (f & 0x02) != 0,
+                (f & 0x04) != 0,
+                (f & 0x08) != 0,
+                (f & 0x10) != 0,
+                (f & 0x20) != 0,
+                (f & 0x40) != 0
             )
         }
         return features

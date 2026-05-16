@@ -94,7 +94,7 @@ public class Exif {
                         bytes[Int64(segStart + 4)] == 0x00 && bytes[Int64(segStart + 5)] == 0x00) {
                         let tiffSlice = sliceArray(bytes, segStart + 6, segEnd)
                         let result = parseTiff(tiffSlice)
-                        if (result != None) { return result! }
+                        if (result != None) { return result.getOrThrow() }
                     }
                 }
             }
@@ -111,29 +111,29 @@ public class Exif {
         if (!big && !(tiff[0] == 0x49 && tiff[1] == 0x49)) { return None } // "II"
 
         let magic = rd16(tiff, 2, big)
-        if (magic != None && magic! != 42) { return None }
+        if (magic != None && magic.getOrThrow() != 42) { return None }
 
         let ifd0 = rd32(tiff, 4, big)
         if (ifd0 == None) { return None }
 
-        let count = rd16(tiff, ifd0!, big)
+        let count = rd16(tiff, ifd0.getOrThrow(), big)
         if (count == None) { return None }
 
-        var e: Int64 = ifd0! + 2
+        var e: Int64 = ifd0.getOrThrow() + 2
         var n: UInt16 = 0
-        while (n < count!) {
+        while (n < count.getOrThrow()) {
             let tag = rd16(tiff, e, big)
             if (tag == None) { return None }
-            if (tag! == 0x0112) {
+            if (tag.getOrThrow() == 0x0112) {
                 // Type 3 (SHORT), count 1
                 let ty = rd16(tiff, e + 2, big)
                 let cnt = rd32(tiff, e + 4, big)
                 if (ty == None || cnt == None) { return None }
-                if (ty! != 3 || cnt! != 1) { return None }
+                if (ty.getOrThrow() != 3 || cnt.getOrThrow() != 1) { return None }
                 let v = rd16(tiff, e + 8, big)
                 if (v == None) { return None }
-                if (v! >= 1 && v! <= 8) {
-                    return ExifOrientation.fromValue(UInt8(v!))
+                if (v.getOrThrow() >= 1 && v.getOrThrow() <= 8) {
+                    return ExifOrientation.fromValue(UInt8(v.getOrThrow()))
                 }
                 return None
             }

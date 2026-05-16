@@ -5,6 +5,7 @@
 //   带缓存和默认值支持
 // 仓颉: 使用运行时缓存 + 类型推断提供等价功能
 package bao_core
+import std.convert.*
 
 // ============================================================================
 // C FFI 声明 - 对应 Bun 中的 getenv/setenv/unsetenv
@@ -119,9 +120,9 @@ public class EnvVar {
     }
 
     /// 创建无默认值的环境变量
-    public init(key: String, type: EnvVarType) {
+    public init(key: String, `type`: EnvVarType) {
         this.key = key
-        this.varType = type
+        this.varType = `type`
         this.defaultString = None
         this.defaultBool = None
         this.defaultUnsigned = None
@@ -147,7 +148,7 @@ public class EnvVar {
             }
         }
         let raw = getRawEnv(key)
-        if (raw.length > 0) {
+        if (raw.size > 0) {
             cachedString = Some(raw)
             isCached = true
             return Some(raw)
@@ -172,7 +173,7 @@ public class EnvVar {
     public func getStringNotEmpty(): ?String {
         match (getString()) {
             case Some(v) =>
-                if (v.length == 0) { return None }
+                if (v.size == 0) { return None }
                 return Some(v)
             case None => return None
         }
@@ -190,11 +191,11 @@ public class EnvVar {
     ///     return true;
     /// }
     public func getBool(): ?Bool {
-        if (isCached && cachedBool != None) {
+        if (isCached && cachedBool.isSome()) {
             return cachedBool
         }
         let raw = getRawEnv(key)
-        if (raw.length > 0) {
+        if (raw.size > 0) {
             let truthy = stringIsTruthy(raw)
             cachedBool = Some(truthy)
             isCached = true
@@ -214,11 +215,11 @@ public class EnvVar {
 
     /// 获取无符号整数值 - 对应 Bun .get() for unsigned
     public func getUnsigned(): ?UInt64 {
-        if (isCached && cachedUnsigned != None) {
+        if (isCached && cachedUnsigned.isSome()) {
             return cachedUnsigned
         }
         let raw = getRawEnv(key)
-        if (raw.length > 0) {
+        if (raw.size > 0) {
             try {
                 let value = UInt64.parse(raw)
                 cachedUnsigned = Some(value)
@@ -261,7 +262,7 @@ public class EnvVar {
     /// 直接获取环境变量 - 对应 Bun bun.getenvZ
     public static func get(name: String): ?String {
         let raw = getRawEnv(name)
-        if (raw.length > 0) {
+        if (raw.size > 0) {
             return Some(raw)
         }
         if (envExists(name)) {
@@ -298,7 +299,7 @@ public class EnvVar {
     ///     return true;
     /// }
     public static func stringIsTruthy(s: String): Bool {
-        let lower = s.toLower()
+        let lower = s.toAsciiLower()
         if (lower == "" || lower == "0" || lower == "false" || lower == "no" || lower == "off") {
             return false
         }
@@ -333,12 +334,15 @@ public class EnvVar {
     /// String -> C 指针 (null 终止)
     private static func stringToCPtr(s: String): CPointer<UInt8> {
         unsafe {
-            var bytes = Array<UInt8>(s.length + 1, item: 0)
-            for (i in 0..s.length) {
-                bytes[Int64(i)] = UInt8(s.toCharArray()[Int64(i)].value)
+            let arr = s.toArray()
+            let len = Int64(arr.size)
+            let ptr = malloc(UIntNative(len + 1))
+            let bytePtr = CPointer<UInt8>(ptr)
+            for (i in 0..len) {
+                (bytePtr + i).write(arr[i])
             }
-            bytes[Int64(s.length)] = UInt8(0)
-            return bytes.toCPointer()
+            (bytePtr + len).write(UInt8(0))
+            return bytePtr
         }
     }
 
@@ -348,11 +352,11 @@ public class EnvVar {
             var sb = StringBuilder()
             var i = 0
             while (true) {
-                let b = (ptr + UIntNative(i)).read()
+                let b = (ptr + Int64(i)).read()
                 if (b == UInt8(0)) {
                     break
                 }
-                sb.append(Char(Int32(b)))
+                sb.append(Rune(Int32(b)))
                 i += 1
             }
             return sb.toString()
@@ -426,7 +430,7 @@ public class Env {
     public static func get(name: String, defaultValue: String): String {
         match (EnvVar.get(name)) {
             case Some(v) =>
-                if (v.length == 0) { return defaultValue }
+                if (v.size == 0) { return defaultValue }
                 return v
             case None => return defaultValue
         }
@@ -496,11 +500,11 @@ public class Env {
     /// 对应 Bun: 依次检查 TMPDIR, TMP, TEMP
     public static func getTmpDir(): String {
         let tmpdir = get("TMPDIR", "")
-        if (tmpdir.length > 0) { return tmpdir }
+        if (tmpdir.size > 0) { return tmpdir }
         let tmp = get("TMP", "")
-        if (tmp.length > 0) { return tmp }
+        if (tmp.size > 0) { return tmp }
         let temp = get("TEMP", "")
-        if (temp.length > 0) { return temp }
+        if (temp.size > 0) { return temp }
         return "/tmp"
     }
 
@@ -514,7 +518,7 @@ public class Env {
         let noColor = getBool("NO_COLOR", false)
         if (noColor) { return false }
         let forceColor = get("FORCE_COLOR")
-        if (forceColor != None) { return true }
+        if (forceColor.isSome()) { return true }
         let term = get("TERM", "")
         return term != "dumb"
     }

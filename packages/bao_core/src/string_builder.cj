@@ -6,6 +6,7 @@
 //       和 Rope-like StringJoiner (链表拼接)
 // 仓颉: 合并为统一的字符串构建器, 保持相同 API 语义
 package bao_core
+import std.collection.*
 
 /// 字符串拼接构建器 - 严格对应 Bun StringJoiner
 /// Bun: Rope-like 数据结构, 链表节点存储各段字符串
@@ -67,7 +68,7 @@ public class StringJoiner {
     ///     this.push(bun.handleOom(this.allocator.dupe(u8, data)), this.allocator);
     /// }
     public func pushCloned(data: String): Unit {
-        if (data.length == 0) {
+        if (data.size == 0) {
             return
         }
         push(data, true)
@@ -81,16 +82,16 @@ public class StringJoiner {
     ///     ...
     /// }
     public func push(data: String, owned: Bool): Unit {
-        if (data.length == 0) {
+        if (data.size == 0) {
             return
         }
-        totalLen += data.length
-        nodes.append(data)
-        ownedFlags.append(owned)
+        totalLen += data.size
+        nodes.add(data)
+        ownedFlags.add(owned)
         // 检查是否需要换行 - 对应 Bun watcher.needs_newline
-        if (data.length > 0) {
-            let lastChar = data.toCharArray()[data.length - 1]
-            needsNewline = lastChar != '\n'
+        if (data.size > 0) {
+            let lastChar = data[data.size - 1]
+            needsNewline = lastChar != UInt8(10)  // '\n' = 0x0A
         }
     }
 
@@ -126,7 +127,7 @@ public class StringJoiner {
     /// pub fn doneWithEnd(this: *StringJoiner, allocator, end: []const u8) ![]u8
     public func doneWithEnd(end: String): String {
         if (nodes.size == 0) {
-            if (end.length > 0) {
+            if (end.size > 0) {
                 return end
             }
             return ""
@@ -153,10 +154,10 @@ public class StringJoiner {
             return UInt8(0)
         }
         let last = nodes[nodes.size - 1]
-        if (last.length == 0) {
+        if (last.size == 0) {
             return UInt8(0)
         }
-        return UInt8(last.toCharArray()[last.length - 1].value)
+        return last[last.size - 1]
     }
 
     /// 确保尾部换行 - 对应 Bun StringJoiner.ensureNewlineAtEnd

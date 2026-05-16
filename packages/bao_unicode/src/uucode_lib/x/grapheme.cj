@@ -10,6 +10,8 @@
 //   仓颉实现提供等价的字素宽度计算
 package bao_unicode.uucode_lib.x
 
+import bao_unicode.uucode_lib.*
+
 // ============================================================================
 // 字素宽度计算
 // 严格翻译自: src/unicode/uucode_lib/src/x/grapheme.zig
@@ -26,7 +28,7 @@ package bao_unicode.uucode_lib.x
 public func wcwidthNext(it: GraphemeBreakIterator): UInt8 {
     // 获取第一个码点
     let first = it.nextCodePoint()
-    if (first == None) { return 0 }
+    if (first.isNone()) { return 0 }
 
     let firstCp = first.getOrThrow().codePoint
     let standalone = wcwidthStandalone(firstCp,
@@ -50,7 +52,7 @@ public func wcwidthNext(it: GraphemeBreakIterator): UInt8 {
 
     while (true) {
         let result = it.nextCodePoint()
-        if (result == None) { break }
+        if (result.isNone()) { break }
 
         var cp = result.getOrThrow().codePoint
 
@@ -63,7 +65,7 @@ public func wcwidthNext(it: GraphemeBreakIterator): UInt8 {
         } else if (cp == 0x200D) {
             // ZWJ: 跳过下一个 emoji base
             let next = it.nextCodePoint()
-            if (next == None) { break }
+            if (next.isNone()) { break }
             if (next.getOrThrow().isBreak) { break }
             cp = next.getOrThrow().codePoint
         } else {
@@ -102,9 +104,9 @@ public func wcwidthRemaining(it: GraphemeBreakIterator): Int64 {
     var width: Int64 = 0
     while (true) {
         let w = wcwidthNext(it)
-        if (w == 0 && it.nextCp == None) { break }
+        if (w == 0 && it.nextCp.isNone()) { break }
         width += Int64(w)
-        if (it.nextCp == None) { break }
+        if (it.nextCp.isNone()) { break }
     }
     return width
 }

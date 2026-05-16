@@ -13,6 +13,14 @@ public enum JsValueType {
     | Object
     | Symbol
     | BigInt
+    | Array
+    | ArrayBuffer
+    | TypedArray
+    | DataView
+    | Function
+    | Error
+    | Promise
+    | External
 }
 
 // JS 值包装 - 严格翻译自 JSValue.zig
@@ -71,6 +79,50 @@ public class JsValue {
         let v = JsValue()
         v.valueType = JsValueType.Null
         return v
+    }
+
+    // Static constants used by napi
+    public static let UNDEFINED: JsValue = JsValue()
+    public static let NULL: JsValue = {
+        let v = JsValue()
+        v.valueType = JsValueType.Null
+        v
+    }()
+
+    public static func jsUndefined(): JsValue {
+        JsValue()
+    }
+
+    public static func jsTrue(): JsValue {
+        JsValue(b: true)
+    }
+
+    public static func jsFalse(): JsValue {
+        JsValue(b: false)
+    }
+
+    public static func jsNumber(n: Int64): JsValue {
+        JsValue(n: Float64(n))
+    }
+
+    public static func jsBoolean(b: Bool): JsValue {
+        JsValue(b: b)
+    }
+
+    public static func jsNumber(n: Float64): JsValue {
+        JsValue(n: n)
+    }
+
+    public static func array(arr: ArrayList<JsValue>): JsValue {
+        let v = JsValue()
+        v.valueType = JsValueType.Array
+        v
+    }
+
+    public var arrayData: ?ArrayList<JsValue> = None
+
+    public func isUndefinedOrNull(): Bool {
+        isNull() || isUndefined()
     }
 
     // 严格翻译自 JSValue.fromCell

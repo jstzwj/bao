@@ -32,11 +32,11 @@ public class RegexEscape {
     public static func escape(input: String): String {
         var sb = StringBuilder()
         var i = 0
-        let chars = input.toCharArray()
+        let chars = input.toRuneArray()
         while (i < chars.size) {
             let c = chars[Int64(i)]
-            if (isSpecialChar(c)) {
-                if (c == '-') {
+            if (isSpecialRune(c)) {
+                if (c == r'-') {
                     // 对应 Bun: '-' => try writer.writeAll("\u{2d}")
                     sb.append("\u{2d}")
                 } else {
@@ -66,15 +66,15 @@ public class RegexEscape {
     public static func escapeForPackageNameMatching(input: String): String {
         var sb = StringBuilder()
         var i = 0
-        let chars = input.toCharArray()
+        let chars = input.toRuneArray()
         while (i < chars.size) {
             let c = chars[Int64(i)]
-            if (c == '*') {
+            if (c == r'*') {
                 // '*' 变为 '.*' - 通配符匹配
                 sb.append(".*")
-            } else if (c == '-') {
+            } else if (c == r'-') {
                 sb.append("\u{2d}")
-            } else if (isSpecialChar(c)) {
+            } else if (isSpecialRune(c)) {
                 sb.append('\\')
                 sb.append(c)
             } else {
@@ -86,18 +86,23 @@ public class RegexEscape {
     }
 
     /// 检查字符是否为正则特殊字符
-    private static func isSpecialChar(c: Char): Bool {
+    private static func isSpecialRune(c: Rune): Bool {
         // 对应 Bun special_characters = "|\\{}()[]^$+*?.-"
-        return c == '|' || c == '\\' || c == '{' || c == '}' ||
-               c == '(' || c == ')' || c == '[' || c == ']' ||
-               c == '^' || c == '$' || c == '+' || c == '*' ||
-               c == '?' || c == '.' || c == '-'
+        return c == r'|' || c == r'\\' || c == r'{' || c == r'}' ||
+               c == r'(' || c == r')' || c == r'[' || c == r']' ||
+               c == r'^' || c == r'$' || c == r'+' || c == r'*' ||
+               c == r'?' || c == r'.' || c == r'-'
+    }
+
+    /// 检查字节是否为正则特殊字符
+    private static func isSpecialByte(b: UInt8): Bool {
+        return isSpecialRune(Rune(Int32(b)))
     }
 
     /// 检查字符串是否包含正则特殊字符
-    public static func containsSpecialChars(input: String): Bool {
+    public static func containsSpecialRunes(input: String): Bool {
         for (c in input) {
-            if (isSpecialChar(c)) {
+            if (isSpecialByte(c)) {
                 return true
             }
         }

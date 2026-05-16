@@ -527,41 +527,41 @@ private let meRanges: Array<(UInt32, UInt32)> = [
 public func generalCategory(cp: UInt32): GeneralCategory {
     // ASCII 快速路径
     if (cp <= 0x7F) {
-        if (cp >= UInt32('A') && cp <= UInt32('Z')) { return GeneralCategory.Lu }
-        if (cp >= UInt32('a') && cp <= UInt32('z')) { return GeneralCategory.Ll }
-        if (cp >= UInt32('0') && cp <= UInt32('9')) { return GeneralCategory.Nd }
+        if (cp >= 65 && cp <= 90) { return GeneralCategory.Lu }
+        if (cp >= 97 && cp <= 122) { return GeneralCategory.Ll }
+        if (cp >= 48 && cp <= 57) { return GeneralCategory.Nd }
         if (cp <= 0x1F || cp == 0x7F) { return GeneralCategory.Cc }
-        if (cp == UInt32(' ')) { return GeneralCategory.Zs }
+        if (cp == 32) { return GeneralCategory.Zs }
         // Symbols and punctuation
-        if (cp == UInt32('!') || cp == UInt32('"') || cp == UInt32('#') ||
-            cp == UInt32('%') || cp == UInt32('&') || cp == UInt32('\'')) {
+        if (cp == 33 || cp == 34 || cp == 35 ||
+            cp == 37 || cp == 38 || cp == 39) {
             return GeneralCategory.Po
         }
-        if (cp == UInt32('(')) { return GeneralCategory.Ps }
-        if (cp == UInt32(')')) { return GeneralCategory.Pe }
-        if (cp == UInt32('*')) { return GeneralCategory.Po }
-        if (cp == UInt32('+')) { return GeneralCategory.Sm }
-        if (cp == UInt32(',')) { return GeneralCategory.Pd }
-        if (cp == UInt32('-')) { return GeneralCategory.Pd }
-        if (cp == UInt32('.')) { return GeneralCategory.Po }
-        if (cp == UInt32('/')) { return GeneralCategory.Po }
-        if (cp == UInt32(':')) { return GeneralCategory.Po }
-        if (cp == UInt32(';')) { return GeneralCategory.Po }
-        if (cp == UInt32('<')) { return GeneralCategory.Sm }
-        if (cp == UInt32('=')) { return GeneralCategory.Sm }
-        if (cp == UInt32('>')) { return GeneralCategory.Sm }
-        if (cp == UInt32('?')) { return GeneralCategory.Po }
-        if (cp == UInt32('@')) { return GeneralCategory.Po }
-        if (cp == UInt32('[')) { return GeneralCategory.Ps }
-        if (cp == UInt32('\\')) { return GeneralCategory.Po }
-        if (cp == UInt32(']')) { return GeneralCategory.Pe }
-        if (cp == UInt32('^')) { return GeneralCategory.Sm }
-        if (cp == UInt32('_')) { return GeneralCategory.Pc }
-        if (cp == UInt32('`')) { return GeneralCategory.Sk }
-        if (cp == UInt32('{')) { return GeneralCategory.Ps }
-        if (cp == UInt32('|')) { return GeneralCategory.Sm }
-        if (cp == UInt32('}')) { return GeneralCategory.Pe }
-        if (cp == UInt32('~')) { return GeneralCategory.Sm }
+        if (cp == 40) { return GeneralCategory.Ps }
+        if (cp == 41) { return GeneralCategory.Pe }
+        if (cp == 42) { return GeneralCategory.Po }
+        if (cp == 43) { return GeneralCategory.Sm }
+        if (cp == 44) { return GeneralCategory.Pd }
+        if (cp == 45) { return GeneralCategory.Pd }
+        if (cp == 46) { return GeneralCategory.Po }
+        if (cp == 47) { return GeneralCategory.Po }
+        if (cp == 58) { return GeneralCategory.Po }
+        if (cp == 59) { return GeneralCategory.Po }
+        if (cp == 60) { return GeneralCategory.Sm }
+        if (cp == 61) { return GeneralCategory.Sm }
+        if (cp == 62) { return GeneralCategory.Sm }
+        if (cp == 63) { return GeneralCategory.Po }
+        if (cp == 64) { return GeneralCategory.Po }
+        if (cp == 91) { return GeneralCategory.Ps }
+        if (cp == 92) { return GeneralCategory.Po }
+        if (cp == 93) { return GeneralCategory.Pe }
+        if (cp == 94) { return GeneralCategory.Sm }
+        if (cp == 95) { return GeneralCategory.Pc }
+        if (cp == 96) { return GeneralCategory.Sk }
+        if (cp == 123) { return GeneralCategory.Ps }
+        if (cp == 124) { return GeneralCategory.Sm }
+        if (cp == 125) { return GeneralCategory.Pe }
+        if (cp == 126) { return GeneralCategory.Sm }
         return GeneralCategory.Cn
     }
 

@@ -3,6 +3,9 @@
 
 package bao_runtime.test_runner
 
+import bao_jsc.*
+import std.collection.*
+
 // ========== DiffFormatter - 差异格式化器 ==========
 
 /// 差异格式化器，用于在测试失败时显示期望值和接收值之间的差异
@@ -35,18 +38,18 @@ public class DiffFormatter {
         let diffConfig = DiffConfig.default(isAgent: Output.isAIAgent(), enableAnsiColors: Output.enableAnsiColorsStderr())
 
         // 如果已有字符串, 直接比较
-        if expectedString != None && receivedString != None {
+        if (expectedString != None && receivedString != None) {
             let received = receivedString ?? ""
             let expected = expectedString ?? ""
             printDiffMain(not: not, receivedSlice: received, expectedSlice: expected, writer: writer, config: diffConfig)
             return
         }
 
-        if received == None || expected == None { return }
+        if (received == None || expected == None) { return }
 
         // 将JS值转换为字符串进行比较
-        let receivedValue = received!
-        let expectedValue = expected!
+        let receivedValue = received.getOrThrow()
+        let expectedValue = expected.getOrThrow()
 
         var receivedBuf = StringBuilder()
         var expectedBuf = StringBuilder()
@@ -79,10 +82,10 @@ public class DiffFormatter {
         var expectedSlice = expectedBuf.toString()
 
         // 移除首尾换行
-        if receivedSlice.startsWith("\n") { receivedSlice = receivedSlice[1..] }
-        if expectedSlice.startsWith("\n") { expectedSlice = expectedSlice[1..] }
-        if receivedSlice.endsWith("\n") { receivedSlice = receivedSlice[0..receivedSlice.length - 1] }
-        if expectedSlice.endsWith("\n") { expectedSlice = expectedSlice[0..expectedSlice.length - 1] }
+        if (receivedSlice.startsWith("\n")) { receivedSlice = receivedSlice[1..] }
+        if (expectedSlice.startsWith("\n")) { expectedSlice = expectedSlice[1..] }
+        if (receivedSlice.endsWith("\n")) { receivedSlice = receivedSlice[0..receivedSlice.length - 1] }
+        if (expectedSlice.endsWith("\n")) { expectedSlice = expectedSlice[0..expectedSlice.length - 1] }
 
         printDiffMain(not: not, receivedSlice: receivedSlice, expectedSlice: expectedSlice, writer: writer, config: diffConfig)
     }

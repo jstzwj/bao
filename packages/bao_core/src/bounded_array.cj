@@ -4,6 +4,8 @@
 //   有界数组: 不需要分配器的固定容量数组, 运行时长度
 package bao_core
 
+import std.collection.*
+
 // ============================================================================
 // BoundedArray<T> - 有界数组
 // 严格翻译自: src/bun_core/bounded_array.zig:18-299
@@ -21,21 +23,17 @@ package bao_core
 ///       len: Length = 0,
 ///   };
 public class BoundedArray<T> {
-    /// 内部缓冲区 - 对应 Bun buffer: [buffer_capacity]T
-    private let buffer: Array<T>
+    /// 内部缓冲区 - 使用 ArrayList 代替固定数组
+    private var buffer: ArrayList<T>
     /// 容量上限 - 对应 Bun buffer_capacity (编译时常量, 仓颉运行时)
     public let capacity: Int64
     /// 当前长度 - 对应 Bun len: Length = 0
     public var len: Int64
 
-    /// 构造函数 - 对应 Bun init(len)
-    /// pub fn init(len: usize) error{Overflow}!Self {
-    ///     if (len > buffer_capacity) return error.Overflow;
-    ///     return Self{ .len = @intCast(len) };
-    /// }
+    /// 构造函数
     public init(capacity: Int64) {
         this.capacity = capacity
-        this.buffer = Array<T>(capacity, item: unsafe { uninitialized<T>() })
+        this.buffer = ArrayList<T>()
         this.len = 0
     }
 

@@ -39,7 +39,7 @@ public enum BunStringTag {
 // ============================================================================
 
 /// ASCII 状态枚举(重导出)
-public typealias StringAsciiStatus = AsciiStatus
+public type StringAsciiStatus = AsciiStatus
 
 // ============================================================================
 // WTFEncoding
@@ -111,7 +111,7 @@ public class BunString {
 
     /// 创建静态字符串
     /// 严格翻译自 String.static
-    public static func static(input: String): BunString {
+    public static func `static`(input: String): BunString {
         return BunString(tag: BunStringTag.StaticZigString, utf8Data: input.toArray(), utf16Data: [], wtfImpl: None)
     }
 
@@ -398,11 +398,11 @@ public class BunString {
                 if (this.utf16Data.size > 0) {
                     let s = if (startIndex < this.utf16Data.size) { startIndex } else { this.utf16Data.size }
                     let e = if (endIndex < this.utf16Data.size) { endIndex } else { this.utf16Data.size }
-                    return BunString.borrowUTF16(this.utf16Data[s:e])
+                    return BunString.borrowUTF16(this.utf16Data[s..e])
                 } else {
                     let s = if (startIndex < this.utf8Data.size) { startIndex } else { this.utf8Data.size }
                     let e = if (endIndex < this.utf8Data.size) { endIndex } else { this.utf8Data.size }
-                    return BunString(tag: this.tag, utf8Data: this.utf8Data[s:e], utf16Data: [], wtfImpl: None)
+                    return BunString(tag: this.tag, utf8Data: this.utf8Data[s..e], utf16Data: [], wtfImpl: None)
                 }
             case BunStringTag.WTFStringImpl =>
                 match (this.wtfImpl) {
@@ -411,12 +411,12 @@ public class BunString {
                             let slice = impl.latin1Slice()
                             let s = if (startIndex < slice.size) { startIndex } else { slice.size }
                             let e = if (endIndex < slice.size) { endIndex } else { slice.size }
-                            return BunString.ascii(slice[s:e])
+                            return BunString.ascii(slice[s..e])
                         } else {
                             let slice = impl.utf16Slice()
                             let s = if (startIndex < slice.size) { startIndex } else { slice.size }
                             let e = if (endIndex < slice.size) { endIndex } else { slice.size }
-                            return BunString.borrowUTF16(slice[s:e])
+                            return BunString.borrowUTF16(slice[s..e])
                         }
                     case None =>
                         return this

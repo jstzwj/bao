@@ -21,15 +21,15 @@ import bao_core.*
 /// 严格翻译自 SmolStr.Inlined.max_len = bitSizeOf(u120) / 8 = 15
 public const MAX_INLINE_LEN: Int64 = 15
 
+/// 存储模式 (从 SmolStr 内部提取到顶层)
+private enum StorageMode {
+    | Inlined(Array<Byte>)    // 内联: 最多 15 字节
+    | Heap(Array<Byte>, Int64) // 堆: (数据, 容量)
+}
+
 /// 小字符串优化: 内联存储短字符串,堆分配长字符串
 /// 严格翻译自 SmolStr.zig SmolStr
 public class SmolStr {
-    /// 存储模式
-    private enum StorageMode {
-        | Inlined(Array<Byte>)    // 内联: 最多 15 字节
-        | Heap(Array<Byte>, Int64) // 堆: (数据, 容量)
-    }
-
     private var storage: StorageMode
 
     /// 空构造

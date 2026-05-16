@@ -17,7 +17,7 @@ public func processLeafBlock(parser: Parser, block_lines: Array<VerbatimLine>, t
         if (vline.beg > vline.end || vline.end > parser.size) {
             continue
         }
-        if (parser.buffer.length > 0) {
+        if (parser.buffer.size > 0) {
             parser.buffer.append('\n')
         }
         parser.buffer.append(parser.text.substring(Int64(vline.beg), Int64(vline.end)))
@@ -25,9 +25,9 @@ public func processLeafBlock(parser: Parser, block_lines: Array<VerbatimLine>, t
 
     var merged = parser.buffer.toString()
     if (trim_trailing) {
-        while (merged.length > 0 && (UInt8(merged[merged.length - 1]) == ' '.toUInt8() ||
-               UInt8(merged[merged.length - 1]) == '\t'.toUInt8())) {
-            merged = merged.substring(0, merged.length - 1)
+        while (merged.size > 0 && (UInt8(merged[merged.size - 1]) == ' '.toUInt8() ||
+               UInt8(merged[merged.size - 1]) == '\t'.toUInt8())) {
+            merged = merged.substring(0, merged.size - 1)
         }
     }
     processInlineContent(parser, merged, block_lines[0].beg)
@@ -42,7 +42,7 @@ public func processInlineContent(parser: Parser, content: String, base_off: OFF)
     var i: Int64 = 0
     var text_start: Int64 = 0
 
-    while (i < content.length) {
+    while (i < content.size) {
         let c = UInt8(content[i])
 
         // 换行符
@@ -79,7 +79,7 @@ public func processInlineContent(parser: Parser, content: String, base_off: OFF)
         }
 
         // 反斜杠转义
-        if (c == '\\'.toUInt8() && i + 1 < content.length && isAsciiPunctuation(UInt8(content[i + 1]))) {
+        if (c == '\\'.toUInt8() && i + 1 < content.size && isAsciiPunctuation(UInt8(content[i + 1]))) {
             if (i > text_start) {
                 emitText(parser, TextType.normal, content.substring(text_start, i))
             }
@@ -127,11 +127,11 @@ public func processInlineContent(parser: Parser, content: String, base_off: OFF)
         if (c == '*'.toUInt8() || c == '_'.toUInt8() || (c == '~'.toUInt8() && parser.flags.strikethrough)) {
             // 查找对应的已解析分隔符
             var delim_cursor: Int64 = 0
-            while (delim_cursor < parser.emph_delims.length && parser.emph_delims[Int64(delim_cursor)].pos < i) {
+            while (delim_cursor < parser.emph_delims.size && parser.emph_delims[Int64(delim_cursor)].pos < i) {
                 delim_cursor += 1
             }
 
-            if (delim_cursor < parser.emph_delims.length && parser.emph_delims[Int64(delim_cursor)].pos == i) {
+            if (delim_cursor < parser.emph_delims.size && parser.emph_delims[Int64(delim_cursor)].pos == i) {
                 if (i > text_start) emitText(parser, TextType.normal, content.substring(text_start, i))
 
                 let d = parser.emph_delims[Int64(delim_cursor)]
@@ -191,7 +191,7 @@ public func processInlineContent(parser: Parser, content: String, base_off: OFF)
         }
 
         // Wiki 链接: [[destination]] 或 [[destination|label]]
-        if (c == '['.toUInt8() && parser.flags.wiki_links && i + 1 < content.length && content[i + 1] == '[') {
+        if (c == '['.toUInt8() && parser.flags.wiki_links && i + 1 < content.size && content[i + 1] == '[') {
             if (i > text_start) emitText(parser, TextType.normal, content.substring(text_start, i))
             if (let Some(end_pos) <- processWikiLink(parser, content, i)) {
                 i = end_pos
@@ -216,7 +216,7 @@ public func processInlineContent(parser: Parser, content: String, base_off: OFF)
         }
 
         // 图片: ![text](url)
-        if (c == '!'.toUInt8() && i + 1 < content.length && content[i + 1] == '[') {
+        if (c == '!'.toUInt8() && i + 1 < content.size && content[i + 1] == '[') {
             if (i > text_start) emitText(parser, TextType.normal, content.substring(text_start, i))
             if (let Some(end_pos) <- processLink(parser, content, i + 1, base_off, true)) {
                 i = end_pos
@@ -279,7 +279,7 @@ public func processInlineContent(parser: Parser, content: String, base_off: OFF)
         i += 1
     }
 
-    if (text_start < content.length) {
+    if (text_start < content.size) {
         emitText(parser, TextType.normal, content.substring(text_start))
     }
 }
@@ -292,10 +292,10 @@ public func processInlineContent(parser: Parser, content: String, base_off: OFF)
 public func collectEmphasisDelimiters(parser: Parser, content: String): Unit {
     parser.emph_delims = []
     var i: Int64 = 0
-    while (i < content.length) {
+    while (i < content.size) {
         let c = UInt8(content[i])
         // 跳过反斜杠转义
-        if (c == '\\'.toUInt8() && i + 1 < content.length && isAsciiPunctuation(UInt8(content[i + 1]))) {
+        if (c == '\\'.toUInt8() && i + 1 < content.size && isAsciiPunctuation(UInt8(content[i + 1]))) {
             i += 2
             continue
         }
@@ -312,7 +312,7 @@ public func collectEmphasisDelimiters(parser: Parser, content: String): Unit {
         // 强调分隔符
         if (c == '*'.toUInt8() || c == '_'.toUInt8()) {
             let run_start = i
-            while (i < content.length && UInt8(content[i]) == c) {
+            while (i < content.size && UInt8(content[i]) == c) {
                 i += 1
             }
             let count = i - run_start
@@ -329,7 +329,7 @@ public func collectEmphasisDelimiters(parser: Parser, content: String): Unit {
         // 删除线分隔符
         if (c == '~'.toUInt8() && parser.flags.strikethrough) {
             let run_start = i
-            while (i < content.length && UInt8(content[i]) == '~') {
+            while (i < content.size && UInt8(content[i]) == '~') {
                 i += 1
             }
             let count = i - run_start
@@ -357,7 +357,7 @@ public func resolveEmphasisDelimiters(parser: Parser): Unit {
     }
 
     var closer_idx: Int64 = 0
-    while (closer_idx < delims.length) {
+    while (closer_idx < delims.size) {
         if (!delims[Int64(closer_idx)].can_close || delims[Int64(closer_idx)].remaining == 0) {
             closer_idx += 1
             continue
@@ -443,7 +443,7 @@ public func resolveEmphasisDelimiters(parser: Parser): Unit {
 /// 计算连续反引号
 public func countBackticks(content: String, start: Int64): Int64 {
     var pos = start
-    while (pos < content.length && content[pos] == '`') {
+    while (pos < content.size && content[pos] == '`') {
         pos += 1
     }
     return pos - start
@@ -452,11 +452,11 @@ public func countBackticks(content: String, start: Int64): Int64 {
 /// 查找匹配的关闭反引号运行
 public func findCodeSpanEnd(parser: Parser, content: String, start: Int64, count: Int64): ?Int64 {
     var pos = start
-    while (pos < content.length) {
+    while (pos < content.size) {
         if (content[pos] == '`') {
             let backtick_pos = pos
             pos += 1
-            while (pos < content.length && content[pos] == '`') {
+            while (pos < content.size && content[pos] == '`') {
                 pos += 1
             }
             if (pos - backtick_pos == count) {
@@ -471,9 +471,9 @@ public func findCodeSpanEnd(parser: Parser, content: String, start: Int64, count
 
 /// 规范化代码跨距内容
 public func normalizeCodeSpanContent(parser: Parser, content: String): String {
-    if (content.length >= 2) {
+    if (content.size >= 2) {
         let first_is_space = content[0] == ' ' || content[0] == '\n'
-        let last_is_space = content[content.length - 1] == ' ' || content[content.length - 1] == '\n'
+        let last_is_space = content[content.size - 1] == ' ' || content[content.size - 1] == '\n'
         if (first_is_space && last_is_space) {
             // 检查是否不全为空格
             var has_non_space = false
@@ -484,7 +484,7 @@ public func normalizeCodeSpanContent(parser: Parser, content: String): String {
                 }
             }
             if (has_non_space) {
-                return content.substring(1, content.length - 1)
+                return content.substring(1, content.size - 1)
             }
         }
     }
@@ -493,7 +493,7 @@ public func normalizeCodeSpanContent(parser: Parser, content: String): String {
 
 /// 检查是否为左翼
 public func isLeftFlanking(content: String, run_start: Int64, run_end: Int64): Bool {
-    if (run_end >= content.length) {
+    if (run_end >= content.size) {
         return false
     }
     let after_cp = decodeUtf8(content, run_end).codepoint
@@ -520,7 +520,7 @@ public func isRightFlanking(content: String, run_start: Int64, run_end: Int64): 
         return false
     }
     if (isUnicodePunctuation(before_cp)) {
-        if (run_end >= content.length) {
+        if (run_end >= content.size) {
             return true
         }
         let after_cp = decodeUtf8(content, run_end).codepoint
@@ -552,7 +552,7 @@ public func canCloseEmphasis(emph_char: UInt8, content: String, run_start: Int64
         return true
     }
     let lf = isLeftFlanking(content, run_start, run_end)
-    return !lf || (run_end < content.length && isUnicodePunctuation(decodeUtf8(content, run_end).codepoint))
+    return !lf || (run_end < content.size && isUnicodePunctuation(decodeUtf8(content, run_end).codepoint))
 }
 
 /// 进入 span
@@ -583,7 +583,7 @@ public func findEntity(parser: Parser, content: String, start: Int64): ?Int64 {
 
 /// 查找 HTML 标签
 public func findHtmlTag(parser: Parser, content: String, start: Int64): ?Int64 {
-    if (start + 1 >= content.length) {
+    if (start + 1 >= content.size) {
         return None
     }
     var pos = start + 1
@@ -592,31 +592,31 @@ public func findHtmlTag(parser: Parser, content: String, start: Int64): ?Int64 {
     // 关闭标签
     if (c == '/'.toUInt8()) {
         pos += 1
-        if (pos >= content.length || !isAlpha(UInt8(content[pos]))) {
+        if (pos >= content.size || !isAlpha(UInt8(content[pos]))) {
             return None
         }
-        while (pos < content.length && (isAlphaNum(UInt8(content[pos])) || content[pos] == '-')) {
+        while (pos < content.size && (isAlphaNum(UInt8(content[pos])) || content[pos] == '-')) {
             pos += 1
         }
-        while (pos < content.length && isWhitespace(UInt8(content[pos]))) {
+        while (pos < content.size && isWhitespace(UInt8(content[pos]))) {
             pos += 1
         }
-        if (pos < content.length && content[pos] == '>') {
+        if (pos < content.size && content[pos] == '>') {
             return pos + 1
         }
         return None
     }
 
     // 注释
-    if (c == '!'.toUInt8() && pos + 1 < content.length && content[pos + 1] == '-' && pos + 2 < content.length && content[pos + 2] == '-') {
+    if (c == '!'.toUInt8() && pos + 1 < content.size && content[pos + 1] == '-' && pos + 2 < content.size && content[pos + 2] == '-') {
         pos += 3
-        if (pos < content.length && content[pos] == '>') {
+        if (pos < content.size && content[pos] == '>') {
             return pos + 1
         }
-        if (pos + 1 < content.length && content[pos] == '-' && content[pos + 1] == '>') {
+        if (pos + 1 < content.size && content[pos] == '-' && content[pos + 1] == '>') {
             return pos + 2
         }
-        while (pos + 2 < content.length) {
+        while (pos + 2 < content.size) {
             if (content[pos] == '-' && content[pos + 1] == '-' && content[pos + 2] == '>') {
                 return pos + 3
             }
@@ -627,22 +627,22 @@ public func findHtmlTag(parser: Parser, content: String, start: Int64): ?Int64 {
 
     // 开放标签
     if (isAlpha(c)) {
-        while (pos < content.length && (isAlphaNum(UInt8(content[pos])) || content[pos] == '-')) {
+        while (pos < content.size && (isAlphaNum(UInt8(content[pos])) || content[pos] == '-')) {
             pos += 1
         }
-        while (pos < content.length) {
+        while (pos < content.size) {
             var had_ws = false
-            while (pos < content.length && isWhitespace(UInt8(content[pos]))) {
+            while (pos < content.size && isWhitespace(UInt8(content[pos]))) {
                 had_ws = true
                 pos += 1
             }
-            if (pos >= content.length) {
+            if (pos >= content.size) {
                 break
             }
             if (content[pos] == '>') {
                 return pos + 1
             }
-            if (content[pos] == '/' && pos + 1 < content.length && content[pos + 1] == '>') {
+            if (content[pos] == '/' && pos + 1 < content.size && content[pos + 1] == '>') {
                 return pos + 2
             }
             if (!had_ws) {
@@ -653,44 +653,44 @@ public func findHtmlTag(parser: Parser, content: String, start: Int64): ?Int64 {
                 return None
             }
             pos += 1
-            while (pos < content.length && (isAlphaNum(UInt8(content[pos])) ||
+            while (pos < content.size && (isAlphaNum(UInt8(content[pos])) ||
                    content[pos] == '_' || content[pos] == ':' ||
                    content[pos] == '.' || content[pos] == '-')) {
                 pos += 1
             }
             // 可选属性值
             let before_eq_ws = pos
-            while (pos < content.length && isWhitespace(UInt8(content[pos]))) {
+            while (pos < content.size && isWhitespace(UInt8(content[pos]))) {
                 pos += 1
             }
-            if (pos < content.length && content[pos] == '=') {
+            if (pos < content.size && content[pos] == '=') {
                 pos += 1
-                while (pos < content.length && isWhitespace(UInt8(content[pos]))) {
+                while (pos < content.size && isWhitespace(UInt8(content[pos]))) {
                     pos += 1
                 }
-                if (pos >= content.length) {
+                if (pos >= content.size) {
                     return None
                 }
                 if (content[pos] == '"') {
                     pos += 1
-                    while (pos < content.length && content[pos] != '"') {
+                    while (pos < content.size && content[pos] != '"') {
                         pos += 1
                     }
-                    if (pos >= content.length) {
+                    if (pos >= content.size) {
                         return None
                     }
                     pos += 1
                 } else if (content[pos] == '\'') {
                     pos += 1
-                    while (pos < content.length && content[pos] != '\'') {
+                    while (pos < content.size && content[pos] != '\'') {
                         pos += 1
                     }
-                    if (pos >= content.length) {
+                    if (pos >= content.size) {
                         return None
                     }
                     pos += 1
                 } else {
-                    while (pos < content.length && !isWhitespace(UInt8(content[pos])) &&
+                    while (pos < content.size && !isWhitespace(UInt8(content[pos])) &&
                            content[pos] != '"' && content[pos] != '\'' &&
                            content[pos] != '=' && content[pos] != '<' &&
                            content[pos] != '>' && content[pos] != '`') {
@@ -708,7 +708,7 @@ public func findHtmlTag(parser: Parser, content: String, start: Int64): ?Int64 {
 
 /// 查找自动链接
 public func findAutolink(parser: Parser, content: String, start: Int64): ?AutolinkEndResult {
-    if (start + 1 >= content.length) {
+    if (start + 1 >= content.size) {
         return None
     }
     let pos = start + 1
@@ -716,35 +716,35 @@ public func findAutolink(parser: Parser, content: String, start: Int64): ?Autoli
     // URI 自动链接: scheme://...
     if (isAlpha(UInt8(content[pos]))) {
         var scheme_end = pos
-        while (scheme_end < content.length && (isAlphaNum(UInt8(content[scheme_end])) ||
+        while (scheme_end < content.size && (isAlphaNum(UInt8(content[scheme_end])) ||
                content[scheme_end] == '+' || content[scheme_end] == '-' || content[scheme_end] == '.')) {
             scheme_end += 1
         }
         let scheme_len = scheme_end - pos
-        if (scheme_len >= 2 && scheme_len <= 32 && scheme_end < content.length && content[scheme_end] == ':') {
+        if (scheme_len >= 2 && scheme_len <= 32 && scheme_end < content.size && content[scheme_end] == ':') {
             var uri_end = scheme_end + 1
-            while (uri_end < content.length && content[uri_end] != '>' && !isWhitespace(UInt8(content[uri_end]))) {
+            while (uri_end < content.size && content[uri_end] != '>' && !isWhitespace(UInt8(content[uri_end]))) {
                 uri_end += 1
             }
-            if (uri_end < content.length && content[uri_end] == '>') {
+            if (uri_end < content.size && content[uri_end] == '>') {
                 return AutolinkEndResult(uri_end + 1, false)
             }
         }
 
         // 电子邮件自动链接
         var email_pos = pos
-        while (email_pos < content.length && (isAlphaNum(UInt8(content[email_pos])) ||
+        while (email_pos < content.size && (isAlphaNum(UInt8(content[email_pos])) ||
                content[email_pos] == '.' || content[email_pos] == '-' ||
                content[email_pos] == '_' || content[email_pos] == '+')) {
             email_pos += 1
         }
-        if (email_pos < content.length && content[email_pos] == '@' && email_pos > pos) {
+        if (email_pos < content.size && content[email_pos] == '@' && email_pos > pos) {
             email_pos += 1
             let domain_start = email_pos
             var label_len: UInt32 = 0
             var dot_count: UInt32 = 0
             var valid_domain = true
-            while (email_pos < content.length && (isAlphaNum(UInt8(content[email_pos])) ||
+            while (email_pos < content.size && (isAlphaNum(UInt8(content[email_pos])) ||
                    content[email_pos] == '.' || content[email_pos] == '-')) {
                 if (content[email_pos] == '.') {
                     if (label_len == 0) {
@@ -762,7 +762,7 @@ public func findAutolink(parser: Parser, content: String, start: Int64): ?Autoli
                 }
                 email_pos += 1
             }
-            if (valid_domain && email_pos < content.length && content[email_pos] == '>' &&
+            if (valid_domain && email_pos < content.size && content[email_pos] == '>' &&
                 email_pos > domain_start && label_len > 0 && dot_count > 0 &&
                 isAlphaNum(UInt8(content[email_pos - 1]))) {
                 return AutolinkEndResult(email_pos + 1, true)

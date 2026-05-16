@@ -1385,7 +1385,7 @@ public class ResolveBuiltins {
     }
 
     /// 添加 "node:" 前缀 (如果尚未存在)
-    /// 对应 Bun ensure_node_prefix!
+    /// 对应 Bun ensure_node_prefix.getOrThrow()
     ///
     /// 参数:
     ///   name: 模块名称

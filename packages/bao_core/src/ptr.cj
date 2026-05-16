@@ -1,39 +1,40 @@
 // bao_core - 指针工具
 // 对应 Bun: src/ptr/
 package bao_core
+import std.collection.*
 
 // ============================================================================
 // 指针工具类
 // 对应 Bun: src/ptr/ 中的指针操作
 // ============================================================================
 
-/// 指针工具
+/// 指针工具 - 简化版，不使用泛型 CPointer
 public class PtrUtils {
     /// 判断指针是否为空
-    public static func isNull<T>(ptr: CPointer<T>): Bool {
+    public static func isNull(ptr: CPointer<UInt8>): Bool {
         unsafe {
             return ptr.isNull()
         }
     }
 
     /// 从指针读取值
-    public static func read<T>(ptr: CPointer<T>): T {
+    public static func readByte(ptr: CPointer<UInt8>): UInt8 {
         unsafe {
             return ptr.read()
         }
     }
 
     /// 向指针写入值
-    public static func write<T>(ptr: CPointer<T>, value: T): Unit {
+    public static func writeByte(ptr: CPointer<UInt8>, value: UInt8): Unit {
         unsafe {
             ptr.write(value)
         }
     }
 
     /// 指针偏移
-    public static func offset<T>(ptr: CPointer<T>, offset: IntNative): CPointer<T> {
+    public static func offset(ptr: CPointer<UInt8>, off: Int64): CPointer<UInt8> {
         unsafe {
-            return ptr + offset
+            return ptr + off
         }
     }
 }
@@ -45,7 +46,7 @@ public class ByteBuffer {
     private var pos: Int64
 
     public init(capacity: Int64) {
-        data = Array<UInt8>(capacity, item: 0)
+        data = Array<UInt8>(capacity, { _ => UInt8(0) })
         pos = 0
     }
 
@@ -96,14 +97,14 @@ public class ByteBuffer {
 
     /// 读取指定长度字节
     public func readBytes(len: Int64): Array<UInt8> {
-        var result = Array<UInt8>()
+        var result = ArrayList<UInt8>()
         for (i in 0..len) {
             if (pos < data.size) {
-                result.append(data[pos])
+                result.add(data[pos])
                 pos += 1
             }
         }
-        return result
+        return result.toArray()
     }
 
     /// 获取底层字节数组
@@ -113,11 +114,11 @@ public class ByteBuffer {
 
     /// 获取有效数据的切片
     public func slice(): Array<UInt8> {
-        var result = Array<UInt8>()
+        var result = ArrayList<UInt8>()
         for (i in 0..pos) {
-            result.append(data[i])
+            result.add(data[i])
         }
-        return result
+        return result.toArray()
     }
 
     /// 重置位置

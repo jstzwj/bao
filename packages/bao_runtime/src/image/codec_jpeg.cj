@@ -64,48 +64,48 @@ public class CodecJpeg {
     // ========================================================================
 
     /// tj3Init(0) = 压缩器, tj3Init(1) = 解压缩器
-    public static func tj3Init(initType: Int32): CPointer<> {
+    public static func tj3Init(initType: Int32): CPointer<Unit> {
         // FFI: 实际实现调用 libjpeg-turbo
-        return CPointer<>.null
+        return CPointer<Unit>.null
     }
 
-    public static func tj3Destroy(h: CPointer<>): Unit {
+    public static func tj3Destroy(h: CPointer<Unit>): Unit {
         // FFI: 销毁 TurboJPEG 句柄
     }
 
-    public static func tj3Set(h: CPointer<>, param: Int32, value: Int32): Int32 {
+    public static func tj3Set(h: CPointer<Unit>, param: Int32, value: Int32): Int32 {
         // FFI: 设置参数
         return 0
     }
 
-    public static func tj3Get(h: CPointer<>, param: Int32): Int32 {
+    public static func tj3Get(h: CPointer<Unit>, param: Int32): Int32 {
         // FFI: 获取参数值
         return -1
     }
 
-    public static func tj3DecompressHeader(h: CPointer<>, buf: CPointer<>, len: UInt64): Int32 {
+    public static func tj3DecompressHeader(h: CPointer<Unit>, buf: CPointer<Unit>, len: UInt64): Int32 {
         // FFI: 解析 JPEG 头部
         return -1
     }
 
-    public static func tj3Decompress8(h: CPointer<>, buf: CPointer<>, len: UInt64,
-        dst: CPointer<>, pitch: Int32, pf: Int32): Int32 {
+    public static func tj3Decompress8(h: CPointer<Unit>, buf: CPointer<Unit>, len: UInt64,
+        dst: CPointer<Unit>, pitch: Int32, pf: Int32): Int32 {
         // FFI: 解压缩为 8 位像素
         return -1
     }
 
-    public static func tj3Compress8(h: CPointer<>, src: CPointer<>, w: Int32, pitch: Int32,
-        height: Int32, pf: Int32, out: CPointer<CPointer<>>, outLen: CPointer<UInt64>): Int32 {
+    public static func tj3Compress8(h: CPointer<Unit>, src: CPointer<Unit>, w: Int32, pitch: Int32,
+        height: Int32, pf: Int32, out: CPointer<CPointer<Unit>>, outLen: CPointer<UInt64>): Int32 {
         // FFI: 压缩 8 位像素
         return -1
     }
 
-    public static func tj3SetScalingFactor(h: CPointer<>, sf: ScalingFactor): Int32 {
+    public static func tj3SetScalingFactor(h: CPointer<Unit>, sf: ScalingFactor): Int32 {
         // FFI: 设置缩放因子
         return -1
     }
 
-    public static func tj3SetCroppingRegion(h: CPointer<>, r: CropRegion): Int32 {
+    public static func tj3SetCroppingRegion(h: CPointer<Unit>, r: CropRegion): Int32 {
         // FFI: 设置裁剪区域
         return -1
     }
@@ -115,24 +115,24 @@ public class CodecJpeg {
         return None
     }
 
-    public static func tj3Free(ptr: CPointer<>): Unit {
+    public static func tj3Free(ptr: CPointer<Unit>): Unit {
         // FFI: 释放 libjpeg-turbo 分配的内存
     }
 
-    public static func tj3GetErrorStr(h: CPointer<>): String {
+    public static func tj3GetErrorStr(h: CPointer<Unit>): String {
         // FFI: 获取错误字符串
         return ""
     }
 
     /// ICC 配置文件传输：APP2 ICC_PROFILE 标记携带源的色彩空间
     /// tj3GetICCProfile 读取已解码的标记（在 TJPARAM_SAVEMARKERS 设置为 2 或 4 之后）
-    public static func tj3GetICCProfile(h: CPointer<>, iccBuf: CPointer<CPointer<>>, iccSize: CPointer<UInt64>): Int32 {
+    public static func tj3GetICCProfile(h: CPointer<Unit>, iccBuf: CPointer<CPointer<Unit>>, iccSize: CPointer<UInt64>): Int32 {
         // FFI: 获取 ICC 配置文件
         return -1
     }
 
     /// tj3SetICCProfile 将字节复制到编码器状态，因此输入缓冲区可在调用返回后立即释放。
-    public static func tj3SetICCProfile(h: CPointer<>, iccBuf: CPointer<>, iccSize: UInt64): Int32 {
+    public static func tj3SetICCProfile(h: CPointer<Unit>, iccBuf: CPointer<Unit>, iccSize: UInt64): Int32 {
         // FFI: 设置 ICC 配置文件
         return -1
     }
@@ -166,7 +166,7 @@ public class CodecJpeg {
     public static func decode(bytes: Array<UInt8>, maxPixels: UInt64, hint: DecodeHint): ?DecodedImage {
         // 1. 创建解压缩器
         let h = tj3Init(1)
-        if (h == CPointer<>.null) { return None }
+        if (h == CPointer<Unit>.null) { return None }
 
         // 2. 请求 libjpeg-turbo 保留 APP2/ICC_PROFILE 标记
         //    必须在头部解析前设置
@@ -209,7 +209,8 @@ public class CodecJpeg {
                 var best = ScalingFactor(1, 1)
                 var i: Int32 = 0
                 while (i < n) {
-                    let sf = sfsOpt![Int64(i)]  // 获取第 i 个缩放因子
+                    let sfArr = sfsOpt.getOrThrow()
+                    let sf = sfArr[Int64(i)]  // 获取第 i 个缩放因子
                     // 仅考虑缩小因子
                     if (sf.num >= sf.denom) {
                         i += 1
@@ -270,7 +271,7 @@ public class CodecJpeg {
         //     其中"无配置文件"会悄悄将它们重新解释为 sRGB 并偏移颜色，这正是 bug #30197 的问题。
         var iccProfile: ?Array<UInt8> = None
         // FFI 调用 tj3GetICCProfile 并复制结果的逻辑:
-        // var iccPtr: CPointer<> = CPointer<>.null
+        // var iccPtr: CPointer<Unit> = CPointer<Unit>.null
         // var iccSize: UInt64 = 0
         // if (tj3GetICCProfile(h, &iccPtr, &iccSize) == 0 && iccSize > 0 && iccPtr != null) {
         //     iccProfile = copyFromC(iccPtr, iccSize)
@@ -303,7 +304,7 @@ public class CodecJpeg {
 
         // 1. 创建压缩器
         let h = tj3Init(0)
-        if (h == CPointer<>.null) { return None }
+        if (h == CPointer<Unit>.null) { return None }
 
         // 2. 设置质量参数
         let clampedQuality = clampQuality(quality)
@@ -321,7 +322,7 @@ public class CodecJpeg {
         //    非零返回表示配置文件格式错误 — 丢弃而不是使编码失败;
         //    没有 ICC 配置文件的 JPEG 仍然是有效的 JPEG（隐式 sRGB）。参见 #30197。
         if (iccProfile != None) {
-            let p = iccProfile!
+            let p = iccProfile.getOrThrow()
             if (p.size > 0) {
                 tj3SetICCProfile(h, p.ptr(), UInt64(p.size))
             }
@@ -329,7 +330,7 @@ public class CodecJpeg {
 
         // 5. 压缩
         // FFI: 实际调用 tj3Compress8
-        // var outPtr: CPointer<> = CPointer<>.null
+        // var outPtr: CPointer<Unit> = CPointer<Unit>.null
         // var outLen: UInt64 = 0
         // if (tj3Compress8(h, rgba.ptr(), Int32(w), 0, Int32(ht), TJPF_RGBA,
         //                   &outPtr, &outLen) != 0) {

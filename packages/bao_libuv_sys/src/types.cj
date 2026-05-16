@@ -131,7 +131,7 @@ public struct UvCpuTimesT {
 /// 严格翻译自: uv_cpu_info_t
 @C
 public struct UvCpuInfoT {
-    public var model: CString = CString()
+    public var model: CString = CString(CPointer<UInt8>())
     public var speed: Int32 = 0
     public var cpu_times: UvCpuTimesT = UvCpuTimesT()
 }

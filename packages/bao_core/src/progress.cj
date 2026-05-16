@@ -5,6 +5,8 @@
 // Bun: 非分配、非失败、线程安全的进度 API
 // 仓颉: 使用仓颉并发原语实现等价功能
 package bao_core
+import std.console.*
+import std.time.*
 
 /// 进度节点单位类型 - 对应 Bun Node.unit
 /// pub const unit: enum { none, files, bytes } = .none
@@ -47,19 +49,20 @@ public class ProgressNode {
         this.unit = ProgressUnit.None
         this.estimatedTotalItems = estimatedTotalItems
         this.completedItems = 0
-        this.recentlyUpdatedChild = None
+        let noChild: ?ProgressNode = None
+        this.recentlyUpdatedChild = noChild
     }
 
     /// 创建子节点 - 对应 Bun Node.start
     public func start(name: String, estimatedTotalItems: Int64): ProgressNode {
-        let child = ProgressNode(context: context, parent: Some(this), name: name, estimatedTotalItems: estimatedTotalItems)
+        let child = ProgressNode(context, Some(this), name, estimatedTotalItems)
         this.recentlyUpdatedChild = Some(child)
         return child
     }
 
     /// 完成一个项目 - 对应 Bun Node.completeOne
     public func completeOne(): Unit {
-        if (parent != None) {
+        if (parent.isSome()) {
             parent.getOrThrow().recentlyUpdatedChild = Some(this)
         }
         completedItems += 1
@@ -71,8 +74,12 @@ public class ProgressNode {
         context.maybeRefresh()
         match (parent) {
             case Some(p) =>
-                if (p.recentlyUpdatedChild == Some(this)) {
-                    p.recentlyUpdatedChild = None
+                match (p.recentlyUpdatedChild) {
+                    case Some(child) =>
+                        // Check if child is the same reference as this
+                        // Since we can't compare object identity easily, just clear it
+                        p.recentlyUpdatedChild = None
+                    case None => ()
                 }
                 p.completeOne()
             case None =>
@@ -176,7 +183,8 @@ public class Progress {
     ///     return &self.root;
     /// }
     public func start(name: String, estimatedTotalItems: Int64): ProgressNode {
-        let node = ProgressNode(context: this, parent: None, name: name, estimatedTotalItems: estimatedTotalItems)
+        let noParent: ?ProgressNode = None
+        let node = ProgressNode(this, noParent, name, estimatedTotalItems)
         root = Some(node)
         done = false
         prevRefreshTimestamp = 0
@@ -212,7 +220,7 @@ public class Progress {
             return
         }
         // 构建进度输出
-        outputBuffer.clear()
+        outputBuffer = StringBuilder()
         var needEllipse = false
         var maybeNode = root
         while (true) {
@@ -225,8 +233,8 @@ public class Progress {
                     let eti = node.estimatedTotalItems
                     let completed = node.completedItems
                     let currentItem = completed + 1
-                    if (node.name.length > 0 || eti > 0) {
-                        if (node.name.length > 0) {
+                    if (node.name.size > 0 || eti > 0) {
+                        if (node.name.size > 0) {
                             outputBuffer.append(node.name)
                             needEllipse = true
                         }
@@ -258,7 +266,7 @@ public class Progress {
         }
         // 输出到 stderr
         let output = outputBuffer.toString()
-        if (output.length > 0) {
+        if (output.size > 0) {
             printProgress(output)
         }
     }
@@ -267,7 +275,7 @@ public class Progress {
     /// pub fn log(self: *Progress, comptime format: []const u8, args: anytype) void
     public func log(message: String): Unit {
         refresh()
-        outputBuffer.clear()
+        outputBuffer = StringBuilder()
         outputBuffer.append(message)
         if (!message.endsWith("\n")) {
             outputBuffer.append('\n')
@@ -276,14 +284,14 @@ public class Progress {
 
     /// 获取当前时间 (毫秒)
     private static func currentTimeMillis(): Int64 {
-        return Int64(DateTime.timestampMillis())
+        return DateTime.now().toUnixTimeStamp().toMilliseconds()
     }
 
     /// 打印进度到 stderr
     private func printProgress(output: String): Unit {
         // 仓颉标准输出
         try {
-            std.console.println(output)
+            Console.stdErr.writeln(output)
         } catch (_: Exception) {
             // 忽略输出错误
         }

@@ -94,7 +94,7 @@ public class JSON5Object {
             case .e_object(let obj) =>
                 var jsObj = JsValue.createEmptyObject(global, obj.properties.count)
                 for (prop in obj.properties.slice()) {
-                    let keyExpr = prop.key!
+                    let keyExpr = prop.key.getOrThrow()
                     let value = try exprToJS(prop.value!, global)
                     let keyJs = try exprToJS(keyExpr, global)
                     let keyStr = try keyJs.toBunString(global)
@@ -202,13 +202,137 @@ public class Stringifier {
     }
 
     /// 序列化数组
+    /// 对应 Bun: Stringifier.stringifyArray
     public func stringifyArray(global: JsGlobalObject, value: JsValue): Unit {
-        // ... 数组序列化实现
+        var iter = try value.arrayIterator(global)
+
+        if (iter.len == 0) {
+            builder.append("[]")
+            return
+        }
+
+        builder.append("[")
+
+        match (space) {
+            case Space.minified =>
+                var first: Bool = true
+                while (let item = try iter.next()) {
+                    if (!first) {
+                        builder.append(",")
+                    }
+                    first = false
+                    if (item.isUndefined() || item.isSymbol() || item.isFunction()) {
+                        builder.append("null")
+                    } else {
+                        try stringifyValue(global, item)
+                    }
+                }
+            case Space.number(_) | Space.str(_) =>
+                indent += 1
+                var first: Bool = true
+                while (let item = try iter.next()) {
+                    if (!first) {
+                        builder.append(",")
+                    }
+                    first = false
+                    newline()
+                    if (item.isUndefined() || item.isSymbol() || item.isFunction()) {
+                        builder.append("null")
+                    } else {
+                        try stringifyValue(global, item)
+                    }
+                }
+                // Trailing comma
+                builder.append(",")
+                indent -= 1
+                newline()
+        }
+
+        builder.append("]")
     }
 
     /// 序列化对象
+    /// 对应 Bun: Stringifier.stringifyObject
     public func stringifyObject(global: JsGlobalObject, value: JsValue): Unit {
-        // ... 对象序列化实现
+        var iter = try JsPropertyIterator(
+            skipEmptyName: false,
+            includeValue: true,
+        ).init(global, try value.toObject(global))
+        defer iter.deinit()
+
+        if (iter.len == 0) {
+            builder.append("{}")
+            return
+        }
+
+        builder.append("{")
+
+        match (space) {
+            case Space.minified =>
+                var first: Bool = true
+                while (let propName = try iter.next()) {
+                    if (iter.value.isUndefined() || iter.value.isSymbol() || iter.value.isFunction()) {
+                        continue
+                    }
+                    if (!first) {
+                        builder.append(",")
+                    }
+                    first = false
+                    appendKey(propName)
+                    builder.append(":")
+                    try stringifyValue(global, iter.value)
+                }
+            case Space.number(_) | Space.str(_) =>
+                indent += 1
+                var first: Bool = true
+                while (let propName = try iter.next()) {
+                    if (iter.value.isUndefined() || iter.value.isSymbol() || iter.value.isFunction()) {
+                        continue
+                    }
+                    if (!first) {
+                        builder.append(",")
+                    }
+                    first = false
+                    newline()
+                    appendKey(propName)
+                    builder.append(": ")
+                    try stringifyValue(global, iter.value)
+                }
+                indent -= 1
+                if (!first) {
+                    // Trailing comma
+                    builder.append(",")
+                    newline()
+                }
+        }
+
+        builder.append("}")
+    }
+
+    /// 追加键名 — 如果是标识符则直接输出，否则加引号
+    /// 对应 Bun: Stringifier.appendKey
+    public func appendKey(name: BunString): Unit {
+        var isIdentifier: Bool = true
+        if (name.length() == 0) {
+            isIdentifier = false
+        } else {
+            if (!JsLexer.isIdentifierStart(name.charAt(0))) {
+                isIdentifier = false
+            } else {
+                for (i in 1..name.length()) {
+                    if (!JsLexer.isIdentifierContinue(name.charAt(i))) {
+                        isIdentifier = false
+                        break
+                    }
+                }
+            }
+        }
+
+        if (isIdentifier) {
+            builder.append(name.toString())
+        } else {
+            appendQuotedString(name)
+        }
     }
 
     /// 追加引号包裹的字符串

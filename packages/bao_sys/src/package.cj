@@ -66,8 +66,14 @@ public enum SysTag {
     | Pipe
     | Socketpair
     | EpollCtl
+    | Watch
     | Writev
     | Readv
+    // spawn 相关标签 - 严格对应 Bun sys.Tag 中的 spawn/memfd/pidfd/setsockopt 等
+    | PosixSpawn      // posix_spawn
+    | MemfdCreate     // memfd_create
+    | PidfdOpen       // pidfd_open
+    | Setsockopt      // setsockopt
 
     /// 获取标签名称字符串 - 对应 Bun @tagName(syscall)
     public func name(): String {
@@ -118,8 +124,13 @@ public enum SysTag {
             case Pipe => "pipe"
             case Socketpair => "socketpair"
             case EpollCtl => "epoll_ctl"
+            case Watch => "watch"
             case Writev => "writev"
             case Readv => "readv"
+            case PosixSpawn => "posix_spawn"
+            case MemfdCreate => "memfd_create"
+            case PidfdOpen => "pidfd_open"
+            case Setsockopt => "setsockopt"
         }
     }
 }

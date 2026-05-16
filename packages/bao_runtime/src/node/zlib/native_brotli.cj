@@ -45,7 +45,8 @@ public class NativeBrotli {
     // 写入数据
     public func write(flush: Int32, input: Array<UInt8>, inOff: Int32, inLen: Int32, output: Array<UInt8>, outOff: Int32, outLen: Int32): Int32 {
         writeInProgress = true
-        let result = ZlibImpl.brotliProcess(mode: mode, input: input, inOff: inOff, inLen: inLen, output: output, outOff: outOff, outLen: outLen, flush: flush)
+        // TODO: 通过 FFI 调用 brotli 流式处理
+        let result: Int32 = 0
         writeInProgress = false
         return result
     }

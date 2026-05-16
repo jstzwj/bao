@@ -757,7 +757,7 @@ public class StringOrUndefined {
 
     public func toJS(globalObject: JsGlobalObject): JsValue {
         if (value != None) {
-            return JsValue(BaoString(value!))
+            return JsValue(BaoString(value.getOrThrow()))
         }
         return JsValue()
     }
@@ -941,7 +941,7 @@ public class NodeFS {
             }
             return Maybe<StatOrNotFound>.err(code: "ENOENT", syscall: "stat", path: args.path.slice())
         }
-        return Maybe<StatOrNotFound>(result: StatOrNotFound(stats: result!))
+        return Maybe<StatOrNotFound>(result: StatOrNotFound(stats: result.getOrThrow()))
     }
 
     // ========================================================================
@@ -953,7 +953,7 @@ public class NodeFS {
         if (result == None) {
             return Maybe<Stats>.err(code: "EBADF", syscall: "fstat", path: "")
         }
-        return Maybe<Stats>(result: result!)
+        return Maybe<Stats>(result: result.getOrThrow())
     }
 
     // ========================================================================
@@ -968,7 +968,7 @@ public class NodeFS {
             }
             return Maybe<StatOrNotFound>.err(code: "ENOENT", syscall: "lstat", path: args.path.slice())
         }
-        return Maybe<StatOrNotFound>(result: StatOrNotFound(stats: result!))
+        return Maybe<StatOrNotFound>(result: StatOrNotFound(stats: result.getOrThrow()))
     }
 
     // ========================================================================
@@ -1018,7 +1018,7 @@ public class NodeFS {
         if (result == None) {
             return Maybe<String>.err(code: "EIO", syscall: "mkdtemp", path: prefix)
         }
-        return Maybe<String>(result: result!)
+        return Maybe<String>(result: result.getOrThrow())
     }
 
     // ========================================================================
@@ -1134,7 +1134,7 @@ public class NodeFS {
         if (target == None) {
             return Maybe<String>.err(code: "ENOENT", syscall: "readlink", path: args.path.slice())
         }
-        return Maybe<String>(result: target!)
+        return Maybe<String>(result: target.getOrThrow())
     }
 
     // ========================================================================
@@ -1146,7 +1146,7 @@ public class NodeFS {
         if (resolved == None) {
             return Maybe<String>.err(code: "ENOENT", syscall: "realpath", path: args.path.slice())
         }
-        return Maybe<String>(result: resolved!)
+        return Maybe<String>(result: resolved.getOrThrow())
     }
 
     /// realpathNonNative — 非原生 realpath 实现
@@ -1351,7 +1351,7 @@ public class NodeFS {
         if (result == None) {
             return Maybe<StatFS>.err(code: "ENOENT", syscall: "statfs", path: args.path.slice())
         }
-        return Maybe<StatFS>(result: result!)
+        return Maybe<StatFS>(result: result.getOrThrow())
     }
 
     // ========================================================================

@@ -4,3 +4,13 @@ name = "bao_jsc"
 version = "0.1.0"
 output-type = "static"
 src-dir = "src"
+
+[dependencies]
+bao_event_loop = { path = "../bao_event_loop" }
+bao_io = { path = "../bao_io" }
+bao_threading = { path = "../bao_threading" }
+bao_core = { path = "../bao_core" }
+bao_http_types = { path = "../bao_http_types" }
+bao_ptr = { path = "../bao_ptr" }
+bao_sys = { path = "../bao_sys" }
+bao_bundler = { path = "../bao_bundler" }

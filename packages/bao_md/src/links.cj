@@ -14,8 +14,8 @@ public func processLink(parser: Parser, content: String, start: Int64, baseOff: 
     var pos = start + 1
     var bracketDepth: UInt32 = 1
     var hasInnerBracket = false
-    while (pos < content.length && bracketDepth > 0) {
-        if (content[Int64(pos)] == '\\' && pos + 1 < content.length) {
+    while (pos < content.size && bracketDepth > 0) {
+        if (content[Int64(pos)] == '\\' && pos + 1 < content.size) {
             pos += 2
             continue
         }
@@ -63,10 +63,10 @@ public func processLink(parser: Parser, content: String, start: Int64, baseOff: 
     pos += 1 // 跳过 ']'
 
     // 行内链接: [text](url "title")
-    if (pos < content.length && content[Int64(pos)] == '(') {
+    if (pos < content.size && content[Int64(pos)] == '(') {
         pos += 1
         // 跳过空白（包括合并段落行产生的换行符）
-        while (pos < content.length && (isBlank(UInt8(content[Int64(pos)])) || content[Int64(pos)] == '\n' || content[Int64(pos)] == '\r')) {
+        while (pos < content.size && (isBlank(UInt8(content[Int64(pos)])) || content[Int64(pos)] == '\n' || content[Int64(pos)] == '\r')) {
             pos += 1
         }
 
@@ -74,17 +74,17 @@ public func processLink(parser: Parser, content: String, start: Int64, baseOff: 
         var destStart = pos
         var destEnd = pos
 
-        if (pos < content.length && content[Int64(pos)] == '<') {
+        if (pos < content.size && content[Int64(pos)] == '<') {
             // 尖括号目标（不允许换行）
             destStart = pos + 1
             pos += 1
             var angleValid = true
-            while (pos < content.length && content[Int64(pos)] != '>') {
+            while (pos < content.size && content[Int64(pos)] != '>') {
                 if (content[Int64(pos)] == '\n' || content[Int64(pos)] == '\r') {
                     angleValid = false
                     break
                 }
-                if (content[Int64(pos)] == '\\' && pos + 1 < content.length) {
+                if (content[Int64(pos)] == '\\' && pos + 1 < content.size) {
                     pos += 2
                 } else {
                     pos += 1
@@ -94,13 +94,13 @@ public func processLink(parser: Parser, content: String, start: Int64, baseOff: 
                 return None
             }
             destEnd = pos
-            if (pos < content.length) {
+            if (pos < content.size) {
                 pos += 1 // 跳过 >
             }
         } else {
             // 裸目标 — 平衡括号
             var parenDepth2: UInt32 = 0
-            while (pos < content.length && !isWhitespace(UInt8(content[Int64(pos)]))) {
+            while (pos < content.size && !isWhitespace(UInt8(content[Int64(pos)]))) {
                 if (content[Int64(pos)] == '(') {
                     parenDepth2 += 1
                 } else if (content[Int64(pos)] == ')') {
@@ -109,7 +109,7 @@ public func processLink(parser: Parser, content: String, start: Int64, baseOff: 
                     }
                     parenDepth2 -= 1
                 }
-                if (content[Int64(pos)] == '\\' && pos + 1 < content.length) {
+                if (content[Int64(pos)] == '\\' && pos + 1 < content.size) {
                     pos += 2
                 } else {
                     pos += 1
@@ -119,36 +119,36 @@ public func processLink(parser: Parser, content: String, start: Int64, baseOff: 
         }
 
         // 跳过空白（包括换行符）
-        while (pos < content.length && (isBlank(UInt8(content[Int64(pos)])) || content[Int64(pos)] == '\n' || content[Int64(pos)] == '\r')) {
+        while (pos < content.size && (isBlank(UInt8(content[Int64(pos)])) || content[Int64(pos)] == '\n' || content[Int64(pos)] == '\r')) {
             pos += 1
         }
 
         // 可选标题
         var title = ""
-        if (pos < content.length && (content[Int64(pos)] == '"' || content[Int64(pos)] == '\'' || content[Int64(pos)] == '(')) {
+        if (pos < content.size && (content[Int64(pos)] == '"' || content[Int64(pos)] == '\'' || content[Int64(pos)] == '(')) {
             let closeChar: UInt8 = if (content[Int64(pos)] == '(') ')'.toUInt8() else UInt8(content[Int64(pos)])
             pos += 1
             let titleStart = pos
-            while (pos < content.length && UInt8(content[Int64(pos)]) != closeChar) {
-                if (content[Int64(pos)] == '\\' && pos + 1 < content.length) {
+            while (pos < content.size && UInt8(content[Int64(pos)]) != closeChar) {
+                if (content[Int64(pos)] == '\\' && pos + 1 < content.size) {
                     pos += 2
                 } else {
                     pos += 1
                 }
             }
             title = content.substring(titleStart, pos)
-            if (pos < content.length) {
+            if (pos < content.size) {
                 pos += 1 // 跳过关闭引号
             }
         }
 
         // 跳过空白（包括换行符）
-        while (pos < content.length && (isBlank(UInt8(content[Int64(pos)])) || content[Int64(pos)] == '\n' || content[Int64(pos)] == '\r')) {
+        while (pos < content.size && (isBlank(UInt8(content[Int64(pos)])) || content[Int64(pos)] == '\n' || content[Int64(pos)] == '\r')) {
             pos += 1
         }
 
         // 必须以 ')' 结束
-        if (pos < content.length && content[Int64(pos)] == ')') {
+        if (pos < content.size && content[Int64(pos)] == ')') {
             pos += 1
             let dest = content.substring(destStart, destEnd)
 
@@ -183,22 +183,22 @@ public func processLink(parser: Parser, content: String, start: Int64, baseOff: 
     }
 
     // 引用链接: [text][ref] 或 [text][] 或快捷 [text]
-    if (pos < content.length && content[Int64(pos)] == '[') {
+    if (pos < content.size && content[Int64(pos)] == '[') {
         let bracketPos = pos
         pos += 1
         let refStart = pos
-        while (pos < content.length && content[Int64(pos)] != ']') {
+        while (pos < content.size && content[Int64(pos)] != ']') {
             if (content[Int64(pos)] == '[') {
                 break // 嵌套 [ 不允许出现在 ref 中
             }
-            if (content[Int64(pos)] == '\\' && pos + 1 < content.length) {
+            if (content[Int64(pos)] == '\\' && pos + 1 < content.size) {
                 pos += 2
             } else {
                 pos += 1
             }
         }
-        if (pos < content.length && content[Int64(pos)] == ']') {
-            let refLabel = if (pos > refStart) content.substring(refStart, pos) else label
+        if (pos < content.size && content[Int64(pos)] == ']') {
+            let refLabel = if (pos > refStart) { content.substring(refStart, pos) } else { label }
             pos += 1
             let refDefOpt = lookupRefDef(parser, refLabel)
             if (refDefOpt != None) {
@@ -217,7 +217,7 @@ public func processLink(parser: Parser, content: String, start: Int64, baseOff: 
     }
 
     // 快捷引用链接: [text] (后面没有跟着 [)
-    let charAfterLabel: UInt8 = if (labelEnd + 1 < content.length) UInt8(content[Int64(labelEnd + 1)]) else 0.toUInt8()
+    let charAfterLabel: UInt8 = if (labelEnd + 1 < content.size) { UInt8(content[Int64(labelEnd + 1)]) } else { 0.toUInt8() }
     if (charAfterLabel != '['.toUInt8()) {
         let refDefOpt = lookupRefDef(parser, label)
         if (refDefOpt != None) {
@@ -251,8 +251,8 @@ public class BracketLinkResult {
 public func tryMatchBracketLink(parser: Parser, content: String, start: Int64): BracketLinkResult {
     var pos = start + 1
     var depth: UInt32 = 1
-    while (pos < content.length && depth > 0) {
-        if (content[Int64(pos)] == '\\' && pos + 1 < content.length) {
+    while (pos < content.size && depth > 0) {
+        if (content[Int64(pos)] == '\\' && pos + 1 < content.size) {
             pos += 2
             continue
         }
@@ -293,7 +293,7 @@ public func tryMatchBracketLink(parser: Parser, content: String, start: Int64): 
     let labelEnd = pos
     pos += 1 // 跳过 ]
 
-    if (pos >= content.length) {
+    if (pos >= content.size) {
         // 快捷引用检查
         let innerLabel = content.substring(start + 1, labelEnd)
         let isRef = lookupRefDef(parser, innerLabel) != None
@@ -304,27 +304,27 @@ public func tryMatchBracketLink(parser: Parser, content: String, start: Int64): 
     if (content[Int64(pos)] == '(') {
         var p = pos + 1
         // 跳过空白
-        while (p < content.length && (isBlank(UInt8(content[Int64(p)])) || content[Int64(p)] == '\n' || content[Int64(p)] == '\r')) {
+        while (p < content.size && (isBlank(UInt8(content[Int64(p)])) || content[Int64(p)] == '\n' || content[Int64(p)] == '\r')) {
             p += 1
         }
         // 解析目标
-        if (p < content.length && content[Int64(p)] == '<') {
+        if (p < content.size && content[Int64(p)] == '<') {
             p += 1
-            while (p < content.length && content[Int64(p)] != '>' && content[Int64(p)] != '\n') {
-                if (content[Int64(p)] == '\\' && p + 1 < content.length) {
+            while (p < content.size && content[Int64(p)] != '>' && content[Int64(p)] != '\n') {
+                if (content[Int64(p)] == '\\' && p + 1 < content.size) {
                     p += 2
                 } else {
                     p += 1
                 }
             }
-            if (p < content.length && content[Int64(p)] == '>') {
+            if (p < content.size && content[Int64(p)] == '>') {
                 p += 1
             } else {
                 return BracketLinkResult(false, labelEnd, labelEnd + 1)
             }
         } else {
             var parenDepth3: UInt32 = 0
-            while (p < content.length && !isWhitespace(UInt8(content[Int64(p)]))) {
+            while (p < content.size && !isWhitespace(UInt8(content[Int64(p)]))) {
                 if (content[Int64(p)] == '(') {
                     parenDepth3 += 1
                 } else if (content[Int64(p)] == ')') {
@@ -333,7 +333,7 @@ public func tryMatchBracketLink(parser: Parser, content: String, start: Int64): 
                     }
                     parenDepth3 -= 1
                 }
-                if (content[Int64(p)] == '\\' && p + 1 < content.length) {
+                if (content[Int64(p)] == '\\' && p + 1 < content.size) {
                     p += 2
                 } else {
                     p += 1
@@ -341,29 +341,29 @@ public func tryMatchBracketLink(parser: Parser, content: String, start: Int64): 
             }
         }
         // 跳过空白
-        while (p < content.length && (isBlank(UInt8(content[Int64(p)])) || content[Int64(p)] == '\n' || content[Int64(p)] == '\r')) {
+        while (p < content.size && (isBlank(UInt8(content[Int64(p)])) || content[Int64(p)] == '\n' || content[Int64(p)] == '\r')) {
             p += 1
         }
         // 可选标题
-        if (p < content.length && (content[Int64(p)] == '"' || content[Int64(p)] == '\'' || content[Int64(p)] == '(')) {
+        if (p < content.size && (content[Int64(p)] == '"' || content[Int64(p)] == '\'' || content[Int64(p)] == '(')) {
             let closeCh: UInt8 = if (content[Int64(p)] == '(') ')'.toUInt8() else UInt8(content[Int64(p)])
             p += 1
-            while (p < content.length && UInt8(content[Int64(p)]) != closeCh) {
-                if (content[Int64(p)] == '\\' && p + 1 < content.length) {
+            while (p < content.size && UInt8(content[Int64(p)]) != closeCh) {
+                if (content[Int64(p)] == '\\' && p + 1 < content.size) {
                     p += 2
                 } else {
                     p += 1
                 }
             }
-            if (p < content.length) {
+            if (p < content.size) {
                 p += 1
             }
         }
         // 跳过空白
-        while (p < content.length && (isBlank(UInt8(content[Int64(p)])) || content[Int64(p)] == '\n' || content[Int64(p)] == '\r')) {
+        while (p < content.size && (isBlank(UInt8(content[Int64(p)])) || content[Int64(p)] == '\n' || content[Int64(p)] == '\r')) {
             p += 1
         }
-        if (p < content.length && content[Int64(p)] == ')') {
+        if (p < content.size && content[Int64(p)] == ')') {
             return BracketLinkResult(true, labelEnd, p + 1)
         }
     }
@@ -371,18 +371,18 @@ public func tryMatchBracketLink(parser: Parser, content: String, start: Int64): 
     // 引用链接: ][...]
     if (content[Int64(pos)] == '[') {
         var p = pos + 1
-        while (p < content.length && content[Int64(p)] != ']') {
+        while (p < content.size && content[Int64(p)] != ']') {
             if (content[Int64(p)] == '[') {
                 break
             }
-            if (content[Int64(p)] == '\\' && p + 1 < content.length) {
+            if (content[Int64(p)] == '\\' && p + 1 < content.size) {
                 p += 2
             } else {
                 p += 1
             }
         }
-        if (p < content.length && content[Int64(p)] == ']') {
-            let refLabel = if (p > pos + 1) content.substring(pos + 1, p) else content.substring(start + 1, labelEnd)
+        if (p < content.size && content[Int64(p)] == ']') {
+            let refLabel = if (p > pos + 1) { content.substring(pos + 1, p) } else { content.substring(start + 1, labelEnd) }
             if (lookupRefDef(parser, refLabel) != None) {
                 return BracketLinkResult(true, labelEnd, p + 1)
             }
@@ -402,8 +402,8 @@ public func tryMatchBracketLink(parser: Parser, content: String, start: Int64): 
 /// 用于执行 "链接不能包含其他链接" 规则 (CommonMark §6.7)
 public func labelContainsLink(parser: Parser, label: String): Bool {
     var pos: Int64 = 0
-    while (pos < label.length) {
-        if (label[pos] == '\\' && pos + 1 < label.length) {
+    while (pos < label.size) {
+        if (label[pos] == '\\' && pos + 1 < label.size) {
             pos += 2
             continue
         }
@@ -458,7 +458,7 @@ public func processWikiLink(parser: Parser, content: String, start: Int64): ?Int
     var pipePos: ?Int64 = None
     var bracketDepth: UInt32 = 0
 
-    while (pos < content.length) {
+    while (pos < content.size) {
         if (content[pos] == '\n' || content[pos] == '\r') {
             return None
         }
@@ -467,7 +467,7 @@ public func processWikiLink(parser: Parser, content: String, start: Int64): ?Int
         } else if (content[pos] == ']') {
             if (bracketDepth > 0) {
                 bracketDepth -= 1
-            } else if (pos + 1 < content.length && content[pos + 1] == ']') {
+            } else if (pos + 1 < content.size && content[pos + 1] == ']') {
                 break
             } else {
                 // 单独的 ] 没有匹配的 [，不是有效关闭
@@ -480,18 +480,18 @@ public func processWikiLink(parser: Parser, content: String, start: Int64): ?Int
     }
 
     // 必须以 ]] 结束
-    if (pos >= content.length || content[pos] != ']') {
+    if (pos >= content.size || content[pos] != ']') {
         return None
     }
 
     let innerEnd = pos
 
     // 确定目标和标签
-    let target = if (pipePos != None) content.substring(innerStart, pipePos.get()) else content.substring(innerStart, innerEnd)
-    let wlabel = if (pipePos != None) content.substring(pipePos.get() + 1, innerEnd) else content.substring(innerStart, innerEnd)
+    let target = if (pipePos != None) { content.substring(innerStart, pipePos.get()) } else { content.substring(innerStart, innerEnd) }
+    let wlabel = if (pipePos != None) { content.substring(pipePos.get() + 1, innerEnd) } else { content.substring(innerStart, innerEnd) }
 
     // 目标不得超过 100 个字符
-    if (target.length > 100) {
+    if (target.size > 100) {
         return None
     }
 
@@ -540,7 +540,7 @@ public class AutolinkFindResult {
 
 /// 查找自动链接（尖括号形式）
 public func findAutolink(parser: Parser, content: String, start: Int64): ?AutolinkFindResult {
-    if (start + 1 >= content.length) {
+    if (start + 1 >= content.size) {
         return None
     }
 
@@ -549,18 +549,18 @@ public func findAutolink(parser: Parser, content: String, start: Int64): ?Autoli
     // 检查 URI 自动链接: scheme://...
     if (isAlpha(UInt8(content[pos]))) {
         var schemeEnd = pos
-        while (schemeEnd < content.length && (isAlphaNum(UInt8(content[Int64(schemeEnd)])) ||
+        while (schemeEnd < content.size && (isAlphaNum(UInt8(content[Int64(schemeEnd)])) ||
                content[Int64(schemeEnd)] == '+' || content[Int64(schemeEnd)] == '-' || content[Int64(schemeEnd)] == '.')) {
             schemeEnd += 1
         }
         let schemeLen = schemeEnd - pos
-        if (schemeLen >= 2 && schemeLen <= 32 && schemeEnd < content.length && content[Int64(schemeEnd)] == ':') {
+        if (schemeLen >= 2 && schemeLen <= 32 && schemeEnd < content.size && content[Int64(schemeEnd)] == ':') {
             // URI 自动链接
             var uriEnd = schemeEnd + 1
-            while (uriEnd < content.length && content[Int64(uriEnd)] != '>' && !isWhitespace(UInt8(content[Int64(uriEnd)]))) {
+            while (uriEnd < content.size && content[Int64(uriEnd)] != '>' && !isWhitespace(UInt8(content[Int64(uriEnd)]))) {
                 uriEnd += 1
             }
-            if (uriEnd < content.length && content[Int64(uriEnd)] == '>') {
+            if (uriEnd < content.size && content[Int64(uriEnd)] == '>') {
                 return AutolinkFindResult(uriEnd + 1, false)
             }
         }
@@ -568,19 +568,19 @@ public func findAutolink(parser: Parser, content: String, start: Int64): ?Autoli
         // 检查电子邮件自动链接
         var emailPos = pos
         // 用户名部分
-        while (emailPos < content.length && (isAlphaNum(UInt8(content[Int64(emailPos)])) ||
+        while (emailPos < content.size && (isAlphaNum(UInt8(content[Int64(emailPos)])) ||
                content[Int64(emailPos)] == '.' || content[Int64(emailPos)] == '-' ||
                content[Int64(emailPos)] == '_' || content[Int64(emailPos)] == '+')) {
             emailPos += 1
         }
-        if (emailPos < content.length && content[Int64(emailPos)] == '@' && emailPos > pos) {
+        if (emailPos < content.size && content[Int64(emailPos)] == '@' && emailPos > pos) {
             emailPos += 1
             // 域名部分: 由 '.' 分隔的标签，每个 1-63 字符，字母数字或连字符
             let domainStart = emailPos
             var labelLen: UInt32 = 0
             var dotCount: UInt32 = 0
             var validDomain = true
-            while (emailPos < content.length && (isAlphaNum(UInt8(content[Int64(emailPos)])) ||
+            while (emailPos < content.size && (isAlphaNum(UInt8(content[Int64(emailPos)])) ||
                    content[Int64(emailPos)] == '.' || content[Int64(emailPos)] == '-')) {
                 if (content[Int64(emailPos)] == '.') {
                     if (labelLen == 0) {
@@ -598,7 +598,7 @@ public func findAutolink(parser: Parser, content: String, start: Int64): ?Autoli
                 }
                 emailPos += 1
             }
-            if (validDomain && emailPos < content.length && content[Int64(emailPos)] == '>' &&
+            if (validDomain && emailPos < content.size && content[Int64(emailPos)] == '>' &&
                 emailPos > domainStart && labelLen > 0 && dotCount > 0 &&
                 isAlphaNum(UInt8(content[Int64(emailPos - 1)]))) {
                 return AutolinkFindResult(emailPos + 1, true)

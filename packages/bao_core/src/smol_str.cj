@@ -9,6 +9,7 @@
 // Bun: <=15 字节内联存储 (Inlined), >15 字节堆分配
 // 仓颉: 使用 struct + 内联数组模拟, 阈值保持 <=22 字节
 package bao_core
+import std.collection.*
 
 /// 小字符串优化 - 严格对应 Bun SmolStr
 /// Bun: 15 字节内联 (u120 data), 超过则堆分配
@@ -34,7 +35,7 @@ public struct SmolStr {
     /// 空值 - 对应 Bun SmolStr.empty()
     /// pub fn empty() SmolStr { return SmolStr.fromInlined(Inlined.empty); }
     public init() {
-        inlineData = Array<UInt8>(SmolStr.MAX_INLINE_LEN, item: 0)
+        inlineData = Array<UInt8>(SmolStr.MAX_INLINE_LEN, { _ => UInt8(0) })
         heapData = None
         byteLen = 0
         isInlinedFlag = true
@@ -54,14 +55,14 @@ public struct SmolStr {
         let bytes = stringToBytes(s)
         byteLen = bytes.size
         if (bytes.size <= SmolStr.MAX_INLINE_LEN) {
-            inlineData = Array<UInt8>(SmolStr.MAX_INLINE_LEN, item: 0)
+            inlineData = Array<UInt8>(SmolStr.MAX_INLINE_LEN, { _ => UInt8(0) })
             for (i in 0..bytes.size) {
                 inlineData[Int64(i)] = bytes[Int64(i)]
             }
             heapData = None
             isInlinedFlag = true
         } else {
-            inlineData = Array<UInt8>(SmolStr.MAX_INLINE_LEN, item: 0)
+            inlineData = Array<UInt8>(SmolStr.MAX_INLINE_LEN, { _ => UInt8(0) })
             heapData = Some(s)
             isInlinedFlag = false
         }
@@ -71,27 +72,27 @@ public struct SmolStr {
     public init(bytes: Array<UInt8>) {
         byteLen = bytes.size
         if (bytes.size <= SmolStr.MAX_INLINE_LEN) {
-            inlineData = Array<UInt8>(SmolStr.MAX_INLINE_LEN, item: 0)
+            inlineData = Array<UInt8>(SmolStr.MAX_INLINE_LEN, { _ => UInt8(0) })
             for (i in 0..bytes.size) {
                 inlineData[Int64(i)] = bytes[Int64(i)]
             }
             heapData = None
             isInlinedFlag = true
         } else {
-            inlineData = Array<UInt8>(SmolStr.MAX_INLINE_LEN, item: 0)
+            inlineData = Array<UInt8>(SmolStr.MAX_INLINE_LEN, { _ => UInt8(0) })
             heapData = Some(bytesToString(bytes))
             isInlinedFlag = false
         }
     }
 
     /// 从单个字符创建 - 对应 Bun SmolStr.fromChar
-    /// pub fn fromChar(char: u8) SmolStr {
+    /// pub fn fromRune(char: u8) SmolStr {
     ///     var inlined = Inlined{ .data = 0, .__len = 1, ._tag = 1 };
     ///     inlined.allChars()[0] = char;
     ///     return SmolStr.fromInlined(inlined);
     /// }
     public init(char: UInt8) {
-        inlineData = Array<UInt8>(SmolStr.MAX_INLINE_LEN, item: 0)
+        inlineData = Array<UInt8>(SmolStr.MAX_INLINE_LEN, { _ => UInt8(0) })
         inlineData[0] = char
         heapData = None
         byteLen = 1
@@ -127,13 +128,13 @@ public struct SmolStr {
     /// }
     public func bytes(): Array<UInt8> {
         if (isInlinedFlag) {
-            var result = Array<UInt8>()
+            var result = ArrayList<UInt8>()
             for (i in 0..byteLen) {
                 if (i < inlineData.size) {
-                    result.append(inlineData[Int64(i)])
+                    result.add(inlineData[Int64(i)])
                 }
             }
-            return result
+            return result.toArray()
         }
         match (heapData) {
             case Some(s) => return stringToBytes(s)
@@ -147,7 +148,7 @@ public struct SmolStr {
             var sb = StringBuilder()
             for (i in 0..byteLen) {
                 if (i < inlineData.size) {
-                    sb.append(Char(Int32(inlineData[Int64(i)])))
+                    sb.append(Rune(Int32(inlineData[Int64(i)])))
                 }
             }
             return sb.toString()
@@ -159,7 +160,7 @@ public struct SmolStr {
     }
 
     /// 追加字符 - 对应 Bun SmolStr.appendChar
-    /// pub fn appendChar(this: *SmolStr, allocator, char) !void {
+    /// pub fn appendRune(this: *SmolStr, allocator, char) !void {
     ///     if (this.isInlined()) {
     ///         if (inlined.len() + 1 > Inlined.max_len) {
     ///             // 升级为堆分配
@@ -176,25 +177,30 @@ public struct SmolStr {
     ///     }
     ///     // 堆分配路径: append to baby_list
     /// }
-    public func appendChar(char: UInt8): SmolStr {
+    public func appendRune(char: UInt8): SmolStr {
         let newLen = byteLen + 1
         if (isInlinedFlag && newLen <= SmolStr.MAX_INLINE_LEN) {
             // 仍在内联范围内
-            var newData = Array<UInt8>(SmolStr.MAX_INLINE_LEN, item: 0)
+            var newData = Array<UInt8>(SmolStr.MAX_INLINE_LEN, { _ => UInt8(0) })
             for (i in 0..byteLen) {
                 newData[Int64(i)] = inlineData[Int64(i)]
             }
             newData[Int64(byteLen)] = char
-            return SmolStr(inlineData: newData, heapData: None, byteLen: newLen, isInlinedFlag: true)
+            // Build string from inline data and create new SmolStr
+            var sb = StringBuilder()
+            for (i in 0..newLen) {
+                sb.append(Rune(Int32(newData[Int64(i)])))
+            }
+            return SmolStr(sb.toString())
         }
         // 升级为堆分配
         var existing = bytes()
-        var newBytes = Array<UInt8>()
+        var newBytes = ArrayList<UInt8>()
         for (b in existing) {
-            newBytes.append(b)
+            newBytes.add(b)
         }
-        newBytes.append(char)
-        return SmolStr(bytes: newBytes)
+        newBytes.add(char)
+        return SmolStr(newBytes.toArray())
     }
 
     /// 追加字节切片 - 对应 Bun SmolStr.appendSlice
@@ -202,24 +208,28 @@ public struct SmolStr {
     public func appendSlice(other: Array<UInt8>): SmolStr {
         let newLen = byteLen + other.size
         if (isInlinedFlag && newLen <= SmolStr.MAX_INLINE_LEN) {
-            var newData = Array<UInt8>(SmolStr.MAX_INLINE_LEN, item: 0)
+            var newData = Array<UInt8>(SmolStr.MAX_INLINE_LEN, { _ => UInt8(0) })
             for (i in 0..byteLen) {
                 newData[Int64(i)] = inlineData[Int64(i)]
             }
             for (i in 0..other.size) {
                 newData[Int64(byteLen + i)] = other[Int64(i)]
             }
-            return SmolStr(inlineData: newData, heapData: None, byteLen: newLen, isInlinedFlag: true)
+            var sb = StringBuilder()
+            for (i in 0..newLen) {
+                sb.append(Rune(Int32(newData[Int64(i)])))
+            }
+            return SmolStr(sb.toString())
         }
-        var newBytes = Array<UInt8>()
+        var newBytes = ArrayList<UInt8>()
         let existing = bytes()
         for (b in existing) {
-            newBytes.append(b)
+            newBytes.add(b)
         }
         for (b in other) {
-            newBytes.append(b)
+            newBytes.add(b)
         }
-        return SmolStr(bytes: newBytes)
+        return SmolStr(newBytes.toArray())
     }
 
     /// 追加字符串
@@ -244,13 +254,13 @@ public struct SmolStr {
 
     /// 与字符串比较
     public func eqlString(s: String): Bool {
-        if (this.byteLen != s.length) {
+        if (this.byteLen != s.size) {
             return false
         }
         let b = this.bytes()
         let chars = s.toArray()
         for (i in 0..b.size) {
-            if (b[Int64(i)] != UInt8(chars[Int64(i)].value)) {
+            if (b[Int64(i)] != chars[Int64(i)]) {
                 return false
             }
         }
@@ -258,17 +268,17 @@ public struct SmolStr {
     }
 
     private static func stringToBytes(s: String): Array<UInt8> {
-        var bytes = Array<UInt8>()
+        var bytes = ArrayList<UInt8>()
         for (c in s) {
-            bytes.append(UInt8(c.value))
+            bytes.add(c)
         }
-        return bytes
+        return bytes.toArray()
     }
 
     private static func bytesToString(bytes: Array<UInt8>): String {
         var sb = StringBuilder()
         for (b in bytes) {
-            sb.append(Char(Int32(b)))
+            sb.append(Rune(Int32(b)))
         }
         return sb.toString()
     }

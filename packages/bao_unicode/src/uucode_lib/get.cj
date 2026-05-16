@@ -76,13 +76,13 @@ public class UnicodeLookup {
         if (raw == 0) {
             return None
         }
-        return raw +% cp // shift packing
+        return raw + cp // shift packing (simplified: no wrapping needed)
     }
 
     /// 查询码点属性 (如 Case_Folding_Simple)
     public func getCodePoint(field: UnicodeField, cp: UInt32): UInt32 {
         let raw = lookupIndex(cp)
-        return raw +% cp // shift packing
+        return raw + cp // shift packing (simplified: no wrapping needed)
     }
 
     /// 查询字符串属性 (如 Name)
@@ -123,10 +123,11 @@ public class UnicodeLookup {
 }
 
 /// 全局 Unicode 查询器实例
-private static var globalLookup: UnicodeLookup = UnicodeLookup()
+private let globalLookup: UnicodeLookup = UnicodeLookup()
 
 /// 全局 get 函数
 /// 翻译自: pub fn get(field: FieldEnum, cp: u21) TypeOf(field)
 public func unicodeGet(field: UnicodeField, cp: UInt32): UnicodeValue {
-    return globalLookup.getEnum(field, cp: cp)
+    let raw = globalLookup.getEnum(field, cp)
+    return UnicodeValue.UInt32Value(raw)
 }

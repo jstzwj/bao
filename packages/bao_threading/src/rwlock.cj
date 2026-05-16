@@ -175,7 +175,7 @@ public class RawRwLock {
     ///   mutex.unlock()                          // 释放互斥锁
     public func unlock(): Unit {
         // 严格对应 Bun: 清除 IS_WRITING 位
-        state.fetchAnd(~IS_WRITING)
+        state.fetchAnd(IS_WRITING ^ UInt32.Max)
         // 释放互斥锁，允许等待的读者/写者竞争
         mutex.unlock()
     }

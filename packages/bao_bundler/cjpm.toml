@@ -20,3 +20,6 @@ bao_io = { path = "../bao_io" }
 bao_core = { path = "../bao_core" }
 bao_collections = { path = "../bao_collections" }
 bao_ast = { path = "../bao_ast" }
+bao_hash = { path = "../bao_hash" }
+bao_sourcemap = { path = "../bao_sourcemap" }
+bao_options = { path = "../bao_options" }

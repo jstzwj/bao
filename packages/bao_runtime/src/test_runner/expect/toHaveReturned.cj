@@ -2,6 +2,9 @@
 
 package bao_runtime.test_runner.expect
 
+import bao_runtime.test_runner
+import bao_jsc.*
+
 /// toHaveReturned() - 检查mock函数是否有返回
 /// 用法: expect(mockFn).toHaveReturned()
 public func toHaveReturned(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
@@ -15,20 +18,19 @@ public func toHaveReturned(`this`: Expect, globalThis: JSGlobalObject, callFrame
 
     var returns = Expect.mock.jestMockIterator(globalThis: globalThis, value: value)
 
-    let expectedSuccessCount: Int32 = {
-        if arguments.length > 0 && !arguments[0].isUndefined() {
-            return globalThis.throwInvalidArguments("toHaveReturned() must not have an argument")
-        }
-        return 1
-    }()
+    let expectedSuccessCount: Int32 = if (arguments.length > 0 && !arguments[0].isUndefined()) {
+        globalThis.throwInvalidArguments("toHaveReturned() must not have an argument").toInt32()
+    } else {
+        1
+    }
 
     var pass = false
 
     var actualSuccessCount: Int32 = 0
     var totalCallCount: Int32 = 0
-    while (let item = returns.next()) {
+    while (let Some(item) <- returns.next()) {
         let returnType = Expect.mock.jestMockReturnObject_type(globalThis: globalThis, item: item)
-        if returnType == .return {
+        if (returnType == MockReturnType.return_) {
             actualSuccessCount++
         }
         totalCallCount++
@@ -37,15 +39,15 @@ public func toHaveReturned(`this`: Expect, globalThis: JSGlobalObject, callFrame
     pass = actualSuccessCount >= expectedSuccessCount
 
     let not = this.flags.not
-    if not { pass = !pass }
-    if pass { return JSValue.jsUndefined }
+    if (not) { pass = !pass }
+    if (pass) { return JSValue.jsUndefined }
 
     let signature = Expect.getSignature(matcherName: "toHaveReturned", args: "<green>expected<r>", not: not)
-    let (str, spc) = {
-        if !not {
-            return (">= ", "   ")
-        }
-        return ("< ", "  ")
+    var str = ">= "
+    var spc = "   "
+    if (not) {
+        str = "< "
+        spc = "  "
     }
 
     return this.throw_(globalThis: globalThis, signature: signature,
@@ -66,7 +68,7 @@ public func toHaveReturnedTimes(`this`: Expect, globalThis: JSGlobalObject, call
 
     var returns = Expect.mock.jestMockIterator(globalThis: globalThis, value: value)
 
-    if arguments.length < 1 || !arguments[0].isUInt32AsAnyInt() {
+    if (arguments.length < 1 || !arguments[0].isUInt32AsAnyInt() ){
         return globalThis.throwInvalidArguments("toHaveReturnedTimes() requires 1 non-negative integer argument")
     }
 
@@ -76,9 +78,9 @@ public func toHaveReturnedTimes(`this`: Expect, globalThis: JSGlobalObject, call
 
     var actualSuccessCount: Int32 = 0
     var totalCallCount: Int32 = 0
-    while (let item = returns.next()) {
+    while (let Some(item) <- returns.next()) {
         let returnType = Expect.mock.jestMockReturnObject_type(globalThis: globalThis, item: item)
-        if returnType == .return {
+        if (returnType == MockReturnType.return_) {
             actualSuccessCount++
         }
         totalCallCount++
@@ -87,15 +89,14 @@ public func toHaveReturnedTimes(`this`: Expect, globalThis: JSGlobalObject, call
     pass = actualSuccessCount == expectedSuccessCount
 
     let not = this.flags.not
-    if not { pass = !pass }
-    if pass { return JSValue.jsUndefined }
+    if (not) { pass = !pass }
+    if (pass) { return JSValue.jsUndefined }
 
     let signature = Expect.getSignature(matcherName: "toHaveReturnedTimes", args: "<green>expected<r>", not: not)
-    let (str, spc) = {
-        if !not {
-            return ("== ", "   ")
-        }
-        return ("!= ", "   ")
+    var str = "!= "
+    var spc = "   "
+    if (!not) {
+        str = "== "
     }
 
     return this.throw_(globalThis: globalThis, signature: signature,

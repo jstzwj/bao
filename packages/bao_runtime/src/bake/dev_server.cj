@@ -1453,7 +1453,7 @@ public class DeferredRequest {
 /// 延迟请求处理器
 public enum DeferredRequestHandler {
     | bundledHtmlPage(response: AnyResponse, method: HTTPMethod)
-    | serverHandler(context: AnyRequestContext)
+    | serverHandler(AnyRequestContext)
 }
 
 /// 延迟请求节点

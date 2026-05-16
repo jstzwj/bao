@@ -54,7 +54,7 @@ public class MaxBuf {
         if (initial == None) {
             return None
         }
-        let maxbuf = MaxBuf(initial!)
+        let maxbuf = MaxBuf(initial.getOrThrow())
         maxbuf.ownedBySubprocess = owner
         maxbuf.ownedByReader = false
         return maxbuf

@@ -381,7 +381,7 @@ public class MutableString {
         /// 严格翻译自 BufferedWriter.flush
         public func flush(): Unit {
             if (pos > 0) {
-                context.write(buf[0:pos])
+                context.write(buf[0..pos])
                 pos = 0
             }
         }
@@ -423,7 +423,7 @@ public class MutableString {
                 }
 
                 if (j >= 0) {
-                    writeAll(items[0:j])
+                    writeAll(items[0..j])
                     if (items[j] == Byte('"')) {
                         writeAll("&quot;")
                     } else if (items[j] == Byte('<')) {
@@ -431,7 +431,7 @@ public class MutableString {
                     } else {
                         writeAll("&gt;")
                     }
-                    items = items[j + 1:]
+                    items = items[j + 1..items.size]
                 } else {
                     writeAll(items)
                     break

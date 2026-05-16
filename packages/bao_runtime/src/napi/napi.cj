@@ -4,6 +4,8 @@
 
 package bao_runtime.napi
 
+import bao_jsc.*
+
 // ============================================================================
 // N-API 状态码
 // 对应 Bun: napi.zig - NapiStatus
@@ -449,7 +451,7 @@ public class NapiFunctions {
         if (str == None) {
             return NapiValue.create(env, JsValue(""))
         }
-        return NapiValue.create(env, JsValue(str!))
+        return NapiValue.create(env, JsValue(str.getOrThrow()))
     }
 
     /// napi_create_string_utf8
@@ -458,7 +460,7 @@ public class NapiFunctions {
         if (str == None) {
             return NapiValue.create(env, JsValue(""))
         }
-        return NapiValue.create(env, JsValue(str!))
+        return NapiValue.create(env, JsValue(str.getOrThrow()))
     }
 
     /// napi_create_string_utf16
@@ -467,7 +469,7 @@ public class NapiFunctions {
         if (str == None) {
             return NapiValue.create(env, JsValue(""))
         }
-        return NapiValue.create(env, JsValue(str!))
+        return NapiValue.create(env, JsValue(str.getOrThrow()))
     }
 
     /// napi_create_object
@@ -752,7 +754,7 @@ public class NapiFunctions {
     /// 对应 Bun: napi_get_reference_value (extern)
     public static func getReferenceValue(env: NapiEnv, ref: NapiRef): NapiValue {
         if (ref.value != None) {
-            return NapiValue.create(env, ref.value!)
+            return NapiValue.create(env, ref.value.getOrThrow())
         }
         return NapiValue.create(env, JsValue.UNDEFINED)
     }

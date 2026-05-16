@@ -10,6 +10,9 @@
 
 package bao_runtime.image
 
+import bao_jsc.*
+import std.collection.*
+
 // ============================================================================
 // Image - 图像处理主类
 // 对应 Bun: Image.zig - Image
@@ -52,7 +55,7 @@ public class BunImage {
         if (source == None) {
             return None
         }
-        img.source = source!
+        img.source = source.getOrThrow()
 
         // 应用选项
         if (args.size > 1) {
@@ -92,8 +95,8 @@ public class BunImage {
                 if (commaIdx == None) {
                     return None
                 }
-                let meta = s.subString(5, commaIdx!)
-                let payload = s.subString(commaIdx! + 1)
+                let meta = s.subString(5, commaIdx.getOrThrow())
+                let payload = s.subString(commaIdx.getOrThrow() + 1)
                 if (!meta.contains(";base64")) {
                     return None
                 }
@@ -102,7 +105,7 @@ public class BunImage {
                 if (decoded == None) {
                     return None
                 }
-                return ImageSource.owned(decoded!)
+                return ImageSource.owned(decoded.getOrThrow())
             }
 
             return ImageSource.path(s)
@@ -197,7 +200,7 @@ public class BunImage {
     /// 对应 Bun: doModulate
     public func doModulate(global: JsObject, args: ArrayList<JsValue>): BunImage {
         var m = if (pipeline.modulate != None) {
-            pipeline.modulate!
+            pipeline.modulate.getOrThrow()
         } else {
             ImageModulate()
         }
@@ -259,7 +262,7 @@ public class BunImage {
     /// 对应 Bun: setFormat
     func setFormat(fmt: ImageFormat, global: JsObject, args: ArrayList<JsValue>): BunImage {
         var enc = if (pipeline.output != None) {
-            pipeline.output!
+            pipeline.output.getOrThrow()
         } else {
             EncodeOptions(format: fmt)
         }
@@ -372,7 +375,7 @@ public class BunImage {
             let path = args[0].toString()
             let fmt = ImageFormat.fromExtension(path)
             if (fmt != None) {
-                output = EncodeOptions(format: fmt!)
+                output = EncodeOptions(format: fmt.getOrThrow())
             }
         }
 
@@ -503,53 +506,7 @@ public class ImageModulate {
     public init() {}
 }
 
-// ============================================================================
-// 图像格式
-// 对应 Bun: codecs.Format
-// ============================================================================
-
-/// 图像格式
-public enum ImageFormat {
-    | jpeg
-    | png
-    | webp
-    | gif
-    | bmp
-    | tiff
-    | heic
-    | avif
-    | ico
-    | unknown
-
-    public func mime(): String {
-        match (this) {
-            case jpeg => "image/jpeg"
-            case png => "image/png"
-            case webp => "image/webp"
-            case gif => "image/gif"
-            case bmp => "image/bmp"
-            case tiff => "image/tiff"
-            case heic => "image/heic"
-            case avif => "image/avif"
-            case ico => "image/x-icon"
-            case unknown => "application/octet-stream"
-        }
-    }
-
-    public static func fromExtension(path: String): ?ImageFormat {
-        let lower = path.toLower()
-        if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return jpeg
-        if (lower.endsWith(".png")) return png
-        if (lower.endsWith(".webp")) return webp
-        if (lower.endsWith(".gif")) return gif
-        if (lower.endsWith(".bmp")) return bmp
-        if (lower.endsWith(".tiff") || lower.endsWith(".tif")) return tiff
-        if (lower.endsWith(".heic") || lower.endsWith(".heif")) return heic
-        if (lower.endsWith(".avif")) return avif
-        if (lower.endsWith(".ico")) return ico
-        return None
-    }
-}
+// ImageFormat is defined in codecs.cj
 
 // ============================================================================
 // 图像滤镜
@@ -655,79 +612,7 @@ public class EncodeResult {
     }
 }
 
-// ============================================================================
-// 编解码器接口
-// 对应 Bun: codecs 模块
-// ============================================================================
-
-/// 编解码器
-public class Codecs {
-    /// 默认最大像素数 (16384x16384 ≈ 268M)
-    public static let defaultMaxPixels: UInt64 = 0x3FFF * 0x3FFF
-
-    /// 后端类型
-    public static var backend: String = "libc"
-
-    /// 探测图像头部
-    public static func probe(input: Array<Byte>, maxPixels: UInt64): ?ProbeResult {
-        // 简化实现
-        return None
-    }
-
-    /// 解码图像
-    public static func decode(input: Array<Byte>, maxPixels: UInt64): ?DecodedImage {
-        // 简化实现
-        return None
-    }
-
-    /// 编码图像
-    public static func encode(rgba: Array<Byte>, width: UInt32, height: UInt32, options: EncodeOptions): ?Array<Byte> {
-        // 简化实现
-        return None
-    }
-
-    /// 缩放图像
-    public static func resize(rgba: Array<Byte>, sw: UInt32, sh: UInt32, dw: UInt32, dh: UInt32, filter: ImageFilter): ?Array<Byte> {
-        // 简化实现
-        return None
-    }
-
-    /// 旋转图像
-    public static func rotate(rgba: Array<Byte>, w: UInt32, h: UInt32, degrees: UInt16): ?RotatedResult {
-        // 简化实现
-        return None
-    }
-
-    /// 翻转图像
-    public static func flip(rgba: Array<Byte>, w: UInt32, h: UInt32, horizontal: Bool): ?Array<Byte> {
-        // 简化实现
-        return None
-    }
-
-    /// 调制图像
-    public static func modulate(rgba: Array<Byte>, brightness: Float32, saturation: Float32): Unit {
-        // 简化实现
-    }
-
-    /// 从输入字节嗅探格式
-    public static func sniff(input: Array<Byte>): ?ImageFormat {
-        // 简化实现
-        return None
-    }
-}
-
-/// 探测结果
-public class ProbeResult {
-    public var width: UInt32
-    public var height: UInt32
-    public var format: ImageFormat
-
-    public init(width: UInt32, height: UInt32, format: ImageFormat) {
-        this.width = width
-        this.height = height
-        this.format = format
-    }
-}
+// Codecs and ProbeResult are defined in codecs.cj
 
 /// 解码后的图像
 public class DecodedImage {
@@ -827,7 +712,7 @@ public class PipelineTask {
         //    (flip/flop 是纯镜像, 从不改变 w/h, 所以提示通过它们仍然有效。)
         let hint = DecodeHint()
         if (this.pipeline.resize != None) {
-            let r = this.pipeline.resize!
+            let r = this.pipeline.resize.getOrThrow()
             var tw = r.w
             // r.h==0 表示"保持纵横比" — 仅在宽度上约束。
             var th = if (r.h != 0) { r.h } else { r.w }
@@ -929,7 +814,7 @@ public class PipelineTask {
             // val next = Codecs.flip(decoded.rgba, decoded.width, decoded.height, false)
             // if (next == None) { return /* error */ }
             // 释放 decoded.rgba
-            // decoded.rgba = next!
+            // decoded.rgba = next.getOrThrow()
         }
 
         // 翻转（水平）
@@ -937,12 +822,12 @@ public class PipelineTask {
             // val next = Codecs.flip(decoded.rgba, decoded.width, decoded.height, true)
             // if (next == None) { return /* error */ }
             // 释放 decoded.rgba
-            // decoded.rgba = next!
+            // decoded.rgba = next.getOrThrow()
         }
 
         // 缩放
         if (p.resize != None) {
-            let r = p.resize!
+            let r = p.resize.getOrThrow()
             let t = resolveResize(r, decoded.width, decoded.height)
             // 守卫输出画布和 H-then-V 中间体 (总是 dst_w x src_h —
             // image_resize.cpp 通过顺序是固定的)。
@@ -959,7 +844,7 @@ public class PipelineTask {
                 //                           t.w, t.h, r.filter)
                 // if (next == None) { return /* error */ }
                 // 释放 decoded.rgba
-                // decoded.rgba = next!
+                // decoded.rgba = next.getOrThrow()
                 // decoded.width = t.w
                 // decoded.height = t.h
             }
@@ -967,7 +852,7 @@ public class PipelineTask {
 
         // 调制
         if (p.modulate != None) {
-            let m = p.modulate!
+            let m = p.modulate.getOrThrow()
             Codecs.modulate(decoded.rgba, m.brightness, m.saturation)
         }
     }
@@ -1005,12 +890,12 @@ public class PipelineTask {
         if (t[0]) {
             // flop (水平镜像)
             // val next = Codecs.flip(d.rgba, d.width, d.height, true)
-            // 释放 d.rgba; d.rgba = next!
+            // 释放 d.rgba; d.rgba = next.getOrThrow()
         }
         if (t[1]) {
             // flip (垂直镜像)
             // val next = Codecs.flip(d.rgba, d.width, d.height, false)
-            // 释放 d.rgba; d.rgba = next!
+            // 释放 d.rgba; d.rgba = next.getOrThrow()
         }
         if (t[2] != 0) {
             // 旋转
@@ -1047,7 +932,7 @@ public class PipelineTask {
             }
             // owned = Codecs.resize(rgba, sw, sh, w, h, Filter.box)
             // if (owned == None) { return PipelineResult.err("DecodeFailed") }
-            // pixels = owned!
+            // pixels = owned.getOrThrow()
         }
 
         // 1. 编码为 ThumbHash
@@ -1055,7 +940,7 @@ public class PipelineTask {
         if (hashOpt == None) { return PipelineResult.err("DecodeFailed") }
 
         // 2. 解码 ThumbHash 到 RGBA
-        let renderedOpt = ThumbHash.decode(hashOpt!)
+        let renderedOpt = ThumbHash.decode(hashOpt.getOrThrow())
         if (renderedOpt == None) { return PipelineResult.err("DecodeFailed") }
         // defer: 释放 rendered
 
@@ -1084,8 +969,7 @@ public enum PipelineResult {
     | meta
     | err
     | ioErr
-    | this
-}
+    | selfResult
 }
 
 /// 编码结果

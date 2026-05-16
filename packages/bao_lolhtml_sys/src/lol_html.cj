@@ -53,12 +53,12 @@ public enum Encoding {
 // 回调函数类型
 // 严格翻译自: lol_html.zig 中的 handler 类型定义
 // ============================================================================
-public type CommentHandler = CFunc<(CPointer<Unit>, CPointer<Unit>) -> Directive>
-public type TextHandler = CFunc<(CPointer<Unit>, CPointer<Unit>) -> Directive>
-public type ElementHandler = CFunc<(CPointer<Unit>, CPointer<Unit>) -> Directive>
-public type DocEndHandler = CFunc<(CPointer<Unit>, CPointer<Unit>) -> Directive>
-public type EndTagHandler = CFunc<(CPointer<Unit>, CPointer<Unit>) -> Directive>
-public type DocTypeHandler = CFunc<(CPointer<Unit>, CPointer<Unit>) -> Directive>
+public type CommentHandler = CFunc<(CPointer<Unit>, CPointer<Unit>) -> Int32>
+public type TextHandler = CFunc<(CPointer<Unit>, CPointer<Unit>) -> Int32>
+public type ElementHandler = CFunc<(CPointer<Unit>, CPointer<Unit>) -> Int32>
+public type DocEndHandler = CFunc<(CPointer<Unit>, CPointer<Unit>) -> Int32>
+public type EndTagHandler = CFunc<(CPointer<Unit>, CPointer<Unit>) -> Int32>
+public type DocTypeHandler = CFunc<(CPointer<Unit>, CPointer<Unit>) -> Int32>
 public type OutputSink = CFunc<(CPointer<UInt8>, UIntNative, CPointer<Unit>) -> Unit>
 
 // ============================================================================
@@ -197,4 +197,4 @@ foreign func lol_html_doctype_source_location_bytes(doctype: CPointer<Unit>): So
 
 // --- HTMLString ---
 foreign func lol_html_str_free(str: HTMLString): Unit
-foreign func lol_html_take_last_error(...): HTMLString
+foreign func lol_html_take_last_error(dummy: CPointer<Unit>, ...): HTMLString

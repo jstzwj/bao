@@ -155,14 +155,14 @@ public struct AresOptions {
     public var nservers: Int32 = 0
     public var domains: CPointer<CPointer<UInt8>> = CPointer<CPointer<UInt8>>()
     public var ndomains: Int32 = 0
-    public var lookups: CString = CString()
-    public var sock_state_cb: AresSockStateCallback = AresSockStateCallback()
+    public var lookups: CString = CString(CPointer<UInt8>())
+    public var sock_state_cb: AresSockStateCallback = AresSockStateCallback(CPointer<UInt8>())
     public var sock_state_cb_data: CPointer<Unit> = CPointer<Unit>()
     public var sortlist: CPointer<Unit> = CPointer<Unit>()
     public var nsort: Int32 = 0
     public var ednspsz: Int32 = 0
-    public var resolvconf_path: CString = CString()
-    public var hosts_path: CString = CString()
+    public var resolvconf_path: CString = CString(CPointer<UInt8>())
+    public var hosts_path: CString = CString(CPointer<UInt8>())
     public var udp_max_queries: Int32 = 0
     public var maxtimeout: Int32 = 0
     public var qcache_max_ttl: UInt32 = 0
@@ -174,7 +174,7 @@ public struct AresOptions {
 /// 严格翻译自: struct_hostent
 @C
 public struct Hostent {
-    public var h_name: CString = CString()
+    public var h_name: CString = CString(CPointer<UInt8>())
     public var h_aliases: CPointer<CPointer<UInt8>> = CPointer<CPointer<UInt8>>()
     public var h_addrtype: Int32 = 0
     public var h_length: Int32 = 0
@@ -219,7 +219,7 @@ public struct AddrInfoNode {
 public struct AddrInfo {
     public var cnames_: CPointer<AddrInfoCname> = CPointer<AddrInfoCname>()
     public var node: CPointer<AddrInfoNode> = CPointer<AddrInfoNode>()
-    public var name_: CString = CString()
+    public var name_: CString = CString(CPointer<UInt8>())
 }
 
 /// AddrInfo 提示

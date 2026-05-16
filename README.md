@@ -4,7 +4,7 @@
 
 **使用仓颉 (Cangjie) 语言构建的 JavaScript / TypeScript 运行时**
 
-灵感来自 [Bun](https://github.com/oven-sh/bun)，将 Bun 源码一比一严格翻译为华为仓颉语言实现。
+灵感来自 [Bun](https://github.com/oven-sh/bun)，将 Bun 源码使用华为仓颉语言实现。
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
 [![Language: Cangjie](https://img.shields.io/badge/Language-Cangjie-orange.svg)](https://developer.huawei.com/consumer/cn/cangjie/)
@@ -17,9 +17,24 @@
 
 ## Bao 是什么？
 
-Bao 是一个将 [Bun](https://github.com/oven-sh/bun)（一个高性能 JavaScript/TypeScript 运行时）的源码严格翻译为 **仓颉 (Cangjie)** 语言的开源项目。目标是在仓颉生态中提供完整的 JavaScript/TypeScript 运行时能力。
+Bao 是一个面向 JavaScript 和 TypeScript 应用的**一体化工具链**，以单个可执行文件 `bao` 的形式发布。
 
-Bun 使用 Rust 和 Zig 编写，而 Bao 使用仓颉语言重新实现，同时通过 C FFI 桥接 JavaScriptCore、libuv 等底层 C 库。
+它的核心是 Bao 运行时——一个快速的 JavaScript 运行时，设计为 Node.js 的直接替代品。Bao 使用**仓颉 (Cangjie)** 语言编写，底层由 JavaScriptCore 驱动，显著降低启动时间和内存占用。
+
+```bash
+bao run index.tsx             # 开箱即用的 TS 和 JSX 支持
+```
+
+`bao` 命令行工具还内置了测试运行器、脚本运行器和兼容 Node.js 的包管理器。开发时不再需要一千个 node_modules，只需要 `bao`。Bao 的内置工具比现有方案快得多，并且可以在现有 Node.js 项目中以几乎零改动的方式使用。
+
+```bash
+bao test                      # 运行测试
+bao run start                 # 运行 package.json 中的 start 脚本
+bao install <pkg>             # 安装依赖包
+baox cowsay 'Hello, world!'   # 执行一个包
+```
+
+Bao 源自 [Bun](https://github.com/oven-sh/bun) 的源码翻译。Bun 使用 Rust 和 Zig 编写，而 Bao 使用仓颉语言重新实现，同时通过 C FFI 桥接 JavaScriptCore、libuv 等底层 C 库。
 
 核心能力包括：
 
@@ -123,6 +138,8 @@ Bao 通过仓颉的 C FFI 机制桥接以下底层 C 库：
 - [仓颉语言](https://developer.huawei.com/consumer/cn/cangjie/) — 华为开发的现代编程语言
 - [JavaScriptCore](https://webkit.org/) — WebKit 的 JavaScript 引擎
 - [libuv](https://libuv.org/) — 跨平台异步 I/O 库
+- **华为 (Huawei)** — 开发和维护仓颉语言及其工具链
+- **南京大学计算机软件新技术全国重点实验室 (The State Key Laboratory for Novel Software Technology, Nanjing University)** — 提供研究支持和基础设施
 
 ## 许可证
 

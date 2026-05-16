@@ -3,40 +3,29 @@
 package bao_simdutf_sys
 
 // ============================================================================
-// SIMDUTFResult struct
+// SIMDUTFResult struct - must be @C struct for FFI return type
 // ============================================================================
 
-public class SIMDUTFResult {
-    public var status: SIMDUTFStatus = SIMDUTFStatus.success
+@C
+public struct SIMDUTFResult {
+    public var status: Int32 = 0
     public var count: UInt64 = 0
-
-    public init() {}
-    public init(status: SIMDUTFStatus, count: UInt64) {
-        this.status = status
-        this.count = count
-    }
-
-    public func isSuccessful(): Bool {
-        return status == SIMDUTFStatus.success
-    }
 }
 
 // ============================================================================
-// Status enum
+// Status constants (enum values cannot be used in FFI, use Int32 constants)
 // ============================================================================
 
-public enum SIMDUTFStatus {
-    | success
-    | header_bits
-    | too_short
-    | too_long
-    | overlong
-    | too_large
-    | surrogate
-    | invalid_base64_character
-    | base64_input_remainder
-    | output_buffer_too_small
-}
+public let SIMDUTF_STATUS_SUCCESS: Int32 = 0
+public let SIMDUTF_STATUS_HEADER_BITS: Int32 = 1
+public let SIMDUTF_STATUS_TOO_SHORT: Int32 = 2
+public let SIMDUTF_STATUS_TOO_LONG: Int32 = 3
+public let SIMDUTF_STATUS_OVERLONG: Int32 = 4
+public let SIMDUTF_STATUS_TOO_LARGE: Int32 = 5
+public let SIMDUTF_STATUS_SURROGATE: Int32 = 6
+public let SIMDUTF_STATUS_INVALID_BASE64_CHARACTER: Int32 = 7
+public let SIMDUTF_STATUS_BASE64_INPUT_REMAINDER: Int32 = 8
+public let SIMDUTF_STATUS_OUTPUT_BUFFER_TOO_SMALL: Int32 = 9
 
 // ============================================================================
 // Detection FFI extern functions

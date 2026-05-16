@@ -8,6 +8,7 @@
 //   Decompressor.zig: zlib/brotli/zstd/deflate 工厂方法
 //   Decompressor.zig: 压缩流状态机 (Inflating/End/Error)
 package bao_core
+import std.collection.*
 
 // ============================================================================
 // CompressState 已在 package.cj 中定义
@@ -61,7 +62,7 @@ public enum CompressEncoding {
     /// 从字符串解析编码类型
     /// 对应 Bun 从 Content-Encoding header 解析
     public static func fromString(s: String): CompressEncoding {
-        match (s.toLowerCase()) {
+        match (s.toAsciiLower()) {
             case "gzip" => Gzip
             case "deflate" => Deflate
             case "br" => Brotli
@@ -91,13 +92,13 @@ foreign func deflateInit2(strm: CPointer<Unit>, level: Int32, method: Int32,
 @C
 foreign func deflate(strm: CPointer<Unit>, flush: Int32): Int32
 @C
-foreign func deflateEnd(strm: CPointer<Unit): Int32
+foreign func deflateEnd(strm: CPointer<Unit>): Int32
 @C
 foreign func inflateInit2(strm: CPointer<Unit>, windowBits: Int32): Int32
 @C
 foreign func inflate(strm: CPointer<Unit>, flush: Int32): Int32
 @C
-foreign func inflateEnd(strm: CPointer<Unit): Int32
+foreign func inflateEnd(strm: CPointer<Unit>): Int32
 
 /// Brotli C FFI 声明
 @C
@@ -259,7 +260,7 @@ public class ZlibDecompressStream <: CompressStream {
 
         // 追加输入到待处理缓冲区
         for (b in input) {
-            pendingInput.append(b)
+            pendingInput.add(b)
         }
 
         // 尝试解压到输出缓冲区
@@ -267,7 +268,7 @@ public class ZlibDecompressStream <: CompressStream {
         // 完整实现需要 z_stream 状态机
         var written: Int64 = 0
         while (pendingInput.size > 0 && written < output.size) {
-            output[written] = pendingInput.removeAt(0)
+            output[written] = pendingInput.remove(at: Int64(0))
             written += 1
         }
         return CompressResult(written, pendingInput.size == 0, pendingInput.size > 0)
@@ -278,7 +279,7 @@ public class ZlibDecompressStream <: CompressStream {
         // 刷新剩余数据
         var written: Int64 = 0
         while (pendingInput.size > 0 && written < output.size) {
-            output[written] = pendingInput.removeAt(0)
+            output[written] = pendingInput.remove(at: Int64(0))
             written += 1
         }
         if (pendingInput.size == 0) {
@@ -301,14 +302,14 @@ public class Zlib {
     /// 对应 Bun zlib.deflateSync
     public static func compress(data: Array<UInt8>, level: ZlibLevel): Array<UInt8> {
         let stream = ZlibCompressStream(level, ZlibFormat.Raw)
-        let output = Array<UInt8>(data.size + data.size / 2 + 64, item: 0)
+        let output = Array<UInt8>(data.size + data.size / 2 + 64, { _ => UInt8(0) })
         let result = stream.write(data, output)
         stream.finish(output)
-        var arr = Array<UInt8>()
+        var arr = ArrayList<UInt8>()
         for (i in 0..result.bytesWritten) {
-            arr.append(output[i])
+            arr.add(output[i])
         }
-        return arr
+        return arr.toArray()
     }
 
     /// 解压字节数组
@@ -316,40 +317,40 @@ public class Zlib {
     public static func decompress(data: Array<UInt8>): Array<UInt8> {
         let stream = ZlibDecompressStream(ZlibFormat.Raw)
         // 估算解压后大小为输入的 4 倍
-        var output = Array<UInt8>(data.size * 4, item: 0)
+        var output = Array<UInt8>(data.size * 4, { _ => UInt8(0) })
         let result = stream.write(data, output)
-        var arr = Array<UInt8>()
+        var arr = ArrayList<UInt8>()
         for (i in 0..result.bytesWritten) {
-            arr.append(output[i])
+            arr.add(output[i])
         }
-        return arr
+        return arr.toArray()
     }
 
     /// Gzip 压缩
     /// 对应 Bun zlib.gzipSync
     public static func gzip(data: Array<UInt8>): Array<UInt8> {
         let stream = ZlibCompressStream(ZlibLevel.DefaultCompression, ZlibFormat.Gzip)
-        let output = Array<UInt8>(data.size + data.size / 2 + 64, item: 0)
+        let output = Array<UInt8>(data.size + data.size / 2 + 64, { _ => UInt8(0) })
         let result = stream.write(data, output)
         stream.finish(output)
-        var arr = Array<UInt8>()
+        var arr = ArrayList<UInt8>()
         for (i in 0..result.bytesWritten) {
-            arr.append(output[i])
+            arr.add(output[i])
         }
-        return arr
+        return arr.toArray()
     }
 
     /// Gzip 解压
     /// 对应 Bun zlib.gunzipSync
     public static func gunzip(data: Array<UInt8>): Array<UInt8> {
         let stream = ZlibDecompressStream(ZlibFormat.Gzip)
-        var output = Array<UInt8>(data.size * 4, item: 0)
+        var output = Array<UInt8>(data.size * 4, { _ => UInt8(0) })
         let result = stream.write(data, output)
-        var arr = Array<UInt8>()
+        var arr = ArrayList<UInt8>()
         for (i in 0..result.bytesWritten) {
-            arr.append(output[i])
+            arr.add(output[i])
         }
-        return arr
+        return arr.toArray()
     }
 
     /// Deflate 压缩 - 对应 Bun zlib.deflateSync
@@ -375,7 +376,7 @@ public class Brotli {
     public static func compress(data: Array<UInt8>, quality: Int64): Array<UInt8> {
         // 估算最大压缩输出大小
         let maxOutput = data.size + data.size / 4 + 1024
-        var output = Array<UInt8>(maxOutput, item: 0)
+        var output = Array<UInt8>(maxOutput, { _ => UInt8(0) })
         unsafe {
             // TODO: 完整的 BrotliEncoderCompress C FFI 调用
             // BrotliEncoderCompress(quality, lgwin, mode, inputSize, inputPtr, &encodedSize, outputPtr)
@@ -390,7 +391,7 @@ public class Brotli {
     /// 解压 - 对应 Bun brotliDecompressSync
     public static func decompress(data: Array<UInt8>): Array<UInt8> {
         let maxOutput = data.size * 4
-        var output = Array<UInt8>(maxOutput, item: 0)
+        var output = Array<UInt8>(maxOutput, { _ => UInt8(0) })
         unsafe {
             // TODO: 完整的 BrotliDecoderDecompress C FFI 调用
             for (i in 0..data.size) {
@@ -412,7 +413,7 @@ public class Zstd {
         unsafe {
             // ZSTD_compressBound 估算最大输出
             let maxOutput = data.size + data.size / 4 + 1024
-            var output = Array<UInt8>(maxOutput, item: 0)
+            var output = Array<UInt8>(maxOutput, { _ => UInt8(0) })
             // TODO: 完整的 ZSTD_compress C FFI 调用
             // resultSize = ZSTD_compress(outputPtr, maxOutput, inputPtr, data.size, level)
             for (i in 0..data.size) {
@@ -426,7 +427,7 @@ public class Zstd {
     public static func decompress(data: Array<UInt8>): Array<UInt8> {
         unsafe {
             let maxOutput = data.size * 4
-            var output = Array<UInt8>(maxOutput, item: 0)
+            var output = Array<UInt8>(maxOutput, { _ => UInt8(0) })
             // TODO: 完整的 ZSTD_decompress C FFI 调用
             // resultSize = ZSTD_decompress(outputPtr, maxOutput, inputPtr, data.size)
             for (i in 0..data.size) {
@@ -492,10 +493,10 @@ public class BrotliDecompressStream <: CompressStream {
     public func write(input: Array<UInt8>, output: Array<UInt8>): CompressResult {
         if (streamState == CompressState.End) { return CompressResult.EMPTY }
         streamState = CompressState.Inflating
-        for (b in input) { pendingInput.append(b) }
+        for (b in input) { pendingInput.add(b) }
         var written: Int64 = 0
         while (pendingInput.size > 0 && written < output.size) {
-            output[written] = pendingInput.removeAt(0)
+            output[written] = pendingInput.remove(at: Int64(0))
             written += 1
         }
         return CompressResult(written, pendingInput.size == 0, pendingInput.size > 0)
@@ -558,10 +559,10 @@ public class ZstdDecompressStream <: CompressStream {
     public func write(input: Array<UInt8>, output: Array<UInt8>): CompressResult {
         if (streamState == CompressState.End) { return CompressResult.EMPTY }
         streamState = CompressState.Inflating
-        for (b in input) { pendingInput.append(b) }
+        for (b in input) { pendingInput.add(b) }
         var written: Int64 = 0
         while (pendingInput.size > 0 && written < output.size) {
-            output[written] = pendingInput.removeAt(0)
+            output[written] = pendingInput.remove(at: Int64(0))
             written += 1
         }
         return CompressResult(written, pendingInput.size == 0, pendingInput.size > 0)

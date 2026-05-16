@@ -260,7 +260,7 @@ public class EntityModule {
     /// 使用二分查找。
     public static func lookup(name: String): ?Array<UInt32> {
         var low: Int64 = 0
-        var high: Int64 = entity_map.length
+        var high: Int64 = entity_map.size
         while (low < high) {
             let mid = low + (high - low) / 2
             let cmp = orderStrings(entity_map[Int64(mid)].name, name)
@@ -276,7 +276,7 @@ public class EntityModule {
     }
 
     static func orderStrings(a: String, b: String): Int64 {
-        let len = if (a.length < b.length) a.length else b.length
+        let len = if (a.size < b.size) { a.size } else { b.size }
         for (i in 0..len) {
             let ca = UInt8(a[i])
             let cb = UInt8(b[i])
@@ -287,10 +287,10 @@ public class EntityModule {
                 return 1
             }
         }
-        if (a.length < b.length) {
+        if (a.size < b.size) {
             return -1
         }
-        if (a.length > b.length) {
+        if (a.size > b.size) {
             return 1
         }
         return 0

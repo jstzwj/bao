@@ -2,6 +2,7 @@
 // 对应 Bun: src/sql/mysql/protocol/EOFPacket.zig
 package bao_sql.mysql.protocol
 
+
 /// MySQL EOF 包
 /// 对应 Bun: EOFPacket (struct)
 ///
@@ -37,7 +38,7 @@ public class EOFPacket {
     public func decode(reader: MySQLPacketReader): Unit {
         header = reader.int8()
         if (header != 0xfe) {
-            throw MySQLError.InvalidEOFPacket
+            throw MySQLProtocolException("InvalidEOFPacket")
         }
 
         warnings = reader.int16()

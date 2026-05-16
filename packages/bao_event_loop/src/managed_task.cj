@@ -12,7 +12,7 @@
 //
 //   pub fn run(this: *ManagedTask) bun.JSError!void {
 //       @setRuntimeSafety(false)
-//       defer bun.default_allocator.destroy(this)  // 运行后自动释放!
+//       defer bun.default_allocator.destroy(this)  // 运行后自动释放.getOrThrow()
 //       const callback = this.callback
 //       const ctx = this.ctx
 //       try callback(ctx.?)

@@ -2,6 +2,8 @@
 // 对应 Bun: src/sql/mysql/protocol/HandshakeResponse41.zig
 package bao_sql.mysql.protocol
 
+import std.collection.*
+
 /// MySQL 客户端认证响应 (协议 4.1)
 /// 对应 Bun: HandshakeResponse41 (struct)
 ///
@@ -58,7 +60,7 @@ public class HandshakeResponse41 {
 
     /// 释放资源
     /// 对应 Bun: HandshakeResponse41.deinit
-    public func deinit(): Unit {
+    public func release(): Unit {
         username = Array<UInt8>()
         authResponse = Array<UInt8>()
         database = Array<UInt8>()
@@ -84,7 +86,7 @@ public class HandshakeResponse41 {
         writer.int1(characterSet)
 
         // 写入 23 字节填充
-        writer.write(Array<UInt8>(23))
+        writer.write(Array<UInt8>(23, repeat: UInt8(0)))
 
         // 写入用户名 (null 终止)
         writer.writeZ(username)
@@ -113,17 +115,17 @@ public class HandshakeResponse41 {
         if (capabilityFlags.CLIENT_CONNECT_ATTRS) {
             var totalLength: Int64 = 0
             for ((key, value) in connectAttrs) {
-                totalLength += EncodeInt.encodeLengthInt(UInt64(key.toUtf8Bytes().size)).size
-                totalLength += key.toUtf8Bytes().size
-                totalLength += EncodeInt.encodeLengthInt(UInt64(value.toUtf8Bytes().size)).size
-                totalLength += value.toUtf8Bytes().size
+                totalLength += EncodeInt.encodeLengthInt(UInt64(key.toArray().size)).size
+                totalLength += key.toArray().size
+                totalLength += EncodeInt.encodeLengthInt(UInt64(value.toArray().size)).size
+                totalLength += value.toArray().size
             }
 
             writer.writeLengthEncodedInt(UInt64(totalLength))
 
             for ((key, value) in connectAttrs) {
-                writer.writeLengthEncodedString(key.toUtf8Bytes())
-                writer.writeLengthEncodedString(value.toUtf8Bytes())
+                writer.writeLengthEncodedString(key.toArray())
+                writer.writeLengthEncodedString(value.toArray())
             }
         }
 

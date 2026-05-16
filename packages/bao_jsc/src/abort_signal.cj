@@ -114,7 +114,7 @@ public class AbortSignal {
     }
 
     // 严格翻译自 AbortSignal.aborted
-    // 注意: 此函数非线程安全. aborted 是布尔值，非原子!
+    // 注意: 此函数非线程安全. aborted 是布尔值，非原子.getOrThrow()
     public func aborted() -> Bool {
         aborted_
     }

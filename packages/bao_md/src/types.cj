@@ -9,10 +9,10 @@ import bao_core.*
 // ============================================================================
 
 /// 文档偏移量
-public typealias OFF = UInt32
+public type OFF = UInt32
 
 /// 大小类型
-public typealias SZ = UInt32
+public type SZ = UInt32
 
 // ============================================================================
 // 枚举类型
@@ -21,21 +21,55 @@ public typealias SZ = UInt32
 /// 块级元素类型，通过 enterBlock / leaveBlock 回调报告
 public enum BlockType {
     | None
+    | doc
+    | `quote`
+    | ul
+    | ol
+    | li
+    | hr
+    | h
+    | code
+    | html
+    | p
+    | table
+    | th
+    | td
 }
 
 /// 行内元素类型，通过 enterSpan / leaveSpan 回调报告
 public enum SpanType {
     | None
+    | em
+    | strong
+    | a
+    | img
+    | code
+    | del
+    | `default`
+    | html
+    | u
+    | latexmath
+    | wikilink
 }
 
 /// 文本类型，通过 text 回调报告
 public enum TextType {
     | None
+    | normal
+    | `default`
+    | code
+    | html
+    | entity
+    | latemath
 }
 
 /// 表格单元格对齐方式
 public enum Align {
     | None
+    | `default`
+    | left
+    | center
+    | right
 }
 
 // ============================================================================
@@ -101,7 +135,7 @@ public class TableDetail {
 
 /// 表格单元格详情
 public class TdDetail {
-    public var alignment: Align = Align.default
+    public var alignment: Align = Align.`default`
     public init() {}
     public init(alignment: Align) {
         this.alignment = alignment
@@ -207,6 +241,8 @@ public class SpanDetail {
 /// 子串类型
 public enum SubstrType {
     | None
+    | normal
+    | entity
 }
 
 /// 子串偏移
@@ -238,7 +274,7 @@ public class Attribute {
         }
         let first = substr_offsets[0].beg
         let last = substr_offsets[substr_offsets.size - 1].end
-        if (first >= src.length || last > src.length || first >= last) {
+        if (first >= src.size || last > src.size || first >= last) {
             return ""
         }
         return src.substring(Int64(first), Int64(last))
@@ -252,11 +288,21 @@ public class Attribute {
 /// 块分析期间的行类型
 public enum LineType {
     | None
+    | blank
+    | hr
+    | atx
+    | setext
+    | code
+    | html
+    | text
+    | table
+    | tableunderline
+    | fence
 }
 
 /// 行分析结果
 public class Line {
-    public var type: LineType = LineType.blank
+    public var `type`: LineType = LineType.blank
     public var beg: OFF = 0
     public var end: OFF = 0
     public var indent: UInt32 = 0
@@ -326,14 +372,14 @@ public const BLOCK_REF_DEF_ONLY: UInt32 = 0x20
 
 /// 存储在 block_bytes 缓冲区中的块描述符
 public class Block {
-    public var type: BlockType = BlockType.doc
+    public var `type`: BlockType = BlockType.doc
     public var flags: UInt32 = 0
     public var data: UInt32 = 0
     public var n_lines: UInt32 = 0
 
     public init() {}
-    public init(type: BlockType, flags: UInt32, data: UInt32, n_lines: UInt32) {
-        this.type = type
+    public init(`type`: BlockType, flags: UInt32, data: UInt32, n_lines: UInt32) {
+        this.`type` = `type`
         this.flags = flags
         this.data = data
         this.n_lines = n_lines
@@ -551,11 +597,11 @@ public class EmphDelim {
 public extension Align {
     static func fromUInt8(v: UInt8): Align {
         match (v) {
-            | 0 => Align.default
+            | 0 => Align.`default`
             | 1 => Align.left
             | 2 => Align.center
             | 3 => Align.right
-            | _ => Align.default
+            | _ => Align.`default`
         }
     }
 }

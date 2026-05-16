@@ -22,3 +22,11 @@ bao_io = { path = "../bao_io" }
 bao_event_loop = { path = "../bao_event_loop" }
 bao_core = { path = "../bao_core" }
 bao_collections = { path = "../bao_collections" }
+bao_bun_alloc = { path = "../bao_bun_alloc" }
+bao_bundler = { path = "../bao_bundler" }
+bao_ptr = { path = "../bao_ptr" }
+bao_watcher = { path = "../bao_watcher" }
+bao_http_types = { path = "../bao_http_types" }
+bao_uws_sys = { path = "../bao_uws_sys" }
+bao_options = { path = "../bao_options" }
+bao_simdutf_sys = { path = "../bao_simdutf_sys" }

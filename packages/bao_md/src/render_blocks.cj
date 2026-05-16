@@ -24,7 +24,7 @@ public func leaveBlock(parser: Parser, block_type: BlockType, data: UInt32): Uni
 
 /// 处理代码块
 public func processCodeBlock(parser: Parser, block_lines: Array<VerbatimLine>, data: UInt32, flags: UInt32): Unit {
-    var count = block_lines.length
+    var count = block_lines.size
 
     // 裁剪缩进代码块的尾部空行（非围栏）
     if ((flags & BLOCK_FENCED_CODE) == 0) {
@@ -47,7 +47,7 @@ public func processCodeBlock(parser: Parser, block_lines: Array<VerbatimLine>, d
 
 /// 处理 HTML 块
 public func processHtmlBlock(parser: Parser, block_lines: Array<VerbatimLine>): Unit {
-    for (i in 0..block_lines.length) {
+    for (i in 0..block_lines.size) {
         let vline = block_lines[Int64(i)]
         if (i > 0) {
             emitText(parser, TextType.html, "\n")
@@ -63,7 +63,7 @@ public func processHtmlBlock(parser: Parser, block_lines: Array<VerbatimLine>): 
 
 /// 处理表格块
 public func processTableBlock(parser: Parser, block_lines: Array<VerbatimLine>, col_count: UInt32): Unit {
-    if (block_lines.length < 2) {
+    if (block_lines.size < 2) {
         return
     }
 
@@ -74,9 +74,9 @@ public func processTableBlock(parser: Parser, block_lines: Array<VerbatimLine>, 
     leaveBlock(parser, BlockType.tr, 0)
     leaveBlock(parser, BlockType.thead, 0)
 
-    if (block_lines.length > 2) {
+    if (block_lines.size > 2) {
         enterBlock(parser, BlockType.tbody, 0, 0)
-        for (i in 2..block_lines.length) {
+        for (i in 2..block_lines.size) {
             enterBlock(parser, BlockType.tr, 0, 0)
             processTableRow(parser, block_lines[Int64(i)], false, col_count)
             leaveBlock(parser, BlockType.tr, 0)
@@ -92,15 +92,15 @@ public func processTableRow(parser: Parser, vline: VerbatimLine, is_header: Bool
     var cell_index: UInt32 = 0
 
     // 跳过前导管道符
-    if (start < row_text.length && row_text[Int64(start)] == '|') {
+    if (start < row_text.size && row_text[Int64(start)] == '|') {
         start += 1
     }
 
-    while (start < row_text.length && cell_index < col_count) {
+    while (start < row_text.size && cell_index < col_count) {
         // 查找单元格结束，跳过转义字符和代码跨度
         var end = start
-        while (end < row_text.length && row_text[Int64(end)] != '|') {
-            if (row_text[Int64(end)] == '\\' && end + 1 < row_text.length) {
+        while (end < row_text.size && row_text[Int64(end)] != '|') {
+            if (row_text[Int64(end)] == '\\' && end + 1 < row_text.size) {
                 end += 2
             } else {
                 end += 1
@@ -108,7 +108,7 @@ public func processTableRow(parser: Parser, vline: VerbatimLine, is_header: Bool
         }
 
         // 跳过尾部管道符的空单元格
-        if (end == row_text.length && start == end) {
+        if (end == row_text.size && start == end) {
             break
         }
 
@@ -122,7 +122,7 @@ public func processTableRow(parser: Parser, vline: VerbatimLine, is_header: Bool
             cell_end -= 1
         }
 
-        let cell_type: BlockType = if (is_header) BlockType.th else BlockType.td
+        let cell_type: BlockType = if (is_header) { BlockType.th } else { BlockType.td }
         let align_data: UInt32 = if (cell_index < TABLE_MAXCOLCOUNT) {
             parser.table_alignments[Int64(cell_index)].toUInt8().toUInt32()
         } else {
@@ -137,8 +137,8 @@ public func processTableRow(parser: Parser, vline: VerbatimLine, is_header: Bool
             if (cell_content.indexOf(backslash_pipe) >= 0) {
                 var buf = StringBuilder()
                 var ci: Int64 = 0
-                while (ci < cell_content.length) {
-                    if (cell_content[Int64(ci)] == '\\' && ci + 1 < cell_content.length && cell_content[Int64(ci + 1)] == '|') {
+                while (ci < cell_content.size) {
+                    if (cell_content[Int64(ci)] == '\\' && ci + 1 < cell_content.size && cell_content[Int64(ci + 1)] == '|') {
                         buf.append('|')
                         ci += 2
                     } else {
@@ -153,7 +153,7 @@ public func processTableRow(parser: Parser, vline: VerbatimLine, is_header: Bool
         leaveBlock(parser, cell_type, 0)
         cell_index += 1
 
-        if (end < row_text.length) {
+        if (end < row_text.size) {
             start = end + 1 // 跳过 |
         } else {
             break
@@ -161,7 +161,7 @@ public func processTableRow(parser: Parser, vline: VerbatimLine, is_header: Bool
     }
 
     // 填充短行空单元格
-    let pad_type: BlockType = if (is_header) BlockType.th else BlockType.td
+    let pad_type: BlockType = if (is_header) { BlockType.th } else { BlockType.td }
     while (cell_index < col_count) {
         let align_data: UInt32 = if (cell_index < TABLE_MAXCOLCOUNT) {
             parser.table_alignments[Int64(cell_index)].toUInt8().toUInt32()

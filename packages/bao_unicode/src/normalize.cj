@@ -4,9 +4,27 @@
 //   仓颉实现提供 NFD/NFC/NFKD/NFKC 四种规范化形式
 package bao_unicode
 
+import std.collection.*
+
 // ============================================================================
 // Unicode 规范化形式
 // ============================================================================
+
+/// Helper: append element to Array, returns new array
+private func appendElem(arr: Array<UInt32>, elem: UInt32): Array<UInt32> {
+    var list = ArrayList<UInt32>()
+    for (item in arr) { list.add(item) }
+    list.add(elem)
+    return list.toArray()
+}
+
+/// Helper: append element to Array<UInt8>, returns new array
+private func appendByte(arr: Array<UInt8>, elem: UInt8): Array<UInt8> {
+    var list = ArrayList<UInt8>()
+    for (item in arr) { list.add(item) }
+    list.add(elem)
+    return list.toArray()
+}
 
 /// 规范化形式
 public enum NormalizeForm {
@@ -348,9 +366,9 @@ private func canonicalDecomposeCodepoint(cp: UInt32): Array<UInt32> {
             // 递归分解每个结果
             var result = Array<UInt32>()
             let decompFirst = canonicalDecomposeCodepoint(first)
-            for (c in decompFirst) { result.append(c) }
+            for (c in decompFirst) { result = appendElem(result, c) }
             let decompSecond = canonicalDecomposeCodepoint(second)
-            for (c in decompSecond) { result.append(c) }
+            for (c in decompSecond) { result = appendElem(result, c) }
             return result
         case None => ()
     }
@@ -367,11 +385,11 @@ public func normalizeNFD(data: Array<UInt8>): Array<UInt8> {
         if (decoded.valid) {
             let decomp = canonicalDecomposeCodepoint(decoded.codepoint)
             for (cp in decomp) {
-                decomposed.append(cp)
+                decomposed = appendElem(decomposed, cp)
             }
             i += decoded.length
         } else {
-            decomposed.append(UInt32(data[i]))
+            decomposed = appendElem(decomposed, UInt32(data[i]))
             i += 1
         }
     }
@@ -385,7 +403,7 @@ public func normalizeNFD(data: Array<UInt8>): Array<UInt8> {
 private func canonicalOrdering(cps: Array<UInt32>): Array<UInt32> {
     if (cps.size <= 1) { return cps }
     var result = Array<UInt32>()
-    for (cp in cps) { result.append(cp) }
+    for (cp in cps) { result = appendElem(result, cp) }
     var i: Int64 = 1
     while (i < result.size) {
         let cp = result[i]
@@ -431,7 +449,7 @@ private func canonicalCompose(data: Array<UInt8>): Array<UInt8> {
     if (cps.size <= 1) { return data }
 
     var result = Array<UInt32>()
-    result.append(cps[0])
+    result = appendElem(result, cps[0])
 
     var i: Int64 = 1
     while (i < cps.size) {
@@ -467,7 +485,7 @@ private func canonicalCompose(data: Array<UInt8>): Array<UInt8> {
                 i += 1
                 continue
             }
-            result.append(cp)
+            result = appendElem(result, cp)
         } else {
             // Combining mark: 寻找最近的 starter
             var starterIdx = lastIdx
@@ -481,7 +499,7 @@ private func canonicalCompose(data: Array<UInt8>): Array<UInt8> {
                 result[starterIdx] = composed
                 // 继续尝试组合后续的 combining marks
             } else {
-                result.append(cp)
+                result = appendElem(result, cp)
             }
         }
         i += 1
@@ -490,18 +508,178 @@ private func canonicalCompose(data: Array<UInt8>): Array<UInt8> {
 }
 
 // ============================================================================
+// 兼容分解查找
+// 严格翻译自 UnicodeData.txt Decomposition_Mapping (compatibility types)
+//   兼容分解映射表在 compat_tables.cj 中定义
+//   按分解长度分为 1-to-1, 1-to-2, 1-to-3, 1-to-N 四组
+// ============================================================================
+
+/// 在 1-to-1 兼容分解表中二分查找
+private func findCompatDecompSingle(cp: UInt32): ?UInt32 {
+    var lo: Int64 = 0
+    var hi: Int64 = compatDecompSingle.size - 1
+    while (lo <= hi) {
+        let mid = lo + (hi - lo) / 2
+        let (codepoint, target) = compatDecompSingle[mid]
+        if (cp < codepoint) {
+            hi = mid - 1
+        } else if (cp > codepoint) {
+            lo = mid + 1
+        } else {
+            return Some(target)
+        }
+    }
+    return None
+}
+
+/// 在 1-to-2 兼容分解表中二分查找
+private func findCompatDecompPair(cp: UInt32): ?(UInt32, UInt32) {
+    var lo: Int64 = 0
+    var hi: Int64 = compatDecompPair.size - 1
+    while (lo <= hi) {
+        let mid = lo + (hi - lo) / 2
+        let (codepoint, first, second) = compatDecompPair[mid]
+        if (cp < codepoint) {
+            hi = mid - 1
+        } else if (cp > codepoint) {
+            lo = mid + 1
+        } else {
+            return Some((first, second))
+        }
+    }
+    return None
+}
+
+/// 在 1-to-3 兼容分解表中二分查找
+private func findCompatDecompTriple(cp: UInt32): ?(UInt32, UInt32, UInt32) {
+    var lo: Int64 = 0
+    var hi: Int64 = compatDecompTriple.size - 1
+    while (lo <= hi) {
+        let mid = lo + (hi - lo) / 2
+        let (codepoint, first, second, third) = compatDecompTriple[mid]
+        if (cp < codepoint) {
+            hi = mid - 1
+        } else if (cp > codepoint) {
+            lo = mid + 1
+        } else {
+            return Some((first, second, third))
+        }
+    }
+    return None
+}
+
+/// 在 1-to-N (N>3) 兼容分解表中二分查找
+private func findCompatDecompMulti(cp: UInt32): ?Array<UInt32> {
+    var lo: Int64 = 0
+    var hi: Int64 = compatDecompMulti.size - 1
+    while (lo <= hi) {
+        let mid = lo + (hi - lo) / 2
+        let (codepoint, decomp) = compatDecompMulti[mid]
+        if (cp < codepoint) {
+            hi = mid - 1
+        } else if (cp > codepoint) {
+            lo = mid + 1
+        } else {
+            return Some(decomp)
+        }
+    }
+    return None
+}
+
+/// 兼容分解单个码点 (查找兼容分解表)
+/// 先查兼容分解表，如未找到再尝试规范分解
+private func compatDecomposeCodepoint(cp: UInt32): Array<UInt32> {
+    // Hangul 分解 (与规范分解相同)
+    if (cp >= HANGUL_S_BASE && cp < (HANGUL_S_BASE + HANGUL_S_COUNT)) {
+        return hangulDecompose(cp)
+    }
+
+    // 1-to-1 兼容分解
+    let single = findCompatDecompSingle(cp)
+    match (single) {
+        case Some(target) =>
+            // 递归分解目标码点
+            return compatDecomposeCodepoint(target)
+        case None => ()
+    }
+
+    // 1-to-2 兼容分解
+    let pair = findCompatDecompPair(cp)
+    match (pair) {
+        case Some((first, second)) =>
+            var result = Array<UInt32>()
+            let decompFirst = compatDecomposeCodepoint(first)
+            for (c in decompFirst) { result = appendElem(result, c) }
+            let decompSecond = compatDecomposeCodepoint(second)
+            for (c in decompSecond) { result = appendElem(result, c) }
+            return result
+        case None => ()
+    }
+
+    // 1-to-3 兼容分解
+    let triple = findCompatDecompTriple(cp)
+    match (triple) {
+        case Some((first, second, third)) =>
+            var result = Array<UInt32>()
+            let decompFirst = compatDecomposeCodepoint(first)
+            for (c in decompFirst) { result = appendElem(result, c) }
+            let decompSecond = compatDecomposeCodepoint(second)
+            for (c in decompSecond) { result = appendElem(result, c) }
+            let decompThird = compatDecomposeCodepoint(third)
+            for (c in decompThird) { result = appendElem(result, c) }
+            return result
+        case None => ()
+    }
+
+    // 1-to-N (N>3) 兼容分解
+    let multi = findCompatDecompMulti(cp)
+    match (multi) {
+        case Some(decomp) =>
+            var result = Array<UInt32>()
+            for (c in decomp) {
+                let decompC = compatDecomposeCodepoint(c)
+                for (d in decompC) { result = appendElem(result, d) }
+            }
+            return result
+        case None => ()
+    }
+
+    // 回退到规范分解
+    return canonicalDecomposeCodepoint(cp)
+}
+
+// ============================================================================
 // NFKD/NFKC (兼容分解)
-// 当前提供基本兼容分解
+// 严格翻译自 UAX #15 兼容分解 + 规范组合
 // ============================================================================
 
 /// NFKD 规范化 (兼容分解)
+/// 对应 UAX #15: 先对每个码点进行兼容分解，再按 CCC 排序
 public func normalizeNFKD(data: Array<UInt8>): Array<UInt8> {
-    // 当前等同于 NFD
-    // TODO: 添加兼容分解映射表
-    return normalizeNFD(data)
+    // Step 1: 兼容分解所有码点
+    var decomposed = Array<UInt32>()
+    var i: Int64 = 0
+    while (i < data.size) {
+        let decoded = Utf8.decode(data, i)
+        if (decoded.valid) {
+            let decomp = compatDecomposeCodepoint(decoded.codepoint)
+            for (cp in decomp) {
+                decomposed = appendElem(decomposed, cp)
+            }
+            i += decoded.length
+        } else {
+            decomposed = appendElem(decomposed, UInt32(data[i]))
+            i += 1
+        }
+    }
+    // Step 2: 按 CCC 排序组合标记
+    decomposed = canonicalOrdering(decomposed)
+    // Step 3: 编码回 UTF-8
+    return Utf8.encodeAll(decomposed)
 }
 
 /// NFKC 规范化 (兼容分解 + 规范组合)
+/// 对应 UAX #15: 先兼容分解，再按 CCC 排序，最后规范组合
 public func normalizeNFKC(data: Array<UInt8>): Array<UInt8> {
     let decomposed = normalizeNFKD(data)
     return canonicalCompose(decomposed)

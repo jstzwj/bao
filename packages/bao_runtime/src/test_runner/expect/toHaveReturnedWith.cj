@@ -2,6 +2,9 @@
 
 package bao_runtime.test_runner.expect
 
+import bao_runtime.test_runner
+import bao_jsc.*
+
 /// toHaveReturnedWith() - 检查mock函数是否以指定值返回
 /// 用法: expect(mockFn).toHaveReturnedWith(expected)
 public func toHaveReturnedWith(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
@@ -14,7 +17,7 @@ public func toHaveReturnedWith(`this`: Expect, globalThis: JSGlobalObject, callF
     this.incrementExpectCallCounter()
 
     let returns = JSMockFunction.getReturns(globalThis: globalThis, value: value)
-    if !returns.jsType().isArray() {
+    if (!returns.jsType().isArray()) {
         let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
         defer { formatter.deinit() }
         return globalThis.throw_("Expected value must be a mock function: {f}", args: [value.toFmt(formatter)])
@@ -30,26 +33,26 @@ public func toHaveReturnedWith(`this`: Expect, globalThis: JSGlobalObject, callF
 
     // 检查 pass 条件并收集成功返回
     var i: UInt32 = 0
-    while i < callsCount {
+    while (i < callsCount) {
         let result = returns.getDirectIndex(globalThis: globalThis, index: i)
 
-        if result.isObject() {
+        if (result.isObject()) {
             let resultType = result.get(globalThis: globalThis, key: "type") ?? JSValue.jsUndefined
-            if resultType.isString() {
+            if (resultType.isString()) {
                 let typeStr = resultType.toBunString(globalThis: globalThis)
                 defer { typeStr.deref() }
 
-                if typeStr.eqlComptime("return") {
+                if (typeStr.eqlComptime("return")) {
                     let resultValue = result.get(globalThis: globalThis, key: "value") ?? JSValue.jsUndefined
                     successfulReturns.append(resultValue)
 
                     // 只在还没 pass 时检查
-                    if !pass {
-                        if resultValue.jestDeepEquals(expected, globalThis: globalThis) {
+                    if (!pass) {
+                        if (resultValue.jestDeepEquals(expected, globalThis: globalThis)) {
                             pass = true
                         }
                     }
-                } else if typeStr.eqlComptime("throw") {
+                } else if (typeStr.eqlComptime("throw")) {
                     hasErrors = true
                 }
             }
@@ -57,7 +60,7 @@ public func toHaveReturnedWith(`this`: Expect, globalThis: JSGlobalObject, callF
         i++
     }
 
-    if pass != this.flags.not {
+    if (pass != this.flags.not) {
         return JSValue.jsUndefined
     }
 
@@ -67,7 +70,7 @@ public func toHaveReturnedWith(`this`: Expect, globalThis: JSGlobalObject, callF
 
     let signature = Expect.getSignature(matcherName: "toHaveReturnedWith", args: "<green>expected<r>", not: false)
 
-    if this.flags.not {
+    if (this.flags.not) {
         let notSignature = Expect.getSignature(matcherName: "toHaveReturnedWith", args: "<green>expected<r>", not: true)
         return this.throw_(globalThis: globalThis, signature: notSignature,
             fmt: "\n\nExpected mock function not to have returned: <green>{f}<r>\n",
@@ -78,9 +81,9 @@ public func toHaveReturnedWith(`this`: Expect, globalThis: JSGlobalObject, callF
     let successfulReturnsCount = successfulReturns.length
 
     // 只有一次成功返回且无错误
-    if callsCount == 1 && successfulReturnsCount == 1 {
+    if (callsCount == 1 && successfulReturnsCount == 1) {
         let received = successfulReturns[0]
-        if expected.isString() && received.isString() {
+        if (expected.isString() && received.isString()) {
             let diffFormat = DiffFormatter(received: received, expected: expected, globalThis: globalThis, not: false)
             return this.throw_(globalThis: globalThis, signature: signature, fmt: "\n\n{f}\n", args: [diffFormat])
         }
@@ -90,7 +93,7 @@ public func toHaveReturnedWith(`this`: Expect, globalThis: JSGlobalObject, callF
             args: [expected.toFmt(formatter), received.toFmt(formatter)])
     }
 
-    if hasErrors {
+    if (hasErrors) {
         // 有些调用抛出了错误
         let listFormatter = AllCallsFormatter(globalThis: globalThis, returns: returns, formatter: formatter)
         let fmt =

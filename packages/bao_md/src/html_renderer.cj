@@ -52,7 +52,7 @@ public class HtmlRenderer {
     public func enterBlock(blockType: BlockType, data: UInt32, flags: UInt32): Unit {
         match (blockType) {
             case BlockType.doc => ()
-            case BlockType.quote => {
+            case BlockType.`quote` => {
                 ensureNewline()
                 write("<blockquote>\n")
             }
@@ -111,7 +111,7 @@ public class HtmlRenderer {
                     let infoBeg = data
                     // 找到语言标记的结束位置（信息字符串的第一个单词）
                     var langEnd: Int64 = infoBeg
-                    while (langEnd < src_text.length && !isBlank(UInt8(src_text[Int64(langEnd)])) && !isNewline(UInt8(src_text[Int64(langEnd)]))) {
+                    while (langEnd < src_text.size && !isBlank(UInt8(src_text[Int64(langEnd)])) && !isNewline(UInt8(src_text[Int64(langEnd)]))) {
                         langEnd += 1
                     }
                     if (langEnd > infoBeg) {
@@ -161,7 +161,7 @@ public class HtmlRenderer {
     public func leaveBlock(blockType: BlockType, data: UInt32): Unit {
         match (blockType) {
             case BlockType.doc => ()
-            case BlockType.quote => write("</blockquote>\n")
+            case BlockType.`quote` => write("</blockquote>\n")
             case BlockType.ul => write("</ul>\n")
             case BlockType.ol => write("</ol>\n")
             case BlockType.li => write("</li>\n")
@@ -169,7 +169,7 @@ public class HtmlRenderer {
             case BlockType.h => {
                 if (heading_tracker.enabled && in_heading) {
                     let slug = heading_tracker.leaveHeading()
-                    if (slug.length > 0) {
+                    if (slug.size > 0) {
                         // 写入带 id 的开始标签
                         let openTag = match (data) {
                             case 1 => "<h1"
@@ -286,7 +286,7 @@ public class HtmlRenderer {
                     writeUrlWithEscapes(detail.href)
                 }
                 write("\"")
-                if (detail.title.length > 0) {
+                if (detail.title.size > 0) {
                     write(" title=\"")
                     writeTitleWithEscapes(detail.title)
                     write("\"")
@@ -315,7 +315,7 @@ public class HtmlRenderer {
                 image_nesting_level -= 1
                 if (image_nesting_level == 0) {
                     write("\"")
-                    if (saved_img_title.length > 0) {
+                    if (saved_img_title.size > 0) {
                         write(" title=\"")
                         writeTitleWithEscapes(saved_img_title)
                         write("\"")
@@ -380,7 +380,7 @@ public class HtmlRenderer {
             case TextType.code => {
                 // 在代码跨度中，换行符变成空格
                 var start: Int64 = 0
-                for (j in 0..content.length) {
+                for (j in 0..content.size) {
                     if (content[j] == '\n') {
                         if (j > start) {
                             writeHtmlEscaped(content.substring(start, j))
@@ -389,7 +389,7 @@ public class HtmlRenderer {
                         start = j + 1
                     }
                 }
-                if (start < content.length) {
+                if (start < content.size) {
                     writeHtmlEscaped(content.substring(start))
                 }
             }
@@ -420,12 +420,12 @@ public class HtmlRenderer {
     /// 确保换行
     func ensureNewline(): Unit {
         if (in_heading) {
-            if (heading_buf.length > 0 && heading_buf.toString()[heading_buf.length - 1] != '\n') {
+            if (heading_buf.size > 0 && heading_buf.toString()[heading_buf.size - 1] != '\n') {
                 heading_buf.append('\n')
             }
         } else {
             let s = out.toString()
-            if (s.length > 0 && s[s.length - 1] != '\n') {
+            if (s.size > 0 && s[s.size - 1] != '\n') {
                 out.append('\n')
             }
         }
@@ -434,7 +434,7 @@ public class HtmlRenderer {
     /// HTML 转义写入
     public func writeHtmlEscaped(txt: String): Unit {
         var i: Int64 = 0
-        while (i < txt.length) {
+        while (i < txt.size) {
             let c = txt[i]
             match (c) {
                 case '&' => write("&amp;")
@@ -444,7 +444,7 @@ public class HtmlRenderer {
                 case _ => {
                     // 直接写入
                     let start = i
-                    while (i < txt.length && txt[i] != '&' && txt[i] != '<' && txt[i] != '>' && txt[i] != '"') {
+                    while (i < txt.size && txt[i] != '&' && txt[i] != '<' && txt[i] != '>' && txt[i] != '"') {
                         i += 1
                     }
                     if (i > start) {
@@ -459,7 +459,7 @@ public class HtmlRenderer {
 
     /// URL 转义写入
     func writeUrlEscaped(txt: String): Unit {
-        for (i in 0..txt.length) {
+        for (i in 0..txt.size) {
             writeUrlByte(UInt8(txt[i]))
         }
     }
@@ -497,8 +497,8 @@ public class HtmlRenderer {
     /// URL 带转义写入
     func writeUrlWithEscapes(txt: String): Unit {
         var i: Int64 = 0
-        while (i < txt.length) {
-            if (txt[i] == '\\' && i + 1 < txt.length && isAsciiPunctuation(UInt8(txt[i + 1]))) {
+        while (i < txt.size) {
+            if (txt[i] == '\\' && i + 1 < txt.size && isAsciiPunctuation(UInt8(txt[i + 1]))) {
                 writeUrlByte(UInt8(txt[i + 1]))
                 i += 2
             } else if (txt[i] == '&') {
@@ -520,8 +520,8 @@ public class HtmlRenderer {
     /// 标题带转义写入
     func writeTitleWithEscapes(txt: String): Unit {
         var i: Int64 = 0
-        while (i < txt.length) {
-            if (txt[i] == '\\' && i + 1 < txt.length && isAsciiPunctuation(UInt8(txt[i + 1]))) {
+        while (i < txt.size) {
+            if (txt[i] == '\\' && i + 1 < txt.size && isAsciiPunctuation(UInt8(txt[i + 1]))) {
                 writeHtmlEscaped(txt.substring(i + 1, i + 2))
                 i += 2
             } else if (txt[i] == '&') {
@@ -543,7 +543,7 @@ public class HtmlRenderer {
     /// 带实体解码的写入
     func writeWithEntityDecoding(txt: String): Unit {
         var i: Int64 = 0
-        while (i < txt.length) {
+        while (i < txt.size) {
             if (txt[i] == '&') {
                 let endPos = findEntity(txt, i)
                 if (endPos != None) {
@@ -551,7 +551,7 @@ public class HtmlRenderer {
                     i = endPos.get()
                     continue
                 }
-            } else if (txt[i] == '\\' && i + 1 < txt.length && isAsciiPunctuation(UInt8(txt[i + 1]))) {
+            } else if (txt[i] == '\\' && i + 1 < txt.size && isAsciiPunctuation(UInt8(txt[i + 1]))) {
                 writeHtmlEscaped(txt.substring(i + 1, i + 2))
                 i += 2
                 continue
@@ -564,7 +564,7 @@ public class HtmlRenderer {
     /// 写入实体
     func writeEntity(entityText: String): Unit {
         let decoded = decodeEntityToUtf8(entityText)
-        if (decoded.length > 0) {
+        if (decoded.size > 0) {
             writeHtmlEscaped(decoded)
         } else {
             write(entityText)
@@ -574,8 +574,8 @@ public class HtmlRenderer {
     /// 将实体解码为 URL 字节
     func writeEntityToUrl(entityText: String): Unit {
         let decoded = decodeEntityToUtf8(entityText)
-        if (decoded.length > 0) {
-            for (i in 0..decoded.length) {
+        if (decoded.size > 0) {
+            for (i in 0..decoded.size) {
                 writeUrlByte(UInt8(decoded[i]))
             }
         } else {
@@ -596,7 +596,7 @@ public class HtmlRenderer {
             v /= 10
         }
         // 反向写入
-        var i = buf.length - 1
+        var i = buf.size - 1
         while (i >= 0) {
             write(String.fromUInt8(buf[Int64(i)]))
             i -= 1
@@ -609,7 +609,7 @@ public class HtmlRenderer {
 
     /// 更新标签过滤原始区域深度
     func updateTagFilterRawDepth(content: String): Unit {
-        if (content.length < 2 || content[0] != '<') {
+        if (content.size < 2 || content[0] != '<') {
             return
         }
         if (content[1] == '/') {
@@ -620,7 +620,7 @@ public class HtmlRenderer {
         } else {
             // 打开标签（非自关闭）
             if (isDisallowedTag(content)) {
-                if (content.length < 2 || !(content[content.length - 2] == '/' && content[content.length - 1] == '>')) {
+                if (content.size < 2 || !(content[content.size - 2] == '/' && content[content.size - 1] == '>')) {
                     tag_filter_raw_depth += 1
                 }
             }
@@ -631,7 +631,7 @@ public class HtmlRenderer {
     func writeHtmlWithTagFilter(content: String): Unit {
         var start: Int64 = 0
         var i: Int64 = 0
-        while (i < content.length) {
+        while (i < content.size) {
             if (content[i] == '<' && isDisallowedTag(content.substring(i))) {
                 if (i > start) {
                     write(content.substring(start, i))
@@ -641,18 +641,18 @@ public class HtmlRenderer {
             }
             i += 1
         }
-        if (start < content.length) {
+        if (start < content.size) {
             write(content.substring(start))
         }
     }
 
     /// 检查是否为禁用标签
     func isDisallowedTag(content: String): Bool {
-        if (content.length < 2 || content[0] != '<') {
+        if (content.size < 2 || content[0] != '<') {
             return false
         }
-        let afterLt: Int64 = if (content[1] == '/') 2 else 1
-        if (afterLt >= content.length) {
+        let afterLt: Int64 = if (content[1] == '/') { 2 } else { 1 }
+        if (afterLt >= content.size) {
             return false
         }
 
@@ -670,14 +670,14 @@ public class HtmlRenderer {
 
     /// 大小写不敏感的标签名匹配
     func matchTagNameCI(content: String, pos: Int64, tag: String): Bool {
-        if (pos + tag.length > content.length) {
+        if (pos + tag.size > content.size) {
             return false
         }
-        if (!asciiCaseEql(content.substring(pos, pos + tag.length), tag)) {
+        if (!asciiCaseEql(content.substring(pos, pos + tag.size), tag)) {
             return false
         }
-        let end = pos + tag.length
-        if (end >= content.length) {
+        let end = pos + tag.size
+        if (end >= content.size) {
             return true
         }
         let c = content[end]
@@ -690,6 +690,6 @@ public class HtmlRenderer {
 
     /// 十六进制数字
     func hexDigit(v: UInt8): UInt8 {
-        return if (v < 10) UInt8('0'.toInt()) + v else UInt8('A'.toInt()) + v - 10
+        return if (v < 10) { UInt8('0'.toInt()) + v } else { UInt8('A'.toInt()) + v - 10 }
     }
 }

@@ -83,7 +83,7 @@ public func ansiReset(): String {
 
 /// 内联代码跨距打开序列
 public func codeSpanOpen(light: Bool): String {
-    return if (light) "\u{1b}[48;5;254m\u{1b}[38;5;124m" else "\u{1b}[48;5;236m\u{1b}[38;5;215m"
+    return if (light) { "\u{1b}[48;5;254m\u{1b}[38;5;124m" } else { "\u{1b}[48;5;236m\u{1b}[38;5;215m" }
 }
 
 // ============================================================================
@@ -94,29 +94,29 @@ public func codeSpanOpen(light: Bool): String {
 public func visibleWidth(s: String): Int64 {
     var width: Int64 = 0
     var i: Int64 = 0
-    while (i < s.length) {
+    while (i < s.size) {
         let c = UInt8(s[Int64(i)])
         if (c == 0x1b) {
             // 跳过 ANSI 转义序列
             i += 1
-            if (i < s.length) {
+            if (i < s.size) {
                 let next = UInt8(s[Int64(i)])
                 if (next == '['.toUInt8()) {
                     // CSI 序列
                     i += 1
-                    while (i < s.length && (UInt8(s[Int64(i)]) < 0x40 || UInt8(s[Int64(i)]) > 0x7e)) {
+                    while (i < s.size && (UInt8(s[Int64(i)]) < 0x40 || UInt8(s[Int64(i)]) > 0x7e)) {
                         i += 1
                     }
-                    if (i < s.length) i += 1
+                    if (i < s.size) i += 1
                 } else if (next == ']'.toUInt8()) {
                     // OSC 序列
                     i += 1
-                    while (i < s.length) {
+                    while (i < s.size) {
                         if (UInt8(s[Int64(i)]) == 0x07) {
                             i += 1
                             break
                         }
-                        if (UInt8(s[Int64(i)]) == 0x1b && i + 1 < s.length && UInt8(s[Int64(i + 1)]) == '\\') {
+                        if (UInt8(s[Int64(i)]) == 0x1b && i + 1 < s.size && UInt8(s[Int64(i + 1)]) == '\\') {
                             i += 2
                             break
                         }
@@ -154,27 +154,27 @@ public func visibleWidth(s: String): Int64 {
 public func visibleIndexAt(s: String, max_cols: Int64): Int64 {
     var width: Int64 = 0
     var i: Int64 = 0
-    while (i < s.length) {
+    while (i < s.size) {
         let c = UInt8(s[Int64(i)])
         if (c == 0x1b) {
             // ANSI 转义序列: 零宽度，总是包含
             i += 1
-            if (i < s.length) {
+            if (i < s.size) {
                 let next = UInt8(s[Int64(i)])
                 if (next == '['.toUInt8()) {
                     i += 1
-                    while (i < s.length && (UInt8(s[Int64(i)]) < 0x40 || UInt8(s[Int64(i)]) > 0x7e)) {
+                    while (i < s.size && (UInt8(s[Int64(i)]) < 0x40 || UInt8(s[Int64(i)]) > 0x7e)) {
                         i += 1
                     }
-                    if (i < s.length) i += 1
+                    if (i < s.size) i += 1
                 } else if (next == ']'.toUInt8()) {
                     i += 1
-                    while (i < s.length) {
+                    while (i < s.size) {
                         if (UInt8(s[Int64(i)]) == 0x07) {
                             i += 1
                             break
                         }
-                        if (UInt8(s[Int64(i)]) == 0x1b && i + 1 < s.length && UInt8(s[Int64(i + 1)]) == '\\') {
+                        if (UInt8(s[Int64(i)]) == 0x1b && i + 1 < s.size && UInt8(s[Int64(i + 1)]) == '\\') {
                             i += 2
                             break
                         }
@@ -207,7 +207,7 @@ public func visibleIndexAt(s: String, max_cols: Int64): Int64 {
         width += char_width
         i += char_len
     }
-    return s.length
+    return s.size
 }
 
 // ============================================================================
@@ -245,7 +245,7 @@ public class BlockContext {
 /// 表格单元格
 public class TableCell {
     public var content: String = ""
-    public var alignment: Align = Align.default
+    public var alignment: Align = Align.`default`
 
     public init() {}
     public init(content: String, alignment: Align) {
@@ -312,7 +312,7 @@ public class AnsiRenderer {
     /// 是否在单元格中
     public var in_cell: Bool = false
     /// 当前单元格对齐
-    public var cell_align: Align = Align.default
+    public var cell_align: Align = Align.`default`
     /// 上次是否换行
     public var last_was_newline: Bool = true
     /// 是否已发出空行
@@ -354,7 +354,7 @@ public class AnsiRenderer {
     public func enterBlock(block_type: BlockType, data: UInt32, flags: UInt32): Unit {
         match (block_type) {
             case BlockType.doc => ()
-            case BlockType.quote => {
+            case BlockType.`quote` => {
                 ensureBlankLine()
                 block_stack.append(BlockContext(BlockContextKind.quote, 0, 0, 2))
             }
@@ -381,22 +381,22 @@ public class AnsiRenderer {
                 if (task_mark != 0) {
                     let checked = isTaskChecked(task_mark)
                     if (theme.colors) {
-                        glyph = if (checked) "\u2612 " else "\u2610 "
+                        glyph = if (checked) { "\u{2612} " } else { "\u{2610} " }
                     } else {
-                        glyph = if (checked) "[x] " else "[ ] "
+                        glyph = if (checked) { "[x] " } else { "[ ] " }
                     }
-                    glyph_color = if (checked) ansiColor(AnsiColor.green) else ansiColor(AnsiColor.dim)
+                    glyph_color = if (checked) { ansiColor(AnsiColor.green) } else { ansiColor(AnsiColor.dim) }
                 } else if (let Some(list) <- parent_list) {
                     if (list.kind == BlockContextKind.ol) {
                         let num = list.data + entry.index
                         glyph = "${num}. "
                         glyph_color = ansiColor(AnsiColor.cyan)
                     } else {
-                        glyph = if (theme.colors) "\u2022 " else "* "
+                        glyph = if (theme.colors) { "\u{2022} " } else { "* " }
                         glyph_color = ansiColor(AnsiColor.cyan)
                     }
                 } else {
-                    glyph = if (theme.colors) "\u2022 " else "* "
+                    glyph = if (theme.colors) { "\u{2022} " } else { "* " }
                     glyph_color = ansiColor(AnsiColor.cyan)
                 }
                 writeStyled(glyph_color, glyph)
@@ -413,7 +413,7 @@ public class AnsiRenderer {
                 } else {
                     min(UInt32(theme.columns), 60) - indent_cols
                 }
-                let dash = if (theme.colors) "\u2500" else "-"
+                let dash = if (theme.colors) { "\u{2500}" } else { "-" }
                 writeStyled(ansiColor(AnsiColor.dim), "")
                 var i: UInt32 = 0
                 while (i < width) {
@@ -446,7 +446,7 @@ public class AnsiRenderer {
             }
             case BlockType.p => {
                 let top_kind: ?BlockContextKind = if (!block_stack.isEmpty) {
-                    block_stack[Int64(block_stack.length - 1)].kind
+                    block_stack[Int64(block_stack.size - 1)].kind
                 } else {
                     None
                 }
@@ -494,20 +494,20 @@ public class AnsiRenderer {
     public func leaveBlock(block_type: BlockType, data: UInt32): Unit {
         match (block_type) {
             case BlockType.doc => ()
-            case BlockType.quote => {
-                if (!block_stack.isEmpty) block_stack = block_stack.slice(0, block_stack.length - 1)
+            case BlockType.`quote` => {
+                if (!block_stack.isEmpty) block_stack = block_stack.slice(0, block_stack.size - 1)
                 ensureNewline()
             }
             case BlockType.ul => {
-                if (!block_stack.isEmpty) block_stack = block_stack.slice(0, block_stack.length - 1)
+                if (!block_stack.isEmpty) block_stack = block_stack.slice(0, block_stack.size - 1)
                 ensureNewline()
             }
             case BlockType.ol => {
-                if (!block_stack.isEmpty) block_stack = block_stack.slice(0, block_stack.length - 1)
+                if (!block_stack.isEmpty) block_stack = block_stack.slice(0, block_stack.size - 1)
                 ensureNewline()
             }
             case BlockType.li => {
-                if (!block_stack.isEmpty) block_stack = block_stack.slice(0, block_stack.length - 1)
+                if (!block_stack.isEmpty) block_stack = block_stack.slice(0, block_stack.size - 1)
                 ensureNewline()
             }
             case BlockType.hr => ()
@@ -623,27 +623,27 @@ public class AnsiRenderer {
     public func leaveSpan(span_type: SpanType): Unit {
         match (span_type) {
             case SpanType.em => {
-                span_flags = span_flags & ~AnsiRenderer.SPAN_EM
+                span_flags = span_flags & (A ^ UInt32.Max)nsiRenderer.SPAN_EM
                 writeStyled("\u{1b}[23m", "")
                 if (heading_level > 0) reapplyStyles()
             }
             case SpanType.strong => {
-                span_flags = span_flags & ~AnsiRenderer.SPAN_STRONG
+                span_flags = span_flags & (A ^ UInt32.Max)nsiRenderer.SPAN_STRONG
                 writeStyled("\u{1b}[22m", "")
                 if (heading_level > 0) reapplyStyles()
             }
             case SpanType.u => {
-                span_flags = span_flags & ~AnsiRenderer.SPAN_U
+                span_flags = span_flags & (A ^ UInt32.Max)nsiRenderer.SPAN_U
                 writeStyled("\u{1b}[24m", "")
                 if (heading_level > 0) reapplyStyles()
             }
             case SpanType.del => {
-                span_flags = span_flags & ~AnsiRenderer.SPAN_DEL
+                span_flags = span_flags & (A ^ UInt32.Max)nsiRenderer.SPAN_DEL
                 writeStyled("\u{1b}[29m", "")
                 if (heading_level > 0) reapplyStyles()
             }
             case SpanType.code => {
-                span_flags = span_flags & ~AnsiRenderer.SPAN_CODE
+                span_flags = span_flags & (A ^ UInt32.Max)nsiRenderer.SPAN_CODE
                 writeStyled("\u{1b}[39m\u{1b}[49m", "")
                 reapplyStyles()
             }
@@ -656,7 +656,7 @@ public class AnsiRenderer {
                     if (theme.colors && theme.hyperlinks) {
                         if (had_href) writeRawNoColor("\u{1b}]8;;\u{1b}\\")
                     } else if (let Some(href) <- link_href) {
-                        if (href.length > 0 && image_depth == 0) {
+                        if (href.size > 0 && image_depth == 0) {
                             writeStyled(ansiColor(AnsiColor.dim), " (")
                             writeStyled("", href)
                             writeStyled(ansiColor(AnsiColor.dim), ")")
@@ -756,7 +756,7 @@ public class AnsiRenderer {
             // 无换行路径
             var start: Int64 = 0
             var i: Int64 = 0
-            while (i < data.length) {
+            while (i < data.size) {
                 if (data[Int64(i)] == '\n') {
                     writeRaw(data.substring(start, i + 1))
                     col = 0
@@ -766,14 +766,14 @@ public class AnsiRenderer {
                 }
                 i += 1
             }
-            if (start < data.length) {
+            if (start < data.size) {
                 writeRaw(data.substring(start))
             }
             return
         }
         let max = UInt32(theme.columns)
         var i: Int64 = 0
-        while (i < data.length) {
+        while (i < data.size) {
             let c = data[Int64(i)]
             if (c == '\n') {
                 writeRaw("\n")
@@ -789,11 +789,11 @@ public class AnsiRenderer {
                 col = 0
                 writeIndent()
                 i += 1
-                while (i < data.length && data[Int64(i)] == ' ') i += 1
+                while (i < data.size && data[Int64(i)] == ' ') i += 1
                 continue
             }
             var j = i
-            while (j < data.length && data[Int64(j)] != ' ' && data[Int64(j)] != '\n') j += 1
+            while (j < data.size && data[Int64(j)] != ' ' && data[Int64(j)] != '\n') j += 1
             let word = data.substring(i, j)
             let word_width = visibleWidth(word)
             let indent = currentIndent()
@@ -801,19 +801,19 @@ public class AnsiRenderer {
             if (avail > 0 && word_width > avail) {
                 // 单词无法放入新行
                 var rest = word
-                while (rest.length > 0) {
+                while (rest.size > 0) {
                     let r = max - col
                     if (r == 0) {
                         wrapBreak()
                         continue
                     }
                     var cut = visibleIndexAt(rest, Int64(r))
-                    if (cut == 0) cut = min(rest.length, 1)
+                    if (cut == 0) cut = min(rest.size, 1)
                     writeRaw(rest.substring(0, cut))
                     col += UInt32(visibleWidth(rest.substring(0, cut)))
                     last_was_newline = false
                     rest = rest.substring(cut)
-                    if (rest.length > 0) wrapBreak()
+                    if (rest.size > 0) wrapBreak()
                 }
             } else {
                 if (col != 0 && col + UInt32(word_width) > max && col > indent) {
@@ -821,15 +821,15 @@ public class AnsiRenderer {
                 }
                 writeRaw(word)
                 col += UInt32(word_width)
-                last_was_newline = (word.length == 0)
+                last_was_newline = (word.size == 0)
             }
             i = j
-            if (i < data.length && data[Int64(i)] == ' ') {
+            if (i < data.size && data[Int64(i)] == ' ') {
                 // 检查下一个单词是否溢出
                 var k = i
-                while (k < data.length && data[Int64(k)] == ' ') k += 1
+                while (k < data.size && data[Int64(k)] == ' ') k += 1
                 var m = k
-                while (m < data.length && data[Int64(m)] != ' ' && data[Int64(m)] != '\n') m += 1
+                while (m < data.size && data[Int64(m)] != ' ' && data[Int64(m)] != '\n') m += 1
                 let next_word_width = visibleWidth(data.substring(k, m))
                 let next_avail = max - indent
                 if (col != 0 && col + 1 + UInt32(next_word_width) > max && col > indent && next_word_width <= next_avail) {
@@ -848,10 +848,10 @@ public class AnsiRenderer {
 
     /// 带样式的写入
     func writeStyled(prefix: String, text_: String): Unit {
-        if (theme.colors && prefix.length > 0) {
+        if (theme.colors && prefix.size > 0) {
             emitInline(prefix)
         }
-        if (text_.length == 0) return
+        if (text_.size == 0) return
         emitInline(text_)
         if (!in_cell && heading_level == 0 && !in_code_block && image_depth == 0) {
             col += UInt32(visibleWidth(text_))
@@ -872,14 +872,14 @@ public class AnsiRenderer {
 
     /// 原始写入
     func writeRaw(data: String): Unit {
-        if (data.length == 0) return
+        if (data.size == 0) return
         emitInline(data)
-        last_was_newline = (data[data.length - 1] == '\n')
+        last_was_newline = (data[data.size - 1] == '\n')
     }
 
     /// 不换行写入
     func writeNoWrap(text_: String): Unit {
-        if (text_.length == 0) return
+        if (text_.size == 0) return
         emitInline(text_)
         if (!in_cell && heading_level == 0 && !in_code_block && image_depth == 0) {
             col += UInt32(visibleWidth(text_))
@@ -890,7 +890,7 @@ public class AnsiRenderer {
     /// 无颜色写入
     func writeRawNoColor(data: String): Unit {
         if (!theme.colors) return
-        if (data.length == 0) return
+        if (data.size == 0) return
         if (image_depth > 0) return
         if (in_cell) {
             table_cell_buf.append(data)
@@ -905,29 +905,29 @@ public class AnsiRenderer {
 
     /// 行内发射
     func emitInline(bytes: String): Unit {
-        if (bytes.length == 0) return
+        if (bytes.size == 0) return
         if (image_depth > 0) {
             // 图片 alt 是纯文本 — 去除转义序列
             var i: Int64 = 0
-            while (i < bytes.length) {
+            while (i < bytes.size) {
                 if (UInt8(bytes[Int64(i)]) == 0x1b) {
                     i += 1
-                    if (i < bytes.length && UInt8(bytes[Int64(i)]) == '['.toUInt8()) {
+                    if (i < bytes.size && UInt8(bytes[Int64(i)]) == '['.toUInt8()) {
                         i += 1
-                        while (i < bytes.length && (UInt8(bytes[Int64(i)]) < 0x40 || UInt8(bytes[Int64(i)]) > 0x7e)) i += 1
-                        if (i < bytes.length) i += 1
-                    } else if (i < bytes.length && UInt8(bytes[Int64(i)]) == ']') {
+                        while (i < bytes.size && (UInt8(bytes[Int64(i)]) < 0x40 || UInt8(bytes[Int64(i)]) > 0x7e)) i += 1
+                        if (i < bytes.size) i += 1
+                    } else if (i < bytes.size && UInt8(bytes[Int64(i)]) == ']') {
                         i += 1
-                        while (i < bytes.length) {
+                        while (i < bytes.size) {
                             if (UInt8(bytes[Int64(i)]) == 0x07) { i += 1; break }
-                            if (UInt8(bytes[Int64(i)]) == 0x1b && i + 1 < bytes.length && UInt8(bytes[Int64(i + 1)]) == '\\') { i += 2; break }
+                            if (UInt8(bytes[Int64(i)]) == 0x1b && i + 1 < bytes.size && UInt8(bytes[Int64(i + 1)]) == '\\') { i += 2; break }
                             i += 1
                         }
                     }
                     continue
                 }
                 let start = i
-                while (i < bytes.length && UInt8(bytes[Int64(i)]) != 0x1b) i += 1
+                while (i < bytes.size && UInt8(bytes[Int64(i)]) != 0x1b) i += 1
                 image_alt.append(bytes.substring(start, i))
             }
             return
@@ -976,7 +976,7 @@ public class AnsiRenderer {
                 case _ => other_indent += entry.indent
             }
         }
-        let bar = if (theme.colors) "\u2502 " else "| "
+        let bar = if (theme.colors) { "\u{2502} " } else { "| " }
         if (theme.colors && quote_bars > 0) {
             out.write("\u{1b}[38;5;242m")
         }
@@ -1002,7 +1002,7 @@ public class AnsiRenderer {
     func currentIndent(): UInt32 {
         var total: UInt32 = 0
         for (entry in block_stack) {
-            total += if (entry.kind == BlockContextKind.quote) 2 else entry.indent
+            total += if (entry.kind == BlockContextKind.quote) { 2 } else { entry.indent }
         }
         return total
     }
@@ -1014,7 +1014,7 @@ public class AnsiRenderer {
             if (entry.kind == BlockContextKind.quote) quote_bars += 1
         }
         if (quote_bars == 0) return
-        let bar = if (theme.colors) "\u2502" else "|"
+        let bar = if (theme.colors) { "\u{2502}" } else { "|" }
         if (theme.colors) out.write("\u{1b}[38;5;242m")
         var i: UInt32 = 0
         while (i < quote_bars) {
@@ -1039,13 +1039,13 @@ public class AnsiRenderer {
         ensureNewline()
         if (blank_emitted) return
         let current = out.data.toString()
-        if (current.length > 0) {
-            if (current.length >= 2 && current[current.length - 1] == '\n' && current[current.length - 2] != '\n') {
+        if (current.size > 0) {
+            if (current.size >= 2 && current[current.size - 1] == '\n' && current[current.size - 2] != '\n') {
                 writeQuoteBars()
                 out.writeByte('\n'.toUInt8())
                 col = 0
                 blank_emitted = true
-            } else if (current.length >= 1 && current[current.length - 1] != '\n') {
+            } else if (current.size >= 1 && current[current.size - 1] != '\n') {
                 writeQuoteBars()
                 out.writeByte('\n'.toUInt8())
                 col = 0
@@ -1057,7 +1057,7 @@ public class AnsiRenderer {
     /// 查找父列表
     func findParentList(): ?BlockContext {
         if (block_stack.isEmpty) return None
-        var i = block_stack.length
+        var i = block_stack.size
         while (i > 0) {
             i -= 1
             let entry = block_stack[Int64(i)]
@@ -1096,7 +1096,7 @@ public class AnsiRenderer {
                 min(text_w, Int64(UInt32(theme.columns)) - Int64(indent_cols))
             }
             if (theme.colors) out.write(ansiColor(AnsiColor.dim))
-            let char = if (theme.colors) (if (level == 1) "\u2550" else "\u2500") else (if (level == 1) "=" else "-")
+            let char = if (theme.colors) { (if (level == 1) "\u{2550}" else "\u{2500}") } else { (if (level == 1) "=" else "-") }
             var i: Int64 = 0
             while (i < width) {
                 out.write(char)
@@ -1130,17 +1130,17 @@ public class AnsiRenderer {
     func flushCodeBlock(): Unit {
         let src = code_buf.toString()
         // 去除尾部换行
-        let body = if (src.length > 0 && src[src.length - 1] == '\n') src.substring(0, src.length - 1) else src
+        let body = if (src.size > 0 && src[src.size - 1] == '\n') { src.substring(0, src.size - 1) } else { src }
 
-        let top_border = if (theme.colors) "\u250c\u2500 " else "+- "
-        let top_bare = if (theme.colors) "\u250c\u2500" else "+-"
-        let side = if (theme.colors) "\u2502 " else "| "
-        let bottom = if (theme.colors) "\u2514\u2500" else "+-"
+        let top_border = if (theme.colors) { "\u{250c}\u{2500} " } else { "+- " }
+        let top_bare = if (theme.colors) { "\u{250c}\u{2500}" } else { "+-" }
+        let side = if (theme.colors) { "\u{2502} " } else { "| " }
+        let bottom = if (theme.colors) { "\u{2514}\u{2500}" } else { "+-" }
 
         // 语言标记
         if (theme.colors) out.write(ansiColor(AnsiColor.dim))
         writeIndent()
-        if (code_lang.length > 0) {
+        if (code_lang.size > 0) {
             out.write(top_border)
             if (theme.colors) out.write("\u{1b}[0m")
             if (theme.colors) out.write("\u{1b}[2m\u{1b}[3m")
@@ -1157,8 +1157,8 @@ public class AnsiRenderer {
         // 输出代码行
         var line_start: Int64 = 0
         var i: Int64 = 0
-        while (i <= body.length) {
-            if (i == body.length || body[Int64(i)] == '\n') {
+        while (i <= body.size) {
+            if (i == body.size || body[Int64(i)] == '\n') {
                 let line = body.substring(line_start, i)
                 writeIndent()
                 if (theme.colors) out.write(ansiColor(AnsiColor.dim))
@@ -1192,16 +1192,16 @@ public class AnsiRenderer {
         // 计算最大列宽
         var col_count: Int64 = 0
         for (row in table_rows) {
-            col_count = max(col_count, row.cells.length)
+            col_count = max(col_count, row.cells.size)
         }
         if (col_count == 0) return
 
         var widths: Array<Int64> = Array<Int64>(col_count, item: 3)
-        var aligns: Array<Align> = Array<Align>(col_count, item: Align.default)
+        var aligns: Array<Align> = Array<Align>(col_count, item: Align.`default`)
         for (row in table_rows) {
-            for (i in 0..row.cells.length) {
+            for (i in 0..row.cells.size) {
                 widths[Int64(i)] = max(widths[Int64(i)], visibleWidth(row.cells[Int64(i)].content))
-                if (aligns[Int64(i)] == Align.default) aligns[Int64(i)] = row.cells[Int64(i)].alignment
+                if (aligns[Int64(i)] == Align.`default`) aligns[Int64(i)] = row.cells[Int64(i)].alignment
             }
         }
 
@@ -1213,7 +1213,7 @@ public class AnsiRenderer {
             let budget = Int64(theme.columns)
             while (total > budget) {
                 var widest: Int64 = 0
-                for (i in 0..widths.length) {
+                for (i in 0..widths.size) {
                     if (widths[Int64(i)] > widths[Int64(widest)]) widest = i
                 }
                 if (widths[Int64(widest)] <= 3) break
@@ -1223,26 +1223,26 @@ public class AnsiRenderer {
         }
 
         let use_unicode = theme.colors
-        let h_char = if (use_unicode) "\u2500" else "-"
-        let v_char = if (use_unicode) "\u2502" else "|"
-        let tl_char = if (use_unicode) "\u250c" else "+"
-        let tr_char = if (use_unicode) "\u2510" else "+"
-        let bl_char = if (use_unicode) "\u2514" else "+"
-        let br_char = if (use_unicode) "\u2518" else "+"
-        let t_char = if (use_unicode) "\u252c" else "+"
-        let b_char = if (use_unicode) "\u2534" else "+"
-        let ml_char = if (use_unicode) "\u251c" else "+"
-        let mr_char = if (use_unicode) "\u2524" else "+"
-        let x_char = if (use_unicode) "\u253c" else "+"
+        let h_char = if (use_unicode) { "\u{2500}" } else { "-" }
+        let v_char = if (use_unicode) { "\u{2502}" } else { "|" }
+        let tl_char = if (use_unicode) { "\u{250c}" } else { "+" }
+        let tr_char = if (use_unicode) { "\u{2510}" } else { "+" }
+        let bl_char = if (use_unicode) { "\u{2514}" } else { "+" }
+        let br_char = if (use_unicode) { "\u{2518}" } else { "+" }
+        let t_char = if (use_unicode) { "\u{252c}" } else { "+" }
+        let b_char = if (use_unicode) { "\u{2534}" } else { "+" }
+        let ml_char = if (use_unicode) { "\u{251c}" } else { "+" }
+        let mr_char = if (use_unicode) { "\u{2524}" } else { "+" }
+        let x_char = if (use_unicode) { "\u{253c}" } else { "+" }
 
         // 顶部边框
         writeIndent()
         if (theme.colors) out.write(ansiColor(AnsiColor.dim))
         out.write(tl_char)
-        for (i in 0..widths.length) {
+        for (i in 0..widths.size) {
             var j: Int64 = 0
             while (j < widths[Int64(i)] + 2) { out.write(h_char); j += 1 }
-            out.write(if (i == widths.length - 1) tr_char else t_char)
+            out.write(if (i == widths.size - 1) tr_char else t_char)
         }
         if (theme.colors) out.write("\u{1b}[0m")
         out.writeByte('\n'.toUInt8())
@@ -1256,10 +1256,10 @@ public class AnsiRenderer {
                 writeIndent()
                 if (theme.colors) out.write(ansiColor(AnsiColor.dim))
                 out.write(ml_char)
-                for (i in 0..widths.length) {
+                for (i in 0..widths.size) {
                     var j: Int64 = 0
                     while (j < widths[Int64(i)] + 2) { out.write(h_char); j += 1 }
-                    out.write(if (i == widths.length - 1) mr_char else x_char)
+                    out.write(if (i == widths.size - 1) mr_char else x_char)
                 }
                 if (theme.colors) out.write("\u{1b}[0m")
                 out.writeByte('\n'.toUInt8())
@@ -1272,10 +1272,10 @@ public class AnsiRenderer {
         writeIndent()
         if (theme.colors) out.write(ansiColor(AnsiColor.dim))
         out.write(bl_char)
-        for (i in 0..widths.length) {
+        for (i in 0..widths.size) {
             var j: Int64 = 0
             while (j < widths[Int64(i)] + 2) { out.write(h_char); j += 1 }
-            out.write(if (i == widths.length - 1) br_char else b_char)
+            out.write(if (i == widths.size - 1) br_char else b_char)
         }
         if (theme.colors) out.write("\u{1b}[0m")
         out.writeByte('\n'.toUInt8())
@@ -1288,19 +1288,19 @@ public class AnsiRenderer {
     /// 写入行单元格
     func writeRowCells(row: TableRow, widths: Array<Int64>, aligns: Array<Align>): Unit {
         let use_unicode = theme.colors
-        let v_char = if (use_unicode) "\u2502" else "|"
+        let v_char = if (use_unicode) { "\u{2502}" } else { "|" }
 
         writeIndent()
         if (theme.colors) out.write(ansiColor(AnsiColor.dim))
         out.write(v_char)
         if (theme.colors) out.write("\u{1b}[0m")
-        for (i in 0..widths.length) {
-            let seg: String = if (i < row.cells.length) row.cells[Int64(i)].content else ""
+        for (i in 0..widths.size) {
+            let seg: String = if (i < row.cells.size) { row.cells[Int64(i)].content } else { "" }
             out.writeByte(' '.toUInt8())
             if (row.is_header && theme.colors) out.write("\u{1b}[1m")
             let cw = visibleWidth(seg)
-            let cell_align = if (i < row.cells.length) row.cells[Int64(i)].alignment else Align.default
-            let alignment = if (cell_align != Align.default) cell_align else aligns[Int64(i)]
+            let cell_align = if (i < row.cells.size) { row.cells[Int64(i)].alignment } else { Align.`default` }
+            let alignment = if (cell_align != Align.`default`) { cell_align } else { aligns[Int64(i)] }
             let pad = widths[Int64(i)] - cw
             let left = match (alignment) {
                 case Align.right => pad
@@ -1338,7 +1338,7 @@ public class AnsiRenderer {
         let saved_depth = image_depth
         image_depth = 0
 
-        let has_src = src != None && src.get().length > 0
+        let has_src = src != None && src.get().size > 0
 
         // Kitty 图形协议不支持表格/标题中
         let kitty_allowed = !in_cell && heading_level == 0
@@ -1366,12 +1366,12 @@ public class AnsiRenderer {
             writeRawNoColor(src.get())
             writeRawNoColor("\u{1b}\\")
         }
-        let img_marker = if (theme.colors) "\uD83D\uDCF7 " else "[img] "
+        let img_marker = if (theme.colors) { "\u{1F4F7} " } else { "[img] " }
         writeStyled(ansiColor(AnsiColor.magenta), img_marker)
-        if (alt.length > 0) {
+        if (alt.size > 0) {
             writeContent(alt)
         } else if (let Some(title) <- image_title) {
-            if (title.length > 0) {
+            if (title.size > 0) {
                 writeContent(title)
             } else {
                 writeContent("(image)")
@@ -1452,7 +1452,7 @@ func isJsLang(lang: String): Bool {
 /// 从源文本中提取语言
 func extractLanguage(src_text: String, info_beg: UInt32): String {
     var lang_end = info_beg
-    while (lang_end < src_text.length) {
+    while (lang_end < src_text.size) {
         let c = UInt8(src_text[Int64(lang_end)])
         if (c == ' '.toUInt8() || c == '\t'.toUInt8() || c == '\n'.toUInt8() || c == '\r'.toUInt8()) break
         lang_end += 1

@@ -9,8 +9,8 @@ package bao_windows_sys
 public type BOOL = Int32
 public type BOOLEAN = UInt8
 public type DWORD = UInt32
-public type HANDLE = UIntPtr
-public type HMODULE = UIntPtr
+public type HANDLE = UIntNative
+public type HMODULE = UIntNative
 public type HRESULT = Int32
 public type UINT = UInt32
 public type LPSTR = CPointer<UInt8>
@@ -24,29 +24,23 @@ public type HPCON = CPointer<Unit>
 public type DWORD_PTR = UInt64
 
 // ============================================================================
-// COORD struct
+// COORD struct - must be @C struct for FFI
 // ============================================================================
 
-public class COORD {
+@C
+public struct COORD {
     public var X: Int16 = 0
     public var Y: Int16 = 0
-
-    public init() {}
-    public init(X: Int16, Y: Int16) {
-        this.X = X
-        this.Y = Y
-    }
 }
 
 // ============================================================================
-// FILETIME struct
+// FILETIME struct - must be @C struct for FFI
 // ============================================================================
 
-public class FILETIME {
+@C
+public struct FILETIME {
     public var dwLowDateTime: DWORD = 0
     public var dwHighDateTime: DWORD = 0
-
-    public init() {}
 }
 
 // ============================================================================
@@ -64,37 +58,11 @@ public struct BY_HANDLE_FILE_INFORMATION {}
 public struct SECURITY_ATTRIBUTES {}
 
 // ============================================================================
-// FILE_INFO_BY_HANDLE_CLASS enum
+// FILE_INFO_BY_HANDLE_CLASS constants (enum values cannot be used in FFI)
 // ============================================================================
 
-public enum FILE_INFO_BY_HANDLE_CLASS {
-    | FileBasicInfo
-    | FileStandardInfo
-    | FileNameInfo
-    | FileRenameInfo
-    | FileDispositionInfo
-    | FileAllocationInfo
-    | FileEndOfFileInfo
-    | FileStreamInfo
-    | FileCompressionInfo
-    | FileAttributeTagInfo
-    | FileIdBothDirectoryInfo
-    | FileIdBothDirectoryRestartInfo
-    | FileIoPriorityHintInfo
-    | FileRemoteProtocolInfo
-    | FileFullDirectoryInfo
-    | FileFullDirectoryRestartInfo
-    | FileStorageInfo
-    | FileAlignmentInfo
-    | FileIdInfo
-    | FileIdExtdDirectoryInfo
-    | FileIdExtdDirectoryRestartInfo
-    | FileDispositionInfoEx
-    | FileRenameInfoEx
-    | FileCaseSensitiveInfo
-    | FileNormalizedNameInfo
-    | MaximumFileInfoByHandleClass
-}
+public let FILE_INFO_BY_HANDLE_CLASS_FileBasicInfo: DWORD = 0
+public let FILE_INFO_BY_HANDLE_CLASS_FileStandardInfo: DWORD = 1
 
 // ============================================================================
 // kernel32 FFI extern functions
@@ -122,7 +90,7 @@ foreign func CopyFileW(
 
 foreign func SetFileInformationByHandle(
     file: HANDLE,
-    fileInformationClass: FILE_INFO_BY_HANDLE_CLASS,
+    fileInformationClass: DWORD,
     fileInformation: LPVOID,
     bufferSize: DWORD
 ): BOOL

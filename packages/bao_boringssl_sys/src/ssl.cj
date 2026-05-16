@@ -65,7 +65,7 @@ foreign func SSL_get_mode(ssl: CPointer<Unit>): UInt64
 foreign func SSL_CTX_use_certificate(ctx: CPointer<Unit>, x: CPointer<Unit>): Int32
 foreign func SSL_CTX_use_PrivateKey(ctx: CPointer<Unit>, pkey: CPointer<Unit>): Int32
 foreign func SSL_CTX_use_certificate_file(ctx: CPointer<Unit>, file: CString, type_: Int32): Int32
-foreign func SSL_CTX_use_PrivateKey_file(ctx: CPointer<Unit>, file: CString, type_: Int32)
+foreign func SSL_CTX_use_PrivateKey_file(ctx: CPointer<Unit>, file: CString, type_: Int32): Unit
 foreign func SSL_CTX_use_certificate_chain_file(ctx: CPointer<Unit>, file: CString): Int32
 foreign func SSL_CTX_use_PrivateKey_ASN1(pk: Int32, ctx: CPointer<Unit>, d: CPointer<UInt8>, len: Int64): Int32
 foreign func SSL_CTX_use_RSAPrivateKey_file(ctx: CPointer<Unit>, file: CString, type_: Int32): Int32

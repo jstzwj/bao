@@ -973,7 +973,7 @@ public class TSTypeAssertion {
 // ============================================================================
 // TSNonNullExpr - TypeScript 非空断言
 // 严格翻译自: src/js_parser/p.ts.zig non-null assertion
-//   expr!
+//   expr.getOrThrow()
 // ============================================================================
 
 /// TypeScript 非空断言 - 对应 Bun TSNonNull

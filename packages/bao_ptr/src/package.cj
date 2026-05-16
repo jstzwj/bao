@@ -72,3 +72,23 @@ public type TaggedPointerUnionAlias = TaggedPointerUnion
 /// 弱指针 (已弃用，建议使用 Shared.Weak)
 /// 对应: pub const WeakPtr = @import("./weak_ptr.zig").WeakPtr;
 public type WeakPtrAlias<T> = WeakPtr<T>
+
+/// 非拥有反向引用 (不可变父对象)
+/// 对应: lib.rs 中的 BackRef<T>
+public type BackRefAlias<T> = BackRef<T>
+
+/// 非拥有反向引用 (可变父对象，debug 活性检查)
+/// 对应: pub use parent_ref::{Anchored, LiveMarker, ParentRef};
+public type ParentRefAlias<T> = ParentRef<T>
+
+/// 活性标记哨兵
+/// 对应: pub use parent_ref::LiveMarker;
+public type LiveMarkerAlias = LiveMarker
+
+/// 回调分发 self 指针
+/// 对应: lib.rs 中的 ThisPtr<T>
+public type ThisPtrAlias<T> = ThisPtr<T>
+
+/// 进程生命周期字节切片证明类型
+/// 对应: lib.rs 中的 Interned
+public type InternedAlias = Interned

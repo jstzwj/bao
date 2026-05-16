@@ -6,6 +6,8 @@
 
 package bao_glob
 
+import std.collection.*
+
 // ============================================================================
 // Brace 结构
 // 严格翻译自: matcher.zig Brace
@@ -29,16 +31,16 @@ class Brace {
 
 /// 匹配结果
 public enum MatchResult {
-    case noMatch
-    case match
-    case negateNoMatch
-    case negateMatch
+    | noMatch
+    | match_
+    | negateNoMatch
+    | negateMatch_
 
     /// 是否匹配
     public func isMatch(): Bool {
         match (this) {
-            case .match => true
-            case .negateMatch => true
+            case match_ => true
+            case negateMatch_ => true
             case _ => false
         }
     }
@@ -104,7 +106,7 @@ class MatcherState {
         }
 
         var pi = pathIndex
-        while (pi < path.size && !isSeparator(path[pi])) {
+        while (pi < path.size && !GlobMatcher.isSeparator(path[pi])) {
             pi += 1
         }
 
@@ -130,17 +132,17 @@ public class GlobMatcher {
 
     /// 匹配路径与glob模式
     /// 对应 Bun: match(glob, path) -> MatchResult
-    public static func match(glob: String, path: String): MatchResult {
+    public static func `match`(glob: String, path: String): MatchResult {
         return matchBytes(glob.toArray(), path.toArray())
     }
 
     /// 匹配字节数组
     public static func matchBytes(glob: Array<UInt8>, path: Array<UInt8>): MatchResult {
         var state = MatcherState()
-        var braceStack = Array<Brace>()
+        var braceStack = ArrayList<Brace>()
 
         var negated = false
-        while (state.globIndex < glob.size && glob[state.globIndex] == UInt8('!')) {
+        while (state.globIndex < glob.size && glob[state.globIndex] == UInt8(33)) {  // '!'
             negated = !negated
             state.globIndex += 1
         }
@@ -148,9 +150,9 @@ public class GlobMatcher {
         let matched = globMatchImpl(state, glob, 0, path, braceStack)
 
         if (negated) {
-            return if (matched) { MatchResult.negateNoMatch } else { MatchResult.negateMatch }
+            return if (matched) { MatchResult.negateNoMatch } else { MatchResult.negateMatch_ }
         } else {
-            return if (matched) { MatchResult.match } else { MatchResult.noMatch }
+            return if (matched) { MatchResult.match_ } else { MatchResult.noMatch }
         }
     }
 
@@ -158,15 +160,15 @@ public class GlobMatcher {
     /// 对应 Bun: globMatchImpl
     static func globMatchImpl(
         state: MatcherState, glob: Array<UInt8>, globStart: Int64,
-        path: Array<UInt8>, braceStack: Array<Brace>
+        path: Array<UInt8>, braceStack: ArrayList<Brace>
     ): Bool {
         while (state.globIndex < glob.size || state.pathIndex < path.size) {
             if (state.globIndex < glob.size) {
                 let char = glob[state.globIndex]
 
-                if (char == UInt8('*')) {
+                if (char == UInt8(42)) {
                     // 通配符处理
-                    let isGlobstar = state.globIndex + 1 < glob.size && glob[state.globIndex + 1] == UInt8('*')
+                    let isGlobstar = state.globIndex + 1 < glob.size && glob[state.globIndex + 1] == UInt8(42)
 
                     if (isGlobstar) {
                         skipGlobstars(glob, state)
@@ -185,12 +187,12 @@ public class GlobMatcher {
                         if (isEndInvalid && state.pathIndex == path.size &&
                             glob.size - state.globIndex == 2 &&
                             isSeparator(glob[state.globIndex]) &&
-                            glob[state.globIndex + 1] == UInt8('*')) {
+                            glob[state.globIndex + 1] == UInt8(42)) {
                             continue
                         }
 
-                        if ((state.globIndex - globStart < 3 || glob[state.globIndex - 3] == UInt8('/')) &&
-                            (!isEndInvalid || glob[state.globIndex] == UInt8('/'))) {
+                        if ((state.globIndex - globStart < 3 || glob[state.globIndex - 3] == UInt8(47)) &&
+                            (!isEndInvalid || glob[state.globIndex] == UInt8(47))) {
                             if (isEndInvalid) {
                                 state.globIndex += 1
                             }
@@ -206,7 +208,7 @@ public class GlobMatcher {
                     }
 
                     continue
-                } else if (char == UInt8('?')) {
+                } else if (char == UInt8(63)) {
                     if (state.pathIndex < path.size) {
                         if (!isSeparator(path[state.pathIndex])) {
                             state.globIndex += 1
@@ -216,12 +218,12 @@ public class GlobMatcher {
                     } else {
                         // path已结束, ?无法匹配
                     }
-                } else if (char == UInt8('[')) {
+                } else if (char == UInt8(91)) {
                     if (state.pathIndex < path.size) {
                         state.globIndex += 1
 
                         var bracketNegated = false
-                        if (state.globIndex < glob.size && (glob[state.globIndex] == UInt8('^') || glob[state.globIndex] == UInt8('!'))) {
+                        if (state.globIndex < glob.size && (glob[state.globIndex] == UInt8(94) || glob[state.globIndex] == UInt8(33))) {
                             bracketNegated = true
                             state.globIndex += 1
                         }
@@ -231,20 +233,20 @@ public class GlobMatcher {
 
                         let c = UInt32(path[state.pathIndex])
 
-                        while (state.globIndex < glob.size && (first || glob[state.globIndex] != UInt8(']'))) {
+                        while (state.globIndex < glob.size && (first || glob[state.globIndex] != UInt8(93))) {
                             var low = UInt32(glob[state.globIndex])
                             state.globIndex += 1
 
-                            if (low == UInt8('\\') && state.globIndex < glob.size) {
+                            if (low == UInt32(92) && state.globIndex < glob.size) {
                                 low = UInt32(glob[state.globIndex])
                                 state.globIndex += 1
                             }
 
-                            let high = if (state.globIndex + 1 < glob.size && glob[state.globIndex] == UInt8('-') && glob[state.globIndex + 1] != UInt8(']')) {
+                            let high = if (state.globIndex + 1 < glob.size && glob[state.globIndex] == UInt8(45) && glob[state.globIndex + 1] != UInt8(93)) {
                                 state.globIndex += 1
                                 var h = UInt32(glob[state.globIndex])
                                 state.globIndex += 1
-                                if (h == UInt8('\\') && state.globIndex < glob.size) {
+                                if (h == UInt32(92) && state.globIndex < glob.size) {
                                     h = UInt32(glob[state.globIndex])
                                     state.globIndex += 1
                                 }
@@ -270,7 +272,7 @@ public class GlobMatcher {
                             continue
                         }
                     }
-                } else if (char == UInt8('{')) {
+                } else if (char == UInt8(123)) {
                     var foundBrace = false
                     for (brace in braceStack) {
                         if (brace.openBraceIdx == state.globIndex) {
@@ -284,13 +286,13 @@ public class GlobMatcher {
                         continue
                     }
                     return matchBrace(state, glob, path, braceStack)
-                } else if (char == UInt8(',')) {
+                } else if (char == UInt8(44)) {
                     if (state.braceDepth > 0) {
                         skipBranch(state, glob)
                         continue
                     }
                     // 否则作为普通字符处理
-                } else if (char == UInt8('}')) {
+                } else if (char == UInt8(125)) {
                     if (state.braceDepth > 0) {
                         skipBranch(state, glob)
                         continue
@@ -300,12 +302,12 @@ public class GlobMatcher {
                 // 普通字符匹配
                 if (state.pathIndex < path.size) {
                     var cc = char
-                    if (cc == UInt8('\\') && state.globIndex + 1 < glob.size) {
+                    if (cc == UInt8(92) && state.globIndex + 1 < glob.size) {
                         state.globIndex += 1
                         cc = glob[state.globIndex]
                     }
 
-                    let isCharMatch = if (cc == UInt8('/')) {
+                    let isCharMatch = if (cc == UInt8(47)) {
                         isSeparator(path[state.pathIndex])
                     } else {
                         path[state.pathIndex] == cc
@@ -315,7 +317,7 @@ public class GlobMatcher {
                         state.globIndex += 1
                         state.pathIndex += 1
 
-                        if (cc == UInt8('/')) {
+                        if (cc == UInt8(47)) {
                             state.wildcard = Wildcard(state.globstar.globIndex, state.globstar.pathIndex, state.globstar.braceDepth)
                         }
                         continue
@@ -339,7 +341,7 @@ public class GlobMatcher {
     /// 对应 Bun: matchBrace
     static func matchBrace(
         state: MatcherState, glob: Array<UInt8>, path: Array<UInt8>,
-        braceStack: Array<Brace>
+        braceStack: ArrayList<Brace>
     ): Bool {
         var braceDepth: Int64 = 0
         var inBrackets = false
@@ -349,12 +351,12 @@ public class GlobMatcher {
 
         while (state.globIndex < glob.size) {
             let c = glob[state.globIndex]
-            if (c == UInt8('{') && !inBrackets) {
+            if (c == UInt8(123) && !inBrackets) {
                 braceDepth += 1
                 if (braceDepth == 1) {
                     branchIndex = state.globIndex + 1
                 }
-            } else if (c == UInt8('}') && !inBrackets) {
+            } else if (c == UInt8(125) && !inBrackets) {
                 braceDepth -= 1
                 if (braceDepth == 0) {
                     if (matchBraceBranch(state, glob, path, openBraceIndex, branchIndex, braceStack)) {
@@ -362,16 +364,16 @@ public class GlobMatcher {
                     }
                     break
                 }
-            } else if (c == UInt8(',') && braceDepth == 1) {
+            } else if (c == UInt8(44) && braceDepth == 1) {
                 if (matchBraceBranch(state, glob, path, openBraceIndex, branchIndex, braceStack)) {
                     return true
                 }
                 branchIndex = state.globIndex + 1
-            } else if (c == UInt8('[') && !inBrackets) {
+            } else if (c == UInt8(91) && !inBrackets) {
                 inBrackets = true
-            } else if (c == UInt8(']')) {
+            } else if (c == UInt8(93)) {
                 inBrackets = false
-            } else if (c == UInt8('\\')) {
+            } else if (c == UInt8(92)) {
                 state.globIndex += 1
             }
             state.globIndex += 1
@@ -384,13 +386,13 @@ public class GlobMatcher {
     /// 对应 Bun: matchBraceBranch
     static func matchBraceBranch(
         state: MatcherState, glob: Array<UInt8>, path: Array<UInt8>,
-        openBraceIndex: Int64, branchIndex: Int64, braceStack: Array<Brace>
+        openBraceIndex: Int64, branchIndex: Int64, braceStack: ArrayList<Brace>
     ): Bool {
         if (braceStack.size >= MAX_BRACE_DEPTH) {
             return false
         }
 
-        braceStack.append(Brace(openBraceIndex, branchIndex))
+        braceStack.add(Brace(openBraceIndex, branchIndex))
 
         // 克隆状态
         let savedGlobIndex = state.globIndex
@@ -411,7 +413,7 @@ public class GlobMatcher {
         state.wildcard = savedWildcard
         state.globstar = savedGlobstar
 
-        braceStack.removeAt(braceStack.size - 1)
+        braceStack.remove(at: braceStack.size - 1)
 
         return matched
     }
@@ -423,19 +425,19 @@ public class GlobMatcher {
         let endBraceDepth = state.braceDepth - 1
         while (state.globIndex < glob.size) {
             let c = glob[state.globIndex]
-            if (c == UInt8('{') && !inBrackets) {
+            if (c == UInt8(123) && !inBrackets) {
                 state.braceDepth += 1
-            } else if (c == UInt8('}') && !inBrackets) {
+            } else if (c == UInt8(125) && !inBrackets) {
                 state.braceDepth -= 1
                 if (state.braceDepth == endBraceDepth) {
                     state.globIndex += 1
                     return
                 }
-            } else if (c == UInt8('[') && !inBrackets) {
+            } else if (c == UInt8(91) && !inBrackets) {
                 inBrackets = true
-            } else if (c == UInt8(']')) {
+            } else if (c == UInt8(93)) {
                 inBrackets = false
-            } else if (c == UInt8('\\')) {
+            } else if (c == UInt8(92)) {
                 state.globIndex += 1
             }
             state.globIndex += 1
@@ -448,10 +450,10 @@ public class GlobMatcher {
         state.globIndex += 2
 
         while (state.globIndex + 4 <= glob.size) {
-            if (glob[state.globIndex] == UInt8('/') &&
-                glob[state.globIndex + 1] == UInt8('*') &&
-                glob[state.globIndex + 2] == UInt8('*') &&
-                (state.globIndex + 3 >= glob.size || glob[state.globIndex + 3] == UInt8('/'))) {
+            if (glob[state.globIndex] == UInt8(47) &&
+                glob[state.globIndex + 1] == UInt8(42) &&
+                glob[state.globIndex + 2] == UInt8(42) &&
+                (state.globIndex + 3 >= glob.size || glob[state.globIndex + 3] == UInt8(47))) {
                 state.globIndex += 3
             } else {
                 break
@@ -459,9 +461,9 @@ public class GlobMatcher {
         }
 
         if (state.globIndex + 3 == glob.size &&
-            glob[state.globIndex] == UInt8('/') &&
-            glob[state.globIndex + 1] == UInt8('*') &&
-            glob[state.globIndex + 2] == UInt8('*')) {
+            glob[state.globIndex] == UInt8(47) &&
+            glob[state.globIndex + 1] == UInt8(42) &&
+            glob[state.globIndex + 2] == UInt8(42)) {
             state.globIndex += 3
         }
 
@@ -471,6 +473,6 @@ public class GlobMatcher {
     /// 是否路径分隔符
     /// 对应 Bun: isSeparator
     static func isSeparator(c: UInt8): Bool {
-        return c == UInt8('/') || c == UInt8('\\')
+        return c == UInt8(47) || c == UInt8(92)
     }
 }

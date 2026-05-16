@@ -4,6 +4,9 @@
 
 package bao_runtime.test_runner.harness
 
+import bao_jsc.*
+import bao_core.*
+
 // ========== Recover - 测试恢复 ==========
 
 /// 恢复上下文 - 保存执行状态
@@ -28,7 +31,7 @@ public class Recover {
         if (let Some(err) <- error.toError()) {
             let name: JSValue = err.getTruthyComptime(globalThis: globalThis, key: "name") ?? JSValue.jsUndefined
             let message: JSValue = err.getTruthyComptime(globalThis: globalThis, key: "message") ?? JSValue.jsUndefined
-            ctx.errorMessage = "${name.toSliceOrNull(globalThis: globalThis) ?? ""}: ${message.toSliceOrNull(globalThis: globalThis) ?? ""}"
+            ctx.errorMessage = "" + name.toSliceOrNull(globalThis: globalThis) ?? "" + ": ${message.toSliceOrNull(globalThis: globalThis) ?? ""}"
         } else {
             ctx.errorMessage = error.toSliceOrNull(globalThis: globalThis) ?? "unknown error"
         }
@@ -39,7 +42,7 @@ public class Recover {
     /// 包装测试函数执行, 捕获panic并恢复
     /// - Param testFunc: 测试函数
     /// - Return: 测试结果
-    public static func callForTest(testFunc: () -> None): ?String {
+    public static func callForTest(testFunc: () -> Unit): ?String {
         try {
             testFunc()
             return None
@@ -52,11 +55,11 @@ public class Recover {
     /// - Param func: 被包装的函数
     /// - Param args: 函数参数
     /// - Return: 函数返回值或错误
-    public static func call<T>(func: () -> T): Result<T, String> {
+    public static func call<T>(`func`: () -> T): Result<T, String> {
         try {
-            return Result<T, String>.success(func())
+            return Result<T, String>.Ok(`func`())
         } catch (e: Exception) {
-            return Result<T, String>.failure(e.message)
+            return Result<T, String>.Err(e.message)
         }
     }
 }

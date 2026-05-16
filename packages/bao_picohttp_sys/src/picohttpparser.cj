@@ -3,42 +3,38 @@
 package bao_picohttp_sys
 
 // ============================================================================
-// phr_header struct
+// phr_header struct - must be @C struct for FFI
 // ============================================================================
 
-public class PhrHeader {
+@C
+public struct PhrHeader {
     public var name: CPointer<UInt8> = CPointer<UInt8>()
     public var name_len: UInt64 = 0
     public var value: CPointer<UInt8> = CPointer<UInt8>()
     public var value_len: UInt64 = 0
-
-    public init() {}
 }
 
 // ============================================================================
-// Chunked encoding state enum
+// Chunked encoding state constants
 // ============================================================================
 
-public enum ChunkedEncodingState {
-    | CHUNKED_IN_CHUNK_SIZE
-    | CHUNKED_IN_CHUNK_EXT
-    | CHUNKED_IN_CHUNK_DATA
-    | CHUNKED_IN_CHUNK_CRLF
-    | CHUNKED_IN_TRAILERS_LINE_HEAD
-    | CHUNKED_IN_TRAILERS_LINE_MIDDLE
-}
+public let CHUNKED_IN_CHUNK_SIZE: Int32 = 0
+public let CHUNKED_IN_CHUNK_EXT: Int32 = 1
+public let CHUNKED_IN_CHUNK_DATA: Int32 = 2
+public let CHUNKED_IN_CHUNK_CRLF: Int32 = 3
+public let CHUNKED_IN_TRAILERS_LINE_HEAD: Int32 = 4
+public let CHUNKED_IN_TRAILERS_LINE_MIDDLE: Int32 = 5
 
 // ============================================================================
-// phr_chunked_decoder struct
+// phr_chunked_decoder struct - must be @C struct for FFI
 // ============================================================================
 
-public class PhrChunkedDecoder {
+@C
+public struct PhrChunkedDecoder {
     public var bytes_left_in_chunk: UInt64 = 0
     public var consume_trailer: UInt8 = 0
     public var _hex_count: UInt8 = 0
-    public var _state: ChunkedEncodingState = ChunkedEncodingState.CHUNKED_IN_CHUNK_SIZE
-
-    public init() {}
+    public var _state: Int32 = CHUNKED_IN_CHUNK_SIZE
 }
 
 // ============================================================================

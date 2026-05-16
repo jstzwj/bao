@@ -6,6 +6,7 @@
 // Bun: 可变字符串, 内部使用 ArrayListUnmanaged(u8) 管理
 // 仓颉: 使用 ArrayList<UInt8> 模拟, 保持相同 API 语义
 package bao_core
+import std.collection.*
 
 /// 可变字符串 - 严格对应 Bun MutableString
 /// Bun: struct { allocator, list: ArrayListUnmanaged(u8) }
@@ -60,9 +61,9 @@ public class MutableString {
     /// }
     public init(copy: String) {
         buffer = ArrayList<UInt8>()
-        capacity = copy.length
+        capacity = copy.size
         for (c in copy) {
-            buffer.append(UInt8(c.value))
+            buffer.add(c)
         }
     }
 
@@ -71,7 +72,7 @@ public class MutableString {
         buffer = ArrayList<UInt8>()
         capacity = copy.size
         for (b in copy) {
-            buffer.append(b)
+            buffer.add(b)
         }
     }
 
@@ -82,7 +83,7 @@ public class MutableString {
     public func clone(): MutableString {
         var result = MutableString(capacity)
         for (b in buffer) {
-            result.buffer.append(b)
+            result.buffer.add(b)
         }
         return result
     }
@@ -123,7 +124,7 @@ public class MutableString {
     /// pub fn sliceWithSentinel(self: *MutableString) [:0]u8
     public func sliceWithSentinel(): Array<UInt8> {
         if (buffer.size > 0 && buffer[buffer.size - 1] != UInt8(0)) {
-            buffer.append(UInt8(0))
+            buffer.add(UInt8(0))
         }
         return buffer.toArray()
     }
@@ -143,7 +144,7 @@ public class MutableString {
     /// }
     public func resetTo(index: Int64): Unit {
         while (buffer.size > index) {
-            buffer.removeAt(buffer.size - 1)
+            buffer.remove(at: buffer.size - 1)
         }
     }
 
@@ -153,7 +154,7 @@ public class MutableString {
     /// }
     public func appendSlice(items: Array<UInt8>): Unit {
         for (b in items) {
-            buffer.append(b)
+            buffer.add(b)
         }
     }
 
@@ -163,7 +164,7 @@ public class MutableString {
             return
         }
         for (b in items) {
-            buffer.append(b)
+            buffer.add(b)
         }
     }
 
@@ -172,12 +173,12 @@ public class MutableString {
     ///     try self.list.append(self.allocator, char);
     /// }
     public func appendChar(char: UInt8): Unit {
-        buffer.append(char)
+        buffer.add(char)
     }
 
     /// 假定有容量时追加字符 - 对应 Bun MutableString.appendCharAssumeCapacity
     public func appendCharAssumeCapacity(char: UInt8): Unit {
-        buffer.append(char)
+        buffer.add(char)
     }
 
     /// 追加 N 个相同字符 - 对应 Bun MutableString.appendCharNTimes
@@ -186,7 +187,7 @@ public class MutableString {
     /// }
     public func appendCharNTimes(char: UInt8, n: Int64): Unit {
         for (_ in 0..n) {
-            buffer.append(char)
+            buffer.add(char)
         }
     }
 
@@ -203,7 +204,7 @@ public class MutableString {
     public func appendInt(value: Int64): Unit {
         let s = value.toString()
         for (c in s) {
-            buffer.append(UInt8(c.value))
+            buffer.add(c)
         }
     }
 
@@ -213,7 +214,7 @@ public class MutableString {
     /// }
     public func appendAssumeCapacity(data: Array<UInt8>): Unit {
         for (b in data) {
-            buffer.append(b)
+            buffer.add(b)
         }
     }
 
@@ -256,7 +257,7 @@ public class MutableString {
     /// }
     public func inflate(amount: Int64): Unit {
         while (buffer.size < amount) {
-            buffer.append(UInt8(0))
+            buffer.add(UInt8(0))
         }
     }
 
@@ -270,12 +271,12 @@ public class MutableString {
     /// 获取可写 N 字节 (假定有容量) - 对应 Bun MutableString.writableNBytesAssumeCapacity
     /// pub fn writableNBytesAssumeCapacity(self: *MutableString, amount: usize) []u8
     public func writableNBytesAssumeCapacity(amount: Int64): Array<UInt8> {
-        var result = Array<UInt8>()
+        var result = ArrayList<UInt8>()
         for (_ in 0..amount) {
-            buffer.append(UInt8(0))
-            result.append(UInt8(0))
+            buffer.add(UInt8(0))
+            result.add(UInt8(0))
         }
-        return result
+        return result.toArray()
     }
 
     /// 转为拥有切片 - 对应 Bun MutableString.toOwnedSlice
@@ -305,7 +306,7 @@ public class MutableString {
     public func copy(data: Array<UInt8>): Unit {
         buffer.clear()
         for (b in data) {
-            buffer.append(b)
+            buffer.add(b)
         }
     }
 
@@ -357,12 +358,12 @@ public class MutableString {
 
     /// 与字符串比较
     public func eqlString(other: String): Bool {
-        if (buffer.size != other.length) {
+        if (buffer.size != other.size) {
             return false
         }
         let chars = other.toArray()
         for (i in 0..buffer.size) {
-            if (buffer[Int64(i)] != UInt8(chars[Int64(i)].value)) {
+            if (buffer[Int64(i)] != chars[Int64(i)]) {
                 return false
             }
         }
@@ -373,7 +374,7 @@ public class MutableString {
     public func toString(): String {
         var sb = StringBuilder()
         for (b in buffer) {
-            sb.append(Char(Int32(b)))
+            sb.append(Rune(Int32(b)))
         }
         return sb.toString()
     }
@@ -387,13 +388,13 @@ public class MutableString {
     /// 拥有指定长度的切片 - 对应 Bun MutableString.toOwnedSliceLength
     /// pub fn toOwnedSliceLength(self: *MutableString, length: usize) string
     public func toOwnedSliceLength(length: Int64): Array<UInt8> {
-        var result = Array<UInt8>()
+        var result = ArrayList<UInt8>()
         let limit = if (length < buffer.size) { length } else { buffer.size }
         for (i in 0..limit) {
-            result.append(buffer[Int64(i)])
+            result.add(buffer[Int64(i)])
         }
         buffer.clear()
-        return result
+        return result.toArray()
     }
 
     /// 检查缓冲区是否拥有该切片 - 对应 Bun MutableString.owns

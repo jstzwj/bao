@@ -13,7 +13,7 @@ package bao_unicode
 /// 对应 Unicode Simple_Uppercase_Mapping
 public func toUpper(cp: UInt32): UInt32 {
     // ASCII 快速路径
-    if (cp >= UInt32('a') && cp <= UInt32('z')) {
+    if (cp >= 97 && cp <= 122) {
         return cp - 32
     }
     // Latin-1 Supplement
@@ -82,7 +82,7 @@ public func toUpper(cp: UInt32): UInt32 {
 /// 对应 Unicode Simple_Lowercase_Mapping
 public func toLower(cp: UInt32): UInt32 {
     // ASCII 快速路径
-    if (cp >= UInt32('A') && cp <= UInt32('Z')) {
+    if (cp >= 65 && cp <= 90) {
         return cp + 32
     }
     // Latin-1 Supplement
@@ -115,7 +115,7 @@ public func toLower(cp: UInt32): UInt32 {
 /// 用于不区分大小写的字符串比较
 public func toFold(cp: UInt32): UInt32 {
     // ASCII 快速路径
-    if (cp >= UInt32('A') && cp <= UInt32('Z')) {
+    if (cp >= 65 && cp <= 90) {
         return cp + 32
     }
     // Special case foldings (status C)

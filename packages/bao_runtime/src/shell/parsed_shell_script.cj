@@ -66,7 +66,7 @@ public class ParsedShellScript {
         outCwd: ?BunString,
         outExportEnv: ?EnvMap
     ) {
-        outArgs = this.args!
+        outArgs = this.args.getOrThrow()
         // ... 转移所有权
         this.args = None
         this.quiet = false

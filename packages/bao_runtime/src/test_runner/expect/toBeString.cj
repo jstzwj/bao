@@ -2,6 +2,9 @@
 
 package bao_runtime.test_runner.expect
 
+import bao_runtime.test_runner
+import bao_jsc.*
+
 /// toBeString() - 检查值是否为字符串类型
 /// 用法: expect(received).toBeString()
 public func toBeString(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
@@ -15,13 +18,13 @@ public func toBeString(`this`: Expect, globalThis: JSGlobalObject, callFrame: Ca
     let not = this.flags.not
     let pass = value.isString() != not
 
-    if pass { return JSValue.jsUndefined }
+    if (pass) { return JSValue.jsUndefined }
 
     let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
     defer { formatter.deinit() }
     let received = value.toFmt(formatter)
 
-    if not {
+    if (not) {
         let signature = Expect.getSignature(matcherName: "toBeString", args: "", not: true)
         return this.throw_(globalThis: globalThis, signature: signature, fmt: "\n\nReceived: <red>{f}<r>\n", args: [received])
     }
