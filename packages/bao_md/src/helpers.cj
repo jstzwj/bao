@@ -4,515 +4,21 @@ package bao_md
 
 import bao_core.*
 import bao_unicode.*
+import std.collection.*
 
 // ============================================================================
-// 字符分类
+// Byte to String conversion
 // ============================================================================
 
-/// 检查字节是否为 ASCII 空白字符（空格、制表符、LF、CR、FF、VT）
-public func isWhitespace(c: UInt8): Bool {
-    return c == ' '.toUInt8() || c == '\t'.toUInt8() || c == '\n'.toUInt8() ||
-           c == '\r'.toUInt8() || c == 0x0C || c == 0x0B
-}
-
-/// 检查字节是否为空白字符（空格或制表符）
-public func isBlank(c: UInt8): Bool {
-    return c == ' '.toUInt8() || c == '\t'.toUInt8()
-}
-
-/// 检查字节是否为换行符（CR 或 LF）
-public func isNewline(c: UInt8): Bool {
-    return c == '\n'.toUInt8() || c == '\r'.toUInt8()
-}
-
-/// 检查字节是否为换行符或 NUL（用于行尾检测）
-public func isNewlineOrNul(c: UInt8): Bool {
-    return c == '\n'.toUInt8() || c == '\r'.toUInt8() || c == 0
-}
-
-/// 检查字节是否为 ASCII 字母数字
-public func isAlphaNum(c: UInt8): Bool {
-    return isAlpha(c) || isDigit(c)
-}
-
-/// 检查字节是否为 ASCII 字母
-public func isAlpha(c: UInt8): Bool {
-    return (c >= 'A'.toUInt8() && c <= 'Z'.toUInt8()) ||
-           (c >= 'a'.toUInt8() && c <= 'z'.toUInt8())
-}
-
-/// 检查字节是否为 ASCII 数字
-public func isDigit(c: UInt8): Bool {
-    return c >= '0'.toUInt8() && c <= '9'.toUInt8()
-}
-
-/// 检查字节是否为 ASCII 十六进制数字
-public func isHexDigit(c: UInt8): Bool {
-    return isDigit(c) ||
-           (c >= 'a'.toUInt8() && c <= 'f'.toUInt8()) ||
-           (c >= 'A'.toUInt8() && c <= 'F'.toUInt8())
-}
-
-/// 检查 Unicode 码点是否为 CommonMark 规范的空白字符。
-/// 包括 ASCII 空白字符 + Unicode Zs 类别
-public func isUnicodeWhitespace(codepoint: UInt32): Bool {
-    if (codepoint < 128) {
-        return isWhitespace(UInt8(codepoint))
-    }
-    return codepoint == 0x00A0 ||   // NO-BREAK SPACE
-           codepoint == 0x1680 ||   // OGHAM SPACE MARK
-           (codepoint >= 0x2000 && codepoint <= 0x200A) || // EN QUAD...HAIR SPACE
-           codepoint == 0x202F ||   // NARROW NO-BREAK SPACE
-           codepoint == 0x205F ||   // MEDIUM MATHEMATICAL SPACE
-           codepoint == 0x3000      // IDEOGRAPHIC SPACE
-}
-
-/// 检查 Unicode 码点是否为 CommonMark 规范的标点符号
-public func isUnicodePunctuation(codepoint: UInt32): Bool {
-    if (codepoint < 128) {
-        return isAsciiPunctuation(UInt8(codepoint))
-    }
-    return isUnicodePunctuationExtended(codepoint)
-}
-
-/// 检查字节是否为 CommonMark 规范的 ASCII 标点符号
-public func isAsciiPunctuation(c: UInt8): Bool {
-    return match (c) {
-        case '!', '"', '#', '$', '%', '&', '\'', '(', ')', '*', '+', ',', '-', '.', '/' => true
-        case ':', ';', '<', '=', '>', '?', '@' => true
-        case '[', '\\', ']', '^', '_', '`' => true
-        case '{', '|', '}', '~' => true
-        case _ => false
-    }
-}
-
-/// 扩展 Unicode 标点符号检查（非 ASCII）
-/// Unicode 通用 "P" 和 "S" 类别，匹配 md4c 的 punct 映射
-func isUnicodePunctuationExtended(codepoint: UInt32): Bool {
-    for (range in unicode_punctuation_ranges) {
-        if (codepoint >= range[0] && codepoint <= range[1]) {
-            return true
-        }
-        if (codepoint < range[0]) {
-            return false
-        }
-    }
-    return false
-}
-
-/// 检查给定偏移量处的字符是否匹配字符集中的任何字符
-public func isAnyOf(text: String, off: OFF, chars: String): Bool {
-    if (off >= text.size) {
-        return false
-    }
-    let c = text[Int64(off)]
-    for (ch in chars) {
-        if (c == ch) {
-            return true
-        }
-    }
-    return false
+/// Convert a single byte to a one-character String
+public func byteToString(b: UInt8): String {
+    var arr = ArrayList<UInt8>()
+    arr.add(b)
+    return String.fromUtf8(arr.toArray())
 }
 
 // ============================================================================
-// 行缩进计算
-// ============================================================================
-
-/// 行缩进结果
-public class LineIndentResult {
-    public var indent: UInt32 = 0
-    public var off: OFF = 0
-    public init() {}
-    public init(indent: UInt32, off: OFF) {
-        this.indent = indent
-        this.off = off
-    }
-}
-
-/// 获取从 `off` 开始的行的缩进，计算空格和制表符。
-/// 返回缩进宽度并将 `off` 推进到空白之后。
-public func lineIndentation(text: String, total_indent: UInt32, off_start: OFF): LineIndentResult {
-    var off = off_start
-    var indent: UInt32 = 0
-    while (off < text.size && isBlank(UInt8(text[Int64(off)]))) {
-        if (UInt8(text[Int64(off)]) == '\t'.toUInt8()) {
-            indent = (total_indent + indent + 4) / 4 * 4 - total_indent
-        } else {
-            indent += 1
-        }
-        off += 1
-    }
-    return LineIndentResult(indent, off)
-}
-
-// ============================================================================
-// UTF-8 编解码
-// ============================================================================
-
-/// UTF-8 解码结果
-public class Utf8DecodeResult {
-    public var codepoint: UInt32 = 0
-    public var len: Int64 = 1
-    public init() {}
-    public init(codepoint: UInt32, len: Int64) {
-        this.codepoint = codepoint
-        this.len = len
-    }
-}
-
-/// 从文本的给定偏移量解码 UTF-8 码点。
-/// 返回码点和消耗的字节数。
-public func decodeUtf8(text: String, off: Int64): Utf8DecodeResult {
-    if (off >= text.size) {
-        return Utf8DecodeResult(0, 1)
-    }
-    let b0 = UInt8(text[off])
-    if (b0 < 0x80) {
-        return Utf8DecodeResult(UInt32(b0), 1)
-    }
-
-    // 多字节序列
-    var codepoint: UInt32 = 0
-    var len: Int64 = 0
-
-    if ((b0 & 0xE0) == 0xC0) {
-        // 2 字节
-        if (off + 1 >= text.size) {
-            return Utf8DecodeResult(0xFFFD, 1)
-        }
-        let b1 = UInt8(text[off + 1])
-        if ((b1 & 0xC0) != 0x80) {
-            return Utf8DecodeResult(0xFFFD, 1)
-        }
-        codepoint = UInt32(b0 & 0x1F) << 6 | UInt32(b1 & 0x3F)
-        len = 2
-    } else if ((b0 & 0xF0) == 0xE0) {
-        // 3 字节
-        if (off + 2 >= text.size) {
-            return Utf8DecodeResult(0xFFFD, 1)
-        }
-        let b1 = UInt8(text[off + 1])
-        let b2 = UInt8(text[off + 2])
-        if ((b1 & 0xC0) != 0x80 || (b2 & 0xC0) != 0x80) {
-            return Utf8DecodeResult(0xFFFD, 1)
-        }
-        codepoint = UInt32(b0 & 0x0F) << 12 | UInt32(b1 & 0x3F) << 6 | UInt32(b2 & 0x3F)
-        len = 3
-    } else if ((b0 & 0xF8) == 0xF0) {
-        // 4 字节
-        if (off + 3 >= text.size) {
-            return Utf8DecodeResult(0xFFFD, 1)
-        }
-        let b1 = UInt8(text[off + 1])
-        let b2 = UInt8(text[off + 2])
-        let b3 = UInt8(text[off + 3])
-        if ((b1 & 0xC0) != 0x80 || (b2 & 0xC0) != 0x80 || (b3 & 0xC0) != 0x80) {
-            return Utf8DecodeResult(0xFFFD, 1)
-        }
-        codepoint = UInt32(b0 & 0x07) << 18 | UInt32(b1 & 0x3F) << 12 |
-                    UInt32(b2 & 0x3F) << 6 | UInt32(b3 & 0x3F)
-        len = 4
-    } else {
-        return Utf8DecodeResult(0xFFFD, 1)
-    }
-
-    return Utf8DecodeResult(codepoint, len)
-}
-
-/// 解码刚好在位置 `off` 之前结束的 UTF-8 码点
-public func decodeUtf8Backward(text: String, off: Int64): Utf8DecodeResult {
-    if (off == 0 || off > text.size) {
-        return Utf8DecodeResult(0, 1)
-    }
-    let last = UInt8(text[off - 1])
-    if (last < 0x80) {
-        return Utf8DecodeResult(UInt32(last), 1)
-    }
-    // 回溯越过续字节 (10xxxxxx)
-    var start = off - 1
-    while (start > 0 && (UInt8(text[start]) & 0xC0) == 0x80) {
-        start -= 1
-    }
-    let r = decodeUtf8(text, start)
-    return r
-}
-
-/// 编码 Unicode 码点为 UTF-8 字节
-public func encodeUtf8(codepoint: UInt32): String {
-    var bytes = Array<UInt8>()
-    if (codepoint < 0x80) {
-        bytes.append(UInt8(codepoint))
-    } else if (codepoint < 0x800) {
-        bytes.append(UInt8(0xC0 | (codepoint >> 6)))
-        bytes.append(UInt8(0x80 | (codepoint & 0x3F)))
-    } else if (codepoint < 0x10000) {
-        bytes.append(UInt8(0xE0 | (codepoint >> 12)))
-        bytes.append(UInt8(0x80 | ((codepoint >> 6) & 0x3F)))
-        bytes.append(UInt8(0x80 | (codepoint & 0x3F)))
-    } else if (codepoint < 0x110000) {
-        bytes.append(UInt8(0xF0 | (codepoint >> 18)))
-        bytes.append(UInt8(0x80 | ((codepoint >> 12) & 0x3F)))
-        bytes.append(UInt8(0x80 | ((codepoint >> 6) & 0x3F)))
-        bytes.append(UInt8(0x80 | (codepoint & 0x3F)))
-    }
-    return String.fromUtf8(Array<Byte>(bytes))
-}
-
-/// 跳过文本开头的 UTF-8 BOM
-public func skipUtf8Bom(text: String): String {
-    if (text.size >= 3 &&
-        UInt8(text[0]) == 0xEF &&
-        UInt8(text[1]) == 0xBB &&
-        UInt8(text[2]) == 0xBF) {
-        return text.substring(3)
-    }
-    return text
-}
-
-// ============================================================================
-// 字符串比较
-// ============================================================================
-
-/// 不区分大小写的 ASCII 比较
-public func asciiCaseEql(a: String, b: String): Bool {
-    if (a.size != b.size) {
-        return false
-    }
-    for (i in 0..a.size) {
-        let ca = UInt8(a[i])
-        let cb = UInt8(b[i])
-        if (toLower(ca) != toLower(cb)) {
-            return false
-        }
-    }
-    return true
-}
-
-/// ASCII 字符转小写
-public func toLower(c: UInt8): UInt8 {
-    if (c >= 'A'.toUInt8() && c <= 'Z'.toUInt8()) {
-        return c + ('a'.toInt() - 'A'.toInt()).toUInt8()
-    }
-    return c
-}
-
-// ============================================================================
-// 实体查找
-// ============================================================================
-
-/// 从 `start`（必须指向 '&'）开始查找 HTML 实体。
-/// 返回结束位置（';' 之后一位），如果未找到有效实体则返回 null。
-public func findEntity(content: String, start: Int64): ?Int64 {
-    if (start + 2 >= content.size) {
-        return None
-    }
-
-    // 数字实体
-    if (content[Int64(start + 1)] == '#') {
-        var pos = start + 2
-        if (pos < content.size && (UInt8(content[pos]) == 'x'.toUInt8() || UInt8(content[pos]) == 'X'.toUInt8())) {
-            // 十六进制
-            pos += 1
-            let digit_start = pos
-            while (pos < content.size && isHexDigit(UInt8(content[pos])) && pos - digit_start < 6) {
-                pos += 1
-            }
-            if (pos > digit_start && pos < content.size && content[pos] == ';') {
-                return pos + 1
-            }
-        } else {
-            // 十进制
-            let digit_start = pos
-            while (pos < content.size && isDigit(UInt8(content[pos])) && pos - digit_start < 7) {
-                pos += 1
-            }
-            if (pos > digit_start && pos < content.size && content[pos] == ';') {
-                return pos + 1
-            }
-        }
-        return None
-    }
-
-    // 命名实体
-    var pos = start + 1
-    if (pos < content.size && isAlpha(UInt8(content[pos]))) {
-        pos += 1
-        while (pos < content.size && isAlphaNum(UInt8(content[pos])) && pos - start < 48) {
-            pos += 1
-        }
-        if (pos < content.size && content[pos] == ';') {
-            if (entity_lookup(content.substring(Int64(start), Int64(pos + 1))) != None) {
-                return pos + 1
-            }
-        }
-    }
-
-    return None
-}
-
-// ============================================================================
-// 实体解码
-// ============================================================================
-
-/// 解析数字字符引用 (&#DDD; 或 &#xHHH;) 并返回码点
-public func parseEntityCodepoint(entity_text: String): ?UInt32 {
-    if (entity_text.size < 4 || entity_text[0] != '&' || entity_text[1] != '#') {
-        return None
-    }
-    var cp: UInt32 = 0
-    if (entity_text[2] == 'x' || entity_text[2] == 'X') {
-        for (i in 3..entity_text.size) {
-            let ec = UInt8(entity_text[i])
-            if (ec == ';'.toUInt8()) {
-                break
-            }
-            cp = cp * 16 + match (ec) {
-                case ec where ec >= '0'.toUInt8() && ec <= '9'.toUInt8() => UInt32(ec - '0'.toUInt8())
-                case ec where ec >= 'a'.toUInt8() && ec <= 'f'.toUInt8() => UInt32(ec - 'a'.toUInt8()) + 10
-                case ec where ec >= 'A'.toUInt8() && ec <= 'F'.toUInt8() => UInt32(ec - 'A'.toUInt8()) + 10
-                case _ => UInt32(0)
-            }
-        }
-    } else {
-        for (i in 2..entity_text.size) {
-            let ec = UInt8(entity_text[i])
-            if (ec == ';'.toUInt8()) {
-                break
-            }
-            cp = cp * 10 + UInt32(ec - '0'.toUInt8())
-        }
-    }
-    if (cp == 0 || cp > 0x10FFFF || (cp >= 0xD800 && cp <= 0xDFFF)) {
-        cp = 0xFFFD
-    }
-    return cp
-}
-
-/// 将 HTML 实体解码为原始 UTF-8 字节。
-/// 返回已解码的字符串，未知实体返回 null。
-public func decodeEntityToUtf8(entity_text: String): ?String {
-    if (let Some(cp) <- parseEntityCodepoint(entity_text)) {
-        return encodeUtf8(cp)
-    }
-    if (let Some(codepoints) <- entity_lookup(entity_text)) {
-        var result = encodeUtf8(codepoints[0])
-        if (codepoints[1] != 0) {
-            result = result + encodeUtf8(codepoints[1])
-        }
-        return result
-    }
-    return None
-}
-
-/// 简单的实体查找（占位实现，实际使用 entity.cj 的查找表）
-public func entity_lookup(name: String): ?Array<UInt32> {
-    // 委托给 entity 模块
-    return EntityModule.lookup(name)
-}
-
-// ============================================================================
-// Slug 生成
-// ============================================================================
-
-/// 生成 GitHub 兼容的 slug
-public func generateSlug(text_buf: StringBuilder, slug_counts: HashMap<String, UInt32>): String {
-    let text = text_buf.toString()
-    var result = StringBuilder()
-    var prev_hyphen = true // true 以修剪前导连字符
-
-    for (c in text) {
-        let b = UInt8(c)
-        if (b >= 'A'.toUInt8() && b <= 'Z'.toUInt8()) {
-            result.append(Char(toLower(b)))
-            prev_hyphen = false
-        } else if ((b >= 'a'.toUInt8() && b <= 'z'.toUInt8()) || (b >= '0'.toUInt8() && b <= '9'.toUInt8())) {
-            result.append(Char(b))
-            prev_hyphen = false
-        } else if (b == '-'.toUInt8() || b == ' '.toUInt8()) {
-            if (!prev_hyphen) {
-                result.append('-')
-                prev_hyphen = true
-            }
-        }
-    }
-
-    // 修剪尾部连字符
-    var s = result.toString()
-    while (s.size > 0 && s[s.size - 1] == '-')toUInt8()) {
-        s = s.substring(0, s.size - 1)
-    }
-
-    // 去重
-    var count = slug_counts.getOrDefault(s, UInt32(0))
-    if (count == 0) {
-        slug_counts.put(s, UInt32(0))
-        return s
-    }
-
-    count += 1
-    slug_counts.put(s, count)
-    return "${s}-${count}"
-}
-
-// ============================================================================
-// Heading ID 追踪器
-// ============================================================================
-
-/// 共享的标题 ID 状态，被所有渲染器使用
-public class HeadingIdTracker {
-    public var enabled: Bool = false
-    public var in_heading: Bool = false
-    public var text_buf: StringBuilder = StringBuilder()
-    public var slug_counts: HashMap<String, UInt32> = HashMap<String, UInt32>()
-
-    public init(enabled: Bool) {
-        this.enabled = enabled
-    }
-
-    /// 进入标题块时调用
-    public func enterHeading(): Unit {
-        if (enabled) {
-            in_heading = true
-        }
-    }
-
-    /// 从文本回调中调用以累积 slug 文本
-    public func trackText(text_type: TextType, content: String): Unit {
-        if (!in_heading) {
-            return
-        }
-        match (text_type) {
-            case TextType.null_char => text_buf.append("\u{EF}\u{BF}\u{BD}")
-            case TextType.br | TextType.softbr => text_buf.append(' ')
-            case TextType.html => () // 跳过 slug 中的 HTML 标签
-            case TextType.entity => {
-                if (let Some(decoded) <- decodeEntityToUtf8(content)) {
-                    text_buf.append(decoded)
-                } else {
-                    text_buf.append(content)
-                }
-            }
-            case _ => text_buf.append(content)
-        }
-    }
-
-    /// 离开标题块时调用。返回 slug
-    public func leaveHeading(): ?String {
-        if (!enabled) {
-            return None
-        }
-        in_heading = false
-        return generateSlug(text_buf, slug_counts)
-    }
-
-    /// 使用 slug 后调用以重置文本缓冲区
-    public func clearAfterHeading(): Unit {
-        text_buf = StringBuilder()
-    }
-}
-
-// ============================================================================
-// Unicode 标点符号范围
+// Unicode punctuation ranges (must be defined before use)
 // ============================================================================
 
 let unicode_punctuation_ranges: Array<Array<UInt32>> = [
@@ -599,5 +105,545 @@ let unicode_punctuation_ranges: Array<Array<UInt32>> = [
     [0x1F810, 0x1F847], [0x1F850, 0x1F859], [0x1F860, 0x1F887], [0x1F890, 0x1F8AD],
     [0x1F8B0, 0x1F8B1], [0x1F900, 0x1FA53], [0x1FA60, 0x1FA6D], [0x1FA70, 0x1FA7C],
     [0x1FA80, 0x1FA88], [0x1FA90, 0x1FABD], [0x1FABF, 0x1FAC5], [0x1FACE, 0x1FADB],
-    [0x1FAE0, 0x1FAE8], [0x1FAF0, 0x1FAF8], [0x1FB00, 0x1FB92], [0x1FB94, 0x1FBCA],
+    [0x1FAE0, 0x1FAE8], [0x1FAF0, 0x1FAF8], [0x1FB00, 0x1FB92], [0x1FB94, 0x1FBCA]
 ]
+
+// ============================================================================
+// Character classification
+// ============================================================================
+
+/// 检查字节是否为 ASCII 空白字符（空格、制表符、LF、CR、FF、VT）
+public func isWhitespace(c: UInt8): Bool {
+    return c == UInt8(0x20) || c == UInt8(0x09) || c == UInt8(0x0A) ||
+           c == UInt8(0x0D) || c == 0x0C || c == 0x0B
+}
+
+/// 检查字节是否为空白字符（空格或制表符）
+public func isBlank(c: UInt8): Bool {
+    return c == UInt8(0x20) || c == UInt8(0x09)
+}
+
+/// 检查字节是否为换行符（CR 或 LF）
+public func isNewline(c: UInt8): Bool {
+    return c == UInt8(0x0A) || c == UInt8(0x0D)
+}
+
+/// 检查字节是否为换行符或 NUL（用于行尾检测）
+public func isNewlineOrNul(c: UInt8): Bool {
+    return c == UInt8(0x0A) || c == UInt8(0x0D) || c == 0
+}
+
+/// 检查字节是否为 ASCII 字母数字
+public func isAlphaNum(c: UInt8): Bool {
+    return isAlpha(c) || isDigit(c)
+}
+
+/// 检查字节是否为 ASCII 字母
+public func isAlpha(c: UInt8): Bool {
+    return (c >= UInt8(0x41) && c <= UInt8(0x5A)) ||
+           (c >= UInt8(0x61) && c <= UInt8(0x7A))
+}
+
+/// 检查字节是否为 ASCII 数字
+public func isDigit(c: UInt8): Bool {
+    return c >= UInt8(0x30) && c <= UInt8(0x39)
+}
+
+/// 检查字节是否为 ASCII 十六进制数字
+public func isHexDigit(c: UInt8): Bool {
+    return isDigit(c) ||
+           (c >= UInt8(0x61) && c <= UInt8(0x66)) ||
+           (c >= UInt8(0x41) && c <= UInt8(0x46))
+}
+
+/// 检查 Unicode 码点是否为 CommonMark 规范的空白字符。
+/// 包括 ASCII 空白字符 + Unicode Zs 类别
+public func isUnicodeWhitespace(codepoint: UInt32): Bool {
+    if (codepoint < 128) {
+        return isWhitespace(UInt8(codepoint))
+    }
+    return codepoint == 0x00A0 ||   // NO-BREAK SPACE
+           codepoint == 0x1680 ||   // OGHAM SPACE MARK
+           (codepoint >= 0x2000 && codepoint <= 0x200A) || // EN QUAD...HAIR SPACE
+           codepoint == 0x202F ||   // NARROW NO-BREAK SPACE
+           codepoint == 0x205F ||   // MEDIUM MATHEMATICAL SPACE
+           codepoint == 0x3000      // IDEOGRAPHIC SPACE
+}
+
+/// 检查 Unicode 码点是否为 CommonMark 规范的标点符号
+public func isUnicodePunctuation(codepoint: UInt32): Bool {
+    if (codepoint < 128) {
+        return isAsciiPunctuation(UInt8(codepoint))
+    }
+    return isUnicodePunctuationExtended(codepoint)
+}
+
+/// 检查字节是否为 CommonMark 规范的 ASCII 标点符号
+public func isAsciiPunctuation(c: UInt8): Bool {
+    return match (c) {
+        case '!' => true
+        case '"' => true
+        case '#' => true
+        case '$' => true
+        case '%' => true
+        case '&' => true
+        case '\'' => true
+        case '(' => true
+        case ')' => true
+        case '*' => true
+        case '+' => true
+        case ',' => true
+        case '-' => true
+        case '.' => true
+        case '/' => true
+        case ':' => true
+        case ';' => true
+        case '<' => true
+        case '=' => true
+        case '>' => true
+        case '?' => true
+        case '@' => true
+        case '[' => true
+        case '\\' => true
+        case ']' => true
+        case '^' => true
+        case '_' => true
+        case '`' => true
+        case '{' => true
+        case '|' => true
+        case '}' => true
+        case '~' => true
+        case _ => false
+    }
+}
+
+/// 扩展 Unicode 标点符号检查（非 ASCII）
+/// Unicode 通用 "P" 和 "S" 类别，匹配 md4c 的 punct 映射
+func isUnicodePunctuationExtended(codepoint: UInt32): Bool {
+    for (range in unicode_punctuation_ranges) {
+        if (codepoint >= range[0] && codepoint <= range[1]) {
+            return true
+        }
+        if (codepoint < range[0]) {
+            return false
+        }
+    }
+    return false
+}
+
+/// 检查给定偏移量处的字符是否匹配字符集中的任何字符
+public func isAnyOf(text: String, off: OFF, chars: String): Bool {
+    if (Int64(off) >= text.size) {
+        return false
+    }
+    let c = text[Int64(off)]
+    for (ch in chars) {
+        if (c == ch) {
+            return true
+        }
+    }
+    return false
+}
+
+// ============================================================================
+// 行缩进计算
+// ============================================================================
+
+/// 行缩进结果
+public class LineIndentResult {
+    public var indent: UInt32 = 0
+    public var off: OFF = 0
+    public init() {}
+    public init(indent: UInt32, off: OFF) {
+        this.indent = indent
+        this.off = off
+    }
+}
+
+/// 获取从 `off` 开始的行的缩进，计算空格和制表符。
+/// 返回缩进宽度并将 `off` 推进到空白之后。
+public func lineIndentation(text: String, total_indent: UInt32, off_start: OFF): LineIndentResult {
+    var off = off_start
+    var indent: UInt32 = 0
+    while (Int64(off) < text.size && isBlank(UInt8(text[Int64(off)]))) {
+        if (UInt8(text[Int64(off)]) == UInt8(0x09)) {
+            indent = (total_indent + indent + 4) / 4 * 4 - total_indent
+        } else {
+            indent += 1
+        }
+        off += 1
+    }
+    return LineIndentResult(indent, off)
+}
+
+// ============================================================================
+// UTF-8 编解码
+// ============================================================================
+
+/// UTF-8 解码结果
+public class Utf8DecodeResult {
+    public var codepoint: UInt32 = 0
+    public var len: Int64 = 1
+    public init() {}
+    public init(codepoint: UInt32, len: Int64) {
+        this.codepoint = codepoint
+        this.len = len
+    }
+}
+
+/// 从文本的给定偏移量解码 UTF-8 码点。
+/// 返回码点和消耗的字节数。
+public func decodeUtf8(text: String, off: Int64): Utf8DecodeResult {
+    if (Int64(off) >= text.size) {
+        return Utf8DecodeResult(0, 1)
+    }
+    let b0 = UInt8(text[off])
+    if (b0 < 0x80) {
+        return Utf8DecodeResult(UInt32(b0), 1)
+    }
+
+    // 多字节序列
+    var codepoint: UInt32 = 0
+    var len: Int64 = 0
+
+    if ((b0 & 0xE0) == 0xC0) {
+        // 2 字节
+        if (off + 1 >= text.size) {
+            return Utf8DecodeResult(0xFFFD, 1)
+        }
+        let b1 = UInt8(text[off + 1])
+        if ((b1 & 0xC0) != 0x80) {
+            return Utf8DecodeResult(0xFFFD, 1)
+        }
+        codepoint = UInt32(b0 & 0x1F) << 6 | UInt32(b1 & 0x3F)
+        len = 2
+    } else if ((b0 & 0xF0) == 0xE0) {
+        // 3 字节
+        if (off + 2 >= text.size) {
+            return Utf8DecodeResult(0xFFFD, 1)
+        }
+        let b1 = UInt8(text[off + 1])
+        let b2 = UInt8(text[off + 2])
+        if ((b1 & 0xC0) != 0x80 || (b2 & 0xC0) != 0x80) {
+            return Utf8DecodeResult(0xFFFD, 1)
+        }
+        codepoint = UInt32(b0 & 0x0F) << 12 | UInt32(b1 & 0x3F) << 6 | UInt32(b2 & 0x3F)
+        len = 3
+    } else if ((b0 & 0xF8) == 0xF0) {
+        // 4 字节
+        if (off + 3 >= text.size) {
+            return Utf8DecodeResult(0xFFFD, 1)
+        }
+        let b1 = UInt8(text[off + 1])
+        let b2 = UInt8(text[off + 2])
+        let b3 = UInt8(text[off + 3])
+        if ((b1 & 0xC0) != 0x80 || (b2 & 0xC0) != 0x80 || (b3 & 0xC0) != 0x80) {
+            return Utf8DecodeResult(0xFFFD, 1)
+        }
+        codepoint = UInt32(b0 & 0x07) << 18 | UInt32(b1 & 0x3F) << 12 |
+                    UInt32(b2 & 0x3F) << 6 | UInt32(b3 & 0x3F)
+        len = 4
+    } else {
+        return Utf8DecodeResult(0xFFFD, 1)
+    }
+
+    return Utf8DecodeResult(codepoint, len)
+}
+
+/// 解码刚好在位置 `off` 之前结束的 UTF-8 码点
+public func decodeUtf8Backward(text: String, off: Int64): Utf8DecodeResult {
+    if (off == 0 || off > text.size) {
+        return Utf8DecodeResult(0, 1)
+    }
+    let last = UInt8(text[off - 1])
+    if (last < 0x80) {
+        return Utf8DecodeResult(UInt32(last), 1)
+    }
+    // 回溯越过续字节 (10xxxxxx)
+    var start = off - 1
+    while (start > 0 && (UInt8(text[start]) & 0xC0) == 0x80) {
+        start -= 1
+    }
+    let r = decodeUtf8(text, start)
+    return r
+}
+
+/// 编码 Unicode 码点为字符串
+public func encodeUtf8(codepoint: UInt32): String {
+    if (codepoint == 0) { return "" }
+    var bytes = ArrayList<UInt8>()
+    if (codepoint < 0x80) {
+        bytes.add(UInt8(codepoint))
+    } else if (codepoint < 0x800) {
+        bytes.add(UInt8(0xC0 | (codepoint >> 6)))
+        bytes.add(UInt8(0x80 | (codepoint & 0x3F)))
+    } else if (codepoint < 0x10000) {
+        bytes.add(UInt8(0xE0 | (codepoint >> 12)))
+        bytes.add(UInt8(0x80 | ((codepoint >> 6) & 0x3F)))
+        bytes.add(UInt8(0x80 | (codepoint & 0x3F)))
+    } else if (codepoint < 0x110000) {
+        bytes.add(UInt8(0xF0 | (codepoint >> 18)))
+        bytes.add(UInt8(0x80 | ((codepoint >> 12) & 0x3F)))
+        bytes.add(UInt8(0x80 | ((codepoint >> 6) & 0x3F)))
+        bytes.add(UInt8(0x80 | (codepoint & 0x3F)))
+    }
+    return String.fromUtf8(bytes.toArray())
+}
+
+/// 跳过文本开头的 UTF-8 BOM
+public func skipUtf8Bom(text: String): String {
+    if (text.size >= 3 &&
+        UInt8(text[0]) == 0xEF &&
+        UInt8(text[1]) == 0xBB &&
+        UInt8(text[2]) == 0xBF) {
+        return text[3..]
+    }
+    return text
+}
+
+// ============================================================================
+// 字符串比较
+// ============================================================================
+
+/// 不区分大小写的 ASCII 比较
+public func asciiCaseEql(a: String, b: String): Bool {
+    if (a.size != b.size) {
+        return false
+    }
+    for (i in 0..a.size) {
+        let ca = UInt8(a[i])
+        let cb = UInt8(b[i])
+        if (toLower(ca) != toLower(cb)) {
+            return false
+        }
+    }
+    return true
+}
+
+/// ASCII 字符转小写
+public func toLower(c: UInt8): UInt8 {
+    if (c >= UInt8(0x41) && c <= UInt8(0x5A)) {
+        return c + UInt8(0x20)
+    }
+    return c
+}
+
+// ============================================================================
+// 实体查找
+// ============================================================================
+
+/// 从 `start`（必须指向 '&'）开始查找 HTML 实体。
+/// 返回结束位置（';' 之后一位），如果未找到有效实体则返回 null。
+public func findEntity(content: String, start: Int64): ?Int64 {
+    if (start + 2 >= content.size) {
+        return None
+    }
+
+    // 数字实体
+    if (UInt8(content[Int64(start + 1)]) == UInt8(0x23)) {
+        var pos = start + 2
+        if (pos < content.size && (UInt8(content[pos]) == UInt8(0x78) || UInt8(content[pos]) == UInt8(0x58))) {
+            // 十六进制
+            pos += 1
+            let digit_start = pos
+            while (pos < content.size && isHexDigit(UInt8(content[pos])) && pos - digit_start < 6) {
+                pos += 1
+            }
+            if (pos > digit_start && pos < content.size && UInt8(content[Int64(pos)]) == UInt8(0x3B)) {
+                return pos + 1
+            }
+        } else {
+            // 十进制
+            let digit_start = pos
+            while (pos < content.size && isDigit(UInt8(content[pos])) && pos - digit_start < 7) {
+                pos += 1
+            }
+            if (pos > digit_start && pos < content.size && UInt8(content[Int64(pos)]) == UInt8(0x3B)) {
+                return pos + 1
+            }
+        }
+        return None
+    }
+
+    // 命名实体
+    var pos = start + 1
+    if (pos < content.size && isAlpha(UInt8(content[pos]))) {
+        pos += 1
+        while (pos < content.size && isAlphaNum(UInt8(content[pos])) && pos - start < 48) {
+            pos += 1
+        }
+        if (pos < content.size && UInt8(content[Int64(pos)]) == UInt8(0x3B)) {
+            if (let Some(_) <- entity_lookup(content[Int64(start)..Int64(pos + 1)])) {
+                return pos + 1
+            }
+        }
+    }
+
+    return None
+}
+
+// ============================================================================
+// 实体解码
+// ============================================================================
+
+/// 解析数字字符引用 (&#DDD; 或 &#xHHH;) 并返回码点
+public func parseEntityCodepoint(entity_text: String): ?UInt32 {
+    if (entity_text.size < 4 || UInt8(entity_text[0]) != UInt8(0x26) || UInt8(entity_text[1]) != UInt8(0x23)) {
+        return None
+    }
+    var cp: UInt32 = 0
+    if (UInt8(entity_text[2]) == UInt8(0x78) || UInt8(entity_text[2]) == UInt8(0x58)) {
+        for (i in 3..entity_text.size) {
+            let ec = UInt8(entity_text[i])
+            if (ec == UInt8(0x3B)) {
+                break
+            }
+            cp = cp * 16 + match (ec) {
+                case ec where ec >= UInt8(0x30) && ec <= UInt8(0x39) => UInt32(ec - UInt8(0x30))
+                case ec where ec >= UInt8(0x61) && ec <= UInt8(0x66) => UInt32(ec - UInt8(0x61)) + 10
+                case ec where ec >= UInt8(0x41) && ec <= UInt8(0x46) => UInt32(ec - UInt8(0x41)) + 10
+                case _ => UInt32(0)
+            }
+        }
+    } else {
+        for (i in 2..entity_text.size) {
+            let ec = UInt8(entity_text[i])
+            if (ec == UInt8(0x3B)) {
+                break
+            }
+            cp = cp * 10 + UInt32(ec - UInt8(0x30))
+        }
+    }
+    if (cp == 0 || cp > 0x10FFFF || (cp >= 0xD800 && cp <= 0xDFFF)) {
+        cp = 0xFFFD
+    }
+    return cp
+}
+
+/// 将 HTML 实体解码为原始 UTF-8 字节。
+/// 返回已解码的字符串，未知实体返回 null。
+public func decodeEntityToUtf8(entity_text: String): ?String {
+    if (let Some(cp) <- parseEntityCodepoint(entity_text)) {
+        return encodeUtf8(cp)
+    }
+    if (let Some(codepoints) <- entity_lookup(entity_text)) {
+        var result = encodeUtf8(codepoints[0])
+        if (codepoints[1] != 0) {
+            result = result + encodeUtf8(codepoints[1])
+        }
+        return result
+    }
+    return None
+}
+
+/// 简单的实体查找（占位实现，实际使用 entity.cj 的查找表）
+public func entity_lookup(name: String): ?Array<UInt32> {
+    // 委托给 entity 模块
+    return EntityModule.lookup(name)
+}
+
+// ============================================================================
+// Slug 生成
+// ============================================================================
+
+/// 生成 GitHub 兼容的 slug
+public func generateSlug(text_buf: StringBuilder, slug_counts: HashMap<String, UInt32>): String {
+    let text = text_buf.toString()
+    var result = StringBuilder()
+    var prev_hyphen = true // true 以修剪前导连字符
+
+    for (c in text) {
+        let b = UInt8(c)
+        if (b >= UInt8(0x41) && b <= UInt8(0x5A)) {
+            var tmp = ArrayList<UInt8>()
+            tmp.add(toLower(b))
+            result.append(String.fromUtf8(tmp.toArray()))
+            prev_hyphen = false
+        } else if ((b >= UInt8(0x61) && b <= UInt8(0x7A)) || (b >= UInt8(0x30) && b <= UInt8(0x39))) {
+            var tmp = ArrayList<UInt8>()
+            tmp.add(b)
+            result.append(String.fromUtf8(tmp.toArray()))
+            prev_hyphen = false
+        } else if (b == UInt8(0x2D) || b == UInt8(0x20)) {
+            if (!prev_hyphen) {
+                result.append('-')
+                prev_hyphen = true
+            }
+        }
+    }
+
+    // 修剪尾部连字符
+    var s = result.toString()
+    while (s.size > 0 && UInt8(s[s.size - 1]) == UInt8(0x2D)) {
+        s = s[0..s.size - 1]
+    }
+
+    // 去重
+    var count = match (slug_counts.get(s)) {
+        case Some(v) => v
+        case None => UInt32(0)
+    }
+    if (count == 0) {
+        slug_counts[s] = UInt32(0)
+        return s
+    }
+
+    count += 1
+    slug_counts[s] = count
+    return "${s}-${count}"
+}
+
+// ============================================================================
+// Heading ID 追踪器
+// ============================================================================
+
+/// 共享的标题 ID 状态，被所有渲染器使用
+public class HeadingIdTracker {
+    public var enabled: Bool = false
+    public var in_heading: Bool = false
+    public var text_buf: StringBuilder = StringBuilder()
+    public var slug_counts: HashMap<String, UInt32> = HashMap<String, UInt32>()
+
+    public init(enabled: Bool) {
+        this.enabled = enabled
+    }
+
+    /// 进入标题块时调用
+    public func enterHeading(): Unit {
+        if (enabled) {
+            in_heading = true
+        }
+    }
+
+    /// 从文本回调中调用以累积 slug 文本
+    public func trackText(text_type: TextType, content: String): Unit {
+        if (!in_heading) {
+            return
+        }
+        match (text_type) {
+            case TextType.html => () // skip HTML tags in slug
+            case TextType.entity =>
+                if (let Some(decoded) <- decodeEntityToUtf8(content)) {
+                    text_buf.append(decoded)
+                } else {
+                    text_buf.append(content)
+                }
+            case _ => text_buf.append(content)
+        }
+    }
+
+    /// 离开标题块时调用。返回 slug
+    public func leaveHeading(): ?String {
+        if (!enabled) {
+            return None
+        }
+        in_heading = false
+        return generateSlug(text_buf, slug_counts)
+    }
+
+    /// 使用 slug 后调用以重置文本缓冲区
+    public func clearAfterHeading(): Unit {
+        text_buf = StringBuilder()
+    }
+}
+

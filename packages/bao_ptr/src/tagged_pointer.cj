@@ -26,6 +26,8 @@ public type AddressableSize = UInt64
 ///
 /// 在 x86_64 上，只有低 48 位 (或带符号扩展的 57 位) 用于地址
 /// 但这里使用 49 位以确保安全，剩余 15 位用于标记
+public type TaggedPointerTag = UInt16
+
 public struct TaggedPointer {
     /// 指针地址 (49 位有效)
     public var _ptr: AddressableSize = 0
@@ -34,8 +36,7 @@ public struct TaggedPointer {
 
     public init() {}
 
-    /// Tag 类型 (15 位标记)
-    public type Tag = UInt16
+    // Tag type moved to top level: public type TaggedPointerTag = UInt16
 
     /// 初始化标记指针
     /// ptr: 任意指针类型
@@ -199,7 +200,7 @@ public class TaggedPointerUnion {
     /// 初始化 (使用指定指针和类型标记)
     public static func initFunc(ptr: UInt64, tag: UInt16): TaggedPointerUnion {
         let union_ = TaggedPointerUnion()
-        union_.repr = TaggedPointer.init(ptr, tag)
+        union_.repr = TaggedPointer.`init`(ptr, tag)
         return union_
     }
 

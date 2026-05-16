@@ -227,15 +227,15 @@ public class GuardedValue<T> {
 
     /// 读锁访问 - 对应 Bun Guarded.lock() -> *Value
     public func read<U>(fn: (T) -> U): U {
-        return lock.withReadLock({
-            fn(value)
+        return lock.withReadLock({ =>
+            return fn(value)
         })
     }
 
     /// 写锁访问 - 对应 Bun Guarded.lock() + 修改
     public func write<U>(fn: (T) -> U): U {
-        return lock.withWriteLock({
-            fn(value)
+        return lock.withWriteLock({ =>
+            return fn(value)
         })
     }
 }

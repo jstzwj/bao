@@ -195,12 +195,9 @@ public class Hunk {
 
         for (part in parts) {
             match (part.partType) {
-                case Context => {
-                    patchedLen += part.lines.size
-                    origLen += part.lines.size
-                }
                 case Insertion => patchedLen += part.lines.size
                 case Deletion => origLen += part.lines.size
+                case _ => patchedLen += part.lines.size; origLen += part.lines.size
             }
         }
 
@@ -492,6 +489,16 @@ enum HunkLineType {
     | Deletion   // 删除行 (-)
     | Header     // @@ 头部
     | Pragma     // \ No newline at end of file
+
+    public operator func ==(right: HunkLineType): Bool {
+        match (this) {
+            case Context => match (right) { case Context => true case _ => false }
+            case Insertion => match (right) { case Insertion => true case _ => false }
+            case Deletion => match (right) { case Deletion => true case _ => false }
+            case Header => match (right) { case Header => true case _ => false }
+            case Pragma => match (right) { case Pragma => true case _ => false }
+        }
+    }
 }
 
 // ============================================================================
@@ -501,6 +508,18 @@ enum HunkLineType {
 //   pub fn parse(...) ParseErr!void { ... }
 // ============================================================================
 
+enum ParserState {
+    | ParsingHeader
+    | ParsingHunks
+
+    public operator func ==(right: ParserState): Bool {
+        match (this) {
+            case ParsingHeader => match (right) { case ParsingHeader => true case _ => false }
+            case ParsingHunks => match (right) { case ParsingHunks => true case _ => false }
+        }
+    }
+}
+
 /// 补丁行解析器 - 对应 Bun PatchLinesParser
 class PatchLinesParser {
     var result: ArrayList<FileDeets>
@@ -508,11 +527,6 @@ class PatchLinesParser {
     var state: ParserState
     var currentHunk: ?Hunk
     var currentHunkMutationPart: ?PatchMutationPart
-
-    enum ParserState {
-        | ParsingHeader
-        | ParsingHunks
-    }
 
     init() {
         result = ArrayList<FileDeets>()
@@ -550,60 +564,57 @@ class PatchLinesParser {
         let lines = content.split("\n")
 
         for (line in lines) {
-            match (state) {
-                case ParsingHeader => {
-                    if (line.startsWith("@@")) {
-                        state = ParserState.ParsingHunks
-                        currentFilePatch.hunks = ArrayList<Hunk>()
-                        // 回退一行，让 ParsingHunks 处理
-                        // (在 Cangjie 中无法真正回退迭代器，需特殊处理)
-                        parseHunkState(line, supportLegacyDiffs)
-                    } else if (line.startsWith("diff --git ")) {
-                        if (currentFilePatch.diffLineFromPath.isSome()) {
-                            commitFilePatch()
-                        }
-                        let paths = parseDiffLinePaths(line)
-                        if (paths.isSome()) {
-                            currentFilePatch.diffLineFromPath = paths.getOrThrow()[0]
-                            currentFilePatch.diffLineToPath = paths.getOrThrow()[1]
-                        }
-                    } else if (line.startsWith("old mode ")) {
-                        currentFilePatch.oldMode = line.subString("old mode ".size).trim()
-                    } else if (line.startsWith("new mode ")) {
-                        currentFilePatch.newMode = line.subString("new mode ".size).trim()
-                    } else if (line.startsWith("deleted file mode ")) {
-                        currentFilePatch.deletedFileMode = line.subString("deleted file mode ".size).trim()
-                    } else if (line.startsWith("new file mode ")) {
-                        currentFilePatch.newFileMode = line.subString("new file mode ".size).trim()
-                    } else if (line.startsWith("rename from ")) {
-                        currentFilePatch.renameFrom = line.subString("rename from ".size).trim()
-                    } else if (line.startsWith("rename to ")) {
-                        currentFilePatch.renameTo = line.subString("rename to ".size).trim()
-                    } else if (line.startsWith("index ")) {
-                        let hashes = parseDiffHashes(line.subString("index ".size))
-                        if (hashes.isSome()) {
-                            currentFilePatch.beforeHash = hashes.getOrThrow()[0]
-                            currentFilePatch.afterHash = hashes.getOrThrow()[1]
-                        }
-                    } else if (line.startsWith("--- ")) {
-                        let path = line.subString("--- ".size)
-                        if (path.startsWith("a/")) {
-                            currentFilePatch.fromPath = path.subString(2).trim()
-                        } else {
-                            currentFilePatch.fromPath = path.trim()
-                        }
-                    } else if (line.startsWith("+++ ")) {
-                        let path = line.subString("+++ ".size)
-                        if (path.startsWith("b/")) {
-                            currentFilePatch.toPath = path.subString(2).trim()
-                        } else {
-                            currentFilePatch.toPath = path.trim()
-                        }
+            if (state == ParserState.ParsingHeader) {
+                if (line.startsWith("@@")) {
+                    state = ParserState.ParsingHunks
+                    currentFilePatch.hunks = ArrayList<Hunk>()
+                    // 回退一行，让 ParsingHunks 处理
+                    // (在 Cangjie 中无法真正回退迭代器，需特殊处理)
+                    parseHunkState(line, supportLegacyDiffs)
+                } else if (line.startsWith("diff --git ")) {
+                    if (currentFilePatch.diffLineFromPath.isSome()) {
+                        commitFilePatch()
+                    }
+                    let paths = parseDiffLinePaths(line)
+                    if (paths.isSome()) {
+                        currentFilePatch.diffLineFromPath = paths.getOrThrow()[0]
+                        currentFilePatch.diffLineToPath = paths.getOrThrow()[1]
+                    }
+                } else if (line.startsWith("old mode ")) {
+                    currentFilePatch.oldMode = line.subString("old mode ".size).trim()
+                } else if (line.startsWith("new mode ")) {
+                    currentFilePatch.newMode = line.subString("new mode ".size).trim()
+                } else if (line.startsWith("deleted file mode ")) {
+                    currentFilePatch.deletedFileMode = line.subString("deleted file mode ".size).trim()
+                } else if (line.startsWith("new file mode ")) {
+                    currentFilePatch.newFileMode = line.subString("new file mode ".size).trim()
+                } else if (line.startsWith("rename from ")) {
+                    currentFilePatch.renameFrom = line.subString("rename from ".size).trim()
+                } else if (line.startsWith("rename to ")) {
+                    currentFilePatch.renameTo = line.subString("rename to ".size).trim()
+                } else if (line.startsWith("index ")) {
+                    let hashes = parseDiffHashes(line.subString("index ".size))
+                    if (hashes.isSome()) {
+                        currentFilePatch.beforeHash = hashes.getOrThrow()[0]
+                        currentFilePatch.afterHash = hashes.getOrThrow()[1]
+                    }
+                } else if (line.startsWith("--- ")) {
+                    let path = line.subString("--- ".size)
+                    if (path.startsWith("a/")) {
+                        currentFilePatch.fromPath = path.subString(2).trim()
+                    } else {
+                        currentFilePatch.fromPath = path.trim()
+                    }
+                } else if (line.startsWith("+++ ")) {
+                    let path = line.subString("+++ ".size)
+                    if (path.startsWith("b/")) {
+                        currentFilePatch.toPath = path.subString(2).trim()
+                    } else {
+                        currentFilePatch.toPath = path.trim()
                     }
                 }
-                case ParsingHunks => {
-                    parseHunkState(line, supportLegacyDiffs)
-                }
+            } else {
+                parseHunkState(line, supportLegacyDiffs)
             }
         }
 
@@ -635,65 +646,65 @@ class PatchLinesParser {
             return
         }
 
-        let firstChar = line[0]
-        let hunkLineType: ?HunkLineType = match (firstChar.value) {
-            case '@' => HunkLineType.Header
-            case '-' => HunkLineType.Deletion
-            case '+' => HunkLineType.Insertion
-            case ' ' => HunkLineType.Context
-            case '\\' => HunkLineType.Pragma
-            case '\r' => HunkLineType.Context
-            case _ => {
-                // 未识别的行，回到 header 解析
-                state = ParserState.ParsingHeader
-                commitFilePatch()
-                None
-            }
+        let firstChar = UInt8(line[0])
+        var hunkLineType: ?HunkLineType = None
+        if (firstChar == UInt8(0x40)) { // '@'
+            hunkLineType = HunkLineType.Header
+        } else if (firstChar == UInt8(0x2D)) { // '-'
+            hunkLineType = HunkLineType.Deletion
+        } else if (firstChar == UInt8(0x2B)) { // '+'
+            hunkLineType = HunkLineType.Insertion
+        } else if (firstChar == UInt8(0x20)) { // ' '
+            hunkLineType = HunkLineType.Context
+        } else if (firstChar == UInt8(0x5C)) { // '\'
+            hunkLineType = HunkLineType.Pragma
+        } else if (firstChar == UInt8(0x0D)) { // '\r'
+            hunkLineType = HunkLineType.Context
         }
 
         if (hunkLineType.isNone()) {
+            // 未识别的行，回到 header 解析
+            state = ParserState.ParsingHeader
+            commitFilePatch()
             return
         }
 
         let hlt = hunkLineType.getOrThrow()
 
-        match (hlt) {
-            case Header => {
-                commitHunk()
-                let hunk = parseHunkHeaderLine(line)
-                if (hunk.isSome()) {
-                    currentHunk = hunk.getOrThrow()
-                }
+        if (hlt == HunkLineType.Header) {
+            commitHunk()
+            let hunk = parseHunkHeaderLine(line)
+            if (hunk.isSome()) {
+                currentHunk = hunk.getOrThrow()
             }
-            case Pragma => {
-                if (!line.startsWith("\\ No newline at end of file")) {
-                    return // unrecognized_pragma
-                }
-                if (currentHunkMutationPart.isSome()) {
-                    currentHunkMutationPart.getOrThrow().noNewlineAtEndOfFile = true
-                }
+        } else if (hlt == HunkLineType.Pragma) {
+            if (!line.startsWith("\\ No newline at end of file")) {
+                return // unrecognized_pragma
             }
-            case Insertion | Deletion | Context => {
-                if (currentHunk.isNone()) {
-                    return // hunk_lines_encountered_before_hunk_header
-                }
-
-                // 如果类型变化，提交当前 part
-                if (currentHunkMutationPart.isSome() &&
-                    currentHunkMutationPart.getOrThrow().partType != toPartType(hlt)) {
-                    currentHunk.getOrThrow().parts.append(currentHunkMutationPart.getOrThrow())
-                    currentHunkMutationPart = None
-                }
-
-                // 创建新的 part
-                if (currentHunkMutationPart.isNone()) {
-                    currentHunkMutationPart = PatchMutationPart(toPartType(hlt))
-                }
-
-                // 添加行内容 (去掉第一个字符前缀)
-                let lineContent = if (line.size > 1) line.subString(1) else ""
-                currentHunkMutationPart.getOrThrow().lines.append(lineContent)
+            if (currentHunkMutationPart.isSome()) {
+                currentHunkMutationPart.getOrThrow().noNewlineAtEndOfFile = true
             }
+        } else {
+            // Insertion | Deletion | Context
+            if (currentHunk.isNone()) {
+                return // hunk_lines_encountered_before_hunk_header
+            }
+
+            // 如果类型变化，提交当前 part
+            if (currentHunkMutationPart.isSome() &&
+                currentHunkMutationPart.getOrThrow().partType != toPartType(hlt)) {
+                currentHunk.getOrThrow().parts.append(currentHunkMutationPart.getOrThrow())
+                currentHunkMutationPart = None
+            }
+
+            // 创建新的 part
+            if (currentHunkMutationPart.isNone()) {
+                currentHunkMutationPart = PatchMutationPart(toPartType(hlt))
+            }
+
+            // 添加行内容 (去掉第一个字符前缀)
+            let lineContent = if (line.size > 1) line.subString(1) else ""
+            currentHunkMutationPart.getOrThrow().lines.append(lineContent)
         }
     }
 

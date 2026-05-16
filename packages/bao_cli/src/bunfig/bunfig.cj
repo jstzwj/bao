@@ -96,7 +96,10 @@ public class Parser {
                     let portExpr = portOpt.getOrThrow()
                     expect(portExpr, ExprTag.Number)
                     let p = portExpr.asNumber()
-                    let portValue = if (p == 0) { UInt16(3000) } else { UInt16(p) }
+                    let portValue = match (p) {
+                        case Some(v) => if (v == 0.0) { UInt16(3000) } else { UInt16(v) }
+                        case None => UInt16(3000)
+                    }
                     ctx.args.port = portValue
                 }
             }
@@ -549,6 +552,21 @@ public enum ExprTag {
     | Boolean
     | Null_
 
+    public operator func ==(right: ExprTag): Bool {
+        match (this) {
+            case Object => match (right) { case Object => true case _ => false }
+            case Array => match (right) { case Array => true case _ => false }
+            case String_ => match (right) { case String_ => true case _ => false }
+            case Number => match (right) { case Number => true case _ => false }
+            case Boolean => match (right) { case Boolean => true case _ => false }
+            case Null_ => match (right) { case Null_ => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: ExprTag): Bool {
+        !(this == right)
+    }
+
     public func name(): String {
         match (this) {
             case Object => "object"
@@ -655,7 +673,7 @@ public func optionGetOrElse<T>(opt: ?T, default: T): T {
 
 private func getExtension(source: String): String {
     let dotIdx = source.lastIndexOf('.')
-    match (dotIdx) { case Some(idx) => source.substring(idx + 1) case None => "" }
+    match (dotIdx) { case Some(idx) => source[(idx + 1)..] case None => "" }
 }
 
 private func parseToml(source: String, log: Log): Result<Expr> {

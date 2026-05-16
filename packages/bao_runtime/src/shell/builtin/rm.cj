@@ -13,6 +13,65 @@ import bao_core.*
 // ============================================================================
 
 /// rm命令
+public enum RmState {
+    | idle
+    | parseOpts(ParseOptsState)
+    | exec(ExecState)
+    | done(ExitCode)
+    | waitingWriteErr
+    | err(ExitCode)
+}
+
+public struct ParseOptsState {
+    public var argsSlice: Array<String>
+    public var idx: UInt32 = 0
+    public var innerState: ParseOptsInnerState = .normal
+}
+
+public enum ParseOptsInnerState {
+    | normal
+    | waitWriteErr
+}
+
+public struct ExecState {
+    public var filepathArgs: Array<String>
+    public var totalTasks: UIntPtr = 0
+    public var err: ?SyscallError = None
+    public var outputDone: AtomicUIntPtr = AtomicUIntPtr()
+    public var outputCount: AtomicUIntPtr = AtomicUIntPtr()
+    public var innerState: ExecInnerState = .idle
+}
+
+public enum ExecInnerState {
+    | idle
+    | waiting(WaitingState)
+}
+
+public struct WaitingState {
+    public var tasksDone: UIntPtr = 0
+}
+
+public class DirTask {
+    public var taskManager: ShellRmTask
+    public var parentTask: ?DirTask = None
+    public var path: String = ""
+    public var subtaskCount: AtomicUIntPtr = AtomicUIntPtr()
+    public var deletedEntries: ArrayList<Byte> = ArrayList<Byte>()
+    public var kindHint: EntryKindHint = .idk
+
+    /// 条目类型提示
+    public enum EntryKindHint {
+| idk
+| dir
+| file
+    }
+
+    /// 去初始化
+    public func deinit() {
+        this.deletedEntries.clear()
+    }
+}
+
 public class RmCmd {
     /// 选项
     public var opts: RmOpts = RmOpts()
@@ -20,50 +79,24 @@ public class RmCmd {
     public var state: RmState = RmState.idle
 
     /// 状态类型
-    public enum RmState {
-        case idle
-        case parseOpts(ParseOptsState)
-        case exec(ExecState)
-        case done(ExitCode)
-        case waitingWriteErr
-        case err(ExitCode)
-    }
+
 
     /// 解析选项状态
     /// 对应 Bun: parse_opts struct in Rm state
-    public struct ParseOptsState {
-        public var argsSlice: Array<String>
-        public var idx: UInt32 = 0
-        public var innerState: ParseOptsInnerState = .normal
-    }
+
 
     /// 解析选项内部状态
-    public enum ParseOptsInnerState {
-        case normal
-        case waitWriteErr
-    }
+
 
     /// 执行状态
     /// 对应 Bun: exec struct in Rm state
-    public struct ExecState {
-        public var filepathArgs: Array<String>
-        public var totalTasks: UIntPtr = 0
-        public var err: ?SyscallError = None
-        public var outputDone: AtomicUIntPtr = AtomicUIntPtr()
-        public var outputCount: AtomicUIntPtr = AtomicUIntPtr()
-        public var innerState: ExecInnerState = .idle
-    }
+
 
     /// 执行内部状态
-    public enum ExecInnerState {
-        case idle
-        case waiting(WaitingState)
-    }
+
 
     /// 等待状态
-    public struct WaitingState {
-        public var tasksDone: UIntPtr = 0
-    }
+
 
     /// 启动
     public func start(): Yield {
@@ -245,11 +278,11 @@ public struct RmOpts {
 /// 提示行为
 public enum PromptBehaviour {
     /// --interactive=never (默认)
-    case never
+    | never
     /// -I: 删除超过3个文件或递归删除时提示一次
-    case once(OnceState)
+    | once(OnceState)
     /// -i: 每次删除前提示
-    case always
+    | always
 }
 
 /// once状态
@@ -259,10 +292,10 @@ public struct OnceState {
 
 /// rm标志解析结果
 public enum RmFlagResult {
-    case continueParsing
-    case done
-    case illegalOption
-    case illegalOptionWithFlag
+    | continueParsing
+    | done
+    | illegalOption
+    | illegalOptionWithFlag
 }
 
 /// Shell rm任务
@@ -275,26 +308,7 @@ public class ShellRmTask {
     public var errorSignal: AtomicBool = AtomicBool()
 
     /// 目录任务
-    public class DirTask {
-        public var taskManager: ShellRmTask
-        public var parentTask: ?DirTask = None
-        public var path: String = ""
-        public var subtaskCount: AtomicUIntPtr = AtomicUIntPtr()
-        public var deletedEntries: ArrayList<Byte> = ArrayList<Byte>()
-        public var kindHint: EntryKindHint = .idk
 
-        /// 条目类型提示
-        public enum EntryKindHint {
-            case idk
-            case dir
-            case file
-        }
-
-        /// 去初始化
-        public func deinit() {
-            this.deletedEntries.clear()
-        }
-    }
 
     /// 调度到线程池
     public func schedule() {

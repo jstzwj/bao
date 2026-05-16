@@ -10,6 +10,59 @@ import bao_core.*
 // if条件执行状态
 // ============================================================================
 
+/// if状态类型（提取到顶层）
+public enum IfStateKind {
+    | idle
+    | execKind(execState: IfExecState)
+    | waitingWriteErr
+    | done
+}
+
+/// 内部状态（提取到顶层）
+public enum IfInnerState {
+    | cond
+    | then
+    | elif(idx: UInt32)
+    | `else`
+}
+
+/// 执行状态（提取到顶层）
+public struct IfExecState {
+    public var execState: IfInnerState
+    public var stmts: Array<Stmt>
+    public var stmtIdx: UInt32 = 0
+    public var lastExitCode: ExitCode = 0
+
+    public init(execState: IfInnerState, stmts: Array<Stmt>, stmtIdx: UInt32, lastExitCode: ExitCode) {
+        this.execState = execState
+        this.stmts = stmts
+        this.stmtIdx = stmtIdx
+        this.lastExitCode = lastExitCode
+    }
+}
+
+/// 父节点指针（提取到顶层）
+public class IfParentPtr {
+    public var ptr: Any
+    public static func initFunc(p: Any): IfParentPtr {
+        let pp = IfParentPtr()
+        pp.ptr = p
+        return pp
+    }
+    public func childDone(child: Any, exitCode: ExitCode): Yield { Yield.done }
+}
+
+/// 子节点指针（提取到顶层）
+public class IfChildPtr {
+    public var ptr: Any
+    public static func initFunc(p: Any): IfChildPtr {
+        let cp = IfChildPtr()
+        cp.ptr = p
+        return cp
+    }
+    public func deinit() {}
+}
+
 /// if条件状态
 public class IfState {
     /// 基类
@@ -17,64 +70,18 @@ public class IfState {
     /// AST节点
     public var node: IfAst
     /// 父节点
-    public var parent: ParentPtr
+    public var parent: IfParentPtr
     /// IO
     public var io: IO
     /// 状态
     public var state: IfStateKind
-
-    /// if状态类型
-    public enum IfStateKind {
-        case idle
-        case exec(execState: ExecState)
-        case waitingWriteErr
-        case done
-    }
-
-    /// 执行状态
-    public struct ExecState {
-        public var execState: InnerState
-        public var stmts: Array<Stmt>
-        public var stmtIdx: UInt32 = 0
-        public var lastExitCode: ExitCode = 0
-    }
-
-    /// 内部状态
-    public enum InnerState {
-        case cond
-        case then
-        case elif(idx: UInt32)
-        case `else`
-    }
-
-    /// 父节点指针
-    public class ParentPtr {
-        public var ptr: Any
-        public static func initFunc(p: Any): ParentPtr {
-            let pp = ParentPtr()
-            pp.ptr = p
-            return pp
-        }
-        public func childDone(child: Any, exitCode: ExitCode): Yield { Yield.done }
-    }
-
-    /// 子节点指针
-    public class ChildPtr {
-        public var ptr: Any
-        public static func initFunc(p: Any): ChildPtr {
-            let cp = ChildPtr()
-            cp.ptr = p
-            return cp
-        }
-        public func deinit() {}
-    }
 
     /// 初始化
     public static func initFunc(
         interpreter: Interpreter,
         shellState: ShellExecEnv,
         node: IfAst,
-        parent: ParentPtr,
+        parent: IfParentPtr,
         io: IO
     ): IfState {
         let ifStmt = IfState()
@@ -82,7 +89,7 @@ public class IfState {
         ifStmt.node = node
         ifStmt.parent = parent
         ifStmt.io = io
-        ifStmt.state = IfStateKind.idle
+        ifStmt.state = IfStateKind.`idle`
         return ifStmt
     }
 
@@ -93,33 +100,33 @@ public class IfState {
 
     /// 下一步
     public func next(): Yield {
-        while (this.state != .done) {
+        while (this.state != IfStateKind.done) {
             switch (this.state) {
-                case .idle =>
-                    this.state = IfStateKind.exec(execState: ExecState(
-                        execState: InnerState.cond,
+                case IfStateKind.`idle` =>
+                    this.state = IfStateKind.execKind(execState: IfExecState(
+                        execState: IfInnerState.cond,
                         stmts: this.node.cond,
                         stmtIdx: 0,
                         lastExitCode: 0
                     ))
-                case .exec(var execState) =>
+                case IfStateKind.execKind(var execState) =>
                     let stmts = execState.stmts
-                    if (execState.stmtIdx >= stmts.length) {
+                    if (execState.stmtIdx >= stmts.size) {
                         switch (execState.execState) {
-                            case .cond =>
+                            case IfInnerState.cond =>
                                 if (execState.lastExitCode == 0) {
-                                    execState.execState = InnerState.then
+                                    execState.execState = IfInnerState.then
                                     execState.stmtIdx = 0
                                     execState.stmts = this.node.then
                                     continue
                                 }
                                 // 检查else/elif
                                 return this.parent.childDone(this, 0)
-                            case .then =>
+                            case IfInnerState.then =>
                                 return this.parent.childDone(this, execState.lastExitCode)
-                            case .elif =>
+                            case IfInnerState.elif =>
                                 return this.parent.childDone(this, 0)
-                            case .`else` =>
+                            case IfInnerState.`else` =>
                                 return this.parent.childDone(this, execState.lastExitCode)
                         }
                     }
@@ -130,13 +137,13 @@ public class IfState {
                         interpreter: this.base.interpreter,
                         shellState: this.base.shell,
                         node: stmt,
-                        parent: StmtState.ParentPtr.init(this),
+                        parent: StmtParentPtr.init(this),
                         io: this.io.copy()
                     )
                     return newStmt.start()
-                case .waitingWriteErr =>
+                case IfStateKind.waitingWriteErr =>
                     return Yield.suspended
-                case .done =>
+                case IfStateKind.done =>
                     panic("不可达状态")
             }
         }
@@ -150,7 +157,7 @@ public class IfState {
     }
 
     /// 子节点完成
-    public func childDone(child: ChildPtr, exitCode: ExitCode): Yield {
+    public func childDone(child: IfChildPtr, exitCode: ExitCode): Yield {
         child.deinit()
         return Yield.ifClause(this)
     }

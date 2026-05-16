@@ -11,6 +11,12 @@ import bao_core.*
 // ============================================================================
 
 /// seq命令
+public enum SeqState {
+    | idle
+    | err
+    | done
+}
+
 public class SeqCmd {
     /// 状态
     public var state: SeqState = SeqState.idle
@@ -30,11 +36,7 @@ public class SeqCmd {
     public var fixedWidth: Boolean = false
 
     /// 状态类型
-    public enum SeqState {
-        case idle
-        case err
-        case done
-    }
+
 
     /// 启动
     public func start(): Yield {

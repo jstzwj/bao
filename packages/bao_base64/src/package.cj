@@ -10,6 +10,7 @@
 package bao_base64
 
 import bao_core.*
+import std.collection.*
 
 // ============================================================================
 // Base64 - 标准 Base64 编解码
@@ -53,7 +54,7 @@ public class Base64 {
         "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
 
     /// Padding 字符
-    public static let PAD_CHAR: UInt8 = '='.toUInt8()
+    public static let PAD_CHAR: UInt8 = UInt8(0x3D)
 
     /// 非法字符标记 - 对应 Bun Base64Decoder.invalid_char = 0xff
     private static let INVALID_CHAR: UInt8 = 0xFF
@@ -83,9 +84,9 @@ public class Base64 {
 
     /// 构建查找表 - 对应 Bun Base64Decoder.init
     private static func buildLUT(alphabet: String): Array<UInt8> {
-        var lut = Array<UInt8>(256, item: INVALID_CHAR)
+        var lut = Array<UInt8>(256, repeat: INVALID_CHAR)
         for (i in 0..64) {
-            lut[alphabet[i].toUInt8()] = UInt8(i)
+            lut[UInt8(alphabet[i])] = UInt8(i)
         }
         return lut
     }
@@ -159,7 +160,7 @@ public class Base64 {
 
         // 添加 padding
         // Bun: if (encoder.pad_char) |pad_char| { for padding positions: pad.* = pad_char; }
-        let encodedLen = result.length
+        let encodedLen = result.size
         let expectedLen = ((data.size + 2) / 3) * 4
         var padCount = expectedLen - encodedLen
         while (padCount > 0) {
@@ -206,7 +207,7 @@ public class Base64 {
     /// 支持宽容解码 - 对应 Bun mixed_decoder
     /// 忽略空白字符: 空格、Tab、\r、\n、VT、FF
     public static func decode(str: String): Array<UInt8> {
-        let src = str.toCharArray()
+        let src = str.toArray()
         let len = src.size
         let result = ArrayList<UInt8>()
 
@@ -221,20 +222,20 @@ public class Base64 {
 
             // 宽容解码: 跳过空白字符
             // 对应 Bun Base64DecoderWithIgnore.char_is_ignored
-            if (ch == ' ' || ch == '\t' || ch == '\r' || ch == '\n' ||
-                ch == '\u{0B}' || ch == '\u{0C}') {
+            if (ch == UInt8(0x20) || ch == UInt8(0x09) || ch == UInt8(0x0D) || ch == UInt8(0x0A) ||
+                ch == UInt8(0x0B) || ch == UInt8(0x0C)) {
                 i += 1
                 continue
             }
 
             // Padding 字符处理
-            if (ch == '='.toUInt8()) {
+            if (ch == UInt8(0x3D)) {
                 // 跳过剩余 padding
                 i += 1
                 while (i < len) {
                     let pch = src[i]
-                    if (pch != '='.toUInt8() && pch != ' ' && pch != '\t' &&
-                        pch != '\r' && pch != '\n') {
+                    if (pch != UInt8(0x3D) && pch != UInt8(0x20) && pch != UInt8(0x09) &&
+                        pch != UInt8(0x0D) && pch != UInt8(0x0A)) {
                         break  // 非法字符在 padding 后
                     }
                     i += 1
@@ -243,7 +244,7 @@ public class Base64 {
             }
 
             // 查找字符索引
-            let idx = if (ch.toUInt8() < 256) { standardLUT[ch.toUInt8()] } else { INVALID_CHAR }
+            let idx = if (ch < 256) { standardLUT[ch] } else { INVALID_CHAR }
             if (idx == INVALID_CHAR) {
                 i += 1
                 continue  // 跳过非法字符
@@ -328,7 +329,7 @@ public class Base64 {
     /// 对应 Bun url_safe.Decoder.decode
     /// 同时接受 URL-safe 和标准 Base64 字符 (宽容解码)
     public static func decodeUrlSafe(str: String): Array<UInt8> {
-        let src = str.toCharArray()
+        let src = str.toArray()
         let len = src.size
         let result = ArrayList<UInt8>()
 
@@ -340,14 +341,14 @@ public class Base64 {
             let ch = src[i]
 
             // 跳过空白
-            if (ch == ' ' || ch == '\t' || ch == '\r' || ch == '\n' ||
-                ch == '\u{0B}' || ch == '\u{0C}') {
+            if (ch == UInt8(0x20) || ch == UInt8(0x09) || ch == UInt8(0x0D) || ch == UInt8(0x0A) ||
+                ch == UInt8(0x0B) || ch == UInt8(0x0C)) {
                 i += 1
                 continue
             }
 
             // 跳过 padding
-            if (ch == '='.toUInt8()) {
+            if (ch == UInt8(0x3D)) {
                 i += 1
                 continue
             }
@@ -355,11 +356,11 @@ public class Base64 {
             // URL-safe 字符查找，也接受标准 Base64 字符
             // 对应 Bun mixed_decoder: 合并 url_safe + standard 查找表
             var idx = INVALID_CHAR
-            if (ch.toUInt8() < 256) {
-                idx = urlSafeLUT[ch.toUInt8()]
+            if (ch < 256) {
+                idx = urlSafeLUT[ch]
                 // 宽容: 如果 URL-safe 表找不到，尝试标准表
                 if (idx == INVALID_CHAR) {
-                    idx = standardLUT[ch.toUInt8()]
+                    idx = standardLUT[ch]
                 }
             }
             if (idx == INVALID_CHAR) {

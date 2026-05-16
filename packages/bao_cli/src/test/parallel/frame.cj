@@ -69,18 +69,18 @@ public class Frame {
         let trunc = "\n... [output truncated: would exceed --parallel IPC frame limit]\n"
         let headroom = 256
         let used = (buf.size - 5) + 4  // 当前载荷 + str-len 前缀
-        let room = if (MAX_PAYLOAD > used + headroom) MAX_PAYLOAD - used - headroom else 0
+        let room = if (MAX_PAYLOAD > used + headroom) { MAX_PAYLOAD - used - headroom } else { 0 }
 
-        if (s.length <= room) {
-            u32_(s.length)
+        if (s.size <= room) {
+            u32_(s.size)
             for (b in s.toByteArray()) {
                 buf.append(b)
             }
             return
         }
 
-        let keep = if (room > trunc.length) room - trunc.length else 0
-        u32_(keep + trunc.length)
+        let keep = if (room > trunc.size) { room - trunc.size } else { 0 }
+        u32_(keep + trunc.size)
         for (i in 0..keep) {
             buf.append(s[i].toByte())
         }
@@ -109,7 +109,7 @@ public class Frame {
 
     /// 将 FrameKind 转换为字节
     private func frameKindToByte(kind: FrameKind): Byte {
-        when (kind) {
+        match (kind) {
             case FrameKind.ready => 0
             case FrameKind.fileStart => 1
             case FrameKind.testDone => 2
@@ -138,7 +138,7 @@ public class FrameReader {
     /// 读取 u32 值
     /// 对应 Bun: Reader.u32_()
     public func u32_(): Int64 {
-        if (pos + 4 > data.length) {
+        if (pos + 4 > data.size) {
             return 0
         }
         let v = (data[pos].toInt() and 0xFF) or
@@ -153,7 +153,7 @@ public class FrameReader {
     /// 对应 Bun: Reader.str()
     public func str(): String {
         let n = u32_()
-        if (pos + n > data.length) {
+        if (pos + n > data.size) {
             return ""
         }
         let bytes = ByteArray(n.toInt())

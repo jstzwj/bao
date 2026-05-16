@@ -4,18 +4,18 @@ package bao_md
 
 import std.collection.*
 
+/// 实体条目 (从 EntityModule 内部提取到顶层)
+class EntityEntry {
+    let name: String
+    let codepoints: Array<UInt32>
+    init(name: String, codepoints: Array<UInt32>) {
+        this.name = name
+        this.codepoints = codepoints
+    }
+}
+
 /// HTML 实体模块
 public class EntityModule {
-
-    /// 实体条目
-    static class EntityEntry {
-        let name: String
-        let codepoints: Array<UInt32>
-        init(name: String, codepoints: Array<UInt32>) {
-            this.name = name
-            this.codepoints = codepoints
-        }
-    }
 
     /// 排序的实体查找表（部分，按名称排序）
     static let entity_map: Array<EntityEntry> = [
@@ -253,7 +253,7 @@ public class EntityModule {
         EntityEntry("&yuml;", [255, 0]),
         EntityEntry("&zeta;", [950, 0]),
         EntityEntry("&zwj;", [8205, 0]),
-        EntityEntry("&zwnj;", [8204, 0]),
+        EntityEntry("&zwnj;", [8204, 0])
     ]
 
     /// 通过名称查找 HTML 实体（包括 & 前缀和 ; 后缀）。

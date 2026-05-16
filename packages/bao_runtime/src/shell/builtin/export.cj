@@ -12,20 +12,22 @@ import bao_core.*
 // ============================================================================
 
 /// export命令
+public struct Entry {
+    public var key: EnvStr
+    public var value: EnvStr
+
+    /// 比较函数
+    public static func compare(a: Entry, b: Entry): Int {
+        return String.compare(a.key.slice(), b.key.slice())
+    }
+}
+
 public class ExportCmd {
     /// 是否正在打印
     public var printing: Boolean = false
 
     /// 环境变量条目
-    public struct Entry {
-        public var key: EnvStr
-        public var value: EnvStr
 
-        /// 比较函数
-        public static func compare(a: Entry, b: Entry): Int {
-            return String.compare(a.key.slice(), b.key.slice())
-        }
-    }
 
     /// 写入输出
     public func writeOutput(fmt: String, args: Array<Any>): Yield {

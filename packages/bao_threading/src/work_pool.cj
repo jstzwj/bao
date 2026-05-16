@@ -23,6 +23,10 @@ import bao_core.*
 /// 全局工作线程池
 /// 严格翻译自 work_pool.zig:3-55 WorkPool
 ///   使用懒初始化模式, 首次访问时创建线程池
+public type WorkPoolBatch = ThreadPoolBatch
+
+public type WorkPoolTask = ThreadPoolTask
+
 public class WorkPool {
     /// 线程池实例
     /// 翻译自: var pool: ThreadPool = undefined
@@ -33,14 +37,6 @@ public class WorkPool {
 
     /// 初始化锁
     private static let initLock: Mutex = Mutex()
-
-    /// 批次类型别名
-    /// 翻译自: pub const Batch = ThreadPool.Batch
-    public type Batch = ThreadPoolBatch
-
-    /// 任务类型别名
-    /// 翻译自: pub const Task = ThreadPool.Task
-    public type Task = ThreadPoolTask
 
     /// 获取全局线程池 (懒初始化)
     /// 严格翻译自: pub inline fn get() *ThreadPool

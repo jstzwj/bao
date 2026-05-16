@@ -10,31 +10,31 @@ import bao_core.*
 // pwd命令 - 打印当前工作目录
 // ============================================================================
 
+/// pwd状态类型（提取到顶层）
+public enum PwdState {
+    case idle
+    case waitingIO(WaitingIOKind)
+    case err
+    case done
+}
+
+/// 等待IO类型（提取到顶层）
+public enum WaitingIOKind {
+    case stdout
+    case stderr
+}
+
 /// pwd命令
 public class PwdCmd {
     /// 状态
     public var state: PwdState = PwdState.idle
 
-    /// 状态类型
-    public enum PwdState {
-        case idle
-        case waitingIO(WaitingIOKind)
-        case err
-        case done
-    }
-
-    /// 等待IO类型
-    public enum WaitingIOKind {
-        case stdout
-        case stderr
-    }
-
     /// 启动
     public func start(): Yield {
         let args = this.bltn().argsSlice()
-        if (args.length > 0) {
+        if (args.size > 0) {
             let msg = "pwd: too many arguments\n"
-            if (let safeguard = this.bltn().stderr.needsIO()) {
+            if (let Some(safeguard) <- this.bltn().stderr.needsIO()) {
                 this.state = PwdState.waitingIO(.stderr)
                 return this.bltn().stderr.enqueue(this, msg.toByteArray(), safeguard)
             }
@@ -43,11 +43,11 @@ public class PwdCmd {
         }
 
         let cwdStr = this.bltn().parentCmd().base.shell.cwd()
-        if (let safeguard = this.bltn().stdout.needsIO()) {
+        if (let Some(safeguard) <- this.bltn().stdout.needsIO()) {
             this.state = PwdState.waitingIO(.stdout)
-            return this.bltn().stdout.enqueueFmtBltn(this, "", "${cwdStr}\n", [], safeguard)
+            return this.bltn().stdout.enqueueFmtBltn(this, "", cwdStr + "\n", [], safeguard)
         }
-        let buf = "${cwdStr}\n"
+        let buf = cwdStr + "\n"
         this.bltn().writeNoIO(.stdout, buf.toByteArray())
         this.state = PwdState.done
         return this.bltn().done(0)
@@ -78,7 +78,7 @@ public class PwdCmd {
 
     /// IO写入器数据块回调
     public func onIOWriterChunk(amount: UInt64, e: ?SystemError): Yield {
-        if (let err = e) {
+        if (let Some(err) <- e) {
             err.deref()
             this.state = PwdState.err
             return this.next()

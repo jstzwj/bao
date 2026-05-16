@@ -20,7 +20,7 @@ public type SZ = UInt32
 
 /// 块级元素类型，通过 enterBlock / leaveBlock 回调报告
 public enum BlockType {
-    | None
+    | block_none
     | doc
     | `quote`
     | ul
@@ -32,13 +32,61 @@ public enum BlockType {
     | html
     | p
     | table
+    | thead
+    | tbody
+    | tr
     | th
     | td
+
+    public func toUInt8(): UInt8 {
+        return match (this) {
+            case block_none => 0
+            case doc => 1
+            case `quote` => 2
+            case ul => 3
+            case ol => 4
+            case li => 5
+            case hr => 6
+            case h => 7
+            case code => 8
+            case html => 9
+            case p => 10
+            case table => 11
+            case thead => 12
+            case tbody => 13
+            case tr => 14
+            case th => 15
+            case td => 16
+        }
+    }
+
+    public static func fromUInt8(v: UInt8): BlockType {
+        return match (v) {
+            case 0 => block_none
+            case 1 => doc
+            case 2 => `quote`
+            case 3 => ul
+            case 4 => ol
+            case 5 => li
+            case 6 => hr
+            case 7 => h
+            case 8 => code
+            case 9 => html
+            case 10 => p
+            case 11 => table
+            case 12 => thead
+            case 13 => tbody
+            case 14 => tr
+            case 15 => th
+            case 16 => td
+            case _ => block_none
+        }
+    }
 }
 
 /// 行内元素类型，通过 enterSpan / leaveSpan 回调报告
 public enum SpanType {
-    | None
+    | span_none
     | em
     | strong
     | a
@@ -54,7 +102,7 @@ public enum SpanType {
 
 /// 文本类型，通过 text 回调报告
 public enum TextType {
-    | None
+    | text_none
     | normal
     | `default`
     | code
@@ -65,7 +113,7 @@ public enum TextType {
 
 /// 表格单元格对齐方式
 public enum Align {
-    | None
+    | align_none
     | `default`
     | left
     | center
@@ -170,6 +218,7 @@ public class WikilinkDetail {
 public class Renderer {
     public var ptr: UIntNative = 0
     public var vtable: VTable = VTable()
+    public var html_renderer: ?HtmlRenderer = None
 
     public init() {}
 
@@ -240,7 +289,7 @@ public class SpanDetail {
 
 /// 子串类型
 public enum SubstrType {
-    | None
+    | substr_none
     | normal
     | entity
 }
@@ -269,15 +318,15 @@ public class Attribute {
     }
 
     public func text(src: String): String {
-        if (substr_offsets.isEmpty) {
+        if (substr_offsets.size == 0) {
             return ""
         }
         let first = substr_offsets[0].beg
         let last = substr_offsets[substr_offsets.size - 1].end
-        if (first >= src.size || last > src.size || first >= last) {
+        if (Int64(first) >= src.size || Int64(last) > src.size || first >= last) {
             return ""
         }
-        return src.substring(Int64(first), Int64(last))
+        return src[Int64(first)..Int64(last)]
     }
 }
 
@@ -287,7 +336,7 @@ public class Attribute {
 
 /// 块分析期间的行类型
 public enum LineType {
-    | None
+    | line_none
     | blank
     | hr
     | atx
@@ -421,7 +470,7 @@ public class MarkFlags {
     public static let EMPH_MOD3_1: UInt16 = 0x80
     public static let EMPH_MOD3_2: UInt16 = 0x100
 
-    public static let EMPH_OC: UInt16 = (POTENTIAL_OPENER | POTENTIAL_CLOSER).toUInt16()
+    public static let EMPH_OC: UInt16 = UInt16(0x03)
 }
 
 /// 行内处理系统中的标记
@@ -548,16 +597,16 @@ public class RefDef {
 
 /// 从块数据中提取表格单元格对齐方式
 public func alignmentFromData(data: UInt32): Align {
-    return Align.fromUInt8(UInt8(data & 0x03))
+    return alignFromUInt8(UInt8(data & 0x03))
 }
 
 /// 获取对齐方式的字符串名称，默认返回 null
 public func alignmentName(alignment: Align): ?String {
     match (alignment) {
-        | Align.left => return "left"
-        | Align.center => return "center"
-        | Align.right => return "right"
-        | _ => return None
+        case Align.left => return "left"
+        case Align.center => return "center"
+        case Align.right => return "right"
+        case _ => return None
     }
 }
 
@@ -568,7 +617,7 @@ public func taskMarkFromData(data: UInt32): UInt8 {
 
 /// 检查任务标记是否表示已勾选
 public func isTaskChecked(task_mark: UInt8): Bool {
-    return task_mark != 0 && task_mark != UInt8(Array<UInt8>([' '.toInt()])[0])
+    return task_mark != 0 && task_mark != UInt8(0x20)
 }
 
 /// 强调分隔符条目，用于 CommonMark 强调算法
@@ -584,24 +633,32 @@ public class EmphDelim {
     public var remaining: Int64 = 0  // 未消耗的字符数
     public var open_count: Int64 = 0 // 作为开标记消耗的总字符数
     public var close_count: Int64 = 0 // 作为闭标记消耗的总字符数
-    public var open_sizes: Array<UInt8> = Array<UInt8>(MAX_EMPH_MATCHES, item: 0)
-    public var open_num: UInt8 = 0   // 开标记匹配数
-    public var close_sizes: Array<UInt8> = Array<UInt8>(MAX_EMPH_MATCHES, item: 0)
+    public var open_sizes: Array<UInt8> = Array<UInt8>(MAX_EMPH_MATCHES, { _ => UInt8(0) })
+    public var open_num: UInt8 = 0   // open tag match count
+    public var close_sizes: Array<UInt8> = Array<UInt8>(MAX_EMPH_MATCHES, { _ => UInt8(0) })
     public var close_num: UInt8 = 0  // 闭标记匹配数
     public var active: Bool = true   // 匹配对之间停用时为 false
 
     public init() {}
 }
 
-// Align 辅助扩展
-public extension Align {
-    static func fromUInt8(v: UInt8): Align {
-        match (v) {
-            | 0 => Align.`default`
-            | 1 => Align.left
-            | 2 => Align.center
-            | 3 => Align.right
-            | _ => Align.`default`
-        }
+// Align 辅助函数
+public func alignFromUInt8(v: UInt8): Align {
+    match (v) {
+        case 0 => Align.`default`
+        case 1 => Align.left
+        case 2 => Align.center
+        case 3 => Align.right
+        case _ => Align.`default`
+    }
+}
+
+public func alignToUInt8(a: Align): UInt8 {
+    match (a) {
+        case Align.`default` => UInt8(0)
+        case Align.left => UInt8(1)
+        case Align.center => UInt8(2)
+        case Align.right => UInt8(3)
+        case Align.align_none => UInt8(0)
     }
 }

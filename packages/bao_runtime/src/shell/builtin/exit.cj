@@ -17,10 +17,10 @@ public class ExitCmd {
 
     /// 状态类型
     public enum ExitState {
-        case idle
-        case waitingIO
-        case err
-        case done
+| idle
+| waitingIO
+| err
+| done
     }
 
     /// 启动

@@ -1,12 +1,13 @@
-// 严格翻译自: src/md/html_renderer.zig
-// HTML 渲染器 — 将 Markdown 转换为 HTML
+// HTML renderer - translates Markdown to HTML
+// Translated from: src/md/html_renderer.zig
 package bao_md
 
+import std.collection.*
+
 // ============================================================================
-// HTML 渲染器
+// HTML Renderer
 // ============================================================================
 
-/// HTML 渲染器
 public class HtmlRenderer {
     public var out: StringBuilder = StringBuilder()
     public var src_text: String = ""
@@ -16,7 +17,7 @@ public class HtmlRenderer {
     public var tag_filter_raw_depth: UInt32 = 0
     public var autolink_headings: Bool = false
     public var heading_buf: StringBuilder = StringBuilder()
-    public var heading_tracker: HeadingIdTracker = HeadingIdTracker()
+    public var heading_tracker: HeadingIdTracker = HeadingIdTracker(false)
     public var in_heading: Bool = false
     public var oom: Bool = false
 
@@ -29,14 +30,12 @@ public class HtmlRenderer {
         this.heading_tracker = HeadingIdTracker(renderOpts.heading_ids)
     }
 
-    /// 获取渲染器接口
     public func renderer(): Renderer {
         let rend = Renderer()
         rend.html_renderer = this
         return rend
     }
 
-    /// 获取最终字符串
     public func toOwnedString(): String {
         if (oom) {
             return ""
@@ -45,22 +44,20 @@ public class HtmlRenderer {
     }
 
     // ========================================
-    // 块级渲染
+    // Block rendering
     // ========================================
 
-    /// 进入块
     public func enterBlock(blockType: BlockType, data: UInt32, flags: UInt32): Unit {
         match (blockType) {
+            case BlockType.block_none => ()
             case BlockType.doc => ()
-            case BlockType.`quote` => {
+            case BlockType.`quote` =>
                 ensureNewline()
                 write("<blockquote>\n")
-            }
-            case BlockType.ul => {
+            case BlockType.ul =>
                 ensureNewline()
                 write("<ul>\n")
-            }
-            case BlockType.ol => {
+            case BlockType.ol =>
                 ensureNewline()
                 if (data == 1) {
                     write("<ol>\n")
@@ -69,8 +66,7 @@ public class HtmlRenderer {
                     writeDecimal(data)
                     write("\">\n")
                 }
-            }
-            case BlockType.li => {
+            case BlockType.li =>
                 let taskMark = taskMarkFromData(data)
                 if (taskMark != 0) {
                     write("<li class=\"task-list-item\">")
@@ -82,12 +78,10 @@ public class HtmlRenderer {
                 } else {
                     write("<li>")
                 }
-            }
-            case BlockType.hr => {
+            case BlockType.hr =>
                 ensureNewline()
                 write("<hr />\n")
-            }
-            case BlockType.h => {
+            case BlockType.h =>
                 ensureNewline()
                 if (heading_tracker.enabled) {
                     heading_tracker.enterHeading()
@@ -103,107 +97,110 @@ public class HtmlRenderer {
                     }
                     write(tag)
                 }
-            }
-            case BlockType.code => {
+            case BlockType.code =>
                 ensureNewline()
                 write("<pre><code")
                 if ((flags & BLOCK_FENCED_CODE) != 0) {
-                    let infoBeg = data
-                    // 找到语言标记的结束位置（信息字符串的第一个单词）
+                    let infoBeg = Int64(data)
                     var langEnd: Int64 = infoBeg
-                    while (langEnd < src_text.size && !isBlank(UInt8(src_text[Int64(langEnd)])) && !isNewline(UInt8(src_text[Int64(langEnd)]))) {
+                    while (langEnd < src_text.size && !isBlank(UInt8(src_text[langEnd])) && !isNewline(UInt8(src_text[langEnd]))) {
                         langEnd += 1
                     }
                     if (langEnd > infoBeg) {
                         write(" class=\"language-")
-                        writeWithEntityDecoding(src_text.substring(infoBeg, langEnd))
+                        writeWithEntityDecoding(src_text[infoBeg..langEnd])
                         write("\"")
                     }
                 }
                 write(">")
-            }
             case BlockType.html => ensureNewline()
-            case BlockType.p => {
+            case BlockType.p =>
                 ensureNewline()
                 write("<p>")
-            }
-            case BlockType.table => {
+            case BlockType.table =>
                 ensureNewline()
                 write("<table>\n")
-            }
             case BlockType.thead => write("<thead>\n")
             case BlockType.tbody => write("<tbody>\n")
             case BlockType.tr => write("<tr>")
-            case BlockType.th => {
+            case BlockType.th =>
                 write("<th")
                 let alignName = alignmentName(alignmentFromData(data))
-                if (alignName != None) {
+                if (let Some(an) <- alignName) {
                     write(" align=\"")
-                    write(alignName.get())
+                    write(an)
                     write("\"")
                 }
                 write(">")
-            }
-            case BlockType.td => {
+            case BlockType.td =>
                 write("<td")
-                let alignName = alignmentName(alignmentFromData(data))
-                if (alignName != None) {
+                let alignName2 = alignmentName(alignmentFromData(data))
+                if (let Some(an2) <- alignName2) {
                     write(" align=\"")
-                    write(alignName.get())
+                    write(an2)
                     write("\"")
                 }
                 write(">")
-            }
         }
     }
 
-    /// 离开块
     public func leaveBlock(blockType: BlockType, data: UInt32): Unit {
         match (blockType) {
+            case BlockType.block_none => ()
             case BlockType.doc => ()
             case BlockType.`quote` => write("</blockquote>\n")
             case BlockType.ul => write("</ul>\n")
             case BlockType.ol => write("</ol>\n")
             case BlockType.li => write("</li>\n")
             case BlockType.hr => ()
-            case BlockType.h => {
+            case BlockType.h =>
                 if (heading_tracker.enabled && in_heading) {
-                    let slug = heading_tracker.leaveHeading()
-                    if (slug.size > 0) {
-                        // 写入带 id 的开始标签
-                        let openTag = match (data) {
-                            case 1 => "<h1"
-                            case 2 => "<h2"
-                            case 3 => "<h3"
-                            case 4 => "<h4"
-                            case 5 => "<h5"
-                            case _ => "<h6"
+                    let slugOpt = heading_tracker.leaveHeading()
+                    if (let Some(slug) <- slugOpt) {
+                        if (slug.size > 0) {
+                            let openTag = match (data) {
+                                case 1 => "<h1"
+                                case 2 => "<h2"
+                                case 3 => "<h3"
+                                case 4 => "<h4"
+                                case 5 => "<h5"
+                                case _ => "<h6"
+                            }
+                            out.append(openTag)
+                            out.append(" id=\"")
+                            out.append(slug)
+                            out.append("\">")
+                            if (autolink_headings) {
+                                out.append("<a href=\"#")
+                                out.append(slug)
+                                out.append("\">")
+                            }
+                            out.append(heading_buf.toString())
+                            if (autolink_headings) {
+                                out.append("</a>")
+                            }
+                            let closeTag = match (data) {
+                                case 1 => "</h1>\n"
+                                case 2 => "</h2>\n"
+                                case 3 => "</h3>\n"
+                                case 4 => "</h4>\n"
+                                case 5 => "</h5>\n"
+                                case _ => "</h6>\n"
+                            }
+                            out.append(closeTag)
+                            heading_buf = StringBuilder()
+                            heading_tracker.clearAfterHeading()
+                        } else {
+                            let tag = match (data) {
+                                case 1 => "</h1>\n"
+                                case 2 => "</h2>\n"
+                                case 3 => "</h3>\n"
+                                case 4 => "</h4>\n"
+                                case 5 => "</h5>\n"
+                                case _ => "</h6>\n"
+                            }
+                            write(tag)
                         }
-                        out.write(openTag)
-                        out.write(" id=\"")
-                        out.write(slug)
-                        out.write("\">")
-                        if (autolink_headings) {
-                            out.write("<a href=\"#")
-                            out.write(slug)
-                            out.write("\">")
-                        }
-                        // 刷新缓冲的标题内容
-                        out.write(heading_buf.toString())
-                        if (autolink_headings) {
-                            out.write("</a>")
-                        }
-                        let closeTag = match (data) {
-                            case 1 => "</h1>\n"
-                            case 2 => "</h2>\n"
-                            case 3 => "</h3>\n"
-                            case 4 => "</h4>\n"
-                            case 5 => "</h5>\n"
-                            case _ => "</h6>\n"
-                        }
-                        out.write(closeTag)
-                        heading_buf = StringBuilder()
-                        heading_tracker.clearAfterHeading()
                     } else {
                         let tag = match (data) {
                             case 1 => "</h1>\n"
@@ -227,7 +224,6 @@ public class HtmlRenderer {
                     write(tag)
                 }
                 in_heading = false
-            }
             case BlockType.code => write("</code></pre>\n")
             case BlockType.html => ()
             case BlockType.p => write("</p>\n")
@@ -241,30 +237,30 @@ public class HtmlRenderer {
     }
 
     // ========================================
-    // 行内渲染
+    // Inline rendering
     // ========================================
 
-    /// 进入行内元素
     public func enterSpan(spanType: SpanType, detail: SpanDetail): Unit {
         if (image_nesting_level > 0) {
-            if (spanType == SpanType.img) {
-                image_nesting_level += 1
+            match (spanType) {
+                case SpanType.img =>
+                    image_nesting_level += 1
+                case _ => ()
             }
             return
         }
 
         match (spanType) {
+            case SpanType.span_none => ()
             case SpanType.em => write("<em>")
             case SpanType.strong => write("<strong>")
             case SpanType.u => write("<u>")
             case SpanType.code => write("<code>")
             case SpanType.del => write("<del>")
             case SpanType.latexmath => write("<x-equation>")
-            case SpanType.latexmath_display => write("<x-equation type=\"display\">")
-            case SpanType.a => {
+            case SpanType.a =>
                 write("<a href=\"")
                 if (detail.permissive_autolink) {
-                    // 宽松自动链接使用 HTML 转义
                     if (detail.autolink_email) {
                         write("mailto:")
                     }
@@ -273,13 +269,11 @@ public class HtmlRenderer {
                     }
                     writeHtmlEscaped(detail.href)
                 } else if (detail.autolink) {
-                    // 标准自动链接: 仅百分号编码
                     if (detail.autolink_email) {
                         write("mailto:")
                     }
                     writeUrlEscaped(detail.href)
                 } else {
-                    // 普通链接: 完整实体/转义处理
                     if (detail.autolink_email) {
                         write("mailto:")
                     }
@@ -292,42 +286,43 @@ public class HtmlRenderer {
                     write("\"")
                 }
                 write(">")
-            }
-            case SpanType.img => {
+            case SpanType.img =>
                 saved_img_title = detail.title
                 write("<img src=\"")
                 writeUrlWithEscapes(detail.href)
                 write("\" alt=\"")
                 image_nesting_level += 1
-            }
-            case SpanType.wikilink => {
+            case SpanType.wikilink =>
                 write("<x-wikilink data-target=\"")
                 writeHtmlEscaped(detail.href)
                 write("\">")
-            }
+            case SpanType.`default` => ()
+            case SpanType.html => ()
         }
     }
 
-    /// 离开行内元素
     public func leaveSpan(spanType: SpanType): Unit {
         if (image_nesting_level > 0) {
-            if (spanType == SpanType.img) {
-                image_nesting_level -= 1
-                if (image_nesting_level == 0) {
-                    write("\"")
-                    if (saved_img_title.size > 0) {
-                        write(" title=\"")
-                        writeTitleWithEscapes(saved_img_title)
+            match (spanType) {
+                case SpanType.img =>
+                    image_nesting_level -= 1
+                    if (image_nesting_level == 0) {
                         write("\"")
+                        if (saved_img_title.size > 0) {
+                            write(" title=\"")
+                            writeTitleWithEscapes(saved_img_title)
+                            write("\"")
+                        }
+                        write(" />")
+                        saved_img_title = ""
                     }
-                    write(" />")
-                    saved_img_title = ""
-                }
+                case _ => ()
             }
             return
         }
 
         match (spanType) {
+            case SpanType.span_none => ()
             case SpanType.em => write("</em>")
             case SpanType.strong => write("</strong>")
             case SpanType.u => write("</u>")
@@ -335,80 +330,59 @@ public class HtmlRenderer {
             case SpanType.code => write("</code>")
             case SpanType.del => write("</del>")
             case SpanType.latexmath => write("</x-equation>")
-            case SpanType.latexmath_display => write("</x-equation>")
             case SpanType.wikilink => write("</x-wikilink>")
-            case SpanType.img => () // 在上方处理
+            case SpanType.img => ()
+            case SpanType.`default` => ()
+            case SpanType.html => ()
         }
     }
 
     // ========================================
-    // 文本渲染
+    // Text rendering
     // ========================================
 
-    /// 渲染文本
     public func text(textType: TextType, content: String): Unit {
         let inImage = image_nesting_level > 0
 
-        // 为 slug 生成跟踪纯文本
         heading_tracker.trackText(textType, content)
 
         match (textType) {
-            case TextType.null_char => write("\u{EF}\u{BF}\u{BD}")
-            case TextType.br => {
-                if (inImage) {
-                    write(" ")
-                } else {
-                    write("<br />\n")
-                }
-            }
-            case TextType.softbr => {
-                if (inImage) {
-                    write(" ")
-                } else {
-                    write("\n")
-                }
-            }
-            case TextType.html => {
+            case TextType.text_none => write("")
+            case TextType.html =>
                 if (tag_filter) {
                     updateTagFilterRawDepth(content)
                     writeHtmlWithTagFilter(content)
                 } else {
                     write(content)
                 }
-            }
             case TextType.entity => writeEntity(content)
-            case TextType.code => {
-                // 在代码跨度中，换行符变成空格
+            case TextType.code =>
                 var start: Int64 = 0
                 for (j in 0..content.size) {
-                    if (content[j] == '\n') {
+                    if (UInt8(content[j]) == UInt8(0x0A)) {
                         if (j > start) {
-                            writeHtmlEscaped(content.substring(start, j))
+                            writeHtmlEscaped(content[start..j])
                         }
                         write(" ")
                         start = j + 1
                     }
                 }
                 if (start < content.size) {
-                    writeHtmlEscaped(content.substring(start))
+                    writeHtmlEscaped(content[start..])
                 }
-            }
-            case _ => {
-                // 在标签过滤的禁用标签内，以原始文本发出
+            case _ =>
                 if (tag_filter && tag_filter_raw_depth > 0) {
                     write(content)
                 } else {
                     writeHtmlEscaped(content)
                 }
-            }
         }
     }
 
     // ========================================
-    // HTML 写入工具
+    // HTML write utilities
     // ========================================
 
-    /// 写入数据（考虑标题缓冲）
     public func write(data: String): Unit {
         if (in_heading) {
             heading_buf.append(data)
@@ -417,95 +391,88 @@ public class HtmlRenderer {
         }
     }
 
-    /// 确保换行
     func ensureNewline(): Unit {
         if (in_heading) {
-            if (heading_buf.size > 0 && heading_buf.toString()[heading_buf.size - 1] != '\n') {
+            if (heading_buf.size > 0 && UInt8(heading_buf.toString()[heading_buf.size - 1]) != UInt8(0x0A)) {
                 heading_buf.append('\n')
             }
         } else {
             let s = out.toString()
-            if (s.size > 0 && s[s.size - 1] != '\n') {
+            if (s.size > 0 && UInt8(s[s.size - 1]) != UInt8(0x0A)) {
                 out.append('\n')
             }
         }
     }
 
-    /// HTML 转义写入
     public func writeHtmlEscaped(txt: String): Unit {
         var i: Int64 = 0
         while (i < txt.size) {
-            let c = txt[i]
-            match (c) {
-                case '&' => write("&amp;")
-                case '<' => write("&lt;")
-                case '>' => write("&gt;")
-                case '"' => write("&quot;")
-                case _ => {
-                    // 直接写入
-                    let start = i
-                    while (i < txt.size && txt[i] != '&' && txt[i] != '<' && txt[i] != '>' && txt[i] != '"') {
-                        i += 1
+            let b = UInt8(txt[i])
+            if (b == UInt8(0x26)) {
+                write("&amp;")
+                i += 1
+            } else if (b == UInt8(0x3C)) {
+                write("&lt;")
+                i += 1
+            } else if (b == UInt8(0x3E)) {
+                write("&gt;")
+                i += 1
+            } else if (b == UInt8(0x22)) {
+                write("&quot;")
+                i += 1
+            } else {
+                let start = i
+                while (i < txt.size) {
+                    let cb = UInt8(txt[i])
+                    if (cb == UInt8(0x26) || cb == UInt8(0x3C) || cb == UInt8(0x3E) || cb == UInt8(0x22)) {
+                        break
                     }
-                    if (i > start) {
-                        write(txt.substring(start, i))
-                    }
-                    continue
+                    i += 1
+                }
+                if (i > start) {
+                    write(txt[start..i])
                 }
             }
-            i += 1
         }
     }
 
-    /// URL 转义写入
     func writeUrlEscaped(txt: String): Unit {
         for (i in 0..txt.size) {
             writeUrlByte(UInt8(txt[i]))
         }
     }
 
-    /// URL 字节写入
     func writeUrlByte(byte: UInt8): Unit {
-        match (byte) {
-            case '&'.toUInt8() => write("&amp;")
-            case '\''.toUInt8() => write("&#x27;")
-            case 'A'.toUInt8(), 'B'.toUInt8(), 'C'.toUInt8(), 'D'.toUInt8(), 'E'.toUInt8(), 'F'.toUInt8(),
-                 'G'.toUInt8(), 'H'.toUInt8(), 'I'.toUInt8(), 'J'.toUInt8(), 'K'.toUInt8(), 'L'.toUInt8(),
-                 'M'.toUInt8(), 'N'.toUInt8(), 'O'.toUInt8(), 'P'.toUInt8(), 'Q'.toUInt8(), 'R'.toUInt8(),
-                 'S'.toUInt8(), 'T'.toUInt8(), 'U'.toUInt8(), 'V'.toUInt8(), 'W'.toUInt8(), 'X'.toUInt8(),
-                 'Y'.toUInt8(), 'Z'.toUInt8() => write(String.fromUInt8(byte))
-            case 'a'.toUInt8(), 'b'.toUInt8(), 'c'.toUInt8(), 'd'.toUInt8(), 'e'.toUInt8(), 'f'.toUInt8(),
-                 'g'.toUInt8(), 'h'.toUInt8(), 'i'.toUInt8(), 'j'.toUInt8(), 'k'.toUInt8(), 'l'.toUInt8(),
-                 'm'.toUInt8(), 'n'.toUInt8(), 'o'.toUInt8(), 'p'.toUInt8(), 'q'.toUInt8(), 'r'.toUInt8(),
-                 's'.toUInt8(), 't'.toUInt8(), 'u'.toUInt8(), 'v'.toUInt8(), 'w'.toUInt8(), 'x'.toUInt8(),
-                 'y'.toUInt8(), 'z'.toUInt8() => write(String.fromUInt8(byte))
-            case '0'.toUInt8(), '1'.toUInt8(), '2'.toUInt8(), '3'.toUInt8(), '4'.toUInt8(),
-                 '5'.toUInt8(), '6'.toUInt8(), '7'.toUInt8(), '8'.toUInt8(), '9'.toUInt8() => write(String.fromUInt8(byte))
-            case '-'.toUInt8(), '.'.toUInt8(), '_'.toUInt8(), '~'.toUInt8(),
-                 ':'.toUInt8(), '/'.toUInt8(), '?'.toUInt8(), '#'.toUInt8(), '@'.toUInt8(),
-                 '!'.toUInt8(), '$'.toUInt8(), '('.toUInt8(), ')'.toUInt8(), '*'.toUInt8(),
-                 '+'.toUInt8(), ','.toUInt8(), ';'.toUInt8(), '='.toUInt8(), '%'.toUInt8() => write(String.fromUInt8(byte))
-            case _ => {
-                // 百分号编码
-                write("%")
-                write(String.fromUInt8(hexDigit(UInt8(byte >> 4))))
-                write(String.fromUInt8(hexDigit(byte & 0x0F)))
-            }
+        if (byte == UInt8(0x26)) {
+            write("&amp;")
+        } else if (byte == UInt8(0x27)) {
+            write("&#x27;")
+        } else if ((byte >= UInt8(0x41) && byte <= UInt8(0x5A)) ||
+                   (byte >= UInt8(0x61) && byte <= UInt8(0x7A)) ||
+                   (byte >= UInt8(0x30) && byte <= UInt8(0x39))) {
+            write(byteToString(byte))
+        } else if (byte == UInt8(0x2D) || byte == UInt8(0x2E) || byte == UInt8(0x5F) || byte == UInt8(0x7E) ||
+                   byte == UInt8(0x3A) || byte == UInt8(0x2F) || byte == UInt8(0x3F) || byte == UInt8(0x23) || byte == UInt8(0x40) ||
+                   byte == UInt8(0x21) || byte == UInt8(0x24) || byte == UInt8(0x28) || byte == UInt8(0x29) || byte == UInt8(0x2A) ||
+                   byte == UInt8(0x2B) || byte == UInt8(0x2C) || byte == UInt8(0x3B) || byte == UInt8(0x3D) || byte == UInt8(0x25)) {
+            write(byteToString(byte))
+        } else {
+            write("%")
+            write(byteToString(hexDigit(UInt8(byte >> 4))))
+            write(byteToString(hexDigit(byte & UInt8(0x0F))))
         }
     }
 
-    /// URL 带转义写入
     func writeUrlWithEscapes(txt: String): Unit {
         var i: Int64 = 0
         while (i < txt.size) {
-            if (txt[i] == '\\' && i + 1 < txt.size && isAsciiPunctuation(UInt8(txt[i + 1]))) {
+            if (UInt8(txt[i]) == UInt8(0x5C) && i + 1 < txt.size && isAsciiPunctuation(UInt8(txt[i + 1]))) {
                 writeUrlByte(UInt8(txt[i + 1]))
                 i += 2
-            } else if (txt[i] == '&') {
-                let endPos = findEntity(txt, i)
-                if (endPos != None) {
-                    writeEntityToUrl(txt.substring(i, endPos.get()))
-                    i = endPos.get()
+            } else if (UInt8(txt[i]) == UInt8(0x26)) {
+                if (let Some(endPos) <- findEntity(txt, i)) {
+                    writeEntityToUrl(txt[i..endPos])
+                    i = endPos
                 } else {
                     write("&amp;")
                     i += 1
@@ -517,179 +484,176 @@ public class HtmlRenderer {
         }
     }
 
-    /// 标题带转义写入
     func writeTitleWithEscapes(txt: String): Unit {
         var i: Int64 = 0
         while (i < txt.size) {
-            if (txt[i] == '\\' && i + 1 < txt.size && isAsciiPunctuation(UInt8(txt[i + 1]))) {
-                writeHtmlEscaped(txt.substring(i + 1, i + 2))
+            if (UInt8(txt[i]) == UInt8(0x5C) && i + 1 < txt.size && isAsciiPunctuation(UInt8(txt[i + 1]))) {
+                writeHtmlEscaped(txt[i + 1..i + 2])
                 i += 2
-            } else if (txt[i] == '&') {
-                let endPos = findEntity(txt, i)
-                if (endPos != None) {
-                    writeEntity(txt.substring(i, endPos.get()))
-                    i = endPos.get()
+            } else if (UInt8(txt[i]) == UInt8(0x26)) {
+                if (let Some(endPos) <- findEntity(txt, i)) {
+                    writeEntity(txt[i..endPos])
+                    i = endPos
                 } else {
                     write("&amp;")
                     i += 1
                 }
             } else {
-                writeHtmlEscaped(txt.substring(i, i + 1))
+                writeHtmlEscaped(txt[i..i + 1])
                 i += 1
             }
         }
     }
 
-    /// 带实体解码的写入
     func writeWithEntityDecoding(txt: String): Unit {
         var i: Int64 = 0
         while (i < txt.size) {
-            if (txt[i] == '&') {
-                let endPos = findEntity(txt, i)
-                if (endPos != None) {
-                    writeEntity(txt.substring(i, endPos.get()))
-                    i = endPos.get()
+            if (UInt8(txt[i]) == UInt8(0x26)) {
+                if (let Some(endPos) <- findEntity(txt, i)) {
+                    writeEntity(txt[i..endPos])
+                    i = endPos
                     continue
                 }
-            } else if (txt[i] == '\\' && i + 1 < txt.size && isAsciiPunctuation(UInt8(txt[i + 1]))) {
-                writeHtmlEscaped(txt.substring(i + 1, i + 2))
+            } else if (UInt8(txt[i]) == UInt8(0x5C) && i + 1 < txt.size && isAsciiPunctuation(UInt8(txt[i + 1]))) {
+                writeHtmlEscaped(txt[i + 1..i + 2])
                 i += 2
                 continue
             }
-            writeHtmlEscaped(txt.substring(i, i + 1))
+            writeHtmlEscaped(txt[i..i + 1])
             i += 1
         }
     }
 
-    /// 写入实体
     func writeEntity(entityText: String): Unit {
-        let decoded = decodeEntityToUtf8(entityText)
-        if (decoded.size > 0) {
-            writeHtmlEscaped(decoded)
+        if (let Some(decoded) <- decodeEntityToUtf8(entityText)) {
+            if (decoded.size > 0) {
+                writeHtmlEscaped(decoded)
+            } else {
+                write(entityText)
+            }
         } else {
             write(entityText)
         }
     }
 
-    /// 将实体解码为 URL 字节
     func writeEntityToUrl(entityText: String): Unit {
-        let decoded = decodeEntityToUtf8(entityText)
-        if (decoded.size > 0) {
-            for (i in 0..decoded.size) {
-                writeUrlByte(UInt8(decoded[i]))
+        if (let Some(decoded) <- decodeEntityToUtf8(entityText)) {
+            if (decoded.size > 0) {
+                for (i in 0..decoded.size) {
+                    writeUrlByte(UInt8(decoded[i]))
+                }
+            } else {
+                writeUrlEscaped(entityText)
             }
         } else {
             writeUrlEscaped(entityText)
         }
     }
 
-    /// 写入十进制数
     func writeDecimal(value: UInt32): Unit {
         if (value == 0) {
             write("0")
             return
         }
         var v = value
-        var buf: Array<UInt8> = []
+        var buf = ArrayList<UInt8>()
         while (v > 0) {
-            buf.append(UInt8('0'.toInt()) + UInt8(v % 10))
-            v /= 10
+            buf.add(UInt8(0x30) + UInt8(v % UInt32(10)))
+            v /= UInt32(10)
         }
-        // 反向写入
         var i = buf.size - 1
         while (i >= 0) {
-            write(String.fromUInt8(buf[Int64(i)]))
+            write(byteToString(buf[Int64(i)]))
             i -= 1
         }
     }
 
     // ========================================
-    // 标签过滤
+    // Tag filtering
     // ========================================
 
-    /// 更新标签过滤原始区域深度
     func updateTagFilterRawDepth(content: String): Unit {
-        if (content.size < 2 || content[0] != '<') {
+        if (content.size < 2 || UInt8(content[0]) != UInt8(0x3C)) {
             return
         }
-        if (content[1] == '/') {
-            // 关闭标签
+        if (UInt8(content[1]) == UInt8(0x2F)) {
             if (isDisallowedTag(content) && tag_filter_raw_depth > 0) {
                 tag_filter_raw_depth -= 1
             }
         } else {
-            // 打开标签（非自关闭）
             if (isDisallowedTag(content)) {
-                if (content.size < 2 || !(content[content.size - 2] == '/' && content[content.size - 1] == '>')) {
+                if (content.size >= 2 && !(UInt8(content[content.size - 2]) == UInt8(0x2F) && UInt8(content[content.size - 1]) == UInt8(0x3E))) {
                     tag_filter_raw_depth += 1
                 }
             }
         }
     }
 
-    /// 带标签过滤的 HTML 写入
     func writeHtmlWithTagFilter(content: String): Unit {
         var start: Int64 = 0
         var i: Int64 = 0
         while (i < content.size) {
-            if (content[i] == '<' && isDisallowedTag(content.substring(i))) {
+            if (UInt8(content[i]) == UInt8(0x3C) && isDisallowedTag(content[i..])) {
                 if (i > start) {
-                    write(content.substring(start, i))
+                    write(content[start..i])
                 }
                 write("&lt;")
                 start = i + 1
             }
             i += 1
         }
-        if (start < content.size) {
-            write(content.substring(start))
+        if (Int64(start) < content.size) {
+            write(content[start..])
         }
     }
 
-    /// 检查是否为禁用标签
     func isDisallowedTag(content: String): Bool {
-        if (content.size < 2 || content[0] != '<') {
+        if (content.size < 2 || UInt8(content[0]) != UInt8(0x3C)) {
             return false
         }
-        let afterLt: Int64 = if (content[1] == '/') { 2 } else { 1 }
+        let afterLt: Int64 = if (UInt8(content[1]) == UInt8(0x2F)) { 2 } else { 1 }
         if (afterLt >= content.size) {
             return false
         }
 
-        let disallowed: Array<String> = [
-            "title", "textarea", "style", "xmp", "iframe",
-            "noembed", "noframes", "script", "plaintext"
-        ]
-        for (tag in disallowed) {
-            if (matchTagNameCI(content, afterLt, tag)) {
+        let disallowed = ArrayList<String>()
+        disallowed.add("title")
+        disallowed.add("textarea")
+        disallowed.add("style")
+        disallowed.add("xmp")
+        disallowed.add("iframe")
+        disallowed.add("noembed")
+        disallowed.add("noframes")
+        disallowed.add("script")
+        disallowed.add("plaintext")
+        for (j in 0..disallowed.size) {
+            if (matchTagNameCI(content, afterLt, disallowed[j])) {
                 return true
             }
         }
         return false
     }
 
-    /// 大小写不敏感的标签名匹配
     func matchTagNameCI(content: String, pos: Int64, tag: String): Bool {
         if (pos + tag.size > content.size) {
             return false
         }
-        if (!asciiCaseEql(content.substring(pos, pos + tag.size), tag)) {
+        if (!asciiCaseEql(content[pos..pos + tag.size], tag)) {
             return false
         }
         let end = pos + tag.size
         if (end >= content.size) {
             return true
         }
-        let c = content[end]
-        return c == '>' || c == ' ' || c == '\t' || c == '\n' || c == '/'
+        let c = UInt8(content[end])
+        return c == UInt8(0x3E) || c == UInt8(0x20) || c == UInt8(0x09) || c == UInt8(0x0A) || c == UInt8(0x2F)
     }
 
     // ========================================
-    // 静态辅助
+    // Static helpers
     // ========================================
 
-    /// 十六进制数字
     func hexDigit(v: UInt8): UInt8 {
-        return if (v < 10) { UInt8('0'.toInt()) + v } else { UInt8('A'.toInt()) + v - 10 }
+        return if (v < UInt8(10)) { UInt8(0x30) + v } else { UInt8(0x41) + v - UInt8(10) }
     }
 }

@@ -106,11 +106,11 @@ public class Options {
 
     /// 转换为渲染选项
     public func toRenderOptions(): RenderOptions {
-        return RenderOptions(
-            tag_filter: tag_filter,
-            heading_ids: heading_ids,
-            autolink_headings: autolink_headings
-        )
+        let ro = RenderOptions()
+        ro.tag_filter = tag_filter
+        ro.heading_ids = heading_ids
+        ro.autolink_headings = autolink_headings
+        return ro
     }
 }
 

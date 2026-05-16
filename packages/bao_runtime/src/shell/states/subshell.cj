@@ -5,10 +5,46 @@
 package bao_runtime.shell.states
 
 import bao_core.*
+import std.collection.*
 
 // ============================================================================
 // 子Shell状态
 // ============================================================================
+
+/// 子Shell状态类型（提取到顶层）
+public enum SubshellStateKind {
+| `idle`
+| expandingRedirect(idx: UInt32, expansion: ExpansionState)
+| `exec`
+| waitWriteErr
+| done
+}
+
+/// 子Shell父节点指针（提取到顶层）
+public class SubshellParentPtr {
+    public var ptr: Any
+    public static func initFunc(p: Any): SubshellParentPtr {
+        let pp = SubshellParentPtr()
+        pp.ptr = p
+        return pp
+    }
+    public func childDone(child: Any, exitCode: ExitCode): Yield { Yield.done }
+    public func create<T>(): T { T() }
+    public func destroy<T>(ptr: T) {}
+}
+
+/// 子Shell子节点指针（提取到顶层）
+public class SubshellChildPtr {
+    public var ptr: Any
+    public static func initFunc(p: Any): SubshellChildPtr {
+        let cp = SubshellChildPtr()
+        cp.ptr = p
+        return cp
+    }
+    public func is(type: Any): Boolean { true }
+    public func `as`<T>(): T { this.ptr as T }
+    public func deinit() {}
+}
 
 /// 子Shell状态
 public class SubshellState {
@@ -17,7 +53,7 @@ public class SubshellState {
     /// AST节点
     public var node: SubshellAst
     /// 父节点
-    public var parent: ParentPtr
+    public var parent: SubshellParentPtr
     /// IO
     public var io: IO
     /// 状态
@@ -27,47 +63,12 @@ public class SubshellState {
     /// 退出码
     public var exitCode: ExitCode = 0
 
-    /// 子Shell状态类型
-    public enum SubshellStateKind {
-        case idle
-        case expandingRedirect(idx: UInt32, expansion: ExpansionState)
-        case exec
-        case waitWriteErr
-        case done
-    }
-
-    /// 父节点指针
-    public class ParentPtr {
-        public var ptr: Any
-        public static func initFunc(p: Any): ParentPtr {
-            let pp = ParentPtr()
-            pp.ptr = p
-            return pp
-        }
-        public func childDone(child: Any, exitCode: ExitCode): Yield { Yield.done }
-        public func create<T>(): T { T() }
-        public func destroy<T>(ptr: T) {}
-    }
-
-    /// 子节点指针
-    public class ChildPtr {
-        public var ptr: Any
-        public static func initFunc(p: Any): ChildPtr {
-            let cp = ChildPtr()
-            cp.ptr = p
-            return cp
-        }
-        public func is(type: Any): Boolean { true }
-        public func `as`<T>(): T { this.ptr as T }
-        public func deinit() {}
-    }
-
     /// 初始化
     public static func initFunc(
         interpreter: Interpreter,
         shellState: ShellExecEnv,
         node: SubshellAst,
-        parent: ParentPtr,
+        parent: SubshellParentPtr,
         io: IO
     ): SubshellState {
         let subshell = SubshellState()
@@ -76,7 +77,7 @@ public class SubshellState {
         subshell.parent = parent
         subshell.io = io
         subshell.redirectionFile = ArrayList<Byte>()
-        subshell.state = SubshellStateKind.idle
+        subshell.state = SubshellStateKind.`idle`
         return subshell
     }
 
@@ -85,7 +86,7 @@ public class SubshellState {
         interpreter: Interpreter,
         shellState: ShellExecEnv,
         node: SubshellAst,
-        parent: ParentPtr,
+        parent: SubshellParentPtr,
         io: IO
     ): SubshellState {
         let subshell = SubshellState()
@@ -94,18 +95,18 @@ public class SubshellState {
         subshell.parent = parent
         subshell.io = io
         subshell.redirectionFile = ArrayList<Byte>()
-        subshell.state = SubshellStateKind.idle
+        subshell.state = SubshellStateKind.`idle`
         // 复制shell执行环境
         return subshell
     }
 
     /// 启动
     public func start(): Yield {
-        let script = ScriptState.init(
+        let script = ScriptState.initFunc(
             interpreter: this.base.interpreter,
             shellState: this.base.shell,
             node: this.node.script,
-            parent: ScriptState.ParentPtr.init(this),
+            parent: ScriptParentPtr.initFunc(this),
             io: this.io.copy()
         )
         return script.start()
@@ -113,19 +114,19 @@ public class SubshellState {
 
     /// 下一步
     public func next(): Yield {
-        while (this.state != .done) {
+        while (this.state != SubshellStateKind.done) {
             switch (this.state) {
-                case .idle =>
+                case SubshellStateKind.`idle` =>
                     this.state = SubshellStateKind.expandingRedirect(idx: 0, expansion: ExpansionState())
                     return Yield.subshell(this)
-                case .expandingRedirect(let idx, let expansion) =>
+                case SubshellStateKind.expandingRedirect(let idx, let expansion) =>
                     if (idx >= 1) {
                         return this.transitionToExec()
                     }
                     return this.transitionToExec()
-                case .waitWriteErr, .exec =>
+                case SubshellStateKind.waitWriteErr | SubshellStateKind.`exec` =>
                     return Yield.suspended
-                case .done =>
+                case SubshellStateKind.done =>
                     panic("不可达状态")
             }
         }
@@ -134,19 +135,19 @@ public class SubshellState {
 
     /// 转换到执行状态
     func transitionToExec(): Yield {
-        let script = ScriptState.init(
+        let script = ScriptState.initFunc(
             interpreter: this.base.interpreter,
             shellState: this.base.shell,
             node: this.node.script,
-            parent: ScriptState.ParentPtr.init(this),
+            parent: ScriptParentPtr.initFunc(this),
             io: this.io.copy()
         )
-        this.state = SubshellStateKind.exec
+        this.state = SubshellStateKind.`exec`
         return script.start()
     }
 
     /// 子节点完成
-    public func childDone(childPtr: ChildPtr, exitCode: ExitCode): Yield {
+    public func childDone(childPtr: SubshellChildPtr, exitCode: ExitCode): Yield {
         this.exitCode = exitCode
         if (childPtr.is(ScriptState())) {
             childPtr.deinit()
@@ -157,7 +158,7 @@ public class SubshellState {
 
     /// IO写入器数据块回调
     public func onIOWriterChunk(amount: UInt64, err: ?SystemError): Yield {
-        if (let e = err) {
+        if (let Some(e) <- err) {
             e.deref()
         }
         this.state = SubshellStateKind.done
@@ -174,6 +175,6 @@ public class SubshellState {
 
     /// 写入失败错误
     public func writeFailingError(fmt: String): Yield {
-        return this.base.shell.writeFailingErrorFmt(this, { _ in }, fmt, [])
+        return this.base.shell.writeFailingErrorFmt(this, { _ => Yield.done }, fmt, [])
     }
 }

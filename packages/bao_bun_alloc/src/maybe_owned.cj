@@ -55,7 +55,7 @@ public class MaybeOwnedAllocator {
     /// 销毁
     /// 对应 Zig: pub fn deinit(self: *Self) void
     public func deinit(): Unit {
-        if (let parentAlloc = this.parent) {
+        if (let Some(parentAlloc) <- this.parent) {
             // 释放父分配器资源
         }
     }
@@ -69,7 +69,7 @@ public class MaybeOwnedAllocator {
     /// 获取分配器
     /// 对应 Zig: pub fn allocator(self: Self) std.mem.Allocator
     public func allocator(): Allocator {
-        if (let parentAlloc = this.parent) {
+        if (let Some(parentAlloc) <- this.parent) {
             return parentAlloc
         }
         // 返回空分配器 (所有操作都会 panic)

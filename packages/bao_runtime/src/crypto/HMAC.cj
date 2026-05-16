@@ -15,26 +15,25 @@ import bao_core.*
 /// 对应 Bun: const HMAC = @This()
 ///
 /// ctx: BoringSSL.HMAC_CTX,
-/// algorithm: EVP.Algorithm,
+/// algorithm: EvpAlgorithm,
 public class HMAC {
     public var ctx: HmacCtx
-    public var algorithm: EVP.Algorithm
+    public var algorithm: EvpAlgorithm
 
-    public init(ctx: HmacCtx, algorithm: EVP.Algorithm) {
+    public init(ctx: HmacCtx, algorithm: EvpAlgorithm) {
         this.ctx = ctx
         this.algorithm = algorithm
     }
 
     /// 初始化 HMAC
     /// 对应 Bun: pub fn init(algorithm: EVP.Algorithm, key: []const u8) ?*HMAC
-    public static func initFunc(algorithm: EVP.Algorithm, key: Array<Byte>): ?HMAC {
-        // const md = algorithm.md() orelse return null;
+    public static func initFunc(algorithm: EvpAlgorithm, key: Array<Byte>): ?HMAC {
         let md = algorithm.md()
         match (md) {
             case None => return None
             case _ => ()
         }
-        let mdVal = md!!
+        let mdVal = md.getOrThrow()
 
         // var ctx: BoringSSL.HMAC_CTX = undefined;
         // BoringSSL.HMAC_CTX_init(&ctx);
@@ -90,8 +89,7 @@ public class HMAC {
     /// 获取 HMAC 最终结果
     /// 对应 Bun: pub fn final(this: *HMAC, out: []u8) []u8
     public func final(out: Array<Byte>): Array<Byte> {
-        // var outlen: c_uint = undefined;
-        var outLen = Array<UInt32>([0.toUInt32()])
+        var outLen = Array<UInt32>(1, repeat: UInt32(0))
 
         // _ = BoringSSL.HMAC_Final(&this.ctx, out.ptr, &outlen);
         BoringSSL.hmacFinal(this.ctx, out, outLen)

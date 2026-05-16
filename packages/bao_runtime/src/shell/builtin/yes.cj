@@ -12,6 +12,14 @@ import bao_core.*
 // ============================================================================
 
 /// yes命令
+public enum YesState {
+    | idle
+    | waitingWriteErr
+    | waitingIO
+    | err
+    | done
+}
+
 public class YesCmd {
     /// 状态
     public var state: YesState = YesState.idle
@@ -27,13 +35,7 @@ public class YesCmd {
     public var allocScope: AllocScope = AllocScope()
 
     /// 状态类型
-    public enum YesState {
-        case idle
-        case waitingWriteErr
-        case waitingIO
-        case err
-        case done
-    }
+
 
     /// 启动
     public func start(): Yield {

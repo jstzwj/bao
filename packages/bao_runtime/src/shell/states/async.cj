@@ -11,6 +11,38 @@ import bao_core.*
 // & 操作符，命令在后台执行
 // ============================================================================
 
+/// 异步状态类型（提取到顶层）
+public enum AsyncStateKind {
+| `idle`
+| `exec`(child: ?AsyncChildPtr)
+| done(ExitCode)
+}
+
+/// 异步父节点指针（提取到顶层）
+public class AsyncParentPtr {
+    public var ptr: Any
+    public static func initFunc(p: Any): AsyncParentPtr {
+        let pp = AsyncParentPtr()
+        pp.ptr = p
+        return pp
+    }
+    public func childDone(child: Any, exitCode: ExitCode): Yield { Yield.done }
+    public func create<T>(): T { T() }
+    public func destroy<T>(ptr: T) {}
+}
+
+/// 异步子节点指针（提取到顶层）
+public class AsyncChildPtr {
+    public var ptr: Any
+    public static func initFunc(p: Any): AsyncChildPtr {
+        let cp = AsyncChildPtr()
+        cp.ptr = p
+        return cp
+    }
+    public func start(): Yield { Yield.done }
+    public func deinit() {}
+}
+
 /// 异步命令状态
 public class AsyncState {
     /// 基类
@@ -18,7 +50,7 @@ public class AsyncState {
     /// AST节点
     public var node: Expr
     /// 父节点
-    public var parent: ParentPtr
+    public var parent: AsyncParentPtr
     /// IO
     public var io: IO
     /// 状态
@@ -28,44 +60,12 @@ public class AsyncState {
     /// 并发任务
     public var concurrentTask: EventLoopTask
 
-    /// 异步状态类型
-    public enum AsyncStateKind {
-        case idle
-        case exec(child: ?ChildPtr)
-        case done(ExitCode)
-    }
-
-    /// 父节点指针
-    public class ParentPtr {
-        public var ptr: Any
-        public static func initFunc(p: Any): ParentPtr {
-            let pp = ParentPtr()
-            pp.ptr = p
-            return pp
-        }
-        public func childDone(child: Any, exitCode: ExitCode): Yield { Yield.done }
-        public func create<T>(): T { T() }
-        public func destroy<T>(ptr: T) {}
-    }
-
-    /// 子节点指针
-    public class ChildPtr {
-        public var ptr: Any
-        public static func initFunc(p: Any): ChildPtr {
-            let cp = ChildPtr()
-            cp.ptr = p
-            return cp
-        }
-        public func start(): Yield { Yield.done }
-        public func deinit() {}
-    }
-
     /// 初始化
     public static func initFunc(
         interpreter: Interpreter,
         shellState: ShellExecEnv,
         node: Expr,
-        parent: ParentPtr,
+        parent: AsyncParentPtr,
         io: IO
     ): AsyncState {
         interpreter.asyncCommandsExecuting += 1
@@ -88,18 +88,18 @@ public class AsyncState {
     /// 下一步
     public func next(): Yield {
         switch (this.state) {
-            case .idle =>
-                this.state = AsyncStateKind.exec(child: None)
+            case AsyncStateKind.`idle` =>
+                this.state = AsyncStateKind.`exec`(child: None)
                 this.enqueueSelf()
                 return Yield.suspended
-            case .exec(let child) =>
-                if (let c = child) {
+            case AsyncStateKind.`exec`(let child) =>
+                if (let Some(c) <- child) {
                     return c.start()
                 }
                 // 创建子状态
                 this.enqueueSelf()
                 return Yield.suspended
-            case .done(let exitCode) =>
+            case AsyncStateKind.done(let exitCode) =>
                 this.base.interpreter.asyncCmdDone(this)
                 return Yield.done
         }
@@ -111,7 +111,7 @@ public class AsyncState {
     }
 
     /// 子节点完成
-    public func childDone(childPtr: ChildPtr, exitCode: ExitCode): Yield {
+    public func childDone(childPtr: AsyncChildPtr, exitCode: ExitCode): Yield {
         childPtr.deinit()
         this.state = AsyncStateKind.done(exitCode)
         this.enqueueSelf()

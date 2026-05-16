@@ -11,6 +11,32 @@ import bao_core.*
 // 处理 && 和 || 操作符
 // ============================================================================
 
+/// 二元父节点指针（提取到顶层）
+public class BinaryParentPtr {
+    public var ptr: Any
+    public static func initFunc(p: Any): BinaryParentPtr {
+        let pp = BinaryParentPtr()
+        pp.ptr = p
+        return pp
+    }
+    public func childDone(child: Any, exitCode: ExitCode): Yield {
+        return Yield.done
+    }
+    public func allocator(): Allocator { DefaultAllocator.instance }
+}
+
+/// 二元子节点指针（提取到顶层）
+public class BinaryChildPtr {
+    public var ptr: Any
+    public static func initFunc(p: Any): BinaryChildPtr {
+        let cp = BinaryChildPtr()
+        cp.ptr = p
+        return cp
+    }
+    public func start(): Yield { return Yield.done }
+    public func deinit() {}
+}
+
 /// 二元表达式状态
 public class BinaryState {
     /// 基类
@@ -18,7 +44,7 @@ public class BinaryState {
     /// AST节点
     public var node: Binary
     /// 父节点
-    public var parent: ParentPtr
+    public var parent: BinaryParentPtr
     /// 左操作数退出码
     public var left: ?ExitCode = None
     /// 右操作数退出码
@@ -26,40 +52,14 @@ public class BinaryState {
     /// IO
     public var io: IO
     /// 当前执行的子节点
-    public var currentlyExecuting: ?ChildPtr = None
-
-    /// 父节点指针
-    public class ParentPtr {
-        public var ptr: Any
-        public static func initFunc(p: Any): ParentPtr {
-            let pp = ParentPtr()
-            pp.ptr = p
-            return pp
-        }
-        public func childDone(child: Any, exitCode: ExitCode): Yield {
-            return Yield.done
-        }
-        public func allocator(): Allocator { DefaultAllocator.instance }
-    }
-
-    /// 子节点指针
-    public class ChildPtr {
-        public var ptr: Any
-        public static func initFunc(p: Any): ChildPtr {
-            let cp = ChildPtr()
-            cp.ptr = p
-            return cp
-        }
-        public func start(): Yield { return Yield.done }
-        public func deinit() {}
-    }
+    public var currentlyExecuting: ?BinaryChildPtr = None
 
     /// 初始化
     public static func initFunc(
         interpreter: Interpreter,
         shellState: ShellExecEnv,
         node: Binary,
-        parent: ParentPtr,
+        parent: BinaryParentPtr,
         io: IO
     ): BinaryState {
         let binary = BinaryState()
@@ -84,13 +84,13 @@ public class BinaryState {
     }
 
     /// 创建子节点
-    func makeChild(left: Boolean): ?ChildPtr {
+    func makeChild(isLeft: Boolean): ?BinaryChildPtr {
         // 根据AST节点类型创建对应的子状态
         return None
     }
 
     /// 子节点完成
-    public func childDone(child: ChildPtr, exitCode: ExitCode): Yield {
+    public func childDone(child: BinaryChildPtr, exitCode: ExitCode): Yield {
         child.deinit()
         this.currentlyExecuting = None
 
@@ -114,7 +114,7 @@ public class BinaryState {
 
     /// 去初始化
     public func deinit() {
-        if (let child = this.currentlyExecuting) {
+        if (let Some(child) <- this.currentlyExecuting) {
             child.deinit()
         }
         this.io.deinit()

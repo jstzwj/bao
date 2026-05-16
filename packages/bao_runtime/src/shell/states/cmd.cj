@@ -5,11 +5,136 @@
 package bao_runtime.shell.states
 
 import bao_core.*
+import std.collection.*
 
 // ============================================================================
 // 命令执行状态
 // 主要的状态节点，执行内置命令或子进程
 // ============================================================================
+
+/// 命令状态类型（提取到顶层）
+public enum CmdStateKind {
+| `idle`
+| expandingAssigns(AssignsState)
+| expandingRedirect(idx: UInt32, expansion: ExpansionState)
+| expandingArgs(idx: UInt32, expansion: ExpansionState)
+| `exec`
+| done
+| waitingWriteErr
+}
+
+/// 执行联合体（提取到顶层）
+public enum CmdExec {
+| none
+| bltn(BuiltinImpl)
+| subproc(CmdSubprocState)
+}
+
+/// 命令状态父节点指针（提取到顶层）
+public class CmdParentPtr {
+    public var ptr: Any
+
+    public static func initFunc(p: Any): CmdParentPtr {
+        let pp = CmdParentPtr()
+        pp.ptr = p
+        return pp
+    }
+
+    public func childDone(child: Any, exitCode: ExitCode): Yield {
+        return Yield.done
+    }
+
+    public func create<T>(): T {
+        return T()
+    }
+
+    public func allocator(): Allocator {
+        return DefaultAllocator.instance
+    }
+
+    public func destroy<T>(ptr: T) {
+        // 释放
+    }
+}
+
+/// 命令状态子节点指针（提取到顶层）
+public class CmdChildPtr {
+    public var ptr: Any
+
+    public static func initFunc(p: Any): CmdChildPtr {
+        let cp = CmdChildPtr()
+        cp.ptr = p
+        return cp
+    }
+
+    public func is(type: Any): Boolean {
+        return true
+    }
+
+    public func `as`<T>(): T {
+        return this.ptr as T
+    }
+
+    public func deinit() {
+        // 根据类型去初始化
+    }
+}
+
+/// 缓冲IO关闭状态（提取到顶层）
+public class CmdBufferedIoClosed {
+    public var stdin: ?Boolean = None
+    public var stdout: ?CmdBufferedIoState = None
+    public var stderr: ?CmdBufferedIoState = None
+
+    /// 是否全部关闭
+    public func allClosed(): Boolean {
+        let stdinClosed = this.stdin ?? true
+        let stdoutClosed = if (let Some(s) <- this.stdout) { s.closed() } else { true }
+        let stderrClosed = if (let Some(s) <- this.stderr) { s.closed() } else { true }
+        return stdinClosed && stdoutClosed && stderrClosed
+    }
+
+    /// 去初始化
+    public func deinit() {
+        if (let Some(s) <- this.stdout) {
+            s.deinit()
+        }
+        if (let Some(s) <- this.stderr) {
+            s.deinit()
+        }
+    }
+}
+
+/// 缓冲IO状态类型（提取到顶层）
+public enum CmdBufferedIoStateKind {
+| open
+| closed(ByteList)
+}
+
+/// 缓冲IO状态（提取到顶层）
+public class CmdBufferedIoState {
+    public var state: CmdBufferedIoStateKind = CmdBufferedIoStateKind.open
+
+    /// 是否已关闭
+    public func closed(): Boolean {
+        return this.state == CmdBufferedIoStateKind.closed
+    }
+
+    /// 去初始化
+    public func deinit() {
+        // 释放缓冲区
+    }
+}
+
+/// 子进程状态（提取到顶层）
+public class CmdSubprocState {
+    public var child: ShellSubprocess
+    public var bufferedClosed: CmdBufferedIoClosed
+
+    public init() {
+        this.bufferedClosed = CmdBufferedIoClosed()
+    }
+}
 
 /// 命令状态
 public class CmdState {
@@ -18,7 +143,7 @@ public class CmdState {
     /// AST节点
     public var node: CmdAst
     /// 父节点
-    public var parent: ParentPtr
+    public var parent: CmdParentPtr
 
     /// spawn用的arena
     public var spawnArena: ArenaAllocator
@@ -33,7 +158,7 @@ public class CmdState {
     public var redirectionFd: ?CowFd = None
 
     /// 执行状态
-    public var exec: Exec = Exec.none
+    public var exec: CmdExec = CmdExec.none
     /// 退出码
     public var exitCode: ?ExitCode = None
     /// IO
@@ -42,136 +167,12 @@ public class CmdState {
     /// 命令状态
     public var state: CmdStateKind
 
-    /// 命令状态类型
-    public enum CmdStateKind {
-        case idle
-        case expandingAssigns(AssignsState)
-        case expandingRedirect(idx: UInt32, expansion: ExpansionState)
-        case expandingArgs(idx: UInt32, expansion: ExpansionState)
-        case exec
-        case done
-        case waitingWriteErr
-    }
-
-    /// 执行联合体
-    public enum Exec {
-        case none
-        case bltn(BuiltinImpl)
-        case subproc(SubprocState)
-    }
-
-    /// 子进程状态
-    public class SubprocState {
-        public var child: ShellSubprocess
-        public var bufferedClosed: BufferedIoClosed
-
-        init() {
-            this.bufferedClosed = BufferedIoClosed()
-        }
-    }
-
-    /// 缓冲IO关闭状态
-    public class BufferedIoClosed {
-        public var stdin: ?Boolean = None
-        public var stdout: ?BufferedIoState = None
-        public var stderr: ?BufferedIoState = None
-
-        /// 是否全部关闭
-        public func allClosed(): Boolean {
-            let stdinClosed = this.stdin ?? true
-            let stdoutClosed = if (let s = this.stdout) { s.closed() } else { true }
-            let stderrClosed = if (let s = this.stderr) { s.closed() } else { true }
-            return stdinClosed && stdoutClosed && stderrClosed
-        }
-
-        /// 去初始化
-        public func deinit() {
-            if (let s = this.stdout) {
-                s.deinit()
-            }
-            if (let s = this.stderr) {
-                s.deinit()
-            }
-        }
-    }
-
-    /// 缓冲IO状态
-    public class BufferedIoState {
-        public var state: BufferedIoStateKind = BufferedIoStateKind.open
-
-        /// 状态类型
-        public enum BufferedIoStateKind {
-            case open
-            case closed(ByteList)
-        }
-
-        /// 是否已关闭
-        public func closed(): Boolean {
-            return this.state == .closed
-        }
-
-        /// 去初始化
-        public func deinit() {
-            // 释放缓冲区
-        }
-    }
-
-    /// 父节点指针
-    public class ParentPtr {
-        public var ptr: Any
-
-        public static func initFunc(p: Any): ParentPtr {
-            let pp = ParentPtr()
-            pp.ptr = p
-            return pp
-        }
-
-        public func childDone(child: Any, exitCode: ExitCode): Yield {
-            return Yield.done
-        }
-
-        public func create<T>(): T {
-            return T()
-        }
-
-        public func allocator(): Allocator {
-            return DefaultAllocator.instance
-        }
-
-        public func destroy<T>(ptr: T) {
-            // 释放
-        }
-    }
-
-    /// 子节点指针
-    public class ChildPtr {
-        public var ptr: Any
-
-        public static func initFunc(p: Any): ChildPtr {
-            let cp = ChildPtr()
-            cp.ptr = p
-            return cp
-        }
-
-        public func is(type: Any): Boolean {
-            return true
-        }
-
-        public func `as`<T>(): T {
-            return this.ptr as T
-        }
-
-        public func deinit() {
-            // 根据类型去初始化
-        }
-    }
-
     /// 初始化
     public static func initFunc(
         interpreter: Interpreter,
         shellState: ShellExecEnv,
         node: CmdAst,
-        parent: ParentPtr,
+        parent: CmdParentPtr,
         io: IO
     ): CmdState {
         let cmd = CmdState()
@@ -183,34 +184,33 @@ public class CmdState {
         cmd.redirectionFile = ArrayList<Byte>()
         cmd.exitCode = None
         cmd.io = io
-        cmd.state = CmdStateKind.idle
+        cmd.state = CmdStateKind.`idle`
         return cmd
     }
 
     /// 下一步
     public func next(): Yield {
-        while (this.state != .done) {
+        while (this.state != CmdStateKind.done) {
             switch (this.state) {
-                case .idle =>
+                case CmdStateKind.`idle` =>
                     // 展开赋值
                     this.state = CmdStateKind.expandingAssigns(AssignsState())
-                    return this.state.expandingAssigns.getOrThrow().start()
-                case .expandingAssigns =>
+                case CmdStateKind.expandingAssigns =>
                     return Yield.suspended
-                case .expandingRedirect =>
+                case CmdStateKind.expandingRedirect =>
                     this.state = CmdStateKind.expandingArgs(idx: 0, expansion: ExpansionState())
                     continue
-                case .expandingArgs(let idx, let expansion) =>
-                    if (idx >= this.node.nameAndArgs.length) {
+                case CmdStateKind.expandingArgs(let idx, let expansion) =>
+                    if (idx >= this.node.nameAndArgs.size) {
                         return this.transitionToExecStateAndYield()
                     }
                     this.state = CmdStateKind.expandingArgs(idx: idx + 1, expansion: expansion)
                     return expansion.start()
-                case .waitingWriteErr =>
+                case CmdStateKind.waitingWriteErr =>
                     unreachableState("Cmd.next", "waitingWriteErr")
-                case .exec =>
+                case CmdStateKind.`exec` =>
                     unreachableState("Cmd.next", "exec")
-                case .done =>
+                case CmdStateKind.done =>
                     // 不可达
             }
         }
@@ -219,7 +219,7 @@ public class CmdState {
 
     /// 转换到执行状态
     func transitionToExecStateAndYield(): Yield {
-        this.state = CmdStateKind.exec
+        this.state = CmdStateKind.`exec`
         return this.initSubproc()
     }
 
@@ -230,7 +230,7 @@ public class CmdState {
 
     /// IO写入器数据块回调
     public func onIOWriterChunk(amount: UInt64, err: ?SystemError): Yield {
-        if (let e = err) {
+        if (let Some(e) <- err) {
             this.base.throw(ShellErr.newSys(e))
             return Yield.failed
         }
@@ -238,7 +238,7 @@ public class CmdState {
     }
 
     /// 子节点完成
-    public func childDone(child: ChildPtr, exitCode: ExitCode): Yield {
+    public func childDone(child: CmdChildPtr, exitCode: ExitCode): Yield {
         if (exitCode != 0) {
             return this.writeFailingError("error\n")
         }
@@ -250,7 +250,7 @@ public class CmdState {
     func initSubproc(): Yield {
         // 查找内置命令或启动子进程
         let firstArg = this.args.get(0) ?? return this.parent.childDone(this, 0)
-        if (let kind = BuiltinImpl.Kind.fromStr(firstArg.getOrThrow())) {
+        if (let Some(kind) <- BuiltinImpl.Kind.fromStr(firstArg.getOrThrow())) {
             // 初始化内置命令
             let bltn = BuiltinImpl()
             return bltn.start()
@@ -276,8 +276,8 @@ public class CmdState {
         if (this.exitCode == None) {
             return false
         }
-        if (this.exec != .none) {
-            if (this.exec == .subproc) {
+        if (this.exec != CmdExec.none) {
+            if (this.exec == CmdExec.subproc) {
                 return this.exec.subproc.getOrThrow().bufferedClosed.allClosed()
             }
             return false
@@ -287,7 +287,7 @@ public class CmdState {
 
     /// 写入失败错误
     public func writeFailingError(fmt: String): Yield {
-        return this.base.shell.writeFailingErrorFmt(this, { _ in }, fmt, [])
+        return this.base.shell.writeFailingErrorFmt(this, { _ => Yield.done }, fmt, [])
     }
 
     /// 缓冲输出关闭
@@ -300,13 +300,13 @@ public class CmdState {
 
     /// 去初始化
     public func deinit() {
-        if (let redirfd = this.redirectionFd) {
+        if (let Some(redirfd) <- this.redirectionFd) {
             this.redirectionFd = None
             redirfd.deref()
         }
 
-        if (this.exec != .none) {
-            if (this.exec == .subproc) {
+        if (this.exec != CmdExec.none) {
+            if (this.exec == CmdExec.subproc) {
                 let cmd = this.exec.subproc.getOrThrow().child
                 if (!cmd.hasExited()) {
                     cmd.tryKill(9)
@@ -314,14 +314,14 @@ public class CmdState {
                 cmd.unref()
                 cmd.deinit()
                 this.exec.subproc.getOrThrow().bufferedClosed.deinit()
-            } else if (this.exec == .bltn) {
+            } else if (this.exec == CmdExec.bltn) {
                 this.exec.bltn.getOrThrow().deinit()
             }
-            this.exec = Exec.none
+            this.exec = CmdExec.none
         }
 
         for (arg in this.args) {
-            if (let a = arg) {
+            if (let Some(a) <- arg) {
                 this.base.allocator().free(a)
             }
         }

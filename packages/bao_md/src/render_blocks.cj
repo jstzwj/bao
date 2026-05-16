@@ -39,7 +39,7 @@ public func processCodeBlock(parser: Parser, block_lines: Array<VerbatimLine>, d
         for (j in 0..vline.indent) {
             emitText(parser, TextType.normal, " ")
         }
-        let content = parser.text.substring(Int64(vline.beg), Int64(vline.end))
+        let content = parser.text[Int64(vline.beg)..Int64(vline.end)]
         emitText(parser, TextType.normal, content)
         emitText(parser, TextType.normal, "\n")
     }
@@ -55,7 +55,7 @@ public func processHtmlBlock(parser: Parser, block_lines: Array<VerbatimLine>): 
         for (j in 0..vline.indent) {
             emitText(parser, TextType.html, " ")
         }
-        let content = parser.text.substring(Int64(vline.beg), Int64(vline.end))
+        let content = parser.text[Int64(vline.beg)..Int64(vline.end)]
         emitText(parser, TextType.html, content)
     }
     emitText(parser, TextType.html, "\n")
@@ -87,20 +87,19 @@ public func processTableBlock(parser: Parser, block_lines: Array<VerbatimLine>, 
 
 /// 处理表格行
 public func processTableRow(parser: Parser, vline: VerbatimLine, is_header: Bool, col_count: UInt32): Unit {
-    let row_text = parser.text.substring(Int64(vline.beg), Int64(vline.end))
+    let row_text = parser.text[Int64(vline.beg)..Int64(vline.end)]
     var start: Int64 = 0
     var cell_index: UInt32 = 0
 
     // 跳过前导管道符
-    if (start < row_text.size && row_text[Int64(start)] == '|') {
+    if (start < row_text.size && UInt8(row_text[Int64(start)]) == UInt8(0x7C)) {
         start += 1
     }
 
     while (start < row_text.size && cell_index < col_count) {
-        // 查找单元格结束，跳过转义字符和代码跨度
         var end = start
-        while (end < row_text.size && row_text[Int64(end)] != '|') {
-            if (row_text[Int64(end)] == '\\' && end + 1 < row_text.size) {
+        while (end < row_text.size && UInt8(row_text[Int64(end)]) != UInt8(0x7C)) {
+            if (UInt8(row_text[Int64(end)]) == UInt8(0x5C) && end + 1 < row_text.size) {
                 end += 2
             } else {
                 end += 1
@@ -124,22 +123,22 @@ public func processTableRow(parser: Parser, vline: VerbatimLine, is_header: Bool
 
         let cell_type: BlockType = if (is_header) { BlockType.th } else { BlockType.td }
         let align_data: UInt32 = if (cell_index < TABLE_MAXCOLCOUNT) {
-            parser.table_alignments[Int64(cell_index)].toUInt8().toUInt32()
+            UInt32(alignToUInt8(parser.table_alignments[Int64(cell_index)]))
         } else {
             0
         }
         enterBlock(parser, cell_type, align_data, 0)
         if (cell_beg < cell_end) {
-            var cell_content = row_text.substring(cell_beg, cell_end)
+            var cell_content = row_text[cell_beg..cell_end]
             // GFM: \| 在表格单元格中应在表格级别处理，
             // 将 \| 替换为 | 后再进行行内处理
             let backslash_pipe = "\\|"
-            if (cell_content.indexOf(backslash_pipe) >= 0) {
+            if (let Some(idx) <- cell_content.indexOf(backslash_pipe)) {
                 var buf = StringBuilder()
                 var ci: Int64 = 0
                 while (ci < cell_content.size) {
-                    if (cell_content[Int64(ci)] == '\\' && ci + 1 < cell_content.size && cell_content[Int64(ci + 1)] == '|') {
-                        buf.append('|')
+                    if (UInt8(cell_content[Int64(ci)]) == UInt8(0x5C) && ci + 1 < cell_content.size && UInt8(cell_content[Int64(ci + 1)]) == UInt8(0x7C)) {
+                        buf.append(UInt8(0x7C))
                         ci += 2
                     } else {
                         buf.append(cell_content[Int64(ci)])
@@ -148,7 +147,7 @@ public func processTableRow(parser: Parser, vline: VerbatimLine, is_header: Bool
                 }
                 cell_content = buf.toString()
             }
-            processInlineContent(parser, cell_content, vline.beg + OFF(cell_beg))
+            processInlineContent(parser, cell_content, vline.beg + UInt32(cell_beg))
         }
         leaveBlock(parser, cell_type, 0)
         cell_index += 1
@@ -164,7 +163,7 @@ public func processTableRow(parser: Parser, vline: VerbatimLine, is_header: Bool
     let pad_type: BlockType = if (is_header) { BlockType.th } else { BlockType.td }
     while (cell_index < col_count) {
         let align_data: UInt32 = if (cell_index < TABLE_MAXCOLCOUNT) {
-            parser.table_alignments[Int64(cell_index)].toUInt8().toUInt32()
+            UInt32(alignToUInt8(parser.table_alignments[Int64(cell_index)]))
         } else {
             0
         }

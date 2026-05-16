@@ -15,17 +15,19 @@ import bao_core.*
 // ============================================================================
 
 /// cd命令
+public enum CdState {
+    | idle
+    | waitingWriteStderr
+    | done
+    | err(SyscallError)
+}
+
 public class CdCmd {
     /// 状态
     public var state: CdState = CdState.idle
 
     /// 状态类型
-    public enum CdState {
-        case idle
-        case waitingWriteStderr
-        case done
-        case err(SyscallError)
-    }
+
 
     /// 写入标准错误（非阻塞）
     func writeStderrNonBlocking(fmt: String, args: Array<Any>): Yield {

@@ -19,9 +19,9 @@ public class BasenameCmd {
 
     /// 状态类型
     public enum BasenameState {
-        case idle
-        case err
-        case done
+| idle
+| err
+| done
     }
 
     /// 启动

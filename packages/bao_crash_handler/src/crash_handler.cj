@@ -845,7 +845,7 @@ public class CrashHandler {
                 showTrace = true
             case _ =>
                 // 对应: else => { ... }
-                printStderr("An internal error occurred (${err.name())\n")
+                printStderr("An internal error occurred (${err.name()}\n")
                 showTrace = true
         }
 

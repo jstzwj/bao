@@ -14,17 +14,12 @@ import bao_core.*
 /// 加密哈希器标签类型
 /// 对应 Bun: pub const CryptoHasher = union(enum) { hmac, evp, zig }
 public enum CryptoHasherTag {
-    | HMAC_TAG
-    | EVP_TAG
-    | ZIG_TAG
+| HMAC_TAG
+| EVP_TAG
+| ZIG_TAG
 }
 
 /// 加密哈希器
-/// 对应 Bun: pub const CryptoHasher = union(enum) {
-///     hmac: ?*HMAC,
-///     evp: EVP,
-///     zig: CryptoHasherZig,
-/// }
 public class CryptoHasher {
     public var tag: CryptoHasherTag
     public var hmacValue: ?HMAC
@@ -33,9 +28,9 @@ public class CryptoHasher {
 
     public init(tag: CryptoHasherTag) {
         this.tag = tag
-        hmacValue = None
-        evpValue = None
-        zigValue = None
+        this.hmacValue = None
+        this.evpValue = None
+        this.zigValue = None
     }
 
     // ========================================================================
@@ -63,14 +58,14 @@ public class CryptoHasher {
             case None => ()
         }
 
-        // const algorithm = EVP.Algorithm.map.get(name) orelse return null
-        let algorithm = EVP.Algorithm.fromName(name)
+        // const algorithm = EvpAlgorithm.map.get(name) orelse return null
+        let algorithm = EvpAlgorithm.fromName(name)
         match (algorithm) {
             case None => return None
             case Some(alg) => {
                 match (alg) {
-                    case EVP.Algorithm.ripemd160 | EVP.Algorithm.blake2b256 |
-                         EVP.Algorithm.blake2b512 | EVP.Algorithm.sha512_224 => {
+                    case EvpAlgorithm.ripemd160 | EvpAlgorithm.blake2b256 |
+                         EvpAlgorithm.blake2b512 | EvpAlgorithm.sha512_224 => {
                         // if (algorithm.md()) |md|
                         let md = alg.md()
                         match (md) {
@@ -95,13 +90,13 @@ public class CryptoHasher {
     public static func getFromOther(globalThis: JsObject, otherHandle: CryptoHasher): ?CryptoHasher {
         match (otherHandle.tag) {
             case CryptoHasherTag.ZIG_TAG => {
-                let other = otherHandle.zigValue!!
+                let other = otherHandle.zigValue.getOrThrow()
                 let hasher = CryptoHasher(CryptoHasherTag.ZIG_TAG)
                 hasher.zigValue = other.copy()
                 return hasher
             }
             case CryptoHasherTag.EVP_TAG => {
-                let other = otherHandle.evpValue!!
+                let other = otherHandle.evpValue.getOrThrow()
                 let engine = RareData.getBoringEngine(globalThis)
                 let copied = other.copy(engine)
                 match (copied) {
@@ -128,11 +123,11 @@ public class CryptoHasher {
     public func updateExtern(input: Array<Byte>): Bool {
         match (this.tag) {
             case CryptoHasherTag.ZIG_TAG => {
-                this.zigValue!!.update(input)
+                this.zigValue.getOrThrow().update(input)
                 return true
             }
             case CryptoHasherTag.EVP_TAG => {
-                this.evpValue!!.update(input)
+                this.evpValue.getOrThrow().update(input)
                 return true
             }
             case _ => return false
@@ -144,12 +139,12 @@ public class CryptoHasher {
     public func digestExtern(globalThis: JsObject, buf: Array<Byte>): UInt32 {
         match (this.tag) {
             case CryptoHasherTag.ZIG_TAG => {
-                let res = this.zigValue!!.finalWithLen(buf, buf.size)
+                let res = this.zigValue.getOrThrow().finalWithLen(buf, buf.size)
                 return UInt32(res.size)
             }
             case CryptoHasherTag.EVP_TAG => {
                 let engine = RareData.getBoringEngine(globalThis)
-                let res = this.evpValue!!.final(engine, buf)
+                let res = this.evpValue.getOrThrow().final(engine, buf)
                 return UInt32(res.size)
             }
             case _ => return 0
@@ -160,8 +155,8 @@ public class CryptoHasher {
     /// 对应 Bun: fn getDigestSize(handle: *CryptoHasher) u32
     public func getDigestSize(): UInt32 {
         match (this.tag) {
-            case CryptoHasherTag.ZIG_TAG => UInt32(this.zigValue!!.digestLength)
-            case CryptoHasherTag.EVP_TAG => this.evpValue!!.size()
+            case CryptoHasherTag.ZIG_TAG => UInt32(this.zigValue.getOrThrow().digestLength)
+            case CryptoHasherTag.EVP_TAG => this.evpValue.getOrThrow().size()
             case _ => 0
         }
     }
@@ -174,7 +169,7 @@ public class CryptoHasher {
     /// 对应 Bun: pub fn getByteLength(this, globalThis) bun.JSError!jsc.JSValue
     public func getByteLength(globalThis: JsObject): JsValue {
         match (this.tag) {
-            case CryptoHasherTag.EVP_TAG => JsValue(Float64(this.evpValue!!.size()))
+            case CryptoHasherTag.EVP_TAG => JsValue(Float64(this.evpValue.getOrThrow().size()))
             case CryptoHasherTag.HMAC_TAG => {
                 let hmac = this.hmacValue
                 match (hmac) {
@@ -182,7 +177,7 @@ public class CryptoHasher {
                     case None => throwHmacConsumed()
                 }
             }
-            case CryptoHasherTag.ZIG_TAG => JsValue(Float64(this.zigValue!!.digestLength))
+            case CryptoHasherTag.ZIG_TAG => JsValue(Float64(this.zigValue.getOrThrow().digestLength))
         }
     }
 
@@ -190,8 +185,8 @@ public class CryptoHasher {
     /// 对应 Bun: pub fn getAlgorithm(this, globalObject) bun.JSError!jsc.JSValue
     public func getAlgorithm(globalObject: JsObject): JsValue {
         match (this.tag) {
-            case CryptoHasherTag.EVP_TAG => JsValue(BaoString(this.evpValue!!.algorithm.name()))
-            case CryptoHasherTag.ZIG_TAG => JsValue(BaoString(this.zigValue!!.algorithm.name()))
+            case CryptoHasherTag.EVP_TAG => JsValue(BaoString(this.evpValue.getOrThrow().algorithm.name()))
+            case CryptoHasherTag.ZIG_TAG => JsValue(BaoString(this.zigValue.getOrThrow().algorithm.name()))
             case CryptoHasherTag.HMAC_TAG => {
                 let hmac = this.hmacValue
                 match (hmac) {
@@ -205,7 +200,7 @@ public class CryptoHasher {
     /// 获取所有算法名列表
     /// 对应 Bun: pub fn getAlgorithms(globalThis, _, _) bun.JSError!jsc.JSValue
     public static func getAlgorithms(globalThis: JsObject): JsValue {
-        let names = EVP.Algorithm.allNames()
+        let names = EvpAlgorithm.allNames()
         let arr = ArrayList<JsValue>()
         for (name in names) {
             arr.append(JsValue(BaoString(name)))
@@ -245,7 +240,7 @@ public class CryptoHasher {
     /// 哈希到编码
     private static func hashToEncoding(globalThis: JsObject, evp: EVP, input: Array<Byte>,
                                         encoding: String): JsValue {
-        var outputDigestBuf = Array<Byte>(DIGEST_SIZE, item: 0)
+        var outputDigestBuf = Array<Byte>(DIGEST_SIZE, repeat: 0)
         let engine = RareData.getBoringEngine(globalThis)
         let len = evp.hash(engine, input, outputDigestBuf)
         match (len) {
@@ -264,7 +259,7 @@ public class CryptoHasher {
     /// 哈希到字节
     private static func hashToBytes(globalThis: JsObject, evp: EVP, input: Array<Byte>,
                                      output: ?JsArrayBuffer): JsValue {
-        var outputDigestBuf = Array<Byte>(DIGEST_SIZE, item: 0)
+        var outputDigestBuf = Array<Byte>(DIGEST_SIZE, repeat: 0)
         var outputDigestSlice: Array<Byte> = outputDigestBuf
 
         match (output) {
@@ -328,7 +323,7 @@ public class CryptoHasher {
 
         match (hmacKey) {
             case Some(key) => {
-                let alg = EVP.Algorithm.fromName(algorithm)
+                let alg = EvpAlgorithm.fromName(algorithm)
                 match (alg) {
                     case None => return None
                     case Some(chosenAlgorithm) => {
@@ -379,7 +374,7 @@ public class CryptoHasher {
     public func update(globalThis: JsObject, input: Array<Byte>): JsValue {
         match (this.tag) {
             case CryptoHasherTag.EVP_TAG => {
-                this.evpValue!!.update(input)
+                this.evpValue.getOrThrow().update(input)
                 let err = BoringSSL.errGetError()
                 if (err != 0) {
                     let instance = createCryptoError(globalThis, err)
@@ -403,7 +398,7 @@ public class CryptoHasher {
                 }
             }
             case CryptoHasherTag.ZIG_TAG => {
-                this.zigValue!!.update(input)
+                this.zigValue.getOrThrow().update(input)
             }
         }
         return JsValue.UNDEFINED
@@ -419,7 +414,7 @@ public class CryptoHasher {
         match (this.tag) {
             case CryptoHasherTag.EVP_TAG => {
                 let engine = RareData.getBoringEngine(globalObject)
-                let copied = this.evpValue!!.copy(engine)
+                let copied = this.evpValue.getOrThrow().copy(engine)
                 match (copied) {
                     case Some(evpCopy) => {
                         let hasher = CryptoHasher(CryptoHasherTag.EVP_TAG)
@@ -448,7 +443,7 @@ public class CryptoHasher {
             }
             case CryptoHasherTag.ZIG_TAG => {
                 let hasher = CryptoHasher(CryptoHasherTag.ZIG_TAG)
-                hasher.zigValue = this.zigValue!!.copy()
+                hasher.zigValue = this.zigValue.getOrThrow().copy()
                 return hasher
             }
         }
@@ -474,7 +469,7 @@ public class CryptoHasher {
     /// 摘要到字节
     /// 对应 Bun: fn digestToBytes(this, globalThis, output) bun.JSError!jsc.JSValue
     private func digestToBytes(globalThis: JsObject, output: ?JsArrayBuffer): JsValue {
-        var outputDigestBuf = Array<Byte>(DIGEST_SIZE, item: 0)
+        var outputDigestBuf = Array<Byte>(DIGEST_SIZE, repeat: 0)
         var outputDigestSlice: Array<Byte> = outputDigestBuf
 
         match (output) {
@@ -508,7 +503,7 @@ public class CryptoHasher {
     /// 摘要到编码
     /// 对应 Bun: fn digestToEncoding(this, globalThis, encoding) bun.JSError!jsc.JSValue
     private func digestToEncoding(globalThis: JsObject, encoding: String): JsValue {
-        var outputDigestBuf = Array<Byte>(DIGEST_SIZE, item: 0)
+        var outputDigestBuf = Array<Byte>(DIGEST_SIZE, repeat: 0)
         for (i in 0..outputDigestBuf.size) {
             outputDigestBuf[i] = 0
         }
@@ -541,10 +536,10 @@ public class CryptoHasher {
             }
             case CryptoHasherTag.EVP_TAG => {
                 let engine = RareData.getBoringEngine(globalThis)
-                return this.evpValue!!.final(engine, outputDigestSlice)
+                return this.evpValue.getOrThrow().final(engine, outputDigestSlice)
             }
             case CryptoHasherTag.ZIG_TAG => {
-                return this.zigValue!!.final(outputDigestSlice)
+                return this.zigValue.getOrThrow().final(outputDigestSlice)
             }
         }
     }
@@ -554,10 +549,10 @@ public class CryptoHasher {
     public func finalize(): Unit {
         match (this.tag) {
             case CryptoHasherTag.EVP_TAG => {
-                this.evpValue!!.deinit()
+                this.evpValue.getOrThrow().deinit()
             }
             case CryptoHasherTag.ZIG_TAG => {
-                this.zigValue!!.deinit()
+                this.zigValue.getOrThrow().deinit()
             }
             case CryptoHasherTag.HMAC_TAG => {
                 match (this.hmacValue) {
@@ -580,59 +575,40 @@ public class CryptoHasher {
 // 对应 Bun: CryptoHasher.zig - const CryptoHasherZig = struct { ... }
 // ============================================================================
 
+/// 算法映射条目（提取到顶层）
+public class AlgoMapEntry {
+    public let name: String
+    public let algorithm: EvpAlgorithm
+    public let digestLength: UInt8
+
+    public init(name: String, algorithm: EvpAlgorithm, digestLength: UInt8) {
+        this.name = name
+        this.algorithm = algorithm
+        this.digestLength = digestLength
+    }
+}
+
 /// Zig 实现的哈希器
-/// 对应 Bun: const CryptoHasherZig = struct {
-///     algorithm: EVP.Algorithm,
-///     state: *anyopaque,
-///     digest_length: u8,
-/// }
 public class CryptoHasherZig {
-    public var algorithm: EVP.Algorithm
+    public var algorithm: EvpAlgorithm
     public var state: HashState
     public var digestLength: UInt8
 
-    public init(algorithm: EVP.Algorithm, state: HashState, digestLength: UInt8) {
+    public init(algorithm: EvpAlgorithm, state: HashState, digestLength: UInt8) {
         this.algorithm = algorithm
         this.state = state
         this.digestLength = digestLength
     }
 
-    // ========================================================================
-    // 算法映射表
-    // 对应 Bun: const algo_map = [_]struct { string, type }{ ... }
-    // ========================================================================
-
-    /// 算法映射条目
-    public class AlgoMapEntry {
-        public let name: String
-        public let algorithm: EVP.Algorithm
-        public let digestLength: UInt8
-
-        public init(name: String, algorithm: EVP.Algorithm, digestLength: UInt8) {
-            this.name = name
-            this.algorithm = algorithm
-            this.digestLength = digestLength
-        }
-    }
-
     /// 算法映射表
-    /// 对应 Bun: const algo_map = [_]struct { string, type }{
-    ///     .{ "sha3-224", std.crypto.hash.sha3.Sha3_224 },
-    ///     .{ "sha3-256", std.crypto.hash.sha3.Sha3_256 },
-    ///     .{ "sha3-384", std.crypto.hash.sha3.Sha3_384 },
-    ///     .{ "sha3-512", std.crypto.hash.sha3.Sha3_512 },
-    ///     .{ "shake128", std.crypto.hash.sha3.Shake128 },
-    ///     .{ "shake256", std.crypto.hash.sha3.Shake256 },
-    ///     .{ "blake2s256", std.crypto.hash.blake2.Blake2s256 },
-    /// }
     public static let ALGO_MAP: ArrayList<AlgoMapEntry> = ArrayList<AlgoMapEntry>([
-        AlgoMapEntry("sha3-224", EVP.Algorithm.sha3_224, 28),     // Sha3_224.digest_length
-        AlgoMapEntry("sha3-256", EVP.Algorithm.sha3_256, 32),     // Sha3_256.digest_length
-        AlgoMapEntry("sha3-384", EVP.Algorithm.sha3_384, 48),     // Sha3_384.digest_length
-        AlgoMapEntry("sha3-512", EVP.Algorithm.sha3_512, 64),     // Sha3_512.digest_length
-        AlgoMapEntry("shake128", EVP.Algorithm.shake128, 16),     // Shake128 custom digest
-        AlgoMapEntry("shake256", EVP.Algorithm.shake256, 32),     // Shake256 custom digest
-        AlgoMapEntry("blake2s256", EVP.Algorithm.blake2s256, 32), // Blake2s256.digest_length
+        AlgoMapEntry("sha3-224", EvpAlgorithm.sha3_224, 28),
+        AlgoMapEntry("sha3-256", EvpAlgorithm.sha3_256, 32),
+        AlgoMapEntry("sha3-384", EvpAlgorithm.sha3_384, 48),
+        AlgoMapEntry("sha3-512", EvpAlgorithm.sha3_512, 64),
+        AlgoMapEntry("shake128", EvpAlgorithm.shake128, 16),
+        AlgoMapEntry("shake256", EvpAlgorithm.shake256, 32),
+        AlgoMapEntry("blake2s256", EvpAlgorithm.blake2s256, 32),
     ])
 
     /// 初始化
@@ -671,7 +647,7 @@ public class CryptoHasherZig {
                 var h = HashState(entry.algorithm)
                 h.reset()
                 h.update(input)
-                var out = Array<Byte>(entry.digestLength, item: 0)
+                var out = Array<Byte>(entry.digestLength, repeat: 0)
                 h.final(out)
                 return JsArrayBuffer.createBuffer(globalThis, out)
             }
@@ -724,13 +700,13 @@ public class CryptoHasherZig {
 /// 哈希状态封装
 /// 对应 Bun: *anyopaque 状态指针 + inline for 编译时分派
 public class HashState {
-    public var algorithm: EVP.Algorithm
+    public var algorithm: EvpAlgorithm
     public var data: Array<Byte>
     public var position: Int64
 
-    public init(algorithm: EVP.Algorithm) {
+    public init(algorithm: EvpAlgorithm) {
         this.algorithm = algorithm
-        this.data = Array<Byte>(128, item: 0)  // 足够大的缓冲区
+        this.data = Array<Byte>(128, repeat: 0)  // 足够大的缓冲区
         this.position = 0
     }
 
@@ -787,13 +763,13 @@ public class HashState {
     /// 获取摘要长度
     private func getDigestLength(): Int64 {
         match (this.algorithm) {
-            case EVP.Algorithm.sha3_224 => 28
-            case EVP.Algorithm.sha3_256 => 32
-            case EVP.Algorithm.sha3_384 => 48
-            case EVP.Algorithm.sha3_512 => 64
-            case EVP.Algorithm.shake128 => 16
-            case EVP.Algorithm.shake256 => 32
-            case EVP.Algorithm.blake2s256 => 32
+            case EvpAlgorithm.sha3_224 => 28
+            case EvpAlgorithm.sha3_256 => 32
+            case EvpAlgorithm.sha3_384 => 48
+            case EvpAlgorithm.sha3_512 => 64
+            case EvpAlgorithm.shake128 => 16
+            case EvpAlgorithm.shake256 => 32
+            case EvpAlgorithm.blake2s256 => 32
             case _ => 32
         }
     }
@@ -1299,7 +1275,7 @@ public class StaticHasherState {
     public init(name: String, digest: Int64) {
         this.name = name
         this.digest = digest
-        this.data = Array<Byte>(digest, item: 0)
+        this.data = Array<Byte>(digest, repeat: 0)
         this.position = 0
     }
 
@@ -1320,7 +1296,7 @@ public class StaticHasherState {
     }
 
     public func final(): Array<Byte> {
-        var result = Array<Byte>(digest, item: 0)
+        var result = Array<Byte>(digest, repeat: 0)
         for (i in 0..digest) {
             result[i] = data[i % data.size]
         }
@@ -1457,7 +1433,7 @@ public class WorkPool {
 /// 对应 Bun: jsc.Node.Encoding.encodeWithSize / encodeWithMaxSize
 private func encodingEncode(encoding: String, data: Array<Byte>): String {
     match (encoding) {
-        case "hex" => {
+| "hex" => {
             var sb = StringBuilder()
             for (b in data) {
                 let hex = b.toInt64().toString(16)
@@ -1468,11 +1444,11 @@ private func encodingEncode(encoding: String, data: Array<Byte>): String {
             }
             return sb.toString()
         }
-        case "base64" => {
+| "base64" => {
             // TODO: 实际 base64 编码
             return "base64:${data.size}"
         }
-        case "buffer" | _ => {
+| "buffer" | _ => {
             // 返回原始字节的十六进制表示
             var sb = StringBuilder()
             for (b in data) {

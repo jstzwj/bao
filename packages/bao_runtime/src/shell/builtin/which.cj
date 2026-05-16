@@ -13,32 +13,38 @@ import bao_core.*
 // ============================================================================
 
 /// which命令
+public enum WhichState {
+    | idle
+    | oneArg
+    | multiArgs(MultiArgsState)
+    | done
+}
+
+public struct MultiArgsState {
+    public var argsSlice: Array<String>
+    public var argIdx: UInt32 = 0
+    public var hadNotFound: Boolean = false
+    public var innerState: MultiArgsInnerState = .none
+}
+
+public enum MultiArgsInnerState {
+    | none
+    | waitingWrite
+}
+
 public class WhichCmd {
     /// 状态
     public var state: WhichState = WhichState.idle
 
     /// 状态类型
-    public enum WhichState {
-        case idle
-        case oneArg
-        case multiArgs(MultiArgsState)
-        case done
-    }
+
 
     /// 多参数状态
     /// 对应 Bun: multi_args struct in Which state
-    public struct MultiArgsState {
-        public var argsSlice: Array<String>
-        public var argIdx: UInt32 = 0
-        public var hadNotFound: Boolean = false
-        public var innerState: MultiArgsInnerState = .none
-    }
+
 
     /// 多参数内部状态
-    public enum MultiArgsInnerState {
-        case none
-        case waitingWrite
-    }
+
 
     /// 启动
     public func start(): Yield {

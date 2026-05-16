@@ -38,6 +38,12 @@ public struct FreeRecord {
 // 对应 Zig: pub const Extra = struct { ... }
 // ============================================================================
 
+/// 虚表
+public class ExtraVTable {
+    /// 分配泄漏回调
+    public var onAllocationLeak: (CPointer<Byte>, Array<Byte>) -> Unit
+}
+
 /// 额外数据
 public struct Extra {
     /// 指针
@@ -47,12 +53,6 @@ public struct Extra {
 
     /// 无额外数据
     public static let none: Extra = Extra(ptr: CPointer<Byte>.null(), vtable: None)
-
-    /// 虚表
-    public class ExtraVTable {
-        /// 分配泄漏回调
-        public var onAllocationLeak: (CPointer<Byte>, Array<Byte>) -> Unit
-    }
 }
 
 // ============================================================================

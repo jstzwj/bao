@@ -12,30 +12,23 @@ import bao_core.*
 // ============================================================================
 
 /// PBKDF2 密钥派生参数
-/// 对应 Bun: const PBKDF2 = @This()
-///
-/// password: jsc.Node.StringOrBuffer = jsc.Node.StringOrBuffer.empty,
-/// salt: jsc.Node.StringOrBuffer = jsc.Node.StringOrBuffer.empty,
-/// iteration_count: u32 = 1,
-/// length: i32 = 0,
-/// algorithm: EVP.Algorithm,
 public class PBKDF2Params {
     public var password: Array<Byte>
     public var salt: Array<Byte>
     public var iterationCount: UInt32
     public var length: Int32
-    public var algorithm: EVP.Algorithm
+    public var algorithm: EvpAlgorithm
 
     public init() {
         password = Array<Byte>()
         salt = Array<Byte>()
         iterationCount = 1
         length = 0
-        algorithm = EVP.Algorithm.sha256
+        algorithm = EvpAlgorithm.sha256
     }
 
     public init(password: Array<Byte>, salt: Array<Byte>, iterationCount: UInt32,
-                length: Int32, algorithm: EVP.Algorithm) {
+                length: Int32, algorithm: EvpAlgorithm) {
         this.password = password
         this.salt = salt
         this.iterationCount = iterationCount
@@ -75,7 +68,7 @@ public class PBKDF2Params {
             this.salt,
             this.salt.size.toInt64(),
             this.iterationCount,
-            md!!,
+            md.getOrThrow(),
             this.length.toInt64(),
             output
         )
@@ -142,7 +135,7 @@ public class PBKDF2Job {
         //     job.err = BoringSSL.EVP_R_MEMORY_LIMIT_EXCEEDED;
         //     return;
         // };
-        this.output = Array<Byte>(this.pbkdf2.length.toInt64(), item: 0)
+        this.output = Array<Byte>(this.pbkdf2.length.toInt64(), repeat: 0)
 
         // if (!job.pbkdf2.run(job.output))
         if (!this.pbkdf2.run(this.output)) {
@@ -219,7 +212,7 @@ public class PBKDF2Job {
 /// 对应 Bun: pub fn pbkdf2(output: []u8, password: []const u8, salt: []const u8,
 ///     iteration_count: u32, algorithm: Algorithm) ?[]const u8
 public func pbkdf2(output: Array<Byte>, password: Array<Byte>, salt: Array<Byte>,
-                   iterationCount: UInt32, algorithm: EVP.Algorithm): ?Array<Byte> {
+                   iterationCount: UInt32, algorithm: EvpAlgorithm): ?Array<Byte> {
     var pbk = PBKDF2Params(
         password: password,
         salt: salt,

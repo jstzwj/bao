@@ -99,7 +99,7 @@ public class Coordinator {
 
     /// 是否所有工作完成
     public func isDone(): Bool {
-        return (filesDone >= files.length || bailed) && liveWorkers == 0
+        return (filesDone >= files.size || bailed) && liveWorkers == 0
     }
 
     /// 是否有未分发的文件
@@ -154,7 +154,7 @@ public class Coordinator {
         for (i in 0..spawnedCount) {
             let w = workers[i.toInt()]
             if (w.process != None) {
-                w.process!!.kill()
+                w.process.getOrThrow().kill()
             }
         }
         Global.exit(130)
@@ -192,7 +192,7 @@ public class Coordinator {
                 return
             }
         }
-        let want = Math.min(parallelLimit, files.length - filesDone)
+        let want = Math.min(parallelLimit, files.size - filesDone)
         while (spawnedCount < want) {
             if (!spawnWorker()) {
                 break
@@ -211,7 +211,7 @@ public class Coordinator {
         // 从自己的范围取
         let popResult = w.range.popFront()
         if (popResult != None) {
-            let idx = popResult!!
+            let idx = popResult.getOrThrow()
             w.dispatch(idx, files[idx.toInt()].slice())
             return
         }
@@ -219,12 +219,13 @@ public class Coordinator {
         // 偷取
         let victim = findStealVictim()
         if (victim != None) {
-            let stolen = victim!!.range.stealBackHalf()
+            let stolen = victim.getOrThrow().range.stealBackHalf()
             if (stolen != None) {
-                w.range = stolen!!
+                w.range = stolen.getOrThrow()
                 let popResult2 = w.range.popFront()
                 if (popResult2 != None) {
-                    w.dispatch(popResult2!!, files[popResult2!!.toInt()].slice())
+                    let pr2 = popResult2.getOrThrow()
+                    w.dispatch(pr2, files[pr2.toInt()].slice())
                     return
                 }
             }
@@ -284,7 +285,7 @@ public class Coordinator {
         }
         breakDots()
         if (w.inflight != None) {
-            ensureHeader(w.inflight!!)
+            ensureHeader(w.inflight.getOrThrow())
         }
         Output.errorWriter().writeAll(w.captured)
         if (!w.captured.endsWith('\n')) {
@@ -296,17 +297,17 @@ public class Coordinator {
     /// 处理 IPC 帧
     /// 对应 Bun: Coordinator.onFrame()
     public func onFrame(w: Worker, kind: FrameKind, rd: FrameReader): Unit {
-        when (kind) {
+        match (kind) {
             case FrameKind.ready => assignWork(w)
             case FrameKind.fileStart => rd.u32_()
-            case FrameKind.testDone => {
+            case FrameKind.testDone =>
                 let idx = rd.u32_()
                 let formatted = rd.str()
                 if (w.inflight != idx) {
                     return
                 }
                 flushCaptured(w)
-                if (formatted.length == 0) {
+                if (formatted.size == 0) {
                     return
                 }
                 let isDot = dots && !formatted.endsWith('\n')
@@ -317,8 +318,7 @@ public class Coordinator {
                 Output.errorWriter().writeAll(formatted)
                 lastPrintedDot = isDot
                 Output.flush()
-            }
-            case FrameKind.fileDone => {
+            case FrameKind.fileDone =>
                 let idx = rd.u32_()
                 let pass = rd.u32_()
                 let fail = rd.u32_()
@@ -353,23 +353,20 @@ public class Coordinator {
                 if (w.alive) {
                     assignWork(w)
                 }
-            }
-            case FrameKind.repeatBufs => {
+            case FrameKind.repeatBufs =>
                 let failures = rd.str()
                 let skips = rd.str()
                 let todos = rd.str()
                 reporter.failuresToRepeatBuf += failures
                 reporter.skipsToRepeatBuf += skips
                 reporter.todosToRepeatBuf += todos
-            }
-            case FrameKind.junitFile | FrameKind.coverageFile => {
+            case FrameKind.junitFile | FrameKind.coverageFile =>
                 let path = rd.str()
-                if (path.length == 0) {
+                if (path.size == 0) {
                     return
                 }
-                let list = if (kind == FrameKind.junitFile) junitFragments else coverageFragments
+                let list = if (kind == FrameKind.junitFile) { junitFragments } else { coverageFragments }
                 list.append(path)
-            }
             case FrameKind.run | FrameKind.shutdown => ()
         }
     }
@@ -382,7 +379,7 @@ public class Coordinator {
 
     /// 尝试收割 worker
     public func tryReap(w: Worker): Unit {
-        let status = w.exitStatus ?: return
+        let status = match (w.exitStatus) { case Some(v) => v case None => return }
         if (!w.ipc.done) {
             return
         }
@@ -396,7 +393,7 @@ public class Coordinator {
         flushCaptured(w)
 
         if (w.inflight != None) {
-            let idx = w.inflight!!
+            let idx = w.inflight.getOrThrow()
             breakDots()
             ensureHeader(idx)
             let panicked = isPanicStatus(status)
@@ -439,16 +436,16 @@ public class Coordinator {
 
     /// 判断是否为 panic 状态
     public static func isPanicStatus(status: ProcessStatus): Bool {
-        let sig = status.signalCode() ?: return false
-        return when (sig) {
+        let sig = match (status.signalCode()) { case Some(v) => v case None => return false }
+        return match (sig) {
             "SIGILL" | "SIGTRAP" | "SIGABRT" | "SIGBUS" | "SIGFPE" | "SIGSEGV" | "SIGSYS" => true
-            else => false
+            case _ => false
         }
     }
 
     /// 描述进程状态
     public static func describeStatus(status: ProcessStatus): String {
-        when (status) {
+        match (status) {
             case ProcessStatus.exited(code) => "exit code ${code}"
             case ProcessStatus.signaled(sig) => sig
             case ProcessStatus.err(e) => e
@@ -469,7 +466,7 @@ public class Coordinator {
                 continue
             }
             if (other.process != None) {
-                other.process!!.kill()
+                other.process.getOrThrow().kill()
             }
         }
 
@@ -485,7 +482,7 @@ public class Coordinator {
         for (w in workers) {
             let pop = w.range.popFront()
             if (pop != None) {
-                let idx = pop!!
+                let idx = pop.getOrThrow()
                 Output.prettyErrorLn("✗ ${relPath(idx)} (${reason})")
                 reporter.summary().fail += 1
                 reporter.summary().files += 1

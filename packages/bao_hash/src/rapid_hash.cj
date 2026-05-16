@@ -15,17 +15,18 @@ package bao_hash
 
 /// RapidHash - 高速非加密哈希
 /// 对应 Bun: bun.deprecated.RapidHash
+// 128位乘法结果 (低64位, 高64位)
+private class MumResult {
+    var lo: UInt64
+    var hi: UInt64
+    init(lo: UInt64, hi: UInt64) {
+        this.lo = lo
+        this.hi = hi
+    }
+}
+
 public class RapidHash {
 
-    // 128位乘法结果 (低64位, 高64位)
-    private class MumResult {
-        var lo: UInt64
-        var hi: UInt64
-        init(lo: UInt64, hi: UInt64) {
-            this.lo = lo
-            this.hi = hi
-        }
-    }
     /// 默认种子
     public static let RAPID_SEED: UInt64 = UInt64(0xbdd89aa982704029)
 

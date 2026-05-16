@@ -34,7 +34,7 @@ public class ParallelRunner {
         ctx: CommandContext,
         coverageOpts: TestCommand.CodeCoverageOptions
     ): Bool {
-        let N = files.length
+        let N = files.size
         let K = Math.min(ctx.testOptions.parallel, N)
         if (K <= 1) {
             // 即使 --maxWorkers=1 也设置 JEST_WORKER_ID
@@ -77,7 +77,7 @@ public class ParallelRunner {
             sorted.append(f)
         }
         if (!ctx.testOptions.randomize) {
-            sorted.sort { a, b -> a.slice().compareTo(b.slice()) }
+            sorted.sort({ a, b => a.slice().compareTo(b.slice()) })
         }
 
         let workers = ArrayList<Worker>(K)
@@ -96,11 +96,12 @@ public class ParallelRunner {
         coord.workerTmpdir = workerTmpdir
         coord.parallelLimit = K
         coord.scaleUpAfterMs = if (ctx.testOptions.parallelDelayMs != None) {
-            ctx.testOptions.parallelDelayMs!!
+            ctx.testOptions.parallelDelayMs.getOrThrow()
         } else {
             let envMs = vm.transpiler.env.get("BAO_TEST_PARALLEL_SCALE_MS")
             if (envMs != None) {
-                Math.max(0, Int64.parse(envMs!!) ?: DEFAULT_SCALE_UP_AFTER_MS)
+                let parsedMs = Int64.parse(envMs.getOrThrow())
+                Math.max(0, match (parsedMs) { case Some(v) => v case None => DEFAULT_SCALE_UP_AFTER_MS })
             } else {
                 DEFAULT_SCALE_UP_AFTER_MS
             }
@@ -123,7 +124,7 @@ public class ParallelRunner {
 
         // 合并 JUnit 和覆盖率片段
         if (ctx.testOptions.reporters.junit && ctx.testOptions.reporterOutfile != None) {
-            Aggregate.mergeJUnitFragments(coord, ctx.testOptions.reporterOutfile!!, reporter.summary())
+            Aggregate.mergeJUnitFragments(coord, ctx.testOptions.reporterOutfile.getOrThrow(), reporter.summary())
         }
         if (coverageOpts.enabled) {
             Aggregate.mergeCoverageFragments(coord.coverageFragments, coverageOpts, Output.enableAnsiColorsStderr)
@@ -164,7 +165,7 @@ public class ParallelRunner {
                 vm.eventLoop().tick()
             }
 
-            let idx = cmds.pendingIdx ?: break
+            let idx = match (cmds.pendingIdx) { case Some(v) => v case None => break }
             cmds.pendingIdx = None
 
             // 发送 file_start
@@ -203,7 +204,7 @@ public class ParallelRunner {
     /// 工作器发出测试完成事件
     /// 对应 Bun: workerEmitTestDone()
     public static func workerEmitTestDone(fileIdx: Int64, formattedLine: String): Unit {
-        let cmds = workerCmds ?: return
+        let cmds = match (workerCmds) { case Some(v) => v case None => return }
         workerFrame.begin(FrameKind.testDone)
         workerFrame.u32_(fileIdx)
         workerFrame.str(formattedLine)
@@ -216,7 +217,7 @@ public class ParallelRunner {
         let argv = ArrayList<String>()
         let opts = ctx.testOptions
 
-        argv.append(Sys.selfExePath() ?: "bao")
+        argv.append(match (Sys.selfExePath()) { case Some(v) => v case None => "bao" })
         argv.append("test")
         argv.append("--test-worker")
         argv.append("--isolate")
@@ -229,13 +230,13 @@ public class ParallelRunner {
         if (opts.updateSnapshots) argv.append("--update-snapshots")
         if (opts.concurrent) argv.append("--concurrent")
         if (opts.randomize) argv.append("--randomize")
-        if (opts.seed != None) argv.append("--seed=${opts.seed!!}")
+        if (opts.seed != None) argv.append("--seed=${opts.seed.getOrThrow()}")
         if (opts.repeatCount > 0) argv.append("--rerun-each=${opts.repeatCount}")
         if (opts.retry > 0) argv.append("--retry=${opts.retry}")
         argv.append("--max-concurrency=${opts.maxConcurrency}")
         if (opts.testFilterPattern != None) {
             argv.append("-t")
-            argv.append(opts.testFilterPattern!!)
+            argv.append(opts.testFilterPattern.getOrThrow())
         }
         if (opts.coverage.enabled) {
             argv.append("--coverage")
@@ -263,15 +264,15 @@ public class ParallelRunner {
         if (workerTmp != None) {
             let pid = Sys.getpid()
             if (reporter.reporters.junit != None) {
-                let path = "${workerTmp!!}/w${pid}.xml"
-                if (reporter.reporters.junit!!.writeToFile(path)) {
+                let path = "${workerTmp.getOrThrow()}/w${pid}.xml"
+                if (reporter.reporters.junit.getOrThrow().writeToFile(path)) {
                     workerFrame.begin(FrameKind.junitFile)
                     workerFrame.str(path)
                     cmds.send(workerFrame.finish())
                 }
             }
             if (ctx.testOptions.coverage.enabled) {
-                let path = "${workerTmp!!}/cov${pid}.lcov"
+                let path = "${workerTmp.getOrThrow()}/cov${pid}.lcov"
                 if (reporter.writeLcovOnly(vm, ctx.testOptions.coverage, path)) {
                     workerFrame.begin(FrameKind.coverageFile)
                     workerFrame.str(path)
@@ -298,13 +299,12 @@ public class WorkerCommands {
 
     /// 通道帧回调
     public func onChannelFrame(kind: FrameKind, rd: FrameReader): Unit {
-        when (kind) {
-            case FrameKind.run => {
+        match (kind) {
+            case FrameKind.run =>
                 pendingIdx = rd.u32_()
                 pendingPath = rd.str()
-            }
             case FrameKind.shutdown => done = true
-            else => {}
+            case _ => ()
         }
     }
 

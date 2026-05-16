@@ -12,6 +12,27 @@ import bao_core.*
 // ============================================================================
 
 /// ls命令
+public enum LsState {
+    | idle
+    | exec(ExecState)
+    | waitingWriteErr
+    | done
+}
+
+public struct ExecState {
+    public var err: ?SyscallError = None
+    public var taskCount: AtomicUIntPtr = AtomicUIntPtr()
+    public var tasksDone: UIntPtr = 0
+    public var outputWaiting: UIntPtr = 0
+    public var outputDone: UIntPtr = 0
+}
+
+public enum ResultKind {
+    | file
+    | dir
+    | idk
+}
+
 public class LsCmd {
     /// 选项
     public var opts: LsOpts = LsOpts()
@@ -21,22 +42,11 @@ public class LsCmd {
     public var allocScope: AllocScope = AllocScope()
 
     /// 状态类型
-    public enum LsState {
-        case idle
-        case exec(ExecState)
-        case waitingWriteErr
-        case done
-    }
+
 
     /// 执行状态
     /// 对应 Bun: exec struct in Ls state
-    public struct ExecState {
-        public var err: ?SyscallError = None
-        public var taskCount: AtomicUIntPtr = AtomicUIntPtr()
-        public var tasksDone: UIntPtr = 0
-        public var outputWaiting: UIntPtr = 0
-        public var outputDone: UIntPtr = 0
-    }
+
 
     /// 启动
     public func start(): Yield {
@@ -344,14 +354,14 @@ public struct LsOpts {
 
 /// ls解析结果
 public enum LsParseResult {
-    case ok(?Array<String>)
-    case err(LsParseError)
+    | ok(?Array<String>)
+    | err(LsParseError)
 }
 
 /// ls解析错误
 public enum LsParseError {
-    case illegalOption(String)
-    case showUsage
+    | illegalOption(String)
+    | showUsage
 }
 
 /// Shell ls任务（线程池任务）
@@ -382,11 +392,7 @@ public class ShellLsTask {
 
     /// 结果类型枚举
     /// 对应 Bun: enum { file, dir, idk }
-    public enum ResultKind {
-        case file
-        case dir
-        case idk
-    }
+
 
     /// 调度到线程池
     public func schedule() {

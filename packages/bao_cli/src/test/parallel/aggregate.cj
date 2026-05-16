@@ -25,7 +25,7 @@ public func mergeJUnitFragments(coord: Coordinator, outfile: String, summary: Te
         if (file == None) {
             continue
         }
-        let content = file!!
+        let content = file.getOrThrow()
 
         // 每个 fragment 是完整的 <testsuites> 文档
         let openStart = content.indexOf("<testsuites")
@@ -36,7 +36,7 @@ public func mergeJUnitFragments(coord: Coordinator, outfile: String, summary: Te
         if (headEnd < 0) {
             continue
         }
-        let head = content.substring(openStart, headEnd)
+        let head = content[openStart..headEnd]
 
         // 提取头部属性
         totalTests += attrValue(head, "tests")
@@ -49,8 +49,8 @@ public func mergeJUnitFragments(coord: Coordinator, outfile: String, summary: Te
         if (bodyEnd < 0 || bodyStart >= bodyEnd) {
             continue
         }
-        let inner = content.substring(bodyStart, bodyEnd).trim()
-        if (inner.length > 0) {
+        let inner = content[bodyStart..bodyEnd].trim()
+        if (inner.size > 0) {
             body.append(inner)
             body.append('\n')
         }
@@ -86,12 +86,13 @@ private func attrValue(head: String, name: String): Int64 {
     if (start < 0) {
         return 0
     }
-    let valStart = start + needle.length
+    let valStart = start + needle.size
     let end = head.indexOf('"', valStart)
     if (end < 0) {
         return 0
     }
-    return Int64.parse(head.substring(valStart, end)) ?: 0
+    let parsed = Int64.parse(head[valStart..end])
+    return match (parsed) { case Some(v) => v case None => 0 }
 }
 
 /// 文件覆盖率信息
@@ -134,11 +135,11 @@ public func mergeCoverageFragments(paths: ArrayList<String>, opts: TestCommand.C
         }
 
         var cur: ?FileCoverage = None
-        let lines = data!!.split('\n')
+        let lines = data.getOrThrow().split('\n')
         for (line in lines) {
             let trimmed = line.trimEnd('\r')
             if (trimmed.startsWith("SF:")) {
-                let name = trimmed.substring(3)
+                let name = trimmed[3..]
                 if (!byFile.contains(name)) {
                     byFile.put(name, FileCoverage(name))
                 }
@@ -146,20 +147,24 @@ public func mergeCoverageFragments(paths: ArrayList<String>, opts: TestCommand.C
             } else if (trimmed == "end_of_record") {
                 cur = None
             } else if (cur != None) {
-                let fc = cur!!
+                let fc = cur.getOrThrow()
                 if (trimmed.startsWith("DA:")) {
-                    let parts = trimmed.substring(3).split(',')
-                    if (parts.length >= 2) {
-                        let ln = Int64.parse(parts[0]) ?: continue
-                        let cnt = Int64.parse(parts[1]) ?: continue
-                        let existing = fc.da.get(ln) ?: 0
+                    let parts = trimmed[3..].split(',')
+                    if (parts.size >= 2) {
+                        let lnOpt = Int64.parse(parts[0])
+                        if (lnOpt == None) { continue }
+                        let cntOpt = Int64.parse(parts[1])
+                        if (cntOpt == None) { continue }
+                        let ln = lnOpt.getOrThrow()
+                        let cnt = cntOpt.getOrThrow()
+                        let existing = match (fc.da.get(ln)) { case Some(v) => v case None => 0 }
                         fc.da.put(ln, existing + cnt)
                     }
                 } else if (trimmed.startsWith("FNF:")) {
-                    let val_ = Int64.parse(trimmed.substring(4)) ?: 0
+                    let val_ = match (Int64.parse(trimmed[4..])) { case Some(v) => v case None => 0 }
                     fc.fnf = Math.max(fc.fnf, val_)
                 } else if (trimmed.startsWith("FNH:")) {
-                    let val_ = Int64.parse(trimmed.substring(4)) ?: 0
+                    let val_ = match (Int64.parse(trimmed[4..])) { case Some(v) => v case None => 0 }
                     fc.fnh = Math.max(fc.fnh, val_)
                 }
             }

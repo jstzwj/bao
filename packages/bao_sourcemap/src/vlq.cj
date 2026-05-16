@@ -31,16 +31,17 @@ import bao_core.*
 /// Base64 字母表 - 对应 Bun VLQ.base64
 public let VLQ_BASE64: String = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
 
-/// Base64 查找表 - 对应 Bun VLQ.base64_lut
-/// 使用 128 元素数组模拟 Zig 的 [maxInt(u7)]u8
-/// 无效字符标记为 0xFF
-public let VLQ_BASE64_LUT: Array<UInt8> = {
-    var lut = Array<UInt8>(128, item: 0xFF.toUInt8())
+/// Base64 查找表构建函数
+private func buildBase64LUT(): Array<UInt8> {
+    var lut = Array<UInt8>(128, repeat: UInt8(0xFF))
     for (i in 0..64) {
-        lut[VLQ_BASE64[i].toUInt8()] = UInt8(i)
+        lut[UInt8(VLQ_BASE64[i])] = UInt8(i)
     }
-    lut
-}()
+    return lut
+}
+
+/// Base64 查找表 - 对应 Bun VLQ.base64_lut
+public let VLQ_BASE64_LUT: Array<UInt8> = buildBase64LUT()
 
 /// VLQ 最大编码字节数 - 对应 Bun VLQ.vlq_max_in_bytes = 7
 public let VLQ_MAX_BYTES: Int64 = 7

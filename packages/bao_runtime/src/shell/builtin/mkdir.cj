@@ -12,6 +12,23 @@ import bao_core.*
 // ============================================================================
 
 /// mkdir命令
+public enum MkdirState {
+    | idle
+    | exec(ExecState)
+    | waitingWriteErr
+    | done
+}
+
+public struct ExecState {
+    public var started: Boolean = false
+    public var tasksCount: UIntPtr = 0
+    public var tasksDone: UIntPtr = 0
+    public var outputWaiting: UInt16 = 0
+    public var outputDone: UInt16 = 0
+    public var args: Array<String>
+    public var err: ?SystemError = None
+}
+
 public class MkdirCmd {
     /// 选项
     public var opts: MkdirOpts = MkdirOpts()
@@ -19,24 +36,11 @@ public class MkdirCmd {
     public var state: MkdirState = MkdirState.idle
 
     /// 状态类型
-    public enum MkdirState {
-        case idle
-        case exec(ExecState)
-        case waitingWriteErr
-        case done
-    }
+
 
     /// 执行状态
     /// 对应 Bun: exec struct in Mkdir state
-    public struct ExecState {
-        public var started: Boolean = false
-        public var tasksCount: UIntPtr = 0
-        public var tasksDone: UIntPtr = 0
-        public var outputWaiting: UInt16 = 0
-        public var outputDone: UInt16 = 0
-        public var args: Array<String>
-        public var err: ?SystemError = None
-    }
+
 
     /// IO写入器数据块回调
     public func onIOWriterChunk(amount: UInt64, e: ?SystemError): Yield {
@@ -183,15 +187,15 @@ public struct MkdirOpts {
 
 /// mkdir解析结果
 public enum MkdirParseResult {
-    case ok(?Array<String>)
-    case err(MkdirParseError)
+    | ok(?Array<String>)
+    | err(MkdirParseError)
 }
 
 /// mkdir解析错误
 public enum MkdirParseError {
-    case illegalOption(String)
-    case showUsage
-    case unsupported(String)
+    | illegalOption(String)
+    | showUsage
+    | unsupported(String)
 }
 
 /// Shell mkdir任务（线程池任务）

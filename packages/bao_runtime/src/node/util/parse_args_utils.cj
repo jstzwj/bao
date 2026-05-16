@@ -8,8 +8,8 @@ package bao_runtime.node.util
 // 对应 Bun: src/runtime/node/util/parse_args_utils.zig - OptionValueType
 // ============================================================================
 public enum ParseArgType {
-    boolean,
-    string
+    | boolean_
+    | string_
 }
 
 // ============================================================================
@@ -19,16 +19,16 @@ public enum ParseArgType {
 public class ParseArgOption {
     public var longName: String = ""
     public var shortName: String = ""
-    public var type: ParseArgType = ParseArgType.boolean
+    public var `type`: ParseArgType = ParseArgType.boolean__
     public var multiple: Bool = false
     public var defaultValue: ?ParseArgValue = None
 
     public init() {}
 
-    public init(longName: String, shortName: String, type: ParseArgType, multiple: Bool) {
+    public init(longName: String, shortName: String, `type`: ParseArgType, multiple: Bool) {
         this.longName = longName
         this.shortName = shortName
-        this.type = type
+        this.`type` = `type`
         this.multiple = multiple
     }
 }
@@ -38,13 +38,13 @@ public class ParseArgOption {
 // 对应 Bun: src/runtime/node/util/parse_args_utils.zig - TokenSubtype
 // ============================================================================
 public enum TokenSubtype {
-    optionTerminator,      // "--"
-    loneShortOption,       // "-f"
-    shortOptionGroup,      // "-fXzy"
-    shortOptionAndValue,   // "-fFILE"
-    loneLongOption,        // "--foo"
-    longOptionAndValue,    // "--foo=bar"
-    positional
+    | optionTerminator
+    | loneShortOption
+    | shortOptionGroup
+    | shortOptionAndValue
+    | loneLongOption
+    | longOptionAndValue
+    | positional
 }
 
 // ============================================================================
@@ -70,10 +70,10 @@ public class TokenClassifier {
                 }
                 return TokenSubtype.loneLongOption
             } else if (arg.startsWith("-")) {
-                let firstChar = arg.substring(1, 2)
+                let firstChar = arg[1..2]
                 let optIdx = findOptionByShortName(firstChar, options: options)
                 if (optIdx != None) {
-                    if (options[Int64(optIdx.getOrThrow())].type == ParseArgType.string) {
+                    if (options[Int64(optIdx.getOrThrow())].`type` == ParseArgType.string_) {
                         return TokenSubtype.shortOptionAndValue
                     }
                     return TokenSubtype.shortOptionGroup

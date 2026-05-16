@@ -35,7 +35,7 @@ public struct NullableAllocator {
     /// 从可选的 Allocator 初始化
     /// 对应 Zig: pub inline fn init(allocator: ?std.mem.Allocator) NullableAllocator
     public static func initFunc(allocator: ?Allocator): NullableAllocator {
-        if (let a = allocator) {
+        if (let Some(a) <- allocator) {
             return NullableAllocator(
                 ptr: a.getContext(),
                 vtable: a.getVTable()
@@ -66,7 +66,7 @@ public struct NullableAllocator {
     /// 获取底层分配器
     /// 对应 Zig: pub inline fn get(this: NullableAllocator) ?std.mem.Allocator
     public func get(): ?Allocator {
-        if (let vt = this.vtable) {
+        if (let Some(vt) <- this.vtable) {
             return Allocator.fromContext(this.ptr, vt)
         }
         return None
@@ -75,7 +75,7 @@ public struct NullableAllocator {
     /// 释放字节
     /// 对应 Zig: pub fn free(this: *const NullableAllocator, bytes: []const u8) void
     public func free(bytes: Array<Byte>): Unit {
-        if (let allocator = this.get()) {
+        if (let Some(allocator) <- this.get()) {
             if (BunString.isWTFAllocator(allocator)) {
                 // 避免调用 std.mem.Allocator.free 因为它会将内存设为 undefined
                 allocator.rawFree(bytes, Alignment.fromByteUnits(1), 0)

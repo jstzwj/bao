@@ -82,13 +82,13 @@ public class Worker {
         process = spawned.toProcess(coord_.vm.eventLoop(), false)
 
         if (spawned.stdout != None) {
-            stdoutReader.start(spawned.stdout!!)
+            stdoutReader.start(spawned.stdout.getOrThrow())
         }
         if (spawned.stderr != None) {
-            stderrReader.start(spawned.stderr!!)
+            stderrReader.start(spawned.stderr.getOrThrow())
         }
 
-        if (spawned.extraPipes.length > 0) {
+        if (spawned.extraPipes.size > 0) {
             if (!ipc.adopt(coord_.vm, spawned.extraPipes[0].fd())) {
                 ipc.done = true
             }
@@ -98,8 +98,8 @@ public class Worker {
 
         alive = true
         coord_.liveWorkers += 1
-        process!!.setExitHandler(this)
-        process!!.watchOrReap()
+        process.getOrThrow().setExitHandler(this)
+        process.getOrThrow().watchOrReap()
     }
 
     /// 进程退出回调
@@ -146,7 +146,7 @@ public class Worker {
         if (ipc.backend.socket != None) {
             // 损坏帧路径: 杀死 worker
             if (process != None) {
-                process!!.kill(9)
+                process.getOrThrow().kill(9)
             }
         }
         coord.tryReap(this)

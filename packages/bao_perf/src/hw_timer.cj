@@ -21,6 +21,16 @@ import bao_core.*
 //   校准使用 OS 单调时钟作为锚点
 // ============================================================================
 
+/// 校准数据结构 (extracted from HwTimer)
+/// 对应 Zig Calibration struct
+public class HwTimerCalibrationData {
+    public var startCounter: UInt64 = 0  // 校准起始计数器值
+    public var startNs: UInt64 = 0       // 校准起始纳秒时间
+    public var mult: UInt64 = 0          // 乘法因子: elapsed_ns = (ticks * mult) >> 32. 0 => HW 路径禁用
+
+    public init() {}
+}
+
 /// 硬件计时器 - 对应 Bun hw_timer 模块
 /// 提供无屏障的高精度计时功能
 public class HwTimer {
@@ -45,15 +55,8 @@ public class HwTimer {
     //   };
     // ========================================================================
 
-    /// 校准数据结构
-    /// 对应 Zig Calibration struct
-    public class CalibrationData {
-        public var startCounter: UInt64 = 0  // 校准起始计数器值
-        public var startNs: UInt64 = 0       // 校准起始纳秒时间
-        public var mult: UInt64 = 0          // 乘法因子: elapsed_ns = (ticks * mult) >> 32. 0 => HW 路径禁用
-
-        public init() {}
-    }
+    /// 校准数据实例 - 对应 Zig: var calibration: Calibration = .{}
+    public static let calibrationData: HwTimerCalibrationData = HwTimerCalibrationData()
 
     /// 移位常量 - 对应 Zig: const shift = 32
     public static let SHIFT: Int64 = 32
@@ -283,7 +286,7 @@ public struct UInt128 {
     public let high: UInt64
     public let low: UInt64
 
-    public init(_ value: UInt64) {
+    public init(value: UInt64) {
         this.high = 0
         this.low = value
     }
@@ -294,7 +297,7 @@ public struct UInt128 {
     }
 
     /// 左移运算
-    public func <<(shift: UInt128): UInt128 {
+    public operator func <<(shift: UInt128): UInt128 {
         let s = shift.low
         if (s == 0) {
             return this

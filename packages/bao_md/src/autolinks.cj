@@ -8,13 +8,13 @@ package bao_md
 
 /// 检查字符是否为列表项目符号
 public func isListBullet(c: UInt8): Bool {
-    return c == '-'.toUInt8() || c == '+'.toUInt8() || c == '*'.toUInt8()
+    return c == UInt8(0x2D) || c == UInt8(0x2B) || c == UInt8(0x2A)
 }
 
 /// 检查字符是否为列表项标记
 public func isListItemMark(c: UInt8): Bool {
-    return c == '-'.toUInt8() || c == '+'.toUInt8() || c == '*'.toUInt8() ||
-           c == '.'.toUInt8() || c == ')'.toUInt8()
+    return c == UInt8(0x2D) || c == UInt8(0x2B) || c == UInt8(0x2A) ||
+           c == UInt8(0x2E) || c == UInt8(0x29)
 }
 
 // ============================================================================
@@ -37,7 +37,7 @@ public func isEmphBoundaryResolved(content: String, al: AutolinkResult, resolved
     // 检查左边界
     if (al.beg > 0) {
         let prev = UInt8(content[al.beg - 1])
-        if (prev == '*'.toUInt8() || prev == '_'.toUInt8() || prev == '~'.toUInt8()) {
+        if (prev == UInt8(0x2A) || prev == UInt8(0x5F) || prev == UInt8(0x7E)) {
             if (!checkLeftBoundary(content, al.beg, false)) {
                 var found_resolved = false
                 for (d in resolved) {
@@ -56,7 +56,7 @@ public func isEmphBoundaryResolved(content: String, al: AutolinkResult, resolved
     // 检查右边界
     if (al.end < content.size) {
         let next = UInt8(content[al.end])
-        if (next == '*'.toUInt8() || next == '_'.toUInt8() || next == '~'.toUInt8()) {
+        if (next == UInt8(0x2A) || next == UInt8(0x5F) || next == UInt8(0x7E)) {
             if (!checkRightBoundary(content, al.end, false)) {
                 var found_resolved = false
                 for (d in resolved) {
@@ -116,13 +116,13 @@ public func scanUrlComponent(content: String, start: Int64, start_char: UInt8,
             pos += 1
         } else if (isInSet(c, allowed_nonalnum) &&
                    ((pos > 0 && (isAlphaNum(UInt8(content[pos - 1])) ||
-                                  UInt8(content[pos - 1]) == ')'.toUInt8() ||
+                                  UInt8(content[pos - 1]) == UInt8(0x29) ||
                                   isInSet(UInt8(content[pos - 1]), allowed_nonalnum))) ||
-                                  c == '('.toUInt8()) &&
+                                  c == UInt8(0x28)) &&
                    ((pos + 1 < content.size && (isAlphaNum(UInt8(content[pos + 1])) ||
-                                                   UInt8(content[pos + 1]) == '('.toUInt8() ||
+                                                   UInt8(content[pos + 1]) == UInt8(0x28) ||
                                                    isInSet(UInt8(content[pos + 1]), allowed_nonalnum))) ||
-                                   c == ')'.toUInt8())) {
+                                   c == UInt8(0x29))) {
             if (c == delim_char) {
                 n_components += 1
             }
@@ -162,9 +162,18 @@ public func checkLeftBoundary(content: String, pos: Int64, allow_emph: Bool): Bo
         return true
     }
     return match (UInt8(content[pos - 1])) {
-        case ' ', '\t', '\n', '\r', 0x0B, 0x0C => true
-        case '(', '{', '[' => true
-        case '*', '_', '~' => allow_emph
+        case ' ' => true
+        case '\t' => true
+        case '\n' => true
+        case '\r' => true
+        case 0x0B => true
+        case 0x0C => true
+        case '(' => true
+        case '{' => true
+        case '[' => true
+        case '*' => allow_emph
+        case '_' => allow_emph
+        case '~' => allow_emph
         case _ => false
     }
 }
@@ -175,10 +184,25 @@ public func checkRightBoundary(content: String, pos: Int64, allow_emph: Bool): B
         return true
     }
     return match (UInt8(content[pos])) {
-        case ' ', '\t', '\n', '\r', 0x0B, 0x0C => true
-        case ')', '}', ']', '<' => true
-        case '.', '!', '?', ',', ';', '&' => true
-        case '*', '_', '~' => allow_emph
+        case ' ' => true
+        case '\t' => true
+        case '\n' => true
+        case '\r' => true
+        case 0x0B => true
+        case 0x0C => true
+        case ')' => true
+        case '}' => true
+        case ']' => true
+        case '<' => true
+        case '.' => true
+        case '!' => true
+        case '?' => true
+        case ',' => true
+        case ';' => true
+        case '&' => true
+        case '*' => allow_emph
+        case '_' => allow_emph
+        case '~' => allow_emph
         case _ => false
     }
 }
@@ -194,7 +218,7 @@ public func findPermissiveAutolink(content: String, pos: Int64, allow_emph: Bool
     }
     let c = UInt8(content[pos])
 
-    if (c == ':'.toUInt8()) {
+    if (c == UInt8(0x3A)) {
         // URL 自动链接: http://, https://, ftp://
         let schemes: Array<String> = ["http", "https", "ftp"]
         let suffixes: Array<String> = ["//", "//", "//"]
@@ -203,23 +227,23 @@ public func findPermissiveAutolink(content: String, pos: Int64, allow_emph: Bool
             let slen = schemes[Int64(i)].size
             let suflen = suffixes[Int64(i)].size
             if (pos >= slen && pos + 1 + suflen < content.size) {
-                if (asciiCaseEql(content.substring(pos - slen, pos), schemes[Int64(i)]) &&
-                    content.substring(pos + 1, pos + 1 + suflen) == suffixes[Int64(i)]) {
+                if (asciiCaseEql(content[pos - slen..pos], schemes[Int64(i)]) &&
+                    content[pos + 1..pos + 1 + suflen] == suffixes[Int64(i)]) {
                     let beg = pos - slen
                     if (!checkLeftBoundary(content, beg, allow_emph)) {
                         continue
                     }
                     var end = pos + 1 + suflen
-                    let host = scanUrlComponent(content, end, 0, '.'.toUInt8(), ".-_", 2, 0)
+                    let host = scanUrlComponent(content, end, 0, UInt8(0x2E), ".-_", 2, 0)
                     if (!host.ok) {
                         continue
                     }
                     end = host.end
-                    let path = scanUrlComponent(content, end, '/'.toUInt8(), '/'.toUInt8(), "/.-_~*+%", 0, '/'.toUInt8())
+                    let path = scanUrlComponent(content, end, UInt8(0x2F), UInt8(0x2F), "/.-_~*+%", 0, UInt8(0x2F))
                     end = path.end
-                    let query = scanUrlComponent(content, end, '?'.toUInt8(), '&'.toUInt8(), "&.-+_=()~*%", 1, 0)
+                    let query = scanUrlComponent(content, end, UInt8(0x3F), UInt8(0x26), "&.-+_=()~*%", 1, 0)
                     end = query.end
-                    let frag = scanUrlComponent(content, end, '#'.toUInt8(), 0, ".-+_~*%", 1, 0)
+                    let frag = scanUrlComponent(content, end, UInt8(0x23), 0, ".-+_~*%", 1, 0)
                     end = frag.end
                     end = postProcessAutolinkEnd(content, beg, end)
                     if (!checkRightBoundary(content, end, allow_emph)) {
@@ -229,7 +253,7 @@ public func findPermissiveAutolink(content: String, pos: Int64, allow_emph: Bool
                 }
             }
         }
-    } else if (c == '@'.toUInt8()) {
+    } else if (c == UInt8(0x40)) {
         // 电子邮件自动链接
         if (pos == 0 || pos + 3 >= content.size) {
             return None
@@ -257,7 +281,7 @@ public func findPermissiveAutolink(content: String, pos: Int64, allow_emph: Bool
             return None
         }
 
-        let host = scanUrlComponent(content, pos + 1, 0, '.'.toUInt8(), ".-_", 2, 0)
+        let host = scanUrlComponent(content, pos + 1, 0, UInt8(0x2E), ".-_", 2, 0)
         if (!host.ok) {
             return None
         }
@@ -266,12 +290,12 @@ public func findPermissiveAutolink(content: String, pos: Int64, allow_emph: Bool
             return None
         }
         return AutolinkResult(beg, end)
-    } else if (c == '.'.toUInt8()) {
+    } else if (c == UInt8(0x2E)) {
         // WWW 自动链接
         if (pos < 3) {
             return None
         }
-        if (!asciiCaseEql(content.substring(pos - 3, pos), "www")) {
+        if (!asciiCaseEql(content[pos - 3..pos], "www")) {
             return None
         }
 
@@ -281,16 +305,16 @@ public func findPermissiveAutolink(content: String, pos: Int64, allow_emph: Bool
         }
 
         var end = pos + 1
-        let host = scanUrlComponent(content, end, 0, '.'.toUInt8(), ".-_", 1, 0)
+        let host = scanUrlComponent(content, end, 0, UInt8(0x2E), ".-_", 1, 0)
         if (!host.ok) {
             return None
         }
         end = host.end
-        let path = scanUrlComponent(content, end, '/'.toUInt8(), '/'.toUInt8(), "/.-_~*+%", 0, '/'.toUInt8())
+        let path = scanUrlComponent(content, end, UInt8(0x2F), UInt8(0x2F), "/.-_~*+%", 0, UInt8(0x2F))
         end = path.end
-        let query = scanUrlComponent(content, end, '?'.toUInt8(), '&'.toUInt8(), "&.-+_=()~*%", 1, 0)
+        let query = scanUrlComponent(content, end, UInt8(0x3F), UInt8(0x26), "&.-+_=()~*%", 1, 0)
         end = query.end
-        let frag = scanUrlComponent(content, end, '#'.toUInt8(), 0, ".-+_~*%", 1, 0)
+        let frag = scanUrlComponent(content, end, UInt8(0x23), 0, ".-+_~*%", 1, 0)
         end = frag.end
         end = postProcessAutolinkEnd(content, beg, end)
         if (!checkRightBoundary(content, end, allow_emph)) {
@@ -307,34 +331,34 @@ func postProcessAutolinkEnd(content: String, beg: Int64, end_in: Int64): Int64 {
     var end = end_in
 
     // 修剪尾部类实体后缀
-    if (end > beg && UInt8(content[end - 1]) == ';'.toUInt8()) {
+    if (end > beg && UInt8(content[end - 1]) == UInt8(0x3B)) {
         var j = end - 2
         while (j > beg && isAlphaNum(UInt8(content[j]))) {
             j -= 1
         }
-        if (j >= beg && UInt8(content[j]) == '&'.toUInt8()) {
+        if (j >= beg && UInt8(content[j]) == UInt8(0x26)) {
             end = j
         }
     }
-    if (end < content.size && UInt8(content[end]) == ';'.toUInt8() && end > beg) {
+    if (end < content.size && UInt8(content[end]) == UInt8(0x3B) && end > beg) {
         var j = end - 1
         while (j > beg && isAlphaNum(UInt8(content[j]))) {
             j -= 1
         }
-        if (j >= beg && UInt8(content[j]) == '&'.toUInt8()) {
+        if (j >= beg && UInt8(content[j]) == UInt8(0x26)) {
             end = j
         }
     }
 
     // 修剪尾部不平衡的 `)`
-    while (end > beg && UInt8(content[end - 1]) == ')'.toUInt8()) {
+    while (end > beg && UInt8(content[end - 1]) == UInt8(0x29)) {
         var open_count: Int32 = 0
         var close_count: Int32 = 0
         for (i in beg..end) {
-            if (content[i] == '(') {
+            if (UInt8(content[i]) == UInt8(0x28)) {
                 open_count += 1
             }
-            if (content[i] == ')') {
+            if (UInt8(content[i]) == UInt8(0x29)) {
                 close_count += 1
             }
         }

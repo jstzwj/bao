@@ -12,6 +12,37 @@ import bao_core.*
 // ============================================================================
 
 /// cat命令
+public enum CatState {
+    | idle
+    | execStdin(ExecStdinState)
+    | execFilepathArgs(ExecFilepathArgsState)
+    | waitingWriteErr
+    | done
+}
+
+public struct ExecStdinState {
+    public var inDone: Boolean = false
+    public var chunksQueued: UInt32 = 0
+    public var chunksDone: UInt32 = 0
+    public var errno: ExitCode = 0
+}
+
+public struct ExecFilepathArgsState {
+    public var args: Array<String>
+    public var idx: UInt32 = 0
+    public var reader: ?IOReader = None
+    public var chunksQueued: UInt32 = 0
+    public var chunksDone: UInt32 = 0
+    public var outDone: Boolean = false
+    public var inDone: Boolean = false
+
+    public func deinit() {
+        if (let r = this.reader) {
+            r.deref()
+        }
+    }
+}
+
 public class CatCmd {
     /// 选项
     public var opts: CatOpts = CatOpts()
@@ -19,39 +50,14 @@ public class CatCmd {
     public var state: CatState = CatState.idle
 
     /// 状态类型
-    public enum CatState {
-        case idle
-        case execStdin(ExecStdinState)
-        case execFilepathArgs(ExecFilepathArgsState)
-        case waitingWriteErr
-        case done
-    }
+
 
     /// 从stdin执行的状态
-    public struct ExecStdinState {
-        public var inDone: Boolean = false
-        public var chunksQueued: UInt32 = 0
-        public var chunksDone: UInt32 = 0
-        public var errno: ExitCode = 0
-    }
+
 
     /// 从文件路径执行的状态
     /// 对应 Bun: exec_filepath_args struct in Cat state
-    public struct ExecFilepathArgsState {
-        public var args: Array<String>
-        public var idx: UInt32 = 0
-        public var reader: ?IOReader = None
-        public var chunksQueued: UInt32 = 0
-        public var chunksDone: UInt32 = 0
-        public var outDone: Boolean = false
-        public var inDone: Boolean = false
 
-        public func deinit() {
-            if (let r = this.reader) {
-                r.deref()
-            }
-        }
-    }
 
     /// 写入失败错误
     public func writeFailingError(buf: String, exitCode: ExitCode): Yield {
@@ -236,13 +242,13 @@ public struct CatOpts {
 
 /// 解析结果
 public enum ParseResult {
-    case ok(?Array<String>)
-    case err(ParseError)
+    | ok(?Array<String>)
+    | err(ParseError)
 }
 
 /// 解析错误
 public enum ParseError {
-    case illegalOption(String)
-    case showUsage
-    case unsupported(String)
+    | illegalOption(String)
+    | showUsage
+    | unsupported(String)
 }

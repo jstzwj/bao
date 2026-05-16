@@ -324,41 +324,35 @@ public class AtomicPointer<T> where T <: Object {
 
     /// 交换 - 对应 Zig atomic.swap(.acq_rel)
     public func swap(value: ?T): ?T {
-        match (value) {
-            case Some(v) => return inner.swap(v)
-            case None => {
-                // AtomicReference 不支持 store None
-                // 使用 compareAndSwap 循环来实现 null swap
-                let current = inner.load()
-                if (current.compareAndSwap(current, current)) {
-                    // 无法原子地设置为 null，返回当前值
-                    return current
-                }
-                return current
-            }
+        if (value.isSome()) {
+            return inner.swap(value.getOrThrow())
         }
+        // AtomicReference 不支持 store None
+        // 使用 compareAndSwap 循环来实现 null swap
+        let current = inner.load()
+        if (current.compareAndSwap(current, current)) {
+            // 无法原子地设置为 null，返回当前值
+            return current
+        }
+        return current
     }
 
     /// 比较并交换 - 对应 Zig atomic.cmpxchgWeak
     public func compareAndSwap(expected: ?T, desired: ?T): Bool {
-        match (expected) {
-            case Some(exp) =>
-                match (desired) {
-                    case Some(des) => return inner.compareAndSwap(exp, des)
-                    case None => {
-                        // 不支持 CAS 到 null
-                        return false
-                    }
-                }
-            case None =>
-                match (desired) {
-                    case Some(des) => {
-                        let current = inner.load()
-                        return inner.compareAndSwap(current, des)
-                    }
-                    case None => return true
-                }
+        if (expected.isSome()) {
+            let exp = expected.getOrThrow()
+            if (desired.isSome()) {
+                let des = desired.getOrThrow()
+                return inner.compareAndSwap(exp, des)
+            }
+            return false
         }
+        if (desired.isSome()) {
+            let des = desired.getOrThrow()
+            let current = inner.load()
+            return inner.compareAndSwap(current, des)
+        }
+        return true
     }
 }
 

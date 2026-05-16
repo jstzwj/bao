@@ -43,7 +43,7 @@ public type AtomicSharedAlias<T> = AtomicShared<T>
 
 /// 外部管理的共享指针
 /// 对应: pub const ExternalShared = @import("./external_shared.zig").ExternalShared;
-public type ExternalSharedAlias<T> = ExternalShared<T> where T <: ExternalSharedDescriptor<T>
+public type ExternalSharedAlias<T> = ExternalShared<T>
 
 /// 引用计数 (已弃用，建议使用 Shared)
 /// 对应: pub const RefCount = ref_count.RefCount;

@@ -12,6 +12,23 @@ import bao_core.*
 // ============================================================================
 
 /// touch命令
+public enum TouchState {
+    | idle
+    | exec(ExecState)
+    | waitingWriteErr
+    | done
+}
+
+public struct ExecState {
+    public var started: Boolean = false
+    public var tasksCount: UIntPtr = 0
+    public var tasksDone: UIntPtr = 0
+    public var outputDone: UIntPtr = 0
+    public var outputWaiting: UIntPtr = 0
+    public var args: Array<String>
+    public var err: ?SystemError = None
+}
+
 public class TouchCmd {
     /// 选项
     public var opts: TouchOpts = TouchOpts()
@@ -19,24 +36,11 @@ public class TouchCmd {
     public var state: TouchState = TouchState.idle
 
     /// 状态类型
-    public enum TouchState {
-        case idle
-        case exec(ExecState)
-        case waitingWriteErr
-        case done
-    }
+
 
     /// 执行状态
     /// 对应 Bun: exec struct in Touch state
-    public struct ExecState {
-        public var started: Boolean = false
-        public var tasksCount: UIntPtr = 0
-        public var tasksDone: UIntPtr = 0
-        public var outputDone: UIntPtr = 0
-        public var outputWaiting: UIntPtr = 0
-        public var args: Array<String>
-        public var err: ?SystemError = None
-    }
+
 
     /// 去初始化
     public func deinit() {}
@@ -172,15 +176,15 @@ public struct TouchOpts {
 
 /// touch解析结果
 public enum TouchParseResult {
-    case ok(?Array<String>)
-    case err(TouchParseError)
+    | ok(?Array<String>)
+    | err(TouchParseError)
 }
 
 /// touch解析错误
 public enum TouchParseError {
-    case illegalOption(String)
-    case showUsage
-    case unsupported(String)
+    | illegalOption(String)
+    | showUsage
+    | unsupported(String)
 }
 
 /// Shell touch任务（线程池任务）

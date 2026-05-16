@@ -11,6 +11,12 @@ import bao_core.*
 // ============================================================================
 
 /// dirname命令
+public enum DirnameState {
+    | idle
+    | err
+    | done
+}
+
 public class DirnameCmd {
     /// 状态
     public var state: DirnameState = DirnameState.idle
@@ -18,11 +24,7 @@ public class DirnameCmd {
     public var buf: ArrayList<Byte> = ArrayList<Byte>()
 
     /// 状态类型
-    public enum DirnameState {
-        case idle
-        case err
-        case done
-    }
+
 
     /// 启动
     public func start(): Yield {

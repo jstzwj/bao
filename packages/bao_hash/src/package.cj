@@ -163,7 +163,7 @@ public class Highway {
         }
         for (i in 0..haystack.size) {
             let ch = haystack[i]
-            if (ch > 127 || ch < 0x20 || ch == UInt8('\r') || ch == UInt8('\n')) {
+            if (ch > 127 || ch < 0x20 || ch == UInt8(0x0D) || ch == UInt8(0x0A)) {
                 return Some(i)
             }
         }
@@ -178,8 +178,8 @@ public class Highway {
         }
         for (i in 0..haystack.size) {
             let ch = haystack[i]
-            if (ch > 127 || ch < 0x20 || ch == UInt8('\r') || ch == UInt8('\n') ||
-                ch == UInt8('#') || ch == UInt8('@')) {
+            if (ch > 127 || ch < 0x20 || ch == UInt8(0x0D) || ch == UInt8(0x0A) ||
+                ch == UInt8(0x23) || ch == UInt8(0x40)) {
                 return Some(i)
             }
         }
@@ -194,8 +194,8 @@ public class Highway {
         }
         for (i in 0..haystack.size) {
             let ch = haystack[i]
-            if (ch > 127 || ch == UInt8(' ') || ch == UInt8('\n') ||
-                ch == UInt8('\r') || ch == UInt8('\t')) {
+            if (ch > 127 || ch == UInt8(0x20) || ch == UInt8(0x0A) ||
+                ch == UInt8(0x0D) || ch == UInt8(0x09)) {
                 return Some(i)
             }
         }
@@ -205,16 +205,16 @@ public class Highway {
     /// 查找字符串字面量中的有趣字符 - 对应 Bun indexOfInterestingCharacterInStringLiteral
     /// 扫描: >127, <0x20, \, 引号字符, $ (模板字符串)
     public static func indexOfInterestingCharacterInStringLiteral(
-        text: Array<UInt8>, quote: UInt8
+        text: Array<UInt8>, quoteChar: UInt8
     ): ?Int64 {
         if (text.size == 0) {
             return None
         }
         for (i in 0..text.size) {
             let ch = text[i]
-            if (ch >= 127 || ch < 0x20 || ch == UInt8('\\') ||
-                ch == quote || ch == UInt8('$') ||
-                ch == UInt8('\r') || ch == UInt8('\n')) {
+            if (ch >= 127 || ch < 0x20 || ch == UInt8(0x5C) ||
+                ch == quoteChar || ch == UInt8(0x24) ||
+                ch == UInt8(0x0D) || ch == UInt8(0x0A)) {
                 return Some(i)
             }
         }
@@ -227,7 +227,7 @@ public class Highway {
             return false
         }
         for (ch in text) {
-            if (ch > 127 || ch < 0x20 || ch == UInt8('\r') || ch == UInt8('\n')) {
+            if (ch > 127 || ch < 0x20 || ch == UInt8(0x0D) || ch == UInt8(0x0A)) {
                 return true
             }
         }
@@ -243,9 +243,9 @@ public class Highway {
         }
         for (i in 0..slice.size) {
             let ch = slice[i]
-            if (ch >= 127 || ch < 0x20 || ch == UInt8('\\') ||
-                ch == quoteChar || ch == UInt8('$') ||
-                ch == UInt8('\r') || ch == UInt8('\n')) {
+            if (ch >= 127 || ch < 0x20 || ch == UInt8(0x5C) ||
+                ch == quoteChar || ch == UInt8(0x24) ||
+                ch == UInt8(0x0D) || ch == UInt8(0x0A)) {
                 return Some(i)
             }
         }
@@ -307,11 +307,11 @@ public class Highway {
     /// 将 [a-zA-Z0-9_$] 映射到 0-63 的索引
     private static func charToIndex(ch: UInt8): Int64 {
         let c = Int64(ch)
-        if (c >= Int64('a') && c <= Int64('z')) { return c - Int64('a') }
-        if (c >= Int64('A') && c <= Int64('Z')) { return 26 + c - Int64('A') }
-        if (c >= Int64('0') && c <= Int64('9')) { return 52 + c - Int64('0') }
-        if (c == Int64('_')) { return 62 }
-        if (c == Int64('$')) { return 63 }
+        if (c >= 0x61 && c <= 0x7A) { return c - 0x61 }
+        if (c >= 0x41 && c <= 0x5A) { return 26 + c - 0x41 }
+        if (c >= 0x30 && c <= 0x39) { return 52 + c - 0x30 }
+        if (c == 0x5F) { return 62 }
+        if (c == 0x24) { return 63 }
         return -1
     }
 }
@@ -342,7 +342,7 @@ public class Crc32 {
     }
 
     private static func buildTable(): Array<UInt32> {
-        var table = Array<UInt32>(256, item: UInt32(0))
+        var table = Array<UInt32>(256, repeat: UInt32(0))
         for (i in 0..256) {
             var crc = UInt32(i)
             for (_ in 0..8) {

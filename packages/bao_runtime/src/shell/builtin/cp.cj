@@ -13,6 +13,23 @@ import bao_core.*
 // ============================================================================
 
 /// cp命令
+public enum CpState {
+    | idle
+    | exec(ExecState)
+    | waitingWriteErr
+    | done
+}
+
+public struct ExecState {
+    public var targetPath: String = ""
+    public var pathsToCopy: Array<String>
+    public var started: Boolean = false
+    public var tasksCount: UInt32 = 0
+    public var outputWaiting: UInt32 = 0
+    public var outputDone: UInt32 = 0
+    public var err: ?ShellErr = None
+}
+
 public class CpCmd {
     /// 选项
     public var opts: CpOpts = CpOpts()
@@ -20,24 +37,11 @@ public class CpCmd {
     public var state: CpState = CpState.idle
 
     /// 状态类型
-    public enum CpState {
-        case idle
-        case exec(ExecState)
-        case waitingWriteErr
-        case done
-    }
+
 
     /// 执行状态
     /// 对应 Bun: exec struct in Cp state
-    public struct ExecState {
-        public var targetPath: String = ""
-        public var pathsToCopy: Array<String>
-        public var started: Boolean = false
-        public var tasksCount: UInt32 = 0
-        public var outputWaiting: UInt32 = 0
-        public var outputDone: UInt32 = 0
-        public var err: ?ShellErr = None
-    }
+
 
     /// 启动
     public func start(): Yield {
@@ -194,15 +198,15 @@ public struct CpOpts {
 
 /// cp解析结果
 public enum CpParseResult {
-    case ok(?Array<String>)
-    case err(CpParseError)
+    | ok(?Array<String>)
+    | err(CpParseError)
 }
 
 /// cp解析错误
 public enum CpParseError {
-    case illegalOption(String)
-    case showUsage
-    case unsupported(String)
+    | illegalOption(String)
+    | showUsage
+    | unsupported(String)
 }
 
 /// Shell cp任务（线程池任务）

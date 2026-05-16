@@ -46,8 +46,8 @@ public func phcAsciiStr(s: Array<Byte>): ?String {
 /// std.crypto.pwhash.Encoding
 /// 对应 Bun: #[derive(Copy, Clone, Eq, PartialEq)] pub enum Encoding
 public enum Encoding {
-    | Phc       // PHC 字符串格式 ($argon2id$v=19$...)
-    | Crypt     // 传统 crypt(3) 格式 ($2b$...)
+| Phc       // PHC 字符串格式 ($argon2id$v=19$...)
+| Crypt     // 传统 crypt(3) 格式 ($2b$...)
 }
 
 // ============================================================================
@@ -60,12 +60,12 @@ public enum Encoding {
 /// 对应 Bun: pub type PwhashError = Error
 /// 调用者与 "PasswordVerificationFailed" 等错误标签比较
 public enum PwhashError {
-    | InvalidEncoding          // 解码失败 / 编码无效
-    | WeakParameters           // 参数过弱
-    | PasswordVerificationFailed  // 密码验证失败
-    | NoSpaceLeft              // 输出缓冲区不足
-    | Unexpected               // 意外错误 (随机数生成等)
-    | UnsupportedAlgorithm     // 不支持的算法
+| InvalidEncoding          // 解码失败 / 编码无效
+| WeakParameters           // 参数过弱
+| PasswordVerificationFailed  // 密码验证失败
+| NoSpaceLeft              // 输出缓冲区不足
+| Unexpected               // 意外错误 (随机数生成等)
+| UnsupportedAlgorithm     // 不支持的算法
 }
 
 // ============================================================================
@@ -88,9 +88,9 @@ public let ARGON2_DEFAULT_HASH_LEN: UInt32 = 32
 /// 对应 Bun: pub enum Mode { Argon2d, Argon2i, Argon2id }
 /// 对应 Zig: std.crypto.pwhash.argon2.Mode
 public enum Argon2Mode {
-    | Argon2d
-    | Argon2i
-    | Argon2id
+| Argon2d
+| Argon2i
+| Argon2id
 }
 
 /// std.crypto.pwhash.argon2.Params -- 仅包含 Bun 使用的字段
@@ -187,9 +187,9 @@ public func argon2StrHash(password: Array<Byte>, options: Argon2HashOptions,
 
     // 占位实现: 生成 PHC 格式字符串
     let modeStr = match (options.mode) {
-        case Argon2Mode.Argon2d => "argon2d"
-        case Argon2Mode.Argon2i => "argon2i"
-        case Argon2Mode.Argon2id => "argon2id"
+| Argon2Mode.Argon2d => "argon2d"
+| Argon2Mode.Argon2i => "argon2i"
+| Argon2Mode.Argon2id => "argon2id"
     }
     let saltB64 = base64NoPadEncode(salt)
     // 模拟哈希输出 (32字节 = 43 base64字符)
@@ -218,8 +218,8 @@ public func argon2StrVerify(encodedHash: Array<Byte>, password: Array<Byte>,
     // PHC 字符串是 7-bit ASCII; 拒绝非 ASCII 输入
     let encoded = phcAsciiStr(encodedHash)
     match (encoded) {
-        case None => return None  // InvalidEncoding
-        case Some(s) => {
+| None => return None  // InvalidEncoding
+| Some(s) => {
             // Zig (argon2.zig:565-567) 仅接受版本 0x13
             // 显式 v= 段不是 "19" -> InvalidEncoding
             // 缺少 v= 段仍用 0x13 哈希
@@ -404,8 +404,8 @@ public func bcryptStrVerify(encodedHash: Array<Byte>, password: Array<Byte>,
     // modular-crypt 和 PHC 字母表都是纯 ASCII
     let encoded = phcAsciiStr(encodedHash)
     match (encoded) {
-        case None => return None  // InvalidEncoding
-        case Some(s) => {
+| None => return None  // InvalidEncoding
+| Some(s) => {
             // Bun 始终使用 silently_truncate_password = true
             // 该路径不可达自 Bun 且未在此 shim 中实现
 

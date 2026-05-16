@@ -32,7 +32,7 @@ func rawCodepoint(entry: UInt32): UInt32 {
 
 /// 二分查找排序的码点映射表，支持单值和范围
 func unicodeBsearch(codepoint: UInt32, map: Array<UInt32>): ?Int64 {
-    if (map.isEmpty) {
+    if (map.size == 0) {
         return None
     }
     var beg: Int64 = 0
@@ -163,7 +163,7 @@ let fold_map_1: Array<UInt32> = [
     range_start_flag | 0x10C80, range_end_flag | 0x10CB2,
     range_start_flag | 0x118A0, range_end_flag | 0x118BF,
     range_start_flag | 0x16E40, range_end_flag | 0x16E5F,
-    range_start_flag | 0x1E900, range_end_flag | 0x1E921,
+    range_start_flag | 0x1E900, range_end_flag | 0x1E921
 ]
 
 let fold_map_1_data: Array<UInt32> = [
@@ -198,7 +198,7 @@ let fold_map_1_data: Array<UInt32> = [
     0x1D8E, 0xA7C8, 0xA7CA, 0xA7D1, 0xA7D7, 0xA7D9, 0xA7F6, 0x13A0, 0x13EF,
     0xFF41, 0xFF5A, 0x10428, 0x1044F, 0x104D8, 0x104FB, 0x10597, 0x105A1,
     0x105A3, 0x105B1, 0x105B3, 0x105B9, 0x105BB, 0x105BC, 0x10CC0, 0x10CF2,
-    0x118C0, 0x118DF, 0x16E60, 0x16E7F, 0x1E922, 0x1E943,
+    0x118C0, 0x118DF, 0x16E60, 0x16E7F, 0x1E922, 0x1E943
 ]
 
 // ============================================================================
@@ -210,8 +210,8 @@ let fold_map_1_data: Array<UInt32> = [
 public func caseFold(codepoint: UInt32): FoldInfo {
     // ASCII 快速路径
     if (codepoint <= 0x7F) {
-        if (codepoint >= UInt32('A') && codepoint <= UInt32('Z')) {
-            return FoldInfo([codepoint + (UInt32('a') - UInt32('A')), 0, 0], 1)
+        if (codepoint >= UInt32(0x41) && codepoint <= UInt32(0x5A)) {
+            return FoldInfo([codepoint + UInt32(32), 0, 0], 1)
         }
         return FoldInfo([codepoint, 0, 0], 1)
     }
@@ -230,7 +230,7 @@ public func caseFold(codepoint: UInt32): FoldInfo {
 func caseFoldFromMap(n: Int64, map: Array<UInt32>, data: Array<UInt32>,
                      codepoint: UInt32, index: Int64): ?FoldInfo {
     let data_offset = index * n
-    var codepoints = Array<UInt32>(3, item: 0)
+    var codepoints = Array<UInt32>(3, { _ => UInt32(0) })
 
     // 复制基础码点
     for (k in 0..n) {

@@ -3,6 +3,7 @@
 package bao_md
 
 import bao_core.*
+import std.collection.*
 
 // ============================================================================
 // 解析器状态
@@ -24,24 +25,24 @@ public class Parser {
     public var doc_ends_with_newline: Bool = false
 
     // 标记字符映射
-    public var mark_char_map: Array<Bool> = Array<Bool>(256, item: false)
+    public var mark_char_map: Array<Bool> = Array<Bool>(256, { _ => false })
 
     // 动态数组
-    public var marks: Array<Mark> = []
-    public var containers: Array<Container> = []
-    public var block_bytes: Array<UInt8> = []
+    public var marks: ArrayList<Mark> = ArrayList<Mark>()
+    public var containers: ArrayList<Container> = ArrayList<Container>()
+    public var block_bytes: ArrayList<UInt8> = ArrayList<UInt8>()
     public var buffer: StringBuilder = StringBuilder()
-    public var emph_delims: Array<EmphDelim> = []
+    public var emph_delims: ArrayList<EmphDelim> = ArrayList<EmphDelim>()
 
     // 活跃容器数量
     public var n_containers: UInt32 = 0
 
     // 当前正在构建的块
     public var current_block: ?Int64 = None
-    public var current_block_lines: Array<VerbatimLine> = []
+    public var current_block_lines: ArrayList<VerbatimLine> = ArrayList<VerbatimLine>()
 
     // 操作符栈
-    public var opener_stacks: Array<OpenerStack> = Array<OpenerStack>(Int64(NUM_OPENER_STACKS), item: OpenerStack())
+    public var opener_stacks: Array<OpenerStack> = Array<OpenerStack>(Int64(NUM_OPENER_STACKS), { _ => OpenerStack() })
 
     // 通过标记的链表
     public var unresolved_link_head: Int32 = -1
@@ -56,10 +57,10 @@ public class Parser {
 
     // 表格列对齐
     public var table_col_count: UInt32 = 0
-    public var table_alignments: Array<Align> = Array<Align>(Int64(TABLE_MAXCOLCOUNT), item: Align.`default`)
+    public var table_alignments: Array<Align> = Array<Align>(Int64(TABLE_MAXCOLCOUNT), { _ => Align.`default` })
 
     // 引用定义
-    public var ref_defs: Array<RefDef> = []
+    public var ref_defs: ArrayList<RefDef> = ArrayList<RefDef>()
 
     // 状态
     public var last_line_has_list_loosening_effect: Bool = false
@@ -70,7 +71,7 @@ public class Parser {
 
     /// 初始化解析器
     public static func initFunc(text: String, flags: Flags, rend: Renderer): Parser {
-        let size: OFF = OFF(text.size)
+        let size: OFF = UInt32(text.size)
         let p = Parser()
         p.text = text
         p.size = size
@@ -78,7 +79,10 @@ public class Parser {
         p.renderer = rend
         p.code_indent_offset = if (flags.no_indented_code_blocks) { UInt32.Max } else { 4 }
         p.doc_ends_with_newline = size > 0 && isNewline(UInt8(text[Int64(size - 1)]))
-        p.max_ref_def_output = min(min(16 * UInt64(size), 1024 * 1024), UInt64(UInt32.Max))
+        var tmp = 16 * UInt64(size)
+        if (tmp > 1024 * UInt64(1024)) { tmp = 1024 * UInt64(1024) }
+        if (tmp > UInt64(UInt32.Max)) { tmp = UInt64(UInt32.Max) }
+        p.max_ref_def_output = tmp
         p.buildMarkCharMap()
         return p
     }
@@ -93,41 +97,41 @@ public class Parser {
 
     /// 构建标记字符映射
     public func buildMarkCharMap(): Unit {
-        mark_char_map = Array<Bool>(256, item: false)
-        mark_char_map[Int64('\\'.toInt())] = true
-        mark_char_map[Int64('*'.toInt())] = true
-        mark_char_map[Int64('_'.toInt())] = true
-        mark_char_map[Int64('`'.toInt())] = true
-        mark_char_map[Int64('&'.toInt())] = true
-        mark_char_map[Int64(';'.toInt())] = true
-        mark_char_map[Int64('['.toInt())] = true
-        mark_char_map[Int64('!'.toInt())] = true
-        mark_char_map[Int64(']'.toInt())] = true
-        mark_char_map[Int64(0)] = true
-        mark_char_map[Int64('\n'.toInt())] = true // 换行符始终需要处理（硬/软换行）
+        mark_char_map = Array<Bool>(256, { _ => false })
+        mark_char_map[0x5C] = true // backslash
+        mark_char_map[0x2A] = true // *
+        mark_char_map[0x5F] = true // _
+        mark_char_map[0x60] = true // `
+        mark_char_map[0x26] = true // &
+        mark_char_map[0x3B] = true // ;
+        mark_char_map[0x5B] = true // [
+        mark_char_map[0x21] = true // !
+        mark_char_map[0x5D] = true // ]
+        mark_char_map[0] = true
+        mark_char_map[0x0A] = true // newline
         if (!flags.no_html_spans) {
-            mark_char_map[Int64('<'.toInt())] = true
-            mark_char_map[Int64('>'.toInt())] = true
+            mark_char_map[0x3C] = true // <
+            mark_char_map[0x3E] = true // >
         }
         if (flags.strikethrough) {
-            mark_char_map[Int64('~'.toInt())] = true
+            mark_char_map[0x7E] = true // ~
         }
         if (flags.latex_math) {
-            mark_char_map[Int64('$'.toInt())] = true
+            mark_char_map[0x24] = true // $
         }
         if (flags.permissive_email_autolinks || flags.permissive_url_autolinks) {
-            mark_char_map[Int64(':'.toInt())] = true
+            mark_char_map[0x3A] = true // :
         }
         if (flags.permissive_email_autolinks) {
-            mark_char_map[Int64('@'.toInt())] = true
+            mark_char_map[0x40] = true // @
         }
         if (flags.permissive_www_autolinks) {
-            mark_char_map[Int64('.'.toInt())] = true
+            mark_char_map[0x2E] = true // .
         }
         if (flags.collapse_whitespace) {
-            mark_char_map[Int64(' '.toInt())] = true
-            mark_char_map[Int64('\t'.toInt())] = true
-            mark_char_map[Int64('\r'.toInt())] = true
+            mark_char_map[0x20] = true // space
+            mark_char_map[0x09] = true // tab
+            mark_char_map[0x0D] = true // CR
         }
     }
 
@@ -195,7 +199,7 @@ public class ParserApi {
         let html_renderer = HtmlRenderer(input, render_opts)
         let rend = html_renderer.renderer()
 
-        let parser = Parser.init(input, flags, rend)
+        let parser = Parser.initFunc(input, flags, rend)
         processDoc(parser)
 
         return html_renderer.toOwnedString()
@@ -205,7 +209,7 @@ public class ParserApi {
     public static func renderWithRenderer(text: String, flags: Flags, render_options: RenderOptions, rend: Renderer): Unit {
         let input = skipUtf8Bom(text)
 
-        let parser = Parser.init(input, flags, rend)
+        let parser = Parser.initFunc(input, flags, rend)
         processDoc(parser)
     }
 }
@@ -222,6 +226,13 @@ func readU32LE(bytes: Array<UInt8>, off: Int64): UInt32 {
            (UInt32(bytes[off + 3]) << 24)
 }
 
+func readU32LE(bytes: ArrayList<UInt8>, off: Int64): UInt32 {
+    return UInt32(bytes[Int64(off)]) |
+           (UInt32(bytes[Int64(off + 1)]) << 8) |
+           (UInt32(bytes[Int64(off + 2)]) << 16) |
+           (UInt32(bytes[Int64(off + 3)]) << 24)
+}
+
 /// 向字节数组写入小端序 UInt32
 func writeU32LE(bytes: Array<UInt8>, off: Int64, value: UInt32): Unit {
     bytes[off] = UInt8(value & 0xFF)
@@ -230,5 +241,13 @@ func writeU32LE(bytes: Array<UInt8>, off: Int64, value: UInt32): Unit {
     bytes[off + 3] = UInt8((value >> 24) & 0xFF)
 }
 
+/// 向 ArrayList 写入小端序 UInt32
+func writeU32LE(bytes: ArrayList<UInt8>, off: Int64, value: UInt32): Unit {
+    bytes[Int64(off)] = UInt8(value & 0xFF)
+    bytes[Int64(off + 1)] = UInt8((value >> 8) & 0xFF)
+    bytes[Int64(off + 2)] = UInt8((value >> 16) & 0xFF)
+    bytes[Int64(off + 3)] = UInt8((value >> 24) & 0xFF)
+}
+
 /// UInt32 最大值常量（用于代码缩进）
-public const CODE_INDENT_DISABLED: UInt32 = UInt32.Max
+public const CODE_INDENT_DISABLED: UInt32 = 4294967295

@@ -58,7 +58,7 @@ public class ChangedFilesFilter {
         if (changedFiles == None) {
             changedFiles = getChangedFiles(ctx.allocator, topLevelDir, changedSince)
         }
-        let changed = changedFiles!!
+        let changed = changedFiles.getOrThrow()
 
         result.changedCount = changed.size
         result.totalTests = testFiles.size
@@ -96,7 +96,7 @@ public class ChangedFilesFilter {
         for (idx in 0..bundle.sourceCount) {
             let source = bundle.getSource(idx)
             let pathText = source.path.text
-            if (pathText.length == 0 || !source.path.isFile()) {
+            if (pathText.size == 0 || !source.path.isFile()) {
                 continue
             }
             pathToIndex.put(pathText, idx)
@@ -129,9 +129,10 @@ public class ChangedFilesFilter {
 
         for (changedPath in changed) {
             let idx = pathToIndex.get(changedPath)
-            if (idx != None && !affected.isSet(idx!!)) {
-                affected.set(idx!!)
-                queue.append(idx!!)
+            if (idx != None && !affected.isSet(idx.getOrThrow())) {
+                let idxVal = idx.getOrThrow()
+                affected.set(idxVal)
+                queue.append(idxVal)
             }
         }
 
@@ -173,7 +174,7 @@ public class ChangedFilesFilter {
         }
 
         let path = if (Env.get(TRIGGER_FILE_ENV_VAR) != None) {
-            Env.get(TRIGGER_FILE_ENV_VAR)!!
+            Env.get(TRIGGER_FILE_ENV_VAR).getOrThrow()
         } else {
             let rng = Random()
             let tmpdir = FileSystem.RealFS.tmpdirPath()
@@ -195,10 +196,10 @@ public class ChangedFilesFilter {
         }
 
         let triggerPathRaw = Env.get(TRIGGER_FILE_ENV_VAR)
-        if (triggerPathRaw == None || triggerPathRaw!!.length == 0) {
+        if (triggerPathRaw == None || triggerPathRaw.getOrThrow().size == 0) {
             return None
         }
-        let triggerPath = triggerPathRaw!!
+        let triggerPath = triggerPathRaw.getOrThrow()
 
         let contents = BaoFile.readAllText(triggerPath)
         if (contents == None) {
@@ -209,10 +210,10 @@ public class ChangedFilesFilter {
         BaoFile.remove(triggerPath)
 
         let set = StringSet(allocator)
-        let lines = contents!!.split('\n')
+        let lines = contents.getOrThrow().split('\n')
         for (path in lines) {
             let trimmed = path.trim()
-            if (trimmed.length == 0) {
+            if (trimmed.size == 0) {
                 continue
             }
             if (!BaoFile.exists(trimmed)) {
@@ -230,8 +231,12 @@ public class ChangedFilesFilter {
     /// 获取变更文件集
     /// 对应 Bun: ChangedFilesFilter.getChangedFiles()
     private static func getChangedFiles(allocator: Allocator, topLevelDir: String, since: String): StringSet {
-        let gitPath = Which.which(Env.get("PATH") ?: "", topLevelDir, "git")
-            ?: throw GitError.GitNotFound
+        let pathEnv = match (Env.get("PATH")) { case Some(v) => v case None => "" }
+        let gitPathOpt = Which.which(pathEnv, topLevelDir, "git")
+        if (gitPathOpt == None) {
+            throw GitError.GitNotFound
+        }
+        let gitPath = gitPathOpt.getOrThrow()
 
         // 查找 git 仓库根目录
         let gitRootResult = runGit(allocator, gitPath, topLevelDir, ["rev-parse", "--show-toplevel"])
@@ -242,7 +247,7 @@ public class ChangedFilesFilter {
 
         let set = StringSet(allocator)
 
-        if (since.length == 0) {
+        if (since.size == 0) {
             // 未提交 (未暂存 + 已暂存)
             let diff = runGit(allocator, gitPath, topLevelDir, ["diff", "--name-only", "HEAD", "--"])
             if (diff.ok) {
@@ -287,18 +292,17 @@ public class ChangedFilesFilter {
         }
 
         let proc = Sys.spawnSyncArgs(allArgs, cwd, Stdio.buffer, Stdio.buffer, Stdio.ignore)
-        when (proc) {
-            case Some(result) => {
+        match (proc) {
+            case Some(result) =>
                 return GitResult(
                     result.isOK(),
                     false,
-                    result.stdout ?: "",
-                    result.stderr ?: ""
+                    match (result.stdout) { case Some(s) => s case None => "" },
+                    match (result.stderr) { case Some(s) => s case None => "" }
                 )
             }
-            case None => {
+            case None =>
                 return GitResult(false, true, "", "")
-            }
         }
     }
 
@@ -308,7 +312,7 @@ public class ChangedFilesFilter {
         let lines = stdout.split('\n')
         for (line in lines) {
             let rel = line.trim(' ', '\t', '\r')
-            if (rel.length == 0) {
+            if (rel.size == 0) {
                 continue
             }
             let abs = Path.join(gitRoot, rel)

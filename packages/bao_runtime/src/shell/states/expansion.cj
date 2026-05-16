@@ -5,11 +5,60 @@
 package bao_runtime.shell.states
 
 import bao_core.*
+import std.collection.*
 
 // ============================================================================
 // 展开状态
 // 用于变量展开、命令替换和glob展开
 // ============================================================================
+
+/// 展开状态类型（提取到顶层）
+public enum ExpansionStateKind {
+| `normal`
+| braces
+| glob
+| done
+| err(ShellErr)
+}
+
+/// 子状态类型（提取到顶层）
+public enum ExpansionChildStateKind {
+| `idle`
+| cmdSubst(cmd: ScriptState, quoted: Boolean)
+| globWalker(walker: Any)
+}
+
+/// 展开结果类型（提取到顶层）
+public enum ExpansionResult {
+| arrayOfSlice(ArrayList<String>)
+| arrayOfPtr(ArrayList<?String>)
+| single(list: ArrayList<Byte>, done: Boolean)
+}
+
+/// 展开状态父节点指针（提取到顶层）
+public class ExpansionParentPtr {
+    public var ptr: Any
+    public static func initFunc(p: Any): ExpansionParentPtr {
+        let pp = ExpansionParentPtr()
+        pp.ptr = p
+        return pp
+    }
+    public func childDone(child: Any, exitCode: ExitCode): Yield { Yield.done }
+    public func scopedAllocator(): Any { None }
+}
+
+/// 展开状态子节点指针（提取到顶层）
+public class ExpansionChildPtr {
+    public var ptr: Any
+    public static func initFunc(p: Any): ExpansionChildPtr {
+        let cp = ExpansionChildPtr()
+        cp.ptr = p
+        return cp
+    }
+    public func is(type: Any): Boolean { true }
+    public func `as`<T>(): T { this.ptr as T }
+    public func deinit() {}
+}
 
 /// 展开状态
 public class ExpansionState {
@@ -18,7 +67,7 @@ public class ExpansionState {
     /// AST节点
     public var node: Atom
     /// 父节点
-    public var parent: ParentPtr
+    public var parent: ExpansionParentPtr
     /// IO
     public var io: IO
 
@@ -29,63 +78,15 @@ public class ExpansionState {
     /// 状态
     public var state: ExpansionStateKind
     /// 子状态
-    public var childState: ChildStateKind
+    public var childState: ExpansionChildStateKind
     /// 输出退出码
     public var outExitCode: ExitCode = 0
     /// 输出结果
-    public var out: Result
+    public var out: ExpansionResult
     /// 输出索引
     public var outIdx: UInt32 = 0
     /// 是否包含引号空字符串
     public var hasQuotedEmpty: Boolean = false
-
-    /// 展开状态类型
-    public enum ExpansionStateKind {
-        case normal
-        case braces
-        case glob
-        case done
-        case err(ShellErr)
-    }
-
-    /// 子状态类型
-    public enum ChildStateKind {
-        case idle
-        case cmdSubst(cmd: ScriptState, quoted: Boolean)
-        case glob(walker: Any)
-    }
-
-    /// 结果类型
-    public enum Result {
-        case arrayOfSlice(ArrayList<String>)
-        case arrayOfPtr(ArrayList<?String>)
-        case single(list: ArrayList<Byte>, done: Boolean)
-    }
-
-    /// 父节点指针
-    public class ParentPtr {
-        public var ptr: Any
-        public static func initFunc(p: Any): ParentPtr {
-            let pp = ParentPtr()
-            pp.ptr = p
-            return pp
-        }
-        public func childDone(child: Any, exitCode: ExitCode): Yield { Yield.done }
-        public func scopedAllocator(): Any { None }
-    }
-
-    /// 子节点指针
-    public class ChildPtr {
-        public var ptr: Any
-        public static func initFunc(p: Any): ChildPtr {
-            let cp = ChildPtr()
-            cp.ptr = p
-            return cp
-        }
-        public func is(type: Any): Boolean { true }
-        public func `as`<T>(): T { this.ptr as T }
-        public func deinit() {}
-    }
 
     /// 初始化
     public static func initFunc(
@@ -93,16 +94,16 @@ public class ExpansionState {
         shellState: ShellExecEnv,
         expansion: ExpansionState,
         node: Atom,
-        parent: ParentPtr,
-        outResult: Result,
+        parent: ExpansionParentPtr,
+        outResult: ExpansionResult,
         io: IO
     ) {
         expansion.node = node
         expansion.base = Base.initBorrowedAllocScope(StateKind.expansion, interpreter, shellState)
         expansion.parent = parent
         expansion.wordIdx = 0
-        expansion.state = ExpansionStateKind.normal
-        expansion.childState = ChildStateKind.idle
+        expansion.state = ExpansionStateKind.`normal`
+        expansion.childState = ExpansionChildStateKind.`idle`
         expansion.out = outResult
         expansion.outIdx = 0
         expansion.currentOut = ArrayList<Byte>()
@@ -118,17 +119,17 @@ public class ExpansionState {
 
     /// 启动
     public func start(): Yield {
-        this.state = ExpansionStateKind.normal
+        this.state = ExpansionStateKind.`normal`
         return Yield.expansion(this)
     }
 
     /// 下一步
     public func next(): Yield {
-        while (this.state != .done && this.state != .err) {
+        while (this.state != ExpansionStateKind.done && this.state != ExpansionStateKind.err) {
             switch (this.state) {
-                case .normal =>
+                case ExpansionStateKind.`normal` =>
                     while (this.wordIdx < this.node.atomsLen()) {
-                        if (let y = this.expandVarAndCmdSubst(this.wordIdx)) {
+                        if (let Some(y) <- this.expandVarAndCmdSubst(this.wordIdx)) {
                             return y
                         }
                     }
@@ -138,17 +139,17 @@ public class ExpansionState {
                         continue
                     }
                     return Yield.suspended
-                case .braces =>
+                case ExpansionStateKind.braces =>
                     // 大括号展开
                     this.state = ExpansionStateKind.done
                     continue
-                case .glob =>
+                case ExpansionStateKind.glob =>
                     return this.transitionToGlobState()
-                case .done, .err =>
+                case ExpansionStateKind.done | ExpansionStateKind.err =>
                     // 不可达
             }
         }
-        if (this.state == .done) {
+        if (this.state == ExpansionStateKind.done) {
             return this.parent.childDone(this, 0)
         }
         return this.parent.childDone(this, 1)
@@ -163,20 +164,20 @@ public class ExpansionState {
     }
 
     /// 子节点完成
-    public func childDone(child: ChildPtr, exitCode: ExitCode): Yield {
+    public func childDone(child: ExpansionChildPtr, exitCode: ExitCode): Yield {
         // 命令替换完成
         if (exitCode != 0) {
             this.outExitCode = exitCode
         }
         this.wordIdx += 1
-        this.childState = ChildStateKind.idle
+        this.childState = ExpansionChildStateKind.`idle`
         child.deinit()
         return Yield.expansion(this)
     }
 
     /// 推送当前输出
     func pushCurrentOut() {
-        if (this.currentOut.length == 0 && !this.hasQuotedEmpty) {
+        if (this.currentOut.size == 0 && !this.hasQuotedEmpty) {
             return
         }
         // 将当前输出推送到结果

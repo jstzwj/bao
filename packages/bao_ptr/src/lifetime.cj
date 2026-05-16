@@ -79,7 +79,7 @@ public func detachRef<T>(ref: T): T {
 public interface LaunderedSelf<T> {
     /// 重新借用洗涤的 self 指针
     /// this 是经过 black_box 洗涤的外部 &mut self 的地址
-    func launderedSelf(this: UInt64): T
+    func launderedSelf(`this`: UInt64): T
 }
 
 // ============================================================================

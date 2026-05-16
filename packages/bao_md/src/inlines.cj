@@ -1,14 +1,15 @@
-// 严格翻译自: src/md/inlines.zig
-// 行内元素处理
+// Inline element processing
+// Translated from: src/md/inlines.zig
 package bao_md
 
+import std.collection.*
+
 // ============================================================================
-// 行内内容处理
+// Inline content processing
 // ============================================================================
 
-/// 合并所有行并处理行内元素
 public func processLeafBlock(parser: Parser, block_lines: Array<VerbatimLine>, trim_trailing: Bool): Unit {
-    if (block_lines.isEmpty) {
+    if (block_lines.size == 0) {
         return
     }
 
@@ -20,22 +21,20 @@ public func processLeafBlock(parser: Parser, block_lines: Array<VerbatimLine>, t
         if (parser.buffer.size > 0) {
             parser.buffer.append('\n')
         }
-        parser.buffer.append(parser.text.substring(Int64(vline.beg), Int64(vline.end)))
+        parser.buffer.append(parser.text[Int64(vline.beg)..Int64(vline.end)])
     }
 
     var merged = parser.buffer.toString()
     if (trim_trailing) {
-        while (merged.size > 0 && (UInt8(merged[merged.size - 1]) == ' '.toUInt8() ||
-               UInt8(merged[merged.size - 1]) == '\t'.toUInt8())) {
-            merged = merged.substring(0, merged.size - 1)
+        while (merged.size > 0 && (UInt8(merged[merged.size - 1]) == UInt8(0x20) ||
+               UInt8(merged[merged.size - 1]) == UInt8(0x09))) {
+            merged = merged[0..merged.size - 1]
         }
     }
     processInlineContent(parser, merged, block_lines[0].beg)
 }
 
-/// 处理行内内容
 public func processInlineContent(parser: Parser, content: String, base_off: OFF): Unit {
-    // 收集并解决强调分隔符
     collectEmphasisDelimiters(parser, content)
     resolveEmphasisDelimiters(parser)
 
@@ -45,20 +44,20 @@ public func processInlineContent(parser: Parser, content: String, base_off: OFF)
     while (i < content.size) {
         let c = UInt8(content[i])
 
-        // 换行符
-        if (c == '\n'.toUInt8()) {
+        // newline
+        if (c == UInt8(0x0A)) {
             var emit_end = i
             var is_hard = false
-            if (emit_end > text_start && UInt8(content[emit_end - 1]) == '\\'.toUInt8()) {
+            if (emit_end > text_start && UInt8(content[emit_end - 1]) == UInt8(0x5C)) {
                 emit_end -= 1
                 is_hard = true
             } else {
                 var sp = emit_end
-                while (sp > text_start && content[sp - 1] == ' ') {
+                while (sp > text_start && UInt8(content[sp - 1]) == UInt8(0x20)) {
                     sp -= 1
                 }
                 if (emit_end - sp >= 2) {
-                    while (sp > text_start && (content[sp - 1] == ' ' || content[sp - 1] == '\t')) {
+                    while (sp > text_start && (UInt8(content[sp - 1]) == UInt8(0x20) || UInt8(content[sp - 1]) == UInt8(0x09))) {
                         sp -= 1
                     }
                     emit_end = sp
@@ -66,93 +65,89 @@ public func processInlineContent(parser: Parser, content: String, base_off: OFF)
                 }
             }
             if (emit_end > text_start) {
-                emitText(parser, TextType.normal, content.substring(text_start, emit_end))
+                emitText(parser, TextType.normal, content[text_start..emit_end])
             }
             if (is_hard) {
-                emitText(parser, TextType.br, "")
+                emitText(parser, TextType.normal, "<br />\n")
             } else {
-                emitText(parser, TextType.softbr, "")
+                emitText(parser, TextType.normal, "\n")
             }
             i += 1
             text_start = i
             continue
         }
 
-        // 反斜杠转义
-        if (c == '\\'.toUInt8() && i + 1 < content.size && isAsciiPunctuation(UInt8(content[i + 1]))) {
+        // backslash escape
+        if (c == UInt8(0x5C) && i + 1 < content.size && isAsciiPunctuation(UInt8(content[i + 1]))) {
             if (i > text_start) {
-                emitText(parser, TextType.normal, content.substring(text_start, i))
+                emitText(parser, TextType.normal, content[text_start..i])
             }
             i += 1
-            emitText(parser, TextType.normal, content.substring(i, i + 1))
+            emitText(parser, TextType.normal, content[i..i + 1])
             i += 1
             text_start = i
             continue
         }
 
-        // 代码跨距
-        if (c == '`'.toUInt8()) {
+        // code span
+        if (c == UInt8(0x60)) {
             if (i > text_start) {
-                emitText(parser, TextType.normal, content.substring(text_start, i))
+                emitText(parser, TextType.normal, content[text_start..i])
             }
             let count = countBackticks(content, i)
             if (let Some(end_pos) <- findCodeSpanEnd(parser, content, i + count, count)) {
                 enterSpan(parser, SpanType.code)
-                let code_content = normalizeCodeSpanContent(parser, content.substring(i + count, end_pos))
+                let code_content = normalizeCodeSpanContent(parser, content[i + count..end_pos])
                 emitText(parser, TextType.code, code_content)
                 leaveSpan(parser, SpanType.code)
                 i = end_pos + count
             } else {
-                emitText(parser, TextType.normal, content.substring(i, i + count))
+                emitText(parser, TextType.normal, content[i..i + count])
                 i += count
             }
             text_start = i
             continue
         }
 
-        // HTML 实体
-        if (c == '&'.toUInt8()) {
+        // HTML entity
+        if (c == UInt8(0x26)) {
             if (let Some(end_pos) <- findEntity(content, i)) {
                 if (i > text_start) {
-                    emitText(parser, TextType.normal, content.substring(text_start, i))
+                    emitText(parser, TextType.normal, content[text_start..i])
                 }
-                emitText(parser, TextType.entity, content.substring(i, end_pos))
+                emitText(parser, TextType.entity, content[i..end_pos])
                 i = end_pos
                 text_start = i
                 continue
             }
         }
 
-        // 强调/删除线: 使用已解析的分隔符
-        if (c == '*'.toUInt8() || c == '_'.toUInt8() || (c == '~'.toUInt8() && parser.flags.strikethrough)) {
-            // 查找对应的已解析分隔符
+        // emphasis/strikethrough
+        if (c == UInt8(0x2A) || c == UInt8(0x5F) || (c == UInt8(0x7E) && parser.flags.strikethrough)) {
             var delim_cursor: Int64 = 0
-            while (delim_cursor < parser.emph_delims.size && parser.emph_delims[Int64(delim_cursor)].pos < i) {
+            while (delim_cursor < parser.emph_delims.size && parser.emph_delims[delim_cursor].pos < i) {
                 delim_cursor += 1
             }
 
-            if (delim_cursor < parser.emph_delims.size && parser.emph_delims[Int64(delim_cursor)].pos == i) {
-                if (i > text_start) emitText(parser, TextType.normal, content.substring(text_start, i))
+            if (delim_cursor < parser.emph_delims.size && parser.emph_delims[delim_cursor].pos == i) {
+                if (i > text_start) { emitText(parser, TextType.normal, content[text_start..i]) }
 
-                let d = parser.emph_delims[Int64(delim_cursor)]
+                let d = parser.emph_delims[delim_cursor]
                 let run_end = d.pos + d.count
 
-                // 先发送关闭标签（从最内到最外）
-                if (d.emph_char == '~'.toUInt8()) {
-                    if (d.close_count > 0) leaveSpan(parser, SpanType.del)
+                if (d.emph_char == UInt8(0x7E)) {
+                    if (d.close_count > 0) { leaveSpan(parser, SpanType.del) }
                 } else {
                     emitEmphCloseTags(parser, d.close_sizes, d.close_num)
                 }
 
-                // 将剩余的分隔符字符作为文本发送
                 let text_chars = d.count - (d.open_count + d.close_count)
                 if (text_chars > 0) {
-                    emitText(parser, TextType.normal, content.substring(i, i + text_chars))
+                    emitText(parser, TextType.normal, content[i..i + text_chars])
                 }
 
-                // 发送打开标签（从最外到最内）
-                if (d.emph_char == '~'.toUInt8()) {
-                    if (d.open_count > 0) enterSpan(parser, SpanType.del)
+                if (d.emph_char == UInt8(0x7E)) {
+                    if (d.open_count > 0) { enterSpan(parser, SpanType.del) }
                 } else {
                     emitEmphOpenTags(parser, d.open_sizes, d.open_num)
                 }
@@ -162,49 +157,46 @@ public func processInlineContent(parser: Parser, content: String, base_off: OFF)
                 text_start = i
                 continue
             }
-            // 没有找到已解析的分隔符，继续前进
             i += 1
             continue
         }
 
-        // HTML 标签
-        if (c == '<'.toUInt8() && !parser.flags.no_html_spans) {
+        // HTML tags
+        if (c == UInt8(0x3C) && !parser.flags.no_html_spans) {
             if (let Some(tag_end) <- findHtmlTag(parser, content, i)) {
                 if (i > text_start) {
-                    emitText(parser, TextType.normal, content.substring(text_start, i))
+                    emitText(parser, TextType.normal, content[text_start..i])
                 }
-                emitText(parser, TextType.html, content.substring(i, tag_end))
+                emitText(parser, TextType.html, content[i..tag_end])
                 i = tag_end
                 text_start = i
                 continue
             }
-            // 自动链接
             if (let Some(autolink) <- findAutolink(parser, content, i)) {
                 if (i > text_start) {
-                    emitText(parser, TextType.normal, content.substring(text_start, i))
+                    emitText(parser, TextType.normal, content[text_start..i])
                 }
-                renderAutolink(parser, content.substring(i + 1, autolink.end_pos - 1), autolink.is_email)
+                renderAutolink(parser, content[i + 1..autolink.end_pos - 1], autolink.is_email)
                 i = autolink.end_pos
                 text_start = i
                 continue
             }
         }
 
-        // Wiki 链接: [[destination]] 或 [[destination|label]]
-        if (c == '['.toUInt8() && parser.flags.wiki_links && i + 1 < content.size && content[i + 1] == '[') {
-            if (i > text_start) emitText(parser, TextType.normal, content.substring(text_start, i))
+        // wiki links: [[destination]] or [[destination|label]]
+        if (c == UInt8(0x5B) && parser.flags.wiki_links && i + 1 < content.size && UInt8(content[i + 1]) == UInt8(0x5B)) {
+            if (i > text_start) { emitText(parser, TextType.normal, content[text_start..i]) }
             if (let Some(end_pos) <- processWikiLink(parser, content, i)) {
                 i = end_pos
                 text_start = i
                 continue
             }
-            // Wiki 链接未匹配: 恢复 text_start
             text_start = i
         }
 
-        // 链接: [text](url) 或 [text][ref]
-        if (c == '['.toUInt8()) {
-            if (i > text_start) emitText(parser, TextType.normal, content.substring(text_start, i))
+        // links: [text](url) or [text][ref]
+        if (c == UInt8(0x5B)) {
+            if (i > text_start) { emitText(parser, TextType.normal, content[text_start..i]) }
             if (let Some(end_pos) <- processLink(parser, content, i, base_off, false)) {
                 i = end_pos
             } else {
@@ -215,9 +207,9 @@ public func processInlineContent(parser: Parser, content: String, base_off: OFF)
             continue
         }
 
-        // 图片: ![text](url)
-        if (c == '!'.toUInt8() && i + 1 < content.size && content[i + 1] == '[') {
-            if (i > text_start) emitText(parser, TextType.normal, content.substring(text_start, i))
+        // images: ![text](url)
+        if (c == UInt8(0x21) && i + 1 < content.size && UInt8(content[i + 1]) == UInt8(0x5B)) {
+            if (i > text_start) { emitText(parser, TextType.normal, content[text_start..i]) }
             if (let Some(end_pos) <- processLink(parser, content, i + 1, base_off, true)) {
                 i = end_pos
             } else {
@@ -228,49 +220,56 @@ public func processInlineContent(parser: Parser, content: String, base_off: OFF)
             continue
         }
 
-        // 宽松自动链接
+        // permissive autolinks
         if (parser.link_nesting_level == 0 &&
-            ((c == ':'.toUInt8() && parser.flags.permissive_url_autolinks) ||
-             (c == '@'.toUInt8() && parser.flags.permissive_email_autolinks) ||
-             (c == '.'.toUInt8() && parser.flags.permissive_www_autolinks)))
+            ((c == UInt8(0x3A) && parser.flags.permissive_url_autolinks) ||
+             (c == UInt8(0x40) && parser.flags.permissive_email_autolinks) ||
+             (c == UInt8(0x2E) && parser.flags.permissive_www_autolinks)))
         {
-            var al = findPermissiveAutolink(content, i, false)
-            if (al == None) {
-                al = findPermissiveAutolink(content, i, true)
-                if (al != None) {
-                    // TODO: 检查强调边界
+            if (let Some(al) <- findPermissiveAutolink(content, i, false)) {
+                if (al.beg > text_start) { emitText(parser, TextType.normal, content[text_start..al.beg]) }
+                let link_text = content[al.beg..al.end]
+                let detail = SpanDetail()
+                detail.href = link_text
+                detail.permissive_autolink = true
+                if (c == UInt8(0x40)) {
+                    detail.autolink_email = true
+                } else if (c == UInt8(0x2E)) {
+                    detail.autolink_www = true
                 }
+                parser.renderer.enterSpan(SpanType.a, detail)
+                emitText(parser, TextType.normal, link_text)
+                parser.renderer.leaveSpan(SpanType.a)
+                i = al.end
+                text_start = i
+                continue
             }
-            if (al != None) {
-                let a = al.get()
-                if (a.beg > text_start) emitText(parser, TextType.normal, content.substring(text_start, a.beg))
-
-                let link_text = content.substring(a.beg, a.end)
-                if (c == '@'.toUInt8()) {
-                    parser.renderer.enterSpan(SpanType.a, SpanDetail(href: link_text, title: "", autolink: false, permissive_autolink: true, autolink_email: true, autolink_www: false))
-                    emitText(parser, TextType.normal, link_text)
-                    parser.renderer.leaveSpan(SpanType.a)
-                } else if (c == '.'.toUInt8()) {
-                    parser.renderer.enterSpan(SpanType.a, SpanDetail(href: link_text, title: "", autolink: false, permissive_autolink: true, autolink_email: false, autolink_www: true))
-                    emitText(parser, TextType.normal, link_text)
-                    parser.renderer.leaveSpan(SpanType.a)
-                } else {
-                    parser.renderer.enterSpan(SpanType.a, SpanDetail(href: link_text, title: "", autolink: false, permissive_autolink: true, autolink_email: false, autolink_www: false))
-                    emitText(parser, TextType.normal, link_text)
-                    parser.renderer.leaveSpan(SpanType.a)
+            if (let Some(al2) <- findPermissiveAutolink(content, i, true)) {
+                if (al2.beg > text_start) { emitText(parser, TextType.normal, content[text_start..al2.beg]) }
+                let link_text = content[al2.beg..al2.end]
+                let detail = SpanDetail()
+                detail.href = link_text
+                detail.permissive_autolink = true
+                if (c == UInt8(0x40)) {
+                    detail.autolink_email = true
+                } else if (c == UInt8(0x2E)) {
+                    detail.autolink_www = true
                 }
-                i = a.end
+                parser.renderer.enterSpan(SpanType.a, detail)
+                emitText(parser, TextType.normal, link_text)
+                parser.renderer.leaveSpan(SpanType.a)
+                i = al2.end
                 text_start = i
                 continue
             }
         }
 
-        // Null 字符
+        // null character
         if (c == 0) {
             if (i > text_start) {
-                emitText(parser, TextType.normal, content.substring(text_start, i))
+                emitText(parser, TextType.normal, content[text_start..i])
             }
-            emitText(parser, TextType.null_char, "")
+            emitText(parser, TextType.normal, "\u{EF}\u{BF}\u{BD}")
             i += 1
             text_start = i
             continue
@@ -280,27 +279,24 @@ public func processInlineContent(parser: Parser, content: String, base_off: OFF)
     }
 
     if (text_start < content.size) {
-        emitText(parser, TextType.normal, content.substring(text_start))
+        emitText(parser, TextType.normal, content[text_start..])
     }
 }
 
 // ============================================================================
-// 强调分隔符收集与解决
+// Emphasis delimiter collection and resolution
 // ============================================================================
 
-/// 收集强调分隔符
 public func collectEmphasisDelimiters(parser: Parser, content: String): Unit {
-    parser.emph_delims = []
+    parser.emph_delims = ArrayList<EmphDelim>()
     var i: Int64 = 0
     while (i < content.size) {
         let c = UInt8(content[i])
-        // 跳过反斜杠转义
-        if (c == '\\'.toUInt8() && i + 1 < content.size && isAsciiPunctuation(UInt8(content[i + 1]))) {
+        if (c == UInt8(0x5C) && i + 1 < content.size && isAsciiPunctuation(UInt8(content[i + 1]))) {
             i += 2
             continue
         }
-        // 跳过代码跨距
-        if (c == '`'.toUInt8()) {
+        if (c == UInt8(0x60)) {
             let count = countBackticks(content, i)
             if (let Some(end_pos) <- findCodeSpanEnd(parser, content, i + count, count)) {
                 i = end_pos + count
@@ -309,39 +305,37 @@ public func collectEmphasisDelimiters(parser: Parser, content: String): Unit {
             }
             continue
         }
-        // 强调分隔符
-        if (c == '*'.toUInt8() || c == '_'.toUInt8()) {
+        if (c == UInt8(0x2A) || c == UInt8(0x5F)) {
             let run_start = i
             while (i < content.size && UInt8(content[i]) == c) {
                 i += 1
             }
             let count = i - run_start
-            parser.emph_delims.append(EmphDelim().also {
-                it.pos = run_start
-                it.count = count
-                it.emph_char = c
-                it.can_open = canOpenEmphasis(c, content, run_start, i)
-                it.can_close = canCloseEmphasis(c, content, run_start, i)
-                it.remaining = count
-            })
+            let d = EmphDelim()
+            d.pos = run_start
+            d.count = count
+            d.emph_char = c
+            d.can_open = canOpenEmphasis(c, content, run_start, i)
+            d.can_close = canCloseEmphasis(c, content, run_start, i)
+            d.remaining = count
+            parser.emph_delims.add(d)
             continue
         }
-        // 删除线分隔符
-        if (c == '~'.toUInt8() && parser.flags.strikethrough) {
+        if (c == UInt8(0x7E) && parser.flags.strikethrough) {
             let run_start = i
-            while (i < content.size && UInt8(content[i]) == '~') {
+            while (i < content.size && UInt8(content[i]) == UInt8(0x7E)) {
                 i += 1
             }
             let count = i - run_start
             if (count == 1 || count == 2) {
-                parser.emph_delims.append(EmphDelim().also {
-                    it.pos = run_start
-                    it.count = count
-                    it.emph_char = c
-                    it.can_open = canOpenEmphasis('~'.toUInt8(), content, run_start, i)
-                    it.can_close = canCloseEmphasis('~'.toUInt8(), content, run_start, i)
-                    it.remaining = count
-                })
+                let d = EmphDelim()
+                d.pos = run_start
+                d.count = count
+                d.emph_char = c
+                d.can_open = canOpenEmphasis(UInt8(0x7E), content, run_start, i)
+                d.can_close = canCloseEmphasis(UInt8(0x7E), content, run_start, i)
+                d.remaining = count
+                parser.emph_delims.add(d)
             }
             continue
         }
@@ -349,16 +343,15 @@ public func collectEmphasisDelimiters(parser: Parser, content: String): Unit {
     }
 }
 
-/// 解决强调分隔符
 public func resolveEmphasisDelimiters(parser: Parser): Unit {
     let delims = parser.emph_delims
-    if (delims.isEmpty) {
+    if (delims.size == 0) {
         return
     }
 
     var closer_idx: Int64 = 0
     while (closer_idx < delims.size) {
-        if (!delims[Int64(closer_idx)].can_close || delims[Int64(closer_idx)].remaining == 0) {
+        if (!delims[closer_idx].can_close || delims[closer_idx].remaining == 0) {
             closer_idx += 1
             continue
         }
@@ -368,95 +361,89 @@ public func resolveEmphasisDelimiters(parser: Parser): Unit {
             var oi = closer_idx
             while (oi > 0) {
                 oi -= 1
-                let opener = delims[Int64(oi)]
-                if (opener.emph_char != delims[Int64(closer_idx)].emph_char) {
+                let opener = delims[oi]
+                if (opener.emph_char != delims[closer_idx].emph_char) {
                     continue
                 }
                 if (!opener.can_open || opener.remaining == 0 || !opener.active) {
                     continue
                 }
 
-                // 删除线: 需要精确计数匹配
-                if (opener.emph_char == '~'.toUInt8()) {
-                    if (opener.count != delims[Int64(closer_idx)].count) {
+                if (opener.emph_char == UInt8(0x7E)) {
+                    if (opener.count != delims[closer_idx].count) {
                         continue
                     }
                 }
 
-                // 三规则
-                if (opener.emph_char != '~'.toUInt8() &&
-                    (opener.can_close || delims[Int64(closer_idx)].can_open) &&
-                    (opener.count + delims[Int64(closer_idx)].count) % 3 == 0 &&
-                    opener.count % 3 != 0 && delims[Int64(closer_idx)].count % 3 != 0) {
+                if (opener.emph_char != UInt8(0x7E) &&
+                    (opener.can_close || delims[closer_idx].can_open) &&
+                    (opener.count + delims[closer_idx].count) % 3 == 0 &&
+                    opener.count % 3 != 0 && delims[closer_idx].count % 3 != 0) {
                     continue
                 }
 
-                // 匹配找到
-                let use: Int64 = if (opener.emph_char == '~'.toUInt8()) {
+                let use: Int64 = if (opener.emph_char == UInt8(0x7E)) {
                     opener.remaining
-                } else if (opener.remaining >= 2 && delims[Int64(closer_idx)].remaining >= 2) {
+                } else if (opener.remaining >= 2 && delims[closer_idx].remaining >= 2) {
                     2
                 } else {
                     1
                 }
 
-                delims[Int64(oi)].remaining -= use
-                delims[Int64(oi)].open_count += use
-                if (delims[Int64(oi)].open_num < UInt8(MAX_EMPH_MATCHES)) {
-                    delims[Int64(oi)].open_sizes[Int64(delims[Int64(oi)].open_num)] = UInt8(use)
-                    delims[Int64(oi)].open_num += 1
+                delims[oi].remaining -= use
+                delims[oi].open_count += use
+                if (delims[oi].open_num < UInt8(MAX_EMPH_MATCHES)) {
+                    delims[oi].open_sizes[Int64(delims[oi].open_num)] = UInt8(use)
+                    delims[oi].open_num += 1
                 }
-                delims[Int64(closer_idx)].remaining -= use
-                delims[Int64(closer_idx)].close_count += use
-                if (delims[Int64(closer_idx)].close_num < UInt8(MAX_EMPH_MATCHES)) {
-                    delims[Int64(closer_idx)].close_sizes[Int64(delims[Int64(closer_idx)].close_num)] = UInt8(use)
-                    delims[Int64(closer_idx)].close_num += 1
+                delims[closer_idx].remaining -= use
+                delims[closer_idx].close_count += use
+                if (delims[closer_idx].close_num < UInt8(MAX_EMPH_MATCHES)) {
+                    delims[closer_idx].close_sizes[Int64(delims[closer_idx].close_num)] = UInt8(use)
+                    delims[closer_idx].close_num += 1
                 }
 
-                // 停用之间的所有分隔符
                 var k = oi + 1
                 while (k < closer_idx) {
-                    delims[Int64(k)].active = false
+                    delims[k].active = false
                     k += 1
                 }
 
                 found_match = true
 
-                if (delims[Int64(closer_idx)].remaining > 0 && delims[Int64(closer_idx)].can_close) {
+                if (delims[closer_idx].remaining > 0 && delims[closer_idx].can_close) {
                     closer_idx -= 1
                 }
                 break
             }
         }
 
-        if (!found_match && !delims[Int64(closer_idx)].can_open) {
-            delims[Int64(closer_idx)].active = false
+        if (!found_match && !delims[closer_idx].can_open) {
+            delims[closer_idx].active = false
         }
         closer_idx += 1
     }
 }
 
 // ============================================================================
-// 辅助函数
+// Helper functions
 // ============================================================================
 
-/// 计算连续反引号
 public func countBackticks(content: String, start: Int64): Int64 {
     var pos = start
-    while (pos < content.size && content[pos] == '`') {
+    while (pos < content.size && UInt8(content[pos]) == UInt8(0x60)) {
         pos += 1
     }
     return pos - start
 }
 
-/// 查找匹配的关闭反引号运行
 public func findCodeSpanEnd(parser: Parser, content: String, start: Int64, count: Int64): ?Int64 {
     var pos = start
     while (pos < content.size) {
-        if (content[pos] == '`') {
+        if (UInt8(content[pos]) == UInt8(0x60)) {
             let backtick_pos = pos
             pos += 1
-            while (pos < content.size && content[pos] == '`') {
+            while (pos < content.size && UInt8(content[pos]) == UInt8(0x60)) {
                 pos += 1
             }
             if (pos - backtick_pos == count) {
@@ -469,29 +456,27 @@ public func findCodeSpanEnd(parser: Parser, content: String, start: Int64, count
     return None
 }
 
-/// 规范化代码跨距内容
 public func normalizeCodeSpanContent(parser: Parser, content: String): String {
     if (content.size >= 2) {
-        let first_is_space = content[0] == ' ' || content[0] == '\n'
-        let last_is_space = content[content.size - 1] == ' ' || content[content.size - 1] == '\n'
+        let first_is_space = UInt8(content[0]) == UInt8(0x20) || UInt8(content[0]) == UInt8(0x0A)
+        let last_is_space = UInt8(content[content.size - 1]) == UInt8(0x20) || UInt8(content[content.size - 1]) == UInt8(0x0A)
         if (first_is_space && last_is_space) {
-            // 检查是否不全为空格
             var has_non_space = false
-            for (c in content) {
-                if (c != ' ' && c != '\n') {
+            for (idx in 0..content.size) {
+                let ch = UInt8(content[idx])
+                if (ch != UInt8(0x20) && ch != UInt8(0x0A)) {
                     has_non_space = true
                     break
                 }
             }
             if (has_non_space) {
-                return content.substring(1, content.size - 1)
+                return content[1..content.size - 1]
             }
         }
     }
     return content
 }
 
-/// 检查是否为左翼
 public func isLeftFlanking(content: String, run_start: Int64, run_end: Int64): Bool {
     if (run_end >= content.size) {
         return false
@@ -510,7 +495,6 @@ public func isLeftFlanking(content: String, run_start: Int64, run_end: Int64): B
     return true
 }
 
-/// 检查是否为右翼
 public func isRightFlanking(content: String, run_start: Int64, run_end: Int64): Bool {
     if (run_start == 0) {
         return false
@@ -529,33 +513,30 @@ public func isRightFlanking(content: String, run_start: Int64, run_end: Int64): 
     return true
 }
 
-/// 检查是否可以开强调
 public func canOpenEmphasis(emph_char: UInt8, content: String, run_start: Int64, run_end: Int64): Bool {
     let lf = isLeftFlanking(content, run_start, run_end)
     if (!lf) {
         return false
     }
-    if (emph_char == '*'.toUInt8()) {
+    if (emph_char == UInt8(0x2A)) {
         return true
     }
     let rf = isRightFlanking(content, run_start, run_end)
     return !rf || (run_start > 0 && isUnicodePunctuation(decodeUtf8Backward(content, run_start).codepoint))
 }
 
-/// 检查是否可以闭强调
 public func canCloseEmphasis(emph_char: UInt8, content: String, run_start: Int64, run_end: Int64): Bool {
     let rf = isRightFlanking(content, run_start, run_end)
     if (!rf) {
         return false
     }
-    if (emph_char == '*'.toUInt8()) {
+    if (emph_char == UInt8(0x2A)) {
         return true
     }
     let lf = isLeftFlanking(content, run_start, run_end)
     return !lf || (run_end < content.size && isUnicodePunctuation(decodeUtf8(content, run_end).codepoint))
 }
 
-/// 进入 span
 public func enterSpan(parser: Parser, span_type: SpanType): Unit {
     if (parser.image_nesting_level > 0) {
         return
@@ -563,7 +544,6 @@ public func enterSpan(parser: Parser, span_type: SpanType): Unit {
     parser.renderer.enterSpan(span_type, SpanDetail())
 }
 
-/// 离开 span
 public func leaveSpan(parser: Parser, span_type: SpanType): Unit {
     if (parser.image_nesting_level > 0) {
         return
@@ -571,17 +551,14 @@ public func leaveSpan(parser: Parser, span_type: SpanType): Unit {
     parser.renderer.leaveSpan(span_type)
 }
 
-/// 发送文本
 public func emitText(parser: Parser, text_type: TextType, content: String): Unit {
     parser.renderer.text(text_type, content)
 }
 
-/// 查找 HTML 实体
 public func findEntity(parser: Parser, content: String, start: Int64): ?Int64 {
     return findEntity(content, start)
 }
 
-/// 查找 HTML 标签
 public func findHtmlTag(parser: Parser, content: String, start: Int64): ?Int64 {
     if (start + 1 >= content.size) {
         return None
@@ -589,35 +566,35 @@ public func findHtmlTag(parser: Parser, content: String, start: Int64): ?Int64 {
     var pos = start + 1
     let c = UInt8(content[pos])
 
-    // 关闭标签
-    if (c == '/'.toUInt8()) {
+    // closing tag
+    if (c == UInt8(0x2F)) {
         pos += 1
         if (pos >= content.size || !isAlpha(UInt8(content[pos]))) {
             return None
         }
-        while (pos < content.size && (isAlphaNum(UInt8(content[pos])) || content[pos] == '-')) {
+        while (pos < content.size && (isAlphaNum(UInt8(content[pos])) || UInt8(content[pos]) == UInt8(0x2D))) {
             pos += 1
         }
         while (pos < content.size && isWhitespace(UInt8(content[pos]))) {
             pos += 1
         }
-        if (pos < content.size && content[pos] == '>') {
+        if (pos < content.size && UInt8(content[pos]) == UInt8(0x3E)) {
             return pos + 1
         }
         return None
     }
 
-    // 注释
-    if (c == '!'.toUInt8() && pos + 1 < content.size && content[pos + 1] == '-' && pos + 2 < content.size && content[pos + 2] == '-') {
+    // comment
+    if (c == UInt8(0x21) && pos + 1 < content.size && UInt8(content[pos + 1]) == UInt8(0x2D) && pos + 2 < content.size && UInt8(content[pos + 2]) == UInt8(0x2D)) {
         pos += 3
-        if (pos < content.size && content[pos] == '>') {
+        if (pos < content.size && UInt8(content[pos]) == UInt8(0x3E)) {
             return pos + 1
         }
-        if (pos + 1 < content.size && content[pos] == '-' && content[pos + 1] == '>') {
+        if (pos + 1 < content.size && UInt8(content[pos]) == UInt8(0x2D) && UInt8(content[pos + 1]) == UInt8(0x3E)) {
             return pos + 2
         }
         while (pos + 2 < content.size) {
-            if (content[pos] == '-' && content[pos + 1] == '-' && content[pos + 2] == '>') {
+            if (UInt8(content[pos]) == UInt8(0x2D) && UInt8(content[pos + 1]) == UInt8(0x2D) && UInt8(content[pos + 2]) == UInt8(0x3E)) {
                 return pos + 3
             }
             pos += 1
@@ -625,9 +602,9 @@ public func findHtmlTag(parser: Parser, content: String, start: Int64): ?Int64 {
         return None
     }
 
-    // 开放标签
+    // open tag
     if (isAlpha(c)) {
-        while (pos < content.size && (isAlphaNum(UInt8(content[pos])) || content[pos] == '-')) {
+        while (pos < content.size && (isAlphaNum(UInt8(content[pos])) || UInt8(content[pos]) == UInt8(0x2D))) {
             pos += 1
         }
         while (pos < content.size) {
@@ -639,31 +616,31 @@ public func findHtmlTag(parser: Parser, content: String, start: Int64): ?Int64 {
             if (pos >= content.size) {
                 break
             }
-            if (content[pos] == '>') {
+            if (UInt8(content[pos]) == UInt8(0x3E)) {
                 return pos + 1
             }
-            if (content[pos] == '/' && pos + 1 < content.size && content[pos + 1] == '>') {
+            if (UInt8(content[pos]) == UInt8(0x2F) && pos + 1 < content.size && UInt8(content[pos + 1]) == UInt8(0x3E)) {
                 return pos + 2
             }
             if (!had_ws) {
                 return None
             }
-            // 属性名
-            if (!isAlpha(UInt8(content[pos])) && content[pos] != '_' && content[pos] != ':') {
+            // attribute name
+            if (!isAlpha(UInt8(content[pos])) && UInt8(content[pos]) != UInt8(0x5F) && UInt8(content[pos]) != UInt8(0x3A)) {
                 return None
             }
             pos += 1
             while (pos < content.size && (isAlphaNum(UInt8(content[pos])) ||
-                   content[pos] == '_' || content[pos] == ':' ||
-                   content[pos] == '.' || content[pos] == '-')) {
+                   UInt8(content[pos]) == UInt8(0x5F) || UInt8(content[pos]) == UInt8(0x3A) ||
+                   UInt8(content[pos]) == UInt8(0x2E) || UInt8(content[pos]) == UInt8(0x2D))) {
                 pos += 1
             }
-            // 可选属性值
+            // optional attribute value
             let before_eq_ws = pos
             while (pos < content.size && isWhitespace(UInt8(content[pos]))) {
                 pos += 1
             }
-            if (pos < content.size && content[pos] == '=') {
+            if (pos < content.size && UInt8(content[pos]) == UInt8(0x3D)) {
                 pos += 1
                 while (pos < content.size && isWhitespace(UInt8(content[pos]))) {
                     pos += 1
@@ -671,18 +648,18 @@ public func findHtmlTag(parser: Parser, content: String, start: Int64): ?Int64 {
                 if (pos >= content.size) {
                     return None
                 }
-                if (content[pos] == '"') {
+                if (UInt8(content[pos]) == UInt8(0x22)) {
                     pos += 1
-                    while (pos < content.size && content[pos] != '"') {
+                    while (pos < content.size && UInt8(content[pos]) != UInt8(0x22)) {
                         pos += 1
                     }
                     if (pos >= content.size) {
                         return None
                     }
                     pos += 1
-                } else if (content[pos] == '\'') {
+                } else if (UInt8(content[pos]) == UInt8(0x27)) {
                     pos += 1
-                    while (pos < content.size && content[pos] != '\'') {
+                    while (pos < content.size && UInt8(content[pos]) != UInt8(0x27)) {
                         pos += 1
                     }
                     if (pos >= content.size) {
@@ -691,9 +668,9 @@ public func findHtmlTag(parser: Parser, content: String, start: Int64): ?Int64 {
                     pos += 1
                 } else {
                     while (pos < content.size && !isWhitespace(UInt8(content[pos])) &&
-                           content[pos] != '"' && content[pos] != '\'' &&
-                           content[pos] != '=' && content[pos] != '<' &&
-                           content[pos] != '>' && content[pos] != '`') {
+                           UInt8(content[pos]) != UInt8(0x22) && UInt8(content[pos]) != UInt8(0x27) &&
+                           UInt8(content[pos]) != UInt8(0x3D) && UInt8(content[pos]) != UInt8(0x3C) &&
+                           UInt8(content[pos]) != UInt8(0x3E) && UInt8(content[pos]) != UInt8(0x60)) {
                         pos += 1
                     }
                 }
@@ -706,47 +683,45 @@ public func findHtmlTag(parser: Parser, content: String, start: Int64): ?Int64 {
     return None
 }
 
-/// 查找自动链接
 public func findAutolink(parser: Parser, content: String, start: Int64): ?AutolinkEndResult {
     if (start + 1 >= content.size) {
         return None
     }
     let pos = start + 1
 
-    // URI 自动链接: scheme://...
     if (isAlpha(UInt8(content[pos]))) {
         var scheme_end = pos
         while (scheme_end < content.size && (isAlphaNum(UInt8(content[scheme_end])) ||
-               content[scheme_end] == '+' || content[scheme_end] == '-' || content[scheme_end] == '.')) {
+               UInt8(content[scheme_end]) == UInt8(0x2B) || UInt8(content[scheme_end]) == UInt8(0x2D) || UInt8(content[scheme_end]) == UInt8(0x2E))) {
             scheme_end += 1
         }
         let scheme_len = scheme_end - pos
-        if (scheme_len >= 2 && scheme_len <= 32 && scheme_end < content.size && content[scheme_end] == ':') {
+        if (scheme_len >= 2 && scheme_len <= 32 && scheme_end < content.size && UInt8(content[scheme_end]) == UInt8(0x3A)) {
             var uri_end = scheme_end + 1
-            while (uri_end < content.size && content[uri_end] != '>' && !isWhitespace(UInt8(content[uri_end]))) {
+            while (uri_end < content.size && UInt8(content[uri_end]) != UInt8(0x3E) && !isWhitespace(UInt8(content[uri_end]))) {
                 uri_end += 1
             }
-            if (uri_end < content.size && content[uri_end] == '>') {
+            if (uri_end < content.size && UInt8(content[uri_end]) == UInt8(0x3E)) {
                 return AutolinkEndResult(uri_end + 1, false)
             }
         }
 
-        // 电子邮件自动链接
+        // email autolink
         var email_pos = pos
         while (email_pos < content.size && (isAlphaNum(UInt8(content[email_pos])) ||
-               content[email_pos] == '.' || content[email_pos] == '-' ||
-               content[email_pos] == '_' || content[email_pos] == '+')) {
+               UInt8(content[email_pos]) == UInt8(0x2E) || UInt8(content[email_pos]) == UInt8(0x2D) ||
+               UInt8(content[email_pos]) == UInt8(0x5F) || UInt8(content[email_pos]) == UInt8(0x2B))) {
             email_pos += 1
         }
-        if (email_pos < content.size && content[email_pos] == '@' && email_pos > pos) {
+        if (email_pos < content.size && UInt8(content[email_pos]) == UInt8(0x40) && email_pos > pos) {
             email_pos += 1
             let domain_start = email_pos
             var label_len: UInt32 = 0
             var dot_count: UInt32 = 0
             var valid_domain = true
             while (email_pos < content.size && (isAlphaNum(UInt8(content[email_pos])) ||
-                   content[email_pos] == '.' || content[email_pos] == '-')) {
-                if (content[email_pos] == '.') {
+                   UInt8(content[email_pos]) == UInt8(0x2E) || UInt8(content[email_pos]) == UInt8(0x2D))) {
+                if (UInt8(content[email_pos]) == UInt8(0x2E)) {
                     if (label_len == 0) {
                         valid_domain = false
                         break
@@ -762,7 +737,7 @@ public func findAutolink(parser: Parser, content: String, start: Int64): ?Autoli
                 }
                 email_pos += 1
             }
-            if (valid_domain && email_pos < content.size && content[email_pos] == '>' &&
+            if (valid_domain && email_pos < content.size && UInt8(content[email_pos]) == UInt8(0x3E) &&
                 email_pos > domain_start && label_len > 0 && dot_count > 0 &&
                 isAlphaNum(UInt8(content[email_pos - 1]))) {
                 return AutolinkEndResult(email_pos + 1, true)
@@ -773,7 +748,6 @@ public func findAutolink(parser: Parser, content: String, start: Int64): ?Autoli
     return None
 }
 
-/// 自动链接结束结果
 public class AutolinkEndResult {
     public var end_pos: Int64 = 0
     public var is_email: Bool = false
@@ -785,15 +759,13 @@ public class AutolinkEndResult {
 }
 
 // ============================================================================
-// 强调标签发射
+// Emphasis tag emission
 // ============================================================================
 
-/// 发送强调打开标签（从最外到最内）
-/// sizes 中第一个匹配是最内层的，所以逆序发送（HTML 中最外层先）
 public func emitEmphOpenTags(parser: Parser, sizes: Array<UInt8>, num: UInt8): Unit {
     for (idx in 0..Int64(num)) {
         let j = Int64(num) - 1 - idx
-        if (sizes[Int64(j)] == 2) {
+        if (sizes[j] == 2) {
             enterSpan(parser, SpanType.strong)
         } else {
             enterSpan(parser, SpanType.em)
@@ -801,8 +773,6 @@ public func emitEmphOpenTags(parser: Parser, sizes: Array<UInt8>, num: UInt8): U
     }
 }
 
-/// 发送强调关闭标签（从最内到最外）
-/// sizes 中第一个匹配是第一个关闭的（最内层），正序发送
 public func emitEmphCloseTags(parser: Parser, sizes: Array<UInt8>, num: UInt8): Unit {
     for (idx in 0..Int64(num)) {
         if (sizes[Int64(idx)] == 2) {

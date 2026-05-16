@@ -105,6 +105,26 @@ public enum RESPType {
     | Push           // '>'
     | BigNumber      // '('
 
+    public operator func ==(right: RESPType): Bool {
+        match (this) {
+            case SimpleString => match (right) { case SimpleString => true case _ => false }
+            case Error => match (right) { case Error => true case _ => false }
+            case Integer => match (right) { case Integer => true case _ => false }
+            case BulkString => match (right) { case BulkString => true case _ => false }
+            case Array => match (right) { case Array => true case _ => false }
+            case Null => match (right) { case Null => true case _ => false }
+            case Double => match (right) { case Double => true case _ => false }
+            case Boolean => match (right) { case Boolean => true case _ => false }
+            case BlobError => match (right) { case BlobError => true case _ => false }
+            case VerbatimString => match (right) { case VerbatimString => true case _ => false }
+            case Map => match (right) { case Map => true case _ => false }
+            case Set => match (right) { case Set => true case _ => false }
+            case Attribute => match (right) { case Attribute => true case _ => false }
+            case Push => match (right) { case Push => true case _ => false }
+            case BigNumber => match (right) { case BigNumber => true case _ => false }
+        }
+    }
+
     /// 从字节解析类型
     public static func fromByte(byte: UInt8): ?RESPType {
         match (byte) {
@@ -308,97 +328,92 @@ public class RESPValue {
     /// 格式化为字符串
     /// 对应 Bun RESPValue.format()
     public func format(): String {
-        match (respType) {
-            case SimpleString => simpleString
-            case Error => error
-            case Integer => "${integerValue}"
-            case BulkString => {
-                if (bulkString.isSome()) {
-                    bulkString.getOrThrow()
-                } else {
-                    "(nil)"
-                }
+        if (respType == RESPType.SimpleString) { return simpleString }
+        if (respType == RESPType.Error) { return error }
+        if (respType == RESPType.Integer) { return "${integerValue}" }
+        if (respType == RESPType.Null) { return "(nil)" }
+        if (respType == RESPType.Double) { return "${doubleValue}" }
+        if (respType == RESPType.Boolean) { return "${booleanValue}" }
+        if (respType == RESPType.BlobError) { return "Error: ${blobError}" }
+        if (respType == RESPType.BigNumber) { return "BigNumber(${bigNumber})" }
+        if (respType == RESPType.BulkString) {
+            if (bulkString.isSome()) {
+                return bulkString.getOrThrow()
             }
-            case Array => {
-                let sb = StringBuilder()
-                sb.append('[')
-                for (i in 0..array.size) {
-                    if (i > 0) { sb.append(", ") }
-                    sb.append(array[i].format())
-                }
-                sb.append(']')
-                sb.toString()
-            }
-            case Null => "(nil)"
-            case Double => "${doubleValue}"
-            case Boolean => "${booleanValue}"
-            case BlobError => "Error: ${blobError}"
-            case VerbatimString => {
-                if (verbatimString.isSome()) {
-                    let vs = verbatimString.getOrThrow()
-                    "${vs.format}:${vs.content}"
-                } else {
-                    "(nil)"
-                }
-            }
-            case Map => {
-                let sb = StringBuilder()
-                sb.append('{')
-                for (i in 0..map.size) {
-                    if (i > 0) { sb.append(", ") }
-                    sb.append(map[i].key.format())
-                    sb.append(": ")
-                    sb.append(map[i].value.format())
-                }
-                sb.append('}')
-                sb.toString()
-            }
-            case Set => {
-                let sb = StringBuilder()
-                sb.append("Set{")
-                for (i in 0..set.size) {
-                    if (i > 0) { sb.append(", ") }
-                    sb.append(set[i].format())
-                }
-                sb.append('}')
-                sb.toString()
-            }
-            case Attribute => {
-                if (attribute.isSome()) {
-                    let attr = attribute.getOrThrow()
-                    let sb = StringBuilder()
-                    sb.append("(Attr: {")
-                    for (i in 0..attr.attributes.size) {
-                        if (i > 0) { sb.append(", ") }
-                        sb.append(attr.attributes[i].key.format())
-                        sb.append(": ")
-                        sb.append(attr.attributes[i].value.format())
-                    }
-                    sb.append("} => ")
-                    sb.append(attr.value.format())
-                    sb.append(')')
-                    sb.toString()
-                } else {
-                    "(nil)"
-                }
-            }
-            case Push => {
-                if (push.isSome()) {
-                    let p = push.getOrThrow()
-                    let sb = StringBuilder()
-                    sb.append("Push(${p.kind}: [")
-                    for (i in 0..p.data.size) {
-                        if (i > 0) { sb.append(", ") }
-                        sb.append(p.data[i].format())
-                    }
-                    sb.append("])")
-                    sb.toString()
-                } else {
-                    "Push(nil)"
-                }
-            }
-            case BigNumber => "BigNumber(${bigNumber})"
+            return "(nil)"
         }
+        if (respType == RESPType.Array) {
+            let sb = StringBuilder()
+            sb.append('[')
+            for (i in 0..array.size) {
+                if (i > 0) { sb.append(", ") }
+                sb.append(array[i].format())
+            }
+            sb.append(']')
+            return sb.toString()
+        }
+        if (respType == RESPType.VerbatimString) {
+            if (verbatimString.isSome()) {
+                let vs = verbatimString.getOrThrow()
+                return "${vs.format}:${vs.content}"
+            }
+            return "(nil)"
+        }
+        if (respType == RESPType.Map) {
+            let sb = StringBuilder()
+            sb.append('{')
+            for (i in 0..map.size) {
+                if (i > 0) { sb.append(", ") }
+                sb.append(map[i].key.format())
+                sb.append(": ")
+                sb.append(map[i].value.format())
+            }
+            sb.append('}')
+            return sb.toString()
+        }
+        if (respType == RESPType.Set) {
+            let sb = StringBuilder()
+            sb.append("Set{")
+            for (i in 0..set.size) {
+                if (i > 0) { sb.append(", ") }
+                sb.append(set[i].format())
+            }
+            sb.append('}')
+            return sb.toString()
+        }
+        if (respType == RESPType.Attribute) {
+            if (attribute.isSome()) {
+                let attr = attribute.getOrThrow()
+                let sb = StringBuilder()
+                sb.append("(Attr: {")
+                for (i in 0..attr.attributes.size) {
+                    if (i > 0) { sb.append(", ") }
+                    sb.append(attr.attributes[i].key.format())
+                    sb.append(": ")
+                    sb.append(attr.attributes[i].value.format())
+                }
+                sb.append("} => ")
+                sb.append(attr.value.format())
+                sb.append(')')
+                return sb.toString()
+            }
+            return "(nil)"
+        }
+        if (respType == RESPType.Push) {
+            if (push.isSome()) {
+                let p = push.getOrThrow()
+                let sb = StringBuilder()
+                sb.append("Push(${p.kind}: [")
+                for (i in 0..p.data.size) {
+                    if (i > 0) { sb.append(", ") }
+                    sb.append(p.data[i].format())
+                }
+                sb.append("])")
+                return sb.toString()
+            }
+            return "Push(nil)"
+        }
+        return "(unknown)"
     }
 }
 
@@ -513,178 +528,180 @@ public class ValkeyReader {
         let respType = RESPType.fromByte(typeByte.getOrThrow().value)
         if (respType.isNone()) { return None }
 
-        match (respType.getOrThrow()) {
-            // RESP2 类型
-            case SimpleString => {
-                let str = readUntilCRLF()
-                if (str.isNone()) { return None }
-                RESPValue.simpleString(str.getOrThrow())
+        let rt = respType.getOrThrow()
+
+        // RESP2 types
+        if (rt == RESPType.SimpleString) {
+            let str = readUntilCRLF()
+            if (str.isNone()) { return None }
+            return RESPValue.simpleString(str.getOrThrow())
+        }
+        if (rt == RESPType.Error) {
+            let str = readUntilCRLF()
+            if (str.isNone()) { return None }
+            return RESPValue.error(str.getOrThrow())
+        }
+        if (rt == RESPType.Integer) {
+            let i = readInteger()
+            if (i.isNone()) { return None }
+            return RESPValue.integer(i.getOrThrow())
+        }
+        if (rt == RESPType.BulkString) {
+            let len = readInteger()
+            if (len.isNone()) { return None }
+            if (len.getOrThrow() < 0) {
+                return RESPValue.bulkString(None)
             }
-            case Error => {
-                let str = readUntilCRLF()
-                if (str.isNone()) { return None }
-                RESPValue.error(str.getOrThrow())
+            let n = len.getOrThrow()
+            if (pos + n > buffer.size) { return None }
+            let str = String.fromUtf8(buffer[pos..(pos + n)])
+            pos += n
+            // 跳过 CRLF
+            let crlf = readUntilCRLF()
+            return RESPValue.bulkString(str)
+        }
+        if (rt == RESPType.Array) {
+            if (depth >= MAX_NESTING_DEPTH) { return None }
+            let len = readInteger()
+            if (len.isNone()) { return None }
+            if (len.getOrThrow() < 0) {
+                return RESPValue(RESPType.Array) // 空数组
             }
-            case Integer => {
-                let i = readInteger()
-                if (i.isNone()) { return None }
-                RESPValue.integer(i.getOrThrow())
+            let arr = ArrayList<RESPValue>()
+            for (_ in 0..len.getOrThrow()) {
+                let v = readValueWithDepth(depth + 1)
+                if (v.isNone()) { return None }
+                arr.append(v.getOrThrow())
             }
-            case BulkString => {
-                let len = readInteger()
-                if (len.isNone()) { return None }
-                if (len.getOrThrow() < 0) {
-                    return RESPValue.bulkString(None)
-                }
-                let n = len.getOrThrow()
-                if (pos + n > buffer.size) { return None }
-                let str = String.fromUtf8(buffer[pos..(pos + n)])
-                pos += n
-                // 跳过 CRLF
-                let crlf = readUntilCRLF()
-                RESPValue.bulkString(str)
-            }
-            case Array => {
-                if (depth >= MAX_NESTING_DEPTH) { return None }
-                let len = readInteger()
-                if (len.isNone()) { return None }
-                if (len.getOrThrow() < 0) {
-                    return RESPValue(RESPType.Array) // 空数组
-                }
-                let arr = ArrayList<RESPValue>()
-                for (_ in 0..len.getOrThrow()) {
-                    let v = readValueWithDepth(depth + 1)
-                    if (v.isNone()) { return None }
-                    arr.append(v.getOrThrow())
-                }
-                let result = RESPValue(RESPType.Array)
-                result.array = arr
-                result
-            }
-            // RESP3 类型
-            case Null => {
-                readUntilCRLF() // 读取并丢弃 CRLF
-                RESPValue.nullValue()
-            }
-            case Double => {
-                let d = readDouble()
-                if (d.isNone()) { return None }
-                RESPValue.doubleValue(d.getOrThrow())
-            }
-            case Boolean => {
-                let b = readBoolean()
-                if (b.isNone()) { return None }
-                RESPValue.booleanValue(b.getOrThrow())
-            }
-            case BlobError => {
-                let len = readInteger()
-                if (len.isNone() || len.getOrThrow() < 0) { return None }
-                let n = len.getOrThrow()
-                if (pos + n > buffer.size) { return None }
-                let str = String.fromUtf8(buffer[pos..(pos + n)])
-                pos += n
-                readUntilCRLF() // 跳过 CRLF
-                let result = RESPValue(RESPType.BlobError)
-                result.blobError = str
-                result
-            }
-            case VerbatimString => {
-                let len = readInteger()
-                if (len.isNone() || len.getOrThrow() < 0) { return None }
-                let n = len.getOrThrow()
-                if (pos + n > buffer.size) { return None }
-                let content = String.fromUtf8(buffer[pos..(pos + n)])
-                pos += n
-                readUntilCRLF()
-                // 格式: "xxx:content"
-                if (content.size < 4 || content[3] != ':') { return None }
-                let fmt = content.subString(0, 3)
-                let body = content.subString(4)
-                let result = RESPValue(RESPType.VerbatimString)
-                result.verbatimString = VerbatimString(fmt, body)
-                result
-            }
-            case Map => {
-                if (depth >= MAX_NESTING_DEPTH) { return None }
-                let len = readInteger()
-                if (len.isNone() || len.getOrThrow() < 0) { return None }
-                let entries = ArrayList<RESPMapEntry>()
-                for (_ in 0..len.getOrThrow()) {
-                    let key = readValueWithDepth(depth + 1)
-                    if (key.isNone()) { return None }
-                    let val = readValueWithDepth(depth + 1)
-                    if (val.isNone()) { return None }
-                    entries.append(RESPMapEntry(key.getOrThrow(), val.getOrThrow()))
-                }
-                let result = RESPValue(RESPType.Map)
-                result.map = entries
-                result
-            }
-            case Set => {
-                if (depth >= MAX_NESTING_DEPTH) { return None }
-                let len = readInteger()
-                if (len.isNone() || len.getOrThrow() < 0) { return None }
-                let items = ArrayList<RESPValue>()
-                for (_ in 0..len.getOrThrow()) {
-                    let v = readValueWithDepth(depth + 1)
-                    if (v.isNone()) { return None }
-                    items.append(v.getOrThrow())
-                }
-                let result = RESPValue(RESPType.Set)
-                result.set = items
-                result
-            }
-            case Attribute => {
-                if (depth >= MAX_NESTING_DEPTH) { return None }
-                let len = readInteger()
-                if (len.isNone() || len.getOrThrow() < 0) { return None }
-                let attrs = ArrayList<RESPMapEntry>()
-                for (_ in 0..len.getOrThrow()) {
-                    let key = readValueWithDepth(depth + 1)
-                    if (key.isNone()) { return None }
-                    let val = readValueWithDepth(depth + 1)
-                    if (val.isNone()) { return None }
-                    attrs.append(RESPMapEntry(key.getOrThrow(), val.getOrThrow()))
-                }
-                // 读取属性后的实际值
+            let result = RESPValue(RESPType.Array)
+            result.array = arr
+            return result
+        }
+        // RESP3 types
+        if (rt == RESPType.Null) {
+            readUntilCRLF() // 读取并丢弃 CRLF
+            return RESPValue.nullValue()
+        }
+        if (rt == RESPType.Double) {
+            let d = readDouble()
+            if (d.isNone()) { return None }
+            return RESPValue.doubleValue(d.getOrThrow())
+        }
+        if (rt == RESPType.Boolean) {
+            let b = readBoolean()
+            if (b.isNone()) { return None }
+            return RESPValue.booleanValue(b.getOrThrow())
+        }
+        if (rt == RESPType.BlobError) {
+            let len = readInteger()
+            if (len.isNone() || len.getOrThrow() < 0) { return None }
+            let n = len.getOrThrow()
+            if (pos + n > buffer.size) { return None }
+            let str = String.fromUtf8(buffer[pos..(pos + n)])
+            pos += n
+            readUntilCRLF() // 跳过 CRLF
+            let result = RESPValue(RESPType.BlobError)
+            result.blobError = str
+            return result
+        }
+        if (rt == RESPType.VerbatimString) {
+            let len = readInteger()
+            if (len.isNone() || len.getOrThrow() < 0) { return None }
+            let n = len.getOrThrow()
+            if (pos + n > buffer.size) { return None }
+            let content = String.fromUtf8(buffer[pos..(pos + n)])
+            pos += n
+            readUntilCRLF()
+            // 格式: "xxx:content"
+            if (content.size < 4 || content[3] != ':') { return None }
+            let fmt = content.subString(0, 3)
+            let body = content.subString(4)
+            let result = RESPValue(RESPType.VerbatimString)
+            result.verbatimString = VerbatimString(fmt, body)
+            return result
+        }
+        if (rt == RESPType.Map) {
+            if (depth >= MAX_NESTING_DEPTH) { return None }
+            let len = readInteger()
+            if (len.isNone() || len.getOrThrow() < 0) { return None }
+            let entries = ArrayList<RESPMapEntry>()
+            for (_ in 0..len.getOrThrow()) {
+                let key = readValueWithDepth(depth + 1)
+                if (key.isNone()) { return None }
                 let val = readValueWithDepth(depth + 1)
                 if (val.isNone()) { return None }
-                let result = RESPValue(RESPType.Attribute)
-                result.attribute = RESPAttribute(attrs, val.getOrThrow())
-                result
+                entries.append(RESPMapEntry(key.getOrThrow(), val.getOrThrow()))
             }
-            case Push => {
-                if (depth >= MAX_NESTING_DEPTH) { return None }
-                let len = readInteger()
-                if (len.isNone() || len.getOrThrow() <= 0) { return None }
-                // 第一个元素是 push 类型
-                let pushType = readValueWithDepth(depth + 1)
-                if (pushType.isNone()) { return None }
-                let pt = pushType.getOrThrow()
-                let kind = match (pt.respType) {
-                    case SimpleString => pt.simpleString
-                    case BulkString => pt.bulkString.getOr("")
-                    case _ => ""
-                }
-                // 读取剩余数据
-                let data = ArrayList<RESPValue>()
-                for (_ in 0..(len.getOrThrow() - 1)) {
-                    let v = readValueWithDepth(depth + 1)
-                    if (v.isNone()) { return None }
-                    data.append(v.getOrThrow())
-                }
-                let result = RESPValue(RESPType.Push)
-                result.push = RESPPush(kind, data)
-                result
-            }
-            case BigNumber => {
-                let str = readUntilCRLF()
-                if (str.isNone()) { return None }
-                let result = RESPValue(RESPType.BigNumber)
-                result.bigNumber = str.getOrThrow()
-                result
-            }
+            let result = RESPValue(RESPType.Map)
+            result.map = entries
+            return result
         }
+        if (rt == RESPType.Set) {
+            if (depth >= MAX_NESTING_DEPTH) { return None }
+            let len = readInteger()
+            if (len.isNone() || len.getOrThrow() < 0) { return None }
+            let items = ArrayList<RESPValue>()
+            for (_ in 0..len.getOrThrow()) {
+                let v = readValueWithDepth(depth + 1)
+                if (v.isNone()) { return None }
+                items.append(v.getOrThrow())
+            }
+            let result = RESPValue(RESPType.Set)
+            result.set = items
+            return result
+        }
+        if (rt == RESPType.Attribute) {
+            if (depth >= MAX_NESTING_DEPTH) { return None }
+            let len = readInteger()
+            if (len.isNone() || len.getOrThrow() < 0) { return None }
+            let attrs = ArrayList<RESPMapEntry>()
+            for (_ in 0..len.getOrThrow()) {
+                let key = readValueWithDepth(depth + 1)
+                if (key.isNone()) { return None }
+                let val = readValueWithDepth(depth + 1)
+                if (val.isNone()) { return None }
+                attrs.append(RESPMapEntry(key.getOrThrow(), val.getOrThrow()))
+            }
+            // 读取属性后的实际值
+            let val = readValueWithDepth(depth + 1)
+            if (val.isNone()) { return None }
+            let result = RESPValue(RESPType.Attribute)
+            result.attribute = RESPAttribute(attrs, val.getOrThrow())
+            return result
+        }
+        if (rt == RESPType.Push) {
+            if (depth >= MAX_NESTING_DEPTH) { return None }
+            let len = readInteger()
+            if (len.isNone() || len.getOrThrow() <= 0) { return None }
+            // 第一个元素是 push 类型
+            let pushType = readValueWithDepth(depth + 1)
+            if (pushType.isNone()) { return None }
+            let pt = pushType.getOrThrow()
+            var kind = ""
+            if (pt.respType == RESPType.SimpleString) {
+                kind = pt.simpleString
+            } else if (pt.respType == RESPType.BulkString) {
+                kind = pt.bulkString.getOr("")
+            }
+            // 读取剩余数据
+            let data = ArrayList<RESPValue>()
+            for (_ in 0..(len.getOrThrow() - 1)) {
+                let v = readValueWithDepth(depth + 1)
+                if (v.isNone()) { return None }
+                data.append(v.getOrThrow())
+            }
+            let result = RESPValue(RESPType.Push)
+            result.push = RESPPush(kind, data)
+            return result
+        }
+        if (rt == RESPType.BigNumber) {
+            let str = readUntilCRLF()
+            if (str.isNone()) { return None }
+            let result = RESPValue(RESPType.BigNumber)
+            result.bigNumber = str.getOrThrow()
+            return result
+        }
+        return None
     }
 }
 

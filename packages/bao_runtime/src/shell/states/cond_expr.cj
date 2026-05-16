@@ -5,11 +5,48 @@
 package bao_runtime.shell.states
 
 import bao_core.*
+import std.collection.*
 
 // ============================================================================
 // 条件表达式状态
 // https://www.gnu.org/software/bash/manual/bash.html#Bash-Conditional-Expressions
 // ============================================================================
+
+/// 条件表达式状态类型（提取到顶层）
+public enum CondExprStateKind {
+| `idle`
+| expandingArgs(idx: UInt32, expansion: ExpansionState, lastExitCode: ExitCode)
+| waitingStat
+| statComplete(stat: Maybe<Stat>)
+| waitingWriteErr
+| done
+}
+
+/// 条件表达式父节点指针（提取到顶层）
+public class CondExprParentPtr {
+    public var ptr: Any
+    public static func initFunc(p: Any): CondExprParentPtr {
+        let pp = CondExprParentPtr()
+        pp.ptr = p
+        return pp
+    }
+    public func childDone(child: Any, exitCode: ExitCode): Yield { Yield.done }
+    public func create<T>(): T { T() }
+    public func destroy<T>(ptr: T) {}
+}
+
+/// 条件表达式子节点指针（提取到顶层）
+public class CondExprChildPtr {
+    public var ptr: Any
+    public static func initFunc(p: Any): CondExprChildPtr {
+        let cp = CondExprChildPtr()
+        cp.ptr = p
+        return cp
+    }
+    public func is(type: Any): Boolean { true }
+    public func `as`<T>(): T { this.ptr as T }
+    public func deinit() {}
+}
 
 /// 条件表达式状态
 public class CondExprState {
@@ -18,7 +55,7 @@ public class CondExprState {
     /// AST节点
     public var node: CondExprAst
     /// 父节点
-    public var parent: ParentPtr
+    public var parent: CondExprParentPtr
     /// IO
     public var io: IO
     /// 状态
@@ -26,48 +63,12 @@ public class CondExprState {
     /// 参数
     public var args: ArrayList<String>
 
-    /// 条件表达式状态类型
-    public enum CondExprStateKind {
-        case idle
-        case expandingArgs(idx: UInt32, expansion: ExpansionState, lastExitCode: ExitCode)
-        case waitingStat
-        case statComplete(stat: Maybe<Stat>)
-        case waitingWriteErr
-        case done
-    }
-
-    /// 父节点指针
-    public class ParentPtr {
-        public var ptr: Any
-        public static func initFunc(p: Any): ParentPtr {
-            let pp = ParentPtr()
-            pp.ptr = p
-            return pp
-        }
-        public func childDone(child: Any, exitCode: ExitCode): Yield { Yield.done }
-        public func create<T>(): T { T() }
-        public func destroy<T>(ptr: T) {}
-    }
-
-    /// 子节点指针
-    public class ChildPtr {
-        public var ptr: Any
-        public static func initFunc(p: Any): ChildPtr {
-            let cp = ChildPtr()
-            cp.ptr = p
-            return cp
-        }
-        public func is(type: Any): Boolean { true }
-        public func `as`<T>(): T { this.ptr as T }
-        public func deinit() {}
-    }
-
     /// 初始化
     public static func initFunc(
         interpreter: Interpreter,
         shellState: ShellExecEnv,
         node: CondExprAst,
-        parent: ParentPtr,
+        parent: CondExprParentPtr,
         io: IO
     ): CondExprState {
         let condexpr = CondExprState()
@@ -76,7 +77,7 @@ public class CondExprState {
         condexpr.parent = parent
         condexpr.io = io
         condexpr.args = ArrayList<String>()
-        condexpr.state = CondExprStateKind.idle
+        condexpr.state = CondExprStateKind.`idle`
         return condexpr
     }
 
@@ -87,17 +88,17 @@ public class CondExprState {
 
     /// 下一步
     public func next(): Yield {
-        while (this.state != .done) {
+        while (this.state != CondExprStateKind.done) {
             switch (this.state) {
-                case .idle =>
+                case CondExprStateKind.`idle` =>
                     this.state = CondExprStateKind.expandingArgs(
                         idx: 0,
                         expansion: ExpansionState(),
                         lastExitCode: 0
                     )
                     continue
-                case .expandingArgs(let idx, let expansion, let lastExitCode) =>
-                    if (idx >= this.node.args.length) {
+                case CondExprStateKind.expandingArgs(let idx, let expansion, let lastExitCode) =>
+                    if (idx >= this.node.args.size) {
                         return this.commandImplStart()
                     }
                     this.state = CondExprStateKind.expandingArgs(
@@ -106,9 +107,9 @@ public class CondExprState {
                         lastExitCode: lastExitCode
                     )
                     return expansion.start()
-                case .waitingStat =>
+                case CondExprStateKind.waitingStat =>
                     return Yield.suspended
-                case .statComplete(let stat) =>
+                case CondExprStateKind.statComplete(let stat) =>
                     // 根据操作符和stat结果返回退出码
                     switch (this.node.op) {
                         case "-f" =>
@@ -120,14 +121,14 @@ public class CondExprState {
                         case "-c" =>
                             // 检查是否为字符设备
                             return this.parent.childDone(this, 0)
-                        case "-z", "-n", "==", "!=" =>
+                        case "-z" | "-n" | "==" | "!=" =>
                             panic("此条件表达式操作符不需要stat()")
                         case _ =>
                             panic("无效的条件表达式操作符")
                     }
-                case .waitingWriteErr =>
+                case CondExprStateKind.waitingWriteErr =>
                     return Yield.suspended
-                case .done =>
+                case CondExprStateKind.done =>
                     panic("不可达状态")
             }
         }
@@ -137,21 +138,21 @@ public class CondExprState {
     /// 命令实现启动
     func commandImplStart(): Yield {
         switch (this.node.op) {
-            case "-f", "-d", "-c" =>
+            case "-f" | "-d" | "-c" =>
                 this.state = CondExprStateKind.waitingStat
                 return this.doStat()
             case "-z" =>
                 return this.parent.childDone(this,
-                    if (this.args.length == 0 || this.args[0].length == 0) 0 else 1)
+                    if (this.args.size == 0 || this.args[0].size == 0) 0 else 1)
             case "-n" =>
                 return this.parent.childDone(this,
-                    if (this.args.length > 0 && this.args[0].length != 0) 0 else 1)
+                    if (this.args.size > 0 && this.args[0].size != 0) 0 else 1)
             case "==" =>
-                let isEq = this.args.length == 0 ||
-                    (this.args.length >= 2 && this.args[0] == this.args[1])
+                let isEq = this.args.size == 0 ||
+                    (this.args.size >= 2 && this.args[0] == this.args[1])
                 return this.parent.childDone(this, if (isEq) 0 else 1)
             case "!=" =>
-                let isNeq = this.args.length >= 2 && this.args[0] != this.args[1]
+                let isNeq = this.args.size >= 2 && this.args[0] != this.args[1]
                 return this.parent.childDone(this, if (isNeq) 0 else 1)
             case _ =>
                 panic("无效的条件表达式操作符")
@@ -175,7 +176,7 @@ public class CondExprState {
     }
 
     /// 子节点完成
-    public func childDone(child: ChildPtr, exitCode: ExitCode): Yield {
+    public func childDone(child: CondExprChildPtr, exitCode: ExitCode): Yield {
         if (exitCode != 0) {
             return this.writeFailingError("error\n")
         }
@@ -191,7 +192,7 @@ public class CondExprState {
 
     /// 写入失败错误
     public func writeFailingError(fmt: String): Yield {
-        return this.base.shell.writeFailingErrorFmt(this, { _ in }, fmt, [])
+        return this.base.shell.writeFailingErrorFmt(this, { _ => Yield.done }, fmt, [])
     }
 
     /// IO写入器数据块回调
@@ -200,7 +201,7 @@ public class CondExprState {
             let exitCode: ExitCode = 1
             return this.parent.childDone(this, exitCode)
         }
-        if (this.state == .waitingWriteErr) {
+        if (this.state == CondExprStateKind.waitingWriteErr) {
             return this.parent.childDone(this, 1)
         }
         unreachableState("CondExpr.onIOWriterChunk", "unexpected state")

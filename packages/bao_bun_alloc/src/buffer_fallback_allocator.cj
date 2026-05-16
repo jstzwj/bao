@@ -33,7 +33,7 @@ public class BufferFallbackAllocator {
     /// 对应 Zig: pub fn init(buffer: []u8, fallback_allocator: Allocator) BufferFallbackAllocator
     public init(buffer: Array<Byte>, fallbackAllocator: Allocator) {
         this.fallbackAllocator = fallbackAllocator
-        this.fixedBufferAllocator = FixedBufferAllocator.init(buffer)
+        this.fixedBufferAllocator = FixedBufferAllocator.`init`(buffer)
     }
 
     /// 获取分配器接口

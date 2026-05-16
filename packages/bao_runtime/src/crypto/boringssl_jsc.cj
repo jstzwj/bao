@@ -364,22 +364,22 @@ public class BoringSSL {
 /// EVP_MD 类型
 /// 对应 Bun: *const BoringSSL.EVP_MD
 public enum EvpMdType {
-    | BLAKE2B256
-    | BLAKE2B512
-    | MD4
-    | MD5
-    | RIPEMD160
-    | SHA1
-    | SHA224
-    | SHA256
-    | SHA384
-    | SHA512
-    | SHA512_224
-    | SHA512_256
-    | SHA3_224
-    | SHA3_256
-    | SHA3_384
-    | SHA3_512
+| BLAKE2B256
+| BLAKE2B512
+| MD4
+| MD5
+| RIPEMD160
+| SHA1
+| SHA224
+| SHA256
+| SHA384
+| SHA512
+| SHA512_224
+| SHA512_256
+| SHA3_224
+| SHA3_256
+| SHA3_384
+| SHA3_512
 }
 
 /// EVP_MD 结构封装

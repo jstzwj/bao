@@ -11,6 +11,37 @@ import bao_core.*
 // 用于顶层脚本、展开（命令替换）和子Shell
 // ============================================================================
 
+/// 脚本状态类型（提取到顶层）
+public enum ScriptStateKind {
+| `normal`(idx: UInt64)
+}
+
+/// 脚本状态父节点指针（提取到顶层）
+public class ScriptParentPtr {
+    public var ptr: Any
+
+    public static func initFunc(p: Any): ScriptParentPtr {
+        let pp = ScriptParentPtr()
+        pp.ptr = p
+        return pp
+    }
+}
+
+/// 脚本状态子节点指针（提取到顶层）
+public class ScriptChildPtr {
+    public var val: StmtState
+
+    public static func initFunc(child: StmtState): ScriptChildPtr {
+        let cp = ScriptChildPtr()
+        cp.val = child
+        return cp
+    }
+
+    public func deinit() {
+        this.val.deinit()
+    }
+}
+
 /// 脚本状态
 public class ScriptState {
     /// 基类
@@ -20,47 +51,16 @@ public class ScriptState {
     /// IO
     public var io: IO
     /// 父节点指针
-    public var parent: ParentPtr
+    public var parent: ScriptParentPtr
     /// 状态
     public var state: ScriptStateKind
-
-    /// 脚本状态类型
-    public enum ScriptStateKind {
-        case normal(idx: UInt64)
-    }
-
-    /// 父节点指针
-    public class ParentPtr {
-        public var ptr: Any
-
-        public static func initFunc(p: Any): ParentPtr {
-            let pp = ParentPtr()
-            pp.ptr = p
-            return pp
-        }
-    }
-
-    /// 子节点指针
-    public class ChildPtr {
-        public var val: StmtState
-
-        public static func initFunc(child: StmtState): ChildPtr {
-            let cp = ChildPtr()
-            cp.val = child
-            return cp
-        }
-
-        public func deinit() {
-            this.val.deinit()
-        }
-    }
 
     /// 初始化
     public static func initFunc(
         interpreter: Interpreter,
         shellState: ShellExecEnv,
         node: Script,
-        parentPtr: ParentPtr,
+        parentPtr: ScriptParentPtr,
         io: IO
     ): ScriptState {
         let script = ScriptState()
@@ -68,13 +68,13 @@ public class ScriptState {
         script.node = node
         script.parent = parentPtr
         script.io = io
-        script.state = ScriptStateKind.normal(idx: 0)
+        script.state = ScriptStateKind.`normal`(idx: 0)
         return script
     }
 
     /// 启动
     public func start(): Yield {
-        if (this.node.stmts.length == 0) {
+        if (this.node.stmts.size == 0) {
             return this.finish(0)
         }
         return Yield.script(this)
@@ -83,17 +83,17 @@ public class ScriptState {
     /// 下一步
     public func next(): Yield {
         switch (this.state) {
-            case .normal(let idx) =>
-                if (idx >= this.node.stmts.length) {
+            case ScriptStateKind.`normal`(let idx) =>
+                if (idx >= this.node.stmts.size) {
                     return Yield.suspended
                 }
                 let stmtNode = this.node.stmts[idx]
-                this.state = ScriptStateKind.normal(idx: idx + 1)
+                this.state = ScriptStateKind.`normal`(idx: idx + 1)
                 let stmt = StmtState.init(
                     interpreter: this.base.interpreter,
                     shellState: this.base.shell,
                     node: stmtNode,
-                    parent: StmtState.ParentPtr.init(this),
+                    parent: StmtParentPtr.init(this),
                     io: this.io.ref()
                 )
                 return stmt.start()
@@ -106,11 +106,11 @@ public class ScriptState {
     }
 
     /// 子节点完成
-    public func childDone(child: ChildPtr, exitCode: ExitCode): Yield {
+    public func childDone(child: ScriptChildPtr, exitCode: ExitCode): Yield {
         child.deinit()
         switch (this.state) {
-            case .normal(let idx) =>
-                if (idx >= this.node.stmts.length) {
+            case ScriptStateKind.`normal`(let idx) =>
+                if (idx >= this.node.stmts.size) {
                     return this.finish(exitCode)
                 }
                 return this.next()

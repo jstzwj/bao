@@ -246,12 +246,11 @@ public class ConcurrentMap<K, V> where K <: Hashable<K> & Equatable<K> {
         synchronized(mutex) {
             match (map.get(key)) {
                 case Some(v) => return v
-                case None => {
-                    let v = defaultValue()
-                    map.put(key, v)
-                    return v
-                }
+                case None => ()
             }
+            let v = defaultValue()
+            map.put(key, v)
+            return v
         }
     }
 

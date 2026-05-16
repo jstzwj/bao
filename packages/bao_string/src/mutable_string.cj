@@ -31,7 +31,7 @@ public class MutableString {
     /// 带初始容量初始化
     /// 严格翻译自 MutableString.init
     public init(capacity: Int64) {
-        this.buffer = Array<Byte>(capacity, item: Byte(0))
+        this.buffer = Array<Byte>(capacity, repeat: Byte(0))
         this.used = 0
         this.capacity = capacity
     }
@@ -111,7 +111,7 @@ public class MutableString {
     public func growIfNeeded(amount: Int64): Unit {
         if (this.used + amount > this.capacity) {
             let newCapacity = max(this.capacity * 2, this.used + amount)
-            var newBuffer = Array<Byte>(newCapacity, item: Byte(0))
+            var newBuffer = Array<Byte>(newCapacity, repeat: Byte(0))
             for (i in 0..this.used) {
                 newBuffer[i] = this.buffer[i]
             }
@@ -352,98 +352,97 @@ public class MutableString {
         return true
     }
 
-    // ========================================================================
-    // BufferedWriter 内部类
-    // 严格翻译自 MutableString.zig BufferedWriter
-    // ========================================================================
+    /// 创建缓冲写入器
+    /// 严格翻译自 MutableString.bufferedWriter
+    public func bufferedWriter(): MutableStringBufferedWriter {
+        return MutableStringBufferedWriter(this)
+    }
+}
 
-    /// 缓冲写入器
-    /// 严格翻译自 MutableString.zig BufferedWriter
-    public class BufferedWriter {
-        private let context: MutableString
-        private var buf: Array<Byte>
-        private var pos: Int64
+// ============================================================================
+// MutableStringBufferedWriter (extracted from MutableString)
+// ============================================================================
 
-        private static let MAX: Int64 = 2048
+/// 缓冲写入器
+/// 严格翻译自 MutableString.zig BufferedWriter
+public class MutableStringBufferedWriter {
+    private let context: MutableString
+    private var buf: Array<Byte>
+    private var pos: Int64
 
-        public init(context: MutableString) {
-            this.context = context
-            this.buf = Array<Byte>(MAX, item: Byte(0))
-            this.pos = 0
-        }
+    private static let MAX: Int64 = 2048
 
-        /// 获取剩余空间
-        private func remain(): Array<Byte> {
-            return buf[pos..MAX]
-        }
+    public init(context: MutableString) {
+        this.context = context
+        this.buf = Array<Byte>(MAX, repeat: Byte(0))
+        this.pos = 0
+    }
 
-        /// 刷新缓冲区
-        /// 严格翻译自 BufferedWriter.flush
-        public func flush(): Unit {
-            if (pos > 0) {
-                context.write(buf[0..pos])
-                pos = 0
-            }
-        }
+    /// 获取剩余空间
+    private func remain(): Array<Byte> {
+        return buf[pos..MAX]
+    }
 
-        /// 写入字节数据
-        /// 严格翻译自 BufferedWriter.writeAll
-        public func writeAll(bytes: String): Int64 {
-            if (bytes.size >= MAX) {
-                flush()
-                context.appendSlice(bytes)
-                return bytes.size
-            }
-
-            if (bytes.size > 0) {
-                if (bytes.size + pos > MAX) {
-                    flush()
-                }
-                let arr = bytes.toArray()
-                for (b in arr) {
-                    buf[pos] = b
-                    pos += 1
-                }
-            }
-
-            return bytes.size
-        }
-
-        /// 写入 HTML 属性值(转义特殊字符)
-        /// 严格翻译自 BufferedWriter.writeHTMLAttributeValue
-        public func writeHTMLAttributeValue(bytes: String): Unit {
-            var items = bytes
-            while (items.size > 0) {
-                var j: Int64 = -1
-                for (i in 0..items.size) {
-                    if (items[i] == Byte('"') || items[i] == Byte('<') || items[i] == Byte('>')) {
-                        j = i
-                        break
-                    }
-                }
-
-                if (j >= 0) {
-                    writeAll(items[0..j])
-                    if (items[j] == Byte('"')) {
-                        writeAll("&quot;")
-                    } else if (items[j] == Byte('<')) {
-                        writeAll("&lt;")
-                    } else {
-                        writeAll("&gt;")
-                    }
-                    items = items[j + 1..items.size]
-                } else {
-                    writeAll(items)
-                    break
-                }
-            }
+    /// 刷新缓冲区
+    /// 严格翻译自 BufferedWriter.flush
+    public func flush(): Unit {
+        if (pos > 0) {
+            context.write(buf[0..pos])
+            pos = 0
         }
     }
 
-    /// 创建缓冲写入器
-    /// 严格翻译自 MutableString.bufferedWriter
-    public func bufferedWriter(): BufferedWriter {
-        return BufferedWriter(this)
+    /// 写入字节数据
+    /// 严格翻译自 BufferedWriter.writeAll
+    public func writeAll(bytes: String): Int64 {
+        if (bytes.size >= MAX) {
+            flush()
+            context.appendSlice(bytes)
+            return bytes.size
+        }
+
+        if (bytes.size > 0) {
+            if (bytes.size + pos > MAX) {
+                flush()
+            }
+            let arr = bytes.toArray()
+            for (b in arr) {
+                buf[pos] = b
+                pos += 1
+            }
+        }
+
+        return bytes.size
+    }
+
+    /// 写入 HTML 属性值(转义特殊字符)
+    /// 严格翻译自 BufferedWriter.writeHTMLAttributeValue
+    public func writeHTMLAttributeValue(bytes: String): Unit {
+        var items = bytes
+        while (items.size > 0) {
+            var j: Int64 = -1
+            for (i in 0..items.size) {
+                if (items[i] == Byte('"') || items[i] == Byte('<') || items[i] == Byte('>')) {
+                    j = i
+                    break
+                }
+            }
+
+            if (j >= 0) {
+                writeAll(items[0..j])
+                if (items[j] == Byte('"')) {
+                    writeAll("&quot;")
+                } else if (items[j] == Byte('<')) {
+                    writeAll("&lt;")
+                } else {
+                    writeAll("&gt;")
+                }
+                items = items[j + 1..items.size]
+            } else {
+                writeAll(items)
+                break
+            }
+        }
     }
 }
 

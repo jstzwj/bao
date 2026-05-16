@@ -140,7 +140,7 @@ private func reportBunfigLoadFailure(log: Log, err: BaoError): Nothing {
         printError("\n")
     }
     printError("failed to load bunfig: ${err.message}")
-    exit(1)
+    Process.exit(1)
 }
 
 /// 自动查找并加载配置
@@ -255,6 +255,18 @@ public enum CommandTag {
     | AutoCommand
     | InitCommand
     | ReplCommand
+
+    public operator func ==(right: CommandTag): Bool {
+        match (this) {
+            case RunCommand => match (right) { case RunCommand => true case _ => false }
+            case BuildCommand => match (right) { case BuildCommand => true case _ => false }
+            case TestCommand => match (right) { case TestCommand => true case _ => false }
+            case InstallCommand => match (right) { case InstallCommand => true case _ => false }
+            case AutoCommand => match (right) { case AutoCommand => true case _ => false }
+            case InitCommand => match (right) { case InitCommand => true case _ => false }
+            case ReplCommand => match (right) { case ReplCommand => true case _ => false }
+        }
+    }
 
     /// 是否需要读取全局配置
     public func readGlobalConfig(): Bool {
@@ -453,7 +465,7 @@ private func joinPath(base: String, relative: String): String {
 private func isDefaultLoader(filename: String): Bool {
     let dotIdx = filename.lastIndexOf('.')
     let ext = match (dotIdx) {
-        case Some(idx) => filename.substring(idx)
+        case Some(idx) => filename[idx..]
         case None => ""
     }
     // 对应 Bun: options::DEFAULT_LOADERS.contains_key(extension)
@@ -470,7 +482,7 @@ private func getErrorWriter(): OutputWriter {
 
 /// 打印错误
 private func printError(msg: String): Unit {
-    std.console.stderr.println(msg)
+    println(msg)
 }
 
 /// 读取源文件的 Source 类型 - 使用 String 直接

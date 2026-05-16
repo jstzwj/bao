@@ -211,9 +211,9 @@ public class Perf {
         }
 
         if (Environment.IS_MAC) {
-            return Darwin.init(event)
+            return Darwin.`init`(event)
         } else if (Environment.IS_LINUX) {
-            return Linux.init(event)
+            return Linux.`init`(event)
         }
 
         return DisabledCtx()

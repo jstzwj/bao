@@ -10,8 +10,8 @@ import bao_core.*
 // 对应 Bun: parse_args_utils.zig - OptionValueType
 // ============================================================================
 public enum OptionValueType {
-    boolean,
-    string
+    | boolean_
+    | string_
 }
 
 // ============================================================================
@@ -19,13 +19,13 @@ public enum OptionValueType {
 // 对应 Bun: parse_args_utils.zig - TokenSubtype
 // ============================================================================
 public enum TokenSubtype {
-    optionTerminator,    // "--"
-    loneShortOption,     // "-f"
-    shortOptionGroup,    // "-fXzy"
-    shortOptionAndValue, // "-fFILE"
-    loneLongOption,      // "--foo"
-    longOptionAndValue,  // "--foo=bar"
-    positional           // 非选项参数
+    | optionTerminator
+    | loneShortOption
+    | shortOptionGroup
+    | shortOptionAndValue
+    | loneLongOption
+    | longOptionAndValue
+    | positional
 }
 
 // ============================================================================
@@ -42,7 +42,7 @@ public class OptionDefinition {
     public var shortName: String = ""
 
     // 值类型
-    public var type: OptionValueType = OptionValueType.boolean
+    public var `type`: OptionValueType = OptionValueType.boolean__
 
     // 是否允许多个值
     public var multiple: Bool = false
@@ -52,10 +52,10 @@ public class OptionDefinition {
 
     public init() {}
 
-    public init(longName: String, shortName: String, type: OptionValueType, multiple: Bool) {
+    public init(longName: String, shortName: String, `type`: OptionValueType, multiple: Bool) {
         this.longName = longName
         this.shortName = shortName
-        this.type = type
+        this.`type` = `type`
         this.multiple = multiple
     }
 }
@@ -255,15 +255,15 @@ public class ParseArgs {
         } else if (len > 2) {
             if (arg.startsWith("--")) {
                 let eqIdx = arg.indexOf('=')
-                if (eqIdx != None && eqIdx! >= 3) {
+                if (eqIdx != None && eqIdx.getOrThrow() >= 3) {
                     return TokenSubtype.longOptionAndValue
                 }
                 return TokenSubtype.loneLongOption
             } else if (arg.startsWith("-")) {
-                let firstChar = arg.substring(1, 2)
+                let firstChar = arg[1..2]
                 let optIdx = findOptionByShortName(firstChar, options: options)
                 if (optIdx >= 0) {
-                    if (options[optIdx].type == OptionValueType.string) {
+                    if (options[optIdx].`type` == OptionValueType.string_) {
                         return TokenSubtype.shortOptionAndValue
                     }
                     return TokenSubtype.shortOptionGroup
@@ -297,25 +297,25 @@ public class ParseArgs {
 
         if (eqIdx != None) {
             // --foo=bar
-            name = arg.substring(2, eqIdx.getOrThrow())
-            value = arg.substring(eqIdx! + 1, arg.size)
+            name = arg[2..eqIdx.getOrThrow()]
+            value = arg[(eqIdx.getOrThrow() + 1)..arg.size]
             inlineValue = true
         } else {
             // --foo 或 --no-foo
-            name = arg.substring(2)
+            name = arg[2..]
 
             // 处理否定前缀 --no-
             if (allowNegative && name.startsWith("no-")) {
-                name = name.substring(3)
+                name = name[3..]
                 negative = true
             }
 
             // 查找选项定义
             let optIdx = findOptionByLongName(name, options: options)
-            let optType = if (optIdx >= 0) { options[optIdx].type } else { OptionValueType.boolean }
+            let optType = if (optIdx >= 0) { options[optIdx].`type` } else { OptionValueType.boolean_ }
 
             // 字符串选项需要消费下一个参数
-            if (optType == OptionValueType.string && i + 1 < args.size && !negative) {
+            if (optType == OptionValueType.string_ && i + 1 < args.size && !negative) {
                 i += 1
                 value = args[Int64(i)]
             }
@@ -331,7 +331,7 @@ public class ParseArgs {
             token.kind = "option"
             token.index = index
             token.name = name
-            token.rawName = if (negative) { "--no-" + name } else { arg.substring(0, if (eqIdx != None) { eqIdx! } else { arg.size }) }
+            token.rawName = if (negative) { "--no-" + name } else { arg[0..(if (eqIdx != None) { eqIdx.getOrThrow() } else { arg.size })] }
             token.value = value
             token.inlineValue = inlineValue
             token.negative = negative
@@ -357,8 +357,8 @@ public class ParseArgs {
 
         if (tokenType == TokenSubtype.shortOptionAndValue) {
             // -fFILE
-            let shortName = arg.substring(1, 2)
-            let value = arg.substring(2)
+            let shortName = arg[1..2]
+            let value = arg[2..]
             let optIdx = findOptionByShortName(shortName, options: options)
             let longName = if (optIdx >= 0) { options[optIdx].longName } else { shortName }
 
@@ -370,7 +370,7 @@ public class ParseArgs {
                 token.kind = "option"
                 token.index = index
                 token.name = longName
-                token.rawName = arg.substring(0, 2)
+                token.rawName = arg[0..2]
                 token.value = value
                 token.inlineValue = true
                 result.tokens.add(token)
@@ -380,14 +380,14 @@ public class ParseArgs {
 
         if (tokenType == TokenSubtype.loneShortOption) {
             // -f 或 -f FILE
-            let shortName = arg.substring(1, 2)
+            let shortName = arg[1..2]
             let optIdx = findOptionByShortName(shortName, options: options)
-            let optType = if (optIdx >= 0) { options[optIdx].type } else { OptionValueType.boolean }
+            let optType = if (optIdx >= 0) { options[optIdx].`type` } else { OptionValueType.boolean_ }
             let longName = if (optIdx >= 0) { options[optIdx].longName } else { shortName }
 
             var value: String = ""
             var hasValue = false
-            if (optType == OptionValueType.string && i + 1 < args.size) {
+            if (optType == OptionValueType.string_ && i + 1 < args.size) {
                 i += 1
                 value = args[Int64(i)]
                 hasValue = true
@@ -413,16 +413,16 @@ public class ParseArgs {
         if (tokenType == TokenSubtype.shortOptionGroup) {
             var j: Int64 = 1
             while (j < arg.size) {
-                let shortName = arg.substring(j, j + 1)
+                let shortName = arg[j..(j + 1)]
                 let optIdx = findOptionByShortName(shortName, options: options)
-                let optType = if (optIdx >= 0) { options[optIdx].type } else { OptionValueType.boolean }
+                let optType = if (optIdx >= 0) { options[optIdx].`type` } else { OptionValueType.boolean_ }
                 let longName = if (optIdx >= 0) { options[optIdx].longName } else { shortName }
 
-                if (optType != OptionValueType.string || j == arg.size - 1) {
+                if (optType != OptionValueType.string_ || j == arg.size - 1) {
                     // 布尔选项，或短选项组的最后一个
                     var value: String = ""
                     var hasValue = false
-                    if (optType == OptionValueType.string && i + 1 < args.size) {
+                    if (optType == OptionValueType.string_ && i + 1 < args.size) {
                         i += 1
                         value = args[Int64(i)]
                         hasValue = true
@@ -447,7 +447,7 @@ public class ParseArgs {
                     }
                 } else {
                     // 字符串选项在中间，例如 -abfFILE -> -a -b -fFILE
-                    let value = arg.substring(j + 1)
+                    let value = arg[(j + 1)..]
                     storeOption(result: result, name: longName, value: value, options: options,
                         strict: strict, negative: false)
 
@@ -495,7 +495,7 @@ public class ParseArgs {
         }
 
         let optDef = options[optIdx]
-        if (optDef.type == OptionValueType.boolean) {
+        if (optDef.`type` == OptionValueType.boolean_) {
             let newValue = ParseArgValue.fromBool(!negative)
 
             if (optDef.multiple) {

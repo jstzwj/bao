@@ -128,16 +128,16 @@ public class ChromeProcess {
     ///   SIGKILL 浏览器进程后, zygote 树会跟随退出
     public static func kill(): Unit {
         match (instance) {
-            case Some(p) => {
-                if (p.pid > 0) {
-                    kill(p.pid, SIGKILL)
-                    p.pid = -1
-                    p.launched = false
-                }
-                instance = None
-            }
-            case None => ()
+            case Some(p) => ()
+            case None => return
         }
+        let p = instance.getOrThrow()
+        if (p.pid > 0) {
+            kill(p.pid, SIGKILL)
+            p.pid = -1
+            p.launched = false
+        }
+        instance = None
     }
 
     /// 确保 Chrome 已启动
@@ -161,14 +161,12 @@ public class ChromeProcess {
         }
 
         let proc = ChromeProcess()
-        let result = proc.spawn(userDataDir, path, extraArgv, stdoutInherit, stderrInherit)
-        match (result) {
-            case Ok(fd) => {
-                instance = Some(proc)
-                return fd
-            }
-            case Err(_) => return -1
+        let result = proc.`spawn`(userDataDir, path, extraArgv, stdoutInherit, stderrInherit)
+        if (result.isOk()) {
+            instance = Some(proc)
+            return result.getOrThrow()
         }
+        return -1
     }
 
     /// 进程退出回调
@@ -194,7 +192,7 @@ public class ChromeProcess {
     ///   5. fork + execve
     ///   6. parent 关闭 child 端 fd
     ///   7. 返回 parent fd
-    private func spawn(userDataDir: ?String, explicitPath: ?String,
+    private func `spawn`(userDataDir: ?String, explicitPath: ?String,
                         extraArgv: Array<String>,
                         stdoutInherit: Bool, stderrInherit: Bool): Result<Int32> {
         // 查找 Chrome

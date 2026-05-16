@@ -248,26 +248,16 @@ public class MappingWithoutName {
 
 /// 映射解析错误类型
 public enum ParseErrorKind {
-    /// 内存不足
-    OutOfMemory
-    /// 缺少生成列值
-    MissingGeneratedColumnValue
-    /// 无效的生成列值
-    InvalidGeneratedColumnValue
-    /// 无效的源文件索引增量
-    InvalidSourceIndexDelta
-    /// 无效的源文件索引值
-    InvalidSourceIndexValue
-    /// 缺少原始行
-    MissingOriginalLine
-    /// 无效的原始行值
-    InvalidOriginalLineValue
-    /// 缺少原始列值
-    MissingOriginalColumnValue
-    /// 无效的原始列值
-    InvalidOriginalColumnValue
-    /// 无效的名称索引增量
-    InvalidNameIndexDelta
+    | OutOfMemory
+    | MissingGeneratedColumnValue
+    | InvalidGeneratedColumnValue
+    | InvalidSourceIndexDelta
+    | InvalidSourceIndexValue
+    | MissingOriginalLine
+    | InvalidOriginalLineValue
+    | MissingOriginalColumnValue
+    | InvalidOriginalColumnValue
+    | InvalidNameIndexDelta
 }
 
 /// 映射解析失败详情

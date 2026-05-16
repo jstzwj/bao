@@ -28,10 +28,10 @@ public class Channel {
     public var backend: ChannelBackend
 
     /// 所有者回调: 帧到达
-    public var onFrame: ((FrameKind, FrameReader) -> Unit)?
+    public var onFrame: ?((FrameKind, FrameReader) -> Unit)
 
     /// 所有者回调: 通道关闭
-    public var onDone: (() -> Unit)?
+    public var onDone: ?(() -> Unit)
 
     public init() {
         in_ = ArrayList<Byte>()
@@ -64,8 +64,8 @@ public class Channel {
 
         // 尝试直接写入
         let wrote = backend.write(frameBytes)
-        if (wrote < frameBytes.length) {
-            for (i in wrote..frameBytes.length) {
+        if (wrote < frameBytes.size) {
+            for (i in wrote..frameBytes.size) {
                 out.append(frameBytes[i])
             }
         }
@@ -152,7 +152,7 @@ public class Channel {
             let rd = FrameReader(payload.toArray())
 
             if (onFrame != None) {
-                onFrame!!(kind, rd)
+                onFrame.getOrThrow()(kind, rd)
             }
 
             head += 5 + len
@@ -175,13 +175,13 @@ public class Channel {
         }
         done = true
         if (onDone != None) {
-            onDone!!()
+            onDone.getOrThrow()()
         }
     }
 
     /// 字节转 FrameKind
     private func byteToFrameKind(b: Byte): FrameKind {
-        when (b.toInt()) {
+        match (b.toInt()) {
             case 0 => FrameKind.ready
             case 1 => FrameKind.fileStart
             case 2 => FrameKind.testDone
@@ -191,7 +191,7 @@ public class Channel {
             case 6 => FrameKind.coverageFile
             case 7 => FrameKind.run
             case 8 => FrameKind.shutdown
-            else => FrameKind.ready
+            case _ => FrameKind.ready
         }
     }
 }
@@ -208,12 +208,12 @@ public class ChannelBackend {
         if (socket == None) {
             return 0
         }
-        return Sys.write(socket!!, data)
+        return Sys.write(socket.getOrThrow(), data)
     }
 
     public func close(): Unit {
         if (socket != None) {
-            Sys.close(socket!!)
+            Sys.close(socket.getOrThrow())
             socket = None
         }
     }

@@ -180,7 +180,7 @@ public func lastIndexOfChar(self: String, char: Byte): Int64 {
 /// 严格翻译自 immutable.zig lastIndexBeforeChar
 public func lastIndexBeforeChar(input: String, char: Byte, before: Byte): Int64 {
     let beforePos = indexOfChar(input, before)
-    let end = beforePos >= 0 ? beforePos : input.size
+    let end = if (beforePos >= 0) { beforePos } else { input.size }
     return lastIndexOfChar(input[0..end], char)
 }
 
@@ -600,11 +600,11 @@ public func splitFirst(self: String): ?Tuple<Byte, String> {
 
 /// 空白字符集
 /// 严格翻译自 immutable.zig whitespace_chars
-public const WHITESPACE_CHARS: Array<Byte> = [
-    Byte(' '), Byte('\t'), Byte('\n'), Byte('\r'),
-    0x0B, // VT
-    0x0C, // FF
-]
+public const WHITESPACE_CHARS: Array<Byte> = Array<Byte>([
+    Byte(0x20), Byte(0x09), Byte(0x0A), Byte(0x0D),
+    Byte(0x0B),
+    Byte(0x0C)
+])
 
 /// 修剪字符串两端指定字符
 /// 严格翻译自 immutable.zig trim

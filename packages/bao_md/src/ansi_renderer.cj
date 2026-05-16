@@ -2,6 +2,29 @@
 // Markdown → ANSI 终端渲染器
 package bao_md
 
+import std.collection.*
+
+// ============================================================================
+// 输出缓冲区
+// ============================================================================
+
+/// HTML/ANSI 输出缓冲区
+public class HtmlOutputBuffer {
+    public var buffer: StringBuilder = StringBuilder()
+    public init() {}
+    public func write(s: String): Unit { buffer.append(s) }
+    public func writeByte(b: UInt8): Unit {
+        if (b == UInt8(0x0A)) {
+            buffer.append("\n")
+        } else if (b == UInt8(0x20)) {
+            buffer.append(" ")
+        } else {
+            buffer.append("${b}")
+        }
+    }
+    public func toString(): String { buffer.toString() }
+}
+
 // ============================================================================
 // 主题
 // ============================================================================
@@ -101,14 +124,14 @@ public func visibleWidth(s: String): Int64 {
             i += 1
             if (i < s.size) {
                 let next = UInt8(s[Int64(i)])
-                if (next == '['.toUInt8()) {
+                if (next == UInt8(0x5B)) {
                     // CSI 序列
                     i += 1
                     while (i < s.size && (UInt8(s[Int64(i)]) < 0x40 || UInt8(s[Int64(i)]) > 0x7e)) {
                         i += 1
                     }
-                    if (i < s.size) i += 1
-                } else if (next == ']'.toUInt8()) {
+                    if (i < s.size) { i += 1 }
+                } else if (next == UInt8(0x5D)) {
                     // OSC 序列
                     i += 1
                     while (i < s.size) {
@@ -116,7 +139,7 @@ public func visibleWidth(s: String): Int64 {
                             i += 1
                             break
                         }
-                        if (UInt8(s[Int64(i)]) == 0x1b && i + 1 < s.size && UInt8(s[Int64(i + 1)]) == '\\') {
+                        if (UInt8(s[Int64(i)]) == 0x1b && i + 1 < s.size && UInt8(s[Int64(i + 1)]) == UInt8(0x5C)) {
                             i += 2
                             break
                         }
@@ -161,20 +184,20 @@ public func visibleIndexAt(s: String, max_cols: Int64): Int64 {
             i += 1
             if (i < s.size) {
                 let next = UInt8(s[Int64(i)])
-                if (next == '['.toUInt8()) {
+                if (next == UInt8(0x5B)) {
                     i += 1
                     while (i < s.size && (UInt8(s[Int64(i)]) < 0x40 || UInt8(s[Int64(i)]) > 0x7e)) {
                         i += 1
                     }
-                    if (i < s.size) i += 1
-                } else if (next == ']'.toUInt8()) {
+                    if (i < s.size) { i += 1 }
+                } else if (next == UInt8(0x5D)) {
                     i += 1
                     while (i < s.size) {
                         if (UInt8(s[Int64(i)]) == 0x07) {
                             i += 1
                             break
                         }
-                        if (UInt8(s[Int64(i)]) == 0x1b && i + 1 < s.size && UInt8(s[Int64(i + 1)]) == '\\') {
+                        if (UInt8(s[Int64(i)]) == 0x1b && i + 1 < s.size && UInt8(s[Int64(i + 1)]) == UInt8(0x5C)) {
                             i += 2
                             break
                         }
@@ -216,7 +239,7 @@ public func visibleIndexAt(s: String, max_cols: Int64): Int64 {
 
 /// 块上下文类型
 public enum BlockContextKind {
-    | quote
+    | `quote`
     | ul
     | ol
     | li
@@ -224,7 +247,7 @@ public enum BlockContextKind {
 
 /// 块上下文（用于缩进栈）
 public class BlockContext {
-    public var kind: BlockContextKind = BlockContextKind.quote
+    public var kind: BlockContextKind = BlockContextKind.`quote`
     public var data: UInt32 = 0
     public var index: UInt32 = 0
     public var indent: UInt32 = 0
@@ -272,7 +295,7 @@ public class AnsiRenderer {
     public var src_text: String = ""
     public var theme: Theme = Theme()
     /// 活动块上下文栈
-    public var block_stack: Array<BlockContext> = []
+    public var block_stack: ArrayList<BlockContext> = ArrayList<BlockContext>()
     /// 活动行内样式标志
     public var span_flags: UInt32 = 0
     /// 链接 href
@@ -302,9 +325,9 @@ public class AnsiRenderer {
     /// 标题文本缓冲区
     public var heading_buf: StringBuilder = StringBuilder()
     /// 表格单元格
-    public var table_cells: Array<TableCell> = []
+    public var table_cells: ArrayList<TableCell> = ArrayList<TableCell>()
     /// 表格行
-    public var table_rows: Array<TableRow> = []
+    public var table_rows: ArrayList<TableRow> = ArrayList<TableRow>()
     /// 表格单元格缓冲区
     public var table_cell_buf: StringBuilder = StringBuilder()
     /// 是否在 thead 中
@@ -337,7 +360,7 @@ public class AnsiRenderer {
 
     /// 获取最终输出字符串
     public func toOwnedString(): String {
-        return out.data.toString()
+        return out.toString()
     }
 
     /// 创建渲染器接口
@@ -354,19 +377,16 @@ public class AnsiRenderer {
     public func enterBlock(block_type: BlockType, data: UInt32, flags: UInt32): Unit {
         match (block_type) {
             case BlockType.doc => ()
-            case BlockType.`quote` => {
+            case BlockType.`quote` =>
                 ensureBlankLine()
-                block_stack.append(BlockContext(BlockContextKind.quote, 0, 0, 2))
-            }
-            case BlockType.ul => {
+                block_stack.add(BlockContext(BlockContextKind.`quote`, 0, 0, 2))
+            case BlockType.ul =>
                 ensureNewline()
-                block_stack.append(BlockContext(BlockContextKind.ul, data, 0, 2))
-            }
-            case BlockType.ol => {
+                block_stack.add(BlockContext(BlockContextKind.ul, data, 0, 2))
+            case BlockType.ol =>
                 ensureNewline()
-                block_stack.append(BlockContext(BlockContextKind.ol, data, 0, 3))
-            }
-            case BlockType.li => {
+                block_stack.add(BlockContext(BlockContextKind.ol, data, 0, 3))
+            case BlockType.li =>
                 ensureNewline()
                 writeIndent()
                 var entry = BlockContext(BlockContextKind.li, 0, 0, 0)
@@ -387,7 +407,7 @@ public class AnsiRenderer {
                     }
                     glyph_color = if (checked) { ansiColor(AnsiColor.green) } else { ansiColor(AnsiColor.dim) }
                 } else if (let Some(list) <- parent_list) {
-                    if (list.kind == BlockContextKind.ol) {
+                    if ((match(list.kind) { case BlockContextKind.ol => true case _ => false })) {
                         let num = list.data + entry.index
                         glyph = "${num}. "
                         glyph_color = ansiColor(AnsiColor.cyan)
@@ -402,9 +422,8 @@ public class AnsiRenderer {
                 writeStyled(glyph_color, glyph)
                 writeStyled(ansiReset(), "")
                 entry.indent = UInt32(visibleWidth(glyph))
-                block_stack.append(entry)
-            }
-            case BlockType.hr => {
+                block_stack.add(entry)
+            case BlockType.hr =>
                 ensureBlankLine()
                 writeIndent()
                 let indent_cols = currentIndent()
@@ -424,13 +443,11 @@ public class AnsiRenderer {
                 writeRaw("\n")
                 last_was_newline = true
                 col = 0
-            }
-            case BlockType.h => {
+            case BlockType.h =>
                 ensureBlankLine()
                 heading_level = UInt8(data)
                 heading_buf = StringBuilder()
-            }
-            case BlockType.code => {
+            case BlockType.code =>
                 ensureBlankLine()
                 in_code_block = true
                 code_fenced = (flags & BLOCK_FENCED_CODE) != 0
@@ -440,18 +457,16 @@ public class AnsiRenderer {
                 } else {
                     code_lang = ""
                 }
-            }
-            case BlockType.html => {
+            case BlockType.html =>
                 ensureNewline()
-            }
-            case BlockType.p => {
-                let top_kind: ?BlockContextKind = if (!block_stack.isEmpty) {
+            case BlockType.p =>
+                let top_kind: ?BlockContextKind = if (!block_stack.isEmpty()) {
                     block_stack[Int64(block_stack.size - 1)].kind
                 } else {
                     None
                 }
                 if (let Some(k) <- top_kind) {
-                    if (k == BlockContextKind.li && col > 0) {
+                    if ((match(k) { case BlockContextKind.li => true case _ => false }) && col > 0) {
                         // 继续在同一行
                     } else {
                         ensureBlankLine()
@@ -461,32 +476,26 @@ public class AnsiRenderer {
                     ensureBlankLine()
                     writeIndent()
                 }
-            }
-            case BlockType.table => {
+            case BlockType.table =>
                 ensureBlankLine()
                 in_thead = false
-                table_rows = []
-                table_cells = []
-            }
-            case BlockType.thead => {
+                table_rows = ArrayList<TableRow>()
+                table_cells = ArrayList<TableCell>()
+            case BlockType.thead =>
                 in_thead = true
-            }
-            case BlockType.tbody => {
+            case BlockType.tbody =>
                 in_thead = false
-            }
-            case BlockType.tr => {
-                table_cells = []
-            }
-            case BlockType.th => {
+            case BlockType.tr =>
+                table_cells = ArrayList<TableCell>()
+            case BlockType.th =>
                 in_cell = true
                 cell_align = alignmentFromData(data)
                 table_cell_buf = StringBuilder()
-            }
-            case BlockType.td => {
+            case BlockType.td =>
                 in_cell = true
                 cell_align = alignmentFromData(data)
                 table_cell_buf = StringBuilder()
-            }
+            case BlockType.block_none => ()
         }
     }
 
@@ -494,66 +503,55 @@ public class AnsiRenderer {
     public func leaveBlock(block_type: BlockType, data: UInt32): Unit {
         match (block_type) {
             case BlockType.doc => ()
-            case BlockType.`quote` => {
-                if (!block_stack.isEmpty) block_stack = block_stack.slice(0, block_stack.size - 1)
+            case BlockType.`quote` =>
+                if (!block_stack.isEmpty()) { block_stack.remove(block_stack.size - 1..block_stack.size) }
                 ensureNewline()
-            }
-            case BlockType.ul => {
-                if (!block_stack.isEmpty) block_stack = block_stack.slice(0, block_stack.size - 1)
+            case BlockType.ul =>
+                if (!block_stack.isEmpty()) { block_stack.remove(block_stack.size - 1..block_stack.size) }
                 ensureNewline()
-            }
-            case BlockType.ol => {
-                if (!block_stack.isEmpty) block_stack = block_stack.slice(0, block_stack.size - 1)
+            case BlockType.ol =>
+                if (!block_stack.isEmpty()) { block_stack.remove(block_stack.size - 1..block_stack.size) }
                 ensureNewline()
-            }
-            case BlockType.li => {
-                if (!block_stack.isEmpty) block_stack = block_stack.slice(0, block_stack.size - 1)
+            case BlockType.li =>
+                if (!block_stack.isEmpty()) { block_stack.remove(block_stack.size - 1..block_stack.size) }
                 ensureNewline()
-            }
             case BlockType.hr => ()
-            case BlockType.h => {
+            case BlockType.h =>
                 flushHeading()
                 heading_level = 0
-            }
-            case BlockType.code => {
+            case BlockType.code =>
                 flushCodeBlock()
                 in_code_block = false
                 code_lang = ""
-            }
-            case BlockType.html => {
+            case BlockType.html =>
                 ensureNewline()
-            }
-            case BlockType.p => {
+            case BlockType.p =>
                 writeStyled(ansiReset(), "")
                 ensureNewline()
                 col = 0
-            }
-            case BlockType.table => {
+            case BlockType.table =>
                 flushTable()
                 ensureNewline()
-            }
             case BlockType.thead => ()
             case BlockType.tbody => ()
-            case BlockType.tr => {
+            case BlockType.tr =>
                 // 将收集的单元格移入表格行
-                let cells_copy: Array<TableCell> = []
+                let cells_copy: ArrayList<TableCell> = ArrayList<TableCell>()
                 for (c in table_cells) {
-                    cells_copy.append(TableCell(c.content, c.alignment))
+                    cells_copy.add(TableCell(c.content, c.alignment))
                 }
-                table_rows.append(TableRow().also {
-                    it.cells = cells_copy
-                    it.is_header = in_thead
-                })
-                table_cells = []
-            }
-            case BlockType.th => {
+                let tr = TableRow()
+                tr.cells = cells_copy.toArray()
+                tr.is_header = in_thead
+                table_rows.add(tr)
+                table_cells = ArrayList<TableCell>()
+            case BlockType.th =>
                 in_cell = false
-                table_cells.append(TableCell(table_cell_buf.toString(), cell_align))
-            }
-            case BlockType.td => {
+                table_cells.add(TableCell(table_cell_buf.toString(), cell_align))
+            case BlockType.td =>
                 in_cell = false
-                table_cells.append(TableCell(table_cell_buf.toString(), cell_align))
-            }
+                table_cells.add(TableCell(table_cell_buf.toString(), cell_align))
+            case BlockType.block_none => ()
         }
     }
 
@@ -564,27 +562,22 @@ public class AnsiRenderer {
     /// 进入 span
     public func enterSpan(span_type: SpanType, detail: SpanDetail): Unit {
         match (span_type) {
-            case SpanType.em => {
+            case SpanType.em =>
                 span_flags = span_flags | AnsiRenderer.SPAN_EM
                 writeStyled(ansiStyle(AnsiStyle.italic), "")
-            }
-            case SpanType.strong => {
+            case SpanType.strong =>
                 span_flags = span_flags | AnsiRenderer.SPAN_STRONG
                 writeStyled(ansiStyle(AnsiStyle.bold), "")
-            }
-            case SpanType.u => {
+            case SpanType.u =>
                 span_flags = span_flags | AnsiRenderer.SPAN_U
                 writeStyled(ansiStyle(AnsiStyle.underline), "")
-            }
-            case SpanType.del => {
+            case SpanType.del =>
                 span_flags = span_flags | AnsiRenderer.SPAN_DEL
                 writeStyled(ansiStyle(AnsiStyle.strikethrough), "")
-            }
-            case SpanType.code => {
+            case SpanType.code =>
                 span_flags = span_flags | AnsiRenderer.SPAN_CODE
                 writeStyled(codeSpanOpen(theme.light), "")
-            }
-            case SpanType.a => {
+            case SpanType.a =>
                 link_depth += 1
                 if (link_depth == 1) {
                     link_href = resolveHref(detail)
@@ -598,63 +591,54 @@ public class AnsiRenderer {
                     writeStyled(ansiColor(AnsiColor.blue), "")
                     writeStyled(ansiStyle(AnsiStyle.underline), "")
                 }
-            }
-            case SpanType.img => {
+            case SpanType.img =>
                 image_depth += 1
                 if (image_depth == 1) {
                     image_src = detail.href
                     image_title = detail.title
                     image_alt = StringBuilder()
                 }
-            }
-            case SpanType.wikilink => {
+            case SpanType.wikilink =>
                 writeStyled(ansiColor(AnsiColor.blue), "[[")
-            }
-            case SpanType.latexmath => {
+            case SpanType.latexmath =>
                 writeStyled(ansiColor(AnsiColor.magenta), "$")
-            }
-            case SpanType.latexmath_display => {
-                writeStyled(ansiColor(AnsiColor.magenta), "$$")
-            }
+            case SpanType.span_none => ()
+            case SpanType.`default` => ()
+            case SpanType.html => ()
         }
     }
 
     /// 离开 span
     public func leaveSpan(span_type: SpanType): Unit {
         match (span_type) {
-            case SpanType.em => {
-                span_flags = span_flags & (A ^ UInt32.Max)nsiRenderer.SPAN_EM
+            case SpanType.em =>
+                span_flags = span_flags & (AnsiRenderer.SPAN_EM ^ UInt32.Max)
                 writeStyled("\u{1b}[23m", "")
-                if (heading_level > 0) reapplyStyles()
-            }
-            case SpanType.strong => {
-                span_flags = span_flags & (A ^ UInt32.Max)nsiRenderer.SPAN_STRONG
+                if (heading_level > 0) { reapplyStyles() }
+            case SpanType.strong =>
+                span_flags = span_flags & (AnsiRenderer.SPAN_STRONG ^ UInt32.Max)
                 writeStyled("\u{1b}[22m", "")
-                if (heading_level > 0) reapplyStyles()
-            }
-            case SpanType.u => {
-                span_flags = span_flags & (A ^ UInt32.Max)nsiRenderer.SPAN_U
+                if (heading_level > 0) { reapplyStyles() }
+            case SpanType.u =>
+                span_flags = span_flags & (AnsiRenderer.SPAN_U ^ UInt32.Max)
                 writeStyled("\u{1b}[24m", "")
-                if (heading_level > 0) reapplyStyles()
-            }
-            case SpanType.del => {
-                span_flags = span_flags & (A ^ UInt32.Max)nsiRenderer.SPAN_DEL
+                if (heading_level > 0) { reapplyStyles() }
+            case SpanType.del =>
+                span_flags = span_flags & (AnsiRenderer.SPAN_DEL ^ UInt32.Max)
                 writeStyled("\u{1b}[29m", "")
-                if (heading_level > 0) reapplyStyles()
-            }
-            case SpanType.code => {
-                span_flags = span_flags & (A ^ UInt32.Max)nsiRenderer.SPAN_CODE
+                if (heading_level > 0) { reapplyStyles() }
+            case SpanType.code =>
+                span_flags = span_flags & (AnsiRenderer.SPAN_CODE ^ UInt32.Max)
                 writeStyled("\u{1b}[39m\u{1b}[49m", "")
                 reapplyStyles()
-            }
-            case SpanType.a => {
+            case SpanType.a =>
                 if (link_depth == 1) {
                     link_depth = 0
-                    let had_href = link_href != None
+                    let had_href = (match(link_href) { case Some(_) => true case None => false })
                     writeStyled("\u{1b}[24m\u{1b}[39m", "")
                     reapplyStyles()
                     if (theme.colors && theme.hyperlinks) {
-                        if (had_href) writeRawNoColor("\u{1b}]8;;\u{1b}\\")
+                        if (had_href) { writeRawNoColor("\u{1b}]8;;\u{1b}\\") }
                     } else if (let Some(href) <- link_href) {
                         if (href.size > 0 && image_depth == 0) {
                             writeStyled(ansiColor(AnsiColor.dim), " (")
@@ -668,31 +652,25 @@ public class AnsiRenderer {
                 } else if (link_depth > 0) {
                     link_depth -= 1
                 }
-            }
-            case SpanType.img => {
+            case SpanType.img =>
                 if (image_depth == 1) {
                     emitImage()
                     image_src = None
                     image_title = None
                     image_alt = StringBuilder()
                 }
-                if (image_depth > 0) image_depth -= 1
-            }
-            case SpanType.wikilink => {
+                if (image_depth > 0) { image_depth -= 1 }
+            case SpanType.wikilink =>
                 writeNoWrap("]]")
                 writeStyled("\u{1b}[39m", "")
                 reapplyStyles()
-            }
-            case SpanType.latexmath => {
+            case SpanType.latexmath =>
                 writeNoWrap("$")
                 writeStyled("\u{1b}[39m", "")
                 reapplyStyles()
-            }
-            case SpanType.latexmath_display => {
-                writeNoWrap("$$")
-                writeStyled("\u{1b}[39m", "")
-                reapplyStyles()
-            }
+            case SpanType.span_none => ()
+            case SpanType.`default` => ()
+            case SpanType.html => ()
         }
     }
 
@@ -703,24 +681,19 @@ public class AnsiRenderer {
     /// 文本回调
     public func text(text_type: TextType, content: String): Unit {
         match (text_type) {
-            case TextType.null_char => writeContent("\u{EF}\u{BF}\u{BD}")
-            case TextType.br => writeContent("\n")
-            case TextType.softbr => writeContent(" ")
-            case TextType.html => {
+            case TextType.html =>
                 writeStyled(ansiColor(AnsiColor.dim), "")
                 writeContent(content)
                 writeStyled("\u{1b}[22m", "")
                 reapplyStyles()
-            }
-            case TextType.entity => {
+            case TextType.entity =>
                 if (let Some(decoded) <- decodeEntityToUtf8(content)) {
                     writeContent(decoded)
                 } else {
                     writeContent(content)
                 }
-            }
             case TextType.code => writeStyled("", content)
-            case TextType.latexmath => writeStyled("", content)
+            case TextType.latemath => writeStyled("", content)
             case _ => writeContent(content)
         }
     }
@@ -757,8 +730,8 @@ public class AnsiRenderer {
             var start: Int64 = 0
             var i: Int64 = 0
             while (i < data.size) {
-                if (data[Int64(i)] == '\n') {
-                    writeRaw(data.substring(start, i + 1))
+                if (UInt8(data[Int64(i)]) == UInt8(0x0A)) {
+                    writeRaw(data[Int64(start)..Int64(i + 1)])
                     col = 0
                     last_was_newline = true
                     writeIndent()
@@ -767,15 +740,15 @@ public class AnsiRenderer {
                 i += 1
             }
             if (start < data.size) {
-                writeRaw(data.substring(start))
+                writeRaw(data[Int64(start)..])
             }
             return
         }
         let max = UInt32(theme.columns)
         var i: Int64 = 0
         while (i < data.size) {
-            let c = data[Int64(i)]
-            if (c == '\n') {
+            let c = UInt8(data[Int64(i)])
+            if (c == UInt8(0x0A)) {
                 writeRaw("\n")
                 last_was_newline = true
                 col = 0
@@ -783,22 +756,22 @@ public class AnsiRenderer {
                 writeIndent()
                 continue
             }
-            if (c == ' ' && col >= max) {
+            if (c == UInt8(0x20) && col >= max) {
                 writeRaw("\n")
                 last_was_newline = true
                 col = 0
                 writeIndent()
                 i += 1
-                while (i < data.size && data[Int64(i)] == ' ') i += 1
+                while (i < data.size && UInt8(data[Int64(i)]) == UInt8(0x20)) { i += 1 }
                 continue
             }
             var j = i
-            while (j < data.size && data[Int64(j)] != ' ' && data[Int64(j)] != '\n') j += 1
-            let word = data.substring(i, j)
+            while (j < data.size && UInt8(data[Int64(j)]) != UInt8(0x20) && UInt8(data[Int64(j)]) != UInt8(0x0A)) { j += 1 }
+            let word = data[Int64(i)..Int64(j)]
             let word_width = visibleWidth(word)
             let indent = currentIndent()
             let avail = max - indent
-            if (avail > 0 && word_width > avail) {
+            if (avail > 0 && word_width > Int64(avail)) {
                 // 单词无法放入新行
                 var rest = word
                 while (rest.size > 0) {
@@ -808,12 +781,12 @@ public class AnsiRenderer {
                         continue
                     }
                     var cut = visibleIndexAt(rest, Int64(r))
-                    if (cut == 0) cut = min(rest.size, 1)
-                    writeRaw(rest.substring(0, cut))
-                    col += UInt32(visibleWidth(rest.substring(0, cut)))
+                    if (cut == 0) { cut = min(rest.size, 1) }
+                    writeRaw(rest[Int64(0)..Int64(cut)])
+                    col += UInt32(visibleWidth(rest[Int64(0)..Int64(cut)]))
                     last_was_newline = false
-                    rest = rest.substring(cut)
-                    if (rest.size > 0) wrapBreak()
+                    rest = rest[Int64(cut)..]
+                    if (rest.size > 0) { wrapBreak() }
                 }
             } else {
                 if (col != 0 && col + UInt32(word_width) > max && col > indent) {
@@ -824,15 +797,15 @@ public class AnsiRenderer {
                 last_was_newline = (word.size == 0)
             }
             i = j
-            if (i < data.size && data[Int64(i)] == ' ') {
+            if (i < data.size && UInt8(data[Int64(i)]) == UInt8(0x20)) {
                 // 检查下一个单词是否溢出
                 var k = i
-                while (k < data.size && data[Int64(k)] == ' ') k += 1
+                while (k < data.size && UInt8(data[Int64(k)]) == UInt8(0x20)) { k += 1 }
                 var m = k
-                while (m < data.size && data[Int64(m)] != ' ' && data[Int64(m)] != '\n') m += 1
-                let next_word_width = visibleWidth(data.substring(k, m))
+                while (m < data.size && UInt8(data[Int64(m)]) != UInt8(0x20) && UInt8(data[Int64(m)]) != UInt8(0x0A)) { m += 1 }
+                let next_word_width = visibleWidth(data[Int64(k)..Int64(m)])
                 let next_avail = max - indent
-                if (col != 0 && col + 1 + UInt32(next_word_width) > max && col > indent && next_word_width <= next_avail) {
+                if (col != 0 && col + 1 + UInt32(next_word_width) > max && col > indent && next_word_width <= Int64(next_avail)) {
                     writeRaw("\n")
                     last_was_newline = true
                     col = 0
@@ -851,7 +824,7 @@ public class AnsiRenderer {
         if (theme.colors && prefix.size > 0) {
             emitInline(prefix)
         }
-        if (text_.size == 0) return
+        if (text_.size == 0) { return }
         emitInline(text_)
         if (!in_cell && heading_level == 0 && !in_code_block && image_depth == 0) {
             col += UInt32(visibleWidth(text_))
@@ -862,24 +835,24 @@ public class AnsiRenderer {
     /// 软换行
     func wrapBreak(): Unit {
         let has_style = span_flags != 0 || link_depth > 0
-        if (theme.colors && has_style) out.write("\u{1b}[39m\u{1b}[49m")
-        out.writeByte('\n'.toUInt8())
+        if (theme.colors && has_style) { out.write("\u{1b}[39m\u{1b}[49m") }
+        out.writeByte(UInt8(0x0A))
         last_was_newline = true
         col = 0
         writeIndent()
-        if (has_style) reapplyStyles()
+        if (has_style) { reapplyStyles() }
     }
 
     /// 原始写入
     func writeRaw(data: String): Unit {
-        if (data.size == 0) return
+        if (data.size == 0) { return }
         emitInline(data)
-        last_was_newline = (data[data.size - 1] == '\n')
+        last_was_newline = (UInt8(data[data.size - 1]) == UInt8(0x0A))
     }
 
     /// 不换行写入
     func writeNoWrap(text_: String): Unit {
-        if (text_.size == 0) return
+        if (text_.size == 0) { return }
         emitInline(text_)
         if (!in_cell && heading_level == 0 && !in_code_block && image_depth == 0) {
             col += UInt32(visibleWidth(text_))
@@ -889,9 +862,9 @@ public class AnsiRenderer {
 
     /// 无颜色写入
     func writeRawNoColor(data: String): Unit {
-        if (!theme.colors) return
-        if (data.size == 0) return
-        if (image_depth > 0) return
+        if (!theme.colors) { return }
+        if (data.size == 0) { return }
+        if (image_depth > 0) { return }
         if (in_cell) {
             table_cell_buf.append(data)
             return
@@ -905,30 +878,30 @@ public class AnsiRenderer {
 
     /// 行内发射
     func emitInline(bytes: String): Unit {
-        if (bytes.size == 0) return
+        if (bytes.size == 0) { return }
         if (image_depth > 0) {
             // 图片 alt 是纯文本 — 去除转义序列
             var i: Int64 = 0
             while (i < bytes.size) {
                 if (UInt8(bytes[Int64(i)]) == 0x1b) {
                     i += 1
-                    if (i < bytes.size && UInt8(bytes[Int64(i)]) == '['.toUInt8()) {
+                    if (i < bytes.size && UInt8(bytes[Int64(i)]) == UInt8(0x5B)) {
                         i += 1
-                        while (i < bytes.size && (UInt8(bytes[Int64(i)]) < 0x40 || UInt8(bytes[Int64(i)]) > 0x7e)) i += 1
-                        if (i < bytes.size) i += 1
-                    } else if (i < bytes.size && UInt8(bytes[Int64(i)]) == ']') {
+                        while (i < bytes.size && (UInt8(bytes[Int64(i)]) < 0x40 || UInt8(bytes[Int64(i)]) > 0x7e)) { i += 1 }
+                        if (i < bytes.size) { i += 1 }
+                    } else if (i < bytes.size && UInt8(bytes[Int64(i)]) == UInt8(0x5D)) {
                         i += 1
                         while (i < bytes.size) {
                             if (UInt8(bytes[Int64(i)]) == 0x07) { i += 1; break }
-                            if (UInt8(bytes[Int64(i)]) == 0x1b && i + 1 < bytes.size && UInt8(bytes[Int64(i + 1)]) == '\\') { i += 2; break }
+                            if (UInt8(bytes[Int64(i)]) == 0x1b && i + 1 < bytes.size && UInt8(bytes[Int64(i + 1)]) == UInt8(0x5C)) { i += 2; break }
                             i += 1
                         }
                     }
                     continue
                 }
                 let start = i
-                while (i < bytes.size && UInt8(bytes[Int64(i)]) != 0x1b) i += 1
-                image_alt.append(bytes.substring(start, i))
+                while (i < bytes.size && UInt8(bytes[Int64(i)]) != 0x1b) { i += 1 }
+                image_alt.append(bytes[Int64(start)..Int64(i)])
             }
             return
         }
@@ -945,16 +918,16 @@ public class AnsiRenderer {
 
     /// 重新应用样式
     func reapplyStyles(): Unit {
-        if (!theme.colors) return
+        if (!theme.colors) { return }
         if (heading_level > 0) {
             emitInline(ansiStyle(AnsiStyle.bold))
             emitInline(headingColor(heading_level))
         }
-        if ((span_flags & AnsiRenderer.SPAN_STRONG) != 0) emitInline(ansiStyle(AnsiStyle.bold))
-        if ((span_flags & AnsiRenderer.SPAN_EM) != 0) emitInline(ansiStyle(AnsiStyle.italic))
-        if ((span_flags & AnsiRenderer.SPAN_U) != 0) emitInline(ansiStyle(AnsiStyle.underline))
-        if ((span_flags & AnsiRenderer.SPAN_DEL) != 0) emitInline(ansiStyle(AnsiStyle.strikethrough))
-        if ((span_flags & AnsiRenderer.SPAN_CODE) != 0) emitInline(codeSpanOpen(theme.light))
+        if ((span_flags & AnsiRenderer.SPAN_STRONG) != 0) { emitInline(ansiStyle(AnsiStyle.bold)) }
+        if ((span_flags & AnsiRenderer.SPAN_EM) != 0) { emitInline(ansiStyle(AnsiStyle.italic)) }
+        if ((span_flags & AnsiRenderer.SPAN_U) != 0) { emitInline(ansiStyle(AnsiStyle.underline)) }
+        if ((span_flags & AnsiRenderer.SPAN_DEL) != 0) { emitInline(ansiStyle(AnsiStyle.strikethrough)) }
+        if ((span_flags & AnsiRenderer.SPAN_CODE) != 0) { emitInline(codeSpanOpen(theme.light)) }
         if (link_depth > 0) {
             emitInline(ansiColor(AnsiColor.blue))
             emitInline(ansiStyle(AnsiStyle.underline))
@@ -972,7 +945,7 @@ public class AnsiRenderer {
         var other_indent: UInt32 = 0
         for (entry in block_stack) {
             match (entry.kind) {
-                case BlockContextKind.quote => quote_bars += 1
+                case BlockContextKind.`quote` => quote_bars += 1
                 case _ => other_indent += entry.indent
             }
         }
@@ -1002,7 +975,7 @@ public class AnsiRenderer {
     func currentIndent(): UInt32 {
         var total: UInt32 = 0
         for (entry in block_stack) {
-            total += if (entry.kind == BlockContextKind.quote) { 2 } else { entry.indent }
+            total += if ((match(entry.kind) { case BlockContextKind.`quote` => true case _ => false })) { 2 } else { entry.indent }
         }
         return total
     }
@@ -1011,24 +984,24 @@ public class AnsiRenderer {
     func writeQuoteBars(): Unit {
         var quote_bars: UInt32 = 0
         for (entry in block_stack) {
-            if (entry.kind == BlockContextKind.quote) quote_bars += 1
+            if ((match(entry.kind) { case BlockContextKind.`quote` => true case _ => false })) { quote_bars += 1 }
         }
-        if (quote_bars == 0) return
+        if (quote_bars == 0) { return }
         let bar = if (theme.colors) { "\u{2502}" } else { "|" }
-        if (theme.colors) out.write("\u{1b}[38;5;242m")
+        if (theme.colors) { out.write("\u{1b}[38;5;242m") }
         var i: UInt32 = 0
         while (i < quote_bars) {
             out.write(bar)
             col += 1
             i += 1
         }
-        if (theme.colors) out.write("\u{1b}[39m")
+        if (theme.colors) { out.write("\u{1b}[39m") }
     }
 
     /// 确保换行
     func ensureNewline(): Unit {
         if (!last_was_newline) {
-            out.writeByte('\n'.toUInt8())
+            out.writeByte(UInt8(0x0A))
             col = 0
             last_was_newline = true
         }
@@ -1037,17 +1010,17 @@ public class AnsiRenderer {
     /// 确保空行
     func ensureBlankLine(): Unit {
         ensureNewline()
-        if (blank_emitted) return
-        let current = out.data.toString()
+        if (blank_emitted) { return }
+        let current = out.toString()
         if (current.size > 0) {
-            if (current.size >= 2 && current[current.size - 1] == '\n' && current[current.size - 2] != '\n') {
+            if (current.size >= 2 && UInt8(current[current.size - 1]) == UInt8(0x0A) && UInt8(current[current.size - 2]) != UInt8(0x0A)) {
                 writeQuoteBars()
-                out.writeByte('\n'.toUInt8())
+                out.writeByte(UInt8(0x0A))
                 col = 0
                 blank_emitted = true
-            } else if (current.size >= 1 && current[current.size - 1] != '\n') {
+            } else if (current.size >= 1 && UInt8(current[current.size - 1]) != UInt8(0x0A)) {
                 writeQuoteBars()
-                out.writeByte('\n'.toUInt8())
+                out.writeByte(UInt8(0x0A))
                 col = 0
                 blank_emitted = true
             }
@@ -1056,12 +1029,12 @@ public class AnsiRenderer {
 
     /// 查找父列表
     func findParentList(): ?BlockContext {
-        if (block_stack.isEmpty) return None
+        if (block_stack.isEmpty()) { return None }
         var i = block_stack.size
         while (i > 0) {
             i -= 1
             let entry = block_stack[Int64(i)]
-            if (entry.kind == BlockContextKind.ul || entry.kind == BlockContextKind.ol) return entry
+            if ((match(entry.kind) { case BlockContextKind.ul => true case _ => false }) || (match(entry.kind) { case BlockContextKind.ol => true case _ => false })) { return entry }
         }
         return None
     }
@@ -1081,8 +1054,8 @@ public class AnsiRenderer {
             out.write(headingColor(level))
         }
         out.write(content)
-        if (theme.colors) out.write("\u{1b}[0m")
-        out.writeByte('\n'.toUInt8())
+        if (theme.colors) { out.write("\u{1b}[0m") }
+        out.writeByte(UInt8(0x0A))
         last_was_newline = true
         col = 0
         // h1/h2 添加下划线
@@ -1095,15 +1068,15 @@ public class AnsiRenderer {
             } else {
                 min(text_w, Int64(UInt32(theme.columns)) - Int64(indent_cols))
             }
-            if (theme.colors) out.write(ansiColor(AnsiColor.dim))
-            let char = if (theme.colors) { (if (level == 1) "\u{2550}" else "\u{2500}") } else { (if (level == 1) "=" else "-") }
+            if (theme.colors) { out.write(ansiColor(AnsiColor.dim)) }
+            let char = if (theme.colors) { (if (level == 1) { "\u{2550}" } else { "\u{2500}" }) } else { (if (level == 1) { "=" } else { "-" }) }
             var i: Int64 = 0
             while (i < width) {
                 out.write(char)
                 i += 1
             }
-            if (theme.colors) out.write("\u{1b}[0m")
-            out.writeByte('\n'.toUInt8())
+            if (theme.colors) { out.write("\u{1b}[0m") }
+            out.writeByte(UInt8(0x0A))
             last_was_newline = true
             col = 0
         }
@@ -1130,7 +1103,7 @@ public class AnsiRenderer {
     func flushCodeBlock(): Unit {
         let src = code_buf.toString()
         // 去除尾部换行
-        let body = if (src.size > 0 && src[src.size - 1] == '\n') { src.substring(0, src.size - 1) } else { src }
+        let body = if (src.size > 0 && UInt8(src[src.size - 1]) == UInt8(0x0A)) { src[Int64(0)..Int64(src.size - 1)] } else { src }
 
         let top_border = if (theme.colors) { "\u{250c}\u{2500} " } else { "+- " }
         let top_bare = if (theme.colors) { "\u{250c}\u{2500}" } else { "+-" }
@@ -1138,34 +1111,34 @@ public class AnsiRenderer {
         let bottom = if (theme.colors) { "\u{2514}\u{2500}" } else { "+-" }
 
         // 语言标记
-        if (theme.colors) out.write(ansiColor(AnsiColor.dim))
+        if (theme.colors) { out.write(ansiColor(AnsiColor.dim)) }
         writeIndent()
         if (code_lang.size > 0) {
             out.write(top_border)
-            if (theme.colors) out.write("\u{1b}[0m")
-            if (theme.colors) out.write("\u{1b}[2m\u{1b}[3m")
+            if (theme.colors) { out.write("\u{1b}[0m") }
+            if (theme.colors) { out.write("\u{1b}[2m\u{1b}[3m") }
             out.write(code_lang)
-            if (theme.colors) out.write("\u{1b}[0m")
+            if (theme.colors) { out.write("\u{1b}[0m") }
         } else {
-            if (theme.colors) out.write(ansiColor(AnsiColor.dim))
+            if (theme.colors) { out.write(ansiColor(AnsiColor.dim)) }
             out.write(top_bare)
-            if (theme.colors) out.write("\u{1b}[0m")
+            if (theme.colors) { out.write("\u{1b}[0m") }
         }
-        out.writeByte('\n'.toUInt8())
+        out.writeByte(UInt8(0x0A))
         last_was_newline = true
 
         // 输出代码行
         var line_start: Int64 = 0
         var i: Int64 = 0
         while (i <= body.size) {
-            if (i == body.size || body[Int64(i)] == '\n') {
-                let line = body.substring(line_start, i)
+            if (i == body.size || UInt8(body[Int64(i)]) == UInt8(0x0A)) {
+                let line = body[Int64(line_start)..Int64(i)]
                 writeIndent()
-                if (theme.colors) out.write(ansiColor(AnsiColor.dim))
+                if (theme.colors) { out.write(ansiColor(AnsiColor.dim)) }
                 out.write(side)
-                if (theme.colors) out.write("\u{1b}[0m")
+                if (theme.colors) { out.write("\u{1b}[0m") }
                 out.write(line)
-                out.writeByte('\n'.toUInt8())
+                out.writeByte(UInt8(0x0A))
                 last_was_newline = true
                 line_start = i + 1
             }
@@ -1173,10 +1146,10 @@ public class AnsiRenderer {
         }
         // 关闭边框
         writeIndent()
-        if (theme.colors) out.write(ansiColor(AnsiColor.dim))
+        if (theme.colors) { out.write(ansiColor(AnsiColor.dim)) }
         out.write(bottom)
-        if (theme.colors) out.write("\u{1b}[0m")
-        out.writeByte('\n'.toUInt8())
+        if (theme.colors) { out.write("\u{1b}[0m") }
+        out.writeByte(UInt8(0x0A))
         col = 0
         last_was_newline = true
     }
@@ -1187,21 +1160,21 @@ public class AnsiRenderer {
 
     /// 刷新表格
     func flushTable(): Unit {
-        if (table_rows.isEmpty) return
+        if (table_rows.isEmpty()) { return }
 
         // 计算最大列宽
         var col_count: Int64 = 0
         for (row in table_rows) {
             col_count = max(col_count, row.cells.size)
         }
-        if (col_count == 0) return
+        if (col_count == 0) { return }
 
-        var widths: Array<Int64> = Array<Int64>(col_count, item: 3)
-        var aligns: Array<Align> = Array<Align>(col_count, item: Align.`default`)
+        var widths: Array<Int64> = Array<Int64>(col_count, { _: Int64 => 3 })
+        var aligns: Array<Align> = Array<Align>(col_count, { _: Int64 => Align.`default` })
         for (row in table_rows) {
             for (i in 0..row.cells.size) {
                 widths[Int64(i)] = max(widths[Int64(i)], visibleWidth(row.cells[Int64(i)].content))
-                if (aligns[Int64(i)] == Align.`default`) aligns[Int64(i)] = row.cells[Int64(i)].alignment
+                if ((match(aligns[Int64(i)]) { case Align.`default` => true case _ => false })) { aligns[Int64(i)] = row.cells[Int64(i)].alignment }
             }
         }
 
@@ -1209,14 +1182,14 @@ public class AnsiRenderer {
         if (theme.columns > 0) {
             let indent = currentIndent()
             var total: Int64 = Int64(indent) + 1
-            for (w in widths) total += w + 3
+            for (w in widths) { total += w + 3 }
             let budget = Int64(theme.columns)
             while (total > budget) {
                 var widest: Int64 = 0
                 for (i in 0..widths.size) {
-                    if (widths[Int64(i)] > widths[Int64(widest)]) widest = i
+                    if (widths[Int64(i)] > widths[Int64(widest)]) { widest = i }
                 }
-                if (widths[Int64(widest)] <= 3) break
+                if (widths[Int64(widest)] <= 3) { break }
                 widths[Int64(widest)] -= 1
                 total -= 1
             }
@@ -1237,15 +1210,15 @@ public class AnsiRenderer {
 
         // 顶部边框
         writeIndent()
-        if (theme.colors) out.write(ansiColor(AnsiColor.dim))
+        if (theme.colors) { out.write(ansiColor(AnsiColor.dim)) }
         out.write(tl_char)
         for (i in 0..widths.size) {
             var j: Int64 = 0
             while (j < widths[Int64(i)] + 2) { out.write(h_char); j += 1 }
-            out.write(if (i == widths.size - 1) tr_char else t_char)
+            out.write(if (i == widths.size - 1) { tr_char } else { t_char })
         }
-        if (theme.colors) out.write("\u{1b}[0m")
-        out.writeByte('\n'.toUInt8())
+        if (theme.colors) { out.write("\u{1b}[0m") }
+        out.writeByte(UInt8(0x0A))
         last_was_newline = true
 
         var has_separated_header = false
@@ -1254,15 +1227,15 @@ public class AnsiRenderer {
             if (row.is_header && !has_separated_header) {
                 // 分隔线
                 writeIndent()
-                if (theme.colors) out.write(ansiColor(AnsiColor.dim))
+                if (theme.colors) { out.write(ansiColor(AnsiColor.dim)) }
                 out.write(ml_char)
                 for (i in 0..widths.size) {
                     var j: Int64 = 0
                     while (j < widths[Int64(i)] + 2) { out.write(h_char); j += 1 }
-                    out.write(if (i == widths.size - 1) mr_char else x_char)
+                    out.write(if (i == widths.size - 1) { mr_char } else { x_char })
                 }
-                if (theme.colors) out.write("\u{1b}[0m")
-                out.writeByte('\n'.toUInt8())
+                if (theme.colors) { out.write("\u{1b}[0m") }
+                out.writeByte(UInt8(0x0A))
                 last_was_newline = true
                 has_separated_header = true
             }
@@ -1270,19 +1243,19 @@ public class AnsiRenderer {
 
         // 底部边框
         writeIndent()
-        if (theme.colors) out.write(ansiColor(AnsiColor.dim))
+        if (theme.colors) { out.write(ansiColor(AnsiColor.dim)) }
         out.write(bl_char)
         for (i in 0..widths.size) {
             var j: Int64 = 0
             while (j < widths[Int64(i)] + 2) { out.write(h_char); j += 1 }
-            out.write(if (i == widths.size - 1) br_char else b_char)
+            out.write(if (i == widths.size - 1) { br_char } else { b_char })
         }
-        if (theme.colors) out.write("\u{1b}[0m")
-        out.writeByte('\n'.toUInt8())
+        if (theme.colors) { out.write("\u{1b}[0m") }
+        out.writeByte(UInt8(0x0A))
         last_was_newline = true
         col = 0
 
-        table_rows = []
+        table_rows = ArrayList<TableRow>()
     }
 
     /// 写入行单元格
@@ -1291,16 +1264,16 @@ public class AnsiRenderer {
         let v_char = if (use_unicode) { "\u{2502}" } else { "|" }
 
         writeIndent()
-        if (theme.colors) out.write(ansiColor(AnsiColor.dim))
+        if (theme.colors) { out.write(ansiColor(AnsiColor.dim)) }
         out.write(v_char)
-        if (theme.colors) out.write("\u{1b}[0m")
+        if (theme.colors) { out.write("\u{1b}[0m") }
         for (i in 0..widths.size) {
             let seg: String = if (i < row.cells.size) { row.cells[Int64(i)].content } else { "" }
-            out.writeByte(' '.toUInt8())
-            if (row.is_header && theme.colors) out.write("\u{1b}[1m")
+            out.writeByte(UInt8(0x20))
+            if (row.is_header && theme.colors) { out.write("\u{1b}[1m") }
             let cw = visibleWidth(seg)
             let cell_align = if (i < row.cells.size) { row.cells[Int64(i)].alignment } else { Align.`default` }
-            let alignment = if (cell_align != Align.`default`) { cell_align } else { aligns[Int64(i)] }
+            let alignment = if ((match(cell_align) { case Align.`default` => false case _ => true })) { cell_align } else { aligns[Int64(i)] }
             let pad = widths[Int64(i)] - cw
             let left = match (alignment) {
                 case Align.right => pad
@@ -1310,21 +1283,21 @@ public class AnsiRenderer {
             let right = pad - left
             writePadding(left)
             out.write(seg)
-            if (theme.colors && row.is_header) out.write("\u{1b}[0m")
+            if (theme.colors && row.is_header) { out.write("\u{1b}[0m") }
             writePadding(right)
-            out.writeByte(' '.toUInt8())
-            if (theme.colors) out.write(ansiColor(AnsiColor.dim))
+            out.writeByte(UInt8(0x20))
+            if (theme.colors) { out.write(ansiColor(AnsiColor.dim)) }
             out.write(v_char)
-            if (theme.colors) out.write("\u{1b}[0m")
+            if (theme.colors) { out.write("\u{1b}[0m") }
         }
-        out.writeByte('\n'.toUInt8())
+        out.writeByte(UInt8(0x0A))
         last_was_newline = true
     }
 
     /// 写入填充空格
     func writePadding(n: Int64): Unit {
         var i: Int64 = 0
-        while (i < n) { out.writeByte(' '.toUInt8()); i += 1 }
+        while (i < n) { out.writeByte(UInt8(0x20)); i += 1 }
     }
 
     // ========================================
@@ -1334,56 +1307,71 @@ public class AnsiRenderer {
     /// 发射图片
     func emitImage(): Unit {
         let alt = image_alt.toString()
-        let src = image_src
+        let src_opt = image_src
         let saved_depth = image_depth
         image_depth = 0
-
-        let has_src = src != None && src.get().size > 0
 
         // Kitty 图形协议不支持表格/标题中
         let kitty_allowed = !in_cell && heading_level == 0
 
-        if (kitty_allowed && theme.colors && theme.kitty_graphics && has_src) {
-            // data:image/png;base64,... → 直接传输
-            if (let Some(payload) <- extractPngDataUrlBase64(src.get())) {
-                emitKittyImageDirect(payload)
-                image_depth = saved_depth
-                return
-            }
-            // 本地文件路径
-            if (let Some(abs_path) <- resolveLocalImagePath(src.get(), theme.image_base_dir)) {
-                emitKittyImageFile(abs_path)
+        if (let Some(src) <- src_opt) {
+            if (src.size > 0) {
+                if (kitty_allowed && theme.colors && theme.kitty_graphics) {
+                    // data:image/png;base64,... -> 直接传输
+                    if (let Some(payload) <- extractPngDataUrlBase64(src)) {
+                        emitKittyImageDirect(payload)
+                        image_depth = saved_depth
+                        return
+                    }
+                    // 本地文件路径
+                    if (let Some(abs_path) <- resolveLocalImagePath(src, theme.image_base_dir)) {
+                        emitKittyImageFile(abs_path)
+                        image_depth = saved_depth
+                        return
+                    }
+                }
+
+                // 回退: 显示 alt 文本
+                let link_ok = theme.colors && theme.hyperlinks &&
+                    link_depth == 0 && !src.startsWith("data:")
+                if (link_ok) {
+                    writeRawNoColor("\u{1b}]8;;")
+                    writeRawNoColor(src)
+                    writeRawNoColor("\u{1b}\\")
+                }
+                let img_marker = if (theme.colors) { "\u{1F4F7} " } else { "[img] " }
+                writeStyled(ansiColor(AnsiColor.magenta), img_marker)
+                if (alt.size > 0) {
+                    writeContent(alt)
+                } else if (let Some(title) <- image_title) {
+                    if (title.size > 0) {
+                        writeContent(title)
+                    } else {
+                        writeContent("(image)")
+                    }
+                } else {
+                    writeContent("(image)")
+                }
+                writeStyled(ansiReset(), "")
+                reapplyStyles()
+                if (link_ok) {
+                    writeRawNoColor("\u{1b}]8;;\u{1b}\\")
+                }
                 image_depth = saved_depth
                 return
             }
         }
 
-        // 回退: 显示 alt 文本
-        let link_ok = theme.colors && theme.hyperlinks && has_src &&
-            link_depth == 0 && !(src.get().startsWith("data:"))
-        if (link_ok) {
-            writeRawNoColor("\u{1b}]8;;")
-            writeRawNoColor(src.get())
-            writeRawNoColor("\u{1b}\\")
-        }
+        // No src or empty src
         let img_marker = if (theme.colors) { "\u{1F4F7} " } else { "[img] " }
         writeStyled(ansiColor(AnsiColor.magenta), img_marker)
         if (alt.size > 0) {
             writeContent(alt)
-        } else if (let Some(title) <- image_title) {
-            if (title.size > 0) {
-                writeContent(title)
-            } else {
-                writeContent("(image)")
-            }
         } else {
             writeContent("(image)")
         }
         writeStyled(ansiReset(), "")
         reapplyStyles()
-        if (link_ok) {
-            writeRawNoColor("\u{1b}]8;;\u{1b}\\")
-        }
         image_depth = saved_depth
     }
 
@@ -1417,7 +1405,7 @@ public class AnsiRenderer {
 
 /// 渲染 Markdown 为 ANSI
 public func renderToAnsi(text: String, options: Options, theme: Theme): ?String {
-    let renderer = AnsiRenderer.init(text, theme)
+    let renderer = AnsiRenderer.initFunc(text, theme)
     let flags = options.toFlags()
     let render_opts = options.toRenderOptions()
     renderWithRenderer(text, options, renderer.renderer())
@@ -1444,7 +1432,7 @@ public func detectKittyGraphics(): Bool {
 func isJsLang(lang: String): Bool {
     let names = ["js", "javascript", "jsx", "mjs", "cjs", "ts", "typescript", "tsx", "mts", "cts"]
     for (n in names) {
-        if (asciiCaseEql(lang, n)) return true
+        if (asciiCaseEql(lang, n)) { return true }
     }
     return false
 }
@@ -1452,34 +1440,36 @@ func isJsLang(lang: String): Bool {
 /// 从源文本中提取语言
 func extractLanguage(src_text: String, info_beg: UInt32): String {
     var lang_end = info_beg
-    while (lang_end < src_text.size) {
+    while (Int64(lang_end) < src_text.size) {
         let c = UInt8(src_text[Int64(lang_end)])
-        if (c == ' '.toUInt8() || c == '\t'.toUInt8() || c == '\n'.toUInt8() || c == '\r'.toUInt8()) break
+        if (c == UInt8(0x20) || c == UInt8(0x09) || c == UInt8(0x0A) || c == UInt8(0x0D)) { break }
         lang_end += 1
     }
-    if (lang_end > info_beg) return src_text.substring(Int64(info_beg), Int64(lang_end))
+    if (lang_end > info_beg) { return src_text[Int64(info_beg)..Int64(lang_end)] }
     return ""
 }
 
 /// 解析 href（添加自动链接前缀）
 func resolveHref(detail: SpanDetail): ?String {
     var buf = StringBuilder()
-    if (detail.autolink_email) buf.append("mailto:")
-    if (detail.autolink_www) buf.append("http://")
+    if (detail.autolink_email) { buf.append("mailto:") }
+    if (detail.autolink_www) { buf.append("http://") }
     buf.append(detail.href)
     return buf.toString()
 }
 
 /// 从 data: URI 中提取 PNG base64 负载
 func extractPngDataUrlBase64(src: String): ?String {
-    if (!src.startsWith("data:")) return None
-    let comma_idx = src.indexOf(',')
-    if (comma_idx < 0) return None
-    let header = src.substring(0, Int64(comma_idx))
-    let payload = src.substring(Int64(comma_idx) + 1)
-    if (!header.endsWith(";base64")) return None
-    if (header.indexOf("image/png") < 0) return None
-    return payload
+    if (!src.startsWith("data:")) { return None }
+    if (let Some(comma_idx) <- src.indexOf(',')) {
+        let header = src[0..comma_idx]
+        let payload = src[comma_idx + 1..]
+        if (!header.endsWith(";base64")) { return None }
+        if (let Some(png_idx) <- header.indexOf("image/png")) {
+            return payload
+        }
+    }
+    return None
 }
 
 /// 解析本地图片路径
@@ -1489,9 +1479,9 @@ func resolveLocalImagePath(src: String, base_dir: ?String): ?String {
     }
     var path = src
     if (src.startsWith("file://")) {
-        path = src.substring(7)
+        path = src[Int64(7)..]
         if (path.startsWith("localhost/")) {
-            path = path.substring(9) // 保留前导 /
+            path = path[Int64(9)..] // 保留前导 /
         } else if (path == "localhost") {
             return None
         }

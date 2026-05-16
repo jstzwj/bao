@@ -14,7 +14,7 @@ public let TEST_NAME_SUFFIXES: Array<String> = [
     ".test",
     "_test",
     ".spec",
-    "_spec",
+    "_spec"
 ]
 
 /// 测试文件扫描器
@@ -85,14 +85,13 @@ public class Scanner {
         let root = fs.readDirectoryWithName(path, None)
 
         if (root.isErr) {
-            when (root.error) {
-                case "NotDir" | "ENOTDIR" => {
+            match (root.error) {
+                case "NotDir" | "ENOTDIR" =>
                     if (isTestFile(path)) {
                         testFiles.append(path)
                     }
-                }
                 case "ENOENT" => throw ScannerError.DoesNotExist
-                else => {}
+                case _ => ()
             }
             return
         }
@@ -100,7 +99,7 @@ public class Scanner {
         // 用户输入 "." 且已扫描
         if (!hasIterated) {
             if (root.entries != None) {
-                for (entry in root.entries!!) {
+                for (entry in root.entries.getOrThrow()) {
                     next(entry, root.fd)
                 }
             }
@@ -108,7 +107,7 @@ public class Scanner {
 
         // 处理待扫描目录
         while (dirsToScan.readItem() != None) {
-            let entry = dirsToScan.readItem()!!
+            let entry = dirsToScan.readItem().getOrThrow()
             let childPath = Path.join(entry.dirPath, entry.name)
             let childDir = BaoFile.openDir(childPath)
             if (childDir != None) {
@@ -127,13 +126,13 @@ public class Scanner {
     /// 对应 Bun: Scanner.couldBeTestFile()
     public func couldBeTestFile(name: String, needsTestSuffix: Bool): Bool {
         let extname = Path.extension(name)
-        if (extname.length == 0 || !options.loader(extname).isJavaScriptLike()) {
+        if (extname.size == 0 || !options.loader(extname).isJavaScriptLike()) {
             return false
         }
         if (!needsTestSuffix) {
             return true
         }
-        let nameWithoutExtension = name.substring(0, name.length - extname.length)
+        let nameWithoutExtension = name[0..(name.size - extname.size)]
         for (suffix in TEST_NAME_SUFFIXES) {
             if (nameWithoutExtension.endsWith(suffix)) {
                 return true
@@ -180,16 +179,16 @@ public class Scanner {
 
         // 构建 relPath + '/' 一次
         var relWithSlash: ?String = None
-        if (relPath.length > 0 && relPath[relPath.length - 1] != '/') {
+        if (relPath.size > 0 && relPath[relPath.size - 1] != '/') {
             relWithSlash = relPath + "/"
         }
 
         for (pattern in pathIgnorePatterns) {
-            if (Glob.match(pattern, relPath).matches()) {
+            if (Glob.`match`(pattern, relPath).matches()) {
                 return true
             }
             if (relWithSlash != None && pattern.contains("**")) {
-                if (Glob.match(pattern, relWithSlash!!).matches()) {
+                if (Glob.`match`(pattern, relWithSlash.getOrThrow()).matches()) {
                     return true
                 }
             }
@@ -209,10 +208,10 @@ public class Scanner {
         let name = entry.baseLowercase()
         hasIterated = true
 
-        when (entry.kind) {
-            case EntryKind.dir => {
+        match (entry.kind) {
+            case EntryKind.dir =>
                 // 跳过隐藏目录和 node_modules
-                if ((name.length > 0 && name[0] == '.') || name == "node_modules") {
+                if ((name.size > 0 && name[0] == '.') || name == "node_modules") {
                     return
                 }
 
@@ -233,8 +232,7 @@ public class Scanner {
 
                 searchCount += 1
                 dirsToScan.writeItem(ScanEntry(fd, entry.dir, entry.base()))
-            }
-            case EntryKind.file => {
+            case EntryKind.file =>
                 // 已经处理过
                 if (!entry.absPath.isEmpty()) {
                     return
@@ -260,7 +258,6 @@ public class Scanner {
 
                 entry.absPath = path
                 testFiles.append(path)
-            }
         }
     }
 }

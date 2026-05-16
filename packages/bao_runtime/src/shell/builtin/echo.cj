@@ -12,6 +12,13 @@ import bao_core.*
 // ============================================================================
 
 /// echo命令
+public enum EchoState {
+    | idle
+    | waiting
+    | waitingWriteErr
+    | done
+}
+
 public class EchoCmd {
     /// 输出缓冲区
     public var output: ArrayList<Byte> = ArrayList<Byte>()
@@ -19,12 +26,7 @@ public class EchoCmd {
     public var state: EchoState = EchoState.idle
 
     /// 状态类型
-    public enum EchoState {
-        case idle
-        case waiting
-        case waitingWriteErr
-        case done
-    }
+
 
     /// 启动
     public func start(): Yield {

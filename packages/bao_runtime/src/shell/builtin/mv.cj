@@ -12,6 +12,40 @@ import bao_core.*
 // ============================================================================
 
 /// mv命令
+public struct MvArgs {
+    public var sources: Array<String> = []
+    public var target: String = ""
+    public var targetFd: ?FD = None
+}
+
+public enum MvState {
+    | idle
+    | checkTarget(CheckTargetState)
+    | executing(ExecutingState)
+    | done
+    | waitingWriteErr(ExitCode)
+    | err
+}
+
+public struct CheckTargetState {
+    public var task: ShellMvCheckTargetTask
+    public var innerState: CheckTargetInnerState = .running
+}
+
+public enum CheckTargetInnerState {
+    | running
+    | done
+}
+
+public struct ExecutingState {
+    public var taskCount: UIntPtr = 0
+    public var tasksDone: UIntPtr = 0
+    public var errorSignal: AtomicBool = AtomicBool()
+    public var tasks: Array<ShellMvBatchedTask>
+    public var err: ?SyscallError = None
+    public var errPathOwned: Boolean = false
+}
+
 public class MvCmd {
     /// 选项
     public var opts: MvOpts = MvOpts()
@@ -21,44 +55,20 @@ public class MvCmd {
     public var state: MvState = MvState.idle
 
     /// 参数
-    public struct MvArgs {
-        public var sources: Array<String> = []
-        public var target: String = ""
-        public var targetFd: ?FD = None
-    }
+
 
     /// 状态类型
-    public enum MvState {
-        case idle
-        case checkTarget(CheckTargetState)
-        case executing(ExecutingState)
-        case done
-        case waitingWriteErr(ExitCode)
-        case err
-    }
+
 
     /// 检查目标状态
-    public struct CheckTargetState {
-        public var task: ShellMvCheckTargetTask
-        public var innerState: CheckTargetInnerState = .running
-    }
+
 
     /// 检查目标内部状态
-    public enum CheckTargetInnerState {
-        case running
-        case done
-    }
+
 
     /// 执行状态
     /// 对应 Bun: executing struct in Mv state
-    public struct ExecutingState {
-        public var taskCount: UIntPtr = 0
-        public var tasksDone: UIntPtr = 0
-        public var errorSignal: AtomicBool = AtomicBool()
-        public var tasks: Array<ShellMvBatchedTask>
-        public var err: ?SyscallError = None
-        public var errPathOwned: Boolean = false
-    }
+
 
     /// 启动
     public func start(): Yield {
@@ -227,14 +237,14 @@ public struct MvOpts {
 
 /// mv解析结果
 public enum MvParseResult {
-    case ok(Unit)
-    case err(MvParseError)
+    | ok(Unit)
+    | err(MvParseError)
 }
 
 /// mv解析错误
 public enum MvParseError {
-    case illegalOption(String)
-    case showUsage
+    | illegalOption(String)
+    | showUsage
 }
 
 /// Shell mv检查目标任务

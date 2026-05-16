@@ -1,52 +1,42 @@
-// 严格翻译自: src/md/links.zig
-// 链接处理（行内链接、引用链接、Wiki链接、自动链接）
+// Link processing (inline links, reference links, wiki links, autolinks)
+// Translated from: src/md/links.zig
 package bao_md
 
 // ============================================================================
-// 链接处理
+// Link processing
 // ============================================================================
 
-/// 处理链接: 行内链接、引用链接、快捷引用链接
-/// 返回消耗的内容结束位置，如果未匹配到链接则返回 None
 public func processLink(parser: Parser, content: String, start: Int64, baseOff: OFF, isImage: Bool): ?Int64 {
-    // start 指向 '['
-    // 找到匹配的 ']'，跳过代码跨度和 HTML 标签（它们优先级更高）
     var pos = start + 1
     var bracketDepth: UInt32 = 1
     var hasInnerBracket = false
     while (pos < content.size && bracketDepth > 0) {
-        if (content[Int64(pos)] == '\\' && pos + 1 < content.size) {
+        if (UInt8(content[pos]) == UInt8(0x5C) && pos + 1 < content.size) {
             pos += 2
             continue
         }
-        // 跳过代码跨度 — 优先级高于括号 (CommonMark §6.3)
-        if (content[Int64(pos)] == '`') {
+        if (UInt8(content[pos]) == UInt8(0x60)) {
             let count = countBackticks(content, pos)
-            let endOpt = findCodeSpanEnd(parser, content, pos + count, count)
-            if (endOpt != None) {
-                let endPos = endOpt.get()
+            if (let Some(endPos) <- findCodeSpanEnd(parser, content, pos + count, count)) {
                 pos = endPos + count
                 continue
             }
         }
-        // 跳过 HTML 标签和自动链接 — 优先级高于括号
-        if (content[Int64(pos)] == '<' && !parser.flags.no_html_spans) {
-            let tagEnd = findHtmlTag(parser, content, pos)
-            if (tagEnd != None) {
-                pos = tagEnd.get()
+        if (UInt8(content[pos]) == UInt8(0x3C) && !parser.flags.no_html_spans) {
+            if (let Some(tagEnd) <- findHtmlTag(parser, content, pos)) {
+                pos = tagEnd
                 continue
             }
-            let al = findAutolink(parser, content, pos)
-            if (al != None) {
-                pos = al.get().end_pos
+            if (let Some(al) <- findAutolink(parser, content, pos)) {
+                pos = al.end_pos
                 continue
             }
         }
-        if (content[Int64(pos)] == '[') {
+        if (UInt8(content[pos]) == UInt8(0x5B)) {
             bracketDepth += 1
             hasInnerBracket = true
         }
-        if (content[Int64(pos)] == ']') {
+        if (UInt8(content[pos]) == UInt8(0x5D)) {
             bracketDepth -= 1
         }
         if (bracketDepth > 0) {
@@ -59,32 +49,29 @@ public func processLink(parser: Parser, content: String, start: Int64, baseOff: 
     }
 
     let labelEnd = pos
-    let label = content.substring(start + 1, labelEnd)
-    pos += 1 // 跳过 ']'
+    let label = content[start + 1..labelEnd]
+    pos += 1
 
-    // 行内链接: [text](url "title")
-    if (pos < content.size && content[Int64(pos)] == '(') {
+    // inline link: [text](url "title")
+    if (pos < content.size && UInt8(content[pos]) == UInt8(0x28)) {
         pos += 1
-        // 跳过空白（包括合并段落行产生的换行符）
-        while (pos < content.size && (isBlank(UInt8(content[Int64(pos)])) || content[Int64(pos)] == '\n' || content[Int64(pos)] == '\r')) {
+        while (pos < content.size && (isBlank(UInt8(content[pos])) || UInt8(content[pos]) == UInt8(0x0A) || UInt8(content[pos]) == UInt8(0x0D))) {
             pos += 1
         }
 
-        // 解析目标
         var destStart = pos
         var destEnd = pos
 
-        if (pos < content.size && content[Int64(pos)] == '<') {
-            // 尖括号目标（不允许换行）
+        if (pos < content.size && UInt8(content[pos]) == UInt8(0x3C)) {
             destStart = pos + 1
             pos += 1
             var angleValid = true
-            while (pos < content.size && content[Int64(pos)] != '>') {
-                if (content[Int64(pos)] == '\n' || content[Int64(pos)] == '\r') {
+            while (pos < content.size && UInt8(content[pos]) != UInt8(0x3E)) {
+                if (UInt8(content[pos]) == UInt8(0x0A) || UInt8(content[pos]) == UInt8(0x0D)) {
                     angleValid = false
                     break
                 }
-                if (content[Int64(pos)] == '\\' && pos + 1 < content.size) {
+                if (UInt8(content[pos]) == UInt8(0x5C) && pos + 1 < content.size) {
                     pos += 2
                 } else {
                     pos += 1
@@ -95,21 +82,20 @@ public func processLink(parser: Parser, content: String, start: Int64, baseOff: 
             }
             destEnd = pos
             if (pos < content.size) {
-                pos += 1 // 跳过 >
+                pos += 1
             }
         } else {
-            // 裸目标 — 平衡括号
             var parenDepth2: UInt32 = 0
-            while (pos < content.size && !isWhitespace(UInt8(content[Int64(pos)]))) {
-                if (content[Int64(pos)] == '(') {
+            while (pos < content.size && !isWhitespace(UInt8(content[pos]))) {
+                if (UInt8(content[pos]) == UInt8(0x28)) {
                     parenDepth2 += 1
-                } else if (content[Int64(pos)] == ')') {
+                } else if (UInt8(content[pos]) == UInt8(0x29)) {
                     if (parenDepth2 == 0) {
                         break
                     }
                     parenDepth2 -= 1
                 }
-                if (content[Int64(pos)] == '\\' && pos + 1 < content.size) {
+                if (UInt8(content[pos]) == UInt8(0x5C) && pos + 1 < content.size) {
                     pos += 2
                 } else {
                     pos += 1
@@ -118,60 +104,56 @@ public func processLink(parser: Parser, content: String, start: Int64, baseOff: 
             destEnd = pos
         }
 
-        // 跳过空白（包括换行符）
-        while (pos < content.size && (isBlank(UInt8(content[Int64(pos)])) || content[Int64(pos)] == '\n' || content[Int64(pos)] == '\r')) {
+        while (pos < content.size && (isBlank(UInt8(content[pos])) || UInt8(content[pos]) == UInt8(0x0A) || UInt8(content[pos]) == UInt8(0x0D))) {
             pos += 1
         }
 
-        // 可选标题
         var title = ""
-        if (pos < content.size && (content[Int64(pos)] == '"' || content[Int64(pos)] == '\'' || content[Int64(pos)] == '(')) {
-            let closeChar: UInt8 = if (content[Int64(pos)] == '(') ')'.toUInt8() else UInt8(content[Int64(pos)])
+        if (pos < content.size && (UInt8(content[pos]) == UInt8(0x22) || UInt8(content[pos]) == UInt8(0x27) || UInt8(content[pos]) == UInt8(0x28))) {
+            let closeChar: UInt8 = if (UInt8(content[pos]) == UInt8(0x28)) { UInt8(0x29) } else { UInt8(content[pos]) }
             pos += 1
             let titleStart = pos
-            while (pos < content.size && UInt8(content[Int64(pos)]) != closeChar) {
-                if (content[Int64(pos)] == '\\' && pos + 1 < content.size) {
+            while (pos < content.size && UInt8(content[pos]) != closeChar) {
+                if (UInt8(content[pos]) == UInt8(0x5C) && pos + 1 < content.size) {
                     pos += 2
                 } else {
                     pos += 1
                 }
             }
-            title = content.substring(titleStart, pos)
+            title = content[titleStart..pos]
             if (pos < content.size) {
-                pos += 1 // 跳过关闭引号
+                pos += 1
             }
         }
 
-        // 跳过空白（包括换行符）
-        while (pos < content.size && (isBlank(UInt8(content[Int64(pos)])) || content[Int64(pos)] == '\n' || content[Int64(pos)] == '\r')) {
+        while (pos < content.size && (isBlank(UInt8(content[pos])) || UInt8(content[pos]) == UInt8(0x0A) || UInt8(content[pos]) == UInt8(0x0D))) {
             pos += 1
         }
 
-        // 必须以 ')' 结束
-        if (pos < content.size && content[Int64(pos)] == ')') {
+        if (pos < content.size && UInt8(content[pos]) == UInt8(0x29)) {
             pos += 1
-            let dest = content.substring(destStart, destEnd)
+            let dest = content[destStart..destEnd]
 
-            // 链接嵌套禁止: 链接不能包含其他链接 (CommonMark §6.7)
             if (!isImage && hasInnerBracket && labelContainsLink(parser, label)) {
                 return None
             }
 
             if (parser.image_nesting_level > 0) {
-                // 在图片 alt 文本内 — 仅发出文本，不发出 HTML 标签
                 processInlineContent(parser, label, 0)
             } else if (isImage) {
-                parser.renderer.enterSpan(SpanType.img, SpanDetail().also {
-                    it.href = dest; it.title = title
-                })
+                let detail = SpanDetail()
+                detail.href = dest
+                detail.title = title
+                parser.renderer.enterSpan(SpanType.img, detail)
                 parser.image_nesting_level += 1
                 processInlineContent(parser, label, 0)
                 parser.image_nesting_level -= 1
                 parser.renderer.leaveSpan(SpanType.img)
             } else {
-                parser.renderer.enterSpan(SpanType.a, SpanDetail().also {
-                    it.href = dest; it.title = title
-                })
+                let detail = SpanDetail()
+                detail.href = dest
+                detail.title = title
+                parser.renderer.enterSpan(SpanType.a, detail)
                 parser.link_nesting_level += 1
                 processInlineContent(parser, label, 0)
                 parser.link_nesting_level -= 1
@@ -182,28 +164,25 @@ public func processLink(parser: Parser, content: String, start: Int64, baseOff: 
         }
     }
 
-    // 引用链接: [text][ref] 或 [text][] 或快捷 [text]
-    if (pos < content.size && content[Int64(pos)] == '[') {
+    // reference link: [text][ref] or [text][] or shortcut [text]
+    if (pos < content.size && UInt8(content[pos]) == UInt8(0x5B)) {
         let bracketPos = pos
         pos += 1
         let refStart = pos
-        while (pos < content.size && content[Int64(pos)] != ']') {
-            if (content[Int64(pos)] == '[') {
-                break // 嵌套 [ 不允许出现在 ref 中
+        while (pos < content.size && UInt8(content[pos]) != UInt8(0x5D)) {
+            if (UInt8(content[pos]) == UInt8(0x5B)) {
+                break
             }
-            if (content[Int64(pos)] == '\\' && pos + 1 < content.size) {
+            if (UInt8(content[pos]) == UInt8(0x5C) && pos + 1 < content.size) {
                 pos += 2
             } else {
                 pos += 1
             }
         }
-        if (pos < content.size && content[Int64(pos)] == ']') {
-            let refLabel = if (pos > refStart) { content.substring(refStart, pos) } else { label }
+        if (pos < content.size && UInt8(content[pos]) == UInt8(0x5D)) {
+            let refLabel = if (pos > refStart) { content[refStart..pos] } else { label }
             pos += 1
-            let refDefOpt = lookupRefDef(parser, refLabel)
-            if (refDefOpt != None) {
-                let refDef = refDefOpt.get()
-                // 链接嵌套禁止
+            if (let Some(refDef) <- lookupRefDef(parser, refLabel)) {
                 if (!isImage && hasInnerBracket && labelContainsLink(parser, label)) {
                     return None
                 }
@@ -211,18 +190,14 @@ public func processLink(parser: Parser, content: String, start: Int64, baseOff: 
                 return pos
             }
         } else {
-            // 如果没找到有效的 ]，重置 pos
             pos = bracketPos
         }
     }
 
-    // 快捷引用链接: [text] (后面没有跟着 [)
-    let charAfterLabel: UInt8 = if (labelEnd + 1 < content.size) { UInt8(content[Int64(labelEnd + 1)]) } else { 0.toUInt8() }
-    if (charAfterLabel != '['.toUInt8()) {
-        let refDefOpt = lookupRefDef(parser, label)
-        if (refDefOpt != None) {
-            let refDef = refDefOpt.get()
-            // 链接嵌套禁止
+    // shortcut reference link
+    let charAfterLabel: UInt8 = if (labelEnd + 1 < content.size) { UInt8(content[labelEnd + 1]) } else { UInt8(0) }
+    if (charAfterLabel != UInt8(0x5B)) {
+        if (let Some(refDef) <- lookupRefDef(parser, label)) {
             if (!isImage && hasInnerBracket && labelContainsLink(parser, label)) {
                 return None
             }
@@ -234,7 +209,6 @@ public func processLink(parser: Parser, content: String, start: Int64, baseOff: 
     return None
 }
 
-/// 括号匹配链接结果
 public class BracketLinkResult {
     public var is_link: Bool = false
     public var label_end: Int64 = 0
@@ -247,39 +221,35 @@ public class BracketLinkResult {
     }
 }
 
-/// 尝试匹配括号对并检查是否构成链接
 public func tryMatchBracketLink(parser: Parser, content: String, start: Int64): BracketLinkResult {
     var pos = start + 1
     var depth: UInt32 = 1
     while (pos < content.size && depth > 0) {
-        if (content[Int64(pos)] == '\\' && pos + 1 < content.size) {
+        if (UInt8(content[pos]) == UInt8(0x5C) && pos + 1 < content.size) {
             pos += 2
             continue
         }
-        if (content[Int64(pos)] == '`') {
+        if (UInt8(content[pos]) == UInt8(0x60)) {
             let count = countBackticks(content, pos)
-            let endOpt = findCodeSpanEnd(parser, content, pos + count, count)
-            if (endOpt != None) {
-                pos = endOpt.get() + count
+            if (let Some(endPos) <- findCodeSpanEnd(parser, content, pos + count, count)) {
+                pos = endPos + count
                 continue
             }
         }
-        if (content[Int64(pos)] == '<' && !parser.flags.no_html_spans) {
-            let tagEnd = findHtmlTag(parser, content, pos)
-            if (tagEnd != None) {
-                pos = tagEnd.get()
+        if (UInt8(content[pos]) == UInt8(0x3C) && !parser.flags.no_html_spans) {
+            if (let Some(tagEnd) <- findHtmlTag(parser, content, pos)) {
+                pos = tagEnd
                 continue
             }
-            let al = findAutolink(parser, content, pos)
-            if (al != None) {
-                pos = al.get().end_pos
+            if (let Some(al) <- findAutolink(parser, content, pos)) {
+                pos = al.end_pos
                 continue
             }
         }
-        if (content[Int64(pos)] == '[') {
+        if (UInt8(content[pos]) == UInt8(0x5B)) {
             depth += 1
         }
-        if (content[Int64(pos)] == ']') {
+        if (UInt8(content[pos]) == UInt8(0x5D)) {
             depth -= 1
         }
         if (depth > 0) {
@@ -291,65 +261,59 @@ public func tryMatchBracketLink(parser: Parser, content: String, start: Int64): 
     }
 
     let labelEnd = pos
-    pos += 1 // 跳过 ]
+    pos += 1
 
     if (pos >= content.size) {
-        // 快捷引用检查
-        let innerLabel = content.substring(start + 1, labelEnd)
-        let isRef = lookupRefDef(parser, innerLabel) != None
+        let innerLabel = content[start + 1..labelEnd]
+        let isRef = (match (lookupRefDef(parser, innerLabel)) { case Some(_) => true case None => false })
         return BracketLinkResult(isRef, labelEnd, labelEnd + 1)
     }
 
-    // 行内链接: ](...)
-    if (content[Int64(pos)] == '(') {
+    if (UInt8(content[pos]) == UInt8(0x28)) {
         var p = pos + 1
-        // 跳过空白
-        while (p < content.size && (isBlank(UInt8(content[Int64(p)])) || content[Int64(p)] == '\n' || content[Int64(p)] == '\r')) {
+        while (p < content.size && (isBlank(UInt8(content[p])) || UInt8(content[p]) == UInt8(0x0A) || UInt8(content[p]) == UInt8(0x0D))) {
             p += 1
         }
-        // 解析目标
-        if (p < content.size && content[Int64(p)] == '<') {
+        if (p < content.size && UInt8(content[p]) == UInt8(0x3C)) {
             p += 1
-            while (p < content.size && content[Int64(p)] != '>' && content[Int64(p)] != '\n') {
-                if (content[Int64(p)] == '\\' && p + 1 < content.size) {
+            while (p < content.size && UInt8(content[p]) != UInt8(0x3E) && UInt8(content[p]) != UInt8(0x0A)) {
+                if (UInt8(content[p]) == UInt8(0x5C) && p + 1 < content.size) {
                     p += 2
                 } else {
                     p += 1
                 }
             }
-            if (p < content.size && content[Int64(p)] == '>') {
+            if (p < content.size && UInt8(content[p]) == UInt8(0x3E)) {
                 p += 1
             } else {
                 return BracketLinkResult(false, labelEnd, labelEnd + 1)
             }
         } else {
             var parenDepth3: UInt32 = 0
-            while (p < content.size && !isWhitespace(UInt8(content[Int64(p)]))) {
-                if (content[Int64(p)] == '(') {
+            while (p < content.size && !isWhitespace(UInt8(content[p]))) {
+                if (UInt8(content[p]) == UInt8(0x28)) {
                     parenDepth3 += 1
-                } else if (content[Int64(p)] == ')') {
+                } else if (UInt8(content[p]) == UInt8(0x29)) {
                     if (parenDepth3 == 0) {
                         break
                     }
                     parenDepth3 -= 1
                 }
-                if (content[Int64(p)] == '\\' && p + 1 < content.size) {
+                if (UInt8(content[p]) == UInt8(0x5C) && p + 1 < content.size) {
                     p += 2
                 } else {
                     p += 1
                 }
             }
         }
-        // 跳过空白
-        while (p < content.size && (isBlank(UInt8(content[Int64(p)])) || content[Int64(p)] == '\n' || content[Int64(p)] == '\r')) {
+        while (p < content.size && (isBlank(UInt8(content[p])) || UInt8(content[p]) == UInt8(0x0A) || UInt8(content[p]) == UInt8(0x0D))) {
             p += 1
         }
-        // 可选标题
-        if (p < content.size && (content[Int64(p)] == '"' || content[Int64(p)] == '\'' || content[Int64(p)] == '(')) {
-            let closeCh: UInt8 = if (content[Int64(p)] == '(') ')'.toUInt8() else UInt8(content[Int64(p)])
+        if (p < content.size && (UInt8(content[p]) == UInt8(0x22) || UInt8(content[p]) == UInt8(0x27) || UInt8(content[p]) == UInt8(0x28))) {
+            let closeCh: UInt8 = if (UInt8(content[p]) == UInt8(0x28)) { UInt8(0x29) } else { UInt8(content[p]) }
             p += 1
-            while (p < content.size && UInt8(content[Int64(p)]) != closeCh) {
-                if (content[Int64(p)] == '\\' && p + 1 < content.size) {
+            while (p < content.size && UInt8(content[p]) != closeCh) {
+                if (UInt8(content[p]) == UInt8(0x5C) && p + 1 < content.size) {
                     p += 2
                 } else {
                     p += 1
@@ -359,86 +323,73 @@ public func tryMatchBracketLink(parser: Parser, content: String, start: Int64): 
                 p += 1
             }
         }
-        // 跳过空白
-        while (p < content.size && (isBlank(UInt8(content[Int64(p)])) || content[Int64(p)] == '\n' || content[Int64(p)] == '\r')) {
+        while (p < content.size && (isBlank(UInt8(content[p])) || UInt8(content[p]) == UInt8(0x0A) || UInt8(content[p]) == UInt8(0x0D))) {
             p += 1
         }
-        if (p < content.size && content[Int64(p)] == ')') {
+        if (p < content.size && UInt8(content[p]) == UInt8(0x29)) {
             return BracketLinkResult(true, labelEnd, p + 1)
         }
     }
 
-    // 引用链接: ][...]
-    if (content[Int64(pos)] == '[') {
+    if (UInt8(content[pos]) == UInt8(0x5B)) {
         var p = pos + 1
-        while (p < content.size && content[Int64(p)] != ']') {
-            if (content[Int64(p)] == '[') {
+        while (p < content.size && UInt8(content[p]) != UInt8(0x5D)) {
+            if (UInt8(content[p]) == UInt8(0x5B)) {
                 break
             }
-            if (content[Int64(p)] == '\\' && p + 1 < content.size) {
+            if (UInt8(content[p]) == UInt8(0x5C) && p + 1 < content.size) {
                 p += 2
             } else {
                 p += 1
             }
         }
-        if (p < content.size && content[Int64(p)] == ']') {
-            let refLabel = if (p > pos + 1) { content.substring(pos + 1, p) } else { content.substring(start + 1, labelEnd) }
-            if (lookupRefDef(parser, refLabel) != None) {
+        if (p < content.size && UInt8(content[p]) == UInt8(0x5D)) {
+            let refLabel = if (p > pos + 1) { content[pos + 1..p] } else { content[start + 1..labelEnd] }
+            if (let Some(_) <- lookupRefDef(parser, refLabel)) {
                 return BracketLinkResult(true, labelEnd, p + 1)
             }
         }
     }
 
-    // 快捷引用
-    let innerLabel = content.substring(start + 1, labelEnd)
-    if (lookupRefDef(parser, innerLabel) != None) {
+    let innerLabel = content[start + 1..labelEnd]
+    if (let Some(_) <- lookupRefDef(parser, innerLabel)) {
         return BracketLinkResult(true, labelEnd, labelEnd + 1)
     }
 
     return BracketLinkResult(false, labelEnd, labelEnd + 1)
 }
 
-/// 检查链接标签是否包含内部链接结构
-/// 用于执行 "链接不能包含其他链接" 规则 (CommonMark §6.7)
 public func labelContainsLink(parser: Parser, label: String): Bool {
     var pos: Int64 = 0
     while (pos < label.size) {
-        if (label[pos] == '\\' && pos + 1 < label.size) {
+        if (UInt8(label[pos]) == UInt8(0x5C) && pos + 1 < label.size) {
             pos += 2
             continue
         }
-        // 跳过代码跨度
-        if (label[pos] == '`') {
+        if (UInt8(label[pos]) == UInt8(0x60)) {
             let count = countBackticks(label, pos)
-            let endOpt = findCodeSpanEnd(parser, label, pos + count, count)
-            if (endOpt != None) {
-                pos = endOpt.get() + count
+            if (let Some(endPos) <- findCodeSpanEnd(parser, label, pos + count, count)) {
+                pos = endPos + count
                 continue
             }
         }
-        // 跳过 HTML 标签和自动链接
-        if (label[pos] == '<' && !parser.flags.no_html_spans) {
-            let tagEnd = findHtmlTag(parser, label, pos)
-            if (tagEnd != None) {
-                pos = tagEnd.get()
+        if (UInt8(label[pos]) == UInt8(0x3C) && !parser.flags.no_html_spans) {
+            if (let Some(tagEnd) <- findHtmlTag(parser, label, pos)) {
+                pos = tagEnd
                 continue
             }
-            let al = findAutolink(parser, label, pos)
-            if (al != None) {
-                pos = al.get().end_pos
+            if (let Some(al) <- findAutolink(parser, label, pos)) {
+                pos = al.end_pos
                 continue
             }
         }
-        if (label[pos] == '[') {
-            // 跳过图片 (![]...) — 图片允许在链接内
-            let isInnerImage = pos > 0 && label[pos - 1] == '!'
-            // 尝试找到匹配的 ] 并检查链接语法
+        if (UInt8(label[pos]) == UInt8(0x5B)) {
+            let isInnerImage = pos > 0 && UInt8(label[pos - 1]) == UInt8(0x21)
             let inner = tryMatchBracketLink(parser, label, pos)
             if (inner.is_link && !isInnerImage) {
                 return true
             }
             if (inner.link_end > pos) {
-                // 跳过整个结构（包括图片的 (url) 或 [ref]）
                 pos = inner.link_end
                 continue
             }
@@ -448,78 +399,70 @@ public func labelContainsLink(parser: Parser, label: String): Bool {
     return false
 }
 
-/// 处理 Wiki 链接: [[destination]] 或 [[destination|label]]
 public func processWikiLink(parser: Parser, content: String, start: Int64): ?Int64 {
-    // start 指向第一个 '['，下一个字符也是 '['
     var pos = start + 2
-
-    // 找到关闭的 ']]'，检查约束
     let innerStart = pos
     var pipePos: ?Int64 = None
     var bracketDepth: UInt32 = 0
 
     while (pos < content.size) {
-        if (content[pos] == '\n' || content[pos] == '\r') {
+        if (UInt8(content[pos]) == UInt8(0x0A) || UInt8(content[pos]) == UInt8(0x0D)) {
             return None
         }
-        if (content[pos] == '[') {
+        if (UInt8(content[pos]) == UInt8(0x5B)) {
             bracketDepth += 1
-        } else if (content[pos] == ']') {
+        } else if (UInt8(content[pos]) == UInt8(0x5D)) {
             if (bracketDepth > 0) {
                 bracketDepth -= 1
-            } else if (pos + 1 < content.size && content[pos + 1] == ']') {
+            } else if (pos + 1 < content.size && UInt8(content[pos + 1]) == UInt8(0x5D)) {
                 break
             } else {
-                // 单独的 ] 没有匹配的 [，不是有效关闭
                 return None
             }
-        } else if (content[pos] == '|' && pipePos == None && bracketDepth == 0) {
+        } else if (UInt8(content[pos]) == UInt8(0x7C) && (match (pipePos) { case None => true case _ => false }) && bracketDepth == 0) {
             pipePos = pos
         }
         pos += 1
     }
 
-    // 必须以 ]] 结束
-    if (pos >= content.size || content[pos] != ']') {
+    if (pos >= content.size || UInt8(content[pos]) != UInt8(0x5D)) {
         return None
     }
 
     let innerEnd = pos
+    let target = if (let Some(pp) <- pipePos) { content[innerStart..pp] } else { content[innerStart..innerEnd] }
+    let wlabel = if (let Some(pp) <- pipePos) { content[pp + 1..innerEnd] } else { content[innerStart..innerEnd] }
 
-    // 确定目标和标签
-    let target = if (pipePos != None) { content.substring(innerStart, pipePos.get()) } else { content.substring(innerStart, innerEnd) }
-    let wlabel = if (pipePos != None) { content.substring(pipePos.get() + 1, innerEnd) } else { content.substring(innerStart, innerEnd) }
-
-    // 目标不得超过 100 个字符
     if (target.size > 100) {
         return None
     }
 
-    // 渲染 Wiki 链接
-    parser.renderer.enterSpan(SpanType.wikilink, SpanDetail().also { it.href = target })
+    let detail = SpanDetail()
+    detail.href = target
+    parser.renderer.enterSpan(SpanType.wikilink, detail)
     processInlineContent(parser, wlabel, 0)
     parser.renderer.leaveSpan(SpanType.wikilink)
 
-    return pos + 2 // 跳过两个 ']'
+    return pos + 2
 }
 
-/// 渲染引用链接/图片，给定已解析的引用定义
 public func renderRefLink(parser: Parser, labelContent: String, ref: RefDef, isImage: Bool): Unit {
     if (parser.image_nesting_level > 0) {
-        // 在图片 alt 文本内 — 仅发出文本，不发出 HTML 标签
         processInlineContent(parser, labelContent, 0)
     } else if (isImage) {
-        parser.renderer.enterSpan(SpanType.img, SpanDetail().also {
-            it.href = ref.dest; it.title = ref.title
-        })
+        let detail = SpanDetail()
+        detail.href = ref.dest
+        detail.title = ref.title
+        parser.renderer.enterSpan(SpanType.img, detail)
         parser.image_nesting_level += 1
         processInlineContent(parser, labelContent, 0)
         parser.image_nesting_level -= 1
         parser.renderer.leaveSpan(SpanType.img)
     } else {
-        parser.renderer.enterSpan(SpanType.a, SpanDetail().also {
-            it.href = ref.dest; it.title = ref.title
-        })
+        let detail = SpanDetail()
+        detail.href = ref.dest
+        detail.title = ref.title
+        parser.renderer.enterSpan(SpanType.a, detail)
         parser.link_nesting_level += 1
         processInlineContent(parser, labelContent, 0)
         parser.link_nesting_level -= 1
@@ -527,7 +470,6 @@ public func renderRefLink(parser: Parser, labelContent: String, ref: RefDef, isI
     }
 }
 
-/// 自动链接查找结果
 public class AutolinkFindResult {
     public var end_pos: Int64 = 0
     public var is_email: Bool = false
@@ -538,82 +480,12 @@ public class AutolinkFindResult {
     }
 }
 
-/// 查找自动链接（尖括号形式）
-public func findAutolink(parser: Parser, content: String, start: Int64): ?AutolinkFindResult {
-    if (start + 1 >= content.size) {
-        return None
-    }
-
-    let pos = start + 1
-
-    // 检查 URI 自动链接: scheme://...
-    if (isAlpha(UInt8(content[pos]))) {
-        var schemeEnd = pos
-        while (schemeEnd < content.size && (isAlphaNum(UInt8(content[Int64(schemeEnd)])) ||
-               content[Int64(schemeEnd)] == '+' || content[Int64(schemeEnd)] == '-' || content[Int64(schemeEnd)] == '.')) {
-            schemeEnd += 1
-        }
-        let schemeLen = schemeEnd - pos
-        if (schemeLen >= 2 && schemeLen <= 32 && schemeEnd < content.size && content[Int64(schemeEnd)] == ':') {
-            // URI 自动链接
-            var uriEnd = schemeEnd + 1
-            while (uriEnd < content.size && content[Int64(uriEnd)] != '>' && !isWhitespace(UInt8(content[Int64(uriEnd)]))) {
-                uriEnd += 1
-            }
-            if (uriEnd < content.size && content[Int64(uriEnd)] == '>') {
-                return AutolinkFindResult(uriEnd + 1, false)
-            }
-        }
-
-        // 检查电子邮件自动链接
-        var emailPos = pos
-        // 用户名部分
-        while (emailPos < content.size && (isAlphaNum(UInt8(content[Int64(emailPos)])) ||
-               content[Int64(emailPos)] == '.' || content[Int64(emailPos)] == '-' ||
-               content[Int64(emailPos)] == '_' || content[Int64(emailPos)] == '+')) {
-            emailPos += 1
-        }
-        if (emailPos < content.size && content[Int64(emailPos)] == '@' && emailPos > pos) {
-            emailPos += 1
-            // 域名部分: 由 '.' 分隔的标签，每个 1-63 字符，字母数字或连字符
-            let domainStart = emailPos
-            var labelLen: UInt32 = 0
-            var dotCount: UInt32 = 0
-            var validDomain = true
-            while (emailPos < content.size && (isAlphaNum(UInt8(content[Int64(emailPos)])) ||
-                   content[Int64(emailPos)] == '.' || content[Int64(emailPos)] == '-')) {
-                if (content[Int64(emailPos)] == '.') {
-                    if (labelLen == 0) {
-                        validDomain = false
-                        break
-                    }
-                    labelLen = 0
-                    dotCount += 1
-                } else {
-                    labelLen += 1
-                    if (labelLen > 63) {
-                        validDomain = false
-                        break
-                    }
-                }
-                emailPos += 1
-            }
-            if (validDomain && emailPos < content.size && content[Int64(emailPos)] == '>' &&
-                emailPos > domainStart && labelLen > 0 && dotCount > 0 &&
-                isAlphaNum(UInt8(content[Int64(emailPos - 1)]))) {
-                return AutolinkFindResult(emailPos + 1, true)
-            }
-        }
-    }
-
-    return None
-}
-
-/// 渲染自动链接
 public func renderAutolink(parser: Parser, url: String, isEmail: Bool): Unit {
-    parser.renderer.enterSpan(SpanType.a, SpanDetail().also {
-        it.href = url; it.autolink = true; it.autolink_email = isEmail
-    })
+    let detail = SpanDetail()
+    detail.href = url
+    detail.autolink = true
+    detail.autolink_email = isEmail
+    parser.renderer.enterSpan(SpanType.a, detail)
     emitText(parser, TextType.normal, url)
     parser.renderer.leaveSpan(SpanType.a)
 }

@@ -1,37 +1,40 @@
-// 严格翻译自: src/md/line_analysis.zig
-// 行分析函数
+// Line analysis functions
+// Translated from: src/md/line_analysis.zig
 package bao_md
 
+import std.collection.*
+
 // ============================================================================
-// Setext 下划线检测
+// Setext underline detection
 // ============================================================================
 
-/// Setext 下划线检测结果
 public class SetextResult {
     public var is_setext: Bool = false
     public var level: UInt32 = 0
     public init() {}
+    public init(is_setext: Bool, level: UInt32) {
+        this.is_setext = is_setext
+        this.level = level
+    }
 }
 
-/// 检查给定偏移量是否为 setext 下划线
 public func isSetextUnderline(parser: Parser, off: OFF): SetextResult {
     let c = UInt8(parser.text[Int64(off)])
-    if (c != '='.toUInt8() && c != '-'.toUInt8()) {
+    if (c != UInt8(0x3D) && c != UInt8(0x2D)) {
         return SetextResult()
     }
 
     var pos = Int64(off)
-    while (pos < parser.size && UInt8(parser.text[pos]) == c) {
+    while (pos < Int64(parser.size) && UInt8(parser.text[pos]) == c) {
         pos += 1
     }
 
-    // 跳过尾部空格
-    while (pos < parser.size && isBlank(UInt8(parser.text[pos]))) {
+    while (pos < Int64(parser.size) && isBlank(UInt8(parser.text[pos]))) {
         pos += 1
     }
 
-    if (pos >= parser.size || isNewline(UInt8(parser.text[pos]))) {
-        let level: UInt32 = if (c == '='.toUInt8()) { 1 } else { 2 }
+    if (pos >= Int64(parser.size) || isNewline(UInt8(parser.text[pos]))) {
+        let level: UInt32 = if (c == UInt8(0x3D)) { 1 } else { 2 }
         return SetextResult(true, level)
     }
 
@@ -39,19 +42,18 @@ public func isSetextUnderline(parser: Parser, off: OFF): SetextResult {
 }
 
 // ============================================================================
-// 水平线检测
+// Horizontal rule detection
 // ============================================================================
 
-/// 检查给定偏移量是否为水平线
 public func isHrLine(parser: Parser, off: OFF): Bool {
     let c = UInt8(parser.text[Int64(off)])
-    if (c != '-'.toUInt8() && c != '_'.toUInt8() && c != '*'.toUInt8()) {
+    if (c != UInt8(0x2D) && c != UInt8(0x5F) && c != UInt8(0x2A)) {
         return false
     }
 
     var pos = Int64(off)
     var count: UInt32 = 0
-    while (pos < parser.size && !isNewline(UInt8(parser.text[pos]))) {
+    while (pos < Int64(parser.size) && !isNewline(UInt8(parser.text[pos]))) {
         if (UInt8(parser.text[pos]) == c) {
             count += 1
         } else if (!isBlank(UInt8(parser.text[pos]))) {
@@ -64,23 +66,26 @@ public func isHrLine(parser: Parser, off: OFF): Bool {
 }
 
 // ============================================================================
-// ATX 标题检测
+// ATX heading detection
 // ============================================================================
 
-/// ATX 标题检测结果
 public class AtxResult {
     public var is_atx: Bool = false
     public var level: UInt32 = 0
     public var content_beg: OFF = 0
     public init() {}
+    public init(is_atx: Bool, level: UInt32, content_beg: OFF) {
+        this.is_atx = is_atx
+        this.level = level
+        this.content_beg = content_beg
+    }
 }
 
-/// 检查给定偏移量是否为 ATX 标题行
 public func isAtxHeaderLine(parser: Parser, off: OFF): AtxResult {
     var pos = Int64(off)
     var level: UInt32 = 0
 
-    while (pos < parser.size && parser.text[pos] == '#') {
+    while (pos < Int64(parser.size) && UInt8(parser.text[pos]) == UInt8(0x23)) {
         level += 1
         pos += 1
     }
@@ -89,15 +94,13 @@ public func isAtxHeaderLine(parser: Parser, off: OFF): AtxResult {
         return AtxResult()
     }
 
-    // 必须后跟空格或行尾
-    if (pos < parser.size && !isBlank(UInt8(parser.text[pos])) && !isNewline(UInt8(parser.text[pos]))) {
+    if (pos < Int64(parser.size) && !isBlank(UInt8(parser.text[pos])) && !isNewline(UInt8(parser.text[pos]))) {
         if (!parser.flags.permissive_atx_headers) {
             return AtxResult()
         }
     }
 
-    // 跳过 # 后的空格
-    while (pos < parser.size && isBlank(UInt8(parser.text[pos]))) {
+    while (pos < Int64(parser.size) && isBlank(UInt8(parser.text[pos]))) {
         pos += 1
     }
 
@@ -105,26 +108,28 @@ public func isAtxHeaderLine(parser: Parser, off: OFF): AtxResult {
 }
 
 // ============================================================================
-// 代码围栏检测
+// Code fence detection
 // ============================================================================
 
-/// 代码围栏检测结果
 public class FenceResult {
     public var is_fence: Bool = false
     public var fence_data: UInt32 = 0
     public init() {}
+    public init(is_fence: Bool, fence_data: UInt32) {
+        this.is_fence = is_fence
+        this.fence_data = fence_data
+    }
 }
 
-/// 检查是否为开始代码围栏
 public func isOpeningCodeFence(parser: Parser, off: OFF): FenceResult {
-    if (off >= parser.size) {
+    if (Int64(off) >= Int64(parser.size)) {
         return FenceResult()
     }
     let fence_char = UInt8(parser.text[Int64(off)])
     var pos = Int64(off)
     var count: UInt32 = 0
 
-    while (pos < parser.size && UInt8(parser.text[pos]) == fence_char) {
+    while (pos < Int64(parser.size) && UInt8(parser.text[pos]) == fence_char) {
         count += 1
         pos += 1
     }
@@ -133,11 +138,10 @@ public func isOpeningCodeFence(parser: Parser, off: OFF): FenceResult {
         return FenceResult()
     }
 
-    // 反引号围栏不能在信息字符串中有反引号
-    if (fence_char == '`'.toUInt8()) {
+    if (fence_char == UInt8(0x60)) {
         var check = pos
-        while (check < parser.size && !isNewline(UInt8(parser.text[check]))) {
-            if (UInt8(parser.text[check]) == '`'.toUInt8()) {
+        while (check < Int64(parser.size) && !isNewline(UInt8(parser.text[check]))) {
+            if (UInt8(parser.text[check]) == UInt8(0x60)) {
                 return FenceResult()
             }
             check += 1
@@ -148,14 +152,13 @@ public func isOpeningCodeFence(parser: Parser, off: OFF): FenceResult {
     return FenceResult(true, data)
 }
 
-/// 检查是否为结束代码围栏
 public func isClosingCodeFence(parser: Parser, off: OFF, fence_data: UInt32): Bool {
     let fence_char: UInt8 = UInt8(fence_data & 0xFF)
     let fence_count = fence_data >> 8
 
     var pos = Int64(off)
     var count: UInt32 = 0
-    while (pos < parser.size && UInt8(parser.text[pos]) == fence_char) {
+    while (pos < Int64(parser.size) && UInt8(parser.text[pos]) == fence_char) {
         count += 1
         pos += 1
     }
@@ -164,61 +167,60 @@ public func isClosingCodeFence(parser: Parser, off: OFF, fence_data: UInt32): Bo
         return false
     }
 
-    while (pos < parser.size && isBlank(UInt8(parser.text[pos]))) {
+    while (pos < Int64(parser.size) && isBlank(UInt8(parser.text[pos]))) {
         pos += 1
     }
 
-    return pos >= parser.size || isNewline(UInt8(parser.text[pos]))
+    return pos >= Int64(parser.size) || isNewline(UInt8(parser.text[pos]))
 }
 
 // ============================================================================
-// HTML 块检测
+// HTML block detection
 // ============================================================================
 
-/// 检查 HTML 块起始条件
 public func isHtmlBlockStartCondition(parser: Parser, off: OFF): UInt8 {
-    if (Int64(off + 1) >= parser.size) {
+    if (Int64(off + 1) >= Int64(parser.size)) {
         return 0
     }
 
-    // 类型 1: <script, <pre, <style, <textarea
-    if (UInt8(parser.text[Int64(off + 1)]) != '/'.toUInt8() &&
+    // type 1: <script, <pre, <style, <textarea
+    if (UInt8(parser.text[Int64(off + 1)]) != UInt8(0x2F) &&
         (matchHtmlTag(parser, Int64(off), "script") || matchHtmlTag(parser, Int64(off), "pre") ||
          matchHtmlTag(parser, Int64(off), "style") || matchHtmlTag(parser, Int64(off), "textarea"))) {
         return 1
     }
 
-    // 类型 2: <!--
-    if (Int64(off + 3) < parser.size &&
-        parser.text[Int64(off + 1)] == '!' && parser.text[Int64(off + 2)] == '-' && parser.text[Int64(off + 3)] == '-') {
+    // type 2: <!--
+    if (Int64(off + 3) < Int64(parser.size) &&
+        UInt8(parser.text[Int64(off + 1)]) == UInt8(0x21) && UInt8(parser.text[Int64(off + 2)]) == UInt8(0x2D) && UInt8(parser.text[Int64(off + 3)]) == UInt8(0x2D)) {
         return 2
     }
 
-    // 类型 3: <?
-    if (parser.text[Int64(off + 1)] == '?') {
+    // type 3: <?
+    if (UInt8(parser.text[Int64(off + 1)]) == UInt8(0x3F)) {
         return 3
     }
 
-    // 类型 4: <! 后跟大写字母
-    if (parser.text[Int64(off + 1)] == '!' && Int64(off + 2) < parser.size) {
-        let c = UInt8(parser.text[Int64(off + 2)])
-        if (c >= 'A'.toUInt8() && c <= 'Z'.toUInt8()) {
+    // type 4: <! followed by uppercase letter
+    if (UInt8(parser.text[Int64(off + 1)]) == UInt8(0x21) && Int64(off + 2) < Int64(parser.size)) {
+        let ch = UInt8(parser.text[Int64(off + 2)])
+        if (ch >= UInt8(0x41) && ch <= UInt8(0x5A)) {
             return 4
         }
     }
 
-    // 类型 5: <![CDATA[
-    if (Int64(off + 9) <= parser.size &&
-        parser.text.substring(Int64(off + 1), Int64(off + 9)) == "![CDATA[") {
+    // type 5: <![CDATA[
+    if (Int64(off + 9) <= Int64(parser.size) &&
+        asciiCaseEql(parser.text[Int64(off + 1)..Int64(off + 9)], "![CDATA[")) {
         return 5
     }
 
-    // 类型 6: 块级标签
+    // type 6: block-level tags
     if (isBlockLevelHtmlTag(parser, Int64(off))) {
         return 6
     }
 
-    // 类型 7: 任何完整的开放或关闭标签
+    // type 7: complete open/close tags
     if (isCompleteHtmlTag(parser, Int64(off))) {
         return 7
     }
@@ -226,149 +228,192 @@ public func isHtmlBlockStartCondition(parser: Parser, off: OFF): UInt8 {
     return 0
 }
 
-/// 检查 HTML 块结束条件
 public func isHtmlBlockEndCondition(parser: Parser, off: OFF, block_type: UInt8): Bool {
     if (block_type >= 6) {
-        return Int64(off) >= parser.size || isNewline(UInt8(parser.text[Int64(off)]))
+        return Int64(off) >= Int64(parser.size) || isNewline(UInt8(parser.text[Int64(off)]))
     }
 
     var pos = Int64(off)
-    while (pos < parser.size && !isNewline(UInt8(parser.text[pos]))) {
-        match (block_type) {
-            case 1 => {
-                if (parser.text[pos] == '<' && pos + 1 < parser.size && parser.text[pos + 1] == '/') {
-                    if (matchHtmlTag(parser, pos, "script") || matchHtmlTag(parser, pos, "pre") ||
-                        matchHtmlTag(parser, pos, "style") || matchHtmlTag(parser, pos, "textarea")) {
-                        return true
-                    }
-                }
-            }
-            case 2 => {
-                if (parser.text[pos] == '-' && pos + 2 < parser.size &&
-                    parser.text[pos + 1] == '-' && parser.text[pos + 2] == '>') {
+    while (pos < Int64(parser.size) && !isNewline(UInt8(parser.text[pos]))) {
+        if (block_type == 1) {
+            if (UInt8(parser.text[pos]) == UInt8(0x3C) && pos + 1 < Int64(parser.size) && UInt8(parser.text[pos + 1]) == UInt8(0x2F)) {
+                if (matchHtmlTag(parser, pos, "script") || matchHtmlTag(parser, pos, "pre") ||
+                    matchHtmlTag(parser, pos, "style") || matchHtmlTag(parser, pos, "textarea")) {
                     return true
                 }
             }
-            case 3 => {
-                if (parser.text[pos] == '?' && pos + 1 < parser.size && parser.text[pos + 1] == '>') {
-                    return true
-                }
+        } else if (block_type == 2) {
+            if (UInt8(parser.text[pos]) == UInt8(0x2D) && pos + 2 < Int64(parser.size) &&
+                UInt8(parser.text[pos + 1]) == UInt8(0x2D) && UInt8(parser.text[pos + 2]) == UInt8(0x3E)) {
+                return true
             }
-            case 4 => {
-                if (parser.text[pos] == '>') {
-                    return true
-                }
+        } else if (block_type == 3) {
+            if (UInt8(parser.text[pos]) == UInt8(0x3F) && pos + 1 < Int64(parser.size) && UInt8(parser.text[pos + 1]) == UInt8(0x3E)) {
+                return true
             }
-            case 5 => {
-                if (parser.text[pos] == ']' && pos + 2 < parser.size &&
-                    parser.text[pos + 1] == ']' && parser.text[pos + 2] == '>') {
-                    return true
-                }
+        } else if (block_type == 4) {
+            if (UInt8(parser.text[pos]) == UInt8(0x3E)) {
+                return true
             }
-            case _ => return false
+        } else if (block_type == 5) {
+            if (UInt8(parser.text[pos]) == UInt8(0x5D) && pos + 2 < Int64(parser.size) &&
+                UInt8(parser.text[pos + 1]) == UInt8(0x5D) && UInt8(parser.text[pos + 2]) == UInt8(0x3E)) {
+                return true
+            }
+        } else {
+            return false
         }
         pos += 1
     }
     return false
 }
 
-/// 匹配 HTML 标签
 public func matchHtmlTag(parser: Parser, off: Int64, tag: String): Bool {
-    if (off + 1 + tag.size >= parser.size) {
+    if (off + 1 + tag.size >= Int64(parser.size)) {
         return false
     }
     var pos = off + 1
-    if (pos < parser.size && parser.text[pos] == '/') {
+    if (pos < Int64(parser.size) && UInt8(parser.text[pos]) == UInt8(0x2F)) {
         pos += 1
     }
-    if (pos + tag.size > parser.size) {
+    if (pos + tag.size > Int64(parser.size)) {
         return false
     }
-    if (!asciiCaseEql(parser.text.substring(pos, pos + tag.size), tag)) {
+    if (!asciiCaseEql(parser.text[pos..pos + tag.size], tag)) {
         return false
     }
     pos += tag.size
-    if (pos >= parser.size) {
+    if (pos >= Int64(parser.size)) {
         return true
     }
     let after = UInt8(parser.text[pos])
-    return after == '>'.toUInt8() || after == '/'.toUInt8() || isBlank(after) || isNewline(after)
+    return after == UInt8(0x3E) || after == UInt8(0x2F) || isBlank(after) || isNewline(after)
 }
 
-/// 检查是否为块级 HTML 标签
 public func isBlockLevelHtmlTag(parser: Parser, off: Int64): Bool {
-    let block_tags: Array<String> = [
-        "address", "article", "aside", "base", "basefont", "blockquote", "body",
-        "caption", "center", "col", "colgroup", "dd", "details", "dialog",
-        "dir", "div", "dl", "dt", "fieldset", "figcaption", "figure",
-        "footer", "form", "frame", "frameset", "h1", "h2", "h3",
-        "h4", "h5", "h6", "head", "header", "hr", "html",
-        "iframe", "legend", "li", "link", "main", "menu", "menuitem",
-        "nav", "noframes", "ol", "optgroup", "option", "p", "param",
-        "search", "section", "summary", "table", "tbody", "td", "tfoot",
-        "th", "thead", "title", "tr", "track", "ul",
-    ]
+    let block_tags = ArrayList<String>()
+    block_tags.add("address")
+    block_tags.add("article")
+    block_tags.add("aside")
+    block_tags.add("base")
+    block_tags.add("basefont")
+    block_tags.add("blockquote")
+    block_tags.add("body")
+    block_tags.add("caption")
+    block_tags.add("center")
+    block_tags.add("col")
+    block_tags.add("colgroup")
+    block_tags.add("dd")
+    block_tags.add("details")
+    block_tags.add("dialog")
+    block_tags.add("dir")
+    block_tags.add("div")
+    block_tags.add("dl")
+    block_tags.add("dt")
+    block_tags.add("fieldset")
+    block_tags.add("figcaption")
+    block_tags.add("figure")
+    block_tags.add("footer")
+    block_tags.add("form")
+    block_tags.add("frame")
+    block_tags.add("frameset")
+    block_tags.add("h1")
+    block_tags.add("h2")
+    block_tags.add("h3")
+    block_tags.add("h4")
+    block_tags.add("h5")
+    block_tags.add("h6")
+    block_tags.add("head")
+    block_tags.add("header")
+    block_tags.add("hr")
+    block_tags.add("html")
+    block_tags.add("iframe")
+    block_tags.add("legend")
+    block_tags.add("li")
+    block_tags.add("link")
+    block_tags.add("main")
+    block_tags.add("menu")
+    block_tags.add("menuitem")
+    block_tags.add("nav")
+    block_tags.add("noframes")
+    block_tags.add("ol")
+    block_tags.add("optgroup")
+    block_tags.add("option")
+    block_tags.add("p")
+    block_tags.add("param")
+    block_tags.add("search")
+    block_tags.add("section")
+    block_tags.add("summary")
+    block_tags.add("table")
+    block_tags.add("tbody")
+    block_tags.add("td")
+    block_tags.add("tfoot")
+    block_tags.add("th")
+    block_tags.add("thead")
+    block_tags.add("title")
+    block_tags.add("tr")
+    block_tags.add("track")
+    block_tags.add("ul")
 
-    for (tag in block_tags) {
-        if (matchHtmlTag(parser, off, tag)) {
+    for (j in 0..block_tags.size) {
+        if (matchHtmlTag(parser, off, block_tags[j])) {
             return true
         }
     }
     return false
 }
 
-/// 检查是否为完整的 HTML 标签
 public func isCompleteHtmlTag(parser: Parser, off: Int64): Bool {
-    if (off + 1 >= parser.size) {
+    if (off + 1 >= Int64(parser.size)) {
         return false
     }
     var pos = off + 1
     let c = UInt8(parser.text[pos])
 
-    // 关闭标签
-    if (c == '/'.toUInt8()) {
+    // closing tag
+    if (c == UInt8(0x2F)) {
         pos += 1
-        if (pos >= parser.size || !isAlpha(UInt8(parser.text[pos]))) {
+        if (pos >= Int64(parser.size) || !isAlpha(UInt8(parser.text[pos]))) {
             return false
         }
-        while (pos < parser.size && (isAlphaNum(UInt8(parser.text[pos])) || parser.text[pos] == '-')) {
+        while (pos < Int64(parser.size) && (isAlphaNum(UInt8(parser.text[pos])) || UInt8(parser.text[pos]) == UInt8(0x2D))) {
             pos += 1
         }
-        while (pos < parser.size && isBlank(UInt8(parser.text[pos]))) {
+        while (pos < Int64(parser.size) && isBlank(UInt8(parser.text[pos]))) {
             pos += 1
         }
-        if (pos >= parser.size || parser.text[pos] != '>') {
+        if (pos >= Int64(parser.size) || UInt8(parser.text[pos]) != UInt8(0x3E)) {
             return false
         }
         pos += 1
-        while (pos < parser.size && isBlank(UInt8(parser.text[pos]))) {
+        while (pos < Int64(parser.size) && isBlank(UInt8(parser.text[pos]))) {
             pos += 1
         }
-        return pos >= parser.size || isNewline(UInt8(parser.text[pos]))
+        return pos >= Int64(parser.size) || isNewline(UInt8(parser.text[pos]))
     }
 
-    // 开放标签
+    // open tag
     if (!isAlpha(c)) {
         return false
     }
-    while (pos < parser.size && (isAlphaNum(UInt8(parser.text[pos])) || parser.text[pos] == '-')) {
+    while (pos < Int64(parser.size) && (isAlphaNum(UInt8(parser.text[pos])) || UInt8(parser.text[pos]) == UInt8(0x2D))) {
         pos += 1
     }
 
-    // 解析属性
+    // parse attributes
     while (true) {
         let ws_start = pos
-        while (pos < parser.size && isBlank(UInt8(parser.text[pos]))) {
+        while (pos < Int64(parser.size) && isBlank(UInt8(parser.text[pos]))) {
             pos += 1
         }
-        if (pos >= parser.size || isNewline(UInt8(parser.text[pos]))) {
+        if (pos >= Int64(parser.size) || isNewline(UInt8(parser.text[pos]))) {
             return false
         }
-        if (parser.text[pos] == '>') {
+        if (UInt8(parser.text[pos]) == UInt8(0x3E)) {
             pos += 1
             break
         }
-        if (parser.text[pos] == '/' && pos + 1 < parser.size && parser.text[pos + 1] == '>') {
+        if (UInt8(parser.text[pos]) == UInt8(0x2F) && pos + 1 < Int64(parser.size) && UInt8(parser.text[pos + 1]) == UInt8(0x3E)) {
             pos += 2
             break
         }
@@ -376,53 +421,53 @@ public func isCompleteHtmlTag(parser: Parser, off: Int64): Bool {
             return false
         }
 
-        // 属性名
-        if (!isAlpha(UInt8(parser.text[pos])) && parser.text[pos] != '_' && parser.text[pos] != ':') {
+        // attribute name
+        if (!isAlpha(UInt8(parser.text[pos])) && UInt8(parser.text[pos]) != UInt8(0x5F) && UInt8(parser.text[pos]) != UInt8(0x3A)) {
             return false
         }
         pos += 1
-        while (pos < parser.size && (isAlphaNum(UInt8(parser.text[pos])) ||
-               parser.text[pos] == '_' || parser.text[pos] == ':' ||
-               parser.text[pos] == '.' || parser.text[pos] == '-')) {
+        while (pos < Int64(parser.size) && (isAlphaNum(UInt8(parser.text[pos])) ||
+               UInt8(parser.text[pos]) == UInt8(0x5F) || UInt8(parser.text[pos]) == UInt8(0x3A) ||
+               UInt8(parser.text[pos]) == UInt8(0x2E) || UInt8(parser.text[pos]) == UInt8(0x2D))) {
             pos += 1
         }
 
-        // 可选属性值
+        // optional attribute value
         var ws_pos = pos
-        while (ws_pos < parser.size && isBlank(UInt8(parser.text[ws_pos]))) {
+        while (ws_pos < Int64(parser.size) && isBlank(UInt8(parser.text[ws_pos]))) {
             ws_pos += 1
         }
-        if (ws_pos < parser.size && parser.text[ws_pos] == '=') {
+        if (ws_pos < Int64(parser.size) && UInt8(parser.text[ws_pos]) == UInt8(0x3D)) {
             pos = ws_pos + 1
-            while (pos < parser.size && isBlank(UInt8(parser.text[pos]))) {
+            while (pos < Int64(parser.size) && isBlank(UInt8(parser.text[pos]))) {
                 pos += 1
             }
-            if (pos >= parser.size || isNewline(UInt8(parser.text[pos]))) {
+            if (pos >= Int64(parser.size) || isNewline(UInt8(parser.text[pos]))) {
                 return false
             }
-            if (parser.text[pos] == '"') {
+            if (UInt8(parser.text[pos]) == UInt8(0x22)) {
                 pos += 1
-                while (pos < parser.size && parser.text[pos] != '"') {
+                while (pos < Int64(parser.size) && UInt8(parser.text[pos]) != UInt8(0x22)) {
                     pos += 1
                 }
-                if (pos >= parser.size) {
+                if (pos >= Int64(parser.size)) {
                     return false
                 }
                 pos += 1
-            } else if (parser.text[pos] == '\'') {
+            } else if (UInt8(parser.text[pos]) == UInt8(0x27)) {
                 pos += 1
-                while (pos < parser.size && parser.text[pos] != '\'') {
+                while (pos < Int64(parser.size) && UInt8(parser.text[pos]) != UInt8(0x27)) {
                     pos += 1
                 }
-                if (pos >= parser.size) {
+                if (pos >= Int64(parser.size)) {
                     return false
                 }
                 pos += 1
             } else {
-                while (pos < parser.size && !isBlank(UInt8(parser.text[pos])) &&
-                       parser.text[pos] != '"' && parser.text[pos] != '\'' &&
-                       parser.text[pos] != '=' && parser.text[pos] != '<' &&
-                       parser.text[pos] != '>' && parser.text[pos] != '`') {
+                while (pos < Int64(parser.size) && !isBlank(UInt8(parser.text[pos])) &&
+                       UInt8(parser.text[pos]) != UInt8(0x22) && UInt8(parser.text[pos]) != UInt8(0x27) &&
+                       UInt8(parser.text[pos]) != UInt8(0x3D) && UInt8(parser.text[pos]) != UInt8(0x3C) &&
+                       UInt8(parser.text[pos]) != UInt8(0x3E) && UInt8(parser.text[pos]) != UInt8(0x60)) {
                     pos += 1
                 }
             }
@@ -431,46 +476,47 @@ public func isCompleteHtmlTag(parser: Parser, off: Int64): Bool {
         }
     }
 
-    while (pos < parser.size && isBlank(UInt8(parser.text[pos]))) {
+    while (pos < Int64(parser.size) && isBlank(UInt8(parser.text[pos]))) {
         pos += 1
     }
-    return pos >= parser.size || isNewline(UInt8(parser.text[pos]))
+    return pos >= Int64(parser.size) || isNewline(UInt8(parser.text[pos]))
 }
 
 // ============================================================================
-// 表格下划线检测
+// Table underline detection
 // ============================================================================
 
-/// 表格下划线检测结果
 public class TableUnderlineResult {
     public var is_underline: Bool = false
     public var col_count: UInt32 = 0
     public init() {}
+    public init(is_underline: Bool, col_count: UInt32) {
+        this.is_underline = is_underline
+        this.col_count = col_count
+    }
 }
 
-/// 检查给定偏移量是否为表格下划线
 public func isTableUnderline(parser: Parser, off: OFF): TableUnderlineResult {
     var pos = Int64(off)
     var col_count: UInt32 = 0
     var had_pipe = false
 
-    // 跳过前导管道符
-    if (pos < parser.size && parser.text[pos] == '|') {
+    if (pos < Int64(parser.size) && UInt8(parser.text[pos]) == UInt8(0x7C)) {
         had_pipe = true
         pos += 1
-        while (pos < parser.size && isBlank(UInt8(parser.text[pos]))) {
+        while (pos < Int64(parser.size) && isBlank(UInt8(parser.text[pos]))) {
             pos += 1
         }
     }
 
-    while (pos < parser.size && !isNewline(UInt8(parser.text[pos]))) {
-        let has_left_colon = pos < parser.size && parser.text[pos] == ':'
+    while (pos < Int64(parser.size) && !isNewline(UInt8(parser.text[pos]))) {
+        let has_left_colon = pos < Int64(parser.size) && UInt8(parser.text[pos]) == UInt8(0x3A)
         if (has_left_colon) {
             pos += 1
         }
 
         var dash_count: UInt32 = 0
-        while (pos < parser.size && parser.text[pos] == '-') {
+        while (pos < Int64(parser.size) && UInt8(parser.text[pos]) == UInt8(0x2D)) {
             dash_count += 1
             pos += 1
         }
@@ -479,12 +525,11 @@ public func isTableUnderline(parser: Parser, off: OFF): TableUnderlineResult {
             return TableUnderlineResult()
         }
 
-        let has_right_colon = pos < parser.size && parser.text[pos] == ':'
+        let has_right_colon = pos < Int64(parser.size) && UInt8(parser.text[pos]) == UInt8(0x3A)
         if (has_right_colon) {
             pos += 1
         }
 
-        // 确定对齐方式
         if (col_count < TABLE_MAXCOLCOUNT) {
             parser.table_alignments[Int64(col_count)] = if (has_left_colon && has_right_colon) {
                 Align.center
@@ -499,20 +544,20 @@ public func isTableUnderline(parser: Parser, off: OFF): TableUnderlineResult {
 
         col_count += 1
 
-        while (pos < parser.size && isBlank(UInt8(parser.text[pos]))) {
+        while (pos < Int64(parser.size) && isBlank(UInt8(parser.text[pos]))) {
             pos += 1
         }
 
-        if (pos < parser.size && parser.text[pos] == '|') {
+        if (pos < Int64(parser.size) && UInt8(parser.text[pos]) == UInt8(0x7C)) {
             had_pipe = true
             pos += 1
-            while (pos < parser.size && isBlank(UInt8(parser.text[pos]))) {
+            while (pos < Int64(parser.size) && isBlank(UInt8(parser.text[pos]))) {
                 pos += 1
             }
-            if (pos >= parser.size || isNewline(UInt8(parser.text[pos]))) {
+            if (pos >= Int64(parser.size) || isNewline(UInt8(parser.text[pos]))) {
                 break
             }
-        } else if (pos >= parser.size || isNewline(UInt8(parser.text[pos]))) {
+        } else if (pos >= Int64(parser.size) || isNewline(UInt8(parser.text[pos]))) {
             break
         } else {
             return TableUnderlineResult()
@@ -527,9 +572,8 @@ public func isTableUnderline(parser: Parser, off: OFF): TableUnderlineResult {
     return TableUnderlineResult(true, col_count)
 }
 
-/// 计算表格行中的列数
 public func countTableRowColumns(parser: Parser, beg: OFF, end: OFF): UInt32 {
-    let row = parser.text.substring(Int64(beg), Int64(end))
+    let row = parser.text[Int64(beg)..Int64(end)]
     var col_count: UInt32 = 0
     var pos: Int64 = 0
 
@@ -537,17 +581,17 @@ public func countTableRowColumns(parser: Parser, beg: OFF, end: OFF): UInt32 {
         pos += 1
     }
 
-    if (pos < row.size && row[pos] == '|') {
+    if (pos < row.size && UInt8(row[pos]) == UInt8(0x7C)) {
         pos += 1
     }
 
     var in_cell = false
     while (pos < row.size) {
-        if (row[pos] == '|') {
+        if (UInt8(row[pos]) == UInt8(0x7C)) {
             col_count += 1
             in_cell = false
             pos += 1
-        } else if (row[pos] == '\\' && pos + 1 < row.size) {
+        } else if (UInt8(row[pos]) == UInt8(0x5C) && pos + 1 < row.size) {
             in_cell = true
             pos += 2
         } else if (isNewline(UInt8(row[pos]))) {
@@ -564,10 +608,9 @@ public func countTableRowColumns(parser: Parser, beg: OFF, end: OFF): UInt32 {
 }
 
 // ============================================================================
-// 容器标记检测
+// Container mark detection
 // ============================================================================
 
-/// 容器标记检测结果
 public class ContainerMarkResult {
     public var is_container: Bool = false
     public var container: Container = Container()
@@ -575,75 +618,82 @@ public class ContainerMarkResult {
     public init() {}
 }
 
-/// 检查给定偏移量是否为容器标记
 public func isContainerMark(parser: Parser, indent: UInt32, off: OFF): ContainerMarkResult {
-    if (Int64(off) >= parser.size) {
+    if (Int64(off) >= Int64(parser.size)) {
         return ContainerMarkResult()
     }
 
-    // 缩进 >= 代码缩进偏移表示这是缩进代码，不是容器
     if (indent >= parser.code_indent_offset) {
         return ContainerMarkResult()
     }
 
     let c = UInt8(parser.text[Int64(off)])
 
-    // 引用块
-    if (c == '>'.toUInt8()) {
-        return ContainerMarkResult(true, Container(), off + 1).also {
-            it.container.ch = '>'.toUInt8()
-            it.container.mark_indent = indent
-            it.container.contents_indent = indent + 1
-        }
+    // blockquote
+    if (c == UInt8(0x3E)) {
+        let result = ContainerMarkResult()
+        result.is_container = true
+        result.off = off + 1
+        result.container.ch = UInt8(0x3E)
+        result.container.mark_indent = indent
+        result.container.contents_indent = indent + 1
+        return result
     }
 
-    // 无序列表: -, +, *
-    if ((c == '-'.toUInt8() || c == '+'.toUInt8() || c == '*'.toUInt8()) &&
-        Int64(off + 1) < parser.size && isBlank(UInt8(parser.text[Int64(off + 1)]))) {
-        return ContainerMarkResult(true, Container(), off + 1).also {
-            it.container.ch = c
-            it.container.mark_indent = indent
-            it.container.contents_indent = indent + 1
-        }
+    // unordered list: -, +, *
+    if ((c == UInt8(0x2D) || c == UInt8(0x2B) || c == UInt8(0x2A)) &&
+        Int64(off + 1) < Int64(parser.size) && isBlank(UInt8(parser.text[Int64(off + 1)]))) {
+        let result = ContainerMarkResult()
+        result.is_container = true
+        result.off = off + 1
+        result.container.ch = c
+        result.container.mark_indent = indent
+        result.container.contents_indent = indent + 1
+        return result
     }
-    // 空无序列表项
-    if ((c == '-'.toUInt8() || c == '+'.toUInt8() || c == '*'.toUInt8()) &&
-        (Int64(off + 1) >= parser.size || isNewline(UInt8(parser.text[Int64(off + 1)])))) {
-        return ContainerMarkResult(true, Container(), off + 1).also {
-            it.container.ch = c
-            it.container.mark_indent = indent
-            it.container.contents_indent = indent + 1
-        }
+    if ((c == UInt8(0x2D) || c == UInt8(0x2B) || c == UInt8(0x2A)) &&
+        (Int64(off + 1) >= Int64(parser.size) || isNewline(UInt8(parser.text[Int64(off + 1)])))) {
+        let result = ContainerMarkResult()
+        result.is_container = true
+        result.off = off + 1
+        result.container.ch = c
+        result.container.mark_indent = indent
+        result.container.contents_indent = indent + 1
+        return result
     }
 
-    // 有序列表: 数字后跟 . 或 )
+    // ordered lists
     if (isDigit(c)) {
         var pos = Int64(off)
         var num: UInt32 = 0
-        while (pos < parser.size && isDigit(UInt8(parser.text[pos])) && pos - Int64(off) < 9) {
-            num = num * 10 + UInt32(UInt8(parser.text[pos]) - '0'.toUInt8())
+        while (pos < Int64(parser.size) && isDigit(UInt8(parser.text[pos])) && pos - Int64(off) < 9) {
+            num = num * 10 + UInt32(UInt8(parser.text[pos]) - UInt8(0x30))
             pos += 1
         }
-        if (pos < parser.size && (UInt8(parser.text[pos]) == '.'.toUInt8() || UInt8(parser.text[pos]) == ')'.toUInt8())) {
+        if (pos < Int64(parser.size) && (UInt8(parser.text[pos]) == UInt8(0x2E) || UInt8(parser.text[pos]) == UInt8(0x29))) {
             let delim = UInt8(parser.text[pos])
             pos += 1
-            if (pos < parser.size && isBlank(UInt8(parser.text[pos]))) {
+            if (pos < Int64(parser.size) && isBlank(UInt8(parser.text[pos]))) {
                 let mark_width = UInt32(pos - Int64(off))
-                return ContainerMarkResult(true, Container(), UInt32(pos)).also {
-                    it.container.ch = delim
-                    it.container.start = num
-                    it.container.mark_indent = indent
-                    it.container.contents_indent = indent + mark_width
-                }
+                let result = ContainerMarkResult()
+                result.is_container = true
+                result.off = UInt32(pos)
+                result.container.ch = delim
+                result.container.start = num
+                result.container.mark_indent = indent
+                result.container.contents_indent = indent + mark_width
+                return result
             }
-            if (pos >= parser.size || isNewline(UInt8(parser.text[pos]))) {
+            if (pos >= Int64(parser.size) || isNewline(UInt8(parser.text[pos]))) {
                 let mark_width = UInt32(pos - Int64(off))
-                return ContainerMarkResult(true, Container(), UInt32(pos)).also {
-                    it.container.ch = delim
-                    it.container.start = num
-                    it.container.mark_indent = indent
-                    it.container.contents_indent = indent + mark_width
-                }
+                let result = ContainerMarkResult()
+                result.is_container = true
+                result.off = UInt32(pos)
+                result.container.ch = delim
+                result.container.start = num
+                result.container.mark_indent = indent
+                result.container.contents_indent = indent + mark_width
+                return result
             }
         }
     }

@@ -12,6 +12,46 @@ import bao_core.*
 // cmd1 | cmd2 | cmd3
 // ============================================================================
 
+/// 管道状态类型（提取到顶层）
+public enum PipelineStateKind {
+| startingCmds(idx: UInt32)
+| pending
+| waitingWriteErr
+| done(exitCode: ExitCode)
+}
+
+/// 管道父节点指针（提取到顶层）
+public class PipelineParentPtr {
+    public var ptr: Any
+
+    public static func initFunc(p: Any): PipelineParentPtr {
+        let pp = PipelineParentPtr()
+        pp.ptr = p
+        return pp
+    }
+}
+
+/// 管道子节点指针（提取到顶层）
+public class PipelineChildPtr {
+    public var ptr: Any
+
+    public static func initFunc(p: Any): PipelineChildPtr {
+        let cp = PipelineChildPtr()
+        cp.ptr = p
+        return cp
+    }
+
+    public func deinit() {
+        // 根据类型去初始化
+    }
+}
+
+/// 命令或结果（提取到顶层）
+public enum PipelineCmdOrResult {
+| cmd(Any)
+| result(ExitCode)
+}
+
 /// 管道状态
 public class PipelineState {
     /// 基类
@@ -19,11 +59,11 @@ public class PipelineState {
     /// AST节点
     public var node: Pipeline
     /// 父节点
-    public var parent: ParentPtr
+    public var parent: PipelineParentPtr
     /// 已退出的命令数
     public var exitedCount: UInt32 = 0
     /// 命令列表
-    public var cmds: ?Array<CmdOrResult> = None
+    public var cmds: ?Array<PipelineCmdOrResult> = None
     /// 管道列表
     public var pipes: ?Array<Pipe> = None
     /// IO
@@ -31,52 +71,12 @@ public class PipelineState {
     /// 状态
     public var state: PipelineStateKind
 
-    /// 管道状态类型
-    public enum PipelineStateKind {
-        case startingCmds(idx: UInt32)
-        case pending
-        case waitingWriteErr
-        case done(exitCode: ExitCode)
-    }
-
-    /// 父节点指针
-    public class ParentPtr {
-        public var ptr: Any
-
-        public static func initFunc(p: Any): ParentPtr {
-            let pp = ParentPtr()
-            pp.ptr = p
-            return pp
-        }
-    }
-
-    /// 子节点指针
-    public class ChildPtr {
-        public var ptr: Any
-
-        public static func initFunc(p: Any): ChildPtr {
-            let cp = ChildPtr()
-            cp.ptr = p
-            return cp
-        }
-
-        public func deinit() {
-            // 根据类型去初始化
-        }
-    }
-
-    /// 命令或结果
-    public enum CmdOrResult {
-        case cmd(Any)
-        case result(ExitCode)
-    }
-
     /// 初始化
     public static func initFunc(
         interpreter: Interpreter,
         shellState: ShellExecEnv,
         node: Pipeline,
-        parent: ParentPtr,
+        parent: PipelineParentPtr,
         io: IO
     ): PipelineState {
         let pipeline = PipelineState()
@@ -104,27 +104,27 @@ public class PipelineState {
     /// 下一步
     public func next(): Yield {
         switch (this.state) {
-            case .startingCmds(let idx) =>
+            case PipelineStateKind.startingCmds(let idx) =>
                 let cmds = this.cmds.getOrThrow()
-                if (idx >= cmds.length) {
+                if (idx >= cmds.size) {
                     this.state = PipelineStateKind.pending
                     return Yield.suspended
                 }
                 this.state = PipelineStateKind.startingCmds(idx: idx + 1)
                 let cmdOrResult = cmds[idx]
                 return Yield.pipeline(this)
-            case .pending =>
+            case PipelineStateKind.pending =>
                 unreachableState("Pipeline.next", "pending")
-            case .waitingWriteErr =>
+            case PipelineStateKind.waitingWriteErr =>
                 unreachableState("Pipeline.next", "waitingWriteErr")
-            case .done(let exitCode) =>
+            case PipelineStateKind.done(let exitCode) =>
                 return this.parent.childDone(this, exitCode)
         }
     }
 
     /// IO写入器数据块回调
     public func onIOWriterChunk(amount: UInt64, err: ?SystemError): Yield {
-        if (let e = err) {
+        if (let Some(e) <- err) {
             this.base.throw(ShellErr.newSys(e))
             return Yield.failed
         }
@@ -132,10 +132,10 @@ public class PipelineState {
     }
 
     /// 子节点完成
-    public func childDone(child: ChildPtr, exitCode: ExitCode): Yield {
+    public func childDone(child: PipelineChildPtr, exitCode: ExitCode): Yield {
         child.deinit()
         this.exitedCount += 1
-        if (this.exitedCount >= this.cmds.getOrThrow().length) {
+        if (this.exitedCount >= this.cmds.getOrThrow().size) {
             this.state = PipelineStateKind.done(exitCode: exitCode)
             return Yield.pipeline(this)
         }
@@ -144,10 +144,10 @@ public class PipelineState {
 
     /// 去初始化
     public func deinit() {
-        if (let cmds = this.cmds) {
+        if (let Some(cmds) <- this.cmds) {
             this.base.allocator().free(cmds)
         }
-        if (let pipes = this.pipes) {
+        if (let Some(pipes) <- this.pipes) {
             this.base.allocator().free(pipes)
         }
         this.io.deref()

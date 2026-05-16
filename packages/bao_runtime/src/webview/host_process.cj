@@ -118,16 +118,16 @@ public class HostProcess {
     ///   子进程死亡时它们收到 connection-invalidated 并退出
     public static func kill(): Unit {
         match (instance) {
-            case Some(p) => {
-                if (p.pid > 0) {
-                    kill(p.pid, SIGKILL)
-                    p.pid = -1
-                    p.launched = false
-                }
-                instance = None
-            }
-            case None => ()
+            case Some(p) => ()
+            case None => return
         }
+        let p = instance.getOrThrow()
+        if (p.pid > 0) {
+            kill(p.pid, SIGKILL)
+            p.pid = -1
+            p.launched = false
+        }
+        instance = None
     }
 
     /// 确保宿主进程已启动
@@ -148,14 +148,12 @@ public class HostProcess {
         }
 
         let proc = HostProcess()
-        let result = proc.spawn(stdoutInherit, stderrInherit)
-        match (result) {
-            case Ok(fd) => {
-                instance = Some(proc)
-                return fd
-            }
-            case Err(_) => return -1
+        let result = proc.`spawn`(stdoutInherit, stderrInherit)
+        if (result.isOk()) {
+            instance = Some(proc)
+            return result.getOrThrow()
         }
+        return -1
     }
 
     /// 进程退出回调
@@ -183,7 +181,7 @@ public class HostProcess {
     ///   6. fork + execve
     ///   7. 注册进程退出处理
     ///   8. 返回 parent fd
-    private func spawn(stdoutInherit: Bool, stderrInherit: Bool): Result<Int32> {
+    private func `spawn`(stdoutInherit: Bool, stderrInherit: Bool): Result<Int32> {
         unsafe {
             // 创建 socketpair (两端 nonblocking)
             let fds = malloc(UIntNative(8))  // int[2]
