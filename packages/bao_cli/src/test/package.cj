@@ -1,10 +1,22 @@
 package bao_cli.test
 
 
-import std.collection.*
 import bao_core.*
+import bao_collections.*
 import bao_options.*
 import bao_runtime.*
+
+public enum HotReloadKind {
+    | none
+    | watch
+}
+
+public type PathString = String
+
+public class CodeCoverageOptions {
+    public var enabled: Bool = false
+}
+
 
 public class TestRunnerSummary {
     public var pass: UInt32 = 0
@@ -27,6 +39,27 @@ public class CommandLineReporter {
     public func summary(): TestRunnerSummary { return summaryValue }
 }
 
+public class TestOptions {
+    public var parallel: Int64 = 1
+    public var reporters: ReportersOptions = ReportersOptions()
+}
+
+public class ReportersOptions {
+    public var junit: Bool = false
+}
+
+public class DebugOptions {
+    public var hotReload: HotReloadKind = HotReloadKind.none
+}
+
+public class CommandContext {
+    public var testOptions: TestOptions = TestOptions()
+    public var allocator: Allocator = CAllocator()
+    public var log: Log = Log()
+    public var args: ArrayList<String> = ArrayList<String>()
+    public var debug: DebugOptions = DebugOptions()
+}
+
 public class TestCommand {
-    public type CodeCoverageOptions = bao_options.CodeCoverageOptions
+    public static func runAllTests(reporter: CommandLineReporter, vm: VirtualMachine, files: Array<PathString>, allocator: Allocator): Unit {}
 }

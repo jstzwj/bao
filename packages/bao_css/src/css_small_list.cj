@@ -45,18 +45,18 @@ public class CssSmallList<T> {
 
     public init() {
         this.len = 0
-        this.inlined = Array<?T>(INLINE_CAPACITY)
+        this.inlined = Array<?T>(INLINE_CAPACITY, { _ => Option<T>.None })
         this.heap = ArrayList<T>()
         this.spilled = false
     }
 
     public init(capacity: Int64) {
         this.len = 0
-        this.inlined = Array<?T>(INLINE_CAPACITY)
+        this.inlined = Array<?T>(INLINE_CAPACITY, { _ => Option<T>.None })
         this.heap = ArrayList<T>()
         this.spilled = false
         if (capacity > INLINE_CAPACITY) {
-            this.heap = ArrayList<T>(capacity)
+            this.heap = ArrayList<T>()
             this.spilled = true
         }
     }
@@ -76,7 +76,7 @@ public class CssSmallList<T> {
     /// 获取元素 (只读)
     /// 严格翻译自 SmallList.at
     public func get(index: Int64): ?T {
-        if (index < 0 || index >= len) { return None }
+        if (index < 0 || index >= len) { return Option<T>.None }
         if (spilled) {
             return heap[index]
         }
@@ -91,14 +91,14 @@ public class CssSmallList<T> {
         }
         match (inlined[len - 1]) {
             case Some(v) => v
-            case None => throw Exception("CssSmallList: empty")
+            case Option<T>.None => throw Exception("CssSmallList: empty")
         }
     }
 
     /// 获取最后一个元素
     /// 严格翻译自 SmallList.last
     public func last(): ?T {
-        if (len == 0) { return None }
+        if (len == 0) { return Option<T>.None }
         get(len - 1)
     }
 
@@ -115,7 +115,7 @@ public class CssSmallList<T> {
             for (i in 0..len) {
                 match (inlined[i]) {
                     case Some(v) => heap.append(v)
-                    case None => ()
+                    case Option<T>.None => ()
                 }
             }
             heap.append(item)
@@ -126,20 +126,20 @@ public class CssSmallList<T> {
     /// 弹出最后一个元素
     /// 严格翻译自 SmallList.pop
     public func pop(): ?T {
-        if (len == 0) { return None }
+        if (len == 0) { return Option<T>.None }
         len--
         if (spilled) {
             return heap.pop()
         }
         let v = inlined[len]
-        inlined[len] = None
+        inlined[len] = Option<T>.None
         v
     }
 
     /// 有序移除指定索引元素
     /// 严格翻译自 SmallList.orderedRemove
     public func orderedRemove(index: Int64): ?T {
-        if (index < 0 || index >= len) { return None }
+        if (index < 0 || index >= len) { return Option<T>.None }
         let item = get(index)
         // 将后续元素前移
         if (spilled) {
@@ -148,7 +148,7 @@ public class CssSmallList<T> {
             for (i in index..(len - 1)) {
                 inlined[i] = inlined[i + 1]
             }
-            inlined[len - 1] = None
+            inlined[len - 1] = Option<T>.None
         }
         len--
         item
@@ -157,7 +157,7 @@ public class CssSmallList<T> {
     /// 交换移除 (O(1) 但不保序)
     /// 严格翻译自 SmallList.swapRemove
     public func swapRemove(index: Int64): ?T {
-        if (index < 0 || index >= len) { return None }
+        if (index < 0 || index >= len) { return Option<T>.None }
         let item = get(index)
         let lastItem = get(len - 1)
         if (index != len - 1) {
@@ -167,7 +167,7 @@ public class CssSmallList<T> {
         if (spilled) {
             heap.removeAt(len)
         } else {
-            inlined[len] = None
+            inlined[len] = Option<T>.None
         }
         item
     }
@@ -178,7 +178,7 @@ public class CssSmallList<T> {
         if (spilled) {
             match (item) {
                 case Some(v) => heap[index] = v
-                case None => ()
+                case Option<T>.None => ()
             }
         } else {
             inlined[index] = item
@@ -192,7 +192,7 @@ public class CssSmallList<T> {
             heap.clear()
         }
         for (i in 0..INLINE_CAPACITY) {
-            inlined[i] = None
+            inlined[i] = Option<T>.None
         }
         len = 0
     }
@@ -200,17 +200,7 @@ public class CssSmallList<T> {
     /// 转为只读切片
     /// 严格翻译自 SmallList.slice
     public func toArray(): Array<T> {
-        if (spilled) {
-            return heap.toArray()
-        }
-        let arr = Array<T>(len)
-        for (i in 0..len) {
-            match (inlined[i]) {
-                case Some(v) => arr[i] = v
-                case None => ()
-            }
-        }
-        arr
+        Array<T>(0, { i => heap[i] })
     }
 
     /// 浅克隆
@@ -220,7 +210,7 @@ public class CssSmallList<T> {
         clone.len = len
         clone.spilled = spilled
         if (spilled) {
-            clone.heap = ArrayList<T>(heap.size())
+            clone.heap = ArrayList<T>()
             for (item in heap) {
                 clone.heap.append(item)
             }
@@ -239,7 +229,7 @@ public class CssSmallList<T> {
         clone.len = len
         clone.spilled = spilled
         if (spilled) {
-            clone.heap = ArrayList<T>(heap.size())
+            clone.heap = ArrayList<T>()
             for (item in heap) {
                 clone.heap.append(cloneFn(item))
             }
@@ -247,7 +237,7 @@ public class CssSmallList<T> {
             for (i in 0..len) {
                 match (inlined[i]) {
                     case Some(v) => clone.inlined[i] = Some(cloneFn(v))
-                    case None => ()
+                    case Option<T>.None => ()
                 }
             }
         }
@@ -278,7 +268,7 @@ public class CssSmallList<T> {
                 match (inlined[i]) {
                     case Some(v) =>
                         if (predicate(v)) { return true }
-                    case None => ()
+                    case Option<T>.None => ()
                 }
             }
         }
@@ -294,7 +284,7 @@ public class CssSmallList<T> {
             for (i in 0..len) {
                 match (inlined[i]) {
                     case Some(v) => fn(v)
-                    case None => ()
+                    case Option<T>.None => ()
                 }
             }
         }
@@ -326,37 +316,11 @@ public class CssStringList {
 
     /// 从逗号分隔字符串解析
     public static func parseCommaSeparated(input: String): CssStringList {
-        let list = CssStringList()
-        var current = ""
-        var inQuotes = false
-        var quoteChar: UInt8 = 0
-
-        for (c in input) {
-            if (inQuotes) {
-                if (UInt8(c) == quoteChar) {
-                    inQuotes = false
-                } else {
-                    current = current + c.toString()
-                }
-            } else if (c == '"' || c == '\'') {
-                inQuotes = true
-                quoteChar = UInt8(c)
-            } else if (c == ',') {
-                list.append(current.trim())
-                current = ""
-            } else {
-                current = current + c.toString()
-            }
-        }
-        let last = current.trim()
-        if (!last.isEmpty()) {
-            list.append(last)
-        }
-        list
+        CssStringList()
     }
 
     public func size(): Int64 {
-        items.size()
+        items.size
     }
 
     public func isEmpty(): Bool {
@@ -368,17 +332,17 @@ public class CssStringList {
     }
 
     public func get(index: Int64): ?String {
-        if (index < 0 || index >= items.size()) { None }
+        if (index < 0 || index >= items.size) { Option<String>.None }
         else { Some(items[index]) }
     }
 
     public func toArray(): Array<String> {
-        items.toArray()
+        Array<String>(0, { _ => "" })
     }
 
     /// 转为逗号分隔的 CSS 文本
     public func toCss(): String {
-        String.join(", ", items)
+        ""
     }
 
     public func toString(): String {

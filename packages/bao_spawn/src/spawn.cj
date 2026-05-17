@@ -112,7 +112,7 @@ public class Subprocess {
     /// 是否已分离 (detached)
     public var detached: Bool
     /// spawn 选项 (引用)
-    private var opts: ?ShellSpawnOptions
+    public var opts: ?ShellSpawnOptions
 
     public init(pid: Int64) {
         this.pid = pid
@@ -328,7 +328,7 @@ public class Subprocess {
 
 /// 异步 spawn: 创建子进程但不等待完成
 /// 对应 Bun: Bun.spawn(options)
-public func spawn(options: ShellSpawnOptions): ?Subprocess {
+public func spawnProcess(options: ShellSpawnOptions): ?Subprocess {
     // 尝试 posix_spawn (Linux 首选)
     let spawnResult = posixSpawnProcess(options)
     match (spawnResult) {
@@ -353,11 +353,11 @@ public func spawn(options: ShellSpawnOptions): ?Subprocess {
 
 /// 同步 spawn: 创建子进程并等待完成
 /// 对应 Bun: Bun.spawnSync(options)
-public func spawnSync(options: ShellSpawnOptions): SpawnResult {
-    let processOpt = spawn(options)
+public func spawnSyncProcess(options: ShellSpawnOptions): SpawnResult {
+    let processOpt = spawnProcess(options)
     match (processOpt) {
         case Some(process) =>
-            let result = process.communicate(None)
+            let result = process.communicate(Option<Array<UInt8>>.None)
             process.closeAll()
             return result
         case None =>
@@ -373,7 +373,7 @@ public func spawnCommand(command: String, args: ArrayList<String>): ?Subprocess 
     for (arg in args) {
         options.args.append(arg)
     }
-    return spawn(options)
+    return spawnProcess(options)
 }
 
 /// 快捷 exec: 在 shell 中执行命令并返回结果
@@ -384,7 +384,7 @@ public func execCommand(command: String): SpawnResult {
     options.args.append(command)
     options.stdoutMode = StdioConfig.Pipe
     options.stderrMode = StdioConfig.Pipe
-    return spawnSync(options)
+    return spawnSyncProcess(options)
 }
 
 /// 快捷 exec: 在 shell 中执行命令, 返回 stdout 文本
@@ -403,8 +403,8 @@ public func execOutput(command: String): String {
 private func posixSpawnProcess(options: ShellSpawnOptions): ?Int64 {
     let argv = options.buildArgv()
     let envp = options.buildEnvp()
-    let fileActions = PosixSpawn.FileActions()
-    let attrs = PosixSpawn.Attrs()
+    let fileActions = PosixSpawnFileActions()
+    let attrs = PosixSpawnAttrs()
 
     // 设置工作目录
     match (options.cwd) {
@@ -455,7 +455,7 @@ private func posixSpawnProcess(options: ShellSpawnOptions): ?Int64 {
     match (options.stderrMode) {
         case StdioConfig.Pipe => ()
         case StdioConfig.Ignore =>
-            fileActions.addOpen(2, devNull, 1, UInt8(0))
+            fileActions.addOpen(2, devNull, 1, UInt32(0))
         case StdioConfig.Inherit => ()
         case StdioConfig.Fd(fd) => fileActions.addDup2(fd, 2)
         case StdioConfig.Path(path) =>
@@ -467,7 +467,7 @@ private func posixSpawnProcess(options: ShellSpawnOptions): ?Int64 {
     if (options.usePath) {
         return PosixSpawn.spawnP(options.command, fileActions, attrs, argv, envp)
     } else {
-        return PosixSpawn.spawn(options.command, fileActions, attrs, argv, envp)
+        return PosixSpawn.posixSpawnExec(options.command, fileActions, attrs, argv, envp)
     }
 }
 
@@ -921,7 +921,7 @@ public class SpawnBatchResult {
 public func spawnBatch(commands: ArrayList<ShellSpawnOptions>): SpawnBatchResult {
     let result = SpawnBatchResult()
     for (options in commands) {
-        let processOpt = spawn(options)
+        let processOpt = spawnProcess(options)
         match (processOpt) {
             case Some(process) => result.processes.append(process)
             case None => result.errors.append("Failed to spawn: ${options.command}")

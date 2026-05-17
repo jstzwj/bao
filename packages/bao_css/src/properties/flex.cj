@@ -9,6 +9,7 @@
 package bao_css.properties
 
 import bao_core.*
+import bao_collections.*
 
 // ============================================================================
 // FlexDirection
@@ -35,6 +36,14 @@ public enum FlexDirection {
     public static func default(): FlexDirection {
         FlexDirection.Row
     }
+
+    public operator func ==(rhs: FlexDirection): Bool {
+        this.toCss() == rhs.toCss()
+    }
+
+    public operator func !=(rhs: FlexDirection): Bool {
+        this.toCss() != rhs.toCss()
+    }
 }
 
 // ============================================================================
@@ -59,6 +68,14 @@ public enum FlexWrap {
 
     public static func default(): FlexWrap {
         FlexWrap.Nowrap
+    }
+
+    public operator func ==(rhs: FlexWrap): Bool {
+        this.toCss() == rhs.toCss()
+    }
+
+    public operator func !=(rhs: FlexWrap): Bool {
+        this.toCss() != rhs.toCss()
     }
 }
 
@@ -89,7 +106,10 @@ public class FlexFlow {
         if (parts.isEmpty()) {
             return "row"
         }
-        return String.join(" ", parts)
+        var partArr = Array<String>(parts.size, repeat: "")
+        var pi: Int64 = 0
+        for (p in parts) { partArr[pi] = p; pi += 1 }
+        return String.join(partArr, delimiter: " ")
     }
 }
 
@@ -112,7 +132,7 @@ public class Flex {
     }
 
     public static func none(): Flex {
-        Flex(grow: 0.0, shrink: 0.0, basis: "auto")
+        Flex(0.0, 0.0, "auto")
     }
 
     public func toCss(): String {
@@ -131,7 +151,10 @@ public class Flex {
             parts.append(basis)
         }
 
-        return String.join(" ", parts)
+        var partArr = Array<String>(parts.size, repeat: "")
+        var pi: Int64 = 0
+        for (p in parts) { partArr[pi] = p; pi += 1 }
+        return String.join(partArr, delimiter: " ")
     }
 }
 

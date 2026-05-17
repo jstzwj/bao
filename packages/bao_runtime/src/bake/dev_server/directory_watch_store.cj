@@ -5,20 +5,52 @@
 
 package bao_runtime.bake.dev_server
 
+public struct DirectoryWatchDepIndex {
+    public var value: UInt32
+}
+
+public struct DirectoryWatchDepIndexOptional {
+    public var value: ?UInt32 = None
+    public static let none: DirectoryWatchDepIndexOptional = DirectoryWatchDepIndexOptional(value: None)
+    public func unwrap(): ?UInt32 { value }
+    public func toOptional(): DirectoryWatchDepIndexOptional { this }
+}
+
+/// 依赖项
+public class DirectoryWatchDep {
+    public var next: DirectoryWatchDepIndexOptional
+    public var source_file_path: String
+    public var specifier: String
+
+    public static let empty: DirectoryWatchDep = DirectoryWatchDirectoryWatchDep(
+        next: DirectoryWatchDepIndexOptional.none,
+        source_file_path: "",
+        specifier: "",
+    )
+}
+
+/// 监控条目
+public class DirectoryWatchEntry {
+    public var dir: FD
+    public var dir_fd_owned: Bool
+    public var first_dep: DirectoryWatchDepIndex
+    public var watch_index: UInt16
+}
+
 /// 目录监控存储。管理文件解析失败时的目录监控器。
 /// 此结构不是线程安全的。
 public class DirectoryWatchStore {
     /// 活跃监控器列表。删除时可能重新排序
-    public var watches: StringArrayHashMapUnmanaged<Entry>
+    public var watches: StringArrayHashMapUnmanaged<DirectoryWatchEntry>
     /// 依赖项列表
-    public var dependencies: ArrayListUnmanaged<Dep>
+    public var dependencies: ArrayListUnmanaged<DirectoryWatchDep>
     /// 依赖项不能重新排序。此列表跟踪哪些索引是空闲的。
-    public var dependencies_free_list: ArrayListUnmanaged<Dep.Index>
+    public var dependencies_free_list: ArrayListUnmanaged<DirectoryWatchDepIndex>
 
     public static let empty: DirectoryWatchStore = DirectoryWatchStore(
-        watches: StringArrayHashMapUnmanaged<Entry>(),
-        dependencies: ArrayListUnmanaged<Dep>(),
-        dependencies_free_list: ArrayListUnmanaged<Dep.Index>(),
+        watches: StringArrayHashMapUnmanaged<DirectoryWatchEntry>(),
+        dependencies: ArrayListUnmanaged<DirectoryWatchDep>(),
+        dependencies_free_list: ArrayListUnmanaged<DirectoryWatchDepIndex>(),
     )
 
     /// 跟踪解析失败
@@ -26,7 +58,7 @@ public class DirectoryWatchStore {
         import_source: String,
         specifier: String,
         renderer: Graph,
-        loader: Loader,
+        loader: Loader
     ): Unit {
         // 当不是文件路径时，无需跟踪
         if (specifier.length == 0) { return }
@@ -42,31 +74,27 @@ public class DirectoryWatchStore {
                 assert(false) // 这些 loader 不依赖导入其他文件
         }
 
-        let buf = bun.path_buffer_pool.get()
-        defer bun.path_buffer_pool.put(buf)
-        let joined = bun.path.joinAbsStringBuf(bun.path.dirname(import_source), buf, [specifier])
-        let dir = bun.path.dirname(joined)
+        // TODO: 实现 path buffer pool 和路径拼接
+        let joined = import_source
+        let dir = joined
 
         let dev = owner()
         dev.graph_safety_lock.lock()
-        defer dev.graph_safety_lock.unlock()
+        dev.graph_safety_lock.unlock()
         let owned_file_path: String = match (renderer) {
             case client => dev.client_graph.insertEmpty(import_source, FileKind.unknown).key
-            case server | ssr => dev.server_graph.insertEmpty(import_source, FileKind.unknown).key
+            case server => dev.server_graph.insertEmpty(import_source, FileKind.unknown).key
+            case ssr => dev.server_graph.insertEmpty(import_source, FileKind.unknown).key
         }
 
-        insert(dir, owned_file_path, specifier) match {
-            case ok(()) => ()
-            case error(Ignore) => () // 忽略监控错误
-            case error(OutOfMemory, let e) => return e
-        }
+        insert(dir, owned_file_path, specifier)
     }
 
     /// 插入目录监控
     func insert(
         dir_name_to_watch: String,
         file_path: String,
-        specifier: String,
+        specifier: String
     ): Unit {
         assert(specifier.length > 0)
         let dev = owner()
@@ -83,7 +111,7 @@ public class DirectoryWatchStore {
         }
 
         if (gop.found_existing) {
-            let dep = appendDepAssumeCapacity(Dep(
+            let dep = appendDepAssumeCapacity(DirectoryWatchDep(
                 next: gop.value_ptr.first_dep.toOptional(),
                 source_file_path: file_path,
                 specifier: specifier_cloned,
@@ -97,12 +125,12 @@ public class DirectoryWatchStore {
         gop.key_ptr = bun.strings.withoutTrailingSlashWindowsPath(dir_name)
 
         let watch_index = dev.bun_watcher.addDirectory(bun.invalid_fd, dir_name, bun.Watcher.getHash(dir_name), false)
-        let dep = appendDepAssumeCapacity(Dep(
-            next: Dep.Index.Optional.none,
+        let dep = appendDepAssumeCapacity(DirectoryWatchDep(
+            next: DirectoryWatchDepIndexOptional.none,
             source_file_path: file_path,
             specifier: specifier_cloned,
         ))
-        watches.putAssumeCapacity(dir_name, Entry(
+        watches.putAssumeCapacity(dir_name, DirectoryWatchEntry(
             dir: bun.invalid_fd,
             dir_fd_owned: false,
             first_dep: dep,
@@ -111,9 +139,9 @@ public class DirectoryWatchStore {
     }
 
     /// 释放依赖索引
-    public func freeDependencyIndex(alloc: Allocator, index: Dep.Index): Unit {
+    public func freeDependencyIndex(alloc: Allocator, index: DirectoryWatchDepIndex): Unit {
         alloc.free(dependencies.items[index.get()].specifier)
-        dependencies.items[index.get()] = Dep.empty
+        dependencies.items[index.get()] = DirectoryWatchDep.empty
 
         if (index.get() == dependencies.items.length - 1) {
             dependencies.items.length -= 1
@@ -123,7 +151,7 @@ public class DirectoryWatchStore {
     }
 
     /// 释放条目
-    public func freeEntry(alloc: Allocator, entry_index: UInt64): Unit {
+    public func freeDirectoryWatchEntry(alloc: Allocator, entry_index: UInt64): Unit {
         let entry = watches.values()[entry_index]
         owner().bun_watcher.removeAtIndex(entry.watch_index, 0, [])
 
@@ -146,9 +174,9 @@ public class DirectoryWatchStore {
         while (watch_index > 0) {
             watch_index -= 1
             let entry = watches.values()[watch_index]
-            var new_chain: Dep.Index.Optional = Dep.Index.Optional.none
-            var it: ?Dep.Index = entry.first_dep
-            while (let Some(index) = it) {
+            var new_chain: DirectoryWatchDepIndexOptional = DirectoryWatchDepIndexOptional.none
+            var it: ?DirectoryWatchDepIndex = entry.first_dep
+            while (let Some(index) <- it) {
                 let dep = dependencies.items[index.get()]
                 it = dep.next.unwrap()
                 if (dep.source_file_path == file_path) {
@@ -158,20 +186,20 @@ public class DirectoryWatchStore {
                     new_chain = index.toOptional()
                 }
             }
-            if (let Some(new_first_dep) = new_chain.unwrap()) {
+            if (let Some(new_first_dep) <- new_chain.unwrap()) {
                 entry.first_dep = new_first_dep
             } else {
-                freeEntry(alloc, watch_index)
+                freeDirectoryWatchEntry(alloc, watch_index)
             }
         }
     }
 
-    func appendDepAssumeCapacity(dep: Dep): Dep.Index {
-        if (let Some(index) = dependencies_free_list.pop()) {
+    func appendDepAssumeCapacity(dep: DirectoryWatchDep): DirectoryWatchDepIndex {
+        if (let Some(index) <- dependencies_free_list.pop()) {
             dependencies.items[index.get()] = dep
             return index
         }
-        let index = Dep.Index.init(dependencies.items.length)
+        let index = DirectoryWatchDepIndex.`init`(dependencies.items.length)
         dependencies.appendAssumeCapacity(dep)
         return index
     }
@@ -180,37 +208,7 @@ public class DirectoryWatchStore {
         // 通过 fieldParentPtr 获取父 DevServer
     }
 
-    /// 监控条目
-    public class Entry {
-        public var dir: FD              // 目录监控的目录句柄
-        public var dir_fd_owned: Bool   // 目录句柄是否拥有的
-        public var first_dep: Dep.Index // 第一个依赖
-        public var watch_index: UInt16  // 传递给 Watcher.remove 的索引
-    }
-
-    /// 依赖项
-    public class Dep {
-        public var next: Index.Optional
-        public var source_file_path: String  // 使用的文件
-        public var specifier: String         // 失败的说明符
-
-        public static let empty: Dep = Dep(
-            next: Index.Optional.none,
-            source_file_path: "",
-            specifier: "",
-        )
-
-        public struct Index <: UInt32 {}
-        public struct Index.Optional {
-            public var value: ?UInt32 = None
-            public static let none: Index.Optional = Index.Optional(value: None)
-            public func unwrap(): ?UInt32 { value }
-            public func toOptional(): Index.Optional { this }
-        }
-    }
 }
 
 // 类型别名
-public type StringArrayHashMapUnmanaged<V> = std.StringArrayHashMapUnmanaged<V>
-public type ArrayListUnmanaged<T> = std.ArrayListUnmanaged<T>
 public type FD = bun.FD

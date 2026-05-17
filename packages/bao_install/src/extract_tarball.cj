@@ -14,6 +14,8 @@ import bao_io.*
 import bao_hash.*
 import bao_path.*
 import bao_http.*
+import bao_sys.*
+import bao_libarchive.*
 
 // ============================================================================
 // 解压数据
@@ -134,25 +136,24 @@ public class ExtractTarball {
         }
 
         // 2. 解压 + 提取
-        let result = extract(tarballBytes, log)
-        match (result) {
-            case Some(data) => {
-                // 对于 GitHub/远程 tarball, 计算并存储完整性哈希
-                match (resolutionTag) {
-                    case DependencyVersionTag.GitHub =>
-                    case DependencyVersionTag.RemoteTarball =>
-                    case DependencyVersionTag.LocalTarball => {
-                        if (integrity.tag.isSupported()) {
-                            data.integrity = integrity
-                        } else {
-                            data.integrity = Integrity.forBytes(tarballBytes)
-                        }
-                    }
-                    case _ => ()
-                }
-                return data
-            }
-            case None => return None
+        return extract(tarballBytes, log)
+    }
+
+    /// process extracted data helper
+    private func processExtractedData(data: ExtractData, resolutionTag: DependencyVersionTag, integrity: Integrity, tarballBytes: ArrayList<Byte>): ?ExtractData {
+        match (resolutionTag) {
+            case DependencyVersionTag.Tarball => setExtractIntegrity(data, integrity, tarballBytes)
+            case _ => ()
+        }
+        return data
+    }
+
+    /// set extract integrity helper
+    private func setExtractIntegrity(data: ExtractData, integrity: Integrity, tarballBytes: ArrayList<Byte>): Unit {
+        if (integrity.tag.isSupported()) {
+            data.integrity = integrity
+        } else {
+            data.integrity = Integrity.forBytes(tarballBytes)
         }
     }
 
@@ -163,29 +164,31 @@ public class ExtractTarball {
         let basename = getCacheBasename()
 
         // 创建临时目录
-        let tmpName = "${basename}-${bao_sys.SysModule.currentTimeMillis()}"
-        let tmpPath = bao_path.PathModule.join(ArrayList<String>([tempDir, tmpName]))
+        let tmpName = "${basename}-${cacheCurrentTimeMillis()}"
+        let tmpPath = Path.join([tempDir, tmpName])
 
-        try {
-            bao_io.File.createDirectory(tmpPath)
-        } catch (e: Exception) {
-            log.append("Failed to create temp directory '${tmpName}' for '${name}': ${e.message}")
-            return None
+        let mkdirResult = SysFs.mkdir(tmpPath, UInt32(0x1ED))
+        match (mkdirResult) {
+            case SysMaybe<Unit>.Err(_) =>
+                log.append("Failed to create temp directory '${tmpName}' for '${name}'")
+                return None
+            case _ => ()
         }
 
         // 解压 tarball 到临时目录
-        // 翻译自: 使用 libarchive 解压
-        let extractSuccess = try {
-            bao_archive.Archive.extractTarball(tarballBytes, tmpPath)
-        } catch (e: Exception) {
-            log.append("Failed to extract '${name}': ${e.message}")
-            // 清理
-            try { bao_io.File.removeDirectory(tmpPath) } catch (_: Exception) {}
-            return None
+        let opts = ExtractOptions()
+        opts.depthToSkip = 1
+        let archiveResult = Archiver.extractEntries(tarballBytes.items(), opts)
+        match (archiveResult) {
+            case None =>
+                log.append("Failed to extract '${name}': archive read error")
+                SysFs.rmdir(tmpPath)
+                return None
+            case Some(_) => ()
         }
 
         // 移动到缓存目录
-        return moveToCacheDirectory(tmpName: tmpName, name: displayName, basename: basename, resolved: "", log: log)
+        return moveToCacheDirectory(tmpName, displayName, basename, "", log)
     }
 
     /// 移动到缓存目录
@@ -200,71 +203,73 @@ public class ExtractTarball {
         // 构建缓存文件夹名
         let folderName = match (resolutionTag) {
             case DependencyVersionTag.Npm => "${name}@${resolution}"
-            case DependencyVersionTag.GitHub => "@GH@${resolved}"
+            case DependencyVersionTag.Github => "@GH@${resolved}"
             case _ => "${basename}"
         }
 
         // 对于 @scope 包, 确保父目录存在
         // 翻译自: create_subdir 逻辑
         if (basename != name) {
-            let parentDir = bao_path.PathModule.join(ArrayList<String>([cacheDir, name]))
-            if (!bao_io.File.directoryExists(parentDir)) {
-                try {
-                    bao_io.File.createDirectory(parentDir)
-                } catch (_: Exception) {}
+            let parentDir = Path.join([cacheDir, name])
+            if (!SysFs.exists(parentDir)) {
+                BaoFile.mkdir(parentDir, true)
             }
         }
 
-        let sourcePath = bao_path.PathModule.join(ArrayList<String>([tempDir, tmpName]))
-        let destPath = bao_path.PathModule.join(ArrayList<String>([cacheDir, folderName]))
+        let sourcePath = Path.join([tempDir, tmpName])
+        let destPath = Path.join([cacheDir, folderName])
 
         // 如果目标已存在, 删除旧的
-        if (bao_io.File.directoryExists(destPath)) {
-            try {
-                bao_io.File.removeDirectory(destPath)
-            } catch (_: Exception) {
+        if (SysFs.exists(destPath)) {
+            match (SysFs.rmdir(destPath)) {
+                case _ => ()
+            }
+            if (SysFs.exists(destPath)) {
                 // 尝试重命名旧目录到临时位置后删除
                 let oldTmpName = "${tmpName}-old"
-                let oldTmpPath = bao_path.PathModule.join(ArrayList<String>([tempDir, oldTmpName]))
-                try {
-                    bao_io.File.rename(destPath, oldTmpPath)
-                    bao_io.File.removeDirectory(oldTmpPath)
-                } catch (_: Exception) {}
+                let oldTmpPath = Path.join([tempDir, oldTmpName])
+                match (SysFs.rename(destPath, oldTmpPath)) {
+                    case _ => ()
+                }
+                match (SysFs.rmdir(oldTmpPath)) {
+                    case _ => ()
+                }
             }
         }
 
         // 重命名
         // 翻译自: bun.sys.renameatConcurrently
-        try {
-            bao_io.File.rename(sourcePath, destPath)
-        } catch (e: Exception) {
-            log.append("Failed to move '${name}' to cache dir: ${e.message}")
-            return None
+        match (SysFs.rename(sourcePath, destPath)) {
+            case SysMaybe<Unit>.Err(e) =>
+                log.append("Failed to move '${name}' to cache dir")
+                return None
+            case _ => ()
         }
 
         // 读取 package.json
         var jsonPath = ""
         var jsonBuf = ""
-        let pkgJsonPath = bao_path.PathModule.join(ArrayList<String>([destPath, "package.json"]))
-        if (bao_io.File.exists(pkgJsonPath)) {
-            try {
-                jsonBuf = bao_io.File.readTextFile(pkgJsonPath)
-                jsonPath = pkgJsonPath
-            } catch (_: Exception) {
-                // GitHub 依赖可以没有 package.json
-                if (resolutionTag != DependencyVersionTag.GitHub) {
-                    log.append("Failed to read package.json for '${name}'")
-                    return None
-                }
+        let pkgJsonPath = Path.join([destPath, "package.json"])
+        if (BaoFile.exists(pkgJsonPath)) {
+            match (BaoFile.readAllText(pkgJsonPath)) {
+                case SysMaybe<String>.Ok(text) =>
+                    jsonBuf = text
+                    jsonPath = pkgJsonPath
+                case SysMaybe<String>.Err(_) =>
+                    // GitHub 依赖可以没有 package.json
+                    if (resolutionTag != DependencyVersionTag.Github) {
+                        log.append("Failed to read package.json for '${name}'")
+                        return None
+                    }
             }
         }
 
         // 创建索引符号链接
         // 翻译自: create_index 逻辑
-        createPackageIndex(name: name, folderName: folderName, destPath: destPath)
+        createPackageIndex(name, folderName, destPath)
 
-        let result = ExtractData(url: url, resolved: resolved)
-        result.json = ExtractJsonData(path: jsonPath, buf: jsonBuf)
+        let result = ExtractData(url, resolved)
+        result.json = ExtractJsonData(jsonPath, jsonBuf)
         return result
     }
 
@@ -276,23 +281,21 @@ public class ExtractTarball {
         let nameParts = name.split("/")
         if (nameParts.size <= 1) {
             // 非 scoped 包
-            let indexDir = bao_path.PathModule.join(ArrayList<String>([cacheDir, name]))
-            if (!bao_io.File.directoryExists(indexDir)) {
-                try { bao_io.File.createDirectory(indexDir) } catch (_: Exception) { return }
+            let indexDir = Path.join([cacheDir, name])
+            if (!SysFs.exists(indexDir)) {
+                BaoFile.mkdir(indexDir, true)
             }
             // 提取版本号部分
-            let versionPart = folderName.substring(name.length + 1)
-            let linkPath = bao_path.PathModule.join(ArrayList<String>([indexDir, versionPart]))
-            try {
-                bao_io.File.createSymlink(destPath, linkPath)
-            } catch (_: Exception) {}
+            let versionPart = folderName[(name.size + 1)..]
+            let linkPath = Path.join([indexDir, versionPart])
+            BaoFile.createSymlink(destPath, linkPath)
         }
     }
 
     /// 获取显示名
     /// 翻译自: ExtractTarball.nameAndBasename
     public func getDisplayName(): String {
-        if (name.length > 0) { return name }
+        if (name.size > 0) { return name }
         return "unnamed-package"
     }
 
@@ -302,18 +305,18 @@ public class ExtractTarball {
         var tmp = name
         if (tmp.startsWith("https://") || tmp.startsWith("http://")) {
             let lastSlash = tmp.lastIndexOf("/")
-            if (lastSlash >= 0) {
-                tmp = tmp.substring(lastSlash + 1)
+            if (let Some(ls) <- lastSlash) {
+                tmp = tmp[(ls + 1)..]
             }
             if (tmp.endsWith(".tgz")) {
-                tmp = tmp.substring(0, tmp.length - 4)
+                tmp = tmp[0..(tmp.size - 4)]
             } else if (tmp.endsWith(".tar.gz")) {
-                tmp = tmp.substring(0, tmp.length - 7)
+                tmp = tmp[0..(tmp.size - 7)]
             }
-        } else if (tmp.length > 0 && tmp[0] == '@') {
+        } else if (tmp.size > 0 && tmp[0] == UInt8(64)) {
             let slashIdx = tmp.indexOf("/")
-            if (slashIdx >= 0) {
-                tmp = tmp.substring(slashIdx + 1)
+            if (let Some(si) <- slashIdx) {
+                tmp = tmp[(si + 1)..]
             }
         }
         return tmp
@@ -335,10 +338,10 @@ public class ExtractTarball {
     ): String {
         let reg = registry.trimEnd("/")
         var namePart = fullName
-        if (namePart.length > 0 && namePart[0] == '@') {
+        if (namePart.size > 0 && namePart[0] == UInt8(64)) {
             let slashIdx = namePart.indexOf("/")
-            if (slashIdx >= 0) {
-                namePart = namePart.substring(slashIdx + 1)
+            if (let Some(si) <- slashIdx) {
+                namePart = namePart[(si + 1)..]
             }
         }
 
@@ -347,15 +350,11 @@ public class ExtractTarball {
         // 带 prerelease 和/或 build
         var suffix = ""
         match (prerelease) {
-            case Some(pre) => {
-                suffix = suffix + "-${pre}"
-            }
+            case Some(pre)=> suffix = suffix + "-${pre}"
             case None => ()
         }
         match (build) {
-            case Some(b) => {
-                suffix = suffix + "+${b}"
-            }
+            case Some(b)=> suffix = suffix + "+${b}"
             case None => ()
         }
 

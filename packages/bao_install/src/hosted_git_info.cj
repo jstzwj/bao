@@ -95,10 +95,10 @@ public enum WellDefinedProtocol {
     /// 从带冒号的协议字符串解析 (如 "https:")
     /// 翻译自: WellDefinedProtocol.fromStringWithColon
     public static func fromStringWithColon(protocolWithColon: String): ?WellDefinedProtocol {
-        if (protocolWithColon.length == 0) { return None }
+        if (protocolWithColon.size == 0) { return None }
         var proto = protocolWithColon
         if (proto.endsWith(":")) {
-            proto = proto.substring(0, proto.length - 1)
+            proto = proto[..proto.size - 1]
         }
         return fromString(proto)
     }
@@ -250,48 +250,58 @@ public enum HostProvider {
     public func protocols(): ArrayList<WellDefinedProtocol> {
         let result = ArrayList<WellDefinedProtocol>()
         match (this) {
-            case Github => {
-                result.append(WellDefinedProtocol.Git)
-                result.append(WellDefinedProtocol.GitPlusSsh)
-                result.append(WellDefinedProtocol.GitPlusHttps)
-                result.append(WellDefinedProtocol.Ssh)
-                result.append(WellDefinedProtocol.Https)
-                result.append(WellDefinedProtocol.Github)
-            }
-            case Gitlab => {
-                result.append(WellDefinedProtocol.Git)
-                result.append(WellDefinedProtocol.GitPlusSsh)
-                result.append(WellDefinedProtocol.GitPlusHttps)
-                result.append(WellDefinedProtocol.Ssh)
-                result.append(WellDefinedProtocol.Https)
-                result.append(WellDefinedProtocol.Gitlab)
-            }
-            case Bitbucket => {
-                result.append(WellDefinedProtocol.Git)
-                result.append(WellDefinedProtocol.GitPlusSsh)
-                result.append(WellDefinedProtocol.GitPlusHttps)
-                result.append(WellDefinedProtocol.Ssh)
-                result.append(WellDefinedProtocol.Https)
-                result.append(WellDefinedProtocol.Bitbucket)
-            }
-            case Gist => {
-                result.append(WellDefinedProtocol.Git)
-                result.append(WellDefinedProtocol.GitPlusSsh)
-                result.append(WellDefinedProtocol.GitPlusHttps)
-                result.append(WellDefinedProtocol.Ssh)
-                result.append(WellDefinedProtocol.Https)
-                result.append(WellDefinedProtocol.Gist)
-            }
-            case Sourcehut => {
-                result.append(WellDefinedProtocol.Git)
-                result.append(WellDefinedProtocol.GitPlusSsh)
-                result.append(WellDefinedProtocol.GitPlusHttps)
-                result.append(WellDefinedProtocol.Ssh)
-                result.append(WellDefinedProtocol.Https)
-                result.append(WellDefinedProtocol.Sourcehut)
-            }
+            case Github => appendGithubProtocols(result)
+            case Gitlab => appendGitlabProtocols(result)
+            case Bitbucket => appendBitbucketProtocols(result)
+            case Gist => appendGistProtocols(result)
+            case Sourcehut => appendSourcehutProtocols(result)
         }
         return result
+    }
+
+    private func appendGithubProtocols(result: ArrayList<WellDefinedProtocol>): Unit {
+        result.append(WellDefinedProtocol.Git)
+        result.append(WellDefinedProtocol.GitPlusSsh)
+        result.append(WellDefinedProtocol.GitPlusHttps)
+        result.append(WellDefinedProtocol.Ssh)
+        result.append(WellDefinedProtocol.Https)
+        result.append(WellDefinedProtocol.Github)
+    }
+
+    private func appendGitlabProtocols(result: ArrayList<WellDefinedProtocol>): Unit {
+        result.append(WellDefinedProtocol.Git)
+        result.append(WellDefinedProtocol.GitPlusSsh)
+        result.append(WellDefinedProtocol.GitPlusHttps)
+        result.append(WellDefinedProtocol.Ssh)
+        result.append(WellDefinedProtocol.Https)
+        result.append(WellDefinedProtocol.Gitlab)
+    }
+
+    private func appendBitbucketProtocols(result: ArrayList<WellDefinedProtocol>): Unit {
+        result.append(WellDefinedProtocol.Git)
+        result.append(WellDefinedProtocol.GitPlusSsh)
+        result.append(WellDefinedProtocol.GitPlusHttps)
+        result.append(WellDefinedProtocol.Ssh)
+        result.append(WellDefinedProtocol.Https)
+        result.append(WellDefinedProtocol.Bitbucket)
+    }
+
+    private func appendGistProtocols(result: ArrayList<WellDefinedProtocol>): Unit {
+        result.append(WellDefinedProtocol.Git)
+        result.append(WellDefinedProtocol.GitPlusSsh)
+        result.append(WellDefinedProtocol.GitPlusHttps)
+        result.append(WellDefinedProtocol.Ssh)
+        result.append(WellDefinedProtocol.Https)
+        result.append(WellDefinedProtocol.Gist)
+    }
+
+    private func appendSourcehutProtocols(result: ArrayList<WellDefinedProtocol>): Unit {
+        result.append(WellDefinedProtocol.Git)
+        result.append(WellDefinedProtocol.GitPlusSsh)
+        result.append(WellDefinedProtocol.GitPlusHttps)
+        result.append(WellDefinedProtocol.Ssh)
+        result.append(WellDefinedProtocol.Https)
+        result.append(WellDefinedProtocol.Sourcehut)
     }
 
     /// 从 URL 域名推断主机提供商
@@ -313,19 +323,16 @@ public enum HostProvider {
             case Some(c) => c
             case None => ""
         }
-        let cmshSep = if (cmsh.length > 0) { "#" } else { "" }
+        let cmshSep = if (cmsh.size > 0) { "#" } else { "" }
 
         match (this) {
-            case Gist => {
-                return "git@${domain()}:${project}.git${cmshSep}${cmsh}"
-            }
-            case _ => {
+            case Gist=> return "git@${domain()}:${project}.git${cmshSep}${cmsh}"
+            case _ =>
                 let userName = match (user) {
                     case Some(u) => u
                     case None => "git"
                 }
                 return "git@${domain()}:${userName}/${project}.git${cmshSep}${cmsh}"
-            }
         }
     }
 
@@ -337,19 +344,16 @@ public enum HostProvider {
             case Some(c) => c
             case None => ""
         }
-        let cmshSep = if (cmsh.length > 0) { "#" } else { "" }
+        let cmshSep = if (cmsh.size > 0) { "#" } else { "" }
 
         match (this) {
-            case Gist => {
-                return "git+ssh://git@${domain()}/${project}.git${cmshSep}${cmsh}"
-            }
-            case _ => {
+            case Gist=> return "git+ssh://git@${domain()}/${project}.git${cmshSep}${cmsh}"
+            case _ =>
                 let userName = match (user) {
                     case Some(u) => u
                     case None => "git"
                 }
                 return "git+ssh://git@${domain()}/${userName}/${project}.git${cmshSep}${cmsh}"
-            }
         }
     }
 
@@ -361,19 +365,16 @@ public enum HostProvider {
             case Some(c) => c
             case None => ""
         }
-        let cmshSep = if (cmsh.length > 0) { "#" } else { "" }
+        let cmshSep = if (cmsh.size > 0) { "#" } else { "" }
 
         match (this) {
-            case Gist => {
-                return "git+https://${domain()}/${project}.git${cmshSep}${cmsh}"
-            }
-            case _ => {
+            case Gist=> return "git+https://${domain()}/${project}.git${cmshSep}${cmsh}"
+            case _ =>
                 let userName = match (user) {
                     case Some(u) => u
                     case None => "git"
                 }
                 return "git+https://${domain()}/${userName}/${project}.git${cmshSep}${cmsh}"
-            }
         }
     }
 
@@ -398,12 +399,12 @@ public enum HostProvider {
         var pathname = urlStr
         // 去除协议部分
         let protoEnd = pathname.indexOf("://")
-        if (protoEnd >= 0) {
-            let afterProto = pathname.substring(protoEnd + 3)
+        if (let Some(pe) <- protoEnd) {
+            let afterProto = pathname[(pe + 3)..]
             // 跳过域名
             let domainEnd = afterProto.indexOf("/")
-            if (domainEnd >= 0) {
-                pathname = afterProto.substring(domainEnd + 1)
+            if (let Some(de) <- domainEnd) {
+                pathname = afterProto[(de + 1)..]
             } else {
                 pathname = afterProto
             }
@@ -412,48 +413,40 @@ public enum HostProvider {
         // 去除查询参数和 fragment
         let hashIdx = pathname.indexOf("#")
         var committish: ?String = None
-        if (hashIdx >= 0) {
-            committish = pathname.substring(hashIdx + 1)
-            pathname = pathname.substring(0, hashIdx)
+        if (let Some(hi) <- hashIdx) {
+            committish = pathname[(hi + 1)..]
+            pathname = pathname[0..hi]
         }
 
         let queryIdx = pathname.indexOf("?")
-        if (queryIdx >= 0) {
-            pathname = pathname.substring(0, queryIdx)
+        if (let Some(qi) <- queryIdx) {
+            pathname = pathname[0..qi]
         }
 
         // 去除 .git 后缀
         if (pathname.endsWith(".git")) {
-            pathname = pathname.substring(0, pathname.length - 4)
+            pathname = pathname[0..(pathname.size - 4)]
         }
 
         // 去除尾部斜杠
         while (pathname.endsWith("/")) {
-            pathname = pathname.substring(0, pathname.length - 1)
+            pathname = pathname[0..(pathname.size - 1)]
         }
 
         // 分离 user 和 project
         let lastSlash = pathname.lastIndexOf("/")
-        if (lastSlash >= 0) {
-            let user = pathname.substring(0, lastSlash)
-            let project = pathname.substring(lastSlash + 1)
+        if (let Some(ls) <- lastSlash) {
+            let user = pathname[0..ls]
+            let project = pathname[(ls + 1)..]
 
-            if (user.length > 0 && project.length > 0) {
-                return GitExtractResult(
-                    user: user,
-                    project: project,
-                    committish: committish
-                )
+            if (user.size > 0 && project.size > 0) {
+                return GitExtractResult(user, project, committish)
             }
         }
 
         // 只有 project, 没有 user
-        if (pathname.length > 0) {
-            return GitExtractResult(
-                user: None,
-                project: pathname,
-                committish: committish
-            )
+        if (pathname.size > 0) {
+            return GitExtractResult(Option<String>.None, pathname, committish)
         }
 
         return None
@@ -539,37 +532,31 @@ public class HostedGitInfo {
     /// 翻译自: HostedGitInfo.fromUrl 中的核心逻辑
     private static func parseUrlAndExtract(gitUrl: String): ?HostedGitInfo {
         // 标准化协议
-        let (proto, urlRest) = normalizeProtocol(gitUrl)
+        let protoResult = normalizeProtocol(gitUrl)
+        let proto = protoResult.first
+        let urlRest = protoResult.second
 
         // 获取主机提供商
         let provider: ?HostProvider = match (proto) {
-            case UrlProtocol.WellFormed(wf) => {
-                match (wf.hostProvider()) {
-                    case Some(p) => p
-                    case None => HostProvider.fromUrlDomain(urlRest)
-                }
-            }
+            case UrlProtocol.WellFormed(wf) => wf.hostProvider()
             case UrlProtocol.Unknown => HostProvider.fromUrlDomain(urlRest)
             case UrlProtocol.Custom(_) => HostProvider.fromUrlDomain(urlRest)
         }
 
         match (provider) {
-            case Some(p) => {
-                // 尝试提取
+            case Some(p) =>
                 match (p.extract(urlRest)) {
-                    case Some(result) => {
+                    case Some(result) =>
                         let repr = proto.defaultRepresentation()
                         return HostedGitInfo(
-                            project: result.project,
-                            user: result.user,
-                            committish: result.committish,
-                            hostProvider: p,
-                            defaultRepresentation: repr
+                            result.project,
+                            result.user,
+                            result.committish,
+                            p,
+                            repr
                         )
-                    }
                     case None => return None
                 }
-            }
             case None => return None
         }
     }
@@ -581,20 +568,18 @@ public class HostedGitInfo {
             case GitRepresentation.Ssh => hostProvider.formatSsh(user, project, committish)
             case GitRepresentation.Https => hostProvider.formatHttps(user, project, committish)
             case GitRepresentation.Shortcut => hostProvider.formatShortcut(user, project, committish)
-            case GitRepresentation.Git => {
+            case GitRepresentation.Git =>
                 let cmsh = match (committish) {
                     case Some(c) => "#${c}"
                     case None => ""
                 }
                 return "git://${hostProvider.domain()}/${project}.git${cmsh}"
-            }
-            case GitRepresentation.Http => {
-                let cmsh = match (committish) {
+            case GitRepresentation.Http =>
+                let cmsh2 = match (committish) {
                     case Some(c) => "#${c}"
                     case None => ""
                 }
-                return "http://${hostProvider.domain()}/${project}.git${cmsh}"
-            }
+                return "http://${hostProvider.domain()}/${project}.git${cmsh2}"
         }
     }
 
@@ -641,21 +626,11 @@ public class HostedGitInfo {
         }
 
         match (hostProvider) {
-            case HostProvider.Github => {
-                return "${basePath}/${userName}/${project}${cmsh}${pathPart}"
-            }
-            case HostProvider.Gitlab => {
-                return "${basePath}/${userName}/${project}${cmsh}${pathPart}"
-            }
-            case HostProvider.Bitbucket => {
-                return "${basePath}/${userName}/${project}${cmsh}${pathPart}"
-            }
-            case HostProvider.Gist => {
-                return "${basePath}/${project}${cmsh}${pathPart}"
-            }
-            case HostProvider.Sourcehut => {
-                return "${basePath}/${userName}/${project}${cmsh}${pathPart}"
-            }
+            case HostProvider.Github=> return "${basePath}/${userName}/${project}${cmsh}${pathPart}"
+            case HostProvider.Gitlab=> return "${basePath}/${userName}/${project}${cmsh}${pathPart}"
+            case HostProvider.Bitbucket=> return "${basePath}/${userName}/${project}${cmsh}${pathPart}"
+            case HostProvider.Gist=> return "${basePath}/${project}${cmsh}${pathPart}"
+            case HostProvider.Sourcehut=> return "${basePath}/${userName}/${project}${cmsh}${pathPart}"
         }
     }
 }
@@ -671,44 +646,31 @@ public class HostedGitInfo {
 /// 翻译自: src/install/hosted_git_info.zig isGitHubShorthand
 ///   实现: 单次遍历检测, 匹配 hosted-git-info 的行为
 public func isGitHubShorthand(npaStr: String): Bool {
-    if (npaStr.length < 1) { return false }
-    if (npaStr[0] == '.' || npaStr[0] == '/') { return false }
+    if (npaStr.size < 1) { return false }
+    if (npaStr[0] == UInt8(46) || npaStr[0] == UInt8(47)) { return false }
 
     var poundIdx: ?Int64 = None
     var seenSlash = false
 
-    for (i in 0..npaStr.length) {
+    for (i in 0..npaStr.size) {
         let c = npaStr[Int64(i)]
-        match (c) {
-            case ':' | '@' => {
-                // : 和 @ 只能在 # 之后出现
-                match (poundIdx) {
-                    case None => return false
-                    case Some(_) => ()
-                }
+        if (c == UInt8(58) || c == UInt8(64)) {
+            // : 和 @ 只能在 # 之后出现
+            match (poundIdx) {
+                case Some(_) => ()
+                case None => return false
             }
-            case '#' => {
-                poundIdx = i
-            }
-            case '/' => {
-                if (seenSlash && poundIdx == None) {
-                    return false
-                }
-                seenSlash = true
-            }
-            case _ => {
-                // 空格只能在 # 之后
-                if (c.value <= 0x20 && poundIdx == None) {
-                    return false
-                }
-            }
+        } else if (c == UInt8(35)) {
+            poundIdx = Some<Int64>(Int64(i))
+        } else if (c == UInt8(47)) {
+            seenSlash = true
         }
     }
 
     // 不以 / 结尾
     let doesNotEndWithSlash = match (poundIdx) {
-        case Some(pi) => pi == 0 || npaStr[Int64(pi) - 1] != '/'
-        case None => npaStr.length >= 1 && npaStr[npaStr.length - 1] != '/'
+        case Some(pi) => pi == 0 || npaStr[Int64(pi) - 1] != UInt8(47)
+        case None => npaStr.size >= 1 && npaStr[npaStr.size - 1] != UInt8(47)
     }
 
     return seenSlash && doesNotEndWithSlash
@@ -728,68 +690,25 @@ public func normalizeProtocol(npaStr: String): Tuple2<UrlProtocol, String> {
 
     // 检查是否是已知协议
     match (firstColonIdx) {
-        case Some(colIdx) => {
-            let protoSlice = npaStr.substring(0, colIdx + 1)
-            let wfProto = WellDefinedProtocol.fromStringWithColon(protoSlice)
-
-            match (wfProto) {
-                case Some(proto) => {
+        case Some(colIdx) =>
+            let protocolWithColon = npaStr[0..(colIdx + 1)]
+            let proto = WellDefinedProtocol.fromStringWithColon(protocolWithColon)
+            match (proto) {
+                case Some(wfProto) =>
                     // 已知协议
-                    var postColon = npaStr.substring(colIdx + 1)
+                    var postColon = npaStr[(colIdx + 1)..]
                     if (postColon.startsWith("//")) {
-                        postColon = postColon.substring(2)
+                        postColon = postColon[2..]
                     }
-                    return Tuple2(UrlProtocol.WellFormed(proto), postColon)
-                }
-                case None => ()
+                    return Tuple2(UrlProtocol.WellFormed(wfProto), postColon)
+                case None =>
+                    // 自定义协议
+                    let rest = npaStr[(colIdx + 1)..]
+                    let customProto = npaStr[0..(colIdx + 1)]
+                    return Tuple2(UrlProtocol.Custom(customProto), rest)
             }
-
-            // 检查 @ 字符
-            let firstAtIdx = npaStr.indexOf("@")
-            match (firstAtIdx) {
-                case Some(atIdx) => {
-                    if (Int64(atIdx) < Int64(colIdx)) {
-                        // user@host:path -> git+ssh
-                        return Tuple2(UrlProtocol.WellFormed(WellDefinedProtocol.GitPlusSsh), npaStr)
-                    } else {
-                        // user:pass@host -> 可能是 git+ssh
-                        return Tuple2(UrlProtocol.WellFormed(WellDefinedProtocol.GitPlusSsh), npaStr)
-                    }
-                }
-                case None => ()
-            }
-
-            // 检查 //
-            let dupSlashIdx = npaStr.indexOf("//")
-            match (dupSlashIdx) {
-                case Some(dsIdx) => {
-                    if (Int64(dsIdx) == Int64(colIdx) + 1) {
-                        let rest = npaStr.substring(dsIdx + 2)
-                        let customProto = npaStr.substring(0, dsIdx)
-                        return Tuple2(UrlProtocol.Custom(customProto), rest)
-                    }
-                }
-                case None => ()
-            }
-
-            // 自定义协议
-            let rest = npaStr.substring(colIdx + 1)
-            let customProto = npaStr.substring(0, colIdx + 1)
-            return Tuple2(UrlProtocol.Custom(customProto), rest)
-        }
-        case None => {
+        case None =>
             // 没有 : 字符
-            // 检查 @ 字符
-            let atIdx = npaStr.indexOf("@")
-            match (atIdx) {
-                case Some(_) => {
-                    // user@host -> git+ssh
-                    return Tuple2(UrlProtocol.WellFormed(WellDefinedProtocol.GitPlusSsh), npaStr)
-                }
-                case None => {
-                    return Tuple2(UrlProtocol.Unknown, npaStr)
-                }
-            }
-        }
+            return Tuple2(UrlProtocol.Unknown, npaStr)
     }
 }

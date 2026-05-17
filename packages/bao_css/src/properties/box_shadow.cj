@@ -7,6 +7,7 @@
 package bao_css.properties
 
 import bao_core.*
+import bao_collections.*
 
 // ============================================================================
 // BoxShadow
@@ -23,7 +24,7 @@ public class BoxShadow {
     public var spread: String    // 扩展距离
     public var inset: Bool       // 是否内嵌阴影
 
-    public init(color: String, xOffset: String, yOffset: String, blur: String, spread: String, inset: Bool) {
+    public init(color!: String, xOffset!: String, yOffset!: String, blur!: String, spread!: String, inset!: Bool) {
         this.color = color
         this.xOffset = xOffset
         this.yOffset = yOffset
@@ -57,6 +58,9 @@ public class BoxShadow {
             parts.append(color)
         }
 
-        return String.join(" ", parts)
+        var partArr = Array<String>(parts.size, repeat: "")
+        var pi: Int64 = 0
+        for (p in parts) { partArr[pi] = p; pi += 1 }
+        return String.join(partArr, delimiter: " ")
     }
 }

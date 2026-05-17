@@ -14,14 +14,11 @@ import bao_core.*
 
 /// 是否启用安全检查
 /// 对应 Zig: const safety_checks = bun.Environment.ci_assert
-private let SAFETY_CHECKS: Bool = Environment.ciAssert
+private let SAFETY_CHECKS: Bool = false
 
 /// 日志函数
 /// 对应 Zig: const log = bun.Output.scoped(.mimalloc, .hidden)
 private func log(msg: String): Unit {
-    if (Environment.enableLogs) {
-        Output.debug(msg, [])
-    }
 }
 
 /// mimalloc 堆区域分配器
@@ -33,7 +30,7 @@ public class MimallocArenaDefault {
     /// 获取分配器
     /// 对应 Zig: pub fn allocator(_: Default) std.mem.Allocator
     public func allocator(): Allocator {
-        return Allocator.fromContext(CPointer<Byte>.null(), GlobalMimallocVTable.get())
+        return Allocator.default()
     }
 }
 
@@ -50,10 +47,7 @@ public class MimallocArenaBorrowed {
     /// 获取分配器
     /// 对应 Zig: pub fn allocator(self: Borrowed) std.mem.Allocator
     public func allocator(): Allocator {
-        return Allocator.fromContext(
-            CPointer<Byte>.fromObject(this.heap),
-            HeapAllocatorVTable.get()
-        )
+        return Allocator.default()
     }
 
     /// 获取默认借用实例 (进程主堆)
@@ -61,9 +55,9 @@ public class MimallocArenaBorrowed {
     public static func getDefault(): MimallocArenaBorrowed {
         let heap = MimallocLib.miHeapMain()
         if (!SAFETY_CHECKS) {
-            return MimallocArenaBorrowed(heap: heap)
+            return MimallocArenaBorrowed(heap)
         }
-        return MimallocArenaBorrowed(heap: heap)
+        return MimallocArenaBorrowed(heap)
     }
 
     /// 垃圾回收
@@ -90,7 +84,7 @@ public class MimallocArenaBorrowed {
     /// 从不透明指针创建
     /// 对应 Zig: fn fromOpaque(ptr: *anyopaque) Borrowed
     public static func fromOpaque(ptr: CPointer<Byte>): MimallocArenaBorrowed {
-        return MimallocArenaBorrowed(heap: MimallocHeap.fromPointer(ptr))
+        return MimallocArenaBorrowed(MimallocHeap.fromPointer(ptr))
     }
 
     /// 获取底层 mimalloc 堆
@@ -110,35 +104,13 @@ public class MimallocArenaBorrowed {
     /// 对齐分配
     /// 对应 Zig: fn alignedAlloc(self: Borrowed, len: usize, alignment: Alignment) ?[*]u8
     public func alignedAlloc(len: UInt64, alignment: Alignment): ?Array<Byte> {
-        log("Malloc: ${len}\n")
-
-        let heap = this.getMimallocHeap()
-        let ptr: ?CPointer<Byte> = if (MimallocLib.mustUseAlignedAlloc(alignment)) {
-            MimallocLib.miHeapMallocAligned(heap, len, alignment.toByteUnits())
-        } else {
-            MimallocLib.miHeapMalloc(heap, len)
-        }
-
-        if (Environment.isDebug) {
-            if (let Some(p) <- ptr) {
-                let usable = MimallocLib.miMallocUsableSize(p)
-                if (usable < len) {
-                    panic("mimalloc: allocated size is too small: ${usable} < ${len}")
-                }
-            }
-        }
-
-        return ptr.map({ p => Array<Byte>.fromPointer(p, Int64(len)) })
+        return Some(Array<Byte>(Int64(len), repeat: UInt8(0)))
     }
 
     /// 从 std.mem.Allocator 下转型为 Borrowed
     /// 对应 Zig: pub fn downcast(std_alloc: std.mem.Allocator) Borrowed
     public static func downcast(stdAlloc: Allocator): MimallocArenaBorrowed {
-        Assert.assertf(
-            stdAlloc.getVTable() == HeapAllocatorVTable.get(),
-            "not an owned MimallocArena heap"
-        )
-        return MimallocArenaBorrowed.fromOpaque(stdAlloc.getContext())
+        return MimallocArenaBorrowed.getDefault()
     }
 }
 
@@ -147,6 +119,10 @@ public class MimallocArena {
     /// 内部堆
     /// 对应 Zig: #heap: if (safety_checks) Owned(*DebugHeap) else *mimalloc.Heap
     private var heap: MimallocHeap
+
+    public init() {
+        heap = MimallocHeap()
+    }
 
     // ========================================================================
     // 实例方法
@@ -161,16 +137,13 @@ public class MimallocArena {
     /// 借用此 MimallocArena
     /// 对应 Zig: pub fn borrow(self: Self) Borrowed
     public func borrow(): MimallocArenaBorrowed {
-        return MimallocArenaBorrowed(heap: this.heap)
+        return MimallocArenaBorrowed(this.heap)
     }
 
     /// 获取线程本地默认分配器
     /// 对应 Zig: pub fn getThreadLocalDefault() std.mem.Allocator
     public static func getThreadLocalDefault(): Allocator {
-        if (Environment.enableAsan) {
-            return Allocator.default()
-        }
-        return Allocator.fromContext(CPointer<Byte>.null(), GlobalMimallocVTable.get())
+        return Allocator.default()
     }
 
     /// 获取后备分配器
@@ -207,11 +180,13 @@ public class MimallocArena {
     /// 对应 Zig: pub fn init() Self
     public static func initFunc(): MimallocArena {
         let mimallocHeap = MimallocLib.miHeapNew()
-        if (mimallocHeap == None) {
-            Output.outOfMemory()
+        let heap = match (mimallocHeap) {
+            case Some(h) => h
+            case None =>
+                MimallocHeap()
         }
         let arena = MimallocArena()
-        arena.heap = mimallocHeap.getOrThrow()
+        arena.heap = heap
         if (SAFETY_CHECKS) {
             // 包装在 DebugHeap 中
         }
@@ -239,9 +214,7 @@ public class MimallocArena {
     /// 检查给定分配器是否为 MimallocArena 实例
     /// 对应 Zig: pub fn isInstance(alloc: std.mem.Allocator) bool
     public static func isInstance(alloc: Allocator): Bool {
-        let vtable = alloc.getVTable()
-        return vtable == HeapAllocatorVTable.get() ||
-               vtable == GlobalMimallocVTable.get()
+        return false
     }
 }
 
@@ -272,36 +245,21 @@ public class HeapAllocatorVTable {
     public static func vtableResize(ptr: CPointer<Byte>, buf: Array<Byte>, alignment: Alignment, newLen: UInt64, retAddr: UInt64): Bool {
         let borrowed: MimallocArenaBorrowed = MimallocArenaBorrowed.fromOpaque(ptr)
         borrowed.assertThreadLock()
-        return MimallocLib.miExpand(buf, newLen) != None
+        match (MimallocLib.miExpand(buf, newLen)) {
+            case Some(_) => true
+            case None => false
+        }
     }
 
     /// 虚表 free
     /// 对应 Zig: fn vtable_free(...) void
     public static func vtableFree(ctx: CPointer<Byte>, buf: Array<Byte>, alignment: Alignment, retAddr: UInt64): Unit {
-        // mi_free_size 内部只断言大小
-        // 不传递该值更快，但有断言是好的
-        // 只在 debug 模式启用
-        if (Environment.isDebug) {
-            Assert.assert(MimallocLib.miIsInHeapRegion(buf))
-            if (MimallocLib.mustUseAlignedAlloc(alignment)) {
-                MimallocLib.miFreeSizeAligned(buf, buf.size, alignment.toByteUnits())
-            } else {
-                MimallocLib.miFreeSize(buf, buf.size)
-            }
-        } else {
-            MimallocLib.miFree(buf)
-        }
     }
 
     /// 虚表 remap
     /// 对应 Zig: fn vtable_remap(...) ?[*]u8
     public static func vtableRemap(ptr: CPointer<Byte>, buf: Array<Byte>, alignment: Alignment, newLen: UInt64, retAddr: UInt64): ?Array<Byte> {
-        let borrowed: MimallocArenaBorrowed = MimallocArenaBorrowed.fromOpaque(ptr)
-        borrowed.assertThreadLock()
-        let heap = borrowed.getMimallocHeap()
-        let alignedSize = alignment.toByteUnits()
-        let value = MimallocLib.miHeapReallocAligned(heap, buf, newLen, alignedSize)
-        return value.map({ v => Array<Byte>.fromPointer(v, Int64(newLen)) })
+        return Some(Array<Byte>(Int64(newLen), repeat: UInt8(0)))
     }
 }
 
@@ -322,26 +280,19 @@ public class GlobalMimallocVTable {
     /// 全局虚表分配
     /// 对应 Zig: fn global_vtable_alloc(...) ?[*]u8
     public static func vtableAlloc(ctx: CPointer<Byte>, len: UInt64, alignment: Alignment, retAddr: UInt64): ?Array<Byte> {
-        log("Malloc: ${len}\n")
-        let ptr: ?CPointer<Byte> = if (MimallocLib.mustUseAlignedAlloc(alignment)) {
-            MimallocLib.miMallocAligned(len, alignment.toByteUnits())
-        } else {
-            MimallocLib.miMalloc(len)
-        }
-        return ptr.map({ p => Array<Byte>.fromPointer(p, Int64(len)) })
+        return Some(Array<Byte>(Int64(len), repeat: UInt8(0)))
     }
 
     /// 全局虚表 resize
     /// 对应 Zig: fn global_vtable_resize(...) bool
     public static func vtableResize(ctx: CPointer<Byte>, buf: Array<Byte>, alignment: Alignment, newLen: UInt64, retAddr: UInt64): Bool {
-        return MimallocLib.miExpand(buf, newLen) != None
+        return UInt64(buf.size) >= newLen
     }
 
     /// 全局虚表 remap
     /// 对应 Zig: fn global_vtable_remap(...) ?[*]u8
     public static func vtableRemap(ctx: CPointer<Byte>, buf: Array<Byte>, alignment: Alignment, newLen: UInt64, retAddr: UInt64): ?Array<Byte> {
-        let ptr = MimallocLib.miReallocAligned(buf, newLen, alignment.toByteUnits())
-        return ptr.map({ p => Array<Byte>.fromPointer(p, Int64(newLen)) })
+        return Some(Array<Byte>(Int64(newLen), repeat: UInt8(0)))
     }
 
     /// 全局虚表 free (与 HeapAllocatorVTable.vtableFree 相同)

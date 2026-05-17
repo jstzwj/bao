@@ -112,8 +112,3 @@ public class MemoryCost {
         return StringArrayHashMapUnmanaged<V>.capacityInBytes(map.entries.capacity)
     }
 }
-
-// 类型别名
-public type ArrayListUnmanaged<T> = std.ArrayListUnmanaged<T>
-public type StringArrayHashMapUnmanaged<V> = std.StringArrayHashMapUnmanaged<V>
-public type HmrSocket = dev_server.HmrSocket

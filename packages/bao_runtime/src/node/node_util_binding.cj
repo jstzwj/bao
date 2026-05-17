@@ -132,15 +132,15 @@ public class ParseEnv {
         let result = HashMap<String, String>()
         let lines = content.split('\n')
         for (line in lines) {
-            let trimmed = line.trim()
+            let trimmed = line.trimAscii()
             if (trimmed.size == 0 || trimmed.startsWith("#")) {
                 continue
             }
             let eqIdx = trimmed.indexOf('=')
             if (eqIdx != None) {
                 let idx = eqIdx.getOrThrow()
-                let key = trimmed.substring(0, idx).trim()
-                var value = trimmed.substring(idx + 1, trimmed.size).trim()
+                let key = trimmed.substring(0, idx).trimAscii()
+                var value = trimmed.substring(idx + 1, trimmed.size).trimAscii()
                 // 去除引号
                 if ((value.startsWith("\"") && value.endsWith("\"")) ||
                     (value.startsWith("'") && value.endsWith("'"))) {

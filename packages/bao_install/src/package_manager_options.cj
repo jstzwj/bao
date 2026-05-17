@@ -186,7 +186,7 @@ public enum PublishAccess {
 /// Patch 功能选项
 /// 翻译自: Options.patch_features
 public enum PatchFeatures {
-    | Nothing
+    | `Nothing`
     | Patch
     | Commit(String)   // patches_dir
 }
@@ -360,7 +360,7 @@ public class PackageManagerOptionsFull {
         localPackageFeatures.optionalDependencies = true
         localPackageFeatures.devDependencies = true
         localPackageFeatures.workspaces = true
-        patchFeatures = PatchFeatures.Nothing
+        patchFeatures = PatchFeatures.`Nothing`
         filterPatterns = ArrayList<String>()
         maxRetryCount = UInt16(5)
         minSimultaneousRequests = 4
@@ -405,64 +405,3 @@ public class PublishConfigFull {
         tolerateRepublish = false
     }
 }
-
-/// NPM 注册表 scope
-/// 翻译自: Npm.Registry.Scope
-public class NpmRegistryScope {
-    public var url: String
-    public var token: String
-    public var auth: String
-    public var urlHash: UInt64
-
-    public init() {
-        url = "https://registry.npmjs.org/"
-        token = ""
-        auth = ""
-        urlHash = UInt64(0)
-    }
-
-    public init(url: String, token: String, auth: String) {
-        this.url = url
-        this.token = token
-        this.auth = auth
-        urlHash = UInt64(0)
-    }
-
-    /// 为包名查找 scope
-    /// 翻译自: scopeForPackageName
-    public static func hash(name: String): UInt64 {
-        return SemverStringBuilder.stringHashStr(name)
-    }
-}
-
-/// NPM 注册表映射
-public class NpmRegistryMap {
-    private var map: HashMap<UInt64, NpmRegistryScope>
-
-    public init() {
-        map = HashMap<UInt64, NpmRegistryScope>()
-    }
-
-    public func put(key: UInt64, scope: NpmRegistryScope): Unit {
-        map.put(key, scope)
-    }
-
-    public func get(key: UInt64): ?NpmRegistryScope {
-        return map.get(key)
-    }
-
-    public func scopeForPackageName(name: String): NpmRegistryScope {
-        if (name.length == 0 || name[0].value != 64) { // '@'
-            return NpmRegistryScope()
-        }
-        let scopeName = name.substring(1, name.indexOf("/").getOr(name.length))
-        let hash = SemverStringBuilder.stringHashStr(scopeName)
-        match (map.get(hash)) {
-            case Some(scope) => return scope
-            case None => return NpmRegistryScope()
-        }
-    }
-}
-
-/// NPM 默认注册表 URL
-public let NPM_DEFAULT_REGISTRY: String = "https://registry.npmjs.org/"

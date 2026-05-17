@@ -5,6 +5,32 @@ package bao_sql
 import bao_core.*
 import bao_collections.*
 
+private func sliceString(s: String, start: Int64, end: Int64): String {
+    let sb = StringBuilder()
+    var i = start
+    while (i < end && i < s.size) {
+        sb.append(s[i].toString())
+        i += 1
+    }
+    return sb.toString()
+}
+
+private func trimString(s: String): String {
+    var start: Int64 = 0
+    var end = s.size
+    while (start < end && isSpace(s[start])) {
+        start += 1
+    }
+    while (end > start && isSpace(s[end - 1])) {
+        end -= 1
+    }
+    return sliceString(s, start, end)
+}
+
+private func isSpace(c: UInt8): Bool {
+    return c == UInt8(32) || c == UInt8(9) || c == UInt8(10) || c == UInt8(13)
+}
+
 // ============================================================================
 // Migration — 单个迁移
 // 严格翻译自: src/sql/migration.zig - Migration struct
@@ -112,11 +138,10 @@ public class MigrationFile {
         // 从文件名提取名称和版本
         let migration = parseFileName()
         match (migration) {
-            case Some(m) => {
+            case Some(m) =>
                 // 解析文件内容
                 parseContent(m)
                 return Some(m)
-            }
             case None => return None
         }
     }
@@ -126,30 +151,30 @@ public class MigrationFile {
     private func parseFileName(): ?Migration {
         var name = fileName
         // 去除路径
-        let lastSlash = name.lastIndexOf('/')
-        if (lastSlash >= 0) {
-            name = name.substring(lastSlash + 1)
+        match (name.lastIndexOf("/")) {
+            case Some(lastSlash) => name = sliceString(name, lastSlash + 1, name.size)
+            case None => ()
         }
         // 去除 .sql 扩展名
         if (name.endsWith(".sql")) {
-            name = name.substring(0, name.length - 4)
+            name = sliceString(name, 0, name.size - 4)
         }
         // 去除 .up 或 .down 后缀
         var isUp = true
         if (name.endsWith(".up")) {
-            name = name.substring(0, name.length - 3)
+            name = sliceString(name, 0, name.size - 3)
         } else if (name.endsWith(".down")) {
-            name = name.substring(0, name.length - 5)
+            name = sliceString(name, 0, name.size - 5)
             isUp = false
         }
 
         // 提取版本号 (前导数字)
         var version: Int64 = 0
-        var i = 0
-        while (i < name.length) {
+        var i: Int64 = 0
+        while (i < name.size) {
             let c = name[i]
-            if (c >= '0' && c <= '9') {
-                version = version * 10 + Int64(c.value - '0'.value)
+            if (c >= UInt8(48) && c <= UInt8(57)) {
+                version = version * 10 + Int64(c - UInt8(48))
                 i += 1
             } else {
                 break
@@ -158,8 +183,8 @@ public class MigrationFile {
 
         // 提取描述部分 (跳过分隔符 _)
         var desc = name
-        while (desc.length > 0 && (desc[0] == '_' || desc[0] == '-')) {
-            desc = desc.substring(1)
+        while (desc.size > 0 && (desc[0] == UInt8(95) || desc[0] == UInt8(45))) {
+            desc = sliceString(desc, 1, desc.size)
         }
 
         let m = Migration(desc, version, "", "")
@@ -178,7 +203,7 @@ public class MigrationFile {
         var downParts = ArrayList<String>()
 
         for (line in lines) {
-            let trimmed = line.trim()
+            let trimmed = trimString(line)
             // 检查分隔标记
             if (trimmed.startsWith("-- +migrate Up") || trimmed.startsWith("-- +migrate up")) {
                 currentSection = "up"
@@ -203,15 +228,15 @@ public class MigrationFile {
         }
 
         // 如果没有找到分隔标记，整个内容作为 up
-        if (upParts.size > 0 && migration.up_.length == 0) {
+        if (upParts.size > 0 && migration.up_.size == 0) {
             migration.up_ = joinLines(upParts)
         }
-        if (downParts.size > 0 && migration.down_.length == 0) {
+        if (downParts.size > 0 && migration.down_.size == 0) {
             migration.down_ = joinLines(downParts)
         }
 
         // 如果 up_ 仍为空，使用全部内容
-        if (migration.up_.length == 0 && content.length > 0) {
+        if (migration.up_.size == 0 && content.size > 0) {
             migration.up_ = content
         }
     }
@@ -223,7 +248,7 @@ public class MigrationFile {
             if (i > 0) { result += "\n" }
             result += lines[i]
         }
-        return result.trim()
+        return trimString(result)
     }
 }
 
@@ -305,7 +330,7 @@ public class MigrationTable {
     /// 记录迁移已应用
     /// 对应 Bun: INSERT INTO migrations
     public func recordApplied(migration: Migration): Unit {
-        db.run(
+        _ = db.query(
             "INSERT INTO ${TABLE_NAME} (name, version) VALUES (?, ?)",
             [SqlValue.Text(migration.name), SqlValue.Integer(migration.version)]
         )
@@ -314,7 +339,7 @@ public class MigrationTable {
     /// 记录迁移已回滚
     /// 对应 Bun: DELETE FROM migrations WHERE version = ?
     public func recordReverted(migration: Migration): Unit {
-        db.run(
+        _ = db.query(
             "DELETE FROM ${TABLE_NAME} WHERE version = ?",
             [SqlValue.Integer(migration.version)]
         )
@@ -410,12 +435,12 @@ public class MigrationRunner {
         for (migration in migrations) {
             if (!applied.contains(migration.name)) {
                 // 在事务中执行迁移
-                db.transaction({
-                    db.exec(migration.up_)
-                    table.recordApplied(migration)
-                    migration.applied = true
-                    migration.appliedAt = currentTimeString()
-                })
+                db.exec("BEGIN")
+                db.exec(migration.up_)
+                table.recordApplied(migration)
+                migration.applied = true
+                migration.appliedAt = currentTimeString()
+                db.exec("COMMIT")
                 count += 1
                 println("  Applied: ${migration.name}")
             }
@@ -448,10 +473,10 @@ public class MigrationRunner {
             var found = false
             for (migration in migrations) {
                 if (migration.version == version) {
-                    db.transaction({
-                        db.exec(migration.down_)
-                        table.recordReverted(migration)
-                    })
+                    db.exec("BEGIN")
+                    db.exec(migration.down_)
+                    table.recordReverted(migration)
+                    db.exec("COMMIT")
                     rolledBack += 1
                     println("  Rolled back: ${migration.name}")
                     found = true
@@ -460,8 +485,8 @@ public class MigrationRunner {
             }
             if (!found) {
                 // 迁移文件缺失，仅删除记录
-                db.run(
-                    "DELETE FROM ${TABLE_NAME} WHERE version = ?",
+                _ = db.query(
+                    "DELETE FROM ${MigrationTable.TABLE_NAME} WHERE version = ?",
                     [SqlValue.Integer(version)]
                 )
                 rolledBack += 1

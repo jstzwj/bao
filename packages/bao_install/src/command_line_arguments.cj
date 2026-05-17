@@ -33,7 +33,11 @@ public enum AuditLevel {
     }
 
     public func shouldIncludeSeverity(severity: String): Bool {
-        let severityLevel = AuditLevel.fromString(severity).getOr(Moderate)
+        let severityResult = AuditLevel.fromString(severity)
+        var severityLevel = Moderate
+        if (let Some(level) <- severityResult) {
+            severityLevel = level
+        }
         return severityLevel.toInt() >= toInt()
     }
 
@@ -60,7 +64,7 @@ public enum AuditLevel {
 /// Patch 选项
 /// 翻译自: CommandLineArguments.PatchOpts
 public enum PatchOpts {
-    | Nothing
+    | `Nothing`
     | Patch
     | Commit(String)   // patches_dir
 }
@@ -305,7 +309,7 @@ public class CommandLineArgumentsFull {
         analyze = false
         onlyMissing = false
         concurrentScripts = None
-        patch = PatchOpts.Nothing
+        patch = PatchOpts.`Nothing`
         registry = ""
         publishAccess = None
         publishTag = ""

@@ -69,27 +69,24 @@ public class Decompressor {
     /// 严格翻译自: Decompressor.deinit
     public func deinit(): Unit {
         match (type_) {
-            case DecompressorType.zlib => {
+            case DecompressorType.zlib =>
                 match (zlibReader) {
                     case Some(reader) => reader.deinit()
                     case None => ()
                 }
                 zlibReader = None
-            }
-            case DecompressorType.brotli => {
+            case DecompressorType.brotli =>
                 match (brotliReader) {
                     case Some(reader) => reader.deinit()
                     case None => ()
                 }
                 brotliReader = None
-            }
-            case DecompressorType.zstd => {
+            case DecompressorType.zstd =>
                 match (zstdReader) {
                     case Some(reader) => reader.deinit()
                     case None => ()
                 }
                 zstdReader = None
-            }
             case DecompressorType.none => ()
         }
         type_ = DecompressorType.none
@@ -152,61 +149,56 @@ public class Decompressor {
         }
 
         // 创建解压器 (首次)
-        if (type_ == DecompressorType.none) {
-            match (encoding) {
-                case gzip => {
+        match (type_) {
+            case none =>
+                match (encoding) {
+                case gzip =>
                     // gzip: windowBits = MAX_WBITS | 16 = 15 | 16 = 31
                     let reader = ZlibReader(buffer, bodyOutStr, 31)
                     zlibReader = Some(reader)
                     type_ = DecompressorType.zlib
                     return true
-                }
-                case deflate => {
+                case deflate =>
                     // deflate: 检测首字节
                     // buffer[0] == 120 (0x78) 表示 zlib header, windowBits = 0
                     // 否则 raw deflate, windowBits = -MAX_WBITS = -15
-                    let wbits = if (buffer.size > 1 && buffer[0] == UInt8(120)) { 0 } else { -15 }
+                    let wbits: Int32 = if (buffer.size > 1 && buffer[0] == UInt8(120)) { Int32(0) } else { Int32(-15) }
                     let reader = ZlibReader(buffer, bodyOutStr, wbits)
                     zlibReader = Some(reader)
                     type_ = DecompressorType.zlib
                     return true
-                }
-                case brotli => {
+                case brotli =>
                     let reader = BrotliReader(buffer, bodyOutStr)
                     brotliReader = Some(reader)
                     type_ = DecompressorType.brotli
                     return true
-                }
-                case zstd => {
+                case zstd =>
                     let reader = ZstdReader(buffer, bodyOutStr)
                     zstdReader = Some(reader)
                     type_ = DecompressorType.zstd
                     return true
+                    case _ => return false
                 }
-                case _ => return false
-            }
+            case _ => ()
         }
 
         // 更新已有解压器的输入缓冲区
         match (type_) {
-            case DecompressorType.zlib => {
+            case DecompressorType.zlib =>
                 match (zlibReader) {
                     case Some(reader) => reader.updateInput(buffer, bodyOutStr)
                     case None => ()
                 }
-            }
-            case DecompressorType.brotli => {
+            case DecompressorType.brotli =>
                 match (brotliReader) {
                     case Some(reader) => reader.updateInput(buffer, bodyOutStr)
                     case None => ()
                 }
-            }
-            case DecompressorType.zstd => {
+            case DecompressorType.zstd =>
                 match (zstdReader) {
                     case Some(reader) => reader.updateInput(buffer, bodyOutStr)
                     case None => ()
                 }
-            }
             case _ => ()
         }
 
@@ -232,24 +224,21 @@ public class Decompressor {
     /// 严格翻译自: Decompressor.readAll
     public func readAll(isDone: Bool): Bool {
         match (type_) {
-            case DecompressorType.zlib => {
+            case DecompressorType.zlib =>
                 match (zlibReader) {
                     case Some(reader) => return reader.readAll()
                     case None => return false
                 }
-            }
-            case DecompressorType.brotli => {
+            case DecompressorType.brotli =>
                 match (brotliReader) {
                     case Some(reader) => return reader.readAll()
                     case None => return false
                 }
-            }
-            case DecompressorType.zstd => {
+            case DecompressorType.zstd =>
                 match (zstdReader) {
                     case Some(reader) => return reader.readAll()
                     case None => return false
                 }
-            }
             case DecompressorType.none => return false
         }
     }

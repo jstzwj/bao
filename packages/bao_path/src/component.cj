@@ -5,6 +5,7 @@
 package bao_path
 
 import bao_core.*
+import bao_collections.*
 
 // ============================================================================
 // Component - 路径组件
@@ -76,34 +77,34 @@ public class EnhancedComponentIterator {
                 //   var i: usize = 0;
                 //   while (i < path.len() && fmt.is_sep(path[i])) { i += 1; }
                 //   i
-                while (rEnd < path.size && isSep(path[Int64(rEnd)])) {
+                while (rEnd < path.size && isSepForFormat(fmt,path[Int64(rEnd)])) {
                     rEnd += 1
                 }
             case Windows =>
                 // Windows 根检测: "C:\" 或 "\\server\share\"
-                if (path.size >= 3 && path[1] == Char(':') && isSep(path[2])) {
+                if (path.size >= 3 && path[1] == UInt8(58) && isSepForFormat(fmt,path[2])) {
                     rEnd = 3
-                } else if (path.size >= 2 && isSep(path[0]) && isSep(path[1])) {
+                } else if (path.size >= 2 && isSepForFormat(fmt,path[0]) && isSepForFormat(fmt,path[1])) {
                     // UNC: \\server\share\
                     var i: Int64 = 2
                     // 跳过 server 名
-                    while (i < path.size && !isSep(path[Int64(i)])) {
+                    while (i < path.size && !isSepForFormat(fmt,path[Int64(i)])) {
                         i += 1
                     }
                     // 跳过分隔符
-                    while (i < path.size && isSep(path[Int64(i)])) {
+                    while (i < path.size && isSepForFormat(fmt,path[Int64(i)])) {
                         i += 1
                     }
                     // 跳过 share 名
-                    while (i < path.size && !isSep(path[Int64(i)])) {
+                    while (i < path.size && !isSepForFormat(fmt,path[Int64(i)])) {
                         i += 1
                     }
                     // 跳过尾部分隔符
-                    while (i < path.size && isSep(path[Int64(i)])) {
+                    while (i < path.size && isSepForFormat(fmt,path[Int64(i)])) {
                         i += 1
                     }
                     rEnd = i
-                } else if (path.size >= 1 && isSep(path[0])) {
+                } else if (path.size >= 1 && isSepForFormat(fmt,path[0])) {
                     rEnd = 1
                 }
         }
@@ -118,7 +119,7 @@ public class EnhancedComponentIterator {
         this.fmt = PathFormat.Posix
 
         var rEnd: Int64 = 0
-        while (rEnd < path.size && path[Int64(rEnd)] == Char('/')) {
+        while (rEnd < path.size && path[Int64(rEnd)] == UInt8(47)) {
             rEnd += 1
         }
         rootEnd = rEnd
@@ -134,7 +135,7 @@ public class EnhancedComponentIterator {
         if (rootEnd == 0) {
             return None
         }
-        return path.substring(0, Int64(rootEnd))
+        return path[0..rootEnd]
     }
 
     /// 移动到第一个组件 - 对应 ComponentIterator::first
@@ -148,16 +149,13 @@ public class EnhancedComponentIterator {
     public func first(): ?PathSlice {
         startPos = rootEnd
         endPos = startPos
-        while (endPos < path.size && !isSep(path[Int64(endPos)])) {
+        while (endPos < path.size && !isSepForFormat(fmt,path[Int64(endPos)])) {
             endPos += 1
         }
         if (endPos == startPos) {
             return None
         }
-        return PathSlice(
-            name: path.substring(Int64(startPos), Int64(endPos)),
-            path: path.substring(0, Int64(endPos))
-        )
+        return PathSlice(path[startPos..endPos], path[0..endPos])
     }
 
     /// 移动到最后一个组件 - 对应 ComponentIterator::last
@@ -181,23 +179,20 @@ public class EnhancedComponentIterator {
                 startPos = endPos
                 return None
             }
-            if (!isSep(path[Int64(endPos - 1)])) {
+            if (!isSepForFormat(fmt,path[Int64(endPos - 1)])) {
                 break
             }
             endPos -= 1
         }
         startPos = endPos
         // 查找组件起始
-        while (startPos > rootEnd && !isSep(path[Int64(startPos - 1)])) {
+        while (startPos > rootEnd && !isSepForFormat(fmt,path[Int64(startPos - 1)])) {
             startPos -= 1
         }
         if (startPos == endPos) {
             return None
         }
-        return PathSlice(
-            name: path.substring(Int64(startPos), Int64(endPos)),
-            path: path.substring(0, Int64(endPos))
-        )
+        return PathSlice(path[startPos..endPos], path[0..endPos])
     }
 
     /// 移动到下一个组件 - 对应 ComponentIterator::next
@@ -209,7 +204,7 @@ public class EnhancedComponentIterator {
     ///   }
     public func next(): ?PathSlice {
         let p = peekNext()
-        if (let Some(comp) = p) {
+        if (let Some(comp) <- p) {
             startPos = comp.path.size - comp.name.size
             endPos = comp.path.size
             return comp
@@ -228,20 +223,17 @@ public class EnhancedComponentIterator {
     ///   }
     public func peekNext(): ?PathSlice {
         var start: Int64 = endPos
-        while (start < path.size && isSep(path[Int64(start)])) {
+        while (start < path.size && isSepForFormat(fmt,path[Int64(start)])) {
             start += 1
         }
         var end: Int64 = start
-        while (end < path.size && !isSep(path[Int64(end)])) {
+        while (end < path.size && !isSepForFormat(fmt,path[Int64(end)])) {
             end += 1
         }
         if (start == end) {
             return None
         }
-        return PathSlice(
-            name: path.substring(Int64(start), Int64(end)),
-            path: path.substring(0, Int64(end))
-        )
+        return PathSlice(path[start..end], path[0..end])
     }
 
     /// 移动到上一个组件 - 对应 ComponentIterator::previous
@@ -253,7 +245,7 @@ public class EnhancedComponentIterator {
     ///   }
     public func previous(): ?PathSlice {
         let p = peekPrevious()
-        if (let Some(comp) = p) {
+        if (let Some(comp) <- p) {
             startPos = comp.path.size - comp.name.size
             endPos = comp.path.size
             return comp
@@ -281,22 +273,19 @@ public class EnhancedComponentIterator {
             if (end == rootEnd) {
                 return None
             }
-            if (!isSep(path[Int64(end - 1)])) {
+            if (!isSepForFormat(fmt,path[Int64(end - 1)])) {
                 break
             }
             end -= 1
         }
         var start: Int64 = end
-        while (start > rootEnd && !isSep(path[Int64(start - 1)])) {
+        while (start > rootEnd && !isSepForFormat(fmt,path[Int64(start - 1)])) {
             start -= 1
         }
         if (start == end) {
             return None
         }
-        return PathSlice(
-            name: path.substring(Int64(start), Int64(end)),
-            path: path.substring(0, Int64(end))
-        )
+        return PathSlice(path[start..end], path[0..end])
     }
 
     /// 获取当前路径
@@ -316,20 +305,19 @@ public class EnhancedComponentIterator {
         endPos = rootEnd
         var result = ArrayList<PathSlice>()
         while (true) {
-            let comp = next()
-            if (comp == None) {
-                break
+            match (next()) {
+                case Some(comp) => result.append(comp)
+                case None => break
             }
-            result.append(comp.unwrap())
         }
         return result
     }
 
     // 内部分隔符判断
-    private func isSep(c: Char): Bool {
+    private static func isSepForFormat(fmt: PathFormat, c: UInt8): Bool {
         match (fmt) {
-            case Posix => c == Char('/')
-            case Windows => c == Char('/') || c == Char('\\')
+            case Posix => c == UInt8(47)
+            case Windows => c == UInt8(47) || c == UInt8(92)
         }
     }
 }

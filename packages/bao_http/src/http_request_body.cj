@@ -51,12 +51,12 @@ public enum HTTPRequestBody {
         match (this) {
             case bytes(s) => s.size
             case sendfile(sf) => sf.contentSize
-            case stream(_) => Int64.max  // 流式长度未知
+            case stream(_) => 9223372036854775807  // 流式长度未知
         }
     }
 
     /// 获取字节数据 (仅 bytes 模式)
-    public func bytes(): String {
+    public func getBytes(): String {
         match (this) {
             case bytes(s) => s
             case _ => ""
@@ -167,17 +167,15 @@ public class SendFileBody {
         // 实际通过 C FFI: sendfile(socket_fd, file_fd, offset, count)
         let result = sendFileSyscall(socketFd, fd, offset, remain)
         match (result) {
-            case Some(written) => {
+            case Some(written) =>
                 offset += written
                 remain -= written
                 if (remain <= 0) {
                     return SendFileStatus.done
                 }
                 return SendFileStatus.again
-            }
-            case None => {
+            case None =>
                 return SendFileStatus.err("SendFileError")
-            }
         }
     }
 
@@ -188,17 +186,4 @@ public class SendFileBody {
         // macOS: int sendfile(int fd, int s, off_t offset, off_t *sbytes, ...);
         return Some(count)
     }
-}
-
-/// SendFile 操作状态
-/// 严格翻译自: SendFile.Status
-///   pub const Status = union(enum) {
-///       done: void,
-///       err: anyerror,
-///       again: void,
-///   };
-public enum SendFileStatus {
-    | done           // 传输完成
-    | err(String)    // 传输错误
-    | again          // 需要再次调用 (非阻塞 IO)
 }

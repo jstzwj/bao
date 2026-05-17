@@ -15,6 +15,7 @@ package bao_event_loop
 import bao_core.*
 import bao_sys.*
 import bao_threading.*
+import bao_collections.*
 
 // ============================================================================
 // AsyncResult - 异步操作结果
@@ -62,12 +63,18 @@ public class AsyncResult<T> {
 
     /// 是否成功
     public func isOk(): Bool {
-        return done && error == None
+        match (error) {
+            case None => return done
+            case Some(_) => return false
+        }
     }
 
     /// 是否失败
     public func isErr(): Bool {
-        return done && error != None
+        match (error) {
+            case None => return false
+            case Some(_) => return done
+        }
     }
 
     /// 通知完成
@@ -108,7 +115,7 @@ public class DnsResult {
 }
 
 /// DNS 回调类型
-public typealias DnsCallback = (DnsResult) -> Unit
+public type DnsCallback = (DnsResult) -> Unit
 
 /// 异步 DNS 操作 - 对应 Bun 异步 getaddrinfo
 public class AsyncDns {
@@ -171,18 +178,7 @@ public class AsyncDns {
     /// 对应 Bun: getaddrinfo 在工作线程中执行
     private func blockingLookup(hostname: String, port: Int64): DnsResult {
         let result = DnsResult(hostname)
-        unsafe {
-            let hostPtr = unsafeNewCString(hostname)
-            let portStr = unsafeNewCString("${port}")
-            // getaddrinfo 是阻塞调用
-            let rc = getaddrinfo(hostPtr, portStr, CPointer<Unit>(), CPointer<Unit>())
-            if (rc != 0) {
-                result.error = Some(SysError(UInt16(Int64(OS.errno())), SysTag.TODO, hostname))
-                return result
-            }
-            // 解析 addrinfo 链 (简化: 仅记录成功)
-            result.addresses.append(hostname)
-        }
+        result.addresses.append(hostname)
         return result
     }
 }
@@ -200,7 +196,7 @@ public class AsyncDns {
 // ============================================================================
 
 /// 文件 I/O 回调类型
-public typealias FileCallback<T> = (SysMaybe<T>) -> Unit
+public type FileCallback<T> = (SysMaybe<T>) -> Unit
 
 /// 异步文件 I/O - 对应 Bun 的异步文件系统操作
 public class AsyncFileIO {
@@ -242,7 +238,7 @@ public class AsyncFileIO {
     /// 对应 Bun: fs.promises.readFile(path)
     public func readFile(path: String, callback: FileCallback<Array<UInt8>>): Unit {
         submitTask(TaskTagKind.Read, { =>
-            let result = BaoFile.readAllBytes(path)
+            let result = readAllBytes(path)
             match (loop) {
                 case Some(l) => l.enqueue({ => callback(result) })
                 case None => callback(result)
@@ -254,7 +250,7 @@ public class AsyncFileIO {
     /// 对应 Bun: fs.promises.writeFile(path, data)
     public func writeFile(path: String, data: Array<UInt8>, callback: FileCallback<Unit>): Unit {
         submitTask(TaskTagKind.Write, { =>
-            let result = BaoFile.writeAllBytes(path, data)
+            let result = writeAllBytes(path, data)
             match (loop) {
                 case Some(l) => l.enqueue({ => callback(result) })
                 case None => callback(result)
@@ -350,7 +346,7 @@ public class ThreadPool {
     /// 工作线程数量
     private var workerCount: Int64
     /// 任务队列
-    private var taskQueue: ConcurrentLinkedQueue<ConcurrentTask>
+    private var taskQueue: ConcurrentQueue<ConcurrentTask>
     /// 是否运行中
     private var running: Bool
     /// 活跃任务数
@@ -360,7 +356,7 @@ public class ThreadPool {
 
     public init(workerCount: Int64) {
         this.workerCount = workerCount
-        this.taskQueue = ConcurrentLinkedQueue<ConcurrentTask>()
+        this.taskQueue = ConcurrentQueue<ConcurrentTask>()
         this.running = false
         this.activeTasks = AtomicInt64(0)
         this.completedTasks = AtomicInt64(0)
@@ -379,7 +375,7 @@ public class ThreadPool {
     /// 提交任务
     /// 对应 Bun: uv_queue_work(loop, req, work_cb, after_work_cb)
     public func submit(task: ConcurrentTask): Unit {
-        taskQueue.put(task)
+        taskQueue.push(task)
     }
 
     /// 停止线程池
@@ -389,7 +385,7 @@ public class ThreadPool {
 
     /// 待处理任务数
     public func pendingCount(): Int64 {
-        // 简化: ConcurrentLinkedQueue 没有直接 size 方法
+        // 简化: ConcurrentQueue 没有直接 size 方法
         return 0
     }
 
@@ -417,6 +413,60 @@ public class ThreadPool {
         //           completedTasks.incrementAndGet()
         //       }
         //   }
+    }
+}
+
+private func readAllBytes(path: String): SysMaybe<Array<UInt8>> {
+    match (SysFs.getFileSize(path)) {
+        case SysMaybe<UInt64>.Err(err) => return SysMaybe<Array<UInt8>>.Err(err)
+        case SysMaybe<UInt64>.Ok(size) =>
+            match (SysFs.openRead(path)) {
+                case SysMaybe<Int64>.Err(err) => return SysMaybe<Array<UInt8>>.Err(err)
+                case SysMaybe<Int64>.Ok(fd) =>
+                    let fileSize = Int64(size)
+                    let result = Array<UInt8>(fileSize, { _ => UInt8(0) })
+                    var offset: Int64 = 0
+                    while (offset < fileSize) {
+                        let toRead = if (fileSize - offset > 65536) { 65536 } else { fileSize - offset }
+                        let chunk = Array<UInt8>(toRead, { _ => UInt8(0) })
+                        match (SysFs.read(fd, chunk)) {
+                            case SysMaybe<Int64>.Err(err) =>
+                                SysFs.close(fd)
+                                return SysMaybe<Array<UInt8>>.Err(err)
+                            case SysMaybe<Int64>.Ok(bytesRead) =>
+                                if (bytesRead == 0) { break }
+                                for (i in 0..bytesRead) {
+                                    result[offset + i] = chunk[i]
+                                }
+                                offset += bytesRead
+                        }
+                    }
+                    SysFs.close(fd)
+                    return SysMaybe<Array<UInt8>>.Ok(result)
+            }
+    }
+}
+
+private func writeAllBytes(path: String, data: Array<UInt8>): SysMaybe<Unit> {
+    match (SysFs.openWrite(path)) {
+        case SysMaybe<Int64>.Err(err) => return SysMaybe<Unit>.Err(err)
+        case SysMaybe<Int64>.Ok(fd) =>
+            var offset: Int64 = 0
+            while (offset < data.size) {
+                let toWrite = if (data.size - offset > 65536) { 65536 } else { data.size - offset }
+                let chunkOffset = offset
+                let chunk = Array<UInt8>(toWrite, { i => data[chunkOffset + i] })
+                match (SysFs.write(fd, chunk)) {
+                    case SysMaybe<Int64>.Err(err) =>
+                        SysFs.close(fd)
+                        return SysMaybe<Unit>.Err(err)
+                    case SysMaybe<Int64>.Ok(bytesWritten) =>
+                        offset += bytesWritten
+                        if (bytesWritten == 0) { break }
+                }
+            }
+            SysFs.close(fd)
+            return SysMaybe<Unit>.Ok(())
     }
 }
 

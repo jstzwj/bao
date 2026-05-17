@@ -41,11 +41,19 @@ public class CssRGBA {
         return Float32(alpha) / 255.0f32
     }
 
+    private static func hexByte(value: UInt8): String {
+        let digits = "0123456789abcdef"
+        let n = Int64(value)
+        let hi = digits[n / 16]
+        let lo = digits[n % 16]
+        "${hi}${lo}"
+    }
+
     public func toHex(): String {
         if (alpha == 255) {
-            return "#${red.formatHex(2)}${green.formatHex(2)}${blue.formatHex(2)}"
+            return "#${CssRGBA.hexByte(red)}${CssRGBA.hexByte(green)}${CssRGBA.hexByte(blue)}"
         }
-        return "#${red.formatHex(2)}${green.formatHex(2)}${blue.formatHex(2)}${alpha.formatHex(2)}"
+        return "#${CssRGBA.hexByte(red)}${CssRGBA.hexByte(green)}${CssRGBA.hexByte(blue)}${CssRGBA.hexByte(alpha)}"
     }
 
     public func eql(other: CssRGBA): Bool {

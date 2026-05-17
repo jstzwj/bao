@@ -39,19 +39,22 @@ public enum VersionFlag {
     | V3   // = 5476, 添加进程未找到错误消息
     | V4   // = 5477, 添加 "node" shebang 检测标记
     | V5   // = 5478, 修复参数传递 bug
+}
 
-    /// 当前版本
-    /// 翻译自: VersionFlag.current = .v5
-    public static let CURRENT: VersionFlag = VersionFlag.V5
+/// 当前版本
+/// 翻译自: VersionFlag.current = .v5
+public let VERSION_FLAG_CURRENT: VersionFlag = VersionFlag.V5
 
+/// VersionFlag 辅助类
+public class VersionFlagHelper {
     /// 获取数值
-    public func value(): Int64 {
-        match (this) {
-            case V1 => return 5474
-            case V2 => return 5475
-            case V3 => return 5476
-            case V4 => return 5477
-            case V5 => return 5478
+    public static func value(v: VersionFlag): Int64 {
+        match (v) {
+            case VersionFlag.V1 => 5474
+            case VersionFlag.V2 => 5475
+            case VersionFlag.V3 => 5476
+            case VersionFlag.V4 => 5477
+            case VersionFlag.V5 => 5478
         }
     }
 }
@@ -88,21 +91,21 @@ public class BinLinkingShimFlags {
         isNodeOrBun = false
         isNode = false
         hasShebang = false
-        versionTag = VersionFlag.CURRENT
+        versionTag = VERSION_FLAG_CURRENT
     }
 
     public init(isNodeOrBun: Bool, isNode: Bool, hasShebang: Bool) {
         this.isNodeOrBun = isNodeOrBun
         this.isNode = isNode
         this.hasShebang = hasShebang
-        versionTag = VersionFlag.CURRENT
+        versionTag = VERSION_FLAG_CURRENT
     }
 
     /// 验证标志是否有效
     /// 翻译自: Flags.isValid
     public func isValid(): Bool {
         // 版本标记必须匹配当前版本
-        return versionTag == VersionFlag.CURRENT
+        return versionTag == VERSION_FLAG_CURRENT
     }
 
     /// 编码为 16 位整数
@@ -112,7 +115,7 @@ public class BinLinkingShimFlags {
         if (isNodeOrBun) { value = value | UInt16(1) }
         if (isNode) { value = value | UInt16(2) }
         if (hasShebang) { value = value | UInt16(4) }
-        value = value | (UInt16(versionTag.value()) << UInt16(3))
+        value = value | (UInt16(VersionFlagHelper.value(versionTag)) << UInt16(3))
         return value
     }
 
@@ -129,7 +132,7 @@ public class BinLinkingShimFlags {
             case 5476 => VersionFlag.V3
             case 5477 => VersionFlag.V4
             case 5478 => VersionFlag.V5
-            case _ => VersionFlag.CURRENT
+            case _ => VERSION_FLAG_CURRENT
         }
         return flags
     }
@@ -169,7 +172,7 @@ public class Shebang {
 
     public init(launcher: String, isNodeOrBun: Bool) {
         this.launcher = launcher
-        utf16Len = Int64(launcher.length)  // 简化: UTF-16 长度约等于 UTF-8 长度
+        utf16Len = Int64(launcher.size)  // 简化: UTF-16 长度约等于 UTF-8 长度
         this.isNodeOrBun = isNodeOrBun
     }
 
@@ -201,15 +204,23 @@ public class Shebang {
         }
     }
 
+    private static func extractShebangContent(content: String, idx: Int64): String {
+        if (idx > 0 && content[idx - 1] == '\r') {
+            content.substring(2, idx - 1)
+        } else {
+            content.substring(2, idx)
+        }
+    }
+
     /// 从文件内容解析 shebang
     /// 严格翻译自: Shebang.parse(contents_maybe_overflow, bin_path)
     ///
     /// 解析 #! 行, 支持 /usr/bin/env 格式
     public static func parse(contents: String, binPath: String): ?Shebang {
         let maxLen = 32766 + 2  // max_shebang_input_length
-        let content = if (contents.length > maxLen) { contents.substring(0, maxLen) } else { contents }
+        let content = if (contents.size > maxLen) { contents.substring(0, maxLen) } else { contents }
 
-        if (content.length < 3) {
+        if (content.size < 3) {
             return parseFromBinPath(binPath)
         }
 
@@ -221,13 +232,7 @@ public class Shebang {
         // 提取第一行
         let newLineIdx = content.indexOf("\n")
         let line = match (newLineIdx) {
-            case Some(idx) => {
-                if (idx > 0 && content[idx - 1] == '\r') {
-                    content.substring(2, idx - 1)
-                } else {
-                    content.substring(2, idx)
-                }
-            }
+            case Some(idx) => extractShebangContent(content, idx)
             case None => return parseFromBinPath(binPath)
         }
 
@@ -244,10 +249,10 @@ public class Shebang {
             // rest 是剩余的参数
             var rest = ""
             for (i in 2..tokens.size) {
-                if (rest.length > 0) { rest = rest + " " }
+                if (rest.size > 0) { rest = rest + " " }
                 rest = rest + tokens[i]
             }
-            if (rest.length > 0) {
+            if (rest.size > 0) {
                 rest = rest + " "
             }
             return Shebang(launcher: rest, isNodeOrBun: isNodeOrBun)
@@ -290,7 +295,7 @@ public class BinLinkingShim {
     /// 编码后的总长度
     /// 翻译自: BinLinkingShim.encodedLength
     public func encodedLength(): Int64 {
-        let binPathLen = (binPath.length + 2) * 2  // +2 for '" ' 字符
+        let binPathLen = (binPath.size + 2) * 2  // +2 for '" ' 字符
         let flagsLen = 2  // UInt16
         let shebangLen = match (shebang) {
             case Some(s) => s.encodedLength()
@@ -304,7 +309,7 @@ public class BinLinkingShim {
     public func encodeInto(buf: ArrayList<Byte>): Unit {
         // 写入 bin_path (UTF-16LE)
         // 翻译自: @memcpy(wbuf[0..options.bin_path.len], options.bin_path)
-        for (i in 0..binPath.length) {
+        for (i in 0..binPath.size) {
             buf.append(Byte(binPath[i]))
             buf.append(Byte(0))  // UTF-16LE 低字节
         }
@@ -315,31 +320,7 @@ public class BinLinkingShim {
 
         // 如果有 shebang, 写入 shebang 数据
         match (shebang) {
-            case Some(s) => {
-                // 写入 launcher (UTF-16LE)
-                for (i in 0..s.launcher.length) {
-                    buf.append(Byte(s.launcher[i]))
-                    buf.append(Byte(0))
-                }
-
-                // 写入 ' '
-                buf.append(Byte(32))
-                buf.append(Byte(0))
-
-                // 写入 bin_path_byte_len (u32)
-                let binPathByteLen = UInt32(binPath.length * 2)
-                buf.append(Byte(binPathByteLen & UInt32(0xFF)))
-                buf.append(Byte((binPathByteLen >> 8) & UInt32(0xFF)))
-                buf.append(Byte((binPathByteLen >> 16) & UInt32(0xFF)))
-                buf.append(Byte((binPathByteLen >> 24) & UInt32(0xFF)))
-
-                // 写入 arg_byte_len (u32)
-                let argByteLen = UInt32(s.utf16Len * 2 + 2)  // include spaces
-                buf.append(Byte(argByteLen & UInt32(0xFF)))
-                buf.append(Byte((argByteLen >> 8) & UInt32(0xFF)))
-                buf.append(Byte((argByteLen >> 16) & UInt32(0xFF)))
-                buf.append(Byte((argByteLen >> 24) & UInt32(0xFF)))
-            }
+            case Some(s) => _matchHelper_windows_shim_241()
             case None => ()
         }
 
@@ -527,17 +508,8 @@ public class BunShimImpl {
         // 读取 .bunx 元数据文件
         let metadata = readMetadata(context.basePath, context.handle)
         match (metadata) {
-            case Some(data) => {
-                // 验证标志
-                if (!data.flags.isValid()) {
-                    return ShimFailReason.InvalidShimValidation
-                }
-                // 构建命令行并执行
-                return None  // 成功
-            }
-            case None => {
-                return ShimFailReason.CouldNotReadShim
-            }
+            case Some(data) => _matchHelper_windows_shim_242()
+            case None=> return ShimFailReason.CouldNotReadShim
         }
     }
 
@@ -546,17 +518,8 @@ public class BunShimImpl {
     public static func readWithoutLaunch(context: FromBunShellContext): ReadWithoutLaunchResult {
         let metadata = readMetadata(context.basePath, context.handle)
         match (metadata) {
-            case Some(data) => {
-                if (!data.flags.isValid()) {
-                    return ReadWithoutLaunchResult.Err(ShimFailReason.InvalidShimValidation)
-                }
-                // 构建命令行
-                let cmdLine = buildCommandLine(data: data, arguments: context.arguments)
-                return ReadWithoutLaunchResult.CommandLine(cmdLine)
-            }
-            case None => {
-                return ReadWithoutLaunchResult.Err(ShimFailReason.CouldNotReadShim)
-            }
+            case Some(data) => _matchHelper_windows_shim_243()
+            case None=> return ReadWithoutLaunchResult.Err(ShimFailReason.CouldNotReadShim)
         }
     }
 
@@ -607,3 +570,48 @@ public func getFileExtension(path: String): String {
     if (dotIdx < 0) { return "" }
     return path.substring(dotIdx)
 }
+
+
+            private func _matchHelper_windows_shim_241(): Unit {
+                // 写入 launcher (UTF-16LE)
+                for (i in 0..s.launcher.size) {
+                    buf.append(Byte(s.launcher[i]))
+                    buf.append(Byte(0))
+                }
+
+                // 写入 ' '
+                buf.append(Byte(32))
+                buf.append(Byte(0))
+
+                // 写入 bin_path_byte_len (u32)
+                let binPathByteLen = UInt32(binPath.size * 2)
+                buf.append(Byte(binPathByteLen & UInt32(0xFF)))
+                buf.append(Byte((binPathByteLen >> 8) & UInt32(0xFF)))
+                buf.append(Byte((binPathByteLen >> 16) & UInt32(0xFF)))
+                buf.append(Byte((binPathByteLen >> 24) & UInt32(0xFF)))
+
+                // 写入 arg_byte_len (u32)
+                let argByteLen = UInt32(s.utf16Len * 2 + 2)  // include spaces
+                buf.append(Byte(argByteLen & UInt32(0xFF)))
+                buf.append(Byte((argByteLen >> 8) & UInt32(0xFF)))
+                buf.append(Byte((argByteLen >> 16) & UInt32(0xFF)))
+                buf.append(Byte((argByteLen >> 24) & UInt32(0xFF)))
+            }
+
+            private func _matchHelper_windows_shim_242(): Unit {
+                // 验证标志
+                if (!data.flags.isValid()) {
+                    return ShimFailReason.InvalidShimValidation
+                }
+                // 构建命令行并执行
+                return None  // 成功
+            }
+
+            private func _matchHelper_windows_shim_243(): Unit {
+                if (!data.flags.isValid()) {
+                    return ReadWithoutLaunchResult.Err(ShimFailReason.InvalidShimValidation)
+                }
+                // 构建命令行
+                let cmdLine = buildCommandLine(data: data, arguments: context.arguments)
+                return ReadWithoutLaunchResult.CommandLine(cmdLine)
+            }

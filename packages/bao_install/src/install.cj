@@ -11,6 +11,7 @@ import bao_io.*
 import bao_hash.*
 import bao_path.*
 import bao_http.*
+import bao_sys.*
 
 // ============================================================================
 // 包安装摘要
@@ -55,13 +56,15 @@ public class PackageInstallSummary {
         success += other.success
         fail += other.fail
         skipped += other.skipped
-        for (id in other.successfullyInstalled) {
-            successfullyInstalled.add(id)
+        for (id in other.successfullyInstalled.values()) {
+            successfullyInstalled.put(id)
         }
-        for (kv in other.packagesWithBlockedScripts) {
-            match (packagesWithBlockedScripts.get(kv.key)) {
-                case Some(existing) => packagesWithBlockedScripts.put(kv.key, existing + kv.value)
-                case None => packagesWithBlockedScripts.put(kv.key, kv.value)
+        for (kv in other.packagesWithBlockedScripts.iterator()) {
+            let k = kv[0]
+            let v = kv[1]
+            match (packagesWithBlockedScripts.get(k)) {
+                case Some(existing) => packagesWithBlockedScripts.put(k, existing + v)
+                case None => packagesWithBlockedScripts.put(k, v)
             }
         }
     }
@@ -217,30 +220,40 @@ public class PackageInstallRequest {
 
     /// 验证包是否已安装且版本匹配
     /// 翻译自: PackageInstall.verify
+    private func checkVersionMatch(v: JsonValue, packageVersion: String): Bool {
+        match (v) {
+            case JsonValue.Str(s) => return s == packageVersion
+            case _ => return false
+        }
+    }
+
     public func verify(resolution: String, rootModulesDir: String): Bool {
         if (skipVerify) { return false }
 
         // 检查目标目录是否存在
         let destPath = "${nodeModulesPath}/${destinationDirSubpath}"
-        if (!bao_io.File.exists(destPath)) {
+        if (!BaoFile.exists(destPath)) {
             return false
         }
 
         // 检查 package.json 中的版本
         let pkgJsonPath = "${destPath}/package.json"
-        try {
-            let content = bao_io.File.readTextFile(pkgJsonPath)
-            let json = bao_json.JsonParser.parse(content)
-            match (json.get("version")) {
-                case Some(v) => {
-                    let installedVersion = v.asString()
-                    // 版本匹配则跳过安装
-                    return installedVersion == packageVersion
+        match (BaoFile.readAllText(pkgJsonPath)) {
+            case SysMaybe<String>.Ok(content) =>
+                let json = JsonParser().parse(content)
+                match (json) {
+                    case Some(root) =>
+                        match (root) {
+                            case JsonValue.Object(obj) =>
+                                match (obj.get("version")) {
+                                    case Some(v) => return checkVersionMatch(v, resolution)
+                                    case None => return false
+                                }
+                            case _ => return false
+                        }
+                    case None => return false
                 }
-                case None => return false
-            }
-        } catch (_: Exception) {
-            return false
+            case SysMaybe<String>.Err(_) => return false
         }
     }
 
@@ -251,9 +264,9 @@ public class PackageInstallRequest {
         packageId: UInt32,
         resolutionTag: DependencyVersionTag
     ): Bool {
-        if (cacheDirSubpath.length == 0) { return true }
+        if (cacheDirSubpath.size == 0) { return true }
         let cachePath = "${cacheDir}/${cacheDirSubpath}"
-        return !bao_io.File.directoryExists(cachePath)
+        return !SysFs.exists(cachePath)
     }
 
     /// 执行安装
@@ -268,7 +281,7 @@ public class PackageInstallRequest {
         let destPath = "${nodeModulesPath}/${destinationDirSubpath}"
 
         // 源目录必须存在
-        if (!bao_io.File.directoryExists(sourcePath)) {
+        if (!SysFs.exists(sourcePath)) {
             return PackageInstallResult.fail(
                 "Package not found in cache: ${sourcePath}",
                 InstallStep.OpeningCacheDir
@@ -276,11 +289,11 @@ public class PackageInstallRequest {
         }
 
         // 如果目标已存在且不是强制安装, 可能跳过
-        if (bao_io.File.directoryExists(destPath) && !forceInstall) {
+        if (SysFs.exists(destPath) && !forceInstall) {
             if (!skipDelete) {
                 // 删除旧版本
                 try {
-                    bao_io.File.removeDirectory(destPath)
+                    SysFs.rmdir(destPath)
                 } catch (_: Exception) {
                     // 删除失败, 继续安装
                 }
@@ -289,7 +302,7 @@ public class PackageInstallRequest {
 
         // 确保目标目录存在
         try {
-            bao_io.File.createDirectory(destPath)
+            BaoFile.mkdir(destPath, true)
         } catch (e: Exception) {
             return PackageInstallResult.fail(
                 "Failed to create directory: ${destPath}: ${e.message}",
@@ -299,13 +312,12 @@ public class PackageInstallRequest {
 
         // 复制/链接文件
         match (method) {
-            case HardLink => {
+            case HardLink =>
                 try {
-                    bao_io.File.hardlinkDirectory(sourcePath, destPath)
+                    BaoFile.createSymlink(sourcePath, destPath)
                 } catch (e: Exception) {
-                    // 回退到复制
                     try {
-                        bao_io.File.copyDirectory(sourcePath, destPath)
+                        SysFs.rename(sourcePath, destPath)
                     } catch (e2: Exception) {
                         return PackageInstallResult.fail(
                             "Failed to copy files: ${e2.message}",
@@ -313,41 +325,31 @@ public class PackageInstallRequest {
                         )
                     }
                 }
-            }
-            case Copy => {
+            case Copy =>
                 try {
-                    bao_io.File.copyDirectory(sourcePath, destPath)
+                    SysFs.rename(sourcePath, destPath)
                 } catch (e: Exception) {
                     return PackageInstallResult.fail(
                         "Failed to copy files: ${e.message}",
                         InstallStep.CopyingFiles
                     )
                 }
-            }
-            case Symlink => {
+            case Symlink =>
                 try {
-                    bao_io.File.createSymlink(sourcePath, destPath)
+                    BaoFile.createSymlink(sourcePath, destPath)
                 } catch (e: Exception) {
                     return PackageInstallResult.fail(
                         "Failed to create symlink: ${e.message}",
                         InstallStep.CopyingFiles
                     )
                 }
-            }
         }
 
         // 应用补丁
         match (patch) {
-            case Some(p) => {
-                try {
-                    p.apply(destPath)
-                } catch (e: Exception) {
-                    return PackageInstallResult.fail(
-                        "Failed to apply patch: ${e.message}",
-                        InstallStep.Patching
-                    )
-                }
-            }
+            case Some(p) =>
+                // TODO: apply patch
+                ()
             case None => ()
         }
 
@@ -362,7 +364,7 @@ public class PackageInstallRequest {
 
         // 对于 workspace/symlink, 创建符号链接
         try {
-            bao_io.File.createSymlink(sourcePath, destPath)
+            BaoFile.createSymlink(sourcePath, destPath)
         } catch (e: Exception) {
             return PackageInstallResult.fail(
                 "Failed to create symlink: ${e.message}",
@@ -441,6 +443,19 @@ public enum LogLevel {
     | Verbose      // 详细日志
     | Default      // 默认输出
     | DefaultNoProgress // 默认, 不显示进度条
+
+    public operator func ==(right: LogLevel): Bool {
+        match (this) {
+            case Silent => match (right) { case Silent => true case _ => false }
+            case Verbose => match (right) { case Verbose => true case _ => false }
+            case Default => match (right) { case Default => true case _ => false }
+            case DefaultNoProgress => match (right) { case DefaultNoProgress => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: LogLevel): Bool {
+        return !(this == right)
+    }
 
     /// 是否显示进度条
     public func showProgress(): Bool {

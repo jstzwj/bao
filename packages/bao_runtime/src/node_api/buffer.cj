@@ -6,6 +6,7 @@ package bao_runtime.node_api
 import bao_core.*
 import bao_collections.*
 import bao_sys.*
+import bao_runtime.*
 
 // ============================================================================
 // Buffer 类 — Node.js Buffer 兼容 API
@@ -24,7 +25,7 @@ public class Buffer {
     }
 
     public init(size: Int64) {
-        this.data = Array<UInt8>(Int64(size), item: UInt8(0))
+        this.data = Array<UInt8>(Int64(size), { _ => UInt8(0) })
         this.length = size
     }
 
@@ -50,7 +51,7 @@ public class Buffer {
     /// Buffer.from(byte array)
     /// 对应 Bun: src/runtime/node/buffer.zig from
     public static func from(data: Array<UInt8>): Buffer {
-        let copy = Array<UInt8>(data.size, item: UInt8(0))
+        let copy = Array<UInt8>(data.size, { _ => UInt8(0) })
         for (i in 0..data.size) {
             copy[i] = data[i]
         }
@@ -79,7 +80,7 @@ public class Buffer {
     }
 
     public static func concat(list: ArrayList<Buffer>, totalLength: Int64): Buffer {
-        let result = Array<UInt8>(Int64(totalLength), item: UInt8(0))
+        let result = Array<UInt8>(Int64(totalLength), { _ => UInt8(0) })
         var offset: Int64 = 0
         for (buf in list) {
             if (offset >= totalLength) {
@@ -135,7 +136,7 @@ public class Buffer {
             return Buffer(0)
         }
         let sliceLen = clampedEnd - clampedStart
-        let result = Array<UInt8>(Int64(sliceLen), item: UInt8(0))
+        let result = Array<UInt8>(Int64(sliceLen), { _ => UInt8(0) })
         for (i in 0..Int64(sliceLen)) {
             result[i] = data[Int64(clampedStart) + i]
         }
@@ -290,7 +291,7 @@ public class Buffer {
         }
         // 通过 Int32 位模式转 Float32 (IEEE 754)
         let bits = readInt32LE(offset)
-        return Float32.fromBits(bits)
+        return Float32.fromBits(UInt32(bits))
     }
 
     /// writeFloatLE — 小端序写入 32 位浮点数
@@ -299,7 +300,7 @@ public class Buffer {
             return 0
         }
         let bits = value.toBits()
-        return writeInt32LE(bits, offset)
+        return writeInt32LE(Int32(bits), offset)
     }
 
     /// readDoubleLE — 小端序读取 64 位浮点数
@@ -313,7 +314,7 @@ public class Buffer {
             let b = Int64(data[Int64(offset) + i])
             bits = bits | (b << (i * 8))
         }
-        return Float64.fromRawBits(bits)
+        return Float64.fromBits(UInt64(bits))
     }
 
     /// writeDoubleLE — 小端序写入 64 位浮点数
@@ -321,7 +322,7 @@ public class Buffer {
         if (offset < 0 || offset + 8 > length) {
             return 0
         }
-        let bits = value.toRawBits()
+        let bits = value.toBits()
         for (i in 0..8) {
             data[Int64(offset) + i] = UInt8((bits >> (i * 8)) & 0xFF)
         }
@@ -341,9 +342,15 @@ public class BufferPool {
     private var poolOffset: Int64
     private let poolSize: Int64
 
-    public init(poolSize: Int64 = 8192) {
+    public init(poolSize: Int64) {
         this.poolSize = poolSize
-        this.pool = Array<UInt8>(Int64(poolSize), item: UInt8(0))
+        this.pool = Array<UInt8>(Int64(poolSize), { _ => UInt8(0) })
+        this.poolOffset = 0
+    }
+
+    public init() {
+        this.poolSize = 8192
+        this.pool = Array<UInt8>(8192, { _ => UInt8(0) })
         this.poolOffset = 0
     }
 
@@ -351,7 +358,7 @@ public class BufferPool {
     /// 对应 Bun: src/runtime/node/buffer.zig poolAlloc
     public func alloc(size: Int64): Buffer {
         // 对齐到 8 字节边界
-        let aligned = (size + 7) & ~7
+        let aligned = (size + 7) & Int64(-8)
         if (poolOffset + aligned > poolSize) {
             // 池空间不足，直接分配新 Buffer
             return Buffer.alloc(size)
@@ -359,7 +366,7 @@ public class BufferPool {
         let start = poolOffset
         poolOffset += aligned
         // 复制池中对应区间到新 Buffer
-        let result = Array<UInt8>(Int64(size), item: UInt8(0))
+        let result = Array<UInt8>(Int64(size), { _ => UInt8(0) })
         for (i in 0..Int64(size)) {
             if (start + i < poolSize) {
                 result[i] = pool[Int64(start + i)]
@@ -384,9 +391,9 @@ public class BufferPool {
 public class BufferEncoding {
     /// 将字符串按指定编码转为字节数组
     public static func encode(str: String, encoding: String): Array<UInt8> {
-        let enc = encoding.toLower()
+        let enc = String(encoding.toRuneArray().map({ r => r.toAsciiLowerCase() }))
         if (enc == "utf-8" || enc == "utf8") {
-            return str.toUtf8Array()
+            return str.toArray()
         } else if (enc == "ascii" || enc == "latin1" || enc == "binary") {
             return asciiEncode(str)
         } else if (enc == "hex") {
@@ -395,13 +402,13 @@ public class BufferEncoding {
             return base64Decode(str)
         } else {
             // 默认 utf-8
-            return str.toUtf8Array()
+            return str.toArray()
         }
     }
 
     /// 将字节数组按指定编码转为字符串
     public static func decode(data: Array<UInt8>, encoding: String): String {
-        let enc = encoding.toLower()
+        let enc = String(encoding.toRuneArray().map({ r => r.toAsciiLowerCase() }))
         if (enc == "utf-8" || enc == "utf8") {
             return utf8Decode(data)
         } else if (enc == "ascii" || enc == "latin1" || enc == "binary") {
@@ -417,7 +424,7 @@ public class BufferEncoding {
 
     /// 检查编码名是否有效
     public static func isValidEncoding(encoding: String): Bool {
-        let enc = encoding.toLower()
+        let enc = String(encoding.toRuneArray().map({ r => r.toAsciiLowerCase() }))
         return enc == "utf-8" || enc == "utf8" ||
                enc == "ascii" || enc == "latin1" || enc == "binary" ||
                enc == "hex" || enc == "base64" ||
@@ -446,7 +453,7 @@ public class BufferEncoding {
     /// hex 解码
     public static func hexDecode(hex: String): Array<UInt8> {
         let len = hex.size / 2
-        let result = Array<UInt8>(len, item: UInt8(0))
+        let result = Array<UInt8>(len, { _ => UInt8(0) })
         for (i in 0..len) {
             let high = hexDigitValue(hex[i * 2])
             let low = hexDigitValue(hex[i * 2 + 1])
@@ -471,16 +478,21 @@ public class BufferEncoding {
 
             let triple = (b0 << 16) | (b1 << 8) | b2
 
-            sb.append(chars[(triple >> 18) & 0x3F..((triple >> 18) & 0x3F) + 1])
-            sb.append(chars[(triple >> 12) & 0x3F..((triple >> 12) & 0x3F) + 1])
+            let idx0 = ((triple >> 18) & 0x3F)
+            let idx1 = ((triple >> 12) & 0x3F)
+            let idx2 = ((triple >> 6) & 0x3F)
+            let idx3 = (triple & 0x3F)
+
+            sb.append(chars[idx0..idx0 + 1])
+            sb.append(chars[idx1..idx1 + 1])
 
             if (i + 1 < data.size) {
-                sb.append(chars[(triple >> 6) & 0x3F..((triple >> 6) & 0x3F) + 1])
+                sb.append(chars[idx2..idx2 + 1])
             } else {
                 sb.append("=")
             }
             if (i + 2 < data.size) {
-                sb.append(chars[triple & 0x3F..(triple & 0x3F) + 1])
+                sb.append(chars[idx3..idx3 + 1])
             } else {
                 sb.append("=")
             }
@@ -493,20 +505,20 @@ public class BufferEncoding {
     public static func base64Decode(base64: String): Array<UInt8> {
         // 去除空白字符
         let s = base64
-        let padding = if (s.size > 0 && s[s.size - 1] == '=') {
-            if (s.size > 1 && s[s.size - 2] == '=') { 2 } else { 1 }
+        let padding = if (s.size > 0 && s[s.size - 1] == 61) {
+            if (s.size > 1 && s[s.size - 2] == 61) { 2 } else { 1 }
         } else {
             0
         }
         let outLen = (s.size / 4) * 3 - padding
-        let result = Array<UInt8>(outLen, item: UInt8(0))
+        let result = Array<UInt8>(outLen, { _ => UInt8(0) })
         var outIdx = 0
         var i = 0
         while (i < s.size) {
-            let c0 = if (s[i] != '=') { base64DigitValue(s[i]) } else { 0 }
-            let c1 = if (i + 1 < s.size && s[i + 1] != '=') { base64DigitValue(s[i + 1]) } else { 0 }
-            let c2 = if (i + 2 < s.size && s[i + 2] != '=') { base64DigitValue(s[i + 2]) } else { 0 }
-            let c3 = if (i + 3 < s.size && s[i + 3] != '=') { base64DigitValue(s[i + 3]) } else { 0 }
+            let c0 = if (s[i] != 61) { base64DigitValue(s[i]) } else { 0 }
+            let c1 = if (i + 1 < s.size && s[i + 1] != 61) { base64DigitValue(s[i + 1]) } else { 0 }
+            let c2 = if (i + 2 < s.size && s[i + 2] != 61) { base64DigitValue(s[i + 2]) } else { 0 }
+            let c3 = if (i + 3 < s.size && s[i + 3] != 61) { base64DigitValue(s[i + 3]) } else { 0 }
 
             let triple = (c0 << 18) | (c1 << 12) | (c2 << 6) | c3
 
@@ -537,26 +549,26 @@ public class BufferEncoding {
         var sb = StringBuilder()
         var i = 0
         while (i < data.size) {
-            let b = data[i]
+            let b = UInt32(data[i])
             if (b < 0x80) {
-                sb.append(String.fromUInt32(UInt32(b)))
+                sb.append(String(Rune(Int32(b))))
                 i += 1
             } else if (b < 0xE0) {
-                let ch = UInt32((b & 0x1F) << 6) | UInt32(data[i + 1] & 0x3F)
-                sb.append(String.fromUInt32(ch))
+                let ch = ((b & 0x1F) << 6) | (UInt32(data[i + 1]) & 0x3F)
+                sb.append(String(Rune(Int32(ch))))
                 i += 2
             } else if (b < 0xF0) {
-                let ch = UInt32((b & 0x0F) << 12) |
-                         UInt32((data[i + 1] & 0x3F) << 6) |
-                         UInt32(data[i + 2] & 0x3F)
-                sb.append(String.fromUInt32(ch))
+                let ch = ((b & 0x0F) << 12) |
+                         ((UInt32(data[i + 1]) & 0x3F) << 6) |
+                         (UInt32(data[i + 2]) & 0x3F)
+                sb.append(String(Rune(Int32(ch))))
                 i += 3
             } else {
-                let ch = UInt32((b & 0x07) << 18) |
-                         UInt32((data[i + 1] & 0x3F) << 12) |
-                         UInt32((data[i + 2] & 0x3F) << 6) |
-                         UInt32(data[i + 3] & 0x3F)
-                sb.append(String.fromUInt32(ch))
+                let ch = ((b & 0x07) << 18) |
+                         ((UInt32(data[i + 1]) & 0x3F) << 12) |
+                         ((UInt32(data[i + 2]) & 0x3F) << 6) |
+                         (UInt32(data[i + 3]) & 0x3F)
+                sb.append(String(Rune(Int32(ch))))
                 i += 4
             }
         }
@@ -565,7 +577,7 @@ public class BufferEncoding {
 
     /// ASCII 编码
     private static func asciiEncode(str: String): Array<UInt8> {
-        let result = Array<UInt8>(str.size, item: UInt8(0))
+        let result = Array<UInt8>(str.size, { _ => UInt8(0) })
         for (i in 0..str.size) {
             result[i] = UInt8(str[i] & 0xFF)
         }
@@ -576,34 +588,34 @@ public class BufferEncoding {
     private static func asciiDecode(data: Array<UInt8>): String {
         let sb = StringBuilder()
         for (i in 0..data.size) {
-            sb.append(String.fromUInt32(UInt32(data[i] & 0x7F)))
+            sb.append(String(Rune(Int32(data[i] & 0x7F))))
         }
         return sb.toString()
     }
 
     /// 十六进制字符转数值
     private static func hexDigitValue(c: UInt8): Int64 {
-        if (c >= UInt8('0') && c <= UInt8('9')) {
-            return Int64(c) - Int64(UInt8('0'))
-        } else if (c >= UInt8('a') && c <= UInt8('f')) {
-            return Int64(c) - Int64(UInt8('a')) + 10
-        } else if (c >= UInt8('A') && c <= UInt8('F')) {
-            return Int64(c) - Int64(UInt8('A')) + 10
+        if (c >= 48 && c <= 57) { // '0'-'9'
+            return Int64(c) - 48
+        } else if (c >= 97 && c <= 102) { // 'a'-'f'
+            return Int64(c) - 97 + 10
+        } else if (c >= 65 && c <= 70) { // 'A'-'F'
+            return Int64(c) - 65 + 10
         }
         return 0
     }
 
     /// base64 字符转数值
     private static func base64DigitValue(c: UInt8): Int64 {
-        if (c >= UInt8('A') && c <= UInt8('Z')) {
-            return Int64(c) - Int64(UInt8('A'))
-        } else if (c >= UInt8('a') && c <= UInt8('z')) {
-            return Int64(c) - Int64(UInt8('a')) + 26
-        } else if (c >= UInt8('0') && c <= UInt8('9')) {
-            return Int64(c) - Int64(UInt8('0')) + 52
-        } else if (c == UInt8('+')) {
+        if (c >= 65 && c <= 90) { // 'A'-'Z'
+            return Int64(c) - 65
+        } else if (c >= 97 && c <= 122) { // 'a'-'z'
+            return Int64(c) - 97 + 26
+        } else if (c >= 48 && c <= 57) { // '0'-'9'
+            return Int64(c) - 48 + 52
+        } else if (c == 43) { // '+'
             return 62
-        } else if (c == UInt8('/')) {
+        } else if (c == 47) { // '/'
             return 63
         }
         return 0

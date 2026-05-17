@@ -92,22 +92,22 @@ public class WebSocketHTTPClient {
         // TCP 连接
         let tcpFd = tcpConnect(this.url.hostname, port)
         match (tcpFd) {
-            case Some(sockfd) => {
+            case Some(sockfd) =>
                 socketFd = sockfd
                 state = WSClientState.handshaking
 
                 // 构建握手请求
                 let handshake = buildHandshake()
-                let writeResult = SysFs.write(sockfd, stringToBytes(handshake))
+                let writeResult = SysFs.write(sockfd, wsStringToBytes(handshake))
                 match (writeResult) {
-                    case Ok(_) => {
+                    case Ok(_) =>
                         // 读取服务器响应
                         let response = readHandshakeResponse()
                         match (response) {
-                            case Some(resp) => {
+                            case Some(resp) =>
                                 if (resp.statusCode == 101) {
                                     // 验证 Sec-WebSocket-Accept
-                                    let accept = resp.headers.get("sec-websocket-accept")
+                                    let accept = wsGetHeader(resp.headers, "sec-websocket-accept")
                                     let valid = match (accept) {
                                         case Some(a) => WebSocketHandshake.verifyAccept(wsKey, a)
                                         case None => false
@@ -123,25 +123,19 @@ public class WebSocketHTTPClient {
                                 SysFs.close(sockfd)
                                 state = WSClientState.failed
                                 return None
-                            }
-                            case None => {
+                            case None =>
                                 SysFs.close(sockfd)
                                 state = WSClientState.failed
                                 return None
-                            }
                         }
-                    }
-                    case Err(_) => {
+                    case Err(_) =>
                         SysFs.close(sockfd)
                         state = WSClientState.failed
                         return None
-                    }
                 }
-            }
-            case None => {
+            case None =>
                 state = WSClientState.failed
                 return None
-            }
         }
     }
 
@@ -178,20 +172,16 @@ public class WebSocketHTTPClient {
     }
 
     /// 读取握手响应
-    private func readHandshakeResponse(): ?ParsedResponse {
-        let buf = Array<UInt8>(8192, item: UInt8(0))
+    private func readHandshakeResponse(): ?WsParsedResponse {
+        let buf = Array<UInt8>(8192, { _ => UInt8(0) })
         let result = SysFs.read(socketFd, buf)
         match (result) {
-            case Ok(n) => {
+            case Ok(n) =>
                 if (n == 0) {
                     return None
                 }
-                let data = Array<UInt8>()
-                for (i in 0..n) {
-                    data.append(buf[Int64(i)])
-                }
-                return HttpResponseParser.parse(data)
-            }
+                let data = Array<UInt8>(n, { i => buf[i] })
+                return WsHttpResponseParser.parse(data)
             case Err(_) => return None
         }
     }
@@ -249,7 +239,7 @@ public class WebSocketHTTPSClient {
         // SSL 连接
         let ssl = SSL.connect(this.url.hostname, port)
         match (ssl) {
-            case Some(sock) => {
+            case Some(sock) =>
                 sslSocket = Some(sock)
                 // 获取底层 FD
                 socketFd = sock.getFd()
@@ -257,7 +247,7 @@ public class WebSocketHTTPSClient {
 
                 // 构建握手请求
                 let handshake = buildHandshake()
-                let writeResult = sock.write(stringToBytes(handshake))
+                let writeResult = sock.write(wsStringToBytes(handshake))
                 if (writeResult < 0) {
                     sock.close()
                     state = WSClientState.failed
@@ -265,7 +255,7 @@ public class WebSocketHTTPSClient {
                 }
 
                 // 读取服务器响应
-                let responseBuf = Array<UInt8>(8192, item: UInt8(0))
+                let responseBuf = Array<UInt8>(8192, { _ => UInt8(0) })
                 let bytesRead = sock.read(responseBuf)
                 if (bytesRead <= 0) {
                     sock.close()
@@ -273,15 +263,12 @@ public class WebSocketHTTPSClient {
                     return None
                 }
 
-                let data = Array<UInt8>()
-                for (i in 0..bytesRead) {
-                    data.append(responseBuf[Int64(i)])
-                }
-                let parsed = HttpResponseParser.parse(data)
+                let data = Array<UInt8>(bytesRead, { i => responseBuf[i] })
+                let parsed = WsHttpResponseParser.parse(data)
                 match (parsed) {
-                    case Some(resp) => {
+                    case Some(resp) =>
                         if (resp.statusCode == 101) {
-                            let accept = resp.headers.get("sec-websocket-accept")
+                            let accept = wsGetHeader(resp.headers, "sec-websocket-accept")
                             let valid = match (accept) {
                                 case Some(a) => WebSocketHandshake.verifyAccept(wsKey, a)
                                 case None => false
@@ -296,18 +283,14 @@ public class WebSocketHTTPSClient {
                         sock.close()
                         state = WSClientState.failed
                         return None
-                    }
-                    case None => {
+                    case None =>
                         sock.close()
                         state = WSClientState.failed
                         return None
-                    }
                 }
-            }
-            case None => {
+            case None =>
                 state = WSClientState.failed
                 return None
-            }
         }
     }
 
@@ -352,29 +335,30 @@ public enum WSClientState {
 }
 
 /// 解析后的 HTTP 响应
-public class ParsedResponse {
+public class WsParsedResponse {
     public var statusCode: Int64
     public var statusText: String
-    public var headers: ArrayList<HeaderPair>
+    public var headers: ArrayList<WsHeaderPair>
 
     public init() {
         statusCode = 0
         statusText = ""
-        headers = ArrayList<HeaderPair>()
+        headers = ArrayList<WsHeaderPair>()
     }
 }
 
 /// HTTP 响应解析器
-public class HttpResponseParser {
-    public static func parse(data: Array<UInt8>): ?ParsedResponse {
-        let str = bytesToString(data)
-        let headerEnd = str.indexOf("\r\n\r\n")
-        if (headerEnd < 0) {
+public class WsHttpResponseParser {
+    public static func parse(data: Array<UInt8>): ?WsParsedResponse {
+        let str = wsBytesToString(data)
+        let headerEndOpt = str.indexOf("\r\n\r\n")
+        if (!headerEndOpt.isSome()) {
             return None
         }
+        let headerEnd = headerEndOpt.getOrThrow()
 
-        let response = ParsedResponse()
-        let headerSection = str.substring(0, headerEnd)
+        let response = WsParsedResponse()
+        let headerSection = str[0..headerEnd]
         let lines = splitLines(headerSection)
         if (lines.size == 0) {
             return None
@@ -382,35 +366,34 @@ public class HttpResponseParser {
 
         // 状态行
         let statusLine = lines[0]
-        let spaceIdx = statusLine.indexOf(" ")
-        if (spaceIdx < 0) {
+        let spaceIdxOpt = statusLine.indexOf(" ")
+        if (!spaceIdxOpt.isSome()) {
             return None
         }
-        let remaining = statusLine.substring(spaceIdx + 1)
-        let spaceIdx2 = remaining.indexOf(" ")
-        if (spaceIdx2 < 0) {
-            try {
-                response.statusCode = Int64.parse(remaining.trim())
-            } catch (_: Exception) {
-                return None
-            }
+        let spaceIdx = spaceIdxOpt.getOrThrow()
+        let remaining = statusLine[(spaceIdx + 1)..]
+        let spaceIdx2Opt = remaining.indexOf(" ")
+        if (!spaceIdx2Opt.isSome()) {
+            let parsed = parseWsInt64(wsTrim(remaining), -1)
+            if (parsed < 0) { return None }
+            response.statusCode = parsed
         } else {
-            try {
-                response.statusCode = Int64.parse(remaining.substring(0, spaceIdx2).trim())
-            } catch (_: Exception) {
-                return None
-            }
-            response.statusText = remaining.substring(spaceIdx2 + 1).trim()
+            let spaceIdx2 = spaceIdx2Opt.getOrThrow()
+            let parsed = parseWsInt64(wsTrim(remaining[0..spaceIdx2]), -1)
+            if (parsed < 0) { return None }
+            response.statusCode = parsed
+            response.statusText = wsTrim(remaining[(spaceIdx2 + 1)..])
         }
 
         // 头部
         for (i in 1..lines.size) {
             let line = lines[Int64(i)]
-            let colonIdx = line.indexOf(":")
-            if (colonIdx >= 0) {
-                let name = line.substring(0, colonIdx).trim()
-                let value = line.substring(colonIdx + 1).trim()
-                response.headers.append(HeaderPair(name, value))
+            let colonIdxOpt = line.indexOf(":")
+            if (colonIdxOpt.isSome()) {
+                let colonIdx = colonIdxOpt.getOrThrow()
+                let name = wsTrim(line[0..colonIdx])
+                let value = wsTrim(line[(colonIdx + 1)..])
+                response.headers.append(WsHeaderPair(name, value))
             }
         }
 
@@ -422,14 +405,14 @@ public class HttpResponseParser {
 private func splitLines(s: String): ArrayList<String> {
     let lines = ArrayList<String>()
     var current = StringBuilder()
-    var i = 0
+    var i: Int64 = 0
     while (i < s.size) {
-        if (i + 1 < s.size && s[Int64(i)] == '\r' && s[Int64(i + 1)] == '\n') {
+        if (i + 1 < s.size && s[i] == UInt8(13) && s[i + 1] == UInt8(10)) {
             lines.append(current.toString())
             current = StringBuilder()
             i += 2
         } else {
-            current.append(s[Int64(i)])
+            current.append(Rune(UInt32(s[i])))
             i += 1
         }
     }
@@ -440,25 +423,66 @@ private func splitLines(s: String): ArrayList<String> {
 }
 
 /// 字节数组转字符串
-public func bytesToString(bytes: Array<UInt8>): String {
+public func wsBytesToString(bytes: Array<UInt8>): String {
     let sb = StringBuilder()
     for (b in bytes) {
-        sb.append(Char(Int32(b)))
+        sb.append(Rune(UInt32(b)))
     }
     return sb.toString()
 }
 
 /// 字符串转字节数组
-public func stringToBytes(s: String): Array<UInt8> {
-    var bytes = Array<UInt8>()
+public func wsStringToBytes(s: String): Array<UInt8> {
+    let bytes = ArrayList<UInt8>()
     for (c in s) {
-        bytes.append(UInt8(c.value & 0xFF))
+        bytes.append(c)
     }
-    return bytes
+    return bytes.toOwnedSlice()
 }
 
 /// 头部名称-值对
-public class HeaderPair {
+private func wsGetHeader(headers: ArrayList<WsHeaderPair>, name: String): ?String {
+    let lowerName = wsLower(name)
+    for (h in headers) {
+        if (wsLower(h.name) == lowerName) {
+            return Some(h.value)
+        }
+    }
+    return None
+}
+
+private func wsLower(s: String): String {
+    let sb = StringBuilder()
+    for (c in s) {
+        let lowered = if (c >= UInt8(65) && c <= UInt8(90)) { c + UInt8(32) } else { c }
+        sb.append(Rune(UInt32(lowered)))
+    }
+    return sb.toString()
+}
+
+private func wsTrim(s: String): String {
+    var start: Int64 = 0
+    var end = s.size
+    while (start < end && wsIsSpace(s[start])) { start += 1 }
+    while (end > start && wsIsSpace(s[end - 1])) { end -= 1 }
+    return s[start..end]
+}
+
+private func wsIsSpace(c: UInt8): Bool {
+    return c == UInt8(32) || c == UInt8(9) || c == UInt8(10) || c == UInt8(13)
+}
+
+private func parseWsInt64(s: String, defaultValue: Int64): Int64 {
+    if (s.size == 0) { return defaultValue }
+    var result: Int64 = 0
+    for (c in s) {
+        if (c < UInt8(48) || c > UInt8(57)) { return defaultValue }
+        result = result * 10 + Int64(c - UInt8(48))
+    }
+    return result
+}
+
+public class WsHeaderPair {
     public var name: String
     public var value: String
 
@@ -468,5 +492,3 @@ public class HeaderPair {
     }
 }
 
-/// Any 类型 (仓颉兼容)
-public type Any = ?Object

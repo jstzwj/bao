@@ -112,35 +112,12 @@ public func initGlobalNoSideEffectLists(): Unit {
 }
 
 /// 辅助函数: 创建 ArrayList<String>
-private func arrayListOf(vararg elements: String): ArrayList<String> {
+private func arrayListOf(elements: Array<String>): ArrayList<String> {
     let list = ArrayList<String>()
     for (e in elements) {
         list.append(e)
     }
     return list
-}
-
-// ============================================================================
-// 纯全局标识符映射
-// 严格翻译自: src/bundler/analyze_transpiled_module.zig:230-923
-// Bun: pub const pure_global_identifier_map
-// ============================================================================
-
-/// 纯全局标识符值类型 - 对应 Bun PureGlobalIdentifierValue
-public enum PureGlobalIdentifierValue {
-    | NaN
-    | Infinity
-    | StrictUndefined
-    | Other
-
-    public func name(): String {
-        match (this) {
-            case NaN => "NaN"
-            case Infinity => "Infinity"
-            case StrictUndefined => "strict undefined"
-            case Other => "other"
-        }
-    }
 }
 
 /// 纯全局标识符映射 - 对应 Bun pure_global_identifier_map
@@ -202,4 +179,8 @@ public func getPureGlobalIdentifierValue(name: String): ?PureGlobalIdentifierVal
 // ============================================================================
 // 初始化
 // ============================================================================
-initGlobalNoSideEffectLists()
+
+/// 初始化全局无副作用列表 - 需要在 main 或适当位置调用
+public func initAnalyzeTranspiledModule(): Unit {
+    initGlobalNoSideEffectLists()
+}

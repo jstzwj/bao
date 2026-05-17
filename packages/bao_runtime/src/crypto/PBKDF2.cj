@@ -33,7 +33,7 @@ public class PBKDF2Params {
         this.password = password
         this.salt = salt
         this.iterationCount = iterationCount
-        this.size = length
+        this.length = length
         this.algorithm = algorithm
     }
 
@@ -65,12 +65,12 @@ public class PBKDF2Params {
         let passwordPtr: ?Array<Byte> = if (this.password.size > 0) { this.password } else { None }
         let rc = BoringSSL.pkcs5Pbkdf2Hmac(
             passwordPtr,
-            this.password.size.toInt64(),
+            this.password.size,
             this.salt,
-            this.salt.size.toInt64(),
+            this.salt.size,
             this.iterationCount,
             md.getOrThrow(),
-            this.size.toInt64(),
+            Int64(this.length),
             output
         )
 
@@ -136,7 +136,7 @@ public class PBKDF2Job {
         //     job.err = BoringSSL.EVP_R_MEMORY_LIMIT_EXCEEDED;
         //     return;
         // };
-        this.output = Array<Byte>(this.pbkdf2.size.toInt64(), repeat: 0)
+        this.output = Array<Byte>(Int64(this.pbkdf2.length), repeat: 0)
 
         // if (!job.pbkdf2.run(job.output))
         if (!this.pbkdf2.run(this.output)) {
@@ -152,11 +152,11 @@ public class PBKDF2Job {
     /// 从 JS 运行（任务完成后回调）
     /// 对应 Bun: pub fn runFromJS(*Job) bun.JSTerminated!void
     public func runFromJs(): Unit {
-        defer(this.deinit())
-
-        // if (this.vm.isShuttingDown()) return;
-        if (this.vm.isShuttingDown()) {
-            return
+        try {
+            // if (this.vm.isShuttingDown()) return;
+            // (VirtualMachine does not have isShuttingDown yet, skip check)
+        } finally {
+            this.deinit()
         }
 
         let globalThis = this.vm.getGlobal()
@@ -194,7 +194,7 @@ public class PBKDF2Job {
     public static func create(vm: VirtualMachine, globalThis: JsObject, data: PBKDF2Params): PBKDF2Job {
         let job = PBKDF2Job(data, vm)
         // job.promise = jsc.JSPromise.Strong.`init`(globalThis);
-        job.promise = JsPromise.`init`(globalThis)
+        job.promise = JsPromise.initFunc(globalThis)
 
         // jsc.WorkPool.schedule(&job.task);
         WorkPool.schedule(job)
@@ -213,13 +213,7 @@ public class PBKDF2Job {
 ///     iteration_count: u32, algorithm: Algorithm) ?[]const u8
 public func pbkdf2(output: Array<Byte>, password: Array<Byte>, salt: Array<Byte>,
                    iterationCount: UInt32, algorithm: EvpAlgorithm): ?Array<Byte> {
-    var pbk = PBKDF2Params(
-        password: password,
-        salt: salt,
-        iterationCount: iterationCount,
-        length: output.size.toInt32(),
-        algorithm: algorithm
-    )
+    var pbk = PBKDF2Params(password, salt, iterationCount, Int32(output.size), algorithm)
 
     if (!pbk.run(output)) {
         return None

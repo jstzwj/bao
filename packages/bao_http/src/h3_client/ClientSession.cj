@@ -73,7 +73,7 @@ public class H3ClientSession {
         qsocket = None
         handshakeDone = false
         closed = false
-        registryIndex = Int64.max
+        registryIndex = 9223372036854775807
         pending = ArrayList<H3ClientStream>()
     }
 
@@ -168,21 +168,14 @@ public class H3ClientSession {
     public func detach(stream: H3ClientStream): Unit {
         stream.client = H3ClientRef()
         match (stream.qstream) {
-            case Some(qs) => {
-                qs.reset()
-            }
+            case Some(qs) => qs.reset()
             case None => ()
         }
         stream.qstream = None
 
         // 从 pending 列表中移除
-        var i: Int64 = 0
-        while (i < pending.size) {
-            if (pending[i] === stream) {
-                pending.removeAt(Int32(i))
-                break
-            }
-            i += 1
+        if (pending.size > 0) {
+            pending.removeAt(0)
         }
         stream.deinit()
     }

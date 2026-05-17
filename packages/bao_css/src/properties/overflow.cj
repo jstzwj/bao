@@ -7,6 +7,7 @@
 package bao_css.properties
 
 import bao_core.*
+import bao_collections.*
 
 // ============================================================================
 // Overflow
@@ -25,11 +26,11 @@ public class Overflow {
     }
 
     public static func default(): Overflow {
-        Overflow(x: OverflowKeyword.Visible, y: OverflowKeyword.Visible)
+        Overflow(OverflowKeyword.Visible, OverflowKeyword.Visible)
     }
 
     public func toCss(): String {
-        if (y == x) {
+        if (y.toCss() == x.toCss()) {
             return x.toCss()
         }
         return x.toCss() + " " + y.toCss()

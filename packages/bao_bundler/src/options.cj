@@ -300,16 +300,7 @@ public enum OutputFormat {
 // ============================================================================
 // 模块类型
 // 严格翻译自: options.zig:368 ModuleType
-// ============================================================================
-
-/// 模块类型
-public enum ModuleType {
-    | Unknown
-    | CJS     // CommonJS
-    | ESM     // ES Module
-}
-
-// ============================================================================
+// ============================================================================// ============================================================================
 // SourceMap 选项
 // 严格翻译自: options.zig:1604 SourceMapOption
 // ============================================================================
@@ -343,16 +334,7 @@ public enum PackagesOption {
 
 // ============================================================================
 // 副作用
-// ============================================================================
-
-/// 副作用类型
-public enum SideEffects {
-    | HasSideEffects                // 有副作用
-    | NoSideEffectsPureData         // 无副作用 (纯数据)
-    | NoSideEffectsPackageJson      // 无副作用 (package.json 声明)
-}
-
-// ============================================================================
+// ============================================================================// ============================================================================
 // 导入路径格式
 // 严格翻译自: options.zig:1899 ImportPathFormat
 // ============================================================================
@@ -372,253 +354,10 @@ public enum ImportPathFormat {
 // ============================================================================
 
 /// Bundle 选项
-// 严格翻译自: options.zig:1670 BundleOptions
-public class BundleOptions {
-    /// banner 文本
-    public var banner: String
-    /// footer 文本
-    public var footer: String
-    /// 定义 (宏替换)
-    public var define: Define
-    /// 要丢弃的 API
-    public var drop: Array<String>
-    /// 加载器映射
-    public var loaders: HashMap<String, Loader>
-    /// 解析目录
-    public var resolveDir: String
-    /// JSX 配置
-    public var jsx: JsxPragma
-    /// 是否发出装饰器元数据
-    public var emitDecoratorMetadata: Bool
-    /// 是否使用实验性装饰器
-    public var experimentalDecorators: Bool
-    /// 是否自动导入 JSX
-    public var autoImportJsx: Bool
-    /// 是否允许运行时
-    public var allowRuntime: Bool
-    /// 输出目录
-    public var outputDir: String
-    /// 根目录
-    public var rootDir: String
-    /// 是否写入磁盘
-    public var write: Bool
-    /// 是否生产模式
-    public var production: Bool
-    /// 输出格式
-    public var outputFormat: OutputFormat
-    /// 目标平台
-    public var target: Target
-    /// 主字段
-    public var mainFields: Array<String>
-    /// 入口点列表
-    public var entryPoints: Array<String>
-    /// 入口命名模板
-    public var entryNaming: String
-    /// 资源命名模板
-    public var assetNaming: String
-    /// chunk 命名模板
-    public var chunkNaming: String
-    /// 公共路径
-    public var publicPath: String
-    /// 输出扩展名映射
-    public var outExtensions: HashMap<String, String>
-    /// 是否启用 tree-shaking
-    public var treeShaking: Bool
-    /// 是否启用代码分割
-    public var codeSplitting: Bool
-    /// sourcemap 选项
-    public var sourceMap: SourceMapOption
-    /// 包选项
-    public var packages: PackagesOption
-    /// 是否启用 CSS 分块
-    public var cssChunking: Bool
-    /// 是否压缩空白
-    public var minifyWhitespace: Bool
-    /// 是否压缩语法
-    public var minifySyntax: Bool
-    /// 是否压缩标识符
-    public var minifyIdentifiers: Bool
-    /// 是否保持名称
-    public var keepNames: Bool
-    /// 是否启用死代码消除
-    public var deadCodeElimination: Bool
-    /// 是否忽略 DCE 注解
-    public var ignoreDceAnnotations: Bool
-    /// 是否发出 DCE 注解
-    public var emitDceAnnotations: Bool
-    /// 是否生成字节码
-    public var bytecode: Bool
-    /// 是否编译为独立 HTML
-    public var compileToStandaloneHtml: Bool
-    /// 是否生成 metafile
-    public var metafile: Bool
-    /// metafile JSON 路径
-    public var metafileJsonPath: String
-    /// 是否启用内联
-    public var inlining: Bool
-    /// 外部模块配置
-    public var external: ExternalModules
-    /// 是否禁止转译
-    public var disableTranspilation: Bool
-
-    public init() {
-        this.banner = ""
-        this.footer = ""
-        this.define = Define()
-        this.drop = []
-        this.loaders = HashMap<String, Loader>()
-        this.resolveDir = "/"
-        this.jsx = JsxPragma()
-        this.emitDecoratorMetadata = false
-        this.experimentalDecorators = false
-        this.autoImportJsx = true
-        this.allowRuntime = true
-        this.outputDir = "out"
-        this.rootDir = ""
-        this.write = false
-        this.production = false
-        this.outputFormat = OutputFormat.ESM
-        this.target = Target.Browser
-        this.mainFields = Target.Browser.defaultMainFields()
-        this.entryPoints = []
-        this.entryNaming = ""
-        this.assetNaming = ""
-        this.chunkNaming = ""
-        this.publicPath = ""
-        this.outExtensions = HashMap<String, String>()
-        this.treeShaking = false
-        this.codeSplitting = false
-        this.sourceMap = SourceMapOption.None
-        this.packages = PackagesOption.Bundle
-        this.cssChunking = false
-        this.minifyWhitespace = false
-        this.minifySyntax = false
-        this.minifyIdentifiers = false
-        this.keepNames = false
-        this.deadCodeElimination = true
-        this.ignoreDceAnnotations = false
-        this.emitDceAnnotations = false
-        this.bytecode = false
-        this.compileToStandaloneHtml = false
-        this.metafile = false
-        this.metafileJsonPath = ""
-        this.inlining = false
-        this.external = ExternalModules()
-        this.disableTranspilation = false
-
-        // 初始化默认加载器
-        initDefaultLoaders()
-    }
-
-    /// 初始化默认加载器
-    private func initDefaultLoaders(): Unit {
-        loaders.put(".jsx", Loader.Jsx)
-        loaders.put(".js", Loader.Js)
-        loaders.put(".mjs", Loader.Js)
-        loaders.put(".cjs", Loader.Js)
-        loaders.put(".ts", Loader.Ts)
-        loaders.put(".tsx", Loader.Tsx)
-        loaders.put(".mts", Loader.Ts)
-        loaders.put(".cts", Loader.Ts)
-        loaders.put(".css", Loader.Css)
-        loaders.put(".json", Loader.Json)
-        loaders.put(".jsonc", Loader.Jsonc)
-        loaders.put(".toml", Loader.Toml)
-        loaders.put(".yaml", Loader.Yaml)
-        loaders.put(".yml", Loader.Yaml)
-        loaders.put(".json5", Loader.Json5)
-        loaders.put(".wasm", Loader.Wasm)
-        loaders.put(".node", Loader.Napi)
-        loaders.put(".txt", Loader.Text)
-        loaders.put(".text", Loader.Text)
-        loaders.put(".html", Loader.Html)
-        loaders.put(".md", Loader.Md)
-    }
-
-    /// 获取加载器
-    public func loader(ext: String): Loader {
-        match (loaders.get(ext)) {
-            case Some(l) => return l
-            case None => return Loader.File
-        }
-    }
-
-    /// CSS 导入行为
-    public func cssImportBehavior(): CssInJsBehavior {
-        match (target) {
-            case Browser => CssInJsBehavior.AutoOnImportCSS
-            case _ => CssInJsBehavior.Facade
-        }
-    }
-}
-
-// ============================================================================
+// 严格翻译自: options.zig:1670 BundleOptions// ============================================================================
 // 外部模块配置
 // 严格翻译自: options.zig:83 ExternalModules
-// ============================================================================
-
-/// 外部模块配置
-public class ExternalModules {
-    /// node_modules 外部化列表
-    public var nodeModules: HashSet<String>
-    /// 绝对路径外部化列表
-    public var absPaths: HashSet<String>
-    /// 通配符模式
-    public var patterns: Array<WildcardPattern>
-
-    public init() {
-        this.nodeModules = HashSet<String>()
-        this.absPaths = HashSet<String>()
-        this.patterns = []
-    }
-
-    /// 初始化外部模块
-    public func initFunc(externals: Array<String>, target: Target): Unit {
-        // 添加默认外部模式
-        patterns = [WildcardPattern(prefix: "/bun:", suffix: "")]
-
-        // Node 目标添加内置模块
-        if (target == Target.Node) {
-            for (builtin in NodeBuiltinPatterns) {
-                nodeModules.put(builtin)
-            }
-        }
-
-        // 处理用户指定的外部模块
-        for (external in externals) {
-            let starIdx = external.indexOf("*")
-            if (starIdx >= 0) {
-                // 通配符模式
-                patterns.append(WildcardPattern(
-                    prefix: external.substring(0, Int64(starIdx)),
-                    suffix: external.substring(Int64(starIdx + 1))
-                ))
-            } else if (isPackagePath(external)) {
-                nodeModules.put(external)
-            } else {
-                absPaths.put(external)
-            }
-        }
-    }
-
-    /// 判断是否是包路径
-    private func isPackagePath(path: String): Bool {
-        return !path.startsWith("/") && !path.startsWith("./") && !path.startsWith("../")
-    }
-}
-
-/// 通配符模式
-public class WildcardPattern {
-    public var prefix: String
-    public var suffix: String
-
-    public init(prefix: String, suffix: String) {
-        this.prefix = prefix
-        this.suffix = suffix
-    }
-}
-
-/// Node 内置模块模式列表
+// ============================================================================/// Node 内置模块模式列表
 public let NodeBuiltinPatterns: Array<String> = [
     "assert", "async_hooks", "buffer", "child_process", "cluster",
     "console", "constants", "crypto", "dgram", "diagnostics_channel",
@@ -676,7 +415,7 @@ public class JsxPragma {
 
     /// 获取导入源
     public func getImportSource(): String {
-        return if (development) importSource.development else importSource.production
+        return if (development) { importSource.development } else { importSource.production }
     }
 }
 
@@ -699,23 +438,6 @@ public class JsxImportSource {
 public enum CssInJsBehavior {
     | AutoOnImportCSS
     | Facade
-}
-
-// ============================================================================
-// 辅助类型
-// ============================================================================
-
-/// 定义 (宏替换)
-public class Define {
-    public var entries: HashMap<String, String>
-
-    public init() {
-        this.entries = HashMap<String, String>()
-    }
-
-    public func deinit(): Unit {
-        entries.clear()
-    }
 }
 
 /// 扩展名解析顺序

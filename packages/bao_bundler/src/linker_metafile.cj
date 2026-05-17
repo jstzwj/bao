@@ -276,16 +276,14 @@ public class MetafileBuilder {
 
             // 使用预构建的 chunk JSON (如果有)
             match (chunk.metafileChunkJson) {
-                case Some(json) => {
+                case Some(json) =>
                     sb.append("\n    ")
                     sb.append(json)
-                }
-                case None => {
+                case None =>
                     // 实时生成
                     sb.append("\n    ")
                     let json = generateChunkJson(linker, chunk, chunks)
                     sb.append(json)
-                }
             }
         }
 
@@ -309,13 +307,12 @@ public class MetafileBuilder {
                 case '\n' => sb.append("\\n")
                 case '\r' => sb.append("\\r")
                 case '\t' => sb.append("\\t")
-                case _ => {
+                case _ =>
                     if (c.value < 0x20) {
                         sb.append("\\u${c.value.toHexString().padLeft(4, '0')}")
                     } else {
                         sb.append(c)
                     }
-                }
             }
         }
         sb.append("\"")
@@ -328,7 +325,7 @@ public class MetafileBuilder {
 
     /// 写入 JSON 布尔
     public static func writeJSONBool(sb: StringBuilder, value: Bool): Unit {
-        sb.append(if (value) "true" else "false")
+        sb.append(if (value) { "true" } else { "false" })
     }
 }
 
@@ -454,19 +451,17 @@ public class MetafileOutput {
 
         // entryPoint
         match (entryPoint) {
-            case Some(ep) => {
+            case Some(ep) =>
                 sb.append(",\n      \"entryPoint\": ")
                 MetafileBuilder.writeJSONString(sb, ep)
-            }
             case None => ()
         }
 
         // cssBundle
         match (cssBundle) {
-            case Some(css) => {
+            case Some(css) =>
                 sb.append(",\n      \"cssBundle\": ")
                 MetafileBuilder.writeJSONString(sb, css)
-            }
             case None => ()
         }
 

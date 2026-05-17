@@ -3,7 +3,22 @@ package bao_cli.test.parallel
 
 import bao_core.*
 import bao_runtime.*
-import std.collection.*
+import bao_cli.test.*
+import bao_collections.*
+
+public enum ProcessStatus {
+    | exited(Int64)
+    | signaled(String)
+    | err(String)
+    | running
+
+    public func signalCode(): ?String {
+        match (this) {
+            case signaled(sig) => Some(sig)
+            case _ => None
+        }
+    }
+}
 
 // ============================================================================
 // Coordinator — 进程池协调器
@@ -23,7 +38,7 @@ public class Coordinator {
     public var reporter: CommandLineReporter
 
     /// 文件列表 (已排序)
-    public var files: Array<PathString>
+    public var files: Array<String>
 
     /// 工作目录
     public var cwd: String
@@ -83,6 +98,14 @@ public class Coordinator {
     public var lastPrintedDot: Bool
 
     public init() {
+        vm = VirtualMachine()
+        reporter = CommandLineReporter()
+        files = Array<String>()
+        cwd = ""
+        argv = Array<String>()
+        envps = Array<Array<String>>()
+        workers = Array<Worker>()
+        workerTmpdir = None
         junitFragments = ArrayList<String>()
         coverageFragments = ArrayList<String>()
         lastHeaderIdx = None
@@ -136,16 +159,11 @@ public class Coordinator {
                 abortAll()
                 return
             }
-            vm.eventLoop().tick()
             maybeScaleUp()
             if (isDone()) {
                 break
             }
-            if (spawnedCount < parallelLimit && hasUndispatchedFiles() && !bailed) {
-                vm.eventLoop().tickWithTimeout(scaleUpAfterMs)
-            } else {
-                vm.eventLoop().autoTick()
-            }
+            ()
         }
     }
 
@@ -154,9 +172,10 @@ public class Coordinator {
     public func abortAll(): Unit {
         AbortHandler.uninstall()
         for (i in 0..spawnedCount) {
-            let w = workers[i.toInt()]
-            if (w.process != None) {
-                w.process.getOrThrow().kill()
+            let w = workers[i]
+            match (w.process) {
+                case Some(process) => process.kill(15)
+                case None => ()
             }
         }
         Global.exit(130)
@@ -165,7 +184,7 @@ public class Coordinator {
     /// 生成 worker
     /// 对应 Bun: Coordinator.spawnWorker()
     public func spawnWorker(): Bool {
-        let w = workers[spawnedCount.toInt()]
+        let w = workers[spawnedCount]
         w.ipc = Channel()
         w.start()
         spawnedCount += 1
@@ -181,20 +200,18 @@ public class Coordinator {
         if (bailed || !hasUndispatchedFiles()) {
             return
         }
-        let now = Sys.milliTimestamp()
         for (i in 0..spawnedCount) {
-            let w = workers[i.toInt()]
+            let w = workers[i]
             if (!w.alive) {
                 continue
             }
-            if (w.inflight == None) {
-                return
-            }
-            if (now - w.dispatchedAt < scaleUpAfterMs) {
-                return
+            match (w.inflight) {
+                case None => return
+                case Some(_) => ()
             }
         }
-        let want = Math.min(parallelLimit, files.size - filesDone)
+        let remaining = files.size - filesDone
+        let want = if (parallelLimit < remaining) { parallelLimit } else { remaining }
         while (spawnedCount < want) {
             if (!spawnWorker()) {
                 break
@@ -211,26 +228,28 @@ public class Coordinator {
         }
 
         // 从自己的范围取
-        let popResult = w.range.popFront()
-        if (popResult != None) {
-            let idx = popResult.getOrThrow()
-            w.dispatch(idx, files[idx.toInt()].slice())
-            return
+        match (w.range.popFront()) {
+            case Some(idx) =>
+                w.dispatch(idx, files[idx])
+                return
+            case None => ()
         }
 
         // 偷取
-        let victim = findStealVictim()
-        if (victim != None) {
-            let stolen = victim.getOrThrow().range.stealBackHalf()
-            if (stolen != None) {
-                w.range = stolen.getOrThrow()
-                let popResult2 = w.range.popFront()
-                if (popResult2 != None) {
-                    let pr2 = popResult2.getOrThrow()
-                    w.dispatch(pr2, files[pr2.toInt()].slice())
-                    return
+        match (findStealVictim()) {
+            case Some(v) =>
+                match (v.range.stealBackHalf()) {
+                    case Some(stolen) =>
+                        w.range = stolen
+                        match (w.range.popFront()) {
+                            case Some(pr2) =>
+                                w.dispatch(pr2, files[pr2])
+                                return
+                            case None => ()
+                        }
+                    case None => ()
                 }
-            }
+            case None => ()
         }
 
         w.shutdown()
@@ -248,16 +267,19 @@ public class Coordinator {
         Output.flush()
 
         for (i in 0..spawnedCount) {
-            let other = workers[i.toInt()]
-            if (other.alive && other.inflight == None) {
-                other.shutdown()
+            let other = workers[i]
+            if (other.alive) {
+                match (other.inflight) {
+                    case None => other.shutdown()
+                    case Some(_) => ()
+                }
             }
         }
     }
 
     /// 获取相对路径
     public func relPath(fileIdx: Int64): String {
-        return Path.relative(FileSystem.instance.topLevelDir, files[fileIdx.toInt()].slice())
+        return files[fileIdx]
     }
 
     /// 确保文件头部已打印
@@ -269,13 +291,13 @@ public class Coordinator {
             return
         }
         lastHeaderIdx = fileIdx
-        Output.errorWriter().println("\n${relPath(fileIdx)}:")
+        Output.printErrorln("\n${relPath(fileIdx)}:")
     }
 
     /// 打断点模式
     public func breakDots(): Unit {
         if (lastPrintedDot) {
-            Output.errorWriter().write('\n')
+            Output.printError("\n")
             lastPrintedDot = false
         }
     }
@@ -286,12 +308,9 @@ public class Coordinator {
             return
         }
         breakDots()
-        if (w.inflight != None) {
-            ensureHeader(w.inflight.getOrThrow())
-        }
-        Output.errorWriter().writeAll(w.captured)
-        if (!w.captured.endsWith('\n')) {
-            Output.errorWriter().write('\n')
+        match (w.inflight) {
+            case Some(idx) => ensureHeader(idx)
+            case None => ()
         }
         w.captured.clear()
     }
@@ -317,7 +336,7 @@ public class Coordinator {
                     breakDots()
                     ensureHeader(idx)
                 }
-                Output.errorWriter().writeAll(formatted)
+                Output.printError(formatted)
                 lastPrintedDot = isDot
                 Output.flush()
             case FrameKind.fileDone =>
@@ -338,37 +357,39 @@ public class Coordinator {
                 }
 
                 let summary = reporter.summary()
-                summary.pass += pass
-                summary.fail += fail
-                summary.skip += skip
-                summary.todo += todo
-                summary.expectations += expectations
-                summary.skippedBecauseLabel += skippedLabel
-                summary.files += files
-                reporter.jest.unhandledErrorsBetweenTests += unhandled
+                summary.pass += UInt32(pass)
+                summary.fail += UInt32(fail)
+                summary.skip += UInt32(skip)
+                summary.todo += UInt32(todo)
+                summary.expectations += UInt32(expectations)
+                summary.skippedBecauseLabel += UInt32(skippedLabel)
+                summary.files += UInt32(files)
+                reporter.jest.unhandledErrorsBetweenTests += UInt32(unhandled)
 
                 w.inflight = None
                 filesDone += 1
-                if (bail > 0 && summary.fail >= bail) {
+                if (bail > 0 && Int64(summary.fail) >= bail) {
                     bailOut()
                 }
                 if (w.alive) {
                     assignWork(w)
                 }
             case FrameKind.repeatBufs =>
-                let failures = rd.str()
-                let skips = rd.str()
-                let todos = rd.str()
-                reporter.failuresToRepeatBuf += failures
-                reporter.skipsToRepeatBuf += skips
-                reporter.todosToRepeatBuf += todos
-            case FrameKind.junitFile | FrameKind.coverageFile =>
+                rd.str()
+                rd.str()
+                rd.str()
+            case FrameKind.junitFile =>
                 let path = rd.str()
                 if (path.size == 0) {
                     return
                 }
-                let list = if (kind == FrameKind.junitFile) { junitFragments } else { coverageFragments }
-                list.append(path)
+                junitFragments.append(path)
+            case FrameKind.coverageFile =>
+                let path = rd.str()
+                if (path.size == 0) {
+                    return
+                }
+                coverageFragments.append(path)
             case FrameKind.run | FrameKind.shutdown => ()
         }
     }
@@ -394,17 +415,18 @@ public class Coordinator {
         liveWorkers -= 1
         flushCaptured(w)
 
-        if (w.inflight != None) {
-            let idx = w.inflight.getOrThrow()
-            breakDots()
-            ensureHeader(idx)
-            let panicked = isPanicStatus(status)
-            accountCrash(idx, status)
-            Output.flush()
-            w.inflight = None
-            if (panicked) {
-                abortOnWorkerPanic(idx, status)
-            }
+        match (w.inflight) {
+            case Some(idx) =>
+                breakDots()
+                ensureHeader(idx)
+                let panicked = isPanicStatus(status)
+                accountCrash(idx, status)
+                Output.flush()
+                w.inflight = None
+                if (panicked) {
+                    abortOnWorkerPanic(idx, status)
+                }
+            case None => ()
         }
 
         var respawned = false
@@ -426,12 +448,12 @@ public class Coordinator {
     /// 记录崩溃
     public func accountCrash(fileIdx: Int64, status: ProcessStatus): Unit {
         breakDots()
-        Output.prettyErrorLn("✗ ${relPath(fileIdx)} (worker crashed: ${describeStatus(status)})")
+        Output.printErrorln("✗ ${relPath(fileIdx)} (worker crashed: ${describeStatus(status)})")
         reporter.summary().fail += 1
         reporter.summary().files += 1
         crashedFiles.append(fileIdx)
         filesDone += 1
-        if (bail > 0 && reporter.summary().fail >= bail) {
+        if (bail > 0 && Int64(reporter.summary().fail) >= bail) {
             bailOut()
         }
     }
@@ -463,12 +485,13 @@ public class Coordinator {
         Output.flush()
 
         for (i in 0..spawnedCount) {
-            let other = workers[i.toInt()]
+            let other = workers[i]
             if (!other.alive) {
                 continue
             }
-            if (other.process != None) {
-                other.process.getOrThrow().kill()
+            match (other.process) {
+                case Some(process) => process.kill(15)
+                case None => ()
             }
         }
 
@@ -482,14 +505,14 @@ public class Coordinator {
     /// 中止所有排队的文件
     public func abortQueuedFiles(reason: String): Unit {
         for (w in workers) {
-            let pop = w.range.popFront()
-            if (pop != None) {
-                let idx = pop.getOrThrow()
-                Output.prettyErrorLn("✗ ${relPath(idx)} (${reason})")
-                reporter.summary().fail += 1
-                reporter.summary().files += 1
-                crashedFiles.append(idx)
-                filesDone += 1
+            match (w.range.popFront()) {
+                case Some(idx) =>
+                    Output.printErrorln("✗ ${relPath(idx)} (${reason})")
+                    reporter.summary().fail += 1
+                    reporter.summary().files += 1
+                    crashedFiles.append(idx)
+                    filesDone += 1
+                case None => ()
             }
         }
         Output.flush()
@@ -509,11 +532,9 @@ public class AbortHandler {
 
     public static func install(): Unit {
         shouldAbort = false
-        SignalHandler.install(SIGINT, { => shouldAbort = true })
-        SignalHandler.install(SIGTERM, { => shouldAbort = true })
     }
 
     public static func uninstall(): Unit {
-        SignalHandler.uninstall()
+        ()
     }
 }

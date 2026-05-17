@@ -8,6 +8,7 @@
 package bao_sys
 
 import bao_core.*
+import bao_collections.*
 
 // ============================================================================
 // SysTag - 系统调用标签
@@ -353,11 +354,10 @@ public class SysError {
     /// 转为字符串 - 对应 Bun Error.toSystemError().format()
     public func toString(): String {
         var msg = name()
-        let errStr = msg()
         if (path.size > 0) {
-            msg = "${errStr}: ${syscall.name()}: '${path}'"
+            msg = "${msg}: ${syscall.name()}: '${path}'"
         } else {
-            msg = "${errStr}: ${syscall.name()}"
+            msg = "${msg}: ${syscall.name()}"
         }
         if (dest.size > 0) {
             msg = msg + " -> '${dest}'"
@@ -658,6 +658,8 @@ foreign func kill(pid: Int32, sig: Int32): Int32
 @C
 foreign func fork(): Int32
 @C
+foreign func exit(status: Int32): Unit
+@C
 foreign func execvp(file: CPointer<Int8>, argv: CPointer<CPointer<Int8>>): Int32
 @C
 foreign func waitpid(pid: Int32, status: CPointer<Int32>, options: Int32): Int32
@@ -709,8 +711,6 @@ foreign func ftruncate(fd: Int32, length: Int64): Int32
 foreign func truncate(path: CPointer<Int8>, length: Int64): Int32
 @C
 foreign func realpath(path: CPointer<Int8>, resolved: CPointer<Int8>): CPointer<Int8>
-@C
-foreign func errno_location(): CPointer<Int32>
 @C
 foreign func malloc(size: UIntNative): CPointer<Unit>
 @C
@@ -787,7 +787,7 @@ public class OS {
             let pathPtr = unsafeNewCString(path)
             let result = chdir(pathPtr)
             if (result != 0) {
-                throw BaoError(errno, "chdir failed: ${path}")
+                throw BaoError(ErrorCode.fromRaw(UInt16(OS.errno())), "chdir failed: ${path}")
             }
         }
     }
@@ -795,33 +795,45 @@ public class OS {
     /// 获取进程 ID
     /// 对应 Bun: std.posix.system.getpid()
     public static func pid(): Int64 {
-        return Int64(getpid())
+        unsafe {
+            return Int64(getpid())
+        }
     }
 
     /// 获取父进程 ID
     /// 对应 Bun: std.posix.system.getppid()
     public static func ppid(): Int64 {
-        return Int64(getppid())
+        unsafe {
+            return Int64(getppid())
+        }
     }
 
     /// 获取用户 ID
     public static func uid(): UInt32 {
-        return getuid()
+        unsafe {
+            return getuid()
+        }
     }
 
     /// 获取组 ID
     public static func gid(): UInt32 {
-        return getgid()
+        unsafe {
+            return getgid()
+        }
     }
 
     /// 获取有效用户 ID
     public static func euid(): UInt32 {
-        return geteuid()
+        unsafe {
+            return geteuid()
+        }
     }
 
     /// 获取有效组 ID
     public static func egid(): UInt32 {
-        return getegid()
+        unsafe {
+            return getegid()
+        }
     }
 
     /// 获取 errno 值
@@ -836,7 +848,10 @@ public class OS {
     /// 获取主机名 - 简化实现
     public static func hostname(): String {
         let host = getEnv("HOSTNAME")
-        return host.getOrElse { "localhost" }
+        match (host) {
+            case Some(value) => return value
+            case None => return "localhost"
+        }
     }
 }
 
@@ -859,10 +874,10 @@ public class SysFs {
     public static func open(path: String, flags: Int64, mode: UInt32): SysMaybe<Int64> {
         unsafe {
             let pathPtr = unsafeNewCString(path)
-            let fd = bao_sys.open(pathPtr, Int32(flags), mode)
+            let fd = open(pathPtr, Int32(flags), mode)
             if (fd < 0) {
                 return SysMaybe<Int64>.Err(
-                    SysError(UInt16(Int64(errno())), SysTag.Open, path)
+                    SysError(UInt16(OS.errno()), SysTag.Open, path)
                 )
             }
             return SysMaybe<Int64>.Ok(Int64(fd))
@@ -889,17 +904,17 @@ public class SysFs {
     public static func read(fd: Int64, buf: Array<UInt8>): SysMaybe<Int64> {
         unsafe {
             let bufPtr = malloc(UIntNative(buf.size))
-            let bytesRead = bao_sys.read(Int32(fd), bufPtr, UIntNative(buf.size))
+            let bytesRead = read(Int32(fd), bufPtr, UIntNative(buf.size))
             if (Int64(bytesRead) < 0) {
                 free(bufPtr)
                 return SysMaybe<Int64>.Err(
-                    SysError(UInt16(Int64(errno())), SysTag.Read, fd)
+                    SysError(UInt16(OS.errno()), SysTag.Read, fd)
                 )
             }
             let count = Int64(bytesRead)
             // 复制到仓颉数组
             for (i in 0..count) {
-                let bytePtr = CPointer<Int8>(bufPtr) + IntNative(i)
+                let bytePtr = CPointer<Int8>(bufPtr) + Int64(i)
                 buf[Int64(i)] = UInt8(Int32(bytePtr.read()) & 0xFF)
             }
             free(bufPtr)
@@ -913,14 +928,14 @@ public class SysFs {
         unsafe {
             let bufPtr = malloc(UIntNative(data.size))
             for (i in 0..data.size) {
-                let bytePtr = CPointer<Int8>(bufPtr) + IntNative(i)
+                let bytePtr = CPointer<Int8>(bufPtr) + Int64(i)
                 bytePtr.write(Int8(Int32(data[i])))
             }
-            let bytesWritten = bao_sys.write(Int32(fd), bufPtr, UIntNative(data.size))
+            let bytesWritten = write(Int32(fd), bufPtr, UIntNative(data.size))
             free(bufPtr)
             if (Int64(bytesWritten) < 0) {
                 return SysMaybe<Int64>.Err(
-                    SysError(UInt16(Int64(errno())), SysTag.Write, fd)
+                    SysError(UInt16(OS.errno()), SysTag.Write, fd)
                 )
             }
             return SysMaybe<Int64>.Ok(Int64(bytesWritten))
@@ -932,16 +947,19 @@ public class SysFs {
     /// fd.zig:236: pub fn close(fd: FD) void
     public static func close(fd: Int64): SysMaybe<Unit> {
         // 不关闭标准 IO - 对应 Bun FD.close 中 stdioTag 检查
-        if (FdUtils.stdioTag(fd) != None) {
+        match (FdUtils.stdioTag(fd)) {
+            case Some(_) => return SysMaybe<Unit>.Ok(())
+            case None => ()
+        }
+        unsafe {
+            let rc = close(Int32(fd))
+            if (rc != 0) {
+                return SysMaybe<Unit>.Err(
+                    SysError(UInt16(Int64(OS.errno())), SysTag.Close, fd)
+                )
+            }
             return SysMaybe<Unit>.Ok(())
         }
-        let rc = bao_sys.close(Int32(fd))
-        if (rc != 0) {
-            return SysMaybe<Unit>.Err(
-                SysError(UInt16(Int64(OS.errno())), SysTag.Close, fd)
-            )
-        }
-        return SysMaybe<Unit>.Ok(())
     }
 
     /// 创建目录
@@ -949,7 +967,7 @@ public class SysFs {
     public static func mkdir(path: String, mode: UInt32): SysMaybe<Unit> {
         unsafe {
             let pathPtr = unsafeNewCString(path)
-            let rc = bao_sys.mkdir(pathPtr, mode)
+            let rc = mkdir(pathPtr, mode)
             if (rc != 0) {
                 return SysMaybe<Unit>.Err(
                     SysError(UInt16(Int64(OS.errno())), SysTag.Mkdir, path)
@@ -964,7 +982,7 @@ public class SysFs {
     public static func unlink(path: String): SysMaybe<Unit> {
         unsafe {
             let pathPtr = unsafeNewCString(path)
-            let rc = bao_sys.unlink(pathPtr)
+            let rc = unlink(pathPtr)
             if (rc != 0) {
                 return SysMaybe<Unit>.Err(
                     SysError(UInt16(Int64(OS.errno())), SysTag.Unlink, path)
@@ -979,7 +997,7 @@ public class SysFs {
     public static func rmdir(path: String): SysMaybe<Unit> {
         unsafe {
             let pathPtr = unsafeNewCString(path)
-            let rc = bao_sys.rmdir(pathPtr)
+            let rc = rmdir(pathPtr)
             if (rc != 0) {
                 return SysMaybe<Unit>.Err(
                     SysError(UInt16(Int64(OS.errno())), SysTag.Rmdir, path)
@@ -995,7 +1013,7 @@ public class SysFs {
         unsafe {
             let oldPtr = unsafeNewCString(oldpath)
             let newPtr = unsafeNewCString(newpath)
-            let rc = bao_sys.rename(oldPtr, newPtr)
+            let rc = rename(oldPtr, newPtr)
             if (rc != 0) {
                 return SysMaybe<Unit>.Err(
                     SysError(UInt16(Int64(OS.errno())), SysTag.Rename)
@@ -1012,7 +1030,7 @@ public class SysFs {
         unsafe {
             let targetPtr = unsafeNewCString(target)
             let linkPtr = unsafeNewCString(linkpath)
-            let rc = bao_sys.symlink(targetPtr, linkPtr)
+            let rc = symlink(targetPtr, linkPtr)
             if (rc != 0) {
                 return SysMaybe<Unit>.Err(
                     SysError(UInt16(Int64(OS.errno())), SysTag.Symlink)
@@ -1030,7 +1048,7 @@ public class SysFs {
             let pathPtr = unsafeNewCString(path)
             let buf = malloc(UIntNative(4096))
             let bufPtr = CPointer<Int8>(buf)
-            let len = bao_sys.readlink(pathPtr, bufPtr, UIntNative(4096))
+            let len = readlink(pathPtr, bufPtr, UIntNative(4096))
             if (Int64(len) < 0) {
                 free(buf)
                 return SysMaybe<String>.Err(
@@ -1039,8 +1057,8 @@ public class SysFs {
             }
             var result = StringBuilder()
             for (i in 0..Int64(len)) {
-                let bytePtr = bufPtr + IntNative(i)
-                result.append(Char(Int32(bytePtr.read())))
+                let bytePtr = bufPtr + Int64(i)
+                result.append(Rune(Int32(bytePtr.read())))
             }
             free(buf)
             return SysMaybe<String>.Ok(result.toString())
@@ -1052,7 +1070,7 @@ public class SysFs {
     public static func chmod(path: String, mode: UInt32): SysMaybe<Unit> {
         unsafe {
             let pathPtr = unsafeNewCString(path)
-            let rc = bao_sys.chmod(pathPtr, mode)
+            let rc = chmod(pathPtr, mode)
             if (rc != 0) {
                 return SysMaybe<Unit>.Err(
                     SysError(UInt16(Int64(OS.errno())), SysTag.Chmod, path)
@@ -1067,7 +1085,7 @@ public class SysFs {
     public static func access(path: String, mode: Int64): SysMaybe<Unit> {
         unsafe {
             let pathPtr = unsafeNewCString(path)
-            let rc = bao_sys.access(pathPtr, Int32(mode))
+            let rc = access(pathPtr, Int32(mode))
             if (rc != 0) {
                 return SysMaybe<Unit>.Err(
                     SysError(UInt16(Int64(OS.errno())), SysTag.Access, path)
@@ -1084,7 +1102,7 @@ public class SysFs {
             let pathPtr = unsafeNewCString(path)
             // 使用 stat 获取文件大小
             let statBuf = malloc(UIntNative(144))  // struct stat 大小约 144 字节
-            let rc = bao_sys.stat(pathPtr, statBuf)
+            let rc = stat(pathPtr, statBuf)
             if (rc != 0) {
                 free(statBuf)
                 return SysMaybe<UInt64>.Err(
@@ -1092,7 +1110,7 @@ public class SysFs {
                 )
             }
             // 在 Linux x86_64 上, st_size 在偏移 48 处
-            let sizePtr = CPointer<Int64>(statBuf) + IntNative(6)  // offset 48 = 6 * 8
+            let sizePtr = CPointer<Int64>(statBuf) + Int64(6)  // offset 48 = 6 * 8
             let size = UInt64(sizePtr.read())
             free(statBuf)
             return SysMaybe<UInt64>.Ok(size)
@@ -1102,37 +1120,43 @@ public class SysFs {
     /// lseek
     /// 对应 Bun: sys.lseek(fd, offset, whence) -> Maybe(i64)
     public static func lseek(fd: Int64, offset: Int64, whence: Int64): SysMaybe<Int64> {
-        let result = lseek(Int32(fd), offset, Int32(whence))
-        if (result < 0) {
-            return SysMaybe<Int64>.Err(
-                SysError(UInt16(Int64(OS.errno())), SysTag.Lseek, fd)
-            )
+        unsafe {
+            let result = lseek(Int32(fd), offset, Int32(whence))
+            if (result < 0) {
+                return SysMaybe<Int64>.Err(
+                    SysError(UInt16(Int64(OS.errno())), SysTag.Lseek, fd)
+                )
+            }
+            return SysMaybe<Int64>.Ok(result)
         }
-        return SysMaybe<Int64>.Ok(result)
     }
 
     /// fsync
     /// 对应 Bun: sys.fsync(fd) -> Maybe(void)
     public static func fsync(fd: Int64): SysMaybe<Unit> {
-        let rc = fsync(Int32(fd))
-        if (rc != 0) {
-            return SysMaybe<Unit>.Err(
-                SysError(UInt16(Int64(OS.errno())), SysTag.Fsync, fd)
-            )
+        unsafe {
+            let rc = fsync(Int32(fd))
+            if (rc != 0) {
+                return SysMaybe<Unit>.Err(
+                    SysError(UInt16(Int64(OS.errno())), SysTag.Fsync, fd)
+                )
+            }
+            return SysMaybe<Unit>.Ok(())
         }
-        return SysMaybe<Unit>.Ok(())
     }
 
     /// ftruncate
     /// 对应 Bun: sys.ftruncate(fd, length) -> Maybe(void)
     public static func ftruncate(fd: Int64, length: Int64): SysMaybe<Unit> {
-        let rc = ftruncate(Int32(fd), length)
-        if (rc != 0) {
-            return SysMaybe<Unit>.Err(
-                SysError(UInt16(Int64(OS.errno())), SysTag.Ftruncate, fd)
-            )
+        unsafe {
+            let rc = ftruncate(Int32(fd), length)
+            if (rc != 0) {
+                return SysMaybe<Unit>.Err(
+                    SysError(UInt16(Int64(OS.errno())), SysTag.Ftruncate, fd)
+                )
+            }
+            return SysMaybe<Unit>.Ok(())
         }
-        return SysMaybe<Unit>.Ok(())
     }
 
     /// realpath
@@ -1142,7 +1166,7 @@ public class SysFs {
             let pathPtr = unsafeNewCString(path)
             let buf = malloc(UIntNative(4096))
             let bufPtr = CPointer<Int8>(buf)
-            let result = bao_sys.realpath(pathPtr, bufPtr)
+            let result = realpath(pathPtr, bufPtr)
             if (result.isNull()) {
                 free(buf)
                 return SysMaybe<String>.Err(
@@ -1207,11 +1231,15 @@ public class ChildProcess {
     /// 对应 Bun: waitpid(pid, &status, 0) + WIFEXITED/WIFSIGNALED 解码
     public func wait(): ExitStatus {
         unsafe {
-            var status: Int32 = 0
-            let result = waitpid(Int32(pid), &status, 0)
+            let statusBuf = malloc(UIntNative(4))
+            let statusPtr = CPointer<Int32>(statusBuf)
+            let result = waitpid(Int32(pid), statusPtr, 0)
             if (result < 0) {
-                throw BaoError(OS.errno(), "waitpid failed")
+                free(statusBuf)
+                throw BaoError(ErrorCode.fromRaw(UInt16(OS.errno())), "waitpid failed")
             }
+            let status = statusPtr.read()
+            free(statusBuf)
             if ((status & 0x7F) == 0) {
                 // WIFEXITED: 正常退出
                 // WEXITSTATUS: 退出码 = (status >> 8) & 0xFF
@@ -1226,9 +1254,11 @@ public class ChildProcess {
     /// 向进程发送信号
     /// 对应 Bun: sys.kill(pid, sig)
     public func kill(sig: Int64): Unit {
-        let rc = kill(Int32(pid), Int32(sig))
-        if (rc != 0) {
-            throw BaoError(OS.errno(), "kill failed")
+        unsafe {
+            let rc = kill(Int32(pid), Int32(sig))
+            if (rc != 0) {
+                throw BaoError(ErrorCode.fromRaw(UInt16(OS.errno())), "kill failed")
+            }
         }
     }
 }
@@ -1273,30 +1303,32 @@ public class SpawnOptions {
 public class ProcessSpawner {
     /// 创建子进程 - 简化版 fork+exec
     /// 对应 Bun: spawn(command, args, env, cwd, stdin, stdout, stderr)
-    public static func spawn(command: String, options: SpawnOptions): ChildProcess {
+    public static func `spawn`(command: String, options: SpawnOptions): ChildProcess {
         unsafe {
             let pid = fork()
             if (pid < 0) {
-                throw BaoError(OS.errno(), "fork failed")
+                throw BaoError(ErrorCode.fromRaw(UInt16(OS.errno())), "fork failed")
             }
             if (pid == 0) {
                 // 子进程
-                if (let Some(cwd) = options.cwd) {
+                if (let Some(cwd) <- options.cwd) {
                     let cwdPtr = unsafeNewCString(cwd)
                     chdir(cwdPtr)
                 }
                 let pathPtr = unsafeNewCString(command)
-                // 构建 argv
-                var argv = Array<CPointer<Int8>>()
-                argv.append(unsafeNewCString(command))
-                for (arg in options.args) {
-                    argv.append(unsafeNewCString(arg))
+                var argv = Array<CPointer<Int8>>(options.args.size + 2, { _ => CPointer<Int8>() })
+                argv[0] = unsafeNewCString(command)
+                for (i in 0..options.args.size) {
+                    argv[i + 1] = unsafeNewCString(options.args[i])
                 }
-                argv.append(CPointer<Int8>())  // NULL 结尾
 
-                execvp(pathPtr, argv.toArray())
-                // execvp 失败 - 对应 Bun 中 execvp 返回时的处理
-                std.process.exit(127)
+                let argvBuf = malloc(UIntNative((options.args.size + 2) * 8))
+                let argvPtr = CPointer<CPointer<Int8>>(argvBuf)
+                for (i in 0..argv.size) {
+                    (argvPtr + Int64(i)).write(argv[i])
+                }
+                execvp(pathPtr, argvPtr)
+                exit(127)
             }
             // 父进程
             return ChildProcess(Int64(pid))
@@ -1304,15 +1336,15 @@ public class ProcessSpawner {
     }
 
     /// 简化 spawn
-    public static func spawn(command: String): ChildProcess {
-        return spawn(command, SpawnOptions())
+    public static func `spawn`(command: String): ChildProcess {
+        return `spawn`(command, SpawnOptions())
     }
 
     /// 带 args 的 spawn
-    public static func spawn(command: String, args: Array<String>): ChildProcess {
+    public static func `spawn`(command: String, args: Array<String>): ChildProcess {
         let opts = SpawnOptions()
         opts.args = args
-        return spawn(command, opts)
+        return `spawn`(command, opts)
     }
 }
 
@@ -1335,14 +1367,19 @@ public class Pipe {
     /// 对应 Bun: sys.pipe(fds) -> Maybe(void)
     public static func create(): SysMaybe<Pipe> {
         unsafe {
-            var fds = Array<Int32>(2, item: 0)
-            let rc = pipe(fds.toArray().unsafePtr())
+            let fdsBuf = malloc(UIntNative(8))
+            let fdsPtr = CPointer<Int32>(fdsBuf)
+            let rc = pipe(fdsPtr)
             if (rc != 0) {
+                free(fdsBuf)
                 return SysMaybe<Pipe>.Err(
                     SysError(UInt16(Int64(OS.errno())), SysTag.Pipe)
                 )
             }
-            return SysMaybe<Pipe>.Ok(Pipe(Int64(fds[0]), Int64(fds[1])))
+            let readFd = fdsPtr.read()
+            let writeFd = (fdsPtr + Int64(1)).read()
+            free(fdsBuf)
+            return SysMaybe<Pipe>.Ok(Pipe(Int64(readFd), Int64(writeFd)))
         }
     }
 }
@@ -1358,9 +1395,9 @@ internal func unsafeNewCString(s: String): CPointer<Int8> {
         let ptr = malloc(UIntNative(len + 1))
         let bytesPtr = CPointer<Int8>(ptr)
         for (i in 0..len) {
-            (bytesPtr + IntNative(i)).write(Int8(s[Int64(i)].value))
+            (bytesPtr + Int64(i)).write(Int8(Int64(s[Int64(i)]) & 0xFF))
         }
-        (bytesPtr + IntNative(len)).write(Int8(0))  // null 终止符
+        (bytesPtr + Int64(len)).write(Int8(0))  // null 终止符
         return bytesPtr
     }
 }
@@ -1369,13 +1406,52 @@ internal func unsafeNewCString(s: String): CPointer<Int8> {
 internal func unsafeCStringToString(ptr: CPointer<Int8>): String {
     unsafe {
         var len = 0
-        while (!(ptr + IntNative(len)).read() == Int8(0)) {
+        while (!(ptr + Int64(len)).read() == Int8(0)) {
             len += 1
         }
         var sb = StringBuilder()
         for (i in 0..len) {
-            sb.append(Char(Int32((ptr + IntNative(i)).read())))
+            sb.append(Rune(Int32((ptr + Int64(i)).read())))
         }
         return sb.toString()
+    }
+}
+
+// ============================================================================
+// SysModule - 系统工具模块
+// 提供环境变量、时间、系统信息等工具函数
+// ============================================================================
+
+/// 系统工具模块 - 对应 Bun 中分散的 sys 工具函数
+public class SysModule {
+    /// 获取环境变量
+    public static func getEnv(name: String): ?String {
+        return OS.getEnv(name)
+    }
+
+    /// 获取当前时间毫秒数
+    public static func currentTimeMillis(): Int64 {
+        // TODO: 使用 std.time 实现精确时间
+        return Int64(0)
+    }
+
+    /// 获取 CPU 核心数
+    public static func cpuCount(): Int64 {
+        return Int64(4)
+    }
+
+    /// 休眠指定毫秒数
+    public static func sleep(ms: Int64): Unit {
+        // TODO: 使用 std.time.Duration 实现精确休眠
+    }
+
+    /// 获取操作系统名称
+    public static func getOsName(): String {
+        return "linux"
+    }
+
+    /// 获取 CPU 架构名称
+    public static func getArchName(): String {
+        return "x86_64"
     }
 }

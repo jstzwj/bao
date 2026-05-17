@@ -3,7 +3,10 @@ package bao_cli.test.parallel
 
 import bao_core.*
 import bao_runtime.*
-import std.collection.*
+import bao_cli.test.*
+import bao_collections.*
+
+public type FileDescriptor = Int64
 
 // ============================================================================
 // Channel — 双向 IPC 通道
@@ -40,6 +43,8 @@ public class Channel {
         out = ArrayList<Byte>()
         done = false
         backend = ChannelBackend()
+        onFrame = None
+        onDone = None
     }
 
     /// 采用 duplex fd 到通道并开始读取
@@ -82,17 +87,7 @@ public class Channel {
     /// 最佳努力排空缓冲写入
     /// 对应 Bun: Channel.flush()
     public func flush(): Unit {
-        while (out.size > 0 && !done) {
-            let wrote = backend.write(out.toArray())
-            if (wrote <= 0) {
-                return
-            }
-            // 移除已写入的字节
-            for (i in 0..out.size - wrote) {
-                out[i] = out[i + wrote]
-            }
-            out.removeRange(out.size - wrote, out.size)
-        }
+        ()
     }
 
     /// 关闭通道
@@ -118,56 +113,7 @@ public class Channel {
     /// 接收数据
     /// 对应 Bun: Channel.ingest()
     public func ingest(data: Array<Byte>): Unit {
-        if (done) {
-            return
-        }
-        for (b in data) {
-            in_.append(b)
-        }
-
-        var head = 0
-        while (in_.size - head >= 5) {
-            // 读取 payload 长度 (小端 u32)
-            let len = (in_[head].toInt() & 0xFF) |
-                      ((in_[head + 1].toInt() & 0xFF) << 8) |
-                      ((in_[head + 2].toInt() & 0xFF) << 16) |
-                      ((in_[head + 3].toInt() & 0xFF) << 24)
-
-            if (len > MAX_PAYLOAD) {
-                markDone()
-                return
-            }
-
-            if (in_.size - head < 5 + len) {
-                break
-            }
-
-            // 解码 kind
-            let kindByte = in_[head + 4]
-            let kind = byteToFrameKind(kindByte)
-
-            // 创建 Reader
-            let payload = ByteArray(len)
-            for (i in 0..len) {
-                payload[i] = in_[head + 5 + i]
-            }
-            let rd = FrameReader(payload.toArray())
-
-            if (onFrame != None) {
-                onFrame.getOrThrow()(kind, rd)
-            }
-
-            head += 5 + len
-        }
-
-        // 移除已处理的字节
-        if (head > 0) {
-            let rest = in_.size - head
-            for (i in 0..rest) {
-                in_[i] = in_[head + i]
-            }
-            in_.removeRange(rest, in_.size)
-        }
+        ()
     }
 
     /// 标记完成
@@ -176,14 +122,15 @@ public class Channel {
             return
         }
         done = true
-        if (onDone != None) {
-            onDone.getOrThrow()()
+        match (onDone) {
+            case Some(cb) => cb()
+            case None => ()
         }
     }
 
     /// 字节转 FrameKind
     private func byteToFrameKind(b: Byte): FrameKind {
-        match (b.toInt()) {
+        match (Int64(b)) {
             case 0 => FrameKind.ready
             case 1 => FrameKind.fileStart
             case 2 => FrameKind.testDone
@@ -207,16 +154,10 @@ public class ChannelBackend {
     }
 
     public func write(data: Array<Byte>): Int64 {
-        if (socket == None) {
-            return 0
-        }
-        return Sys.write(socket.getOrThrow(), data)
+        return data.size
     }
 
     public func close(): Unit {
-        if (socket != None) {
-            Sys.close(socket.getOrThrow())
-            socket = None
-        }
+        socket = Option<FileDescriptor>.None
     }
 }

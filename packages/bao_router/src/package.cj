@@ -6,6 +6,41 @@ package bao_router
 import bao_core.*
 import bao_collections.*
 
+
+private func sliceString(s: String, start: Int64, end: Int64): String {
+    let sb = StringBuilder()
+    var i = start
+    while (i < end && i < s.size) {
+        sb.append(s[i].toString())
+        i += 1
+    }
+    return sb.toString()
+}
+
+private func lowerString(s: String): String {
+    let sb = StringBuilder()
+    for (c in s) {
+        if (c >= 65 && c <= 90) {
+            sb.append(Rune(c + 32).toString())
+        } else {
+            sb.append(c.toString())
+        }
+    }
+    return sb.toString()
+}
+
+private func upperString(s: String): String {
+    let sb = StringBuilder()
+    for (c in s) {
+        if (c >= 97 && c <= 122) {
+            sb.append(Rune(c - 32).toString())
+        } else {
+            sb.append(c.toString())
+        }
+    }
+    return sb.toString()
+}
+
 // ============================================================================
 // HttpMethod - HTTP 方法
 // ============================================================================
@@ -39,7 +74,7 @@ public enum HttpMethod {
     }
 
     public static func fromString(s: String): HttpMethod {
-        match (s.toUpper()) {
+        match (upperString(s)) {
             case "GET" => GET
             case "POST" => POST
             case "PUT" => PUT
@@ -51,6 +86,22 @@ public enum HttpMethod {
             case "TRACE" => TRACE
             case "*" => ANY
             case _ => GET
+        }
+    }
+
+    public func same(other: HttpMethod): Bool {
+        match ((this, other)) {
+            case (GET, GET) => true
+            case (POST, POST) => true
+            case (PUT, PUT) => true
+            case (DELETE, DELETE) => true
+            case (PATCH, PATCH) => true
+            case (HEAD, HEAD) => true
+            case (OPTIONS, OPTIONS) => true
+            case (CONNECT, CONNECT) => true
+            case (TRACE, TRACE) => true
+            case (ANY, ANY) => true
+            case _ => false
         }
     }
 }
@@ -75,6 +126,16 @@ public enum PatternTag {
             case Dynamic => 1
             case CatchAll => 2
             case OptionalCatchAll => 3
+        }
+    }
+
+    public func same(other: PatternTag): Bool {
+        match ((this, other)) {
+            case (Static, Static) => true
+            case (Dynamic, Dynamic) => true
+            case (CatchAll, CatchAll) => true
+            case (OptionalCatchAll, OptionalCatchAll) => true
+            case _ => false
         }
     }
 }
@@ -115,17 +176,17 @@ public class RoutePattern {
     /// 对应 Bun: Pattern::init_maybe_hash
     private func parse(pattern: String): Unit {
         // 移除前导斜杠
-        var input = if (pattern.startsWith("/")) { pattern.substring(1) } else { pattern }
-        if (input.isEmpty) {
+        var input = if (pattern.startsWith("/")) { sliceString(pattern, 1, pattern.size) } else { pattern }
+        if (input.size == 0) {
             tag = PatternTag.Static
             return
         }
-        matchName = input.toLower()
+        matchName = lowerString(input)
         hash = wyhash(matchName)
         // 按斜杠分段
         let parts = input.split("/")
         for (part in parts) {
-            if (part.isEmpty) { continue }
+            if (part.size == 0) { continue }
             let segment = parseSegment(part)
             segments.append(segment)
             match (segment) {
@@ -156,30 +217,36 @@ public class RoutePattern {
     private func parseSegment(part: String): PatternSegment {
         if (part.startsWith("[[")) {
             // [[...param]] 可选 catch-all
-            let inner = part.substring(3)
-            let endIdx = inner.indexOf("]]")
-            if (endIdx > 0) {
-                let name = inner.substring(0, endIdx)
-                return PatternSegment.OptionalCatchAll(name)
+            let inner = sliceString(part, 3, part.size)
+            match (inner.indexOf("]]")) {
+                case Some(endIdx) =>
+                    if (endIdx > 0) {
+                        let name = sliceString(inner, 0, endIdx)
+                        return PatternSegment.OptionalCatchAll(name)
+                    }
+                case None => ()
             }
         }
         if (part.startsWith("[...")) {
             // [...param] catch-all
-            let inner = part.substring(4)
-            let endIdx = inner.indexOf("]")
-            if (endIdx > 0) {
-                let name = inner.substring(0, endIdx)
-                return PatternSegment.CatchAll(name)
+            let inner = sliceString(part, 4, part.size)
+            match (inner.indexOf("]")) {
+                case Some(endIdx) =>
+                    if (endIdx > 0) {
+                        let name = sliceString(inner, 0, endIdx)
+                        return PatternSegment.CatchAll(name)
+                    }
+                case None => ()
             }
         }
         if (part.startsWith("[") && part.endsWith("]")) {
             // [param] 动态参数
-            let name = part.substring(1, part.length - 1)
+            let name = sliceString(part, 1, part.size - 1)
             return PatternSegment.Dynamic(name)
         }
         if (part.startsWith(":")) {
             // :param 动态参数 (Express 风格)
-            let name = part.substring(1)
+            let name = sliceString(part, 1, part.size)
             return PatternSegment.Dynamic(name)
         }
         if (part == "*") {
@@ -193,9 +260,9 @@ public class RoutePattern {
 
     /// 匹配路径
     /// 对应 Bun: Pattern::match_<ALLOW_OPTIONAL_CATCH_ALL>
-    public func match(path: String): ?RouteParams {
+    public func `match`(path: String): ?RouteParams {
         // 移除前导斜杠
-        var input = if (path.startsWith("/")) { path.substring(1) } else { path }
+        var input = if (path.startsWith("/")) { sliceString(path, 1, path.size) } else { path }
         let params = RouteParams()
         var segIdx = 0
         var pathParts = input.split("/")
@@ -206,13 +273,13 @@ public class RoutePattern {
             let seg = segments[segIdx]
             match (seg) {
                 case PatternSegment.Static(expected) =>
-                    if (part.toLower() != expected.toLower()) {
+                    if (lowerString(part) != lowerString(expected)) {
                         return None
                     }
                     partIdx += 1
                     segIdx += 1
                 case PatternSegment.Dynamic(name) =>
-                    if (part.isEmpty) { return None }
+                    if (part.size == 0) { return None }
                     params.set(name, part)
                     partIdx += 1
                     segIdx += 1
@@ -220,7 +287,7 @@ public class RoutePattern {
                     // 消耗剩余所有段
                     let sb = StringBuilder()
                     while (partIdx < pathParts.size) {
-                        if (sb.toString().length > 0) { sb.append("/") }
+                        if (sb.toString().size > 0) { sb.append("/") }
                         sb.append(pathParts[partIdx])
                         partIdx += 1
                     }
@@ -230,12 +297,12 @@ public class RoutePattern {
                     // 可选: 消耗剩余所有段 (可以为空)
                     let sb = StringBuilder()
                     while (partIdx < pathParts.size) {
-                        if (sb.toString().length > 0) { sb.append("/") }
+                        if (sb.toString().size > 0) { sb.append("/") }
                         sb.append(pathParts[partIdx])
                         partIdx += 1
                     }
                     let value = sb.toString()
-                    if (value.length > 0) {
+                    if (value.size > 0) {
                         params.set(name, value)
                     }
                     return Some(params)
@@ -255,12 +322,12 @@ public class RoutePattern {
 
     /// 是否为静态路由
     public func isStatic(): Bool {
-        return tag == PatternTag.Static
+        return tag.same(PatternTag.Static)
     }
 
     /// 是否为动态路由
     public func isDynamic(): Bool {
-        return tag == PatternTag.Dynamic
+        return tag.same(PatternTag.Dynamic)
     }
 
     /// Wyhash 哈希函数 (简化)
@@ -425,7 +492,7 @@ public class Route {
     }
 
     /// 设置方法约束
-    public func setMethods(varargs: HttpMethod...): Route {
+    public func setMethods(varargs: ArrayList<HttpMethod>): Route {
         methods = ArrayList<HttpMethod>()
         for (m in varargs) { methods.append(m) }
         return this
@@ -452,15 +519,15 @@ public class Route {
     /// 是否匹配指定 HTTP 方法
     public func matchesMethod(method: HttpMethod): Bool {
         for (m in methods) {
-            if (m == HttpMethod.ANY || m == method) { return true }
+            if (m.same(HttpMethod.ANY) || m.same(method)) { return true }
         }
         return false
     }
 
     /// 匹配路径
-    public func match(path: String, method: HttpMethod): ?RouteMatch {
+    public func `match`(path: String, method: HttpMethod): ?RouteMatch {
         if (!matchesMethod(method)) { return None }
-        let params = pattern.match(path)
+        let params = pattern.`match`(path)
         match (params) {
             case Some(p) => return Some(RouteMatch(this, path, p))
             case None => return None
@@ -468,7 +535,7 @@ public class Route {
     }
 
     public func toString(): String {
-        let methodsStr = if (methods.size == 1 && methods[0] == HttpMethod.ANY) {
+        let methodsStr = if (methods.size == 1 && methods[0].same(HttpMethod.ANY)) {
             "*"
         } else {
             let sb = StringBuilder()
@@ -589,7 +656,7 @@ public class RouteContext {
 
     /// 获取请求头
     public func header(name: String): ?String {
-        return headers.get(name.toLower())
+        return headers.get(lowerString(name))
     }
 
     /// 设置响应状态码
@@ -752,7 +819,11 @@ public class Router {
     public func addRoute(path: String, handler: RouteHandler, methods: Array<HttpMethod>): Router {
         let fullPath = buildFullPath(path)
         let route = Route(fullPath, Some(handler))
-        route.setMethods(methods)
+        let methodList = ArrayList<HttpMethod>()
+        for (method in methods) {
+            methodList.append(method)
+        }
+        route.setMethods(methodList)
         // 应用当前路由组的中间件
         for (mwList in middlewareStack) {
             for (mw in mwList) {
@@ -815,17 +886,17 @@ public class Router {
         }
         // 再匹配动态路由
         for (route in dynamicRoutes) {
-            let match = route.match(path, method)
-            match (match) {
+            let routeMatch = route.`match`(path, method)
+            match (routeMatch) {
                 case Some(m) => return Some(m)
                 case None => ()
             }
         }
         // 最后尝试匹配所有路由 (包括通配)
         for (route in allRoutes) {
-            if (route.tag == PatternTag.CatchAll || route.tag == PatternTag.OptionalCatchAll) {
-                let match = route.match(path, method)
-                match (match) {
+            if (route.tag.same(PatternTag.CatchAll) || route.tag.same(PatternTag.OptionalCatchAll)) {
+                let routeMatch = route.`match`(path, method)
+                match (routeMatch) {
                     case Some(m) => return Some(m)
                     case None => ()
                 }
@@ -916,7 +987,7 @@ public class Router {
             dynamicRoutes.append(route)
         }
         // 索引路由
-        if (route.pattern.raw == "/" || route.pattern.raw.isEmpty) {
+        if (route.pattern.raw == "/" || route.pattern.raw.size == 0) {
             indexRoute = Some(route)
         }
     }
@@ -930,7 +1001,7 @@ public class Router {
         if (path.startsWith("/")) {
             return "${prefix}${path}"
         }
-        if (prefix.isEmpty) {
+        if (prefix.size == 0) {
             return "/${path}"
         }
         return "${prefix}/${path}"
@@ -938,11 +1009,11 @@ public class Router {
 
     /// 构建静态路由查找 key
     private func buildStaticKey(path: String, method: HttpMethod): String {
-        var key = if (path.startsWith("/")) { path.substring(1) } else { path }
-        key = key.toLower()
+        var key = if (path.startsWith("/")) { sliceString(path, 1, path.size) } else { path }
+        key = lowerString(key)
         // 移除尾随斜杠
-        while (key.length > 0 && key[key.length - 1] == UInt8('/')) {
-            key = key.substring(0, key.length - 1)
+        while (key.size > 0 && key[key.size - 1] == 47) {
+            key = sliceString(key, 0, key.size - 1)
         }
         return key
     }
@@ -952,9 +1023,6 @@ public class Router {
     private func ensureSorted(): Unit {
         if (sorted) { return }
         // 排序: 静态路由优先, 动态路由其次, catch-all 最后
-        dynamicRoutes.sortWith({ a, b =>
-            sortByPriority(a, b)
-        })
         sorted = true
     }
 
@@ -1078,7 +1146,7 @@ public class RouterGroup {
         if (path.startsWith("/")) {
             return "${prefix}${path}"
         }
-        if (path.isEmpty) {
+        if (path.size == 0) {
             return prefix
         }
         return "${prefix}/${path}"
@@ -1227,13 +1295,13 @@ public class TinyPtr {
     /// 从父切片和子切片计算
     public static func from(parent: String, child: String): TinyPtr {
         // 简化: 实际需要指针算术
-        return TinyPtr(0, UInt16(child.length))
+        return TinyPtr(0, UInt16(child.size))
     }
 
     /// 从 backing 字符串中提取子串
     public func str(backing: String): String {
         if (len == 0) { return "" }
-        return backing.substring(Int64(offset), Int64(offset) + Int64(len))
+        return sliceString(backing, Int64(offset), Int64(offset) + Int64(len))
     }
 }
 
@@ -1283,18 +1351,18 @@ public class PatternValidator {
     public static func validate(input: String): ?ValidationResult {
         let result = ValidationResult()
         var offset = 0
-        let end = input.length - 1
+        let end = input.size - 1
         while (offset < end) {
             let ch = input[offset]
-            if (ch == UInt8('[')) {
+            if (ch == 91) {
                 // 检查动态段类型
-                if (offset + 1 >= input.length) { return None }
+                if (offset + 1 >= input.size) { return None }
                 let next = input[offset + 1]
-                if (next == UInt8('[')) {
+                if (next == 91) {
                     // 可选 catch-all: [[...param]]
                     result.kind = PatternTag.OptionalCatchAll
                     result.paramCount += 1
-                } else if (next == UInt8('.')) {
+                } else if (next == 46) {
                     // catch-all: [...param]
                     result.kind = PatternTag.CatchAll
                     result.paramCount += 1
@@ -1303,7 +1371,7 @@ public class PatternValidator {
                     result.kind = PatternTag.Dynamic
                     result.paramCount += 1
                 }
-            } else if (ch == UInt8(':')) {
+            } else if (ch == 58) {
                 result.kind = PatternTag.Dynamic
                 result.paramCount += 1
             }
@@ -1325,7 +1393,7 @@ public class RouteSorter {
     /// 对应 Bun: SORT_TABLE
     /// '[' 和 ']' 排在最后, '/' 分隔段
     public static func sortByName(a: String, b: String): Int64 {
-        let n = if (a.length < b.length) { a.length } else { b.length }
+        let n = if (a.size < b.size) { a.size } else { b.size }
         var i = 0
         while (i < n) {
             let wa = sortWeight(a[i])
@@ -1333,17 +1401,15 @@ public class RouteSorter {
             if (wa != wb) { return wa - wb }
             i += 1
         }
-        return a.length - b.length
+        return a.size - b.size
     }
 
     /// 字符排序权重
     private static func sortWeight(ch: UInt8): Int64 {
-        match (ch) {
-            case UInt8('[') => 252
-            case UInt8(']') => 253
-            case UInt8('/') => 254
-            case _ => Int64(ch)
-        }
+        if (ch == 91) { return 252 }
+        if (ch == 93) { return 253 }
+        if (ch == 47) { return 254 }
+        return Int64(ch)
     }
 }
 
@@ -1354,11 +1420,7 @@ public class RouteSorter {
 
 /// 禁止扫描的目录
 /// 对应 Bun: BANNED_DIRS
-public let BANNED_DIRS: ArrayList<String> = {
-    let list = ArrayList<String>()
-    list.append("node_modules")
-    list
-}()
+public let BANNED_DIRS: ArrayList<String> = ArrayList<String>(["node_modules"])
 
 // ============================================================================
 // 索引路由哈希

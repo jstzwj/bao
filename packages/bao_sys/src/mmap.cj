@@ -131,27 +131,27 @@ public class MmapFile {
             return UInt8(0)
         }
         unsafe {
-            let bytePtr = CPointer<UInt8>(ptr) + IntNative(offset)
+            let bytePtr = CPointer<UInt8>(ptr) + offset
             return bytePtr.read()
         }
     }
 
     /// 读取一段数据
     public func readBytes(offset: Int64, length: Int64): Array<UInt8> {
-        var result = Array<UInt8>()
-        if (unmapped) { return result }
+        if (unmapped) { return Array<UInt8>() }
         let end = if (offset + length > mapSize) { mapSize } else { offset + length }
+        var result = Array<UInt8>(end - offset, { _ => UInt8(0) })
         unsafe {
             for (i in offset..end) {
-                let bytePtr = CPointer<UInt8>(ptr) + IntNative(i)
-                result.append(bytePtr.read())
+                let bytePtr = CPointer<UInt8>(ptr) + i
+                result[i - offset] = bytePtr.read()
             }
         }
         return result
     }
 
     /// 获取原始指针
-    public func ptr(): CPointer<Unit> {
+    public func asPtr(): CPointer<Unit> {
         return ptr
     }
 
@@ -159,7 +159,9 @@ public class MmapFile {
     /// 对应 Bun: madvise(addr, len, MADV_SEQUENTIAL)
     public func advise(advice: Int32): Unit {
         if (!unmapped && mapSize > 0) {
-            madvise(ptr, UIntNative(mapSize), advice)
+            unsafe {
+                madvise(ptr, UIntNative(mapSize), advice)
+            }
         }
     }
 
@@ -168,12 +170,14 @@ public class MmapFile {
         if (unmapped) {
             return SysMaybe<Unit>.Err(SysError(9, SysTag.Fsync))
         }
-        let rc = msync(ptr, UIntNative(mapSize), flags)
-        if (rc != 0) {
-            return SysMaybe<Unit>.Err(
-                SysError(UInt16(Int64(OS.errno())), SysTag.Fsync))
+        unsafe {
+            let rc = msync(ptr, UIntNative(mapSize), flags)
+            if (rc != 0) {
+                return SysMaybe<Unit>.Err(
+                    SysError(UInt16(Int64(OS.errno())), SysTag.Fsync))
+            }
+            return SysMaybe<Unit>.Ok(())
         }
-        return SysMaybe<Unit>.Ok(())
     }
 
     /// 取消映射并关闭文件
@@ -181,7 +185,9 @@ public class MmapFile {
     public func close(): Unit {
         if (!unmapped) {
             if (!ptr.isNull() && mapSize > 0) {
-                munmap(ptr, UIntNative(mapSize))
+                unsafe {
+                    munmap(ptr, UIntNative(mapSize))
+                }
             }
             SysFs.close(fd)
             unmapped = true
@@ -208,6 +214,8 @@ public class MmapUtils {
 
     /// 释放匿名映射
     public static func free(ptr: CPointer<Unit>, size: Int64): Unit {
-        munmap(ptr, UIntNative(size))
+        unsafe {
+            munmap(ptr, UIntNative(size))
+        }
     }
 }

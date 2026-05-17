@@ -14,13 +14,13 @@ import bao_collections.*
 
 /// CSS @font-palette-values 基础调色板值
 /// 严格翻译自 BasePalette enum { Light, Dark, Integer(u16) }
-public class CssBasePalette {
-    public enum CssBasePaletteKind {
-        | Light      // light 关键字
-        | Dark       // dark 关键字
-        | Integer    // 调色板索引
-    }
+public enum CssBasePaletteKind {
+    | Light      // light 关键字
+    | Dark       // dark 关键字
+    | Integer    // 调色板索引
+}
 
+public class CssBasePalette {
     public var kind: CssBasePaletteKind
     public var index: UInt16
 
@@ -88,14 +88,14 @@ public class CssOverrideColors {
 
 /// CSS @font-palette-values 属性
 /// 严格翻译自 FontPaletteValuesProperty enum { FontFamily, BasePalette, OverrideColors, Custom }
-public class CssFontPaletteValuesProperty {
-    public enum CssFontPaletteValuesPropertyKind {
-        | FontFamily       // font-family 属性
-        | BasePalette      // base-palette 属性
-        | OverrideColors   // override-colors 属性
-        | Custom           // 自定义属性
-    }
+public enum CssFontPaletteValuesPropertyKind {
+    | FontFamily       // font-family 属性
+    | BasePalette      // base-palette 属性
+    | OverrideColors   // override-colors 属性
+    | Custom           // 自定义属性
+}
 
+public class CssFontPaletteValuesProperty {
     public var kind: CssFontPaletteValuesPropertyKind
     /// 字体族
     public var fontFamily: String
@@ -146,17 +146,22 @@ public class CssFontPaletteValuesProperty {
 
     /// 转为 CSS 文本
     /// 严格翻译自 FontPaletteValuesProperty.to_css
+    private func overrideColorsToCss(): String {
+        let parts = ArrayList<String>()
+        for (c in overrideColors) {
+            parts.append(c.toCss())
+        }
+        var partArr = Array<String>(parts.size, repeat: "")
+        var pi: Int64 = 0
+        for (p in parts) { partArr[pi] = p; pi += 1 }
+        "override-colors: ${String.join(partArr, delimiter: ", ")}"
+    }
+
     public func toCss(): String {
         match (kind) {
             case FontFamily => "font-family: ${fontFamily}"
             case BasePalette => "base-palette: ${basePalette.toCss()}"
-            case OverrideColors => {
-                let parts = ArrayList<String>()
-                for (c in overrideColors) {
-                    parts.append(c.toCss())
-                }
-                "override-colors: ${String.join(", ", parts)}"
-            }
+            case OverrideColors => overrideColorsToCss()
             case Custom => "${customName}: ${customValue}"
         }
     }

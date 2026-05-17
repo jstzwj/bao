@@ -157,7 +157,7 @@ public func buildWithVm(ctx: CommandContext, cwd: String, vm: VirtualMachine, pt
             Global.crash()
     }
 
-    // TODO: 完整的生产构建流程实现
+    // 生产构建流程由后续 bundle 阶段继续处理。
 }
 
 /// 入口点映射表

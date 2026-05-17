@@ -9,6 +9,7 @@
 package bao_sys
 
 import bao_core.*
+import bao_collections.*
 
 // ============================================================================
 // DNS 记录类型
@@ -224,27 +225,15 @@ public class DnsResolveOptions {
 
 /// DNS 解析器
 /// 对应 Bun: dns.lookup / dns.resolve / GetAddrInfo 结构体
-public class DnsResolver {
-    // C FFI 声明 (部分在 dns.cj 中已声明, 此处补充)
-    @C
-    foreign func getaddrinfo(node: CPointer<Int8>, service: CPointer<Int8>,
-                              hints: CPointer<Unit>, res: CPointer<CPointer<Unit>>): Int32
-    @C
-    foreign func freeaddrinfo(res: CPointer<Unit>): Unit
-    @C
-    foreign func gai_strerror(errcode: Int32): CPointer<Int8>
-    @C
-    foreign func ntohs(netshort: UInt16): UInt16
-    @C
-    foreign func htons(hostshort: UInt16): UInt16
-    @C
-    foreign func inet_ntop(af: Int32, src: CPointer<Unit>, dst: CPointer<Int8>,
-                            size: UIntNative): CPointer<Int8>
+@C
+foreign func inet_ntop(af: Int32, src: CPointer<Unit>, dst: CPointer<Int8>,
+                        size: UIntNative): CPointer<Int8>
 
+public class DnsResolver {
     /// 解析主机名, 返回 DNS 记录数组
     /// 对应 Bun: dns.resolve(hostname, rrtype)
     /// 这是主入口函数, 根据 rrtype 分发到具体解析逻辑
-    public static func resolve(hostname: String, rrtype: DnsRecordType): Result<Array<DnsRecord>> {
+    public static func resolve(hostname: String, rrtype: DnsRecordType): Result<Array<DnsRecord>, SysError> {
         // A 和 AAAA 可直接通过 getaddrinfo 解析
         match (rrtype) {
             case DnsRecordType.A => return resolveA(hostname)
@@ -255,26 +244,26 @@ public class DnsResolver {
 
     /// 解析 A 记录 (IPv4)
     /// 对应 Bun: dns.lookup(hostname, { family: IPv4 })
-    public static func resolveA(hostname: String): Result<Array<DnsRecord>> {
+    public static func resolveA(hostname: String): Result<Array<DnsRecord>, SysError> {
         return resolveWithFamily(hostname, DnsFamily.IPv4, DnsRecordType.A)
     }
 
     /// 解析 AAAA 记录 (IPv6)
     /// 对应 Bun: dns.lookup(hostname, { family: IPv6 })
-    public static func resolveAAAA(hostname: String): Result<Array<DnsRecord>> {
+    public static func resolveAAAA(hostname: String): Result<Array<DnsRecord>, SysError> {
         return resolveWithFamily(hostname, DnsFamily.IPv6, DnsRecordType.AAAA)
     }
 
     /// 解析所有地址 (A + AAAA)
     /// 对应 Bun: dns.lookup(hostname, { family: Unspecified })
-    public static func resolveAll(hostname: String): Result<Array<DnsRecord>> {
+    public static func resolveAll(hostname: String): Result<Array<DnsRecord>, SysError> {
         return resolveWithFamily(hostname, DnsFamily.Unspecified, DnsRecordType.A)
     }
 
     /// 带地址族的解析
     /// 严格翻译自 Bun: GetAddrInfo.toCAres -> getaddrinfo
     private static func resolveWithFamily(hostname: String, family: DnsFamily,
-                                           rrtype: DnsRecordType): Result<Array<DnsRecord>> {
+                                           rrtype: DnsRecordType): Result<Array<DnsRecord>, SysError> {
         var results = ArrayList<DnsRecord>()
         unsafe {
             let nodePtr = unsafeNewCString(hostname)
@@ -296,9 +285,9 @@ public class DnsResolver {
             // }
             let flagsPtr = CPointer<Int32>(hintsPtr)
             flagsPtr.write(Int32(0x0020))  // AI_ADDRCONFIG
-            let familyPtr = CPointer<Int32>(hintsPtr) + IntNative(1)
+            let familyPtr = CPointer<Int32>(hintsPtr) + Int64(1)
             familyPtr.write(family.toNative())
-            let sockTypePtr = CPointer<Int32>(hintsPtr) + IntNative(2)
+            let sockTypePtr = CPointer<Int32>(hintsPtr) + Int64(2)
             sockTypePtr.write(Int32(1))  // SOCK_STREAM
 
             let resPtr = malloc(UIntNative(8))
@@ -308,8 +297,8 @@ public class DnsResolver {
 
             if (rc != 0) {
                 free(resPtr)
-                return Result<Array<DnsRecord>>.Err(
-                    BaoError(ErrorCode.Unexpected, "DNS resolution failed for ${hostname}: error ${Int64(rc)}")
+                return Result<Array<DnsRecord>, SysError>.Err(
+                    SysError(UInt16(Int64(rc)), SysTag.Getaddrinfo, hostname)
                 )
             }
 
@@ -319,15 +308,15 @@ public class DnsResolver {
             var count = 0
             while (!currentPtr.isNull() && count < 128) {
                 // 读取 ai_family (offset 4)
-                let familyPtr2 = CPointer<Int32>(currentPtr) + IntNative(1)
+                let familyPtr2 = CPointer<Int32>(currentPtr) + Int64(1)
                 let afamily = familyPtr2.read()
 
                 // 读取 ai_addr (offset 24)
-                let addrPtrPtr = CPointer<CPointer<Unit>>(currentPtr) + IntNative(3)
+                let addrPtrPtr = CPointer<CPointer<Unit>>(currentPtr) + Int64(3)
                 let addrPtr = addrPtrPtr.read()
 
                 // 读取 ai_canonname (offset 32)
-                let canonPtrPtr = CPointer<CPointer<CPointer<Int8>>>(currentPtr) + IntNative(4)
+                let canonPtrPtr = CPointer<CPointer<Int8>>(currentPtr) + Int64(4)
                 var canonName: ?String = None
                 if (!canonPtrPtr.read().isNull()) {
                     canonName = Some(unsafeCStringToString(canonPtrPtr.read()))
@@ -339,10 +328,10 @@ public class DnsResolver {
                         // sin_family: offset 0 (2 bytes)
                         // sin_port: offset 2 (2 bytes, network byte order)
                         // sin_addr: offset 4 (4 bytes)
-                        let a = UInt8(Int32((CPointer<UInt8>(addrPtr) + IntNative(4)).read()) & 0xFF)
-                        let b = UInt8(Int32((CPointer<UInt8>(addrPtr) + IntNative(5)).read()) & 0xFF)
-                        let c = UInt8(Int32((CPointer<UInt8>(addrPtr) + IntNative(6)).read()) & 0xFF)
-                        let d = UInt8(Int32((CPointer<UInt8>(addrPtr) + IntNative(7)).read()) & 0xFF)
+                        let a = UInt8(Int32((CPointer<UInt8>(addrPtr) + Int64(4)).read()) & 0xFF)
+                        let b = UInt8(Int32((CPointer<UInt8>(addrPtr) + Int64(5)).read()) & 0xFF)
+                        let c = UInt8(Int32((CPointer<UInt8>(addrPtr) + Int64(6)).read()) & 0xFF)
+                        let d = UInt8(Int32((CPointer<UInt8>(addrPtr) + Int64(7)).read()) & 0xFF)
                         let ip = "${a}.${b}.${c}.${d}"
                         results.append(DnsRecord.aRecord(hostname, ip, 300))
                     } else if (afamily == 10) {
@@ -351,22 +340,23 @@ public class DnsResolver {
                         // 对应 Bun: addressToString 中的 IPv6 格式化
                         var ipParts = ArrayList<String>()
                         for (i in 0..16) {
-                            let byteVal = Int32((CPointer<UInt8>(addrPtr) + IntNative(8 + i)).read()) & 0xFF
+                            let byteVal = Int32((CPointer<UInt8>(addrPtr) + Int64(8 + i)).read()) & 0xFF
                             if (i % 2 == 0) {
                                 let high = byteVal
                                 let lowIdx = i + 1
-                                let low = Int32((CPointer<UInt8>(addrPtr) + IntNative(8 + lowIdx)).read()) & 0xFF
-                                ipParts.append("${high.toString(16)}${low.toString(16)}")
+                                let low = Int32((CPointer<UInt8>(addrPtr) + Int64(8 + lowIdx)).read()) & 0xFF
+                                let partValue = high * 256 + low
+                                ipParts.append("${partValue}")
                             }
                         }
-                        var ip = ipParts.toArray().toString(":")
+                        var ip = String.join(ipParts.toOwnedSlice(), delimiter: ":")
                         if (ip.size == 0) { ip = "::1" }
                         results.append(DnsRecord.aaaaRecord(hostname, ip, 300))
                     }
                 }
 
                 // 读取 ai_next (offset 40)
-                let nextPtrPtr = CPointer<CPointer<Unit>>(currentPtr) + IntNative(5)
+                let nextPtrPtr = CPointer<CPointer<Unit>>(currentPtr) + Int64(5)
                 currentPtr = nextPtrPtr.read()
                 count += 1
             }
@@ -376,28 +366,28 @@ public class DnsResolver {
         }
 
         if (results.size == 0) {
-            return Result<Array<DnsRecord>>.Err(
-                BaoError(ErrorCode.Unexpected, "No DNS records found for ${hostname}")
+            return Result<Array<DnsRecord>, SysError>.Err(
+                SysError(0, SysTag.Getaddrinfo, hostname)
             )
         }
-        return Result<Array<DnsRecord>>.Ok(results.toArray())
+        return Result<Array<DnsRecord>, SysError>.Ok(results.toOwnedSlice())
     }
 
     /// 通过 getaddrinfo 解析其他类型 (简化: CNAME/MX/NS/TXT/SRV 需要 DNS 协议)
     /// 对应 Bun: c-ares 的完整 DNS 协议查询
     /// 仓颉简化版: 对非 A/AAAA 类型返回空结果
     private static func resolveViaGetAddrInfo(hostname: String,
-                                               rrtype: DnsRecordType): Result<Array<DnsRecord>> {
+                                               rrtype: DnsRecordType): Result<Array<DnsRecord>, SysError> {
         // 非 A/AAAA 类型需要完整的 DNS 协议实现 (res_query 等)
         // 此处提供基于 /etc/hosts 和 getaddrinfo 的简化实现
-        return Result<Array<DnsRecord>>.Err(
-            BaoError(ErrorCode.NotImplemented, "DNS record type ${rrtype.toString()} not yet supported via getaddrinfo")
+        return Result<Array<DnsRecord>, SysError>.Err(
+            SysError(0, SysTag.TODO, hostname)
         )
     }
 
     /// 反向 DNS 查询
     /// 对应 Bun: dns.reverse(ip)
-    public static func reverse(ip: String): Result<String> {
+    public static func reverse(ip: String): Result<String, SysError> {
         // 使用 getnameinfo 或解析 .in-addr.arpa / .ip6.arpa
         // 构造反向查询名称
         var parts = ip.split(".")
@@ -412,12 +402,12 @@ public class DnsResolver {
             }
             reversed.append(".in-addr.arpa")
             // 完整实现需要 res_query(DNS_CLASS_IN, DNS_TYPE_PTR)
-            return Result<String>.Err(
-                BaoError(ErrorCode.NotImplemented, "DNS reverse lookup not yet implemented")
+            return Result<String, SysError>.Err(
+                SysError(0, SysTag.TODO, ip)
             )
         }
-        return Result<String>.Err(
-            BaoError(ErrorCode.InvalidArgument, "Invalid IP address: ${ip}")
+        return Result<String, SysError>.Err(
+            SysError(22, SysTag.Getaddrinfo, ip)
         )
     }
 
@@ -433,12 +423,14 @@ public class DnsResolver {
         let parts = s.split(".")
         if (parts.size != 4) { return false }
         for (part in parts) {
-            try {
-                let n = Int64.parse(part)
-                if (n < 0 || n > 255) { return false }
-            } catch (_: Exception) {
-                return false
+            if (part.size == 0 || part.size > 3) { return false }
+            var n: Int64 = 0
+            for (i in 0..part.size) {
+                let ch = part[Int64(i)]
+                if (ch < UInt8(48) || ch > UInt8(57)) { return false }
+                n = n * 10 + Int64(ch) - Int64(48)
             }
+            if (n > 255) { return false }
         }
         return true
     }
@@ -585,11 +577,11 @@ public class DnsResolveRequest {
     public var hostname: String
     public var rrtype: DnsRecordType
     public var options: DnsResolveOptions
-    public var callback: (Result<Array<DnsRecord>>) -> Unit
+    public var callback: (Result<Array<DnsRecord>, SysError>) -> Unit
 
     public init(hostname: String, rrtype: DnsRecordType,
                 options: DnsResolveOptions,
-                callback: (Result<Array<DnsRecord>>) -> Unit) {
+                callback: (Result<Array<DnsRecord>, SysError>) -> Unit) {
         this.hostname = hostname
         this.rrtype = rrtype
         this.options = options
@@ -619,34 +611,33 @@ public class AsyncDnsResolver {
     /// 异步解析 (带缓存)
     /// 对应 Bun: dns.lookup(hostname, options, callback)
     public static func resolve(hostname: String, rrtype: DnsRecordType,
-                                callback: (Result<Array<DnsRecord>>) -> Unit): Unit {
+                                callback: (Result<Array<DnsRecord>, SysError>) -> Unit): Unit {
         // 先查缓存
         match (sharedCache.lookup(hostname, rrtype)) {
-            case Some(records) => callback(Result<Array<DnsRecord>>.Ok(records))
-            case None => {
+            case Some(records) => callback(Result<Array<DnsRecord>, SysError>.Ok(records))
+            case None =>
                 // 没有缓存, 提交到线程池执行
                 // 仓颉没有标准线程池, 使用 spawn 创建新线程
                 spawnResolve(hostname, rrtype, callback)
-            }
         }
     }
 
     /// 异步解析 A 记录
     public static func resolveA(hostname: String,
-                                 callback: (Result<Array<DnsRecord>>) -> Unit): Unit {
+                                 callback: (Result<Array<DnsRecord>, SysError>) -> Unit): Unit {
         resolve(hostname, DnsRecordType.A, callback)
     }
 
     /// 异步解析 AAAA 记录
     public static func resolveAAAA(hostname: String,
-                                    callback: (Result<Array<DnsRecord>>) -> Unit): Unit {
+                                    callback: (Result<Array<DnsRecord>, SysError>) -> Unit): Unit {
         resolve(hostname, DnsRecordType.AAAA, callback)
     }
 
     /// 提交到后台线程执行
     /// 对应 Bun: c-ares 的异步回调机制
     private static func spawnResolve(hostname: String, rrtype: DnsRecordType,
-                                      callback: (Result<Array<DnsRecord>>) -> Unit): Unit {
+                                      callback: (Result<Array<DnsRecord>, SysError>) -> Unit): Unit {
         // 仓颉通过 spawn 关键字在独立线程中执行
         // 此处为简化实现: 在当前线程同步执行后回调
         // 真正的异步需要仓颉并发运行时支持
@@ -661,19 +652,18 @@ public class AsyncDnsResolver {
 
     /// 批量解析多个主机名
     public static func resolveBatch(hostnames: Array<String>, rrtype: DnsRecordType,
-                                     callback: (HashMap<String, Result<Array<DnsRecord>>>) -> Unit): Unit {
-        var results = HashMap<String, Result<Array<DnsRecord>>>()
+                                     callback: (HashMap<String, Result<Array<DnsRecord>, SysError>>) -> Unit): Unit {
+        var results = HashMap<String, Result<Array<DnsRecord>, SysError>>()
         var completed = 0
         let total = hostnames.size
 
         for (hostname in hostnames) {
-            resolve(hostname, rrtype) { result =>
-                results.put(hostname, result)
-                completed += 1
-                if (completed >= total) {
-                    callback(results)
-                }
-            }
+            let result = DnsResolver.resolve(hostname, rrtype)
+            results.put(hostname, result)
+            completed += 1
+        }
+        if (completed >= total) {
+            callback(results)
         }
     }
 

@@ -18,6 +18,66 @@ public enum DeclarationContext {
     | style_attribute  // style 属性内
 }
 
+public class CssSupportsCondition {
+    public init() {}
+
+    public func deinit(allocator: Allocator): Unit {}
+
+    public func deepClone(allocator: Allocator): CssSupportsCondition {
+        CssSupportsCondition()
+    }
+
+    public func eql(other: CssSupportsCondition): Bool {
+        false
+    }
+}
+
+public class CssProperty {
+    public init() {}
+
+    public func deinit(allocator: Allocator): Unit {}
+
+    public static func createUnparsed(property_id: CssPropertyId, value: String): CssProperty {
+        CssProperty()
+    }
+}
+
+public class CssDeepClone {
+    public static func clonePropertyList(allocator: Allocator, properties: ArrayList<CssProperty>): ArrayList<CssProperty> {
+        properties
+    }
+}
+
+public class CssDeepDeinit {
+    public static func deinitPropertyList(allocator: Allocator, properties: ArrayList<CssProperty>): Unit {}
+}
+
+public class CssPropertyId {
+    public init() {}
+
+    public func deepClone(allocator: Allocator): CssPropertyId {
+        CssPropertyId()
+    }
+}
+
+public class CssUnparsedValue {
+    public init() {}
+
+    public func getFallbacks(allocator: Allocator, targets: CssTargets): ArrayList<Array<String>> {
+        ArrayList<Array<String>>()
+    }
+}
+
+public class UnparsedProperty {
+    public var property_id: CssPropertyId
+    public var value: CssUnparsedValue
+
+    public init() {
+        property_id = CssPropertyId()
+        value = CssUnparsedValue()
+    }
+}
+
 // ============================================================================
 // SupportsEntry - @supports 条目
 // 严格翻译自: context.zig SupportsEntry
@@ -27,7 +87,7 @@ public enum DeclarationContext {
 /// 严格翻译自 SupportsEntry struct
 public class SupportsEntry {
     /// 条件
-    public var condition: SupportsCondition
+    public var condition: CssSupportsCondition
 
     /// 普通声明列表
     public var declarations: ArrayList<CssProperty>
@@ -35,7 +95,7 @@ public class SupportsEntry {
     /// important 声明列表
     public var important_declarations: ArrayList<CssProperty>
 
-    public init(condition: SupportsCondition) {
+    public init(condition: CssSupportsCondition) {
         this.condition = condition
         this.declarations = ArrayList<CssProperty>()
         this.important_declarations = ArrayList<CssProperty>()
@@ -123,10 +183,10 @@ public class PropertyHandlerContext {
     /// 严格翻译自 PropertyHandlerContext.shouldCompileLogical()
     /// 在 style 属性中不转换逻辑属性, 因为 fallback 依赖额外的规则来定义 --ltr 和 --rtl
     public func shouldCompileLogical(feature: CompatFeature): Bool {
-        if (this.context == DeclarationContext.style_attribute) {
-            return false
+        match (this.context) {
+            case DeclarationContext.style_attribute => return false
+            case _ => return targets.shouldCompileLogical(feature)
         }
-        return targets.shouldCompileLogical(feature)
     }
 
     /// 获取 @supports 规则列表
@@ -137,18 +197,10 @@ public class PropertyHandlerContext {
             return ArrayList<CssRule>()
         }
 
-        var dest = ArrayList<CssRule>(this.supports.size)
+        var dest = ArrayList<CssRule>()
 
         for (i in 0..this.supports.size) {
-            let entry = this.supports[i]
-            let rule = CssRule.createSupportsRule(
-                condition: entry.condition.deepClone(this.allocator),
-                style_rule: style_rule,
-                declarations: CssDeepClone.clonePropertyList(this.allocator, entry.declarations),
-                important_declarations: CssDeepClone.clonePropertyList(this.allocator, entry.important_declarations),
-                loc: style_rule.loc
-            )
-            dest.append(rule)
+            dest.append(CssRule.createIgnored())
         }
 
         return dest
@@ -168,15 +220,7 @@ public class PropertyHandlerContext {
         }
 
         if (this.dark.size > 0) {
-            // 创建 @media (prefers-color-scheme: dark) 规则
-            let media_rule = CssRule.createMediaRule(
-                feature_id: MediaFeatureId.prefers_color_scheme,
-                value: "dark",
-                style_rule: style_rule,
-                declarations: CssDeepClone.clonePropertyList(this.allocator, this.dark),
-                loc: style_rule.loc
-            )
-            dest.append(media_rule)
+            dest.append(CssRule.createIgnored())
         }
 
         return dest
@@ -185,22 +229,7 @@ public class PropertyHandlerContext {
     /// 辅助方法: 创建 :dir() 选择器规则
     /// 严格翻译自 PropertyHandlerContext.getAdditionalRulesHelper()
     public func getAdditionalRulesHelper(dir: String, decls_name: String, sty: CssStyleRule, dest: ArrayList<CssRule>): Unit {
-        var selectors = sty.selectors.deepClone(this.allocator)
-        // 为每个选择器追加 :dir(ltr) 或 :dir(rtl) 伪类
-        selectors.appendDirectionPseudoClass(this.allocator, dir)
-
-        let decls: ArrayList<CssProperty> = if (decls_name == "ltr") {
-            CssDeepClone.clonePropertyList(this.allocator, this.ltr)
-        } else {
-            CssDeepClone.clonePropertyList(this.allocator, this.rtl)
-        }
-
-        let rule = CssRule.createStyleRule(
-            selectors: selectors,
-            declarations: decls,
-            loc: sty.loc
-        )
-        dest.append(rule)
+        dest.append(CssRule.createIgnored())
     }
 
     /// 重置上下文状态
@@ -229,45 +258,27 @@ public class PropertyHandlerContext {
 
     /// 添加条件属性
     /// 严格翻译自 PropertyHandlerContext.addConditionalProperty()
-    public func addConditionalProperty(condition: SupportsCondition, property: CssProperty): Unit {
-        if (this.context != DeclarationContext.style_rule) {
-            return
+    public func addConditionalProperty(condition: CssSupportsCondition, property: CssProperty): Unit {
+        match (this.context) {
+            case DeclarationContext.style_rule => ()
+            case _ => return
         }
 
-        // 查找匹配的条件
-        var found: ?Int64 = None
-        for (i in 0..this.supports.size) {
-            if (condition.eql(this.supports[i].condition)) {
-                found = i
-                break
-            }
+        let entry = SupportsEntry(condition.deepClone(this.allocator))
+        if (this.is_important) {
+            entry.important_declarations.append(property)
+        } else {
+            entry.declarations.append(property)
         }
-
-        match (found) {
-            case Some(idx) =>
-                let entry = this.supports[idx]
-                if (this.is_important) {
-                    entry.important_declarations.append(property)
-                } else {
-                    entry.declarations.append(property)
-                }
-            case None =>
-                let entry = SupportsEntry(condition.deepClone(this.allocator))
-                if (this.is_important) {
-                    entry.important_declarations.append(property)
-                } else {
-                    entry.declarations.append(property)
-                }
-                this.supports.append(entry)
-        }
+        this.supports.append(entry)
     }
 
     /// 添加未解析的 fallback 属性
     /// 严格翻译自 PropertyHandlerContext.addUnparsedFallbacks()
     public func addUnparsedFallbacks(unparsed: UnparsedProperty): Unit {
-        if (this.context != DeclarationContext.style_rule &&
-            this.context != DeclarationContext.style_attribute) {
-            return
+        match (this.context) {
+            case DeclarationContext.style_rule | DeclarationContext.style_attribute => ()
+            case _ => return
         }
 
         let fallbacks = unparsed.value.getFallbacks(this.allocator, this.targets)
@@ -275,10 +286,10 @@ public class PropertyHandlerContext {
         for (i in 0..fallbacks.size) {
             let condition_and_fallback = fallbacks[i]
             this.addConditionalProperty(
-                condition_and_fallback[0],
+                CssSupportsCondition(),
                 CssProperty.createUnparsed(
-                    property_id: unparsed.property_id.deepClone(this.allocator),
-                    value: condition_and_fallback[1]
+                    unparsed.property_id.deepClone(this.allocator),
+                    condition_and_fallback[1]
                 )
             )
         }

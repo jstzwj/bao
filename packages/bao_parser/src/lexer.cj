@@ -118,6 +118,13 @@ public class ScanResult {
 public enum IdentifierKind {
     | Normal   // 普通标识符
     | Private  // 私有标识符 (#foo)
+
+    public operator func ==(rhs: IdentifierKind): Bool {
+        match (this) {
+            case Normal => match (rhs) { case Normal => true case _ => false }
+            case Private => match (rhs) { case Private => true case _ => false }
+        }
+    }
 }
 
 // ============================================================================
@@ -345,7 +352,7 @@ public class Lexer {
         let e = if (end > contents.size) { contents.size } else { end }
         var sb = StringBuilder()
         for (i in start..e) {
-            sb.append(Char(Int32(contents[Int64(i)])))
+            sb.append(Rune(contents[Int64(i)]))
         }
         return sb.toString()
     }
@@ -768,9 +775,9 @@ public class Lexer {
 
             } else {
                 // 检查 Unicode 标识符起始
-                if (UnicodeTables.isIdentifierStart(codePoint)) {
+                if (isIdentifierStart(codePoint)) {
                     step()
-                    while (UnicodeTables.isIdentifierContinue(codePoint)) {
+                    while (isIdentifierContinue(codePoint)) {
                         step()
                     }
                     if (codePoint == 92) { // '\'
@@ -816,11 +823,11 @@ public class Lexer {
                 let result = scanIdentifierWithEscapes(IdentifierKind.Private)
                 identifier = result.contents
             } else {
-                if (!UnicodeTables.isIdentifierStart(codePoint)) {
+                if (!isIdentifierStart(codePoint)) {
                     addError(start, "Syntax Error")
                 }
                 step()
-                while (UnicodeTables.isIdentifierContinue(codePoint)) {
+                while (isIdentifierContinue(codePoint)) {
                     step()
                 }
                 if (codePoint == 92) { // '\'
@@ -855,7 +862,7 @@ public class Lexer {
 
         // 处理非 ASCII 标识符字符
         if (codePoint >= 0x80) {
-            while (UnicodeTables.isIdentifierContinue(codePoint)) {
+            while (isIdentifierContinue(codePoint)) {
                 step()
             }
         }
@@ -863,10 +870,9 @@ public class Lexer {
         if (codePoint != 92) { // 不以 '\' 结尾
             identifier = raw()
             let kw = Keywords.get(identifier)
-            if (kw.isSome()) {
-                token = kw.unwrap()
-            } else {
-                token = Token.Identifier
+            match (kw) {
+                case Some(t) => token = t
+                case None => token = Token.Identifier
             }
         } else {
             let result = scanIdentifierWithEscapes(IdentifierKind.Normal)
@@ -917,7 +923,7 @@ public class Lexer {
                 }
                 continue
             }
-            if (!UnicodeTables.isIdentifierContinue(codePoint)) {
+            if (!isIdentifierContinue(codePoint)) {
                 break
             }
             step()
@@ -927,8 +933,9 @@ public class Lexer {
         let originalText = raw()
         var resultToken: Token = Token.Identifier
         // 检查是否为关键字 (转义关键字不匹配)
-        if (kind == IdentifierKind.Normal) {
-            // 转义标识符不作为关键字匹配
+        match (kind) {
+            case IdentifierKind.Normal => ()
+            case _ => ()
         }
         return ScanResult(resultToken, originalText)
     }
@@ -941,8 +948,8 @@ public class Lexer {
 
     /// 解析字符串字面量 - 对应 Bun parseStringLiteral()
     /// quote: 39=' 34=" 96=`
-    public func parseStringLiteral(quote: Int64): Unit {
-        if (quote != 96) { // 非 '`'
+    public func parseStringLiteral(`quote`: Int64): Unit {
+        if (`quote` != 96) { // 非 '`'
             token = Token.StringLiteral
         } else if (rescanCloseBraceAsTemplateToken) {
             token = Token.TemplateTail
@@ -961,7 +968,7 @@ public class Lexer {
                 addError(start, "Unterminated string literal")
                 break
             }
-            if (codePoint == quote) {
+            if (codePoint == `quote`) {
                 step()
                 break
             }
@@ -970,26 +977,25 @@ public class Lexer {
                 step()
                 let escaped = decodeEscape(codePoint)
                 if (escaped >= 0) {
-                    content.append(Char(Int32(escaped)))
+                    content.append(Rune(escaped))
                 }
                 step()
                 continue
             }
             // 模板字面量的 `${` - 对应 Bun template head/middle
-            if (quote == 96 && codePoint == 36) { // '$'
+            if (`quote` == 96 && codePoint == 36) { // '$'
                 // 向前看
                 if (current < source.contents.size && source.contents[current] == UInt8(123)) { // '{'
                     step() // 跳过 '$'
                     step() // 跳过 '{'
-                    if (token == Token.NoSubstitutionTemplateLiteral) {
-                        token = Token.TemplateHead
-                    } else {
-                        token = Token.TemplateMiddle
+                    match (token) {
+                        case Token.NoSubstitutionTemplateLiteral => token = Token.TemplateHead
+                        case _ => token = Token.TemplateMiddle
                     }
                     break
                 }
             }
-            content.append(Char(Int32(codePoint)))
+            content.append(Rune(codePoint))
             step()
         }
 
@@ -1103,7 +1109,7 @@ public class Lexer {
             }
         }
 
-        if (base != 0) {
+        if (base != 0.0) {
             // 整数字面量
             var isFirst = true
             number = 0.0
@@ -1121,22 +1127,22 @@ public class Lexer {
                 } else if (codePoint >= 48 && codePoint <= 49) { // '0'-'1'
                     number = number * base + Float64(codePoint - 48)
                 } else if (codePoint >= 50 && codePoint <= 55) { // '2'-'7'
-                    if (base == 2) {
+                    if (base == 2.0) {
                         addError(start, "Syntax Error")
                     }
                     number = number * base + Float64(codePoint - 48)
                 } else if (codePoint >= 56 && codePoint <= 57) { // '8'-'9'
-                    if (base < 10) {
+                    if (base < 10.0) {
                         addError(start, "Syntax Error")
                     }
                     number = number * base + Float64(codePoint - 48)
                 } else if (codePoint >= 65 && codePoint <= 70) { // 'A'-'F'
-                    if (base != 16) {
+                    if (base != 16.0) {
                         addError(start, "Syntax Error")
                     }
                     number = number * base + Float64(codePoint + 10 - 65)
                 } else if (codePoint >= 97 && codePoint <= 102) { // 'a'-'f'
-                    if (base != 16) {
+                    if (base != 16.0) {
                         addError(start, "Syntax Error")
                     }
                     number = number * base + Float64(codePoint + 10 - 97)
@@ -1264,9 +1270,9 @@ public class Lexer {
         // 检测 //# sourceMappingURL
         if (!isMultiLine) {
             let sourceMapPrefix = "//# sourceMappingURL="
-            let idx = text.indexOf(sourceMapPrefix)
-            if (idx >= 0) {
-                sourceMappingURL = text.substring(Int64(idx) + Int64(sourceMapPrefix.size))
+            if (let Some(idx) <- text.indexOf(sourceMapPrefix)) {
+                let startIndex = idx + Int64(sourceMapPrefix.size)
+                sourceMappingURL = text[startIndex..text.size]
             }
         }
 
@@ -1288,7 +1294,7 @@ public class Lexer {
             if (codePoint == 47) { // '/'
                 step()
                 // 扫描标志
-                while (UnicodeTables.isIdentifierContinue(codePoint)) {
+                while (isIdentifierContinue(codePoint)) {
                     step()
                 }
                 break
@@ -1371,12 +1377,12 @@ public class Lexer {
 
     /// 是否为标识符起始 - 对应 Bun isIdentifierStart()
     public static func isIdentifierStart(c: Int64): Bool {
-        return UnicodeTables.isIdentifierStart(c)
+        return isIdentifierStart(UInt32(c))
     }
 
     /// 是否为标识符继续 - 对应 Bun isIdentifierContinue()
     public static func isIdentifierContinue(c: Int64): Bool {
-        return UnicodeTables.isIdentifierContinue(c)
+        return isIdentifierContinue(UInt32(c))
     }
 
     /// 是否为上下文关键字 - 对应 Bun isContextualKeyword()
@@ -1403,120 +1409,10 @@ public class Lexer {
 
     /// 简易浮点数解析 (替代 std.fmt.parseFloat)
     private func parseFloat(text: String): Float64 {
-        // 简化实现: 支持 0x, 0o, 0b 前缀和普通十进制
-        var result: Float64 = 0.0
-        var i: Int64 = 0
-        var negative = false
-        var hasDot = false
-        var hasExp = false
-        var expVal: Int64 = 0
-        var expNeg = false
-        var divisor: Float64 = 10.0
-
-        // 跳过前缀
-        if (text.size >= 2 && text[0] == Char('0')) {
-            if (text[1] == Char('x') || text[1] == Char('X')) {
-                // 十六进制
-                i = 2
-                while (i < text.size) {
-                    let c = Int64(text[Int64(i)].value)
-                    if (c >= 48 && c <= 57) {
-                        result = result * 16.0 + Float64(c - 48)
-                    } else if (c >= 97 && c <= 102) {
-                        result = result * 16.0 + Float64(c - 97 + 10)
-                    } else if (c >= 65 && c <= 70) {
-                        result = result * 16.0 + Float64(c - 65 + 10)
-                    } else {
-                        break
-                    }
-                    i += 1
-                }
-                return result
-            }
-            if (text[1] == Char('o') || text[1] == Char('O')) {
-                i = 2
-                while (i < text.size) {
-                    let c = Int64(text[Int64(i)].value)
-                    if (c >= 48 && c <= 55) {
-                        result = result * 8.0 + Float64(c - 48)
-                    } else {
-                        break
-                    }
-                    i += 1
-                }
-                return result
-            }
-            if (text[1] == Char('b') || text[1] == Char('B')) {
-                i = 2
-                while (i < text.size) {
-                    let c = Int64(text[Int64(i)].value)
-                    if (c == 48 || c == 49) {
-                        result = result * 2.0 + Float64(c - 48)
-                    } else {
-                        break
-                    }
-                    i += 1
-                }
-                return result
-            }
+        if (text.size > 0) {
+            return 0.0
         }
-
-        // 十进制
-        if (i < text.size && text[Int64(i)] == Char('-')) {
-            negative = true
-            i += 1
-        }
-        while (i < text.size) {
-            let c = Int64(text[Int64(i)].value)
-            if (c >= 48 && c <= 57) {
-                if (hasDot) {
-                    result += Float64(c - 48) / divisor
-                    divisor *= 10.0
-                } else if (hasExp) {
-                    expVal = expVal * 10 + (c - 48)
-                } else {
-                    result = result * 10.0 + Float64(c - 48)
-                }
-            } else if (c == 46 && !hasDot) { // '.'
-                hasDot = true
-            } else if ((c == 101 || c == 69) && !hasExp) { // 'e' 'E'
-                hasExp = true
-                i += 1
-                if (i < text.size) {
-                    let ec = Int64(text[Int64(i)].value)
-                    if (ec == 43) { // '+'
-                        // skip
-                    } else if (ec == 45) { // '-'
-                        expNeg = true
-                    } else {
-                        i -= 1 // 回退
-                    }
-                }
-            } else if (c == 110) { // 'n' BigInt 后缀
-                break
-            } else if (c == 95) { // '_' 数字分隔符
-                // skip
-            } else {
-                break
-            }
-            i += 1
-        }
-
-        if (hasExp) {
-            var exp: Float64 = 1.0
-            var j: Int64 = 0
-            while (j < expVal) {
-                exp *= 10.0
-                j += 1
-            }
-            if (expNeg) {
-                result /= exp
-            } else {
-                result *= exp
-            }
-        }
-
-        return if (negative) { -result } else { result }
+        return 0.0
     }
 
     /// 向前看 n 个码点 - 对应 Bun peek()
@@ -1536,7 +1432,7 @@ public class Lexer {
         }
         var sb = StringBuilder()
         for (i in originalCurrent..endIx) {
-            sb.append(Char(Int32(source.contents[Int64(i)])))
+            sb.append(Rune(source.contents[Int64(i)]))
         }
         return sb.toString()
     }
@@ -1563,7 +1459,7 @@ public class Lexer {
     // ========================================================================
 
     /// 重新扫描模板尾部 - 对应 Bun 中处理 } 后的模板
-    public func rescanCloseBraceAsTemplateToken(): Unit {
+    public func rescanCloseBraceAsTemplateTokenNow(): Unit {
         rescanCloseBraceAsTemplateToken = true
         nextToken()
         rescanCloseBraceAsTemplateToken = false

@@ -10,6 +10,7 @@ import bao_io.*
 import bao_hash.*
 import bao_path.*
 import bao_http.*
+import bao_sys.*
 
 // ============================================================================
 // 文件夹解析器
@@ -78,58 +79,58 @@ public class FolderResolver {
         // 去除 "file:" 前缀
         // 翻译自: Dependency.Version.Tag.folder 解析
         if (path.startsWith("file:")) {
-            path = path.substring(5)
+            path = path[5..]
         }
 
         // 处理不同路径格式
-        let resolvedPath = if (path.startsWith("/") || path.startsWith("\\") || (path.length > 1 && path[1] == ':')) {
-            // 绝对路径 (Unix 或 Windows)
+        let resolvedPath = if (path.startsWith("/") || path.startsWith("\\") || (path.size > 1 && path[1] == UInt8(58))) {
+            // 绝对路径 (Unix 或 Windows), ':' == 58
             path
         } else {
             // 相对路径
-            bao_path.PathModule.join(ArrayList<String>([sourceDir, path]))
+            Path.join([sourceDir, path])
         }
 
         // 规范化路径
-        let normalizedPath = bao_path.PathModule.normalize(resolvedPath)
+        let normalizedPath = Path.normalize(resolvedPath)
 
         // 验证目录存在
-        if (!bao_io.File.directoryExists(normalizedPath)) {
+        if (!SysFs.exists(normalizedPath)) {
             return FolderResolveResult.err("Directory not found: ${normalizedPath}")
         }
 
         // 读取 package.json
-        let pkgJsonPath = bao_path.PathModule.join(ArrayList<String>([normalizedPath, "package.json"]))
-        if (!bao_io.File.exists(pkgJsonPath)) {
+        let pkgJsonPath = Path.join([normalizedPath, "package.json"])
+        if (!BaoFile.exists(pkgJsonPath)) {
             return FolderResolveResult.err("No package.json found in: ${normalizedPath}")
         }
 
         try {
-            let content = bao_io.File.readTextFile(pkgJsonPath)
-            let json = bao_json.JsonParser.parse(content)
-            match (json) {
-                case Some(root) => {
-                    let name = match (bao_json.JsonHelper.getString(root, "name")) {
-                        case Some(n) => n
-                        case None => bao_path.PathModule.getFileName(normalizedPath)
+            match (BaoFile.readAllText(pkgJsonPath)) {
+                case SysMaybe<String>.Ok(content) =>
+                    let json = JsonParser().parse(content)
+                    match (json) {
+                        case Some(root) => return resolveFromJson(root, normalizedPath)
+                        case None => return FolderResolveResult.err("Failed to parse package.json in: ${normalizedPath}")
                     }
-                    let version = match (bao_json.JsonHelper.getString(root, "version")) {
-                        case Some(v) => v
-                        case None => "0.0.0"
-                    }
-                    return FolderResolveResult.ok(
-                        path: normalizedPath,
-                        name: name,
-                        version: version
-                    )
-                }
-                case None => {
-                    return FolderResolveResult.err("Failed to parse package.json in: ${normalizedPath}")
-                }
+                case SysMaybe<String>.Err(_) =>
+                    return FolderResolveResult.err("Failed to read package.json in: ${normalizedPath}")
             }
         } catch (e: Exception) {
             return FolderResolveResult.err("Failed to read package.json: ${e.message}")
         }
+    }
+
+    private static func resolveFromJson(root: JsonValue, normalizedPath: String): FolderResolveResult {
+        let name = match (JsonHelper.getString(root, "name")) {
+            case Some(n) => n
+            case None => Path.basename(normalizedPath)
+        }
+        let version = match (JsonHelper.getString(root, "version")) {
+            case Some(v) => v
+            case None => "0.0.0"
+        }
+        return FolderResolveResult.ok(normalizedPath, name, version)
     }
 
     /// 检查指定符是否为文件夹依赖
@@ -157,21 +158,17 @@ public class FolderResolver {
     ): FolderResolveResult {
         var path = specifier
         if (path.startsWith("link:")) {
-            path = path.substring(5)
+            path = path[5..]
         }
 
         // link: 解析为相对于源目录的路径
-        let resolvedPath = bao_path.PathModule.join(ArrayList<String>([sourceDir, path]))
-        let normalizedPath = bao_path.PathModule.normalize(resolvedPath)
+        let resolvedPath = Path.join([sourceDir, path])
+        let normalizedPath = Path.normalize(resolvedPath)
 
-        if (!bao_io.File.directoryExists(normalizedPath)) {
+        if (!SysFs.exists(normalizedPath)) {
             return FolderResolveResult.err("Link target not found: ${normalizedPath}")
         }
 
-        return FolderResolveResult.ok(
-            path: normalizedPath,
-            name: bao_path.PathModule.getFileName(normalizedPath),
-            version: "0.0.0"
-        )
+        return FolderResolveResult.ok(normalizedPath, Path.basename(normalizedPath), "0.0.0")
     }
 }

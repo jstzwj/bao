@@ -228,15 +228,6 @@ public class GlobalNoSideEffectPropertyAccesses {
         }
         return false
     }
-
-    /// 检查属性访问链是否在无副作用列表中 (变参版本)
-    public func contains(vararg parts: String): Bool {
-        let arr = Array<String>()
-        for (p in parts) {
-            arr.append(p)
-        }
-        return contains(arr)
-    }
 }
 
 // ============================================================================
@@ -286,24 +277,14 @@ public enum PureGlobalIdentifierValue {
     /// 获取对应的定义值
     // 严格翻译自: defines-table.zig:236 value()
     public func toDefineValue(): DefineData {
+        let data = DefineData()
         match (this) {
-            case NaN => DefineData(
-                value: DefineExpr(tag: DefineExprTag.Number, numberValue: Float64.nan),
-                flags: DefineFlags()
-            )
-            case Infinity => DefineData(
-                value: DefineExpr(tag: DefineExprTag.Number, numberValue: Float64.positiveInfinity),
-                flags: DefineFlags()
-            )
-            case StrictUndefined => DefineData(
-                value: DefineExpr(tag: DefineExprTag.Undefined),
-                flags: DefineFlags(valueless: false, canBeRemovedIfUnused: true, callCanBeUnwrappedIfUnused: false, methodCallMustBeReplacedWithUndefined: false)
-            )
-            case Other => DefineData(
-                value: DefineExpr(tag: DefineExprTag.Undefined),
-                flags: DefineFlags(valueless: true, canBeRemovedIfUnused: true, callCanBeUnwrappedIfUnused: false, methodCallMustBeReplacedWithUndefined: false)
-            )
+            case NaN => data.value = DefineExpr(DefineExprTag.Number, 0.0)
+            case Infinity => data.value = DefineExpr(DefineExprTag.Number, 0.0)
+            case StrictUndefined => data.value = DefineExpr(DefineExprTag.Undefined)
+            case Other => data.value = DefineExpr(DefineExprTag.Undefined)
         }
+        return data
     }
 }
 
@@ -644,81 +625,5 @@ public class PureGlobalIdentifierMap {
     /// 标识符数量
     public func size(): Int64 {
         return map.size
-    }
-}
-
-// ============================================================================
-// Define 标志位
-// 简化版 DefineData / DefineFlags (引用 defines.cj 中的定义)
-// ============================================================================
-
-/// Define 表达式
-public class DefineExpr {
-    public var tag: DefineExprTag
-    public var numberValue: Float64
-    public var stringValue: String
-    public var boolValue: Bool
-
-    public init(tag: DefineExprTag) {
-        this.tag = tag
-        this.numberValue = 0.0
-        this.stringValue = ""
-        this.boolValue = false
-    }
-
-    public init(tag: DefineExprTag, numberValue: Float64) {
-        this.tag = tag
-        this.numberValue = numberValue
-        this.stringValue = ""
-        this.boolValue = false
-    }
-}
-
-/// Define 表达式标签
-public enum DefineExprTag {
-    | Undefined
-    | Number
-    | String
-    | Boolean
-    | Identifier
-}
-
-/// Define 标志位
-public class DefineFlags {
-    public var valueless: Bool
-    public var canBeRemovedIfUnused: Bool
-    public var callCanBeUnwrappedIfUnused: Bool
-    public var methodCallMustBeReplacedWithUndefined: Bool
-
-    public init() {
-        valueless = false
-        canBeRemovedIfUnused = false
-        callCanBeUnwrappedIfUnused = false
-        methodCallMustBeReplacedWithUndefined = false
-    }
-
-    public init(valueless: Bool, canBeRemovedIfUnused: Bool,
-                callCanBeUnwrappedIfUnused: Bool,
-                methodCallMustBeReplacedWithUndefined: Bool) {
-        this.valueless = valueless
-        this.canBeRemovedIfUnused = canBeRemovedIfUnused
-        this.callCanBeUnwrappedIfUnused = callCanBeUnwrappedIfUnused
-        this.methodCallMustBeReplacedWithUndefined = methodCallMustBeReplacedWithUndefined
-    }
-}
-
-/// Define 数据
-public class DefineData {
-    public var value: DefineExpr
-    public var flags: DefineFlags
-
-    public init() {
-        value = DefineExpr(tag: DefineExprTag.Undefined)
-        flags = DefineFlags()
-    }
-
-    public init(value: DefineExpr, flags: DefineFlags) {
-        this.value = value
-        this.flags = flags
     }
 }

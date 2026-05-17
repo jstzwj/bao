@@ -286,16 +286,17 @@ public class ScopeAnalyzer {
                     for (arg in fn.args) {
                         declare(arg.name, SymbolKind.Other, arg.loc)
                     }
-                    // 函数体
-                    if (let Some(body) <- fn.body) {
-                        walkStmt(body)
+                    match (fn.body) {
+                        case GFnBody.StmtBody(body) => walkStmt(body)
+                        case GFnBody.StmtsBody(stmts) => for (body in stmts) { walkStmt(body) }
+                        case GFnBody.ExprBody(expr) => walkExpr(expr)
                     }
                     popScope()
                 }
             case StmtTag.Class =>
                 if (let Some(cd) <- stmt.classData) {
                     let scope = pushScope(ScopeKind.ClassBody)
-                    for (prop in cd.properties) {
+                    for (`prop` in cd.properties) {
                         // 类属性声明
                     }
                     popScope()
@@ -312,14 +313,14 @@ public class ScopeAnalyzer {
                 }
             case StmtTag.For | StmtTag.ForIn | StmtTag.ForOf =>
                 let scope = pushScope(ScopeKind.Block)
-                if (let Some(init) <- stmt.init) {
-                    walkStmt(init)
+                if (let Some(`init`) <- stmt.`init`) {
+                    walkStmt(`init`)
                 }
                 if (let Some(body) <- stmt.body) {
                     walkStmt(body)
                 }
                 popScope()
-            case StmtTag.While | StmtTag.Do =>
+            case StmtTag.While | StmtTag.DoWhile =>
                 if (let Some(e) <- stmt.expr) {
                     walkExpr(e)
                 }
@@ -354,7 +355,7 @@ public class ScopeAnalyzer {
                 }
                 for (c in stmt.cases) {
                     let caseScope = pushScope(ScopeKind.Block)
-                    for (s in c.stmts) {
+                    for (s in c.body) {
                         walkStmt(s)
                     }
                     popScope()
@@ -447,8 +448,8 @@ public class ScopeAnalyzer {
                     walkExpr(item)
                 }
             case ExprTag.Object =>
-                for (prop in expr.properties) {
-                    if (let Some(v) <- prop.value) {
+                for (`prop` in expr.properties) {
+                    if (let Some(v) <- `prop`.value) {
                         walkExpr(v)
                     }
                 }
@@ -458,8 +459,10 @@ public class ScopeAnalyzer {
                     for (arg in fn.args) {
                         declare(arg.name, SymbolKind.Other, arg.loc)
                     }
-                    if (let Some(body) <- fn.body) {
-                        walkStmt(body)
+                    match (fn.body) {
+                        case GFnBody.StmtBody(body) => walkStmt(body)
+                        case GFnBody.StmtsBody(stmts) => for (body in stmts) { walkStmt(body) }
+                        case GFnBody.ExprBody(expr) => walkExpr(expr)
                     }
                     popScope()
                 }
@@ -469,15 +472,17 @@ public class ScopeAnalyzer {
                     for (arg in fn.args) {
                         declare(arg.name, SymbolKind.Other, arg.loc)
                     }
-                    if (let Some(body) <- fn.body) {
-                        walkStmt(body)
+                    match (fn.body) {
+                        case GFnBody.StmtBody(body) => walkStmt(body)
+                        case GFnBody.StmtsBody(stmts) => for (body in stmts) { walkStmt(body) }
+                        case GFnBody.ExprBody(expr) => walkExpr(expr)
                     }
                     popScope()
                 }
             case ExprTag.Class =>
                 if (let Some(cd) <- expr.classData) {
                     let scope = pushScope(ScopeKind.ClassBody)
-                    for (prop in cd.properties) {
+                    for (`prop` in cd.properties) {
                         ()
                     }
                     popScope()
@@ -506,11 +511,11 @@ public class ScopeAnalyzer {
                     collectBindingDecls(item)
                 }
             case BindingTag.Object =>
-                for (prop in binding.objectProperties) {
-                    if (let Some(v) <- prop.value) {
+                for (`prop` in binding.objectProperties) {
+                    if (let Some(v) <- `prop`.value) {
                         collectBindingDecls(v)
-                    } else if (prop.isShorthand) {
-                        declare(prop.key, SymbolKind.Other, prop.loc)
+                    } else if (`prop`.isShorthand) {
+                        declare(`prop`.key, SymbolKind.Other, `prop`.loc)
                     }
                 }
             case BindingTag.Missing =>
@@ -648,10 +653,9 @@ public class HoistingAnalyzer {
                 }
             case StmtTag.Local =>
                 // var 声明会被提升，let/const 不会
-                if (stmt.declKind == DeclKind.Var) {
-                    for (d in stmt.decls) {
-                        collectBindingHoisted(d.binding)
-                    }
+                match (stmt.declKind) {
+                    case DeclKind.Var => for (d in stmt.decls) { collectBindingHoisted(d.binding) }
+                    case _ => ()
                 }
             case StmtTag.Function =>
                 // 函数声明总是提升
@@ -659,9 +663,10 @@ public class HoistingAnalyzer {
                     if (fn.name.size > 0) {
                         hoistFunction(fn.name, stmt.loc)
                     }
-                    // 函数体内部递归收集
-                    if (let Some(body) <- fn.body) {
-                        collectFromStmt(body, false)
+                    match (fn.body) {
+                        case GFnBody.StmtBody(body) => collectFromStmt(body, false)
+                        case GFnBody.StmtsBody(stmts) => for (body in stmts) { collectFromStmt(body, false) }
+                        case GFnBody.ExprBody(_) => ()
                     }
                 }
             case StmtTag.If =>
@@ -672,14 +677,14 @@ public class HoistingAnalyzer {
                     collectFromStmt(no, isTopLevel)
                 }
             case StmtTag.For | StmtTag.ForIn | StmtTag.ForOf =>
-                if (let Some(init) <- stmt.init) {
+                if (let Some(`init`) <- stmt.`init`) {
                     // for 中的 var 也会提升
-                    collectFromStmt(init, isTopLevel)
+                    collectFromStmt(`init`, isTopLevel)
                 }
                 if (let Some(body) <- stmt.body) {
                     collectFromStmt(body, isTopLevel)
                 }
-            case StmtTag.While | StmtTag.Do =>
+            case StmtTag.While | StmtTag.DoWhile =>
                 if (let Some(body) <- stmt.body) {
                     collectFromStmt(body, isTopLevel)
                 }
@@ -703,7 +708,7 @@ public class HoistingAnalyzer {
                 }
             case StmtTag.Switch =>
                 for (c in stmt.cases) {
-                    for (s in c.stmts) {
+                    for (s in c.body) {
                         collectFromStmt(s, isTopLevel)
                     }
                 }
@@ -722,11 +727,11 @@ public class HoistingAnalyzer {
                     collectBindingHoisted(item)
                 }
             case BindingTag.Object =>
-                for (prop in binding.objectProperties) {
-                    if (let Some(v) <- prop.value) {
+                for (`prop` in binding.objectProperties) {
+                    if (let Some(v) <- `prop`.value) {
                         collectBindingHoisted(v)
-                    } else if (prop.isShorthand) {
-                        hoistVar(prop.key, prop.loc)
+                    } else if (`prop`.isShorthand) {
+                        hoistVar(`prop`.key, `prop`.loc)
                     }
                 }
             case BindingTag.Missing =>
@@ -833,8 +838,9 @@ public class BindingAnalyzer {
     public func getUnused(): ArrayList<Symbol> {
         let unused = ArrayList<Symbol>()
         for (sym in registry.allSymbols()) {
-            if (sym.useCountEstimate == 0 && sym.kind != SymbolKind.Unbound) {
-                unused.append(sym)
+            match (sym.kind) {
+                case SymbolKind.Unbound => ()
+                case _ => if (sym.useCountEstimate == 0) { unused.append(sym) }
             }
         }
         return unused
@@ -863,8 +869,10 @@ public class BindingAnalyzer {
                         let sym = registry.newSymbol(SymbolKind.Other, arg.name)
                         decls.append(sym)
                     }
-                    if (let Some(body) <- fn.body) {
-                        collectDeclsFromStmt(body, decls)
+                    match (fn.body) {
+                        case GFnBody.StmtBody(body) => collectDeclsFromStmt(body, decls)
+                        case GFnBody.StmtsBody(stmts) => for (body in stmts) { collectDeclsFromStmt(body, decls) }
+                        case GFnBody.ExprBody(_) => ()
                     }
                 }
             case StmtTag.Class =>
@@ -882,13 +890,13 @@ public class BindingAnalyzer {
                     collectDeclsFromStmt(no, decls)
                 }
             case StmtTag.For | StmtTag.ForIn | StmtTag.ForOf =>
-                if (let Some(init) <- stmt.init) {
-                    collectDeclsFromStmt(init, decls)
+                if (let Some(`init`) <- stmt.`init`) {
+                    collectDeclsFromStmt(`init`, decls)
                 }
                 if (let Some(body) <- stmt.body) {
                     collectDeclsFromStmt(body, decls)
                 }
-            case StmtTag.While | StmtTag.Do | StmtTag.Labeled | StmtTag.With =>
+            case StmtTag.While | StmtTag.DoWhile | StmtTag.Labeled | StmtTag.With =>
                 if (let Some(body) <- stmt.body) {
                     collectDeclsFromStmt(body, decls)
                 }
@@ -904,7 +912,7 @@ public class BindingAnalyzer {
                 }
             case StmtTag.Switch =>
                 for (c in stmt.cases) {
-                    for (s in c.stmts) {
+                    for (s in c.body) {
                         collectDeclsFromStmt(s, decls)
                     }
                 }
@@ -924,11 +932,11 @@ public class BindingAnalyzer {
                     collectDeclsFromBinding(item, decls)
                 }
             case BindingTag.Object =>
-                for (prop in binding.objectProperties) {
-                    if (let Some(v) <- prop.value) {
+                for (`prop` in binding.objectProperties) {
+                    if (let Some(v) <- `prop`.value) {
                         collectDeclsFromBinding(v, decls)
-                    } else if (prop.isShorthand) {
-                        let sym = registry.newSymbol(SymbolKind.Other, prop.key)
+                    } else if (`prop`.isShorthand) {
+                        let sym = registry.newSymbol(SymbolKind.Other, `prop`.key)
                         decls.append(sym)
                     }
                 }
@@ -993,21 +1001,25 @@ public class BindingAnalyzer {
                     resolveRefsInExpr(item)
                 }
             case ExprTag.Object =>
-                for (prop in expr.properties) {
-                    if (let Some(v) <- prop.value) {
+                for (`prop` in expr.properties) {
+                    if (let Some(v) <- `prop`.value) {
                         resolveRefsInExpr(v)
                     }
                 }
             case ExprTag.Function =>
                 if (let Some(fn) <- expr.fn) {
-                    if (let Some(body) <- fn.body) {
-                        collectDeclsFromStmt(body, result.declarations)
+                    match (fn.body) {
+                        case GFnBody.StmtBody(body) => collectDeclsFromStmt(body, result.declarations)
+                        case GFnBody.StmtsBody(stmts) => for (body in stmts) { collectDeclsFromStmt(body, result.declarations) }
+                        case GFnBody.ExprBody(_) => ()
                     }
                 }
             case ExprTag.Arrow =>
                 if (let Some(fn) <- expr.fn) {
-                    if (let Some(body) <- fn.body) {
-                        collectDeclsFromStmt(body, result.declarations)
+                    match (fn.body) {
+                        case GFnBody.StmtBody(body) => collectDeclsFromStmt(body, result.declarations)
+                        case GFnBody.StmtsBody(stmts) => for (body in stmts) { collectDeclsFromStmt(body, result.declarations) }
+                        case GFnBody.ExprBody(_) => ()
                     }
                 }
             case ExprTag.Spread =>

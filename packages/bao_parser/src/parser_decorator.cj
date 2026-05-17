@@ -7,6 +7,16 @@ package bao_parser
 import bao_core.*
 import bao_collections.*
 
+public class Tuple<T, U> {
+    public var first: T
+    public var second: U
+
+    public init(first: T, second: U) {
+        this.first = first
+        this.second = second
+    }
+}
+
 // ============================================================================
 // DecoratedElement - 装饰器可附加的目标类型
 // 严格翻译自: src/js_parser/p.zig 中装饰器上下文判断
@@ -22,6 +32,14 @@ public enum DecoratedElement {
     | Getter     // class Foo { @decorator get prop() {} }
     | Setter     // class Foo { @decorator set prop(value) {} }
     | Accessor   // class Foo { @decorator accessor prop }
+
+    public operator func ==(right: DecoratedElement): Bool {
+        this.displayName() == right.displayName()
+    }
+
+    public operator func !=(right: DecoratedElement): Bool {
+        !(this == right)
+    }
 
     /// 是否为类成员 (方法/属性/getter/setter/accessor)
     public func isClassMember(): Bool {
@@ -154,9 +172,9 @@ public class DecoratorParser {
             // 装饰器必须以 @ 开头
             match (tok) {
                 case Token.At =>
-                    let (decorator, newOffset) = parseDecorator(tokens, pos)
-                    decorators.append(decorator)
-                    pos = newOffset
+                    let parsed = parseDecorator(tokens, pos)
+                    decorators.append(parsed.first)
+                    pos = parsed.second
                 case _ =>
                     break
             }
@@ -222,9 +240,9 @@ public class DecoratorParser {
                     expr = Expr.dot(nameLoc, expr, member)
                 // 处理调用: decorator(args)
                 case Token.OpenParen =>
-                    let (args, newOffset) = parseDecoratorArguments(tokens, pos)
-                    pos = newOffset
-                    expr = Expr.call(nameLoc, expr, args)
+                    let parsedArgs = parseDecoratorArguments(tokens, pos)
+                    pos = parsedArgs.second
+                    expr = Expr.call(nameLoc, expr, parsedArgs.first)
                 case _ =>
                     break
             }

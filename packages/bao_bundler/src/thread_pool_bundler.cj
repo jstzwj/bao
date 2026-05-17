@@ -141,12 +141,10 @@ public class BundlerThreadPoolV2 {
 
         if (BundlerThreadPoolV2.usesIOPool()) {
             match (parseTask.stage) {
-                case ParseTaskStage.NeedsParse => {
+                case ParseTaskStage.NeedsParse =>
                     scheduleToWorkerPool(parseTask, isInsideThreadPool)
-                }
-                case ParseTaskStage.NeedsSourceCode => {
+                case ParseTaskStage.NeedsSourceCode =>
                     scheduleToIOPool(parseTask, isInsideThreadPool)
-                }
             }
         } else {
             scheduleToWorkerPool(parseTask, isInsideThreadPool)
@@ -168,10 +166,9 @@ public class BundlerThreadPoolV2 {
     /// 调度到 worker pool
     private func scheduleToWorkerPool(parseTask: ParseTask, isInsideThreadPool: Bool): Unit {
         match (workerPool) {
-            case Some(pool) => {
+            case Some(pool) =>
                 // 简化: 实际需要调度 ThreadPoolTask
                 parseTask.runFromThreadPool()
-            }
             case None => ()
         }
     }
@@ -179,10 +176,9 @@ public class BundlerThreadPoolV2 {
     /// 调度到 IO pool
     private func scheduleToIOPool(parseTask: ParseTask, isInsideThreadPool: Bool): Unit {
         match (ioPool) {
-            case Some(pool) => {
+            case Some(pool) =>
                 // 简化: 实际需要调度 IO 任务
                 parseTask.runFromThreadPool()
-            }
             case None => ()
         }
     }
@@ -195,12 +191,11 @@ public class BundlerThreadPoolV2 {
 
         match (workerAssignments.get(id)) {
             case Some(worker) => return worker
-            case None => {
+            case None =>
                 let worker = BundlerWorkerV2()
                 worker.create(this)
                 workerAssignments.put(id, worker)
                 return worker
-            }
         }
     }
 }
@@ -296,13 +291,11 @@ public class BundlerWorkerV2 {
     // 严格翻译自: ThreadPool.zig:317 transpilerForTarget()
     public func transpilerForTarget(target: BundleTarget): Transpiler {
         match (target) {
-            case BundleTarget.Browser => {
+            case BundleTarget.Browser =>
                 // 如果当前 transpiler 不是 browser target，使用 other_transpiler
                 return data.transpiler
-            }
-            case _ => {
+            case _ =>
                 return data.transpiler
-            }
         }
     }
 

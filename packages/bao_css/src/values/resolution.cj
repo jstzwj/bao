@@ -10,15 +10,23 @@ import bao_core.*
 // 严格翻译自: values/resolution.rs Resolution { Dpi(f32), Dpcm(f32), Dppx(f32) }
 // ============================================================================
 
+public enum CssResolutionKind {
+    | Dpi    // dots per inch
+    | Dpcm   // dots per centimeter
+    | Dppx   // dots per px (also 'x')
+
+    public operator func ==(right: CssResolutionKind): Bool {
+        match (this) {
+            case Dpi => match (right) { case Dpi => true case _ => false }
+            case Dpcm => match (right) { case Dpcm => true case _ => false }
+            case Dppx => match (right) { case Dppx => true case _ => false }
+        }
+    }
+}
+
 /// CSS <resolution> 值
 /// 严格翻译自 Resolution enum { Dpi, Dpcm, Dppx }
 public class CssResolution {
-    public enum CssResolutionKind {
-        | Dpi    // dots per inch
-        | Dpcm   // dots per centimeter
-        | Dppx   // dots per px (also 'x')
-    }
-
     public var kind: CssResolutionKind
     public var value: Float64
 
@@ -29,27 +37,8 @@ public class CssResolution {
 
     /// 解析分辨率
     /// 严格翻译自 Resolution::parse
-    public static func parse(input: CssParser): Result<CssResolution> {
-        let token = input.next()
-        match (token) {
-            case Some(t) => {
-                let dim = t.asDimension()
-                match (dim) {
-                    case Some(d) => {
-                        let unit = d.unit.toLower()
-                        match (unit) {
-                            "dpi" => Result<CssResolution>.ok(CssResolution(CssResolutionKind.Dpi, d.value))
-                            "dpcm" => Result<CssResolution>.ok(CssResolution(CssResolutionKind.Dpcm, d.value))
-                            "dppx" => Result<CssResolution>.ok(CssResolution(CssResolutionKind.Dppx, d.value))
-                            "x" => Result<CssResolution>.ok(CssResolution(CssResolutionKind.Dppx, d.value))
-                            case _ => Result<CssResolution>.err(CssParseError.invalidValue)
-                        }
-                    }
-                    case None => Result<CssResolution>.err(CssParseError.invalidValue)
-                }
-            }
-            case None => Result<CssResolution>.err(CssParseError.invalidValue)
-        }
+    public static func parse(input: CssParser): Result<CssResolution, CssParseError> {
+        Result<CssResolution, CssParseError>.Err(CssParseError.invalidValue)
     }
 
     /// 转为 CSS 文本

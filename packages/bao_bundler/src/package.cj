@@ -134,63 +134,12 @@ public class Resolver {
 // ============================================================================
 // 打包器
 // 对应 Bun: src/bundler/bundle_v2.rs
-// ============================================================================
-
-/// 打包选项
-public class BundleOptions {
-    public var entryPoints: Array<String>
-    public var outdir: String
-    public var minify: Bool
-    public var sourcemap: Bool
-    public var target: String
-    public var format: BundleFormat
-
-    public init() {
-        entryPoints = []
-        outdir = "./dist"
-        minify = false
-        sourcemap = false
-        target = "browser"
-        format = BundleFormat.ESM
-    }
-}
-
-/// 输出格式
+// ============================================================================/// 输出格式
 public enum BundleFormat {
     | ESM
     | CJS
     | IIFE
-}
-
-/// 打包结果
-public class BundleResult {
-    public var outputFiles: ArrayList<OutputFile>
-    public var errors: ArrayList<String>
-    public var warnings: ArrayList<String>
-
-    public init() {
-        outputFiles = ArrayList<OutputFile>()
-        errors = ArrayList<String>()
-        warnings = ArrayList<String>()
-    }
-
-    public func hasErrors(): Bool {
-        return errors.size > 0
-    }
-}
-
-/// 输出文件
-public class OutputFile {
-    public let path: String
-    public let content: Array<UInt8>
-
-    public init(path: String, content: Array<UInt8>) {
-        this.path = path
-        this.content = content
-    }
-}
-
-/// JavaScript 打包器
+}/// JavaScript 打包器
 public class Bundler {
     private var resolver: Resolver
     private var parser: JsParser
@@ -240,7 +189,7 @@ public class Bundler {
 
             let module = loadModule(path)
             match (module) {
-                case Some(m) => {
+                case Some(m) =>
                     graph.append(m)
                     // 将依赖加入队列
                     for (dep in m.dependencies) {
@@ -250,10 +199,8 @@ public class Bundler {
                             case None => result.warnings.append("Cannot resolve: ${dep} from ${path}")
                         }
                     }
-                }
-                case None => {
+                case None =>
                     result.errors.append("Cannot load module: ${path}")
-                }
             }
         }
 
@@ -316,12 +263,11 @@ public class Bundler {
             // import 声明: import ... from 'specifier'
             if (stmt.tag == StmtTag.Import) {
                 match (stmt.importPath) {
-                    case Some(path) => {
+                    case Some(path) =>
                         let spec = path.stringValue.toString()
                         if (spec.length > 0) {
                             deps.append(spec)
                         }
-                    }
                     case None => ()
                 }
             }
@@ -329,12 +275,11 @@ public class Bundler {
             // export ... from 'specifier'
             if (stmt.tag == StmtTag.Export) {
                 match (stmt.importPath) {
-                    case Some(path) => {
+                    case Some(path) =>
                         let spec = path.stringValue.toString()
                         if (spec.length > 0) {
                             deps.append(spec)
                         }
-                    }
                     case None => ()
                 }
             }
@@ -342,13 +287,12 @@ public class Bundler {
             // require('specifier') — 检查顶层表达式语句
             if (stmt.tag == StmtTag.Expr) {
                 match (stmt.expr) {
-                    case Some(expr) => {
+                    case Some(expr) =>
                         let reqSpec = extractRequireSpecifier(expr)
                         match (reqSpec) {
                             case Some(spec) => deps.append(spec)
                             case None => ()
                         }
-                    }
                     case None => ()
                 }
             }
@@ -361,7 +305,7 @@ public class Bundler {
         // require('path') 或 require("path")
         if (expr.tag == ExprTag.Call) {
             match (expr.target) {
-                case Some(target) => {
+                case Some(target) =>
                     if (target.tag == ExprTag.Identifier && target.identifierName == "require") {
                         if (expr.args.size > 0) {
                             let arg = expr.args[0]
@@ -370,7 +314,6 @@ public class Bundler {
                             }
                         }
                     }
-                }
                 case None => ()
             }
         }
@@ -387,16 +330,13 @@ public class Bundler {
 
         // 输出格式头部
         match (options.format) {
-            case BundleFormat.ESM => {
-                // ESM 格式: 直接输出 import/export
-            }
-            case BundleFormat.CJS => {
+            case BundleFormat.ESM =>
+                ()
+            case BundleFormat.CJS =>
                 sb.append("// CommonJS bundle generated by Bao\n")
-            }
-            case BundleFormat.IIFE => {
+            case BundleFormat.IIFE =>
                 sb.append("(function() {\n")
             }
-        }
 
         // 为每个模块生成包装函数
         let moduleMap = HashMap<String, Int64>()
@@ -421,17 +361,15 @@ public class Bundler {
 
             // 使用 Printer 生成代码 (如果有 AST)
             match (mod.ast) {
-                case Some(program) => {
+                case Some(program) =>
                     let printerOptions = PrintOptions()
                     printerOptions.minify = options.minify
                     let printer = Printer(printerOptions)
                     let code = printer.printProgram(program.stmts)
                     sb.append(code)
-                }
-                case None => {
+                case None =>
                     // 没有 AST，直接输出源码
                     sb.append(mod.source)
-                }
             }
 
             sb.append("\n};\n\n")
@@ -498,11 +436,10 @@ public class Bundler {
             if (visiting.contains(path)) { return }  // 循环依赖，跳过
             visiting.put(path)
             match (adjList.get(path)) {
-                case Some(deps) => {
+                case Some(deps) =>
                     for (dep in deps) {
                         visit(dep)
                     }
-                }
                 case None => ()
             }
             visiting.remove(path)

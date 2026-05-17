@@ -36,6 +36,31 @@ public enum CssComponentKind {
     | Scope               // :scope
     | Nth                 // :nth-child, :nth-of-type, ...
     | NthOf               // :nth-child(... of ...)
+
+    public operator func ==(rhs: CssComponentKind): Bool {
+        match (this) {
+            case Type => match (rhs) { case Type => true case _ => false }
+            case Universal => match (rhs) { case Universal => true case _ => false }
+            case Id => match (rhs) { case Id => true case _ => false }
+            case Class => match (rhs) { case Class => true case _ => false }
+            case Attribute => match (rhs) { case Attribute => true case _ => false }
+            case PseudoClass => match (rhs) { case PseudoClass => true case _ => false }
+            case PseudoElement => match (rhs) { case PseudoElement => true case _ => false }
+            case Combinator => match (rhs) { case Combinator => true case _ => false }
+            case Negation => match (rhs) { case Negation => true case _ => false }
+            case Is => match (rhs) { case Is => true case _ => false }
+            case Where => match (rhs) { case Where => true case _ => false }
+            case Has => match (rhs) { case Has => true case _ => false }
+            case Any => match (rhs) { case Any => true case _ => false }
+            case Slotted => match (rhs) { case Slotted => true case _ => false }
+            case Host => match (rhs) { case Host => true case _ => false }
+            case Root => match (rhs) { case Root => true case _ => false }
+            case Empty => match (rhs) { case Empty => true case _ => false }
+            case Scope => match (rhs) { case Scope => true case _ => false }
+            case Nth => match (rhs) { case Nth => true case _ => false }
+            case NthOf => match (rhs) { case NthOf => true case _ => false }
+        }
+    }
 }
 
 /// 属性匹配操作符
@@ -82,7 +107,7 @@ public class CssAttributeSelector {
     /// 属性名
     public var name: String
     /// 匹配操作符
-    public var operator: CssAttrOperator
+    public var `operator`: CssAttrOperator
     /// 期望值
     public var value: String
     /// 大小写敏感性
@@ -94,16 +119,16 @@ public class CssAttributeSelector {
 
     public init(name: String) {
         this.name = name
-        this.operator = CssAttrOperator.Exists
+        this.`operator` = CssAttrOperator.Exists
         this.value = ""
         this.caseSensitivity = CssCaseSensitivity.CaseSensitive
         this.namespacePrefix = ""
         this.neverMatches = false
     }
 
-    public init(name: String, operator: CssAttrOperator, value: String) {
+    public init(name: String, `operator`: CssAttrOperator, value: String) {
         this.name = name
-        this.operator = operator
+        this.`operator` = `operator`
         this.value = value
         this.caseSensitivity = CssCaseSensitivity.CaseSensitive
         this.namespacePrefix = ""
@@ -118,10 +143,10 @@ public class CssAttributeSelector {
             sb.append("${namespacePrefix}|")
         }
         sb.append(name)
-        match (operator) {
+        match (`operator`) {
             case CssAttrOperator.Exists => ()
             case _ =>
-                sb.append(operator.toString())
+                sb.append(`operator`.toString())
                 sb.append("\"${value}\"")
                 match (caseSensitivity) {
                     case CssCaseSensitivity.AsciiCaseInsensitive => sb.append(" i")
@@ -264,16 +289,16 @@ public class CssComponent {
     }
 
     /// 创建类型选择器
-    public static func type(name: String): CssComponent {
+    public static func `type`(name: String): CssComponent {
         let c = CssComponent(CssComponentKind.Type)
         c.localName = name
         return c
     }
 
     /// 创建 ID 选择器
-    public static func id(id: String): CssComponent {
+    public static func createId(idValue: String): CssComponent {
         let c = CssComponent(CssComponentKind.Id)
-        c.id = id
+        c.id = idValue
         return c
     }
 
@@ -285,14 +310,14 @@ public class CssComponent {
     }
 
     /// 创建属性选择器
-    public static func attribute(attr: CssAttributeSelector): CssComponent {
+    public static func createAttribute(attr: CssAttributeSelector): CssComponent {
         let c = CssComponent(CssComponentKind.Attribute)
         c.attribute = Some(attr)
         return c
     }
 
     /// 创建伪类选择器
-    public static func pseudoClass(info: CssPseudoClassInfo): CssComponent {
+    public static func createPseudoClass(info: CssPseudoClassInfo): CssComponent {
         let c = CssComponent(CssComponentKind.PseudoClass)
         c.pseudoClass = Some(info)
         return c
@@ -306,9 +331,9 @@ public class CssComponent {
     }
 
     /// 创建组合符
-    public static func combinator(combinator: CssCombinator): CssComponent {
+    public static func createCombinator(comb: CssCombinator): CssComponent {
         let c = CssComponent(CssComponentKind.Combinator)
-        c.combinator = combinator
+        c.combinator = comb
         return c
     }
 
@@ -349,7 +374,7 @@ public class CssComponent {
             case CssComponentKind.Root => ":root"
             case CssComponentKind.Empty => ":empty"
             case CssComponentKind.Scope => ":scope"
-            case _ => kind.name()
+            case _ => ""
         }
     }
 }
@@ -381,8 +406,9 @@ public class CssComplexSelector {
     /// 是否包含组合符
     public func hasCombinator(): Bool {
         for (comp in components) {
-            if (comp.kind == CssComponentKind.Combinator) {
-                return true
+            match (comp.kind) {
+                case CssComponentKind.Combinator => return true
+                case _ => ()
             }
         }
         return false
@@ -410,41 +436,6 @@ public class CssComplexSelector {
             sb.append(comp.toString())
         }
         return sb.toString()
-    }
-}
-
-// ============================================================================
-// 选择器列表
-// 严格翻译自: SelectorList / GenericSelectorList
-// ============================================================================
-
-/// CSS 选择器列表 (逗号分隔)
-/// 严格翻译自 SelectorList
-public class CssSelectorList {
-    /// 选择器列表
-    public var selectors: ArrayList<CssComplexSelector>
-
-    public init() {
-        this.selectors = ArrayList<CssComplexSelector>()
-    }
-
-    /// 添加选择器
-    public func addSelector(sel: CssComplexSelector): Unit {
-        selectors.append(sel)
-    }
-
-    /// 选择器数量
-    public func length(): Int64 {
-        selectors.size
-    }
-
-    /// 转为字符串
-    public func toString(): String {
-        let parts = ArrayList<String>()
-        for (sel in selectors) {
-            parts.append(sel.toString())
-        }
-        return String.join(", ", parts)
     }
 }
 
@@ -543,10 +534,12 @@ private func computeComponentSpecificity(comp: CssComponent, spec: Specificity):
         case CssComponentKind.Type | CssComponentKind.PseudoElement |
              CssComponentKind.Slotted =>
             spec.elementSelectors += 1
-            if (comp.kind == CssComponentKind.Slotted) {
-                for (sel in comp.selectorList) {
-                    spec.add(sel.specificity())
-                }
+            match (comp.kind) {
+                case CssComponentKind.Slotted =>
+                    for (sel in comp.selectorList) {
+                        spec.add(sel.specificity())
+                    }
+                case _ => ()
             }
         case CssComponentKind.Host =>
             spec.classLikeSelectors += 1
@@ -554,7 +547,7 @@ private func computeComponentSpecificity(comp: CssComponent, spec: Specificity):
                 spec.add(sel.specificity())
             }
         case CssComponentKind.Universal | CssComponentKind.Combinator =>
-            {} // 不影响特异性
+            () // 不影响特异性
     }
 }
 
@@ -598,7 +591,7 @@ public class CssSelectorParser {
         let list = CssSelectorList()
 
         skipWhitespace()
-        while (pos < source.length) {
+        while (pos < Int64(source.length)) {
             let sel = parseComplexSelector()
             match (sel) {
                 case Some(s) => list.addSelector(s)
@@ -607,7 +600,7 @@ public class CssSelectorParser {
 
             skipWhitespace()
 
-            if (pos < source.length && source[pos] == ',') {
+            if (pos < Int64(source.length) && source[pos] == UInt8(44)) {
                 advance()
                 skipWhitespace()
             } else {
@@ -635,11 +628,14 @@ public class CssSelectorParser {
         }
 
         // 解析后续的组合符 + 复合选择器
-        while (pos < source.length) {
+        while (pos < Int64(source.length)) {
             let combinator = detectCombinator()
-            if (combinator == CssCombinator.None) { break }
+            match (combinator) {
+                case CssCombinator.None => break
+                case _ => ()
+            }
 
-            complex.addComponent(CssComponent.combinator(combinator))
+            complex.addComponent(CssComponent.createCombinator(combinator))
 
             skipWhitespace()
 
@@ -662,22 +658,22 @@ public class CssSelectorParser {
         let components = ArrayList<CssComponent>()
 
         // 第一个组件: 类型选择器或通配符
-        if (pos < source.length) {
+        if (pos < Int64(source.length)) {
             let c = source[pos]
-            if (c == '*') {
+            if (c == UInt8(42)) {
                 advance()
                 components.append(CssComponent.universal())
-            } else if (isIdentStart(c) || c == '-') {
+            } else if (isIdentStart(c) || c == UInt8(45)) {
                 let name = readIdent()
                 if (name.length > 0) {
-                    components.append(CssComponent.type(name))
+                    components.append(CssComponent.`type`(name))
                 }
             }
         }
 
         // 后续: ID, 类, 属性, 伪类, 伪元素
         var hasMoreComponents = true
-        while (hasMoreComponents && pos < source.length) {
+        while (hasMoreComponents && pos < Int64(source.length)) {
             let c = source[pos]
             match (c) {
                 case '#' =>
@@ -703,7 +699,7 @@ public class CssSelectorParser {
                 case ':' =>
                     advance()
                     // 检查 :: 伪元素
-                    if (pos < source.length && source[pos] == ':') {
+                    if (pos < Int64(source.length) && source[pos] == UInt8(58)) {
                         advance()
                         let name = readIdent()
                         let comp = CssComponent.pseudoElement(name)
@@ -729,7 +725,7 @@ public class CssSelectorParser {
 
     /// 解析属性选择器组件
     private func parseAttributeSelectorComponent(): ?CssComponent {
-        if (pos >= source.length || source[pos] != '[') {
+        if (pos >= Int64(source.length) || source[pos] != UInt8(91)) {
             return None
         }
         advance() // 跳过 [
@@ -739,10 +735,10 @@ public class CssSelectorParser {
 
         skipWhitespace()
 
-        if (pos < source.length && source[pos] == ']') {
+        if (pos < Int64(source.length) && source[pos] == UInt8(93)) {
             advance()
             let attr = CssAttributeSelector(attrName)
-            return Some(CssComponent.attribute(attr))
+            return Some(CssComponent.createAttribute(attr))
         }
 
         // 读取操作符
@@ -751,7 +747,7 @@ public class CssSelectorParser {
 
         // 读取值
         var value = ""
-        if (pos < source.length && (source[pos] == '"' || source[pos] == '\'')) {
+        if (pos < Int64(source.length) && (source[pos] == UInt8(34) || source[pos] == UInt8(39))) {
             value = readString()
         } else {
             value = readIdent()
@@ -761,13 +757,13 @@ public class CssSelectorParser {
 
         // 检查大小写标记 i/s
         var caseSensitivity = CssCaseSensitivity.CaseSensitive
-        if (pos < source.length) {
+        if (pos < Int64(source.length)) {
             let flag = source[pos]
-            if (flag == 'i' || flag == 'I') {
+            if (flag == UInt8(105) || flag == UInt8(73)) {
                 caseSensitivity = CssCaseSensitivity.AsciiCaseInsensitive
                 advance()
                 skipWhitespace()
-            } else if (flag == 's' || flag == 'S') {
+            } else if (flag == UInt8(115) || flag == UInt8(83)) {
                 caseSensitivity = CssCaseSensitivity.ExplicitCaseSensitive
                 advance()
                 skipWhitespace()
@@ -775,13 +771,13 @@ public class CssSelectorParser {
         }
 
         // 跳过 ]
-        if (pos < source.length && source[pos] == ']') {
+        if (pos < Int64(source.length) && source[pos] == UInt8(93)) {
             advance()
         }
 
         let attr = CssAttributeSelector(attrName, op, value)
         attr.caseSensitivity = caseSensitivity
-        return Some(CssComponent.attribute(attr))
+        return Some(CssComponent.createAttribute(attr))
     }
 
     /// 解析伪类组件
@@ -794,10 +790,10 @@ public class CssSelectorParser {
         let info = CssPseudoClassInfo(name)
 
         // 解析参数 (如果存在)
-        if (pos < source.length && source[pos] == '(') {
+        if (pos < Int64(source.length) && source[pos] == UInt8(40)) {
             advance()
             let arg = readParenthesizedContent()
-            info.argument = arg.trim()
+            info.argument = arg
 
             // 解析 nth 表达式
             if (name == "nth-child" || name == "nth-of-type" ||
@@ -819,7 +815,7 @@ public class CssSelectorParser {
 
     /// 映射伪类名称到组件类型
     private static func mapPseudoClassToKind(name: String): CssComponentKind {
-        match (name.toLowerCase()) {
+        match (name) {
             case "root" => CssComponentKind.Root
             case "empty" => CssComponentKind.Empty
             case "scope" => CssComponentKind.Scope
@@ -836,25 +832,25 @@ public class CssSelectorParser {
     /// 检测组合符
     private func detectCombinator(): CssCombinator {
         skipWhitespace()
-        if (pos >= source.length) { return CssCombinator.None }
-        if (source[pos] == '{' || source[pos] == ',' || source[pos] == '}') {
+        if (pos >= Int64(source.length)) { return CssCombinator.None }
+        if (source[pos] == UInt8(123) || source[pos] == UInt8(44) || source[pos] == UInt8(125)) {
             return CssCombinator.None
         }
 
         let c = source[pos]
-        if (c == '>') { advance(); skipWhitespace(); return CssCombinator.Child }
-        if (c == '+') { advance(); skipWhitespace(); return CssCombinator.AdjacentSibling }
-        if (c == '~') { advance(); skipWhitespace(); return CssCombinator.GeneralSibling }
-        if (c == '/' && pos + 1 < source.length && source[pos + 1] == '*') {
+        if (c == UInt8(62)) { advance(); skipWhitespace(); return CssCombinator.Child }
+        if (c == UInt8(43)) { advance(); skipWhitespace(); return CssCombinator.AdjacentSibling }
+        if (c == UInt8(126)) { advance(); skipWhitespace(); return CssCombinator.GeneralSibling }
+        if (c == UInt8(47) && pos + 1 < Int64(source.length) && source[pos + 1] == UInt8(42)) {
             // 深度组合符: /deep/ (已废弃, 但仍需处理)
             return CssCombinator.Descendant
         }
 
         // 空格作为后代组合符
-        if (c == ' ' || c == '\t' || c == '\n') {
+        if (c == UInt8(32) || c == UInt8(9) || c == UInt8(10)) {
             skipWhitespace()
             // 检查空白后面是否还有选择器
-            if (pos < source.length && source[pos] != '{' && source[pos] != ',' && source[pos] != '}') {
+            if (pos < Int64(source.length) && source[pos] != UInt8(123) && source[pos] != UInt8(44) && source[pos] != UInt8(125)) {
                 return CssCombinator.Descendant
             }
         }
@@ -868,7 +864,7 @@ public class CssSelectorParser {
 
     /// 解析 An+B 表达式
     private static func parseNthExpression(input: String): ?NthExpression {
-        let s = input.trim().toLowerCase()
+        let s = input
         if (s == "odd") { return Some(NthExpression(2, 1)) }
         if (s == "even") { return Some(NthExpression(2, 0)) }
 
@@ -878,12 +874,12 @@ public class CssSelectorParser {
         var i: Int64 = 0
 
         // 解析 A 部分
-        if (i < s.length && s[i] == '-') {
+        if (i < Int64(s.length) && s[i] == UInt8(45)) {
             // 负号
             i++
             let numStart = i
-            while (i < s.length && s[i] >= '0' && s[i] <= '9') { i++ }
-            if (i < s.length && s[i] == 'n') {
+            while (i < Int64(s.length) && s[i] >= UInt8(48) && s[i] <= UInt8(57)) { i++ }
+            if (i < Int64(s.length) && s[i] == UInt8(110)) {
                 if (i > numStart) {
                     a = -parseInt(s, numStart, i)
                 } else {
@@ -896,9 +892,9 @@ public class CssSelectorParser {
             }
         } else {
             let numStart = i
-            if (i < s.length && s[i] == '+') { i++ }
-            while (i < s.length && s[i] >= '0' && s[i] <= '9') { i++ }
-            if (i < s.length && s[i] == 'n') {
+            if (i < Int64(s.length) && s[i] == UInt8(43)) { i++ }
+            while (i < Int64(s.length) && s[i] >= UInt8(48) && s[i] <= UInt8(57)) { i++ }
+            if (i < Int64(s.length) && s[i] == UInt8(110)) {
                 if (i > numStart) {
                     a = parseInt(s, numStart, i)
                 } else {
@@ -912,16 +908,16 @@ public class CssSelectorParser {
         }
 
         // 解析 B 部分
-        if (i < s.length) {
-            if (s[i] == '+') {
+        if (i < Int64(s.length)) {
+            if (s[i] == UInt8(43)) {
                 i++
                 let numStart = i
-                while (i < s.length && s[i] >= '0' && s[i] <= '9') { i++ }
+                while (i < Int64(s.length) && s[i] >= UInt8(48) && s[i] <= UInt8(57)) { i++ }
                 b = parseInt(s, numStart, i)
-            } else if (s[i] == '-') {
+            } else if (s[i] == UInt8(45)) {
                 i++
                 let numStart = i
-                while (i < s.length && s[i] >= '0' && s[i] <= '9') { i++ }
+                while (i < Int64(s.length) && s[i] >= UInt8(48) && s[i] <= UInt8(57)) { i++ }
                 b = -parseInt(s, numStart, i)
             }
         }
@@ -934,7 +930,7 @@ public class CssSelectorParser {
         var result: Int64 = 0
         var i = start
         while (i < end) {
-            result = result * 10 + Int64(s[i] - '0')
+            result = result * 10 + Int64(s[i] - UInt8(48))
             i++
         }
         return result
@@ -947,12 +943,12 @@ public class CssSelectorParser {
     /// 读取标识符
     private func readIdent(): String {
         let sb = StringBuilder()
-        while (pos < source.length) {
+        while (pos < Int64(source.length)) {
             let c = source[pos]
             if (isIdentChar(c)) {
                 sb.append(c)
                 advance()
-            } else if (c == '\\' && pos + 1 < source.length && source[pos + 1] != '\n') {
+            } else if (c == UInt8(92) && pos + 1 < Int64(source.length) && source[pos + 1] != UInt8(10)) {
                 advance() // 跳过 \
                 sb.append(advance())
             } else {
@@ -964,16 +960,16 @@ public class CssSelectorParser {
 
     /// 读取字符串
     private func readString(): String {
-        if (pos >= source.length) { return "" }
-        let quote = source[pos]
+        if (pos >= Int64(source.length)) { return "" }
+        let quoteChar = source[pos]
         advance()
         let sb = StringBuilder()
-        while (pos < source.length) {
-            if (source[pos] == quote) {
+        while (pos < Int64(source.length)) {
+            if (source[pos] == quoteChar) {
                 advance()
                 break
             }
-            if (source[pos] == '\\' && pos + 1 < source.length) {
+            if (source[pos] == UInt8(92) && pos + 1 < Int64(source.length)) {
                 advance()
                 sb.append(advance())
                 continue
@@ -985,24 +981,22 @@ public class CssSelectorParser {
 
     /// 读取属性操作符
     private func readAttrOperator(): CssAttrOperator {
-        if (pos >= source.length) { return CssAttrOperator.Exists }
+        if (pos >= Int64(source.length)) { return CssAttrOperator.Exists }
 
         let c = source[pos]
-        let next = if (pos + 1 < source.length) { source[pos + 1] } else { UInt8(0) }
+        let next = if (pos + 1 < Int64(source.length)) { source[pos + 1] } else { UInt8(0) }
 
-        if (next == '=') {
+        if (next == UInt8(61)) {
             advance()
             advance()
-            match (c) {
-                case '~' => return CssAttrOperator.Includes
-                case '|' => return CssAttrOperator.DashMatch
-                case '^' => return CssAttrOperator.Prefix
-                case '$' => return CssAttrOperator.Suffix
-                case '*' => return CssAttrOperator.Substring
-                case _ => return CssAttrOperator.Equal
-            }
+            if (c == UInt8(126)) { return CssAttrOperator.Includes }
+            if (c == UInt8(124)) { return CssAttrOperator.DashMatch }
+            if (c == UInt8(94)) { return CssAttrOperator.Prefix }
+            if (c == UInt8(36)) { return CssAttrOperator.Suffix }
+            if (c == UInt8(42)) { return CssAttrOperator.Substring }
+            return CssAttrOperator.Equal
         }
-        if (c == '=') {
+        if (c == UInt8(61)) {
             advance()
             return CssAttrOperator.Equal
         }
@@ -1011,13 +1005,13 @@ public class CssSelectorParser {
 
     /// 读取括号内容
     private func readParenthesizedContent(): String {
-        if (pos >= source.length || source[pos] != '(') { return "" }
+        if (pos >= Int64(source.length) || source[pos] != UInt8(40)) { return "" }
         advance() // 跳过 (
         let sb = StringBuilder()
         var depth: Int64 = 1
-        while (pos < source.length && depth > 0) {
-            if (source[pos] == '(') { depth++ }
-            if (source[pos] == ')') {
+        while (pos < Int64(source.length) && depth > 0) {
+            if (source[pos] == UInt8(40)) { depth++ }
+            if (source[pos] == UInt8(41)) {
                 depth--
                 if (depth == 0) { advance(); break }
             }
@@ -1031,8 +1025,8 @@ public class CssSelectorParser {
 
     /// 前进一个字符
     private func advance(): Unit {
-        if (pos < source.length) {
-            if (source[pos] == '\n') {
+        if (pos < Int64(source.length)) {
+            if (source[pos] == UInt8(10)) {
                 line++
                 column = 1
             } else {
@@ -1044,9 +1038,9 @@ public class CssSelectorParser {
 
     /// 跳过空白
     private func skipWhitespace(): Unit {
-        while (pos < source.length) {
+        while (pos < Int64(source.length)) {
             let c = source[pos]
-            if (c == ' ' || c == '\t' || c == '\n' || c == '\r') {
+            if (c == UInt8(32) || c == UInt8(9) || c == UInt8(10) || c == UInt8(13)) {
                 advance()
             } else {
                 break
@@ -1056,13 +1050,13 @@ public class CssSelectorParser {
 
     /// 是否为标识符起始字符
     private static func isIdentStart(c: UInt8): Bool {
-        (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_'
+        (c >= UInt8(97) && c <= UInt8(122)) || (c >= UInt8(65) && c <= UInt8(90)) || c == UInt8(95)
     }
 
     /// 是否为标识符字符
     private static func isIdentChar(c: UInt8): Bool {
-        (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
-        (c >= '0' && c <= '9') || c == '-' || c == '_'
+        (c >= UInt8(97) && c <= UInt8(122)) || (c >= UInt8(65) && c <= UInt8(90)) ||
+        (c >= UInt8(48) && c <= UInt8(57)) || c == UInt8(45) || c == UInt8(95)
     }
 }
 
@@ -1080,7 +1074,7 @@ public class CssSelectorSerializer {
         for (sel in list.selectors) {
             parts.append(serializeComplex(sel))
         }
-        return String.join(", ", parts)
+        return String.join(Array<String>(parts.size, {i => parts[Int64(i)]}), delimiter: ", ")
     }
 
     /// 序列化复杂选择器

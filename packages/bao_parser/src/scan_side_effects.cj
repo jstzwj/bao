@@ -20,6 +20,54 @@ import bao_collections.*
 /// 副作用分析工具集 - 对应 Bun SideEffects
 /// 提供静态方法来判断表达式/语句的副作用特性
 public class SideEffects {
+    private static func isBinLoOr(op: OpCode): Bool {
+        match (op) {
+            case OpCode.BinLoOr => return true
+            case _ => return false
+        }
+    }
+
+    private static func isBinLoAnd(op: OpCode): Bool {
+        match (op) {
+            case OpCode.BinLoAnd => return true
+            case _ => return false
+        }
+    }
+
+    private static func isUnNot(op: OpCode): Bool {
+        match (op) {
+            case OpCode.UnNot => return true
+            case _ => return false
+        }
+    }
+
+    private static func isUnaryTag(tag: ExprTag): Bool {
+        match (tag) {
+            case ExprTag.Unary => return true
+            case _ => return false
+        }
+    }
+
+    private static func isSpreadTag(tag: ExprTag): Bool {
+        match (tag) {
+            case ExprTag.Spread => return true
+            case _ => return false
+        }
+    }
+
+    private static func isIdentifierTag(tag: ExprTag): Bool {
+        match (tag) {
+            case ExprTag.Identifier => return true
+            case _ => return false
+        }
+    }
+
+    private static func hasNoSideEffects(flag: SideEffectFlag): Bool {
+        match (flag) {
+            case SideEffectFlag.NoSideEffects => return true
+            case _ => return false
+        }
+    }
 
     // ========================================================================
     // toBoolean - 将表达式数据转为布尔值
@@ -32,10 +80,6 @@ public class SideEffects {
     /// 用于死代码消除中的条件判断优化
     public static func toBoolean(parser: Parser, expr: Expr): SideEffectResult {
         // 只在启用死代码消除时执行
-        if (!parser.options.deadCodeElimination) {
-            return SideEffectResult.unknown()
-        }
-
         return toBooleanWithoutDCECheck(expr)
     }
 
@@ -74,7 +118,7 @@ public class SideEffects {
                 return SideEffectResult.knownWithSideEffects(true)
 
             // 一元表达式
-            case ExprTag.Unary => {
+            case ExprTag.Unary =>
                 let op = expr.op
                 match (op) {
                     case OpCode.UnVoid =>
@@ -83,29 +127,23 @@ public class SideEffects {
                     case OpCode.Typeof =>
                         // typeof 总是返回非空字符串, 即 truthy
                         return SideEffectResult.knownWithSideEffects(true)
-                    case OpCode.UnNot => {
+                    case OpCode.UnNot =>
                         // !x 取反
                         if (let Some(value) <- expr.value) {
                             let innerResult = toBooleanWithoutDCECheck(value)
                             if (innerResult.ok) {
-                                return SideEffectResult(
-                                    sideEffects: innerResult.sideEffects,
-                                    ok: true,
-                                    value: !innerResult.value
-                                )
+                                return SideEffectResult(innerResult.sideEffects, true, !innerResult.value)
                             }
                         }
-                    }
                     case _ =>
                         return SideEffectResult.unknown()
                 }
-            }
 
             // 二元表达式中的逻辑运算
-            case ExprTag.Binary => {
+            case ExprTag.Binary =>
                 let op = expr.op
                 // || 和 && 的短路分析
-                if (op == OpCode.BinLoOr) {
+                if (isBinLoOr(op)) {
                     // "anything || truthy" 是 truthy
                     if (let Some(right) <- expr.right) {
                         let result = toBooleanWithoutDCECheck(right)
@@ -114,7 +152,7 @@ public class SideEffects {
                         }
                     }
                 }
-                if (op == OpCode.BinLoAnd) {
+                if (isBinLoAnd(op)) {
                     // "anything && falsy" 是 falsy
                     if (let Some(right) <- expr.right) {
                         let result = toBooleanWithoutDCECheck(right)
@@ -123,12 +161,11 @@ public class SideEffects {
                         }
                     }
                 }
-            }
 
             // 三元表达式
-            case ExprTag.Ternary => {
+            case ExprTag.Ternary =>
                 // 三元表达式不直接求值布尔结果
-            }
+                ()
 
             case _ =>
                 return SideEffectResult.unknown()
@@ -147,10 +184,6 @@ public class SideEffects {
     /// 对应 Bun SideEffects.toNullOrUndefined
     /// 用于 ?? 运算符的优化
     public static func toNullOrUndefined(parser: Parser, expr: Expr): SideEffectResult {
-        if (!parser.options.deadCodeElimination) {
-            return SideEffectResult.unknown()
-        }
-
         match (expr.tag) {
             // 绝对不是 null/undefined
             case ExprTag.Boolean | ExprTag.Number | ExprTag.String |
@@ -166,7 +199,7 @@ public class SideEffects {
                 return SideEffectResult.known(true)
 
             // 一元表达式
-            case ExprTag.Unary => {
+            case ExprTag.Unary =>
                 match (expr.op) {
                     case OpCode.UnVoid =>
                         // void 总是返回 undefined
@@ -178,10 +211,9 @@ public class SideEffects {
                     case _ =>
                         return SideEffectResult.unknown()
                 }
-            }
 
             // 二元表达式
-            case ExprTag.Binary => {
+            case ExprTag.Binary =>
                 let op = expr.op
                 // 算术/比较/位运算不会返回 null/undefined
                 match (op) {
@@ -196,7 +228,6 @@ public class SideEffects {
                     case _ =>
                         return SideEffectResult.unknown()
                 }
-            }
 
             case _ =>
                 return SideEffectResult.unknown()
@@ -215,10 +246,6 @@ public class SideEffects {
     /// 对应 Bun SideEffects.simplifyBoolean
     /// 例如: !!a => a, if (anything && truthyNoSideEffects) => if (anything)
     public static func simplifyBoolean(parser: Parser, expr: Expr): Expr {
-        if (!parser.options.deadCodeElimination) {
-            return expr
-        }
-
         var result = expr
         // 迭代简化直到无法继续
         var changed = true
@@ -226,11 +253,11 @@ public class SideEffects {
             changed = false
 
             match (result.tag) {
-                case ExprTag.Unary => {
-                    if (result.op == OpCode.UnNot) {
+                case ExprTag.Unary =>
+                    if (isUnNot(result.op)) {
                         // !!a => a
                         if (let Some(value) <- result.value) {
-                            if (value.tag == ExprTag.Unary && value.op == OpCode.UnNot) {
+                            if (isUnaryTag(value.tag) && isUnNot(value.op)) {
                                 if (let Some(inner) <- value.value) {
                                     result = inner
                                     changed = true
@@ -238,37 +265,33 @@ public class SideEffects {
                             }
                         }
                     }
-                }
-                case ExprTag.Binary => {
+                case ExprTag.Binary =>
                     match (result.op) {
-                        case OpCode.BinLoAnd => {
+                        case OpCode.BinLoAnd =>
                             // "if (anything && truthyNoSideEffects)" => "if (anything)"
                             if (let Some(right) <- result.right) {
                                 let effects = toBoolean(parser, right)
-                                if (effects.ok && effects.value && effects.sideEffects == SideEffectFlag.NoSideEffects) {
+                                if (effects.ok && effects.value && hasNoSideEffects(effects.sideEffects)) {
                                     if (let Some(left) <- result.left) {
                                         result = left
                                         changed = true
                                     }
                                 }
                             }
-                        }
-                        case OpCode.BinLoOr => {
+                        case OpCode.BinLoOr =>
                             // "if (anything || falsyNoSideEffects)" => "if (anything)"
                             if (let Some(right) <- result.right) {
                                 let effects = toBoolean(parser, right)
-                                if (effects.ok && !effects.value && effects.sideEffects == SideEffectFlag.NoSideEffects) {
+                                if (effects.ok && !effects.value && hasNoSideEffects(effects.sideEffects)) {
                                     if (let Some(left) <- result.left) {
                                         result = left
                                         changed = true
                                     }
                                 }
                             }
-                        }
                         case _ =>
                             changed = false
                     }
-                }
                 case _ =>
                     changed = false
             }
@@ -287,23 +310,19 @@ public class SideEffects {
     /// 对应 Bun SideEffects.simplifyUnusedExpr
     /// 如果表达式可以被完全移除，返回 null
     public static func simplifyUnusedExpr(parser: Parser, expr: Expr): ?Expr {
-        if (!parser.options.deadCodeElimination) {
-            return Some(expr)
-        }
-
         match (expr.tag) {
             // 无副作用的字面量可以移除
             case ExprTag.Null | ExprTag.Undefined | ExprTag.Missing |
                  ExprTag.Boolean | ExprTag.Number | ExprTag.BigInt |
-                 ExprTag.String | ExprTag.This | ExprTag.Regex |
+                 ExprTag.String | ExprTag.ThisExpr | ExprTag.Regex |
                  ExprTag.Function | ExprTag.Arrow =>
                 return None
 
-            case ExprTag.Array => {
+            case ExprTag.Array =>
                 // 数组: 如果没有 spread，可以移除所有无副作用的元素
                 var hasSpread = false
                 for (item in expr.items) {
-                    if (item.tag == ExprTag.Spread) {
+                    if (isSpreadTag(item.tag)) {
                         hasSpread = true
                     }
                 }
@@ -313,7 +332,7 @@ public class SideEffects {
                     var anySideEffects = false
                     for (item in expr.items) {
                         let simplified = simplifyUnusedExpr(parser, item)
-                        if (simplified != None) {
+                        if (let Some(_) <- simplified) {
                             anySideEffects = true
                         }
                     }
@@ -322,14 +341,14 @@ public class SideEffects {
                     }
                 }
                 return Some(expr)
-            }
 
-            case ExprTag.Object => {
+            case ExprTag.Object =>
                 // 对象: 如果没有 spread，可以移除
                 var hasSpread = false
-                for (prop in expr.properties) {
-                    if (prop.isSpread) {
-                        hasSpread = true
+                for (`prop` in expr.properties) {
+                    match (`prop`.kind) {
+                        case GPropertyKind.Spread => hasSpread = true
+                        case _ => ()
                     }
                 }
 
@@ -337,37 +356,32 @@ public class SideEffects {
                     return None
                 }
                 return Some(expr)
-            }
 
-            case ExprTag.Unary => {
+            case ExprTag.Unary =>
                 match (expr.op) {
-                    case OpCode.UnVoid | OpCode.UnNot => {
+                    case OpCode.UnVoid | OpCode.UnNot =>
                         // void x 和 !x 可以简化为简化 x
                         if (let Some(value) <- expr.value) {
                             return simplifyUnusedExpr(parser, value)
                         }
-                    }
-                    case OpCode.Typeof => {
+                    case OpCode.Typeof =>
                         // typeof x 对于标识符可以移除 (typeof 不会抛出异常)
                         if (let Some(value) <- expr.value) {
-                            if (value.tag == ExprTag.Identifier) {
+                            if (isIdentifierTag(value.tag)) {
                                 return None
                             }
                             return simplifyUnusedExpr(parser, value)
                         }
-                    }
                     case _ =>
                         return Some(expr)
                 }
-            }
 
-            case ExprTag.Ternary => {
+            case ExprTag.Ternary =>
                 // 三元表达式: 简化各分支
                 // "foo() ? 1 : 2" => "foo()"
                 // "foo() ? 1 : bar()" => "foo() || bar()"
                 // "foo() ? bar() : 2" => "foo() && bar()"
                 return Some(expr)
-            }
 
             case _ =>
                 return Some(expr)
@@ -394,7 +408,7 @@ public class SideEffects {
                  StmtTag.Class | StmtTag.Debugger =>
                 return false
 
-            case StmtTag.Local => {
+            case StmtTag.Local =>
                 // let/const 声明可以移除
                 // var 声明需要保留 (因为 var 具有函数级提升)
                 match (stmt.declKind) {
@@ -404,9 +418,8 @@ public class SideEffects {
                     case _ =>
                         return false
                 }
-            }
 
-            case StmtTag.Block => {
+            case StmtTag.Block =>
                 // 块语句: 如果块内有任何需要保留的语句，保留整个块
                 for (child in stmt.stmts) {
                     if (shouldKeepStmtInDeadControlFlow(child)) {
@@ -414,33 +427,27 @@ public class SideEffects {
                     }
                 }
                 return false
-            }
 
-            case StmtTag.Try => {
+            case StmtTag.Try =>
                 // try 语句: 检查 try/catch/finally 各部分
                 for (child in stmt.stmts) {
                     if (shouldKeepStmtInDeadControlFlow(child)) {
                         return true
                     }
                 }
-                if (let Some(catch_) <- stmt.catch_) {
-                    for (child in catch_.stmts) {
-                        if (shouldKeepStmtInDeadControlFlow(child)) {
-                            return true
-                        }
+                for (child in stmt.catchBodyStmts) {
+                    if (shouldKeepStmtInDeadControlFlow(child)) {
+                        return true
                     }
                 }
-                if (let Some(finally) <- stmt.finally) {
-                    for (child in finally.stmts) {
-                        if (shouldKeepStmtInDeadControlFlow(child)) {
-                            return true
-                        }
+                for (child in stmt.finallyStmts) {
+                    if (shouldKeepStmtInDeadControlFlow(child)) {
+                        return true
                     }
                 }
                 return false
-            }
 
-            case StmtTag.If => {
+            case StmtTag.If =>
                 if (let Some(yes) <- stmt.yes) {
                     if (shouldKeepStmtInDeadControlFlow(yes)) {
                         return true
@@ -452,18 +459,16 @@ public class SideEffects {
                     }
                 }
                 return false
-            }
 
-            case StmtTag.While | StmtTag.DoWhile => {
+            case StmtTag.While | StmtTag.DoWhile =>
                 if (let Some(body) <- stmt.body) {
                     return shouldKeepStmtInDeadControlFlow(body)
                 }
                 return false
-            }
 
-            case StmtTag.For => {
-                if (let Some(init) <- stmt.init) {
-                    if (shouldKeepStmtInDeadControlFlow(init)) {
+            case StmtTag.For =>
+                if (let Some(`init`) <- stmt.`init`) {
+                    if (shouldKeepStmtInDeadControlFlow(`init`)) {
                         return true
                     }
                 }
@@ -471,11 +476,10 @@ public class SideEffects {
                     return shouldKeepStmtInDeadControlFlow(body)
                 }
                 return false
-            }
 
-            case StmtTag.ForIn | StmtTag.ForOf => {
-                if (let Some(init) <- stmt.init) {
-                    if (shouldKeepStmtInDeadControlFlow(init)) {
+            case StmtTag.ForIn | StmtTag.ForOf =>
+                if (let Some(`init`) <- stmt.`init`) {
+                    if (shouldKeepStmtInDeadControlFlow(`init`)) {
                         return true
                     }
                 }
@@ -483,14 +487,12 @@ public class SideEffects {
                     return shouldKeepStmtInDeadControlFlow(body)
                 }
                 return false
-            }
 
-            case StmtTag.Labeled => {
+            case StmtTag.Labeled =>
                 if (let Some(body) <- stmt.body) {
                     return shouldKeepStmtInDeadControlFlow(body)
                 }
                 return false
-            }
 
             // 默认保留 (安全起见)
             case _ =>
@@ -529,12 +531,11 @@ public class SideEffects {
                  ExprTag.Number | ExprTag.BigInt | ExprTag.String =>
                 return true
 
-            case ExprTag.Unary => {
+            case ExprTag.Unary =>
                 // 所有一元运算都返回原始值
                 return true
-            }
 
-            case ExprTag.Binary => {
+            case ExprTag.Binary =>
                 // 大多数二元运算返回原始值
                 match (expr.op) {
                     case OpCode.BinLoAnd | OpCode.BinLoOr | OpCode.BinNullish =>
@@ -553,16 +554,14 @@ public class SideEffects {
                     case _ =>
                         return true
                 }
-            }
 
-            case ExprTag.Ternary => {
+            case ExprTag.Ternary =>
                 if (let Some(yes) <- expr.yes) {
                     if (let Some(no) <- expr.no) {
                         return isPrimitiveWithSideEffects(yes) && isPrimitiveWithSideEffects(no)
                     }
                 }
                 return false
-            }
 
             case _ =>
                 return false

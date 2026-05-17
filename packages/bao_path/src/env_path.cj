@@ -32,7 +32,7 @@ public class EnvPath {
             case None => ()
         }
         let envHome = OS.getEnv("HOME")
-        if (let Some(h) = envHome) {
+        if (let Some(h) <- envHome) {
             cachedHome = Some(h)
             return h
         }
@@ -51,7 +51,7 @@ public class EnvPath {
             case None => ()
         }
         let xdg = OS.getEnv("XDG_CACHE_HOME")
-        if (let Some(d) = xdg) {
+        if (let Some(d) <- xdg) {
             if (Path.isAbsolute(d)) {
                 cachedCacheDir = Some(d)
                 return d
@@ -71,7 +71,7 @@ public class EnvPath {
             case None => ()
         }
         let xdg = OS.getEnv("XDG_CONFIG_HOME")
-        if (let Some(d) = xdg) {
+        if (let Some(d) <- xdg) {
             if (Path.isAbsolute(d)) {
                 cachedConfigDir = Some(d)
                 return d
@@ -91,7 +91,7 @@ public class EnvPath {
             case None => ()
         }
         let xdg = OS.getEnv("XDG_DATA_HOME")
-        if (let Some(d) = xdg) {
+        if (let Some(d) <- xdg) {
             if (Path.isAbsolute(d)) {
                 cachedDataDir = Some(d)
                 return d
@@ -111,22 +111,22 @@ public class EnvPath {
             case None => ()
         }
         let tmpdir = OS.getEnv("TMPDIR")
-        if (let Some(d) = tmpdir) {
-            if (!d.isEmpty) {
+        if (let Some(d) <- tmpdir) {
+            if (!d.isEmpty()) {
                 cachedTempDir = Some(d)
                 return d
             }
         }
         let tmp = OS.getEnv("TMP")
-        if (let Some(d) = tmp) {
-            if (!d.isEmpty) {
+        if (let Some(d) <- tmp) {
+            if (!d.isEmpty()) {
                 cachedTempDir = Some(d)
                 return d
             }
         }
         let temp = OS.getEnv("TEMP")
-        if (let Some(d) = temp) {
-            if (!d.isEmpty) {
+        if (let Some(d) <- temp) {
+            if (!d.isEmpty()) {
                 cachedTempDir = Some(d)
                 return d
             }
@@ -139,7 +139,7 @@ public class EnvPath {
     /// 对应 Bun: bun.install.cache_dir (默认 ~/.bun)
     public static func baoCacheDir(): String {
         let envDir = OS.getEnv("BAO_INSTALL_CACHE_DIR")
-        if (let Some(d) = envDir) {
+        if (let Some(d) <- envDir) {
             return d
         }
         // 回退到 ~/.bao
@@ -196,18 +196,18 @@ public class PlatformPath {
     /// \\server\share → true
     public static func isUnc(path: String): Bool {
         return path.size >= 2 &&
-               path[0] == Char('\\') &&
-               path[1] == Char('\\')
+               path[0] == UInt8(92) &&
+               path[1] == UInt8(92)
     }
 
     /// 检测路径是否为 Windows 设备路径
     /// \\.\ or \\?\ → true
     public static func isDevicePath(path: String): Bool {
         return path.size >= 4 &&
-               path[0] == Char('\\') &&
-               path[1] == Char('\\') &&
-               (path[2] == Char('.') || path[2] == Char('?')) &&
-               path[3] == Char('\\')
+               path[0] == UInt8(92) &&
+               path[1] == UInt8(92) &&
+               (path[2] == UInt8(46) || path[2] == UInt8(63)) &&
+               path[3] == UInt8(92)
     }
 
     /// 处理长路径前缀
@@ -223,8 +223,8 @@ public class PlatformPath {
         var result = StringBuilder()
         for (i in 0..path.size) {
             let c = path[Int64(i)]
-            if (c == Char('\\')) {
-                result.append(Char('/'))
+            if (c == UInt8(92)) {
+                result.append(UInt8(47))
             } else {
                 result.append(c)
             }
@@ -235,18 +235,18 @@ public class PlatformPath {
     /// 判断路径是否可能为目录
     /// 以分隔符结尾的路径
     public static func looksLikeDirectory(path: String): Bool {
-        if (path.isEmpty) {
+        if (path.isEmpty()) {
             return false
         }
-        return path[Int64(path.size - 1)] == Char('/')
+        return path[Int64(path.size - 1)] == UInt8(47)
     }
 
     /// 确保路径以分隔符结尾
     public static func ensureTrailingSeparator(path: String): String {
-        if (path.isEmpty) {
+        if (path.isEmpty()) {
             return "/"
         }
-        if (path[Int64(path.size - 1)] == Char('/')) {
+        if (path[Int64(path.size - 1)] == UInt8(47)) {
             return path
         }
         return path + "/"
@@ -258,10 +258,10 @@ public class PlatformPath {
             return path
         }
         var end = path.size
-        while (end > 1 && path[Int64(end - 1)] == Char('/')) {
+        while (end > 1 && path[Int64(end - 1)] == UInt8(47)) {
             end -= 1
         }
-        return path.substring(0, Int64(end))
+        return path[0..end]
     }
 
     /// 判断路径是否包含 node_modules 组件
@@ -276,7 +276,7 @@ public class PlatformPath {
         var depth: Int64 = 0
         var i: Int64 = 0
         while (i < path.size - 14) {
-            if (path.substring(Int64(i), Int64(i + 15)) == "/node_modules/") {
+            if (path[i..i + 15] == "/node_modules/") {
                 depth += 1
                 i += 15
             } else {

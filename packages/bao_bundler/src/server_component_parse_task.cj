@@ -38,7 +38,7 @@ public class ServerComponentParseTask {
     }
 
     public init() {
-        this.data = ServerComponentData.ClientReferenceProxy(
+        this.data = ServerComponentData.Proxy(
             ClientReferenceProxy(otherSource: LoggerSource(), namedExports: HashMap<String, Bool>())
         )
         this.ctx = None
@@ -51,7 +51,7 @@ public class ServerComponentParseTask {
     public func taskCallbackWrap(): Unit {
         // 获取 worker
         match (ctx) {
-            case Some(c) => {
+            case Some(c) =>
                 let worker = BundlerWorkerV2()
                 let log = Log()
 
@@ -64,7 +64,6 @@ public class ServerComponentParseTask {
                     case Some(loop) => loop.enqueueTaskConcurrent(result)
                     case None => ()
                 }
-            }
             case None => ()
         }
     }
@@ -78,19 +77,19 @@ public class ServerComponentParseTask {
 
         // 根据数据类型选择生成逻辑
         match (data) {
-            case ServerComponentData.ClientReferenceProxy(proxy) =>
+            case ServerComponentData.Proxy(proxy) =>
                 generateClientReferenceProxy(proxy, ab)
-            case ServerComponentData.ClientEntryWrapper(wrapper) =>
+            case ServerComponentData.EntryWrapper(wrapper) =>
                 generateClientEntryWrapper(wrapper, ab)
         }
 
         // 生成 bundled AST
         let target = match (data) {
             // 服务器端
-            case ServerComponentData.ClientReferenceProxy(_) =>
+            case ServerComponentData.Proxy(_) =>
                 getTranspilerTarget()
             // 客户端
-            case ServerComponentData.ClientEntryWrapper(_) =>
+            case ServerComponentData.EntryWrapper(_) =>
                 BundleTarget.Browser
         }
 
@@ -155,10 +154,10 @@ public class ServerComponentParseTask {
     public func generateClientReferenceProxy(data: ClientReferenceProxy, b: AstBuilder): Unit {
         // 获取 server components 配置
         match (ctx) {
-            case Some(c) => {
+            case Some(c) =>
                 let serverComponents = c.getServerComponents()
                 match (serverComponents) {
-                    case Some(sc) => {
+                    case Some(sc) =>
                         let registerClientReference = b.addImportStmt(
                             sc.serverRuntimeImport,
                             arrayListOf(sc.serverRegisterClientReference)
@@ -168,10 +167,11 @@ public class ServerComponentParseTask {
                         // 开发模式: 使用源文件路径
                         // 生产模式: 使用 unique_key + source index 格式
                         let modulePath = b.newExprString(
-                            if (c.isDevServer())
+                            if (c.isDevServer()) {
                                 data.otherSource.path.pretty()
-                            else
+                            } else {
                                 c.getUniqueKey() + "S" + data.otherSource.getIndex().toHexString(true)
+                            }
                         )
 
                         // 遍历所有命名导出
@@ -182,18 +182,19 @@ public class ServerComponentParseTask {
                             // 生成错误消息
                             // 这个错误消息来自 React:
                             // https://github.com/facebook/react/blob/...
-                            let errMsgString = if (isDefault)
+                            let errMsgString = if (isDefault) {
                                 "Attempted to call the default export of " +
                                 data.otherSource.path.pretty() +
                                 " from the server, but it's on the client. " +
                                 "It's not possible to invoke a client function " +
                                 "from the server, it can only be rendered as a " +
                                 "Component or passed to props of a Client Component."
-                            else
+                            } else {
                                 "Attempted to call " + key + "() from the server but " +
                                 key + " is on the client. It's not possible to invoke " +
                                 "a client function from the server, it can only be " +
                                 "rendered as a Component or passed to props of a Client Component."
+                            }
 
                             // throw new Error(...)
                             let errMsg = b.newExprNew(
@@ -242,10 +243,8 @@ public class ServerComponentParseTask {
                                 ))
                             }
                         }
-                    }
                     case None => ()
                 }
-            }
             case None => ()
         }
     }
@@ -262,13 +261,6 @@ public class ServerComponentParseTask {
 // ============================================================================
 // 数据类型
 // ============================================================================
-
-/// 服务器组件数据 - 对应 Bun ServerComponentParseTask.Data
-/// Bun: pub const Data = union(enum) { client_reference_proxy, client_entry_wrapper }
-public enum ServerComponentData {
-    | ClientReferenceProxy(ClientReferenceProxy)
-    | ClientEntryWrapper(ClientEntryWrapper)
-}
 
 /// 客户端引用代理 - 对应 Bun Data.ReferenceProxy
 /// Bun: pub const ReferenceProxy = struct { other_source: Logger.Source, named_exports: JSAst.NamedExports }
@@ -295,6 +287,13 @@ public class ClientEntryWrapper {
     public init(path: String) {
         this.path = path
     }
+}
+
+/// 服务器组件数据 - 对应 Bun ServerComponentParseTask.Data
+/// Bun: pub const Data = union(enum) { client_reference_proxy, client_entry_wrapper }
+public enum ServerComponentData {
+    | Proxy(ClientReferenceProxy)
+    | EntryWrapper(ClientEntryWrapper)
 }
 
 // ============================================================================
@@ -382,79 +381,7 @@ public class SourcePathWrapper {
     public func pretty(): String {
         return text
     }
-}
-
-/// AST 构建器 - 对应 Bun AstBuilder
-/// 简化接口, 实际实现在 ast_builder.cj 中
-public class AstBuilder {
-    public var source: LoggerSource
-
-    public init(source: LoggerSource) {
-        this.source = source
-    }
-
-    public func addImportRecord(path: String, kind: ImportKind): UInt32 {
-        return 0
-    }
-
-    public func newSymbol(kind: SymbolKind, name: String): Ref {
-        return Ref.NONE
-    }
-
-    public func newExternalSymbol(name: String): Ref {
-        return Ref.NONE
-    }
-
-    public func appendStmt(stmt: Any): Unit {
-        // 简化
-    }
-
-    public func addImportStmt(path: String, names: ArrayList<String>): Ref {
-        return Ref.NONE
-    }
-
-    public func newExprString(data: String): ASTNode {
-        return ASTNode()
-    }
-
-    public func newExprNew(target: Ref, args: ArrayList<ASTNode>): ASTNode {
-        return ASTNode()
-    }
-
-    public func newExprIdentifier(ref: Ref): Ref {
-        return ref
-    }
-
-    public func newExprCall(target: Ref, args: ArrayList<Any>): Any {
-        return ASTNode()
-    }
-
-    public func newExprArrow(stmts: ArrayList<Any>): Any {
-        return ASTNode()
-    }
-
-    public func newStmtThrow(value: Any): Any {
-        return ASTNode()
-    }
-
-    public func newBindingIdentifier(ref: Ref): Any {
-        return ASTNode()
-    }
-
-    public func toBundledAst(target: BundleTarget): BundledAst {
-        return BundledAst()
-    }
-
-    public func setImportRecordWasOriginallyBareImport(index: UInt32): Unit {
-        // 简化
-    }
-
-    public func getHmrApiRef(): Ref {
-        return Ref.NONE
-    }
-}
-
-/// SImport 节点
+}/// SImport 节点
 public class SImportNode {
     public var namespaceRef: Ref
     public var defaultName: ?LocRef
@@ -485,67 +412,16 @@ public class SExportDefaultNode {
         this.value = value
         this.isStmt = isStmt
     }
-}
-
-/// SLocal 节点
-public class SLocalNode {
-    public var kind: LocalKind
-    public var decls: ArrayList<GDecl>
-    public var isExport: Bool
-    public var wasTsImportEquals: Bool
-    public var wasCommonjsExport: Bool
-
-    public init(kind: LocalKind, decls: ArrayList<GDecl>, isExport: Bool,
-                wasTsImportEquals: Bool, wasCommonjsExport: Bool) {
-        this.kind = kind
-        this.decls = decls
-        this.isExport = isExport
-        this.wasTsImportEquals = wasTsImportEquals
-        this.wasCommonjsExport = wasCommonjsExport
-    }
-}
-
-/// LocRef 引用
-public class LocRef {
-    public var ref: Ref
-    public var loc: Loc
-
-    public init(ref: Ref, loc: Loc) {
-        this.ref = ref
-        this.loc = loc
-    }
-}
-
-/// GDecl 声明
-public class GDecl {
-    public var binding: Any
-    public var value: Any
-
-    public init(binding: Any, value: Any) {
-        this.binding = binding
-        this.value = value
-    }
-}
-
-/// Bundled AST
-public class BundledAst {
-    public var wrapperRef: Ref
-
-    public init() {
-        wrapperRef = Ref.NONE
-    }
-}
-
-/// ParseTask 结果
+}/// ParseTask 结果
 public class ParseTaskResultSuccess {
-    public var ast: BundledAst
+    public var ast: BundledAstSlim
     public var source: LoggerSource
     public var loader: LoaderKind
     public var log: Log
     public var useDirective: ?UseDirective
     public var sideEffects: SideEffectsKind
 
-    public init(ast: BundledAst, source: LoggerSource, loader: LoaderKind,
+    public init(ast: BundledAstSlim, source: LoggerSource, loader: LoaderKind,
                 log: Log, useDirective: ?UseDirective, sideEffects: SideEffectsKind) {
         this.ast = ast
         this.source = source
@@ -583,67 +459,20 @@ public enum LoaderKind {
     }
 }
 
-/// 符号类型
-public enum SymbolKind {
-    | Other
-    | Unbound
-    | Temp
-}
-
-/// Bundle 目标
-public enum BundleTarget {
-    | Browser
-    | Node
-    | Bun
-    | Deno
-}
-
 /// 副作用类型
 public enum SideEffectsKind {
     | NoSideEffectsPureData
     | HasSideEffects
     | Unknown
-}
-
-/// Use Directive
-public class UseDirective {
-    public init() {}
-}
-
-/// Log
+}/// Log
 public class Log {
     public init() {}
-}
 
-/// Ref 引用
-public class Ref {
-    public var value: UInt64
-
-    public init(value: UInt64) {
-        this.value = value
+    public func hasErrors(): Bool {
+        return false
     }
-
-    public init() {
-        this.value = 0
-    }
-
-    /// 无引用
-    public static let NONE = Ref(value: 0)
-}
-
-/// ClauseItem (重导出以避免循环导入)
-public class ClauseItem {
-    public var name: String
-    public var alias: String
-
-    public init(name: String, alias: String) {
-        this.name = name
-        this.alias = alias
-    }
-}
-
-/// 辅助函数: 创建 ArrayList<T>
-private func arrayListOf(vararg elements: String): ArrayList<String> {
+}/// 辅助函数: 创建 ArrayList<T>
+private func arrayListOf(elements: Array<String>): ArrayList<String> {
     let list = ArrayList<String>()
     for (e in elements) {
         list.append(e)

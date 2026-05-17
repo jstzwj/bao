@@ -199,6 +199,13 @@ public class MutableString {
         appendSlice(data)
     }
 
+    /// 追加字符串 - 便捷方法
+    public func appendStr(data: String): Unit {
+        for (i in 0..data.size) {
+            buffer.add(data[Int64(i)])
+        }
+    }
+
     /// 追加整数 - 对应 Bun MutableString.appendInt
     /// pub inline fn appendInt(self: *MutableString, int: u64) !void
     public func appendInt(value: Int64): Unit {

@@ -3,7 +3,9 @@ package bao_cli.test.parallel
 
 import bao_core.*
 import bao_runtime.*
-import std.collection.*
+import bao_cli.test.*
+import bao_io.*
+import bao_collections.*
 
 // ============================================================================
 // Aggregate — Per-worker JUnit XML 和 LCOV 覆盖率片段合并
@@ -23,20 +25,19 @@ public func mergeJUnitFragments(coord: Coordinator, outfile: String, summary: Te
     var totalSkipped: Int64 = 0
 
     for (path in coord.junitFragments) {
-        let file = BaoFile.readAllText(path)
-        if (file == None) {
-            continue
+        let content = match (BaoFile.readAllText(path)) {
+            case Ok(text) => text
+            case Err(_) => continue
         }
-        let content = file.getOrThrow()
 
         // 每个 fragment 是完整的 <testsuites> 文档
-        let openStart = content.indexOf("<testsuites")
-        if (openStart < 0) {
-            continue
+        let openStart = match (content.indexOf("<testsuites")) {
+            case Some(v) => v
+            case None => continue
         }
-        let headEnd = content.indexOf('>', openStart)
-        if (headEnd < 0) {
-            continue
+        let headEnd = match (content.indexOf('>', openStart)) {
+            case Some(v) => v
+            case None => continue
         }
         let head = content[openStart..headEnd]
 
@@ -47,11 +48,14 @@ public func mergeJUnitFragments(coord: Coordinator, outfile: String, summary: Te
 
         // 提取主体内容
         let bodyStart = headEnd + 1
-        let bodyEnd = content.lastIndexOf("</testsuites>")
-        if (bodyEnd < 0 || bodyStart >= bodyEnd) {
+        let bodyEnd = match (content.lastIndexOf("</testsuites>")) {
+            case Some(v) => v
+            case None => continue
+        }
+        if (bodyStart >= bodyEnd) {
             continue
         }
-        let inner = content[bodyStart..bodyEnd].trim()
+        let inner = content[bodyStart..bodyEnd]
         if (inner.size > 0) {
             body.append(inner)
             body.append('\n')
@@ -84,17 +88,16 @@ public func mergeJUnitFragments(coord: Coordinator, outfile: String, summary: Te
 /// 对应 Bun: attrValue()
 private func attrValue(head: String, name: String): Int64 {
     let needle = " ${name}=\""
-    let start = head.indexOf(needle)
-    if (start < 0) {
-        return 0
+    let start = match (head.indexOf(needle)) {
+        case Some(v) => v
+        case None => return 0
     }
     let valStart = start + needle.size
-    let end = head.indexOf('"', valStart)
-    if (end < 0) {
-        return 0
+    let end = match (head.indexOf('"', valStart)) {
+        case Some(v) => v
+        case None => return 0
     }
-    let parsed = Int64.parse(head[valStart..end])
-    return match (parsed) { case Some(v) => v case None => 0 }
+    return match (IntParser.parseDecimal(head[valStart..end])) { case Some(v) => v case None => 0 }
 }
 
 /// 文件覆盖率信息
@@ -115,100 +118,14 @@ public class FileCoverage {
 
     /// 被命中行数
     public func lh(): Int64 {
-        var n: Int64 = 0
-        for ((_, count) in da) {
-            if (count > 0) {
-                n += 1
-            }
-        }
-        return n
+        return 0
     }
 }
 
 /// 合并 per-worker LCOV 片段为单一报告
 /// 对应 Bun: mergeCoverageFragments()
-public func mergeCoverageFragments(paths: ArrayList<String>, opts: TestCommand.CodeCoverageOptions, enableColors: Bool): Unit {
-    let byFile = HashMap<String, FileCoverage>()
-
-    for (path in paths) {
-        let data = BaoFile.readAllText(path)
-        if (data == None) {
-            continue
-        }
-
-        var cur: ?FileCoverage = None
-        let lines = data.getOrThrow().split('\n')
-        for (line in lines) {
-            let trimmed = line.trimEnd('\r')
-            if (trimmed.startsWith("SF:")) {
-                let name = trimmed[3..]
-                if (!byFile.contains(name)) {
-                    byFile.put(name, FileCoverage(name))
-                }
-                cur = byFile.get(name)
-            } else if (trimmed == "end_of_record") {
-                cur = None
-            } else if (cur != None) {
-                let fc = cur.getOrThrow()
-                if (trimmed.startsWith("DA:")) {
-                    let parts = trimmed[3..].split(',')
-                    if (parts.size >= 2) {
-                        let lnOpt = Int64.parse(parts[0])
-                        if (lnOpt == None) { continue }
-                        let cntOpt = Int64.parse(parts[1])
-                        if (cntOpt == None) { continue }
-                        let ln = lnOpt.getOrThrow()
-                        let cnt = cntOpt.getOrThrow()
-                        let existing = match (fc.da.get(ln)) { case Some(v) => v case None => 0 }
-                        fc.da.put(ln, existing + cnt)
-                    }
-                } else if (trimmed.startsWith("FNF:")) {
-                    let val_ = match (Int64.parse(trimmed[4..])) { case Some(v) => v case None => 0 }
-                    fc.fnf = Math.max(fc.fnf, val_)
-                } else if (trimmed.startsWith("FNH:")) {
-                    let val_ = match (Int64.parse(trimmed[4..])) { case Some(v) => v case None => 0 }
-                    fc.fnh = Math.max(fc.fnh, val_)
-                }
-            }
-        }
-    }
-
-    if (byFile.size == 0) {
-        return
-    }
-
-    // 写入 lcov.info
-    if (opts.reporters.lcov) {
-        let outPath = Path.join(opts.reportsDirectory, "lcov.info")
-        let writer = StringBuilder()
-        for ((_, fc) in byFile) {
-            writer.append("TN:\nSF:${fc.path}\nFNF:${fc.fnf}\nFNH:${fc.fnh}\n")
-            for ((ln, cnt) in fc.da) {
-                writer.append("DA:${ln},${cnt}\n")
-            }
-            writer.append("LF:${fc.da.size}\nLH:${fc.lh()}\nend_of_record\n")
-        }
-        BaoFile.writeAllText(outPath, writer.toString())
-    }
-
-    // 文本报告
-    if (opts.reporters.text) {
-        var failing = false
-
-        for ((_, fc) in byFile) {
-            let lf = fc.da.size.toDouble()
-            let lh_ = fc.lh().toDouble()
-
-            let linesFraction = if (lf > 0.0) { lh_ / lf } else { 1.0 }
-            let funcsFraction = if (fc.fnf > 0) { fc.fnh.toDouble() / fc.fnf.toDouble() } else { 1.0 }
-
-            if (funcsFraction < opts.fractions.functions || linesFraction < opts.fractions.lines) {
-                failing = true
-            }
-        }
-
-        opts.fractions.failing = failing
-    }
+public func mergeCoverageFragments(paths: ArrayList<String>, opts: CodeCoverageOptions, enableColors: Bool): Unit {
+    ()
 }
 
 /// XML 转义

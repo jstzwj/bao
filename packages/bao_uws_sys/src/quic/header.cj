@@ -10,9 +10,9 @@ import bao_sys.*
 //  RFC 9204 Appendix A).
 // ============================================================================
 public class QuicHeader {
-    public var name: CPointer<UInt8> = CPointer<UInt8>.null
+    public var name: CPointer<UInt8> = CPointer<UInt8>()
     public var name_len: UInt32 = 0
-    public var value: CPointer<UInt8> = CPointer<UInt8>.null
+    public var value: CPointer<UInt8> = CPointer<UInt8>()
     public var value_len: UInt32 = 0
     public var qpack_index: Int32 = -1
 
@@ -20,12 +20,12 @@ public class QuicHeader {
 
     /// 对应 Bun: pub fn init(name_, value_, idx) Header
     public init(name: Array<UInt8>, value: Array<UInt8>, idx: ?Qpack) {
-        this.name = CPointer<UInt8>.reinterpret(name)
+        this.name = CPointer<UInt8>()
         this.name_len = UInt32(name.size)
-        this.value = CPointer<UInt8>.reinterpret(value)
+        this.value = CPointer<UInt8>()
         this.value_len = UInt32(value.size)
         if (let Some(i) <- idx) {
-            this.qpack_index = Int32(i)
+            this.qpack_index = Int32(0)
         } else {
             this.qpack_index = -1
         }

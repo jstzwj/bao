@@ -4,7 +4,10 @@
 package bao_runtime.node_api
 
 import bao_core.*
+import bao_collections.*
 import bao_path.*
+import bao_sys.*
+import bao_runtime.*
 
 // ============================================================================
 // path 模块 — Node.js 路径操作 API
@@ -35,11 +38,11 @@ public class PathModule {
     /// 对应 Bun: path.resolve
     public static func resolve(paths: ArrayList<String>): String {
         if (paths.size == 0) {
-            return BaoPath.cwd()
+            return OS.getcwd()
         }
         var result = paths[paths.size - 1]
         if (!result.startsWith("/")) {
-            result = BaoPath.cwd() + "/" + result
+            result = OS.getcwd() + "/" + result
         }
         return normalize(result)
     }
@@ -47,11 +50,11 @@ public class PathModule {
     /// path.normalize(p) — 规范化路径
     /// 对应 Bun: path.normalize
     public static func normalize(p: String): String {
-        if (p.length == 0) { return "." }
+        if (p.size == 0) { return "." }
         let parts = p.split("/")
         let result = ArrayList<String>()
         for (part in parts) {
-            if (part.length == 0 || part == ".") {
+            if (part.size == 0 || part == ".") {
                 continue
             }
             if (part == "..") {
@@ -80,26 +83,31 @@ public class PathModule {
     /// 对应 Bun: path.dirname
     public static func dirname(p: String): String {
         let normalized = normalize(p)
-        let idx = normalized.lastIndexOf("/")
-        if (idx < 0) { return "." }
-        if (idx == 0) { return "/" }
-        return normalized.substring(0, idx)
+        let idxOpt = normalized.lastIndexOf("/")
+        match (idxOpt) {
+            case None => return "."
+            case Some(idx) =>
+                if (idx == 0) { return "/" }
+                return normalized[0..idx]
+        }
     }
 
     /// path.basename(p, ext?) — 获取文件名
     /// 对应 Bun: path.basename
     public static func basename(p: String): String {
         let normalized = normalize(p)
-        let idx = normalized.lastIndexOf("/")
-        if (idx < 0) { return normalized }
-        return normalized.substring(idx + 1)
+        let idxOpt = normalized.lastIndexOf("/")
+        match (idxOpt) {
+            case None => return normalized
+            case Some(idx) => return normalized[Int64(idx + 1)..Int64(normalized.size)]
+        }
     }
 
     /// path.basename(p, ext) — 获取文件名 (去除扩展名)
     public static func basename(p: String, ext: String): String {
         let name = basename(p)
-        if (name.length > ext.length && name.endsWith(ext)) {
-            return name.substring(0, name.length - ext.length)
+        if (name.size > ext.size && name.endsWith(ext)) {
+            return name[0..Int64(name.size - ext.size)]
         }
         return name
     }
@@ -108,9 +116,13 @@ public class PathModule {
     /// 对应 Bun: path.extname
     public static func extname(p: String): String {
         let name = basename(p)
-        let idx = name.lastIndexOf(".")
-        if (idx <= 0) { return "" }
-        return name.substring(idx)
+        let idxOpt = name.lastIndexOf(".")
+        match (idxOpt) {
+            case None => return ""
+            case Some(idx) =>
+                if (idx <= 0) { return "" }
+                return name[Int64(idx)..Int64(name.size)]
+        }
     }
 
     /// path.relative(from, to) — 获取相对路径
@@ -125,17 +137,20 @@ public class PathModule {
         var commonLength = 0
         let minLen = if (fromParts.size < toParts.size) { fromParts.size } else { toParts.size }
         while (commonLength < minLen && fromParts[commonLength] == toParts[commonLength]) {
-            commonLength++
+            commonLength += 1
         }
 
         let sb = StringBuilder()
+        var first = true
         for (i in commonLength..fromParts.size) {
-            if (sb.length > 0) { sb.append("/") }
+            if (!first) { sb.append("/") }
             sb.append("..")
+            first = false
         }
         for (i in commonLength..toParts.size) {
-            if (sb.length > 0) { sb.append("/") }
+            if (!first) { sb.append("/") }
             sb.append(toParts[i])
+            first = false
         }
         return sb.toString()
     }
@@ -155,8 +170,11 @@ public class PathModule {
         obj.base = basename(p)
         obj.ext = extname(p)
         let nameWithoutExt = basename(p)
-        let dotIdx = nameWithoutExt.lastIndexOf(".")
-        obj.name = if (dotIdx > 0) { nameWithoutExt.substring(0, dotIdx) } else { nameWithoutExt }
+        let dotIdxOpt = nameWithoutExt.lastIndexOf(".")
+        obj.name = match (dotIdxOpt) {
+            case Some(dotIdx) => if (dotIdx > 0) { nameWithoutExt[0..dotIdx] } else { nameWithoutExt }
+            case None => nameWithoutExt
+        }
         return obj
     }
 
@@ -164,7 +182,7 @@ public class PathModule {
     /// 对应 Bun: path.format
     public static func format(obj: PathObject): String {
         var result = obj.dir
-        if (result.length > 0 && !result.endsWith("/")) {
+        if (result.size > 0 && !result.endsWith("/")) {
             result = result + "/"
         }
         result = result + obj.base

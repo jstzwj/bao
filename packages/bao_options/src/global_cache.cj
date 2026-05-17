@@ -33,7 +33,10 @@ public enum GlobalCache {
     /// 是否允许版本说明符
     /// 对应 Bun GlobalCache.allowVersionSpecifier()
     public func allowVersionSpecifier(): Bool {
-        this == GlobalCache.Force
+        match (this) {
+            case Force => true
+            case _ => false
+        }
     }
 
     /// 是否可以使用全局缓存
@@ -64,7 +67,10 @@ public enum GlobalCache {
     /// 是否启用
     /// 对应 Bun GlobalCache.isEnabled()
     public func isEnabled(): Bool {
-        this != GlobalCache.Disable
+        match (this) {
+            case Disable => false
+            case _ => true
+        }
     }
 
     /// 是否可以安装

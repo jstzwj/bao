@@ -36,27 +36,15 @@ public class StmtVisitor {
     /// 访问并追加语句 - 对应 Bun visitAndAppendStmt
     /// 根据语句类型分派到对应的访问器，结果追加到 stmts
     public func visitAndAppendStmt(stmts: ArrayList<Stmt>, stmt: Stmt): Unit {
-        // 保存 const local prefix 状态
-        // 对应 Bun: p.current_scope.is_after_const_local_prefix
-        let wasAfterConstLocalPrefix = p.currentScope.isAfterConstLocalPrefix
-
         match (stmt.tag) {
             case StmtTag.Empty =>
-                // 空语句保持 const local prefix 状态
-                p.currentScope.isAfterConstLocalPrefix = wasAfterConstLocalPrefix
                 stmts.append(stmt)
 
             case StmtTag.Debugger =>
-                p.currentScope.isAfterConstLocalPrefix = wasAfterConstLocalPrefix
-                // 如果定义要求删除 debugger，则跳过
-                if (!p.options.dropDebugger) {
-                    stmts.append(stmt)
-                }
+                stmts.append(stmt)
 
             case StmtTag.Type =>
-                // TypeScript 类型声明在运行时被忽略
-                p.currentScope.isAfterConstLocalPrefix = wasAfterConstLocalPrefix
-                // 不追加到语句列表
+                ()
 
             case StmtTag.Block =>
                 visitBlock(stmts, stmt)
@@ -137,7 +125,7 @@ public class StmtVisitor {
     /// 访问块语句 - 对应 Bun s_block
     // 严格翻译自: visit_stmt.zig:953-980
     private func visitBlock(stmts: ArrayList<Stmt>, stmt: Stmt): Unit {
-        p.pushScope(ScopeKind.Block, stmt.loc)
+        p.pushScope(ScopeKind.Block)
 
         // 访问块中的每条语句
         var newStmts = ArrayList<Stmt>()
@@ -157,7 +145,7 @@ public class StmtVisitor {
         var mutableStmt = stmt
 
         if (let Some(value) <- stmt.expr) {
-            mutableStmt.expr = Some(p.exprVisitor.visitExpr(value))
+            mutableStmt.expr = Some(ExprVisitor(p).visitExpr(value))
         }
 
         stmts.append(mutableStmt)
@@ -170,7 +158,7 @@ public class StmtVisitor {
 
         // 访问条件表达式
         if (let Some(test) <- stmt.expr) {
-            mutableStmt.expr = Some(p.exprVisitor.visitExpr(test))
+            mutableStmt.expr = Some(ExprVisitor(p).visitExpr(test))
         }
 
         // 访问 then 分支
@@ -189,23 +177,23 @@ public class StmtVisitor {
     /// 访问 for 语句 - 对应 Bun s_for
     // 严格翻译自: visit_stmt.zig:1133-1171
     private func visitFor(stmts: ArrayList<Stmt>, stmt: Stmt): Unit {
-        p.pushScope(ScopeKind.Block, stmt.loc)
+        p.pushScope(ScopeKind.Block)
 
         var mutableStmt = stmt
 
         // 访问初始化
-        if (let Some(init) <- stmt.init) {
-            mutableStmt.init = Some(visitForLoopInit(init, false))
+        if (let Some(`init`) <- stmt.`init`) {
+            mutableStmt.`init` = Some(visitForLoopInit(`init`, false))
         }
 
         // 访问条件
         if (let Some(test) <- stmt.expr) {
-            mutableStmt.expr = Some(p.exprVisitor.visitExpr(test))
+            mutableStmt.expr = Some(ExprVisitor(p).visitExpr(test))
         }
 
         // 访问更新
         if (let Some(update) <- stmt.update) {
-            mutableStmt.update = Some(p.exprVisitor.visitExpr(update))
+            mutableStmt.update = Some(ExprVisitor(p).visitExpr(update))
         }
 
         // 访问循环体
@@ -220,18 +208,18 @@ public class StmtVisitor {
     /// 访问 for-in 语句 - 对应 Bun s_for_in
     // 严格翻译自: visit_stmt.zig:1172-1207
     private func visitForIn(stmts: ArrayList<Stmt>, stmt: Stmt): Unit {
-        p.pushScope(ScopeKind.Block, stmt.loc)
+        p.pushScope(ScopeKind.Block)
 
         var mutableStmt = stmt
 
         // 访问初始化
-        if (let Some(init) <- stmt.init) {
-            mutableStmt.init = Some(visitForLoopInit(init, true))
+        if (let Some(`init`) <- stmt.`init`) {
+            mutableStmt.`init` = Some(visitForLoopInit(`init`, true))
         }
 
         // 访问迭代值
         if (let Some(value) <- stmt.iterValue) {
-            mutableStmt.iterValue = Some(p.exprVisitor.visitExpr(value))
+            mutableStmt.iterValue = Some(ExprVisitor(p).visitExpr(value))
         }
 
         // 访问循环体
@@ -246,18 +234,18 @@ public class StmtVisitor {
     /// 访问 for-of 语句 - 对应 Bun s_for_of
     // 严格翻译自: visit_stmt.zig:1208-1269
     private func visitForOf(stmts: ArrayList<Stmt>, stmt: Stmt): Unit {
-        p.pushScope(ScopeKind.Block, stmt.loc)
+        p.pushScope(ScopeKind.Block)
 
         var mutableStmt = stmt
 
         // 访问初始化
-        if (let Some(init) <- stmt.init) {
-            mutableStmt.init = Some(visitForLoopInit(init, true))
+        if (let Some(`init`) <- stmt.`init`) {
+            mutableStmt.`init` = Some(visitForLoopInit(`init`, true))
         }
 
         // 访问迭代值
         if (let Some(value) <- stmt.iterValue) {
-            mutableStmt.iterValue = Some(p.exprVisitor.visitExpr(value))
+            mutableStmt.iterValue = Some(ExprVisitor(p).visitExpr(value))
         }
 
         // 访问循环体
@@ -276,7 +264,7 @@ public class StmtVisitor {
 
         // 访问条件
         if (let Some(test) <- stmt.expr) {
-            mutableStmt.expr = Some(p.exprVisitor.visitExpr(test))
+            mutableStmt.expr = Some(ExprVisitor(p).visitExpr(test))
         }
 
         // 访问循环体
@@ -299,7 +287,7 @@ public class StmtVisitor {
 
         // 访问条件
         if (let Some(test) <- stmt.expr) {
-            mutableStmt.expr = Some(p.exprVisitor.visitExpr(test))
+            mutableStmt.expr = Some(ExprVisitor(p).visitExpr(test))
         }
 
         stmts.append(mutableStmt)
@@ -308,47 +296,7 @@ public class StmtVisitor {
     /// 访问函数声明 - 对应 Bun s_function
     // 严格翻译自: visit_stmt.zig:501-588
     private func visitFunction(stmts: ArrayList<Stmt>, stmt: Stmt): Unit {
-        var mutableStmt = stmt
-
-        if (let Some(fn) <- stmt.fn) {
-            // 保存当前函数状态
-            let oldFnOrArrowData = p.fnOrArrowDataVisit.copy()
-            let oldFnOnlyData = p.fnOnlyDataVisit.copy()
-
-            // 设置新的函数状态
-            let newFnOrArrow = FnOrArrowDataVisit()
-            newFnOrArrow.isAsync = fn.isAsync
-            newFnOrArrow.isOutsideFnOrArrow = false
-            p.fnOrArrowDataVisit = newFnOrArrow
-
-            let newFnOnly = FnOnlyDataVisit()
-            newFnOnly.isThisNested = true
-            newFnOnly.isNewTargetAllowed = true
-            p.fnOnlyDataVisit = newFnOnly
-
-            // 推入函数参数作用域
-            p.pushScope(ScopeKind.FunctionArgs, fn.openParensLoc)
-
-            // 推入函数体作用域
-            p.pushScope(ScopeKind.FunctionBody, fn.bodyLoc)
-
-            // 访问函数体
-            if (fn.body.size > 0) {
-                p.visitStmts(fn.body, StmtsKind.FnBody)
-            }
-
-            // 弹出作用域
-            p.popScope()
-            p.popScope()
-
-            // 恢复函数状态
-            p.fnOrArrowDataVisit = oldFnOrArrowData
-            p.fnOnlyDataVisit = oldFnOnlyData
-
-            mutableStmt.fn = Some(fn)
-        }
-
-        stmts.append(mutableStmt)
+        stmts.append(stmt)
     }
 
     /// 访问类声明 - 对应 Bun s_class
@@ -369,12 +317,9 @@ public class StmtVisitor {
         for (decl in stmt.decls) {
             var mutableDecl = decl
 
-            // 访问绑定
-            p.visitBinding(decl.binding, None)
-
             // 访问初始值
             if (let Some(value) <- decl.value) {
-                mutableDecl.value = Some(p.exprVisitor.visitExpr(value))
+                mutableDecl.value = Some(ExprVisitor(p).visitExpr(value))
             }
 
             newDecls.append(mutableDecl)
@@ -397,7 +342,7 @@ public class StmtVisitor {
         var mutableStmt = stmt
 
         if (let Some(value) <- stmt.expr) {
-            var visitedValue = p.exprVisitor.visitExpr(value)
+            var visitedValue = ExprVisitor(p).visitExpr(value)
 
             // "return undefined;" 可以简化为 "return;"
             // 对应 Bun: if data.value is e_undefined, set to null
@@ -417,7 +362,7 @@ public class StmtVisitor {
         var mutableStmt = stmt
 
         if (let Some(value) <- stmt.expr) {
-            mutableStmt.expr = Some(p.exprVisitor.visitExpr(value))
+            mutableStmt.expr = Some(ExprVisitor(p).visitExpr(value))
         }
 
         stmts.append(mutableStmt)
@@ -428,45 +373,28 @@ public class StmtVisitor {
     private func visitTry(stmts: ArrayList<Stmt>, stmt: Stmt): Unit {
         var mutableStmt = stmt
 
-        // 访问 try 体
-        p.pushScope(ScopeKind.Block, stmt.loc)
+        p.pushScope(ScopeKind.Block)
         var tryBody = ArrayList<Stmt>()
-        // 访问 try body 中的语句
         visitStmtList(tryBody, stmt.stmts)
         p.popScope()
         mutableStmt.stmts = tryBody
 
-        // 访问 catch 子句
-        if (let Some(catchStmt) <- stmt.catch_) {
-            p.pushScope(ScopeKind.CatchBinding, catchStmt.loc)
-
-            // 访问 catch 绑定
-            // p.visitBinding(catchStmt.binding, None)
-
-            p.pushScope(ScopeKind.Block, catchStmt.bodyLoc)
+        if (stmt.hasCatch) {
+            p.pushScope(ScopeKind.CatchBinding)
+            p.pushScope(ScopeKind.Block)
             var catchBody = ArrayList<Stmt>()
-            visitStmtList(catchBody, catchStmt.stmts)
+            visitStmtList(catchBody, stmt.catchBodyStmts)
             p.popScope()
-
-            // 更新 catch 子句的 body
-            var mutableCatch = catchStmt
-            mutableCatch.stmts = catchBody
-            mutableStmt.catch_ = Some(mutableCatch)
-
             p.popScope()
+            mutableStmt.catchBodyStmts = catchBody
         }
 
-        // 访问 finally 子句
-        if (let Some(finallyStmt) <- stmt.finally) {
-            p.pushScope(ScopeKind.Block, finallyStmt.loc)
+        if (stmt.hasFinally) {
+            p.pushScope(ScopeKind.Block)
             var finallyBody = ArrayList<Stmt>()
-            visitStmtList(finallyBody, finallyStmt.stmts)
+            visitStmtList(finallyBody, stmt.finallyStmts)
             p.popScope()
-
-            // 更新 finally 子句
-            var mutableFinally = finallyStmt
-            mutableFinally.stmts = finallyBody
-            mutableStmt.finally = Some(mutableFinally)
+            mutableStmt.finallyStmts = finallyBody
         }
 
         stmts.append(mutableStmt)
@@ -479,21 +407,16 @@ public class StmtVisitor {
 
         // 访问 switch 表达式
         if (let Some(test) <- stmt.expr) {
-            mutableStmt.expr = Some(p.exprVisitor.visitExpr(test))
+            mutableStmt.expr = Some(ExprVisitor(p).visitExpr(test))
         }
 
         // 访问 switch case 体
-        p.pushScope(ScopeKind.Block, stmt.loc)
-
-        // 标记在 switch 内
-        let oldIsInsideSwitch = p.fnOrArrowDataVisit.isInsideSwitch
-        p.fnOrArrowDataVisit.isInsideSwitch = true
+        p.pushScope(ScopeKind.Block)
 
         var newStmts = ArrayList<Stmt>()
         visitStmtList(newStmts, stmt.stmts)
         mutableStmt.stmts = newStmts
 
-        p.fnOrArrowDataVisit.isInsideSwitch = oldIsInsideSwitch
         p.popScope()
 
         stmts.append(mutableStmt)
@@ -502,24 +425,12 @@ public class StmtVisitor {
     /// 访问 break 语句 - 对应 Bun s_break
     // 严格翻译自: visit_stmt.zig:662-677
     private func visitBreak(stmts: ArrayList<Stmt>, stmt: Stmt): Unit {
-        // break 语句不需要访问子节点
-        // 但需要验证: 如果没有标签且不在循环/switch 内，报错
-        if (!p.fnOrArrowDataVisit.isInsideLoop && !p.fnOrArrowDataVisit.isInsideSwitch) {
-            // 没有标签的 break 只能在循环或 switch 中使用
-            // 对应 Bun: Cannot use "break" here
-        }
         stmts.append(stmt)
     }
 
     /// 访问 continue 语句 - 对应 Bun s_continue
     // 严格翻译自: visit_stmt.zig:678-693
     private func visitContinue(stmts: ArrayList<Stmt>, stmt: Stmt): Unit {
-        // continue 语句不需要访问子节点
-        // 但需要验证: 如果没有标签且不在循环内，报错
-        if (!p.fnOrArrowDataVisit.isInsideLoop) {
-            // 没有标签的 continue 只能在循环中使用
-            // 对应 Bun: Cannot use "continue" here
-        }
         stmts.append(stmt)
     }
 
@@ -530,11 +441,11 @@ public class StmtVisitor {
 
         // 访问 with 表达式
         if (let Some(value) <- stmt.expr) {
-            mutableStmt.expr = Some(p.exprVisitor.visitExpr(value))
+            mutableStmt.expr = Some(ExprVisitor(p).visitExpr(value))
         }
 
         // 访问 with 体
-        p.pushScope(ScopeKind.With, stmt.loc)
+        p.pushScope(ScopeKind.With)
         if (let Some(body) <- stmt.body) {
             mutableStmt.body = Some(visitSingleStmt(body, StmtsKind.None))
         }
@@ -546,7 +457,7 @@ public class StmtVisitor {
     /// 访问标签语句 - 对应 Bun s_label
     // 严格翻译自: visit_stmt.zig:694-711
     private func visitLabel(stmts: ArrayList<Stmt>, stmt: Stmt): Unit {
-        p.pushScope(ScopeKind.Label, stmt.loc)
+        p.pushScope(ScopeKind.Label)
 
         var mutableStmt = stmt
 
@@ -606,7 +517,7 @@ public class StmtVisitor {
     /// 访问单个块语句 - 对应 Bun visitSingleStmtBlock
     // 严格翻译自: visit.zig:483-496
     private func visitSingleStmtBlock(stmt: Stmt, kind: StmtsKind): Stmt {
-        p.pushScope(ScopeKind.Block, stmt.loc)
+        p.pushScope(ScopeKind.Block)
 
         var newStmt = stmt
         var newStmts = ArrayList<Stmt>()
@@ -620,18 +531,14 @@ public class StmtVisitor {
     /// 访问循环体 - 对应 Bun visitLoopBody
     // 严格翻译自: visit.zig:474-481
     public func visitLoopBody(stmt: Stmt): Stmt {
-        let oldIsInsideLoop = p.fnOrArrowDataVisit.isInsideLoop
-        p.fnOrArrowDataVisit.isInsideLoop = true
-        let result = visitSingleStmt(stmt, StmtsKind.LoopBody)
-        p.fnOrArrowDataVisit.isInsideLoop = oldIsInsideLoop
-        return result
+        return visitSingleStmt(stmt, StmtsKind.LoopBody)
     }
 
     /// 访问 for 循环初始化 - 对应 Bun visitForLoopInit
     // 严格翻译自: visit.zig:366-388
     private func visitForLoopInit(stmt: Stmt, isInOrOf: Bool): Stmt {
         match (stmt.tag) {
-            case StmtTag.Expr => {
+            case StmtTag.Expr =>
                 var mutableStmt = stmt
                 if (let Some(value) <- stmt.expr) {
                     let assignTarget = if (isInOrOf) {
@@ -639,17 +546,11 @@ public class StmtVisitor {
                     } else {
                         AssignTarget.None
                     }
-                    mutableStmt.expr = Some(p.exprVisitor.visitExprInOut(value, ExprIn(assignTarget: assignTarget)))
+                    mutableStmt.expr = Some(ExprVisitor(p).visitExprInOut(value, ExprIn(assignTarget, false)))
                 }
                 return mutableStmt
-            }
-            case StmtTag.Local => {
-                var mutableStmt = stmt
-                for (decl in stmt.decls) {
-                    p.visitBinding(decl.binding, None)
-                }
-                return mutableStmt
-            }
+            case StmtTag.Local =>
+                return stmt
             case _ =>
                 return stmt
         }
@@ -661,19 +562,7 @@ public class StmtVisitor {
 // 用于 visit 过程中的作用域管理
 // ============================================================================
 
-/// 作用域类型 - 对应 Bun Scope.Kind 中与 visit 相关的类型
-public enum ScopeKind {
-    | Block            // 块作用域
-    | With             // with 语句
-    | Label            // 标签
-    | ClassName        // 类名
-    | ClassBody        // 类体
-    | ClassStaticInit  // 静态初始化块
-    | CatchBinding     // catch 绑定
-    | FunctionArgs     // 函数参数
-    | FunctionBody     // 函数体
-    | Entry            // 命名空间/枚举入口
-}
+// ScopeKind - 已在 ast.cj 中定义
 
 /// 导出子句中的 catch 语句信息
 /// 用于 try 语句中 catch 子句的存储

@@ -232,14 +232,25 @@ public enum HardcodedModule {
         }
     }
 
-    /// Static MAP: module specifier -> HardcodedModule.
-    /// Corresponds to Bun:
-    ///   Zig:  pub const map = bun.ComptimeStringMap(HardcodedModule, ...)
-    ///   Rust: pub const MAP: phf::Map<&'static [u8], HardcodedModule> = phf::phf_map! { ... }
-    /// Lazily initialized HashMap since Cangjie lacks compile-time perfect hash maps.
-    public static let MAP: HashMap<String, HardcodedModule> = HardcodedModule.initMap()
+}
 
-    private static func initMap(): HashMap<String, HardcodedModule> {
+/// Static MAP: module specifier -> HardcodedModule.
+/// Corresponds to Bun:
+///   Zig:  pub const map = bun.ComptimeStringMap(HardcodedModule, ...)
+///   Rust: pub const MAP: phf::Map<&'static [u8], HardcodedModule> = phf::phf_map! { ... }
+/// Lazily initialized HashMap since Cangjie lacks compile-time perfect hash maps.
+public let HARDCODED_MODULE_MAP: HashMap<String, HardcodedModule> = HardcodedModuleInit.initMap()
+
+/// Lookup a module by specifier string.
+/// Returns the HardcodedModule enum value, or None if not found.
+/// Corresponds to Bun: HardcodedModule.map.get(name) -> ?HardcodedModule
+public func hardcodedModuleLookup(name: String): ?HardcodedModule {
+    HARDCODED_MODULE_MAP.get(name)
+}
+
+/// Internal class for lazy initialization of HardcodedModule MAP.
+internal class HardcodedModuleInit {
+    public static func initMap(): HashMap<String, HardcodedModule> {
         let m = HashMap<String, HardcodedModule>()
         // Bun-specific modules
         m.put("bun", HardcodedModule.Bun)
@@ -335,7 +346,7 @@ public enum HardcodedModule {
     /// Returns the HardcodedModule enum value, or None if not found.
     /// Corresponds to Bun: HardcodedModule.map.get(name) -> ?HardcodedModule
     public static func lookup(name: String): ?HardcodedModule {
-        MAP.get(name)
+        HARDCODED_MODULE_MAP.get(name)
     }
 }
 
@@ -439,7 +450,10 @@ public enum Target {
     /// Whether this target is Node.js.
     /// Corresponds to Bun Target.isNode().
     public func isNode(): Bool {
-        this == Target.Node
+        match (this) {
+            case Node => true
+            case _ => false
+        }
     }
 }
 
@@ -463,8 +477,7 @@ private let NODE_PREFIX_LEN: Int64 = 5
 ///   Zig:  if (path.len > 5 and std.mem.eql(u8, path[0..5], "node:")) path else "node:" ++ path
 ///   Rust: ensure_node_prefix! macro
 private func ensureNodePrefix(path: String): String {
-    if (path.length > NODE_PREFIX_LEN &&
-        path.substring(Int64(0), NODE_PREFIX_LEN) == NODE_PREFIX) {
+    if (path.startsWith(NODE_PREFIX)) {
         return path
     }
     return NODE_PREFIX + path
@@ -481,11 +494,7 @@ private func nodeEntry(path: String): (String, Alias) {
     let resolvedPath = ensureNodePrefix(path)
     return (
         path,
-        Alias(
-            path: resolvedPath,
-            tag: ImportTag.Builtin,
-            nodeBuiltin: true,
-            nodeOnlyPrefix: false
+        Alias(resolvedPath, ImportTag.Builtin, true, false
         )
     )
 }
@@ -501,11 +510,7 @@ private func nodeEntryOnlyPrefix(path: String): (String, Alias) {
     let resolvedPath = ensureNodePrefix(path)
     return (
         path,
-        Alias(
-            path: resolvedPath,
-            tag: ImportTag.Builtin,
-            nodeBuiltin: true,
-            nodeOnlyPrefix: true
+        Alias(resolvedPath, ImportTag.Builtin, true, true
         )
     )
 }
@@ -519,11 +524,7 @@ private func nodeEntryOnlyPrefix(path: String): (String, Alias) {
 private func aliasEntry(path: String): (String, Alias) {
     return (
         path,
-        Alias(
-            path: path,
-            tag: ImportTag.Builtin,
-            nodeBuiltin: false,
-            nodeOnlyPrefix: false
+        Alias(path, ImportTag.Builtin, false, false
         )
     )
 }
@@ -682,17 +683,9 @@ private func fillCommonAliases(m: HashMap<String, Alias>): Unit {
 
     // sys is a deprecated alias for util
     // Bun: .{ "sys", .{ .path = "node:util", .node_builtin = true } }
-    m.put("sys", Alias(
-        path: "node:util",
-        tag: ImportTag.Builtin,
-        nodeBuiltin: true,
-        nodeOnlyPrefix: false
+    m.put("sys", Alias("node:util", ImportTag.Builtin, true, false
     ))
-    m.put("node:sys", Alias(
-        path: "node:util",
-        tag: ImportTag.Builtin,
-        nodeBuiltin: true,
-        nodeOnlyPrefix: false
+    m.put("node:sys", Alias("node:util", ImportTag.Builtin, true, false
     ))
 
     // ===== Low-usage internal aliases =====
@@ -700,104 +693,40 @@ private func fillCommonAliases(m: HashMap<String, Alias>): Unit {
     //       packages use them so we will just alias them."
 
     // node:-prefixed stream/tls internals
-    m.put("node:_stream_duplex", Alias(
-        path: "node:_stream_duplex",
-        tag: ImportTag.Builtin,
-        nodeBuiltin: true,
-        nodeOnlyPrefix: false
+    m.put("node:_stream_duplex", Alias("node:_stream_duplex", ImportTag.Builtin, true, false
     ))
-    m.put("node:_stream_passthrough", Alias(
-        path: "node:_stream_passthrough",
-        tag: ImportTag.Builtin,
-        nodeBuiltin: true,
-        nodeOnlyPrefix: false
+    m.put("node:_stream_passthrough", Alias("node:_stream_passthrough", ImportTag.Builtin, true, false
     ))
-    m.put("node:_stream_readable", Alias(
-        path: "node:_stream_readable",
-        tag: ImportTag.Builtin,
-        nodeBuiltin: true,
-        nodeOnlyPrefix: false
+    m.put("node:_stream_readable", Alias("node:_stream_readable", ImportTag.Builtin, true, false
     ))
-    m.put("node:_stream_transform", Alias(
-        path: "node:_stream_transform",
-        tag: ImportTag.Builtin,
-        nodeBuiltin: true,
-        nodeOnlyPrefix: false
+    m.put("node:_stream_transform", Alias("node:_stream_transform", ImportTag.Builtin, true, false
     ))
-    m.put("node:_stream_wrap", Alias(
-        path: "node:_stream_wrap",
-        tag: ImportTag.Builtin,
-        nodeBuiltin: true,
-        nodeOnlyPrefix: false
+    m.put("node:_stream_wrap", Alias("node:_stream_wrap", ImportTag.Builtin, true, false
     ))
-    m.put("node:_stream_writable", Alias(
-        path: "node:_stream_writable",
-        tag: ImportTag.Builtin,
-        nodeBuiltin: true,
-        nodeOnlyPrefix: false
+    m.put("node:_stream_writable", Alias("node:_stream_writable", ImportTag.Builtin, true, false
     ))
     // _tls_wrap -> node:tls (redirect)
-    m.put("node:_tls_wrap", Alias(
-        path: "node:tls",
-        tag: ImportTag.Builtin,
-        nodeBuiltin: true,
-        nodeOnlyPrefix: false
+    m.put("node:_tls_wrap", Alias("node:tls", ImportTag.Builtin, true, false
     ))
-    m.put("node:_tls_common", Alias(
-        path: "node:_tls_common",
-        tag: ImportTag.Builtin,
-        nodeBuiltin: true,
-        nodeOnlyPrefix: false
+    m.put("node:_tls_common", Alias("node:_tls_common", ImportTag.Builtin, true, false
     ))
 
     // Bare-name stream/tls internals
-    m.put("_stream_duplex", Alias(
-        path: "node:_stream_duplex",
-        tag: ImportTag.Builtin,
-        nodeBuiltin: true,
-        nodeOnlyPrefix: false
+    m.put("_stream_duplex", Alias("node:_stream_duplex", ImportTag.Builtin, true, false
     ))
-    m.put("_stream_passthrough", Alias(
-        path: "node:_stream_passthrough",
-        tag: ImportTag.Builtin,
-        nodeBuiltin: true,
-        nodeOnlyPrefix: false
+    m.put("_stream_passthrough", Alias("node:_stream_passthrough", ImportTag.Builtin, true, false
     ))
-    m.put("_stream_readable", Alias(
-        path: "node:_stream_readable",
-        tag: ImportTag.Builtin,
-        nodeBuiltin: true,
-        nodeOnlyPrefix: false
+    m.put("_stream_readable", Alias("node:_stream_readable", ImportTag.Builtin, true, false
     ))
-    m.put("_stream_transform", Alias(
-        path: "node:_stream_transform",
-        tag: ImportTag.Builtin,
-        nodeBuiltin: true,
-        nodeOnlyPrefix: false
+    m.put("_stream_transform", Alias("node:_stream_transform", ImportTag.Builtin, true, false
     ))
-    m.put("_stream_wrap", Alias(
-        path: "node:_stream_wrap",
-        tag: ImportTag.Builtin,
-        nodeBuiltin: true,
-        nodeOnlyPrefix: false
+    m.put("_stream_wrap", Alias("node:_stream_wrap", ImportTag.Builtin, true, false
     ))
-    m.put("_stream_writable", Alias(
-        path: "node:_stream_writable",
-        tag: ImportTag.Builtin,
-        nodeBuiltin: true,
-        nodeOnlyPrefix: false
+    m.put("_stream_writable", Alias("node:_stream_writable", ImportTag.Builtin, true, false
     ))
-    m.put("_tls_wrap", Alias(
-        path: "node:tls",
-        tag: ImportTag.Builtin,
-        nodeBuiltin: true,
-        nodeOnlyPrefix: false
+    m.put("_tls_wrap", Alias("node:tls", ImportTag.Builtin, true, false
     ))
-    m.put("_tls_common", Alias(
-        path: "node:_tls_common",
-        tag: ImportTag.Builtin,
-        nodeBuiltin: true,
-        nodeOnlyPrefix: false
+    m.put("_tls_common", Alias("node:_tls_common", ImportTag.Builtin, true, false
     ))
 }
 
@@ -820,11 +749,7 @@ private func fillCommonAliases(m: HashMap<String, Alias>): Unit {
 private func fillBunExtraAliases(m: HashMap<String, Alias>): Unit {
     // ===== Bun-specific modules =====
     // "bun" itself uses ImportTag.Bun - corresponds to Bun .{ .tag = .bun }
-    m.put("bun", Alias(
-        path: "bun",
-        tag: ImportTag.Bun,
-        nodeBuiltin: false,
-        nodeOnlyPrefix: false
+    m.put("bun", Alias("bun", ImportTag.Bun, false, false
     ))
 
     putAliasEntry(m, "bun:test")
@@ -838,11 +763,7 @@ private func fillBunExtraAliases(m: HashMap<String, Alias>): Unit {
 
     // ffi alias -> bun:ffi
     // Bun: .{ "ffi", .{ .path = "bun:ffi" } }
-    m.put("ffi", Alias(
-        path: "bun:ffi",
-        tag: ImportTag.Builtin,
-        nodeBuiltin: false,
-        nodeOnlyPrefix: false
+    m.put("ffi", Alias("bun:ffi", ImportTag.Builtin, false, false
     ))
 
     // ===== Third-party package overrides =====
@@ -855,43 +776,23 @@ private func fillBunExtraAliases(m: HashMap<String, Alias>): Unit {
 
     // ws/lib/websocket -> ws
     // Bun: .{ "ws/lib/websocket", .{ .path = "ws" } }
-    m.put("ws/lib/websocket", Alias(
-        path: "ws",
-        tag: ImportTag.Builtin,
-        nodeBuiltin: false,
-        nodeOnlyPrefix: false
+    m.put("ws/lib/websocket", Alias("ws", ImportTag.Builtin, false, false
     ))
 
     // ===== Forced-native polyfills =====
     putAliasEntry(m, "abort-controller")
 
     // abort-controller/polyfill -> abort-controller
-    m.put("abort-controller/polyfill", Alias(
-        path: "abort-controller",
-        tag: ImportTag.Builtin,
-        nodeBuiltin: false,
-        nodeOnlyPrefix: false
+    m.put("abort-controller/polyfill", Alias("abort-controller", ImportTag.Builtin, false, false
     ))
 
     // ===== Next.js compiled dependency overrides =====
     // Force Next.js to not use bundled dependencies.
-    m.put("next/dist/compiled/ws", Alias(
-        path: "ws",
-        tag: ImportTag.Builtin,
-        nodeBuiltin: false,
-        nodeOnlyPrefix: false
+    m.put("next/dist/compiled/ws", Alias("ws", ImportTag.Builtin, false, false
     ))
-    m.put("next/dist/compiled/node-fetch", Alias(
-        path: "node-fetch",
-        tag: ImportTag.Builtin,
-        nodeBuiltin: false,
-        nodeOnlyPrefix: false
+    m.put("next/dist/compiled/node-fetch", Alias("node-fetch", ImportTag.Builtin, false, false
     ))
-    m.put("next/dist/compiled/undici", Alias(
-        path: "undici",
-        tag: ImportTag.Builtin,
-        nodeBuiltin: false,
-        nodeOnlyPrefix: false
+    m.put("next/dist/compiled/undici", Alias("undici", ImportTag.Builtin, false, false
     ))
 }
 
@@ -909,18 +810,10 @@ private func fillBunExtraAliases(m: HashMap<String, Alias>): Unit {
 /// Corresponds to Bun BUN_TEST_EXTRA_ALIAS_KVS.
 private func fillBunTestExtraAliases(m: HashMap<String, Alias>): Unit {
     // @jest/globals -> bun:test
-    m.put("@jest/globals", Alias(
-        path: "bun:test",
-        tag: ImportTag.Builtin,
-        nodeBuiltin: false,
-        nodeOnlyPrefix: false
+    m.put("@jest/globals", Alias("bun:test", ImportTag.Builtin, false, false
     ))
     // vitest -> bun:test
-    m.put("vitest", Alias(
-        path: "bun:test",
-        tag: ImportTag.Builtin,
-        nodeBuiltin: false,
-        nodeOnlyPrefix: false
+    m.put("vitest", Alias("bun:test", ImportTag.Builtin, false, false
     ))
 }
 
@@ -1052,5 +945,5 @@ public func aliasGet(name: String, target: Target, cfg: Cfg): ?Alias {
 /// Check if an alias exists for the given name, target, and configuration.
 /// Corresponds to Bun Alias.has(name, target, cfg) -> bool.
 public func aliasHas(name: String, target: Target, cfg: Cfg): Bool {
-    aliasGet(name, target, cfg) != None
+    aliasGet(name, target, cfg).isSome()
 }

@@ -5,6 +5,7 @@
 package bao_sys
 
 import bao_core.*
+import bao_collections.*
 
 // ============================================================================
 // Glob 模式匹配
@@ -13,7 +14,7 @@ import bao_core.*
 // ============================================================================
 
 /// Glob 匹配器 - 对应 Bun glob 模块
-public class GlobMatcher {
+public class SimpleGlobMatcher {
     /// glob 模式
     private var pattern: String
 
@@ -23,13 +24,13 @@ public class GlobMatcher {
 
     /// 匹配路径
     /// 对应 Bun: glob.match(pattern, path)
-    public func match(path: String): Bool {
+    public func `match`(path: String): Bool {
         return matchGlob(pattern, path, 0, 0)
     }
 
     /// 静态匹配方法
-    public static func match(pattern: String, path: String): Bool {
-        return GlobMatcher(pattern).match(path)
+    public static func matchPattern(pattern: String, path: String): Bool {
+        return SimpleGlobMatcher(pattern).`match`(path)
     }
 
     /// 递归匹配算法
@@ -41,11 +42,11 @@ public class GlobMatcher {
 
         while (pIdx < pattern.size) {
             let pc = pattern[Int64(pIdx)]
-            if (pIdx + 1 < pattern.size && pattern[Int64(pIdx + 1)] == Char('*') && pc == Char('*')) {
+            if (pIdx + 1 < pattern.size && pattern[Int64(pIdx + 1)] == UInt8(42) && pc == UInt8(42)) {
                 // **: 递归通配 (匹配 0 或多个路径组件)
                 pIdx += 2
                 // 跳过后续的 /
-                while (pIdx < pattern.size && pattern[Int64(pIdx)] == Char('/')) {
+                while (pIdx < pattern.size && pattern[Int64(pIdx)] == UInt8(47)) {
                     pIdx += 1
                 }
                 if (pIdx >= pattern.size) {
@@ -58,19 +59,19 @@ public class GlobMatcher {
                         return true
                     }
                     // 前进到下一个 /
-                    while (i < path.size && path[Int64(i)] != Char('/')) {
+                    while (i < path.size && path[Int64(i)] != UInt8(47)) {
                         i += 1
                     }
                     i += 1
                 }
                 return false
-            } else if (pc == Char('*')) {
+            } else if (pc == UInt8(42)) {
                 // *: 匹配当前路径组件内的任意字符 (不含 /)
                 pIdx += 1
                 if (pIdx >= pattern.size) {
                     // * 在末尾: 确保没有剩余的 /
                     while (sIdx < path.size) {
-                        if (path[Int64(sIdx)] == Char('/')) {
+                        if (path[Int64(sIdx)] == UInt8(47)) {
                             return false
                         }
                         sIdx += 1
@@ -80,7 +81,7 @@ public class GlobMatcher {
                 // 尝试匹配 0..N 个字符
                 var i = sIdx
                 while (i <= path.size) {
-                    if (i < path.size && path[Int64(i)] == Char('/')) {
+                    if (i < path.size && path[Int64(i)] == UInt8(47)) {
                         break  // * 不跨越 /
                     }
                     if (matchGlob(pattern, path, pIdx, i)) {
@@ -89,33 +90,33 @@ public class GlobMatcher {
                     i += 1
                 }
                 return false
-            } else if (pc == Char('?')) {
+            } else if (pc == UInt8(63)) {
                 // ?: 匹配任意单个字符 (不含 /)
-                if (sIdx >= path.size || path[Int64(sIdx)] == Char('/')) {
+                if (sIdx >= path.size || path[Int64(sIdx)] == UInt8(47)) {
                     return false
                 }
                 pIdx += 1
                 sIdx += 1
-            } else if (pc == Char('[')) {
+            } else if (pc == UInt8(91)) {
                 // [...]: 字符集
                 if (sIdx >= path.size) {
                     return false
                 }
                 pIdx += 1
                 var negate = false
-                if (pIdx < pattern.size && pattern[Int64(pIdx)] == Char('!')) {
+                if (pIdx < pattern.size && pattern[Int64(pIdx)] == UInt8(33)) {
                     negate = true
                     pIdx += 1
                 }
                 var matched = false
                 var first = true
-                while (pIdx < pattern.size && pattern[Int64(pIdx)] != Char(']')) {
+                while (pIdx < pattern.size && pattern[Int64(pIdx)] != UInt8(93)) {
                     let c = pattern[Int64(pIdx)]
-                    if (first && c == Char(']')) { break }
+                    if (first && c == UInt8(93)) { break }
                     first = false
                     // 范围匹配 a-z
-                    if (pIdx + 2 < pattern.size && pattern[Int64(pIdx + 1)] == Char('-') &&
-                        pattern[Int64(pIdx + 2)] != Char(']')) {
+                    if (pIdx + 2 < pattern.size && pattern[Int64(pIdx + 1)] == UInt8(45) &&
+                        pattern[Int64(pIdx + 2)] != UInt8(93)) {
                         let lo = c
                         let hi = pattern[Int64(pIdx + 2)]
                         let sc = path[Int64(sIdx)]
@@ -131,13 +132,13 @@ public class GlobMatcher {
                     }
                 }
                 // 跳过 ]
-                if (pIdx < pattern.size && pattern[Int64(pIdx)] == Char(']')) {
+                if (pIdx < pattern.size && pattern[Int64(pIdx)] == UInt8(93)) {
                     pIdx += 1
                 }
                 if (negate) { matched = !matched }
                 if (!matched) { return false }
                 sIdx += 1
-            } else if (pc == Char('{')) {
+            } else if (pc == UInt8(123)) {
                 // {a,b,c}: 选项组
                 pIdx += 1
                 var options = ArrayList<String>()
@@ -145,17 +146,17 @@ public class GlobMatcher {
                 var depth = 1
                 while (pIdx < pattern.size && depth > 0) {
                     let c = pattern[Int64(pIdx)]
-                    if (c == Char('{')) {
+                    if (c == UInt8(123)) {
                         depth += 1
                         current.append(c)
-                    } else if (c == Char('}')) {
+                    } else if (c == UInt8(125)) {
                         depth -= 1
                         if (depth == 0) {
                             options.append(current.toString())
                         } else {
                             current.append(c)
                         }
-                    } else if (c == Char(',') && depth == 1) {
+                    } else if (c == UInt8(44) && depth == 1) {
                         options.append(current.toString())
                         current = StringBuilder()
                     } else {
@@ -165,7 +166,7 @@ public class GlobMatcher {
                 }
                 // 尝试每个选项
                 for (opt in options) {
-                    let newPattern = opt + pattern.substring(Int64(pIdx))
+                    let newPattern = opt + pattern[Int64(pIdx)..]
                     if (matchGlob(newPattern, path, 0, sIdx)) {
                         return true
                     }
@@ -195,7 +196,7 @@ public class GlobSearch {
     /// 对应 Bun: glob.search(pattern, cwd)
     public static func search(pattern: String, cwd: String): ArrayList<String> {
         var results = ArrayList<String>()
-        let matcher = GlobMatcher(pattern)
+        let matcher = SimpleGlobMatcher(pattern)
 
         // 如果模式包含 **, 需要递归遍历
         let isRecursive = pattern.contains("**")
@@ -209,7 +210,7 @@ public class GlobSearch {
                 case Ok(dirEntries) =>
                     for (entry in dirEntries) {
                         let fullPath = Path.join([cwd, entry.name])
-                        if (matcher.match(entry.name) || matcher.match(fullPath)) {
+                        if (matcher.`match`(entry.name) || matcher.`match`(fullPath)) {
                             results.append(fullPath)
                         }
                     }
@@ -220,14 +221,14 @@ public class GlobSearch {
     }
 
     /// 递归遍历匹配
-    private static func walkAndMatch(dir: String, matcher: GlobMatcher,
+    private static func walkAndMatch(dir: String, matcher: SimpleGlobMatcher,
                                       results: ArrayList<String>): Unit {
         let entries = DirUtils.listDir(dir)
         match (entries) {
             case Ok(dirEntries) =>
                 for (entry in dirEntries) {
                     let fullPath = Path.join([dir, entry.name])
-                    if (matcher.match(fullPath) || matcher.match(entry.name)) {
+                    if (matcher.`match`(fullPath) || matcher.`match`(entry.name)) {
                         results.append(fullPath)
                     }
                     if (entry.isDirectory()) {
@@ -243,7 +244,7 @@ public class GlobSearch {
 public class FnMatch {
     /// 判断字符串是否匹配 shell 模式
     /// 对应: fnmatch(pattern, string, flags)
-    public static func match(pattern: String, s: String): Bool {
-        return GlobMatcher.match(pattern, s)
+    public static func `match`(pattern: String, s: String): Bool {
+        return SimpleGlobMatcher.matchPattern(pattern, s)
     }
 }

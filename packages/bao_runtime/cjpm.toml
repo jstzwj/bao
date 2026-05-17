@@ -66,3 +66,11 @@ bao_http_types = { path = "../bao_http_types" }
 bao_uws_sys = { path = "../bao_uws_sys" }
 bao_options = { path = "../bao_options" }
 bao_simdutf_sys = { path = "../bao_simdutf_sys" }
+bao_md = { path = "../bao_md" }
+bao_lolhtml_sys = { path = "../bao_lolhtml_sys" }
+bao_shell_parser = { path = "../bao_shell_parser" }
+bao_zlib = { path = "../bao_zlib" }
+bao_zstd = { path = "../bao_zstd" }
+bao_glob = { path = "../bao_glob" }
+bao_libarchive = { path = "../bao_libarchive" }
+bao_http_jsc = { path = "../bao_http_jsc" }

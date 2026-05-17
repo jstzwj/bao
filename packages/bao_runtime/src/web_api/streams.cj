@@ -4,8 +4,9 @@
 // 包含: ReadableStream, WritableStream, TransformStream
 package bao_runtime.web_api
 
-import bao_core.*
+import bao_core.BaoString
 import bao_collections.*
+import bao_runtime.*
 
 // ============================================================================
 // ReadableStream (Web API 级别) — 可读流
@@ -19,17 +20,17 @@ public class WebReadableStream {
     /// 是否锁定
     public var locked: Bool
     /// 内部缓冲区
-    private var buffer: ArrayList<UInt8>
+    public var buffer: ArrayList<UInt8>
     /// 是否已完成
-    private var done: Bool
+    public var done: Bool
     /// 是否已出错
-    private var errored: Bool
+    public var errored: Bool
     /// 错误信息
-    private var errorMessage: String
+    public var errorMessage: String
     /// 当前读取器
-    private var reader: ?WebReadableStreamDefaultReader
+    public var reader: ?WebReadableStreamDefaultReader
     /// 底层源回调
-    private var underlyingSource: ?UnderlyingSource
+    public var underlyingSource: ?UnderlyingSource
 
     public init() {
         locked = false
@@ -50,13 +51,16 @@ public class WebReadableStream {
         reader = None
         this.underlyingSource = Some(underlyingSource)
         // 触发 start 回调
-        match (this.underlyingSource) {
-            case Some(src) => {
-                match (src.start) {
+        startUnderlyingSource(this.underlyingSource)
+    }
+
+    private func startUnderlyingSource(src: ?UnderlyingSource): Unit {
+        match (src) {
+            case Some(s) =>
+                match (s.start) {
                     case Some(startFn) => startFn(this)
                     case None => ()
                 }
-            }
             case None => ()
         }
     }
@@ -124,7 +128,7 @@ public class WebReadableStream {
     /// 对应 Web API: readableStream.getReader()
     public func getReader(): WebReadableStreamDefaultReader {
         if (locked) {
-            throw JsError(JsValue(BaoString("ReadableStream is already locked")))
+            throw JsException("ReadableStream is already locked")
         }
         locked = true
         let r = WebReadableStreamDefaultReader(this)
@@ -158,10 +162,9 @@ public class WebReadableStream {
             }
             match (result.value) {
                 case Some(chunk) => dest.write(chunk)
-                case None => {
+                case None =>
                     dest.close()
                     break
-                }
             }
         }
         reader.releaseLock()
@@ -176,12 +179,12 @@ public class WebReadableStream {
 
     /// 读取所有数据为 Uint8Array
     public func toArray(): Array<UInt8> {
-        return buffer.toArray()
+        return buffer.toOwnedSlice()
     }
 
     /// 读取所有数据为文本
     public func toText(): String {
-        return Utf8Codec.decode(buffer.toArray())
+        return Utf8Codec.decode(buffer.toOwnedSlice())
     }
 
     /// 转为 JsValue
@@ -194,14 +197,14 @@ public class WebReadableStream {
         obj.set("cancel", JsValue.nativeFunction(JsNativeFunction("cancel") { args =>
             let reason = if (args.size >= 1) { Interpreter.jsToString(args[0]) } else { "" }
             self.cancel(reason)
-            return JsValue(JsPromise.resolved(JsValue.UNDEFINED).toJsValue())
+            return JsValue.UNDEFINED
         }))
 
         obj.set("getReader", JsValue.nativeFunction(JsNativeFunction("getReader") { _ =>
             try {
                 let reader = self.getReader()
                 return reader.toJsValue()
-            } catch (_: JsError) {
+            } catch (_: Exception) {
                 return JsValue.NULL
             }
         }))
@@ -216,7 +219,7 @@ public class WebReadableStream {
 
         obj.set("pipeTo", JsValue.nativeFunction(JsNativeFunction("pipeTo") { args =>
             // 简化
-            return JsValue(JsPromise.resolved(JsValue.UNDEFINED).toJsValue())
+            return JsValue.UNDEFINED
         }))
 
         obj.set("pipeThrough", JsValue.nativeFunction(JsNativeFunction("pipeThrough") { args =>
@@ -270,13 +273,13 @@ public class WebReadableStreamDefaultReader {
     /// 对应 Web API: reader.read()
     public func read(): WebReadResult {
         if (stream.errored) {
-            throw JsError(JsValue(BaoString(stream.errorMessage)))
+            throw JsException(stream.errorMessage)
         }
 
         if (position < stream.buffer.size) {
             let remaining = stream.buffer.size - position
             let chunkSize = if (remaining < DEFAULT_CHUNK_SIZE) { remaining } else { DEFAULT_CHUNK_SIZE }
-            let chunk = Array<UInt8>(chunkSize, item: UInt8(0))
+            let chunk = Array<UInt8>(chunkSize, { _ => 0 })
             for (i in 0..chunkSize) {
                 chunk[Int64(i)] = stream.buffer[position + Int64(i)]
             }
@@ -308,18 +311,17 @@ public class WebReadableStreamDefaultReader {
                 let result = self.read()
                 let resultObj = JsObject()
                 match (result.value) {
-                    case Some(bytes) => {
+                    case Some(bytes) =>
                         let arr = ArrayList<JsValue>()
                         for (b in bytes) {
                             arr.append(JsValue(Float64(Int64(b))))
                         }
                         resultObj.set("value", JsValue.array(arr))
-                    }
                     case None => resultObj.set("value", JsValue.UNDEFINED)
                 }
                 resultObj.set("done", JsValue(result.done))
                 return JsValue(resultObj)
-            } catch (_: JsError) {
+            } catch (_: Exception) {
                 return JsValue.NULL
             }
         }))
@@ -329,11 +331,11 @@ public class WebReadableStreamDefaultReader {
             return JsValue.UNDEFINED
         }))
 
-        obj.set("closed", JsValue(JsPromise.resolved(JsValue.UNDEFINED).toJsValue()))
+        obj.set("closed", JsValue.UNDEFINED)
 
         obj.set("cancel", JsValue.nativeFunction(JsNativeFunction("cancel") { _ =>
             self.releaseLock()
-            return JsValue(JsPromise.resolved(JsValue.UNDEFINED).toJsValue())
+            return JsValue.UNDEFINED
         }))
 
         return JsValue(obj)
@@ -381,13 +383,13 @@ public class UnderlyingSource {
     /// cancel(reason) — 取消时调用
     public var cancel: ?(String) -> Unit
     /// 类型
-    public var type: String
+    public var `type`: String
 
     public init() {
         start = None
         pull = None
         cancel = None
-        type = ""
+        `type` = ""
     }
 }
 
@@ -426,19 +428,19 @@ public class WebWritableStream {
     /// 是否锁定
     public var locked: Bool
     /// 内部缓冲区
-    private var buffer: ArrayList<UInt8>
+    public var buffer: ArrayList<UInt8>
     /// 是否已关闭
-    private var closed: Bool
+    public var closed: Bool
     /// 是否出错
-    private var errored: Bool
+    public var errored: Bool
     /// 错误信息
-    private var errorMessage: String
+    public var errorMessage: String
     /// 底层汇
-    private var underlyingSink: ?UnderlyingSink
+    public var underlyingSink: ?UnderlyingSink
     /// 高水位标记
     public var highWaterMark: Int64
     /// 当前写入器
-    private var writer: ?WebWritableStreamDefaultWriter
+    public var writer: ?WebWritableStreamDefaultWriter
 
     public init() {
         locked = false
@@ -462,12 +464,11 @@ public class WebWritableStream {
         writer = None
         // 触发 start
         match (this.underlyingSink) {
-            case Some(sink) => {
+            case Some(sink) =>
                 match (sink.start) {
                     case Some(startFn) => startFn(this)
                     case None => ()
                 }
-            }
             case None => ()
         }
     }
@@ -479,12 +480,11 @@ public class WebWritableStream {
         errorMessage = reason
         closed = true
         match (underlyingSink) {
-            case Some(sink) => {
+            case Some(sink) =>
                 match (sink.abort) {
                     case Some(abortFn) => abortFn(reason)
                     case None => ()
                 }
-            }
             case None => ()
         }
     }
@@ -496,12 +496,11 @@ public class WebWritableStream {
         }
         closed = true
         match (underlyingSink) {
-            case Some(sink) => {
+            case Some(sink) =>
                 match (sink.close) {
                     case Some(closeFn) => closeFn(this)
                     case None => ()
                 }
-            }
             case None => ()
         }
     }
@@ -515,12 +514,11 @@ public class WebWritableStream {
             buffer.append(b)
         }
         match (underlyingSink) {
-            case Some(sink) => {
+            case Some(sink) =>
                 match (sink.write) {
                     case Some(writeFn) => writeFn(chunk, this)
                     case None => ()
                 }
-            }
             case None => ()
         }
     }
@@ -529,7 +527,7 @@ public class WebWritableStream {
     /// 对应 Web API: writableStream.getWriter()
     public func getWriter(): WebWritableStreamDefaultWriter {
         if (locked) {
-            throw JsError(JsValue(BaoString("WritableStream is already locked")))
+            throw JsException("WritableStream is already locked")
         }
         locked = true
         let w = WebWritableStreamDefaultWriter(this)
@@ -539,7 +537,7 @@ public class WebWritableStream {
 
     /// 获取已缓冲的数据
     public func getBuffer(): Array<UInt8> {
-        return buffer.toArray()
+        return buffer.toOwnedSlice()
     }
 
     /// 转为 JsValue
@@ -552,21 +550,21 @@ public class WebWritableStream {
         obj.set("abort", JsValue.nativeFunction(JsNativeFunction("abort") { args =>
             let reason = if (args.size >= 1) { Interpreter.jsToString(args[0]) } else { "" }
             self.abort(reason)
-            return JsValue(JsPromise.resolved(JsValue.UNDEFINED).toJsValue())
+            return JsValue.UNDEFINED
         }))
 
         obj.set("getWriter", JsValue.nativeFunction(JsNativeFunction("getWriter") { _ =>
             try {
                 let writer = self.getWriter()
                 return writer.toJsValue()
-            } catch (_: JsError) {
+            } catch (_: Exception) {
                 return JsValue.NULL
             }
         }))
 
         obj.set("close", JsValue.nativeFunction(JsNativeFunction("close") { _ =>
             self.close()
-            return JsValue(JsPromise.resolved(JsValue.UNDEFINED).toJsValue())
+            return JsValue.UNDEFINED
         }))
 
         return JsValue(obj)
@@ -632,18 +630,18 @@ public class WebWritableStreamDefaultWriter {
                 let bytes = Utf8Codec.encode(str)
                 self.write(bytes)
             }
-            return JsValue(JsPromise.resolved(JsValue.UNDEFINED).toJsValue())
+            return JsValue.UNDEFINED
         }))
 
         obj.set("close", JsValue.nativeFunction(JsNativeFunction("close") { _ =>
             self.close()
-            return JsValue(JsPromise.resolved(JsValue.UNDEFINED).toJsValue())
+            return JsValue.UNDEFINED
         }))
 
         obj.set("abort", JsValue.nativeFunction(JsNativeFunction("abort") { args =>
             let reason = if (args.size >= 1) { Interpreter.jsToString(args[0]) } else { "" }
             self.abort(reason)
-            return JsValue(JsPromise.resolved(JsValue.UNDEFINED).toJsValue())
+            return JsValue.UNDEFINED
         }))
 
         obj.set("releaseLock", JsValue.nativeFunction(JsNativeFunction("releaseLock") { _ =>
@@ -653,9 +651,9 @@ public class WebWritableStreamDefaultWriter {
 
         obj.set("desiredSize", JsValue(Float64(self.desiredSize())))
 
-        obj.set("closed", JsValue(JsPromise.resolved(JsValue.UNDEFINED).toJsValue()))
+        obj.set("closed", JsValue.UNDEFINED)
 
-        obj.set("ready", JsValue(JsPromise.resolved(JsValue.UNDEFINED).toJsValue()))
+        obj.set("ready", JsValue.UNDEFINED)
 
         return JsValue(obj)
     }
@@ -690,7 +688,7 @@ public class WebTransformStream {
     /// 可写端
     public var writable: WebWritableStream
     /// 转换器
-    private var transformer: ?Transformer
+    public var transformer: ?Transformer
 
     public init() {
         readable = WebReadableStream()
@@ -704,12 +702,11 @@ public class WebTransformStream {
         writable = WebWritableStream()
         // 触发 start
         match (this.transformer) {
-            case Some(t) => {
+            case Some(t) =>
                 match (t.start) {
                     case Some(startFn) => startFn(this)
                     case None => ()
                 }
-            }
             case None => ()
         }
     }
@@ -819,7 +816,7 @@ public class TextDecoderStream {
 
 /// 排队策略
 /// 对应 Web API: QueuingStrategy
-public class QueuingStrategy {
+public open class QueuingStrategy {
     /// 高水位标记
     public var highWaterMark: Int64
     /// 大小函数
@@ -837,7 +834,7 @@ public class QueuingStrategy {
 }
 
 /// 默认排队策略 (字节计数)
-public class ByteLengthQueuingStrategy extends QueuingStrategy {
+public class ByteLengthQueuingStrategy <: QueuingStrategy {
     public init(highWaterMark: Int64) {
         super(highWaterMark)
         size = Some({ chunk => chunk.size })
@@ -845,7 +842,7 @@ public class ByteLengthQueuingStrategy extends QueuingStrategy {
 }
 
 /// 计数排队策略
-public class CountQueuingStrategy extends QueuingStrategy {
+public class CountQueuingStrategy <: QueuingStrategy {
     public init(highWaterMark: Int64) {
         super(highWaterMark)
         size = Some({ _ => 1 })
@@ -882,10 +879,9 @@ public class StreamsModule {
         env.define("ByteLengthQueuingStrategy", Interpreter.makeNativeFn("ByteLengthQueuingStrategy") { args =>
             let hwm = if (args.size >= 1) {
                 match (args[0].objectData) {
-                    case Some(obj) => {
+                    case Some(obj) =>
                         let val = obj.get("highWaterMark")
                         Int64(Interpreter.jsToNumber(val))
-                    }
                     case None => Int64(16384)
                 }
             } else {
@@ -901,10 +897,9 @@ public class StreamsModule {
         env.define("CountQueuingStrategy", Interpreter.makeNativeFn("CountQueuingStrategy") { args =>
             let hwm = if (args.size >= 1) {
                 match (args[0].objectData) {
-                    case Some(obj) => {
+                    case Some(obj) =>
                         let val = obj.get("highWaterMark")
                         Int64(Interpreter.jsToNumber(val))
-                    }
                     case None => Int64(16384)
                 }
             } else {

@@ -79,9 +79,9 @@ public class JSGlobalObject {
         JsValue(JsError("Out of memory").toString())
     }
 
-    // 严格翻译自 JSGlobalObject.throwTODO
-    public func throwTODO(msg: String) -> JsError {
-        JsError("TODO: " + msg)
+    // 创建不支持功能错误
+    public func throwUnsupported(msg: String) -> JsError {
+        JsError("Unsupported: " + msg)
     }
 
     // ========== 日期时间转换 ==========

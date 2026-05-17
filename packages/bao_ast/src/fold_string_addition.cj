@@ -19,6 +19,17 @@ public enum FoldStringAdditionKind {
     | Normal     // "x" + "y" -> "xy", 1 + "y" -> "1y"
     | NestedLeft // a + "x" + "y" -> a + "xy"
 
+    public operator func ==(right: FoldStringAdditionKind): Bool {
+        match (this) {
+            case Normal => match (right) { case Normal => true case _ => false }
+            case NestedLeft => match (right) { case NestedLeft => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: FoldStringAdditionKind): Bool {
+        return !(this == right)
+    }
+
     public func name(): String {
         match (this) {
             case Normal => "normal"
@@ -62,38 +73,35 @@ public func foldStringAddition(l: ASTNode, r: ASTNode, kind: FoldStringAdditionK
     // 在非 nested_left 模式下, 尝试将 lhs 转为字符串
     if (kind != FoldStringAdditionKind.NestedLeft) {
         let rhsTag = rhs.tag
-        match (rhsTag) {
-            case ExprTag.String | ExprTag.Template => {
-                let strExpr = ExprFactory.toStringExprWithoutSideEffects(lhs)
-                if (strExpr.isSome()) {
-                    lhs = strExpr.orElse(lhs)
-                }
+        if (rhsTag == ExprTag.StringExpr || rhsTag == ExprTag.Template) {
+            if (let Some(strExpr) <- ExprFactory.toStringExprWithoutSideEffects(lhs)) {
+                lhs = strExpr
             }
-            case _ => ()
         }
     }
 
     // 主要逻辑: 基于 lhs 类型进行匹配
     match (lhs.tag) {
-        case ExprTag.String => {
+        case ExprTag.StringExpr =>
             // 尝试将 rhs 也转为字符串
-            let rhsStr = ExprFactory.toStringExprWithoutSideEffects(rhs)
-            if (rhsStr.isSome()) {
-                rhs = rhsStr.orElse(rhs)
+            if (let Some(rhsStr) <- ExprFactory.toStringExprWithoutSideEffects(rhs)) {
+                rhs = rhsStr
             }
 
             // "bar" + "baz" => "barbaz"
-            if (rhs.tag == ExprTag.String) {
-                let leftStr = lhs.value as? EString
-                let rightStr = rhs.value as? EString
-                if (leftStr.isSome() && rightStr.isSome()) {
-                    let ls = leftStr.orElse(EString())
-                    let rs = rightStr.orElse(EString())
-                    if (ls.isUTF8() && rs.isUTF8()) {
-                        let hasInlinedEnumPoison = l.tag == ExprTag.InlinedEnum || r.tag == ExprTag.InlinedEnum
-                        let joined = joinStrings(ls, rs, hasInlinedEnumPoison)
-                        return ExprFactory.string(joined.data, lhs.loc)
-                    }
+            if (rhs.tag == ExprTag.StringExpr) {
+                match (lhs.value) {
+                    case ls: EString =>
+                        match (rhs.value) {
+                            case rs: EString =>
+                                if (ls.isUTF8() && rs.isUTF8()) {
+                                    let hasInlinedEnumPoison = l.tag == ExprTag.InlinedEnum || r.tag == ExprTag.InlinedEnum
+                                    let joined = joinStrings(ls, rs, hasInlinedEnumPoison)
+                                    return ExprFactory.string(joined.data, lhs.loc)
+                                }
+                            case _ => ()
+                        }
+                    case _ => ()
                 }
             }
 
@@ -104,39 +112,36 @@ public func foldStringAddition(l: ASTNode, r: ASTNode, kind: FoldStringAdditionK
             }
 
             // 空字符串 + x => x (如果 x 是字符串类型)
-            let leftStr2 = lhs.value as? EString
-            if (leftStr2.isSome()) {
-                let ls = leftStr2.orElse(EString())
-                if (ls.len() == Int64(0) && ExprFactory.knownPrimitive(rhs) == PrimitiveType.String) {
-                    return rhs
-                }
+            match (lhs.value) {
+                case ls: EString =>
+                    if (ls.len() == Int64(0) && ExprFactory.knownPrimitive(rhs) == PrimitiveType.String) {
+                        return rhs
+                    }
+                case _ => ()
             }
 
             return None
-        }
 
-        case ExprTag.Template => {
+        case ExprTag.Template =>
             // 模板字符串与右侧连接
             // `foo${bar}` + "baz" => `foo${bar}baz`
             // 简化处理
-            let rhsStr = ExprFactory.toStringExprWithoutSideEffects(rhs)
-            if (rhsStr.isSome()) {
-                rhs = rhsStr.orElse(rhs)
+            if (let Some(rhsStr2) <- ExprFactory.toStringExprWithoutSideEffects(rhs)) {
+                rhs = rhsStr2
             }
             return None
-        }
 
         case _ => ()
     }
 
     // x + "" => x (如果 x 是字符串)
-    if (rhs.tag == ExprTag.String) {
-        let rightStr = rhs.value as? EString
-        if (rightStr.isSome()) {
-            let rs = rightStr.orElse(EString())
-            if (rs.len() == Int64(0) && ExprFactory.knownPrimitive(lhs) == PrimitiveType.String) {
-                return lhs
-            }
+    if (rhs.tag == ExprTag.StringExpr) {
+        match (rhs.value) {
+            case rs: EString =>
+                if (rs.len() == Int64(0) && ExprFactory.knownPrimitive(lhs) == PrimitiveType.String) {
+                    return lhs
+                }
+            case _ => ()
         }
     }
 

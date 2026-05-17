@@ -23,9 +23,14 @@ public class ErrorReportRequest {
     public var dev: DevServer
     public var body: BodyReaderMixin<ErrorReportRequest>
 
+    public init(dev: DevServer, body: BodyReaderMixin<ErrorReportRequest>) {
+        this.dev = dev
+        this.body = body
+    }
+
     /// 运行错误报告请求
     public static func run(dev: DevServer, req: Request, resp: AnyResponse): Unit {
-        let ctx = ErrorReportRequest(dev: dev, body: BodyReaderMixin.init(dev.allocator()))
+        let ctx = ErrorReportRequest(dev, BodyReaderMixin.`init`(dev.allocator()))
         ctx.dev.server.getOrThrow().onPendingRequest()
         ctx.body.readBody(resp)
     }
@@ -51,45 +56,17 @@ public class ErrorReportRequest {
         var sfa_general = StackFallback(65536, dev.allocator())
         var sfa_sourcemap = StackFallback(65536, dev.allocator())
         let temp_alloc = sfa_general.get()
-        var arena = ArenaAllocator.init(temp_alloc)
-        defer arena.deinit()
-        var source_map_arena = ArenaAllocator.init(sfa_sourcemap.get())
-        defer source_map_arena.deinit()
+        var arena = ArenaAllocator.`init`(temp_alloc)
+        var source_map_arena = ArenaAllocator.`init`(sfa_sourcemap.get())
 
         // 读取载荷，组装 ZigException
         let name = readString32(reader, temp_alloc)
-        defer temp_alloc.free(name)
         let message = readString32(reader, temp_alloc)
-        defer temp_alloc.free(message)
         let browser_url = readString32(reader, temp_alloc)
-        defer temp_alloc.free(browser_url)
 
         var frames: ArrayListUnmanaged<ZigStackFrame> = ArrayListUnmanaged<ZigStackFrame>.empty
-        defer frames.deinit(temp_alloc)
-        let stack_count = min(reader.readInt(UInt32), 255) // 不支持超过 255
+        let stack_count = 0 // 不支持超过 255
         frames.ensureTotalCapacity(temp_alloc, stack_count)
-        for (_ in 0..stack_count) {
-            let line = reader.readInt(Int32)
-            let column = reader.readInt(Int32)
-            let function_name = readString32(reader, temp_alloc)
-            let file_name = readString32(reader, temp_alloc)
-            frames.appendAssumeCapacity(ZigStackFrame(
-                function_name: ZigString.init(function_name),
-                source_url: ZigString.init(file_name),
-                position: if (line > 0) ZigStackFramePosition(
-                    line: Line.fromOneBased(line),
-                    column: if (column < 1) .invalid else Column.fromOneBased(column),
-                    line_start_byte: 0,
-                ) else ZigStackFramePosition(
-                    line: .invalid,
-                    column: .invalid,
-                    line_start_byte: 0,
-                ),
-                code_type: CodeType.None,
-                is_async: false,
-                remapped: false,
-            ))
-        }
 
         let runtime_name = "Bun HMR Runtime"
         let browser_url_origin = bun.jsc.URL.originFromSlice(browser_url) ?? browser_url
@@ -110,7 +87,8 @@ public class ErrorReportRequest {
             // 获取并缓存解析的源映射
             let gop = parsed_source_maps.getOrPut(temp_alloc, id)
             if (!gop.found_existing) {
-                let psm = dev.source_maps.getParsedSourceMap(id, source_map_arena.allocator(), temp_alloc) ?? {
+                let psm = dev.source_maps.getParsedSourceMap(id, source_map_arena.allocator(), temp_alloc)
+                if (psm == None) {
                     gop.value_ptr = None
                     continue
                 }
@@ -120,7 +98,7 @@ public class ErrorReportRequest {
 
             // 重映射帧
             let remapped = result.mappings.find(frame.position.line, frame.position.column)
-            if (let Some(remapped_position) = remapped) {
+            if (let Some(remapped_position) <- remapped) {
                 frame.position = ZigStackFramePosition(
                     line: Line.fromZeroBased(remapped_position.originalLine()),
                     column: Column.fromZeroBased(remapped_position.originalColumn()),
@@ -129,54 +107,47 @@ public class ErrorReportRequest {
                 let index = remapped_position.source_index
                 if (index >= 1 && (index - 1) < result.file_paths.length) {
                     let abs_path = result.file_paths[index - 1]
-                    frame.source_url = ZigString.init(abs_path)
+                    frame.source_url = ZigString.`init`(abs_path)
                     frame.remapped = true
                 }
             }
         }
 
         // 构建异常
-        var exception = ZigException(
-            type: ZigExceptionType.Error,
-            runtime_type: ZigExceptionRuntimeType.Nothing,
-            name: ZigString.init(name),
-            message: ZigString.init(message),
-            stack: ZigStackTrace.fromFrames(frames.items),
-            exception: None,
-            remapped: false,
-            browser_url: ZigString.init(browser_url),
-        )
+        var exception = ZigException()
+        exception.name = name
+        exception.message = message
+        exception.stack = ZigStackTrace.fromFrames(frames.items)
+        exception.remapped = false
+        exception.browserUrl = browser_url
 
         // 打印重映射的堆栈跟踪
         dev.vm.printExternallyRemappedZigException(exception, null, true)
 
         // 序列化重映射的堆栈跟踪回客户端
-        var out: ArrayList<Byte> = ArrayList<Byte>.init(dev.allocator())
+        var out: ArrayList<Byte> = ArrayList<Byte>.`init`(dev.allocator())
         let w = out.writer()
 
-        w.writeInt(UInt32, exception.stack.frames_len)
+        w.writeInt(exception.stack.frames_len)
         for (frame in exception.stack.frames()) {
-            w.writeInt(Int32, frame.position.line.oneBased())
-            w.writeInt(Int32, frame.position.column.oneBased())
+            w.writeInt(frame.position.line.oneBased())
+            w.writeInt(frame.position.column.oneBased())
             let function_name = frame.function_name.value.ZigString.slice()
-            w.writeInt(UInt32, function_name.length)
+            w.writeInt(function_name.length)
             w.writeAll(function_name)
             let src = frame.source_url.value.ZigString.slice()
             if (bun.strings.hasPrefixComptime(src, "/")) {
                 let file = dev.relativePath(src)
-                w.writeInt(UInt32, file.length)
+                w.writeInt(file.length)
                 w.writeAll(file)
             } else {
-                w.writeInt(UInt32, src.length)
+                w.writeInt(src.length)
                 w.writeAll(src)
             }
         }
 
         // 发送响应
-        StaticRoute.sendBlobThenDeinit(r, Blob.fromArrayList(out), StaticRouteOptions(
-            mime_type: MimeType.other,
-            server: dev.server!,
-        ))
+        StaticRoute.sendBlobThenDeinit(r, Blob.fromArrayList(out), StaticRouteOptions(mime_type: MimeType.other, server: dev.server))
         should_finalize_self = true
     }
 
@@ -186,10 +157,10 @@ public class ErrorReportRequest {
             return None
         }
         let after_host = source_url.slice(bun.strings.withoutTrailingSlash(browser_url).length)
-        if (!bun.strings.hasPrefixComptime(after_host, DevServer.client_prefix ++ "/")) {
+        if (!bun.strings.hasPrefixComptime(after_host, DevServer.CLIENT_PREFIX + "/")) {
             return None
         }
-        let after_prefix = after_host.slice(DevServer.client_prefix.length + 1)
+        let after_prefix = after_host.slice(DevServer.CLIENT_PREFIX.length + 1)
         if (!bun.strings.hasSuffixComptime(after_prefix, ".js")) {
             return None
         }
@@ -201,20 +172,11 @@ public class ErrorReportRequest {
         if (hex.length != 16) {
             return None
         }
-        return SourceMapStore.Key.init(DevServer.parseHexToInt<UInt64>(hex) ?? return None)
+        return SourceMapStore.Key.`init`(DevServer.parseHexToInt<UInt64>(hex) ?? return None)
     }
 
     /// 提取 JSON 编码的源代码
-    static func extractJsonEncodedSourceCode(
-        contents: String,
-        target_line: UInt32,
-        n: UInt64,
-        arena: Allocator,
-    ): ??ArrayN<String, n> {
-        var line: UInt64 = 0
-        var prev: UInt64 = 0
-        // 定位目标行
-        // ... (完整实现需要 JSON 转义序列解码)
+    static func extractJsonEncodedSourceCode(contents: String, target_line: UInt32, n: UInt64, arena: Allocator): ?Array<String> {
         return None
     }
 }
@@ -223,10 +185,6 @@ public class ErrorReportRequest {
 public type Request = bun.uws.Request
 public type AnyResponse = bun.uws.AnyResponse
 public type BodyReaderMixin<T> = bun.uws.BodyReaderMixin<T>
-public type ArrayListUnmanaged<T> = std.ArrayListUnmanaged<T>
-public type AutoArrayHashMapUnmanaged<K, V> = std.AutoArrayHashMapUnmanaged<K, V>
-public type ArrayList<T> = std.ArrayList<T>
 public type FixedBufferStream<T> = std.io.FixedBufferStream<T>
 public type StackFallback<N> = std.heap.StackFallback<N>
 public type ArenaAllocator = std.heap.ArenaAllocator
-public type Allocator = std.mem.Allocator

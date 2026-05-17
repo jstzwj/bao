@@ -5,6 +5,7 @@
 package bao_sys
 
 import bao_core.*
+import bao_collections.*
 
 // ============================================================================
 // DNS C FFI 声明
@@ -48,7 +49,7 @@ public class DnsResult {
 }
 
 /// DNS 查询类型 - 对应 Bun DNS 查询选项
-public enum DnsRecordType {
+public enum BasicDnsRecordType {
     | A     // IPv4
     | AAAA  // IPv6
     | CNAME // 规范名
@@ -66,7 +67,7 @@ public enum DnsRecordType {
 // ============================================================================
 
 /// DNS 解析器 - 对应 Bun DNS resolver
-public class DnsResolver {
+public class BasicDnsResolver {
     /// 解析主机名到 IPv4/IPv6 地址
     /// 对应 Bun: dns.lookup(hostname, options)
     public static func lookup(hostname: String, port: UInt16): SysMaybe<Array<SocketAddr>> {
@@ -85,7 +86,7 @@ public class DnsResolver {
             memset(hintsPtr, 0, UIntNative(64))
             let familyPtr = CPointer<Int32>(hintsPtr)
             familyPtr.write(Int32(0))  // AF_UNSPEC
-            let sockTypePtr = CPointer<Int32>(hintsPtr) + IntNative(1)
+            let sockTypePtr = CPointer<Int32>(hintsPtr) + Int64(1)
             sockTypePtr.write(Int32(1))  // SOCK_STREAM
 
             let rc = getaddrinfo(nodePtr, servicePtr, hintsPtr,
@@ -104,33 +105,43 @@ public class DnsResolver {
             var count = 0
             while (!currentPtr.isNull() && count < 64) {
                 // 读取 ai_family (偏移 4)
-                let familyPtr2 = CPointer<Int32>(currentPtr) + IntNative(1)
+                let familyPtr2 = CPointer<Int32>(currentPtr) + Int64(1)
                 let family = familyPtr2.read()
 
                 // 读取 ai_addr (偏移 24, 指针大小 8)
-                let addrPtrPtr = CPointer<CPointer<Unit>>(currentPtr) + IntNative(3)
+                let addrPtrPtr = CPointer<CPointer<Unit>>(currentPtr) + Int64(3)
                 let addrPtr = addrPtrPtr.read()
 
                 if (!addrPtr.isNull()) {
                     if (family == 2) {
                         // AF_INET: sockaddr_in
                         // sin_port 在偏移 2, sin_addr 在偏移 4
-                        let portNetPtr = CPointer<UInt16>(addrPtr) + IntNative(1)
-                        let addrBytePtr = CPointer<UInt8>(addrPtr) + IntNative(4)
+                        let portNetPtr = CPointer<UInt16>(addrPtr) + Int64(1)
+                        let addrBytePtr = CPointer<UInt8>(addrPtr) + Int64(4)
                         let resolvedPort = ntohs(portNetPtr.read())
-                        let a = UInt8(Int32((CPointer<UInt8>(addrPtr) + IntNative(4)).read()))
-                        let b = UInt8(Int32((CPointer<UInt8>(addrPtr) + IntNative(5)).read()))
-                        let c = UInt8(Int32((CPointer<UInt8>(addrPtr) + IntNative(6)).read()))
-                        let d = UInt8(Int32((CPointer<UInt8>(addrPtr) + IntNative(7)).read()))
+                        let a = UInt8(Int32((CPointer<UInt8>(addrPtr) + Int64(4)).read()))
+                        let b = UInt8(Int32((CPointer<UInt8>(addrPtr) + Int64(5)).read()))
+                        let c = UInt8(Int32((CPointer<UInt8>(addrPtr) + Int64(6)).read()))
+                        let d = UInt8(Int32((CPointer<UInt8>(addrPtr) + Int64(7)).read()))
                         results.append(SocketAddr.V4(SocketAddrV4(resolvedPort, a, b, c, d)))
                     } else if (family == 10) {
                         // AF_INET6: sockaddr_in6
-                        results.append(SocketAddr.V6(SocketAddrV6(port)))
+                        let portNetPtr = CPointer<UInt16>(addrPtr) + Int64(1)
+                        let flowPtr = CPointer<UInt32>(CPointer<UInt8>(addrPtr) + Int64(4))
+                        let addrBytePtr = CPointer<UInt8>(addrPtr) + Int64(8)
+                        let scopePtr = CPointer<UInt32>(CPointer<UInt8>(addrPtr) + Int64(24))
+                        let v6 = SocketAddrV6(ntohs(portNetPtr.read()))
+                        v6.flowInfo = ntohl(flowPtr.read())
+                        for (i in 0..16) {
+                            v6.addr[i] = (addrBytePtr + i).read()
+                        }
+                        v6.scopeId = ntohl(scopePtr.read())
+                        results.append(SocketAddr.V6(v6))
                     }
                 }
 
                 // 读取 ai_next (偏移 32)
-                let nextPtrPtr = CPointer<CPointer<Unit>>(currentPtr) + IntNative(4)
+                let nextPtrPtr = CPointer<CPointer<Unit>>(currentPtr) + Int64(4)
                 currentPtr = nextPtrPtr.read()
                 count += 1
             }
@@ -138,7 +149,7 @@ public class DnsResolver {
             freeaddrinfo(CPointer<Unit>(CPointer<CPointer<Unit>>(resPtr).read()))
             free(resPtr)
         }
-        return SysMaybe<Array<SocketAddr>>.Ok(results.toArray())
+        return SysMaybe<Array<SocketAddr>>.Ok(results.toOwnedSlice())
     }
 
     /// 仅解析 IPv4
@@ -154,7 +165,7 @@ public class DnsResolver {
                         case _ => ()
                     }
                 }
-                return SysMaybe<Array<SocketAddrV4>>.Ok(v4.toArray())
+                return SysMaybe<Array<SocketAddrV4>>.Ok(v4.toOwnedSlice())
         }
     }
 
@@ -171,7 +182,7 @@ public class DnsResolver {
                         case _ => ()
                     }
                 }
-                return SysMaybe<Array<SocketAddrV6>>.Ok(v6.toArray())
+                return SysMaybe<Array<SocketAddrV6>>.Ok(v6.toOwnedSlice())
         }
     }
 

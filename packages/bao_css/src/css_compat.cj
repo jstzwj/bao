@@ -235,7 +235,7 @@ public enum CompatFeature {
     /// 严格翻译自 Feature.isCompatible()
     /// 返回 true 表示所有目标浏览器都支持此特性
     public func isCompatible(browsers: CssBrowsers): Bool {
-        switch (this) {
+        match (this) {
             case abs_function => isCompatible_abs_function(browsers)
             case accent_system_color => isCompatible_accent_system_color(browsers)
             case afar_list_style_type => isCompatible_afar_list_style_type(browsers)
@@ -510,17 +510,17 @@ public enum CompatFeature {
 
 /// 兼容性检查: abs_function
 func isCompatible_abs_function(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(7733248)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(984064)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(984064)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(7733248)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(984064)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(984064)) { return false } }
     return true
 }
 
 /// 兼容性检查: accent_system_color
 func isCompatible_accent_system_color(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(6750208)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(1049856)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(1049856)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(6750208)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(1049856)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(1049856)) { return false } }
     return true
 }
 
@@ -544,47 +544,47 @@ func isCompatible_amharic_list_style_type(browsers: CssBrowsers): Bool {
 
 /// 兼容性检查: anchor_size_size
 func isCompatible_anchor_size_size(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(8192000)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(8192000)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(5439488)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(8192000)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(8192000)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(8192000)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(5439488)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(8192000)) { return false } }
     return true
 }
 
 /// 兼容性检查: animation_timeline_shorthand
 func isCompatible_animation_timeline_shorthand(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(7536640)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(7536640)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(5046272)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(1507328)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(7536640)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(7536640)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(7536640)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(5046272)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(1507328)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(7536640)) { return false } }
     return true
 }
 
 /// 兼容性检查: any_link
 func isCompatible_any_link(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.edge) { if (version < UInt32(5177344)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(3276800)) { return false } }
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(4259840)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(589824)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(3407872)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(589824)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(8585216)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(590336)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(3276800)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(4259840)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(589824)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(3407872)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(589824)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(8585216)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(590336)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: any_pseudo
 func isCompatible_any_pseudo(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(1179648)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(5177344)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(262144)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(917504)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(327680)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(327680)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(65536)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(2424832)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(2424832)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
@@ -603,40 +603,40 @@ func isCompatible_armenian_list_style_type(browsers: CssBrowsers): Bool {
 
 /// 兼容性检查: asterisks_list_style_type
 func isCompatible_asterisks_list_style_type(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(1179648)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(5963776)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(917504)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(327936)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(327680)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(65536)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(263168)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5963776)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(327936)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(263168)) { return false } }
     return true
 }
 
 /// 兼容性检查: auto_size
 func isCompatible_auto_size(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(1179648)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(786432)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(262144)) { return false } }
-    if (let Some(version) = browsers.ie) { if (version < UInt32(720896)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(917504)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(65536)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(65536)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(65536)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(263168)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(786432)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.ie) { if (version < UInt32(720896)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(263168)) { return false } }
     return true
 }
 
 /// 兼容性检查: autofill
 func isCompatible_autofill(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(7208960)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(7208960)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(5636096)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(6291456)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(983040)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(983040)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(1376256)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(8585216)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(7208960)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(7208960)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(5636096)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(6291456)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(983040)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(983040)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(1376256)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(8585216)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
@@ -655,42 +655,42 @@ func isCompatible_binary_list_style_type(browsers: CssBrowsers): Bool {
 
 /// 兼容性检查: border_image_repeat_round
 func isCompatible_border_image_repeat_round(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(1966080)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(786432)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(983040)) { return false } }
-    if (let Some(version) = browsers.ie) { if (version < UInt32(720896)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(1179648)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(590080)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(590592)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(131072)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(263168)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1966080)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(786432)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(983040)) { return false } }
+    if (let Some(version) <- browsers.ie) { if (version < UInt32(720896)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(590080)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(590592)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(131072)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(263168)) { return false } }
     return true
 }
 
 /// 兼容性检查: border_image_repeat_space
 func isCompatible_border_image_repeat_space(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(3670016)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(786432)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(3276800)) { return false } }
-    if (let Some(version) = browsers.ie) { if (version < UInt32(720896)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(2818048)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(590080)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(590592)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(393216)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(3670016)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(3670016)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(786432)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(3276800)) { return false } }
+    if (let Some(version) <- browsers.ie) { if (version < UInt32(720896)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(2818048)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(590080)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(590592)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(393216)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(3670016)) { return false } }
     return true
 }
 
 /// 兼容性检查: calc_function
 func isCompatible_calc_function(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.edge) { if (version < UInt32(786432)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(1048576)) { return false } }
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(1703936)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(393472)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(983040)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(458752)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(8585216)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(786432)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(1048576)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1703936)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(393472)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(983040)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(458752)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(8585216)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(262144)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
@@ -703,43 +703,43 @@ func isCompatible_cambodian_list_style_type(browsers: CssBrowsers): Bool {
 
 /// 兼容性检查: cap_unit
 func isCompatible_cap_unit(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(7733248)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(7733248)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(6356992)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(5177344)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(1114624)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(1114624)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(1638400)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(7733248)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(7733248)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(7733248)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(6356992)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(1114624)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(1114624)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(1638400)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(7733248)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: case_insensitive
 func isCompatible_case_insensitive(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.edge) { if (version < UInt32(5177344)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(3080192)) { return false } }
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(3211264)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(589824)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(2359296)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(589824)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(8585216)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(3080192)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(3211264)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(589824)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(2359296)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(589824)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(8585216)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(327680)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: ch_unit
 func isCompatible_ch_unit(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(1769472)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(786432)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(262144)) { return false } }
-    if (let Some(version) = browsers.ie) { if (version < UInt32(589824)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(983040)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(458752)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(458752)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(66816)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(263168)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1769472)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(786432)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.ie) { if (version < UInt32(589824)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(983040)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(458752)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(458752)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(66816)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(263168)) { return false } }
     return true
 }
 
@@ -751,14 +751,14 @@ func isCompatible_circle_list_style_type(browsers: CssBrowsers): Bool {
 
 /// 兼容性检查: cjk_decimal_list_style_type
 func isCompatible_cjk_decimal_list_style_type(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(5963776)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(5963776)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(1835008)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(4194304)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(983040)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(983040)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(1048576)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(5963776)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(5963776)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5963776)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(1835008)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(4194304)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(983040)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(983040)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(1048576)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(5963776)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
@@ -777,83 +777,83 @@ func isCompatible_cjk_heavenly_stem_list_style_type(browsers: CssBrowsers): Bool
 
 /// 兼容性检查: clamp_function
 func isCompatible_clamp_function(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(5177344)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(5177344)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(5177344)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(3735552)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(852224)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(852992)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(786432)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(3735552)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(852224)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(852992)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(786432)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(5177344)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: color_function
 func isCompatible_color_function(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(7274496)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(7274496)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(7405568)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(4915200)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(655616)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(656128)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(1441792)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(7274496)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(7274496)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(7274496)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(7405568)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(4915200)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(655616)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(656128)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(1441792)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(7274496)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: conic_gradient
 func isCompatible_conic_gradient(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(4521984)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(5177344)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(5439488)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(3145728)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(786688)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(786944)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(655360)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(4521984)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(4521984)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(5439488)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(3145728)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(786688)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(786944)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(655360)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(4521984)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: container_query_length_units
 func isCompatible_container_query_length_units(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(6881280)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(6881280)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(7208960)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(4718592)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(1048576)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(1048576)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(1310720)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(6881280)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(6881280)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(6881280)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(7208960)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(4718592)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(1048576)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(1048576)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(1310720)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(6881280)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: cue
 func isCompatible_cue(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(1703936)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(5177344)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(3604480)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(917504)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(458752)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(458752)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(66816)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(263168)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1703936)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(3604480)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(458752)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(458752)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(66816)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(263168)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: cue_function
 func isCompatible_cue_function(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(1703936)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(5177344)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(917504)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(458752)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(458752)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(66816)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(263168)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1703936)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(458752)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(458752)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(66816)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(263168)) { return false } }
     return true
 }
 
@@ -877,14 +877,14 @@ func isCompatible_decimal_list_style_type(browsers: CssBrowsers): Bool {
 
 /// 兼容性检查: default_pseudo
 func isCompatible_default_pseudo(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.edge) { if (version < UInt32(5177344)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(262144)) { return false } }
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(3342336)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(655616)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(2490368)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(656128)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(8585216)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(3342336)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(655616)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(2490368)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(656128)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(8585216)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(327680)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
@@ -897,99 +897,99 @@ func isCompatible_devanagari_list_style_type(browsers: CssBrowsers): Bool {
 
 /// 兼容性检查: dialog
 func isCompatible_dialog(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.edge) { if (version < UInt32(5177344)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(6422528)) { return false } }
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(2424832)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(984064)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(1572864)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(984064)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(8585216)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(6422528)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(2424832)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(984064)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(1572864)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(984064)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(8585216)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(262144)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: dir_selector
 func isCompatible_dir_selector(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.edge) { if (version < UInt32(7864320)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(3211264)) { return false } }
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(7864320)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(1049600)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(6946816)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(1049600)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(8585216)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(1638400)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(7864320)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(3211264)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(7864320)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(1049600)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(6946816)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(1049600)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(8585216)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(1638400)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: disc_list_style_type
 func isCompatible_disc_list_style_type(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(1179648)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(786432)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(262144)) { return false } }
-    if (let Some(version) = browsers.ie) { if (version < UInt32(262144)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(655616)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(65536)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(65536)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(65536)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(263168)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(786432)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.ie) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(655616)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(263168)) { return false } }
     return true
 }
 
 /// 兼容性检查: disclosure_closed_list_style_type
 func isCompatible_disclosure_closed_list_style_type(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(5832704)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(5832704)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(2162688)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(4128768)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(983040)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(983040)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(983040)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(5832704)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(5832704)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5832704)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(2162688)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(4128768)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(983040)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(983040)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(983040)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(5832704)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: disclosure_open_list_style_type
 func isCompatible_disclosure_open_list_style_type(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(5832704)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(5832704)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(2162688)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(4128768)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(983040)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(983040)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(983040)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(5832704)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(5832704)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5832704)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(2162688)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(4128768)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(983040)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(983040)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(983040)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(5832704)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: double_position_gradients
 func isCompatible_double_position_gradients(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(4653056)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(5177344)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(4194304)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(3276800)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(786688)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(786944)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(655360)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(4653056)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(4653056)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(4194304)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(3276800)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(786688)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(786944)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(655360)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(4653056)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: em_unit
 func isCompatible_em_unit(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(1179648)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(786432)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(262144)) { return false } }
-    if (let Some(version) = browsers.ie) { if (version < UInt32(196608)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(655616)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(65536)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(65536)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(65536)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(786432)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.ie) { if (version < UInt32(196608)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(655616)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(65536)) { return false } }
     return true
 }
 
@@ -1091,36 +1091,36 @@ func isCompatible_ex_unit(browsers: CssBrowsers): Bool {
 
 /// 兼容性检查: extended_system_fonts
 func isCompatible_extended_system_fonts(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.safari) { if (version < UInt32(852224)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(852992)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(852224)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(852992)) { return false } }
     return true
 }
 
 /// 兼容性检查: first_letter
 func isCompatible_first_letter(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.ie) { if (version < UInt32(589824)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(786432)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(197888)) { return false } }
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(589824)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(327936)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(722432)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(327680)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(196608)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.ie) { if (version < UInt32(589824)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(786432)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(197888)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(589824)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(327936)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(722432)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(196608)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(262144)) { return false } }
     return true
 }
 
 /// 兼容性检查: first_line
 func isCompatible_first_line(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.ie) { if (version < UInt32(589824)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(786432)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(131072)) { return false } }
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(262144)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(196864)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(589824)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(197120)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(131328)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.ie) { if (version < UInt32(589824)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(786432)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(131072)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(196864)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(589824)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(197120)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(131328)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(262144)) { return false } }
     return true
 }
 
@@ -1131,178 +1131,178 @@ func isCompatible_fit_content_function_size(browsers: CssBrowsers): Bool {
 
 /// 兼容性检查: fit_content_size
 func isCompatible_fit_content_size(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(1638400)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(5177344)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(262144)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(917504)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(458752)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(458752)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(66816)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(263168)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1638400)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(458752)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(458752)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(66816)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(263168)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: focus_visible
 func isCompatible_focus_visible(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.edge) { if (version < UInt32(5636096)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(5570560)) { return false } }
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(5636096)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(984064)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(4718592)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(984064)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(8585216)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5636096)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(5570560)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(5636096)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(984064)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(4718592)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(984064)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(8585216)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(917504)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: focus_within
 func isCompatible_focus_within(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.edge) { if (version < UInt32(5177344)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(3407872)) { return false } }
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(3932160)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(655616)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(3080192)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(656128)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(8585216)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(524800)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(3407872)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(3932160)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(655616)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(3080192)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(656128)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(8585216)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(524800)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: font_family_system_ui
 func isCompatible_font_family_system_ui(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.edge) { if (version < UInt32(5177344)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(6029312)) { return false } }
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(3670016)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(720896)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(2818048)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(720896)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(8585216)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(393728)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(6029312)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(3670016)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(720896)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(2818048)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(720896)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(8585216)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(393728)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: font_size_rem
 func isCompatible_font_size_rem(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(2752512)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(786432)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(2031616)) { return false } }
-    if (let Some(version) = browsers.ie) { if (version < UInt32(589824)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(1835008)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(458752)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(458752)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(262144)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(2752512)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(2752512)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(786432)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(2031616)) { return false } }
+    if (let Some(version) <- browsers.ie) { if (version < UInt32(589824)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(1835008)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(458752)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(458752)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(2752512)) { return false } }
     return true
 }
 
 /// 兼容性检查: font_size_x_x_x_large
 func isCompatible_font_size_x_x_x_large(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(5177344)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(5177344)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(5177344)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(3735552)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(1049600)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(1049600)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(786432)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(3735552)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(1049600)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(1049600)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(786432)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(5177344)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: font_stretch_percentage
 func isCompatible_font_stretch_percentage(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(4063232)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(1179648)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(3997696)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(3014656)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(721152)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(721664)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(524288)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(4063232)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(4063232)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(3997696)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(3014656)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(721152)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(721664)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(524288)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(4063232)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: font_style_oblique_angle
 func isCompatible_font_style_oblique_angle(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(4063232)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(5177344)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(3997696)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(3014656)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(721152)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(721664)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(524288)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(4063232)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(4063232)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(3997696)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(3014656)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(721152)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(721664)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(524288)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(4063232)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: font_weight_number
 func isCompatible_font_weight_number(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(4063232)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(1114112)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(3997696)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(3014656)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(720896)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(720896)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(524288)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(4063232)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(4063232)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(1114112)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(3997696)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(3014656)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(720896)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(720896)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(524288)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(4063232)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: footnotes_list_style_type
 func isCompatible_footnotes_list_style_type(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(1179648)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(5963776)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(917504)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(327936)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(327680)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(65536)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(263168)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5963776)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(327936)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(263168)) { return false } }
     return true
 }
 
 /// 兼容性检查: form_validation
 func isCompatible_form_validation(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.ie) { if (version < UInt32(655360)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(786432)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(262144)) { return false } }
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(655360)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(655616)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(655360)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(656128)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(263171)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.ie) { if (version < UInt32(655360)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(786432)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(655360)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(655616)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(655360)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(656128)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(263171)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(262144)) { return false } }
     return true
 }
 
 /// 兼容性检查: fullscreen
 func isCompatible_fullscreen(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.edge) { if (version < UInt32(5177344)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(4194304)) { return false } }
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(4653056)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(1049600)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(786688)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(655616)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(4194304)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(4653056)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(1049600)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(786688)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(655616)) { return false } }
     return true
 }
 
 /// 兼容性检查: gencontent
 func isCompatible_gencontent(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.ie) { if (version < UInt32(589824)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(786432)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(131072)) { return false } }
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(262144)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(196864)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(589824)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(197120)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(131328)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.ie) { if (version < UInt32(589824)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(786432)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(131072)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(196864)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(589824)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(197120)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(131328)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(262144)) { return false } }
     return true
 }
 
@@ -1314,14 +1314,14 @@ func isCompatible_georgian_list_style_type(browsers: CssBrowsers): Bool {
 
 /// 兼容性检查: gradient_interpolation_hints
 func isCompatible_gradient_interpolation_hints(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(2621440)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(5177344)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(2359296)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(1769472)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(458752)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(458752)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(262144)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(2621440)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(2621440)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(2359296)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(1769472)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(458752)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(458752)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(2621440)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
@@ -1340,14 +1340,14 @@ func isCompatible_gurmukhi_list_style_type(browsers: CssBrowsers): Bool {
 
 /// 兼容性检查: has_selector
 func isCompatible_has_selector(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.edge) { if (version < UInt32(6881280)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(7929856)) { return false } }
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(6881280)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(984064)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(5963776)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(984064)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(8585216)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(1310720)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(6881280)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(7929856)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(6881280)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(984064)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(5963776)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(984064)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(8585216)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(1310720)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
@@ -1360,14 +1360,14 @@ func isCompatible_hebrew_list_style_type(browsers: CssBrowsers): Bool {
 
 /// 兼容性检查: hex_alpha_colors
 func isCompatible_hex_alpha_colors(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.edge) { if (version < UInt32(5177344)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(3211264)) { return false } }
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(4063232)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(655360)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(3407872)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(655360)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(8585216)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(524800)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(3211264)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(4063232)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(655360)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(3407872)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(655360)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(8585216)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(524800)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
@@ -1386,98 +1386,98 @@ func isCompatible_hiragana_list_style_type(browsers: CssBrowsers): Bool {
 
 /// 兼容性检查: hypot_function
 func isCompatible_hypot_function(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(7864320)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(7864320)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(7733248)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(5242880)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(984064)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(984064)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(1638400)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(7864320)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(7864320)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(7864320)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(7733248)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(5242880)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(984064)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(984064)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(1638400)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(7864320)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: ic_unit
 func isCompatible_ic_unit(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(6946816)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(6946816)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(6356992)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(4718592)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(984064)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(984064)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(1310720)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(6946816)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(6946816)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(6946816)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(6356992)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(4718592)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(984064)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(984064)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(1310720)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(6946816)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: image_set
 func isCompatible_image_set(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(1638400)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(5177344)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(5767168)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(917504)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(393216)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(393216)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(66816)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(263168)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1638400)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(5767168)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(393216)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(393216)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(66816)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(263168)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: in_out_of_range
 func isCompatible_in_out_of_range(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.edge) { if (version < UInt32(5177344)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(3276800)) { return false } }
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(3473408)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(655616)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(2621440)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(656128)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(8585216)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(3276800)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(3473408)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(655616)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(2621440)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(656128)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(8585216)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(327680)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: indeterminate_pseudo
 func isCompatible_indeterminate_pseudo(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.edge) { if (version < UInt32(5177344)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(3342336)) { return false } }
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(2555904)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(655616)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(1703936)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(656128)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(8585216)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(3342336)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(2555904)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(655616)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(1703936)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(656128)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(8585216)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(262144)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: is_animatable_size
 func isCompatible_is_animatable_size(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(1703936)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(786432)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(1048576)) { return false } }
-    if (let Some(version) = browsers.ie) { if (version < UInt32(720896)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(917504)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(458752)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(458752)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(66816)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(263168)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1703936)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(786432)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(1048576)) { return false } }
+    if (let Some(version) <- browsers.ie) { if (version < UInt32(720896)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(458752)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(458752)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(66816)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(263168)) { return false } }
     return true
 }
 
 /// 兼容性检查: is_selector
 func isCompatible_is_selector(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.edge) { if (version < UInt32(5767168)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(5111808)) { return false } }
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(5767168)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(917504)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(4915200)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(917504)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(8585216)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(983040)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5767168)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(5111808)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(5767168)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(4915200)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(8585216)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(983040)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
@@ -1490,14 +1490,14 @@ func isCompatible_japanese_formal_list_style_type(browsers: CssBrowsers): Bool {
 
 /// 兼容性检查: japanese_informal_list_style_type
 func isCompatible_japanese_informal_list_style_type(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(5963776)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(5963776)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(262144)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(4194304)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(983040)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(983040)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(1048576)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(5963776)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(5963776)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5963776)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(4194304)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(983040)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(983040)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(1048576)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(5963776)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
@@ -1510,15 +1510,15 @@ func isCompatible_kannada_list_style_type(browsers: CssBrowsers): Bool {
 
 /// 兼容性检查: katakana_iroha_list_style_type
 func isCompatible_katakana_iroha_list_style_type(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(1179648)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(786432)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(262144)) { return false } }
-    if (let Some(version) = browsers.ie) { if (version < UInt32(720896)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(917504)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(65536)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(65536)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(65536)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(263168)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(786432)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.ie) { if (version < UInt32(720896)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(263168)) { return false } }
     return true
 }
 
@@ -1542,50 +1542,50 @@ func isCompatible_korean_hangul_formal_list_style_type(browsers: CssBrowsers): B
 
 /// 兼容性检查: korean_hanja_formal_list_style_type
 func isCompatible_korean_hanja_formal_list_style_type(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(2949120)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(5177344)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(1835008)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(2097152)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(983040)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(983040)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(327680)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(2949120)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(2949120)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(1835008)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(2097152)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(983040)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(983040)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(2949120)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: korean_hanja_informal_list_style_type
 func isCompatible_korean_hanja_informal_list_style_type(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(2949120)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(5177344)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(1835008)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(2097152)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(983040)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(983040)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(327680)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(2949120)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(2949120)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(1835008)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(2097152)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(983040)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(983040)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(2949120)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: lab_colors
 func isCompatible_lab_colors(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(7274496)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(7274496)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(7405568)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(4915200)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(983040)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(983040)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(1441792)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(7274496)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(7274496)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(7274496)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(7405568)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(4915200)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(983040)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(983040)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(1441792)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(7274496)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: lang_selector_list
 func isCompatible_lang_selector_list(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.safari) { if (version < UInt32(655616)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(656128)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(655616)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(656128)) { return false } }
     return true
 }
 
@@ -1597,54 +1597,54 @@ func isCompatible_lao_list_style_type(browsers: CssBrowsers): Bool {
 
 /// 兼容性检查: lh_unit
 func isCompatible_lh_unit(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(7143424)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(7143424)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(7864320)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(4849664)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(1049600)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(1049600)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(1376256)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(7143424)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(7143424)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(7143424)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(7864320)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(4849664)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(1049600)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(1049600)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(1376256)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(7143424)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: light_dark
 func isCompatible_light_dark(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(8060928)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(8060928)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(7864320)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(5373952)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(1115392)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(1115392)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(8060928)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(8060928)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(8060928)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(7864320)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(5373952)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(1115392)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(1115392)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(8060928)) { return false } }
     return true
 }
 
 /// 兼容性检查: linear_gradient
 func isCompatible_linear_gradient(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(1179648)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(786432)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(262144)) { return false } }
-    if (let Some(version) = browsers.ie) { if (version < UInt32(655360)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(720896)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(327936)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(327680)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(65536)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(2424832)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(786432)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.ie) { if (version < UInt32(655360)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(720896)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(327936)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(2424832)) { return false } }
     return true
 }
 
 /// 兼容性检查: logical_border_radius
 func isCompatible_logical_border_radius(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(5832704)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(5832704)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(4325376)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(4128768)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(983040)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(983040)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(983040)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(5832704)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(5832704)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5832704)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(4325376)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(4128768)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(983040)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(983040)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(983040)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(5832704)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
@@ -1657,112 +1657,112 @@ func isCompatible_logical_border_shorthand(browsers: CssBrowsers): Bool {
 
 /// 兼容性检查: logical_borders
 func isCompatible_logical_borders(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(4521984)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(5177344)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(2686976)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(3145728)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(786688)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(786944)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(655360)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(4521984)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(4521984)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(2686976)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(3145728)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(786688)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(786944)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(655360)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(4521984)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: logical_inset
 func isCompatible_logical_inset(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(5701632)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(5701632)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(4128768)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(4063232)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(917760)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(918784)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(917504)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(5701632)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(5701632)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5701632)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(4128768)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(4063232)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(917760)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(918784)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(5701632)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: logical_margin
 func isCompatible_logical_margin(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(4521984)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(5177344)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(2686976)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(3145728)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(786688)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(786944)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(655360)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(5701632)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(4521984)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(2686976)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(3145728)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(786688)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(786944)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(655360)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(5701632)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: logical_margin_shorthand
 func isCompatible_logical_margin_shorthand(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(5701632)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(5701632)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(4325376)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(4063232)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(917760)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(918784)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(917504)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(5701632)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(5701632)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5701632)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(4325376)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(4063232)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(917760)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(918784)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(5701632)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: logical_padding
 func isCompatible_logical_padding(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(4521984)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(5177344)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(2686976)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(3145728)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(786688)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(786944)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(655360)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(5701632)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(4521984)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(2686976)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(3145728)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(786688)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(786944)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(655360)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(5701632)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: logical_padding_shorthand
 func isCompatible_logical_padding_shorthand(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(5701632)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(5701632)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(4325376)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(4063232)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(917760)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(918784)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(917504)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(5701632)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(5701632)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5701632)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(4325376)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(4063232)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(917760)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(918784)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(5701632)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: logical_size
 func isCompatible_logical_size(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(3735552)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(5177344)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(2686976)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(2818048)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(786688)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(786944)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(327680)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(3735552)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(3735552)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(2686976)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(2818048)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(786688)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(786944)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(3735552)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: logical_text_align
 func isCompatible_logical_text_align(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(1179648)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(5177344)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(262144)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(917504)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(196864)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(131072)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(65536)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(2424832)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(196864)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(131072)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(2424832)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
@@ -1775,14 +1775,14 @@ func isCompatible_lower_alpha_list_style_type(browsers: CssBrowsers): Bool {
 
 /// 兼容性检查: lower_armenian_list_style_type
 func isCompatible_lower_armenian_list_style_type(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(1179648)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(5177344)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(2162688)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(917504)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(327936)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(327680)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(65536)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(263168)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(2162688)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(327936)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(263168)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
@@ -1801,15 +1801,15 @@ func isCompatible_lower_hexadecimal_list_style_type(browsers: CssBrowsers): Bool
 
 /// 兼容性检查: lower_latin_list_style_type
 func isCompatible_lower_latin_list_style_type(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(1179648)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(786432)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(262144)) { return false } }
-    if (let Some(version) = browsers.ie) { if (version < UInt32(524288)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(655616)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(65536)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(65536)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(327680)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(263168)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(786432)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.ie) { if (version < UInt32(524288)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(655616)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(263168)) { return false } }
     return true
 }
 
@@ -1833,128 +1833,128 @@ func isCompatible_malayalam_list_style_type(browsers: CssBrowsers): Bool {
 
 /// 兼容性检查: marker_pseudo
 func isCompatible_marker_pseudo(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.edge) { if (version < UInt32(5636096)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(4456448)) { return false } }
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(5636096)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(4718592)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(8585216)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5636096)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(4456448)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(5636096)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(4718592)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(8585216)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(917504)) { return false } }
     return true
 }
 
 /// 兼容性检查: max_content_size
 func isCompatible_max_content_size(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(1638400)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(5177344)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(262144)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(2818048)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(720896)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(720896)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(66816)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(263168)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1638400)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(2818048)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(720896)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(720896)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(66816)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(263168)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: max_function
 func isCompatible_max_function(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(5177344)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(5177344)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(5177344)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(3735552)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(721152)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(721664)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(786432)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(3735552)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(721152)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(721664)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(786432)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(5177344)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: media_interval_syntax
 func isCompatible_media_interval_syntax(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(6815744)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(6815744)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(6684672)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(4653056)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(1049600)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(1049600)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(1310720)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(6815744)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(6815744)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(6815744)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(6684672)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(4653056)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(1049600)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(1049600)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(1310720)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(6815744)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: media_range_syntax
 func isCompatible_media_range_syntax(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(6815744)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(6815744)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(4128768)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(4653056)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(1049600)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(1049600)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(1310720)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(6815744)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(6815744)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(6815744)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(4128768)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(4653056)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(1049600)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(1049600)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(1310720)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(6815744)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: min_content_size
 func isCompatible_min_content_size(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(3014656)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(5177344)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(262144)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(2162688)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(720896)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(720896)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(327680)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(3014656)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(3014656)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(2162688)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(720896)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(720896)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(3014656)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: min_function
 func isCompatible_min_function(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(5177344)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(5177344)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(5177344)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(3735552)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(721152)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(721664)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(786432)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(3735552)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(721152)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(721664)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(786432)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(5177344)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: mod_function
 func isCompatible_mod_function(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(8192000)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(8192000)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(7733248)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(5439488)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(984064)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(984064)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(8192000)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(8192000)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(8192000)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(7733248)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(5439488)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(984064)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(984064)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(8192000)) { return false } }
     return true
 }
 
 /// 兼容性检查: mongolian_list_style_type
 func isCompatible_mongolian_list_style_type(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(1179648)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(5177344)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(2162688)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(917504)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(327680)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(262656)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(65536)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(263168)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(2162688)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(262656)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(263168)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: moz_available_size
 func isCompatible_moz_available_size(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(262144)) { return false } }
     return true
 }
 
@@ -1966,68 +1966,68 @@ func isCompatible_myanmar_list_style_type(browsers: CssBrowsers): Bool {
 
 /// 兼容性检查: namespaces
 func isCompatible_namespaces(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.ie) { if (version < UInt32(589824)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(786432)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(131072)) { return false } }
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(262144)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(262144)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(589824)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(262656)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(131328)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.ie) { if (version < UInt32(589824)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(786432)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(131072)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(589824)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(262656)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(131328)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(262144)) { return false } }
     return true
 }
 
 /// 兼容性检查: nesting
 func isCompatible_nesting(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.edge) { if (version < UInt32(7864320)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(7667712)) { return false } }
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(7864320)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(1114624)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(6946816)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(1114624)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(8585216)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(7864320)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(7667712)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(7864320)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(1114624)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(6946816)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(1114624)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(8585216)) { return false } }
     return true
 }
 
 /// 兼容性检查: none_list_style_type
 func isCompatible_none_list_style_type(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(1179648)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(786432)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(5177344)) { return false } }
-    if (let Some(version) = browsers.ie) { if (version < UInt32(720896)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(917504)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(65536)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(65536)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(65536)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(263168)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(786432)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.ie) { if (version < UInt32(720896)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(263168)) { return false } }
     return true
 }
 
 /// 兼容性检查: not_selector_list
 func isCompatible_not_selector_list(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.edge) { if (version < UInt32(5767168)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(5505024)) { return false } }
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(5767168)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(589824)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(4915200)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(589824)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(8585216)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(983040)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5767168)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(5505024)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(5767168)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(589824)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(4915200)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(589824)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(8585216)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(983040)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: nth_child_of
 func isCompatible_nth_child_of(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(7274496)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(7274496)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(7405568)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(4915200)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(589824)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(589824)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(1441792)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(7274496)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(7274496)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(7274496)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(7405568)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(4915200)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(589824)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(589824)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(1441792)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(7274496)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
@@ -2040,29 +2040,29 @@ func isCompatible_octal_list_style_type(browsers: CssBrowsers): Bool {
 
 /// 兼容性检查: oklab_colors
 func isCompatible_oklab_colors(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(7274496)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(7274496)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(7405568)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(4915200)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(984064)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(984064)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(1441792)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(7274496)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(7274496)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(7274496)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(7405568)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(4915200)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(984064)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(984064)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(1441792)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(7274496)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: optional_pseudo
 func isCompatible_optional_pseudo(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.ie) { if (version < UInt32(655360)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(786432)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(262144)) { return false } }
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(983040)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(327680)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(983040)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(327680)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(131840)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.ie) { if (version < UInt32(655360)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(786432)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(983040)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(983040)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(131840)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(262144)) { return false } }
     return true
 }
 
@@ -2080,35 +2080,35 @@ func isCompatible_oromo_list_style_type(browsers: CssBrowsers): Bool {
 
 /// 兼容性检查: overflow_shorthand
 func isCompatible_overflow_shorthand(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(4456448)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(5177344)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(3997696)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(3145728)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(852224)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(852992)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(655360)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(4456448)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(4456448)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(3997696)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(3145728)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(852224)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(852992)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(655360)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(4456448)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: p3_colors
 func isCompatible_p3_colors(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.safari) { if (version < UInt32(655616)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(656128)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(655616)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(656128)) { return false } }
     return true
 }
 
 /// 兼容性检查: part_pseudo
 func isCompatible_part_pseudo(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(4784128)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(5177344)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(5177344)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(3407872)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(852224)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(852992)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(720896)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(4784128)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(4784128)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(3407872)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(852224)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(852992)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(720896)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(4784128)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
@@ -2121,111 +2121,111 @@ func isCompatible_persian_list_style_type(browsers: CssBrowsers): Bool {
 
 /// 兼容性检查: place_content
 func isCompatible_place_content(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(3866624)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(5177344)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(2949120)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(2818048)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(589824)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(589824)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(458752)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(3866624)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(3866624)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(2949120)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(2818048)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(589824)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(589824)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(458752)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(3866624)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: place_items
 func isCompatible_place_items(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(3866624)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(5177344)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(2949120)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(2818048)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(720896)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(720896)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(458752)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(3866624)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(3866624)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(2949120)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(2818048)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(720896)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(720896)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(458752)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(3866624)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: place_self
 func isCompatible_place_self(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(3866624)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(5177344)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(2949120)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(2818048)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(720896)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(720896)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(458752)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(3866624)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(3866624)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(2949120)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(2818048)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(720896)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(720896)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(458752)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(3866624)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: placeholder
 func isCompatible_placeholder(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.edge) { if (version < UInt32(5177344)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(3342336)) { return false } }
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(3735552)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(655616)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(2883584)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(656128)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(8585216)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(459264)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(3342336)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(3735552)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(655616)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(2883584)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(656128)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(8585216)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(459264)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: placeholder_shown
 func isCompatible_placeholder_shown(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.edge) { if (version < UInt32(5177344)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(3342336)) { return false } }
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(3080192)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(589824)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(2228224)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(589824)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(8585216)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(3342336)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(3080192)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(589824)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(2228224)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(589824)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(8585216)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(327680)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: q_unit
 func isCompatible_q_unit(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(4128768)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(5177344)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(3211264)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(3014656)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(852224)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(852992)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(524288)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(4128768)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(4128768)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(3211264)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(3014656)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(852224)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(852992)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(524288)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(4128768)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: radial_gradient
 func isCompatible_radial_gradient(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(1179648)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(786432)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(262144)) { return false } }
-    if (let Some(version) = browsers.ie) { if (version < UInt32(655360)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(786432)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(327936)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(327680)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(65536)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(2424832)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(786432)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.ie) { if (version < UInt32(655360)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(786432)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(327936)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(2424832)) { return false } }
     return true
 }
 
 /// 兼容性检查: rcap_unit
 func isCompatible_rcap_unit(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(7733248)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(7733248)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(5177344)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(1114624)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(1114624)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(1638400)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(7733248)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(7733248)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(7733248)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(1114624)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(1114624)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(1638400)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(7733248)) { return false } }
     return true
 }
 
@@ -2237,120 +2237,120 @@ func isCompatible_rch_unit(browsers: CssBrowsers): Bool {
 
 /// 兼容性检查: read_only_write
 func isCompatible_read_only_write(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.edge) { if (version < UInt32(851968)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(5111808)) { return false } }
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(2359296)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(589824)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(1507328)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(589824)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(8585216)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(851968)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(5111808)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(2359296)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(589824)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(1507328)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(589824)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(8585216)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(262144)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: rem_function
 func isCompatible_rem_function(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(8192000)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(8192000)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(7733248)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(5439488)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(984064)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(984064)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(8192000)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(8192000)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(8192000)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(7733248)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(5439488)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(984064)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(984064)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(8192000)) { return false } }
     return true
 }
 
 /// 兼容性检查: rem_unit
 func isCompatible_rem_unit(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(1179648)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(786432)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(262144)) { return false } }
-    if (let Some(version) = browsers.ie) { if (version < UInt32(589824)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(786432)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(327680)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(262144)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(65536)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(131072)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(786432)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.ie) { if (version < UInt32(589824)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(786432)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(131072)) { return false } }
     return true
 }
 
 /// 兼容性检查: repeating_conic_gradient
 func isCompatible_repeating_conic_gradient(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(4521984)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(5177344)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(5439488)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(3145728)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(786688)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(786944)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(655360)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(4521984)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(4521984)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(5439488)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(3145728)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(786688)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(786944)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(655360)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(4521984)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: repeating_linear_gradient
 func isCompatible_repeating_linear_gradient(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(1179648)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(786432)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(262144)) { return false } }
-    if (let Some(version) = browsers.ie) { if (version < UInt32(655360)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(720896)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(327936)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(327680)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(65536)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(2424832)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(786432)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.ie) { if (version < UInt32(655360)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(720896)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(327936)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(2424832)) { return false } }
     return true
 }
 
 /// 兼容性检查: repeating_radial_gradient
 func isCompatible_repeating_radial_gradient(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(1179648)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(786432)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(655360)) { return false } }
-    if (let Some(version) = browsers.ie) { if (version < UInt32(655360)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(786432)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(327936)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(327680)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(65536)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(263168)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(786432)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(655360)) { return false } }
+    if (let Some(version) <- browsers.ie) { if (version < UInt32(655360)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(786432)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(327936)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(263168)) { return false } }
     return true
 }
 
 /// 兼容性检查: rex_unit
 func isCompatible_rex_unit(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(7274496)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(7274496)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(4915200)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(1114624)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(1114624)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(1441792)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(7274496)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(7274496)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(7274496)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(4915200)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(1114624)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(1114624)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(1441792)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(7274496)) { return false } }
     return true
 }
 
 /// 兼容性检查: ric_unit
 func isCompatible_ric_unit(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(7274496)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(7274496)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(4915200)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(1114624)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(1114624)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(1441792)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(7274496)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(7274496)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(7274496)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(4915200)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(1114624)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(1114624)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(1441792)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(7274496)) { return false } }
     return true
 }
 
 /// 兼容性检查: rlh_unit
 func isCompatible_rlh_unit(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(7274496)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(7274496)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(7864320)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(4915200)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(1049600)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(1049600)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(1441792)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(7274496)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(7274496)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(7274496)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(7864320)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(4915200)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(1049600)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(1049600)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(1441792)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(7274496)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
@@ -2363,56 +2363,56 @@ func isCompatible_round_function(browsers: CssBrowsers): Bool {
 
 /// 兼容性检查: selection
 func isCompatible_selection(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.ie) { if (version < UInt32(589824)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(786432)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(4063232)) { return false } }
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(262144)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(196864)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(591104)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(263168)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.ie) { if (version < UInt32(589824)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(786432)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(4063232)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(196864)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(591104)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(263168)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(262144)) { return false } }
     if (browsers.ios_saf.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: selectors2
 func isCompatible_selectors2(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.ie) { if (version < UInt32(458752)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(786432)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(131072)) { return false } }
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(262144)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(196864)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(589824)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(197120)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(131328)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.ie) { if (version < UInt32(458752)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(786432)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(131072)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(196864)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(589824)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(197120)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(131328)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(262144)) { return false } }
     return true
 }
 
 /// 兼容性检查: selectors3
 func isCompatible_selectors3(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.ie) { if (version < UInt32(589824)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(786432)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(197888)) { return false } }
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(262144)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(197120)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(591104)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(197120)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(131328)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.ie) { if (version < UInt32(589824)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(786432)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(197888)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(197120)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(591104)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(197120)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(131328)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(262144)) { return false } }
     return true
 }
 
 /// 兼容性检查: shadowdomv1
 func isCompatible_shadowdomv1(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.edge) { if (version < UInt32(5177344)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(4128768)) { return false } }
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(3473408)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(655360)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(2621440)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(720896)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(8585216)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(393728)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(4128768)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(3473408)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(655360)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(2621440)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(720896)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(8585216)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(393728)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
@@ -2425,9 +2425,9 @@ func isCompatible_sidama_list_style_type(browsers: CssBrowsers): Bool {
 
 /// 兼容性检查: sign_function
 func isCompatible_sign_function(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(7733248)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(984064)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(984064)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(7733248)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(984064)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(984064)) { return false } }
     return true
 }
 
@@ -2451,29 +2451,29 @@ func isCompatible_somali_list_style_type(browsers: CssBrowsers): Bool {
 
 /// 兼容性检查: space_separated_color_notation
 func isCompatible_space_separated_color_notation(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(4259840)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(5177344)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(3407872)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(3080192)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(786688)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(786944)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(589824)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(4259840)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(4259840)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(3407872)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(3080192)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(786688)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(786944)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(589824)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(4259840)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: square_list_style_type
 func isCompatible_square_list_style_type(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(1179648)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(786432)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(262144)) { return false } }
-    if (let Some(version) = browsers.ie) { if (version < UInt32(262144)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(655616)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(65536)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(65536)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(65536)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(263168)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(786432)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.ie) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(655616)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(263168)) { return false } }
     return true
 }
 
@@ -2484,101 +2484,101 @@ func isCompatible_stretch_size(browsers: CssBrowsers): Bool {
 
 /// 兼容性检查: string_list_style_type
 func isCompatible_string_list_style_type(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(5177344)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(5177344)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(2555904)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(3735552)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(917760)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(918784)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(786432)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(2555904)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(3735552)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(917760)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(918784)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(786432)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(5177344)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: symbols_list_style_type
 func isCompatible_symbols_list_style_type(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(2293760)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(2293760)) { return false } }
     return true
 }
 
 /// 兼容性检查: tamil_list_style_type
 func isCompatible_tamil_list_style_type(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(5963776)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(5963776)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(262144)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(4194304)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(983040)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(983040)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(1048576)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(5963776)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(5963776)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5963776)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(4194304)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(983040)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(983040)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(1048576)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(5963776)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: telugu_list_style_type
 func isCompatible_telugu_list_style_type(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(1179648)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(5177344)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(262144)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(917504)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(327680)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(262656)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(65536)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(263168)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(262656)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(263168)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: text_decoration_thickness_percent
 func isCompatible_text_decoration_thickness_percent(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(5701632)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(5701632)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(5177344)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(4063232)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(1115136)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(1115136)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(917504)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(5701632)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(5701632)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5701632)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(4063232)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(1115136)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(1115136)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(5701632)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: text_decoration_thickness_shorthand
 func isCompatible_text_decoration_thickness_shorthand(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(5701632)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(5701632)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(5177344)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(4063232)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(917504)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(5701632)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(5701632)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5701632)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(4063232)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(5701632)) { return false } }
     return true
 }
 
 /// 兼容性检查: thai_list_style_type
 func isCompatible_thai_list_style_type(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(1179648)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(5177344)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(262144)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(917504)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(327680)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(262656)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(65536)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(263168)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(262656)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(263168)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: tibetan_list_style_type
 func isCompatible_tibetan_list_style_type(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(1179648)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(5177344)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(2162688)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(917504)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(327680)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(262656)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(65536)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(263168)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(2162688)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(262656)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(263168)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
@@ -2603,52 +2603,52 @@ func isCompatible_tigrinya_er_list_style_type(browsers: CssBrowsers): Bool {
 
 /// 兼容性检查: tigrinya_et_abegede_list_style_type
 func isCompatible_tigrinya_et_abegede_list_style_type(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(1179648)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(5963776)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(917504)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(327680)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(262656)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(65536)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(263168)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5963776)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(262656)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(263168)) { return false } }
     return true
 }
 
 /// 兼容性检查: tigrinya_et_list_style_type
 func isCompatible_tigrinya_et_list_style_type(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(1179648)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(5963776)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(917504)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(327680)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(262656)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(65536)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(263168)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5963776)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(262656)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(263168)) { return false } }
     return true
 }
 
 /// 兼容性检查: trad_chinese_formal_list_style_type
 func isCompatible_trad_chinese_formal_list_style_type(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(2949120)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(5177344)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(262144)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(2097152)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(983040)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(983040)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(327680)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(2949120)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(2949120)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(2097152)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(983040)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(983040)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(2949120)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: trad_chinese_informal_list_style_type
 func isCompatible_trad_chinese_informal_list_style_type(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(2949120)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(5177344)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(262144)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(2097152)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(983040)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(983040)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(327680)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(2949120)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(2949120)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(2097152)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(983040)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(983040)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(2949120)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
@@ -2661,67 +2661,67 @@ func isCompatible_upper_alpha_list_style_type(browsers: CssBrowsers): Bool {
 
 /// 兼容性检查: upper_armenian_list_style_type
 func isCompatible_upper_armenian_list_style_type(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(1179648)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(5177344)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(2162688)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(917504)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(327936)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(327680)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(65536)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(263168)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(2162688)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(327936)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(263168)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: upper_hexadecimal_list_style_type
 func isCompatible_upper_hexadecimal_list_style_type(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(1179648)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(5963776)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(917504)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(327680)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(262656)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(65536)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(196608)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5963776)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(262656)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(196608)) { return false } }
     return true
 }
 
 /// 兼容性检查: upper_latin_list_style_type
 func isCompatible_upper_latin_list_style_type(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(1179648)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(786432)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(262144)) { return false } }
-    if (let Some(version) = browsers.ie) { if (version < UInt32(524288)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(655616)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(65536)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(65536)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(65536)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(263168)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(786432)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.ie) { if (version < UInt32(524288)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(655616)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(263168)) { return false } }
     return true
 }
 
 /// 兼容性检查: upper_norwegian_list_style_type
 func isCompatible_upper_norwegian_list_style_type(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(1179648)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(5963776)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(917504)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(327680)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(262656)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(65536)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(196608)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5963776)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(262656)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(196608)) { return false } }
     return true
 }
 
 /// 兼容性检查: upper_roman_list_style_type
 func isCompatible_upper_roman_list_style_type(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(1179648)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(786432)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(262144)) { return false } }
-    if (let Some(version) = browsers.ie) { if (version < UInt32(524288)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(655616)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(65536)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(65536)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(65536)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(263168)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(786432)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.ie) { if (version < UInt32(524288)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(655616)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(263168)) { return false } }
     return true
 }
 
@@ -2733,15 +2733,15 @@ func isCompatible_vb_unit(browsers: CssBrowsers): Bool {
 
 /// 兼容性检查: vh_unit
 func isCompatible_vh_unit(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(1638400)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(786432)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(1245184)) { return false } }
-    if (let Some(version) = browsers.ie) { if (version < UInt32(589824)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(917504)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(393216)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(393216)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(66816)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(263168)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1638400)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(786432)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(1245184)) { return false } }
+    if (let Some(version) <- browsers.ie) { if (version < UInt32(589824)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(393216)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(393216)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(66816)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(263168)) { return false } }
     return true
 }
 
@@ -2759,94 +2759,94 @@ func isCompatible_viewport_percentage_units_dynamic(browsers: CssBrowsers): Bool
 
 /// 兼容性检查: viewport_percentage_units_large
 func isCompatible_viewport_percentage_units_large(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(7077888)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(7077888)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(6619136)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(4784128)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(984064)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(984064)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(1376256)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(7077888)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(7077888)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(7077888)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(6619136)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(4784128)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(984064)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(984064)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(1376256)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(7077888)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: viewport_percentage_units_small
 func isCompatible_viewport_percentage_units_small(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(7077888)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(7077888)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(6619136)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(4784128)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(984064)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(984064)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(1376256)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(7077888)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(7077888)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(7077888)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(6619136)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(4784128)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(984064)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(984064)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(1376256)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(7077888)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: vmax_unit
 func isCompatible_vmax_unit(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(1703936)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(1048576)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(1245184)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(917504)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(458752)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(458752)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(66816)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(66816)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1703936)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(1048576)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(1245184)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(458752)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(458752)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(66816)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(66816)) { return false } }
     if (browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: vmin_unit
 func isCompatible_vmin_unit(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(1703936)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(786432)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(1245184)) { return false } }
-    if (let Some(version) = browsers.ie) { if (version < UInt32(655360)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(917504)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(458752)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(458752)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(66816)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(263168)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1703936)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(786432)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(1245184)) { return false } }
+    if (let Some(version) <- browsers.ie) { if (version < UInt32(655360)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(458752)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(458752)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(66816)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(263168)) { return false } }
     return true
 }
 
 /// 兼容性检查: vw_unit
 func isCompatible_vw_unit(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(1638400)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(786432)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(1245184)) { return false } }
-    if (let Some(version) = browsers.ie) { if (version < UInt32(589824)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(917504)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(393216)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(393216)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(66816)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(263168)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1638400)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(786432)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(1245184)) { return false } }
+    if (let Some(version) <- browsers.ie) { if (version < UInt32(589824)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(393216)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(393216)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(66816)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(263168)) { return false } }
     return true
 }
 
 /// 兼容性检查: webkit_fill_available_size
 func isCompatible_webkit_fill_available_size(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(1638400)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(5177344)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(917504)) { return false } }
-    if (let Some(version) = browsers.safari) { if (version < UInt32(458752)) { return false } }
-    if (let Some(version) = browsers.ios_saf) { if (version < UInt32(458752)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(327680)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(263168)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1638400)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(458752)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(458752)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(263168)) { return false } }
     return true
 }
 
 /// 兼容性检查: x_resolution_unit
 func isCompatible_x_resolution_unit(browsers: CssBrowsers): Bool {
-    if (let Some(version) = browsers.chrome) { if (version < UInt32(4456448)) { return false } }
-    if (let Some(version) = browsers.edge) { if (version < UInt32(5177344)) { return false } }
-    if (let Some(version) = browsers.firefox) { if (version < UInt32(4063232)) { return false } }
-    if (let Some(version) = browsers.opera) { if (version < UInt32(3145728)) { return false } }
-    if (let Some(version) = browsers.samsung) { if (version < UInt32(655360)) { return false } }
-    if (let Some(version) = browsers.android) { if (version < UInt32(4456448)) { return false } }
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(4456448)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(4063232)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(3145728)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(655360)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(4456448)) { return false } }
     return true
 }
 

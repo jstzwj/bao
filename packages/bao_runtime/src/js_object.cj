@@ -75,8 +75,14 @@ public class PropertyDescriptor {
         desc.set = setter
         desc.enumerable = enumerable
         desc.configurable = configurable
-        desc.hasGet = getter != None
-        desc.hasSet = setter != None
+        desc.hasGet = match (getter) {
+            case Some(_) => true
+            case _ => false
+        }
+        desc.hasSet = match (setter) {
+            case Some(_) => true
+            case _ => false
+        }
         desc.hasEnumerable = true
         desc.hasConfigurable = true
         return desc
@@ -132,12 +138,7 @@ public class JsObjectOps {
         let keys = obj.keys()
         for (key in keys) {
             let val = obj.get(key)
-            let desc = PropertyDescriptor.dataDescriptor(
-                value: val,
-                writable: true,
-                enumerable: true,
-                configurable: true
-            )
+            let desc = PropertyDescriptor.dataDescriptor(val, true, true, true)
             result.put(key, desc)
         }
         return result
@@ -315,10 +316,10 @@ public class JsSymbol {
     /// Symbol 描述 - 对应 Symbol(description) 中的 description
     public var description: ?String
     /// 唯一标识符 - 用于区分不同 Symbol 实例
-    public private(set) var id: Int64
+    public var id: Int64
 
     /// 全局自增 ID - 保证每个 Symbol 唯一
-    private static var nextId: Int64 = 1
+    private static var nextId: Int64 = 0
 
     /// 全局 Symbol 注册表 - 对应 Symbol.for / Symbol.keyFor
     private static let globalRegistry: HashMap<String, JsSymbol> = HashMap<String, JsSymbol>()
@@ -370,11 +371,10 @@ public class JsSymbol {
     public static func for_(key: String): JsSymbol {
         match (globalRegistry.get(key)) {
             case Some(sym) => sym
-            case None => {
+            case None =>
                 let sym = JsSymbol(Some(key))
                 globalRegistry.put(key, sym)
                 sym
-            }
         }
     }
 
@@ -384,11 +384,10 @@ public class JsSymbol {
         let keys = globalRegistry.keys()
         for (key in keys) {
             match (globalRegistry.get(key)) {
-                case Some(s) => {
+                case Some(s) =>
                     if (s.id == sym.id) {
                         return Some(key)
                     }
-                }
                 case None => continue
             }
         }

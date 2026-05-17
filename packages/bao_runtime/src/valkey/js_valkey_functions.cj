@@ -6,6 +6,7 @@ package bao_runtime.valkey
 import bao_core.*
 import bao_collections.*
 import bao_valkey.*
+import bao_runtime.*
 
 // ============================================================================
 // 辅助函数
@@ -16,7 +17,7 @@ import bao_valkey.*
 /// 对应 Bun requireNotSubscriber()
 func requireNotSubscriber(client: JSValkeyClient, functionName: String): Unit {
     if (client.isSubscriber()) {
-        throw BaoError("RedisClient.prototype.${functionName} cannot be called while in subscriber mode.")
+        throw BaoError(ErrorCode.InvalidArgument, "RedisClient.prototype.${functionName} cannot be called while in subscriber mode.")
     }
 }
 
@@ -24,7 +25,7 @@ func requireNotSubscriber(client: JSValkeyClient, functionName: String): Unit {
 /// 对应 Bun requireSubscriber()
 func requireSubscriber(client: JSValkeyClient, functionName: String): Unit {
     if (!client.isSubscriber()) {
-        throw BaoError("RedisClient.prototype.${functionName} can only be called while in subscriber mode.")
+        throw BaoError(ErrorCode.InvalidArgument, "RedisClient.prototype.${functionName} can only be called while in subscriber mode.")
     }
 }
 
@@ -846,11 +847,6 @@ public class ValkeyFunctions {
     public static func expireat(client: JSValkeyClient, globalObject: JsObject,
                                 key: String, timestamp: String): JsValue {
         keyValueCommand(client, globalObject, "EXPIREAT", key, timestamp, true)
-    }
-
-    public static func hget(client: JSValkeyClient, globalObject: JsObject,
-                            key: String, field: String): JsValue {
-        keyValueCommand(client, globalObject, "HGET", key, field, true)
     }
 
     public static func incrby(client: JSValkeyClient, globalObject: JsObject,

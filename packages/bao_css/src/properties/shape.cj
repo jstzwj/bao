@@ -7,6 +7,7 @@
 package bao_css.properties
 
 import bao_core.*
+import bao_collections.*
 
 // ============================================================================
 // FillRule

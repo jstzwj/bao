@@ -70,16 +70,8 @@ public class Repository {
         // 查找 "#" 分隔的 committish
         let hashIdx = remain.lastIndexOf("#")
         match (hashIdx) {
-            case Some(idx) => {
-                return Repository.fromParts(
-                    "",
-                    remain.substring(0, idx),
-                    remain.substring(Int64(idx) + 1)
-                )
-            }
-            case None => {
-                return Repository.fromParts("", remain, "")
-            }
+            case Some(idx) => Repository.fromParts("", remain.substring(0, idx), remain.substring(Int64(idx) + 1))
+            case None => Repository.fromParts("", remain, "")
         }
     }
 
@@ -96,7 +88,7 @@ public class Repository {
         var slashIdx: Int64 = -1
         var hashIdx: Int64 = -1
         var i: Int64 = 0
-        while (i < remain.length) {
+        while (i < remain.size) {
             let c = remain[i].value
             if (c == 47) { slashIdx = i }  // '/'
             if (c == 35) { hashIdx = i }  // '#'
@@ -143,20 +135,26 @@ public class Repository {
         // SCP-like: git@github.com:owner/repo
         let atIdx = url.indexOf("@")
         match (atIdx) {
-            case Some(at) => {
-                let colonIdx = url.indexOf(":", Int64(at) + 1)
-                match (colonIdx) {
-                    case Some(colon) => {
-                        let host = url.substring(Int64(at) + 1, colon)
-                        let path = url.substring(Int64(colon) + 1)
-                        return Some("https://${host}/${path}")
-                    }
-                    case None => ()
-                }
-            }
+            case Some(at) => resolveScpUrl(url, at)
             case None => ()
         }
         return None
+    }
+
+    /// resolve SCP-like URL helper
+    private static func resolveScpUrl(url: String, at: Int64): ?String {
+        let colonIdx = url.indexOf(":", at + 1)
+        match (colonIdx) {
+            case Some(colon) => return buildScpHttps(url, at, colon)
+            case None => ()
+        }
+        return None
+    }
+
+    private static func buildScpHttps(url: String, at: Int64, colon: Int64): ?String {
+        let host = url.substring(at + 1, colon)
+        let path = url.substring(colon + 1)
+        return Some("https://${host}/${path}")
     }
 
     /// 从 URL 尝试解析为 SSH
@@ -212,14 +210,14 @@ public class Repository {
     /// 创建 GitHub tarball URL
     /// 翻译自: PackageManager.allocGitHubURL
     public static func githubTarballUrl(repo: Repository): String {
-        let committish = if (repo.committish.length > 0) { repo.committish } else { "HEAD" }
+        let committish = if (repo.committish.size > 0) { repo.committish } else { "HEAD" }
         return "https://codeload.github.com/${repo.owner}/${repo.repo}/tar.gz/${committish}"
     }
 
     /// 创建 GitHub 归档 URL
     /// 翻译自: codeload URL
     public static func githubArchiveUrl(repo: Repository): String {
-        let committish = if (repo.committish.length > 0) { repo.committish } else { "HEAD" }
+        let committish = if (repo.committish.size > 0) { repo.committish } else { "HEAD" }
         return "https://github.com/${repo.owner}/${repo.repo}/archive/${committish}.tar.gz"
     }
 

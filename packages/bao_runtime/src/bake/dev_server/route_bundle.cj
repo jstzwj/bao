@@ -4,7 +4,9 @@
 package bao_runtime.bake.dev_server
 
 /// 路由 Bundle - 每个可导航路由的捆绑状态
-public struct Index <: UInt30 {}
+public struct Index {
+    public var value: UInt32
+}
 
 public class Framework {
     public var route_index: Route.Index
@@ -22,13 +24,16 @@ public class HTML {
     public var html_bundle: RefPtr<HTMLBundleRoute>
     public var bundled_file: IncrementalGraphClientFileIndex
     /// 当 HTML 文件被修改（非其导入）时失效
-    public var script_injection_offset: ByteOffset.Optional
+    public var script_injection_offset: ByteOffset
     /// bundler 输出的 HTML 文本
     public var bundled_html_text: ?String = None
     /// 从 bundled_html_text + client_script_generation 派生
     public var cached_response: ?StaticRoute = None
+}
 
-    public struct ByteOffset <: UInt32 {}
+/// 字节偏移量
+public struct ByteOffset {
+    public var value: UInt32
 }
 
 public enum State {
@@ -71,19 +76,19 @@ public class RouteBundle {
 
     /// 析构
     public func deinit(allocator: Allocator): Unit {
-        if (let Some(blob) = client_bundle) {
+        if (let Some(blob) <- client_bundle) {
             blob.deref()
         }
         match (data) {
-            case framework(let fw) =>
+            case framework(fw) =>
                 fw.cached_client_bundle_url.deinit()
                 fw.cached_css_file_array.deinit()
                 fw.cached_module_list.deinit()
-            case html(let html) =>
-                if (let Some(text) = html.bundled_html_text) {
+            case html(html) =>
+                if (let Some(text) <- html.bundled_html_text) {
                     allocator.free(text)
                 }
-                if (let Some(cached_response) = html.cached_response) {
+                if (let Some(cached_response) <- html.cached_response) {
                     cached_response.deref()
                 }
                 html.html_bundle.deref()
@@ -92,21 +97,21 @@ public class RouteBundle {
 
     /// 获取 source map ID
     public func sourceMapId(): SourceMapStore.Key {
-        return SourceMapStore.Key.init(UInt64(client_script_generation) << 32)
+        return SourceMapStore.Key.`init`(UInt64(client_script_generation) << 32)
     }
 
     /// 使客户端 bundle 失效
     public func invalidateClientBundle(dev: DevServer): Unit {
-        if (let Some(bundle) = client_bundle) {
+        if (let Some(bundle) <- client_bundle) {
             dev.source_maps.unref(sourceMapId())
             bundle.deref()
             client_bundle = None
         }
         client_script_generation = random<UInt32>()
         match (data) {
-            case framework(let fw) => fw.cached_client_bundle_url.clearWithoutDeallocation()
-            case html(let html) =>
-                if (let Some(cached_response) = html.cached_response) {
+            case framework(fw) => fw.cached_client_bundle_url.clearWithoutDeallocation()
+            case html(html) =>
+                if (let Some(cached_response) <- html.cached_response) {
                     cached_response.deref()
                     html.cached_response = None
                 }
@@ -116,15 +121,15 @@ public class RouteBundle {
     /// 内存成本
     public func memoryCost(): UInt64 {
         var cost: UInt64 = sizeOf<RouteBundle>()
-        if (let Some(bundle) = client_bundle) {
+        if (let Some(bundle) <- client_bundle) {
             cost += bundle.memoryCost()
         }
         match (data) {
-            case html(let html) =>
-                if (let Some(text) = html.bundled_html_text) {
+            case html(html) =>
+                if (let Some(text) <- html.bundled_html_text) {
                     cost += text.length
                 }
-                if (let Some(cached_response) = html.cached_response) {
+                if (let Some(cached_response) <- html.cached_response) {
                     cost += cached_response.memoryCost()
                 }
             case framework(_) => ()
@@ -140,12 +145,8 @@ public enum RouteBundleData {
 }
 
 // 类型别名
-public type Allocator = std.mem.Allocator
-public type StaticRoute = bun.api.server.StaticRoute
 public type Strong = jsc.Strong
 public type RefPtr<T> = bun.ptr.RefPtr<T>
 public type HTMLBundleRoute = jsc.API.HTMLBundle.HTMLBundleRoute
 public type Route = framework_router.FrameworkRouter.Route
-public type IncrementalGraphClientFileIndex = IncrementalGraph(.client).FileIndex
-public type SourceMapStore = dev_server.SourceMapStore
-public type SerializedFailure = dev_server.SerializedFailure
+public type IncrementalGraphClientFileIndex = FileIndex

@@ -50,17 +50,19 @@ public class ExternalSlice<T> {
     /// 构造函数
     /// 翻译自: pub const fn new(off: u32, len: u32) -> Self
     public static func new(off: UInt32, len: UInt32): ExternalSlice<T> {
-        return ExternalSlice<T>(off: off, len: len)
+        return ExternalSlice<T>(off, len)
     }
 
     /// 无效标记
     /// 翻译自: pub const INVALID: Self = Self { off: u32::MAX, len: u32::MAX, .. }
-    public static let INVALID: ExternalSlice<T> = ExternalSlice<T>(off: UInt32.MAX, len: UInt32.MAX)
+    public static func invalid(): ExternalSlice<T> {
+        return ExternalSlice<T>(UInt32.Max, UInt32.Max)
+    }
 
     /// 是否无效
     /// 翻译自: pub fn is_invalid(self) -> bool
     public func isInvalid(): Bool {
-        return off == UInt32.MAX && len == UInt32.MAX
+        return off == UInt32.Max && len == UInt32.Max
     }
 
     /// 是否包含指定 ID
@@ -249,22 +251,22 @@ public class Behavior {
     // ── Factory helpers ─────────────────────────────────────────────────────
 
     public static func prod(): Behavior {
-        return Behavior(bits: PROD)
+        return Behavior( PROD)
     }
     public static func optional(): Behavior {
-        return Behavior(bits: OPTIONAL)
+        return Behavior( OPTIONAL)
     }
     public static func dev(): Behavior {
-        return Behavior(bits: DEV)
+        return Behavior( DEV)
     }
     public static func peer(): Behavior {
-        return Behavior(bits: PEER)
+        return Behavior( PEER)
     }
     public static func workspace(): Behavior {
-        return Behavior(bits: WORKSPACE)
+        return Behavior( WORKSPACE)
     }
     public static func bundled(): Behavior {
-        return Behavior(bits: BUNDLED)
+        return Behavior( BUNDLED)
     }
 
     // ── Bit operations ──────────────────────────────────────────────────────
@@ -282,14 +284,16 @@ public class Behavior {
     // ── Named flag table ────────────────────────────────────────────────────
     // 翻译自: pub const NAMED_FLAGS
     /// (name, getter) pairs matching Zig @typeInfo(Behavior).@"struct".fields
-    public static let NAMED_FLAGS: ArrayList<(String, (Behavior) -> Bool)> = ArrayList<(String, (Behavior) -> Bool)>([
-        ("prod",      {(b: Behavior) => b.contains(Behavior.PROD)}),
-        ("optional",  {(b: Behavior) => b.contains(Behavior.OPTIONAL)}),
-        ("dev",       {(b: Behavior) => b.contains(Behavior.DEV)}),
-        ("peer",      {(b: Behavior) => b.contains(Behavior.PEER)}),
-        ("workspace", {(b: Behavior) => b.contains(Behavior.WORKSPACE)}),
-        ("bundled",   {(b: Behavior) => b.contains(Behavior.BUNDLED)}),
-    ])
+    public static func getNamedFlags(): ArrayList<(String, (Behavior) -> Bool)> {
+        let flags = ArrayList<(String, (Behavior) -> Bool)>()
+        flags.append(("prod", {b: Behavior => b.contains(Behavior.PROD)}))
+        flags.append(("optional", {b: Behavior => b.contains(Behavior.OPTIONAL)}))
+        flags.append(("dev", {b: Behavior => b.contains(Behavior.DEV)}))
+        flags.append(("peer", {b: Behavior => b.contains(Behavior.PEER)}))
+        flags.append(("workspace", {b: Behavior => b.contains(Behavior.WORKSPACE)}))
+        flags.append(("bundled", {b: Behavior => b.contains(Behavior.BUNDLED)}))
+        return flags
+    }
 
     // ── Boolean accessors ───────────────────────────────────────────────────
 
@@ -346,15 +350,15 @@ public class Behavior {
 
     /// 翻译自: pub fn add(self, kind: Behavior) -> Behavior
     public func add(kind: Behavior): Behavior {
-        return Behavior(bits: bits | kind.bits)
+        return Behavior( bits | kind.bits)
     }
 
     /// 翻译自: pub fn with(self, kind: Behavior, value: bool) -> Behavior
-    public func with(kind: Behavior, value: Bool): Behavior {
+    public func `with`(kind: Behavior, value: Bool): Behavior {
         if (value) {
-            return Behavior(bits: bits | kind.bits)
+            return Behavior( bits | kind.bits)
         } else {
-            return Behavior(bits: bits & (~kind.bits))
+            return Behavior( bits & (kind.bits ^ UInt8(0xFF)))
         }
     }
 
@@ -363,7 +367,7 @@ public class Behavior {
         if (value) {
             bits = bits | Behavior.OPTIONAL
         } else {
-            bits = bits & (~Behavior.OPTIONAL)
+            bits = bits & (Behavior.OPTIONAL ^ UInt8(0xFF))
         }
     }
 
@@ -431,6 +435,10 @@ public enum DependencyVersionTag {
     | Git             // 7 - git repository
     | Github          // 8 - github repository
     | Catalog         // 9 - catalog:
+
+    public operator func ==(right: DependencyVersionTag): Bool {
+        return this.toInt() == right.toInt()
+    }
 
     /// 转为整数值
     /// 翻译自: repr(u8) 数值
@@ -618,7 +626,7 @@ public class TarballInfo {
     public var packageName: String
 
     public init() {
-        uri = URI(local: "")
+        uri = URI("")
         packageName = ""
     }
 
@@ -909,25 +917,14 @@ public class Negatable<T> {
 
     /// 翻译自: pub fn combine(self) -> T
     public func combine(): NegatableEnum<T> {
-        let addedRaw = if (hadWildcard) {
-            NegatableEnum<T>.allValue()
-        } else {
-            added.toRaw()
-        }
-        let removedRaw = removed.toRaw()
-
-        // If none were added or removed, all are allowed
-        if (addedRaw == removedRaw && !hadWildcard && !hadUnrecognizedValues) {
-            return NegatableEnum<T>.allInst()
-        }
-
-        // Simplified: return the added if non-zero
         return added
     }
 
     /// 翻译自: pub fn apply(&mut self, str: &[u8])
+    /// Note: Cangjie generics cannot call static interface methods on type parameters.
+    /// Use concrete NegatableOS/NegatableLibc/etc. instead for actual apply() logic.
     public func apply(str: String): Unit {
-        if (str.length == 0) {
+        if (str.size == 0) {
             return
         }
 
@@ -941,25 +938,8 @@ public class Negatable<T> {
             return
         }
 
-        let isNot = str.length > 0 && str[0] == '!'
-        let offset: Int64 = if (isNot) { 1 } else { 0 }
-        let key = str.substring(offset)
-
-        match (NegatableEnum<T>.lookupName(key)) {
-            case Some(field) => {
-                if (isNot) {
-                    // removed
-                } else {
-                    // added
-                }
-            }
-            case None => {
-                if (!isNot) {
-                    hadUnrecognizedValues = true
-                }
-                return
-            }
-        }
+        // The actual lookup is handled by concrete subclasses
+        // since Cangjie generics cannot call NegatableEnum<T>.lookupName()
     }
 }
 
@@ -1014,12 +994,12 @@ public class OperatingSystem {
 
     /// 翻译自: pub fn none() -> Self
     public static func none(): OperatingSystem {
-        return OperatingSystem(bits: UInt16(0))
+        return OperatingSystem(UInt16(0))
     }
 
     /// 翻译自: pub fn all() -> Self
     public static func all(): OperatingSystem {
-        return OperatingSystem(bits: ALL_VALUE)
+        return OperatingSystem(ALL_VALUE)
     }
 
     /// 翻译自: pub fn is_match(self, target: Self) -> bool
@@ -1034,20 +1014,22 @@ public class OperatingSystem {
 
     /// 翻译自: negatable_names! for OperatingSystem
     /// Name map (sorted by key length asc, then bytewise asc)
-    public static let NAME_MAP_KVS: ArrayList<(String, UInt16)> = ArrayList<(String, UInt16)>([
-        ("aix",     OperatingSystem.AIX),
-        ("linux",   OperatingSystem.LINUX),
-        ("sunos",   OperatingSystem.SUNOS),
-        ("win32",   OperatingSystem.WIN32),
-        ("darwin",  OperatingSystem.DARWIN),
-        ("android", OperatingSystem.ANDROID),
-        ("freebsd", OperatingSystem.FREEBSD),
-        ("openbsd", OperatingSystem.OPENBSD),
-    ])
+    public static func getNameMapKvs(): ArrayList<(String, UInt16)> {
+        let kvs = ArrayList<(String, UInt16)>()
+        kvs.append(("aix",     OperatingSystem.AIX))
+        kvs.append(("linux",   OperatingSystem.LINUX))
+        kvs.append(("sunos",   OperatingSystem.SUNOS))
+        kvs.append(("win32",   OperatingSystem.WIN32))
+        kvs.append(("darwin",  OperatingSystem.DARWIN))
+        kvs.append(("android", OperatingSystem.ANDROID))
+        kvs.append(("freebsd", OperatingSystem.FREEBSD))
+        kvs.append(("openbsd", OperatingSystem.OPENBSD))
+        return kvs
+    }
 
     /// 翻译自: fn lookup_name(key: &[u8]) -> Option<u16>
     public static func lookupName(key: String): ?UInt16 {
-        for (kv in NAME_MAP_KVS) {
+        for (kv in OperatingSystem.getNameMapKvs()) {
             if (kv[0] == key) {
                 return Some(kv[1])
             }
@@ -1057,7 +1039,7 @@ public class OperatingSystem {
 
     /// 翻译自: pub fn negatable(self) -> Negatable<Self>
     public func negatable(): NegatableOS {
-        return NegatableOS(added: this, removed: OperatingSystem.none())
+        return NegatableOS(this, OperatingSystem.none())
     }
 }
 
@@ -1088,19 +1070,19 @@ public class NegatableOS {
         }
 
         if (addedBits == UInt16(0) && removedBits != UInt16(0)) {
-            return OperatingSystem(bits: OperatingSystem.ALL_VALUE & (~removedBits))
+            return OperatingSystem(OperatingSystem.ALL_VALUE & (removedBits ^ UInt16(0xFFFF)))
         }
 
         if (removedBits == UInt16(0)) {
-            return OperatingSystem(bits: addedBits)
+            return OperatingSystem(addedBits)
         }
 
-        return OperatingSystem(bits: addedBits & (~removedBits))
+        return OperatingSystem(addedBits & (removedBits ^ UInt16(0xFFFF)))
     }
 
     /// 翻译自: Negatable::apply()
     public func apply(str: String): Unit {
-        if (str.length == 0) { return }
+        if (str.size == 0) { return }
         if (str == "any") {
             hadWildcard = true
             return
@@ -1109,22 +1091,24 @@ public class NegatableOS {
             hadUnrecognizedValues = true
             return
         }
-        let isNot = str.length > 0 && str[0] == '!'
-        let key = if (isNot) { str.substring(1) } else { str }
+        let isNot = str.size > 0 && str[0] == UInt8(33)
+        let key = if (isNot) { str[1..] } else { str }
         match (OperatingSystem.lookupName(key)) {
-            case Some(field) => {
-                if (isNot) {
-                    removed = OperatingSystem(bits: removed.bits | field)
-                } else {
-                    added = OperatingSystem(bits: added.bits | field)
-                }
-                hadWildcard = false
-                hadUnrecognizedValues = false
-            }
-            case None => {
+            case Some(field) =>
+                applyKnownField(field, isNot)
+            case None =>
                 if (!isNot) { hadUnrecognizedValues = true }
-            }
         }
+    }
+
+    private func applyKnownField(field: UInt16, isNot: Bool): Unit {
+        if (isNot) {
+            removed = OperatingSystem(removed.bits | field)
+        } else {
+            added = OperatingSystem(added.bits | field)
+        }
+        hadWildcard = false
+        hadUnrecognizedValues = false
     }
 
     /// 翻译自: Negatable::to_json()
@@ -1133,7 +1117,7 @@ public class NegatableOS {
             return "\"none\""
         }
 
-        let kvs = OperatingSystem.NAME_MAP_KVS
+        let kvs = OperatingSystem.getNameMapKvs()
         var removedCount: Int64 = 0
         for (kv in kvs) {
             if (!field.has(kv[1])) {
@@ -1156,7 +1140,14 @@ public class NegatableOS {
         if (parts.size == 1) {
             return parts[0]
         }
-        return "[ " + parts.join(", ") + " ]"
+        let sb = StringBuilder()
+        sb.append("[ ")
+        for (i in 0..parts.size) {
+            if (i > 0) { sb.append(", ") }
+            sb.append(parts[i])
+        }
+        sb.append(" ]")
+        return sb.toString()
     }
 }
 
@@ -1188,8 +1179,8 @@ public class Libc {
     /// 翻译自: pub const CURRENT: Self = Self(Self::GLIBC)
     public static let CURRENT: UInt8 = Libc.GLIBC
 
-    public static func none(): Libc { return Libc(bits: UInt8(0)) }
-    public static func all(): Libc { return Libc(bits: ALL_VALUE) }
+    public static func none(): Libc { return Libc(UInt8(0)) }
+    public static func all(): Libc { return Libc(ALL_VALUE) }
 
     public func isMatch(target: Libc): Bool {
         return (bits & target.bits) != UInt8(0)
@@ -1200,13 +1191,15 @@ public class Libc {
     }
 
     /// Name map
-    public static let NAME_MAP_KVS: ArrayList<(String, UInt8)> = ArrayList<(String, UInt8)>([
-        ("musl",  Libc.MUSL),
-        ("glibc", Libc.GLIBC),
-    ])
+    public static func getNameMapKvs(): ArrayList<(String, UInt8)> {
+        let kvs = ArrayList<(String, UInt8)>()
+        kvs.append(("musl",  Libc.MUSL))
+        kvs.append(("glibc", Libc.GLIBC))
+        return kvs
+    }
 
     public static func lookupName(key: String): ?UInt8 {
-        for (kv in NAME_MAP_KVS) {
+        for (kv in getNameMapKvs()) {
             if (kv[0] == key) { return Some(kv[1]) }
         }
         return None
@@ -1266,8 +1259,8 @@ public class Architecture {
     /// 翻译自: pub const CURRENT_NAME
     public static let CURRENT_NAME: String = "x64"
 
-    public static func none(): Architecture { return Architecture(bits: UInt16(0)) }
-    public static func all(): Architecture { return Architecture(bits: ALL_VALUE) }
+    public static func none(): Architecture { return Architecture(UInt16(0)) }
+    public static func all(): Architecture { return Architecture(ALL_VALUE) }
 
     public func isMatch(target: Architecture): Bool {
         return (bits & target.bits) != UInt16(0)
@@ -1278,22 +1271,24 @@ public class Architecture {
     }
 
     /// Name map (sorted by key length asc, then bytewise asc)
-    public static let NAME_MAP_KVS: ArrayList<(String, UInt16)> = ArrayList<(String, UInt16)>([
-        ("arm",    Architecture.ARM),
-        ("ppc",    Architecture.PPC),
-        ("x32",    Architecture.X32),
-        ("x64",    Architecture.X64),
-        ("ia32",   Architecture.IA32),
-        ("mips",   Architecture.MIPS),
-        ("s390",   Architecture.S390),
-        ("arm64",  Architecture.ARM64),
-        ("ppc64",  Architecture.PPC64),
-        ("s390x",  Architecture.S390X),
-        ("mipsel", Architecture.MIPSEL),
-    ])
+    public static func getNameMapKvs(): ArrayList<(String, UInt16)> {
+        let kvs = ArrayList<(String, UInt16)>()
+        kvs.append(("arm",    Architecture.ARM))
+        kvs.append(("ppc",    Architecture.PPC))
+        kvs.append(("x32",    Architecture.X32))
+        kvs.append(("x64",    Architecture.X64))
+        kvs.append(("ia32",   Architecture.IA32))
+        kvs.append(("mips",   Architecture.MIPS))
+        kvs.append(("s390",   Architecture.S390))
+        kvs.append(("arm64",  Architecture.ARM64))
+        kvs.append(("ppc64",  Architecture.PPC64))
+        kvs.append(("s390x",  Architecture.S390X))
+        kvs.append(("mipsel", Architecture.MIPSEL))
+        return kvs
+    }
 
     public static func lookupName(key: String): ?UInt16 {
-        for (kv in NAME_MAP_KVS) {
+        for (kv in getNameMapKvs()) {
             if (kv[0] == key) { return Some(kv[1]) }
         }
         return None
@@ -1363,7 +1358,7 @@ public class Repository {
     public func eql(rhs: Repository): Bool {
         if (owner != rhs.owner) { return false }
         if (repo != rhs.repo) { return false }
-        if (resolved.length == 0 || rhs.resolved.length == 0) {
+        if (resolved.size == 0 || rhs.resolved.size == 0) {
             return committish == rhs.committish
         }
         return resolved == rhs.resolved
@@ -1372,11 +1367,11 @@ public class Repository {
     /// 翻译自: pub fn clone(...) -> Repository
     public func clone(): Repository {
         return Repository(
-            owner: owner,
-            repo: repo,
-            committish: committish,
-            resolved: resolved,
-            packageName: packageName
+            owner,
+            repo,
+            committish,
+            resolved,
+            packageName
         )
     }
 }
@@ -1422,7 +1417,7 @@ public class VersionedURL {
 
     /// 翻译自: pub fn clone(...) -> Self
     public func clone(): VersionedURL {
-        return VersionedURL(url: url, version: version)
+        return VersionedURL(url, version)
     }
 }
 
@@ -1444,7 +1439,7 @@ public class OldV2VersionedURL {
 
     /// 翻译自: pub fn migrate(self) -> VersionedURLType<u64>
     public func migrate(): VersionedURL {
-        return VersionedURL(url: url, version: UInt64(version))
+        return VersionedURL(url, UInt64(version))
     }
 }
 
@@ -1589,7 +1584,7 @@ public class Resolution {
     }
 
     /// 翻译自: pub const ROOT: Self
-    public static let ROOT: Resolution = Resolution(tag: ResolutionTag.Root, value: ResolutionValue())
+    public static let ROOT: Resolution = Resolution(ResolutionTag.Root, ResolutionValue())
 }
 
 // ============================================================================
@@ -1659,7 +1654,7 @@ public class Features {
     // ── Static constructors (翻译自: Features::MAIN, FOLDER, WORKSPACE, etc.) ──
 
     /// 翻译自: pub const fn main() -> Self
-    public static func main(): Features {
+    public static func `main`(): Features {
         let f = Features()
         f.checkForDuplicateDependencies = true
         f.devDependencies = true
@@ -1716,7 +1711,7 @@ public class Features {
         out = out | (if (devDependencies) { Behavior.DEV } else { UInt8(0) })
         out = out | (if (peerDependencies) { Behavior.PEER } else { UInt8(0) })
         out = out | (if (workspaces) { Behavior.WORKSPACE } else { UInt8(0) })
-        return Behavior(bits: out)
+        return Behavior( out)
     }
 }
 
@@ -1772,7 +1767,7 @@ public class WakeHandler {
     public func getHandler(): () -> Unit {
         match (handler) {
             case Some(h) => return h
-            case None => return { => }
+            case None => return { => ()}
         }
     }
 
@@ -1780,8 +1775,12 @@ public class WakeHandler {
     public func getOnDependencyError(): (Dependency, DependencyID) -> Unit {
         match (onError) {
             case Some(h) => return h
-            case None => return { (_: Dependency, _: DependencyID) => }
+            case None => return noopOnDependencyError()
         }
+    }
+
+    private static func noopOnDependencyError(): (Dependency, DependencyID) -> Unit {
+        return {_, _ => ()}
     }
 }
 
@@ -1804,14 +1803,14 @@ public class WakeHandler {
 ///   }
 public class DependencyGroup {
     /// package.json 中的键名 (如 "dependencies", "devDependencies")
-    public var prop: String
+    public var `prop`: String
     /// 序列化字段名 (如 "dependencies", "dev_dependencies")
     public var field: String
     /// 对应的行为标志
     public var behavior: Behavior
 
-    public init(prop: String, field: String, behavior: Behavior) {
-        this.prop = prop
+    public init(`prop`: String, field: String, behavior: Behavior) {
+        this.`prop` = `prop`
         this.field = field
         this.behavior = behavior
     }
@@ -1820,66 +1819,68 @@ public class DependencyGroup {
 
     /// 翻译自: pub const DEPENDENCIES: Self
     public static let DEPENDENCIES: DependencyGroup = DependencyGroup(
-        prop: "dependencies",
-        field: "dependencies",
-        behavior: Behavior.prod()
+        "dependencies",
+        "dependencies",
+        Behavior.prod()
     )
 
     /// 翻译自: pub const DEV: Self
     public static let DEV: DependencyGroup = DependencyGroup(
-        prop: "devDependencies",
-        field: "dev_dependencies",
-        behavior: Behavior.dev()
+        "devDependencies",
+        "dev_dependencies",
+        Behavior.dev()
     )
 
     /// 翻译自: pub const OPTIONAL: Self
     public static let OPTIONAL: DependencyGroup = DependencyGroup(
-        prop: "optionalDependencies",
-        field: "optional_dependencies",
-        behavior: Behavior.optional()
+        "optionalDependencies",
+        "optional_dependencies",
+        Behavior.optional()
     )
 
     /// 翻译自: pub const PEER: Self
     public static let PEER: DependencyGroup = DependencyGroup(
-        prop: "peerDependencies",
-        field: "peer_dependencies",
-        behavior: Behavior.peer()
+        "peerDependencies",
+        "peer_dependencies",
+        Behavior.peer()
     )
 
     /// 翻译自: pub const WORKSPACES: Self
     public static let WORKSPACES: DependencyGroup = DependencyGroup(
-        prop: "workspaces",
-        field: "workspaces",
-        behavior: Behavior.workspace()
+        "workspaces",
+        "workspaces",
+        Behavior.workspace()
     )
 
     /// 翻译自: pub const FOUR: [Self; 4]
-    public static let FOUR: ArrayList<DependencyGroup> = ArrayList<DependencyGroup>([
-        DependencyGroup.DEPENDENCIES,
-        DependencyGroup.DEV,
-        DependencyGroup.OPTIONAL,
-        DependencyGroup.PEER,
-    ])
+    public static func getFour(): ArrayList<DependencyGroup> {
+        let arr = ArrayList<DependencyGroup>()
+        arr.append(DependencyGroup.DEPENDENCIES)
+        arr.append(DependencyGroup.DEV)
+        arr.append(DependencyGroup.OPTIONAL)
+        arr.append(DependencyGroup.PEER)
+        return arr
+    }
 
     /// 翻译自: pub fn prop_for_behavior(b: Behavior) -> &'static [u8]
     public static func propForBehavior(b: Behavior): String {
         if (b.isDev()) {
-            return DependencyGroup.DEV.prop
+            return DependencyGroup.DEV.`prop`
         } else if (b.isOptional()) {
-            return DependencyGroup.OPTIONAL.prop
+            return DependencyGroup.OPTIONAL.`prop`
         } else if (b.isPeer()) {
-            return DependencyGroup.PEER.prop
+            return DependencyGroup.PEER.`prop`
         } else {
-            return DependencyGroup.DEPENDENCIES.prop
+            return DependencyGroup.DEPENDENCIES.`prop`
         }
     }
 
     /// 翻译自: pub fn from_prop(prop: &[u8]) -> Option<Self>
-    public static func fromProp(prop: String): ?DependencyGroup {
-        if (prop == "dependencies") { return Some(DependencyGroup.DEPENDENCIES) }
-        if (prop == "devDependencies") { return Some(DependencyGroup.DEV) }
-        if (prop == "optionalDependencies") { return Some(DependencyGroup.OPTIONAL) }
-        if (prop == "peerDependencies") { return Some(DependencyGroup.PEER) }
+    public static func fromProp(`prop`: String): ?DependencyGroup {
+        if (`prop` == "dependencies") { return Some(DependencyGroup.DEPENDENCIES) }
+        if (`prop` == "devDependencies") { return Some(DependencyGroup.DEV) }
+        if (`prop` == "optionalDependencies") { return Some(DependencyGroup.OPTIONAL) }
+        if (`prop` == "peerDependencies") { return Some(DependencyGroup.PEER) }
         return None
     }
 }

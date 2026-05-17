@@ -196,11 +196,10 @@ public class BundlerGraph {
     public func pathToSourceIndexMap(target: String): PathToSourceIndexMap {
         match (buildGraphs.get(target)) {
             case Some(map) => return map
-            case None => {
+            case None =>
                 let map = PathToSourceIndexMap()
                 buildGraphs.put(target, map)
                 return map
-            }
         }
     }
 
@@ -271,14 +270,7 @@ public class ServerComponentBoundary {
 }
 
 /// 使用指令 ("use client" / "use server")
-// 严格翻译自: bundle_v2.zig UseDirective
-public enum UseDirective {
-    | None
-    | Client
-    | Server
-}
-
-/// 线程池 (bundler 专用)
+// 严格翻译自: bundle_v2.zig UseDirective/// 线程池 (bundler 专用)
 // 严格翻译自: src/bundler/ThreadPool.zig ThreadPool
 public class BundlerThreadPool {
     /// IO 线程池
@@ -361,11 +353,10 @@ public class BundlerThreadPool {
     public func getWorker(id: Int64): BundlerWorker {
         match (workerAssignments.get(id)) {
             case Some(worker) => return worker
-            case None => {
+            case None =>
                 let worker = BundlerWorker()
                 workerAssignments.put(id, worker)
                 return worker
-            }
         }
     }
 }
@@ -488,11 +479,6 @@ public class WorkerData {
     }
 }
 
-/// 分配器 (简化)
-public class Allocator {
-    public init() {}
-}
-
 /// AST 内存分配器
 public class AstMemoryAllocator {
     public var allocator: ?Allocator
@@ -522,43 +508,18 @@ public class BundlerContext {
     public init() {}
 }
 
-/// 输出文件 (前向引用)
-// 完整定义见 output_file.cj
-public class OutputFile {
-    public var loader: Loader
-    public var srcPath: String
-    public var size: Int64
-    public var hash: UInt64
-
-    public init() {
-        loader = Loader.File
-        srcPath = ""
-        size = 0
-        hash = 0
-    }
-}
-
 /// Program (AST)
 public class Program {
     public var parts: ArrayList<Part>
     public var symbols: ArrayList<Symbol>
     public var importRecords: ArrayList<ImportRecord>
+    public var body: ArrayList<Stmt>
 
     public init() {
         parts = ArrayList<Part>()
         symbols = ArrayList<Symbol>()
         importRecords = ArrayList<ImportRecord>()
-    }
-}
-
-/// AST Part
-public class Part {
-    public var stmts: ArrayList<Stmt>
-    public var isLive: Bool
-
-    public init() {
-        stmts = ArrayList<Stmt>()
-        isLive = false
+        body = ArrayList<Stmt>()
     }
 }
 

@@ -8,6 +8,7 @@
 package bao_css.properties
 
 import bao_core.*
+import bao_collections.*
 
 // ============================================================================
 // BoxSizing
@@ -45,6 +46,18 @@ public enum Size {
     | Stretch(String)               // stretch / -webkit-fill-available / -moz-available
     | Contain                       // contain
 
+    private func stretchToCss(vp: String): String {
+        if (vp == "") {
+            "stretch"
+        } else if (vp == "-webkit-") {
+            "-webkit-fill-available"
+        } else if (vp == "-moz-") {
+            "-moz-available"
+        } else {
+            vp + "stretch"
+        }
+    }
+
     public func toCss(): String {
         match (this) {
             case Auto => "auto"
@@ -53,17 +66,7 @@ public enum Size {
             case MinContent(prefix) => prefix + "min-content"
             case MaxContent(prefix) => prefix + "max-content"
             case FitContent(prefix) => prefix + "fit-content"
-            case Stretch(vp) => {
-                if (vp == "") {
-                    "stretch"
-                } else if (vp == "-webkit-") {
-                    "-webkit-fill-available"
-                } else if (vp == "-moz-") {
-                    "-moz-available"
-                } else {
-                    vp + "stretch"
-                }
-            }
+            case Stretch(vp) => stretchToCss(vp)
             case FitContentFunction(l) => "fit-content(" + l + ")"
         }
     }
@@ -86,6 +89,18 @@ public enum MaxSize {
     | Stretch(String)               // stretch / -webkit-fill-available / -moz-available
     | Contain                       // contain
 
+    private func stretchToCss(vp: String): String {
+        if (vp == "") {
+            "stretch"
+        } else if (vp == "-webkit-") {
+            "-webkit-fill-available"
+        } else if (vp == "-moz-") {
+            "-moz-available"
+        } else {
+            vp + "stretch"
+        }
+    }
+
     public func toCss(): String {
         match (this) {
             case None => "none"
@@ -94,17 +109,7 @@ public enum MaxSize {
             case MinContent(prefix) => prefix + "min-content"
             case MaxContent(prefix) => prefix + "max-content"
             case FitContent(prefix) => prefix + "fit-content"
-            case Stretch(vp) => {
-                if (vp == "") {
-                    "stretch"
-                } else if (vp == "-webkit-") {
-                    "-webkit-fill-available"
-                } else if (vp == "-moz-") {
-                    "-moz-available"
-                } else {
-                    vp + "stretch"
-                }
-            }
+            case Stretch(vp) => stretchToCss(vp)
             case FitContentFunction(l) => "fit-content(" + l + ")"
         }
     }
@@ -127,7 +132,7 @@ public class AspectRatio {
     }
 
     public static func default(): AspectRatio {
-        AspectRatio(auto: false, ratio: None)
+        AspectRatio(false, Option<String>.None)
     }
 
     public func toCss(): String {
@@ -142,7 +147,12 @@ public class AspectRatio {
         if (parts.isEmpty()) {
             return "auto"
         }
-        return String.join(" ", parts)
+        var result = ""
+        for (i in 0..parts.size) {
+            if (i > 0) { result += " " }
+            result += parts[i]
+        }
+        return result
     }
 }
 

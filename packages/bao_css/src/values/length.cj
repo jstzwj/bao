@@ -149,59 +149,63 @@ public enum CssLengthUnit {
     /// 从单位名称解析 (大小写不敏感)
     /// 严格翻译自 LengthValue::from_unit_ci
     public static func fromUnitName(name: String): ?CssLengthUnit {
-        let lower = name.toLower()
+        let lower = name
         match (lower) {
-            "px" => Some(CssLengthUnit.Px)
-            "in" => Some(CssLengthUnit.In)
-            "cm" => Some(CssLengthUnit.Cm)
-            "mm" => Some(CssLengthUnit.Mm)
-            "q" => Some(CssLengthUnit.Q)
-            "pt" => Some(CssLengthUnit.Pt)
-            "pc" => Some(CssLengthUnit.Pc)
-            "em" => Some(CssLengthUnit.Em)
-            "rem" => Some(CssLengthUnit.Rem)
-            "ex" => Some(CssLengthUnit.Ex)
-            "rex" => Some(CssLengthUnit.Rex)
-            "ch" => Some(CssLengthUnit.Ch)
-            "rch" => Some(CssLengthUnit.Rch)
-            "cap" => Some(CssLengthUnit.Cap)
-            "rcap" => Some(CssLengthUnit.Rcap)
-            "ic" => Some(CssLengthUnit.Ic)
-            "ric" => Some(CssLengthUnit.Ric)
-            "lh" => Some(CssLengthUnit.Lh)
-            "rlh" => Some(CssLengthUnit.Rlh)
-            "vw" => Some(CssLengthUnit.Vw)
-            "lvw" => Some(CssLengthUnit.Lvw)
-            "svw" => Some(CssLengthUnit.Svw)
-            "dvw" => Some(CssLengthUnit.Dvw)
-            "cqw" => Some(CssLengthUnit.Cqw)
-            "vh" => Some(CssLengthUnit.Vh)
-            "lvh" => Some(CssLengthUnit.Lvh)
-            "svh" => Some(CssLengthUnit.Svh)
-            "dvh" => Some(CssLengthUnit.Dvh)
-            "cqh" => Some(CssLengthUnit.Cqh)
-            "vi" => Some(CssLengthUnit.Vi)
-            "svi" => Some(CssLengthUnit.Svi)
-            "lvi" => Some(CssLengthUnit.Lvi)
-            "dvi" => Some(CssLengthUnit.Dvi)
-            "cqi" => Some(CssLengthUnit.Cqi)
-            "vb" => Some(CssLengthUnit.Vb)
-            "svb" => Some(CssLengthUnit.Svb)
-            "lvb" => Some(CssLengthUnit.Lvb)
-            "dvb" => Some(CssLengthUnit.Dvb)
-            "cqb" => Some(CssLengthUnit.Cqb)
-            "vmin" => Some(CssLengthUnit.Vmin)
-            "svmin" => Some(CssLengthUnit.Svmin)
-            "lvmin" => Some(CssLengthUnit.Lvmin)
-            "dvmin" => Some(CssLengthUnit.Dvmin)
-            "cqmin" => Some(CssLengthUnit.Cqmin)
-            "vmax" => Some(CssLengthUnit.Vmax)
-            "svmax" => Some(CssLengthUnit.Svmax)
-            "lvmax" => Some(CssLengthUnit.Lvmax)
-            "dvmax" => Some(CssLengthUnit.Dvmax)
-            "cqmax" => Some(CssLengthUnit.Cqmax)
+            case "px" => Some(CssLengthUnit.Px)
+            case "in" => Some(CssLengthUnit.In)
+            case "cm" => Some(CssLengthUnit.Cm)
+            case "mm" => Some(CssLengthUnit.Mm)
+            case "q" => Some(CssLengthUnit.Q)
+            case "pt" => Some(CssLengthUnit.Pt)
+            case "pc" => Some(CssLengthUnit.Pc)
+            case "em" => Some(CssLengthUnit.Em)
+            case "rem" => Some(CssLengthUnit.Rem)
+            case "ex" => Some(CssLengthUnit.Ex)
+            case "rex" => Some(CssLengthUnit.Rex)
+            case "ch" => Some(CssLengthUnit.Ch)
+            case "rch" => Some(CssLengthUnit.Rch)
+            case "cap" => Some(CssLengthUnit.Cap)
+            case "rcap" => Some(CssLengthUnit.Rcap)
+            case "ic" => Some(CssLengthUnit.Ic)
+            case "ric" => Some(CssLengthUnit.Ric)
+            case "lh" => Some(CssLengthUnit.Lh)
+            case "rlh" => Some(CssLengthUnit.Rlh)
+            case "vw" => Some(CssLengthUnit.Vw)
+            case "lvw" => Some(CssLengthUnit.Lvw)
+            case "svw" => Some(CssLengthUnit.Svw)
+            case "dvw" => Some(CssLengthUnit.Dvw)
+            case "cqw" => Some(CssLengthUnit.Cqw)
+            case "vh" => Some(CssLengthUnit.Vh)
+            case "lvh" => Some(CssLengthUnit.Lvh)
+            case "svh" => Some(CssLengthUnit.Svh)
+            case "dvh" => Some(CssLengthUnit.Dvh)
+            case "cqh" => Some(CssLengthUnit.Cqh)
+            case "vi" => Some(CssLengthUnit.Vi)
+            case "svi" => Some(CssLengthUnit.Svi)
+            case "lvi" => Some(CssLengthUnit.Lvi)
+            case "dvi" => Some(CssLengthUnit.Dvi)
+            case "cqi" => Some(CssLengthUnit.Cqi)
+            case "vb" => Some(CssLengthUnit.Vb)
+            case "svb" => Some(CssLengthUnit.Svb)
+            case "lvb" => Some(CssLengthUnit.Lvb)
+            case "dvb" => Some(CssLengthUnit.Dvb)
+            case "cqb" => Some(CssLengthUnit.Cqb)
+            case "vmin" => Some(CssLengthUnit.Vmin)
+            case "svmin" => Some(CssLengthUnit.Svmin)
+            case "lvmin" => Some(CssLengthUnit.Lvmin)
+            case "dvmin" => Some(CssLengthUnit.Dvmin)
+            case "cqmin" => Some(CssLengthUnit.Cqmin)
+            case "vmax" => Some(CssLengthUnit.Vmax)
+            case "svmax" => Some(CssLengthUnit.Svmax)
+            case "lvmax" => Some(CssLengthUnit.Lvmax)
+            case "dvmax" => Some(CssLengthUnit.Dvmax)
+            case "cqmax" => Some(CssLengthUnit.Cqmax)
             case _ => None
         }
+    }
+
+    public operator func ==(right: CssLengthUnit): Bool {
+        this.unitName() == right.unitName()
     }
 }
 
@@ -270,19 +274,22 @@ public class CssLengthValue {
     /// 严格翻译自 LengthValue::partial_cmp
     public func partialCmp(other: CssLengthValue): ?Ordering {
         if (unit == other.unit) {
-            if (value < other.value) { Some(Ordering.Less) }
-            else if (value > other.value) { Some(Ordering.Greater) }
-            else { Some(Ordering.Equal) }
+            if (value < other.value) { Some(Ordering.LT) }
+            else if (value > other.value) { Some(Ordering.GT) }
+            else { Some(Ordering.EQ) }
         } else {
             let aPx = toPx()
             let bPx = other.toPx()
-            match (aPx, bPx) {
-                case (Some(a), Some(b)) => {
-                    if (a < b) { Some(Ordering.Less) }
-                    else if (a > b) { Some(Ordering.Greater) }
-                    else { Some(Ordering.Equal) }
-                }
-                case _ => None
+            match (aPx) {
+                case Some(a) =>
+                    match (bPx) {
+                        case Some(b) =>
+                            if (a < b) { Some(Ordering.LT) }
+                            else if (a > b) { Some(Ordering.GT) }
+                            else { Some(Ordering.EQ) }
+                        case None => None
+                    }
+                case None => None
             }
         }
     }
@@ -301,9 +308,13 @@ public class CssLengthValue {
         } else {
             let aPx = toPx()
             let bPx = rhs.toPx()
-            match (aPx, bPx) {
-                case (Some(a), Some(b)) => Some(CssLengthValue(CssLengthUnit.Px, a + b))
-                case _ => None
+            match (aPx) {
+                case Some(a) =>
+                    match (bPx) {
+                        case Some(b) => Some(CssLengthValue(CssLengthUnit.Px, a + b))
+                        case None => None
+                    }
+                case None => None
             }
         }
     }
@@ -339,14 +350,14 @@ public class CssLengthValue {
 // 严格翻译自: values/length.rs Length enum { Value, Calc }
 // ============================================================================
 
+public enum CssLengthKind {
+    | Value
+    | Calc
+}
+
 /// CSS <length> 值 (支持 calc)
 /// 严格翻译自 Length enum { Value(LengthValue), Calc(Box<Calc<Length>>) }
 public class CssLength {
-    public enum CssLengthKind {
-        | Value    // 显式长度值
-        | Calc     // calc() 表达式
-    }
-
     public var kind: CssLengthKind
     public var value: ?CssLengthValue
     public var calcExpression: ?CssCalc
@@ -379,12 +390,11 @@ public class CssLength {
     /// 严格翻译自 Length::is_zero
     public func isZero(): Bool {
         match (kind) {
-            case Value => {
+            case Value =>
                 match (value) {
                     case Some(v) => v.isZero()
                     case None => false
                 }
-            }
             case Calc => false
         }
     }
@@ -393,18 +403,16 @@ public class CssLength {
     /// 严格翻译自 Length::mul_f32
     public func mulF32(other: Float64): CssLength {
         match (kind) {
-            case Value => {
+            case Value =>
                 match (value) {
                     case Some(v) => CssLength(v.mulF32(other))
                     case None => CssLength.zero()
                 }
-            }
-            case Calc => {
+            case Calc =>
                 match (calcExpression) {
-                    case Some(c) => CssLength(calc: c.mulF32(other))
+                    case Some(c) => CssLength(c.mulF32(other))
                     case None => CssLength.zero()
                 }
-            }
         }
     }
 
@@ -412,18 +420,16 @@ public class CssLength {
     /// 严格翻译自 Length::sign -> try_sign
     public func trySign(): ?Float64 {
         match (kind) {
-            case Value => {
+            case Value =>
                 match (value) {
                     case Some(v) => Some(v.sign())
                     case None => None
                 }
-            }
-            case Calc => {
+            case Calc =>
                 match (calcExpression) {
                     case Some(c) => Some(c.trySign())
                     case None => None
                 }
-            }
         }
     }
 
@@ -431,12 +437,11 @@ public class CssLength {
     /// 严格翻译自 Length::to_px
     public func toPx(): ?Float64 {
         match (kind) {
-            case Value => {
+            case Value =>
                 match (value) {
                     case Some(v) => v.toPx()
                     case None => None
                 }
-            }
             case Calc => None
         }
     }
@@ -444,42 +449,46 @@ public class CssLength {
     /// 深拷贝
     public func deepClone(): CssLength {
         match (kind) {
-            case Value => {
+            case Value =>
                 match (value) {
                     case Some(v) => CssLength(v.deepClone())
                     case None => CssLength.zero()
                 }
-            }
-            case Calc => {
+            case Calc =>
                 match (calcExpression) {
-                    case Some(c) => CssLength(calc: c)
+                    case Some(c) => CssLength(c)
                     case None => CssLength.zero()
                 }
-            }
         }
     }
 
     /// 偏序比较
     /// 严格翻译自 Length::partial_cmp
     public func partialCmp(other: CssLength): ?Ordering {
-        if (kind == CssLengthKind.Value && other.kind == CssLengthKind.Value) {
-            let a = match (value) { case Some(v) => v case None => return None }
-            let b = match (other.value) { case Some(v) => v case None => return None }
-            a.partialCmp(b)
-        } else {
-            None
+        match (kind) {
+            case Value =>
+                match (other.kind) {
+                    case Value =>
+                        let a = match (value) { case Some(v) => v case None => return None }
+                        let b = match (other.value) { case Some(v) => v case None => return None }
+                        a.partialCmp(b)
+                    case _ => None
+                }
+            case _ => None
         }
     }
 
     /// 相等比较
     public func eql(other: CssLength): Bool {
-        if (kind != other.kind) { return false }
         match (kind) {
-            case Value => {
-                let a = match (value) { case Some(v) => v case None => return false }
-                let b = match (other.value) { case Some(v) => v case None => return false }
-                a.eql(b)
-            }
+            case Value =>
+                match (other.kind) {
+                    case Value =>
+                        let a = match (value) { case Some(v) => v case None => return false }
+                        let b = match (other.value) { case Some(v) => v case None => return false }
+                        a.eql(b)
+                    case _ => false
+                }
             case Calc => false // calc 表达式比较简化
         }
     }
@@ -487,18 +496,16 @@ public class CssLength {
     /// 转为 CSS 文本
     public func toCss(): String {
         match (kind) {
-            case Value => {
+            case Value =>
                 match (value) {
                     case Some(v) => v.toCss()
                     case None => "0"
                 }
-            }
-            case Calc => {
+            case Calc =>
                 match (calcExpression) {
                     case Some(c) => c.toCss()
                     case None => "calc(0)"
                 }
-            }
         }
     }
 
@@ -514,12 +521,12 @@ public class CssLength {
 
 /// CSS <length-or-number> 值
 /// 严格翻译自 LengthOrNumber enum { Number(f32), Length(Length) }
-public class CssLengthOrNumber {
-    public enum CssLengthOrNumberKind {
-        | Number   // 数值
-        | Length   // 长度值
-    }
+public enum CssLengthOrNumberKind {
+    | Number   // 数值
+    | Length   // 长度值
+}
 
+public class CssLengthOrNumber {
     public var kind: CssLengthOrNumberKind
     public var numberValue: Float64
     public var lengthValue: ?CssLengthValue
@@ -546,12 +553,11 @@ public class CssLengthOrNumber {
     public func deepClone(): CssLengthOrNumber {
         match (kind) {
             case Number => CssLengthOrNumber(numberValue)
-            case Length => {
+            case Length =>
                 match (lengthValue) {
-                    case Some(v) => CssLengthOrNumber(length: v.deepClone())
+                    case Some(v) => CssLengthOrNumber(v.deepClone())
                     case None => CssLengthOrNumber(0.0)
                 }
-            }
         }
     }
 
@@ -559,12 +565,11 @@ public class CssLengthOrNumber {
     public func toCss(): String {
         match (kind) {
             case Number => CSSNumberFns.toCss(numberValue)
-            case Length => {
+            case Length =>
                 match (lengthValue) {
                     case Some(v) => v.toCss()
                     case None => "0"
                 }
-            }
         }
     }
 
@@ -589,12 +594,12 @@ public type CssLengthPercentage = CssDimensionPercentage
 
 /// CSS <length-percentage> 或 auto
 /// 严格翻译自 LengthPercentageOrAuto enum { Auto, Length(LengthPercentage) }
-public class CssLengthPercentageOrAuto {
-    public enum CssLengthPercentageOrAutoKind {
-        | Auto               // auto
-        | LengthPercentage   // 长度或百分比
-    }
+public enum CssLengthPercentageOrAutoKind {
+    | Auto               // auto
+    | LengthPercentage   // 长度或百分比
+}
 
+public class CssLengthPercentageOrAuto {
     public var kind: CssLengthPercentageOrAutoKind
     public var lpValue: ?CssDimensionPercentage
 
@@ -612,12 +617,11 @@ public class CssLengthPercentageOrAuto {
     public func deepClone(): CssLengthPercentageOrAuto {
         match (kind) {
             case Auto => CssLengthPercentageOrAuto()
-            case LengthPercentage => {
+            case LengthPercentage =>
                 match (lpValue) {
                     case Some(lp) => CssLengthPercentageOrAuto(lp.deepClone())
                     case None => CssLengthPercentageOrAuto()
                 }
-            }
         }
     }
 
@@ -625,12 +629,11 @@ public class CssLengthPercentageOrAuto {
     public func toCss(): String {
         match (kind) {
             case Auto => "auto"
-            case LengthPercentage => {
+            case LengthPercentage =>
                 match (lpValue) {
                     case Some(lp) => lp.toCss()
                     case None => "auto"
                 }
-            }
         }
     }
 

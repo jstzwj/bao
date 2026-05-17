@@ -16,6 +16,7 @@ import bao_io.*
 import bao_hash.*
 import bao_path.*
 import bao_http.*
+import bao_sys.*
 
 // ============================================================================
 // 提升式安装器
@@ -140,15 +141,12 @@ public class HoistedInstaller {
     /// 创建/打开 node_modules 目录
     /// 翻译自: installHoistedPackages 中的 node_modules_folder 创建逻辑
     private func setupNodeModules(): Unit {
-        let cwd = bao_io.File.getCurrentDirectory()
+        let cwd = OS.getcwd()
         let nodeModulesPath = "${cwd}/node_modules"
 
-        if (!bao_io.File.directoryExists(nodeModulesPath)) {
+        if (!SysFs.exists(nodeModulesPath)) {
             isNewNodeModules = true
-            try {
-                bao_io.File.createDirectory(nodeModulesPath)
-            } catch (e: Exception) {
-                bao_core.Output.error("Could not create the \"node_modules\" directory: ${e.message}")
+            if (!BaoFile.mkdir(nodeModulesPath, true)) {
                 return
             }
         }
@@ -217,35 +215,42 @@ public class HoistedInstaller {
 
         let result = request.install(skipDelete, nodeModulesPath, request.getInstallMethod(), resolutionTag)
         match (result) {
-            case PackageInstallResult.Success => {
-                let isDuplicate = successfullyInstalled.contains(packageId)
-                if (!isDuplicate) { summary.success += 1 }
-                successfullyInstalled.add(packageId)
-                incrementTreeInstallCount(currentTreeId, lockfile)
-            }
-            case PackageInstallResult.Failure(failure) => {
-                bao_core.Output.error("Failed to install ${name}: ${failure.errorMessage}")
-                summary.fail += 1
-                incrementTreeInstallCount(currentTreeId, lockfile)
-            }
+            case PackageInstallResult.Success => handleInstallSuccess(packageId, successfullyInstalled, summary, currentTreeId, lockfile)
+            case PackageInstallResult.Failure(failure) => handleInstallFailure(name, failure, summary, currentTreeId, lockfile)
         }
+    }
+
+    private func handleInstallSuccess(packageId: UInt32, successfullyInstalled: HashSet<UInt32>, summary: PackageInstallSummary, currentTreeId: UInt32, lockfile: LockfileData): Unit {
+        let isDuplicate = successfullyInstalled.contains(packageId)
+        if (!isDuplicate) { summary.success += 1 }
+        successfullyInstalled.put(packageId)
+        incrementTreeInstallCount(currentTreeId, lockfile)
+    }
+
+    private func handleInstallFailure(name: String, failure: InstallFailure, summary: PackageInstallSummary, currentTreeId: UInt32, lockfile: LockfileData): Unit {
+        Output.printErrorln("Failed to install ${name}: ${failure.errorMessage}")
+        summary.fail += 1
+        incrementTreeInstallCount(currentTreeId, lockfile)
     }
 
     /// 验证包是否已正确安装
     /// 翻译自: PackageInstall.verify
     private func verifyPackage(name: String, resolution: String, lockfile: LockfileData): Bool {
         let destPath = "${nodeModulesPath}/${name}/package.json"
-        if (!bao_io.File.exists(destPath)) { return false }
+        if (!BaoFile.exists(destPath)) { return false }
 
-        try {
-            let content = bao_io.File.readTextFile(destPath)
-            let json = bao_json.JsonParser.parse(content)
-            match (json.get("version")) {
-                case Some(v) => return v.asString() == resolution
-                case None => return false
-            }
-        } catch (_: Exception) {
-            return false
+        match (BaoFile.readAllText(destPath)) {
+            case SysMaybe<String>.Ok(content) =>
+                let json = JsonParser().parse(content)
+                match (json) {
+                    case Some(root) =>
+                        match (JsonHelper.getString(root, "version")) {
+                            case Some(v) => return v == resolution
+                            case None => return false
+                        }
+                    case None => return false
+                }
+            case SysMaybe<String>.Err(_) => return false
         }
     }
 
@@ -254,7 +259,7 @@ public class HoistedInstaller {
     private func isPackageMissingFromCache(packageId: UInt32, lockfile: LockfileData): Bool {
         let name = lockfile.getPackageName(packageId)
         let cachePath = "${manager.cacheDirectoryPath}/${name}"
-        return !bao_io.File.directoryExists(cachePath)
+        return !SysFs.exists(cachePath)
     }
 
     /// 将包下载加入队列
@@ -269,18 +274,10 @@ public class HoistedInstaller {
         // 翻译自: 根据 resolution.tag 分发到不同的 enqueue 方法
         let tag = lockfile.getResolutionTag(packageId)
         match (tag) {
-            case Npm => {
-                // enqueuePackageForDownload
-            }
-            case Git => {
-                // enqueueGitForCheckout
-            }
-            case Github => {
-                // enqueueTarballForDownload (github tarball)
-            }
-            case Tarball => {
-                // enqueueTarballForDownload
-            }
+            case Npm=> ()  // enqueuePackageForDownload
+            case Git=> ()  // enqueueGitForCheckout
+            case Github=> ()  // enqueueTarballForDownload (github tarball)
+            case Tarball=> ()  // enqueueTarballForDownload
             case _ => ()
         }
     }
@@ -294,36 +291,46 @@ public class HoistedInstaller {
         lockfile: LockfileData
     ): Unit {
         match (tag) {
-            case Npm => {
-                let name = lockfile.getPackageName(packageId)
-                let version = lockfile.getResolution(packageId)
-                request.cacheDirSubpath = "${name}@${version}"
-                request.cacheDir = manager.cacheDirectoryPath
-            }
-            case Git => {
-                request.cacheDirSubpath = lockfile.getResolution(packageId)
-                request.cacheDir = manager.cacheDirectoryPath
-            }
-            case Github => {
-                request.cacheDirSubpath = lockfile.getResolution(packageId)
-                request.cacheDir = manager.cacheDirectoryPath
-            }
-            case Folder => {
-                request.cacheDirSubpath = lockfile.getResolution(packageId)
-                request.cacheDir = bao_io.File.getCurrentDirectory()
-            }
-            case Workspace => {
-                request.cacheDirSubpath = "."
-                request.cacheDir = bao_io.File.getCurrentDirectory()
-            }
-            case Symlink => {
-                request.cacheDirSubpath = "."
-                request.cacheDir = bao_io.File.getCurrentDirectory()
-            }
-            case _ => {
-                request.cacheDir = manager.cacheDirectoryPath
-            }
+            case Npm => setupCacheSubpathNpm(request, packageId, lockfile)
+            case Git => setupCacheSubpathGit(request, packageId, lockfile)
+            case Github => setupCacheSubpathGithub(request, packageId, lockfile)
+            case Folder => setupCacheSubpathFolder(request, packageId, lockfile)
+            case Workspace => setupCacheSubpathWorkspace(request)
+            case Symlink => setupCacheSubpathSymlink(request)
+            case _=> request.cacheDir = manager.cacheDirectoryPath
         }
+    }
+
+    private func setupCacheSubpathNpm(request: PackageInstallRequest, packageId: UInt32, lockfile: LockfileData): Unit {
+        let name = lockfile.getPackageName(packageId)
+        let version = lockfile.getResolution(packageId)
+        request.cacheDirSubpath = "${name}@${version}"
+        request.cacheDir = manager.cacheDirectoryPath
+    }
+
+    private func setupCacheSubpathGit(request: PackageInstallRequest, packageId: UInt32, lockfile: LockfileData): Unit {
+        request.cacheDirSubpath = lockfile.getResolution(packageId)
+        request.cacheDir = manager.cacheDirectoryPath
+    }
+
+    private func setupCacheSubpathGithub(request: PackageInstallRequest, packageId: UInt32, lockfile: LockfileData): Unit {
+        request.cacheDirSubpath = lockfile.getResolution(packageId)
+        request.cacheDir = manager.cacheDirectoryPath
+    }
+
+    private func setupCacheSubpathFolder(request: PackageInstallRequest, packageId: UInt32, lockfile: LockfileData): Unit {
+        request.cacheDirSubpath = lockfile.getResolution(packageId)
+        request.cacheDir = OS.getcwd()
+    }
+
+    private func setupCacheSubpathWorkspace(request: PackageInstallRequest): Unit {
+        request.cacheDirSubpath = "."
+        request.cacheDir = OS.getcwd()
+    }
+
+    private func setupCacheSubpathSymlink(request: PackageInstallRequest): Unit {
+        request.cacheDirSubpath = "."
+        request.cacheDir = OS.getcwd()
     }
 
     /// 处理待完成的任务
@@ -363,7 +370,7 @@ public class HoistedInstaller {
                     return false
                 }
             }
-            if (Int64(parentId) >= trees.size) { break }
+            if (Int64(parentId) >= trees.size) { () }
             parentId = trees[Int64(parentId)].parentId
         }
         return true
@@ -412,6 +419,20 @@ public class HoistedInstaller {
 //   }
 // ============================================================================
 
+/// 依赖安装上下文
+/// 翻译自: install.DependencyInstallContext
+public class DependencyInstallContextData {
+    public var treeId: UInt32
+    public var path: String
+    public var dependencyId: UInt32
+
+    public init(treeId: UInt32, path: String, dependencyId: UInt32) {
+        this.treeId = treeId
+        this.path = path
+        this.dependencyId = dependencyId
+    }
+}
+
 /// Tree 安装上下文
 /// 对应 Bun: PackageInstaller.TreeContext
 public class TreeContext {
@@ -432,60 +453,6 @@ public class TreeContext {
         binaries = ArrayList<UInt32>()
         installCount = 0
         completed = false
-    }
-}
-
-// ============================================================================
-// Lockfile 数据 (轻量引用)
-// ============================================================================
-
-/// Lockfile 数据引用
-/// 用于安装过程中访问 lockfile 数据
-public class LockfileData {
-    /// 包数量
-    public var packageCount: Int64
-    /// 依赖树
-    public var trees: ArrayList<LockfileTree>
-    /// 解析结果: dependency_id -> package_id
-    public var resolutions: ArrayList<UInt32>
-    /// 包名列表
-    public var packageNames: ArrayList<String>
-    /// 解析信息
-    public var packageResolutions: ArrayList<String>
-    /// 解析标签
-    public var packageResolutionTags: ArrayList<DependencyVersionTag>
-    /// 字符串缓冲区
-    public var stringBuffer: String
-
-    public init() {
-        packageCount = 0
-        trees = ArrayList<LockfileTree>()
-        resolutions = ArrayList<UInt32>()
-        packageNames = ArrayList<String>()
-        packageResolutions = ArrayList<String>()
-        packageResolutionTags = ArrayList<DependencyVersionTag>()
-        stringBuffer = ""
-    }
-
-    public func getPackageName(id: UInt32): String {
-        if (Int64(id) < packageNames.size) {
-            return packageNames[Int64(id)]
-        }
-        return ""
-    }
-
-    public func getResolution(id: UInt32): String {
-        if (Int64(id) < packageResolutions.size) {
-            return packageResolutions[Int64(id)]
-        }
-        return ""
-    }
-
-    public func getResolutionTag(id: UInt32): DependencyVersionTag {
-        if (Int64(id) < packageResolutionTags.size) {
-            return packageResolutionTags[Int64(id)]
-        }
-        return DependencyVersionTag.Uninitialized
     }
 }
 
@@ -531,8 +498,8 @@ public enum WorkspaceFilter {
             return All
         }
         var remain = input
-        if (remain.length > 0 && remain[0] == '.') {
-            let absPath = bao_path.Path.join(cwd, remain)
+        if (remain.size > 0 && remain[0] == UInt8(46)) {
+            let absPath = Path.join([cwd, remain])
             return Path(absPath)
         }
         return Name(remain)

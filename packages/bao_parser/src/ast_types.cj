@@ -59,6 +59,53 @@ public enum TSTypeTag {
     | TSTypeAnnotation       // : Type
     | TSTypeParameter        // T extends U = V
     | TSTypeParameterInstantiation // <T, U>
+
+    public operator func ==(right: TSTypeTag): Bool {
+        match (this) {
+            case TSAnyKeyword => match (right) { case TSAnyKeyword => true case _ => false }
+            case TSUnknownKeyword => match (right) { case TSUnknownKeyword => true case _ => false }
+            case TSNumberKeyword => match (right) { case TSNumberKeyword => true case _ => false }
+            case TSStringKeyword => match (right) { case TSStringKeyword => true case _ => false }
+            case TSBooleanKeyword => match (right) { case TSBooleanKeyword => true case _ => false }
+            case TSVoidKeyword => match (right) { case TSVoidKeyword => true case _ => false }
+            case TSUndefinedKeyword => match (right) { case TSUndefinedKeyword => true case _ => false }
+            case TSNullKeyword => match (right) { case TSNullKeyword => true case _ => false }
+            case TSNeverKeyword => match (right) { case TSNeverKeyword => true case _ => false }
+            case TSObjectKeyword => match (right) { case TSObjectKeyword => true case _ => false }
+            case TSSymbolKeyword => match (right) { case TSSymbolKeyword => true case _ => false }
+            case TSBigIntKeyword => match (right) { case TSBigIntKeyword => true case _ => false }
+            case TSReference => match (right) { case TSReference => true case _ => false }
+            case TSUnion => match (right) { case TSUnion => true case _ => false }
+            case TSIntersection => match (right) { case TSIntersection => true case _ => false }
+            case TSConditional => match (right) { case TSConditional => true case _ => false }
+            case TSMapped => match (right) { case TSMapped => true case _ => false }
+            case TSIndexedAccess => match (right) { case TSIndexedAccess => true case _ => false }
+            case TSTypeOperator => match (right) { case TSTypeOperator => true case _ => false }
+            case TSTypeQuery => match (right) { case TSTypeQuery => true case _ => false }
+            case TSTypeLiteral => match (right) { case TSTypeLiteral => true case _ => false }
+            case TSTuple => match (right) { case TSTuple => true case _ => false }
+            case TSNamedTupleMember => match (right) { case TSNamedTupleMember => true case _ => false }
+            case TSArray => match (right) { case TSArray => true case _ => false }
+            case TSFunction => match (right) { case TSFunction => true case _ => false }
+            case TSConstructor => match (right) { case TSConstructor => true case _ => false }
+            case TSTypePredicate => match (right) { case TSTypePredicate => true case _ => false }
+            case TSThisType => match (right) { case TSThisType => true case _ => false }
+            case TSImport => match (right) { case TSImport => true case _ => false }
+            case TSParenthesized => match (right) { case TSParenthesized => true case _ => false }
+            case TSTemplateLiteral => match (right) { case TSTemplateLiteral => true case _ => false }
+            case TSRest => match (right) { case TSRest => true case _ => false }
+            case TSOptional => match (right) { case TSOptional => true case _ => false }
+            case TSLiteral => match (right) { case TSLiteral => true case _ => false }
+            case TSEnumName => match (right) { case TSEnumName => true case _ => false }
+            case TSTypeAnnotation => match (right) { case TSTypeAnnotation => true case _ => false }
+            case TSTypeParameter => match (right) { case TSTypeParameter => true case _ => false }
+            case TSTypeParameterInstantiation => match (right) { case TSTypeParameterInstantiation => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: TSTypeTag): Bool {
+        return !(this == right)
+    }
 }
 
 /// TypeScript 类型节点 - 对应 Bun TSType
@@ -113,7 +160,7 @@ public class TSType {
 
     // --- 类型操作符字段 ---
     /// keyof T, readonly T, unique T, infer T
-    public var operator: TSTypeOperatorKind
+    public var `operator`: TSTypeOperatorKind
     public var operand: ?TSType
 
     // --- 类型查询字段 ---
@@ -181,7 +228,7 @@ public class TSType {
         mappedConstraint = None
         objectType = None
         indexType = None
-        operator = TSTypeOperatorKind.Keyof
+        `operator` = TSTypeOperatorKind.Keyof
         operand = None
         queryExpr = None
         params = ArrayList<TSFnParam>()
@@ -335,7 +382,7 @@ public class TSType {
     /// keyof T, readonly T, unique T
     public static func typeOperator(loc: Loc, op: TSTypeOperatorKind, operand: TSType): TSType {
         let t = TSType(loc, TSTypeTag.TSTypeOperator)
-        t.operator = op
+        t.`operator` = op
         t.operand = Some(operand)
         return t
     }
@@ -404,10 +451,10 @@ public class TSType {
 
     /// 类型谓词 - 对应 Bun TSTypePredicate
     /// x is string / asserts x is string
-    public static func typePredicate(loc: Loc, name: String, type: ?TSType, asserts: Bool): TSType {
+    public static func typePredicate(loc: Loc, name: String, `type`: ?TSType, asserts: Bool): TSType {
         let t = TSType(loc, TSTypeTag.TSTypePredicate)
         t.predicateName = name
-        t.returnType = type
+        t.returnType = `type`
         t.predicateIsAsserts = asserts
         return t
     }
@@ -479,9 +526,9 @@ public class TSType {
 
     /// 类型注解 - 对应 Bun TSTypeAnnotation
     /// : Type
-    public static func annotation(loc: Loc, type: TSType): TSType {
+    public static func annotation(loc: Loc, `type`: TSType): TSType {
         let t = TSType(loc, TSTypeTag.TSTypeAnnotation)
-        t.wrappedType = Some(type)
+        t.wrappedType = Some(`type`)
         return t
     }
 
@@ -575,6 +622,18 @@ public enum TSOptionalModifier {
     | None       // 无修饰
     | Optional   // +?
     | Required   // -? (去除可选)
+
+    public operator func ==(right: TSOptionalModifier): Bool {
+        match (this) {
+            case None => match (right) { case None => true case _ => false }
+            case Optional => match (right) { case Optional => true case _ => false }
+            case Required => match (right) { case Required => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: TSOptionalModifier): Bool {
+        return !(this == right)
+    }
 }
 
 /// 函数类型参数 - 对应 Bun TSFnParam

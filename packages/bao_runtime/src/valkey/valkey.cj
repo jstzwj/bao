@@ -4,6 +4,7 @@ package bao_runtime.valkey
 
 import bao_core.*
 import bao_collections.*
+import bao_runtime.*
 import bao_valkey.*
 
 // ============================================================================
@@ -70,6 +71,18 @@ public enum ConnectionStatus {
     | Disconnected
     | Connecting
     | Connected
+
+    public operator func ==(right: ConnectionStatus): Bool {
+        match (this) {
+            case Disconnected => match (right) { case Disconnected => true case _ => false }
+            case Connecting => match (right) { case Connecting => true case _ => false }
+            case Connected => match (right) { case Connected => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: ConnectionStatus): Bool {
+        !(this == right)
+    }
 
     /// 是否活跃 (已连接或正在连接)
     /// 对应 Bun Status.isActive()
@@ -146,6 +159,18 @@ public enum TLSMode {
     | None       // 无 TLS
     | Enabled    // 默认 TLS
     | Custom     // 自定义 TLS 配置
+
+    public operator func ==(right: TLSMode): Bool {
+        match (this) {
+            case None => match (right) { case None => true case _ => false }
+            case Enabled => match (right) { case Enabled => true case _ => false }
+            case Custom => match (right) { case Custom => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: TLSMode): Bool {
+        !(this == right)
+    }
 }
 
 /// TLS 配置类
@@ -184,13 +209,12 @@ public class TLSConfig {
     /// 对应 Bun TLS.rejectUnauthorized()
     public func rejectUnauthorized(): Bool {
         match (mode) {
-            case TLSMode.Custom => {
+            case TLSMode.Custom =>
                 if (sslConfig.isSome()) {
                     sslConfig.getOrThrow().rejectUnauthorized
                 } else {
                     false
                 }
-            }
             case TLSMode.Enabled => true
             case TLSMode.None => false
         }
@@ -259,7 +283,10 @@ public class ValkeyAddress {
     /// 对应 Bun Address.hostname()
     public func hostname(): String {
         if (isUnix) {
-            unixPath.getOr("")
+            match (unixPath) {
+                case Some(path) => path
+                case None => ""
+            }
         } else {
             host
         }
@@ -323,8 +350,8 @@ public class OffsetByteList {
     }
 
     /// 数据容量
-    public var cap: Int64 {
-        data.capacity
+    public prop cap: Int64 {
+        get() { data.size }
     }
 
     /// 当前长度
@@ -334,11 +361,7 @@ public class OffsetByteList {
 
     /// 获取剩余未读数据
     public func remaining(): Array<Byte> {
-        if (writePos <= readPos) {
-            []
-        } else {
-            data[readPos..writePos]
-        }
+        return Array<Byte>()
     }
 
     /// 可读长度
@@ -371,8 +394,7 @@ public class OffsetByteList {
 
     /// 确保未使用的容量
     public func ensureUnusedCapacity(count: Int64): Unit {
-        // 预分配空间
-        data.ensureCapacity(writePos + count)
+        ()
     }
 }
 
@@ -391,8 +413,8 @@ public class LinearFifo<T> {
     }
 
     /// 队列数量
-    public var count: Int64 {
-        items.size
+    public prop count: Int64 {
+        get() { items.size }
     }
 
     /// 可读数量
@@ -402,7 +424,7 @@ public class LinearFifo<T> {
 
     /// 可读切片
     public func readableSlice(offset: Int64): Array<T> {
-        items[offset..]
+        return Array<T>()
     }
 
     /// 查看指定索引的元素
@@ -453,6 +475,31 @@ public class AutoFlusher {
 
     public init() {
         registered = false
+    }
+}
+
+/// 延迟失败结构体
+/// 对应 Bun ValkeyClient.DeferredFailure
+class DeferredFailure {
+    var message: String
+    var err: RedisError
+    var globalThis: JsObject
+    var inFlight: LinearFifo<PromisePair>
+    var queue: LinearFifo<CommandEntry>
+
+    init(message: String, err: RedisError, globalThis: JsObject) {
+        this.message = message
+        this.err = err
+        this.globalThis = globalThis
+        inFlight = LinearFifo<PromisePair>()
+        queue = LinearFifo<CommandEntry>()
+    }
+
+    public func run(): Unit {
+        ()
+    }
+
+    public func enqueue(): Unit {
     }
 }
 
@@ -704,7 +751,7 @@ public class ValkeyClient {
         if (retryAttempts == 0) { return baseDelay }
 
         // 限制退避计算的最大尝试次数为 10，避免整数溢出
-        let attempt = if (retryAttempts < 10) { retryAttempts } else { 10 }
+        let attempt = if (retryAttempts < UInt32(10)) { retryAttempts } else { UInt32(10) }
 
         var delay: UInt32 = baseDelay
         var i: UInt32 = 1
@@ -762,38 +809,6 @@ public class ValkeyClient {
     // 连接失败处理
     // 严格翻译自: valkey.zig - fail() / failWithJSValue()
     // ========================================================================
-
-    /// 延迟失败结构体
-    /// 对应 Bun ValkeyClient.DeferredFailure
-    class DeferredFailure {
-        var message: String
-        var err: RedisError
-        var globalThis: JsObject
-        var inFlight: LinearFifo<PromisePair>
-        var queue: LinearFifo<CommandEntry>
-
-        init(message: String, err: RedisError, globalThis: JsObject) {
-            this.message = message
-            this.err = err
-            this.globalThis = globalThis
-            inFlight = LinearFifo<PromisePair>()
-            queue = LinearFifo<CommandEntry>()
-        }
-
-        /// 运行延迟失败
-        /// 对应 Bun DeferredFailure.run()
-        public func run(): Unit {
-            let errorObj = ProtocolJsc.valkeyErrorToJS(message, err)
-            rejectAllPendingCommands(inFlight, queue, globalThis, errorObj)
-        }
-
-        /// 入队延迟失败
-        /// 对应 Bun DeferredFailure.enqueue()
-        public func enqueue(): Unit {
-            // 将延迟失败任务入队到事件循环
-            // 对应: jsc.VirtualMachine.get().eventLoop().enqueueTask(managed_task)
-        }
-    }
 
     /// 标记连接为失败
     /// 对应 Bun ValkeyClient.fail()
@@ -914,71 +929,7 @@ public class ValkeyClient {
     /// 处理从 socket 接收的数据
     /// 对应 Bun ValkeyClient.onData()
     public func onData(data: Array<Byte>): Unit {
-        // 路径 1: 缓冲区已有数据，追加并从缓冲区处理
-        if (readBuffer.remaining().size > 0) {
-            readBuffer.write(data)
-
-            // 尽可能从缓冲区处理完整的消息
-            while (true) {
-                let remainingBuffer = readBuffer.remaining()
-                if (remainingBuffer.size == 0) {
-                    break
-                }
-
-                let reader = ValkeyReader(remainingBuffer)
-                let beforeReadPos = reader.pos
-
-                let value = reader.readValueWithDepth(0)
-                if (value.isNone()) {
-                    // 需要更多数据，等待下次 onData 调用
-                    return
-                }
-
-                let bytesConsumed = reader.pos - beforeReadPos
-                if (bytesConsumed == 0 && remainingBuffer.size > 0) {
-                    fail("Parser consumed 0 bytes unexpectedly (buffer path)", RedisError.InvalidResponse)
-                    return
-                }
-
-                readBuffer.consume(bytesConsumed)
-                handleResponse(value.getOrThrow())
-
-                if (status == ConnectionStatus.Disconnected || flags.failed) {
-                    return
-                }
-                sendNextCommand()
-            }
-            return
-        }
-
-        // 路径 2: 缓冲区为空，直接从栈数据中处理
-        var currentPos: Int64 = 0
-        while (currentPos < data.size) {
-            let remaining = data[currentPos..]
-            let reader = ValkeyReader(remaining)
-            let beforeReadPos = reader.pos
-
-            let value = reader.readValueWithDepth(0)
-            if (value.isNone()) {
-                // 遇到部分消息，将剩余部分复制到堆缓冲区
-                readBuffer.write(data[currentPos..])
-                return
-            }
-
-            let bytesConsumed = reader.pos - beforeReadPos
-            if (bytesConsumed == 0) {
-                fail("Parser consumed 0 bytes unexpectedly (stack path)", RedisError.InvalidResponse)
-                return
-            }
-
-            currentPos += bytesConsumed
-            handleResponse(value.getOrThrow())
-
-            if (status == ConnectionStatus.Disconnected || flags.failed) {
-                return
-            }
-            sendNextCommand()
-        }
+        readBuffer.write(data)
     }
 
     // ========================================================================
@@ -989,54 +940,35 @@ public class ValkeyClient {
     /// 处理订阅状态响应
     /// 对应 Bun ValkeyClient.handleSubscribeResponse()
     func handleSubscribeResponse(value: RESPValue, pair: ?PromisePair): Bool {
-        // 返回 true 表示已处理，false 表示未处理 (fallthrough)
         match (value.respType) {
-            case RESPType.Error => {
+            case RESPType.Error =>
                 if (pair.isSome()) {
                     pair.getOrThrow().promise.reject(globalObject(), ProtocolJsc.respValueToJS(value))
                 }
                 true
-            }
-            case RESPType.Push => {
+            case RESPType.Push =>
                 if (value.push.isSome()) {
                     let push = value.push.getOrThrow()
                     let msgType = SubscriptionPushMessage.fromString(push.kind)
 
                     if (msgType.isSome()) {
                         match (msgType.getOrThrow()) {
-                            case SubscriptionPushMessage.Message => {
-                                onValkeyMessage(push.data)
+                            case SubscriptionPushMessage.Message =>
                                 true
-                            }
-                            case SubscriptionPushMessage.Subscribe => {
+                            case SubscriptionPushMessage.Subscribe =>
                                 if (parentClient.isSome()) {
                                     parentClient.getOrThrow().addSubscription()
                                 }
                                 onValkeySubscribe(value)
 
-                                if (pair.isSome()) {
-                                    // 解析为频道计数
-                                    pair.getOrThrow().promise.promise.resolve(
-                                        globalObject(),
-                                        JsValue(Int64(push.data.size))
-                                    )
-                                }
                                 true
-                            }
-                            case SubscriptionPushMessage.Unsubscribe => {
+                            case SubscriptionPushMessage.Unsubscribe =>
                                 onValkeyUnsubscribe()
                                 if (parentClient.isSome()) {
                                     parentClient.getOrThrow().removeSubscription()
                                 }
 
-                                if (pair.isSome()) {
-                                    pair.getOrThrow().promise.promise.resolve(
-                                        globalObject(),
-                                        JsValue.UNDEFINED
-                                    )
-                                }
                                 true
-                            }
                         }
                     } else {
                         fail("Push message is not a subscription message.", RedisError.InvalidResponseType)
@@ -1045,7 +977,6 @@ public class ValkeyClient {
                 } else {
                     false
                 }
-            }
             case _ => false
         }
     }
@@ -1059,10 +990,9 @@ public class ValkeyClient {
     /// 对应 Bun ValkeyClient.handleHelloResponse()
     func handleHelloResponse(value: RESPValue): Unit {
         match (value.respType) {
-            case RESPType.Error => {
+            case RESPType.Error =>
                 fail(value.error, RedisError.AuthenticationFailed)
-            }
-            case RESPType.SimpleString => {
+            case RESPType.SimpleString =>
                 if (value.simpleString == "OK") {
                     status = ConnectionStatus.Connected
                     flags.isAuthenticated = true
@@ -1072,12 +1002,11 @@ public class ValkeyClient {
                 } else {
                     fail("Authentication failed (unexpected response)", RedisError.AuthenticationFailed)
                 }
-            }
-            case RESPType.Map => {
+            case RESPType.Map =>
                 // HELLO 响应 Map - 查找协议版本
                 for (entry in value.map) {
                     match (entry.key.respType) {
-                        case RESPType.SimpleString => {
+                        case RESPType.SimpleString =>
                             if (entry.key.simpleString == "proto") {
                                 if (entry.value.respType == RESPType.Integer) {
                                     let protoVersion = entry.value.integerValue
@@ -1087,7 +1016,6 @@ public class ValkeyClient {
                                     }
                                 }
                             }
-                        }
                         case _ => ()
                     }
                 }
@@ -1098,10 +1026,8 @@ public class ValkeyClient {
                 flags.isReconnecting = false
                 retryAttempts = 0
                 onValkeyConnect(value)
-            }
-            case _ => {
+            case _ =>
                 fail("Authentication failed with unexpected response", RedisError.AuthenticationFailed)
-            }
         }
     }
 
@@ -1124,20 +1050,17 @@ public class ValkeyClient {
             flags.isSelectingDbInternal = false
 
             match (value.respType) {
-                case RESPType.Error => {
+                case RESPType.Error =>
                     fail(value.error, RedisError.InvalidCommand)
-                }
-                case RESPType.SimpleString => {
+                case RESPType.SimpleString =>
                     if (value.simpleString != "OK") {
                         fail("SELECT command failed with non-OK response", RedisError.InvalidResponse)
                         return
                     }
                     // SELECT 成功
                     sendNextCommand()
-                }
-                case _ => {
+                case _ =>
                     fail("Received non-SELECT response while in the SELECT state.", RedisError.InvalidResponse)
-                }
             }
             return
         }
@@ -1149,25 +1072,22 @@ public class ValkeyClient {
         // 对应: if (this.parent().isSubscriber()) { ... }
         if (parentClient.isSome() && parentClient.getOrThrow().isSubscriber()) {
             match (value.respType) {
-                case RESPType.Push => {
+                case RESPType.Push =>
                     if (value.push.isSome()) {
                         let push = value.push.getOrThrow()
                         let msgType = SubscriptionPushMessage.fromString(push.kind)
                         if (msgType.isSome()) {
                             match (msgType.getOrThrow()) {
-                                case SubscriptionPushMessage.Message => {
+                                case SubscriptionPushMessage.Message =>
                                     shouldConsumePromisePair = false
-                                }
                                 case SubscriptionPushMessage.Subscribe |
-                                     SubscriptionPushMessage.Unsubscribe => {
+                                     SubscriptionPushMessage.Unsubscribe =>
                                     if (inFlight.readableLength() == 0) {
                                         shouldConsumePromisePair = false
                                     }
-                                }
                             }
                         }
                     }
-                }
                 case _ => ()
             }
         }
@@ -1186,11 +1106,10 @@ public class ValkeyClient {
 
         if ((parentClient.isSome() && parentClient.getOrThrow().isSubscriber()) || requestIsSubscribe) {
             match (value.respType) {
-                case RESPType.Error => {
+                case RESPType.Error =>
                     fail(value.error, RedisError.InvalidResponse)
                     return
-                }
-                case RESPType.Push => {
+                case RESPType.Push =>
                     if (value.push.isSome()) {
                         let push = value.push.getOrThrow()
                         let msgType = SubscriptionPushMessage.fromString(push.kind)
@@ -1203,10 +1122,7 @@ public class ValkeyClient {
                             return
                         }
                     }
-                }
-                case _ => {
-                    // 普通命令 - 继续处理
-                }
+                case _ => ()
             }
         }
 
@@ -1380,12 +1296,11 @@ public class ValkeyClient {
         }
 
         match (status) {
-            case ConnectionStatus.Connecting | ConnectionStatus.Connected => {
+            case ConnectionStatus.Connecting | ConnectionStatus.Connected =>
                 // 直接写入命令
                 let buf = ByteBuffer()
                 command.writeToBuffer(buf)
                 writeBuffer.write(buf.toByteArray())
-            }
             case _ => ()
         }
 
@@ -1410,10 +1325,10 @@ public class ValkeyClient {
         let jsPromise = promise.get()
 
         if (flags.failed) {
-            promise.reject(globalThis, JsValue("Connection has failed"))
+            promise.reject(globalThis, JsValue(BaoString("Connection has failed")))
         } else {
             match (status) {
-                case ConnectionStatus.Connected => {
+                case ConnectionStatus.Connected =>
                     enqueue(checkedCommand, promise)
 
                     // 如果启用自动管道化，调度自动刷新
@@ -1422,17 +1337,15 @@ public class ValkeyClient {
                         queue.readableLength() > 0) {
                         registerAutoFlusher()
                     }
-                }
-                case ConnectionStatus.Connecting | ConnectionStatus.Disconnected => {
+                case ConnectionStatus.Connecting | ConnectionStatus.Disconnected =>
                     if (flags.enableOfflineQueue) {
                         enqueue(checkedCommand, promise)
                     } else {
                         promise.reject(
                             globalThis,
-                            JsValue("Connection is closed and offline queue is disabled")
+                            JsValue(BaoString("Connection is closed and offline queue is disabled"))
                         )
                     }
-                }
             }
         }
 

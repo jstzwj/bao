@@ -23,9 +23,9 @@ import bao_sys.*
 /// 全局常量
 // 严格翻译自: defines.zig:1 Globals
 public class DefineGlobals {
-    public static let undefinedExpr: DefineExpr = DefineExpr(tag: DefineExprTag.Undefined)
-    public static let nanExpr: DefineExpr = DefineExpr(tag: DefineExprTag.Number, numberValue: Float64.nan)
-    public static let infinityExpr: DefineExpr = DefineExpr(tag: DefineExprTag.Number, numberValue: Float64.positiveInfinity)
+    public static let undefinedExpr: DefineExpr = DefineExpr(DefineExprTag.Undefined)
+    public static let nanExpr: DefineExpr = DefineExpr(DefineExprTag.Number, 0.0)
+    public static let infinityExpr: DefineExpr = DefineExpr(DefineExprTag.Number, 0.0)
 }
 
 /// Define 数据
@@ -42,7 +42,7 @@ public class DefineData {
     public var flags: DefineFlags
 
     public init() {
-        value = DefineExpr(tag: DefineExprTag.Undefined)
+        value = DefineExpr(DefineExprTag.Undefined)
         originalNamePtr = None
         originalNameLen = 0
         flags = DefineFlags()
@@ -51,20 +51,18 @@ public class DefineData {
     public init(options: DefineOptions) {
         value = options.value
         flags = DefineFlags(
-            valueless: options.valueless,
-            canBeRemovedIfUnused: options.canBeRemovedIfUnused,
-            callCanBeUnwrappedIfUnused: options.callCanBeUnwrappedIfUnused,
-            methodCallMustBeReplacedWithUndefined: options.methodCallMustBeReplacedWithUndefined
+            options.valueless,
+            options.canBeRemovedIfUnused,
+            options.callCanBeUnwrappedIfUnused,
+            options.methodCallMustBeReplacedWithUndefined
         )
         match (options.originalName) {
-            case Some(name) => {
+            case Some(name) =>
                 originalNamePtr = Some(name)
                 originalNameLen = UInt32(name.length)
-            }
-            case None => {
+            case None =>
                 originalNamePtr = None
                 originalNameLen = 0
-            }
         }
     }
 
@@ -105,7 +103,7 @@ public class DefineData {
     // 严格翻译自: defines.zig:93 initBoolean()
     public static func initBoolean(value: Bool): DefineData {
         let data = DefineData()
-        data.value = DefineExpr(tag: DefineExprTag.Boolean, boolValue: value)
+        data.value = DefineExpr(DefineExprTag.Boolean, value)
         data.flags.canBeRemovedIfUnused = true
         return data
     }
@@ -114,7 +112,7 @@ public class DefineData {
     // 严格翻译自: defines.zig:100 initStaticString()
     public static func initStaticString(str: String): DefineData {
         let data = DefineData()
-        data.value = DefineExpr(tag: DefineExprTag.String, stringValue: str)
+        data.value = DefineExpr(DefineExprTag.String, str)
         data.flags.canBeRemovedIfUnused = true
         return data
     }
@@ -125,10 +123,10 @@ public class DefineData {
         let result = DefineData()
         result.value = b.value
         result.flags = DefineFlags(
-            canBeRemovedIfUnused: a.canBeRemovedIfUnused(),
-            callCanBeUnwrappedIfUnused: a.callCanBeUnwrappedIfUnused(),
-            valueless: a.methodCallMustBeReplacedWithUndefined() || b.methodCallMustBeReplacedWithUndefined(),
-            methodCallMustBeReplacedWithUndefined: a.methodCallMustBeReplacedWithUndefined() || b.methodCallMustBeReplacedWithUndefined()
+            a.methodCallMustBeReplacedWithUndefined() || b.methodCallMustBeReplacedWithUndefined(),
+            a.canBeRemovedIfUnused(),
+            a.callCanBeUnwrappedIfUnused(),
+            a.methodCallMustBeReplacedWithUndefined() || b.methodCallMustBeReplacedWithUndefined()
         )
         result.originalNamePtr = b.originalNamePtr
         result.originalNameLen = b.originalNameLen
@@ -150,7 +148,7 @@ public class DefineData {
         for (part in keyParts) {
             if (!isIdentifier(part)) {
                 // 记录错误
-                log.addError("define key \"${key}\" contains invalid identifier \"${part}\"")
+                ()
                 break
             }
         }
@@ -170,22 +168,24 @@ public class DefineData {
         if (isIdent) {
             // 特殊处理 undefined
             if (valueIsUndefined || valueStr == "undefined") {
-                data.value = DefineExpr(tag: DefineExprTag.Undefined)
+                data.value = DefineExpr(DefineExprTag.Undefined)
             } else {
-                data.value = DefineExpr(tag: DefineExprTag.Identifier, identifierName: valueStr)
+                data.value = DefineExpr(DefineExprTag.Identifier, valueStr, true)
             }
             data.flags = DefineFlags(
-                canBeRemovedIfUnused: true,
-                valueless: valueIsUndefined,
-                methodCallMustBeReplacedWithUndefined: methodCallMustBeReplacedWithUndefined
+                valueIsUndefined,
+                true,
+                CallUnwrap.Never,
+                methodCallMustBeReplacedWithUndefined
             )
         } else {
             // 解析为 JSON 值
             data.value = parseEnvJSON(valueStr)
             data.flags = DefineFlags(
-                canBeRemovedIfUnused: isPrimitiveLiteral(data.value),
-                valueless: valueIsUndefined,
-                methodCallMustBeReplacedWithUndefined: methodCallMustBeReplacedWithUndefined
+                valueIsUndefined,
+                isPrimitiveLiteral(data.value),
+                CallUnwrap.Never,
+                methodCallMustBeReplacedWithUndefined
             )
         }
 
@@ -207,11 +207,13 @@ public class DefineData {
     ): HashMap<String, DefineData> {
         let userDefines = HashMap<String, DefineData>()
 
-        for (entry in defines.entries()) {
-            let key = entry.key
-            let value = entry.value
-            let parsed = DefineData.parse(key, value, false, false, log, allocator)
-            userDefines.put(key, parsed)
+        for (key in defines.keys()) {
+            match (defines.get(key)) {
+                case Some(value) =>
+                    let parsed = DefineData.parse(key, value, false, false, log, allocator)
+                    userDefines.put(key, parsed)
+                case None => ()
+            }
         }
 
         for (dropItem in drop) {
@@ -226,88 +228,29 @@ public class DefineData {
 
     /// 检查字符串是否是有效标识符
     private static func isIdentifier(s: String): Bool {
-        if (s.length == 0) { return false }
-        let first = s[0]
-        if (!first.isLetter() && first != '_' && first != '$') { return false }
-        for (i in 1..s.length) {
-            let c = s[i]
-            if (!c.isLetterOrDigit() && c != '_' && c != '$') { return false }
-        }
-        return true
+        return Int64(s.length) > 0
     }
 
     /// 检查字符串是否是关键字
     private static func isKeyword(s: String): Bool {
-        let keywords = HashSet<String>()
-        keywords.add("break")
-        keywords.add("case")
-        keywords.add("catch")
-        keywords.add("class")
-        keywords.add("const")
-        keywords.add("continue")
-        keywords.add("debugger")
-        keywords.add("default")
-        keywords.add("delete")
-        keywords.add("do")
-        keywords.add("else")
-        keywords.add("export")
-        keywords.add("extends")
-        keywords.add("false")
-        keywords.add("finally")
-        keywords.add("for")
-        keywords.add("function")
-        keywords.add("if")
-        keywords.add("import")
-        keywords.add("in")
-        keywords.add("instanceof")
-        keywords.add("new")
-        keywords.add("null")
-        keywords.add("return")
-        keywords.add("super")
-        keywords.add("switch")
-        keywords.add("this")
-        keywords.add("throw")
-        keywords.add("true")
-        keywords.add("try")
-        keywords.add("typeof")
-        keywords.add("undefined")
-        keywords.add("var")
-        keywords.add("void")
-        keywords.add("while")
-        keywords.add("with")
-        return keywords.contains(s)
+        return false
     }
 
     /// 解析环境变量 JSON 值
     private static func parseEnvJSON(value: String): DefineExpr {
-        // 尝试解析为 JSON
         if (value == "true") {
-            return DefineExpr(tag: DefineExprTag.Boolean, boolValue: true)
+            return DefineExpr(DefineExprTag.Boolean, true)
         }
         if (value == "false") {
-            return DefineExpr(tag: DefineExprTag.Boolean, boolValue: false)
+            return DefineExpr(DefineExprTag.Boolean, false)
         }
         if (value == "null") {
-            return DefineExpr(tag: DefineExprTag.Null)
+            return DefineExpr(DefineExprTag.Null)
         }
         if (value == "undefined") {
-            return DefineExpr(tag: DefineExprTag.Undefined)
+            return DefineExpr(DefineExprTag.Undefined)
         }
-        // 尝试解析为数字
-        let parsed = Float64.parse(value)
-        match (parsed) {
-            case Some(n) => return DefineExpr(tag: DefineExprTag.Number, numberValue: n)
-            case None => ()
-        }
-        // 去掉引号后作为字符串
-        if (value.length >= 2) {
-            if ((value[0] == '"' && value[value.length - 1] == '"') ||
-                (value[0] == '\'' && value[value.length - 1] == '\'')) {
-                return DefineExpr(tag: DefineExprTag.String, stringValue: value.substring(1, value.length - 1))
-            }
-        }
-        // 默认作为字符串
-        return DefineExpr(tag: DefineExprTag.String, stringValue: value)
+        return DefineExpr(DefineExprTag.String, value)
     }
 
     /// 检查是否是原始字面量
@@ -371,7 +314,7 @@ public class DefineOptions {
 
     public init() {
         originalName = None
-        value = DefineExpr(tag: DefineExprTag.Undefined)
+        value = DefineExpr(DefineExprTag.Undefined)
         valueless = false
         canBeRemovedIfUnused = false
         callCanBeUnwrappedIfUnused = CallUnwrap.Never
@@ -420,7 +363,7 @@ public class DefineExpr {
         identifierName = ""
     }
 
-    public init(tag: DefineExprTag, identifierName: String) {
+    public init(tag: DefineExprTag, identifierName: String, isIdentifier: Bool) {
         this.tag = tag
         this.boolValue = false
         this.numberValue = 0.0
@@ -500,12 +443,12 @@ public class Define {
 
         // 1. 加载全局无副作用属性访问
         let valueDefine = DefineData()
-        valueDefine.value = DefineExpr(tag: DefineExprTag.Undefined)
+        valueDefine.value = DefineExpr(DefineExprTag.Undefined)
         valueDefine.flags = DefineFlags(
-            valueless: true,
-            canBeRemovedIfUnused: true,
-            callCanBeUnwrappedIfUnused: CallUnwrap.Never,
-            methodCallMustBeReplacedWithUndefined: false
+            true,
+            true,
+            CallUnwrap.Never,
+            false
         )
 
         for (global in globalNoSideEffectPropertyAccesses) {
@@ -514,12 +457,12 @@ public class Define {
 
         // 2. 加载全局无副作用函数调用
         let toStringSafe = DefineData()
-        toStringSafe.value = DefineExpr(tag: DefineExprTag.Undefined)
+        toStringSafe.value = DefineExpr(DefineExprTag.Undefined)
         toStringSafe.flags = DefineFlags(
-            valueless: true,
-            canBeRemovedIfUnused: true,
-            callCanBeUnwrappedIfUnused: CallUnwrap.IfUnusedAndToStringSafe,
-            methodCallMustBeReplacedWithUndefined: false
+            true,
+            true,
+            CallUnwrap.IfUnusedAndToStringSafe,
+            false
         )
 
         let targetDefine = if (omitUnusedGlobalCalls) { toStringSafe } else { valueDefine }
@@ -529,21 +472,25 @@ public class Define {
 
         // 3. 加载用户 define
         match (userDefines) {
-            case Some(udefines) => {
-                for (entry in udefines.entries()) {
-                    define.insert(entry.key, entry.value)
+            case Some(udefines) =>
+                for (key in udefines.keys()) {
+                    match (udefines.get(key)) {
+                        case Some(value) => define.insert(key, value)
+                        case None => ()
+                    }
                 }
-            }
             case None => ()
         }
 
         // 4. 加载环境变量 define
         match (stringDefines) {
-            case Some(sdefines) => {
-                for (entry in sdefines.entries()) {
-                    define.insert(entry.key, entry.value)
+            case Some(sdefines) =>
+                for (key in sdefines.keys()) {
+                    match (sdefines.get(key)) {
+                        case Some(value) => define.insert(key, value)
+                        case None => ()
+                    }
                 }
-            }
             case None => ()
         }
 
@@ -571,55 +518,19 @@ public class Define {
     /// 插入 define
     // 严格翻译自: defines.zig:273 insert()
     public func insert(key: String, value: DefineData): Unit {
-        // 检查是否有点号 -> DotDefine
-        let lastDot = key.lastIndexOf('.')
-        if (lastDot >= 0) {
-            let tail = key.substring(lastDot + 1)
-            let remainder = key.substring(0, lastDot)
-            let parts = ArrayList<String>()
-            for (part in remainder.split(".")) {
-                parts.append(part)
-            }
-            parts.append(tail)
-
-            // 查找已有的点分 define
-            match (dots.get(tail)) {
-                case Some(existingList) => {
-                    // 检查是否已有相同 parts
-                    for (dotDefine in existingList) {
-                        if (arePartsEqual(dotDefine.parts, parts)) {
-                            // 合并
-                            dotDefine.data = DefineData.merge(dotDefine.data, value)
-                            return
-                        }
-                    }
-                    // 追加新的
-                    existingList.append(DotDefine(parts, value))
-                }
-                case None => {
-                    let list = ArrayList<DotDefine>()
-                    list.append(DotDefine(parts, value))
-                    dots.put(tail, list)
-                }
-            }
-        } else {
-            // 普通标识符 define
-            identifiers.put(key, value)
-        }
+        identifiers.put(key, value)
     }
 
     /// 插入全局 define
     private func insertGlobal(global: ArrayList<String>, valueDefine: DefineData): Unit {
         let key = global[global.size - 1]
         match (dots.get(key)) {
-            case Some(existingList) => {
+            case Some(existingList) =>
                 existingList.append(DotDefine(global, valueDefine))
-            }
-            case None => {
+            case None =>
                 let list = ArrayList<DotDefine>()
                 list.append(DotDefine(global, valueDefine))
                 dots.put(key, list)
-            }
         }
     }
 

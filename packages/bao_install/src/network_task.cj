@@ -119,7 +119,7 @@ public class ExtractTarballCallback {
     /// 构建 tarball URL
     /// 翻译自: ExtractTarball.buildURL
     public static func buildURL(registryUrl: String, name: String, version: String, stringBuf: String): String {
-        if (version.length > 0) {
+        if (version.size > 0) {
             let encoded = name.replace("/", "%2f")
             let base = registryUrl
             let sep = if (base.endsWith("/")) { "" } else { "/" }
@@ -246,7 +246,7 @@ public class NetworkTask {
         extractCallback = Some(tarball)
 
         let tarballUrl = tarball.url
-        if (tarballUrl.length > 0) {
+        if (tarballUrl.size > 0) {
             urlBuf = tarballUrl
         } else {
             // 从 registry URL 构建 tarball URL
@@ -281,21 +281,25 @@ public class NetworkTask {
 
     /// 是否需要重试
     /// 翻译自: NetworkTask 中的重试逻辑
+    private func retryWithIncrement(): Bool {
+        retried = UInt16(Int64(retried) + 1)
+        return true
+    }
+
+    private func retryIfServerError(): Bool {
+        // 5xx 错误可重试
+        if (statusCode >= 500) {
+            retried = UInt16(Int64(retried) + 1)
+            return true
+        }
+        return false
+    }
+
     public func shouldRetry(): Bool {
         if (retried >= maxRetries) { return false }
         match (error) {
-            case Some(_) => {
-                retried = UInt16(Int64(retried) + 1)
-                return true
-            }
-            case None => {
-                // 5xx 错误可重试
-                if (statusCode >= 500) {
-                    retried = UInt16(Int64(retried) + 1)
-                    return true
-                }
-                return false
-            }
+            case Some(_) => return retryWithIncrement()
+            case None => return retryIfServerError()
         }
     }
 
@@ -320,12 +324,11 @@ public class NetworkTask {
     /// 获取 Accept 头
     public func getAcceptHeader(): String {
         match (taskType) {
-            case PackageManifest => {
+            case PackageManifest =>
                 match (manifestCallback) {
                     case Some(cb) => if (cb.isExtendedManifest) { ACCEPT_HEADER_VALUE_EXTENDED } else { ACCEPT_HEADER_VALUE }
                     case None => ACCEPT_HEADER_VALUE
                 }
-            }
             case _ => "*/*"
         }
     }
@@ -333,9 +336,9 @@ public class NetworkTask {
     /// 构建授权头
     /// 翻译自: NetworkTask.appendAuth / countAuth
     public static func buildAuthHeader(scope: RegistryConfig): ?String {
-        if (scope.token.length > 0) {
+        if (scope.token.size > 0) {
             return Some("Bearer ${scope.token}")
-        } else if (scope.auth.length > 0) {
+        } else if (scope.auth.size > 0) {
             return Some("Basic ${scope.auth}")
         }
         return None
@@ -362,10 +365,9 @@ public class NetworkTaskDedupeMap {
     public func getOrInsert(taskId: Int64, isRequired: Bool): Bool {
         match (map.get(taskId)) {
             case Some(_) => return true  // 已存在
-            case None => {
+            case None =>
                 map.put(taskId, isRequired)
                 return false
-            }
         }
     }
 
@@ -379,7 +381,10 @@ public class NetworkTaskDedupeMap {
 
     /// 移除
     public func remove(taskId: Int64): Bool {
-        return map.remove(taskId)
+        match (map.remove(taskId)) {
+            case Some(v) => return v
+            case None => return false
+        }
     }
 }
 
@@ -427,7 +432,6 @@ public class PackageManifestData {
         cacheTimestamp: Int64,
         isExtended: Bool
     ): ?PackageManifestData {
-        // 304 Not Modified -> 返回缓存的 manifest
         let manifest = PackageManifestData(packageName)
         manifest.lastModified = lastModified
         manifest.etag = etag
@@ -436,38 +440,31 @@ public class PackageManifestData {
 
         // 解析 JSON body 提取 versions 和 dist-tags
         // 翻译自: PackageManifest.parse
-        try {
-            let json = bao_json.JsonParser.parse(body)
-            // dist-tags
-            match (json.get("dist-tags")) {
-                case Some(tags) => {
-                    let tagObj = tags.asObject()
-                    if (tagObj != None) {
+        let jsonParser = JsonParser()
+        let jsonResult = jsonParser.parse(body)
+        match (jsonResult) {
+            case Some(json) =>
+                // dist-tags
+                match (JsonHelper.getField(json, "dist-tags")) {
+                    case Some(JsonValue.Object(tagObj)) =>
                         for (key in tagObj.keys()) {
                             match (tagObj.get(key)) {
-                                case Some(v) => manifest.distTags.put(key, v.asString())
-                                case None => ()
+                                case Some(JsonValue.Str(v)) => manifest.distTags.put(key, v)
+                                case _ => ()
                             }
                         }
-                    }
+                    case _ => ()
                 }
-                case None => ()
-            }
-            // versions
-            match (json.get("versions")) {
-                case Some(vers) => {
-                    let verObj = vers.asObject()
-                    if (verObj != None) {
+                // versions
+                match (JsonHelper.getField(json, "versions")) {
+                    case Some(JsonValue.Object(verObj)) =>
                         for (key in verObj.keys()) {
                             manifest.versions.append(key)
                         }
-                    }
+                    case _ => ()
                 }
-                case None => ()
-            }
-            return manifest
-        } catch (_: Exception) {
-            return None
+                return manifest
+            case None => return None
         }
     }
 
@@ -489,30 +486,32 @@ public class PackageManifestData {
     public func findBestVersion(range: String): ?String {
         let sv = SemVer.parse(range)
         match (sv) {
-            case Some(target) => {
+            case Some(target) =>
                 // 精确匹配
                 for (v in versions) {
                     let ver = SemVer.parse(v)
                     match (ver) {
-                        case Some(parsed) => {
-                            if (parsed.compare(target) == 0) { return v }
-                        }
+                        case Some(parsed)=>
+                            if (parsed.compare(target) == 0) { return Some(v) }
                         case None => ()
                     }
                 }
                 // 最新兼容版本
                 var bestMatch: ?String = None
                 for (v in versions) {
-                    if (SemVer.satisfies(SemVer.parse(v).getOrThrow(), range)) {
-                        bestMatch = Some(v)
+                    let parsedVer = SemVer.parse(v)
+                    match (parsedVer) {
+                        case Some(pv) =>
+                            if (SemVer.satisfies(pv, range)) {
+                                bestMatch = Some(v)
+                            }
+                        case None => ()
                     }
                 }
                 return bestMatch
-            }
-            case None => {
+            case None =>
                 // dist-tag
                 return getDistTag(range)
-            }
         }
     }
 }
@@ -550,7 +549,7 @@ public class NetworkTaskQueue {
         return items.size == 0
     }
 
-    public func count(): Int64 {
+    public func getCount(): Int64 {
         return items.size
     }
 }
@@ -573,14 +572,12 @@ public class AsyncNetworkTaskQueue {
     public func push(task: NetworkTask): Unit {
         task.next = None
         match (tail) {
-            case Some(t) => {
+            case Some(t) =>
                 t.next = task
                 tail = task
-            }
-            case None => {
+            case None =>
                 head = task
                 tail = task
-            }
         }
         count += 1
     }
@@ -592,15 +589,14 @@ public class AsyncNetworkTaskQueue {
         var current = head
         head = None
         tail = None
-        while (current != None) {
+        while (true) {
             match (current) {
-                case Some(task) => {
+                case Some(task) =>
                     result.append(task)
                     let nextTask = task.next
                     task.next = None
                     current = nextTask
-                }
-                case None => current = None
+                case None => break
             }
         }
         count = 0
@@ -608,10 +604,13 @@ public class AsyncNetworkTaskQueue {
     }
 
     public func isEmpty(): Bool {
-        return head == None
+        match (head) {
+            case Some(_) => return false
+            case None => return true
+        }
     }
 
-    public func count(): Int64 {
+    public func getCount(): Int64 {
         return count
     }
 }

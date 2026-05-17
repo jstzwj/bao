@@ -13,6 +13,7 @@ package bao_io
 
 import bao_core.*
 import bao_sys.*
+import bao_collections.*
 
 // ============================================================================
 // IoRequestLoop - IO 请求循环
@@ -78,7 +79,7 @@ public class IoRequestLoop {
             return
         }
         // 创建唤醒器
-        let w = IoWaker.init()
+        let w = IoWaker.create()
         match (w) {
             case Some(waker_) =>
                 waker = waker_
@@ -202,7 +203,7 @@ public class IoReq {
     /// 翻译自: impl Default for Request
     public static func default(): IoReq {
         return IoReq({ req =>
-            return IoReqAction.Close(IoCloseAction())
+            return IoReqAction.Close(IoReqCloseAction())
         })
     }
 }
@@ -220,9 +221,9 @@ public class IoReq {
 /// IO 请求动作
 /// 翻译自: pub const Action = union(enum) { readable, writable, close }
 public enum IoReqAction {
-    | Readable(IoFileAction)    // 注册可读监视
-    | Writable(IoFileAction)    // 注册可写监视
-    | Close(IoCloseAction)      // 关闭并注销
+    | Readable(IoReqFileAction)    // 注册可读监视
+    | Writable(IoReqFileAction)    // 注册可写监视
+    | Close(IoReqCloseAction)      // 关闭并注销
 
     /// 是否为可读
     public func isReadable(): Bool {
@@ -250,7 +251,7 @@ public enum IoReqAction {
 }
 
 // ============================================================================
-// IoFileAction - 文件动作
+// IoReqFileAction - 文件动作
 // 严格翻译自: io.zig Action.FileAction / lib.rs FileAction
 //   pub const FileAction = struct {
 //       fd: bun.FD,
@@ -263,7 +264,7 @@ public enum IoReqAction {
 
 /// 文件动作 - 翻译自 FileAction
 /// 描述一个文件描述符的监视注册
-public class IoFileAction {
+public class IoReqFileAction {
     /// 文件描述符
     public var fd: Int64
     /// 标签
@@ -277,7 +278,7 @@ public class IoFileAction {
         fd = -1
         tag = IoPollableTag.Empty
         onError = { _ => () }
-        onReady = { () }
+        onReady = { => () }
     }
 
     public init(fd: Int64, tag: IoPollableTag, onError: (SysError) -> Unit, onReady: () -> Unit) {
@@ -289,7 +290,7 @@ public class IoFileAction {
 }
 
 // ============================================================================
-// IoCloseAction - 关闭动作
+// IoReqCloseAction - 关闭动作
 // 严格翻译自: io.zig Action.CloseAction / lib.rs CloseAction
 //   pub const CloseAction = struct {
 //       fd: bun.FD, poll: *Poll, ctx: *anyopaque,
@@ -299,7 +300,7 @@ public class IoFileAction {
 
 /// 关闭动作 - 翻译自 CloseAction
 /// 描述一个文件描述符的关闭和注销
-public class IoCloseAction {
+public class IoReqCloseAction {
     /// 文件描述符
     public var fd: Int64
     /// 标签
@@ -310,7 +311,7 @@ public class IoCloseAction {
     public init() {
         fd = -1
         tag = IoPollableTag.Empty
-        onDone = { () }
+        onDone = { => () }
     }
 
     public init(fd: Int64, tag: IoPollableTag, onDone: () -> Unit) {
@@ -355,7 +356,7 @@ public enum IoPollableTag {
 ///       fifo, tty, one_shot, needs_rearm, closed, nonblocking,
 ///       was_ever_registered, ignore_updates, cancelled, registered,
 ///   }
-public enum IoPollFlag {
+public enum IoPollFlag <: Equatable<IoPollFlag> {
     // 我们在询问事件循环什么?
     | PollReadable      // 轮询可读事件
     | PollWritable      // 轮询可写事件
@@ -383,15 +384,44 @@ public enum IoPollFlag {
     | IgnoreUpdates     // 忽略更新
     | Cancelled         // 已取消
     | Registered        // 已注册
+
+    public operator func ==(right: IoPollFlag): Bool {
+        match (this) {
+            case PollReadable => match (right) { case PollReadable => true case _ => false }
+            case PollWritable => match (right) { case PollWritable => true case _ => false }
+            case PollProcess => match (right) { case PollProcess => true case _ => false }
+            case PollMachPort => match (right) { case PollMachPort => true case _ => false }
+            case Readable => match (right) { case Readable => true case _ => false }
+            case Writable => match (right) { case Writable => true case _ => false }
+            case Process => match (right) { case Process => true case _ => false }
+            case Eof => match (right) { case Eof => true case _ => false }
+            case Hup => match (right) { case Hup => true case _ => false }
+            case MachPort => match (right) { case MachPort => true case _ => false }
+            case Fifo => match (right) { case Fifo => true case _ => false }
+            case Tty => match (right) { case Tty => true case _ => false }
+            case OneShot => match (right) { case OneShot => true case _ => false }
+            case NeedsRearm => match (right) { case NeedsRearm => true case _ => false }
+            case Closed => match (right) { case Closed => true case _ => false }
+            case NonBlocking => match (right) { case NonBlocking => true case _ => false }
+            case WasEverRegistered => match (right) { case WasEverRegistered => true case _ => false }
+            case IgnoreUpdates => match (right) { case IgnoreUpdates => true case _ => false }
+            case Cancelled => match (right) { case Cancelled => true case _ => false }
+            case Registered => match (right) { case Registered => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: IoPollFlag): Bool {
+        return !(this == right)
+    }
 }
 
 /// IO 轮询标志集合
 /// 翻译自: pub type FlagsSet = enumset::EnumSet<Flags>
 public class IoPollFlags {
-    private var flags: HashSet<IoPollFlag>
+    private var flags: IoPollFlagSet
 
     public init() {
-        flags = HashSet<IoPollFlag>()
+        flags = IoPollFlagSet()
     }
 
     public func contains(f: IoPollFlag): Bool {
@@ -538,7 +568,7 @@ public class IoWaker {
     /// 严格翻译自:
     ///   LinuxWaker: pub fn init() -> Result<Self> { eventfd(0, 0) }
     ///   KEventWaker: pub fn init() -> Result<Self> { kqueue(); io_darwin_create_machport(...) }
-    public static func init(): ?IoWaker {
+    public static func create(): ?IoWaker {
         // Linux: eventfd(0, 0)
         // macOS: kqueue() + machport
         // 简化: 使用 pipe 作为跨平台唤醒机制
@@ -584,7 +614,7 @@ public class IoWaker {
         if (fd < 0) {
             return
         }
-        let buf = Array<UInt8>(8, item: UInt8(0))
+        let buf = Array<UInt8>(8, { _ => UInt8(0) })
         SysFs.read(fd, buf)
     }
 }
@@ -690,10 +720,10 @@ public let IO_INTR_ERRNO: Int64 = 4
 // HashSet - 简化实现 (IoPollFlags 内部使用)
 // ============================================================================
 
-private class HashSet<T> {
-    private var data: ArrayList<T> = ArrayList<T>()
+private class IoPollFlagSet {
+    private var data: ArrayList<IoPollFlag> = ArrayList<IoPollFlag>()
 
-    public func contains(key: T): Bool {
+    public func contains(key: IoPollFlag): Bool {
         for (item in data) {
             if (item == key) {
                 return true
@@ -702,14 +732,14 @@ private class HashSet<T> {
         return false
     }
 
-    public func put(key: T): Unit {
+    public func put(key: IoPollFlag): Unit {
         if (!contains(key)) {
             data.append(key)
         }
     }
 
-    public func remove(key: T): Unit {
-        var newData = ArrayList<T>()
+    public func remove(key: IoPollFlag): Unit {
+        var newData = ArrayList<IoPollFlag>()
         for (item in data) {
             if (!(item == key)) {
                 newData.append(item)

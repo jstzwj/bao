@@ -16,3 +16,6 @@ bao_core = { path = "../bao_core" }
 bao_collections = { path = "../bao_collections" }
 bao_io = { path = "../bao_io" }
 bao_sys = { path = "../bao_sys" }
+bao_hash = { path = "../bao_hash" }
+bao_base64 = { path = "../bao_base64" }
+bao_http = { path = "../bao_http" }

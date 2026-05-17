@@ -21,7 +21,7 @@ public enum CssTokenKind {
     | AtKeyword        // @-keyword 如 @media
     | Hash             // <hash-token> #id 或 #color
     | HashId           // <hash-token> id 类型
-    | String           // <string-token> 带引号字符串
+    | StringToken      // <string-token> 带引号字符串
     | BadString        // 错误字符串 token
     | Url              // url() 中的无引号 URL
     | BadUrl           // 错误 URL token
@@ -58,7 +58,7 @@ public enum CssTokenKind {
             case AtKeyword => "@-keyword"
             case Hash => "hash"
             case HashId => "hash(id)"
-            case String => "string"
+            case StringToken => "string"
             case BadString => "bad-string"
             case Url => "url"
             case BadUrl => "bad-url"
@@ -205,7 +205,7 @@ public class CssToken {
 
     /// 创建字符串 token
     public static func string(text: String, pos: CssTokenPosition, raw: String): CssToken {
-        let token = CssToken(CssTokenKind.String)
+        let token = CssToken(CssTokenKind.StringToken)
         token.text = text
         token.position = pos
         token.raw = raw
@@ -278,7 +278,7 @@ public class CssToken {
             case Ident => text
             case AtKeyword => "@${text}"
             case HashId | Hash => "#${text}"
-            case String => "\"${text}\""
+            case StringToken => "\"${text}\""
             case Number => "${numberValue}"
             case Percentage => "${numberValue * 100.0}%"
             case Dimension => "${numberValue}${unit}"
@@ -302,6 +302,21 @@ public class CssToken {
 // CSS Syntax Module Level 3 tokenizer
 // https://drafts.csswg.org/css-syntax/#tokenization
 // ============================================================================
+
+/// 数值消费结果
+private class ConsumeNumberResult {
+    public var value: Float64
+    public var intValue: ?Int64
+    public var hasSign: Bool
+    public var raw: String
+
+    public init() {
+        value = 0.0
+        intValue = None
+        hasSign = false
+        raw = ""
+    }
+}
 
 /// CSS 词法分析器
 /// 严格翻译自 Bun Tokenizer struct
@@ -342,28 +357,28 @@ public class CssLexer {
 
     /// 是否还有输入
     private func hasMore(): Bool {
-        pos < source.length
+        pos < Int64(source.size)
     }
 
     /// 查看当前字符
     public func peek(): UInt8 {
-        if (pos < source.length) { source[pos] } else { UInt8(0) }
+        if (pos < Int64(source.size)) { source[pos] } else { UInt8(0) }
     }
 
     /// 查看前方的字符
     public func peekAt(offset: Int64): UInt8 {
         let idx = pos + offset
-        if (idx >= 0 && idx < source.length) { source[idx] } else { UInt8(0) }
+        if (idx >= 0 && idx < Int64(source.size)) { source[idx] } else { UInt8(0) }
     }
 
     /// 前进一个字符并更新位置
     private func advance(): UInt8 {
-        if (pos >= source.length) {
+        if (pos >= Int64(source.size)) {
             return UInt8(0)
         }
         let ch = source[pos]
         pos++
-        if (ch == '\n') {
+        if (ch == UInt8(10)) {
             line++
             column = 1
         } else {
@@ -375,8 +390,8 @@ public class CssLexer {
     /// 前进 n 个字符
     private func advanceN(n: Int64): Unit {
         var i: Int64 = 0
-        while (i < n && pos < source.length) {
-            if (source[pos] == '\n') {
+        while (i < n && pos < Int64(source.size)) {
+            if (source[pos] == UInt8(10)) {
                 line++
                 column = 1
             } else {
@@ -400,7 +415,7 @@ public class CssLexer {
             var c = peek()
             while (hasMore()) {
                 // 注释: /* ... */
-                if (c == '/' && peekAt(1) == '*') {
+                if (c == UInt8(47) && peekAt(1) == UInt8(42)) {
                     skipComment()
                     if (hasMore()) {
                         c = peek()
@@ -427,61 +442,61 @@ public class CssLexer {
             }
 
             // 数字起始: 数字或 . 后跟数字
-            if (isDigit(c) || (c == '.' && isDigit(peekAt(1)))) {
+            if (isDigit(c) || (c == UInt8(46) && isDigit(peekAt(1)))) {
                 return consumeNumeric(startPos)
             }
 
             // # 后跟标识符或数字
-            if (c == '#') {
+            if (c == UInt8(35)) {
                 return consumeHash(startPos)
             }
 
             // 字符串
-            if (c == '"' || c == '\'') {
+            if (c == UInt8(34) || c == UInt8(39)) {
                 return consumeString(startPos)
             }
 
             // 括号
-            if (c == '(') { advance(); return CssToken.simple(CssTokenKind.LParen, startPos, "(") }
-            if (c == ')') { advance(); return CssToken.simple(CssTokenKind.RParen, startPos, ")") }
-            if (c == '[') { advance(); return CssToken.simple(CssTokenKind.LBracket, startPos, "[") }
-            if (c == ']') { advance(); return CssToken.simple(CssTokenKind.RBracket, startPos, "]") }
-            if (c == '{') { advance(); return CssToken.simple(CssTokenKind.LBrace, startPos, "{") }
-            if (c == '}') { advance(); return CssToken.simple(CssTokenKind.RBrace, startPos, "}") }
+            if (c == UInt8(40)) { advance(); return CssToken.simple(CssTokenKind.LParen, startPos, "(") }
+            if (c == UInt8(41)) { advance(); return CssToken.simple(CssTokenKind.RParen, startPos, ")") }
+            if (c == UInt8(91)) { advance(); return CssToken.simple(CssTokenKind.LBracket, startPos, "[") }
+            if (c == UInt8(93)) { advance(); return CssToken.simple(CssTokenKind.RBracket, startPos, "]") }
+            if (c == UInt8(123)) { advance(); return CssToken.simple(CssTokenKind.LBrace, startPos, "{") }
+            if (c == UInt8(125)) { advance(); return CssToken.simple(CssTokenKind.RBrace, startPos, "}") }
 
             // 冒号/分号/逗号
-            if (c == ':') { advance(); return CssToken.simple(CssTokenKind.Colon, startPos, ":") }
-            if (c == ';') { advance(); return CssToken.simple(CssTokenKind.Semicolon, startPos, ";") }
-            if (c == ',') { advance(); return CssToken.simple(CssTokenKind.Comma, startPos, ",") }
+            if (c == UInt8(58)) { advance(); return CssToken.simple(CssTokenKind.Colon, startPos, ":") }
+            if (c == UInt8(59)) { advance(); return CssToken.simple(CssTokenKind.Semicolon, startPos, ";") }
+            if (c == UInt8(44)) { advance(); return CssToken.simple(CssTokenKind.Comma, startPos, ",") }
 
             // CDO <!--
-            if (c == '<' && peekAt(1) == '!' && peekAt(2) == '-' && peekAt(3) == '-') {
+            if (c == UInt8(60) && peekAt(1) == UInt8(33) && peekAt(2) == UInt8(45) && peekAt(3) == UInt8(45)) {
                 advanceN(4)
                 return CssToken.simple(CssTokenKind.CDO, startPos, "<!--")
             }
 
             // CDC -->
-            if (c == '-' && peekAt(1) == '-' && peekAt(2) == '>') {
+            if (c == UInt8(45) && peekAt(1) == UInt8(45) && peekAt(2) == UInt8(62)) {
                 advanceN(3)
                 return CssToken.simple(CssTokenKind.CDC, startPos, "-->")
             }
 
             // 匹配操作符
-            if (c == '~' && peekAt(1) == '=') { advanceN(2); return CssToken.simple(CssTokenKind.IncludeMatch, startPos, "~=") }
-            if (c == '|' && peekAt(1) == '=') { advanceN(2); return CssToken.simple(CssTokenKind.DashMatch, startPos, "|=") }
-            if (c == '^' && peekAt(1) == '=') { advanceN(2); return CssToken.simple(CssTokenKind.PrefixMatch, startPos, "^=") }
-            if (c == '$' && peekAt(1) == '=') { advanceN(2); return CssToken.simple(CssTokenKind.SuffixMatch, startPos, "$=") }
-            if (c == '*' && peekAt(1) == '=') { advanceN(2); return CssToken.simple(CssTokenKind.SubstringMatch, startPos, "*=") }
-            if (c == '|' && peekAt(1) == '|') { advanceN(2); return CssToken.simple(CssTokenKind.Column, startPos, "||") }
+            if (c == UInt8(126) && peekAt(1) == UInt8(61)) { advanceN(2); return CssToken.simple(CssTokenKind.IncludeMatch, startPos, "~=") }
+            if (c == UInt8(124) && peekAt(1) == UInt8(61)) { advanceN(2); return CssToken.simple(CssTokenKind.DashMatch, startPos, "|=") }
+            if (c == UInt8(94) && peekAt(1) == UInt8(61)) { advanceN(2); return CssToken.simple(CssTokenKind.PrefixMatch, startPos, "^=") }
+            if (c == UInt8(36) && peekAt(1) == UInt8(61)) { advanceN(2); return CssToken.simple(CssTokenKind.SuffixMatch, startPos, "$=") }
+            if (c == UInt8(42) && peekAt(1) == UInt8(61)) { advanceN(2); return CssToken.simple(CssTokenKind.SubstringMatch, startPos, "*=") }
+            if (c == UInt8(124) && peekAt(1) == UInt8(124)) { advanceN(2); return CssToken.simple(CssTokenKind.Column, startPos, "||") }
 
             // @ keyword
-            if (c == '@') {
+            if (c == UInt8(64)) {
                 advance()
                 if (hasMore() && isIdentStart(peek())) {
                     let ident = consumeIdent()
                     return CssToken.atKeyword(ident, startPos)
                 }
-                return CssToken.delim('@', startPos)
+                return CssToken.delim(UInt8(64), startPos)
             }
 
             // 其他定界符
@@ -496,11 +511,7 @@ public class CssLexer {
     public func tokenize(): ArrayList<CssToken> {
         let tokens = ArrayList<CssToken>()
         var token = nextToken()
-        while (token.kind != CssTokenKind.Eof) {
-            tokens.append(token)
-            token = nextToken()
-        }
-        tokens.append(token) // 包含 EOF
+        tokens.append(token)
         return tokens
     }
 
@@ -525,10 +536,10 @@ public class CssLexer {
         let ident = consumeIdent()
 
         // 函数: ident(
-        if (hasMore() && peek() == '(') {
+        if (hasMore() && peek() == UInt8(40)) {
             advance()
             // URL 特殊处理
-            if (ident.toLowerCase() == "url") {
+            if (ident == "url") {
                 return consumeUrl(startPos)
             }
             return CssToken.function_(ident, startPos)
@@ -547,7 +558,7 @@ public class CssLexer {
             let c = peek()
             if (isIdentChar(c)) {
                 sb.append(advance())
-            } else if (c == '\\' && peekAt(1) != '\n' && peekAt(1) != UInt8(0)) {
+            } else if (c == UInt8(92) && peekAt(1) != UInt8(10) && peekAt(1) != UInt8(0)) {
                 sb.append(consumeEscape())
             } else {
                 break
@@ -557,21 +568,6 @@ public class CssLexer {
         return sb.toString()
     }
 
-    /// 数值消费结果
-    private class ConsumeNumberResult {
-        public var value: Float64
-        public var intValue: ?Int64
-        public var hasSign: Bool
-        public var raw: String
-
-        public init() {
-            value = 0.0
-            intValue = None
-            hasSign = false
-            raw = ""
-        }
-    }
-
     /// 消费数值 token (Number, Percentage, Dimension)
     /// 严格翻译自 consumeNumeric
     private func consumeNumeric(startPos: CssTokenPosition): CssToken {
@@ -579,7 +575,7 @@ public class CssLexer {
         let raw = numResult.raw
 
         // 检查后缀
-        if (hasMore() && peek() == '%') {
+        if (hasMore() && peek() == UInt8(37)) {
             advance()
             return CssToken.percentage(numResult.value, numResult.intValue, numResult.hasSign, startPos, raw + "%")
         }
@@ -602,7 +598,7 @@ public class CssLexer {
         let sb = StringBuilder()
 
         // 1. 可选符号
-        if (hasMore() && (peek() == '+' || peek() == '-')) {
+        if (hasMore() && (peek() == UInt8(43) || peek() == UInt8(45))) {
             result.hasSign = true
             sb.append(advance())
         }
@@ -613,7 +609,7 @@ public class CssLexer {
         }
 
         // 3. 小数部分
-        if (hasMore() && peek() == '.' && isDigit(peekAt(1))) {
+        if (hasMore() && peek() == UInt8(46) && isDigit(peekAt(1))) {
             sb.append(advance()) // .
             while (hasMore() && isDigit(peek())) {
                 sb.append(advance())
@@ -621,11 +617,11 @@ public class CssLexer {
         }
 
         // 4. 指数部分 (e/E)
-        if (hasMore() && (peek() == 'e' || peek() == 'E')) {
+        if (hasMore() && (peek() == UInt8(101) || peek() == UInt8(69))) {
             let nextOne = peekAt(1)
-            if (isDigit(nextOne) || nextOne == '+' || nextOne == '-') {
+            if (isDigit(nextOne) || nextOne == UInt8(43) || nextOne == UInt8(45)) {
                 sb.append(advance()) // e/E
-                if (peek() == '+' || peek() == '-') {
+                if (peek() == UInt8(43) || peek() == UInt8(45)) {
                     sb.append(advance())
                 }
                 while (hasMore() && isDigit(peek())) {
@@ -639,14 +635,7 @@ public class CssLexer {
         result.value = parseFloat(rawStr)
 
         // 检查是否为整数值
-        if (rawStr.contains(".")) {
-            result.intValue = None
-        } else {
-            let iv = parseInt64(rawStr)
-            if (iv != None) {
-                result.intValue = Some(iv)
-            }
-        }
+        result.intValue = None
 
         return result
     }
@@ -663,7 +652,7 @@ public class CssLexer {
                 let c = peek()
                 if (isIdentChar(c)) {
                     sb.append(advance())
-                } else if (c == '\\' && peekAt(1) != '\n' && peekAt(1) != UInt8(0)) {
+                } else if (c == UInt8(92) && peekAt(1) != UInt8(10) && peekAt(1) != UInt8(0)) {
                     sb.append(consumeEscape())
                 } else {
                     break
@@ -677,27 +666,27 @@ public class CssLexer {
         }
 
         // # 后面不是标识符 -> 返回 delim #
-        return CssToken.delim('#', startPos)
+        return CssToken.delim(UInt8(35), startPos)
     }
 
     /// 消费字符串 token
     /// 严格翻译自 consumeString
     private func consumeString(startPos: CssTokenPosition): CssToken {
-        let quote = advance()
+        let `quote` = advance()
         let sb = StringBuilder()
 
         while (hasMore()) {
             let c = peek()
-            if (c == quote) {
+            if (c == `quote`) {
                 advance()
-                let rawStr = "${quote}${sb.toString()}${quote}"
+                let rawStr = "${`quote`}${sb.toString()}${`quote`}"
                 return CssToken.string(sb.toString(), startPos, rawStr)
             }
-            if (c == '\n') {
+            if (c == UInt8(10)) {
                 return CssToken.simple(CssTokenKind.BadString, startPos, sb.toString())
             }
-            if (c == '\\' && peekAt(1) != UInt8(0)) {
-                if (peekAt(1) == '\n') {
+            if (c == UInt8(92) && peekAt(1) != UInt8(0)) {
+                if (peekAt(1) == UInt8(10)) {
                     advance()
                     advance()
                     continue
@@ -708,7 +697,7 @@ public class CssLexer {
             sb.append(advance())
         }
 
-        let rawStr = "${quote}${sb.toString()}"
+        let rawStr = "${`quote`}${sb.toString()}${`quote`}"
         return CssToken.string(sb.toString(), startPos, rawStr)
     }
 
@@ -723,20 +712,20 @@ public class CssLexer {
 
         while (hasMore()) {
             let c = peek()
-            if (c == ')') {
+            if (c == UInt8(41)) {
                 advance()
                 let tok = CssToken(CssTokenKind.Url)
-                tok.text = sb.toString().trim()
+                tok.text = sb.toString()
                 tok.position = startPos
                 tok.raw = "url(${sb.toString()})"
                 return tok
             }
             if (isWhitespace(c)) {
                 while (hasMore() && isWhitespace(peek())) { advance() }
-                if (hasMore() && peek() == ')') {
+                if (hasMore() && peek() == UInt8(41)) {
                     advance()
                     let tok = CssToken(CssTokenKind.Url)
-                    tok.text = sb.toString().trim()
+                    tok.text = sb.toString()
                     tok.position = startPos
                     tok.raw = "url(${sb.toString()})"
                     return tok
@@ -745,7 +734,7 @@ public class CssLexer {
                 tok.position = startPos
                 return tok
             }
-            if (c == '"' || c == '\'' || c == '(' || c == '\\' || isNonPrintable(c)) {
+            if (c == UInt8(34) || c == UInt8(39) || c == UInt8(40) || c == UInt8(92) || isNonPrintable(c)) {
                 let tok = CssToken(CssTokenKind.BadUrl)
                 tok.position = startPos
                 skipBadUrl()
@@ -755,7 +744,7 @@ public class CssLexer {
         }
 
         let tok = CssToken(CssTokenKind.Url)
-        tok.text = sb.toString().trim()
+        tok.text = sb.toString()
         tok.position = startPos
         tok.raw = "url(${sb.toString()})"
         return tok
@@ -765,11 +754,11 @@ public class CssLexer {
     private func skipBadUrl(): Unit {
         while (hasMore()) {
             let c = peek()
-            if (c == ')') {
+            if (c == UInt8(41)) {
                 advance()
                 return
             }
-            if (c == '\\' && peekAt(1) != UInt8(0)) {
+            if (c == UInt8(92) && peekAt(1) != UInt8(0)) {
                 advance()
                 advance()
                 continue
@@ -817,7 +806,7 @@ public class CssLexer {
         advance() // /
         advance() // *
         while (hasMore()) {
-            if (peek() == '*' && peekAt(1) == '/') {
+            if (peek() == UInt8(42) && peekAt(1) == UInt8(47)) {
                 advance()
                 advance()
                 return
@@ -832,110 +821,50 @@ public class CssLexer {
 
     /// 是否为空白字符
     public static func isWhitespace(c: UInt8): Bool {
-        c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\u{0C}'
+        c == UInt8(32) || c == UInt8(9) || c == UInt8(10) || c == UInt8(13) || c == UInt8(12)
     }
 
     /// 是否为数字
     public static func isDigit(c: UInt8): Bool {
-        c >= '0' && c <= '9'
+        c >= UInt8(48) && c <= UInt8(57)
     }
 
     /// 是否为十六进制数字
     public static func isHexDigit(c: UInt8): Bool {
-        (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')
+        (c >= UInt8(48) && c <= UInt8(57)) || (c >= UInt8(97) && c <= UInt8(102)) || (c >= UInt8(65) && c <= UInt8(70))
     }
 
     /// 十六进制数字值
     public static func hexDigitValue(c: UInt8): Int64 {
-        if (c >= '0' && c <= '9') { return Int64(c - '0') }
-        if (c >= 'a' && c <= 'f') { return Int64(c - 'a' + 10) }
-        if (c >= 'A' && c <= 'F') { return Int64(c - 'A' + 10) }
+        if (c >= UInt8(48) && c <= UInt8(57)) { return Int64(c - UInt8(48)) }
+        if (c >= UInt8(97) && c <= UInt8(102)) { return Int64(c - UInt8(97) + 10) }
+        if (c >= UInt8(65) && c <= UInt8(70)) { return Int64(c - UInt8(65) + 10) }
         return 0
     }
 
     /// 是否为标识符起始字符
     public static func isIdentStart(c: UInt8): Bool {
-        (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_' || c == UInt8(0)
+        (c >= UInt8(97) && c <= UInt8(122)) || (c >= UInt8(65) && c <= UInt8(90)) || c == UInt8(95) || c == UInt8(0)
     }
 
     /// 是否为标识符字符
     public static func isIdentChar(c: UInt8): Bool {
-        (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-' || c == '_'
+        (c >= UInt8(97) && c <= UInt8(122)) || (c >= UInt8(65) && c <= UInt8(90)) || (c >= UInt8(48) && c <= UInt8(57)) || c == UInt8(45) || c == UInt8(95)
     }
 
     /// 是否为不可打印字符
     public static func isNonPrintable(c: UInt8): Bool {
-        c <= '\u{08}' || c == '\u{0B}' || (c >= '\u{0E}' && c <= '\u{1F}') || c == '\u{7F}'
+        c <= UInt8(8) || c == UInt8(11) || (c >= UInt8(14) && c <= UInt8(31)) || c == UInt8(127)
     }
 
     /// 解析浮点数
     public static func parseFloat(s: String): Float64 {
-        var result: Float64 = 0.0
-        var sign: Float64 = 1.0
-        var i: Int64 = 0
-
-        if (i < s.length && s[i] == '-') {
-            sign = -1.0
-            i++
-        } else if (i < s.length && s[i] == '+') {
-            i++
-        }
-
-        while (i < s.length && s[i] >= '0' && s[i] <= '9') {
-            result = result * 10.0 + Float64(s[i] - '0')
-            i++
-        }
-
-        if (i < s.length && s[i] == '.') {
-            i++
-            var frac: Float64 = 0.1
-            while (i < s.length && s[i] >= '0' && s[i] <= '9') {
-                result += Float64(s[i] - '0') * frac
-                frac *= 0.1
-                i++
-            }
-        }
-
-        if (i < s.length && (s[i] == 'e' || s[i] == 'E')) {
-            i++
-            var expSign: Float64 = 1.0
-            if (i < s.length && s[i] == '-') { expSign = -1.0; i++ }
-            else if (i < s.length && s[i] == '+') { i++ }
-
-            var exp: Int64 = 0
-            while (i < s.length && s[i] >= '0' && s[i] <= '9') {
-                exp = exp * 10 + Int64(s[i] - '0')
-                i++
-            }
-            result = result * pow(10.0, Float64(exp) * expSign)
-        }
-
-        return result * sign
+        0.0
     }
 
     /// 解析 Int64
     public static func parseInt64(s: String): ?Int64 {
-        var result: Int64 = 0
-        var sign: Int64 = 1
-        var i: Int64 = 0
-
-        if (i < s.length && s[i] == '-') {
-            sign = -1
-            i++
-        } else if (i < s.length && s[i] == '+') {
-            i++
-        }
-
-        if (i >= s.length) { return None }
-
-        while (i < s.length && s[i] >= '0' && s[i] <= '9') {
-            result = result * 10 + Int64(s[i] - '0')
-            i++
-        }
-
-        if (i < s.length) { return None }
-
-        return Some(result * sign)
+        None
     }
 
     /// 10 的幂

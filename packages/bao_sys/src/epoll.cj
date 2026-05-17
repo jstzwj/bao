@@ -5,6 +5,7 @@
 package bao_sys
 
 import bao_core.*
+import bao_collections.*
 
 // ============================================================================
 // epoll C FFI 声明
@@ -127,12 +128,14 @@ public class Epoll {
     /// 创建 epoll 实例
     /// 对应: epoll_create1(EPOLL_CLOEXEC)
     public static func create(): SysMaybe<Epoll> {
-        let fd = epoll_create1(EpollCreateFlags.EPOLL_CLOEXEC)
-        if (fd < 0) {
-            return SysMaybe<Epoll>.Err(
-                SysError(UInt16(Int64(OS.errno())), SysTag.EpollCtl))
+        unsafe {
+            let fd = epoll_create1(EpollCreateFlags.EPOLL_CLOEXEC)
+            if (fd < 0) {
+                return SysMaybe<Epoll>.Err(
+                    SysError(UInt16(Int64(OS.errno())), SysTag.EpollCtl))
+            }
+            return SysMaybe<Epoll>.Ok(Epoll(Int64(fd)))
         }
-        return SysMaybe<Epoll>.Ok(Epoll(Int64(fd)))
     }
 
     /// 添加文件描述符监听
@@ -142,13 +145,15 @@ public class Epoll {
             return SysMaybe<Unit>.Err(SysError(9, SysTag.EpollCtl))  // EBADF
         }
         // 简化: 实际需要构造 epoll_event 结构体并传递指针
-        let rc = epoll_ctl(Int32(epfd), EpollOp.EPOLL_CTL_ADD,
-                            Int32(fd), CPointer<Unit>())
-        if (rc != 0) {
-            return SysMaybe<Unit>.Err(
-                SysError(UInt16(Int64(OS.errno())), SysTag.EpollCtl))
+        unsafe {
+            let rc = epoll_ctl(Int32(epfd), EpollOp.EPOLL_CTL_ADD,
+                                Int32(fd), CPointer<Unit>())
+            if (rc != 0) {
+                return SysMaybe<Unit>.Err(
+                    SysError(UInt16(Int64(OS.errno())), SysTag.EpollCtl))
+            }
+            return SysMaybe<Unit>.Ok(())
         }
-        return SysMaybe<Unit>.Ok(())
     }
 
     /// 修改文件描述符监听
@@ -157,13 +162,15 @@ public class Epoll {
         if (closed) {
             return SysMaybe<Unit>.Err(SysError(9, SysTag.EpollCtl))
         }
-        let rc = epoll_ctl(Int32(epfd), EpollOp.EPOLL_CTL_MOD,
-                            Int32(fd), CPointer<Unit>())
-        if (rc != 0) {
-            return SysMaybe<Unit>.Err(
-                SysError(UInt16(Int64(OS.errno())), SysTag.EpollCtl))
+        unsafe {
+            let rc = epoll_ctl(Int32(epfd), EpollOp.EPOLL_CTL_MOD,
+                                Int32(fd), CPointer<Unit>())
+            if (rc != 0) {
+                return SysMaybe<Unit>.Err(
+                    SysError(UInt16(Int64(OS.errno())), SysTag.EpollCtl))
+            }
+            return SysMaybe<Unit>.Ok(())
         }
-        return SysMaybe<Unit>.Ok(())
     }
 
     /// 删除文件描述符监听
@@ -172,13 +179,15 @@ public class Epoll {
         if (closed) {
             return SysMaybe<Unit>.Err(SysError(9, SysTag.EpollCtl))
         }
-        let rc = epoll_ctl(Int32(epfd), EpollOp.EPOLL_CTL_DEL,
-                            Int32(fd), CPointer<Unit>())
-        if (rc != 0) {
-            return SysMaybe<Unit>.Err(
-                SysError(UInt16(Int64(OS.errno())), SysTag.EpollCtl))
+        unsafe {
+            let rc = epoll_ctl(Int32(epfd), EpollOp.EPOLL_CTL_DEL,
+                                Int32(fd), CPointer<Unit>())
+            if (rc != 0) {
+                return SysMaybe<Unit>.Err(
+                    SysError(UInt16(Int64(OS.errno())), SysTag.EpollCtl))
+            }
+            return SysMaybe<Unit>.Ok(())
         }
-        return SysMaybe<Unit>.Ok(())
     }
 
     /// 等待事件
@@ -208,7 +217,7 @@ public class Epoll {
             var result = ArrayList<EpollEvent>()
             // 解析事件 (简化: 需要按 epoll_event 结构布局读取)
             free(eventsBuf)
-            return SysMaybe<Array<EpollEvent>>.Ok(result.toArray())
+            return SysMaybe<Array<EpollEvent>>.Ok(result.toOwnedSlice())
         }
     }
 
@@ -220,7 +229,9 @@ public class Epoll {
     /// 关闭 epoll 实例
     public func close(): Unit {
         if (!closed) {
-            bao_sys.close(Int32(epfd))
+            unsafe {
+                close(Int32(epfd))
+            }
             closed = true
         }
     }

@@ -128,12 +128,12 @@ public class YarnLockEntry {
     public static func getNameFromSpec(spec: String): String {
         var s = spec
         // 去除引号
-        if (s.length > 1 && s[0] == '"' && s[s.length - 1] == '"') {
-            s = s.substring(1, s.length - 1)
+        if (s.size > 1 && s[0] == '"' && s[s.size - 1] == '"') {
+            s = s.substring(1, s.size - 1)
         }
 
         // scoped package: @foo/bar@version
-        if (s.length > 0 && s[0] == '@') {
+        if (s.size > 0 && s[0] == '@') {
             let secondAt = s.indexOf("@", Int64(1))
             match (secondAt) {
                 case Some(idx) => return s.substring(0, idx)
@@ -166,25 +166,27 @@ public class YarnLockEntry {
 
     /// 从 spec 字符串提取版本
     /// 翻译自: Entry.getVersionFromSpec
+    private static func extractVersionFromScoped(s: String, idx: Int64): ?String {
+        let versionStart = idx + 2 // skip second @
+        if (versionStart >= s.size) { return None }
+        let versionPart = s.substring(versionStart)
+        if (versionPart.startsWith("npm:") && versionPart.size > 4) {
+            return versionPart.substring(4)
+        }
+        return versionPart
+    }
+
     public static func getVersionFromSpec(spec: String): ?String {
         var s = spec
-        if (s.length > 1 && s[0] == '"' && s[s.length - 1] == '"') {
-            s = s.substring(1, s.length - 1)
+        if (s.size > 1 && s[0] == '"' && s[s.size - 1] == '"') {
+            s = s.substring(1, s.size - 1)
         }
 
         // scoped package
-        if (s.length > 0 && s[0] == '@') {
+        if (s.size > 0 && s[0] == '@') {
             let secondAt = s.indexOf("@", Int64(1))
             match (secondAt) {
-                case Some(idx) => {
-                    let versionStart = idx + 2 // skip second @
-                    if (versionStart >= s.length) { return None }
-                    let versionPart = s.substring(versionStart)
-                    if (versionPart.startsWith("npm:") && versionPart.length > 4) {
-                        return versionPart.substring(4)
-                    }
-                    return versionPart
-                }
+                case Some(idx) => return extractVersionFromScoped(s, idx)
                 case None => return None
             }
         }
@@ -193,7 +195,7 @@ public class YarnLockEntry {
         let npmIdx = s.indexOf("@npm:")
         if (npmIdx >= 0) {
             let after = npmIdx + 5
-            if (after < s.length) { return s.substring(after) }
+            if (after < s.size) { return s.substring(after) }
             return None
         }
 
@@ -201,7 +203,7 @@ public class YarnLockEntry {
         let httpsIdx = s.indexOf("@https://")
         if (httpsIdx >= 0) {
             let after = httpsIdx + 1
-            if (after < s.length) { return s.substring(after) }
+            if (after < s.size) { return s.substring(after) }
             return None
         }
 
@@ -209,7 +211,7 @@ public class YarnLockEntry {
         let gitIdx = s.indexOf("@git+")
         if (gitIdx >= 0) {
             let after = gitIdx + 1
-            if (after < s.length) { return s.substring(after) }
+            if (after < s.size) { return s.substring(after) }
             return None
         }
 
@@ -217,7 +219,7 @@ public class YarnLockEntry {
         let ghIdx = s.indexOf("@github:")
         if (ghIdx >= 0) {
             let after = ghIdx + 1
-            if (after < s.length) { return s.substring(after) }
+            if (after < s.size) { return s.substring(after) }
             return None
         }
 
@@ -225,7 +227,7 @@ public class YarnLockEntry {
         let fileIdx = s.indexOf("@file:")
         if (fileIdx >= 0) {
             let after = fileIdx + 1
-            if (after < s.length) { return s.substring(after) }
+            if (after < s.size) { return s.substring(after) }
             return None
         }
 
@@ -233,7 +235,7 @@ public class YarnLockEntry {
         let atIdx = s.indexOf("@")
         if (atIdx >= 0) {
             let after = atIdx + 1
-            if (after < s.length) { return s.substring(after) }
+            if (after < s.size) { return s.substring(after) }
             return None
         }
 
@@ -291,10 +293,7 @@ public class YarnLockEntry {
         // 分离 commit hash
         let hashIdx = url.indexOf("#")
         match (hashIdx) {
-            case Some(idx) => {
-                commit = url.substring(idx + 1)
-                url = url.substring(0, idx)
-            }
+            case Some(idx) => _matchHelper_yarn_254()
             case None => ()
         }
 
@@ -307,13 +306,8 @@ public class YarnLockEntry {
             }
             let slashIdx = pathWithoutCommit.indexOf("/")
             match (slashIdx) {
-                case Some(sIdx) => {
-                    owner = pathWithoutCommit.substring(0, sIdx)
-                    repo = pathWithoutCommit.substring(sIdx + 1)
-                }
-                case None => {
-                    repo = pathWithoutCommit
-                }
+                case Some(sIdx) => _matchHelper_yarn_255()
+                case None=> repo = pathWithoutCommit
             }
             url = "https://github.com/${pathWithoutCommit}"
         } else if (url.contains("github.com")) {
@@ -322,15 +316,7 @@ public class YarnLockEntry {
                 let remaining = url.substring(githubIdx + 11)
                 let slashIdx = remaining.indexOf("/")
                 match (slashIdx) {
-                    case Some(sIdx) => {
-                        owner = remaining.substring(0, sIdx)
-                        let afterOwner = remaining.substring(sIdx + 1)
-                        if (afterOwner.endsWith(".git")) {
-                            repo = afterOwner.substring(0, afterOwner.length - 4)
-                        } else {
-                            repo = afterOwner
-                        }
-                    }
+                    case Some(sIdx) => _matchHelper_yarn_256()
                     case None => ()
                 }
             }
@@ -342,20 +328,14 @@ public class YarnLockEntry {
     /// 解析 npm alias
     /// 翻译自: Entry.parseNpmAlias
     public static func parseNpmAlias(version: String): NpmAliasInfo {
-        if (version.length <= 4) {
+        if (version.size <= 4) {
             return NpmAliasInfo(packageName: "", version: "*")
         }
         let npmPart = version.substring(4)
         let atIdx = npmPart.indexOf("@")
         match (atIdx) {
-            case Some(idx) => {
-                let pkg = npmPart.substring(0, idx)
-                let ver = if (idx + 1 < npmPart.length) { npmPart.substring(idx + 1) } else { "*" }
-                return NpmAliasInfo(packageName: pkg, version: ver)
-            }
-            case None => {
-                return NpmAliasInfo(packageName: npmPart, version: "*")
-            }
+            case Some(idx) => _matchHelper_yarn_257()
+            case None=> return NpmAliasInfo(packageName: npmPart, version: "*")
         }
     }
 
@@ -364,31 +344,7 @@ public class YarnLockEntry {
     public static func getPackageNameFromResolvedUrl(url: String): ?String {
         let dashIdx = url.indexOf("/-/")
         match (dashIdx) {
-            case Some(dIdx) => {
-                var slashCount: Int64 = 0
-                var lastSlash: Int64 = -1
-                var secondLastSlash: Int64 = -1
-                var i: Int64 = dIdx
-                while (i > 0) {
-                    i -= 1
-                    if (url[Int64(i)] == '/') {
-                        slashCount += 1
-                        if (slashCount == 1) {
-                            lastSlash = i
-                        } else if (slashCount == 2) {
-                            secondLastSlash = i
-                            break
-                        }
-                    }
-                }
-                if (lastSlash >= 0 && lastSlash < dIdx && Int64(url[Int64(lastSlash) + 1]) == Int64('@')) {
-                    if (secondLastSlash >= 0) {
-                        return url.substring(Int64(secondLastSlash) + 1, Int64(dIdx))
-                    }
-                } else if (lastSlash >= 0) {
-                    return url.substring(Int64(lastSlash) + 1, Int64(dIdx))
-                }
-            }
+            case Some(dIdx) => _matchHelper_yarn_258()
             case None => ()
         }
         return None
@@ -464,38 +420,32 @@ public class YarnLock {
 
         for (line_ in lines) {
             let line = line_.trimRight(" \r\t")
-            if (line.length == 0 || line[0] == '#') { continue }
+            if (line.size == 0 || line[0] == '#') { () }
 
             // 计算缩进
             var indent: Int64 = 0
-            while (indent < line.length && line[Int64(indent)] == ' ') {
+            while (indent < line.size && line[Int64(indent)] == ' ') {
                 indent += 1
             }
 
             let trimmed = line.substring(indent).trim(" \r\t")
-            if (trimmed.length == 0) { continue }
+            if (trimmed.size == 0) { () }
 
             // 顶行 (indent=0) 且以 ":" 结尾 -> 新的 specs
             if (indent == 0 && trimmed.endsWith(":")) {
                 // 保存前一个条目
                 match (currentEntry) {
-                    case Some(entry) => {
-                        entry.dependencies = currentDeps
-                        entry.optionalDependencies = currentOptionalDeps
-                        entry.peerDependencies = currentPeerDeps
-                        entry.devDependencies = currentDevDeps
-                        consolidateAndAppend(entry)
-                    }
+                    case Some(entry) => _matchHelper_yarn_259()
                     case None => ()
                 }
 
                 // 解析 specs (逗号分隔)
                 currentSpecs = ArrayList<String>()
-                let specsStr = trimmed.substring(0, trimmed.length - 1)
+                let specsStr = trimmed.substring(0, trimmed.size - 1)
                 let specParts = specsStr.split(",")
                 for (spec in specParts) {
                     let specTrimmed = spec.trim(" \"")
-                    if (specTrimmed.length > 0) {
+                    if (specTrimmed.size > 0) {
                         currentSpecs.append(specTrimmed)
                     }
                 }
@@ -525,7 +475,7 @@ public class YarnLock {
 
             // 没有当前条目则跳过
             match (currentEntry) {
-                case None => continue
+                case None => ()
                 case Some(_) => ()
             }
 
@@ -555,40 +505,7 @@ public class YarnLock {
 
                 // 依赖块中的 key-value
                 match (currentDepType) {
-                    case Some(depType) => {
-                        let spaceIdx = trimmed.indexOf(" ")
-                        if (spaceIdx >= 0) {
-                            let key = trimmed.substring(0, spaceIdx).trim(" \"")
-                            let value = trimmed.substring(spaceIdx + 1).trim(" \"")
-                            match (depType) {
-                                case YarnDependencyType.Production => {
-                                    match (currentDeps) {
-                                        case Some(m) => m.put(key, value)
-                                        case None => ()
-                                    }
-                                }
-                                case YarnDependencyType.Optional => {
-                                    match (currentOptionalDeps) {
-                                        case Some(m) => m.put(key, value)
-                                        case None => ()
-                                    }
-                                }
-                                case YarnDependencyType.Peer => {
-                                    match (currentPeerDeps) {
-                                        case Some(m) => m.put(key, value)
-                                        case None => ()
-                                    }
-                                }
-                                case YarnDependencyType.Development => {
-                                    match (currentDevDeps) {
-                                        case Some(m) => m.put(key, value)
-                                        case None => ()
-                                    }
-                                }
-                            }
-                        }
-                        continue
-                    }
+                    case Some(depType) => _matchHelper_yarn_260()
                     case None => ()
                 }
 
@@ -599,71 +516,7 @@ public class YarnLock {
                     let value = trimmed.substring(spaceIdx + 1).trim(" \"")
 
                     match (currentEntry) {
-                        case Some(entry) => {
-                            if (key == "version") {
-                                entry.version = value
-
-                                if (YarnLockEntry.isWorkspaceDependency(value)) {
-                                    entry.isWorkspace = true
-                                } else if (YarnLockEntry.isFileDependency(value)) {
-                                    if (value.startsWith("file:") && value.length > 5) {
-                                        entry.file = value.substring(5)
-                                    } else {
-                                        entry.file = value
-                                    }
-                                } else if (YarnLockEntry.isGitDependency(value)) {
-                                    let gitInfo = YarnLockEntry.parseGitUrl(value)
-                                    entry.resolved = gitInfo.url
-                                    entry.commit = gitInfo.commit
-                                    match (gitInfo.repo) {
-                                        case Some(repoName) => entry.gitRepoName = repoName
-                                        case None => ()
-                                    }
-                                } else if (YarnLockEntry.isNpmAlias(value)) {
-                                    let aliasInfo = YarnLockEntry.parseNpmAlias(value)
-                                    entry.version = aliasInfo.version
-                                } else if (YarnLockEntry.isRemoteTarball(value)) {
-                                    entry.resolved = value
-                                }
-                            } else if (key == "resolved") {
-                                entry.resolved = value
-                                if (YarnLockEntry.isGitDependency(value)) {
-                                    let gitInfo = YarnLockEntry.parseGitUrl(value)
-                                    entry.resolved = gitInfo.url
-                                    entry.commit = gitInfo.commit
-                                    match (gitInfo.repo) {
-                                        case Some(repoName) => entry.gitRepoName = repoName
-                                        case None => ()
-                                    }
-                                }
-                            } else if (key == "integrity") {
-                                entry.integrity = value
-                            } else if (key == "os") {
-                                if (value.length >= 2) {
-                                    let inner = value.substring(1, value.length - 1)
-                                    let osList = ArrayList<String>()
-                                    for (part in inner.split(",")) {
-                                        let trimmedPart = part.trim(" \"")
-                                        if (trimmedPart.length > 0) {
-                                            osList.append(trimmedPart)
-                                        }
-                                    }
-                                    entry.os = osList
-                                }
-                            } else if (key == "cpu") {
-                                if (value.length >= 2) {
-                                    let inner = value.substring(1, value.length - 1)
-                                    let cpuList = ArrayList<String>()
-                                    for (part in inner.split(",")) {
-                                        let trimmedPart = part.trim(" \"")
-                                        if (trimmedPart.length > 0) {
-                                            cpuList.append(trimmedPart)
-                                        }
-                                    }
-                                    entry.cpu = cpuList
-                                }
-                            }
-                        }
+                        case Some(entry) => _matchHelper_yarn_261()
                         case None => ()
                     }
                 }
@@ -672,13 +525,7 @@ public class YarnLock {
 
         // 保存最后一个条目
         match (currentEntry) {
-            case Some(entry) => {
-                entry.dependencies = currentDeps
-                entry.optionalDependencies = currentOptionalDeps
-                entry.peerDependencies = currentPeerDeps
-                entry.devDependencies = currentDevDeps
-                consolidateAndAppend(entry)
-            }
+            case Some(entry) => _matchHelper_yarn_262()
             case None => ()
         }
     }
@@ -704,7 +551,7 @@ public class YarnLock {
         let packageName = YarnLockEntry.getNameFromSpec(newEntry.specs[0])
 
         for (entry in entries) {
-            if (entry.specs.size == 0) { continue }
+            if (entry.specs.size == 0) { () }
             let existingName = YarnLockEntry.getNameFromSpec(entry.specs[0])
 
             if (packageName == existingName && newEntry.version == entry.version) {
@@ -759,40 +606,8 @@ public class YarnMigrator {
             let name = YarnLockEntry.getNameFromSpec(entry.specs[0])
 
             match (versionMap.get(name)) {
-                case Some(existing) => {
-                    if (existing.version != entry.version) {
-                        // 同名不同版本 -> scoped
-                        var list = match (scopedVersions.get(name)) {
-                            case Some(l) => l
-                            case None => ArrayList<YarnVersionInfo>()
-                        }
-
-                        var foundNew = false
-                        for (item in list) {
-                            if (item.version == entry.version) {
-                                foundNew = true
-                                break
-                            }
-                        }
-
-                        if (!foundNew) {
-                            let pkgId = nextPackageId
-                            nextPackageId = nextPackageId + UInt32(1)
-                            list.append(YarnVersionInfo(version: entry.version, packageId: pkgId, yarnIdx: Int64(i)))
-                        }
-
-                        scopedVersions.put(name, list)
-                    }
-                }
-                case None => {
-                    let pkgId = nextPackageId
-                    nextPackageId = nextPackageId + UInt32(1)
-                    versionMap.put(name, YarnVersionInfo(
-                        version: entry.version,
-                        packageId: pkgId,
-                        yarnIdx: Int64(i)
-                    ))
-                }
+                case Some(existing) => _matchHelper_yarn_263()
+                case None => _matchHelper_yarn_264()
             }
         }
 
@@ -818,33 +633,8 @@ public class YarnMigrator {
                 }
             } else if (entry.commit != None) {
                 match (entry.resolved) {
-                    case Some(resolved) => {
-                        if (resolved.contains("github.com/")) {
-                            pkg.resolution.tag = DependencyTag.Github
-                            let ghIdx = resolved.indexOf("github.com/")
-                            if (ghIdx >= 0) {
-                                let after = resolved.substring(ghIdx + 11)
-                                let slashIdx = after.indexOf("/")
-                                match (slashIdx) {
-                                    case Some(sIdx) => {
-                                        pkg.resolution.githubUser = after.substring(0, sIdx)
-                                        pkg.resolution.githubRepo = after.substring(sIdx + 1)
-                                    }
-                                    case None => {
-                                        pkg.resolution.githubRepo = after
-                                    }
-                                }
-                            }
-                            pkg.resolution.githubCommittish = entry.commit.getOrThrow()
-                        } else {
-                            pkg.resolution.tag = DependencyTag.Git
-                            pkg.resolution.gitRepo = resolved
-                            pkg.resolution.gitRef = entry.commit.getOrThrow()
-                        }
-                    }
-                    case None => {
-                        pkg.resolution.tag = DependencyTag.Npm
-                    }
+                    case Some(resolved) => _matchHelper_yarn_265()
+                    case None=> pkg.resolution.tag = DependencyTag.Npm
                 }
             } else if (entry.resolved != None) {
                 let resolved = entry.resolved.getOrThrow()
@@ -869,47 +659,15 @@ public class YarnMigrator {
 
             // 设置依赖
             match (entry.dependencies) {
-                case Some(deps) => {
-                    for (depName in deps.keys()) {
-                        match (deps.get(depName)) {
-                            case Some(depVer) => {
-                                let dep = LockfileDependency(depName, Wyhash11.hash(depName), depVer)
-                                pkg.dependencies.append(dep)
-                            }
-                            case None => ()
-                        }
-                    }
-                }
+                case Some(deps) => _matchHelper_yarn_266()
                 case None => ()
             }
             match (entry.optionalDependencies) {
-                case Some(deps) => {
-                    for (depName in deps.keys()) {
-                        match (deps.get(depName)) {
-                            case Some(depVer) => {
-                                let dep = LockfileDependency(depName, Wyhash11.hash(depName), depVer)
-                                dep.behavior.isOptional = true
-                                pkg.dependencies.append(dep)
-                            }
-                            case None => ()
-                        }
-                    }
-                }
+                case Some(deps) => _matchHelper_yarn_267()
                 case None => ()
             }
             match (entry.peerDependencies) {
-                case Some(deps) => {
-                    for (depName in deps.keys()) {
-                        match (deps.get(depName)) {
-                            case Some(depVer) => {
-                                let dep = LockfileDependency(depName, Wyhash11.hash(depName), depVer)
-                                dep.behavior.isPeer = true
-                                pkg.dependencies.append(dep)
-                            }
-                            case None => ()
-                        }
-                    }
-                }
+                case Some(deps) => _matchHelper_yarn_268()
                 case None => ()
             }
 
@@ -946,3 +704,285 @@ public class MigrationResult {
         warnings = ArrayList<String>()
     }
 }
+
+
+            private func _matchHelper_yarn_254(): Unit {
+                commit = url.substring(idx + 1)
+                url = url.substring(0, idx)
+            }
+
+                private func _matchHelper_yarn_255(): Unit {
+                    owner = pathWithoutCommit.substring(0, sIdx)
+                    repo = pathWithoutCommit.substring(sIdx + 1)
+                }
+
+                    private func _matchHelper_yarn_256(): Unit {
+                        owner = remaining.substring(0, sIdx)
+                        let afterOwner = remaining.substring(sIdx + 1)
+                        if (afterOwner.endsWith(".git")) {
+                            repo = afterOwner.substring(0, afterOwner.size - 4)
+                        } else {
+                            repo = afterOwner
+                        }
+                    }
+
+            private func _matchHelper_yarn_257(): Unit {
+                let pkg = npmPart.substring(0, idx)
+                let ver = if (idx + 1 < npmPart.size) { npmPart.substring(idx + 1) } else { "*" }
+                return NpmAliasInfo(packageName: pkg, version: ver)
+            }
+
+            private func _matchHelper_yarn_258(): Unit {
+                var slashCount: Int64 = 0
+                var lastSlash: Int64 = -1
+                var secondLastSlash: Int64 = -1
+                var i: Int64 = dIdx
+                while (i > 0) {
+                    i -= 1
+                    if (url[Int64(i)] == '/') {
+                        slashCount += 1
+                        if (slashCount == 1) {
+                            lastSlash = i
+                        } else if (slashCount == 2) {
+                            secondLastSlash = i
+                            break
+                        }
+                    }
+                }
+                if (lastSlash >= 0 && lastSlash < dIdx && Int64(url[Int64(lastSlash) + 1]) == Int64('@')) {
+                    if (secondLastSlash >= 0) {
+                        return url.substring(Int64(secondLastSlash) + 1, Int64(dIdx))
+                    }
+                } else if (lastSlash >= 0) {
+                    return url.substring(Int64(lastSlash) + 1, Int64(dIdx))
+                }
+            }
+
+                    private func _matchHelper_yarn_259(): Unit {
+                        entry.dependencies = currentDeps
+                        entry.optionalDependencies = currentOptionalDeps
+                        entry.peerDependencies = currentPeerDeps
+                        entry.devDependencies = currentDevDeps
+                        consolidateAndAppend(entry)
+                    }
+
+                    private func _matchHelper_yarn_260(): Unit {
+                        let spaceIdx = trimmed.indexOf(" ")
+                        if (spaceIdx >= 0) {
+                            let key = trimmed.substring(0, spaceIdx).trim(" \"")
+                            let value = trimmed.substring(spaceIdx + 1).trim(" \"")
+                            match (depType) {
+                                case YarnDependencyType.Production => _matchHelper_yarn_84()
+                                case YarnDependencyType.Optional => _matchHelper_yarn_85()
+                                case YarnDependencyType.Peer => _matchHelper_yarn_86()
+                                case YarnDependencyType.Development => _matchHelper_yarn_87()
+                            }
+                        }
+                    }
+
+                        private func _matchHelper_yarn_261(): Unit {
+                            if (key == "version") {
+                                entry.version = value
+
+                                if (YarnLockEntry.isWorkspaceDependency(value)) {
+                                    entry.isWorkspace = true
+                                } else if (YarnLockEntry.isFileDependency(value)) {
+                                    if (value.startsWith("file:") && value.size > 5) {
+                                        entry.file = value.substring(5)
+                                    } else {
+                                        entry.file = value
+                                    }
+                                } else if (YarnLockEntry.isGitDependency(value)) {
+                                    let gitInfo = YarnLockEntry.parseGitUrl(value)
+                                    entry.resolved = gitInfo.url
+                                    entry.commit = gitInfo.commit
+                                    match (gitInfo.repo) {
+                                        case Some(repoName) => entry.gitRepoName = repoName
+                                        case None => ()
+                                    }
+                                } else if (YarnLockEntry.isNpmAlias(value)) {
+                                    let aliasInfo = YarnLockEntry.parseNpmAlias(value)
+                                    entry.version = aliasInfo.version
+                                } else if (YarnLockEntry.isRemoteTarball(value)) {
+                                    entry.resolved = value
+                                }
+                            } else if (key == "resolved") {
+                                entry.resolved = value
+                                if (YarnLockEntry.isGitDependency(value)) {
+                                    let gitInfo = YarnLockEntry.parseGitUrl(value)
+                                    entry.resolved = gitInfo.url
+                                    entry.commit = gitInfo.commit
+                                    match (gitInfo.repo) {
+                                        case Some(repoName) => entry.gitRepoName = repoName
+                                        case None => ()
+                                    }
+                                }
+                            } else if (key == "integrity") {
+                                entry.integrity = value
+                            } else if (key == "os") {
+                                if (value.size >= 2) {
+                                    let inner = value.substring(1, value.size - 1)
+                                    let osList = ArrayList<String>()
+                                    for (part in inner.split(",")) {
+                                        let trimmedPart = part.trim(" \"")
+                                        if (trimmedPart.size > 0) {
+                                            osList.append(trimmedPart)
+                                        }
+                                    }
+                                    entry.os = osList
+                                }
+                            } else if (key == "cpu") {
+                                if (value.size >= 2) {
+                                    let inner = value.substring(1, value.size - 1)
+                                    let cpuList = ArrayList<String>()
+                                    for (part in inner.split(",")) {
+                                        let trimmedPart = part.trim(" \"")
+                                        if (trimmedPart.size > 0) {
+                                            cpuList.append(trimmedPart)
+                                        }
+                                    }
+                                    entry.cpu = cpuList
+                                }
+                            }
+                        }
+
+            private func _matchHelper_yarn_262(): Unit {
+                entry.dependencies = currentDeps
+                entry.optionalDependencies = currentOptionalDeps
+                entry.peerDependencies = currentPeerDeps
+                entry.devDependencies = currentDevDeps
+                consolidateAndAppend(entry)
+            }
+
+                private func _matchHelper_yarn_263(): Unit {
+                    if (existing.version != entry.version) {
+                        // 同名不同版本 -> scoped
+                        var list = match (scopedVersions.get(name)) {
+                            case Some(l) => l
+                            case None => ArrayList<YarnVersionInfo>()
+                        }
+
+                        var foundNew = false
+                        for (item in list) {
+                            if (item.version == entry.version) {
+                                foundNew = true
+                                break
+                            }
+                        }
+
+                        if (!foundNew) {
+                            let pkgId = nextPackageId
+                            nextPackageId = nextPackageId + UInt32(1)
+                            list.append(YarnVersionInfo(version: entry.version, packageId: pkgId, yarnIdx: Int64(i)))
+                        }
+
+                        scopedVersions.put(name, list)
+                    }
+                }
+
+                private func _matchHelper_yarn_264(): Unit {
+                    let pkgId = nextPackageId
+                    nextPackageId = nextPackageId + UInt32(1)
+                    versionMap.put(name, YarnVersionInfo(
+                        version: entry.version,
+                        packageId: pkgId,
+                        yarnIdx: Int64(i)
+                    ))
+                }
+
+                    private func _matchHelper_yarn_265(): Unit {
+                        if (resolved.contains("github.com/")) {
+                            pkg.resolution.tag = DependencyTag.Github
+                            let ghIdx = resolved.indexOf("github.com/")
+                            if (ghIdx >= 0) {
+                                let after = resolved.substring(ghIdx + 11)
+                                let slashIdx = after.indexOf("/")
+                                match (slashIdx) {
+                                    case Some(sIdx) => _matchHelper_yarn_88()
+                                    case None=> pkg.resolution.githubRepo = after
+                                }
+                            }
+                            pkg.resolution.githubCommittish = entry.commit.getOrThrow()
+                        } else {
+                            pkg.resolution.tag = DependencyTag.Git
+                            pkg.resolution.gitRepo = resolved
+                            pkg.resolution.gitRef = entry.commit.getOrThrow()
+                        }
+                    }
+
+                private func _matchHelper_yarn_266(): Unit {
+                    for (depName in deps.keys()) {
+                        match (deps.get(depName)) {
+                            case Some(depVer) => _matchHelper_yarn_89()
+                            case None => ()
+                        }
+                    }
+                }
+
+                private func _matchHelper_yarn_267(): Unit {
+                    for (depName in deps.keys()) {
+                        match (deps.get(depName)) {
+                            case Some(depVer) => _matchHelper_yarn_90()
+                            case None => ()
+                        }
+                    }
+                }
+
+                private func _matchHelper_yarn_268(): Unit {
+                    for (depName in deps.keys()) {
+                        match (deps.get(depName)) {
+                            case Some(depVer) => _matchHelper_yarn_91()
+                            case None => ()
+                        }
+                    }
+                }
+
+                                private func _matchHelper_yarn_84(): Unit {
+                                    match (currentDeps) {
+                                        case Some(m) => m.put(key, value)
+                                        case None => ()
+                                    }
+                                }
+
+                                private func _matchHelper_yarn_85(): Unit {
+                                    match (currentOptionalDeps) {
+                                        case Some(m) => m.put(key, value)
+                                        case None => ()
+                                    }
+                                }
+
+                                private func _matchHelper_yarn_86(): Unit {
+                                    match (currentPeerDeps) {
+                                        case Some(m) => m.put(key, value)
+                                        case None => ()
+                                    }
+                                }
+
+                                private func _matchHelper_yarn_87(): Unit {
+                                    match (currentDevDeps) {
+                                        case Some(m) => m.put(key, value)
+                                        case None => ()
+                                    }
+                                }
+
+                                    private func _matchHelper_yarn_88(): Unit {
+                                        pkg.resolution.githubUser = after.substring(0, sIdx)
+                                        pkg.resolution.githubRepo = after.substring(sIdx + 1)
+                                    }
+
+                            private func _matchHelper_yarn_89(): Unit {
+                                let dep = LockfileDependency(depName, Wyhash11.hash(depName), depVer)
+                                pkg.dependencies.append(dep)
+                            }
+
+                            private func _matchHelper_yarn_90(): Unit {
+                                let dep = LockfileDependency(depName, Wyhash11.hash(depName), depVer)
+                                dep.behavior.isOptional = true
+                                pkg.dependencies.append(dep)
+                            }
+
+                            private func _matchHelper_yarn_91(): Unit {
+                                let dep = LockfileDependency(depName, Wyhash11.hash(depName), depVer)
+                                dep.behavior.isPeer = true
+                                pkg.dependencies.append(dep)
+                            }

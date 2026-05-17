@@ -140,7 +140,7 @@ public class SysCopyFile {
                                            state: LinuxCopyFileState): SysMaybe<Unit> {
         unsafe {
             var offset: UInt64 = 0
-            let maxChunk = UIntNative(Int32.MaxValue - 1)
+            let maxChunk = UIntNative(2147483646)
             while (true) {
                 let rc = copy_file_range(
                     Int32(inFd), CPointer<Int64>(),
@@ -186,7 +186,7 @@ public class SysCopyFile {
     private static func sendfileLoop(inFd: Int64, outFd: Int64,
                                       state: LinuxCopyFileState): SysMaybe<Unit> {
         unsafe {
-            let maxChunk = UIntNative(Int32.MaxValue - 1)
+            let maxChunk = UIntNative(2147483646)
             while (true) {
                 let rc = sendfile(Int32(outFd), Int32(inFd), CPointer<Int64>(), maxChunk)
                 if (rc < 0) {
@@ -221,7 +221,7 @@ public class SysCopyFile {
     /// read/write 循环回退 - 对应 Bun copy_file_read_write_loop
     /// copy_file.rs:447-477
     public static func copyFileReadWriteLoop(inFd: Int64, outFd: Int64): SysMaybe<Unit> {
-        var buf = Array<UInt8>(Int64(BUFFER_SIZE), item: 0)
+        var buf = Array<UInt8>(Int64(BUFFER_SIZE), { _ => UInt8(0) })
         while (true) {
             // 读取
             let readResult = SysFs.read(inFd, buf)
@@ -234,7 +234,7 @@ public class SysCopyFile {
                     // 写入
                     var written: Int64 = 0
                     while (written < bytesRead) {
-                        var writeBuf = Array<UInt8>(Int64(bytesRead) - written, item: 0)
+                        var writeBuf = Array<UInt8>(Int64(bytesRead) - written, { _ => UInt8(0) })
                         for (i in 0..Int64(writeBuf.size)) {
                             writeBuf[i] = buf[Int64(written) + i]
                         }
@@ -250,5 +250,6 @@ public class SysCopyFile {
                     }
             }
         }
+        return SysMaybe<Unit>.Ok(())
     }
 }

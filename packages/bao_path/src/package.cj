@@ -7,6 +7,7 @@
 package bao_path
 
 import bao_core.*
+import bao_collections.*
 
 // ============================================================================
 // 路径常量
@@ -47,17 +48,17 @@ public enum PathFormat {
 /// Bun: PathBuffer = [MAX_PATH_BYTES]u8
 /// 使用池化缓冲区避免频繁分配
 public class PathBuffer {
-    private var data: Array<UInt8>
+    private var buffer: Array<UInt8>
     private var length: Int64
 
     public init() {
-        data = Array<UInt8>(MAX_PATH_BYTES, item: UInt8(0))
+        buffer = Array<UInt8>(MAX_PATH_BYTES, { _ => UInt8(0) })
         length = 0
     }
 
     public init(capacity: Int64) {
         let cap = if (capacity > MAX_PATH_BYTES) { MAX_PATH_BYTES } else { capacity }
-        data = Array<UInt8>(cap, item: UInt8(0))
+        buffer = Array<UInt8>(cap, { _ => UInt8(0) })
         length = 0
     }
 
@@ -77,11 +78,11 @@ public class PathBuffer {
     /// add_separator: 是否在追加前添加分隔符
     public func append(characters: String, addSeparator: Bool): Unit {
         if (addSeparator) {
-            data[length] = SEP
+            buffer[length] = SEP
             length += 1
         }
         for (i in 0..characters.size) {
-            data[length] = UInt8(characters[Int64(i)].value)
+            buffer[length] = characters[Int64(i)]
             length += 1
         }
     }
@@ -89,11 +90,11 @@ public class PathBuffer {
     /// 追加字节数组
     public func appendBytes(bytes: Array<UInt8>, addSeparator: Bool): Unit {
         if (addSeparator) {
-            data[length] = SEP
+            buffer[length] = SEP
             length += 1
         }
         for (b in bytes) {
-            data[length] = b
+            buffer[length] = b
             length += 1
         }
     }
@@ -102,7 +103,7 @@ public class PathBuffer {
     public func toString(): String {
         var sb = StringBuilder()
         for (i in 0..length) {
-            sb.append(Char(Int32(data[i])))
+            sb.append(Rune(Int32(buffer[i])))
         }
         return sb.toString()
     }
@@ -114,21 +115,21 @@ public class PathBuffer {
 
     /// 剩余容量
     public func remaining(): Int64 {
-        return data.size - length
+        return buffer.size - length
     }
 
     /// 获取底层字节数组
     public func bytes(): Array<UInt8> {
-        var result = Array<UInt8>()
+        var result = Array<UInt8>(length, { _ => UInt8(0) })
         for (i in 0..length) {
-            result.append(data[i])
+            result[i] = buffer[i]
         }
         return result
     }
 
     /// 获取可变字节引用
-    public func data(): Array<UInt8> {
-        return data
+    public func getBuffer(): Array<UInt8> {
+        return buffer
     }
 }
 
@@ -167,7 +168,7 @@ public class ComponentIterator {
         this.rootEnd = 0
 
         // 检测根 - 对应 ComponentIterator::init 中的根检测
-        if (path.size > 0 && path[0] == Char('/')) {
+        if (path.size > 0 && path[0] == UInt8(47)) {
             // POSIX: 连续的 '/' 算作根
             this.rootEnd = 1
         }
@@ -183,14 +184,14 @@ public class ComponentIterator {
         if (path.size > 0) {
             match (fmt) {
                 case Posix =>
-                    if (path[0] == Char('/')) {
+                    if (path[0] == UInt8(47)) {
                         this.rootEnd = 1
                     }
                 case Windows =>
                     // Windows 根检测: "C:\" 或 "\\"
-                    if (path.size >= 3 && path[1] == Char(':') && path[2] == Char('\\')) {
+                    if (path.size >= 3 && path[1] == UInt8(58) && path[2] == UInt8(92)) {
                         this.rootEnd = 3
-                    } else if (path.size >= 2 && path[0] == Char('\\') && path[1] == Char('\\')) {
+                    } else if (path.size >= 2 && path[0] == UInt8(92) && path[1] == UInt8(92)) {
                         this.rootEnd = 2
                     }
             }
@@ -227,7 +228,7 @@ public class ComponentIterator {
         while (pos < path.size && !isSep(path[Int64(pos)])) {
             pos += 1
         }
-        let component = path.substring(Int64(start), Int64(pos))
+        let component = path[start..pos]
 
         // 分类组件
         if (component == ".") {
@@ -243,19 +244,18 @@ public class ComponentIterator {
     public func collect(): ArrayList<PathComponent> {
         var result = ArrayList<PathComponent>()
         while (true) {
-            let comp = next()
-            if (comp == None) {
-                break
+            match (next()) {
+                case Some(comp) => result.append(comp)
+                case None => break
             }
-            result.append(comp.unwrap())
         }
         return result
     }
 
-    private func isSep(c: Char): Bool {
+    private func isSep(c: UInt8): Bool {
         match (fmt) {
-            case Posix => c == Char('/')
-            case Windows => c == Char('/') || c == Char('\\')
+            case Posix => c == UInt8(47)
+            case Windows => c == UInt8(47) || c == UInt8(92)
         }
     }
 }
@@ -276,11 +276,11 @@ public class Path {
         var i: Int64 = 0
         while (i < parts.size) {
             let part = parts[Int64(i)]
-            if (part.isEmpty) {
+            if (part.isEmpty()) {
                 i += 1
                 continue
             }
-            if (i > 0 && result.length() > 0) {
+            if (i > 0 && result.toString().size > 0) {
                 let last = result.toString()
                 if (!last.endsWith("/")) {
                     result.append("/")
@@ -288,7 +288,7 @@ public class Path {
             }
             // 去除前导分隔符 (除了第一个片段)
             if (i > 0 && part.startsWith("/")) {
-                result.append(part.substring(1))
+                result.append(part[1..])
             } else {
                 result.append(part)
             }
@@ -301,55 +301,57 @@ public class Path {
     /// 对应 Bun: std.fs.path.dirname
     /// src/paths/resolve_path.zig 中的 dirname 逻辑
     public static func dirname(path: String): String {
-        if (path.isEmpty) {
+        if (path.isEmpty()) {
             return "."
         }
         let normalized = normalize(path)
         // 去除尾部分隔符
         var end = normalized.size
-        while (end > 1 && normalized[Int64(end - 1)] == Char('/')) {
+        while (end > 1 && normalized[Int64(end - 1)] == UInt8(47)) {
             end -= 1
         }
-        let trimmed = normalized.substring(0, Int64(end))
-        let lastSlash = trimmed.lastIndexOf('/')
-        if (lastSlash < 0) {
-            return "."
+        let trimmed = normalized[0..end]
+        match (trimmed.lastIndexOf('/')) {
+            case Some(lastSlash) =>
+                if (lastSlash == 0) {
+                    return "/"
+                }
+                return trimmed[0..lastSlash]
+            case None => return "."
         }
-        if (lastSlash == 0) {
-            return "/"
-        }
-        return trimmed.substring(0, Int64(lastSlash))
     }
 
     /// 获取文件名
     /// 对应 Bun: std.fs.path.basename
     public static func basename(path: String): String {
-        if (path.isEmpty) {
+        if (path.isEmpty()) {
             return ""
         }
         let normalized = normalize(path)
         // 去除尾部分隔符
         var end = normalized.size
-        while (end > 1 && normalized[Int64(end - 1)] == Char('/')) {
+        while (end > 1 && normalized[Int64(end - 1)] == UInt8(47)) {
             end -= 1
         }
-        let trimmed = normalized.substring(0, Int64(end))
-        let lastSlash = trimmed.lastIndexOf('/')
-        if (lastSlash < 0) {
-            return trimmed
+        let trimmed = normalized[0..end]
+        match (trimmed.lastIndexOf('/')) {
+            case Some(lastSlash) => return trimmed[lastSlash + 1..]
+            case None => return trimmed
         }
-        return trimmed.substring(Int64(lastSlash + 1))
     }
 
     /// 获取扩展名
     /// 对应 Bun: std.fs.path.extension
     public static func extname(path: String): String {
         let name = basename(path)
-        let lastDot = name.lastIndexOf('.')
-        if (lastDot <= 0) {
-            return ""
+        match (name.lastIndexOf('.')) {
+            case Some(lastDot) =>
+                if (lastDot <= 0) {
+                    return ""
+                }
+                return name[lastDot..]
+            case None => return ""
         }
-        return name.substring(Int64(lastDot))
     }
 
     /// 规范化路径
@@ -361,7 +363,7 @@ public class Path {
     /// 4. ".." 回退 (非根路径则添加 "..")
     /// 5. 重新组装
     public static func normalize(path: String): String {
-        if (path.isEmpty) {
+        if (path.isEmpty()) {
             return "."
         }
 
@@ -370,7 +372,7 @@ public class Path {
         var result = ArrayList<String>()
 
         for (part in parts) {
-            if (part.isEmpty || part == ".") {
+            if (part.isEmpty() || part == ".") {
                 continue
             }
             if (part == "..") {
@@ -384,11 +386,11 @@ public class Path {
             }
         }
 
-        var normalized = String.join("/", result.toArray())
+        var normalized = String.join(result.toOwnedSlice(), delimiter: "/")
         if (isAbsolute) {
             normalized = "/" + normalized
         }
-        if (normalized.isEmpty) {
+        if (normalized.isEmpty()) {
             return if (isAbsolute) { "/" } else { "." }
         }
         return normalized
@@ -408,7 +410,7 @@ public class Path {
         for (path in paths) {
             if (isAbsolute(path)) {
                 result = path
-            } else if (result.isEmpty) {
+            } else if (result.isEmpty()) {
                 result = path
             } else {
                 result = join([result, path])
@@ -425,8 +427,8 @@ public class Path {
     /// 3. 从 from 到公共路径用 ".." 回退
     /// 4. 追加 to 的剩余部分
     public static func relative(from: String, to: String): String {
-        let fromResolved = normalize(isAbsolute(from) ? from : "/" + from)
-        let toResolved = normalize(isAbsolute(to) ? to : "/" + to)
+        let fromResolved = normalize(if (isAbsolute(from)) { from } else { "/" + from })
+        let toResolved = normalize(if (isAbsolute(to)) { to } else { "/" + to })
         if (fromResolved == toResolved) {
             return ""
         }
@@ -454,7 +456,7 @@ public class Path {
         if (result.size == 0) {
             return "."
         }
-        return String.join("/", result.toArray())
+        return String.join(result.toOwnedSlice(), delimiter: "/")
     }
 
     /// 获取不带扩展名的文件名
@@ -462,10 +464,10 @@ public class Path {
     public static func basenameWithoutExtension(path: String): String {
         let name = basename(path)
         let ext = extname(path)
-        if (ext.isEmpty) {
+        if (ext.isEmpty()) {
             return name
         }
-        return name.substring(0, Int64(name.size - ext.size))
+        return name[0..name.size - ext.size]
     }
 
     /// 将路径按分隔符分割为组件
@@ -474,8 +476,8 @@ public class Path {
         var current = StringBuilder()
         for (i in 0..path.size) {
             let c = path[Int64(i)]
-            if (c == Char('/')) {
-                if (current.length() > 0) {
+            if (c == UInt8(47)) {
+                if (current.toString().size > 0) {
                     result.append(current.toString())
                     current = StringBuilder()
                 }
@@ -483,10 +485,10 @@ public class Path {
                 current.append(c)
             }
         }
-        if (current.length() > 0) {
+        if (current.toString().size > 0) {
             result.append(current.toString())
         }
-        return result.toArray()
+        return result.toOwnedSlice()
     }
 }
 
@@ -494,7 +496,7 @@ public class Path {
 // PathString - 路径字符串包装
 // 严格翻译自: src/paths/PathString.zig
 //   pub const PathString = struct {
-//       data: []const u8 = &.{},
+//       buffer: []const u8 = &.{},
 //       ...
 //   }
 // ============================================================================
@@ -502,23 +504,23 @@ public class Path {
 /// 路径字符串 - 对应 Bun PathString
 /// Bun: PathString 是带缓冲区池优化的路径包装器
 public class PathString {
-    private var data: BaoString
+    private var buffer: BaoString
 
     public init() {
-        data = BaoString("")
+        buffer = BaoString("")
     }
 
     public init(path: String) {
-        data = BaoString(path)
+        buffer = BaoString(path)
     }
 
-    public init(data: BaoString) {
-        this.data = data
+    public init(buffer: BaoString) {
+        this.buffer = buffer
     }
 
     /// 获取路径字符串
     public func toString(): String {
-        return data.toString()
+        return buffer.toString()
     }
 
     /// 获取目录名 - 对应 Bun PathString.dirname
@@ -548,57 +550,17 @@ public class PathString {
 
     /// 获取底层 BaoString
     public func raw(): BaoString {
-        return data
+        return buffer
     }
 
     /// 获取字节长度 - 对应 Bun PathString.len
     public func len(): Int64 {
-        return data.len()
+        return buffer.byteLength()
     }
 
     /// 是否为空
     public func isEmpty(): Bool {
-        return data.len() == 0
+        return buffer.byteLength() == 0
     }
 }
 
-// ============================================================================
-// PathBufferPool - 路径缓冲区池
-// 严格翻译自: src/paths/Path.zig 中 Buf 的 buf_type: .pool
-// Bun 使用线程本地缓冲区池来避免频繁的堆分配
-// ============================================================================
-
-/// 路径缓冲区池 - 对应 Bun 的 thread-local PathBuffer pool
-public class PathBufferPool {
-    private var pool: ArrayList<PathBuffer>
-    private var index: Int64
-
-    public init() {
-        pool = ArrayList<PathBuffer>()
-        index = 0
-    }
-
-    /// 获取一个缓冲区 - 对应 Bun path_buffer_pool.get()
-    public func get(): PathBuffer {
-        if (index < pool.size) {
-            let buf = pool[Int64(index)]
-            buf.clear()
-            index += 1
-            return buf
-        }
-        let buf = PathBuffer()
-        pool.append(buf)
-        index += 1
-        return buf
-    }
-
-    /// 归还缓冲区 - 对应 Bun path_buffer_pool.put(buf)
-    public func put(buf: PathBuffer): Unit {
-        if (index > 0) {
-            index -= 1
-        }
-    }
-}
-
-/// 全局路径缓冲区池 - 对应 Bun 的 thread_local path_buffer_pool
-public let pathBufferPool = PathBufferPool()

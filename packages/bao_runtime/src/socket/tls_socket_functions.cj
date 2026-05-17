@@ -203,8 +203,7 @@ public class TlsSocketFunctions {
             return JsValue.jsUndefined()
         }
 
-        // TODO: 需要支持非缩写版本
-        return JsValue.jsUndefined()
+        return X509Wrapper.toJS(firstCert, globalObject)
     }
 
     /// 获取本地证书

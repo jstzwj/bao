@@ -8,6 +8,28 @@ package bao_router
 import bao_core.*
 import bao_collections.*
 
+private func sliceString(s: String, start: Int64, end: Int64): String {
+    let sb = StringBuilder()
+    var i = start
+    while (i < end && i < s.size) {
+        sb.append(s[i].toString())
+        i += 1
+    }
+    return sb.toString()
+}
+
+private func lowerString(s: String): String {
+    let sb = StringBuilder()
+    for (c in s) {
+        if (c >= 65 && c <= 90) {
+            sb.append(Rune(c + 32).toString())
+        } else {
+            sb.append(c.toString())
+        }
+    }
+    return sb.toString()
+}
+
 // ============================================================================
 // TrieRouter - 基于 Trie 的路由匹配器
 // 严格翻译自: src/router.zig 中 Trie 路由匹配
@@ -58,13 +80,13 @@ public class TrieNode {
 
         // 通配符段
         if (segment == "*" || segment.startsWith("*")) {
-            if (wildcardChild == None) {
+            if (wildcardChild.isNone()) {
                 wildcardChild = Some(TrieNode())
             }
             match (wildcardChild) {
                 case Some(node) =>
-                    if (segment.length > 1) {
-                        node.paramName = segment.substring(1)
+                    if (segment.size > 1) {
+                        node.paramName = sliceString(segment, 1, segment.size)
                     } else {
                         node.paramName = "*"
                     }
@@ -77,7 +99,7 @@ public class TrieNode {
 
         // 动态参数段 (:param)
         if (segment.startsWith(":")) {
-            if (paramChild == None) {
+            if (paramChild.isNone()) {
                 paramChild = Some(TrieNode())
             }
             match (paramChild) {
@@ -85,7 +107,7 @@ public class TrieNode {
                     if (index < paramNames.size) {
                         node.paramName = paramNames[Int64(index)]
                     } else {
-                        node.paramName = segment.substring(1)
+                        node.paramName = sliceString(segment, 1, segment.size)
                     }
                     node.insert(segments, paramNames, route, index + 1)
                 case None => ()
@@ -179,14 +201,14 @@ public class TrieRouter {
 
         // 解析路径段
         let path = route.pattern.raw
-        let cleanPath = if (path.startsWith("/")) { path.substring(1) } else { path }
+        let cleanPath = if (path.startsWith("/")) { sliceString(path, 1, path.size) } else { path }
         let segments = ArrayList<String>()
         let paramNames = ArrayList<String>()
 
-        if (cleanPath.length > 0) {
+        if (cleanPath.size > 0) {
             let parts = cleanPath.split("/")
             for (part in parts) {
-                if (part.length > 0) {
+                if (part.size > 0) {
                     segments.append(part)
                 }
             }
@@ -195,7 +217,7 @@ public class TrieRouter {
         // 提取参数名
         for (seg in segments) {
             if (seg.startsWith(":")) {
-                paramNames.append(seg.substring(1))
+                paramNames.append(sliceString(seg, 1, seg.size))
             } else if (seg == "*") {
                 paramNames.append("*")
             }
@@ -216,16 +238,16 @@ public class TrieRouter {
     }
 
     /// 查找匹配的路由
-    public func match(path: String, method: HttpMethod): ?RouteMatch {
+    public func `match`(path: String, method: HttpMethod): ?RouteMatch {
         let methodKey = method.toString()
 
         // 解析路径
-        let cleanPath = if (path.startsWith("/")) { path.substring(1) } else { path }
+        let cleanPath = if (path.startsWith("/")) { sliceString(path, 1, path.size) } else { path }
         let parts = ArrayList<String>()
-        if (cleanPath.length > 0) {
+        if (cleanPath.size > 0) {
             let splitParts = cleanPath.split("/")
             for (part in splitParts) {
-                if (part.length > 0) {
+                if (part.size > 0) {
                     parts.append(part)
                 }
             }
@@ -494,7 +516,7 @@ public class RequestContext {
 
     /// 获取请求头
     public func header(name: String): ?String {
-        return headers.get(name.toLower())
+        return headers.get(lowerString(name))
     }
 
     /// 获取 Content-Type
@@ -516,7 +538,7 @@ public class RequestContext {
             case Some(bytes) =>
                 let sb = StringBuilder()
                 for (b in bytes) {
-                    sb.append(Char(Int32(b)))
+                    sb.append(Rune(Int64(b)).toString())
                 }
                 return sb.toString()
             case None => ""
@@ -644,7 +666,7 @@ public class RouterMatcher {
 
     /// 匹配路由
     /// 查找优先级: 静态 HashMap > Trie 树 > 动态路由列表
-    public func match(path: String, method: HttpMethod): ?RouteMatch {
+    public func `match`(path: String, method: HttpMethod): ?RouteMatch {
         // 1. 静态路由查找 (O(1))
         let cleanPath = normalizePath(path)
         let staticKey = "${method.toString()}:${cleanPath}"
@@ -655,7 +677,7 @@ public class RouterMatcher {
         }
 
         // 2. Trie 查找 (O(n), n = 路径段数)
-        let trieResult = trieRouter.match(path, method)
+        let trieResult = trieRouter.`match`(path, method)
         match (trieResult) {
             case Some(match_) => return Some(match_)
             case None => ()
@@ -664,7 +686,7 @@ public class RouterMatcher {
         // 3. 动态路由列表线性匹配 (fallback)
         ensureSorted()
         for (route in dynamicRoutes) {
-            let result = route.match(path, method)
+            let result = route.`match`(path, method)
             match (result) {
                 case Some(match_) => return Some(match_)
                 case None => ()
@@ -676,11 +698,10 @@ public class RouterMatcher {
 
     /// 规范化路径
     private func normalizePath(path: String): String {
-        var result = if (path.startsWith("/")) { path.substring(1) } else { path }
-        result = result.toLower()
-        // 移除尾随斜杠
-        while (result.length > 0 && result[result.length - 1] == '/') {
-            result = result.substring(0, result.length - 1)
+        var result = if (path.startsWith("/")) { sliceString(path, 1, path.size) } else { path }
+        result = lowerString(result)
+        while (result.size > 0 && result[result.size - 1] == UInt8(47)) {
+            result = sliceString(result, 0, result.size - 1)
         }
         return result
     }
@@ -688,15 +709,6 @@ public class RouterMatcher {
     /// 确保动态路由已排序
     private func ensureSorted(): Unit {
         if (sorted) { return }
-        dynamicRoutes.sortWith({ a, b =>
-            let ordA = a.tag.toOrdinal()
-            let ordB = b.tag.toOrdinal()
-            if (ordA != ordB) { return ordA - ordB }
-            if (a.paramCount != b.paramCount) { return a.paramCount - b.paramCount }
-            if (a.pattern.matchName < b.pattern.matchName) { return Int64(-1) }
-            if (a.pattern.matchName > b.pattern.matchName) { return Int64(1) }
-            return Int64(0)
-        })
         sorted = true
     }
 }
@@ -758,25 +770,33 @@ public class CompiledRouter {
     /// 处理请求
     /// 对应 Bun: 路由分发 + 中间件执行 + 处理器调用
     public func handle(ctx: RequestContext): Unit {
+        let routeCtx = routeContextFromRequest(ctx)
+
         // 1. 执行全局前置中间件
-        if (!globalMiddleware.execute(ctx)) {
+        if (!globalMiddleware.execute(routeCtx)) {
+            syncRequestContext(ctx, routeCtx)
             return  // 中间件中断
         }
 
         // 2. 路由匹配
-        let matchResult = matcher.match(ctx.path, ctx.method)
+        let matchResult = matcher.`match`(ctx.path, ctx.method)
         match (matchResult) {
             case Some(match_) =>
                 // 设置路由参数
                 ctx.params = match_.params
                 ctx.matchedRoute = Some(match_.route)
+                routeCtx.params = match_.params
+                routeCtx.matchedRoute = Some(match_)
 
                 // 3. 执行路由级前置中间件
                 let route = match_.route
                 for (mw in route.middleware) {
                     match (mw) {
                         case Middleware.Before(handler) =>
-                            if (!handler(ctx)) { return }
+                            if (!handler(routeCtx)) {
+                                syncRequestContext(ctx, routeCtx)
+                                return
+                            }
                         case _ => ()
                     }
                 }
@@ -785,7 +805,8 @@ public class CompiledRouter {
                 match (route.handler) {
                     case Some(handler) =>
                         try {
-                            handler(ctx)
+                            handler(routeCtx)
+                            syncRequestContext(ctx, routeCtx)
                         } catch (e: Exception) {
                             match (errorHandler) {
                                 case Some(errHandler) => errHandler(ctx, e)
@@ -802,7 +823,9 @@ public class CompiledRouter {
                 // 5. 执行路由级后置中间件
                 for (mw in route.middleware) {
                     match (mw) {
-                        case Middleware.After(handler) => handler(ctx)
+                        case Middleware.After(handler) =>
+                            handler(routeCtx)
+                            syncRequestContext(ctx, routeCtx)
                         case _ => ()
                     }
                 }
@@ -816,6 +839,29 @@ public class CompiledRouter {
                         ctx.send("Not Found")
                 }
         }
+    }
+
+    private static func routeContextFromRequest(ctx: RequestContext): RouteContext {
+        let routeCtx = RouteContext()
+        routeCtx.path = ctx.path
+        routeCtx.method = ctx.method
+        routeCtx.params = ctx.params
+        routeCtx.query = ctx.query
+        routeCtx.headers = ctx.headers
+        routeCtx.body = ctx.body
+        routeCtx.statusCode = ctx.statusCode
+        routeCtx.responseHeaders = ctx.responseHeaders
+        routeCtx.responseBody = ctx.responseBody
+        routeCtx.handled = ctx.responded
+        return routeCtx
+    }
+
+    private static func syncRequestContext(ctx: RequestContext, routeCtx: RouteContext): Unit {
+        ctx.params = routeCtx.params
+        ctx.statusCode = routeCtx.statusCode
+        ctx.responseHeaders = routeCtx.responseHeaders
+        ctx.responseBody = routeCtx.responseBody
+        ctx.responded = routeCtx.handled
     }
 
     /// 获取路由数量
@@ -841,18 +887,22 @@ public class UrlParser {
 
         var remaining = queryString
         if (remaining.startsWith("?")) {
-            remaining = remaining.substring(1)
+            remaining = sliceString(remaining, 1, remaining.size)
         }
 
         let pairs = remaining.split("&")
         for (pair in pairs) {
-            let eqIdx = pair.indexOf("=")
-            if (eqIdx > 0) {
-                let key = urlDecode(pair.substring(0, eqIdx))
-                let value = urlDecode(pair.substring(eqIdx + 1))
-                result.put(key, value)
-            } else if (pair.length > 0) {
-                result.put(urlDecode(pair), "")
+            match (pair.indexOf("=")) {
+                case Some(eqIdx) =>
+                    if (eqIdx > 0) {
+                        let key = urlDecode(sliceString(pair, 0, eqIdx))
+                        let value = urlDecode(sliceString(pair, eqIdx + 1, pair.size))
+                        result.put(key, value)
+                    }
+                case None =>
+                    if (pair.size > 0) {
+                        result.put(urlDecode(pair), "")
+                    }
             }
         }
 
@@ -862,23 +912,22 @@ public class UrlParser {
     /// URL 解码
     public static func urlDecode(input: String): String {
         let sb = StringBuilder()
-        var i = Int64(0)
-        while (i < input.length) {
+        var i: Int64 = 0
+        while (i < input.size) {
             let ch = input[i]
-            if (ch == '%' && i + 2 < input.length) {
-                let hex = input.substring(i + 1, i + 3)
+            if (ch == UInt8(37) && i + 2 < input.size) {
+                let hex = sliceString(input, i + 1, i + 3)
                 let decoded = hexToInt(hex)
                 match (decoded) {
-                    case Some(code) => sb.append(Char(code))
-                    case None =>
-                        sb.append(ch)
+                    case Some(code) => sb.append(Rune(Int64(code)).toString())
+                    case None => sb.append(Rune(Int64(ch)).toString())
                 }
                 i += 3
-            } else if (ch == '+') {
-                sb.append(' ')
+            } else if (ch == UInt8(43)) {
+                sb.append(" ")
                 i += 1
             } else {
-                sb.append(ch)
+                sb.append(Rune(Int64(ch)).toString())
                 i += 1
             }
         }
@@ -889,15 +938,15 @@ public class UrlParser {
     public static func urlEncode(input: String): String {
         let sb = StringBuilder()
         for (ch in input) {
-            if ((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') ||
-                (ch >= '0' && ch <= '9') || ch == '-' || ch == '_' ||
-                ch == '.' || ch == '~') {
-                sb.append(ch)
-            } else if (ch == ' ') {
-                sb.append('+')
+            if ((ch >= 97 && ch <= 122) || (ch >= 65 && ch <= 90) ||
+                (ch >= 48 && ch <= 57) || ch == 45 || ch == 95 ||
+                ch == 46 || ch == 126) {
+                sb.append(Rune(ch).toString())
+            } else if (ch == 32) {
+                sb.append("+")
             } else {
-                sb.append('%')
-                sb.append(Int32(ch).toString().toUpper())
+                sb.append("%")
+                sb.append(Int64(ch).toString())
             }
         }
         return sb.toString()
@@ -905,15 +954,15 @@ public class UrlParser {
 
     /// 十六进制字符串转整数
     private static func hexToInt(hex: String): ?Int32 {
-        var result = 0
+        var result: Int32 = 0
         for (c in hex) {
             result = result * 16
-            if (c >= '0' && c <= '9') {
-                result = result + (Int32(c) - Int32('0'))
-            } else if (c >= 'a' && c <= 'f') {
-                result = result + (Int32(c) - Int32('a') + 10)
-            } else if (c >= 'A' && c <= 'F') {
-                result = result + (Int32(c) - Int32('A') + 10)
+            if (c >= 48 && c <= 57) {
+                result = result + Int32(c - 48)
+            } else if (c >= 97 && c <= 102) {
+                result = result + Int32(c - 97 + 10)
+            } else if (c >= 65 && c <= 70) {
+                result = result + Int32(c - 65 + 10)
             } else {
                 return None
             }
@@ -923,11 +972,11 @@ public class UrlParser {
 
     /// 从 URL 中分离路径和查询字符串
     public static func splitPathAndQuery(url: String): Pair<String, String> {
-        let queryIdx = url.indexOf("?")
-        if (queryIdx >= 0) {
-            return Pair(url.substring(0, queryIdx), url.substring(queryIdx + 1))
+        match (url.indexOf("?")) {
+            case Some(queryIdx) =>
+                return Pair(sliceString(url, 0, queryIdx), sliceString(url, queryIdx + 1, url.size))
+            case None => return Pair(url, "")
         }
-        return Pair(url, "")
     }
 }
 
@@ -1023,9 +1072,9 @@ public class RouteScanner {
     public static func fileToRoute(fileName: String, prefix: String): String {
         // 移除扩展名
         var name = fileName
-        let dotIdx = name.lastIndexOf(".")
-        if (dotIdx >= 0) {
-            name = name.substring(0, dotIdx)
+        match (name.lastIndexOf(".")) {
+            case Some(dotIdx) => name = sliceString(name, 0, dotIdx)
+            case None => ()
         }
 
         // index -> 根路由
@@ -1038,13 +1087,13 @@ public class RouteScanner {
 
         // [param] -> :param
         if (name.startsWith("[") && name.endsWith("]")) {
-            let param = name.substring(1, name.length - 1)
+            let param = sliceString(name, 1, name.size - 1)
             return "${prefix}/:${param}"
         }
 
         // [...param] -> *param
         if (name.startsWith("[...") && name.endsWith("]")) {
-            let param = name.substring(4, name.length - 1)
+            let param = sliceString(name, 4, name.size - 1)
             return "${prefix}/*${param}"
         }
 

@@ -6,17 +6,18 @@ package bao_io
 
 import bao_core.*
 import bao_sys.*
+import bao_collections.*
 
 @C
 foreign func fcntl(fd: Int32, cmd: Int32, arg: Int32): Int32
 
 private func setFdNonblocking(fd: Int64, nonblocking: Bool): SysMaybe<Unit> {
-    let flags = fcntl(Int32(fd), 3, 0)
+    let flags = unsafe { fcntl(Int32(fd), 3, 0) }
     if (flags < 0) {
         return SysMaybe<Unit>.Err(SysError(UInt16(Int64(OS.errno())), SysTag.Fcntl))
     }
-    let newFlags = if (nonblocking) { flags | 2048 } else { flags & ~2048 }
-    let rc = fcntl(Int32(fd), 4, newFlags)
+    let newFlags = if (nonblocking) { flags | 2048 } else { flags & (-2049) }
+    let rc = unsafe { fcntl(Int32(fd), 4, newFlags) }
     if (rc < 0) {
         return SysMaybe<Unit>.Err(SysError(UInt16(Int64(OS.errno())), SysTag.Fcntl))
     }
@@ -75,7 +76,10 @@ public class PipeReader {
                 if (bytesRead == 0 && reader.isEof()) {
                     state = ReadState.Eof
                 }
-                return SysMaybe<Array<UInt8>>.Ok(reader.readBytes(reader.available()).getOrElse { [] })
+                match (reader.readBytes(reader.available())) {
+                    case Some(data) => return SysMaybe<Array<UInt8>>.Ok(data)
+                    case None => return SysMaybe<Array<UInt8>>.Ok([])
+                }
         }
     }
 
@@ -108,7 +112,7 @@ public class PipeReader {
             // 先读缓冲区中已有的
             while (reader.available() > 0) {
                 let chunk = reader.readBytes(MAX_BUF_SIZE)
-                if (let Some(c) = chunk) {
+                if (let Some(c) <- chunk) {
                     for (b in c) { result.append(b) }
                 }
             }
@@ -118,7 +122,7 @@ public class PipeReader {
                 case Err(e) =>
                     state = ReadState.Error
                     if (result.size > 0) {
-                        return SysMaybe<Array<UInt8>>.Ok(result.toArray())
+                        return SysMaybe<Array<UInt8>>.Ok(result.toOwnedSlice())
                     }
                     return SysMaybe<Array<UInt8>>.Err(e)
                 case Ok(n) =>
@@ -127,7 +131,7 @@ public class PipeReader {
                     }
             }
         }
-        return SysMaybe<Array<UInt8>>.Ok(result.toArray())
+        return SysMaybe<Array<UInt8>>.Ok(result.toOwnedSlice())
     }
 
     /// 可用数据量
@@ -212,7 +216,7 @@ public class PipeWriter {
     /// 对应 Bun: PipeWriter.writeLine()
     public func writeLine(line: String): WriteResult {
         writer.writeString(line)
-        writer.write(UInt8('\n'))
+        writer.write(UInt8(10))
         if (autoFlush) {
             writer.flush()
         }

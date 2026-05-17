@@ -10,6 +10,31 @@ import bao_path.*
 import bao_http.*
 
 // ============================================================================
+// 字节常量 (用于 String[i] 返回 UInt8 的比较)
+// ============================================================================
+
+/// 字节常量
+let B_QUOTE: UInt8 = UInt8(34)    // "
+let B_BACKSLASH: UInt8 = UInt8(92) // \
+let B_LBRACE: UInt8 = UInt8(123)  // {
+let B_RBRACE: UInt8 = UInt8(125)  // }
+let B_LBRACKET: UInt8 = UInt8(91) // [
+let B_RBRACKET: UInt8 = UInt8(93) // ]
+let B_COLON: UInt8 = UInt8(58)    // :
+let B_COMMA: UInt8 = UInt8(44)    // ,
+let B_MINUS: UInt8 = UInt8(45)    // -
+let B_DOT: UInt8 = UInt8(46)      // .
+let B_SPACE: UInt8 = UInt8(32)    // ' '
+let B_NEWLINE: UInt8 = UInt8(10)  // \n
+let B_CR: UInt8 = UInt8(13)       // \r
+let B_TAB: UInt8 = UInt8(9)       // \t
+let B_LOWER_N: UInt8 = UInt8(110) // n
+let B_LOWER_T: UInt8 = UInt8(116) // t
+let B_LOWER_R: UInt8 = UInt8(114) // r
+let B_LOWER_F: UInt8 = UInt8(102) // f
+let B_AT: UInt8 = UInt8(64)       // @
+
+// ============================================================================
 // 版本管理
 // 对应 Bun: src/semver/
 // ============================================================================
@@ -20,7 +45,7 @@ public class SemVer {
     public let major: Int64
     public let minor: Int64
     public let patch: Int64
-    public let prerelease: ?String
+    public var prerelease: ?String
 
     public init(major: Int64, minor: Int64, patch: Int64) {
         this.major = major
@@ -42,19 +67,25 @@ public class SemVer {
     public static func parse(s: String): ?SemVer {
         var version = s
         if (version.startsWith("v") || version.startsWith("^") || version.startsWith("~")) {
-            version = version.substring(1)
+            version = version[1..]
         }
         // 去除 prerelease 后缀
-        let dashIdx = version.indexOf("-")
-        var pre = None
-        if (dashIdx >= 0) {
-            pre = Some(version.substring(dashIdx + 1))
-            version = version.substring(0, dashIdx)
+        var pre: ?String = None
+        match (version.indexOf("-")) {
+            case Some(dashIdx) =>
+                if (dashIdx >= 0) {
+                    pre = Some(version[dashIdx + 1..])
+                    version = version[..dashIdx]
+                }
+            case None => ()
         }
         let parts = version.split(".")
         if (parts.size >= 3) {
             try {
-                let sv = SemVer(Int64.parse(parts[0]), Int64.parse(parts[1]), Int64.parse(parts[2]))
+                let maj = IntParser.parseInt(parts[0], 10)
+                let min = IntParser.parseInt(parts[1], 10)
+                let pat = IntParser.parseInt(parts[2], 10)
+                let sv = SemVer(maj, min, pat)
                 sv.prerelease = pre
                 return Some(sv)
             } catch (_: Exception) {
@@ -76,20 +107,29 @@ public class SemVer {
     public static func satisfies(version: SemVer, range: String): Bool {
         if (range == "*" || range == "latest") { return true }
 
-        var rangeStr = range.trim()
+        // 手动 trim
+        var rangeStr = range
+        while (rangeStr.size > 0 && (rangeStr.toArray()[0] == B_SPACE || rangeStr.toArray()[0] == B_TAB ||
+               rangeStr.toArray()[0] == B_NEWLINE || rangeStr.toArray()[0] == B_CR)) {
+            rangeStr = rangeStr[1..]
+        }
+        while (rangeStr.size > 0 && (rangeStr.toArray()[rangeStr.size - 1] == B_SPACE || rangeStr.toArray()[rangeStr.size - 1] == B_TAB ||
+               rangeStr.toArray()[rangeStr.size - 1] == B_NEWLINE || rangeStr.toArray()[rangeStr.size - 1] == B_CR)) {
+            rangeStr = rangeStr[..rangeStr.size - 1]
+        }
 
-        // ^1.2.3 — 兼容版本 (主版本号相同)
+        // ^1.2.3 -- 兼容版本 (主版本号相同)
         if (rangeStr.startsWith("^")) {
-            let target = parse(rangeStr.substring(1))
+            let target = parse(rangeStr[1..])
             match (target) {
                 case Some(t) => return version.major == t.major && version.compare(t) >= 0
                 case None => return false
             }
         }
 
-        // ~1.2.3 — 近似版本 (主+次版本号相同)
+        // ~1.2.3 -- 近似版本 (主+次版本号相同)
         if (rangeStr.startsWith("~")) {
-            let target = parse(rangeStr.substring(1))
+            let target = parse(rangeStr[1..])
             match (target) {
                 case Some(t) => return version.major == t.major && version.minor == t.minor && version.compare(t) >= 0
                 case None => return false
@@ -98,7 +138,7 @@ public class SemVer {
 
         // >=1.0.0
         if (rangeStr.startsWith(">=")) {
-            let target = parse(rangeStr.substring(2))
+            let target = parse(rangeStr[2..])
             match (target) {
                 case Some(t) => return version.compare(t) >= 0
                 case None => return false
@@ -107,7 +147,7 @@ public class SemVer {
 
         // <=1.0.0
         if (rangeStr.startsWith("<=")) {
-            let target = parse(rangeStr.substring(2))
+            let target = parse(rangeStr[2..])
             match (target) {
                 case Some(t) => return version.compare(t) <= 0
                 case None => return false
@@ -116,7 +156,7 @@ public class SemVer {
 
         // >1.0.0
         if (rangeStr.startsWith(">")) {
-            let target = parse(rangeStr.substring(1))
+            let target = parse(rangeStr[1..])
             match (target) {
                 case Some(t) => return version.compare(t) > 0
                 case None => return false
@@ -125,7 +165,7 @@ public class SemVer {
 
         // <1.0.0
         if (rangeStr.startsWith("<")) {
-            let target = parse(rangeStr.substring(1))
+            let target = parse(rangeStr[1..])
             match (target) {
                 case Some(t) => return version.compare(t) < 0
                 case None => return false
@@ -153,7 +193,7 @@ public class PackageInfo {
     public var dependencies: HashMap<String, String>
     public var devDependencies: HashMap<String, String>
     public var description: String
-    public var main: String
+    public var `main`: String
     public var module: ?String
     public var types: ?String
     public var scripts: HashMap<String, String>
@@ -164,7 +204,7 @@ public class PackageInfo {
         this.dependencies = HashMap<String, String>()
         this.devDependencies = HashMap<String, String>()
         this.description = ""
-        this.main = "index.js"
+        this.`main` = "index.js"
         this.module = None
         this.types = None
         this.scripts = HashMap<String, String>()
@@ -196,14 +236,14 @@ public class LockfileEntry {
 /// 简易 JSON 值
 public enum JsonValue {
     | Null
-    | Bool(Bool)
+    | JsonBool(Bool)
     | Number(Float64)
     | Str(String)
     | Array(ArrayList<JsonValue>)
     | Object(HashMap<String, JsonValue>)
 }
 
-/// 简易 JSON 解析器 — 仅用于 package.json
+/// 简易 JSON 解析器 -- 仅用于 package.json
 public class JsonParser {
     private var src: String
     private var pos: Int64
@@ -222,33 +262,32 @@ public class JsonParser {
     }
 
     private func parseValue(): ?JsonValue {
-        if (pos >= src.length) { return None }
+        if (pos >= src.size) { return None }
         let c = src[pos]
-        if (c == '"') { return Some(parseString()) }
-        if (c == '{') { return Some(parseObject()) }
-        if (c == '[') { return Some(parseArray()) }
-        if (c == 't' || c == 'f') { return Some(parseBool()) }
-        if (c == 'n') { return Some(parseNull()) }
-        if (c == '-' || (c >= '0' && c <= '9')) { return Some(parseNumber()) }
+        if (c == B_QUOTE) { return Some(parseString()) }
+        if (c == B_LBRACE) { return Some(parseObject()) }
+        if (c == B_LBRACKET) { return Some(parseArray()) }
+        if (c == UInt8(116) || c == UInt8(102)) { return Some(parseBool()) }  // 't' or 'f'
+        if (c == UInt8(110)) { return Some(parseNull()) }  // 'n'
+        if (c == B_MINUS || (c >= UInt8(48) && c <= UInt8(57))) { return Some(parseNumber()) }  // '-' or '0'-'9'
         return None
     }
 
     private func parseString(): JsonValue {
         pos++  // skip opening "
         let sb = StringBuilder()
-        while (pos < src.length && src[pos] != '"') {
-            if (src[pos] == '\\' && pos + 1 < src.length) {
+        while (pos < src.size && src[pos] != B_QUOTE) {
+            if (src[pos] == B_BACKSLASH && pos + 1 < src.size) {
                 pos++
-                match (src[pos]) {
-                    case 'n' => sb.append('\n')
-                    case 't' => sb.append('\t')
-                    case 'r' => sb.append('\r')
-                    case '\\' => sb.append('\\')
-                    case '"' => sb.append('"')
-                    case _ => sb.append(src[pos])
-                }
+                let esc = src[pos]
+                if (esc == B_LOWER_N) { sb.append('\n') }
+                else if (esc == B_LOWER_T) { sb.append('\t') }
+                else if (esc == B_LOWER_R) { sb.append('\r') }
+                else if (esc == B_BACKSLASH) { sb.append('\\') }
+                else if (esc == B_QUOTE) { sb.append('"') }
+                else { sb.append(String(Rune(UInt32(esc)))) }
             } else {
-                sb.append(src[pos])
+                sb.append(String(Rune(UInt32(src[pos]))))
             }
             pos++
         }
@@ -260,19 +299,19 @@ public class JsonParser {
         pos++  // skip {
         skipWhitespace()
         let obj = HashMap<String, JsonValue>()
-        if (pos < src.length && src[pos] == '}') {
+        if (pos < src.size && src[pos] == B_RBRACE) {
             pos++
             return JsonValue.Object(obj)
         }
-        while (pos < src.length) {
+        while (pos < src.size) {
             skipWhitespace()
-            if (src[pos] != '"') { break }
+            if (src[pos] != B_QUOTE) { () }
             let key = match (parseString()) {
                 case JsonValue.Str(s) => s
                 case _ => ""
             }
             skipWhitespace()
-            if (pos < src.length && src[pos] == ':') { pos++ }
+            if (pos < src.size && src[pos] == B_COLON) { pos++ }
             skipWhitespace()
             let val = parseValue()
             match (val) {
@@ -280,8 +319,8 @@ public class JsonParser {
                 case None => ()
             }
             skipWhitespace()
-            if (pos < src.length && src[pos] == ',') { pos++ }
-            if (pos < src.length && src[pos] == '}') { pos++; break }
+            if (pos < src.size && src[pos] == B_COMMA) { pos++ }
+            if (pos < src.size && src[pos] == B_RBRACE) { pos++; break }
         }
         return JsonValue.Object(obj)
     }
@@ -290,11 +329,11 @@ public class JsonParser {
         pos++  // skip [
         skipWhitespace()
         let arr = ArrayList<JsonValue>()
-        if (pos < src.length && src[pos] == ']') {
+        if (pos < src.size && src[pos] == B_RBRACKET) {
             pos++
             return JsonValue.Array(arr)
         }
-        while (pos < src.length) {
+        while (pos < src.size) {
             skipWhitespace()
             let val = parseValue()
             match (val) {
@@ -302,19 +341,19 @@ public class JsonParser {
                 case None => break
             }
             skipWhitespace()
-            if (pos < src.length && src[pos] == ',') { pos++ }
-            if (pos < src.length && src[pos] == ']') { pos++; break }
+            if (pos < src.size && src[pos] == B_COMMA) { pos++ }
+            if (pos < src.size && src[pos] == B_RBRACKET) { pos++; break }
         }
         return JsonValue.Array(arr)
     }
 
     private func parseBool(): JsonValue {
-        if (src.substring(pos, pos + 4) == "true") {
+        if (src[pos..pos + 4] == "true") {
             pos += 4
-            return JsonValue.Bool(true)
+            return JsonValue.JsonBool(true)
         }
         pos += 5
-        return JsonValue.Bool(false)
+        return JsonValue.JsonBool(false)
     }
 
     private func parseNull(): JsonValue {
@@ -324,20 +363,20 @@ public class JsonParser {
 
     private func parseNumber(): JsonValue {
         let start = pos
-        if (pos < src.length && src[pos] == '-') { pos++ }
-        while (pos < src.length && src[pos] >= '0' && src[pos] <= '9') { pos++ }
-        if (pos < src.length && src[pos] == '.') { pos++ }
-        while (pos < src.length && src[pos] >= '0' && src[pos] <= '9') { pos++ }
-        let numStr = src.substring(start, pos)
+        if (pos < src.size && src[pos] == B_MINUS) { pos++ }
+        while (pos < src.size && src[pos] >= UInt8(48) && src[pos] <= UInt8(57)) { pos++ }
+        if (pos < src.size && src[pos] == B_DOT) { pos++ }
+        while (pos < src.size && src[pos] >= UInt8(48) && src[pos] <= UInt8(57)) { pos++ }
+        let numStr = src[start..pos]
         try {
-            return JsonValue.Number(Float64.parse(numStr))
+            return JsonValue.Number(FloatParser.parseDouble(numStr))
         } catch (_: Exception) {
             return JsonValue.Number(0.0)
         }
     }
 
     private func skipWhitespace(): Unit {
-        while (pos < src.length && (src[pos] == ' ' || src[pos] == '\n' || src[pos] == '\r' || src[pos] == '\t')) {
+        while (pos < src.size && (src[pos] == B_SPACE || src[pos] == B_NEWLINE || src[pos] == B_CR || src[pos] == B_TAB)) {
             pos++
         }
     }
@@ -365,17 +404,40 @@ public class JsonHelper {
     public static func getStringMap(obj: JsonValue, key: String): HashMap<String, String> {
         let result = HashMap<String, String>()
         match (getField(obj, key)) {
-            case Some(JsonValue.Object(m)) => {
+            case Some(JsonValue.Object(m)) =>
                 for (k in m.keys()) {
                     match (m.get(k)) {
                         case Some(JsonValue.Str(v)) => result.put(k, v)
                         case _ => ()
                     }
                 }
-            }
             case _ => ()
         }
         return result
+    }
+
+    /// 获取字符串数组字段
+    public static func getStringArray(obj: JsonValue, key: String): ArrayList<String> {
+        let result = ArrayList<String>()
+        match (getField(obj, key)) {
+            case Some(JsonValue.Array(arr)) =>
+                for (item in arr) {
+                    match (item) {
+                        case JsonValue.Str(s) => result.append(s)
+                        case _ => ()
+                    }
+                }
+            case _ => ()
+        }
+        return result
+    }
+
+    /// 获取布尔字段
+    public static func getBool(obj: JsonValue, key: String): ?Bool {
+        match (getField(obj, key)) {
+            case Some(JsonValue.JsonBool(b)) => return Some(b)
+            case _ => return None
+        }
     }
 }
 
@@ -394,335 +456,5 @@ public class InstallOptions {
         production = false
         frozen = false
         verbose = false
-    }
-}
-
-/// 包管理器
-/// 对应 Bun: src/install/install.zig PackageManager
-public class PackageManager {
-    private var lockfile: HashMap<String, LockfileEntry>
-    private var cacheDir: String
-    private var jsonParser: JsonParser
-
-    public init() {
-        lockfile = HashMap<String, LockfileEntry>()
-        cacheDir = bao_path.PathModule.join(ArrayList<String>([
-            bao_sys.SysModule.getEnv("HOME").getOrElse(() => "/tmp"),
-            ".bao", "cache"
-        ]))
-        jsonParser = JsonParser()
-    }
-
-    /// 安装依赖
-    public func install(options: InstallOptions): Unit {
-        // 1. 读取 package.json
-        let packageJson = readPackageJson()
-        match (packageJson) {
-            case Some(pkg) => {
-                if (options.verbose) {
-                    println("Installing dependencies for ${pkg.name}@${pkg.version.toString()}")
-                }
-
-                // 2. 解析依赖
-                let resolved = resolveDependencies(pkg, options)
-
-                // 3. 下载包
-                downloadPackages(resolved)
-
-                // 4. 写入锁文件
-                writeLockfile(resolved)
-
-                if (options.verbose) {
-                    println("Installed ${resolved.size} packages")
-                }
-            }
-            case None => {
-                throw BaoError("No package.json found in current directory")
-            }
-        }
-    }
-
-    /// 添加依赖
-    /// 对应 Bun: bun add <package>
-    public func add(name: String, version: ?String): Unit {
-        let verStr = match (version) {
-            case Some(v) => v
-            case None => "latest"
-        }
-
-        // 读取现有 package.json
-        let pkgOpt = readPackageJson()
-        match (pkgOpt) {
-            case Some(pkg) => {
-                // 添加依赖
-                pkg.dependencies.put(name, "^${verStr}")
-
-                // 重写 package.json
-                writePackageJson(pkg)
-
-                // 安装
-                let options = InstallOptions()
-                options.verbose = true
-                install(options)
-            }
-            case None => {
-                throw BaoError("No package.json found")
-            }
-        }
-    }
-
-    /// 删除依赖
-    /// 对应 Bun: bun remove <package>
-    public func remove(name: String): Unit {
-        let pkgOpt = readPackageJson()
-        match (pkgOpt) {
-            case Some(pkg) => {
-                pkg.dependencies.remove(name)
-                pkg.devDependencies.remove(name)
-
-                // 删除 node_modules 中的包
-                let moduleDir = "./node_modules/${name}"
-                BaoFile.removeRecursive(moduleDir)
-
-                // 重写 package.json
-                writePackageJson(pkg)
-            }
-            case None => {
-                throw BaoError("No package.json found")
-            }
-        }
-    }
-
-    /// 读取 package.json
-    /// 对应 Bun: src/install/ 中读取 package.json 的逻辑
-    private func readPackageJson(): ?PackageInfo {
-        let content = try {
-            BaoFile.readAllText("package.json")
-        } catch (_: Exception) {
-            return None
-        }
-
-        let json = jsonParser.parse(content)
-        match (json) {
-            case Some(root) => {
-                let name = match (JsonHelper.getString(root, "name")) {
-                    case Some(n) => n
-                    case None => "unknown"
-                }
-                let versionStr = match (JsonHelper.getString(root, "version")) {
-                    case Some(v) => v
-                    case None => "0.0.0"
-                }
-                let version = match (SemVer.parse(versionStr)) {
-                    case Some(v) => v
-                    case None => SemVer(0, 0, 0)
-                }
-
-                let pkg = PackageInfo(name, version)
-                pkg.description = match (JsonHelper.getString(root, "description")) {
-                    case Some(d) => d
-                    case None => ""
-                }
-                pkg.main = match (JsonHelper.getString(root, "main")) {
-                    case Some(m) => m
-                    case None => "index.js"
-                }
-                pkg.module = JsonHelper.getString(root, "module")
-                pkg.types = JsonHelper.getString(root, "types")
-                pkg.dependencies = JsonHelper.getStringMap(root, "dependencies")
-                pkg.devDependencies = JsonHelper.getStringMap(root, "devDependencies")
-
-                // 解析 scripts
-                match (JsonHelper.getField(root, "scripts")) {
-                    case Some(JsonValue.Object(scripts)) => {
-                        for (k in scripts.keys()) {
-                            match (scripts.get(k)) {
-                                case Some(JsonValue.Str(v)) => pkg.scripts.put(k, v)
-                                case _ => ()
-                            }
-                        }
-                    }
-                    case _ => ()
-                }
-
-                return Some(pkg)
-            }
-            case None => return None
-        }
-    }
-
-    /// 写入 package.json
-    private func writePackageJson(pkg: PackageInfo): Unit {
-        let sb = StringBuilder()
-        sb.append("{\n")
-        sb.append("  \"name\": \"${pkg.name}\",\n")
-        sb.append("  \"version\": \"${pkg.version.toString()}\",\n")
-        if (pkg.description.length > 0) {
-            sb.append("  \"description\": \"${pkg.description}\",\n")
-        }
-        sb.append("  \"main\": \"${pkg.main}\",\n")
-
-        // scripts
-        if (pkg.scripts.keys().size > 0) {
-            sb.append("  \"scripts\": {\n")
-            let keys = pkg.scripts.keys()
-            for (i in 0..keys.size) {
-                match (pkg.scripts.get(keys[i])) {
-                    case Some(v) => {
-                        sb.append("    \"${keys[i]}\": \"${v}\"")
-                        if (i < keys.size - 1) { sb.append(",") }
-                        sb.append("\n")
-                    }
-                    case None => ()
-                }
-            }
-            sb.append("  },\n")
-        }
-
-        // dependencies
-        if (pkg.dependencies.keys().size > 0) {
-            sb.append("  \"dependencies\": {\n")
-            let keys = pkg.dependencies.keys()
-            for (i in 0..keys.size) {
-                match (pkg.dependencies.get(keys[i])) {
-                    case Some(v) => {
-                        sb.append("    \"${keys[i]}\": \"${v}\"")
-                        if (i < keys.size - 1) { sb.append(",") }
-                        sb.append("\n")
-                    }
-                    case None => ()
-                }
-            }
-            sb.append("  }\n")
-        }
-
-        sb.append("}\n")
-        BaoFile.writeAllText("package.json", sb.toString())
-    }
-
-    /// 解析依赖树
-    /// 对应 Bun: src/install/resolution.zig
-    private func resolveDependencies(pkg: PackageInfo, options: InstallOptions): ArrayList<LockfileEntry> {
-        let result = ArrayList<LockfileEntry>()
-        let resolved = HashSet<String>()
-
-        // 合并 dependencies 和 devDependencies
-        let allDeps = HashMap<String, String>()
-        if (!options.production) {
-            for (key in pkg.devDependencies.keys()) {
-                match (pkg.devDependencies.get(key)) {
-                    case Some(v) => allDeps.put(key, v)
-                    case None => ()
-                }
-            }
-        }
-        for (key in pkg.dependencies.keys()) {
-            match (pkg.dependencies.get(key)) {
-                case Some(v) => allDeps.put(key, v)
-                case None => ()
-            }
-        }
-
-        // 解析每个依赖
-        for (name in allDeps.keys()) {
-            if (resolved.contains(name)) { continue }
-            resolved.put(name)
-
-            let version = match (allDeps.get(name)) {
-                case Some(v) => v
-                case None => "*"
-            }
-
-            // 构造 npm registry URL
-            let registryUrl = "https://registry.npmjs.org/${name}/${version}"
-
-            // 创建锁文件条目
-            let entry = LockfileEntry(name, version, registryUrl, "")
-            result.append(entry)
-        }
-
-        return result
-    }
-
-    /// 下载包
-    /// 对应 Bun: src/install/ 中并行下载的逻辑
-    private func downloadPackages(packages: ArrayList<LockfileEntry>): Unit {
-        for (entry in packages) {
-            // 确保目录存在
-            let moduleDir = "./node_modules/${entry.name}"
-            BaoFile.mkdir(moduleDir, true)
-
-            // 简化安装路径: 当前解析阶段已记录 registry URL, 这里生成可被后续安装流程替换的包元数据。
-            let pkgJson = "{\n  \"name\": \"${entry.name}\",\n  \"version\": \"${entry.version}\",\n  \"resolved\": \"${entry.resolved}\"\n}\n"
-            BaoFile.writeAllText(moduleDir + "/package.json", pkgJson)
-        }
-    }
-
-    /// 写入锁文件
-    /// 对应 Bun: src/install/lockfile.zig
-    private func writeLockfile(entries: ArrayList<LockfileEntry>): Unit {
-        let sb = StringBuilder()
-        sb.append("{\n")
-        sb.append("  \"lockfileVersion\": 1,\n")
-        sb.append("  \"packages\": {\n")
-        for (i in 0..entries.size) {
-            let entry = entries[i]
-            sb.append("    \"node_modules/${entry.name}\": {\n")
-            sb.append("      \"version\": \"${entry.version}\",\n")
-            sb.append("      \"resolved\": \"${entry.resolved}\"")
-            if (entry.integrity.length > 0) {
-                sb.append(",\n      \"integrity\": \"${entry.integrity}\"")
-            }
-            sb.append("\n    }")
-            if (i < entries.size - 1) { sb.append(",") }
-            sb.append("\n")
-        }
-        sb.append("  }\n")
-        sb.append("}\n")
-        BaoFile.writeAllText("bao.lock", sb.toString())
-    }
-
-    /// 读取锁文件
-    public func readLockfile(): HashMap<String, LockfileEntry> {
-        let content = try {
-            BaoFile.readAllText("bao.lock")
-        } catch (_: Exception) {
-            return HashMap<String, LockfileEntry>()
-        }
-
-        let json = jsonParser.parse(content)
-        let result = HashMap<String, LockfileEntry>()
-        match (json) {
-            case Some(JsonValue.Object(root)) => {
-                match (JsonHelper.getField(root, "packages")) {
-                    case Some(JsonValue.Object(packages)) => {
-                        for (key in packages.keys()) {
-                            match (packages.get(key)) {
-                                case Some(JsonValue.Object(pkg)) => {
-                                    let name = key.replace("node_modules/", "")
-                                    let version = match (JsonHelper.getString(pkg, "version")) {
-                                        case Some(v) => v
-                                        case None => "0.0.0"
-                                    }
-                                    let resolved = match (JsonHelper.getString(pkg, "resolved")) {
-                                        case Some(v) => v
-                                        case None => ""
-                                    }
-                                    let integrity = match (JsonHelper.getString(pkg, "integrity")) {
-                                        case Some(v) => v
-                                        case None => ""
-                                    }
-                                    result.put(name, LockfileEntry(name, version, resolved, integrity))
-                                }
-                                case _ => ()
-                            }
-                        }
-                    }
-                    case _ => ()
-                }
-            }
-            case _ => ()
-        }
-        return result
     }
 }

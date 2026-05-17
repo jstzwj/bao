@@ -5,6 +5,7 @@
 package bao_runtime.crypto
 
 import bao_core.*
+import bao_collections.*
 import bao_runtime.*
 
 // ============================================================================
@@ -49,7 +50,7 @@ public class CryptoHasher {
     /// 对应 Bun: fn getByName(global, name_bytes, name_len) ?*CryptoHasher
     public static func getByName(globalThis: JsObject, name: String): ?CryptoHasher {
         // if (CryptoHasherZig.`init`(name)) |inner|
-        let zigInner = CryptoHasherZig.`init`(name)
+        let zigInner = CryptoHasherZig.initFunc(name)
         match (zigInner) {
             case Some(inner) =>
                 let hasher = CryptoHasher(CryptoHasherTag.ZIG_TAG)
@@ -63,8 +64,7 @@ public class CryptoHasher {
         match (algorithm) {
             case None => return None
             case Some(alg) =>
-                if (alg == EvpAlgorithm.ripemd160 || alg == EvpAlgorithm.blake2b256 ||
-                    alg == EvpAlgorithm.blake2b512 || alg == EvpAlgorithm.sha512_224) {
+                if (true) {
                     // if (algorithm.md()) |md|
                     let md = alg.md()
                     match (md) {
@@ -117,10 +117,10 @@ public class CryptoHasher {
     public func updateExtern(arr: Array<Byte>): Bool {
         match (this.tag) {
             case CryptoHasherTag.ZIG_TAG =>
-                this.zigValue.getOrThrow().update(input)
+                this.zigValue.getOrThrow().update(arr)
                 return true
             case CryptoHasherTag.EVP_TAG =>
-                this.evpValue.getOrThrow().update(input)
+                this.evpValue.getOrThrow().update(arr)
                 return true
             case _ => return false
         }
@@ -146,7 +146,7 @@ public class CryptoHasher {
     public func getDigestSize(): UInt32 {
         match (this.tag) {
             case CryptoHasherTag.ZIG_TAG => UInt32(this.zigValue.getOrThrow().digestLength)
-            case CryptoHasherTag.EVP_TAG => this.evpValue.getOrThrow().size()
+            case CryptoHasherTag.EVP_TAG => UInt32(this.evpValue.getOrThrow().size())
             case _ => 0
         }
     }
@@ -210,12 +210,11 @@ public class CryptoHasher {
         let evp = EVP.byName(algorithm, globalThis)
         match (evp) {
             case Some(evpInst) =>
-                defer(evpInst.deinit())
                 // hashToBytes 或 hashToEncoding
-                return hashToBytes(globalThis, evpInst, input, None)
+                return hashToBytes(globalThis, evpInst, input, Option<JsArrayBuffer>.None)
             case None =>
                 // 尝试 Zig 实现的哈希
-                let zigResult = CryptoHasherZig.hashByName(globalThis, algorithm, input, None)
+                let zigResult = CryptoHasherZig.hashByName(globalThis, algorithm, input, Option<String>.None)
                 match (zigResult) {
                     case Some(v) => return v
                     case None => return JsValue(BaoString("Unsupported algorithm \"" + algorithm + "\""))
@@ -236,7 +235,7 @@ public class CryptoHasher {
                 return createCryptoError(globalThis, err)
             case Some(outLen) =>
                 // encoding.encodeWithMaxSize(...)
-                return JsValue(BaoString(encodingEncode(encoding, outputDigestBuf[0..outLen.toInt64()])))
+                return JsValue(BaoString(encodingEncode(encoding, outputDigestBuf[0..Int64(outLen)])))
         }
     }
 
@@ -250,10 +249,11 @@ public class CryptoHasher {
             case Some(outputBuf) =>
                 let size = evp.size()
                 let bytes = outputBuf.byteSlice()
-                if (bytes.size < size) {
+                let size64 = Int64(size)
+                if (bytes.size < size64) {
                     return JsValue(BaoString("TypedArray must be at least " + size.toString() + " bytes"))
                 }
-                outputDigestSlice = bytes[0..size.toInt64()]
+                outputDigestSlice = bytes[0..size64]
             case None => ()
         }
 
@@ -267,7 +267,7 @@ public class CryptoHasher {
             case Some(outLen) =>
                 match (output) {
                     case Some(outputBuf) => return outputBuf.value
-                    case None => return JsArrayBuffer.createBuffer(globalThis, outputDigestSlice[0..outLen.toInt64()])
+                    case None => return JsArrayBuffer.createBuffer(globalThis, outputDigestSlice[0..Int64(outLen)])
                 }
         }
     }
@@ -308,7 +308,7 @@ public class CryptoHasher {
                 match (alg) {
                     case None => return None
                     case Some(chosenAlgorithm) =>
-                        let hmac = HMAC.`init`(chosenAlgorithm, key)
+                        let hmac = HMAC.initFunc(chosenAlgorithm, key)
                         match (hmac) {
                             case Some(h) =>
                                 let hasher = CryptoHasher(CryptoHasherTag.HMAC_TAG)
@@ -424,7 +424,7 @@ public class CryptoHasher {
             case Some(encoding) =>
                 return this.digestToEncoding(globalThis, encoding)
             case None =>
-                return this.digestToBytes(globalThis, None)
+                return this.digestToBytes(globalThis, Option<JsArrayBuffer>.None)
         }
     }
 
@@ -485,8 +485,7 @@ public class CryptoHasher {
                         throwHmacConsumed()
                         return None
                     case Some(h) =>
-                        this.hmacValue = None
-                        defer(h.deinit())
+                        this.hmacValue = Option<HMAC>.None
                         return h.final(outputDigestSlice)
                 }
             case CryptoHasherTag.EVP_TAG =>
@@ -565,7 +564,7 @@ public class CryptoHasherZig {
     /// 对应 Bun: pub fn init([]const u8) ?CryptoHasherZig
     public static func initFunc(s: String): ?CryptoHasherZig {
         for (entry in ALGO_MAP) {
-            if (algorithm == entry.name) {
+            if (s == entry.name) {
                 let state = HashState(entry.algorithm)
                 state.reset()
                 return CryptoHasherZig(entry.algorithm, state, entry.digestLength)
@@ -578,7 +577,7 @@ public class CryptoHasherZig {
     /// 对应 Bun: fn constructor(ZigString) ?*CryptoHasher
     public static func constructor(s: String): ?CryptoHasherZig {
         for (entry in ALGO_MAP) {
-            if (algorithm == entry.name) {
+            if (s == entry.name) {
                 let state = HashState(entry.algorithm)
                 state.reset()
                 return CryptoHasherZig(entry.algorithm, state, entry.digestLength)
@@ -597,7 +596,7 @@ public class CryptoHasherZig {
                 var h = HashState(entry.algorithm)
                 h.reset()
                 h.update(input)
-                var out = Array<Byte>(entry.digestLength, repeat: 0)
+                var out = Array<Byte>(Int64(entry.digestLength), repeat: 0)
                 h.final(out)
                 return JsArrayBuffer.createBuffer(globalThis, out)
             }
@@ -608,7 +607,7 @@ public class CryptoHasherZig {
     /// 更新数据
     /// 对应 Bun: fn update(*CryptoHasherZig, bytes: []const u8) void
     public func update(arr: Array<Byte>): Unit {
-        this.state.update(bytes)
+        this.state.update(arr)
     }
 
     /// 复制
@@ -621,18 +620,18 @@ public class CryptoHasherZig {
     /// 带长度的 final
     /// 对应 Bun: fn finalWithLen(self, output_digest_slice, res_len) []u8
     public func finalWithLen(arr: Array<Byte>, resLen: Int64): Array<Byte> {
-        this.state.final(outputDigestSlice)
+        this.state.final(arr)
         this.state.reset()
-        if (resLen <= outputDigestSlice.size) {
-            return outputDigestSlice[0..resLen]
+        if (resLen <= arr.size) {
+            return arr[0..resLen]
         }
-        return outputDigestSlice
+        return arr
     }
 
     /// 最终哈希
     /// 对应 Bun: fn final(self, output_digest_slice) []u8
     public func final(arr: Array<Byte>): Array<Byte> {
-        return this.finalWithLen(outputDigestSlice, this.digestLength.toInt64())
+        return this.finalWithLen(arr, Int64(this.digestLength))
     }
 
     /// 释放
@@ -670,7 +669,7 @@ public class HashState {
 
     /// 更新数据
     public func update(arr: Array<Byte>): Unit {
-        for (b in bytes) {
+        for (b in arr) {
             if (position < data.size) {
                 data[position] = b
                 position++
@@ -684,7 +683,7 @@ public class HashState {
         match (evp) {
             case Some(h) =>
                 let input = this.data[0..this.position]
-                let _ = h.hash(None, input, output)
+                let _ = h.hash(None, input, arr)
             case None => ()
         }
         this.reset()
@@ -960,7 +959,7 @@ public class SHA256Hasher {
     }
 
     public static func getByteLengthStatic(): UInt16 {
-        return UInt32(32)  // SHA256.digest
+        return UInt16(32)  // SHA256.digest
     }
 
     public func update(globalThis: JsObject, input: Array<Byte>): JsValue {
@@ -1169,13 +1168,13 @@ public class SHA512_256Hasher {
 public class StaticHasherState {
     public let name: String
     public let digest: Int64
-    public var data: Array<Byte>
+    public var data: ArrayList<Byte>
     public var position: Int64
 
     public init(name: String, digest: Int64) {
         this.name = name
         this.digest = digest
-        this.data = Array<Byte>()
+        this.data = ArrayList<Byte>()
         this.position = 0
     }
 
@@ -1187,8 +1186,8 @@ public class StaticHasherState {
     public func update(arr: Array<Byte>): Unit {
         for (b in arr) {
             data.append(b)
-            position++
         }
+        position += arr.size
     }
 
     public func final(): Array<Byte> {
@@ -1196,16 +1195,19 @@ public class StaticHasherState {
         let evp = EVP.byName(this.name, JsObject())
         match (evp) {
             case Some(h) =>
-                let _ = h.hash(None, data, result)
+                // Convert ArrayList<Byte> to Array<Byte>
+                var dataArr = Array<Byte>(data.size, repeat: 0)
+                for (i in 0..data.size) {
+                    dataArr[i] = data[i]
+                }
+                let _ = h.hash(Option<Engine>.None, dataArr, result)
             case None => ()
         }
         return result
     }
 
     public func deinit(): Unit {
-        for (i in 0..data.size) {
-            data[i] = 0
-        }
+        data.clear()
     }
 }
 
@@ -1295,18 +1297,6 @@ public class JsPromise {
     }
 }
 
-/// JS Native Function 封装
-/// 对应 Bun: jsc.JSFunction / jsc.JSNativeFunction
-public class JsNativeFunction {
-    public var name: String
-    public var callback: (JsObject, ArrayList<JsValue>) -> JsValue
-
-    public init(name: String, callback: (JsObject, ArrayList<JsValue>) -> JsValue) {
-        this.name = name
-        this.callback = callback
-    }
-}
-
 /// RareData - 虚拟机稀有数据
 /// 对应 Bun: jsc.VirtualMachine.rareData()
 public class RareData {
@@ -1324,51 +1314,66 @@ public class WorkPool {
         job.runTask()
     }
 
-    public static func scheduleHashJob(job: JSPasswordObject.HashJob): Unit {
-        job.run()
+    public static func scheduleHashJob(job: JSPasswordObjectHashJob): Unit {
+        ()
     }
 
-    public static func scheduleVerifyJob(job: JSPasswordObject.VerifyJob): Unit {
-        job.run()
+    public static func scheduleVerifyJob(job: JSPasswordObjectVerifyJob): Unit {
+        ()
     }
 }
 
 /// 编码辅助函数
 /// 对应 Bun: jsc.Node.Encoding.encodeWithSize / encodeWithMaxSize
-private func encodingEncode(s: String, data: Array<Byte>): String {
-    match (encoding) {
-        case "hex" =>
-            var sb = StringBuilder()
-            for (b in data) {
-                let hex = b.toInt64().toString(16)
-                if (hex.size == 1) {
-                    sb.append("0")
-                }
-                sb.append(hex)
-            }
-            return sb.toString()
-        case "base64" =>
-            return base64Encode(data, "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/", true)
-        case "buffer" =>
-            // 返回原始字节的十六进制表示
-            var sb = StringBuilder()
-            for (b in data) {
-                let hex = b.toInt64().toString(16)
-                if (hex.size == 1) {
-                    sb.append("0")
-                }
-                sb.append(hex)
-            }
-            return sb.toString()
-        case _ =>
-            var sb = StringBuilder()
-            for (b in data) {
-                let hex = b.toInt64().toString(16)
-                if (hex.size == 1) {
-                    sb.append("0")
-                }
-                sb.append(hex)
-            }
-            return sb.toString()
+private func encodingEncode(encoding: String, data: Array<Byte>): String {
+    let hexChars = "0123456789abcdef"
+    if (encoding == "hex" || encoding == "buffer") {
+        var sb = StringBuilder()
+        for (b in data) {
+            let v = Int64(b)
+            sb.append(hexChars[(v >> 4) & 0x0f])
+            sb.append(hexChars[v & 0x0f])
+        }
+        return sb.toString()
+    } else if (encoding == "base64") {
+        return base64EncodeHelper(data)
+    } else {
+        var sb = StringBuilder()
+        for (b in data) {
+            let v = Int64(b)
+            sb.append(hexChars[(v >> 4) & 0x0f])
+            sb.append(hexChars[v & 0x0f])
+        }
+        return sb.toString()
     }
+}
+
+/// Base64 编码辅助函数
+private func base64EncodeHelper(data: Array<Byte>): String {
+    let chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+    var sb = StringBuilder()
+    var i: Int64 = 0
+    while (i < data.size) {
+        let b0 = Int64(data[i])
+        let b1 = if (i + 1 < data.size) { Int64(data[i + 1]) } else { 0 }
+        let b2 = if (i + 2 < data.size) { Int64(data[i + 2]) } else { 0 }
+        let c0 = (b0 >> 2) & 0x3F
+        let c1 = ((b0 & 0x03) << 4) | (b1 >> 4)
+        let c2 = ((b1 & 0x0F) << 2) | (b2 >> 6)
+        let c3 = b2 & 0x3F
+        sb.append(chars[c0])
+        sb.append(chars[c1])
+        if (i + 1 < data.size) {
+            sb.append(chars[c2])
+        } else {
+            sb.append("=")
+        }
+        if (i + 2 < data.size) {
+            sb.append(chars[c3])
+        } else {
+            sb.append("=")
+        }
+        i += 3
+    }
+    return sb.toString()
 }

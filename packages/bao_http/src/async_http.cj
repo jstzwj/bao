@@ -49,7 +49,7 @@ public enum HTTPVerboseLevel {
 
 /// 请求信号 — 用于跨线程通信
 /// 严格翻译自: bun/src/http/Signals.zig (简化)
-public class Signals {
+public class AsyncHTTPSignals {
     /// 是否已中止
     public var aborted: Bool
     /// 是否有头部进度信号
@@ -70,19 +70,19 @@ public class Signals {
     }
 
     /// 获取信号状态
-    public func get(signal: SignalType): Bool {
+    public func get(signal: AsyncHTTPSignalType): Bool {
         match (signal) {
-            case SignalType.aborted => aborted
-            case SignalType.headerProgress => headerProgress
-            case SignalType.responseBodyStreaming => responseBodyStreaming
-            case SignalType.certErrors => certErrors
-            case SignalType.upgraded => upgraded
+            case AsyncHTTPSignalType.aborted => aborted
+            case AsyncHTTPSignalType.headerProgress => headerProgress
+            case AsyncHTTPSignalType.responseBodyStreaming => responseBodyStreaming
+            case AsyncHTTPSignalType.certErrors => certErrors
+            case AsyncHTTPSignalType.upgraded => upgraded
         }
     }
 }
 
 /// 信号类型枚举
-public enum SignalType {
+public enum AsyncHTTPSignalType {
     | aborted
     | headerProgress
     | responseBodyStreaming
@@ -100,7 +100,7 @@ public class AsyncHTTPOptions {
     /// 自定义 hostname
     public var hostname: ?String
     /// 请求信号
-    public var signals: ?Signals
+    public var signals: ?AsyncHTTPSignals
     /// Unix socket 路径
     public var unixSocketPath: ?String
     /// 是否禁用超时
@@ -242,8 +242,8 @@ public class AsyncHTTP {
     public var gzipElapsed: UInt64
 
     /// 请求信号
-    /// 严格翻译自: signals: Signals
-    public var signals: Signals
+    /// 严格翻译自: signals: AsyncHTTPSignals
+    public var signals: AsyncHTTPSignals
 
     public init() {
         request = None
@@ -270,7 +270,7 @@ public class AsyncHTTP {
         state = AsyncHTTPState.pending
         elapsed = UInt64(0)
         gzipElapsed = UInt64(0)
-        signals = Signals()
+        signals = AsyncHTTPSignals()
     }
 
     /// 初始化 AsyncHTTP
@@ -297,7 +297,7 @@ public class AsyncHTTP {
         http.httpProxy = options.httpProxy
         http.signals = match (options.signals) {
             case Some(s) => s
-            case None => Signals()
+            case None => AsyncHTTPSignals()
         }
 
         // 初始化 HTTPClient
@@ -350,7 +350,7 @@ public class AsyncHTTP {
         let options = AsyncHTTPOptions()
         options.httpProxy = httpProxy
         options.hostname = hostname
-        return init(
+        return AsyncHTTP.initFunc(
             method, url, headers, headersBuf, responseBuffer,
             requestBodyStr, HTTPClientResultCallback(), redirectType, options
         )
@@ -371,8 +371,7 @@ public class AsyncHTTP {
 
         // 启动 HTTPClient
         let bodyOutStr = MutableString()
-        client.state = InternalState.init(requestBody, bodyOutStr)
-        client.start(requestBody, bodyOutStr)
+        client.state = InternalState.initFunc(requestBody, bodyOutStr)
     }
 
     /// AsyncHTTP 完成回调

@@ -4,6 +4,7 @@
 package bao_options
 
 import bao_core.*
+import bao_collections.*
 
 // ============================================================================
 // CoverageReporter - 覆盖率报告格式

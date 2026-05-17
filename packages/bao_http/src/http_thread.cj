@@ -14,7 +14,7 @@ import bao_threading.*
 // 严格翻译自: bun/src/http/HTTPThread.zig
 //
 // Bun 的 HTTP 客户端在独立线程中运行:
-//   1. 初始化事件循环 (MiniEventLoop)
+//   1. 初始化事件循环 (MiniEventLoopHandle)
 //   2. 创建 HTTP 和 HTTPS 连接上下文
 //   3. 从队列中取出 AsyncHTTP 任务并执行
 //   4. 处理连接限制 (max_simultaneous_requests)
@@ -141,8 +141,8 @@ public class HTTPThread {
     // ========================================================================
 
     /// 事件循环
-    /// 严格翻译自: loop: *jsc.MiniEventLoop
-    public var loop: EventLoop
+    /// 严格翻译自: loop: *jsc.MiniEventLoopHandle
+    public var loop: EventLoopHandle
 
     /// HTTP 上下文 (非 SSL)
     /// 严格翻译自: http_context: NewHTTPContext(false)
@@ -190,14 +190,14 @@ public class HTTPThread {
     // ========================================================================
 
     /// 关闭队列锁
-    /// 严格翻译自: queued_shutdowns_lock: bun.Mutex
-    public var shutdownsLock: Mutex
+    /// 严格翻译自: queued_shutdowns_lock: bun.HTTPThreadMutex
+    public var shutdownsLock: HTTPThreadMutex
     /// 写入队列锁
-    /// 严格翻译自: queued_writes_lock: bun.Mutex
-    public var writesLock: Mutex
+    /// 严格翻译自: queued_writes_lock: bun.HTTPThreadMutex
+    public var writesLock: HTTPThreadMutex
     /// 排空队列锁
-    /// 严格翻译自: queued_response_body_drains_lock: bun.Mutex
-    public var drainsLock: Mutex
+    /// 严格翻译自: queued_response_body_drains_lock: bun.HTTPThreadMutex
+    public var drainsLock: HTTPThreadMutex
 
     // ========================================================================
     // 状态
@@ -220,7 +220,7 @@ public class HTTPThread {
     public var idleTimeoutSeconds: Int64
 
     public init() {
-        loop = EventLoop()
+        loop = EventLoopHandle(MiniEventLoop())
         httpContext = HTTPContext(false)
         httpsContext = HTTPContext(true)
         queuedTasks = ArrayList<AsyncHTTP>()
@@ -230,9 +230,9 @@ public class HTTPThread {
         queuedWrites = ArrayList<WriteMessage>()
         queuedResponseBodyDrains = ArrayList<DrainMessage>()
         queuedProxyDerefs = ArrayList<ProxyTunnel>()
-        shutdownsLock = Mutex()
-        writesLock = Mutex()
-        drainsLock = Mutex()
+        shutdownsLock = HTTPThreadMutex()
+        writesLock = HTTPThreadMutex()
+        drainsLock = HTTPThreadMutex()
         hasAwoken = false
         timer = UInt64(0)
         sslContextCache = ArrayList<SslContextCacheEntry>()
@@ -277,9 +277,9 @@ public class HTTPThread {
         // Unix socket
         // 严格翻译自: unix_socket_path check
         match (client.hostname) {
-            case Some(h) => {
+            case Some(h) =>
                 // 检查是否有 Unix socket 路径
-            }
+                ()
             case None => ()
         }
 
@@ -315,8 +315,11 @@ public class HTTPThread {
     public func processEvents(): Unit {
         while (true) {
             drainEvents()
-            // 执行事件循环 tick
-            loop.tick()
+            // 执行事件循环
+            let miniLoop = loop.getMiniLoop()
+            if (miniLoop.isSome()) {
+                miniLoop.getOrThrow().run()
+            }
         }
     }
 
@@ -400,7 +403,10 @@ public class HTTPThread {
         writesLock.unlock()
 
         for (msg in writes) {
-            let ended = msg.messageType == WriteMessageType.end
+            let ended = match (msg.messageType) {
+                case end => true
+                case _ => false
+            }
             // 根据 async_http_id 查找并写入对应 socket
         }
     }
@@ -522,7 +528,7 @@ public class HTTPThread {
             return
         }
         var oldestIdx: Int64 = 0
-        var oldestTime: UInt64 = UInt64.max
+        var oldestTime: UInt64 = UInt64(9223372036854775807)
         for (i in 0..sslContextCache.size) {
             if (sslContextCache[i].lastUsedNs < oldestTime) {
                 oldestTime = sslContextCache[i].lastUsedNs
@@ -539,7 +545,7 @@ public class HTTPThread {
         let buffer = RequestBodyBuffer()
         if (estimatedSize >= REQUEST_BODY_SEND_STACK_BUFFER_SIZE) {
             // 使用堆缓冲区
-            buffer.heapBuffer = Some(Array<UInt8>(Int64(512 * 1024), item: UInt8(0)))
+            buffer.heapBuffer = Some(Array<UInt8>(Int64(512 * 1024), { _ => UInt8(0) }))
             buffer.size = 512 * 1024
         }
         return buffer
@@ -547,7 +553,7 @@ public class HTTPThread {
 }
 
 /// 互斥锁 (简化)
-public class Mutex {
+public class HTTPThreadMutex {
     public init() {}
     public func lock(): Unit {}
     public func unlock(): Unit {}

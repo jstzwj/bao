@@ -84,6 +84,14 @@ public enum SymbolKind {
     /// 其他 - 没有特殊行为的符号
     | Other                     // other
 
+    public operator func ==(right: SymbolKind): Bool {
+        return ordinal() == right.ordinal()
+    }
+
+    public operator func !=(right: SymbolKind): Bool {
+        return !(this == right)
+    }
+
     /// 序数值 - 用于依赖枚举顺序的判断 (如 isPrivate)
     public func ordinal(): Int64 {
         match (this) {
@@ -482,7 +490,7 @@ public class SymbolMap {
         match (symbol) {
             case Some(s) =>
                 if (s.hasLink()) {
-                    return get(s.link).orElse(s)
+                    return get(s.link).getOrDefault({ => s })
                 }
                 return Some(s)
             case None => return None

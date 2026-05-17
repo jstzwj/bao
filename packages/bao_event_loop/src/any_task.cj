@@ -271,7 +271,7 @@ public class AnyTaskBuilder {
     private var label: String
 
     public init() {
-        callback = { }
+        callback = { => () }
         label = ""
     }
 

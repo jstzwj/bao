@@ -33,6 +33,20 @@ public enum ASTLogKind {
     | Debug    // debug = 3
     | Verbose  // verbose = 4
 
+    public operator func ==(right: ASTLogKind): Bool {
+        match (this) {
+            case Error => match (right) { case Error => true case _ => false }
+            case Warning => match (right) { case Warning => true case _ => false }
+            case Note => match (right) { case Note => true case _ => false }
+            case Debug => match (right) { case Debug => true case _ => false }
+            case Verbose => match (right) { case Verbose => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: ASTLogKind): Bool {
+        return !(this == right)
+    }
+
     /// 是否应该打印 - 对应 Bun Kind.shouldPrint()
     /// Bun: pub inline fn shouldPrint(this: Kind, other: Log.Level) bool
     public func shouldPrint(level: ASTLogLevel): Bool {
@@ -346,8 +360,8 @@ public class BabyString {
     /// 在父字符串中查找子字符串 - 对应 Bun BabyString.in()
     /// Bun: pub fn in(parent: string, text: string) BabyString
     public static func inParent(parent: String, text: String): BabyString {
-        let idx = parent.indexOf(text)
-        if (idx >= 0) {
+        let idxOpt = parent.indexOf(text)
+        if (let Some(idx) <- idxOpt) {
             return BabyString(UInt16(idx), UInt16(text.size))
         }
         return BabyString(UInt16(0), UInt16(0))
@@ -815,7 +829,7 @@ public class ASTSource {
             return false
         }
         // 检查 "\0asm" 魔数 (0x6d736100)
-        return contents[0..4] == "\u0000asm"
+        return contents[0..4] == "\u{0}asm"
     }
 
     /// 初始化错误位置 - 对应 Bun Source.initErrorPosition()
@@ -840,23 +854,20 @@ public class ASTSource {
         // 遍历到偏移位置，计算行列
         var i: Int64 = 0
         while (i < offset) {
-            let c = Int32(contents[Int64(i)].value)
+            let c = Int32(contents[Int64(i)])
             match (c) {
-                case 10 => { // '\n'
+                case 10 =>
                     columnNumber = 1
                     lineStart = i + 1
-                    if (prevCodePoint != 13) { // '\r'
+                    if (prevCodePoint != 13) {
                         lineCount += 1
                     }
-                }
-                case 13 => { // '\r'
+                case 13 =>
                     columnNumber = 0
                     lineStart = i + 1
                     lineCount += 1
-                }
-                case _ => {
+                case _ =>
                     columnNumber += 1
-                }
             }
             prevCodePoint = c
             i += 1
@@ -866,7 +877,7 @@ public class ASTSource {
         var lineEnd: Int64 = contents.size
         var j = offset
         while (j < contents.size) {
-            let c = Int32(contents[Int64(j)].value)
+            let c = Int32(contents[Int64(j)])
             if (c == 13 || c == 10) { // '\r' || '\n'
                 lineEnd = j
                 break
@@ -904,9 +915,9 @@ public func rangeData(source: ?ASTSource, r: ASTRange, text: String): ASTMsgData
                 s.path, s.namespace,
                 Int32(pos.lineCount), Int32(pos.columnCount),
                 Int64(r.len), Int64(r.loc.start),
-                None
+                Option<String>.None
             )))
         case None =>
-            return ASTMsgData(text, None)
+            return ASTMsgData(text, Option<ASTLocation>.None)
     }
 }

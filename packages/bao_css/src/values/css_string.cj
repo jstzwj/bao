@@ -22,11 +22,11 @@ public class CssString {
 
     /// 解析 CSS 字符串
     /// 严格翻译自 CssStringFns.parse
-    public static func parse(input: CssParser): Result<CssString> {
+    public static func parse(input: CssParser): Result<CssString, CssParseError> {
         let str = input.expectString()
         match (str) {
-            case Some(s) => Result<CssString>.ok(CssString(s))
-            case None => Result<CssString>.err(CssParseError.invalidValue)
+            case Some(s) => Result<CssString, CssParseError>.Ok(CssString(s))
+            case None => Result<CssString, CssParseError>.Err(CssParseError.invalidValue)
         }
     }
 

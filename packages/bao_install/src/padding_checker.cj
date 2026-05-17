@@ -41,7 +41,7 @@ public class PaddingChecker {
 
 /// 序列化安全标记
 /// 用于标记那些需要确保所有字段都被正确初始化的类
-public protocol SerializablePadding {
+public interface SerializablePadding {
     /// 验证所有字段已正确初始化
     func validatePadding(): Bool
 }

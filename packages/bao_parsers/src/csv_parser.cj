@@ -292,16 +292,17 @@ public class CsvParser {
 
     /// 跳过换行 (\r\n 或 \n)
     private func skipNewline(text: String, pos: Int64, size: Int64): Int64 {
-        if (pos >= size) { return pos }
-        if (text[Int64(pos)] == UInt8(13)) {
-            pos += Int64(1)
-            if (pos < size && text[Int64(pos)] == UInt8(10)) {
-                pos += Int64(1)
+        var p = pos
+        if (p >= size) { return p }
+        if (text[Int64(p)] == UInt8(13)) {
+            p += Int64(1)
+            if (p < size && text[Int64(p)] == UInt8(10)) {
+                p += Int64(1)
             }
-        } else if (text[Int64(pos)] == UInt8(10)) {
-            pos += Int64(1)
+        } else if (text[Int64(p)] == UInt8(10)) {
+            p += Int64(1)
         }
-        return pos
+        return p
     }
 
     /// 跳过整行

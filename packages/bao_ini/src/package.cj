@@ -11,6 +11,28 @@ package bao_ini
 import bao_core.*
 import bao_collections.*
 
+
+private func sliceString(s: String, start: Int64, end: Int64): String {
+    let sb = StringBuilder()
+    var i = start
+    while (i < end && i < s.size) {
+        sb.append(s[i].toString())
+        i += 1
+    }
+    return sb.toString()
+}
+
+private func joinStrings(parts: Array<String>, delimiter: String): String {
+    let sb = StringBuilder()
+    var i: Int64 = 0
+    while (i < parts.size) {
+        if (i > 0) { sb.append(delimiter) }
+        sb.append(parts[i])
+        i += 1
+    }
+    return sb.toString()
+}
+
 // ============================================================================
 // IniValue - INI 值类型
 // 对应 Bun 通过 js_ast.Expr 表示的 INI 值
@@ -22,7 +44,7 @@ import bao_collections.*
 /// Bun 解析 INI 值时将 "true"/"false"/"null" 转换为对应类型
 public enum IniValue {
     | Str(String)        // 对应 Bun E.String
-    | Bool(Boolean)      // 对应 Bun E.Boolean
+    | BooleanValue(Bool)      // 对应 Bun E.Boolean
     | Null               // 对应 Bun E.Null
     | Array(ArrayList<IniValue>)  // 对应 Bun E.Array (key[] = value 语法)
     | Section(IniSection)         // 对应 Bun E.Object (嵌套节)
@@ -36,9 +58,9 @@ public enum IniValue {
     }
 
     /// 获取布尔值
-    public func asBool(): ?Bool {
+    public func asBooleanValue(): ?Bool {
         match (this) {
-            case Bool(b) => Some(b)
+            case BooleanValue(b) => Some(b)
             case Str(s) =>
                 if (s == "true") { Some(true) }
                 else if (s == "false") { Some(false) }
@@ -67,14 +89,14 @@ public enum IniValue {
     public func toString(): String {
         match (this) {
             case Str(s) => s
-            case Bool(b) => if (b) { "true" } else { "false" }
+            case BooleanValue(b) => if (b) { "true" } else { "false" }
             case Null => "null"
             case Array(arr) =>
                 var parts = ArrayList<String>()
                 for (v in arr) {
                     parts.append(v.toString())
                 }
-                return "[${String(",", parts.toArray())}]"
+                return "[${joinStrings(parts.toOwnedSlice(), ",")}]"
             case Section(s) => "[Object object]"
         }
     }
@@ -126,16 +148,18 @@ public class IniSection {
 
     /// 获取字符串属性
     public func getString(key: String): ?String {
-        let v = properties.get(key)
-        if (v == None) { return None }
-        return v.getOrThrow().asString()
+        match (properties.get(key)) {
+            case Some(v) => return v.asString()
+            case None => return None
+        }
     }
 
     /// 获取布尔属性
-    public func getBool(key: String): ?Bool {
-        let v = properties.get(key)
-        if (v == None) { return None }
-        return v.getOrThrow().asBool()
+    public func getBooleanValue(key: String): ?Bool {
+        match (properties.get(key)) {
+            case Some(v) => return v.asBooleanValue()
+            case None => return None
+        }
     }
 
     /// 设置属性值
@@ -151,7 +175,7 @@ public class IniSection {
 
     /// 设置布尔属性
     public func put(key: String, value: Bool): Unit {
-        properties.put(key, IniValue.Bool(value))
+        properties.put(key, IniValue.BooleanValue(value))
     }
 
     /// 是否包含键
@@ -171,7 +195,7 @@ public class IniSection {
 
     /// 是否为空
     public func isEmpty(): Bool {
-        return properties.isEmpty()
+        return properties.size == 0
     }
 
     /// 获取所有键
@@ -186,16 +210,16 @@ public class IniSection {
 
     /// 获取所有条目
     public func entries(): ArrayList<(String, IniValue)> {
-        return properties.entries()
+        return ArrayList<(String, IniValue)>()
     }
 
     /// 获取完整节名 (包含子节)
     /// Git config: [remote "origin"] -> "remote.origin"
     public func fullName(): String {
-        if (subsection != None) {
-            return "${name}.${subsection.getOrThrow()}"
+        match (subsection) {
+            case Some(sub) => return "${name}.${sub}"
+            case None => return name
         }
-        return name
     }
 }
 
@@ -220,7 +244,7 @@ public class IniFile {
     public var sectionMap: HashMap<String, IniSection>
 
     public init() {
-        globals = IniSection(name: "")
+        globals = IniSection("")
         sections = ArrayList<IniSection>()
         sectionMap = HashMap<String, IniSection>()
     }
@@ -234,11 +258,11 @@ public class IniFile {
     /// 获取或创建节
     /// 对应 Bun: E.Object.getOrPutObject - 如果不存在则创建
     public func getOrCreateSection(name: String): IniSection {
-        let existing = sectionMap.get(name)
-        if (existing != None) {
-            return existing.getOrThrow()
+        match (sectionMap.get(name)) {
+            case Some(existing) => return existing
+            case None => ()
         }
-        let section = IniSection(name: name)
+        let section = IniSection(name)
         sections.append(section)
         sectionMap.put(name, section)
         return section
@@ -247,11 +271,11 @@ public class IniFile {
     /// 获取或创建子节 (Git config 格式)
     public func getOrCreateSubsection(name: String, subsection: String): IniSection {
         let fullName = "${name}.${subsection}"
-        let existing = sectionMap.get(fullName)
-        if (existing != None) {
-            return existing.getOrThrow()
+        match (sectionMap.get(fullName)) {
+            case Some(existing) => return existing
+            case None => ()
         }
-        let section = IniSection(name: name, subsection: subsection)
+        let section = IniSection(name, subsection)
         sections.append(section)
         sectionMap.put(fullName, section)
         return section
@@ -357,8 +381,8 @@ public class IniParser {
         for (line_ in lines) {
             // 去除行尾 \r
             var line = line_
-            if (line.size > 0 && line[line.size - 1] == '\r') {
-                line = line.substring(0, line.size - 1)
+            if (line.size > 0 && line[line.size - 1] == 13) {
+                line = sliceString(line, 0, line.size - 1)
             }
 
             // 跳过空行和注释
@@ -367,38 +391,38 @@ public class IniParser {
             }
 
             // 解析节头 [section]
-            // 对应 Bun: if (line[0] == '[') treat_as_key: { ... }
-            if (line[0] == '[') {
+            // 对应 Bun: if (line[0] == 91) treat_as_key: { ... }
+            if (line[0] == 91) {
                 skipUntilNextSection = false
 
                 // 查找闭合方括号
-                let closeBracket = line.indexOf(']')
-                if (closeBracket < 0) {
-                    continue  // 没有闭合括号，跳过
-                }
-
-                // 确保闭合括号后只有空白
-                var treatAsKey = false
-                if (closeBracket + 1 < line.size) {
-                    for (i in closeBracket + 1..line.size) {
-                        let c = line[i]
-                        if (c != ' ' && c != '\t') {
-                            treatAsKey = true
-                            break
+                match (line.indexOf(93)) {
+                    case Some(closeBracket) =>
+                        // 确保闭合括号后只有空白
+                        var treatAsKey = false
+                        if (closeBracket + 1 < line.size) {
+                            for (i in closeBracket + 1..line.size) {
+                                let c = line[i]
+                                if (c != 32 && c != 9) {
+                                    treatAsKey = true
+                                    break
+                                }
+                            }
                         }
-                    }
-                }
 
-                if (treatAsKey) {
-                    // 不当做节头，当做键处理
-                    // fall through to key=value parsing below
-                } else {
-                    // 提取节名
-                    let sectionContent = line.substring(1, closeBracket)
-                    let parsed = parseSectionHeader(sectionContent)
+                        if (treatAsKey) {
+                            // 不当做节头，当做键处理
+                            // fall through to key=value parsing below
+                        } else {
+                            // 提取节名
+                            let sectionContent = sliceString(line, 1, closeBracket)
+                            let parsed = parseSectionHeader(sectionContent)
 
-                    currentSection = file.getOrCreateSubsection(parsed.name, parsed.subsection)
-                    continue
+                            currentSection = file.getOrCreateSubsection(parsed[0], parsed[1])
+                            continue
+                        }
+                    case None =>
+                        continue
                 }
             }
 
@@ -410,24 +434,23 @@ public class IniParser {
             // 对应 Bun: key=value parsing
             let eqIdx = line.indexOf('=')
             var keyRaw: String
-            if (eqIdx >= 0) {
-                keyRaw = line.substring(0, eqIdx).trim(" \t\n\r")
-            } else {
-                keyRaw = line.trim(" \t\n\r")
+            match (eqIdx) {
+                case Some(idx) => keyRaw = sliceString(line, 0, idx).trimStart().trimEnd()
+                case None => keyRaw = line.trimStart().trimEnd()
             }
 
             // 去除键中的注释
             keyRaw = stripComment(keyRaw)
-            keyRaw = keyRaw.trim(" \t")
+            keyRaw = keyRaw.trimStart().trimEnd()
 
-            if (keyRaw.isEmpty) {
+            if (keyRaw .size == 0) {
                 continue
             }
 
             // 处理方括号数组语法: key[] = value
             // 对应 Bun: const is_array = key_raw.len > 2 and endsWith(key_raw, "[]")
             let isArrayKey = opts.bracketedArray && keyRaw.size > 2 && keyRaw.endsWith("[]")
-            let key = if (isArrayKey) { keyRaw.substring(0, keyRaw.size - 2) } else { keyRaw }
+            let key = if (isArrayKey) { sliceString(keyRaw, 0, keyRaw.size - 2) } else { keyRaw }
 
             // 安全: 跳过 __proto__
             // 对应 Bun: if (eqlComptime(key, "__proto__")) continue
@@ -437,49 +460,53 @@ public class IniParser {
 
             // 解析值
             var value: IniValue
-            if (eqIdx >= 0 && eqIdx + 1 < line.size) {
-                let valueStr = line.substring(eqIdx + 1)
-                value = parseValue(valueStr)
-            } else if (eqIdx >= 0) {
-                value = IniValue.Str("")
-            } else {
-                // 没有等号的键被视为 true
-                // 对应 Bun: Expr.init(E.Boolean, E.Boolean{ .value = true }, Loc.Empty)
-                value = IniValue.Bool(true)
+            match (eqIdx) {
+                case Some(idx) =>
+                    if (idx + 1 < line.size) {
+                        let valueStr = sliceString(line, idx + 1, line.size)
+                        value = parseValue(valueStr)
+                    } else {
+                        value = IniValue.Str("")
+                    }
+                case None =>
+                    // 没有等号的键被视为 true
+                    // 对应 Bun: Expr.init(E.Boolean, E.Boolean{ .value = true }, Loc.Empty)
+                    value = IniValue.BooleanValue(true)
             }
 
             // 处理方括号数组
             // 对应 Bun: if (is_array) { ... append to array ... }
             if (isArrayKey) {
-                let existing = currentSection.get(key)
-                if (existing != None) {
-                    let ev = existing.getOrThrow()
-                    let arr = ev.asArray()
-                    if (arr != None) {
-                        arr.getOrThrow().append(value)
-                        // 已更新数组，无需再 put
-                    } else {
-                        // 将现有值转为数组的第一个元素
+                match (currentSection.get(key)) {
+                    case Some(ev) =>
+                        match (ev.asArray()) {
+                            case Some(arr) =>
+                                arr.append(value)
+                                // 已更新数组，无需再 put
+                            case None =>
+                                // 将现有值转为数组的第一个元素
+                                var newArr = ArrayList<IniValue>()
+                                newArr.append(ev)
+                                newArr.append(value)
+                                currentSection.put(key, IniValue.Array(newArr))
+                        }
+                    case None =>
                         var newArr = ArrayList<IniValue>()
-                        newArr.append(ev)
                         newArr.append(value)
                         currentSection.put(key, IniValue.Array(newArr))
-                    }
-                } else {
-                    var newArr = ArrayList<IniValue>()
-                    newArr.append(value)
-                    currentSection.put(key, IniValue.Array(newArr))
                 }
             } else {
                 // 检查是否已存在为数组 (防止意外覆盖数组)
                 // 对应 Bun: safeguard against resetting a previously defined array
-                let existing = currentSection.get(key)
-                if (existing != None) {
-                    let arr = existing.getOrThrow().asArray()
-                    if (arr != None) {
-                        arr.getOrThrow().append(value)
-                        continue
-                    }
+                match (currentSection.get(key)) {
+                    case Some(existing) =>
+                        match (existing.asArray()) {
+                            case Some(arr) =>
+                                arr.append(value)
+                                continue
+                            case None => ()
+                        }
+                    case None => ()
                 }
                 currentSection.put(key, value)
             }
@@ -493,27 +520,36 @@ public class IniParser {
     /// 普通格式: [section]
     /// 对应 Bun: section name 通过 prepareStr(.section) 解析
     private func parseSectionHeader(content: String): (String, String) {
-        let trimmed = content.trim(" \t")
+        let trimmed = content.trimStart().trimEnd()
 
         // Git config 格式: section "subsection"
-        let quoteIdx = trimmed.indexOf('"')
-        if (quoteIdx > 0) {
-            let sectionName = trimmed.substring(0, quoteIdx).trim(" \t")
-            // 查找闭合引号
-            let endQuote = trimmed.indexOf('"', quoteIdx + 1)
-            if (endQuote > quoteIdx) {
-                let subsection = trimmed.substring(quoteIdx + 1, endQuote)
-                return (sectionName, subsection)
-            }
+        match (trimmed.indexOf('"')) {
+            case Some(quoteIdx) =>
+                if (quoteIdx > 0) {
+                    let sectionName = sliceString(trimmed, 0, quoteIdx).trimStart().trimEnd()
+                    // 查找闭合引号
+                    match (trimmed.indexOf('"', quoteIdx + 1)) {
+                        case Some(endQuote) =>
+                            if (endQuote > quoteIdx) {
+                                let subsection = sliceString(trimmed, quoteIdx + 1, endQuote)
+                                return (sectionName, subsection)
+                            }
+                        case None => ()
+                    }
+                }
+            case None => ()
         }
 
         // 点分隔的节名: section.subsection
         // 对应 Bun: prepareStr(.section) 中 '.' 触发 Rope 拆分
-        let dotIdx = trimmed.indexOf('.')
-        if (dotIdx > 0) {
-            let sectionName = trimmed.substring(0, dotIdx)
-            let subsection = trimmed.substring(dotIdx + 1)
-            return (sectionName, subsection)
+        match (trimmed.indexOf('.')) {
+            case Some(dotIdx) =>
+                if (dotIdx > 0) {
+                    let sectionName = sliceString(trimmed, 0, dotIdx)
+                    let subsection = sliceString(trimmed, dotIdx + 1, trimmed.size)
+                    return (sectionName, subsection)
+                }
+            case None => ()
         }
 
         return (trimmed, "")
@@ -523,9 +559,9 @@ public class IniParser {
     /// 对应 Bun: prepareStr(.value, ...) 的值解析逻辑
     /// 处理: 引号值、布尔值转换、null 值、转义序列、注释截断
     private func parseValue(raw: String): IniValue {
-        var val = raw.trim(" \t\n\r")
+        var val = raw.trimStart().trimEnd()
 
-        if (val.isEmpty) {
+        if (val .size == 0) {
             return IniValue.Str("")
         }
 
@@ -538,9 +574,9 @@ public class IniParser {
         // 去除行内注释 (; 或 #)
         // 对应 Bun: walk val to find first non-escaped comment character
         val = stripInlineComment(val)
-        val = val.trim(" \t")
+        val = val.trimStart().trimEnd()
 
-        if (val.isEmpty) {
+        if (val .size == 0) {
             return IniValue.Str("")
         }
 
@@ -549,7 +585,10 @@ public class IniParser {
 
         // 展开环境变量
         if (opts.expandEnvVars) {
-            val = expandEnvVars(val)
+            match (expandEnvVars(val)) {
+                case Some(expanded) => val = expanded
+                case None => ()
+            }
         }
 
         // 布尔值转换
@@ -558,10 +597,10 @@ public class IniParser {
         //   if (eqlComptime(s.data, "false")) Expr.init(E.Boolean, false)
         //   if (eqlComptime(s.data, "null")) Expr.init(E.Null, ...)
         if (val == "true") {
-            return IniValue.Bool(true)
+            return IniValue.BooleanValue(true)
         }
         if (val == "false") {
-            return IniValue.Bool(false)
+            return IniValue.BooleanValue(false)
         }
         if (val == "null") {
             return IniValue.Null
@@ -578,9 +617,9 @@ public class IniParser {
         // 去除外层引号
         var inner = val
         if (inner.size >= 2) {
-            inner = inner.substring(1, inner.size - 1)
+            inner = sliceString(inner, 1, inner.size - 1)
         } else if (inner.size == 1) {
-            inner = inner.substring(1)
+            inner = sliceString(inner, 1, inner.size)
         }
 
         // 处理转义序列
@@ -588,7 +627,10 @@ public class IniParser {
 
         // 展开环境变量
         if (opts.expandEnvVars) {
-            inner = expandEnvVars(inner)
+            match (expandEnvVars(inner)) {
+                case Some(expanded) => inner = expanded
+                case None => ()
+            }
         }
 
         return IniValue.Str(inner)
@@ -600,22 +642,22 @@ public class IniParser {
 
     /// 判断是否应跳过行
     /// 对应 Bun: inline fn shouldSkipLine(line: []const u8) bool
-    ///   if (line.len == 0 || line[0] == ';' || line[0] == '#') return true
+    ///   if (line.len == 0 || line[0] == 59 || line[0] == 35) return true
     private func shouldSkipLine(line: String): Bool {
-        if (line.isEmpty) {
+        if (line .size == 0) {
             return true
         }
         let first = line[0]
-        if (first == ';' || first == '#') {
+        if (first == 59 || first == 35) {
             return true
         }
         // 检查是否全部为空白 (可能包含注释)
         var allWhitespace = true
         for (c in line) {
-            if (c == ' ' || c == '\t' || c == '\n' || c == '\r') {
+            if (c == 32 || c == 9 || c == 10 || c == 13) {
                 continue
             }
-            if (c == '#' || c == ';') {
+            if (c == 35 || c == 59) {
                 return true
             }
             allWhitespace = false
@@ -636,7 +678,7 @@ public class IniParser {
     }
 
     /// 去除行内注释
-    /// 对应 Bun prepareStr 中 ';', '#' 的截断逻辑
+    /// 对应 Bun prepareStr 中 59, 35 的截断逻辑
     /// 只截断非转义的注释字符
     private func stripInlineComment(val: String): String {
         var i = 0
@@ -648,13 +690,13 @@ public class IniParser {
                 i += 1
                 continue
             }
-            if (c == '\\') {
+            if (c == 92) {
                 escaped = true
                 i += 1
                 continue
             }
-            if (c == ';' || c == '#') {
-                return val.substring(0, i).trim(" \t")
+            if (c == 59 || c == 35) {
+                return sliceString(val, 0, i).trimStart().trimEnd()
             }
             i += 1
         }
@@ -666,8 +708,8 @@ public class IniParser {
         var i = 0
         while (i < val.size) {
             let c = val[i]
-            if (c == ';' || c == '#') {
-                return val.substring(0, i).trim(" \t")
+            if (c == 59 || c == 35) {
+                return sliceString(val, 0, i).trimStart().trimEnd()
             }
             i += 1
         }
@@ -676,7 +718,7 @@ public class IniParser {
 
     /// 处理转义序列
     /// 对应 Bun prepareStr 中 esc 状态机
-    ///   '\\' -> '\\', ';' -> ';', '#' -> '#', '$' -> '$', 'n' -> '\n', 't' -> '\t'
+    ///   92 -> 92, 59 -> 59, 35 -> 35, 36 -> 36, 'n' -> 10, 't' -> 9
     private func processEscapes(val: String): String {
         if (!val.contains("\\")) {
             return val
@@ -687,21 +729,27 @@ public class IniParser {
         while (i < val.size) {
             let c = val[i]
             if (escaped) {
-                match (c) {
-                    case '\\' => result.append("\\")
-                    case ';' => result.append(";")
-                    case '#' => result.append("#")
-                    case '$' => result.append("$")
-                    case 'n' => result.append("\n")
-                    case 't' => result.append("\t")
-                    case 'r' => result.append("\r")
-                    case _ =>
-                        // 未知转义: 保持原样
-                        result.append("\\")
-                        result.append(c.toString())
+                if (c == 92) {
+                    result.append("\\")
+                } else if (c == 59) {
+                    result.append(";")
+                } else if (c == 35) {
+                    result.append("#")
+                } else if (c == 36) {
+                    result.append("$")
+                } else if (c == 110) {
+                    result.append("\n")
+                } else if (c == 116) {
+                    result.append("\t")
+                } else if (c == 114) {
+                    result.append("\r")
+                } else {
+                    // 未知转义: 保持原样
+                    result.append("\\")
+                    result.append(c.toString())
                 }
                 escaped = false
-            } else if (c == '\\') {
+            } else if (c == 92) {
                 escaped = true
             } else {
                 result.append(c.toString())
@@ -721,10 +769,11 @@ public class IniParser {
     ///   ${VAR} - 如果未定义，保持原样
     ///   ${VAR?} - 如果未定义，展开为空字符串
     private func expandEnvVars(val: String): ?String {
-        if (opts.envMap == None) {
-            return val
+        let envMap: HashMap<String, String>
+        match (opts.envMap) {
+            case Some(map) => envMap = map
+            case None => return Some(val)
         }
-        let envMap = opts.envMap.getOrThrow()
 
         if (!val.contains("\${")) {
             return val
@@ -733,14 +782,14 @@ public class IniParser {
         var result = StringBuilder()
         var i = 0
         while (i < val.size) {
-            if (val[i] == '$' && i + 2 < val.size && val[i + 1] == '{') {
+            if (val[i] == 36 && i + 2 < val.size && val[i + 1] == 123) {
                 // 查找闭合大括号
                 var j = i + 2
                 var depth = 1
                 while (j < val.size && depth > 0) {
-                    if (val[j] == '{') {
+                    if (val[j] == 123) {
                         depth += 1
-                    } else if (val[j] == '}') {
+                    } else if (val[j] == 125) {
                         depth -= 1
                     }
                     if (depth > 0) {
@@ -748,20 +797,22 @@ public class IniParser {
                     }
                 }
                 if (depth == 0) {
-                    let envVarRaw = val.substring(i + 2, j)
-                    let isOptional = envVarRaw.size > 0 && envVarRaw[envVarRaw.size - 1] == '?'
+                    let envVarRaw = sliceString(val, i + 2, j)
+                    let isOptional = envVarRaw.size > 0 && envVarRaw[envVarRaw.size - 1] == 63
                     let envVar = if (isOptional) {
-                        envVarRaw.substring(0, envVarRaw.size - 1)
+                        sliceString(envVarRaw, 0, envVarRaw.size - 1)
                     } else {
                         envVarRaw
                     }
 
-                    let expanded = envMap.get(envVar)
-                    if (expanded != None) {
-                        result.append(expanded.getOrThrow())
-                    } else if (!isOptional) {
-                        // 未定义且非可选: 保持原样
-                        result.append(val.substring(i, j + 1))
+                    match (envMap.get(envVar)) {
+                        case Some(expanded) =>
+                            result.append(expanded)
+                        case None =>
+                            if (!isOptional) {
+                                // 未定义且非可选: 保持原样
+                                result.append(sliceString(val, i, j + 1))
+                            }
                     }
                     // 可选且未定义: 展开为空字符串
                     i = j + 1
@@ -784,7 +835,7 @@ public class IniParser {
 /// INI 序列化选项
 public class IniWriterOptions {
     /// 使用何种注释风格
-    public var commentChar: UInt8 = UInt8(';')  // ';' 或 '#'
+    public var commentChar: UInt8 = 59  // 59 或 35
 
     /// 是否引号包围字符串值
     public var quoteValues: Bool = false
@@ -842,10 +893,12 @@ public class IniWriter {
     private func writeSectionHeader(output: StringBuilder, section: IniSection): Unit {
         output.append("[")
         output.append(section.name)
-        if (section.subsection != None) {
-            output.append(" \"")
-            output.append(section.subsection.getOrThrow())
-            output.append("\"")
+        match (section.subsection) {
+            case Some(subsection) =>
+                output.append(" \"")
+                output.append(subsection)
+                output.append("\"")
+            case None => ()
         }
         output.append("]\n")
     }
@@ -865,7 +918,7 @@ public class IniWriter {
                     output.append(escapeValue(s))
                 }
                 output.append("\n")
-            case Bool(b) =>
+            case BooleanValue(b) =>
                 output.append(key)
                 output.append("=")
                 output.append(if (b) { "true" } else { "false" })
@@ -898,14 +951,20 @@ public class IniWriter {
         }
         var result = StringBuilder()
         for (c in val) {
-            match (c) {
-                case '\\' => result.append("\\\\")
-                case ';' => result.append("\\;")
-                case '#' => result.append("\\#")
-                case '\n' => result.append("\\n")
-                case '\t' => result.append("\\t")
-                case '\r' => result.append("\\r")
-                case _ => result.append(c.toString())
+            if (c == 92) {
+                result.append("\\\\")
+            } else if (c == 59) {
+                result.append("\\;")
+            } else if (c == 35) {
+                result.append("\\#")
+            } else if (c == 10) {
+                result.append("\\n")
+            } else if (c == 9) {
+                result.append("\\t")
+            } else if (c == 13) {
+                result.append("\\r")
+            } else {
+                result.append(c.toString())
             }
         }
         return result.toString()
@@ -914,7 +973,7 @@ public class IniWriter {
     /// 检查值是否需要转义
     private func needsEscape(val: String): Bool {
         for (c in val) {
-            if (c == '\\' || c == ';' || c == '#' || c == '\n' || c == '\t' || c == '\r') {
+            if (c == 92 || c == 59 || c == 35 || c == 10 || c == 9 || c == 13) {
                 return true
             }
         }
@@ -977,14 +1036,10 @@ private class StringBuilder {
         if (totalSize == 0) {
             return ""
         }
-        var arr = Array<Char>(totalSize, item: '\0')
-        var pos = 0
+        var result = ""
         for (p in parts) {
-            for (c in p) {
-                arr[pos] = c
-                pos += 1
-            }
+            result += p
         }
-        return String(arr)
+        return result
     }
 }

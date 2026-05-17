@@ -18,7 +18,7 @@ foreign func tcgetattr(fd: Int32, termios_p: CPointer<Unit>): Int32
 @C
 foreign func tcsetattr(fd: Int32, optional_actions: Int32, termios_p: CPointer<Unit>): Int32
 @C
-foreign func ioctl(fd: Int32, request: UIntNative, ...: CPointer<Unit>): Int32
+foreign func ioctl(fd: Int32, request: UIntNative, argp: CPointer<Unit>): Int32
 
 // ============================================================================
 // termios 常量
@@ -167,7 +167,7 @@ public class Termios {
         oflag = 0
         cflag = 0
         lflag = 0
-        cc = Array<UInt8>(32, item: UInt8(0))
+        cc = Array<UInt8>(32, { _ => UInt8(0) })
     }
 
     /// 从文件描述符读取当前属性
@@ -187,13 +187,13 @@ public class Termios {
             // 读取各字段 (按 Linux x86_64 布局)
             let base = CPointer<UInt32>(buf)
             t.iflag = UInt32(base.read())
-            t.oflag = UInt32((base + IntNative(1)).read())
-            t.cflag = UInt32((base + IntNative(2)).read())
-            t.lflag = UInt32((base + IntNative(3)).read())
+            t.oflag = UInt32((base + Int64(1)).read())
+            t.cflag = UInt32((base + Int64(2)).read())
+            t.lflag = UInt32((base + Int64(3)).read())
             // 读取 c_cc (offset 16)
-            let ccBase = CPointer<UInt8>(buf) + IntNative(16)
+            let ccBase = CPointer<UInt8>(buf) + Int64(16)
             for (i in 0..32) {
-                t.cc[Int64(i)] = (ccBase + IntNative(i)).read()
+                t.cc[Int64(i)] = (ccBase + Int64(i)).read()
             }
             free(buf)
             return SysMaybe<Termios>.Ok(t)
@@ -207,14 +207,14 @@ public class Termios {
             let buf = malloc(UIntNative(256))
             // 写入各字段
             let base = CPointer<UInt32>(buf)
-            base.write(Int32(iflag))
-            (base + IntNative(1)).write(Int32(oflag))
-            (base + IntNative(2)).write(Int32(cflag))
-            (base + IntNative(3)).write(Int32(lflag))
+            base.write(iflag)
+            (base + Int64(1)).write(oflag)
+            (base + Int64(2)).write(cflag)
+            (base + Int64(3)).write(lflag)
             // 写入 c_cc
-            let ccBase = CPointer<UInt8>(buf) + IntNative(16)
+            let ccBase = CPointer<UInt8>(buf) + Int64(16)
             for (i in 0..32) {
-                (ccBase + IntNative(i)).write(cc[Int64(i)])
+                (ccBase + Int64(i)).write(cc[Int64(i)])
             }
             let rc = tcsetattr(Int32(fd), action, buf)
             free(buf)
@@ -232,14 +232,14 @@ public class Termios {
     /// Bun REPL 使用 raw 模式读取按键
     public func makeRaw(): Termios {
         let raw = Termios()
-        raw.iflag = iflag & ~(InputFlags.BRKINT | InputFlags.ICRNL | InputFlags.INPCK
+        raw.iflag = iflag & UInt32(4294967295) - (InputFlags.BRKINT | InputFlags.ICRNL | UInt32(0x00000010)
             | InputFlags.ISTRIP | InputFlags.IXON)
-        raw.oflag = oflag & ~(OutputFlags.OPOST)
+        raw.oflag = oflag & UInt32(4294967295) - OutputFlags.OPOST
         raw.cflag = cflag | ControlFlags.CS8
-        raw.lflag = lflag & ~(LocalFlags.ECHO | LocalFlags.ICANON | LocalFlags.IEXTEN
+        raw.lflag = lflag & UInt32(4294967295) - (LocalFlags.ECHO | LocalFlags.ICANON | LocalFlags.IEXTEN
             | LocalFlags.ISIG)
         // VMIN=1, VTIME=0: 等待至少一个字符
-        raw.cc = Array<UInt8>(cc)
+        raw.cc = Array<UInt8>(cc.size, { i => cc[i] })
         raw.cc[Int64(SpecialChars.VMIN)] = UInt8(1)
         raw.cc[Int64(SpecialChars.VTIME)] = UInt8(0)
         return raw
@@ -254,7 +254,7 @@ public class Termios {
         cooked.cflag = cflag | ControlFlags.CS8 | ControlFlags.CREAD
         cooked.lflag = lflag | LocalFlags.ECHO | LocalFlags.ICANON | LocalFlags.ISIG
             | LocalFlags.IEXTEN
-        cooked.cc = Array<UInt8>(cc)
+        cooked.cc = Array<UInt8>(cc.size, { i => cc[i] })
         return cooked
     }
 }
@@ -306,9 +306,9 @@ public class TerminalSize {
             // 读取 winsize 字段 (unsigned short = UInt16)
             let base = CPointer<UInt16>(buf)
             let rows = Int64(base.read())
-            let cols = Int64((base + IntNative(1)).read())
-            let xpixel = Int64((base + IntNative(2)).read())
-            let ypixel = Int64((base + IntNative(3)).read())
+            let cols = Int64((base + Int64(1)).read())
+            let xpixel = Int64((base + Int64(2)).read())
+            let ypixel = Int64((base + Int64(3)).read())
             free(buf)
             return SysMaybe<TerminalSize>.Ok(TerminalSize(rows, cols, xpixel, ypixel))
         }
@@ -351,7 +351,7 @@ public class TTY {
     /// 对应: isatty(fd) != 0
     /// Bun: uv_guess_handle(fd) == UV_TTY
     public func isTty(): Bool {
-        return isatty(Int32(fd)) != 0
+        unsafe { return isatty(Int32(fd)) != 0 }
     }
 
     /// 获取终端大小
@@ -422,22 +422,22 @@ public class TTY {
 
     /// 标准输入是否为 TTY
     public static func isStdinTty(): Bool {
-        return isatty(0) != 0
+        unsafe { return isatty(0) != 0 }
     }
 
     /// 标准输出是否为 TTY
     public static func isStdoutTty(): Bool {
-        return isatty(1) != 0
+        unsafe { return isatty(1) != 0 }
     }
 
     /// 标准错误是否为 TTY
     public static func isStderrTty(): Bool {
-        return isatty(2) != 0
+        unsafe { return isatty(2) != 0 }
     }
 
     /// 检查任意 FD 是否为 TTY
-    public static func isTty(fd: Int64): Bool {
-        return isatty(Int32(fd)) != 0
+    public static func isFdTty(fd: Int64): Bool {
+        unsafe { return isatty(Int32(fd)) != 0 }
     }
 
     /// 获取标准输出终端大小

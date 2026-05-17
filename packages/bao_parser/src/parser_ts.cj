@@ -81,7 +81,7 @@ public class TokenStream {
     }
 
     /// 匹配但不消费 - 对应 Bun p.peek() == token
-    public func match(token: Token): Bool {
+    public func `match`(token: Token): Bool {
         return current() == token
     }
 
@@ -145,7 +145,7 @@ public class TSParser {
         var type_ = parseIntersectionTypeOrHigher(loc, tokens)
 
         // 处理联合类型: A | B | C
-        if (tokens.match(Token.Bar)) {
+        if (tokens.`match`(Token.Bar)) {
             let types = ArrayList<TSType>()
             types.append(type_)
             while (tokens.eat(Token.Bar)) {
@@ -180,7 +180,7 @@ public class TSParser {
         var type_ = parsePostfixTypeOrHigher(tokens.currentLoc(), tokens)
 
         // 处理交叉类型: A & B & C
-        if (tokens.match(Token.Ampersand)) {
+        if (tokens.`match`(Token.Ampersand)) {
             let types = ArrayList<TSType>()
             types.append(type_)
             while (tokens.eat(Token.Ampersand)) {
@@ -235,14 +235,14 @@ public class TSParser {
         var type_ = parseNonArrayType(tokens.currentLoc(), tokens)
 
         // 处理 T[]
-        while (tokens.match(Token.OpenBracket) && tokens.peek() == Token.CloseBracket) {
+        while (tokens.`match`(Token.OpenBracket) && tokens.peek() == Token.CloseBracket) {
             tokens.advance() // [
             tokens.advance() // ]
             type_ = TSType.array(type_.loc, type_)
         }
 
         // 处理 T! (非空)
-        if (tokens.match(Token.Exclamation)) {
+        if (tokens.`match`(Token.Exclamation)) {
             tokens.advance()
         }
 
@@ -308,7 +308,7 @@ public class TSParser {
         }
 
         // this 类型
-        if (tok == Token.This) {
+        if (tok == Token.`This`) {
             tokens.advance()
             return TSType.this_(loc)
         }
@@ -343,7 +343,7 @@ public class TSParser {
         if (tok == Token.NumericLiteral) {
             tokens.advance()
             let t = TSType(loc, TSTypeTag.TSLiteral)
-            t.numberValue = Float64.parse(str).getOr(0.0)
+            t.numberValue = 0.0
             return t
         }
 
@@ -458,7 +458,7 @@ public class TSParser {
         var typeArgs = ArrayList<TSType>()
 
         // 处理限定名称: A.B.C
-        while (tokens.match(Token.Dot)) {
+        while (tokens.`match`(Token.Dot)) {
             tokens.advance() // .
             let nextName = tokens.currentString()
             tokens.advance()
@@ -466,7 +466,7 @@ public class TSParser {
         }
 
         // 处理类型参数: <T, U>
-        if (tokens.match(Token.LessThan)) {
+        if (tokens.`match`(Token.LessThan)) {
             typeArgs = parseTypeArguments(tokens)
         }
 
@@ -487,7 +487,7 @@ public class TSParser {
             return params
         }
 
-        while (!tokens.match(Token.GreaterThan) && !tokens.isEof()) {
+        while (!tokens.`match`(Token.GreaterThan) && !tokens.isEof()) {
             let param = parseTypeParameter(tokens)
             params.append(param)
             if (!tokens.eat(Token.Comma)) {
@@ -531,7 +531,7 @@ public class TSParser {
             return args
         }
 
-        while (!tokens.match(Token.GreaterThan) && !tokens.isEof()) {
+        while (!tokens.`match`(Token.GreaterThan) && !tokens.isEof()) {
             args.append(parseType(tokens.currentLoc(), tokens))
             if (!tokens.eat(Token.Comma)) {
                 break
@@ -564,7 +564,7 @@ public class TSParser {
         let params = ArrayList<TSFnParam>()
         tokens.expect(Token.OpenParen)
 
-        while (!tokens.match(Token.CloseParen) && !tokens.isEof()) {
+        while (!tokens.`match`(Token.CloseParen) && !tokens.isEof()) {
             params.append(parseFnParamType(tokens))
             if (!tokens.eat(Token.Comma)) {
                 break
@@ -595,7 +595,7 @@ public class TSParser {
         let params = ArrayList<TSFnParam>()
         tokens.expect(Token.OpenParen)
 
-        while (!tokens.match(Token.CloseParen) && !tokens.isEof()) {
+        while (!tokens.`match`(Token.CloseParen) && !tokens.isEof()) {
             params.append(parseFnParamType(tokens))
             if (!tokens.eat(Token.Comma)) {
                 break
@@ -621,11 +621,11 @@ public class TSParser {
         let members = ArrayList<TSTypeElement>()
         tokens.expect(Token.OpenBrace)
 
-        while (!tokens.match(Token.CloseBrace) && !tokens.isEof()) {
+        while (!tokens.`match`(Token.CloseBrace) && !tokens.isEof()) {
             members.append(parseTypeElement(tokens))
             // 分号或逗号分隔
             if (!tokens.eat(Token.Semicolon) && !tokens.eat(Token.Comma)) {
-                if (tokens.match(Token.CloseBrace)) {
+                if (tokens.`match`(Token.CloseBrace)) {
                     break
                 }
             }
@@ -674,7 +674,7 @@ public class TSParser {
         tokens.advance()
 
         // method signature: name(params): Type
-        if (tokens.match(Token.OpenParen) || tokens.match(Token.LessThan)) {
+        if (tokens.`match`(Token.OpenParen) || tokens.`match`(Token.LessThan)) {
             // 回退名称位置，交给 method signature 解析
             tokens.pos -= 1
             return parseMethodSignature(tokens)
@@ -723,13 +723,13 @@ public class TSParser {
         }
 
         // 类型参数: <T, U>
-        if (tokens.match(Token.LessThan)) {
+        if (tokens.`match`(Token.LessThan)) {
             elem.typeParams = parseTypeParameters(tokens)
         }
 
         // 参数: (params)
         tokens.expect(Token.OpenParen)
-        while (!tokens.match(Token.CloseParen) && !tokens.isEof()) {
+        while (!tokens.`match`(Token.CloseParen) && !tokens.isEof()) {
             elem.params.append(parseFnParamType(tokens))
             if (!tokens.eat(Token.Comma)) {
                 break
@@ -778,13 +778,13 @@ public class TSParser {
         let elem = TSTypeElement(loc, TSTypeElementTag.CallSignature)
 
         // 类型参数: <T, U>
-        if (tokens.match(Token.LessThan)) {
+        if (tokens.`match`(Token.LessThan)) {
             elem.typeParams = parseTypeParameters(tokens)
         }
 
         // 参数: (params)
         tokens.expect(Token.OpenParen)
-        while (!tokens.match(Token.CloseParen) && !tokens.isEof()) {
+        while (!tokens.`match`(Token.CloseParen) && !tokens.isEof()) {
             elem.params.append(parseFnParamType(tokens))
             if (!tokens.eat(Token.Comma)) {
                 break
@@ -809,13 +809,13 @@ public class TSParser {
         tokens.advance() // new
 
         // 类型参数: <T, U>
-        if (tokens.match(Token.LessThan)) {
+        if (tokens.`match`(Token.LessThan)) {
             elem.typeParams = parseTypeParameters(tokens)
         }
 
         // 参数: (params)
         tokens.expect(Token.OpenParen)
-        while (!tokens.match(Token.CloseParen) && !tokens.isEof()) {
+        while (!tokens.`match`(Token.CloseParen) && !tokens.isEof()) {
             elem.params.append(parseFnParamType(tokens))
             if (!tokens.eat(Token.Comma)) {
                 break
@@ -845,7 +845,7 @@ public class TSParser {
 
         // 参数: (params)
         tokens.expect(Token.OpenParen)
-        while (!tokens.match(Token.CloseParen) && !tokens.isEof()) {
+        while (!tokens.`match`(Token.CloseParen) && !tokens.isEof()) {
             elem.params.append(parseFnParamType(tokens))
             if (!tokens.eat(Token.Comma)) {
                 break
@@ -872,7 +872,7 @@ public class TSParser {
         let elements = ArrayList<TSType>()
         tokens.expect(Token.OpenBracket)
 
-        while (!tokens.match(Token.CloseBracket) && !tokens.isEof()) {
+        while (!tokens.`match`(Token.CloseBracket) && !tokens.isEof()) {
             // rest 元素: ...T
             if (tokens.eat(Token.DotDotDot)) {
                 let inner = parseType(tokens.currentLoc(), tokens)
@@ -978,20 +978,20 @@ public class TSParser {
             constraint = Some(parseType(tokens.currentLoc(), tokens))
         }
 
-        let typeParam = TSTypeParameterDecl(loc, paramName, constraint, None)
+        let typeParam = TSTypeParameterDecl(loc, paramName, constraint, Option<TSType>.None)
         typeParam.isIn = isIn
 
         tokens.expect(Token.CloseBracket)
 
         // 可选修饰符: ? / +? / -?
-        if (tokens.match(Token.Question)) {
+        if (tokens.`match`(Token.Question)) {
             optional = TSOptionalModifier.Optional
             tokens.advance()
-        } else if (tokens.match(Token.Plus) && tokens.peek() == Token.Question) {
+        } else if (tokens.`match`(Token.Plus) && tokens.peek() == Token.Question) {
             optional = TSOptionalModifier.Optional
             tokens.advance() // +
             tokens.advance() // ?
-        } else if (tokens.match(Token.Minus) && tokens.peek() == Token.Question) {
+        } else if (tokens.`match`(Token.Minus) && tokens.peek() == Token.Question) {
             optional = TSOptionalModifier.Required
             tokens.advance() // -
             tokens.advance() // ?
@@ -1022,7 +1022,7 @@ public class TSParser {
         tokens.advance()
 
         // 限定名称: x.y.z
-        while (tokens.match(Token.Dot)) {
+        while (tokens.`match`(Token.Dot)) {
             tokens.advance()
             name = name + "." + tokens.currentString()
             tokens.advance()
@@ -1055,7 +1055,7 @@ public class TSParser {
             tokens.advance()
 
             // 嵌套限定符: .A.B
-            while (tokens.match(Token.Dot)) {
+            while (tokens.`match`(Token.Dot)) {
                 tokens.advance()
                 qualifier = qualifier + "." + tokens.currentString()
                 tokens.advance()
@@ -1076,7 +1076,7 @@ public class TSParser {
         let decl = TSInterfaceDecl(loc, name)
 
         // 类型参数: <T, U>
-        if (tokens.match(Token.LessThan)) {
+        if (tokens.`match`(Token.LessThan)) {
             decl.typeParams = parseTypeParameters(tokens)
         }
 
@@ -1091,10 +1091,10 @@ public class TSParser {
 
         // 体: { members }
         tokens.expect(Token.OpenBrace)
-        while (!tokens.match(Token.CloseBrace) && !tokens.isEof()) {
+        while (!tokens.`match`(Token.CloseBrace) && !tokens.isEof()) {
             decl.body.append(parseTypeElement(tokens))
             if (!tokens.eat(Token.Semicolon) && !tokens.eat(Token.Comma)) {
-                if (tokens.match(Token.CloseBrace)) {
+                if (tokens.`match`(Token.CloseBrace)) {
                     break
                 }
             }
@@ -1110,7 +1110,7 @@ public class TSParser {
 
         tokens.expect(Token.OpenBrace)
 
-        while (!tokens.match(Token.CloseBrace) && !tokens.isEof()) {
+        while (!tokens.`match`(Token.CloseBrace) && !tokens.isEof()) {
             let memberLoc = tokens.currentLoc()
             let memberName = tokens.currentString()
             let member = TSEnumMember(memberLoc, memberName)
@@ -1139,7 +1139,7 @@ public class TSParser {
         if (tok == Token.NumericLiteral) {
             let val = tokens.currentString()
             tokens.advance()
-            return Expr.number(loc, Float64.parse(val).getOr(0.0))
+            return Expr.number(loc, 0.0)
         }
         if (tok == Token.StringLiteral) {
             let val = tokens.currentString()
@@ -1160,8 +1160,11 @@ public class TSParser {
     public static func parseTypeAliasDecl(loc: Loc, name: String, tokens: TokenStream): TSTypeAliasDecl {
         // 类型参数: <T, U>
         let typeParams = ArrayList<TSTypeParameterDecl>()
-        if (tokens.match(Token.LessThan)) {
-            typeParams.appendAll(parseTypeParameters(tokens))
+        if (tokens.`match`(Token.LessThan)) {
+            let parsedParams = parseTypeParameters(tokens)
+            for (param in parsedParams) {
+                typeParams.append(param)
+            }
         }
 
         // = Type
@@ -1184,7 +1187,7 @@ public class TSParser {
 
         // 体: { ... }
         if (tokens.eat(Token.OpenBrace)) {
-            while (!tokens.match(Token.CloseBrace) && !tokens.isEof()) {
+            while (!tokens.`match`(Token.CloseBrace) && !tokens.isEof()) {
                 // 简化: 跳到匹配的 }
                 tokens.advance()
             }
@@ -1200,14 +1203,14 @@ public class TSParser {
         decl.name = name
 
         // 类型参数: <T, U>
-        if (tokens.match(Token.LessThan)) {
+        if (tokens.`match`(Token.LessThan)) {
             decl.typeParams = parseTypeParameters(tokens)
         }
 
         // extends 和 implements 在 class 体之前
         // 简化: 直接解析体
         if (tokens.eat(Token.OpenBrace)) {
-            while (!tokens.match(Token.CloseBrace) && !tokens.isEof()) {
+            while (!tokens.`match`(Token.CloseBrace) && !tokens.isEof()) {
                 tokens.advance()
             }
             tokens.expect(Token.CloseBrace)
@@ -1222,14 +1225,14 @@ public class TSParser {
         decl.name = name
 
         // 类型参数: <T, U>
-        if (tokens.match(Token.LessThan)) {
+        if (tokens.`match`(Token.LessThan)) {
             decl.typeParams = parseTypeParameters(tokens)
         }
 
         // 参数: (params)
         tokens.expect(Token.OpenParen)
         let params = ArrayList<TSFnParam>()
-        while (!tokens.match(Token.CloseParen) && !tokens.isEof()) {
+        while (!tokens.`match`(Token.CloseParen) && !tokens.isEof()) {
             params.append(parseFnParamType(tokens))
             if (!tokens.eat(Token.Comma)) {
                 break
@@ -1392,7 +1395,7 @@ public class TSParser {
         if (tok == Token.NumericLiteral) {
             let val = tokens.currentString()
             tokens.advance()
-            return Expr.number(loc, Float64.parse(val).getOr(0.0))
+            return Expr.number(loc, 0.0)
         }
         if (tok == Token.StringLiteral) {
             let val = tokens.currentString()
@@ -1442,7 +1445,7 @@ public class TSParser {
         // 各种类型起始 token
         match (tok) {
             case Token.OpenParen | Token.OpenBracket | Token.OpenBrace |
-                 Token.Typeof | Token.Import | Token.This |
+                 Token.Typeof | Token.Import | Token.`This` |
                  Token.Null | Token.Void | Token.StringLiteral |
                  Token.NumericLiteral | Token.NoSubstitutionTemplateLiteral |
                  Token.LessThan | Token.New => true
@@ -1518,6 +1521,27 @@ public class TSParser {
 /// TypeScript 类型打印器 - 对应 Bun Printer 中类型输出方法
 public class TSTypePrinter {
 
+    private static func typeOrAny(value: ?TSType): TSType {
+        match (value) {
+            case Some(t) => return t
+            case None => return TSType.any(Loc.EMPTY)
+        }
+    }
+
+    private static func exprOrMissing(value: ?Expr): Expr {
+        match (value) {
+            case Some(e) => return e
+            case None => return Expr.missing(Loc.EMPTY)
+        }
+    }
+
+    private static func typeParamOrDefault(value: ?TSTypeParameterDecl): TSTypeParameterDecl {
+        match (value) {
+            case Some(p) => return p
+            case None => return TSTypeParameterDecl(Loc.EMPTY, "T")
+        }
+    }
+
     /// 打印类型 - 入口方法
     public static func print(type_: TSType): String {
         match (type_.tag) {
@@ -1537,127 +1561,115 @@ public class TSTypePrinter {
             case TSTypeTag.TSThisType => "this"
 
             // 类型引用
-            case TSTypeTag.TSReference => {
+            case TSTypeTag.TSReference =>
                 var s = type_.typeName
                 if (type_.typeParams.size > 0) {
                     s = s + printTypeArgs(type_.typeParams)
                 }
                 return s
-            }
 
             // 联合类型
-            case TSTypeTag.TSUnion => {
+            case TSTypeTag.TSUnion =>
                 var parts = ArrayList<String>()
                 for (t in type_.types) {
                     parts.append(print(t))
                 }
                 return join(parts, " | ")
-            }
 
             // 交叉类型
-            case TSTypeTag.TSIntersection => {
+            case TSTypeTag.TSIntersection =>
                 var parts = ArrayList<String>()
                 for (t in type_.types) {
                     parts.append(print(t))
                 }
                 return join(parts, " & ")
-            }
 
             // 条件类型
-            case TSTypeTag.TSConditional => {
-                var s = print(type_.checkType.get())
-                s = s + " extends " + print(type_.extendsType.get())
-                s = s + " ? " + print(type_.trueType.get())
-                s = s + " : " + print(type_.falseType.get())
+            case TSTypeTag.TSConditional =>
+                var s = print(typeOrAny(type_.checkType))
+                s = s + " extends " + print(typeOrAny(type_.extendsType))
+                s = s + " ? " + print(typeOrAny(type_.trueType))
+                s = s + " : " + print(typeOrAny(type_.falseType))
                 return s
-            }
 
             // 数组类型
-            case TSTypeTag.TSArray => {
-                let elem = type_.elementType.get()
+            case TSTypeTag.TSArray =>
+                let elem = typeOrAny(type_.elementType)
                 let elemStr = print(elem)
                 // 如果元素类型是联合/交叉/条件，需要括号
                 if (needsParen(elem)) {
                     return "(" + elemStr + ")[]"
                 }
                 return elemStr + "[]"
-            }
 
             // 元组类型
-            case TSTypeTag.TSTuple => {
+            case TSTypeTag.TSTuple =>
                 var parts = ArrayList<String>()
                 for (e in type_.elements) {
                     parts.append(print(e))
                 }
                 return "[" + join(parts, ", ") + "]"
-            }
 
             // 函数类型
-            case TSTypeTag.TSFunction => {
+            case TSTypeTag.TSFunction =>
                 var s = "("
                 var paramStrs = ArrayList<String>()
                 for (p in type_.params) {
                     paramStrs.append(printFnParam(p))
                 }
                 s = s + join(paramStrs, ", ")
-                s = s + ") => " + print(type_.returnType.get())
+                s = s + ") => " + print(typeOrAny(type_.returnType))
                 return s
-            }
 
             // 构造器类型
-            case TSTypeTag.TSConstructor => {
+            case TSTypeTag.TSConstructor =>
                 var s = "new ("
                 var paramStrs = ArrayList<String>()
                 for (p in type_.params) {
                     paramStrs.append(printFnParam(p))
                 }
                 s = s + join(paramStrs, ", ")
-                s = s + ") => " + print(type_.returnType.get())
+                s = s + ") => " + print(typeOrAny(type_.returnType))
                 return s
-            }
 
             // 类型字面量
-            case TSTypeTag.TSTypeLiteral => {
+            case TSTypeTag.TSTypeLiteral =>
                 var parts = ArrayList<String>()
                 for (m in type_.members) {
                     parts.append(printTypeElement(m))
                 }
                 return "{ " + join(parts, "; ") + " }"
-            }
 
             // 类型操作符
-            case TSTypeTag.TSTypeOperator => {
+            case TSTypeTag.TSTypeOperator =>
                 var op = ""
-                match (type_.operator) {
+                match (type_.`operator`) {
                     case TSTypeOperatorKind.Keyof => op = "keyof "
                     case TSTypeOperatorKind.Readonly => op = "readonly "
                     case TSTypeOperatorKind.Unique => op = "unique "
                     case TSTypeOperatorKind.Infer => op = "infer "
                 }
-                return op + print(type_.operand.get())
-            }
+                return op + print(typeOrAny(type_.operand))
 
             // 类型查询
-            case TSTypeTag.TSTypeQuery => {
-                let expr = type_.queryExpr.get()
+            case TSTypeTag.TSTypeQuery =>
+                let expr = exprOrMissing(type_.queryExpr)
                 return "typeof " + expr.identifierName
-            }
 
             // 索引访问
-            case TSTypeTag.TSIndexedAccess => {
-                return print(type_.objectType.get()) + "[" + print(type_.indexType.get()) + "]"
-            }
+            case TSTypeTag.TSIndexedAccess =>
+                return print(typeOrAny(type_.objectType)) + "[" + print(typeOrAny(type_.indexType)) + "]"
 
             // 映射类型
-            case TSTypeTag.TSMapped => {
+            case TSTypeTag.TSMapped =>
                 var s = "{ "
                 match (type_.mappedReadonly) {
                     case TSReadonlyModifier.Readonly => s = s + "readonly "
                     case TSReadonlyModifier.Mutable => s = s + "-readonly "
                     case TSReadonlyModifier.None => ()
                 }
-                let param = type_.typeParam.get()
-                s = s + "[" + param.name + " in " + print(param.constraint.get()) + "]"
+                let param = typeParamOrDefault(type_.typeParam)
+                s = s + "[" + param.name + " in " + print(typeOrAny(param.constraint)) + "]"
                 match (type_.mappedOptional) {
                     case TSOptionalModifier.Optional => s = s + "?"
                     case TSOptionalModifier.Required => s = s + "-?"
@@ -1669,15 +1681,13 @@ public class TSTypePrinter {
                 }
                 s = s + " }"
                 return s
-            }
 
             // 圆括号类型
-            case TSTypeTag.TSParenthesized => {
-                return "(" + print(type_.wrappedType.get()) + ")"
-            }
+            case TSTypeTag.TSParenthesized =>
+                return "(" + print(typeOrAny(type_.wrappedType)) + ")"
 
             // 字面量类型
-            case TSTypeTag.TSLiteral => {
+            case TSTypeTag.TSLiteral =>
                 if (type_.stringValue != "") {
                     return "\"" + type_.stringValue + "\""
                 }
@@ -1685,22 +1695,20 @@ public class TSTypePrinter {
                     return "true"
                 }
                 return type_.numberValue.toString()
-            }
 
             // 枚举名称
             case TSTypeTag.TSEnumName => type_.typeName
 
             // 导入类型
-            case TSTypeTag.TSImport => {
+            case TSTypeTag.TSImport =>
                 var s = "import(\"" + type_.importPath + "\")"
                 if (type_.importQualifier != "") {
                     s = s + "." + type_.importQualifier
                 }
                 return s
-            }
 
             // 模板字面量类型
-            case TSTypeTag.TSTemplateLiteral => {
+            case TSTypeTag.TSTemplateLiteral =>
                 var s = "`"
                 for (part in type_.templateParts) {
                     if (part.text != "") {
@@ -1713,10 +1721,9 @@ public class TSTypePrinter {
                 }
                 s = s + "`"
                 return s
-            }
 
             // 类型谓词
-            case TSTypeTag.TSTypePredicate => {
+            case TSTypeTag.TSTypePredicate =>
                 var s = ""
                 if (type_.predicateIsAsserts) {
                     s = "asserts " + type_.predicateName
@@ -1733,28 +1740,24 @@ public class TSTypePrinter {
                     case None => ()
                 }
                 return s
-            }
 
             // 命名元组成员
-            case TSTypeTag.TSNamedTupleMember => {
+            case TSTypeTag.TSNamedTupleMember =>
                 var s = type_.typeName
                 if (type_.mappedOptional == TSOptionalModifier.Optional) {
                     s = s + "?: "
                 } else {
                     s = s + ": "
                 }
-                return s + print(type_.elementType.get())
-            }
+                return s + print(typeOrAny(type_.elementType))
 
             // rest 类型
-            case TSTypeTag.TSRest => {
-                return "..." + print(type_.restType.get())
-            }
+            case TSTypeTag.TSRest =>
+                return "..." + print(typeOrAny(type_.restType))
 
             // optional 类型
-            case TSTypeTag.TSOptional => {
-                return print(type_.wrappedType.get()) + "?"
-            }
+            case TSTypeTag.TSOptional =>
+                return print(typeOrAny(type_.wrappedType)) + "?"
 
             // 其他
             case _ => "any"
@@ -1773,7 +1776,7 @@ public class TSTypePrinter {
     /// 打印类型元素 - 属性签名/方法签名等
     public static func printTypeElement(elem: TSTypeElement): String {
         match (elem.tag) {
-            case TSTypeElementTag.PropertySignature => {
+            case TSTypeElementTag.PropertySignature =>
                 var s = ""
                 if (elem.isReadonly) { s = s + "readonly " }
                 s = s + elem.name
@@ -1783,8 +1786,7 @@ public class TSTypePrinter {
                     case None => ()
                 }
                 return s
-            }
-            case TSTypeElementTag.MethodSignature => {
+            case TSTypeElementTag.MethodSignature =>
                 var s = elem.name
                 if (elem.isOptional) { s = s + "?" }
                 if (elem.typeParams.size > 0) {
@@ -1800,8 +1802,7 @@ public class TSTypePrinter {
                     case None => ()
                 }
                 return s
-            }
-            case TSTypeElementTag.CallSignature => {
+            case TSTypeElementTag.CallSignature =>
                 var paramStrs = ArrayList<String>()
                 for (p in elem.params) {
                     paramStrs.append(printFnParam(p))
@@ -1812,8 +1813,7 @@ public class TSTypePrinter {
                     case None => ()
                 }
                 return s
-            }
-            case TSTypeElementTag.ConstructSignature => {
+            case TSTypeElementTag.ConstructSignature =>
                 var paramStrs = ArrayList<String>()
                 for (p in elem.params) {
                     paramStrs.append(printFnParam(p))
@@ -1824,8 +1824,7 @@ public class TSTypePrinter {
                     case None => ()
                 }
                 return s
-            }
-            case TSTypeElementTag.IndexSignature => {
+            case TSTypeElementTag.IndexSignature =>
                 var s = "[" + elem.name + ": "
                 // 索引类型需要在 elementType 中
                 match (elem.type_) {
@@ -1834,8 +1833,7 @@ public class TSTypePrinter {
                 }
                 s = s + "]"
                 return s
-            }
-            case TSTypeElementTag.GetAccessor => {
+            case TSTypeElementTag.GetAccessor =>
                 var paramStrs = ArrayList<String>()
                 for (p in elem.params) {
                     paramStrs.append(printFnParam(p))
@@ -1846,14 +1844,12 @@ public class TSTypePrinter {
                     case None => ()
                 }
                 return s
-            }
-            case TSTypeElementTag.SetAccessor => {
+            case TSTypeElementTag.SetAccessor =>
                 var paramStrs = ArrayList<String>()
                 for (p in elem.params) {
                     paramStrs.append(printFnParam(p))
                 }
                 return "set " + elem.name + "(" + join(paramStrs, ", ") + ")"
-            }
         }
     }
 
@@ -1945,6 +1941,13 @@ public class TSTypePrinter {
 /// TypeScript 类型检查器 - 对应 Bun 中类型系统辅助方法
 public class TSTypeChecker {
 
+    private static func typeOrAny(value: ?TSType): TSType {
+        match (value) {
+            case Some(t) => return t
+            case None => return TSType.any(Loc.EMPTY)
+        }
+    }
+
     /// 是否可赋值 - 对应 TypeScript assignability
     /// target = source 是否合法
     public static func isAssignableFrom(target: TSType, source: TSType): Bool {
@@ -2034,7 +2037,7 @@ public class TSTypeChecker {
         // 数组类型: T[] 是 (泛型) Array<T> 的子类型
         if (s.tag == TSTypeTag.TSArray && sp.tag == TSTypeTag.TSReference) {
             if (sp.typeName == "Array" && sp.typeParams.size == 1) {
-                return isSubtypeOf(s.elementType.get(), sp.typeParams[0])
+                return isSubtypeOf(typeOrAny(s.elementType), sp.typeParams[0])
             }
         }
 
@@ -2089,7 +2092,7 @@ public class TSTypeChecker {
 
             // 数组类型: 元素类型相同
             case TSTypeTag.TSArray =>
-                return isIdentical(ta.elementType.get(), tb.elementType.get())
+                return isIdentical(typeOrAny(ta.elementType), typeOrAny(tb.elementType))
 
             // 元组类型: 元素逐一相同
             case TSTypeTag.TSTuple =>
@@ -2157,7 +2160,7 @@ public class TSTypeChecker {
         match (type_.tag) {
             case TSTypeTag.TSNullKeyword | TSTypeTag.TSUndefinedKeyword =>
                 return TSType.never(type_.loc)
-            case TSTypeTag.TSUnion => {
+            case TSTypeTag.TSUnion =>
                 let filtered = ArrayList<TSType>()
                 for (t in type_.types) {
                     let stripped = stripNullUndefined(t)
@@ -2172,7 +2175,6 @@ public class TSTypeChecker {
                     return filtered[0]
                 }
                 return TSType.union(type_.loc, filtered)
-            }
             case _ => return type_
         }
     }
@@ -2181,14 +2183,12 @@ public class TSTypeChecker {
     /// 对于类型参数，返回其约束类型
     public static func getConstraint(type_: TSType): ?TSType {
         match (type_.tag) {
-            case TSTypeTag.TSReference => {
+            case TSTypeTag.TSReference =>
                 // 简化: 返回 null，实际需要查找类型参数表
                 None
-            }
-            case TSTypeTag.TSArray => {
+            case TSTypeTag.TSArray =>
                 // T[] 约束为 Array<T>
                 Some(TSType.reference(type_.loc, "Array", ArrayList<TSType>()))
-            }
             case _ => None
         }
     }

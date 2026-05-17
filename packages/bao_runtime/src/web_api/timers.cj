@@ -3,8 +3,9 @@
 // 严格翻译 Bun 的 setTimeout/setInterval API
 package bao_runtime.web_api
 
-import bao_core.*
 import bao_collections.*
+import bao_runtime.*
+import bao_sys.*
 
 // ============================================================================
 // timers 模块 — Web Timers API
@@ -18,6 +19,17 @@ public type TimerId = Int64
 public enum TimerKind {
     | Timeout
     | Interval
+
+    public operator func ==(right: TimerKind): Bool {
+        match (this) {
+            case Timeout => match (right) { case Timeout => true case _ => false }
+            case Interval => match (right) { case Interval => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: TimerKind): Bool {
+        return !(this == right)
+    }
 }
 
 /// 定时器记录
@@ -101,11 +113,10 @@ public class TimerManager {
         // 收集已到期的定时器
         for (key in timers.keys()) {
             match (timers.get(key)) {
-                case Some(record) => {
+                case Some(record) =>
                     if (now - record.startTime >= record.delay) {
                         expired.append(record)
                     }
-                }
                 case None => ()
             }
         }
@@ -135,6 +146,11 @@ public class TimerManager {
     }
 }
 
+/// 获取当前时间戳 (毫秒)
+private func currentTimeMillis(): Float64 {
+    return Float64(SysModule.currentTimeMillis())
+}
+
 /// timers 模块导出
 public class TimersModule {
     /// 全局定时器管理器
@@ -155,13 +171,13 @@ public class TimersModule {
             }
             let id = mgr.setTimeout({ callbackArgs =>
                 // 调用 JS 函数
-                if (fn.nativeFnData != None) {
+                if (fn.nativeFnData.isSome()) {
                     match (fn.nativeFnData) {
                         case Some(nf) => return nf.fn(callbackArgs)
                         case None => ()
                     }
                 }
-                if (fn.functionData != None) {
+                if (fn.functionData.isSome()) {
                     // JS 函数需要 Interpreter 来调用，此处占位
                     return JsValue.UNDEFINED
                 }
@@ -179,7 +195,7 @@ public class TimersModule {
                 fnArgs.append(args[i])
             }
             let id = mgr.setInterval({ callbackArgs =>
-                if (fn.nativeFnData != None) {
+                if (fn.nativeFnData.isSome()) {
                     match (fn.nativeFnData) {
                         case Some(nf) => return nf.fn(callbackArgs)
                         case None => ()
@@ -214,7 +230,7 @@ public class TimersModule {
                 fnArgs.append(args[i])
             }
             let id = mgr.setTimeout({ callbackArgs =>
-                if (fn.nativeFnData != None) {
+                if (fn.nativeFnData.isSome()) {
                     match (fn.nativeFnData) {
                         case Some(nf) => return nf.fn(callbackArgs)
                         case None => ()
@@ -238,7 +254,7 @@ public class TimersModule {
             if (args.size < 1) { return JsValue(0.0) }
             let fn = args[0]
             let id = mgr.setTimeout({ _ =>
-                if (fn.nativeFnData != None) {
+                if (fn.nativeFnData.isSome()) {
                     match (fn.nativeFnData) {
                         case Some(nf) => nf.fn(ArrayList<JsValue>([JsValue(currentTimeMillis())]))
                         case None => ()
@@ -261,7 +277,7 @@ public class TimersModule {
         env.define("queueMicrotask", Interpreter.makeNativeFn("queueMicrotask") { args =>
             if (args.size > 0) {
                 let fn = args[0]
-                if (fn.nativeFnData != None) {
+                if (fn.nativeFnData.isSome()) {
                     match (fn.nativeFnData) {
                         case Some(nf) => nf.fn(ArrayList<JsValue>())
                         case None => ()
@@ -270,10 +286,5 @@ public class TimersModule {
             }
             return JsValue.UNDEFINED
         }, false)
-    }
-
-    /// 获取当前时间戳 (毫秒)
-    private static func currentTimeMillis(): Float64 {
-        return bao_sys.SysModule.currentTimeMillis()
     }
 }

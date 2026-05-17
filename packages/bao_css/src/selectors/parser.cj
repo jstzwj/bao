@@ -5,6 +5,7 @@ package bao_css.selectors
 
 import bao_core.*
 import bao_collections.*
+import bao_css.*
 
 // ============================================================================
 // 组合器
@@ -171,14 +172,14 @@ public class CssSelectorPseudoClass {
     /// 方向
     public var direction: String
     /// 厂商前缀
-    public var vendorPrefix: CssVendorPrefix
+    public var vendorPrefix: VendorPrefix
 
     public init(kind: CssPseudoClassKind) {
         this.kind = kind
         this.customName = ""
         this.languages = ArrayList<String>()
         this.direction = ""
-        this.vendorPrefix = CssVendorPrefix()
+        this.vendorPrefix = VendorPrefix()
     }
 
     public init(customName: String) {
@@ -186,7 +187,15 @@ public class CssSelectorPseudoClass {
         this.customName = customName
         this.languages = ArrayList<String>()
         this.direction = ""
-        this.vendorPrefix = CssVendorPrefix()
+        this.vendorPrefix = VendorPrefix()
+    }
+
+    /// Helper: join languages for :lang()
+    private func joinLanguages(): String {
+        var langArr = Array<String>(languages.size, repeat: "")
+        var li: Int64 = 0
+        for (l in languages) { langArr[li] = l; li += 1 }
+        String.join(langArr, delimiter: ", ")
     }
 
     /// 转为 CSS 文本
@@ -238,7 +247,7 @@ public class CssSelectorPseudoClass {
             case UserValid => ":user-valid"
             case UserInvalid => ":user-invalid"
             case Autofill => ":autofill"
-            case Lang => ":lang(${String.join(", ", languages)})"
+            case Lang => ":lang(${joinLanguages()})"
             case Dir => ":dir(${direction})"
             case Custom => ":${customName}"
             case Local => ":local"
@@ -316,24 +325,28 @@ public enum CssPseudoElementKind {
             case CueRegionFunction => "::cue-region()"
         }
     }
+
+    public operator func ==(rhs: CssPseudoElementKind): Bool {
+        this.toCss() == rhs.toCss()
+    }
 }
 
 /// CSS 伪元素值
 public class CssSelectorPseudoElement {
     public var kind: CssPseudoElementKind
     public var customName: String
-    public var vendorPrefix: CssVendorPrefix
+    public var vendorPrefix: VendorPrefix
 
     public init(kind: CssPseudoElementKind) {
         this.kind = kind
         this.customName = ""
-        this.vendorPrefix = CssVendorPrefix()
+        this.vendorPrefix = VendorPrefix()
     }
 
     public init(customName: String) {
         this.kind = CssPseudoElementKind.Custom
         this.customName = customName
-        this.vendorPrefix = CssVendorPrefix()
+        this.vendorPrefix = VendorPrefix()
     }
 
     /// 转为 CSS 文本
@@ -394,6 +407,39 @@ public enum CssComponentKind {
     | NonTsPseudoClass   // 伪类
     | PseudoElement      // 伪元素
     | Nesting            // &
+
+    public operator func ==(rhs: CssComponentKind): Bool {
+        match (this) {
+            case Combinator => match (rhs) { case Combinator => true case _ => false }
+            case Id => match (rhs) { case Id => true case _ => false }
+            case Class => match (rhs) { case Class => true case _ => false }
+            case LocalName => match (rhs) { case LocalName => true case _ => false }
+            case ExplicitUniversalType => match (rhs) { case ExplicitUniversalType => true case _ => false }
+            case DefaultNamespace => match (rhs) { case DefaultNamespace => true case _ => false }
+            case ExplicitNoNamespace => match (rhs) { case ExplicitNoNamespace => true case _ => false }
+            case ExplicitAnyNamespace => match (rhs) { case ExplicitAnyNamespace => true case _ => false }
+            case Namespace => match (rhs) { case Namespace => true case _ => false }
+            case AttributeInNoNamespaceExists => match (rhs) { case AttributeInNoNamespaceExists => true case _ => false }
+            case AttributeInNoNamespace => match (rhs) { case AttributeInNoNamespace => true case _ => false }
+            case AttributeOther => match (rhs) { case AttributeOther => true case _ => false }
+            case Root => match (rhs) { case Root => true case _ => false }
+            case Empty => match (rhs) { case Empty => true case _ => false }
+            case Scope => match (rhs) { case Scope => true case _ => false }
+            case Host => match (rhs) { case Host => true case _ => false }
+            case Slotted => match (rhs) { case Slotted => true case _ => false }
+            case Part => match (rhs) { case Part => true case _ => false }
+            case Nth => match (rhs) { case Nth => true case _ => false }
+            case NthOf => match (rhs) { case NthOf => true case _ => false }
+            case Is => match (rhs) { case Is => true case _ => false }
+            case Where => match (rhs) { case Where => true case _ => false }
+            case Negation => match (rhs) { case Negation => true case _ => false }
+            case Has => match (rhs) { case Has => true case _ => false }
+            case Any => match (rhs) { case Any => true case _ => false }
+            case NonTsPseudoClass => match (rhs) { case NonTsPseudoClass => true case _ => false }
+            case PseudoElement => match (rhs) { case PseudoElement => true case _ => false }
+            case Nesting => match (rhs) { case Nesting => true case _ => false }
+        }
+    }
 }
 
 /// CSS 选择器组件
@@ -412,7 +458,7 @@ public class CssSelectorComponent {
     /// 嵌套选择器列表 (Is, Where, Not, Has, Any)
     public var nestedSelectors: ?CssSelectorListImpl
     /// 厂商前缀
-    public var vendorPrefix: CssVendorPrefix
+    public var vendorPrefix: VendorPrefix
 
     public init(kind: CssComponentKind) {
         this.kind = kind
@@ -422,7 +468,7 @@ public class CssSelectorComponent {
         this.pseudoClass = None
         this.pseudoElement = None
         this.nestedSelectors = None
-        this.vendorPrefix = CssVendorPrefix()
+        this.vendorPrefix = VendorPrefix()
     }
 
     public init(combinator: CssCombinator) {
@@ -433,7 +479,7 @@ public class CssSelectorComponent {
         this.pseudoClass = None
         this.pseudoElement = None
         this.nestedSelectors = None
-        this.vendorPrefix = CssVendorPrefix()
+        this.vendorPrefix = VendorPrefix()
     }
 
     public init(id: String, kind: CssComponentKind) {
@@ -444,7 +490,7 @@ public class CssSelectorComponent {
         this.pseudoClass = None
         this.pseudoElement = None
         this.nestedSelectors = None
-        this.vendorPrefix = CssVendorPrefix()
+        this.vendorPrefix = VendorPrefix()
     }
 
     /// 是否为组合器
@@ -455,12 +501,11 @@ public class CssSelectorComponent {
     /// 转为 CSS 文本
     public func toCss(): String {
         match (kind) {
-            case Combinator => {
+            case Combinator =>
                 match (combinator) {
                     case Some(c) => c.toCss()
                     case None => ""
                 }
-            }
             case Id => "#${identifier}"
             case Class => ".${identifier}"
             case LocalName => identifier
@@ -473,42 +518,36 @@ public class CssSelectorComponent {
             case Empty => ":empty"
             case Scope => ":scope"
             case Nesting => "&"
-            case NonTsPseudoClass => {
+            case NonTsPseudoClass =>
                 match (pseudoClass) {
                     case Some(pc) => pc.toCss()
                     case None => ""
                 }
-            }
-            case PseudoElement => {
+            case PseudoElement =>
                 match (pseudoElement) {
                     case Some(pe) => pe.toCss()
                     case None => ""
                 }
-            }
-            case Is => {
+            case Is =>
                 match (nestedSelectors) {
                     case Some(sels) => ":is(${sels.toCss()})"
                     case None => ":is()"
                 }
-            }
-            case Where => {
+            case Where =>
                 match (nestedSelectors) {
                     case Some(sels) => ":where(${sels.toCss()})"
                     case None => ":where()"
                 }
-            }
-            case Negation => {
+            case Negation =>
                 match (nestedSelectors) {
                     case Some(sels) => ":not(${sels.toCss()})"
                     case None => ":not()"
                 }
-            }
-            case Has => {
+            case Has =>
                 match (nestedSelectors) {
                     case Some(sels) => ":has(${sels.toCss()})"
                     case None => ":has()"
                 }
-            }
             case AttributeInNoNamespaceExists => "[${identifier}]"
             case _ => ""
         }
@@ -657,7 +696,10 @@ public class CssSelectorListImpl {
         for (s in v) {
             parts.append(s.toCss())
         }
-        String.join(", ", parts)
+        var partArr = Array<String>(parts.size, repeat: "")
+        var pi: Int64 = 0
+        for (p in parts) { partArr[pi] = p; pi += 1 }
+        String.join(partArr, delimiter: ", ")
     }
 
     public func toString(): String {

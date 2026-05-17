@@ -35,11 +35,12 @@
 // 仓颉翻译:
 //   PackedNextPtr -> 使用独立的字段代替指针打包
 //     (仓颉不需要手动指针操作, GC 管理引用)
-//   UnboundedQueue -> ConcurrentLinkedQueue
+//   UnboundedQueue -> ConcurrentQueue
 package bao_event_loop
 
 import bao_core.*
 import bao_threading.*
+import bao_collections.*
 
 // ============================================================================
 // PackedNextPtr - 打包的下一指针
@@ -206,7 +207,7 @@ public class ConcurrentTaskV2 {
     public var packedNext: PackedNextPtr
 
     public init() {
-        innerTask = AnyTask({ })
+        innerTask = AnyTask({ => () })
         packedNext = PackedNextPtr()
     }
 
@@ -316,21 +317,21 @@ public enum AutoDeinit {
 //     head = queue.head.swap(null, .AcqRel)
 //     // reverse the list to maintain FIFO order
 //
-//   仓颉实现: 使用 ConcurrentLinkedQueue + PackedNextPtr 接口
+//   仓颉实现: 使用 ConcurrentQueue + PackedNextPtr 接口
 // ============================================================================
 
 /// MPSC 无界任务队列 V2 - 对应 Bun UnboundedQueue(ConcurrentTask, .next)
 /// 多生产者单消费者: 工作线程 push, 事件循环 drain
 public class ConcurrentTaskQueueV2 {
     /// 无界 MPSC 队列
-    private var queue: ConcurrentLinkedQueue<ConcurrentTaskV2>
+    private var queue: ConcurrentQueue<ConcurrentTaskV2>
     /// 统计: 已提交
     private var totalPushed: AtomicInt64
     /// 统计: 已消费
     private var totalPopped: AtomicInt64
 
     public init() {
-        queue = ConcurrentLinkedQueue<ConcurrentTaskV2>()
+        queue = ConcurrentQueue<ConcurrentTaskV2>()
         totalPushed = AtomicInt64(0)
         totalPopped = AtomicInt64(0)
     }
@@ -358,7 +359,7 @@ public class ConcurrentTaskQueueV2 {
     /// 对应 Bun: concurrent_tasks.push(task); loop.wakeup()
     /// 线程安全: 多个工作线程可同时调用
     public func push(task: ConcurrentTaskV2): Unit {
-        queue.put(task)
+        queue.push(task)
         totalPushed.incrementAndGet()
     }
 
@@ -381,10 +382,12 @@ public class ConcurrentTaskQueueV2 {
     public func popBatch(): ArrayList<ConcurrentTaskV2> {
         var tasks = ArrayList<ConcurrentTaskV2>()
         while (true) {
-            let task = queue.remove()
-            if (task == None) { break }
-            tasks.append(task.unwrap())
-            totalPopped.incrementAndGet()
+            match (queue.pop()) {
+                case None => break
+                case Some(task) =>
+                    tasks.append(task)
+                    totalPopped.incrementAndGet()
+            }
         }
         return tasks
     }
@@ -394,11 +397,13 @@ public class ConcurrentTaskQueueV2 {
     public func drainAndExecute(): Int64 {
         var count: Int64 = 0
         while (true) {
-            let task = queue.remove()
-            if (task == None) { break }
-            task.unwrap().run()
-            totalPopped.incrementAndGet()
-            count += 1
+            match (queue.pop()) {
+                case None => break
+                case Some(task) =>
+                    task.run()
+                    totalPopped.incrementAndGet()
+                    count += 1
+            }
         }
         return count
     }

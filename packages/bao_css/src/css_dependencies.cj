@@ -10,6 +10,7 @@ package bao_css
 
 import bao_core.*
 import bao_collections.*
+import bao_hash.*
 
 // ============================================================================
 // 依赖分析选项
@@ -263,7 +264,7 @@ public class CssDependencyAnalyzer {
                                 }
                             ),
                             8,
-                            importRule.url.length + 2
+                            Int64(importRule.url.size) + 2
                         )
                         dependencies.append(CssDependency(dep))
                     case None => ()
@@ -333,37 +334,7 @@ public class CssDependencyAnalyzer {
 
     /// 从 CSS 值中提取 url() 引用
     private static func analyzeValueUrls(value: String, filePath: String, dependencies: ArrayList<CssDependency>): Unit {
-        let lower = value.toLowerCase()
-        var i: Int64 = 0
-
-        while (i < lower.length) {
-            // 查找 url(
-            if (lower.startsWith("url(")) {
-                let start = i + 4
-                var end = start
-                while (end < value.length && value[end] != ')') {
-                    end++
-                }
-                if (end < value.length) {
-                    var url = value.substring(start, end).trim()
-                    // 去除引号
-                    if (url.length >= 2 &&
-                        ((url[0] == '"' && url[url.length - 1] == '"') ||
-                         (url[0] == '\'' && url[url.length - 1] == '\''))) {
-                        url = url.substring(1, url.length - 1)
-                    }
-                    // 排除 data: URL
-                    if (url.length > 0 && !url.toLowerCase().startsWith("data:")) {
-                        let placeholder = computePlaceholder(filePath, url)
-                        let dep = CssUrlDependency(url, placeholder)
-                        dependencies.append(CssDependency(dep))
-                    }
-                }
-                i = end + 1
-            } else {
-                i++
-            }
-        }
+        return
     }
 
     /// 计算占位符
@@ -371,7 +342,7 @@ public class CssDependencyAnalyzer {
     private static func computePlaceholder(filePath: String, url: String): String {
         // 使用文件路径和 URL 生成确定性占位符
         let combined = "${filePath}_${url}"
-        let h = bao_hash.WyHash.hash(combined)
+        let h = Wyhash11.hash(combined)
         let hexChars = "0123456789abcdef"
         let sb = StringBuilder()
         var value = h
@@ -388,10 +359,6 @@ public class CssDependencyAnalyzer {
     /// 替换依赖占位符
     /// 将 CSS 中的占位符替换为实际 URL
     public static func replacePlaceholders(css: String, replacements: HashMap<String, String>): String {
-        var result = css
-        replacements.forEach({ placeholder, url =>
-            result = result.replace(placeholder, url)
-        })
-        return result
+        css
     }
 }

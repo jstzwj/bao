@@ -134,7 +134,7 @@ public class WorkspacePackageJsonCache {
 
         // 从磁盘读取
         let source = try {
-            bao_io.File.readTextFile(absPackageJsonPath)
+            BaoFile.readAllText(absPackageJsonPath)
         } catch (e: Exception) {
             return PackageJsonGetResult.ReadError(e.message)
         }
@@ -205,13 +205,13 @@ public class WorkspacePackageJsonCache {
         // 查找第一个缩进行
         let lines = source.split("\n")
         for (line in lines) {
-            if (line.length > 0 && (line[0].value == 32 || line[0].value == 9)) { // 空格或制表符
+            if (line.size > 0 && (line[0].value == 32 || line[0].value == 9)) { // 空格或制表符
                 var spaces = 0
                 var tabs = 0
                 for (c in line) {
                     if (c.value == 32) { spaces += 1 }
                     else if (c.value == 9) { tabs += 1 }
-                    else { break }
+                    else { () }
                 }
                 if (tabs > 0) { return "\t" }
                 if (spaces >= 2) { return "  " }

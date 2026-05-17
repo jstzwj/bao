@@ -33,7 +33,7 @@ public func parseUseDirective(contents: String): ?UseDirective {
     let minLength = "'use client';".size  // 13
 
     if (truncated.size < minLength) {
-        return None
+        return Option<UseDirective>.None
     }
 
     // 取前 13 个字符检查
@@ -43,10 +43,10 @@ public func parseUseDirective(contents: String): ?UseDirective {
     let firstQuote = directiveString[0]
     let lastQuote = directiveString[directiveString.size - Int64(2)]
     if (firstQuote != lastQuote) {
-        return None
+        return Option<UseDirective>.None
     }
-    if (firstQuote != Char('"') && firstQuote != Char('\'') && firstQuote != Char('`')) {
-        return None
+    if (firstQuote != UInt8(34) && firstQuote != UInt8(39) && firstQuote != UInt8(96)) {
+        return Option<UseDirective>.None
     }
 
     // 提取引号内的内容
@@ -61,7 +61,7 @@ public func parseUseDirective(contents: String): ?UseDirective {
         return UseDirective.Server
     }
 
-    return None
+    return Option<UseDirective>.None
 }
 
 /// 去除前导空白 - 对应 Bun std.mem.trimLeft(u8, contents, " \t\n\r;")
@@ -69,8 +69,8 @@ private func trimLeftDirective(s: String): String {
     var i = Int64(0)
     while (i < s.size) {
         let c = s[i]
-        if (c != Char(' ') && c != Char('\t') && c != Char('\n') &&
-            c != Char('\r') && c != Char(';')) {
+        if (c != UInt8(32) && c != UInt8(9) && c != UInt8(10) &&
+            c != UInt8(13) && c != UInt8(59)) {
             return s[i..]
         }
         i += Int64(1)

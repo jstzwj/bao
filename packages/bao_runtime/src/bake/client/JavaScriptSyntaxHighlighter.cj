@@ -609,7 +609,7 @@ export class DraculaSyntaxHighlighter {
     // Handle multiple classes (e.g., "syntax-pink bold")
     const classes = tokenClass
       .split(" ")
-      .map(cls => cls.trim())
+      .map(cls => cls.trimAscii())
       .join(" ");
     return `<span class="${classes}">${this.escapeHtml(content)}</span>`;
   }

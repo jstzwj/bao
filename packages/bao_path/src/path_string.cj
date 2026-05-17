@@ -29,7 +29,7 @@ public func withoutTrailingSlash(path: String): String {
     while (end > 1 && isSepAnyChar(path[Int64(end - 1)])) {
         end -= 1
     }
-    return path.substring(0, Int64(end))
+    return path[0..end]
 }
 
 /// 去除前导斜杠
@@ -39,11 +39,11 @@ public func withoutTrailingSlash(path: String): String {
 ///   }
 public func withoutLeadingSlash(path: String): String {
     var start: Int64 = 0
-    while (start < path.size && path[start] == Char('/')) {
+    while (start < path.size && path[start] == UInt8(47)) {
         start += 1
     }
     if (start > 0) {
-        return path.substring(start)
+        return path[start..]
     }
     return path
 }
@@ -59,7 +59,7 @@ public func withoutLeadingPathSeparator(path: String): String {
         start += 1
     }
     if (start > 0) {
-        return path.substring(start)
+        return path[start..]
     }
     return path
 }
@@ -75,9 +75,9 @@ public func withoutLeadingPathSeparator(path: String): String {
 ///       return slice;
 ///   }
 public func removeLeadingDotSlash(path: String): String {
-    if (path.size >= 2 && path[0] == Char('.') &&
-        (path[1] == Char('/') || path[1] == Char('\\'))) {
-        return path.substring(2)
+    if (path.size >= 2 && path[0] == UInt8(46) &&
+        (path[1] == UInt8(47) || path[1] == UInt8(92))) {
+        return path[2..]
     }
     return path
 }
@@ -85,7 +85,7 @@ public func removeLeadingDotSlash(path: String): String {
 /// 确保路径以尾部分隔符结束
 /// 对应 Bun: ensureTrailingSlash (辅助函数)
 public func ensureTrailingSlash(path: String): String {
-    if (path.isEmpty) {
+    if (path.isEmpty()) {
         return "/"
     }
     if (isSepAnyChar(path[Int64(path.size - 1)])) {
@@ -125,34 +125,34 @@ public func withoutTrailingSlashWindowsPath(input: String): String {
 ///       return input[start_index + 1 .. end_index];
 ///   }
 public func basenamePosix(path: String): String {
-    if (path.isEmpty) {
+    if (path.isEmpty()) {
         return ""
     }
     // 去除尾部分隔符
     var endIndex: Int64 = path.size - 1
-    while (endIndex > 0 && path[Int64(endIndex)] == Char('/')) {
+    while (endIndex > 0 && path[Int64(endIndex)] == UInt8(47)) {
         endIndex -= 1
     }
-    if (endIndex == 0 && path[0] == Char('/')) {
+    if (endIndex == 0 && path[0] == UInt8(47)) {
         return ""
     }
     let startIndex: Int64 = endIndex
     endIndex += 1
     // 查找起始分隔符
     var begin: Int64 = startIndex
-    while (begin > 0 && path[Int64(begin)] != Char('/')) {
+    while (begin > 0 && path[Int64(begin)] != UInt8(47)) {
         begin -= 1
     }
-    if (path[Int64(begin)] == Char('/')) {
-        return path.substring(Int64(begin + 1), Int64(endIndex))
+    if (path[Int64(begin)] == UInt8(47)) {
+        return path[begin + 1..endIndex]
     }
-    return path.substring(0, Int64(endIndex))
+    return path[0..endIndex]
 }
 
 /// 提取路径最后一段 (basename) - 使用任意分隔符
 /// 对应 Bun: basename (loose 版本, 使用 isSepAny)
 public func basenameLoose(path: String): String {
-    if (path.isEmpty) {
+    if (path.isEmpty()) {
         return ""
     }
     // 去除尾部分隔符
@@ -171,9 +171,9 @@ public func basenameLoose(path: String): String {
         begin -= 1
     }
     if (isSepAnyChar(path[Int64(begin)])) {
-        return path.substring(Int64(begin + 1), Int64(endIndex))
+        return path[begin + 1..endIndex]
     }
-    return path.substring(0, Int64(endIndex))
+    return path[0..endIndex]
 }
 
 /// 提取目录名 - POSIX 版本
@@ -185,22 +185,22 @@ public func basenameLoose(path: String): String {
 ///       return str[0..separator];
 ///   }
 public func dirnamePosix(path: String): String {
-    if (path.isEmpty) {
+    if (path.isEmpty()) {
         return ""
     }
     // 去除尾部分隔符
     var p = withoutTrailingSlash(path)
-    if (p.isEmpty) {
+    if (p.isEmpty()) {
         return "/"
     }
-    let lastSlash = p.lastIndexOf('/')
-    if (lastSlash < 0) {
-        return ""
+    match (p.lastIndexOf('/')) {
+        case Some(lastSlash) =>
+            if (lastSlash == 0) {
+                return "/"
+            }
+            return p[0..lastSlash]
+        case None => return ""
     }
-    if (lastSlash == 0) {
-        return "/"
-    }
-    return p.substring(0, Int64(lastSlash))
 }
 
 /// 提取下一个目录名 (逐步回退)
@@ -209,7 +209,7 @@ public func dirnamePosix(path: String): String {
 ///       // 去除尾部分隔符和最后一段
 ///   }
 public func nextDirname(path: String): ?String {
-    if (path.isEmpty) {
+    if (path.isEmpty()) {
         return None
     }
     // 去除尾部分隔符
@@ -234,7 +234,7 @@ public func nextDirname(path: String): ?String {
     if (end == 0) {
         return None
     }
-    return path.substring(0, Int64(end))
+    return path[0..end]
 }
 
 // ============================================================================
@@ -250,7 +250,7 @@ public func lastIndexOfSeparatorPosix(path: String): ?Int64 {
     var i: Int64 = path.size
     while (i > 0) {
         i -= 1
-        if (path[i] == Char('/')) {
+        if (path[i] == UInt8(47)) {
             return i
         }
     }
@@ -281,7 +281,7 @@ public func lastIndexOfNonSeparatorPosix(path: String): ?Int64 {
     var i: Int64 = path.size
     while (i > 0) {
         i -= 1
-        if (path[i] != Char('/')) {
+        if (path[i] != UInt8(47)) {
             return i
         }
     }
@@ -302,18 +302,18 @@ public func lastIndexOfNonSeparatorPosix(path: String): ?Int64 {
 /// 对应 Bun: cloneNormalizingSeparators
 /// 去除重复的斜杠, 保留前导斜杠
 public func cloneNormalizingSeparators(path: String): String {
-    if (path.isEmpty) {
+    if (path.isEmpty()) {
         return path
     }
     let base = withoutTrailingSlash(path)
-    if (base.isEmpty) {
+    if (base.isEmpty()) {
         return "/"
     }
     var sb = StringBuilder()
     var i: Int64 = 0
-    let leadingSlash = base[0] == Char('/')
+    let leadingSlash = base[0] == UInt8(47)
     if (leadingSlash) {
-        sb.append(Char('/'))
+        sb.append(UInt8(47))
         i = 1
     }
     var first = true
@@ -325,7 +325,7 @@ public func cloneNormalizingSeparators(path: String): String {
         }
         // 提取非分隔符段
         if (!first) {
-            sb.append(Char('/'))
+            sb.append(UInt8(47))
         }
         first = false
         while (i < base.size && !isSepAnyChar(base[i])) {
@@ -334,7 +334,7 @@ public func cloneNormalizingSeparators(path: String): String {
         }
     }
     let result = sb.toString()
-    if (result.isEmpty) {
+    if (result.isEmpty()) {
         return if (leadingSlash) { "/" } else { "." }
     }
     return result

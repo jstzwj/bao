@@ -2,6 +2,7 @@
 package bao_uws_sys
 
 import bao_sys.*
+import bao_core.*
 
 // ============================================================================
 // C FFI 声明
@@ -40,34 +41,34 @@ public class Timer {
 
     /// 对应 Bun: pub fn create(loop: *Loop, ptr: anytype) *Timer
     public static func create(loop: CPointer<Unit>, extSize: UInt32): Timer {
-        let raw = us_create_timer(loop, 0, extSize)
-        if (raw == CPointer<Unit>.null) {
-            panic("us_create_timer: returned null")
+        let raw = unsafe { us_create_timer(loop, 0, extSize) }
+        if (raw.isNull()) {
+            Output.panic("us_create_timer: returned null")
         }
         return Timer(raw)
     }
 
     /// 对应 Bun: pub fn createFallthrough(loop: *Loop, ptr: anytype) *Timer
     public static func createFallthrough(loop: CPointer<Unit>, extSize: UInt32): Timer {
-        let raw = us_create_timer(loop, 1, extSize)
-        if (raw == CPointer<Unit>.null) {
-            panic("us_create_timer: returned null")
+        let raw = unsafe { us_create_timer(loop, 1, extSize) }
+        if (raw.isNull()) {
+            Output.panic("us_create_timer: returned null")
         }
         return Timer(raw)
     }
 
     /// 对应 Bun: pub fn set(this: *Timer, ptr: anytype, cb, ms, repeat_ms) void
     public func set(cb: CPointer<Unit>, ms: Int32, repeatMs: Int32): Unit {
-        us_timer_set(ptr, cb, ms, repeatMs)
+        unsafe { us_timer_set(ptr, cb, ms, repeatMs) }
     }
 
     /// 对应 Bun: pub fn deinit(this: *Timer, comptime fallthrough: bool) void
     public func deinit(fallthrough: Bool): Unit {
-        us_timer_close(ptr, if (fallthrough) 1 else 0)
+        unsafe { us_timer_close(ptr, if (fallthrough) { 1 } else { 0 }) }
     }
 
     /// 对应 Bun: pub fn ext(this: *Timer, comptime Type: type) ?*Type
     public func ext(): CPointer<CPointer<Unit>> {
-        return us_timer_ext(ptr)
+        return unsafe { us_timer_ext(ptr) }
     }
 }

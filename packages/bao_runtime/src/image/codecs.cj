@@ -6,6 +6,9 @@
 
 package bao_runtime.image
 
+foreign func bun_image_resize_scratch_size(srcW: Int32, srcH: Int32, dstW: Int32, dstH: Int32, filter: Int32): UInt64
+foreign func bun_image_resize_rgba8(src: CPointer<Unit>, srcW: Int32, srcH: Int32, dst: CPointer<Unit>, dstW: Int32, dstH: Int32, filter: Int32, scratch: CPointer<Unit>): Int32
+
 // ============================================================================
 // 图像格式
 // 对应 Bun: codecs.Format
@@ -97,7 +100,7 @@ public enum ImageFormat {
     /// 从扩展名推断格式
     /// 对应 Bun: Format.fromExtension
     public static func fromExtension(path: String): ?ImageFormat {
-        let lower = path.toLower()
+        let lower = path.toRuneArray().map({ r => r.toAsciiLowerCase() })
         if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) { return jpeg }
         if (lower.endsWith(".png")) { return png }
         if (lower.endsWith(".webp")) { return webp }
@@ -184,7 +187,7 @@ public enum Filter {
     | mks2021
 
     public static func fromString(s: String): Filter {
-        match (s.toLower()) {
+        match (s.toRuneArray().map({ r => r.toAsciiLowerCase() })) {
             case "box" => box
             case "bilinear" => bilinear
             case "linear" => bilinear
@@ -196,6 +199,20 @@ public enum Filter {
             case "mks2013" => mks2013
             case "mks2021" => mks2021
             case _ => lanczos3
+        }
+    }
+
+    public func toInt32(): Int32 {
+        match (this) {
+            case box => 0
+            case bilinear => 1
+            case lanczos3 => 2
+            case mitchell => 3
+            case nearest => 4
+            case cubic => 5
+            case lanczos2 => 6
+            case mks2013 => 7
+            case mks2021 => 8
         }
     }
 }
@@ -316,9 +333,25 @@ public class Codecs {
     /// 缩放图像
     /// 对应 Bun: resize
     public static func resize(src: Array<UInt8>, sw: UInt32, sh: UInt32, dw: UInt32, dh: UInt32, f: Filter): ?Array<UInt8> {
-        // 调用 highway 内核 bun_image_resize_rgba8
-        // 或系统后端 vImage
-        return None
+        if (backend == Backend.system) {
+            let systemOut = BackendCoreGraphics.scale(src, sw, sh, dw, dh, f)
+            if (systemOut != None) { return systemOut }
+        }
+
+        let outSize = UInt64(dw) * UInt64(dh) * 4
+        let scratchSize = bun_image_resize_scratch_size(Int32(sw), Int32(sh), Int32(dw), Int32(dh), f.toInt32())
+        var block = Array<UInt8>(Int64(outSize + scratchSize), item: 0)
+        let outPtr = block.ptr()
+        let scratchPtr = CPointer<Unit>(CPointer<UInt8>(outPtr) + IntNative(outSize))
+
+        if (bun_image_resize_rgba8(src.ptr(), Int32(sw), Int32(sh), outPtr,
+                                   Int32(dw), Int32(dh), f.toInt32(), scratchPtr) != 0) {
+            return None
+        }
+
+        var out = Array<UInt8>(Int64(outSize), item: 0)
+        for (i in 0..Int64(outSize)) { out[i] = block[i] }
+        return out
     }
 
     /// 旋转图像

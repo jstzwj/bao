@@ -26,7 +26,7 @@ public enum TSTypeKind {
     | Unknown        // unknown
     | Number         // number
     | Boolean        // boolean
-    | String         // string
+    | StringType     // string
     | Void           // void
     | Undefined      // undefined
     | Null           // null
@@ -34,7 +34,7 @@ public enum TSTypeKind {
     | Object         // object
     | Symbol         // symbol
     | BigInt         // bigint
-    | This           // this (类型)
+    | ThisType       // this (类型)
     | Literal        // 字面量类型 (字符串/数字/布尔)
     | Array          // T[]
     | Tuple          // [T, U, ...]
@@ -66,7 +66,7 @@ public enum TSTypeKind {
             case Unknown => "unknown"
             case Number => "number"
             case Boolean => "boolean"
-            case String => "string"
+            case StringType => "string"
             case Void => "void"
             case Undefined => "undefined"
             case Null => "null"
@@ -74,7 +74,7 @@ public enum TSTypeKind {
             case Object => "object"
             case Symbol => "symbol"
             case BigInt => "bigint"
-            case This => "this"
+            case ThisType => "this"
             case Literal => "literal"
             case Array => "array"
             case Tuple => "tuple"
@@ -289,8 +289,8 @@ public class TSInterface {
     }
 
     /// 添加属性
-    public func addProperty(prop: TSInterfaceProperty): Unit {
-        properties.append(TSTypeProperty.fromInterfaceProperty(prop))
+    public func addProperty(`prop`: TSInterfaceProperty): Unit {
+        properties.append(TSTypeProperty.fromInterfaceProperty(`prop`))
     }
 
     /// 添加继承
@@ -349,16 +349,16 @@ public class TSTypeProperty {
     }
 
     /// 从 TSInterfaceProperty 创建
-    public static func fromInterfaceProperty(prop: TSInterfaceProperty): TSTypeProperty {
+    public static func fromInterfaceProperty(`prop`: TSInterfaceProperty): TSTypeProperty {
         let p = TSTypeProperty(
-            prop.name,
-            if (prop.isMethod) { TSPropertyKind.Method } else { TSPropertyKind.Property },
-            prop.loc
+            `prop`.name,
+            if (`prop`.isMethod) { TSPropertyKind.Method } else { TSPropertyKind.Property },
+            `prop`.loc
         )
-        p.isOptional = prop.isOptional
-        p.isReadonly = prop.isReadonly
-        p.isStatic = prop.isStatic
-        p.typeAnnotation = prop.typeAnnotation
+        p.isOptional = `prop`.isOptional
+        p.isReadonly = `prop`.isReadonly
+        p.isStatic = `prop`.isStatic
+        p.typeAnnotation = `prop`.typeAnnotation
         return p
     }
 }
@@ -403,14 +403,14 @@ public class TSTypeAlias {
     /// 泛型参数
     public var typeParameters: ArrayList<TSTypeAnnotation>
     /// 类型定义
-    public var type: TSTypeAnnotation
+    public var `type`: TSTypeAnnotation
     /// 源码位置
     public var loc: ASTLoc
 
-    public init(name: String, type: TSTypeAnnotation, loc: ASTLoc) {
+    public init(name: String, `type`: TSTypeAnnotation, loc: ASTLoc) {
         this.name = name
         this.typeParameters = ArrayList<TSTypeAnnotation>()
-        this.type = type
+        this.`type` = `type`
         this.loc = loc
     }
 }

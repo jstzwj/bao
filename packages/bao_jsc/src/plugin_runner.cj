@@ -14,11 +14,21 @@ import bao_bundler.PluginResolver
 import bao_core.OwnedString
 import bao_core.BunString
 
-// Local FsPath stub for plugin runner
+/// 文件系统路径，严格对应 Bun `bun_paths::fs::Path` 在插件解析中的 path + namespace。
 class FsPath {
     public var text: String = ""
+    public var namespace: String = "file"
+
     public init() {}
     public init(text: String) { this.text = text }
+    public init(text: String, namespace: String) {
+        this.text = text
+        this.namespace = namespace
+    }
+
+    public static func initWithNamespace(path: Array<Byte>, namespace: Array<Byte>): FsPath {
+        return FsPath(String.fromUtf8(path), String.fromUtf8(namespace))
+    }
 }
 
 // ========== PluginRunner ==========

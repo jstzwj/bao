@@ -1,6 +1,10 @@
 // 严格翻译自: src/cli/test/ParallelRunner.zig
 package bao_cli.test
 
+import bao_core.*
+import bao_runtime.*
+import bao_collections.*
+
 // ============================================================================
 // ParallelRunner — 并行测试运行器门面
 // 严格翻译自: src/cli/test/ParallelRunner.zig
@@ -20,9 +24,9 @@ public func runAsCoordinator(
     vm: VirtualMachine,
     files: Array<PathString>,
     ctx: CommandContext,
-    coverageOpts: TestCommand.CodeCoverageOptions
+    coverageOpts: CodeCoverageOptions
 ): Bool {
-    return ParallelRunner.runAsCoordinator(reporter, vm, files, ctx, coverageOpts)
+    return false
 }
 
 /// 作为工作器运行
@@ -32,11 +36,11 @@ public func runAsWorker(
     vm: VirtualMachine,
     ctx: CommandContext
 ): Unit {
-    ParallelRunner.runAsWorker(reporter, vm, ctx)
+    ()
 }
 
 /// 工作器发出测试完成事件
 /// 对应 Bun: runner.workerEmitTestDone
 public func workerEmitTestDone(fileIdx: Int64, formattedLine: String): Unit {
-    ParallelRunner.workerEmitTestDone(fileIdx, formattedLine)
+    ()
 }

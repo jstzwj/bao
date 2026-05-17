@@ -50,6 +50,8 @@ public class ImportRecord {
     public var isTypeOnly: Bool
     /// 延迟加载 (dynamic import)
     public var isDeferred: Bool
+    /// 源索引 (对应 Bun ImportRecord.source_index)
+    public var sourceIndex: Int64
 
     public init(path: String) {
         this.path = path
@@ -65,20 +67,8 @@ public class ImportRecord {
         this.index = 0
         this.isTypeOnly = false
         this.isDeferred = false
+        this.sourceIndex = -1
     }
-}
-
-/// 导入类型
-/// 严格翻译自: src/bundler/bundled_ast.zig ImportKind
-public enum ImportKind {
-    | Static         // import ... from "..."
-    | Dynamic        // import("...")
-    | Require        // require("...")
-    | AtImport       // CSS @import
-    | Url            // CSS url()
-    | AtCharset      // CSS @charset
-    | AtLayer        // CSS @layer
-    | ComposeFrom    // CSS composes: ... from "..."
 }
 
 /// 导入说明符 (named import 中的单个绑定)
@@ -219,13 +209,12 @@ public class DependencyGraph {
     public func getOrAddNode(path: String): ModuleNode {
         match (nodes.get(path)) {
             case Some(node) => return node
-            case None => {
+            case None =>
                 let node = ModuleNode(path)
                 node.moduleId = nextModuleId
                 nextModuleId++
                 nodes.put(path, node)
                 return node
-            }
         }
     }
 
@@ -284,13 +273,12 @@ public class DependencyGraph {
             result.append(path)
 
             match (nodes.get(path)) {
-                case Some(node) => {
+                case Some(node) =>
                     for (dep in node.dependencies) {
                         if (!visited.contains(dep)) {
                             queue.append(dep)
                         }
                     }
-                }
                 case None => ()
             }
         }
@@ -324,14 +312,13 @@ public class DependencyGraph {
             // 找到循环
             let cycleStart = path.indexOf(current)
             match (cycleStart) {
-                case Some(idx) => {
+                case Some(idx) =>
                     let cycle = ArrayList<String>()
                     for (i in idx..path.size) {
                         cycle.append(path[Int64(i)])
                     }
                     cycle.append(current)
                     cycles.append(cycle)
-                }
                 case None => ()
             }
             return
@@ -343,11 +330,10 @@ public class DependencyGraph {
         path.append(current)
 
         match (nodes.get(current)) {
-            case Some(node) => {
+            case Some(node) =>
                 for (dep in node.dependencies) {
                     dfsDetectCycles(dep, visited, stack, path, cycles)
                 }
-            }
             case None => ()
         }
 
@@ -503,28 +489,23 @@ public class Linker {
         // 读取源码
         let sourceOpt = BaoFile.readAllText(absPath)
         match (sourceOpt) {
-            case Some(src) => {
+            case Some(src) =>
                 node.source = src
                 node.size = src.length
 
                 // 根据模块类型解析导入
                 match (node.moduleType) {
                     case ModuleType.JavaScript | ModuleType.TypeScript |
-                         ModuleType.JSX | ModuleType.TSX => {
+                         ModuleType.JSX | ModuleType.TSX =>
                         linkJavaScript(node, src)
-                    }
-                    case ModuleType.CSS => {
+                    case ModuleType.CSS =>
                         linkCSS(node, src)
-                    }
-                    case ModuleType.JSON => {
-                        // JSON 没有导入
-                    }
+                    case ModuleType.JSON =>
+                        ()
                     case _ => ()
                 }
-            }
-            case None => {
+            case None =>
                 result.errors.append(LinkError("Could not read file: ${absPath}", absPath))
-            }
         }
 
         processedModules.add(absPath)
@@ -538,7 +519,7 @@ public class Linker {
         let parser = JavaScriptParser()
         let ast = parser.parse(source, node.path)
         match (ast) {
-            case Some(program) => {
+            case Some(program) =>
                 node.ast = Some(program)
                 // 提取 import 声明
                 let imports = extractImports(program)
@@ -548,7 +529,7 @@ public class Linker {
                     // 解析导入路径
                     let resolved = resolveImportPath(node.path, imp.path, node.moduleType)
                     match (resolved) {
-                        case Some(resolvedPath) => {
+                        case Some(resolvedPath) =>
                             imp.resolvedPath = Some(resolvedPath)
                             // 检查是否是外部依赖
                             if (isExternal(imp.path)) {
@@ -559,8 +540,7 @@ public class Linker {
                                 result.graph.addDependency(node.path, resolvedPath)
                                 linkModule(resolvedPath)
                             }
-                        }
-                        case None => {
+                        case None =>
                             // 未解析: 可能是 node 内置模块或外部
                             if (isNodeBuiltin(imp.path)) {
                                 imp.isExternal = true
@@ -570,7 +550,6 @@ public class Linker {
                                     node.path
                                 ))
                             }
-                        }
                     }
                 }
 
@@ -579,10 +558,8 @@ public class Linker {
                 for (exp in exports) {
                     node.exports.append(exp)
                 }
-            }
-            case None => {
+            case None =>
                 result.errors.append(LinkError("Parse error in ${node.path}", node.path))
-            }
         }
     }
 
@@ -597,12 +574,11 @@ public class Linker {
 
             let resolved = resolveCSSImportPath(node.path, cssImp.path)
             match (resolved) {
-                case Some(resolvedPath) => {
+                case Some(resolvedPath) =>
                     imp.resolvedPath = Some(resolvedPath)
                     result.graph.addDependency(node.path, resolvedPath)
                     linkModule(resolvedPath)
-                }
-                case None => {
+                case None =>
                     // CSS url() 可能是外部 URL 或 data URI
                     if (!cssImp.path.startsWith("data:") && !cssImp.path.startsWith("http://") &&
                         !cssImp.path.startsWith("https://")) {
@@ -611,7 +587,6 @@ public class Linker {
                             node.path
                         ))
                     }
-                }
             }
             node.imports.append(imp)
         }
@@ -632,7 +607,7 @@ public class Linker {
         let resolved = resolver.resolve(fromPath, specifier)
         match (resolved) {
             case Some(path) => return Some(path)
-            case None => {
+            case None =>
                 // 尝试添加扩展名
                 let extensions = [".js", ".ts", ".jsx", ".tsx", ".mjs", ".cjs", ".json"]
                 for (ext in extensions) {
@@ -653,31 +628,27 @@ public class Linker {
                 // 尝试 package.json 的 main/module
                 let packageJsonPath = resolver.resolve(fromPath, specifier + "/package.json")
                 match (packageJsonPath) {
-                    case Some(pkgPath) => {
+                    case Some(pkgPath) =>
                         let content = BaoFile.readAllText(pkgPath)
                         match (content) {
-                            case Some(text) => {
+                            case Some(text) =>
                                 let parser = JsonParser()
                                 let json = parser.parse(text)
                                 match (json) {
-                                    case Some(root) => {
-                                        let main = JsonHelper.getString(root, "module") ??
+                                    case Some(root) =>
+                                        let mainModule = JsonHelper.getString(root, "module") ??
                                                    JsonHelper.getString(root, "main") ?? "index.js"
-                                        let mainPath = resolver.resolve(fromPath, specifier + "/" + main)
+                                        let mainPath = resolver.resolve(fromPath, specifier + "/" + mainModule)
                                         match (mainPath) {
                                             case Some(p) => return Some(p)
                                             case None => ()
                                         }
-                                    }
                                     case None => ()
                                 }
-                            }
                             case None => ()
                         }
-                    }
                     case None => ()
                 }
-            }
         }
         return None
     }
@@ -702,7 +673,7 @@ public class Linker {
 
         for (stmt in program.body) {
             match (stmt) {
-                case Statement.ImportDeclaration(decl) => {
+                case Statement.ImportDeclaration(decl) =>
                     let imp = ImportRecord(decl.source)
                     imp.kind = ImportKind.Static
                     imp.isTypeOnly = decl.isTypeOnly
@@ -715,35 +686,30 @@ public class Linker {
                         imp.importedNames.append(specifier)
                     }
                     result.append(imp)
-                }
-                case Statement.ExportAllDeclaration(decl) => {
+                case Statement.ExportAllDeclaration(decl) =>
                     let imp = ImportRecord(decl.source)
                     imp.kind = ImportKind.Static
                     let expRecord = ExportRecord(ExportKind.ReexportAll, "*")
                     expRecord.reexportFrom = Some(decl.source)
                     result.append(imp)
-                }
-                case Statement.ExportNamedDeclaration(decl) => {
+                case Statement.ExportNamedDeclaration(decl) =>
                     match (decl.source) {
-                        case Some(src) => {
+                        case Some(src) =>
                             let imp = ImportRecord(src)
                             imp.kind = ImportKind.Static
                             result.append(imp)
-                        }
                         case None => ()
                     }
-                }
-                case Statement.ExpressionStatement(expr) => {
+                case Statement.ExpressionStatement(expr) =>
                     // 动态 import
                     if (isDynamicImport(expr)) {
                         let source = extractDynamicImportSource(expr)
                         match (source) {
-                            case Some(src) => {
+                            case Some(src) =>
                                 let imp = ImportRecord(src)
                                 imp.kind = ImportKind.Dynamic
                                 imp.isDeferred = options.deferDynamicImports
                                 result.append(imp)
-                            }
                             case None => ()
                         }
                     }
@@ -751,15 +717,13 @@ public class Linker {
                     if (isRequireCall(expr)) {
                         let source = extractRequireSource(expr)
                         match (source) {
-                            case Some(src) => {
+                            case Some(src) =>
                                 let imp = ImportRecord(src)
                                 imp.kind = ImportKind.Require
                                 result.append(imp)
-                            }
                             case None => ()
                         }
                     }
-                }
                 case _ => ()
             }
         }
@@ -773,26 +737,22 @@ public class Linker {
 
         for (stmt in program.body) {
             match (stmt) {
-                case Statement.ExportDefaultDeclaration(decl) => {
+                case Statement.ExportDefaultDeclaration(decl) =>
                     result.append(ExportRecord(ExportKind.Default, "default"))
-                }
-                case Statement.ExportNamedDeclaration(decl) => {
+                case Statement.ExportNamedDeclaration(decl) =>
                     for (spec in decl.specifiers) {
                         let exp = ExportRecord(ExportKind.Named, spec.exported)
                         exp.localName = Some(spec.local)
                         match (decl.source) {
-                            case Some(src) => {
+                            case Some(src) =>
                                 exp.kind = ExportKind.ReexportNamed
                                 exp.reexportFrom = Some(src)
-                            }
                             case None => ()
                         }
                         result.append(exp)
                     }
-                }
-                case Statement.ExportAllDeclaration(decl) => {
+                case Statement.ExportAllDeclaration(decl) =>
                     result.append(ExportRecord(ExportKind.ReexportAll, "*"))
-                }
                 case _ => ()
             }
         }
@@ -1003,15 +963,6 @@ public class ExportAllData {
 /// 表达式数据
 public class ExpressionData {
     public init() {}
-}
-
-/// AST 程序 (简化)
-public class Program {
-    public var body: ArrayList<Statement>
-
-    public init() {
-        body = ArrayList<Statement>()
-    }
 }
 
 /// JavaScript 解析器 (简化)

@@ -58,6 +58,7 @@
 package bao_event_loop
 
 import bao_core.*
+import bao_collections.*
 
 // ============================================================================
 // DeferredRepeatingTask - 延迟重复任务回调类型
@@ -206,7 +207,10 @@ public class DeferredTaskQueueV2 {
     ///   }
     public func postTask(ctx: String, task: DeferredRepeatingTask): Bool {
         let existing = map.get(ctx)
-        let foundExisting = existing != None
+        let foundExisting = match (existing) {
+            case Some(_) => true
+            case None => false
+        }
         map.put(ctx, task)
         if (!foundExisting) {
             order.append(ctx)
@@ -242,7 +246,10 @@ public class DeferredTaskQueueV2 {
     ///       return this.map.swapRemove(ctx)
     ///   }
     public func unregisterTask(ctx: String): Bool {
-        let removed = map.remove(ctx)
+        let removed = match (map.remove(ctx)) {
+            case Some(_) => true
+            case None => false
+        }
         if (removed) {
             // 从排序列表中移除
             var idx: Int64 = 0
@@ -341,7 +348,7 @@ public class DeferredTaskQueueV2 {
             // 执行回调
             // Bun: if (!this.map.values()[i](key)) { ... }
             let task = map.get(key)
-            if (let Some(t) = task) {
+            if (let Some(t) <- task) {
                 if (!t.run()) {
                     // 回调返回 false, 移除
                     // Bun: this.map.swapRemoveAt(i); last = this.map.count()
@@ -392,7 +399,10 @@ public class DeferredTaskQueueV2 {
 
     /// 是否包含指定上下文
     public func contains(ctx: String): Bool {
-        map.get(ctx) != None
+        match (map.get(ctx)) {
+            case Some(_) => true
+            case None => false
+        }
     }
 
     /// 获取所有注册的上下文

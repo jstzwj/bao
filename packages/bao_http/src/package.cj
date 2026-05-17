@@ -39,7 +39,7 @@ public enum HttpMethod {
     }
 
     public static func fromString(s: String): HttpMethod {
-        match (s.toUpper()) {
+        match (packageUpper(s)) {
             case "GET" => GET
             case "POST" => POST
             case "PUT" => PUT
@@ -68,7 +68,7 @@ public class Headers {
         headers = HashMap<String, String>()
         for (entry in entries) {
             if (entry.size >= 2) {
-                headers.put(entry[0].toLower(), entry[1])
+                headers.put(packageLower(entry[0]), entry[1])
             }
         }
     }
@@ -78,31 +78,31 @@ public class Headers {
         headers = HashMap<String, String>()
         for (key in obj.keys()) {
             match (obj.get(key)) {
-                case Some(v) => headers.put(key.toLower(), v)
+                case Some(v) => headers.put(packageLower(key), v)
                 case None => ()
             }
         }
     }
 
     public func get(name: String): ?String {
-        return headers.get(name.toLower())
+        return headers.get(packageLower(name))
     }
 
     public func set(name: String, value: String): Unit {
-        headers.put(name.toLower(), value)
+        headers.put(packageLower(name), value)
     }
 
     public func has(name: String): Bool {
-        return headers.contains(name.toLower())
+        return headers.contains(packageLower(name))
     }
 
     public func remove(name: String): Unit {
-        headers.remove(name.toLower())
+        headers.remove(packageLower(name))
     }
 
     /// 追加值 (同一 header 多值)
     public func append(name: String, value: String): Unit {
-        let key = name.toLower()
+        let key = packageLower(name)
         match (headers.get(key)) {
             case Some(existing) => headers.put(key, "${existing}, ${value}")
             case None => headers.put(key, value)
@@ -139,12 +139,11 @@ public class Headers {
         let sb = StringBuilder()
         for (key in headers.keys()) {
             match (headers.get(key)) {
-                case Some(v) => {
+                case Some(v) =>
                     sb.append(key)
                     sb.append(": ")
                     sb.append(v)
                     sb.append("\r\n")
-                }
                 case None => ()
             }
         }
@@ -162,6 +161,52 @@ public class Headers {
         }
         return h
     }
+}
+
+private func packageLowerByte(c: UInt8): UInt8 {
+    if (c >= UInt8(65) && c <= UInt8(90)) {
+        return c + UInt8(32)
+    }
+    return c
+}
+
+private func packageUpperByte(c: UInt8): UInt8 {
+    if (c >= UInt8(97) && c <= UInt8(122)) {
+        return c - UInt8(32)
+    }
+    return c
+}
+
+private func packageLower(s: String): String {
+    let sb = StringBuilder()
+    for (c in s) {
+        sb.append(packageLowerByte(c))
+    }
+    return sb.toString()
+}
+
+private func packageUpper(s: String): String {
+    let sb = StringBuilder()
+    for (c in s) {
+        sb.append(packageUpperByte(c))
+    }
+    return sb.toString()
+}
+
+private func packageBytesToString(bytes: Array<UInt8>): String {
+    let sb = StringBuilder()
+    for (b in bytes) {
+        sb.append(Rune(UInt32(b)))
+    }
+    return sb.toString()
+}
+
+private func packageStringToBytes(s: String): Array<UInt8> {
+    let bytes = ArrayList<UInt8>()
+    for (c in s) {
+        bytes.append(c)
+    }
+    return bytes.toOwnedSlice()
 }
 
 /// HTTP 状态码映射
@@ -253,44 +298,45 @@ public class ParsedUrl {
         var remaining = url
 
         // protocol
-        let protoIdx = remaining.indexOf("://")
-        if (protoIdx >= 0) {
-            result.protocol = remaining.substring(0, protoIdx)
-            remaining = remaining.substring(protoIdx + 3)
+        let protoIdxOpt = remaining.indexOf("://")
+        if (protoIdxOpt.isSome()) {
+            let protoIdx = protoIdxOpt.getOrThrow()
+            result.protocol = remaining[0..protoIdx]
+            remaining = remaining[(protoIdx + 3)..]
         }
 
         // hash
-        let hashIdx = remaining.indexOf("#")
-        if (hashIdx >= 0) {
-            result.hash = remaining.substring(hashIdx + 1)
-            remaining = remaining.substring(0, hashIdx)
+        let hashIdxOpt = remaining.indexOf("#")
+        if (hashIdxOpt.isSome()) {
+            let hashIdx = hashIdxOpt.getOrThrow()
+            result.hash = remaining[(hashIdx + 1)..]
+            remaining = remaining[0..hashIdx]
         }
 
         // search
-        let searchIdx = remaining.indexOf("?")
-        if (searchIdx >= 0) {
-            result.search = remaining.substring(searchIdx + 1)
-            remaining = remaining.substring(0, searchIdx)
+        let searchIdxOpt = remaining.indexOf("?")
+        if (searchIdxOpt.isSome()) {
+            let searchIdx = searchIdxOpt.getOrThrow()
+            result.search = remaining[(searchIdx + 1)..]
+            remaining = remaining[0..searchIdx]
         }
 
         // path
-        let pathIdx = remaining.indexOf("/")
-        if (pathIdx >= 0) {
-            result.path = remaining.substring(pathIdx)
-            remaining = remaining.substring(0, pathIdx)
+        let pathIdxOpt = remaining.indexOf("/")
+        if (pathIdxOpt.isSome()) {
+            let pathIdx = pathIdxOpt.getOrThrow()
+            result.path = remaining[pathIdx..]
+            remaining = remaining[0..pathIdx]
         } else {
             result.path = "/"
         }
 
         // host:port
-        let colonIdx = remaining.lastIndexOf(":")
-        if (colonIdx >= 0) {
-            result.hostname = remaining.substring(0, colonIdx)
-            try {
-                result.port = Int64.parse(remaining.substring(colonIdx + 1))
-            } catch (_: Exception) {
-                result.port = 80
-            }
+        let colonIdxOpt = remaining.lastIndexOf(":")
+        if (colonIdxOpt.isSome()) {
+            let colonIdx = colonIdxOpt.getOrThrow()
+            result.hostname = remaining[0..colonIdx]
+            result.port = parseInt64(remaining[(colonIdx + 1)..])
         } else {
             result.hostname = remaining
             result.port = if (result.protocol == "https") { 443 } else { 80 }
@@ -327,16 +373,10 @@ public class Request {
 
     /// 获取请求体为字符串
     public func text(): String {
-        match (body) {
-            case Some(bytes) => {
-                let sb = StringBuilder()
-                for (b in bytes) {
-                    sb.append(Char(Int32(b)))
-                }
-                return sb.toString()
-            }
-            case None => ""
+        if (body.isSome()) {
+            return packageBytesToString(body.getOrThrow())
         }
+        return ""
     }
 
     /// 获取请求体为 JSON (返回字符串形式)
@@ -432,20 +472,14 @@ public class Response {
 
     /// 获取响应体为字符串
     public func text(): String {
-        match (body) {
-            case Some(bytes) => {
-                let sb = StringBuilder()
-                for (b in bytes) {
-                    sb.append(Char(Int32(b)))
-                }
-                return sb.toString()
-            }
-            case None => ""
+        if (body.isSome()) {
+            return packageBytesToString(body.getOrThrow())
         }
+        return ""
     }
 
     /// 获取响应体为 JSON 字符串
-    public func json(): String {
+    public func jsonText(): String {
         return text()
     }
 
@@ -460,11 +494,7 @@ public class Response {
     }
 
     private static func stringToBytes(s: String): Array<UInt8> {
-        var bytes = Array<UInt8>()
-        for (c in s) {
-            bytes.append(UInt8(c.value))
-        }
-        return bytes
+        return packageStringToBytes(s)
     }
 }
 
@@ -478,23 +508,23 @@ public type RequestHandler = (Request) -> Response
 
 /// HTTP 服务器
 /// 对应 Bun: src/http/server.zig Server
-public class HttpServer {
+public class PackageHttpServer {
     private var handler: ?RequestHandler
-    private var eventLoop: EventLoop
+    private var eventLoop: EventLoopHandle
     private var listening: Bool
     private var port: Int64
     private var host: String
 
     public init() {
         handler = None
-        eventLoop = EventLoop()
+        eventLoop = EventLoopHandle(MiniEventLoop())
         listening = false
         port = 3000
         host = "0.0.0.0"
     }
 
     /// 设置请求处理函数
-    public func setHandler(handler: RequestHandler): HttpServer {
+    public func setHandler(handler: RequestHandler): PackageHttpServer {
         this.handler = Some(handler)
         return this
     }
@@ -586,54 +616,54 @@ public class HttpClient {
             case Some(u) => u
             case None => ParsedUrl.parse(request.url)
         }
-        let bodyStr = match (request.body) {
-            case Some(bytes) => {
-                let sb = StringBuilder()
-                for (b in bytes) { sb.append(Char(Int32(b))) }
-                Some(sb.toString())
-            }
-            case None => None
+        let bodyStr: ?String = if (request.body.isSome()) {
+            Some(packageBytesToString(request.body.getOrThrow()))
+        } else {
+            None
         }
         return executeRequest(request.method, parsed, request.headers, bodyStr)
     }
 
     /// 执行 HTTP 请求
-    /// 当前为简化实现，需要 C FFI socket 支持才能真正工作
+    /// 对应 Bun: AsyncHTTP.init + HTTPClient.start
     private static func executeRequest(method: HttpMethod, url: ParsedUrl,
                                         headers: Headers, body: ?String): Response {
-        // 构建原始 HTTP 请求
-        let sb = StringBuilder()
-        sb.append(method.toString())
-        sb.append(" ")
-        sb.append(url.path)
-        if (url.search.length > 0) {
-            sb.append("?")
-            sb.append(url.search)
-        }
-        sb.append(" HTTP/1.1\r\n")
-        sb.append("Host: ${url.hostname}\r\n")
-
-        // 添加请求头
+        let requestUrl = buildUrl(url)
+        var builder = HttpRequestBuilder(method, requestUrl)
         for (key in headers.keys()) {
             match (headers.get(key)) {
-                case Some(v) => sb.append("${key}: ${v}\r\n")
+                case Some(v) => builder.header(key, v)
                 case None => ()
             }
         }
-
-        // 添加 body
         match (body) {
-            case Some(b) => {
-                sb.append("Content-Length: ${b.length}\r\n")
-                sb.append("\r\n")
-                sb.append(b)
-            }
-            case None => sb.append("\r\n")
+            case Some(b) => builder.body(b)
+            case None => ()
         }
 
-        // TODO: 通过 C FFI socket 发送请求并解析响应
-        // 当前返回模拟响应
-        return Response(501, "HTTP client not yet implemented - requires C FFI socket")
+        let client = HttpClient2()
+        let response = client.sendWithRedirects(builder)
+        match (response) {
+            case Some(r) => r
+            case None => Response(500, "HTTP request failed")
+        }
+    }
+
+    private static func buildUrl(url: ParsedUrl): String {
+        let sb = StringBuilder()
+        sb.append(url.protocol)
+        sb.append("://")
+        sb.append(url.hostname)
+        if ((url.protocol == "http" && url.port != 80) || (url.protocol == "https" && url.port != 443)) {
+            sb.append(":")
+            sb.append(url.port.toString())
+        }
+        sb.append(url.path)
+        if (url.search.size > 0) {
+            sb.append("?")
+            sb.append(url.search)
+        }
+        return sb.toString()
     }
 }
 
@@ -722,19 +752,11 @@ public class Blob {
     }
 
     public func text(): String {
-        let sb = StringBuilder()
-        for (b in data) {
-            sb.append(Char(Int32(b)))
-        }
-        return sb.toString()
+        return packageBytesToString(data)
     }
 
     public static func fromString(s: String, type_: String): Blob {
-        var bytes = Array<UInt8>()
-        for (c in s) {
-            bytes.append(UInt8(c.value))
-        }
-        return Blob(bytes, type_)
+        return Blob(packageStringToBytes(s), type_)
     }
 }
 

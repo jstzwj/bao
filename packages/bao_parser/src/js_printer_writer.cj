@@ -60,16 +60,16 @@ public class BufferWriter {
         appendNullByte = false
         appendNewline = false
         approximateNewlineCount = 0
-        lastBytes = Array<UInt8>(2, item: 0)
+        lastBytes = Array<UInt8>(2, repeat: 0)
     }
 
-    public init(allocator: Allocator): Unit {
+    public init(allocator: Allocator) {
         buffer = MutableString()
         written = ""
         appendNullByte = false
         appendNewline = false
         approximateNewlineCount = 0
-        lastBytes = Array<UInt8>(2, item: 0)
+        lastBytes = Array<UInt8>(2, repeat: 0)
     }
 
     /// 获取最后字节 - 对应 getLastByte()
@@ -84,7 +84,7 @@ public class BufferWriter {
 
     /// 获取已写入数据 - 对应 getWritten()
     public func getWritten(): String {
-        return buffer.slice()
+        return buffer.toString()
     }
 
     /// 获取可变缓冲区 - 对应 getMutableBuffer()
@@ -102,7 +102,7 @@ public class BufferWriter {
     /// 写入单字节 - 对应 writeByte()
     public func writeByte(byte: UInt8): Int64 {
         buffer.appendChar(byte)
-        approximateNewlineCount += if (byte == UInt8('\n')) { Int64(1) } else { Int64(0) }
+        approximateNewlineCount += if (byte == 10) { Int64(1) } else { Int64(0) }
         lastBytes[0] = lastBytes[1]
         lastBytes[1] = byte
         return 1
@@ -110,23 +110,24 @@ public class BufferWriter {
 
     /// 写入字节序列 - 对应 writeAll()
     public func writeAll(bytes: String): Int64 {
-        buffer.append(bytes)
-        if (bytes.length > 0 && bytes[bytes.length - 1] == '\n') {
+        buffer.appendStr(bytes)
+        let len = Int64(bytes.size)
+        if (len > 0 && bytes[Int64(bytes.size) - 1] == 10) {
             approximateNewlineCount += 1
         }
-        if (bytes.length >= 2) {
-            lastBytes[0] = UInt8(bytes[bytes.length - 2])
-            lastBytes[1] = UInt8(bytes[bytes.length - 1])
-        } else if (bytes.length >= 1) {
+        if (len >= 2) {
+            lastBytes[0] = bytes[Int64(bytes.size) - 2]
+            lastBytes[1] = bytes[Int64(bytes.size) - 1]
+        } else if (len >= 1) {
             lastBytes[0] = lastBytes[1]
-            lastBytes[1] = UInt8(bytes[bytes.length - 1])
+            lastBytes[1] = bytes[Int64(bytes.size) - 1]
         }
-        return Int64(bytes.length)
+        return len
     }
 
     /// 获取切片 - 对应 slice()
     public func slice(): String {
-        return buffer.slice()
+        return buffer.toString()
     }
 
     /// 重置 - 对应 reset()
@@ -140,9 +141,9 @@ public class BufferWriter {
     public func done(): Unit {
         if (appendNewline) {
             appendNewline = false
-            buffer.appendChar(UInt8('\n'))
+            buffer.appendChar(10)
         }
-        written = buffer.slice()
+        written = buffer.toString()
     }
 
     /// 刷新 - 对应 flush()
@@ -166,7 +167,7 @@ public class DirectWriter {
 
     public func write(buf: String): Int64 {
         // 简化: 实际应调用系统写入
-        return Int64(buf.length)
+        return Int64(buf.size)
     }
 
     public func writeAll(buf: String): Unit {
@@ -197,7 +198,6 @@ public class Ast {
     public var topLevelAwaitKeyword: String
     public var exportStarImportRecords: ArrayList<Int64>
     public var moduleScope: Scope
-    public var parts: ArrayList<Part>
     public var nestedScopeSlotCounts: ScopeSlotCounts
     public var charFreq: ?CharFrequency
 
@@ -217,7 +217,7 @@ public class Ast {
         approximateNewlineCount = 0
         topLevelAwaitKeyword = ""
         exportStarImportRecords = ArrayList<Int64>()
-        moduleScope = Scope()
+        moduleScope = Scope(0, ScopeKind.Block)
         parts = ArrayList<Part>()
         nestedScopeSlotCounts = ScopeSlotCounts()
         charFreq = None
@@ -238,7 +238,7 @@ public class Part {
 }
 
 /// Scope 占位
-public class Scope {}
+public class PrinterScope {}
 
 /// ScopeSlotCounts 占位
 public class ScopeSlotCounts {}
@@ -246,14 +246,7 @@ public class ScopeSlotCounts {}
 /// CharFrequency 占位
 public class CharFrequency {}
 
-/// ExportsKind
-public enum ExportsKind {
-    | None
-    | Cjs
-    | Esm
-    | EsmWithDynamicFallback
-    | EsmWithDynamicFallbackFromCjs
-}
+/// ExportsKind - 已在 package.cj 中定义
 
 /// Allocator 占位
 public class Allocator {}
@@ -375,117 +368,7 @@ public func printWithRenamer(asciiOnly: Bool, tree: Ast, opts: PrinterOptions,
 // ImportRecordFlags - 导入记录标志
 // ============================================================================
 
-/// 导入记录标志 - 对应 Bun ImportRecord.Flags
-public class ImportRecordFlags {
-    public var containsImportStar: Bool
-    public var containsDefaultAlias: Bool
-    public var isInternal: Bool
-    public var wasOriginallyRequire: Bool
-    public var handlesImportErrors: Bool
-    public var wasOriginallyBareImport: Bool
-    public var wrapWithToEsm: Bool
-    public var wrapWithToCommonjs: Bool
-    public var printNamespaceInPath: Bool
+// ImportRecordFlags - 已在 scan_imports.cj 中定义
 
-    public init() {
-        containsImportStar = false
-        containsDefaultAlias = false
-        isInternal = false
-        wasOriginallyRequire = false
-        handlesImportErrors = false
-        wasOriginallyBareImport = false
-        wrapWithToEsm = false
-        wrapWithToCommonjs = false
-        printNamespaceInPath = false
-    }
-}
+// HashMap uses bao_collections.HashMap (imported via bao_collections.*)
 
-// ============================================================================
-// HashMap 占位
-// ============================================================================
-
-/// 简单 HashMap - 用于存储键值对
-public class HashMap<K, V> {
-    private var keys: ArrayList<K>
-    private var values: ArrayList<V>
-
-    public init() {
-        keys = ArrayList<K>()
-        values = ArrayList<V>()
-    }
-
-    public func size(): Int64 {
-        return keys.size()
-    }
-
-    public func put(key: K, value: V): Unit {
-        keys.append(key)
-        values.append(value)
-    }
-
-    public func get(key: K): ?V {
-        for (i in 0..keys.size()) {
-            // 简化比较
-            let k = keys[i]
-            if (k == key) {
-                return values[i]
-            }
-        }
-        return None
-    }
-
-    public func contains(key: K): Bool {
-        return get(key) != None
-    }
-
-    public func keys(): ArrayList<K> {
-        return keys
-    }
-
-    public func values(): ArrayList<V> {
-        return values
-    }
-
-    public func count(): Int64 {
-        return keys.size()
-    }
-}
-
-/// 字符串键 HashMap
-public class StringMap<V> {
-    private var entries: ArrayList<StringMapEntry<V>>
-
-    public init() {
-        entries = ArrayList<StringMapEntry<V>>()
-    }
-
-    public func put(key: String, value: V): Unit {
-        for (i in 0..entries.size()) {
-            if (entries[i].key == key) {
-                entries[i].value = value
-                return
-            }
-        }
-        entries.append(StringMapEntry<V>(key, value))
-    }
-
-    public func get(key: String): ?V {
-        for (entry in entries) {
-            if (entry.key == key) {
-                return entry.value
-            }
-        }
-        return None
-    }
-}
-
-/// StringMap 条目
-public class StringMapEntry<V> {
-    public var key: String
-    public var value: V
-
-    public init(key: String, value: V) {
-        this.key = key
-        this.value = value
-    }
-}

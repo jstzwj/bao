@@ -6,13 +6,14 @@
 package bao_sys
 
 import bao_core.*
+import bao_collections.*
 
 // ============================================================================
 // 信号 C FFI 声明
 // ============================================================================
 
 @C
-foreign func signal(sig: Int32, handler: CPointer<Unit>): CPointer<Unit>
+foreign func signal(sig: Int32, handler: Int64): Int64
 @C
 foreign func sigaction(sig: Int32, act: CPointer<Unit>, oact: CPointer<Unit>): Int32
 @C
@@ -43,7 +44,7 @@ foreign func pthread_sigmask(how: Int32, set: CPointer<Unit>, oset: CPointer<Uni
 /// POSIX 信号码 - 严格对应 Bun SignalCode
 /// Bun: pub const SignalCode = enum(u8) { SIGHUP=1, SIGINT=2, ... }
 /// 每个信号对应 Linux x86_64 上的信号编号
-public enum SignalCode {
+public enum SignalCode <: ToString {
     | SIGHUP    // 1  - 终端挂断
     | SIGINT    // 2  - 中断 (Ctrl+C)
     | SIGQUIT   // 3  - 退出 (Ctrl+\)
@@ -192,6 +193,10 @@ public enum SignalCode {
         }
     }
 
+    public func toString(): String {
+        return name()
+    }
+
     /// 获取信号描述 - 对应 Bun SignalCode.description()
     /// Bun: pub fn description(signal: SignalCode) ?[]const u8 { ... }
     /// 描述文本来自 fish shell: https://github.com/fish-shell/fish-shell
@@ -330,8 +335,8 @@ public class SignalHandler {
             )
         }
         unsafe {
-            let result = signal(sig.toInt(), CPointer<Unit>(Int64(SigHandler.SIG_IGN)))
-            if (result == CPointer<Unit>(Int64(SigHandler.SIG_ERR))) {
+            let result = signal(sig.toInt(), SigHandler.SIG_IGN)
+            if (result == SigHandler.SIG_ERR) {
                 return SysMaybe<Unit>.Err(
                     SysError(UInt16(Int64(OS.errno())), SysTag.Signal)
                 )
@@ -344,8 +349,8 @@ public class SignalHandler {
     /// 对应: signal(sig, SIG_DFL)
     public static func restoreDefault(sig: SignalCode): SysMaybe<Unit> {
         unsafe {
-            let result = signal(sig.toInt(), CPointer<Unit>(Int64(SigHandler.SIG_DFL)))
-            if (result == CPointer<Unit>(Int64(SigHandler.SIG_ERR))) {
+            let result = signal(sig.toInt(), SigHandler.SIG_DFL)
+            if (result == SigHandler.SIG_ERR) {
                 return SysMaybe<Unit>.Err(
                     SysError(UInt16(Int64(OS.errno())), SysTag.Signal)
                 )
@@ -357,13 +362,15 @@ public class SignalHandler {
     /// 向当前进程发送信号
     /// 对应: raise(sig)
     public static func raise(sig: SignalCode): SysMaybe<Unit> {
-        let rc = raise(sig.toInt())
-        if (rc != 0) {
-            return SysMaybe<Unit>.Err(
-                SysError(UInt16(Int64(OS.errno())), SysTag.Signal)
-            )
+        unsafe {
+            let rc = raise(sig.toInt())
+            if (rc != 0) {
+                return SysMaybe<Unit>.Err(
+                    SysError(UInt16(Int64(OS.errno())), SysTag.Signal)
+                )
+            }
+            return SysMaybe<Unit>.Ok(())
         }
-        return SysMaybe<Unit>.Ok(())
     }
 
     /// 屏蔽信号
@@ -431,9 +438,9 @@ public class SignalRegistry {
     /// 分发信号 (由 C 桥接调用)
     public static func dispatch(sigNum: Int32): Unit {
         let handler = handlers.get(sigNum)
-        if (let Some(h) = handler) {
+        if (let Some(h) <- handler) {
             let sig = SignalCode.fromInt(sigNum)
-            if (let Some(s) = sig) {
+            if (let Some(s) <- sig) {
                 h(s)
             }
         }

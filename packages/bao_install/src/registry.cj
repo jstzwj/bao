@@ -8,6 +8,7 @@ import bao_io.*
 import bao_hash.*
 import bao_path.*
 import bao_http.*
+import bao_sys.*
 
 // ============================================================================
 // 注册表配置
@@ -61,46 +62,44 @@ public class RegistryConfig {
     /// 翻译自: src/install/PackageManager.zig 中 initScope 环境变量读取逻辑
     public func loadAuthFromEnv(): Unit {
         // NPM_TOKEN
-        let npmToken = bao_sys.SysModule.getEnv("NPM_TOKEN")
+        let npmToken = OS.getEnv("NPM_TOKEN")
         match (npmToken) {
             case Some(t) => token = t
             case None => ()
         }
 
         // NPM_CONFIG_REGISTRY - 覆盖默认 registry
-        let registryEnv = bao_sys.SysModule.getEnv("NPM_CONFIG_REGISTRY")
+        let registryEnv = OS.getEnv("NPM_CONFIG_REGISTRY")
         match (registryEnv) {
-            case Some(r) => if (r.length > 0) { url = r }
+            case Some(r) => if (r.size > 0) { url = r }
             case None => ()
         }
 
         // Bun 翻译: 支持 Bun 特有的环境变量
-        let bunToken = bao_sys.SysModule.getEnv("BUN_CONFIG_TOKEN")
+        let bunToken = OS.getEnv("BUN_CONFIG_TOKEN")
         match (bunToken) {
             case Some(t) => token = t
             case None => ()
         }
 
         // 如果有 token, 自动设置 alwaysAuth
-        if (token.length > 0) {
+        if (token.size > 0) {
             alwaysAuth = true
         }
 
         // 如果有用户名和密码, 构建 Basic auth
-        let npmUser = bao_sys.SysModule.getEnv("NPM_CONFIG_USERNAME")
-        let npmPass = bao_sys.SysModule.getEnv("NPM_CONFIG_PASSWORD")
+        let npmUser = OS.getEnv("NPM_CONFIG_USERNAME")
+        let npmPass = OS.getEnv("NPM_CONFIG_PASSWORD")
         match (npmUser) {
-            case Some(u) => {
-                username = u
-                match (npmPass) {
-                    case Some(p) => {
-                        password = p
-                        // 构建 Base64 编码的 Basic auth
-                        auth = bao_hash.Base64.encode(Array<UInt8>(u.length + p.length + 1, item: 0))
-                    }
-                    case None => ()
-                }
-            }
+            case Some(u) => setCredentials(u, npmPass)
+            case None => ()
+        }
+    }
+
+    private func setCredentials(u: String, npmPass: ?String): Unit {
+        username = u
+        match (npmPass) {
+            case Some(p)=> __helper_registry_1()
             case None => ()
         }
     }
@@ -139,18 +138,7 @@ public class RegistryConfig {
         if (name.startsWith("@")) {
             let slashIdx = name.indexOf("/")
             match (slashIdx) {
-                case Some(idx) => {
-                    let scope = name.substring(0, idx)
-                    // 检查环境变量: NPM_CONFIG_${SCOPE}_REGISTRY
-                    let envVar = "NPM_CONFIG_${scope}_REGISTRY"
-                    let scopeRegistry = bao_sys.SysModule.getEnv(envVar)
-                    match (scopeRegistry) {
-                        case Some(r) => if (r.length > 0) {
-                            return RegistryConfig(r)
-                        }
-                        case None => ()
-                    }
-                }
+                case Some(idx)=> __helper_registry_2()
                 case None => ()
             }
         }
@@ -212,7 +200,7 @@ public class VersionInfo {
     /// 对应 Bun: bin
     public var bin: HashMap<String, String>
     /// main 入口
-    public var main: ?String
+    public var `main`: ?String
     /// module 入口
     public var module: ?String
     /// types 入口
@@ -238,7 +226,7 @@ public class VersionInfo {
         cpu = ArrayList<String>()
         license = ""
         bin = HashMap<String, String>()
-        main = None
+        `main` = None
         module = None
         types = None
     }
@@ -330,36 +318,7 @@ public class PackageMetadata {
             // 跳过 pre-release 版本 (除非范围显式请求)
             let sv = SemVer.parse(vi.version)
             match (sv) {
-                case Some(version) => {
-                    // pre-release 版本只在范围包含 pre-release 标识符时匹配
-                    if (version.prerelease.isSome()) {
-                        // 检查 range 是否也包含 pre-release
-                        var rangeHasPre = false
-                        if (range.contains("-")) {
-                            rangeHasPre = true
-                        }
-                        if (!rangeHasPre) {
-                            continue
-                        }
-                    }
-
-                    if (SemVer.satisfies(version, range)) {
-                        match (best) {
-                            case Some(b) => {
-                                let bestSv = SemVer.parse(b.version)
-                                match (bestSv) {
-                                    case Some(bsv) => {
-                                        if (version.compare(bsv) > 0) {
-                                            best = Some(vi)
-                                        }
-                                    }
-                                    case None => ()
-                                }
-                            }
-                            case None => best = Some(vi)
-                        }
-                    }
-                }
+                case Some(version)=> __helper_registry_3()
                 case None => ()
             }
         }
@@ -373,18 +332,20 @@ public class PackageMetadata {
             result.append(vi.version)
         }
         // 按版本号降序排列 (最新的在前)
-        result.sortBy(func(a: String, b: String): Int64 {
-            let svA = SemVer.parse(a)
-            let svB = SemVer.parse(b)
-            match (svA) {
-                case Some(a2) => match (svB) {
-                    case Some(b2) => return b2.compare(a2)  // 降序
-                    case None => return -1
-                }
-                case None => return 1
-            }
-        })
+        result.sortWith({ a, b => compareVersionsDesc(a, b) })
         return result
+    }
+
+    private static func compareVersionsDesc(a: String, b: String): Int64 {
+        let svA = SemVer.parse(a)
+        let svB = SemVer.parse(b)
+        match (svA) {
+            case Some(a2) => match (svB) {
+                case Some(b2) => return b2.compare(a2)  // 降序
+                case None => return -1
+            }
+            case None => return 1
+        }
     }
 }
 
@@ -431,21 +392,7 @@ public class RegistryCache {
     public func get(name: String): ?PackageMetadata {
         let meta = cache.get(name)
         match (meta) {
-            case Some(m) => {
-                if (ttl > 0) {
-                    let ts = timestamps.get(name)
-                    match (ts) {
-                        case Some(t) => {
-                            let now = bao_sys.SysModule.currentTimeMillis()
-                            if (now - t > ttl) {
-                                return None  // 过期
-                            }
-                        }
-                        case None => ()
-                    }
-                }
-                return Some(m)
-            }
+            case Some(m)=> __helper_registry_4()
             case None => return None
         }
     }
@@ -454,11 +401,11 @@ public class RegistryCache {
     /// 对应 Bun: PackageManifestMap.put
     public func put(name: String, meta: PackageMetadata): Unit {
         cache.put(name, meta)
-        timestamps.put(name, bao_sys.SysModule.currentTimeMillis())
-        if (meta.etag.length > 0) {
+        timestamps.put(name, cacheCurrentTimeMillis())
+        if (meta.etag.size > 0) {
             etags.put(name, meta.etag)
         }
-        if (meta.lastModified.length > 0) {
+        if (meta.lastModified.size > 0) {
             lastModifieds.put(name, meta.lastModified)
         }
     }
@@ -601,58 +548,13 @@ public class RegistryClient {
                 body: ""
             )
             match (response) {
-                case Some(resp) => {
-                    // 304 Not Modified: 使用缓存
-                    if (resp.statusCode == 304) {
-                        // 缓存仍然有效, 返回缓存数据
-                        return cache.get(name)
-                    }
-                    if (resp.statusCode >= 200 && resp.statusCode < 300) {
-                        break  // 成功
-                    }
-                    // 404: 包不存在
-                    if (resp.statusCode == 404) {
-                        return None
-                    }
-                    // 5xx: 可能重试
-                    if (resp.statusCode >= 500) {
-                        retryCount += 1
-                        continue
-                    }
-                    // 4xx: 不重试
-                    return None
-                }
-                case None => {
-                    retryCount += 1
-                    continue
-                }
+                case Some(resp)=> __helper_registry_5()
+                case None=> __helper_registry_6()
             }
         }
 
         match (response) {
-            case Some(resp) => {
-                if (resp.statusCode >= 200 && resp.statusCode < 300) {
-                    let meta = parseMetadata(name, resp)
-                    match (meta) {
-                        case Some(m) => {
-                            // 保存 ETag 和 Last-Modified
-                            match (resp.getHeader("ETag")) {
-                                case Some(etag) => m.etag = etag
-                                case None => ()
-                            }
-                            match (resp.getHeader("Last-Modified")) {
-                                case Some(lm) => m.lastModified = lm
-                                case None => ()
-                            }
-                            cache.put(name, m)
-                            return Some(m)
-                        }
-                        case None => return None
-                    }
-                } else {
-                    return None
-                }
-            }
+            case Some(resp)=> __helper_registry_7()
             case None => return None
         }
     }
@@ -662,22 +564,7 @@ public class RegistryClient {
     public func fetchVersionMetadata(name: String, version: String): ?VersionInfo {
         let meta = fetchPackageMetadata(name)
         match (meta) {
-            case Some(m) => {
-                // 先尝试精确版本
-                let exact = m.getVersion(version)
-                match (exact) {
-                    case Some(v) => return Some(v)
-                    case None => ()
-                }
-                // 再尝试 dist-tag
-                let tagVersion = m.getDistTag(version)
-                match (tagVersion) {
-                    case Some(v) => return m.getVersion(v)
-                    case None => ()
-                }
-                // 最后尝试版本范围
-                return m.findBestVersion(version)
-            }
+            case Some(m)=> __helper_registry_8()
             case None => return None
         }
     }
@@ -706,36 +593,8 @@ public class RegistryClient {
             )
 
             match (response) {
-                case Some(resp) => {
-                    if (resp.statusCode >= 200 && resp.statusCode < 300) {
-                        // 将响应体转为字节数组
-                        let body = resp.bodyBytes
-                        match (body) {
-                            case Some(bytes) => {
-                                result = Some(bytes)
-                                break
-                            }
-                            case None => {
-                                // 回退: 从 body 字符串转换
-                                var bytes = Array<UInt8>()
-                                for (c in resp.body) {
-                                    bytes.append(UInt8(c.value))
-                                }
-                                result = Some(bytes)
-                                break
-                            }
-                        }
-                    }
-                    if (resp.statusCode >= 500) {
-                        retryCount += 1
-                        continue
-                    }
-                    return None
-                }
-                case None => {
-                    retryCount += 1
-                    continue
-                }
+                case Some(resp)=> __helper_registry_9()
+                case None=> __helper_registry_10()
             }
         }
 
@@ -780,7 +639,7 @@ public class RegistryClient {
             return computed == expectedHash
         }
         // shasum (40字符十六进制, 无前缀)
-        if (expected.length == 40) {
+        if (expected.size == 40) {
             let computed = computeSha1Hex(data)
             return computed == expected
         }
@@ -801,223 +660,7 @@ public class RegistryClient {
         let body = resp.body
         let parsed = jsonParser.parse(body)
         match (parsed) {
-            case Some(root) => {
-                let meta = PackageMetadata(name)
-                meta.rawJson = body
-
-                // description
-                meta.description = match (JsonHelper.getString(root, "description")) {
-                    case Some(d) => d
-                    case None => ""
-                }
-
-                // dist-tags: { "latest": "1.0.0", "next": "2.0.0-beta" }
-                // 翻译自: Npm.PackageManifest 中 dist-tags 解析
-                match (JsonHelper.getField(root, "dist-tags")) {
-                    case Some(JsonValue.Object(tags)) => {
-                        for (k in tags.keys()) {
-                            match (tags.get(k)) {
-                                case Some(JsonValue.Str(v)) => meta.distTags.put(k, v)
-                                case _ => ()
-                            }
-                        }
-                    }
-                    case _ => ()
-                }
-
-                // time: { "created": "...", "modified": "...", "1.0.0": "..." }
-                match (JsonHelper.getField(root, "time")) {
-                    case Some(JsonValue.Object(timeObj)) => {
-                        for (k in timeObj.keys()) {
-                            match (timeObj.get(k)) {
-                                case Some(JsonValue.Str(v)) => meta.time.put(k, v)
-                                case _ => ()
-                            }
-                        }
-                    }
-                    case _ => ()
-                }
-
-                // versions: { "1.0.0": { ... }, "1.1.0": { ... } }
-                // 翻译自: Npm.PackageManifest 中 versions 遍历
-                match (JsonHelper.getField(root, "versions")) {
-                    case Some(JsonValue.Object(versions)) => {
-                        for (ver in versions.keys()) {
-                            match (versions.get(ver)) {
-                                case Some(JsonValue.Object(verObj)) => {
-                                    let vi = VersionInfo(ver)
-
-                                    // dist.tarball, dist.integrity, dist.shasum
-                                    // 翻译自: Npm.PackageManifest 中 dist 字段提取
-                                    match (JsonHelper.getField(verObj, "dist")) {
-                                        case Some(JsonValue.Object(distObj)) => {
-                                            vi.distTarball = match (JsonHelper.getString(distObj, "tarball")) {
-                                                case Some(t) => t
-                                                case None => ""
-                                            }
-                                            vi.distIntegrity = match (JsonHelper.getString(distObj, "integrity")) {
-                                                case Some(i) => i
-                                                case None => ""
-                                            }
-                                            vi.distShasum = match (JsonHelper.getString(distObj, "shasum")) {
-                                                case Some(s) => s
-                                                case None => ""
-                                            }
-                                            vi.distFileCount = match (JsonHelper.getField(distObj, "fileCount")) {
-                                                case Some(JsonValue.Number(n)) => Int64(n)
-                                                case _ => 0
-                                            }
-                                            vi.distUnpackedSize = match (JsonHelper.getField(distObj, "unpackedSize")) {
-                                                case Some(JsonValue.Number(n)) => Int64(n)
-                                                case _ => 0
-                                            }
-                                            vi.distNpmSignature = match (JsonHelper.getString(distObj, "npm-signature")) {
-                                                case Some(s) => s
-                                                case None => ""
-                                            }
-                                        }
-                                        case _ => ()
-                                    }
-
-                                    // 依赖
-                                    vi.dependencies = JsonHelper.getStringMap(verObj, "dependencies")
-                                    vi.devDependencies = JsonHelper.getStringMap(verObj, "devDependencies")
-                                    vi.peerDependencies = JsonHelper.getStringMap(verObj, "peerDependencies")
-                                    vi.optionalDependencies = JsonHelper.getStringMap(verObj, "optionalDependencies")
-
-                                    // peerDependenciesMeta
-                                    match (JsonHelper.getField(verObj, "peerDependenciesMeta")) {
-                                        case Some(JsonValue.Object(pdm)) => {
-                                            for (k in pdm.keys()) {
-                                                match (pdm.get(k)) {
-                                                    case Some(JsonValue.Object(metaObj)) => {
-                                                        let meta2 = HashMap<String, String>()
-                                                        for (mk in metaObj.keys()) {
-                                                            match (metaObj.get(mk)) {
-                                                                case Some(JsonValue.Bool(b)) => meta2.put(mk, if (b) { "true" } else { "false" })
-                                                                case Some(JsonValue.Str(s)) => meta2.put(mk, s)
-                                                                case _ => ()
-                                                            }
-                                                        }
-                                                        vi.peerDependenciesMeta.put(k, meta2)
-                                                    }
-                                                    case _ => ()
-                                                }
-                                            }
-                                        }
-                                        case _ => ()
-                                    }
-
-                                    // bundledDependencies
-                                    match (JsonHelper.getField(verObj, "bundledDependencies")) {
-                                        case Some(JsonValue.Array(arr)) => {
-                                            for (item in arr) {
-                                                match (item) {
-                                                    case JsonValue.Str(s) => vi.bundledDependencies.append(s)
-                                                    case _ => ()
-                                                }
-                                            }
-                                        }
-                                        case _ => ()
-                                    }
-
-                                    // deprecated
-                                    vi.deprecated = JsonHelper.getString(verObj, "deprecated")
-
-                                    // hasInstallScript
-                                    vi.hasInstallScript = match (JsonHelper.getField(verObj, "hasInstallScript")) {
-                                        case Some(JsonValue.Bool(b)) => b
-                                        case _ => false
-                                    }
-
-                                    // scripts (用于检测 hasInstallScript)
-                                    if (!vi.hasInstallScript) {
-                                        match (JsonHelper.getField(verObj, "scripts")) {
-                                            case Some(JsonValue.Object(scriptsObj)) => {
-                                                let installScript = scriptsObj.get("install")
-                                                let postinstallScript = scriptsObj.get("postinstall")
-                                                let preinstallScript = scriptsObj.get("preinstall")
-                                                match (installScript) {
-                                                    case Some(JsonValue.Str(s)) => if (s.length > 0) { vi.hasInstallScript = true }
-                                                    case _ => ()
-                                                }
-                                                if (!vi.hasInstallScript) {
-                                                    match (postinstallScript) {
-                                                        case Some(JsonValue.Str(s)) => if (s.length > 0) { vi.hasInstallScript = true }
-                                                        case _ => ()
-                                                    }
-                                                }
-                                            }
-                                            case _ => ()
-                                        }
-                                    }
-
-                                    // os / cpu
-                                    match (JsonHelper.getField(verObj, "os")) {
-                                        case Some(JsonValue.Array(arr)) => {
-                                            for (item in arr) {
-                                                match (item) {
-                                                    case JsonValue.Str(s) => vi.os.append(s)
-                                                    case _ => ()
-                                                }
-                                            }
-                                        }
-                                        case _ => ()
-                                    }
-                                    match (JsonHelper.getField(verObj, "cpu")) {
-                                        case Some(JsonValue.Array(arr)) => {
-                                            for (item in arr) {
-                                                match (item) {
-                                                    case JsonValue.Str(s) => vi.cpu.append(s)
-                                                    case _ => ()
-                                                }
-                                            }
-                                        }
-                                        case _ => ()
-                                    }
-
-                                    // license
-                                    vi.license = match (JsonHelper.getString(verObj, "license")) {
-                                        case Some(l) => l
-                                        case None => ""
-                                    }
-
-                                    // bin
-                                    match (JsonHelper.getField(verObj, "bin")) {
-                                        case Some(JsonValue.Object(binObj)) => {
-                                            for (k in binObj.keys()) {
-                                                match (binObj.get(k)) {
-                                                    case Some(JsonValue.Str(v)) => vi.bin.put(k, v)
-                                                    case _ => ()
-                                                }
-                                            }
-                                        }
-                                        case Some(JsonValue.Str(binStr)) => {
-                                            // bin: "single-bin.js" -> { name: "single-bin.js" }
-                                            vi.bin.put(name, binStr)
-                                        }
-                                        case _ => ()
-                                    }
-
-                                    // main / module / types
-                                    vi.main = JsonHelper.getString(verObj, "main")
-                                    vi.module = JsonHelper.getString(verObj, "module")
-                                    vi.types = match (JsonHelper.getString(verObj, "types")) {
-                                        case Some(t) => Some(t)
-                                        case None => JsonHelper.getString(verObj, "typings")
-                                    }
-
-                                    meta.versions.append(vi)
-                                }
-                                case _ => ()
-                            }
-                        }
-                    }
-                    case _ => ()
-                }
-
-                return Some(meta)
-            }
+            case Some(root)=> __helper_registry_11()
             case None => return None
         }
     }
@@ -1047,14 +690,14 @@ public class RegistryClient {
         // 条件请求: ETag
         // 翻译自: if (etag.len != 0) { header_builder.append("If-None-Match", etag) }
         let cachedEtag = cache.getEtag(name)
-        if (cachedEtag.length > 0) {
+        if (cachedEtag.size > 0) {
             headers.put("If-None-Match", cachedEtag)
         }
 
         // 条件请求: Last-Modified
         // 翻译自: if (last_modified.len != 0) { header_builder.append("If-Modified-Since", last_modified) }
         let cachedLastModified = cache.getLastModified(name)
-        if (cachedLastModified.length > 0) {
+        if (cachedLastModified.size > 0) {
             headers.put("If-Modified-Since", cachedLastModified)
         }
 
@@ -1086,13 +729,13 @@ public class RegistryClient {
     ///     elif scope.auth.len > 0: "Authorization: Basic {auth}"
     ///     header_builder.append("npm-auth-type", "legacy")
     private func appendAuthHeaders(headers: HashMap<String, String>, scopeConfig: RegistryConfig): Unit {
-        if (scopeConfig.token.length > 0) {
+        if (scopeConfig.token.size > 0) {
             headers.put("Authorization", "Bearer ${scopeConfig.token}")
             headers.put("npm-auth-type", "legacy")
-        } else if (scopeConfig.auth.length > 0) {
+        } else if (scopeConfig.auth.size > 0) {
             headers.put("Authorization", "Basic ${scopeConfig.auth}")
             headers.put("npm-auth-type", "legacy")
-        } else if (scopeConfig.username.length > 0 && scopeConfig.password.length > 0) {
+        } else if (scopeConfig.username.size > 0 && scopeConfig.password.size > 0) {
             let credentials = bao_hash.Base64.encodeFromString("${scopeConfig.username}:${scopeConfig.password}")
             headers.put("Authorization", "Basic ${credentials}")
             headers.put("npm-auth-type", "legacy")
@@ -1139,7 +782,7 @@ public class RegistryClient {
         let sb = StringBuilder()
         for (b in hash) {
             let hex = Int64(b).toString(16)
-            if (hex.length < 2) {
+            if (hex.size < 2) {
                 sb.append("0")
             }
             sb.append(hex)
@@ -1181,7 +824,424 @@ public class HttpResponse {
     }
 
     /// 获取响应体字节 (如果可用)
-    public func bodyBytes: ?Array<UInt8> {
-        return None  // 基础实现不提供字节访问
+    public prop bodyBytes: ?Array<UInt8> {
+        get() {
+            return None  // 基础实现不提供字节访问
+        }
+    }
+
+    /// Auto-extracted case block helper
+    private func __helper_registry_1(): Unit {
+        password = p
+        auth = bao_hash.Base64.encode(Array<UInt8>(u.size + p.size + 1, item: 0))
+    }
+
+    /// Auto-extracted case block helper
+    private func __helper_registry_2(): Unit {
+        let scope = name.substring(0, idx)
+        // 检查环境变量: NPM_CONFIG_${SCOPE}_REGISTRY
+        let envVar = "NPM_CONFIG_${scope}_REGISTRY"
+        let scopeRegistry = OS.getEnv(envVar)
+        match (scopeRegistry) {
+        case Some(r) => if (r.size > 0) {
+        return RegistryConfig(r)
+        }
+        case None => ()
+        }
+    }
+
+    /// Auto-extracted case block helper
+    private func __helper_registry_3(): Unit {
+        // pre-release 版本只在范围包含 pre-release 标识符时匹配
+        if (version.prerelease.isSome()) {
+        // 检查 range 是否也包含 pre-release
+        var rangeHasPre = false
+        if (range.contains("-")) {
+        rangeHasPre = true
+        }
+        if (!rangeHasPre) {
+        return
+        }
+        }
+        if (SemVer.satisfies(version, range)) {
+        match (best) {
+        case Some(b) => _matchHelper_registry_194()
+        case None => best = Some(vi)
+        }
+        }
+    }
+
+    /// Auto-extracted case block helper
+    private func __helper_registry_4(): Unit {
+        if (ttl > 0) {
+        let ts = timestamps.get(name)
+        match (ts) {
+        case Some(t) => _matchHelper_registry_195()
+        case None => ()
+        }
+        }
+        return Some(m)
+    }
+
+    /// Auto-extracted case block helper
+    private func __helper_registry_5(): Unit {
+        // 304 Not Modified: 使用缓存
+        if (resp.statusCode == 304) {
+        // 缓存仍然有效, 返回缓存数据
+        return cache.get(name)
+        }
+        if (resp.statusCode >= 200 && resp.statusCode < 300) {
+        return  // 成功
+        }
+        // 404: 包不存在
+        if (resp.statusCode == 404) {
+        return None
+        }
+        // 5xx: 可能重试
+        if (resp.statusCode >= 500) {
+        retryCount += 1
+        return
+        }
+        // 4xx: 不重试
+        return None
+    }
+
+    /// Auto-extracted case block helper
+    private func __helper_registry_6(): Unit {
+        retryCount += 1
+        return
+    }
+
+    /// Auto-extracted case block helper
+    private func __helper_registry_7(): Unit {
+        if (resp.statusCode >= 200 && resp.statusCode < 300) {
+        let meta = parseMetadata(name, resp)
+        match (meta) {
+        case Some(m) => _matchHelper_registry_196()
+        case None => return None
+        }
+        } else {
+        return None
+        }
+    }
+
+    /// Auto-extracted case block helper
+    private func __helper_registry_8(): Unit {
+        // 先尝试精确版本
+        let exact = m.getVersion(version)
+        match (exact) {
+        case Some(v) => return Some(v)
+        case None => ()
+        }
+        // 再尝试 dist-tag
+        let tagVersion = m.getDistTag(version)
+        match (tagVersion) {
+        case Some(v) => return m.getVersion(v)
+        case None => ()
+        }
+        // 最后尝试版本范围
+        return m.findBestVersion(version)
+    }
+
+    /// Auto-extracted case block helper
+    private func __helper_registry_9(): Unit {
+        if (resp.statusCode >= 200 && resp.statusCode < 300) {
+        // 将响应体转为字节数组
+        let body = resp.bodyBytes
+        match (body) {
+        case Some(bytes) => _matchHelper_registry_197()
+        case None => _matchHelper_registry_198()
+        }
+        }
+        if (resp.statusCode >= 500) {
+        retryCount += 1
+        return
+        }
+        return None
+    }
+
+    /// Auto-extracted case block helper
+    private func __helper_registry_10(): Unit {
+        retryCount += 1
+        return
+    }
+
+    /// Auto-extracted case block helper
+    private func __helper_registry_11(): Unit {
+        let meta = PackageMetadata(name)
+        meta.rawJson = body
+        // description
+        meta.description = match (JsonHelper.getString(root, "description")) {
+        case Some(d) => d
+        case None => ""
+        }
+        // dist-tags: { "latest": "1.0.0", "next": "2.0.0-beta" }
+        // 翻译自: Npm.PackageManifest 中 dist-tags 解析
+        match (JsonHelper.getField(root, "dist-tags")) {
+        case Some(JsonValue.Object(tags)) => _matchHelper_registry_199()
+        case _ => ()
+        }
+        // time: { "created": "...", "modified": "...", "1.0.0": "..." }
+        match (JsonHelper.getField(root, "time")) {
+        case Some(JsonValue.Object(timeObj)) => _matchHelper_registry_200()
+        case _ => ()
+        }
+        // versions: { "1.0.0": { ... }, "1.1.0": { ... } }
+        // 翻译自: Npm.PackageManifest 中 versions 遍历
+        match (JsonHelper.getField(root, "versions")) {
+        case Some(JsonValue.Object(versions)) => _matchHelper_registry_201()
+        case _ => ()
+        }
+        return Some(meta)
     }
 }
+
+
+        private func _matchHelper_registry_194(): Unit {
+        let bestSv = SemVer.parse(b.version)
+        match (bestSv) {
+        case Some(bsv) => _matchHelper_registry_65()
+        case None => ()
+        }
+        }
+
+        private func _matchHelper_registry_195(): Unit {
+        let now = cacheCurrentTimeMillis()
+        if (now - t > ttl) {
+        return None  // 过期
+        }
+        }
+
+        private func _matchHelper_registry_196(): Unit {
+        // 保存 ETag 和 Last-Modified
+        match (resp.getHeader("ETag")) {
+        case Some(etag) => m.etag = etag
+        case None => ()
+        }
+        match (resp.getHeader("Last-Modified")) {
+        case Some(lm) => m.lastModified = lm
+        case None => ()
+        }
+        cache.put(name, m)
+        return Some(m)
+        }
+
+        private func _matchHelper_registry_197(): Unit {
+        result = Some(bytes)
+        return
+        }
+
+        private func _matchHelper_registry_198(): Unit {
+        // 回退: 从 body 字符串转换
+        var bytes = Array<UInt8>()
+        for (c in resp.body) {
+        bytes.append(UInt8(c.value))
+        }
+        result = Some(bytes)
+        return
+        }
+
+        private func _matchHelper_registry_199(): Unit {
+        for (k in tags.keys()) {
+        match (tags.get(k)) {
+        case Some(JsonValue.Str(v)) => meta.distTags.put(k, v)
+        case _ => ()
+        }
+        }
+        }
+
+        private func _matchHelper_registry_200(): Unit {
+        for (k in timeObj.keys()) {
+        match (timeObj.get(k)) {
+        case Some(JsonValue.Str(v)) => meta.time.put(k, v)
+        case _ => ()
+        }
+        }
+        }
+
+        private func _matchHelper_registry_201(): Unit {
+        for (ver in versions.keys()) {
+        match (versions.get(ver)) {
+        case Some(JsonValue.Object(verObj)) => _matchHelper_registry_66()
+        case _ => ()
+        }
+        }
+        }
+
+        private func _matchHelper_registry_65(): Unit {
+        if (version.compare(bsv) > 0) {
+        best = Some(vi)
+        }
+        }
+
+        private func _matchHelper_registry_66(): Unit {
+        let vi = VersionInfo(ver)
+        // dist.tarball, dist.integrity, dist.shasum
+        // 翻译自: Npm.PackageManifest 中 dist 字段提取
+        match (JsonHelper.getField(verObj, "dist")) {
+        case Some(JsonValue.Object(distObj)) => _matchHelper_registry_23()
+        case _ => ()
+        }
+        // 依赖
+        vi.dependencies = JsonHelper.getStringMap(verObj, "dependencies")
+        vi.devDependencies = JsonHelper.getStringMap(verObj, "devDependencies")
+        vi.peerDependencies = JsonHelper.getStringMap(verObj, "peerDependencies")
+        vi.optionalDependencies = JsonHelper.getStringMap(verObj, "optionalDependencies")
+        // peerDependenciesMeta
+        match (JsonHelper.getField(verObj, "peerDependenciesMeta")) {
+        case Some(JsonValue.Object(pdm)) => _matchHelper_registry_24()
+        case _ => ()
+        }
+        // bundledDependencies
+        match (JsonHelper.getField(verObj, "bundledDependencies")) {
+        case Some(JsonValue.Array(arr)) => _matchHelper_registry_25()
+        case _ => ()
+        }
+        // deprecated
+        vi.deprecated = JsonHelper.getString(verObj, "deprecated")
+        // hasInstallScript
+        vi.hasInstallScript = match (JsonHelper.getField(verObj, "hasInstallScript")) {
+        case Some(JsonValue.JsonBool(b)) => b
+        case _ => false
+        }
+        // scripts (用于检测 hasInstallScript)
+        if (!vi.hasInstallScript) {
+        match (JsonHelper.getField(verObj, "scripts")) {
+        case Some(JsonValue.Object(scriptsObj)) => _matchHelper_registry_26()
+        case _ => ()
+        }
+        }
+        // os / cpu
+        match (JsonHelper.getField(verObj, "os")) {
+        case Some(JsonValue.Array(arr)) => _matchHelper_registry_27()
+        case _ => ()
+        }
+        match (JsonHelper.getField(verObj, "cpu")) {
+        case Some(JsonValue.Array(arr)) => _matchHelper_registry_28()
+        case _ => ()
+        }
+        // license
+        vi.license = match (JsonHelper.getString(verObj, "license")) {
+        case Some(l) => l
+        case None => ""
+        }
+        // bin
+        match (JsonHelper.getField(verObj, "bin")) {
+        case Some(JsonValue.Object(binObj)) => _matchHelper_registry_29()
+        case Some(JsonValue.Str(binStr)) => _matchHelper_registry_30()
+        case _ => ()
+        }
+        // main / module / types
+        vi.`main` = JsonHelper.getString(verObj, "main")
+        vi.module = JsonHelper.getString(verObj, "module")
+        vi.types = match (JsonHelper.getString(verObj, "types")) {
+        case Some(t) => Some(t)
+        case None => JsonHelper.getString(verObj, "typings")
+        }
+        meta.versions.append(vi)
+        }
+
+        private func _matchHelper_registry_23(): Unit {
+        vi.distTarball = match (JsonHelper.getString(distObj, "tarball")) {
+        case Some(t) => t
+        case None => ""
+        }
+        vi.distIntegrity = match (JsonHelper.getString(distObj, "integrity")) {
+        case Some(i) => i
+        case None => ""
+        }
+        vi.distShasum = match (JsonHelper.getString(distObj, "shasum")) {
+        case Some(s) => s
+        case None => ""
+        }
+        vi.distFileCount = match (JsonHelper.getField(distObj, "fileCount")) {
+        case Some(JsonValue.Number(n)) => Int64(n)
+        case _ => 0
+        }
+        vi.distUnpackedSize = match (JsonHelper.getField(distObj, "unpackedSize")) {
+        case Some(JsonValue.Number(n)) => Int64(n)
+        case _ => 0
+        }
+        vi.distNpmSignature = match (JsonHelper.getString(distObj, "npm-signature")) {
+        case Some(s) => s
+        case None => ""
+        }
+        }
+
+        private func _matchHelper_registry_24(): Unit {
+        for (k in pdm.keys()) {
+        match (pdm.get(k)) {
+        case Some(JsonValue.Object(metaObj)) => _matchHelper_registry_8()
+        case _ => ()
+        }
+        }
+        }
+
+        private func _matchHelper_registry_25(): Unit {
+        for (item in arr) {
+        match (item) {
+        case JsonValue.Str(s) => vi.bundledDependencies.append(s)
+        case _ => ()
+        }
+        }
+        }
+
+        private func _matchHelper_registry_26(): Unit {
+        let installScript = scriptsObj.get("install")
+        let postinstallScript = scriptsObj.get("postinstall")
+        let preinstallScript = scriptsObj.get("preinstall")
+        match (installScript) {
+        case Some(JsonValue.Str(s)) => if (s.size > 0) { vi.hasInstallScript = true }
+        case _ => ()
+        }
+        if (!vi.hasInstallScript) {
+        match (postinstallScript) {
+        case Some(JsonValue.Str(s)) => if (s.size > 0) { vi.hasInstallScript = true }
+        case _ => ()
+        }
+        }
+        }
+
+        private func _matchHelper_registry_27(): Unit {
+        for (item in arr) {
+        match (item) {
+        case JsonValue.Str(s) => vi.os.append(s)
+        case _ => ()
+        }
+        }
+        }
+
+        private func _matchHelper_registry_28(): Unit {
+        for (item in arr) {
+        match (item) {
+        case JsonValue.Str(s) => vi.cpu.append(s)
+        case _ => ()
+        }
+        }
+        }
+
+        private func _matchHelper_registry_29(): Unit {
+        for (k in binObj.keys()) {
+        match (binObj.get(k)) {
+        case Some(JsonValue.Str(v)) => vi.bin.put(k, v)
+        case _ => ()
+        }
+        }
+        }
+
+        private func _matchHelper_registry_30(): Unit {
+        // bin: "single-bin.js" -> { name: "single-bin.js" }
+        vi.bin.put(name, binStr)
+        }
+
+        private func _matchHelper_registry_8(): Unit {
+        let meta2 = HashMap<String, String>()
+        for (mk in metaObj.keys()) {
+        match (metaObj.get(mk)) {
+        case Some(JsonValue.JsonBool(b)) => meta2.put(mk, if (b) { "true" } else { "false" })
+        case Some(JsonValue.Str(s)) => meta2.put(mk, s)
+        case _ => ()
+        }
+        }
+        vi.peerDependenciesMeta.put(k, meta2)
+        }

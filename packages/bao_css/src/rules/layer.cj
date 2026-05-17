@@ -54,7 +54,10 @@ public class CssLayerName {
     /// 转为 CSS 文本
     /// 严格翻译自 LayerName.to_css — 段用点号分隔
     public func toCss(): String {
-        String.join(".", segments)
+        var segArr = Array<String>(segments.size, repeat: "")
+        var si: Int64 = 0
+        for (s in segments) { segArr[si] = s; si += 1 }
+        String.join(segArr, delimiter: ".")
     }
 
     /// 是否为空名称
@@ -94,7 +97,7 @@ public class CssLayerBlockRuleFull {
     public func deepClone(): CssLayerBlockRuleFull {
         let clonedName = match (name) {
             case Some(n) => Some(n.deepClone())
-            case None => None
+            case None => Option<CssLayerName>.None
         }
         CssLayerBlockRuleFull(clonedName, rules.deepClone())
     }
@@ -107,10 +110,13 @@ public class CssLayerBlockRuleFull {
             case Some(n) => sb.append("${indent}@layer ${n.toCss()} {\n")
             case None => sb.append("${indent}@layer {\n")
         }
-        for (rule in rules.rules) {
-            let css = rule.toCss(indent + "  ")
-            if (css.length > 0) {
-                sb.append("${indent}  ${css}\n")
+        for (rule in rules.v) {
+            let css = rule.toString()
+            if (css.size > 0) {
+                sb.append(indent)
+                sb.append("  ")
+                sb.append(css)
+                sb.append("\n")
             }
         }
         sb.append("${indent}}")
@@ -159,7 +165,10 @@ public class CssLayerStatementRuleFull {
             for (n in names) {
                 nameStrs.append(n.toCss())
             }
-            return "@layer ${String.join(", ", nameStrs)};"
+            var nameArr = Array<String>(nameStrs.size, repeat: "")
+            var ni: Int64 = 0
+            for (ns in nameStrs) { nameArr[ni] = ns; ni += 1 }
+            return "@layer ${String.join(nameArr, delimiter: ", ")};"
         }
         return "@layer;"
     }

@@ -9,6 +9,7 @@ package bao_io
 
 import bao_core.*
 import bao_sys.*
+import bao_collections.*
 
 // ============================================================================
 // RefillStrategy - 缓冲区重填策略
@@ -30,6 +31,19 @@ public enum RefillStrategy {
             case Fixed => "fixed"
             case Adaptive => "adaptive"
         }
+    }
+
+    public operator func ==(right: RefillStrategy): Bool {
+        match (this) {
+            case Greedy => match (right) { case Greedy => true case _ => false }
+            case OnDemand => match (right) { case OnDemand => true case _ => false }
+            case Fixed => match (right) { case Fixed => true case _ => false }
+            case Adaptive => match (right) { case Adaptive => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: RefillStrategy): Bool {
+        return !(this == right)
     }
 }
 
@@ -162,7 +176,7 @@ public class EnhancedBufferedReader {
         this.flags = BufferedReaderFlags()
         this.refillStrategy = RefillStrategy.OnDemand
         this.totalRead = 0
-        this.maxBufSize = Int64.MAX_VALUE / 2
+        this.maxBufSize = 9223372036854775807 / 2
         this.onReadChunk = None
         this.onDone = None
         this.onError = None
@@ -179,7 +193,7 @@ public class EnhancedBufferedReader {
         this.flags = BufferedReaderFlags()
         this.refillStrategy = RefillStrategy.OnDemand
         this.totalRead = 0
-        this.maxBufSize = Int64.MAX_VALUE / 2
+        this.maxBufSize = 9223372036854775807 / 2
         this.onReadChunk = None
         this.onDone = None
         this.onError = None
@@ -207,7 +221,7 @@ public class EnhancedBufferedReader {
             return SysMaybe<Int64>.Ok(0)
         }
 
-        let chunk = Array<UInt8>(toRead, item: UInt8(0))
+        let chunk = Array<UInt8>(toRead, { _ => UInt8(0) })
         match (SysFs.read(fd, chunk)) {
             case SysMaybe<Int64>.Err(err) =>
                 state = ReadState.Error
@@ -241,9 +255,9 @@ public class EnhancedBufferedReader {
                 // 调用流式回调 - 对应 Bun onReadChunk
                 match (onReadChunk) {
                     case Some(cb) =>
-                        let data = Array<UInt8>()
+                        let data = Array<UInt8>(bytesRead, { _ => UInt8(0) })
                         for (i in 0..bytesRead) {
-                            data.append(chunk[i])
+                            data[i] = chunk[i]
                         }
                         let wantMore = cb(data, state)
                         if (!wantMore) {
@@ -259,7 +273,7 @@ public class EnhancedBufferedReader {
     /// 读取一行 (默认 \n 分隔符)
     /// 对应 Bun: PipeReader 中的行读取
     public func readLine(): ?String {
-        return readUntil(UInt8('\n'))
+        return readUntil(UInt8(10))
     }
 
     /// 读取直到遇到指定分隔符
@@ -289,14 +303,14 @@ public class EnhancedBufferedReader {
                 break
             }
             // 处理 \r\n: 如果 \r 后面跟着 \n, 跳过 \r
-            if (b == UInt8('\r')) {
-                if (offset < buffer.size && buffer[Int64(offset)] == UInt8('\n')) {
+            if (b == UInt8(13)) {
+                if (offset < buffer.size && buffer[Int64(offset)] == UInt8(10)) {
                     offset += 1
                     found = true
                     break
                 }
             }
-            sb.append(Char(Int32(b)))
+            sb.append(Rune(Int32(b)))
         }
 
         if (!found && available() == 0 && state == ReadState.Eof) {
@@ -321,7 +335,7 @@ public class EnhancedBufferedReader {
                                 found = true
                                 break
                             }
-                            sb.append(Char(Int32(b)))
+                            sb.append(Rune(Int32(b)))
                         }
                     }
                 case Err(_) => ()
@@ -375,21 +389,22 @@ public class EnhancedBufferedReader {
                     // 不匹配: 将之前部分匹配的字符也加入结果
                     if (matchPos > 0) {
                         for (i in 0..matchPos) {
-                            sb.append(Char(Int32(delim[i])))
+                            sb.append(Rune(Int32(delim[i])))
                         }
                         matchPos = 0
                     }
-                    sb.append(Char(Int32(b)))
+                    sb.append(Rune(Int32(b)))
                 }
             }
         }
+        return None
     }
 
     /// 读取精确字节数
     /// 对应 Bun: readExactly(n) - 必须读取恰好 n 个字节
     /// 如果 EOF 前读取不足, 返回已读取的部分
     public func readExactly(count: Int64): ?Array<UInt8> {
-        var result = Array<UInt8>()
+        var result = ArrayList<UInt8>()
         var remaining = count
 
         while (remaining > 0) {
@@ -398,14 +413,14 @@ public class EnhancedBufferedReader {
                 match (fillResult) {
                     case Err(_) =>
                         if (result.size > 0) {
-                            return Some(result)
+                            return Some(result.toOwnedSlice())
                         }
                         return None
                     case Ok(n) =>
                         if (n == 0) {
                             // EOF
                             if (result.size > 0) {
-                                return Some(result)
+                                return Some(result.toOwnedSlice())
                             }
                             return None
                         }
@@ -419,7 +434,7 @@ public class EnhancedBufferedReader {
             }
             remaining -= toRead
         }
-        return Some(result)
+        return Some(result.toOwnedSlice())
     }
 
     /// 读取为字符串
@@ -429,7 +444,7 @@ public class EnhancedBufferedReader {
             case Some(bytes) =>
                 var sb = StringBuilder()
                 for (b in bytes) {
-                    sb.append(Char(Int32(b)))
+                    sb.append(Rune(Int32(b)))
                 }
                 return Some(sb.toString())
             case None => None
@@ -453,7 +468,7 @@ public class EnhancedBufferedReader {
             match (fillResult) {
                 case Err(e) =>
                     if (result.size > 0) {
-                        return SysMaybe<Array<UInt8>>.Ok(result.toArray())
+                        return SysMaybe<Array<UInt8>>.Ok(result.toOwnedSlice())
                     }
                     return SysMaybe<Array<UInt8>>.Err(e)
                 case Ok(n) =>
@@ -466,7 +481,7 @@ public class EnhancedBufferedReader {
                     }
             }
         }
-        return SysMaybe<Array<UInt8>>.Ok(result.toArray())
+        return SysMaybe<Array<UInt8>>.Ok(result.toOwnedSlice())
     }
 
     /// 读取单个字节
@@ -505,7 +520,7 @@ public class EnhancedBufferedReader {
 
     /// 预览多个字节
     public func peek(count: Int64): ?Array<UInt8> {
-        var result = Array<UInt8>()
+        var result = ArrayList<UInt8>()
         for (i in 0..count) {
             let idx = offset + i
             if (idx < buffer.size) {
@@ -514,7 +529,7 @@ public class EnhancedBufferedReader {
                 return None
             }
         }
-        return Some(result)
+        return Some(result.toOwnedSlice())
     }
 
     /// 跳过指定字节数

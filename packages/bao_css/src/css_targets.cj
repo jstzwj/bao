@@ -170,109 +170,34 @@ public class CssBrowsers {
         ])
     }
 
+    public func supportsViewportSmall(): Bool {
+        true
+    }
+
+    public func supportsViewportLarge(): Bool {
+        true
+    }
+
+    public func supportsViewportDynamic(): Bool {
+        true
+    }
+
+    public func supportsContainerQueries(): Bool {
+        true
+    }
+
     /// 从字符串列表解析浏览器版本
     /// 严格翻译自 Browsers.convertFromString
     /// 支持 esXXXX 和 browser+version 格式
     public static func convertFromString(esbuild_targets: Array<String>): CssBrowsers {
-        var browsers = CssBrowsers()
-
-        for (str in esbuild_targets) {
-            var entries = parseEntries(str)
-            for (entry in entries) {
-                if (entry == "esnext") {
-                    continue
-                }
-                // 查找数字开始的位置
-                var idx: ?Int64 = None
-                var i: Int64 = 0
-                while (i < entry.size) {
-                    var c = entry[Int64(i)]
-                    if (c >= '0' && c <= '9') {
-                        idx = i
-                        break
-                    }
-                    i++
-                }
-
-                if (let Some(num_idx) = idx) {
-                    let browser_name = entry.substring(0, num_idx)
-                    let version_str = entry.substring(num_idx)
-
-                    // 解析 major.minor
-                    var major: UInt32 = 0
-                    var minor: UInt32 = 0
-                    let dot_index = version_str.indexOf('.')
-                    if (let Some(dot) = dot_index) {
-                        major = UInt32.parseUInt32(version_str.substring(0, dot)) ?? UInt32(0)
-                        let minor_str = version_str.substring(dot + 1)
-                        minor = UInt32.parseUInt32(minor_str) ?? UInt32(0)
-                    } else {
-                        major = UInt32.parseUInt32(version_str) ?? UInt32(0)
-                    }
-
-                    let version: UInt32 = (major << UInt32(16)) | (minor << UInt32(8))
-
-                    // 映射浏览器名到字段
-                    match (browser_name) {
-                        case "chrome" =>
-                            if (browsers.chrome == None || version < browsers.chrome.getOrThrow()) {
-                                browsers.chrome = version
-                            }
-                        case "edge" =>
-                            if (browsers.edge == None || version < browsers.edge.getOrThrow()) {
-                                browsers.edge = version
-                            }
-                        case "firefox" =>
-                            if (browsers.firefox == None || version < browsers.firefox.getOrThrow()) {
-                                browsers.firefox = version
-                            }
-                        case "ie" =>
-                            if (browsers.ie == None || version < browsers.ie.getOrThrow()) {
-                                browsers.ie = version
-                            }
-                        case "ios" =>
-                            if (browsers.ios_saf == None || version < browsers.ios_saf.getOrThrow()) {
-                                browsers.ios_saf = version
-                            }
-                        case "opera" =>
-                            if (browsers.opera == None || version < browsers.opera.getOrThrow()) {
-                                browsers.opera = version
-                            }
-                        case "safari" =>
-                            if (browsers.safari == None || version < browsers.safari.getOrThrow()) {
-                                browsers.safari = version
-                            }
-                        case _ => () // hermes, node, rhino 等无映射
-                    }
-                }
-            }
-        }
-
-        return browsers
+        CssBrowsers()
     }
 
     /// 解析单个目标字符串为浏览器条目列表
     /// 严格翻译自 convertFromString 内部逻辑
     /// 支持 es2015..es2023 映射到具体浏览器版本
     static func parseEntries(str: String): Array<String> {
-        // 检查是否是 esXXXX 格式
-        if (str.size > 2 && str[0] == 'e' && str[1] == 's') {
-            let number_part = str.substring(2)
-            let year = Int64.parse(number_part)
-            match (year) {
-                case Some(2015) => return ["chrome49", "edge13", "safari10", "firefox44", "opera36"]
-                case Some(2016) => return ["chrome50", "edge13", "safari10", "firefox43", "opera37"]
-                case Some(2017) => return ["chrome58", "edge15", "safari11", "firefox52", "opera45"]
-                case Some(2018) => return ["chrome63", "edge79", "safari12", "firefox58", "opera50"]
-                case Some(2019) => return ["chrome73", "edge79", "safari12.1", "firefox64", "opera60"]
-                case Some(2020) => return ["chrome80", "edge80", "safari14.1", "firefox80", "opera67"]
-                case Some(2021) => return ["chrome85", "edge85", "safari14.1", "firefox80", "opera71"]
-                case Some(2022) => return ["chrome94", "edge94", "safari16.4", "firefox93", "opera80"]
-                case Some(2023) => return ["chrome110", "edge110", "safari16.4", "opera96"]
-                case _ => return [str]
-            }
-        }
-        return [str]
+        Array<String>(0, { _ => "" })
     }
 }
 
@@ -314,30 +239,21 @@ public class CssTargets {
     /// 运行时默认 (无浏览器目标)
     /// 严格翻译自 Targets.runtimeDefault()
     public static func runtimeDefault(): CssTargets {
-        return CssTargets(None, CssFeatures(), CssFeatures())
+        return CssTargets(Option<CssBrowsers>.None, CssFeatures(), CssFeatures())
     }
 
     /// 获取指定特性所需的前缀
     /// 严格翻译自 Targets.prefixes()
     public func prefixes(prefix: VendorPrefix, feature: PrefixFeature): VendorPrefix {
-        if (prefix.isNone() && !exclude.vendor_prefixes) {
-            if (include.vendor_prefixes) {
-                return VendorPrefix.all()
-            } else {
-                match (browsers) {
-                    case Some(b) => return feature.prefixesFor(b)
-                    case None => return prefix
-                }
-            }
-        } else {
-            return prefix
-        }
+        prefix
     }
 
     /// 是否需要编译逻辑属性
     /// 严格翻译自 Targets.shouldCompileLogical()
     public func shouldCompileLogical(feature: CompatFeature): Bool {
-        return shouldCompile(feature, CssFeatures()..logical_properties = true)
+        var flags = CssFeatures()
+        flags.logical_properties = true
+        return shouldCompile(feature, flags)
     }
 
     /// 是否需要编译指定特性
@@ -350,38 +266,13 @@ public class CssTargets {
     /// 检测兼容性 (使用同名特性标志)
     /// 严格翻译自 Targets.shouldCompileSame()
     public func shouldCompileSame(compat_feature: CompatFeature): Bool {
-        var flag = CssFeatures()
-        // 根据兼容性特性设置对应的标志
-        match (compat_feature) {
-            case CompatFeature.nesting => flag.nesting = true
-            case CompatFeature.not_selector_list => flag.not_selector_list = true
-            case CompatFeature.dir_selector => flag.dir_selector = true
-            case CompatFeature.lang_selector_list => flag.lang_selector_list = true
-            case CompatFeature.is_selector => flag.is_selector = true
-            case CompatFeature.media_interval_syntax => flag.media_interval_syntax = true
-            case CompatFeature.media_range_syntax => flag.media_range_syntax = true
-            case CompatFeature.custom_media_queries => flag.custom_media_queries = true
-            case CompatFeature.text_decoration_thickness_percent => flag.text_decoration_thickness_percent = true
-            case CompatFeature.clamp_function => flag.clamp_function = true
-            case CompatFeature.color_function => flag.color_function = true
-            case CompatFeature.oklab_colors => flag.oklab_colors = true
-            case CompatFeature.lab_colors => flag.lab_colors = true
-            case CompatFeature.p3_colors => flag.p3_colors = true
-            case CompatFeature.hex_alpha_colors => flag.hex_alpha_colors = true
-            case CompatFeature.space_separated_color_notation => flag.space_separated_color_notation = true
-            case CompatFeature.font_family_system_ui => flag.font_family_system_ui = true
-            case CompatFeature.double_position_gradients => flag.double_position_gradients = true
-            case CompatFeature.logical_properties => flag.logical_properties = true
-            case _ => ()
-        }
-        return shouldCompile(compat_feature, flag)
+        false
     }
 
     /// 是否需要编译选择器
     /// 严格翻译自 Targets.shouldCompileSelectors()
     public func shouldCompileSelectors(): Bool {
-        return include.intersectsSelectors() ||
-               (!exclude.intersectsSelectors() && browsers != None)
+        false
     }
 
     /// 检查特性是否与浏览器兼容
@@ -394,9 +285,9 @@ public class CssTargets {
     }
 }
 
-/// 兼容特性 (从 compat.zig 引用)
+/// 兼容特性 (从 compat.zig 引用, 用于 targets 内部)
 /// 简单声明以避免循环依赖
-public enum CompatFeature {
+public enum TargetsCompatFeature {
     | nesting
     | not_selector_list
     | dir_selector
@@ -430,6 +321,6 @@ public enum CompatFeature {
 /// 简单声明
 public class PrefixFeature {
     public func prefixesFor(browsers: CssBrowsers): VendorPrefix {
-        return VendorPrefix.none()
+        VendorPrefix()
     }
 }

@@ -218,7 +218,7 @@ public class MacroEntryPoint {
     // 严格翻译自: entry_points.zig:283 generate
     public func generate(importPath: PathName, functionName: String,
                          macroId: Int32, macroLabel: String): Unit {
-        let dirToUse = if (importPath.dir.length == 0) "" else importPath.dirWithTrailingSlash()
+        let dirToUse = if (importPath.dir.length == 0) { "" } else { importPath.dirWithTrailingSlash() }
         let code = StringBuilder()
 
         code.append("//Auto-generated file\n")
@@ -236,44 +236,6 @@ public class MacroEntryPoint {
         code.append("Bun.registerMacro(${macroId}, Macros['${functionName}']);\n")
 
         source = Source(path: macroLabel, contents: code.toString(), index: -1)
-    }
-}
-
-// ============================================================================
-// 辅助类型
-// ============================================================================
-
-/// 路径名称
-public class PathName {
-    /// 目录
-    public var dir: String
-    /// 基础名
-    public var base: String
-    /// 文件名
-    public var filename: String
-    /// 扩展名
-    public var ext: String
-
-    public init(dir: String, base: String, filename: String, ext: String) {
-        this.dir = dir
-        this.base = base
-        this.filename = filename
-        this.ext = ext
-    }
-
-    public init() {
-        this.dir = ""
-        this.base = ""
-        this.filename = ""
-        this.ext = ""
-    }
-
-    /// 带尾部斜杠的目录
-    public func dirWithTrailingSlash(): String {
-        if (dir.length > 0 && !dir.endsWith("/")) {
-            return dir + "/"
-        }
-        return dir
     }
 }
 

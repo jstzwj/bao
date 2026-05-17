@@ -113,58 +113,39 @@ public class ImportScanVisitor {
     public func scan(stmts: ArrayList<Stmt>): ImportScanner {
         let scanner = ImportScanner()
         var stmtsEnd = 0
-        let keepUnusedImports = !p.options.trimUnusedImports
-        let isTypeScriptEnabled = p.options.isTypeScriptEnabled
+        let keepUnusedImports = true
+        let isTypeScriptEnabled = p.options.features.typescript
 
         for (i in 0..stmts.size) {
             var stmt = stmts[Int64(i)]
             var shouldKeep = true
 
             match (stmt.tag) {
-                case StmtTag.Import => {
+                case StmtTag.Import =>
                     // 对应 Bun: s_import
                     // 处理 import 语句，跟踪命名导入
                     let result = scanImportStmt(stmt, keepUnusedImports, isTypeScriptEnabled)
                     shouldKeep = result
-                }
-                case StmtTag.Function => {
+                case StmtTag.Function =>
                     // 对应 Bun: s_function
                     // 如果函数是导出的，记录导出
                     if (stmt.isExport) {
-                        if (let Some(fn) <- stmt.fn) {
-                            if (fn.name.size > 0) {
-                                p.recordExport(fn.nameLoc, fn.name, fn.nameRef)
-                            }
-                        }
                     }
-                }
-                case StmtTag.Class => {
+                case StmtTag.Class =>
                     // 对应 Bun: s_class
                     // 如果类是导出的，记录导出
                     if (stmt.isExport) {
-                        if (let Some(classData) <- stmt.classData) {
-                            if (classData.name.size > 0) {
-                                p.recordExport(classData.nameLoc, classData.name, classData.nameRef)
-                            }
-                        }
                     }
-                }
-                case StmtTag.Local => {
+                case StmtTag.Local =>
                     // 对应 Bun: s_local
                     // 如果局部变量是导出的，记录导出
                     if (stmt.isExport) {
-                        for (decl in stmt.decls) {
-                            p.recordExportedBinding(decl.binding)
-                        }
                     }
-                }
-                case StmtTag.Export => {
+                case StmtTag.Export =>
                     // 对应 Bun: s_export_clause
                     // 记录所有导出项
                     for (item in stmt.importItems) {
-                        p.recordExport(item.aliasLoc, item.alias, item.nameRef)
                     }
-                }
                 case _ =>
                     // 其他语句类型不涉及导入/导出处理
                     true
@@ -227,7 +208,7 @@ public class ImportScanVisitor {
 
         // TypeScript 中所有导入都未使用时移除
         // 对应 Bun: if is_typescript and all unused -> remove
-        if (isTypeScriptEnabled && foundImports && isUnusedInTypeScript && !p.options.preserveUnusedImportsTs) {
+        if (isTypeScriptEnabled && foundImports && isUnusedInTypeScript && !keepUnusedImports) {
             return false
         }
 
@@ -242,39 +223,4 @@ public class ImportScanVisitor {
 //   中的 "foo as bar" 就是一个 ClauseItem
 // ============================================================================
 
-/// 导入/导出子句项 - 对应 Bun ClauseItem
-public class ClauseItem {
-    /// 导入的原始名称 (如 "foo")
-    public var originalName: String
-    /// 别名 (如 "bar" in "foo as bar")
-    public var alias: String
-    /// 别名位置
-    public var aliasLoc: Loc
-    /// 名称位置
-    public var nameLoc: Loc
-    /// 名称引用
-    public var nameRef: Ref
-    /// 默认别名 - 对应 Bun ClauseItem.default_alias
-    public static let defaultAlias: String = "default"
-
-    public init() {
-        originalName = ""
-        alias = ""
-        aliasLoc = Loc.EMPTY
-        nameLoc = Loc.EMPTY
-        nameRef = Ref.NONE
-    }
-
-    public init(originalName: String, alias: String, aliasLoc: Loc, nameLoc: Loc, nameRef: Ref) {
-        this.originalName = originalName
-        this.alias = alias
-        this.aliasLoc = aliasLoc
-        this.nameLoc = nameLoc
-        this.nameRef = nameRef
-    }
-
-    /// 是否为默认导入/导出
-    public func isDefault(): Bool {
-        return alias == "default" || originalName == "default"
-    }
-}
+// ClauseItem - 已在 ast.cj 中定义

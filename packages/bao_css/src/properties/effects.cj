@@ -7,6 +7,7 @@
 package bao_css.properties
 
 import bao_core.*
+import bao_collections.*
 
 // ============================================================================
 // FilterList
@@ -19,19 +20,25 @@ public enum FilterList {
     | None                       // "none"
     | Filters(ArrayList<Filter>) // 滤镜函数列表
 
+    private func filtersToCss(filters: ArrayList<Filter>): String {
+        if (filters.isEmpty()) {
+            "none"
+        } else {
+            var parts = ArrayList<String>()
+            for (f in filters) {
+                parts.append(f.toCss())
+            }
+            var partArr = Array<String>(parts.size, repeat: "")
+            var pi: Int64 = 0
+            for (p in parts) { partArr[pi] = p; pi += 1 }
+            String.join(partArr, delimiter: " ")
+        }
+    }
+
     public func toCss(): String {
         match (this) {
             case None => "none"
-            case Filters(filters) => {
-                if (filters.isEmpty()) {
-                    return "none"
-                }
-                var parts = ArrayList<String>()
-                for (f in filters) {
-                    parts.append(f.toCss())
-                }
-                return String.join(" ", parts)
-            }
+            case Filters(filters) => filtersToCss(filters)
         }
     }
 }
@@ -53,8 +60,8 @@ public enum Filter {
     | Opacity(String)                       // opacity(value)
     | Saturate(String)                      // saturate(value)
     | Sepia(String)                         // sepia(value)
-    | DropShadow(DropShadow)                // drop-shadow(...)
-    | Url(String)                           // url(...)
+    | DropShadowVal(DropShadow)             // drop-shadow(...)
+    | UrlVal(String)                        // url(...)
 
     public func toCss(): String {
         match (this) {
@@ -67,8 +74,8 @@ public enum Filter {
             case Opacity(v) => "opacity(" + v + ")"
             case Saturate(v) => "saturate(" + v + ")"
             case Sepia(v) => "sepia(" + v + ")"
-            case DropShadow(ds) => ds.toCss()
-            case Url(u) => "url(" + u + ")"
+            case DropShadowVal(ds) => ds.toCss()
+            case UrlVal(u) => "url(" + u + ")"
         }
     }
 }
@@ -106,6 +113,9 @@ public class DropShadow {
             parts.append(color)
         }
 
-        return "drop-shadow(" + String.join(" ", parts) + ")"
+        var partArr = Array<String>(parts.size, repeat: "")
+        var pi: Int64 = 0
+        for (p in parts) { partArr[pi] = p; pi += 1 }
+        return "drop-shadow(" + String.join(partArr, delimiter: " ") + ")"
     }
 }

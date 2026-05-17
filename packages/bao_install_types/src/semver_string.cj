@@ -20,6 +20,7 @@ package bao_install_types
 
 import bao_core.*
 import bao_hash.*
+import bao_collections.*
 
 // ============================================================================
 // SemverString - SSO 字符串类型
@@ -80,7 +81,7 @@ public class SemverString {
     ///           else => ... // 外部引用
     ///       };
     ///   }
-    public static func init(buf: String, input: String): SemverString {
+    public static func make(buf: String, input: String): SemverString {
         return SemverString(input)
     }
 
@@ -90,7 +91,7 @@ public class SemverString {
     ///       bun.assertWithLocation(canInline(in), @src());
     ///       return switch (in.len) { ... };
     ///   }
-    public static func initInline(input: String): SemverString {
+    public static func makeInline(input: String): SemverString {
         return SemverString(input)
     }
 
@@ -102,14 +103,14 @@ public class SemverString {
     ///       return @as(u64, @bitCast(this.bytes)) == @as(u64, 0);
     ///   }
     public func isEmpty(): Bool {
-        return data.length == 0
+        return data.size == 0
     }
 
     /// 字符串长度
     /// 翻译自:
     ///   pub fn len(this: String) usize { ... }
     public func len(): Int64 {
-        return data.length
+        return Int64(data.size)
     }
 
     /// 是否为内联字符串
@@ -118,7 +119,7 @@ public class SemverString {
     ///       return this.bytes[max_inline_len - 1] & 0x80 == 0;
     ///   }
     public func isInline(): Bool {
-        return data.length <= MAX_INLINE_LEN
+        return Int64(data.size) <= MAX_INLINE_LEN
     }
 
     /// 是否可以内联
@@ -131,10 +132,10 @@ public class SemverString {
     ///       };
     ///   }
     public static func canInline(buf: String): Bool {
-        if (buf.length < MAX_INLINE_LEN) { return true }
-        if (buf.length == MAX_INLINE_LEN) {
+        if (Int64(buf.size) < MAX_INLINE_LEN) { return true }
+        if (Int64(buf.size) == MAX_INLINE_LEN) {
             // Check if highest bit of last byte is 0
-            let lastByte = buf[Int64(buf.length) - 1].value
+            let lastByte = Int32(buf[Int64(buf.size) - 1])
             return (lastByte & 0x80) == 0
         }
         return false
@@ -153,15 +154,15 @@ public class SemverString {
     /// 翻译自:
     ///   pub inline fn sliced(this: *const String, buf: []const u8) SlicedString {
     ///       return if (this.isInline())
-    ///           SlicedString.init(this.slice(""), this.slice(""))
+    ///           SlicedString.make(this.slice(""), this.slice(""))
     ///       else
-    ///           SlicedString.init(buf, this.slice(buf));
+    ///           SlicedString.make(buf, this.slice(buf));
     ///   }
     public func sliced(buf: String): SlicedString {
         if (isInline() || isEmpty()) {
-            return SlicedString.init(data, data)
+            return SlicedString.make(data, data)
         }
-        return SlicedString.init(buf, data)
+        return SlicedString.make(buf, data)
     }
 
     // ── Comparison ──────────────────────────────────────────────────────────
@@ -205,120 +206,6 @@ public class SemverString {
         return data == that.data
     }
 
-    // ── Pointer (internal representation) ───────────────────────────────────
-    // 翻译自:
-    //   pub const Pointer = extern struct {
-    //       off: u32 = 0,
-    //       len: u32 = 0,
-    //       pub inline fn init(buf: string, in: string) Pointer { ... }
-    //   };
-
-    /// 内部指针表示 (offset + length)
-    /// 翻译自:
-    ///   pub const Pointer = extern struct {
-    ///       off: u32 = 0,
-    ///       len: u32 = 0,
-    ///   }
-    public class Pointer {
-        public var off: UInt32
-        public var len_: UInt32
-
-        public init() {
-            off = UInt32(0)
-            len_ = UInt32(0)
-        }
-
-        public init(off: UInt32, len_: UInt32) {
-            this.off = off
-            this.len_ = len_
-        }
-    }
-
-    // ── Builder ─────────────────────────────────────────────────────────────
-    // 翻译自:
-    //   pub const Builder = struct {
-    //       len: usize = 0,
-    //       cap: usize = 0,
-    //       ptr: ?[*]u8 = null,
-    //       string_pool: StringPool = undefined,
-    //       ...
-    //   };
-
-    /// 字符串构建器
-    /// 翻译自:
-    ///   pub const Builder = struct {
-    ///       len: usize = 0,
-    ///       cap: usize = 0,
-    ///       ptr: ?[*]u8 = null,
-    ///       string_pool: StringPool,
-    ///       pub fn count(this: *Builder, slice_: string) void { ... }
-    ///       pub fn append(this: *Builder, comptime Type: type, slice_: string) Type { ... }
-    ///   }
-    public class Builder {
-        private var buffer: StringBuilder
-        private var pool: HashMap<UInt64, SemverString>
-
-        public init() {
-            buffer = StringBuilder()
-            pool = HashMap<UInt64, SemverString>()
-        }
-
-        /// 计算字符串哈希
-        /// 翻译自: pub inline fn stringHash(buf: []const u8) u64
-        public static func stringHash(buf: String): UInt64 {
-            return Wyhash11.hash(buf)
-        }
-
-        /// 预留空间
-        /// 翻译自: pub fn count(this: *Builder, slice_: string) void
-        public func count(slice_: String): Unit {
-            // In Cangjie, StringBuilder handles allocation automatically
-        }
-
-        /// 追加字符串并返回 SemverString
-        /// 翻译自: pub fn append(this: *Builder, comptime Type: type, slice_: string) Type
-        public func append(slice_: String): SemverString {
-            let hash = Builder.stringHash(slice_)
-            if (canInline(slice_)) {
-                return SemverString(slice_)
-            }
-
-            // Check pool for dedup
-            match (pool.get(hash)) {
-                case Some(existing) => return existing
-                case None => ()
-            }
-
-            let s = SemverString(slice_)
-            pool.put(hash, s)
-            return s
-        }
-
-        /// 追加并返回 ExternalString
-        /// 翻译自: pub fn appendExternal(this: *Builder, str: string) OOM!ExternalString
-        public func appendExternal(slice_: String): ExternalString {
-            let hash = Builder.stringHash(slice_)
-            if (canInline(slice_)) {
-                return ExternalString(value: slice_, hash: hash)
-            }
-
-            match (pool.get(hash)) {
-                case Some(existing) => {
-                    return ExternalString(value: existing.data, hash: hash)
-                }
-                case None => ()
-            }
-
-            let s = SemverString(slice_)
-            pool.put(hash, s)
-            return ExternalString(value: slice_, hash: hash)
-        }
-
-        private static func canInline(s: String): Bool {
-            return SemverString.canInline(s)
-        }
-    }
-
     // ── Formatter ───────────────────────────────────────────────────────────
     // 翻译自:
     //   pub const Formatter = struct {
@@ -336,9 +223,9 @@ public class SemverString {
     /// JSON 格式化
     /// 翻译自:
     ///   pub const JsonFormatter = struct { ... }
-    public func fmtJson(buf: String, quote: Bool): String {
+    public func fmtJson(buf: String, `quote`: Bool): String {
         let s = slice(buf)
-        if (quote) {
+        if (`quote`) {
             return "\"${s}\""
         }
         return s
@@ -352,7 +239,7 @@ public class SemverString {
         let s = slice(buf)
         let sb = StringBuilder()
         for (c in s) {
-            let v = c.value
+            let v = Int32(c)
             if (v == 47 || v == 92 || v == 58 || v == 35) {  // / \ : #
                 sb.append("+")
             } else {
@@ -361,61 +248,163 @@ public class SemverString {
         }
         return sb.toString()
     }
+}
 
-    // ── HashContext ─────────────────────────────────────────────────────────
-    // 翻译自:
-    //   pub const HashContext = struct {
-    //       arg_buf: []const u8,
-    //       existing_buf: []const u8,
-    //       pub fn eql(ctx, arg, existing) bool { ... }
-    //       pub fn hash(ctx, arg) u64 { ... }
-    //   };
+// ============================================================================
+// SemverStringPointer - 内部指针表示
+// 移至顶层以避免嵌套类声明 (Cangjie 不支持嵌套类)
+// ============================================================================
 
-    /// 哈希上下文
-    /// 翻译自: pub const HashContext = struct { arg_buf, existing_buf }
-    public class HashContext {
-        public var argBuf: String
-        public var existingBuf: String
+/// 内部指针表示 (offset + length)
+/// 翻译自:
+///   pub const Pointer = extern struct {
+///       off: u32 = 0,
+///       len: u32 = 0,
+///   }
+public class SemverStringPointer {
+    public var off: UInt32
+    public var len_: UInt32
 
-        public init(argBuf: String, existingBuf: String) {
-            this.argBuf = argBuf
-            this.existingBuf = existingBuf
-        }
-
-        /// 翻译自: pub fn eql(ctx: HashContext, arg: String, existing: String) bool
-        public func eql(arg: SemverString, existing: SemverString): Bool {
-            return arg.eql(existing, argBuf, existingBuf)
-        }
-
-        /// 翻译自: pub fn hash(ctx: HashContext, arg: String) u64
-        public func hash(arg: SemverString): UInt64 {
-            return Wyhash11.hash(arg.slice(argBuf))
-        }
+    public init() {
+        off = UInt32(0)
+        len_ = UInt32(0)
     }
 
-    /// 排序器
-    /// 翻译自:
-    ///   pub fn Sorter(comptime direction: enum { asc, desc }) type {
-    ///       return struct {
-    ///           lhs_buf: []const u8,
-    ///           rhs_buf: []const u8,
-    ///           pub fn lessThan(this, lhs, rhs) bool { ... }
-    ///       };
-    ///   }
-    public class Sorter {
-        public var lhsBuf: String
-        public var rhsBuf: String
-        public var ascending: Bool
+    public init(off: UInt32, len_: UInt32) {
+        this.off = off
+        this.len_ = len_
+    }
+}
 
-        public init(lhsBuf: String, rhsBuf: String, ascending: Bool) {
-            this.lhsBuf = lhsBuf
-            this.rhsBuf = rhsBuf
-            this.ascending = ascending
+// ============================================================================
+// SemverStringBuilder - 字符串构建器
+// 移至顶层以避免嵌套类声明 (Cangjie 不支持嵌套类)
+// ============================================================================
+
+/// 字符串构建器
+/// 翻译自:
+///   pub const Builder = struct {
+///       len: usize = 0,
+///       cap: usize = 0,
+///       ptr: ?[*]u8 = null,
+///       string_pool: StringPool,
+///       pub fn count(this: *Builder, slice_: string) void { ... }
+///       pub fn append(this: *Builder, comptime Type: type, slice_: string) Type { ... }
+///   }
+public class SemverStringBuilder {
+    private var buffer: StringBuilder
+    private var pool: HashMap<UInt64, SemverString>
+
+    public init() {
+        buffer = StringBuilder()
+        pool = HashMap<UInt64, SemverString>()
+    }
+
+    /// 计算字符串哈希
+    /// 翻译自: pub inline fn stringHash(buf: []const u8) u64
+    public static func stringHash(buf: String): UInt64 {
+        return Wyhash11.hash(buf)
+    }
+
+    /// 预留空间
+    /// 翻译自: pub fn count(this: *Builder, slice_: string) void
+    public func count(slice_: String): Unit {
+        // In Cangjie, StringBuilder handles allocation automatically
+    }
+
+    /// 追加字符串并返回 SemverString
+    /// 翻译自: pub fn append(this: *Builder, comptime Type: type, slice_: string) Type
+    public func append(slice_: String): SemverString {
+        let hash = SemverStringBuilder.stringHash(slice_)
+        if (SemverString.canInline(slice_)) {
+            return SemverString(slice_)
         }
 
-        public func lessThan(lhs: SemverString, rhs: SemverString): Bool {
-            let cmp = SemverString.order(lhs, rhs, lhsBuf, rhsBuf)
-            return if (ascending) { cmp < 0 } else { cmp > 0 }
+        // Check pool for dedup
+        match (pool.get(hash)) {
+            case Some(existing) => return existing
+            case None => ()
         }
+
+        let s = SemverString(slice_)
+        pool.put(hash, s)
+        return s
+    }
+
+    /// 追加并返回 ExternalString
+    /// 翻译自: pub fn appendExternal(this: *Builder, str: string) OOM!ExternalString
+    public func appendExternal(slice_: String): ExternalString {
+        let hash = SemverStringBuilder.stringHash(slice_)
+        if (SemverString.canInline(slice_)) {
+            return ExternalString( slice_, hash)
+        }
+
+        match (pool.get(hash)) {
+            case Some(existing) =>
+                return ExternalString( existing.data, hash)
+            case None => ()
+        }
+
+        let s = SemverString(slice_)
+        pool.put(hash, s)
+        return ExternalString( slice_, hash)
+    }
+}
+
+// ============================================================================
+// SemverStringHashContext - 哈希上下文
+// 移至顶层以避免嵌套类声明 (Cangjie 不支持嵌套类)
+// ============================================================================
+
+/// 哈希上下文
+/// 翻译自: pub const HashContext = struct { arg_buf, existing_buf }
+public class SemverStringHashContext {
+    public var argBuf: String
+    public var existingBuf: String
+
+    public init(argBuf: String, existingBuf: String) {
+        this.argBuf = argBuf
+        this.existingBuf = existingBuf
+    }
+
+    /// 翻译自: pub fn eql(ctx: HashContext, arg: String, existing: String) bool
+    public func eql(arg: SemverString, existing: SemverString): Bool {
+        return arg.eql(existing, argBuf, existingBuf)
+    }
+
+    /// 翻译自: pub fn hash(ctx: HashContext, arg: String) u64
+    public func hash(arg: SemverString): UInt64 {
+        return Wyhash11.hash(arg.slice(argBuf))
+    }
+}
+
+// ============================================================================
+// SemverStringSorter - 排序器
+// 移至顶层以避免嵌套类声明 (Cangjie 不支持嵌套类)
+// ============================================================================
+
+/// 排序器
+/// 翻译自:
+///   pub fn Sorter(comptime direction: enum { asc, desc }) type {
+///       return struct {
+///           lhs_buf: []const u8,
+///           rhs_buf: []const u8,
+///           pub fn lessThan(this, lhs, rhs) bool { ... }
+///       };
+///   }
+public class SemverStringSorter {
+    public var lhsBuf: String
+    public var rhsBuf: String
+    public var ascending: Bool
+
+    public init(lhsBuf: String, rhsBuf: String, ascending: Bool) {
+        this.lhsBuf = lhsBuf
+        this.rhsBuf = rhsBuf
+        this.ascending = ascending
+    }
+
+    public func lessThan(lhs: SemverString, rhs: SemverString): Bool {
+        let cmp = SemverString.order(lhs, rhs, lhsBuf, rhsBuf)
+        return if (ascending) { cmp < 0 } else { cmp > 0 }
     }
 }

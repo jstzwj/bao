@@ -165,11 +165,10 @@ public class ParseTask {
         if (stage == ParseTaskStage.NeedsSourceCode) {
             // 阶段 1: 获取源代码
             match (getSourceCode(this, worker, log)) {
-                case Some(entry) => {
+                case Some(entry) =>
                     stage = ParseTaskStage.NeedsParse(entry)
                     // 如果使用 IO pool，需要调度回去
-                }
-                case None => {
+                case None =>
                     value = ParseTaskResultValue.Error(ParseTaskError(
                         err: "Failed to get source code",
                         step: step,
@@ -177,7 +176,6 @@ public class ParseTask {
                         sourceIndex: sourceIndex,
                         target: knownTarget
                     ))
-                }
             }
 
             if (log.hasErrors()) {
@@ -193,12 +191,11 @@ public class ParseTask {
 
         // 阶段 2: 解析
         match (stage) {
-            case ParseTaskStage.NeedsParse(entry) => {
+            case ParseTaskStage.NeedsParse(entry) =>
                 match (runWithSourceCode(this, worker, entry)) {
-                    case Some(success) => {
+                    case Some(success) =>
                         value = ParseTaskResultValue.Success(success)
-                    }
-                    case None => {
+                    case None =>
                         value = ParseTaskResultValue.Error(ParseTaskError(
                             err: "ParseError",
                             step: ParseTaskErrorStep.Parse,
@@ -206,13 +203,10 @@ public class ParseTask {
                             sourceIndex: sourceIndex,
                             target: knownTarget
                         ))
-                    }
                 }
-            }
-            case _ => {
+            case _ =>
                 // 不应该到达这里
                 value = ParseTaskResultValue.Empty(ParseTaskEmpty(sourceIndex: sourceIndex))
-            }
         }
 
         // 创建结果并发送回 bundler 线程
@@ -222,15 +216,13 @@ public class ParseTask {
         result.external = externalFreeFunction
 
         match (contentsOrFd.tag) {
-            case ContentsOrFdTag.Fd => {
+            case ContentsOrFdTag.Fd =>
                 result.watcherData = WatcherData(
                     fd: contentsOrFd.fileFd,
                     dirFd: contentsOrFd.dirFd
                 )
-            }
-            case ContentsOrFdTag.Contents => {
+            case ContentsOrFdTag.Contents =>
                 result.watcherData = WatcherData.none()
-            }
         }
     }
 
@@ -256,21 +248,17 @@ public class ParseTask {
         loader: Loader
     ): ?CacheEntry {
         match (task.contentsOrFd.tag) {
-            case ContentsOrFdTag.Fd => {
+            case ContentsOrFdTag.Fd =>
                 // 从文件读取
                 match (resolver.readFile(filePath.text, task.contentsOrFd.dirFd, Some(task.contentsOrFd.fileFd))) {
-                    case Some(entry) => {
+                    case Some(entry) =>
                         return CacheEntry(contents: entry.contents, fd: entry.fd)
-                    }
-                    case None => {
+                    case None =>
                         log.addError("File not found ${filePath.text}")
                         return None
-                    }
                 }
-            }
-            case ContentsOrFdTag.Contents => {
+            case ContentsOrFdTag.Contents =>
                 return CacheEntry(contents: task.contentsOrFd.contents, fd: FileDescriptor())
-            }
         }
     }
 
@@ -299,7 +287,7 @@ public class ParseTask {
 
         // 获取 AST
         match (getAST(log, transpiler, source, loader)) {
-            case Some(ast) => {
+            case Some(ast) =>
                 return Some(ParseTaskSuccess(
                     ast: ast,
                     source: source,
@@ -309,10 +297,8 @@ public class ParseTask {
                     loader: loader,
                     packageName: task.packageName
                 ))
-            }
-            case None => {
+            case None =>
                 return None
-            }
         }
     }
 
@@ -320,57 +306,44 @@ public class ParseTask {
     // 严格翻译自: ParseTask.zig:310 getAST()
     private func getAST(log: Log, transpiler: Transpiler, source: Source, loader: Loader): ?Program {
         match (loader) {
-            case Loader.Jsx | Loader.Tsx | Loader.Js | Loader.Ts => {
+            case Loader.Jsx | Loader.Tsx | Loader.Js | Loader.Ts =>
                 // JS/TS 解析
                 return Program()
-            }
-            case Loader.Json | Loader.Jsonc => {
+            case Loader.Json | Loader.Jsonc =>
                 // JSON 解析
                 return Program()
-            }
-            case Loader.Toml => {
+            case Loader.Toml =>
                 // TOML 解析
                 return Program()
-            }
-            case Loader.Yaml => {
+            case Loader.Yaml =>
                 // YAML 解析
                 return Program()
-            }
-            case Loader.Json5 => {
+            case Loader.Json5 =>
                 // JSON5 解析
                 return Program()
-            }
-            case Loader.Text => {
+            case Loader.Text =>
                 // Text 解析 (作为字符串导出)
                 return Program()
-            }
-            case Loader.Md => {
+            case Loader.Md =>
                 // Markdown 解析 (渲染为 HTML 后作为字符串导出)
                 return Program()
-            }
-            case Loader.Css => {
+            case Loader.Css =>
                 // CSS 解析
                 return Program()
-            }
-            case Loader.File | Loader.Wasm => {
+            case Loader.File | Loader.Wasm =>
                 // File/Wasm (生成 URL 引用)
                 return Program()
-            }
-            case Loader.Napi => {
+            case Loader.Napi =>
                 // NAPI (生成 require 调用)
                 return Program()
-            }
-            case Loader.Html => {
+            case Loader.Html =>
                 // HTML 扫描
                 return Program()
-            }
-            case Loader.Sqlite | Loader.SqliteEmbedded => {
+            case Loader.Sqlite | Loader.SqliteEmbedded =>
                 // SQLite (生成 import.meta.require 调用)
                 return Program()
-            }
-            case _ => {
+            case _ =>
                 return Program()
-            }
         }
     }
 
@@ -395,43 +368,8 @@ public enum ParseTaskStage {
 }
 
 /// 缓存条目
-// 严格翻译自: cache.zig Fs.Entry
-public class CacheEntry {
-    /// 文件内容
-    public var contents: String
-    /// 文件描述符
-    public var fd: FileDescriptor
-
-    public init(contents: String, fd: FileDescriptor) {
-        this.contents = contents
-        this.fd = fd
-    }
-}
-
-/// 解析任务结果
-// 严格翻译自: ParseTask.zig:46 Result
-public class ParseTaskResult {
-    /// 事件循环任务
-    public var task: EventLoopTask
-    /// BundleV2 上下文
-    public var ctx: ?BundlerContext
-    /// 结果值
-    public var value: ParseTaskResultValue
-    /// watcher 数据
-    public var watcherData: WatcherData
-    /// 外部释放函数
-    public var external: ExternalFreeFunction
-
-    public init() {
-        task = EventLoopTask()
-        ctx = None
-        value = ParseTaskResultValue.Empty(ParseTaskEmpty(sourceIndex: -1))
-        watcherData = WatcherData.none()
-        external = ExternalFreeFunction()
-    }
-}
-
-/// 解析任务结果值
+// 严格翻译自: cache.zig Fs.Entry/// 解析任务结果
+// 严格翻译自: ParseTask.zig:46 Result/// 解析任务结果值
 // 严格翻译自: ParseTask.zig:56 Result.Value
 public enum ParseTaskResultValue {
     | Success(ParseTaskSuccess)
@@ -544,20 +482,7 @@ public class WatcherData {
 }
 
 /// 外部释放函数
-// 严格翻译自: ParseTask.zig external_free_function
-public class ExternalFreeFunction {
-    /// 上下文指针
-    public var ctx: ?Object
-    /// 释放函数
-    public var freeFn: ?FreeFunction
-
-    public init() {
-        ctx = None
-        freeFn = None
-    }
-}
-
-/// 释放函数类型
+// 严格翻译自: ParseTask.zig external_free_function/// 释放函数类型
 public class FreeFunction {
     public init() {}
 }

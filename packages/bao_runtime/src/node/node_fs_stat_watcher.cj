@@ -79,7 +79,7 @@ public class StatWatcherScheduler {
     // 对应 Bun: node_fs_stat_watcher.zig - StatWatcherScheduler.append
     public func append(watcher: StatWatcher): Unit {
         mutex.lock()
-        pendingWatchers.add(watcher)
+        pendingWatchers.append(watcher)
         mutex.unlock()
 
         // 更新间隔
@@ -146,7 +146,7 @@ public class StatWatcherScheduler {
         // 将 pending watchers 合并到活跃列表
         mutex.lock()
         for (w in pendingWatchers) {
-            watchers.add(w)
+            watchers.append(w)
         }
         pendingWatchers = Array<StatWatcher>()
         mutex.unlock()
@@ -161,7 +161,7 @@ public class StatWatcherScheduler {
 
     // 引用
     public func ref_(): Unit {
-        refCount.add(1)
+        refCount.append(1)
     }
 
     // 解引用

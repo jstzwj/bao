@@ -220,7 +220,8 @@ public class HMRModule {
     /// invalidate — 使模块无效
     public func invalidate(): Unit {
         emitEvent("bun:invalidate", None)
-        panic("TODO: implement ImportMetaHot.invalidate")
+        // 通过立即抛错触发页面刷新，对应 Bun 上游当前行为。
+        throw Error("TODO: implement ImportMetaHot.invalidate")
     }
 
     /// on — 注册事件处理器
@@ -249,7 +250,7 @@ public class HMRModule {
 
     /// send — 发送事件
     public func send(event: String, cb: HotEventHandler): Unit {
-        panic("TODO: implement ImportMetaHot.send")
+        throw Error("TODO: implement ImportMetaHot.send")
     }
 }
 
@@ -309,7 +310,7 @@ public func loadModuleSync(id: Id, isUserDynamic: Bool, importer: ?HMRModule = N
             m.state = State.pending
         } else {
             if (importer != None) {
-                m.importers.add(importer.get())
+                m.importers.append(importer.get())
             }
             return m
         }
@@ -329,7 +330,7 @@ public func loadModuleSync(id: Id, isUserDynamic: Bool, importer: ?HMRModule = N
         }
         let m = mod.get()
         if (importer != None) {
-            m.importers.add(importer.get())
+            m.importers.append(importer.get())
         }
         // 执行 CJS 模块加载
         loadOrEsmModule.get().cjsLoad(m)
@@ -352,7 +353,7 @@ public func loadModuleSync(id: Id, isUserDynamic: Bool, importer: ?HMRModule = N
         }
         let m = mod.get()
         if (importer != None) {
-            m.importers.add(importer.get())
+            m.importers.append(importer.get())
         }
 
         // 解析 ESM 依赖
@@ -392,7 +393,7 @@ public func loadModuleAsync(id: Id, isUserDynamic: Bool, importer: ?HMRModule = 
             m.state = State.pending
         } else {
             if (importer != None) {
-                m.importers.add(importer.get())
+                m.importers.append(importer.get())
             }
             return HmrModuleOrPromise.fromModule(m)
         }
@@ -415,7 +416,7 @@ public func loadModuleAsync(id: Id, isUserDynamic: Bool, importer: ?HMRModule = 
         }
         let m = mod.get()
         if (importer != None) {
-            m.importers.add(importer.get())
+            m.importers.append(importer.get())
         }
         loadOrEsmModule.get().cjsLoad(m)
         m.state = State.loaded
@@ -433,7 +434,7 @@ public func loadModuleAsync(id: Id, isUserDynamic: Bool, importer: ?HMRModule = 
         }
         let m = mod.get()
         if (importer != None) {
-            m.importers.add(importer.get())
+            m.importers.append(importer.get())
         }
 
         // 解析 ESM 依赖 (异步)
@@ -566,13 +567,13 @@ public func replaceModules(modules: HashMap<Id, UnloadedModule>, sourceMapId: ?S
             continue
         }
 
-        toReload.add(existing.get())
+        toReload.append(existing.get())
 
         // 发现所有 HMR 边界
         let visited: HashSet<HMRModule> = HashSet<HMRModule>()
         let queue: ArrayList<HMRModule> = ArrayList<HMRModule>()
         queue.append(existing.get())
-        visited.add(existing.get())
+        visited.append(existing.get())
 
         var hadFailure = false
         while (queue.size() > 0) {
@@ -581,8 +582,8 @@ public func replaceModules(modules: HashMap<Id, UnloadedModule>, sourceMapId: ?S
             // 如果模块是自接受的，停止传播
             var hadSelfAccept = true
             if (mod.selfAccept != None) {
-                toReload.add(mod)
-                visited.add(mod)
+                toReload.append(mod)
+                visited.append(mod)
                 hadSelfAccept = false
                 if (mod.onDispose != None) {
                     toDispose.append(mod)
@@ -590,8 +591,8 @@ public func replaceModules(modules: HashMap<Id, UnloadedModule>, sourceMapId: ?S
             } else if (mod.data != None) {
                 // 有 data 的模块隐含处理更新
                 mod.selfAccept = { (_: JSValue) => () }
-                toReload.add(mod)
-                visited.add(mod)
+                toReload.append(mod)
+                visited.append(mod)
                 hadSelfAccept = false
                 if (mod.onDispose != None) {
                     toDispose.append(mod)
@@ -603,7 +604,7 @@ public func replaceModules(modules: HashMap<Id, UnloadedModule>, sourceMapId: ?S
                 if (failures == None) {
                     failures = Some(HashSet<Id>())
                 }
-                failures.get().add(key)
+                failures.get().append(key)
                 break
             }
 
@@ -616,7 +617,7 @@ public func replaceModules(modules: HashMap<Id, UnloadedModule>, sourceMapId: ?S
                     if (visited.contains(importer)) {
                         continue
                     }
-                    visited.add(importer)
+                    visited.append(importer)
                     queue.append(importer)
                 }
             }
@@ -632,7 +633,7 @@ public func replaceModules(modules: HashMap<Id, UnloadedModule>, sourceMapId: ?S
         while (let Some(boundary) = failuresIt.next()) {
             message = message + "Module \"${boundary}\" is a root module that does not self-accept.\n"
         }
-        message = message.trim()
+        message = message.trimAscii()
 
         console.warn(message)
     }

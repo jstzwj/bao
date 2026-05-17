@@ -136,7 +136,7 @@ public class ShellSubprocess {
         if (this.closed.contains(io)) {
             return
         }
-        this.closed.add(io)
+        this.closed.append(io)
         switch (io) {
             case .stdin =>
                 this.stdin.finalize()

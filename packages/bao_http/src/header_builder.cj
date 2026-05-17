@@ -180,30 +180,3 @@ public class HeaderBuilder {
         return headerCount == UInt64(0)
     }
 }
-
-/// 头部名称-值对
-/// 对应 Bun: Headers.Entry { name: StringPointer, value: StringPointer }
-public class HeaderPair {
-    public var name: String
-    public var value: String
-
-    public init(name: String, value: String) {
-        this.name = name
-        this.value = value
-    }
-}
-
-/// 原始 HTTP 请求 (对应 picohttp.Request)
-public class RawRequest {
-    public var method: String
-    public var path: String
-    public var minorVersion: Int64
-    public var headers: ArrayList<HeaderPair>
-
-    public init() {
-        method = "GET"
-        path = "/"
-        minorVersion = 1
-        headers = ArrayList<HeaderPair>()
-    }
-}

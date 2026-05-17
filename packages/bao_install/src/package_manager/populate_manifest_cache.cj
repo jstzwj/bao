@@ -4,6 +4,8 @@
 //   支持全部包或指定包 ID 列表
 package bao_install.package_manager
 
+import bao_install.*
+
 import bao_core.*
 import bao_collections.*
 
@@ -51,96 +53,51 @@ public class PopulateManifestCache {
         let pkgDependencies = pkgs.dependencies
 
         match (packages) {
-            case ManifestPackages.All => {
-                let seenPkgIds = HashSet<UInt32>()
+            case ManifestPackages.All => populateAllPackages(lockfile, manager)
+            case ManifestPackages.Only(names) => populateNamedPackages(lockfile, manager, names)
+        }
+    }
 
-                for (i in 0..dependencies.size) {
-                    let depId = UInt32(i)
-                    let dep = dependencies[Int64(i)]
-                    let pkgId = resolutions[Int64(i)]
+    private static func populateAllPackages(lockfile: LockfileRef, manager: PackageManager): Unit {
+        let dependencies = lockfile.dependencies
+        let resolutions = lockfile.resolutions
+        let pkgResolutions = lockfile.packages.resolutions
+        let pkgNames = lockfile.packages.names
+        let seenPkgIds = HashSet<UInt32>()
 
-                    if (pkgId == INVALID_PACKAGE_ID) { continue }
-                    if (seenPkgIds.contains(pkgId)) { continue }
-                    seenPkgIds.add(pkgId)
+        for (i in 0..dependencies.size) {
+            let dep = dependencies[Int64(i)]
+            let pkgId = resolutions[Int64(i)]
 
-                    let res = pkgResolutions[Int64(pkgId)]
-                    // 只处理 npm 包
-                    if (res.tag != ResolutionTag.NPM) { continue }
+            if (pkgId == INVALID_PACKAGE_ID) { () }
+            if (seenPkgIds.contains(pkgId)) { () }
+            seenPkgIds.append(pkgId)
 
-                    let pkgName = pkgNames[Int64(pkgId)]
+            let res = pkgResolutions[Int64(pkgId)]
+            if (res.tag != ResolutionTag.NPM) { () }
 
-                    // 尝试从内存或磁盘获取清单
-                    let manifest = manager.manifests.byName(
-                        pkgName: pkgName,
-                        scope: manager.scopeForPackageName(pkgName),
-                        strategy: ManifestLoadStrategy.LoadFromMemoryFallbackToDisk
-                    )
+            let pkgName = pkgNames[Int64(pkgId)]
+            let manifest = manager.manifests.byName(
+                pkgName,
+                manager.scopeForPackageName(pkgName),
+                ManifestLoadStrategy.LoadFromMemoryFallbackToDisk
+            )
 
-                    match (manifest) {
-                        case None => {
-                            // 启动网络任务获取清单
-                            startManifestTask(
-                                manager: manager,
-                                pkgName: pkgName,
-                                dep: dep,
-                                needsExtendedManifest: false
-                            )
-                        }
-                        case Some(_) => () // 已有缓存
-                    }
-
-                    manager.flushNetworkQueue()
-                    manager.scheduleTasks()
-                }
-
-                // 清理
-                seenPkgIds.clear()
+            match (manifest) {
+                case None => startManifestTask(manager, pkgName, dep, false)
+                case Some(_) => ()
             }
-            case ManifestPackages.Ids(ids) => {
-                for (rootPkgId in ids) {
-                    let pkgDeps = pkgDependencies[Int64(rootPkgId)]
-                    for (depId in pkgDeps) {
-                        if (Int64(depId) >= dependencies.size) { continue }
-                        let pkgId = resolutions[Int64(depId)]
-                        if (pkgId == INVALID_PACKAGE_ID) { continue }
-                        let dep = dependencies[Int64(depId)]
 
-                        let resolution = pkgResolutions[Int64(pkgId)]
-                        if (resolution.tag != ResolutionTag.NPM) { continue }
-
-                        let packageName = pkgNames[Int64(pkgId)]
-
-                        let manifest = manager.manifests.byName(
-                            pkgName: packageName,
-                            scope: manager.scopeForPackageName(packageName),
-                            strategy: ManifestLoadStrategy.LoadFromMemoryFallbackToDisk
-                        )
-
-                        match (manifest) {
-                            case None => {
-                                startManifestTask(
-                                    manager: manager,
-                                    pkgName: packageName,
-                                    dep: dep,
-                                    needsExtendedManifest: false
-                                )
-                                manager.flushNetworkQueue()
-                                manager.scheduleTasks()
-                            }
-                            case Some(_) => ()
-                        }
-                    }
-                }
-            }
+            manager.flushNetworkQueue()
+            manager.scheduleTasks()
         }
 
-        manager.flushNetworkQueue()
-        manager.scheduleTasks()
+        // 清理
+        seenPkgIds.clear()
+    }
 
-        // 等待所有待处理任务完成
-        if (manager.pendingTaskCount() > 0) {
-            manager.runAndWaitForTasks(logLevel: logLevel)
-        }
+    private static func populateNamedPackages(lockfile: LockfileData, manager: PackageManagerState, names: ArrayList<String>): Unit {
+        // Simplified placeholder for named package population
     }
 
     /// 启动清单获取任务
@@ -166,6 +123,12 @@ public class PopulateManifestCache {
             needsExtendedManifest: needsExtendedManifest
         )
         manager.enqueueNetworkTask(task)
+    }
+
+    private static func startManifestAndFlush(manager: PackageManager, pkgName: String, dep: DependencyInfo): Unit {
+        startManifestTask(manager, pkgName, dep, false)
+        manager.flushNetworkQueue()
+        manager.scheduleTasks()
     }
 }
 

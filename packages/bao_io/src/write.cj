@@ -7,6 +7,8 @@
 package bao_io
 
 import bao_core.*
+import bao_sys.*
+import bao_collections.*
 
 // ============================================================================
 // IoResult - IO 结果类型
@@ -17,7 +19,7 @@ import bao_core.*
 
 /// IO 操作结果
 /// 翻译自: pub type Result<T = ()> = core::result::Result<T, bun_core::Error>
-public typealias IoResult<T> = SysMaybe<T>
+public type IoResult<T> = SysMaybe<T>
 
 // ============================================================================
 // ByteWrite - 字节写入 trait
@@ -69,7 +71,7 @@ public interface ByteWrite {
             return IoResult<Unit>.Ok(())
         }
         // 大量: 构造缓冲区一次写入
-        var buf = Array<UInt8>(n, item: byte)
+        var buf = Array<UInt8>(n, { _ => byte })
         return writeAll(buf)
     }
 
@@ -77,7 +79,7 @@ public interface ByteWrite {
     /// 严格翻译自: fn write_int_le<I: IntLe>(&mut self, value: I) -> Result<()>
     ///   默认: 将整数转为小端字节序后 write_all
     func writeIntLe(value: Int64): IoResult<Unit> {
-        var buf = Array<UInt8>(8, item: UInt8(0))
+        var buf = Array<UInt8>(8, { _ => UInt8(0) })
         // 手动小端编码
         var v = value
         for (i in 0..8) {
@@ -89,7 +91,7 @@ public interface ByteWrite {
 
     /// 写入小端序 16 位整数
     func writeIntLe16(value: Int16): IoResult<Unit> {
-        var buf = Array<UInt8>(2, item: UInt8(0))
+        var buf = Array<UInt8>(2, { _ => UInt8(0) })
         buf[0] = UInt8(value % 256)
         buf[1] = UInt8((value >> 8) % 256)
         return writeAll(buf)
@@ -97,7 +99,7 @@ public interface ByteWrite {
 
     /// 写入小端序 32 位整数
     func writeIntLe32(value: Int32): IoResult<Unit> {
-        var buf = Array<UInt8>(4, item: UInt8(0))
+        var buf = Array<UInt8>(4, { _ => UInt8(0) })
         var v = Int64(value)
         for (i in 0..4) {
             buf[i] = UInt8(v % 256)
@@ -109,7 +111,7 @@ public interface ByteWrite {
     /// 写入大端序 (网络字节序) 整数
     /// 严格翻译自: fn write_int_be<I: IntBe>(&mut self, value: I) -> Result<()>
     func writeIntBe(value: Int64): IoResult<Unit> {
-        var buf = Array<UInt8>(8, item: UInt8(0))
+        var buf = Array<UInt8>(8, { _ => UInt8(0) })
         var v = value
         for (i in 0..8) {
             buf[7 - i] = UInt8(v % 256)
@@ -120,7 +122,7 @@ public interface ByteWrite {
 
     /// 写入大端序 16 位整数
     func writeIntBe16(value: Int16): IoResult<Unit> {
-        var buf = Array<UInt8>(2, item: UInt8(0))
+        var buf = Array<UInt8>(2, { _ => UInt8(0) })
         buf[0] = UInt8((value >> 8) % 256)
         buf[1] = UInt8(value % 256)
         return writeAll(buf)
@@ -128,7 +130,7 @@ public interface ByteWrite {
 
     /// 写入大端序 32 位整数
     func writeIntBe32(value: Int32): IoResult<Unit> {
-        var buf = Array<UInt8>(4, item: UInt8(0))
+        var buf = Array<UInt8>(4, { _ => UInt8(0) })
         var v = Int64(value)
         for (i in 0..4) {
             buf[3 - i] = UInt8(v % 256)
@@ -152,11 +154,7 @@ public interface ByteWrite {
     /// 写入字符串 (UTF-8 字节)
     /// 便利方法: 将字符串转为字节后 write_all
     func writeString(s: String): IoResult<Unit> {
-        var buf = Array<UInt8>()
-        for (c in s) {
-            buf.append(UInt8(c.value))
-        }
-        return writeAll(buf)
+        return writeAll(s.toArray())
     }
 
     /// 格式化写入
@@ -249,7 +247,7 @@ public class FixedBufferStream {
     public var pos: Int64
 
     public init(capacity: Int64) {
-        buffer = Array<UInt8>(capacity, item: UInt8(0))
+        buffer = Array<UInt8>(capacity, { _ => UInt8(0) })
         pos = 0
     }
 
@@ -286,11 +284,7 @@ public class FixedBufferStream {
     /// 获取已写入的数据 [0..pos]
     /// 严格翻译自: pub fn get_written(&self) -> &[u8] { &self.buffer.as_ref()[..self.pos] }
     public func getWritten(): Array<UInt8> {
-        var result = Array<UInt8>()
-        for (i in 0..pos) {
-            result.append(buffer[i])
-        }
-        return result
+        return Array<UInt8>(pos, { i => buffer[i] })
     }
 
     /// 获取当前游标位置
@@ -304,10 +298,7 @@ public class FixedBufferStream {
     public func readAll(maxCount: Int64): Array<UInt8> {
         let avail = buffer.size - pos
         let n = if (maxCount < avail) { maxCount } else { avail }
-        var result = Array<UInt8>()
-        for (i in 0..n) {
-            result.append(buffer[pos + i])
-        }
+        let result = Array<UInt8>(n, { i => buffer[pos + i] })
         pos += n
         return result
     }
@@ -319,10 +310,7 @@ public class FixedBufferStream {
         if (end > buffer.size) {
             return None  // EndOfStream
         }
-        var result = Array<UInt8>()
-        for (i in 0..count) {
-            result.append(buffer[pos + i])
-        }
+        let result = Array<UInt8>(count, { i => buffer[pos + i] })
         pos = end
         return Some(result)
     }
@@ -491,11 +479,7 @@ public class SliceBufWriter {
     /// 缓冲区中未刷新的字节
     /// 严格翻译自: pub fn buffered(&self) -> &[u8] { &self.buf[..self.pos] }
     public func buffered(): Array<UInt8> {
-        var result = Array<UInt8>()
-        for (i in 0..pos) {
-            result.append(buf[i])
-        }
-        return result
+        return Array<UInt8>(pos, { i => buf[i] })
     }
 
     /// 获取文件描述符
@@ -558,10 +542,8 @@ public class SliceBufWriter {
                 case IoResult<Unit>.Ok(_) => ()
             }
             // 复制剩余
-            var tail = Array<UInt8>()
-            for (i in avail..src.size) {
-                tail.append(src[i])
-            }
+            let tailSize = src.size - avail
+            let tail = Array<UInt8>(tailSize, { i => src[avail + i] })
             return writeAll(tail)
         }
         // 正常复制到缓冲区
@@ -604,10 +586,7 @@ public class SliceBufWriter {
     /// }
     private func flushBuf(): IoResult<Unit> {
         if (pos > 0) {
-            var data = Array<UInt8>()
-            for (i in 0..pos) {
-                data.append(buf[i])
-            }
+            let data = Array<UInt8>(pos, { i => buf[i] })
             let r = writeDirectly(data)
             match (r) {
                 case IoResult<Unit>.Err(e) => return IoResult<Unit>.Err(e)
@@ -680,11 +659,7 @@ public class FmtAdapter {
     ///     self.inner.write_fmt(args).map_err(|_| "FmtError")
     /// }
     public func writeString(s: String): IoResult<Unit> {
-        var buf = Array<UInt8>()
-        for (c in s) {
-            buf.append(UInt8(c.value))
-        }
-        return writeAll(buf)
+        return writeAll(s.toArray())
     }
 
     /// 已写入字节数
@@ -741,10 +716,7 @@ public class AsFmt {
     ///       }
     ///   }
     public func writeString(s: String): Bool {
-        var buf = Array<UInt8>()
-        for (c in s) {
-            buf.append(UInt8(c.value))
-        }
+        let buf = s.toArray()
         match (SysFs.write(fd, buf)) {
             case SysMaybe<Int64>.Err(e) =>
                 err = Some(e)
@@ -757,7 +729,10 @@ public class AsFmt {
 
     /// 是否有错误
     public func hasError(): Bool {
-        return err != None
+        match (err) {
+            case Some(_) => true
+            case None => false
+        }
     }
 
     /// 已写入字节数
@@ -815,14 +790,14 @@ public class VecSink <: ByteWrite {
 
     /// 获取写入的数据
     public func toArray(): Array<UInt8> {
-        return data.toArray()
+        return data.toOwnedSlice()
     }
 
     /// 转为字符串
     public func toString(): String {
         var sb = StringBuilder()
         for (b in data) {
-            sb.append(Char(Int32(b)))
+            sb.append(Rune(Int32(b)))
         }
         return sb.toString()
     }

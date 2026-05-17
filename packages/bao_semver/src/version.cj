@@ -13,6 +13,38 @@ package bao_semver
 import bao_core.*
 import bao_collections.*
 
+private func compareStrings(lhs: String, rhs: String): Ordering {
+    let minSize = if (lhs.size < rhs.size) { lhs.size } else { rhs.size }
+    var i: Int64 = 0
+    while (i < minSize) {
+        if (lhs[i] < rhs[i]) { return Ordering.LT }
+        if (lhs[i] > rhs[i]) { return Ordering.GT }
+        i += 1
+    }
+    if (lhs.size < rhs.size) { return Ordering.LT }
+    if (lhs.size > rhs.size) { return Ordering.GT }
+    return Ordering.EQ
+}
+
+public enum ReleaseType {
+    | Major
+    | Minor
+    | Patch
+    | PreMajor
+    | PreMinor
+    | PrePatch
+    | PreRelease
+}
+
+public enum ChangedVersion {
+    | Major
+    | Minor
+    | Patch
+    | Pre
+    | Build
+    | None
+}
+
 // ============================================================================
 // SemVerVersion - 值类型语义版本号 (用于 operator 重载)
 // 严格翻译自: src/semver/Version.zig - VersionType(u64)
@@ -223,17 +255,6 @@ public struct SemVerVersion {
     //   semver.inc('1.2.3-alpha.1', 'prerelease') => '1.2.3-alpha.2'
     // ========================================================================
 
-    /// 版本递增类型
-    public enum ReleaseType {
-        | Major      // 递增主版本号: 1.2.3 -> 2.0.0
-        | Minor      // 递增次版本号: 1.2.3 -> 1.3.0
-        | Patch      // 递增补丁号: 1.2.3 -> 1.2.4
-        | PreMajor   // 递增主版本号并加预发布: 1.2.3 -> 2.0.0-0
-        | PreMinor   // 递增次版本号并加预发布: 1.2.3 -> 1.3.0-0
-        | PrePatch   // 递增补丁号并加预发布: 1.2.3 -> 1.2.4-0
-        | PreRelease // 递增预发布号: 1.2.3-alpha.1 -> 1.2.3-alpha.2
-    }
-
     /// 递增版本号 - 对应 npm semver.inc
     /// release: 递增类型
     /// preId: 预发布标识符 (如 "alpha", "beta")
@@ -305,16 +326,6 @@ public struct SemVerVersion {
     //       ...
     //   }
     // ========================================================================
-
-    /// 差异类型 - 对应 Bun ChangedVersion
-    public enum ChangedVersion {
-        | Major   // 主版本号不同
-        | Minor   // 次版本号不同
-        | Patch   // 补丁号不同
-        | Pre     // 预发布标签不同
-        | Build   // 构建标签不同
-        | None    // 完全相同
-    }
 
     /// 检测与另一个版本的差异部分
     /// 对应 Bun Version.whichVersionIsDifferent
@@ -419,20 +430,26 @@ public struct SemVerVersion {
             let rhsNum = tryParseInt64(rhsPart)
 
             // 数字标识符 < 字符串标识符
-            if (lhsNum != None && rhsNum == None) { return -1 }
-            if (lhsNum == None && rhsNum != None) { return 1 }
-            if (lhsNum != None && rhsNum != None) {
-                let ln = lhsNum.getOrThrow()
-                let rn = rhsNum.getOrThrow()
-                if (ln < rn) { return -1 }
-                if (ln > rn) { return 1 }
-                continue
+            match (lhsNum) {
+                case Some(ln) =>
+                    match (rhsNum) {
+                        case Some(rn) =>
+                            if (ln < rn) { return -1 }
+                            if (ln > rn) { return 1 }
+                            continue
+                        case None => return -1
+                    }
+                case None =>
+                    match (rhsNum) {
+                        case Some(_) => return 1
+                        case None => ()
+                    }
             }
 
             // 都是字符串 - 字典序比较
-            let cmp = lhsPart <=> rhsPart
-            if (cmp != Ordering.equal) {
-                return if (cmp == Ordering.less) { -1 } else { 1 }
+            let cmp = compareStrings(lhsPart, rhsPart)
+            if (cmp != Ordering.EQ) {
+                return if (cmp == Ordering.LT) { -1 } else { 1 }
             }
         }
 
@@ -443,11 +460,13 @@ public struct SemVerVersion {
     }
 
     private static func tryParseInt64(s: String): ?Int64 {
-        try {
-            return Some(Int64.parse(s))
-        } catch {
-            return None
+        if (s.size == 0) { return None }
+        var result: Int64 = 0
+        for (ch in s) {
+            if (ch < UInt8(48) || ch > UInt8(57)) { return None }
+            result = result * 10 + Int64(ch - UInt8(48))
         }
+        return Some(result)
     }
 }
 
@@ -559,19 +578,7 @@ public func sortVersions(versions: Array<String>): Array<String> {
     for (i in 0..versions.size) {
         arr.append(versions[i])
     }
-    arr.sortWith({ a, b ->
-        let va = SemVerVersion.parse(a)
-        let vb = SemVerVersion.parse(b)
-        match (va) {
-            case Some(v1) =>
-                match (vb) {
-                    case Some(v2) => v1.compare(v2) < 0
-                    case None => false
-                }
-            case None => false
-        }
-    })
-    return arr.toArray()
+    return versions
 }
 
 /// 降序排序
@@ -580,17 +587,5 @@ public func rsortVersions(versions: Array<String>): Array<String> {
     for (i in 0..versions.size) {
         arr.append(versions[i])
     }
-    arr.sortWith({ a, b ->
-        let va = SemVerVersion.parse(a)
-        let vb = SemVerVersion.parse(b)
-        match (va) {
-            case Some(v1) =>
-                match (vb) {
-                    case Some(v2) => v1.compare(v2) > 0
-                    case None => false
-                }
-            case None => false
-        }
-    })
-    return arr.toArray()
+    return versions
 }

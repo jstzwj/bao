@@ -1514,7 +1514,7 @@ public class EntryPointList {
 
     public func append(alloc: Allocator, path: String, opts: EntryPointOptions): Unit {
         if (!set.contains(path)) {
-            set.add(path)
+            set.append(path)
             items.append(EntryPoint(path: path, opts: opts))
         }
     }

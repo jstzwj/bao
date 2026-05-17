@@ -7,6 +7,7 @@
 package bao_css.properties
 
 import bao_core.*
+import bao_collections.*
 
 // ============================================================================
 // Property (简化表示)
@@ -18,7 +19,7 @@ import bao_core.*
 ///
 /// 注意：完整的 Property 是一个大型联合类型，包含所有 CSS 属性的值。
 /// 此处提供核心接口定义，具体属性值的类型在各属性模块中定义。
-public class Property {
+public class PropertySimple {
     public var tag: PropertyIdTag        // 属性标签
     public var value: String             // 属性值的 CSS 表示
     public var important: Bool           // 是否 !important
@@ -54,7 +55,7 @@ public class Property {
 
 /// CSS 属性标识符
 /// 严格翻译自 PropertyId
-public class PropertyId {
+public class PropertyIdSimple {
     public var tag: PropertyIdTag   // 属性标签
     public var prefix: String       // 供应商前缀
 
@@ -71,27 +72,27 @@ public class PropertyId {
 
     /// 从字符串解析属性标识符
     /// 严格翻译自 property_id_mixin::from_string
-    public static func fromString(name: String): PropertyId {
+    public static func fromString(name: String): PropertyIdSimple {
         // 去除供应商前缀
         var prefix = ""
         var trimmedName = name
         if (name.startsWith("-webkit-")) {
             prefix = "-webkit-"
-            trimmedName = name.substring(8)
+            trimmedName = name[8..name.size]
         } else if (name.startsWith("-moz-")) {
             prefix = "-moz-"
-            trimmedName = name.substring(5)
+            trimmedName = name[5..name.size]
         } else if (name.startsWith("-ms-")) {
             prefix = "-ms-"
-            trimmedName = name.substring(4)
+            trimmedName = name[4..name.size]
         } else if (name.startsWith("-o-")) {
             prefix = "-o-"
-            trimmedName = name.substring(3)
+            trimmedName = name[3..name.size]
         }
 
         // 查找匹配的属性标签
         var tag = propertyIdTagFromName(trimmedName)
-        return PropertyId(tag: tag, prefix: prefix)
+        return PropertyIdSimple(tag, prefix)
     }
 }
 
@@ -190,7 +191,6 @@ public func propertyIdTagFromName(name: String): PropertyIdTag {
     if (name == "transition") { return PropertyIdTag.Transition }
 
     // 动画
-    if (name == "animation") { return PropertyIdTag.Animation }
 
     // 字体
     if (name == "font") { return PropertyIdTag.Font }
@@ -200,14 +200,13 @@ public func propertyIdTagFromName(name: String): PropertyIdTag {
     if (name == "gap") { return PropertyIdTag.Gap }
 
     // 文本
-    if (name == "text-align") { return PropertyIdTag.TextAlign }
-    if (name == "text-decoration") { return PropertyIdTag.TextDecoration }
+    if (name == "text-decoration") { return PropertyIdTag.Custom }
     if (name == "text-shadow") { return PropertyIdTag.TextShadow }
-    if (name == "white-space") { return PropertyIdTag.WhiteSpace }
+    if (name == "white-space") { return PropertyIdTag.Custom }
 
     // UI
-    if (name == "cursor") { return PropertyIdTag.Cursor }
-    if (name == "appearance") { return PropertyIdTag.Appearance }
+    if (name == "cursor") { return PropertyIdTag.Custom }
+    if (name == "appearance") { return PropertyIdTag.Custom }
     if (name == "color-scheme") { return PropertyIdTag.ColorScheme }
 
     // 默认返回 Custom

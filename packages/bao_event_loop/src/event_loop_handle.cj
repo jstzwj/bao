@@ -144,7 +144,7 @@ public class EventLoopHandle {
     public func wakeup(): Unit {
         match (miniLoop) {
             case Some(loop) =>
-                loop.enqueue({ })
+                loop.enqueue({ => () })
             case None => ()
         }
     }
@@ -421,9 +421,9 @@ public class EventLoopTask {
         let task = EventLoopTask(kind)
         match (kind) {
             case Js =>
-                task.jsTask = Some(ConcurrentTask(TaskTagKind.Custom, { }))
+                task.jsTask = Some(ConcurrentTask(TaskTagKind.Custom, { => () }))
             case Mini =>
-                task.miniTask = Some(AnyTaskWithExtraContext({ }))
+                task.miniTask = Some(AnyTaskWithExtraContext({ => () }))
         }
         return task
     }

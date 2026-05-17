@@ -108,8 +108,6 @@ public enum ImportTag {
     | Macro
     | BakeResolveToSSRGraph
     | Tailwind
-    | this
-}
 
     /// 是否为内部导入
     /// 对应 Bun ImportRecord.Tag.isInternal()
@@ -243,13 +241,13 @@ public class ImportRecord {
         originalPath = path
         flags = ImportRecordFlags()
     }
+}
 
-    /// 打印模式
-    /// 对应 Bun ImportRecord.PrintMode
-    public enum PrintMode {
-        | Normal
-        | ImportPath
-        | Css
-        | NapiModule
-    }
+/// 打印模式
+/// 对应 Bun ImportRecord.PrintMode
+public enum ImportRecordPrintMode {
+    | Normal
+    | ImportPath
+    | Css
+    | NapiModule
 }

@@ -5,6 +5,7 @@
 package bao_sys
 
 import bao_core.*
+import bao_collections.*
 
 // ============================================================================
 // inotify C FFI 声明 (Linux)
@@ -101,12 +102,14 @@ public class FileWatcher {
     /// 创建文件监视器
     /// 对应 Bun: watcher 创建
     public static func create(): SysMaybe<FileWatcher> {
-        let fd = inotify_init1(Int32(InotifyMask.IN_NONBLOCK | InotifyMask.IN_CLOEXEC))
-        if (fd < 0) {
-            return SysMaybe<FileWatcher>.Err(
-                SysError(UInt16(Int64(OS.errno())), SysTag.Open))
+        unsafe {
+            let fd = inotify_init1(Int32(InotifyMask.IN_NONBLOCK | InotifyMask.IN_CLOEXEC))
+            if (fd < 0) {
+                return SysMaybe<FileWatcher>.Err(
+                    SysError(UInt16(Int64(OS.errno())), SysTag.Open))
+            }
+            return SysMaybe<FileWatcher>.Ok(FileWatcher(Int64(fd)))
         }
-        return SysMaybe<FileWatcher>.Ok(FileWatcher(Int64(fd)))
     }
 
     /// 添加监视路径
@@ -142,13 +145,15 @@ public class FileWatcher {
     /// 移除监视路径
     public func unwatch(path: String): SysMaybe<Unit> {
         let wd = pathToWd.get(path)
-        if (let Some(wdVal) = wd) {
-            let rc = inotify_rm_watch(Int32(inotifyFd), wdVal)
-            watchDescriptors.remove(wdVal)
-            pathToWd.remove(path)
-            if (rc != 0) {
-                return SysMaybe<Unit>.Err(
-                    SysError(UInt16(Int64(OS.errno())), SysTag.Unlink, path))
+        if (let Some(wdVal) <- wd) {
+            unsafe {
+                let rc = inotify_rm_watch(Int32(inotifyFd), wdVal)
+                watchDescriptors.remove(wdVal)
+                pathToWd.remove(path)
+                if (rc != 0) {
+                    return SysMaybe<Unit>.Err(
+                        SysError(UInt16(Int64(OS.errno())), SysTag.Unlink, path))
+                }
             }
         }
         return SysMaybe<Unit>.Ok(())
@@ -164,7 +169,7 @@ public class FileWatcher {
             // 读取多个事件
             let bufSize = 4096
             let buf = malloc(UIntNative(bufSize))
-            let bytesRead = bao_sys.read(Int32(inotifyFd), buf, UIntNative(bufSize))
+            let bytesRead = read(Int32(inotifyFd), buf, UIntNative(bufSize))
             if (Int64(bytesRead) < 0) {
                 free(buf)
                 return events
@@ -173,11 +178,11 @@ public class FileWatcher {
             while (offset + 16 <= Int64(bytesRead)) {
                 // 解析 inotify_event:
                 // wd: i32 (0-3), mask: u32 (4-7), cookie: u32 (8-11), len: u32 (12-15), name: [len]i8
-                let wdPtr = CPointer<Int32>(buf) + IntNative(offset / 4)
+                let wdPtr = CPointer<Int32>(buf) + Int64(offset / 4)
                 let wd = wdPtr.read()
-                let maskPtr = CPointer<UInt32>(buf) + IntNative(offset / 4 + 1)
+                let maskPtr = CPointer<UInt32>(buf) + Int64(offset / 4 + 1)
                 let mask = maskPtr.read()
-                let lenPtr = CPointer<UInt32>(buf) + IntNative(offset / 4 + 3)
+                let lenPtr = CPointer<UInt32>(buf) + Int64(offset / 4 + 3)
                 let nameLen = Int64(lenPtr.read())
 
                 // 读取文件名
@@ -185,32 +190,35 @@ public class FileWatcher {
                 if (nameLen > 0) {
                     var sb = StringBuilder()
                     for (i in 0..nameLen) {
-                        let bytePtr = CPointer<Int8>(buf) + IntNative(offset + 16 + i)
+                        let bytePtr = CPointer<Int8>(buf) + Int64(offset + 16 + i)
                         let b = Int32(bytePtr.read())
                         if (b == 0) { break }
-                        sb.append(Char(b))
+                        sb.append(Rune(b))
                     }
                     fileName = sb.toString()
                 }
 
                 let isDir = (mask & InotifyMask.IN_ISDIR) != 0
-                let basePath = watchDescriptors.get(wd).getOrElse { "" }
-                let fullPath = if (fileName.isEmpty) { basePath } else {
+                let basePath = match (watchDescriptors.get(wd)) {
+                    case Some(value) => value
+                    case None => ""
+                }
+                let fullPath = if (fileName.isEmpty()) { basePath } else {
                     Path.join([basePath, fileName])
                 }
 
                 // 转换为 FileChangeType
-                if (mask & InotifyMask.IN_CREATE != 0) {
+                if ((mask & InotifyMask.IN_CREATE) != 0) {
                     events.append(FileWatchEvent(FileChangeType.Created, fullPath, isDir))
-                } else if (mask & InotifyMask.IN_MODIFY != 0) {
+                } else if ((mask & InotifyMask.IN_MODIFY) != 0) {
                     events.append(FileWatchEvent(FileChangeType.Modified, fullPath, isDir))
-                } else if (mask & InotifyMask.IN_DELETE != 0) {
+                } else if ((mask & InotifyMask.IN_DELETE) != 0) {
                     events.append(FileWatchEvent(FileChangeType.Deleted, fullPath, isDir))
-                } else if (mask & InotifyMask.IN_MOVED_TO != 0) {
+                } else if ((mask & InotifyMask.IN_MOVED_TO) != 0) {
                     events.append(FileWatchEvent(FileChangeType.Renamed, fullPath, isDir))
-                } else if (mask & InotifyMask.IN_MOVED_FROM != 0) {
+                } else if ((mask & InotifyMask.IN_MOVED_FROM) != 0) {
                     events.append(FileWatchEvent(FileChangeType.RenamedFrom, fullPath, isDir))
-                } else if (mask & InotifyMask.IN_ATTRIB != 0) {
+                } else if ((mask & InotifyMask.IN_ATTRIB) != 0) {
                     events.append(FileWatchEvent(FileChangeType.AttributeChanged, fullPath, isDir))
                 }
 
@@ -229,7 +237,9 @@ public class FileWatcher {
     /// 关闭监视器
     public func close(): Unit {
         if (!closed) {
-            bao_sys.close(Int32(inotifyFd))
+            unsafe {
+                close(Int32(inotifyFd))
+            }
             watchDescriptors.clear()
             pathToWd.clear()
             closed = true

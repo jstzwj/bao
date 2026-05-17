@@ -9,6 +9,7 @@ package bao_event_loop
 import bao_core.*
 import bao_sys.*
 import bao_threading.*
+import bao_collections.*
 
 // ============================================================================
 // ChildExitStatus - 子进程退出状态
@@ -57,7 +58,7 @@ public class ChildExitStatus {
         let sig = SignalCode.fromInt(sigNum)
         let result = ChildExitStatus(pid, ChildStatus.Signaled)
         result.exitCode = 128 + Int64(sigNum)
-        if (let Some(s) = sig) {
+        if (let Some(s) <- sig) {
             result.termSignal = s
         }
         return result
@@ -80,6 +81,19 @@ public enum ChildStatus {
     | Signaled    // 被信号终止 (WIFSIGNALED)
     | Stopped     // 被停止 (WIFSTOPPED)
     | Running     // 仍在运行
+
+    public operator func ==(right: ChildStatus): Bool {
+        match (this) {
+            case Exited => match (right) { case Exited => true case _ => false }
+            case Signaled => match (right) { case Signaled => true case _ => false }
+            case Stopped => match (right) { case Stopped => true case _ => false }
+            case Running => match (right) { case Running => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: ChildStatus): Bool {
+        return !(this == right)
+    }
 }
 
 // ============================================================================
@@ -87,7 +101,7 @@ public enum ChildStatus {
 // ============================================================================
 
 /// 子进程退出回调
-public typealias ChildCallback = (ChildExitStatus) -> Unit
+public type ChildCallback = (ChildExitStatus) -> Unit
 
 // ============================================================================
 // ChildWatcher - 子进程监视器
@@ -115,7 +129,7 @@ public class ChildWatcher {
     /// 信号监视器 (用于注册 SIGCHLD)
     private var signalWatcher: ?SignalWatcher
     /// 待处理的退出事件队列
-    private var pendingExits: ConcurrentLinkedQueue<ChildExitStatus>
+    private var pendingExits: ConcurrentQueue<ChildExitStatus>
     /// 是否已安装 SIGCHLD 处理器
     private var sigchldInstalled: Bool
 
@@ -124,7 +138,7 @@ public class ChildWatcher {
         callbacks = HashMap<Int64, ChildCallback>()
         activeChildren = HashSet<Int64>()
         signalWatcher = None
-        pendingExits = ConcurrentLinkedQueue<ChildExitStatus>()
+        pendingExits = ConcurrentQueue<ChildExitStatus>()
         sigchldInstalled = false
     }
 
@@ -133,7 +147,7 @@ public class ChildWatcher {
         callbacks = HashMap<Int64, ChildCallback>()
         activeChildren = HashSet<Int64>()
         signalWatcher = None
-        pendingExits = ConcurrentLinkedQueue<ChildExitStatus>()
+        pendingExits = ConcurrentQueue<ChildExitStatus>()
         sigchldInstalled = false
     }
 
@@ -183,7 +197,7 @@ public class ChildWatcher {
         match (signalWatcher) {
             case Some(watcher) =>
                 // 通过 SignalWatcher 注册 SIGCHLD
-                watcher.on(SignalCode.SIGCHLD, { (event: SignalWatchEvent) =>
+                watcher.on(SignalCode.SIGCHLD, { event: SignalWatchEvent =>
                     // 信号到达, 在事件循环中收割子进程
                     match (loop) {
                         case Some(l) =>
@@ -196,7 +210,7 @@ public class ChildWatcher {
                 })
             case None =>
                 // 直接注册到全局信号注册表
-                SignalRegistry.register(SignalCode.SIGCHLD, { (sig: SignalCode) =>
+                SignalRegistry.register(SignalCode.SIGCHLD, { sig: SignalCode =>
                     match (loop) {
                         case Some(l) =>
                             l.enqueue({ =>
@@ -221,8 +235,11 @@ public class ChildWatcher {
         // -1 表示等待任意子进程
         // WNOHANG 表示非阻塞: 没有子进程退出时立即返回 0
         while (true) {
-            var rawStatus: Int32 = 0
-            let pid = waitpid(-1, &rawStatus, WNOHANG)
+            let statusBuf = unsafe { malloc(UIntNative(4)) }
+            let statusPtr = CPointer<Int32>(statusBuf)
+            let pid = unsafe { waitpid(-1, statusPtr, WNOHANG) }
+            let rawStatus = unsafe { statusPtr.read() }
+            unsafe { free(statusBuf) }
 
             if (pid <= 0) {
                 // 0 = 没有子进程退出, -1 = 错误 (ECHILD = 没有子进程)
@@ -234,7 +251,7 @@ public class ChildWatcher {
             activeChildren.remove(Int64(pid))
 
             // 加入待处理队列, 在事件循环中分发回调
-            pendingExits.put(exitStatus)
+            pendingExits.push(exitStatus)
         }
 
         // 分发所有待处理的退出事件
@@ -245,12 +262,10 @@ public class ChildWatcher {
     /// 在事件循环线程中调用所有注册的退出回调
     public func dispatchPending(): Unit {
         while (true) {
-            let event = pendingExits.remove()
-            if (event == None) {
-                break
+            match (pendingExits.pop()) {
+                case None => break
+                case Some(exitStatus) => dispatchOne(exitStatus)
             }
-            let exitStatus = event.unwrap()
-            dispatchOne(exitStatus)
         }
     }
 
@@ -274,7 +289,7 @@ public class ChildWatcher {
                 SysError(3, SysTag.Kill)  // ESRCH: 没有此进程
             )
         }
-        let rc = kill(Int32(pid), signal.toInt())
+        let rc = unsafe { kill(Int32(pid), signal.toInt()) }
         if (rc != 0) {
             return SysMaybe<Unit>.Err(
                 SysError(UInt16(Int64(OS.errno())), SysTag.Kill)
@@ -286,8 +301,11 @@ public class ChildWatcher {
     /// 等待指定子进程退出 (阻塞)
     /// 对应 Bun: subprocess.wait() 的阻塞版本
     public func wait(pid: Int64): ChildExitStatus {
-        var rawStatus: Int32 = 0
-        let result = waitpid(Int32(pid), &rawStatus, 0)
+        let statusBuf = unsafe { malloc(UIntNative(4)) }
+        let statusPtr = CPointer<Int32>(statusBuf)
+        let result = unsafe { waitpid(Int32(pid), statusPtr, 0) }
+        let rawStatus = unsafe { statusPtr.read() }
+        unsafe { free(statusBuf) }
         if (result < 0) {
             let errStatus = ChildExitStatus(pid, ChildStatus.Exited)
             errStatus.exitCode = -1
@@ -311,7 +329,7 @@ public class ChildWatcher {
     /// 获取所有活跃子进程 PID
     public func getActivePids(): ArrayList<Int64> {
         var result = ArrayList<Int64>()
-        for (pid in activeChildren) {
+        for (pid in callbacks.keys()) {
             result.append(pid)
         }
         return result
@@ -321,10 +339,19 @@ public class ChildWatcher {
     public func close(): Unit {
         callbacks.clear()
         activeChildren.clear()
-        pendingExits = ConcurrentLinkedQueue<ChildExitStatus>()
+        pendingExits = ConcurrentQueue<ChildExitStatus>()
         sigchldInstalled = false
     }
 }
+
+@C
+foreign func malloc(size: UIntNative): CPointer<Unit>
+@C
+foreign func free(ptr: CPointer<Unit>): Unit
+@C
+foreign func waitpid(pid: Int32, status: CPointer<Int32>, options: Int32): Int32
+@C
+foreign func kill(pid: Int32, sig: Int32): Int32
 
 // ============================================================================
 // ChildWatcherBuilder - 子进程监视器构建器

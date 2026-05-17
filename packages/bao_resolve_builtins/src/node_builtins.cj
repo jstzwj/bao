@@ -73,7 +73,7 @@ public let BUN_NODE_BUILTIN_PATTERNS_COMPAT: Array<String> = [
     "vm",
     "wasi",
     "worker_threads",
-    "zlib",
+    "zlib"
 ]
 
 /// node_only group (5 names): Bun provides its own implementation for these,
@@ -84,7 +84,7 @@ public let NODE_BUILTIN_NODE_ONLY: Array<String> = [
     "fs",
     "path",
     "process",
-    "test",
+    "test"
 ]
 
 // ============================================================================
@@ -155,7 +155,7 @@ public let NODE_BUILTIN_PATTERNS_RAW: Array<String> = [
     "fs",
     "path",
     "process",
-    "test",
+    "test"
 ]
 
 // ============================================================================
@@ -284,5 +284,5 @@ public let NODE_BUILTIN_PATTERNS: Array<String> = [
     "node:fs",
     "node:path",
     "node:process",
-    "node:test",
+    "node:test"
 ]

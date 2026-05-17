@@ -52,7 +52,7 @@ public class H2FrameDispatch {
     /// 解析并分发缓冲区中的所有完整帧
     /// 严格翻译自: dispatch.parseFrames
     /// 返回消耗的字节数
-    public static func parseFrames(session: H2ClientSession, buf: Array<UInt8>): Int64 {
+    public static func parseFrames(session: H2FetchClientSession, buf: Array<UInt8>): Int64 {
         var consumed: Int64 = 0
 
         while (true) {
@@ -72,7 +72,7 @@ public class H2FrameDispatch {
                            Int64(buf[offset + 8])
 
             // RFC 9113 §4.2: 帧不能超过本端最大帧大小
-            if (frameLength > H2ClientSession.DEFAULT_MAX_FRAME_SIZE) {
+            if (frameLength > H2FetchClientSession.DEFAULT_MAX_FRAME_SIZE) {
                 session.fatalError = "HTTP2FrameSizeError"
                 break
             }
@@ -83,13 +83,13 @@ public class H2FrameDispatch {
             }
 
             // 提取负载
-            let payload = Array<UInt8>()
+            let payloadList = ArrayList<UInt8>()
             for (i in 0..frameLength) {
-                payload.append(buf[Int64(9) + offset + i])
+                payloadList.append(buf[Int64(9) + offset + i])
             }
 
             // 分发帧
-            dispatchFrame(session, frameType, flags, streamId, payload)
+            dispatchFrame(session, frameType, flags, streamId, payloadList.toOwnedSlice())
             consumed += totalFrameLen
 
             match (session.fatalError) {
@@ -109,19 +109,35 @@ public class H2FrameDispatch {
     //   DATA, RST_STREAM, GOAWAY, PUSH_PROMISE
     // ========================================================================
 
+    private static func isFrameType(frameType: H2FrameType, expected: H2FrameType): Bool {
+        match ((frameType, expected)) {
+            case (Settings, Settings) => return true
+            case (WindowUpdate, WindowUpdate) => return true
+            case (Ping, Ping) => return true
+            case (Priority, Priority) => return true
+            case (Headers, Headers) => return true
+            case (Continuation, Continuation) => return true
+            case (Data, Data) => return true
+            case (RstStream, RstStream) => return true
+            case (Goaway, Goaway) => return true
+            case (PushPromise, PushPromise) => return true
+            case _ => return false
+        }
+    }
+
     /// 根据帧类型分发
     /// 严格翻译自: dispatch.dispatchFrame
-    public static func dispatchFrame(session: H2ClientSession, frameType: H2FrameType,
+    public static func dispatchFrame(session: H2FetchClientSession, frameType: H2FrameType,
                                       flags: UInt8, streamId: Int64, payload: Array<UInt8>): Unit {
         // 检查 CONTINUATION 一致性
         if (session.expectingContinuation != 0 &&
-            frameType != H2FrameType.Continuation) {
+            !isFrameType(frameType, H2FrameType.Continuation)) {
             session.fatalError = "HTTP2ProtocolError"
             return
         }
 
         // 首帧必须是 SETTINGS
-        if (!session.settingsReceived && frameType != H2FrameType.Settings) {
+        if (!session.settingsReceived && !isFrameType(frameType, H2FrameType.Settings)) {
             session.fatalError = "HTTP2ProtocolError"
             return
         }
@@ -136,10 +152,9 @@ public class H2FrameDispatch {
             case H2FrameType.Data => handleData(session, flags, streamId, payload)
             case H2FrameType.RstStream => handleRstStream(session, streamId, payload)
             case H2FrameType.Goaway => handleGoaway(session, payload)
-            case H2FrameType.PushPromise => {
+            case H2FrameType.PushPromise =>
                 // RFC 9113: 客户端禁用 push，收到 PUSH_PROMISE 为 PROTOCOL_ERROR
                 session.fatalError = "HTTP2ProtocolError"
-            }
             case _ => ()  // 忽略未知帧
         }
     }
@@ -156,7 +171,7 @@ public class H2FrameDispatch {
 
     /// 处理 SETTINGS 帧
     /// 严格翻译自: dispatch SETTINGS case
-    private static func handleSettings(session: H2ClientSession, flags: UInt8,
+    private static func handleSettings(session: H2FetchClientSession, flags: UInt8,
                                         streamId: Int64, payload: Array<UInt8>): Unit {
         if (streamId != 0) {
             session.fatalError = "HTTP2ProtocolError"
@@ -182,30 +197,26 @@ public class H2FrameDispatch {
                                (Int64(payload[i + 4]) << 8) | Int64(payload[i + 5])
 
             match (settingId) {
-                case 0x5 => {
+                case 0x5 =>
                     // SETTINGS_MAX_FRAME_SIZE: 16384 to 2^24-1
-                    if (settingValue < H2ClientSession.DEFAULT_MAX_FRAME_SIZE || settingValue > 16777215) {
+                    if (settingValue < H2FetchClientSession.DEFAULT_MAX_FRAME_SIZE || settingValue > 16777215) {
                         session.fatalError = "HTTP2ProtocolError"
                         return
                     }
                     session.remoteMaxFrameSize = settingValue
-                }
-                case 0x3 => {
+                case 0x3 =>
                     // SETTINGS_MAX_CONCURRENT_STREAMS
                     session.remoteMaxConcurrentStreams = settingValue
-                }
-                case 0x1 => {
+                case 0x1 =>
                     // SETTINGS_HEADER_TABLE_SIZE
                     match (session.pendingHpackEncCapacity) {
-                        case Some(current) => {
+                        case Some(current) =>
                             session.pendingHpackEncCapacity = if (settingValue < current) { Some(settingValue) } else { Some(current) }
-                        }
                         case None => session.pendingHpackEncCapacity = Some(settingValue)
                     }
-                }
-                case 0x4 => {
+                case 0x4 =>
                     // SETTINGS_INITIAL_WINDOW_SIZE: 0 to 2^31-1
-                    if (settingValue > H2ClientSession.MAX_WINDOW_SIZE) {
+                    if (settingValue > H2FetchClientSession.MAX_WINDOW_SIZE) {
                         session.fatalError = "HTTP2FlowControlError"
                         return
                     }
@@ -214,18 +225,16 @@ public class H2FrameDispatch {
                     // 更新所有活跃流的发送窗口
                     for (key in session.streams.keys()) {
                         match (session.streams.get(key)) {
-                            case Some(stream) => {
+                            case Some(stream) =>
                                 let next = stream.sendWindow + delta
-                                if (next > H2ClientSession.MAX_WINDOW_SIZE) {
+                                if (next > H2FetchClientSession.MAX_WINDOW_SIZE) {
                                     session.fatalError = "HTTP2FlowControlError"
                                     return
                                 }
                                 stream.sendWindow = next
-                            }
                             case None => ()
                         }
                     }
-                }
                 case _ => ()
             }
             i += 6
@@ -253,7 +262,7 @@ public class H2FrameDispatch {
 
     /// 处理 WINDOW_UPDATE 帧
     /// 严格翻译自: dispatch WINDOW_UPDATE case
-    private static func handleWindowUpdate(session: H2ClientSession, streamId: Int64, payload: Array<UInt8>): Unit {
+    private static func handleWindowUpdate(session: H2FetchClientSession, streamId: Int64, payload: Array<UInt8>): Unit {
         if (payload.size != 4) {
             session.fatalError = "HTTP2FrameSizeError"
             return
@@ -270,7 +279,7 @@ public class H2FrameDispatch {
                 return
             }
             let next = session.connSendWindow + increment
-            if (next > H2ClientSession.MAX_WINDOW_SIZE) {
+            if (next > H2FetchClientSession.MAX_WINDOW_SIZE) {
                 session.fatalError = "HTTP2FlowControlError"
                 return
             }
@@ -279,27 +288,25 @@ public class H2FrameDispatch {
         } else {
             // 流级窗口
             match (session.streams.get(streamId)) {
-                case Some(stream) => {
+                case Some(stream) =>
                     if (increment == 0) {
                         stream.rst(H2ErrorCode.ProtocolError)
                         stream.fatalError = "HTTP2ProtocolError"
                         return
                     }
                     let next = stream.sendWindow + increment
-                    if (next > H2ClientSession.MAX_WINDOW_SIZE) {
+                    if (next > H2FetchClientSession.MAX_WINDOW_SIZE) {
                         stream.rst(H2ErrorCode.FlowControlError)
                         stream.fatalError = "HTTP2FlowControlError"
                         return
                     }
                     stream.sendWindow = next
                     session.streamProgressed = true
-                }
-                case None => {
+                case None =>
                     // 未知流: 检查是否为空闲/服务端发起的流
                     if (streamId % 2 == 0 || streamId >= session.nextStreamId) {
                         session.fatalError = "HTTP2ProtocolError"
                     }
-                }
             }
         }
     }
@@ -312,7 +319,7 @@ public class H2FrameDispatch {
 
     /// 处理 PING 帧
     /// 严格翻译自: dispatch PING case
-    private static func handlePing(session: H2ClientSession, flags: UInt8, payload: Array<UInt8>): Unit {
+    private static func handlePing(session: H2FetchClientSession, flags: UInt8, payload: Array<UInt8>): Unit {
         if (payload.size != 8) {
             session.fatalError = "HTTP2FrameSizeError"
             return
@@ -334,7 +341,7 @@ public class H2FrameDispatch {
 
     /// 处理 PRIORITY 帧
     /// 严格翻译自: dispatch PRIORITY case
-    private static func handlePriority(session: H2ClientSession, streamId: Int64, payload: Array<UInt8>): Unit {
+    private static func handlePriority(session: H2FetchClientSession, streamId: Int64, payload: Array<UInt8>): Unit {
         if (streamId == 0) {
             session.fatalError = "HTTP2ProtocolError"
             return
@@ -357,7 +364,7 @@ public class H2FrameDispatch {
 
     /// 处理 HEADERS 帧
     /// 严格翻译自: dispatch HEADERS case
-    private static func handleHeaders(session: H2ClientSession, flags: UInt8,
+    private static func handleHeaders(session: H2FetchClientSession, flags: UInt8,
                                        streamId: Int64, payload: Array<UInt8>): Unit {
         var fragment = payload
 
@@ -365,25 +372,23 @@ public class H2FrameDispatch {
         if (streamId == 0 || streamId % 2 == 0 || streamId >= session.nextStreamId) {
             match (session.streams.get(streamId)) {
                 case Some(_) => ()  // 已知流，继续
-                case None => {
+                case None =>
                     session.fatalError = "HTTP2ProtocolError"
                     return
-                }
             }
         }
 
         match (session.streams.get(streamId)) {
-            case Some(stream) => {
+            case Some(stream) =>
                 session.streamProgressed = true
 
                 // 处理 PADDED
                 if ((flags & 0x08) != 0) {
                     match (stripPadding(fragment)) {
                         case Some(stripped) => fragment = stripped
-                        case None => {
+                        case None =>
                             session.fatalError = "HTTP2ProtocolError"
                             return
-                        }
                     }
                 }
 
@@ -398,7 +403,7 @@ public class H2FrameDispatch {
                     for (i in 5..fragment.size) {
                         temp.append(fragment[i])
                     }
-                    fragment = temp.toArray()
+                    fragment = temp.toOwnedSlice()
                 }
 
                 // 检查头部大小
@@ -424,11 +429,9 @@ public class H2FrameDispatch {
                     // 等待 CONTINUATION
                     session.expectingContinuation = stream.id
                 }
-            }
-            case None => {
+            case None =>
                 // 孤立流 (已 RST 的流)
                 session.fatalError = "HTTP2ProtocolError"
-            }
         }
     }
 
@@ -439,7 +442,7 @@ public class H2FrameDispatch {
 
     /// 处理 CONTINUATION 帧
     /// 严格翻译自: dispatch CONTINUATION case
-    private static func handleContinuation(session: H2ClientSession, flags: UInt8,
+    private static func handleContinuation(session: H2FetchClientSession, flags: UInt8,
                                             streamId: Int64, payload: Array<UInt8>): Unit {
         if (session.expectingContinuation == 0 || streamId != session.expectingContinuation) {
             session.fatalError = "HTTP2ProtocolError"
@@ -447,7 +450,7 @@ public class H2FrameDispatch {
         }
 
         match (session.streams.get(session.expectingContinuation)) {
-            case Some(stream) => {
+            case Some(stream) =>
                 if (stream.headerBlock.size + payload.size > LOCAL_MAX_HEADER_LIST_SIZE) {
                     session.fatalError = "HTTP2HeaderListTooLarge"
                     return
@@ -464,8 +467,7 @@ public class H2FrameDispatch {
                     }
                     decodeHeaderBlock(session, stream)
                 }
-            }
-            case None => {
+            case None =>
                 // 孤立流头部块
                 if (session.orphanHeaderBlock.size + payload.size > LOCAL_MAX_HEADER_LIST_SIZE) {
                     session.fatalError = "HTTP2HeaderListTooLarge"
@@ -479,7 +481,6 @@ public class H2FrameDispatch {
                     // 解码并丢弃 (保持动态表同步)
                     session.orphanHeaderBlock = ArrayList<UInt8>()
                 }
-            }
         }
     }
 
@@ -494,12 +495,12 @@ public class H2FrameDispatch {
 
     /// 处理 DATA 帧
     /// 严格翻译自: dispatch DATA case
-    private static func handleData(session: H2ClientSession, flags: UInt8,
+    private static func handleData(session: H2FetchClientSession, flags: UInt8,
                                     streamId: Int64, payload: Array<UInt8>): Unit {
         session.connUnackedBytes += payload.size
 
         match (session.streams.get(streamId)) {
-            case Some(stream) => {
+            case Some(stream) =>
                 session.streamProgressed = true
 
                 // DATA 在最终响应 HEADERS 之前为畸形
@@ -525,10 +526,9 @@ public class H2FrameDispatch {
                 if ((flags & 0x08) != 0) {
                     match (stripPadding(fragment)) {
                         case Some(stripped) => fragment = stripped
-                        case None => {
+                        case None =>
                             session.fatalError = "HTTP2ProtocolError"
                             return
-                        }
                     }
                 }
 
@@ -543,13 +543,11 @@ public class H2FrameDispatch {
                         stream.bodyBuffer.append(b)
                     }
                 }
-            }
-            case None => {
+            case None =>
                 // 未知流的 DATA
                 if (streamId == 0 || streamId % 2 == 0 || streamId >= session.nextStreamId) {
                     session.fatalError = "HTTP2ProtocolError"
                 }
-            }
         }
     }
 
@@ -561,7 +559,7 @@ public class H2FrameDispatch {
 
     /// 处理 RST_STREAM 帧
     /// 严格翻译自: dispatch RST_STREAM case
-    private static func handleRstStream(session: H2ClientSession, streamId: Int64, payload: Array<UInt8>): Unit {
+    private static func handleRstStream(session: H2FetchClientSession, streamId: Int64, payload: Array<UInt8>): Unit {
         if (payload.size != 4) {
             session.fatalError = "HTTP2FrameSizeError"
             return
@@ -572,7 +570,7 @@ public class H2FrameDispatch {
         }
 
         match (session.streams.get(streamId)) {
-            case Some(stream) => {
+            case Some(stream) =>
                 let hadResponse = stream.remoteClosed()
                 stream.rstDone = true
                 stream.state = H2StreamState.Closed
@@ -582,19 +580,15 @@ public class H2FrameDispatch {
 
                 // RFC 9113 §8.1: RST_STREAM(NO_ERROR) 在 END_STREAM 之后为正常
                 match (code) {
-                    case 0x0 => {
+                    case 0x0 =>
                         // NO_ERROR
                         stream.fatalError = if (hadResponse) { None } else { Some("HTTP2StreamReset") }
-                    }
-                    case 0x7 => {
+                    case 0x7 =>
                         // REFUSED_STREAM
                         stream.fatalError = "HTTP2RefusedStream"
-                    }
-                    case _ => {
+                    case _ =>
                         stream.fatalError = "HTTP2StreamReset"
-                    }
                 }
-            }
             case None => ()
         }
     }
@@ -607,7 +601,7 @@ public class H2FrameDispatch {
 
     /// 处理 GOAWAY 帧
     /// 严格翻译自: dispatch GOAWAY case
-    private static func handleGoaway(session: H2ClientSession, payload: Array<UInt8>): Unit {
+    private static func handleGoaway(session: H2FetchClientSession, payload: Array<UInt8>): Unit {
         if (payload.size < 8) {
             session.fatalError = "HTTP2FrameSizeError"
             return
@@ -622,13 +616,12 @@ public class H2FrameDispatch {
 
         for (key in session.streams.keys()) {
             match (session.streams.get(key)) {
-                case Some(stream) => {
+                case Some(stream) =>
                     if (stream.id > session.goawayLastStreamId) {
                         stream.fatalError = if (graceful) { "HTTP2RefusedStream" } else { "HTTP2GoAway" }
                     } else if (!graceful && !stream.remoteClosed()) {
                         stream.fatalError = "HTTP2GoAway"
                     }
-                }
                 case None => ()
             }
         }
@@ -644,29 +637,23 @@ public class H2FrameDispatch {
 
     /// HPACK 解码头部块
     /// 严格翻译自: dispatch.decodeHeaderBlock
-    public static func decodeHeaderBlock(session: H2ClientSession, stream: H2ClientStream): Unit {
+    public static func decodeHeaderBlock(session: H2FetchClientSession, stream: H2FetchClientStream): Unit {
         // 使用 HpackDecoder 解码
         let decoder = HpackDecoder()
-        let blockArray = stream.headerBlock.toArray()
+        let blockArray = stream.headerBlock.toOwnedSlice()
         match (decoder.decode(blockArray)) {
-            case Some(headers) => {
+            case Some(headers) =>
                 stream.decodedHeaders = headers
                 // 提取 :status 伪头部
                 for (h in headers) {
                     if (h.name == ":status") {
-                        try {
-                            stream.statusCode = Int64.parse(h.value)
-                        } catch (_: Exception) {
-                            stream.statusCode = 0
-                        }
+                        stream.statusCode = parseStatusCode(h.value)
                     }
                 }
                 stream.headerBlock = ArrayList<UInt8>()
                 stream.headersReady = true
-            }
-            case None => {
+            case None =>
                 session.fatalError = "HTTP2CompressionError"
-            }
         }
     }
 
@@ -691,11 +678,11 @@ public class H2FrameDispatch {
         if (pad >= payload.size) {
             return None
         }
-        let result = Array<UInt8>()
+        let result = ArrayList<UInt8>()
         for (i in 1..(payload.size - pad)) {
             result.append(payload[i])
         }
-        return Some(result)
+        return Some(result.toOwnedSlice())
     }
 
     // ========================================================================
@@ -713,6 +700,23 @@ public class H2FrameDispatch {
     //       };
     //   }
     // ========================================================================
+
+    private static func parseStatusCode(value: String): Int64 {
+        var result: Int64 = 0
+        var hasDigit = false
+        for (r in value) {
+            let v = r
+            if (v < 48 || v > 57) {
+                return 0
+            }
+            hasDigit = true
+            result = result * 10 + Int64(v - 48)
+        }
+        if (!hasDigit) {
+            return 0
+        }
+        return result
+    }
 
     /// 将错误映射到 HTTP/2 错误码
     /// 严格翻译自: dispatch.errorCodeFor
@@ -743,17 +747,12 @@ public class H2FrameDispatch {
     public static func isMalformedResponseField(name: String): Bool {
         // 检查大写字母
         for (c in name) {
-            if (c.value >= 0x41 && c.value <= 0x5A) {
+            if (c >= 0x41 && c <= 0x5A) {
                 return true
             }
         }
         // 检查禁止的字段
-        let forbidden = Array<String>(["connection", "keep-alive", "proxy-connection", "te", "transfer-encoding", "upgrade"])
-        for (f in forbidden) {
-            if (name == f) {
-                return true
-            }
-        }
-        return false
+        return name == "connection" || name == "keep-alive" || name == "proxy-connection" ||
+               name == "te" || name == "transfer-encoding" || name == "upgrade"
     }
 }

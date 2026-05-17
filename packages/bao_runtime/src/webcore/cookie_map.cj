@@ -118,11 +118,11 @@ public class CookieMap {
         let map = CookieMap()
         let pairs = header.split(";")
         for (pair in pairs) {
-            let trimmed = pair.trim()
+            let trimmed = pair.trimAscii()
             let eqIdx = trimmed.indexOf("=")
             if (eqIdx >= 0) {
-                let name = trimmed.substring(0, eqIdx).trim()
-                let value = trimmed.substring(eqIdx + 1).trim()
+                let name = trimmed.substring(0, eqIdx).trimAscii()
+                let value = trimmed.substring(eqIdx + 1).trimAscii()
                 map.set(name, value)
             }
         }

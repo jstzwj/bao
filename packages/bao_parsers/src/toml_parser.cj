@@ -10,6 +10,7 @@ package bao_parsers
 
 import bao_core.*
 import bao_collections.*
+import std.convert.*
 
 // ============================================================================
 // TomlValue - TOML 值类型
@@ -407,7 +408,7 @@ public class TomlParser <: BaseParser {
         keys.append(key)
         while (pos < source.size) {
             skipWhitespace()
-            if (pos < source.size && source[Int64(pos)] == '.') {
+            if (pos < source.size && source[Int64(pos)] == UInt8(46)) {
                 advance()
                 skipWhitespace()
                 key = parseKeySegment()
@@ -431,14 +432,14 @@ public class TomlParser <: BaseParser {
             return ""
         }
         let ch = source[Int64(pos)]
-        if (ch == '"') {
+        if (ch == UInt8(34)) {
             // 引号键
             let startLine = line
             let startCol = column
             let sb = StringBuilder()
             advance() // consume "
-            while (pos < source.size && source[Int64(pos)] != '"') {
-                if (source[Int64(pos)] == '\\') {
+            while (pos < source.size && source[Int64(pos)] != UInt8(34)) {
+                if (source[Int64(pos)] == UInt8(92)) {
                     advance()
                     if (pos < source.size) {
                         sb.append(source[Int64(pos)])
@@ -467,8 +468,8 @@ public class TomlParser <: BaseParser {
 
     /// 是否为裸键字符
     private func isBareKeyChar(ch: Char): Bool {
-        (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') ||
-        (ch >= '0' && ch <= '9') || ch == '-' || ch == '_'
+        (ch >= UInt8(97) && ch <= UInt8(122)) || (ch >= UInt8(65) && ch <= UInt8(90)) ||
+        (ch >= UInt8(48) && ch <= UInt8(57)) || ch == UInt8(45) || ch == UInt8(95)
     }
 
     /// 解析值 - 对应 Bun parseExpr
@@ -480,43 +481,43 @@ public class TomlParser <: BaseParser {
         }
         let ch = source[Int64(pos)]
         // 字符串
-        if (ch == '"') {
+        if (ch == UInt8(34)) {
             return parseTOMLString()
         }
         // 单引号字符串 (字面量字符串)
-        if (ch == '\'') {
+        if (ch == UInt8(39)) {
             return parseTOMLLiteralString()
         }
         // 三引号多行字符串
-        if (pos + Int64(2) < source.size && source[Int64(pos)] == '"' && source[Int64(pos + Int64(1))] == '"' && source[Int64(pos + Int64(2))] == '"') {
+        if (pos + Int64(2) < source.size && source[Int64(pos)] == UInt8(34) && source[Int64(pos + Int64(1))] == UInt8(34) && source[Int64(pos + Int64(2))] == UInt8(34)) {
             return parseTOMLMultilineString()
         }
-        if (pos + Int64(2) < source.size && source[Int64(pos)] == '\'' && source[Int64(pos + Int64(1))] == '\'' && source[Int64(pos + Int64(2))] == '\'') {
+        if (pos + Int64(2) < source.size && source[Int64(pos)] == UInt8(39) && source[Int64(pos + Int64(1))] == UInt8(39) && source[Int64(pos + Int64(2))] == UInt8(39)) {
             return parseTOMLMultilineLiteralString()
         }
         // 数组
-        if (ch == '[') {
+        if (ch == UInt8(91)) {
             return parseTOMLArray()
         }
         // 内联表
-        if (ch == '{') {
+        if (ch == UInt8(123)) {
             return parseTOMLInlineTable()
         }
         // true / false
-        if (ch == 't' && pos + Int64(4) <= source.size && source[Int64(pos)..Int64(pos + Int64(4))] == "true") {
+        if (ch == UInt8(116) && pos + Int64(4) <= source.size && source[Int64(pos)..Int64(pos + Int64(4))] == "true") {
             pos += Int64(4)
             column += Int64(4)
             return TomlValue.bool(true)
         }
-        if (ch == 'f' && pos + Int64(5) <= source.size && source[Int64(pos)..Int64(pos + Int64(5))] == "false") {
+        if (ch == UInt8(102) && pos + Int64(5) <= source.size && source[Int64(pos)..Int64(pos + Int64(5))] == "false") {
             pos += Int64(5)
             column += Int64(5)
             return TomlValue.bool(false)
         }
         // 数字 (含 inf, nan)
-        if (ch == '-' || ch == '+' || (ch >= '0' && ch <= '9') ||
-            (ch == 'i' && pos + Int64(3) <= source.size && source[Int64(pos)..Int64(pos + Int64(3))] == "inf") ||
-            (ch == 'n' && pos + Int64(3) <= source.size && source[Int64(pos)..Int64(pos + Int64(3))] == "nan")) {
+        if (ch == UInt8(45) || ch == UInt8(43) || (ch >= UInt8(48) && ch <= UInt8(57)) ||
+            (ch == UInt8(105) && pos + Int64(3) <= source.size && source[Int64(pos)..Int64(pos + Int64(3))] == "inf") ||
+            (ch == UInt8(110) && pos + Int64(3) <= source.size && source[Int64(pos)..Int64(pos + Int64(3))] == "nan")) {
             return parseTOMLNumber()
         }
         addError(ParseErrorKind.UnexpectedCharacter, "Unexpected character '${ch}' in value")
@@ -527,22 +528,22 @@ public class TomlParser <: BaseParser {
     private func parseTOMLString(): TomlValue {
         advance() // consume "
         let sb = StringBuilder()
-        while (pos < source.size && source[Int64(pos)] != '"') {
-            if (source[Int64(pos)] == '\\') {
+        while (pos < source.size && source[Int64(pos)] != UInt8(34)) {
+            if (source[Int64(pos)] == UInt8(92)) {
                 advance()
                 if (pos < source.size) {
                     let escaped = source[Int64(pos)]
                     advance()
                     match (escaped) {
-                        case '"' => sb.append('"')
-                        case '\\' => sb.append('\\')
-                        case 'b' => sb.append('\b')
-                        case 'f' => sb.append('\f')
-                        case 'n' => sb.append('\n')
-                        case 'r' => sb.append('\r')
-                        case 't' => sb.append('\t')
-                        case 'u' => sb.append(decodeUnicodeEscape(Int64(4)))
-                        case 'U' => sb.append(decodeUnicodeEscape(Int64(8)))
+                        case 34 => sb.append(UInt8(34))
+                        case 92 => sb.append(UInt8(92))
+                        case 98 => sb.append(UInt8(8))
+                        case 102 => sb.append(UInt8(12))
+                        case 110 => sb.append(UInt8(10))
+                        case 114 => sb.append(UInt8(13))
+                        case 116 => sb.append(UInt8(9))
+                        case 117 => sb.append(decodeUnicodeEscape(Int64(4)))
+                        case 85 => sb.append(decodeUnicodeEscape(Int64(8)))
                         case _ => sb.append(escaped)
                     }
                 }
@@ -561,7 +562,7 @@ public class TomlParser <: BaseParser {
     private func parseTOMLLiteralString(): TomlValue {
         advance() // consume '
         let sb = StringBuilder()
-        while (pos < source.size && source[Int64(pos)] != '\'') {
+        while (pos < source.size && source[Int64(pos)] != UInt8(39)) {
             sb.append(source[Int64(pos)])
             advance()
         }
@@ -576,36 +577,38 @@ public class TomlParser <: BaseParser {
         pos += Int64(3)
         column += Int64(3)
         // 跳过第一个换行
-        if (pos < source.size && source[Int64(pos)] == '\n') {
+        if (pos < source.size && source[Int64(pos)] == UInt8(10)) {
             advance()
         }
         let sb = StringBuilder()
         while (pos + Int64(2) < source.size) {
-            if (source[Int64(pos)] == '"' && source[Int64(pos + Int64(1))] == '"' && source[Int64(pos + Int64(2))] == '"') {
+            if (source[Int64(pos)] == UInt8(34) && source[Int64(pos + Int64(1))] == UInt8(34) && source[Int64(pos + Int64(2))] == UInt8(34)) {
                 pos += Int64(3)
                 column += Int64(3)
                 return TomlValue.str(sb.toString())
             }
-            if (source[Int64(pos)] == '\\') {
+            if (source[Int64(pos)] == UInt8(92)) {
                 advance()
                 // 行尾反斜杠: trim trailing whitespace
-                if (pos < source.size && source[Int64(pos)] == '\n') {
+                if (pos < source.size && source[Int64(pos)] == UInt8(10)) {
                     advance()
-                    while (pos < source.size && (source[Int64(pos)] == ' ' || source[Int64(pos)] == '\t' || source[Int64(pos)] == '\n')) {
+                    while (pos < source.size && (source[Int64(pos)] == UInt8(32) || source[Int64(pos)] == UInt8(9) || source[Int64(pos)] == UInt8(10))) {
                         advance()
                     }
                 } else if (pos < source.size) {
                     let escaped = source[Int64(pos)]
                     advance()
                     match (escaped) {
-                        case '"' => sb.append('"')
-                        case '\\' => sb.append('\\')
-                        case 'b' => sb.append('\b')
-                        case 'f' => sb.append('\f')
-                        case 'n' => sb.append('\n')
-                        case 'r' => sb.append('\r')
-                        case 't' => sb.append('\t')
-                        case _ => sb.append('\\').append(escaped)
+                        case 34 => sb.append(UInt8(34))
+                        case 92 => sb.append(UInt8(92))
+                        case 98 => sb.append(UInt8(8))
+                        case 102 => sb.append(UInt8(12))
+                        case 110 => sb.append(UInt8(10))
+                        case 114 => sb.append(UInt8(13))
+                        case 116 => sb.append(UInt8(9))
+                        case _ =>
+                            sb.append(UInt8(92))
+                            sb.append(escaped)
                     }
                 }
             } else {
@@ -621,12 +624,12 @@ public class TomlParser <: BaseParser {
     private func parseTOMLMultilineLiteralString(): TomlValue {
         pos += Int64(3)
         column += Int64(3)
-        if (pos < source.size && source[Int64(pos)] == '\n') {
+        if (pos < source.size && source[Int64(pos)] == UInt8(10)) {
             advance()
         }
         let sb = StringBuilder()
         while (pos + Int64(2) < source.size) {
-            if (source[Int64(pos)] == '\'' && source[Int64(pos + Int64(1))] == '\'' && source[Int64(pos + Int64(2))] == '\'') {
+            if (source[Int64(pos)] == UInt8(39) && source[Int64(pos + Int64(1))] == UInt8(39) && source[Int64(pos + Int64(2))] == UInt8(39)) {
                 pos += Int64(3)
                 column += Int64(3)
                 return TomlValue.str(sb.toString())
@@ -643,23 +646,23 @@ public class TomlParser <: BaseParser {
     private func parseTOMLNumber(): TomlValue {
         let start = pos
         // 可选正负号
-        if (pos < source.size && (source[Int64(pos)] == '+' || source[Int64(pos)] == '-')) {
+        if (pos < source.size && (source[Int64(pos)] == UInt8(43) || source[Int64(pos)] == UInt8(45))) {
             advance()
         }
         // inf
         if (pos + Int64(3) <= source.size && source[Int64(pos)..Int64(pos + Int64(3))] == "inf") {
             pos += Int64(3)
-            let sign = if (source[Int64(start)] == '-') { Float64(-1) } else { Float64(1) }
-            return TomlValue.float(sign * Float64.infinity)
+            let sign = if (source[Int64(start)] == UInt8(45)) { Float64(-1) } else { Float64(1) }
+            return TomlValue.float(sign * (Float64(1) / Float64(0)))
         }
         // nan
         if (pos + Int64(3) <= source.size && source[Int64(pos)..Int64(pos + Int64(3))] == "nan") {
             pos += Int64(3)
-            return TomlValue.float(Float64.nan)
+            return TomlValue.float(Float64(0) / Float64(0))
         }
         var isFloat = false
         // 十六进制 0x
-        if (pos + Int64(1) < source.size && source[Int64(pos)] == '0' && source[Int64(pos + Int64(1))] == 'x') {
+        if (pos + Int64(1) < source.size && source[Int64(pos)] == UInt8(48) && source[Int64(pos + Int64(1))] == UInt8(120)) {
             advance()
             advance()
             let numStart = pos
@@ -670,59 +673,59 @@ public class TomlParser <: BaseParser {
             return TomlValue.integer(parseIntHex(hexStr))
         }
         // 八进制 0o
-        if (pos + Int64(1) < source.size && source[Int64(pos)] == '0' && source[Int64(pos + Int64(1))] == 'o') {
+        if (pos + Int64(1) < source.size && source[Int64(pos)] == UInt8(48) && source[Int64(pos + Int64(1))] == UInt8(111)) {
             advance()
             advance()
             let numStart = pos
-            while (pos < source.size && source[Int64(pos)] >= '0' && source[Int64(pos)] <= '7') {
+            while (pos < source.size && source[Int64(pos)] >= UInt8(48) && source[Int64(pos)] <= UInt8(55)) {
                 advance()
             }
             let octStr = source[Int64(numStart)..Int64(pos)]
             return TomlValue.integer(parseIntOctal(octStr))
         }
         // 二进制 0b
-        if (pos + Int64(1) < source.size && source[Int64(pos)] == '0' && source[Int64(pos + Int64(1))] == 'b') {
+        if (pos + Int64(1) < source.size && source[Int64(pos)] == UInt8(48) && source[Int64(pos + Int64(1))] == UInt8(98)) {
             advance()
             advance()
             let numStart = pos
-            while (pos < source.size && (source[Int64(pos)] == '0' || source[Int64(pos)] == '1')) {
+            while (pos < source.size && (source[Int64(pos)] == UInt8(48) || source[Int64(pos)] == UInt8(49))) {
                 advance()
             }
             let binStr = source[Int64(numStart)..Int64(pos)]
             return TomlValue.integer(parseIntBinary(binStr))
         }
         // 十进制整数部分
-        while (pos < source.size && source[Int64(pos)] >= '0' && source[Int64(pos)] <= '9') {
+        while (pos < source.size && source[Int64(pos)] >= UInt8(48) && source[Int64(pos)] <= UInt8(57)) {
             advance()
         }
         // 下划线分隔符 (TOML 允许)
-        while (pos < source.size && (source[Int64(pos)] == '_' || (source[Int64(pos)] >= '0' && source[Int64(pos)] <= '9'))) {
+        while (pos < source.size && (source[Int64(pos)] == UInt8(95) || (source[Int64(pos)] >= UInt8(48) && source[Int64(pos)] <= UInt8(57)))) {
             advance()
         }
         // 小数部分
-        if (pos < source.size && source[Int64(pos)] == '.') {
+        if (pos < source.size && source[Int64(pos)] == UInt8(46)) {
             isFloat = true
             advance()
-            while (pos < source.size && (source[Int64(pos)] == '_' || (source[Int64(pos)] >= '0' && source[Int64(pos)] <= '9'))) {
+            while (pos < source.size && (source[Int64(pos)] == UInt8(95) || (source[Int64(pos)] >= UInt8(48) && source[Int64(pos)] <= UInt8(57)))) {
                 advance()
             }
         }
         // 指数部分
-        if (pos < source.size && (source[Int64(pos)] == 'e' || source[Int64(pos)] == 'E')) {
+        if (pos < source.size && (source[Int64(pos)] == UInt8(101) || source[Int64(pos)] == UInt8(69))) {
             isFloat = true
             advance()
-            if (pos < source.size && (source[Int64(pos)] == '+' || source[Int64(pos)] == '-')) {
+            if (pos < source.size && (source[Int64(pos)] == UInt8(43) || source[Int64(pos)] == UInt8(45))) {
                 advance()
             }
-            while (pos < source.size && (source[Int64(pos)] == '_' || (source[Int64(pos)] >= '0' && source[Int64(pos)] <= '9'))) {
+            while (pos < source.size && (source[Int64(pos)] == UInt8(95) || (source[Int64(pos)] >= UInt8(48) && source[Int64(pos)] <= UInt8(57)))) {
                 advance()
             }
         }
         let numStr = stripUnderscores(source[Int64(start)..Int64(pos)])
         if (isFloat) {
-            return TomlValue.float(Float64(numStr))
+            return TomlValue.float(Float64.parse(numStr))
         } else {
-            return TomlValue.integer(Int64(numStr))
+            return TomlValue.integer(Int64.parse(numStr))
         }
     }
 
@@ -732,17 +735,17 @@ public class TomlParser <: BaseParser {
         advance() // consume [
         skipWhitespaceAndComments()
         // 跳过换行
-        while (pos < source.size && source[Int64(pos)] == '\n') {
+        while (pos < source.size && source[Int64(pos)] == UInt8(10)) {
             advance()
             skipWhitespaceAndComments()
         }
-        if (pos < source.size && source[Int64(pos)] == ']') {
+        if (pos < source.size && source[Int64(pos)] == UInt8(93)) {
             advance()
             return arr
         }
         while (true) {
             skipWhitespaceAndComments()
-            while (pos < source.size && source[Int64(pos)] == '\n') {
+            while (pos < source.size && source[Int64(pos)] == UInt8(10)) {
                 advance()
                 skipWhitespaceAndComments()
             }
@@ -750,21 +753,21 @@ public class TomlParser <: BaseParser {
                 addError(ParseErrorKind.UnterminatedArray, "Unterminated array")
                 return arr
             }
-            if (source[Int64(pos)] == ']') {
+            if (source[Int64(pos)] == UInt8(93)) {
                 advance()
                 return arr
             }
             let value = parseValue()
             arr.arrayValue.append(value)
             skipWhitespaceAndComments()
-            while (pos < source.size && source[Int64(pos)] == '\n') {
+            while (pos < source.size && source[Int64(pos)] == UInt8(10)) {
                 advance()
                 skipWhitespaceAndComments()
             }
-            if (pos < source.size && source[Int64(pos)] == ',') {
+            if (pos < source.size && source[Int64(pos)] == UInt8(44)) {
                 advance()
                 skipWhitespaceAndComments()
-                while (pos < source.size && source[Int64(pos)] == '\n') {
+                while (pos < source.size && source[Int64(pos)] == UInt8(10)) {
                     advance()
                     skipWhitespaceAndComments()
                 }
@@ -778,7 +781,7 @@ public class TomlParser <: BaseParser {
         let tbl = TomlValue.table()
         advance() // consume {
         skipWhitespace()
-        if (pos < source.size && source[Int64(pos)] == '}') {
+        if (pos < source.size && source[Int64(pos)] == UInt8(125)) {
             advance()
             return tbl
         }
@@ -799,9 +802,9 @@ public class TomlParser <: BaseParser {
             // 设置到内联表
             setNestedValue(tbl, keys, value)
             skipWhitespace()
-            if (pos < source.size && source[Int64(pos)] == ',') {
+            if (pos < source.size && source[Int64(pos)] == UInt8(44)) {
                 advance()
-            } else if (pos < source.size && source[Int64(pos)] == '}') {
+            } else if (pos < source.size && source[Int64(pos)] == UInt8(125)) {
                 advance()
                 return tbl
             } else {
@@ -904,7 +907,7 @@ public class TomlParser <: BaseParser {
 
     /// 跳到下一行
     private func skipToNextLine(): Unit {
-        while (pos < source.size && source[Int64(pos)] != '\n') {
+        while (pos < source.size && source[Int64(pos)] != UInt8(10)) {
             advance()
         }
         if (pos < source.size) {
@@ -916,7 +919,7 @@ public class TomlParser <: BaseParser {
     private func stripUnderscores(s: String): String {
         let sb = StringBuilder()
         for (ch in s) {
-            if (ch != '_') {
+            if (ch != UInt8(95)) {
                 sb.append(ch)
             }
         }
@@ -924,19 +927,19 @@ public class TomlParser <: BaseParser {
     }
 
     private func isHexDigit(ch: Char): Bool {
-        (ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'f') || (ch >= 'A' && ch <= 'F')
+        (ch >= UInt8(48) && ch <= UInt8(57)) || (ch >= UInt8(97) && ch <= UInt8(102)) || (ch >= UInt8(65) && ch <= UInt8(70))
     }
 
     private func parseIntHex(s: String): Int64 {
         var result = Int64(0)
         for (ch in s) {
             result = result * Int64(16)
-            if (ch >= '0' && ch <= '9') {
-                result += Int64(ch.value - '0'.value)
-            } else if (ch >= 'a' && ch <= 'f') {
-                result += Int64(ch.value - 'a'.value) + Int64(10)
-            } else if (ch >= 'A' && ch <= 'F') {
-                result += Int64(ch.value - 'A'.value) + Int64(10)
+            if (ch >= UInt8(48) && ch <= UInt8(57)) {
+                result += Int64(ch) - Int64(48)
+            } else if (ch >= UInt8(97) && ch <= UInt8(102)) {
+                result += Int64(ch) - Int64(97) + Int64(10)
+            } else if (ch >= UInt8(65) && ch <= UInt8(70)) {
+                result += Int64(ch) - Int64(65) + Int64(10)
             }
         }
         return result
@@ -945,7 +948,7 @@ public class TomlParser <: BaseParser {
     private func parseIntOctal(s: String): Int64 {
         var result = Int64(0)
         for (ch in s) {
-            result = result * Int64(8) + Int64(ch.value - '0'.value)
+            result = result * Int64(8) + Int64(ch) - Int64(48)
         }
         return result
     }
@@ -953,7 +956,7 @@ public class TomlParser <: BaseParser {
     private func parseIntBinary(s: String): Int64 {
         var result = Int64(0)
         for (ch in s) {
-            result = result * Int64(2) + Int64(ch.value - '0'.value)
+            result = result * Int64(2) + Int64(ch) - Int64(48)
         }
         return result
     }
@@ -964,17 +967,17 @@ public class TomlParser <: BaseParser {
         while (count < len && pos < source.size) {
             let ch = source[Int64(pos)]
             code = code * Int32(16)
-            if (ch >= '0' && ch <= '9') {
-                code += Int32(ch.value) - Int32('0'.value)
-            } else if (ch >= 'a' && ch <= 'f') {
-                code += Int32(ch.value) - Int32('a'.value) + Int32(10)
-            } else if (ch >= 'A' && ch <= 'F') {
-                code += Int32(ch.value) - Int32('A'.value) + Int32(10)
+            if (ch >= UInt8(48) && ch <= UInt8(57)) {
+                code += Int32(ch) - Int32(48)
+            } else if (ch >= UInt8(97) && ch <= UInt8(102)) {
+                code += Int32(ch) - Int32(97) + Int32(10)
+            } else if (ch >= UInt8(65) && ch <= UInt8(70)) {
+                code += Int32(ch) - Int32(65) + Int32(10)
             }
             advance()
             count += Int64(1)
         }
-        return Char(code)
+        return UInt8(code)
     }
 }
 

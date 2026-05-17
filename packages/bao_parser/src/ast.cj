@@ -45,7 +45,7 @@ public enum ExprTag {
     | Regex             // e_regex - E.Regex { pattern, flags }
     | Identifier        // e_identifier - E.Identifier { ref, ... }
     | ImportIdentifier  // e_import_identifier
-    | This              // e_this
+    | ThisExpr              // e_this
     | Super             // e_super
     | New               // e_new - E.New { target, args, ... }
     | Call              // e_call - E.Call { target, args, ... }
@@ -68,6 +68,48 @@ public enum ExprTag {
     | TypeCast          // TypeScript 类型断言
     | JsxElement        // JSX 元素
     | JsxFragment       // JSX 片段
+
+    public operator func ==(right: ExprTag): Bool {
+        match (this) {
+            case Missing => match (right) { case Missing => true case _ => false }
+            case Undefined => match (right) { case Undefined => true case _ => false }
+            case Null => match (right) { case Null => true case _ => false }
+            case Boolean => match (right) { case Boolean => true case _ => false }
+            case Number => match (right) { case Number => true case _ => false }
+            case BigInt => match (right) { case BigInt => true case _ => false }
+            case String => match (right) { case String => true case _ => false }
+            case Regex => match (right) { case Regex => true case _ => false }
+            case Object => match (right) { case Object => true case _ => false }
+            case Array => match (right) { case Array => true case _ => false }
+            case Function => match (right) { case Function => true case _ => false }
+            case Class => match (right) { case Class => true case _ => false }
+            case Identifier => match (right) { case Identifier => true case _ => false }
+            case ImportIdentifier => match (right) { case ImportIdentifier => true case _ => false }
+            case ThisExpr => match (right) { case ThisExpr => true case _ => false }
+            case Super => match (right) { case Super => true case _ => false }
+            case Spread => match (right) { case Spread => true case _ => false }
+            case New => match (right) { case New => true case _ => false }
+            case Call => match (right) { case Call => true case _ => false }
+            case Dot => match (right) { case Dot => true case _ => false }
+            case Index => match (right) { case Index => true case _ => false }
+            case Arrow => match (right) { case Arrow => true case _ => false }
+            case Template => match (right) { case Template => true case _ => false }
+            case Unary => match (right) { case Unary => true case _ => false }
+            case Binary => match (right) { case Binary => true case _ => false }
+            case Ternary => match (right) { case Ternary => true case _ => false }
+            case Assign => match (right) { case Assign => true case _ => false }
+            case Postfix => match (right) { case Postfix => true case _ => false }
+            case Await => match (right) { case Await => true case _ => false }
+            case Yield => match (right) { case Yield => true case _ => false }
+            case TypeCast => match (right) { case TypeCast => true case _ => false }
+            case JsxElement => match (right) { case JsxElement => true case _ => false }
+            case JsxFragment => match (right) { case JsxFragment => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: ExprTag): Bool {
+        return !(this == right)
+    }
 }
 
 /// 表达式节点 - 对应 Bun Expr
@@ -235,7 +277,7 @@ public class Expr {
 
     /// 创建 this 表达式
     public static func this_(loc: Loc): Expr {
-        return Expr(loc, ExprTag.This)
+        return Expr(loc, ExprTag.ThisExpr)
     }
 
     /// 创建一元表达式 - 对应 Bun E.Unary
@@ -421,31 +463,75 @@ public class Expr {
 
 /// 语句数据类型标签 - 对应 Bun Stmt.Data 联合体标签
 public enum StmtTag {
-    | Block         // s_block - S.Block { stmts }
-    | Expr          // s_expr - S.SExpr { value }
-    | If            // s_if - S.If { test_, yes, no }
-    | For           // s_for - S.For { init, test_, update, body }
-    | ForIn         // s_for_in - S.ForIn { init, value, body }
-    | ForOf         // s_for_of - S.ForOf { init, value, body }
-    | While         // s_while - S.While { test_, body }
-    | DoWhile       // s_do_while - S.DoWhile { test_, body }
-    | Function      // s_function - S.Function { func }
-    | Class         // s_class - S.Class { class, is_export }
-    | Import        // s_import - S.Import { namespace_ref, default_name, items }
-    | Export        // s_export - 多种导出
-    | Local         // s_local - S.Local { kind, decls, is_export }
-    | Return        // s_return - S.Return { value }
-    | Throw         // s_throw - S.Throw { value }
-    | Try           // s_try - S.Try { body, catch_, finally }
-    | Switch        // s_switch - S.Switch { test_, cases }
-    | Break         // s_break
-    | Continue      // s_continue
-    | Debugger      // s_debugger
-    | Empty         // s_empty
-    | With          // s_with
-    | Labeled       // s_label
-    | Type          // TypeScript 类型声明
-    | Enum          // TypeScript enum
+    | Block          // s_block - S.Block { stmts }
+    | Expr           // s_expr - S.SExpr { value }
+    | If             // s_if - S.If { test_, yes, no }
+    | For            // s_for - S.For { init, test_, update, body }
+    | ForIn          // s_for_in - S.ForIn { init, value, body }
+    | ForOf          // s_for_of - S.ForOf { init, value, body }
+    | While          // s_while - S.While { test_, body }
+    | DoWhile        // s_do_while - S.DoWhile { test_, body }
+    | Function       // s_function - S.Function { func }
+    | Class          // s_class - S.Class { class, is_export }
+    | Import         // s_import - S.Import { namespace_ref, default_name, items }
+    | Export         // s_export - export clause
+    | ExportDefault  // s_export - export default
+    | ExportStar     // s_export - export * from
+    | ExportFrom     // s_export - export { } from
+    | Local          // s_local - S.Local { kind, decls, is_export }
+    | Return         // s_return - S.Return { value }
+    | Throw          // s_throw - S.Throw { value }
+    | Try            // s_try - S.Try { body, catch_, finally }
+    | Switch         // s_switch - S.Switch { test_, cases }
+    | Break          // s_break
+    | Continue       // s_continue
+    | Debugger       // s_debugger
+    | Empty          // s_empty
+    | Directive      // directive (string literal statement)
+    | Comment        // comment
+    | With           // s_with
+    | Labeled        // s_label
+    | Type           // TypeScript 类型声明
+    | Enum           // TypeScript enum
+
+    public operator func ==(rhs: StmtTag): Bool {
+        match (this) {
+            case Block => match (rhs) { case Block => true case _ => false }
+            case Expr => match (rhs) { case Expr => true case _ => false }
+            case If => match (rhs) { case If => true case _ => false }
+            case For => match (rhs) { case For => true case _ => false }
+            case ForIn => match (rhs) { case ForIn => true case _ => false }
+            case ForOf => match (rhs) { case ForOf => true case _ => false }
+            case While => match (rhs) { case While => true case _ => false }
+            case DoWhile => match (rhs) { case DoWhile => true case _ => false }
+            case Function => match (rhs) { case Function => true case _ => false }
+            case Class => match (rhs) { case Class => true case _ => false }
+            case Import => match (rhs) { case Import => true case _ => false }
+            case Export => match (rhs) { case Export => true case _ => false }
+            case ExportDefault => match (rhs) { case ExportDefault => true case _ => false }
+            case ExportStar => match (rhs) { case ExportStar => true case _ => false }
+            case ExportFrom => match (rhs) { case ExportFrom => true case _ => false }
+            case Local => match (rhs) { case Local => true case _ => false }
+            case Return => match (rhs) { case Return => true case _ => false }
+            case Throw => match (rhs) { case Throw => true case _ => false }
+            case Try => match (rhs) { case Try => true case _ => false }
+            case Switch => match (rhs) { case Switch => true case _ => false }
+            case Break => match (rhs) { case Break => true case _ => false }
+            case Continue => match (rhs) { case Continue => true case _ => false }
+            case Debugger => match (rhs) { case Debugger => true case _ => false }
+            case Empty => match (rhs) { case Empty => true case _ => false }
+            case Directive => match (rhs) { case Directive => true case _ => false }
+            case Comment => match (rhs) { case Comment => true case _ => false }
+            case With => match (rhs) { case With => true case _ => false }
+            case Labeled => match (rhs) { case Labeled => true case _ => false }
+            case Type => match (rhs) { case Type => true case _ => false }
+            case Enum => match (rhs) { case Enum => true case _ => false }
+        }
+    }
+
+    public operator func !=(rhs: StmtTag): Bool {
+        return !(this == rhs)
+    }
 }
 
 /// 语句节点 - 对应 Bun Stmt
@@ -467,7 +553,7 @@ public class Stmt {
 
     // --- 循环字段 ---
     /// for init - 用于 For, ForIn, ForOf
-    public var init: ?Stmt
+    public var `init`: ?Stmt
     /// for update
     public var update: ?Expr
     /// for-in/for-of value
@@ -506,6 +592,51 @@ public class Stmt {
     public var cases: ArrayList<SwitchCase>
     public var label: String
 
+    // --- js_printer 额外字段 (从 js_printer_stmt.cj 合并) ---
+    public var blockStmts: ArrayList<Stmt>
+    public var closeBraceLoc: ?Loc
+    public var valueExpr: ?Expr
+    public var testExpr: ?Expr
+    public var yesExpr: ?Expr
+    public var noExpr: ?Expr
+    public var updateExpr: ?Expr
+    public var yesStmt: ?Stmt
+    public var noStmt: ?Stmt
+    public var hasNoBranch: Bool
+    public var hasTest: Bool
+    public var hasInit: Bool
+    public var hasUpdate: Bool
+    public var initStmt: ?Stmt
+    public var isAwait: Bool
+    public var hasImportStar: Bool
+    public var importRecordIndex: Int64
+    public var namespaceRef: Ref
+    public var clauseItems: ArrayList<ClauseItem>
+    public var isSingleLine: Bool
+    public var starNameLoc: ?Loc
+    public var localKind: LocalKind
+    public var funcNameRef: Ref
+    public var funcNameLoc: Loc
+    public var classNameRef: Ref
+    public var classNameLoc: Loc
+    public var labelRef: ?Ref
+    public var innerStmt: ?Stmt
+    public var bodyLoc: Loc
+    public var bodyStmts: ArrayList<Stmt>
+    public var hasCatch: Bool
+    public var catchLoc: Loc
+    public var hasCatchBinding: Bool
+    public var catchBodyLoc: Loc
+    public var catchBodyStmts: ArrayList<Stmt>
+    public var hasFinally: Bool
+    public var finallyLoc: Loc
+    public var finallyStmts: ArrayList<Stmt>
+    public var commentText: String
+    public var directiveValue: String
+    public var innerStmtVal: ?Stmt
+    public var isAsync: Bool
+    public var isGenerator: Bool
+
     public init(loc: Loc, tag: StmtTag) {
         this.loc = loc
         this.tag = tag
@@ -513,7 +644,7 @@ public class Stmt {
         expr = None
         yes = None
         no = None
-        init = None
+        `init` = None
         update = None
         iterValue = None
         body = None
@@ -530,6 +661,49 @@ public class Stmt {
         finallyBody = None
         cases = ArrayList<SwitchCase>()
         label = ""
+        blockStmts = ArrayList<Stmt>()
+        closeBraceLoc = None
+        valueExpr = None
+        testExpr = None
+        yesExpr = None
+        noExpr = None
+        updateExpr = None
+        yesStmt = None
+        noStmt = None
+        hasNoBranch = false
+        hasTest = false
+        hasInit = false
+        hasUpdate = false
+        initStmt = None
+        isAwait = false
+        hasImportStar = false
+        importRecordIndex = 0
+        namespaceRef = Ref.NONE
+        clauseItems = ArrayList<ClauseItem>()
+        isSingleLine = true
+        starNameLoc = None
+        localKind = LocalKind.Var
+        funcNameRef = Ref.NONE
+        funcNameLoc = Loc.EMPTY
+        classNameRef = Ref.NONE
+        classNameLoc = Loc.EMPTY
+        labelRef = None
+        innerStmt = None
+        bodyLoc = Loc.EMPTY
+        bodyStmts = ArrayList<Stmt>()
+        hasCatch = false
+        catchLoc = Loc.EMPTY
+        hasCatchBinding = false
+        catchBodyLoc = Loc.EMPTY
+        catchBodyStmts = ArrayList<Stmt>()
+        hasFinally = false
+        finallyLoc = Loc.EMPTY
+        finallyStmts = ArrayList<Stmt>()
+        commentText = ""
+        directiveValue = ""
+        innerStmtVal = None
+        isAsync = false
+        isGenerator = false
     }
 
     // === 工厂方法 ===
@@ -546,12 +720,6 @@ public class Stmt {
         return s
     }
 
-    /// 表达式语句 (别名)
-    public static func expr(loc: Loc, value: Expr): Stmt {
-        let s = Stmt(loc, StmtTag.Expr)
-        s.expr = Some(value)
-        return s
-    }
 
     public static func if_(loc: Loc, test: Expr, yes: Stmt, no: ?Stmt): Stmt {
         let s = Stmt(loc, StmtTag.If)
@@ -588,31 +756,31 @@ public class Stmt {
         return Stmt(loc, StmtTag.Debugger)
     }
 
-    public static func fn(loc: Loc, fn: GFn): Stmt {
+    public static func fn_(loc: Loc, fn: GFn): Stmt {
         let s = Stmt(loc, StmtTag.Function)
         s.fn = Some(fn)
         return s
     }
 
-    public static func class(loc: Loc, classData: GClass): Stmt {
+    public static func `class`(loc: Loc, classData: GClass): Stmt {
         let s = Stmt(loc, StmtTag.Class)
         s.classData = Some(classData)
         return s
     }
 
-    public static func local(loc: Loc, kind: DeclKind, binding: Binding, init: ?Expr): Stmt {
+    public static func local(loc: Loc, kind: DeclKind, binding: Binding, `init`: ?Expr): Stmt {
         let s = Stmt(loc, StmtTag.Local)
         s.declKind = kind
         let decl = GDecl(binding)
-        if (init.isSome()) {
-            decl.value = init
+        if (`init`.isSome()) {
+            decl.value = `init`
         }
         s.decls = ArrayList<GDecl>()
         s.decls.append(decl)
         return s
     }
 
-    public static func for_(loc: Loc, init: ?Expr, test: Expr, update: Expr, body: Stmt): Stmt {
+    public static func for_(loc: Loc, `init`: ?Expr, test: Expr, update: Expr, body: Stmt): Stmt {
         let s = Stmt(loc, StmtTag.For)
         s.expr = Some(test)
         s.update = Some(update)
@@ -703,7 +871,7 @@ public class Stmt {
     public static func exportDefault(loc: Loc, value: Stmt): Stmt {
         let s = Stmt(loc, StmtTag.Export)
         s.isExport = true
-        s.init = Some(value)
+        s.`init` = Some(value)
         return s
     }
 
@@ -878,9 +1046,9 @@ public class GArg {
 
 /// 函数体 - 对应 Bun G.FnBody
 public enum GFnBody {
-    | Stmt(Stmt)              // { ... }
-    | Expr(Expr)              // => expr
-    | Stmts(ArrayList<Stmt>)  // 多语句
+    | StmtBody(Stmt)              // { ... }
+    | ExprBody(Expr)              // => expr
+    | StmtsBody(ArrayList<Stmt>)  // 多语句
 }
 
 /// 函数数据 - 对应 Bun G.Fn
@@ -896,7 +1064,7 @@ public class GFn {
         this.loc = loc
         name = ""
         args = ArrayList<GArg>()
-        body = GFnBody.Stmts(ArrayList<Stmt>())
+        body = GFnBody.StmtsBody(ArrayList<Stmt>())
         isAsync = false
         isGenerator = false
     }
@@ -958,7 +1126,7 @@ public class GProperty {
     /// 创建方法属性
     public static func method(loc: Loc, name: String, fn: GFn, isStatic: Bool,
                                isGet: Bool, isSet: Bool, isAsync: Bool): GProperty {
-        let p = GProperty(loc, name, None)
+        let p = GProperty(loc, name, Option<Expr>.None)
         p.kind = GPropertyKind.Method
         p.flags.isStatic = isStatic
         p.flags.isMethod = true
@@ -1036,6 +1204,25 @@ public class ClauseItem {
     public var loc: Loc
     /// 引用
     public var ref: Ref
+    /// 别名位置
+    public var aliasLoc: Loc
+    /// 名称位置
+    public var nameLoc: Loc
+    /// 名称引用
+    public var nameRef: Ref
+    /// 默认别名 - 对应 Bun ClauseItem.default_alias
+    public static let defaultAlias: String = "default"
+
+    public init() {
+        alias = ""
+        name = ""
+        originalName = ""
+        loc = Loc.EMPTY
+        ref = Ref.NONE
+        aliasLoc = Loc.EMPTY
+        nameLoc = Loc.EMPTY
+        nameRef = Ref.NONE
+    }
 
     public init(alias: String, name: String, loc: Loc) {
         this.alias = alias
@@ -1043,6 +1230,9 @@ public class ClauseItem {
         this.originalName = name
         this.loc = loc
         ref = Ref.NONE
+        aliasLoc = Loc.EMPTY
+        nameLoc = Loc.EMPTY
+        nameRef = Ref.NONE
     }
 
     public init(originalName: String, alias: String, loc: Loc, ref: Ref) {
@@ -1051,6 +1241,25 @@ public class ClauseItem {
         this.name = alias
         this.loc = loc
         this.ref = ref
+        aliasLoc = Loc.EMPTY
+        nameLoc = Loc.EMPTY
+        nameRef = Ref.NONE
+    }
+
+    public init(originalName: String, alias: String, aliasLoc: Loc, nameLoc: Loc, nameRef: Ref) {
+        this.originalName = originalName
+        this.alias = alias
+        this.name = alias
+        this.loc = aliasLoc
+        this.ref = nameRef
+        this.aliasLoc = aliasLoc
+        this.nameLoc = nameLoc
+        this.nameRef = nameRef
+    }
+
+    /// 是否为默认导入/导出
+    public func isDefault(): Bool {
+        return alias == "default" || originalName == "default"
     }
 }
 
@@ -1059,17 +1268,20 @@ public class SwitchCase {
     public var loc: Loc
     public var value: ?Expr    // None = default
     public var body: ArrayList<Stmt>
+    public var valueExpr: ?Expr  // alias used by js_printer
 
     public init(loc: Loc) {
         this.loc = loc
         value = None
         body = ArrayList<Stmt>()
+        valueExpr = None
     }
 
     public init(value: ?Expr, body: ArrayList<Stmt>) {
         this.loc = Loc.EMPTY
         this.value = value
         this.body = body
+        valueExpr = value
     }
 }
 
@@ -1085,10 +1297,15 @@ public enum ScopeKind {
     | Label
     | ClassName
     | ClassBody
+    | ClassStaticInit  // 静态初始化块
+    | CatchBinding     // catch 绑定
+    | FunctionArgs     // 函数参数
+    | FunctionBody     // 函数体
     | Function
     | ArrowFunction
     | Module
-    | EntryBlock  // 模块入口块
+    | Entry            // 命名空间/枚举入口
+    | EntryBlock       // 模块入口块
 }
 
 /// 作用域成员
@@ -1151,12 +1368,39 @@ public class Scope {
 
 /// 符号类型 - 对应 Bun Symbol.Kind
 public enum SymbolKind {
-    | Other
-    | Unbound
-    | Hoisted
-    | HoistedFunction
-    | Import
+    | Unbound            // 未绑定 (全局变量)
+    | Import             // 导入符号
+    | Export             // 导出符号
+    | Resolved           // 已解析
+    | Constant           // const 声明
+    | Let                // let 声明
+    | Var                // var 声明
+    | Hoisted            // 提升的声明
+    | HoistedFunction    // 提升的函数声明
+    | Class              // 类名
+    | Label              // 标签
+    | Other              // 其他
+    | Private            // 私有字段
+    | PrivateStatic      // 静态私有字段
+    | PrivateMethod      // 私有方法
+    | PrivateStaticMethod // 静态私有方法
+    | PrivateGet         // 私有 getter
+    | PrivateSet         // 私有 setter
+    | PrivateStaticGet   // 静态私有 getter
+    | PrivateStaticSet   // 静态私有 setter
     | Ref
+
+    /// 是否为私有成员类型
+    public func isPrivate(): Bool {
+        match (this) {
+            case Private | PrivateStatic | PrivateMethod |
+                 PrivateStaticMethod | PrivateGet | PrivateSet |
+                 PrivateStaticGet | PrivateStaticSet =>
+                return true
+            case _ =>
+                return false
+        }
+    }
 }
 
 /// 符号 - 对应 Bun Symbol

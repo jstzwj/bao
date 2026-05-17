@@ -97,7 +97,7 @@ public class TsConfig {
 
     /// 是否有 baseUrl - 对应 Bun TSConfigJSON.hasBaseURL()
     public func hasBaseUrl(): Bool {
-        return baseUrl.length > 0
+        return baseUrl.size > 0
     }
 
     /// 合并 JSX 配置 - 对应 Bun TSConfigJSON.mergeJSX()
@@ -184,7 +184,7 @@ public enum JSXRuntimeType {
     | Solid         // Solid.js
 
     public static func fromString(s: String): ?JSXRuntimeType {
-        let lower = s.toLowerCase()
+        let lower = s.toAsciiLower()
         match (lower) {
             case "classic" => Some(JSXRuntimeType.Classic)
             case "automatic" => Some(JSXRuntimeType.Automatic)
@@ -228,46 +228,41 @@ public class TsConfigParser {
         // 此处使用简化解析
 
         skipWhitespace()
-        if (pos >= source.length || source[Int64(pos)] != Char('{')) {
+        if (pos >= Int64(source.size) || source[Int64(pos)] != UInt8(123)) {
             return result
         }
         pos += 1  // skip '{'
 
         // 解析顶层属性
-        while (pos < source.length) {
+        while (pos < Int64(source.size)) {
             skipWhitespaceAndComments()
-            if (pos >= source.length || source[Int64(pos)] == Char('}')) {
+            if (pos >= Int64(source.size) || source[Int64(pos)] == UInt8(125)) {
                 break
             }
 
             let key = parseKey()
             skipWhitespaceAndComments()
 
-            if (pos < source.length && source[Int64(pos)] == Char(':')) {
+            if (pos < Int64(source.size) && source[Int64(pos)] == UInt8(58)) {
                 pos += 1
             }
             skipWhitespaceAndComments()
 
             match (key) {
-                case "extends" => {
+                case "extends" =>
                     result.extends = parseStringValue()
-                }
-                case "compilerOptions" => {
+                case "compilerOptions" =>
                     parseCompilerOptions(result)
-                }
-                case "include" | "exclude" | "files" => {
+                case "include" | "exclude" | "files" =>
                     skipValue()
-                }
-                case "references" => {
+                case "references" =>
                     skipValue()
-                }
-                case _ => {
+                case _ =>
                     skipValue()
-                }
             }
 
             skipWhitespaceAndComments()
-            if (pos < source.length && source[Int64(pos)] == Char(',')) {
+            if (pos < Int64(source.size) && source[Int64(pos)] == UInt8(44)) {
                 pos += 1
             }
         }
@@ -275,7 +270,7 @@ public class TsConfigParser {
         // 设置 base_url_for_paths
         // 对应 Bun: result.base_url_for_paths = if (result.base_url.len > 0) result.base_url else "."
         if (result.paths.size > 0) {
-            result.baseUrlForPaths = if (result.baseUrl.length > 0) { result.baseUrl } else { "." }
+            result.baseUrlForPaths = if (result.baseUrl.size > 0) { result.baseUrl } else { "." }
         }
 
         return result
@@ -290,21 +285,21 @@ public class TsConfigParser {
     /// 对应 Bun TSConfigJSON.parse() 中 "compilerOptions" 分支
     private func parseCompilerOptions(result: TsConfig): Unit {
         skipWhitespaceAndComments()
-        if (pos >= source.length || source[Int64(pos)] != Char('{')) {
+        if (pos >= Int64(source.size) || source[Int64(pos)] != UInt8(123)) {
             return
         }
         pos += 1  // skip '{'
 
-        while (pos < source.length) {
+        while (pos < Int64(source.size)) {
             skipWhitespaceAndComments()
-            if (pos >= source.length || source[Int64(pos)] == Char('}')) {
+            if (pos >= Int64(source.size) || source[Int64(pos)] == UInt8(125)) {
                 pos += 1
                 break
             }
 
             let key = parseKey()
             skipWhitespaceAndComments()
-            if (pos < source.length && source[Int64(pos)] == Char(':')) {
+            if (pos < Int64(source.size) && source[Int64(pos)] == UInt8(58)) {
                 pos += 1
             }
             skipWhitespaceAndComments()
@@ -312,52 +307,39 @@ public class TsConfigParser {
             // 根据 key 解析对应值
             // 严格对应 Bun 中的各字段解析逻辑
             match (key) {
-                case "baseUrl" => {
+                case "baseUrl" =>
                     result.baseUrl = parseStringValue()
-                }
-                case "rootDir" => {
+                case "rootDir" =>
                     result.rootDir = parseStringValue()
-                }
-                case "rootDirs" => {
+                case "rootDirs" =>
                     result.rootDirs = parseStringArray()
-                }
-                case "outDir" => {
+                case "outDir" =>
                     result.outDir = parseStringValue()
-                }
-                case "paths" => {
+                case "paths" =>
                     result.paths = parsePathsMap()
-                }
-                case "strict" => {
+                case "strict" =>
                     result.strict = parseBoolValue()
-                }
-                case "target" => {
+                case "target" =>
                     result.target = parseStringValue()
-                }
-                case "moduleResolution" => {
+                case "moduleResolution" =>
                     result.moduleResolution = parseStringValue()
-                }
-                case "moduleSuffixes" => {
+                case "moduleSuffixes" =>
                     result.moduleSuffixes = parseStringArray()
-                }
-                case "jsx" => {
+                case "jsx" =>
                     let jsxValue = parseStringValue()
-                    match (JSXRuntimeType.fromString(jsxValue.toLowerCase())) {
-                        case Some(runtime) => {
+                    match (JSXRuntimeType.fromString(jsxValue.toAsciiLower())) {
+                        case Some(runtime) =>
                             result.jsx.runtime = runtime
                             result.jsx.runtimeWasSet = true
-                        }
                         case None => ()
                     }
-                }
-                case "jsxFactory" => {
+                case "jsxFactory" =>
                     result.jsx.factory = parseStringValue()
                     result.jsx.factoryWasSet = true
-                }
-                case "jsxFragmentFactory" => {
+                case "jsxFragmentFactory" =>
                     result.jsx.fragment = parseStringValue()
                     result.jsx.fragmentWasSet = true
-                }
-                case "jsxImportSource" => {
+                case "jsxImportSource" =>
                     let source = parseStringValue()
                     result.jsx.importSource = source
                     result.jsx.importSourceWasSet = true
@@ -366,41 +348,33 @@ public class TsConfigParser {
                         result.jsx.runtime = JSXRuntimeType.Solid
                         result.jsx.runtimeWasSet = true
                     }
-                }
-                case "useDefineForClassFields" => {
+                case "useDefineForClassFields" =>
                     result.useDefineForClassFields = Some(parseBoolValue())
-                }
-                case "importsNotUsedAsValues" => {
+                case "importsNotUsedAsValues" =>
                     let val = parseStringValue()
                     match (val) {
-                        case "preserve" | "error" => {
+                        case "preserve" | "error" =>
                             result.preserveImportsNotUsedAsValues = true
-                        }
                         case _ => ()
                     }
-                }
-                case "emitDecoratorMetadata" => {
+                case "emitDecoratorMetadata" =>
                     result.emitDecoratorMetadata = parseBoolValue()
-                }
-                case "experimentalDecorators" => {
+                case "experimentalDecorators" =>
                     result.experimentalDecorators = parseBoolValue()
-                }
                 case "declaration" | "declarationDir" | "sourceMap" |
                      "inlineSourceMap" | "inlineSources" | "outFile" |
                      "declarationMap" | "esModuleInterop" | "allowSyntheticDefaultImports" |
                      "forceConsistentCasingInFileNames" | "skipLibCheck" |
                      "isolatedModules" | "verbatimModuleSyntax" | "resolveJsonModule" |
                      "allowJs" | "checkJs" | "noEmit" | "noEmitOnError" |
-                     "removeComments" | "preserveConstEnums" | "stripInternal" => {
+                     "removeComments" | "preserveConstEnums" | "stripInternal" =>
                     skipValue()
-                }
-                case _ => {
+                case _ =>
                     skipValue()
-                }
             }
 
             skipWhitespaceAndComments()
-            if (pos < source.length && source[Int64(pos)] == Char(',')) {
+            if (pos < Int64(source.size) && source[Int64(pos)] == UInt8(44)) {
                 pos += 1
             }
         }
@@ -432,14 +406,14 @@ public class TsConfigParser {
         let result = HashMap<String, ArrayList<String>>()
         skipWhitespaceAndComments()
 
-        if (pos >= source.length || source[Int64(pos)] != Char('{')) {
+        if (pos >= Int64(source.size) || source[Int64(pos)] != UInt8(123)) {
             return result
         }
         pos += 1  // skip '{'
 
-        while (pos < source.length) {
+        while (pos < Int64(source.size)) {
             skipWhitespaceAndComments()
-            if (pos >= source.length || source[Int64(pos)] == Char('}')) {
+            if (pos >= Int64(source.size) || source[Int64(pos)] == UInt8(125)) {
                 pos += 1
                 break
             }
@@ -447,7 +421,7 @@ public class TsConfigParser {
             let pattern = parseStringValue()
             skipWhitespaceAndComments()
 
-            if (pos < source.length && source[Int64(pos)] == Char(':')) {
+            if (pos < Int64(source.size) && source[Int64(pos)] == UInt8(58)) {
                 pos += 1
             }
             skipWhitespaceAndComments()
@@ -473,7 +447,7 @@ public class TsConfigParser {
             }
 
             skipWhitespaceAndComments()
-            if (pos < source.length && source[Int64(pos)] == Char(',')) {
+            if (pos < Int64(source.size) && source[Int64(pos)] == UInt8(44)) {
                 pos += 1
             }
         }
@@ -486,7 +460,7 @@ public class TsConfigParser {
     private func isValidPathPattern(text: String): Bool {
         var foundAsterisk = false
         for (ch in text) {
-            if (ch == Char('*')) {
+            if (ch == UInt8(42)) {
                 if (foundAsterisk) {
                     // 第二个 '*'，无效
                     return false
@@ -501,7 +475,7 @@ public class TsConfigParser {
     /// 对应 Bun isValidTSConfigPathNoBaseURLPattern()
     /// 当没有设置 baseUrl 时，路径必须是相对或绝对的
     private func isValidPathWithoutBaseUrl(text: String): Bool {
-        if (text.length == 0) {
+        if (text.size == 0) {
             return false
         }
         // 相对路径
@@ -536,14 +510,14 @@ public class TsConfigParser {
     /// 对应 Bun resolver.zig 中 tsconfig extends 合并逻辑
     public func resolveExtends(config: TsConfig,
                                 loadFile: (String) -> ?String): TsConfig {
-        if (config.extends.length == 0) {
+        if (config.extends.size == 0) {
             return config
         }
 
         // 解析 extends 路径
         let extendsPath = resolveExtendsPath(config.extends, config.absPath)
         match (loadFile(extendsPath)) {
-            case Some(content) => {
+            case Some(content) =>
                 let parentConfig = parse(content)
                 parentConfig.absPath = extendsPath
 
@@ -552,10 +526,8 @@ public class TsConfigParser {
 
                 // 合并: 子配置覆盖父配置
                 return mergeConfigs(resolvedParent, config)
-            }
-            case None => {
+            case None =>
                 return config
-            }
         }
     }
 
@@ -579,7 +551,7 @@ public class TsConfigParser {
         result.extends = ""
 
         // baseUrl: 子配置优先
-        result.baseUrl = if (child.baseUrl.length > 0) { child.baseUrl } else { parent.baseUrl }
+        result.baseUrl = if (child.baseUrl.size > 0) { child.baseUrl } else { parent.baseUrl }
 
         // paths: 合并 (子配置的 paths 添加到父配置上)
         result.paths = HashMap<String, ArrayList<String>>()
@@ -600,21 +572,21 @@ public class TsConfigParser {
 
         // baseUrlForPaths
         if (result.paths.size > 0) {
-            result.baseUrlForPaths = if (result.baseUrl.length > 0) { result.baseUrl } else { "." }
+            result.baseUrlForPaths = if (result.baseUrl.size > 0) { result.baseUrl } else { "." }
         }
 
         // 其他字段: 子配置优先
-        result.rootDir = if (child.rootDir.length > 0) { child.rootDir } else { parent.rootDir }
-        result.outDir = if (child.outDir.length > 0) { child.outDir } else { parent.outDir }
+        result.rootDir = if (child.rootDir.size > 0) { child.rootDir } else { parent.rootDir }
+        result.outDir = if (child.outDir.size > 0) { child.outDir } else { parent.outDir }
         result.strict = child.strict || parent.strict
-        result.target = if (child.target.length > 0) { child.target } else { parent.target }
-        result.moduleResolution = if (child.moduleResolution.length > 0) { child.moduleResolution } else { parent.moduleResolution }
+        result.target = if (child.target.size > 0) { child.target } else { parent.target }
+        result.moduleResolution = if (child.moduleResolution.size > 0) { child.moduleResolution } else { parent.moduleResolution }
 
         // JSX: 使用 mergeJSX 合并
         result.jsx = parent.mergeJSX(child.jsx)
 
         // 布尔字段: 子配置优先
-        result.useDefineForClassFields = if (child.useDefineForClassFields != None) { child.useDefineForClassFields } else { parent.useDefineForClassFields }
+        result.useDefineForClassFields = if (child.useDefineForClassFields != Option<Bool>.None) { child.useDefineForClassFields } else { parent.useDefineForClassFields }
         result.preserveImportsNotUsedAsValues = child.preserveImportsNotUsedAsValues || parent.preserveImportsNotUsedAsValues
         result.emitDecoratorMetadata = child.emitDecoratorMetadata || parent.emitDecoratorMetadata
         result.experimentalDecorators = child.experimentalDecorators || parent.experimentalDecorators
@@ -652,27 +624,27 @@ public class TsConfigParser {
     /// 对应 Bun parseMemberExpressionForJSX()
     public func parseMemberExpression(text: String): ArrayList<String> {
         let parts = ArrayList<String>()
-        if (text.length == 0) {
+        if (text.size == 0) {
             return parts
         }
 
         let sb = StringBuilder()
         for (ch in text) {
-            if (ch == Char('.')) {
+            if (ch == UInt8(46)) {
                 let part = sb.toString()
-                if (part.length > 0 && isValidIdentifier(part)) {
+                if (part.size > 0 && isValidIdentifier(part)) {
                     parts.append(part)
                 } else {
                     return ArrayList<String>()  // 无效
                 }
-                sb.clearBuffer()
+                sb.reset()
             } else {
                 sb.append(ch)
             }
         }
 
         let lastPart = sb.toString()
-        if (lastPart.length > 0 && isValidIdentifier(lastPart)) {
+        if (lastPart.size > 0 && isValidIdentifier(lastPart)) {
             parts.append(lastPart)
         } else {
             return ArrayList<String>()
@@ -683,16 +655,16 @@ public class TsConfigParser {
 
     /// 检查是否为有效的 JavaScript 标识符
     private func isValidIdentifier(s: String): Bool {
-        if (s.length == 0) {
+        if (s.size == 0) {
             return false
         }
         let first = s[Int64(0)]
-        let fv = first.value
+        let fv = Int64(first)
         if (!((fv >= 97 && fv <= 122) || (fv >= 65 && fv <= 90) || fv == 95 || fv == 36)) {
             return false
         }
         for (ch in s) {
-            let v = ch.value
+            let v = Int64(ch)
             if (!((v >= 97 && v <= 122) || (v >= 65 && v <= 90) ||
                   (v >= 48 && v <= 57) || v == 95 || v == 36)) {
                 return false
@@ -708,60 +680,60 @@ public class TsConfigParser {
     /// 解析 JSON key (支持引号和无引号 key，因为 tsconfig 允许尾逗号)
     private func parseKey(): String {
         skipWhitespaceAndComments()
-        if (pos >= source.length) {
+        if (pos >= Int64(source.size)) {
             return ""
         }
         // 尝试引号字符串
-        if (source[Int64(pos)] == Char('"') || source[Int64(pos)] == Char('\'')) {
+        if (source[Int64(pos)] == UInt8(34) || source[Int64(pos)] == UInt8(39)) {
             return parseStringValue()
         }
         // 无引号 key (tsconfig 特殊语法)
         let sb = StringBuilder()
-        while (pos < source.length) {
+        while (pos < Int64(source.size)) {
             let ch = source[Int64(pos)]
-            if (ch == Char(':') || ch == Char('{') || ch == Char('}') ||
-                ch == Char(',') || ch == Char(' ') || ch == Char('\t') ||
-                ch == Char('\n') || ch == Char('\r')) {
+            if (ch == UInt8(58) || ch == UInt8(123) || ch == UInt8(125) ||
+                ch == UInt8(44) || ch == UInt8(32) || ch == UInt8(9) ||
+                ch == UInt8(10) || ch == UInt8(13)) {
                 break
             }
             sb.append(ch)
             pos += 1
         }
-        return sb.toString().trim()
+        return sb.toString().trimAscii()
     }
 
     /// 解析字符串值
     private func parseStringValue(): String {
         skipWhitespaceAndComments()
-        if (pos >= source.length) {
+        if (pos >= Int64(source.size)) {
             return ""
         }
         let ch = source[Int64(pos)]
-        if (ch != Char('"') && ch != Char('\'')) {
+        if (ch != UInt8(34) && ch != UInt8(39)) {
             return ""
         }
-        let quote = ch
+        let `quote` = ch
         pos += 1
 
         let sb = StringBuilder()
-        while (pos < source.length) {
+        while (pos < Int64(source.size)) {
             let c = source[Int64(pos)]
-            if (c == Char('\\') && pos + 1 < source.length) {
+            if (c == UInt8(92) && pos + 1 < Int64(source.size)) {
                 pos += 1
                 let escaped = source[Int64(pos)]
-                match (escaped.value) {
-                    case 34 => sb.append(Char(34))
-                    case 92 => sb.append(Char(92))
-                    case 47 => sb.append(Char(47))
-                    case 98 => sb.append(Char(8))
-                    case 102 => sb.append(Char(12))
-                    case 110 => sb.append(Char(10))
-                    case 114 => sb.append(Char(13))
-                    case 116 => sb.append(Char(9))
+                match (escaped) {
+                    case 34 => sb.append(Rune(34))
+                    case 92 => sb.append(Rune(92))
+                    case 47 => sb.append(Rune(47))
+                    case 98 => sb.append(Rune(8))
+                    case 102 => sb.append(Rune(12))
+                    case 110 => sb.append(Rune(10))
+                    case 114 => sb.append(Rune(13))
+                    case 116 => sb.append(Rune(9))
                     case _ => sb.append(escaped)
                 }
                 pos += 1
-            } else if (c == quote) {
+            } else if (c == `quote`) {
                 pos += 1
                 break
             } else {
@@ -775,14 +747,14 @@ public class TsConfigParser {
     /// 解析布尔值
     private func parseBoolValue(): Bool {
         skipWhitespaceAndComments()
-        if (pos >= source.length) {
+        if (pos >= Int64(source.size)) {
             return false
         }
-        if (source[Int64(pos)] == Char('t')) {
+        if (source[Int64(pos)] == UInt8(116)) {
             pos += 4  // skip "true"
             return true
         }
-        if (source[Int64(pos)] == Char('f')) {
+        if (source[Int64(pos)] == UInt8(102)) {
             pos += 5  // skip "false"
             return false
         }
@@ -794,23 +766,23 @@ public class TsConfigParser {
     private func parseStringArray(): ArrayList<String> {
         let result = ArrayList<String>()
         skipWhitespaceAndComments()
-        if (pos >= source.length || source[Int64(pos)] != Char('[')) {
+        if (pos >= Int64(source.size) || source[Int64(pos)] != UInt8(91)) {
             return result
         }
         pos += 1  // skip '['
 
-        while (pos < source.length) {
+        while (pos < Int64(source.size)) {
             skipWhitespaceAndComments()
-            if (pos >= source.length || source[Int64(pos)] == Char(']')) {
+            if (pos >= Int64(source.size) || source[Int64(pos)] == UInt8(93)) {
                 pos += 1
                 break
             }
             let str = parseStringValue()
-            if (str.length > 0) {
+            if (str.size > 0) {
                 result.append(str)
             }
             skipWhitespaceAndComments()
-            if (pos < source.length && source[Int64(pos)] == Char(',')) {
+            if (pos < Int64(source.size) && source[Int64(pos)] == UInt8(44)) {
                 pos += 1
             }
         }
@@ -820,14 +792,14 @@ public class TsConfigParser {
 
     /// 跳过值
     private func skipValue(): Unit {
-        if (pos >= source.length) {
+        if (pos >= Int64(source.size)) {
             return
         }
         let ch = source[Int64(pos)]
-        if (ch == Char('"') || ch == Char('\'')) {
+        if (ch == UInt8(34) || ch == UInt8(39)) {
             pos += 1
-            while (pos < source.length) {
-                if (source[Int64(pos)] == Char('\\') && pos + 1 < source.length) {
+            while (pos < Int64(source.size)) {
+                if (source[Int64(pos)] == UInt8(92) && pos + 1 < Int64(source.size)) {
                     pos += 2
                 } else if (source[Int64(pos)] == ch) {
                     pos += 1
@@ -836,26 +808,26 @@ public class TsConfigParser {
                     pos += 1
                 }
             }
-        } else if (ch == Char('{')) {
+        } else if (ch == UInt8(123)) {
             var depth = 1
             pos += 1
-            while (pos < source.length && depth > 0) {
-                if (source[Int64(pos)] == Char('{')) { depth += 1 }
-                else if (source[Int64(pos)] == Char('}')) { depth -= 1 }
+            while (pos < Int64(source.size) && depth > 0) {
+                if (source[Int64(pos)] == UInt8(123)) { depth += 1 }
+                else if (source[Int64(pos)] == UInt8(125)) { depth -= 1 }
                 pos += 1
             }
-        } else if (ch == Char('[')) {
+        } else if (ch == UInt8(91)) {
             var depth = 1
             pos += 1
-            while (pos < source.length && depth > 0) {
-                if (source[Int64(pos)] == Char('[')) { depth += 1 }
-                else if (source[Int64(pos)] == Char(']')) { depth -= 1 }
+            while (pos < Int64(source.size) && depth > 0) {
+                if (source[Int64(pos)] == UInt8(91)) { depth += 1 }
+                else if (source[Int64(pos)] == UInt8(93)) { depth -= 1 }
                 pos += 1
             }
         } else {
-            while (pos < source.length) {
+            while (pos < Int64(source.size)) {
                 let c = source[Int64(pos)]
-                if (c == Char(',') || c == Char('}') || c == Char(']') || c == Char('\n')) {
+                if (c == UInt8(44) || c == UInt8(125) || c == UInt8(93) || c == UInt8(10)) {
                     break
                 }
                 pos += 1
@@ -865,23 +837,23 @@ public class TsConfigParser {
 
     /// 跳过空白和注释 (tsconfig 支持 // 和 /* */ 注释)
     private func skipWhitespaceAndComments(): Unit {
-        while (pos < source.length) {
+        while (pos < Int64(source.size)) {
             let ch = source[Int64(pos)]
-            if (ch == Char(' ') || ch == Char('\t') || ch == Char('\n') || ch == Char('\r')) {
+            if (ch == UInt8(32) || ch == UInt8(9) || ch == UInt8(10) || ch == UInt8(13)) {
                 pos += 1
-            } else if (ch == Char('/') && pos + 1 < source.length) {
+            } else if (ch == UInt8(47) && pos + 1 < Int64(source.size)) {
                 let next = source[Int64(pos + 1)]
-                if (next == Char('/')) {
+                if (next == UInt8(47)) {
                     // 行注释
                     pos += 2
-                    while (pos < source.length && source[Int64(pos)] != Char('\n')) {
+                    while (pos < Int64(source.size) && source[Int64(pos)] != UInt8(10)) {
                         pos += 1
                     }
-                } else if (next == Char('*')) {
+                } else if (next == UInt8(42)) {
                     // 块注释
                     pos += 2
-                    while (pos + 1 < source.length) {
-                        if (source[Int64(pos)] == Char('*') && source[Int64(pos + 1)] == Char('/')) {
+                    while (pos + 1 < Int64(source.size)) {
+                        if (source[Int64(pos)] == UInt8(42) && source[Int64(pos + 1)] == UInt8(47)) {
                             pos += 2
                             break
                         }
@@ -897,9 +869,9 @@ public class TsConfigParser {
     }
 
     private func skipWhitespace(): Unit {
-        while (pos < source.length) {
+        while (pos < Int64(source.size)) {
             let ch = source[Int64(pos)]
-            if (ch == Char(' ') || ch == Char('\t') || ch == Char('\n') || ch == Char('\r')) {
+            if (ch == UInt8(32) || ch == UInt8(9) || ch == UInt8(10) || ch == UInt8(13)) {
                 pos += 1
             } else {
                 break

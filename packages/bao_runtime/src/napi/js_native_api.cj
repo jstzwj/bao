@@ -127,7 +127,7 @@ public class JsNativeApi {
     /// 对应 Bun: napi.zig - pub export fn napi_create_string_latin1
     public static func createStringLatin1(env: NapiEnv, str: ?String, length: Int64): NapiValue {
         if (str == None) {
-            return NapiValue.create(env, JsValue(""))
+            return NapiValue.create(env, JsValue(BaoString("")))
         }
         let s = str.getOrThrow()
         if (length == NAPI_AUTO_LENGTH) {
@@ -141,7 +141,7 @@ public class JsNativeApi {
     /// 对应 Bun: napi.zig - pub export fn napi_create_string_utf8
     public static func createStringUtf8(env: NapiEnv, str: ?String, length: Int64): NapiValue {
         if (str == None) {
-            return NapiValue.create(env, JsValue(""))
+            return NapiValue.create(env, JsValue(BaoString("")))
         }
         let s = str.getOrThrow()
         if (length == NAPI_AUTO_LENGTH) {
@@ -155,7 +155,7 @@ public class JsNativeApi {
     /// 对应 Bun: napi.zig - pub export fn napi_create_string_utf16
     public static func createStringUtf16(env: NapiEnv, str: ?String, length: Int64): NapiValue {
         if (str == None) {
-            return NapiValue.create(env, JsValue(""))
+            return NapiValue.create(env, JsValue(BaoString("")))
         }
         let s = str.getOrThrow()
         if (length == NAPI_AUTO_LENGTH) {
@@ -210,7 +210,7 @@ public class JsNativeApi {
         if (!code.get().isUndefinedOrNull()) {
             errorObj.set("code", code.get())
         }
-        errorObj.set("name", JsValue("TypeError"))
+        errorObj.set("name", JsValue(BaoString("TypeError")))
         return NapiValue.create(env, JsValue(errorObj))
     }
 
@@ -222,7 +222,7 @@ public class JsNativeApi {
         if (!code.get().isUndefinedOrNull()) {
             errorObj.set("code", code.get())
         }
-        errorObj.set("name", JsValue("RangeError"))
+        errorObj.set("name", JsValue(BaoString("RangeError")))
         return NapiValue.create(env, JsValue(errorObj))
     }
 
@@ -234,7 +234,7 @@ public class JsNativeApi {
         if (!code.get().isUndefinedOrNull()) {
             errorObj.set("code", code.get())
         }
-        errorObj.set("name", JsValue("SyntaxError"))
+        errorObj.set("name", JsValue(BaoString("SyntaxError")))
         return NapiValue.create(env, JsValue(errorObj))
     }
 

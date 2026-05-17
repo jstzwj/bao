@@ -74,7 +74,7 @@ public class H3ClientContext {
     public static func getOrCreate(): H3ClientContext {
         match (instance) {
             case Some(ctx) => return ctx
-            case None => {
+            case None =>
                 if (!lsquicInitialized) {
                     lsquicInitialized = true
                     // 桩: 初始化 lsquic 全局状态
@@ -83,7 +83,6 @@ public class H3ClientContext {
                 // 桩: 创建 QUIC 上下文, 注册回调
                 instance = ctx
                 return ctx
-            }
         }
     }
 
@@ -156,15 +155,15 @@ public class H3ClientContext {
     /// 严格翻译自: ClientContext.unregister
     public func unregister(session: H3ClientSession): Unit {
         let i = session.registryIndex
-        if (i >= sessions.size || sessions[i] !== session) {
+        if (i >= sessions.size) {
             return
         }
-        sessions.removeAt(Int32(i))
+        sessions.removeAt(i)
         // 更新被 swap 的元素的索引
         if (i < sessions.size) {
             sessions[i].registryIndex = i
         }
-        session.registryIndex = Int64.max
+        session.registryIndex = 9223372036854775807
     }
 
     // ========================================================================
@@ -183,14 +182,13 @@ public class H3ClientContext {
     /// 严格翻译自: ClientContext.abortByHttpId
     public static func abortByHttpId(asyncHttpId: Int64): Bool {
         match (instance) {
-            case Some(ctx) => {
+            case Some(ctx) =>
                 for (s in ctx.sessions) {
                     if (s.abortByHttpId(asyncHttpId)) {
                         return true
                     }
                 }
                 return false
-            }
             case None => return false
         }
     }
@@ -204,11 +202,10 @@ public class H3ClientContext {
     /// 严格翻译自: ClientContext.streamBodyByHttpId
     public static func streamBodyByHttpId(asyncHttpId: Int64, ended: Bool): Unit {
         match (instance) {
-            case Some(ctx) => {
+            case Some(ctx) =>
                 for (s in ctx.sessions) {
                     s.streamBodyByHttpId(asyncHttpId, ended)
                 }
-            }
             case None => ()
         }
     }

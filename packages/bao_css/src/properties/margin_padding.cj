@@ -11,6 +11,7 @@
 package bao_css.properties
 
 import bao_core.*
+import bao_collections.*
 
 // ============================================================================
 // Rect 简写类型 (top/right/bottom/left)
@@ -33,7 +34,7 @@ public class Inset {
     }
 
     public static func default(): Inset {
-        Inset(top: "auto", right: "auto", bottom: "auto", left: "auto")
+        Inset("auto", "auto", "auto", "auto")
     }
 
     public func toCss(): String {
@@ -57,7 +58,7 @@ public class Margin {
     }
 
     public static func default(): Margin {
-        Margin(top: "0", right: "0", bottom: "0", left: "0")
+        Margin("0", "0", "0", "0")
     }
 
     public func toCss(): String {
@@ -81,7 +82,7 @@ public class Padding {
     }
 
     public static func default(): Padding {
-        Padding(top: "0", right: "0", bottom: "0", left: "0")
+        Padding("0", "0", "0", "0")
     }
 
     public func toCss(): String {
@@ -105,7 +106,7 @@ public class ScrollMargin {
     }
 
     public static func default(): ScrollMargin {
-        ScrollMargin(top: "0", right: "0", bottom: "0", left: "0")
+        ScrollMargin("0", "0", "0", "0")
     }
 
     public func toCss(): String {
@@ -129,7 +130,7 @@ public class ScrollPadding {
     }
 
     public static func default(): ScrollPadding {
-        ScrollPadding(top: "auto", right: "auto", bottom: "auto", left: "auto")
+        ScrollPadding("auto", "auto", "auto", "auto")
     }
 
     public func toCss(): String {
@@ -154,7 +155,7 @@ public class InsetBlock {
     }
 
     public static func default(): InsetBlock {
-        InsetBlock(blockStart: "auto", blockEnd: "auto")
+        InsetBlock("auto", "auto")
     }
 
     public func toCss(): String {
@@ -174,7 +175,7 @@ public class InsetInline {
     }
 
     public static func default(): InsetInline {
-        InsetInline(inlineStart: "auto", inlineEnd: "auto")
+        InsetInline("auto", "auto")
     }
 
     public func toCss(): String {
@@ -194,7 +195,7 @@ public class MarginBlock {
     }
 
     public static func default(): MarginBlock {
-        MarginBlock(blockStart: "0", blockEnd: "0")
+        MarginBlock("0", "0")
     }
 
     public func toCss(): String {
@@ -214,7 +215,7 @@ public class MarginInline {
     }
 
     public static func default(): MarginInline {
-        MarginInline(inlineStart: "0", inlineEnd: "0")
+        MarginInline("0", "0")
     }
 
     public func toCss(): String {
@@ -234,7 +235,7 @@ public class PaddingBlock {
     }
 
     public static func default(): PaddingBlock {
-        PaddingBlock(blockStart: "0", blockEnd: "0")
+        PaddingBlock("0", "0")
     }
 
     public func toCss(): String {
@@ -254,7 +255,7 @@ public class PaddingInline {
     }
 
     public static func default(): PaddingInline {
-        PaddingInline(inlineStart: "0", inlineEnd: "0")
+        PaddingInline("0", "0")
     }
 
     public func toCss(): String {
@@ -274,7 +275,7 @@ public class ScrollMarginBlock {
     }
 
     public static func default(): ScrollMarginBlock {
-        ScrollMarginBlock(blockStart: "0", blockEnd: "0")
+        ScrollMarginBlock("0", "0")
     }
 
     public func toCss(): String {
@@ -294,7 +295,7 @@ public class ScrollMarginInline {
     }
 
     public static func default(): ScrollMarginInline {
-        ScrollMarginInline(inlineStart: "0", inlineEnd: "0")
+        ScrollMarginInline("0", "0")
     }
 
     public func toCss(): String {
@@ -314,7 +315,7 @@ public class ScrollPaddingBlock {
     }
 
     public static func default(): ScrollPaddingBlock {
-        ScrollPaddingBlock(blockStart: "auto", blockEnd: "auto")
+        ScrollPaddingBlock("auto", "auto")
     }
 
     public func toCss(): String {
@@ -334,7 +335,7 @@ public class ScrollPaddingInline {
     }
 
     public static func default(): ScrollPaddingInline {
-        ScrollPaddingInline(inlineStart: "auto", inlineEnd: "auto")
+        ScrollPaddingInline("auto", "auto")
     }
 
     public func toCss(): String {

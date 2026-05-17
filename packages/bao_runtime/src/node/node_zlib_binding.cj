@@ -182,17 +182,17 @@ public class CompressionStreamState {
     public func initStream(windowBits: Int32): Unit {
         this.windowBits = windowBits
         // 实际实现调用 deflateInit2/inflateInit2
-        outputBuffer = Array<UInt8>(16384, item: UInt8(0))
+        outputBuffer = Array<UInt8>(16384, { _ => UInt8(0) })
     }
 
     // 初始化 Brotli 流
     public func initBrotliStream(): Unit {
-        outputBuffer = Array<UInt8>(16384, item: UInt8(0))
+        outputBuffer = Array<UInt8>(16384, { _ => UInt8(0) })
     }
 
     // 初始化 Zstd 流
     public func initZstdStream(): Unit {
-        outputBuffer = Array<UInt8>(16384, item: UInt8(0))
+        outputBuffer = Array<UInt8>(16384, { _ => UInt8(0) })
     }
 
     // 处理数据

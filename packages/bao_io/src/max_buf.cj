@@ -22,10 +22,15 @@ import bao_core.*
 ///   owned_by_subprocess: ?*Subprocess,
 ///   owned_by_reader: bool,
 ///   remaining_bytes: i64,
+public enum MaxBufKind {
+    | Stdout
+    | Stderr
+}
+
 public class MaxBuf {
     /// 所属子进程 (null 表示已释放)
     /// 严格翻译自: owned_by_subprocess: ?*Subprocess
-    public var ownedBySubprocess: SubprocessHandle = None
+    public var ownedBySubprocess: ?SubprocessHandle = None
 
     /// 是否被 PipeReader 持有
     /// 严格翻译自: owned_by_reader: bool
@@ -37,10 +42,6 @@ public class MaxBuf {
 
     /// 输出类型
     /// 严格翻译自: pub const Kind = enum { stdout, stderr };
-    public enum Kind {
-        | Stdout
-        | Stderr
-    }
 
     public init(remainingBytes: Int64) {
         this.remainingBytes = remainingBytes
@@ -51,20 +52,24 @@ public class MaxBuf {
     ///   如果 initial == null, ptr.* = null 并返回
     ///   否则创建 MaxBuf 并设置初始值
     public static func createForSubprocess(owner: SubprocessHandle, initial: ?Int64): ?MaxBuf {
-        if (initial == None) {
-            return None
+        match (initial) {
+            case None => return None
+            case Some(value) =>
+                let maxbuf = MaxBuf(value)
+                maxbuf.ownedBySubprocess = Some(owner)
+                maxbuf.ownedByReader = false
+                return Some(maxbuf)
         }
-        let maxbuf = MaxBuf(initial.getOrThrow())
-        maxbuf.ownedBySubprocess = owner
-        maxbuf.ownedByReader = false
-        return maxbuf
     }
 
     /// 检查是否已被释放 (两个 owner 都为 null)
     /// 严格翻译自 MaxBuf.zig:27-29 disowned()
     ///   return this.owned_by_subprocess == null and this.owned_by_reader == false
     public func isDisowned(): Bool {
-        return ownedBySubprocess == None && !ownedByReader
+        match (ownedBySubprocess) {
+            case None => return !ownedByReader
+            case Some(_) => return false
+        }
     }
 
     /// 从子进程释放
@@ -97,9 +102,11 @@ public class MaxBuf {
     ///   如果 < 0 且 owned_by_subprocess != null, 触发 onMaxBuffer
     public func onReadBytes(bytes: UInt64): Unit {
         remainingBytes -= Int64(bytes)
-        if (remainingBytes < 0 && ownedBySubprocess != None) {
-            // 触发 onMaxBuffer 回调
-            // 由具体子进程实现处理
+        if (remainingBytes < 0) {
+            match (ownedBySubprocess) {
+                case Some(owner) => owner.onMaxBuffer(MaxBufKind.Stdout)
+                case None => ()
+            }
         }
     }
 }
@@ -107,5 +114,5 @@ public class MaxBuf {
 /// 子进程句柄接口 - 用于 MaxBuf 的 owner 引用
 /// 翻译自: *Subprocess (Bun 中直接使用指针)
 public interface SubprocessHandle {
-    func onMaxBuffer(kind: MaxBuf.Kind): Unit
+    func onMaxBuffer(kind: MaxBufKind): Unit
 }

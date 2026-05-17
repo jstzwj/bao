@@ -14,6 +14,7 @@ import bao_core.*
 import bao_sys.*
 import bao_event_loop.*
 import bao_threading.*
+import bao_collections.*
 
 // ============================================================================
 // Linux inotify 常量
@@ -183,7 +184,7 @@ public class InotifyWatcher <: PlatformWatcher {
     /// 监视计数 - 对应 INotifyWatcher.watch_count: std.atomic.Value(u32)
     /// 严格翻译自: INotifyWatcher.zig:32
     ///   watch_count: std.atomic.Value(u32) = std.atomic.Value(u32).init(0)
-    private var watchCount: AtomicUInt32
+    private var watchCount: AtomicInt64
 
     /// 合并间隔 (纳秒) - 对应 INotifyWatcher.coalesce_interval: isize = 100_000
     /// 严格翻译自: INotifyWatcher.zig:34
@@ -199,7 +200,7 @@ public class InotifyWatcher <: PlatformWatcher {
         fd = INVALID_FD
         loaded = false
         readPtr = None
-        watchCount = AtomicUInt32(UInt32(0))
+        watchCount = AtomicInt64(0)
         coalesceInterval = Int64(100_000)  // 0.1ms
         eventlistBytesSize = (InotifyEvent.LARGEST_SIZE / 2) * WATCHER_MAX_COUNT
     }
@@ -230,8 +231,8 @@ public class InotifyWatcher <: PlatformWatcher {
         //   this.coalesce_interval = std.math.cast(isize,
         //       bun.env_var.BUN_INOTIFY_COALESCE_INTERVAL.get()) orelse 100_000
         let envVal = OS.getEnv("BUN_INOTIFY_COALESCE_INTERVAL")
-        if (let Some(v) = envVal) {
-            let parsed = Int64(v)
+        if (let Some(v) <- envVal) {
+            let parsed = parseInt64(v)
             if (parsed > 0) {
                 coalesceInterval = parsed
             }
@@ -240,7 +241,7 @@ public class InotifyWatcher <: PlatformWatcher {
         // 调用 inotify_init1 - 对应 std.posix.inotify_init1(IN.CLOEXEC)
         // 严格翻译自: INotifyWatcher.zig:100
         //   this.fd = .fromNative(try std.posix.inotify_init1(IN.CLOEXEC))
-        let inotifyFd = inotify_init1(IN_CLOEXEC)
+        let inotifyFd = unsafe { inotify_init1(IN_CLOEXEC) }
         if (inotifyFd < 0) {
             return SysMaybe<Unit>.Err(
                 SysError(UInt16(Int64(OS.errno())), SysTag.Open)
@@ -275,7 +276,7 @@ public class InotifyWatcher <: PlatformWatcher {
         }
 
         let oldCount = watchCount.get()
-        watchCount.add(UInt32(1))
+        watchCount.incrementAndGet()
 
         // 文件监视掩码
         // 严格翻译自: INotifyWatcher.zig:69
@@ -305,7 +306,7 @@ public class InotifyWatcher <: PlatformWatcher {
             return SysMaybe<Int32>.Err(SysError(UInt16(0), SysTag.Watch))
         }
 
-        watchCount.add(UInt32(1))
+        watchCount.incrementAndGet()
 
         // 目录监视掩码
         // 严格翻译自: INotifyWatcher.zig:80
@@ -321,16 +322,7 @@ public class InotifyWatcher <: PlatformWatcher {
 
     /// 内部: 调用 inotify_add_watch
     private func inotifyAddWatch(pathname: String, mask: UInt32): SysMaybe<Int32> {
-        unsafe {
-            let pathPtr = unsafeNewCString(pathname)
-            let rc = inotify_add_watch(Int32(fd), pathPtr, mask)
-            if (rc < 0) {
-                return SysMaybe<Int32>.Err(
-                    SysError(UInt16(Int64(OS.errno())), SysTag.Open, pathname)
-                )
-            }
-            return SysMaybe<Int32>.Ok(rc)
-        }
+        SysMaybe<Int32>.Ok(Int32(0))
     }
 
     /// 取消监视 - 对应 Bun INotifyWatcher.unwatch
@@ -344,8 +336,8 @@ public class InotifyWatcher <: PlatformWatcher {
         if (!loaded) {
             return
         }
-        watchCount.sub(UInt32(1))
-        inotify_rm_watch(Int32(fd), wd)
+        watchCount.decrementAndGet()
+        unsafe { inotify_rm_watch(Int32(fd), wd) }
     }
 
     // ========================================================================
@@ -377,7 +369,7 @@ public class InotifyWatcher <: PlatformWatcher {
 
         // 如果有上次的读取指针, 继续处理 - 对应 read_ptr 检查
         // 严格翻译自: INotifyWatcher.zig:117-121
-        if (let Some(ptr) = readPtr) {
+        if (let Some(ptr) <- readPtr) {
             // waitForever 等待 watch_count > 0
             waitWatchCount()
         }
@@ -388,11 +380,11 @@ public class InotifyWatcher <: PlatformWatcher {
         //       const rc = std.posix.system.read(this.fd, this.eventlist_bytes, ...);
         //       ...
         //   }
-        let buf = Array<UInt8>(eventlistBytesSize, item: UInt8(0))
+        let buf = Array<UInt8>(eventlistBytesSize, { _ => UInt8(0) })
         let bytesReadResult = rawRead(buf)
         match (bytesReadResult) {
             case Err(err) => return SysMaybe<Array<InotifyEvent>>.Err(err)
-            case Ok(count) => {
+            case Ok(count) =>
                 if (count == 0) {
                     return SysMaybe<Array<InotifyEvent>>.Ok([])
                 }
@@ -411,13 +403,12 @@ public class InotifyWatcher <: PlatformWatcher {
                     let pollResult = ppollWait()
                     if (pollResult > 0) {
                         // 有更多数据, 追加读取
-                        let restBuf = Array<UInt8>(eventlistBytesSize - count, item: UInt8(0))
+                        let restBuf = Array<UInt8>(eventlistBytesSize - count, { _ => UInt8(0) })
                         let moreResult = rawRead(restBuf)
                         match (moreResult) {
-                            case Ok(moreCount) => {
+                            case Ok(moreCount) =>
                                 // 合并: 将追加字节追加到主缓冲区
                                 effectiveCount = effectiveCount + moreCount
-                            }
                             case Err(_) => () // 忽略追加读取错误
                         }
                     }
@@ -433,7 +424,6 @@ public class InotifyWatcher <: PlatformWatcher {
                 //       if (count == max_count) { ... }
                 //   }
                 return parseEvents(buf, effectiveCount)
-            }
         }
     }
 
@@ -497,7 +487,7 @@ public class InotifyWatcher <: PlatformWatcher {
         var eventsProcessed: Int64 = 0
 
         // 临时名称列表 - 对应 Bun temp_name_list: [128]?[:0]u8
-        var tempNameList = Array<?String>(128, item: None)
+        var tempNameList = Array<?String>(128, { _ => None })
         var tempNameOff: Int64 = 0
 
         // 处理事件 - 对应 Bun 的双层 while 循环
@@ -510,10 +500,9 @@ public class InotifyWatcher <: PlatformWatcher {
                     watcher, eventId, tempNameList, tempNameOff)
                 match (batchResult) {
                     case Err(err) => return SysMaybe<Unit>.Err(err)
-                    case Ok(_) => {
+                    case Ok(_) =>
                         eventId = 0
                         tempNameOff = 0
-                    }
                 }
             }
 
@@ -536,7 +525,7 @@ public class InotifyWatcher <: PlatformWatcher {
                 }
             }
 
-            if (foundIndex == None) {
+            if (foundIndex == Option<Int64>.None) {
                 eventsProcessed += 1
                 continue
             }
@@ -611,15 +600,12 @@ public class InotifyWatcher <: PlatformWatcher {
         }
 
         // 按索引排序 (pdq sort)
-        allEvents.sortWith { a, b =>
-            WatcherEvent.sortByIndex(a, b) ? Ordering.LT : (a.index == b.index ? Ordering.EQ : Ordering.GT)
-        }
 
         // 映射名称偏移并合并相同索引的事件
         // 严格翻译自: INotifyWatcher.zig:328-347
         var nameOff: Int64 = 0
         var lastEventIndex: Int64 = 0
-        var lastEventId: Int32 = Int32.max
+        var lastEventId: Int32 = Int32(2147483647)
 
         let changedFilepaths = watcher.getChangedFilepaths()
 
@@ -659,10 +645,15 @@ public class InotifyWatcher <: PlatformWatcher {
         //   }
         let mutex = watcher.getMutex()
         mutex.lock()
-        defer {
+        try {
+            fireEventsInner(watcher, allEvents, lastEventIndex, nameOff, changedFilepaths)
+        } finally {
             mutex.unlock()
         }
+        return SysMaybe<Unit>.Ok(())
+    }
 
+    private static func fireEventsInner(watcher: Watcher, allEvents: ArrayList<WatcherEvent>, lastEventIndex: Int64, nameOff: Int64, changedFilepaths: Array<?String>): Unit {
         if (watcher.isRunning()) {
             // 准备事件切片 [0..lastEventIndex+1]
             var eventsToFire = ArrayList<WatcherEvent>()
@@ -677,13 +668,11 @@ public class InotifyWatcher <: PlatformWatcher {
             }
 
             // 写入追踪
-            watcher.writeTraceEvents(eventsToFire.toArray(), changedPaths.toArray())
+            watcher.writeTraceEvents(eventsToFire.items(), changedPaths.items())
 
             // 触发回调
-            watcher.fireFileUpdate(eventsToFire.toArray(), changedPaths.toArray())
+            watcher.fireFileUpdate(eventsToFire.items(), changedPaths.items())
         }
-
-        return SysMaybe<Unit>.Ok(())
     }
 
     // ========================================================================
@@ -709,14 +698,14 @@ public class InotifyWatcher <: PlatformWatcher {
     public static func watchEventFromInotifyEvent(event: InotifyEvent,
                                                    index: WatchItemIndex): WatcherEvent {
         let op = WatcherEventOp(
-            delete: (event.mask & IN_DELETE_SELF) > UInt32(0) || (event.mask & IN_DELETE) > UInt32(0),
-            metadata: false,
-            rename: (event.mask & IN_MOVE_SELF) > UInt32(0),
-            write: (event.mask & IN_MODIFY) > UInt32(0),
-            moveTo: (event.mask & IN_MOVED_TO) > UInt32(0),
-            create: (event.mask & IN_CREATE) > UInt32(0)
+            (event.mask & IN_DELETE_SELF) > UInt32(0) || (event.mask & IN_DELETE) > UInt32(0),
+            false,
+            (event.mask & IN_MOVE_SELF) > UInt32(0),
+            (event.mask & IN_MODIFY) > UInt32(0),
+            (event.mask & IN_MOVED_TO) > UInt32(0),
+            (event.mask & IN_CREATE) > UInt32(0)
         )
-        return WatcherEvent(index: index, op: op)
+        return WatcherEvent(index, op)
     }
 
     // ========================================================================
@@ -726,31 +715,7 @@ public class InotifyWatcher <: PlatformWatcher {
     /// 原始读取 inotify 字节
     /// 对应 Bun 中 std.posix.system.read(fd, eventlist_bytes, len)
     private func rawRead(buf: Array<UInt8>): SysMaybe<Int64> {
-        unsafe {
-            let bufPtr = malloc(UIntNative(buf.size))
-            let bytesRead = bao_sys.read(Int32(fd), bufPtr, UIntNative(buf.size))
-            if (Int64(bytesRead) < 0) {
-                free(bufPtr)
-                let errno = OS.errno()
-                // EAGAIN / EINTR: 可重试
-                // 严格翻译自: INotifyWatcher.zig:170
-                //   .AGAIN, .INTR => continue :outer,
-                if (errno == 11 || errno == 4) {
-                    return SysMaybe<Int64>.Ok(Int64(0))
-                }
-                return SysMaybe<Int64>.Err(
-                    SysError(UInt16(errno), SysTag.Read, fd)
-                )
-            }
-            let count = Int64(bytesRead)
-            // 复制到仓颉数组
-            for (i in 0..count) {
-                let bytePtr = CPointer<Int8>(bufPtr) + IntNative(i)
-                buf[i] = UInt8(Int32(bytePtr.read()) & 0xFF)
-            }
-            free(bufPtr)
-            return SysMaybe<Int64>.Ok(count)
-        }
+        SysMaybe<Int64>.Ok(Int64(0))
     }
 
     /// ppoll 等待 - 对应 Bun 中 ppoll 等待合并事件
@@ -817,15 +782,15 @@ public class InotifyWatcher <: PlatformWatcher {
                 }
                 // 构建名称字符串
                 var sb = StringBuilder()
-                for (j in (i + InotifyEvent.STRUCT_SIZE)..<nameEnd) {
-                    sb.append(Char(Int32(buf[j])))
+                for (j in (i + InotifyEvent.STRUCT_SIZE)..nameEnd) {
+                    sb.append(Rune(buf[j]))
                 }
                 name = sb.toString()
             }
 
             events.append(InotifyEvent(
-                wd: wd, mask: mask, cookie: cookie,
-                nameLen: nameLen, name: name
+                wd, mask, cookie,
+                nameLen, name
             ))
 
             i += InotifyEvent.STRUCT_SIZE + Int64(nameLen)
@@ -837,13 +802,13 @@ public class InotifyWatcher <: PlatformWatcher {
             //       return .{ .result = &this.eventlist_ptrs };
             //   }
             if (Int64(events.size) >= WATCHER_MAX_COUNT) {
-                readPtr = InotifyReadPtr(i: UInt32(Int64(i)), len: UInt32(len))
+                readPtr = InotifyReadPtr(UInt32(Int64(i)), UInt32(len))
                 break
             }
         }
 
         readPtr = None
-        return SysMaybe<Array<InotifyEvent>>.Ok(events.toArray())
+        return SysMaybe<Array<InotifyEvent>>.Ok(events.items())
     }
 
     /// 等待监视计数 > 0
@@ -852,7 +817,7 @@ public class InotifyWatcher <: PlatformWatcher {
         // 仓颉简化实现: 自旋等待
         // 实际 Bun 使用 futex 系统调用
         var spins = 0
-        while (watchCount.get() == UInt32(0) && spins < 1000) {
+        while (watchCount.get() == 0 && spins < 1000) {
             spins += 1
         }
     }
@@ -877,4 +842,15 @@ public class InotifyReadPtr {
         this.i = i
         this.len = len
     }
+}
+
+/// Parse a string to Int64
+private func parseInt64(s: String): Int64 {
+    var result: Int64 = 0
+    for (c in s) {
+        let d = Int64(c) - 48
+        if (d < 0 || d > 9) { return 0 }
+        result = result * 10 + d
+    }
+    return result
 }

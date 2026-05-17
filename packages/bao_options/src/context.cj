@@ -8,6 +8,7 @@
 package bao_options
 
 import bao_core.*
+import bao_collections.*
 
 // ============================================================================
 // HotReload - 热重载模式

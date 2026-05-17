@@ -40,31 +40,31 @@ public class PercentEncoding {
     /// 判断字符是否为十六进制数字
     // 对应 Bun: isHex(c)
     public static func isHex(c: UInt8): Bool {
-        return (c >= UInt8('0') && c <= UInt8('9')) ||
-               (c >= UInt8('a') && c <= UInt8('f')) ||
-               (c >= UInt8('A') && c <= UInt8('F'))
+        return (c >= UInt8(48) && c <= UInt8(57)) ||
+               (c >= UInt8(97) && c <= UInt8(102)) ||
+               (c >= UInt8(65) && c <= UInt8(70))
     }
 
     /// 判断是否为有效的路径字符或百分号编码八位组
     // 对应 Bun: isPchar(str)
     // 路径字符: a-z A-Z 0-9 - . _ ~ ! $ & ' ( ) * + , ; = : @
     public static func isPchar(str: String, offset: Int64): Bool {
-        if (offset >= str.length) { return false }
+        if (offset >= Int64(str.size)) { return false }
         let c = str[offset]
 
         // 允许的未编码字符
-        if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
-            (c >= '0' && c <= '9') ||
-            c == '-' || c == '.' || c == '_' || c == '~' ||
-            c == '!' || c == '$' || c == '&' || c == '\'' ||
-            c == '(' || c == ')' || c == '*' || c == '+' ||
-            c == ',' || c == ';' || c == '=' || c == ':' || c == '@') {
+        if ((c >= UInt8(97) && c <= UInt8(122)) || (c >= UInt8(65) && c <= UInt8(90)) ||
+            (c >= UInt8(48) && c <= UInt8(57)) ||
+            c == UInt8(45) || c == UInt8(46) || c == UInt8(95) || c == UInt8(126) ||
+            c == UInt8(33) || c == UInt8(36) || c == UInt8(38) || c == UInt8(39) ||
+            c == UInt8(40) || c == UInt8(41) || c == UInt8(42) || c == UInt8(43) ||
+            c == UInt8(44) || c == UInt8(59) || c == UInt8(61) || c == UInt8(58) || c == UInt8(64)) {
             return true
         }
 
         // 百分号编码: %XX (两个十六进制数字)
-        if (c == '%') {
-            if (str.length - offset < 3) { return false }
+        if (c == UInt8(37)) {
+            if (Int64(str.size) - offset < 3) { return false }
             return isHex(str[offset + 1]) && isHex(str[offset + 2])
         }
 
@@ -73,14 +73,14 @@ public class PercentEncoding {
 
     /// 十六进制字符转数值
     private static func hexDigit(c: UInt8): Int64 {
-        if (c >= UInt8('0') && c <= UInt8('9')) {
-            return Int64(c) - Int64(UInt8('0'))
+        if (c >= UInt8(48) && c <= UInt8(57)) {
+            return Int64(c) - Int64(UInt8(48))
         }
-        if (c >= UInt8('a') && c <= UInt8('f')) {
-            return Int64(c) - Int64(UInt8('a')) + 10
+        if (c >= UInt8(97) && c <= UInt8(102)) {
+            return Int64(c) - Int64(UInt8(97)) + 10
         }
-        if (c >= UInt8('A') && c <= UInt8('F')) {
-            return Int64(c) - Int64(UInt8('A')) + 10
+        if (c >= UInt8(65) && c <= UInt8(70)) {
+            return Int64(c) - Int64(UInt8(65)) + 10
         }
         return 0
     }
@@ -104,17 +104,17 @@ public class PercentEncoding {
         let sb = StringBuilder()
         var i: Int64 = 0
 
-        while (i < path.length) {
+        while (i < Int64(path.size)) {
             let c = path[i]
-            if (c == '%' && path.length - i >= 3 &&
+            if (c == UInt8(37) && Int64(path.size) - i >= 3 &&
                 isHex(path[i + 1]) && isHex(path[i + 2])) {
                 // 解码 %XX
                 let hi = hexDigit(path[i + 1])
                 let lo = hexDigit(path[i + 2])
                 let decoded = hi << 4 | lo
-                sb.append(Char(decoded))
+                sb.append(UInt8(decoded))
                 i += 3
-            } else if (strict && c != '/' && !isPchar(path, i)) {
+            } else if (strict && c != UInt8(47) && !isPchar(path, i)) {
                 // strict 模式下遇到非法字符返回原字符串
                 return path
             } else {
@@ -173,25 +173,22 @@ public class DataURL {
     // 对应 Bun: DataURL.parseWithoutCheck(url)
     public static func parseWithoutCheck(url: String): ?DataURL {
         // 查找逗号分隔符
-        let commaIndex = url.indexOf(",")
-        if (commaIndex < 0) {
-            return None
+        let commaIndexOpt = url.indexOf(",")
+        if (let Some(commaIndex) <- commaIndexOpt) {
+            let parsed = DataURL()
+            parsed.url = url
+            parsed.mimeType = url[Int64(5)..commaIndex]  // "data:".length == 5
+            parsed.data = url[commaIndex + Int64(1)..Int64(url.size)]
+
+            // 检测 base64 编码
+            if (parsed.mimeType.endsWith(";base64")) {
+                parsed.mimeType = parsed.mimeType[Int64(0)..Int64(parsed.mimeType.size - 7)]  // ";base64".length == 7
+                parsed.isBase64 = true
+            }
+
+            return parsed
         }
-
-        let parsed = DataURL()
-        parsed.url = url
-        parsed.mimeType = url.substring(5, commaIndex)  // "data:".length == 5
-        parsed.data = url.substring(commaIndex + 1)
-
-        // 检测 base64 编码
-        if (parsed.mimeType.endsWith(";base64")) {
-            parsed.mimeType = parsed.mimeType.substring(
-                0, parsed.mimeType.length - 7  // ";base64".length == 7
-            )
-            parsed.isBase64 = true
-        }
-
-        return parsed
+        return None
     }
 
     /// 解码 MIME 类型
@@ -224,12 +221,12 @@ public class DataURL {
         text: String
     ): String {
         // 计算 base64 版本长度
-        let base64Len = encodeBase64Length(text.length)
-        let totalBase64Len = 5 + mimeType.length + 8 + base64Len  // "data:" + mime + ";base64," + data
+        let base64Len = encodeBase64Length(Int64(text.size))
+        let totalBase64Len = Int64(5) + Int64(mimeType.size) + Int64(8) + base64Len  // "data:" + mime + ";base64," + data
 
         // 计算百分号编码版本长度
         let percentLen = percentEncodeLength(text)
-        let totalPercentLen = 5 + mimeType.length + 1 + percentLen  // "data:" + mime + "," + data
+        let totalPercentLen = Int64(5) + Int64(mimeType.size) + Int64(1) + percentLen  // "data:" + mime + "," + data
 
         // 选择较短的
         if (totalPercentLen <= totalBase64Len) {
@@ -265,17 +262,17 @@ public class DataURL {
         var i: Int64 = 0
         let chars = input
 
-        while (i + 3 < chars.length) {
+        while (i + 3 < Int64(chars.size)) {
             let a = base64Value(chars[i])
             let b = base64Value(chars[i + 1])
             let c = base64Value(chars[i + 2])
             let d = base64Value(chars[i + 3])
-            sb.append(Char((a << 2) | (b >> 4)))
-            if (chars[i + 2] != '=') {
-                sb.append(Char(((b & 0xF) << 4) | (c >> 2)))
+            sb.append(UInt8((a << 2) | (b >> 4)))
+            if (chars[i + 2] != UInt8(61)) {
+                sb.append(UInt8(((b & 0xF) << 4) | (c >> 2)))
             }
-            if (chars[i + 3] != '=') {
-                sb.append(Char(((c & 0x3) << 6) | d))
+            if (chars[i + 3] != UInt8(61)) {
+                sb.append(UInt8(((c & 0x3) << 6) | d))
             }
             i += 4
         }
@@ -286,7 +283,7 @@ public class DataURL {
     private static func encodeBase64(input: String): String {
         let sb = StringBuilder()
         var i: Int64 = 0
-        while (i + 2 < input.length) {
+        while (i + 2 < Int64(input.size)) {
             let a = Int64(input[i])
             let b = Int64(input[i + 1])
             let c = Int64(input[i + 2])
@@ -297,10 +294,10 @@ public class DataURL {
             i += 3
         }
         // 处理剩余字符
-        if (i < input.length) {
+        if (i < Int64(input.size)) {
             let a = Int64(input[i])
             sb.append(BASE64_CHARS[(a >> 2) & 0x3F])
-            if (i + 1 < input.length) {
+            if (i + 1 < Int64(input.size)) {
                 let b = Int64(input[i + 1])
                 sb.append(BASE64_CHARS[((a << 4) | (b >> 4)) & 0x3F])
                 sb.append(BASE64_CHARS[(b << 2) & 0x3F])
@@ -319,13 +316,12 @@ public class DataURL {
     }
 
     /// Base64 字符值
-    private static func base64Value(c: Char): Int64 {
-        let hex = "0123456789ABCDEF"
-        if (c >= 'A' && c <= 'Z') { return Int64(c) - Int64('A') }
-        if (c >= 'a' && c <= 'z') { return Int64(c) - Int64('a') + 26 }
-        if (c >= '0' && c <= '9') { return Int64(c) - Int64('0') + 52 }
-        if (c == '+') { return 62 }
-        if (c == '/') { return 63 }
+    private static func base64Value(c: UInt8): Int64 {
+        if (c >= UInt8(65) && c <= UInt8(90)) { return Int64(c) - Int64(UInt8(65)) }
+        if (c >= UInt8(97) && c <= UInt8(122)) { return Int64(c) - Int64(UInt8(97)) + 26 }
+        if (c >= UInt8(48) && c <= UInt8(57)) { return Int64(c) - Int64(UInt8(48)) + 52 }
+        if (c == UInt8(43)) { return 62 }
+        if (c == UInt8(47)) { return 63 }
         return 0
     }
 
@@ -340,25 +336,25 @@ public class DataURL {
         let sb = StringBuilder()
 
         // 找到尾部需要编码的字符的起始位置
-        var trailingStart = text.length
+        var trailingStart: Int64 = Int64(text.size)
         while (trailingStart > 0) {
             let c = text[trailingStart - 1]
-            if (c > '\u{20}' || c == '\t' || c == '\n' || c == '\r') {
+            if (c > UInt8(32) || c == UInt8(9) || c == UInt8(10) || c == UInt8(13)) {
                 break
             }
             trailingStart -= 1
         }
 
         var i: Int64 = 0
-        while (i < text.length) {
+        while (i < Int64(text.size)) {
             let c = text[i]
             // 判断是否需要编码
             var needsEscape = false
-            if (c == '\t' || c == '\n' || c == '\r' || c == '#') {
+            if (c == UInt8(9) || c == UInt8(10) || c == UInt8(13) || c == UInt8(35)) {
                 needsEscape = true
             } else if (i >= trailingStart) {
                 needsEscape = true
-            } else if (c == '%' && i + 2 < text.length &&
+            } else if (c == UInt8(37) && i + 2 < Int64(text.size) &&
                        PercentEncoding.isHex(UInt8(c)) &&
                        PercentEncoding.isHex(UInt8(text[i + 2]))) {
                 needsEscape = true
@@ -381,6 +377,6 @@ public class DataURL {
     /// 估算百分号编码后的长度
     private static func percentEncodeLength(text: String): Int64 {
         // 最坏情况: 每个字符编码为 3 个字符 (%XX)
-        return text.length * 3
+        return Int64(text.size) * 3
     }
 }

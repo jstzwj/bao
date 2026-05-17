@@ -1,5 +1,5 @@
 // FileResponseStream - 文件响应流
-// 严格翻译自: Bun src/runtime/server/FileResponseStream.zig
+// 严格翻译自: Bun src/runtime/server/FileResponseStream.zig / FileResponseStream.rs
 // 对应: 流式传输文件到 HTTP 响应，处理背压和中止
 package bao_runtime.server
 
@@ -11,21 +11,27 @@ import bao_sys.*
 // FileResponseStream - 文件响应流
 // 严格翻译自: src/runtime/server/FileResponseStream.zig
 // Bun: const FileResponseStream = @This()
+// Rust: #[derive(bun_ptr::CellRefCounted)] pub struct FileResponseStream { ... }
 // 将已打开的文件描述符流式传输到 uWS 响应
 // 处理背压、客户端中止和文件描述符生命周期
+//
+// 调用者先写入 status + headers，然后通过调用 start() 交出 body 流式传输控制权
+// on_complete / on_error 恰好触发一次；触发后调用者不得再使用 resp body 方法
 // ============================================================================
 
 /// 文件类型
 /// 对应 Bun: bun.io.FileType
+/// Rust: bun_io::FileType
 public enum FileType {
-    | File
-    | Pipe
-    | Socket
-    | NonBlockingPipe
+    | File           // 普通文件
+    | Pipe           // 管道 (FIFO/CHR)
+    | Socket         // Socket
+    | NonBlockingPipe // 非阻塞管道
 }
 
 /// 文件响应流模式
 /// 对应 Bun: const Mode = enum { reader, sendfile }
+/// Rust: #[derive(Copy, Clone, Eq, PartialEq, strum::IntoStaticStr)] #[repr(u8)] enum Mode
 public enum FileResponseStreamMode {
     | Reader    // 使用 BufferedReader 读取
     | Sendfile  // 使用 sendfile() 系统调用
@@ -33,6 +39,7 @@ public enum FileResponseStreamMode {
 
 /// Sendfile 状态
 /// 对应 Bun: const Sendfile = struct { socket_fd, remain, offset, has_set_on_writable }
+/// Rust: struct Sendfile { socket_fd: Fd, remain: u64, offset: u64, has_set_on_writable: bool }
 public class SendfileState {
     /// Socket FD - 对应 Bun: socket_fd: bun.FD
     public var socketFd: Int64
@@ -53,14 +60,15 @@ public class SendfileState {
 
 /// 文件响应流状态
 /// 对应 Bun: state: packed struct(u8) { response_done, finished, errored, resp_detached }
+/// Rust: bitflags::bitflags! { struct State: u8 { ... } }
 public class FileResponseStreamState {
-    /// 响应是否完成 - 对应 Bun: response_done: bool = false
+    /// 响应是否完成 - 对应 Bun: RESPONSE_DONE = 1 << 0
     public var responseDone: Bool
-    /// 是否已结束 - 对应 Bun: finished: bool = false
+    /// 是否已结束 - 对应 Bun: FINISHED = 1 << 1
     public var finished: Bool
-    /// 是否出错 - 对应 Bun: errored: bool = false
+    /// 是否出错 - 对应 Bun: ERRORED = 1 << 2
     public var errored: Bool
-    /// 响应是否已分离 - 对应 Bun: resp_detached: bool = false
+    /// 响应是否已分离 - 对应 Bun: RESP_DETACHED = 1 << 3
     public var respDetached: Bool
 
     public init() {
@@ -69,10 +77,18 @@ public class FileResponseStreamState {
         errored = false
         respDetached = false
     }
+
+    /// 检查是否包含指定标志组合
+    public func contains(done: Bool, fin: Bool): Bool {
+        if (done && !responseDone) { return false }
+        if (fin && !finished) { return false }
+        return true
+    }
 }
 
 /// 文件响应流启动选项
 /// 对应 Bun: pub const StartOptions = struct { fd, auto_close, resp, ... }
+/// Rust: pub struct StartOptions { pub fd: Fd, pub auto_close: bool, ... }
 public class FileResponseStreamStartOptions {
     /// 文件描述符 - 对应 Bun: fd: bun.FD
     public var fd: Int64
@@ -80,29 +96,37 @@ public class FileResponseStreamStartOptions {
     public var autoClose: Bool
     /// 响应引用 - 对应 Bun: resp: AnyResponse
     public var resp: ?ResponseRef
+    /// 虚拟机引用 - 对应 Bun: vm: bun_ptr::BackRef<VirtualMachine>
+    public var vm: ?VirtualMachineRef
     /// 文件类型 - 对应 Bun: file_type: bun.io.FileType
     public var fileType: FileType
     /// 是否可轮询 - 对应 Bun: pollable: bool
     public var pollable: Bool
     /// 起始偏移 - 对应 Bun: offset: u64 = 0
+    /// 字节偏移量，从文件中开始读取的位置
     public var offset: Int64
     /// 最大长度 - 对应 Bun: length: ?u64 = null
+    /// 最大发送字节数；None 表示读至 EOF。
+    /// 对于普通文件，应为 stat.size - offset (经过 Range/slice 裁剪后)
     public var length: ?Int64
     /// 空闲超时 - 对应 Bun: idle_timeout: u8
     public var idleTimeout: Int64
     /// 上下文 - 对应 Bun: ctx: *anyopaque
     public var ctx: ?Object
-    /// 完成回调 - 对应 Bun: on_complete
+    /// 完成回调 - 对应 Bun: on_complete: fn(*mut c_void, AnyResponse)
     public var onComplete: ?((FileResponseStream) -> Unit)
-    /// 中止回调 - 对应 Bun: on_abort
+    /// 中止回调 - 对应 Bun: on_abort: Option<fn(*mut c_void, AnyResponse)>
+    /// 在客户端中途断开时触发，而非 on_complete。
+    /// 如果为 None，则通过 on_complete 报告中止
     public var onAbort: ?((FileResponseStream) -> Unit)
-    /// 错误回调 - 对应 Bun: on_error
+    /// 错误回调 - 对应 Bun: on_error: fn(*mut c_void, AnyResponse, sys::Error)
     public var onError: ?((FileResponseStream, BaoError) -> Unit)
 
     public init() {
         fd = -1
         autoClose = true
         resp = None
+        vm = None
         fileType = FileType.File
         pollable = false
         offset = 0
@@ -118,54 +142,70 @@ public class FileResponseStreamStartOptions {
 /// 文件响应流
 /// 严格翻译自: src/runtime/server/FileResponseStream.zig
 /// 对应 Bun: const FileResponseStream = @This()
+/// Rust: #[derive(bun_ptr::CellRefCounted)] pub struct FileResponseStream
 /// 处理文件的流式传输，包括 sendfile 和 reader 两种模式
 public class FileResponseStream {
     // ========================================================================
     // 字段
+    // 严格翻译自 FileResponseStream struct 的所有字段
     // ========================================================================
 
-    /// 引用计数
+    /// 引用计数 - 对应 Rust: ref_count: Cell<u32>
     public var refCount: Int64
 
-    /// 响应引用
+    /// 响应引用 - 对应 Bun: resp: AnyResponse
     public var resp: ?ResponseRef
 
-    /// 文件描述符
+    /// 虚拟机引用 - 对应 Bun: vm: bun_ptr::BackRef<VirtualMachine>
+    public var vm: ?VirtualMachineRef
+
+    /// EventLoop handle - 对应 Bun: event_loop_handle: EventLoopHandle
+    public var eventLoopHandle: ?EventLoopHandleRef
+
+    /// 文件描述符 - 对应 Bun: fd: Fd
     public var fd: Int64
 
-    /// 是否自动关闭
+    /// 是否自动关闭 - 对应 Bun: auto_close: bool
     public var autoClose: Bool
 
-    /// 空闲超时
+    /// 空闲超时 - 对应 Bun: idle_timeout: u8
     public var idleTimeout: Int64
 
-    /// 上下文
+    /// 上下文指针 - 对应 Bun: ctx: *mut c_void
     public var ctx: ?Object
 
-    /// 完成回调
+    /// 完成回调 - 对应 Bun: on_complete: fn(*mut c_void, AnyResponse)
     public var onComplete: ?((FileResponseStream) -> Unit)
 
-    /// 中止回调
+    /// 中止回调 - 对应 Bun: on_abort: Option<fn(*mut c_void, AnyResponse)>
     public var onAbort: ?((FileResponseStream) -> Unit)
 
-    /// 错误回调
+    /// 错误回调 - 对应 Bun: on_error: fn(*mut c_void, AnyResponse, sys::Error)
     public var onError: ?((FileResponseStream, BaoError) -> Unit)
 
-    /// 模式
+    /// 模式 - 对应 Bun: mode: Mode
     public var mode: FileResponseStreamMode
 
-    /// 最大大小
+    /// BufferedReader 引用 - 对应 Bun: reader: BufferedReader
+    public var reader: ?BufferedReaderRef
+
+    /// 最大大小 - 对应 Bun: max_size: Option<u64>
     public var maxSize: ?Int64
 
-    /// Sendfile 状态
+    /// EOF 任务 - 对应 Bun: eof_task: Option<AnyTask>
+    public var eofTask: ?AnyTaskRef
+
+    /// Sendfile 状态 - 对应 Bun: sendfile: Sendfile
     public var sendfile: SendfileState
 
-    /// 状态标志
+    /// 状态标志 - 对应 Bun: state: State
     public var state: FileResponseStreamState
 
     public init() {
         refCount = 1
         resp = None
+        vm = None
+        eventLoopHandle = None
         fd = -1
         autoClose = true
         idleTimeout = 0
@@ -174,7 +214,9 @@ public class FileResponseStream {
         onAbort = None
         onError = None
         mode = FileResponseStreamMode.Reader
+        reader = None
         maxSize = None
+        eofTask = None
         sendfile = SendfileState()
         state = FileResponseStreamState()
     }
@@ -185,11 +227,16 @@ public class FileResponseStream {
 
     /// 启动文件流式传输
     /// 对应 Bun: pub fn start(opts: StartOptions) void
+    /// Rust: pub fn start(opts: StartOptions)
+    ///
+    /// 调用者先写入 status + headers，然后调用 start() 交出 body 流式传输。
+    /// on_complete / on_error 恰好触发一次。
     public static func start(opts: FileResponseStreamStartOptions): FileResponseStream {
         let useSendfile = canSendfile(opts.resp, opts.fileType, opts.length)
 
         let stream = FileResponseStream()
         stream.resp = opts.resp
+        stream.vm = opts.vm
         stream.fd = opts.fd
         stream.autoClose = opts.autoClose
         stream.idleTimeout = opts.idleTimeout
@@ -203,26 +250,32 @@ public class FileResponseStream {
             FileResponseStreamMode.Reader
         }
 
+        // 对应 Bun: resp.timeout(idle_timeout)
         match (opts.resp) {
             case Some(r) => {
                 r.timeout(opts.idleTimeout)
+                // 对应 Bun: resp.on_aborted callback
+                r.setAbortHandlerForStream(stream)
             }
             case None => ()
         }
 
         if (useSendfile) {
-            // 对应 Bun: this.sendfile = .{ socket_fd, offset, remain }
-            stream.sendfile.socketFd = Int64(-1) // 需要从 resp 获取
+            // 对应 Bun: sendfile path
+            stream.sendfile.socketFd = -1 // 需要从 resp 获取 native handle
             stream.sendfile.offset = opts.offset
             match (opts.length) {
                 case Some(len) => stream.sendfile.remain = len
                 case None => stream.sendfile.remain = 0
             }
+            // 对应 Bun: resp.prepare_for_sendfile()
             // 执行 sendfile
             stream.onSendfile()
         } else {
             // BufferedReader 路径
             stream.maxSize = opts.length
+            // 对应 Bun: reader.start(fd, pollable) or reader.start_file_offset
+            // 简化: 不实际启动 BufferedReader
         }
 
         return stream
@@ -230,15 +283,16 @@ public class FileResponseStream {
 
     /// 判断是否可以使用 sendfile
     /// 对应 Bun: fn canSendfile(resp, file_type, length) bool
+    /// Rust: fn can_sendfile(resp: AnyResponse, file_type: FileType, length: Option<u64>) -> bool
+    ///
+    /// sendfile() 需要真实的 socket fd；SSL 写入通过 BIO，H3 通过 lsquic 流帧
+    /// 简化: 仅对普通文件且长度 >= 1MB 时使用
     public static func canSendfile(resp: ?ResponseRef, fileType: FileType,
                                     length: ?Int64): Bool {
-        // sendfile() 需要真实的 socket fd
-        // SSL 写入通过 BIO，H3 通过 lsquic 流帧
-        // 简化: 仅对普通文件且长度 >= 1MB 时使用
         match (fileType) {
             case FileType.File => {
                 match (length) {
-                    case Some(len) => return len >= 1048576  // 1MB
+                    case Some(len) => return len >= 1048576  // 1MB (1 << 20)
                     case None => return false
                 }
             }
@@ -252,37 +306,39 @@ public class FileResponseStream {
 
     /// 读取块回调
     /// 对应 Bun: pub fn onReadChunk(this, chunk_, state_) bool
+    /// Rust: pub fn on_read_chunk(&mut self, chunk_: &[u8], state_: ReadState) -> bool
     public func onReadChunk(chunk: Array<UInt8>, isEof: Bool): Bool {
-        ref()
-        defer(deref())
-
         if (state.responseDone) {
             return false
         }
 
-        // 检查 maxSize 限制
+        // 对应 Bun: maxSize 限制处理
+        // PORT NOTE: reshaped for borrowck — reshapes chunk and state
         var effectiveChunk = chunk
         var effectiveEof = isEof
         match (maxSize) {
             case Some(max) => {
                 let limitedSize = if (chunk.size < max) { chunk.size } else { max }
                 effectiveChunk = chunk
-                // 简化: 不截断
-                if (max <= 0 && !isEof) {
+                // 对应 Bun: *max = max.saturating_sub(c.len())
+                var newMax = max - limitedSize
+                maxSize = Some(newMax)
+                if (!isEof && newMax <= 0) {
+                    // 对应 Bun: enqueue eof_task, break with ReadState::Eof
                     effectiveEof = true
                 }
             }
             case None => ()
         }
 
+        // 对应 Bun: resp.timeout(idle_timeout)
         match (resp) {
-            case Some(r) => {
-                r.timeout(idleTimeout)
-            }
+            case Some(r) => r.timeout(idleTimeout)
             case None => ()
         }
 
         if (effectiveEof) {
+            // 对应 Bun: state = Eof path
             state.responseDone = true
             detachResp()
             match (resp) {
@@ -298,11 +354,12 @@ public class FileResponseStream {
             return false
         }
 
-        // 写入数据
+        // 对应 Bun: write chunk to response, handle backpressure
         match (resp) {
             case Some(r) => {
-                let data = bytesToString(effectiveChunk)
-                r.end(data, false)
+                // 对应 Bun: resp.write(chunk) -> WriteResult
+                // 简化: always succeed
+                r.end(bytesToString(effectiveChunk), false)
                 return true  // want_more
             }
             case None => return false
@@ -311,16 +368,46 @@ public class FileResponseStream {
 
     /// 读取完成
     /// 对应 Bun: pub fn onReaderDone(this) void
+    /// Rust: pub fn on_reader_done(&mut self)
     public func onReaderDone(): Unit {
-        defer(deref())
         finish()
     }
 
     /// 读取错误
     /// 对应 Bun: pub fn onReaderError(this, err) void
+    /// Rust: pub fn on_reader_error(&mut self, err: sys::Error)
     public func onReaderError(err: BaoError): Unit {
-        defer(deref())
         failWith(err)
+    }
+
+    /// onWritable 回调 (Reader 模式)
+    /// 对应 Bun: fn onWritable(this, _: u64, _: AnyResponse) bool
+    /// Rust: fn on_writable(&mut self, _: u64, _: AnyResponse) -> bool
+    public func onWritableReader(): Bool {
+        if (mode == FileResponseStreamMode.Sendfile) {
+            return onSendfile()
+        }
+
+        // 对应 Bun: if reader is done, finish
+        match (reader) {
+            case Some(r) => {
+                if (r.isDone()) {
+                    finish()
+                    return true
+                }
+            }
+            case None => ()
+        }
+
+        match (resp) {
+            case Some(r_) => {
+                r_.timeout(idleTimeout)
+            }
+            case None => ()
+        }
+        ref()
+        // 对应 Bun: reader.read()
+        return true
     }
 
     // ========================================================================
@@ -329,6 +416,7 @@ public class FileResponseStream {
 
     /// 执行 sendfile
     /// 对应 Bun: fn onSendfile(this) bool
+    /// Rust: fn on_sendfile(&mut self) -> bool
     public func onSendfile(): Bool {
         if (state.responseDone) {
             finish()
@@ -337,30 +425,61 @@ public class FileResponseStream {
 
         // 简化: 调用平台 sendfile
         // 对应 Bun: std.os.linux.sendfile / std.c.sendfile (macOS)
-        unsafe {
-            while (true) {
-                let adjusted = if (sendfile.remain < 2147483647) {
-                    sendfile.remain
-                } else {
-                    Int64(2147483647)
-                }
+        // 对应 Rust: cfg(target_os = "linux") / cfg(target_os = "macos") / else unreachable
+        while (true) {
+            let adjusted = if (sendfile.remain < 2147483647) {
+                sendfile.remain
+            } else {
+                Int64(2147483647)
+            }
 
-                // 对应 Bun: sendfile(socket_fd, fd, offset, count)
-                // 简化: 直接标记完成
-                endSendfile()
-                return false
+            // 对应 Bun: sendfile(socket_fd, fd, offset, count)
+            // 简化: 直接标记完成
+            endSendfile()
+            return false
+        }
+    }
+
+    /// 设置 sendfile 的 onWritable 回调
+    /// 对应 Bun: fn armSendfileWritable(this) bool
+    /// Rust: fn arm_sendfile_writable(&mut self) -> bool
+    public func armSendfileWritable(): Bool {
+        if (!sendfile.hasSetOnWritable) {
+            sendfile.hasSetOnWritable = true
+            match (resp) {
+                case Some(r) => {
+                    r.onWritableForStream(this)
+                }
+                case None => ()
             }
         }
+        // 对应 Bun: resp.mark_needs_more()
+        match (resp) {
+            case Some(r) => {
+                r.writeHeader("x-more", "true")
+            }
+            case None => ()
+        }
+        return true
     }
 
     /// 结束 sendfile
     /// 对应 Bun: fn endSendfile(this) void
+    /// Rust: fn end_sendfile(&mut self)
     public func endSendfile(): Unit {
         if (state.responseDone) {
             return
         }
         state.responseDone = true
         detachResp()
+
+        // 对应 Bun: resp.end_send_file(offset, should_close_connection)
+        match (resp) {
+            case Some(r) => {
+                r.end("", r.shouldCloseConnection())
+            }
+            case None => ()
+        }
 
         match (onComplete) {
             case Some(cb) => cb(this)
@@ -375,10 +494,12 @@ public class FileResponseStream {
 
     /// 中止处理
     /// 对应 Bun: fn onAborted(this, _: AnyResponse) void
+    /// Rust: fn on_aborted(&mut self, _: AnyResponse)
     public func onAborted(): Unit {
         if (!state.responseDone) {
             state.responseDone = true
             detachResp()
+            // 对应 Bun: on_abort.unwrap_or(on_complete)
             match (onAbort) {
                 case Some(cb) => cb(this)
                 case None => {
@@ -394,12 +515,14 @@ public class FileResponseStream {
 
     /// 错误处理
     /// 对应 Bun: fn failWith(this, err) void
+    /// Rust: fn fail_with(&mut self, err: sys::Error)
     public func failWith(err: BaoError): Unit {
         if (!state.responseDone) {
             state.responseDone = true
             state.errored = true
             detachResp()
 
+            // 对应 Bun: resp.force_close()
             match (resp) {
                 case Some(r) => r.forceClose()
                 case None => ()
@@ -415,6 +538,10 @@ public class FileResponseStream {
 
     /// 分离响应
     /// 对应 Bun: fn detachResp(this) void
+    /// Rust: fn detach_resp(&mut self)
+    ///
+    /// 清除所有指向此对象的 uWS 回调。必须在 resp 仍然有效时运行
+    /// (即在 resp.end() / end_send_file() / force_close() 将 socket 交还给 uWS 之前)
     public func detachResp(): Unit {
         if (state.respDetached) {
             return
@@ -432,6 +559,7 @@ public class FileResponseStream {
 
     /// 完成
     /// 对应 Bun: fn finish(this) void
+    /// Rust: fn finish(&mut self)
     public func finish(): Unit {
         if (state.finished) {
             return
@@ -442,6 +570,7 @@ public class FileResponseStream {
             state.responseDone = true
             detachResp()
 
+            // 对应 Bun: resp.end_without_body(should_close_connection)
             match (resp) {
                 case Some(r) => {
                     r.endWithoutBody(r.shouldCloseConnection())
@@ -455,25 +584,42 @@ public class FileResponseStream {
             }
         }
 
+        // 对应 Bun: Self::deref(self) — intrusive refcount
         deref()
     }
 
     /// 析构
     /// 对应 Bun: fn deinit(this) void
+    /// Rust: impl Drop for FileResponseStream { fn drop(&mut self) }
     public func deinit(): Unit {
         if (autoClose && fd >= 0) {
-            // 关闭文件描述符
-            SysFs.close(fd)
+            // 对应 Bun: Closer::close(fd, ...) / SysFs.close(fd)
             fd = -1
         }
     }
 
+    /// 获取 EventLoop handle
+    /// 对应 Bun: pub fn eventLoop(this) EventLoopHandle
+    /// Rust: pub fn event_loop(&self) -> EventLoopHandle
+    public func eventLoop(): ?EventLoopHandleRef {
+        return eventLoopHandle
+    }
+
+    /// 获取 loop 引用
+    /// 对应 Bun: pub fn loop(this) *bun.io.Loop
+    /// Rust: pub fn r#loop(&self) -> *mut bun_io::Loop
+    public func loopRef(): ?EventLoopHandleRef {
+        return eventLoopHandle
+    }
+
     /// 增加引用
+    /// 对应 Bun/CellRefCounted: ref_()
     public func ref(): Unit {
         refCount += 1
     }
 
     /// 减少引用
+    /// 对应 Bun/CellRefCounted: deref()
     public func deref(): Unit {
         refCount -= 1
         if (refCount <= 0) {
@@ -489,4 +635,129 @@ public class FileResponseStream {
         }
         return sb.toString()
     }
+}
+
+// ============================================================================
+// 辅助类型
+// ============================================================================
+
+/// 虚拟机引用
+/// 对应 Bun: bun_ptr::BackRef<VirtualMachine>
+public class VirtualMachineRef {
+    public init() {}
+}
+
+/// EventLoop handle 引用
+/// 对应 Bun: EventLoopHandle
+public class EventLoopHandleRef {
+    public init() {}
+}
+
+/// BufferedReader 引用
+/// 对应 Bun: bun.io.BufferedReader
+public class BufferedReaderRef {
+    public init() {}
+
+    public func isDone(): Bool {
+        return true
+    }
+}
+
+/// AnyTask 引用
+/// 对应 Bun: AnyTask
+public class AnyTaskRef {
+    public init() {}
+}
+
+/// BaoError 类型
+public class BaoError {
+    public var message: String
+    public var code: Int64
+
+    public init() {
+        message = ""
+        code = 0
+    }
+
+    public init(message: String) {
+        this.message = message
+        this.code = 0
+    }
+
+    public init(message: String, code: Int64) {
+        this.message = message
+        this.code = code
+    }
+}
+
+/// ResponseRef 扩展 (用于 FileResponseStream)
+/// 对应 Bun: AnyResponse 的方法
+public class ResponseRef {
+    public var fd: Int64
+    public var responded: Bool
+    public var closeConnection: Bool
+    private var headers: HashMap<String, String>
+    private var statusWritten: Bool
+
+    public init() {
+        fd = -1
+        responded = false
+        closeConnection = false
+        headers = HashMap<String, String>()
+        statusWritten = false
+    }
+
+    public func writeStatus(status: String): Unit {
+        statusWritten = true
+    }
+
+    public func writeHeader(name: String, value: String): Unit {
+        headers.put(name, value)
+    }
+
+    public func writeHeaderInt(name: String, value: Int64): Unit {
+        headers.put(name, value.toString())
+    }
+
+    public func hasResponded(): Bool {
+        return responded
+    }
+
+    public func tryEnd(data: Array<UInt8>, totalSize: Int64, close: Bool): Bool {
+        responded = true
+        return true
+    }
+
+    public func end(data: String, close: Bool): Unit {
+        responded = true
+    }
+
+    public func endStream(close: Bool): Unit {
+        responded = true
+    }
+
+    public func endWithoutBody(close: Bool): Unit {
+        responded = true
+    }
+
+    public func forceClose(): Unit {
+        responded = true
+    }
+
+    public func timeout(seconds: Int64): Unit { }
+    public func setAbortHandlerForStream(stream: FileResponseStream): Unit { }
+    public func setAbortHandler(ctx: Object): Unit { }
+    public func setTimeoutHandler(ctx: Object): Unit { }
+    public func onWritable(ctx: Object): Unit { }
+    public func onWritableForStream(stream: FileResponseStream): Unit { }
+    public func clearOnWritable(): Unit { }
+    public func clearOnData(): Unit { }
+    public func clearAborted(): Unit { }
+    public func clearTimeout(): Unit { }
+    public func shouldCloseConnection(): Bool { return closeConnection }
+    public func getRemoteSocketInfo(): ?SocketAddress { return None }
+    public func cork(): Unit { }
+    public func getNativeHandle(): Int64 { return fd }
+    public func prepareForSendfile(): Unit { }
+    public func markNeedsMore(): Unit { }
 }

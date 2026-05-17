@@ -43,12 +43,12 @@ public class MyersDiff {
         }
         if (actual.size == 0) {
             let result = Array<DiffItem>()
-            result.add(DiffItem(kind: DiffKind.insert, value: expected))
+            result.append(DiffItem(kind: DiffKind.insert, value: expected))
             return result
         }
         if (expected.size == 0) {
             let result = Array<DiffItem>()
-            result.add(DiffItem(kind: DiffKind.delete, value: actual))
+            result.append(DiffItem(kind: DiffKind.delete, value: actual))
             return result
         }
 
@@ -90,7 +90,7 @@ public class MyersDiff {
                     i += 1
                     j += 1
                 }
-                result.add(DiffItem(kind: DiffKind.equal, value: equalStr))
+                result.append(DiffItem(kind: DiffKind.equal, value: equalStr))
             } else {
                 // 不相等，产生 delete 和 insert
                 if (i < n) {
@@ -101,7 +101,7 @@ public class MyersDiff {
                         // 只删除一个字符后重新尝试匹配
                         break
                     }
-                    result.add(DiffItem(kind: DiffKind.delete, value: deleteStr))
+                    result.append(DiffItem(kind: DiffKind.delete, value: deleteStr))
                 }
                 if (j < m) {
                     var insertStr = ""
@@ -110,7 +110,7 @@ public class MyersDiff {
                         j += 1
                         break
                     }
-                    result.add(DiffItem(kind: DiffKind.insert, value: insertStr))
+                    result.append(DiffItem(kind: DiffKind.insert, value: insertStr))
                 }
             }
         }
@@ -135,18 +135,18 @@ public class MyersDiff {
                 }
 
                 if (areEqual) {
-                    result.add(DiffItem(kind: DiffKind.equal, value: aLine))
+                    result.append(DiffItem(kind: DiffKind.equal, value: aLine))
                     i += 1
                     j += 1
                 } else {
-                    result.add(DiffItem(kind: DiffKind.delete, value: aLine))
+                    result.append(DiffItem(kind: DiffKind.delete, value: aLine))
                     i += 1
                 }
             } else if (i < actual.size) {
-                result.add(DiffItem(kind: DiffKind.delete, value: actual[i]))
+                result.append(DiffItem(kind: DiffKind.delete, value: actual[i]))
                 i += 1
             } else {
-                result.add(DiffItem(kind: DiffKind.insert, value: expected[j]))
+                result.append(DiffItem(kind: DiffKind.insert, value: expected[j]))
                 j += 1
             }
         }
@@ -166,7 +166,7 @@ public class MyersDiff {
         let lines = str.split('\n')
         var result = Array<String>()
         for (line in lines) {
-            result.add(line + "\n")
+            result.append(line + "\n")
         }
         // 最后一个换行符后如果有内容
         if (str.size > 0 && str[Int64(str.size - 1)] != '\n') {

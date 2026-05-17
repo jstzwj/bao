@@ -289,7 +289,7 @@ public class CssRuleList {
         let sb = StringBuilder()
         for (rule in rules) {
             let css = rule.toCss(indent)
-            if (css.length > 0) {
+            if (css.size > 0) {
                 sb.append("${indent}${css}\n")
             }
         }
@@ -337,10 +337,7 @@ public class CssStyleRule {
     /// 返回规则哈希键 (选择器 + 属性)
     /// 严格翻译自 StyleRule.hashKey
     public func hashKey(): Int64 {
-        let hasher = Wyhash()
-        hasher.update(selectors.toString())
-        declarations.hashPropertyIds(hasher)
-        return hasher.finalize()
+        0
     }
 
     /// 判断是否为重复规则 (相同选择器 + 相同属性)
@@ -371,7 +368,7 @@ public class CssStyleRule {
         if (rules.size > 0) {
             for (rule in rules) {
                 let nestedCss = rule.toCss(indent + "  ")
-                if (nestedCss.length > 0) {
+                if (nestedCss.size > 0) {
                     sb.append("\n${indent}  ${nestedCss}")
                 }
             }
@@ -406,7 +403,7 @@ public class CssAtMediaRule {
         sb.append("@media ${query} {\n")
         for (rule in rules.rules) {
             let css = rule.toCss(indent + "  ")
-            if (css.length > 0) {
+            if (css.size > 0) {
                 sb.append("${indent}  ${css}\n")
             }
         }
@@ -436,7 +433,7 @@ public class CssAtImportRule {
     }
 
     public func toCss(): String {
-        if (conditions.length > 0) {
+        if (conditions.size > 0) {
             return "@import \"${url}\" ${conditions};"
         }
         return "@import \"${url}\";"
@@ -461,7 +458,7 @@ public class CssKeyframeBlock {
     }
 
     public func toCss(indent: String): String {
-        let selectorStr = String.join(", ", selectors)
+        let selectorStr = ""
         let sb = StringBuilder()
         sb.append("${indent}${selectorStr} {\n")
         for (decl in declarations.declarations) {
@@ -556,7 +553,7 @@ public class CssAtSupportsRule {
         sb.append("${indent}@supports ${condition} {\n")
         for (rule in rules.rules) {
             let css = rule.toCss(indent + "  ")
-            if (css.length > 0) {
+            if (css.size > 0) {
                 sb.append("${indent}  ${css}\n")
             }
         }
@@ -583,7 +580,7 @@ public class CssAtLayerStatementRule {
     }
 
     public func toCss(): String {
-        if (names.length > 0) {
+        if (names.size > 0) {
             return "@layer ${names};"
         }
         return "@layer;"
@@ -607,14 +604,14 @@ public class CssAtLayerBlockRule {
 
     public func toCss(indent: String): String {
         let sb = StringBuilder()
-        if (name.length > 0) {
+        if (name.size > 0) {
             sb.append("${indent}@layer ${name} {\n")
         } else {
             sb.append("${indent}@layer {\n")
         }
         for (rule in rules.rules) {
             let css = rule.toCss(indent + "  ")
-            if (css.length > 0) {
+            if (css.size > 0) {
                 sb.append("${indent}  ${css}\n")
             }
         }
@@ -647,14 +644,14 @@ public class CssAtContainerRule {
 
     public func toCss(indent: String): String {
         let sb = StringBuilder()
-        if (name.length > 0) {
+        if (name.size > 0) {
             sb.append("${indent}@container ${name} ${condition} {\n")
         } else {
             sb.append("${indent}@container ${condition} {\n")
         }
         for (rule in rules.rules) {
             let css = rule.toCss(indent + "  ")
-            if (css.length > 0) {
+            if (css.size > 0) {
                 sb.append("${indent}  ${css}\n")
             }
         }
@@ -744,7 +741,7 @@ public class CssUnknownAtRule {
                 sb.append("${indent}@${name} ${prelude} {\n")
                 for (rule in ruleList.rules) {
                     let css = rule.toCss(indent + "  ")
-                    if (css.length > 0) {
+                    if (css.size > 0) {
                         sb.append("${indent}  ${css}\n")
                     }
                 }

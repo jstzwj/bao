@@ -7,6 +7,7 @@ package bao_io
 
 import bao_core.*
 import bao_sys.*
+import bao_collections.*
 
 // ============================================================================
 // FlushStrategy - 刷新策略
@@ -65,9 +66,9 @@ public class WritevEntry {
 
     /// 获取有效切片
     public func slice(): Array<UInt8> {
-        var result = Array<UInt8>()
+        var result = Array<UInt8>(length, { _ => UInt8(0) })
         for (i in 0..length) {
-            result.append(data[offset + i])
+            result[i] = data[offset + i]
         }
         return result
     }
@@ -175,18 +176,14 @@ public class EnhancedBufferedWriter {
     /// 写入字符串
     /// 对应 Bun: PipeWriter.writeString
     public func writeString(s: String): WriteResult {
-        var bytes = Array<UInt8>()
-        for (c in s) {
-            bytes.append(UInt8(c.value))
-        }
-        return writeBytes(bytes)
+        return writeBytes(s.toArray())
     }
 
     /// 写入行 (追加换行符)
     /// 对应 Bun: PipeWriter.writeLine
     public func writeLine(line: String): WriteResult {
         let result = writeString(line)
-        write(UInt8('\n'))
+        write(UInt8(10))
         return WriteResult(result.bytesWritten + 1)
     }
 
@@ -223,17 +220,15 @@ public class EnhancedBufferedWriter {
             return WriteResult(SysError(9, SysTag.Write))
         }
 
-        var data = buffer.toArray()
+        let data = buffer.toOwnedSlice()
         var offset: Int64 = 0
         var totalDrained: Int64 = 0
 
         while (offset < data.size) {
             let remaining = data.size - offset
             let chunkSize = if (remaining > MAX_BUF_SIZE) { MAX_BUF_SIZE } else { remaining }
-            var chunk = Array<UInt8>()
-            for (i in 0..chunkSize) {
-                chunk.append(data[offset + i])
-            }
+            let chunkOffset = offset
+            let chunk = Array<UInt8>(chunkSize, { i => data[chunkOffset + i] })
             match (SysFs.write(fd, chunk)) {
                 case SysMaybe<Int64>.Err(err) =>
                     // 对应 Bun: if (err.isRetry()) { return .pending }
@@ -361,7 +356,7 @@ public class EnhancedBufferedWriter {
                 ()  // 不自动刷新
             case FlushStrategy.OnLine =>
                 // 检查最后一个字节是否为换行符
-                if (buffer.size > 0 && buffer[Int64(buffer.size - 1)] == UInt8('\n')) {
+                if (buffer.size > 0 && buffer[Int64(buffer.size - 1)] == UInt8(10)) {
                     flush()
                 }
         }

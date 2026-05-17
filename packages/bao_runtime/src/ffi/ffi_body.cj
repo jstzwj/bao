@@ -6,6 +6,7 @@ package bao_runtime.ffi
 
 import bao_core.*
 import bao_collections.*
+import bao_runtime.*
 
 // ============================================================================
 // FFI 步骤 (编译/加载状态)
@@ -17,7 +18,7 @@ import bao_collections.*
 public enum FfiStep {
     | Pending
     | Compiled(FfiCompiled)
-    | Failed(msg: String, allocated: Bool)
+    | Failed(String, Bool)
 
     /// 获取已编译的函数指针 (如果已编译)
     /// 对应 Rust: Step::compiled_ptr
@@ -147,8 +148,8 @@ public class FfiFunction {
     /// 对应 Rust: Function::fail (ffi_body.rs:1986)
     public func fail(msg: String): Unit {
         match (step) {
-            case FfiStep.Failed(_) => () // 不覆盖已有失败
-            case _ => step = FfiStep.Failed(msg, allocated: false)
+            case FfiStep.Failed(_, _) => () // 不覆盖已有失败
+            case _ => step = FfiStep.Failed(msg, false)
         }
     }
 
@@ -230,7 +231,7 @@ public class FfiFunction {
         sb.append("/* --- The Function To Call */\n")
         sb.append(returnType.typenameLabel())
         sb.append(" ")
-        sb.append(baseName.getOrElse(""))
+        sb.append(match (baseName) { case Some(n) => n case None => "" })
         sb.append("(")
         var first = true
         var i: Int64 = 0
@@ -261,14 +262,12 @@ public class FfiFunction {
             while (j < argTypes.size) {
                 let arg = argTypes[j]
                 match (arg) {
-                    case NapiEnv => {
+                    case NapiEnv =>
                         sb.append("  napi_env arg${j} = (napi_env)&Bun__thisFFIModuleNapiEnv;\n")
                         sb.append("  argsPtr++;\n")
-                    }
-                    case NapiValue => {
+                    case NapiValue =>
                         sb.append("  EncodedJSValue arg${j} = { .asInt64 = *argsPtr++ };\n")
-                    }
-                    case _ => {
+                    case _ =>
                         if (arg.needsACastInC()) {
                             if (j < argTypes.size - 1) {
                                 sb.append("  EncodedJSValue arg${j} = { .asInt64 = *argsPtr++ };\n")
@@ -283,7 +282,6 @@ public class FfiFunction {
                                 sb.append("  int64_t arg${j} = *argsPtr;\n")
                             }
                         }
-                    }
                 }
                 j += 1
             }
@@ -291,11 +289,15 @@ public class FfiFunction {
 
         // 调用目标函数
         sb.append("    ")
-        if (returnType != AbiType.Void) {
+        let hasReturnValue = match (returnType) {
+            case AbiType.Void => false
+            case _ => true
+        }
+        if (hasReturnValue) {
             sb.append(returnType.typenameLabel())
             sb.append(" return_value = ")
         }
-        sb.append(baseName.getOrElse(""))
+        sb.append(match (baseName) { case Some(n) => n case None => "" })
         sb.append("(")
         first = true
         var k: Int64 = 0
@@ -329,7 +331,7 @@ public class FfiFunction {
 
         // 返回值
         sb.append("return ")
-        if (returnType != AbiType.Void) {
+        if (hasReturnValue) {
             sb.append(returnType.toJSFormatter("return_value"))
             sb.append(".asZigRepr")
         } else {
@@ -350,7 +352,7 @@ public class FfiFunction {
     public func printCallbackSourceCode(globalObjectPtr: Int64, contextPtr: Int64): String {
         var sb = StringBuilder()
 
-        sb.append("#define JS_GLOBAL_OBJECT (void*)0x${globalObjectPtr.formatHex()}ULL\n")
+        sb.append("#define JS_GLOBAL_OBJECT (void*)0x${int64FormatHex(globalObjectPtr)}ULL\n")
         sb.append("#define IS_CALLBACK 1\n")
 
         // 浮点检测
@@ -400,15 +402,14 @@ public class FfiFunction {
 
         // 调用 FFI_Callback_call
         let innerCall = if (!argTypes.isEmpty()) {
-            "FFI_Callback_call((void*)0x${contextPtr.formatHex()}ULL, ${argTypes.size}, arguments)"
+            "FFI_Callback_call((void*)0x${int64FormatHex(contextPtr)}ULL, ${argTypes.size}, arguments)"
         } else {
-            "FFI_Callback_call((void*)0x${contextPtr.formatHex()}ULL, 0, (ZIG_REPR_TYPE*)0)"
+            "FFI_Callback_call((void*)0x${int64FormatHex(contextPtr)}ULL, 0, (ZIG_REPR_TYPE*)0)"
         }
 
-        if (returnType == AbiType.Void) {
-            sb.append(innerCall)
-        } else {
-            sb.append("return ${returnType.toCFormatter("_" + innerCall, true)}")
+        match (returnType) {
+            case AbiType.Void => sb.append(innerCall)
+            case _ => sb.append("return ${returnType.toCFormatter("_" + innerCall, true)}")
         }
 
         sb.append(";\n}\n\n")
@@ -431,9 +432,8 @@ public enum FfiSource {
     public func first(): String {
         match (this) {
             case File(f) => f
-            case Files(files) => {
+            case Files(files) =>
                 if (files.isEmpty()) { "" } else { files[0] }
-            }
         }
     }
 }
@@ -560,17 +560,114 @@ public class CompileC {
 public class CompilerRT {
     /// 编译器运行时头文件列表
     /// 对应 Rust: CompilerRtSources::SOURCES
-    public static let SOURCES: ArrayList<(String, String)> = {
+    public static let SOURCES: ArrayList<(String, String)> = createSources()
+
+    private static func createSources(): ArrayList<(String, String)> {
         let list = ArrayList<(String, String)>()
-        list.append(("stdbool.h", "// stdbool.h stub"))
-        list.append(("stdarg.h", "// stdarg.h stub"))
-        list.append(("stdnoreturn.h", "// stdnoreturn.h stub"))
-        list.append(("stdalign.h", "// stdalign.h stub"))
-        list.append(("tgmath.h", "// tgmath.h stub"))
-        list.append(("stddef.h", "// stddef.h stub"))
+        list.append(("stdbool.h", """
+#ifndef _STDBOOL_H
+#define _STDBOOL_H
+#define bool _Bool
+#define true 1
+#define false 0
+#define __bool_true_false_are_defined 1
+#endif /* _STDBOOL_H */
+"""))
+        list.append(("stdarg.h", """
+#ifndef _STDARG_H
+#define _STDARG_H
+typedef __builtin_va_list va_list;
+#define va_start __builtin_va_start
+#define va_arg __builtin_va_arg
+#define va_copy __builtin_va_copy
+#define va_end __builtin_va_end
+typedef va_list __gnuc_va_list;
+#define _VA_LIST_DEFINED
+#endif /* _STDARG_H */
+"""))
+        list.append(("stdnoreturn.h", """
+#ifndef _STDNORETURN_H
+#define _STDNORETURN_H
+#define noreturn _Noreturn
+#endif /* _STDNORETURN_H */
+"""))
+        list.append(("stdalign.h", """
+#ifndef _STDALIGN_H
+#define _STDALIGN_H
+#if __STDC_VERSION__ < 201112L && (defined(__GNUC__) || defined(__TINYC__))
+#define _Alignas(t) __attribute__((__aligned__(t)))
+#define _Alignof(t) __alignof__(t)
+#endif
+#define alignas _Alignas
+#define alignof _Alignof
+#define __alignas_is_defined 1
+#define __alignof_is_defined 1
+#endif /* _STDALIGN_H */
+"""))
+        list.append(("tgmath.h", """
+#ifndef _TGMATH_H
+#define _TGMATH_H
+#include <math.h>
+#ifndef __cplusplus
+#define __tgmath_real(x, F) _Generic((x), float: F##f, long double: F##l, default: F)(x)
+#define __tgmath_real_2_1(x, y, F) _Generic((x), float: F##f, long double: F##l, default: F)(x, y)
+#define __tgmath_real_2(x, y, F) _Generic((x) + (y), float: F##f, long double: F##l, default: F)(x, y)
+#define __tgmath_real_3_2(x, y, z, F) _Generic((x) + (y), float: F##f, long double: F##l, default: F)(x, y, z)
+#define __tgmath_real_3(x, y, z, F) _Generic((x) + (y) + (z), float: F##f, long double: F##l, default: F)(x, y, z)
+#define acos(z) __tgmath_real(z, acos)
+#define asin(z) __tgmath_real(z, asin)
+#define atan(z) __tgmath_real(z, atan)
+#define cos(z) __tgmath_real(z, cos)
+#define sin(z) __tgmath_real(z, sin)
+#define tan(z) __tgmath_real(z, tan)
+#define exp(z) __tgmath_real(z, exp)
+#define log(z) __tgmath_real(z, log)
+#define pow(z1, z2) __tgmath_real_2(z1, z2, pow)
+#define sqrt(z) __tgmath_real(z, sqrt)
+#define fabs(z) __tgmath_real(z, fabs)
+#define atan2(x, y) __tgmath_real_2(x, y, atan2)
+#define ceil(x) __tgmath_real(x, ceil)
+#define floor(x) __tgmath_real(x, floor)
+#define fmax(x, y) __tgmath_real_2(x, y, fmax)
+#define fmin(x, y) __tgmath_real_2(x, y, fmin)
+#define fmod(x, y) __tgmath_real_2(x, y, fmod)
+#define round(x) __tgmath_real(x, round)
+#define trunc(x) __tgmath_real(x, trunc)
+#endif /* __cplusplus */
+#endif /* _TGMATH_H */
+"""))
+        list.append(("stddef.h", """
+#ifndef _STDDEF_H
+#define _STDDEF_H
+typedef __SIZE_TYPE__ size_t;
+typedef __PTRDIFF_TYPE__ ssize_t;
+typedef __WCHAR_TYPE__ wchar_t;
+typedef __PTRDIFF_TYPE__ ptrdiff_t;
+typedef __PTRDIFF_TYPE__ intptr_t;
+typedef __SIZE_TYPE__ uintptr_t;
+#if __STDC_VERSION__ >= 201112L
+typedef union { long long __ll; long double __ld; } max_align_t;
+#endif
+#ifndef NULL
+#define NULL ((void*)0)
+#endif
+#undef offsetof
+#define offsetof(type, field) ((size_t)&((type*)0)->field)
+#if defined __i386__ || defined __x86_64__
+void* alloca(size_t size);
+#endif
+#endif
+#if defined(__need_wint_t)
+#ifndef _WINT_T
+#define _WINT_T
+typedef __WINT_TYPE__ wint_t;
+#endif
+#undef __need_wint_t
+#endif
+"""))
         list.append(("varargs.h", "// empty"))
         return list
-    }()
+    }
 
     /// memset 实现 (供 TCC 编译的代码调用)
     /// 对应 Rust: CompilerRT::memset (ffi_body.rs:2688)
@@ -633,52 +730,51 @@ public class FfiModule {
     public static func cc(globalObject: JsObject, arguments: ArrayList<JsValue>): JsValue {
         // 1. 验证参数
         if (arguments.isEmpty()) {
-            return JsValue("Expected object")
+            return JsValue(BaoString("Expected object"))
         }
         let object = arguments[0]
         if (object.valueType != JsValueType.Object) {
-            return JsValue("Expected object")
+            return JsValue(BaoString("Expected object"))
         }
 
         // 2. 构建 CompileC
         var compileC = CompileC()
 
         // 3. 解析 symbols
-        let symbolsObject = object.getOwn("symbols")
+        let objOpt = object.objectData
+        if (objOpt.isNone()) {
+            return JsValue(BaoString("Expected object"))
+        }
+        let obj = objOpt.getOrThrow()
+        let symbolsObject = obj.get("symbols")
         if (symbolsObject.valueType != JsValueType.Object) {
-            return JsValue("Expected object for symbols")
+            return JsValue(BaoString("Expected object for symbols"))
         }
 
         let symbolsMap = generateSymbols(globalObject, symbolsObject)
         match (symbolsMap) {
-            case Some(map) => {
+            case Some(map) =>
                 compileC.symbols.map = map
                 if (map.size == 0) {
-                    return JsValue("Expected at least one exported symbol")
+                    return JsValue(BaoString("Expected at least one exported symbol"))
                 }
-            }
-            case None => return JsValue("Failed to generate symbols")
+            case None => return JsValue(BaoString("Failed to generate symbols"))
         }
 
         // 4. 解析 library, flags, define, include, source
-        let libraryValue = object.getOwn("library")
+        let libraryValue = obj.get("library")
         if (libraryValue.valueType != JsValueType.Undefined) {
             // 解析库路径
         }
 
-        let flagsValue = object.getTruthy("flags")
-        match (flagsValue) {
-            case Some(fv) => {
-                if (fv.valueType == JsValueType.String) {
-                    compileC.flags = Some(fv.toString())
-                }
-            }
-            case None => ()
+        let flagsValue = obj.get("flags")
+        if (flagsValue.valueType == JsValueType.String) {
+            compileC.flags = Some(flagsValue.toString())
         }
 
         // 5. 编译 (需要 TinyCC 支持)
         // 目前返回未实现错误
-        return JsValue("TinyCC is not available in this build of Bao")
+        return JsValue(BaoString("TinyCC is not available in this build of Bao"))
     }
 
     // ========================================================================
@@ -690,72 +786,68 @@ public class FfiModule {
     /// 对应 Rust: pub fn open(global, name_str, object_value)
     public static func open(globalObject: JsObject, name: String, objectValue: JsValue): JsValue {
         if (name.isEmpty()) {
-            return JsValue("Invalid library name")
+            return JsValue(BaoString("Invalid library name"))
         }
 
         if (objectValue.valueType != JsValueType.Object) {
-            return JsValue("Expected an options object with symbol names")
+            return JsValue(BaoString("Expected an options object with symbol names"))
         }
 
         // 生成符号映射
         let symbolsResult = generateSymbols(globalObject, objectValue)
         match (symbolsResult) {
-            case Some(symbols) => {
+            case Some(symbols) =>
                 if (symbols.size == 0) {
-                    return JsValue("Expected at least one symbol")
+                    return JsValue(BaoString("Expected at least one symbol"))
                 }
 
                 // 尝试打开动态库
                 let lib = DynamicLibrary.open(name)
                 match (lib) {
-                    case Some(dylib) => {
+                    case Some(dylib) =>
                         var resultObj = JsObject()
                         var ffi = FfiModule()
                         ffi.dylib = Some(dylib)
                         ffi.functions = symbols
 
                         // 解析每个符号
-                        for ((symName, func) in symbols) {
+                        let symKeys = symbols.keys()
+                        for (symName in symKeys) {
+                            let ffiFuncOpt = symbols.get(symName)
+                            if (ffiFuncOpt.isNone()) { continue }
+                            let ffiFunc = ffiFuncOpt.getOrThrow()
                             let addr = dylib.lookup(symName)
                             if (addr == 0) {
                                 dylib.close()
-                                return JsValue("Symbol \"${symName}\" not found in \"${name}\"")
+                                return JsValue(BaoString("Symbol not found in library"))
                             }
-                            func.symbolFromDynamicLibrary = Some(addr)
+                            ffiFunc.symbolFromDynamicLibrary = Some(addr)
 
                             // 编译 FFI wrapper
-                            match (func.compile(None)) {
-                                case Some(err) => {
+                            match (ffiFunc.compile(Option<Int64>.None)) {
+                                case Some(err) =>
                                     dylib.close()
-                                    return JsValue("${err} when compiling symbol \"${symName}\" in \"${name}\"")
-                                }
-                                case None => {
-                                    match (func.step) {
-                                        case FfiStep.Compiled(compiled) => {
-                                            resultObj.set(symName, JsValue("FFI function: ${symName}"))
-                                        }
-                                        case FfiStep.Failed(msg, _) => {
+                                    return JsValue(BaoString("Error when compiling symbol in library"))
+                                case None =>
+                                    match (ffiFunc.step) {
+                                        case FfiStep.Compiled(compiled) =>
+                                            resultObj.set(symName, JsValue(BaoString("FFI function: ${symName}")))
+                                        case FfiStep.Failed(msg, _) =>
                                             dylib.close()
-                                            return JsValue(msg)
-                                        }
-                                        case FfiStep.Pending => {
+                                            return JsValue(BaoString(msg))
+                                        case FfiStep.Pending =>
                                             dylib.close()
-                                            return JsValue("Failed to compile (nothing happened)")
-                                        }
+                                            return JsValue(BaoString("Failed to compile (nothing happened)"))
                                     }
-                                }
                             }
                         }
 
                         return JsValue(resultObj)
-                    }
-                    case None => {
+                    case None =>
                         let dlError = DynamicLibrary.getLastError()
-                        return JsValue("Failed to open library \"${name}\": ${dlError}")
-                    }
+                        return JsValue(BaoString("Failed to open library \"${name}\": ${dlError}"))
                 }
-            }
-            case None => return JsValue("Failed to generate symbols")
+            case None => return JsValue(BaoString("Failed to generate symbols"))
         }
     }
 
@@ -774,19 +866,17 @@ public class FfiModule {
 
         // 关闭动态库
         match (dylib) {
-            case Some(lib) => {
+            case Some(lib) =>
                 lib.close()
                 dylib = None
-            }
             case None => ()
         }
 
         // 释放 TCC 共享状态
         match (sharedState) {
-            case Some(statePtr) => {
+            case Some(statePtr) =>
                 // tcc_delete(statePtr)
                 sharedState = None
-            }
             case None => ()
         }
 
@@ -803,39 +893,37 @@ public class FfiModule {
 
     /// 创建 FFI 回调函数
     /// 对应 Rust: pub fn callback(global_this, interface, js_callback)
-    public static func callback(globalObject: JsObject, interface: JsValue, jsCallback: JsValue): JsValue {
-        if (interface.valueType != JsValueType.Object) {
-            return JsValue("Expected object")
+    public static func callback(globalObject: JsObject, callbackInterface: JsValue, jsCallback: JsValue): JsValue {
+        if (callbackInterface.valueType != JsValueType.Object) {
+            return JsValue(BaoString("Expected object"))
         }
 
         if (jsCallback.valueType != JsValueType.Function) {
-            return JsValue("Expected callback function")
+            return JsValue(BaoString("Expected callback function"))
         }
 
         // 生成函数描述
-        var func = FfiFunction()
-        match (generateSymbolForFunction(globalObject, interface, func)) {
+        var ffiFunc = FfiFunction()
+        match (generateSymbolForFunction(globalObject, callbackInterface, ffiFunc)) {
             case Some(err) => return err
             case None => ()
         }
 
-        func.baseName = Some("")
+        ffiFunc.baseName = Some("")
 
         // 编译回调 (需要 TinyCC)
-        match (func.compileCallback(globalObject, jsCallback, func.threadsafe)) {
-            case Some(err) => return JsValue("Out of memory")
+        match (ffiFunc.compileCallback(globalObject, jsCallback, ffiFunc.threadsafe)) {
+            case Some(err) => return JsValue(BaoString("Out of memory"))
             case None => ()
         }
 
-        match (func.step) {
-            case FfiStep.Compiled(compiled) => {
-                // 返回 { ptr, ctx } 对象
+        match (ffiFunc.step) {
+            case FfiStep.Compiled(compiled) =>
                 let result = JsObject()
-                result.set("ptr", JsValue(Float64(compiled.ptr.toFloat64())))
+                result.set("ptr", JsValue(Float64(compiled.ptr)))
                 return JsValue(result)
-            }
-            case FfiStep.Failed(msg, _) => JsValue(msg)
-            case FfiStep.Pending => JsValue("Failed to compile, but not sure why")
+            case FfiStep.Failed(msg, _) => JsValue(BaoString(msg))
+            case FfiStep.Pending => JsValue(BaoString("Failed to compile, but not sure why"))
         }
     }
 
@@ -861,47 +949,47 @@ public class FfiModule {
     /// 对应 Rust: pub fn link_symbols(global, object_value)
     public static func linkSymbols(globalObject: JsObject, objectValue: JsValue): JsValue {
         if (objectValue.valueType != JsValueType.Object) {
-            return JsValue("Expected an options object with symbol names")
+            return JsValue(BaoString("Expected an options object with symbol names"))
         }
 
         let symbolsResult = generateSymbols(globalObject, objectValue)
         match (symbolsResult) {
-            case Some(symbols) => {
+            case Some(symbols) =>
                 if (symbols.size == 0) {
-                    return JsValue("Expected at least one symbol")
+                    return JsValue(BaoString("Expected at least one symbol"))
                 }
 
                 // 验证每个符号都有 ptr 字段
-                for ((symName, func) in symbols) {
-                    match (func.symbolFromDynamicLibrary) {
-                        case None => {
-                            return JsValue("Symbol \"${symName}\" is missing a \"ptr\" field. " +
-                                "When using linkSymbols() or CFunction(), you must provide a \"ptr\" " +
-                                "field with the memory address of the native function.")
-                        }
+                let symKeys2 = symbols.keys()
+                for (symName in symKeys2) {
+                    let ffiFuncOpt = symbols.get(symName)
+                    if (ffiFuncOpt.isNone()) { continue }
+                    let ffiFunc = ffiFuncOpt.getOrThrow()
+                    match (ffiFunc.symbolFromDynamicLibrary) {
+                        case None =>
+                            return JsValue(BaoString("Symbol is missing a ptr field. " +
+                                "When using linkSymbols() or CFunction(), you must provide a ptr " +
+                                "field with the memory address of the native function."))
                         case Some(_) => ()
                     }
 
                     // 编译 FFI wrapper
-                    match (func.compile(None)) {
-                        case Some(err) => {
-                            return JsValue("${err} when compiling symbol \"${symName}\"")
-                        }
-                        case None => {
-                            match (func.step) {
-                                case FfiStep.Failed(msg, _) => return JsValue(msg)
-                                case FfiStep.Pending => return JsValue("Failed to compile (nothing happened)")
+                    match (ffiFunc.compile(Option<Int64>.None)) {
+                        case Some(err) =>
+                            return JsValue(BaoString("Error when compiling symbol"))
+                        case None =>
+                            match (ffiFunc.step) {
+                                case FfiStep.Failed(msg, _) => return JsValue(BaoString(msg))
+                                case FfiStep.Pending => return JsValue(BaoString("Failed to compile (nothing happened)"))
                                 case FfiStep.Compiled(_) => ()
                             }
-                        }
                     }
                 }
 
                 var ffi = FfiModule()
                 ffi.functions = symbols
                 return JsValue.UNDEFINED
-            }
-            case None => return JsValue("Invalid symbols object")
+            case None => return JsValue(BaoString("Invalid symbols object"))
         }
     }
 
@@ -915,30 +1003,36 @@ public class FfiModule {
     public static func print(globalObject: JsObject, object: JsValue, isCallback: ?JsValue): JsValue {
         // 检查是否为回调模式
         match (isCallback) {
-            case Some(v) => {
+            case Some(v) =>
                 if (v.toBoolean()) {
                     return printCallback(globalObject, object)
                 }
-            }
             case None => ()
         }
 
         if (object.valueType != JsValueType.Object) {
-            return JsValue("Expected an options object with symbol names")
+            return JsValue(BaoString("Expected an options object with symbol names"))
         }
 
         let symbolsResult = generateSymbols(globalObject, object)
         match (symbolsResult) {
-            case Some(symbols) => {
+            case Some(symbols) =>
                 var sources = ArrayList<String>()
-                for ((name, func) in symbols) {
-                    func.baseName = Some(name)
-                    let source = func.printSourceCode()
+                let symKeys3 = symbols.keys()
+                for (name in symKeys3) {
+                    let ffiFuncOpt = symbols.get(name)
+                    if (ffiFuncOpt.isNone()) { continue }
+                    let ffiFunc = ffiFuncOpt.getOrThrow()
+                    ffiFunc.baseName = Some(name)
+                    let source = ffiFunc.printSourceCode()
                     sources.append(source)
                 }
-                return JsValue(sources)
-            }
-            case None => JsValue("Invalid symbols object")
+                let jsSources = ArrayList<JsValue>()
+                for (s in sources) {
+                    jsSources.append(JsValue(BaoString(s)))
+                }
+                return JsValue.array(jsSources)
+            case None => JsValue(BaoString("Invalid symbols object"))
         }
     }
 
@@ -946,18 +1040,18 @@ public class FfiModule {
     /// 对应 Rust: FFI::print_callback (ffi_body.rs:1372)
     private static func printCallback(globalObject: JsObject, object: JsValue): JsValue {
         if (object.valueType != JsValueType.Object) {
-            return JsValue("Expected an object")
+            return JsValue(BaoString("Expected an object"))
         }
 
-        var func = FfiFunction()
-        match (generateSymbolForFunction(globalObject, object, func)) {
+        var ffiFunc = FfiFunction()
+        match (generateSymbolForFunction(globalObject, object, ffiFunc)) {
             case Some(err) => return err
             case None => ()
         }
 
-        func.baseName = Some("my_callback_function")
-        let source = func.printCallbackSourceCode(0, 0)
-        return JsValue(source)
+        ffiFunc.baseName = Some("my_callback_function")
+        let source = ffiFunc.printCallbackSourceCode(0, 0)
+        return JsValue(BaoString(source))
     }
 
     // ========================================================================
@@ -973,175 +1067,21 @@ public class FfiModule {
 }
 
 // ============================================================================
-// 符号生成辅助函数
-// 对应 Bun: host_fns.rs
-// ============================================================================
-
-/// 从 JS 值生成单个 FFI 函数描述
-/// 对应 Rust: generate_symbol_for_function (ffi_body.rs:1737 / host_fns.rs:65)
-public func generateSymbolForFunction(globalObject: JsObject, value: JsValue, function: FfiFunction): ?JsValue {
-    var abiTypes = ArrayList<AbiType>()
-
-    // 解析 args
-    let argsValue = value.getOwn("args")
-    if (argsValue.valueType == JsValueType.Array) {
-        // 遍历参数类型
-        // 简化: 从 JS 数组解析 ABI 类型
-        let args = argsValue.toArray()
-        match (args) {
-            case Some(arr) => {
-                for (arg in arr) {
-                    let resolvedType = resolveAbiType(arg)
-                    match (resolvedType) {
-                        case Some(t) => abiTypes.append(t)
-                        case None => return Some(JsValue("param must be a string (type name) or number"))
-                    }
-                }
-            }
-            case None => ()
-        }
-    }
-
-    var returnType = AbiType.Void
-    var threadsafe = false
-
-    // 解析 threadsafe
-    let threadsafeValue = value.getTruthy("threadsafe")
-    match (threadsafeValue) {
-        case Some(tv) => threadsafe = tv.toBoolean()
-        case None => ()
-    }
-
-    // 解析 returns
-    let returnsValue = value.getTruthy("returns")
-    match (returnsValue) {
-        case Some(rv) => {
-            let resolvedType = resolveAbiType(rv)
-            match (resolvedType) {
-                case Some(t) => returnType = t
-                case None => return Some(JsValue("Unknown return type"))
-            }
-        }
-        case None => ()
-    }
-
-    // 验证返回类型
-    if (returnType == AbiType.NapiEnv) {
-        return Some(JsValue("Cannot return napi_env to JavaScript"))
-    }
-    if (returnType == AbiType.Buffer) {
-        return Some(JsValue("Cannot return a buffer to JavaScript (since byteLength and byteOffset are unknown)"))
-    }
-    if (threadsafe && returnType != AbiType.Void) {
-        return Some(JsValue("Threadsafe functions must return void"))
-    }
-
-    // 设置函数字段
-    function.argTypes = abiTypes
-    function.returnType = returnType
-    function.threadsafe = threadsafe
-
-    // 解析 ptr
-    let ptrValue = value.get("ptr")
-    if (ptrValue.valueType == JsValueType.Number) {
-        let num = ptrValue.toNumber().toInt64()
-        if (num > 0) {
-            function.symbolFromDynamicLibrary = Some(num)
-        }
-    }
-
-    return None
-}
-
-/// 从 JS 对象生成符号映射
-/// 对应 Rust: generate_symbols (ffi_body.rs:1878 / host_fns.rs:202)
-public func generateSymbols(globalObject: JsObject, value: JsValue): ?HashMap<String, FfiFunction> {
-    if (value.valueType != JsValueType.Object) {
-        return None
-    }
-
-    var symbols = HashMap<String, FfiFunction>()
-
-    // 遍历对象的自身属性
-    let obj = value.toObject()
-    match (obj) {
-        case Some(jsObj) => {
-            let keys = jsObj.keys()
-            for (key in keys) {
-                let propValue = jsObj.get(key)
-                if (propValue.valueType != JsValueType.Object) {
-                    return None
-                }
-
-                var func = FfiFunction()
-                let err = generateSymbolForFunction(globalObject, propValue, func)
-                match (err) {
-                    case Some(errVal) => return None
-                    case None => ()
-                }
-
-                func.baseName = Some(key)
-                symbols.put(key, func)
-            }
-        }
-        case None => return None
-    }
-
-    return symbols
-}
-
-/// 解析单个 ABI 类型 (从 JS 值)
-/// 对应 Rust: host_fns.rs 中的内联解析逻辑
-public func resolveAbiType(value: JsValue): ?AbiType {
-    if (value.valueType == JsValueType.Number) {
-        let int = Int32(value.toNumber())
-        let t = AbiType.fromInt(int)
-        match (t) {
-            case Some(abi) => {
-                if (int <= AbiType.MAX) { return abi }
-                else { return None }
-            }
-            case None => return None
-        }
-    }
-    if (value.valueType == JsValueType.String) {
-        return AbiType.fromLabel(value.toString())
-    }
-    return None
-}
-
-/// 创建 NAPI 环境 (如果函数需要)
-/// 对应 Rust: make_napi_env_if_needed (ffi_body.rs:2841 / host_fns.rs:545)
-public func makeNapiEnvIfNeeded(functions: HashMap<String, FfiFunction>, globalObject: JsObject): ?Int64 {
-    for ((_, func) in functions) {
-        if (func.needsNapiEnv()) {
-            // 分配 NapiEnv
-            // 实际实现: 调用 JSGlobalObject::makeNapiEnvForFFI
-            return Some(1) // 占位
-        }
-    }
-    return None
-}
-
-// ============================================================================
 // Int64 辅助扩展
 // ============================================================================
 
-/// Int64 扩展 — 十六进制格式化
-public extension Int64 {
-    func formatHex(): String {
-        // 将 Int64 转为十六进制字符串
-        var result = ""
-        var value = this
-        if (value == 0) {
-            return "0"
-        }
-        let hexChars = "0123456789ABCDEF"
-        while (value > 0) {
-            let digit = value % 16
-            result = hexChars[digit] + result
-            value = value / 16
-        }
-        return result
+/// Int64 十六进制格式化
+public func int64FormatHex(input: Int64): String {
+    var result = ""
+    var value = input
+    if (value == 0) {
+        return "0"
     }
+    let hexChars = "0123456789ABCDEF"
+    while (value > 0) {
+        let digit = value % 16
+        result = hexChars[digit..digit + 1] + result
+        value = value / 16
+    }
+    return result
 }

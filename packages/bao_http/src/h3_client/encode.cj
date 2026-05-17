@@ -70,7 +70,7 @@ public class H3FrameEncode {
         // 1. 伪头部
         var authority = host
         for (h in headers) {
-            if (h.name.toLower() == "host") {
+            if (lowerString(h.name) == "host") {
                 authority = h.value
             }
         }
@@ -80,18 +80,17 @@ public class H3FrameEncode {
         qpackHeaders.append(H3QpackHeader(":path", if (path.size > 0) { path } else { "/" }))
 
         // 2. 用户头部 (跳过逐跳头部)
-        let skipNames = Array<String>(["connection", "keep-alive", "proxy-connection",
-                                        "transfer-encoding", "upgrade", "host"])
         for (h in headers) {
-            let lower = h.name.toLower()
+            let lower = lowerString(h.name)
             var skip = false
-            for (s in skipNames) {
-                if (lower == s) { skip = true }
+            if (lower == "connection" || lower == "keep-alive" || lower == "proxy-connection" ||
+                lower == "transfer-encoding" || lower == "upgrade" || lower == "host") {
+                skip = true
             }
             if (skip) { continue }
 
             // te: 仅转发 "trailers"
-            if (lower == "te" && h.value.toLower().trim() != "trailers") { continue }
+            if (lower == "te" && trimString(lowerString(h.value)) != "trailers") { continue }
 
             qpackHeaders.append(H3QpackHeader(lower, h.value))
         }
@@ -183,7 +182,7 @@ public class H3FrameEncode {
                 for (i in w..stream.pendingBody.size) {
                     remaining.append(stream.pendingBody[i])
                 }
-                stream.pendingBody = remaining.toArray()
+                stream.pendingBody = remaining.toOwnedSlice()
             }
             if (stream.pendingBody.size == 0) {
                 stream.requestBodyDone = true
@@ -192,6 +191,35 @@ public class H3FrameEncode {
                 qs.wantWrite(true)
             }
         }
+    }
+    private static func lowerString(s: String): String {
+        let sb = StringBuilder()
+        for (c in s) {
+            if (c >= 65 && c <= 90) {
+                sb.append(Rune(c + 32).toString())
+            } else {
+                sb.append(c.toString())
+            }
+        }
+        return sb.toString()
+    }
+
+    private static func trimString(s: String): String {
+        var start: Int64 = 0
+        var end: Int64 = s.size
+        while (start < end && (s[start] == 32 || s[start] == 9)) {
+            start += 1
+        }
+        while (end > start && (s[end - 1] == 32 || s[end - 1] == 9)) {
+            end -= 1
+        }
+        let sb = StringBuilder()
+        var i = start
+        while (i < end) {
+            sb.append(s[i].toString())
+            i += 1
+        }
+        return sb.toString()
     }
 }
 

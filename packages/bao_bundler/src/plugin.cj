@@ -76,7 +76,7 @@ public class PluginFilter {
     }
 
     /// 通配符匹配
-    private static func matchGlobPattern(path: String, pattern: String): Array<String> {
+    private static func matchGlobPattern(path: String, pattern: String): Bool {
         // 将 pattern 按 * 分割，检查各段依次出现在 path 中
         let parts = pattern.split("*")
         var pos: Int64 = 0
@@ -222,7 +222,7 @@ public class PluginLoadResult {
 }
 
 /// 插件返回结果
-public union PluginResult {
+public enum PluginResult {
     | Resolve(PluginResolveResult)    // onResolve 结果
     | Load(PluginLoadResult)          // onLoad 结果
     | None                            // 未处理 (继续下一个插件)
@@ -519,7 +519,7 @@ public class BuiltinPlugins {
     public static func jsonPlugin(): Plugin {
         let plugin = Plugin("bao:json")
 
-        plugin.onLoad("\\.json$", "file", func(ctx: PluginContext): PluginResult {
+        plugin.onLoad("\\.json$", "file", { ctx: PluginContext =>
             let contents = ctx.source
             // 验证 JSON 有效性
             if (!isValidJson(contents)) {
@@ -538,7 +538,7 @@ public class BuiltinPlugins {
     public static func cssPlugin(): Plugin {
         let plugin = Plugin("bao:css")
 
-        plugin.onLoad("\\.css$", "file", func(ctx: PluginContext): PluginResult {
+        plugin.onLoad("\\.css$", "file", { ctx: PluginContext =>
             // CSS 文件直接传递，不做转换
             return PluginResult.Load(PluginLoadResult(ctx.source, "css"))
         })
@@ -552,7 +552,7 @@ public class BuiltinPlugins {
     public static func wasmPlugin(): Plugin {
         let plugin = Plugin("bao:wasm")
 
-        plugin.onLoad("\\.wasm$", "file", func(ctx: PluginContext): PluginResult {
+        plugin.onLoad("\\.wasm$", "file", { ctx: PluginContext =>
             // 将 wasm 文件路径包装为异步加载模块
             let moduleCode = StringBuilder()
             moduleCode.append("// WASM module wrapper\n")
@@ -577,7 +577,7 @@ public class BuiltinPlugins {
     public static func textPlugin(): Plugin {
         let plugin = Plugin("bao:text")
 
-        plugin.onLoad("\\.txt$", "file", func(ctx: PluginContext): PluginResult {
+        plugin.onLoad("\\.txt$", "file", { ctx: PluginContext =>
             // 转义字符串
             let escaped = escapeString(ctx.source)
             let moduleCode = "export default \"${escaped}\";\n"
@@ -591,7 +591,7 @@ public class BuiltinPlugins {
     public static func dataUrlPlugin(): Plugin {
         let plugin = Plugin("bao:dataurl")
 
-        plugin.onResolve("^data:", "file", func(ctx: PluginContext): PluginResult {
+        plugin.onResolve("^data:", "file", { ctx: PluginContext =>
             return PluginResult.Resolve(PluginResolveResult(ctx.path))
         })
 
@@ -602,7 +602,7 @@ public class BuiltinPlugins {
     public static func httpPlugin(): Plugin {
         let plugin = Plugin("bao:http")
 
-        plugin.onResolve("^https?://", "file", func(ctx: PluginContext): PluginResult {
+        plugin.onResolve("^https?://", "file", { ctx: PluginContext =>
             let result = PluginResolveResult(ctx.path)
             result.external = true
             result.namespace = "http"

@@ -34,6 +34,20 @@ public enum ComparatorOp {
     | Gt      // 5 - >
     | Gte     // 6 - >=
 
+    public func isUnset(): Bool {
+        match (this) {
+            case Unset => true
+            case _ => false
+        }
+    }
+
+    public func isGte(): Bool {
+        match (this) {
+            case Gte => true
+            case _ => false
+        }
+    }
+
     public func toString(): String {
         match (this) {
             case Unset => ""
@@ -101,7 +115,7 @@ public struct ComparatorVersion {
 
     /// 相等比较 - 对应 Bun Comparator.eql
     public func eql(other: ComparatorVersion): Bool {
-        op == other.op && version == other.version
+        op.toString() == other.op.toString() && version == other.version
     }
 
     /// 检查版本是否满足比较器 - 对应 Bun Comparator.satisfies
@@ -126,7 +140,7 @@ public struct ComparatorVersion {
 
     /// 格式化输出
     public func toString(): String {
-        if (op == ComparatorOp.Unset) {
+        if (op.isUnset()) {
             return ""
         }
         "${op.toString()}${version.toString()}"
@@ -171,12 +185,12 @@ public struct ComparatorRange {
 
     /// 是否有左比较器
     public func hasLeft(): Bool {
-        left.op != ComparatorOp.Unset
+        !left.op.isUnset()
     }
 
     /// 是否有右比较器
     public func hasRight(): Bool {
-        right.op != ComparatorOp.Unset
+        !right.op.isUnset()
     }
 
     /// 范围相等
@@ -186,7 +200,7 @@ public struct ComparatorRange {
 
     /// 是否是通配范围
     public func anyRangeSatisfies(): Bool {
-        left.op == ComparatorOp.Gte && left.version.isZero()
+        left.op.isGte() && left.version.isZero()
     }
 
     /// 检查版本是否满足范围 - 对应 Bun Range.satisfies
@@ -512,16 +526,16 @@ public struct ComparatorRange {
 /// 对应 npm semver.satisfies('1.2.3', '^1.0.0') => true
 public func satisfiesVersion(versionStr: String, rangeStr: String): Bool {
     let ver = SemVerVersion.parse(versionStr)
-    if (ver == None) {
-        return false
+    let v = match (ver) {
+        case Some(value) => value
+        case None => return false
     }
-    let v = ver.getOrThrow()
 
     let group = RangeParser.parse(rangeStr)
-    if (group == None) {
-        return false
+    let g = match (group) {
+        case Some(value) => value
+        case None => return false
     }
-    let g = group.getOrThrow()
 
     // 使用 QueryGroup 的 satisfies
     let semverObj = v.toSemVer()

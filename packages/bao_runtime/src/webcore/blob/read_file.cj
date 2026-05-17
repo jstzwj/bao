@@ -6,6 +6,7 @@ package bao_runtime.webcore.blob
 import bao_core.*
 import bao_collections.*
 import bao_io.*
+import bao_sys.*
 
 public type BlobSizeType = Int64
 
@@ -99,7 +100,7 @@ public class ReadFile {
                 }
                 return ReadFileResultType.Success(ReadFileSuccess(result.toOwnedSlice()))
             case SysMaybe<Array<UInt8>>.Err(err) =>
-                return ReadFileResultType.Error(ReadFileError(err.message))
+                return ReadFileResultType.Error(ReadFileError(err.toString()))
         }
     }
 }

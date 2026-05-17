@@ -3,10 +3,11 @@
 // 严格翻译自 Web WebSocket API
 package bao_runtime.web_api
 
-import bao_core.*
+import bao_core.BaoString
+import bao_core.IntParser
 import bao_collections.*
+import bao_runtime.*
 import bao_sys.*
-import bao_io.*
 
 // ============================================================================
 // WebSocketReadyState — WebSocket 就绪状态
@@ -20,6 +21,14 @@ public enum WebSocketReadyState {
     | Open         // 1 — 已连接
     | Closing      // 2 — 关闭中
     | Closed       // 3 — 已关闭
+
+    public operator func ==(right: WebSocketReadyState): Bool {
+        return this.value() == right.value()
+    }
+
+    public operator func !=(right: WebSocketReadyState): Bool {
+        return !(this == right)
+    }
 
     public func value(): Int64 {
         match (this) {
@@ -49,7 +58,7 @@ public enum WebSocketReadyState {
 /// WebSocket — WebSocket 客户端
 /// 对应 Web API: WebSocket
 /// 对应 Bun: src/runtime/api/bun/WebSocket.zig
-public class WebSocket extends EventTarget {
+public class WebSocket <: EventTarget {
     /// WebSocket URL
     public var url: String
     /// 协议列表
@@ -135,7 +144,7 @@ public class WebSocket extends EventTarget {
     /// 对应 Web API: websocket.send(data)
     public func send(data: String): Unit {
         if (readyState != WebSocketReadyState.Open) {
-            throw JsError(JsValue(BaoString("WebSocket is not open: readyState ${readyState.value()}")))
+            throw JsException("WebSocket is not open: readyState ${readyState.value()}")
         }
         let bytes = Utf8Codec.encode(data)
         sendBytes(bytes)
@@ -145,7 +154,7 @@ public class WebSocket extends EventTarget {
     /// 对应 Web API: websocket.send(data) where data is ArrayBuffer
     public func send(data: Array<UInt8>): Unit {
         if (readyState != WebSocketReadyState.Open) {
-            throw JsError(JsValue(BaoString("WebSocket is not open: readyState ${readyState.value()}")))
+            throw JsException("WebSocket is not open: readyState ${readyState.value()}")
         }
         sendBytes(data)
     }
@@ -154,7 +163,7 @@ public class WebSocket extends EventTarget {
     /// 对应 Web API: websocket.send(data) where data is Blob
     public func send(data: Blob): Unit {
         if (readyState != WebSocketReadyState.Open) {
-            throw JsError(JsValue(BaoString("WebSocket is not open: readyState ${readyState.value()}")))
+            throw JsException("WebSocket is not open: readyState ${readyState.value()}")
         }
         sendBytes(data.arrayBuffer())
     }
@@ -162,15 +171,13 @@ public class WebSocket extends EventTarget {
     /// 内部发送字节 (WebSocket 帧封装)
     private func sendBytes(data: Array<UInt8>): Unit {
         match (socket) {
-            case Some(sock) => {
+            case Some(sock) =>
                 // 封装 WebSocket 帧
                 let frame = encodeWebSocketFrame(data, true, 0x01) // 0x01 = text frame
                 sock.send(frame)
                 bufferedAmount += data.size
-            }
-            case None => {
-                throw JsError(JsValue(BaoString("WebSocket connection not established")))
-            }
+            case None =>
+                throw JsException("WebSocket connection not established")
         }
     }
 
@@ -196,7 +203,7 @@ public class WebSocket extends EventTarget {
         readyState = WebSocketReadyState.Closing
 
         match (socket) {
-            case Some(sock) => {
+            case Some(sock) =>
                 // 发送关闭帧
                 let reasonBytes = Utf8Codec.encode(reason)
                 let closePayload = ArrayList<UInt8>()
@@ -206,10 +213,9 @@ public class WebSocket extends EventTarget {
                 for (b in reasonBytes) {
                     closePayload.append(b)
                 }
-                let frame = encodeWebSocketFrame(closePayload.toArray(), true, 0x08) // 0x08 = close frame
+                let frame = encodeWebSocketFrame(closePayload.toOwnedSlice(), true, 0x08) // 0x08 = close frame
                 sock.send(frame)
                 sock.close()
-            }
             case None => ()
         }
 
@@ -231,8 +237,8 @@ public class WebSocket extends EventTarget {
         let host = parsedUrl.hostname
         let defaultPort = if (isTLS) { UInt16(443) } else { UInt16(80) }
         let portStr = parsedUrl.port
-        let port = if (portStr.length > 0) {
-            UInt16(Int64.parse(portStr))
+        let port = if (portStr.size > 0) {
+            UInt16(IntParser.parseInt(portStr, 10))
         } else {
             defaultPort
         }
@@ -242,7 +248,7 @@ public class WebSocket extends EventTarget {
         let socketResult = TcpSocket.create(AddressFamily.Inet)
         let sock = match (socketResult) {
             case Ok(s) => s
-            case Err(_) => {
+            case Err(_) =>
                 readyState = WebSocketReadyState.Closed
                 let errorEvent = Event("error")
                 match (onerror) {
@@ -250,12 +256,11 @@ public class WebSocket extends EventTarget {
                     case None => ()
                 }
                 return
-            }
         }
 
         let connectResult = sock.connect(SocketAddr.V4(addr))
         match (connectResult) {
-            case Err(_) => {
+            case Err(_) =>
                 sock.close()
                 readyState = WebSocketReadyState.Closed
                 let errorEvent = Event("error")
@@ -264,7 +269,6 @@ public class WebSocket extends EventTarget {
                     case None => ()
                 }
                 return
-            }
             case Ok(_) => ()
         }
 
@@ -272,7 +276,7 @@ public class WebSocket extends EventTarget {
 
         // 发送 HTTP 升级请求
         let key = generateWebSocketKey()
-        let path = if (parsedUrl.pathname.length > 0) { parsedUrl.pathname } else { "/" }
+        let path = if (parsedUrl.pathname.size > 0) { parsedUrl.pathname } else { "/" }
         let fullPath = path + parsedUrl.search
         let hostHeader = if (port == defaultPort) { host } else { "${host}:${portStr}" }
 
@@ -300,13 +304,13 @@ public class WebSocket extends EventTarget {
         sock.send(reqBytes)
 
         // 接收服务器握手响应
-        let recvBuf = Array<UInt8>(4096, item: UInt8(0))
+        let recvBuf = Array<UInt8>(4096, { _ => UInt8(0) })
         let totalData = ArrayList<UInt8>()
         var handshakeDone = false
         while (!handshakeDone) {
             let recvResult = sock.recv(recvBuf)
             match (recvResult) {
-                case Ok(bytesRead) => {
+                case Ok(bytesRead) =>
                     if (bytesRead == 0) {
                         handshakeDone = true
                     } else {
@@ -314,18 +318,17 @@ public class WebSocket extends EventTarget {
                             totalData.append(recvBuf[Int64(i)])
                         }
                         // 检查是否收到完整的 HTTP 响应
-                        let response = Utf8Codec.decode(totalData.toArray())
+                        let response = Utf8Codec.decode(totalData.toOwnedSlice())
                         if (response.contains("\r\n\r\n")) {
                             handshakeDone = true
                         }
                     }
-                }
                 case Err(_) => handshakeDone = true
             }
         }
 
         // 解析握手响应
-        let responseText = Utf8Codec.decode(totalData.toArray())
+        let responseText = Utf8Codec.decode(totalData.toOwnedSlice())
         if (responseText.contains("101") && responseText.contains("Switching Protocols")) {
             readyState = WebSocketReadyState.Open
 
@@ -351,9 +354,9 @@ public class WebSocket extends EventTarget {
     /// 生成 WebSocket Key
     private static func generateWebSocketKey(): String {
         // 16 字节随机数，Base64 编码
-        let bytes = Array<UInt8>(16, item: UInt8(0))
+        let bytes = Array<UInt8>(16, { _ => UInt8(0) })
         for (i in 0..16) {
-            bytes[Int64(i)] = UInt8(bao_sys.SysModule.randomInt64(0, 255) & 0xFF)
+            bytes[Int64(i)] = UInt8(Int64(MathObject.random() * 255.0) & 0xFF)
         }
         return Base64Codec.encode(bytes)
     }
@@ -382,14 +385,14 @@ public class WebSocket extends EventTarget {
             frame.append(b)
         }
 
-        return frame.toArray()
+        return frame.toOwnedSlice()
     }
 
     /// 转为 JsValue
     public func toJsValueWebSocket(): JsValue {
         let base = super.toJsValue()
         match (base.objectData) {
-            case Some(obj) => {
+            case Some(obj) =>
                 let self = this
 
                 obj.set("url", JsValue(BaoString(self.url)))
@@ -409,26 +412,22 @@ public class WebSocket extends EventTarget {
                     if (args.size >= 1) {
                         let arg = args[0]
                         match (arg.valueType) {
-                            case JsValueType.String => {
+                            case JsValueType.String =>
                                 let text = Interpreter.jsToString(arg)
                                 self.send(text)
-                            }
-                            case JsValueType.Array => {
+                            case JsValueType.Array =>
                                 match (arg.arrayData) {
-                                    case Some(arr) => {
+                                    case Some(arr) =>
                                         let bytes = ArrayList<UInt8>()
                                         for (v in arr) {
                                             bytes.append(UInt8(Int64(Interpreter.jsToNumber(v))))
                                         }
-                                        self.send(bytes.toArray())
-                                    }
+                                        self.send(bytes.toOwnedSlice())
                                     case None => ()
                                 }
-                            }
-                            case _ => {
+                            case _ =>
                                 let text = Interpreter.jsToString(arg)
                                 self.send(text)
-                            }
                         }
                     }
                     return JsValue.UNDEFINED
@@ -443,22 +442,21 @@ public class WebSocket extends EventTarget {
 
                 obj.set("addEventListener", JsValue.nativeFunction(JsNativeFunction("addEventListener") { args =>
                     if (args.size >= 2) {
-                        let type = Interpreter.jsToString(args[0])
+                        let `type` = Interpreter.jsToString(args[0])
                         let fn = args[1]
                         let callback: EventListener = { event =>
-                            if (fn.nativeFnData != None) {
+                            if (fn.nativeFnData.isSome()) {
                                 match (fn.nativeFnData) {
-                                    case Some(nf) => {
+                                    case Some(nf) =>
                                         let eventArgs = ArrayList<JsValue>()
                                         eventArgs.append(event.toJsValue())
                                         nf.fn(eventArgs)
-                                    }
                                     case None => ()
                                 }
                             }
                         }
 
-                        match (type) {
+                        match (`type`) {
                             case "open" => self.onopen = Some(callback)
                             case "message" => self.onmessage = Some({ event =>
                                 callback(event)
@@ -466,8 +464,8 @@ public class WebSocket extends EventTarget {
                             case "error" => self.onerror = Some(callback)
                             case "close" => self.onclose = Some({ event =>
                                 callback(event)
-                            }
-                            case _ => self.addEventListener(type, callback)
+                            })
+                            case _ => self.addEventListener(`type`, callback)
                         }
                     }
                     return JsValue.UNDEFINED
@@ -478,7 +476,6 @@ public class WebSocket extends EventTarget {
                 obj.set("onmessage", JsValue.NULL)
                 obj.set("onerror", JsValue.NULL)
                 obj.set("onclose", JsValue.NULL)
-            }
             case None => ()
         }
         return base
@@ -496,26 +493,23 @@ public class WebSocketModule {
         // WebSocket 构造函数
         env.define("WebSocket", Interpreter.makeNativeFn("WebSocket") { args =>
             if (args.size < 1) {
-                throw JsError(JsValue(BaoString("WebSocket requires a URL")))
+                throw JsException("WebSocket requires a URL")
             }
             let url = Interpreter.jsToString(args[0])
 
             let ws = if (args.size >= 2) {
                 let protocols = ArrayList<String>()
                 match (args[1].valueType) {
-                    case JsValueType.String => {
+                    case JsValueType.String =>
                         protocols.append(Interpreter.jsToString(args[1]))
-                    }
-                    case JsValueType.Array => {
+                    case JsValueType.Array =>
                         match (args[1].arrayData) {
-                            case Some(arr) => {
+                            case Some(arr) =>
                                 for (v in arr) {
                                     protocols.append(Interpreter.jsToString(v))
                                 }
-                            }
                             case None => ()
                         }
-                    }
                     case _ => ()
                 }
                 WebSocket(url, protocols)

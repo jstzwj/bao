@@ -335,12 +335,11 @@ public class GExport {
             case Default => "export default ${name}"
             case Star => "export * as ${name} from \"${source}\""
             case StarAll => "export * from \"${source}\""
-            case Named => {
+            case Named =>
                 if (alias.size > 0 && alias != name) {
                     return "export { ${name} as ${alias} }"
                 }
                 return "export { ${name} }"
-            }
         }
     }
 }
@@ -403,7 +402,7 @@ public class GRecord {
         }
 
         // 更新 exportsKind
-        if (exportsKind == ExportsKind.None) {
+        if (match (exportsKind) { case ExportsKind.None => true case _ => false }) {
             exportsKind = ExportsKind.Esm
         }
 
@@ -666,7 +665,7 @@ public class GResolver {
     ///       返回 "/project/lib/module.cj" (已是绝对路径)
     public func diffToAbsolute(from: String): String {
         // 如果当前路径已经是绝对路径，直接返回
-        if (path.size > 0 && path[0] == '/') {
+        if (path.size > 0 && path[0] == UInt8(47)) {
             return path
         }
 
@@ -680,7 +679,7 @@ public class GResolver {
         // 去掉末尾的文件名，保留目录部分
         var lastSlash = -1
         for (i in 0..base.size) {
-            if (base[Int64(i)] == '/') {
+            if (base[Int64(i)] == UInt8(47)) {
                 lastSlash = Int64(i)
             }
         }
@@ -689,7 +688,7 @@ public class GResolver {
         }
 
         // 拼接路径
-        if (base.size > 0 && base[Int64(base.size) - 1] == '/') {
+        if (base.size > 0 && base[Int64(base.size) - 1] == UInt8(47)) {
             return base + path
         }
         return base + "/" + path

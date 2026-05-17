@@ -25,53 +25,52 @@ public class CssRatio {
     /// 解析比率
     /// 严格翻译自 Ratio::parse
     /// 解析第一个数值, 然后可选的 '/' 和第二个数值
-    public static func parse(input: CssParser): Result<CssRatio> {
+    public static func parse(input: CssParser): Result<CssRatio, CssParseError> {
         let firstResult = CSSNumberFns.parse(input)
         let first = match (firstResult) {
             case Ok(n) => n
-            case Err(e) => return Result<CssRatio>.err(e)
+            case Err(e) => return Result<CssRatio, CssParseError>.Err(e)
         }
 
         // 尝试解析 '/' 和第二个数值
-        let slashResult = input.tryParse({ i: CssParser ->
-            i.expectDelim('/')
+        let slashResult = input.tryParse({ i: CssParser =>
+            i.expectDelim(r'/')
         })
         let second = match (slashResult) {
-            case Some(_) => {
+            case Some(_) =>
                 let secondResult = CSSNumberFns.parse(input)
                 match (secondResult) {
                     case Ok(n) => n
-                    case Err(e) => return Result<CssRatio>.err(e)
+                    case Err(e) => return Result<CssRatio, CssParseError>.Err(e)
                 }
-            }
             case None => 1.0
         }
 
-        Result<CssRatio>.ok(CssRatio(first, second))
+        Result<CssRatio, CssParseError>.Ok(CssRatio(first, second))
     }
 
     /// 解析必需的比率 (两个操作数都需要)
     /// 严格翻译自 Ratio::parse_required
-    public static func parseRequired(input: CssParser): Result<CssRatio> {
+    public static func parseRequired(input: CssParser): Result<CssRatio, CssParseError> {
         let firstResult = CSSNumberFns.parse(input)
         let first = match (firstResult) {
             case Ok(n) => n
-            case Err(e) => return Result<CssRatio>.err(e)
+            case Err(e) => return Result<CssRatio, CssParseError>.Err(e)
         }
 
         let slashResult = input.expectDelim()
         match (slashResult) {
-            case Some(_) => {}
-            case None => return Result<CssRatio>.err(CssParseError.invalidValue)
+            case Some(_) => ()
+            case None => return Result<CssRatio, CssParseError>.Err(CssParseError.invalidValue)
         }
 
         let secondResult = CSSNumberFns.parse(input)
         let second = match (secondResult) {
             case Ok(n) => n
-            case Err(e) => return Result<CssRatio>.err(e)
+            case Err(e) => return Result<CssRatio, CssParseError>.Err(e)
         }
 
-        Result<CssRatio>.ok(CssRatio(first, second))
+        Result<CssRatio, CssParseError>.Ok(CssRatio(first, second))
     }
 
     /// 加浮点数

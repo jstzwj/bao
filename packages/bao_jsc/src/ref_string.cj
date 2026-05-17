@@ -65,6 +65,10 @@ public class RefString {
 // 支撑类型
 public class XxHash32 {
     public static func hash(_ seed: UInt32, _ data: Array<Byte>) -> UInt32 {
-        0  // placeholder
+        var hash = seed + UInt32(0x811C9DC5)
+        for (byte in data) {
+            hash = (hash ^ UInt32(byte)) * UInt32(0x01000193)
+        }
+        hash
     }
 }

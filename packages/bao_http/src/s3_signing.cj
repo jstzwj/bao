@@ -16,6 +16,9 @@ package bao_http
 
 import bao_core.*
 import bao_hash.*
+import bao_collections.*
+import bao_sys.*
+import std.time.*
 
 // ============================================================================
 // AWS 凭证
@@ -279,9 +282,9 @@ public class S3Signer {
     /// 签名 S3 请求 (生成 Authorization header)
     /// 严格翻译自 Bun: S3Credentials.signRequest(options, false, null)
     public static func signRequest(credentials: AwsCredentials,
-                                    options: S3SignOptions): Result<SignResult> {
+                                    options: S3SignOptions): Result<SignResult, BaoError> {
         if (!credentials.isValid()) {
-            return Result<SignResult>.Err(BaoError(ErrorCode.InvalidArgument, "Missing AWS credentials"))
+            return Result<SignResult, BaoError>.Err(BaoError(ErrorCode.InvalidArgument, "Missing AWS credentials"))
         }
 
         let region = if (credentials.region.size > 0) {
@@ -292,16 +295,17 @@ public class S3Signer {
 
         // 解析路径
         var path = options.path
-        if (path.startsWith("/")) { path = path.substring(1) }
-        if (path.startsWith("\\")) { path = path.substring(1) }
+        if (s3StartsWith(path, "/")) { path = path[1..] }
+        if (s3StartsWith(path, "\\")) { path = path[1..] }
 
         var bucket = credentials.bucket
         if (!credentials.virtualHostedStyle && bucket.size == 0) {
             // 从路径中提取 bucket
-            let slashIdx = path.indexOf("/")
-            if (slashIdx >= 0) {
-                bucket = path.substring(0, Int64(slashIdx))
-                path = path.substring(Int64(slashIdx + 1))
+            let slashIdxOpt = path.indexOf("/")
+            if (slashIdxOpt.isSome()) {
+                let slashIdx = slashIdxOpt.getOrThrow()
+                bucket = path[0..slashIdx]
+                path = path[(slashIdx + 1)..]
             }
         }
 
@@ -321,10 +325,11 @@ public class S3Signer {
         var host = credentials.endpoint
         var extraPath = ""
         if (host.size > 0) {
-            let slashPos = host.indexOf("/")
-            if (slashPos >= 0) {
-                extraPath = host.substring(Int64(slashPos))
-                host = host.substring(0, Int64(slashPos))
+            let slashPosOpt = host.indexOf("/")
+            if (slashPosOpt.isSome()) {
+                let slashPos = slashPosOpt.getOrThrow()
+                extraPath = host[slashPos..]
+                host = host[0..slashPos]
             }
         } else {
             if (credentials.virtualHostedStyle) {
@@ -343,7 +348,7 @@ public class S3Signer {
 
         // 获取 AMZ 日期
         let amzDate = getAmzDate()
-        let amzDay = amzDate.substring(0, 8)
+        let amzDay = amzDate[0..8]
 
         // 内容哈希
         let awsContentHash = match (options.contentHash) {
@@ -353,20 +358,20 @@ public class S3Signer {
 
         // 构建 signed headers 列表
         // 对应 Bun: SignedHeaders.get(key)
-        let hasContentDisposition = options.contentDisposition != None &&
+        let hasContentDisposition = options.contentDisposition.isSome() &&
                                      match (options.contentDisposition) {
                                          case Some(s) => s.size > 0
                                          case None => false
                                      }
-        let hasContentEncoding = options.contentEncoding != None &&
+        let hasContentEncoding = options.contentEncoding.isSome() &&
                                   match (options.contentEncoding) {
                                       case Some(s) => s.size > 0
                                       case None => false
                                   }
-        let hasContentMd5 = options.contentMd5 != None
-        let hasAcl = options.acl != None
+        let hasContentMd5 = options.contentMd5.isSome()
+        let hasAcl = options.acl.isSome()
         let hasSessionToken = credentials.sessionToken.size > 0
-        let hasStorageClass = options.storageClass != None
+        let hasStorageClass = options.storageClass.isSome()
 
         var signedHeaders = StringBuilder()
         if (hasContentDisposition) { signedHeaders.append("content-disposition;") }
@@ -383,7 +388,7 @@ public class S3Signer {
         // 构建 Canonical Request
         // 对应 Bun: CanonicalRequest.format()
         let queryString = match (options.searchParams) {
-            case Some(p) => if (p.startsWith("?")) { p.substring(1) } else { p }
+            case Some(p) => if (s3StartsWith(p, "?")) { p[1..] } else { p }
             case None => ""
         }
 
@@ -400,7 +405,7 @@ public class S3Signer {
         )
 
         // 计算 canonical request 的 SHA256 哈希
-        let canonicalHash = Sha256.hashHex(stringToBytes(canonicalRequest))
+        let canonicalHash = Sha256.hashHex(s3StringToBytes(canonicalRequest))
 
         // 构建 String-to-Sign
         // 对应 Bun: "AWS4-HMAC-SHA256\n{date}\n{day}/{region}/s3/aws4_request\n{hash}"
@@ -411,7 +416,7 @@ public class S3Signer {
         let signingKey = deriveSigningKey(credentials.secretAccessKey, amzDay, region)
 
         // 计算签名
-        let signature = HmacSha256.hmacHex(signingKey, stringToSign)
+        let signature = HmacSha256.hmacHex(signingKey, s3StringToBytes(stringToSign))
 
         // 构建 Authorization header
         // 对应 Bun: "AWS4-HMAC-SHA256 Credential={key}/{day}/{region}/s3/aws4_request, SignedHeaders={headers}, Signature={sig}"
@@ -477,16 +482,16 @@ public class S3Signer {
             result.headers.put("x-amz-request-payer", "requester")
         }
 
-        return Result<SignResult>.Ok(result)
+        return Result<SignResult, BaoError>.Ok(result)
     }
 
     /// 生成 Presigned URL
     /// 严格翻译自 Bun: signRequest(options, true, SignQueryOptions)
     public static func presignedUrl(credentials: AwsCredentials,
                                      options: S3SignOptions,
-                                     presignedOptions: PresignedUrlOptions): Result<String> {
+                                     presignedOptions: PresignedUrlOptions): Result<String, BaoError> {
         if (!credentials.isValid()) {
-            return Result<String>.Err(BaoError(ErrorCode.InvalidArgument, "Missing AWS credentials"))
+            return Result<String, BaoError>.Err(BaoError(ErrorCode.InvalidArgument, "Missing AWS credentials"))
         }
 
         let region = if (credentials.region.size > 0) {
@@ -496,7 +501,7 @@ public class S3Signer {
         }
 
         var path = options.path
-        if (path.startsWith("/")) { path = path.substring(1) }
+        if (s3StartsWith(path, "/")) { path = path[1..] }
         path = normalizePath(path)
 
         let encodedPath = encodeURIComponent(path, false)
@@ -509,7 +514,7 @@ public class S3Signer {
 
         let normalizedPath = "/${encodedPath}"
         let amzDate = getAmzDate()
-        let amzDay = amzDate.substring(0, 8)
+        let amzDay = amzDate[0..8]
         let awsContentHash = "UNSIGNED-PAYLOAD"
         let protocol = if (credentials.insecureHttp) { "http" } else { "https" }
 
@@ -531,19 +536,19 @@ public class S3Signer {
         queryParts.append("X-Amz-SignedHeaders=host")
 
         // 构建查询字符串
-        let queryString = queryParts.toArray().toString("&")
+        let queryString = s3Join(queryParts, "&")
 
         // Canonical request for presigned URL
         let canonicalRequest = "${options.method}\n${normalizedPath}\n${queryString}\nhost:${host}\n\nhost\n${awsContentHash}"
 
-        let canonicalHash = Sha256.hashHex(stringToBytes(canonicalRequest))
+        let canonicalHash = Sha256.hashHex(s3StringToBytes(canonicalRequest))
         let stringToSign = "AWS4-HMAC-SHA256\n${amzDate}\n${amzDay}/${region}/${SERVICE_NAME}/aws4_request\n${canonicalHash}"
-        let signature = HmacSha256.hmacHex(signingKey, stringToSign)
+        let signature = HmacSha256.hmacHex(signingKey, s3StringToBytes(stringToSign))
 
         // 构建最终 URL
         let url = "${protocol}://${host}${normalizedPath}?${queryString}&X-Amz-Signature=${signature}"
 
-        return Result<String>.Ok(url)
+        return Result<String, BaoError>.Ok(url)
     }
 
     // ========================================================================
@@ -625,9 +630,9 @@ public class S3Signer {
     private static func deriveSigningKey(secretKey: String, date: String,
                                           region: String): Array<UInt8> {
         let kDate = HmacSha256.hmac("AWS4${secretKey}", date)
-        let kRegion = HmacSha256.hmac(kDate, region)
-        let kService = HmacSha256.hmac(kRegion, SERVICE_NAME)
-        let kSigning = HmacSha256.hmac(kService, "aws4_request")
+        let kRegion = HmacSha256.hmac(kDate, s3StringToBytes(region))
+        let kService = HmacSha256.hmac(kRegion, s3StringToBytes(SERVICE_NAME))
+        let kSigning = HmacSha256.hmac(kService, s3StringToBytes("aws4_request"))
         return kSigning
     }
 
@@ -638,29 +643,29 @@ public class S3Signer {
         let sb = StringBuilder()
         for (i in 0..input.size) {
             let c = input[Int64(i)]
-            let v = Int64(c.value)
-            if ((v >= Int64('A') && v <= Int64('Z')) ||
-                (v >= Int64('a') && v <= Int64('z')) ||
-                (v >= Int64('0') && v <= Int64('9')) ||
-                v == Int64('-') || v == Int64('_') || v == Int64('.') || v == Int64('~')) {
-                sb.append(c)
-            } else if (!encodeSlash && (c == Char('/') || c == Char('\\'))) {
-                sb.append(if (c == Char('\\')) { "/" } else { c })
+            let v = Int64(c)
+            if ((c >= UInt8(65) && c <= UInt8(90)) ||
+                (c >= UInt8(97) && c <= UInt8(122)) ||
+                (c >= UInt8(48) && c <= UInt8(57)) ||
+                c == UInt8(45) || c == UInt8(95) || c == UInt8(46) || c == UInt8(126)) {
+                sb.append(Rune(UInt32(c)))
+            } else if (!encodeSlash && (c == UInt8(47) || c == UInt8(92))) {
+                sb.append(Rune(UInt32(UInt8(47))))
             } else {
                 let high = (v >> 4) & 0x0F
                 let low = v & 0x0F
-                sb.append("%")
-                sb.append(toHexChar(high))
-                sb.append(toHexChar(low))
+                sb.append(Rune(UInt32(UInt8(37))))
+                sb.append(toHexRune(high))
+                sb.append(toHexRune(low))
             }
         }
         return sb.toString()
     }
 
     /// 数字转 hex 字符
-    private static func toHexChar(v: Int64): Char {
-        if (v >= 0 && v <= 9) { return Char(Int64('0') + v) }
-        return Char(Int64('A') + v - 10)
+    private static func toHexRune(v: Int64): Rune {
+        if (v >= 0 && v <= 9) { return Rune(UInt32(UInt8(v + 48))) }
+        return Rune(UInt32(UInt8(v + 55)))
     }
 
     /// 获取 AMZ 日期
@@ -676,10 +681,7 @@ public class S3Signer {
 
     /// 格式化当前时间为 AMZ 格式
     private static func formatCurrentTime(): String {
-        // 对应 Bun: getAMZDate 使用 std.time.milliTimestamp
-        // 此处使用 C FFI time() + gmtime_r
-        // 简化实现
-        let now = System.currentTimeMillis()
+        let now = DateTime.now().toUnixTimeStamp().toMilliseconds()
         return formatTimestampAmz(now)
     }
 
@@ -696,7 +698,10 @@ public class S3Signer {
         let seconds = timeOfDay % 60
 
         // 从 1970-01-01 计算年月日
-        val (year, month, day) = daysToDate(days)
+        let date = daysToDate(days)
+        let year = date[0]
+        let month = date[1]
+        let day = date[2]
 
         return "${pad4(year)}${pad2(month)}${pad2(day)}T${pad2(hours)}${pad2(minutes)}${pad2(seconds)}Z"
     }
@@ -749,11 +754,11 @@ public class S3Signer {
     private static func normalizePath(name: String): String {
         if (name.size == 0) { return name }
         var result = name
-        while (result.startsWith("/") || result.startsWith("\\")) {
-            result = result.substring(1)
+        while (s3StartsWith(result, "/") || s3StartsWith(result, "\\")) {
+            result = result[1..]
         }
-        while (result.endsWith("/") || result.endsWith("\\")) {
-            result = result.substring(0, result.size - 1)
+        while (s3EndsWith(result, "/") || s3EndsWith(result, "\\")) {
+            result = result[0..(result.size - 1)]
         }
         return result
     }
@@ -762,11 +767,11 @@ public class S3Signer {
     /// 对应 Bun: guessRegion(endpoint)
     public static func guessRegion(endpoint: String): String {
         if (endpoint.size > 0) {
-            if (endpoint.endsWith(".r2.cloudflarestorage.com")) { return "auto" }
-            let s3Idx = endpoint.indexOf(".s3.")
-            let awsIdx = endpoint.indexOf(".amazonaws.com")
-            if (s3Idx >= 0 && awsIdx >= 0) {
-                return endpoint.substring(Int64(s3Idx + 4), Int64(awsIdx))
+            if (s3EndsWith(endpoint, ".r2.cloudflarestorage.com")) { return "auto" }
+            let s3IdxOpt = endpoint.indexOf(".s3.")
+            let awsIdxOpt = endpoint.indexOf(".amazonaws.com")
+            if (s3IdxOpt.isSome() && awsIdxOpt.isSome()) {
+                return endpoint[(s3IdxOpt.getOrThrow() + 4)..awsIdxOpt.getOrThrow()]
             }
             return "auto"
         }
@@ -776,26 +781,30 @@ public class S3Signer {
     /// 猜测 bucket 名
     /// 对应 Bun: guessBucket(endpoint)
     public static func guessBucket(endpoint: String): ?String {
-        let awsIdx = endpoint.indexOf(".amazonaws.com")
-        if (awsIdx >= 0) {
-            let s3Idx = endpoint.indexOf(".s3.")
-            if (s3Idx >= 0) {
-                let start = endpoint.indexOf("/")
-                if (start >= 0) {
-                    return endpoint.substring(Int64(start + 1), Int64(s3Idx))
+        let awsIdxOpt = endpoint.indexOf(".amazonaws.com")
+        if (awsIdxOpt.isSome()) {
+            let s3IdxOpt = endpoint.indexOf(".s3.")
+            if (s3IdxOpt.isSome()) {
+                let s3Idx = s3IdxOpt.getOrThrow()
+                let startOpt = endpoint.indexOf("/")
+                if (startOpt.isSome()) {
+                    return Some(endpoint[(startOpt.getOrThrow() + 1)..s3Idx])
                 }
-                return endpoint.substring(0, Int64(s3Idx))
+                return Some(endpoint[0..s3Idx])
             }
         }
-        let r2Idx = endpoint.indexOf(".r2.cloudflarestorage.com")
-        if (r2Idx >= 0) {
-            let dotIdx = endpoint.indexOf(".")
-            if (dotIdx >= 0 && r2Idx == dotIdx) { return None }
-            let start = endpoint.indexOf("/")
-            if (start >= 0) {
-                return endpoint.substring(Int64(start + 1), Int64(dotIdx))
+        let r2IdxOpt = endpoint.indexOf(".r2.cloudflarestorage.com")
+        if (r2IdxOpt.isSome()) {
+            let r2Idx = r2IdxOpt.getOrThrow()
+            let dotIdxOpt = endpoint.indexOf(".")
+            if (dotIdxOpt.isSome() && r2Idx == dotIdxOpt.getOrThrow()) { return None }
+            if (!dotIdxOpt.isSome()) { return None }
+            let dotIdx = dotIdxOpt.getOrThrow()
+            let startOpt = endpoint.indexOf("/")
+            if (startOpt.isSome()) {
+                return Some(endpoint[(startOpt.getOrThrow() + 1)..dotIdx])
             }
-            return endpoint.substring(0, Int64(dotIdx))
+            return Some(endpoint[0..dotIdx])
         }
         return None
     }
@@ -806,8 +815,27 @@ public class S3Signer {
 // ============================================================================
 
 /// 字符串转字节数组
-private func stringToBytes(s: String): Array<UInt8> {
-    var bytes = Array<UInt8>()
-    for (c in s) { bytes.append(UInt8(c.value)) }
-    return bytes
+private func s3StringToBytes(s: String): Array<UInt8> {
+    let bytes = ArrayList<UInt8>()
+    for (c in s) { bytes.append(c) }
+    return bytes.toOwnedSlice()
+}
+
+private func s3StartsWith(s: String, prefix: String): Bool {
+    if (s.size < prefix.size) { return false }
+    return s[0..prefix.size] == prefix
+}
+
+private func s3EndsWith(s: String, suffix: String): Bool {
+    if (s.size < suffix.size) { return false }
+    return s[(s.size - suffix.size)..] == suffix
+}
+
+private func s3Join(parts: ArrayList<String>, sep: String): String {
+    let sb = StringBuilder()
+    for (i in 0..parts.size) {
+        if (i > 0) { sb.append(sep) }
+        sb.append(parts[Int64(i)])
+    }
+    return sb.toString()
 }

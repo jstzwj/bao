@@ -35,6 +35,7 @@ package bao_event_loop
 
 import bao_core.*
 import bao_threading.*
+import bao_collections.*
 
 // ============================================================================
 // TaskPriority - 任务优先级
@@ -97,7 +98,7 @@ public class ConcurrentTask {
     /// 优先级
     public var priority: TaskPriority
     /// MPSC 链接 (对应 Bun next: Link<ConcurrentTask>)
-    /// 仓颉: 使用 ConcurrentLinkedQueue 内部管理
+    /// 仓颉: 使用 ConcurrentQueue 内部管理
     /// 此字段仅用于标识任务在队列中的状态
     public var enqueued: Bool
 
@@ -192,7 +193,7 @@ public interface Taskable {
 // 严格翻译自: Bun 的 UnboundedQueue + MiniEventLoop.concurrent_tasks
 //
 // Bun:
-//   pub const ConcurrentTaskQueue = UnboundedQueue(AnyTaskWithExtraContext, .next)
+//   pub const ConcurrentTaskQueue = UnboundedQueue(TaskQueueAnyTaskWithExtraContext, .next)
 //   UnboundedQueue 是侵入式 MPSC 链表:
 //     push: AtomicPtr store (release) - 单条 store 指令
 //     popBatch: 从 head 批量取出
@@ -211,7 +212,7 @@ public interface Taskable {
 //     }
 //     return this.tasks.count - start_count
 //
-//   仓颉: ConcurrentLinkedQueue 提供 MPSC 语义
+//   仓颉: ConcurrentQueue 提供 MPSC 语义
 //     submit: 从任意线程安全入队
 //     drain: 在事件循环线程中批量出队
 // ============================================================================
@@ -221,14 +222,14 @@ public interface Taskable {
 public class MpscTaskQueue {
     /// 无界 MPSC 队列
     /// Bun: UnboundedQueue<ConcurrentTask>
-    private var queue: ConcurrentLinkedQueue<ConcurrentTask>
+    private var queue: ConcurrentQueue<ConcurrentTask>
     /// 已提交任务总数 (统计用)
     private var totalSubmitted: AtomicInt64
     /// 已完成任务总数 (统计用)
     private var totalCompleted: AtomicInt64
 
     public init() {
-        queue = ConcurrentLinkedQueue<ConcurrentTask>()
+        queue = ConcurrentQueue<ConcurrentTask>()
         totalSubmitted = AtomicInt64(0)
         totalCompleted = AtomicInt64(0)
     }
@@ -255,7 +256,7 @@ public class MpscTaskQueue {
     /// 线程安全: 多个工作线程可以同时调用
     public func submit(task: ConcurrentTask): Unit {
         task.enqueued = true
-        queue.put(task)
+        queue.push(task)
         totalSubmitted.incrementAndGet()
     }
 
@@ -296,11 +297,12 @@ public class MpscTaskQueue {
     public func drain(): ArrayList<ConcurrentTask> {
         var tasks = ArrayList<ConcurrentTask>()
         while (true) {
-            let task = queue.remove()
-            if (task == None) { break }
-            let t = task.unwrap()
-            t.enqueued = false
-            tasks.append(t)
+            match (queue.pop()) {
+                case None => break
+                case Some(t) =>
+                    t.enqueued = false
+                    tasks.append(t)
+            }
         }
         return tasks
     }
@@ -311,13 +313,14 @@ public class MpscTaskQueue {
     public func drainAndExecute(): Int64 {
         var count: Int64 = 0
         while (true) {
-            let task = queue.remove()
-            if (task == None) { break }
-            let t = task.unwrap()
-            t.enqueued = false
-            t.run()
-            totalCompleted.incrementAndGet()
-            count += 1
+            match (queue.pop()) {
+                case None => break
+                case Some(t) =>
+                    t.enqueued = false
+                    t.run()
+                    totalCompleted.incrementAndGet()
+                    count += 1
+            }
         }
         return count
     }
@@ -328,12 +331,13 @@ public class MpscTaskQueue {
         var tasks = ArrayList<ConcurrentTask>()
         var count: Int64 = 0
         while (count < maxCount) {
-            let task = queue.remove()
-            if (task == None) { break }
-            let t = task.unwrap()
-            t.enqueued = false
-            tasks.append(t)
-            count += 1
+            match (queue.pop()) {
+                case None => break
+                case Some(t) =>
+                    t.enqueued = false
+                    tasks.append(t)
+                    count += 1
+            }
         }
         return tasks
     }
@@ -356,8 +360,10 @@ public class MpscTaskQueue {
     /// 清空队列
     public func clear(): Unit {
         while (true) {
-            let task = queue.remove()
-            if (task == None) { break }
+            match (queue.pop()) {
+                case None => break
+                case Some(_) => ()
+            }
         }
     }
 }
@@ -426,12 +432,12 @@ public class DeferredTaskQueue {
 }
 
 // ============================================================================
-// AnyTaskWithExtraContext - 带额外上下文的任务
-// 严格翻译自: src/event_loop/AnyTaskWithExtraContext.zig
-//   const AnyTaskWithExtraContext = @This()
+// TaskQueueAnyTaskWithExtraContext - 带额外上下文的任务
+// 严格翻译自: src/event_loop/TaskQueueAnyTaskWithExtraContext.zig
+//   const TaskQueueAnyTaskWithExtraContext = @This()
 //   ctx: ?*anyopaque = undefined
 //   callback: *const (fn (*anyopaque, *anyopaque) void) = undefined
-//   next: ?*AnyTaskWithExtraContext = null
+//   next: ?*TaskQueueAnyTaskWithExtraContext = null
 //
 //   pub fn run(this, extra: *anyopaque) void {
 //       const callback = this.callback
@@ -439,16 +445,16 @@ public class DeferredTaskQueue {
 //       callback(ctx.?, extra)
 //   }
 //
-//   pub fn fromCallbackAutoDeinit(ptr, comptime fieldName) *AnyTaskWithExtraContext
+//   pub fn fromCallbackAutoDeinit(ptr, comptime fieldName) *TaskQueueAnyTaskWithExtraContext
 //     创建自动清理的任务
 //
 //   pub fn New(comptime Type, comptime ContextType, comptime Callback) type
 //     创建类型安全的任务包装器
 // ============================================================================
 
-/// 带额外上下文的任务 - 对应 Bun AnyTaskWithExtraContext
+/// 带额外上下文的任务 - 对应 Bun TaskQueueAnyTaskWithExtraContext
 /// 通用任务类型，携带上下文指针和回调
-public class AnyTaskWithExtraContext {
+public class TaskQueueAnyTaskWithExtraContext {
     /// 任务回调
     public var callback: () -> Unit
     /// 是否自动清理
@@ -468,7 +474,7 @@ public class AnyTaskWithExtraContext {
         done = false
     }
 
-    /// 执行任务 - 对应 Bun AnyTaskWithExtraContext.run
+    /// 执行任务 - 对应 Bun TaskQueueAnyTaskWithExtraContext.run
     /// Bun:
     ///   pub fn run(this, extra) void {
     ///       @setRuntimeSafety(false)
@@ -485,12 +491,12 @@ public class AnyTaskWithExtraContext {
 
     /// 从回调创建 (自动清理)
     /// 对应 Bun: fromCallbackAutoDeinit
-    public static func fromCallbackAutoDeinit(callback: () -> Unit): AnyTaskWithExtraContext {
-        return AnyTaskWithExtraContext(callback, true)
+    public static func fromCallbackAutoDeinit(callback: () -> Unit): TaskQueueAnyTaskWithExtraContext {
+        return TaskQueueAnyTaskWithExtraContext(callback, true)
     }
 
     /// 从回调创建 (手动清理)
-    public static func fromCallback(callback: () -> Unit): AnyTaskWithExtraContext {
-        return AnyTaskWithExtraContext(callback, false)
+    public static func fromCallback(callback: () -> Unit): TaskQueueAnyTaskWithExtraContext {
+        return TaskQueueAnyTaskWithExtraContext(callback, false)
     }
 }

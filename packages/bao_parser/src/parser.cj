@@ -47,13 +47,13 @@ public class ParserFeatures {
         return f
     }
 
-    public static func typescript(): ParserFeatures {
+    public static func typescriptFeatures(): ParserFeatures {
         let f = ParserFeatures()
         f.typescript = true
         return f
     }
 
-    public static func jsx(): ParserFeatures {
+    public static func jsxFeatures(): ParserFeatures {
         let f = ParserFeatures()
         f.jsx = JsxTransformType.Automatic
         return f
@@ -88,12 +88,18 @@ public class ParserOptions {
     public var features: ParserFeatures
     /// 目标 (browser/node 等)
     public var target: String
+    /// 源文件名
+    public var sourceFile: String
+    /// 是否启用死代码消除 - 对应 Bun dce
+    public var deadCodeElimination: Bool
 
     public init() {
         strictMode = false
         isModule = false
         features = ParserFeatures.js()
         target = "browser"
+        sourceFile = ""
+        deadCodeElimination = true
     }
 
     public init(features: ParserFeatures) {
@@ -101,6 +107,8 @@ public class ParserOptions {
         isModule = false
         this.features = features
         target = "browser"
+        sourceFile = ""
+        deadCodeElimination = true
     }
 }
 
@@ -157,6 +165,12 @@ public class ImportRecord {
     public var hasStarImport: Bool
     /// 导入项列表
     public var items: ArrayList<ImportItem>
+    /// 标志
+    public var flags: ImportRecordFlags
+    /// 路径是否禁用
+    public var pathIsDisabled: Bool
+    /// 模块ID
+    public var moduleId: Int64
 
     public init(path: String, kind: ImportRecordKind, range: Range) {
         this.path = path
@@ -165,6 +179,9 @@ public class ImportRecord {
         hasDefaultImport = false
         hasStarImport = false
         items = ArrayList<ImportItem>()
+        flags = ImportRecordFlags()
+        pathIsDisabled = false
+        moduleId = 0
     }
 }
 
@@ -263,6 +280,17 @@ public class ScopeOrder {
     public init(scope: Scope, parentIndex: Int64) {
         this.scope = scope
         this.parentIndex = parentIndex
+    }
+}
+
+/// 语句解析选项
+public struct StmtOpts {
+    public var isModuleScope: Bool
+    public var isExport: Bool
+
+    public init() {
+        isModuleScope = false
+        isExport = false
     }
 }
 
@@ -595,7 +623,7 @@ public class Parser {
                     lexer.nextToken()
                     return
                 // 语句开始关键字 — 可以安全恢复的位置
-                case Var | Let | Const | Function | Class | If | For |
+                case Var | Const | Function | Class | If | For |
                      While | Do | Switch | Try | With | Break | Continue |
                      Return | Throw | Import | Export | Debugger =>
                     return
@@ -607,17 +635,6 @@ public class Parser {
     // ========================================================================
     // 语句解析
     // ========================================================================
-
-    /// 语句解析选项
-    public class StmtOpts {
-        public var isModuleScope: Bool
-        public var isExport: Bool
-
-        public init() {
-            isModuleScope = false
-            isExport = false
-        }
-    }
 
     /// 解析语句 - 对应 Bun parseStmt
     /// Bun: 约 800 行，分发到各种语句解析函数
@@ -672,8 +689,8 @@ public class Parser {
 
             // TypeScript 标识符上下文关键字 (interface, type, enum, namespace, declare, abstract)
             case Identifier =>
-                if (features.typescript) {
-                    if (let Some(tsStmt) = tryParseTypeScriptStmt(loc)) {
+                if (this.options.features.typescript) {
+                    if (let Some(tsStmt) <- tryParseTypeScriptStmt(loc)) {
                         return tsStmt
                     }
                 }
@@ -688,7 +705,7 @@ public class Parser {
     public func parseExprStmt(loc: Loc): Stmt {
         let expr = parseExpr(ParseExprOpts())
         lexer.expectOrInsertSemicolon()
-        return Stmt.expr(loc, expr)
+        return Stmt.expr_(loc, expr)
     }
 
     // ========================================================================
@@ -699,26 +716,26 @@ public class Parser {
     public func parseVarStmt(kind: DeclKind, loc: Loc): Stmt {
         lexer.nextToken() // 消耗 var/let/const
         let binding = parseBinding()
-        var init: ?Expr = None
+        var `init`: ?Expr = None
         if (lexer.token == Token.Equals) {
             lexer.nextToken()
-            init = Some(parseExpr(ParseExprOpts()))
+            `init` = Some(parseExpr(ParseExprOpts()))
         }
         lexer.expectOrInsertSemicolon()
-        return Stmt.local(loc, kind, binding, init)
+        return Stmt.local(loc, kind, binding, `init`)
     }
 
     /// 解析 let/const 语句 - 对应 Bun parseLetConstStmt
     public func parseLetConstStmt(kind: DeclKind, loc: Loc): Stmt {
         lexer.nextToken() // 消耗 let/const
         let binding = parseBinding()
-        var init: ?Expr = None
+        var `init`: ?Expr = None
         if (lexer.token == Token.Equals) {
             lexer.nextToken()
-            init = Some(parseExpr(ParseExprOpts()))
+            `init` = Some(parseExpr(ParseExprOpts()))
         }
         lexer.expectOrInsertSemicolon()
-        return Stmt.local(loc, kind, binding, init)
+        return Stmt.local(loc, kind, binding, `init`)
     }
 
     /// 解析函数声明语句 - 对应 Bun parseFnStmt
@@ -741,12 +758,12 @@ public class Parser {
         let body = parseFnBody()
 
         let fn = GFn(
-            name: name,
-            args: args,
-            body: GFnBody.Stmts(body),
-            loc: loc
+            name,
+            args,
+            GFnBody.StmtsBody(body),
+            loc
         )
-        return Stmt.fn(loc, fn)
+        return Stmt.fn_(loc, fn)
     }
 
     /// 解析类声明语句 - 对应 Bun parseClassStmt
@@ -766,12 +783,12 @@ public class Parser {
         let properties = parseClassBody()
 
         let class_ = GClass(
-            name: name,
-            extends_: extends_,
-            properties: properties,
-            loc: loc
+            name,
+            extends_,
+            properties,
+            loc
         )
-        return Stmt.class(loc, class_)
+        return Stmt.`class`(loc, class_)
     }
 
     /// 解析类体
@@ -779,8 +796,8 @@ public class Parser {
         var props = ArrayList<GProperty>()
         lexer.expect(Token.OpenBrace)
         while (lexer.token != Token.CloseBrace && lexer.token != Token.EndOfFile) {
-            let prop = parseProperty()
-            props.append(prop)
+            let `prop` = parseProperty()
+            props.append(`prop`)
         }
         lexer.expect(Token.CloseBrace)
         return props
@@ -795,7 +812,7 @@ public class Parser {
         var isAsync = false
 
         // 修饰符
-        if (lexer.token == Token.Static && !isStatic) {
+        if (lexer.isContextualKeyword("static") && !isStatic) {
             isStatic = true
             lexer.nextToken()
         }
@@ -820,10 +837,10 @@ public class Parser {
             let args = parseFnArgs()
             let body = parseFnBody()
             let fn = GFn(
-                name: name,
-                args: args,
-                body: GFnBody.Stmts(body),
-                loc: loc
+                name,
+                args,
+                GFnBody.StmtsBody(body),
+                loc
             )
             return GProperty.method(loc, name, fn, isStatic, isGet, isSet, isAsync)
         }
@@ -932,14 +949,14 @@ public class Parser {
         }
 
         // for (;...;...;) 形式
-        let init = parseExpr(ParseExprOpts())
+        let `init` = parseExpr(ParseExprOpts())
         lexer.expect(Token.Semicolon)
         let test = parseExpr(ParseExprOpts())
         lexer.expect(Token.Semicolon)
         let update = parseExpr(ParseExprOpts())
         lexer.expect(Token.CloseParen)
         let body = parseStmt(StmtOpts())
-        return Stmt.for_(loc, Some(init), test, update, body)
+        return Stmt.for_(loc, Some(`init`), test, update, body)
     }
 
     /// 解析 while 语句
@@ -983,7 +1000,7 @@ public class Parser {
                 lexer.nextToken()
                 lexer.expect(Token.Colon)
                 let stmts = parseStmtsUpTo(Token.CloseBrace)
-                cases.append(SwitchCase(None, stmts))
+                cases.append(SwitchCase(Option<Expr>.None, stmts))
             } else {
                 break
             }
@@ -1011,7 +1028,7 @@ public class Parser {
         }
         if (lexer.token == Token.Finally) {
             lexer.nextToken()
-            finally_ = Some(parseBlock())
+            finally_ = Some(Stmt.block(lexer.loc(), parseBlock()))
         }
         return Stmt.try_(loc, body, catch_, finally_)
     }
@@ -1288,19 +1305,6 @@ public class Parser {
     // 使用 Pratt 解析器实现操作符优先级
     // ========================================================================
 
-    /// 表达式解析选项
-    public class ParseExprOpts {
-        public var lhs: Bool    // 是否为赋值左侧
-        public var allowIn: Bool // 是否允许 in
-        public var allowCall: Bool
-
-        public init() {
-            lhs = false
-            allowIn = true
-            allowCall = true
-        }
-    }
-
     /// 解析表达式 - 对应 Bun parseExpr
     public func parseExpr(opts: ParseExprOpts): Expr {
         return parseAssignmentExpr(opts)
@@ -1352,16 +1356,18 @@ public class Parser {
 
         while (true) {
             let op = tokenToBinaryOp(lexer.token)
-            if (op == None) { break }
-            let prec = op.unwrap().precedence
-            if (prec < minPrec) { break }
+            if (let Some(opCode) <- op) {
+                let prec = opCode.precedence
+                if (prec < minPrec) { break }
 
-            let opCode = op.unwrap()
-            let opLoc = lexer.loc()
-            lexer.nextToken()
+                let opLoc = lexer.loc()
+                lexer.nextToken()
 
-            let right = parseBinaryExpr(opts, prec + 1)
-            left = Expr.binary(opLoc, opCode.code, left, right)
+                let right = parseBinaryExpr(opts, prec + 1)
+                left = Expr.binary(opLoc, left, right, opCode.code)
+            } else {
+                break
+            }
         }
 
         return left
@@ -1547,7 +1553,7 @@ public class Parser {
                 return Expr.identifier(loc, name, ref)
 
             // this
-            case This =>
+            case Token.`This` =>
                 lexer.nextToken()
                 return Expr.this_(loc)
 
@@ -1645,21 +1651,19 @@ public class Parser {
                 // 完整实现需要将 items 转换为参数列表
                 let args = ArrayList<GArg>()
                 for (item in items) {
-                    if (item.tag == ExprTag.Identifier) {
-                        let ref = newSymbol(SymbolKind.Hoisted, item.identifier)
-                        args.append(GArg(item.identifier, item.loc, ref, None, false))
-                    }
+                    let name = item.identifierName
+                    let ref = newSymbol(SymbolKind.Hoisted, name)
+                    args.append(GArg(name, item.loc, ref, Option<Expr>.None, false))
                 }
                 var body: GFnBody
                 lexer.expect(Token.EqualsGreaterThan)
                 if (lexer.token == Token.OpenBrace) {
-                    body = GFnBody.Stmts(parseFnBody())
+                    body = GFnBody.StmtsBody(parseFnBody())
                 } else {
-                    body = GFnBody.Expr(parseAssignmentExpr(ParseExprOpts()))
+                    body = GFnBody.ExprBody(parseAssignmentExpr(ParseExprOpts()))
                 }
-                let fn = GFn(name: "", args: args, body: body, loc: loc)
-                fn.isArrow = true
-                return Expr.fn_(loc, fn)
+                let fn = GFn("", args, body, loc)
+                        return Expr.fn_(loc, fn)
             }
 
             // 否则是逗号表达式
@@ -1709,8 +1713,8 @@ public class Parser {
         lexer.expect(Token.OpenBrace)
         var properties = ArrayList<GProperty>()
         while (lexer.token != Token.CloseBrace && lexer.token != Token.EndOfFile) {
-            let prop = parseProperty()
-            properties.append(prop)
+            let `prop` = parseProperty()
+            properties.append(`prop`)
             if (lexer.token == Token.Comma) {
                 lexer.nextToken()
             }
@@ -1738,10 +1742,10 @@ public class Parser {
         let args = parseFnArgs()
         let body = parseFnBody()
         let fn = GFn(
-            name: name,
-            args: args,
-            body: GFnBody.Stmts(body),
-            loc: loc
+            name,
+            args,
+            GFnBody.StmtsBody(body),
+            loc
         )
         return Expr.fn_(loc, fn)
     }
@@ -1851,52 +1855,30 @@ public class Parser {
 
         // 解析参数 — 处理各种参数模式
         var args = ArrayList<GArg>()
-        if (params.tag == ExprTag.Identifier) {
-            // 单参数无括号: x => ...
-            let ref = newSymbol(SymbolKind.Hoisted, params.identifier)
-            args.append(GArg(params.identifier, params.loc, ref, None, false))
-        } else if (params.tag == ExprTag.Array) {
-            // 数组解构参数: ([a, b]) => ...
-            // 将 array 表达式转换为绑定
-            for (item in params.items) {
-                if (item.tag == ExprTag.Identifier) {
-                    let ref = newSymbol(SymbolKind.Hoisted, item.identifier)
-                    args.append(GArg(item.identifier, item.loc, ref, None, false))
-                }
-            }
-        } else if (params.tag == ExprTag.Object) {
-            // 对象解构参数: ({a, b}) => ...
-            for (prop in params.properties) {
-                if (let Some(val) = prop.value) {
-                    if (val.tag == ExprTag.Identifier) {
-                        let ref = newSymbol(SymbolKind.Hoisted, val.identifier)
-                        args.append(GArg(val.identifier, val.loc, ref, None, false))
-                    }
-                }
-            }
-        }
+        let name = params.identifierName
+        let ref = newSymbol(SymbolKind.Hoisted, name)
+        args.append(GArg(name, params.loc, ref, Option<Expr>.None, false))
 
         // 解析箭头函数体
         var body: GFnBody
         if (lexer.token == Token.OpenBrace) {
             // 块体: (...) => { stmts }
             let stmts = parseFnBody()
-            body = GFnBody.Stmts(stmts)
+            body = GFnBody.StmtsBody(stmts)
         } else {
             // 表达式体: (...) => expr
             //  严格翻译自: Bun parseArrowBody 中表达式体处理
             //   表达式体等价于 { return expr; }
             let expr = parseAssignmentExpr(ParseExprOpts())
-            body = GFnBody.Expr(expr)
+            body = GFnBody.ExprBody(expr)
         }
 
         let fn = GFn(
-            name: "",
-            args: args,
-            body: body,
-            loc: loc
+            "",
+            args,
+            body,
+            loc
         )
-        fn.isArrow = true
         return Expr.fn_(loc, fn)
     }
 
@@ -2001,17 +1983,6 @@ public class Parser {
     // Token 到操作符的映射
     // ========================================================================
 
-    /// 二元操作符信息
-    public class BinaryOpInfo {
-        public var code: OpCode
-        public var precedence: Int64
-
-        public init(code: OpCode, precedence: Int64) {
-            this.code = code
-            this.precedence = precedence
-        }
-    }
-
     /// Token 转二元操作符 - 对应 Bun parseBinaryExpr 中的操作符映射
     public func tokenToBinaryOp(t: Token): ?BinaryOpInfo {
         match (t) {
@@ -2087,7 +2058,7 @@ public class Parser {
     ///   - declare function foo(): void
     ///   - abstract class Foo { ... }
     private func tryParseTypeScriptStmt(loc: Loc): ?Stmt {
-        if (!features.typescript) { return None }
+        if (!options.features.typescript) { return None }
 
         // 检查标识符是否为 TS 上下文关键字
         let ident = lexer.identifier
@@ -2182,7 +2153,7 @@ public class Parser {
                 parseExpr(ParseExprOpts()) // 跳过初始值表达式
             }
 
-            let member = Stmt.expr(memberLoc, Expr.string(memberLoc, memberName))
+            let member = Stmt.expr_(memberLoc, Expr.string(memberLoc, memberName))
             members.append(member)
 
             if (lexer.token == Token.Comma) {
@@ -2301,7 +2272,7 @@ public class Parser {
     /// abstract class Foo { abstract method(): void; }
     private func parseTsAbstractStmt(loc: Loc): Stmt {
         lexer.nextToken() // skip 'abstract'
-        if (lexer.token == Class) {
+        if (lexer.token == Token.Class) {
             return parseClassStmt(loc, false)
         }
         // 否则按表达式处理
@@ -2411,7 +2382,7 @@ public class Parser {
     /// var x: Type = value
     /// function foo(arg: Type): ReturnType
     public func trySkipTypeAnnotation(): Unit {
-        if (!features.typescript) { return }
+        if (!options.features.typescript) { return }
         if (lexer.token == Token.Colon) {
             skipTsTypeAnnotation()
         }
@@ -2420,7 +2391,7 @@ public class Parser {
     /// 在标识符后检查是否需要跳过 TS 类型断言
     /// 对应 Bun: as Type / <Type>expr
     public func trySkipTsTypeAssertion(expr: Expr): Expr {
-        if (!features.typescript) { return expr }
+        if (!options.features.typescript) { return expr }
         // x as Type
         if (lexer.identifier == "as") {
             lexer.nextToken()
@@ -2435,5 +2406,29 @@ public class Parser {
             skipTsType()
         }
         return expr
+    }
+}
+
+/// 表达式解析选项 - moved to top-level because Cangjie doesn't support nested classes
+public class ParseExprOpts {
+    public var lhs: Bool
+    public var allowIn: Bool
+    public var allowCall: Bool
+
+    public init() {
+        lhs = false
+        allowIn = true
+        allowCall = true
+    }
+}
+
+/// 二元操作符信息 - moved to top-level
+public class BinaryOpInfo {
+    public var code: OpCode
+    public var precedence: Int64
+
+    public init(code: OpCode, precedence: Int64) {
+        this.code = code
+        this.precedence = precedence
     }
 }

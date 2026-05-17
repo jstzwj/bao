@@ -87,7 +87,8 @@ public class WatchEvent2 {
     }
 
     public func toString(): String {
-        return "[${eventType.name()}] ${path}${if (isDirectory) { "/" } else { "" }}"
+        let suffix = if (isDirectory) { "/" } else { "" }
+        return "[${eventType.name()}] ${path}${suffix}"
     }
 }
 
@@ -109,17 +110,15 @@ public func detectWatcherBackend(): WatcherBackend {
     // 简化: 基于 OS 环境变量判断
     let osType = OS.getEnv("OSTYPE")
     match (osType) {
-        case Some(v) => {
+        case Some(v) =>
             if (v.contains("linux")) { return WatcherBackend.INotify }
             if (v.contains("darwin") || v.contains("macos") || v.contains("bsd")) {
                 return WatcherBackend.KQueue
             }
             return WatcherBackend.Polling
-        }
-        case None => {
+        case None =>
             // 默认假设 Linux
             return WatcherBackend.INotify
-        }
     }
 }
 
@@ -177,13 +176,15 @@ public class RecursiveWatcher {
     /// 初始化监视器
     /// 对应 Bun Watcher.init()
     public func initFunc(): SysMaybe<Unit> {
-        let fd = inotify_init1(Int32(InotifyMask.IN_NONBLOCK | InotifyMask.IN_CLOEXEC))
-        if (fd < 0) {
-            return SysMaybe<Unit>.Err(
-                SysError(UInt16(Int64(OS.errno())), SysTag.Open))
+        unsafe {
+            let fd = inotify_init1(Int32(InotifyMask.IN_NONBLOCK | InotifyMask.IN_CLOEXEC))
+            if (fd < 0) {
+                return SysMaybe<Unit>.Err(
+                    SysError(UInt16(Int64(OS.errno())), SysTag.Open))
+            }
+            inotifyFd = Int64(fd)
+            return SysMaybe<Unit>.Ok(())
         }
-        inotifyFd = Int64(fd)
-        return SysMaybe<Unit>.Ok(())
     }
 
     /// 递归添加目录到监视列表
@@ -247,11 +248,12 @@ public class RecursiveWatcher {
     /// 移除路径监视
     private func removeWatch(path: String): Unit {
         match (pathToWd.get(path)) {
-            case Some(wd) => {
-                inotify_rm_watch(Int32(inotifyFd), wd)
+            case Some(wd) =>
+                unsafe {
+                    inotify_rm_watch(Int32(inotifyFd), wd)
+                }
                 pathToWd.remove(path)
                 wdToPath.remove(wd)
-            }
             case None => ()
         }
     }
@@ -262,12 +264,11 @@ public class RecursiveWatcher {
         // 打开目录
         let openResult = SysFs.open(dirPath, OpenFlags.RDONLY | OpenFlags.DIRECTORY)
         match (openResult) {
-            case Ok(fd) => {
+            case Ok(fd) =>
                 // 读取目录条目 (简化: 需要通过 getdents64 系统调用)
                 // 这里使用简化的路径拼接方式
                 SysFs.close(fd)
                 return SysMaybe<Unit>.Ok(())
-            }
             case Err(e) => return SysMaybe<Unit>.Err(e)
         }
     }
@@ -291,7 +292,7 @@ public class RecursiveWatcher {
     private func pathMatchesPattern(path: String, pattern: String): Bool {
         if (pattern == "*") { return true }
         if (pattern.startsWith("*.")) {
-            let ext = pattern.substring(2)
+            let ext = pattern[2..]
             return path.endsWith(".${ext}")
         }
         return path.contains(pattern)
@@ -310,7 +311,7 @@ public class RecursiveWatcher {
         unsafe {
             let bufSize = 65536  // 64KB 缓冲区
             let buf = malloc(UIntNative(bufSize))
-            let bytesRead = bao_sys.read(Int32(inotifyFd), buf, UIntNative(bufSize))
+            let bytesRead = read(Int32(inotifyFd), buf, UIntNative(bufSize))
 
             if (Int64(bytesRead) < 0) {
                 free(buf)
@@ -320,13 +321,13 @@ public class RecursiveWatcher {
             var offset: Int64 = 0
             while (offset + 16 <= Int64(bytesRead)) {
                 // 解析 inotify_event
-                let wdPtr = CPointer<Int32>(buf) + IntNative(offset / 4)
+                let wdPtr = CPointer<Int32>(buf) + Int64(offset / 4)
                 let wd = wdPtr.read()
-                let maskPtr = CPointer<UInt32>(buf) + IntNative(offset / 4 + 1)
+                let maskPtr = CPointer<UInt32>(buf) + Int64(offset / 4 + 1)
                 let mask = maskPtr.read()
-                let cookiePtr = CPointer<UInt32>(buf) + IntNative(offset / 4 + 2)
+                let cookiePtr = CPointer<UInt32>(buf) + Int64(offset / 4 + 2)
                 let cookie = cookiePtr.read()
-                let lenPtr = CPointer<UInt32>(buf) + IntNative(offset / 4 + 3)
+                let lenPtr = CPointer<UInt32>(buf) + Int64(offset / 4 + 3)
                 let nameLen = Int64(lenPtr.read())
 
                 // 读取文件名
@@ -334,10 +335,10 @@ public class RecursiveWatcher {
                 if (nameLen > 0) {
                     let sb = StringBuilder()
                     for (i in 0..nameLen) {
-                        let bytePtr = CPointer<Int8>(buf) + IntNative(offset + 16 + i)
+                        let bytePtr = CPointer<Int8>(buf) + Int64(offset + 16 + i)
                         let b = Int32(bytePtr.read())
                         if (b == 0) { break }
-                        sb.append(Char(b))
+                        sb.append(Rune(b))
                     }
                     fileName = sb.toString()
                 }
@@ -347,34 +348,41 @@ public class RecursiveWatcher {
                     case Some(p) => p
                     case None => ""
                 }
-                let fullPath = if (fileName.isEmpty) { basePath } else {
+                let fullPath = if (fileName.isEmpty()) { basePath } else {
                     Path.join([basePath, fileName])
                 }
 
                 // 转换事件类型
                 let event = convertEvent(mask, fullPath, isDir)
                 match (event) {
-                    case Some(e) => {
+                    case Some(e) =>
                         events.append(e)
 
                         // 处理新创建的目录: 自动添加监视
                         // 对应 Bun Watcher 中 onDirectoryCreated 的逻辑
-                        if (e.eventType == WatchEventType.Create && e.isDirectory) {
-                            let addResult = addWatch(e.path)
-                            match (addResult) {
-                                case Ok(_) => scanAndWatch(e.path)
-                                case Err(_) => ()
-                            }
+                        match (e.eventType) {
+                            case Create =>
+                                if (e.isDirectory) {
+                                    let addResult = addWatch(e.path)
+                                    match (addResult) {
+                                        case Ok(_) => scanAndWatch(e.path)
+                                        case Err(_) => ()
+                                    }
+                                }
+                            case _ => ()
                         }
 
                         // 处理删除的目录: 移除监视
-                        if (e.eventType == WatchEventType.Delete && e.isDirectory) {
-                            removeWatch(e.path)
+                        match (e.eventType) {
+                            case Delete =>
+                                if (e.isDirectory) {
+                                    removeWatch(e.path)
+                                }
+                            case _ => ()
                         }
 
                         // 调用回调
                         onEvent(e)
-                    }
                     case None => ()
                 }
 
@@ -388,28 +396,28 @@ public class RecursiveWatcher {
 
     /// 转换 inotify 事件为 WatchEvent2
     private func convertEvent(mask: UInt32, path: String, isDir: Bool): ?WatchEvent2 {
-        if (mask & InotifyMask.IN_CREATE != 0) {
+        if ((mask & InotifyMask.IN_CREATE) != 0) {
             return Some(WatchEvent2(WatchEventType.Create, path, isDir))
         }
-        if (mask & InotifyMask.IN_MODIFY != 0) {
+        if ((mask & InotifyMask.IN_MODIFY) != 0) {
             return Some(WatchEvent2(WatchEventType.Modify, path, isDir))
         }
-        if (mask & InotifyMask.IN_DELETE != 0) {
+        if ((mask & InotifyMask.IN_DELETE) != 0) {
             return Some(WatchEvent2(WatchEventType.Delete, path, isDir))
         }
-        if (mask & InotifyMask.IN_MOVED_TO != 0) {
+        if ((mask & InotifyMask.IN_MOVED_TO) != 0) {
             return Some(WatchEvent2(WatchEventType.MoveTo, path, isDir))
         }
-        if (mask & InotifyMask.IN_MOVED_FROM != 0) {
+        if ((mask & InotifyMask.IN_MOVED_FROM) != 0) {
             return Some(WatchEvent2(WatchEventType.MoveFrom, path, isDir))
         }
-        if (mask & InotifyMask.IN_ATTRIB != 0) {
+        if ((mask & InotifyMask.IN_ATTRIB) != 0) {
             return Some(WatchEvent2(WatchEventType.Chmod, path, isDir))
         }
-        if (mask & InotifyMask.IN_CLOSE_WRITE != 0) {
+        if ((mask & InotifyMask.IN_CLOSE_WRITE) != 0) {
             return Some(WatchEvent2(WatchEventType.CloseWrite, path, isDir))
         }
-        if (mask & InotifyMask.IN_OPEN != 0) {
+        if ((mask & InotifyMask.IN_OPEN) != 0) {
             return Some(WatchEvent2(WatchEventType.Opened, path, isDir))
         }
         return None
@@ -441,7 +449,9 @@ public class RecursiveWatcher {
     public func close(): Unit {
         if (!closed) {
             if (inotifyFd >= 0) {
-                bao_sys.close(Int32(inotifyFd))
+                unsafe {
+                    close(Int32(inotifyFd))
+                }
             }
             pathToWd.clear()
             wdToPath.clear()
@@ -523,9 +533,8 @@ public class DebouncedWatcher {
 
         // 设置内部回调，拦截所有事件
         match (this.inner) {
-            case Some(w) => {
+            case Some(w) =>
                 w.onEvent = { e => handleRawEvent(e) }
-            }
             case None => ()
         }
     }
@@ -533,38 +542,33 @@ public class DebouncedWatcher {
     /// 处理原始事件 - 添加到去抖缓冲
     /// 对应 Bun Watcher 中事件入队的逻辑
     private func handleRawEvent(event: WatchEvent2): Unit {
-        let key = "${event.path}:${if (event.isDirectory) { "dir" } else { "file" }}"
+        let eventKind = if (event.isDirectory) { "dir" } else { "file" }
+        let key = "${event.path}:${eventKind}"
         let now = currentTimeMillis()
 
         match (pending.get(key)) {
-            case Some(entry) => {
+            case Some(entry) =>
                 // 已有待处理事件，更新
                 // 合并规则:
                 // 1. Create + Modify -> Create (新文件创建后立即修改视为创建)
                 // 2. Modify + Modify -> Modify (多次修改合并)
                 // 3. Delete -> Delete (删除优先)
                 match (entry.eventType) {
-                    case WatchEventType.Create => {
+                    case WatchEventType.Create =>
                         // Create 后的 Modify 仍保持 Create
-                        if (event.eventType != WatchEventType.Delete) {
-                            entry.update(WatchEventType.Create)
-                        } else {
-                            // Create 后 Delete = 文件来去无踪，移除事件
-                            pending.remove(key)
+                        match (event.eventType) {
+                            case Delete => pending.remove(key)
+                            case _ => entry.update(WatchEventType.Create)
                         }
-                    }
-                    case WatchEventType.Delete => {
+                    case WatchEventType.Delete =>
                         // Delete 是最终状态，不覆盖
-                    }
-                    case _ => {
+                        ()
+                    case _ =>
                         entry.update(event.eventType)
-                    }
                 }
-            }
-            case None => {
+            case None =>
                 // 新事件
                 pending.put(key, DebounceEntry(event.eventType, event.path, event.isDirectory))
-            }
         }
 
         // 检查是否需要刷新
@@ -590,11 +594,10 @@ public class DebouncedWatcher {
         let readyKeys = ArrayList<String>()
         for (key in keys) {
             match (pending.get(key)) {
-                case Some(entry) => {
+                case Some(entry) =>
                     if (now - entry.lastTimestamp >= debounceMs) {
                         readyKeys.append(key)
                     }
-                }
                 case None => ()
             }
         }
@@ -602,13 +605,12 @@ public class DebouncedWatcher {
         // 发送就绪事件
         for (key in readyKeys) {
             match (pending.get(key)) {
-                case Some(entry) => {
+                case Some(entry) =>
                     let event = WatchEvent2(entry.eventType, entry.path, entry.isDirectory)
                     event.timestamp = entry.firstTimestamp
                     events.append(event)
                     onDebouncedEvent(event)
                     pending.remove(key)
-                }
                 case None => ()
             }
         }
@@ -623,12 +625,11 @@ public class DebouncedWatcher {
 
         for (key in pending.keys()) {
             match (pending.get(key)) {
-                case Some(entry) => {
+                case Some(entry) =>
                     let event = WatchEvent2(entry.eventType, entry.path, entry.isDirectory)
                     event.timestamp = entry.firstTimestamp
                     events.append(event)
                     onDebouncedEvent(event)
-                }
                 case None => ()
             }
         }
@@ -647,12 +648,11 @@ public class DebouncedWatcher {
     public func readEvents(): ArrayList<WatchEvent2> {
         // 先从内部监视器读取原始事件
         match (inner) {
-            case Some(w) => {
+            case Some(w) =>
                 let rawEvents = w.readEvents()
                 // 原始事件已经通过 handleRawEvent 处理过了
                 // 返回去抖后的事件
                 return flush()
-            }
             case None => return ArrayList<WatchEvent2>()
         }
     }
@@ -698,11 +698,11 @@ class Path {
             var part = parts[i]
             // 移除开头的 /
             if (i > 0 && part.startsWith("/")) {
-                part = part.substring(1)
+                part = part[1..]
             }
             // 移除结尾的 /
             if (i < parts.size - 1 && part.endsWith("/")) {
-                part = part.substring(0, part.size - 1)
+                part = part[0..part.size - 1]
             }
             sb.append(part)
         }
@@ -717,12 +717,12 @@ class Path {
 /// 获取当前时间戳 (毫秒)
 private func currentTimeMillis(): Int64 {
     unsafe {
-        var ts = Array<Int64>(2, item: 0)
-        clock_gettime(0, ts.toArray().unsafePtr())
-        return ts[0] * 1000 + ts[1] / 1000000
+        let tsBuf = malloc(UIntNative(16))
+        let tsPtr = CPointer<Int64>(tsBuf)
+        clock_gettime(0, tsBuf)
+        let sec = tsPtr.read()
+        let nsec = (tsPtr + Int64(1)).read()
+        free(tsBuf)
+        return sec * 1000 + nsec / 1000000
     }
 }
-
-/// C FFI: clock_gettime
-@C
-foreign func clock_gettime(clockid: Int32, tp: CPointer<Int64>): Int32

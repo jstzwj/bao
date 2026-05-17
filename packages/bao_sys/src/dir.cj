@@ -67,7 +67,11 @@ public class SysDir {
                     match (mkdirResult) {
                         case Err(mkdirErr) => return SysMaybe<SysDir>.Err(mkdirErr)
                         case _ =>
-                            return openDirAt(fd, subPath)
+                            let retry = openDirAt(fd, subPath)
+                            match (retry) {
+                                case Ok(retryFd) => return SysMaybe<SysDir>.Ok(SysDir(retryFd))
+                                case Err(retryErr) => return SysMaybe<SysDir>.Err(retryErr)
+                            }
                     }
                 }
                 return SysMaybe<SysDir>.Err(e)
@@ -80,7 +84,7 @@ public class SysDir {
     public func makeDir(subPath: String): SysMaybe<Unit> {
         unsafe {
             let pathPtr = unsafeNewCString(subPath)
-            let rc = bao_sys.mkdir(pathPtr, 0o755)
+            let rc = mkdir(pathPtr, 0o755)
             if (rc != 0) {
                 let errno = UInt16(Int64(OS.errno()))
                 // EEXIST (17) — 路径已存在
@@ -100,7 +104,7 @@ public class SysDir {
         unsafe {
             let targetPtr = unsafeNewCString(target)
             let linkPtr = unsafeNewCString(linkName)
-            let rc = bao_sys.symlink(targetPtr, linkPtr)
+            let rc = symlink(targetPtr, linkPtr)
             if (rc != 0) {
                 return SysMaybe<Unit>.Err(
                     SysError(UInt16(Int64(OS.errno())), SysTag.Symlink)
@@ -182,7 +186,7 @@ public class OwnedDir {
     }
 
     /// 获取内部 Dir - 对应 Bun OwnedDir.dir()
-    public func dir(): SysDir {
+    public func getDir(): SysDir {
         return dir
     }
 

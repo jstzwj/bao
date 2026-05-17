@@ -20,7 +20,7 @@ import bao_collections.*
 /// 操作符代码 - 对应 Bun Op.Code
 /// Bun: enum(u8) 包含所有 JS 操作符
 /// 顺序严格对应 Bun 源码中枚举值的顺序，用于依赖 ordinal 的判断逻辑
-public enum OpCode {
+public enum OpCode <: ToString {
     // ---- 前缀一元操作符 ----
     | UnPos          // +expr    一元正号
     | UnNeg          // -expr    一元负号
@@ -85,6 +85,18 @@ public enum OpCode {
     | BinNullishCoalescingAssign // ??= 右结合
     | BinLogicalOrAssign     // ||=   右结合
     | BinLogicalAndAssign    // &&=   右结合
+
+    public operator func ==(right: OpCode): Bool {
+        return ordinal() == right.ordinal()
+    }
+
+    public operator func !=(right: OpCode): Bool {
+        return !(this == right)
+    }
+
+    public func toString(): String {
+        return text()
+    }
 
     /// 序数值 - 用于依赖枚举顺序的判断
     /// 严格保持与 Bun 枚举值相同的序号
@@ -444,7 +456,7 @@ public class Op {
         this.isKeyword = isKeyword
     }
 
-    /// 从三元组初始化 - 对应 Bun Op.init(triple)
+    /// 从三元组初始化 - 对应 Bun Op(triple)
     /// Bun: pub fn init(triple: anytype) Op
     public static func initFunc(text: String, level: OpLevel, isKeyword: Bool): Op {
         return Op(text, level, isKeyword)
@@ -463,88 +475,88 @@ public class Op {
 /// 包含所有 Op.Code 到 Op 的映射
 public class OpTable {
     /// 操作符表 - 内部存储
-    private static var table: HashMap<OpCode, Op>
+    private static var table: HashMap<Int64, Op> = OpTable.initFunc()
 
     /// 初始化查找表 - 对应 Bun Op.Table 的编译期生成
-    public static func initFunc(): HashMap<OpCode, Op> {
-        let t = HashMap<OpCode, Op>()
+    public static func initFunc(): HashMap<Int64, Op> {
+        let t = HashMap<Int64, Op>()
 
         // 前缀一元操作符
-        t.put(OpCode.UnPos, Op.init("+", OpLevel.Prefix, false))
-        t.put(OpCode.UnNeg, Op.init("-", OpLevel.Prefix, false))
-        t.put(OpCode.UnCpl, Op.init("~", OpLevel.Prefix, false))
-        t.put(OpCode.UnNot, Op.init("!", OpLevel.Prefix, false))
-        t.put(OpCode.UnVoid, Op.init("void", OpLevel.Prefix, true))
-        t.put(OpCode.UnTypeof, Op.init("typeof", OpLevel.Prefix, true))
-        t.put(OpCode.UnDelete, Op.init("delete", OpLevel.Prefix, true))
+        t.put(OpCode.UnPos.ordinal(), Op("+", OpLevel.Prefix, false))
+        t.put(OpCode.UnNeg.ordinal(), Op("-", OpLevel.Prefix, false))
+        t.put(OpCode.UnCpl.ordinal(), Op("~", OpLevel.Prefix, false))
+        t.put(OpCode.UnNot.ordinal(), Op("!", OpLevel.Prefix, false))
+        t.put(OpCode.UnVoid.ordinal(), Op("void", OpLevel.Prefix, true))
+        t.put(OpCode.UnTypeof.ordinal(), Op("typeof", OpLevel.Prefix, true))
+        t.put(OpCode.UnDelete.ordinal(), Op("delete", OpLevel.Prefix, true))
 
         // 前缀更新操作符
-        t.put(OpCode.UnPreDec, Op.init("--", OpLevel.Prefix, false))
-        t.put(OpCode.UnPreInc, Op.init("++", OpLevel.Prefix, false))
+        t.put(OpCode.UnPreDec.ordinal(), Op("--", OpLevel.Prefix, false))
+        t.put(OpCode.UnPreInc.ordinal(), Op("++", OpLevel.Prefix, false))
 
         // 后缀更新操作符
-        t.put(OpCode.UnPostDec, Op.init("--", OpLevel.Postfix, false))
-        t.put(OpCode.UnPostInc, Op.init("++", OpLevel.Postfix, false))
+        t.put(OpCode.UnPostDec.ordinal(), Op("--", OpLevel.Postfix, false))
+        t.put(OpCode.UnPostInc.ordinal(), Op("++", OpLevel.Postfix, false))
 
         // 左结合二元操作符
-        t.put(OpCode.BinAdd, Op.init("+", OpLevel.Add, false))
-        t.put(OpCode.BinSub, Op.init("-", OpLevel.Add, false))
-        t.put(OpCode.BinMul, Op.init("*", OpLevel.Multiply, false))
-        t.put(OpCode.BinDiv, Op.init("/", OpLevel.Multiply, false))
-        t.put(OpCode.BinRem, Op.init("%", OpLevel.Multiply, false))
-        t.put(OpCode.BinPow, Op.init("**", OpLevel.Exponentiation, false))
-        t.put(OpCode.BinLt, Op.init("<", OpLevel.Compare, false))
-        t.put(OpCode.BinLe, Op.init("<=", OpLevel.Compare, false))
-        t.put(OpCode.BinGt, Op.init(">", OpLevel.Compare, false))
-        t.put(OpCode.BinGe, Op.init(">=", OpLevel.Compare, false))
-        t.put(OpCode.BinIn, Op.init("in", OpLevel.Compare, true))
-        t.put(OpCode.BinInstanceof, Op.init("instanceof", OpLevel.Compare, true))
-        t.put(OpCode.BinShl, Op.init("<<", OpLevel.Shift, false))
-        t.put(OpCode.BinShr, Op.init(">>", OpLevel.Shift, false))
-        t.put(OpCode.BinUShr, Op.init(">>>", OpLevel.Shift, false))
-        t.put(OpCode.BinLooseEq, Op.init("==", OpLevel.Equals, false))
-        t.put(OpCode.BinLooseNe, Op.init("!=", OpLevel.Equals, false))
-        t.put(OpCode.BinStrictEq, Op.init("===", OpLevel.Equals, false))
-        t.put(OpCode.BinStrictNe, Op.init("!=", OpLevel.Equals, false))
-        t.put(OpCode.BinNullishCoalescing, Op.init("??", OpLevel.NullishCoalescing, false))
-        t.put(OpCode.BinLogicalOr, Op.init("||", OpLevel.LogicalOr, false))
-        t.put(OpCode.BinLogicalAnd, Op.init("&&", OpLevel.LogicalAnd, false))
-        t.put(OpCode.BinBitwiseOr, Op.init("|", OpLevel.BitwiseOr, false))
-        t.put(OpCode.BinBitwiseAnd, Op.init("&", OpLevel.BitwiseAnd, false))
-        t.put(OpCode.BinBitwiseXor, Op.init("^", OpLevel.BitwiseXor, false))
+        t.put(OpCode.BinAdd.ordinal(), Op("+", OpLevel.Add, false))
+        t.put(OpCode.BinSub.ordinal(), Op("-", OpLevel.Add, false))
+        t.put(OpCode.BinMul.ordinal(), Op("*", OpLevel.Multiply, false))
+        t.put(OpCode.BinDiv.ordinal(), Op("/", OpLevel.Multiply, false))
+        t.put(OpCode.BinRem.ordinal(), Op("%", OpLevel.Multiply, false))
+        t.put(OpCode.BinPow.ordinal(), Op("**", OpLevel.Exponentiation, false))
+        t.put(OpCode.BinLt.ordinal(), Op("<", OpLevel.Compare, false))
+        t.put(OpCode.BinLe.ordinal(), Op("<=", OpLevel.Compare, false))
+        t.put(OpCode.BinGt.ordinal(), Op(">", OpLevel.Compare, false))
+        t.put(OpCode.BinGe.ordinal(), Op(">=", OpLevel.Compare, false))
+        t.put(OpCode.BinIn.ordinal(), Op("in", OpLevel.Compare, true))
+        t.put(OpCode.BinInstanceof.ordinal(), Op("instanceof", OpLevel.Compare, true))
+        t.put(OpCode.BinShl.ordinal(), Op("<<", OpLevel.Shift, false))
+        t.put(OpCode.BinShr.ordinal(), Op(">>", OpLevel.Shift, false))
+        t.put(OpCode.BinUShr.ordinal(), Op(">>>", OpLevel.Shift, false))
+        t.put(OpCode.BinLooseEq.ordinal(), Op("==", OpLevel.Equals, false))
+        t.put(OpCode.BinLooseNe.ordinal(), Op("!=", OpLevel.Equals, false))
+        t.put(OpCode.BinStrictEq.ordinal(), Op("===", OpLevel.Equals, false))
+        t.put(OpCode.BinStrictNe.ordinal(), Op("!=", OpLevel.Equals, false))
+        t.put(OpCode.BinNullishCoalescing.ordinal(), Op("??", OpLevel.NullishCoalescing, false))
+        t.put(OpCode.BinLogicalOr.ordinal(), Op("||", OpLevel.LogicalOr, false))
+        t.put(OpCode.BinLogicalAnd.ordinal(), Op("&&", OpLevel.LogicalAnd, false))
+        t.put(OpCode.BinBitwiseOr.ordinal(), Op("|", OpLevel.BitwiseOr, false))
+        t.put(OpCode.BinBitwiseAnd.ordinal(), Op("&", OpLevel.BitwiseAnd, false))
+        t.put(OpCode.BinBitwiseXor.ordinal(), Op("^", OpLevel.BitwiseXor, false))
 
         // 非结合
-        t.put(OpCode.BinComma, Op.init(",", OpLevel.Comma, false))
+        t.put(OpCode.BinComma.ordinal(), Op(",", OpLevel.Comma, false))
 
         // 右结合赋值操作符
-        t.put(OpCode.BinAssign, Op.init("=", OpLevel.Assign, false))
-        t.put(OpCode.BinAddAssign, Op.init("+=", OpLevel.Assign, false))
-        t.put(OpCode.BinSubAssign, Op.init("-=", OpLevel.Assign, false))
-        t.put(OpCode.BinMulAssign, Op.init("*=", OpLevel.Assign, false))
-        t.put(OpCode.BinDivAssign, Op.init("/=", OpLevel.Assign, false))
-        t.put(OpCode.BinRemAssign, Op.init("%=", OpLevel.Assign, false))
-        t.put(OpCode.BinPowAssign, Op.init("**=", OpLevel.Assign, false))
-        t.put(OpCode.BinShlAssign, Op.init("<<=", OpLevel.Assign, false))
-        t.put(OpCode.BinShrAssign, Op.init(">>=", OpLevel.Assign, false))
-        t.put(OpCode.BinUShrAssign, Op.init(">>>=", OpLevel.Assign, false))
-        t.put(OpCode.BinBitwiseOrAssign, Op.init("|=", OpLevel.Assign, false))
-        t.put(OpCode.BinBitwiseAndAssign, Op.init("&=", OpLevel.Assign, false))
-        t.put(OpCode.BinBitwiseXorAssign, Op.init("^=", OpLevel.Assign, false))
-        t.put(OpCode.BinNullishCoalescingAssign, Op.init("??=", OpLevel.Assign, false))
-        t.put(OpCode.BinLogicalOrAssign, Op.init("||=", OpLevel.Assign, false))
-        t.put(OpCode.BinLogicalAndAssign, Op.init("&&=", OpLevel.Assign, false))
+        t.put(OpCode.BinAssign.ordinal(), Op("=", OpLevel.Assign, false))
+        t.put(OpCode.BinAddAssign.ordinal(), Op("+=", OpLevel.Assign, false))
+        t.put(OpCode.BinSubAssign.ordinal(), Op("-=", OpLevel.Assign, false))
+        t.put(OpCode.BinMulAssign.ordinal(), Op("*=", OpLevel.Assign, false))
+        t.put(OpCode.BinDivAssign.ordinal(), Op("/=", OpLevel.Assign, false))
+        t.put(OpCode.BinRemAssign.ordinal(), Op("%=", OpLevel.Assign, false))
+        t.put(OpCode.BinPowAssign.ordinal(), Op("**=", OpLevel.Assign, false))
+        t.put(OpCode.BinShlAssign.ordinal(), Op("<<=", OpLevel.Assign, false))
+        t.put(OpCode.BinShrAssign.ordinal(), Op(">>=", OpLevel.Assign, false))
+        t.put(OpCode.BinUShrAssign.ordinal(), Op(">>>=", OpLevel.Assign, false))
+        t.put(OpCode.BinBitwiseOrAssign.ordinal(), Op("|=", OpLevel.Assign, false))
+        t.put(OpCode.BinBitwiseAndAssign.ordinal(), Op("&=", OpLevel.Assign, false))
+        t.put(OpCode.BinBitwiseXorAssign.ordinal(), Op("^=", OpLevel.Assign, false))
+        t.put(OpCode.BinNullishCoalescingAssign.ordinal(), Op("??=", OpLevel.Assign, false))
+        t.put(OpCode.BinLogicalOrAssign.ordinal(), Op("||=", OpLevel.Assign, false))
+        t.put(OpCode.BinLogicalAndAssign.ordinal(), Op("&&=", OpLevel.Assign, false))
 
         return t
     }
 
     /// 获取操作符信息 - 对应 Bun Op.Table.get(code)
     public static func get(code: OpCode): ?Op {
-        return table.get(code)
+        return table.get(code.ordinal())
     }
 
     /// 获取操作符优先级
     public static func getLevel(code: OpCode): OpLevel {
-        match (table.get(code)) {
+        match (table.get(code.ordinal())) {
             case Some(op) => op.level
             case None => OpLevel.Lowest
         }

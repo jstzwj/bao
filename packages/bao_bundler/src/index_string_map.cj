@@ -64,10 +64,9 @@ public class IndexStringMap {
     public func getOrPut(index: UInt32, defaultValue: String): String {
         match (map.get(index)) {
             case Some(v) => return v
-            case None => {
+            case None =>
                 map.put(index, defaultValue)
                 return defaultValue
-            }
         }
     }
 

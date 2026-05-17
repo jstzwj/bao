@@ -11,6 +11,8 @@ package bao_watcher
 
 import bao_core.*
 import bao_sys.*
+import std.collection.*
+import std.time.*
 
 // ============================================================================
 // WatcherTrace - 监视器追踪日志
@@ -98,7 +100,7 @@ public class WatcherTrace {
         // 严格翻译自: WatcherTrace.zig:9
         //   if (bun.env_var.BUN_WATCHER_TRACE.get()) |trace_path|
         let tracePath = OS.getEnv("BUN_WATCHER_TRACE")
-        if (let Some(path) = tracePath) {
+        if (let Some(path) <- tracePath) {
             if (path.size > 0) {
                 // 打开追踪文件
                 // 严格翻译自: WatcherTrace.zig:11-12
@@ -109,9 +111,9 @@ public class WatcherTrace {
 
                 match (SysFs.open(path, flags, mode)) {
                     case Ok(fd) => traceFd = fd
-                    case Err(_) => {
+                    case Err(_) =>
                         // 静默忽略错误 - 对应 Bun .err => { }
-                    }
+                        ()
                 }
             }
         }
@@ -148,8 +150,9 @@ public class WatcherTrace {
     public func writeEvents(watcher: Watcher, events: Array<WatcherEvent>,
                              changedFiles: Array<?String>): Unit {
         let fd = traceFd
-        if (fd == None) {
-            return  // 对应 trace_file orelse return
+        match (fd) {
+            case None => return
+            case Some(_) => ()
         }
 
         let traceFdValue = fd.getOrThrow()
@@ -177,10 +180,11 @@ public class WatcherTrace {
             // 获取文件路径 - 对应 WatcherTrace.zig:51
             //   const file_path = if (event.index < file_paths.len)
             //       file_paths[event.index] else "(unknown)";
-            let filePath = if (Int64(event.index) < filePaths.size)
+            let filePath = if (Int64(event.index) < filePaths.size) {
                 filePaths[Int64(event.index)]
-            else
+            } else {
                 "(unknown)"
+            }
 
             // 获取变更名称
             let names = event.names(changedFiles)
@@ -239,9 +243,9 @@ public class WatcherTrace {
             // 严格翻译自: WatcherTrace.zig:74-94
             var hasChanged = false
             for (name in names) {
-                if (name != None) {
-                    hasChanged = true
-                    break
+                match (name) {
+                    case Some(_) => hasChanged = true
+                    case None => ()
                 }
             }
 
@@ -249,7 +253,7 @@ public class WatcherTrace {
                 sb.append(",\"changed\":[")
                 first = true
                 for (nameOpt in names) {
-                    if (let Some(name) = nameOpt) {
+                    if (let Some(name) <- nameOpt) {
                         if (!first) { sb.append(",") }
                         first = false
                         sb.append("\"${escapeJson(name)}\"")
@@ -287,7 +291,7 @@ public class WatcherTrace {
     /// 关闭追踪文件 - 对应 Bun WatcherTrace.deinit()
     /// 严格翻译自: WatcherTrace.zig:103-108
     public func deinit(): Unit {
-        if (let Some(fd) = traceFd) {
+        if (let Some(fd) <- traceFd) {
             SysFs.close(fd)
             traceFd = None
         }
@@ -316,17 +320,13 @@ public class WatcherTrace {
 
     /// 字符串转字节数组
     private func stringToBytes(s: String): Array<UInt8> {
-        var bytes = ArrayList<UInt8>()
-        for (ch in s) {
-            bytes.append(UInt8(Int32(ch.value) & 0xFF))
-        }
-        return bytes.toArray()
+        return s.toArray()
     }
 
     /// 获取当前时间戳 (毫秒) - 对应 std.time.milliTimestamp()
     private func currentMillis(): Int64 {
         // 简化实现: 仓颉 DateTime
         // 对应 Zig std.time.milliTimestamp()
-        return Int64(std.time.DateTime.now().getYear())
+        return DateTime.now().toUnixTimeStamp().toMilliseconds()
     }
 }

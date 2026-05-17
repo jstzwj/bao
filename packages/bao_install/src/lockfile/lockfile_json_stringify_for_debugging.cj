@@ -3,6 +3,8 @@
 //   将锁文件内容序列化为 JSON 格式, 主要用于调试和检查
 package bao_install.lockfile
 
+import bao_install.*
+
 import bao_core.*
 import bao_collections.*
 import bao_io.*
@@ -18,14 +20,14 @@ import bao_semver.*
 
 /// JSON 标量值
 /// 翻译自: JsonScalar trait
-public protocol JsonScalar {
+public interface JsonScalar {
     func writeJson(out: ArrayList<Byte>, opts: WriteStreamOptions): Unit
 }
 
 /// JSON 写入器
 /// 翻译自: JsonWriter trait
 ///   对应 Zig 的 std.json.WriteStream 方法
-public protocol JsonWriter {
+public interface JsonWriter {
     func beginObject(): Result<Unit>
     func endObject(): Result<Unit>
     func beginArray(): Result<Unit>
@@ -98,10 +100,10 @@ public class WriteStream <: JsonWriter {
         if (opts.indent == 0) {
             return
         }
-        out.append(Byte('\n'))
+        out.append(UInt8(10))
         var i: Int64 = 0
         while (i < depth * opts.indent) {
-            out.append(Byte(' '))
+            out.append(UInt8(32))
             i += 1
         }
     }
@@ -116,7 +118,7 @@ public class WriteStream <: JsonWriter {
         if (hadElement.size > 0) {
             let last = hadElement.size - 1
             if (hadElement[last]) {
-                out.append(Byte(','))
+                out.append(UInt8(44))
             }
             hadElement[last] = true
             newlineIndent()
@@ -125,7 +127,7 @@ public class WriteStream <: JsonWriter {
 
     public func beginObject(): Result<Unit> {
         valueStart()
-        out.append(Byte('{'))
+        out.append(UInt8(123))
         depth += 1
         hadElement.append(false)
         return Result.Ok(())
@@ -137,13 +139,13 @@ public class WriteStream <: JsonWriter {
         if (had) {
             newlineIndent()
         }
-        out.append(Byte('}'))
+        out.append(UInt8(125))
         return Result.Ok(())
     }
 
     public func beginArray(): Result<Unit> {
         valueStart()
-        out.append(Byte('['))
+        out.append(UInt8(91))
         depth += 1
         hadElement.append(false)
         return Result.Ok(())
@@ -155,7 +157,7 @@ public class WriteStream <: JsonWriter {
         if (had) {
             newlineIndent()
         }
-        out.append(Byte(']'))
+        out.append(UInt8(93))
         return Result.Ok(())
     }
 
@@ -163,10 +165,10 @@ public class WriteStream <: JsonWriter {
         valueStart()
         encodeJsonString(name, out)
         if (opts.indent > 0) {
-            out.append(Byte(':'))
-            out.append(Byte(' '))
+            out.append(UInt8(58))
+            out.append(UInt8(32))
         } else {
-            out.append(Byte(':'))
+            out.append(UInt8(58))
         }
         afterField = true
         return Result.Ok(())
@@ -175,22 +177,22 @@ public class WriteStream <: JsonWriter {
     public func writeBool(value: Bool): Result<Unit> {
         valueStart()
         if (value) {
-            out.appendAll("true".toByteArray())
+            out.appendAll("true".toArray())
         } else {
-            out.appendAll("false".toByteArray())
+            out.appendAll("false".toArray())
         }
         return Result.Ok(())
     }
 
     public func writeInt(value: Int64): Result<Unit> {
         valueStart()
-        out.appendAll("${value}".toByteArray())
+        out.appendAll("${value}".toArray())
         return Result.Ok(())
     }
 
     public func writeUInt(value: UInt64): Result<Unit> {
         valueStart()
-        out.appendAll("${value}".toByteArray())
+        out.appendAll("${value}".toArray())
         return Result.Ok(())
     }
 
@@ -202,13 +204,13 @@ public class WriteStream <: JsonWriter {
 
     public func writeNull(): Result<Unit> {
         valueStart()
-        out.appendAll("null".toByteArray())
+        out.appendAll("null".toArray())
         return Result.Ok(())
     }
 
     public func print(args: String): Result<Unit> {
         valueStart()
-        out.appendAll(args.toByteArray())
+        out.appendAll(args.toArray())
         return Result.Ok(())
     }
 
@@ -230,35 +232,65 @@ public class WriteStream <: JsonWriter {
 //   RFC-8259 字符串编码: 引号 + 转义 ", \, 控制字符
 // ============================================================================
 
+/// 写入多个 ID
+private func writeMultipleIds(w: JsonWriter, ids: ArrayList<UInt32>): Unit {
+    w.beginArray()
+    for (id in ids) {
+        w.writeUInt(UInt64(id))
+    }
+    w.endArray()
+}
+
 /// 编码 JSON 字符串
 /// 翻译自: encode_json_string
-public func encodeJsonString(s: Array<Byte>, out: ArrayList<Byte>): Unit {
-    out.append(Byte('"'))
+public func encodeJsonString(s: Array<UInt8>, out: ArrayList<UInt8>): Unit {
+    out.append(UInt8(34)) // '"'
     for (c in s) {
-        match (c) {
-            case Byte('"') => {
-                out.appendAll("\\\\".toByteArray()) // \"
-                // 实际是 \"
-                out.removeAt(out.size - 1) // 移除多余的 \
-                out.append(Byte('"'))
-                out.insert(out.size - 1, Byte('\\'))
-            }
-            case Byte('\\') => out.appendAll("\\\\".toByteArray())
-            case Byte('\n') => out.appendAll("\\n".toByteArray())
-            case Byte('\r') => out.appendAll("\\r".toByteArray())
-            case Byte('\t') => out.appendAll("\\t".toByteArray())
-            case _ => {
-                let v = c.toInt()
-                if (v >= 0x00 && v <= 0x1F) {
-                    out.appendAll("\\u00".toByteArray())
-                    out.appendAll(bao_core.Fmt.hexByteLower(c))
-                } else {
-                    out.append(c)
-                }
-            }
+        if (c == UInt8(34)) {
+            encodeQuoteEscape(out)
+        } else if (c == UInt8(92)) {
+            encodeBackslashEscape(out)
+        } else if (c == UInt8(10)) {
+            encodeEscapeChar(out, UInt8(110))
+        } else if (c == UInt8(13)) {
+            encodeEscapeChar(out, UInt8(114))
+        } else if (c == UInt8(9)) {
+            encodeEscapeChar(out, UInt8(116))
+        } else {
+            encodeDefaultChar(c, out)
         }
     }
-    out.append(Byte('"'))
+    out.append(UInt8(34)) // '"'
+}
+
+private func encodeQuoteEscape(out: ArrayList<UInt8>): Unit {
+    out.append(UInt8(92)) // '\'
+    out.append(UInt8(34)) // '"'
+}
+
+private func encodeBackslashEscape(out: ArrayList<UInt8>): Unit {
+    out.append(UInt8(92)) // '\'
+    out.append(UInt8(92)) // '\'
+}
+
+private func encodeEscapeChar(out: ArrayList<UInt8>, ch: UInt8): Unit {
+    out.append(UInt8(92)) // '\'
+    out.append(ch)
+}
+
+private func encodeDefaultChar(c: UInt8, out: ArrayList<UInt8>): Unit {
+    let v = Int32(c)
+    if (v >= 0x00 && v <= 0x1F) {
+        out.append(UInt8(92)) // '\'
+        out.append(UInt8(117)) // 'u'
+        out.append(UInt8(48))  // '0'
+        out.append(UInt8(48))  // '0'
+        // hex byte
+        let hex = bao_core.Fmt.hexByteLower(c)
+        for (b in hex) { out.append(b) }
+    } else {
+        out.append(c)
+    }
 }
 
 // ============================================================================
@@ -275,46 +307,40 @@ public func jsonStringify(lockfile: Lockfile, w: JsonWriter): Result<Unit> {
     w.beginObject()
 
     // format 字段
-    w.objectField("format".toByteArray())
-    w.writeBytes(formatVersionName(lockfile.format).toByteArray())
+    w.objectField("format".toArray())
+    w.writeBytes(formatVersionName(lockfile.format).toArray())
 
     // meta_hash 字段
-    w.objectField("meta_hash".toByteArray())
+    w.objectField("meta_hash".toArray())
     let hex = bao_core.Fmt.bytesToHexLower(lockfile.metaHash)
     w.writeBytes(hex)
 
     // package_index 字段
-    w.objectField("package_index".toByteArray())
+    w.objectField("package_index".toArray())
     w.beginObject()
     for (entry in lockfile.packageIndex) {
         let firstName = entry.value.name
-        w.objectField(firstName.toByteArray())
+        w.objectField(firstName.toArray())
         match (entry.value.ids) {
             case PackageIndexEntry.SingleId(id) => w.writeUInt(UInt64(id))
-            case PackageIndexEntry.MultipleIds(ids) => {
-                w.beginArray()
-                for (id in ids) {
-                    w.writeUInt(UInt64(id))
-                }
-                w.endArray()
-            }
+            case PackageIndexEntry.MultipleIds(ids) => writeMultipleIds(w, ids)
         }
     }
     w.endObject()
 
     // trees 字段
-    w.objectField("trees".toByteArray())
+    w.objectField("trees".toArray())
     w.beginArray()
     let dependencies = lockfile.buffers.dependencies
     let hoistedDeps = lockfile.buffers.hoistedDependencies
     let resolutions = lockfile.buffers.resolutions
     for (treeId in 0..lockfile.buffers.trees.size) {
         w.beginObject()
-        w.objectField("id".toByteArray())
+        w.objectField("id".toArray())
         w.writeUInt(UInt64(treeId))
 
         let tree = lockfile.buffers.trees[treeId]
-        w.objectField("dependencies".toByteArray())
+        w.objectField("dependencies".toArray())
         w.beginObject()
         for (depId in tree.dependencies.get(hoistedDeps)) {
             let dep = dependencies[depId]
@@ -322,9 +348,9 @@ public func jsonStringify(lockfile: Lockfile, w: JsonWriter): Result<Unit> {
 
             w.objectField(dep.name.slice(sb))
             w.beginObject()
-            w.objectField("id".toByteArray())
+            w.objectField("id".toArray())
             w.writeUInt(UInt64(depId))
-            w.objectField("package_id".toByteArray())
+            w.objectField("package_id".toArray())
             w.writeUInt(UInt64(packageId))
             w.endObject()
         }
@@ -334,7 +360,7 @@ public func jsonStringify(lockfile: Lockfile, w: JsonWriter): Result<Unit> {
     w.endArray()
 
     // dependencies 字段
-    w.objectField("dependencies".toByteArray())
+    w.objectField("dependencies".toArray())
     w.beginArray()
     for (depId in 0..dependencies.size) {
         let dep = dependencies[depId]
@@ -344,81 +370,57 @@ public func jsonStringify(lockfile: Lockfile, w: JsonWriter): Result<Unit> {
     w.endArray()
 
     // packages 字段
-    w.objectField("packages".toByteArray())
+    w.objectField("packages".toArray())
     w.beginArray()
     for (i in 0..lockfile.packages.len()) {
         let pkg = lockfile.packages.get(i)
         w.beginObject()
 
-        w.objectField("id".toByteArray())
+        w.objectField("id".toArray())
         w.writeUInt(UInt64(i))
 
-        w.objectField("name".toByteArray())
+        w.objectField("name".toArray())
         w.writeBytes(pkg.name.slice(sb))
 
-        w.objectField("name_hash".toByteArray())
+        w.objectField("name_hash".toArray())
         w.writeUInt(pkg.nameHash)
 
-        w.objectField("resolution".toByteArray())
+        w.objectField("resolution".toArray())
         w.beginObject()
-        w.objectField("tag".toByteArray())
-        w.writeBytes(pkg.resolution.tag.name().toByteArray())
-        w.objectField("value".toByteArray())
+        w.objectField("tag".toArray())
+        w.writeBytes(pkg.resolution.tag.name().toArray())
+        w.objectField("value".toArray())
         w.print(pkg.resolution.fmt(sb))
         w.endObject()
 
-        w.objectField("dependencies".toByteArray())
+        w.objectField("dependencies".toArray())
         w.beginArray()
         for (depIdx in pkg.dependencies.off..(pkg.dependencies.off + pkg.dependencies.len)) {
             w.writeUInt(UInt64(depIdx))
         }
         w.endArray()
 
-        w.objectField("integrity".toByteArray())
+        w.objectField("integrity".toArray())
         match (pkg.meta.integrity.tag) {
             case IntegrityTag.Unknown => w.writeNull()
             case _ => w.print(pkg.meta.integrity.toString())
         }
 
-        w.objectField("bin".toByteArray())
+        w.objectField("bin".toArray())
         match (pkg.bin.tag) {
             case BinTag.None => w.writeNull()
-            case BinTag.File => {
-                w.beginObject()
-                w.objectField("file".toByteArray())
-                w.writeBytes(pkg.bin.file.slice(sb))
-                w.endObject()
-            }
-            case BinTag.NamedFile => {
-                w.beginObject()
-                w.objectField("name".toByteArray())
-                w.writeBytes(pkg.bin.namedFile[0].slice(sb))
-                w.objectField("file".toByteArray())
-                w.writeBytes(pkg.bin.namedFile[1].slice(sb))
-                w.endObject()
-            }
-            case BinTag.Dir => {
-                w.writeBytes(pkg.bin.dir.slice(sb))
-            }
-            case BinTag.Map => {
-                w.beginObject()
-                let data = pkg.bin.map.get(lockfile.buffers.externStrings)
-                var binI: Int64 = 0
-                while (binI < data.size) {
-                    w.objectField(data[binI].slice(sb))
-                    w.writeBytes(data[binI + 1].slice(sb))
-                    binI += 2
-                }
-                w.endObject()
-            }
+            case BinTag.File => writeBinFile(w, pkg.bin.file.slice(sb))
+            case BinTag.NamedFile => writeBinNamedFile(w, pkg.bin.namedFile[0].slice(sb), pkg.bin.namedFile[1].slice(sb))
+            case BinTag.Dir => w.writeBytes(pkg.bin.dir.slice(sb))
+            case BinTag.Map => writeBinMap(w, pkg.bin.map.get(lockfile.buffers.externStrings), sb)
         }
 
-        w.objectField("scripts".toByteArray())
+        w.objectField("scripts".toArray())
         w.beginObject()
         for (field in PackageScripts.fieldNames) {
             let script = field.getter(pkg.scripts).slice(sb)
-            if (script.length > 0) {
-                w.objectField(field.name.toByteArray())
+            if (script.size > 0) {
+                w.objectField(field.name.toArray())
                 w.writeBytes(script)
             }
         }
@@ -429,19 +431,19 @@ public func jsonStringify(lockfile: Lockfile, w: JsonWriter): Result<Unit> {
     w.endArray()
 
     // workspace_paths 字段
-    w.objectField("workspace_paths".toByteArray())
+    w.objectField("workspace_paths".toArray())
     w.beginObject()
     for (entry in lockfile.workspacePaths) {
-        w.objectField("${entry.key}".toByteArray())
+        w.objectField("${entry.key}".toArray())
         w.writeBytes(entry.value.slice(sb))
     }
     w.endObject()
 
     // workspace_versions 字段
-    w.objectField("workspace_versions".toByteArray())
+    w.objectField("workspace_versions".toArray())
     w.beginObject()
     for (entry in lockfile.workspaceVersions) {
-        w.objectField("${entry.key}".toByteArray())
+        w.objectField("${entry.key}".toArray())
         w.print(entry.value.fmt(sb))
     }
     w.endObject()
@@ -463,101 +465,42 @@ public func jsonStringifyDependency(
 
     w.beginObject()
 
-    w.objectField("name".toByteArray())
+    w.objectField("name".toArray())
     w.writeBytes(dep.name.slice(sb))
 
     // 版本标签
-    w.objectField(dep.version.tag.name().toByteArray())
+    w.objectField(dep.version.tag.name().toArray())
     match (dep.version.tag) {
         case DependencyVersionTag.Uninitialized => w.writeNull()
-        case DependencyVersionTag.Npm => {
-            w.beginObject()
-            let info = dep.version.npm
-            w.objectField("name".toByteArray())
-            w.writeBytes(info.name.slice(sb))
-            w.objectField("version".toByteArray())
-            w.print(info.version.fmt(sb))
-            w.endObject()
-        }
-        case DependencyVersionTag.Git => {
-            w.beginObject()
-            let info = dep.version.git
-            w.objectField("owner".toByteArray())
-            w.writeBytes(info.owner.slice(sb))
-            w.objectField("repo".toByteArray())
-            w.writeBytes(info.repo.slice(sb))
-            w.objectField("committish".toByteArray())
-            w.writeBytes(info.committish.slice(sb))
-            w.objectField("resolved".toByteArray())
-            w.writeBytes(info.resolved.slice(sb))
-            w.endObject()
-        }
-        case DependencyVersionTag.Github => {
-            w.beginObject()
-            let info = dep.version.github
-            w.objectField("owner".toByteArray())
-            w.writeBytes(info.owner.slice(sb))
-            w.objectField("repo".toByteArray())
-            w.writeBytes(info.repo.slice(sb))
-            w.objectField("committish".toByteArray())
-            w.writeBytes(info.committish.slice(sb))
-            w.endObject()
-        }
-        case DependencyVersionTag.Folder => {
-            w.writeBytes(dep.version.folder.slice(sb))
-        }
-        case DependencyVersionTag.Symlink => {
-            w.writeBytes(dep.version.symlink.slice(sb))
-        }
-        case DependencyVersionTag.Workspace => {
-            w.writeBytes(dep.version.workspace.slice(sb))
-        }
-        case DependencyVersionTag.Tarball => {
-            w.beginObject()
-            let info = dep.version.tarball
-            w.objectField("uri".toByteArray())
-            w.writeBytes(info.uri.slice(sb))
-            w.objectField("package_name".toByteArray())
-            w.writeBytes(info.packageName.slice(sb))
-            w.endObject()
-        }
-        case DependencyVersionTag.DistTag => {
-            w.beginObject()
-            let info = dep.version.distTag
-            w.objectField("name".toByteArray())
-            w.writeBytes(info.name.slice(sb))
-            w.objectField("tag".toByteArray())
-            w.writeBytes(info.tag.slice(sb))
-            w.endObject()
-        }
-        case DependencyVersionTag.Catalog => {
-            w.beginObject()
-            w.objectField("name".toByteArray())
-            w.writeBytes(dep.name.slice(sb))
-            w.objectField("version".toByteArray())
-            w.print("catalog:${dep.version.catalog.fmtJson(sb)}")
-            w.endObject()
-        }
+        case DependencyVersionTag.Npm => writeNpmVersion(w, dep.version.npm, sb)
+        case DependencyVersionTag.Git => writeGitVersion(w, dep.version.git, sb)
+        case DependencyVersionTag.Github => writeGithubVersion(w, dep.version.github, sb)
+        case DependencyVersionTag.Folder => w.writeBytes(dep.version.folder.slice(sb))
+        case DependencyVersionTag.Symlink => w.writeBytes(dep.version.symlink.slice(sb))
+        case DependencyVersionTag.Workspace => w.writeBytes(dep.version.workspace.slice(sb))
+        case DependencyVersionTag.Tarball => writeTarballVersion(w, dep.version.tarball, sb)
+        case DependencyVersionTag.DistTag => writeDistTagVersion(w, dep.version.distTag, sb)
+        case DependencyVersionTag.Catalog => writeCatalogVersion(w, dep, sb)
     }
 
-    w.objectField("package_id".toByteArray())
+    w.objectField("package_id".toArray())
     if (res == InvalidPackageId) {
         w.writeNull()
     } else {
         w.writeUInt(UInt64(res))
     }
 
-    w.objectField("behavior".toByteArray())
+    w.objectField("behavior".toArray())
     w.beginObject()
     for (flag in Behavior.namedFlags) {
         if (flag.getter(dep.behavior)) {
-            w.objectField(flag.name.toByteArray())
+            w.objectField(flag.name.toArray())
             w.writeBool(true)
         }
     }
     w.endObject()
 
-    w.objectField("id".toByteArray())
+    w.objectField("id".toArray())
     w.writeUInt(UInt64(depId))
 
     w.endObject()
@@ -590,98 +533,142 @@ public enum FormatVersion {
 }
 
 // ============================================================================
-// 支持类型 (引用)
+// 支持类型 (引用) - these are defined elsewhere in bao_install
 // ============================================================================
 
-/// 包索引条目
-public enum PackageIndexEntry {
-    | SingleId(UInt32)
-    | MultipleIds(ArrayList<UInt32>)
+// ============================================================================
+// JSON 序列化辅助函数
+// ============================================================================
+
+private func writeBinFile(w: JsonWriter, fileData: Array<Byte>): Unit {
+    w.beginObject()
+    w.objectField("file".toArray())
+    w.writeBytes(fileData)
+    w.endObject()
 }
 
-/// 无效包 ID
-/// 翻译自: INVALID_PACKAGE_ID
-public let INVALID_PACKAGE_ID: UInt32 = UInt32.MAX
-
-/// 无效包 ID 别名
-public let InvalidPackageId: UInt32 = UInt32.MAX
-
-/// Bin 标签
-public enum BinTag {
-    | None
-    | File
-    | NamedFile
-    | Dir
-    | Map
+private func writeBinNamedFile(w: JsonWriter, nameData: Array<Byte>, fileData: Array<Byte>): Unit {
+    w.beginObject()
+    w.objectField("name".toArray())
+    w.writeBytes(nameData)
+    w.objectField("file".toArray())
+    w.writeBytes(fileData)
+    w.endObject()
 }
 
-/// Integrity 标签
-public enum IntegrityTag {
-    | Unknown
-    | SHA256
-    | SHA512
-    | SHA1
-}
-
-/// 依赖版本标签
-public enum DependencyVersionTag {
-    | Uninitialized
-    | Npm
-    | DistTag
-    | Tarball
-    | Folder
-    | Symlink
-    | Workspace
-    | Git
-    | Github
-    | Catalog
-}
-
-/// 包脚本
-public class PackageScripts {
-    public static let fieldNames: ArrayList<ScriptField> = ArrayList<ScriptField>()
-
-    public init() {}
-}
-
-/// 脚本字段
-public class ScriptField {
-    public var name: String
-    public var getter: (PackageScriptsValues) -> String
-
-    public init(name: String, getter: (PackageScriptsValues) -> String) {
-        this.name = name
-        this.getter = getter
+private func writeBinMap(w: JsonWriter, data: ArrayList<PackageScriptsValues>, sb: Array<Byte>): Unit {
+    w.beginObject()
+    var binI: Int64 = 0
+    while (binI < data.size) {
+        w.objectField(data[binI].slice(sb))
+        w.writeBytes(data[binI + 1].slice(sb))
+        binI += 2
     }
+    w.endObject()
 }
 
-/// 包脚本值
+private func writeNpmVersion(w: JsonWriter, info: NpmVersionInfo, sb: Array<Byte>): Unit {
+    w.beginObject()
+    w.objectField("name".toArray())
+    w.writeBytes(info.name.slice(sb))
+    w.objectField("version".toArray())
+    w.print(info.version.fmt(sb))
+    w.endObject()
+}
+
+private func writeGitVersion(w: JsonWriter, info: GitVersionInfo, sb: Array<Byte>): Unit {
+    w.beginObject()
+    w.objectField("owner".toArray())
+    w.writeBytes(info.owner.slice(sb))
+    w.objectField("repo".toArray())
+    w.writeBytes(info.repo.slice(sb))
+    w.objectField("committish".toArray())
+    w.writeBytes(info.committish.slice(sb))
+    w.objectField("resolved".toArray())
+    w.writeBytes(info.resolved.slice(sb))
+    w.endObject()
+}
+
+private func writeGithubVersion(w: JsonWriter, info: GithubVersionInfo, sb: Array<Byte>): Unit {
+    w.beginObject()
+    w.objectField("owner".toArray())
+    w.writeBytes(info.owner.slice(sb))
+    w.objectField("repo".toArray())
+    w.writeBytes(info.repo.slice(sb))
+    w.objectField("committish".toArray())
+    w.writeBytes(info.committish.slice(sb))
+    w.endObject()
+}
+
+private func writeTarballVersion(w: JsonWriter, info: TarballVersionInfo, sb: Array<Byte>): Unit {
+    w.beginObject()
+    w.objectField("uri".toArray())
+    w.writeBytes(info.uri.slice(sb))
+    w.objectField("package_name".toArray())
+    w.writeBytes(info.packageName.slice(sb))
+    w.endObject()
+}
+
+private func writeDistTagVersion(w: JsonWriter, info: DistTagVersionInfo, sb: Array<Byte>): Unit {
+    w.beginObject()
+    w.objectField("name".toArray())
+    w.writeBytes(info.name.slice(sb))
+    w.objectField("tag".toArray())
+    w.writeBytes(info.tag.slice(sb))
+    w.endObject()
+}
+
+private func writeCatalogVersion(w: JsonWriter, dep: Dependency, sb: Array<Byte>): Unit {
+    w.beginObject()
+    w.objectField("name".toArray())
+    w.writeBytes(dep.name.slice(sb))
+    w.objectField("version".toArray())
+    w.print("catalog:${dep.version.catalog.fmtJson(sb)}")
+    w.endObject()
+}
+
+/// NPM 版本信息
+public class NpmVersionInfo {
+    public var name: PackageScriptsValues = PackageScriptsValues()
+    public var version: FmtHelper = FmtHelper()
+}
+
+/// Git 版本信息
+public class GitVersionInfo {
+    public var owner: PackageScriptsValues = PackageScriptsValues()
+    public var repo: PackageScriptsValues = PackageScriptsValues()
+    public var committish: PackageScriptsValues = PackageScriptsValues()
+    public var resolved: PackageScriptsValues = PackageScriptsValues()
+}
+
+/// Github 版本信息
+public class GithubVersionInfo {
+    public var owner: PackageScriptsValues = PackageScriptsValues()
+    public var repo: PackageScriptsValues = PackageScriptsValues()
+    public var committish: PackageScriptsValues = PackageScriptsValues()
+}
+
+/// Tarball 版本信息
+public class TarballVersionInfo {
+    public var uri: PackageScriptsValues = PackageScriptsValues()
+    public var packageName: PackageScriptsValues = PackageScriptsValues()
+}
+
+/// DistTag 版本信息
+public class DistTagVersionInfo {
+    public var name: PackageScriptsValues = PackageScriptsValues()
+    public var tag: PackageScriptsValues = PackageScriptsValues()
+}
+
+/// Fmt 辅助类
+public class FmtHelper {
+    public func fmt(sb: Array<Byte>): String { return "" }
+    public func fmtJson(sb: Array<Byte>): String { return "" }
+}
+
+/// 脚本值 (外部字符串引用)
+/// 仅用于此文件中的版本信息类型
 public class PackageScriptsValues {
     public init() {}
-
-    public func slice(sb: Array<Byte>): Array<Byte> {
-        return Array<Byte>()
-    }
-}
-
-/// 行为标志
-public class Behavior {
-    public var value: UInt32
-
-    public init(value: UInt32) {
-        this.value = value
-    }
-
-    public static let namedFlags: ArrayList<BehaviorFlag> = ArrayList<BehaviorFlag>()
-}
-
-/// 行为标志定义
-public class BehaviorFlag {
-    public var name: String
-    public var getter: (Behavior) -> Bool
-
-    public init(name: String, getter: (Behavior) -> Bool) {
-        this.name = name
-        this.getter = getter
-    }
+    public func slice(sb: Array<Byte>): Array<Byte> { return Array<Byte>() }
 }

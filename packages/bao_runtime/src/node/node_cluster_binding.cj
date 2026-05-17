@@ -71,7 +71,7 @@ public class InternalMsgHolder {
     }
 
     public func enqueue(message: Any): Unit {
-        messages.add(message)
+        messages.append(message)
     }
 
     public func dispatch(message: Any): Unit {

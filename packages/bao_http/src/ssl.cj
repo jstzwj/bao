@@ -1,5 +1,5 @@
 // bao_http ssl - SSL/TLS 支持 (OpenSSL/BoringSSL C FFI)
-// 严格翻译自: src/http/CertificateInfo.zig, src/http/HTTPCertError.zig
+// 严格翻译自: src/http/SSLCertificateInfo.zig, src/http/HTTPCertError.zig
 // 参考: src/http/ssl_config.rs, src/http/HTTPContext.zig (SSL context)
 package bao_http
 
@@ -47,7 +47,7 @@ public let TLS1_3_VERSION: Int32 = 0x0304
 // ============================================================================
 
 /// SSL 证书错误 - 对应 Bun HTTPCertError
-public class HTTPCertError {
+public class SSLHTTPCertError {
     /// 错误编号 - 对应 Bun error_no: u32
     public var errorNo: UInt32
     /// 错误代码 - 对应 Bun code: []const u8
@@ -76,20 +76,20 @@ public class HTTPCertError {
 }
 
 // ============================================================================
-// CertificateInfo - 证书信息
-// 严格翻译自: src/http/CertificateInfo.zig
-//   pub const CertificateInfo = @This();
+// SSLCertificateInfo - 证书信息
+// 严格翻译自: src/http/SSLCertificateInfo.zig
+//   pub const SSLCertificateInfo = @This();
 //   cert: []const u8,
 //   cert_error: HTTPCertError,
 //   hostname: []const u8,
 // ============================================================================
 
-/// 证书信息 - 对应 Bun CertificateInfo
-public class CertificateInfo {
+/// 证书信息 - 对应 Bun SSLCertificateInfo
+public class SSLCertificateInfo {
     /// DER 编码的证书数据 - 对应 Bun cert: []const u8
     public var cert: Array<UInt8>
     /// 证书错误 - 对应 Bun cert_error: HTTPCertError
-    public var certError: HTTPCertError
+    public var certError: SSLHTTPCertError
     /// 主机名 - 对应 Bun hostname: []const u8
     public var hostname: String
     /// 证书主题 (CN)
@@ -105,7 +105,7 @@ public class CertificateInfo {
 
     public init() {
         cert = Array<UInt8>()
-        certError = HTTPCertError()
+        certError = SSLHTTPCertError()
         hostname = ""
         subject = ""
         issuer = ""
@@ -364,18 +364,17 @@ public class SslContext {
 
             // 加载 CA 证书
             match (config.caFileName) {
-                case Some(caFile) => {
-                    let caPtr = unsafeNewCString(caFile)
+                case Some(caFile) =>
+                    let caPtr = sslUnsafeNewCString(caFile)
                     let rc = SSL_CTX_load_verify_locations(ctx, caPtr, CPointer<Int8>())
                     if (rc != 1) {
                         // CA 加载失败但不阻止创建
                     }
-                }
                 case None => ()
             }
 
             // 设置密码套件 - 对应 Bun ssl_ciphers
-            let cipherPtr = unsafeNewCString(config.cipherSuites)
+            let cipherPtr = sslUnsafeNewCString(config.cipherSuites)
             SSL_CTX_set_cipher_list(ctx, cipherPtr)
 
             // 设置协议版本
@@ -399,34 +398,31 @@ public class SslContext {
 
             // 加载证书 - 对应 Bun cert_file_name
             match (config.certFileName) {
-                case Some(certFile) => {
-                    let certPtr = unsafeNewCString(certFile)
+                case Some(certFile) =>
+                    let certPtr = sslUnsafeNewCString(certFile)
                     let rc = SSL_CTX_use_certificate_chain_file(ctx, certPtr)
                     if (rc != 1) {
                         return false
                     }
-                }
                 case None => ()
             }
 
             // 加载私钥 - 对应 Bun key_file_name
             match (config.keyFileName) {
-                case Some(keyFile) => {
-                    let keyPtr = unsafeNewCString(keyFile)
+                case Some(keyFile) =>
+                    let keyPtr = sslUnsafeNewCString(keyFile)
                     let rc = SSL_CTX_use_PrivateKey_file(ctx, keyPtr, SSL_FILETYPE_PEM)
                     if (rc != 1) {
                         return false
                     }
-                }
                 case None => ()
             }
 
             // 加载 CA - 对应 Bun ca_file_name
             match (config.caFileName) {
-                case Some(caFile) => {
-                    let caPtr = unsafeNewCString(caFile)
+                case Some(caFile) =>
+                    let caPtr = sslUnsafeNewCString(caFile)
                     SSL_CTX_load_verify_locations(ctx, caPtr, CPointer<Int8>())
-                }
                 case None => ()
             }
 
@@ -451,11 +447,13 @@ public class SslContext {
         if (!initialized) {
             return None
         }
-        let ssl = SSL_new(ctx)
-        if (ssl.isNull()) {
-            return None
+        unsafe {
+            let ssl = SSL_new(ctx)
+            if (ssl.isNull()) {
+                return None
+            }
+            return Some(SslSocket(ssl, config))
         }
-        return Some(SslSocket(ssl, config))
     }
 
     /// 获取底层 SSL_CTX 指针
@@ -472,7 +470,7 @@ public class SslContext {
     /// 对应 Bun SSLContext deinit
     public func deinit(): Unit {
         if (!ctx.isNull()) {
-            SSL_CTX_free(ctx)
+            unsafe { SSL_CTX_free(ctx) }
             ctx = CPointer<Unit>()
             initialized = false
         }
@@ -518,20 +516,18 @@ public class SslSocket {
         // TCP 连接
         let addresses = resolveHostname(hostname, port)
         match (addresses) {
-            case Some(addrs) => {
+            case Some(addrs) =>
                 if (addrs.size == 0) {
                     return false
                 }
                 // 尝试连接
                 let tcpFd = tcpConnect(addrs[0], port)
                 match (tcpFd) {
-                    case Some(sockfd) => {
+                    case Some(sockfd) =>
                         fd = sockfd
                         return doHandshake(hostname)
-                    }
                     case None => return false
                 }
-            }
             case None => return false
         }
     }
@@ -559,7 +555,7 @@ public class SslSocket {
             // 设置 SNI (Server Name Indication)
             // 对应 Bun getTlsHostname -> SSL_set_tlsext_host_name
             let sniName = if (config.serverName.size > 0) { config.serverName } else { hostname }
-            let namePtr = unsafeNewCString(sniName)
+            let namePtr = sslUnsafeNewCString(sniName)
             SSL_set_tlsext_host_name(ssl, namePtr)
 
             // 执行 TLS 握手
@@ -612,7 +608,7 @@ public class SslSocket {
             if (bytesRead > 0) {
                 let bytes = CPointer<UInt8>(bufPtr)
                 for (i in 0..Int64(bytesRead)) {
-                    buf[Int64(i)] = bytes[IntNative(i)].read()
+                    buf[Int64(i)] = (bytes + i).read()
                 }
             }
             free(bufPtr)
@@ -630,7 +626,7 @@ public class SslSocket {
             let bufPtr = malloc(UIntNative(data.size))
             let bytes = CPointer<UInt8>(bufPtr)
             for (i in 0..data.size) {
-                (bytes + IntNative(i)).write(data[Int64(i)])
+                (bytes + i).write(data[Int64(i)])
             }
             let bytesWritten = SSL_write(ssl, bufPtr, Int32(data.size))
             free(bufPtr)
@@ -645,8 +641,8 @@ public class SslSocket {
     // ========================================================================
 
     /// 获取对端证书信息
-    /// 对应 Bun: SSL_get_peer_certificate -> CertificateInfo
-    public func getPeerCertificate(): ?CertificateInfo {
+    /// 对应 Bun: SSL_get_peer_certificate -> SSLCertificateInfo
+    public func getPeerCertificate(): ?SSLCertificateInfo {
         if (!handshakeDone) {
             return None
         }
@@ -656,7 +652,7 @@ public class SslSocket {
                 return None
             }
 
-            let info = CertificateInfo()
+            let info = SSLCertificateInfo()
             info.hostname = config.serverName
 
             // 获取验证结果 - 对应 Bun SSL_get_verify_result
@@ -664,7 +660,7 @@ public class SslSocket {
             info.valid = (verifyResult == 0)  // X509_V_OK = 0
 
             if (!info.valid) {
-                info.certError = HTTPCertError(
+                info.certError = SSLHTTPCertError(
                     UInt32(verifyResult),
                     "CERT_VERIFY_FAILED",
                     "Certificate verification failed (code: ${verifyResult})"
@@ -672,14 +668,18 @@ public class SslSocket {
             }
 
             // 导出 DER 编码的证书 - 对应 Bun i2d_X509
-            var outPtr: CPointer<UInt8> = CPointer<UInt8>()
-            let certSize = i2d_X509(cert, &outPtr)
+            let outBuf = malloc(UIntNative(8))
+            let outPtrPtr = CPointer<CPointer<UInt8>>(outBuf)
+            outPtrPtr.write(CPointer<UInt8>())
+            let certSize = i2d_X509(cert, outPtrPtr)
+            let outPtr = outPtrPtr.read()
             if (certSize > 0 && !outPtr.isNull()) {
-                info.cert = Array<UInt8>(Int64(certSize), item: UInt8(0))
+                info.cert = Array<UInt8>(Int64(certSize), { _ => UInt8(0) })
                 for (i in 0..Int64(certSize)) {
-                    info.cert[Int64(i)] = (outPtr + IntNative(i)).read()
+                    info.cert[Int64(i)] = (outPtr + i).read()
                 }
             }
+            free(outBuf)
 
             X509_free(cert)
             return Some(info)
@@ -713,7 +713,7 @@ public class SslSocket {
     /// 对应 Bun: SSL_shutdown(ssl) -> close(fd)
     public func close(): Unit {
         if (connected) {
-            SSL_shutdown(ssl)
+            unsafe { SSL_shutdown(ssl) }
             connected = false
             handshakeDone = false
         }
@@ -722,7 +722,7 @@ public class SslSocket {
             fd = INVALID_FD
         }
         if (!ssl.isNull()) {
-            SSL_free(ssl)
+            unsafe { SSL_free(ssl) }
             ssl = CPointer<Unit>()
         }
     }
@@ -804,17 +804,15 @@ public class SSL {
         }
         let sslSocket = ctx.newSsl()
         match (sslSocket) {
-            case Some(sock) => {
+            case Some(sock) =>
                 if (sock.connect(hostname, port)) {
                     return Some(sock)
                 }
                 sock.close()
                 return None
-            }
-            case None => {
+            case None =>
                 ctx.deinit()
                 return None
-            }
         }
     }
 
@@ -826,17 +824,15 @@ public class SSL {
         }
         let sslSocket = ctx.newSsl()
         match (sslSocket) {
-            case Some(sock) => {
+            case Some(sock) =>
                 if (sock.connect(hostname, port)) {
                     return Some(sock)
                 }
                 sock.close()
                 return None
-            }
-            case None => {
+            case None =>
                 ctx.deinit()
                 return None
-            }
         }
     }
 
@@ -863,26 +859,31 @@ private func resolveHostname(hostname: String, port: Int64): ?ArrayList<String> 
     unsafe {
         var hints = malloc(UIntNative(48))
         let hintBytes = CPointer<Int32>(hints)
-        (hintBytes + IntNative(0)).write(AF_INET())      // ai_family
-        (hintBytes + IntNative(1)).write(SOCK_STREAM())   // ai_socktype
-        (hintBytes + IntNative(2)).write(IPPROTO_TCP())   // ai_protocol
-        (hintBytes + IntNative(3)).write(0)               // ai_flags
+        (hintBytes + 0).write(SSL_AF_INET())      // ai_family
+        (hintBytes + 1).write(SSL_SOCK_STREAM())   // ai_socktype
+        (hintBytes + 2).write(SSL_IPPROTO_TCP())   // ai_protocol
+        (hintBytes + 3).write(0)               // ai_flags
 
         let portStr = port.toString()
-        let hostnamePtr = unsafeNewCString(hostname)
-        let portPtr = unsafeNewCString(portStr)
-        var result: CPointer<Unit> = CPointer<Unit>()
+        let hostnamePtr = sslUnsafeNewCString(hostname)
+        let portPtr = sslUnsafeNewCString(portStr)
+        let resultBuf = malloc(UIntNative(8))
+        let resultPtr = CPointer<CPointer<Unit>>(resultBuf)
+        resultPtr.write(CPointer<Unit>())
 
-        let rc = getaddrinfo(hostnamePtr, portPtr, hints, &result)
+        let rc = ssl_getaddrinfo(hostnamePtr, portPtr, hints, resultPtr)
         if (rc != 0) {
+            free(resultBuf)
             free(hints)
             return None
         }
 
+        let result = resultPtr.read()
         if (!result.isNull()) {
             addresses.append("127.0.0.1")  // 简化: 使用首个解析结果
-            freeaddrinfo(result)
+            ssl_freeaddrinfo(result)
         }
+        free(resultBuf)
         free(hints)
     }
     if (addresses.size == 0) {
@@ -894,17 +895,17 @@ private func resolveHostname(hostname: String, port: Int64): ?ArrayList<String> 
 /// TCP 连接
 private func tcpConnect(ip: String, port: Int64): ?Int64 {
     unsafe {
-        let sockfd = socket(AF_INET(), SOCK_STREAM(), 0)
+        let sockfd = ssl_socket(SSL_AF_INET(), SSL_SOCK_STREAM(), 0)
         if (sockfd < 0) {
             return None
         }
 
-        var addr = SockAddrIn()
-        addr.family = UInt16(AF_INET())
-        addr.port = htons(UInt16(port))
-        addr.addr = inetAddr(ip)
+        var addr = SSLSockAddrIn()
+        addr.family = UInt16(SSL_AF_INET())
+        addr.port = ssl_htons(UInt16(port))
+        addr.addr = sslInetAddr(ip)
 
-        let result = connect(sockfd, addr.ptr(), addr.size())
+        let result = ssl_connect(sockfd, addr.ptr(), addr.size())
         if (result != 0) {
             close(sockfd)
             return None
@@ -913,8 +914,8 @@ private func tcpConnect(ip: String, port: Int64): ?Int64 {
     }
 }
 
-/// SockAddrIn - 对应 POSIX struct sockaddr_in
-class SockAddrIn {
+/// SSLSockAddrIn - 对应 POSIX struct sockaddr_in
+class SSLSockAddrIn {
     var family: UInt16
     var port: UInt16
     var addr: UInt32
@@ -929,16 +930,16 @@ class SockAddrIn {
         unsafe {
             let ptr = malloc(UIntNative(16))
             let bytes = CPointer<UInt8>(ptr)
-            (bytes + IntNative(0)).write(UInt8(family & 0xFF))
-            (bytes + IntNative(1)).write(UInt8((family >> 8) & 0xFF))
-            (bytes + IntNative(2)).write(UInt8(port & 0xFF))
-            (bytes + IntNative(3)).write(UInt8((port >> 8) & 0xFF))
-            (bytes + IntNative(4)).write(UInt8(addr & 0xFF))
-            (bytes + IntNative(5)).write(UInt8((addr >> 8) & 0xFF))
-            (bytes + IntNative(6)).write(UInt8((addr >> 16) & 0xFF))
-            (bytes + IntNative(7)).write(UInt8((addr >> 24) & 0xFF))
+            (bytes + 0).write(UInt8(family & 0xFF))
+            (bytes + 1).write(UInt8((family >> 8) & 0xFF))
+            (bytes + 2).write(UInt8(port & 0xFF))
+            (bytes + 3).write(UInt8((port >> 8) & 0xFF))
+            (bytes + 4).write(UInt8(addr & 0xFF))
+            (bytes + 5).write(UInt8((addr >> 8) & 0xFF))
+            (bytes + 6).write(UInt8((addr >> 16) & 0xFF))
+            (bytes + 7).write(UInt8((addr >> 24) & 0xFF))
             for (i in 8..16) {
-                (bytes + IntNative(i)).write(UInt8(0))
+                (bytes + i).write(UInt8(0))
             }
             return ptr
         }
@@ -950,51 +951,56 @@ class SockAddrIn {
 }
 
 // Socket 常量
-func AF_INET(): Int32 { 2 }
-func SOCK_STREAM(): Int32 { 1 }
-func IPPROTO_TCP(): Int32 { 6 }
+func SSL_AF_INET(): Int32 { 2 }
+func SSL_SOCK_STREAM(): Int32 { 1 }
+func SSL_IPPROTO_TCP(): Int32 { 6 }
 
 // Socket C FFI (与 server.cj 相同声明)
 @C
-foreign func socket(domain: Int32, type_: Int32, protocol: Int32): Int32
+foreign func ssl_socket(domain: Int32, type_: Int32, protocol: Int32): Int32
 @C
-foreign func connect(sockfd: Int32, addr: CPointer<Unit>, addrlen: UInt32): Int32
+foreign func ssl_connect(sockfd: Int32, addr: CPointer<Unit>, addrlen: UInt32): Int32
 @C
 foreign func close(fd: Int32): Int32
 @C
-foreign func setsockopt(sockfd: Int32, level: Int32, optname: Int32, optval: CPointer<Unit>, optlen: UIntNative): Int32
+foreign func ssl_setsockopt(sockfd: Int32, level: Int32, optname: Int32, optval: CPointer<Unit>, optlen: UIntNative): Int32
 @C
-foreign func htons(hostshort: UInt16): UInt16
+foreign func ssl_htons(hostshort: UInt16): UInt16
 @C
-foreign func inet_pton(af: Int32, src: CPointer<Int8>, dst: CPointer<Unit)): Int32
+foreign func ssl_inet_pton(af: Int32, src: CPointer<Int8>, dst: CPointer<Unit>): Int32
 @C
-foreign func getaddrinfo(name: CPointer<Int8>, service: CPointer<Int8>, hints: CPointer<Unit>, result: CPointer<CPointer<Unit>>): Int32
+foreign func ssl_getaddrinfo(name: CPointer<Int8>, service: CPointer<Int8>, hints: CPointer<Unit>, result: CPointer<CPointer<Unit>>): Int32
 @C
-foreign func freeaddrinfo(addr: CPointer<Unit>): Unit
+foreign func ssl_freeaddrinfo(addr: CPointer<Unit>): Unit
 
 /// IP 地址字符串转网络字节序
-func inetAddr(ip: String): UInt32 {
+func sslInetAddr(ip: String): UInt32 {
     unsafe {
-        let ipPtr = unsafeNewCString(ip)
-        var addr: UInt32 = 0
-        let result = inet_pton(AF_INET(), ipPtr, &addr)
+        let ipPtr = sslUnsafeNewCString(ip)
+        let addrBuf = malloc(UIntNative(4))
+        let addrPtr = CPointer<UInt32>(addrBuf)
+        addrPtr.write(UInt32(0))
+        let result = ssl_inet_pton(SSL_AF_INET(), ipPtr, addrBuf)
         if (result != 1) {
+            free(addrBuf)
             return 0
         }
+        let addr = addrPtr.read()
+        free(addrBuf)
         return addr
     }
 }
 
 /// C 字符串工具
-func unsafeNewCString(s: String): CPointer<Int8> {
+func sslUnsafeNewCString(s: String): CPointer<Int8> {
     unsafe {
         let len = s.size
         let ptr = malloc(UIntNative(len + 1))
         let bytesPtr = CPointer<Int8>(ptr)
         for (i in 0..len) {
-            (bytesPtr + IntNative(i)).write(Int8(s[Int64(i)].value))
+            (bytesPtr + i).write(Int8(s[Int64(i)]))
         }
-        (bytesPtr + IntNative(len)).write(Int8(0))
+        (bytesPtr + len).write(Int8(0))
         return bytesPtr
     }
 }
@@ -1002,12 +1008,12 @@ func unsafeNewCString(s: String): CPointer<Int8> {
 func unsafeCStringToString(ptr: CPointer<Int8>): String {
     unsafe {
         var len = 0
-        while (!(ptr + IntNative(len)).read() == Int8(0)) {
+        while (!(ptr + len).read() == Int8(0)) {
             len += 1
         }
         let sb = StringBuilder()
         for (i in 0..len) {
-            sb.append(Char(Int32((ptr + IntNative(i)).read())))
+            sb.append(Rune(UInt32(UInt8((ptr + i).read()))))
         }
         return sb.toString()
     }

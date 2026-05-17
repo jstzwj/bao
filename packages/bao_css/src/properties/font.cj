@@ -10,6 +10,7 @@
 package bao_css.properties
 
 import bao_core.*
+import bao_collections.*
 
 // ============================================================================
 // FontWeight
@@ -33,6 +34,18 @@ public enum FontWeight {
 
     public static func default(): FontWeight {
         FontWeight.Absolute(AbsoluteFontWeight.default())
+    }
+
+    public operator func ==(rhs: FontWeight): Bool {
+        match (this) {
+            case Absolute(a) => match (rhs) { case Absolute(b) => a.toCss() == b.toCss() case _ => false }
+            case Bolder => match (rhs) { case Bolder => true case _ => false }
+            case Lighter => match (rhs) { case Lighter => true case _ => false }
+        }
+    }
+
+    public operator func !=(rhs: FontWeight): Bool {
+        !(this == rhs)
     }
 }
 
@@ -153,6 +166,17 @@ public enum FontStretch {
     public static func default(): FontStretch {
         FontStretch.Keyword(FontStretchKeyword.default())
     }
+
+    public operator func ==(rhs: FontStretch): Bool {
+        match (this) {
+            case Keyword(a) => match (rhs) { case Keyword(b) => a == b case _ => false }
+            case Percentage(a) => match (rhs) { case Percentage(b) => a == b case _ => false }
+        }
+    }
+
+    public operator func !=(rhs: FontStretch): Bool {
+        !(this == rhs)
+    }
 }
 
 // ============================================================================
@@ -189,6 +213,14 @@ public enum FontStretchKeyword {
 
     public static func default(): FontStretchKeyword {
         FontStretchKeyword.Normal
+    }
+
+    public operator func ==(rhs: FontStretchKeyword): Bool {
+        this.toCss() == rhs.toCss()
+    }
+
+    public operator func !=(rhs: FontStretchKeyword): Bool {
+        this.toCss() != rhs.toCss()
     }
 
     /// 转换为百分比值
@@ -293,22 +325,36 @@ public enum FontStyle {
     | Italic           // 斜体
     | Oblique(String)  // 倾斜角度（字符串表示）
 
+    private func obliqueToCss(angle: String): String {
+        if (angle == "14deg") {
+            "oblique"
+        } else {
+            "oblique " + angle
+        }
+    }
+
     public func toCss(): String {
         match (this) {
             case Normal => "normal"
             case Italic => "italic"
-            case Oblique(angle) => {
-                if (angle == "14deg") {
-                    "oblique"
-                } else {
-                    "oblique " + angle
-                }
-            }
+            case Oblique(angle) => obliqueToCss(angle)
         }
     }
 
     public static func default(): FontStyle {
         FontStyle.Normal
+    }
+
+    public operator func ==(rhs: FontStyle): Bool {
+        match (this) {
+            case Normal => match (rhs) { case Normal => true case _ => false }
+            case Italic => match (rhs) { case Italic => true case _ => false }
+            case Oblique(a) => match (rhs) { case Oblique(b) => a == b case _ => false }
+        }
+    }
+
+    public operator func !=(rhs: FontStyle): Bool {
+        !(this == rhs)
     }
 }
 
@@ -352,6 +398,14 @@ public enum FontVariantCaps {
             case _ => false
         }
     }
+
+    public operator func ==(rhs: FontVariantCaps): Bool {
+        this.toCss() == rhs.toCss()
+    }
+
+    public operator func !=(rhs: FontVariantCaps): Bool {
+        this.toCss() != rhs.toCss()
+    }
 }
 
 // ============================================================================
@@ -376,6 +430,18 @@ public enum LineHeight {
 
     public static func default(): LineHeight {
         LineHeight.Normal
+    }
+
+    public operator func ==(rhs: LineHeight): Bool {
+        match (this) {
+            case Normal => match (rhs) { case Normal => true case _ => false }
+            case Number(a) => match (rhs) { case Number(b) => a == b case _ => false }
+            case Length(a) => match (rhs) { case Length(b) => a == b case _ => false }
+        }
+    }
+
+    public operator func !=(rhs: LineHeight): Bool {
+        !(this == rhs)
     }
 }
 
@@ -449,10 +515,16 @@ public class Font {
             familyParts.append(f.toCss())
         }
         if (!familyParts.isEmpty()) {
-            parts.append(String.join(", ", familyParts))
+            var fpArr = Array<String>(familyParts.size, repeat: "")
+            var fpi: Int64 = 0
+            for (fp in familyParts) { fpArr[fpi] = fp; fpi += 1 }
+            parts.append(String.join(fpArr, delimiter: ", "))
         }
 
-        return String.join(" ", parts)
+        var partArr = Array<String>(parts.size, repeat: "")
+        var pi: Int64 = 0
+        for (p in parts) { partArr[pi] = p; pi += 1 }
+        return String.join(partArr, delimiter: " ")
     }
 }
 

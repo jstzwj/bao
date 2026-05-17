@@ -19,6 +19,22 @@ public enum CallUnwrap {
     | IfUnused
     | IfUnusedAndToStringSafe
 
+    public operator func ==(right: CallUnwrap): Bool {
+        return ordinal() == right.ordinal()
+    }
+
+    public operator func !=(right: CallUnwrap): Bool {
+        return !(this == right)
+    }
+
+    public func ordinal(): Int64 {
+        match (this) {
+            case Never => 0
+            case IfUnused => 1
+            case IfUnusedAndToStringSafe => 2
+        }
+    }
+
     public func name(): String {
         match (this) {
             case Never => "never"
@@ -36,6 +52,23 @@ public enum OptionalChain {
     | NullishStart   // ???. 开始
     | NullishInner   // 后续 ???.
 
+    public operator func ==(right: OptionalChain): Bool {
+        return ordinal() == right.ordinal()
+    }
+
+    public operator func !=(right: OptionalChain): Bool {
+        return !(this == right)
+    }
+
+    public func ordinal(): Int64 {
+        match (this) {
+            case Start => 0
+            case Inner => 1
+            case NullishStart => 2
+            case NullishInner => 3
+        }
+    }
+
     public func name(): String {
         match (this) {
             case Start => "start"
@@ -48,6 +81,47 @@ public enum OptionalChain {
 
 /// 一元运算标志 - 对应 Bun E.Unary.Flags
 /// Bun: packed struct(u8) { was_originally_typeof_identifier, was_originally_delete_of_identifier_or_property_access }
+private func sameExprTag(left: ExprTag, right: ExprTag): Bool {
+    return left.name() == right.name()
+}
+
+private func stringLessThan(left: String, right: String): Bool {
+    var i = Int64(0)
+    while (i < left.size && i < right.size) {
+        let l = UInt32(left[i])
+        let r = UInt32(right[i])
+        if (l != r) {
+            return l < r
+        }
+        i += Int64(1)
+    }
+    return left.size < right.size
+}
+
+private func stringValueOrEmpty(node: ?ASTNode): String {
+    if (let Some(n) <- node) {
+        if (let Some(s) <- n.stringValue()) {
+            return s
+        }
+    }
+    return ""
+}
+
+private func sameOptionalChain(left: ?OptionalChain, right: ?OptionalChain): Bool {
+    match (left) {
+        case Some(l) =>
+            match (right) {
+                case Some(r) => l == r
+                case None => false
+            }
+        case None =>
+            match (right) {
+                case Some(_) => false
+                case None => true
+            }
+    }
+}
+
 public class UnaryFlags {
     public var wasOriginallyTypeofIdentifier: Bool
     public var wasOriginallyDeleteOfIdentifierOrPropertyAccess: Bool
@@ -79,11 +153,11 @@ public class ENameOfSymbol {
 /// Bun: pub const Array = struct { items: ExprNodeList, comma_after_spread, is_single_line, ... }
 public class EArray {
     public var items: ArrayList<ASTNode>
-    public var commaAfterSpread: ?Loc
+    public var commaAfterSpread: ?ASTLoc
     public var isSingleLine: Bool
     public var isParenthesized: Bool
     public var wasOriginallyMacro: Bool
-    public var closeBracketLoc: Loc
+    public var closeBracketLoc: ASTLoc
 
     public init() {
         items = ArrayList<ASTNode>()
@@ -91,7 +165,7 @@ public class EArray {
         isSingleLine = false
         isParenthesized = false
         wasOriginallyMacro = false
-        closeBracketLoc = Loc.Empty
+        closeBracketLoc = ASTLoc.EMPTY
     }
 
     /// 添加元素 - 对应 Bun E.Array.push()
@@ -103,13 +177,16 @@ public class EArray {
     public func inlineSpreadOfArrayLiterals(estimatedCount: Int64): ArrayList<ASTNode> {
         let out = ArrayList<ASTNode>()
         for (item in items) {
-            if (item.tag == ExprTag.Spread) {
+            if (sameExprTag(item.tag, ExprTag.Spread)) {
                 // 展开的值如果是数组, 则内联
-                let spreadValue = item.children.size > Int64(0) ? item.children[Int64(0)] : None
-                if (spreadValue.isSome() && spreadValue.orElse(ASTNode(ExprTag.Missing, Loc.Empty)).tag == ExprTag.Array) {
-                    let innerArray = spreadValue.orElse(ASTNode(ExprTag.Missing, Loc.Empty))
+                let spreadValue: ?ASTNode = if (item.children.size > Int64(0)) { Some(item.children[Int64(0)]) } else { Option<ASTNode>.None }
+                if (let Some(innerArray) <- spreadValue) {
+                    if (!sameExprTag(innerArray.tag, ExprTag.Array)) {
+                        out.append(item)
+                        continue
+                    }
                     for (innerItem in innerArray.children) {
-                        if (innerItem.tag == ExprTag.Missing) {
+                        if (sameExprTag(innerItem.tag, ExprTag.Missing)) {
                             out.append(ASTNode(ExprTag.Undefined, innerItem.loc))
                         } else {
                             out.append(innerItem)
@@ -125,15 +202,25 @@ public class EArray {
 
     /// 按字母排序字符串 - 对应 Bun E.Array.alphabetizeStrings()
     public func alphabetizeStrings(): Unit {
-        items.sortWith { a, b ->
-            let sa = a.stringValue()
-            let sb = b.stringValue()
-            if (sa.isSome() && sb.isSome()) {
-                let va = sa.orElse("")
-                let vb = sb.orElse("")
-                return Int64(va.compareTo(vb))
+        var changed = true
+        while (changed) {
+            changed = false
+            var i = Int64(1)
+            while (i < items.size) {
+                let sa = items[i - Int64(1)].stringValue()
+                let sb = items[i].stringValue()
+                if (let Some(va) <- sa) {
+                    if (let Some(vb) <- sb) {
+                        if (stringLessThan(vb, va)) {
+                            let tmp = items[i - Int64(1)]
+                            items[i - Int64(1)] = items[i]
+                            items[i] = tmp
+                            changed = true
+                        }
+                    }
+                }
+                i += Int64(1)
             }
-            return Int64(0)
         }
     }
 }
@@ -204,21 +291,21 @@ public class ENew {
     public var target: ASTNode
     public var args: ArrayList<ASTNode>
     public var canBeUnwrappedIfUnused: CallUnwrap
-    public var closeParensLoc: Loc
+    public var closeParensLoc: ASTLoc
 
     public init(target: ASTNode, args: ArrayList<ASTNode>) {
         this.target = target
         this.args = args
         this.canBeUnwrappedIfUnused = CallUnwrap.Never
-        this.closeParensLoc = Loc.Empty
+        this.closeParensLoc = ASTLoc.EMPTY
     }
 }
 
 /// E.NewTarget - new.target
 public class ENewTarget {
-    public var range: Range
+    public var range: ASTRange
 
-    public init(range: Range) {
+    public init(range: ASTRange) {
         this.range = range
     }
 }
@@ -238,29 +325,29 @@ public class EImportMetaMain {
 }
 
 /// E.Special - 特殊表达式
-public class ESpecial {
-    public enum SpecialKind {
-        | ModuleExports
-        | HotEnabled
-        | HotDisabled
-        | HotData
-        | HotAccept
-        | HotAcceptVisited
-        | ResolvedSpecifierString
+public enum SpecialKind {
+    | ModuleExports
+    | HotEnabled
+    | HotDisabled
+    | HotData
+    | HotAccept
+    | HotAcceptVisited
+    | ResolvedSpecifierString
 
-        public func name(): String {
-            match (this) {
-                case ModuleExports => "module_exports"
-                case HotEnabled => "hot_enabled"
-                case HotDisabled => "hot_disabled"
-                case HotData => "hot_data"
-                case HotAccept => "hot_accept"
-                case HotAcceptVisited => "hot_accept_visited"
-                case ResolvedSpecifierString => "resolved_specifier_string"
-            }
+    public func name(): String {
+        match (this) {
+            case ModuleExports => "module_exports"
+            case HotEnabled => "hot_enabled"
+            case HotDisabled => "hot_disabled"
+            case HotData => "hot_data"
+            case HotAccept => "hot_accept"
+            case HotAcceptVisited => "hot_accept_visited"
+            case ResolvedSpecifierString => "resolved_specifier_string"
         }
     }
+}
 
+public class ESpecial {
     public var kind: SpecialKind
     public var importRecordIndex: UInt32
 
@@ -276,7 +363,7 @@ public class ECall {
     public var args: ArrayList<ASTNode>
     public var optionalChain: ?OptionalChain
     public var isDirectEval: Bool
-    public var closeParenLoc: Loc
+    public var closeParenLoc: ASTLoc
     public var canBeUnwrappedIfUnused: CallUnwrap
     public var wasJsxElement: Bool
 
@@ -285,14 +372,14 @@ public class ECall {
         this.args = args
         this.optionalChain = None
         this.isDirectEval = false
-        this.closeParenLoc = Loc.Empty
+        this.closeParenLoc = ASTLoc.EMPTY
         this.canBeUnwrappedIfUnused = CallUnwrap.Never
         this.wasJsxElement = false
     }
 
     /// 比较标志是否相同 - 对应 Bun E.Call.hasSameFlagsAs()
     public func hasSameFlagsAs(other: ECall): Bool {
-        return optionalChain == other.optionalChain &&
+        return sameOptionalChain(optionalChain, other.optionalChain) &&
                isDirectEval == other.isDirectEval &&
                canBeUnwrappedIfUnused == other.canBeUnwrappedIfUnused
     }
@@ -302,12 +389,12 @@ public class ECall {
 public class EDot {
     public var target: ASTNode
     public var name: String
-    public var nameLoc: Loc
+    public var nameLoc: ASTLoc
     public var optionalChain: ?OptionalChain
     public var canBeRemovedIfUnused: Bool
     public var callCanBeUnwrappedIfUnused: CallUnwrap
 
-    public init(target: ASTNode, name: String, nameLoc: Loc) {
+    public init(target: ASTNode, name: String, nameLoc: ASTLoc) {
         this.target = target
         this.name = name
         this.nameLoc = nameLoc
@@ -317,7 +404,7 @@ public class EDot {
     }
 
     public func hasSameFlagsAs(other: EDot): Bool {
-        return optionalChain == other.optionalChain &&
+        return sameOptionalChain(optionalChain, other.optionalChain) &&
                canBeRemovedIfUnused == other.canBeRemovedIfUnused &&
                callCanBeUnwrappedIfUnused == other.callCanBeUnwrappedIfUnused
     }
@@ -336,7 +423,7 @@ public class EIndex {
     }
 
     public func hasSameFlagsAs(other: EIndex): Bool {
-        return optionalChain == other.optionalChain
+        return sameOptionalChain(optionalChain, other.optionalChain)
     }
 }
 
@@ -359,17 +446,17 @@ public class EArrow {
     /// 空的返回 undefined 箭头函数 - 对应 Bun E.Arrow.noop_return_undefined
     public static let NOOP_RETURN_UNDEFINED: EArrow = EArrow(
         ArrayList<GArg>(),
-        GFnBody(Loc.Empty, ArrayList<StmtNode>()),
+        GFnBody(ASTLoc.EMPTY, ArrayList<StmtNode>()),
         false
     )
 }
 
 /// E.Function - 函数表达式
 public class EFunction {
-    public var func: GFn
+    public var `func`: GFn
 
-    public init(func: GFn) {
-        this.func = func
+    public init(`func`: GFn) {
+        this.`func` = `func`
     }
 }
 
@@ -408,19 +495,19 @@ public class EImportIdentifier {
 }
 
 /// E.CommonJSExportIdentifier - CommonJS 导出标识符
-public class ECommonJSExportIdentifier {
-    public enum ExportBase {
-        | Exports       // exports.xxx
-        | ModuleExports // module.exports.xxx
+public enum ExportBase {
+    | Exports       // exports.xxx
+    | ModuleExports // module.exports.xxx
 
-        public func name(): String {
-            match (this) {
-                case Exports => "exports"
-                case ModuleExports => "module_dot_exports"
-            }
+    public func name(): String {
+        match (this) {
+            case Exports => "exports"
+            case ModuleExports => "module_dot_exports"
         }
     }
+}
 
+public class ECommonJSExportIdentifier {
     public var ref: Ref
     public var base: ExportBase
 
@@ -445,32 +532,31 @@ public class EPrivateIdentifier {
 }
 
 /// E.JSXElement - JSX 元素
-public class EJSXElement {
-    /// JSX 特殊属性 - 对应 Bun E.JSXElement.SpecialProp
-    public enum SpecialProp {
-        | Self_
-        | Source
-        | Key
-        | Ref
-        | Any
+public enum SpecialProp {
+    | Self_
+    | Source
+    | Key
+    | Ref
+    | Any
 
-        public func name(): String {
-            match (this) {
-                case Self_ => "__self"
-                case Source => "__source"
-                case Key => "key"
-                case Ref => "ref"
-                case Any => "any"
-            }
+    public func name(): String {
+        match (this) {
+            case Self_ => "__self"
+            case Source => "__source"
+            case Key => "key"
+            case Ref => "ref"
+            case Any => "any"
         }
     }
+}
 
+public class EJSXElement {
     public var tag: ?ASTNode
     public var properties: ArrayList<GProperty>
     public var children: ArrayList<ASTNode>
     public var keyPropIndex: Int32
     public var flags: Int32
-    public var closeTagLoc: Loc
+    public var closeTagLoc: ASTLoc
 
     public init() {
         tag = None
@@ -478,7 +564,7 @@ public class EJSXElement {
         children = ArrayList<ASTNode>()
         keyPropIndex = Int32(-1)
         flags = Int32(0)
-        closeTagLoc = Loc.Empty
+        closeTagLoc = ASTLoc.EMPTY
     }
 }
 
@@ -532,8 +618,8 @@ public class ENumber {
         let intValue = Int64(value)
         // 检查是否为整数
         if (value == Float64(intValue) &&
-            value < Float64(Int32.MAX) && value > Float64(Int32.MIN)) {
-            let absValue = Int64(value < Float64(0) ? -value : value)
+            value < Float64(2147483647.0) && value > Float64(-2147483648.0)) {
+            let absValue = Int64(if (value < Float64(0)) { -value } else { value })
             if (absValue < Int64(101)) {
                 if (intValue < Int64(0)) {
                     return NEG_DOUBLE_DIGIT[Int64(absValue)]
@@ -546,10 +632,10 @@ public class ENumber {
         if (value != value) {  // NaN
             return "NaN"
         }
-        if (value == Float64.NEGATIVE_INFINITY) {
+        if (value < Float64(-1.7976931348623157e308)) {
             return "-Infinity"
         }
-        if (value == Float64.POSITIVE_INFINITY) {
+        if (value > Float64(1.7976931348623157e308)) {
             return "Infinity"
         }
         return value.toString()
@@ -577,14 +663,35 @@ public class EBigInt {
     public static let EMPTY: EBigInt = EBigInt("")
 }
 
+/// Rope 链 - 对应 Bun E.Object.Rope
+/// 用于 TOML 解析器的属性合并
+public class Rope {
+    public var head: ASTNode
+    public var next: ?Rope
+
+    public init(head: ASTNode, next: ?Rope) {
+        this.head = head
+        this.next = next
+    }
+
+    public func append(expr: ASTNode): Rope {
+        if (let Some(existing) <- next) {
+            return existing.append(expr)
+        }
+        let rope = Rope(expr, Option<Rope>.None)
+        this.next = Some(rope)
+        return rope
+    }
+}
+
 /// E.Object - 对象字面量
 public class EObject {
     public var properties: ArrayList<GProperty>
-    public var commaAfterSpread: ?Loc
+    public var commaAfterSpread: ?ASTLoc
     public var isSingleLine: Bool
     public var isParenthesized: Bool
     public var wasOriginallyMacro: Bool
-    public var closeBraceLoc: Loc
+    public var closeBraceLoc: ASTLoc
 
     public init() {
         properties = ArrayList<GProperty>()
@@ -592,48 +699,24 @@ public class EObject {
         isSingleLine = false
         isParenthesized = false
         wasOriginallyMacro = false
-        closeBraceLoc = Loc.Empty
-    }
-
-    /// Rope 链 - 对应 Bun E.Object.Rope
-    /// 用于 TOML 解析器的属性合并
-    public class Rope {
-        public var head: ASTNode
-        public var next: ?Rope
-
-        public init(head: ASTNode, next: ?Rope) {
-            this.head = head
-            this.next = next
-        }
-
-        public func append(expr: ASTNode): Rope {
-            if (next.isSome()) {
-                return next.orElse(Rope(expr, None)).append(expr)
-            }
-            let rope = Rope(expr, None)
-            this.next = rope
-            return rope
-        }
+        closeBraceLoc = ASTLoc.EMPTY
     }
 
     /// 获取属性 - 对应 Bun E.Object.get()
     public func get(key: String): ?ASTNode {
-        let query = asProperty(key)
-        if (query.isSome()) {
-            return query.orElse(PropertyQuery(ASTNode(ExprTag.Missing, Loc.Empty), Loc.Empty, UInt32(0))).expr
+        if (let Some(query) <- asProperty(key)) {
+            return Some(query.expr)
         }
         return None
     }
 
     /// 设置属性 - 对应 Bun E.Object.put()
     public func put(key: String, expr: ASTNode): Unit {
-        let query = asProperty(key)
-        if (query.isSome()) {
-            let q = query.orElse(PropertyQuery(ASTNode(ExprTag.Missing, Loc.Empty), UInt32(0), UInt32(0)))
-            properties[Int64(q.i)] = GProperty(ASTNode(ExprTag.String, q.loc, key), expr)
+        if (let Some(q) <- asProperty(key)) {
+            properties[Int64(q.i)] = GProperty(ASTNode(ExprTag.StringExpr, q.loc, key), expr)
         } else {
             properties.append(GProperty(
-                ASTNode(ExprTag.String, expr.loc, key),
+                ASTNode(ExprTag.StringExpr, expr.loc, key),
                 expr
             ))
         }
@@ -641,13 +724,13 @@ public class EObject {
 
     /// 是否有属性 - 对应 Bun E.Object.hasProperty()
     public func hasProperty(name: String): Bool {
-        for (prop in properties) {
-            if (prop.key.isSome()) {
-                let keyNode = prop.key.orElse(ASTNode(ExprTag.Missing, Loc.Empty))
-                if (keyNode.tag == ExprTag.String) {
-                    let keyStr = keyNode.stringValue()
-                    if (keyStr.isSome() && keyStr.orElse("") == name) {
-                        return true
+        for (`prop` in properties) {
+            if (let Some(keyNode) <- `prop`.key) {
+                if (sameExprTag(keyNode.tag, ExprTag.StringExpr)) {
+                    if (let Some(keyStr) <- keyNode.stringValue()) {
+                        if (keyStr == name) {
+                            return true
+                        }
                     }
                 }
             }
@@ -658,17 +741,14 @@ public class EObject {
     /// 查找属性 - 对应 Bun E.Object.asProperty()
     public func asProperty(name: String): ?PropertyQuery {
         var i = Int64(0)
-        for (prop in properties) {
-            let keyOpt = prop.key
-            if (keyOpt.isSome()) {
-                let keyNode = keyOpt.orElse(ASTNode(ExprTag.Missing, Loc.Empty))
-                if (keyNode.tag == ExprTag.String) {
-                    let keyStr = keyNode.stringValue()
-                    if (keyStr.isSome() && keyStr.orElse("") == name) {
-                        let valOpt = prop.value
-                        if (valOpt.isSome()) {
-                            return PropertyQuery(valOpt.orElse(ASTNode(ExprTag.Missing, Loc.Empty)),
-                                                 keyNode.loc, UInt32(i))
+        for (`prop` in properties) {
+            if (let Some(keyNode) <- `prop`.key) {
+                if (sameExprTag(keyNode.tag, ExprTag.StringExpr)) {
+                    if (let Some(keyStr) <- keyNode.stringValue()) {
+                        if (keyStr == name) {
+                            if (let Some(valueNode) <- `prop`.value) {
+                                return Some(PropertyQuery(valueNode, keyNode.loc, UInt32(i)))
+                            }
                         }
                     }
                 }
@@ -680,10 +760,21 @@ public class EObject {
 
     /// 按字母排序属性 - 对应 Bun E.Object.alphabetizeProperties()
     public func alphabetizeProperties(): Unit {
-        properties.sortWith { a, b ->
-            let ka = a.key.orElse(ASTNode(ExprTag.Missing, Loc.Empty)).stringValue().orElse("")
-            let kb = b.key.orElse(ASTNode(ExprTag.Missing, Loc.Empty)).stringValue().orElse("")
-            Int64(ka.compareTo(kb))
+        var changed = true
+        while (changed) {
+            changed = false
+            var i = Int64(1)
+            while (i < properties.size) {
+                let ka = stringValueOrEmpty(properties[i - Int64(1)].key)
+                let kb = stringValueOrEmpty(properties[i].key)
+                if (stringLessThan(kb, ka)) {
+                    let tmp = properties[i - Int64(1)]
+                    properties[i - Int64(1)] = properties[i]
+                    properties[i] = tmp
+                    changed = true
+                }
+                i += Int64(1)
+            }
         }
     }
 }
@@ -691,10 +782,10 @@ public class EObject {
 /// 属性查询结果 - 对应 Bun Expr.Query
 public class PropertyQuery {
     public var expr: ASTNode
-    public var loc: Loc
+    public var loc: ASTLoc
     public var i: UInt32
 
-    public init(expr: ASTNode, loc: Loc, i: UInt32) {
+    public init(expr: ASTNode, loc: ASTLoc, i: UInt32) {
         this.expr = expr
         this.loc = loc
         this.i = i
@@ -787,12 +878,13 @@ public class EString {
         }
         ropeLen = ropeLen + other.ropeLen
         if (next.isNone()) {
-            next = other
-            end = other
+            next = Some(other)
+            end = Some(other)
         } else {
-            let endNode = end.orElse(other)
-            endNode.next = other
-            this.end = other
+            if (let Some(endNode) <- end) {
+                endNode.next = Some(other)
+            }
+            this.end = Some(other)
         }
     }
 
@@ -804,8 +896,7 @@ public class EString {
         let sb = StringBuilder()
         sb.append(data)
         var current = next
-        while (current.isSome()) {
-            let part = current.orElse(EString())
+        while (let Some(part) <- current) {
             sb.append(part.data)
             current = part.next
         }
@@ -837,10 +928,10 @@ public class EString {
 /// 模板部分 - 对应 Bun E.TemplatePart
 public class ETemplatePart {
     public var value: ASTNode
-    public var tailLoc: Loc
+    public var tailLoc: ASTLoc
     public var tail: TemplateContents
 
-    public init(value: ASTNode, tailLoc: Loc, tail: TemplateContents) {
+    public init(value: ASTNode, tailLoc: ASTLoc, tail: TemplateContents) {
         this.value = value
         this.tailLoc = tailLoc
         this.tail = tail
@@ -848,19 +939,30 @@ public class ETemplatePart {
 }
 
 /// 模板内容 - 对应 Bun E.Template.Contents
-public class TemplateContents {
-    public enum TemplateTag {
-        | Cooked
-        | Raw
+public enum TemplateTag {
+    | Cooked
+    | Raw
 
-        public func name(): String {
-            match (this) {
-                case Cooked => "cooked"
-                case Raw => "raw"
-            }
+    public func name(): String {
+        match (this) {
+            case Cooked => "cooked"
+            case Raw => "raw"
         }
     }
 
+    public operator func ==(right: TemplateTag): Bool {
+        match (this) {
+            case Cooked => match (right) { case Cooked => true case _ => false }
+            case Raw => match (right) { case Raw => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: TemplateTag): Bool {
+        return !(this == right)
+    }
+}
+
+public class TemplateContents {
     public var tag: TemplateTag
     public var cooked: ?EString
     public var raw: ?String
@@ -885,7 +987,7 @@ public class TemplateContents {
 
     /// 是否 UTF-8 - 对应 Bun E.Template.Contents.isUTF8()
     public func isUTF8(): Bool {
-        return tag == TemplateTag.Cooked && cooked.isSome() && cooked.orElse(EString()).isUTF8()
+        return tag == TemplateTag.Cooked && cooked.isSome() && cooked.getOrDefault({ => EString() }).isUTF8()
     }
 }
 
@@ -904,22 +1006,22 @@ public class ETemplate {
     public init() {
         tag = None
         parts = ArrayList<ETemplatePart>()
-        head = TemplateContents(TemplateContents.TemplateTag.Cooked)
+        head = TemplateContents(TemplateTag.Cooked)
     }
 
     /// 折叠模板 - 对应 Bun E.Template.fold()
     /// 将模板中的常量部分合并为字符串
-    public func fold(loc: Loc): ASTNode {
+    public func fold(loc: ASTLoc): ASTNode {
         if (tag.isSome()) {
             return ASTNode(ExprTag.Template, loc, this)
         }
-        if (head.tag != TemplateContents.TemplateTag.Cooked) {
+        if (head.tag != TemplateTag.Cooked) {
             return ASTNode(ExprTag.Template, loc, this)
         }
         if (parts.size == Int64(0)) {
             // 无插值的模板 -> 纯字符串
-            let cooked = head.cooked.orElse(EString())
-            return ASTNode(ExprTag.String, loc, cooked)
+            let cooked = head.cooked.getOrDefault({ => EString() })
+            return ASTNode(ExprTag.StringExpr, loc, cooked)
         }
         return ASTNode(ExprTag.Template, loc, this)
     }
@@ -945,19 +1047,19 @@ public class ERegExp {
     /// 获取 pattern - 对应 Bun E.RegExp.pattern()
     public func pattern(): String {
         if (flagsOffset.isSome()) {
-            var i = Int64(flagsOffset.orElse(UInt16(0)))
-            while (i > Int64(0) && value[Int64(i)] != Char('/')) {
+            var i = Int64(flagsOffset.getOrDefault({ => UInt16(0) }))
+            while (i > Int64(0) && value[Int64(i)] != UInt8(47)) {  // '/' = 47
                 i -= Int64(1)
             }
-            return value.substring(Int64(1), i)
+            return value[Int64(1)..i]
         }
-        return value.substring(Int64(1), value.size - Int64(1))
+        return value[Int64(1)..(value.size - Int64(1))]
     }
 
     /// 获取 flags - 对应 Bun E.RegExp.flags()
     public func flags(): String {
         if (flagsOffset.isSome()) {
-            return value.substring(Int64(flagsOffset.orElse(UInt16(0))))
+            return value[Int64(flagsOffset.getOrDefault({ => UInt16(0) }))..value.size]
         }
         return ""
     }
@@ -1041,7 +1143,7 @@ public class EImport {
 
     /// 导入记录是否为空 - 对应 Bun E.Import.isImportRecordNull()
     public func isImportRecordNull(): Bool {
-        return importRecordIndex == UInt32.MAX
+        return importRecordIndex == UInt32(0x7FFFFFFF)
     }
 }
 
@@ -1075,10 +1177,10 @@ public class GArg {
 
 /// 函数体 - 对应 Bun G.FnBody
 public class GFnBody {
-    public var loc: Loc
+    public var loc: ASTLoc
     public var stmts: ArrayList<StmtNode>
 
-    public init(loc: Loc, stmts: ArrayList<StmtNode>) {
+    public init(loc: ASTLoc, stmts: ArrayList<StmtNode>) {
         this.loc = loc
         this.stmts = stmts
     }
@@ -1092,8 +1194,8 @@ public class GFn {
     public var isAsync: Bool
     public var isGenerator: Bool
     public var hasRestArg: Bool
-    public var openParenLoc: Loc
-    public var closeParenLoc: Loc
+    public var openParenLoc: ASTLoc
+    public var closeParenLoc: ASTLoc
 
     public init(name: ?LocRef, args: ArrayList<GArg>, body: GFnBody,
                 isAsync: Bool, isGenerator: Bool) {
@@ -1103,8 +1205,8 @@ public class GFn {
         this.isAsync = isAsync
         this.isGenerator = isGenerator
         this.hasRestArg = false
-        this.openParenLoc = Loc.Empty
-        this.closeParenLoc = Loc.Empty
+        this.openParenLoc = ASTLoc.EMPTY
+        this.closeParenLoc = ASTLoc.EMPTY
     }
 
     public func deepClone(): GFn {
@@ -1117,23 +1219,23 @@ public class GFn {
 }
 
 /// 属性 - 对应 Bun G.Property
-public class GProperty {
-    public enum PropertyKind {
-        | Normal
-        | Spread
-        | Getter
-        | Setter
+public enum PropertyKind {
+    | Normal
+    | Spread
+    | Getter
+    | Setter
 
-        public func name(): String {
-            match (this) {
-                case Normal => "normal"
-                case Spread => "spread"
-                case Getter => "getter"
-                case Setter => "setter"
-            }
+    public func name(): String {
+        match (this) {
+            case Normal => "normal"
+            case Spread => "spread"
+            case Getter => "getter"
+            case Setter => "setter"
         }
     }
+}
 
+public class GProperty {
     public var key: ?ASTNode
     public var value: ?ASTNode
     public var kind: PropertyKind
@@ -1174,10 +1276,10 @@ public class GDecl {
 /// ExportStar 别名 - 对应 Bun G.ExportStarAlias
 public class GExportStarAlias {
     public var name: String
-    public var loc: Loc
+    public var loc: ASTLoc
     public var originalName: String
 
-    public init(name: String, loc: Loc) {
+    public init(name: String, loc: ASTLoc) {
         this.name = name
         this.loc = loc
         this.originalName = name
@@ -1186,22 +1288,22 @@ public class GExportStarAlias {
 
 /// 类声明 - 对应 Bun G.Class
 public class GClass {
-    public var classKeyword: Loc
+    public var classKeyword: ASTLoc
     public var tsDecorators: ArrayList<ASTNode>
     public var className: ?LocRef
     public var extends_: ?ASTNode
-    public var bodyLoc: Loc
-    public var closeBraceLoc: Loc
+    public var bodyLoc: ASTLoc
+    public var closeBraceLoc: ASTLoc
     public var properties: ArrayList<GProperty>
     public var hasDecorators: Bool
 
     public init() {
-        classKeyword = Loc.Empty
+        classKeyword = ASTLoc.EMPTY
         tsDecorators = ArrayList<ASTNode>()
         className = None
         extends_ = None
-        bodyLoc = Loc.Empty
-        closeBraceLoc = Loc.Empty
+        bodyLoc = ASTLoc.EMPTY
+        closeBraceLoc = ASTLoc.EMPTY
         properties = ArrayList<GProperty>()
         hasDecorators = false
     }
@@ -1213,115 +1315,12 @@ public class GClass {
 
 /// LocRef - 位置引用 - 对应 Bun LocRef
 public class LocRef {
-    public var loc: Loc
+    public var loc: ASTLoc
     public var ref: Ref
 
-    public init(loc: Loc, ref: Ref) {
+    public init(loc: ASTLoc, ref: Ref) {
         this.loc = loc
         this.ref = ref
     }
 }
 
-/// 运算符码 - 对应 Bun Op.Code
-public enum OpCode {
-    // 一元
-    | UnNot
-    | UnNeg
-    | UnPos
-    | UnCpl
-    | UnVoid
-    | UnTypeof
-    | UnDelete
-    | UnPreDec
-    | UnPreInc
-    | UnPostDec
-    | UnPostInc
-
-    // 二元
-    | BinAssign
-    | BinComma
-    | BinAdd
-    | BinSub
-    | BinMul
-    | BinDiv
-    | BinRem
-    | BinPow
-    | BinLt
-    | BinGt
-    | BinLe
-    | BinGe
-    | BinStrictEq
-    | BinStrictNe
-    | BinLooseEq
-    | BinLooseNe
-    | BinLogicalOr
-    | BinLogicalAnd
-    | BinNullishCoalescing
-    | BinBitwiseAnd
-    | BinBitwiseOr
-    | BinBitwiseXor
-    | BinShl
-    | BinShr
-    | BinUShr
-    | BinInstanceof
-    | BinIn
-    | BinAddAssign
-    | BinSubAssign
-    | BinMulAssign
-    | BinDivAssign
-    | BinRemAssign
-    | BinPowAssign
-    | BinBitwiseAndAssign
-    | BinBitwiseOrAssign
-    | BinBitwiseXorAssign
-    | BinShlAssign
-    | BinShrAssign
-    | BinUShrAssign
-    | BinLogicalOrAssign
-    | BinLogicalAndAssign
-    | BinNullishCoalescingAssign
-
-    public func name(): String {
-        match (this) {
-            case UnNot => "!"
-            case UnNeg => "-"
-            case UnPos => "+"
-            case UnCpl => "~"
-            case UnVoid => "void"
-            case UnTypeof => "typeof"
-            case UnDelete => "delete"
-            case UnPreDec => "--"
-            case UnPreInc => "++"
-            case UnPostDec => "--"
-            case UnPostInc => "++"
-            case BinAssign => "="
-            case BinComma => ","
-            case BinAdd => "+"
-            case BinSub => "-"
-            case BinMul => "*"
-            case BinDiv => "/"
-            case BinRem => "%"
-            case BinPow => "**"
-            case BinLt => "<"
-            case BinGt => ">"
-            case BinLe => "<="
-            case BinGe => ">="
-            case BinStrictEq => "==="
-            case BinStrictNe => "!="
-            case BinLooseEq => "=="
-            case BinLooseNe => "!="
-            case BinLogicalOr => "||"
-            case BinLogicalAnd => "&&"
-            case BinNullishCoalescing => "??"
-            case BinBitwiseAnd => "&"
-            case BinBitwiseOr => "|"
-            case BinBitwiseXor => "^"
-            case BinShl => "<<"
-            case BinShr => ">>"
-            case BinUShr => ">>>"
-            case BinInstanceof => "instanceof"
-            case BinIn => "in"
-            case _ => this.toString()
-        }
-    }
-}

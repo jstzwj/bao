@@ -41,24 +41,24 @@ public class DirInfo {
     // 对应 Bun: enclosing_browser_scope: Index
     public var enclosingBrowserScope: ?DirInfo
 
-    /// browser 字段对应的 PackageJSON
-    // 对应 Bun: package_json_for_browser_field: ?*const PackageJSON
-    public var packageJsonForBrowserField: ?PackageJSON
+    /// browser 字段对应的 PackageJson
+    // 对应 Bun: package_json_for_browser_field: ?*const PackageJson
+    public var packageJsonForBrowserField: ?PackageJson
 
     /// 包含 tsconfig.json 的最近目录
-    // 对应 Bun: enclosing_tsconfig_json: ?*const TSConfigJSON
-    public var enclosingTsconfigJson: ?TSConfigJSON
+    // 对应 Bun: enclosing_tsconfig_json: ?*const TsConfig
+    public var enclosingTsconfigJson: ?TsConfig
 
     /// 包围的 package.json (打包用)
-    // 对应 Bun: enclosing_package_json: ?*PackageJSON
+    // 对应 Bun: enclosing_package_json: ?*PackageJson
     // 最深层含有 "name" 字段的 package.json
     // 或者 `bun run` 时 name 可选
     // 参考: https://github.com/oven-sh/bun/issues/229
-    public var enclosingPackageJson: ?PackageJSON
+    public var enclosingPackageJson: ?PackageJson
 
     /// 用于依赖解析的 package.json
-    // 对应 Bun: package_json_for_dependencies: ?*PackageJSON
-    public var packageJsonForDependencies: ?PackageJSON
+    // 对应 Bun: package_json_for_dependencies: ?*PackageJson
+    public var packageJsonForDependencies: ?PackageJson
 
     /// 绝对路径
     // 对应 Bun: abs_path: string
@@ -69,12 +69,12 @@ public class DirInfo {
     public var entries: ?DirEntry
 
     /// 当前目录的 package.json (如果有)
-    // 对应 Bun: package_json: ?*PackageJSON
-    public var packageJson: ?PackageJSON
+    // 对应 Bun: package_json: ?*PackageJson
+    public var packageJson: ?PackageJson
 
     /// 当前目录的 tsconfig.json (如果有)
-    // 对应 Bun: tsconfig_json: ?*TSConfigJSON
-    public var tsconfigJson: ?TSConfigJSON
+    // 对应 Bun: tsconfig_json: ?*TsConfig
+    public var tsconfigJson: ?TsConfig
 
     /// 解析符号链接后的真实绝对路径
     // 对应 Bun: abs_real_path: string
@@ -82,7 +82,7 @@ public class DirInfo {
 
     /// 标志位集合
     // 对应 Bun: flags: Flags.Set
-    public var flags: HashSet<DirInfoFlag>
+    public var flags: ArrayList<DirInfoFlag>
 
     public init() {
         parent = None
@@ -96,25 +96,35 @@ public class DirInfo {
         packageJson = None
         tsconfigJson = None
         absRealPath = ""
-        flags = HashSet<DirInfoFlag>()
+        flags = ArrayList<DirInfoFlag>()
     }
 
     /// 目录下是否有 node_modules 子目录
     // 对应 Bun: hasNodeModules()
+    private func hasFlag(flag: DirInfoFlag): Bool {
+        for (f in flags) {
+            match (f) {
+                case flag => return true
+                case _ => ()
+            }
+        }
+        false
+    }
+
     public func hasNodeModules(): Bool {
-        return flags.contains(DirInfoFlag.HasNodeModules)
+        return hasFlag(DirInfoFlag.HasNodeModules)
     }
 
     /// 当前目录是否是 node_modules
     // 对应 Bun: isNodeModules()
     public func isNodeModules(): Bool {
-        return flags.contains(DirInfoFlag.IsNodeModules)
+        return hasFlag(DirInfoFlag.IsNodeModules)
     }
 
     /// 当前目录是否在 node_modules 内部
     // 对应 Bun: isInsideNodeModules()
     public func isInsideNodeModules(): Bool {
-        return flags.contains(DirInfoFlag.InsideNodeModules)
+        return hasFlag(DirInfoFlag.InsideNodeModules)
     }
 
     /// 是否有父级 package (非 node_modules 的父级)
@@ -235,12 +245,11 @@ public class DirInfoCache {
     public func getOrCreate(absPath: String): DirInfo {
         match (cache.get(absPath)) {
             case Some(info) => return info
-            case None => {
+            case None =>
                 let info = DirInfo()
                 info.absPath = absPath
                 cache.put(absPath, info)
                 return info
-            }
         }
     }
 

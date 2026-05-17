@@ -80,7 +80,7 @@ public class NodeAssertBinding {
                 case DiffKind.delete => DiffType.delete
                 case DiffKind.equal  => DiffType.equal
             }
-            result.add(JsDiffItem(operation: op, text: item.value))
+            result.append(JsDiffItem(operation: op, text: item.value))
         }
         return result
     }
@@ -96,7 +96,7 @@ public class NodeAssertBinding {
                 case DiffKind.delete => DiffType.delete
                 case DiffKind.equal  => DiffType.equal
             }
-            result.add(JsDiffItem(operation: op, text: item.value))
+            result.append(JsDiffItem(operation: op, text: item.value))
         }
         return result
     }
@@ -109,7 +109,7 @@ public class NodeAssertBinding {
             let obj = HashMap<String, Any>()
             obj.put("kind", Int64(line.operation.value))
             obj.put("value", line.text)
-            array.add(obj)
+            array.append(obj)
         }
         return array
     }

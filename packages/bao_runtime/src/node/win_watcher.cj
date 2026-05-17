@@ -166,7 +166,7 @@ public class WindowsPathWatcher {
 
     // 添加处理程序
     public func addHandler(handler: WinPathWatchHandler): Unit {
-        handlers.add(handler)
+        handlers.append(handler)
     }
 
     // 移除处理程序

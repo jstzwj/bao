@@ -103,7 +103,7 @@ public class HtmlImportManifest {
         sb.append(",\"loader\":\"")
         sb.append(loader)
         sb.append("\",\"isEntry\":")
-        sb.append(if (isEntry) "true" else "false")
+        sb.append(if (isEntry) { "true" } else { "false" })
         sb.append(",\"headers\":{")
         if (hash > 0) {
             let base64Hash = hash.toHexString()

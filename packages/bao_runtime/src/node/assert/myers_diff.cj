@@ -38,7 +38,7 @@ public class MyersDiffAlgorithm {
         if (n == 0) {
             let result = Array<DiffItem>()
             for (line in expected) {
-                result.add(DiffItem(kind: DiffKind.insert, value: line))
+                result.append(DiffItem(kind: DiffKind.insert, value: line))
             }
             return result
         }
@@ -46,7 +46,7 @@ public class MyersDiffAlgorithm {
         if (m == 0) {
             let result = Array<DiffItem>()
             for (line in actual) {
-                result.add(DiffItem(kind: DiffKind.delete, value: line))
+                result.append(DiffItem(kind: DiffKind.delete, value: line))
             }
             return result
         }

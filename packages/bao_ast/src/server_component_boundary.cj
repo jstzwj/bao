@@ -125,6 +125,22 @@ public enum UseDirective {
     | Client  // "use client"
     | Server  // "use server"
 
+    public operator func ==(right: UseDirective): Bool {
+        return ordinal() == right.ordinal()
+    }
+
+    public operator func !=(right: UseDirective): Bool {
+        return !(this == right)
+    }
+
+    public func ordinal(): Int64 {
+        match (this) {
+            case None => 0
+            case Client => 1
+            case Server => 2
+        }
+    }
+
     /// 是否为边界 - 对应 Bun UseDirective.isBoundary()
     /// Bun: pub fn isBoundary(this: UseDirective, other: UseDirective) bool
     public func isBoundary(other: UseDirective): Bool {

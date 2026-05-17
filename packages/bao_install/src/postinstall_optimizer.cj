@@ -98,25 +98,21 @@ public class DefaultIgnoreList {
         for (entry in ENTRIES) {
             if (entry.name == name) {
                 match (version) {
-                    case Some(v) => {
-                        // 检查版本是否 >= minimumVersion
-                        let minVer = SemVer.parse(entry.minimumVersion)
-                        let pkgVer = SemVer.parse(v)
-                        match (minVer) {
-                            case Some(min) => {
-                                match (pkgVer) {
-                                    case Some(pkg) => return pkg.compare(min) >= 0
-                                    case None => return true
-                                }
-                            }
-                            case None => return true
-                        }
-                    }
+                    case Some(v) => return checkVersionMatch(entry.minimumVersion, v)
                     case None => return true
                 }
             }
         }
         return false
+    }
+
+    private static func checkVersionMatch(minimumVersion: String, v: String): Bool {
+        let minVer = SemVer.parse(minimumVersion)
+        let pkgVer = SemVer.parse(v)
+        match (minVer) {
+            case Some(min)=> __helper_postinstall_optimizer_1()
+            case None => true
+        }
     }
 }
 
@@ -166,35 +162,13 @@ public class PostinstallOptimizerList {
     public func fromPackageJSON(config: HashMap<String, JsonValue>): Unit {
         // 解析 nativeDependencies
         match (config.get("nativeDependencies")) {
-            case Some(JsonValue.Array(arr)) => {
-                for (item in arr) {
-                    match (item) {
-                        case JsonValue.Str(name) => {
-                            if (name.length > 0) {
-                                dynamic.put(name, PostinstallOptimizer.NativeBinlink)
-                            }
-                        }
-                        case _ => ()
-                    }
-                }
-            }
+            case Some(JsonValue.Array(arr))=> __helper_postinstall_optimizer_2()
             case _ => ()
         }
 
         // 解析 ignoreScripts
         match (config.get("ignoreScripts")) {
-            case Some(JsonValue.Array(arr)) => {
-                for (item in arr) {
-                    match (item) {
-                        case JsonValue.Str(name) => {
-                            if (name.length > 0) {
-                                dynamic.put(name, PostinstallOptimizer.Ignore)
-                            }
-                        }
-                        case _ => ()
-                    }
-                }
-            }
+            case Some(JsonValue.Array(arr))=> __helper_postinstall_optimizer_3()
             case _ => ()
         }
     }
@@ -237,24 +211,7 @@ public class PostinstallOptimizerList {
     ): Bool {
         let mode = getOptimizationMode(packageName, packageVersion)
         match (mode) {
-            case Some(m) => {
-                match (m) {
-                    case PostinstallOptimizer.NativeBinlink => {
-                        // native_binlink: 只有在 tree_id 为 0 且找到平台特定依赖时才生效
-                        let isRootTree = match (treeId) {
-                            case Some(id) => id == UInt32(0)
-                            case None => true
-                        }
-                        return isRootTree && getNativeBinlinkReplacementPackageId(
-                            resolutions: resolutions,
-                            metas: metas,
-                            targetCpu: targetCpu,
-                            targetOs: targetOs
-                        ) != None
-                    }
-                    case PostinstallOptimizer.Ignore => return true
-                }
-            }
+            case Some(m)=> __helper_postinstall_optimizer_4()
             case None => return false
         }
     }
@@ -270,9 +227,9 @@ public class PostinstallOptimizerList {
         // 遍历可选依赖, 查找平台特定的匹配
         // 翻译自: loop through resolutions, check meta.arch + meta.os
         for (resolution in resolutions) {
-            if (Int64(resolution) >= metas.size) { continue }
+            if (Int64(resolution) >= metas.size) { () }
             let meta = metas[Int64(resolution)]
-            if (meta.os.size == 0 && meta.cpu.size == 0) { continue }
+            if (meta.os.size == 0 && meta.cpu.size == 0) { () }
 
             // 检查平台匹配
             var cpuMatch = meta.cpu.size == 0

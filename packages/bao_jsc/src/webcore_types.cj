@@ -770,7 +770,7 @@ public class StoreRef {
     public func deinit() {
         match(ptr) {
             case Some(s) => s.deref()
-            case None => {}
+            case None => ()
         }
         ptr = None
     }

@@ -11,6 +11,37 @@ import bao_hash.*
 import bao_path.*
 import bao_http.*
 
+// ============================================================================
+// 存根类型
+// ============================================================================
+
+/// 进度条节点 (存根)
+public class ProgressBarNode {
+    public var name: String
+    public var current: Int64
+    public var total: Int64
+
+    public init(name: String) {
+        this.name = name
+        current = 0
+        total = 0
+    }
+}
+
+/// Manifest 回调 (存根)
+public class ManifestCallback {
+    public var isExtendedManifest: Bool
+
+    public init() {
+        isExtendedManifest = false
+    }
+}
+
+/// 解压回调 (存根)
+public class ExtractCallback {
+    public init() {}
+}
+
 /// 任务运行器
 /// 对应 Bun: runTasks
 /// 翻译自: src/install/PackageManager/runTasks.zig
@@ -42,17 +73,20 @@ public class RunTasks {
         if (logLevel.showProgress()) {
             ProgressBarManager.startIfNone(manager)
             match (manager.downloadsNode) {
-                case Some(node) => {
-                    let completedItems = manager.totalTasks - manager.pendingTasks
-                    node.completedItems = completedItems
-                    node.estimatedTotalItems = manager.totalTasks
-                }
+                case Some(node) => updateProgressNode(node, manager.totalTasks, manager.pendingTasks)
                 case None => ()
             }
         }
 
         // 排空依赖列表
         manager.drainDependencyList()
+    }
+
+    /// 更新进度节点
+    private static func updateProgressNode(node: ProgressBarNode, totalTasks: Int64, pendingTasks: Int64): Unit {
+        let completedItems = totalTasks - pendingTasks
+        node.completedItems = completedItems
+        node.estimatedTotalItems = totalTasks
     }
 
     /// 处理 patch 任务
@@ -74,21 +108,11 @@ public class RunTasks {
 
             // 根据任务类型处理
             match (task.taskType) {
-                case NetworkTaskType.PackageManifest => {
-                    processManifestResponse(manager, task, logLevel)
-                }
-                case NetworkTaskType.Extract => {
-                    processExtractResponse(manager, task, logLevel)
-                }
-                case NetworkTaskType.GitClone => {
-                    // Git clone 响应处理
-                }
-                case NetworkTaskType.GitCheckout => {
-                    // Git checkout 响应处理
-                }
-                case NetworkTaskType.LocalTarball => {
-                    // 本地 tarball 响应处理
-                }
+                case NetworkTaskType.PackageManifest => processManifestResponse(manager, task, logLevel)
+                case NetworkTaskType.Extract => processExtractResponse(manager, task, logLevel)
+                case NetworkTaskType.GitClone => ()
+                case NetworkTaskType.GitCheckout => ()
+                case NetworkTaskType.LocalTarball => ()
             }
         }
     }
@@ -101,51 +125,47 @@ public class RunTasks {
         logLevel: LogLevel
     ): Unit {
         match (task.manifestCallback) {
-            case Some(cb) => {
-                // 检查是否需要重试
-                if (task.statusCode >= 500 && task.retried < manager.options.maxConcurrentLifecycleScripts) {
-                    task.retried = UInt16(Int64(task.retried) + 1)
-                    // 重新入队
-                    return
-                }
+            case Some(cb) => handleManifestCallback(manager, task, logLevel, cb)
+            case None => ()
+        }
+    }
 
-                if (task.statusCode == 0) {
-                    // 网络错误
-                    if (logLevel != LogLevel.Silent) {
-                        bao_core.Output.error("HTTP error downloading package manifest ${cb.name}")
-                    }
-                    return
-                }
+    private static func handleManifestCallback(manager: PackageManager, task: NetworkTask, logLevel: LogLevel, cb: ManifestCallback): Unit {
+        // 检查是否需要重试
+        if (task.statusCode >= 500 && task.retried < manager.options.maxConcurrentLifecycleScripts) {
+            task.retried = UInt16(Int64(task.retried) + 1)
+            return
+        }
 
-                if (task.statusCode == 404) {
-                    if (!task.isOptional) {
-                        if (logLevel != LogLevel.Silent) {
-                            bao_core.Output.error("404 - GET ${cb.name}")
-                        }
-                    }
-                    return
-                }
+        if (task.statusCode == 0) {
+            if (logLevel != LogLevel.Silent) {
+                Output.error("HTTP error downloading package manifest ${cb.name}")
+            }
+            return
+        }
 
-                if (task.statusCode >= 200 && task.statusCode < 300) {
-                    // 解析 manifest
-                    let manifest = PackageManifestData.parseFromResponse(
-                        task.responseBody,
-                        cb.name,
-                        "",
-                        "",
-                        manager.timestampForManifestCacheControl,
-                        cb.isExtendedManifest
-                    )
-                    match (manifest) {
-                        case Some(m) => {
-                            // 缓存 manifest
-                            manager.manifests.put(cb.name, m)
-                        }
-                        case None => ()
-                    }
+        if (task.statusCode == 404) {
+            if (!task.isOptional) {
+                if (logLevel != LogLevel.Silent) {
+                    Output.error("404 - GET ${cb.name}")
                 }
             }
-            case None => ()
+            return
+        }
+
+        if (task.statusCode >= 200 && task.statusCode < 300) {
+            let manifest = PackageManifestData.parseFromResponse(
+                task.responseBody,
+                cb.name,
+                "",
+                "",
+                manager.timestampForManifestCacheControl,
+                cb.isExtendedManifest
+            )
+            match (manifest) {
+                case Some(m) => manager.manifests.put(cb.name, m)
+                case None => ()
+            }
         }
     }
 
@@ -157,18 +177,20 @@ public class RunTasks {
         logLevel: LogLevel
     ): Unit {
         match (task.extractCallback) {
-            case Some(cb) => {
-                if (task.statusCode >= 200 && task.statusCode < 300) {
-                    // 解压 tarball 到缓存
-                    let cachePath = "${manager.getCacheDirectory()}/${cb.name}"
-                    // 解压逻辑由 extract_tarball.cj 处理
-                } else {
-                    if (logLevel != LogLevel.Silent) {
-                        bao_core.Output.error("Failed to download tarball for ${cb.name}: HTTP ${task.statusCode}")
-                    }
-                }
-            }
+            case Some(cb) => handleExtractCallback(manager, task, logLevel, cb)
             case None => ()
+        }
+    }
+
+    private static func handleExtractCallback(manager: PackageManager, task: NetworkTask, logLevel: LogLevel, cb: ExtractCallback): Unit {
+        if (task.statusCode >= 200 && task.statusCode < 300) {
+            // 解压 tarball 到缓存
+            let cachePath = "${manager.getCacheDirectory()}/${cb.name}"
+            // 解压逻辑由 extract_tarball.cj 处理
+        } else {
+            if (logLevel != LogLevel.Silent) {
+                Output.error("Failed to download tarball for ${cb.name}: HTTP ${task.statusCode}")
+            }
         }
     }
 

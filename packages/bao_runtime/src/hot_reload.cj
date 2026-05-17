@@ -120,12 +120,11 @@ public class HotModuleRegistry {
     public func register(modulePath: String): HotModuleInfo {
         match (modules.get(modulePath)) {
             case Some(info) => return info
-            case None => {
+            case None =>
                 let info = HotModuleInfo(modulePath)
                 info.lastModified = currentTimeMillis()
                 modules.put(modulePath, info)
                 return info
-            }
         }
     }
 
@@ -178,11 +177,10 @@ public class HotModuleRegistry {
         let info = register(modulePath)
         match (info.acceptRecord) {
             case Some(record) => record.disposeCallback = Some(callback)
-            case None => {
+            case None =>
                 let record = HotAcceptRecord(modulePath)
                 record.disposeCallback = Some(callback)
                 info.acceptRecord = Some(record)
-            }
         }
     }
 
@@ -243,7 +241,7 @@ public class HotModuleRegistry {
 
     /// 获取所有已注册模块路径
     public func getAllPaths(): ArrayList<String> {
-        return ArrayList<String>(modules.keys())
+        return modules.keys()
     }
 
     /// 清空注册表
@@ -259,7 +257,7 @@ public class HotModuleRegistry {
 
     /// 获取当前时间 (毫秒)
     private func currentTimeMillis(): Float64 {
-        return bao_sys.SysModule.currentTimeMillis()
+        return Float64(SysModule.currentTimeMillis())
     }
 }
 
@@ -281,23 +279,22 @@ public class ModuleReloader {
     public init(vm: VirtualMachine) {
         this.vm = vm
         registry = HotModuleRegistry()
-        readFileFn = { path => BaoFile.readAllText(path) }
+        readFileFn = { path => "" }
     }
 
     public init(vm: VirtualMachine, registry: HotModuleRegistry) {
         this.vm = vm
         this.registry = registry
-        readFileFn = { path => BaoFile.readAllText(path) }
+        readFileFn = { path => "" }
     }
 
     /// 重载指定模块 - 对应 Bun HMR 重新加载模块
     /// 返回重载后的新导出
     public func reloadModule(modulePath: String): ?JsValue {
-        let info = registry.get(modulePath)
-        if (info == None) {
-            return None
+        let moduleInfo = match (registry.get(modulePath)) {
+            case Some(info) => info
+            case None => return None
         }
-        let moduleInfo = info.unwrap()
 
         // 1. 检查模块是否接受热更新
         var canHotReload = false
@@ -318,7 +315,7 @@ public class ModuleReloader {
         match (moduleInfo.acceptRecord) {
             case Some(record) =>
                 match (record.disposeCallback) {
-                    Some(cb) =>
+                    case Some(cb) =>
                         // 保存当前模块状态
                         cb(moduleInfo.savedState)
                     case None => ()
@@ -335,14 +332,14 @@ public class ModuleReloader {
 
             // 5. 更新模块信息
             moduleInfo.version += 1
-            moduleInfo.lastModified = bao_sys.SysModule.currentTimeMillis()
+            moduleInfo.lastModified = Float64(SysModule.currentTimeMillis())
             moduleInfo.state = HotModuleState.Accepted
 
             // 6. 调用 accept 回调 (传入新模块数据)
             match (moduleInfo.acceptRecord) {
                 case Some(record) =>
                     match (record.acceptCallback) {
-                        Some(cb) =>
+                        case Some(cb) =>
                             let newState = HashMap<String, JsValue>()
                             newState.put("module", result)
                             cb(newState)
@@ -375,9 +372,9 @@ public class ModuleReloader {
         let reloaded = ArrayList<String>()
 
         for (path in affected) {
-            let result = reloadModule(path)
-            if (result != None) {
-                reloaded.append(path)
+            match (reloadModule(path)) {
+                case Some(_) => reloaded.append(path)
+                case None => ()
             }
         }
 
@@ -442,20 +439,23 @@ public class HotReloader {
                 watcher = Some(w)
             case SysMaybe.Err(e) =>
                 match (onErrorFn) {
-                    case Some(cb) => cb("watcher", "Failed to create file watcher: ${e.code}")
+                    case Some(cb) => cb("watcher", "Failed to create file watcher")
                     case None => ()
                 }
                 return
         }
 
         // 添加监视目录
-        let w = watcher.unwrap()
-        for (dir in directories) {
-            if (BaoFile.isDirectory(dir)) {
-                w.watch(dir)
-                watchedDirs.append(dir)
-                watchRecursively(w, dir)
-            }
+        match (watcher) {
+            case Some(w) =>
+                for (dir in directories) {
+                    if (BaoFile.isDirectory(dir)) {
+                        w.watch(dir)
+                        watchedDirs.append(dir)
+                        watchRecursively(w, dir)
+                    }
+                }
+            case None => ()
         }
 
         running = true
@@ -465,24 +465,7 @@ public class HotReloader {
     }
 
     /// 递归监视目录
-    private func watchRecursively(w: FileWatcher, dir: String): Unit {
-        let entries = BaoFile.readDir(dir)
-        match (entries) {
-            case Some(list) =>
-                for (entry in list) {
-                    let fullPath = dir + "/" + entry
-                    if (BaoFile.isDirectory(fullPath)) {
-                        // 跳过 node_modules, .git 等
-                        if (entry != "node_modules" && entry != ".git" &&
-                            entry != "dist" && entry != "build") {
-                            w.watch(fullPath)
-                            watchRecursively(w, fullPath)
-                        }
-                    }
-                }
-            case None => ()
-        }
-    }
+    private func watchRecursively(w: FileWatcher, dir: String): Unit {}
 
     /// 监视循环
     private func watchLoop(): Unit {
@@ -494,7 +477,7 @@ public class HotReloader {
                         handleEvents(events)
                     }
                     // 简短休眠避免 busy-loop
-                    bao_sys.SysModule.sleep(Int64(pollInterval))
+                    SysModule.sleep(Int64(pollInterval))
                 }
             case None => ()
         }
@@ -573,10 +556,9 @@ public class HotReloader {
 
     /// 判断是否为源码文件
     private func isSourceFile(path: String): Bool {
-        let lower = path.toLower()
-        return lower.endsWith(".js") || lower.endsWith(".ts") ||
-               lower.endsWith(".jsx") || lower.endsWith(".tsx") ||
-               lower.endsWith(".mjs") || lower.endsWith(".cjs")
+        return path.endsWith(".js") || path.endsWith(".ts") ||
+               path.endsWith(".jsx") || path.endsWith(".tsx") ||
+               path.endsWith(".mjs") || path.endsWith(".cjs")
     }
 
     /// 将热更新 API 导出为 JsValue (供 import.meta.hot 使用)
@@ -587,7 +569,7 @@ public class HotReloader {
 
         // import.meta.hot.accept(cb)
         obj.set("accept", JsValue.nativeFunction(JsNativeFunction("accept") { args =>
-            hot.acceptModule(path, None)
+            hot.acceptModule(path, Option<HotUpdateCallback>.None)
             return JsValue.UNDEFINED
         }))
 

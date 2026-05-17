@@ -101,15 +101,19 @@ public class SemverQuery {
         match (group) {
             case Some(g) =>
                 // 检查 group 是否有有效的 range
-                if (!g.head.head.range.hasLeft() && g.head.next == None) {
+                let noNext = match (g.head.next) {
+                    case Some(_) => false
+                    case None => true
+                }
+                if (!g.head.head.range.hasLeft() && noNext) {
                     // 空范围 -> 特殊处理
-                    if (rangeStr.trim().size == 0) {
+                    if (rangeStr.size == 0) {
                         return Some("*")
                     }
                     return None
                 }
                 return Some(g.toString())
-            case None => return None
+            case None => return Option<String>.None
         }
     }
 
@@ -203,23 +207,23 @@ public class SemverQuery {
             // r1: [lower1, upper1), r2: [lower2, upper2)
             // 有交集 iff lower1 < upper2 AND lower2 < upper1
             let lower1LessThanUpper2 = r1Lower.compareWithoutTag(r2Right.version) < 0 ||
-                (r1Lower.compareWithoutTag(r2Right.version) == 0 && r2Right.op == Op.Lte)
+                (r1Lower.compareWithoutTag(r2Right.version) == 0 && r2Right.op.isLte())
             let lower2LessThanUpper1 = r2Lower.compareWithoutTag(r1Right.version) < 0 ||
-                (r2Lower.compareWithoutTag(r1Right.version) == 0 && r1Right.op == Op.Lte)
+                (r2Lower.compareWithoutTag(r1Right.version) == 0 && r1Right.op.isLte())
             return lower1LessThanUpper2 && lower2LessThanUpper1
         }
 
         if (r1.hasRight() && !r2.hasRight()) {
             // r1 有上界，r2 没有
             let lower2LessThanUpper1 = r2Lower.compareWithoutTag(r1Right.version) < 0 ||
-                (r2Lower.compareWithoutTag(r1Right.version) == 0 && r1Right.op == Op.Lte)
+                (r2Lower.compareWithoutTag(r1Right.version) == 0 && r1Right.op.isLte())
             return lower2LessThanUpper1
         }
 
         if (!r1.hasRight() && r2.hasRight()) {
             // r1 没有上界，r2 有
             let lower1LessThanUpper2 = r1Lower.compareWithoutTag(r2Right.version) < 0 ||
-                (r1Lower.compareWithoutTag(r2Right.version) == 0 && r2Right.op == Op.Lte)
+                (r1Lower.compareWithoutTag(r2Right.version) == 0 && r2Right.op.isLte())
             return lower1LessThanUpper2
         }
 
@@ -307,7 +311,7 @@ public class SemverQuery {
             // r1 的下界和 r2 相同
             // 如果 r2 是 >= 而 r1 是 >，则 r1 不一定是子集
             // 如果都是 >= 或都是 >，或 r2 更宽松
-            lowerOk = r2LeftOp == Op.Gte || (r2LeftOp == Op.Gt && r1LeftOp == Op.Gt)
+            lowerOk = r2LeftOp.isGte() || (r2LeftOp.isGt() && r1LeftOp.isGt())
         }
 
         if (!lowerOk) {
@@ -336,7 +340,7 @@ public class SemverQuery {
         }
         if (upperCmp == 0) {
             // r1 的上界和 r2 相同
-            return r2RightOp == Op.Lte || (r2RightOp == Op.Lt && r1RightOp == Op.Lt)
+            return r2RightOp.isLte() || (r2RightOp.isLt() && r1RightOp.isLt())
         }
         return false
     }
@@ -494,7 +498,7 @@ public class SemverQuery {
             return None
         }
         // 只有完整版本号 (3 部分) 才算有效
-        if (result.wildcard != Wildcard.None) {
+        if (!result.wildcard.isNone()) {
             return None
         }
         return Some(result.version.toString())
@@ -507,21 +511,21 @@ public class SemverQuery {
 
     /// 递增版本号
     /// 对应 npm semver.inc('1.2.3', 'major') => '2.0.0'
-    public static func inc(versionStr: String, release: SemVerVersion.ReleaseType): ?String {
+    public static func inc(versionStr: String, release: ReleaseType): ?String {
         inc(versionStr, release, "")
     }
 
     /// 递增版本号 (带预发布标识符)
-    public static func inc(versionStr: String, release: SemVerVersion.ReleaseType, preId: String): ?String {
+    public static func inc(versionStr: String, release: ReleaseType, preId: String): ?String {
         let v = SemVerVersion.parse(versionStr)
         match (v) {
             case Some(ver) =>
                 let result = ver.inc(release, preId)
                 match (result) {
                     case Some(r) => return Some(r.toString())
-                    case None => return None
+                    case None => return Option<String>.None
                 }
-            case None => return None
+            case None => return Option<String>.None
         }
     }
 
@@ -532,16 +536,16 @@ public class SemverQuery {
 
     /// 检测两个版本之间的差异类型
     /// 对应 npm semver.diff('1.2.3', '2.0.0') => 'major'
-    public static func diff(v1: String, v2: String): ?SemVerVersion.ChangedVersion {
+    public static func diff(v1: String, v2: String): ?ChangedVersion {
         let ver1 = SemVerVersion.parse(v1)
         let ver2 = SemVerVersion.parse(v2)
         match (ver1) {
             case Some(v1Obj) =>
                 match (ver2) {
                     case Some(v2Obj) => return Some(v1Obj.diff(v2Obj))
-                    case None => return None
+                    case None => return Option<ChangedVersion>.None
                 }
-            case None => return None
+            case None => return Option<ChangedVersion>.None
         }
     }
 

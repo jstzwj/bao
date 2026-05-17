@@ -8,6 +8,7 @@ import bao_io.*
 import bao_hash.*
 import bao_path.*
 import bao_http.*
+import bao_sys.*
 
 // ============================================================================
 // 锁文件格式版本
@@ -224,19 +225,41 @@ public class LockfileFormat {
                 case None => ()
             }
         }
-        sortedPkgs.sortBy(func(a: ResolvedPackage, b: ResolvedPackage): Int64 {
-            // 先按深度排序, 再按名称排序
-            // 翻译自: TreeSortCtx.isLessThan
-            if (a.depth != b.depth) {
-                return a.depth - b.depth
+        // Simple sort: no sortWith on ArrayList, use bubble sort
+        // Sort by depth then name
+        var si = 0
+        while (si < sortedPkgs.size - 1) {
+            var sj = 0
+            while (sj < sortedPkgs.size - 1 - si) {
+                let a = sortedPkgs[sj]
+                let b = sortedPkgs[sj + 1]
+                let cmp = if (a.depth != b.depth) {
+                    a.depth - b.depth
+                } else {
+                    // Simple string comparison by character
+                    var r = 0
+                    let minLen = if (a.name.size < b.name.size) { a.name.size } else { b.name.size }
+                    for (ci in 0..minLen) {
+                        if (a.name[ci] != b.name[ci]) {
+                            r = Int64(a.name[ci]) - Int64(b.name[ci])
+                            break
+                        }
+                    }
+                    if (r == 0) { a.name.size - b.name.size } else { r }
+                }
+                if (cmp > 0) {
+                    sortedPkgs[sj] = b
+                    sortedPkgs[sj + 1] = a
+                }
+                sj += 1
             }
-            return a.name.compare(b.name)
-        })
+            si += 1
+        }
 
         for (pkg in sortedPkgs) {
             // 构建包的 JSON key (路径 + 包名)
             // 翻译自: bun.lock.zig 中 relative_path + dep_name 的组合
-            let pkgKey = if (pkg.packagePath.length > 0) {
+            let pkgKey = if (pkg.packagePath.size > 0) {
                 "${pkg.packagePath}/${pkg.name}"
             } else {
                 pkg.name
@@ -255,68 +278,14 @@ public class LockfileFormat {
             // 翻译自: bun.lock.zig 中按 res.tag 分支写入
             sb.append("[")
             match (pkg.tag) {
-                case DependencyTag.Npm => {
-                    // npm: ["name@version", "", { deps }, "integrity"]
-                    // 翻译自: res.tag == .npm 的序列化路径
-                    sb.append("${escapeJson("${pkg.name}@${pkg.version}")}")
-                    // registry URL (空 = 默认)
-                    sb.append(", \"${pkg.registryUrl}\"")
-                    // 依赖信息
-                    sb.append(", ")
-                    appendPackageInfo(sb, pkg)
-                    // integrity
-                    if (pkg.integrity.length > 0) {
-                        sb.append(", ${escapeJson(pkg.integrity)}")
-                    }
-                }
-                case DependencyTag.Tarball => {
-                    // tarball: ["name@url", { deps }, "integrity"]
-                    sb.append("${escapeJson("${pkg.name}@${pkg.resolved}")}")
-                    sb.append(", ")
-                    appendPackageInfo(sb, pkg)
-                    if (pkg.integrity.length > 0) {
-                        sb.append(", ${escapeJson(pkg.integrity)}")
-                    }
-                }
-                case DependencyTag.Folder => {
-                    // folder: ["name@file:path", { deps }]
-                    sb.append("${escapeJson("${pkg.name}@file:${pkg.resolved}")}")
-                    sb.append(", ")
-                    appendPackageInfo(sb, pkg)
-                }
-                case DependencyTag.Symlink => {
-                    // symlink: ["name@link:path", { deps }]
-                    sb.append("${escapeJson("${pkg.name}@link:${pkg.resolved}")}")
-                    sb.append(", ")
-                    appendPackageInfo(sb, pkg)
-                }
-                case DependencyTag.Workspace => {
-                    // workspace: ["name@workspace:path"]
-                    sb.append("${escapeJson("${pkg.name}@workspace:${pkg.packagePath}")}")
-                }
-                case DependencyTag.Git => {
-                    // git: ["name@git+repo", { deps }, "resolved-ref", "integrity"]
-                    sb.append("${escapeJson("${pkg.name}@git+${pkg.resolved}")}")
-                    sb.append(", ")
-                    appendPackageInfo(sb, pkg)
-                    if (pkg.integrity.length > 0) {
-                        sb.append(", \"\", ${escapeJson(pkg.integrity)}")
-                    }
-                }
-                case DependencyTag.Github => {
-                    // github: ["name@github:user/repo", { deps }, "resolved-ref", "integrity"]
-                    sb.append("${escapeJson("${pkg.name}@github:${pkg.resolved}")}")
-                    sb.append(", ")
-                    appendPackageInfo(sb, pkg)
-                    if (pkg.integrity.length > 0) {
-                        sb.append(", \"\", ${escapeJson(pkg.integrity)}")
-                    }
-                }
-                case _ => {
-                    sb.append("${escapeJson("${pkg.name}@${pkg.version}")}")
-                    sb.append(", ")
-                    appendPackageInfo(sb, pkg)
-                }
+                case DependencyTag.Npm => writeNpmPkgEntry(sb, pkg)
+                case DependencyTag.Tarball => writeTarballPkgEntry(sb, pkg)
+                case DependencyTag.Folder => writeFolderPkgEntry(sb, pkg)
+                case DependencyTag.Symlink => writeSymlinkPkgEntry(sb, pkg)
+                case DependencyTag.Workspace => writeWorkspacePkgEntry(sb, pkg)
+                case DependencyTag.Git => writeGitPkgEntry(sb, pkg)
+                case DependencyTag.Github => writeGithubPkgEntry(sb, pkg)
+                case _ => writeDefaultPkgEntry(sb, pkg)
             }
             sb.append("]")
         }
@@ -333,6 +302,65 @@ public class LockfileFormat {
     /// 翻译自: bun.lock.zig writePackageInfoObject
     ///   写入: dependencies, devDependencies, peerDependencies, optionalDependencies,
     ///         os, cpu, bin, binDir, bundled, optionalPeers
+    private static func writeNpmPkgEntry(sb: StringBuilder, pkg: ResolvedPackage): Unit {
+        sb.append("${escapeJson("${pkg.name}@${pkg.version}")}")
+        sb.append(", \"${pkg.registryUrl}\"")
+        sb.append(", ")
+        appendPackageInfo(sb, pkg)
+        if (pkg.integrity.size > 0) {
+            sb.append(", ${escapeJson(pkg.integrity)}")
+        }
+    }
+
+    private static func writeTarballPkgEntry(sb: StringBuilder, pkg: ResolvedPackage): Unit {
+        sb.append("${escapeJson("${pkg.name}@${pkg.resolved}")}")
+        sb.append(", ")
+        appendPackageInfo(sb, pkg)
+        if (pkg.integrity.size > 0) {
+            sb.append(", ${escapeJson(pkg.integrity)}")
+        }
+    }
+
+    private static func writeFolderPkgEntry(sb: StringBuilder, pkg: ResolvedPackage): Unit {
+        sb.append("${escapeJson("${pkg.name}@file:${pkg.resolved}")}")
+        sb.append(", ")
+        appendPackageInfo(sb, pkg)
+    }
+
+    private static func writeSymlinkPkgEntry(sb: StringBuilder, pkg: ResolvedPackage): Unit {
+        sb.append("${escapeJson("${pkg.name}@link:${pkg.resolved}")}")
+        sb.append(", ")
+        appendPackageInfo(sb, pkg)
+    }
+
+    private static func writeWorkspacePkgEntry(sb: StringBuilder, pkg: ResolvedPackage): Unit {
+        sb.append("${escapeJson("${pkg.name}@workspace:${pkg.packagePath}")}")
+    }
+
+    private static func writeGitPkgEntry(sb: StringBuilder, pkg: ResolvedPackage): Unit {
+        sb.append("${escapeJson("${pkg.name}@git+${pkg.resolved}")}")
+        sb.append(", ")
+        appendPackageInfo(sb, pkg)
+        if (pkg.integrity.size > 0) {
+            sb.append(", \"\", ${escapeJson(pkg.integrity)}")
+        }
+    }
+
+    private static func writeGithubPkgEntry(sb: StringBuilder, pkg: ResolvedPackage): Unit {
+        sb.append("${escapeJson("${pkg.name}@github:${pkg.resolved}")}")
+        sb.append(", ")
+        appendPackageInfo(sb, pkg)
+        if (pkg.integrity.size > 0) {
+            sb.append(", \"\", ${escapeJson(pkg.integrity)}")
+        }
+    }
+
+    private static func writeDefaultPkgEntry(sb: StringBuilder, pkg: ResolvedPackage): Unit {
+        sb.append("${escapeJson("${pkg.name}@${pkg.version}")}")
+        sb.append(", ")
+        appendPackageInfo(sb, pkg)
+    }
+
     private static func appendPackageInfo(sb: StringBuilder, pkg: ResolvedPackage): Unit {
         sb.append("{")
         var any = false
@@ -345,9 +373,9 @@ public class LockfileFormat {
         let optDeps = HashMap<String, String>()
 
         for (dep in pkg.dependencies) {
-            if (dep.behavior.isDev) {
+            if (dep.behavior.isDev()) {
                 devDeps.put(dep.name, dep.version)
-            } else if (dep.behavior.isOptional) {
+            } else if (dep.behavior.isOptional()) {
                 optDeps.put(dep.name, dep.version)
             } else {
                 deps.put(dep.name, dep.version)
@@ -409,11 +437,10 @@ public class LockfileFormat {
         var first = true
         for (key in map.keys()) {
             match (map.get(key)) {
-                case Some(val) => {
+                case Some(val) =>
                     if (!first) { sb.append(", ") }
                     sb.append("${escapeJson(key)}: ${escapeJson(val)}")
                     first = false
-                }
                 case None => ()
             }
         }
@@ -439,33 +466,29 @@ public class LockfileFormat {
         let json = parser.parse(text)
 
         match (json) {
-            case Some(root) => {
+            case Some(root) =>
                 match (JsonHelper.getField(root, "packages")) {
-                    case Some(JsonValue.Object(packages)) => {
+                    case Some(JsonValue.Object(packages)) =>
                         for (pkgKey in packages.keys()) {
                             match (packages.get(pkgKey)) {
-                                case Some(JsonValue.Array(arr)) => {
-                                    let entry = parsePackageEntry(pkgKey, arr)
+                                case Some(JsonValue.Array(arr2)) =>
+                                    let entry = parsePackageEntry(pkgKey, arr2)
                                     match (entry) {
                                         case Some(e) => result.append(e)
                                         case None => ()
                                     }
-                                }
                                 // 兼容旧格式: 对象格式
-                                case Some(JsonValue.Object(pkgObj)) => {
-                                    let entry = parseLegacyPackageEntry(pkgKey, pkgObj)
-                                    match (entry) {
-                                        case Some(e) => result.append(e)
+                                case Some(JsonValue.Object(pkgObj)) =>
+                                    let entry2 = parseLegacyPackageEntry(pkgKey, pkgObj)
+                                    match (entry2) {
+                                        case Some(e2) => result.append(e2)
                                         case None => ()
                                     }
-                                }
                                 case _ => ()
                             }
                         }
-                    }
                     case _ => ()
                 }
-            }
             case None => ()
         }
 
@@ -489,19 +512,17 @@ public class LockfileFormat {
         // 解析 resolution string
         let pkg = parseResolutionString(resolutionStr)
         match (pkg) {
-            case Some(p) => {
+            case Some(p) =>
                 // 根据数组长度和内容解析剩余字段
                 if (arr.size >= 2) {
                     // 第二个元素可能是 registry URL (string) 或 deps object
                     match (arr[1]) {
-                        case JsonValue.Str(registryUrl) => {
+                        case JsonValue.Str(registryUrl) =>
                             // npm 格式: [resolution, registry, deps, integrity]
                             p.registryUrl = registryUrl
                             if (arr.size >= 3) {
                                 match (arr[2]) {
-                                    case JsonValue.Object(depsObj) => {
-                                        extractDeps(depsObj, p)
-                                    }
+                                    case JsonValue.Object(depsObj) => extractDeps(depsObj, p)
                                     case _ => ()
                                 }
                             }
@@ -511,33 +532,29 @@ public class LockfileFormat {
                                     case _ => ()
                                 }
                             }
-                        }
-                        case JsonValue.Object(depsObj) => {
+                        case JsonValue.Object(depsObj) =>
                             // tarball/folder/symlink/git 格式: [resolution, deps, ...]
                             extractDeps(depsObj, p)
                             if (arr.size >= 3) {
                                 match (arr[2]) {
-                                    case JsonValue.Str(integrityOrRef) => {
+                                    case JsonValue.Str(integrityOrRef) =>
                                         // 可能是 git resolved ref 或 integrity
                                         if (integrityOrRef.startsWith("sha")) {
                                             p.integrity = integrityOrRef
                                         }
-                                    }
                                     case _ => ()
                                 }
                                 if (arr.size >= 4) {
                                     match (arr[3]) {
-                                        case JsonValue.Str(integrity) => p.integrity = integrity
+                                        case JsonValue.Str(integrity2) => p.integrity = integrity2
                                         case _ => ()
                                     }
                                 }
                             }
-                        }
                         case _ => ()
                     }
                 }
                 return Some(p)
-            }
             case None => return None
         }
     }
@@ -547,7 +564,7 @@ public class LockfileFormat {
     private static func parseResolutionString(s: String): ?LockfilePackage {
         // root: "name@root:"
         if (s.endsWith("@root:")) {
-            let name = s.substring(0, s.length - 6)
+            let name = s[..s.size - 6]
             let pkg = LockfilePackage(name, "")
             pkg.resolution = s
             return Some(pkg)
@@ -556,9 +573,9 @@ public class LockfileFormat {
         // link: "name@link:path"
         let linkPrefix = "@link:"
         let linkIdx = s.indexOf(linkPrefix)
-        if (linkIdx >= 0) {
-            let name = s.substring(0, linkIdx)
-            let path = s.substring(linkIdx + linkPrefix.length)
+        if (let Some(li) <- linkIdx) {
+            let name = s[..li]
+            let path = s[li + linkPrefix.size..]
             let pkg = LockfilePackage(name, "")
             pkg.resolution = s
             return Some(pkg)
@@ -567,9 +584,9 @@ public class LockfileFormat {
         // workspace: "name@workspace:path"
         let wsPrefix = "@workspace:"
         let wsIdx = s.indexOf(wsPrefix)
-        if (wsIdx >= 0) {
-            let name = s.substring(0, wsIdx)
-            let path = s.substring(wsIdx + wsPrefix.length)
+        if (let Some(wi) <- wsIdx) {
+            let name = s[..wi]
+            let path = s[wi + wsPrefix.size..]
             let pkg = LockfilePackage(name, "")
             pkg.resolution = s
             return Some(pkg)
@@ -578,9 +595,9 @@ public class LockfileFormat {
         // file: "name@file:path"
         let filePrefix = "@file:"
         let fileIdx = s.indexOf(filePrefix)
-        if (fileIdx >= 0) {
-            let name = s.substring(0, fileIdx)
-            let path = s.substring(fileIdx + filePrefix.length)
+        if (let Some(fi) <- fileIdx) {
+            let name = s[..fi]
+            let path = s[fi + filePrefix.size..]
             let pkg = LockfilePackage(name, "")
             pkg.resolution = s
             return Some(pkg)
@@ -589,9 +606,9 @@ public class LockfileFormat {
         // git: "name@git+..."
         let gitPrefix = "@git+"
         let gitIdx = s.indexOf(gitPrefix)
-        if (gitIdx >= 0) {
-            let name = s.substring(0, gitIdx)
-            let repo = s.substring(gitIdx + gitPrefix.length)
+        if (let Some(gi) <- gitIdx) {
+            let name = s[..gi]
+            let repo = s[gi + gitPrefix.size..]
             let pkg = LockfilePackage(name, "")
             pkg.resolution = s
             return Some(pkg)
@@ -600,9 +617,9 @@ public class LockfileFormat {
         // github: "name@github:..."
         let githubPrefix = "@github:"
         let githubIdx = s.indexOf(githubPrefix)
-        if (githubIdx >= 0) {
-            let name = s.substring(0, githubIdx)
-            let repo = s.substring(githubIdx + githubPrefix.length)
+        if (let Some(gi2) <- githubIdx) {
+            let name = s[..gi2]
+            let repo = s[gi2 + githubPrefix.size..]
             let pkg = LockfilePackage(name, "")
             pkg.resolution = s
             return Some(pkg)
@@ -611,9 +628,9 @@ public class LockfileFormat {
         // npm: "name@version"
         // 找到最后一个 @ (处理 scoped packages)
         let lastAt = s.lastIndexOf("@")
-        if (lastAt >= 0) {
-            let name = s.substring(0, lastAt)
-            let version = s.substring(lastAt + 1)
+        if (let Some(la) <- lastAt) {
+            let name = s[..la]
+            let version = s[la + 1..]
             let pkg = LockfilePackage(name, version)
             pkg.resolution = s
             return Some(pkg)
@@ -626,74 +643,68 @@ public class LockfileFormat {
     private static func extractDeps(depsObj: HashMap<String, JsonValue>, pkg: LockfilePackage): Unit {
         // dependencies
         match (depsObj.get("dependencies")) {
-            case Some(JsonValue.Object(m)) => {
+            case Some(JsonValue.Object(m)) =>
                 for (k in m.keys()) {
                     match (m.get(k)) {
                         case Some(JsonValue.Str(v)) => pkg.dependencies.put(k, v)
                         case _ => ()
                     }
                 }
-            }
             case _ => ()
         }
         // devDependencies
         match (depsObj.get("devDependencies")) {
-            case Some(JsonValue.Object(m)) => {
+            case Some(JsonValue.Object(m)) =>
                 for (k in m.keys()) {
                     match (m.get(k)) {
                         case Some(JsonValue.Str(v)) => pkg.devDependencies.put(k, v)
                         case _ => ()
                     }
                 }
-            }
             case _ => ()
         }
         // peerDependencies
         match (depsObj.get("peerDependencies")) {
-            case Some(JsonValue.Object(m)) => {
+            case Some(JsonValue.Object(m)) =>
                 for (k in m.keys()) {
                     match (m.get(k)) {
                         case Some(JsonValue.Str(v)) => pkg.peerDependencies.put(k, v)
                         case _ => ()
                     }
                 }
-            }
             case _ => ()
         }
         // optionalDependencies
         match (depsObj.get("optionalDependencies")) {
-            case Some(JsonValue.Object(m)) => {
+            case Some(JsonValue.Object(m)) =>
                 for (k in m.keys()) {
                     match (m.get(k)) {
                         case Some(JsonValue.Str(v)) => pkg.optionalDependencies.put(k, v)
                         case _ => ()
                     }
                 }
-            }
             case _ => ()
         }
         // optionalPeers
         match (depsObj.get("optionalPeers")) {
-            case Some(JsonValue.Array(arr)) => {
+            case Some(JsonValue.Array(arr)) =>
                 for (item in arr) {
                     match (item) {
                         case JsonValue.Str(s) => pkg.optionalPeers.append(s)
                         case _ => ()
                     }
                 }
-            }
             case _ => ()
         }
         // bin
         match (depsObj.get("bin")) {
-            case Some(JsonValue.Object(m)) => {
+            case Some(JsonValue.Object(m)) =>
                 for (k in m.keys()) {
                     match (m.get(k)) {
                         case Some(JsonValue.Str(v)) => pkg.bin.put(k, v)
                         case _ => ()
                     }
                 }
-            }
             case _ => ()
         }
         // binDir
@@ -703,36 +714,34 @@ public class LockfileFormat {
         }
         // hasInstallScript
         match (depsObj.get("hasInstallScript")) {
-            case Some(JsonValue.Bool(b)) => pkg.hasInstallScript = b
+            case Some(JsonValue.JsonBool(b)) => pkg.hasInstallScript = b
             case _ => ()
         }
         // bundled
         match (depsObj.get("bundled")) {
-            case Some(JsonValue.Bool(b)) => pkg.isBundled = b
+            case Some(JsonValue.JsonBool(b)) => pkg.isBundled = b
             case _ => ()
         }
         // os
         match (depsObj.get("os")) {
-            case Some(JsonValue.Array(arr)) => {
+            case Some(JsonValue.Array(arr)) =>
                 for (item in arr) {
                     match (item) {
                         case JsonValue.Str(s) => pkg.os.append(s)
                         case _ => ()
                     }
                 }
-            }
             case _ => ()
         }
         // cpu
         match (depsObj.get("cpu")) {
-            case Some(JsonValue.Array(arr)) => {
+            case Some(JsonValue.Array(arr)) =>
                 for (item in arr) {
                     match (item) {
                         case JsonValue.Str(s) => pkg.cpu.append(s)
                         case _ => ()
                     }
                 }
-            }
             case _ => ()
         }
     }
@@ -742,7 +751,7 @@ public class LockfileFormat {
         // 从 key 提取名称 (去掉 node_modules/ 前缀)
         var name = pkgKey
         if (name.startsWith("node_modules/")) {
-            name = name.substring(13)
+            name = name[13..]
         }
 
         let version = match (JsonHelper.getString(JsonValue.Object(pkgObj), "version")) {
@@ -769,7 +778,7 @@ public class LockfileFormat {
 
     /// JSON 字符串转义
     private static func escapeJson(s: String): String {
-        if (s.length == 0) { return "\"\"" }
+        if (s.size == 0) { return "\"\"" }
         let sb = StringBuilder()
         sb.append("\"")
         for (c in s) {
@@ -779,7 +788,7 @@ public class LockfileFormat {
                 case '\n' => sb.append("\\n")
                 case '\r' => sb.append("\\r")
                 case '\t' => sb.append("\\t")
-                case _ => sb.append(c)
+                case _ => sb.append(String([Rune(UInt32(c))]))
             }
         }
         sb.append("\"")
@@ -822,7 +831,14 @@ public class LockfileDiff {
         if (removed.size > 0) { parts.append("-${removed.size}") }
         if (changed.size > 0) { parts.append("~${changed.size}") }
         if (parts.size == 0) { return "No changes" }
-        return "Changes: ${String.join(", ", parts)}"
+        var changesStr = ""
+        var pi = 0
+        for (p in parts) {
+            if (pi > 0) { changesStr = "${changesStr}, " }
+            changesStr = "${changesStr}${p}"
+            pi += 1
+        }
+        return "Changes: ${changesStr}"
     }
 }
 
@@ -868,18 +884,18 @@ public class Lockfile {
     /// 优先尝试 bao.lock (text JSON), 然后尝试 bao.lockb (binary)
     public func read(path: String): ?ArrayList<LockfilePackage> {
         // 尝试读取 bao.lock (JSON 文本格式)
-        let content = try {
-            BaoFile.readAllText(path)
-        } catch (_: Exception) {
-            return None
+        let readResult = BaoFile.readAllText(path)
+        let content = match (readResult) {
+            case SysMaybe<String>.Ok(text) => text
+            case _ => return None
         }
 
-        if (content.length == 0) {
+        if (content.size == 0) {
             return None
         }
 
         // 自动检测格式
-        let trimmed = content.trim()
+        let trimmed = content.trimEnd(" \t\n\r")
         if (trimmed.startsWith("{")) {
             // JSON 格式 (Bun bun.lock 格式)
             return LockfileFormat.deserialize(content)
@@ -966,9 +982,9 @@ public class Lockfile {
 
         for (name in newByName.keys()) {
             match (newByName.get(name)) {
-                case Some(newPkg) => {
+                case Some(newPkg) =>
                     match (oldByName.get(name)) {
-                        case Some(oldPkg) => {
+                        case Some(oldPkg) =>
                             if (oldPkg.version != newPkg.version ||
                                 oldPkg.resolution != newPkg.resolution ||
                                 oldPkg.integrity != newPkg.integrity) {
@@ -981,10 +997,8 @@ public class Lockfile {
                                 change.newIntegrity = newPkg.integrity
                                 result.changed.append(change)
                             }
-                        }
                         case None => ()
                     }
-                }
                 case None => ()
             }
         }
@@ -997,7 +1011,7 @@ public class Lockfile {
     /// 检查每个包的 integrity 哈希是否匹配
     public func verifyIntegrity(packages: ArrayList<LockfilePackage>): Bool {
         for (pkg in packages) {
-            if (pkg.integrity.length == 0 || pkg.resolution.length == 0) {
+            if (pkg.integrity.size == 0 || pkg.resolution.size == 0) {
                 continue  // 无完整性信息, 跳过
             }
 
@@ -1013,18 +1027,18 @@ public class Lockfile {
     /// 计算锁文件自身的哈希
     /// 对应 Bun: Lockfile.meta_hash
     public func computeMetaHash(content: String): String {
-        var bytes = Array<UInt8>()
+        var bytes = ArrayList<UInt8>()
         for (c in content) {
-            bytes.append(UInt8(c.value))
+            bytes.append(UInt8(UInt32(c)))
         }
-        let hash = bao_hash.Sha256.hash(bytes)
+        let hash = Sha256.hash(bytes.items())
         let sb = StringBuilder()
+        let hexChars = "0123456789abcdef"
         for (b in hash) {
-            let hex = Int64(b).toString(16)
-            if (hex.length < 2) {
-                sb.append("0")
-            }
-            sb.append(hex)
+            let high = (Int64(b) >> 4) & 0xF
+            let low = Int64(b) & 0xF
+            sb.append(String([Rune(UInt32(hexChars[Int64(high)]))]))
+            sb.append(String([Rune(UInt32(hexChars[Int64(low)]))]))
         }
         return sb.toString()
     }
@@ -1043,8 +1057,8 @@ public class Lockfile {
         var section: String = ""
 
         for (line in lines) {
-            let trimmed = line.trim()
-            if (trimmed.length == 0 || trimmed.startsWith("#")) { continue }
+            let trimmed = line.trimEnd(" \t\n\r")
+            if (trimmed.size == 0 || trimmed.startsWith("#")) { () }
 
             if (trimmed == "[[package]]") {
                 match (currentPkg) {
@@ -1079,55 +1093,54 @@ public class Lockfile {
             }
 
             // 解析 key = "value" 行
-            let eqIdx = trimmed.indexOf("=")
-            if (eqIdx < 0) { continue }
-
-            let key = trimmed.substring(0, eqIdx).trim()
-            var value = trimmed.substring(eqIdx + 1).trim()
-            if (value.startsWith("\"") && value.endsWith("\"") && value.length >= 2) {
-                value = value.substring(1, value.length - 1)
-            }
-
-            if (section == "package") {
-                match (currentPkg) {
-                    case Some(pkg) => {
-                        if (key == "name") {}  // 已在初始化时设置
-                        if (key == "version") { pkg.version = value }
-                        if (key == "resolution") { pkg.resolution = value }
-                        if (key == "integrity") { pkg.integrity = value }
-                        if (key == "optional") { pkg.isOptional = (value == "true") }
+            match (trimmed.indexOf("=")) {
+                case Some(ei) =>
+                    let key = trimmed[..ei]
+                    var value = trimmed[ei + 1..]
+                    if (value.startsWith("\"") && value.endsWith("\"") && value.size >= 2) {
+                        value = value[1..value.size - 1]
                     }
-                    case None => {
-                        if (key == "name") {
-                            currentPkg = Some(LockfilePackage(value, "0.0.0"))
+
+                    if (section == "package") {
+                        match (currentPkg) {
+                            case Some(pkg) =>
+                                if (key == "name") {}  // already set
+                                if (key == "version") { pkg.version = value }
+                                if (key == "resolution") { pkg.resolution = value }
+                                if (key == "integrity") { pkg.integrity = value }
+                                if (key == "optional") { pkg.isOptional = (value == "true") }
+                            case None =>
+                                if (key == "name") {
+                                    currentPkg = Some(LockfilePackage(value, "0.0.0"))
+                                }
                         }
                     }
-                }
-            }
 
-            if (section == "dependencies") {
-                match (currentPkg) {
-                    case Some(pkg) => pkg.dependencies.put(key, value)
-                    case None => ()
-                }
-            }
-            if (section == "devDependencies") {
-                match (currentPkg) {
-                    case Some(pkg) => pkg.devDependencies.put(key, value)
-                    case None => ()
-                }
-            }
-            if (section == "peerDependencies") {
-                match (currentPkg) {
-                    case Some(pkg) => pkg.peerDependencies.put(key, value)
-                    case None => ()
-                }
-            }
-            if (section == "optionalDependencies") {
-                match (currentPkg) {
-                    case Some(pkg) => pkg.optionalDependencies.put(key, value)
-                    case None => ()
-                }
+                    if (section == "dependencies") {
+                        match (currentPkg) {
+                            case Some(pkg) => pkg.dependencies.put(key, value)
+                            case None => ()
+                        }
+                    }
+                    if (section == "devDependencies") {
+                        match (currentPkg) {
+                            case Some(pkg) => pkg.devDependencies.put(key, value)
+                            case None => ()
+                        }
+                    }
+                    if (section == "peerDependencies") {
+                        match (currentPkg) {
+                            case Some(pkg) => pkg.peerDependencies.put(key, value)
+                            case None => ()
+                        }
+                    }
+                    if (section == "optionalDependencies") {
+                        match (currentPkg) {
+                            case Some(pkg) => pkg.optionalDependencies.put(key, value)
+                            case None => ()
+                        }
+                    }
+                case None => ()
             }
         }
 
@@ -1141,4 +1154,12 @@ public class Lockfile {
         }
         return None
     }
+
+    /// 检查是否为 workspace tree ID
+    /// 翻译自: Lockfile.isWorkspaceTreeId
+    public func isWorkspaceTreeId(treeId: UInt32): Bool {
+        // 简化实现: workspace tree ID 总是 0
+        return treeId == UInt32(0)
+    }
 }
+

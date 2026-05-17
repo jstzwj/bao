@@ -23,102 +23,6 @@ public enum IntegrityAlgorithm {
     | Sha512
 }
 
-/// 完整性校验值
-/// 严格翻译自: src/install/integrity.zig Integrity
-public class Integrity {
-    /// 算法
-    public var algorithm: IntegrityAlgorithm
-    /// 哈希值 (十六进制)
-    public var hash: String
-
-    public init() {
-        algorithm = IntegrityAlgorithm.None
-        hash = ""
-    }
-
-    /// 从 npm integrity 字符串解析
-    // 严格翻译自: src/install/integrity.zig Integrity.parse
-    // 格式: "sha512-xxxx" 或 "sha1-xxxx"
-    public static func parse(s: String): ?Integrity {
-        if (s.isEmpty()) { return None }
-        let dashIdx = s.indexOf("-")
-        match (dashIdx) {
-            case Some(idx) => {
-                let algo = s.substring(0, idx).toLower()
-                let hash = s.substring(idx + 1)
-                let integ = Integrity()
-                integ.hash = hash
-                match (algo) {
-                    case "sha1" => integ.algorithm = IntegrityAlgorithm.Sha1
-                    case "sha256" => integ.algorithm = IntegrityAlgorithm.Sha256
-                    case "sha512" => integ.algorithm = IntegrityAlgorithm.Sha512
-                    case _ => integ.algorithm = IntegrityAlgorithm.None
-                }
-                return Some(integ)
-            }
-            case None => return None
-        }
-    }
-
-    /// 从 raw bytes 计算完整性哈希
-    public static func forBytes(data: Array<Byte>): Integrity {
-        let integ = Integrity()
-        integ.algorithm = IntegrityAlgorithm.Sha512
-        integ.hash = Hash.sha512Hex(data)
-        return integ
-    }
-
-    /// 验证数据完整性
-    // 严格翻译自: src/install/integrity.zig Integrity.verify
-    public func verify(data: Array<Byte>): Bool {
-        if (algorithm == IntegrityAlgorithm.None) { return true }
-        let computed = match (algorithm) {
-            case IntegrityAlgorithm.Sha1 => Hash.sha1Hex(data)
-            case IntegrityAlgorithm.Sha256 => Hash.sha256Hex(data)
-            case IntegrityAlgorithm.Sha512 => Hash.sha512Hex(data)
-            case IntegrityAlgorithm.None => ""
-        }
-        return computed == hash
-    }
-
-    /// 是否支持该校验
-    public func isSupported(): Bool {
-        return algorithm != IntegrityAlgorithm.None
-    }
-
-    /// 转为字符串表示
-    public func toString(): String {
-        if (algorithm == IntegrityAlgorithm.None) { return "" }
-        let algoStr = match (algorithm) {
-            case IntegrityAlgorithm.Sha1 => "sha1"
-            case IntegrityAlgorithm.Sha256 => "sha256"
-            case IntegrityAlgorithm.Sha512 => "sha512"
-            case IntegrityAlgorithm.None => ""
-        }
-        return "${algoStr}-${hash}"
-    }
-}
-
-/// 提取结果数据
-/// 严格翻译自: src/install/install.zig ExtractData
-public class ExtractData {
-    /// 包解压后的目录路径
-    public var packageDir: String
-    /// 解压后的文件数量
-    public var fileCount: Int64
-    /// 解压后的总大小
-    public var totalSize: Int64
-    /// 完整性哈希
-    public var integrity: ?Integrity
-
-    public init() {
-        packageDir = ""
-        fileCount = 0
-        totalSize = 0
-        integrity = None
-    }
-}
-
 /// Tar 头部信息
 /// 标准 POSIX tar 格式
 public class TarHeader {
@@ -192,7 +96,7 @@ public class TarHeader {
         var result = ""
         for (i in 0..len) {
             let b = data[Int64(offset) + i]
-            if (b == 0) { break }
+            if (b == 0) { () }
             result = result + String.fromCodePoint(Int64(b))
         }
         return result
@@ -203,7 +107,7 @@ public class TarHeader {
         var s = ""
         for (i in 0..len) {
             let b = data[Int64(offset) + i]
-            if (b == 0 || b == 32) { continue } // null or space
+            if (b == 0 || b == 32) { () } // null or space
             s = s + String.fromCodePoint(Int64(b))
         }
         if (s.isEmpty()) { return 0 }
@@ -214,7 +118,7 @@ public class TarHeader {
     /// 简化八进制解析
     private static func parseInt64(s: String, base: Int64): Int64 {
         var result: Int64 = 0
-        for (i in 0..s.length) {
+        for (i in 0..s.size) {
             let c = s[i]
             let digit = Int64(c) - Int64('0')
             result = result * base + digit
@@ -315,15 +219,7 @@ public class TarballExtractor {
         // 解压
         let result = extract(data)
         match (result) {
-            case Some(extractData) => {
-                // 计算 integrity (如果原始没有)
-                if (!integrity.isSupported()) {
-                    extractData.integrity = Some(Integrity.forBytes(data))
-                } else {
-                    extractData.integrity = Some(integrity)
-                }
-                return Some(extractData)
-            }
+            case Some(extractData) => _matchHelper_tarball_236()
             case None => return None
         }
     }
@@ -356,58 +252,7 @@ public class TarballExtractor {
             let header = TarHeader.parse(headerData)
 
             match (header) {
-                case Some(h) => {
-                    // 空头 (全零) = tar 结束
-                    if (h.name.isEmpty() && h.size == 0) {
-                        break
-                    }
-
-                    // 跳过第一个路径组件
-                    var entryPath = h.name
-                    if (firstEntry && entryPath.contains("/")) {
-                        // 检测根目录前缀
-                        let slashIdx = entryPath.indexOf("/")
-                        match (slashIdx) {
-                            case Some(idx) => {
-                                // 检查是否所有条目都有相同前缀
-                            }
-                            case None => ()
-                        }
-                        firstEntry = false
-                    }
-
-                    // 去除 stripComponents 个路径组件
-                    entryPath = stripPathComponents(entryPath, stripComponents)
-
-                    // 跳到数据区
-                    offset += blockSize
-                    let dataSize = alignToBlock(h.size, blockSize)
-
-                    if (h.typeFlag == TarTypeFlag.Directory) {
-                        // 创建目录
-                        let dirPath = Path.join([extractDir, entryPath])
-                        BaoFile.mkdir(dirPath, true)
-                    } else if (h.typeFlag == TarTypeFlag.Regular || h.typeFlag == TarTypeFlag.Unknown) {
-                        // 写入文件
-                        if (!entryPath.isEmpty()) {
-                            let filePath = Path.join([extractDir, entryPath])
-                            // 确保父目录存在
-                            let parentDir = Path.dirname(filePath)
-                            BaoFile.mkdir(parentDir, true)
-                            // 写入文件数据
-                            let fileData = tarData.slice(offset, h.size)
-                            BaoFile.writeAllBytes(filePath, fileData)
-                            fileCount++
-                            totalSize += h.size
-                        }
-                    } else if (h.typeFlag == TarTypeFlag.Symlink) {
-                        // 创建符号链接
-                        let linkPath = Path.join([extractDir, entryPath])
-                        BaoFile.createSymlink(h.linkName, linkPath)
-                    }
-
-                    offset += dataSize
-                }
+                case Some(h) => _matchHelper_tarball_237()
                 case None => break
             }
         }
@@ -426,8 +271,8 @@ public class TarballExtractor {
             // 简化: 写入临时文件并调用 gunzip
             let tmpPath = Path.join([Sys.getTempDir(), "bao-tarball-${Sys.randomInt64()}.gz"])
             BaoFile.writeAllBytes(tmpPath, data)
-            let tarPath = tmpPath.substring(0, tmpPath.length - 3) + ".tar"
-            Process.spawn(["gunzip", "-k", "-f", tmpPath], Sys.getTempDir())
+            let tarPath = tmpPath.substring(0, tmpPath.size - 3) + ".tar"
+            Process.`spawn`(["gunzip", "-k", "-f", tmpPath], Sys.getTempDir())
             let tarData = BaoFile.readAllBytes(tarPath)
             BaoFile.remove(tmpPath)
             BaoFile.remove(tarPath)
@@ -491,11 +336,7 @@ public class TarballDownloader {
     public func download(tarballUrl: String): ?Array<Byte> {
         let response = client.get(tarballUrl)
         match (response) {
-            case Some(resp) => {
-                if (resp.statusCode == 200) {
-                    return Some(resp.bodyBytes)
-                }
-            }
+            case Some(resp) => _matchHelper_tarball_238()
             case None => ()
         }
         return None
@@ -505,17 +346,7 @@ public class TarballDownloader {
     public func downloadWithIntegrity(tarballUrl: String, integrity: ?Integrity): ?Array<Byte> {
         let data = download(tarballUrl)
         match (data) {
-            case Some(bytes) => {
-                match (integrity) {
-                    case Some(i) => {
-                        if (i.verify(bytes)) {
-                            return Some(bytes)
-                        }
-                        return None // 校验失败
-                    }
-                    case None => return Some(bytes)
-                }
-            }
+            case Some(bytes) => _matchHelper_tarball_239()
             case None => return None
         }
     }
@@ -529,3 +360,85 @@ public class Resolution {
         tag = "npm"
     }
 }
+
+
+            private func _matchHelper_tarball_236(): Unit {
+                // 计算 integrity (如果原始没有)
+                if (!integrity.isSupported()) {
+                    extractData.integrity = Some(Integrity.forBytes(data))
+                } else {
+                    extractData.integrity = Some(integrity)
+                }
+                return Some(extractData)
+            }
+
+                private func _matchHelper_tarball_237(): Unit {
+                    // 空头 (全零) = tar 结束
+                    if (h.name.isEmpty() && h.size == 0) {
+                        return
+                    }
+
+                    // 跳过第一个路径组件
+                    var entryPath = h.name
+                    if (firstEntry && entryPath.contains("/")) {
+                        // 检测根目录前缀
+                        let slashIdx = entryPath.indexOf("/")
+                        match (slashIdx) {
+                            case Some(idx)=> ()  // 检查是否所有条目都有相同前缀
+                            case None => ()
+                        }
+                        firstEntry = false
+                    }
+
+                    // 去除 stripComponents 个路径组件
+                    entryPath = stripPathComponents(entryPath, stripComponents)
+
+                    // 跳到数据区
+                    offset += blockSize
+                    let dataSize = alignToBlock(h.size, blockSize)
+
+                    if (h.typeFlag == TarTypeFlag.Directory) {
+                        // 创建目录
+                        let dirPath = Path.join([extractDir, entryPath])
+                        BaoFile.mkdir(dirPath, true)
+                    } else if (h.typeFlag == TarTypeFlag.Regular || h.typeFlag == TarTypeFlag.Unknown) {
+                        // 写入文件
+                        if (!entryPath.isEmpty()) {
+                            let filePath = Path.join([extractDir, entryPath])
+                            // 确保父目录存在
+                            let parentDir = Path.dirname(filePath)
+                            BaoFile.mkdir(parentDir, true)
+                            // 写入文件数据
+                            let fileData = tarData.slice(offset, h.size)
+                            BaoFile.writeAllBytes(filePath, fileData)
+                            fileCount++
+                            totalSize += h.size
+                        }
+                    } else if (h.typeFlag == TarTypeFlag.Symlink) {
+                        // 创建符号链接
+                        let linkPath = Path.join([extractDir, entryPath])
+                        BaoFile.createSymlink(h.linkName, linkPath)
+                    }
+
+                    offset += dataSize
+                }
+
+            private func _matchHelper_tarball_238(): Unit {
+                if (resp.statusCode == 200) {
+                    return Some(resp.bodyBytes)
+                }
+            }
+
+            private func _matchHelper_tarball_239(): Unit {
+                match (integrity) {
+                    case Some(i) => _matchHelper_tarball_80()
+                    case None => return Some(bytes)
+                }
+            }
+
+                    private func _matchHelper_tarball_80(): Unit {
+                        if (i.verify(bytes)) {
+                            return Some(bytes)
+                        }
+                        return None // 校验失败
+                    }

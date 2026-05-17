@@ -15,6 +15,7 @@ package bao_parsers
 
 import bao_core.*
 import bao_collections.*
+import std.convert.*
 
 // ============================================================================
 // YamlValue - YAML 值类型
@@ -38,6 +39,22 @@ public enum YamlKind {
     | String     // 字符串
     | Array      // 序列 (block 或 flow)
     | Map        // 映射 (block 或 flow)
+
+    public operator func ==(right: YamlKind): Bool {
+        match (this) {
+            case Null => match (right) { case Null => true; case _ => false }
+            case Boolean => match (right) { case Boolean => true; case _ => false }
+            case Int => match (right) { case Int => true; case _ => false }
+            case Float => match (right) { case Float => true; case _ => false }
+            case String => match (right) { case String => true; case _ => false }
+            case Array => match (right) { case Array => true; case _ => false }
+            case Map => match (right) { case Map => true; case _ => false }
+        }
+    }
+
+    public operator func !=(right: YamlKind): Bool {
+        return !(this == right)
+    }
 }
 
 /// YAML 值 - 对应 Bun Expr (YAML 场景)
@@ -286,15 +303,15 @@ public class YamlParser <: BaseParser {
         }
         let ch = source[Int64(pos)]
         // 流式映射
-        if (ch == '{') {
+        if (ch == UInt8(123)) {
             return parseFlowMap()
         }
         // 流式数组
-        if (ch == '[') {
+        if (ch == UInt8(91)) {
             return parseFlowArray()
         }
         // 块序列 (以 - 开头的列表项)
-        if (ch == '-' && pos + Int64(1) < source.size && isSpaceOrTab(source[Int64(pos + Int64(1))])) {
+        if (ch == UInt8(45) && pos + Int64(1) < source.size && isSpaceOrTab(source[Int64(pos + Int64(1))])) {
             return parseBlockSequence(minIndent)
         }
         // 块映射 (key: value)
@@ -302,11 +319,11 @@ public class YamlParser <: BaseParser {
             return parseBlockMap(minIndent)
         }
         // 块标量 (| 或 >)
-        if (ch == '|' || ch == '>') {
+        if (ch == UInt8(124) || ch == UInt8(62)) {
             return parseBlockScalar()
         }
         // 引号字符串
-        if (ch == '"' || ch == '\'') {
+        if (ch == UInt8(34) || ch == UInt8(39)) {
             return parseYAMLString()
         }
         // 纯标量
@@ -319,7 +336,7 @@ public class YamlParser <: BaseParser {
         let map = YamlValue(YamlKind.Map)
         advance() // consume {
         skipWhitespace()
-        if (pos < source.size && source[Int64(pos)] == '}') {
+        if (pos < source.size && source[Int64(pos)] == UInt8(125)) {
             advance()
             return map
         }
@@ -329,7 +346,7 @@ public class YamlParser <: BaseParser {
                 addError(ParseErrorKind.UnterminatedObject, "Unterminated flow mapping")
                 return map
             }
-            if (source[Int64(pos)] == '}') {
+            if (source[Int64(pos)] == UInt8(125)) {
                 advance()
                 return map
             }
@@ -337,7 +354,7 @@ public class YamlParser <: BaseParser {
             let key = parseFlowKey()
             skipWhitespace()
             // 期望冒号
-            if (pos < source.size && source[Int64(pos)] == ':') {
+            if (pos < source.size && source[Int64(pos)] == UInt8(58)) {
                 advance()
                 skipWhitespace()
             }
@@ -345,7 +362,7 @@ public class YamlParser <: BaseParser {
             let value = parseNode(Int64(0))
             map.mapValue.put(key, value)
             skipWhitespace()
-            if (pos < source.size && source[Int64(pos)] == ',') {
+            if (pos < source.size && source[Int64(pos)] == UInt8(44)) {
                 advance()
             }
         }
@@ -357,7 +374,7 @@ public class YamlParser <: BaseParser {
         let arr = YamlValue(YamlKind.Array)
         advance() // consume [
         skipWhitespace()
-        if (pos < source.size && source[Int64(pos)] == ']') {
+        if (pos < source.size && source[Int64(pos)] == UInt8(93)) {
             advance()
             return arr
         }
@@ -367,14 +384,14 @@ public class YamlParser <: BaseParser {
                 addError(ParseErrorKind.UnterminatedArray, "Unterminated flow sequence")
                 return arr
             }
-            if (source[Int64(pos)] == ']') {
+            if (source[Int64(pos)] == UInt8(93)) {
                 advance()
                 return arr
             }
             let value = parseNode(Int64(0))
             arr.arrayValue.append(value)
             skipWhitespace()
-            if (pos < source.size && source[Int64(pos)] == ',') {
+            if (pos < source.size && source[Int64(pos)] == UInt8(44)) {
                 advance()
             }
         }
@@ -392,7 +409,7 @@ public class YamlParser <: BaseParser {
             if (indent < minIndent || pos >= source.size) {
                 break
             }
-            if (source[Int64(pos)] != '-') {
+            if (source[Int64(pos)] != UInt8(45)) {
                 break
             }
             // 检查后面是否有空格
@@ -400,12 +417,12 @@ public class YamlParser <: BaseParser {
                 break
             }
             advance() // consume -
-            let nextCh = if (pos < source.size) { source[Int64(pos)] } else { '\n' }
-            if (nextCh == ' ' || nextCh == '\t') {
+            let nextCh = if (pos < source.size) { source[Int64(pos)] } else { UInt8(10) }
+            if (nextCh == UInt8(32) || nextCh == UInt8(9)) {
                 advance() // consume space after -
             }
-            skipWhitespaceNoNewline()
-            if (pos >= source.size || source[Int64(pos)] == '\n') {
+            skipYamlWhitespaceNoNewline()
+            if (pos >= source.size || source[Int64(pos)] == UInt8(10)) {
                 // 空项或嵌套块
                 arr.arrayValue.append(YamlValue.nullValue())
                 skipToNextLine()
@@ -431,15 +448,15 @@ public class YamlParser <: BaseParser {
             if (key == "") {
                 break
             }
-            skipWhitespaceNoNewline()
+            skipYamlWhitespaceNoNewline()
             // 期望冒号
-            if (pos < source.size && source[Int64(pos)] == ':') {
+            if (pos < source.size && source[Int64(pos)] == UInt8(58)) {
                 advance()
             } else {
                 break
             }
-            let nextCh = if (pos < source.size) { source[Int64(pos)] } else { '\n' }
-            if (nextCh == ' ' || nextCh == '\t') {
+            let nextCh = if (pos < source.size) { source[Int64(pos)] } else { UInt8(10) }
+            if (nextCh == UInt8(32) || nextCh == UInt8(9)) {
                 advance()
                 skipWhitespace()
                 let value = parseNode(indent)
@@ -487,7 +504,7 @@ public class YamlParser <: BaseParser {
                     sb.append('\n')
                     trailingNewlines -= Int64(1)
                 }
-                if (sb.size > Int64(0) && ch == '>') {
+                if (sb.size > Int64(0) && ch == UInt8(62)) {
                     sb.append(' ')  // folded: 空格连接
                 } else if (sb.size > Int64(0)) {
                     sb.append('\n') // literal: 换行
@@ -523,17 +540,17 @@ public class YamlParser <: BaseParser {
                 advance()
                 break
             }
-            if (ch == '\\' && quoteChar == '"') {
+            if (ch == UInt8(92) && quoteChar == UInt8(34)) {
                 advance()
                 if (pos < source.size) {
                     let escaped = source[Int64(pos)]
                     advance()
                     match (escaped) {
-                        case 'n' => sb.append('\n')
-                        case 't' => sb.append('\t')
-                        case 'r' => sb.append('\r')
-                        case '\\' => sb.append('\\')
-                        case '"' => sb.append('"')
+                        case 110 => sb.append(UInt8(10))
+                        case 116 => sb.append(UInt8(9))
+                        case 114 => sb.append(UInt8(13))
+                        case 92 => sb.append(UInt8(92))
+                        case 34 => sb.append(UInt8(34))
                         case _ => sb.append(escaped)
                     }
                 }
@@ -551,13 +568,13 @@ public class YamlParser <: BaseParser {
         let sb = StringBuilder()
         while (pos < source.size) {
             let ch = source[Int64(pos)]
-            if (ch == '\n' || ch == '\r') {
+            if (ch == UInt8(10) || ch == UInt8(13)) {
                 break
             }
-            if (ch == ':' && pos + Int64(1) < source.size && isSpaceOrTab(source[Int64(pos + Int64(1))])) {
+            if (ch == UInt8(58) && pos + Int64(1) < source.size && isSpaceOrTab(source[Int64(pos + Int64(1))])) {
                 break
             }
-            if (ch == '#' && pos > Int64(0) && isSpaceOrTab(source[Int64(pos - Int64(1))])) {
+            if (ch == UInt8(35) && pos > Int64(0) && isSpaceOrTab(source[Int64(pos - Int64(1))])) {
                 break
             }
             sb.append(ch)
@@ -571,7 +588,7 @@ public class YamlParser <: BaseParser {
     private func parseFlowKey(): String {
         skipWhitespace()
         let ch = source[Int64(pos)]
-        if (ch == '"' || ch == '\'') {
+        if (ch == UInt8(34) || ch == UInt8(39)) {
             advance()
             let sb = StringBuilder()
             while (pos < source.size && source[Int64(pos)] != ch) {
@@ -585,7 +602,7 @@ public class YamlParser <: BaseParser {
         let sb = StringBuilder()
         while (pos < source.size) {
             let c = source[Int64(pos)]
-            if (c == ':' || c == ',' || c == '}' || c == ']' || c == ' ' || c == '\t' || c == '\n') {
+            if (c == UInt8(58) || c == UInt8(44) || c == UInt8(125) || c == UInt8(93) || c == UInt8(32) || c == UInt8(9) || c == UInt8(10)) {
                 break
             }
             sb.append(c)
@@ -597,16 +614,16 @@ public class YamlParser <: BaseParser {
     /// 解析块键
     private func parseBlockKey(): String {
         let ch = source[Int64(pos)]
-        if (ch == '"' || ch == '\'') {
+        if (ch == UInt8(34) || ch == UInt8(39)) {
             return parseYAMLString().stringValue
         }
         let sb = StringBuilder()
         while (pos < source.size) {
             let c = source[Int64(pos)]
-            if (c == ':' && pos + Int64(1) < source.size && (isSpaceOrTab(source[Int64(pos + Int64(1))]) || source[Int64(pos + Int64(1))] == '\n')) {
+            if (c == UInt8(58) && pos + Int64(1) < source.size && (isSpaceOrTab(source[Int64(pos + Int64(1))]) || source[Int64(pos + Int64(1))] == UInt8(10))) {
                 break
             }
-            if (c == '\n' || c == '\r') {
+            if (c == UInt8(10) || c == UInt8(13)) {
                 break
             }
             sb.append(c)
@@ -620,11 +637,11 @@ public class YamlParser <: BaseParser {
         var i = pos
         while (i < source.size) {
             let ch = source[Int64(i)]
-            if (ch == ':' && i + Int64(1) < source.size &&
-                (source[Int64(i + Int64(1))] == ' ' || source[Int64(i + Int64(1))] == '\t' || source[Int64(i + Int64(1))] == '\n')) {
+            if (ch == UInt8(58) && i + Int64(1) < source.size &&
+                (source[Int64(i + Int64(1))] == UInt8(32) || source[Int64(i + Int64(1))] == UInt8(9) || source[Int64(i + Int64(1))] == UInt8(10))) {
                 return true
             }
-            if (ch == '\n' || ch == '#' || ch == '-' || ch == '{' || ch == '[') {
+            if (ch == UInt8(10) || ch == UInt8(35) || ch == UInt8(45) || ch == UInt8(123) || ch == UInt8(91)) {
                 return false
             }
             i += Int64(1)
@@ -656,13 +673,13 @@ public class YamlParser <: BaseParser {
         }
         // 浮点数
         if (text == ".inf" || text == ".Inf" || text == ".INF") {
-            return YamlValue(YamlKind.Float, Float64.infinity)
+            return YamlValue(YamlKind.Float, Float64(1) / Float64(0))
         }
         if (text == "-.inf" || text == "-.Inf" || text == "-.INF") {
-            return YamlValue(YamlKind.Float, Float64(-infinity))
+            return YamlValue(YamlKind.Float, Float64(-1) / Float64(0))
         }
         if (text == ".nan" || text == ".NaN" || text == ".NAN") {
-            return YamlValue(YamlKind.Float, Float64.nan)
+            return YamlValue(YamlKind.Float, Float64(0) / Float64(0))
         }
         match (parseFloatStrict(text)) {
             case Some(n) => return YamlValue(YamlKind.Float, n)
@@ -680,13 +697,13 @@ public class YamlParser <: BaseParser {
     private func getLineIndent(): Int64 {
         // 找到行首
         var lineStart = pos
-        while (lineStart > Int64(0) && source[Int64(lineStart - Int64(1))] != '\n') {
+        while (lineStart > Int64(0) && source[Int64(lineStart - Int64(1))] != UInt8(10)) {
             lineStart -= Int64(1)
         }
         // 计算空格数
         var indent = Int64(0)
         var i = lineStart
-        while (i < source.size && source[Int64(i)] == ' ') {
+        while (i < source.size && source[Int64(i)] == UInt8(32)) {
             indent += Int64(1)
             i += Int64(1)
         }
@@ -694,13 +711,13 @@ public class YamlParser <: BaseParser {
     }
 
     private func isSpaceOrTab(ch: Char): Bool {
-        ch == ' ' || ch == '\t'
+        ch == UInt8(32) || ch == UInt8(9)
     }
 
     private func isBlankLine(): Bool {
         var i = pos
-        while (i < source.size && source[Int64(i)] != '\n') {
-            if (source[Int64(i)] != ' ' && source[Int64(i)] != '\t' && source[Int64(i)] != '\r') {
+        while (i < source.size && source[Int64(i)] != UInt8(10)) {
+            if (source[Int64(i)] != UInt8(32) && source[Int64(i)] != UInt8(9) && source[Int64(i)] != UInt8(13)) {
                 return false
             }
             i += Int64(1)
@@ -709,7 +726,7 @@ public class YamlParser <: BaseParser {
     }
 
     private func skipToNextLine(): Unit {
-        while (pos < source.size && source[Int64(pos)] != '\n') {
+        while (pos < source.size && source[Int64(pos)] != UInt8(10)) {
             advance()
         }
         if (pos < source.size) {
@@ -717,8 +734,8 @@ public class YamlParser <: BaseParser {
         }
     }
 
-    private func skipWhitespaceNoNewline(): Unit {
-        while (pos < source.size && (source[Int64(pos)] == ' ' || source[Int64(pos)] == '\t')) {
+    private func skipYamlWhitespaceNoNewline(): Unit {
+        while (pos < source.size && (source[Int64(pos)] == UInt8(32) || source[Int64(pos)] == UInt8(9))) {
             advance()
         }
     }
@@ -730,27 +747,27 @@ public class YamlParser <: BaseParser {
         }
         var start = Int64(0)
         var negative = false
-        if (s[Int64(0)] == '-') {
+        if (s[Int64(0)] == UInt8(45)) {
             negative = true
             start = Int64(1)
-        } else if (s[Int64(0)] == '+') {
+        } else if (s[Int64(0)] == UInt8(43)) {
             start = Int64(1)
         }
         if (start >= s.size) {
             return None
         }
         // 0x (十六进制)
-        if (start + Int64(1) < s.size && s[start] == '0' && (s[start + Int64(1)] == 'x' || s[start + Int64(1)] == 'X')) {
+        if (start + Int64(1) < s.size && s[start] == UInt8(48) && (s[start + Int64(1)] == UInt8(120) || s[start + Int64(1)] == UInt8(88))) {
             var result = Int64(0)
             for (i in start + Int64(2)..s.size) {
                 let ch = s[i]
                 result = result * Int64(16)
-                if (ch >= '0' && ch <= '9') {
-                    result += Int64(ch.value - '0'.value)
-                } else if (ch >= 'a' && ch <= 'f') {
-                    result += Int64(ch.value - 'a'.value) + Int64(10)
-                } else if (ch >= 'A' && ch <= 'F') {
-                    result += Int64(ch.value - 'A'.value) + Int64(10)
+                if (ch >= UInt8(48) && ch <= UInt8(57)) {
+                    result += Int64(ch) - Int64(48)
+                } else if (ch >= UInt8(97) && ch <= UInt8(102)) {
+                    result += Int64(ch) - Int64(97) + Int64(10)
+                } else if (ch >= UInt8(65) && ch <= UInt8(70)) {
+                    result += Int64(ch) - Int64(65) + Int64(10)
                 } else {
                     return None
                 }
@@ -758,12 +775,12 @@ public class YamlParser <: BaseParser {
             return if (negative) { -result } else { result }
         }
         // 0o (八进制)
-        if (start + Int64(1) < s.size && s[start] == '0' && (s[start + Int64(1)] == 'o' || s[start + Int64(1)] == 'O')) {
+        if (start + Int64(1) < s.size && s[start] == UInt8(48) && (s[start + Int64(1)] == UInt8(111) || s[start + Int64(1)] == UInt8(79))) {
             var result = Int64(0)
             for (i in start + Int64(2)..s.size) {
                 let ch = s[i]
-                if (ch >= '0' && ch <= '7') {
-                    result = result * Int64(8) + Int64(ch.value - '0'.value)
+                if (ch >= UInt8(48) && ch <= UInt8(55)) {
+                    result = result * Int64(8) + Int64(ch) - Int64(48)
                 } else {
                     return None
                 }
@@ -774,9 +791,9 @@ public class YamlParser <: BaseParser {
         var result = Int64(0)
         for (i in start..s.size) {
             let ch = s[i]
-            if (ch >= '0' && ch <= '9') {
-                result = result * Int64(10) + Int64(ch.value - '0'.value)
-            } else if (ch == '_') {
+            if (ch >= UInt8(48) && ch <= UInt8(57)) {
+                result = result * Int64(10) + Int64(ch) - Int64(48)
+            } else if (ch == UInt8(95)) {
                 // 跳过下划线分隔符
             } else {
                 return None
@@ -793,18 +810,18 @@ public class YamlParser <: BaseParser {
         var hasDot = false
         var hasE = false
         var start = Int64(0)
-        if (s[Int64(0)] == '-' || s[Int64(0)] == '+') {
+        if (s[Int64(0)] == UInt8(45) || s[Int64(0)] == UInt8(43)) {
             start = Int64(1)
         }
         for (i in start..s.size) {
             let ch = s[i]
-            if (ch == '.') {
+            if (ch == UInt8(46)) {
                 if (hasDot || hasE) { return None }
                 hasDot = true
-            } else if (ch == 'e' || ch == 'E') {
+            } else if (ch == UInt8(101) || ch == UInt8(69)) {
                 if (hasE) { return None }
                 hasE = true
-            } else if ((ch >= '0' && ch <= '9') || ch == '_' || ch == '+' || ch == '-') {
+            } else if ((ch >= UInt8(48) && ch <= UInt8(57)) || ch == UInt8(95) || ch == UInt8(43) || ch == UInt8(45)) {
                 // ok
             } else {
                 return None
@@ -815,13 +832,13 @@ public class YamlParser <: BaseParser {
         }
         // 移除下划线后解析
         let clean = stripUnderscores(s)
-        return Some(Float64(clean))
+        return Some(Float64.parse(clean))
     }
 
     private func stripUnderscores(s: String): String {
         let sb = StringBuilder()
         for (ch in s) {
-            if (ch != '_') { sb.append(ch) }
+            if (ch != UInt8(95)) { sb.append(ch) }
         }
         return sb.toString()
     }
@@ -863,30 +880,30 @@ public class FrontMatter {
             return FrontMatter("", source, false)
         }
         // 检查是否以 --- 开头
-        if (source[Int64(0)] != '-' || source[Int64(1)] != '-' || source[Int64(2)] != '-') {
+        if (source[Int64(0)] != UInt8(45) || source[Int64(1)] != UInt8(45) || source[Int64(2)] != UInt8(45)) {
             return FrontMatter("", source, false)
         }
         // 找到起始换行
         var start = Int64(3)
-        if (start < source.size && source[start] == '\r') {
+        if (start < source.size && source[start] == UInt8(13)) {
             start += Int64(1)
         }
-        if (start < source.size && source[start] == '\n') {
+        if (start < source.size && source[start] == UInt8(10)) {
             start += Int64(1)
         }
         // 找到结束 ---
         var end = start
         while (end + Int64(3) <= source.size) {
-            if (source[end] == '-' && source[end + Int64(1)] == '-' && source[end + Int64(2)] == '-') {
+            if (source[end] == UInt8(45) && source[end + Int64(1)] == UInt8(45) && source[end + Int64(2)] == UInt8(45)) {
                 // 检查前后是否为行首/行尾
                 let afterDash = end + Int64(3)
-                if (afterDash >= source.size || source[afterDash] == '\n' || source[afterDash] == '\r') {
+                if (afterDash >= source.size || source[afterDash] == UInt8(10) || source[afterDash] == UInt8(13)) {
                     let yaml = source[start..end]
                     var contentStart = afterDash
-                    if (contentStart < source.size && source[contentStart] == '\r') {
+                    if (contentStart < source.size && source[contentStart] == UInt8(13)) {
                         contentStart += Int64(1)
                     }
-                    if (contentStart < source.size && source[contentStart] == '\n') {
+                    if (contentStart < source.size && source[contentStart] == UInt8(10)) {
                         contentStart += Int64(1)
                     }
                     let content = if (contentStart < source.size) {

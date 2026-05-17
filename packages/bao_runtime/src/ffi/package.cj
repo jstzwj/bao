@@ -8,98 +8,89 @@ package bao_runtime.ffi
 // ============================================================================
 
 /// ABI 类型枚举
-public typealias FfiAbiType = AbiType
+public type FfiAbiType = AbiType
 
 /// 枚举映射格式化器
-public typealias FfiEnumMapFormatter = EnumMapFormatter
+public type FfiEnumMapFormatter = EnumMapFormatter
 
 // ============================================================================
 // FFI 函数类型 (来自 ffi_body.cj)
 // ============================================================================
 
 /// FFI 函数描述
-public typealias FfiFn = FfiFunction
+public type FfiFn = FfiFunction
 
 /// FFI 编译步骤
-public typealias FfiFnStep = FfiStep
+public type FfiFnStep = FfiStep
 
 /// FFI 已编译函数
-public typealias FfiCompiledFn = FfiCompiled
+public type FfiCompiledFn = FfiCompiled
 
 /// FFI C 源文件
-public typealias FfiSourceFile = FfiSource
+public type FfiSourceFile = FfiSource
 
 /// FFI 字符串数组
-public typealias FfiStringArrayRef = FfiStringArray
+public type FfiStringArrayRef = FfiStringArray
 
 /// FFI 符号映射
-public typealias FfiSymbolsMapRef = FfiSymbolsMap
+public type FfiSymbolsMapRef = FfiSymbolsMap
 
 /// FFI 编译器
-public typealias FfiCompiler = CompileC
+public type FfiCompiler = CompileC
 
 /// FFI 编译器运行时
-public typealias FfiCompilerRT = CompilerRT
+public type FfiCompilerRT = CompilerRT
 
 // ============================================================================
 // FFI 模块 (来自 ffi_body.cj)
 // ============================================================================
 
 /// FFI 模块主体 (dlopen, cc, callback, linkSymbols 等)
-public typealias FfiModuleRef = FfiModule
+public type FfiModuleRef = FfiModule
 
 // ============================================================================
 // FFI 对象 (来自 ffi_object.cj)
 // ============================================================================
 
 /// FFI 对象 (指针操作、Reader、Buffer 转换)
-public typealias FfiPtr = FfiObject
-
-/// FFI Reader (内存读取器)
-public typealias FfiReader = FfiObject.Reader
+public type FfiPtr = FfiObject
 
 /// FFI ArrayBuffer 视图
-public typealias FfiArrayBufferView = ArrayBufferView
+public type FfiArrayBufferView = ArrayBufferView
 
 /// FFI 指针切片结果
-public typealias FfiSliceResultRef = FfiSliceResult
+public type FfiSliceResultRef = FfiSliceResult
 
 // ============================================================================
 // FFI 类定义 (来自 ffi_classes.cj)
 // ============================================================================
 
 /// FFI JS 类定义
-public typealias FfiClassDef = FfiClassDefinition
+public type FfiClassDef = FfiClassDefinition
 
 /// FFI 原型方法定义
-public typealias FfiProtoMethodDef = FfiPrototypeMethodDef
+public type FfiProtoMethodDef = FfiPrototypeMethodDef
 
 /// FFI 原型属性定义
-public typealias FfiProtoPropertyDef = FfiPrototypePropertyDef
+public type FfiProtoPropertyDef = FfiPrototypePropertyDef
 
 /// FFI 方法定义
-public typealias FfiMethodDefRef = FfiMethodDef
+public type FfiMethodDefRef = FfiMethodDef
 
 // ============================================================================
 // FFI 宿主函数 (来自 host_fns.cj)
 // ============================================================================
 
 /// FFI 字段入口
-public typealias FfiFieldEntryRef = FfiFieldEntry
+public type FfiFieldEntryRef = FfiFieldEntry
 
 /// DOM Call 慢路径
-public typealias FfiDomCallSlowPath = DomCallSlowPath
+public type FfiDomCallSlowPath = DomCallSlowPath
 
 // ============================================================================
 // 动态库 (来自 ffi.cj)
 // ============================================================================
 
 /// 动态库
-public typealias DynLib = DynamicLibrary
+public type DynLib = DynamicLibrary
 
-// ============================================================================
-// 结果类型 (来自 ffi_object.cj)
-// ============================================================================
-
-/// FFI 切片结果
-public typealias FfiSliceResult = FfiSliceResult

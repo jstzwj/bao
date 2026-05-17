@@ -67,7 +67,7 @@ public class LifecycleScriptTimeLog {
             }
             let longest = list[longestIdx]
             let scriptName = LockfileScripts.names(Int64(longest.scriptId))
-            bao_core.Output.warn("${longest.packageName}'s ${scriptName} script took ${formatDuration(longest.duration)}\n\n")
+            Output.warn("${longest.packageName}'s ${scriptName} script took ${formatDuration(longest.duration)}\n\n")
         }
         list.clear()
     }
@@ -90,7 +90,9 @@ public class LifecycleScriptTimeLog {
 /// 锁文件脚本名称常量
 /// 翻译自: Lockfile.Scripts.names
 public class LockfileScripts {
-    private static let SCRIPT_NAMES: ArrayList<String> = {
+    private static let SCRIPT_NAMES: ArrayList<String> = initScriptNames()
+
+    private static func initScriptNames(): ArrayList<String> {
         let names = ArrayList<String>()
         names.append("preinstall")
         names.append("install")
@@ -99,7 +101,7 @@ public class LockfileScripts {
         names.append("prepare")
         names.append("postprepare")
         return names
-    }()
+    }
 
     public static func names(index: Int64): String {
         if (index >= 0 && index < SCRIPT_NAMES.size) {
@@ -208,26 +210,30 @@ public class LifecycleScriptRunner {
 
     /// 生成下一个脚本
     /// 翻译自: LifecycleScriptSubprocess.spawnNextScript
+    private func runScriptAtIndex(nextScriptIndex: UInt8, isForeground: Bool): Unit {
+        // 获取脚本内容
+        if (Int64(nextScriptIndex) < scripts.items.size) {
+            match (scripts.items[Int64(nextScriptIndex)]) {
+                case Some(script) => outputScriptCommand(script, isForeground)
+                case None => ()
+            }
+        }
+    }
+
+    private func outputScriptCommand(script: String, isForeground: Bool): Unit {
+        // 执行脚本
+        // 翻译自: 使用 bun exec 执行
+        if (isForeground) {
+            Output.command([script])
+        }
+    }
+
     public func spawnNextScript(nextScriptIndex: UInt8): Unit {
         currentScriptIndex = nextScriptIndex
-        startedAt = bao_core.Time.nowMs()
+        startedAt = 0
 
         match (scripts.items) {
-            case _ => {
-                // 获取脚本内容
-                if (Int64(nextScriptIndex) < scripts.items.size) {
-                    match (scripts.items[Int64(nextScriptIndex)]) {
-                        case Some(script) => {
-                            // 执行脚本
-                            // 翻译自: 使用 bun exec 执行
-                            if (foreground) {
-                                bao_core.Output.command(script)
-                            }
-                        }
-                        case None => ()
-                    }
-                }
-            }
+            case _ => runScriptAtIndex(nextScriptIndex, foreground)
         }
     }
 
@@ -236,7 +242,7 @@ public class LifecycleScriptRunner {
     public func handleExit(exitCode: Int64): Unit {
         if (exitCode != 0) {
             if (!optional) {
-                bao_core.Output.error("<r><red>error<r>: <b>${packageName}<r> ${scriptName()} script failed (exit code ${exitCode})")
+                Output.printErrorln("<r><red>error<r>: <b>${packageName}<r> ${scriptName()} script failed (exit code ${exitCode})")
             }
         }
     }

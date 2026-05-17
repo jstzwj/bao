@@ -5,6 +5,7 @@ package bao_css.selectors
 
 import bao_core.*
 import bao_collections.*
+import bao_css.*
 
 // ============================================================================
 // 重导出
@@ -54,6 +55,6 @@ public func isEquivalent(selectors: Array<CssSelectorImpl>, other: Array<CssSele
 
 /// 获取选择器列表的厂商前缀
 /// 严格翻译自 get_prefix
-public func getPrefix(selectors: CssSelectorListImpl): CssVendorPrefix {
-    CssVendorPrefix()
+public func getPrefix(selectors: CssSelectorListImpl): VendorPrefix {
+    VendorPrefix()
 }

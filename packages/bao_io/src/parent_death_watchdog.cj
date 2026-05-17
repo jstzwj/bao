@@ -8,6 +8,7 @@
 package bao_io
 
 import bao_core.*
+import bao_collections.*
 
 // ============================================================================
 // ParentDeathWatchdog - 父进程死亡看门狗
@@ -46,7 +47,7 @@ public class ParentDeathWatchdog {
 
     /// sync PGID 缓冲区
     /// 严格翻译自: var sync_pgids_buf: [4]std.c.pid_t = .{0} ** 4
-    private static var syncPgidsBuf: Array<Int32> = Array<Int32>(4, item: 0)
+    private static var syncPgidsBuf: Array<Int32> = Array<Int32>(4, { _ => 0 })
 
     /// sync PGID 列表
     /// 严格翻译自: var sync_pgids: []std.c.pid_t = sync_pgids_buf[0..0]
@@ -74,9 +75,12 @@ public class ParentDeathWatchdog {
         if (!isPosix()) {
             return
         }
-        let envValue = getEnv("BUN_FEATURE_FLAG_NO_ORPHANS")
-        if (envValue == None || envValue.getOrThrow().isEmpty) {
-            return
+        match (getEnv("BUN_FEATURE_FLAG_NO_ORPHANS")) {
+            case None => return
+            case Some(value) =>
+                if (value.isEmpty()) {
+                    return
+                }
         }
         enable()
     }
@@ -185,8 +189,8 @@ public class ParentDeathWatchdog {
         }
 
         let selfPid = getPid()
-        var toVisit: Array<Int32> = []
-        var toKill: Array<Int32> = []
+        var toVisit = ArrayList<Int32>()
+        var toKill = ArrayList<Int32>()
 
         toVisit.append(selfPid)
 
@@ -274,8 +278,10 @@ public class ParentDeathWatchdog {
             return
         }
 
-        var toVisit: Array<Int32> = [root]
-        var toKill: Array<Int32> = [root]
+        var toVisit = ArrayList<Int32>()
+        var toKill = ArrayList<Int32>()
+        toVisit.append(root)
+        toKill.append(root)
 
         while (toVisit.size > 0 && toKill.size < 4096) {
             let parent = toVisit.removeAt(toVisit.size - 1)

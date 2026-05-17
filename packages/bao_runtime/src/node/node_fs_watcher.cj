@@ -250,7 +250,7 @@ public class FSWatcher {
     // 调度任务到并发线程
     // 对应 Bun: node_fs_watcher.zig - FSWatcher.enqueueTaskConcurrent
     public func enqueueTaskConcurrent(task: FsWatchTask): Unit {
-        pendingActivityCount.add(1)
+        pendingActivityCount.append(1)
         // 将任务入队到事件循环
     }
 
@@ -279,7 +279,7 @@ public class FsWatchTask {
     // 添加事件
     public func addEntry(event: FsWatchEvent, path: String, needsFree: Bool): Unit {
         if (Int64(count) >= entries.size) {
-            entries.add(FsWatchEntry(event: event, path: path))
+            entries.append(FsWatchEntry(event: event, path: path))
         } else {
             entries[Int64(count)] = FsWatchEntry(event: event, path: path)
         }
@@ -379,7 +379,7 @@ public class FsPathWatcherManager {
         if (list == None) {
             list = Array<FsWatchCallback>()
         }
-        list.getOrThrow().add(callback.getOrThrow())
+        list.getOrThrow().append(callback.getOrThrow())
         watchers.put(path, list.getOrThrow())
     }
 

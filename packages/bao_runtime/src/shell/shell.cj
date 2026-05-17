@@ -61,7 +61,7 @@ public func unreachableState(context: String, state: String) {
 }
 
 /// Shell子shell未实现的错误信息
-public const SUBSHELL_TODO_ERROR = "Subshells are not implemented, please open GitHub issue!"
+public const SUBSHELL_UNSUPPORTED_ERROR = "Subshells are unsupported, please open GitHub issue!"
 
 /// 标准输入文件描述符
 /// 对应 Bun: pub const STDIN_FD: bun.FD = .fromUV(0)
@@ -102,7 +102,7 @@ public enum ShellErr {
     /// 无效参数
     case invalid_arguments(val: String)
     /// 未实现的功能
-    case todo(String)
+    case unsupported(String)
 
     /// 从系统错误创建
     /// 对应 Bun: pub fn newSys(e: anytype) @This()
@@ -120,8 +120,8 @@ public enum ShellErr {
                 "bao: \(msg)"
             case .invalid_arguments(let args) =>
                 "bao: invalid arguments: \(args.val)"
-            case .todo(let msg) =>
-                "bao: TODO: \(msg)"
+            case .unsupported(let msg) =>
+                "bao: unsupported: \(msg)"
         }
     }
 
@@ -137,8 +137,8 @@ public enum ShellErr {
                 globalThis.throwValue(errValue)
             case .invalid_arguments(let args) =>
                 globalThis.throwInvalidArguments("\(args.val)")
-            case .todo(let msg) =>
-                globalThis.throwTODO(msg)
+            case .unsupported(let msg) =>
+                globalThis.throwUnsupported(msg)
         }
     }
 
@@ -152,8 +152,8 @@ public enum ShellErr {
                 Output.prettyErrorln("<r><red>error<r>: Failed due to error: <b>\(custom)<r>")
             case .invalid_arguments(let invalid_arguments) =>
                 Output.prettyErrorln("<r><red>error<r>: Failed due to error: <b>baosh: invalid arguments: \(invalid_arguments.val)<r>")
-            case .todo(let todo) =>
-                Output.prettyErrorln("<r><red>error<r>: Failed due to error: <b>TODO: \(todo)<r>")
+            case .unsupported(let feature) =>
+                Output.prettyErrorln("<r><red>error<r>: Failed due to error: <b>unsupported: \(feature)<r>")
         }
         Global.exit(1)
     }
@@ -168,7 +168,7 @@ public enum ShellErr {
                 allocator.free(msg)
             case .invalid_arguments(_) =>
                 // 无需释放
-            case .todo(let msg) =>
+            case .unsupported(let msg) =>
                 allocator.free(msg)
         }
     }
@@ -253,10 +253,10 @@ public class GlobalJS {
         ShellErr.invalid_arguments(val: "\(fmt)")
     }
 
-    /// 抛出TODO错误
-    /// 对应 Bun: pub inline fn throwTODO(this: @This(), msg: []const u8) ShellErr
-    public func throwTODO(msg: String): ShellErr {
-        ShellErr.todo(msg)
+    /// 抛出不支持功能错误
+    /// 对应 Bun: pub inline fn throwUnsupported(this: @This(), msg: []const u8) ShellErr
+    public func throwUnsupported(msg: String): ShellErr {
+        ShellErr.unsupported(msg)
     }
 
     /// 抛出系统错误
@@ -352,9 +352,9 @@ public class GlobalMini {
         this.mini
     }
 
-    /// 抛出TODO错误
-    public func throwTODO(msg: String): ShellErr {
-        ShellErr.todo(msg)
+    /// 抛出不支持功能错误
+    public func throwUnsupported(msg: String): ShellErr {
+        ShellErr.unsupported(msg)
     }
 
     /// 抛出无效参数错误

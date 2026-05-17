@@ -8,6 +8,7 @@
 package bao_css.properties
 
 import bao_core.*
+import bao_collections.*
 
 // ============================================================================
 // Visibility
@@ -92,6 +93,14 @@ public enum DisplayOutside {
             case RunIn => "run-in"
         }
     }
+
+    public operator func ==(rhs: DisplayOutside): Bool {
+        this.toCss() == rhs.toCss()
+    }
+
+    public operator func !=(rhs: DisplayOutside): Bool {
+        this.toCss() != rhs.toCss()
+    }
 }
 
 // ============================================================================
@@ -121,6 +130,22 @@ public enum DisplayInside {
             case Ruby => "ruby"
         }
     }
+
+    public operator func ==(rhs: DisplayInside): Bool {
+        match (this) {
+            case Flow => match (rhs) { case Flow => true case _ => false }
+            case FlowRoot => match (rhs) { case FlowRoot => true case _ => false }
+            case Table => match (rhs) { case Table => true case _ => false }
+            case Flex(p1) => match (rhs) { case Flex(p2) => p1 == p2 case _ => false }
+            case Box(p1) => match (rhs) { case Box(p2) => p1 == p2 case _ => false }
+            case Grid => match (rhs) { case Grid => true case _ => false }
+            case Ruby => match (rhs) { case Ruby => true case _ => false }
+        }
+    }
+
+    public operator func !=(rhs: DisplayInside): Bool {
+        !(this == rhs)
+    }
 }
 
 // ============================================================================
@@ -141,32 +166,39 @@ public class DisplayPair {
         this.isListItem = isListItem
     }
 
-    public func toCss(): String {
-        match (outside, inside, isListItem) {
-            case (DisplayOutside.Inline, DisplayInside.FlowRoot, false) => "inline-block"
-            case (DisplayOutside.Inline, DisplayInside.Table, false) => "inline-table"
-            case (DisplayOutside.Inline, DisplayInside.Grid, false) => "inline-grid"
-            case (_, _, _) => {
-                var parts = ArrayList<String>()
-                let defaultOutside = match (inside) {
-                    case Ruby => DisplayOutside.Inline
-                    case _ => DisplayOutside.Block
-                }
-                if (outside != defaultOutside || (inside == DisplayInside.Flow && !isListItem)) {
-                    parts.append(outside.toCss())
-                }
-                if (inside != DisplayInside.Flow) {
-                    parts.append(inside.toCss())
-                }
-                if (isListItem) {
-                    parts.append("list-item")
-                }
-                if (parts.isEmpty()) {
-                    return "block"
-                }
-                return String.join(" ", parts)
-            }
+    private func getDefaultOutside(): DisplayOutside {
+        match (inside) {
+            case Ruby => DisplayOutside.Inline
+            case _ => DisplayOutside.Block
         }
+    }
+
+    public func toCss(): String {
+        // 特殊快捷方式
+        if (outside == DisplayOutside.Inline && !isListItem) {
+            if (inside == DisplayInside.FlowRoot) { return "inline-block" }
+            if (inside == DisplayInside.Table) { return "inline-table" }
+            if (inside == DisplayInside.Grid) { return "inline-grid" }
+        }
+
+        var parts = ArrayList<String>()
+        let defaultOutside = getDefaultOutside()
+        if (outside != defaultOutside || (inside == DisplayInside.Flow && !isListItem)) {
+            parts.append(outside.toCss())
+        }
+        if (inside != DisplayInside.Flow) {
+            parts.append(inside.toCss())
+        }
+        if (isListItem) {
+            parts.append("list-item")
+        }
+        if (parts.isEmpty()) {
+            return "block"
+        }
+        var partArr = Array<String>(parts.size, repeat: "")
+        var pi: Int64 = 0
+        for (p in parts) { partArr[pi] = p; pi += 1 }
+        return String.join(partArr, delimiter: " ")
     }
 }
 

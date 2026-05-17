@@ -6,6 +6,7 @@
 package bao_sys
 
 import bao_core.*
+import bao_collections.*
 
 // ============================================================================
 // ReadToEndResult - 读取到末尾的结果
@@ -40,7 +41,7 @@ public class ReadToEndResult {
     /// 解包结果 - 对应 Bun ReadToEndResult.unwrap()
     /// 有错误时抛出，无错误时返回字节
     public func unwrap(): Array<UInt8> {
-        if (let Some(e) = err) {
+        if (let Some(e) <- err) {
             throw BaoError(Int64(e.errno), e.toString())
         }
         return bytes
@@ -154,7 +155,7 @@ public class SysFile {
         var offset = 0
         while (offset < data.size) {
             // 构建剩余数据的子数组
-            var remaining = Array<UInt8>(data.size - offset, item: 0)
+            var remaining = Array<UInt8>(data.size - offset, { _ => UInt8(0) })
             for (i in 0..remaining.size) {
                 remaining[i] = data[offset + i]
             }
@@ -178,7 +179,7 @@ public class SysFile {
         var totalRead: Int64 = 0
         while (Int64(buf.size) > totalRead) {
             // 创建从 totalRead 开始的子缓冲区
-            var subBuf = Array<UInt8>(Int64(buf.size) - totalRead, item: 0)
+            var subBuf = Array<UInt8>(Int64(buf.size) - totalRead, { _ => UInt8(0) })
             let result = read(subBuf)
             match (result) {
                 case Err(e) => return SysMaybe<Int64>.Err(e)
@@ -199,7 +200,7 @@ public class SysFile {
     public func readToEnd(): SysMaybe<Array<UInt8>> {
         var buf = ArrayList<UInt8>()
         // 8KB 初始缓冲区
-        var chunk = Array<UInt8>(8192, item: 0)
+        var chunk = Array<UInt8>(8192, { _ => UInt8(0) })
         while (true) {
             let result = read(chunk)
             match (result) {
@@ -211,14 +212,14 @@ public class SysFile {
                     }
             }
         }
-        return SysMaybe<Array<UInt8>>.Ok(buf.toArray())
+        return SysMaybe<Array<UInt8>>.Ok(buf.toOwnedSlice())
     }
 
     /// 读取小文件 - 对应 Bun File.readToEndSmall()
     /// File.zig:298 - probably_small，初始 64 字节
     public func readToEndSmall(): SysMaybe<Array<UInt8>> {
         var buf = ArrayList<UInt8>()
-        var chunk = Array<UInt8>(64, item: 0)
+        var chunk = Array<UInt8>(64, { _ => UInt8(0) })
         while (true) {
             let result = read(chunk)
             match (result) {
@@ -229,10 +230,10 @@ public class SysFile {
                         buf.append(chunk[i])
                     }
                     // 下次使用更大的缓冲区
-                    chunk = Array<UInt8>(16 * 1024, item: 0)
+                    chunk = Array<UInt8>(16 * 1024, { _ => UInt8(0) })
             }
         }
-        return SysMaybe<Array<UInt8>>.Ok(buf.toArray())
+        return SysMaybe<Array<UInt8>>.Ok(buf.toOwnedSlice())
     }
 
     // ── 定位 ──────────────────────────────────────────────────────
@@ -281,7 +282,7 @@ public class SysFile {
     public func stat(): SysMaybe<PosixStat> {
         unsafe {
             let statBuf = malloc(UIntNative(144))
-            let rc = bao_sys.fstat(Int32(handle), statBuf)
+            let rc = fstat(Int32(handle), statBuf)
             if (rc != 0) {
                 free(statBuf)
                 return SysMaybe<PosixStat>.Err(
@@ -357,9 +358,9 @@ public class SysFile {
 
     /// 写入字符串到文件
     public static func writeFileString(path: String, text: String): SysMaybe<Unit> {
-        var data = Array<UInt8>(text.size, item: 0)
+        var data = Array<UInt8>(text.size, { _ => UInt8(0) })
         for (i in 0..text.size) {
-            data[Int64(i)] = UInt8(Int32(text[Int64(i)].value) & 0xFF)
+            data[Int64(i)] = UInt8(Int64(text[Int64(i)]) & 0xFF)
         }
         return writeFile(path, data)
     }
@@ -448,55 +449,55 @@ internal func parseStatFromBuffer(buf: CPointer<Unit>): PosixStat {
         stat.dev = UInt64(CPointer<Int64>(buf).read())
 
         // st_ino - offset 8
-        stat.ino = UInt64((CPointer<Int64>(buf) + IntNative(1)).read())
+        stat.ino = UInt64((CPointer<Int64>(buf) + Int64(1)).read())
 
         // st_nlink - offset 16
-        stat.nlink = UInt64((CPointer<Int64>(buf) + IntNative(2)).read())
+        stat.nlink = UInt64((CPointer<Int64>(buf) + Int64(2)).read())
 
         // st_mode - offset 24
-        let modePtr = CPointer<Int32>(base + IntNative(24))
+        let modePtr = CPointer<Int32>(base + Int64(24))
         stat.mode = UInt32(modePtr.read())
 
         // st_uid - offset 28
-        let uidPtr = CPointer<Int32>(base + IntNative(28))
+        let uidPtr = CPointer<Int32>(base + Int64(28))
         stat.uid = UInt32(uidPtr.read())
 
         // st_gid - offset 32
-        let gidPtr = CPointer<Int32>(base + IntNative(32))
+        let gidPtr = CPointer<Int32>(base + Int64(32))
         stat.gid = UInt32(gidPtr.read())
 
         // st_rdev - offset 40
-        let rdevPtr = CPointer<Int64>(base + IntNative(40))
+        let rdevPtr = CPointer<Int64>(base + Int64(40))
         stat.rdev = UInt64(rdevPtr.read())
 
         // st_size - offset 48
-        let sizePtr = CPointer<Int64>(base + IntNative(48))
+        let sizePtr = CPointer<Int64>(base + Int64(48))
         stat.size = UInt64(sizePtr.read())
 
         // st_blksize - offset 56
-        let blksizePtr = CPointer<Int64>(base + IntNative(56))
+        let blksizePtr = CPointer<Int64>(base + Int64(56))
         stat.blksize = UInt64(blksizePtr.read())
 
         // st_blocks - offset 64
-        let blocksPtr = CPointer<Int64>(base + IntNative(64))
+        let blocksPtr = CPointer<Int64>(base + Int64(64))
         stat.blocks = UInt64(blocksPtr.read())
 
         // st_atime - offset 72 (sec: 8, nsec: 8)
-        let atimeSecPtr = CPointer<Int64>(base + IntNative(72))
+        let atimeSecPtr = CPointer<Int64>(base + Int64(72))
         stat.atimeSec = atimeSecPtr.read()
-        let atimeNsecPtr = CPointer<Int64>(base + IntNative(80))
+        let atimeNsecPtr = CPointer<Int64>(base + Int64(80))
         stat.atimeNsec = atimeNsecPtr.read()
 
         // st_mtime - offset 88
-        let mtimeSecPtr = CPointer<Int64>(base + IntNative(88))
+        let mtimeSecPtr = CPointer<Int64>(base + Int64(88))
         stat.mtimeSec = mtimeSecPtr.read()
-        let mtimeNsecPtr = CPointer<Int64>(base + IntNative(96))
+        let mtimeNsecPtr = CPointer<Int64>(base + Int64(96))
         stat.mtimeNsec = mtimeNsecPtr.read()
 
         // st_ctime - offset 104
-        let ctimeSecPtr = CPointer<Int64>(base + IntNative(104))
+        let ctimeSecPtr = CPointer<Int64>(base + Int64(104))
         stat.ctimeSec = ctimeSecPtr.read()
-        let ctimeNsecPtr = CPointer<Int64>(base + IntNative(112))
+        let ctimeNsecPtr = CPointer<Int64>(base + Int64(112))
         stat.ctimeNsec = ctimeNsecPtr.read()
 
         return stat

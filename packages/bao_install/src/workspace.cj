@@ -42,7 +42,7 @@ public class WorkspacePackage {
     /// 是否是根工作区
     public var isRoot: Bool
     /// 包的主入口
-    public var main: String
+    public var `main`: String
     /// scripts
     public var scripts: HashMap<String, String>
     /// bin 条目
@@ -65,7 +65,7 @@ public class WorkspacePackage {
         peerDependenciesMeta = HashMap<String, HashMap<String, String>>()
         optionalDependencies = HashMap<String, String>()
         isRoot = false
-        main = "index.js"
+        `main` = "index.js"
         scripts = HashMap<String, String>()
         bin = HashMap<String, String>()
         trustedDependencies = ArrayList<String>()
@@ -120,34 +120,29 @@ public class WorkspaceGlob {
     public static func parseGlobs(workspacesField: ?JsonValue): ArrayList<String> {
         let globs = ArrayList<String>()
         match (workspacesField) {
-            case Some(JsonValue.Array(arr)) => {
-                for (item in arr) {
-                    match (item) {
-                        case JsonValue.Str(s) => globs.append(s)
-                        case _ => ()
-                    }
-                }
-            }
-            case Some(JsonValue.Str(s)) => {
-                globs.append(s)
-            }
+            case Some(JsonValue.Array(arr)) => parseGlobsFromArray(arr, globs)
+            case Some(JsonValue.Str(s)) => globs.append(s)
             // npm 的 workspaces 可能是对象: { packages: [...] }
-            case Some(JsonValue.Object(obj)) => {
-                match (obj.get("packages")) {
-                    case Some(JsonValue.Array(arr)) => {
-                        for (item in arr) {
-                            match (item) {
-                                case JsonValue.Str(s) => globs.append(s)
-                                case _ => ()
-                            }
-                        }
-                    }
-                    case _ => ()
-                }
-            }
+            case Some(JsonValue.Object(obj)) => parseGlobsFromObject(obj, globs)
             case _ => ()
         }
         return globs
+    }
+
+    private static func parseGlobsFromArray(arr: ArrayList<JsonValue>, globs: ArrayList<String>): Unit {
+        for (item in arr) {
+            match (item) {
+                case JsonValue.Str(s) => globs.append(s)
+                case _ => ()
+            }
+        }
+    }
+
+    private static func parseGlobsFromObject(obj: HashMap<String, JsonValue>, globs: ArrayList<String>): Unit {
+        match (obj.get("packages")) {
+            case Some(JsonValue.Array(arr)) => parseGlobsFromArray(arr, globs)
+            case _ => ()
+        }
     }
 
     /// 展开 glob 模式为具体路径
@@ -167,9 +162,7 @@ public class WorkspaceGlob {
         }
 
         // 排序路径
-        paths.sortBy(func(a: String, b: String): Int64 {
-            return a.compare(b)
-        })
+        paths.sortWith({ a, b => a.compare(b) })
 
         return paths
     }
@@ -181,33 +174,22 @@ public class WorkspaceGlob {
 
         // 简单 glob: 仅处理末尾的 *
         if (glob.endsWith("/*")) {
-            let dir = glob.substring(0, glob.length - 2)
-            let fullDir = bao_path.PathModule.join(ArrayList<String>([rootDir, dir]))
+            let dir = glob.substring(0, glob.size - 2)
+            let fullDir = Path.join([rootDir, dir])
 
             // 列出目录下的子目录
             let entries = BaoFile.readDir(fullDir)
             match (entries) {
-                case Some(dirEntries) => {
-                    for (entry in dirEntries) {
-                        let entryPath = bao_path.PathModule.join(ArrayList<String>([dir, entry]))
-                        // 检查是否有 package.json
-                        let pkgJson = bao_path.PathModule.join(ArrayList<String>([
-                            rootDir, entryPath, "package.json"
-                        ]))
-                        if (BaoFile.exists(pkgJson)) {
-                            result.append(entryPath)
-                        }
-                    }
-                }
+                case Some(dirEntries) => expandDirEntries(dirEntries, dir, rootDir, result)
                 case None => ()
             }
         } else if (glob.endsWith("/**")) {
             // 递归 glob: packages/**
-            let dir = glob.substring(0, glob.length - 3)
+            let dir = glob.substring(0, glob.size - 3)
             expandRecursive(rootDir, dir, result)
         } else {
             // 精确路径
-            let pkgJson = bao_path.PathModule.join(ArrayList<String>([rootDir, glob, "package.json"]))
+            let pkgJson = Path.join([rootDir, glob, "package.json"])
             if (BaoFile.exists(pkgJson)) {
                 result.append(glob)
             }
@@ -216,28 +198,43 @@ public class WorkspaceGlob {
         return result
     }
 
+    private static func expandDirEntries(dirEntries: ArrayList<String>, dir: String, rootDir: String, result: ArrayList<String>): Unit {
+        for (entry in dirEntries) {
+            let entryPath = Path.join([dir, entry])
+            // 检查是否有 package.json
+            let pkgJson = Path.join([
+                rootDir, entryPath, "package.json"
+            ])
+            if (BaoFile.exists(pkgJson)) {
+                result.append(entryPath)
+            }
+        }
+    }
+
     /// 递归展开目录
     private static func expandRecursive(rootDir: String, subDir: String, result: ArrayList<String>): Unit {
-        let fullDir = bao_path.PathModule.join(ArrayList<String>([rootDir, subDir]))
+        let fullDir = Path.join([rootDir, subDir])
         let entries = BaoFile.readDir(fullDir)
         match (entries) {
-            case Some(dirEntries) => {
-                for (entry in dirEntries) {
-                    let entryPath = bao_path.PathModule.join(ArrayList<String>([subDir, entry]))
-                    let pkgJson = bao_path.PathModule.join(ArrayList<String>([
-                        rootDir, entryPath, "package.json"
-                    ]))
-                    if (BaoFile.exists(pkgJson)) {
-                        result.append(entryPath)
-                    }
-                    // 递归子目录 (仅当子目录没有 package.json 时)
-                    let subDirPath = bao_path.PathModule.join(ArrayList<String>([rootDir, entryPath]))
-                    if (BaoFile.isDirectory(subDirPath)) {
-                        expandRecursive(rootDir, entryPath, result)
-                    }
-                }
-            }
+            case Some(dirEntries) => expandRecursiveEntries(dirEntries, rootDir, subDir, result)
             case None => ()
+        }
+    }
+
+    private static func expandRecursiveEntries(dirEntries: ArrayList<String>, rootDir: String, subDir: String, result: ArrayList<String>): Unit {
+        for (entry in dirEntries) {
+            let entryPath = Path.join([subDir, entry])
+            let pkgJson = Path.join([
+                rootDir, entryPath, "package.json"
+            ])
+            if (BaoFile.exists(pkgJson)) {
+                result.append(entryPath)
+            }
+            // 递归子目录 (仅当子目录没有 package.json 时)
+            let subDirPath = Path.join([rootDir, entryPath])
+            if (BaoFile.isDirectory(subDirPath)) {
+                expandRecursive(rootDir, entryPath, result)
+            }
         }
     }
 }
@@ -282,18 +279,22 @@ public class PackageGraph {
     /// 添加依赖边
     public func addDependency(from: String, to: String): Unit {
         match (edges.get(from)) {
-            case Some(list) => {
-                if (!list.contains(to)) {
-                    list.append(to)
-                }
-            }
-            case None => {
-                let list = ArrayList<String>()
-                list.append(to)
-                edges.put(from, list)
-            }
+            case Some(list) => addDepToList(list, to)
+            case None => addNewDepList(from, to)
         }
         topoOrder = None
+    }
+
+    private func addDepToList(list: ArrayList<String>, to: String): Unit {
+        if (!list.contains(to)) {
+            list.append(to)
+        }
+    }
+
+    private func addNewDepList(from: String, to: String): Unit {
+        let list = ArrayList<String>()
+        list.append(to)
+        edges.put(from, list)
     }
 
     /// 获取包
@@ -368,17 +369,19 @@ public class PackageGraph {
         inStack.put(node)
 
         match (edges.get(node)) {
-            case Some(deps) => {
-                for (dep in deps) {
-                    topoVisit(dep, visited, inStack, result)
-                }
-            }
+            case Some(deps) => topoVisitDeps(deps, visited, inStack, result)
             case None => ()
         }
 
         inStack.remove(node)
         visited.put(node)
         result.append(node)
+    }
+
+    private func topoVisitDeps(deps: ArrayList<String>, visited: HashSet<String>, inStack: HashSet<String>, result: ArrayList<String>): Unit {
+        for (dep in deps) {
+            topoVisit(dep, visited, inStack, result)
+        }
     }
 
     /// 检查是否有循环依赖
@@ -388,11 +391,7 @@ public class PackageGraph {
 
         for (key in packages.keys()) {
             match (key) {
-                case Some(k) => {
-                    if (detectCycle(k, visited, inStack)) {
-                        return true
-                    }
-                }
+                case Some(k) => if (detectCycle(k, visited, inStack)) { return true }
                 case None => ()
             }
         }
@@ -408,17 +407,20 @@ public class PackageGraph {
         inStack.put(node)
 
         match (edges.get(node)) {
-            case Some(deps) => {
-                for (dep in deps) {
-                    if (detectCycle(dep, visited, inStack)) {
-                        return true
-                    }
-                }
-            }
+            case Some(deps) => if (detectCycleInDeps(deps, visited, inStack)) { return true }
             case None => ()
         }
 
         inStack.remove(node)
+        return false
+    }
+
+    private func detectCycleInDeps(deps: ArrayList<String>, visited: HashSet<String>, inStack: HashSet<String>): Bool {
+        for (dep in deps) {
+            if (detectCycle(dep, visited, inStack)) {
+                return true
+            }
+        }
         return false
     }
 
@@ -427,11 +429,7 @@ public class PackageGraph {
         let result = ArrayList<String>()
         for (key in edges.keys()) {
             match (edges.get(key)) {
-                case Some(deps) => {
-                    if (deps.contains(packageName)) {
-                        result.append(key)
-                    }
-                }
+                case Some(deps) => if (deps.contains(packageName)) { result.append(key) }
                 case None => ()
             }
         }
@@ -481,7 +479,7 @@ public class WorkspaceResolver {
         workspaceVersions.clear()
 
         // 1. 读取根 package.json
-        let rootPkgJsonPath = bao_path.PathModule.join(ArrayList<String>([rootDir, "package.json"]))
+        let rootPkgJsonPath = Path.join([rootDir, "package.json"])
         let rootContent = try {
             BaoFile.readAllText(rootPkgJsonPath)
         } catch (_: Exception) {
@@ -490,58 +488,50 @@ public class WorkspaceResolver {
 
         let rootJson = jsonParser.parse(rootContent)
         match (rootJson) {
-            case Some(root) => {
-                let rootPkg = parsePackageJson(root, ".", true)
-                match (rootPkg) {
-                    case Some(pkg) => {
-                        rootPackage = Some(pkg)
-                        graph.addPackage(pkg)
-                        workspaceVersions.put(pkg.name, pkg.version.toString())
-                    }
-                    case None => ()
-                }
-
-                // 2. 获取 workspaces 配置
-                let workspacesField = JsonHelper.getField(root, "workspaces")
-                let globs = WorkspaceGlob.parseGlobs(workspacesField)
-
-                // 3. 展开 glob 模式
-                let workspacePaths = WorkspaceGlob.expandGlobs(globs, rootDir)
-
-                // 4. 解析每个 workspace 的 package.json
-                for (wsPath in workspacePaths) {
-                    let pkgJsonPath = bao_path.PathModule.join(ArrayList<String>([
-                        rootDir, wsPath, "package.json"
-                    ]))
-                    let content = try {
-                        BaoFile.readAllText(pkgJsonPath)
-                    } catch (_: Exception) {
-                        continue
-                    }
-
-                    let wsJson = jsonParser.parse(content)
-                    match (wsJson) {
-                        case Some(j) => {
-                            let wsPkg = parsePackageJson(j, wsPath, false)
-                            match (wsPkg) {
-                                case Some(pkg) => {
-                                    graph.addPackage(pkg)
-                                    workspaceVersions.put(pkg.name, pkg.version.toString())
-                                }
-                                case None => ()
-                            }
-                        }
-                        case None => ()
-                    }
-                }
-
-                // 5. 构建依赖图边
-                buildDependencyEdges()
-            }
+            case Some(root) => resolveFromRootJson(root)
             case None => ()
         }
 
         return graph
+    }
+
+    private func resolveFromRootJson(root: JsonValue): Unit {
+        let rootPkg = parsePackageJson(root, ".", true)
+        match (rootPkg) {
+            case Some(pkg) => _matchHelper_workspace_244()
+            case None => ()
+        }
+        // 2. 获取 workspaces 配置
+        let workspacesField = JsonHelper.getField(root, "workspaces")
+        let globs = WorkspaceGlob.parseGlobs(workspacesField)
+        // 3. 展开 glob 模式
+        let workspacePaths = WorkspaceGlob.expandGlobs(globs, rootDir)
+        // 4. 解析每个 workspace 的 package.json
+        for (wsPath in workspacePaths) {
+            let pkgJsonPath = Path.join([
+                rootDir, wsPath, "package.json"
+            ])
+            let content = try {
+                BaoFile.readAllText(pkgJsonPath)
+            } catch (_: Exception) {
+                continue
+            }
+            let wsJson = jsonParser.parse(content)
+            match (wsJson) {
+                case Some(j) => parseWorkspaceJson(j, wsPath)
+                case None => ()
+            }
+        }
+        // 5. 构建依赖图边
+        buildDependencyEdges()
+    }
+
+    private func parseWorkspaceJson(json: JsonValue, wsPath: String): Unit {
+        let wsPkg = parsePackageJson(json, wsPath, false)
+        match (wsPkg) {
+            case Some(pkg) => _matchHelper_workspace_245()
+            case None => ()
+        }
     }
 
     /// 解析单个 package.json
@@ -563,8 +553,8 @@ public class WorkspaceResolver {
 
         let pkg = WorkspacePackage(name, version, relativePath)
         pkg.isRoot = isRoot
-        pkg.absolutePath = bao_path.PathModule.join(ArrayList<String>([rootDir, relativePath]))
-        pkg.main = match (JsonHelper.getString(json, "main")) {
+        pkg.absolutePath = Path.join([rootDir, relativePath])
+        pkg.`main` = match (JsonHelper.getString(json, "main")) {
             case Some(m) => m
             case None => "index.js"
         }
@@ -577,79 +567,32 @@ public class WorkspaceResolver {
 
         // peerDependenciesMeta
         match (JsonHelper.getField(json, "peerDependenciesMeta")) {
-            case Some(JsonValue.Object(pdm)) => {
-                for (k in pdm.keys()) {
-                    match (pdm.get(k)) {
-                        case Some(JsonValue.Object(metaObj)) => {
-                            let meta = HashMap<String, String>()
-                            for (mk in metaObj.keys()) {
-                                match (metaObj.get(mk)) {
-                                    case Some(JsonValue.Bool(b)) => meta.put(mk, if (b) { "true" } else { "false" })
-                                    case Some(JsonValue.Str(s)) => meta.put(mk, s)
-                                    case _ => ()
-                                }
-                            }
-                            pkg.peerDependenciesMeta.put(k, meta)
-                        }
-                        case _ => ()
-                    }
-                }
-            }
+            case Some(JsonValue.Object(pdm)) => parsePeerDepsMeta(pdm, pkg)
             case _ => ()
         }
 
         // scripts
         match (JsonHelper.getField(json, "scripts")) {
-            case Some(JsonValue.Object(scripts)) => {
-                for (k in scripts.keys()) {
-                    match (scripts.get(k)) {
-                        case Some(JsonValue.Str(v)) => pkg.scripts.put(k, v)
-                        case _ => ()
-                    }
-                }
-            }
+            case Some(JsonValue.Object(scripts)) => parseScripts(scripts, pkg)
             case _ => ()
         }
 
         // bin
         match (JsonHelper.getField(json, "bin")) {
-            case Some(JsonValue.Object(binObj)) => {
-                for (k in binObj.keys()) {
-                    match (binObj.get(k)) {
-                        case Some(JsonValue.Str(v)) => pkg.bin.put(k, v)
-                        case _ => ()
-                    }
-                }
-            }
-            case Some(JsonValue.Str(binStr)) => {
-                pkg.bin.put(name, binStr)
-            }
+            case Some(JsonValue.Object(binObj)) => parseBin(binObj, pkg)
+            case Some(JsonValue.Str(binStr)) => pkg.bin.put(name, binStr)
             case _ => ()
         }
 
         // trustedDependencies
         match (JsonHelper.getField(json, "trustedDependencies")) {
-            case Some(JsonValue.Array(arr)) => {
-                for (item in arr) {
-                    match (item) {
-                        case JsonValue.Str(s) => pkg.trustedDependencies.append(s)
-                        case _ => ()
-                    }
-                }
-            }
+            case Some(JsonValue.Array(arr)) => parseTrustedDeps(arr, pkg)
             case _ => ()
         }
 
         // overrides
         match (JsonHelper.getField(json, "overrides")) {
-            case Some(JsonValue.Object(overridesObj)) => {
-                for (k in overridesObj.keys()) {
-                    match (overridesObj.get(k)) {
-                        case Some(JsonValue.Str(v)) => pkg.overrides.put(k, v)
-                        case _ => ()
-                    }
-                }
-            }
+            case Some(JsonValue.Object(overridesObj)) => parseOverrides(overridesObj, pkg)
             case _ => ()
         }
 
@@ -664,6 +607,51 @@ public class WorkspaceResolver {
         return Some(pkg)
     }
 
+    private func parsePeerDepsMeta(pdm: HashMap<String, JsonValue>, pkg: WorkspacePackage): Unit {
+        for (k in pdm.keys()) {
+            match (pdm.get(k)) {
+                case Some(JsonValue.Object(metaObj)) => _matchHelper_workspace_246()
+                case _ => ()
+            }
+        }
+    }
+
+    private func parseScripts(scripts: HashMap<String, JsonValue>, pkg: WorkspacePackage): Unit {
+        for (k in scripts.keys()) {
+            match (scripts.get(k)) {
+                case Some(JsonValue.Str(v)) => pkg.scripts.put(k, v)
+                case _ => ()
+            }
+        }
+    }
+
+    private func parseBin(binObj: HashMap<String, JsonValue>, pkg: WorkspacePackage): Unit {
+        for (k in binObj.keys()) {
+            match (binObj.get(k)) {
+                case Some(JsonValue.Str(v)) => pkg.bin.put(k, v)
+                case _ => ()
+            }
+        }
+    }
+
+    private func parseTrustedDeps(arr: ArrayList<JsonValue>, pkg: WorkspacePackage): Unit {
+        for (item in arr) {
+            match (item) {
+                case JsonValue.Str(s) => pkg.trustedDependencies.append(s)
+                case _ => ()
+            }
+        }
+    }
+
+    private func parseOverrides(overridesObj: HashMap<String, JsonValue>, pkg: WorkspacePackage): Unit {
+        for (k in overridesObj.keys()) {
+            match (overridesObj.get(k)) {
+                case Some(JsonValue.Str(v)) => pkg.overrides.put(k, v)
+                case _ => ()
+            }
+        }
+    }
+
     /// 构建依赖图边
     /// 对应 Bun: 构建工作区间依赖关系
     private func buildDependencyEdges(): Unit {
@@ -675,22 +663,18 @@ public class WorkspaceResolver {
 
         for (pkgName in allPackages) {
             match (graph.getPackage(pkgName)) {
-                case Some(pkg) => {
-                    // 检查依赖是否指向其他 workspace
-                    let allDeps = pkg.allDependencies()
-                    for (depName in allDeps.keys()) {
-                        match (allDeps.get(depName)) {
-                            case Some(ver) => {
-                                // workspace 协议: workspace:*, workspace:^
-                                let isWorkspaceDep = ver.startsWith("workspace:")
-                                if (isWorkspaceDep || pkgNames.contains(depName)) {
-                                    graph.addDependency(pkgName, depName)
-                                }
-                            }
-                            case None => ()
-                        }
-                    }
-                }
+                case Some(pkg) => buildPkgEdges(pkg, pkgName, pkgNames)
+                case None => ()
+            }
+        }
+    }
+
+    private func buildPkgEdges(pkg: WorkspacePackage, pkgName: String, pkgNames: HashSet<String>): Unit {
+        // 检查依赖是否指向其他 workspace
+        let allDeps = pkg.allDependencies()
+        for (depName in allDeps.keys()) {
+            match (allDeps.get(depName)) {
+                case Some(ver) => _matchHelper_workspace_247()
                 case None => ()
             }
         }
@@ -783,37 +767,7 @@ public class Hoisting {
         let pkgNames = graph.packageNames()
         for (pkgName in pkgNames) {
             match (graph.getPackage(pkgName)) {
-                case Some(pkg) => {
-                    let allDeps = pkg.allDependencies()
-                    for (depName in allDeps.keys()) {
-                        match (allDeps.get(depName)) {
-                            case Some(ver) => {
-                                // 解析版本范围
-                                let resolvedVer = resolveVersion(ver)
-                                match (depVersions.get(depName)) {
-                                    case Some(verMap) => {
-                                        match (verMap.get(resolvedVer)) {
-                                            case Some(sources) => sources.append(pkgName)
-                                            case None => {
-                                                let sources = ArrayList<String>()
-                                                sources.append(pkgName)
-                                                verMap.put(resolvedVer, sources)
-                                            }
-                                        }
-                                    }
-                                    case None => {
-                                        let verMap = HashMap<String, ArrayList<String>>()
-                                        let sources = ArrayList<String>()
-                                        sources.append(pkgName)
-                                        verMap.put(resolvedVer, sources)
-                                        depVersions.put(depName, verMap)
-                                    }
-                                }
-                            }
-                            case None => ()
-                        }
-                    }
-                }
+                case Some(pkg) => collectDepsForHoisting(pkg, pkgName, depVersions)
                 case None => ()
             }
         }
@@ -824,62 +778,61 @@ public class Hoisting {
         // 3. 不兼容 -> 保留在各工作区 (记录冲突)
         for (depName in depVersions.keys()) {
             match (depVersions.get(depName)) {
-                case Some(verMap) => {
-                    if (verMap.size == 1) {
-                        // 只有一个版本 -> 可以提升
-                        for (ver in verMap.keys()) {
-                            match (verMap.get(ver)) {
-                                case Some(_) => {
-                                    result.hoisted.append("${depName}@${ver}")
-                                }
-                                case None => ()
-                            }
-                        }
-                    } else {
-                        // 多个版本 -> 检查是否可以通过 semver 兼容
-                        let versions = ArrayList<String>()
-                        for (ver in verMap.keys()) {
-                            versions.append(ver)
-                        }
-
-                        // 尝试找到满足所有请求的版本
-                        let compatible = findCompatibleVersion(versions)
-                        match (compatible) {
-                            case Some(bestVer) => {
-                                // 可以提升到兼容版本
-                                result.hoisted.append("${depName}@${bestVer}")
-                            }
-                            case None => {
-                                // 无法兼容 -> 记录冲突
-                                if (versions.size >= 2) {
-                                    result.conflicts.append(HoistConflict(
-                                        packageName: depName,
-                                        v1: versions[0],
-                                        v2: versions[1],
-                                        s1: "",
-                                        s2: ""
-                                    ))
-                                }
-                                // 各自保留
-                                for (ver in verMap.keys()) {
-                                    match (verMap.get(ver)) {
-                                        case Some(sources) => {
-                                            for (source in sources) {
-                                                result.local.put("${depName}@${ver}", source)
-                                            }
-                                        }
-                                        case None => ()
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+                case Some(verMap) => decideHoisting(depName, verMap, result)
                 case None => ()
             }
         }
 
         return result
+    }
+
+    private static func collectDepsForHoisting(pkg: WorkspacePackage, pkgName: String, depVersions: HashMap<String, HashMap<String, ArrayList<String>>>): Unit {
+        let allDeps = pkg.allDependencies()
+        for (depName in allDeps.keys()) {
+            match (allDeps.get(depName)) {
+                case Some(ver) => _matchHelper_workspace_248()
+                case None => ()
+            }
+        }
+    }
+
+    private static func addDepVersionSource(verMap: HashMap<String, ArrayList<String>>, resolvedVer: String, pkgName: String): Unit {
+        match (verMap.get(resolvedVer)) {
+            case Some(sources) => sources.append(pkgName)
+            case None => _matchHelper_workspace_249()
+        }
+    }
+
+    private static func addNewDepVersion(depVersions: HashMap<String, HashMap<String, ArrayList<String>>>, depName: String, resolvedVer: String, pkgName: String): Unit {
+        let verMap = HashMap<String, ArrayList<String>>()
+        let sources = ArrayList<String>()
+        sources.append(pkgName)
+        verMap.put(resolvedVer, sources)
+        depVersions.put(depName, verMap)
+    }
+
+    private static func decideHoisting(depName: String, verMap: HashMap<String, ArrayList<String>>, result: HoistResult): Unit {
+        if (verMap.size == 1) {
+            // 只有一个版本 -> 可以提升
+            for (ver in verMap.keys()) {
+                match (verMap.get(ver)) {
+                    case Some(_) => result.hoisted.append("${depName}@${ver}")
+                    case None => ()
+                }
+            }
+        } else {
+            // 多个版本 -> 检查是否可以通过 semver 兼容
+            let versions = ArrayList<String>()
+            for (ver in verMap.keys()) {
+                versions.append(ver)
+            }
+            // 尝试找到满足所有请求的版本
+            let compatible = findCompatibleVersion(versions)
+            match (compatible) {
+                case Some(bestVer) => _matchHelper_workspace_250()
+                case None => _matchHelper_workspace_251()
+            }
+        }
     }
 
     /// 检测提升冲突
@@ -891,58 +844,52 @@ public class Hoisting {
         let pkgNames = graph.packageNames()
         for (pkgName in pkgNames) {
             match (graph.getPackage(pkgName)) {
-                case Some(pkg) => {
-                    let allDeps = pkg.allDependencies()
-                    for (depName in allDeps.keys()) {
-                        match (allDeps.get(depName)) {
-                            case Some(ver) => {
-                                let resolved = resolveVersion(ver)
-                                match (depVersions.get(depName)) {
-                                    case Some(list) => list.append(resolved)
-                                    case None => {
-                                        let list = ArrayList<String>()
-                                        list.append(resolved)
-                                        depVersions.put(depName, list)
-                                    }
-                                }
-                            }
-                            case None => ()
-                        }
-                    }
-                }
+                case Some(pkg) => collectConflictsForPkg(pkg, depVersions)
                 case None => ()
             }
         }
 
         for (depName in depVersions.keys()) {
             match (depVersions.get(depName)) {
-                case Some(versions) => {
-                    let uniqueVersions = HashSet<String>()
-                    for (v in versions) { uniqueVersions.put(v) }
-                    if (uniqueVersions.size > 1) {
-                        let vers = ArrayList<String>()
-                        for (v in uniqueVersions) {
-                            match (v) {
-                                case Some(val) => vers.append(val)
-                                case None => ()
-                            }
-                        }
-                        if (vers.size >= 2) {
-                            result.append(HoistConflict(
-                                packageName: depName,
-                                v1: vers[0],
-                                v2: vers[1],
-                                s1: "",
-                                s2: ""
-                            ))
-                        }
-                    }
-                }
+                case Some(versions) => checkVersionConflicts(depName, versions, result)
                 case None => ()
             }
         }
 
         return result
+    }
+
+    private static func collectConflictsForPkg(pkg: WorkspacePackage, depVersions: HashMap<String, ArrayList<String>>): Unit {
+        let allDeps = pkg.allDependencies()
+        for (depName in allDeps.keys()) {
+            match (allDeps.get(depName)) {
+                case Some(ver) => _matchHelper_workspace_252()
+                case None => ()
+            }
+        }
+    }
+
+    private static func checkVersionConflicts(depName: String, versions: ArrayList<String>, result: ArrayList<HoistConflict>): Unit {
+        let uniqueVersions = HashSet<String>()
+        for (v in versions) { uniqueVersions.put(v) }
+        if (uniqueVersions.size > 1) {
+            let vers = ArrayList<String>()
+            for (v in uniqueVersions) {
+                match (v) {
+                    case Some(val) => vers.append(val)
+                    case None => ()
+                }
+            }
+            if (vers.size >= 2) {
+                result.append(HoistConflict(
+                    packageName: depName,
+                    v1: vers[0],
+                    v2: vers[1],
+                    s1: "",
+                    s2: ""
+                ))
+            }
+        }
     }
 
     /// 解析版本范围到具体版本
@@ -976,26 +923,18 @@ public class Hoisting {
         for (v in versions) {
             let sv = SemVer.parse(v)
             match (sv) {
-                case Some(parsed) => {
-                    match (best) {
-                        case Some(b) => {
-                            let bsv = SemVer.parse(b)
-                            match (bsv) {
-                                case Some(bsvParsed) => {
-                                    if (parsed.compare(bsvParsed) > 0) {
-                                        best = Some(v)
-                                    }
-                                }
-                                case None => ()
-                            }
-                        }
-                        case None => best = Some(v)
-                    }
-                }
+                case Some(parsed) => best = updateBest(best, v, parsed)
                 case None => ()
             }
         }
         return best
+    }
+
+    private static func updateBest(best: ?String, v: String, parsed: SemVer): ?String {
+        match (best) {
+            case Some(b) => _matchHelper_workspace_253()
+            case None => return Some(v)
+        }
     }
 }
 
@@ -1044,108 +983,109 @@ public class IsolatedNode {
     }
 }
 
-/// 隔离安装管理器
-/// 对应 Bun: installIsolatedPackages
-/// 翻译自: isolated_install.zig 中的安装逻辑
-public class IsolatedInstaller {
-    /// 项目根目录
-    private var rootDir: String
-    /// Store 路径 (node_modules/.store)
-    private var storeDir: String
-    /// 节点列表
-    private var nodes: ArrayList<IsolatedNode>
-    /// 节点索引 name@version -> index
-    private var nodeIndex: HashMap<String, Int64>
 
-    public init(rootDir: String) {
-        this.rootDir = rootDir
-        storeDir = bao_path.PathModule.join(ArrayList<String>([
-            rootDir, "node_modules", ".store"
-        ]))
-        nodes = ArrayList<IsolatedNode>()
-        nodeIndex = HashMap<String, Int64>()
-    }
-
-    /// 添加节点
-    public func addNode(node: IsolatedNode): Unit {
-        let idx = nodes.size
-        nodes.append(node)
-        nodeIndex.put(node.key(), idx)
-    }
-
-    /// 查找节点
-    public func findNode(name: String, version: String): ?IsolatedNode {
-        match (nodeIndex.get("${name}@${version}")) {
-            case Some(idx) => {
-                if (idx < nodes.size) {
-                    return Some(nodes[idx])
-                }
-                return None
-            }
-            case None => return None
-        }
-    }
-
-    /// 执行隔离安装
-    /// 翻译自: installIsolatedPackages
-    ///   1. 确保目录结构
-    ///   2. 遍历所有节点
-    ///   3. 硬链接包到 .store
-    ///   4. 创建符号链接到 node_modules
-    public func install(cache: PackageCache): Bool {
-        // 确保目录结构
-        BaoFile.mkdir(storeDir, true)
-        let nmDir = bao_path.PathModule.join(ArrayList<String>([rootDir, "node_modules"]))
-        BaoFile.mkdir(nmDir, true)
-
-        // 遍历所有节点并安装
-        for (node in nodes) {
-            if (node.installed) { continue }
-
-            // 从缓存安装到 store
-            let storePath = cache.installToStore(node.name, node.version, rootDir)
-            if (storePath.length > 0) {
-                node.storePath = storePath
+            private func _matchHelper_workspace_244(): Unit {
+                rootPackage = Some(pkg)
+                graph.addPackage(pkg)
+                workspaceVersions.put(pkg.name, pkg.version.toString())
             }
 
-            // 创建符号链接到 node_modules
-            let linkPath = bao_path.PathModule.join(ArrayList<String>([
-                rootDir, "node_modules", node.name
-            ]))
+            private func _matchHelper_workspace_245(): Unit {
+                graph.addPackage(pkg)
+                workspaceVersions.put(pkg.name, pkg.version.toString())
+            }
 
-            // 确保 @scope 目录存在
-            if (node.name.startsWith("@")) {
-                let slashIdx = node.name.indexOf("/")
-                match (slashIdx) {
-                    case Some(idx) => {
-                        let scopeDir = bao_path.PathModule.join(ArrayList<String>([
-                            rootDir, "node_modules", node.name.substring(0, idx)
-                        ]))
-                        BaoFile.mkdir(scopeDir, true)
+                private func _matchHelper_workspace_246(): Unit {
+                    let meta = HashMap<String, String>()
+                    for (mk in metaObj.keys()) {
+                        match (metaObj.get(mk)) {
+                            case Some(JsonValue.JsonBool(b)) => meta.put(mk, if (b) { "true" } else { "false" })
+                            case Some(JsonValue.Str(s)) => meta.put(mk, s)
+                            case _ => ()
+                        }
                     }
-                    case None => ()
+                    pkg.peerDependenciesMeta.put(k, meta)
+                }
+
+                private func _matchHelper_workspace_247(): Unit {
+                    // workspace 协议: workspace:*, workspace:^
+                    let isWorkspaceDep = ver.startsWith("workspace:")
+                    if (isWorkspaceDep || pkgNames.contains(depName)) {
+                        graph.addDependency(pkgName, depName)
+                    }
+                }
+
+                private func _matchHelper_workspace_248(): Unit {
+                    // 解析版本范围
+                    let resolvedVer = resolveVersion(ver)
+                    match (depVersions.get(depName)) {
+                        case Some(verMap) => addDepVersionSource(verMap, resolvedVer, pkgName)
+                        case None => addNewDepVersion(depVersions, depName, resolvedVer, pkgName)
+                    }
+                }
+
+            private func _matchHelper_workspace_249(): Unit {
+                let sources = ArrayList<String>()
+                sources.append(pkgName)
+                verMap.put(resolvedVer, sources)
+            }
+
+                private func _matchHelper_workspace_250(): Unit {
+                    // 可以提升到兼容版本
+                    result.hoisted.append("${depName}@${bestVer}")
+                }
+
+                private func _matchHelper_workspace_251(): Unit {
+                    // 无法兼容 -> 记录冲突
+                    if (versions.size >= 2) {
+                        result.conflicts.append(HoistConflict(
+                            packageName: depName,
+                            v1: versions[0],
+                            v2: versions[1],
+                            s1: "",
+                            s2: ""
+                        ))
+                    }
+                    // 各自保留
+                    for (ver in verMap.keys()) {
+                        match (verMap.get(ver)) {
+                            case Some(sources) => _matchHelper_workspace_81()
+                            case None => ()
+                        }
+                    }
+                }
+
+                private func _matchHelper_workspace_252(): Unit {
+                    let resolved = resolveVersion(ver)
+                    match (depVersions.get(depName)) {
+                        case Some(list) => list.append(resolved)
+                        case None => _matchHelper_workspace_82()
+                    }
+                }
+
+            private func _matchHelper_workspace_253(): Unit {
+                let bsv = SemVer.parse(b)
+                match (bsv) {
+                    case Some(bsvParsed) => _matchHelper_workspace_83()
+                    case None => return best
                 }
             }
 
-            // 移除旧链接
-            if (BaoFile.exists(linkPath)) {
-                BaoFile.removeRecursive(linkPath)
-            }
+                            private func _matchHelper_workspace_81(): Unit {
+                                for (source in sources) {
+                                    result.local.put("${depName}@${ver}", source)
+                                }
+                            }
 
-            // 创建符号链接
-            if (storePath.length > 0) {
-                BaoFile.createSymlink(storePath, linkPath)
-            }
+                        private func _matchHelper_workspace_82(): Unit {
+                            let list = ArrayList<String>()
+                            list.append(resolved)
+                            depVersions.put(depName, list)
+                        }
 
-            node.linkPath = linkPath
-            node.installed = true
-        }
-
-        return true
-    }
-
-    /// 获取所有节点
-    public func getNodes(): ArrayList<IsolatedNode> {
-        return nodes
-    }
-}
+                    private func _matchHelper_workspace_83(): Unit {
+                        if (parsed.compare(bsvParsed) > 0) {
+                            return Some(v)
+                        }
+                        return best
+                    }

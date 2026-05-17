@@ -4,7 +4,9 @@ package bao_bundler
 
 import bao_core.*
 import bao_collections.*
-import bao_parser.*
+import bao_parser.Source
+import bao_parser.Log
+import bao_parser.Allocator
 import bao_io.*
 import bao_path.*
 import bao_sys.*
@@ -80,11 +82,8 @@ public class FileSystemCache {
     /// 重置共享缓冲区
     // 严格翻译自: cache.zig:75 resetSharedBuffer
     public func resetSharedBuffer(buffer: MutableString): Unit {
-        if (buffer == sharedBuffer) {
-            sharedBuffer = MutableString()
-        } else if (buffer == macroSharedBuffer) {
-            macroSharedBuffer = MutableString()
-        }
+        // 直接重置传入的缓冲区（无法做引用比较，采用统一重置策略）
+        buffer.reset()
     }
 
     /// 读取文件
@@ -100,10 +99,10 @@ public class FileSystemCache {
         let contents = try {
             BaoFile.readAllText(path)
         } catch (_: Exception) {
-            return FsEntry(contents: "", fd: -1)
+            return FsEntry("", -1)
         }
 
-        let fsEntry = FsEntry(contents: contents, fd: -1)
+        let fsEntry = FsEntry(contents, -1)
         entries.put(path, fsEntry)
         return fsEntry
     }
@@ -145,24 +144,25 @@ public class FsEntry {
 
 /// 外部释放函数
 public class ExternalFreeFunction {
-    public var ctx: Any
-    public var function: (() -> Unit)
+    public var ctx: ?Any
+    public var callback: ?(() -> Unit)
 
     public static let None: ExternalFreeFunction = ExternalFreeFunction()
 
     public init() {
-        this.ctx = null
-        this.function = null
+        this.ctx = Option<Any>.None
+        this.callback = Option<() -> Unit>.None
     }
 
-    public init(ctx: Any, function: () -> Unit) {
+    public init(ctx: Any, callback: () -> Unit) {
         this.ctx = ctx
-        this.function = function
+        this.callback = callback
     }
 
     public func call(): Unit {
-        if (function != null) {
-            function()
+        match (callback) {
+            case Some(f) => f()
+            case None => ()
         }
     }
 }
@@ -174,8 +174,6 @@ public class ExternalFreeFunction {
 
 /// JavaScript 解析缓存
 public class JavaScriptCache {
-    /// 结果类型别名
-    public typealias Result = AstResult
 
     public init() {}
 
@@ -185,7 +183,7 @@ public class JavaScriptCache {
                       log: Log, source: Source): ?AstResult {
         // 使用临时日志解析
         let tempLog = Log()
-        let parser = JsParser(opts: opts, log: tempLog, source: source, defines: defines, allocator: allocator)
+        let parser = JsParser(opts, tempLog, source, defines, allocator)
 
         let result = try {
             parser.parse()
@@ -201,13 +199,12 @@ public class JavaScriptCache {
     public func scan(allocator: Allocator, scanPassResult: ScanPassResult,
                      opts: ParserOptions, defines: Define,
                      log: Log, source: Source): Unit {
-        let trimmed = source.contents.trim()
-        if (trimmed.length == 0) {
+        if (source.contents.size == 0) {
             return
         }
 
         let tempLog = Log()
-        let parser = JsParser(opts: opts, log: tempLog, source: source, defines: defines, allocator: allocator)
+        let parser = JsParser(opts, tempLog, source, defines, allocator)
 
         try {
             parser.scanImports(scanPassResult)
@@ -269,7 +266,7 @@ public class CssCache {
 
     /// 解析 CSS
     public func parse(log: Log, source: Source): CssResult {
-        return CssResult(ok: false)
+        return CssResult(false)
     }
 }
 
@@ -317,11 +314,11 @@ public class MutableString {
 
 /// AST 结果
 public class AstResult {
-    public var ast: Any
+    public var ast: ?Any
     public var source: Source
 
     public init() {
-        this.ast = null
+        this.ast = None
         this.source = Source()
     }
 }
@@ -344,11 +341,6 @@ public class ParserOptions {
     }
 }
 
-/// 定义
-public class Define {
-    public init() {}
-}
-
 /// JS 解析器
 public class JsParser {
     public init(opts: ParserOptions, log: Log, source: Source, defines: Define, allocator: Allocator) {}
@@ -365,6 +357,6 @@ public class JsonParser {
     public init() {}
 
     public func parse(contents: String, log: Log, allocator: Allocator): ASTNode {
-        return ASTNode(tag: ExprTag.Object, loc: Loc.Empty)
+        return ASTNode(ExprTag.Object, ASTLoc.EMPTY)
     }
 }

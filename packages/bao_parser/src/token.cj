@@ -5,6 +5,8 @@
 //   pub const StrictModeReservedWords = ComptimeStringMap(void, .{ ... })
 package bao_parser
 
+import bao_collections.*
+
 // ============================================================================
 // Token - JavaScript 词法单元
 // 严格翻译自: src/js_parser/lexer_tables.zig:1-150
@@ -101,6 +103,7 @@ public enum Token {
     | EscapedKeyword   // 被转义的关键字 (如 \u0069f)
 
     // 保留字 (reserved words)
+    | Let             // let (contextual keyword)
     | Break            // break
     | Case             // case
     | Catch            // catch
@@ -128,7 +131,7 @@ public enum Token {
     | Return           // return
     | Super            // super
     | Switch           // switch
-    | This             // this
+    | `This`             // this
     | Throw            // throw
     | True             // true
     | Try              // try
@@ -137,6 +140,7 @@ public enum Token {
     | Void             // void
     | While            // while
     | With             // with
+
 
     /// 是否为赋值操作符 - 对应 Bun T.isAssign()
     /// Bun: @intFromEnum(self) >= t_ampersand_ampersand_equals and <= t_slash_equals
@@ -158,7 +162,7 @@ public enum Token {
             case Break | Case | Catch | Class | Const | Continue | Debugger |
                  Default | Delete | Do | Else | Enum | Export | Extends |
                  False | Finally | For | Function | If | Import | In |
-                 Instanceof | New | Null | Return | Super | Switch | This |
+                 Instanceof | New | Null | Return | Super | Switch | `This` |
                  Throw | True | Try | Typeof | Var | Void | While | With => true
             case _ => false
         }
@@ -188,7 +192,7 @@ public enum Token {
                  Const | Continue | Debugger | Default | Delete | Do | Else |
                  Enum | Export | Extends | False | Finally | For | Function |
                  If | Import | In | Instanceof | New | Null | Return | Super |
-                 Switch | This | Throw | True | Try | Typeof | Var | Void |
+                 Switch | `This` | Throw | True | Try | Typeof | Var | Void |
                  While | With => true
             case _ => false
         }
@@ -295,16 +299,29 @@ public enum Token {
             case Return => "return"
             case Super => "super"
             case Switch => "switch"
-            case This => "this"
+            case `This` => "this"
             case Throw => "throw"
             case True => "true"
             case Try => "try"
             case Typeof => "typeof"
             case Var => "var"
+            case Let => "let"
             case Void => "void"
             case While => "while"
             case With => "with"
         }
+    }
+
+    public operator func ==(rhs: Token): Bool {
+        return this.toString() == rhs.toString()
+    }
+
+    public operator func !=(rhs: Token): Bool {
+        return this.toString() != rhs.toString()
+    }
+
+    public func hashCode(): Int64 {
+        return this.toString().hashCode()
     }
 }
 
@@ -348,7 +365,7 @@ public class Keywords {
         m.put("return", Token.Return)
         m.put("super", Token.Super)
         m.put("switch", Token.Switch)
-        m.put("this", Token.This)
+        m.put("this", Token.`This`)
         m.put("throw", Token.Throw)
         m.put("true", Token.True)
         m.put("try", Token.Try)

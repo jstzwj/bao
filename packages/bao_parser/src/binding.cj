@@ -22,6 +22,17 @@ public enum BindingPatternTag {
     | RestPattern       // rest 元素 ...x
     | AssignmentPattern // 默认值 x = defaultValue
     | Missing           // b_missing - 占位符
+
+    public operator func ==(rhs: BindingPatternTag): Bool {
+        match (this) {
+            case Identifier => match (rhs) { case Identifier => true case _ => false }
+            case ObjectPattern => match (rhs) { case ObjectPattern => true case _ => false }
+            case ArrayPattern => match (rhs) { case ArrayPattern => true case _ => false }
+            case RestPattern => match (rhs) { case RestPattern => true case _ => false }
+            case AssignmentPattern => match (rhs) { case AssignmentPattern => true case _ => false }
+            case Missing => match (rhs) { case Missing => true case _ => false }
+        }
+    }
 }
 
 /// 增强的绑定模式 - 对应 Bun Binding 扩展
@@ -114,8 +125,8 @@ public class BindingPattern {
                     names.append(name)
                 }
             case BindingPatternTag.ObjectPattern =>
-                for (prop in properties) {
-                    prop.value.collectNamesInto(names)
+                for (`prop` in properties) {
+                    `prop`.value.collectNamesInto(names)
                 }
                 match (restProperty) {
                     case Some(r) => r.collectNamesInto(names)
@@ -134,8 +145,8 @@ public class BindingPattern {
                 if (name.size > 0) {
                     names.append(name)
                 }
-                for (prop in properties) {
-                    prop.value.collectNamesInto(names)
+                for (`prop` in properties) {
+                    `prop`.value.collectNamesInto(names)
                 }
                 for (elem in elements) {
                     elem.collectNamesInto(names)
@@ -150,8 +161,8 @@ public class BindingPattern {
             case BindingPatternTag.Identifier => 0
             case BindingPatternTag.ObjectPattern =>
                 var max: Int64 = 0
-                for (prop in properties) {
-                    let d = prop.value.depth() + 1
+                for (`prop` in properties) {
+                    let d = `prop`.value.depth() + 1
                     if (d > max) { max = d }
                 }
                 return max
@@ -179,8 +190,8 @@ public class BindingPattern {
                 return b
             case BindingPatternTag.ObjectPattern =>
                 let props = ArrayList<BindingProperty>()
-                for (prop in properties) {
-                    props.append(BindingProperty(prop.loc, prop.key, Some(prop.value.toBinding()), prop.defaultValue))
+                for (`prop` in properties) {
+                    props.append(BindingProperty(`prop`.loc, `prop`.key, Some(`prop`.value.toBinding()), `prop`.defaultValue))
                 }
                 return Binding.object_(loc, props)
             case BindingPatternTag.ArrayPattern =>
@@ -281,14 +292,14 @@ public class BindingParser {
                 }
             case BindingPatternTag.ObjectPattern =>
                 var hasRest = false
-                for (prop in pattern.properties) {
-                    if (prop.isComputed) {
-                        match (prop.computedKey) {
+                for (`prop` in pattern.properties) {
+                    if (`prop`.isComputed) {
+                        match (`prop`.computedKey) {
                             case Some(_) => ()  // computed 是合法的
                             case None => errors.append("computed property missing key expression")
                         }
                     }
-                    validatePattern(prop.value, errors, depth + 1)
+                    validatePattern(`prop`.value, errors, depth + 1)
                 }
                 match (pattern.restProperty) {
                     case Some(r) =>
@@ -300,7 +311,7 @@ public class BindingParser {
                 var restCount: Int64 = 0
                 var lastWasRest = false
                 for (elem in pattern.elements) {
-                    if (elem.tag == BindingPatternTag.RestPattern) {
+                    if (match (elem.tag) { case BindingPatternTag.RestPattern => true case _ => false }) {
                         restCount += 1
                         if (lastWasRest) {
                             errors.append("array rest element must be last")
@@ -319,7 +330,7 @@ public class BindingParser {
                     errors.append("rest binding must have a name")
                 }
             case BindingPatternTag.AssignmentPattern =>
-                if (defaultValue.isNone()) {
+                if (pattern.defaultValue.isNone()) {
                     errors.append("assignment pattern must have a default value")
                 }
             case BindingPatternTag.Missing => ()
@@ -338,12 +349,12 @@ public class BindingParser {
                 }
             case BindingTag.Object =>
                 let props = ArrayList<BindingPatternProperty>()
-                for (prop in binding.objectProperties) {
-                    let value = fromBinding(match (prop.value) {
+                for (`prop` in binding.objectProperties) {
+                    let value = fromBinding(match (`prop`.value) {
                         case Some(b) => b
-                        case None => Binding.identifier(prop.loc, "_")
+                        case None => Binding.identifier(`prop`.loc, "_")
                     })
-                    props.append(BindingPatternProperty(prop.loc, prop.key, value, prop.defaultValue))
+                    props.append(BindingPatternProperty(`prop`.loc, `prop`.key, value, `prop`.defaultValue))
                 }
                 let p = BindingPattern.objectPattern(binding.loc, props)
                 return p
@@ -408,15 +419,15 @@ public class BindingParser {
                 return Expr.identifier(pattern.loc, pattern.name, pattern.ref)
             case BindingPatternTag.ObjectPattern =>
                 let props = ArrayList<GProperty>()
-                for (prop in pattern.properties) {
-                    let value = toAssignmentTarget(prop.value)
-                    let p = GProperty(prop.loc, prop.key, Some(value))
-                    if (prop.isShorthand) {
+                for (`prop` in pattern.properties) {
+                    let value = toAssignmentTarget(`prop`.value)
+                    let p = GProperty(`prop`.loc, `prop`.key, Some(value))
+                    if (`prop`.isShorthand) {
                         p.flags.wasShorthand = true
                     }
-                    if (prop.isComputed) {
+                    if (`prop`.isComputed) {
                         p.flags.isComputed = true
-                        match (prop.computedKey) {
+                        match (`prop`.computedKey) {
                             case Some(k) => p.keyExpr = Some(k)
                             case None => ()
                         }
@@ -427,7 +438,7 @@ public class BindingParser {
             case BindingPatternTag.ArrayPattern =>
                 let items = ArrayList<Expr>()
                 for (elem in pattern.elements) {
-                    if (elem.tag == BindingPatternTag.RestPattern) {
+                    if (match (elem.tag) { case BindingPatternTag.RestPattern => true case _ => false }) {
                         items.append(Expr.spread(elem.loc, toAssignmentTarget(elem)))
                     } else {
                         items.append(toAssignmentTarget(elem))
@@ -482,12 +493,12 @@ public class DestructuringEmitter {
         result.statements.append(tempDecl)
 
         // 逐个属性赋值
-        for (prop in pattern.properties) {
-            let targetBinding = Binding.identifier(prop.value.loc, prop.value.name)
-            let access = Expr.dot(prop.loc,
-                Expr.identifier(prop.loc, tempName),
-                prop.key)
-            let decl = Stmt.local(prop.value.loc, DeclKind.Var, targetBinding, Some(access))
+        for (`prop` in pattern.properties) {
+            let targetBinding = Binding.identifier(`prop`.value.loc, `prop`.value.name)
+            let access = Expr.dot(`prop`.loc,
+                Expr.identifier(`prop`.loc, tempName),
+                `prop`.key)
+            let decl = Stmt.local(`prop`.value.loc, DeclKind.Var, targetBinding, Some(access))
             result.statements.append(decl)
         }
 
@@ -518,7 +529,7 @@ public class DestructuringEmitter {
 
         var idx: Int64 = 0
         for (elem in pattern.elements) {
-            if (elem.tag == BindingPatternTag.RestPattern) {
+            if (match (elem.tag) { case BindingPatternTag.RestPattern => true case _ => false }) {
                 // rest = _t.slice(idx)
                 let sliceCall = Expr.call(elem.loc,
                     Expr.dot(elem.loc, Expr.identifier(elem.loc, tempName), "slice"),

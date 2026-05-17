@@ -22,6 +22,6 @@ public class QuicGlobal {
     /// 对应 Bun: pub extern fn us_quic_global_init() callconv(.c) void
     /// pub const globalInit = us_quic_global_init
     public static func globalInit(): Unit {
-        us_quic_global_init()
+        unsafe { us_quic_global_init() }
     }
 }

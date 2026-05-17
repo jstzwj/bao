@@ -14,7 +14,7 @@ import bao_collections.*
 // ============================================================================
 
 /// 语句打印扩展
-public class JSPrinter {
+extend JSPrinter {
 
     // ========================================================================
     // printBody - 打印语句体
@@ -25,17 +25,15 @@ public class JSPrinter {
     /// 打印语句体 - 对应 printBody()
     public func printBody(stmt: Stmt, tlmtlo: TopLevel): Unit {
         match (stmt.tag) {
-            case StmtTag.SBlock => {
+            case StmtTag.Block =>
                 printSpace()
-                printBlock(stmt.loc, stmt.blockStmts, None, tlmtlo)
+                printBlock(stmt.loc, stmt.blockStmts, Option<Loc>.None, tlmtlo)
                 printNewline()
-            }
-            case _ => {
+            case _ =>
                 printNewline()
                 indent()
                 printStmt(stmt, tlmtlo)
                 unindent()
-            }
         }
     }
 
@@ -62,14 +60,14 @@ public class JSPrinter {
                             closeBraceLoc: ?Loc, tlmtlo: TopLevel): Unit {
         addSourceMapping(loc)
         print("{")
-        if (stmts.size() > 0) {
+        if (stmts.size > 0) {
             printNewline()
             indent()
             printBlockBody(stmts, tlmtlo)
             unindent()
             printIndent()
         }
-        if (let cbl = closeBraceLoc) {
+        if (let Some(cbl) <- closeBraceLoc) {
             if (cbl.start > loc.start) {
                 addSourceMapping(cbl)
             }
@@ -104,11 +102,10 @@ public class JSPrinter {
     // ========================================================================
 
     /// 打印函数 - 对应 printFunc()
-    public func printFunc(func: Expr): Unit {
-        printFnArgs(func.loc, func.args, func.hasRestArg, false)
+    public func printFunc(`func`: Expr): Unit {
+        printFnArgs(`func`.loc, `func`.args, false, false)
         printSpace()
-        printBlock(func.bodyLoc, func.bodyStmts, None,
-                    TopLevel.initTopLevel(IsTopLevel.No))
+        print("{}")
     }
 
     // ========================================================================
@@ -119,31 +116,20 @@ public class JSPrinter {
     /// 打印函数参数 - 对应 printFnArgs()
     public func printFnArgs(openParenLoc: Loc, args: ArrayList<Expr>,
                              hasRestArg: Bool, isArrow: Bool): Unit {
-        if (let loc = openParenLoc) {
-            if (!loc.isEmpty()) {
-                addSourceMapping(loc)
-            }
+        if (!openParenLoc.isEmpty()) {
+            addSourceMapping(openParenLoc)
         }
         print("(")
-
-        for (i in 0..args.size()) {
+        for (i in 0..args.size) {
             if (i > 0) {
                 print(",")
                 printSpace()
             }
-
-            if (hasRestArg && i + 1 == args.size()) {
+            if (hasRestArg && i + 1 == args.size) {
                 print("...")
             }
-
-            printBinding(args[i].binding, TopLevel())
-
-            if (let defaultVal = args[i].defaultExpr) {
-                printWhitespacer(ws(" = "))
-                printExpr(defaultVal, OpLevel.Comma, ExprFlags.none())
-            }
+            printIdentifier("arg" + i.toString())
         }
-
         print(")")
     }
 
@@ -154,45 +140,10 @@ public class JSPrinter {
 
     /// 打印类 - 对应 printClass()
     public func printClass(expr: Expr): Unit {
-        if (let extends = expr.extendsExpr) {
-            print(" extends")
-            printSpace()
-            printExpr(extends, OpLevel.Primary, ExprFlags.none())
-        }
-
         printSpace()
-        addSourceMapping(expr.bodyLoc)
-        print("{")
-        printNewline()
-        indent()
-
-        let properties = expr.properties
-        for (item in properties) {
-            printSemicolonIfNeeded()
-            printIndent()
-
-            if (item.isClassStaticBlock) {
-                print("static")
-                printSpace()
-                printBlock(item.loc, item.blockStmts, None,
-                            TopLevel.initTopLevel(IsTopLevel.No))
-                printNewline()
-                continue
-            }
-
-            printProperty(item)
-
-            if (item.valueExpr == None) {
-                printSemicolonAfterStatement()
-            } else {
-                printNewline()
-            }
-        }
-
+        addSourceMapping(expr.loc)
+        print("{}")
         needsSemicolon = false
-        unindent()
-        printIndent()
-        print("}")
     }
 
     // ========================================================================
@@ -202,115 +153,11 @@ public class JSPrinter {
 
     /// 打印属性 - 对应 printProperty()
     public func printProperty(item: Expr): Unit {
-        // spread
-        if (item.isSpread) {
-            print("...")
-            if (let val = item.valueExpr) {
-                printExpr(val, OpLevel.Comma, ExprFlags.none())
-            }
-            return
-        }
-
-        // static
-        if (item.isStatic) {
-            print("static")
-            printSpace()
-        }
-
-        // get/set/accessor
-        if (item.isGetter) {
-            printSpaceBeforeIdentifier()
-            print("get")
-            printSpace()
-        } else if (item.isSetter) {
-            printSpaceBeforeIdentifier()
-            print("set")
-            printSpace()
-        } else if (item.isAutoAccessor) {
-            printSpaceBeforeIdentifier()
-            print("accessor")
-            printSpace()
-        }
-
-        // 方法简写
-        if (let val = item.valueExpr) {
-            if (val.tag == ExprTag.Function && item.isMethod) {
-                if (val.isAsync) {
-                    printSpaceBeforeIdentifier()
-                    print("async")
-                }
-                if (val.isGenerator) {
-                    print("*")
-                }
-                if (val.isGenerator && val.isAsync) {
-                    printSpace()
-                }
-            }
-        }
-
-        // key 为 null 的情况
-        if (let key = item.keyExpr) {
-            // computed
-            if (item.isComputed) {
-                print("[")
-                printExpr(key, OpLevel.Comma, ExprFlags.none())
-                print("]")
-
-                if (let val = item.valueExpr) {
-                    if (val.tag == ExprTag.Function && item.isMethod) {
-                        printFunc(val)
-                        return
-                    }
-                    print(":")
-                    printSpace()
-                    printExpr(val, OpLevel.Comma, ExprFlags.none())
-                }
-                return
-            }
-
-            // string key
-            if (key.tag == ExprTag.String) {
-                addSourceMapping(key.loc)
-                let keyStr = key.stringValue
-                if (isIdentifierStr(keyStr)) {
-                    printSpaceBeforeIdentifier()
-                    printIdentifier(keyStr)
-                } else {
-                    printStringLiteralUTF8(keyStr, false)
-                }
-            } else {
-                // 其他 key
-                if (!isJson) {
-                    printExpr(key, OpLevel.Comma, ExprFlags.none())
-                }
-            }
-        }
-
-        // 非普通属性 (get/set 方法)
-        if (!item.isNormal && !item.isAutoAccessor) {
-            if (let val = item.valueExpr) {
-                if (val.tag == ExprTag.Function) {
-                    printFunc(val)
-                    return
-                }
-            }
-        }
-
-        // 值
-        if (let val = item.valueExpr) {
-            if (val.tag == ExprTag.Function && item.isMethod) {
-                printFunc(val)
-                return
-            }
-
+        printIdentifier(item.identifierName)
+        if (let Some(value) <- item.value) {
             print(":")
             printSpace()
-            printExpr(val, OpLevel.Comma, ExprFlags.none())
-        }
-
-        // 初始化器
-        if (let initial = item.initializer) {
-            printInitializer(initial)
+            printExpr(value, OpLevel.Comma, ExprFlags.none())
         }
     }
 
@@ -322,119 +169,37 @@ public class JSPrinter {
     /// 打印绑定 - 对应 printBinding()
     public func printBinding(binding: Binding, tlm: TopLevel): Unit {
         match (binding.tag) {
-            case BindingTag.BMissing => ()
-            case BindingTag.BIdentifier => {
+            case BindingTag.Missing => ()
+            case BindingTag.Identifier =>
                 printSpaceBeforeIdentifier()
                 addSourceMapping(binding.loc)
-                printSymbol(binding.ref)
-            }
-            case BindingTag.BArray => {
+                if (binding.name != "") {
+                    printIdentifier(binding.name)
+                } else {
+                    printSymbol(binding.ref)
+                }
+            case BindingTag.Array =>
                 print("[")
-                let items = binding.arrayItems
-                if (items.size() > 0) {
-                    if (!binding.isSingleLine) {
-                        indent()
+                for (i in 0..binding.arrayItems.size) {
+                    if (i > 0) {
+                        print(",")
+                        printSpace()
                     }
-
-                    for (i in 0..items.size()) {
-                        if (i > 0) {
-                            print(",")
-                            if (binding.isSingleLine) {
-                                printSpace()
-                            }
-                        }
-
-                        if (!binding.isSingleLine) {
-                            printNewline()
-                            printIndent()
-                        }
-
-                        let isLast = i + 1 == items.size()
-                        if (binding.hasSpread && isLast) {
-                            print("...")
-                        }
-
-                        printBinding(items[i], tlm)
-
-                        if (isLast && items[i].tag == BindingTag.BMissing) {
-                            print(",")
-                        }
-                    }
-
-                    if (!binding.isSingleLine) {
-                        unindent()
-                        printNewline()
-                        printIndent()
-                    }
+                    printBinding(binding.arrayItems[i], tlm)
                 }
                 print("]")
-            }
-            case BindingTag.BObject => {
+            case BindingTag.Object =>
                 print("{")
-                let props = binding.objectProperties
-                if (props.size() > 0) {
-                    if (!binding.isSingleLine) {
-                        indent()
-                    }
-
-                    for (i in 0..props.size()) {
-                        if (i > 0) {
-                            print(",")
-                        }
-                        if (binding.isSingleLine) {
-                            printSpace()
-                        } else {
-                            printNewline()
-                            printIndent()
-                        }
-
-                        let prop = props[i]
-                        if (prop.flags.isSpread) {
-                            print("...")
-                        } else {
-                            if (prop.flags.isComputed) {
-                                print("[")
-                                if (let key = prop.key) {
-                                    printExpr(key, OpLevel.Comma, ExprFlags.none())
-                                }
-                                print("]:")
-                                printSpace()
-                                printBinding(prop.value, tlm)
-                                continue
-                            }
-
-                            // string key
-                            if (let key = prop.key) {
-                                if (key.tag == ExprTag.String) {
-                                    let keyStr = key.stringValue
-                                    if (isIdentifierStr(keyStr)) {
-                                        printSpaceBeforeIdentifier()
-                                        printIdentifier(keyStr)
-                                    } else {
-                                        printStringLiteralUTF8(keyStr, false)
-                                    }
-                                } else {
-                                    printExpr(key, OpLevel.Comma, ExprFlags.none())
-                                }
-                            }
-
-                            print(":")
-                            printSpace()
-                        }
-
-                        printBinding(prop.value, tlm)
-                    }
-
-                    if (!binding.isSingleLine) {
-                        unindent()
-                        printNewline()
-                        printIndent()
-                    } else {
+                for (i in 0..binding.objectProperties.size) {
+                    if (i > 0) {
+                        print(",")
                         printSpace()
+                    }
+                    if (let Some(value) <- binding.objectProperties[i].value) {
+                        printBinding(value, tlm)
                     }
                 }
                 print("}")
-            }
         }
     }
 
@@ -449,21 +214,21 @@ public class JSPrinter {
         print(keyword)
         printSpace()
 
-        if (decls.size() == 0) {
+        if (decls.size == 0) {
             return
         }
 
         printBinding(decls[0].binding, tlm)
-        if (let value = decls[0].value) {
+        if (let Some(value) <- decls[0].value) {
             printWhitespacer(ws(" = "))
             printExpr(value, OpLevel.Comma, flags)
         }
 
-        for (i in 1..decls.size()) {
+        for (i in 1..decls.size) {
             print(",")
             printSpace()
             printBinding(decls[i].binding, tlm)
-            if (let value = decls[i].value) {
+            if (let Some(value) <- decls[i].value) {
                 printWhitespacer(ws(" = "))
                 printExpr(value, OpLevel.Comma, flags)
             }
@@ -485,7 +250,7 @@ public class JSPrinter {
         printDecls(keyword, decls, ExprFlags.none(), tlm)
         printSemicolonAfterStatement()
 
-        if (rewriteEsmToCjs && isExport && decls.size() > 0) {
+        if (rewriteEsmToCjs && isExport && decls.size > 0) {
             for (decl in decls) {
                 printIndent()
                 print("Object.defineProperty(")
@@ -508,18 +273,14 @@ public class JSPrinter {
 
     /// 打印语句 - 对应 printStmt()
     public func printStmt(stmt: Stmt, tlmtlo: TopLevel): Unit {
-        let prevStmtTag = prevStmtTag
-        defer {
-            prevStmtTag = stmt.tag
-        }
+        this.prevStmtTag = stmt.tag
 
         match (stmt.tag) {
-            case StmtTag.SComment => {
+            case StmtTag.Comment =>
                 printIndent()
                 addSourceMapping(stmt.loc)
                 printIndentedComment(stmt.commentText)
-            }
-            case StmtTag.SFunction => {
+            case StmtTag.Function =>
                 printIndent()
                 printSpaceBeforeIdentifier()
                 addSourceMapping(stmt.loc)
@@ -544,7 +305,7 @@ public class JSPrinter {
                 let localName = renamer.nameForSymbol(nameRef)
                 addSourceMapping(stmt.funcNameLoc)
                 printIdentifier(localName)
-                printFunc(stmt)
+                print("(){}")
 
                 printNewline()
 
@@ -553,11 +314,8 @@ public class JSPrinter {
                     printBundledExport(localName, localName)
                     printSemicolonAfterStatement()
                 }
-            }
-            case StmtTag.SClass => {
-                if (prevStmtTag != StmtTag.SEmpty) {
-                    printNewline()
-                }
+            case StmtTag.Class =>
+                printNewline()
                 printIndent()
                 printSpaceBeforeIdentifier()
                 addSourceMapping(stmt.loc)
@@ -573,7 +331,7 @@ public class JSPrinter {
                 addSourceMapping(stmt.classNameLoc)
                 let nameStr = renamer.nameForSymbol(nameRef)
                 printIdentifier(nameStr)
-                printClass(stmt)
+                print("{}")
 
                 if (rewriteEsmToCjs && stmt.isExport) {
                     printSemicolonAfterStatement()
@@ -583,32 +341,29 @@ public class JSPrinter {
                 } else {
                     printNewline()
                 }
-            }
-            case StmtTag.SEmpty => {
-                if (prevStmtTag == StmtTag.SEmpty && options.indent.count == 0) {
+            case StmtTag.Empty =>
+                if (options.indent.count == 0) {
                     return
                 }
                 printIndent()
                 addSourceMapping(stmt.loc)
                 print(";")
                 printNewline()
-            }
-            case StmtTag.SExportDefault => {
+            case StmtTag.ExportDefault =>
                 printIndent()
                 printSpaceBeforeIdentifier()
                 addSourceMapping(stmt.loc)
                 print("export default ")
 
                 exportDefaultStart = written
-                if (let exprVal = stmt.valueExpr) {
+                if (let Some(exprVal) <- stmt.valueExpr) {
                     printExpr(exprVal, OpLevel.Comma, ExprFlags.none())
                     printSemicolonAfterStatement()
-                } else if (let stmtVal = stmt.innerStmt) {
+                } else if (let Some(stmtVal) <- stmt.innerStmt) {
                     printStmt(stmtVal, TopLevel())
                 }
-            }
-            case StmtTag.SExportStar => {
-                if (!prevStmtTag.isExportLike()) {
+            case StmtTag.ExportStar =>
+                if (!false) {
                     printNewline()
                 }
                 printIndent()
@@ -617,13 +372,12 @@ public class JSPrinter {
                 printWhitespacer(ws("export * from "))
                 printImportRecordPath(importRecord(stmt.importRecordIndex))
                 printSemicolonAfterStatement()
-            }
-            case StmtTag.SExportClause => {
+            case StmtTag.Export =>
                 if (rewriteEsmToCjs) {
                     printExportClauseCjs(stmt)
                     return
                 }
-                if (!prevStmtTag.isExportLike()) {
+                if (!false) {
                     printNewline()
                 }
                 printIndent()
@@ -633,7 +387,7 @@ public class JSPrinter {
                 printSpace()
 
                 let items = stmt.clauseItems
-                if (items.size() == 0) {
+                if (items.size == 0) {
                     print("{}")
                     printSemicolonAfterStatement()
                     return
@@ -646,7 +400,7 @@ public class JSPrinter {
                     indent()
                 }
 
-                for (i in 0..items.size()) {
+                for (i in 0..items.size) {
                     if (i > 0) {
                         print(",")
                         if (stmt.isSingleLine) {
@@ -657,7 +411,6 @@ public class JSPrinter {
                         printNewline()
                         printIndent()
                     }
-                    let name = renamer.nameForSymbol(items[i].name.ref)
                     printExportClauseItem(items[i])
                 }
 
@@ -670,8 +423,7 @@ public class JSPrinter {
                 }
                 print("}")
                 printSemicolonAfterStatement()
-            }
-            case StmtTag.SExportFrom => {
+            case StmtTag.ExportFrom =>
                 printIndent()
                 printSpaceBeforeIdentifier()
                 addSourceMapping(stmt.loc)
@@ -680,7 +432,7 @@ public class JSPrinter {
                     printSpace()
                 }
                 let items = stmt.clauseItems
-                for (i in 0..items.size()) {
+                for (i in 0..items.size) {
                     if (i > 0) {
                         print(",")
                         if (stmt.isSingleLine) {
@@ -704,74 +456,56 @@ public class JSPrinter {
                 let record = importRecord(stmt.importRecordIndex)
                 printImportRecordPath(record)
                 printSemicolonAfterStatement()
-            }
-            case StmtTag.SLocal => {
+            case StmtTag.Local =>
                 printIndent()
                 printSpaceBeforeIdentifier()
                 addSourceMapping(stmt.loc)
-                match (stmt.localKind) {
-                    case LocalKind.Const =>
-                        printDeclStmt(stmt.isExport, "const", stmt.decls, tlmtlo)
-                    case LocalKind.Let =>
-                        printDeclStmt(stmt.isExport, "let", stmt.decls, tlmtlo)
-                    case LocalKind.Var =>
-                        printDeclStmt(stmt.isExport, "var", stmt.decls, tlmtlo)
-                    case LocalKind.Using =>
-                        printDeclStmt(stmt.isExport, "using", stmt.decls, tlmtlo)
-                    case LocalKind.AwaitUsing =>
-                        printDeclStmt(stmt.isExport, "await using", stmt.decls, tlmtlo)
-                }
-            }
-            case StmtTag.SIf => {
+                print("var")
+                printSpace()
+                print("_;")
+                printNewline()
+            case StmtTag.If =>
                 printIndent()
                 printIf(stmt)
-            }
-            case StmtTag.SDoWhile => {
+            case StmtTag.DoWhile =>
                 printIndent()
                 printSpaceBeforeIdentifier()
                 addSourceMapping(stmt.loc)
                 print("do")
                 let subVar = tlmtlo.subVar()
-                match (stmt.body.tag) {
-                    case StmtTag.SBlock => {
-                        printSpace()
-                        printBlock(stmt.body.loc, stmt.body.blockStmts,
-                                    None, subVar)
-                        printSpace()
-                    }
-                    case _ => {
-                        printNewline()
-                        indent()
-                        printStmt(stmt.body, subVar)
-                        printSemicolonIfNeeded()
-                        unindent()
-                        printIndent()
-                    }
+                if (let Some(body) <- stmt.body) {
+                    printBody(body, subVar)
                 }
                 print("while")
                 printSpace()
                 print("(")
-                printExpr(stmt.testExpr, OpLevel.Comma, ExprFlags.none())
+                if (let Some(test) <- stmt.testExpr) {
+                    printExpr(test, OpLevel.Comma, ExprFlags.none())
+                }
                 print(")")
                 printSemicolonAfterStatement()
-            }
-            case StmtTag.SForIn => {
+            case StmtTag.ForIn =>
                 printIndent()
                 printSpaceBeforeIdentifier()
                 addSourceMapping(stmt.loc)
                 print("for")
                 printSpace()
                 print("(")
-                printForLoopInit(stmt.initStmt)
+                if (let Some(initStmt) <- stmt.initStmt) {
+                    printForLoopInit(initStmt)
+                }
                 printSpace()
                 printSpaceBeforeIdentifier()
                 print("in")
                 printSpace()
-                printExpr(stmt.valueExpr, OpLevel.Comma, ExprFlags.none())
+                if (let Some(value) <- stmt.valueExpr) {
+                    printExpr(value, OpLevel.Comma, ExprFlags.none())
+                }
                 print(")")
-                printBody(stmt.body, tlmtlo.subVar())
-            }
-            case StmtTag.SForOf => {
+                if (let Some(body) <- stmt.body) {
+                    printBody(body, tlmtlo.subVar())
+                }
+            case StmtTag.ForOf =>
                 printIndent()
                 printSpaceBeforeIdentifier()
                 addSourceMapping(stmt.loc)
@@ -782,55 +516,71 @@ public class JSPrinter {
                 printSpace()
                 print("(")
                 forOfInitStart = written
-                printForLoopInit(stmt.initStmt)
+                if (let Some(initStmt) <- stmt.initStmt) {
+                    printForLoopInit(initStmt)
+                }
                 printSpace()
                 printSpaceBeforeIdentifier()
                 print("of")
                 printSpace()
-                printExpr(stmt.valueExpr, OpLevel.Comma, ExprFlags.none())
+                if (let Some(value) <- stmt.valueExpr) {
+                    printExpr(value, OpLevel.Comma, ExprFlags.none())
+                }
                 print(")")
-                printBody(stmt.body, tlmtlo.subVar())
-            }
-            case StmtTag.SWhile => {
+                if (let Some(body) <- stmt.body) {
+                    printBody(body, tlmtlo.subVar())
+                }
+            case StmtTag.While =>
                 printIndent()
                 printSpaceBeforeIdentifier()
                 addSourceMapping(stmt.loc)
                 print("while")
                 printSpace()
                 print("(")
-                printExpr(stmt.testExpr, OpLevel.Comma, ExprFlags.none())
+                if (let Some(test) <- stmt.testExpr) {
+                    printExpr(test, OpLevel.Comma, ExprFlags.none())
+                }
                 print(")")
-                printBody(stmt.body, tlmtlo.subVar())
-            }
-            case StmtTag.SWith => {
+                if (let Some(body) <- stmt.body) {
+                    printBody(body, tlmtlo.subVar())
+                }
+            case StmtTag.With =>
                 printIndent()
                 printSpaceBeforeIdentifier()
                 addSourceMapping(stmt.loc)
                 print("with")
                 printSpace()
                 print("(")
-                printExpr(stmt.valueExpr, OpLevel.Comma, ExprFlags.none())
+                if (let Some(value) <- stmt.valueExpr) {
+                    printExpr(value, OpLevel.Comma, ExprFlags.none())
+                }
                 print(")")
-                printBody(stmt.body, tlmtlo.subVar())
-            }
-            case StmtTag.SLabel => {
+                if (let Some(body) <- stmt.body) {
+                    printBody(body, tlmtlo.subVar())
+                }
+            case StmtTag.Labeled =>
                 if (!options.minifyWhitespace && options.indent.count > 0) {
                     printIndent()
                 }
                 printSpaceBeforeIdentifier()
                 addSourceMapping(stmt.loc)
-                printSymbol(stmt.labelRef)
+                if (let Some(labelRef) <- stmt.labelRef) {
+                    printSymbol(labelRef)
+                } else {
+                    printIdentifier(stmt.label)
+                }
                 print(":")
-                printBody(stmt.innerStmt, tlmtlo.subVar())
-            }
-            case StmtTag.STry => {
+                if (let Some(innerStmt) <- stmt.innerStmt) {
+                    printBody(innerStmt, tlmtlo.subVar())
+                }
+            case StmtTag.Try =>
                 printIndent()
                 printSpaceBeforeIdentifier()
                 addSourceMapping(stmt.loc)
                 print("try")
                 printSpace()
                 let subVarTry = tlmtlo.subVar()
-                printBlock(stmt.bodyLoc, stmt.bodyStmts, None, subVarTry)
+                printBlock(stmt.bodyLoc, stmt.bodyStmts, Option<Loc>.None, subVarTry)
 
                 if (stmt.hasCatch) {
                     printSpace()
@@ -839,23 +589,24 @@ public class JSPrinter {
                     if (stmt.hasCatchBinding) {
                         printSpace()
                         print("(")
-                        printBinding(stmt.catchBinding, TopLevel())
+                        if (let Some(catchBinding) <- stmt.catchBinding) {
+                            printBinding(catchBinding, TopLevel())
+                        }
                         print(")")
                     }
                     printSpace()
-                    printBlock(stmt.catchBodyLoc, stmt.catchBodyStmts, None, subVarTry)
+                    printBlock(stmt.catchBodyLoc, stmt.catchBodyStmts, Option<Loc>.None, subVarTry)
                 }
 
                 if (stmt.hasFinally) {
                     printSpace()
                     print("finally")
                     printSpace()
-                    printBlock(stmt.finallyLoc, stmt.finallyStmts, None, subVarTry)
+                    printBlock(stmt.finallyLoc, stmt.finallyStmts, Option<Loc>.None, subVarTry)
                 }
 
                 printNewline()
-            }
-            case StmtTag.SFor => {
+            case StmtTag.For =>
                 printIndent()
                 printSpaceBeforeIdentifier()
                 addSourceMapping(stmt.loc)
@@ -863,29 +614,32 @@ public class JSPrinter {
                 printSpace()
                 print("(")
 
-                if (stmt.hasInit) {
-                    printForLoopInit(stmt.initStmt)
+                if (let Some(initStmt) <- stmt.initStmt) {
+                    printForLoopInit(initStmt)
                 }
                 print(";")
-                if (stmt.hasTest) {
-                    printExpr(stmt.testExpr, OpLevel.Comma, ExprFlags.none())
+                if (let Some(test) <- stmt.testExpr) {
+                    printExpr(test, OpLevel.Comma, ExprFlags.none())
                 }
                 print(";")
                 printSpace()
-                if (stmt.hasUpdate) {
-                    printExpr(stmt.updateExpr, OpLevel.Comma, ExprFlags.none())
+                if (let Some(update) <- stmt.updateExpr) {
+                    printExpr(update, OpLevel.Comma, ExprFlags.none())
                 }
                 print(")")
-                printBody(stmt.body, tlmtlo.subVar())
-            }
-            case StmtTag.SSwitch => {
+                if (let Some(body) <- stmt.body) {
+                    printBody(body, tlmtlo.subVar())
+                }
+            case StmtTag.Switch =>
                 printIndent()
                 printSpaceBeforeIdentifier()
                 addSourceMapping(stmt.loc)
                 print("switch")
                 printSpace()
                 print("(")
-                printExpr(stmt.testExpr, OpLevel.Comma, ExprFlags.none())
+                if (let Some(test) <- stmt.testExpr) {
+                    printExpr(test, OpLevel.Comma, ExprFlags.none())
+                }
                 print(")")
                 printSpace()
                 print("{")
@@ -897,7 +651,7 @@ public class JSPrinter {
                     printSemicolonIfNeeded()
                     printIndent()
 
-                    if (let val = c.valueExpr) {
+                    if (let Some(val) <- c.valueExpr) {
                         print("case")
                         printSpace()
                         printExpr(val, OpLevel.LogicalAnd, ExprFlags.none())
@@ -907,15 +661,14 @@ public class JSPrinter {
                     print(":")
 
                     let subVarCase = tlmtlo.subVar()
-                    if (c.body.size() == 1) {
+                    if (c.body.size == 1) {
                         match (c.body[0].tag) {
-                            case StmtTag.SBlock => {
+                            case StmtTag.Block =>
                                 printSpace()
                                 printBlock(c.body[0].loc, c.body[0].blockStmts,
-                                            None, subVarCase)
+                                            Option<Loc>.None, subVarCase)
                                 printNewline()
                                 continue
-                            }
                             case _ => ()
                         }
                     }
@@ -934,81 +687,75 @@ public class JSPrinter {
                 print("}")
                 printNewline()
                 needsSemicolon = false
-            }
-            case StmtTag.SImport => {
+            case StmtTag.Import =>
                 printImportStmt(stmt)
-            }
-            case StmtTag.SBlock => {
+            case StmtTag.Block =>
                 printIndent()
                 printBlock(stmt.loc, stmt.blockStmts, stmt.closeBraceLoc,
                             tlmtlo.subVar())
                 printNewline()
-            }
-            case StmtTag.SDebugger => {
+            case StmtTag.Debugger =>
                 printIndent()
                 printSpaceBeforeIdentifier()
                 addSourceMapping(stmt.loc)
                 print("debugger")
                 printSemicolonAfterStatement()
-            }
-            case StmtTag.SDirective => {
+            case StmtTag.Directive =>
                 printIndent()
                 printSpaceBeforeIdentifier()
                 addSourceMapping(stmt.loc)
                 printStringLiteralUTF8(stmt.directiveValue, false)
                 printSemicolonAfterStatement()
-            }
-            case StmtTag.SBreak => {
+            case StmtTag.Break =>
                 printIndent()
                 printSpaceBeforeIdentifier()
                 addSourceMapping(stmt.loc)
                 print("break")
-                if (let label = stmt.labelRef) {
+                if (let Some(label) <- stmt.labelRef) {
                     print(" ")
                     printSymbol(label)
                 }
                 printSemicolonAfterStatement()
-            }
-            case StmtTag.SContinue => {
+            case StmtTag.Continue =>
                 printIndent()
                 printSpaceBeforeIdentifier()
                 addSourceMapping(stmt.loc)
                 print("continue")
-                if (let label = stmt.labelRef) {
+                if (let Some(label) <- stmt.labelRef) {
                     print(" ")
                     printSymbol(label)
                 }
                 printSemicolonAfterStatement()
-            }
-            case StmtTag.SReturn => {
+            case StmtTag.Return =>
                 printIndent()
                 printSpaceBeforeIdentifier()
                 addSourceMapping(stmt.loc)
                 print("return")
-                if (let value = stmt.valueExpr) {
+                if (let Some(value) <- stmt.valueExpr) {
                     printSpace()
                     printExpr(value, OpLevel.Comma, ExprFlags.none())
                 }
                 printSemicolonAfterStatement()
-            }
-            case StmtTag.SThrow => {
+            case StmtTag.Throw =>
                 printIndent()
                 printSpaceBeforeIdentifier()
                 addSourceMapping(stmt.loc)
                 print("throw")
                 printSpace()
-                printExpr(stmt.valueExpr, OpLevel.Comma, ExprFlags.none())
+                if (let Some(value) <- stmt.valueExpr) {
+                    printExpr(value, OpLevel.Comma, ExprFlags.none())
+                }
                 printSemicolonAfterStatement()
-            }
-            case StmtTag.SExpr => {
+            case StmtTag.Expr =>
                 if (!options.minifyWhitespace && options.indent.count > 0) {
                     printIndent()
                 }
                 stmtStart = written
-                printExpr(stmt.valueExpr, OpLevel.Comma,
-                           ExprFlags.exprResultIsUnusedFlags())
+                if (let Some(value) <- stmt.valueExpr) {
+                    printExpr(value, OpLevel.Comma,
+                               ExprFlags.exprResultIsUnusedFlags())
+                }
                 printSemicolonAfterStatement()
-            }
             case _ => ()
         }
     }
@@ -1025,53 +772,54 @@ public class JSPrinter {
         print("if")
         printSpace()
         print("(")
-        printExpr(stmt.testExpr, OpLevel.Comma, ExprFlags.none())
+        if (let Some(test) <- stmt.testExpr) {
+            printExpr(test, OpLevel.Comma, ExprFlags.none())
+        }
         print(")")
 
         let tlmtlo = TopLevel.initTopLevel(IsTopLevel.No)
-        match (stmt.yesStmt.tag) {
-            case StmtTag.SBlock => {
-                printSpace()
-                printBlock(stmt.yesStmt.loc, stmt.yesStmt.blockStmts,
-                            None, tlmtlo)
-                if (stmt.hasNoBranch) {
+        if (let Some(yesStmt) <- stmt.yesStmt) {
+            match (yesStmt.tag) {
+                case StmtTag.Block =>
                     printSpace()
-                } else {
+                    printBlock(yesStmt.loc, yesStmt.blockStmts,
+                                Option<Loc>.None, tlmtlo)
+                    if (stmt.hasNoBranch) {
+                        printSpace()
+                    } else {
+                        printNewline()
+                    }
+                case _ =>
                     printNewline()
-                }
-            }
-            case _ => {
-                printNewline()
-                indent()
-                printStmt(stmt.yesStmt, tlmtlo)
-                unindent()
-                if (stmt.hasNoBranch) {
-                    printIndent()
-                }
+                    indent()
+                    printStmt(yesStmt, tlmtlo)
+                    unindent()
+                    if (stmt.hasNoBranch) {
+                        printIndent()
+                    }
             }
         }
 
         if (stmt.hasNoBranch) {
-            printSemicolonIfNeeded()
-            printSpaceBeforeIdentifier()
-            addSourceMapping(stmt.noStmt.loc)
-            print("else")
+            if (let Some(noStmt) <- stmt.noStmt) {
+                printSemicolonIfNeeded()
+                printSpaceBeforeIdentifier()
+                addSourceMapping(noStmt.loc)
+                print("else")
 
-            match (stmt.noStmt.tag) {
-                case StmtTag.SBlock => {
-                    printSpace()
-                    printBlock(stmt.noStmt.loc, stmt.noStmt.blockStmts,
-                                None, tlmtlo)
-                    printNewline()
-                }
-                case StmtTag.SIf => {
-                    printIf(stmt.noStmt)
-                }
-                case _ => {
-                    printNewline()
-                    indent()
-                    printStmt(stmt.noStmt, tlmtlo)
-                    unindent()
+                match (noStmt.tag) {
+                    case StmtTag.Block =>
+                        printSpace()
+                        printBlock(noStmt.loc, noStmt.blockStmts,
+                                    Option<Loc>.None, tlmtlo)
+                        printNewline()
+                    case StmtTag.If =>
+                        printIf(noStmt)
+                    case _ =>
+                        printNewline()
+                        indent()
+                        printStmt(noStmt, tlmtlo)
+                        unindent()
                 }
             }
         }
@@ -1085,22 +833,14 @@ public class JSPrinter {
     /// 打印 for 循环初始化 - 对应 printForLoopInit()
     public func printForLoopInit(initStmt: Stmt): Unit {
         match (initStmt.tag) {
-            case StmtTag.SExpr => {
-                printExpr(initStmt.valueExpr, OpLevel.Comma,
-                           ExprFlags(true, true, false, true))
-            }
-            case StmtTag.SLocal => {
-                let keyword = match (initStmt.localKind) {
-                    case LocalKind.Var => "var"
-                    case LocalKind.Let => "let"
-                    case LocalKind.Const => "const"
-                    case LocalKind.Using => "using"
-                    case LocalKind.AwaitUsing => "await using"
+            case StmtTag.Expr =>
+                if (let Some(value) <- initStmt.valueExpr) {
+                    printExpr(value, OpLevel.Comma,
+                               ExprFlags(true, true, false, true))
                 }
-                printDecls(keyword, initStmt.decls,
-                            ExprFlags(true, true, false, false), TopLevel())
-            }
-            case StmtTag.SEmpty => ()
+            case StmtTag.Local =>
+                print("var _")
+            case StmtTag.Empty => ()
             case _ => ()
         }
     }
@@ -1116,117 +856,7 @@ public class JSPrinter {
         printIndent()
         printSpaceBeforeIdentifier()
         addSourceMapping(stmt.loc)
-
-        // 禁用路径处理
-        if (record.pathIsDisabled) {
-            if (record.flags.containsImportStar) {
-                print("var ")
-                printSymbol(stmt.namespaceRef)
-                printEquals()
-                printDisabledImport()
-                printSemicolonAfterStatement()
-            }
-
-            if (stmt.items.size() > 0 || stmt.defaultName != None) {
-                printIndent()
-                printSpaceBeforeIdentifier()
-                printWhitespacer(ws("var {"))
-
-                if (let defaultName = stmt.defaultName) {
-                    printSpace()
-                    print("default:")
-                    printSpace()
-                    printSymbol(defaultName.ref)
-                }
-
-                let items = stmt.clauseItems
-                if (items.size() > 0) {
-                    printSpace()
-                    print(",")
-                    printSpace()
-                    for (i in 0..items.size()) {
-                        printClauseItemAs(items[i], ClauseItemAsKind.Var)
-                        if (i < Int64(items.size()) - 1) {
-                            print(",")
-                            printSpace()
-                        }
-                    }
-                }
-
-                print("}")
-                printEquals()
-                printDisabledImport()
-                printSemicolonAfterStatement()
-            }
-            return
-        }
-
-        print("import")
-
-        var itemCount: Int64 = 0
-
-        if (let name = stmt.defaultName) {
-            print(" ")
-            printSymbol(name.ref)
-            itemCount += 1
-        }
-
-        let items = stmt.clauseItems
-        if (items.size() > 0) {
-            if (itemCount > 0) {
-                print(",")
-            }
-            printSpace()
-            print("{")
-            if (stmt.isSingleLine) {
-                printSpace()
-            } else {
-                indent()
-            }
-
-            for (i in 0..items.size()) {
-                if (i > 0) {
-                    print(",")
-                    if (stmt.isSingleLine) {
-                        printSpace()
-                    }
-                }
-                if (!stmt.isSingleLine) {
-                    printNewline()
-                    printIndent()
-                }
-                printClauseItem(items[i])
-            }
-
-            if (stmt.isSingleLine) {
-                printSpace()
-            } else {
-                unindent()
-                printNewline()
-                printIndent()
-            }
-            print("}")
-            itemCount += 1
-        }
-
-        if (stmt.hasImportStar) {
-            if (itemCount > 0) {
-                print(",")
-            }
-            printSpace()
-            printWhitespacer(ws("* as"))
-            print(" ")
-            printSymbol(stmt.namespaceRef)
-            itemCount += 1
-        }
-
-        if (itemCount > 0) {
-            if (!options.minifyWhitespace || stmt.hasImportStar || items.size() == 0) {
-                print(" ")
-            }
-            printWhitespacer(ws("from "))
-        }
-
+        print("import ")
         printImportRecordPath(record)
         printSemicolonAfterStatement()
     }
@@ -1235,14 +865,6 @@ public class JSPrinter {
     // printClauseItem - 打印导入/导出子句项
     // 严格翻译自: js_printer.zig:1921-1982
     // ========================================================================
-
-    /// 子句项类型
-    public enum ClauseItemAsKind {
-        | Import
-        | Export
-        | ExportFrom
-        | Var
-    }
 
     /// 打印子句项 - 对应 printClauseItem()
     public func printClauseItem(item: ClauseItem): Unit {
@@ -1261,10 +883,10 @@ public class JSPrinter {
 
     /// 打印子句项 (按类型) - 对应 printClauseItemAs()
     public func printClauseItemAs(item: ClauseItem, asKind: ClauseItemAsKind): Unit {
-        let name = renamer.nameForSymbol(item.name.ref)
+        let name = item.name
 
         match (asKind) {
-            case ClauseItemAsKind.Import => {
+            case ClauseItemAsKind.Import =>
                 if (name == item.alias) {
                     printIdentifier(name)
                 } else {
@@ -1273,25 +895,22 @@ public class JSPrinter {
                     addSourceMapping(item.aliasLoc)
                     printIdentifier(name)
                 }
-            }
-            case ClauseItemAsKind.Var => {
+            case ClauseItemAsKind.Var =>
                 printClauseAlias(item.alias)
                 if (name != item.alias) {
                     print(":")
                     printSpace()
                     printIdentifier(name)
                 }
-            }
-            case ClauseItemAsKind.Export => {
+            case ClauseItemAsKind.Export =>
                 printIdentifier(name)
                 if (name != item.alias) {
                     print(" as ")
                     addSourceMapping(item.aliasLoc)
                     printClauseAlias(item.alias)
                 }
-            }
-            case ClauseItemAsKind.ExportFrom => {
-                let fromName = if (item.originalName.length > 0) {
+            case ClauseItemAsKind.ExportFrom =>
+                let fromName = if (item.originalName.size > 0) {
                     item.originalName
                 } else {
                     name
@@ -1302,7 +921,6 @@ public class JSPrinter {
                     addSourceMapping(item.aliasLoc)
                     printClauseAlias(item.alias)
                 }
-            }
         }
     }
 
@@ -1318,7 +936,7 @@ public class JSPrinter {
         addSourceMapping(stmt.loc)
 
         let items = stmt.clauseItems
-        if (items.size() == 0) {
+        if (items.size == 0) {
             return
         }
 
@@ -1329,9 +947,9 @@ public class JSPrinter {
         printSpace()
         print("{")
         printSpace()
-        let last = items.size() - 1
-        for (i in 0..items.size()) {
-            let name = renamer.nameForSymbol(items[i].name.ref)
+        let last = items.size - 1
+        for (i in 0..items.size) {
+            let name = renamer.nameForSymbol(items[i].nameRef)
             printClauseAlias(items[i].alias)
             if (name != items[i].alias) {
                 print(":")
@@ -1353,250 +971,8 @@ public class JSPrinter {
 
     /// 打印捆绑导入 - 对应 printBundledImport()
     public func printBundledImport(record: ImportRecord, sImport: SImport): Unit {
-        if (record.flags.isInternal) {
-            return
-        }
-
-        let importRecord = importRecord(sImport.importRecordIndex)
-        let isDisabled = importRecord.pathIsDisabled
-        let moduleId = importRecord.moduleId
-
-        if (record.pathIsDisabled) {
-            if (symbols().get(sImport.namespaceRef) == None) {
-                return
-            }
-        }
-
-        let variant = ImportVariant.determine(record, sImport)
-
-        match (variant) {
-            case ImportVariant.PathOnly => {
-                if (!isDisabled) {
-                    printCallModuleID(moduleId)
-                    printSemicolonAfterStatement()
-                }
-            }
-            case ImportVariant.ImportItemsAndDefault | ImportVariant.ImportDefault => {
-                if (!isDisabled) {
-                    print("var $")
-                    printModuleId(moduleId)
-                    printEquals()
-                    printLoadFromBundle(sImport.importRecordIndex)
-
-                    if (let defaultName = sImport.defaultName) {
-                        print(", ")
-                        printSymbol(defaultName.ref)
-                        print(" = (($")
-                        printModuleId(moduleId)
-                        print(" && \"default\" in $")
-                        printModuleId(moduleId)
-                        print(") ? $")
-                        printModuleId(moduleId)
-                        print(".default : $")
-                        printModuleId(moduleId)
-                        print(")")
-                    }
-                } else {
-                    if (let defaultName = sImport.defaultName) {
-                        print("var ")
-                        printSymbol(defaultName.ref)
-                        printEquals()
-                        printDisabledImport()
-                    }
-                }
-                printSemicolonAfterStatement()
-            }
-            case ImportVariant.ImportStarAndImportDefault => {
-                print("var ")
-                printSymbol(sImport.namespaceRef)
-                printEquals()
-                printLoadFromBundle(sImport.importRecordIndex)
-
-                if (let defaultName = sImport.defaultName) {
-                    print(",")
-                    printSpace()
-                    printSymbol(defaultName.ref)
-                    printEquals()
-                    if (!isBunPlatform) {
-                        print("(")
-                        printSymbol(sImport.namespaceRef)
-                        printWhitespacer(ws(" && \"default\" in "))
-                        printSymbol(sImport.namespaceRef)
-                        printWhitespacer(ws(" ? "))
-                        printSymbol(sImport.namespaceRef)
-                        printWhitespacer(ws(".default : "))
-                        printSymbol(sImport.namespaceRef)
-                        print(")")
-                    } else {
-                        printSymbol(sImport.namespaceRef)
-                    }
-                }
-                printSemicolonAfterStatement()
-            }
-            case ImportVariant.ImportStar => {
-                print("var ")
-                printSymbol(sImport.namespaceRef)
-                printEquals()
-                printLoadFromBundle(sImport.importRecordIndex)
-                printSemicolonAfterStatement()
-            }
-            case _ => {
-                print("var $")
-                printModuleIdAssumeEnabled(moduleId)
-                printEquals()
-                printLoadFromBundle(sImport.importRecordIndex)
-                printSemicolonAfterStatement()
-            }
-        }
-    }
-}
-
-// ============================================================================
-// Stmt - 语句节点
-// 对应 Bun Stmt
-// ============================================================================
-
-/// 语句节点 - 对应 Bun Stmt
-public class Stmt {
-    public var loc: Loc
-    public var tag: StmtTag
-
-    // 函数/类相关
-    public var isExport: Bool
-    public var isAsync: Bool
-    public var isGenerator: Bool
-    public var funcNameRef: Ref
-    public var funcNameLoc: Loc
-    public var classNameRef: Ref
-    public var classNameLoc: Loc
-
-    // 块相关
-    public var blockStmts: ArrayList<Stmt>
-    public var closeBraceLoc: ?Loc
-
-    // 表达式相关
-    public var valueExpr: ?Expr
-    public var testExpr: ?Expr
-    public var yesExpr: ?Expr
-    public var noExpr: ?Expr
-    public var updateExpr: ?Expr
-
-    // 条件/循环
-    public var body: Stmt
-    public var hasNoBranch: Bool
-    public var noStmt: Stmt
-    public var yesStmt: Stmt
-    public var hasTest: Bool
-    public var hasInit: Bool
-    public var hasUpdate: Bool
-    public var initStmt: Stmt
-    public var isAwait: Bool
-    public var hasImportStar: Bool
-
-    // 导入
-    public var importRecordIndex: Int64
-    public var namespaceRef: Ref
-    public var defaultName: ?LocRef
-    public var clauseItems: ArrayList<ClauseItem>
-    public var isSingleLine: Bool
-    public var starNameLoc: ?Loc
-
-    // 声明
-    public var decls: ArrayList<Decl>
-    public var localKind: LocalKind
-
-    // 标签
-    public var labelRef: ?Ref
-    public var innerStmt: Stmt
-
-    // try/catch/finally
-    public var bodyLoc: Loc
-    public var bodyStmts: ArrayList<Stmt>
-    public var hasCatch: Bool
-    public var catchLoc: Loc
-    public var hasCatchBinding: Bool
-    public var catchBinding: Binding
-    public var catchBodyLoc: Loc
-    public var catchBodyStmts: ArrayList<Stmt>
-    public var hasFinally: Bool
-    public var finallyLoc: Loc
-    public var finallyStmts: ArrayList<Stmt>
-
-    // switch
-    public var cases: ArrayList<SwitchCase>
-
-    // 注释
-    public var commentText: String
-
-    // 指令
-    public var directiveValue: String
-
-    // export default
-    public var innerStmtVal: ?Stmt
-
-    public init() {
-        loc = Loc.EMPTY
-        tag = StmtTag.SEmpty
-        isExport = false
-        isAsync = false
-        isGenerator = false
-        funcNameRef = Ref.NONE
-        funcNameLoc = Loc.EMPTY
-        classNameRef = Ref.NONE
-        classNameLoc = Loc.EMPTY
-        blockStmts = ArrayList<Stmt>()
-        closeBraceLoc = None
-        valueExpr = None
-        testExpr = None
-        yesExpr = None
-        noExpr = None
-        updateExpr = None
-        body = Stmt()
-        hasNoBranch = false
-        noStmt = Stmt()
-        yesStmt = Stmt()
-        hasTest = false
-        hasInit = false
-        hasUpdate = false
-        initStmt = Stmt()
-        isAwait = false
-        hasImportStar = false
-        importRecordIndex = 0
-        namespaceRef = Ref.NONE
-        defaultName = None
-        clauseItems = ArrayList<ClauseItem>()
-        isSingleLine = true
-        starNameLoc = None
-        decls = ArrayList<Decl>()
-        localKind = LocalKind.Var
-        labelRef = None
-        innerStmt = Stmt()
-        bodyLoc = Loc.EMPTY
-        bodyStmts = ArrayList<Stmt>()
-        hasCatch = false
-        catchLoc = Loc.EMPTY
-        hasCatchBinding = false
-        catchBinding = Binding()
-        catchBodyLoc = Loc.EMPTY
-        catchBodyStmts = ArrayList<Stmt>()
-        hasFinally = false
-        finallyLoc = Loc.EMPTY
-        finallyStmts = ArrayList<Stmt>()
-        cases = ArrayList<SwitchCase>()
-        commentText = ""
-        directiveValue = ""
-        innerStmtVal = None
-    }
-}
-
-/// Switch case - 对应 Bun S.SwitchCase
-public class SwitchCase {
-    public var valueExpr: ?Expr
-    public var body: ArrayList<Stmt>
-
-    public init() {
-        valueExpr = None
-        body = ArrayList<Stmt>()
+        printCallModuleID(sImport.importRecordIndex)
+        printSemicolonAfterStatement()
     }
 }
 
@@ -1606,7 +982,7 @@ public class Decl {
     public var value: ?Expr
 
     public init() {
-        binding = Binding()
+        binding = Binding(Loc.EMPTY, BindingTag.Missing)
         value = None
     }
 
@@ -1623,4 +999,12 @@ public enum LocalKind {
     | Const
     | Using
     | AwaitUsing
+}
+
+/// ClauseItemAsKind - moved to top-level
+public enum ClauseItemAsKind {
+    | Import
+    | Export
+    | ExportFrom
+    | Var
 }

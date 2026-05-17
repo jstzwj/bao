@@ -43,6 +43,42 @@ public enum Op {
             case Gte => ">="
         }
     }
+
+    public func isLt(): Bool {
+        match (this) {
+            case Lt => true
+            case _ => false
+        }
+    }
+
+    public func isLte(): Bool {
+        match (this) {
+            case Lte => true
+            case _ => false
+        }
+    }
+
+    public func isGt(): Bool {
+        match (this) {
+            case Gt => true
+            case _ => false
+        }
+    }
+
+    public func isGte(): Bool {
+        match (this) {
+            case Gte => true
+            case _ => false
+        }
+    }
+
+    public operator func ==(right: Op): Bool {
+        return this.toString() == right.toString()
+    }
+
+    public operator func !=(right: Op): Bool {
+        return !(this == right)
+    }
 }
 
 // ============================================================================
@@ -109,7 +145,7 @@ public class Comparator {
     }
 
     /// 格式化输出 - 对应 Bun Comparator.Formatter.format
-    public override func toString(): String {
+    public func toString(): String {
         if (op == Op.Unset) {
             return ""
         }
@@ -320,7 +356,7 @@ public class SemVerRange {
     }
 
     /// 格式化输出 - 对应 Bun Range.format / Formatter.format
-    public override func toString(): String {
+    public func toString(): String {
         if (!hasLeft() && !hasRight()) {
             return ""
         }
@@ -407,7 +443,11 @@ public class Query {
                     case Some(on) => return n.eql(on)
                     case None => return false
                 }
-            case None => return other.next == None
+            case None =>
+                match (other.next) {
+                    case Some(_) => return false
+                    case None => return true
+                }
         }
     }
 
@@ -480,7 +520,7 @@ public class QueryList {
     ///       or (list.next orelse return false).satisfiesPre(version, ...)
     public func satisfiesPre(version: SemVer): Bool {
         // 每个 OR 分支独立检查 pre_matched
-        var preMatched = Array<Bool>([false])
+        var preMatched = Array<Bool>(1, repeat: false)
         if (head.satisfiesPre(version, preMatched) && preMatched[0]) {
             return true
         }
@@ -501,7 +541,11 @@ public class QueryList {
                     case Some(on) => return n.eql(on)
                     case None => return false
                 }
-            case None => return other.next == None
+            case None =>
+                match (other.next) {
+                    case Some(_) => return false
+                    case None => return true
+                }
         }
     }
 
@@ -600,7 +644,15 @@ public class QueryGroup {
     ///           !this.head.head.range.hasRight() and this.head.head.range.left.op == .eql
     ///   }
     public func isExact(): Bool {
-        head.next == None && head.head.next == None &&
+        let noNext = match (head.next) {
+            case Some(_) => false
+            case None => true
+        }
+        let noHeadNext = match (head.head.next) {
+            case Some(_) => false
+            case None => true
+        }
+        noNext && noHeadNext &&
             !head.head.range.hasRight() &&
             head.head.range.left.op == Op.Eql
     }
@@ -613,10 +665,18 @@ public class QueryGroup {
     /// }
     public func isStar(): Bool {
         let left = head.head.range.left
+        let noNext = match (head.next) {
+            case Some(_) => false
+            case None => true
+        }
+        let noHeadNext = match (head.head.next) {
+            case Some(_) => false
+            case None => true
+        }
         head.head.range.right.op == Op.Unset &&
             left.op == Op.Gte &&
-            head.next == None &&
-            head.head.next == None &&
+            noNext &&
+            noHeadNext &&
             left.version.isZero() &&
             !hasBuild
     }
@@ -629,7 +689,15 @@ public class QueryGroup {
     ///     return null
     /// }
     public func getExactVersion(): ?SemVer {
-        if (head.next == None && head.head.next == None &&
+        let noNext = match (head.next) {
+            case Some(_) => false
+            case None => true
+        }
+        let noHeadNext = match (head.head.next) {
+            case Some(_) => false
+            case None => true
+        }
+        if (noNext && noHeadNext &&
             head.head.range.hasLeft() &&
             head.head.range.left.op == Op.Eql &&
             !head.head.range.hasRight()) {
@@ -677,7 +745,11 @@ public class QueryGroup {
     ///     prev_tail.next = new_tail; self.tail = new_tail
     /// }
     public func orVersion(version: SemVer): Unit {
-        if (tail == None && !head.head.range.hasLeft()) {
+        let noTail = match (tail) {
+            case Some(_) => false
+            case None => true
+        }
+        if (noTail && !head.head.range.hasLeft()) {
             head.head.range.left.version = version
             head.head.range.left.op = Op.Eql
             return
@@ -714,7 +786,15 @@ public class QueryGroup {
     ///     prev_tail.next = new_tail; self.tail = new_tail
     /// }
     public func orRange(range: SemVerRange): Unit {
-        if (tail == None && head.tail == None && !head.head.range.hasLeft()) {
+        let noTail = match (tail) {
+            case Some(_) => false
+            case None => true
+        }
+        let noHeadTail = match (head.tail) {
+            case Some(_) => false
+            case None => true
+        }
+        if (noTail && noHeadTail && !head.head.range.hasLeft()) {
             head.head.range = range
             return
         }
@@ -728,11 +808,19 @@ public class QueryGroup {
     }
 
     /// 格式化
-    public override func toString(): String {
-        if (tail == None && head.tail == None && !head.head.range.hasLeft()) {
+    public func toString(): String {
+        let noTail = match (tail) {
+            case Some(_) => false
+            case None => true
+        }
+        let noHeadTail = match (head.tail) {
+            case Some(_) => false
+            case None => true
+        }
+        if (noTail && noHeadTail && !head.head.range.hasLeft()) {
             return ""
         }
-        if (tail == None && head.tail == None) {
+        if (noTail && noHeadTail) {
             return head.toString()
         }
         var sb = StringBuilder()
@@ -770,6 +858,27 @@ public enum TokenTag {
     | Version
     | Tilde
     | Caret
+
+    public func toString(): String {
+        match (this) {
+            case None => "none"
+            case Gt => "gt"
+            case Gte => "gte"
+            case Lt => "lt"
+            case Lte => "lte"
+            case Version => "version"
+            case Tilde => "tilde"
+            case Caret => "caret"
+        }
+    }
+
+    public operator func ==(right: TokenTag): Bool {
+        return this.toString() == right.toString()
+    }
+
+    public operator func !=(right: TokenTag): Bool {
+        return !(this == right)
+    }
 }
 
 // ============================================================================
@@ -836,13 +945,13 @@ public class Token {
                 }
                 if (this.tag == TokenTag.Lte) {
                     return SemVerRange(
-                        Comparator(Op.Lte, SemVer(major, Int64.MAX, Int64.MAX)),
+                        Comparator(Op.Lte, SemVer(major, Int64.Max, Int64.Max)),
                         Comparator()
                     )
                 }
                 if (this.tag == TokenTag.Gt) {
                     return SemVerRange(
-                        Comparator(Op.Gt, SemVer(major, Int64.MAX, Int64.MAX)),
+                        Comparator(Op.Gt, SemVer(major, Int64.Max, Int64.Max)),
                         Comparator()
                     )
                 }
@@ -856,7 +965,7 @@ public class Token {
             case Minor =>
                 if (this.tag == TokenTag.Lte) {
                     return SemVerRange(
-                        Comparator(Op.Lte, SemVer(major, Int64.MAX, Int64.MAX)),
+                        Comparator(Op.Lte, SemVer(major, Int64.Max, Int64.Max)),
                         Comparator()
                     )
                 }
@@ -868,7 +977,7 @@ public class Token {
                 }
                 if (this.tag == TokenTag.Gt) {
                     return SemVerRange(
-                        Comparator(Op.Gt, SemVer(major, Int64.MAX, Int64.MAX)),
+                        Comparator(Op.Gt, SemVer(major, Int64.Max, Int64.Max)),
                         Comparator()
                     )
                 }
@@ -882,7 +991,7 @@ public class Token {
             case Patch =>
                 if (this.tag == TokenTag.Lte) {
                     return SemVerRange(
-                        Comparator(Op.Lte, SemVer(major, minor, Int64.MAX)),
+                        Comparator(Op.Lte, SemVer(major, minor, Int64.Max)),
                         Comparator()
                     )
                 }
@@ -894,7 +1003,7 @@ public class Token {
                 }
                 if (this.tag == TokenTag.Gt) {
                     return SemVerRange(
-                        Comparator(Op.Gt, SemVer(major, minor, Int64.MAX)),
+                        Comparator(Op.Gt, SemVer(major, minor, Int64.Max)),
                         Comparator()
                     )
                 }
@@ -1021,15 +1130,15 @@ public class VersionPartial {
     public func max(): SemVer {
         let majorVal = match (major) {
             case Some(v) => v
-            case None => Int64.MAX
+            case None => Int64.Max
         }
         let minorVal = match (minor) {
             case Some(v) => v
-            case None => Int64.MAX
+            case None => Int64.Max
         }
         let patchVal = match (patch) {
             case Some(v) => v
-            case None => Int64.MAX
+            case None => Int64.Max
         }
         return SemVer(majorVal, minorVal, patchVal, tag.pre, tag.build)
     }
@@ -1074,6 +1183,15 @@ public class VersionPartial {
 /// 范围字符串解析器 - 对应 Bun Query.parse
 /// 解析完整的 semver range 字符串
 public class RangeParser {
+    private static func sliceString(text: String, start: Int64, end: Int64): String {
+        let sb = StringBuilder()
+        var i = start
+        while (i < end && i < text.size) {
+            sb.append(text[i])
+            i += 1
+        }
+        sb.toString()
+    }
 
     /// 解析范围字符串为 QueryGroup
     /// 对应 Bun: pub fn parse(allocator, input, sliced) !Group
@@ -1088,7 +1206,7 @@ public class RangeParser {
     ///   >=1.0.0 || >=2.0.0 - OR 范围
     ///   >=1.0.0 <2.0.0 || >=3.0.0 - 混合
     public static func parse(input: String): ?QueryGroup {
-        let trimmed = input.trim()
+        let trimmed = input
         if (trimmed.size == 0) {
             return None
         }
@@ -1117,8 +1235,8 @@ public class RangeParser {
 
             let ch = trimmed[i]
 
-            if (ch == '>') {
-                if (i + 1 < len && trimmed[i + 1] == '=') {
+            if (ch == UInt8(62)) {
+                if (i + 1 < len && trimmed[i + 1] == UInt8(61)) {
                     token.tag = TokenTag.Gte
                     i += 1
                 } else {
@@ -1126,52 +1244,52 @@ public class RangeParser {
                 }
                 i += 1
                 // 跳过空格
-                while (i < len && trimmed[i] == ' ') { i += 1 }
-            } else if (ch == '<') {
-                if (i + 1 < len && trimmed[i + 1] == '=') {
+                while (i < len && trimmed[i] == UInt8(32)) { i += 1 }
+            } else if (ch == UInt8(60)) {
+                if (i + 1 < len && trimmed[i + 1] == UInt8(61)) {
                     token.tag = TokenTag.Lte
                     i += 1
                 } else {
                     token.tag = TokenTag.Lt
                 }
                 i += 1
-                while (i < len && trimmed[i] == ' ') { i += 1 }
-            } else if (ch == '=' || ch == 'v') {
+                while (i < len && trimmed[i] == UInt8(32)) { i += 1 }
+            } else if (ch == UInt8(61) || ch == UInt8(118)) {
                 token.tag = TokenTag.Version
                 isOr = true
                 i += 1
-                while (i < len && trimmed[i] == ' ') { i += 1 }
-            } else if (ch == '~') {
+                while (i < len && trimmed[i] == UInt8(32)) { i += 1 }
+            } else if (ch == UInt8(126)) {
                 token.tag = TokenTag.Tilde
                 i += 1
-                if (i < len && trimmed[i] == '>') { i += 1 }
-                while (i < len && trimmed[i] == ' ') { i += 1 }
-            } else if (ch == '^') {
+                if (i < len && trimmed[i] == UInt8(62)) { i += 1 }
+                while (i < len && trimmed[i] == UInt8(32)) { i += 1 }
+            } else if (ch == UInt8(94)) {
                 token.tag = TokenTag.Caret
                 i += 1
-                while (i < len && trimmed[i] == ' ') { i += 1 }
-            } else if (ch >= '0' && ch <= '9' || ch == 'X' || ch == 'x' || ch == '*') {
+                while (i < len && trimmed[i] == UInt8(32)) { i += 1 }
+            } else if (ch >= UInt8(48) && ch <= UInt8(57) || ch == UInt8(88) || ch == UInt8(120) || ch == UInt8(42)) {
                 token.tag = TokenTag.Version
                 isOr = true
-            } else if (ch == '|') {
+            } else if (ch == UInt8(124)) {
                 i += 1
-                while (i < len && trimmed[i] == '|') { i += 1 }
-                while (i < len && trimmed[i] == ' ') { i += 1 }
+                while (i < len && trimmed[i] == UInt8(124)) { i += 1 }
+                while (i < len && trimmed[i] == UInt8(32)) { i += 1 }
                 isOr = true
                 skipRound = true
-            } else if (ch == '-') {
+            } else if (ch == UInt8(45)) {
                 i += 1
-                while (i < len && trimmed[i] == ' ') { i += 1 }
+                while (i < len && trimmed[i] == UInt8(32)) { i += 1 }
                 // hyphen range handled in version parsing below
                 skipRound = true
-            } else if (ch == ' ') {
+            } else if (ch == UInt8(32)) {
                 i += 1
-                while (i < len && trimmed[i] == ' ') { i += 1 }
+                while (i < len && trimmed[i] == UInt8(32)) { i += 1 }
                 skipRound = true
             } else {
                 // 跳过 tagged versions (如 "boop")
                 i += 1
-                while (i < len && trimmed[i] != ' ' && trimmed[i] != '|') { i += 1 }
+                while (i < len && trimmed[i] != UInt8(32) && trimmed[i] != UInt8(124)) { i += 1 }
                 skipRound = true
             }
 
@@ -1180,7 +1298,7 @@ public class RangeParser {
             }
 
             // 解析版本号
-            let parseResult = SemVer.parseFull(trimmed.substring(i))
+            let parseResult = SemVer.parseFull(sliceString(trimmed, i, trimmed.size))
             if (!parseResult.valid) {
                 return None
             }
@@ -1196,22 +1314,22 @@ public class RangeParser {
 
             // 检查 hyphen range
             let rollback = i
-            let maybeHyphen = i < len && (trimmed[i] == ' ' || trimmed[i] == '-')
+            let maybeHyphen = i < len && (trimmed[i] == UInt8(32) || trimmed[i] == UInt8(45))
             var isHyphen = false
 
             if (maybeHyphen) {
                 let saved = i
                 // 跳过空格
-                while (i < len && trimmed[i] == ' ') { i += 1 }
-                if (i < len && trimmed[i] == '-') {
+                while (i < len && trimmed[i] == UInt8(32)) { i += 1 }
+                if (i < len && trimmed[i] == UInt8(45)) {
                     i += 1
-                    while (i < len && trimmed[i] == ' ') { i += 1 }
-                    if (i < len && (trimmed[i] == 'v' || trimmed[i] == '=')) {
+                    while (i < len && trimmed[i] == UInt8(32)) { i += 1 }
+                    if (i < len && (trimmed[i] == UInt8(118) || trimmed[i] == UInt8(61))) {
                         i += 1
                     }
-                    while (i < len && trimmed[i] == ' ') { i += 1 }
-                    if (i < len && (trimmed[i] >= '0' && trimmed[i] <= '9' ||
-                        trimmed[i] == 'X' || trimmed[i] == 'x' || trimmed[i] == '*')) {
+                    while (i < len && trimmed[i] == UInt8(32)) { i += 1 }
+                    if (i < len && (trimmed[i] >= UInt8(48) && trimmed[i] <= UInt8(57) ||
+                        trimmed[i] == UInt8(88) || trimmed[i] == UInt8(120) || trimmed[i] == UInt8(42))) {
                         isHyphen = true
                     }
                 }
@@ -1222,7 +1340,7 @@ public class RangeParser {
 
             if (isHyphen) {
                 // Hyphen range: version - second_version
-                let secondResult = SemVer.parseFull(trimmed.substring(i))
+                let secondResult = SemVer.parseFull(sliceString(trimmed, i, trimmed.size))
                 if (!secondResult.valid) {
                     return None
                 }
@@ -1311,26 +1429,32 @@ public class RangeParser {
     /// 内部调用 parse() 获取 QueryGroup，提取主范围
     public static func parseSimple(text: String): ?SemVerRange {
         let group = parse(text)
-        if (group == None) {
-            return None
+        let g = match (group) {
+            case Some(value) => value
+            case None => return None
         }
-        let g = group.getOrThrow()
 
         // 构建兼容的 SemVerRange (包含 OR 范围)
         let mainRange = g.head.head.range
         var orList = g.head.next
-        while (orList != None) {
-            let nextList = orList.getOrThrow()
-            mainRange.orRanges.append(nextList.head.range)
-            orList = nextList.next
+        while (true) {
+            match (orList) {
+                case Some(nextList) =>
+                    mainRange.orRanges.append(nextList.head.range)
+                    orList = nextList.next
+                case None => break
+            }
         }
 
         // 同时处理 AND 链中的额外范围
         var andQuery = g.head.head.next
-        while (andQuery != None) {
-            let q = andQuery.getOrThrow()
-            // AND 范围需要合并到主范围
-            andQuery = q.next
+        while (true) {
+            match (andQuery) {
+                case Some(q) =>
+                    // AND 范围需要合并到主范围
+                    andQuery = q.next
+                case None => break
+            }
         }
 
         return mainRange

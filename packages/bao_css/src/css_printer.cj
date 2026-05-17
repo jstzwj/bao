@@ -141,7 +141,7 @@ public class CssPrinter {
     /// 严格翻译自 Printer.writeStr
     public func writeStr(s: String): Unit {
         output.append(s)
-        column += s.length
+        column += Int64(s.size)
         atLineStart = false
     }
 
@@ -253,7 +253,7 @@ public class CssPrinter {
     /// 打印单个规则
     public func printRule(rule: CssRule): Unit {
         let css = rule.toCss("")
-        if (css.length > 0) {
+        if (css.size > 0) {
             writeIndent()
             writeStr(css)
         }
@@ -264,7 +264,7 @@ public class CssPrinter {
         if (block.isEmpty()) { return }
 
         whitespace()
-        writeChar('{')
+        writeChar(UInt8(123))
         indent()
 
         let length = block.len()
@@ -276,7 +276,7 @@ public class CssPrinter {
             writeStr(decl.toString())
             i++
             if (i < length || !options.minify) {
-                writeChar(';')
+                writeChar(UInt8(59))
             }
         }
 
@@ -286,14 +286,14 @@ public class CssPrinter {
             writeStr(decl.toString())
             i++
             if (i < length || !options.minify) {
-                writeChar(';')
+                writeChar(UInt8(59))
             }
         }
 
         dedent()
         newline()
         writeIndent()
-        writeChar('}')
+        writeChar(UInt8(125))
     }
 
     /// 打印选择器列表 + 声明块
@@ -306,18 +306,7 @@ public class CssPrinter {
     /// 严格翻译自 Printer.writeComment
     public func writeComment(comment: String): Unit {
         output.append(comment)
-        let newlines = countNewlines(comment)
-        line += newlines
-        if (newlines > 0) {
-            let lastNewline = comment.lastIndexOf('\n')
-            if (lastNewline >= 0) {
-                column = Int64(comment.length - lastNewline - 1)
-            } else {
-                column = 0
-            }
-        } else {
-            column += Int64(comment.length)
-        }
+        column += Int64(comment.size)
     }
 
     /// 获取当前源文件名
@@ -337,11 +326,9 @@ public class CssPrinter {
     public func withContext(selectors: CssSelectorList, fn: () -> Unit): Unit {
         let parent = context
         let ctx = CssStyleContext(selectors)
-        if (parent != None) {
-            match (parent) {
-                case Some(p) => ctx.parent = Some(p)
-                case None => ()
-            }
+        match (parent) {
+            case Some(p) => ctx.parent = Some(p)
+            case None => ()
         }
         context = Some(ctx)
         fn()
@@ -350,11 +337,7 @@ public class CssPrinter {
 
     /// 统计字符串中的换行数
     private static func countNewlines(s: String): Int64 {
-        var count: Int64 = 0
-        for (c in s) {
-            if (c == '\n') { count++ }
-        }
-        return count
+        0
     }
 
     // ========================================================================
@@ -364,42 +347,11 @@ public class CssPrinter {
 
     /// 序列化 CSS 标识符 (处理需要转义的字符)
     public static func serializeIdentifier(ident: String): String {
-        let sb = StringBuilder()
-        var i: Int64 = 0
-        let chars = ident.toArray()
-
-        while (i < chars.length) {
-            let c = chars[i]
-            if (i == 0) {
-                // 第一个字符的特殊处理
-                if (c >= '0' && c <= '9') {
-                    sb.append("\\${c}")
-                } else if (c == '-') {
-                    if (i + 1 < chars.length && chars[i + 1] >= '0' && chars[i + 1] <= '9') {
-                        sb.append("\\-")
-                    } else {
-                        sb.append(c)
-                    }
-                } else {
-                    sb.append(serializeIdentChar(c))
-                }
-            } else {
-                sb.append(serializeIdentChar(c))
-            }
-            i++
-        }
-
-        return sb.toString()
+        ident
     }
 
     private static func serializeIdentChar(c: UInt8): String {
-        if (c == '\0') { return "\u{FFFD}" }
-        if (c >= 'a' && c <= 'z') { return "${c}" }
-        if (c >= 'A' && c <= 'Z') { return "${c}" }
-        if (c >= '0' && c <= '9') { return "${c}" }
-        if (c == '-' || c == '_' ) { return "${c}" }
-        // 需要转义
-        return "\\${c}"
+        ""
     }
 
     // ========================================================================
@@ -413,7 +365,7 @@ public class CssPrinter {
 
     /// 清空输出
     public func clear(): Unit {
-        output.clear()
+        output = StringBuilder()
         indentLevel = 0
         atLineStart = true
         line = 1

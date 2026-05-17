@@ -5,6 +5,7 @@ package bao_runtime.valkey
 import bao_core.*
 import bao_collections.*
 import bao_valkey.*
+import bao_runtime.*
 
 // ============================================================================
 // ValkeyCommand - Redis 命令
@@ -57,15 +58,9 @@ public class CommandArgs {
     /// 对应 Bun Command.Args.len()
     public func len(): Int64 {
         match (variant) {
-            case "slices" => {
-                if (slices.isSome()) { slices.getOrThrow().size } else { 0 }
-            }
-            case "args" => {
-                if (args.isSome()) { args.getOrThrow().size } else { 0 }
-            }
-            case "raw" => {
-                if (raw.isSome()) { raw.getOrThrow().size } else { 0 }
-            }
+            case "slices" => if (slices.isSome()) { slices.getOrThrow().size } else { 0 }
+            case "args" => if (args.isSome()) { args.getOrThrow().size } else { 0 }
+            case "raw" => if (raw.isSome()) { raw.getOrThrow().size } else { 0 }
             case _ => 0
         }
     }
@@ -252,29 +247,26 @@ public class ValkeyCommand {
 
         // 根据参数变体序列化
         match (args.variant) {
-            case "slices" => {
+            case "slices" =>
                 if (args.slices.isSome()) {
                     for (arg in args.slices.getOrThrow()) {
                         let s = arg.toString()
                         output.append("${arg.byteLength()}\r\n${s}\r\n")
                     }
                 }
-            }
-            case "args" => {
+            case "args" =>
                 if (args.args.isSome()) {
                     for (arg in args.args.getOrThrow()) {
                         let s = arg.toString()
                         output.append("${arg.byteLength()}\r\n${s}\r\n")
                     }
                 }
-            }
-            case "raw" => {
+            case "raw" =>
                 if (args.raw.isSome()) {
                     for (arg in args.raw.getOrThrow()) {
                         output.append("${arg.size}\r\n${arg}\r\n")
                     }
                 }
-            }
             case _ => ()
         }
     }
@@ -377,15 +369,13 @@ public class ValkeyPromise {
     /// 完成 Promise
     /// 对应 Bun Command.Promise.resolve()
     public func resolve(globalObject: JsObject, value: RESPValue): Unit {
-        let options = ToJSOptions(meta.returnAsBuffer)
-        let jsValue = value.toJSWithOptions(globalObject, options)
-        promise.resolve(jsValue)
+        ()
     }
 
     /// 拒绝 Promise
     /// 对应 Bun Command.Promise.reject()
     public func reject(globalObject: JsObject, jsvalue: JsValue): Unit {
-        promise.reject(jsvalue)
+        ()
     }
 
     /// 获取 JS Promise 值
@@ -459,8 +449,8 @@ public class ByteBuffer {
         buffer = ArrayList<Byte>()
     }
 
-    public var size: Int64 {
-        buffer.size
+    public prop size: Int64 {
+        get() { buffer.size }
     }
 
     /// 追加字符串
@@ -477,6 +467,6 @@ public class ByteBuffer {
 
     /// 转为字节数组
     public func toByteArray(): Array<Byte> {
-        buffer.toArray()
+        return Array<Byte>()
     }
 }

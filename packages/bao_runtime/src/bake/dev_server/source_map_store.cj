@@ -7,9 +7,12 @@ package bao_runtime.bake.dev_server
 
 /// SourceMapStore - 源映射存储
 /// 所有源映射都是引用计数的，以便在 WebSocket 断开或 bundle 替换时撤销不可达的 URL。
-public struct Key <: UInt64 {}
+public struct Key {
+    public var value: UInt64
+}
 
-public struct SourceId <: UInt64 {
+public struct SourceId {
+    public var value: UInt64
     public var kind: ChunkKind
     public var bits: SourceIdBits
 }
@@ -43,7 +46,7 @@ public class Entry {
     public func renderMappings(kind: ChunkKind, arena: Allocator, gpa: Allocator): Array<Byte> {
         var j: StringJoiner = StringJoiner(allocator: arena)
         j.pushStatic("AAAA")
-        joinVLQ(kind, j, arena, .client)
+        joinVLQ(kind, j, arena, SideSide.client)
         return j.done(gpa)
     }
 
@@ -56,12 +59,12 @@ public class Entry {
         j.pushStatic("{\"version\":3,\"sources\":[\"bun://Bun/Bun HMR Runtime\"")
 
         // 添加源文件路径
-        var source_map_strings: ArrayList<Byte> = ArrayList<Byte>.init(arena)
+        var source_map_strings: ArrayList<Byte> = ArrayList<Byte>.`init`(arena)
 
         for (native_file_path in paths) {
             source_map_strings.appendSlice(",")
             if (std.fs.path.isAbsolute(native_file_path)) {
-                if (side == .client) {
+                if (side == Side.client) {
                     source_map_strings.appendSlice("\"file://")
                 } else {
                     source_map_strings.appendSlice("\"")
@@ -82,7 +85,7 @@ public class Entry {
         // 添加源内容
         for (i in 0..map_files.length) {
             let chunk = map_files.get(i)
-            if (let Some(source_map) = chunk.get()) {
+            if (let Some(source_map) <- chunk.get()) {
                 j.pushStatic(",")
                 let quoted_slice = source_map.quotedContents()
                 j.pushStatic(quoted_slice)
@@ -99,21 +102,21 @@ public class Entry {
 
     /// 编码源映射路径
     static func encodeSourceMapPath(side: Side, utf8_input: String, array_list: ArrayList<Byte>): Unit {
-        if (side == .client) {
+        if (side == Side.client) {
             bun.strings.percentEncodeWrite(utf8_input, array_list)
             return
         }
         // 服务器端使用预引用字符串
         let writer = array_list.writer()
-        bun.js_printer.writePreQuotedString(utf8_input, writer, '"', false, true, .utf8)
+        bun.js_printer.writePreQuotedString(utf8_input, writer, '"', false, true, Encoding.utf8)
     }
 
     /// 连接 VLQ 映射
     func joinVLQ(kind: ChunkKind, j: StringJoiner, arena: Allocator, side: Side): Unit {
         let map_files = files.slice()
         let runtime: HmrRuntime = match (kind) {
-            case initial_response => bake.getHmrRuntime(.client)
-            case hmr_chunk => HmrRuntime.init("self[Symbol.for(\"bun:hmr\")]({\n")
+            case initial_response => bake.getHmrRuntime(Side.client)
+            case hmr_chunk => HmrRuntime.`init`("self[Symbol.for(\"bun:hmr\")]({\n")
         }
 
         var prev_end_state: SourceMapState = SourceMapState(
@@ -129,7 +132,7 @@ public class Entry {
         // 连接所有映射
         for (i in 0..map_files.length) {
             match (map_files.get(i)) {
-                case some(let source_map) =>
+                case some(source_map) =>
                     let source_index = i + 1
                     let content = source_map.get()
                     lines_between = 0
@@ -143,7 +146,7 @@ public class Entry {
                         original_line: content.end_state.original_line,
                         original_column: content.end_state.original_column,
                     )
-                case line_count(let count) =>
+                case line_count(count) =>
                     lines_between += count.get()
                 case none =>
                     () // 跳过没有行计数的条目
@@ -178,7 +181,7 @@ public class WeakRef {
 
     /// 获取键
     public func key(): Key {
-        return Key.init(UInt64(key_top_bits) << 32)
+        return Key.`init`(UInt64(key_top_bits) << 32)
     }
 
     /// 初始化
@@ -254,10 +257,10 @@ public func addWeakRef(key: Key): Unit {
         unrefCount(first.key(), first.count)
     }
 
-    let expire = bun.timespec.msFromNow(.allow_mocked_time, weak_ref_expiry_seconds * 1000)
-    weak_refs.writeItem(WeakRef.init(key, new_weak_ref_count, expire.sec))
+    let expire = bun.timespec.msFromNow(TimeMode.allow_mocked_time, weak_ref_expiry_seconds * 1000)
+    weak_refs.writeItem(WeakRef.`init`(key, new_weak_ref_count, expire.sec))
 
-    if (weak_ref_sweep_timer.state != .ACTIVE) {
+    if (weak_ref_sweep_timer.state != TimerState.ACTIVE) {
         owner().vm.timer.update(weak_ref_sweep_timer, expire)
     }
 }
@@ -269,7 +272,7 @@ public func removeOrUpgradeWeakRef(key: Key, mode: WeakRefMode): Bool {
         let ref = weak_refs.peekItemMut(i)
         if (ref.key() == key) {
             ref.count -= 1
-            if (mode == .remove) {
+            if (mode == WeakRefMode.remove) {
                 unref(key)
             }
             if (ref.count == 0) {
@@ -282,21 +285,21 @@ public func removeOrUpgradeWeakRef(key: Key, mode: WeakRefMode): Bool {
 }
 
 /// 扫描弱引用
-public static func sweepWeakRefs(timer: EventLoopTimer, now_ts: timespec): Unit {
+public func sweepWeakRefs(timer: EventLoopTimer, now_ts: timespec): Unit {
     let store: SourceMapStore = fieldParentPtr(timer)
     let now: UInt64 = max(now_ts.sec, 0)
 
-    while (let Some(item) = store.weak_refs.readItem()) {
+    while (let Some(item) <- store.weak_refs.readItem()) {
         if (item.expire <= now) {
             store.unrefCount(item.key(), item.count)
         } else {
             store.weak_refs.unget(item)
-            store.weak_ref_sweep_timer.state = .FIRED
+            store.weak_ref_sweep_timer.state = TimerState.FIRED
             store.owner().vm.timer.update(store.weak_ref_sweep_timer, timespec(sec: item.expire + 1, nsec: 0))
             return
         }
     }
-    store.weak_ref_sweep_timer.state = .CANCELLED
+    store.weak_ref_sweep_timer.state = TimerState.CANCELLED
 }
 
 /// GetResult - 获取源映射的结果
@@ -316,15 +319,15 @@ public func getParsedSourceMap(script_id: Key, arena: Allocator, gpa: Allocator)
     let index = entries.getIndex(script_id) ?? return None
     let entry = entries.values()[index]
 
-    let vlq_bytes = entry.renderMappings(/* kind */, arena, arena)
+    let vlq_bytes = entry.renderMappings(ChunkKind.initial_response, arena, arena)
 
     match (SourceMap.Mapping.parse(gpa, vlq_bytes, null, entry.paths.length, 0)) {
-        case success(let psm) =>
+        case success(psm) =>
             return GetResult(
-                index: GenericIndex<UInt32, Entry>.init(index),
-                mappings: psm.mappings,
-                file_paths: entry.paths,
-                entry_files: entry.files,
+                GenericIndex<UInt32, Entry>.`init`(index),
+                psm.mappings,
+                entry.paths,
+                entry.files
             )
         case fail(_) =>
             return None
@@ -342,7 +345,6 @@ func allocator(): Allocator {
 func dev_allocator(): DevAllocator {
     return owner().dev_allocator()
 }
-}
 
 public class SourceMapStore {
     /// Key - 源映射键类型
@@ -355,8 +357,8 @@ public class SourceMapStore {
 
     public static let empty: SourceMapStore = SourceMapStore(
         entries: AutoArrayHashMapUnmanaged<Key, Entry>.empty,
-        weak_ref_sweep_timer: EventLoopTimer.initPaused(.DevServerSweepSourceMaps),
-        weak_refs: LinearFifo<WeakRef>.init(),
+        weak_ref_sweep_timer: EventLoopTimer.initPaused(EventLoopTimerTag.DevServerSweepSourceMaps),
+        weak_refs: LinearFifo<WeakRef>.`init`(),
     )
 
     /// 弱引用过期时间（秒）
@@ -373,6 +375,7 @@ public class SourceMapStore {
     /// HMR chunk
 
     /// Entry - 源映射条目
+}
 
 /// 弱引用模式
 public enum WeakRefMode {
@@ -387,15 +390,3 @@ public enum PutOrIncrementRefCount {
 }
 
 // 类型别名
-public type DevAllocator = dev_server.DevAllocator
-public type PackedMap = dev_server.PackedMap
-public type ChunkKind = dev_server.ChunkKind
-public type EventLoopTimer = bun.api.Timer.EventLoopTimer
-public type AutoArrayHashMapUnmanaged<K, V> = std.AutoArrayHashMapUnmanaged<K, V>
-public type LinearFifo<T> = bun.LinearFifo<T>
-public type MultiArrayList<T> = bun.MultiArrayList<T>
-public type StringJoiner = bun.StringJoiner
-public type Allocator = std.mem.Allocator
-public type GenericIndex<T, P> = bun.GenericIndex<T, P>
-public type SourceMapMappingList = bun.SourceMap.Mapping.List
-public type SourceMapState = bun.SourceMap.SourceMapState

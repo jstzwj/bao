@@ -31,7 +31,7 @@ public class CssMediaRuleFull {
     /// 媒体查询是否总是匹配 (minify 时可省略 @media 包裹)
     /// 严格翻译自 MediaRule.to_css 中 minify 分支
     public func alwaysMatches(): Bool {
-        query == "all" || query == "not all" == false && query.length == 0
+        query == "all" || (query == "not all" && false) || query.size == 0
     }
 
     /// 深拷贝
@@ -45,10 +45,13 @@ public class CssMediaRuleFull {
     public func toCss(indent: String, minify: Bool): String {
         let sb = StringBuilder()
         sb.append("${indent}@media ${query} {\n")
-        for (rule in rules.rules) {
-            let css = rule.toCss(indent + "  ")
-            if (css.length > 0) {
-                sb.append("${indent}  ${css}\n")
+        for (rule in rules.v) {
+            let css = rule.toString()
+            if (css.size > 0) {
+                sb.append(indent)
+                sb.append("  ")
+                sb.append(css)
+                sb.append("\n")
             }
         }
         sb.append("${indent}}")

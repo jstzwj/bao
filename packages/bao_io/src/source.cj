@@ -45,9 +45,9 @@ public class Source {
     /// 严格翻译自: pub fn isClosed(this: Source) bool
     public func isClosed(): Bool {
         match (kind) {
-            case Pipe => if (let Some(p) = pipe) { return p.isClosed() }
-            case Tty => if (let Some(t) = tty) { return t.isClosed() }
-            case File | SyncFile => if (let Some(f) = file) { return f.fd == -1 }
+            case Pipe => if (let Some(p) <- pipe) { return p.isClosed() }
+            case Tty => if (let Some(t) <- tty) { return t.isClosed() }
+            case File | SyncFile => if (let Some(f) <- file) { return f.fd == -1 }
         }
         return true
     }
@@ -56,8 +56,8 @@ public class Source {
     /// 严格翻译自: pub fn isActive(this: Source) bool
     public func isActive(): Bool {
         match (kind) {
-            case Pipe => if (let Some(p) = pipe) { return p.isActive() }
-            case Tty => if (let Some(t) = tty) { return t.isActive() }
+            case Pipe => if (let Some(p) <- pipe) { return p.isActive() }
+            case Tty => if (let Some(t) <- tty) { return t.isActive() }
             case File | SyncFile => return true
         }
         return false
@@ -67,9 +67,9 @@ public class Source {
     /// 严格翻译自: pub fn getFd(this: Source) bun.FD
     public func getFd(): Int32 {
         match (kind) {
-            case Pipe => if (let Some(p) = pipe) { return p.fd() }
-            case Tty => if (let Some(t) = tty) { return t.fd() }
-            case File | SyncFile => if (let Some(f) = file) { return f.fd }
+            case Pipe => if (let Some(p) <- pipe) { return p.fd() }
+            case Tty => if (let Some(t) <- tty) { return t.fd() }
+            case File | SyncFile => if (let Some(f) <- file) { return f.fd }
         }
         return -1
     }
@@ -78,8 +78,8 @@ public class Source {
     /// 严格翻译自: pub fn ref(this: Source) void
     public func ref(): Unit {
         match (kind) {
-            case Pipe => if (let Some(p) = pipe) { p.ref() }
-            case Tty => if (let Some(t) = tty) { t.ref() }
+            case Pipe => if (let Some(p) <- pipe) { p.ref() }
+            case Tty => if (let Some(t) <- tty) { t.ref() }
             case File | SyncFile => return
         }
     }
@@ -88,8 +88,8 @@ public class Source {
     /// 严格翻译自: pub fn unref(this: Source) void
     public func unref(): Unit {
         match (kind) {
-            case Pipe => if (let Some(p) = pipe) { p.unref() }
-            case Tty => if (let Some(t) = tty) { t.unref() }
+            case Pipe => if (let Some(p) <- pipe) { p.unref() }
+            case Tty => if (let Some(t) <- tty) { t.unref() }
             case File | SyncFile => return
         }
     }
@@ -98,7 +98,7 @@ public class Source {
     /// 严格翻译自: pub fn setRawMode(this: Source, value: bool) bun.sys.Maybe(void)
     public func setRawMode(value: Bool): Bool {
         match (kind) {
-            case Tty => if (let Some(t) = tty) {
+            case Tty => if (let Some(t) <- tty) {
                 return t.setMode(value)
             }
             case _ => return false
@@ -110,7 +110,7 @@ public class Source {
     /// 严格翻译自: pub fn openPipe(loop: *uv.Loop, fd: bun.FD) bun.sys.Maybe(*Source.Pipe)
     public static func openPipe(fd: Int32): ?PipeSource {
         let pipe = PipeSource()
-        if (!pipe.init()) {
+        if (!pipe.initFunc()) {
             return None
         }
         if (!pipe.open(fd)) {
@@ -123,7 +123,7 @@ public class Source {
     /// 严格翻译自: pub fn openTty(loop: *uv.Loop, fd: bun.FD) bun.sys.Maybe(*Source.Tty)
     public static func openTty(fd: Int32): ?TtySource {
         let tty = TtySource()
-        if (!tty.init(fd)) {
+        if (!tty.initFunc(fd)) {
             return None
         }
         return tty
@@ -140,27 +140,28 @@ public class Source {
     public static func open(fd: Int32): ?Source {
         let handleType = guessHandle(fd)
         match (handleType) {
-            case "named_pipe" => {
-                if (let Some(p) = openPipe(fd)) {
+            case "named_pipe" =>
+                if (let Some(p) <- openPipe(fd)) {
                     let src = Source(SourceKind.Pipe)
                     src.pipe = p
                     return src
                 }
                 return None
-            }
-            case "tty" => {
-                if (let Some(t) = openTty(fd)) {
+            case "tty" =>
+                if (let Some(t) <- openTty(fd)) {
                     let src = Source(SourceKind.Tty)
                     src.tty = t
                     return src
                 }
                 return None
-            }
-            case "file" | _ => {
+            case "file" =>
                 let src = Source(SourceKind.File)
                 src.file = openFile(fd)
                 return src
-            }
+            case _ =>
+                let src = Source(SourceKind.File)
+                src.file = openFile(fd)
+                return src
         }
     }
 }
@@ -252,6 +253,19 @@ public enum FileSourceState {
     | Operating
     | Canceling
     | Closing
+
+    public operator func ==(right: FileSourceState): Bool {
+        match (this) {
+            case Deinitialized => match (right) { case Deinitialized => true case _ => false }
+            case Operating => match (right) { case Operating => true case _ => false }
+            case Canceling => match (right) { case Canceling => true case _ => false }
+            case Closing => match (right) { case Closing => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: FileSourceState): Bool {
+        return !(this == right)
+    }
 }
 
 /// 文件来源

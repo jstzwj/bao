@@ -6,6 +6,7 @@ package bao_io
 
 import bao_core.*
 import bao_sys.*
+import bao_collections.*
 
 // ============================================================================
 // Stream - 通用流抽象
@@ -18,6 +19,19 @@ public enum StreamState {
     | Writable    // 可写
     | Closed      // 已关闭
     | Errored     // 出错
+
+    public operator func ==(right: StreamState): Bool {
+        match (this) {
+            case Readable => match (right) { case Readable => true case _ => false }
+            case Writable => match (right) { case Writable => true case _ => false }
+            case Closed => match (right) { case Closed => true case _ => false }
+            case Errored => match (right) { case Errored => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: StreamState): Bool {
+        return !(this == right)
+    }
 }
 
 /// 读取结果 - 对应 Web ReadableStream read() 结果
@@ -32,11 +46,11 @@ public class ReadResult {
         this.done = done
     }
 
-    public static func done(): ReadResult {
+    public static func doneResult(): ReadResult {
         return ReadResult([], true)
     }
 
-    public static func data(d: Array<UInt8>): ReadResult {
+    public static func dataResult(d: Array<UInt8>): ReadResult {
         return ReadResult(d, false)
     }
 }
@@ -86,7 +100,7 @@ public class ReadableStream {
     /// 底层源
     private var source: ?UnderlyingSource
     /// 控制器
-    private var controller: ReadableStreamController
+    private var controller: ?ReadableStreamController
     /// 错误
     public var lastError: ?SysError
 
@@ -94,17 +108,20 @@ public class ReadableStream {
         state = StreamState.Readable
         buffer = ArrayList<Array<UInt8>>()
         source = None
-        controller = ReadableStreamController(this)
         lastError = None
+        controller = None
+        controller = Some(ReadableStreamController(this))
     }
 
     public init(source: UnderlyingSource) {
         state = StreamState.Readable
         buffer = ArrayList<Array<UInt8>>()
         this.source = Some(source)
-        controller = ReadableStreamController(this)
         lastError = None
-        source.start(controller)
+        controller = None
+        let c = ReadableStreamController(this)
+        controller = Some(c)
+        source.start(c)
     }
 
     /// 从文件描述符创建可读流
@@ -113,7 +130,11 @@ public class ReadableStream {
         let stream = ReadableStream()
         stream.source = Some(FdSource(fd, bufferSize))
         match (stream.source) {
-            case Some(s) => s.start(stream.controller)
+            case Some(s) =>
+                match (stream.controller) {
+                    case Some(c) => s.start(c)
+                    case None => ()
+                }
             case None => ()
         }
         return stream
@@ -123,23 +144,27 @@ public class ReadableStream {
     /// 对应 Bun: reader.read()
     public func read(): ReadResult {
         if (buffer.size > 0) {
-            return ReadResult.data(buffer.removeAt(0))
+            return ReadResult.dataResult(buffer.removeAt(0))
         }
         if (state == StreamState.Closed) {
-            return ReadResult.done()
+            return ReadResult.doneResult()
         }
         if (state == StreamState.Errored) {
-            return ReadResult.done()
+            return ReadResult.doneResult()
         }
         // 尝试拉取更多数据
         match (source) {
-            case Some(s) => s.pull(controller)
+            case Some(s) =>
+                match (controller) {
+                    case Some(c) => s.pull(c)
+                    case None => ()
+                }
             case None => ()
         }
         if (buffer.size > 0) {
-            return ReadResult.data(buffer.removeAt(0))
+            return ReadResult.dataResult(buffer.removeAt(0))
         }
-        return ReadResult.done()
+        return ReadResult.doneResult()
     }
 
     /// 入队数据块 (内部使用)
@@ -185,17 +210,17 @@ class FdSource <: UnderlyingSource {
         this.eof = false
     }
 
-    func start(controller: ReadableStreamController): Unit {
+    public func start(controller: ReadableStreamController): Unit {
         // 初始读取
         pull(controller)
     }
 
-    func pull(controller: ReadableStreamController): Unit {
+    public func pull(controller: ReadableStreamController): Unit {
         if (eof) {
             controller.close()
             return
         }
-        let chunk = Array<UInt8>(bufferSize, item: UInt8(0))
+        let chunk = Array<UInt8>(bufferSize, { _ => UInt8(0) })
         match (SysFs.read(fd, chunk)) {
             case Err(e) => controller.error(e)
             case Ok(bytesRead) =>
@@ -203,16 +228,13 @@ class FdSource <: UnderlyingSource {
                     eof = true
                     controller.close()
                 } else {
-                    var data = Array<UInt8>()
-                    for (i in 0..bytesRead) {
-                        data.append(chunk[i])
-                    }
+                    let data = Array<UInt8>(bytesRead, { i => chunk[i] })
                     controller.enqueue(data)
                 }
         }
     }
 
-    func cancel(): Unit {
+    public func cancel(): Unit {
         SysFs.close(fd)
     }
 }
@@ -270,11 +292,7 @@ public class WritableStream {
 
     /// 写入字符串
     public func writeString(text: String): Unit {
-        var bytes = Array<UInt8>()
-        for (c in text) {
-            bytes.append(UInt8(c.value))
-        }
-        write(bytes)
+        write(text.toArray())
     }
 
     /// 关闭流
@@ -316,15 +334,15 @@ class FdSink <: UnderlyingSink {
         this.fd = fd
     }
 
-    func write(data: Array<UInt8>): Unit {
+    public func write(data: Array<UInt8>): Unit {
         SysFs.write(fd, data)
     }
 
-    func close(): Unit {
+    public func close(): Unit {
         SysFs.close(fd)
     }
 
-    func abort(): Unit {
+    public func abort(): Unit {
         SysFs.close(fd)
     }
 }
@@ -361,16 +379,16 @@ class TransformSink <: UnderlyingSink {
         this.transformFn = transformFn
     }
 
-    func write(data: Array<UInt8>): Unit {
+    public func write(data: Array<UInt8>): Unit {
         let transformed = transformFn(data)
         readable.enqueueChunk(transformed)
     }
 
-    func close(): Unit {
+    public func close(): Unit {
         readable.close()
     }
 
-    func abort(): Unit {
+    public func abort(): Unit {
         readable.cancel()
     }
 }

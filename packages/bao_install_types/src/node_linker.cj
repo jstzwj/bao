@@ -14,6 +14,25 @@ import bao_hash.*
 import bao_collections.*
 
 // ============================================================================
+// Internal string utilities
+// ============================================================================
+
+class StringUtil {
+    public static func trim(s: String): String {
+        var start: Int64 = 0
+        var end: Int64 = Int64(s.size)
+        while (start < end && (s[start] == UInt8(32) || s[start] == UInt8(9) || s[start] == UInt8(10) || s[start] == UInt8(13))) {
+            start += 1
+        }
+        while (end > start && (s[end - 1] == UInt8(32) || s[end - 1] == UInt8(9) || s[end - 1] == UInt8(10) || s[end - 1] == UInt8(13))) {
+            end -= 1
+        }
+        if (start >= end) { return "" }
+        return s[start..end]
+    }
+}
+
+// ============================================================================
 // NodeLinker - node_modules 链接模式
 // 严格翻译自: src/install_types/NodeLinker.zig
 //   pub const NodeLinker = enum(u8) {
@@ -126,7 +145,7 @@ public class NpmRegistry {
     ///   }
     /// 计算 b"https://registry.npmjs.org" (无尾部 /) 的哈希
     public static func defaultUrlHash(): UInt64 {
-        let urlWithoutSlash = DEFAULT_URL.substring(0, DEFAULT_URL.length - 1)
+        let urlWithoutSlash = DEFAULT_URL[0..(DEFAULT_URL.size - 1)]
         return Wyhash11.hash(urlWithoutSlash)
     }
 }
@@ -248,13 +267,13 @@ public class PnpmMatcher {
     ///   3. "*" -> MatchAll
     ///   4. 否则转义为正则表达式
     public static func createMatcher(raw: String): Matcher {
-        var trimmed = raw.trim()
+        var trimmed = StringUtil.trim(raw)
         var isExclude = false
 
         // 检查排除前缀
-        if (trimmed.startsWith("!")) {
+        if (trimmed.size > 0 && trimmed[0] == UInt8(33)) {  // '!' == 33
             isExclude = true
-            trimmed = trimmed.substring(1)
+            trimmed = trimmed[1..]
         }
 
         // 通配符
@@ -319,52 +338,51 @@ public class PnpmMatcher {
         }
 
         match (behavior) {
-            case AllMatchersInclude => {
-                // 任一匹配器命中即匹配
-                for (matcher in matchers) {
-                    match (matcher.pattern) {
-                        case MatcherPattern.MatchAll => return true
-                        case MatcherPattern.Regex(regex) => {
-                            if (matchRegex(regex, name)) {
-                                return true
-                            }
-                        }
+            case AllMatchersInclude => isMatchInclude(name)
+            case AllMatchersExclude => isMatchExclude(name)
+            case HasExcludeAndIncludeMatchers => isMatchLastWins(name)
+        }
+    }
+
+    private func isMatchInclude(name: String): Bool {
+        for (matcher in matchers) {
+            match (matcher.pattern) {
+                case MatcherPattern.MatchAll => return true
+                case MatcherPattern.Regex(regex) =>
+                    if (matchRegex(regex, name)) {
+                        return true
                     }
-                }
-                return false
-            }
-            case AllMatchersExclude => {
-                // 任一匹配器命中即排除
-                for (matcher in matchers) {
-                    match (matcher.pattern) {
-                        case MatcherPattern.MatchAll => return false
-                        case MatcherPattern.Regex(regex) => {
-                            if (matchRegex(regex, name)) {
-                                return false
-                            }
-                        }
-                    }
-                }
-                return true
-            }
-            case HasExcludeAndIncludeMatchers => {
-                // 最后一个命中的匹配器决定结果
-                var matches = false
-                for (matcher in matchers) {
-                    match (matcher.pattern) {
-                        case MatcherPattern.MatchAll => {
-                            matches = !matcher.isExclude
-                        }
-                        case MatcherPattern.Regex(regex) => {
-                            if (matchRegex(regex, name)) {
-                                matches = !matcher.isExclude
-                            }
-                        }
-                    }
-                }
-                return matches
             }
         }
+        return false
+    }
+
+    private func isMatchExclude(name: String): Bool {
+        for (matcher in matchers) {
+            match (matcher.pattern) {
+                case MatcherPattern.MatchAll => return false
+                case MatcherPattern.Regex(regex) =>
+                    if (matchRegex(regex, name)) {
+                        return false
+                    }
+            }
+        }
+        return true
+    }
+
+    private func isMatchLastWins(name: String): Bool {
+        var matches = false
+        for (matcher in matchers) {
+            match (matcher.pattern) {
+                case MatcherPattern.MatchAll =>
+                    matches = !matcher.isExclude
+                case MatcherPattern.Regex(regex) =>
+                    if (matchRegex(regex, name)) {
+                        matches = !matcher.isExclude
+                    }
+            }
+        }
+        return matches
     }
 
     /// 测试字节数组包名是否匹配
@@ -387,7 +405,7 @@ public class PnpmMatcher {
         let sb = StringBuilder()
         sb.append("^")
         for (c in pattern) {
-            let v = c.value
+            let v = Int64(c)
             if (v == CharCodes.ASTERISK) {
                 // * -> [^/]*  (匹配除 / 外的任意字符)
                 sb.append("[^/]*")
@@ -406,8 +424,8 @@ public class PnpmMatcher {
     }
 
     // 检查是否是正则表达式特殊字符
-    private static func isRegexSpecial(c: Rune): Bool {
-        let v = c.value
+    private static func isRegexSpecial(c: UInt8): Bool {
+        let v = Int64(c)
         return v == CharCodes.BACKSLASH || v == CharCodes.DOT ||
                v == CharCodes.PLUS || v == CharCodes.LPAREN ||
                v == CharCodes.RPAREN || v == CharCodes.LBRACKET ||
@@ -424,51 +442,51 @@ public class PnpmMatcher {
 
     // 通配符匹配
     private static func globMatch(pattern: String, input: String): Bool {
-        let pLen = pattern.length
-        let iLen = input.length
+        let pLen = Int64(pattern.size)
+        let iLen = Int64(input.size)
         var pi: Int64 = 0
         var ii: Int64 = 0
 
         // 跳过 ^ 前缀
-        if (pLen > 0 && pattern[0].value == CharCodes.CARET) {
+        if (pLen > 0 && Int64(pattern[0]) == CharCodes.CARET) {
             pi = 1
         }
 
         while (pi < pLen && ii < iLen) {
-            let pc = pattern[pi].value
+            let pc = Int64(pattern[pi])
             if (pc == CharCodes.BACKSLASH && pi + 1 < pLen) {
                 // 转义字符
                 pi += 1
-                if (pattern[pi].value != input[ii].value) { return false }
+                if (Int64(pattern[pi]) != Int64(input[ii])) { return false }
                 pi += 1
                 ii += 1
             } else if (pc == CharCodes.DOLLAR) {
                 // 结束
                 pi += 1
-            } else if (pi + 4 < pLen && pattern[pi].value == CharCodes.LBRACKET &&
-                       pattern[Int64(pi) + 1].value == CharCodes.CARET &&
-                       pattern[Int64(pi) + 2].value == CharCodes.SLASH &&
-                       pattern[Int64(pi) + 3].value == CharCodes.RBRACKET &&
-                       pi + 5 <= pLen && pattern[Int64(pi) + 4].value == CharCodes.ASTERISK) {
+            } else if (pi + 4 < pLen && Int64(pattern[pi]) == CharCodes.LBRACKET &&
+                       Int64(pattern[Int64(pi) + 1]) == CharCodes.CARET &&
+                       Int64(pattern[Int64(pi) + 2]) == CharCodes.SLASH &&
+                       Int64(pattern[Int64(pi) + 3]) == CharCodes.RBRACKET &&
+                       pi + 5 <= pLen && Int64(pattern[Int64(pi) + 4]) == CharCodes.ASTERISK) {
                 // [^/]* -> 匹配任意非 / 字符序列
                 pi += 5
-                while (ii < iLen && input[ii].value != CharCodes.SLASH) {
+                while (ii < iLen && Int64(input[ii]) != CharCodes.SLASH) {
                     ii += 1
                 }
-            } else if (pi + 3 < pLen && pattern[pi].value == CharCodes.LBRACKET &&
-                       pattern[Int64(pi) + 1].value == CharCodes.CARET &&
-                       pattern[Int64(pi) + 2].value == CharCodes.SLASH &&
-                       pattern[Int64(pi) + 3].value == CharCodes.RBRACKET) {
+            } else if (pi + 3 < pLen && Int64(pattern[pi]) == CharCodes.LBRACKET &&
+                       Int64(pattern[Int64(pi) + 1]) == CharCodes.CARET &&
+                       Int64(pattern[Int64(pi) + 2]) == CharCodes.SLASH &&
+                       Int64(pattern[Int64(pi) + 3]) == CharCodes.RBRACKET) {
                 // [^/] -> 匹配单个非 / 字符
                 pi += 4
-                if (ii < iLen && input[ii].value != CharCodes.SLASH) {
+                if (ii < iLen && Int64(input[ii]) != CharCodes.SLASH) {
                     ii += 1
                 } else {
                     return false
                 }
             } else if (pc == CharCodes.DOT) {
                 // . 匹配 .
-                if (input[ii].value == CharCodes.DOT) {
+                if (Int64(input[ii]) == CharCodes.DOT) {
                     pi += 1
                     ii += 1
                 } else {
@@ -485,7 +503,7 @@ public class PnpmMatcher {
         }
 
         // 跳过尾部的 $
-        while (pi < pLen && (pattern[pi].value == CharCodes.DOLLAR || pattern[pi].value == CharCodes.CARET)) {
+        while (pi < pLen && (Int64(pattern[pi]) == CharCodes.DOLLAR || Int64(pattern[pi]) == CharCodes.CARET)) {
             pi += 1
         }
 

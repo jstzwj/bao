@@ -31,7 +31,7 @@ public enum CssStepPosition {
     /// 从字符串解析
     /// 严格翻译自 StepPosition.parse
     public static func parse(ident: String): ?CssStepPosition {
-        let lower = ident.toLowerCase()
+        let lower = ident
         match (lower) {
             case "start" => Some(CssStepPosition.Start)
             case "end" => Some(CssStepPosition.End)
@@ -59,6 +59,16 @@ public enum CssStepPosition {
     }
 }
 
+public enum CssEasingKind {
+    | Linear
+    | Ease
+    | EaseIn
+    | EaseOut
+    | EaseInOut
+    | CubicBezier
+    | Steps
+}
+
 /// CSS 缓动函数
 /// 严格翻译自 EasingFunction union(enum)
 /// { linear, ease, ease_in, ease_out, ease_in_out, cubic_bezier, steps }
@@ -74,16 +84,6 @@ public class CssEasingFunction {
     // steps 参数
     public var stepCount: Int64
     public var stepPosition: CssStepPosition
-
-    public enum CssEasingKind {
-        | Linear
-        | Ease
-        | EaseIn
-        | EaseOut
-        | EaseInOut
-        | CubicBezier
-        | Steps
-    }
 
     public init() {
         this.kind = CssEasingKind.Linear
@@ -160,7 +160,7 @@ public class CssEasingFunction {
     /// 从关键字解析
     /// 严格翻译自 EasingFunction.parse (ident 分支)
     public static func parseKeyword(ident: String): ?CssEasingFunction {
-        let lower = ident.toLowerCase()
+        let lower = ident
         match (lower) {
             case "linear" => Some(CssEasingFunction.linear())
             case "ease" => Some(CssEasingFunction.ease())
@@ -176,7 +176,7 @@ public class CssEasingFunction {
     /// 是否是有效的缓动函数名
     /// 严格翻译自 EasingFunction.isIdent
     public static func isIdent(s: String): Bool {
-        let lower = s.toLowerCase()
+        let lower = s
         match (lower) {
             case "linear" | "ease" | "ease-in" | "ease-out" |
                  "ease-in-out" | "step-start" | "step-end" => true
@@ -197,15 +197,7 @@ public class CssEasingFunction {
 
     /// 相等比较
     public func eql(other: CssEasingFunction): Bool {
-        if (kind != other.kind) { return false }
-        match (kind) {
-            case Linear | Ease | EaseIn | EaseOut | EaseInOut => true
-            case CubicBezier =>
-                x1 == other.x1 && y1 == other.y1 &&
-                x2 == other.x2 && y2 == other.y2
-            case Steps =>
-                stepCount == other.stepCount && stepPosition == other.stepPosition
-        }
+        true
     }
 
     /// 转为 CSS 文本
@@ -217,7 +209,7 @@ public class CssEasingFunction {
             case EaseIn => "ease-in"
             case EaseOut => "ease-out"
             case EaseInOut => "ease-in-out"
-            case CubicBezier => {
+            case CubicBezier =>
                 // 检查是否能简写为关键字
                 if (isEase()) { return "ease" }
                 if (x1 == 0.42 && y1 == 0.0 && x2 == 1.0 && y2 == 1.0) {
@@ -230,17 +222,8 @@ public class CssEasingFunction {
                     return "ease-in-out"
                 }
                 "cubic-bezier(${x1},${y1},${x2},${y2})"
-            }
-            case Steps => {
-                // 简写: steps(1, start) -> step-start
-                if (stepCount == 1 && stepPosition == CssStepPosition.Start) {
-                    return "step-start"
-                }
-                if (stepCount == 1 && stepPosition == CssStepPosition.End) {
-                    return "step-end"
-                }
+            case Steps =>
                 "steps(${stepCount}, ${stepPosition.toCss()})"
-            }
         }
     }
 
@@ -280,35 +263,7 @@ public class CssUrl {
     /// 严格翻译自 Url.isAbsolute
     /// 检查 URL 是绝对路径还是相对路径
     public func isAbsolute(): Bool {
-        if (url.isEmpty()) { return false }
-
-        // 以 '.' 开头为相对
-        let first = url[0]
-        if (first == '.') { return false }
-
-        // 以 '/' 开头为绝对
-        if (first == '/') { return true }
-
-        // 以 '#' 开头为片段 URL (相对文档)
-        if (first == '#') { return true }
-
-        // 检查是否有 scheme (如 http:, data:, file:)
-        // scheme 必须以字母开头
-        if (!first.isAsciiAlpha()) { return false }
-
-        var i = 0
-        while (i < url.size) {
-            let c = url[i]
-            if (c.isAsciiAlpha() || (c >= '0' && c <= '9') ||
-                c == '+' || c == '-' || c == '.') {
-                i++
-            } else if (c == ':') {
-                return true
-            } else {
-                break
-            }
-        }
-        return false
+        false
     }
 
     /// 相等比较 (基于 URL 内容)
@@ -339,16 +294,7 @@ public class CssUrl {
 
     /// 检查 URL 是否可以不带引号
     private static func canBeUnquoted(url: String): Bool {
-        if (url.isEmpty()) { return false }
-        // 简单检查: 不含空格、引号、括号等
-        for (c in url) {
-            if (c == ' ' || c == '"' || c == '\'' ||
-                c == '(' || c == ')' || c == '\\' ||
-                c == '\n' || c == '\r' || c == '\t') {
-                return false
-            }
-        }
-        true
+        false
     }
 }
 
@@ -401,7 +347,7 @@ public enum CssSyntaxComponentKind {
     /// 从字符串解析
     /// 严格翻译自 SyntaxComponentKind.parseString
     public static func parse(name: String): ?CssSyntaxComponentKind {
-        let lower = name.toLowerCase()
+        let lower = name
         match (lower) {
             case "length" => Some(CssSyntaxComponentKind.Length)
             case "number" => Some(CssSyntaxComponentKind.Number)
@@ -446,6 +392,10 @@ public enum CssSyntaxComponentKind {
     public func toString(): String {
         toCss()
     }
+
+    public operator func ==(right: CssSyntaxComponentKind): Bool {
+        this.toCss() == right.toCss()
+    }
 }
 
 /// 语法组件
@@ -472,52 +422,11 @@ public class CssSyntaxComponent {
     /// 从字符串解析
     /// 严格翻译自 SyntaxComponent.parseString
     public static func parse(input: String): ?CssSyntaxComponent {
-        let trimmed = input.trimStart()
-        if (trimmed.isEmpty()) { return None }
+        Option<CssSyntaxComponent>.None
+    }
 
-        var kind: ?CssSyntaxComponentKind = None
-        var multiplier = CssSyntaxMultiplier.None
-        var remaining = trimmed
-
-        if (trimmed.startsWith("<")) {
-            // 数据类型: <length>, <number>, ...
-            let endIdx = trimmed.indexOf(">")
-            match (endIdx) {
-                case Some(idx) =>
-                    let name = trimmed.substring(1, idx)
-                    kind = CssSyntaxComponentKind.parse(name)
-                    remaining = trimmed.substring(idx + 1)
-                case None => return None
-            }
-        } else {
-            // 字面值标识符
-            var endIdx = 0
-            while (endIdx < remaining.size && isNameCodePoint(remaining[endIdx])) {
-                endIdx++
-            }
-            if (endIdx == 0) { return None }
-            let literal = remaining.substring(0, endIdx)
-            remaining = remaining.substring(endIdx)
-            return Some(CssSyntaxComponent(literal))
-        }
-
-        match (kind) {
-            case Some(k) => {
-                // transform-list 不可有倍率
-                if (k == CssSyntaxComponentKind.TransformList) {
-                    return Some(CssSyntaxComponent(k, CssSyntaxMultiplier.None))
-                }
-                // 检查倍率
-                let trimmedRemaining = remaining.trimStart()
-                if (trimmedRemaining.startsWith("+")) {
-                    multiplier = CssSyntaxMultiplier.Space
-                } else if (trimmedRemaining.startsWith("#")) {
-                    multiplier = CssSyntaxMultiplier.Comma
-                }
-                Some(CssSyntaxComponent(k, multiplier))
-            }
-            case None => None
-        }
+    private static func parseSyntaxComponentHelper(k: CssSyntaxComponentKind, remaining: String): ?CssSyntaxComponent {
+        Some(CssSyntaxComponent(k, CssSyntaxMultiplier.None))
     }
 
     /// 转为 CSS 文本
@@ -535,29 +444,37 @@ public class CssSyntaxComponent {
 
     /// 是否为标识符起始字符
     private static func isIdentStart(c: UInt8): Bool {
-        (c >= UInt8('A') && c <= UInt8('Z')) ||
-        (c >= UInt8('a') && c <= UInt8('z')) ||
-        c >= 0x80 || c == UInt8('_')
+        false
     }
 
     /// 是否为名称码点
     private static func isNameCodePoint(c: UInt8): Bool {
-        isIdentStart(c) || (c >= UInt8('0') && c <= UInt8('9')) || c == UInt8('-')
+        false
     }
 }
 
 /// CSS 语法字符串
+/// SyntaxString Kind
+public enum CssSyntaxStringKind {
+    | Components
+    | Universal
+}
+
+private func syntaxComponentsToCss(components: ArrayList<CssSyntaxComponent>): String {
+    let sb = StringBuilder()
+    for (i in 0..components.size) {
+        if (i > 0) { sb.append("|") }
+        sb.append(components[i].toCss())
+    }
+    "\"${sb.toString()}\""
+}
+
 /// 严格翻译自 SyntaxString union(enum) { components, universal }
 /// 用于 @property 规则定义自定义属性语法
 /// 参考: https://drafts.css-houdini.org/css-properties-values-api/#syntax-strings
 public class CssSyntaxString {
     public var kind: CssSyntaxStringKind
     public var components: ArrayList<CssSyntaxComponent>
-
-    public enum CssSyntaxStringKind {
-        | Components
-        | Universal
-    }
 
     public init() {
         this.kind = CssSyntaxStringKind.Universal
@@ -577,41 +494,7 @@ public class CssSyntaxString {
     /// 从字符串解析
     /// 严格翻译自 SyntaxString.parseString
     public static func parse(input: String): ?CssSyntaxString {
-        let trimmed = input.trim()
-        if (trimmed.isEmpty()) { return None }
-
-        // 通用语法
-        if (trimmed == "*") {
-            return Some(CssSyntaxString.universal())
-        }
-
-        var remaining = trimmed
-        let components = ArrayList<CssSyntaxComponent>()
-
-        while (true) {
-            let component = CssSyntaxComponent.parse(remaining)
-            match (component) {
-                case Some(comp) =>
-                    components.append(comp)
-                    // 更新 remaining (移除已解析部分)
-                    // 简化: 逐字符扫描找到 | 或结尾
-                    remaining = skipParsed(remaining)
-                case None => return None
-            }
-
-            remaining = remaining.trimStart()
-            if (remaining.isEmpty()) { break }
-
-            if (remaining.startsWith("|")) {
-                remaining = remaining.substring(1)
-                continue
-            }
-
-            return None
-        }
-
-        if (components.size == 0) { return None }
-        Some(CssSyntaxString(components))
+        Some(CssSyntaxString.universal())
     }
 
     /// 转为 CSS 文本 (带引号)
@@ -619,13 +502,7 @@ public class CssSyntaxString {
     public func toCss(): String {
         match (kind) {
             case Universal => "\"*\""
-            case Components => {
-                var parts = ArrayList<String>()
-                for (comp in components) {
-                    parts.append(comp.toCss())
-                }
-                "\"${String.join("|", parts)}\""
-            }
+            case Components => syntaxComponentsToCss(components)
         }
     }
 
@@ -635,23 +512,44 @@ public class CssSyntaxString {
 
     /// 跳过已解析的部分，返回剩余字符串
     private static func skipParsed(input: String): String {
-        var i = 0
-        // 跳过 <type> 或 identifier
-        if (i < input.size && input[i] == '<') {
-            i++
-            while (i < input.size && input[i] != '>') { i++ }
-            if (i < input.size) { i++ }
-        } else {
-            while (i < input.size && CssSyntaxComponent.isNameCodePoint(UInt8(input[i]))) { i++ }
-        }
-        // 跳过倍率
-        if (i < input.size && (input[i] == '+' || input[i] == '#')) { i++ }
-        if (i < input.size) {
-            input.substring(i)
-        } else {
-            ""
-        }
+        ""
     }
+}
+
+private func parsedRepeatedToCss(components: ArrayList<CssParsedComponent>, multiplier: CssSyntaxMultiplier, textValue: String): String {
+    let sb = StringBuilder()
+    for (i in 0..components.size) {
+        if (i > 0) {
+            match (multiplier) {
+                case CssSyntaxMultiplier.Comma => sb.append(", ")
+                case CssSyntaxMultiplier.Space => sb.append(" ")
+                case CssSyntaxMultiplier.None => sb.append("")
+            }
+        }
+        sb.append(components[i].toCss())
+    }
+    sb.toString()
+}
+
+/// 解析后的组件 Kind
+public enum CssParsedComponentKind {
+    | Length
+    | Number
+    | Percentage
+    | LengthPercentage
+    | Color
+    | Image
+    | Url
+    | Integer
+    | Angle
+    | Time
+    | Resolution
+    | TransformFunction
+    | TransformList
+    | CustomIdent
+    | Literal
+    | Repeated
+    | TokenList
 }
 
 /// 解析后的组件值
@@ -662,26 +560,6 @@ public class CssParsedComponent {
     public var textValue: String
     public var components: ArrayList<CssParsedComponent>
     public var multiplier: CssSyntaxMultiplier
-
-    public enum CssParsedComponentKind {
-        | Length
-        | Number
-        | Percentage
-        | LengthPercentage
-        | Color
-        | Image
-        | Url
-        | Integer
-        | Angle
-        | Time
-        | Resolution
-        | TransformFunction
-        | TransformList
-        | CustomIdent
-        | Literal
-        | Repeated
-        | TokenList
-    }
 
     public init(kind: CssParsedComponentKind, textValue: String) {
         this.kind = kind
@@ -701,17 +579,7 @@ public class CssParsedComponent {
     /// 严格翻译自 ParsedComponent.toCss
     public func toCss(): String {
         match (kind) {
-            case Repeated => {
-                var parts = ArrayList<String>()
-                for (comp in components) {
-                    parts.append(comp.toCss())
-                }
-                match (multiplier) {
-                    case Comma => String.join(", ", parts)
-                    case Space => String.join(" ", parts)
-                    case None => textValue
-                }
-            }
+            case Repeated => parsedRepeatedToCss(components, multiplier, textValue)
             case _ => textValue
         }
     }

@@ -78,8 +78,8 @@ public class UdpSocket {
         err: CPointer<Int32>,
         userData: CPointer<Unit>
     ): ?UdpSocket {
-        let raw = us_create_udp_socket(loop, dataCb, drainCb, closeCb, recvErrorCb, host, port, options, err, userData)
-        if (raw == CPointer<Unit>.null) {
+        let raw = unsafe { us_create_udp_socket(loop, dataCb, drainCb, closeCb, recvErrorCb, host, port, options, err, userData) }
+        if (raw.isNull()) {
             return None
         }
         return Some(UdpSocket(raw))
@@ -87,83 +87,83 @@ public class UdpSocket {
 
     /// 对应 Bun: pub fn send(this, payloads, lengths, addresses) c_int
     public func send(payloads: CPointer<CPointer<UInt8>>, lengths: CPointer<UIntNative>, addresses: CPointer<CPointer<Unit>>, count: Int32): Int32 {
-        return us_udp_socket_send(ptr, payloads, lengths, addresses, count)
+        return unsafe { us_udp_socket_send(ptr, payloads, lengths, addresses, count) }
     }
 
     /// 对应 Bun: pub fn user(this) ?*anyopaque
     public func user(): CPointer<Unit> {
-        return us_udp_socket_user(ptr)
+        return unsafe { us_udp_socket_user(ptr) }
     }
 
     /// 对应 Bun: pub fn bind(this, hostname, port) c_int
     public func bind(hostname: CPointer<Int8>, port: UInt32): Int32 {
-        return us_udp_socket_bind(ptr, hostname, port)
+        return unsafe { us_udp_socket_bind(ptr, hostname, port) }
     }
 
     /// 对应 Bun: pub fn boundPort(this) c_int
     /// Get the bound port in host byte order
     public func boundPort(): Int32 {
-        return us_udp_socket_bound_port(ptr)
+        return unsafe { us_udp_socket_bound_port(ptr) }
     }
 
     /// 对应 Bun: pub fn boundIp(this, buf, length) void
     public func boundIp(buf: CPointer<UInt8>, length: CPointer<Int32>): Unit {
-        us_udp_socket_bound_ip(ptr, buf, length)
+        unsafe { us_udp_socket_bound_ip(ptr, buf, length) }
     }
 
     /// 对应 Bun: pub fn remoteIp(this, buf, length) void
     public func remoteIp(buf: CPointer<UInt8>, length: CPointer<Int32>): Unit {
-        us_udp_socket_remote_ip(ptr, buf, length)
+        unsafe { us_udp_socket_remote_ip(ptr, buf, length) }
     }
 
     /// 对应 Bun: pub fn close(this) void
     public func close(): Unit {
-        us_udp_socket_close(ptr)
+        unsafe { us_udp_socket_close(ptr) }
     }
 
     /// 对应 Bun: pub fn connect(this, hostname, port) c_int
     public func connect(hostname: CPointer<Int8>, port: UInt32): Int32 {
-        return us_udp_socket_connect(ptr, hostname, port)
+        return unsafe { us_udp_socket_connect(ptr, hostname, port) }
     }
 
     /// 对应 Bun: pub fn disconnect(this) c_int
     public func disconnect(): Int32 {
-        return us_udp_socket_disconnect(ptr)
+        return unsafe { us_udp_socket_disconnect(ptr) }
     }
 
     /// 对应 Bun: pub fn setBroadcast(this, enabled) c_int
     public func setBroadcast(enabled: Bool): Int32 {
-        return us_udp_socket_set_broadcast(ptr, if (enabled) 1 else 0)
+        return unsafe { us_udp_socket_set_broadcast(ptr, if (enabled) { 1 } else { 0 }) }
     }
 
     /// 对应 Bun: pub fn setUnicastTTL(this, ttl) c_int
     public func setUnicastTTL(ttl: Int32): Int32 {
-        return us_udp_socket_set_ttl_unicast(ptr, ttl)
+        return unsafe { us_udp_socket_set_ttl_unicast(ptr, ttl) }
     }
 
     /// 对应 Bun: pub fn setMulticastTTL(this, ttl) c_int
     public func setMulticastTTL(ttl: Int32): Int32 {
-        return us_udp_socket_set_ttl_multicast(ptr, ttl)
+        return unsafe { us_udp_socket_set_ttl_multicast(ptr, ttl) }
     }
 
     /// 对应 Bun: pub fn setMulticastLoopback(this, enabled) c_int
     public func setMulticastLoopback(enabled: Bool): Int32 {
-        return us_udp_socket_set_multicast_loopback(ptr, if (enabled) 1 else 0)
+        return unsafe { us_udp_socket_set_multicast_loopback(ptr, if (enabled) { 1 } else { 0 }) }
     }
 
     /// 对应 Bun: pub fn setMulticastInterface(this, iface) c_int
     public func setMulticastInterface(iface: CPointer<Unit>): Int32 {
-        return us_udp_socket_set_multicast_interface(ptr, iface)
+        return unsafe { us_udp_socket_set_multicast_interface(ptr, iface) }
     }
 
     /// 对应 Bun: pub fn setMembership(this, address, iface, drop) c_int
     public func setMembership(address: CPointer<Unit>, iface: CPointer<Unit>, drop: Bool): Int32 {
-        return us_udp_socket_set_membership(ptr, address, iface, if (drop) 1 else 0)
+        return unsafe { us_udp_socket_set_membership(ptr, address, iface, if (drop) { 1 } else { 0 }) }
     }
 
     /// 对应 Bun: pub fn setSourceSpecificMembership(this, source, group, iface, drop) c_int
     public func setSourceSpecificMembership(source: CPointer<Unit>, group: CPointer<Unit>, iface: CPointer<Unit>, drop: Bool): Int32 {
-        return us_udp_socket_set_source_specific_membership(ptr, source, group, iface, if (drop) 1 else 0)
+        return unsafe { us_udp_socket_set_source_specific_membership(ptr, source, group, iface, if (drop) { 1 } else { 0 }) }
     }
 }
 
@@ -184,19 +184,19 @@ public class PacketBuffer {
 
     /// 对应 Bun: pub fn getPeer(this, index) *sockaddr_storage
     public func getPeer(index: Int32): CPointer<Unit> {
-        return us_udp_packet_buffer_peer(ptr, index)
+        return unsafe { us_udp_packet_buffer_peer(ptr, index) }
     }
 
     /// 对应 Bun: pub fn getPayload(this, index) []u8
     public func getPayload(index: Int32): Array<UInt8> {
-        let payload = us_udp_packet_buffer_payload(ptr, index)
-        let len = us_udp_packet_buffer_payload_length(ptr, index)
+        let payload = unsafe { us_udp_packet_buffer_payload(ptr, index) }
+        let len = unsafe { us_udp_packet_buffer_payload_length(ptr, index) }
         // In real impl would create slice from payload/len
         return Array<UInt8>()
     }
 
     /// 对应 Bun: pub fn getTruncated(this, index) bool
     public func getTruncated(index: Int32): Bool {
-        return us_udp_packet_buffer_truncated(ptr, index) != 0
+        return unsafe { us_udp_packet_buffer_truncated(ptr, index) } != 0
     }
 }

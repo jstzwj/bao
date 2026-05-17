@@ -7,40 +7,57 @@
 package bao_runtime.bake.dev_server
 
 /// 序列化失败 - 发送到 HMR 客户端的序列化错误
-public struct Packed <: UInt32 {
+public struct Packed {
+    public var value: UInt32
     public var data: UInt30
-    public var kind: OwnerKind
+    public var kind: SerializedFailureOwnerKind
 }
 
-public enum OwnerKind <: UInt2 {
+public enum SerializedFailureOwnerKind {
     | none
     | route
     | client
     | server
 }
 
-public class ArrayHashContextViaOwner {
+public class ArrayHashContextViaSerializedFailureOwner {
     public static func hash(k: SerializedFailure): UInt32 {
-        return std.hash.int(bitCast<UInt32>(k.getOwner().encode()))
+        return std.hash.int(bitCast<UInt32>(k.getSerializedFailureOwner().encode()))
     }
 
     public static func eql(a: SerializedFailure, b: SerializedFailure): Bool {
-        return bitCast<UInt32>(a.getOwner().encode()) == bitCast<UInt32>(b.getOwner().encode())
+        return bitCast<UInt32>(a.getSerializedFailureOwner().encode()) == bitCast<UInt32>(b.getSerializedFailureOwner().encode())
     }
 }
 
 public class ArrayHashAdapter {
-    public static func hash(own: Owner): UInt32 {
+    public static func hash(own: SerializedFailureOwner): UInt32 {
         return std.hash.int(bitCast<UInt32>(own.encode()))
     }
 
-    public static func eql(a: Owner, b: SerializedFailure): Bool {
-        return bitCast<UInt32>(a.encode()) == bitCast<UInt32>(b.getOwner().encode())
+    public static func eql(a: SerializedFailureOwner, b: SerializedFailure): Bool {
+        return bitCast<UInt32>(a.encode()) == bitCast<UInt32>(b.getSerializedFailureOwner().encode())
     }
 }
 
 public enum ErrorKind {
     | None
+}
+
+public enum SerializedFailureOwner {
+    | none
+    | route(RouteBundle.Index)
+    | client(IncrementalGraphClientFileIndex)
+    | server(IncrementalGraphServerFileIndex)
+
+    public func encode(): Packed {
+        return match (this) {
+            case none => Packed(kind: SerializedFailureOwnerKind.none, data: 0)
+            case client(data) => Packed(kind: SerializedFailureOwnerKind.client, data: data.get())
+            case server(data) => Packed(kind: SerializedFailureOwnerKind.server, data: data.get())
+            case route(data) => Packed(kind: SerializedFailureOwnerKind.route, data: data.get())
+        }
+    }
 }
 
 public class SerializedFailure {
@@ -53,36 +70,19 @@ public class SerializedFailure {
         dev.allocator().free(data)
     }
 
-    /// 增量文件错误的隐喻所有者。打包变体作为不透明句柄给 HMR 运行时。
-    public enum Owner {
-        | none
-        | route(RouteBundle.Index)
-        | client(IncrementalGraphClientFileIndex)
-        | server(IncrementalGraphServerFileIndex)
-
-        /// 编码为 Packed
-        public func encode(): Packed {
-            return match (this) {
-                | none => Packed(kind: OwnerKind.none, data: 0)
-                | client(let data) => Packed(kind: OwnerKind.client, data: data.get())
-                | server(let data) => Packed(kind: OwnerKind.server, data: data.get())
-                | route(let data) => Packed(kind: OwnerKind.route, data: data.get())
-            }
-        }
-    }
 
     /// 打包的所有者信息
 
     /// 所有者种类
 
     /// 获取所有者
-    public func getOwner(): Owner {
+    public func getSerializedFailureOwner(): SerializedFailureOwner {
         let packed: Packed = bitCast<Packed>(data[0..4])
         return match (packed.kind) {
-            | none => Owner.none
-            | client => Owner.client(IncrementalGraphClientFileIndex.init(packed.data))
-            | server => Owner.server(IncrementalGraphServerFileIndex.init(packed.data))
-            | route => Owner.route(RouteBundle.Index.init(packed.data))
+            case none => SerializedFailureOwner.none
+            case client => SerializedFailureOwner.client(IncrementalGraphClientFileIndex.`init`(packed.data))
+            case server => SerializedFailureOwner.server(IncrementalGraphServerFileIndex.`init`(packed.data))
+            case route => SerializedFailureOwner.route(RouteBundle.Index.`init`(packed.data))
         }
     }
 
@@ -95,9 +95,9 @@ public class SerializedFailure {
     /// 从日志初始化
     public static func initFromLog(
         dev: DevServer,
-        owner: Owner,
+        owner: SerializedFailureOwner,
         owner_display_name: String,
-        messages: Array<LogMsg>,
+        messages: Array<LogMsg>
     ): SerializedFailure {
         assert(messages.length > 0)
 
@@ -105,11 +105,11 @@ public class SerializedFailure {
         let w = payload.writer()
 
         // 写入所有者
-        w.writeInt(UInt32, bitCast<UInt32>(owner.encode()))
+        w.writeInt(bitCast<UInt32>(owner.encode()))
         // 写入显示名称
         writeString32(owner_display_name, w)
         // 写入消息数量
-        w.writeInt(UInt32, messages.length)
+        w.writeInt(messages.length)
         // 写入每条消息
         for (msg in messages) {
             writeLogMsg(msg, w)
@@ -122,14 +122,14 @@ public class SerializedFailure {
     /// 写入日志消息
     static func writeLogMsg(msg: LogMsg, w: Writer): Unit {
         w.writeByte(match (msg.kind) {
-            | err => ErrorKind.bundler_log_err
-            | warn => ErrorKind.bundler_log_warn
-            | note => ErrorKind.bundler_log_note
-            | debug => ErrorKind.bundler_log_debug
-            | verbose => ErrorKind.bundler_log_verbose
+            case err => ErrorKind.bundler_log_err
+            case warn => ErrorKind.bundler_log_warn
+            case note => ErrorKind.bundler_log_note
+            case debug => ErrorKind.bundler_log_debug
+            case verbose => ErrorKind.bundler_log_verbose
         })
         writeLogData(msg.data, w)
-        w.writeInt(UInt32, msg.notes.length)
+        w.writeInt(msg.notes.length)
         for (note in msg.notes) {
             writeLogData(note, w)
         }
@@ -138,23 +138,23 @@ public class SerializedFailure {
     /// 写入日志数据
     static func writeLogData(data: LogData, w: Writer): Unit {
         writeString32(data.text, w)
-        if (let Some(loc) = data.location) {
+        if (let Some(loc) <- data.location) {
             if (loc.line < 0) {
-                w.writeInt(UInt32, 0)
+                w.writeInt(0)
                 return
             }
-            w.writeInt(Int32, loc.line)
-            w.writeInt(UInt32, loc.column)
-            w.writeInt(UInt32, loc.length)
+            w.writeInt(loc.line)
+            w.writeInt(loc.column)
+            w.writeInt(loc.length)
             writeString32(loc.line_text ?? "", w)
         } else {
-            w.writeInt(UInt32, 0)
+            w.writeInt(0)
         }
     }
 
     /// 写入长度前缀字符串
     static func writeString32(data: String, w: Writer): Unit {
-        w.writeInt(UInt32, data.length)
+        w.writeInt(data.length)
         w.writeAll(data)
     }
 }
@@ -162,8 +162,6 @@ public class SerializedFailure {
 // 类型别名
 public type ArrayList<T> = std.ArrayList<T>
 public type Writer = std.ArrayList<Byte>.Writer
-public type RouteBundle = dev_server.RouteBundle
-public type IncrementalGraphClientFileIndex = incremental_graph.IncrementalGraph(.client).FileIndex
-public type IncrementalGraphServerFileIndex = incremental_graph.IncrementalGraph(.server).FileIndex
+public type IncrementalGraphServerFileIndex = FileIndex
 public type LogMsg = bun.logger.Msg
 public type LogData = bun.logger.Data

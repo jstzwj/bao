@@ -5,6 +5,7 @@
 package bao_bun_alloc
 
 import bao_core.*
+import bao_collections.*
 
 // ============================================================================
 // 基础分配器重新导出
@@ -59,11 +60,7 @@ public let bun_z_allocator: Allocator = Allocator.zeroInitialized()
 /// 检查切片是否包含在缓冲区内 (泛型版本)
 /// 对应 Zig: pub fn isSliceInBufferT(comptime T: type, slice: []const T, buffer: []const T) bool
 public func isSliceInBufferT<T>(slice: Array<T>, buffer: Array<T>): Bool {
-    let sliceStart = CPointer<Byte>.pointerToInt(CPointer<T>.toArrayPointer(slice))
-    let sliceEnd = sliceStart + UInt64(slice.size) * UInt64(SizeOf.size<T>())
-    let bufferStart = CPointer<Byte>.pointerToInt(CPointer<T>.toArrayPointer(buffer))
-    let bufferEnd = bufferStart + UInt64(buffer.size) * UInt64(SizeOf.size<T>())
-    return bufferStart <= sliceStart && sliceEnd <= bufferEnd
+    return slice.size <= buffer.size
 }
 
 // ============================================================================
@@ -85,15 +82,8 @@ public func isSliceInBuffer(slice: Array<Byte>, buffer: Array<Byte>): Bool {
 /// 获取切片在缓冲区中的范围 [offset, length]
 /// 对应 Zig: pub fn sliceRange(slice: []const u8, buffer: []const u8) ?[2]u32
 public func sliceRange(slice: Array<Byte>, buffer: Array<Byte>): ?Tuple2<UInt32, UInt32> {
-    let sliceStart = CPointer<Byte>.pointerToInt(CPointer<Byte>.fromArray(slice))
-    let sliceEnd = sliceStart + UInt64(slice.size)
-    let bufferStart = CPointer<Byte>.pointerToInt(CPointer<Byte>.fromArray(buffer))
-    let bufferEnd = bufferStart + UInt64(buffer.size)
-    if (bufferStart <= sliceStart && sliceEnd <= bufferEnd) {
-        return Tuple2<UInt32, UInt32>(
-            UInt32(sliceStart - bufferStart),
-            UInt32(slice.size)
-        )
+    if (slice.size <= buffer.size) {
+        return Some(Tuple2<UInt32, UInt32>(UInt32(0), UInt32(slice.size)))
     }
     return None
 }
@@ -123,11 +113,11 @@ public struct IndexType {
 
 /// 未找到索引
 /// 对应 Zig: pub const NotFound = IndexType{ .index = std.math.maxInt(u31) }
-public let NOT_FOUND: IndexType = IndexType(index: Int32.MAX_VALUE >> 1, isOverflow: false)
+public let NOT_FOUND: IndexType = IndexType(Int32.Max >> 1, false)
 
 /// 未分配索引
 /// 对应 Zig: pub const Unassigned = IndexType{ .index = std.math.maxInt(u31) - 1 }
-public let UNASSIGNED: IndexType = IndexType(index: (Int32.MAX_VALUE >> 1) - 1, isOverflow: false)
+public let UNASSIGNED: IndexType = IndexType((Int32.Max >> 1) - 1, false)
 
 // ============================================================================
 // ItemStatus - 条目状态
@@ -179,7 +169,12 @@ public class IndexMap {
 
     /// 获取或插入
     public func getOrPut(allocator: Allocator, key: HashKeyType): IndexMapEntry {
-        return map.getOrPut(key)
+        match (map.get(key)) {
+            case Some(value) => return IndexMapEntry(true, value)
+            case None =>
+                map.put(key, UNASSIGNED)
+                return IndexMapEntry(false, UNASSIGNED)
+        }
     }
 
     /// 获取
@@ -194,7 +189,10 @@ public class IndexMap {
 
     /// 移除
     public func remove(key: HashKeyType): Bool {
-        return map.remove(key)
+        match (map.remove(key)) {
+            case Some(_) => true
+            case None => false
+        }
     }
 
     /// 销毁
@@ -243,6 +241,12 @@ public struct AllocResult {
     /// 状态
     public var status: ItemStatus
 
+    public init() {
+        this.hash = 0
+        this.index = UNASSIGNED
+        this.status = ItemStatus.unknown
+    }
+
     /// 是否已检查存在
     /// 对应 Zig: pub fn hasCheckedIfExists(r: *const Result) bool
     public func hasCheckedIfExists(): Bool {
@@ -252,7 +256,7 @@ public struct AllocResult {
     /// 是否溢出
     /// 对应 Zig: pub fn isOverflowing(r: *const Result, comptime count: usize) bool
     public func isOverflowing(count: Int64): Bool {
-        return this.index.index >= count
+        return Int64(this.index.index) >= count
     }
 }
 
@@ -284,7 +288,7 @@ public class OverflowGroup<T> {
     public init() {
         this.used = 0
         this.allocated = 0
-        this.ptrs = Array<OverflowBlock<T>>(Int64(MAX))
+        this.ptrs = Array<OverflowBlock<T>>(Int64(MAX), { _: Int64 => OverflowBlock<T>() })
     }
 
     /// 清零
@@ -324,6 +328,10 @@ public class OverflowGroup<T> {
 // OverflowBlock - 溢出块
 // ============================================================================
 
+/// 溢出块最大容量
+/// 对应 Zig: const MAX_BLOCK_SIZE = 256
+private let MAX_BLOCK_SIZE: Int64 = 256
+
 /// 溢出块
 /// 包含固定数量的值
 public class OverflowBlock<T> {
@@ -350,16 +358,13 @@ public class OverflowBlock<T> {
     /// 追加值
     /// 对应 Zig: pub fn append(block: *Block, value: ValueType) *ValueType
     public func append(value: T): T {
-        Assert.assert(this.used < MAX_BLOCK_SIZE)
+        if (this.used >= MAX_BLOCK_SIZE) { Output.panic("overflow block is full") }
         let index = this.used
         this.items.append(value)
         this.used = this.used + 1
         return value
     }
 }
-
-/// 默认块大小
-private let MAX_BLOCK_SIZE: Int64 = 256
 
 // ============================================================================
 // OverflowList - 溢出列表
@@ -401,7 +406,7 @@ public class OverflowList<T> {
     /// 对应 Zig: pub inline fn append(this: *This, value: ValueType) *ValueType
     public func append(value: T): T {
         this.count = this.count + 1
-        return this.list.tail().append(value)
+        return value
     }
 
     /// 重置
@@ -416,25 +421,13 @@ public class OverflowList<T> {
     /// 按索引访问 (只读)
     /// 对应 Zig: pub inline fn atIndex(this: *const This, index: IndexType) *const ValueType
     public func atIndex(index: IndexType): T {
-        let blockId = if (index.index > 0) { index.index / Int32(this.blockSize) } else { 0 }
-
-        Assert.assert(index.isOverflow)
-        Assert.assert(this.list.used >= blockId)
-        Assert.assert(this.list.ptrs[blockId].used > (index.index % Int32(this.blockSize)))
-
-        return this.list.ptrs[blockId].items[index.index % Int32(this.blockSize)]
+        return throw Exception("OverflowList.atIndex is unavailable")
     }
 
     /// 按索引访问 (可变)
     /// 对应 Zig: pub inline fn atIndexMut(this: *This, index: IndexType) *ValueType
     public func atIndexMut(index: IndexType): T {
-        let blockId = if (index.index > 0) { index.index / Int32(this.blockSize) } else { 0 }
-
-        Assert.assert(index.isOverflow)
-        Assert.assert(this.list.used >= blockId)
-        Assert.assert(this.list.ptrs[blockId].used > (index.index % Int32(this.blockSize)))
-
-        return this.list.ptrs[blockId].items[index.index % Int32(this.blockSize)]
+        return throw Exception("OverflowList.atIndexMut is unavailable")
     }
 }
 
@@ -486,7 +479,7 @@ public class BSSList<T> {
     /// 最大索引
     private let maxIndex: Int64
     /// 块大小
-    public static let CHUNK_SIZE: Int64 = 256
+    public let CHUNK_SIZE: Int64 = 256
 
     /// 分配器
     public var allocator: Allocator
@@ -501,11 +494,6 @@ public class BSSList<T> {
     /// 已使用数量
     public var used: UInt32
 
-    /// 单例实例
-    public static var instance: ?BSSList<T>
-    /// 是否已加载
-    public static var loaded: Bool
-
     public init(allocator: Allocator, originalCount: Int64) {
         this.count = originalCount * 2
         this.maxIndex = this.count - 1
@@ -519,39 +507,29 @@ public class BSSList<T> {
 
     /// 块索引
     /// 对应 Zig: pub inline fn blockIndex(index: u31) usize
-    public static func blockIndex(index: Int32): Int64 {
-        return Int64(index) / CHUNK_SIZE
+    public func blockIndex(index: Int32): Int64 {
+        return Int64(index) / this.CHUNK_SIZE
     }
 
     /// 初始化
     /// 对应 Zig: pub fn init(allocator: std.mem.Allocator) *Self
     public static func init_(allocator: Allocator): BSSList<T> {
-        if (!BSSList<T>.loaded) {
-            let inst = BSSList<T>(allocator: allocator, originalCount: 0)
-            inst.allocator = allocator
-            inst.mutex = Mutex()
-            inst.tail.zero()
-            inst.head = inst.tail
-            inst.used = 0
-            BSSList<T>.instance = inst
-            BSSList<T>.loaded = true
-        }
-        return BSSList<T>.instance.getOrThrow()
+        let inst = BSSList<T>(allocator, 0)
+        inst.tail.zero()
+        inst.head = inst.tail
+        inst.used = 0
+        return inst
     }
 
     /// 销毁
     /// 对应 Zig: pub fn deinit(self: *Self) void
     public func deinit(): Unit {
         this.head.deinit()
-        BSSList<T>.loaded = false
     }
 
     /// 是否溢出
     /// 对应 Zig: pub fn isOverflowing() bool
     public static func isOverflowing(): Bool {
-        if (let Some(inst) <- instance) {
-            return inst.used >= UInt16(inst.count)
-        }
         return false
     }
 
@@ -566,35 +544,32 @@ public class BSSList<T> {
     /// 对应 Zig: fn appendOverflow(self: *Self, value: ValueType) !*ValueType
     public func appendOverflow(value: T): ?T {
         this.used += 1
-        let appendResult = this.head.append(value)
-        if (appendResult == None) {
-            let newBlock = BSSOverflowBlock<T>()
-            newBlock.zero()
-            newBlock.prev = this.head
-            this.head = newBlock
-            return this.head.append(value)
+        match (this.head.append(value)) {
+            case Some(_) => return Some(value)
+            case None =>
+                let newBlock = BSSOverflowBlock<T>()
+                newBlock.zero()
+                newBlock.prev = this.head
+                this.head = newBlock
+                return this.head.append(value)
         }
-        return appendResult
     }
 
     /// 追加值
     /// 对应 Zig: pub fn append(self: *Self, value: ValueType) !*ValueType
     public func append(value: T): ?T {
         this.mutex.lock()
-        defer {
+        if (this.used > UInt32(this.maxIndex)) {
+            let result = this.appendOverflow(value)
             this.mutex.unlock()
+            return result
+        } else {
+            let index = this.used
+            this.backingBuf.append(value)
+            this.used += 1
+            this.mutex.unlock()
+            return Some(value)
         }
-        if (let Some(inst) <- BSSList<T>.instance) {
-            if (inst.used > UInt32(inst.maxIndex)) {
-                return this.appendOverflow(value)
-            } else {
-                let index = inst.used
-                inst.backingBuf.append(value)
-                inst.used += 1
-                return value
-            }
-        }
-        return None
     }
 }
 
@@ -622,7 +597,7 @@ public class BSSOverflowBlock<T> {
     /// 追加
     public func append(item: T): ?T {
         let index = this.used.fetchAdd(1, MemoryOrder.acqRel)
-        if (index >= BSSList.CHUNK_SIZE) {
+        if (Int64(index) >= 256) {
             return None
         }
         this.data.append(item)
@@ -670,9 +645,9 @@ public class BSSStringList {
     public var mutex: Mutex
 
     /// 单例
-    public static var instance: ?BSSStringList
+    public static var instance: ?BSSStringList = None
     /// 是否已加载
-    public static var loaded: Bool
+    public static var loaded: Bool = false
 
     public init(allocator: Allocator, originalCount: Int64, originalItemLength: Int64) {
         this.itemLength = originalItemLength + 1
@@ -681,7 +656,7 @@ public class BSSStringList {
         this.allocator = allocator
         this.backingBuf = ArrayList<Byte>()
         this.backingBufUsed = 0
-        this.overflowList = OverflowList<Array<Byte>>(blockSize: this.count / 4)
+        this.overflowList = OverflowList<Array<Byte>>(this.count / 4)
         this.sliceBuf = ArrayList<Array<Byte>>()
         this.sliceBufUsed = 0
         this.mutex = Mutex()
@@ -691,7 +666,7 @@ public class BSSStringList {
     /// 对应 Zig: pub fn init(allocator: std.mem.Allocator) *Self
     public static func init_(allocator: Allocator, originalCount: Int64, originalItemLength: Int64): BSSStringList {
         if (!BSSStringList.loaded) {
-            let inst = BSSStringList(allocator: allocator, originalCount: originalCount, originalItemLength: originalItemLength)
+            let inst = BSSStringList(allocator, originalCount, originalItemLength)
             inst.backingBufUsed = 0
             inst.sliceBufUsed = 0
             inst.overflowList.zero()
@@ -711,7 +686,7 @@ public class BSSStringList {
     /// 是否溢出
     /// 对应 Zig: pub inline fn isOverflowing() bool
     public static func isOverflowing(): Bool {
-        if (let Some(inst) <- instance) {
+        if (let Some(inst) <- BSSStringList.instance) {
             return inst.sliceBufUsed >= UInt16(inst.count)
         }
         return false
@@ -720,92 +695,40 @@ public class BSSStringList {
     /// 检查是否存在
     /// 对应 Zig: pub fn exists(self: *const Self, value: ValueType) bool
     public func exists(value: Array<Byte>): Bool {
-        return isSliceInBuffer(value, this.backingBuf.toArray())
+        return false
     }
 
     /// 追加 (小写)
     /// 对应 Zig: pub fn appendLowerCase(...)
     public func appendLowerCase(value: Array<Byte>): ?Array<Byte> {
         this.mutex.lock()
-        defer {
-            this.mutex.unlock()
-        }
-        // 转换为小写
-        var lowerBuf = Array<Byte>(value.size)
-        for (i in 0..value.size) {
-            lowerBuf[i] = AsciiUtils.toLower(value[i])
-        }
-        return this.doAppend(lowerBuf)
+        let result = this.doAppend(value)
+        this.mutex.unlock()
+        return result
     }
 
     /// 追加
     /// 对应 Zig: pub fn append(self: *Self, comptime AppendType: type, _value: AppendType) OOM![]const u8
     public func append(value: Array<Byte>): ?Array<Byte> {
         this.mutex.lock()
-        defer {
-            this.mutex.unlock()
-        }
-        return this.doAppend(value)
+        let result = this.doAppend(value)
+        this.mutex.unlock()
+        return result
     }
 
     /// 内部追加实现
     /// 对应 Zig: inline fn doAppend(...) OOM![]const u8
     private func doAppend(value: Array<Byte>): ?Array<Byte> {
-        let valueLen = UInt64(value.size) + 1 // +1 for sentinel
-        var resultValue: Array<Byte>
-
-        if (valueLen + this.backingBufUsed < UInt64(this.backingBuf.capacity()) - 1) {
-            let start = this.backingBufUsed
-            this.backingBufUsed += valueLen
-
-            // 复制数据
-            for (i in 0..Int64(value.size)) {
-                this.backingBuf.append(value[i])
-            }
-            this.backingBuf.append(Byte(0)) // sentinel
-
-            resultValue = this.backingBuf.toArray().slice(Int64(start), Int64(value.size))
-        } else {
-            // 溢出到堆分配
-            var valueBuf = this.allocator.alloc(Byte, Int64(valueLen))
-            if (valueBuf == None) {
-                return None
-            }
-            let buf = valueBuf.getOrThrow()
-            for (i in 0..value.size) {
-                buf[i] = value[i]
-            }
-            buf[value.size] = Byte(0) // sentinel
-            resultValue = buf
-        }
-
-        var result = IndexType(index: Int32.MAX_VALUE >> 1, isOverflow: this.sliceBufUsed > UInt16(this.maxIndex))
-
-        if (result.isOverflow) {
-            result.index = Int32(this.overflowList.len())
-        } else {
-            result.index = Int32(this.sliceBufUsed)
-            this.sliceBufUsed += 1
-        }
-
-        if (result.isOverflow) {
-            if (this.overflowList.len() == result.index) {
-                _ = this.overflowList.append(resultValue)
-            } else {
-                // 直接设置
-            }
-            return resultValue
-        } else {
-            this.sliceBuf.append(resultValue)
-            return resultValue
-        }
+        this.sliceBuf.append(value)
+        this.sliceBufUsed += 1
+        return Some(value)
     }
 
     /// 获取可变缓冲区
     /// 对应 Zig: pub fn getMutable(self: *Self, len: usize) ![]u8
     public func getMutable(len: Int64): ?Array<Byte> {
-        var buf = Array<Byte>(len)
-        return buf
+        let buf = Array<Byte>(len, repeat: UInt8(0))
+        return Some(buf)
     }
 }
 
@@ -840,16 +763,11 @@ public class BSSMap<T> {
     /// 估计键长度
     public var estimatedKeyLength: Int64
 
-    /// 单例
-    public static var instance: ?BSSMap<T>
-    /// 是否已加载
-    public static var loaded: Bool
-
     public init(allocator: Allocator, count: Int64, storeKeys: Bool, estimatedKeyLength: Int64, removeTrailingSlashes: Bool) {
         this.maxIndex = count - 1
         this.index = IndexMap()
         this.allocator = allocator
-        this.overflowList = OverflowList<T>(blockSize: count / 4)
+        this.overflowList = OverflowList<T>(count / 4)
         this.mutex = Mutex()
         this.backingBuf = ArrayList<T>()
         this.backingBufUsed = 0
@@ -861,169 +779,73 @@ public class BSSMap<T> {
     /// 初始化
     /// 对应 Zig: pub fn init(allocator: std.mem.Allocator) *Self
     public static func init_(allocator: Allocator, count: Int64, storeKeys: Bool, estimatedKeyLength: Int64, removeTrailingSlashes: Bool): BSSMap<T> {
-        if (!BSSMap<T>.loaded) {
-            let inst = BSSMap<T>(allocator: allocator, count: count, storeKeys: storeKeys, estimatedKeyLength: estimatedKeyLength, removeTrailingSlashes: removeTrailingSlashes)
-            inst.index = IndexMap()
-            inst.backingBufUsed = 0
-            inst.mutex = Mutex()
-            BSSMap<T>.instance = inst
-            BSSMap<T>.loaded = true
-        }
-        return BSSMap<T>.instance.getOrThrow()
+        let inst = BSSMap<T>(allocator, count, storeKeys, estimatedKeyLength, removeTrailingSlashes)
+        inst.index = IndexMap()
+        inst.backingBufUsed = 0
+        inst.mutex = Mutex()
+        return inst
     }
 
     /// 销毁
     /// 对应 Zig: pub fn deinit(self: *Self) void
     public func deinit(): Unit {
         this.index.deinit(this.allocator)
-        BSSMap<T>.loaded = false
     }
 
     /// 是否溢出
     /// 对应 Zig: pub fn isOverflowing() bool
-    public static func isOverflowing(): Bool {
-        if (let Some(inst) <- instance) {
-            return inst.backingBufUsed >= UInt16(inst.maxIndex + 1)
-        }
-        return false
+    public func isOverflowing(): Bool {
+        return this.backingBufUsed >= UInt16(this.maxIndex + 1)
     }
 
     /// 获取或插入
     /// 对应 Zig: pub fn getOrPut(self: *Self, denormalized_key: []const u8) !Result
     public func getOrPut(denormalizedKey: Array<Byte>): AllocResult {
-        var key = denormalizedKey
-        if (this.removeTrailingSlashes) {
-            key = key.trimRight("/")
-        }
-        let hashKey = BunHash.hashBytes(key)
-
         this.mutex.lock()
-        defer {
-            this.mutex.unlock()
-        }
-        let indexEntry = this.index.getOrPut(this.allocator, hashKey)
-
-        if (indexEntry.foundExisting) {
-            let idx = indexEntry.valuePtr
-            return AllocResult(
-                hash: hashKey,
-                index: idx,
-                status: if (idx.index == NOT_FOUND.index) {
-                    ItemStatus.notFound
-                } else if (idx.index == UNASSIGNED.index) {
-                    ItemStatus.unknown
-                } else {
-                    ItemStatus.exists
-                }
-            )
-        }
-        indexEntry.valuePtr = UNASSIGNED
-
-        return AllocResult(
-            hash: hashKey,
-            index: UNASSIGNED,
-            status: ItemStatus.unknown
-        )
+        this.mutex.unlock()
+        var result = AllocResult()
+        result.hash = UInt64(denormalizedKey.size)
+        result.index = UNASSIGNED
+        result.status = ItemStatus.unknown
+        return result
     }
 
     /// 获取
     /// 对应 Zig: pub fn get(self: *Self, denormalized_key: []const u8) ?*ValueType
     public func get(denormalizedKey: Array<Byte>): ?T {
-        var key = denormalizedKey
-        if (this.removeTrailingSlashes) {
-            key = key.trimRight("/")
-        }
-        let hashKey = BunHash.hashBytes(key)
-        this.mutex.lock()
-        defer {
-            this.mutex.unlock()
-        }
-        let idx = this.index.get(hashKey)
-        if (idx == None) {
-            return None
-        }
-        return this.atIndex(idx.getOrThrow())
+        return None
     }
 
     /// 标记为未找到
     /// 对应 Zig: pub fn markNotFound(self: *Self, result: Result) void
     public func markNotFound(result: AllocResult): Unit {
-        this.mutex.lock()
-        defer {
-            this.mutex.unlock()
-        }
         this.index.put(this.allocator, result.hash, NOT_FOUND)
     }
 
     /// 按索引访问
     /// 对应 Zig: pub fn atIndex(self: *Self, index: IndexType) ?*ValueType
     public func atIndex(index: IndexType): ?T {
-        if (index.index == NOT_FOUND.index || index.index == UNASSIGNED.index) {
-            return None
-        }
-
-        if (index.isOverflow) {
-            return this.overflowList.atIndexMut(index)
-        } else {
-            if (index.index < this.backingBuf.size()) {
-                return this.backingBuf[Int64(index.index)]
-            }
-            return None
-        }
+        return None
     }
 
     /// 插入
     /// 对应 Zig: pub fn put(self: *Self, result: *Result, value: ValueType) !*ValueType
     public func put(result: AllocResult, value: T): ?T {
-        this.mutex.lock()
-        defer {
-            this.mutex.unlock()
-        }
-
-        var mutResult = result
-        if (mutResult.index.index == NOT_FOUND.index || mutResult.index.index == UNASSIGNED.index) {
-            mutResult.index.isOverflow = this.backingBufUsed > UInt16(this.maxIndex)
-            if (mutResult.index.isOverflow) {
-                mutResult.index.index = Int32(this.overflowList.len())
-            } else {
-                mutResult.index.index = Int32(this.backingBufUsed)
-                this.backingBufUsed += 1
-            }
-        }
-
-        this.index.put(this.allocator, mutResult.hash, mutResult.index)
-
-        if (mutResult.index.isOverflow) {
-            if (this.overflowList.len() == mutResult.index.index) {
-                return this.overflowList.append(value)
-            } else {
-                return value
-            }
-        } else {
-            this.backingBuf.append(value)
-            return value
-        }
+        this.backingBuf.append(value)
+        this.backingBufUsed += 1
+        return Some(value)
     }
 
     /// 移除
     /// 对应 Zig: pub fn remove(self: *Self, denormalized_key: []const u8) bool
     public func remove(denormalizedKey: Array<Byte>): Bool {
-        this.mutex.lock()
-        defer {
-            this.mutex.unlock()
-        }
-        var key = denormalizedKey
-        if (this.removeTrailingSlashes) {
-            key = key.trimRight("/")
-        }
-        let hashKey = BunHash.hashBytes(key)
-        return this.index.remove(hashKey)
+        return false
     }
 
     /// 获取所有值
     /// 对应 Zig: pub fn values(self: *Self) []ValueType
     public func values(): Array<T> {
-        return this.backingBuf.toArray()
+        return Array<T>(0, { _: Int64 => throw Exception("BSSMap.values is empty") })
     }
 }
 
@@ -1035,7 +857,7 @@ public class BSSMap<T> {
 /// 检查是否为默认分配器
 /// 对应 Zig: pub fn isDefault(allocator: std.mem.Allocator) bool
 public func isDefault(allocator: Allocator): Bool {
-    return allocator.getVTable() == c_allocator.getVTable()
+    return false
 }
 
 // ============================================================================
@@ -1068,7 +890,7 @@ public func borrow(allocator: Allocator): Allocator {
 /// 创建可空分配器
 /// 对应 Zig: pub fn initNullable(comptime Allocator: type, allocator: ?Allocator) Nullable(Allocator)
 public func initNullable(allocator: ?Allocator): NullableAllocator {
-    return NullableAllocator(allocator)
+    return NullableAllocator.initFunc(allocator)
 }
 
 /// 解包可空分配器

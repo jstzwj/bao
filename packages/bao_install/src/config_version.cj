@@ -26,55 +26,67 @@ public enum ConfigVersion {
     | V0
     | V1
 
-    /// 当前版本
-    /// 翻译自: ConfigVersion.current = .v1
-    public static let CURRENT: ConfigVersion = ConfigVersion.V1
+    public operator func ==(other: ConfigVersion): Bool {
+        match (this) {
+            case V0 => match (other) { case V0 => true case _ => false }
+            case V1 => match (other) { case V1 => true case _ => false }
+        }
+    }
 
+    public operator func !=(other: ConfigVersion): Bool {
+        return !(this == other)
+    }
+}
+
+/// 当前版本
+/// 翻译自: ConfigVersion.current = .v1
+public let CONFIG_VERSION_CURRENT: ConfigVersion = ConfigVersion.V1
+
+/// ConfigVersion 辅助类
+/// 翻译自: ConfigVersion (Zig enum with methods)
+public class ConfigVersionHelper {
     /// 从数值解析
     /// 翻译自: ConfigVersion.fromInt
     public static func fromInt(intValue: Int64): ?ConfigVersion {
-        match (intValue) {
-            case 0 => return V0
-            case 1 => return V1
-            case _ => {
-                if (intValue > 1) {
-                    return CURRENT
-                }
-                return None
-            }
+        if (intValue == 0) {
+            return ConfigVersion.V0
         }
+        if (intValue == 1) {
+            return ConfigVersion.V1
+        }
+        if (intValue > 1) {
+            return CONFIG_VERSION_CURRENT
+        }
+        return None
     }
 
     /// 从 JSON 表达式解析
     /// 翻译自: ConfigVersion.fromExpr
     public static func fromExpr(value: ?JsonValue): ?ConfigVersion {
         match (value) {
-            case Some(JsonValue.Number(n)) => {
-                let intVal = Int64(n)
-                return fromInt(intVal)
-            }
-            case _ => return None
+            case Some(JsonValue.Number(n)) => fromInt(Int64(n))
+            case _ => None
         }
     }
 
     /// 转为数值
-    public func toInt(): Int64 {
-        match (this) {
-            case V0 => return 0
-            case V1 => return 1
+    public static func toInt(v: ConfigVersion): Int64 {
+        match (v) {
+            case ConfigVersion.V0 => 0
+            case ConfigVersion.V1 => 1
         }
     }
 
     /// 是否为当前版本
-    public func isCurrent(): Bool {
-        return this == CURRENT
+    public static func isCurrent(v: ConfigVersion): Bool {
+        return v == CONFIG_VERSION_CURRENT
     }
 
     /// 是否为有效版本
-    public func isValid(): Bool {
-        match (this) {
-            case V0 => return true
-            case V1 => return true
+    public static func isValid(v: ConfigVersion): Bool {
+        match (v) {
+            case ConfigVersion.V0 => true
+            case ConfigVersion.V1 => true
         }
     }
 }

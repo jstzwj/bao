@@ -9,6 +9,7 @@
 package bao_css.properties
 
 import bao_core.*
+import bao_collections.*
 
 // ============================================================================
 // BorderImage
@@ -24,8 +25,8 @@ public class BorderImage {
     public var outset: ArrayList<String>         // 图像外扩距离 (4 值)
     public var repeat: BorderImageRepeat         // 图像重复方式
 
-    public init(source: String, slice: BorderImageSlice, width: ArrayList<BorderImageSideWidth>,
-                outset: ArrayList<String>, repeat: BorderImageRepeat) {
+    public init(source!: String, slice!: BorderImageSlice, width!: ArrayList<BorderImageSideWidth>,
+                outset!: ArrayList<String>, repeat!: BorderImageRepeat) {
         this.source = source
         this.slice = slice
         this.width = width
@@ -78,7 +79,10 @@ public class BorderImage {
         if (parts.isEmpty()) {
             return "none"
         }
-        return String.join(" ", parts)
+        var partArr = Array<String>(parts.size, repeat: "")
+        var pi: Int64 = 0
+        for (p in parts) { partArr[pi] = p; pi += 1 }
+        return String.join(partArr, delimiter: " ")
     }
 
     private func isWidthDefault(): Bool {
@@ -110,7 +114,7 @@ public class BorderImageRepeat {
     public var horizontal: BorderImageRepeatKeyword  // 水平重复
     public var vertical: BorderImageRepeatKeyword    // 垂直重复
 
-    public init(horizontal: BorderImageRepeatKeyword, vertical: BorderImageRepeatKeyword) {
+    public init(horizontal!: BorderImageRepeatKeyword, vertical!: BorderImageRepeatKeyword) {
         this.horizontal = horizontal
         this.vertical = vertical
     }
@@ -152,6 +156,10 @@ public enum BorderImageRepeatKeyword {
             case Space => "space"
         }
     }
+
+    public operator func ==(rhs: BorderImageRepeatKeyword): Bool {
+        this.toCss() == rhs.toCss()
+    }
 }
 
 // ============================================================================
@@ -174,6 +182,10 @@ public enum BorderImageSideWidth {
         }
     }
 
+    public operator func ==(rhs: BorderImageSideWidth): Bool {
+        this.toCss() == rhs.toCss()
+    }
+
     public static func default(): BorderImageSideWidth {
         BorderImageSideWidth.Number("1")
     }
@@ -190,7 +202,7 @@ public class BorderImageSlice {
     public var offsets: ArrayList<String>  // 四个切片偏移量（上/右/下/左）
     public var fill: Bool                  // 是否保留中心区域
 
-    public init(offsets: ArrayList<String>, fill: Bool) {
+    public init(offsets!: ArrayList<String>, fill!: Bool) {
         this.offsets = offsets
         this.fill = fill
     }

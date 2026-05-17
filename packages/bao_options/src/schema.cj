@@ -37,13 +37,13 @@ public class SchemaWriter {
     /// 写入原始字节
     public func write(bytes: Array<UInt8>): Unit {
         for (b in bytes) {
-            buffer.append(Char(b))
+            buffer.append(Rune(b))
         }
     }
 
     /// 写入单个字节
     public func writeByte(byte: UInt8): Unit {
-        buffer.append(Char(byte))
+        buffer.append(Rune(byte))
     }
 
     /// 写入整数 (原生字节序)
@@ -480,15 +480,15 @@ public type Packages = PackagesMode
 
 /// 字符串键值映射 - 对应 Bun api::StringMap
 public class StringMap {
-    public var keys: Array<String>
-    public var values: Array<String>
+    public var keys: ArrayList<String>
+    public var values: ArrayList<String>
 
     public init() {
-        keys = Array<String>()
-        values = Array<String>()
+        keys = ArrayList<String>()
+        values = ArrayList<String>()
     }
 
-    public init(keys: Array<String>, values: Array<String>) {
+    public init(keys: ArrayList<String>, values: ArrayList<String>) {
         this.keys = keys
         this.values = values
     }
@@ -533,12 +533,12 @@ public class StringMap {
 /// 加载器映射 - 对应 Bun api::LoaderMap
 /// 文件扩展名到加载器类型的映射
 public class LoaderMap {
-    public var extensions: Array<String>
-    public var loaders: Array<Loader>
+    public var extensions: ArrayList<String>
+    public var loaders: ArrayList<Loader>
 
     public init() {
-        extensions = Array<String>()
-        loaders = Array<Loader>()
+        extensions = ArrayList<String>()
+        loaders = ArrayList<Loader>()
     }
 }
 
@@ -851,7 +851,7 @@ public class TransformOptions {
     public init() {
         jsx = None
         tsconfigOverride = None
-        resolve = None
+        resolve = Option<ResolveMode>.None
         origin = None
         absoluteWorkingDir = None
         define = None
@@ -865,7 +865,7 @@ public class TransformOptions {
         external = Array<String>()
         loaders = None
         mainFields = Array<String>()
-        target = None
+        target = Option<SchemaTarget>.None
         serve = None
         envFiles = Array<String>()
         disableDefaultEnvFiles = false
@@ -873,8 +873,8 @@ public class TransformOptions {
         noSummary = None
         disableHmr = false
         port = None
-        logLevel = None
-        sourceMap = None
+        logLevel = Option<MessageLevel>.None
+        sourceMap = Option<SourceMapMode>.None
         conditions = Array<String>()
         packages = None
         ignoreDceAnnotations = false
@@ -889,7 +889,7 @@ public class TransformOptions {
         serveHmr = None
         serveDefine = None
         allowAddons = None
-        unhandledRejections = None
+        unhandledRejections = Option<UnhandledRejectionMode>.None
         bunfigPath = ""
     }
 }
@@ -1093,25 +1093,25 @@ public class JsException {
             case Some(v) =>
                 w.writeFieldId(1)
                 w.writeArrayU8(v)
-            case None => {}
+            case None => ()
         }
         match (message) {
             case Some(v) =>
                 w.writeFieldId(2)
                 w.writeArrayU8(v)
-            case None => {}
+            case None => ()
         }
         match (runtimeType) {
             case Some(v) =>
                 w.writeFieldId(3)
                 w.writeInt(Int64(v))
-            case None => {}
+            case None => ()
         }
         match (code) {
             case Some(v) =>
                 w.writeFieldId(4)
                 w.writeInt(Int64(v))
-            case None => {}
+            case None => ()
         }
         w.endMessage()
     }
@@ -1212,7 +1212,7 @@ public class FallbackMessageContainer {
     public init() {
         message = None
         router = None
-        reason = None
+        reason = Option<FallbackStep>.None
         problems = None
         cwd = None
     }
@@ -1223,31 +1223,31 @@ public class FallbackMessageContainer {
             case Some(v) =>
                 w.writeFieldId(1)
                 w.writeArrayU8(v)
-            case None => {}
+            case None => ()
         }
         match (router) {
             case Some(v) =>
                 w.writeFieldId(2)
                 v.encode(w)
-            case None => {}
+            case None => ()
         }
         match (reason) {
             case Some(v) =>
                 w.writeFieldId(3)
                 w.writeEnum(Int64(v.toRaw()))
-            case None => {}
+            case None => ()
         }
         match (problems) {
             case Some(v) =>
                 w.writeFieldId(4)
                 v.encode(w)
-            case None => {}
+            case None => ()
         }
         match (cwd) {
             case Some(v) =>
                 w.writeFieldId(5)
                 w.writeArrayU8(v)
-            case None => {}
+            case None => ()
         }
         w.endMessage()
     }

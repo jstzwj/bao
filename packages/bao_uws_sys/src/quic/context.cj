@@ -33,9 +33,6 @@ foreign func us_quic_socket_context_on_stream_close(ctx: CPointer<Unit>, cb: CPo
 // ============================================================================
 // QuicContext - QUIC 套接字上下文
 // 严格翻译自: quic/Context.zig
-//  us_quic_socket_context_t - one lsquic engine + its event-loop wiring.
-//  For the client there is exactly one of these per HTTP-thread loop and it
-//  lives for the process; the server creates one per Bun.serve({http3:true}).
 // ============================================================================
 public class QuicContext {
     private var ptr: CPointer<Unit>
@@ -50,8 +47,8 @@ public class QuicContext {
 
     /// 对应 Bun: pub const createClient = us_create_quic_client_context
     public static func createClient(loop: CPointer<Unit>, extSize: UInt32, connExt: UInt32, streamExt: UInt32): ?QuicContext {
-        let raw = us_create_quic_client_context(loop, extSize, connExt, streamExt)
-        if (raw == CPointer<Unit>.null) {
+        let raw = unsafe { us_create_quic_client_context(loop, extSize, connExt, streamExt) }
+        if (raw.isNull()) {
             return None
         }
         return Some(QuicContext(raw))
@@ -59,15 +56,16 @@ public class QuicContext {
 
     /// 对应 Bun: pub const loop = us_quic_socket_context_loop
     public func loop_(): CPointer<Unit> {
-        return us_quic_socket_context_loop(ptr)
+        return unsafe { us_quic_socket_context_loop(ptr) }
     }
 
-    /// 对应 Bun: pub const ConnectResult = union(enum) { socket, pending, err }
-    /// 对应 Bun: pub fn connect(ctx, host, port, sni, reject_unauthorized, user) ConnectResult
+    /// 对应 Bun: pub fn connect(...)
     public func connect(host: CPointer<Int8>, port: UInt16, sni: CPointer<Int8>, rejectUnauthorized: Bool, user: CPointer<Unit>): QuicConnectResult {
-        // In real impl would use out-params for qs and pending
-        let result = us_quic_socket_context_connect(ptr, host, Int32(port), sni, if (rejectUnauthorized) 1 else 0,
-            CPointer<CPointer<Unit>>.null, CPointer<CPointer<Unit>>.null, user)
+        let rejectVal: Int32 = if (rejectUnauthorized) { 1 } else { 0 }
+        let result = unsafe {
+            us_quic_socket_context_connect(ptr, host, Int32(port), sni, rejectVal,
+                CPointer<CPointer<Unit>>(), CPointer<CPointer<Unit>>(), user)
+        }
         if (result == 1) {
             return QuicConnectResultSocket()
         } else if (result == 0) {
@@ -78,42 +76,42 @@ public class QuicContext {
 
     /// 对应 Bun: pub const onHskDone = us_quic_socket_context_on_hsk_done
     public func onHskDone(cb: CPointer<Unit>): Unit {
-        us_quic_socket_context_on_hsk_done(ptr, cb)
+        unsafe { us_quic_socket_context_on_hsk_done(ptr, cb) }
     }
 
     /// 对应 Bun: pub const onGoaway = us_quic_socket_context_on_goaway
     public func onGoaway(cb: CPointer<Unit>): Unit {
-        us_quic_socket_context_on_goaway(ptr, cb)
+        unsafe { us_quic_socket_context_on_goaway(ptr, cb) }
     }
 
     /// 对应 Bun: pub const onClose = us_quic_socket_context_on_close
     public func onClose(cb: CPointer<Unit>): Unit {
-        us_quic_socket_context_on_close(ptr, cb)
+        unsafe { us_quic_socket_context_on_close(ptr, cb) }
     }
 
     /// 对应 Bun: pub const onStreamOpen = us_quic_socket_context_on_stream_open
     public func onStreamOpen(cb: CPointer<Unit>): Unit {
-        us_quic_socket_context_on_stream_open(ptr, cb)
+        unsafe { us_quic_socket_context_on_stream_open(ptr, cb) }
     }
 
     /// 对应 Bun: pub const onStreamHeaders = us_quic_socket_context_on_stream_headers
     public func onStreamHeaders(cb: CPointer<Unit>): Unit {
-        us_quic_socket_context_on_stream_headers(ptr, cb)
+        unsafe { us_quic_socket_context_on_stream_headers(ptr, cb) }
     }
 
     /// 对应 Bun: pub const onStreamData = us_quic_socket_context_on_stream_data
     public func onStreamData(cb: CPointer<Unit>): Unit {
-        us_quic_socket_context_on_stream_data(ptr, cb)
+        unsafe { us_quic_socket_context_on_stream_data(ptr, cb) }
     }
 
     /// 对应 Bun: pub const onStreamWritable = us_quic_socket_context_on_stream_writable
     public func onStreamWritable(cb: CPointer<Unit>): Unit {
-        us_quic_socket_context_on_stream_writable(ptr, cb)
+        unsafe { us_quic_socket_context_on_stream_writable(ptr, cb) }
     }
 
     /// 对应 Bun: pub const onStreamClose = us_quic_socket_context_on_stream_close
     public func onStreamClose(cb: CPointer<Unit>): Unit {
-        us_quic_socket_context_on_stream_close(ptr, cb)
+        unsafe { us_quic_socket_context_on_stream_close(ptr, cb) }
     }
 }
 

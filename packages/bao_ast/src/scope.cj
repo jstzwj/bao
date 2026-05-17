@@ -55,6 +55,25 @@ public enum ScopeKind {
         }
     }
 
+    public operator func ==(right: ScopeKind): Bool {
+        match (this) {
+            case Block => match (right) { case Block => true case _ => false }
+            case With => match (right) { case With => true case _ => false }
+            case Label => match (right) { case Label => true case _ => false }
+            case ClassName => match (right) { case ClassName => true case _ => false }
+            case ClassBody => match (right) { case ClassBody => true case _ => false }
+            case CatchBinding => match (right) { case CatchBinding => true case _ => false }
+            case Entry => match (right) { case Entry => true case _ => false }
+            case FunctionArgs => match (right) { case FunctionArgs => true case _ => false }
+            case FunctionBody => match (right) { case FunctionBody => true case _ => false }
+            case ClassStaticInit => match (right) { case ClassStaticInit => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: ScopeKind): Bool {
+        return !(this == right)
+    }
+
     /// 是否为函数级作用域
     public func isFunctionScope(): Bool {
         match (this) {
@@ -170,16 +189,16 @@ public class TSNamespaceMemberData {
     /// 数据类型
     public var kind: TSNamespaceMemberDataKind
     /// 枚举数值 (如果为 EnumNumber)
-    public var enumNumber: Float64
+    public var enumNumberValue: Float64
     /// 枚举字符串 (如果为 EnumString)
-    public var enumString: ?String
+    public var enumStringValue: ?String
     /// 嵌套命名空间映射 (如果为 Namespace)
     public var namespaceMembers: ?TSNamespaceMemberMap
 
     public init(kind: TSNamespaceMemberDataKind) {
         this.kind = kind
-        this.enumNumber = 0.0
-        this.enumString = None
+        this.enumNumberValue = 0.0
+        this.enumStringValue = None
         this.namespaceMembers = None
     }
 
@@ -189,13 +208,13 @@ public class TSNamespaceMemberData {
 
     public static func enumNumber(value: Float64): TSNamespaceMemberData {
         let d = TSNamespaceMemberData(TSNamespaceMemberDataKind.EnumNumber)
-        d.enumNumber = value
+        d.enumNumberValue = value
         return d
     }
 
     public static func enumString(value: String): TSNamespaceMemberData {
         let d = TSNamespaceMemberData(TSNamespaceMemberDataKind.EnumString)
-        d.enumString = Some(value)
+        d.enumStringValue = Some(value)
         return d
     }
 

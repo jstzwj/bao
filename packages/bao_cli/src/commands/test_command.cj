@@ -293,10 +293,22 @@ public class TestCommand {
             // 对应 Bun: vm.transpiler.resolveEntryPoint(file_name)
             vm.executeFile(filePath)
 
-            // 文件执行成功
-            // 实际实现中: vm 中注入 describe/it/expect/test 全局函数
-            // 文件执行时注册测试用例，然后运行
-            fileResult.passed = 1  // 简化
+            // 文件执行成功后，从真实测试运行器收集结果。
+            // 这里不再按“文件通过”计数；测试数必须来自文件执行期间注册/运行的 test/it。
+            let collected = runner.takeFileSummary(filePath)
+            fileResult.passed = collected.passed
+            fileResult.failed = collected.failed
+            fileResult.skipped = collected.skipped
+            fileResult.todo = collected.todo
+            fileResult.expectations = collected.expectations
+            fileResult.failures = collected.failures
+            fileResult.skips = collected.skips
+            fileResult.todos = collected.todos
+
+            if (fileResult.passed + fileResult.failed + fileResult.skipped + fileResult.todo == 0) {
+                fileResult.failed = 1
+                fileResult.failures.append("  FAIL ${displayName}: no tests were registered by the runner")
+            }
 
             // 打印结果
             let symbol = if (fileResult.failed > 0) { "FAIL" } else { "PASS" }
@@ -728,6 +740,14 @@ public class TestRunner {
         defaultTimeoutMs = 5000
         bail = 0
         runTodo = false
+    }
+
+    public func takeFileSummary(filePath: String): TestFileSummary {
+        let summary = TestFileSummary()
+        summary.filePath = filePath
+        // 真实实现由 bao_runtime.test_runner 在文件执行期间填充。
+        // 返回空 summary 会被调用方视为 runner 未注册任何测试并失败，避免假阳性。
+        return summary
     }
 }
 

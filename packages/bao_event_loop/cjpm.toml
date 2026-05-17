@@ -15,3 +15,4 @@ target-dir = ""
 bao_threading = { path = "../bao_threading" }
 bao_sys = { path = "../bao_sys" }
 bao_core = { path = "../bao_core" }
+bao_collections = { path = "../bao_collections" }

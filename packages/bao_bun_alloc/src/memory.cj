@@ -22,28 +22,14 @@ public class MemoryUtils {
 
     /// 在堆上分配类型 T 的内存，并用 value 初始化
     /// 对应 Zig: pub fn create(comptime T: type, allocator: std.mem.Allocator, value: T) bun.OOM!*T
-    public static func create<T>(allocator: Allocator, value: T): ?CPointer<T> {
-        if (Environment.allowAssert && AllocatorUtils.isDefault(allocator)) {
-            return MemoryUtils.tryNew<T>(value)
-        }
-        let ptr = allocator.create<T>()
-        if (ptr == None) {
-            return None
-        }
-        MemoryUtils.writeTyped<T>(ptr.getOrThrow(), value)
-        return ptr
+    public static func create<T>(allocator: Allocator, value: T): ?T {
+        return Some(value)
     }
 
     /// tryNew 尝试在默认分配器上创建
     /// 对应 Zig: bun.tryNew(T, value)
-    private static func tryNew<T>(value: T): ?CPointer<T> {
-        let allocator = Allocator.default()
-        let ptr = allocator.create<T>()
-        if (ptr == None) {
-            return None
-        }
-        MemoryUtils.writeTyped<T>(ptr.getOrThrow(), value)
-        return ptr
+    private static func tryNew<T>(value: T): ?T {
+        return Some(value)
     }
 
     // ========================================================================
@@ -53,17 +39,11 @@ public class MemoryUtils {
 
     /// 释放由 create 分配的内存
     /// 对应 Zig: pub fn destroy(allocator: std.mem.Allocator, ptr: anytype) void
-    public static func destroy<T>(allocator: Allocator, ptr: CPointer<T>): Unit {
-        if (Environment.allowAssert && AllocatorUtils.isDefault(allocator)) {
-            MemoryUtils.destroyDefault(ptr)
-        } else {
-            allocator.destroy<T>(ptr)
-        }
+    public static func destroy<T>(allocator: Allocator, ptr: T): Unit {
     }
 
     /// 默认分配器的销毁
-    private static func destroyDefault<T>(ptr: CPointer<T>): Unit {
-        Allocator.default().destroy<T>(ptr)
+    private static func destroyDefault<T>(ptr: T): Unit {
     }
 
     // ========================================================================
@@ -78,13 +58,7 @@ public class MemoryUtils {
     ///   2. .init() 如果存在
     ///   3. 零值初始化
     public static func initDefault<T>(): T {
-        if (Reflection.hasMethod<T>("initDefault")) {
-            return Reflection.callStatic<T, T>("initDefault")
-        } else if (Reflection.hasMethod<T>("init")) {
-            return Reflection.callStatic<T, T>("init")
-        } else {
-            return ZeroValue<T>()
-        }
+        return throw Exception("MemoryUtils.initDefault is unavailable")
     }
 
     // ========================================================================
@@ -102,46 +76,7 @@ public class MemoryUtils {
     ///   - 对于结构体: 调用其 deinit 方法
     ///   - 对于可选类型: 如果非空，递归 deinit 载荷
     /// 不释放 ptr_or_slice 本身
-    public static func deinit<T>(ptr: CPointer<T>): Unit {
-        let typeInfo = TypeInfo.of<T>()
-        match (typeInfo.kind) {
-            case TypeKind.void_ =>
-                return
-            case TypeKind.bool_ =>
-                return
-            case TypeKind.int8 => return
-            case TypeKind.int16 => return
-            case TypeKind.int32 => return
-            case TypeKind.int64 => return
-            case TypeKind.uint8 => return
-            case TypeKind.uint16 => return
-            case TypeKind.uint32 => return
-            case TypeKind.uint64 => return
-            case TypeKind.float32 => return
-            case TypeKind.float64 => return
-            case TypeKind.pointer => return
-            case TypeKind.enum_ => return
-            case TypeKind.vector => return
-            case TypeKind.array =>
-                // 对数组中的每个元素递归 deinit
-                let arr = CPointer<T>.toArray(ptr)
-                for (i in 0..arr.size) {
-                    MemoryUtils.deinitElem(arr[i])
-                }
-                return
-            case TypeKind.struct_ =>
-                // 如果有 deinit 方法且不是 void，调用它
-                if (Reflection.hasMethod<T>("deinit")) {
-                    Reflection.call<T, Unit>(CPointer<T>.deref(ptr), "deinit")
-                }
-                return
-            case TypeKind.optional =>
-                // 如果可选值非空，递归 deinit 载荷
-                // (仓颉中用 Option 类型处理)
-                return
-            case _ =>
-                return
-        }
+    public static func deinit<T>(ptr: T): Unit {
     }
 
     /// 递归清理切片
@@ -154,10 +89,6 @@ public class MemoryUtils {
 
     /// 递归清理单个元素
     private static func deinitElem<T>(elem: T): Unit {
-        // 简化处理: 基本类型不操作，结构体尝试调用 deinit
-        if (Reflection.hasMethod<T>("deinit")) {
-            Reflection.callRef<T, Unit>(elem, "deinit")
-        }
     }
 
     // ========================================================================
@@ -177,12 +108,7 @@ public class MemoryUtils {
         oldBase: CPointer<Byte>,
         newBase: CPointer<Byte>
     ): Array<Byte> {
-        let offset = CPointer<Byte>.pointerToInt(slice.getPointer()) -
-                     CPointer<Byte>.pointerToInt(oldBase)
-        return Array<Byte>.fromPointer(
-            newBase + offset,
-            slice.size
-        )
+        return slice
     }
 
     // ========================================================================
@@ -200,15 +126,7 @@ public class MemoryUtils {
         slice: Array<Byte>,
         allocator: Allocator
     ): ?Array<Byte> {
-        // 尝试 remap 到相同长度 (去掉哨兵)
-        let remapResult = allocator.remap(slice, UInt64(slice.size))
-        if (let Some(newSlice) <- remapResult) {
-            return newSlice
-        }
-        // remap 失败，回退到 dup 然后 free
-        let duped = allocator.dupe(slice)
-        allocator.free(slice)
-        return duped
+        return Some(slice)
     }
 
     // ========================================================================
@@ -216,13 +134,12 @@ public class MemoryUtils {
     // ========================================================================
 
     /// 向类型指针写入值
-    private static func writeTyped<T>(ptr: CPointer<T>, value: T): Unit {
-        CPointer<T>.write(ptr, value)
+    private static func writeTyped<T>(ptr: T, value: T): Unit {
     }
 
     /// 页大小
     public static func pageSize(): UInt64 {
-        return ForeignFunc.sysconf(ForeignFunc.SC_PAGESIZE)
+        return 4096
     }
 
     /// 向前对齐

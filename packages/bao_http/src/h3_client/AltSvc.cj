@@ -100,18 +100,18 @@ public class H3AltSvc {
     /// 严格翻译自: AltSvc.parse
     /// 返回 None = 无有效条目, Some(entry) = 找到 h3 替代, "clear" = 清除缓存
     public func parse(fieldValue: String): ?AltSvcResult {
-        let value = fieldValue.trim()
+        let value = fieldValue.trimStart().trimEnd()
         if (value.size == 0) {
             return None
         }
-        if (value.toLower() == "clear") {
+        if (value == "clear" || value == "Clear" || value == "CLEAR") {
             return AltSvcResult.clear
         }
 
         // 按逗号分割多个条目
         let entries = value.split(",")
         for (rawEntry in entries) {
-            let entry = rawEntry.trim()
+            let entry = rawEntry.trimStart().trimEnd()
             if (entry.size == 0) {
                 continue
             }
@@ -121,68 +121,68 @@ public class H3AltSvc {
             if (parts.size == 0) {
                 continue
             }
-            let alternative = parts[0].trim()
+            let alternative = parts[0].trimStart().trimEnd()
 
-            // 查找 '='
-            let eqIdx = alternative.indexOf('=')
-            match (eqIdx) {
+            match (parseEntry(parts, alternative)) {
+                case Some(result) => return result
                 case None => continue
-                case Some(idx) => {
-                    let proto = alternative.substring(0, idx).trim()
-                    // 仅支持 h3
-                    if (proto.toLower() != "h3") {
-                        continue
-                    }
-
-                    var auth = alternative.substring(idx + 1).trim()
-                    // 去除引号
-                    if (auth.size >= 2 && auth[0] == '"' && auth[auth.size - 1] == '"') {
-                        auth = auth.substring(1, auth.size - 1)
-                    }
-                    // 查找冒号
-                    let colonIdx = auth.lastIndexOf(':')
-                    match (colonIdx) {
-                        case None => continue
-                        case Some(ci) => {
-                            // 仅支持同主机 (空 uri-host)
-                            if (ci != 0) {
-                                continue
-                            }
-                            let portStr = auth.substring(ci + 1)
-                            let port = Int64.parse(portStr)
-                            match (port) {
-                                case Some(p) => {
-                                    if (p == 0) { continue }
-                                    // 解析参数
-                                    var ma: Int64 = 86400
-                                    if (parts.size > 1) {
-                                        for (i in 1..parts.size) {
-                                            let param = parts[i].trim()
-                                            let peqIdx = param.indexOf('=')
-                                            match (peqIdx) {
-                                                case Some(pi) => {
-                                                    let pName = param.substring(0, pi).trim()
-                                                    if (pName.toLower() == "ma") {
-                                                        match (Int64.parse(param.substring(pi + 1).trim())) {
-                                                            case Some(v) => ma = v
-                                                            case None => ()
-                                                        }
-                                                    }
-                                                }
-                                                case None => ()
-                                            }
-                                        }
-                                    }
-                                    return AltSvcResult.entry(AltSvcEntry(p, ma))
-                                }
-                                case None => continue
-                            }
-                        }
-                    }
-                }
             }
         }
         return None
+    }
+
+    private func parseEntry(parts: Array<String>, alternative: String): ?AltSvcResult {
+        match (alternative.indexOf('=')) {
+            case Some(idx) => return parseAlternative(parts, alternative, idx)
+            case None => return None
+        }
+    }
+
+    private func parseAlternative(parts: Array<String>, alternative: String, idx: Int64): ?AltSvcResult {
+        let proto = sliceString(alternative, 0, idx).trimStart().trimEnd()
+        if (proto != "h3" && proto != "H3") {
+            return None
+        }
+        var auth = sliceString(alternative, idx + 1, alternative.size).trimStart().trimEnd()
+        if (auth.size >= 2 && auth[0] == 34 && auth[auth.size - 1] == 34) {
+            auth = sliceString(auth, 1, auth.size - 1)
+        }
+        match (auth.lastIndexOf(':')) {
+            case Some(ci) => return parseAuthority(parts, auth, ci)
+            case None => return None
+        }
+    }
+
+    private func parseAuthority(parts: Array<String>, auth: String, ci: Int64): ?AltSvcResult {
+        if (ci != 0) {
+            return None
+        }
+        match (parseInt64(sliceString(auth, ci + 1, auth.size))) {
+            case Some(p) => return parsePort(parts, p)
+            case None => return None
+        }
+    }
+
+    private func parsePort(parts: Array<String>, p: Int64): ?AltSvcResult {
+        if (p == 0) { return None }
+        var ma: Int64 = 86400
+        if (parts.size > 1) {
+            for (i in 1..parts.size) {
+                let param = parts[i].trimStart().trimEnd()
+                match (param.indexOf('=')) {
+                    case Some(pi) =>
+                        let pName = sliceString(param, 0, pi).trimStart().trimEnd()
+                        if (pName == "ma" || pName == "MA") {
+                            match (parseInt64(sliceString(param, pi + 1, param.size).trimStart().trimEnd())) {
+                                case Some(v) => ma = v
+                                case None => ()
+                            }
+                        }
+                    case None => ()
+                }
+            }
+        }
+        return AltSvcResult.entry(AltSvcEntry(p, ma))
     }
 
     // ========================================================================
@@ -207,21 +207,11 @@ public class H3AltSvc {
 
         match (parse(fieldValue)) {
             case None => return
-            case AltSvcResult.clear => {
+            case Some(AltSvcResult.clear) =>
                 cache.remove(key)
                 return
-            }
-            case AltSvcResult.entry(entry) => {
-                let now = currentTimeSeconds()
-                // 检查容量
-                if (cache.size >= MAX_ENTRIES && cache.get(key) == None) {
-                    sweepExpired(now)
-                    if (cache.size >= MAX_ENTRIES) {
-                        return
-                    }
-                }
-                cache.put(key, AltSvcRecord(entry.port, now + entry.ma))
-            }
+            case Some(result) =>
+                recordResult(key, result)
         }
     }
 
@@ -244,13 +234,12 @@ public class H3AltSvc {
     public func lookup(originHost: String, originPort: Int64): ?Int64 {
         let key = originHost + ":" + originPort.toString()
         match (cache.get(key)) {
-            case Some(rec) => {
+            case Some(rec) =>
                 if (currentTimeSeconds() >= rec.expiresAt) {
                     cache.remove(key)
                     return None
                 }
                 return rec.h3Port
-            }
             case None => return None
         }
     }
@@ -260,17 +249,37 @@ public class H3AltSvc {
     // 严格翻译自: AltSvc.sweepExpired
     // ========================================================================
 
+    private func recordResult(key: String, result: AltSvcResult): Unit {
+        match (result) {
+            case clear =>
+                cache.remove(key)
+            case entry(entryValue) =>
+                let now = currentTimeSeconds()
+                var exists = false
+                match (cache.get(key)) {
+                    case Some(_) => exists = true
+                    case None => exists = false
+                }
+                if (cache.size >= MAX_ENTRIES && !exists) {
+                    sweepExpired(now)
+                    if (cache.size >= MAX_ENTRIES) {
+                        return
+                    }
+                }
+                cache.put(key, AltSvcRecord(entryValue.port, now + entryValue.ma))
+        }
+    }
+
     /// 清理过期条目
     /// 严格翻译自: AltSvc.sweepExpired
     public func sweepExpired(now: Int64): Unit {
-        let keys = cache.keys().toArray()
+        let keys = cache.keys().toOwnedSlice()
         for (key in keys) {
             match (cache.get(key)) {
-                case Some(rec) => {
+                case Some(rec) =>
                     if (now >= rec.expiresAt) {
                         cache.remove(key)
                     }
-                }
                 case None => ()
             }
         }
@@ -280,6 +289,26 @@ public class H3AltSvc {
     private static func currentTimeSeconds(): Int64 {
         // 桩: 实际应使用系统时钟
         return 0
+    }
+
+    private static func sliceString(s: String, start: Int64, end: Int64): String {
+        let sb = StringBuilder()
+        var i = start
+        while (i < end && i < s.size) {
+            sb.append(s[i].toString())
+            i += 1
+        }
+        return sb.toString()
+    }
+
+    private static func parseInt64(s: String): ?Int64 {
+        if (s.size == 0) { return None }
+        var value: Int64 = 0
+        for (ch in s) {
+            if (ch < 48 || ch > 57) { return None }
+            value = value * 10 + Int64(ch - 48)
+        }
+        return Some(value)
     }
 }
 

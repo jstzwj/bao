@@ -117,8 +117,8 @@ public class SuppressMicrotaskDrain {
         // 对应 Bun: let prev = __bun_spawn_sync_vm_swap_suppress_microtask_drain(vm, true)
         match (vmContext) {
             case Some(ctx) =>
-                previousValue = ctx.suppressMicrotaskDrain
-                ctx.suppressMicrotaskDrain = true
+                previousValue = ctx.getSuppressMicrotaskDrain()
+                ctx.setSuppressMicrotaskDrain(true)
             case None => ()
         }
     }
@@ -135,7 +135,7 @@ public class SuppressMicrotaskDrain {
         closed = true
         match (vmContext) {
             case Some(ctx) =>
-                ctx.suppressMicrotaskDrain = previousValue
+                ctx.setSuppressMicrotaskDrain(previousValue)
             case None => ()
         }
     }
@@ -163,10 +163,9 @@ public class SuppressMicrotaskDrain {
 public interface VmContext {
     /// 是否抑制微任务排出
     /// 对应 Bun: vm.suppress_microtask_drain
-    prop suppressMicrotaskDrain: Bool
-    set(suppressMicrotaskDrain) {
-        get()
-    }
+    func getSuppressMicrotaskDrain(): Bool
+
+    func setSuppressMicrotaskDrain(value: Bool): Unit
 
     /// 获取当前事件循环
     /// 对应 Bun: vm.event_loop_handle
@@ -174,7 +173,7 @@ public interface VmContext {
 
     /// 设置事件循环
     /// 对应 Bun: vm.event_loop_handle = newHandle
-    func setEventLoop(loop: ?MiniEventLoop)
+    func setEventLoop(loop: ?MiniEventLoop): Unit
 }
 
 // ============================================================================
@@ -477,7 +476,7 @@ public class SpawnSyncEventLoop {
     private func tickTasksOnly(): Unit {
         // MiniEventLoop 已经有 processTasks 和 processConcurrentTasks
         // 直接调用内部方法排出队列
-        eventLoop.enqueue({ })
+        eventLoop.enqueue({ => () })
     }
 
     // ========================================================================
@@ -507,7 +506,7 @@ public class SpawnSyncEventLoop {
                 })
             case None =>
                 // 无限等待直到有事件
-                eventLoop.setImmediate({ })
+                eventLoop.setImmediate({ => () })
         }
     }
 

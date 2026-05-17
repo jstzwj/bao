@@ -125,7 +125,7 @@ public class Listener {
     public static func listen(globalObject: JsObject, opts: JsValue, vm: VirtualMachine): JsValue {
         // 验证参数
         if (opts.valueType != JsValueType.Object) {
-            return JsValue("Expected object")
+            return JsValue(BaoString("Expected object"))
         }
 
         // 解析 Socket 配置
@@ -157,7 +157,7 @@ public class Listener {
                     }
                     case ConnectionTarget.Fd(fd) => {
                         // 不支持从 fd 监听
-                        return JsValue("Bun does not support listening on a file descriptor.")
+                        return JsValue(BaoString("Bun does not support listening on a file descriptor."))
                     }
                 }
 
@@ -169,7 +169,7 @@ public class Listener {
                 return JsValue.UNDEFINED  // 实际返回 listener 的 JS 包装器
             }
             case None => {
-                return JsValue("Invalid options")
+                return JsValue(BaoString("Invalid options"))
             }
         }
     }
@@ -189,7 +189,7 @@ public class Listener {
     /// 对应 Zig: connectInner
     public static func connectInner(globalObject: JsObject, prevTcp: ?Socket, prevTls: ?Socket, opts: JsValue, vm: VirtualMachine): JsValue {
         if (opts.valueType != JsValueType.Object) {
-            return JsValue("Expected options object")
+            return JsValue(BaoString("Expected options object"))
         }
 
         // 解析配置
@@ -234,7 +234,7 @@ public class Listener {
                 return promise
             }
             case None => {
-                return JsValue("Invalid options")
+                return JsValue(BaoString("Invalid options"))
             }
         }
     }
@@ -422,19 +422,19 @@ public class Listener {
     /// 对应 Zig: addServerName
     public func addServerName(globalObject: JsObject, hostname: JsValue, tls: JsValue): JsValue {
         if (!ssl) {
-            return JsValue("addServerName requires SSL support")
+            return JsValue(BaoString("addServerName requires SSL support"))
         }
 
         match (hostname.valueType) {
             case JsValueType.String => {
                 let name = hostname.toString()
                 if (name.isEmpty()) {
-                    return JsValue("hostname pattern cannot be empty")
+                    return JsValue(BaoString("hostname pattern cannot be empty"))
                 }
                 // 添加 SNI 映射
                 return JsValue.UNDEFINED
             }
-            case _ => return JsValue("hostname pattern expects a string")
+            case _ => return JsValue(BaoString("hostname pattern expects a string"))
         }
     }
 

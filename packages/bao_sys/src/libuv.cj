@@ -420,7 +420,9 @@ public class UvLoop {
         if (!initialized) {
             return -1
         }
-        return uv_run(loop, mode.toInt())
+        unsafe {
+            return uv_run(loop, mode.toInt())
+        }
     }
 
     /// 运行直到没有活跃句柄
@@ -445,14 +447,18 @@ public class UvLoop {
         if (!initialized) {
             return false
         }
-        return uv_loop_alive(loop) != 0
+        unsafe {
+            return uv_loop_alive(loop) != 0
+        }
     }
 
     /// 停止循环
     /// 对应: uv_stop(loop)
     public func stop(): Unit {
         if (initialized) {
-            uv_stop(loop)
+            unsafe {
+                uv_stop(loop)
+            }
         }
     }
 
@@ -462,7 +468,9 @@ public class UvLoop {
         if (!initialized) {
             return -1
         }
-        return uv_backend_fd(loop)
+        unsafe {
+            return uv_backend_fd(loop)
+        }
     }
 
     /// 获取后端超时
@@ -470,14 +478,18 @@ public class UvLoop {
         if (!initialized) {
             return 0
         }
-        return uv_backend_timeout(loop)
+        unsafe {
+            return uv_backend_timeout(loop)
+        }
     }
 
     /// 更新时间
     /// 对应: uv_update_time(loop)
     public func updateTime(): Unit {
         if (initialized) {
-            uv_update_time(loop)
+            unsafe {
+                uv_update_time(loop)
+            }
         }
     }
 
@@ -487,15 +499,19 @@ public class UvLoop {
         if (!initialized) {
             return 0
         }
-        return uv_now(loop)
+        unsafe {
+            return uv_now(loop)
+        }
     }
 
     /// 销毁循环
     /// 对应: uv_loop_close(loop) + uv_loop_delete(loop)
     public func destroy(): Unit {
         if (initialized) {
-            uv_loop_close(loop)
-            uv_loop_delete(loop)
+            unsafe {
+                uv_loop_close(loop)
+                uv_loop_delete(loop)
+            }
             loop = CPointer<Unit>()
             initialized = false
         }
@@ -537,7 +553,9 @@ public class UvFsReq {
     /// sys_uv.zig 中每个函数都有 `defer req.deinit()`
     public func deinit(): Unit {
         if (valid) {
-            uv_fs_req_cleanup(req)
+            unsafe {
+                uv_fs_req_cleanup(req)
+            }
             valid = false
         }
     }
@@ -576,54 +594,66 @@ public class UvTcp {
     /// 初始化 TCP 句柄
     /// 对应: uv_tcp_init(loop, &handle)
     public func initFunc(): SysMaybe<Unit> {
-        let rc = uv_tcp_init(loop.ptr(), handle)
-        if (rc != 0) {
-            return SysMaybe<Unit>.Err(
-                SysError(UvErrno.toErrno(rc), SysTag.Connect)
-            )
+        unsafe {
+            let rc = uv_tcp_init(loop.ptr(), handle)
+            if (rc != 0) {
+                return SysMaybe<Unit>.Err(
+                    SysError(UvErrno.toErrno(rc), SysTag.Connect)
+                )
+            }
+            return SysMaybe<Unit>.Ok(())
         }
-        return SysMaybe<Unit>.Ok(())
     }
 
     /// 初始化 (带扩展标志)
     /// 对应: uv_tcp_init_ex(loop, &handle, flags)
     public func initEx(flags: UInt32): SysMaybe<Unit> {
-        let rc = uv_tcp_init_ex(loop.ptr(), handle, flags)
-        if (rc != 0) {
-            return SysMaybe<Unit>.Err(
-                SysError(UvErrno.toErrno(rc), SysTag.Connect)
-            )
+        unsafe {
+            let rc = uv_tcp_init_ex(loop.ptr(), handle, flags)
+            if (rc != 0) {
+                return SysMaybe<Unit>.Err(
+                    SysError(UvErrno.toErrno(rc), SysTag.Connect)
+                )
+            }
+            return SysMaybe<Unit>.Ok(())
         }
-        return SysMaybe<Unit>.Ok(())
     }
 
     /// 设置 TCP_NODELAY (禁用 Nagle 算法)
     /// 对应: uv_tcp_nodelay(&handle, 1)
     public func setNoDelay(enable: Bool): SysMaybe<Unit> {
-        let rc = uv_tcp_nodelay(handle, if (enable) 1 else 0)
-        if (rc != 0) {
-            return SysMaybe<Unit>.Err(
-                SysError(UvErrno.toErrno(rc), SysTag.Connect)
-            )
+        let enabled: Int32 = if (enable) { 1 } else { 0 }
+        unsafe {
+            let rc = uv_tcp_nodelay(handle, enabled)
+            if (rc != 0) {
+                return SysMaybe<Unit>.Err(
+                    SysError(UvErrno.toErrno(rc), SysTag.Connect)
+                )
+            }
+            return SysMaybe<Unit>.Ok(())
         }
-        return SysMaybe<Unit>.Ok(())
     }
 
     /// 设置 keepalive
     /// 对应: uv_tcp_keepalive(&handle, 1, delay)
     public func setKeepalive(enable: Bool, delay: UInt32): SysMaybe<Unit> {
-        let rc = uv_tcp_keepalive(handle, if (enable) 1 else 0, delay)
-        if (rc != 0) {
-            return SysMaybe<Unit>.Err(
-                SysError(UvErrno.toErrno(rc), SysTag.Connect)
-            )
+        let enabled: Int32 = if (enable) { 1 } else { 0 }
+        unsafe {
+            let rc = uv_tcp_keepalive(handle, enabled, delay)
+            if (rc != 0) {
+                return SysMaybe<Unit>.Err(
+                    SysError(UvErrno.toErrno(rc), SysTag.Connect)
+                )
+            }
+            return SysMaybe<Unit>.Ok(())
         }
-        return SysMaybe<Unit>.Ok(())
     }
 
     /// 关闭句柄
     public func close(): Unit {
-        uv_close(handle, CPointer<Unit>())
+        unsafe {
+            uv_close(handle, CPointer<Unit>())
+        }
     }
 
     /// 获取底层指针
@@ -649,7 +679,7 @@ public class UvTimer {
 
     public init(loop: UvLoop) {
         this.loop = loop
-        this.onTimer = { }
+        this.onTimer = { => () }
         // 分配 uv_timer_t 大小的内存
         unsafe {
             let size = uv_handle_size(15)  // UV_TIMER = 15
@@ -660,13 +690,15 @@ public class UvTimer {
     /// 初始化定时器
     /// 对应: uv_timer_init(loop, &handle)
     public func initFunc(): SysMaybe<Unit> {
-        let rc = uv_timer_init(loop.ptr(), handle)
-        if (rc != 0) {
-            return SysMaybe<Unit>.Err(
-                SysError(UvErrno.toErrno(rc), SysTag.UvTimer)
-            )
+        unsafe {
+            let rc = uv_timer_init(loop.ptr(), handle)
+            if (rc != 0) {
+                return SysMaybe<Unit>.Err(
+                    SysError(UvErrno.toErrno(rc), SysTag.UvTimer)
+                )
+            }
+            return SysMaybe<Unit>.Ok(())
         }
-        return SysMaybe<Unit>.Ok(())
     }
 
     /// 启动定时器
@@ -674,60 +706,74 @@ public class UvTimer {
     /// timeout: 首次触发延迟 (毫秒)
     /// repeat: 重复间隔 (毫秒), 0 = 一次性
     public func start(timeout: UInt64, repeat: UInt64): SysMaybe<Unit> {
-        let rc = uv_timer_start(handle, CPointer<Unit>(), timeout, repeat)
-        if (rc != 0) {
-            return SysMaybe<Unit>.Err(
-                SysError(UvErrno.toErrno(rc), SysTag.UvTimer)
-            )
+        unsafe {
+            let rc = uv_timer_start(handle, CPointer<Unit>(), timeout, repeat)
+            if (rc != 0) {
+                return SysMaybe<Unit>.Err(
+                    SysError(UvErrno.toErrno(rc), SysTag.UvTimer)
+                )
+            }
+            return SysMaybe<Unit>.Ok(())
         }
-        return SysMaybe<Unit>.Ok(())
     }
 
     /// 停止定时器
     /// 对应: uv_timer_stop(&handle)
     public func stop(): SysMaybe<Unit> {
-        let rc = uv_timer_stop(handle)
-        if (rc != 0) {
-            return SysMaybe<Unit>.Err(
-                SysError(UvErrno.toErrno(rc), SysTag.UvTimer)
-            )
+        unsafe {
+            let rc = uv_timer_stop(handle)
+            if (rc != 0) {
+                return SysMaybe<Unit>.Err(
+                    SysError(UvErrno.toErrno(rc), SysTag.UvTimer)
+                )
+            }
+            return SysMaybe<Unit>.Ok(())
         }
-        return SysMaybe<Unit>.Ok(())
     }
 
     /// 重启定时器 (使用上次参数)
     /// 对应: uv_timer_again(&handle)
     public func again(): SysMaybe<Unit> {
-        let rc = uv_timer_again(handle)
-        if (rc != 0) {
-            return SysMaybe<Unit>.Err(
-                SysError(UvErrno.toErrno(rc), SysTag.UvTimer)
-            )
+        unsafe {
+            let rc = uv_timer_again(handle)
+            if (rc != 0) {
+                return SysMaybe<Unit>.Err(
+                    SysError(UvErrno.toErrno(rc), SysTag.UvTimer)
+                )
+            }
+            return SysMaybe<Unit>.Ok(())
         }
-        return SysMaybe<Unit>.Ok(())
     }
 
     /// 设置重复间隔
     /// 对应: uv_timer_set_repeat(&handle, repeat)
     public func setRepeat(repeat: UInt64): Unit {
-        uv_timer_set_repeat(handle, repeat)
+        unsafe {
+            uv_timer_set_repeat(handle, repeat)
+        }
     }
 
     /// 获取重复间隔
     /// 对应: uv_timer_get_repeat(&handle)
     public func getRepeat(): UInt64 {
-        return uv_timer_get_repeat(handle)
+        unsafe {
+            return uv_timer_get_repeat(handle)
+        }
     }
 
     /// 获取距离下次触发的毫秒数
     /// 对应: uv_timer_get_due_in(&handle)
     public func getDueIn(): UInt64 {
-        return uv_timer_get_due_in(handle)
+        unsafe {
+            return uv_timer_get_due_in(handle)
+        }
     }
 
     /// 关闭定时器
     public func close(): Unit {
-        uv_close(handle, CPointer<Unit>())
+        unsafe {
+            uv_close(handle, CPointer<Unit>())
+        }
     }
 
     /// 获取底层指针
@@ -754,25 +800,29 @@ public class UvStream {
     /// 开始读取
     /// 对应: uv_read_start(stream, alloc_cb, read_cb)
     public func readStart(): SysMaybe<Unit> {
-        let rc = uv_read_start(handle, CPointer<Unit>(), CPointer<Unit>())
-        if (rc != 0) {
-            return SysMaybe<Unit>.Err(
-                SysError(UvErrno.toErrno(rc), SysTag.Read)
-            )
+        unsafe {
+            let rc = uv_read_start(handle, CPointer<Unit>(), CPointer<Unit>())
+            if (rc != 0) {
+                return SysMaybe<Unit>.Err(
+                    SysError(UvErrno.toErrno(rc), SysTag.Read)
+                )
+            }
+            return SysMaybe<Unit>.Ok(())
         }
-        return SysMaybe<Unit>.Ok(())
     }
 
     /// 停止读取
     /// 对应: uv_read_stop(stream)
     public func readStop(): SysMaybe<Unit> {
-        let rc = uv_read_stop(handle)
-        if (rc != 0) {
-            return SysMaybe<Unit>.Err(
-                SysError(UvErrno.toErrno(rc), SysTag.Read)
-            )
+        unsafe {
+            let rc = uv_read_stop(handle)
+            if (rc != 0) {
+                return SysMaybe<Unit>.Err(
+                    SysError(UvErrno.toErrno(rc), SysTag.Read)
+                )
+            }
+            return SysMaybe<Unit>.Ok(())
         }
-        return SysMaybe<Unit>.Ok(())
     }
 
     /// 尝试写入 (非阻塞)
@@ -781,7 +831,7 @@ public class UvStream {
         unsafe {
             let bufPtr = malloc(UIntNative(data.size))
             for (i in 0..data.size) {
-                let bytePtr = CPointer<Int8>(bufPtr) + IntNative(i)
+                let bytePtr = CPointer<Int8>(bufPtr) + Int64(i)
                 bytePtr.write(Int8(Int32(data[i])))
             }
             let buf = uv_buf_init(CPointer<Int8>(bufPtr), UIntNative(data.size))
@@ -793,28 +843,37 @@ public class UvStream {
 
     /// 是否可读
     public func isReadable(): Bool {
-        return uv_is_readable(handle) != 0
+        unsafe {
+            return uv_is_readable(handle) != 0
+        }
     }
 
     /// 是否可写
     public func isWritable(): Bool {
-        return uv_is_writable(handle) != 0
+        unsafe {
+            return uv_is_writable(handle) != 0
+        }
     }
 
     /// 设置阻塞模式
     public func setBlocking(blocking: Bool): SysMaybe<Unit> {
-        let rc = uv_stream_set_blocking(handle, if (blocking) 1 else 0)
-        if (rc != 0) {
-            return SysMaybe<Unit>.Err(
-                SysError(UvErrno.toErrno(rc), SysTag.Write)
-            )
+        let enabled: Int32 = if (blocking) { 1 } else { 0 }
+        unsafe {
+            let rc = uv_stream_set_blocking(handle, enabled)
+            if (rc != 0) {
+                return SysMaybe<Unit>.Err(
+                    SysError(UvErrno.toErrno(rc), SysTag.Write)
+                )
+            }
+            return SysMaybe<Unit>.Ok(())
         }
-        return SysMaybe<Unit>.Ok(())
     }
 
     /// 关闭流
     public func close(): Unit {
-        uv_close(handle, CPointer<Unit>())
+        unsafe {
+            uv_close(handle, CPointer<Unit>())
+        }
     }
 
     /// 获取底层指针
@@ -850,7 +909,9 @@ public class UvHelpers {
     /// 获取 libuv 版本号
     /// 对应: uv_version()
     public static func version(): UInt32 {
-        return uv_version()
+        unsafe {
+            return uv_version()
+        }
     }
 
     /// 获取 libuv 版本字符串
@@ -865,8 +926,10 @@ public class UvHelpers {
     /// 根据 FD 猜测句柄类型
     /// 对应: uv_guess_handle(fd)
     public static func guessHandle(fd: Int32): UvHandleType {
-        let t = uv_guess_handle(fd)
-        return UvHandleType.fromInt(t)
+        unsafe {
+            let t = uv_guess_handle(fd)
+            return UvHandleType.fromInt(t)
+        }
     }
 
     /// 检查返回码是否为错误
@@ -913,7 +976,7 @@ public class UvFsOps {
             let req = UvFsReq()
             let pathPtr = stringToCString(path)
             let rc = uv_fs_open(loop.ptr(), req.ptr(), pathPtr, flags, perm, CPointer<Unit>())
-            free(pathPtr)
+            free(CPointer<Unit>(pathPtr))
             if (UvHelpers.isErr(rc)) {
                 req.deinit()
                 return SysMaybe<Int32>.Err(
@@ -928,43 +991,49 @@ public class UvFsOps {
 
     /// 关闭文件 — 对应 sys_uv.close
     public func close(fd: Int32): SysMaybe<Unit> {
-        let req = UvFsReq()
-        let rc = uv_fs_close(loop.ptr(), req.ptr(), fd, CPointer<Unit>())
-        req.deinit()
-        if (UvHelpers.isErr(rc)) {
-            return SysMaybe<Unit>.Err(
-                SysError(UvHelpers.getErrno(rc), SysTag.Close))
+        unsafe {
+            let req = UvFsReq()
+            let rc = uv_fs_close(loop.ptr(), req.ptr(), fd, CPointer<Unit>())
+            req.deinit()
+            if (UvHelpers.isErr(rc)) {
+                return SysMaybe<Unit>.Err(
+                    SysError(UvHelpers.getErrno(rc), SysTag.Close))
+            }
+            return SysMaybe<Unit>.Ok(())
         }
-        return SysMaybe<Unit>.Ok(())
     }
 
     /// 读取文件 — 对应 sys_uv.preadv
     /// sys_uv.zig: uv_fs_read(loop, &req, fd, bufs, nbufs, offset, null)
     public func read(fd: Int32, buf: CPointer<Unit>, bufSize: UIntNative,
                      offset: Int64): SysMaybe<Int64> {
-        let req = UvFsReq()
-        let rc = uv_fs_read(loop.ptr(), req.ptr(), fd, buf, 1, offset, CPointer<Unit>())
-        if (UvHelpers.isErr(rc)) {
+        unsafe {
+            let req = UvFsReq()
+            let rc = uv_fs_read(loop.ptr(), req.ptr(), fd, buf, 1, offset, CPointer<Unit>())
+            if (UvHelpers.isErr(rc)) {
+                req.deinit()
+                return SysMaybe<Int64>.Err(
+                    SysError(UvHelpers.getErrno(rc), SysTag.Read))
+            }
             req.deinit()
-            return SysMaybe<Int64>.Err(
-                SysError(UvHelpers.getErrno(rc), SysTag.Read))
+            return SysMaybe<Int64>.Ok(Int64(rc))
         }
-        req.deinit()
-        return SysMaybe<Int64>.Ok(Int64(rc))
     }
 
     /// 写入文件 — 对应 sys_uv.pwritev
     public func write(fd: Int32, buf: CPointer<Unit>, bufSize: UIntNative,
                       offset: Int64): SysMaybe<Int64> {
-        let req = UvFsReq()
-        let rc = uv_fs_write(loop.ptr(), req.ptr(), fd, buf, 1, offset, CPointer<Unit>())
-        if (UvHelpers.isErr(rc)) {
+        unsafe {
+            let req = UvFsReq()
+            let rc = uv_fs_write(loop.ptr(), req.ptr(), fd, buf, 1, offset, CPointer<Unit>())
+            if (UvHelpers.isErr(rc)) {
+                req.deinit()
+                return SysMaybe<Int64>.Err(
+                    SysError(UvHelpers.getErrno(rc), SysTag.Write))
+            }
             req.deinit()
-            return SysMaybe<Int64>.Err(
-                SysError(UvHelpers.getErrno(rc), SysTag.Write))
+            return SysMaybe<Int64>.Ok(Int64(rc))
         }
-        req.deinit()
-        return SysMaybe<Int64>.Ok(Int64(rc))
     }
 
     /// 获取文件状态 — 对应 sys_uv.stat
@@ -974,7 +1043,7 @@ public class UvFsOps {
             let req = UvFsReq()
             let pathPtr = stringToCString(path)
             let rc = uv_fs_stat(loop.ptr(), req.ptr(), pathPtr, CPointer<Unit>())
-            free(pathPtr)
+            free(CPointer<Unit>(pathPtr))
             if (UvHelpers.isErr(rc)) {
                 req.deinit()
                 return SysMaybe<UvStat>.Err(
@@ -994,7 +1063,7 @@ public class UvFsOps {
             let req = UvFsReq()
             let pathPtr = stringToCString(path)
             let rc = uv_fs_mkdir(loop.ptr(), req.ptr(), pathPtr, mode, CPointer<Unit>())
-            free(pathPtr)
+            free(CPointer<Unit>(pathPtr))
             req.deinit()
             if (UvHelpers.isErr(rc)) {
                 return SysMaybe<Unit>.Err(
@@ -1010,7 +1079,7 @@ public class UvFsOps {
             let req = UvFsReq()
             let pathPtr = stringToCString(path)
             let rc = uv_fs_rmdir(loop.ptr(), req.ptr(), pathPtr, CPointer<Unit>())
-            free(pathPtr)
+            free(CPointer<Unit>(pathPtr))
             req.deinit()
             if (UvHelpers.isErr(rc)) {
                 return SysMaybe<Unit>.Err(
@@ -1026,7 +1095,7 @@ public class UvFsOps {
             let req = UvFsReq()
             let pathPtr = stringToCString(path)
             let rc = uv_fs_unlink(loop.ptr(), req.ptr(), pathPtr, CPointer<Unit>())
-            free(pathPtr)
+            free(CPointer<Unit>(pathPtr))
             req.deinit()
             if (UvHelpers.isErr(rc)) {
                 return SysMaybe<Unit>.Err(
@@ -1043,8 +1112,8 @@ public class UvFsOps {
             let fromPtr = stringToCString(from)
             let toPtr = stringToCString(to)
             let rc = uv_fs_rename(loop.ptr(), req.ptr(), fromPtr, toPtr, CPointer<Unit>())
-            free(fromPtr)
-            free(toPtr)
+            free(CPointer<Unit>(fromPtr))
+            free(CPointer<Unit>(toPtr))
             req.deinit()
             if (UvHelpers.isErr(rc)) {
                 return SysMaybe<Unit>.Err(
@@ -1060,7 +1129,7 @@ public class UvFsOps {
             let req = UvFsReq()
             let pathPtr = stringToCString(path)
             let rc = uv_fs_chmod(loop.ptr(), req.ptr(), pathPtr, mode, CPointer<Unit>())
-            free(pathPtr)
+            free(CPointer<Unit>(pathPtr))
             req.deinit()
             if (UvHelpers.isErr(rc)) {
                 return SysMaybe<Unit>.Err(
@@ -1072,26 +1141,30 @@ public class UvFsOps {
 
     /// 文件截断 — 对应 sys_uv.ftruncate
     public func ftruncate(fd: Int32, size: Int64): SysMaybe<Unit> {
-        let req = UvFsReq()
-        let rc = uv_fs_ftruncate(loop.ptr(), req.ptr(), fd, size, CPointer<Unit>())
-        req.deinit()
-        if (UvHelpers.isErr(rc)) {
-            return SysMaybe<Unit>.Err(
-                SysError(UvHelpers.getErrno(rc), SysTag.Write))
+        unsafe {
+            let req = UvFsReq()
+            let rc = uv_fs_ftruncate(loop.ptr(), req.ptr(), fd, size, CPointer<Unit>())
+            req.deinit()
+            if (UvHelpers.isErr(rc)) {
+                return SysMaybe<Unit>.Err(
+                    SysError(UvHelpers.getErrno(rc), SysTag.Write))
+            }
+            return SysMaybe<Unit>.Ok(())
         }
-        return SysMaybe<Unit>.Ok(())
     }
 
     /// 同步文件数据 — 对应 sys_uv.fsync
     public func fsync(fd: Int32): SysMaybe<Unit> {
-        let req = UvFsReq()
-        let rc = uv_fs_fsync(loop.ptr(), req.ptr(), fd, CPointer<Unit>())
-        req.deinit()
-        if (UvHelpers.isErr(rc)) {
-            return SysMaybe<Unit>.Err(
-                SysError(UvHelpers.getErrno(rc), SysTag.Write))
+        unsafe {
+            let req = UvFsReq()
+            let rc = uv_fs_fsync(loop.ptr(), req.ptr(), fd, CPointer<Unit>())
+            req.deinit()
+            if (UvHelpers.isErr(rc)) {
+                return SysMaybe<Unit>.Err(
+                    SysError(UvHelpers.getErrno(rc), SysTag.Write))
+            }
+            return SysMaybe<Unit>.Ok(())
         }
-        return SysMaybe<Unit>.Ok(())
     }
 
     /// 创建符号链接 — 对应 sys_uv.symlinkUV
@@ -1101,8 +1174,8 @@ public class UvFsOps {
             let targetPtr = stringToCString(target)
             let newPathPtr = stringToCString(newPath)
             let rc = uv_fs_symlink(loop.ptr(), req.ptr(), targetPtr, newPathPtr, flags, CPointer<Unit>())
-            free(targetPtr)
-            free(newPathPtr)
+            free(CPointer<Unit>(targetPtr))
+            free(CPointer<Unit>(newPathPtr))
             req.deinit()
             if (UvHelpers.isErr(rc)) {
                 return SysMaybe<Unit>.Err(
@@ -1119,8 +1192,8 @@ public class UvFsOps {
             let fromPtr = stringToCString(from)
             let toPtr = stringToCString(to)
             let rc = uv_fs_link(loop.ptr(), req.ptr(), fromPtr, toPtr, CPointer<Unit>())
-            free(fromPtr)
-            free(toPtr)
+            free(CPointer<Unit>(fromPtr))
+            free(CPointer<Unit>(toPtr))
             req.deinit()
             if (UvHelpers.isErr(rc)) {
                 return SysMaybe<Unit>.Err(
@@ -1137,8 +1210,8 @@ public class UvFsOps {
             let fromPtr = stringToCString(from)
             let toPtr = stringToCString(to)
             let rc = uv_fs_copyfile(loop.ptr(), req.ptr(), fromPtr, toPtr, flags, CPointer<Unit>())
-            free(fromPtr)
-            free(toPtr)
+            free(CPointer<Unit>(fromPtr))
+            free(CPointer<Unit>(toPtr))
             req.deinit()
             if (UvHelpers.isErr(rc)) {
                 return SysMaybe<Unit>.Err(
@@ -1156,10 +1229,10 @@ public class UvFsOps {
             let len = UIntNative(s.size + 1)
             let ptr = malloc(len)
             for (i in 0..s.size) {
-                let bytePtr = CPointer<Int8>(ptr) + IntNative(i)
-                bytePtr.write(Int8(Int32(s[Int64(i)].value) & 0xFF))
+                let bytePtr = CPointer<Int8>(ptr) + Int64(i)
+                bytePtr.write(Int8(Int64(s[Int64(i)]) & 0xFF))
             }
-            let nullPtr = CPointer<Int8>(ptr) + IntNative(s.size)
+            let nullPtr = CPointer<Int8>(ptr) + Int64(s.size)
             nullPtr.write(Int8(0))
             return CPointer<Int8>(ptr)
         }
@@ -1171,10 +1244,10 @@ public class UvFsOps {
             let sb = StringBuilder()
             var i = 0
             while (true) {
-                let bytePtr = ptr + IntNative(i)
+                let bytePtr = ptr + Int64(i)
                 let b = bytePtr.read()
                 if (b == Int8(0)) { break }
-                sb.append(Char(Int32(b)))
+                sb.append(Rune(Int32(b)))
                 i += 1
             }
             return sb.toString()

@@ -10,17 +10,17 @@ import bao_core.*
 // 严格翻译自: values/angle.rs Angle enum
 // ============================================================================
 
+public enum CssAngleKind {
+    | Deg    // 度 (360度一圈)
+    | Rad    // 弧度 (2π弧度一圈)
+    | Grad   // 梯度 (400梯度一圈)
+    | Turn   // 圈 (1圈一圈)
+}
+
 /// CSS <angle> 值
 /// 严格翻译自 Angle enum { Deg(f32), Rad(f32), Grad(f32), Turn(f32) }
 /// 角度可能为显式值或由 calc() 计算，但总是存储为计算值
 public class CssAngle {
-    public enum CssAngleKind {
-        | Deg    // 度 (360度一圈)
-        | Rad    // 弧度 (2π弧度一圈)
-        | Grad   // 梯度 (400梯度一圈)
-        | Turn   // 圈 (1圈一圈)
-    }
-
     public var kind: CssAngleKind
     public var value: Float64
 
@@ -82,10 +82,27 @@ public class CssAngle {
     /// 相加
     /// 严格翻译自 Angle.add
     public func add(rhs: CssAngle): CssAngle {
-        if (kind == rhs.kind) {
-            CssAngle(kind, value + rhs.value)
-        } else {
-            CssAngle(CssAngleKind.Deg, toDegrees() + rhs.toDegrees())
+        match (kind) {
+            case Deg =>
+                match (rhs.kind) {
+                    case Deg => CssAngle(kind, value + rhs.value)
+                    case _ => CssAngle(CssAngleKind.Deg, toDegrees() + rhs.toDegrees())
+                }
+            case Rad =>
+                match (rhs.kind) {
+                    case Rad => CssAngle(kind, value + rhs.value)
+                    case _ => CssAngle(CssAngleKind.Deg, toDegrees() + rhs.toDegrees())
+                }
+            case Grad =>
+                match (rhs.kind) {
+                    case Grad => CssAngle(kind, value + rhs.value)
+                    case _ => CssAngle(CssAngleKind.Deg, toDegrees() + rhs.toDegrees())
+                }
+            case Turn =>
+                match (rhs.kind) {
+                    case Turn => CssAngle(kind, value + rhs.value)
+                    case _ => CssAngle(CssAngleKind.Deg, toDegrees() + rhs.toDegrees())
+                }
         }
     }
 
@@ -121,16 +138,16 @@ public class CssAngle {
 // 严格翻译自: values/angle.rs AnglePercentage = DimensionPercentage<Angle>
 // ============================================================================
 
+public enum CssAnglePercentageKind {
+    | Dimension
+    | Percentage
+    | Calc
+}
+
 /// CSS <angle-percentage> 值
 /// 严格翻译自 AnglePercentage = DimensionPercentage<Angle>
 /// 可指定为角度或解析为角度的百分比
 public class CssAnglePercentage {
-    public enum CssAnglePercentageKind {
-        | Dimension    // 角度值
-        | Percentage   // 百分比值
-        | Calc         // calc() 表达式
-    }
-
     public var kind: CssAnglePercentageKind
     public var dimension: ?CssAngle
     public var percentage: Float64  // 0.0~1.0
@@ -160,12 +177,11 @@ public class CssAnglePercentage {
     /// 转为 CSS 文本
     public func toCss(): String {
         match (kind) {
-            case Dimension => {
+            case Dimension =>
                 match (dimension) {
                     case Some(d) => d.toCss()
                     case None => ""
                 }
-            }
             case Percentage => "${percentage * 100.0}%"
             case Calc => calcExpression
         }

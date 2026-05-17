@@ -199,7 +199,7 @@ public class SpawnOptions {
     }
 
     /// 设置参数
-    public func args(varargs: String...): SpawnOptions {
+    public func withArgs(varargs: Array<String>): SpawnOptions {
         for (a in varargs) { args.append(a) }
         return this
     }
@@ -310,7 +310,7 @@ public class Process {
     /// 是否同步进程
     public var sync: Bool
     /// spawn 选项的引用
-    private var options: ?SpawnOptions
+    public var options: ?SpawnOptions
 
     public init(pid: Int64) {
         this.pid = pid
@@ -480,7 +480,7 @@ public class SpawnResult {
     private func bytesToString(bytes: Array<UInt8>): String {
         let sb = StringBuilder()
         for (b in bytes) {
-            sb.append(Char(Int32(b)))
+            sb.append(Rune(Int32(b)))
         }
         return sb.toString()
     }
@@ -497,7 +497,7 @@ public class SpawnResult {
 public class Spawn {
     /// 异步 spawn
     /// 对应 Bun: spawn_process (异步版)
-    public static func spawn(options: SpawnOptions): ?Process {
+    public static func spawnProcess(options: SpawnOptions): ?Process {
         let pid = Syscall.forkExec(options.command, options.buildArgv(), options.buildEnv(), options.cwd)
         match (pid) {
             case Some(p) =>
@@ -522,15 +522,15 @@ public class Spawn {
     }
 
     /// 快捷 spawn: 命令 + 参数
-    public static func spawn(command: String, args: ArrayList<String>): ?Process {
+    public static func spawnProcess(command: String, args: ArrayList<String>): ?Process {
         let options = SpawnOptions(command)
         for (arg in args) { options.args.append(arg) }
-        return spawn(options)
+        return spawnProcess(options)
     }
 
     /// 同步 spawn (阻塞等待完成)
     /// 对应 Bun: sync::spawn
-    public static func spawnSync(options: SpawnOptions): SpawnResult {
+    public static func spawnSyncProcess(options: SpawnOptions): SpawnResult {
         let pid = Syscall.forkExec(options.command, options.buildArgv(), options.buildEnv(), options.cwd)
         let result = SpawnResult()
         match (pid) {
@@ -548,16 +548,16 @@ public class Spawn {
     }
 
     /// 快捷同步 spawn
-    public static func spawnSync(command: String, args: ArrayList<String>): SpawnResult {
+    public static func spawnSyncProcess(command: String, args: ArrayList<String>): SpawnResult {
         let options = SpawnOptions(command)
         for (arg in args) { options.args.append(arg) }
-        return spawnSync(options)
+        return spawnSyncProcess(options)
     }
 
     /// spawn 并等待
     /// 对应 Bun: std.process.Child.run
     public static func spawnAndWait(options: SpawnOptions): SpawnResult {
-        return spawnSync(options)
+        return spawnSyncProcess(options)
     }
 
     /// spawn 并等待 (简单命令)
@@ -565,7 +565,7 @@ public class Spawn {
         let options = SpawnOptions("sh")
         options.args.append("-c")
         options.args.append(command)
-        return spawnSync(options)
+        return spawnSyncProcess(options)
     }
 }
 
@@ -661,11 +661,11 @@ public class WritablePipe {
 
     /// 写入字符串
     public func writeString(text: String): Int64 {
-        let bytes = Array<UInt8>()
+        let bytes = ArrayList<UInt8>()
         for (c in text) {
-            bytes.append(UInt8(c.value))
+            bytes.append(c)
         }
-        return write(bytes)
+        return write(bytes.items())
     }
 
     /// 刷新缓冲
@@ -706,7 +706,7 @@ public class EnvironmentBuilder {
     }
 
     /// 继承父进程环境
-    public func inheritParent(): EnvironmentBuilder {
+    public func setInheritParent(): EnvironmentBuilder {
         this.inheritParent = true
         return this
     }
@@ -777,84 +777,85 @@ public class EnvironmentBuilder {
 // Bun 使用 posix_spawn/posix_spawnp 进行进程创建
 // ============================================================================
 
+/// posix_spawn 属性
+/// 对应 Bun: bun_spawn_sys::posix_spawn attr
+public class PosixSpawnAttrs {
+    public var flags: UInt16
+    public var pid: Int64
+    public var uid: UInt32
+    public var gid: UInt32
+    public var schedPolicy: Int32
+    public var schedParam: Int64
+    public var sigMask: Array<UInt64>
+    public var sigDefault: Array<UInt64>
+
+    public init() {
+        this.flags = 0
+        this.pid = 0
+        this.uid = 0
+        this.gid = 0
+        this.schedPolicy = 0
+        this.schedParam = 0
+        this.sigMask = Array<UInt64>()
+        this.sigDefault = Array<UInt64>()
+    }
+
+    /// 设置要信号的掩码
+    public func setSigMask(mask: Array<UInt64>): Unit {
+        sigMask = mask
+        flags = flags | 0x01  // POSIX_SPAWN_SETSIGMASK
+    }
+
+    /// 设置默认信号处理
+    public func setSigDefault(defaults: Array<UInt64>): Unit {
+        sigDefault = defaults
+        flags = flags | 0x02  // POSIX_SPAWN_SETSIGDEF
+    }
+
+    /// 设置调度策略
+    public func setSchedPolicy(policy: Int32): Unit {
+        schedPolicy = policy
+        flags = flags | 0x04  // POSIX_SPAWN_SETSCHEDULER
+    }
+}
+
+/// posix_spawn 文件操作
+public class PosixSpawnFileActions {
+    private var actions: ArrayList<FileAction>
+
+    public init() {
+        this.actions = ArrayList<FileAction>()
+    }
+
+    /// 添加 dup2 操作
+    /// 对应: posix_spawn_file_actions_adddup2
+    public func addDup2(from: Int64, to: Int64): Unit {
+        actions.append(FileAction.dup2(from, to))
+    }
+
+    /// 添加 close 操作
+    /// 对应: posix_spawn_file_actions_addclose
+    public func addClose(fd: Int64): Unit {
+        actions.append(FileAction.closeFd(fd))
+    }
+
+    /// 添加 open 操作
+    /// 对应: posix_spawn_file_actions_addopen
+    public func addOpen(fd: Int64, path: String, flags: Int64, mode: UInt32): Unit {
+        actions.append(FileAction.openFd(fd, path, flags, mode))
+    }
+
+    public func getActions(): ArrayList<FileAction> {
+        return actions
+    }
+}
+
 /// POSIX spawn 相关 C FFI 封装
 /// 对应 Bun: bun_spawn_sys::posix_spawn
 public class PosixSpawn {
-    /// posix_spawn 属性
-    public class Attrs {
-        public var flags: UInt16
-        public var pid: Int64
-        public var uid: UInt32
-        public var gid: UInt32
-        public var schedPolicy: Int32
-        public var schedParam: Int64
-        public var sigMask: Array<UInt64>
-        public var sigDefault: Array<UInt64>
-
-        public init() {
-            this.flags = 0
-            this.pid = 0
-            this.uid = 0
-            this.gid = 0
-            this.schedPolicy = 0
-            this.schedParam = 0
-            this.sigMask = Array<UInt64>()
-            this.sigDefault = Array<UInt64>()
-        }
-
-        /// 设置要信号的掩码
-        public func setSigMask(mask: Array<UInt64>): Unit {
-            sigMask = mask
-            flags = flags | 0x01  // POSIX_SPAWN_SETSIGMASK
-        }
-
-        /// 设置默认信号处理
-        public func setSigDefault(defaults: Array<UInt64>): Unit {
-            sigDefault = defaults
-            flags = flags | 0x02  // POSIX_SPAWN_SETSIGDEF
-        }
-
-        /// 设置调度策略
-        public func setSchedPolicy(policy: Int32): Unit {
-            schedPolicy = policy
-            flags = flags | 0x04  // POSIX_SPAWN_SETSCHEDULER
-        }
-    }
-
-    /// posix_spawn 文件操作
-    public class FileActions {
-        private var actions: ArrayList<FileAction>
-
-        public init() {
-            this.actions = ArrayList<FileAction>()
-        }
-
-        /// 添加 dup2 操作
-        /// 对应: posix_spawn_file_actions_adddup2
-        public func addDup2(from: Int64, to: Int64): Unit {
-            actions.append(FileAction.dup2(from, to))
-        }
-
-        /// 添加 close 操作
-        /// 对应: posix_spawn_file_actions_addclose
-        public func addClose(fd: Int64): Unit {
-            actions.append(FileAction.closeFd(fd))
-        }
-
-        /// 添加 open 操作
-        /// 对应: posix_spawn_file_actions_addopen
-        public func addOpen(fd: Int64, path: String, flags: Int64, mode: UInt32): Unit {
-            actions.append(FileAction.openFd(fd, path, flags, mode))
-        }
-
-        public func getActions(): ArrayList<FileAction> {
-            return actions
-        }
-    }
-
     /// posix_spawn 执行
     /// 对应: C 函数 posix_spawn / posix_spawnp
-    public static func spawn(path: String, actions: FileActions, attrs: Attrs,
+    public static func posixSpawnExec(path: String, actions: PosixSpawnFileActions, attrs: PosixSpawnAttrs,
                              argv: ArrayList<String>, envp: ArrayList<String>): ?Int64 {
         // 实际实现通过 C FFI:
         // int posix_spawn(pid_t *pid, const char *path,
@@ -866,7 +867,7 @@ public class PosixSpawn {
 
     /// posix_spawnp 执行 (PATH 搜索)
     /// 对应: C 函数 posix_spawnp
-    public static func spawnP(file: String, actions: FileActions, attrs: Attrs,
+    public static func spawnP(file: String, actions: PosixSpawnFileActions, attrs: PosixSpawnAttrs,
                               argv: ArrayList<String>, envp: ArrayList<String>): ?Int64 {
         return Syscall.posixSpawnP(file, actions, attrs, argv, envp)
     }
@@ -1127,8 +1128,8 @@ public class Syscall {
     }
 
     /// posix_spawn
-    public static func posixSpawn(path: String, actions: PosixSpawn.FileActions,
-                                   attrs: PosixSpawn.Attrs,
+    public static func posixSpawn(path: String, actions: PosixSpawnFileActions,
+                                   attrs: PosixSpawnAttrs,
                                    argv: ArrayList<String>,
                                    envp: ArrayList<String>): ?Int64 {
         // 实际通过 C FFI: posix_spawn(&pid, path, ...)
@@ -1136,8 +1137,8 @@ public class Syscall {
     }
 
     /// posix_spawnp
-    public static func posixSpawnP(file: String, actions: PosixSpawn.FileActions,
-                                    attrs: PosixSpawn.Attrs,
+    public static func posixSpawnP(file: String, actions: PosixSpawnFileActions,
+                                    attrs: PosixSpawnAttrs,
                                     argv: ArrayList<String>,
                                     envp: ArrayList<String>): ?Int64 {
         // 实际通过 C FFI: posix_spawnp(&pid, file, ...)

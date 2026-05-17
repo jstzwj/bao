@@ -7,6 +7,7 @@
 package bao_css.properties
 
 import bao_core.*
+import bao_collections.*
 
 // ============================================================================
 // Position
@@ -22,19 +23,21 @@ public enum Position {
     | Sticky(String)       // 粘滞定位（带供应商前缀）
     | Fixed                // 固定定位
 
+    private func stickyToCss(prefix: String): String {
+        if (prefix == "") {
+            "sticky"
+        } else {
+            prefix + "sticky"
+        }
+    }
+
     public func toCss(): String {
         match (this) {
             case Static => "static"
             case Relative => "relative"
             case Absolute => "absolute"
             case Fixed => "fixed"
-            case Sticky(prefix) => {
-                if (prefix == "") {
-                    "sticky"
-                } else {
-                    prefix + "sticky"
-                }
-            }
+            case Sticky(prefix) => stickyToCss(prefix)
         }
     }
 }

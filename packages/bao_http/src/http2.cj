@@ -262,7 +262,7 @@ public class H2Frame {
 
     /// 序列化帧头为字节数组 (9 字节)
     public func serializeHeader(): Array<UInt8> {
-        let header = Array<UInt8>(9, item: UInt8(0))
+        let header = Array<UInt8>(9, { _ => UInt8(0) })
         // Length (24-bit big-endian)
         header[0] = UInt8((length >> 16) & 0xFF)
         header[1] = UInt8((length >> 8) & 0xFF)
@@ -325,18 +325,16 @@ public class H2Settings {
                 case 0x1 => settings.headerTableSize = value
                 case 0x2 => settings.enablePush = value != 0
                 case 0x3 => settings.maxConcurrentStreams = value
-                case 0x4 => {
+                case 0x4 =>
                     // INITIAL_WINDOW_SIZE: 0 to 2^31-1
                     if (value >= 0 && value <= 2147483647) {
                         settings.initialWindowSize = value
                     }
-                }
-                case 0x5 => {
+                case 0x5 =>
                     // MAX_FRAME_SIZE: 16384 to 16777215
                     if (value >= 16384 && value <= 16777215) {
                         settings.maxFrameSize = value
                     }
-                }
                 case 0x6 => settings.maxHeaderListSize = value
                 case _ => ()
             }
@@ -347,7 +345,7 @@ public class H2Settings {
 
     /// 序列化为 SETTINGS 帧负载
     public func serialize(): Array<UInt8> {
-        let payload = Array<UInt8>()
+        let payload = ArrayList<UInt8>()
         // HeaderTableSize
         appendSetting(payload, 0x1, headerTableSize)
         // EnablePush
@@ -360,10 +358,10 @@ public class H2Settings {
         appendSetting(payload, 0x5, maxFrameSize)
         // MaxHeaderListSize
         appendSetting(payload, 0x6, maxHeaderListSize)
-        return payload
+        return payload.toOwnedSlice()
     }
 
-    private static func appendSetting(payload: Array<UInt8>, id: Int64, value: Int64): Unit {
+    private static func appendSetting(payload: ArrayList<UInt8>, id: Int64, value: Int64): Unit {
         payload.append(UInt8((id >> 8) & 0xFF))
         payload.append(UInt8(id & 0xFF))
         payload.append(UInt8((value >> 24) & 0xFF))
@@ -410,7 +408,7 @@ public class H2Stream {
     /// 响应头部 (已解码) - 对应 Stream.decoded_headers
     public var responseHeaders: ArrayList<HeaderPair>
     /// 响应体缓冲 - 对应 Stream.body_buffer
-    public var bodyBuffer: Array<UInt8>
+    public var bodyBuffer: ArrayList<UInt8>
     /// 流级别发送窗口 - 对应 Stream.send_window
     public var sendWindow: Int64
     /// 未确认接收字节数 - 对应 Stream.unacked_bytes
@@ -420,7 +418,7 @@ public class H2Stream {
     /// 是否收到 END_STREAM
     public var endStreamReceived: Bool
     /// 头部块暂存 (HEADERS + CONTINUATION 片段) - 对应 Stream.header_block
-    public var headerBlock: Array<UInt8>
+    public var headerBlock: ArrayList<UInt8>
 
     public init(id: Int64) {
         this.id = id
@@ -428,27 +426,38 @@ public class H2Stream {
         statusCode = 0
         requestHeaders = ArrayList<HeaderPair>()
         responseHeaders = ArrayList<HeaderPair>()
-        bodyBuffer = Array<UInt8>()
+        bodyBuffer = ArrayList<UInt8>()
         sendWindow = 65535  // 默认窗口大小
         unackedBytes = 0
         endStreamSent = false
         endStreamReceived = false
-        headerBlock = Array<UInt8>()
+        headerBlock = ArrayList<UInt8>()
     }
 
     /// 流是否已关闭
     public func isClosed(): Bool {
-        return state == H2StreamState.Closed
+        match (state) {
+            case Closed => return true
+            case _ => return false
+        }
     }
 
     /// 是否可以发送数据
     public func canSendData(): Bool {
-        return state == H2StreamState.Open || state == H2StreamState.HalfClosedRemote
+        match (state) {
+            case Open => return true
+            case HalfClosedRemote => return true
+            case _ => return false
+        }
     }
 
     /// 是否可以接收数据
     public func canReceiveData(): Bool {
-        return state == H2StreamState.Open || state == H2StreamState.HalfClosedLocal
+        match (state) {
+            case Open => return true
+            case HalfClosedLocal => return true
+            case _ => return false
+        }
     }
 
     /// 累积接收的 body 数据
@@ -471,8 +480,8 @@ public class H2Stream {
         state = H2StreamState.Closed
         requestHeaders = ArrayList<HeaderPair>()
         responseHeaders = ArrayList<HeaderPair>()
-        bodyBuffer = Array<UInt8>()
-        headerBlock = Array<UInt8>()
+        bodyBuffer = ArrayList<UInt8>()
+        headerBlock = ArrayList<UInt8>()
         unackedBytes = 0
         endStreamSent = false
         endStreamReceived = false
@@ -519,28 +528,24 @@ public class HpackStaticTable {
 
     /// 反向查找: 根据 name 查找静态表索引
     public static func findIndex(name: String, value: String): ?Int64 {
-        let lower = name.toLower()
+        let lower = http2Lower(name)
         match (lower) {
             case ":authority" => Some(1)
-            case ":method" => {
+            case ":method" =>
                 if (value == "GET") { return Some(2) }
                 if (value == "POST") { return Some(3) }
                 return None
-            }
-            case ":path" => {
+            case ":path" =>
                 if (value == "/") { return Some(4) }
                 if (value == "/index.html") { return Some(5) }
                 return None
-            }
-            case ":scheme" => {
+            case ":scheme" =>
                 if (value == "http") { return Some(6) }
                 if (value == "https") { return Some(7) }
                 return None
-            }
-            case ":status" => {
+            case ":status" =>
                 if (value == "200") { return Some(8) }
                 return None
-            }
             case "host" => Some(31)
             case "user-agent" => Some(38)
             case "content-length" => Some(24)
@@ -549,6 +554,18 @@ public class HpackStaticTable {
             case _ => None
         }
     }
+}
+
+private func http2Lower(s: String): String {
+    let sb = StringBuilder()
+    for (c in s) {
+        if (c >= UInt8(65) && c <= UInt8(90)) {
+            sb.append(c + UInt8(32))
+        } else {
+            sb.append(c)
+        }
+    }
+    return sb.toString()
 }
 
 /// HPACK 编码器 - 对应 Bun lshpack.HPACK.encode
@@ -576,41 +593,37 @@ public class HpackEncoder {
     /// 编码头部列表 - 对应 lshpack hpack_enc_encode
     /// 返回编码后的字节块
     public func encode(headers: ArrayList<HeaderPair>): Array<UInt8> {
-        let output = Array<UInt8>()
+        let output = ArrayList<UInt8>()
 
         for (h in headers) {
             // 查找静态表
             let staticIdx = HpackStaticTable.findIndex(h.name, h.value)
             match (staticIdx) {
-                case Some(idx) => {
+                case Some(idx) =>
                     // Indexed Header Field (完全匹配)
                     encodeInteger(output, 0x80, 7, idx)
-                }
-                case None => {
+                case None =>
                     // 查找仅名称匹配
                     let nameIdx = HpackStaticTable.findIndex(h.name, "")
                     match (nameIdx) {
-                        case Some(idx) => {
+                        case Some(idx) =>
                             // Literal Header Field with Incremental Indexing (名称索引)
                             encodeInteger(output, 0x40, 6, idx)
                             encodeString(output, h.value)
-                        }
-                        case None => {
+                        case None =>
                             // Literal Header Field without Indexing (新名称)
                             output.append(UInt8(0x00))
                             encodeString(output, h.name)
                             encodeString(output, h.value)
-                        }
                     }
-                }
             }
         }
 
-        return output
+        return output.toOwnedSlice()
     }
 
     /// HPACK 整数编码 (RFC 7541 §5.1)
-    private static func encodeInteger(output: Array<UInt8>, prefixMask: UInt8,
+    private static func encodeInteger(output: ArrayList<UInt8>, prefixMask: UInt8,
                                        prefixBits: Int64, value: Int64): Unit {
         if (value < (1 << prefixBits) - 1) {
             output.append(UInt8(Int32(prefixMask) | Int32(value)))
@@ -627,7 +640,7 @@ public class HpackEncoder {
 
     /// HPACK 字符串编码 (RFC 7541 §5.2)
     /// 桩实现: 使用原始字节 (bit 7 = 0 表示不使用 Huffman)
-    private static func encodeString(output: Array<UInt8>, s: String): Unit {
+    private static func encodeString(output: ArrayList<UInt8>, s: String): Unit {
         let bytes = stringToHpackBytes(s)
         encodeInteger(output, 0x00, 7, bytes.size)
         for (b in bytes) {
@@ -636,11 +649,11 @@ public class HpackEncoder {
     }
 
     private static func stringToHpackBytes(s: String): Array<UInt8> {
-        let bytes = Array<UInt8>()
+        let bytes = ArrayList<UInt8>()
         for (c in s) {
-            bytes.append(UInt8(c.value & 0xFF))
+            bytes.append(c)
         }
-        return bytes
+        return bytes.toOwnedSlice()
     }
 
     private func evictEntries(): Unit {
@@ -686,58 +699,35 @@ public class HpackDecoder {
                 // Indexed Header Field (6.1)
                 let indexResult = decodeInteger(block, pos, 7)
                 match (indexResult) {
-                    case Some(tuple) => {
+                    case Some(tuple) =>
                         let index = tuple.value
                         pos = tuple.nextPos
                         match (lookupHeader(index)) {
                             case Some(h) => headers.append(h)
-                            case None => return None  // 无效索引
+                            case None => return None
                         }
-                    }
                     case None => return None
                 }
             } else if ((b & 0xC0) == 0x40) {
                 // Literal Header Field with Incremental Indexing (6.2.1)
                 let indexResult = decodeInteger(block, pos, 6)
                 match (indexResult) {
-                    case Some(tuple) => {
+                    case Some(tuple) =>
                         pos = tuple.nextPos
-                        let (name, value) = decodeLiteralHeader(block, pos, tuple.value)
-                        match (name) {
-                            case Some(n) => {
-                                match (value) {
-                                    case Some(v) => {
-                                        headers.append(HeaderPair(n, v))
-                                        addToDynamicTable(n, v)
-                                        pos += n.size + v.size  // 简化位置追踪
-                                    }
-                                    case None => return None
-                                }
-                            }
-                            case None => return None
-                        }
-                    }
+                        let literal = decodeLiteralHeader(block, pos, tuple.value)
+                        headers.append(HeaderPair(literal.name, literal.value))
+                        addToDynamicTable(literal.name, literal.value)
+                        pos += literal.name.size + literal.value.size
                     case None => return None
                 }
             } else if ((b & 0xF0) == 0x00) {
                 // Literal Header Field without Indexing (6.2.2)
                 let indexResult = decodeInteger(block, pos, 4)
                 match (indexResult) {
-                    case Some(tuple) => {
+                    case Some(tuple) =>
                         pos = tuple.nextPos
-                        let (name, value) = decodeLiteralHeader(block, pos, tuple.value)
-                        match (name) {
-                            case Some(n) => {
-                                match (value) {
-                                    case Some(v) => {
-                                        headers.append(HeaderPair(n, v))
-                                    }
-                                    case None => return None
-                                }
-                            }
-                            case None => return None
-                        }
-                    }
+                        let literal = decodeLiteralHeader(block, pos, tuple.value)
+                        headers.append(HeaderPair(literal.name, literal.value))
                     case None => return None
                 }
             } else {
@@ -782,7 +772,7 @@ public class HpackDecoder {
             return None
         }
         let mask = (1 << prefixBits) - 1
-        var value = Int64(Int32(block[pos]) & mask)
+        var value = Int64(block[pos]) & mask
         if (value < mask) {
             return Some(HpackIntResult(value, pos + 1))
         }
@@ -802,16 +792,26 @@ public class HpackDecoder {
 
     /// 解码字面量头部 (简化)
     private static func decodeLiteralHeader(block: Array<UInt8>, pos: Int64,
-                                             index: Int64): (?String, ?String) {
+                                             index: Int64): HpackLiteralResult {
         // 简化桩实现
         if (index > 0) {
-            let name = match (HpackStaticTable.lookup(index)) {
-                case Some(h) => Some(h.name)
-                case None => None
+            let headerOpt = HpackStaticTable.lookup(index)
+            if (headerOpt.isSome()) {
+                return HpackLiteralResult(headerOpt.getOrThrow().name, "")
             }
-            return (name, Some(""))  // 桩: 值解码省略
+            return HpackLiteralResult("", "")
         }
-        return (Some(""), Some(""))
+        return HpackLiteralResult("", "")
+    }
+}
+
+class HpackLiteralResult {
+    var name: String
+    var value: String
+
+    init(name: String, value: String) {
+        this.name = name
+        this.value = value
     }
 }
 
@@ -913,11 +913,12 @@ public class H2ClientSession {
         var count: Int64 = 0
         for (key in streams.keys()) {
             match (streams.get(key)) {
-                case Some(s) => {
-                    if (s.state != H2StreamState.Closed && s.state != H2StreamState.Idle) {
-                        count += 1
+                case Some(s) =>
+                    match (s.state) {
+                        case Closed => ()
+                        case Idle => ()
+                        case _ => count += 1
                     }
-                }
                 case None => ()
             }
         }
@@ -940,11 +941,11 @@ public class H2ClientSession {
 
     /// 构建连接预检 - 对应 ClientSession 发送 client_preface
     public func buildPreface(): Array<UInt8> {
-        let preface = Array<UInt8>()
+        let preface = ArrayList<UInt8>()
         for (c in CLIENT_PREFACE) {
-            preface.append(UInt8(c.value & 0xFF))
+            preface.append(c)
         }
-        return preface
+        return preface.toOwnedSlice()
     }
 
     /// 构建 SETTINGS 帧 - 对应 ClientSession 发送本地 SETTINGS
@@ -958,10 +959,10 @@ public class H2ClientSession {
         frame.payload = settingsPayload
 
         let header = frame.serializeHeader()
-        let result = Array<UInt8>()
+        let result = ArrayList<UInt8>()
         for (b in header) { result.append(b) }
         for (b in settingsPayload) { result.append(b) }
-        return result
+        return result.toOwnedSlice()
     }
 
     /// 构建 SETTINGS ACK 帧
@@ -987,10 +988,10 @@ public class H2ClientSession {
         frame.payload = encoded
 
         let header = frame.serializeHeader()
-        let result = Array<UInt8>()
+        let result = ArrayList<UInt8>()
         for (b in header) { result.append(b) }
         for (b in encoded) { result.append(b) }
-        return result
+        return result.toOwnedSlice()
     }
 
     /// 构建 DATA 帧
@@ -1004,16 +1005,16 @@ public class H2ClientSession {
         frame.payload = data
 
         let header = frame.serializeHeader()
-        let result = Array<UInt8>()
+        let result = ArrayList<UInt8>()
         for (b in header) { result.append(b) }
         for (b in data) { result.append(b) }
-        return result
+        return result.toOwnedSlice()
     }
 
     /// 构建 WINDOW_UPDATE 帧
     /// 对应 RFC 9113 §6.9: 流量控制窗口递增
     public func buildWindowUpdateFrame(streamId: Int64, increment: Int64): Array<UInt8> {
-        let payload = Array<UInt8>(4, item: UInt8(0))
+        let payload = Array<UInt8>(4, { _ => UInt8(0) })
         // 31-bit window size increment (R=0)
         payload[0] = UInt8((increment >> 24) & 0x7F)
         payload[1] = UInt8((increment >> 16) & 0xFF)
@@ -1028,10 +1029,10 @@ public class H2ClientSession {
         frame.payload = payload
 
         let header = frame.serializeHeader()
-        let result = Array<UInt8>()
+        let result = ArrayList<UInt8>()
         for (b in header) { result.append(b) }
         for (b in payload) { result.append(b) }
-        return result
+        return result.toOwnedSlice()
     }
 
     /// 构建 PING 帧 (8 字节 opaque data)
@@ -1044,16 +1045,16 @@ public class H2ClientSession {
         frame.payload = opaqueData
 
         let header = frame.serializeHeader()
-        let result = Array<UInt8>()
+        let result = ArrayList<UInt8>()
         for (b in header) { result.append(b) }
         for (b in opaqueData) { result.append(b) }
-        return result
+        return result.toOwnedSlice()
     }
 
     /// 构建 GOAWAY 帧
     /// 对应 RFC 9113 §6.8: 通知对端停止创建新流
     public func buildGoawayFrame(lastStreamId: Int64, errorCode: H2ErrorCode): Array<UInt8> {
-        let payload = Array<UInt8>(8, item: UInt8(0))
+        let payload = Array<UInt8>(8, { _ => UInt8(0) })
         // Last-Stream-ID (31-bit, R=0)
         payload[0] = UInt8((lastStreamId >> 24) & 0x7F)
         payload[1] = UInt8((lastStreamId >> 16) & 0xFF)
@@ -1074,15 +1075,15 @@ public class H2ClientSession {
         frame.payload = payload
 
         let header = frame.serializeHeader()
-        let result = Array<UInt8>()
+        let result = ArrayList<UInt8>()
         for (b in header) { result.append(b) }
         for (b in payload) { result.append(b) }
-        return result
+        return result.toOwnedSlice()
     }
 
     /// 构建 RST_STREAM 帧
     public func buildRstStreamFrame(streamId: Int64, errorCode: H2ErrorCode): Array<UInt8> {
-        let payload = Array<UInt8>(4, item: UInt8(0))
+        let payload = Array<UInt8>(4, { _ => UInt8(0) })
         let ec = errorCode.code()
         payload[0] = UInt8((ec >> 24) & 0xFF)
         payload[1] = UInt8((ec >> 16) & 0xFF)
@@ -1097,10 +1098,10 @@ public class H2ClientSession {
         frame.payload = payload
 
         let header = frame.serializeHeader()
-        let result = Array<UInt8>()
+        let result = ArrayList<UInt8>()
         for (b in header) { result.append(b) }
         for (b in payload) { result.append(b) }
-        return result
+        return result.toOwnedSlice()
     }
 
     // ========================================================================
@@ -1127,77 +1128,66 @@ public class H2ClientSession {
 
     /// 处理 DATA 帧 - 对应 ClientSession 中 DATA 分发到 stream
     private func handleDataFrame(frame: H2Frame): Unit {
-        match (streams.get(frame.streamId)) {
-            case Some(stream) => {
-                stream.appendBody(frame.payload)
-                connUnackedBytes += frame.payload.size
+        let streamOpt = streams.get(frame.streamId)
+        if (streamOpt.isSome()) {
+            let stream = streamOpt.getOrThrow()
+            stream.appendBody(frame.payload)
+            connUnackedBytes += frame.payload.size
 
-                if (frame.hasFlag(H2DataFlags.END_STREAM)) {
-                    stream.endStreamReceived = true
-                    stream.state = H2StreamState.HalfClosedRemote
-                    if (stream.endStreamSent) {
-                        stream.state = H2StreamState.Closed
-                    }
-                }
-
-                // 检查是否需要发送 WINDOW_UPDATE
-                // 对应 ClientSession 中窗口更新逻辑
-                if (connUnackedBytes > remoteSettings.initialWindowSize / 2) {
-                    // 需要发送连接级 WINDOW_UPDATE
-                    connUnackedBytes = 0
+            if (frame.hasFlag(H2DataFlags.END_STREAM)) {
+                stream.endStreamReceived = true
+                stream.state = H2StreamState.HalfClosedRemote
+                if (stream.endStreamSent) {
+                    stream.state = H2StreamState.Closed
                 }
             }
-            case None => ()  // 未知流，忽略
+
+            if (connUnackedBytes > remoteSettings.initialWindowSize / 2) {
+                connUnackedBytes = 0
+            }
         }
     }
 
     /// 处理 HEADERS 帧 - 对应 ClientSession 头部解码流程
     private func handleHeadersFrame(frame: H2Frame): Unit {
-        match (streams.get(frame.streamId)) {
-            case Some(stream) => {
-                stream.appendHeaderBlock(frame.payload)
+        let streamOpt = streams.get(frame.streamId)
+        if (streamOpt.isSome()) {
+            let stream = streamOpt.getOrThrow()
+            stream.appendHeaderBlock(frame.payload)
 
-                if (frame.hasFlag(H2HeadersFlags.END_HEADERS)) {
-                    // 完整头部块已收到，解码
-                    let decoded = decoder.decode(stream.headerBlock)
-                    match (decoded) {
-                        case Some(headers) => {
-                            stream.responseHeaders = headers
-                            // 提取 :status 伪头部
-                            for (h in headers) {
-                                if (h.name == ":status") {
-                                    try {
-                                        stream.statusCode = Int64.parse(h.value)
-                                    } catch (_: Exception) {
-                                        stream.statusCode = 0
-                                    }
-                                }
+            if (frame.hasFlag(H2HeadersFlags.END_HEADERS)) {
+                let decoded = decoder.decode(stream.headerBlock.toOwnedSlice())
+                if (decoded.isSome()) {
+                    let decodedHeaders = decoded.getOrThrow()
+                    stream.responseHeaders = decodedHeaders
+                    for (h in decodedHeaders) {
+                        if (h.name == ":status") {
+                            try {
+                                stream.statusCode = parseInt64(h.value)
+                            } catch (_: Exception) {
+                                stream.statusCode = 0
                             }
-                            stream.headerBlock = Array<UInt8>()
                         }
-                        case None => ()  // 解码失败
                     }
-                } else {
-                    // 期待 CONTINUATION 帧
-                    expectingContinuation = frame.streamId
+                    stream.headerBlock = ArrayList<UInt8>()
                 }
-
-                if (frame.hasFlag(H2HeadersFlags.END_STREAM)) {
-                    stream.endStreamReceived = true
-                }
+            } else {
+                expectingContinuation = frame.streamId
             }
-            case None => ()  // 未知流
+
+            if (frame.hasFlag(H2HeadersFlags.END_STREAM)) {
+                stream.endStreamReceived = true
+            }
         }
     }
 
     /// 处理 RST_STREAM 帧
     private func handleRstStreamFrame(frame: H2Frame): Unit {
-        match (streams.get(frame.streamId)) {
-            case Some(stream) => {
-                stream.state = H2StreamState.Closed
-                streams.remove(frame.streamId)
-            }
-            case None => ()
+        let streamOpt = streams.get(frame.streamId)
+        if (streamOpt.isSome()) {
+            let stream = streamOpt.getOrThrow()
+            stream.state = H2StreamState.Closed
+            streams.remove(frame.streamId)
         }
     }
 
@@ -1222,9 +1212,9 @@ public class H2ClientSession {
                                (Int64(frame.payload[2]) << 8) | Int64(frame.payload[3])
             for (key in streams.keys()) {
                 if (key > lastStreamId) {
-                    match (streams.get(key)) {
-                        case Some(stream) => stream.state = H2StreamState.Closed
-                        case None => ()
+                    let streamOpt = streams.get(key)
+                    if (streamOpt.isSome()) {
+                        streamOpt.getOrThrow().state = H2StreamState.Closed
                     }
                     streams.remove(key)
                 }
@@ -1247,41 +1237,38 @@ public class H2ClientSession {
             connSendWindow += increment
         } else {
             // 流级窗口更新
-            match (streams.get(frame.streamId)) {
-                case Some(stream) => stream.sendWindow += increment
-                case None => ()
+            let streamOpt = streams.get(frame.streamId)
+            if (streamOpt.isSome()) {
+                streamOpt.getOrThrow().sendWindow += increment
             }
         }
     }
 
     /// 处理 CONTINUATION 帧
     private func handleContinuationFrame(frame: H2Frame): Unit {
-        match (streams.get(frame.streamId)) {
-            case Some(stream) => {
-                stream.appendHeaderBlock(frame.payload)
+        let streamOpt = streams.get(frame.streamId)
+        if (streamOpt.isSome()) {
+            let stream = streamOpt.getOrThrow()
+            stream.appendHeaderBlock(frame.payload)
 
-                if (frame.hasFlag(H2HeadersFlags.END_HEADERS)) {
-                    expectingContinuation = 0
-                    let decoded = decoder.decode(stream.headerBlock)
-                    match (decoded) {
-                        case Some(headers) => {
-                            stream.responseHeaders = headers
-                            for (h in headers) {
-                                if (h.name == ":status") {
-                                    try {
-                                        stream.statusCode = Int64.parse(h.value)
-                                    } catch (_: Exception) {
-                                        stream.statusCode = 0
-                                    }
-                                }
+            if (frame.hasFlag(H2HeadersFlags.END_HEADERS)) {
+                expectingContinuation = 0
+                let decoded = decoder.decode(stream.headerBlock.toOwnedSlice())
+                if (decoded.isSome()) {
+                    let decodedHeaders = decoded.getOrThrow()
+                    stream.responseHeaders = decodedHeaders
+                    for (h in decodedHeaders) {
+                        if (h.name == ":status") {
+                            try {
+                                stream.statusCode = parseInt64(h.value)
+                            } catch (_: Exception) {
+                                stream.statusCode = 0
                             }
-                            stream.headerBlock = Array<UInt8>()
                         }
-                        case None => ()
                     }
+                    stream.headerBlock = ArrayList<UInt8>()
                 }
             }
-            case None => ()
         }
     }
 

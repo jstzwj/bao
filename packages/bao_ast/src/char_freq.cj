@@ -20,7 +20,7 @@ public let CHAR_FREQ_COUNT: Int64 = Int64(64)
 
 /// 字符及计数 - 对应 Bun CharAndCount
 /// Bun: pub const CharAndCount = struct { char: u8 = 0, count: i32 = 0, index: usize = 0 }
-public class CharAndCount implements Comparable<CharAndCount> {
+public class CharAndCount {
     public var char_: UInt8
     public var count: Int32
     public var index: Int64
@@ -81,15 +81,15 @@ public class NameMinifier {
     public func generate(index: Int64): String {
         var sb = StringBuilder()
         if (index < head.size) {
-            sb.append(Char(head[index]))
+            sb.append(String(Rune(UInt32(head[index]))))
         } else {
             var i = index
-            sb.append(Char(head[Int64(i % head.size)]))
+            sb.append(String(Rune(UInt32(head[Int64(i % head.size)]))))
             i = i / head.size
             while (i > Int64(0)) {
                 i -= Int64(1)
                 if (i < tail.size) {
-                    sb.append(Char(tail[Int64(i)]))
+                    sb.append(String(Rune(UInt32(tail[Int64(i)]))))
                 }
                 i = i / tail.size
             }
@@ -131,7 +131,7 @@ public class CharFreq {
     /// Bun: fn scanSmall(out: *align(1) Buffer, text: string, delta: i32) void
     private func scanSmall(text: String, delta: Int32): Unit {
         for (c in text) {
-            let code = c.toInt()
+            let code = Int64(UInt32(c))
             let idx: Int64 = getCharIndex(code)
             if (idx >= Int64(0) && idx < CHAR_FREQ_COUNT) {
                 freqs[Int64(idx)] = freqs[Int64(idx)] + delta
@@ -162,8 +162,19 @@ public class CharFreq {
         }
 
         // 按频率降序排序
-        array.sortWith { a, b =>
-            a.compareTo(b)
+        var sorted = true
+        while (sorted) {
+            sorted = false
+            var j = Int64(1)
+            while (j < array.size) {
+                if (array[j - Int64(1)].compareTo(array[j]) > Int64(0)) {
+                    let tmp = array[j - Int64(1)]
+                    array[j - Int64(1)] = array[j]
+                    array[j] = tmp
+                    sorted = true
+                }
+                j += Int64(1)
+            }
         }
 
         // 构建 minifier
@@ -182,20 +193,20 @@ public class CharFreq {
 
     /// 获取字符索引 - 将字符映射到频率数组索引
     /// 对应 Bun scanSmall 中的 switch
-    private static func getCharIndex(code: Int): Int64 {
-        if (code >= Int('a') && code <= Int('z')) {
-            return Int64(code - Int('a'))
+    private static func getCharIndex(code: Int64): Int64 {
+        if (code >= Int64(97) && code <= Int64(122)) {
+            return code - Int64(97)
         }
-        if (code >= Int('A') && code <= Int('Z')) {
-            return Int64(code - Int('A') + Int(26))
+        if (code >= Int64(65) && code <= Int64(90)) {
+            return code - Int64(65) + Int64(26)
         }
-        if (code >= Int('0') && code <= Int('9')) {
-            return Int64(code - Int('0') + Int(52))
+        if (code >= Int64(48) && code <= Int64(57)) {
+            return code - Int64(48) + Int64(52)
         }
-        if (code == Int('_')) {
+        if (code == Int64(95)) {
             return Int64(62)
         }
-        if (code == Int('$')) {
+        if (code == Int64(36)) {
             return Int64(63)
         }
         return Int64(-1)
@@ -204,17 +215,17 @@ public class CharFreq {
     /// 获取尾部字符 - 将索引映射回字符
     private static func getTailChar(index: Int64): UInt8 {
         if (index < Int64(26)) {
-            return UInt8(Int('a') + Int(index))
+            return UInt8(Int64(97) + index)
         }
         if (index < Int64(52)) {
-            return UInt8(Int('A') + Int(index) - Int(26))
+            return UInt8(Int64(65) + index - Int64(26))
         }
         if (index < Int64(62)) {
-            return UInt8(Int('0') + Int(index) - Int(52))
+            return UInt8(Int64(48) + index - Int64(52))
         }
         if (index == Int64(62)) {
-            return UInt8('_')
+            return UInt8(95)
         }
-        return UInt8('$')  // index == 63
+        return UInt8(36)
     }
 }

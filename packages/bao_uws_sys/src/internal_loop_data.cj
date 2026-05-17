@@ -17,8 +17,8 @@ public class InternalLoopData {
     public var quic_next_tick_us: Int64 = 0
     public var quic_timer: ?CPointer<Unit> = None
     public var iterator: ?SocketGroup = None
-    public var recv_buf: CPointer<UInt8> = CPointer<UInt8>.null
-    public var send_buf: CPointer<UInt8> = CPointer<UInt8>.null
+    public var recv_buf: CPointer<UInt8> = CPointer<UInt8>()
+    public var send_buf: CPointer<UInt8> = CPointer<UInt8>()
     public var ssl_data: ?CPointer<Unit> = None
     public var pre_cb: ?CPointer<Unit> = None
     public var post_cb: ?CPointer<Unit> = None
@@ -59,6 +59,6 @@ public class InternalLoopData {
 
     /// 对应 Bun: pub fn getParent(this) jsc.EventLoopHandle
     public func getParent(): CPointer<Unit> {
-        return parent_ptr ?? CPointer<Unit>.null
+        return parent_ptr ?? CPointer<Unit>()
     }
 }

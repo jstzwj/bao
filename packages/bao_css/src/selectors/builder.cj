@@ -22,19 +22,19 @@ import bao_collections.*
 public class SelectorBuilder {
     /// 简单选择器序列 (从左到右, 不含组合符)
     /// 严格翻译自 simple_selectors: SmallList(GenericComponent, 32)
-    public var simple_selectors: ArrayList<SelectorComponent>
+    public var simple_selectors: ArrayList<CssSelectorComponent>
 
     /// 组合符及其左侧复合选择器的长度
     /// 严格翻译自 combinators: SmallList(struct { Combinator, usize }, 32)
-    public var combinators: ArrayList<SelectorCombinatorEntry>
+    public var combinators: ArrayList<CssCombinatorEntry>
 
     /// 当前复合选择器的长度
     /// 严格翻译自 current_len: usize
     public var current_len: Int64
 
     public init() {
-        this.simple_selectors = ArrayList<SelectorComponent>()
-        this.combinators = ArrayList<SelectorCombinatorEntry>()
+        this.simple_selectors = ArrayList<CssSelectorComponent>()
+        this.combinators = ArrayList<CssCombinatorEntry>()
         this.current_len = 0
     }
 
@@ -46,14 +46,14 @@ public class SelectorBuilder {
 
     /// 完成当前复合选择器并开始新的, 以给定组合符分隔
     /// 严格翻译自 SelectorBuilder.pushCombinator()
-    public func pushCombinator(combinator: SelectorCombinator): Unit {
-        combinators.append(SelectorCombinatorEntry(combinator, current_len))
+    public func pushCombinator(combinator: CssCombinator): Unit {
+        combinators.append(CssCombinatorEntry(combinator, current_len))
         current_len = 0
     }
 
     /// 将简单选择器推入当前复合选择器
     /// 严格翻译自 SelectorBuilder.pushSimpleSelector()
-    public func pushSimpleSelector(ss: SelectorComponent): Unit {
+    public func pushSimpleSelector(ss: CssSelectorComponent): Unit {
         simple_selectors.append(ss)
         current_len += 1
     }
@@ -61,8 +61,8 @@ public class SelectorBuilder {
     /// 添加嵌套前缀 (& 后代组合符)
     /// 严格翻译自 SelectorBuilder.addNestingPrefix()
     public func addNestingPrefix(): Unit {
-        combinators.insert(0, SelectorCombinatorEntry(SelectorCombinator.descendant, 1))
-        simple_selectors.insert(0, SelectorComponent.nesting)
+        combinators.insert(0, CssCombinatorEntry(CssCombinator.Descendant, 1))
+        simple_selectors.insert(0, CssSelectorComponent(CssComponentKind.Nesting))
     }
 
     /// 构建选择器
@@ -90,7 +90,7 @@ public class SelectorBuilder {
         var rest_of_simple_selectors = rest_and_current[0]
         var current_simple_selectors = rest_and_current[1]
 
-        var components = ArrayList<SelectorComponent>()
+        var components = ArrayList<CssSelectorComponent>()
 
         var current_simple_selectors_i: Int64 = 0
         var combinator_i: Int64 = combinators.size - 1
@@ -107,7 +107,7 @@ public class SelectorBuilder {
                     current_simple_selectors_i = 0
                     current_simple_selectors = split[1]
                     combinator_i -= 1
-                    components.append(SelectorComponent.combinator(entry.combinator))
+                    components.append(CssSelectorComponent(entry.combinator))
                 } else {
                     break
                 }
@@ -122,10 +122,10 @@ public class SelectorBuilder {
 
     /// 从末尾分割数组
     /// 严格翻译自 SelectorBuilder.splitFromEnd()
-    public static func splitFromEnd(s: ArrayList<SelectorComponent>, at: Int64): ArrayList<SelectorComponent>[] {
+    public static func splitFromEnd(s: ArrayList<CssSelectorComponent>, at: Int64): ArrayList<ArrayList<CssSelectorComponent>> {
         let midpoint = s.size - at
-        var left = ArrayList<SelectorComponent>()
-        var right = ArrayList<SelectorComponent>()
+        var left = ArrayList<CssSelectorComponent>()
+        var right = ArrayList<CssSelectorComponent>()
         for (i in 0..s.size) {
             if (i < midpoint) {
                 left.append(s[i])
@@ -133,17 +133,20 @@ public class SelectorBuilder {
                 right.append(s[i])
             }
         }
-        return [left, right]
+        let result = ArrayList<ArrayList<CssSelectorComponent>>()
+        result.append(left)
+        result.append(right)
+        return result
     }
 }
 
 /// 选择器组合符条目 (组合符 + 左侧复合选择器长度)
 /// 严格翻译自 struct { Combinator, usize }
-public class SelectorCombinatorEntry {
-    public var combinator: SelectorCombinator
+public class CssCombinatorEntry {
+    public var combinator: CssCombinator
     public var len: Int64
 
-    public init(combinator: SelectorCombinator, len: Int64) {
+    public init(combinator: CssCombinator, len: Int64) {
         this.combinator = combinator
         this.len = len
     }
@@ -153,9 +156,9 @@ public class SelectorCombinatorEntry {
 /// 严格翻译自 BuildResult struct
 public class SelectorBuildResult {
     public var specificity_and_flags: SpecificityAndFlags
-    public var components: ArrayList<SelectorComponent>
+    public var components: ArrayList<CssSelectorComponent>
 
-    public init(specificity_and_flags: SpecificityAndFlags, components: ArrayList<SelectorComponent>) {
+    public init(specificity_and_flags!: SpecificityAndFlags, components!: ArrayList<CssSelectorComponent>) {
         this.specificity_and_flags = specificity_and_flags
         this.components = components
     }
@@ -167,7 +170,7 @@ public class SpecificityAndFlags {
     public var specificity: UInt32
     public var flags: SelectorFlags
 
-    public init(specificity: UInt32, flags: SelectorFlags) {
+    public init(specificity!: UInt32, flags!: SelectorFlags) {
         this.specificity = specificity
         this.flags = flags
     }
@@ -180,7 +183,7 @@ public class SelectorFlags {
     public var has_slotted: Bool
     public var has_part: Bool
 
-    public init(has_pseudo: Bool, has_slotted: Bool, has_part: Bool) {
+    public init(has_pseudo!: Bool, has_slotted!: Bool, has_part!: Bool) {
         this.has_pseudo = has_pseudo
         this.has_slotted = has_slotted
         this.has_part = has_part
@@ -189,22 +192,24 @@ public class SelectorFlags {
 
 /// 计算特异性
 /// 严格翻译自 compute_specificity()
-public func computeSpecificity(components: ArrayList<SelectorComponent>): UInt32 {
+public func computeSpecificity(components: ArrayList<CssSelectorComponent>): UInt32 {
     var a: UInt32 = 0  // ID 选择器
     var b: UInt32 = 0  // 类、属性、伪类选择器
     var c: UInt32 = 0  // 类型、伪元素选择器
 
     for (i in 0..components.size) {
         let comp = components[i]
-        match (comp) {
-            case SelectorComponent.id_selector(_) => a += 1
-            case SelectorComponent.class_selector(_) => b += 1
-            case SelectorComponent.attribute_selector(_) => b += 1
-            case SelectorComponent.pseudo_class(_) => b += 1
-            case SelectorComponent.type_selector(_) => c += 1
-            case SelectorComponent.pseudo_element(_) => c += 1
-            case SelectorComponent.nesting => b += 1
-            case SelectorComponent.combinator(_) => ()  // 组合符不影响特异性
+        match (comp.kind) {
+            case CssComponentKind.Id => a += 1
+            case CssComponentKind.Class => b += 1
+            case CssComponentKind.AttributeInNoNamespaceExists => b += 1
+            case CssComponentKind.AttributeInNoNamespace => b += 1
+            case CssComponentKind.AttributeOther => b += 1
+            case CssComponentKind.NonTsPseudoClass => b += 1
+            case CssComponentKind.LocalName => c += 1
+            case CssComponentKind.PseudoElement => c += 1
+            case CssComponentKind.Nesting => b += 1
+            case CssComponentKind.Combinator => ()
             case _ => ()
         }
     }

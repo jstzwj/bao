@@ -28,17 +28,17 @@ public class VersionFlag {
         this.value = value
     }
 
-    public static let CURRENT: VersionFlag = VersionFlag.V5
+    public static let CURRENT: VersionFlag = VersionFlag(UInt16(5478))
 
-    public static let V1: VersionFlag = VersionFlag(value: UInt16(5474))
+    public static let V1: VersionFlag = VersionFlag(UInt16(5474))
     /// 修复路径未正确连接的 bug
-    public static let V2: VersionFlag = VersionFlag(value: UInt16(5475))
+    public static let V2: VersionFlag = VersionFlag(UInt16(5475))
     /// 添加了进程未找到时的错误信息
-    public static let V3: VersionFlag = VersionFlag(value: UInt16(5476))
+    public static let V3: VersionFlag = VersionFlag(UInt16(5476))
     /// 添加标记指示 shebang 是否为 "node" (自动回退到 "bun")
-    public static let V4: VersionFlag = VersionFlag(value: UInt16(5477))
+    public static let V4: VersionFlag = VersionFlag(UInt16(5477))
     /// 修复参数传递不总有效的 bug
-    public static let V5: VersionFlag = VersionFlag(value: UInt16(5478))
+    public static let V5: VersionFlag = VersionFlag(UInt16(5478))
 
     /// std.math.maxInt(u13) = 8191
     public static let MAX: UInt16 = UInt16((1 << 13) - 1)
@@ -67,17 +67,17 @@ public class Flags {
         hasShebang: Bool,
         versionTag: VersionFlag
     ): Flags {
-        let b = (isNodeOrBun ? UInt16(1) : UInt16(0))
-            | ((isNode ? UInt16(1) : UInt16(0)) << 1)
-            | ((hasShebang ? UInt16(1) : UInt16(0)) << 2)
-            | (versionTag.value << 3)
-        return Flags(bits: b)
+        var b = if (isNodeOrBun) { UInt16(1) } else { UInt16(0) }
+        b = b | ((if (isNode) { UInt16(1) } else { UInt16(0) }) << 1)
+        b = b | ((if (hasShebang) { UInt16(1) } else { UInt16(0) }) << 2)
+        b = b | (versionTag.value << 3)
+        return Flags(b)
     }
 
     /// 从位构造
     /// 翻译自: Flags.from_bits
     public static func fromBits(b: UInt16): Flags {
-        return Flags(bits: b)
+        return Flags(b)
     }
 
     /// shebang 内容是 "node" 或 "bun"
@@ -101,19 +101,19 @@ public class Flags {
     /// 版本标签
     /// 翻译自: Flags.version_tag
     public func versionTag(): VersionFlag {
-        return VersionFlag(value: bits >> 3)
+        return VersionFlag(bits >> 3)
     }
 
     /// 设置 is_node
     /// 翻译自: Flags.set_is_node
     public func setIsNode(v: Bool): Unit {
-        bits = (bits & ~UInt16(0b010)) | ((v ? UInt16(1) : UInt16(0)) << 1)
+        bits = (bits & UInt16(0b1111111111111101)) | ((if (v) { UInt16(1) } else { UInt16(0) }) << 1)
     }
 
     /// 验证标志是否有效
     /// 翻译自: Flags.is_valid
     public func isValid(): Bool {
-        let mask = Flags.new(false, false, false, VersionFlag(value: VersionFlag.MAX)).bits
+        let mask = Flags.new(false, false, false, VersionFlag(VersionFlag.MAX)).bits
         let compareTo = Flags.new(false, false, false, VersionFlag.CURRENT).bits
         return (bits & mask) == compareTo
     }
@@ -151,12 +151,12 @@ public class Shebang {
 
     /// 初始化 shebang
     /// 翻译自: Shebang.init
-    public static func init(launcher: String, isNodeOrBun: Bool): Result<Shebang> {
-        let utf16Len = UInt32(launcher.length) // 简化: ASCII
+    public static func create(launcher: String, isNodeOrBun: Bool): Result<Shebang, Unit> {
+        let utf16Len = UInt32(launcher.size) // 简化: ASCII
         return Result.Ok(Shebang(
-            launcher: launcher,
-            utf16Len: utf16Len,
-            isNodeOrBun: isNodeOrBun
+            launcher,
+            utf16Len,
+            isNodeOrBun
         ))
     }
 
@@ -165,25 +165,24 @@ public class Shebang {
     public static func parseFromBinPath(binPath: String): ?Shebang {
         let ext = extensionW(binPath)
         match (bunExtensionsGet(ext)) {
-            case Some(t) => {
-                return match (t) {
-                    case ExtensionType.RunWithBun => Some(Shebang(
-                        launcher: "bun run",
-                        utf16Len: 7,
-                        isNodeOrBun: true
+            case Some(t) =>
+                match (t) {
+                    case ExtensionType.RunWithBun => return Some(Shebang(
+                        "bun run",
+                        UInt32(7),
+                        true
                     ))
-                    case ExtensionType.RunWithCmd => Some(Shebang(
-                        launcher: "cmd /c",
-                        utf16Len: 6,
-                        isNodeOrBun: false
+                    case ExtensionType.RunWithCmd => return Some(Shebang(
+                        "cmd /c",
+                        UInt32(6),
+                        false
                     ))
-                    case ExtensionType.RunWithPowershell => Some(Shebang(
-                        launcher: "powershell -ExecutionPolicy Bypass -File",
-                        utf16Len: 40,
-                        isNodeOrBun: false
+                    case ExtensionType.RunWithPowershell => return Some(Shebang(
+                        "powershell -ExecutionPolicy Bypass -File",
+                        UInt32(40),
+                        false
                     ))
                 }
-            }
             case None => return None
         }
     }
@@ -191,24 +190,24 @@ public class Shebang {
     /// 解析 shebang 内容
     /// 翻译自: Shebang.parse
     ///   从文件内容解析 #! 行
-    public static func parse(contents: Array<Byte>, binPath: String): ?Shebang {
+    public static func parse(contents: Array<UInt8>, binPath: String): ?Shebang {
         if (contents.size < 3) {
             return parseFromBinPath(binPath)
         }
 
-        if (contents[0] != Byte('#') || contents[1] != Byte('!')) {
+        if (contents[0] != UInt8(35) || contents[1] != UInt8(33)) {
             return parseFromBinPath(binPath)
         }
 
         // 找到行尾
         var lineEnd = contents.size
-        var i = 2
+        var i: Int64 = 2
         while (i < contents.size) {
-            if (contents[i] == Byte('\n')) {
-                lineEnd = i.toInt()
+            if (contents[i] == UInt8(10)) {
+                lineEnd = i
                 // 检查 \r\n
-                if (i > 2 && contents[i - 1] == Byte('\r')) {
-                    lineEnd = (i - 1).toInt()
+                if (i > 2 && contents[i - 1] == UInt8(13)) {
+                    lineEnd = i - 1
                 }
                 break
             }
@@ -218,13 +217,13 @@ public class Shebang {
         let line = contents.slice(2, lineEnd)
 
         // 分词
-        var idx = 0
+        var idx: Int64 = 0
         // 跳过前导空格
-        while (idx < line.size && line[idx] == Byte(' ')) {
+        while (idx < line.size && line[idx] == UInt8(32)) {
             idx += 1
         }
         let firstStart = idx
-        while (idx < line.size && line[idx] != Byte(' ')) {
+        while (idx < line.size && line[idx] != UInt8(32)) {
             idx += 1
         }
         let first = line.slice(firstStart, idx)
@@ -233,25 +232,27 @@ public class Shebang {
         }
 
         // /usr/bin/env 或 /bin/env
-        if (first == "/usr/bin/env".toByteArray() || first == "/bin/env".toByteArray()) {
+        let firstStr = String.fromUtf8(first)
+        if (firstStr == "/usr/bin/env" || firstStr == "/bin/env") {
             // 跳过空格, 取程序名
-            while (idx < line.size && line[idx] == Byte(' ')) {
+            while (idx < line.size && line[idx] == UInt8(32)) {
                 idx += 1
             }
             let progStart = idx
-            while (idx < line.size && line[idx] != Byte(' ')) {
+            while (idx < line.size && line[idx] != UInt8(32)) {
                 idx += 1
             }
             let program = line.slice(progStart, idx)
             if (program.size == 0) {
                 return parseFromBinPath(binPath)
             }
-            let isNodeOrBun = (program == "bun".toByteArray() || program == "node".toByteArray())
+            let programStr = String.fromUtf8(program)
+            let isNodeOrBun = (programStr == "bun" || programStr == "node")
             // rest = 程序后面的参数
             let rest = line.slice(idx, line.size)
-            let result = Shebang.init(
-                launcher: String.fromBytes(rest),
-                isNodeOrBun: isNodeOrBun
+            let result = Shebang.create(
+                String.fromUtf8(rest),
+                isNodeOrBun
             )
             match (result) {
                 case Result.Ok(s) => return Some(s)
@@ -260,9 +261,9 @@ public class Shebang {
         }
 
         // 直接以 launcher 使用整行
-        let result = Shebang.init(
-            launcher: String.fromBytes(line),
-            isNodeOrBun: false
+        let result = Shebang.create(
+            String.fromUtf8(line),
+            false
         )
         match (result) {
             case Result.Ok(s) => return Some(s)
@@ -273,7 +274,7 @@ public class Shebang {
     /// 编码长度
     /// 翻译自: Shebang.encoded_length
     public func encodedLength(): Int64 {
-        return (1 + utf16Len.toInt()) * 2 + 4 * 2 // sizeof(u32) * 2
+        return (1 + Int64(utf16Len)) * 2 + 4 * 2 // sizeof(u32) * 2
     }
 
     /// 最大输入长度 (CreateProcessW 限制)
@@ -303,85 +304,90 @@ public class BinLinkingShim {
     /// 翻译自: BinLinkingShim.encoded_length
     public func encodedLength(): Int64 {
         // bin_path + 引号 + 空格 = (len + 2) * 2
-        var l = (binPath.length + 2) * 2
+        var l: Int64 = (Int64(binPath.size) + 2) * 2
         // flags u16
         l += 2
         match (shebang) {
             case Some(s) => l += s.encodedLength()
-            case None => {}
+            case None => ()
         }
-        return l.toInt()
+        return l
     }
 
     /// 编码到缓冲区
     /// 翻译自: BinLinkingShim.encode_into
-    public func encodeInto(buf: ArrayList<Byte>): Result<Unit> {
+    public func encodeInto(buf: ArrayList<UInt8>): Result<Unit, Unit> {
         // 写入 bin_path (UTF-16LE)
-        let binPathUtf16 = bao_core.Strings.convertUtf8ToUtf16(binPath)
+        let binPathUtf16 = stringToUtf16LE(binPath)
         for (ch in binPathUtf16) {
-            buf.append(Byte(ch & 0xFF))
-            buf.append(Byte((ch >> 8) & 0xFF))
+            buf.append(ch)
         }
 
         // 写入引号字符 (UTF-16LE)
-        buf.append(Byte(0x22)) // '"'
-        buf.append(Byte(0x00))
+        buf.append(UInt8(0x22)) // '"'
+        buf.append(UInt8(0x00))
         // 写入空字符
-        buf.append(Byte(0x00))
-        buf.append(Byte(0x00))
+        buf.append(UInt8(0x00))
+        buf.append(UInt8(0x00))
 
         // 构建 flags
         let isNodeOrBun = match (shebang) {
             case Some(s) => s.isNodeOrBun
             case None => false
         }
+        let hasShebang = match (shebang) {
+            case Some(_) => true
+            case None => false
+        }
         var flags = Flags.new(
-            isNodeOrBun: isNodeOrBun,
-            isNode: false,
-            hasShebang: shebang != None,
-            versionTag: VersionFlag.CURRENT
+            isNodeOrBun,
+            false,
+            hasShebang,
+            VersionFlag.CURRENT
         )
 
         match (shebang) {
-            case Some(s) => {
-                let isNode = s.launcher.startsWith("node") &&
-                    (s.launcher.length == 4 || s.launcher[4] == ' ')
-                flags.setIsNode(isNode)
-
-                // 写入 shebang launcher (UTF-16LE)
-                let launcherUtf16 = bao_core.Strings.convertUtf8ToUtf16(s.launcher)
-                for (ch in launcherUtf16) {
-                    buf.append(Byte(ch & 0xFF))
-                    buf.append(Byte((ch >> 8) & 0xFF))
-                }
-
-                // 写入空格 (UTF-16LE)
-                buf.append(Byte(0x20))
-                buf.append(Byte(0x00))
-
-                // bin_path_byte_len (u32 LE)
-                let binPathByteLen = UInt32(binPath.length * 2)
-                buf.append(Byte((binPathByteLen >> 0) & 0xFF))
-                buf.append(Byte((binPathByteLen >> 8) & 0xFF))
-                buf.append(Byte((binPathByteLen >> 16) & 0xFF))
-                buf.append(Byte((binPathByteLen >> 24) & 0xFF))
-
-                // arg_byte_len (u32 LE)
-                let argByteLen = s.utf16Len * 2 + 2
-                buf.append(Byte((argByteLen >> 0) & 0xFF))
-                buf.append(Byte((argByteLen >> 8) & 0xFF))
-                buf.append(Byte((argByteLen >> 16) & 0xFF))
-                buf.append(Byte((argByteLen >> 24) & 0xFF))
-            }
-            case None => {}
+            case Some(s) => encodeShebangInto(s, buf, flags, Int64(binPath.size))
+            case None => ()
         }
 
         // 写入 flags (u16 LE)
-        buf.append(Byte(flags.bits & 0xFF))
-        buf.append(Byte((flags.bits >> 8) & 0xFF))
+        buf.append(UInt8(flags.bits & 0xFF))
+        buf.append(UInt8((flags.bits >> 8) & 0xFF))
 
         return Result.Ok(())
     }
+}
+
+/// 辅助函数: 编码 shebang 数据到缓冲区
+private func encodeShebangInto(s: Shebang, buf: ArrayList<UInt8>, flags: Flags, binPathLen: Int64): Unit {
+    let isNode = s.launcher.startsWith("node") &&
+        (s.launcher.size == 4 || s.launcher[Int64(4)] == UInt8(32))
+    flags.setIsNode(isNode)
+
+    // 写入 shebang launcher (UTF-16LE)
+    let launcherUtf16 = stringToUtf16LE(s.launcher)
+    for (ch in launcherUtf16) {
+        buf.append(ch)
+    }
+
+    // 写入空格 (UTF-16LE)
+    buf.append(UInt8(0x20))
+    buf.append(UInt8(0x00))
+
+    // bin_path_byte_len (u32 LE)
+    let binPathByteLen = UInt32(binPathLen * 2)
+    buf.append(UInt8((binPathByteLen >> 0) & 0xFF))
+    buf.append(UInt8((binPathByteLen >> 8) & 0xFF))
+    buf.append(UInt8((binPathByteLen >> 16) & 0xFF))
+    buf.append(UInt8((binPathByteLen >> 24) & 0xFF))
+
+    // arg_byte_len (u32 LE)
+    let argByteLen = s.utf16Len * 2 + 2
+    buf.append(UInt8((argByteLen >> 0) & 0xFF))
+    buf.append(UInt8((argByteLen >> 8) & 0xFF))
+    buf.append(UInt8((argByteLen >> 16) & 0xFF))
+    buf.append(UInt8((argByteLen >> 24) & 0xFF))
 }
 
 // ============================================================================
@@ -404,7 +410,7 @@ public class Decoded {
 /// 宽松解码
 /// 翻译自: loose_decode
 ///   从 .bunx 文件数据中解析 bin_path 和 flags
-public func looseDecode(input: Array<Byte>): ?Decoded {
+public func looseDecode(input: Array<UInt8>): ?Decoded {
     let flagsSize: Int64 = 2 // sizeof(u16)
     // 最小长度检查
     if (input.size < flagsSize + 4 * 2 + 8) {
@@ -422,24 +428,24 @@ public func looseDecode(input: Array<Byte>): ?Decoded {
     let binPath: String
     if (flags.hasShebang()) {
         // 有 shebang: bin_path 长度在 flags 前的 u32 中
-        let off = input.size - flagsSize.toInt() - 4 * 2
+        let off = input.size - flagsSize - 4 * 2
         let binPathByteLen = UInt32(input[off]) |
             (UInt32(input[off + 1]) << 8) |
             (UInt32(input[off + 2]) << 16) |
             (UInt32(input[off + 3]) << 24)
-        if (binPathByteLen % 2 != UInt32(0) || binPathByteLen.toInt() > input.size - 8) {
+        if (binPathByteLen % UInt32(2) != UInt32(0) || Int64(binPathByteLen) > input.size - 8) {
             return None
         }
         // 从 UTF-16LE 读取 bin_path
-        let pathBytes = input.slice(0, binPathByteLen.toInt())
+        let pathBytes = input.slice(0, Int64(binPathByteLen))
         binPath = utf16LEToString(pathBytes)
     } else {
         // 无 shebang: bin_path 从头到 flags 前
-        let pathBytes = input.slice(0, input.size - flagsSize.toInt())
+        let pathBytes = input.slice(0, input.size - flagsSize)
         binPath = utf16LEToString(pathBytes)
     }
 
-    return Some(Decoded(binPath: binPath, flags: flags))
+    return Some(Decoded(binPath, flags))
 }
 
 // ============================================================================
@@ -449,13 +455,15 @@ public func looseDecode(input: Array<Byte>): ?Decoded {
 /// 获取文件扩展名 (UTF-16 路径)
 /// 翻译自: Shebang.extensionW
 private func extensionW(path: String): String {
-    let filename = bao_core.Strings.basenameWindows(path)
+    let filename = Path.basename(path)
     let dotIndex = filename.lastIndexOf(".")
     match (dotIndex) {
-        case Some(idx) => {
-            if (idx == 0) { return "" }
-            return filename.substring(idx)
-        }
+        case Some(idx) =>
+            if (idx == 0) {
+                return ""
+            }
+            let bytes = filename.toArray()
+            return String.fromUtf8(bytes.slice(idx, filename.size - idx))
         case None => return ""
     }
 }
@@ -481,16 +489,27 @@ private func bunExtensionsGet(ext: String): ?ExtensionType {
 }
 
 /// UTF-16LE 字节转字符串
-private func utf16LEToString(bytes: Array<Byte>): String {
+private func utf16LEToString(bytes: Array<UInt8>): String {
     if (bytes.size % 2 != 0) {
         return ""
     }
-    let chars = ArrayList<Char>()
-    var i = 0
+    let chars = ArrayList<Rune>()
+    var i: Int64 = 0
     while (i < bytes.size - 1) {
         let ch = UInt16(bytes[i]) | (UInt16(bytes[i + 1]) << 8)
-        chars.append(Char(ch))
+        chars.append(Rune(ch))
         i += 2
     }
-    return String.fromChars(chars)
+    return String(chars.toOwnedSlice())
+}
+
+/// 字符串转 UTF-16LE 字节数组
+private func stringToUtf16LE(s: String): Array<UInt8> {
+    let result = ArrayList<UInt8>()
+    for (ch in s) {
+        let code = UInt16(ch)
+        result.append(UInt8(code & 0xFF))
+        result.append(UInt8((code >> 8) & 0xFF))
+    }
+    return result.toOwnedSlice()
 }

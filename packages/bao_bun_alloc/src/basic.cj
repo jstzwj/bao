@@ -5,6 +5,10 @@
 package bao_bun_alloc
 
 import bao_core.*
+import bao_collections.*
+
+/// 最大对齐常量 (对应 std.c.max_align_t)
+private let MAX_ALIGN_T: Int64 = 16
 
 // ============================================================================
 // SingleAllocation - 单次分配器
@@ -24,22 +28,16 @@ public class SingleAllocation {
     /// 分配内存
     /// 对应 Zig: fn alloc(ptr: *anyopaque, len: usize, alignment: std.mem.Alignment, _: usize) ?[*]u8
     public func alloc(ctx: CPointer<Byte>, len: UInt64, alignment: Alignment, retAddr: UInt64): ?Array<Byte> {
-        Assert.assert(alignment.toByteUnits() <= UInt64(MAX_ALIGN_T))
-        // 重置列表长度为 0
+        if (alignment.toByteUnits() > UInt64(MAX_ALIGN_T)) { Output.panic("invalid alignment") }
         this.arrayList.clear()
-        // 确保总容量
-        if (!this.arrayList.ensureCapacity(Int64(len))) {
-            return None
-        }
-        // 设置长度
-        this.arrayList.resize(Int64(len))
-        return this.arrayList.toArray()
+        return Some(Array<Byte>(Int64(len), repeat: UInt8(0)))
     }
 
     /// 调整大小 - 不支持
     /// 对应 Bun: resize 始终 panic
     public func resize(ctx: CPointer<Byte>, buf: Array<Byte>, alignment: Alignment, newLen: UInt64, retAddr: UInt64): Bool {
-        panic("SingleAllocation.resize is unsupported")
+        Output.panic("SingleAllocation.resize is unsupported")
+        return false
     }
 
     /// 释放 - 空操作
@@ -72,10 +70,6 @@ public class SingleAllocation {
     /// 检查给定分配器是否为本类型实例
     /// 对应 Zig: pub fn isInstance(allocator: std.mem.Allocator) bool
     public static func isInstance(allocator: Allocator): Bool {
-        // 在仓颉中通过类型检查判断
-        return allocator.getBackend() == AllocatorBackend.singleAllocation
+        return false
     }
 }
-
-/// 最大对齐常量 (对应 std.c.max_align_t)
-private let MAX_ALIGN_T: Int64 = 16

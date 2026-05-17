@@ -36,9 +36,9 @@ public class CssMozDocumentRule {
     public func toCss(indent: String): String {
         let sb = StringBuilder()
         sb.append("${indent}@-moz-document url-prefix() {\n")
-        for (rule in rules.rules) {
-            let css = rule.toCss(indent + "  ")
-            if (css.length > 0) {
+        for (rule in rules.v) {
+            let css = rule.toString()
+            if (css.size > 0) {
                 sb.append("${indent}  ${css}\n")
             }
         }

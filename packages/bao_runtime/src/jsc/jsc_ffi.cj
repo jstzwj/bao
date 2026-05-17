@@ -4,6 +4,8 @@
 // 当前使用 AST 解释器代替 JSC 执行
 package bao_runtime.jsc
 
+import bao_runtime.*
+
 // ============================================================================
 // JSC FFI — JavaScriptCore C API 声明
 // 对应 Bun: src/jsc/ 中通过 Zig/Rust 调用的 JSC C 函数

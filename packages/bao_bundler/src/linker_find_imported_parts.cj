@@ -31,12 +31,8 @@ public func findAllImportedPartsInJSOrderExt(linker: LinkerContext,
     for (i in 0..chunks.size) {
         let chunk = chunks[i]
         match (chunk.contentType) {
-            case ChunkContentType.JavaScript => {
-                findImportedPartsInJSOrder(linker, chunk, i)
-            }
-            case ChunkContentType.CSS => {
-                // 由 findImportedCSSFilesInJSOrder 处理
-            }
+            case ChunkContentType.JavaScript => findImportedPartsInJSOrder(linker, chunk, i)
+            case ChunkContentType.CSS => ()
             case ChunkContentType.HTML => ()
         }
     }
@@ -95,7 +91,7 @@ private func sortFilesByDistance(linker: LinkerContext, chunk: Chunk): ArrayList
         let distance = if (sourceIndex >= 0 && sourceIndex < distances.size) {
             distances[sourceIndex]
         } else {
-            Int64.MAX_VALUE
+            Int64.Max
         }
         let tieBreaker = if (sourceIndex >= 0 && sourceIndex < stableIndices.size) {
             Int64(stableIndices[sourceIndex])
@@ -273,81 +269,5 @@ public class FindImportedPartsVisitor {
 
     private func getFlags(sourceIndex: Int64): MetaFlags {
         return MetaFlags()
-    }
-}
-
-/// Part 数据
-// 严格翻译自: Part 结构
-public class Part {
-    /// 是否活跃 (tree-shaking 后保留)
-    public var isLive: Bool
-    /// 语句列表
-    public var stmts: ArrayList<Stmt>
-    /// 导入记录索引列表
-    public var importRecordIndices: ArrayList<Int64>
-    /// 声明的符号
-    public var declaredSymbols: ArrayList<Int64>
-    /// 使用的符号
-    public var symbolUses: HashMap<Int64, SymbolUse>
-    /// 依赖的 part 列表
-    public var dependencies: ArrayList<PartRef>
-
-    public init() {
-        isLive = true
-        stmts = ArrayList<Stmt>()
-        importRecordIndices = ArrayList<Int64>()
-        declaredSymbols = ArrayList<Int64>()
-        symbolUses = HashMap<Int64, SymbolUse>()
-        dependencies = ArrayList<PartRef>()
-    }
-}
-
-/// Part 引用 (source_index + part_index)
-public class PartRef {
-    public var sourceIndex: Int64
-    public var partIndex: Int64
-
-    public init(sourceIndex: Int64, partIndex: Int64) {
-        this.sourceIndex = sourceIndex
-        this.partIndex = partIndex
-    }
-}
-
-/// 符号使用
-public class SymbolUse {
-    public var countEstimate: Int64
-
-    public init(countEstimate: Int64) {
-        this.countEstimate = countEstimate
-    }
-}
-
-/// SourceIndex 常量
-public class SourceIndex {
-    public static let RUNTIME_VALUE: Int64 = 0
-
-    public static func invalid(): Int64 {
-        return -1
-    }
-
-    public static func isValid(value: Int64): Bool {
-        return value >= 0
-    }
-
-    public static func fromValue(value: Int64): Int64 {
-        return value
-    }
-}
-
-/// Chunk 顺序条目 (用于排序)
-public class ChunkOrder {
-    public var sourceIndex: Int64
-    public var distance: Int64
-    public var tieBreaker: Int64
-
-    public init(sourceIndex: Int64, distance: Int64, tieBreaker: Int64) {
-        this.sourceIndex = sourceIndex
-        this.distance = distance
-        this.tieBreaker = tieBreaker
     }
 }

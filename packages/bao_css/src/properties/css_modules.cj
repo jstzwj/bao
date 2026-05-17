@@ -7,6 +7,7 @@
 package bao_css.properties
 
 import bao_core.*
+import bao_collections.*
 
 // ============================================================================
 // Composes
@@ -25,7 +26,10 @@ public class Composes {
     }
 
     public func toCss(): String {
-        var result = String.join(" ", names)
+        var nameArr = Array<String>(names.size, repeat: "")
+        var ni: Int64 = 0
+        for (n in names) { nameArr[ni] = n; ni += 1 }
+        var result = String.join(nameArr, delimiter: " ")
         match (from) {
             case Some(f) => result = result + " from " + f.toCss()
             case None => ()

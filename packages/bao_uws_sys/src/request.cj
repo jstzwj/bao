@@ -42,17 +42,17 @@ public class Request {
 
     /// 对应 Bun: pub fn isAncient(req: *Request) bool
     public func isAncient(): Bool {
-        return uws_req_is_ancient(ptr)
+        return unsafe { uws_req_is_ancient(ptr) }
     }
 
     /// 对应 Bun: pub fn getYield(req: *Request) bool
     public func getYield(): Bool {
-        return uws_req_get_yield(ptr)
+        return unsafe { uws_req_get_yield(ptr) }
     }
 
     /// 对应 Bun: pub fn setYield(req: *Request, yield: bool) void
     public func setYield(yield: Bool): Unit {
-        uws_req_set_yield(ptr, yield)
+        unsafe { uws_req_set_yield(ptr, yield) }
     }
 
     /// 对应 Bun: pub fn url(req: *Request) []const u8

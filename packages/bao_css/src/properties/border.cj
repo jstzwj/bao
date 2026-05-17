@@ -10,6 +10,7 @@
 package bao_css.properties
 
 import bao_core.*
+import bao_collections.*
 
 // ============================================================================
 // LineStyle
@@ -45,6 +46,14 @@ public enum LineStyle {
         }
     }
 
+    public operator func ==(rhs: LineStyle): Bool {
+        this.toCss() == rhs.toCss()
+    }
+
+    public operator func !=(rhs: LineStyle): Bool {
+        !(this == rhs)
+    }
+
     public static func default(): LineStyle {
         LineStyle.None
     }
@@ -72,6 +81,14 @@ public enum BorderSideWidth {
         }
     }
 
+    public operator func ==(rhs: BorderSideWidth): Bool {
+        this.toCss() == rhs.toCss()
+    }
+
+    public operator func !=(rhs: BorderSideWidth): Bool {
+        !(this == rhs)
+    }
+
     public static func default(): BorderSideWidth {
         BorderSideWidth.Medium
     }
@@ -91,7 +108,7 @@ public class GenericBorder {
     public var style: LineStyle         // 边框样式
     public var color: String            // 边框颜色
 
-    public init(width: BorderSideWidth, style: LineStyle, color: String) {
+    public init(width!: BorderSideWidth, style!: LineStyle, color!: String) {
         this.width = width
         this.style = style
         this.color = color
@@ -126,32 +143,35 @@ public class GenericBorder {
         if (parts.isEmpty()) {
             return style.toCss()
         }
-        return String.join(" ", parts)
+        var partArr = Array<String>(parts.size, repeat: "")
+        var pi: Int64 = 0
+        for (p in parts) { partArr[pi] = p; pi += 1 }
+        return String.join(partArr, delimiter: " ")
     }
 }
 
 /// border-top 简写属性别名
-public typealias BorderTop = GenericBorder
+public type BorderTop = GenericBorder
 /// border-right 简写属性别名
-public typealias BorderRight = GenericBorder
+public type BorderRight = GenericBorder
 /// border-bottom 简写属性别名
-public typealias BorderBottom = GenericBorder
+public type BorderBottom = GenericBorder
 /// border-left 简写属性别名
-public typealias BorderLeft = GenericBorder
+public type BorderLeft = GenericBorder
 /// border-block-start 简写属性别名
-public typealias BorderBlockStart = GenericBorder
+public type BorderBlockStart = GenericBorder
 /// border-block-end 简写属性别名
-public typealias BorderBlockEnd = GenericBorder
+public type BorderBlockEnd = GenericBorder
 /// border-inline-start 简写属性别名
-public typealias BorderInlineStart = GenericBorder
+public type BorderInlineStart = GenericBorder
 /// border-inline-end 简写属性别名
-public typealias BorderInlineEnd = GenericBorder
+public type BorderInlineEnd = GenericBorder
 /// border-block 简写属性别名
-public typealias BorderBlock = GenericBorder
+public type BorderBlock = GenericBorder
 /// border-inline 简写属性别名
-public typealias BorderInline = GenericBorder
+public type BorderInline = GenericBorder
 /// border 简写属性别名
-public typealias Border = GenericBorder
+public type Border = GenericBorder
 
 // ============================================================================
 // BorderColor (Rect shorthand: top/right/bottom/left)

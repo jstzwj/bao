@@ -8,6 +8,8 @@ package bao_io
 import bao_core.*
 import bao_sys.*
 
+private let O_NONBLOCK: Int32 = 0x800
+
 // ============================================================================
 // OpenForWriting - 打开文件用于写入
 // 严格翻译自: src/io/openForWriting.zig
@@ -50,11 +52,11 @@ public func openForWriting(
     forceSync: Bool
 ): ?OpenForWritingResult {
     // 1. 打开文件
-    var openResult = sysOpenAt(dir, path, flags, mode)
-    if (openResult == None) {
-        return None
+    let openResult = sysOpenAt(dir, path, flags, mode)
+    let fd = match (openResult) {
+        case None => return None
+        case Some(value) => value
     }
-    let fd = openResult.getOrThrow()
 
     var pollable = false
     var isSocket = false
@@ -62,11 +64,12 @@ public func openForWriting(
 
     // 2. fstat 获取文件信息
     let statResult = sysFstat(fd)
-    if (statResult == None) {
-        sysClose(fd)
-        return None
+    let stat = match (statResult) {
+        case None =>
+            sysClose(fd)
+            return None
+        case Some(value) => value
     }
-    let stat = statResult.getOrThrow()
 
     // 3. 检测 pollable 和 isatty
     pollable = isPollable(stat.mode)
@@ -91,13 +94,15 @@ public func openForWriting(
     } else {
         // 尝试设置非阻塞
         let currentFlags = sysGetFcntlFlags(fd)
-        if (currentResult != None) {
-            isNonblocking = (currentFlags & O_NONBLOCK) != 0
-            if (!isNonblocking) {
-                if (sysSetNonblocking(fd)) {
-                    isNonblocking = true
+        match (currentFlags) {
+            case Some(flagsValue) =>
+                isNonblocking = (flagsValue & O_NONBLOCK) != 0
+                if (!isNonblocking) {
+                    if (sysSetNonblocking(fd)) {
+                        isNonblocking = true
+                    }
                 }
-            }
+            case None => ()
         }
     }
 
@@ -163,7 +168,6 @@ public class StatResult {
 }
 
 // FD 类型别名
-public typealias FD = Int32
+public type FD = Int32
 
 private let currentResult: ?Int32 = None
-private let O_NONBLOCK: Int32 = 0x800

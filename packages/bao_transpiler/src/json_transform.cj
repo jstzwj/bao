@@ -51,20 +51,20 @@ public class JSONTransformer {
 
         // 验证 JSON 格式
         skipWhitespace()
-        if (pos >= source.length) {
+        if (pos >= source.size) {
             return "export default null;\n"
         }
 
         let firstChar = source[Int64(pos)]
-        if (firstChar == Char('{')) {
+        if (firstChar == UInt8(123)) {
             return transformJSONObject()
-        } else if (firstChar == Char('[')) {
+        } else if (firstChar == UInt8(91)) {
             return transformJSONArray()
-        } else if (firstChar == Char('"')) {
+        } else if (firstChar == UInt8(34)) {
             return transformJSONString()
-        } else if (firstChar == Char('t') || firstChar == Char('f')) {
+        } else if (firstChar == UInt8(116) || firstChar == UInt8(102)) {
             return transformJSONBoolean()
-        } else if (firstChar == Char('n')) {
+        } else if (firstChar == UInt8(110)) {
             return transformJSONNull()
         } else {
             // 数字
@@ -79,7 +79,7 @@ public class JSONTransformer {
     /// export var name = "foo";
     /// export var version = "1.0";
     private func transformJSONObject(): String {
-        let jsonContent = source.trim()
+        let jsonContent = source
         let sb = StringBuilder()
 
         // export default 完整 JSON
@@ -96,11 +96,10 @@ public class JSONTransformer {
             for (key in keys) {
                 let safeName = makeSafeIdentifier(key)
                 match (parsed.get(key)) {
-                    case Some(value) => {
+                    case Some(value) =>
                         sb.append("export var ${safeName} = ")
                         sb.append(generateValue(value))
                         sb.append(";\n")
-                    }
                     case None => ()
                 }
             }
@@ -111,7 +110,7 @@ public class JSONTransformer {
 
     /// 转换 JSON 数组为 ES Module
     private func transformJSONArray(): String {
-        let jsonContent = source.trim()
+        let jsonContent = source
         let sb = StringBuilder()
         sb.append("// Generated from JSON array\n")
         sb.append("export default ")
@@ -122,7 +121,7 @@ public class JSONTransformer {
 
     /// 转换 JSON 字符串为 ES Module
     private func transformJSONString(): String {
-        let jsonContent = source.trim()
+        let jsonContent = source
         let sb = StringBuilder()
         sb.append("// Generated from JSON string\n")
         sb.append("export default ")
@@ -133,7 +132,7 @@ public class JSONTransformer {
 
     /// 转换 JSON 布尔值
     private func transformJSONBoolean(): String {
-        let jsonContent = source.trim()
+        let jsonContent = source
         let sb = StringBuilder()
         sb.append("export default ${jsonContent};\n")
         return sb.toString()
@@ -146,7 +145,7 @@ public class JSONTransformer {
 
     /// 转换 JSON 数字
     private func transformJSONNumber(): String {
-        let jsonContent = source.trim()
+        let jsonContent = source
         let sb = StringBuilder()
         sb.append("export default ${jsonContent};\n")
         return sb.toString()
@@ -161,13 +160,13 @@ public class JSONTransformer {
         let result = HashMap<String, JSONValue>()
         skipWhitespace()
 
-        if (pos >= source.length || source[Int64(pos)] != Char('{')) {
+        if (pos >= source.size || source[Int64(pos)] != UInt8(123)) {
             return result
         }
         pos += 1  // skip '{'
         skipWhitespace()
 
-        while (pos < source.length && source[Int64(pos)] != Char('}')) {
+        while (pos < source.size && source[Int64(pos)] != UInt8(125)) {
             skipWhitespace()
 
             // 读取 key
@@ -175,7 +174,7 @@ public class JSONTransformer {
             skipWhitespace()
 
             // 跳过冒号
-            if (pos < source.length && source[Int64(pos)] == Char(':')) {
+            if (pos < source.size && source[Int64(pos)] == UInt8(58)) {
                 pos += 1
             }
             skipWhitespace()
@@ -186,13 +185,13 @@ public class JSONTransformer {
 
             skipWhitespace()
             // 跳过逗号
-            if (pos < source.length && source[Int64(pos)] == Char(',')) {
+            if (pos < source.size && source[Int64(pos)] == UInt8(44)) {
                 pos += 1
             }
             skipWhitespace()
         }
 
-        if (pos < source.length && source[Int64(pos)] == Char('}')) {
+        if (pos < source.size && source[Int64(pos)] == UInt8(125)) {
             pos += 1
         }
 
@@ -202,32 +201,32 @@ public class JSONTransformer {
     /// 解析 JSON 值
     private func parseJSONValue(): JSONValue {
         skipWhitespace()
-        if (pos >= source.length) {
+        if (pos >= source.size) {
             return JSONValue.nullValue()
         }
 
         let ch = source[Int64(pos)]
 
-        if (ch == Char('"')) {
-            return JSONValue.stringValue(parseJSONString())
+        if (ch == UInt8(34)) {
+            return JSONValue.makeString(parseJSONString())
         }
-        if (ch == Char('{')) {
+        if (ch == UInt8(123)) {
             let obj = parseJSONObject()
-            return JSONValue.objectValue(obj)
+            return JSONValue.makeObject(obj)
         }
-        if (ch == Char('[')) {
+        if (ch == UInt8(91)) {
             let arr = parseJSONArray()
-            return JSONValue.arrayValue(arr)
+            return JSONValue.makeArray(arr)
         }
-        if (ch == Char('t')) {
+        if (ch == UInt8(116)) {
             pos += 4  // skip "true"
-            return JSONValue.boolValue(true)
+            return JSONValue.makeBool(true)
         }
-        if (ch == Char('f')) {
+        if (ch == UInt8(102)) {
             pos += 5  // skip "false"
-            return JSONValue.boolValue(false)
+            return JSONValue.makeBool(false)
         }
-        if (ch == Char('n')) {
+        if (ch == UInt8(110)) {
             pos += 4  // skip "null"
             return JSONValue.nullValue()
         }
@@ -239,33 +238,33 @@ public class JSONTransformer {
     /// 解析 JSON 字符串
     private func parseJSONString(): String {
         skipWhitespace()
-        if (pos >= source.length || source[Int64(pos)] != Char('"')) {
+        if (pos >= source.size || source[Int64(pos)] != UInt8(34)) {
             return ""
         }
         pos += 1  // skip opening "
 
         let sb = StringBuilder()
-        while (pos < source.length) {
+        while (pos < source.size) {
             let ch = source[Int64(pos)]
-            if (ch == Char('\\')) {
+            if (ch == UInt8(92)) {
                 pos += 1
-                if (pos < source.length) {
+                if (pos < source.size) {
                     let escaped = source[Int64(pos)]
-                    match (escaped.value) {
-                        case 34 => sb.append(Char(34))   // \"
-                        case 92 => sb.append(Char(92))   // \\
-                        case 47 => sb.append(Char(47))   // \/
-                        case 98 => sb.append(Char(8))    // \b
-                        case 102 => sb.append(Char(12))  // \f
-                        case 110 => sb.append(Char(10))  // \n
-                        case 114 => sb.append(Char(13))  // \r
-                        case 116 => sb.append(Char(9))   // \t
-                        case 117 => {
+                    match (escaped) {
+                        case 34 => sb.append(UInt8(34))   // \"
+                        case 92 => sb.append(UInt8(92))   // \\
+                        case 47 => sb.append(UInt8(47))   // \/
+                        case 98 => sb.append(UInt8(8))    // \b
+                        case 102 => sb.append(UInt8(12))  // \f
+                        case 110 => sb.append(UInt8(10))  // \n
+                        case 114 => sb.append(UInt8(13))  // \r
+                        case 116 => sb.append(UInt8(9))   // \t
+                        case 117 =>
                             // \uXXXX Unicode escape
                             pos += 1
                             var hexStr = StringBuilder()
                             var count = 0
-                            while (count < 4 && pos < source.length) {
+                            while (count < 4 && pos < source.size) {
                                 hexStr.append(source[Int64(pos)])
                                 pos += 1
                                 count += 1
@@ -273,12 +272,11 @@ public class JSONTransformer {
                             // 简化: 保留原始 unicode 转义
                             sb.append("\\u${hexStr.toString()}")
                             continue
-                        }
                         case _ => sb.append(escaped)
                     }
                     pos += 1
                 }
-            } else if (ch == Char('"')) {
+            } else if (ch == UInt8(34)) {
                 pos += 1
                 break
             } else {
@@ -294,24 +292,24 @@ public class JSONTransformer {
         let result = ArrayList<JSONValue>()
         skipWhitespace()
 
-        if (pos >= source.length || source[Int64(pos)] != Char('[')) {
+        if (pos >= source.size || source[Int64(pos)] != UInt8(91)) {
             return result
         }
         pos += 1  // skip '['
         skipWhitespace()
 
-        while (pos < source.length && source[Int64(pos)] != Char(']')) {
+        while (pos < source.size && source[Int64(pos)] != UInt8(93)) {
             let value = parseJSONValue()
             result.append(value)
 
             skipWhitespace()
-            if (pos < source.length && source[Int64(pos)] == Char(',')) {
+            if (pos < source.size && source[Int64(pos)] == UInt8(44)) {
                 pos += 1
             }
             skipWhitespace()
         }
 
-        if (pos < source.length && source[Int64(pos)] == Char(']')) {
+        if (pos < source.size && source[Int64(pos)] == UInt8(93)) {
             pos += 1
         }
 
@@ -321,10 +319,10 @@ public class JSONTransformer {
     /// 解析 JSON 数字
     private func parseJSONNumber(): String {
         let sb = StringBuilder()
-        while (pos < source.length) {
+        while (pos < source.size) {
             let ch = source[Int64(pos)]
-            let v = ch.value
-            if ((v >= 48 && v <= 57) || v == 45 || v == 46 ||
+            let v = ch
+            if ((v >= UInt8(48) && v <= UInt8(57)) || v == 45 || v == 46 ||
                 v == 101 || v == 69 || v == 43) {
                 // 0-9, -, ., e, E, +
                 sb.append(ch)
@@ -370,10 +368,10 @@ public class JSONTransformer {
     private func generateValue(value: JSONValue): String {
         match (value.kind) {
             case JSONValueKind.Null => "null"
-            case JSONValueKind.Bool => if (value.boolValue) { "true" } else { "false" }
+            case JSONValueKind.`Bool` => if (value.boolValue) { "true" } else { "false" }
             case JSONValueKind.Number => value.stringValue
             case JSONValueKind.String => "\"${escapeJSONString(value.stringValue)}\""
-            case JSONValueKind.Array => {
+            case JSONValueKind.Array =>
                 let sb = StringBuilder()
                 sb.append("[")
                 for (i in 0..value.arrayValue.size) {
@@ -382,8 +380,7 @@ public class JSONTransformer {
                 }
                 sb.append("]")
                 sb.toString()
-            }
-            case JSONValueKind.Object => {
+            case JSONValueKind.Object =>
                 let sb = StringBuilder()
                 sb.append("{")
                 let keys = value.objectValue.keys()
@@ -399,25 +396,24 @@ public class JSONTransformer {
                 }
                 sb.append("}")
                 sb.toString()
-            }
         }
     }
 
     /// 将字符串转为安全的 JavaScript 标识符
     private func makeSafeIdentifier(s: String): String {
-        if (s.length == 0) {
+        if (s.size == 0) {
             return "_"
         }
         let sb = StringBuilder()
         let first = s[Int64(0)]
-        let fv = first.value
-        if (!((fv >= 97 && fv <= 122) || (fv >= 65 && fv <= 90) || fv == 95 || fv == 36)) {
+        let fv = first
+        if (!((fv >= UInt8(97) && fv <= UInt8(122)) || (fv >= UInt8(65) && fv <= UInt8(90)) || fv == UInt8(95) || fv == UInt8(36))) {
             sb.append("_")
         }
         for (ch in s) {
-            let v = ch.value
-            if ((v >= 97 && v <= 122) || (v >= 65 && v <= 90) ||
-                (v >= 48 && v <= 57) || v == 95 || v == 36) {
+            let v = ch
+            if ((v >= UInt8(97) && v <= UInt8(122)) || (v >= UInt8(65) && v <= UInt8(90)) ||
+                (v >= UInt8(48) && v <= UInt8(57)) || v == UInt8(95) || v == UInt8(36)) {
                 sb.append(ch)
             } else {
                 sb.append("_")
@@ -464,9 +460,9 @@ public class JSONTransformer {
     }
 
     private func skipWhitespace(): Unit {
-        while (pos < source.length) {
+        while (pos < source.size) {
             let ch = source[Int64(pos)]
-            if (ch == Char(' ') || ch == Char('\t') || ch == Char('\n') || ch == Char('\r')) {
+            if (ch == UInt8(32) || ch == UInt8(9) || ch == UInt8(10) || ch == UInt8(13)) {
                 pos += 1
             } else {
                 break
@@ -483,7 +479,7 @@ public class JSONTransformer {
 /// JSON 值类型
 public enum JSONValueKind {
     | Null
-    | Bool
+    | `Bool`
     | Number
     | String
     | Array
@@ -510,8 +506,8 @@ public class JSONValue {
         return JSONValue(JSONValueKind.Null)
     }
 
-    public static func boolValue(v: Bool): JSONValue {
-        let result = JSONValue(JSONValueKind.Bool)
+    public static func makeBool(v: Bool): JSONValue {
+        let result = JSONValue(JSONValueKind.`Bool`)
         result.boolValue = v
         return result
     }
@@ -522,19 +518,19 @@ public class JSONValue {
         return result
     }
 
-    public static func stringValue(s: String): JSONValue {
+    public static func makeString(s: String): JSONValue {
         let result = JSONValue(JSONValueKind.String)
         result.stringValue = s
         return result
     }
 
-    public static func arrayValue(arr: ArrayList<JSONValue>): JSONValue {
+    public static func makeArray(arr: ArrayList<JSONValue>): JSONValue {
         let result = JSONValue(JSONValueKind.Array)
         result.arrayValue = arr
         return result
     }
 
-    public static func objectValue(obj: HashMap<String, JSONValue>): JSONValue {
+    public static func makeObject(obj: HashMap<String, JSONValue>): JSONValue {
         let result = JSONValue(JSONValueKind.Object)
         result.objectValue = obj
         return result

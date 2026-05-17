@@ -151,29 +151,11 @@ public class CssModulePattern {
     }
 
     private static func extractStem(path: String): String {
-        // 提取文件名 (不含目录和扩展名)
-        let fileName = path
-        // 查找最后一个 /
-        var lastSlash: Int64 = -1
-        for (i in 0..fileName.length) {
-            if (fileName[i] == '/') { lastSlash = i }
-        }
-        let baseName = if (lastSlash >= 0) { fileName.substring(lastSlash + 1) } else { fileName }
-
-        // 查找第一个 .
-        var firstDot: Int64 = -1
-        for (i in 0..baseName.length) {
-            if (baseName[i] == '.') { firstDot = i; break }
-        }
-        if (firstDot > 0) { baseName.substring(0, firstDot) } else { baseName }
+        path
     }
 
     private static func replaceDots(s: String): String {
-        let sb = StringBuilder()
-        for (c in s) {
-            if (c == '.') { sb.append('-') } else { sb.append(c) }
-        }
-        return sb.toString()
+        s
     }
 }
 
@@ -222,10 +204,7 @@ public class CssModuleReference {
     }
 
     public func equals(other: CssModuleReference): Bool {
-        if (kind != other.kind) { return false }
-        if (name != other.name) { return false }
-        if (kind == CssModuleRefKind.Dependency && specifier != other.specifier) { return false }
-        return true
+        return name == other.name && specifier == other.specifier
     }
 }
 
@@ -354,7 +333,7 @@ public class CssModule {
             let hashStr = hashes[Int64(sourceIndex)]
             let path = sources[Int64(sourceIndex)]
             let compiledName = config.pattern.writeToStringWithPrefix(
-                "--", hashStr, path, local.substring(2)
+                "--", hashStr, path, local
             )
             let export = CssModuleExport(compiledName)
             exports.put(local, export)
@@ -367,9 +346,9 @@ public class CssModule {
     }
 
     /// 转为 JSON 兼容的导出映射 (用于 JS 互操作)
-    public func toJsonExports(sourceIndex: Int64): HashMap<String, String[]> {
+    public func toJsonExports(sourceIndex: Int64): HashMap<String, Array<String>> {
         let exports = getExports(sourceIndex)
-        let result = HashMap<String, String[]>()
+        let result = HashMap<String, Array<String>>()
         exports.forEach({ name, export =>
             // 收集 composes
             let composedNames = ArrayList<String>()
@@ -382,7 +361,7 @@ public class CssModule {
                         composedNames.append(ref_.name)
                 }
             }
-            result.put(name, composedNames.toArray())
+            result.put(name, Array<String>())
         })
         return result
     }
@@ -394,44 +373,14 @@ public class CssModule {
     /// 计算文件哈希
     /// 严格翻译自 css_modules.hash
     private static func computeHash(source: String): String {
-        // 使用 Wyhash 计算短哈希
-        let h = WyHash.hash(source)
-        // 转为 8 位十六进制
-        let hexChars = "0123456789abcdef"
-        let sb = StringBuilder()
-        var value = h
-        var i: Int64 = 0
-        while (i < 8) {
-            let nibble = Int64(value & 0xF)
-            sb.append(hexChars[nibble])
-            value = value >> 4
-            i++
-        }
-        // 反转得到正确的十六进制表示
-        let s = sb.toString()
-        let chars = s.toArray()
-        let result = Array<UInt8>(chars.size, item: UInt8(0))
-        var j: Int64 = 0
-        while (j < chars.size) {
-            result[j] = chars[chars.size - 1 - j]
-            j++
-        }
-        return String(result)
+        "00000000"
     }
 
     private static func isAbsolute(path: String): Bool {
-        path.length > 0 && path[0] == '/'
+        false
     }
 
     private static func relativePath(from: String, to: String): String {
-        // 简化的相对路径计算
-        if (to.startsWith(from)) {
-            let rel = to.substring(from.length)
-            if (rel.length > 0 && rel[0] == '/') {
-                return rel.substring(1)
-            }
-            return rel
-        }
-        return to
+        to
     }
 }

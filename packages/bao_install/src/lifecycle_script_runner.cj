@@ -19,6 +19,7 @@ import bao_io.*
 import bao_hash.*
 import bao_path.*
 import bao_http.*
+import bao_sys.*
 
 // ============================================================================
 // 脚本执行上下文
@@ -64,7 +65,7 @@ public class LifecycleScriptSubprocessFull {
     /// 是否已调用 process exit
     public var hasCalledProcessExit: Bool
     /// 包管理器引用
-    public var manager: PackageManager
+    public var manager: PackageManagerRef
     /// 环境变量
     public var envp: HashMap<String, String>
     /// shell 二进制路径
@@ -77,8 +78,8 @@ public class LifecycleScriptSubprocessFull {
     public var foreground: Bool
     /// 是否可选
     public var optional: Bool
-    /// 开始时间 (纳秒)
-    public var startedAt: UInt64
+    /// 开始时间 (毫秒)
+    public var startedAt: Int64
     /// 安装上下文
     public var ctx: ?ScriptInstallCtx
 
@@ -86,7 +87,7 @@ public class LifecycleScriptSubprocessFull {
     /// 翻译自: LifecycleScriptSubprocess.min_milliseconds_to_log
     public static let MIN_MS_TO_LOG: Int64 = 500
 
-    public init(packageName: String, scripts: LifecycleScriptList, manager: PackageManager) {
+    public init(packageName: String, scripts: LifecycleScriptList, manager: PackageManagerRef) {
         this.packageName = packageName
         this.scripts = scripts
         currentScriptIndex = UInt8(0)
@@ -99,7 +100,7 @@ public class LifecycleScriptSubprocessFull {
         hasIncrementedAliveCount = false
         foreground = false
         optional = false
-        startedAt = UInt64(0)
+        startedAt = Int64(0)
         ctx = None
     }
 
@@ -118,23 +119,11 @@ public class LifecycleScriptSubprocessFull {
 
         currentScriptIndex = nextScriptIndex
         hasCalledProcessExit = false
-        startedAt = bao_core.Time.nowMs()
+        startedAt = cacheCurrentTimeMillis()
 
         if (Int64(nextScriptIndex) < scripts.items.size) {
             match (scripts.items[Int64(nextScriptIndex)]) {
-                case Some(script) => {
-                    // 替换包管理器运行命令
-                    let combinedScript = replacePackageManagerRun(script)
-
-                    // 前台模式输出命令
-                    if (foreground && manager.options.logLevel != LogLevel.Silent) {
-                        bao_core.Output.command(combinedScript)
-                    }
-
-                    // 执行脚本
-                    // 翻译自: 使用 shell -c 或 bun exec 执行
-                    executeScript(combinedScript)
-                }
+                case Some(script) => runLifecycleScript(script, foreground, manager)
                 case None => ()
             }
         }
@@ -151,7 +140,7 @@ public class LifecycleScriptSubprocessFull {
     /// 翻译自: LifecycleScriptSubprocess.onReaderError
     public func onReaderError(err: String): Unit {
         remainingFds -= 1
-        bao_core.Output.error("error: Failed to read ${scriptName()} script output from \"${packageName}\" due to error: ${err}")
+        Output.printErrorln("error: Failed to read ${scriptName()} script output from \"${packageName}\" due to error: ${err}")
         maybeFinished()
     }
 
@@ -168,19 +157,21 @@ public class LifecycleScriptSubprocessFull {
     /// 翻译自: LifecycleScriptSubprocess.handleExit
     public func handleExit(exitCode: Int64): Unit {
         if (exitCode != 0 && !optional) {
-            bao_core.Output.error("error: ${packageName} ${scriptName()} script failed (exit code ${exitCode})")
+            Output.printErrorln("error: ${packageName} ${scriptName()} script failed (exit code ${exitCode})")
         }
 
         // 检查是否还有下一个脚本
         var nextIndex = Int64(currentScriptIndex) + 1
         while (nextIndex < scripts.items.size) {
-            match (scripts.items[nextIndex]) {
-                case Some(_) => {
-                    spawnNextScript(UInt8(nextIndex))
-                    return
-                }
-                case None => nextIndex += 1
+            let hasScript = match (scripts.items[nextIndex]) {
+                case Some(_) => true
+                case None => false
             }
+            if (hasScript) {
+                spawnNextScript(UInt8(nextIndex))
+                return
+            }
+            nextIndex += 1
         }
 
         // 所有脚本完成
@@ -190,6 +181,15 @@ public class LifecycleScriptSubprocessFull {
     }
 
     /// 执行脚本
+    /// run lifecycle script helper
+    private func runLifecycleScript(script: String, fg: Bool, mgr: PackageManagerRef): Unit {
+        let combinedScript = replacePackageManagerRun(script)
+        if (fg && mgr.logLevel != LogLevel.Silent) {
+            Output.println(combinedScript)
+        }
+        executeScript(combinedScript)
+    }
+
     private func executeScript(script: String): Unit {
         // 翻译自: 使用 spawn 选项执行子进程
         // 设置 stdin/stdout/stderr 重定向
@@ -213,10 +213,10 @@ public class LifecycleScriptSubprocessFull {
     /// 翻译自: PackageManager.spawnPackageLifecycleScripts
     ///   pub fn spawnPackageLifecycleScripts(this, ctx, list, optional, foreground, install_ctx) !void
     public static func spawnPackageScripts(
-        manager: PackageManager,
+        manager: PackageManagerRef,
         list: LifecycleScriptList,
-        optional: Bool,
-        foreground: Bool,
+        opt: Bool,
+        fg: Bool,
         installCtx: ?ScriptInstallCtx
     ): Unit {
         // 检查是否有脚本
@@ -237,23 +237,23 @@ public class LifecycleScriptSubprocessFull {
 
 /// 脚本计时器
 public class ScriptTimer {
-    public var startTime: UInt64
-    public var duration: UInt64
+    public var startTime: Int64
+    public var duration: Int64
 
     public init() {
-        startTime = UInt64(0)
-        duration = UInt64(0)
+        startTime = Int64(0)
+        duration = Int64(0)
     }
 
     public func start(): Unit {
-        startTime = bao_core.Time.nowMs()
+        startTime = cacheCurrentTimeMillis()
     }
 
     public func stop(): Unit {
-        duration = bao_core.Time.nowMs() - startTime
+        duration = cacheCurrentTimeMillis() - startTime
     }
 
-    public func elapsedMs(): UInt64 {
-        return bao_core.Time.nowMs() - startTime
+    public func elapsedMs(): Int64 {
+        return cacheCurrentTimeMillis() - startTime
     }
 }

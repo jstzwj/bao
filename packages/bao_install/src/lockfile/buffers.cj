@@ -4,6 +4,8 @@
 //   trees, hoisted_dependencies, resolutions, dependencies, extern_strings, string_bytes
 package bao_install.lockfile
 
+import bao_install.*
+
 import bao_core.*
 import bao_collections.*
 
@@ -127,7 +129,7 @@ public class LockfileBuffers {
     }
 
     /// 写入数组
-    private func writeArray(list: ArrayList<*>, logLevel: LogLevel): Unit {
+    private func writeArray(list: ArrayList<UInt8>, logLevel: LogLevel): Unit {
         if (logLevel.isVerbose()) {
             bao_core.Output.print("Saving ${list.size} items\n")
         }
@@ -150,10 +152,7 @@ public class LockfileBuffers {
         for (i in 0..resolutions.size) {
             if (resolutions[i] == packageId) {
                 match (dependencyVisited) {
-                    case Some(visited) => {
-                        if (visited.isSet(i)) { continue }
-                        visited.set(i)
-                    }
+                    case Some(visited) => visited.set(i)
                     case None => ()
                 }
                 return UInt32(i)

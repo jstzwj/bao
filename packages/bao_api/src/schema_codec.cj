@@ -7,9 +7,8 @@
 package bao_api
 
 import bao_options.*
-import bao_options.*
 import bao_core.*
-import bao_collections.*
+import bao_collections.ArrayList
 
 // ============================================================================
 // ByteBuffer - peechy-style byte buffer reader/writer
@@ -21,15 +20,15 @@ import bao_collections.*
 
 /// Peecy-style byte buffer for schema serialization
 public class ByteBuffer {
-    private var data: Array<UInt8>
+    private var data: ArrayList<UInt8>
     private var pos: Int64
 
     public init() {
-        data = Array<UInt8>()
+        data = ArrayList<UInt8>()
         pos = 0
     }
 
-    public init(data: Array<UInt8>) {
+    public init(data: ArrayList<UInt8>) {
         this.data = data
         pos = 0
     }
@@ -75,7 +74,7 @@ public class ByteBuffer {
             byte = readByte()
             result = result | (UInt64(byte & 0x7F) << shift)
             shift = shift + 7
-        } while (byte & 0x80) != 0
+        } while ((byte & UInt8(0x80)) != UInt8(0))
         return result
     }
 
@@ -87,15 +86,15 @@ public class ByteBuffer {
         var sb = StringBuilder()
         var i: UInt64 = 0
         while (i < len) {
-            sb.append(Char(readByte()))
+            sb.append(Rune(Int32(readByte())))
             i++
         }
         return sb.toString()
     }
 
-    public func readByteArray(): Array<UInt8> {
+    public func readByteArray(): ArrayList<UInt8> {
         let len = readVarUint()
-        var result = Array<UInt8>()
+        var result = ArrayList<UInt8>()
         var i: UInt64 = 0
         while (i < len) {
             result.append(readByte())
@@ -141,11 +140,11 @@ public class ByteBuffer {
     public func writeString(s: String): Unit {
         writeVarUint(UInt64(s.size))
         for (c in s) {
-            writeByte(UInt8(c.value))
+            writeByte(UInt8(c))
         }
     }
 
-    public func writeByteArray(arr: Array<UInt8>): Unit {
+    public func writeByteArray(arr: ArrayList<UInt8>): Unit {
         writeVarUint(UInt64(arr.size))
         for (b in arr) {
             writeByte(b)
@@ -154,7 +153,7 @@ public class ByteBuffer {
 
     // -- Utility --
 
-    public func getBytes(): Array<UInt8> {
+    public func getBytes(): ArrayList<UInt8> {
         data
     }
 
@@ -287,31 +286,31 @@ public func encodeApiJsException(message: ApiJsException, bb: ByteBuffer): Unit 
         case Some(v) =>
             bb.writeByte(1)
             bb.writeString(v)
-        case None => {}
+        case None => ()
     }
     match (message.message) {
         case Some(v) =>
             bb.writeByte(2)
             bb.writeString(v)
-        case None => {}
+        case None => ()
     }
     match (message.runtimeType) {
         case Some(v) =>
             bb.writeByte(3)
             bb.writeUint16(v)
-        case None => {}
+        case None => ()
     }
     match (message.code) {
         case Some(v) =>
             bb.writeByte(4)
             bb.writeByte(v)
-        case None => {}
+        case None => ()
     }
     match (message.stack) {
         case Some(v) =>
             bb.writeByte(5)
             encodeStackTrace(v, bb)
-        case None => {}
+        case None => ()
     }
     bb.writeByte(0)
 }
@@ -379,14 +378,14 @@ public func encodeApiProblems(message: ApiProblems, bb: ByteBuffer): Unit {
 
 public func decodeStringMap(bb: ByteBuffer): StringMap {
     let keysLen = bb.readVarUint()
-    var keys = Array<String>()
+    var keys = ArrayList<String>()
     var i: UInt64 = 0
     while (i < keysLen) {
         keys.append(bb.readString())
         i++
     }
     let valsLen = bb.readVarUint()
-    var values = Array<String>()
+    var values = ArrayList<String>()
     i = 0
     while (i < valsLen) {
         values.append(bb.readString())
@@ -453,31 +452,31 @@ public func encodeApiFallbackMessageContainer(message: ApiFallbackMessageContain
         case Some(v) =>
             bb.writeByte(1)
             bb.writeString(v)
-        case None => {}
+        case None => ()
     }
     match (message.router) {
         case Some(v) =>
             bb.writeByte(2)
             encodeApiRouter(v, bb)
-        case None => {}
+        case None => ()
     }
     match (message.reason) {
         case Some(v) =>
             bb.writeByte(3)
-            bb.writeByte(v.toRaw())
-        case None => {}
+            bb.writeByte(UInt8(v.toRaw()))
+        case None => ()
     }
     match (message.problems) {
         case Some(v) =>
             bb.writeByte(4)
             encodeApiProblems(v, bb)
-        case None => {}
+        case None => ()
     }
     match (message.cwd) {
         case Some(v) =>
             bb.writeByte(5)
             bb.writeString(v)
-        case None => {}
+        case None => ()
     }
     bb.writeByte(0)
 }
@@ -502,9 +501,9 @@ public func encodeApiJsx(message: ApiJsx, bb: ByteBuffer): Unit {
     bb.writeString(message.factory)
     bb.writeByte(message.runtime.toRaw())
     bb.writeString(message.fragment)
-    bb.writeByte(if (message.development) 1 else 0)
+    bb.writeByte(if (message.development) { 1 } else { 0 })
     bb.writeString(message.importSource)
-    bb.writeByte(if (message.reactFastRefresh) 1 else 0)
+    bb.writeByte(if (message.reactFastRefresh) { 1 } else { 0 })
 }
 
 // ============================================================================
@@ -513,7 +512,7 @@ public func encodeApiJsx(message: ApiJsx, bb: ByteBuffer): Unit {
 // ============================================================================
 
 public func decodeStringPointer(bb: ByteBuffer): StringPointer {
-    StringPointer(offset: bb.readUint32(), length: bb.readUint32())
+    StringPointer(bb.readUint32(), bb.readUint32())
 }
 
 public func encodeStringPointer(message: StringPointer, bb: ByteBuffer): Unit {
@@ -660,7 +659,7 @@ public func decodeLoadedFramework(bb: ByteBuffer): LoadedFramework {
 public func encodeLoadedFramework(message: LoadedFramework, bb: ByteBuffer): Unit {
     bb.writeString(message.packageName)
     bb.writeString(message.displayName)
-    bb.writeByte(if (message.development) 1 else 0)
+    bb.writeByte(if (message.development) { 1 } else { 0 })
 
     encodeFrameworkEntryPointMap(message.entryPoints, bb)
 
@@ -709,19 +708,19 @@ public func encodeFrameworkEntryPointMap(message: FrameworkEntryPointMap, bb: By
         case Some(v) =>
             bb.writeByte(1)
             encodeFrameworkEntryPoint(v, bb)
-        case None => {}
+        case None => ()
     }
     match (message.server) {
         case Some(v) =>
             bb.writeByte(2)
             encodeFrameworkEntryPoint(v, bb)
-        case None => {}
+        case None => ()
     }
     match (message.fallback) {
         case Some(v) =>
             bb.writeByte(3)
             encodeFrameworkEntryPoint(v, bb)
-        case None => {}
+        case None => ()
     }
     bb.writeByte(0)
 }
@@ -769,31 +768,31 @@ public func encodeJavascriptBundleContainer(message: JavascriptBundleContainer, 
         case Some(v) =>
             bb.writeByte(1)
             bb.writeUint32(v)
-        case None => {}
+        case None => ()
     }
     match (message.framework) {
         case Some(v) =>
             bb.writeByte(2)
             encodeLoadedFramework(v, bb)
-        case None => {}
+        case None => ()
     }
     match (message.routes) {
         case Some(v) =>
             bb.writeByte(3)
             encodeApiLoadedRouteConfig(v, bb)
-        case None => {}
+        case None => ()
     }
     match (message.bundle) {
         case Some(v) =>
             bb.writeByte(4)
             encodeJavascriptBundle(v, bb)
-        case None => {}
+        case None => ()
     }
     match (message.codeLength) {
         case Some(v) =>
             bb.writeByte(5)
             bb.writeUint32(v)
-        case None => {}
+        case None => ()
     }
     bb.writeByte(0)
 }
@@ -814,7 +813,7 @@ public func decodeApiModuleImportRecord(bb: ByteBuffer): ApiModuleImportRecord {
 public func encodeApiModuleImportRecord(message: ApiModuleImportRecord, bb: ByteBuffer): Unit {
     bb.writeByte(message.kind.toRaw())
     bb.writeString(message.path)
-    bb.writeByte(if (message.dynamic) 1 else 0)
+    bb.writeByte(if (message.dynamic) { 1 } else { 0 })
 }
 
 // ============================================================================
@@ -900,13 +899,13 @@ public func encodeEnvConfig(message: EnvConfig, bb: ByteBuffer): Unit {
         case Some(v) =>
             bb.writeByte(1)
             bb.writeString(v)
-        case None => {}
+        case None => ()
     }
     match (message.defaults) {
         case Some(v) =>
             bb.writeByte(2)
             encodeStringMap(v, bb)
-        case None => {}
+        case None => ()
     }
     bb.writeByte(0)
 }
@@ -936,13 +935,13 @@ public func encodeFrameworkEntryPointMessage(message: FrameworkEntryPointMessage
         case Some(v) =>
             bb.writeByte(1)
             bb.writeString(v)
-        case None => {}
+        case None => ()
     }
     match (message.env) {
         case Some(v) =>
             bb.writeByte(2)
             encodeEnvConfig(v, bb)
-        case None => {}
+        case None => ()
     }
     bb.writeByte(0)
 }
@@ -978,49 +977,49 @@ public func encodeApiFrameworkConfig(message: ApiFrameworkConfig, bb: ByteBuffer
         case Some(v) =>
             bb.writeByte(1)
             bb.writeString(v)
-        case None => {}
+        case None => ()
     }
     match (message.client) {
         case Some(v) =>
             bb.writeByte(2)
             encodeFrameworkEntryPointMessage(v, bb)
-        case None => {}
+        case None => ()
     }
     match (message.server) {
         case Some(v) =>
             bb.writeByte(3)
             encodeFrameworkEntryPointMessage(v, bb)
-        case None => {}
+        case None => ()
     }
     match (message.fallback) {
         case Some(v) =>
             bb.writeByte(4)
             encodeFrameworkEntryPointMessage(v, bb)
-        case None => {}
+        case None => ()
     }
     match (message.development) {
         case Some(v) =>
             bb.writeByte(5)
-            bb.writeByte(if (v) 1 else 0)
-        case None => {}
+            bb.writeByte(if (v) { 1 } else { 0 })
+        case None => ()
     }
     match (message.clientCssInJs) {
         case Some(v) =>
             bb.writeByte(6)
-            bb.writeByte(v.toRaw())
-        case None => {}
+            bb.writeByte(UInt8(v.toRaw()))
+        case None => ()
     }
     match (message.displayName) {
         case Some(v) =>
             bb.writeByte(7)
             bb.writeString(v)
-        case None => {}
+        case None => ()
     }
     match (message.overrideModules) {
         case Some(v) =>
             bb.writeByte(8)
             encodeStringMap(v, bb)
-        case None => {}
+        case None => ()
     }
     bb.writeByte(0)
 }
@@ -1038,7 +1037,7 @@ public func decodeApiRouteConfig(bb: ByteBuffer): ApiRouteConfig {
         match (tag) {
             case 0 => done = true
             case 1 =>
-                var arr = Array<String>()
+                var arr = ArrayList<String>()
                 let len = bb.readVarUint()
                 var i: UInt64 = 0
                 while (i < len) {
@@ -1047,7 +1046,7 @@ public func decodeApiRouteConfig(bb: ByteBuffer): ApiRouteConfig {
                 }
                 result.dir = Some(arr)
             case 2 =>
-                var arr = Array<String>()
+                var arr = ArrayList<String>()
                 let len = bb.readVarUint()
                 var i: UInt64 = 0
                 while (i < len) {
@@ -1071,7 +1070,7 @@ public func encodeApiRouteConfig(message: ApiRouteConfig, bb: ByteBuffer): Unit 
             for (s in arr) {
                 bb.writeString(s)
             }
-        case None => {}
+        case None => ()
     }
     match (message.extensions) {
         case Some(arr) =>
@@ -1080,19 +1079,19 @@ public func encodeApiRouteConfig(message: ApiRouteConfig, bb: ByteBuffer): Unit 
             for (s in arr) {
                 bb.writeString(s)
             }
-        case None => {}
+        case None => ()
     }
     match (message.staticDir) {
         case Some(v) =>
             bb.writeByte(3)
             bb.writeString(v)
-        case None => {}
+        case None => ()
     }
     match (message.assetPrefix) {
         case Some(v) =>
             bb.writeByte(4)
             bb.writeString(v)
-        case None => {}
+        case None => ()
     }
     bb.writeByte(0)
 }
@@ -1117,7 +1116,7 @@ public func decodeApiTransformOptions(bb: ByteBuffer): ApiTransformOptions {
             case 6 => result.define = Some(decodeStringMap(bb))
             case 7 => result.preserveSymlinks = Some(bb.readByte() != 0)
             case 8 =>
-                var arr = Array<String>()
+                var arr = ArrayList<String>()
                 let len = bb.readVarUint()
                 var i: UInt64 = 0
                 while (i < len) {
@@ -1127,7 +1126,7 @@ public func decodeApiTransformOptions(bb: ByteBuffer): ApiTransformOptions {
                 result.entryPoints = Some(arr)
             case 9 => result.write = Some(bb.readByte() != 0)
             case 10 =>
-                var arr = Array<String>()
+                var arr = ArrayList<String>()
                 let len = bb.readVarUint()
                 var i: UInt64 = 0
                 while (i < len) {
@@ -1137,7 +1136,7 @@ public func decodeApiTransformOptions(bb: ByteBuffer): ApiTransformOptions {
                 result.inject = Some(arr)
             case 11 => result.outputDir = Some(bb.readString())
             case 12 =>
-                var arr = Array<String>()
+                var arr = ArrayList<String>()
                 let len = bb.readVarUint()
                 var i: UInt64 = 0
                 while (i < len) {
@@ -1147,7 +1146,7 @@ public func decodeApiTransformOptions(bb: ByteBuffer): ApiTransformOptions {
                 result.external = Some(arr)
             case 13 => result.loaders = Some(decodeLoaderMap(bb))
             case 14 =>
-                var arr = Array<String>()
+                var arr = ArrayList<String>()
                 let len = bb.readVarUint()
                 var i: UInt64 = 0
                 while (i < len) {
@@ -1158,7 +1157,7 @@ public func decodeApiTransformOptions(bb: ByteBuffer): ApiTransformOptions {
             case 15 => result.target = Some(SchemaTarget.fromRaw(bb.readByte()))
             case 16 => result.serve = Some(bb.readByte() != 0)
             case 17 =>
-                var arr = Array<String>()
+                var arr = ArrayList<String>()
                 let len = bb.readVarUint()
                 var i: UInt64 = 0
                 while (i < len) {
@@ -1167,7 +1166,7 @@ public func decodeApiTransformOptions(bb: ByteBuffer): ApiTransformOptions {
                 }
                 result.envFiles = Some(arr)
             case 18 =>
-                var arr = Array<String>()
+                var arr = ArrayList<String>()
                 let len = bb.readVarUint()
                 var i: UInt64 = 0
                 while (i < len) {
@@ -1193,43 +1192,43 @@ public func encodeApiTransformOptions(message: ApiTransformOptions, bb: ByteBuff
         case Some(v) =>
             bb.writeByte(1)
             encodeApiJsx(v, bb)
-        case None => {}
+        case None => ()
     }
     match (message.tsconfigOverride) {
         case Some(v) =>
             bb.writeByte(2)
             bb.writeString(v)
-        case None => {}
+        case None => ()
     }
     match (message.resolve) {
         case Some(v) =>
             bb.writeByte(3)
-            bb.writeByte(v.toRaw())
-        case None => {}
+            bb.writeByte(UInt8(v.toRaw()))
+        case None => ()
     }
     match (message.origin) {
         case Some(v) =>
             bb.writeByte(4)
             bb.writeString(v)
-        case None => {}
+        case None => ()
     }
     match (message.absoluteWorkingDir) {
         case Some(v) =>
             bb.writeByte(5)
             bb.writeString(v)
-        case None => {}
+        case None => ()
     }
     match (message.define) {
         case Some(v) =>
             bb.writeByte(6)
             encodeStringMap(v, bb)
-        case None => {}
+        case None => ()
     }
     match (message.preserveSymlinks) {
         case Some(v) =>
             bb.writeByte(7)
-            bb.writeByte(if (v) 1 else 0)
-        case None => {}
+            bb.writeByte(if (v) { 1 } else { 0 })
+        case None => ()
     }
     match (message.entryPoints) {
         case Some(arr) =>
@@ -1238,13 +1237,13 @@ public func encodeApiTransformOptions(message: ApiTransformOptions, bb: ByteBuff
             for (s in arr) {
                 bb.writeString(s)
             }
-        case None => {}
+        case None => ()
     }
     match (message.write) {
         case Some(v) =>
             bb.writeByte(9)
-            bb.writeByte(if (v) 1 else 0)
-        case None => {}
+            bb.writeByte(if (v) { 1 } else { 0 })
+        case None => ()
     }
     match (message.inject) {
         case Some(arr) =>
@@ -1253,13 +1252,13 @@ public func encodeApiTransformOptions(message: ApiTransformOptions, bb: ByteBuff
             for (s in arr) {
                 bb.writeString(s)
             }
-        case None => {}
+        case None => ()
     }
     match (message.outputDir) {
         case Some(v) =>
             bb.writeByte(11)
             bb.writeString(v)
-        case None => {}
+        case None => ()
     }
     match (message.external) {
         case Some(arr) =>
@@ -1268,13 +1267,13 @@ public func encodeApiTransformOptions(message: ApiTransformOptions, bb: ByteBuff
             for (s in arr) {
                 bb.writeString(s)
             }
-        case None => {}
+        case None => ()
     }
     match (message.loaders) {
         case Some(v) =>
             bb.writeByte(13)
             encodeLoaderMap(v, bb)
-        case None => {}
+        case None => ()
     }
     match (message.mainFields) {
         case Some(arr) =>
@@ -1283,19 +1282,19 @@ public func encodeApiTransformOptions(message: ApiTransformOptions, bb: ByteBuff
             for (s in arr) {
                 bb.writeString(s)
             }
-        case None => {}
+        case None => ()
     }
     match (message.target) {
         case Some(v) =>
             bb.writeByte(15)
-            bb.writeByte(v.toRaw())
-        case None => {}
+            bb.writeByte(UInt8(v.toRaw()))
+        case None => ()
     }
     match (message.serve) {
         case Some(v) =>
             bb.writeByte(16)
-            bb.writeByte(if (v) 1 else 0)
-        case None => {}
+            bb.writeByte(if (v) { 1 } else { 0 })
+        case None => ()
     }
     match (message.envFiles) {
         case Some(arr) =>
@@ -1304,7 +1303,7 @@ public func encodeApiTransformOptions(message: ApiTransformOptions, bb: ByteBuff
             for (s in arr) {
                 bb.writeString(s)
             }
-        case None => {}
+        case None => ()
     }
     match (message.extensionOrder) {
         case Some(arr) =>
@@ -1313,49 +1312,49 @@ public func encodeApiTransformOptions(message: ApiTransformOptions, bb: ByteBuff
             for (s in arr) {
                 bb.writeString(s)
             }
-        case None => {}
+        case None => ()
     }
     match (message.framework) {
         case Some(v) =>
             bb.writeByte(19)
             encodeApiFrameworkConfig(v, bb)
-        case None => {}
+        case None => ()
     }
     match (message.router) {
         case Some(v) =>
             bb.writeByte(20)
             encodeApiRouteConfig(v, bb)
-        case None => {}
+        case None => ()
     }
     match (message.noSummary) {
         case Some(v) =>
             bb.writeByte(21)
-            bb.writeByte(if (v) 1 else 0)
-        case None => {}
+            bb.writeByte(if (v) { 1 } else { 0 })
+        case None => ()
     }
     match (message.disableHmr) {
         case Some(v) =>
             bb.writeByte(22)
-            bb.writeByte(if (v) 1 else 0)
-        case None => {}
+            bb.writeByte(if (v) { 1 } else { 0 })
+        case None => ()
     }
     match (message.port) {
         case Some(v) =>
             bb.writeByte(23)
             bb.writeUint16(v)
-        case None => {}
+        case None => ()
     }
     match (message.logLevel) {
         case Some(v) =>
             bb.writeByte(24)
-            bb.writeByte(v.toRaw())
-        case None => {}
+            bb.writeByte(UInt8(v.toRaw()))
+        case None => ()
     }
     match (message.sourceMap) {
         case Some(v) =>
             bb.writeByte(25)
-            bb.writeByte(v.toRaw())
-        case None => {}
+            bb.writeByte(UInt8(v.toRaw()))
+        case None => ()
     }
     bb.writeByte(0)
 }
@@ -1407,31 +1406,31 @@ public func encodeApiTransform(message: ApiTransform, bb: ByteBuffer): Unit {
         case Some(v) =>
             bb.writeByte(1)
             encodeFileHandle(v, bb)
-        case None => {}
+        case None => ()
     }
     match (message.path) {
         case Some(v) =>
             bb.writeByte(2)
             bb.writeString(v)
-        case None => {}
+        case None => ()
     }
     match (message.contents) {
         case Some(v) =>
             bb.writeByte(3)
             bb.writeByteArray(v)
-        case None => {}
+        case None => ()
     }
     match (message.loader) {
         case Some(v) =>
             bb.writeByte(4)
-            bb.writeByte(v.toRaw())
-        case None => {}
+            bb.writeByte(UInt8(v.toRaw()))
+        case None => ()
     }
     match (message.options) {
         case Some(v) =>
             bb.writeByte(5)
             encodeApiTransformOptions(v, bb)
-        case None => {}
+        case None => ()
     }
     bb.writeByte(0)
 }
@@ -1462,19 +1461,19 @@ public func encodeApiScan(message: ApiScan, bb: ByteBuffer): Unit {
         case Some(v) =>
             bb.writeByte(1)
             bb.writeString(v)
-        case None => {}
+        case None => ()
     }
     match (message.contents) {
         case Some(v) =>
             bb.writeByte(2)
             bb.writeByteArray(v)
-        case None => {}
+        case None => ()
     }
     match (message.loader) {
         case Some(v) =>
             bb.writeByte(3)
-            bb.writeByte(v.toRaw())
-        case None => {}
+            bb.writeByte(UInt8(v.toRaw()))
+        case None => ()
     }
     bb.writeByte(0)
 }
@@ -1548,13 +1547,13 @@ public func encodeApiMessageData(message: ApiMessageData, bb: ByteBuffer): Unit 
         case Some(v) =>
             bb.writeByte(1)
             bb.writeString(v)
-        case None => {}
+        case None => ()
     }
     match (message.location) {
         case Some(v) =>
             bb.writeByte(2)
             encodeApiLocation(v, bb)
-        case None => {}
+        case None => ()
     }
     bb.writeByte(0)
 }
@@ -1584,13 +1583,13 @@ public func encodeApiMessageMeta(message: ApiMessageMeta, bb: ByteBuffer): Unit 
         case Some(v) =>
             bb.writeByte(1)
             bb.writeString(v)
-        case None => {}
+        case None => ()
     }
     match (message.build) {
         case Some(v) =>
             bb.writeByte(2)
-            bb.writeByte(if (v) 1 else 0)
-        case None => {}
+            bb.writeByte(if (v) { 1 } else { 0 })
+        case None => ()
     }
     bb.writeByte(0)
 }
@@ -1615,7 +1614,7 @@ public func decodeApiMessage(bb: ByteBuffer): ApiMessage {
 }
 
 public func encodeApiMessage(message: ApiMessage, bb: ByteBuffer): Unit {
-    bb.writeByte(message.level.toRaw())
+    bb.writeByte(UInt8(message.level.toRaw()))
     encodeApiMessageData(message.data, bb)
     bb.writeVarUint(UInt64(message.notes.size))
     for (n in message.notes) {
@@ -1979,7 +1978,7 @@ public func decodeApiBunInstall(bb: ByteBuffer): ApiBunInstall {
             case 12 => result.production = Some(bb.readByte() != 0)
             case 13 => result.saveYarnLockfile = Some(bb.readByte() != 0)
             case 14 =>
-                var arr = Array<String>()
+                var arr = ArrayList<String>()
                 let len = bb.readVarUint()
                 var i: UInt64 = 0
                 while (i < len) {
@@ -2005,79 +2004,79 @@ public func encodeApiBunInstall(message: ApiBunInstall, bb: ByteBuffer): Unit {
         case Some(v) =>
             bb.writeByte(1)
             encodeApiNpmRegistry(v, bb)
-        case None => {}
+        case None => ()
     }
     match (message.scoped) {
         case Some(v) =>
             bb.writeByte(2)
             encodeApiNpmRegistryMap(v, bb)
-        case None => {}
+        case None => ()
     }
     match (message.lockfilePath) {
         case Some(v) =>
             bb.writeByte(3)
             bb.writeString(v)
-        case None => {}
+        case None => ()
     }
     match (message.saveLockfilePath) {
         case Some(v) =>
             bb.writeByte(4)
             bb.writeString(v)
-        case None => {}
+        case None => ()
     }
     match (message.cacheDirectory) {
         case Some(v) =>
             bb.writeByte(5)
             bb.writeString(v)
-        case None => {}
+        case None => ()
     }
     match (message.dryRun) {
         case Some(v) =>
             bb.writeByte(6)
-            bb.writeByte(if (v) 1 else 0)
-        case None => {}
+            bb.writeByte(if (v) { 1 } else { 0 })
+        case None => ()
     }
     match (message.force) {
         case Some(v) =>
             bb.writeByte(7)
-            bb.writeByte(if (v) 1 else 0)
-        case None => {}
+            bb.writeByte(if (v) { 1 } else { 0 })
+        case None => ()
     }
     match (message.saveDev) {
         case Some(v) =>
             bb.writeByte(8)
-            bb.writeByte(if (v) 1 else 0)
-        case None => {}
+            bb.writeByte(if (v) { 1 } else { 0 })
+        case None => ()
     }
     match (message.saveOptional) {
         case Some(v) =>
             bb.writeByte(9)
-            bb.writeByte(if (v) 1 else 0)
-        case None => {}
+            bb.writeByte(if (v) { 1 } else { 0 })
+        case None => ()
     }
     match (message.savePeer) {
         case Some(v) =>
             bb.writeByte(10)
-            bb.writeByte(if (v) 1 else 0)
-        case None => {}
+            bb.writeByte(if (v) { 1 } else { 0 })
+        case None => ()
     }
     match (message.saveLockfile) {
         case Some(v) =>
             bb.writeByte(11)
-            bb.writeByte(if (v) 1 else 0)
-        case None => {}
+            bb.writeByte(if (v) { 1 } else { 0 })
+        case None => ()
     }
     match (message.production) {
         case Some(v) =>
             bb.writeByte(12)
-            bb.writeByte(if (v) 1 else 0)
-        case None => {}
+            bb.writeByte(if (v) { 1 } else { 0 })
+        case None => ()
     }
     match (message.saveYarnLockfile) {
         case Some(v) =>
             bb.writeByte(13)
-            bb.writeByte(if (v) 1 else 0)
-        case None => {}
+            bb.writeByte(if (v) { 1 } else { 0 })
+        case None => ()
     }
     match (message.nativeBinLinks) {
         case Some(arr) =>
@@ -2086,49 +2085,49 @@ public func encodeApiBunInstall(message: ApiBunInstall, bb: ByteBuffer): Unit {
             for (s in arr) {
                 bb.writeString(s)
             }
-        case None => {}
+        case None => ()
     }
     match (message.disableCache) {
         case Some(v) =>
             bb.writeByte(15)
-            bb.writeByte(if (v) 1 else 0)
-        case None => {}
+            bb.writeByte(if (v) { 1 } else { 0 })
+        case None => ()
     }
     match (message.disableManifestCache) {
         case Some(v) =>
             bb.writeByte(16)
-            bb.writeByte(if (v) 1 else 0)
-        case None => {}
+            bb.writeByte(if (v) { 1 } else { 0 })
+        case None => ()
     }
     match (message.globalDir) {
         case Some(v) =>
             bb.writeByte(17)
             bb.writeString(v)
-        case None => {}
+        case None => ()
     }
     match (message.globalBinDir) {
         case Some(v) =>
             bb.writeByte(18)
             bb.writeString(v)
-        case None => {}
+        case None => ()
     }
     match (message.frozenLockfile) {
         case Some(v) =>
             bb.writeByte(19)
-            bb.writeByte(if (v) 1 else 0)
-        case None => {}
+            bb.writeByte(if (v) { 1 } else { 0 })
+        case None => ()
     }
     match (message.exact) {
         case Some(v) =>
             bb.writeByte(20)
-            bb.writeByte(if (v) 1 else 0)
-        case None => {}
+            bb.writeByte(if (v) { 1 } else { 0 })
+        case None => ()
     }
     match (message.concurrentScripts) {
         case Some(v) =>
             bb.writeByte(21)
             bb.writeUint32(v)
-        case None => {}
+        case None => ()
     }
     bb.writeByte(0)
 }

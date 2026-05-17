@@ -51,17 +51,11 @@ public class RedisClientClass {
 
     /// Getter: connected
     /// 原始: connected: { getter: "getConnected" }
-    public static let GETTER_CONNECTED: GetterDef = GetterDef(
-        jsName: "connected",
-        nativeFn: "getConnected"
-    )
+    public static let GETTER_CONNECTED: GetterDef = GetterDef("connected", "getConnected")
 
     /// Getter: bufferedAmount
     /// 原始: bufferedAmount: { getter: "getBufferedAmount" }
-    public static let GETTER_BUFFERED_AMOUNT: GetterDef = GetterDef(
-        jsName: "bufferedAmount",
-        nativeFn: "getBufferedAmount"
-    )
+    public static let GETTER_BUFFERED_AMOUNT: GetterDef = GetterDef("bufferedAmount", "getBufferedAmount")
 
     // ========================================================================
     // Getter/Setter 对定义
@@ -70,21 +64,11 @@ public class RedisClientClass {
 
     /// Getter/Setter: onconnect
     /// 原始: onconnect: { getter: "getOnConnect", setter: "setOnConnect", this: true }
-    public static let PROP_ON_CONNECT: PropertyDef = PropertyDef(
-        jsName: "onconnect",
-        getterFn: "getOnConnect",
-        setterFn: "setOnConnect",
-        needsThis: true
-    )
+    public static let PROP_ON_CONNECT: PropertyDef = PropertyDef("onconnect", "getOnConnect", "setOnConnect", true)
 
     /// Getter/Setter: onclose
     /// 原始: onclose: { getter: "getOnClose", setter: "setOnClose", this: true }
-    public static let PROP_ON_CLOSE: PropertyDef = PropertyDef(
-        jsName: "onclose",
-        getterFn: "getOnClose",
-        setterFn: "setOnClose",
-        needsThis: true
-    )
+    public static let PROP_ON_CLOSE: PropertyDef = PropertyDef("onclose", "getOnClose", "setOnClose", true)
 
     // ========================================================================
     // 原型方法定义 (~160+ 方法)

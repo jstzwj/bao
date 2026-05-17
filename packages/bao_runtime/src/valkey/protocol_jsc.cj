@@ -8,6 +8,7 @@ package bao_runtime.valkey
 
 import bao_core.*
 import bao_collections.*
+import bao_runtime.*
 import bao_valkey.*
 
 // ============================================================================
@@ -97,8 +98,8 @@ public class ProtocolJsc {
         }
         // 返回一个 JS Error 对象
         let errorObj = JsObject()
-        errorObj.set("message", JsValue(msg))
-        errorObj.set("code", JsValue(errorCode.message()))
+        errorObj.set("message", JsValue(BaoString(msg)))
+        errorObj.set("code", JsValue(BaoString(errorCode.message())))
         JsValue(errorObj)
     }
 
@@ -117,17 +118,9 @@ public class ProtocolJsc {
     ///     options: *const ToJSOptions) bun.JSError!jsc.JSValue
     private static func valkeyStrToJSValue(str: String, options: ToJSOptions): JsValue {
         if (options.returnAsBuffer) {
-            // 返回为 ArrayBuffer
-            // 对应: try jsc.ArrayBuffer.createBuffer(globalObject, str)
-            let arr = ArrayList<JsValue>()
-            for (b in str.toArray()) {
-                arr.append(JsValue(Int64(b.value)))
-            }
-            JsValue.array(arr)
+            JsValue(BaoString(str))
         } else {
-            // 返回为字符串
-            // 对应: bun.String.createUTF8ForJS(globalObject, str)
-            JsValue(str)
+            JsValue(BaoString(str))
         }
     }
 
@@ -148,22 +141,20 @@ public class ProtocolJsc {
             case RESPType.Integer => JsValue(Float64(value.integerValue))
 
             // BulkString -> 字符串或 null
-            case RESPType.BulkString => {
+            case RESPType.BulkString =>
                 if (value.bulkString.isSome()) {
                     valkeyStrToJSValue(value.bulkString.getOrThrow(), options)
                 } else {
                     JsValue.NULL
                 }
-            }
 
             // Array -> JS Array
-            case RESPType.Array => {
+            case RESPType.Array =>
                 let arr = ArrayList<JsValue>()
                 for (item in value.array) {
                     arr.append(respValueToJSWithOptions(item, options))
                 }
                 JsValue.array(arr)
-            }
 
             // Null -> JS null
             case RESPType.Null => JsValue.NULL
@@ -178,16 +169,15 @@ public class ProtocolJsc {
             case RESPType.BlobError => valkeyErrorToJS(value.blobError, RedisError.InvalidBlobError)
 
             // VerbatimString -> 字符串
-            case RESPType.VerbatimString => {
+            case RESPType.VerbatimString =>
                 if (value.verbatimString.isSome()) {
                     valkeyStrToJSValue(value.verbatimString.getOrThrow().content, options)
                 } else {
                     JsValue.NULL
                 }
-            }
 
             // Map -> JS Object
-            case RESPType.Map => {
+            case RESPType.Map =>
                 let obj = JsObject()
                 for (entry in value.map) {
                     let jsKey = respValueToJSWithOptions(entry.key, ToJSOptions())
@@ -196,37 +186,34 @@ public class ProtocolJsc {
                     obj.set(keyStr, jsValue)
                 }
                 JsValue(obj)
-            }
 
             // Set -> JS Array
-            case RESPType.Set => {
+            case RESPType.Set =>
                 let arr = ArrayList<JsValue>()
                 for (item in value.set) {
                     arr.append(respValueToJSWithOptions(item, options))
                 }
                 JsValue.array(arr)
-            }
 
             // Attribute -> 返回内部值 (忽略属性)
             // 对应: return try respValueToJSWithOptions(attribute.value, globalObject, options)
-            case RESPType.Attribute => {
+            case RESPType.Attribute =>
                 if (value.attribute.isSome()) {
                     respValueToJSWithOptions(value.attribute.getOrThrow().value, options)
                 } else {
                     JsValue.NULL
                 }
-            }
 
             // Push -> JS Object { type, data }
             // 对应:
             //   var js_obj = jsc.JSValue.createEmptyObjectWithNullPrototype(globalObject);
             //   js_obj.put(globalObject, "type", kind_str);
             //   js_obj.put(globalObject, "data", data_array);
-            case RESPType.Push => {
+            case RESPType.Push =>
                 if (value.push.isSome()) {
                     let push = value.push.getOrThrow()
                     let obj = JsObject()
-                    obj.set("type", JsValue(push.kind))
+                    obj.set("type", JsValue(BaoString(push.kind)))
                     let dataArr = ArrayList<JsValue>()
                     for (item in push.data) {
                         dataArr.append(respValueToJSWithOptions(item, options))
@@ -236,7 +223,6 @@ public class ProtocolJsc {
                 } else {
                     JsValue.NULL
                 }
-            }
 
             // BigNumber -> 数字或字符串
             // 对应:
@@ -245,14 +231,11 @@ public class ProtocolJsc {
             //   } else |_| {
             //       return bun.String.createUTF8ForJS(globalObject, str);
             //   }
-            case RESPType.BigNumber => {
-                let parsed = Int64.tryParse(value.bigNumber)
-                if (parsed.isSome()) {
-                    JsValue(Float64(parsed.getOrThrow()))
-                } else {
-                    JsValue(value.bigNumber)
+            case RESPType.BigNumber =>
+                match (IntParser.parseDecimal(value.bigNumber)) {
+                    case Some(parsed) => JsValue(Float64(parsed))
+                    case None => JsValue(BaoString(value.bigNumber))
                 }
-            }
         }
     }
 }

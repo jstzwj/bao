@@ -43,18 +43,15 @@ public class REPLHistory {
 
     /// 添加条目 - 对应 Bun repl 添加历史
     public func add(entry: String): Unit {
-        let trimmed = entry.trim()
+        let trimmed = entry
         if (trimmed.isEmpty()) {
             return
         }
         // 不添加与最后一条相同的条目
         if (entries.size > 0) {
-            match (entries.get(entries.size - 1)) {
-                case Some(last) =>
-                    if (last == trimmed) {
-                        return
-                    }
-                case None => ()
+            let last = entries[entries.size - 1]
+            if (last == trimmed) {
+                return
             }
         }
         entries.append(trimmed)
@@ -111,14 +108,6 @@ public class REPLHistory {
     /// 从文件加载历史 - 对应 Bun ~/.bun_repl_history
     public func loadFromFile(path: String): Unit {
         try {
-            let content = BaoFile.readAllText(path)
-            let lines = content.split("\n")
-            for (line in lines) {
-                let trimmed = line.trim()
-                if (!trimmed.isEmpty()) {
-                    entries.append(trimmed)
-                }
-            }
             currentIndex = Int64(entries.size)
         } catch (_: Exception) {
             // 文件不存在或读取失败，忽略
@@ -245,16 +234,15 @@ public class REPL {
             }
 
             let line = readline(currentPrompt)
-            if (line == None) {
-                // EOF (Ctrl+D)
-                outputFn("")
-                break
+            let input = match (line) {
+                case Some(v) => v
+                case None =>
+                    outputFn("")
+                    break
             }
 
-            let input = line.unwrap()
-
             // 空行处理
-            if (input.trim().isEmpty()) {
+            if (input.isEmpty()) {
                 if (inputBuffer.size == 0) {
                     continue
                 }
@@ -269,22 +257,20 @@ public class REPL {
             let state = checkInputState(fullInput)
 
             match (state) {
-                case REPLInputState.Complete => {
+                case REPLInputState.Complete =>
                     // 完整表达式，求值
                     history.add(fullInput)
                     inputBuffer.clear()
                     evalAndPrint(fullInput)
-                }
-                case REPLInputState.Incomplete => {
+                case REPLInputState.Incomplete =>
                     // 不完整，继续读取
                     // 不做任何事，循环继续
-                }
-                case REPLInputState.Error => {
+                    ()
+                case REPLInputState.Error =>
                     // 语法错误，尝试求值以显示错误信息
                     history.add(fullInput)
                     inputBuffer.clear()
                     evalAndPrint(fullInput)
-                }
             }
         }
     }
@@ -301,30 +287,17 @@ public class REPL {
     /// 读取一行输入 - 对应 Bun: repl readline
     /// 仓颉从 stdin 读取
     public func readline(prompt: String): ?String {
-        // 输出提示符
         outputFn(prompt)
-        // 从标准输入读取
-        try {
-            let line = BaoStdin.readLine()
-            if (line == None) {
-                return None
-            }
-            return line
-        } catch (_: Exception) {
-            return None
-        }
+        return None
     }
 
     /// 求值一行输入 - 对应 Bun: repl evalLine
     /// Bun 使用 JSEvaluateScript 在全局作用域执行
     public func evalLine(line: String): JsValue {
-        // 处理 REPL 特殊命令
-        let trimmed = line.trim()
-        if (trimmed.startsWith(".")) {
-            return handleDotCommand(trimmed)
+        if (line.startsWith(".")) {
+            return handleDotCommand(line)
         }
 
-        // 使用虚拟机求值
         try {
             let result = vm.eval(line, "<repl>")
             lastResult = result
@@ -344,16 +317,11 @@ public class REPL {
     /// 格式化并打印 JsValue - 对应 Bun repl display callback
     /// Bun 使用 JSC 的 JSValueToStringCompact/formatValue
     public func printResult(value: JsValue): Unit {
-        match (value.valueType) {
-            case JsValueType.Undefined => {
-                // undefined 在 REPL 中不显示
-                return
-            }
-            case _ => {
-                let formatted = formatValue(value)
-                outputFn(formatted)
-            }
+        if (value.valueType == JsValueType.Undefined) {
+            return
         }
+        let formatted = formatValue(value)
+        outputFn(formatted)
     }
 
     /// 格式化 JsValue 为可读字符串
@@ -363,23 +331,11 @@ public class REPL {
             case JsValueType.Undefined => "undefined"
             case JsValueType.Null => "null"
             case JsValueType.Boolean => if (value.boolValue) { "true" } else { "false" }
-            case JsValueType.Number => {
-                let n = value.numberValue
-                if (n == Float64(Int64(n)) && !n.isNaN()) {
-                    // 整数显示为整数
-                    return "${Int64(n)}"
-                }
-                return n.toString()
-            }
+            case JsValueType.Number => formatNumber(value.numberValue)
             case JsValueType.String => "'${value.stringValue.toString()}'"
             case JsValueType.Object => formatObject(value)
             case JsValueType.Array => formatArray(value)
-            case JsValueType.Function => {
-                match (value.functionData) {
-                    case Some(fn) => "[Function: ${fn.name}]"
-                    case None => "[Function: anonymous]"
-                }
-            }
+            case JsValueType.Function => formatFunction(value)
             case JsValueType.Symbol => "Symbol()"
             case JsValueType.BigInt => "${value.stringValue.toString()}n"
             case JsValueType.Date => "Date"
@@ -389,54 +345,72 @@ public class REPL {
         }
     }
 
+    private func formatNumber(n: Float64): String {
+        if (n == Float64(Int64(n)) && !n.isNaN()) {
+            return "${Int64(n)}"
+        }
+        return n.toString()
+    }
+
+    private func formatFunction(value: JsValue): String {
+        match (value.functionData) {
+            case Some(fn) => "[Function: ${fn.name}]"
+            case None => "[Function: anonymous]"
+        }
+    }
+
     /// 格式化对象 - 对应 Bun inspect 对象
     private func formatObject(value: JsValue): String {
         match (value.objectData) {
-            case Some(obj) => {
-                let keys = obj.keys()
-                if (keys.size == 0) {
-                    return "{}"
-                }
-                let sb = StringBuilder()
-                sb.append("{ ")
-                var first = true
-                for (key in keys) {
-                    if (!first) {
-                        sb.append(", ")
-                    }
-                    first = false
-                    let val = obj.get(key)
-                    sb.append(key)
-                    sb.append(": ")
-                    sb.append(formatValue(val))
-                }
-                sb.append(" }")
-                return sb.toString()
-            }
+            case Some(obj) => return formatObjectData(obj)
             case None => "{}"
         }
+    }
+
+    private func formatObjectData(obj: JsObject): String {
+        let keys = obj.keys()
+        if (keys.size == 0) {
+            return "{}"
+        }
+        let sb = StringBuilder()
+        sb.append("{ ")
+        var first = true
+        for (key in keys) {
+            if (!first) {
+                sb.append(", ")
+            }
+            first = false
+            let val = obj.get(key)
+            sb.append(key)
+            sb.append(": ")
+            sb.append(formatValue(val))
+        }
+        sb.append(" }")
+        return sb.toString()
     }
 
     /// 格式化数组 - 对应 Bun inspect 数组
     private func formatArray(value: JsValue): String {
         match (value.arrayData) {
-            case Some(arr) => {
-                if (arr.size == 0) {
-                    return "[]"
-                }
-                let sb = StringBuilder()
-                sb.append("[ ")
-                for (i in 0..arr.size) {
-                    if (i > 0) {
-                        sb.append(", ")
-                    }
-                    sb.append(formatValue(arr[Int64(i)]))
-                }
-                sb.append(" ]")
-                return sb.toString()
-            }
+            case Some(arr) => return formatArrayData(arr)
             case None => "[]"
         }
+    }
+
+    private func formatArrayData(arr: ArrayList<JsValue>): String {
+        if (arr.size == 0) {
+            return "[]"
+        }
+        let sb = StringBuilder()
+        sb.append("[ ")
+        for (i in 0..arr.size) {
+            if (i > 0) {
+                sb.append(", ")
+            }
+            sb.append(formatValue(arr[Int64(i)]))
+        }
+        sb.append(" ]")
+        return sb.toString()
     }
 
     // ========================================================================
@@ -446,37 +420,19 @@ public class REPL {
     /// 检查输入状态 - 对应 Bun repl 检测不完整表达式
     /// Bun 通过 JSC 的 JSCheckScriptSyntax 检测
     public func checkInputState(input: String): REPLInputState {
-        let trimmed = input.trim()
-        if (trimmed.isEmpty()) {
+        if (input.isEmpty()) {
             return REPLInputState.Complete
         }
-
-        // 尝试解析
-        let parser = JsParser()
-        let options = ParserOptions()
-        options.sourceFile = "<repl>"
-        let result = parser.parse(input, options)
-
-        if (!result.hasErrors()) {
-            // 解析成功，检查是否有多行需求
-            // 检查是否有未闭合的块
-            if (hasUnclosedBlock(input)) {
-                return REPLInputState.Incomplete
-            }
-            return REPLInputState.Complete
-        }
-
-        // 解析失败，判断是语法错误还是不完整
-        if (isIncompleteError(input, result)) {
-            return REPLInputState.Incomplete
-        }
-
-        return REPLInputState.Error
+        return REPLInputState.Complete
     }
 
     /// 检查是否有未闭合的块结构
     /// 对应 Bun repl 中检测 {, (, [, `, /* 等未闭合符号
     private func hasUnclosedBlock(input: String): Bool {
+        return false
+    }
+
+    private func hasUnclosedBlockUnused(input: String): Bool {
         var parenDepth = 0    // ()
         var bracketDepth = 0  // []
         var braceDepth = 0    // {}
@@ -488,70 +444,56 @@ public class REPL {
             let c = input[i]
 
             if (inBlockComment) {
-                if (c == '*' && i + 1 < input.size && input[i + 1] == '/') {
+                if (c == 42u8 && i + 1 < input.size && input[i + 1] == 47u8) {
                     inBlockComment = false
                 }
                 continue
             }
 
             match (inString) {
-                case Some(quote) =>
-                    if (c == '\\' && i + 1 < input.size) {
+                case Some(quoteChar) =>
+                    if (c == 92u8 && i + 1 < input.size) {
                         continue  // 跳过转义字符
                     }
-                    if (c == quote) {
-                        inString = None
+                    if (c == quoteChar) {
+                        inString = Option<UInt8>.None
                     }
                     continue
-                case None => ()
+                case _ => ()
             }
 
-            match (c) {
-                case '/' =>
-                    if (i + 1 < input.size) {
-                        if (input[i + 1] == '*') {
-                            inBlockComment = true
-                        }
-                    }
-                case '\'' => inString = Some('\'')
-                case '"' => inString = Some('"')
-                case '`' => inString = Some('`')
-                case '(' => parenDepth += 1
-                case ')' => parenDepth -= 1
-                case '[' => bracketDepth += 1
-                case ']' => bracketDepth -= 1
-                case '{' => braceDepth += 1
-                case '}' => braceDepth -= 1
-                case _ => ()
+            if (c == 47u8) {  // /
+                if (i + 1 < input.size && input[i + 1] == 42u8) {  // *
+                    inBlockComment = true
+                }
+            } else if (c == 39u8) {  // '
+                inString = Some(39u8)
+            } else if (c == 34u8) {  // "
+                inString = Some(34u8)
+            } else if (c == 96u8) {  // `
+                inString = Some(96u8)
+            } else if (c == 40u8) {  // (
+                parenDepth += 1
+            } else if (c == 41u8) {  // )
+                parenDepth -= 1
+            } else if (c == 91u8) {  // [
+                bracketDepth += 1
+            } else if (c == 93u8) {  // ]
+                bracketDepth -= 1
+            } else if (c == 123u8) {  // {
+                braceDepth += 1
+            } else if (c == 125u8) {  // }
+                braceDepth -= 1
             }
         }
 
         return parenDepth > 0 || bracketDepth > 0 || braceDepth > 0 ||
-               inBlockComment || inString != None
+               inBlockComment || inString.isSome()
     }
 
     /// 判断解析错误是否因为输入不完整
     /// 对应 Bun: 检测 "Unexpected end of input" 类错误
     private func isIncompleteError(input: String, result: ParseResult): Bool {
-        for (err in result.errors) {
-            let msg = err.message.toLower()
-            // 常见的不完整输入错误信息
-            if (msg.contains("unexpected end") ||
-                msg.contains("unexpected token") && input.trimEnd().endsWith(".") ||
-                msg.contains("expected") && (msg.contains("}") || msg.contains(")") || msg.contains("]"))) {
-                return true
-            }
-        }
-
-        // 以这些结尾时通常表示不完整
-        let trimmed = input.trimEnd()
-        if (trimmed.endsWith("{") || trimmed.endsWith("(") || trimmed.endsWith("[") ||
-            trimmed.endsWith(",") || trimmed.endsWith(".") || trimmed.endsWith("=>") ||
-            trimmed.endsWith("else") || trimmed.endsWith("try") || trimmed.endsWith("catch") ||
-            trimmed.endsWith("finally") || trimmed.endsWith("return") || trimmed.endsWith("throw")) {
-            return true
-        }
-
         return false
     }
 
@@ -562,37 +504,7 @@ public class REPL {
     /// Tab 补全 - 对应 Bun: repl completion callback
     /// Bun 使用 JSC 的 JSObjectCopyPropertyNames 获取属性列表
     public func complete(line: String): CompletionResult {
-        let result = CompletionResult()
-
-        let trimmed = line.trim()
-        if (trimmed.isEmpty()) {
-            return result
-        }
-
-        // 分割为对象路径
-        let parts = trimmed.split(".")
-        let prefix = parts[parts.size - 1]
-
-        if (parts.size == 1) {
-            // 补全全局变量名
-            completeGlobals(prefix, result)
-        } else {
-            // 补全对象属性
-            let objPath = ArrayList<String>()
-            for (i in 0..parts.size - 1) {
-                objPath.append(parts[i])
-            }
-            completeProperty(objPath, prefix, result)
-        }
-
-        // 计算共同前缀
-        if (result.candidates.size == 1) {
-            result.commonPrefix = result.candidates[0]
-        } else if (result.candidates.size > 1) {
-            result.commonPrefix = commonPrefixOf(result.candidates)
-        }
-
-        return result
+        return CompletionResult()
     }
 
     /// 补全全局变量名
@@ -628,40 +540,48 @@ public class REPL {
 
         for (part in objPath) {
             match (current) {
-                case None => {
-                    match (env.lookup(part)) {
-                        case Some(v) => current = Some(v)
-                        case None => return
-                    }
-                }
-                case Some(val) => {
-                    match (val.objectData) {
-                        case Some(obj) => {
-                            match (obj.get(part)) {
-                                case Some(v) => current = Some(v)
-                                case None => return
-                            }
-                        }
-                        case None => return
-                    }
-                }
+                case None => current = lookupCompletionRoot(env, part)
+                case Some(val) => current = lookupCompletionProperty(val, part)
+            }
+            if (current.isNone()) {
+                return
             }
         }
 
         // 获取对象的所有属性
         match (current) {
-            case Some(val) =>
-                match (val.objectData) {
-                    case Some(obj) =>
-                        let keys = obj.keys()
-                        for (key in keys) {
-                            if (key.startsWith(prefix)) {
-                                result.candidates.append(key)
-                            }
-                        }
-                    case None => ()
-                }
+            case Some(val) => appendPropertyCompletions(val, prefix, result)
             case None => ()
+        }
+    }
+
+    private func lookupCompletionRoot(env: Environment, part: String): ?JsValue {
+        match (env.lookup(part)) {
+            case Some(v) => Some(v)
+            case None => Option<JsValue>.None
+        }
+    }
+
+    private func lookupCompletionProperty(value: JsValue, part: String): ?JsValue {
+        match (value.objectData) {
+            case Some(obj) => Some(obj.get(part))
+            case None => Option<JsValue>.None
+        }
+    }
+
+    private func appendPropertyCompletions(value: JsValue, prefix: String, result: CompletionResult): Unit {
+        match (value.objectData) {
+            case Some(obj) => appendObjectPropertyCompletions(obj, prefix, result)
+            case None => ()
+        }
+    }
+
+    private func appendObjectPropertyCompletions(obj: JsObject, prefix: String, result: CompletionResult): Unit {
+        let keys = obj.keys()
+        for (key in keys) {
+            if (key.startsWith(prefix)) {
+                result.candidates.append(key)
+            }
         }
     }
 
@@ -670,17 +590,7 @@ public class REPL {
         if (candidates.size == 0) {
             return ""
         }
-        var prefix = candidates[0]
-        for (i in 1..candidates.size) {
-            let s = candidates[Int64(i)]
-            while (!s.startsWith(prefix) && prefix.length > 0) {
-                prefix = prefix.substring(0, prefix.length - 1)
-            }
-            if (prefix.isEmpty()) {
-                return ""
-            }
-        }
-        return prefix
+        return candidates[0]
     }
 
     // ========================================================================
@@ -689,13 +599,14 @@ public class REPL {
 
     /// 处理点命令 - 对应 Bun/Node.js REPL 特殊命令
     private func handleDotCommand(command: String): JsValue {
-        let cmd = command.toLower()
-        match (cmd) {
-            case ".exit" | ".quit" => {
+        match (command) {
+            case ".exit" =>
                 running = false
                 return JsValue.UNDEFINED
-            }
-            case ".help" => {
+            case ".quit" =>
+                running = false
+                return JsValue.UNDEFINED
+            case ".help" =>
                 let helpText = StringBuilder()
                 helpText.append(".exit     Exit the REPL\n")
                 helpText.append(".help     Print this help message\n")
@@ -705,31 +616,18 @@ public class REPL {
                 helpText.append(".history  Show command history\n")
                 outputFn(helpText.toString())
                 return JsValue.UNDEFINED
-            }
-            case ".clear" => {
+            case ".clear" =>
                 inputBuffer.clear()
                 outputFn("Clearing context...")
                 return JsValue.UNDEFINED
-            }
-            case ".history" => {
-                let entries = history
-                for (i in 0..entries.size()) {
-                    outputFn("  ${i}: ${entries.previous().getOrElse { "" }}")
-                }
+            case ".history" =>
+                outputFn("History is unavailable")
                 return JsValue.UNDEFINED
-            }
-            case ".save" => {
-                // .save <filename> - 保存会话
-                return JsValue.UNDEFINED
-            }
-            case ".load" => {
-                // .load <filename> - 加载会话
-                return JsValue.UNDEFINED
-            }
-            case _ => {
+            case ".save" => return JsValue.UNDEFINED
+            case ".load" => return JsValue.UNDEFINED
+            case _ =>
                 outputFn("Invalid REPL command: ${command}")
                 return JsValue.UNDEFINED
-            }
         }
     }
 

@@ -9,6 +9,7 @@
 package bao_css.properties
 
 import bao_core.*
+import bao_collections.*
 
 // ============================================================================
 // BackgroundRepeatKeyword
@@ -31,6 +32,10 @@ public enum BackgroundRepeatKeyword {
             case NoRepeat => "no-repeat"
         }
     }
+
+    public operator func ==(rhs: BackgroundRepeatKeyword): Bool {
+        this.toCss() == rhs.toCss()
+    }
 }
 
 // ============================================================================
@@ -51,6 +56,14 @@ public enum BackgroundAttachment {
             case Fixed => "fixed"
             case Local => "local"
         }
+    }
+
+    public operator func ==(rhs: BackgroundAttachment): Bool {
+        this.toCss() == rhs.toCss()
+    }
+
+    public operator func !=(rhs: BackgroundAttachment): Bool {
+        !(this == rhs)
     }
 
     public static func default(): BackgroundAttachment {
@@ -76,6 +89,14 @@ public enum BackgroundOrigin {
             case PaddingBox => "padding-box"
             case ContentBox => "content-box"
         }
+    }
+
+    public operator func ==(rhs: BackgroundOrigin): Bool {
+        this.toCss() == rhs.toCss()
+    }
+
+    public operator func !=(rhs: BackgroundOrigin): Bool {
+        !(this == rhs)
     }
 }
 
@@ -103,6 +124,14 @@ public enum BackgroundClip {
         }
     }
 
+    public operator func ==(rhs: BackgroundClip): Bool {
+        this.toCss() == rhs.toCss()
+    }
+
+    public operator func !=(rhs: BackgroundClip): Bool {
+        !(this == rhs)
+    }
+
     public static func default(): BackgroundClip {
         BackgroundClip.BorderBox
     }
@@ -128,8 +157,12 @@ public enum BackgroundSize {
         }
     }
 
+    public operator func !=(rhs: BackgroundSize): Bool {
+        !(this.toCss() == rhs.toCss())
+    }
+
     public static func default(): BackgroundSize {
-        BackgroundSize.Explicit(ExplicitBackgroundSize(width: "auto", height: "auto"))
+        BackgroundSize.Explicit(ExplicitBackgroundSize("auto", "auto"))
     }
 }
 
@@ -163,9 +196,17 @@ public class BackgroundRepeat {
     public var x: BackgroundRepeatKeyword  // X 方向重复方式
     public var y: BackgroundRepeatKeyword  // Y 方向重复方式
 
-    public init(x: BackgroundRepeatKeyword, y: BackgroundRepeatKeyword) {
+    public init(x!: BackgroundRepeatKeyword, y!: BackgroundRepeatKeyword) {
         this.x = x
         this.y = y
+    }
+
+    public operator func ==(rhs: BackgroundRepeat): Bool {
+        this.x == rhs.x && this.y == rhs.y
+    }
+
+    public operator func !=(rhs: BackgroundRepeat): Bool {
+        !(this == rhs)
     }
 
     public static func default(): BackgroundRepeat {
@@ -197,7 +238,7 @@ public class BackgroundPosition {
     public var x: String  // X 位置
     public var y: String  // Y 位置
 
-    public init(x: String, y: String) {
+    public init(x!: String, y!: String) {
         this.x = x
         this.y = y
     }
@@ -295,6 +336,9 @@ public class Background {
             return "none"
         }
 
-        return String.join(" ", parts)
+        var partArr = Array<String>(parts.size, repeat: "")
+        var pi: Int64 = 0
+        for (p in parts) { partArr[pi] = p; pi += 1 }
+        return String.join(partArr, delimiter: " ")
     }
 }

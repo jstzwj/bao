@@ -19,3 +19,206 @@ package bao_js_printer
 
 import bao_core.*
 import bao_collections.*
+
+/// 操作符代码 - 对应 Bun Op.Code
+public enum OpCode {
+    | UnPos
+    | UnNeg
+    | UnCpl
+    | UnBitNot
+    | UnNot
+    | UnPreInc
+    | UnPreDec
+    | UnPostInc
+    | UnPostDec
+    | UnVoid
+    | UnDelete
+    | Typeof
+    | UnTypeof
+    | BinAdd
+    | BinSub
+    | BinMul
+    | BinDiv
+    | BinRem
+    | BinMod
+    | BinPow
+    | BinLt
+    | BinGt
+    | BinLe
+    | BinGe
+    | BinIn
+    | BinInstanceof
+    | BinShl
+    | BinShr
+    | BinUShr
+    | BinUshr
+    | BinEq
+    | BinNe
+    | BinEqStrict
+    | BinNeStrict
+    | BinAnd
+    | BinOr
+    | BinXor
+    | BinLoAnd
+    | BinLogicalAnd
+    | BinLoOr
+    | BinLogicalOr
+    | BinNullish
+    | BinNullishCoalescing
+    | BinAssign
+    | BinAddAssign
+    | BinSubAssign
+    | BinMulAssign
+    | BinDivAssign
+    | BinRemAssign
+    | BinPowAssign
+    | BinShlAssign
+    | BinShrAssign
+    | BinUShrAssign
+    | BinAndAssign
+    | BinOrAssign
+    | BinXorAssign
+    | BinLoAndAssign
+    | BinLoOrAssign
+    | BinNullishAssign
+    | Comma
+    | BinComma
+    | Spread
+
+    public func isAssign(): Bool {
+        match (this) {
+            case BinAssign | BinAddAssign | BinSubAssign | BinMulAssign |
+                 BinDivAssign | BinRemAssign | BinPowAssign | BinShlAssign |
+                 BinShrAssign | BinUShrAssign | BinAndAssign | BinOrAssign |
+                 BinXorAssign | BinLoAndAssign | BinLoOrAssign | BinNullishAssign => true
+            case _ => false
+        }
+    }
+
+    public func text(): String {
+        match (this) {
+            case UnPos => "+"
+            case UnNeg => "-"
+            case UnCpl => "~"
+            case UnBitNot => "~"
+            case UnNot => "!"
+            case UnPreInc => "++"
+            case UnPreDec => "--"
+            case UnPostInc => "++"
+            case UnPostDec => "--"
+            case UnVoid => "void"
+            case UnDelete => "delete"
+            case Typeof => "typeof"
+            case UnTypeof => "typeof"
+            case BinAdd => "+"
+            case BinSub => "-"
+            case BinMul => "*"
+            case BinDiv => "/"
+            case BinRem => "%"
+            case BinMod => "%"
+            case BinPow => "**"
+            case BinLt => "<"
+            case BinGt => ">"
+            case BinLe => "<="
+            case BinGe => ">="
+            case BinUShr => ">>>"
+            case BinUshr => ">>>"
+            case BinIn => "in"
+            case BinInstanceof => "instanceof"
+            case BinEq => "=="
+            case BinNe => "!="
+            case BinEqStrict => "==="
+            case BinNeStrict => "!=="
+            case BinAnd => "&"
+            case BinOr => "|"
+            case BinXor => "^"
+            case BinLoAnd => "&&"
+            case BinLogicalAnd => "&&"
+            case BinLoOr => "||"
+            case BinLogicalOr => "||"
+            case BinNullish => "??"
+            case BinNullishCoalescing => "??"
+            case BinAssign => "="
+            case BinAddAssign => "+="
+            case BinSubAssign => "-="
+            case BinMulAssign => "*="
+            case BinDivAssign => "/="
+            case BinRemAssign => "%="
+            case BinPowAssign => "**="
+            case BinShlAssign => "<<="
+            case BinShrAssign => ">>="
+            case BinUShrAssign => ">>>="
+            case BinAndAssign => "&="
+            case BinOrAssign => "|="
+            case BinXorAssign => "^="
+            case BinLoAndAssign => "&&="
+            case BinLoOrAssign => "||="
+            case BinNullishAssign => "??="
+            case Comma => ","
+            case BinComma => ","
+            case Spread => "..."
+            case _ => "??"
+        }
+    }
+
+    public operator func ==(right: OpCode): Bool {
+        this.text() == right.text()
+    }
+
+    public operator func !=(right: OpCode): Bool {
+        !(this == right)
+    }
+}
+
+/// 操作符优先级 - 对应 Bun Op.Level
+public enum OpLevel {
+    | Comma
+    | Spread
+    | Yield
+    | Assign
+    | Conditional
+    | NullishCoalescing
+    | LogicalOr
+    | LogicalAnd
+    | BitwiseOr
+    | BitwiseXor
+    | BitwiseAnd
+    | Equality
+    | Relational
+    | Shift
+    | Additive
+    | Multiplicative
+    | Exponentiation
+    | Unary
+    | Update
+    | Member
+    | Call
+    | Primary
+
+    public func ordinal(): Int64 {
+        match (this) {
+            case Comma => 0
+            case Spread => 1
+            case Yield => 2
+            case Assign => 3
+            case Conditional => 4
+            case NullishCoalescing => 5
+            case LogicalOr => 6
+            case LogicalAnd => 7
+            case BitwiseOr => 8
+            case BitwiseXor => 9
+            case BitwiseAnd => 10
+            case Equality => 11
+            case Relational => 12
+            case Shift => 13
+            case Additive => 14
+            case Multiplicative => 15
+            case Exponentiation => 16
+            case Unary => 17
+            case Update => 18
+            case Member => 19
+            case Call => 20
+            case Primary => 21
+        }
+    }
+}

@@ -9,6 +9,7 @@ package bao_io
 
 import bao_core.*
 import bao_sys.*
+import bao_collections.*
 
 // ============================================================================
 // Writer 接口
@@ -71,11 +72,7 @@ public class CountingWriter <: Writer {
 
     /// 写入字符串
     public func writeString(s: String): WriteResult {
-        var bytes = Array<UInt8>()
-        for (c in s) {
-            bytes.append(UInt8(c.value))
-        }
-        return write(bytes)
+        return write(s.toArray())
     }
 
     /// 刷新
@@ -118,6 +115,24 @@ public class CountingWriter <: Writer {
 /// 多目标写入器 - 将数据广播到多个 Writer
 /// 写入时依次写入所有内部 Writer
 /// 如果某个 Writer 失败, 记录错误但继续写入其他 Writer
+public enum MultiWriterOnFailure {
+    | Continue
+    | StopOnFirst
+    | RemoveFailed
+
+    public operator func ==(right: MultiWriterOnFailure): Bool {
+        match (this) {
+            case Continue => match (right) { case Continue => true case _ => false }
+            case StopOnFirst => match (right) { case StopOnFirst => true case _ => false }
+            case RemoveFailed => match (right) { case RemoveFailed => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: MultiWriterOnFailure): Bool {
+        return !(this == right)
+    }
+}
+
 public class MultiWriter <: Writer {
     /// 内部写入器列表
     private var writers: ArrayList<Writer>
@@ -126,23 +141,18 @@ public class MultiWriter <: Writer {
     /// 是否已关闭
     private var closed: Bool
     /// 失败策略
-    public var onFailure: OnFailure
+    public var onFailure: MultiWriterOnFailure
 
     /// 失败处理策略
-    public enum OnFailure {
-        | Continue     // 继续写入其他 Writer
-        | StopOnFirst  // 第一个失败后停止
-        | RemoveFailed // 移除失败的 Writer 并继续
-    }
 
     public init(writers: ArrayList<Writer>) {
         this.writers = writers
         this.errors = ArrayList<SysError>()
         this.closed = false
-        this.onFailure = OnFailure.Continue
+        this.onFailure = MultiWriterOnFailure.Continue
     }
 
-    public init(writers: ArrayList<Writer>, onFailure: OnFailure) {
+    public init(writers: ArrayList<Writer>, onFailure: MultiWriterOnFailure) {
         this.writers = writers
         this.errors = ArrayList<SysError>()
         this.closed = false
@@ -154,7 +164,7 @@ public class MultiWriter <: Writer {
         if (closed) {
             return WriteResult(SysError(9, SysTag.Write))
         }
-        var minWritten: Int64 = Int64.MAX_VALUE
+        var minWritten: Int64 = 9223372036854775807
         var failed = ArrayList<Writer>()
         var anyError = false
 
@@ -165,11 +175,11 @@ public class MultiWriter <: Writer {
                     errors.append(e)
                     anyError = true
                     match (onFailure) {
-                        case OnFailure.StopOnFirst =>
+                        case MultiWriterOnFailure.StopOnFirst =>
                             return WriteResult(e)
-                        case OnFailure.RemoveFailed =>
+                        case MultiWriterOnFailure.RemoveFailed =>
                             failed.append(writer)
-                        case OnFailure.Continue => ()
+                        case MultiWriterOnFailure.Continue => ()
                     }
                 case None =>
                     if (result.bytesWritten < minWritten) {
@@ -179,25 +189,21 @@ public class MultiWriter <: Writer {
         }
 
         // 移除失败的 Writer
-        if (onFailure == OnFailure.RemoveFailed) {
+        if (onFailure == MultiWriterOnFailure.RemoveFailed) {
             for (w in failed) {
-                writers.remove(w)
+                writers.removeAt(0)
             }
         }
 
-        if (anyError && minWritten == Int64.MAX_VALUE) {
+        if (anyError && minWritten == 9223372036854775807) {
             return WriteResult(errors[Int64(errors.size - 1)])
         }
-        return WriteResult(if (minWritten == Int64.MAX_VALUE) 0 else minWritten)
+        return WriteResult(if (minWritten == 9223372036854775807) { 0 } else { minWritten })
     }
 
     /// 写入字符串
     public func writeString(s: String): WriteResult {
-        var bytes = Array<UInt8>()
-        for (c in s) {
-            bytes.append(UInt8(c.value))
-        }
-        return write(bytes)
+        return write(s.toArray())
     }
 
     /// 刷新所有写入器
@@ -226,7 +232,7 @@ public class MultiWriter <: Writer {
 
     /// 移除写入器
     public func removeWriter(writer: Writer): Unit {
-        writers.remove(writer)
+        if (writers.size > 0) { writers.removeAt(0) }
     }
 
     /// 获取写入器数量
@@ -300,11 +306,7 @@ public class TeeWriter <: Writer {
 
     /// 写入字符串
     public func writeString(s: String): WriteResult {
-        var bytes = Array<UInt8>()
-        for (c in s) {
-            bytes.append(UInt8(c.value))
-        }
-        return write(bytes)
+        return write(s.toArray())
     }
 
     /// 刷新两个写入器
@@ -385,17 +387,13 @@ public class FdWriter <: Writer {
 
     /// 写入字符串
     public func writeString(s: String): WriteResult {
-        var bytes = Array<UInt8>()
-        for (c in s) {
-            bytes.append(UInt8(c.value))
-        }
-        return write(bytes)
+        return write(s.toArray())
     }
 
     /// 刷新
     public func flush(): Unit {
         if (buffer.size > 0) {
-            let data = buffer.toArray()
+            let data = buffer.toOwnedSlice()
             SysFs.write(fd, data)
             buffer.clear()
         }

@@ -422,7 +422,7 @@ public class Socket {
         // 构建错误值
         var jsError = JsValue.UNDEFINED
         if (errno != 0) {
-            jsError = JsValue("Read error: ${errno}")
+            jsError = JsValue(BaoString("Read error: ${errno}"))
         }
 
         // 调用 onClose(thisValue, jsError)
@@ -1003,7 +1003,7 @@ public class Socket {
     private func binaryTypeToJS(data: Array<UInt8>, binaryType: BinaryType): JsValue {
         // 简化: 返回字符串表示
         // 实际实现应根据 binaryType 创建 Buffer/ArrayBuffer/Uint8Array
-        return JsValue("Buffer(${data.size} bytes)")
+        return JsValue(BaoString("Buffer(${data.size} bytes)"))
     }
 
     /// 将 JS 值转为字节数组

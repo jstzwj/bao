@@ -36,9 +36,9 @@ public func isSepAny(c: UInt8): Bool {
     return isSepPosix(c) || isSepWin32(c)
 }
 
-/// Char 版本 - 判断字符是否为路径分隔符
-public func isSepAnyChar(c: Char): Bool {
-    return c == Char('/') || c == Char('\\')
+/// 字节版本 - 判断字符是否为路径分隔符
+public func isSepAnyChar(c: UInt8): Bool {
+    return c == UInt8(47) || c == UInt8(92)
 }
 
 /// 判断是否为驱动器号字符 (A-Z, a-z)
@@ -51,10 +51,9 @@ public func isDriveLetter(c: UInt8): Bool {
            (c >= UInt8(65) && c <= UInt8(90))  // 'A'-'Z'
 }
 
-/// Char 版本 - 判断是否为驱动器号
-public func isDriveLetterChar(c: Char): Bool {
-    return (c >= Char('a') && c <= Char('z')) ||
-           (c >= Char('A') && c <= Char('Z'))
+/// 字节版本 - 判断是否为驱动器号
+public func isDriveLetterChar(c: UInt8): Bool {
+    return isDriveLetter(c)
 }
 
 /// 判断字符是否为任意斜杠 - 对应 Bun charIsAnySlash
@@ -83,7 +82,7 @@ public func startsWithWindowsDriveLetter(s: String): Bool {
     if (s.size < 3) {
         return false
     }
-    return isDriveLetterChar(s[0]) && s[1] == Char(':')
+    return isDriveLetterChar(s[0]) && s[1] == UInt8(58)
 }
 
 /// 检测路径是否包含平台路径分隔符
@@ -108,8 +107,8 @@ public func slashesToPosix(path: String): String {
     var sb = StringBuilder()
     for (i in 0..path.size) {
         let c = path[Int64(i)]
-        if (c == Char('\\')) {
-            sb.append(Char('/'))
+        if (c == UInt8(92)) {
+            sb.append(UInt8(47))
         } else {
             sb.append(c)
         }
@@ -126,8 +125,8 @@ public func slashesToWindows(path: String): String {
     var sb = StringBuilder()
     for (i in 0..path.size) {
         let c = path[Int64(i)]
-        if (c == Char('/')) {
-            sb.append(Char('\\'))
+        if (c == UInt8(47)) {
+            sb.append(UInt8(92))
         } else {
             sb.append(c)
         }
@@ -138,8 +137,8 @@ public func slashesToWindows(path: String): String {
 /// 规范化斜杠 - 将所有反斜杠替换为目标斜杠
 /// 对应 Bun: normalizeSlashesOnly
 ///   pub fn normalizeSlashesOnly(buf: []u8, utf8: []const u8, comptime desired_slash: u8) []const u8
-public func normalizeSlashesOnly(path: String, desiredSlash: Char): String {
-    if (desiredSlash == Char('/')) {
+public func normalizeSlashesOnly(path: String, desiredSlash: UInt8): String {
+    if (desiredSlash == UInt8(47)) {
         return slashesToPosix(path)
     }
     return slashesToWindows(path)

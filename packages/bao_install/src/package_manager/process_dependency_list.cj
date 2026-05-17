@@ -6,6 +6,8 @@
 //   processDependencyList: 处理完整依赖列表
 package bao_install.package_manager
 
+import bao_install.*
+
 import bao_core.*
 import bao_collections.*
 
@@ -117,98 +119,101 @@ public class ProcessDependencyList {
         logLevel: LogLevel
     ): ?PackageData {
         match (resolution.tag) {
-            case ResolutionTag.Git | ResolutionTag.GitHub => {
-                var pkg = PackageData()
-
-                match (data.json) {
-                    case Some(jsonInfo) => {
-                        // 解析 package.json
-                        let packageJsonSource = jsonInfo.path
-                        // 解析依赖和脚本
-                        pkg.parse(
-                            manager: manager,
-                            source: packageJsonSource,
-                            resolver: GitResolver(
-                                resolved: data.resolved,
-                                resolution: resolution,
-                                depId: depId
-                            )
-                        )
-
-                        // 检查是否有安装脚本
-                        let hasScripts = pkg.scripts.hasAny() || checkBindingGyp(jsonInfo.path)
-                        pkg.meta.setHasInstallScript(hasScripts)
-                    }
-                    case None => {
-                        // 没有 package.json, 生成一个名称
-                        pkg.name = Repository.createDependencyName(
-                            manager: manager,
-                            resolution: resolution,
-                            depId: depId
-                        )
-                    }
-                }
-
-                // 设置完整性哈希
-                if (data.integrity.isSupported()) {
-                    pkg.meta.integrity = data.integrity
-                }
-
-                pkg.meta.id = packageId
-
-                // 如果有依赖, 加入队列
-                if (pkg.dependencies.size > 0) {
-                    manager.enqueueDependencyList(pkg.dependencies)
-                }
-
-                return pkg
-            }
-            case ResolutionTag.LocalTarball | ResolutionTag.RemoteTarball => {
-                match (data.json) {
-                    case Some(jsonInfo) => {
-                        var pkg = PackageData()
-                        pkg.parse(
-                            manager: manager,
-                            source: jsonInfo.path,
-                            resolver: TarballResolver(
-                                url: data.url,
-                                resolution: resolution
-                            )
-                        )
-
-                        let hasScripts = pkg.scripts.hasAny() || checkBindingGyp(jsonInfo.path)
-                        pkg.meta.setHasInstallScript(hasScripts)
-
-                        if (data.integrity.isSupported()) {
-                            pkg.meta.integrity = data.integrity
-                        }
-
-                        pkg.meta.id = packageId
-
-                        if (pkg.dependencies.size > 0) {
-                            manager.enqueueDependencyList(pkg.dependencies)
-                        }
-
-                        return pkg
-                    }
-                    case None => return None
-                }
-            }
-            case _ => {
-                // 其他类型: npm 包
-                match (data.json) {
-                    case Some(jsonInfo) => {
-                        if (jsonInfo.buf.length > 0) {
-                            // 解析 package.json 中的脚本
-                            // 简化: 填充脚本信息
-                            return None
-                        }
-                    }
-                    case None => ()
-                }
-                return None
-            }
+            case ResolutionTag.Git | ResolutionTag.GitHub => return processGitPackage(manager, packageId, depId, resolution, data)
+            case ResolutionTag.NPM => return processNpmPackage(manager, packageId, depId, resolution, data, logLevel)
+            case _ => return None
         }
+    }
+
+    private static func processGitPackage(manager: PackageManagerRef, packageId: UInt32, depId: UInt32, resolution: ResolutionInfo, data: ExtractData): ?PackageData {
+        var pkg = PackageData()
+
+        match (data.json) {
+            case Some(jsonInfo) => processGitPackageJson(pkg, manager, depId, resolution, data, jsonInfo)
+            case None => pkg.name = Repository.createDependencyName(manager: manager, resolution: resolution, depId: depId)
+        }
+
+        // 设置完整性哈希
+        if (data.integrity.isSupported()) {
+            pkg.meta.integrity = data.integrity
+        }
+
+        pkg.meta.id = packageId
+
+        // 如果有依赖, 加入队列
+        if (pkg.dependencies.size > 0) {
+            manager.enqueueDependencyList(pkg.dependencies)
+        }
+
+        return pkg
+    }
+
+    /// Git package JSON processing helper
+    private static func processGitPackageJson(pkg: PackageData, manager: PackageManagerRef, depId: UInt32, resolution: ResolutionInfo, data: ExtractData, jsonInfo: JsonInfo): Unit {
+        pkg.parse(
+            manager: manager,
+            source: jsonInfo.path,
+            resolver: GitResolver(
+                resolved: data.resolved,
+                resolution: resolution,
+                depId: depId
+            )
+        )
+        let hasScripts = pkg.scripts.hasAny() || checkBindingGyp(jsonInfo.path)
+        pkg.meta.setHasInstallScript(hasScripts)
+    }
+
+    /// NPM package processing
+    private static func processNpmPackage(manager: PackageManagerRef, packageId: UInt32, depId: UInt32, resolution: ResolutionInfo, data: ExtractData, logLevel: LogLevel): ?PackageData {
+        match (data.json) {
+            case Some(jsonInfo) => checkNpmJsonBuf(jsonInfo)
+            case None => ()
+        }
+        return None
+    }
+
+    /// check npm json buf
+    private static func checkNpmJsonBuf(jsonInfo: JsonInfo): Unit {
+        if (jsonInfo.buf.length > 0) { () }
+    }
+
+    /// Tarball package processing (used for LocalTarball/RemoteTarball)
+    public static func processTarballPackage(
+        manager: PackageManagerRef,
+        packageId: UInt32,
+        depId: UInt32,
+        resolution: ResolutionInfo,
+        data: ExtractData
+    ): ?PackageData {
+        match (data.json) {
+            case Some(jsonInfo) => processTarballWithJson(manager, packageId, depId, resolution, data, jsonInfo)
+            case None => None
+        }
+    }
+
+    /// Tarball processing helper
+    private static func processTarballWithJson(manager: PackageManagerRef, packageId: UInt32, depId: UInt32, resolution: ResolutionInfo, data: ExtractData, jsonInfo: JsonInfo): ?PackageData {
+        var pkg = PackageData()
+        pkg.parse(
+            manager: manager,
+            source: jsonInfo.path,
+            resolver: TarballResolver(url: data.url, resolution: resolution)
+        )
+
+        let hasScripts = pkg.scripts.hasAny() || checkBindingGyp(jsonInfo.path)
+        pkg.meta.setHasInstallScript(hasScripts)
+
+        if (data.integrity.isSupported()) {
+            pkg.meta.integrity = data.integrity
+        }
+
+        pkg.meta.id = packageId
+
+        if (pkg.dependencies.size > 0) {
+            manager.enqueueDependencyList(pkg.dependencies)
+        }
+
+        return pkg
     }
 
     /// 处理单个依赖列表项
@@ -221,41 +226,44 @@ public class ProcessDependencyList {
         installPeer: Bool
     ): Unit {
         match (item) {
-            case TaskCallbackContext.Dependency(depId) => {
-                let dependency = manager.lockfile.dependencies[Int64(depId)]
-                let resolution = manager.lockfile.resolutions[Int64(depId)]
-
-                manager.enqueueDependencyWithMain(
-                    depId: depId,
-                    dependency: dependency,
-                    resolution: resolution,
-                    installPeer: installPeer
-                )
-            }
-            case TaskCallbackContext.RootDependency(depId) => {
-                let dependency = manager.lockfile.dependencies[Int64(depId)]
-                let resolution = manager.lockfile.resolutions[Int64(depId)]
-
-                manager.enqueueDependencyWithMainAndSuccessFn(
-                    depId: depId,
-                    dependency: dependency,
-                    resolution: resolution,
-                    installPeer: installPeer,
-                    successFn: Fn.assignRootResolution,
-                    failFn: Fn.failRootResolution
-                )
-
-                match (anyRoot) {
-                    case Some(ref) => {
-                        let newResolutionId = manager.lockfile.resolutions[Int64(depId)]
-                        if (newResolutionId != resolution) {
-                            ref.value = true
-                        }
-                    }
-                    case None => ()
-                }
-            }
+            case TaskCallbackContext.Dependency(depId) => processDepItem(manager, depId, installPeer)
+            case TaskCallbackContext.RootDependency(depId) => processRootDepItem(manager, depId, installPeer, anyRoot)
             case _ => ()
+        }
+    }
+
+    /// processDependencyListItem helper for Dependency case
+    private static func processDepItem(manager: PackageManagerRef, depId: UInt32, installPeer: Bool): Unit {
+        let dependency = manager.lockfile.dependencies[Int64(depId)]
+        let resolution = manager.lockfile.resolutions[Int64(depId)]
+        manager.enqueueDependencyWithMain(depId: depId, dependency: dependency, resolution: resolution, installPeer: installPeer)
+    }
+
+    /// processDependencyListItem helper for RootDependency case
+    private static func processRootDepItem(manager: PackageManagerRef, depId: UInt32, installPeer: Bool, anyRoot: ?BoolRef): Unit {
+        let dependency = manager.lockfile.dependencies[Int64(depId)]
+        let resolution = manager.lockfile.resolutions[Int64(depId)]
+
+        manager.enqueueDependencyWithMainAndSuccessFn(
+            depId: depId,
+            dependency: dependency,
+            resolution: resolution,
+            installPeer: installPeer,
+            successFn: Fn.assignRootResolution,
+            failFn: Fn.failRootResolution
+        )
+
+        match (anyRoot) {
+            case Some(ref) => checkRootResolutionChanged(manager, depId, resolution, ref)
+            case None => ()
+        }
+    }
+
+    /// check if root resolution changed
+    private static func checkRootResolutionChanged(manager: PackageManagerRef, depId: UInt32, oldResolution: UInt32, ref: BoolRef): Unit {
+        let newResolutionId = manager.lockfile.resolutions[Int64(depId)]
+        if (newResolutionId != oldResolution) {
+            ref.value = true
         }
     }
 
@@ -265,20 +273,17 @@ public class ProcessDependencyList {
     public static func processPeerDependencyList(manager: PackageManagerRef): Unit {
         while (true) {
             match (manager.peerDependencies.readItem()) {
-                case Some(peerDepId) => {
-                    let dependency = manager.lockfile.dependencies[Int64(peerDepId)]
-                    let resolution = manager.lockfile.resolutions[Int64(peerDepId)]
-
-                    manager.enqueueDependencyWithMain(
-                        depId: peerDepId,
-                        dependency: dependency,
-                        resolution: resolution,
-                        installPeer: true
-                    )
-                }
+                case Some(peerDepId) => processPeerDepItem(manager, peerDepId)
                 case None => break
             }
         }
+    }
+
+    /// processPeerDependencyList helper
+    private static func processPeerDepItem(manager: PackageManagerRef, peerDepId: UInt32): Unit {
+        let dependency = manager.lockfile.dependencies[Int64(peerDepId)]
+        let resolution = manager.lockfile.resolutions[Int64(peerDepId)]
+        manager.enqueueDependencyWithMain(depId: peerDepId, dependency: dependency, resolution: resolution, installPeer: true)
     }
 
     /// 处理依赖列表

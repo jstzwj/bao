@@ -147,7 +147,7 @@ public class CryptoRandom {
     // 使用 Lemire 的几乎无除法拒绝采样
     private static func randomRangeLessThan(range: UInt64): UInt64 {
         // 简化实现 — 实际应使用 CSPRNG
-        var buf = Array<UInt8>(8, item: UInt8(0))
+        var buf = Array<UInt8>(8, { _ => UInt8(0) })
         csprngFill(ByteArrayView(buf))
         var x = UInt64(0)
         for (i in 0..8) {
@@ -159,7 +159,7 @@ public class CryptoRandom {
     // 随机字节
     // 对应 Bun: node_crypto_binding.zig - randomBytes
     public static func randomBytes(size: UInt32): Array<UInt8> {
-        let buf = Array<UInt8>(Int64(size), item: UInt8(0))
+        let buf = Array<UInt8>(Int64(size), { _ => UInt8(0) })
         csprngFill(ByteArrayView(buf))
         return buf
     }
@@ -263,7 +263,7 @@ public class ScryptCtx <: CryptoJobCtx {
         if (Int64(keylen) > CryptoRandom.MAX_POSSIBLE_LENGTH) {
             return
         }
-        result = Array<UInt8>(Int64(keylen), item: UInt8(0))
+        result = Array<UInt8>(Int64(keylen), { _ => UInt8(0) })
     }
 
     public func runTask(): Unit {
@@ -353,7 +353,7 @@ public class Pbkdf2Binding {
         keylen: Int32,
         digest: String
     ): Array<UInt8> {
-        let output = Array<UInt8>(Int64(keylen), item: UInt8(0))
+        let output = Array<UInt8>(Int64(keylen), { _ => UInt8(0) })
         // 实际实现调用 PKCS5_PBKDF2_HMAC
         return output
     }

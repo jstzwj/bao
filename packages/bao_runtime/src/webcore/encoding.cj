@@ -24,7 +24,7 @@ public enum Encoding {
 
     /// 从字符串解析编码
     public static func fromString(name: String): ?Encoding {
-        let lower = name.toLowerCase().trim()
+        let lower = name.toLowerCase().trimAscii()
         if (lower == "utf-8" || lower == "utf8") { return Some(Encoding.UTF8) }
         if (lower == "utf-16le" || lower == "utf16le" || lower == "ucs2" || lower == "ucs-2") { return Some(Encoding.UTF16LE) }
         if (lower == "latin1" || lower == "latin-1" || lower == "binary") { return Some(Encoding.Latin1) }

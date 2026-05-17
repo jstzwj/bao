@@ -3,8 +3,10 @@
 // 严格翻译自 Web Events API
 package bao_runtime.web_api
 
-import bao_core.*
 import bao_collections.*
+import bao_runtime.*
+import bao_core.BaoString
+import bao_sys.*
 
 // ============================================================================
 // Event — DOM 事件
@@ -32,9 +34,9 @@ public enum EventPhase {
 /// Event — 表示一个事件
 /// 对应 Web API: Event
 /// 对应 Bun: 事件系统基础类
-public class Event {
+public open class Event {
     /// 事件类型 (名称)
-    public var type: String
+    public var `type`: String
     /// 事件目标
     public var target: ?EventTarget
     /// 当前目标 (冒泡链中的当前节点)
@@ -56,8 +58,8 @@ public class Event {
     /// 是否由信任源触发
     public var isTrusted: Bool
 
-    public init(type: String) {
-        this.type = type
+    public init(`type`: String) {
+        this.`type` = `type`
         target = None
         currentTarget = None
         eventPhase = EventPhase.None
@@ -70,8 +72,8 @@ public class Event {
         isTrusted = false
     }
 
-    public init(type: String, options: EventInit) {
-        this.type = type
+    public init(`type`: String, options: EventInit) {
+        this.`type` = `type`
         target = None
         currentTarget = None
         eventPhase = EventPhase.None
@@ -110,7 +112,7 @@ public class Event {
         let obj = JsObject()
         let self = this
 
-        obj.set("type", JsValue(BaoString(self.type)))
+        obj.set("type", JsValue(BaoString(self.`type`)))
         obj.set("bubbles", JsValue(self.bubbles))
         obj.set("cancelable", JsValue(self.cancelable))
         obj.set("defaultPrevented", JsValue(self.defaultPrevented))
@@ -153,7 +155,7 @@ public class Event {
     }
 
     private static func currentTimeMillis(): Float64 {
-        return bao_sys.SysModule.currentTimeMillis()
+        return Float64(SysModule.currentTimeMillis())
     }
 }
 
@@ -186,17 +188,17 @@ public class EventInit {
 
 /// CustomEvent — 携带自定义数据的事件
 /// 对应 Web API: CustomEvent
-public class CustomEvent extends Event {
+public class CustomEvent <: Event {
     /// 自定义数据
     public var detail: JsValue
 
-    public init(type: String) {
-        super(type)
+    public init(`type`: String) {
+        super(`type`)
         detail = JsValue.UNDEFINED
     }
 
-    public init(type: String, options: CustomEventInit) {
-        super(type, EventInit(options.bubbles, options.cancelable))
+    public init(`type`: String, options: CustomEventInit) {
+        super(`type`, EventInit(options.bubbles, options.cancelable))
         detail = options.detail
     }
 
@@ -205,10 +207,9 @@ public class CustomEvent extends Event {
         let base = super.toJsValue()
         // 在 base 上追加 detail
         match (base.objectData) {
-            case Some(obj) => {
+            case Some(obj) =>
                 let self = this
                 obj.set("detail", self.detail)
-            }
             case None => ()
         }
         return base
@@ -282,7 +283,7 @@ class EventListenerEntry {
 /// EventTarget — 可以接收事件并拥有监听器的对象
 /// 对应 Web API: EventTarget
 /// 对应 Bun: 事件系统核心
-public class EventTarget {
+public open class EventTarget {
     /// 事件监听器映射: eventType -> [listeners]
     private var listeners: HashMap<String, ArrayList<EventListenerEntry>>
 
@@ -292,32 +293,30 @@ public class EventTarget {
 
     /// 添加事件监听器
     /// 对应 Web API: target.addEventListener(type, callback, options)
-    public func addEventListener(type: String, callback: EventListener): Unit {
-        addEventListener(type, callback, false, false)
+    public func addEventListener(`type`: String, callback: EventListener): Unit {
+        addEventListener(`type`, callback, false, false)
     }
 
     /// 添加事件监听器 (带选项)
     /// 对应 Web API: target.addEventListener(type, callback, { once, passive })
-    public func addEventListener(type: String, callback: EventListener, once: Bool, passive: Bool): Unit {
-        match (listeners.get(type)) {
-            case Some(arr) => {
+    public func addEventListener(`type`: String, callback: EventListener, once: Bool, passive: Bool): Unit {
+        match (listeners.get(`type`)) {
+            case Some(arr) =>
                 let entry = EventListenerEntry(callback, once, passive)
                 arr.append(entry)
-            }
-            case None => {
+            case None =>
                 let arr = ArrayList<EventListenerEntry>()
                 let entry = EventListenerEntry(callback, once, passive)
                 arr.append(entry)
-                listeners.put(type, arr)
-            }
+                listeners.put(`type`, arr)
         }
     }
 
     /// 移除事件监听器
     /// 对应 Web API: target.removeEventListener(type, callback)
-    public func removeEventListener(type: String, callback: EventListener): Unit {
-        match (listeners.get(type)) {
-            case Some(arr) => {
+    public func removeEventListener(`type`: String, callback: EventListener): Unit {
+        match (listeners.get(`type`)) {
+            case Some(arr) =>
                 // 标记已移除 (不能在遍历中删除)
                 for (entry in arr) {
                     // 简化: 通过引用比较
@@ -327,7 +326,6 @@ public class EventTarget {
                         break  // 只移除一个
                     }
                 }
-            }
             case None => ()
         }
     }
@@ -340,8 +338,8 @@ public class EventTarget {
         event.currentTarget = Some(this)
         event.eventPhase = EventPhase.AtTarget
 
-        match (listeners.get(event.type)) {
-            case Some(arr) => {
+        match (listeners.get(event.`type`)) {
+            case Some(arr) =>
                 // 复制一份避免遍历中修改
                 let toRemove = ArrayList<Int64>()
 
@@ -371,11 +369,10 @@ public class EventTarget {
                     }
                 }
                 if (newArr.size == 0) {
-                    listeners.remove(event.type)
+                    listeners.remove(event.`type`)
                 } else {
-                    listeners.put(event.type, newArr)
+                    listeners.put(event.`type`, newArr)
                 }
-            }
             case None => ()
         }
 
@@ -390,18 +387,17 @@ public class EventTarget {
 
         obj.set("addEventListener", JsValue.nativeFunction(JsNativeFunction("addEventListener") { args =>
             if (args.size >= 2) {
-                let type = Interpreter.jsToString(args[0])
+                let `type` = Interpreter.jsToString(args[0])
                 // 简化: 将 JS function 包装为 EventListener
                 let fn = args[1]
-                self.addEventListener(type, { event =>
+                self.addEventListener(`type`, { event =>
                     // 调用 JS 回调
-                    if (fn.nativeFnData != None) {
+                    if (fn.nativeFnData.isSome()) {
                         match (fn.nativeFnData) {
-                            case Some(nf) => {
+                            case Some(nf) =>
                                 let eventArgs = ArrayList<JsValue>()
                                 eventArgs.append(event.toJsValue())
                                 nf.fn(eventArgs)
-                            }
                             case None => ()
                         }
                     }
@@ -438,7 +434,7 @@ public class EventTarget {
 /// MessageEvent — 消息事件
 /// 对应 Web API: MessageEvent
 /// 用于 WebSocket onmessage, Worker onmessage 等
-public class MessageEvent extends Event {
+public class MessageEvent <: Event {
     /// 消息数据
     public var data: JsValue
     /// 消息来源
@@ -450,8 +446,8 @@ public class MessageEvent extends Event {
     /// 传输端口列表
     public var ports: ArrayList<JsValue>
 
-    public init(type: String) {
-        super(type)
+    public init(`type`: String) {
+        super(`type`)
         data = JsValue.UNDEFINED
         origin = ""
         lastEventId = ""
@@ -459,8 +455,8 @@ public class MessageEvent extends Event {
         ports = ArrayList<JsValue>()
     }
 
-    public init(type: String, data: JsValue, origin: String) {
-        super(type)
+    public init(`type`: String, data: JsValue, origin: String) {
+        super(`type`)
         this.data = data
         this.origin = origin
         lastEventId = ""
@@ -472,13 +468,12 @@ public class MessageEvent extends Event {
     public func toJsValueMessage(): JsValue {
         let base = super.toJsValue()
         match (base.objectData) {
-            case Some(obj) => {
+            case Some(obj) =>
                 let self = this
                 obj.set("data", self.data)
                 obj.set("origin", JsValue(BaoString(self.origin)))
                 obj.set("lastEventId", JsValue(BaoString(self.lastEventId)))
                 obj.set("source", self.source)
-            }
             case None => ()
         }
         return base
@@ -492,7 +487,7 @@ public class MessageEvent extends Event {
 
 /// ErrorEvent — 错误事件
 /// 对应 Web API: ErrorEvent
-public class ErrorEvent extends Event {
+public class ErrorEvent <: Event {
     /// 错误消息
     public var message: String
     /// 错误文件名
@@ -504,8 +499,8 @@ public class ErrorEvent extends Event {
     /// 错误对象
     public var error: JsValue
 
-    public init(type: String, message: String, filename: String, lineno: Int64, colno: Int64, error: JsValue) {
-        super(type, EventInit(true, true))
+    public init(`type`: String, message: String, filename: String, lineno: Int64, colno: Int64, error: JsValue) {
+        super(`type`, EventInit(true, true))
         this.message = message
         this.filename = filename
         this.lineno = lineno
@@ -517,14 +512,13 @@ public class ErrorEvent extends Event {
     public func toJsValueError(): JsValue {
         let base = super.toJsValue()
         match (base.objectData) {
-            case Some(obj) => {
+            case Some(obj) =>
                 let self = this
                 obj.set("message", JsValue(BaoString(self.message)))
                 obj.set("filename", JsValue(BaoString(self.filename)))
                 obj.set("lineno", JsValue(Float64(self.lineno)))
                 obj.set("colno", JsValue(Float64(self.colno)))
                 obj.set("error", self.error)
-            }
             case None => ()
         }
         return base
@@ -538,7 +532,7 @@ public class ErrorEvent extends Event {
 
 /// CloseEvent — 关闭事件
 /// 对应 Web API: CloseEvent
-public class CloseEvent extends Event {
+public class CloseEvent <: Event {
     /// 关闭代码
     public var code: Int64
     /// 关闭原因
@@ -546,8 +540,8 @@ public class CloseEvent extends Event {
     /// 是否正常关闭
     public var wasClean: Bool
 
-    public init(type: String, code: Int64, reason: String, wasClean: Bool) {
-        super(type)
+    public init(`type`: String, code: Int64, reason: String, wasClean: Bool) {
+        super(`type`)
         this.code = code
         this.reason = reason
         this.wasClean = wasClean
@@ -557,12 +551,11 @@ public class CloseEvent extends Event {
     public func toJsValueClose(): JsValue {
         let base = super.toJsValue()
         match (base.objectData) {
-            case Some(obj) => {
+            case Some(obj) =>
                 let self = this
                 obj.set("code", JsValue(Float64(self.code)))
                 obj.set("reason", JsValue(BaoString(self.reason)))
                 obj.set("wasClean", JsValue(self.wasClean))
-            }
             case None => ()
         }
         return base
@@ -576,14 +569,14 @@ public class CloseEvent extends Event {
 
 /// PromiseRejectionEvent — Promise 拒绝事件
 /// 对应 Web API: PromiseRejectionEvent
-public class PromiseRejectionEvent extends Event {
+public class PromiseRejectionEvent <: Event {
     /// Promise 对象
     public var promise: JsValue
     /// 拒绝原因
     public var reason: JsValue
 
-    public init(type: String, promise: JsValue, reason: JsValue) {
-        super(type, EventInit(true, true))
+    public init(`type`: String, promise: JsValue, reason: JsValue) {
+        super(`type`, EventInit(true, true))
         this.promise = promise
         this.reason = reason
     }
@@ -592,11 +585,10 @@ public class PromiseRejectionEvent extends Event {
     public func toJsValuePromiseRejection(): JsValue {
         let base = super.toJsValue()
         match (base.objectData) {
-            case Some(obj) => {
+            case Some(obj) =>
                 let self = this
                 obj.set("promise", self.promise)
                 obj.set("reason", self.reason)
-            }
             case None => ()
         }
         return base
@@ -613,15 +605,15 @@ public class EventModule {
     public static func registerGlobals(env: Environment): Unit {
         // Event 构造函数
         env.define("Event", Interpreter.makeNativeFn("Event") { args =>
-            let type = if (args.size >= 1) { Interpreter.jsToString(args[0]) } else { "" }
-            let event = Event(type)
+            let `type` =if (args.size >= 1) { Interpreter.jsToString(args[0]) } else { "" }
+            let event = Event(`type`)
             return event.toJsValue()
         }, false)
 
         // CustomEvent 构造函数
         env.define("CustomEvent", Interpreter.makeNativeFn("CustomEvent") { args =>
-            let type = if (args.size >= 1) { Interpreter.jsToString(args[0]) } else { "" }
-            let customEvent = CustomEvent(type)
+            let `type` =if (args.size >= 1) { Interpreter.jsToString(args[0]) } else { "" }
+            let customEvent = CustomEvent(`type`)
             return customEvent.toJsValueCustom()
         }, false)
 
@@ -633,23 +625,23 @@ public class EventModule {
 
         // MessageEvent 构造函数
         env.define("MessageEvent", Interpreter.makeNativeFn("MessageEvent") { args =>
-            let type = if (args.size >= 1) { Interpreter.jsToString(args[0]) } else { "message" }
+            let `type` =if (args.size >= 1) { Interpreter.jsToString(args[0]) } else { "message" }
             let data = if (args.size >= 2) { args[1] } else { JsValue.UNDEFINED }
-            let event = MessageEvent(type, data, "")
+            let event = MessageEvent(`type`, data, "")
             return event.toJsValueMessage()
         }, false)
 
         // ErrorEvent 构造函数
         env.define("ErrorEvent", Interpreter.makeNativeFn("ErrorEvent") { args =>
-            let type = if (args.size >= 1) { Interpreter.jsToString(args[0]) } else { "error" }
-            let event = ErrorEvent(type, "", "", 0, 0, JsValue.NULL)
+            let `type` =if (args.size >= 1) { Interpreter.jsToString(args[0]) } else { "error" }
+            let event = ErrorEvent(`type`, "", "", 0, 0, JsValue.NULL)
             return event.toJsValueError()
         }, false)
 
         // CloseEvent 构造函数
         env.define("CloseEvent", Interpreter.makeNativeFn("CloseEvent") { args =>
-            let type = if (args.size >= 1) { Interpreter.jsToString(args[0]) } else { "close" }
-            let event = CloseEvent(type, 0, "", true)
+            let `type` =if (args.size >= 1) { Interpreter.jsToString(args[0]) } else { "close" }
+            let event = CloseEvent(`type`, 0, "", true)
             return event.toJsValueClose()
         }, false)
     }

@@ -5,6 +5,7 @@
 package bao_runtime.crypto
 
 import bao_core.*
+import bao_collections.*
 import bao_runtime.*
 
 // ============================================================================
@@ -35,7 +36,7 @@ public enum PasswordAlgorithm {
     /// 根据哈希前缀检测算法
     /// 对应 Bun: pub fn get([]const u8) ?Algorithm
     public static func get(pw: String): ?PasswordAlgorithm {
-        if (pw.size == 0 || pw[0] != '$') {
+        if (pw.size == 0 || pw.toArray()[0] != 36) {  // '$' = ASCII 36
             return None
         }
 
@@ -89,6 +90,17 @@ public enum PasswordHashError {
 | EncodingError
 | OutOfMemory
 | ThreadInitializationFailed
+
+    public func toString(): String {
+        match (this) {
+            case UnsupportedAlgorithm => "UnsupportedAlgorithm"
+            case PasswordVerificationFailed => "PasswordVerificationFailed"
+            case InvalidHash => "InvalidHash"
+            case EncodingError => "EncodingError"
+            case OutOfMemory => "OutOfMemory"
+            case ThreadInitializationFailed => "ThreadInitializationFailed"
+        }
+    }
 }
 
 // ============================================================================
@@ -188,6 +200,13 @@ public class BcryptHashOptions {
 public enum HashResultValueTag {
 | ERR
 | HASH
+
+    public operator func ==(right: HashResultValueTag): Bool {
+        match (this) {
+            case ERR => match (right) { case ERR => true; case _ => false }
+            case HASH => match (right) { case HASH => true; case _ => false }
+        }
+    }
 }
 
 /// 哈希结果值
@@ -214,7 +233,7 @@ public class HashResultValue {
             case Some(e) => e.toString()
             case None => "UnknownError"
         }
-        let errorCode = "PASSWORD" + pascalToUpperUnderscore(errName)
+        // errorCode unused; errName already provides the label
         let instance = JsValue(BaoString("Password hashing failed with error \"" + errName + "\""))
         return instance
     }
@@ -298,11 +317,19 @@ public class PasswordObject {
 // ============================================================================
 
 /// JS 密码对象绑定
-/*
 public class JSPasswordObject {
     private static let UNKNOWN_ALGORITHM_MESSAGE: String =
         "unknown algorithm, expected one of: \"bcrypt\", \"argon2id\", \"argon2d\", \"argon2i\" (default is \"argon2id\")"
+}
 
+/// 密码哈希任务
+public class JSPasswordObjectHashJob {}
+
+/// 密码验证任务
+public class JSPasswordObjectVerifyJob {}
+
+/*
+public class JSPasswordObjectFull {
     /// 创建 JS 密码对象
     public static func create(globalThis: JsObject): JsValue {
         let obj = JsObject()
@@ -576,7 +603,7 @@ public class JSPasswordObject {
                 sb.append("_")
                 sb.append(c)
             } else if (c.isLower()) {
-                sb.append(c.toUpper())
+                sb.append(c.toRuneArray().map({ r => r.toAsciiUpperCase() }))
             } else {
                 sb.append(c)
             }

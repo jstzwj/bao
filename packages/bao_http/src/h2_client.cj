@@ -70,11 +70,11 @@ public class H2Client {
 
     /// 最大流 ID (2^31 - 1)
     /// 严格翻译自: H2FrameParser.MAX_STREAM_ID
-    public static let MAX_STREAM_ID: Int64 = Int64.max >> 1
+    public static let MAX_STREAM_ID: Int64 = 9223372036854775807 >> 1
 
     /// 最大窗口大小 (2^31 - 1)
     /// 严格翻译自: H2FrameParser.MAX_WINDOW_SIZE
-    public static let MAX_WINDOW_SIZE: Int64 = Int64.max >> 1
+    public static let MAX_WINDOW_SIZE: Int64 = 9223372036854775807 >> 1
 
     /// 活跃会话计数 (泄漏测试用)
     /// 严格翻译自: pub var live_sessions = std.atomic.Value(i32).init(0)
@@ -85,20 +85,19 @@ public class H2Client {
     public static var liveStreams: Int64 = 0
 
     /// 创建新的 HTTP/2 客户端会话
-    public static func createSession(hostname: String, port: Int64): H2ClientSession {
+    public static func createSession(hostname: String, port: Int64): H2FetchClientSession {
         liveSessions += 1
-        return H2ClientSession(hostname, port)
+        return H2FetchClientSession(hostname, port)
     }
 
     /// 创建新的流
-    public static func createStream(session: H2ClientSession, client: H2ClientRef): ?H2ClientStream {
+    public static func createStream(session: H2FetchClientSession, client: H2ClientRef): ?H2FetchClientStream {
         liveStreams += 1
-        match (session.newStream(client)) {
-            case Some(stream) => return stream
-            case None => {
-                liveStreams -= 1
-                return None
-            }
+        let stream = session.newStream(client)
+        if (stream.id == 0) {
+            liveStreams -= 1
+            return None
         }
+        return Some(stream)
     }
 }

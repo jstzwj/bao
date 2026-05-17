@@ -70,10 +70,9 @@ public class PathToSourceIndexMap {
     public func getOrPut(text: String, defaultValue: UInt32): UInt32 {
         match (map.get(text)) {
             case Some(v) => return v
-            case None => {
+            case None =>
                 map.put(text, defaultValue)
                 return defaultValue
-            }
         }
     }
 

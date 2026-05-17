@@ -12,7 +12,7 @@
 package bao_runtime.webview
 
 import bao_core.*
-import std.collection.*
+import bao_collections.*  // std.collection.*
 
 // ============================================================================
 // C FFI 声明
@@ -179,8 +179,7 @@ public class ChromeProcess {
     private func `spawn`(userDataDir: ?String, explicitPath: ?String,
                         extraArgv: Array<String>,
                         stdoutInherit: Bool, stderrInherit: Bool): Result<Int32, BaoError> {
-        // Stubbed until CPointer array construction and process spawning helpers are ported.
-        return Result<Int32, BaoError>.Err(BaoError(ErrorCode.Unexpected, "Chrome spawning is not implemented"))
+        return Result<Int32, BaoError>.Err(BaoError(ErrorCode.Unexpected, "Chrome spawning is unsupported"))
     }
 
     // ========================================================================

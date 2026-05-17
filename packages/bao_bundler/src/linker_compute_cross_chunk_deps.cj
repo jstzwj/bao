@@ -260,7 +260,7 @@ public class CrossChunkDependencyComputer {
             let meta = chunkMetas[i]
 
             match (linker.options.outputFormat) {
-                case OutputFormat.ESM => {
+                case OutputFormat.ESM =>
                     let sortedRefs = linker.sortedCrossChunkExportItems(meta.exports)
 
                     var clauseItems = ArrayList<ClauseItem>()
@@ -297,7 +297,6 @@ public class CrossChunkDependencyComputer {
                         exportStmt.append(" }")
                         js.crossChunkSuffixStmts.append(exportStmt)
                     }
-                }
                 case _ => ()
             }
         }
@@ -319,7 +318,7 @@ public class CrossChunkDependencyComputer {
                 let otherChunk = chunks[otherChunkIndex]
 
                 match (linker.options.outputFormat) {
-                    case OutputFormat.ESM => {
+                    case OutputFormat.ESM =>
                         // 生成 import { ... } from "./chunk-xxx.js"
                         let importStmt = StringBuilder()
                         importStmt.append("import { ")
@@ -334,7 +333,6 @@ public class CrossChunkDependencyComputer {
                         }
                         importStmt.append(" } from \"${otherChunk.finalRelPath}\"")
                         js.crossChunkPrefixStmts.append(importStmt.toString())
-                    }
                     case _ => ()
                 }
             }
@@ -425,19 +423,6 @@ public class CrossChunkImportItem {
     }
 }
 
-/// 子句项 (import/export 子句中的单个绑定)
-public class ClauseItem {
-    /// 符号引用
-    public var name: Int64
-    /// 导出别名
-    public var alias: String
-
-    public init(name: Int64, alias: String) {
-        this.name = name
-        this.alias = alias
-    }
-}
-
 /// 导出重命名器 (避免别名冲突)
 // 严格翻译自: computeCrossChunkDependencies.zig ExportRenamer
 public class ExportRenamer {
@@ -483,14 +468,5 @@ public class ExportRenamer {
         }
         usedNames.put(name)
         return name
-    }
-}
-
-/// 导入绑定数据
-public class ImportBinding {
-    public var importRef: Int64
-
-    public init(importRef: Int64) {
-        this.importRef = importRef
     }
 }

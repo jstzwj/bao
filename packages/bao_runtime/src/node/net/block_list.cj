@@ -3,7 +3,7 @@
 // 严格翻译自: src/runtime/node/net/BlockList.zig
 package bao_runtime.node.net
 
-import std.collection.ArrayList
+import bao_collections.*  // ArrayList
 import std.convert.*
 
 // ============================================================================
@@ -43,7 +43,7 @@ public class BlockList {
         let rule = BlockRule()
         rule.kind = BlockRuleKind.addr
         rule.address = parseIpAddress(address, family)
-        rules.add(rule)
+        rules.append(rule)
     }
 
     // 添加地址范围
@@ -53,7 +53,7 @@ public class BlockList {
         rule.kind = BlockRuleKind.range
         rule.start = parseIpAddress(start, family)
         rule.end = parseIpAddress(end, family)
-        rules.add(rule)
+        rules.append(rule)
     }
 
     // 添加子网
@@ -63,7 +63,7 @@ public class BlockList {
         rule.kind = BlockRuleKind.subnet
         rule.address = parseIpAddress(address, family)
         rule.prefix = UInt32(prefix)
-        rules.add(rule)
+        rules.append(rule)
     }
 
     // 检查地址是否被阻止

@@ -3,6 +3,7 @@
 package bao_ast
 
 import bao_core.*
+import bao_collections.*
 
 // ============================================================================
 // ASTMemoryAllocator - AST 内存分配器
@@ -57,10 +58,9 @@ public class ASTMemoryAllocator {
     /// 弹出当前分配器 - 对应 Bun ASTMemoryAllocator.pop()
     /// Bun: pub fn pop(this: *ASTMemoryAllocator) void
     public func pop(): Unit {
-        let prev = this.previous
-        if (prev.isSome()) {
-            setExprStoreAllocator(prev.orElse(ASTMemoryAllocator()))
-            setStmtStoreAllocator(prev.orElse(ASTMemoryAllocator()))
+        if (let Some(prev) <- this.previous) {
+            setExprStoreAllocator(prev)
+            setStmtStoreAllocator(prev)
         }
         this.previous = None
     }
@@ -123,8 +123,7 @@ public class ASTMemoryAllocatorScope {
     /// 设置 Expr/Stmt 存储的内存分配器为当前
     public func enter(): Unit {
         // 在仓颉中模拟 Bun 的全局状态设置
-        if (current.isSome()) {
-            let allocator = current.orElse(ASTMemoryAllocator())
+        if (let Some(allocator) <- current) {
             allocator.push()
         }
     }
@@ -132,8 +131,7 @@ public class ASTMemoryAllocatorScope {
     /// 退出作用域 - 对应 Bun Scope.exit()
     /// 恢复之前的内存分配器
     public func exit(): Unit {
-        if (current.isSome()) {
-            let allocator = current.orElse(ASTMemoryAllocator())
+        if (let Some(allocator) <- current) {
             allocator.pop()
         }
     }

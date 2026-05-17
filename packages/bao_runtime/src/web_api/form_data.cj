@@ -3,8 +3,11 @@
 // 严格翻译自 Web FormData API
 package bao_runtime.web_api
 
-import bao_core.*
+import bao_core.BaoString
+import bao_core.IntFormatter
+import bao_core.IntParser
 import bao_collections.*
+import bao_runtime.*
 
 // ============================================================================
 // WebFormData — 表单数据 (Web API 级别)
@@ -36,28 +39,26 @@ public enum FormDataEncoding {
 
     /// 从 Content-Type 提取 boundary
     private static func extractBoundary(contentType: String): ?String {
-        let boundaryIdx = contentType.indexOf("boundary=")
-        if (boundaryIdx < 0) {
-            return None
+        if (let Some(boundaryIdx) <- contentType.indexOf("boundary=")) {
+            let start = boundaryIdx + 9  // "boundary=".size
+            if (start >= Int64(contentType.size)) {
+                return None
+            }
+            let rest = contentType[start..]
+            // boundary 可能有引号包裹
+            var boundary = rest
+            if (let Some(semiIdx) <- boundary.indexOf(";")) {
+                boundary = boundary[0..semiIdx]
+            }
+            if (boundary.startsWith("\"") && boundary.endsWith("\"") && boundary.size > 1) {
+                boundary = boundary[1..(Int64(boundary.size) - 1)]
+            }
+            if (boundary.size == 0) {
+                return None
+            }
+            return Some(boundary)
         }
-        let start = boundaryIdx + 9  // "boundary=".length
-        if (start >= contentType.length) {
-            return None
-        }
-        let rest = contentType.substring(start)
-        // boundary 可能有引号包裹
-        var boundary = rest
-        let semiIdx = boundary.indexOf(";")
-        if (semiIdx >= 0) {
-            boundary = boundary.substring(0, semiIdx)
-        }
-        if (boundary.startsWith("\"") && boundary.endsWith("\"") && boundary.length > 1) {
-            boundary = boundary.substring(1, boundary.length - 1)
-        }
-        if (boundary.length == 0) {
-            return None
-        }
-        return Some(boundary)
+        return None
     }
 }
 
@@ -235,7 +236,7 @@ public class WebFormData {
                 let filename = field.getFilename()
                 let contentType = field.getContentType()
                 sb.append("Content-Disposition: form-data; name=\"${field.name}\"; filename=\"${filename}\"\r\n")
-                if (contentType.length > 0) {
+                if (contentType.size > 0) {
                     sb.append("Content-Type: ${contentType}\r\n")
                 }
             } else {
@@ -268,13 +269,12 @@ public class WebFormData {
     /// 对应 Bun: FormData.toJS URLEncoded path
     public static func fromURLQuery(query: String): WebFormData {
         let form = WebFormData()
-        if (query.length == 0) { return form }
+        if (query.size == 0) { return form }
         let pairs = query.split("&")
         for (pair in pairs) {
-            let eqIdx = pair.indexOf("=")
-            if (eqIdx >= 0) {
-                let name = urlDecode(pair.substring(0, eqIdx))
-                let value = urlDecode(pair.substring(eqIdx + 1))
+            if (let Some(eqIdx) <- pair.indexOf("=")) {
+                let name = urlDecode(pair[0..eqIdx])
+                let value = urlDecode(pair[(eqIdx + 1)..])
                 form.append(name, value)
             } else {
                 let name = urlDecode(pair)
@@ -295,38 +295,35 @@ public class WebFormData {
         for (i in 1..parts.size - 1) {
             var part = parts[Int64(i)]
             if (part.startsWith("\r\n")) {
-                part = part.substring(2)
+                part = part[2..]
             }
             if (part.startsWith("--")) {
                 continue
             }
 
-            let headerEndIdx = part.indexOf("\r\n\r\n")
-            if (headerEndIdx >= 0) {
-                let headerSection = part.substring(0, headerEndIdx)
-                var body = part.substring(headerEndIdx + 4)
+            if (let Some(headerEndIdx) <- part.indexOf("\r\n\r\n")) {
+                let headerSection = part[0..headerEndIdx]
+                var body = part[(headerEndIdx + 4)..]
                 if (body.endsWith("\r\n")) {
-                    body = body.substring(0, body.length - 2)
+                    body = body[0..(Int64(body.size) - 2)]
                 }
 
-                let nameIdx = headerSection.indexOf("name=\"")
-                if (nameIdx >= 0) {
+                if (let Some(nameIdx) <- headerSection.indexOf("name=\"")) {
                     let nameStart = nameIdx + 6
-                    let nameEnd = headerSection.indexOf("\"", nameStart)
-                    if (nameEnd >= 0) {
-                        let name = headerSection.substring(nameStart, nameEnd)
-                        let filenameIdx = headerSection.indexOf("filename=\"")
-                        if (filenameIdx >= 0) {
+                    if (let Some(nameEnd) <- headerSection.indexOf("\"", nameStart)) {
+                        let name = headerSection[nameStart..nameEnd]
+                        if (let Some(filenameIdx) <- headerSection.indexOf("filename=\"")) {
                             let filenameStart = filenameIdx + 10
-                            let filenameEnd = headerSection.indexOf("\"", filenameStart)
-                            if (filenameEnd >= 0) {
-                                let filename = headerSection.substring(filenameStart, filenameEnd)
+                            if (let Some(filenameEnd) <- headerSection.indexOf("\"", filenameStart)) {
+                                let filename = headerSection[filenameStart..filenameEnd]
                                 var ct = "application/octet-stream"
-                                let ctIdx = headerSection.indexOf("Content-Type: ")
-                                if (ctIdx >= 0) {
+                                if (let Some(ctIdx) <- headerSection.indexOf("Content-Type: ")) {
                                     let ctStart = ctIdx + 14
-                                    let ctEnd = headerSection.indexOf("\r\n", ctStart)
-                                    ct = if (ctEnd >= 0) { headerSection.substring(ctStart, ctEnd) } else { headerSection.substring(ctStart) }
+                                    if (let Some(ctEnd) <- headerSection.indexOf("\r\n", ctStart)) {
+                                        ct = headerSection[ctStart..ctEnd]
+                                    } else {
+                                        ct = headerSection[ctStart..]
+                                    }
                                 }
                                 form.append(name, Utf8Codec.encode(body), filename, ct)
                             }
@@ -343,19 +340,20 @@ public class WebFormData {
     /// URL 编码
     private static func urlEncode(s: String): String {
         let sb = StringBuilder()
-        for (i in 0..s.length) {
+        for (i in 0..s.size) {
             let c = s[Int64(i)]
-            if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') ||
-                c == '-' || c == '_' || c == '.' || c == '~') {
-                sb.append(c)
-            } else if (c == ' ') {
+            let v = Int64(c)
+            if ((v >= 97 && v <= 122) || (v >= 65 && v <= 90) || (v >= 48 && v <= 57) ||
+                v == 45 || v == 95 || v == 46 || v == 126) { // a-z A-Z 0-9 - _ . ~
+                sb.append(String(Rune(Int32(c))))
+            } else if (c == UInt8(32)) { // space
                 sb.append("+")
             } else {
-                let bytes = Utf8Codec.encode(c.toString())
+                let bytes = Utf8Codec.encode(String(Rune(Int32(c))))
                 for (b in bytes) {
                     sb.append("%")
-                    let hex = Int64(b).toHexString().toUpperCase()
-                    if (hex.length == 1) { sb.append("0") }
+                    let hex = IntFormatter.toHexString(Int64(b)).toAsciiUpper()
+                    if (hex.size == 1) { sb.append("0") }
                     sb.append(hex)
                 }
             }
@@ -366,23 +364,24 @@ public class WebFormData {
     /// URL 解码
     private static func urlDecode(s: String): String {
         let sb = StringBuilder()
-        var i = 0
-        while (i < s.length) {
-            let c = s[Int64(i)]
-            if (c == '+') {
+        var i: Int64 = 0
+        let len = Int64(s.size)
+        while (i < len) {
+            let c = s[i]
+            if (c == UInt8(43)) { // '+'
                 sb.append(" ")
                 i += 1
-            } else if (c == '%' && i + 2 < s.length) {
-                let hex = s.substring(Int64(i) + 1, Int64(i) + 3)
+            } else if (c == UInt8(37) && i + 2 < len) { // '%'
+                let hex = s[(i + 1)..(i + 3)]
                 try {
-                    let byte = UInt8(Int64.parse(hex, 16))
-                    sb.append(Char(Int64(byte)))
+                    let byte = UInt8(IntParser.parseInt(hex, 16))
+                    sb.append(String(Rune(Int32(byte))))
                 } catch (_: Exception) {
-                    sb.append(c)
+                    sb.append(String(Rune(Int32(c))))
                 }
                 i += 3
             } else {
-                sb.append(c)
+                sb.append(String(Rune(Int32(c))))
                 i += 1
             }
         }
@@ -431,7 +430,7 @@ public class WebFormData {
                 for (v in vals) { arr.append(JsValue(BaoString(v))) }
                 return JsValue.array(arr)
             }
-            return JsValue.emptyArray()
+            return JsValue.array(ArrayList<JsValue>())
         }))
 
         obj.set("has", JsValue.nativeFunction(JsNativeFunction("has") { args =>
@@ -548,7 +547,7 @@ class FormDataFieldEntry {
     /// 获取 Content-Type
     func getContentType(): String {
         match (blobValue) {
-            case Some(b) => return b.type
+            case Some(b) => return b.`type`
             case None => return "text/plain"
         }
     }

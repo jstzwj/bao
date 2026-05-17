@@ -3,10 +3,15 @@
 
 package bao_runtime.bake.dev_server
 
+import bao_runtime.server.*
+import bao_runtime.webcore.*
+
 /// 哈希资产存储。通过 /_bun/asset/{hash}.ext 提供。
 /// 键是绝对路径，与 IncrementalGraph(.client) 中的键共享内存。
 /// 值是文件的索引。
-public struct EntryIndex <: UInt30 {}
+public struct EntryIndex {
+    public var value: UInt32
+}
 
 public class Assets {
     /// 键是绝对路径，与 IncrementalGraph(.client) 中的键共享内存
@@ -22,7 +27,7 @@ public class Assets {
 
     /// 获取路径对应的哈希值
     public func getHash(path: String): ?UInt64 {
-        if (let Some(idx) = path_map.get(path)) {
+        if (let Some(idx) <- path_map.get(path)) {
             return files.keys()[idx.get()]
         }
         return None
@@ -34,7 +39,7 @@ public class Assets {
         abs_path: String,
         contents: AnyBlob,
         mime_type: MimeType,
-        content_hash: UInt64,
+        content_hash: UInt64
     ): EntryIndex {
         let alloc = owner().allocator()
 
@@ -49,10 +54,7 @@ public class Assets {
                 let prev = files.values()[entry_index.get()]
                 prev.deref()
                 files.keys()[entry_index.get()] = content_hash
-                files.values()[entry_index.get()] = StaticRoute.initFromAnyBlob(contents, StaticRouteOptions(
-                    mime_type: mime_type,
-                    server: owner().server!,
-                ))
+                files.values()[entry_index.get()] = StaticRoute.initFromAnyBlob(contents.sharedView(), 200, Some(mime_type.value), None)
                 needs_reindex = true
                 return entry_index
             } else {
@@ -64,16 +66,13 @@ public class Assets {
         let file_index_gop = files.getOrPut(alloc, content_hash)
         if (!file_index_gop.found_existing) {
             refs.append(alloc, 1)
-            file_index_gop.value_ptr = StaticRoute.initFromAnyBlob(contents, StaticRouteOptions(
-                mime_type: mime_type,
-                server: owner().server!,
-            ))
+            file_index_gop.value_ptr = StaticRoute.initFromAnyBlob(contents.sharedView(), 200, Some(mime_type.value), None)
         } else {
             refs.items[file_index_gop.index] += 1
             var contents_mut = contents
             contents_mut.detach()
         }
-        gop.value_ptr = EntryIndex.init(file_index_gop.index)
+        gop.value_ptr = EntryIndex.`init`(file_index_gop.index)
         return gop.value_ptr
     }
 
@@ -92,7 +91,7 @@ public class Assets {
     /// 按哈希取消引用
     public func unrefByHash(content_hash: UInt64, dec_count: UInt32): Unit {
         let index = files.getIndex(content_hash) ?? panic("Asset double unref")
-        unrefByIndex(EntryIndex.init(index), dec_count)
+        unrefByIndex(EntryIndex.`init`(index), dec_count)
     }
 
     /// 按索引取消引用
@@ -162,11 +161,5 @@ public class Assets {
 }
 
 // 类型别名
-public type StaticRoute = bun.api.server.StaticRoute
-public type AnyBlob = jsc.WebCore.Blob.Any
-public type MimeType = bun.http.MimeType
+public type AnyBlob = Blob
 public type StaticRouteRef = StaticRoute
-public type StaticRouteOptions = bun.api.server.StaticRoute.Options
-public type StringArrayHashMapUnmanaged<V> = std.StringArrayHashMapUnmanaged<V>
-public type AutoArrayHashMapUnmanaged<K, V> = std.AutoArrayHashMapUnmanaged<K, V>
-public type ArrayListUnmanaged<T> = std.ArrayListUnmanaged<T>

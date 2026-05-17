@@ -131,7 +131,7 @@ public class HttpServer {
     /// 活跃连接数
     private var activeConnections: Int64
     /// 事件循环 - 对应 Bun HTTPThread.loop
-    private var eventLoop: EventLoop
+    private var eventLoop: EventLoopHandle
 
     public init() {
         config = ServerConfig()
@@ -139,7 +139,7 @@ public class HttpServer {
         listenFd = INVALID_FD
         listening = false
         activeConnections = 0
-        eventLoop = EventLoop()
+        eventLoop = EventLoopHandle(MiniEventLoop())
     }
 
     public init(config: ServerConfig) {
@@ -148,7 +148,7 @@ public class HttpServer {
         listenFd = INVALID_FD
         listening = false
         activeConnections = 0
-        eventLoop = EventLoop()
+        eventLoop = EventLoopHandle(MiniEventLoop())
     }
 
     /// 设置请求处理函数
@@ -181,17 +181,16 @@ public class HttpServer {
             listenFd = Int64(sockfd)
 
             // SO_REUSEADDR - 允许端口复用
-            let optval: Int32 = 1
-            setsockopt(sockfd, Int32(SOL_SOCKET()), Int32(SO_REUSEADDR()), &optval, UIntNative(4))
+            setSockOptInt(sockfd, Int32(SOL_SOCKET()), Int32(SO_REUSEADDR()), 1)
 
             if (config.reusePort) {
                 // SO_REUSEPORT - 对应 Bun uws 配置
-                setsockopt(sockfd, Int32(SOL_SOCKET()), Int32(SO_REUSEPORT()), &optval, UIntNative(4))
+                setSockOptInt(sockfd, Int32(SOL_SOCKET()), Int32(SO_REUSEPORT()), 1)
             }
 
             // TCP_NODELAY - 禁用 Nagle 算法
             if (config.tcpNoDelay) {
-                setsockopt(sockfd, Int32(IPPROTO_TCP()), Int32(TCP_NODELAY()), &optval, UIntNative(4))
+                setSockOptInt(sockfd, Int32(IPPROTO_TCP()), Int32(TCP_NODELAY()), 1)
             }
 
             // bind - 对应 uws us_listen_socket_create
@@ -207,7 +206,7 @@ public class HttpServer {
             }
 
             // listen - backlog = 128 (对应 Bun uws 默认 SOMAXCONN)
-            let listenResult = bao_sys.listen(sockfd, 128)
+            let listenResult = listen(sockfd, 128)
             if (listenResult != 0) {
                 close(sockfd)
                 throw BaoError(OS.errno(), "Failed to listen on ${hostname}:${port}")
@@ -240,8 +239,11 @@ public class HttpServer {
 
         unsafe {
             var clientAddr = SockAddrIn()
-            var clientLen: UInt32 = UInt32(clientAddr.size())
-            let clientFd = bao_sys.accept(Int32(listenFd), clientAddr.ptr(), &clientLen)
+            let lenBuf = malloc(UIntNative(4))
+            let lenPtr = CPointer<UInt32>(lenBuf)
+            lenPtr.write(UInt32(clientAddr.size()))
+            let clientFd = accept(Int32(listenFd), clientAddr.ptr(), lenPtr)
+            free(lenBuf)
             if (clientFd < 0) {
                 return None
             }
@@ -265,7 +267,7 @@ public class HttpServer {
     /// 解析 HTTP 请求 - 对应 picohttp_request_parse
     /// 解析请求行 (method + path + version) + 头部 + body
     public static func parseRequest(data: Array<UInt8>): ?RawRequest {
-        let str = bytesToString(data)
+        let str = serverBytesToString(data)
         return parseRequestFromString(str)
     }
 
@@ -275,13 +277,14 @@ public class HttpServer {
         let request = RawRequest()
 
         // 查找头部结束位置 \r\n\r\n
-        let headerEnd = raw.indexOf("\r\n\r\n")
-        if (headerEnd < 0) {
+        let headerEndOpt = raw.indexOf("\r\n\r\n")
+        if (!headerEndOpt.isSome()) {
             return None  // 头部不完整
         }
+        let headerEnd = headerEndOpt.getOrThrow()
 
-        let headerSection = raw.substring(0, headerEnd)
-        var lines = headerEnd > 0 ? splitLines(headerSection) : ArrayList<String>()
+        let headerSection = raw[0..headerEnd]
+        var lines = if (headerEnd > 0) { splitLines(headerSection) } else { ArrayList<String>() }
 
         // 解析请求行: METHOD /path HTTP/1.x
         // 对应 picohttp 解析 method, path, minor_version
@@ -300,22 +303,19 @@ public class HttpServer {
 
         // 解析 HTTP 版本: HTTP/1.x
         let versionStr = parts[2]
-        if (versionStr.startsWith("HTTP/1.")) {
-            let minorStr = versionStr.substring(7)
-            try {
-                request.minorVersion = Int64.parse(minorStr)
-            } catch (_: Exception) {
-                request.minorVersion = 1
-            }
+        if (serverStartsWith(versionStr, "HTTP/1.")) {
+            let minorStr = versionStr[7..]
+            request.minorVersion = parseServerInt64(minorStr, 1)
         }
 
         // 解析头部 - 对应 picohttp 逐行解析 headers
         for (i in 1..lines.size) {
             let line = lines[Int64(i)]
-            let colonIdx = line.indexOf(":")
-            if (colonIdx >= 0) {
-                let name = line.substring(0, colonIdx).trim()
-                let value = line.substring(colonIdx + 1).trim()
+            let colonIdxOpt = line.indexOf(":")
+            if (colonIdxOpt.isSome()) {
+                let colonIdx = colonIdxOpt.getOrThrow()
+                let name = serverTrim(line[0..colonIdx])
+                let value = serverTrim(line[(colonIdx + 1)..])
                 request.headers.append(HeaderPair(name, value))
             }
         }
@@ -323,8 +323,8 @@ public class HttpServer {
         // 解析 body - Content-Length 决定
         let bodyStart = headerEnd + 4
         if (bodyStart < raw.size) {
-            let bodyStr = raw.substring(bodyStart)
-            request.body = stringToBytes(bodyStr)
+            let bodyStr = raw[bodyStart..]
+            request.body = serverStringToBytes(bodyStr)
         }
 
         request.complete = true
@@ -341,7 +341,7 @@ public class HttpServer {
     /// 对应 Bun HTTPClient 中的响应写入流程
     public static func writeResponse(clientFd: Int64, response: Response): Int64 {
         let raw = serializeResponse(response)
-        return writeRaw(clientFd, stringToBytes(raw))
+        return writeRaw(clientFd, serverStringToBytes(raw))
     }
 
     /// 序列化 HTTP 响应 - 对应 picohttp 响应序列化
@@ -378,17 +378,13 @@ public class HttpServer {
         // Content-Length / Transfer-Encoding
         let hasContentLength = response.headers.has("content-length")
         let hasTransferEncoding = response.headers.has("transfer-encoding")
-        match (response.body) {
-            case Some(body) => {
-                if (!hasContentLength && !hasTransferEncoding) {
-                    sb.append("Content-Length: ${body.size}\r\n")
-                }
+        if (response.body.isSome()) {
+            let body = response.body.getOrThrow()
+            if (!hasContentLength && !hasTransferEncoding) {
+                sb.append("Content-Length: ${body.size}\r\n")
             }
-            case None => {
-                if (!hasContentLength) {
-                    sb.append("Content-Length: 0\r\n")
-                }
-            }
+        } else if (!hasContentLength) {
+            sb.append("Content-Length: 0\r\n")
         }
 
         // 写入响应头
@@ -403,9 +399,8 @@ public class HttpServer {
         sb.append("\r\n")
 
         // 写入 body
-        match (response.body) {
-            case Some(body) => sb.append(bytesToString(body))
-            case None => ()
+        if (response.body.isSome()) {
+            sb.append(serverBytesToString(response.body.getOrThrow()))
         }
 
         return sb.toString()
@@ -420,15 +415,15 @@ public class HttpServer {
         // hex 长度 + \r\n + data + \r\n
         sb.append(toHexString(data.size))
         sb.append("\r\n")
-        sb.append(bytesToString(data))
+        sb.append(serverBytesToString(data))
         sb.append("\r\n")
-        return writeRaw(clientFd, stringToBytes(sb.toString()))
+        return writeRaw(clientFd, serverStringToBytes(sb.toString()))
     }
 
     /// 写入 chunked 终止块
     /// 对应 Bun end_of_chunked_http1_1_encoding_response_body: "0\r\n\r\n"
     public static func writeChunkEnd(clientFd: Int64): Int64 {
-        return writeRaw(clientFd, stringToBytes("0\r\n\r\n"))
+        return writeRaw(clientFd, serverStringToBytes("0\r\n\r\n"))
     }
 
     // ========================================================================
@@ -458,7 +453,7 @@ public class HttpServer {
             // 读取请求数据
             let data = conn.readRequest()
             match (data) {
-                case Some(rawData) => {
+                case Some(rawData) =>
                     // 检查请求大小限制
                     // 严格翻译自: Bun 中 max_http_header_size / maxBodySize 检查
                     let headerEnd = findHeaderEnd(rawData)
@@ -485,7 +480,7 @@ public class HttpServer {
                     // 解析请求
                     let parsed = parseRequest(rawData)
                     match (parsed) {
-                        case Some(rawReq) => {
+                        case Some(rawReq) =>
                             requestCount++
                             conn.updateLastActivity()
 
@@ -496,15 +491,14 @@ public class HttpServer {
                             // 如果是 chunked, 读取剩余的 chunk
                             if (isChunked) {
                                 let remainingChunks = readChunkedBody(conn, rawReq)
-                                match (remainingChunks) {
-                                    case Some(body) => rawReq.body = body
-                                    case None => {
-                                        let errResp = Response(400, "Bad Request - malformed chunked body")
-                                        errResp.headers.set("Connection", "close")
-                                        writeResponse(conn.fd, errResp)
-                                        keepAlive = false
-                                        break
-                                    }
+                                if (remainingChunks.isSome()) {
+                                    rawReq.body = remainingChunks.getOrThrow()
+                                } else {
+                                    let errResp = Response(400, "Bad Request - malformed chunked body")
+                                    errResp.headers.set("Connection", "close")
+                                    writeResponse(conn.fd, errResp)
+                                    keepAlive = false
+                                    break
                                 }
                             }
 
@@ -521,36 +515,21 @@ public class HttpServer {
                             let connHeader = rawReq.headers
                             keepAlive = shouldKeepAlive(rawReq)
 
-                            // 检查响应是否需要流式传输
-                            // 严格翻译自: Bun 中对 ReadableStream body 的流式写入
-                            if (response.isStreamBody) {
-                                // 流式响应: 使用 chunked 编码
-                                response.headers.set("Transfer-Encoding", "chunked")
-                                let headerBytes = stringToBytes(serializeResponseHeaders(response))
-                                conn.write(headerBytes)
-                                // 流式写入 body
-                                streamResponseBody(conn, response)
-                            } else {
-                                // 设置响应 Connection 头
-                                if (!keepAlive) {
-                                    response.headers.set("Connection", "close")
-                                }
-                                // 写入完整响应
-                                writeResponse(conn.fd, response)
+                            // 设置响应 Connection 头
+                            if (!keepAlive) {
+                                response.headers.set("Connection", "close")
                             }
-                        }
-                        case None => {
+                            // 写入完整响应
+                            writeResponse(conn.fd, response)
+                        case None =>
                             // 解析失败 - 返回 400
                             let errResp = Response(400, "Bad Request")
                             errResp.headers.set("Connection", "close")
                             writeResponse(conn.fd, errResp)
                             keepAlive = false
-                        }
                     }
-                }
-                case None => {
+                case None =>
                     keepAlive = false  // 读取失败或连接关闭
-                }
             }
         }
 
@@ -562,7 +541,7 @@ public class HttpServer {
     // 严格翻译自: HTTP/1.1 Transfer-Encoding: chunked 检测
     private static func isChunkedTransfer(rawReq: RawRequest): Bool {
         for (h in rawReq.headers) {
-            if (h.name.toLower() == "transfer-encoding" && h.value.toLower().contains("chunked")) {
+            if (serverLower(h.name) == "transfer-encoding" && serverContains(serverLower(h.value), "chunked")) {
                 return true
             }
         }
@@ -573,60 +552,31 @@ public class HttpServer {
     // 严格翻译自: HTTP/1.1 chunked body 解析
     /// chunk 格式: <hex-size>\r\n<data>\r\n ... 0\r\n\r\n
     private func readChunkedBody(conn: ClientConnection, rawReq: RawRequest): ?Array<UInt8> {
-        let body = ArrayBuffer(8192)
-        var chunkData = conn.readChunk()
+        let body = ArrayList<UInt8>()
 
-        // 简化: 读取直到收到 0 长度块
         var maxChunks: Int64 = 1024
         while (maxChunks > 0) {
             maxChunks--
-            let data = conn.readChunk()
+            let data = conn.readRequestChunk()
             if (data.size == 0) { break }
 
-            // 解析 chunk 大小 (十六进制)
-            let str = bytesToString(data)
-            let crlfIdx = str.indexOf("\r\n")
-            match (crlfIdx) {
-                case Some(idx) =>
-                    let sizeStr = str.substring(0, idx).trim()
-                    // 跳过 chunk 扩展 (; 后面的部分)
-                    let semiIdx = sizeStr.indexOf(";")
-                    let cleanSize = if (semiIdx >= 0) { sizeStr.substring(0, semiIdx) } else { sizeStr }
-                    let chunkSize = parseHexInt(cleanSize)
-                    if (chunkSize == 0) {
-                        break // 终止块
-                    }
-                    // 读取 chunk 数据
-                    let chunkBodyStart = idx + 2
-                    for (i in chunkBodyStart..min(chunkBodyStart + chunkSize, str.length)) {
-                        body.append(UInt8(str[Int64(i)].value))
-                    }
-                case None => break
+            let str = serverBytesToString(data)
+            let crlfIdxOpt = str.indexOf("\r\n")
+            if (!crlfIdxOpt.isSome()) { break }
+            let crlfIdx = crlfIdxOpt.getOrThrow()
+            let sizeStr = serverTrim(str[0..crlfIdx])
+            let semiIdxOpt = sizeStr.indexOf(";")
+            let cleanSize = if (semiIdxOpt.isSome()) { sizeStr[0..semiIdxOpt.getOrThrow()] } else { sizeStr }
+            let chunkSize = parseHexInt(cleanSize)
+            if (chunkSize == 0) { break }
+            let chunkBodyStart = crlfIdx + 2
+            let chunkEnd = min(chunkBodyStart + chunkSize, str.size)
+            for (i in chunkBodyStart..chunkEnd) {
+                body.append(str[i])
             }
         }
 
-        return Some(body.slice())
-    }
-
-    /// 流式写入响应体
-    // 严格翻译自: Bun HTTP 中 ReadableStream body 的流式写入
-    private func streamResponseBody(conn: ClientConnection, response: Response): Unit {
-        // 从 response 的流中读取并写入 chunk
-        var done = false
-        while (!done) {
-            let chunk = response.readBodyChunk(8192)
-            match (chunk) {
-                case Some(data) =>
-                    if (data.size > 0) {
-                        writeChunk(conn.fd, data)
-                    } else {
-                        done = true
-                    }
-                case None =>
-                    done = true
-            }
-        }
-        writeChunkEnd(conn.fd)
+        return Some(body.toOwnedSlice())
     }
 
     /// 序列化响应头 (不含 body)
@@ -665,13 +615,12 @@ public class HttpServer {
     private static func parseHexInt(s: String): Int64 {
         var result: Int64 = 0
         for (c in s) {
-            let v = c.value
-            if (v >= 48 && v <= 57) {       // 0-9
-                result = result * 16 + Int64(v - 48)
-            } else if (v >= 97 && v <= 102) { // a-f
-                result = result * 16 + Int64(v - 87)
-            } else if (v >= 65 && v <= 70) {  // A-F
-                result = result * 16 + Int64(v - 55)
+            if (c >= UInt8(48) && c <= UInt8(57)) {
+                result = result * 16 + Int64(c - UInt8(48))
+            } else if (c >= UInt8(97) && c <= UInt8(102)) {
+                result = result * 16 + Int64(c - UInt8(87))
+            } else if (c >= UInt8(65) && c <= UInt8(70)) {
+                result = result * 16 + Int64(c - UInt8(55))
             } else {
                 break
             }
@@ -689,8 +638,8 @@ public class HttpServer {
     /// HTTP/1.1 默认 keep-alive，显式 Connection: close 时关闭
     private static func shouldKeepAlive(rawReq: RawRequest): Bool {
         for (h in rawReq.headers) {
-            if (h.name.toLower() == "connection") {
-                return h.value.toLower() != "close"
+            if (serverLower(h.name) == "connection") {
+                return serverLower(h.value) != "close"
             }
         }
         // HTTP/1.1 默认 keep-alive
@@ -782,7 +731,7 @@ public class ClientConnection {
         this.server = Some(server)
         this.keepAliveTimeout = keepAliveTimeout
         this.open = true
-        this.readBuffer = Array<UInt8>(4096, item: UInt8(0))
+        this.readBuffer = Array<UInt8>(4096, { _ => UInt8(0) })
         this.remoteAddress = ""
         this.remotePort = 0
         this.lastActivityTime = currentTimeMillis()
@@ -806,20 +755,19 @@ public class ClientConnection {
 
     /// 获取当前时间戳 (毫秒)
     private static func currentTimeMillis(): Int64 {
-        // 简化: 使用系统时间
-        return Int64(OS.time()) * 1000
+        return serverCurrentTimeMillis()
     }
 
     /// 读取完整 HTTP 请求
     /// 对应 Bun HTTPThread 中从 socket 读取直到 header 完整
     public func readRequest(): ?Array<UInt8> {
-        var allData = Array<UInt8>()
+        let allData = ArrayList<UInt8>()
         var headerComplete = false
         var contentLength: Int64 = -1
 
         // 循环读取直到获取完整头部
         while (!headerComplete) {
-            let bytesRead = readChunk()
+            let bytesRead = readRequestChunk()
             if (bytesRead.size == 0) {
                 if (allData.size == 0) {
                     return None  // 连接已关闭
@@ -831,49 +779,49 @@ public class ClientConnection {
             }
 
             // 检查头部是否完整 (\r\n\r\n)
-            headerComplete = containsHeaderEnd(allData)
+            headerComplete = containsHeaderEnd(allData.toOwnedSlice())
         }
 
         // 解析 Content-Length
-        contentLength = extractContentLength(allData)
+        contentLength = extractContentLength(allData.toOwnedSlice())
 
         // 如果有 body，继续读取直到 body 完整
         if (contentLength > 0) {
-            let headerEndIdx = findHeaderEnd(allData)
+            let headerEndIdx = findHeaderEnd(allData.toOwnedSlice())
             if (headerEndIdx >= 0) {
                 let bodyStart = Int64(headerEndIdx) + 4
                 let bodyReceived = allData.size - bodyStart
-                let remaining = contentLength - bodyReceived
+                var remaining = contentLength - bodyReceived
 
                 while (remaining > 0) {
-                    let chunk = readChunk()
+                    let chunk = readRequestChunk()
                     if (chunk.size == 0) {
                         break
                     }
                     for (b in chunk) {
                         allData.append(b)
                     }
+                    remaining -= chunk.size
                 }
             }
         }
 
-        return Some(allData)
+        return Some(allData.toOwnedSlice())
     }
 
     /// 读取一块数据
-    private func readChunk(): Array<UInt8> {
+    public func readRequestChunk(): Array<UInt8> {
         let result = SysFs.read(fd, readBuffer)
         match (result) {
-            case Ok(n) => {
+            case Ok(n) =>
                 if (n == 0) {
                     return Array<UInt8>()
                 }
-                var data = Array<UInt8>()
+                let data = ArrayList<UInt8>()
                 for (i in 0..n) {
                     data.append(readBuffer[Int64(i)])
                 }
-                return data
-            }
+                return data.toOwnedSlice()
             case Err(_) => return Array<UInt8>()
         }
     }
@@ -897,10 +845,7 @@ public class ClientConnection {
 
     /// 设置 TCP_NODELAY
     public func setTcpNoDelay(enabled: Bool): Unit {
-        unsafe {
-            let val: Int32 = if (enabled) { 1 } else { 0 }
-            setsockopt(Int32(fd), Int32(IPPROTO_TCP()), Int32(TCP_NODELAY()), &val, UIntNative(4))
-        }
+        setSockOptInt(Int32(fd), Int32(IPPROTO_TCP()), Int32(TCP_NODELAY()), if (enabled) { 1 } else { 0 })
     }
 }
 
@@ -924,7 +869,7 @@ public class SockAddrIn {
         family = 2  // AF_INET
         port = 0
         addr = 0
-        padding = Array<UInt8>(8, item: UInt8(0))
+        padding = Array<UInt8>(8, { _ => UInt8(0) })
     }
 
     /// 获取 sockaddr 指针 - C FFI 用
@@ -934,19 +879,19 @@ public class SockAddrIn {
             let ptr = malloc(UIntNative(16))
             let bytes = CPointer<UInt8>(ptr)
             // sin_family (2 bytes)
-            (bytes + IntNative(0)).write(UInt8(family & 0xFF))
-            (bytes + IntNative(1)).write(UInt8((family >> 8) & 0xFF))
+            (bytes +0).write(UInt8(family & 0xFF))
+            (bytes +1).write(UInt8((family >> 8) & 0xFF))
             // sin_port (2 bytes, network byte order)
-            (bytes + IntNative(2)).write(UInt8(port & 0xFF))
-            (bytes + IntNative(3)).write(UInt8((port >> 8) & 0xFF))
+            (bytes +2).write(UInt8(port & 0xFF))
+            (bytes +3).write(UInt8((port >> 8) & 0xFF))
             // sin_addr (4 bytes, network byte order)
-            (bytes + IntNative(4)).write(UInt8(addr & 0xFF))
-            (bytes + IntNative(5)).write(UInt8((addr >> 8) & 0xFF))
-            (bytes + IntNative(6)).write(UInt8((addr >> 16) & 0xFF))
-            (bytes + IntNative(7)).write(UInt8((addr >> 24) & 0xFF))
+            (bytes +4).write(UInt8(addr & 0xFF))
+            (bytes +5).write(UInt8((addr >> 8) & 0xFF))
+            (bytes +6).write(UInt8((addr >> 16) & 0xFF))
+            (bytes +7).write(UInt8((addr >> 24) & 0xFF))
             // sin_zero (8 bytes, zeroed)
             for (i in 8..16) {
-                (bytes + IntNative(i)).write(UInt8(0))
+                (bytes +i).write(UInt8(0))
             }
             return ptr
         }
@@ -963,6 +908,17 @@ public class SockAddrIn {
 // 严格翻译自: POSIX socket API
 // 对应 Bun 通过 uws 使用底层 C socket API
 // ============================================================================
+
+private func setSockOptInt(sockfd: Int32, level: Int32, optname: Int32, value: Int32): Int32 {
+    unsafe {
+        let buf = malloc(UIntNative(4))
+        let ptr = CPointer<Int32>(buf)
+        ptr.write(value)
+        let rc = setsockopt(sockfd, level, optname, buf, UIntNative(4))
+        free(buf)
+        return rc
+    }
+}
 
 // POSIX socket 常量
 @C
@@ -986,7 +942,7 @@ foreign func send(sockfd: Int32, buf: CPointer<Unit>, len: UIntNative, flags: In
 @C
 foreign func shutdown(sockfd: Int32, how: Int32): Int32
 @C
-foreign func inet_pton(af: Int32, src: CPointer<Int8>, dst: CPointer<Unit)): Int32
+foreign func inet_pton(af: Int32, src: CPointer<Int8>, dst: CPointer<Unit>): Int32
 @C
 foreign func htons(hostshort: UInt16): UInt16
 @C
@@ -1005,6 +961,8 @@ foreign func getpeername(sockfd: Int32, addr: CPointer<Unit>, addrlen: CPointer<
 foreign func getsockname(sockfd: Int32, addr: CPointer<Unit>, addrlen: CPointer<UInt32>): Int32
 @C
 foreign func poll(fds: CPointer<Unit>, nfds: UIntNative, timeout: Int32): Int32
+@C
+foreign func server_clock_gettime(clockid: Int32, tp: CPointer<Int64>): Int32
 
 /// Socket 常量 - 对应 Linux x86_64 值
 public func AF_INET(): Int32 { 2 }
@@ -1030,12 +988,17 @@ public func TCP_NODELAY(): Int32 { 1 }
 /// 对应 inet_pton(AF_INET, ...)
 public func inetAddr(ip: String): UInt32 {
     unsafe {
-        let ipPtr = unsafeNewCString(ip)
-        var addr: UInt32 = 0
-        let result = inet_pton(AF_INET(), ipPtr, &addr)
+        let ipPtr = serverUnsafeNewCString(ip)
+        let addrBuf = malloc(UIntNative(4))
+        let addrPtr = CPointer<UInt32>(addrBuf)
+        addrPtr.write(UInt32(0))
+        let result = inet_pton(AF_INET(), ipPtr, addrBuf)
         if (result != 1) {
+            free(addrBuf)
             return 0  // INADDR_ANY
         }
+        let addr = addrPtr.read()
+        free(addrBuf)
         return addr
     }
 }
@@ -1050,35 +1013,35 @@ public func writeRaw(fd: Int64, data: Array<UInt8>): Int64 {
 }
 
 /// 字节数组转字符串
-public func bytesToString(bytes: Array<UInt8>): String {
+public func serverBytesToString(bytes: Array<UInt8>): String {
     let sb = StringBuilder()
     for (b in bytes) {
-        sb.append(Char(Int32(b)))
+        sb.append(Rune(UInt32(b)))
     }
     return sb.toString()
 }
 
 /// 字符串转字节数组
-public func stringToBytes(s: String): Array<UInt8> {
-    var bytes = Array<UInt8>()
+public func serverStringToBytes(s: String): Array<UInt8> {
+    let bytes = ArrayList<UInt8>()
     for (c in s) {
-        bytes.append(UInt8(c.value & 0xFF))
+        bytes.append(c)
     }
-    return bytes
+    return bytes.toOwnedSlice()
 }
 
 /// 按行分割 (处理 \r\n)
 private func splitLines(s: String): ArrayList<String> {
     let lines = ArrayList<String>()
     var current = StringBuilder()
-    var i = 0
+    var i: Int64 = 0
     while (i < s.size) {
-        if (i + 1 < s.size && s[Int64(i)] == '\r' && s[Int64(i + 1)] == '\n') {
+        if (i + 1 < s.size && s[i] == UInt8(13) && s[i + 1] == UInt8(10)) {
             lines.append(current.toString())
             current = StringBuilder()
             i += 2
         } else {
-            current.append(s[Int64(i)])
+            current.append(Rune(UInt32(s[i])))
             i += 1
         }
     }
@@ -1093,13 +1056,14 @@ private func split(s: String, sep: String): ArrayList<String> {
     let parts = ArrayList<String>()
     var remaining = s
     while (true) {
-        let idx = remaining.indexOf(sep)
-        if (idx < 0) {
+        let idxOpt = remaining.indexOf(sep)
+        if (!idxOpt.isSome()) {
             parts.append(remaining)
             break
         }
-        parts.append(remaining.substring(0, idx))
-        remaining = remaining.substring(idx + sep.size)
+        let idx = idxOpt.getOrThrow()
+        parts.append(remaining[0..idx])
+        remaining = remaining[(idx + sep.size)..]
     }
     return parts
 }
@@ -1125,22 +1089,19 @@ private func findHeaderEnd(data: Array<UInt8>): Int64 {
 
 /// 从原始请求头中提取 Content-Length
 private func extractContentLength(data: Array<UInt8>): Int64 {
-    let str = bytesToString(data)
-    let headerEnd = str.indexOf("\r\n\r\n")
-    if (headerEnd < 0) {
+    let str = serverBytesToString(data)
+    let headerEndOpt = str.indexOf("\r\n\r\n")
+    if (!headerEndOpt.isSome()) {
         return -1
     }
-    let headerSection = str.substring(0, headerEnd)
+    let headerEnd = headerEndOpt.getOrThrow()
+    let headerSection = str[0..headerEnd]
     let lines = splitLines(headerSection)
     for (line in lines) {
-        let lower = line.toLower()
-        if (lower.startsWith("content-length:")) {
-            let value = line.substring(15).trim()
-            try {
-                return Int64.parse(value)
-            } catch (_: Exception) {
-                return -1
-            }
+        let lower = serverLower(line)
+        if (serverStartsWith(lower, "content-length:")) {
+            let value = serverTrim(line[15..])
+            return parseServerInt64(value, -1)
         }
     }
     return 0
@@ -1177,15 +1138,67 @@ private func formatHttpDate(): String {
 }
 
 /// C 字符串工具 - 从 bao_sys 包
-internal func unsafeNewCString(s: String): CPointer<Int8> {
+internal func serverUnsafeNewCString(s: String): CPointer<Int8> {
     unsafe {
         let len = s.size
         let ptr = malloc(UIntNative(len + 1))
         let bytesPtr = CPointer<Int8>(ptr)
         for (i in 0..len) {
-            (bytesPtr + IntNative(i)).write(Int8(s[Int64(i)].value))
+            (bytesPtr + i).write(Int8(s[Int64(i)]))
         }
-        (bytesPtr + IntNative(len)).write(Int8(0))
+        (bytesPtr + len).write(Int8(0))
         return bytesPtr
     }
+}
+
+private func serverTrim(s: String): String {
+    var start: Int64 = 0
+    var end = s.size
+    while (start < end && isServerSpace(s[start])) { start += 1 }
+    while (end > start && isServerSpace(s[end - 1])) { end -= 1 }
+    return s[start..end]
+}
+
+private func isServerSpace(c: UInt8): Bool {
+    return c == UInt8(32) || c == UInt8(9) || c == UInt8(10) || c == UInt8(13)
+}
+
+private func serverLower(s: String): String {
+    let sb = StringBuilder()
+    for (c in s) {
+        let lowered = if (c >= UInt8(65) && c <= UInt8(90)) { c + UInt8(32) } else { c }
+        sb.append(Rune(UInt32(lowered)))
+    }
+    return sb.toString()
+}
+
+private func serverStartsWith(s: String, prefix: String): Bool {
+    if (s.size < prefix.size) { return false }
+    return s[0..prefix.size] == prefix
+}
+
+private func serverContains(s: String, needle: String): Bool {
+    return s.indexOf(needle).isSome()
+}
+
+private func serverCurrentTimeMillis(): Int64 {
+    unsafe {
+        let tsBuf = malloc(UIntNative(16))
+        let tsPtr = CPointer<Int64>(tsBuf)
+        server_clock_gettime(0, tsPtr)
+        let seconds = tsPtr.read()
+        let nanos = (tsPtr + 1).read()
+        free(tsBuf)
+        return seconds * 1000 + nanos / 1000000
+    }
+}
+
+private func parseServerInt64(s: String, defaultValue: Int64): Int64 {
+    if (s.size == 0) { return defaultValue }
+    var result: Int64 = 0
+    for (c in s) {
+        if (c < UInt8(48) || c > UInt8(57)) { return defaultValue }
+        result = result * 10 + Int64(c - UInt8(48))
+    }
+    return result
 }

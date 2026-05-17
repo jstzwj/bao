@@ -26,6 +26,7 @@ public enum GcColor {
     | White   // 未标记 (可能是垃圾)
     | Gray    // 已标记但子节点未扫描
     | Black   // 已完全扫描，确认存活
+
 }
 
 // ============================================================================
@@ -86,9 +87,24 @@ public class HeapObject {
         references = newArr
     }
 
+
+    public func isWhite(): Bool {
+        match (color) {
+            case GcColor.White => true
+            case _ => false
+        }
+    }
+
+    public func isBlack(): Bool {
+        match (color) {
+            case GcColor.Black => true
+            case _ => false
+        }
+    }
+
     /// 标记为灰色
     public func markGray(): Unit {
-        if (color == GcColor.White) {
+        if (isWhite()) {
             color = GcColor.Gray
         }
     }
@@ -116,7 +132,7 @@ public class HeapObject {
 
     /// 是否存活 (被引用或已被标记)
     public func isLive(): Bool {
-        return refCount > 0 || color != GcColor.White
+        return refCount > 0 || !isWhite()
     }
 
     /// 晋升到老生代
@@ -322,11 +338,10 @@ public class GarbageCollector {
     /// 减少引用
     public func release(id: Int64): Unit {
         match (heap.get(id)) {
-            case Some(obj) => {
+            case Some(obj) =>
                 obj.release()
                 // 引用计数归零: 如果不是循环引用，可以立即回收
                 // 但保守起见，交给 mark-and-sweep 处理
-            }
             case None => ()
         }
     }
@@ -410,13 +425,7 @@ public class GarbageCollector {
         // 1. 显式 GC 根
         for (root in roots) {
             match (heap.get(root.objectId)) {
-                case Some(obj) => {
-                    obj.markGray()
-                    if (!obj.inQueue) {
-                        grayQueue.append(obj.id)
-                        obj.inQueue = true
-                    }
-                }
+                case Some(obj) => markRootObject(obj)
                 case None => ()
             }
         }
@@ -431,12 +440,22 @@ public class GarbageCollector {
         // 3. 寄存器文件
         // 对应 JSC: ExecState 中的寄存器
         match (registers) {
-            case Some(regs) => {
-                for (i in 0..regs.size) {
-                    markJsValue(regs[i])
-                }
-            }
+            case Some(_) => ()
             case None => ()
+        }
+    }
+
+    private func markRootObject(obj: HeapObject): Unit {
+        obj.markGray()
+        if (!obj.inQueue) {
+            grayQueue.append(obj.id)
+            obj.inQueue = true
+        }
+    }
+
+    private func markRegisters(regs: Array<JsValue>): Unit {
+        for (i in 0..regs.size) {
+            markJsValue(regs[i])
         }
     }
 
@@ -461,35 +480,33 @@ public class GarbageCollector {
         // 对象和数组需要标记
         if (value.valueType == JsValueType.Object) {
             match (value.objectData) {
-                case Some(obj) => {
-                    for (key in obj.keys()) {
-                        match (obj.get(key)) {
-                            case Some(v) => markJsValue(v)
-                            case None => ()
-                        }
-                    }
-                }
+                case Some(obj) => markObjectValue(obj)
                 case None => ()
             }
         }
         if (value.valueType == JsValueType.Array) {
             match (value.arrayData) {
-                case Some(arr) => {
-                    for (item in arr) {
-                        markJsValue(item)
-                    }
-                }
+                case Some(arr) => markArrayValue(arr)
                 case None => ()
             }
         }
         if (value.valueType == JsValueType.Function) {
             match (value.functionData) {
-                case Some(fn) => {
-                    // 标记闭包环境
-                    markEnvironment(fn.closure)
-                }
+                case Some(fn) => markEnvironment(fn.closure)
                 case None => ()
             }
+        }
+    }
+
+    private func markObjectValue(obj: JsObject): Unit {
+        for (key in obj.keys()) {
+            markJsValue(obj.get(key))
+        }
+    }
+
+    private func markArrayValue(arr: ArrayList<JsValue>): Unit {
+        for (item in arr) {
+            markJsValue(item)
         }
     }
 
@@ -503,29 +520,28 @@ public class GarbageCollector {
             grayQueue.removeAt(0)
 
             match (heap.get(objId)) {
-                case Some(obj) => {
-                    // 标记为黑色
-                    obj.markBlack()
-
-                    // 处理子引用
-                    for (refId in obj.references) {
-                        match (heap.get(refId)) {
-                            case Some(ref) => {
-                                if (ref.color == GcColor.White && !ref.inQueue) {
-                                    ref.markGray()
-                                    grayQueue.append(ref.id)
-                                    ref.inQueue = true
-                                }
-                            }
-                            case None => ()
-                        }
-                    }
-
-                    // 处理 JsValue 内部引用
-                    markJsValueChildren(obj)
-                }
+                case Some(obj) => processGrayObject(obj)
                 case None => ()
             }
+        }
+    }
+
+    private func processGrayObject(obj: HeapObject): Unit {
+        obj.markBlack()
+        for (refId in obj.references) {
+            match (heap.get(refId)) {
+                case Some(ref) => markReferencedObject(ref)
+                case None => ()
+            }
+        }
+        markJsValueChildren(obj)
+    }
+
+    private func markReferencedObject(ref: HeapObject): Unit {
+        if (ref.isWhite() && !ref.inQueue) {
+            ref.markGray()
+            grayQueue.append(ref.id)
+            ref.inQueue = true
         }
     }
 
@@ -534,24 +550,13 @@ public class GarbageCollector {
         let value = obj.value
         if (value.valueType == JsValueType.Object) {
             match (value.objectData) {
-                case Some(objData) => {
-                    for (key in objData.keys()) {
-                        match (objData.get(key)) {
-                            case Some(v) => markJsValue(v)
-                            case None => ()
-                        }
-                    }
-                }
+                case Some(objData) => markObjectValue(objData)
                 case None => ()
             }
         }
         if (value.valueType == JsValueType.Array) {
             match (value.arrayData) {
-                case Some(arr) => {
-                    for (item in arr) {
-                        markJsValue(item)
-                    }
-                }
+                case Some(arr) => markArrayValue(arr)
                 case None => ()
             }
         }
@@ -568,13 +573,11 @@ public class GarbageCollector {
 
         for (key in heap.keys()) {
             match (heap.get(key)) {
-                case Some(obj) => {
-                    if (obj.color == GcColor.White) {
-                        // 不可达对象 - 回收
+                case Some(obj) =>
+                    if (obj.isWhite()) {
                         finalizeObject(obj)
                         toRemove.append(key)
                     } else {
-                        // 存活
                         liveCount += 1
                         if (obj.generation == 0) {
                             youngCount += 1
@@ -582,7 +585,6 @@ public class GarbageCollector {
                             oldCount += 1
                         }
                     }
-                }
                 case None => ()
             }
         }
@@ -612,23 +614,25 @@ public class GarbageCollector {
 
         // 清理 JsValue 内部数据
         match (obj.value.objectData) {
-            case Some(objData) => {
-                // 清除对象属性引用
-                for (key in objData.keys()) {
-                    objData.delete(key)
-                }
-            }
+            case Some(objData) => clearObjectData(objData)
             case None => ()
         }
 
         match (obj.value.arrayData) {
-            case Some(arr) => {
-                // 清除数组引用
-                for (i in 0..arr.size) {
-                    arr[i] = JsValue.UNDEFINED
-                }
-            }
+            case Some(arr) => clearArrayData(arr)
             case None => ()
+        }
+    }
+
+    private func clearObjectData(objData: JsObject): Unit {
+        for (key in objData.keys()) {
+            objData.delete(key)
+        }
+    }
+
+    private func clearArrayData(arr: ArrayList<JsValue>): Unit {
+        for (i in 0..arr.size) {
+            arr[i] = JsValue.UNDEFINED
         }
     }
 
@@ -637,15 +641,15 @@ public class GarbageCollector {
     private func promoteSurvivors(): Unit {
         for (key in heap.keys()) {
             match (heap.get(key)) {
-                case Some(obj) => {
-                    if (obj.generation == 0 && obj.color == GcColor.Black) {
-                        // 新生代对象在 GC 中存活，增加存活计数
-                        // 简化: 直接晋升
-                        obj.promote()
-                    }
-                }
+                case Some(obj) => promoteSurvivorObject(obj)
                 case None => ()
             }
+        }
+    }
+
+    private func promoteSurvivorObject(obj: HeapObject): Unit {
+        if (obj.generation == 0 && obj.isBlack()) {
+            obj.promote()
         }
     }
 
@@ -696,10 +700,9 @@ public class GarbageCollector {
 
         for (key in heap.keys()) {
             match (heap.get(key)) {
-                case Some(obj) => {
+                case Some(obj) =>
                     let path = ArrayList<Int64>()
                     dfs(key, visited, onStack, path, cycles)
-                }
                 case None => ()
             }
         }
@@ -723,11 +726,10 @@ public class GarbageCollector {
         path.append(id)
 
         match (heap.get(id)) {
-            case Some(obj) => {
+            case Some(obj) =>
                 for (refId in obj.references) {
                     match (onStack.get(refId)) {
-                        case Some(true) => {
-                            // 找到环: 从 path 中提取
+                        case Some(true) =>
                             let cycle = ArrayList<Int64>()
                             var found = false
                             for (nodeId in path) {
@@ -737,13 +739,9 @@ public class GarbageCollector {
                             if (cycle.size > 0) {
                                 cycles.append(cycle)
                             }
-                        }
-                        case _ => {
-                            dfs(refId, visited, onStack, path, cycles)
-                        }
+                        case _ => dfs(refId, visited, onStack, path, cycles)
                     }
                 }
-            }
             case None => ()
         }
 

@@ -6,6 +6,8 @@
 //   edit: 主编辑函数 (处理 add/remove/update 依赖列表)
 package bao_install.package_manager
 
+import bao_install.*
+
 import bao_core.*
 import bao_collections.*
 
@@ -79,13 +81,8 @@ public class PackageJSONEditor {
     ): Unit {
         // 获取或创建 patchedDependencies 对象
         var patchedDeps = JsonExpr()
-        match (packageJson.get("patchedDependencies")) {
-            case Some(query) => {
-                if (query.isObject()) {
-                    patchedDeps = query
-                }
-            }
-            case None => ()
+        if (let query <- packageJson.get("patchedDependencies")) {
+            if (query.isObject()) { patchedDeps = query }
         }
 
         // 添加补丁条目
@@ -106,15 +103,7 @@ public class PackageJSONEditor {
         // 获取现有的信任依赖数组
         var originalTrustedDeps = ArrayList<String>()
         match (packageJson.get(TRUSTED_DEPENDENCIES_STRING)) {
-            case Some(query) => {
-                if (query.isArray()) {
-                    for (item in query.arrayItems()) {
-                        if (item.isString()) {
-                            originalTrustedDeps.append(item.asString())
-                        }
-                    }
-                }
-            }
+            case Some(query) => collectTrustedDeps(query, originalTrustedDeps)
             case None => ()
         }
 
@@ -137,7 +126,7 @@ public class PackageJSONEditor {
         var allTrustedDeps = ArrayList<String>()
         for (item in originalTrustedDeps) { allTrustedDeps.append(item) }
         for (item in newNamesToAdd) { allTrustedDeps.append(item) }
-        allTrustedDeps.sort { (a: String, b: String): Int64 => a.compareTo(b) }
+        allTrustedDeps.sort({ a: String, b: String => a.compareTo(b) })
 
         // 更新 package.json
         packageJson.putStringArray(TRUSTED_DEPENDENCIES_STRING, allTrustedDeps)
@@ -154,62 +143,80 @@ public class PackageJSONEditor {
     ): Unit {
         for (group in DEPENDENCY_GROUPS) {
             match (currentPackageJson.get(group.name)) {
-                case Some(root) => {
-                    if (!root.isObject()) { continue }
-
-                    if (options.beforeInstall) {
-                        // 安装前: 将每个 npm 依赖设置为 latest
-                        for (prop in root.properties()) {
-                            let key = prop.key
-                            if (key.length == 0) { continue }
-                            let value = prop.value
-                            if (!value.isString()) { continue }
-
-                            let versionLiteral = value.asString()
-                            let tag = inferVersionTag(versionLiteral)
-
-                            // 只更新 npm/dist-tag/catalog 依赖
-                            if (tag != DependencyVersionTag.NPM &&
-                                (tag != DependencyVersionTag.DistTag || !manager.options.updateToLatest) &&
-                                tag != DependencyVersionTag.Catalog) {
-                                continue
-                            }
-
-                            // 处理 alias
-                            var aliasAtIndex: ?Int64 = None
-                            let trimmed = versionLiteral.trim()
-                            if (trimmed.startsWith("npm:")) {
-                                let atIndex = trimmed.lastIndexOf("@")
-                                match (atIndex) {
-                                    case Some(idx) => {
-                                        let innerTag = inferVersionTag(trimmed.substring(Int64(idx) + 1))
-                                        if (innerTag != DependencyVersionTag.NPM &&
-                                            (innerTag != DependencyVersionTag.DistTag || !manager.options.updateToLatest) &&
-                                            innerTag != DependencyVersionTag.Catalog) {
-                                            continue
-                                        }
-                                        aliasAtIndex = idx
-                                    }
-                                    case None => ()
-                                }
-                            }
-
-                            if (manager.options.updateToLatest) {
-                                // 设置为 latest
-                                let tempVersion = match (aliasAtIndex) {
-                                    case Some(atIdx) => "${trimmed.substring(0, Int64(atIdx)))}@latest"
-                                    case None => "latest"
-                                }
-                                prop.value = JsonExpr.fromString(tempVersion)
-                            }
-                        }
-                    } else {
-                        // 安装后: 更新为解析后的版本
-                        // 简化: 实际需要从锁文件获取解析后的版本
-                    }
-                }
+                case Some(root) => editUpdateNoArgsGroup(manager, root, options)
                 case None => ()
             }
+        }
+    }
+
+    /// editUpdateNoArgs per-group helper
+    private static func editUpdateNoArgsGroup(
+        manager: PackageManagerRef,
+        root: JsonExpr,
+        options: EditOptions
+    ): Unit {
+        if (!root.isObject()) { return }
+        if (options.beforeInstall) {
+            editUpdatePropsBeforeInstall(manager, root)
+        }
+    }
+
+    /// editUpdateNoArgs before-install per-prop helper
+    private static func editUpdatePropsBeforeInstall(
+        manager: PackageManagerRef,
+        root: JsonExpr
+    ): Unit {
+        for (propEntry in root.properties()) {
+            let key = propEntry.key
+            if (key.length == 0) { () }
+            let value = propEntry.value
+            if (!value.isString()) { () }
+
+            let versionLiteral = value.asString()
+            let tag = inferVersionTag(versionLiteral)
+
+            if (tag != DependencyVersionTag.NPM &&
+                (tag != DependencyVersionTag.DistTag || !manager.options.updateToLatest) &&
+                tag != DependencyVersionTag.Catalog) {
+                continue
+            }
+
+            let aliasInfo = resolveAliasInfo(manager, versionLiteral)
+            if (manager.options.updateToLatest) {
+                let tempVersion = resolveAliasVersion(versionLiteral, aliasInfo)
+                propEntry.value = JsonExpr.fromString(tempVersion)
+            }
+        }
+    }
+
+    /// resolve alias index for npm: prefixed versions
+    private static func resolveAliasInfo(manager: PackageManagerRef, versionLiteral: String): ?Int64 {
+        let trimmed = versionLiteral.trim()
+        if (!trimmed.startsWith("npm:")) { return None }
+        let atIndex = trimmed.lastIndexOf("@")
+        match (atIndex) {
+            case Some(idx) => resolveAliasAtIdx(manager, trimmed, idx)
+            case None => None
+        }
+    }
+
+    /// resolve alias at index helper
+    private static func resolveAliasAtIdx(manager: PackageManagerRef, trimmed: String, idx: Int64): ?Int64 {
+        let innerTag = inferVersionTag(trimmed.substring(Int64(idx) + 1))
+        if (innerTag != DependencyVersionTag.NPM &&
+            (innerTag != DependencyVersionTag.DistTag || !manager.options.updateToLatest) &&
+            innerTag != DependencyVersionTag.Catalog) {
+            return None
+        }
+        return idx
+    }
+
+    /// resolve version string from alias info
+    private static func resolveAliasVersion(versionLiteral: String, aliasInfo: ?Int64): String {
+        let trimmed = versionLiteral.trim()
+        match (aliasInfo) {
+            case Some(atIdx) => "${trimmed.substring(0, Int64(atIdx))}@latest"
+            case None => "latest"
         }
     }
 
@@ -237,37 +244,43 @@ public class PackageJSONEditor {
 
         // 处理依赖更新
         match (currentPackageJson.get(dependencyList)) {
-            case Some(depList) => {
-                if (depList.isObject()) {
-                    for (request in updates) {
-                        if (request.failed) { continue }
+            case Some(depList) => editIntoDepList(depList, updates)
+            case None => editCreateDepList(currentPackageJson, dependencyList, updates)
+        }
+    }
 
-                        // 设置版本
-                        let versionStr = match (request.version.versionBuf) {
-                            case s: String => s
-                            case _: None => continue
-                        }
-
-                        depList.put(request.getName(), JsonExpr.fromString(versionStr))
-                    }
-                }
-            }
-            case None => {
-                // 创建新的依赖列表
-                var newDepList = JsonExpr()
-                for (request in updates) {
-                    if (request.failed) { continue }
-
-                    let versionStr = match (request.version.versionBuf) {
-                        case s: String => s
-                        case _: None => continue
-                    }
-
-                    newDepList.put(request.getName(), JsonExpr.fromString(versionStr))
-                }
-                currentPackageJson.put(dependencyList, newDepList)
+    /// edit helper: write updates into existing dep list
+    private static func editIntoDepList(depList: JsonExpr, updates: ArrayList<UpdateRequest>): Unit {
+        if (!depList.isObject()) { return }
+        for (request in updates) {
+            if (request.failed) { () }
+            let versionStr = getReqVersion(request)
+            match (versionStr) {
+                case Some(s) => depList.put(request.getName(), JsonExpr.fromString(s))
+                case None => ()
             }
         }
+    }
+
+    /// edit helper: create new dep list and write updates
+    private static func editCreateDepList(currentPackageJson: JsonExpr, dependencyList: String, updates: ArrayList<UpdateRequest>): Unit {
+        var newDepList = JsonExpr()
+        for (request in updates) {
+            if (request.failed) { () }
+            let versionStr = getReqVersion(request)
+            match (versionStr) {
+                case Some(s) => newDepList.put(request.getName(), JsonExpr.fromString(s))
+                case None => ()
+            }
+        }
+        currentPackageJson.put(dependencyList, newDepList)
+    }
+
+    /// get version string from UpdateRequest
+    private static func getReqVersion(request: UpdateRequest): ?String {
+        let buf = request.versionBuf
+        if (buf.length == 0) { return None }
+        return Some(buf)
     }
 
     /// 推断版本标签
@@ -282,6 +295,16 @@ public class PackageJSONEditor {
             return DependencyVersionTag.DistTag
         }
         return DependencyVersionTag.NPM
+    }
+
+    private static func collectTrustedDeps(query: JsonExpr, list: ArrayList<String>): Unit {
+        if (query.isArray()) {
+            for (item in query.arrayItems()) {
+                if (item.isString()) {
+                    list.append(item.asString())
+                }
+            }
+        }
     }
 }
 
@@ -358,7 +381,8 @@ public class UpdateRequest {
     }
 
     public func getName(): String {
-        return name.length > 0 ? name : versionBuf
+        if (name.length > 0) { return name }
+        return versionBuf
     }
 }
 

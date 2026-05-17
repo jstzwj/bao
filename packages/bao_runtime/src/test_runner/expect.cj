@@ -4,7 +4,7 @@
 package bao_runtime.test_runner
 
 import bao_jsc.*
-import std.collection.*
+import bao_collections.*  // std.collection.*
 
 // ========== Expect supporting types ==========
 
@@ -30,6 +30,57 @@ public enum PromiseMode {
 /// 非对称匹配器构造类型
 public enum AsymmetricMatcherConstructorType {
     | none
+    | Symbol
+    | String
+    | Object
+    | Array
+    | BigInt
+    | Boolean
+    | Number
+    | Promise
+    | InstanceOf
+
+    public static func fromJS(globalObject: JSGlobalObject, value: JSValue): ?AsymmetricMatcherConstructorType {
+        if (value.isSymbolConstructor(globalObject)) { return AsymmetricMatcherConstructorType.Symbol }
+        if (value.isStringConstructor(globalObject)) { return AsymmetricMatcherConstructorType.String }
+        if (value.isObjectConstructor(globalObject)) { return AsymmetricMatcherConstructorType.Object }
+        if (value.isArrayConstructor(globalObject)) { return AsymmetricMatcherConstructorType.Array }
+        if (value.isBigIntConstructor(globalObject)) { return AsymmetricMatcherConstructorType.BigInt }
+        if (value.isBooleanConstructor(globalObject)) { return AsymmetricMatcherConstructorType.Boolean }
+        if (value.isNumberConstructor(globalObject)) { return AsymmetricMatcherConstructorType.Number }
+        if (value.isPromiseConstructor(globalObject)) { return AsymmetricMatcherConstructorType.Promise }
+        return AsymmetricMatcherConstructorType.InstanceOf
+    }
+
+    public func rawValue(): UInt8 {
+        match (this) {
+            case none => return 0
+            case Symbol => return 1
+            case String => return 2
+            case Object => return 3
+            case Array => return 4
+            case BigInt => return 5
+            case Boolean => return 6
+            case Number => return 7
+            case Promise => return 8
+            case InstanceOf => return 9
+        }
+    }
+
+    public static func fromRaw(raw: UInt8): AsymmetricMatcherConstructorType {
+        match (raw) {
+            case 1 => return AsymmetricMatcherConstructorType.Symbol
+            case 2 => return AsymmetricMatcherConstructorType.String
+            case 3 => return AsymmetricMatcherConstructorType.Object
+            case 4 => return AsymmetricMatcherConstructorType.Array
+            case 5 => return AsymmetricMatcherConstructorType.BigInt
+            case 6 => return AsymmetricMatcherConstructorType.Boolean
+            case 7 => return AsymmetricMatcherConstructorType.Number
+            case 8 => return AsymmetricMatcherConstructorType.Promise
+            case 9 => return AsymmetricMatcherConstructorType.InstanceOf
+            case _ => return AsymmetricMatcherConstructorType.none
+        }
+    }
 }
 
 /// Expect标志位(注意: 保持与C++实现同步)
@@ -42,13 +93,25 @@ public class Flags {
 
     public func encode(): UInt8 {
         var bits: UInt8 = 0
+        match (promise) {
+            case PromiseMode.resolves => bits |= 0x01
+            case PromiseMode.rejects => bits |= 0x02
+            case PromiseMode.none => ()
+        }
         if (not) { bits |= 0x04 }
+        bits |= UInt8(asymmetricMatcherConstructorType.rawValue() << 3)
         return bits
     }
 
     public static func decode(bitset: UInt8): Flags {
         let flags = Flags()
+        match (bitset & 0x03) {
+            case 1 => flags.promise = PromiseMode.resolves
+            case 2 => flags.promise = PromiseMode.rejects
+            case _ => flags.promise = PromiseMode.none
+        }
         flags.not = (bitset & 0x04) != 0
+        flags.asymmetricMatcherConstructorType = AsymmetricMatcherConstructorType.fromRaw(UInt8((bitset >> 3) & 0x1f))
         return flags
     }
 }

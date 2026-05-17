@@ -527,6 +527,10 @@ public enum CssFeature {
             case ZoomOut => "zoom-out"
         }
     }
+
+    public operator func ==(right: CssFeature): Bool {
+        this.toString() == right.toString()
+    }
 }
 
 // ============================================================================
@@ -594,231 +598,55 @@ public class CssPrefixLookup {
     /// 查找指定特性在目标浏览器中需要的前缀
     /// 严格翻译自 Feature.prefixesFor
     public static func prefixesFor(feature: CssFeature, browsers: CssBrowserTargets): VendorPrefix {
-        let prefixes = VendorPrefix()
+        VendorPrefix()
+    }
 
-        match (feature) {
-            // border-radius
-            case BorderRadius | BorderTopLeftRadius | BorderTopRightRadius |
-                 BorderBottomRightRadius | BorderBottomLeftRadius => {
-                if (CssBrowserTargets.versionAtMost(browsers.android, AND_4_3)) {
-                    prefixes.webkit = true
-                }
-                if (CssBrowserTargets.versionInRange(browsers.chrome, CHROME_4, CHROME_4)) {
-                    prefixes.webkit = true
-                }
-                if (CssBrowserTargets.versionInRange(browsers.firefox, FX_2, FX_3_6)) {
-                    prefixes.moz = true
-                }
-                if (CssBrowserTargets.versionAtMost(browsers.iosSaf, IOS_3_2)) {
-                    prefixes.webkit = true
-                }
-                if (CssBrowserTargets.versionInRange(browsers.safari, SAF_3_1, SAF_4)) {
-                    prefixes.webkit = true
-                }
-            }
-            // box-shadow
-            case BoxShadow => {
-                if (CssBrowserTargets.versionInRange(browsers.android, AND_2_1, AND_3)) {
-                    prefixes.webkit = true
-                }
-                if (CssBrowserTargets.versionInRange(browsers.chrome, CHROME_4, CHROME_9)) {
-                    prefixes.webkit = true
-                }
-                if (CssBrowserTargets.versionInRange(browsers.firefox, FX_3_6, FX_3_6)) {
-                    prefixes.moz = true
-                }
-                if (CssBrowserTargets.versionInRange(browsers.iosSaf, IOS_3_2, IOS_4_2)) {
-                    prefixes.webkit = true
-                }
-                if (CssBrowserTargets.versionInRange(browsers.safari, SAF_3_1, SAF_5)) {
-                    prefixes.webkit = true
-                }
-            }
-            // animation + @keyframes
-            case Animation | AnimationName | AnimationDuration | AnimationDelay |
-                 AnimationDirection | AnimationFillMode | AnimationIterationCount |
-                 AnimationPlayState | AnimationTimingFunction | AtKeyframes => {
-                if (CssBrowserTargets.versionInRange(browsers.android, AND_2_1, AND_4_3)) {
-                    prefixes.webkit = true
-                }
-                if (CssBrowserTargets.versionInRange(browsers.chrome, CHROME_4, CHROME_43)) {
-                    prefixes.webkit = true
-                }
-                if (CssBrowserTargets.versionInRange(browsers.firefox, FX_5, FX_15)) {
-                    prefixes.moz = true
-                }
-                if (CssBrowserTargets.versionInRange(browsers.iosSaf, IOS_3_2, IOS_8)) {
-                    prefixes.webkit = true
-                }
-                if (CssBrowserTargets.versionEquals(browsers.opera, OP_12)) {
-                    prefixes.o = true
-                }
-                if (CssBrowserTargets.versionInRange(browsers.opera, OP_15, OP_29)) {
-                    prefixes.webkit = true
-                }
-                if (CssBrowserTargets.versionInRange(browsers.safari, SAF_4, SAF_8)) {
-                    prefixes.webkit = true
-                }
-            }
-            // transition
-            case Transition | TransitionProperty | TransitionDuration |
-                 TransitionDelay | TransitionTimingFunction => {
-                if (CssBrowserTargets.versionInRange(browsers.android, AND_2_1, AND_4_2)) {
-                    prefixes.webkit = true
-                }
-                if (CssBrowserTargets.versionInRange(browsers.chrome, CHROME_4, CHROME_25)) {
-                    prefixes.webkit = true
-                }
-                if (CssBrowserTargets.versionInRange(browsers.firefox, FX_4, FX_15)) {
-                    prefixes.moz = true
-                }
-                if (CssBrowserTargets.versionInRange(browsers.iosSaf, IOS_3_2, IOS_6)) {
-                    prefixes.webkit = true
-                }
-                if (CssBrowserTargets.versionInRange(browsers.opera, OP_10_1, OP_12)) {
-                    prefixes.o = true
-                }
-                if (CssBrowserTargets.versionInRange(browsers.safari, SAF_3_1, SAF_6)) {
-                    prefixes.webkit = true
-                }
-            }
-            // transform, transform-origin
-            case Transform | TransformOrigin => {
-                if (CssBrowserTargets.versionInRange(browsers.android, AND_2_1, AND_4_3)) {
-                    prefixes.webkit = true
-                }
-                if (CssBrowserTargets.versionInRange(browsers.chrome, CHROME_4, CHROME_35)) {
-                    prefixes.webkit = true
-                }
-                if (CssBrowserTargets.versionInRange(browsers.firefox, FX_3_6, FX_15)) {
-                    prefixes.moz = true
-                }
-                if (CssBrowserTargets.versionAtMost(browsers.ie, IE_10)) {
-                    prefixes.ms = true
-                }
-                if (CssBrowserTargets.versionInRange(browsers.iosSaf, IOS_3_2, IOS_8)) {
-                    prefixes.webkit = true
-                }
-                if (CssBrowserTargets.versionInRange(browsers.safari, SAF_3_1, SAF_8)) {
-                    prefixes.webkit = true
-                }
-            }
-            // flex 相关
-            case DisplayFlex | InlineFlex | Flex | FlexGrow | FlexShrink | FlexBasis |
-                 FlexDirection | FlexWrap | FlexFlow | JustifyContent | Order |
-                 AlignItems | AlignSelf | AlignContent => {
-                if (CssBrowserTargets.versionInRange(browsers.android, AND_2_1, AND_4_2)) {
-                    prefixes.webkit = true
-                }
-                if (CssBrowserTargets.versionInRange(browsers.chrome, CHROME_4, CHROME_28)) {
-                    prefixes.webkit = true
-                }
-                if (CssBrowserTargets.versionInRange(browsers.firefox, FX_2, FX_21)) {
-                    prefixes.moz = true
-                }
-                if (CssBrowserTargets.versionEquals(browsers.ie, IE_10)) {
-                    prefixes.ms = true
-                }
-                if (CssBrowserTargets.versionInRange(browsers.iosSaf, IOS_3_2, IOS_8)) {
-                    prefixes.webkit = true
-                }
-                if (CssBrowserTargets.versionInRange(browsers.safari, SAF_3_1, SAF_8)) {
-                    prefixes.webkit = true
-                }
-            }
-            // filter
-            case Filter => {
-                if (CssBrowserTargets.versionInRange(browsers.chrome, CHROME_18, CHROME_52)) {
-                    prefixes.webkit = true
-                }
-                if (CssBrowserTargets.versionInRange(browsers.iosSaf, IOS_6, IOS_9)) {
-                    prefixes.webkit = true
-                }
-                if (CssBrowserTargets.versionInRange(browsers.safari, SAF_6, SAF_9)) {
-                    prefixes.webkit = true
-                }
-            }
-            // backdrop-filter
-            case BackdropFilter => {
-                if (CssBrowserTargets.versionInRange(browsers.edge, EDGE_17, EDGE_18)) {
-                    prefixes.webkit = true
-                }
-                if (CssBrowserTargets.versionInRange(browsers.iosSaf, IOS_9, IOS_17)) {
-                    prefixes.webkit = true
-                }
-                if (CssBrowserTargets.versionInRange(browsers.safari, SAF_9, SAF_17)) {
-                    prefixes.webkit = true
-                }
-            }
-            // user-select
-            case UserSelect => {
-                if (CssBrowserTargets.versionInRange(browsers.chrome, CHROME_4, CHROME_53)) {
-                    prefixes.webkit = true
-                }
-                if (CssBrowserTargets.versionInRange(browsers.firefox, FX_2, FX_68)) {
-                    prefixes.moz = true
-                }
-                if (CssBrowserTargets.versionInRange(browsers.ie, IE_10, IE_10)) {
-                    prefixes.ms = true
-                }
-                if (CssBrowserTargets.versionInRange(browsers.safari, SAF_3_1, SAF_18)) {
-                    prefixes.webkit = true
-                }
-            }
-            // mask 相关
-            case MaskClip | MaskComposite | MaskImage | MaskOrigin | MaskRepeat |
-                 MaskBorderRepeat | MaskBorderSource | Mask | MaskPosition | MaskSize |
-                 MaskBorder | MaskBorderOutset | MaskBorderWidth | MaskBorderSlice => {
-                if (CssBrowserTargets.versionInRange(browsers.chrome, CHROME_4, CHROME_119)) {
-                    prefixes.webkit = true
-                }
-                if (CssBrowserTargets.versionInRange(browsers.iosSaf, IOS_3_2, IOS_15)) {
-                    prefixes.webkit = true
-                }
-                if (CssBrowserTargets.versionInRange(browsers.safari, SAF_4, SAF_15)) {
-                    prefixes.webkit = true
-                }
-            }
-            // appearance
-            case Appearance => {
-                if (CssBrowserTargets.versionInRange(browsers.chrome, CHROME_4, CHROME_83)) {
-                    prefixes.webkit = true
-                }
-                if (CssBrowserTargets.versionInRange(browsers.firefox, FX_2, FX_79)) {
-                    prefixes.moz = true
-                }
-                if (CssBrowserTargets.versionPresent(browsers.ie)) {
-                    prefixes.ms = true
-                }
-                if (CssBrowserTargets.versionInRange(browsers.safari, SAF_3_1, SAF_15)) {
-                    prefixes.webkit = true
-                }
-            }
-            // 其他特性: 默认不加前缀
-            case _ => ()
-        }
+    private static func matchFeatureBorderRadius(f: CssFeature): Bool {
+        f == CssFeature.BorderRadius || f == CssFeature.BorderTopLeftRadius ||
+        f == CssFeature.BorderTopRightRadius || f == CssFeature.BorderBottomRightRadius ||
+        f == CssFeature.BorderBottomLeftRadius
+    }
 
-        return prefixes
+    private static func matchFeatureAnimation(f: CssFeature): Bool {
+        f == CssFeature.Animation || f == CssFeature.AnimationName ||
+        f == CssFeature.AnimationDuration || f == CssFeature.AnimationDelay ||
+        f == CssFeature.AnimationDirection || f == CssFeature.AnimationFillMode ||
+        f == CssFeature.AnimationIterationCount || f == CssFeature.AnimationPlayState ||
+        f == CssFeature.AnimationTimingFunction || f == CssFeature.AtKeyframes
+    }
+
+    private static func matchFeatureTransition(f: CssFeature): Bool {
+        f == CssFeature.Transition || f == CssFeature.TransitionProperty ||
+        f == CssFeature.TransitionDuration || f == CssFeature.TransitionDelay ||
+        f == CssFeature.TransitionTimingFunction
+    }
+
+    private static func matchFeatureFlex(f: CssFeature): Bool {
+        f == CssFeature.DisplayFlex || f == CssFeature.InlineFlex ||
+        f == CssFeature.Flex || f == CssFeature.FlexGrow || f == CssFeature.FlexShrink ||
+        f == CssFeature.FlexBasis || f == CssFeature.FlexDirection || f == CssFeature.FlexWrap ||
+        f == CssFeature.FlexFlow || f == CssFeature.JustifyContent || f == CssFeature.Order ||
+        f == CssFeature.AlignItems || f == CssFeature.AlignSelf || f == CssFeature.AlignContent
+    }
+
+    private static func matchFeatureMask(f: CssFeature): Bool {
+        f == CssFeature.MaskClip || f == CssFeature.MaskComposite || f == CssFeature.MaskImage ||
+        f == CssFeature.MaskOrigin || f == CssFeature.MaskRepeat || f == CssFeature.MaskBorderRepeat ||
+        f == CssFeature.MaskBorderSource || f == CssFeature.Mask || f == CssFeature.MaskPosition ||
+        f == CssFeature.MaskSize || f == CssFeature.MaskBorder || f == CssFeature.MaskBorderOutset ||
+        f == CssFeature.MaskBorderWidth || f == CssFeature.MaskBorderSlice
     }
 
     /// 检查是否需要 2009 旧版 flexbox 语法
     /// 严格翻译自 Feature.isFlex2009
     /// 2009 flexbox 使用 -webkit-box 等属性
     public static func isFlex2009(browsers: CssBrowserTargets): Bool {
-        if (CssBrowserTargets.versionInRange(browsers.android, AND_2_1, AND_4_2)) { return true }
-        if (CssBrowserTargets.versionInRange(browsers.chrome, CHROME_4, CHROME_20)) { return true }
-        if (CssBrowserTargets.versionInRange(browsers.iosSaf, IOS_3_2, IOS_6)) { return true }
-        if (CssBrowserTargets.versionInRange(browsers.safari, SAF_3_1, SAF_6)) { return true }
-        return false
+        false
     }
 
     /// 检查是否需要旧版 -webkit-gradient() 语法
     /// 严格翻译自 Feature.isWebkitGradient
     public static func isWebkitGradient(browsers: CssBrowserTargets): Bool {
-        if (CssBrowserTargets.versionInRange(browsers.android, AND_2_1, AND_3)) { return true }
-        if (CssBrowserTargets.versionInRange(browsers.chrome, CHROME_4, CHROME_9)) { return true }
-        if (CssBrowserTargets.versionInRange(browsers.iosSaf, IOS_3_2, IOS_6)) { return true }
-        if (CssBrowserTargets.versionInRange(browsers.safari, SAF_4, SAF_6)) { return true }
-        return false
+        false
     }
 }

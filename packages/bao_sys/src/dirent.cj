@@ -5,6 +5,7 @@
 package bao_sys
 
 import bao_core.*
+import bao_collections.*
 
 // ============================================================================
 // 目录操作 C FFI 声明
@@ -47,17 +48,26 @@ public class DirEntry {
 
     /// 是否为普通文件
     public func isFile(): Bool {
-        return entryType == DirEntryType.File
+        match (entryType) {
+            case File => true
+            case _ => false
+        }
     }
 
     /// 是否为目录
     public func isDirectory(): Bool {
-        return entryType == DirEntryType.Directory
+        match (entryType) {
+            case Directory => true
+            case _ => false
+        }
     }
 
     /// 是否为符号链接
     public func isSymlink(): Bool {
-        return entryType == DirEntryType.Symlink
+        match (entryType) {
+            case Symlink => true
+            case _ => false
+        }
     }
 }
 
@@ -132,10 +142,10 @@ public class DirIterator {
             var name = StringBuilder()
             var i = 0
             while (i < 256) {
-                let bytePtr = CPointer<Int8>(entry) + IntNative(nameOffset + i)
+                let bytePtr = CPointer<Int8>(entry) + Int64(nameOffset + i)
                 let b = Int32(bytePtr.read())
                 if (b == 0) { break }
-                name.append(Char(b))
+                name.append(Rune(b))
                 i += 1
             }
             let entryName = name.toString()
@@ -144,7 +154,7 @@ public class DirIterator {
                 return next()
             }
             // 读取 d_type (偏移 18)
-            let dtypePtr = CPointer<UInt8>(entry) + IntNative(18)
+            let dtypePtr = CPointer<UInt8>(entry) + Int64(18)
             let dtype = dtypePtr.read()
             return Some(DirEntry(entryName, DirEntryType.fromDType(dtype)))
         }
@@ -156,8 +166,10 @@ public class DirIterator {
         var result = ArrayList<DirEntry>()
         while (true) {
             let entry = next()
-            if (entry == None) { break }
-            result.append(entry.unwrap())
+            match (entry) {
+                case Some(e) => result.append(e)
+                case None => break
+            }
         }
         return result
     }
@@ -166,7 +178,9 @@ public class DirIterator {
     /// 对应 Bun: DirIterator.close()
     public func close(): Unit {
         if (!closed) {
-            closedir(dirPtr)
+            unsafe {
+                closedir(dirPtr)
+            }
             closed = true
         }
     }
@@ -195,12 +209,14 @@ public class DirUtils {
             case Ok(it) =>
                 while (true) {
                     let entry = it.next()
-                    if (entry == None) { break }
-                    let e = entry.unwrap()
-                    let fullPath = Path.join([path, e.name])
-                    callback(fullPath, e)
-                    if (e.isDirectory()) {
-                        walkDir(fullPath, callback)
+                    match (entry) {
+                        case Some(e) =>
+                            let fullPath = Path.join([path, e.name])
+                            callback(fullPath, e)
+                            if (e.isDirectory()) {
+                                walkDir(fullPath, callback)
+                            }
+                        case None => break
                     }
                 }
                 it.close()

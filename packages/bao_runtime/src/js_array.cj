@@ -18,31 +18,25 @@ public class JsArrayOps {
 
     /// 从类数组对象或可迭代对象创建数组 - 对应 Array.from
     public static func from(items: JsValue): JsValue {
-        match (items.valueType) {
-            case JsValueType.Array => {
-                // 直接复制数组
-                match (items.arrayData) {
-                    case Some(arr) => {
-                        let copy = ArrayList<JsValue>()
-                        for (item in arr) {
-                            copy.append(item)
-                        }
-                        return JsValue.array(copy)
-                    }
-                    case None => JsValue.array(ArrayList<JsValue>())
+        if (items.valueType == JsValueType.Array) {
+            if (let Some(arr) <- items.arrayData) {
+                let copy = ArrayList<JsValue>()
+                for (item in arr) {
+                    copy.append(item)
                 }
+                return JsValue.array(copy)
             }
-            case JsValueType.String => {
-                // 字符串转为字符数组
-                let arr = ArrayList<JsValue>()
-                let s = items.stringValue.toString()
-                for (c in s) {
-                    arr.append(JsValue(BaoString(c.toString())))
-                }
-                return JsValue.array(arr)
-            }
-            case _ => JsValue.array(ArrayList<JsValue>())
+            return JsValue.array(ArrayList<JsValue>())
         }
+        if (items.valueType == JsValueType.String) {
+            let arr = ArrayList<JsValue>()
+            let s = items.stringValue.toString()
+            for (c in s) {
+                arr.append(JsValue(BaoString(c.toString())))
+            }
+            return JsValue.array(arr)
+        }
+        return JsValue.array(ArrayList<JsValue>())
     }
 
     /// 从参数列表创建数组 - 对应 Array.of
@@ -207,7 +201,7 @@ public class JsArrayOps {
             }
             sb.appendString(array[i].toString())
         }
-        return sb.toString()
+        return sb.build().toString()
     }
 
     /// 反转数组 - 对应 Array.prototype.reverse

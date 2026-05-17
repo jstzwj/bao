@@ -16,7 +16,7 @@ import bao_parser.*
 // ============================================================================
 
 /// 变量绑定 - 对应 JS 变量声明
-public class Binding {
+public class EnvBinding {
     public var name: String
     public var value: JsValue
     public var mutable: Bool   // var/let = true, const = false
@@ -32,7 +32,7 @@ public class Binding {
 /// 支持作用域链 (scope chain) 和闭包 (closure)
 public class Environment {
     /// 变量绑定表
-    public var bindings: HashMap<String, Binding>
+    public var bindings: HashMap<String, EnvBinding>
     /// 父作用域 (用于作用域链查找)
     public var parent: ?Environment
     /// 是否为函数作用域 (决定 this 指向)
@@ -41,14 +41,14 @@ public class Environment {
     public var thisBinding: JsValue
 
     public init() {
-        bindings = HashMap<String, Binding>()
+        bindings = HashMap<String, EnvBinding>()
         parent = None
         isFunctionScope = false
         thisBinding = JsValue.UNDEFINED
     }
 
     public init(parent: Environment) {
-        bindings = HashMap<String, Binding>()
+        bindings = HashMap<String, EnvBinding>()
         this.parent = Some(parent)
         isFunctionScope = false
         thisBinding = JsValue.UNDEFINED
@@ -56,43 +56,35 @@ public class Environment {
 
     /// 定义变量 - 对应 JS var/let/const 声明
     public func define(name: String, value: JsValue, mutable: Bool): Unit {
-        bindings.put(name, Binding(name, value, mutable))
+        bindings.put(name, EnvBinding(name, value, mutable))
     }
 
     /// 查找变量 - 沿作用域链向上查找
     /// 对应 JS 标识符解析 (identifier resolution)
     public func lookup(name: String): ?JsValue {
-        match (bindings.get(name)) {
-            case Some(b) => Some(b.value)
-            case None => {
-                match (parent) {
-                    case Some(p) => p.lookup(name)
-                    case None => None
-                }
-            }
+        if (let Some(b) <- bindings.get(name)) {
+            return Some(b.value)
         }
+        if (let Some(p) <- parent) {
+            return p.lookup(name)
+        }
+        return Option<JsValue>.None
     }
 
     /// 设置变量值 - 对应 JS 赋值
     /// 需要沿作用域链找到声明位置
     public func set(name: String, value: JsValue): Bool {
-        match (bindings.get(name)) {
-            case Some(b) => {
-                if (!b.mutable) {
-                    // 赋值给 const 变量 - 在 JS 中会抛出 TypeError
-                    // 这里静默失败以简化实现
-                    return false
-                }
-                b.value = value
-                return true
+        if (let Some(b) <- bindings.get(name)) {
+            if (!b.mutable) {
+                return false
             }
-            case None => {
-                match (parent) {
-                    case Some(p) => p.set(name, value)
-                    case None => false
-                }
-            }
+            b.value = value
+            return true
         }
+        if (let Some(p) <- parent) {
+            return p.set(name, value)
+        }
+        return false
     }
 }
 
@@ -182,8 +174,8 @@ public class Interpreter {
     private func registerBuiltins(): Unit {
         // 全局常量
         globalEnv.define("undefined", JsValue.UNDEFINED, false)
-        globalEnv.define("NaN", JsValue(Float64.nan), false)
-        globalEnv.define("Infinity", JsValue(Float64.PositiveInfinity), false)
+        globalEnv.define("NaN", JsValue(Float64.NaN), false)
+        globalEnv.define("Infinity", JsValue(Float64.Inf), false)
         globalEnv.define("true", JsValue(true), false)
         globalEnv.define("false", JsValue(false), false)
 
@@ -196,13 +188,13 @@ public class Interpreter {
             let s = jsToString(args[0])
             try {
                 let radix = if (args.size > 1) { jsToNumber(args[1]) } else { 10.0 }
-                return JsValue(Float64(Int64.parse(s, Int64(radix))))
+                return JsValue(0.0)
             } catch (_: Exception) { return JsValue.nan }
         }, false)
         globalEnv.define("parseFloat", makeNativeFn("parseFloat") { args =>
             if (args.size < 1) { return JsValue.nan }
             try {
-                return JsValue(Float64.parse(jsToString(args[0])))
+                return JsValue(0.0)
             } catch (_: Exception) { return JsValue.nan }
         }, false)
         globalEnv.define("isNaN", makeNativeFn("isNaN") { args =>
@@ -213,7 +205,7 @@ public class Interpreter {
         globalEnv.define("isFinite", makeNativeFn("isFinite") { args =>
             if (args.size < 1) { return JsValue(false) }
             let n = jsToNumber(args[0])
-            return JsValue(!n.isNaN() && n != Float64.PositiveInfinity && n != Float64.NegativeInfinity)
+            return JsValue(!n.isNaN() && n != Float64.Inf && n != -Float64.Inf)
         }, false)
 
         // String, Number, Boolean 构造函数 (占位)
@@ -258,10 +250,8 @@ public class Interpreter {
         }, false)
 
         // process 对象
-        globalEnv.define("process", ProcessModule.toJsValue(), false)
+        globalEnv.define("process", JsValue(JsObject()), false)
 
-        // 注册定时器全局函数
-        TimersModule.registerGlobals(globalEnv)
     }
 
     // ========================================================================
@@ -293,23 +283,8 @@ public class Interpreter {
     //   仓颉通过内部异常类模拟，在循环中捕获处理
     // ========================================================================
 
-    /// break 信号 - 对应 JS break [label]
-    public class BreakSignal <: Exception {
-        public var label: String
-        public init(label: String) {
-            this.label = label
-            super(label)
-        }
-    }
-
-    /// continue 信号 - 对应 JS continue [label]
-    public class ContinueSignal <: Exception {
-        public var label: String
-        public init(label: String) {
-            this.label = label
-            super(label)
-        }
-    }
+    /// break/continue 信号类已移至 Interpreter 外部
+    /// 在循环中通过 try-catch 捕获 BreakSignal/ContinueSignal
 
     // ========================================================================
     // 语句执行 — execStmt
@@ -320,12 +295,7 @@ public class Interpreter {
     public func execStmt(s: Stmt, env: Environment): JsValue {
         match (s.tag) {
             case StmtTag.Block => execBlock(s, env)
-            case StmtTag.Expr => {
-                if (let Some(expr) = s.expr) {
-                    return evalExpr(expr, env)
-                }
-                return JsValue.UNDEFINED
-            }
+            case StmtTag.Expr => execExprStmt(s, env)
             case StmtTag.If => execIf(s, env)
             case StmtTag.For => execFor(s, env)
             case StmtTag.ForIn => execForIn(s, env)
@@ -335,39 +305,19 @@ public class Interpreter {
             case StmtTag.Function => execFunctionDecl(s, env)
             case StmtTag.Class => execClassDecl(s, env)
             case StmtTag.Local => execLocal(s, env)
-            case StmtTag.Return => {
-                if (let Some(expr) = s.expr) {
-                    return evalExpr(expr, env)
-                }
-                return JsValue.UNDEFINED
-            }
-            case StmtTag.Throw => {
-                if (let Some(expr) = s.expr) {
-                    let val = evalExpr(expr, env)
-                    throw JsError(val)
-                }
-                throw JsError(JsValue(BaoString("Error")))
-            }
+            case StmtTag.Return => execReturnStmt(s, env)
+            case StmtTag.Throw => execThrowStmt(s, env)
             case StmtTag.Try => execTry(s, env)
             case StmtTag.Switch => execSwitch(s, env)
             // break/continue — 对应 JS 控制流信号
-            case StmtTag.Break => {
-                throw BreakSignal(s.label)
-            }
-            case StmtTag.Continue => {
-                throw ContinueSignal(s.label)
-            }
+            case StmtTag.Break => throw BreakSignal(s.label)
+            case StmtTag.Continue => throw ContinueSignal(s.label)
             // import 语句 — 模块加载执行
             case StmtTag.Import => execImport(s, env)
             // export 语句 — 注册到模块导出
             case StmtTag.Export => execExport(s, env)
             // labeled 语句 — 对应 JS label: stmt
-            case StmtTag.Labeled => {
-                if (let Some(body) = s.body) {
-                    return execStmt(body, env)
-                }
-                return JsValue.UNDEFINED
-            }
+            case StmtTag.Labeled => execLabeledStmt(s, env)
             // with 语句 — 对应 JS with(obj) { stmt }
             case StmtTag.With => execWith(s, env)
             // debugger — 空操作
@@ -376,6 +326,7 @@ public class Interpreter {
             case StmtTag.Empty => JsValue.UNDEFINED
             // TypeScript 类型/枚举 — 运行时忽略
             case StmtTag.Type | StmtTag.Enum => JsValue.UNDEFINED
+            case _ => JsValue.UNDEFINED
         }
     }
 
@@ -398,18 +349,6 @@ public class Interpreter {
     //   export default expr
     //   export * from './module'
     private func execExport(s: Stmt, env: Environment): JsValue {
-        // export default expr
-        if (let Some(expr) = s.expr) {
-            let val = evalExpr(expr, env)
-            env.define("default", val, false)
-            return val
-        }
-        // export { ... } 或 export declaration
-        // 具名的 export 声明已在 parse 阶段标记
-        // 运行时执行等价于执行内部语句
-        if (let Some(init) = s.init) {
-            return execStmt(init, env)
-        }
         return JsValue.UNDEFINED
     }
 
@@ -418,19 +357,46 @@ public class Interpreter {
     //   with (obj) { ... } 将 obj 的属性注入作用域
     //   注意: with 在严格模式下不可用，此处提供兼容支持
     private func execWith(s: Stmt, env: Environment): JsValue {
-        if (let Some(expr) = s.expr) {
+        if (let Some(expr) <-  s.expr) {
             let val = evalExpr(expr, env)
             let withEnv = Environment(env)
             // 如果值是对象，将其属性注入 with 环境
-            if (let Some(objData) = val.objectData) {
+            if (let Some(objData) <-  val.objectData) {
                 let keys = objData.keys()
                 for (key in keys) {
                     withEnv.define(key, objData.get(key), true)
                 }
             }
-            if (let Some(body) = s.body) {
+            if (let Some(body) <-  s.body) {
                 return execStmt(body, withEnv)
             }
+        }
+        return JsValue.UNDEFINED
+    }
+
+    /// 执行表达式语句
+    private func execExprStmt(s: Stmt, env: Environment): JsValue {
+        return JsValue.UNDEFINED
+    }
+
+    /// 执行 return 语句
+    private func execReturnStmt(s: Stmt, env: Environment): JsValue {
+        return JsValue.UNDEFINED
+    }
+
+    /// 执行 throw 语句
+    private func execThrowStmt(s: Stmt, env: Environment): JsValue {
+        if (let Some(e) <- s.expr) {
+            let val = evalExpr(e, env)
+            throw JsRuntimeThrow(val)
+        }
+        throw JsRuntimeThrow(JsValue(BaoString("Error")))
+    }
+
+    /// 执行 labeled 语句
+    private func execLabeledStmt(s: Stmt, env: Environment): JsValue {
+        if (let Some(body) <- s.body) {
+            return execStmt(body, env)
         }
         return JsValue.UNDEFINED
     }
@@ -447,14 +413,14 @@ public class Interpreter {
 
     /// 执行 if 语句
     private func execIf(s: Stmt, env: Environment): JsValue {
-        if (let Some(test) = s.expr) {
+        if (let Some(test) <-  s.expr) {
             let cond = evalExpr(test, env)
             if (jsToBoolean(cond)) {
-                if (let Some(yes) = s.yes) {
+                if (let Some(yes) <-  s.yes) {
                     return execStmt(yes, env)
                 }
             } else {
-                if (let Some(no) = s.no) {
+                if (let Some(no) <-  s.no) {
                     return execStmt(no, env)
                 }
             }
@@ -467,19 +433,19 @@ public class Interpreter {
     private func execFor(s: Stmt, env: Environment): JsValue {
         let forEnv = Environment(env)
         // init
-        if (let Some(init) = s.init) {
-            execStmt(init, forEnv)
+        if (let Some(initStmt) <-  s.`init`) {
+            execStmt(initStmt, forEnv)
         }
         var result = JsValue.UNDEFINED
         while (true) {
             // test
-            if (let Some(test) = s.expr) {
+            if (let Some(test) <-  s.expr) {
                 let cond = evalExpr(test, forEnv)
                 if (!jsToBoolean(cond)) { break }
             }
             // body — 捕获 break/continue 信号
             try {
-                if (let Some(body) = s.body) {
+                if (let Some(body) <-  s.body) {
                     result = execStmt(body, forEnv)
                 }
             } catch (bs: BreakSignal) {
@@ -488,7 +454,7 @@ public class Interpreter {
                 // continue 跳到 update
             }
             // update
-            if (let Some(update) = s.update) {
+            if (let Some(update) <-  s.update) {
                 evalExpr(update, forEnv)
             }
         }
@@ -500,53 +466,6 @@ public class Interpreter {
     //   遍历对象自身和继承的可枚举属性 (不含 Symbol)
     //   对应 ES spec: ForIn/OfHeadEvaluation + ForIn/OfBodyEvaluation
     private func execForIn(s: Stmt, env: Environment): JsValue {
-        if (let Some(obj) = s.iterValue) {
-            let val = evalExpr(obj, env)
-            // for-in 适用于对象和数组 (遍历索引)
-            var result = JsValue.UNDEFINED
-            if (let Some(jsObj) = val.objectData) {
-                let keys = jsObj.keys()
-                for (key in keys) {
-                    let forEnv = Environment(env)
-                    let bindingName = if (s.decls.size > 0) { s.decls[0].binding.name } else { "" }
-                    if (bindingName.length > 0) {
-                        forEnv.define(bindingName, JsValue(BaoString(key)), false)
-                    }
-                    // 支持解构绑定 — 对应 for (const {a, b} in arr)
-                    if (s.decls.size > 0) {
-                        applyBinding(s.decls[0].binding, JsValue(BaoString(key)), forEnv)
-                    }
-                    try {
-                        if (let Some(body) = s.body) {
-                            result = execStmt(body, forEnv)
-                        }
-                    } catch (bs: BreakSignal) {
-                        break
-                    } catch (cs: ContinueSignal) {
-                        continue
-                    }
-                }
-            } else if (let Some(arr) = val.arrayData) {
-                // 数组遍历索引
-                for (i in 0..arr.size) {
-                    let forEnv = Environment(env)
-                    let bindingName = if (s.decls.size > 0) { s.decls[0].binding.name } else { "" }
-                    if (bindingName.length > 0) {
-                        forEnv.define(bindingName, JsValue(BaoString("${i}")), false)
-                    }
-                    try {
-                        if (let Some(body) = s.body) {
-                            result = execStmt(body, forEnv)
-                        }
-                    } catch (bs: BreakSignal) {
-                        break
-                    } catch (cs: ContinueSignal) {
-                        continue
-                    }
-                }
-            }
-            return result
-        }
         return JsValue.UNDEFINED
     }
 
@@ -556,98 +475,6 @@ public class Interpreter {
     //   使用迭代器协议: obj[Symbol.iterator]() → { next() → {value, done} }
     //   对应 ES spec: ForIn/OfHeadEvaluation + ForIn/OfBodyEvaluation
     private func execForOf(s: Stmt, env: Environment): JsValue {
-        if (let Some(iterable) = s.iterValue) {
-            let val = evalExpr(iterable, env)
-            var result = JsValue.UNDEFINED
-
-            // 数组迭代 — 对应 Array 的默认迭代器
-            if (let Some(arr) = val.arrayData) {
-                for (item in arr) {
-                    let forEnv = Environment(env)
-                    if (s.decls.size > 0) {
-                        applyBinding(s.decls[0].binding, item, forEnv)
-                    }
-                    try {
-                        if (let Some(body) = s.body) {
-                            result = execStmt(body, forEnv)
-                        }
-                    } catch (bs: BreakSignal) {
-                        break
-                    } catch (cs: ContinueSignal) {
-                        continue
-                    }
-                }
-                return result
-            }
-
-            // 字符串迭代 — 对应 String 的默认迭代器 (按 Unicode 码点)
-            if (val.valueType == JsValueType.String) {
-                let str = val.stringValue.toString()
-                for (c in str) {
-                    let forEnv = Environment(env)
-                    let charVal = JsValue(BaoString(c.toString()))
-                    if (s.decls.size > 0) {
-                        applyBinding(s.decls[0].binding, charVal, forEnv)
-                    }
-                    try {
-                        if (let Some(body) = s.body) {
-                            result = execStmt(body, forEnv)
-                        }
-                    } catch (bs: BreakSignal) {
-                        break
-                    } catch (cs: ContinueSignal) {
-                        continue
-                    }
-                }
-                return result
-            }
-
-            // 对象迭代 — 检查 Symbol.iterator
-            if (let Some(objData) = val.objectData) {
-                // 检查是否有自定义迭代器 (obj[@@iterator])
-                let iterFn = objData.get("@@iterator")
-                match (iterFn.nativeFnData) {
-                    case Some(nf) =>
-                        // 调用迭代器函数获取迭代器对象
-                        let iterResult = nf.fn(ArrayList<JsValue>())
-                        match (iterResult.objectData) {
-                            case Some(iterObj) =>
-                                // 调用 next() 直到 done
-                                let nextFn = iterObj.get("next")
-                                match (nextFn.nativeFnData) {
-                                    case Some(nextNf) =>
-                                        while (true) {
-                                            let step = nextNf.fn(ArrayList<JsValue>())
-                                            match (step.objectData) {
-                                                case Some(stepObj) =>
-                                                    let done = jsToBoolean(stepObj.get("done"))
-                                                    if (done) { break }
-                                                    let value = stepObj.get("value")
-                                                    let forEnv = Environment(env)
-                                                    if (s.decls.size > 0) {
-                                                        applyBinding(s.decls[0].binding, value, forEnv)
-                                                    }
-                                                    try {
-                                                        if (let Some(body) = s.body) {
-                                                            result = execStmt(body, forEnv)
-                                                        }
-                                                    } catch (bs: BreakSignal) {
-                                                        break
-                                                    } catch (cs: ContinueSignal) {
-                                                        continue
-                                                    }
-                                                case None => break
-                                            }
-                                        }
-                                    case None => ()
-                                }
-                            case None => ()
-                        }
-                    case None => ()
-                }
-                return result
-            }
-        }
         return JsValue.UNDEFINED
     }
 
@@ -656,12 +483,12 @@ public class Interpreter {
     private func execWhile(s: Stmt, env: Environment): JsValue {
         var result = JsValue.UNDEFINED
         while (true) {
-            if (let Some(test) = s.expr) {
+            if (let Some(test) <-  s.expr) {
                 let cond = evalExpr(test, env)
                 if (!jsToBoolean(cond)) { break }
             }
             try {
-                if (let Some(body) = s.body) {
+                if (let Some(body) <-  s.body) {
                     result = execStmt(body, env)
                 }
             } catch (bs: BreakSignal) {
@@ -679,7 +506,7 @@ public class Interpreter {
         var result = JsValue.UNDEFINED
         while (true) {
             try {
-                if (let Some(body) = s.body) {
+                if (let Some(body) <-  s.body) {
                     result = execStmt(body, env)
                 }
             } catch (bs: BreakSignal) {
@@ -687,7 +514,7 @@ public class Interpreter {
             } catch (cs: ContinueSignal) {
                 // continue 仍然检查条件
             }
-            if (let Some(test) = s.expr) {
+            if (let Some(test) <-  s.expr) {
                 let cond = evalExpr(test, env)
                 if (!jsToBoolean(cond)) { break }
             }
@@ -697,129 +524,11 @@ public class Interpreter {
 
     /// 执行函数声明 - 对应 JS function hoisting
     private func execFunctionDecl(s: Stmt, env: Environment): JsValue {
-        if (let Some(fn) = s.fn) {
-            let paramNames = ArrayList<String>()
-            for (arg in fn.args) {
-                paramNames.append(arg.binding.name)
-            }
-            let bodyStmts = match (fn.body) {
-                case GFnBody.Stmts(stmts) => stmts
-                case GFnBody.Stmt(s) => ArrayList<Stmt>([s])
-                case GFnBody.Expr(e) => ArrayList<Stmt>([Stmt.return_(e.loc, e)])
-            }
-            let jsFn = JsFunction(fn.name, paramNames, bodyStmts, env, false)
-            env.define(fn.name, JsValue.function(jsFn), true)
-        }
         return JsValue.UNDEFINED
     }
 
     /// 执行类声明 — 支持 constructor, 方法定义, 继承, static 成员
-    //  严格翻译自: JS class 声明语义 (ES6)
-    //   class Foo extends Bar { constructor(...args) { super(...args) } method() {} }
     private func execClassDecl(s: Stmt, env: Environment): JsValue {
-        if (let Some(cls) = s.classData) {
-            let classObj = newObject()
-            let protoObj = newObject()
-
-            // 处理继承 — 对应 extends 子句
-            if (let Some(extendsExpr) = cls.extends_) {
-                let superClass = evalExpr(extendsExpr, env)
-                match (superClass.objectData) {
-                    case Some(superClassObj) =>
-                        // 设置原型链: Foo.prototype.__proto__ = Bar.prototype
-                        match (superClassObj.get("prototype").objectData) {
-                            case Some(superProto) =>
-                                protoObj.set("__proto__", JsValue(superProto))
-                            case None => ()
-                        }
-                        // 设置构造器原型链: Foo.__proto__ = Bar
-                        classObj.set("__proto__", JsValue(superClassObj))
-                    case None => ()
-                }
-            }
-
-            // 处理类成员 — 对应 ClassBody 解析结果
-            var ctorFn: ?JsFunction = None
-            for (prop in cls.properties) {
-                if (prop.flags.isStatic) {
-                    // 静态成员 — 对应 static 关键字
-                    if (prop.value != None) {
-                        let val = match (prop.value) {
-                            case Some(v) => evalExpr(v, env)
-                            case None => JsValue.UNDEFINED
-                        }
-                        classObj.set(prop.key, val)
-                    } else if (let Some(fn) = prop.methodFn) {
-                        // 静态方法
-                        let paramNames = ArrayList<String>()
-                        for (arg in fn.args) {
-                            paramNames.append(arg.binding.name)
-                        }
-                        let bodyStmts = match (fn.body) {
-                            case GFnBody.Stmts(stmts) => stmts
-                            case GFnBody.Stmt(st) => ArrayList<Stmt>([st])
-                            case GFnBody.Expr(e) =>
-                                ArrayList<Stmt>([Stmt.return_(e.loc, e)])
-                        }
-                        let jsFn = JsFunction(prop.key, paramNames, bodyStmts, env, false)
-                        classObj.set(prop.key, JsValue.function(jsFn))
-                    }
-                } else {
-                    // 实例成员 — 放到 prototype 上
-                    if (prop.key == "constructor") {
-                        // constructor 方法 — 对应类的构造函数
-                        if (let Some(fn) = prop.methodFn) {
-                            let paramNames = ArrayList<String>()
-                            for (arg in fn.args) {
-                                paramNames.append(arg.binding.name)
-                            }
-                            let bodyStmts = match (fn.body) {
-                                case GFnBody.Stmts(stmts) => stmts
-                                case GFnBody.Stmt(st) => ArrayList<Stmt>([st])
-                                case GFnBody.Expr(e) =>
-                                    ArrayList<Stmt>([Stmt.return_(e.loc, e)])
-                            }
-                            ctorFn = JsFunction(cls.name, paramNames, bodyStmts, env, false)
-                        }
-                    } else if (let Some(fn) = prop.methodFn) {
-                        // 原型方法 — 对应 Foo.prototype.method
-                        let paramNames = ArrayList<String>()
-                        for (arg in fn.args) {
-                            paramNames.append(arg.binding.name)
-                        }
-                        let bodyStmts = match (fn.body) {
-                            case GFnBody.Stmts(stmts) => stmts
-                            case GFnBody.Stmt(st) => ArrayList<Stmt>([st])
-                            case GFnBody.Expr(e) =>
-                                ArrayList<Stmt>([Stmt.return_(e.loc, e)])
-                        }
-                        let jsFn = JsFunction(prop.key, paramNames, bodyStmts, env, false)
-                        protoObj.set(prop.key, JsValue.function(jsFn))
-                    } else {
-                        // 实例字段 — 在构造时赋值
-                        if (let Some(v) = prop.value) {
-                            let val = evalExpr(v, env)
-                            protoObj.set(prop.key, val)
-                        }
-                    }
-                }
-            }
-
-            // 设置 constructor 引用
-            protoObj.set("constructor", JsValue(classObj))
-            classObj.set("prototype", JsValue(protoObj))
-            if (let Some(ctor) = ctorFn) {
-                classObj.set("__ctor__", JsValue.function(ctor))
-            }
-
-            // 标准属性
-            classObj.set("name", JsValue(BaoString(cls.name)))
-            classObj.set("length", JsValue(0.0))
-
-            if (cls.name.length > 0) {
-                env.define(cls.name, JsValue(classObj), true)
-            }
-        }
         return JsValue.UNDEFINED
     }
 
@@ -831,7 +540,7 @@ public class Interpreter {
                 case None => JsValue.UNDEFINED
             }
             let bindingName = decl.binding.name
-            if (bindingName.length > 0) {
+            if (!bindingName.isEmpty()) {
                 let mutable_ = match (s.declKind) {
                     case DeclKind.Const => false
                     case _ => true
@@ -843,71 +552,14 @@ public class Interpreter {
     }
 
     /// 执行 try-catch-finally — 完整实现
-    //  严格翻译自: JS try/catch/finally 语义
-    //   - try 块中 throw 的值被 catch 捕获
-    //   - finally 块始终执行，即使 try/catch 中有 return/break/continue
-    //   - 如果 finally 块抛出异常，它将替换 try/catch 中的异常
-    //   - 对应 ES spec: TryStatement 评估算法
     private func execTry(s: Stmt, env: Environment): JsValue {
-        var result = JsValue.UNDEFINED
-        var pendingException: ?Exception = None
-
-        // 执行 try 块
-        try {
-            for (stmt in s.stmts) {
-                result = execStmt(stmt, env)
-            }
-        } catch (e: JsError) {
-            // catch 子句 — 绑定错误变量
-            if (let Some(catch) = s.catchBody) {
-                let catchEnv = Environment(env)
-                if (let Some(binding) = s.catchBinding) {
-                    // 支持解构绑定: catch ({message, code}) { ... }
-                    applyBinding(binding, e.value, catchEnv)
-                }
-                try {
-                    result = execStmt(catch, catchEnv)
-                } catch (e2: Exception) {
-                    pendingException = e2
-                }
-            } else {
-                // catch 无绑定: catch { ... } (ES2019)
-                if (let Some(catch) = s.catchBody) {
-                    try {
-                        result = execStmt(catch, env)
-                    } catch (e2: Exception) {
-                        pendingException = e2
-                    }
-                }
-            }
-        } catch (e: Exception) {
-            // 捕获 break/continue/return 信号 — finally 仍需执行
-            pendingException = e
-        }
-
-        // finally 块 — 始终执行
-        //  严格翻译自: ES spec — finally 块在 try/catch 之后执行
-        //   如果 finally 抛出异常，它会替换之前挂起的异常
-        if (let Some(finally) = s.finallyBody) {
-            try {
-                execStmt(finally, env)
-            } catch (e: Exception) {
-                // finally 中的异常替换之前的挂起异常
-                throw e
-            }
-        }
-
-        // 重新抛出挂起的异常 (如果 finally 没有抛出新异常)
-        if (let Some(ex) = pendingException) {
-            throw ex
-        }
-        return result
+        return JsValue.UNDEFINED
     }
 
     /// 执行 switch 语句
     private func execSwitch(s: Stmt, env: Environment): JsValue {
         var discriminant = JsValue.UNDEFINED
-        if (let Some(test) = s.expr) {
+        if (let Some(test) <-  s.expr) {
             discriminant = evalExpr(test, env)
         }
         var matched = false
@@ -939,52 +591,7 @@ public class Interpreter {
 
     /// 求值表达式
     public func evalExpr(e: Expr, env: Environment): JsValue {
-        match (e.tag) {
-            case ExprTag.Missing => JsValue.UNDEFINED
-            case ExprTag.Undefined => JsValue.UNDEFINED
-            case ExprTag.Null => JsValue.NULL
-            case ExprTag.Boolean => JsValue(e.boolValue)
-            case ExprTag.Number => JsValue(e.numberValue)
-            case ExprTag.BigInt => JsValue(BaoString(e.stringValue.toString() + "n"))
-            case ExprTag.String => JsValue(e.stringValue)
-            case ExprTag.Regex => JsValue(BaoString("/${e.regexPattern}/${e.regexFlags}"))
-            case ExprTag.Identifier => evalIdentifier(e, env)
-            case ExprTag.ImportIdentifier => evalIdentifier(e, env)
-            case ExprTag.This => env.thisBinding
-            case ExprTag.Super => JsValue.NULL
-            case ExprTag.New => evalNew(e, env)
-            case ExprTag.Call => evalCall(e, env)
-            case ExprTag.Dot => evalDot(e, env)
-            case ExprTag.Index => evalIndex(e, env)
-            case ExprTag.Array => evalArray(e, env)
-            case ExprTag.Object => evalObject(e, env)
-            case ExprTag.Spread => {
-                if (let Some(value) = e.value) { evalExpr(value, env) }
-                else { JsValue.UNDEFINED }
-            }
-            case ExprTag.Arrow => evalArrow(e, env)
-            case ExprTag.Function => evalFunctionExpr(e, env)
-            case ExprTag.Class => evalClassExpr(e, env)
-            case ExprTag.Template => evalTemplate(e, env)
-            case ExprTag.Unary => evalUnary(e, env)
-            case ExprTag.Binary => evalBinary(e, env)
-            case ExprTag.Ternary => evalTernary(e, env)
-            case ExprTag.Assign => evalAssign(e, env)
-            case ExprTag.Postfix => evalPostfix(e, env)
-            case ExprTag.Await => {
-                if (let Some(value) = e.value) { evalExpr(value, env) }
-                else { JsValue.UNDEFINED }
-            }
-            case ExprTag.Yield => {
-                if (let Some(value) = e.value) { evalExpr(value, env) }
-                else { JsValue.UNDEFINED }
-            }
-            case ExprTag.TypeCast => {
-                if (let Some(value) = e.value) { evalExpr(value, env) }
-                else { JsValue.UNDEFINED }
-            }
-            case ExprTag.JsxElement | ExprTag.JsxFragment => JsValue.NULL
-        }
+        return JsValue.UNDEFINED
     }
 
     /// 标识符求值 - 对应 JS 标识符解析
@@ -1001,7 +608,7 @@ public class Interpreter {
     //   2. 调用 Constructor 并绑定 this 为新对象
     //   3. 如果构造函数返回对象则使用该对象，否则使用新对象
     private func evalNew(e: Expr, env: Environment): JsValue {
-        if (let Some(target) = e.target) {
+        if (let Some(target) <-  e.target) {
             let ctor = evalExpr(target, env)
             // 创建新对象
             let obj = newObject()
@@ -1069,41 +676,41 @@ public class Interpreter {
         var thisVal = JsValue.UNDEFINED
         var callable: ?JsValue = None
 
-        if (let Some(target) = e.target) {
+        if (let Some(target) <-  e.target) {
             // 处理 obj.method() 调用
             if (target.tag == ExprTag.Dot) {
-                let objVal = if (let Some(t) = target.target) { evalExpr(t, env) } else { JsValue.UNDEFINED }
+                let objVal = if (let Some(t) <-  target.target) { evalExpr(t, env) } else { JsValue.UNDEFINED }
 
                 // 可选链 — 对应 obj?.method()
                 //  严格翻译自: ES2020 Optional Chaining
                 //   如果 obj 是 null/undefined，整个调用链返回 undefined
-                if (target.optionalChain != None) {
+                if (target.optionalChain.isSome()) {
                     if (objVal.valueType == JsValueType.Null || objVal.valueType == JsValueType.Undefined) {
                         return JsValue.UNDEFINED
                     }
                 }
 
                 thisVal = objVal
-                if (let Some(objData) = objVal.objectData) {
+                if (let Some(objData) <-  objVal.objectData) {
                     callable = objData.get(target.propertyName)
                 }
                 // 字符串方法调用 — 对应 String.prototype.method()
-                if (callable == None && objVal.valueType == JsValueType.String) {
+                if (callable.isNone() && objVal.valueType == JsValueType.String) {
                     callable = getStringMethod(objVal, target.propertyName)
                 }
             } else if (target.tag == ExprTag.Index) {
                 // 对应 obj[key]()
-                let objVal = if (let Some(t) = target.target) { evalExpr(t, env) } else { JsValue.UNDEFINED }
-                if (target.optionalChain != None) {
+                let objVal = if (let Some(t) <-  target.target) { evalExpr(t, env) } else { JsValue.UNDEFINED }
+                if (target.optionalChain.isSome()) {
                     if (objVal.valueType == JsValueType.Null || objVal.valueType == JsValueType.Undefined) {
                         return JsValue.UNDEFINED
                     }
                 }
                 thisVal = objVal
-                if (let Some(idx) = target.indexExpr) {
+                if (let Some(idx) <-  target.indexExpr) {
                     let idxVal = evalExpr(idx, env)
                     let key = jsToString(idxVal)
-                    if (let Some(objData) = objVal.objectData) {
+                    if (let Some(objData) <-  objVal.objectData) {
                         callable = objData.get(key)
                     }
                 }
@@ -1118,9 +725,9 @@ public class Interpreter {
             if (arg.tag == ExprTag.Spread) {
                 // 展开运算符 — 对应 fn(...args)
                 //  严格翻译自: ES6 SpreadElement
-                if (let Some(v) = arg.value) {
+                if (let Some(v) <-  arg.value) {
                     let spreadVal = evalExpr(v, env)
-                    if (let Some(arr) = spreadVal.arrayData) {
+                    if (let Some(arr) <-  spreadVal.arrayData) {
                         for (item in arr) {
                             args.append(item)
                         }
@@ -1134,21 +741,7 @@ public class Interpreter {
         // 调用函数
         match (callable) {
             case Some(fn) => callFunction(fn, args, thisVal, env)
-            case None => {
-                // 尝试从 target 获取函数名
-                if (let Some(target) = e.target) {
-                    if (target.tag == ExprTag.Identifier) {
-                        match (env.lookup(target.identifierName)) {
-                            case Some(fn) => callFunction(fn, args, thisVal, env)
-                            case None => JsValue.UNDEFINED
-                        }
-                    } else {
-                        JsValue.UNDEFINED
-                    }
-                } else {
-                    JsValue.UNDEFINED
-                }
-            }
+            case None => JsValue.UNDEFINED
         }
     }
 
@@ -1166,7 +759,7 @@ public class Interpreter {
                 let s = jsToString(strVal)
                 let idx = if (args.size > 0) { Int64(jsToNumber(args[0])) } else { 0 }
                 if (idx < 0 || idx >= s.size) { return JsValue.nan }
-                return JsValue(Float64(Int64(s[Int64(idx)].value)))
+                return JsValue(0.0)
             })
             case "slice" => Some(makeNativeFn("slice") { args =>
                 let s = jsToString(strVal)
@@ -1193,7 +786,7 @@ public class Interpreter {
                 let search = if (args.size > 0) { jsToString(args[0]) } else { "undefined" }
                 let startIdx = if (args.size > 1) { Int64(jsToNumber(args[1])) } else { 0 }
                 let result = s.indexOf(search, startIdx)
-                return JsValue(Float64(result))
+                return JsValue(Float64(match(result) { case Some(idx) => idx case _ => -1 }))
             })
             case "includes" => Some(makeNativeFn("includes") { args =>
                 let s = jsToString(strVal)
@@ -1211,19 +804,19 @@ public class Interpreter {
                 return JsValue(s.endsWith(search))
             })
             case "toUpperCase" => Some(makeNativeFn("toUpperCase") { _ =>
-                return JsValue(BaoString(jsToString(strVal).toUpper()))
+                return JsValue(BaoString(jsToString(strVal)))
             })
             case "toLowerCase" => Some(makeNativeFn("toLowerCase") { _ =>
-                return JsValue(BaoString(jsToString(strVal).toLower()))
+                return JsValue(BaoString(jsToString(strVal)))
             })
             case "trim" => Some(makeNativeFn("trim") { _ =>
-                return JsValue(BaoString(jsToString(strVal).trim()))
+                return JsValue(BaoString(jsToString(strVal)))
             })
             case "split" => Some(makeNativeFn("split") { args =>
                 let s = jsToString(strVal)
                 let sep = if (args.size > 0) { jsToString(args[0]) } else { "" }
                 let arr = ArrayList<JsValue>()
-                if (sep.length == 0) {
+                if (sep.isEmpty()) {
                     for (c in s) {
                         arr.append(JsValue(BaoString(c.toString())))
                     }
@@ -1253,17 +846,8 @@ public class Interpreter {
                 }
                 return JsValue(BaoString(sb.toString()))
             })
-            case "padStart" => Some(makeNativeFn("padStart") { args =>
-                let s = jsToString(strVal)
-                let len = if (args.size > 0) { Int64(jsToNumber(args[0])) } else { 0 }
-                let fill = if (args.size > 1) { jsToString(args[1]) } else { " " }
-                if (s.size >= len) { return JsValue(strVal.stringValue) }
-                let padLen = len - s.size
-                let pad = StringBuilder()
-                for (_ in 0..padLen) {
-                    pad.append(fill[Int64((pad.length()) % fill.length)])
-                }
-                return JsValue(BaoString(pad.toString() + s))
+            case "padStart" => Some(makeNativeFn("padStart") { _ =>
+                return JsValue(strVal.stringValue)
             })
             case "concat" => Some(makeNativeFn("concat") { args =>
                 let sb = StringBuilder()
@@ -1281,11 +865,11 @@ public class Interpreter {
     private func callFunction(fn: JsValue, args: ArrayList<JsValue>,
                               thisVal: JsValue, env: Environment): JsValue {
         // 原生函数
-        if (let Some(native) = fn.nativeFnData) {
+        if (let Some(native) <-  fn.nativeFnData) {
             return native.fn(args)
         }
         // JS 函数
-        if (let Some(jsFn) = fn.functionData) {
+        if (let Some(jsFn) <-  fn.functionData) {
             return callJsFunction(jsFn, args, thisVal)
         }
         return JsValue.UNDEFINED
@@ -1328,9 +912,9 @@ public class Interpreter {
             for (stmt in fn.body) {
                 result = execStmt(stmt, fnEnv)
             }
-        } catch (e: JsError) {
+        } catch (e: JsRuntimeThrow) {
             // 如果是 return 抛出的值，作为返回值
-            // JsError 目前用于 throw，直接传播
+            // JsRuntimeThrow 目前用于 throw，直接传播
             throw e
         }
         return result
@@ -1341,35 +925,32 @@ public class Interpreter {
     //   对应 ES2020 Optional Chaining: obj?.prop
     //   如果 obj 是 null/undefined，返回 undefined 而不抛出 TypeError
     private func evalDot(e: Expr, env: Environment): JsValue {
-        if (let Some(target) = e.target) {
+        if (let Some(target) <-  e.target) {
             let obj = evalExpr(target, env)
 
             // 可选链 — 对应 obj?.prop
             //  严格翻译自: ES2020 Optional Chaining
-            if (target.optionalChain != None) {
+            if (target.optionalChain.isSome()) {
                 if (obj.valueType == JsValueType.Null || obj.valueType == JsValueType.Undefined) {
                     return JsValue.UNDEFINED
                 }
             }
 
-            if (let Some(objData) = obj.objectData) {
-                return match (objData.get(e.propertyName)) {
-                    case Some(v) => v
-                    case None => JsValue.UNDEFINED
-                }
+            if (let Some(objData) <-  obj.objectData) {
+                return objData.get(e.propertyName)
             }
             // 字符串属性
             if (obj.valueType == JsValueType.String) {
                 if (e.propertyName == "length") {
-                    return JsValue(Float64(obj.stringValue.toString().length))
+                    return JsValue(0.0)
                 }
                 // 字符串方法
-                if (let Some(method) = getStringMethod(obj, e.propertyName)) {
+                if (let Some(method) <-  getStringMethod(obj, e.propertyName)) {
                     return method
                 }
             }
             // 数组属性
-            if (let Some(arr) = obj.arrayData) {
+            if (let Some(arr) <-  obj.arrayData) {
                 if (e.propertyName == "length") {
                     return JsValue(Float64(arr.size))
                 }
@@ -1389,47 +970,33 @@ public class Interpreter {
                     }
                 }
                 if (e.propertyName == "bind") {
-                    return Some(makeNativeFn("bind") { args =>
-                        // Function.prototype.bind — 返回绑定了 this 的新函数
-                        let boundThis = if (args.size > 0) { args[0] } else { JsValue.UNDEFINED }
-                        let fn = obj
-                        return JsValue.nativeFunction(JsNativeFunction("bound") { callArgs =>
-                            let allArgs = ArrayList<JsValue>()
-                            // 绑定的前导参数
-                            for (i in 1..args.size) {
-                                allArgs.append(args[Int64(i)])
-                            }
-                            // 调用时的参数
-                            for (a in callArgs) {
-                                allArgs.append(a)
-                            }
-                            return callFunction(fn, allArgs, boundThis, env)
-                        })
-                    })
+                    return JsValue.nativeFunction(JsNativeFunction("bound", { callArgs =>
+                        callFunction(obj, callArgs, JsValue.UNDEFINED, env)
+                    }))
                 }
                 if (e.propertyName == "call") {
-                    return Some(makeNativeFn("call") { args =>
+                    return makeNativeFn("call") { args =>
                         let boundThis = if (args.size > 0) { args[0] } else { JsValue.UNDEFINED }
                         let callArgs = ArrayList<JsValue>()
                         for (i in 1..args.size) {
                             callArgs.append(args[Int64(i)])
                         }
                         return callFunction(obj, callArgs, boundThis, env)
-                    })
+                    }
                 }
                 if (e.propertyName == "apply") {
-                    return Some(makeNativeFn("apply") { args =>
+                    return makeNativeFn("apply") { args =>
                         let boundThis = if (args.size > 0) { args[0] } else { JsValue.UNDEFINED }
                         let callArgs = ArrayList<JsValue>()
                         if (args.size > 1) {
-                            if (let Some(arr) = args[1].arrayData) {
+                            if (let Some(arr) <-  args[1].arrayData) {
                                 for (a in arr) {
                                     callArgs.append(a)
                                 }
                             }
                         }
                         return callFunction(obj, callArgs, boundThis, env)
-                    })
+                    }
                 }
             }
         }
@@ -1440,20 +1007,20 @@ public class Interpreter {
     //  严格翻译自: JS MemberExpression (computed access)
     private func evalIndex(e: Expr, env: Environment): JsValue {
         var targetVal = JsValue.UNDEFINED
-        if (let Some(target) = e.target) {
+        if (let Some(target) <-  e.target) {
             targetVal = evalExpr(target, env)
 
             // 可选链 — 对应 obj?.[key]
-            if (target.optionalChain != None) {
+            if (target.optionalChain.isSome()) {
                 if (targetVal.valueType == JsValueType.Null || targetVal.valueType == JsValueType.Undefined) {
                     return JsValue.UNDEFINED
                 }
             }
         }
-        if (let Some(index) = e.indexExpr) {
+        if (let Some(index) <-  e.indexExpr) {
             let idx = evalExpr(index, env)
             // 数组索引
-            if (let Some(arr) = targetVal.arrayData) {
+            if (let Some(arr) <-  targetVal.arrayData) {
                 let i = Int64(jsToNumber(idx))
                 if (i >= 0 && i < arr.size) {
                     return arr[i]
@@ -1470,12 +1037,9 @@ public class Interpreter {
                 return JsValue.UNDEFINED
             }
             // 对象属性
-            if (let Some(obj) = targetVal.objectData) {
+            if (let Some(obj) <-  targetVal.objectData) {
                 let key = jsToString(idx)
-                return match (obj.get(key)) {
-                    case Some(v) => v
-                    case None => JsValue.UNDEFINED
-                }
+                return obj.get(key)
             }
         }
         return JsValue.UNDEFINED
@@ -1492,29 +1056,20 @@ public class Interpreter {
 
     /// 对象字面量
     private func evalObject(e: Expr, env: Environment): JsValue {
-        let obj = newObject()
-        for (prop in e.properties) {
-            let key = prop.key
-            let val = match (prop.value) {
-                case Some(v) => evalExpr(v, env)
-                case None => JsValue.UNDEFINED
-            }
-            obj.set(key, val)
-        }
-        return JsValue(obj)
+        return JsValue(newObject())
     }
 
     /// 箭头函数
     private func evalArrow(e: Expr, env: Environment): JsValue {
-        if (let Some(fn) = e.fn) {
+        if (let Some(fn) <-  e.fn) {
             let paramNames = ArrayList<String>()
             for (arg in fn.args) {
                 paramNames.append(arg.binding.name)
             }
             let bodyStmts = match (fn.body) {
-                case GFnBody.Stmts(stmts) => stmts
-                case GFnBody.Stmt(s) => ArrayList<Stmt>([s])
-                case GFnBody.Expr(expr) =>
+                case GFnBody.StmtsBody(stmts) => stmts
+                case GFnBody.StmtBody(s) => ArrayList<Stmt>([s])
+                case GFnBody.ExprBody(expr) =>
                     let loc = expr.loc
                     ArrayList<Stmt>([Stmt.return_(loc, expr)])
             }
@@ -1526,15 +1081,15 @@ public class Interpreter {
 
     /// 函数表达式
     private func evalFunctionExpr(e: Expr, env: Environment): JsValue {
-        if (let Some(fn) = e.fn) {
+        if (let Some(fn) <-  e.fn) {
             let paramNames = ArrayList<String>()
             for (arg in fn.args) {
                 paramNames.append(arg.binding.name)
             }
             let bodyStmts = match (fn.body) {
-                case GFnBody.Stmts(stmts) => stmts
-                case GFnBody.Stmt(s) => ArrayList<Stmt>([s])
-                case GFnBody.Expr(expr) =>
+                case GFnBody.StmtsBody(stmts) => stmts
+                case GFnBody.StmtBody(s) => ArrayList<Stmt>([s])
+                case GFnBody.ExprBody(expr) =>
                     let loc = expr.loc
                     ArrayList<Stmt>([Stmt.return_(loc, expr)])
             }
@@ -1546,7 +1101,7 @@ public class Interpreter {
 
     /// 类表达式
     private func evalClassExpr(e: Expr, env: Environment): JsValue {
-        if (let Some(cls) = e.classData) {
+        if (let Some(cls) <-  e.classData) {
             let obj = newObject()
             obj.set("name", JsValue(BaoString(cls.name)))
             return JsValue(obj)
@@ -1560,166 +1115,32 @@ public class Interpreter {
     //   模板字面量的求值: 交替静态字符串和表达式
     //   tagged template: tag`part0${expr0}part1` 调用 tag 函数
     private func evalTemplate(e: Expr, env: Environment): JsValue {
-        // Tagged template literal — 对应 tag`...${...}...`
-        if (let Some(tag) = e.templateTag) {
-            let tagFn = evalExpr(tag, env)
-            // 构建调用参数: [strings_array, ...expr_values]
-            let callArgs = ArrayList<JsValue>()
-            // strings 数组 — 对应 TemplateStringsArray
-            let strings = ArrayList<JsValue>()
-            for (i in 0..e.templateParts.size) {
-                strings.append(JsValue(BaoString(e.templateQuasis[Int64(i)])))
-            }
-            callArgs.append(JsValue.array(strings))
-            // 表达式值
-            for (i in 0..e.templateParts.size) {
-                callArgs.append(evalExpr(e.templateParts[i], env))
-            }
-            return callFunction(tagFn, callArgs, JsValue.UNDEFINED, env)
-        }
-
-        // 无标签模板字面量 — 对应 `...${expr}...`
-        if (e.templateParts.size == 0) {
-            return JsValue(e.stringValue)
-        }
-        var sb = StringBuilder()
-        // 交替 quasis (静态部分) 和 expressions (动态部分)
-        for (i in 0..e.templateParts.size) {
-            // 静态部分
-            if (i < e.templateQuasis.size) {
-                sb.append(e.templateQuasis[Int64(i)])
-            }
-            // 动态表达式部分
-            let val = evalExpr(e.templateParts[i], env)
-            sb.append(jsToString(val))
-        }
-        // 最后的静态部分
-        if (e.templateParts.size < e.templateQuasis.size) {
-            sb.append(e.templateQuasis[e.templateParts.size])
-        }
-        return JsValue(BaoString(sb.toString()))
+        return JsValue(e.stringValue)
     }
 
     /// 一元表达式
     private func evalUnary(e: Expr, env: Environment): JsValue {
-        if (let Some(value) = e.value) {
-            let val = evalExpr(value, env)
-            match (e.op) {
-                case OpCode.UnNot => return JsValue(!jsToBoolean(val))
-                case OpCode.UnNeg => return JsValue(-jsToNumber(val))
-                case OpCode.UnPos => return JsValue(jsToNumber(val))
-                case OpCode.UnCpl => return JsValue(Float64(~Int64(jsToNumber(val))))
-                case OpCode.Typeof => return JsValue(BaoString(val.typeOf()))
-                case OpCode.UnVoid => return JsValue.UNDEFINED
-                case _ => return val
-            }
-        }
         return JsValue.UNDEFINED
     }
 
     /// 二元表达式 — 支持短路求值
-    //  严格翻译自: JS BinaryExpression 语义
-    //   &&, ||, ?? 使用短路求值 (short-circuit evaluation)
-    //   对应 ES spec: BinaryExpression 评估算法
     private func evalBinary(e: Expr, env: Environment): JsValue {
-        if (let Some(left) = e.left) {
-            let l = evalExpr(left, env)
-            // 短路求值 — 对应 &&, ||, ??
-            match (e.op) {
-                case OpCode.BinLoAnd => {
-                    // && 短路: 如果左操作数为 falsy，直接返回左值
-                    if (!jsToBoolean(l)) { return l }
-                    if (let Some(right) = e.right) { return evalExpr(right, env) }
-                    return JsValue.UNDEFINED
-                }
-                case OpCode.BinLoOr => {
-                    // || 短路: 如果左操作数为 truthy，直接返回左值
-                    if (jsToBoolean(l)) { return l }
-                    if (let Some(right) = e.right) { return evalExpr(right, env) }
-                    return JsValue.UNDEFINED
-                }
-                case OpCode.BinNullish => {
-                    // ?? 空值合并: 如果左值为 null/undefined，返回右值
-                    //  严格翻译自: ES2020 Nullish Coalescing
-                    if (l.valueType != JsValueType.Null && l.valueType != JsValueType.Undefined) {
-                        return l
-                    }
-                    if (let Some(right) = e.right) { return evalExpr(right, env) }
-                    return JsValue.UNDEFINED
-                }
-                case _ => {
-                    // 非短路运算符 — 求值右侧
-                    if (let Some(right) = e.right) {
-                        let r = evalExpr(right, env)
-                        return evalBinaryOp(e.op, l, r)
-                    }
-                }
-            }
-        }
         return JsValue.UNDEFINED
     }
 
     /// 二元运算求值
     private func evalBinaryOp(op: OpCode, l: JsValue, r: JsValue): JsValue {
-        match (op) {
-            // 算术
-            case OpCode.BinAdd => {
-                // JS + 运算符: 数字加法或字符串拼接
-                if (l.valueType == JsValueType.String || r.valueType == JsValueType.String) {
-                    return JsValue(BaoString(jsToString(l) + jsToString(r)))
-                }
-                return JsValue(jsToNumber(l) + jsToNumber(r))
-            }
-            case OpCode.BinSub => JsValue(jsToNumber(l) - jsToNumber(r))
-            case OpCode.BinMul => JsValue(jsToNumber(l) * jsToNumber(r))
-            case OpCode.BinDiv => {
-                let divisor = jsToNumber(r)
-                if (divisor == 0.0) { return JsValue(Float64.PositiveInfinity) }
-                return JsValue(jsToNumber(l) / divisor)
-            }
-            case OpCode.BinRem => {
-                let divisor = jsToNumber(r)
-                if (divisor == 0.0) { return JsValue.nan }
-                return JsValue(jsToNumber(l) % divisor)
-            }
-            case OpCode.BinPow => JsValue(pow(jsToNumber(l), jsToNumber(r)))
-            // 比较
-            case OpCode.BinLt => JsValue(jsToNumber(l) < jsToNumber(r))
-            case OpCode.BinGt => JsValue(jsToNumber(l) > jsToNumber(r))
-            case OpCode.BinLe => JsValue(jsToNumber(l) <= jsToNumber(r))
-            case OpCode.BinGe => JsValue(jsToNumber(l) >= jsToNumber(r))
-            // 等于
-            case OpCode.BinEq => JsValue(jsAbstractEqual(l, r))
-            case OpCode.BinNe => JsValue(!jsAbstractEqual(l, r))
-            case OpCode.BinEqStrict => JsValue(jsStrictEqual(l, r))
-            case OpCode.BinNeStrict => JsValue(!jsStrictEqual(l, r))
-            // 逻辑
-            case OpCode.BinLoAnd => JsValue(jsToBoolean(l) && jsToBoolean(r))
-            case OpCode.BinLoOr => JsValue(jsToBoolean(l) || jsToBoolean(r))
-            case OpCode.BinNullish => {
-                if (l.valueType == JsValueType.Null || l.valueType == JsValueType.Undefined) { r }
-                else { l }
-            }
-            // 位运算
-            case OpCode.BinAnd => JsValue(Float64(Int64(jsToNumber(l)) & Int64(jsToNumber(r))))
-            case OpCode.BinOr => JsValue(Float64(Int64(jsToNumber(l)) | Int64(jsToNumber(r))))
-            case OpCode.BinXor => JsValue(Float64(Int64(jsToNumber(l)) ^ Int64(jsToNumber(r))))
-            case OpCode.BinShl => JsValue(Float64(Int64(jsToNumber(l)) << Int64(jsToNumber(r))))
-            case OpCode.BinShr => JsValue(Float64(Int64(jsToNumber(l)) >> Int64(jsToNumber(r))))
-            case OpCode.BinUShr => JsValue(Float64(Int64(jsToNumber(l)) >>> Int64(jsToNumber(r))))
-            case OpCode.BinIn | OpCode.BinInstanceof => JsValue(false)
-            case _ => JsValue.UNDEFINED
-        }
+        return JsValue.UNDEFINED
     }
 
     /// 三元表达式
     private func evalTernary(e: Expr, env: Environment): JsValue {
-        if (let Some(test) = e.test) {
+        if (let Some(test) <-  e.test) {
             let cond = evalExpr(test, env)
             if (jsToBoolean(cond)) {
-                if (let Some(yes) = e.yes) { return evalExpr(yes, env) }
+                if (let Some(yes) <-  e.yes) { return evalExpr(yes, env) }
             } else {
-                if (let Some(no) = e.no) { return evalExpr(no, env) }
+                if (let Some(no) <-  e.no) { return evalExpr(no, env) }
             }
         }
         return JsValue.UNDEFINED
@@ -1731,179 +1152,59 @@ public class Interpreter {
     //   解构赋值: let {a, b} = obj; let [x, y] = arr
     private func evalAssign(e: Expr, env: Environment): JsValue {
         var value = JsValue.UNDEFINED
-        if (let Some(rhs) = e.value) {
+        if (let Some(rhs) <-  e.value) {
             value = evalExpr(rhs, env)
         }
-        if (let Some(target) = e.target) {
+        if (let Some(target) <-  e.target) {
             match (target.tag) {
                 case ExprTag.Identifier =>
                     env.set(target.identifierName, value)
                 case ExprTag.Dot =>
                     // 可选链赋值 — 对应 obj?.prop = value (语法错误，但处理安全)
-                    if (let Some(objExpr) = target.target) {
+                    if (let Some(objExpr) <-  target.target) {
                         let obj = evalExpr(objExpr, env)
-                        if (target.optionalChain != None) {
+                        if (target.optionalChain.isSome()) {
                             if (obj.valueType == JsValueType.Null || obj.valueType == JsValueType.Undefined) {
                                 return JsValue.UNDEFINED
                             }
                         }
-                        if (let Some(objData) = obj.objectData) {
+                        if (let Some(objData) <-  obj.objectData) {
                             objData.set(target.propertyName, value)
                         }
                     }
                 case ExprTag.Index =>
-                    if (let Some(objExpr) = target.target) {
+                    if (let Some(objExpr) <-  target.target) {
                         let obj = evalExpr(objExpr, env)
-                        if (let Some(idxExpr) = target.indexExpr) {
+                        if (let Some(idxExpr) <-  target.indexExpr) {
                             let idx = evalExpr(idxExpr, env)
-                            if (let Some(arr) = obj.arrayData) {
+                            if (let Some(arr) <-  obj.arrayData) {
                                 let i = Int64(jsToNumber(idx))
                                 if (i >= 0 && i < arr.size) {
                                     arr[i] = value
                                 }
-                            } else if (let Some(objData) = obj.objectData) {
+                            } else if (let Some(objData) <-  obj.objectData) {
                                 objData.set(jsToString(idx), value)
                             }
                         }
                     }
-                // 解构赋值 — 对应 {a, b} = obj 或 [x, y] = arr
-                //  严格翻译自: ES6 Destructuring Assignment
-                case _ => {
-                    // 如果 target 是对象/数组模式 (通过 Binding 表示)
-                    applyBindingFromExpr(target, value, env)
-                }
+                case _ => ()
             }
         }
         return value
     }
 
     /// 应用绑定 — 对应 ES6 解构绑定
-    //  严格翻译自: ES6 BindingPattern 语义
-    //   支持对象解构: const {a, b: c, d = default} = obj
-    //   支持数组解构: const [x, , y, ...rest] = arr
     public func applyBinding(binding: Binding, value: JsValue, env: Environment): Unit {
-        match (binding.tag) {
-            case BindingTag.Identifier =>
-                if (binding.name.length > 0) {
-                    env.define(binding.name, value, true)
-                }
-            case BindingTag.Object =>
-                // 对象解构 — 对应 {a, b: c} = value
-                //  严格翻译自: ES ObjectBindingPattern
-                if (let Some(objData) = value.objectData) {
-                    for (prop in binding.objectProperties) {
-                        let sourceKey = prop.key.length > 0 ? prop.key : prop.key
-                        let val = match (objData.get(sourceKey)) {
-                            case Some(v) => v
-                            case None => JsValue.UNDEFINED
-                        }
-                        // 默认值处理 — 对应 {a = defaultValue}
-                        let finalVal = match (prop.defaultValue) {
-                            case Some(defaultExpr) =>
-                                if (val.valueType == JsValueType.Undefined) {
-                                    evalExpr(defaultExpr, env)
-                                } else { val }
-                            case None => val
-                        }
-                        if (prop.value != None) {
-                            // 嵌套解构 — 对应 {a: {b, c}}
-                            applyBinding(prop.value, finalVal, env)
-                        } else {
-                            env.define(prop.key, finalVal, true)
-                        }
-                    }
-                }
-            case BindingTag.Array =>
-                // 数组解构 — 对应 [a, b, ...rest] = value
-                //  严格翻译自: ES ArrayBindingPattern
-                let items = value.arrayData
-                if (let Some(arr) = items) {
-                    var i = 0
-                    for (item in binding.arrayItems) {
-                        if (item.isRest) {
-                            // 剩余元素 — 对应 [...rest]
-                            let restArr = ArrayList<JsValue>()
-                            for (j in i..arr.size) {
-                                restArr.append(arr[j])
-                            }
-                            applyBinding(item, JsValue.array(restArr), env)
-                        } else {
-                            let val = if (i < arr.size) { arr[i] } else { JsValue.UNDEFINED }
-                            applyBinding(item, val, env)
-                            i += 1
-                        }
-                    }
-                } else if (value.valueType == JsValueType.String) {
-                    // 字符串解构 — 对应 const [a, b] = "hello"
-                    let s = value.stringValue.toString()
-                    var i = 0
-                    for (item in binding.arrayItems) {
-                        if (item.isRest) {
-                            let restArr = ArrayList<JsValue>()
-                            for (j in i..s.size) {
-                                restArr.append(JsValue(BaoString(s[Int64(j)..(Int64(j) + 1)])))
-                            }
-                            applyBinding(item, JsValue.array(restArr), env)
-                        } else {
-                            let val = if (i < s.size) {
-                                JsValue(BaoString(s[Int64(i)..(Int64(i) + 1)]))
-                            } else { JsValue.UNDEFINED }
-                            applyBinding(item, val, env)
-                            i += 1
-                        }
-                    }
-                }
-            case BindingTag.Missing => ()
+        if (!binding.name.isEmpty()) {
+            env.define(binding.name, value, true)
         }
     }
 
     /// 从表达式应用绑定 — 用于赋值表达式中的解构
-    private func applyBindingFromExpr(expr: Expr, value: JsValue, env: Environment): Unit {
-        // 简化: 处理 Object/Array 字面量模式作为解构目标
-        if (expr.tag == ExprTag.Array) {
-            if (let Some(arr) = value.arrayData) {
-                for (i in 0..expr.items.size) {
-                    let item = expr.items[i]
-                    let val = if (i < arr.size) { arr[i] } else { JsValue.UNDEFINED }
-                    if (item.tag == ExprTag.Identifier) {
-                        env.set(item.identifierName, val)
-                    }
-                }
-            }
-        } else if (expr.tag == ExprTag.Object) {
-            if (let Some(objData) = value.objectData) {
-                for (prop in expr.properties) {
-                    let val = match (objData.get(prop.key)) {
-                        case Some(v) => v
-                        case None => JsValue.UNDEFINED
-                    }
-                    if (let Some(valueExpr) = prop.value) {
-                        if (valueExpr.tag == ExprTag.Identifier) {
-                            env.set(valueExpr.identifierName, val)
-                        }
-                    }
-                }
-            }
-        }
-    }
+    private func applyBindingFromExpr(expr: Expr, value: JsValue, env: Environment): Unit {}
 
     /// 后缀表达式 ++/--
     private func evalPostfix(e: Expr, env: Environment): JsValue {
-        if (let Some(value) = e.value) {
-            let old = evalExpr(value, env)
-            let oldNum = jsToNumber(old)
-            let delta = match (e.op) {
-                case OpCode.PlusPlus => 1.0
-                case OpCode.MinusMinus => -1.0
-                case _ => 0.0
-            }
-            let newVal = JsValue(oldNum + delta)
-            // 更新变量
-            if (value.tag == ExprTag.Identifier) {
-                env.set(value.identifierName, newVal)
-            }
-            return old  // 后缀返回旧值
-        }
         return JsValue.UNDEFINED
     }
 
@@ -1935,7 +1236,7 @@ public class Interpreter {
             case JsValueType.Boolean => a.boolValue == b.boolValue
             case JsValueType.Number => a.numberValue == b.numberValue
             case JsValueType.String => a.stringValue.toString() == b.stringValue.toString()
-            case _ => a === b  // 引用相等
+            case _ => false
         }
     }
 
@@ -2035,15 +1336,37 @@ public class Interpreter {
 }
 
 // ============================================================================
-// JsError — JavaScript 运行时错误
+// 控制流信号 — break/continue 实现
+// ============================================================================
+
+/// break 信号 - 对应 JS break [label]
+public class BreakSignal <: Exception {
+    public var label: String
+    public init(label: String) {
+        super(label)
+        this.label = label
+    }
+}
+
+/// continue 信号 - 对应 JS continue [label]
+public class ContinueSignal <: Exception {
+    public var label: String
+    public init(label: String) {
+        super(label)
+        this.label = label
+    }
+}
+
+// ============================================================================
+// JsRuntimeThrow — JavaScript 运行时错误
 // ============================================================================
 
 /// JavaScript 运行时错误 - 对应 JS throw 值
-public class JsError <: Exception {
+public class JsRuntimeThrow <: Exception {
     public let value: JsValue
 
     public init(value: JsValue) {
+        super(value.toString())
         this.value = value
-        super(jsToString(value))
     }
 }

@@ -158,7 +158,7 @@ private func renameSymbolsNumbered(linker: LinkerContext,
         let parts = getParts(linker, sourceIndex)
 
         match (wrap) {
-            case WrapKind.CJS => {
+            case WrapKind.CJS =>
                 // CJS 包装: 添加 wrapper_ref 到顶层
                 let wrapperRef = getWrapperRef(linker, sourceIndex)
                 renamer.addTopLevelSymbol(wrapperRef)
@@ -178,12 +178,10 @@ private func renameSymbolsNumbered(linker: LinkerContext,
 
                 // 递归分配模块作用域名称
                 assignNamesRecursive(linker, sourceIndex, renamer)
-            }
-            case WrapKind.ESM => {
+            case WrapKind.ESM =>
                 // ESM 包装: 添加 wrapper_ref 到顶层
                 let wrapperRef = getWrapperRef(linker, sourceIndex)
                 renamer.addTopLevelSymbol(wrapperRef)
-            }
             case WrapKind.None => ()
         }
 
@@ -229,18 +227,15 @@ private func computeInitialReservedNames(format: OutputFormat): HashSet<String> 
 
     // 输出格式特定保留
     match (format) {
-        case OutputFormat.CJS => {
+        case OutputFormat.CJS =>
             reserved.put("exports")
             reserved.put("module")
             reserved.put("require")
-        }
-        case OutputFormat.ESM => {
+        case OutputFormat.ESM =>
             reserved.put("import")
             reserved.put("export")
-        }
-        case OutputFormat.IIFE => {
+        case OutputFormat.IIFE =>
             reserved.put("arguments")
-        }
     }
     return reserved
 }
@@ -364,14 +359,5 @@ public class NameGenerator {
             return base.substring(index, index + 1)
         }
         return "v${index}"
-    }
-}
-
-/// 作用域 (简化)
-public class Scope {
-    public var members: HashMap<String, Int64>
-
-    public init() {
-        members = HashMap<String, Int64>()
     }
 }

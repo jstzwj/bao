@@ -13,6 +13,7 @@ import bao_io.*
 import bao_hash.*
 import bao_path.*
 import bao_http.*
+import bao_sys.*
 
 // ============================================================================
 // Bun 哈希标签
@@ -33,7 +34,7 @@ public let MAX_HEX_HASH_LEN: Int64 = 16
 
 /// Bun 标签哈希缓冲区长度
 /// 翻译自: max_buntag_hash_buf_len
-public let MAX_BUNTAG_HASH_BUF_LEN: Int64 = BUN_HASH_TAG.length + MAX_HEX_HASH_LEN + 1
+public let MAX_BUNTAG_HASH_BUF_LEN: Int64 = BUN_HASH_TAG.size + MAX_HEX_HASH_LEN + 1
 
 // ============================================================================
 // 补丁任务
@@ -103,10 +104,9 @@ public class PatchTask {
             case _ => return None
         }
 
-        let absolutePath = bao_path.PathModule.join(ArrayList<String>([
+        let absolutePath = Path.join([
             projectDir, patchfilePath
-        ]))
-
+        ])
         // 检查文件是否存在
         if (!bao_io.File.exists(absolutePath)) {
             errors.append("Couldn't find patch file: '${patchfilePath}'")
@@ -115,20 +115,20 @@ public class PatchTask {
 
         // 读取文件
         let content = try {
-            bao_io.File.readTextFile(absolutePath)
+            BaoFile.readAllText(absolutePath)
         } catch (_: Exception) {
             errors.append("Failed to read patch file: '${patchfilePath}'")
             return None
         }
 
-        if (content.length == 0) {
+        if (content.size == 0) {
             errors.append("Patch file '${patchfilePath}' is empty")
             return None
         }
 
         // 计算哈希
         // 翻译自: bun.Wyhash11.init(0) + hasher.update + hasher.final
-        let hash = bao_hash.Wyhash.hash(content)
+        let hash = Wyhash.hash(content)
         return hash
     }
 
@@ -148,21 +148,20 @@ public class PatchTask {
             case _ => return false
         }
 
-        let absolutePatchfilePath = bao_path.PathModule.join(ArrayList<String>([
+        let absolutePatchfilePath = Path.join([
             projectDir, data.patchfilePath
-        ]))
-
+        ])
         // 1. 读取 patch 文件
         let patchfileContent = try {
-            bao_io.File.readTextFile(absolutePatchfilePath)
+            BaoFile.readAllText(absolutePatchfilePath)
         } catch (_: Exception) {
             errors.append("Failed to read patchfile: '${data.patchfilePath}'")
             return false
         }
 
         // 2. 创建临时目录
-        let tmpName = "tmp-patch-${bao_sys.SysModule.currentTimeMillis()}"
-        let tmpPath = bao_path.PathModule.join(ArrayList<String>([tempDir, tmpName]))
+        let tmpName = "tmp-patch-${cacheCurrentTimeMillis()}"
+        let tmpPath = Path.join([tempDir, tmpName])
 
         try {
             bao_io.File.createDirectory(tmpPath)
@@ -172,10 +171,10 @@ public class PatchTask {
         }
 
         // 3. 复制原始包到临时目录
-        let sourcePath = bao_path.PathModule.join(ArrayList<String>([
+        let sourcePath = Path.join([
             data.cacheDir, data.cacheDirSubpathWithoutPatchHash
-        ]))
-        if (!bao_io.File.directoryExists(sourcePath)) {
+        ])
+        if (!BaoFile.isDirectory(sourcePath)) {
             errors.append("Source package not found in cache: ${sourcePath}")
             return false
         }
@@ -198,7 +197,7 @@ public class PatchTask {
         // 5. 添加 bun tag
         // 翻译自: 创建 .bun-patch-tag-<hash> 文件
         let tagFileName = "${BUN_HASH_TAG}${data.patchHash}"
-        let tagFilePath = bao_path.PathModule.join(ArrayList<String>([tmpPath, tagFileName]))
+        let tagFilePath = Path.join([tmpPath, tagFileName])
         try {
             bao_io.File.writeAllText(tagFilePath, "")
         } catch (_: Exception) {
@@ -207,12 +206,11 @@ public class PatchTask {
 
         // 6. 重命名到缓存目录
         // 翻译自: bun.sys.renameatConcurrently
-        let destPath = bao_path.PathModule.join(ArrayList<String>([
+        let destPath = Path.join([
             data.cacheDir, data.cacheDirSubpath
-        ]))
-
+        ])
         // 如果目标已存在, 先删除
-        if (bao_io.File.directoryExists(destPath)) {
+        if (BaoFile.isDirectory(destPath)) {
             try {
                 bao_io.File.removeDirectory(destPath)
             } catch (_: Exception) {
@@ -233,6 +231,13 @@ public class PatchTask {
 
     /// 应用补丁内容到目录
     /// 翻译自: patchfile.apply 中解析 unified diff 并应用
+    private func applyCurrentHunks(hunks: ArrayList<PatchHunk>, targetDir: String, filePath: String): Unit {
+        if (hunks.size > 0) {
+            let success = applyHunksToFile(hunks, Path.join([targetDir, filePath]))
+            if (!success) { return }
+        }
+    }
+
     private func applyPatchContent(content: String, targetDir: String): Bool {
         // 简化的 patch 应用逻辑
         // 翻译自: bun.patch.parsePatchFile + patchfile.apply
@@ -268,12 +273,7 @@ public class PatchTask {
             if (line.startsWith("@@")) {
                 // 新 hunk 开始, 先处理之前的 hunk
                 match (currentFile) {
-                    case Some(filePath) => {
-                        if (hunks.size > 0) {
-                            let success = applyHunksToFile(hunks, bao_path.PathModule.join(ArrayList<String>([targetDir, filePath])))
-                            if (!success) { return false }
-                        }
-                    }
+                    case Some(filePath) => applyCurrentHunks(hunks, targetDir, filePath)
                     case None => ()
                 }
                 hunks.clear()
@@ -283,11 +283,7 @@ public class PatchTask {
 
         // 处理最后的 hunks
         match (currentFile) {
-            case Some(filePath) => {
-                if (hunks.size > 0) {
-                    return applyHunksToFile(hunks, bao_path.PathModule.join(ArrayList<String>([targetDir, filePath])))
-                }
-            }
+            case Some(filePath) => _matchHelper_patch_install_181()
             case None => ()
         }
 
@@ -299,7 +295,7 @@ public class PatchTask {
         if (!bao_io.File.exists(filePath)) { return true }
 
         let content = try {
-            bao_io.File.readTextFile(filePath)
+            BaoFile.readAllText(filePath)
         } catch (_: Exception) {
             return false
         }
@@ -324,24 +320,8 @@ public class PatchTask {
     /// 翻译自: PatchTask.runFromMainThread
     public func runFromMainThread(logLevel: LogLevel): Unit {
         match (callback) {
-            case PatchTaskCallback.CalcHash(data) => {
-                let hash = calcHash()
-                match (hash) {
-                    case Some(h) => {
-                        data.result = h
-                    }
-                    case None => {
-                        if (logLevel != LogLevel.Silent) {
-                            bao_core.Output.error("Failed to calculate hash for patch ${data.patchfilePath}")
-                        }
-                    }
-                }
-            }
-            case PatchTaskCallback.ApplyPatch(_) => {
-                if (errors.size > 0) {
-                    bao_core.Output.error("Failed to apply patchfile")
-                }
-            }
+            case PatchTaskCallback.CalcHash(data) => _matchHelper_patch_install_182()
+            case PatchTaskCallback.ApplyPatch(_) => _matchHelper_patch_install_183()
         }
     }
 
@@ -508,3 +488,30 @@ public class PatchHunk {
         lines = ArrayList<String>()
     }
 }
+
+
+            private func _matchHelper_patch_install_181(): Unit {
+                if (hunks.size > 0) {
+                    return applyHunksToFile(hunks, Path.join([targetDir, filePath]))
+                }
+            }
+
+            private func _matchHelper_patch_install_182(): Unit {
+                let hash = calcHash()
+                match (hash) {
+                    case Some(h)=> data.result = h
+                    case None => _matchHelper_patch_install_50()
+                }
+            }
+
+            private func _matchHelper_patch_install_183(): Unit {
+                if (errors.size > 0) {
+                    Output.error("Failed to apply patchfile")
+                }
+            }
+
+                    private func _matchHelper_patch_install_50(): Unit {
+                        if (logLevel != LogLevel.Silent) {
+                            Output.error("Failed to calculate hash for patch ${data.patchfilePath}")
+                        }
+                    }

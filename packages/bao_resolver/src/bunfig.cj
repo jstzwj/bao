@@ -208,28 +208,28 @@ public class BunfigParser {
         let result = BunfigToml()
         result.rawToml = text
 
-        while (pos < source.length) {
+        while (pos < Int64(source.size)) {
             skipWhitespace()
-            if (pos >= source.length) {
+            if (pos >= Int64(source.size)) {
                 break
             }
 
             let ch = source[Int64(pos)]
 
             // 跳过注释
-            if (ch == Char('#')) {
+            if (ch == UInt8(35)) {
                 skipComment()
                 continue
             }
 
             // 空行
-            if (ch == Char('\n') || ch == Char('\r')) {
+            if (ch == UInt8(10) || ch == UInt8(13)) {
                 pos += 1
                 continue
             }
 
             // section 头: [section] 或 [[section]]
-            if (ch == Char('[')) {
+            if (ch == UInt8(91)) {
                 parseSectionHeader(result)
                 continue
             }
@@ -246,38 +246,38 @@ public class BunfigParser {
     private func parseSectionHeader(result: BunfigToml): Unit {
         pos += 1  // skip '['
 
-        let isArray = pos < source.length && source[Int64(pos)] == Char('[')
+        let isArray = pos < Int64(source.size) && source[Int64(pos)] == UInt8(91)
         if (isArray) {
             pos += 1  // skip second '['
         }
 
         skipWhitespace()
-        let sectionName = readUntilChar(']')
-        if (pos < source.length && source[Int64(pos)] == Char(']')) {
+        let sectionName = readUntilChar(UInt8(93))
+        if (pos < Int64(source.size) && source[Int64(pos)] == UInt8(93)) {
             pos += 1
         }
-        if (isArray && pos < source.length && source[Int64(pos)] == Char(']')) {
+        if (isArray && pos < Int64(source.size) && source[Int64(pos)] == UInt8(93)) {
             pos += 1
         }
         skipWhitespace()
-        if (pos < source.length && source[Int64(pos)] == Char('\n')) {
+        if (pos < Int64(source.size) && source[Int64(pos)] == UInt8(10)) {
             pos += 1
         }
 
-        currentSection = sectionName.trim()
+        currentSection = sectionName.trimAscii()
     }
 
     /// 解析 key = value 对
     private func parseKeyValue(result: BunfigToml): Unit {
         // 读取 key
-        let key = readUntilChar('=').trim()
-        if (key.length == 0) {
+        let key = readUntilChar(UInt8(61)).trimAscii()
+        if (key.size == 0) {
             skipLine()
             return
         }
 
         // 跳过 '='
-        if (pos < source.length && source[Int64(pos)] == Char('=')) {
+        if (pos < Int64(source.size) && source[Int64(pos)] == UInt8(61)) {
             pos += 1
         }
         skipWhitespace()
@@ -292,46 +292,37 @@ public class BunfigParser {
     /// 将解析的 key=value 赋值到结果对象
     private func assignValue(result: BunfigToml, key: String, value: String): Unit {
         match (currentSection) {
-            case "" => {
+            case "" =>
                 // 顶层
                 match (key) {
-                    case "preload" => {
+                    case "preload" =>
                         result.preload = parseArrayValue(value)
-                    }
-                    case "external" => {
+                    case "external" =>
                         result.external = parseArrayValue(value)
-                    }
                     case _ => ()
                 }
-            }
-            case "define" => {
+            case "define" =>
                 // [define] section
                 // key 是标识符名 (可能带引号)
                 let cleanKey = stripQuotes(key)
                 let cleanValue = stripQuotes(value)
                 result.define.put(cleanKey, cleanValue)
-            }
-            case "loader" => {
+            case "loader" =>
                 // [loader] section
                 // ".png" = "file"
                 let extKey = stripQuotes(key)
                 result.loader.put(extKey, stripQuotes(value))
-            }
-            case "test" => {
+            case "test" =>
                 assignTestValue(result.test, key, value)
-            }
-            case "install" => {
+            case "install" =>
                 assignInstallValue(result.install, key, value)
-            }
-            case "run" => {
+            case "run" =>
                 assignRunValue(result.run, key, value)
-            }
-            case "bundle" => {
+            case "bundle" =>
                 assignBundleValue(result.bundle, key, value)
-            }
-            case _ => {
+            case _ =>
                 // 不认识的 section，忽略
-            }
+                ()
         }
     }
 
@@ -344,9 +335,8 @@ public class BunfigParser {
             case "timeout" => config.timeout = parseInt(value)
             case "update" | "updateSnapshot" => config.updateSnapshot = parseBool(value)
             case "onlyFailures" => config.onlyFailures = parseBool(value)
-            case "filter" | "path" => {
+            case "filter" | "path" =>
                 config.testFilter.append(stripQuotes(value))
-            }
             case _ => ()
         }
     }
@@ -399,66 +389,66 @@ public class BunfigParser {
     /// 读取值
     private func readValue(): String {
         skipWhitespace()
-        if (pos >= source.length) {
+        if (pos >= Int64(source.size)) {
             return ""
         }
 
         let ch = source[Int64(pos)]
 
         // 字符串
-        if (ch == Char('"') || ch == Char('\'')) {
+        if (ch == UInt8(34) || ch == UInt8(39)) {
             return readQuotedString()
         }
 
         // 数组
-        if (ch == Char('[')) {
+        if (ch == UInt8(91)) {
             return readArrayString()
         }
 
         // 内联表
-        if (ch == Char('{')) {
+        if (ch == UInt8(123)) {
             return readInlineTableString()
         }
 
         // 多行字符串
-        if (ch == Char('`')) {
+        if (ch == UInt8(96)) {
             return readMultiLineString()
         }
 
         // 简单值 (布尔、数字、裸字符串)
         let sb = StringBuilder()
-        while (pos < source.length) {
+        while (pos < Int64(source.size)) {
             let c = source[Int64(pos)]
-            if (c == Char('\n') || c == Char('\r') || c == Char('#')) {
+            if (c == UInt8(10) || c == UInt8(13) || c == UInt8(35)) {
                 break
             }
             sb.append(c)
             pos += 1
         }
-        return sb.toString().trim()
+        return sb.toString().trimAscii()
     }
 
     /// 读取引号字符串
     private func readQuotedString(): String {
-        let quote = source[Int64(pos)]
+        let `quote` = source[Int64(pos)]
         pos += 1
 
         let sb = StringBuilder()
-        while (pos < source.length) {
+        while (pos < Int64(source.size)) {
             let ch = source[Int64(pos)]
-            if (ch == Char('\\') && pos + 1 < source.length) {
+            if (ch == UInt8(92) && pos + 1 < Int64(source.size)) {
                 pos += 1
                 let escaped = source[Int64(pos)]
-                match (escaped.value) {
-                    case 34 => sb.append(Char(34))
-                    case 92 => sb.append(Char(92))
-                    case 110 => sb.append(Char(10))
-                    case 114 => sb.append(Char(13))
-                    case 116 => sb.append(Char(9))
+                match (escaped) {
+                    case 34 => sb.append(UInt8(34))
+                    case 92 => sb.append(UInt8(92))
+                    case 110 => sb.append(UInt8(10))
+                    case 114 => sb.append(UInt8(13))
+                    case 116 => sb.append(UInt8(9))
                     case _ => sb.append(escaped)
                 }
                 pos += 1
-            } else if (ch == quote) {
+            } else if (ch == `quote`) {
                 pos += 1
                 break
             } else {
@@ -473,11 +463,11 @@ public class BunfigParser {
     private func readArrayString(): String {
         let sb = StringBuilder()
         var depth = 0
-        while (pos < source.length) {
+        while (pos < Int64(source.size)) {
             let ch = source[Int64(pos)]
             sb.append(ch)
-            if (ch == Char('[')) { depth += 1 }
-            else if (ch == Char(']')) {
+            if (ch == UInt8(91)) { depth += 1 }
+            else if (ch == UInt8(93)) {
                 depth -= 1
                 if (depth == 0) {
                     pos += 1
@@ -493,11 +483,11 @@ public class BunfigParser {
     private func readInlineTableString(): String {
         let sb = StringBuilder()
         var depth = 0
-        while (pos < source.length) {
+        while (pos < Int64(source.size)) {
             let ch = source[Int64(pos)]
             sb.append(ch)
-            if (ch == Char('{')) { depth += 1 }
-            else if (ch == Char('}')) {
+            if (ch == UInt8(123)) { depth += 1 }
+            else if (ch == UInt8(125)) {
                 depth -= 1
                 if (depth == 0) {
                     pos += 1
@@ -513,9 +503,9 @@ public class BunfigParser {
     private func readMultiLineString(): String {
         pos += 1  // skip '`'
         let sb = StringBuilder()
-        while (pos < source.length) {
+        while (pos < Int64(source.size)) {
             let ch = source[Int64(pos)]
-            if (ch == Char('`')) {
+            if (ch == UInt8(96)) {
                 pos += 1
                 break
             }
@@ -528,7 +518,7 @@ public class BunfigParser {
     /// 读取直到指定字符
     private func readUntilChar(stopChar: Char): String {
         let sb = StringBuilder()
-        while (pos < source.length) {
+        while (pos < Int64(source.size)) {
             let ch = source[Int64(pos)]
             if (ch == stopChar) {
                 break
@@ -547,28 +537,28 @@ public class BunfigParser {
     /// TOML 数组: ["foo", "bar", "baz"]
     private func parseArrayValue(value: String): ArrayList<String> {
         let result = ArrayList<String>()
-        let trimmed = value.trim()
+        let trimmed = value.trimAscii()
         if (!trimmed.startsWith("[") || !trimmed.endsWith("]")) {
             return result
         }
 
-        let inner = trimmed.substring(Int64(1), Int64(trimmed.length - 1))
+        let inner = trimmed[Int64(1)..Int64(trimmed.size - 1)]
         var i = 0
-        while (i < inner.length) {
+        while (i < Int64(inner.size)) {
             // 跳过空白
-            while (i < inner.length && (inner[Int64(i)] == Char(' ') || inner[Int64(i)] == Char('\t'))) {
+            while (i < Int64(inner.size) && (inner[Int64(i)] == UInt8(32) || inner[Int64(i)] == UInt8(9))) {
                 i += 1
             }
-            if (i >= inner.length) { break }
+            if (i >= Int64(inner.size)) { break }
 
             // 读取元素
-            if (inner[Int64(i)] == Char('"') || inner[Int64(i)] == Char('\'')) {
+            if (inner[Int64(i)] == UInt8(34) || inner[Int64(i)] == UInt8(39)) {
                 // 引号字符串
-                let quote = inner[Int64(i)]
+                let `quote` = inner[Int64(i)]
                 i += 1
                 let sb = StringBuilder()
-                while (i < inner.length && inner[Int64(i)] != quote) {
-                    if (inner[Int64(i)] == Char('\\') && i + 1 < inner.length) {
+                while (i < Int64(inner.size) && inner[Int64(i)] != `quote`) {
+                    if (inner[Int64(i)] == UInt8(92) && i + 1 < Int64(inner.size)) {
                         i += 1
                         sb.append(inner[Int64(i)])
                     } else {
@@ -581,18 +571,18 @@ public class BunfigParser {
             } else {
                 // 裸值
                 let sb = StringBuilder()
-                while (i < inner.length && inner[Int64(i)] != Char(',') && inner[Int64(i)] != Char(']')) {
+                while (i < Int64(inner.size) && inner[Int64(i)] != UInt8(44) && inner[Int64(i)] != UInt8(93)) {
                     sb.append(inner[Int64(i)])
                     i += 1
                 }
-                let val = sb.toString().trim()
-                if (val.length > 0) {
+                let val = sb.toString().trimAscii()
+                if (val.size > 0) {
                     result.append(val)
                 }
             }
 
             // 跳过逗号
-            while (i < inner.length && (inner[Int64(i)] == Char(',') || inner[Int64(i)] == Char(' '))) {
+            while (i < Int64(inner.size) && (inner[Int64(i)] == UInt8(44) || inner[Int64(i)] == UInt8(32))) {
                 i += 1
             }
         }
@@ -602,17 +592,18 @@ public class BunfigParser {
 
     /// 解析布尔值
     private func parseBool(value: String): Bool {
-        let lower = value.trim().toLowerCase()
+        let lower = value.trimAscii().toAsciiLower()
         return lower == "true"
     }
 
     /// 解析整数
     private func parseInt(value: String): Int64 {
         var result: Int64 = 0
-        for (ch in value.trim()) {
-            let v = ch.value
-            if (v >= 48 && v <= 57) {
-                result = result * 10 + Int64(v - 48)
+        let trimmed = value.trimAscii()
+        for (i in 0..trimmed.size) {
+            let b = trimmed[i]
+            if (b >= UInt8(48) && b <= UInt8(57)) {
+                result = result * 10 + Int64(b - UInt8(48))
             }
         }
         return result
@@ -620,11 +611,11 @@ public class BunfigParser {
 
     /// 去除引号
     private func stripQuotes(s: String): String {
-        let trimmed = s.trim()
-        if (trimmed.length >= 2) {
+        let trimmed = s.trimAscii()
+        if (trimmed.size >= 2) {
             if ((trimmed.startsWith("\"") && trimmed.endsWith("\"")) ||
                 (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
-                return trimmed.substring(Int64(1), Int64(trimmed.length - 1))
+                return trimmed[Int64(1)..Int64(trimmed.size - 1)]
             }
         }
         return trimmed
@@ -636,9 +627,9 @@ public class BunfigParser {
 
     /// 跳过空白
     private func skipWhitespace(): Unit {
-        while (pos < source.length) {
+        while (pos < Int64(source.size)) {
             let ch = source[Int64(pos)]
-            if (ch == Char(' ') || ch == Char('\t') || ch == Char('\r')) {
+            if (ch == UInt8(32) || ch == UInt8(9) || ch == UInt8(13)) {
                 pos += 1
             } else {
                 break
@@ -648,20 +639,20 @@ public class BunfigParser {
 
     /// 跳过注释
     private func skipComment(): Unit {
-        while (pos < source.length && source[Int64(pos)] != Char('\n')) {
+        while (pos < Int64(source.size) && source[Int64(pos)] != UInt8(10)) {
             pos += 1
         }
-        if (pos < source.length) {
+        if (pos < Int64(source.size)) {
             pos += 1  // skip '\n'
         }
     }
 
     /// 跳过当前行
     private func skipLine(): Unit {
-        while (pos < source.length && source[Int64(pos)] != Char('\n')) {
+        while (pos < Int64(source.size) && source[Int64(pos)] != UInt8(10)) {
             pos += 1
         }
-        if (pos < source.length) {
+        if (pos < Int64(source.size)) {
             pos += 1
         }
     }

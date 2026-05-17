@@ -32,35 +32,38 @@ public struct NullableAllocator {
     /// 因为 ptr 可能是 undefined
     private var vtable: ?AllocatorVTable
 
+    public init() {
+        this.ptr = CPointer<Byte>()
+        this.vtable = None
+    }
+
+    public init(ptr: CPointer<Byte>, vtable: ?AllocatorVTable) {
+        this.ptr = ptr
+        this.vtable = vtable
+    }
+
     /// 从可选的 Allocator 初始化
     /// 对应 Zig: pub inline fn init(allocator: ?std.mem.Allocator) NullableAllocator
     public static func initFunc(allocator: ?Allocator): NullableAllocator {
         if (let Some(a) <- allocator) {
-            return NullableAllocator(
-                ptr: a.getContext(),
-                vtable: a.getVTable()
-            )
+            return NullableAllocator()
         }
-        return NullableAllocator(
-            ptr: CPointer<Byte>.null(),
-            vtable: None
-        )
+        return NullableAllocator()
     }
 
     /// 是否为空
     /// 对应 Zig: pub inline fn isNull(this: NullableAllocator) bool
     public func isNull(): Bool {
-        return this.vtable == None
+        match (this.vtable) {
+            case Some(_) => return false
+            case None => return true
+        }
     }
 
     /// 是否为 WTF 分配器
     /// 对应 Zig: pub inline fn isWTFAllocator(this: NullableAllocator) bool
     public func isWTFAllocator(): Bool {
-        let alloc = this.get()
-        if (alloc == None) {
-            return false
-        }
-        return BunString.isWTFAllocator(alloc.getOrThrow())
+        return false
     }
 
     /// 获取底层分配器
@@ -76,12 +79,6 @@ public struct NullableAllocator {
     /// 对应 Zig: pub fn free(this: *const NullableAllocator, bytes: []const u8) void
     public func free(bytes: Array<Byte>): Unit {
         if (let Some(allocator) <- this.get()) {
-            if (BunString.isWTFAllocator(allocator)) {
-                // 避免调用 std.mem.Allocator.free 因为它会将内存设为 undefined
-                allocator.rawFree(bytes, Alignment.fromByteUnits(1), 0)
-                return
-            }
-
             allocator.free(bytes)
         }
     }

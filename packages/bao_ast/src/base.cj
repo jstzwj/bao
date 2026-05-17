@@ -39,6 +39,23 @@ public enum RefTag {
             case Symbol => "symbol"
         }
     }
+
+    public func ordinal(): Int32 {
+        match (this) {
+            case Invalid => 0
+            case AllocatedName => 1
+            case SourceContentsSlice => 2
+            case Symbol => 3
+        }
+    }
+
+    public operator func ==(right: RefTag): Bool {
+        return ordinal() == right.ordinal()
+    }
+
+    public operator func !=(right: RefTag): Bool {
+        return !(this == right)
+    }
 }
 
 /// 符号引用 - 严格对应 Bun Ref
@@ -51,7 +68,7 @@ public enum RefTag {
 /// 另一个是随着解析器生成新符号 ID 而递增的内部索引。
 /// 符号映射可以是一个数组的数组，首先按源索引索引，然后按内部索引索引。
 /// 通过创建一个包含所有已解析文件的所有内部数组的外部数组，可以快速合并映射。
-public class Ref {
+public class Ref <: ToString {
     /// 内部索引 - 对应 Bun Ref.inner_index: u31
     public var innerIndex: Int32
     /// 标签 - 对应 Bun Ref.tag: enum(u2)
@@ -113,7 +130,7 @@ public class Ref {
     /// Bun: pub fn isSourceIndexNull(this: anytype) bool
     /// 使用 maxInt(u31) = 0x7FFFFFFF 表示空
     public func isSourceIndexNull(): Bool {
-        return sourceIndex == Int32.MAX
+        return sourceIndex == Int32(0x7FFFFFFF)
     }
 
     /// 相等比较 - 对应 Bun Ref.eql()
@@ -147,7 +164,7 @@ public class Ref {
     /// 初始化源结束位置 - 对应 Bun Ref.initSourceEnd()
     /// Bun: pub fn initSourceEnd(old: Ref) Ref
     public static func initSourceEnd(old: Ref): Ref {
-        return init(old.innerIndex, old.sourceIndex, old.tag == RefTag.SourceContentsSlice)
+        return Ref(old.innerIndex, if (old.tag == RefTag.SourceContentsSlice) { RefTag.SourceContentsSlice } else { RefTag.AllocatedName }, old.sourceIndex)
     }
 
     /// 格式化 - 对应 Bun Ref.format()
@@ -288,6 +305,22 @@ public enum StrictModeKind {
     | StrictMode   // 严格模式 ("use strict")
     | CJSAutoStrict // CommonJS 自动严格模式
 
+    public operator func ==(right: StrictModeKind): Bool {
+        return ordinal() == right.ordinal()
+    }
+
+    public operator func !=(right: StrictModeKind): Bool {
+        return !(this == right)
+    }
+
+    public func ordinal(): Int64 {
+        match (this) {
+            case SloppyMode => 0
+            case StrictMode => 1
+            case CJSAutoStrict => 2
+        }
+    }
+
     public func isStrict(): Bool {
         match (this) {
             case StrictMode | CJSAutoStrict => true
@@ -391,7 +424,7 @@ public class ASTImportRecord {
     /// 导入类型 - 对应 Bun kind
     public var kind: ASTImportKind
     /// 路径范围 - 对应 Bun range: Range
-    public var range: Range
+    public var range: ASTRange
     /// 是否包含默认导入
     public var hasDefaultImport: Bool
     /// 是否包含命名空间导入 (* as)
@@ -401,7 +434,7 @@ public class ASTImportRecord {
     /// 导入项列表
     public var items: ArrayList<ASTImportItem>
 
-    public init(path: String, kind: ASTImportKind, range: Range) {
+    public init(path: String, kind: ASTImportKind, range: ASTRange) {
         this.path = path
         this.kind = kind
         this.range = range
@@ -419,13 +452,13 @@ public class ASTImportItem {
     /// 别名 (as 后面的名称)
     public var alias: String
     /// 源位置
-    public var loc: Loc
+    public var loc: ASTLoc
     /// 引用 - 对应 Bun Ref
     public var ref: Ref
     /// 导入项状态 - 对应 Bun import_item_status
     public var status: ImportItemStatus
 
-    public init(name: String, alias: String, loc: Loc) {
+    public init(name: String, alias: String, loc: ASTLoc) {
         this.name = name
         this.alias = alias
         this.loc = loc

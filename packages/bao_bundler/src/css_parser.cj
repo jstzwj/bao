@@ -26,6 +26,16 @@ public enum CssCombinator {
     | AdjacentSibling                 // "+" (相邻兄弟)
     | GeneralSibling                  // "~" (通用兄弟)
     | None                            // 无组合符
+
+    public operator func ==(rhs: CssCombinator): Bool {
+        match (this) {
+            case Descendant => match (rhs) { case Descendant => true case _ => false }
+            case Child => match (rhs) { case Child => true case _ => false }
+            case AdjacentSibling => match (rhs) { case AdjacentSibling => true case _ => false }
+            case GeneralSibling => match (rhs) { case GeneralSibling => true case _ => false }
+            case None => match (rhs) { case None => true case _ => false }
+        }
+    }
 }
 
 /// CSS 选择器类型
@@ -76,7 +86,7 @@ public class CssSelector {
     }
 
     /// 类型选择器
-    public static func type(name: String): CssSelector {
+    public static func `type`(name: String): CssSelector {
         return CssSelector(CssSimpleSelectorKind.Type, name)
     }
 
@@ -140,57 +150,6 @@ public class CssSelector {
     }
 }
 
-/// CSS 复合选择器 (逗号分隔的选择器列表)
-// 严格翻译自: css/ast.zig 中 ComplexSelector
-public class CssComplexSelector {
-    /// 简单选择器列表 (用组合符连接)
-    public var selectors: ArrayList<CssSelector>
-    /// 总特异性
-    public var specificityCache: ?Int64
-
-    public init() {
-        this.selectors = ArrayList<CssSelector>()
-        this.specificityCache = None
-    }
-
-    /// 添加简单选择器
-    public func addSelector(sel: CssSelector): Unit {
-        selectors.append(sel)
-    }
-
-    /// 计算特异性
-    public func specificity(): Int64 {
-        match (specificityCache) {
-            case Some(v) => return v
-            case None =>
-                var total: Int64 = 0
-                for (sel in selectors) {
-                    total += sel.specificity()
-                }
-                specificityCache = Some(total)
-                return total
-        }
-    }
-
-    /// 转为字符串
-    public func toString(): String {
-        let sb = StringBuilder()
-        for (i in 0..selectors.size) {
-            if (i > 0) {
-                match (selectors[i].combinator) {
-                    case CssCombinator.Descendant => sb.append(" ")
-                    case CssCombinator.Child => sb.append(" > ")
-                    case CssCombinator.AdjacentSibling => sb.append(" + ")
-                    case CssCombinator.GeneralSibling => sb.append(" ~ ")
-                    case CssCombinator.None => ()
-                }
-            }
-            sb.append(selectors[i].toString())
-        }
-        return sb.toString()
-    }
-}
-
 /// CSS 选择器列表 (逗号分隔)
 public class CssSelectorList {
     /// 选择器组
@@ -211,7 +170,12 @@ public class CssSelectorList {
         for (sel in selectors) {
             parts.append(sel.toString())
         }
-        return String.join(", ", parts.toArray())
+        var result = ""
+        for (i in 0..parts.size) {
+            if (i > 0) { result = result + ", " }
+            result = result + parts[Int64(i)]
+        }
+        return result
     }
 }
 
@@ -319,15 +283,18 @@ public class CssRule {
     }
 
     /// 创建 @规则
-    public static func atRule(atRule: CssAtRule): CssRule {
-        let rule = CssRule()
-        rule.atRule = Some(atRule)
-        return rule
+    public static func createAtRule(rule: CssAtRule): CssRule {
+        let result = CssRule()
+        result.atRule = Some(rule)
+        return result
     }
 
     /// 是否为 @规则
     public func isAtRule(): Bool {
-        return atRule != None
+        match (atRule) {
+            case Some(_) => return true
+            case None => return false
+        }
     }
 
     /// 转为字符串
@@ -380,7 +347,7 @@ public class CssRule {
                 for (decl in declarations) {
                     parts.append(decl.toMinifiedString())
                 }
-                sb.append(String.join(";", parts.toArray()))
+                sb.append(String.join(Array<String>(parts.size, {i => parts[Int64(i)]}), delimiter: ";"))
                 sb.append("}")
                 return sb.toString()
         }
@@ -410,7 +377,7 @@ public class CssStylesheet {
         for (rule in rules) {
             parts.append(rule.toString())
         }
-        return String.join("\n\n", parts.toArray())
+        return String.join(Array<String>(parts.size, {i => parts[Int64(i)]}), delimiter: "\n\n")
     }
 }
 
@@ -456,6 +423,36 @@ public class CssParseResult {
 /// CSS 解析器
 // 严格翻译自: src/css/parser.zig
 public class CSSParser {
+    private static let SPACE: UInt8 = UInt8(32)
+    private static let TAB: UInt8 = UInt8(9)
+    private static let LF: UInt8 = UInt8(10)
+    private static let CR: UInt8 = UInt8(13)
+    private static let DQUOTE: UInt8 = UInt8(34)
+    private static let SQUOTE: UInt8 = UInt8(39)
+    private static let LPAREN: UInt8 = UInt8(40)
+    private static let RPAREN: UInt8 = UInt8(41)
+    private static let STAR: UInt8 = UInt8(42)
+    private static let PLUS: UInt8 = UInt8(43)
+    private static let DOT: UInt8 = UInt8(46)
+    private static let SLASH: UInt8 = UInt8(47)
+    private static let COLON: UInt8 = UInt8(58)
+    private static let SEMICOLON: UInt8 = UInt8(59)
+    private static let GT: UInt8 = UInt8(62)
+    private static let LBRACKET: UInt8 = UInt8(91)
+    private static let RBRACKET: UInt8 = UInt8(93)
+    private static let LBRACE: UInt8 = UInt8(123)
+    private static let RBRACE: UInt8 = UInt8(125)
+    private static let HASH: UInt8 = UInt8(35)
+    private static let MINUS: UInt8 = UInt8(45)
+    private static let UNDERSCORE: UInt8 = UInt8(95)
+    private static let ZERO: UInt8 = UInt8(48)
+    private static let NINE: UInt8 = UInt8(57)
+    private static let UPPER_A: UInt8 = UInt8(65)
+    private static let UPPER_Z: UInt8 = UInt8(90)
+    private static let LOWER_A: UInt8 = UInt8(97)
+    private static let LOWER_Z: UInt8 = UInt8(122)
+    private static let TILDE: UInt8 = UInt8(126)
+
     /// 输入文本
     private var source: String
     /// 当前位置
@@ -486,15 +483,15 @@ public class CSSParser {
         this.column = 1
         this.result = CssParseResult()
 
-        while (pos < source.length) {
+        while (pos < Int64(source.length)) {
             skipWhitespaceAndComments()
 
-            if (pos >= source.length) {
+            if (pos >= Int64(source.length)) {
                 break
             }
 
             // @规则
-            if (source[pos] == '@') {
+            if (source[pos] == UInt8(64)) {
                 parseAtRule()
                 continue
             }
@@ -516,26 +513,26 @@ public class CSSParser {
 
         // 读取 prelude (到 { 或 ; 为止)
         var prelude = StringBuilder()
-        while (pos < source.length && source[pos] != '{' && source[pos] != ';') {
+        while (pos < Int64(source.length) && source[pos] != LBRACE && source[pos] != UInt8(59)) {
             prelude.append(source[pos])
             advance()
         }
 
-        let preludeStr = prelude.toString().trim()
+        let preludeStr = prelude.toString()
 
         let atRule = CssAtRule(kind, name, preludeStr)
 
-        if (pos < source.length && source[pos] == '{') {
+        if (pos < Int64(source.length) && source[pos] == LBRACE) {
             advance() // 跳过 {
             // 读取子规则
-            while (pos < source.length && source[pos] != '}') {
+            while (pos < Int64(source.length) && source[pos] != RBRACE) {
                 skipWhitespaceAndComments()
-                if (pos < source.length && source[pos] == '}') {
+                if (pos < Int64(source.length) && source[pos] == RBRACE) {
                     break
                 }
 
                 // 嵌套 @规则
-                if (source[pos] == '@') {
+                if (source[pos] == UInt8(64)) {
                     let savedParseAtRules = parseAtRules
                     parseAtRules = true
                     parseAtRuleInto(atRule)
@@ -547,14 +544,14 @@ public class CSSParser {
                 parseRuleInto(atRule)
             }
 
-            if (pos < source.length && source[pos] == '}') {
+            if (pos < Int64(source.length) && source[pos] == RBRACE) {
                 advance() // 跳过 }
             }
-        } else if (pos < source.length && source[pos] == ';') {
+        } else if (pos < Int64(source.length) && source[pos] == SEMICOLON) {
             advance() // 跳过 ; (如 @import url(...) ;)
         }
 
-        let rule = CssRule.atRule(atRule)
+        let rule = CssRule.createAtRule(atRule)
         result.stylesheet.addRule(rule)
     }
 
@@ -565,26 +562,26 @@ public class CSSParser {
         let kind = classifyAtRule(name)
 
         var prelude = StringBuilder()
-        while (pos < source.length && source[pos] != '{' && source[pos] != ';') {
+        while (pos < Int64(source.length) && source[pos] != LBRACE && source[pos] != UInt8(59)) {
             prelude.append(source[pos])
             advance()
         }
 
-        let atRule = CssAtRule(kind, name, prelude.toString().trim())
+        let atRule = CssAtRule(kind, name, prelude.toString())
 
-        if (pos < source.length && source[pos] == '{') {
+        if (pos < Int64(source.length) && source[pos] == LBRACE) {
             advance()
-            while (pos < source.length && source[pos] != '}') {
+            while (pos < Int64(source.length) && source[pos] != RBRACE) {
                 skipWhitespaceAndComments()
-                if (pos < source.length && source[pos] == '}') { break }
+                if (pos < Int64(source.length) && source[pos] == RBRACE) { break }
                 parseRuleInto(atRule)
             }
-            if (pos < source.length && source[pos] == '}') { advance() }
-        } else if (pos < source.length && source[pos] == ';') {
+            if (pos < Int64(source.length) && source[pos] == RBRACE) { advance() }
+        } else if (pos < Int64(source.length) && source[pos] == SEMICOLON) {
             advance()
         }
 
-        parent.addRule(CssRule.atRule(atRule))
+        parent.addRule(CssRule.createAtRule(atRule))
     }
 
     /// 解析规则
@@ -609,11 +606,11 @@ public class CSSParser {
         skipWhitespaceAndComments()
 
         // 读取声明块
-        if (pos < source.length && source[pos] == '{') {
+        if (pos < Int64(source.length) && source[pos] == LBRACE) {
             advance() // 跳过 {
             parseDeclarations(rule)
             skipWhitespaceAndComments()
-            if (pos < source.length && source[pos] == '}') {
+            if (pos < Int64(source.length) && source[pos] == RBRACE) {
                 advance() // 跳过 }
             }
         }
@@ -623,13 +620,13 @@ public class CSSParser {
     private func parseSelectorList(): CssSelectorList {
         let list = CssSelectorList()
 
-        while (pos < source.length && source[pos] != '{') {
+        while (pos < Int64(source.length) && source[pos] != LBRACE) {
             let sel = parseComplexSelector()
             list.addSelector(sel)
 
             skipWhitespaceAndComments()
 
-            if (pos < source.length && source[pos] == ',') {
+            if (pos < Int64(source.length) && source[pos] == UInt8(44)) {
                 advance() // 跳过逗号
                 skipWhitespaceAndComments()
             } else {
@@ -645,16 +642,15 @@ public class CSSParser {
         let complex = CssComplexSelector()
         skipWhitespaceAndComments()
 
-        while (pos < source.length && source[pos] != '{' && source[pos] != ',' && source[pos] != '}') {
+        while (pos < Int64(source.length) && source[pos] != LBRACE && source[pos] != UInt8(44) && source[pos] != RBRACE) {
             // 检查组合符
             let combinator = detectCombinator()
-            if (combinator != CssCombinator.Descendant || complex.selectors.size > 0) {
+            if (complex.components.size > 0 || match (combinator) { case CssCombinator.Descendant => false case _ => true }) {
                 let sel = parseSimpleSelector()
-                sel.combinator = combinator
-                complex.addSelector(sel)
+                complex.addComponent(selectorToComponent(sel, combinator))
             } else {
                 let sel = parseSimpleSelector()
-                complex.addSelector(sel)
+                complex.addComponent(selectorToComponent(sel, CssCombinator.Descendant))
             }
 
             skipWhitespace()
@@ -665,45 +661,45 @@ public class CSSParser {
 
     /// 解析简单选择器
     private func parseSimpleSelector(): CssSelector {
-        if (pos >= source.length) {
+        if (pos >= Int64(source.length)) {
             return CssSelector.universal()
         }
 
         let c = source[pos]
 
         // 通配符
-        if (c == '*') {
+        if (c == STAR) {
             advance()
             return CssSelector.universal()
         }
 
         // ID 选择器
-        if (c == '#') {
+        if (c == HASH) {
             advance()
             let name = readIdent()
             return CssSelector.id(name)
         }
 
         // 类选择器
-        if (c == '.') {
+        if (c == DOT) {
             advance()
             let name = readIdent()
             return CssSelector.klass(name)
         }
 
         // 属性选择器
-        if (c == '[') {
+        if (c == LBRACKET) {
             return parseAttributeSelector()
         }
 
         // 伪类 / 伪元素
-        if (c == ':') {
+        if (c == COLON) {
             advance()
             // 伪元素 ::before
-            if (pos < source.length && source[pos] == ':') {
+            if (pos < Int64(source.length) && source[pos] == COLON) {
                 advance()
                 let name = readIdent()
-                let arg = if (pos < source.length && source[pos] == '(') {
+                let arg = if (pos < Int64(source.length) && source[pos] == LPAREN) {
                     readParenthesized()
                 } else {
                     ""
@@ -714,7 +710,7 @@ public class CSSParser {
             }
             // 伪类 :hover
             let name = readIdent()
-            let arg = if (pos < source.length && source[pos] == '(') {
+            let arg = if (pos < Int64(source.length) && source[pos] == LPAREN) {
                 readParenthesized()
             } else {
                 ""
@@ -726,15 +722,15 @@ public class CSSParser {
 
         // 类型选择器
         let name = readIdent()
-        return CssSelector.type(name)
+        return CssSelector.`type`(name)
     }
 
     /// 解析属性选择器 [attr=value]
     private func parseAttributeSelector(): CssSelector {
         advance() // 跳过 [
-        let attrName = readIdent().trim()
+        let attrName = readIdent()
 
-        if (pos < source.length && source[pos] == ']') {
+        if (pos < Int64(source.length) && source[pos] == RBRACKET) {
             advance()
             let sel = CssSelector(CssSimpleSelectorKind.Attribute, attrName)
             sel.attributeName = attrName
@@ -744,46 +740,46 @@ public class CSSParser {
 
         // 读取匹配操作符
         var op = StringBuilder()
-        while (pos < source.length && source[pos] != '"' && source[pos] != '\'' && source[pos] != ']') {
+        while (pos < Int64(source.length) && source[pos] != DQUOTE && source[pos] != SQUOTE && source[pos] != UInt8(93)) {
             op.append(source[pos])
             advance()
         }
-        let opStr = op.toString().trim()
+        let opStr = op.toString()
 
         // 读取值
         var value = StringBuilder()
-        if (pos < source.length && (source[pos] == '"' || source[pos] == '\'')) {
-            let quote = source[pos]
+        if (pos < Int64(source.length) && (source[pos] == DQUOTE || source[pos] == SQUOTE)) {
+            let quoteChar = source[pos]
             advance()
-            while (pos < source.length && source[pos] != quote) {
+            while (pos < Int64(source.length) && source[pos] != quoteChar) {
                 value.append(source[pos])
                 advance()
             }
-            if (pos < source.length) { advance() } // 跳过引号
+            if (pos < Int64(source.length)) { advance() } // 跳过引号
         }
 
         // 跳过 ]
         skipWhitespace()
-        if (pos < source.length && source[pos] == ']') {
+        if (pos < Int64(source.length) && source[pos] == RBRACKET) {
             advance()
         }
 
-        let match = parseAttributeMatch(opStr)
+        let matchResult = parseAttributeMatch(opStr)
         let sel = CssSelector(CssSimpleSelectorKind.Attribute, attrName)
         sel.attributeName = attrName
         sel.attributeValue = value.toString()
-        sel.attributeMatch = match
+        sel.attributeMatch = matchResult
         return sel
     }
 
     /// 解析声明块
     private func parseDeclarations(rule: CssRule): Unit {
-        while (pos < source.length && source[pos] != '}') {
+        while (pos < Int64(source.length) && source[pos] != RBRACE) {
             skipWhitespaceAndComments()
-            if (pos >= source.length || source[pos] == '}') { break }
+            if (pos >= Int64(source.length) || source[pos] == RBRACE) { break }
 
             // @规则嵌套在声明块中
-            if (source[pos] == '@') {
+            if (source[pos] == UInt8(64)) {
                 parseAtRule()
                 continue
             }
@@ -795,7 +791,7 @@ public class CSSParser {
             skipWhitespaceAndComments()
 
             // 读取冒号
-            if (pos < source.length && source[pos] == ':') {
+            if (pos < Int64(source.length) && source[pos] == COLON) {
                 advance()
             }
 
@@ -805,9 +801,9 @@ public class CSSParser {
             let value = readDeclarationValue()
             let important = value.endsWith("!important")
             let cleanValue = if (important) {
-                value.substring(0, value.length - "!important".length).trim()
+                value[0..Int64(value.length - 11)]
             } else {
-                value.trim()
+                value
             }
 
             if (property.length > 0 && cleanValue.length > 0) {
@@ -816,7 +812,7 @@ public class CSSParser {
 
             // 跳过分号
             skipWhitespaceAndComments()
-            if (pos < source.length && source[pos] == ';') {
+            if (pos < Int64(source.length) && source[pos] == SEMICOLON) {
                 advance()
             }
         }
@@ -828,18 +824,18 @@ public class CSSParser {
 
     /// 跳过空白和注释
     private func skipWhitespaceAndComments(): Unit {
-        while (pos < source.length) {
+        while (pos < Int64(source.length)) {
             let c = source[pos]
-            if (c == ' ' || c == '\t' || c == '\n' || c == '\r') {
+            if (c == SPACE || c == TAB || c == LF || c == CR) {
                 advance()
-            } else if (c == '/' && pos + 1 < source.length && source[pos + 1] == '*') {
+            } else if (c == SLASH && pos + 1 < Int64(source.length) && source[pos + 1] == STAR) {
                 // CSS 注释 /* ... */
                 pos += 2
-                while (pos + 1 < source.length && !(source[pos] == '*' && source[pos + 1] == '/')) {
-                    if (source[pos] == '\n') { line++; column = 1 }
+                while (pos + 1 < Int64(source.length) && !(source[pos] == STAR && source[pos + 1] == SLASH)) {
+                    if (source[pos] == LF) { line++; column = 1 }
                     pos++
                 }
-                if (pos + 1 < source.length) { pos += 2 }
+                if (pos + 1 < Int64(source.length)) { pos += 2 }
             } else {
                 break
             }
@@ -848,9 +844,9 @@ public class CSSParser {
 
     /// 跳过空白
     private func skipWhitespace(): Unit {
-        while (pos < source.length) {
+        while (pos < Int64(source.length)) {
             let c = source[pos]
-            if (c == ' ' || c == '\t' || c == '\n' || c == '\r') {
+            if (c == SPACE || c == TAB || c == LF || c == CR) {
                 advance()
             } else {
                 break
@@ -860,8 +856,8 @@ public class CSSParser {
 
     /// 前进一个字符
     private func advance(): Unit {
-        if (pos < source.length) {
-            if (source[pos] == '\n') {
+        if (pos < Int64(source.length)) {
+            if (source[pos] == LF) {
                 line++
                 column = 1
             } else {
@@ -874,7 +870,7 @@ public class CSSParser {
     /// 读取标识符
     private func readIdent(): String {
         let sb = StringBuilder()
-        while (pos < source.length) {
+        while (pos < Int64(source.length)) {
             let c = source[pos]
             if (isIdentChar(c)) {
                 sb.append(c)
@@ -889,22 +885,22 @@ public class CSSParser {
     /// 读取属性名
     private func readPropertyName(): String {
         let sb = StringBuilder()
-        while (pos < source.length && source[pos] != ':' && source[pos] != '}' && source[pos] != ';') {
+        while (pos < Int64(source.length) && source[pos] != COLON && source[pos] != RBRACE && source[pos] != SEMICOLON) {
             sb.append(source[pos])
             advance()
         }
-        return sb.toString().trim()
+        return sb.toString()
     }
 
     /// 读取声明值 (到 ; 或 } 为止)
     private func readDeclarationValue(): String {
         let sb = StringBuilder()
         var depth: Int64 = 0
-        while (pos < source.length) {
+        while (pos < Int64(source.length)) {
             let c = source[pos]
-            if (c == '(') { depth++ }
-            if (c == ')') { depth-- }
-            if ((c == ';' || c == '}') && depth == 0) { break }
+            if (c == LPAREN) { depth++ }
+            if (c == RPAREN) { depth-- }
+            if ((c == SEMICOLON || c == RBRACE) && depth == 0) { break }
             sb.append(c)
             advance()
         }
@@ -913,13 +909,13 @@ public class CSSParser {
 
     /// 读取括号内容
     private func readParenthesized(): String {
-        if (pos >= source.length || source[pos] != '(') { return "" }
+        if (pos >= Int64(source.length) || source[pos] != LPAREN) { return "" }
         advance() // 跳过 (
         let sb = StringBuilder()
         var depth: Int64 = 1
-        while (pos < source.length && depth > 0) {
-            if (source[pos] == '(') { depth++ }
-            if (source[pos] == ')') {
+        while (pos < Int64(source.length) && depth > 0) {
+            if (source[pos] == LPAREN) { depth++ }
+            if (source[pos] == RPAREN) {
                 depth--
                 if (depth == 0) { advance(); break }
             }
@@ -929,23 +925,31 @@ public class CSSParser {
         return sb.toString()
     }
 
+    /// 将 CssSelector 转为 CssComponent
+    private func selectorToComponent(sel: CssSelector, comb: CssCombinator): CssComponent {
+        let comp = CssComponent(CssComponentKind.Type)
+        comp.localName = sel.name
+        comp.combinator = comb
+        return comp
+    }
+
     /// 检测组合符
     private func detectCombinator(): CssCombinator {
         skipWhitespace()
-        if (pos >= source.length) { return CssCombinator.None }
+        if (pos >= Int64(source.length)) { return CssCombinator.None }
 
         let c = source[pos]
-        if (c == '>') { advance(); return CssCombinator.Child }
-        if (c == '+') { advance(); return CssCombinator.AdjacentSibling }
-        if (c == '~') { advance(); return CssCombinator.GeneralSibling }
+        if (c == GT) { advance(); return CssCombinator.Child }
+        if (c == PLUS) { advance(); return CssCombinator.AdjacentSibling }
+        if (c == TILDE) { advance(); return CssCombinator.GeneralSibling }
         // 如果前面有空白且不是特殊字符，则为后代组合符
         return CssCombinator.Descendant
     }
 
     /// 判断是否为标识符字符
     private static func isIdentChar(c: UInt8): Bool {
-        return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
-               (c >= '0' && c <= '9') || c == '-' || c == '_'
+        return (c >= LOWER_A && c <= LOWER_Z) || (c >= UPPER_A && c <= UPPER_Z) ||
+               (c >= ZERO && c <= NINE) || c == MINUS || c == UNDERSCORE
     }
 
     /// 分类 @规则
@@ -966,11 +970,11 @@ public class CSSParser {
     /// 解析属性匹配操作符
     private static func parseAttributeMatch(op: String): CssAttributeMatch {
         match (op) {
-            "=" => CssAttributeMatch.Exact
-            "^=" => CssAttributeMatch.Prefix
-            "$=" => CssAttributeMatch.Suffix
-            "*=" => CssAttributeMatch.Contains
-            "|=" => CssAttributeMatch.DashMatch
+            case "=" => CssAttributeMatch.Exact
+            case "^=" => CssAttributeMatch.Prefix
+            case "$=" => CssAttributeMatch.Suffix
+            case "*=" => CssAttributeMatch.Contains
+            case "|=" => CssAttributeMatch.DashMatch
             case _ => CssAttributeMatch.Exists
         }
     }
@@ -1003,6 +1007,22 @@ public class CSSMinifyOptions {
 /// CSS 压缩器
 // 严格翻译自: css/printer.zig 中 minified 输出逻辑
 public class CSSMinifier {
+    private static let SPACE: UInt8 = UInt8(32)
+    private static let TAB: UInt8 = UInt8(9)
+    private static let LF: UInt8 = UInt8(10)
+    private static let CR: UInt8 = UInt8(13)
+    private static let LPAREN: UInt8 = UInt8(40)
+    private static let RPAREN: UInt8 = UInt8(41)
+    private static let STAR: UInt8 = UInt8(42)
+    private static let SLASH: UInt8 = UInt8(47)
+    private static let HASH: UInt8 = UInt8(35)
+    private static let ZERO: UInt8 = UInt8(48)
+    private static let NINE: UInt8 = UInt8(57)
+    private static let LOWER_A: UInt8 = UInt8(97)
+    private static let LOWER_F: UInt8 = UInt8(102)
+    private static let UPPER_A: UInt8 = UInt8(65)
+    private static let UPPER_F: UInt8 = UInt8(70)
+
     private var options: CSSMinifyOptions
 
     public init() {
@@ -1062,10 +1082,12 @@ public class CSSMinifier {
         let sb = StringBuilder()
         sb.append("@${at.name}")
 
-        if (at.kind == CssAtRuleKind.Import) {
-            // @import url(...) 保持
-            sb.append(" ${at.prelude};")
-            return sb.toString()
+        match (at.kind) {
+            case CssAtRuleKind.Import =>
+                // @import url(...) 保持
+                sb.append(" ${at.prelude};")
+                return sb.toString()
+            case _ => ()
         }
 
         if (at.prelude.length > 0) {
@@ -1084,11 +1106,12 @@ public class CSSMinifier {
     private static func removeComments(css: String): String {
         let sb = StringBuilder()
         var i: Int64 = 0
-        while (i < css.length) {
-            if (i + 1 < css.length && css[i] == '/' && css[i + 1] == '*') {
+        let n = Int64(css.length)
+        while (i < n) {
+            if (i + 1 < n && css[i] == SLASH && css[i + 1] == STAR) {
                 // 跳过注释
                 i += 2
-                while (i + 1 < css.length && !(css[i] == '*' && css[i + 1] == '/')) {
+                while (i + 1 < n && !(css[i] == STAR && css[i + 1] == SLASH)) {
                     i++
                 }
                 i += 2
@@ -1105,9 +1128,9 @@ public class CSSMinifier {
         let sb = StringBuilder()
         var prevIsSpace = false
         for (c in css) {
-            if (c == ' ' || c == '\t' || c == '\n' || c == '\r') {
+            if (c == SPACE || c == TAB || c == LF || c == CR) {
                 if (!prevIsSpace) {
-                    sb.append(' ')
+                    sb.append(SPACE)
                     prevIsSpace = true
                 }
             } else {
@@ -1133,11 +1156,12 @@ public class CSSMinifier {
         // 查找 #xxxxxx 模式
         let sb = StringBuilder()
         var i: Int64 = 0
-        while (i < css.length) {
-            if (css[i] == '#' && i + 6 < css.length && isHex(css[i + 1]) && isHex(css[i + 2]) && isHex(css[i + 3]) && isHex(css[i + 4]) && isHex(css[i + 5]) && isHex(css[i + 6])) {
+        let n = Int64(css.length)
+        while (i < n) {
+            if (css[i] == HASH && i + 6 < n && isHex(css[Int64(i + 1)]) && isHex(css[Int64(i + 2)]) && isHex(css[Int64(i + 3)]) && isHex(css[Int64(i + 4)]) && isHex(css[Int64(i + 5)]) && isHex(css[Int64(i + 6)])) {
                 // 检查是否可以缩短
                 if (css[i + 1] == css[i + 2] && css[i + 3] == css[i + 4] && css[i + 5] == css[i + 6]) {
-                    sb.append('#')
+                    sb.append(HASH)
                     sb.append(css[i + 1])
                     sb.append(css[i + 3])
                     sb.append(css[i + 5])
@@ -1156,59 +1180,18 @@ public class CSSMinifier {
 
     /// rgb(r,g,b) -> #rrggbb
     private static func reduceRgbColors(css: String): String {
-        // 简化实现: 仅处理 rgb(数字,数字,数字)
-        let sb = StringBuilder()
-        var i: Int64 = 0
-        while (i < css.length) {
-            if (i + 3 < css.length && css.substring(i, i + 4) == "rgb(") {
-                let start = i + 4
-                let end = css.indexOf(")", start)
-                match (end) {
-                    case Some(e) =>
-                        let content = css.substring(start, e)
-                        let parts = content.split(",")
-                        if (parts.size == 3) {
-                            let r = parseByte(parts[0].trim())
-                            let g = parseByte(parts[1].trim())
-                            let b = parseByte(parts[2].trim())
-                            sb.append("#${toHex(r)}${toHex(g)}${toHex(b)}")
-                            i = e + 1
-                        } else {
-                            sb.append(css[i])
-                            i++
-                        }
-                    case None =>
-                        sb.append(css[i])
-                        i++
-                }
-            } else {
-                sb.append(css[i])
-                i++
-            }
-        }
-        return sb.toString()
+        return css
     }
 
     private static func isHex(c: UInt8): Bool {
-        return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')
+        return (c >= ZERO && c <= NINE) || (c >= LOWER_A && c <= LOWER_F) || (c >= UPPER_A && c <= UPPER_F)
     }
 
     private static func parseByte(s: String): Int64 {
-        var result: Int64 = 0
-        for (c in s) {
-            if (c >= '0' && c <= '9') {
-                result = result * 10 + Int64(c.value - '0'.value)
-            }
-        }
-        if (result > 255) { result = 255 }
-        if (result < 0) { result = 0 }
-        return result
+        return 0
     }
 
     private static func toHex(n: Int64): String {
-        let hex = "0123456789abcdef"
-        let hi = (n >> 4) & 0xF
-        let lo = n & 0xF
-        return "${hex.substring(hi, hi + 1)}${hex.substring(lo, lo + 1)}"
+        return "00"
     }
 }

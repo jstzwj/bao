@@ -27,12 +27,12 @@ public enum ExprTag {
     | Undefined      // e_undefined
     | Number         // e_number
     | BigInt         // e_big_int
-    | String         // e_string
+    | StringExpr     // e_string
     | Template       // e_template
     | RegExp         // e_reg_exp
     | Identifier     // e_identifier
     | ImportIdentifier // e_import_identifier
-    | This           // e_this
+    | ThisExpr       // e_this
     | Super          // e_super
     | Array          // e_array
     | Object         // e_object
@@ -67,12 +67,12 @@ public enum ExprTag {
             case Undefined => "Undefined"
             case Number => "Number"
             case BigInt => "BigInt"
-            case String => "String"
+            case StringExpr => "String"
             case Template => "Template"
             case RegExp => "RegExp"
             case Identifier => "Identifier"
             case ImportIdentifier => "ImportIdentifier"
-            case This => "This"
+            case ThisExpr => "This"
             case Super => "Super"
             case Array => "Array"
             case Object => "Object"
@@ -99,6 +99,52 @@ public enum ExprTag {
             case RequireString => "RequireString"
             case ImportRecord => "ImportRecord"
         }
+    }
+
+    public operator func ==(right: ExprTag): Bool {
+        match (this) {
+            case Missing => match (right) { case Missing => true case _ => false }
+            case Boolean => match (right) { case Boolean => true case _ => false }
+            case Null => match (right) { case Null => true case _ => false }
+            case Undefined => match (right) { case Undefined => true case _ => false }
+            case Number => match (right) { case Number => true case _ => false }
+            case BigInt => match (right) { case BigInt => true case _ => false }
+            case StringExpr => match (right) { case StringExpr => true case _ => false }
+            case Template => match (right) { case Template => true case _ => false }
+            case RegExp => match (right) { case RegExp => true case _ => false }
+            case Identifier => match (right) { case Identifier => true case _ => false }
+            case ImportIdentifier => match (right) { case ImportIdentifier => true case _ => false }
+            case ThisExpr => match (right) { case ThisExpr => true case _ => false }
+            case Super => match (right) { case Super => true case _ => false }
+            case Array => match (right) { case Array => true case _ => false }
+            case Object => match (right) { case Object => true case _ => false }
+            case Arrow => match (right) { case Arrow => true case _ => false }
+            case Function => match (right) { case Function => true case _ => false }
+            case Class => match (right) { case Class => true case _ => false }
+            case Call => match (right) { case Call => true case _ => false }
+            case New => match (right) { case New => true case _ => false }
+            case Member => match (right) { case Member => true case _ => false }
+            case Index => match (right) { case Index => true case _ => false }
+            case TaggedTemplate => match (right) { case TaggedTemplate => true case _ => false }
+            case Spread => match (right) { case Spread => true case _ => false }
+            case Binary => match (right) { case Binary => true case _ => false }
+            case Unary => match (right) { case Unary => true case _ => false }
+            case Await => match (right) { case Await => true case _ => false }
+            case Yield => match (right) { case Yield => true case _ => false }
+            case Conditional => match (right) { case Conditional => true case _ => false }
+            case Assign => match (right) { case Assign => true case _ => false }
+            case Sequence => match (right) { case Sequence => true case _ => false }
+            case TypeCast => match (right) { case TypeCast => true case _ => false }
+            case JsxElement => match (right) { case JsxElement => true case _ => false }
+            case JsxFragment => match (right) { case JsxFragment => true case _ => false }
+            case InlinedEnum => match (right) { case InlinedEnum => true case _ => false }
+            case RequireString => match (right) { case RequireString => true case _ => false }
+            case ImportRecord => match (right) { case ImportRecord => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: ExprTag): Bool {
+        return !(this == right)
     }
 }
 
@@ -173,6 +219,47 @@ public enum StmtTag {
             case Comment => "Comment"
         }
     }
+
+    public operator func ==(right: StmtTag): Bool {
+        match (this) {
+            case Empty => match (right) { case Empty => true case _ => false }
+            case Block => match (right) { case Block => true case _ => false }
+            case Expr => match (right) { case Expr => true case _ => false }
+            case If => match (right) { case If => true case _ => false }
+            case For => match (right) { case For => true case _ => false }
+            case ForIn => match (right) { case ForIn => true case _ => false }
+            case ForOf => match (right) { case ForOf => true case _ => false }
+            case While => match (right) { case While => true case _ => false }
+            case DoWhile => match (right) { case DoWhile => true case _ => false }
+            case Switch => match (right) { case Switch => true case _ => false }
+            case Break => match (right) { case Break => true case _ => false }
+            case Continue => match (right) { case Continue => true case _ => false }
+            case Return => match (right) { case Return => true case _ => false }
+            case Throw => match (right) { case Throw => true case _ => false }
+            case Try => match (right) { case Try => true case _ => false }
+            case With => match (right) { case With => true case _ => false }
+            case Function => match (right) { case Function => true case _ => false }
+            case Class => match (right) { case Class => true case _ => false }
+            case Debugger => match (right) { case Debugger => true case _ => false }
+            case Label => match (right) { case Label => true case _ => false }
+            case Import => match (right) { case Import => true case _ => false }
+            case ExportClause => match (right) { case ExportClause => true case _ => false }
+            case ExportDefault => match (right) { case ExportDefault => true case _ => false }
+            case ExportStar => match (right) { case ExportStar => true case _ => false }
+            case ExportEquals => match (right) { case ExportEquals => true case _ => false }
+            case ExportFrom => match (right) { case ExportFrom => true case _ => false }
+            case Local => match (right) { case Local => true case _ => false }
+            case Directive => match (right) { case Directive => true case _ => false }
+            case Namespace => match (right) { case Namespace => true case _ => false }
+            case Enum => match (right) { case Enum => true case _ => false }
+            case TypeScript => match (right) { case TypeScript => true case _ => false }
+            case Comment => match (right) { case Comment => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: StmtTag): Bool {
+        return !(this == right)
+    }
 }
 
 /// 绑定标签 - 对应 Bun Binding.Tag (binding.zig)
@@ -189,6 +276,23 @@ public enum BindingTag {
             case Object => "Object"
             case Missing => "Missing"
         }
+    }
+
+    public func ordinal(): Int32 {
+        match (this) {
+            case Identifier => 0
+            case Array => 1
+            case Object => 2
+            case Missing => 3
+        }
+    }
+
+    public operator func ==(right: BindingTag): Bool {
+        return ordinal() == right.ordinal()
+    }
+
+    public operator func !=(right: BindingTag): Bool {
+        return !(this == right)
     }
 }
 
@@ -217,7 +321,7 @@ public class ASTNode {
     /// 节点类型 - 对应 Bun tag 字段
     public var tag: ExprTag
     /// 源码位置 - 对应 Bun loc: logger.Loc
-    public var loc: Loc
+    public var loc: ASTLoc
     /// 子节点 - 对应 Bun 嵌套结构 (如 E.Block.stmts, E.Array.items)
     public var children: ArrayList<ASTNode>
     /// 节点数据 - 泛化存储 (如字符串值、数字值)
@@ -225,15 +329,15 @@ public class ASTNode {
     /// 附加属性 - 用于存储额外信息 (如 E.Object.properties)
     public var properties: HashMap<String, Any>
 
-    public init(tag: ExprTag, loc: Loc) {
+    public init(tag: ExprTag, loc: ASTLoc) {
         this.tag = tag
         this.loc = loc
         this.children = ArrayList<ASTNode>()
-        this.value = None
+        this.value = Option<Any>.None
         this.properties = HashMap<String, Any>()
     }
 
-    public init(tag: ExprTag, loc: Loc, value: Any) {
+    public init(tag: ExprTag, loc: ASTLoc, value: Any) {
         this.tag = tag
         this.loc = loc
         this.children = ArrayList<ASTNode>()
@@ -255,9 +359,9 @@ public class ASTNode {
     public func isExpr(): Bool {
         match (tag) {
             case ExprTag.Missing | ExprTag.Boolean | ExprTag.Null | ExprTag.Undefined |
-                 ExprTag.Number | ExprTag.BigInt | ExprTag.String | ExprTag.Template |
+                 ExprTag.Number | ExprTag.BigInt | ExprTag.StringExpr | ExprTag.Template |
                  ExprTag.RegExp | ExprTag.Identifier | ExprTag.ImportIdentifier |
-                 ExprTag.This | ExprTag.Super | ExprTag.Array | ExprTag.Object |
+                 ExprTag.ThisExpr | ExprTag.Super | ExprTag.Array | ExprTag.Object |
                  ExprTag.Arrow | ExprTag.Function | ExprTag.Class | ExprTag.Call |
                  ExprTag.New | ExprTag.Member | ExprTag.Index | ExprTag.TaggedTemplate |
                  ExprTag.Spread | ExprTag.Binary | ExprTag.Unary | ExprTag.Await |
@@ -271,7 +375,7 @@ public class ASTNode {
     public func isLiteral(): Bool {
         match (tag) {
             case ExprTag.Boolean | ExprTag.Null | ExprTag.Undefined |
-                 ExprTag.Number | ExprTag.BigInt | ExprTag.String | ExprTag.RegExp => true
+                 ExprTag.Number | ExprTag.BigInt | ExprTag.StringExpr | ExprTag.RegExp => true
             case _ => false
         }
     }
@@ -279,7 +383,7 @@ public class ASTNode {
     /// 获取字符串值 (如果是 String 节点)
     public func stringValue(): ?String {
         match (tag) {
-            case ExprTag.String => value as String
+            case ExprTag.StringExpr => value as String
             case _ => None
         }
     }
@@ -339,18 +443,18 @@ public class ASTNode {
 /// 语句 AST 节点 - 对应 Bun Stmt
 public class StmtNode {
     public var tag: StmtTag
-    public var loc: Loc
+    public var loc: ASTLoc
     public var children: ArrayList<ASTNode>
     public var stmts: ArrayList<StmtNode>
     public var value: Any
     public var properties: HashMap<String, Any>
 
-    public init(tag: StmtTag, loc: Loc) {
+    public init(tag: StmtTag, loc: ASTLoc) {
         this.tag = tag
         this.loc = loc
         this.children = ArrayList<ASTNode>()
         this.stmts = ArrayList<StmtNode>()
-        this.value = None
+        this.value = Option<Any>.None
         this.properties = HashMap<String, Any>()
     }
 
@@ -379,13 +483,13 @@ public class StmtNode {
 /// Bun: pub const Binding = struct { loc: logger.Loc, data: Data }
 public class BindingNode {
     public var tag: BindingTag
-    public var loc: Loc
+    public var loc: ASTLoc
     public var children: ArrayList<BindingNode>
     public var name: String
     public var defaultValue: ?ASTNode
     public var isSpread: Bool
 
-    public init(tag: BindingTag, loc: Loc) {
+    public init(tag: BindingTag, loc: ASTLoc) {
         this.tag = tag
         this.loc = loc
         this.children = ArrayList<BindingNode>()
@@ -394,7 +498,7 @@ public class BindingNode {
         this.isSpread = false
     }
 
-    public init(tag: BindingTag, loc: Loc, name: String) {
+    public init(tag: BindingTag, loc: ASTLoc, name: String) {
         this.tag = tag
         this.loc = loc
         this.children = ArrayList<BindingNode>()
@@ -483,6 +587,21 @@ public class DefaultVisitor<T> <: ASTVisitor<T> {
 public enum WalkOrder {
     | PreOrder   // 先访问父节点，再递归子节点
     | PostOrder  // 先递归子节点，再访问父节点
+
+    public operator func ==(right: WalkOrder): Bool {
+        return ordinal() == right.ordinal()
+    }
+
+    public operator func !=(right: WalkOrder): Bool {
+        return !(this == right)
+    }
+
+    public func ordinal(): Int64 {
+        match (this) {
+            case PreOrder => 0
+            case PostOrder => 1
+        }
+    }
 }
 
 /// AST 递归遍历器 - 对应 Bun 中 AST 的递归遍历逻辑
@@ -580,26 +699,23 @@ public class ASTWalker {
 
     /// 查找第一个匹配节点
     public static func findFirst(node: ASTNode, predicate: (ASTNode) -> Bool): ?ASTNode {
-        var found: ?ASTNode = None
-        walkExpr(node, { n =>
-            if (predicate(n)) {
-                found = Some(n)
-                return false  // 停止遍历
+        if (predicate(node)) {
+            return Some(node)
+        }
+        for (child in node.children) {
+            if (let Some(found) <- findFirst(child, predicate)) {
+                return Some(found)
             }
-            true
-        })
-        return found
+        }
+        return Option<ASTNode>.None
     }
 
     /// 统计节点数量
     public static func count(node: ASTNode, predicate: (ASTNode) -> Bool): Int64 {
-        var total = Int64(0)
-        walkExpr(node, { n =>
-            if (predicate(n)) {
-                total += Int64(1)
-            }
-            true
-        })
+        var total = if (predicate(node)) { Int64(1) } else { Int64(0) }
+        for (child in node.children) {
+            total += count(child, predicate)
+        }
         return total
     }
 }
@@ -687,36 +803,41 @@ public class ASTPrinter {
         }
         if (showValues) {
             match (node.tag) {
-                case ExprTag.String => {
+                case ExprTag.StringExpr =>
                     let v = node.stringValue()
                     match (v) {
-                        case Some(s) => sb.append(" \"").append(s).append("\"")
+                        case Some(s) =>
+                            sb.append(" \"")
+                            sb.append(s)
+                            sb.append("\"")
                         case None => ()
                     }
-                }
-                case ExprTag.Number => {
+                case ExprTag.Number =>
                     let v = node.numberValue()
                     match (v) {
-                        case Some(n) => sb.append(" ").append(n.toString())
+                        case Some(n) =>
+                            sb.append(" ")
+                            sb.append(n.toString())
                         case None => ()
                     }
-                }
-                case ExprTag.Boolean => {
+                case ExprTag.Boolean =>
                     let v = node.boolValue()
                     match (v) {
-                        case Some(b) => sb.append(" ").append(b.toString())
+                        case Some(b) =>
+                            sb.append(" ")
+                            sb.append(b.toString())
                         case None => ()
                     }
-                }
                 case ExprTag.Null => sb.append(" null")
                 case ExprTag.Undefined => sb.append(" undefined")
-                case ExprTag.Identifier => {
+                case ExprTag.Identifier =>
                     let v = node.value as String
                     match (v) {
-                        case Some(s) => sb.append(" ").append(s)
+                        case Some(s) =>
+                            sb.append(" ")
+                            sb.append(s)
                         case None => ()
                     }
-                }
                 case _ => ()
             }
         }
@@ -773,7 +894,8 @@ public class ASTPrinter {
         writeIndent()
         sb.append(node.tag.name())
         if (node.name.size > Int64(0)) {
-            sb.append(" ").append(node.name)
+            sb.append(" ")
+            sb.append(node.name)
         }
         if (node.isSpread) {
             sb.append(" ...")
@@ -821,7 +943,7 @@ public class ASTComparer {
         }
         // 比较值
         match (a.tag) {
-            case ExprTag.String => {
+            case ExprTag.StringExpr =>
                 let va = a.stringValue()
                 let vb = b.stringValue()
                 match (va) {
@@ -831,8 +953,7 @@ public class ASTComparer {
                     }
                     case None => if (vb.isSome()) { return false }
                 }
-            }
-            case ExprTag.Number => {
+            case ExprTag.Number =>
                 let va = a.numberValue()
                 let vb = b.numberValue()
                 match (va) {
@@ -842,8 +963,7 @@ public class ASTComparer {
                     }
                     case None => if (vb.isSome()) { return false }
                 }
-            }
-            case ExprTag.Boolean => {
+            case ExprTag.Boolean =>
                 let va = a.boolValue()
                 let vb = b.boolValue()
                 match (va) {
@@ -853,7 +973,6 @@ public class ASTComparer {
                     }
                     case None => if (vb.isSome()) { return false }
                 }
-            }
             case ExprTag.Null | ExprTag.Undefined => () // 标签匹配即可
             case _ => ()
         }
@@ -923,15 +1042,15 @@ public class ASTComparer {
             b.children.size
         }
         for (i in Int64(0)..maxLen) {
-            let ac = if (i < a.children.size) {
+            let ac: ?ASTNode = if (i < a.children.size) {
                 Some(a.children[i])
             } else {
-                None
+                Option<ASTNode>.None
             }
-            let bc = if (i < b.children.size) {
+            let bc: ?ASTNode = if (i < b.children.size) {
                 Some(b.children[i])
             } else {
-                None
+                Option<ASTNode>.None
             }
             match (ac) {
                 case Some(aChild) => match (bc) {

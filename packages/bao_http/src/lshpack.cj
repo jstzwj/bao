@@ -115,16 +115,16 @@ public class Lshpack {
         // 桩: 实际调用 lshpack_wrapper_decode
         // 降级到 http2.cj 中的 HpackDecoder
         let decoder = HpackDecoder()
-        match (decoder.decode(src)) {
-            case Some(headers) => {
-                if (headers.size > 0) {
-                    let h = headers[0]
-                    return LshpackDecodeResult(h.name, h.value, false, 0, 0)
-                }
-                return None
+        let decoded = decoder.decode(src)
+        if (decoded.isSome()) {
+            let decodedHeaders = decoded.getOrThrow()
+            if (decodedHeaders.size > 0) {
+                let h = decodedHeaders[0]
+                return LshpackDecodeResult(h.name, h.value, false, 0, 0)
             }
-            case None => return None
+            return None
         }
+        return None
     }
 
     // ========================================================================

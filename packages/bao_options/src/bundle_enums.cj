@@ -16,17 +16,21 @@ public enum BundleFormat {
     | Iife
     | Cjs
     | InternalBakeDev
-    | this
-}
 
     /// 是否为 ESM 格式
     public func isESM(): Bool {
-        this == BundleFormat.Esm
+        match (this) {
+            case Esm => true
+            case _ => false
+        }
     }
 
     /// 是否始终使用严格模式
     public func isAlwaysStrictMode(): Bool {
-        this == BundleFormat.Esm
+        match (this) {
+            case Esm => true
+            case _ => false
+        }
     }
 
     /// 从字符串解析格式

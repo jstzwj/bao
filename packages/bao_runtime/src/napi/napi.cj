@@ -449,7 +449,7 @@ public class NapiFunctions {
     /// 对应 Bun: napi_create_string_latin1
     public static func createStringLatin1(env: NapiEnv, str: ?String, length: Int64): NapiValue {
         if (str == None) {
-            return NapiValue.create(env, JsValue(""))
+            return NapiValue.create(env, JsValue(BaoString("")))
         }
         return NapiValue.create(env, JsValue(str.getOrThrow()))
     }
@@ -458,7 +458,7 @@ public class NapiFunctions {
     /// 对应 Bun: napi_create_string_utf8
     public static func createStringUtf8(env: NapiEnv, str: ?String, length: Int64): NapiValue {
         if (str == None) {
-            return NapiValue.create(env, JsValue(""))
+            return NapiValue.create(env, JsValue(BaoString("")))
         }
         return NapiValue.create(env, JsValue(str.getOrThrow()))
     }
@@ -467,7 +467,7 @@ public class NapiFunctions {
     /// 对应 Bun: napi_create_string_utf16
     public static func createStringUtf16(env: NapiEnv, str: ?String, length: Int64): NapiValue {
         if (str == None) {
-            return NapiValue.create(env, JsValue(""))
+            return NapiValue.create(env, JsValue(BaoString("")))
         }
         return NapiValue.create(env, JsValue(str.getOrThrow()))
     }
@@ -508,7 +508,7 @@ public class NapiFunctions {
         if (!code.get().isUndefinedOrNull()) {
             errorObj.set("code", code.get())
         }
-        errorObj.set("name", JsValue("TypeError"))
+        errorObj.set("name", JsValue(BaoString("TypeError")))
         return NapiValue.create(env, JsValue(errorObj))
     }
 
@@ -520,7 +520,7 @@ public class NapiFunctions {
         if (!code.get().isUndefinedOrNull()) {
             errorObj.set("code", code.get())
         }
-        errorObj.set("name", JsValue("RangeError"))
+        errorObj.set("name", JsValue(BaoString("RangeError")))
         return NapiValue.create(env, JsValue(errorObj))
     }
 

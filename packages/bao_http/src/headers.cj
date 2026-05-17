@@ -96,8 +96,8 @@ public class HeaderEntryList {
             return false
         }
         for (i in 0..a.size) {
-            let ca = a[i].toLower()
-            let cb = b[i].toLower()
+            let ca = headersLowerByte(a[i])
+            let cb = headersLowerByte(b[i])
             if (ca != cb) {
                 return false
             }
@@ -118,17 +118,17 @@ public class FetchHeaders {
 
     /// 获取头部值
     public func get(name: String): ?String {
-        return headers.get(name.toLower())
+        return headers.get(headersToLower(name))
     }
 
     /// 设置头部值 (覆盖)
     public func set(name: String, value: String): Unit {
-        headers.put(name.toLower(), value)
+        headers.put(headersToLower(name), value)
     }
 
     /// 追加头部值 (多值)
     public func append(name: String, value: String): Unit {
-        let key = name.toLower()
+        let key = headersToLower(name)
         match (headers.get(key)) {
             case Some(existing) => headers.put(key, "${existing}, ${value}")
             case None => headers.put(key, value)
@@ -137,12 +137,12 @@ public class FetchHeaders {
 
     /// 是否包含某个头部
     public func has(name: String): Bool {
-        return headers.contains(name.toLower())
+        return headers.contains(headersToLower(name))
     }
 
     /// 删除某个头部
     public func delete(name: String): Unit {
-        headers.remove(name.toLower())
+        headers.remove(headersToLower(name))
     }
 
     /// 按小写名称快速查找
@@ -179,6 +179,21 @@ public class FetchHeaders {
         }
         bufLen.value = total
     }
+}
+
+private func headersLowerByte(c: UInt8): UInt8 {
+    if (c >= UInt8(65) && c <= UInt8(90)) {
+        return c + UInt8(32)
+    }
+    return c
+}
+
+private func headersToLower(s: String): String {
+    let sb = StringBuilder()
+    for (c in s) {
+        sb.append(headersLowerByte(c))
+    }
+    return sb.toString()
 }
 
 /// 引用类型包装 (用于 count 回调参数)
@@ -239,7 +254,7 @@ public enum HeaderName {
 
     /// 从字符串解析
     public static func fromString(s: String): ?HeaderName {
-        let lower = s.toLower()
+        let lower = headersToLower(s)
         match (lower) {
             case "content-type" => Some(ContentType)
             case "content-length" => Some(ContentLength)

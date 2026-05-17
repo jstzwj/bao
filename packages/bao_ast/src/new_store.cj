@@ -141,7 +141,7 @@ public class StoreManager {
         if (instance.isSome()) {
             return
         }
-        instance = Some(NewStore.init())
+        instance = Some(NewStore.initFunc())
     }
 
     /// 开始/重置 - 对应 Bun Store.begin()

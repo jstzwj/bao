@@ -17,7 +17,7 @@ import bao_core.*
 
 /// 事件循环类型别名
 /// 翻译自: pub const Loop = uws.Loop
-public typealias Loop = UwsLoop
+public type Loop = UwsLoop
 
 // ============================================================================
 // KeepAlive - 保持事件循环活跃
@@ -26,93 +26,105 @@ public typealias Loop = UwsLoop
 //   不是引用计数, 只跟踪 active/inactive
 // ============================================================================
 
-/// 保持事件循环活跃状态
-/// 严格翻译自 KeepAlive 结构体
-public class KeepAlive {
-    /// 状态枚举
-    /// 翻译自: const Status = enum { active, inactive, done }
-    public enum Status {
-        | Active
-        | Inactive
-        | Done
+/// 状态枚举
+/// 翻译自: const Status = enum { active, inactive, done }
+public enum PosixKeepAliveStatus {
+    | Active
+    | Inactive
+    | Done
+
+    public operator func ==(right: PosixKeepAliveStatus): Bool {
+        match (this) {
+            case Active => match (right) { case Active => true case _ => false }
+            case Inactive => match (right) { case Inactive => true case _ => false }
+            case Done => match (right) { case Done => true case _ => false }
+        }
     }
 
-    public var status: Status = Status.Inactive
+    public operator func !=(right: PosixKeepAliveStatus): Bool {
+        return !(this == right)
+    }
+}
+
+/// 保持事件循环活跃状态
+/// 严格翻译自 KeepAlive 结构体
+public class PosixKeepAlive {
+    public var status: PosixKeepAliveStatus = PosixKeepAliveStatus.Inactive
 
     public init() {}
 
     /// 是否活跃
     /// 严格翻译自: pub inline fn isActive(this: KeepAlive) bool
     public func isActive(): Bool {
-        return status == Status.Active
+        return status == PosixKeepAliveStatus.Active
     }
 
     /// 禁用 - 设为 Done, 调用 unref
     /// 严格翻译自: pub fn disable(this: *KeepAlive) void
     public func disable(loop: Loop): Unit {
-        if (status == Status.Active) {
+        if (status == PosixKeepAliveStatus.Active) {
             unref(loop)
         }
-        status = Status.Done
+        status = PosixKeepAliveStatus.Done
     }
 
     /// 停用
     /// 严格翻译自: pub fn deactivate(this: *KeepAlive, loop: *Loop) void
     public func deactivate(loop: Loop): Unit {
-        if (status != Status.Active) {
+        if (status != PosixKeepAliveStatus.Active) {
             return
         }
-        status = Status.Inactive
+        status = PosixKeepAliveStatus.Inactive
         loop.subActive(1)
     }
 
     /// 激活
     /// 严格翻译自: pub fn activate(this: *KeepAlive, loop: *Loop) void
     public func activate(loop: Loop): Unit {
-        if (status != Status.Inactive) {
+        if (status != PosixKeepAliveStatus.Inactive) {
             return
         }
-        status = Status.Active
+        status = PosixKeepAliveStatus.Active
         loop.addActive(1)
     }
 
     /// 取消引用
     /// 严格翻译自: pub fn unref(this: *KeepAlive, ...) void
     public func unref(loop: Loop): Unit {
-        if (status != Status.Active) {
+        if (status != PosixKeepAliveStatus.Active) {
             return
         }
-        status = Status.Inactive
+        status = PosixKeepAliveStatus.Inactive
         loop.unref()
     }
 
     /// 从另一个线程取消引用
     /// 严格翻译自: pub fn unrefConcurrently(this: *KeepAlive, vm: ...) void
     public func unrefConcurrently(): Unit {
-        if (status != Status.Active) {
+        if (status != PosixKeepAliveStatus.Active) {
             return
         }
-        status = Status.Inactive
+        status = PosixKeepAliveStatus.Inactive
         // vm.event_loop.unrefConcurrently()
     }
 
     /// 引用
     /// 严格翻译自: pub fn ref(this: *KeepAlive, ...) void
     public func ref(loop: Loop): Unit {
-        if (status != Status.Inactive) {
+        if (status != PosixKeepAliveStatus.Inactive) {
             return
         }
-        status = Status.Active
+        status = PosixKeepAliveStatus.Active
         loop.ref()
     }
 
     /// 从另一个线程引用
     /// 严格翻译自: pub fn refConcurrently(this: *KeepAlive, vm: ...) void
     public func refConcurrently(): Unit {
-        if (status != Status.Inactive) {
+        if (status != PosixKeepAliveStatus.Inactive) {
             return
         }
-        status = Status.Active
+        status = PosixKeepAliveStatus.Active
     }
 }
 

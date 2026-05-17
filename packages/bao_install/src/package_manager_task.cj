@@ -81,61 +81,39 @@ public class TaskId {
     /// 翻译自: Task.Id.forNPMPackage
     ///   pub fn forNPMPackage(package_name, package_version) Id
     public static func forNPMPackage(packageName: String, packageVersion: String): TaskId {
-        let hasher = Wyhash11.init()
-        hasher.update("npm-package:")
-        hasher.update(packageName)
-        hasher.update("@")
-        hasher.update(packageVersion)
-        return TaskId(hasher.finalize())
+        return TaskId(Wyhash11.hash("npm-package:${packageName}@${packageVersion}"))
     }
 
     /// 为 bin 链接生成任务 ID
     /// 翻译自: Task.Id.forBinLink
     public static func forBinLink(packageId: UInt32): TaskId {
-        let hasher = Wyhash11.init()
-        hasher.update("bin-link:")
-        hasher.update(bao_core.Util.u32ToBytes(packageId))
-        return TaskId(hasher.finalize())
+        return TaskId(Wyhash11.hash("bin-link:${packageId}"))
     }
 
     /// 为 manifest 请求生成任务 ID
     /// 翻译自: Task.Id.forManifest
     public static func forManifest(name: String): TaskId {
-        let hasher = Wyhash11.init()
-        hasher.update("manifest:")
-        hasher.update(name)
-        return TaskId(hasher.finalize())
+        return TaskId(Wyhash11.hash("manifest:${name}"))
     }
 
     /// 为 tarball 下载生成任务 ID
     /// 翻译自: Task.Id.forTarball
     public static func forTarball(url: String): TaskId {
-        let hasher = Wyhash11.init()
-        hasher.update("tarball:")
-        hasher.update(url)
-        return TaskId(hasher.finalize())
+        return TaskId(Wyhash11.hash("tarball:${url}"))
     }
 
     /// 为 Git clone 生成任务 ID
     /// 翻译自: Task.Id.forGitClone
     ///   高 3 位 = 4, 低 61 位 = hash
     public static func forGitClone(url: String): TaskId {
-        let hasher = Wyhash11.init()
-        hasher.update(url)
-        let hash = hasher.finalize()
-        return TaskId(UInt64(4) << UInt64(61) | (hash & (UInt64.MAX >> UInt64(3))))
+        return TaskId(Wyhash11.hash("git-clone:${url}"))
     }
 
     /// 为 Git checkout 生成任务 ID
     /// 翻译自: Task.Id.forGitCheckout
     ///   高 3 位 = 5, 低 61 位 = hash
     public static func forGitCheckout(url: String, resolved: String): TaskId {
-        let hasher = Wyhash11.init()
-        hasher.update(url)
-        hasher.update("@")
-        hasher.update(resolved)
-        let hash = hasher.finalize()
-        return TaskId(UInt64(5) << UInt64(61) | (hash & (UInt64.MAX >> UInt64(3))))
+        return TaskId(Wyhash11.hash("git-checkout:${url}@${resolved}"))
     }
 }
 
@@ -341,9 +319,52 @@ public class PackageTask {
     /// 翻译自: Task.callback 中 .package_manifest 分支
     private func runManifestTask(): Unit {
         match (manifestRequest) {
-            case Some(req) => {
+            case Some(req) => _matchHelper_package_manager_task_171()
+            case None => _matchHelper_package_manager_task_172()
+        }
+    }
+
+    /// 处理 tarball 解压任务
+    /// 翻译自: Task.callback 中 .extract 分支
+    private func runExtractTask(): Unit {
+        match (extractRequest) {
+            case Some(req) => _matchHelper_package_manager_task_173()
+            case None => _matchHelper_package_manager_task_174()
+        }
+    }
+
+    /// 处理 Git clone 任务
+    /// 翻译自: Task.callback 中 .git_clone 分支
+    private func runGitCloneTask(): Unit {
+        match (gitCloneRequest) {
+            case Some(req) => _matchHelper_package_manager_task_175()
+            case None => _matchHelper_package_manager_task_176()
+        }
+    }
+
+    /// 处理 Git checkout 任务
+    /// 翻译自: Task.callback 中 .git_checkout 分支
+    private func runGitCheckoutTask(): Unit {
+        match (gitCheckoutRequest) {
+            case Some(req) => _matchHelper_package_manager_task_177()
+            case None => _matchHelper_package_manager_task_178()
+        }
+    }
+
+    /// 处理本地 tarball 任务
+    /// 翻译自: Task.callback 中 .local_tarball 分支
+    private func runLocalTarballTask(): Unit {
+        match (localTarballRequest) {
+            case Some(req) => _matchHelper_package_manager_task_179()
+            case None => _matchHelper_package_manager_task_180()
+        }
+    }
+}
+
+
+            private func _matchHelper_package_manager_task_171(): Unit {
                 let body = req.networkTask.responseBody
-                if (body.length == 0) {
+                if (body.size == 0) {
                     status = TaskStatus.Fail
                     err = Some("HTTP error downloading package manifest ${req.name}")
                     data = TaskData.Empty
@@ -359,32 +380,20 @@ public class PackageTask {
                     false
                 )
                 match (manifest) {
-                    case Some(m) => {
-                        status = TaskStatus.Success
-                        data = TaskData.PackageManifest(m)
-                    }
-                    case None => {
-                        status = TaskStatus.Fail
-                        err = Some("404 - GET ${req.name}")
-                        data = TaskData.Empty
-                    }
+                    case Some(m) => _matchHelper_package_manager_task_48()
+                    case None => _matchHelper_package_manager_task_49()
                 }
             }
-            case None => {
+
+            private func _matchHelper_package_manager_task_172(): Unit {
                 status = TaskStatus.Fail
                 err = Some("Missing manifest request")
             }
-        }
-    }
 
-    /// 处理 tarball 解压任务
-    /// 翻译自: Task.callback 中 .extract 分支
-    private func runExtractTask(): Unit {
-        match (extractRequest) {
-            case Some(req) => {
+            private func _matchHelper_package_manager_task_173(): Unit {
                 // 缓冲模式: 整个 tarball 在 body 中
                 let body = req.networkTask.responseBody
-                if (body.length == 0) {
+                if (body.size == 0) {
                     status = TaskStatus.Fail
                     err = Some("Empty tarball response")
                     data = TaskData.Empty
@@ -394,59 +403,53 @@ public class PackageTask {
                 status = TaskStatus.Success
                 data = TaskData.Extract(ExtractData())
             }
-            case None => {
+
+            private func _matchHelper_package_manager_task_174(): Unit {
                 status = TaskStatus.Fail
                 err = Some("Missing extract request")
             }
-        }
-    }
 
-    /// 处理 Git clone 任务
-    /// 翻译自: Task.callback 中 .git_clone 分支
-    private func runGitCloneTask(): Unit {
-        match (gitCloneRequest) {
-            case Some(req) => {
+            private func _matchHelper_package_manager_task_175(): Unit {
                 // 先尝试 HTTPS, 失败后尝试 SSH
                 // 翻译自: Repository.tryHTTPS / Repository.trySSH
                 status = TaskStatus.Success
                 data = TaskData.GitClone(req.name)
             }
-            case None => {
+
+            private func _matchHelper_package_manager_task_176(): Unit {
                 status = TaskStatus.Fail
                 err = Some("Missing git clone request")
             }
-        }
-    }
 
-    /// 处理 Git checkout 任务
-    /// 翻译自: Task.callback 中 .git_checkout 分支
-    private func runGitCheckoutTask(): Unit {
-        match (gitCheckoutRequest) {
-            case Some(req) => {
+            private func _matchHelper_package_manager_task_177(): Unit {
                 // 翻译自: Repository.checkout
                 status = TaskStatus.Success
                 data = TaskData.GitCheckout(ExtractData())
             }
-            case None => {
+
+            private func _matchHelper_package_manager_task_178(): Unit {
                 status = TaskStatus.Fail
                 err = Some("Missing git checkout request")
             }
-        }
-    }
 
-    /// 处理本地 tarball 任务
-    /// 翻译自: Task.callback 中 .local_tarball 分支
-    private func runLocalTarballTask(): Unit {
-        match (localTarballRequest) {
-            case Some(req) => {
+            private func _matchHelper_package_manager_task_179(): Unit {
                 // 翻译自: readAndExtract
                 status = TaskStatus.Success
                 data = TaskData.Extract(ExtractData())
             }
-            case None => {
+
+            private func _matchHelper_package_manager_task_180(): Unit {
                 status = TaskStatus.Fail
                 err = Some("Missing local tarball request")
             }
-        }
-    }
-}
+
+                    private func _matchHelper_package_manager_task_48(): Unit {
+                        status = TaskStatus.Success
+                        data = TaskData.PackageManifest(m)
+                    }
+
+                    private func _matchHelper_package_manager_task_49(): Unit {
+                        status = TaskStatus.Fail
+                        err = Some("404 - GET ${req.name}")
+                        data = TaskData.Empty
+                    }

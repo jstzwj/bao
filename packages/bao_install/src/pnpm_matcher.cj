@@ -157,52 +157,44 @@ public class PnpmMatcher {
         }
 
         match (behavior) {
-            case AllMatchersInclude => {
-                // 任一匹配器命中即匹配
-                for (matcher in matchers) {
-                    match (matcher.pattern) {
-                        case MatcherPattern.MatchAll => return true
-                        case MatcherPattern.Regex(regex) => {
-                            if (matchRegex(regex, name)) {
-                                return true
-                            }
-                        }
-                    }
-                }
-                return false
-            }
-            case AllMatchersExclude => {
-                // 任一匹配器命中即排除
-                for (matcher in matchers) {
-                    match (matcher.pattern) {
-                        case MatcherPattern.MatchAll => return false
-                        case MatcherPattern.Regex(regex) => {
-                            if (matchRegex(regex, name)) {
-                                return false
-                            }
-                        }
-                    }
-                }
-                return true
-            }
-            case HasExcludeAndIncludeMatchers => {
-                // 最后一个命中的匹配器决定结果
-                var matches = false
-                for (matcher in matchers) {
-                    match (matcher.pattern) {
-                        case MatcherPattern.MatchAll => {
-                            matches = !matcher.isExclude
-                        }
-                        case MatcherPattern.Regex(regex) => {
-                            if (matchRegex(regex, name)) {
-                                matches = !matcher.isExclude
-                            }
-                        }
-                    }
-                }
-                return matches
+            case AllMatchersInclude => return isMatchInclude(name)
+            case AllMatchersExclude => return isMatchExclude(name)
+            case HasExcludeAndIncludeMatchers => return isMatchMixed(name)
+        }
+    }
+
+    private func isMatchInclude(name: String): Bool {
+        // 任一匹配器命中即匹配
+        for (matcher in matchers) {
+            match (matcher.pattern) {
+                case MatcherPattern.MatchAll => return true
+                case MatcherPattern.Regex(regex) => if (matchRegex(regex, name)) { return true }
             }
         }
+        return false
+    }
+
+    private func isMatchExclude(name: String): Bool {
+        // 任一匹配器命中即排除
+        for (matcher in matchers) {
+            match (matcher.pattern) {
+                case MatcherPattern.MatchAll => return false
+                case MatcherPattern.Regex(regex) => if (matchRegex(regex, name)) { return false }
+            }
+        }
+        return true
+    }
+
+    private func isMatchMixed(name: String): Bool {
+        // 最后一个命中的匹配器决定结果
+        var matches = false
+        for (matcher in matchers) {
+            match (matcher.pattern) {
+                case MatcherPattern.MatchAll => matches = !matcher.isExclude
+                case MatcherPattern.Regex(regex) => if (matchRegex(regex, name)) { matches = !matcher.isExclude }
+            }
+        }
+        return matches
     }
 
     // 将 glob 模式转换为正则表达式
@@ -250,8 +242,8 @@ public class PnpmMatcher {
 
     // 通配符匹配
     private static func globMatch(pattern: String, input: String): Bool {
-        let pLen = pattern.length
-        let iLen = input.length
+        let pLen = pattern.size
+        let iLen = input.size
         var pi: Int64 = 0
         var ii: Int64 = 0
 
@@ -271,13 +263,13 @@ public class PnpmMatcher {
             } else if (pc == CharCode.DOLLAR) {
                 // 结束
                 pi += 1
-            } else if (pattern[pi] == '[' && pi + 2 < pLen && pattern[Int64(pi) + 1] == '^' && pattern[Int64(pi) + 2] == '/') && pi + 3 < pLen && pattern[Int64(pi) + 3] == ']' && pi + 4 < pLen && pattern[Int64(pi) + 4] == '*') {
+            } else if (pi + 4 < pLen && pattern[pi] == '[' && pattern[Int64(pi) + 1] == '^' && pattern[Int64(pi) + 2] == '/' && pattern[Int64(pi) + 3] == ']' && pattern[Int64(pi) + 4] == '*') {
                 // [^/]* -> 匹配任意非 / 字符序列
                 pi += 5
                 while (ii < iLen && input[ii].value != CharCode.SLASH) {
                     ii += 1
                 }
-            } else if (pattern[pi] == '[' && pi + 2 < pLen && pattern[Int64(pi) + 1] == '^' && pattern[Int64(pi) + 2] == '/') && pi + 3 < pLen && pattern[Int64(pi) + 3] == ']' {
+            } else if (pi + 3 < pLen && pattern[pi] == '[' && pattern[Int64(pi) + 1] == '^' && pattern[Int64(pi) + 2] == '/' && pattern[Int64(pi) + 3] == ']') {
                 // [^/] -> 匹配单个非 / 字符
                 pi += 4
                 if (ii < iLen && input[ii].value != CharCode.SLASH) {

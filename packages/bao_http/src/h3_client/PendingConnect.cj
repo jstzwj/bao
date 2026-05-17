@@ -137,7 +137,7 @@ public class H3ResolvedQueue {
     /// 排空已解析的连接
     /// 严格翻译自: PendingConnect.drainResolved
     public func drainResolved(): Unit {
-        let pending = queue.toArray()
+        let pending = queue.toOwnedSlice()
         queue = ArrayList<H3PendingConnect>()
         for (pc in pending) {
             pc.onDNSResolved()

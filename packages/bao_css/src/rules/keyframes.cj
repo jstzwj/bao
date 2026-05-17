@@ -5,6 +5,7 @@ package bao_css.rules
 
 import bao_core.*
 import bao_collections.*
+import bao_css.*
 
 // ============================================================================
 // 关键帧名称
@@ -14,28 +15,41 @@ import bao_collections.*
 /// CSS <keyframes-name>
 /// 严格翻译自 KeyframesName union { Ident(CustomIdent), Custom(&'static [u8]) }
 /// 关键帧名称可以是自定义标识符或引号字符串
-public class CssKeyframesName {
-    public enum CssKeyframesNameKind {
-        | Ident   // <custom-ident>
-        | Custom  // <string>
+public enum CssKeyframesNameKind {
+    | Ident   // <custom-ident>
+    | Custom  // <string>
+
+    public func toString(): String {
+        match (this) {
+            case Ident => "Ident"
+            case Custom => "Custom"
+        }
     }
 
+    public operator func ==(rhs: CssKeyframesNameKind): Bool {
+        this.toString() == rhs.toString()
+    }
+}
+
+public class CssKeyframesName {
     public var kind: CssKeyframesNameKind
     /// 标识符值 (Ident 时使用)
     public var identValue: String
     /// 字符串值 (Custom 时使用)
     public var stringValue: String
 
-    public init(ident: String) {
-        this.kind = CssKeyframesNameKind.Ident
-        this.identValue = ident
-        this.stringValue = ""
+    public init(kind!: CssKeyframesNameKind, value!: String) {
+        this.kind = kind
+        this.identValue = if (kind == CssKeyframesNameKind.Ident) { value } else { "" }
+        this.stringValue = if (kind == CssKeyframesNameKind.Custom) { value } else { "" }
     }
 
-    public init(custom: String) {
-        this.kind = CssKeyframesNameKind.Custom
-        this.identValue = ""
-        this.stringValue = custom
+    public static func ident(value: String): CssKeyframesName {
+        CssKeyframesName(kind: CssKeyframesNameKind.Ident, value: value)
+    }
+
+    public static func custom(value: String): CssKeyframesName {
+        CssKeyframesName(kind: CssKeyframesNameKind.Custom, value: value)
     }
 
     /// 获取名称值
@@ -51,8 +65,17 @@ public class CssKeyframesName {
     /// 严格翻译自 KeyframesName.deep_clone
     public func deepClone(): CssKeyframesName {
         match (kind) {
-            case Ident => CssKeyframesName(ident: identValue)
-            case Custom => CssKeyframesName(custom: stringValue)
+            case Ident => CssKeyframesName.ident(identValue)
+            case Custom => CssKeyframesName.custom(stringValue)
+        }
+    }
+
+    private func customToCss(): String {
+        // CSS-wide 关键字和 none 不能去除引号
+        if (isReservedCustomIdent(stringValue)) {
+            "\"${stringValue}\""
+        } else {
+            stringValue
         }
     }
 
@@ -61,14 +84,7 @@ public class CssKeyframesName {
     public func toCss(): String {
         match (kind) {
             case Ident => identValue
-            case Custom => {
-                // CSS-wide 关键字和 none 不能去除引号
-                if (isReservedCustomIdent(stringValue)) {
-                    "\"${stringValue}\""
-                } else {
-                    stringValue
-                }
-            }
+            case Custom => customToCss()
         }
     }
 
@@ -90,13 +106,13 @@ public class CssKeyframesName {
 /// CSS 关键帧选择器
 /// 严格翻译自 KeyframeSelector union { Percentage(f32), From, To }
 /// 表示 @keyframes 中的 from/to/百分比选择器
-public class CssKeyframeSelector {
-    public enum CssKeyframeSelectorKind {
-        | Percentage  // 百分比选择器
-        | From        // from 关键字 (= 0%)
-        | To          // to 关键字 (= 100%)
-    }
+public enum CssKeyframeSelectorKind {
+    | Percentage  // 百分比选择器
+    | From        // from 关键字 (= 0%)
+    | To          // to 关键字 (= 100%)
+}
 
+public class CssKeyframeSelector {
     public var kind: CssKeyframeSelectorKind
     /// 百分比值 (Percentage 时使用)
     public var percentageValue: Float64
@@ -119,20 +135,20 @@ public class CssKeyframeSelector {
         return s
     }
 
+    private func percentageToCss(minify: Bool): String {
+        if (minify && percentageValue == 1.0) {
+            "to"
+        } else {
+            "${percentageValue * 100.0}%"
+        }
+    }
+
     /// 转为 CSS 文本
     /// 严格翻译自 KeyframeSelector.to_css
     public func toCss(minify: Bool): String {
         match (kind) {
-            case Percentage => {
-                if (minify && percentageValue == 1.0) {
-                    "to"
-                } else {
-                    "${percentageValue * 100.0}%"
-                }
-            }
-            case From => {
-                if (minify) { "0%" } else { "from" }
-            }
+            case Percentage => percentageToCss(minify)
+            case From => if (minify) { "0%" } else { "from" }
             case To => "to"
         }
     }

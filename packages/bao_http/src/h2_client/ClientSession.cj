@@ -6,7 +6,7 @@ import bao_core.*
 import bao_collections.*
 
 // ============================================================================
-// H2ClientSession - HTTP/2 客户端会话
+// H2FetchClientSession - HTTP/2 客户端会话
 // 严格翻译自: bun/src/http/h2_client/ClientSession.zig
 //
 // Bun ClientSession:
@@ -47,7 +47,7 @@ import bao_collections.*
 
 /// HTTP/2 客户端会话 — 管理单个 HTTP/2 连接上的所有流和状态
 /// 严格翻译自: bun/src/http/h2_client/ClientSession.zig ClientSession struct
-public class H2ClientSession {
+public class H2FetchClientSession {
     /// 主机名 (池键, 拥有拷贝)
     /// 严格翻译自: hostname: []const u8
     public var hostname: String
@@ -66,7 +66,7 @@ public class H2ClientSession {
 
     /// 活跃流映射 (stream ID -> Stream)
     /// 严格翻译自: streams: std.AutoArrayHashMapUnmanaged(u31, *Stream)
-    public var streams: HashMap<Int64, H2ClientStream>
+    public var streams: HashMap<Int64, H2FetchClientStream>
 
     /// 下一个客户端流 ID (奇数, 从 1 开始, 每次递增 2)
     /// 严格翻译自: next_stream_id: u31 = 1
@@ -179,17 +179,17 @@ public class H2ClientSession {
     public static let DEFAULT_WINDOW_SIZE: Int64 = 65535
 
     /// 最大窗口大小
-    public static let MAX_WINDOW_SIZE: Int64 = Int64.max >> 1
+    public static let MAX_WINDOW_SIZE: Int64 = 9223372036854775807 >> 1
 
     /// 最大流 ID
-    public static let MAX_STREAM_ID: Int64 = Int64.max >> 1
+    public static let MAX_STREAM_ID: Int64 = 9223372036854775807 >> 1
 
     public init(hostname: String, port: Int64) {
         this.hostname = hostname
         this.port = port
         writeBuffer = ArrayList<UInt8>()
         readBuffer = ArrayList<UInt8>()
-        streams = HashMap<Int64, H2ClientStream>()
+        streams = HashMap<Int64, H2FetchClientStream>()
         nextStreamId = 1
         expectingContinuation = 0
         pendingAttach = ArrayList<H2ClientRef>()
@@ -209,7 +209,7 @@ public class H2ClientSession {
         pendingHpackEncCapacity = None
         connSendWindow = DEFAULT_WINDOW_SIZE
         connUnackedBytes = 0
-        registryIndex = Int64.max
+        registryIndex = 9223372036854775807
         encoder = HpackEncoder()
         decoder = HpackDecoder()
     }
@@ -228,7 +228,12 @@ public class H2ClientSession {
     /// 检查是否可以接受更多流
     /// 严格翻译自: ClientSession.hasHeadroom
     public func hasHeadroom(): Bool {
-        return !goawayReceived && !encoderPoisoned && fatalError == None &&
+        var hasFatalError = false
+        match (fatalError) {
+            case Some(_) => hasFatalError = true
+            case None => hasFatalError = false
+        }
+        return !goawayReceived && !encoderPoisoned && !hasFatalError &&
                streams.size < remoteMaxConcurrentStreams &&
                nextStreamId < MAX_STREAM_ID
     }
@@ -265,9 +270,9 @@ public class H2ClientSession {
 
     /// 分配新流
     /// 严格翻译自: ClientSession.attach 中的流分配逻辑
-    public func newStream(client: H2ClientRef): ?H2ClientStream {
+    public func newStream(client: H2ClientRef): H2FetchClientStream {
         if (!hasHeadroom()) {
-            return None
+            return H2FetchClientStream(0, H2SessionRef(this), client, 0)
         }
 
         let streamId = nextStreamId
@@ -279,7 +284,7 @@ public class H2ClientSession {
             MAX_WINDOW_SIZE
         }
 
-        let stream = H2ClientStream(streamId, H2SessionRef(this), client, sendWindow)
+        let stream = H2FetchClientStream(streamId, H2SessionRef(this), client, sendWindow)
         streams.put(streamId, stream)
         return stream
     }
@@ -330,7 +335,7 @@ public class H2ClientSession {
     /// 写入 WINDOW_UPDATE 帧
     /// 严格翻译自: ClientSession.writeWindowUpdate
     public func writeWindowUpdate(streamId: Int64, increment: Int64): Unit {
-        let payload = Array<UInt8>(4, item: UInt8(0))
+        let payload = Array<UInt8>(4, { _ => UInt8(0) })
         payload[0] = UInt8((increment >> 24) & 0x7F)
         payload[1] = UInt8((increment >> 16) & 0xFF)
         payload[2] = UInt8((increment >> 8) & 0xFF)
@@ -378,12 +383,11 @@ public class H2ClientSession {
         // 每流窗口补充
         for (key in streams.keys()) {
             match (streams.get(key)) {
-                case Some(stream) => {
+                case Some(stream) =>
                     if (stream.unackedBytes >= threshold && !stream.remoteClosed()) {
                         writeWindowUpdate(stream.id, stream.unackedBytes)
                         stream.unackedBytes = 0
                     }
-                }
                 case None => ()
             }
         }
@@ -406,8 +410,13 @@ public class H2ClientSession {
     /// 检查是否可以放入连接池
     /// 严格翻译自: ClientSession.canPool
     public func canPool(): Bool {
+        var hasFatalError = false
+        match (fatalError) {
+            case Some(_) => hasFatalError = true
+            case None => hasFatalError = false
+        }
         return streams.size == 0 && !goawayReceived && !encoderPoisoned &&
-               fatalError == None && expectingContinuation == 0 &&
+               !hasFatalError && expectingContinuation == 0 &&
                readBuffer.size == 0 && writeBuffer.size == 0 &&
                remoteMaxConcurrentStreams > 0 && nextStreamId < MAX_STREAM_ID
     }
@@ -418,7 +427,7 @@ public class H2ClientSession {
     }
 
     /// 获取流
-    public func getStream(id: Int64): ?H2ClientStream {
+    public func getStream(id: Int64): ?H2FetchClientStream {
         return streams.get(id)
     }
 
@@ -432,7 +441,7 @@ public class H2ClientSession {
     public func deinit(): Unit {
         writeBuffer = ArrayList<UInt8>()
         readBuffer = ArrayList<UInt8>()
-        streams = HashMap<Int64, H2ClientStream>()
+        streams = HashMap<Int64, H2FetchClientStream>()
         pendingAttach = ArrayList<H2ClientRef>()
         orphanHeaderBlock = ArrayList<UInt8>()
         encodeScratch = ArrayList<UInt8>()

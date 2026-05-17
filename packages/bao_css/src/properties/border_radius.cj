@@ -7,6 +7,7 @@
 package bao_css.properties
 
 import bao_core.*
+import bao_collections.*
 
 // ============================================================================
 // BorderRadius
@@ -30,10 +31,10 @@ public class BorderRadius {
     public var bottomLeftY: String
 
     public init(
-        topLeftX: String, topLeftY: String,
-        topRightX: String, topRightY: String,
-        bottomRightX: String, bottomRightY: String,
-        bottomLeftX: String, bottomLeftY: String
+        topLeftX!: String, topLeftY!: String,
+        topRightX!: String, topRightY!: String,
+        bottomRightX!: String, bottomRightY!: String,
+        bottomLeftX!: String, bottomLeftY!: String
     ) {
         this.topLeftX = topLeftX
         this.topLeftY = topLeftY

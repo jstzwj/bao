@@ -104,7 +104,7 @@ public class Http1RequestParser {
     /// 当前解析状态
     private var state: Http1ParseState
     /// 解析缓冲区
-    private var buffer: Array<UInt8>
+    private var buffer: ArrayList<UInt8>
     /// 缓冲区中已解析的位置
     private var position: Int64
     /// 解析出的方法
@@ -116,7 +116,7 @@ public class Http1RequestParser {
     /// 解析出的头部列表
     public var headers: ArrayList<HeaderPair>
     /// 请求体
-    public var body: Array<UInt8>
+    public var body: ArrayList<UInt8>
     /// Content-Length 值 (-1 表示未指定)
     private var contentLength: Int64
     /// 是否 Transfer-Encoding: chunked
@@ -136,13 +136,13 @@ public class Http1RequestParser {
 
     public init() {
         state = Http1ParseState.Init
-        buffer = Array<UInt8>()
+        buffer = ArrayList<UInt8>()
         position = 0
         method = ""
         path = ""
         minorVersion = 1
         headers = ArrayList<HeaderPair>()
-        body = Array<UInt8>()
+        body = ArrayList<UInt8>()
         contentLength = -1
         chunked = false
         currentHeaderName = ""
@@ -159,20 +159,20 @@ public class Http1RequestParser {
         state = Http1ParseState.Init
         // 将未消费的数据移到缓冲区头部 (pipeline 支持)
         if (position < buffer.size) {
-            let remaining = Array<UInt8>()
+            let remaining = ArrayList<UInt8>()
             for (i in position..buffer.size) {
                 remaining.append(buffer[i])
             }
             buffer = remaining
         } else {
-            buffer = Array<UInt8>()
+            buffer = ArrayList<UInt8>()
         }
         position = 0
         method = ""
         path = ""
         minorVersion = 1
         headers = ArrayList<HeaderPair>()
-        body = Array<UInt8>()
+        body = ArrayList<UInt8>()
         contentLength = -1
         chunked = false
         currentHeaderName = ""
@@ -186,11 +186,11 @@ public class Http1RequestParser {
         if (position >= buffer.size) {
             return Array<UInt8>()
         }
-        let result = Array<UInt8>()
+        let result = ArrayList<UInt8>()
         for (i in position..buffer.size) {
             result.append(buffer[i])
         }
-        return result
+        return result.toOwnedSlice()
     }
 
     // ========================================================================
@@ -208,17 +208,14 @@ public class Http1RequestParser {
             buffer.append(b)
         }
 
-        if (state == Http1ParseState.Complete || state == Http1ParseState.Error) {
+        if (isCompleteOrErrorState()) {
             return Http1ParseResult.consumed(data.size)
         }
 
         var startPos = position
 
         // 解析请求行 + 头部
-        if (state == Http1ParseState.Init || state == Http1ParseState.RequestMethod ||
-            state == Http1ParseState.RequestUri || state == Http1ParseState.RequestVersion ||
-            state == Http1ParseState.HeaderName || state == Http1ParseState.HeaderValue ||
-            state == Http1ParseState.HeaderFold) {
+        if (isHeaderParseState()) {
 
             let headerResult = parseHeaders()
             if (headerResult == -1) {
@@ -253,7 +250,7 @@ public class Http1RequestParser {
         }
 
         // 解析 body
-        if (state == Http1ParseState.BodyIdentity) {
+        if (isBodyIdentityState()) {
             let remaining = buffer.size - position
             let needed = contentLength - bodyReceived
             if (remaining >= needed) {
@@ -275,7 +272,7 @@ public class Http1RequestParser {
             }
         }
 
-        if (state == Http1ParseState.BodyChunked) {
+        if (isBodyChunkedState()) {
             return parseChunkedBody()
         }
 
@@ -284,12 +281,53 @@ public class Http1RequestParser {
 
     /// 是否解析完成
     public func isComplete(): Bool {
-        return state == Http1ParseState.Complete
+        match (state) {
+            case Complete => return true
+            case _ => return false
+        }
     }
 
     /// 是否出错
     public func hasError(): Bool {
-        return state == Http1ParseState.Error
+        match (state) {
+            case Error => return true
+            case _ => return false
+        }
+    }
+
+    private func isCompleteOrErrorState(): Bool {
+        match (state) {
+            case Complete => return true
+            case Error => return true
+            case _ => return false
+        }
+    }
+
+    private func isHeaderParseState(): Bool {
+        match (state) {
+            case Init => return true
+            case RequestMethod => return true
+            case RequestUri => return true
+            case RequestVersion => return true
+            case HeaderName => return true
+            case HeaderValue => return true
+            case HeaderFold => return true
+            case _ => return false
+        }
+    }
+
+    private func isBodyIdentityState(): Bool {
+        match (state) {
+            case BodyIdentity => return true
+            case _ => return false
+        }
+    }
+
+    private func isBodyChunkedState(): Bool {
+        match (state) {
+            case BodyChunked => return true
+            case _ => return false
+        }
     }
 
     /// 获取解析出的方法名
@@ -322,26 +360,28 @@ public class Http1RequestParser {
         pos = firstLineEnd + 2  // 跳过 \r\n
 
         // 解析方法
-        let sp1 = requestLine.indexOf(" ")
-        if (sp1 < 0) {
-            return -2
+        let sp1Opt = requestLine.indexOf(" ")
+        let sp1 = match (sp1Opt) {
+            case Some(idx) => idx
+            case None => return -2
         }
-        method = requestLine.substring(0, sp1)
+        method = requestLine[0..sp1]
 
         // 解析路径
-        let afterMethod = requestLine.substring(sp1 + 1)
-        let sp2 = afterMethod.indexOf(" ")
-        if (sp2 < 0) {
-            return -2
+        let afterMethod = requestLine[(sp1 + 1)..]
+        let sp2Opt = afterMethod.indexOf(" ")
+        let sp2 = match (sp2Opt) {
+            case Some(idx) => idx
+            case None => return -2
         }
-        path = afterMethod.substring(0, sp2)
+        path = afterMethod[0..sp2]
 
         // 解析版本号: HTTP/1.x
-        let versionStr = afterMethod.substring(sp2 + 1)
+        let versionStr = afterMethod[(sp2 + 1)..]
         if (versionStr.startsWith("HTTP/1.")) {
-            let minorStr = versionStr.substring(7)
+            let minorStr = versionStr[7..]
             try {
-                minorVersion = Int64.parse(minorStr)
+                minorVersion = parseInt64(minorStr)
             } catch (_: Exception) {
                 minorVersion = 1
             }
@@ -350,7 +390,7 @@ public class Http1RequestParser {
         // === 解析头部字段 ===
         // 对应 picohttp 逐行解析 header，支持折叠续行 (obs-fold)
         while (pos < headerEnd) {
-            let lineEnd = findCrlf(pos)
+            var lineEnd = findCrlf(pos)
             if (lineEnd < 0 || lineEnd > headerEnd) {
                 lineEnd = headerEnd
             }
@@ -359,7 +399,7 @@ public class Http1RequestParser {
             // RFC 7230 §3.2.4: obs-fold = CRLF 1*( SP / HTAB )
             if (buffer[pos] == UInt8(32) || buffer[pos] == UInt8(9)) {
                 // 折叠续行 - 追加到当前值
-                let foldValue = bufferSliceToString(pos, lineEnd).trim()
+                let foldValue = http1Trim(bufferSliceToString(pos, lineEnd))
                 if (currentHeaderName.size > 0) {
                     currentHeaderValue = currentHeaderValue + " " + foldValue
                 }
@@ -371,14 +411,15 @@ public class Http1RequestParser {
 
                 // 解析新的 Name: Value
                 let line = bufferSliceToString(pos, lineEnd)
-                let colonIdx = line.indexOf(":")
-                if (colonIdx >= 0) {
-                    currentHeaderName = line.substring(0, colonIdx).trim()
-                    currentHeaderValue = line.substring(colonIdx + 1).trim()
-                } else {
-                    // 空行或格式错误
-                    currentHeaderName = ""
-                    currentHeaderValue = ""
+                let colonIdxOpt = line.indexOf(":")
+                match (colonIdxOpt) {
+                    case Some(colonIdx) =>
+                        currentHeaderName = http1Trim(line[0..colonIdx])
+                        currentHeaderValue = http1Trim(line[(colonIdx + 1)..])
+                    case None =>
+                        // 空行或格式错误
+                        currentHeaderName = ""
+                        currentHeaderValue = ""
                 }
             }
 
@@ -398,12 +439,14 @@ public class Http1RequestParser {
     /// 确定 body 传输模式
     private func determineBodyMode(): Unit {
         for (h in headers) {
-            if (h.name.toLower() == "transfer-encoding" && h.value.toLower().contains("chunked")) {
+            let name = http1Lower(h.name)
+            let value = http1Lower(h.value)
+            if (name == "transfer-encoding" && value.contains("chunked")) {
                 chunked = true
             }
-            if (h.name.toLower() == "content-length") {
+            if (name == "content-length") {
                 try {
-                    contentLength = Int64.parse(h.value.trim())
+                    contentLength = parseInt64(http1Trim(h.value))
                 } catch (_: Exception) {
                     contentLength = -1
                 }
@@ -420,10 +463,13 @@ public class Http1RequestParser {
                 return Http1ParseResult.more()
             }
 
-            let sizeStr = bufferSliceToString(position, lineEnd).trim()
+            let sizeStr = http1Trim(bufferSliceToString(position, lineEnd))
             // 跳过分块扩展 (;xxx)
-            let semiIdx = sizeStr.indexOf(";")
-            let hexStr = if (semiIdx >= 0) { sizeStr.substring(0, semiIdx).trim() } else { sizeStr }
+            let semiIdxOpt = sizeStr.indexOf(";")
+            let hexStr = match (semiIdxOpt) {
+                case Some(semiIdx) => http1Trim(sizeStr[0..semiIdx])
+                case None => sizeStr
+            }
 
             chunkSize = hexToInt(hexStr)
             position = lineEnd + 2  // 跳过 chunk 大小行的 \r\n
@@ -489,8 +535,36 @@ public class Http1RequestParser {
         let sb = StringBuilder()
         var i = start
         while (i < end && i < buffer.size) {
-            sb.append(Char(Int32(buffer[i])))
+            sb.append(Rune(UInt32(buffer[i])))
             i += 1
+        }
+        return sb.toString()
+    }
+
+    private func http1Trim(s: String): String {
+        var start: Int64 = 0
+        var end = s.size
+        while (start < end && http1IsAsciiWhitespace(s[start])) {
+            start += 1
+        }
+        while (end > start && http1IsAsciiWhitespace(s[end - 1])) {
+            end -= 1
+        }
+        return s[start..end]
+    }
+
+    private func http1IsAsciiWhitespace(c: UInt8): Bool {
+        return c == UInt8(32) || c == UInt8(9) || c == UInt8(10) || c == UInt8(13)
+    }
+
+    private func http1Lower(s: String): String {
+        let sb = StringBuilder()
+        for (c in s) {
+            if (c >= UInt8(65) && c <= UInt8(90)) {
+                sb.append(c + UInt8(32))
+            } else {
+                sb.append(c)
+            }
         }
         return sb.toString()
     }
@@ -500,12 +574,13 @@ public class Http1RequestParser {
         var result: Int64 = 0
         for (c in hex) {
             result = result * 16
-            if (c >= '0' && c <= '9') {
-                result += Int64(c.value) - 48
-            } else if (c >= 'a' && c <= 'f') {
-                result += Int64(c.value) - 87
-            } else if (c >= 'A' && c <= 'F') {
-                result += Int64(c.value) - 55
+            let v = Int64(c)
+            if (c >= UInt8(48) && c <= UInt8(57)) {
+                result += v - 48
+            } else if (c >= UInt8(97) && c <= UInt8(102)) {
+                result += v - 87
+            } else if (c >= UInt8(65) && c <= UInt8(70)) {
+                result += v - 55
             }
         }
         return result
@@ -525,7 +600,7 @@ public class Http1ResponseParser {
     /// 当前解析状态
     private var state: Http1ParseState
     /// 解析缓冲区
-    private var buffer: Array<UInt8>
+    private var buffer: ArrayList<UInt8>
     /// 缓冲区中已解析的位置
     private var position: Int64
     /// HTTP 版本
@@ -537,7 +612,7 @@ public class Http1ResponseParser {
     /// 响应头列表
     public var headers: ArrayList<HeaderPair>
     /// 响应体
-    public var body: Array<UInt8>
+    public var body: ArrayList<UInt8>
     /// Content-Length (-1 表示未指定)
     private var contentLength: Int64
     /// 是否 chunked
@@ -557,13 +632,13 @@ public class Http1ResponseParser {
 
     public init() {
         state = Http1ParseState.Init
-        buffer = Array<UInt8>()
+        buffer = ArrayList<UInt8>()
         position = 0
         httpVersion = "HTTP/1.1"
         statusCode = 0
         statusText = ""
         headers = ArrayList<HeaderPair>()
-        body = Array<UInt8>()
+        body = ArrayList<UInt8>()
         contentLength = -1
         chunked = false
         connectionClose = false
@@ -578,20 +653,20 @@ public class Http1ResponseParser {
     public func reset(): Unit {
         state = Http1ParseState.Init
         if (position < buffer.size) {
-            let remaining = Array<UInt8>()
+            let remaining = ArrayList<UInt8>()
             for (i in position..buffer.size) {
                 remaining.append(buffer[i])
             }
             buffer = remaining
         } else {
-            buffer = Array<UInt8>()
+            buffer = ArrayList<UInt8>()
         }
         position = 0
         httpVersion = "HTTP/1.1"
         statusCode = 0
         statusText = ""
         headers = ArrayList<HeaderPair>()
-        body = Array<UInt8>()
+        body = ArrayList<UInt8>()
         contentLength = -1
         chunked = false
         connectionClose = false
@@ -606,11 +681,11 @@ public class Http1ResponseParser {
         if (position >= buffer.size) {
             return Array<UInt8>()
         }
-        let result = Array<UInt8>()
+        let result = ArrayList<UInt8>()
         for (i in position..buffer.size) {
             result.append(buffer[i])
         }
-        return result
+        return result.toOwnedSlice()
     }
 
     /// 输入数据进行增量解析
@@ -620,15 +695,12 @@ public class Http1ResponseParser {
             buffer.append(b)
         }
 
-        if (state == Http1ParseState.Complete || state == Http1ParseState.Error) {
+        if (isCompleteOrErrorState()) {
             return Http1ParseResult.consumed(data.size)
         }
 
         // 解析状态行 + 头部
-        if (state == Http1ParseState.Init || state == Http1ParseState.StatusVersion ||
-            state == Http1ParseState.StatusCode || state == Http1ParseState.StatusReason ||
-            state == Http1ParseState.HeaderName || state == Http1ParseState.HeaderValue ||
-            state == Http1ParseState.HeaderFold) {
+        if (isHeaderParseState()) {
 
             let headerResult = parseResponseHeaders()
             if (headerResult == -1) {
@@ -673,7 +745,7 @@ public class Http1ResponseParser {
         }
 
         // 解析 body (与请求解析器共享逻辑)
-        if (state == Http1ParseState.BodyIdentity) {
+        if (isBodyIdentityState()) {
             let remaining = buffer.size - position
             let needed = contentLength - bodyReceived
             if (remaining >= needed) {
@@ -694,7 +766,7 @@ public class Http1ResponseParser {
             }
         }
 
-        if (state == Http1ParseState.BodyChunked) {
+        if (isBodyChunkedState()) {
             return parseChunkedBody()
         }
 
@@ -703,7 +775,7 @@ public class Http1ResponseParser {
 
     /// 标记连接已关闭 (用于 connectionClose 模式)
     public func markConnectionClosed(): Http1ParseResult {
-        if (connectionClose && state != Http1ParseState.Complete) {
+        if (connectionClose && !isComplete()) {
             state = Http1ParseState.Complete
             return Http1ParseResult.done(position)
         }
@@ -712,12 +784,53 @@ public class Http1ResponseParser {
 
     /// 是否解析完成
     public func isComplete(): Bool {
-        return state == Http1ParseState.Complete
+        match (state) {
+            case Complete => return true
+            case _ => return false
+        }
     }
 
     /// 是否出错
     public func hasError(): Bool {
-        return state == Http1ParseState.Error
+        match (state) {
+            case Error => return true
+            case _ => return false
+        }
+    }
+
+    private func isCompleteOrErrorState(): Bool {
+        match (state) {
+            case Complete => return true
+            case Error => return true
+            case _ => return false
+        }
+    }
+
+    private func isHeaderParseState(): Bool {
+        match (state) {
+            case Init => return true
+            case StatusVersion => return true
+            case StatusCode => return true
+            case StatusReason => return true
+            case HeaderName => return true
+            case HeaderValue => return true
+            case HeaderFold => return true
+            case _ => return false
+        }
+    }
+
+    private func isBodyIdentityState(): Bool {
+        match (state) {
+            case BodyIdentity => return true
+            case _ => return false
+        }
+    }
+
+    private func isBodyChunkedState(): Bool {
+        match (state) {
+            case BodyChunked => return true
+            case _ => return false
+        }
     }
 
     // ========================================================================
@@ -744,42 +857,44 @@ public class Http1ResponseParser {
         pos = firstLineEnd + 2
 
         // 解析版本: HTTP/1.x
-        let sp1 = statusLine.indexOf(" ")
-        if (sp1 < 0) {
-            return -2
+        let sp1Opt = statusLine.indexOf(" ")
+        let sp1 = match (sp1Opt) {
+            case Some(idx) => idx
+            case None => return -2
         }
-        httpVersion = statusLine.substring(0, sp1)
+        httpVersion = statusLine[0..sp1]
 
         // 解析状态码和原因短语
-        let afterVersion = statusLine.substring(sp1 + 1)
-        let sp2 = afterVersion.indexOf(" ")
-        if (sp2 < 0) {
-            // 仅有状态码无原因短语
-            try {
-                statusCode = Int64.parse(afterVersion.trim())
-            } catch (_: Exception) {
-                return -2
-            }
-            statusText = ""
-        } else {
-            try {
-                statusCode = Int64.parse(afterVersion.substring(0, sp2))
-            } catch (_: Exception) {
-                return -2
-            }
-            statusText = afterVersion.substring(sp2 + 1)
+        let afterVersion = statusLine[(sp1 + 1)..]
+        let sp2Opt = afterVersion.indexOf(" ")
+        match (sp2Opt) {
+            case Some(sp2) =>
+                try {
+                    statusCode = parseInt64(afterVersion[0..sp2])
+                } catch (_: Exception) {
+                    return -2
+                }
+                statusText = afterVersion[(sp2 + 1)..]
+            case None =>
+                // 仅有状态码无原因短语
+                try {
+                    statusCode = parseInt64(http1Trim(afterVersion))
+                } catch (_: Exception) {
+                    return -2
+                }
+                statusText = ""
         }
 
         // === 解析头部字段 === (与请求解析器相同的逻辑)
         while (pos < headerEnd) {
-            let lineEnd = findCrlf(pos)
+            var lineEnd = findCrlf(pos)
             if (lineEnd < 0 || lineEnd > headerEnd) {
                 lineEnd = headerEnd
             }
 
             // 折叠续行检测
             if (buffer[pos] == UInt8(32) || buffer[pos] == UInt8(9)) {
-                let foldValue = bufferSliceToString(pos, lineEnd).trim()
+                let foldValue = http1Trim(bufferSliceToString(pos, lineEnd))
                 if (currentHeaderName.size > 0) {
                     currentHeaderValue = currentHeaderValue + " " + foldValue
                 }
@@ -789,13 +904,14 @@ public class Http1ResponseParser {
                 }
 
                 let line = bufferSliceToString(pos, lineEnd)
-                let colonIdx = line.indexOf(":")
-                if (colonIdx >= 0) {
-                    currentHeaderName = line.substring(0, colonIdx).trim()
-                    currentHeaderValue = line.substring(colonIdx + 1).trim()
-                } else {
-                    currentHeaderName = ""
-                    currentHeaderValue = ""
+                let colonIdxOpt = line.indexOf(":")
+                match (colonIdxOpt) {
+                    case Some(colonIdx) =>
+                        currentHeaderName = http1Trim(line[0..colonIdx])
+                        currentHeaderValue = http1Trim(line[(colonIdx + 1)..])
+                    case None =>
+                        currentHeaderName = ""
+                        currentHeaderValue = ""
                 }
             }
 
@@ -814,18 +930,19 @@ public class Http1ResponseParser {
     /// 确定响应 body 模式
     private func determineResponseBodyMode(): Unit {
         for (h in headers) {
-            let lower = h.name.toLower()
-            if (lower == "transfer-encoding" && h.value.toLower().contains("chunked")) {
+            let lower = http1Lower(h.name)
+            let value = http1Lower(h.value)
+            if (lower == "transfer-encoding" && value.contains("chunked")) {
                 chunked = true
             }
             if (lower == "content-length") {
                 try {
-                    contentLength = Int64.parse(h.value.trim())
+                    contentLength = parseInt64(http1Trim(h.value))
                 } catch (_: Exception) {
                     contentLength = -1
                 }
             }
-            if (lower == "connection" && h.value.toLower() == "close") {
+            if (lower == "connection" && value == "close") {
                 connectionClose = true
             }
         }
@@ -849,9 +966,12 @@ public class Http1ResponseParser {
                 return Http1ParseResult.more()
             }
 
-            let sizeStr = bufferSliceToString(position, lineEnd).trim()
-            let semiIdx = sizeStr.indexOf(";")
-            let hexStr = if (semiIdx >= 0) { sizeStr.substring(0, semiIdx).trim() } else { sizeStr }
+            let sizeStr = http1Trim(bufferSliceToString(position, lineEnd))
+            let semiIdxOpt = sizeStr.indexOf(";")
+            let hexStr = match (semiIdxOpt) {
+                case Some(semiIdx) => http1Trim(sizeStr[0..semiIdx])
+                case None => sizeStr
+            }
 
             chunkSize = hexToInt(hexStr)
             position = lineEnd + 2
@@ -910,8 +1030,36 @@ public class Http1ResponseParser {
         let sb = StringBuilder()
         var i = start
         while (i < end && i < buffer.size) {
-            sb.append(Char(Int32(buffer[i])))
+            sb.append(Rune(UInt32(buffer[i])))
             i += 1
+        }
+        return sb.toString()
+    }
+
+    private func http1Trim(s: String): String {
+        var start: Int64 = 0
+        var end = s.size
+        while (start < end && http1IsAsciiWhitespace(s[start])) {
+            start += 1
+        }
+        while (end > start && http1IsAsciiWhitespace(s[end - 1])) {
+            end -= 1
+        }
+        return s[start..end]
+    }
+
+    private func http1IsAsciiWhitespace(c: UInt8): Bool {
+        return c == UInt8(32) || c == UInt8(9) || c == UInt8(10) || c == UInt8(13)
+    }
+
+    private func http1Lower(s: String): String {
+        let sb = StringBuilder()
+        for (c in s) {
+            if (c >= UInt8(65) && c <= UInt8(90)) {
+                sb.append(c + UInt8(32))
+            } else {
+                sb.append(c)
+            }
         }
         return sb.toString()
     }
@@ -920,12 +1068,13 @@ public class Http1ResponseParser {
         var result: Int64 = 0
         for (c in hex) {
             result = result * 16
-            if (c >= '0' && c <= '9') {
-                result += Int64(c.value) - 48
-            } else if (c >= 'a' && c <= 'f') {
-                result += Int64(c.value) - 87
-            } else if (c >= 'A' && c <= 'F') {
-                result += Int64(c.value) - 55
+            let v = Int64(c)
+            if (c >= UInt8(48) && c <= UInt8(57)) {
+                result += v - 48
+            } else if (c >= UInt8(97) && c <= UInt8(102)) {
+                result += v - 87
+            } else if (c >= UInt8(65) && c <= UInt8(70)) {
+                result += v - 55
             }
         }
         return result

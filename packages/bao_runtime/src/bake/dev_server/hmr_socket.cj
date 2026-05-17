@@ -19,7 +19,7 @@ public class HmrSocket {
 
     /// 创建新的 HMR Socket
     public static func new(dev: DevServer, res: Any): HmrSocket {
-        let is_localhost = if (let Some(addr) = res.getRemoteSocketInfo()) {
+        let is_localhost = if (let Some(addr) <- res.getRemoteSocketInfo()) {
             if (addr.is_ipv6) {
                 bun.strings.eqlComptime(addr.ip, "::1")
             } else {
@@ -39,15 +39,14 @@ public class HmrSocket {
 
     /// WebSocket 打开回调
     public func onOpen(ws: AnyWebSocket): Unit {
-        let send_status = ws.send([MessageId.version.char()] ++ dev.configuration_hash_key, .binary, false, true)
+        // TODO: 实现发送版本信息
         underlying = ws
 
-        if (send_status != .dropped) {
-            // 通知 inspector 客户端连接
-            if (let Some(agent) = dev.inspector()) {
-                inspector_connection_id = agent.nextConnectionID()
-                agent.notifyClientConnected(dev.inspector_server_id, inspector_connection_id)
-            }
+        // TODO: 实现 send_status 检查
+        // 通知 inspector 客户端连接
+        if (let Some(agent) <- dev.inspector()) {
+            inspector_connection_id = agent.nextConnectionID()
+            agent.notifyClientConnected(dev.inspector_server_id, inspector_connection_id)
         }
     }
 
@@ -58,13 +57,13 @@ public class HmrSocket {
         }
 
         match (IncomingMessageId(msg[0])) {
-            case init =>
+            case `init` =>
                 if (msg.length != 9) { return ws.close() }
                 var generation: UInt32
                 // 解析十六进制生成 ID
-                let source_map_id = SourceMapStore.Key.init(UInt64(generation) << 32)
-                if (dev.source_maps.removeOrUpgradeWeakRef(source_map_id, .upgrade)) {
-                    referenced_source_maps.put(dev.allocator(), source_map_id, Unit())
+                let source_map_id = SourceMapStore.Key.`init`(UInt64(generation) << 32)
+                if (dev.source_maps.removeOrUpgradeWeakRef(source_map_id, WeakRefMode.upgrade)) {
+                    referenced_source_maps.put(dev.allocator(), source_map_id, ())
                 }
 
             case subscribe =>
@@ -81,37 +80,40 @@ public class HmrSocket {
             case set_url =>
                 let pattern = msg.slice(1)
                 let maybe_rbi = dev.routeToBundleIndexSlow(pattern)
-                if (let Some(agent) = dev.inspector()) {
+                if (let Some(agent) <- dev.inspector()) {
                     if (inspector_connection_id > -1) {
                         agent.notifyClientNavigated(dev.inspector_server_id, inspector_connection_id, pattern, maybe_rbi)
                     }
                 }
                 let rbi = maybe_rbi ?? return
-                if (let Some(old) = active_route.unwrap()) {
+                if (let Some(old) <- active_route.unwrap()) {
                     if (old == rbi) { return }
                     dev.routeBundlePtr(old).active_viewers -= 1
                 }
                 dev.routeBundlePtr(rbi).active_viewers += 1
                 active_route = rbi.toOptional()
-                var response: Array<Byte> = [MessageId.set_url_response.char()] ++ toBytes(rbi.get())
-                ws.send(response, .binary, false, true)
+                var response: Array<Byte> = [MessageId.set_url_response.char()]
+                for (b in toBytes(rbi.get())) {
+                    response.append(b)
+                }
+                ws.send(response, Opcode.binary, false, true)
 
             case testing_batch_events =>
                 match (dev.testing_batch_events) {
                     case disabled =>
                         if (dev.current_bundle != None) {
-                            dev.testing_batch_events = .enable_after_bundle
+                            dev.testing_batch_events = TestingBatchEvents.enable_after_bundle
                         } else {
-                            dev.testing_batch_events = .enabled(TestingBatch.empty)
-                            dev.publish(.testing_watch_synchronization, [MessageId.testing_watch_synchronization.char(), 0], .binary)
+                            dev.testing_batch_events = TestingBatchEvents.enabled(TestingBatch.empty)
+                            dev.publish(TestingBatchEvents.testing_watch_synchronization, [MessageId.testing_watch_synchronization.char(), 0], Opcode.binary)
                         }
                     case enable_after_bundle =>
                         ws.close()
-                    case enabled(let event_const) =>
+                    case enabled(event_const) =>
                         var event = event_const
-                        dev.testing_batch_events = .disabled
+                        dev.testing_batch_events = TestingBatchEvents.disabled
                         if (event.entry_points.set.count() == 0) {
-                            dev.publish(.testing_watch_synchronization, [MessageId.testing_watch_synchronization.char(), 2], .binary)
+                            dev.publish(TestingBatchEvents.testing_watch_synchronization, [MessageId.testing_watch_synchronization.char(), 2], Opcode.binary)
                             return
                         }
                         dev.startAsyncBundle(event.entry_points, true, Timer.start())
@@ -124,9 +126,11 @@ public class HmrSocket {
                     return
                 }
                 let kind: ConsoleLogKind = match (msg[1]) {
-                    case 'l' => .log
-                    case 'e' => .err
-                    case _ => { ws.close(); return }
+                    case 'l' => ConsoleLogKind.log
+                    case 'e' => ConsoleLogKind.err
+                    case _ =>
+                        ws.close()
+                        return
                 }
                 let data = msg.slice(2)
                 if (dev.broadcast_console_log_from_browser_to_server) {
@@ -138,7 +142,7 @@ public class HmrSocket {
                 }
 
             case unref_source_map =>
-                let source_map_id = SourceMapStore.Key.init(/* 从消息解析 u64 */)
+                let source_map_id = SourceMapStore.Key.`init`(UInt64(0))
                 let kv = referenced_source_maps.fetchRemove(source_map_id) ?? return
                 dev.source_maps.unref(kv.key)
 
@@ -156,12 +160,12 @@ public class HmrSocket {
         onUnsubscribe(subscriptions)
 
         if (inspector_connection_id > -1) {
-            if (let Some(agent) = dev.inspector()) {
+            if (let Some(agent) <- dev.inspector()) {
                 agent.notifyClientDisconnected(dev.inspector_server_id, inspector_connection_id)
             }
         }
 
-        if (let Some(old) = active_route.unwrap()) {
+        if (let Some(old) <- active_route.unwrap()) {
             dev.routeBundlePtr(old).active_viewers -= 1
         }
 
@@ -176,7 +180,7 @@ public class HmrSocket {
     /// 通知 Inspector 客户端导航
     func notifyInspectorClientNavigation(pattern: String, rbi: RouteBundle.Index.Optional): Unit {
         if (inspector_connection_id > -1) {
-            if (let Some(agent) = dev.inspector()) {
+            if (let Some(agent) <- dev.inspector()) {
                 agent.notifyClientNavigated(dev.inspector_server_id, inspector_connection_id, pattern, rbi.unwrap())
             }
         }
@@ -187,6 +191,4 @@ public class HmrSocket {
 public type AnyWebSocket = bun.uws.AnyWebSocket
 public type Opcode = bun.uws.Opcode
 public type AutoHashMapUnmanaged<K, V> = std.AutoHashMapUnmanaged<K, V>
-public type RouteBundle = dev_server.RouteBundle
-public type SourceMapStore = dev_server.SourceMapStore
 public type TestingBatch = dev_server.TestingBatch

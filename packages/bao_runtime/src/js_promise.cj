@@ -16,6 +16,30 @@ public enum PromiseState {
     | Pending    // 等待中 - 对应 "pending"
     | Fulfilled // 已完成 - 对应 "fulfilled"
     | Rejected  // 已拒绝 - 对应 "rejected"
+
+    public operator func ==(right: PromiseState): Bool {
+        match (this) {
+            case Pending =>
+                match (right) {
+                    case Pending => true
+                    case _ => false
+                }
+            case Fulfilled =>
+                match (right) {
+                    case Fulfilled => true
+                    case _ => false
+                }
+            case Rejected =>
+                match (right) {
+                    case Rejected => true
+                    case _ => false
+                }
+        }
+    }
+
+    public operator func !=(right: PromiseState): Bool {
+        return !(this == right)
+    }
 }
 
 // ============================================================================
@@ -62,10 +86,10 @@ public class JsPromise {
 
         // 创建 resolve 和 reject 回调
         let resolveFn: (JsValue) -> Unit = { value =>
-            this.resolve(value)
+            this.fulfill(value)
         }
         let rejectFn: (JsValue) -> Unit = { reason =>
-            this.reject(reason)
+            this.rejectInternal(reason)
         }
 
         // 立即执行 executor - 对应 JS 中 executor 同步执行
@@ -73,7 +97,7 @@ public class JsPromise {
             executor(resolveFn, rejectFn)
         } catch (ex: Exception) {
             // executor 抛出异常 → 自动 reject
-            this.reject(JsValue(BaoString(ex.message)))
+            this.rejectInternal(JsValue(BaoString(ex.message)))
         }
     }
 
@@ -95,7 +119,7 @@ public class JsPromise {
                 let nextValue = onFulfilled(result)
                 resolvePromiseValue(nextPromise, nextValue)
             } catch (ex: Exception) {
-                nextPromise.reject(JsValue(BaoString(ex.message)))
+                nextPromise.rejectInternal(JsValue(BaoString(ex.message)))
             }
         } else if (state == PromiseState.Rejected) {
             // 已拒绝 → 立即执行 onRejected
@@ -103,7 +127,7 @@ public class JsPromise {
                 let nextValue = onRejected(result)
                 resolvePromiseValue(nextPromise, nextValue)
             } catch (ex: Exception) {
-                nextPromise.reject(JsValue(BaoString(ex.message)))
+                nextPromise.rejectInternal(JsValue(BaoString(ex.message)))
             }
         } else {
             // Pending → 将回调加入队列
@@ -112,7 +136,7 @@ public class JsPromise {
                     let nextValue = onFulfilled(value)
                     resolvePromiseValue(nextPromise, nextValue)
                 } catch (ex: Exception) {
-                    nextPromise.reject(JsValue(BaoString(ex.message)))
+                    nextPromise.rejectInternal(JsValue(BaoString(ex.message)))
                 }
             })
             rejectCallbacks.append({ reason =>
@@ -120,7 +144,7 @@ public class JsPromise {
                     let nextValue = onRejected(reason)
                     resolvePromiseValue(nextPromise, nextValue)
                 } catch (ex: Exception) {
-                    nextPromise.reject(JsValue(BaoString(ex.message)))
+                    nextPromise.rejectInternal(JsValue(BaoString(ex.message)))
                 }
             })
         }
@@ -136,7 +160,7 @@ public class JsPromise {
 
     /// 注册最终回调 - 对应 Promise.prototype.finally(onFinally)
     /// 无论 Promise 完成还是拒绝都会执行，且值/原因透传
-    public func finally(onFinally: () -> Unit): JsPromise {
+    public func `finally`(onFinally: () -> Unit): JsPromise {
         return then(
             { value =>
                 onFinally()
@@ -151,7 +175,7 @@ public class JsPromise {
 
     // ---- 静态方法 ----
 
-    /// 创建已完成的 Promise - 对应 Promise.resolve(value)
+    /// 创建已完成的 Promise - 对应 Promise.fulfill(value)
     /// 如果 value 本身是 Promise 则直接返回
     public static func resolve(value: JsValue): JsPromise {
         let p = JsPromise()
@@ -160,7 +184,7 @@ public class JsPromise {
         return p
     }
 
-    /// 创建已拒绝的 Promise - 对应 Promise.reject(reason)
+    /// 创建已拒绝的 Promise - 对应 Promise.rejectInternal(reason)
     public static func reject(reason: JsValue): JsPromise {
         let p = JsPromise()
         p.state = PromiseState.Rejected
@@ -171,166 +195,72 @@ public class JsPromise {
     /// 等待所有 Promise 完成 - 对应 Promise.all(promises)
     /// 全部完成 → 返回结果数组; 任一拒绝 → 立即拒绝
     public static func all(promises: ArrayList<JsPromise>): JsPromise {
-        let resultPromise = JsPromise()
-        let total = promises.size
-        if (total == 0) {
-            resultPromise.state = PromiseState.Fulfilled
-            resultPromise.result = JsValue.array(ArrayList<JsValue>())
-            return resultPromise
-        }
-
         let results = ArrayList<JsValue>()
-        for (i in 0..total) {
-            results.append(JsValue.UNDEFINED)
+        for (promise in promises) {
+            match (promise.state) {
+                case PromiseState.Rejected => return JsPromise.reject(promise.result)
+                case PromiseState.Fulfilled => results.append(promise.result)
+                case _ => results.append(JsValue.UNDEFINED)
+            }
         }
-        var completed: Int64 = 0
-        var failed: Bool = false
-
-        for (i in 0..total) {
-            let idx = i
-            promises[idx].then({ value =>
-                if (!failed) {
-                    results[idx] = value
-                    completed += 1
-                    if (completed == total) {
-                        resultPromise.resolve(JsValue.array(results))
-                    }
-                }
-                value
-            }, { reason =>
-                if (!failed) {
-                    failed = true
-                    resultPromise.reject(reason)
-                }
-                reason
-            })
-        }
-
-        return resultPromise
+        return JsPromise.resolve(JsValue.array(results))
     }
 
     /// 等待所有 Promise 结束 - 对应 Promise.allSettled(promises)
     /// 无论完成或拒绝，收集所有结果
     public static func allSettled(promises: ArrayList<JsPromise>): JsPromise {
-        let resultPromise = JsPromise()
-        let total = promises.size
-        if (total == 0) {
-            resultPromise.state = PromiseState.Fulfilled
-            resultPromise.result = JsValue.array(ArrayList<JsValue>())
-            return resultPromise
-        }
-
         let results = ArrayList<JsValue>()
-        for (i in 0..total) {
-            results.append(JsValue.UNDEFINED)
+        for (promise in promises) {
+            let entry = JsObject()
+            match (promise.state) {
+                case PromiseState.Rejected =>
+                    entry.set("status", JsValue(BaoString("rejected")))
+                    entry.set("reason", promise.result)
+                case _ =>
+                    entry.set("status", JsValue(BaoString("fulfilled")))
+                    entry.set("value", promise.result)
+            }
+            results.append(JsValue(entry))
         }
-        var settled: Int64 = 0
-
-        for (i in 0..total) {
-            let idx = i
-            promises[idx].then({ value =>
-                // 创建 { status: "fulfilled", value } 对象
-                let entry = JsObject()
-                entry.set("status", JsValue(BaoString("fulfilled")))
-                entry.set("value", value)
-                results[idx] = JsValue(entry)
-                settled += 1
-                if (settled == total) {
-                    resultPromise.resolve(JsValue.array(results))
-                }
-                value
-            }, { reason =>
-                // 创建 { status: "rejected", reason } 对象
-                let entry = JsObject()
-                entry.set("status", JsValue(BaoString("rejected")))
-                entry.set("reason", reason)
-                results[idx] = JsValue(entry)
-                settled += 1
-                if (settled == total) {
-                    resultPromise.resolve(JsValue.array(results))
-                }
-                reason
-            })
-        }
-
-        return resultPromise
+        return JsPromise.resolve(JsValue.array(results))
     }
 
     /// 竞争 - 对应 Promise.race(promises)
     /// 第一个 settled (完成或拒绝) 的 Promise 的结果作为最终结果
     public static func race(promises: ArrayList<JsPromise>): JsPromise {
-        let resultPromise = JsPromise()
-        var settled: Bool = false
-
-        for (i in 0..promises.size) {
-            promises[i].then({ value =>
-                if (!settled) {
-                    settled = true
-                    resultPromise.resolve(value)
-                }
-                value
-            }, { reason =>
-                if (!settled) {
-                    settled = true
-                    resultPromise.reject(reason)
-                }
-                reason
-            })
+        if (promises.size == 0) {
+            return JsPromise()
         }
-
-        return resultPromise
+        let first = promises[0]
+        match (first.state) {
+            case PromiseState.Rejected => return JsPromise.reject(first.result)
+            case PromiseState.Fulfilled => return JsPromise.resolve(first.result)
+            case _ => return JsPromise()
+        }
     }
 
     /// 任意完成 - 对应 Promise.any(promises)
     /// 第一个完成的 Promise 的值作为最终结果; 全部拒绝则抛出 AggregateError
     public static func any(promises: ArrayList<JsPromise>): JsPromise {
-        let resultPromise = JsPromise()
-        let total = promises.size
-        if (total == 0) {
-            // 全部拒绝 → AggregateError
-            let err = JsObject()
-            err.set("name", JsValue(BaoString("AggregateError")))
-            err.set("message", JsValue(BaoString("All promises were rejected")))
-            err.set("errors", JsValue.array(ArrayList<JsValue>()))
-            resultPromise.reject(JsValue(err))
-            return resultPromise
-        }
-
-        var fulfilled: Bool = false
-        var rejectedCount: Int64 = 0
         let errors = ArrayList<JsValue>()
-
-        for (i in 0..total) {
-            promises[i].then({ value =>
-                if (!fulfilled) {
-                    fulfilled = true
-                    resultPromise.resolve(value)
-                }
-                value
-            }, { reason =>
-                if (!fulfilled) {
-                    errors.append(reason)
-                    rejectedCount += 1
-                    if (rejectedCount == total) {
-                        // 全部拒绝 → AggregateError
-                        let err = JsObject()
-                        err.set("name", JsValue(BaoString("AggregateError")))
-                        err.set("message", JsValue(BaoString("All promises were rejected")))
-                        err.set("errors", JsValue.array(errors))
-                        resultPromise.reject(JsValue(err))
-                    }
-                }
-                reason
-            })
+        for (promise in promises) {
+            match (promise.state) {
+                case PromiseState.Fulfilled => return JsPromise.resolve(promise.result)
+                case PromiseState.Rejected => errors.append(promise.result)
+                case _ => ()
+            }
         }
-
-        return resultPromise
+        let err = JsObject()
+        err.set("name", JsValue(BaoString("AggregateError")))
+        err.set("message", JsValue(BaoString("All promises were rejected")))
+        err.set("errors", JsValue.array(errors))
+        return JsPromise.reject(JsValue(err))
     }
 
     // ---- 内部方法 ----
 
     /// 完成 Promise - 对应 JSPromiseResolve
-    private func resolve(value: JsValue): Unit {
+    private func fulfill(value: JsValue): Unit {
         if (state != PromiseState.Pending) {
             return
         }
@@ -340,7 +270,7 @@ public class JsPromise {
     }
 
     /// 拒绝 Promise - 对应 JSPromiseReject
-    private func reject(reason: JsValue): Unit {
+    private func rejectInternal(reason: JsValue): Unit {
         if (state != PromiseState.Pending) {
             return
         }
@@ -374,22 +304,21 @@ public class JsPromise {
         // 简化: 如果值是对象且有 then 方法，当作 thenable 处理
         // 完整实现需要检测 thenable 并递归解析
         match (value.valueType) {
-            case JsValueType.Object => {
-                match (value.objectData) {
-                    case Some(obj) => {
-                        let thenVal = obj.get("then")
-                        if (thenVal.valueType == JsValueType.Function) {
-                            // thenable: 调用其 then 方法
-                            // 简化实现: 直接 resolve
-                            promise.resolve(value)
-                        } else {
-                            promise.resolve(value)
-                        }
-                    }
-                    case None => promise.resolve(value)
+            case JsValueType.Object => resolveObjectPromiseValue(promise, value)
+            case _ => promise.fulfill(value)
+        }
+    }
+
+    private static func resolveObjectPromiseValue(promise: JsPromise, value: JsValue): Unit {
+        match (value.objectData) {
+            case Some(obj) =>
+                let thenVal = obj.get("then")
+                if (thenVal.valueType == JsValueType.Function) {
+                    promise.fulfill(value)
+                } else {
+                    promise.fulfill(value)
                 }
-            }
-            case _ => promise.resolve(value)
+            case None => promise.fulfill(value)
         }
     }
 }

@@ -10,6 +10,7 @@
 package bao_css.properties
 
 import bao_core.*
+import bao_collections.*
 
 // ============================================================================
 // ClipPath
@@ -20,13 +21,15 @@ import bao_core.*
 /// 严格翻译自 ClipPath
 public enum ClipPath {
     | None
-    | Url
-    | Shape
-    | Box
-    | result
-}
-                return result
-            }
+    | Url(String)
+    | Shape(BasicShape)
+    | Box(GeometryBox)
+
+    public func toCss(): String {
+        match (this) {
+            case None => "none"
+            case Url(u) => "url(" + u + ")"
+            case Shape(s) => s.toCss()
             case Box(b) => b.toCss()
         }
     }
@@ -59,6 +62,14 @@ public enum GeometryBox {
             case ViewBox => "view-box"
         }
     }
+
+    public operator func ==(rhs: GeometryBox): Bool {
+        this.toCss() == rhs.toCss()
+    }
+
+    public operator func !=(rhs: GeometryBox): Bool {
+        this.toCss() != rhs.toCss()
+    }
 }
 
 // ============================================================================
@@ -70,16 +81,16 @@ public enum GeometryBox {
 /// 严格翻译自 BasicShape
 public enum BasicShape {
     | Inset(InsetRect)        // inset()
-    | Circle(Circle)          // circle()
-    | Ellipse(Ellipse)        // ellipse()
-    | Polygon(Polygon)        // polygon()
+    | CircleVal(Circle)       // circle()
+    | EllipseVal(Ellipse)     // ellipse()
+    | PolygonVal(Polygon)     // polygon()
 
     public func toCss(): String {
         match (this) {
             case Inset(r) => r.toCss()
-            case Circle(c) => c.toCss()
-            case Ellipse(e) => e.toCss()
-            case Polygon(p) => p.toCss()
+            case CircleVal(c) => c.toCss()
+            case EllipseVal(e) => e.toCss()
+            case PolygonVal(p) => p.toCss()
         }
     }
 }
@@ -101,7 +112,10 @@ public class InsetRect {
     }
 
     public func toCss(): String {
-        var result = "inset(" + String.join(" ", rect)
+        var rectArr = Array<String>(rect.size, repeat: "")
+        var ri: Int64 = 0
+        for (r in rect) { rectArr[ri] = r; ri += 1 }
+        var result = "inset(" + String.join(rectArr, delimiter: " ")
         if (radius != "") {
             result = result + " round " + radius
         }
@@ -192,7 +206,10 @@ public class Polygon {
         for (p in points) {
             pointStrs.append(p.x + " " + p.y)
         }
-        return result + String.join(", ", pointStrs) + ")"
+        var ptArr = Array<String>(pointStrs.size, repeat: "")
+        var pti: Int64 = 0
+        for (p in pointStrs) { ptArr[pti] = p; pti += 1 }
+        return result + String.join(ptArr, delimiter: ", ") + ")"
     }
 }
 
@@ -218,6 +235,18 @@ public enum ShapeRadius {
 
     public static func default(): ShapeRadius {
         ShapeRadius.ClosestSide
+    }
+
+    public operator func ==(rhs: ShapeRadius): Bool {
+        match (this) {
+            case LengthPercentage(a) => match (rhs) { case LengthPercentage(b) => a == b case _ => false }
+            case ClosestSide => match (rhs) { case ClosestSide => true case _ => false }
+            case FarthestSide => match (rhs) { case FarthestSide => true case _ => false }
+        }
+    }
+
+    public operator func !=(rhs: ShapeRadius): Bool {
+        !(this == rhs)
     }
 }
 
@@ -257,6 +286,14 @@ public enum MaskMode {
             case MatchSource => "match-source"
         }
     }
+
+    public operator func ==(rhs: MaskMode): Bool {
+        this.toCss() == rhs.toCss()
+    }
+
+    public operator func !=(rhs: MaskMode): Bool {
+        this.toCss() != rhs.toCss()
+    }
 }
 
 // ============================================================================
@@ -267,14 +304,22 @@ public enum MaskMode {
 /// mask-clip 属性值
 /// 严格翻译自 MaskClip
 public enum MaskClip {
-    | GeometryBox(GeometryBox)  // 几何盒
-    | NoClip                    // 不裁剪
+    | GeometryBoxVal(GeometryBox) // 几何盒
+    | NoClip                     // 不裁剪
 
     public func toCss(): String {
         match (this) {
-            case GeometryBox(b) => b.toCss()
+            case GeometryBoxVal(b) => b.toCss()
             case NoClip => "no-clip"
         }
+    }
+
+    public operator func ==(rhs: MaskClip): Bool {
+        this.toCss() == rhs.toCss()
+    }
+
+    public operator func !=(rhs: MaskClip): Bool {
+        this.toCss() != rhs.toCss()
     }
 }
 
@@ -298,6 +343,14 @@ public enum MaskComposite {
             case Intersect => "intersect"
             case Exclude => "exclude"
         }
+    }
+
+    public operator func ==(rhs: MaskComposite): Bool {
+        this.toCss() == rhs.toCss()
+    }
+
+    public operator func !=(rhs: MaskComposite): Bool {
+        this.toCss() != rhs.toCss()
     }
 }
 
@@ -351,14 +404,14 @@ public class Mask {
 
     public static func default(): Mask {
         Mask(
-            image: "none",
-            position: "0% 0%",
-            size: "auto",
-            repeat: "repeat",
-            clip: MaskClip.GeometryBox(GeometryBox.BorderBox),
-            origin: GeometryBox.BorderBox,
-            composite: MaskComposite.Add,
-            mode: MaskMode.MatchSource
+            "none",
+            "0% 0%",
+            "auto",
+            "repeat",
+            MaskClip.GeometryBoxVal(GeometryBox.BorderBox),
+            GeometryBox.BorderBox,
+            MaskComposite.Add,
+            MaskMode.MatchSource
         )
     }
 
@@ -385,7 +438,7 @@ public class Mask {
 
         // 原点 / 裁剪
         if (origin != GeometryBox.BorderBox ||
-            clip != MaskClip.GeometryBox(GeometryBox.BorderBox)) {
+            clip != MaskClip.GeometryBoxVal(GeometryBox.BorderBox)) {
             parts.append(origin.toCss())
             if (clip.toCss() != origin.toCss()) {
                 parts.append(clip.toCss())
@@ -405,7 +458,10 @@ public class Mask {
         if (parts.isEmpty()) {
             return "none"
         }
-        return String.join(" ", parts)
+        var partArr = Array<String>(parts.size, repeat: "")
+        var pi: Int64 = 0
+        for (p in parts) { partArr[pi] = p; pi += 1 }
+        return String.join(partArr, delimiter: " ")
     }
 }
 
@@ -425,6 +481,14 @@ public enum MaskBorderMode {
             case Luminance => "luminance"
             case Alpha => "alpha"
         }
+    }
+
+    public operator func ==(rhs: MaskBorderMode): Bool {
+        this.toCss() == rhs.toCss()
+    }
+
+    public operator func !=(rhs: MaskBorderMode): Bool {
+        this.toCss() != rhs.toCss()
     }
 }
 
@@ -455,12 +519,12 @@ public class MaskBorder {
 
     public static func default(): MaskBorder {
         MaskBorder(
-            source: "none",
-            slice: BorderImageSlice.default(),
-            width: ArrayList<BorderImageSideWidth>(),
-            outset: ArrayList<String>(),
-            repeat: BorderImageRepeat.default(),
-            mode: MaskBorderMode.Alpha
+            "none",
+            BorderImageSlice.default(),
+            ArrayList<BorderImageSideWidth>(),
+            ArrayList<String>(),
+            BorderImageRepeat.default(),
+            MaskBorderMode.Alpha
         )
     }
 
@@ -504,7 +568,10 @@ public class MaskBorder {
         if (parts.isEmpty()) {
             return "none"
         }
-        return String.join(" ", parts)
+        var partArr = Array<String>(parts.size, repeat: "")
+        var pi: Int64 = 0
+        for (p in parts) { partArr[pi] = p; pi += 1 }
+        return String.join(partArr, delimiter: " ")
     }
 }
 

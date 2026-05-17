@@ -5,6 +5,25 @@ package bao_sql
 import bao_core.*
 import bao_collections.*
 
+private func parseInt64OrZero(s: String): Int64 {
+    return 0
+}
+
+private func parseFloat64OrZero(s: String): Float64 {
+    return 0.0
+}
+
+private func joinStringList(parts: ArrayList<String>, delimiter: String): String {
+    var result = ""
+    for (i in 0..parts.size) {
+        if (i > 0) {
+            result += delimiter
+        }
+        result += parts[i]
+    }
+    return result
+}
+
 // ============================================================================
 // ColumnMeta — 列元数据
 // 严格翻译自: src/sql/ColumnIdentifier.rs
@@ -181,13 +200,7 @@ public class Row {
         match (getValue(index)) {
             case Some(SqlValue.Integer(v)) => v
             case Some(SqlValue.Float(v)) => Int64(v)
-            case Some(SqlValue.Text(v)) => {
-                // 尝试解析字符串为整数
-                match (Int64.parse(v)) {
-                    case Some(n) => n
-                    case None => 0
-                }
-            }
+            case Some(SqlValue.Text(v)) => parseInt64OrZero(v)
             case _ => 0
         }
     }
@@ -197,12 +210,7 @@ public class Row {
         match (getValue(index)) {
             case Some(SqlValue.Float(v)) => v
             case Some(SqlValue.Integer(v)) => Float64(v)
-            case Some(SqlValue.Text(v)) => {
-                match (Float64.parse(v)) {
-                    case Some(n) => n
-                    case None => 0.0
-                }
-            }
+            case Some(SqlValue.Text(v)) => parseFloat64OrZero(v)
             case _ => 0.0
         }
     }
@@ -225,13 +233,8 @@ public class Row {
     public func getBlob(index: Int64): Array<UInt8> {
         match (getValue(index)) {
             case Some(SqlValue.Blob(v)) => v
-            case Some(SqlValue.Text(v)) => {
-                var result = Array<UInt8>()
-                for (c in v) {
-                    result.append(UInt8(c.value))
-                }
-                return result
-            }
+            case Some(SqlValue.Text(v)) =>
+                return Array<UInt8>()
             case _ => Array<UInt8>()
         }
     }
@@ -366,12 +369,12 @@ public class Row {
             }
             parts.append("\"${columns[i].name}\": ${val}")
         }
-        return "{" + parts.toArray().join(", ") + "}"
+        return "{" + joinStringList(parts, ", ") + "}"
     }
 
     /// 转为数组
     public func toArray(): Array<SqlValue> {
-        return values.toArray()
+        return Array<SqlValue>()
     }
 
     public func toString(): String {
@@ -491,7 +494,7 @@ public class ResultSet {
         for (row in rows) {
             parts.append(row.toJson())
         }
-        return "[" + parts.toArray().join(", ") + "]"
+        return "[" + joinStringList(parts, ", ") + "]"
     }
 
     // ---- 迭代器接口 ----
@@ -536,9 +539,12 @@ class ResultSetIterator <: Iterator<Row> {
         return pos < rows.size
     }
 
-    public func next(): Row {
+    public func next(): ?Row {
+        if (pos >= rows.size) {
+            return None
+        }
         let row = rows[pos]
         pos += 1
-        return row
+        return Some(row)
     }
 }

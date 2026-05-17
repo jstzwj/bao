@@ -9,6 +9,7 @@
 package bao_css.properties
 
 import bao_core.*
+import bao_collections.*
 
 // ============================================================================
 // ListStyleType
@@ -20,13 +21,13 @@ import bao_core.*
 public enum ListStyleType {
     | None                     // 无标记
     | Str(String)              // 显式标记字符串
-    | CounterStyle(CounterStyle) // 命名计数器样式
+    | CounterStyleVal(CounterStyle) // 命名计数器样式
 
     public func toCss(): String {
         match (this) {
             case None => "none"
             case Str(s) => s
-            case CounterStyle(cs) => cs.toCss()
+            case CounterStyleVal(cs) => cs.toCss()
         }
     }
 }
@@ -41,13 +42,13 @@ public enum ListStyleType {
 public enum CounterStyle {
     | Predefined(PredefinedCounterStyle) // 预定义计数器样式
     | Name(String)                       // 自定义计数器样式名称
-    | Symbols(Symbols)                   // 内联 symbols() 定义
+    | SymbolsVal(Symbols)                    // 内联 symbols() 定义
 
     public func toCss(): String {
         match (this) {
             case Predefined(p) => p.toCss()
             case Name(n) => n
-            case Symbols(s) => s.toCss()
+            case SymbolsVal(s) => s.toCss()
         }
     }
 }
@@ -76,7 +77,10 @@ public class Symbols {
         for (sym in symbols) {
             parts.append(sym.toCss())
         }
-        return "symbols(" + String.join(" ", parts) + ")"
+        var partArr = Array<String>(parts.size, repeat: "")
+        var pi: Int64 = 0
+        for (p in parts) { partArr[pi] = p; pi += 1 }
+        return "symbols(" + String.join(partArr, delimiter: " ") + ")"
     }
 }
 
@@ -160,6 +164,14 @@ public enum SymbolsType {
             case Symbolic => "symbolic"
             case Fixed => "fixed"
         }
+    }
+
+    public operator func ==(rhs: SymbolsType): Bool {
+        this.toCss() == rhs.toCss()
+    }
+
+    public operator func !=(rhs: SymbolsType): Bool {
+        this.toCss() != rhs.toCss()
     }
 }
 

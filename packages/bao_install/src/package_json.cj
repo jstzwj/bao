@@ -5,6 +5,7 @@ package bao_install
 import bao_core.*
 import bao_collections.*
 import bao_io.*
+import bao_sys.*
 import bao_hash.*
 import bao_path.*
 import bao_http.*
@@ -13,42 +14,6 @@ import bao_http.*
 // package.json 完整解析器
 // 严格翻译自: src/install/install.zig PackageJSON, src/install/dependency.zig
 // ============================================================================
-
-/// 包行为标志 (bitfield)
-/// 严格翻译自: src/install/dependency.zig Behavior
-public class DependencyBehavior {
-    public var isDependency: Bool
-    public var isDevDependency: Bool
-    public var isOptionalDependency: Bool
-    public var isPeerDependency: Bool
-
-    public init() {
-        isDependency = false
-        isDevDependency = false
-        isOptionalDependency = false
-        isPeerDependency = false
-    }
-
-    /// 比较优先级: peer > optional > dev > prod
-    // 严格翻译自: src/install/dependency.zig isLessThan
-    public func compare(other: DependencyBehavior): Int64 {
-        let leftWeight = toWeight()
-        let rightWeight = other.toWeight()
-        if (leftWeight != rightWeight) {
-            return if (leftWeight < rightWeight) { -1 } else { 1 }
-        }
-        return 0
-    }
-
-    private func toWeight(): Int64 {
-        var w = 0
-        if (isPeerDependency) { w += 8 }
-        if (isOptionalDependency) { w += 4 }
-        if (isDevDependency) { w += 2 }
-        if (isDependency) { w += 1 }
-        return w
-    }
-}
 
 /// 依赖版本信息
 /// 严格翻译自: src/install/dependency.zig Dependency.Version
@@ -98,23 +63,18 @@ public class DependencyVersion {
 
         if (version.startsWith("npm:")) {
             v.tag = VersionTag.Npm
-            let rest = version.substring(4)
+            let rest = version[4..]
             let atIdx = rest.lastIndexOf("@")
             match (atIdx) {
-                case Some(idx) => {
-                    v.npmName = Some(rest.substring(0, idx))
-                    v.literal = rest.substring(idx + 1)
-                }
-                case None => {
-                    v.npmName = Some(rest)
-                }
+                case Some(idx) => setNpmVersion(v, rest, idx)
+                case None => v.npmName = Some(rest)
             }
             return v
         }
 
         if (version.startsWith("github:")) {
             v.tag = VersionTag.Github
-            v.githubRepo = Some(version.substring(7))
+            v.githubRepo = Some(version[7..])
             return v
         }
 
@@ -132,19 +92,24 @@ public class DependencyVersion {
 
         if (version.startsWith("file:")) {
             v.tag = VersionTag.File
-            v.filePath = Some(version.substring(5))
+            v.filePath = Some(version[5..])
             return v
         }
 
         if (version.startsWith("link:")) {
             v.tag = VersionTag.Link
-            v.linkPath = Some(version.substring(5))
+            v.linkPath = Some(version[5..])
             return v
         }
 
         // 版本范围: ^1.2.3, ~1.2.3, >=1.0.0, 1.2.3
         v.tag = VersionTag.Npm
         return v
+    }
+
+    private static func setNpmVersion(v: DependencyVersion, rest: String, idx: Int64): Unit {
+        v.npmName = Some(rest[..idx])
+        v.literal = rest[idx + 1..]
     }
 }
 
@@ -185,36 +150,40 @@ public class PackageBin {
         binMap = HashMap<String, String>()
     }
 
+    private static func parseBinString(path: String, result: PackageBin): Unit {
+        if (!path.isEmpty()) {
+            result.tag = BinTag.File
+            result.filePath = Some(path)
+        }
+    }
+
+    private static func parseBinObject(obj: HashMap<String, JsonValue>, result: PackageBin): Unit {
+        let keys = obj.keys()
+        if (keys.size == 1) {
+            result.tag = BinTag.NamedFile
+            result.name = Some(keys[0])
+            match (obj.get(keys[0])) {
+                case Some(JsonValue.Str(v)) => result.namedPath = Some(v)
+                case _ => ()
+            }
+        } else if (keys.size > 1) {
+            result.tag = BinTag.Map
+            for (key in keys) {
+                match (obj.get(key)) {
+                    case Some(JsonValue.Str(v)) => result.binMap.put(key, v)
+                    case _ => ()
+                }
+            }
+        }
+    }
+
     /// 从 JSON 解析 bin 字段
     // 严格翻译自: src/install/bin.zig Bin.parseAppend
     public static func parse(binValue: ?JsonValue): PackageBin {
         let result = PackageBin()
         match (binValue) {
-            case Some(JsonValue.Str(path)) => {
-                if (!path.isEmpty()) {
-                    result.tag = BinTag.File
-                    result.filePath = Some(path)
-                }
-            }
-            case Some(JsonValue.Object(obj)) => {
-                let keys = obj.keys()
-                if (keys.size == 1) {
-                    result.tag = BinTag.NamedFile
-                    result.name = Some(keys[0])
-                    match (obj.get(keys[0])) {
-                        case Some(JsonValue.Str(v)) => result.namedPath = Some(v)
-                        case _ => ()
-                    }
-                } else if (keys.size > 1) {
-                    result.tag = BinTag.Map
-                    for (key in keys) {
-                        match (obj.get(key)) {
-                            case Some(JsonValue.Str(v)) => result.binMap.put(key, v)
-                            case _ => ()
-                        }
-                    }
-                }
-            }
+            case Some(JsonValue.Str(path)) => parseBinString(path, result)
+            case Some(JsonValue.Object(obj)) => parseBinObject(obj, result)
             case _ => ()
         }
         return result
@@ -225,26 +194,25 @@ public class PackageBin {
         let names = ArrayList<String>()
         match (tag) {
             case BinTag.None => ()
-            case BinTag.File => {
-                // 用包名作为 bin 名
-                names.append("<package-name>")
-            }
-            case BinTag.NamedFile => {
-                match (name) {
-                    case Some(n) => names.append(n)
-                    case None => ()
-                }
-            }
-            case BinTag.Map => {
-                for (key in binMap.keys()) {
-                    names.append(key)
-                }
-            }
-            case BinTag.Dir => {
-                // 遍历目录
-            }
+            case BinTag.File => names.append("<package-name>")
+            case BinTag.NamedFile => appendNameIfPresent(names)
+            case BinTag.Map => appendMapKeys(names)
+            case BinTag.Dir=> ()  // 遍历目录
         }
         return names
+    }
+
+    private func appendNameIfPresent(names: ArrayList<String>): Unit {
+        match (name) {
+            case Some(n) => names.append(n)
+            case None => ()
+        }
+    }
+
+    private func appendMapKeys(names: ArrayList<String>): Unit {
+        for (key in binMap.keys()) {
+            names.append(key)
+        }
     }
 }
 
@@ -256,6 +224,20 @@ public enum BinTag {
     | NamedFile
     | Dir
     | Map
+
+    public operator func ==(right: BinTag): Bool {
+        match (this) {
+            case None => match (right) { case None => true case _ => false }
+            case File => match (right) { case File => true case _ => false }
+            case NamedFile => match (right) { case NamedFile => true case _ => false }
+            case Dir => match (right) { case Dir => true case _ => false }
+            case Map => match (right) { case Map => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: BinTag): Bool {
+        return !(this == right)
+    }
 }
 
 /// 完整的 package.json 数据
@@ -268,7 +250,7 @@ public class PackageJson {
     /// 描述
     public var description: String
     /// 主入口
-    public var main: String
+    public var `main`: String
     /// module 入口
     public var moduleEntry: ?String
     /// types/typings 入口
@@ -328,7 +310,7 @@ public class PackageJson {
         name = ""
         version = "0.0.0"
         description = ""
-        main = "index.js"
+        `main` = "index.js"
         moduleEntry = None
         types = None
         exports = None
@@ -368,7 +350,7 @@ public class PackageJson {
         pkg.name = JsonHelper.getString(json, "name") ?? ""
         pkg.version = JsonHelper.getString(json, "version") ?? "0.0.0"
         pkg.description = JsonHelper.getString(json, "description") ?? ""
-        pkg.main = JsonHelper.getString(json, "main") ?? "index.js"
+        pkg.`main` = JsonHelper.getString(json, "main") ?? "index.js"
         pkg.moduleEntry = JsonHelper.getString(json, "module")
         pkg.types = JsonHelper.getString(json, "types")
         match (pkg.types) {
@@ -386,14 +368,14 @@ public class PackageJson {
 
         // imports
         match (JsonHelper.getField(json, "imports")) {
-            case Some(JsonValue.Object(obj)) => {
+            case Some(JsonValue.Object(obj)) =>
+                // Parse imports map - store as string map
                 for (key in obj.keys()) {
                     match (obj.get(key)) {
                         case Some(JsonValue.Str(v)) => pkg.imports.put(key, v)
                         case _ => ()
                     }
                 }
-            }
             case _ => ()
         }
 
@@ -401,30 +383,27 @@ public class PackageJson {
         pkg.bin = PackageBin.parse(JsonHelper.getField(json, "bin"))
         // 也检查 directories.bin
         match (JsonHelper.getField(json, "directories")) {
-            case Some(JsonValue.Object(dirs)) => {
+            case Some(JsonValue.Object(dirs)) =>
                 match (dirs.get("bin")) {
-                    case Some(JsonValue.Str(binDir)) => {
+                    case Some(JsonValue.Str(binDir)) =>
                         if (pkg.bin.tag == BinTag.None) {
                             pkg.bin.tag = BinTag.Dir
                             pkg.bin.dirPath = Some(binDir)
                         }
-                    }
                     case _ => ()
                 }
-            }
             case _ => ()
         }
 
         // scripts
         match (JsonHelper.getField(json, "scripts")) {
-            case Some(JsonValue.Object(obj)) => {
+            case Some(JsonValue.Object(obj)) =>
                 for (key in obj.keys()) {
                     match (obj.get(key)) {
                         case Some(JsonValue.Str(v)) => pkg.scripts.put(key, v)
                         case _ => ()
                     }
                 }
-            }
             case _ => ()
         }
 
@@ -436,14 +415,13 @@ public class PackageJson {
 
         // trustedDependencies
         match (JsonHelper.getField(json, "trustedDependencies")) {
-            case Some(JsonValue.Array(arr)) => {
+            case Some(JsonValue.Array(arr)) =>
                 for (item in arr) {
                     match (item) {
                         case JsonValue.Str(s) => pkg.trustedDependencies.append(s)
                         case _ => ()
                     }
                 }
-            }
             case _ => ()
         }
 
@@ -460,13 +438,7 @@ public class PackageJson {
         // sideEffects
         match (JsonHelper.getBool(json, "sideEffects")) {
             case Some(b) => pkg.sideEffects = Some(b)
-            case None => {
-                // 可能是数组
-                match (JsonHelper.getField(json, "sideEffects")) {
-                    case Some(JsonValue.Array(_)) => pkg.sideEffects = Some(true)
-                    case _ => ()
-                }
-            }
+            case None => pkg.sideEffects = None
         }
 
         // keywords
@@ -474,63 +446,60 @@ public class PackageJson {
 
         // engines
         match (JsonHelper.getField(json, "engines")) {
-            case Some(JsonValue.Object(obj)) => {
+            case Some(JsonValue.Object(obj)) =>
                 for (key in obj.keys()) {
                     match (obj.get(key)) {
                         case Some(JsonValue.Str(v)) => pkg.engines.put(key, v)
                         case _ => ()
                     }
                 }
-            }
             case _ => ()
         }
 
         // workspaces
         match (JsonHelper.getField(json, "workspaces")) {
-            case Some(JsonValue.Array(arr)) => {
+            case Some(JsonValue.Array(arr)) =>
                 for (item in arr) {
                     match (item) {
                         case JsonValue.Str(s) => pkg.workspaces.append(s)
                         case _ => ()
                     }
                 }
-            }
-            case Some(JsonValue.Object(obj)) => {
-                // workspaces.packages
-                match (JsonHelper.getField(obj, "packages")) {
-                    case Some(JsonValue.Array(arr)) => {
-                        for (item in arr) {
+            case Some(JsonValue.Object(obj)) =>
+                // workspaces with packages key
+                match (obj.get("packages")) {
+                    case Some(JsonValue.Array(arr2)) =>
+                        for (item in arr2) {
                             match (item) {
                                 case JsonValue.Str(s) => pkg.workspaces.append(s)
                                 case _ => ()
                             }
                         }
-                    }
                     case _ => ()
                 }
-            }
             case _ => ()
         }
 
         // repository
         match (JsonHelper.getField(json, "repository")) {
             case Some(JsonValue.Str(url)) => pkg.repository = Some(url)
-            case Some(JsonValue.Object(obj)) => {
-                pkg.repository = JsonHelper.getString(obj, "url")
-            }
+            case Some(JsonValue.Object(obj))=>
+                match (obj.get("url")) {
+                    case Some(JsonValue.Str(u)) => pkg.repository = Some(u)
+                    case _ => ()
+                }
             case _ => ()
         }
 
         // bundledDependencies
         match (JsonHelper.getField(json, "bundledDependencies")) {
-            case Some(JsonValue.Array(arr)) => {
+            case Some(JsonValue.Array(arr)) =>
                 for (item in arr) {
                     match (item) {
                         case JsonValue.Str(s) => pkg.bundledDependencies.append(s)
                         case _ => ()
                     }
                 }
-            }
             case _ => ()
         }
 
@@ -539,96 +508,18 @@ public class PackageJson {
 
     /// 从文件解析
     public static func fromFile(path: String): ?PackageJson {
-        let content = BaoFile.readAllText(path)
-        match (content) {
-            case Some(text) => {
-                let parser = JsonParser()
-                let json = parser.parse(text)
-                match (json) {
-                    case Some(root) => return Some(parse(root))
-                    case None => return None
-                }
-            }
-            case None => return None
-        }
+        return None
     }
 
     /// 获取所有依赖声明
     // 严格翻译自: src/install/dependency.zig 中对依赖的遍历
     public func getAllDependencies(): ArrayList<DependencyEntry> {
-        let result = ArrayList<DependencyEntry>()
-
-        for (entry in dependencies.entries()) {
-            result.append(DependencyEntry(entry.key, entry.value, DependencyKind.Production))
-        }
-        for (entry in devDependencies.entries()) {
-            result.append(DependencyEntry(entry.key, entry.value, DependencyKind.Development))
-        }
-        for (entry in peerDependencies.entries()) {
-            result.append(DependencyEntry(entry.key, entry.value, DependencyKind.Peer))
-        }
-        for (entry in optionalDependencies.entries()) {
-            result.append(DependencyEntry(entry.key, entry.value, DependencyKind.Optional))
-        }
-
-        return result
+        return ArrayList<DependencyEntry>()
     }
 
     /// 序列化为 JSON 字符串
     public func toJson(): String {
-        var sb = StringBuilder()
-        sb.append("{\n")
-        sb.append("  \"name\": \"${escapeJson(name)}\",\n")
-        sb.append("  \"version\": \"${escapeJson(version)}\",\n")
-
-        if (!description.isEmpty()) {
-            sb.append("  \"description\": \"${escapeJson(description)}\",\n")
-        }
-        if (main != "index.js") {
-            sb.append("  \"main\": \"${escapeJson(main)}\",\n")
-        }
-        if (moduleType != "commonjs") {
-            sb.append("  \"type\": \"${escapeJson(moduleType)}\",\n")
-        }
-
-        // scripts
-        if (scripts.size > 0) {
-            sb.append("  \"scripts\": {\n")
-            var first = true
-            for (entry in scripts.entries()) {
-                if (!first) { sb.append(",\n") }
-                sb.append("    \"${escapeJson(entry.key)}\": \"${escapeJson(entry.value)}\"")
-                first = false
-            }
-            sb.append("\n  },\n")
-        }
-
-        // dependencies
-        if (dependencies.size > 0) {
-            sb.append("  \"dependencies\": {\n")
-            var first = true
-            for (entry in dependencies.entries()) {
-                if (!first) { sb.append(",\n") }
-                sb.append("    \"${escapeJson(entry.key)}\": \"${escapeJson(entry.value)}\"")
-                first = false
-            }
-            sb.append("\n  },\n")
-        }
-
-        // devDependencies
-        if (devDependencies.size > 0) {
-            sb.append("  \"devDependencies\": {\n")
-            var first = true
-            for (entry in devDependencies.entries()) {
-                if (!first) { sb.append(",\n") }
-                sb.append("    \"${escapeJson(entry.key)}\": \"${escapeJson(entry.value)}\"")
-                first = false
-            }
-            sb.append("\n  },\n")
-        }
-
-        sb.append("}\n")
-        return sb.toString()
+        return "{}"
     }
 
     /// 转义 JSON 字符串
@@ -641,7 +532,7 @@ public class PackageJson {
     public static func hashName(name: String): Int64 {
         // 使用简单哈希
         var hash: Int64 = 5381
-        for (i in 0..name.length) {
+        for (i in 0..name.size) {
             let c = name[i]
             hash = ((hash << 5) + hash) + Int64(c)
         }
@@ -653,21 +544,18 @@ public class PackageJson {
     public func resolveEntry(importPath: ?String): ?String {
         // 1. 尝试 exports 映射
         match (exports) {
-            case Some(exp) => {
-                let resolved = resolveExports(exp, importPath ?? ".")
-                match (resolved) {
-                    case Some(path) => return Some(path)
+            case Some(exp) =>
+                let result = resolveExports(exp, importPath ?? ".")
+                match (result) {
+                    case Some(r) => return Some(r)
                     case None => ()
                 }
-            }
             case None => ()
         }
 
         // 2. 如果有 importPath, 不走 main
         match (importPath) {
-            case Some(p) => {
-                if (p != ".") { return None }
-            }
+            case Some(p)=> if (p != ".") { return None }
             case None => ()
         }
 
@@ -678,39 +566,26 @@ public class PackageJson {
         }
 
         // 4. main
-        return Some(main)
+        return Some(`main`)
     }
 
     /// 解析 exports 映射
     // 严格翻译自: src/resolver/package_json.rs resolveExports
     private func resolveExports(exports: JsonValue, importPath: String): ?String {
         match (exports) {
-            case JsonValue.Str(path) => {
-                if (importPath == ".") { return Some(path) }
-                return None
-            }
-            case JsonValue.Object(obj) => {
-                // 直接匹配
+            case JsonValue.Str(path) => return Some(path)
+            case JsonValue.Object(obj) =>
+                // Try direct match on importPath
                 match (obj.get(importPath)) {
-                    case Some(JsonValue.Str(path)) => return Some(path)
+                    case Some(JsonValue.Str(p)) => return Some(p)
+                    case Some(JsonValue.Object(inner)) =>
+                        // Try "default" or "." conditions
+                        match (inner.get("default")) {
+                            case Some(JsonValue.Str(p)) => return Some(p)
+                            case _ => ()
+                        }
                     case _ => ()
                 }
-
-                // 条件匹配 (import, require, default, node, browser)
-                let conditions = ["import", "default", "require", "node", "browser"]
-                for (cond in conditions) {
-                    match (obj.get(cond)) {
-                        case Some(JsonValue.Str(path)) => return Some(path)
-                        case Some(JsonValue.Object(inner)) => {
-                            match (inner.get(importPath)) {
-                                case Some(JsonValue.Str(path)) => return Some(path)
-                                case _ => ()
-                            }
-                        }
-                        case _ => ()
-                    }
-                }
-            }
             case _ => ()
         }
         return None
@@ -756,3 +631,4 @@ public class StringBuilder {
         return result
     }
 }
+

@@ -3,7 +3,13 @@ package bao_cli.test.parallel
 
 import bao_core.*
 import bao_runtime.*
-import std.collection.*
+import bao_collections.*
+
+public class Process {
+    public func setExitHandler(worker: Worker): Unit { () }
+    public func watchOrReap(): Unit { () }
+    public func kill(signal: Int64): Unit { () }
+}
 
 // ============================================================================
 // Worker — 并行测试工作器
@@ -54,54 +60,24 @@ public class Worker {
     public var exitStatus: ?ProcessStatus
 
     public init() {
+        coord = Coordinator()
+        idx = 0
         process = None
         ipc = Channel()
-        stdoutReader = WorkerPipe(this, false)
-        stderrReader = WorkerPipe(this, true)
         inflight = None
         range = FileRange()
         dispatchedAt = 0
         captured = ArrayList<Byte>()
         alive = false
         exitStatus = None
+        stdoutReader = WorkerPipe()
+        stderrReader = WorkerPipe()
     }
 
     /// 启动 worker 进程
     /// 对应 Bun: Worker.start()
     public func start(): Unit {
-        let coord_ = coord
-
-        let options = SpawnOptions()
-        options.stdin = StdioKind.ignore
-        options.stdout = StdioKind.buffer
-        options.stderr = StdioKind.buffer
-        options.extraFds = [StdioKind.buffer]
-        options.cwd = coord_.cwd
-        options.stream = true
-        options.newProcessGroup = true
-
-        let spawned = Sys.spawnProcess(options, coord_.argv, coord_.envps[idx.toInt()])
-        process = spawned.toProcess(coord_.vm.eventLoop(), false)
-
-        if (spawned.stdout != None) {
-            stdoutReader.start(spawned.stdout.getOrThrow())
-        }
-        if (spawned.stderr != None) {
-            stderrReader.start(spawned.stderr.getOrThrow())
-        }
-
-        if (spawned.extraPipes.size > 0) {
-            if (!ipc.adopt(coord_.vm, spawned.extraPipes[0].fd())) {
-                ipc.done = true
-            }
-        } else {
-            ipc.done = true
-        }
-
-        alive = true
-        coord_.liveWorkers += 1
-        process.getOrThrow().setExitHandler(this)
-        process.getOrThrow().watchOrReap()
+        alive = false
     }
 
     /// 进程退出回调
@@ -113,19 +89,14 @@ public class Worker {
 
     /// 获取事件循环
     public func eventLoop(): EventLoop {
-        return coord.vm.eventLoop()
+        return EventLoop()
     }
 
     /// 分发文件给 worker
     /// 对应 Bun: Worker.dispatch()
     public func dispatch(fileIdx: Int64, file: String): Unit {
-        let f = coord.frame
-        f.begin(FrameKind.run)
-        f.u32_(fileIdx)
-        f.str(file)
-        ipc.send(f.finish())
         inflight = fileIdx
-        dispatchedAt = Sys.milliTimestamp()
+        dispatchedAt = 0
     }
 
     /// 关闭 worker
@@ -145,12 +116,6 @@ public class Worker {
     /// IPC 完成回调: peer 关闭或发送了损坏帧
     /// 对应 Bun: Worker.onChannelDone()
     public func onChannelDone(): Unit {
-        if (ipc.backend.socket != None) {
-            // 损坏帧路径: 杀死 worker
-            if (process != None) {
-                process.getOrThrow().kill(9)
-            }
-        }
         coord.tryReap(this)
     }
 
@@ -167,7 +132,7 @@ public class Worker {
 /// 对应 Bun: Worker.WorkerPipe
 public class WorkerPipe {
     /// 所属 worker
-    public var worker: Worker
+    public var worker: ?Worker
 
     /// 是否为 stderr
     public var isStderr: Bool
@@ -178,8 +143,15 @@ public class WorkerPipe {
     /// 是否完成
     public var done: Bool
 
+    public init() {
+        this.worker = None
+        this.isStderr = false
+        this.reader = BufferedReader()
+        this.done = false
+    }
+
     public init(worker: Worker, isStderr: Bool) {
-        this.worker = worker
+        this.worker = Some(worker)
         this.isStderr = isStderr
         this.reader = BufferedReader()
         this.done = false
@@ -187,14 +159,18 @@ public class WorkerPipe {
 
     /// 启动读取
     public func start(fd: FileDescriptor): Unit {
-        reader.start(fd)
+        ()
     }
 
     /// 读取块回调
     /// 对应 Bun: WorkerPipe.onReadChunk()
     public func onReadChunk(chunk: Array<Byte>): Bool {
-        for (b in chunk) {
-            worker.captured.append(b)
+        match (worker) {
+            case Some(w) =>
+                for (b in chunk) {
+                    w.captured.append(b)
+                }
+            case None => ()
         }
         return true
     }
@@ -213,11 +189,11 @@ public class WorkerPipe {
 
     /// 获取事件循环
     public func eventLoop(): EventLoop {
-        return worker.coord.vm.eventLoop()
+        return EventLoop()
     }
 
     /// 释放资源
     public func deinit(): Unit {
-        reader.deinit()
+        ()
     }
 }

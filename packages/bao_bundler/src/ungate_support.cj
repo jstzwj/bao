@@ -69,155 +69,23 @@ public class LayerName {
 // ============================================================================
 // 从 bundle_v2.zig 提取的值类型
 // 严格翻译自: ungate_support.rs:73-169
-// ============================================================================
-
-/// PartRange — 严格翻译自: bundle_v2.zig:PartRange
-/// 定义在 ungate_support (而非 bundle_v2) 中，
-/// 以便 Chunk.rs 和 bundle_v2.rs 共享单一名义类型
-public class PartRange {
-    public var sourceIndex: Index
-    public var partIndexBegin: UInt32
-    public var partIndexEnd: UInt32
-
-    public init() {
-        this.sourceIndex = Index.Invalid
-        this.partIndexBegin = 0
-        this.partIndexEnd = 0
-    }
-
-    public init(sourceIndex: Index, partIndexBegin: UInt32, partIndexEnd: UInt32) {
-        this.sourceIndex = sourceIndex
-        this.partIndexBegin = partIndexBegin
-        this.partIndexEnd = partIndexEnd
-    }
-}
-
-/// StableRef — 严格翻译自: bundle_v2.zig:StableRef (packed struct u96)
-/// 用于稳定排序引用
-public class StableRef {
-    public var stableSourceIndex: Int32
-    public var ref_: Ref
-
-    public init(stableSourceIndex: Int32, ref_: Ref) {
-        this.stableSourceIndex = stableSourceIndex
-        this.ref_ = ref_
-    }
-
-    /// 严格翻译自: StableRef.isLessThan
-    /// 比较两个 StableRef，用于排序
-    public static func isLessThan(a: StableRef, b: StableRef): Bool {
-        if (a.stableSourceIndex < b.stableSourceIndex) {
-            return true
-        }
-        if (a.stableSourceIndex == b.stableSourceIndex) {
-            return a.ref_.innerIndex < b.ref_.innerIndex
-        }
-        return false
-    }
-
-    public func eql(other: StableRef): Bool {
-        return stableSourceIndex == other.stableSourceIndex && ref_.eql(other.ref_)
-    }
-}
-
-/// ImportTracker — 严格翻译自: bundle_v2.zig:ImportTracker
-/// 跟踪导入信息
-public class ImportTracker {
-    public var sourceIndex: Index
-    public var nameLoc: Loc
-    public var importRef: Ref
-
-    public init() {
-        this.sourceIndex = Index.Invalid
-        this.nameLoc = Loc.Empty
-        this.importRef = Ref.None
-    }
-
-    public init(sourceIndex: Index, nameLoc: Loc, importRef: Ref) {
-        this.sourceIndex = sourceIndex
-        this.nameLoc = nameLoc
-        this.importRef = importRef
-    }
-}
-
-/// CrossChunkImportItem — 严格翻译自: bundle_v2.zig:CrossChunkImport.Item
-/// 跨 chunk 导入项
-public class CrossChunkImportItem {
-    public var exportAlias: Array<Byte>
-    public var ref_: Ref
-
-    public init() {
-        this.exportAlias = []
-        this.ref_ = Ref.None
-    }
-}
-
-/// CrossChunkImport — 严格翻译自: bundle_v2.zig:CrossChunkImport
-/// 跨 chunk 导入
-public class CrossChunkImport {
-    public var chunkIndex: Int32
-    public var sortedImportItems: ArrayList<CrossChunkImportItem>
-
-    public init() {
-        this.chunkIndex = 0
-        this.sortedImportItems = ArrayList<CrossChunkImportItem>()
-    }
-}
-
-/// DeclInfoKind — 严格翻译自: ungate_support.rs:160
+// ============================================================================/// DeclInfoKind — 严格翻译自: ungate_support.rs:160
 public enum DeclInfoKind {
     | Declared
     | Lexical
-}
-
-/// DeclInfo — 严格翻译自: ungate_support.rs:166
-/// 顶层声明信息
-public class DeclInfo {
-    public var name: Array<Byte>
-    public var kind: DeclInfoKind
-
-    public init(name: Array<Byte>, kind: DeclInfoKind) {
-        this.name = name
-        this.kind = kind
-    }
-}
-
-// ============================================================================
+}// ============================================================================
 // CompileResult — 编译结果
 // 严格翻译自: ungate_support.rs:172-306
 // bundle_v2.zig:CompileResult
-// ============================================================================
-
-/// CompileResult — 编译结果枚举
-/// 严格翻译自: ungate_support.rs:172 CompileResult
-/// 支持 JavaScript / CSS / HTML 三种输出
-public enum CompileResult {
-    | Javascript(
-        sourceIndex: UInt32,     // 源文件索引
-        result: PrintResult,     // 打印结果
-        decls: Array<DeclInfo>   // 顶层声明列表
-    )
-    | Css(
-        result: Result<Array<Byte>>,  // CSS 编译结果
-        sourceIndex: UInt32,          // 源文件索引
-        sourceMap: SourceMapChunk     // SourceMap
-    )
-    | Html(
-        sourceIndex: UInt32,          // 源文件索引
-        code: Array<Byte>,            // HTML 代码
-        scriptInjectionOffset: UInt32 // 脚本注入偏移
-    )
-}
-
-/// CompileResult 辅助方法
+// ============================================================================/// CompileResult 辅助方法
 public class CompileResultHelper {
     /// 获取源文件索引
     /// 严格翻译自: ungate_support.rs:195 source_index()
     public static func sourceIndex(cr: CompileResult): UInt32 {
         match (cr) {
-            case Javascript(sourceIndex: si, _, _) => si
-            case Css(_, sourceIndex: si, _) => si
-            case Html(sourceIndex: si, _, _) => si
+            case Javascript(si, _, _) => si
+            case Css(_, si, _) => si
+            case Html(si, _, _) => si
         }
     }
 
@@ -225,17 +93,17 @@ public class CompileResultHelper {
     /// 严格翻译自: ungate_support.rs:204 code()
     public static func code(cr: CompileResult): Array<Byte> {
         match (cr) {
-            case Javascript(_, result: r, _) =>
+            case Javascript(_, r, _) =>
                 match (r) {
                     case PrintResult.Success(code) => code
                     case PrintResult.Err(_) => []
                 }
-            case Css(result: r, _, _) =>
+            case Css(r, _, _) =>
                 match (r) {
                     case Ok(v) => v
                     case Err(_) => []
                 }
-            case Html(_, code: c, _) => c
+            case Html(_, c, _) => c
         }
     }
 
@@ -243,12 +111,12 @@ public class CompileResultHelper {
     /// 严格翻译自: ungate_support.rs:233 source_map_chunk()
     public static func sourceMapChunk(cr: CompileResult): SourceMapChunk {
         match (cr) {
-            case Javascript(_, result: r, _) =>
+            case Javascript(_, r, _) =>
                 match (r) {
                     case PrintResult.SuccessWithMap(_, sm) => sm
                     case _ => SourceMapChunk.None
                 }
-            case Css(_, _, sourceMap: sm) => sm
+            case Css(_, _, sm) => sm
             case Html(_, _, _) => SourceMapChunk.None
         }
     }
@@ -257,18 +125,18 @@ public class CompileResultHelper {
     /// 严格翻译自: ungate_support.rs:296 Default for CompileResult
     public static func defaultValue(): CompileResult {
         return CompileResult.Javascript(
-            sourceIndex: 0,
-            result: PrintResult.Success(code: []),
-            decls: []
+            0,
+            PrintResult.Success([]),
+            []
         )
     }
 }
 
 /// 打印结果
 public enum PrintResult {
-    | Success(code: Array<Byte>)
-    | SuccessWithMap(code: Array<Byte>, sourceMap: SourceMapChunk)
-    | Err(message: String)
+    | Success(Array<Byte>)
+    | SuccessWithMap(Array<Byte>, SourceMapChunk)
+    | Err(String)
 }
 
 /// SourceMap 块 (简化)
@@ -395,45 +263,7 @@ public class LineColumnOffset {
 // 严格翻译自: ungate_support.rs:419 ContentHasher
 // bundle_v2.zig:ContentHasher
 // 使用 xxhash64 (seed 0)，在大数据时优于 wyhash
-// ============================================================================
-
-/// 内容哈希器
-public class ContentHasher {
-    public var hasher: XxHash64
-
-    public init() {
-        this.hasher = XxHash64()
-    }
-
-    /// 写入字节
-    /// 严格翻译自: ungate_support.rs:428 write()
-    public func write(bytes: Array<Byte>): Unit {
-        hasher.update(bytes)
-    }
-
-    /// 静态哈希
-    /// 严格翻译自: ungate_support.rs:438 run()
-    public static func run(bytes: Array<Byte>): UInt64 {
-        let h = ContentHasher()
-        h.write(bytes)
-        return h.digest()
-    }
-
-    /// 写入整数数组
-    /// 严格翻译自: ungate_support.rs:443 writeInts()
-    public func writeInts(ints: Array<UInt32>): Unit {
-        for (i in ints) {
-            hasher.update(i)
-        }
-    }
-
-    /// 获取哈希摘要
-    public func digest(): UInt64 {
-        return hasher.digest()
-    }
-}
-
-/// XxHash64 (简化实现)
+// ============================================================================/// XxHash64 (简化实现)
 public class XxHash64 {
     private var state: UInt64
 
@@ -481,40 +311,10 @@ public func targetFromHashbang(buffer: Array<Byte>): Target {
 // ============================================================================
 // WrapKind — 包装类型
 // 严格翻译自: ungate_support.rs:574 WrapKind
-// ============================================================================
-
-/// 包装类型
-/// 严格翻译自: LinkerGraph.zig:JSMeta WrapKind
-public enum WrapKind {
-    | None    // 不包装
-    | Cjs     // CommonJS 包装
-    | Esm     // ESM 包装
-}
-
-// ============================================================================
+// ============================================================================// ============================================================================
 // ChunkRenamer — Chunk 重命名器
 // 严格翻译自: ungate_support.rs:474 bun_renamer module
 // ============================================================================
-
-/// Chunk 重命名器
-/// 严格翻译自: ungate_support.rs:483 ChunkRenamer
-/// 拥有所有权的重命名器，存储在 Chunk.renamer 上
-public enum ChunkRenamer {
-    | None
-    | NumberRenamer(NumberRenamer)
-    | MinifyRenamer(MinifyRenamer)
-}
-
-/// ChunkRenamer 辅助方法
-public class ChunkRenamerHelper {
-    public static func nameForSymbol(renamer: ChunkRenamer, ref_: Ref): Array<Byte> {
-        match (renamer) {
-            case None => []  // unreachable
-            case NumberRenamer(r) => r.nameForSymbol(ref_)
-            case MinifyRenamer(r) => r.nameForSymbol(ref_)
-        }
-    }
-}
 
 /// 数字重命名器
 public class NumberRenamer {
@@ -545,12 +345,11 @@ public class MinifyRenamer {
     public func nameForSymbol(ref_: Ref): Array<Byte> {
         match (symbols.get(ref_.innerIndex)) {
             case Some(name) => name.toArray()
-            case None => {
+            case None =>
                 let name = generateMinifiedName(nextName)
                 nextName++
                 symbols.put(ref_.innerIndex, name)
                 return name.toArray()
-            }
         }
     }
 
@@ -558,7 +357,7 @@ public class MinifyRenamer {
     private func generateMinifiedName(n: Int32): String {
         var result = ""
         var i = n
-        repeat {
+        do {
             result = String(Char(Int32('a'.value) + (i % 26))) + result
             i = i / 26 - 1
         } while (i >= 0)
@@ -566,80 +365,31 @@ public class MinifyRenamer {
     }
 }
 
+/// Chunk 重命名器
+/// 严格翻译自: ungate_support.rs:483 ChunkRenamer
+/// 拥有所有权的重命名器，存储在 Chunk.renamer 上
+public enum ChunkRenamer {
+    | None
+    | Number(NumberRenamer)
+    | Minify(MinifyRenamer)
+}
+
+/// ChunkRenamer 辅助方法
+public class ChunkRenamerHelper {
+    public static func nameForSymbol(renamer: ChunkRenamer, ref_: Ref): Array<Byte> {
+        match (renamer) {
+            case None => []  // unreachable
+            case Number(r) => r.nameForSymbol(ref_)
+            case Minify(r) => r.nameForSymbol(ref_)
+        }
+    }
+}
+
 // ============================================================================
 // EntryPoint — 入口点
 // 严格翻译自: ungate_support.rs:614 entry_point module
 // bundle_v2.zig:EntryPoint
-// ============================================================================
-
-/// 入口点
-/// 严格翻译自: bundle_v2.zig:EntryPoint
-/// 入口点信息 (输出路径、源索引等)
-public class EntryPoint {
-    /// 输出路径 (可能是绝对或相对路径)
-    public var outputPath: PathString
-    /// 源文件索引
-    public var sourceIndex: Int32
-    /// 输出路径是否自动生成
-    public var outputPathWasAutoGenerated: Bool
-
-    public init() {
-        this.outputPath = PathString()
-        this.sourceIndex = 0
-        this.outputPathWasAutoGenerated = false
-    }
-
-    public init(outputPath: PathString, sourceIndex: Int32, outputPathWasAutoGenerated: Bool) {
-        this.outputPath = outputPath
-        this.sourceIndex = sourceIndex
-        this.outputPathWasAutoGenerated = outputPathWasAutoGenerated
-    }
-}
-
-/// 入口点类型
-/// 严格翻译自: ungate_support.rs:654 Kind
-/// bundle_v2.zig:EntryPoint.Kind
-public enum EntryPointKind {
-    | None           // 非入口点
-    | UserSpecified  // 用户指定
-    | DynamicImport  // 动态导入
-    | Html           // HTML 中的引用
-
-    /// 是否是入口点
-    public func isEntryPoint(): Bool {
-        match (this) {
-            case None => false
-            case _ => true
-        }
-    }
-
-    /// 是否是用户指定的入口点
-    public func isUserSpecifiedEntryPoint(): Bool {
-        match (this) {
-            case UserSpecified => true
-            case _ => false
-        }
-    }
-
-    /// 是否是服务端入口点
-    public func isServerEntryPoint(): Bool {
-        match (this) {
-            case UserSpecified => true
-            case _ => false
-        }
-    }
-
-    /// 获取输出类型
-    /// 严格翻译自: ungate_support.rs:676 output_kind()
-    public func outputKind(): OutputKind {
-        match (this) {
-            case UserSpecified => OutputKind.EntryPoint
-            case _ => OutputKind.Chunk
-        }
-    }
-}
-
-/// PathString — 路径字符串
+// ============================================================================/// PathString — 路径字符串
 public class PathString {
     public var value: String
 
@@ -656,33 +406,7 @@ public class PathString {
 // JSMeta — JS 元数据
 // 严格翻译自: ungate_support.rs:688 js_meta module
 // bundle_v2.zig:JSMeta
-// ============================================================================
-
-/// 导入数据
-/// 严格翻译自: ungate_support.rs:696 ImportData
-public class ImportData {
-    public var reExports: ArrayList<Dependency>
-    public var data: ImportTracker
-
-    public init() {
-        this.reExports = ArrayList<Dependency>()
-        this.data = ImportTracker()
-    }
-}
-
-/// 导出数据
-/// 严格翻译自: ungate_support.rs:703 ExportData
-public class ExportData {
-    public var potentiallyAmbiguousExportStarRefs: ArrayList<ImportData>
-    public var data: ImportTracker
-
-    public init() {
-        this.potentiallyAmbiguousExportStarRefs = ArrayList<ImportData>()
-        this.data = ImportTracker()
-    }
-}
-
-/// JSMeta 标志
+// ============================================================================/// JSMeta 标志
 /// 严格翻译自: ungate_support.rs:720 JSMeta.Flags
 public class JSMetaFlags {
     public var isAsyncOrHasAsyncDependency: Bool
@@ -761,31 +485,7 @@ public class MangledProps {
 // ============================================================================
 // ServerComponentBoundary / UseDirective 重导出
 // 严格翻译自: ungate_support.rs:583-584
-// ============================================================================
-
-/// 服务端组件边界
-public class ServerComponentBoundary {
-    public var sourceIndex: Index
-    public var boundaryIndex: Int32
-
-    public init() {
-        this.sourceIndex = Index.Invalid
-        this.boundaryIndex = 0
-    }
-}
-
-/// Use 指令
-public class UseDirective {
-    public var sourceIndex: Index
-    public var importRecordIndex: Int32
-
-    public init() {
-        this.sourceIndex = Index.Invalid
-        this.importRecordIndex = 0
-    }
-}
-
-// ============================================================================
+// ============================================================================// ============================================================================
 // 辅助函数
 // ============================================================================
 
@@ -823,91 +523,4 @@ private func arrayStartsWith(arr: Array<Byte>, prefix: Array<Byte>): Bool {
 /// NodeFallbacks — Node 回退路径
 public class NodeFallbacks {
     public static let ImportPath = "node:"
-}
-
-/// FsPath — 文件系统路径
-public class FsPath {
-    public var text: String
-    public var namespace: String
-    public var pretty: String
-    public var is_file: Bool
-
-    public init() {
-        this.text = ""
-        this.namespace = "file"
-        this.pretty = ""
-        this.is_file = true
-    }
-}
-
-/// 目标平台
-public enum Target {
-    | Browser
-    | Bun
-    | BunMacro
-    | Node
-    | BakeServerComponentsSsr
-}
-
-/// 依赖 (引用)
-public class Dependency {
-    public var sourceIndex: Index
-    public var partIndex: Int32
-
-    public init() {
-        this.sourceIndex = Index.Invalid
-        this.partIndex = 0
-    }
-}
-
-/// Index 引用 (来自 ast_builder.cj)
-/// 重新声明以确保可用
-public class Index {
-    public var value: Int32
-    public static let Invalid: Index = Index(-1)
-    public static let Runtime: Index = Index(0)
-
-    public init(_ value: Int32) {
-        this.value = value
-    }
-
-    public func isValid(): Bool {
-        return value >= 0
-    }
-
-    public func isInvalid(): Bool {
-        return value < 0
-    }
-}
-
-/// Ref 引用 (来自 ast_builder.cj)
-public class Ref {
-    public var innerIndex: Int32
-    public var sourceIndex: Int32
-
-    public init(innerIndex: Int32, sourceIndex: Int32) {
-        this.innerIndex = innerIndex
-        this.sourceIndex = sourceIndex
-    }
-
-    public static let None: Ref = Ref(innerIndex: 0, sourceIndex: -1)
-
-    public func isNull(): Bool {
-        return sourceIndex < 0
-    }
-
-    public func eql(other: Ref): Bool {
-        return innerIndex == other.innerIndex && sourceIndex == other.sourceIndex
-    }
-}
-
-/// Loc 引用
-public class Loc {
-    public var start: Int32
-
-    public init(start: Int32) {
-        this.start = start
-    }
-
-    public static let Empty: Loc = Loc(start: 0)
 }

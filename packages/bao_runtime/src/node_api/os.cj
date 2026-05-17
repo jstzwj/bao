@@ -7,6 +7,8 @@ package bao_runtime.node_api
 import bao_core.*
 import bao_collections.*
 import bao_sys.*
+import bao_runtime.*
+import std.convert.*
 
 // ============================================================================
 // os 模块 — Node.js 操作系统信息 API
@@ -55,7 +57,10 @@ public class OsModule {
     public static func release(): String {
         // 通过 uname 或 /proc/version 获取
         let ver = OS.getEnv("KERNEL_VERSION")
-        return ver.getOrElse { "0.0.0" }
+        match (ver) {
+            case Some(v) => return v
+            case None => return "0.0.0"
+        }
     }
 
     /// os.version() — 返回内核版本字符串
@@ -68,14 +73,20 @@ public class OsModule {
     /// 对应 Bun: os.homedir -> $HOME
     public static func homedir(): String {
         let home = OS.getEnv("HOME")
-        return home.getOrElse { "/root" }
+        match (home) {
+            case Some(h) => return h
+            case None => return "/root"
+        }
     }
 
     /// os.tmpdir() — 返回临时目录
     /// 对应 Bun: os.tmpdir -> $TMPDIR or /tmp
     public static func tmpdir(): String {
         let tmp = OS.getEnv("TMPDIR")
-        return tmp.getOrElse { "/tmp" }
+        match (tmp) {
+            case Some(t) => return t
+            case None => return "/tmp"
+        }
     }
 
     /// os.cwd() — 返回当前工作目录
@@ -140,8 +151,10 @@ public class OsModule {
         info.uid = Int64(OS.uid())
         info.gid = Int64(OS.gid())
         info.homedir = homedir()
-        info.username = OS.getEnv("USER").getOrElse { "root" }
-        info.shell = OS.getEnv("SHELL").getOrElse { "/bin/sh" }
+        let userOpt = OS.getEnv("USER")
+        info.username = match (userOpt) { case Some(u) => u case None => "root" }
+        let shellOpt = OS.getEnv("SHELL")
+        info.shell = match (shellOpt) { case Some(s) => s case None => "/bin/sh" }
         return info
     }
 
@@ -214,13 +227,15 @@ public class OsModule {
     /// 对应 Bun: os.availableParallelism
     public static func availableParallelism(): Int64 {
         let n = OS.getEnv("NUMBER_OF_PROCESSORS")
-        return n.map { v =>
-            try {
-                Int64.parse(v)
-            } catch (_: Exception) {
-                Int64(1)
-            }
-        }.getOrElse { Int64(1) }
+        match (n) {
+            case Some(v) =>
+                try {
+                    return Int64.parse(v)
+                } catch (_: Exception) {
+                    return Int64(1)
+                }
+            case None => return Int64(1)
+        }
     }
 
     /// 将 os 模块导出为 JsValue 对象

@@ -7,6 +7,7 @@
 package bao_css.properties
 
 import bao_core.*
+import bao_collections.*
 
 // ============================================================================
 // ContainerType
@@ -30,15 +31,21 @@ public enum ContainerNameList {
     | None                          // "none"
     | Names(ArrayList<String>)      // 容器名称列表
 
+    private func namesToCss(names: ArrayList<String>): String {
+        if (names.isEmpty()) {
+            "none"
+        } else {
+            var partArr = Array<String>(names.size, repeat: "")
+            var pi: Int64 = 0
+            for (p in names) { partArr[pi] = p; pi += 1 }
+            String.join(partArr, delimiter: " ")
+        }
+    }
+
     public func toCss(): String {
         match (this) {
             case None => "none"
-            case Names(names) => {
-                if (names.isEmpty()) {
-                    return "none"
-                }
-                return String.join(" ", names)
-            }
+            case Names(names) => namesToCss(names)
         }
     }
 }

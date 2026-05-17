@@ -917,6 +917,11 @@ public class SmallList<T> {
         return data.size == 0
     }
 
+    /// 获取内部数据引用 - 用于兼容代码
+    public prop items: ArrayList<T> {
+        get() { return data }
+    }
+
     /// 获取元素 - 对应 Bun SmallList::at(idx: u32)
     public func at(idx: UInt32): T {
         return data[Int64(idx)]
@@ -953,6 +958,20 @@ public class SmallList<T> {
     /// 插入 - 对应 Bun SmallList::insert
     public func insert(index: UInt32, item: T): Unit {
         data.insert(Int64(index), item)
+    }
+
+    /// 插入 (Int64 index)
+    public func insert(index: Int64, item: T): Unit {
+        data.insert(index, item)
+    }
+
+    /// 深拷贝 (简化实现 - 直接返回数据拷贝)
+    public func deepClone(): SmallList<T> {
+        let clone = SmallList<T>()
+        for (item in data) {
+            clone.append(item)
+        }
+        return clone
     }
 
     /// 弹出 - 对应 Bun SmallList::pop

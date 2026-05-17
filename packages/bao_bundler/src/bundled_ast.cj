@@ -81,7 +81,7 @@ public class BundledAstSlim {
         this.importRecords = ImportRecordList()
         this.hashbang = ""
         this.parts = PartList()
-        this.css = null
+        this.css = ""
         this.urlForCss = ""
         this.symbols = SymbolList()
         this.moduleScope = ScopeInfo()
@@ -97,7 +97,7 @@ public class BundledAstSlim {
         this.exportStarImportRecords = []
         this.topLevelSymbolsToParts = HashMap<RefValue, BabyListUInt32>()
         this.commonjsNamedExports = HashMap<String, CommonJSNamedExportInfo>()
-        this.redirectImportRecordIndex = UInt32.MAX
+        this.redirectImportRecordIndex = UInt32.Max
         this.target = TargetValue.Browser
         this.tsEnums = HashMap<RefValue, HashMap<String, InlinedEnumValueInfo>>()
         this.flags = BundledAstFlagsValue()
@@ -107,27 +107,27 @@ public class BundledAstSlim {
     // 严格翻译自: bundled_ast.zig:74 toAST
     public func toAST(): AstInfo {
         return AstInfo(
-            approximateNewlineCount: approximateNewlineCount,
-            exportsKind: exportsKind,
-            importRecords: importRecords,
-            hashbang: hashbang,
-            parts: parts,
-            symbols: symbols,
-            moduleScope: moduleScope,
-            charFreq: charFreq,
-            exportsRef: exportsRef,
-            moduleRef: moduleRef,
-            wrapperRef: wrapperRef,
-            requireRef: requireRef,
-            topLevelAwaitKeyword: topLevelAwaitKeyword,
-            namedImports: namedImports,
-            namedExports: namedExports,
-            exportStarImportRecords: exportStarImportRecords,
-            topLevelSymbolsToParts: topLevelSymbolsToParts,
-            commonjsNamedExports: commonjsNamedExports,
-            target: target,
-            tsEnums: tsEnums,
-            flags: flags
+            approximateNewlineCount,
+            exportsKind,
+            importRecords,
+            hashbang,
+            parts,
+            symbols,
+            moduleScope,
+            charFreq,
+            exportsRef,
+            moduleRef,
+            wrapperRef,
+            requireRef,
+            topLevelAwaitKeyword,
+            namedImports,
+            namedExports,
+            exportStarImportRecords,
+            topLevelSymbolsToParts,
+            commonjsNamedExports,
+            target,
+            tsEnums,
+            flags
         )
     }
 }
@@ -188,7 +188,7 @@ public enum ExportsKindValue {
 }
 
 /// 引用值
-public class RefValue {
+public class RefValue <: ToString {
     public var innerIndex: UInt32
     public var sourceIndex: UInt32
     public var tag: UInt8
@@ -199,30 +199,26 @@ public class RefValue {
         this.tag = tag
     }
 
-    public static let None: RefValue = RefValue(innerIndex: 0, sourceIndex: UInt32.MAX, tag: 0)
+    public static let None: RefValue = RefValue(0, UInt32.Max, 0)
+
+    public func toString(): String {
+        return "RefValue(${innerIndex}, ${sourceIndex})"
+    }
 
     public func isNull(): Bool {
-        return sourceIndex == UInt32.MAX
+        return sourceIndex == UInt32.Max
     }
 
     public func isEmpty(): Bool {
-        return sourceIndex == UInt32.MAX
+        return sourceIndex == UInt32.Max
     }
 
     public func isValid(): Bool {
-        return sourceIndex != UInt32.MAX
+        return sourceIndex != UInt32.Max
     }
 
     public func eql(other: RefValue): Bool {
         return innerIndex == other.innerIndex && sourceIndex == other.sourceIndex
-    }
-
-    public func innerIndex(): UInt32 {
-        return innerIndex
-    }
-
-    public func sourceIndex(): UInt32 {
-        return sourceIndex
     }
 }
 
@@ -236,7 +232,7 @@ public class RangeValue {
         this.len = len
     }
 
-    public static let None: RangeValue = RangeValue(loc: 0, len: 0)
+    public static let None: RangeValue = RangeValue(0, 0)
 
     public func length(): Int32 {
         return len
@@ -246,13 +242,13 @@ public class RangeValue {
 /// 作用域信息
 public class ScopeInfo {
     public var kind: UInt8
-    public var parent: ScopeInfo
+    public var parent: ?ScopeInfo
     public var children: ArrayList<ScopeInfo>
     public var generated: ArrayList<RefValue>
 
     public init() {
         this.kind = 0
-        this.parent = null
+        this.parent = None
         this.children = ArrayList<ScopeInfo>()
         this.generated = ArrayList<RefValue>()
     }
@@ -263,7 +259,7 @@ public class CharFreqInfo {
     public var freqs: Array<Int32>
 
     public init() {
-        this.freqs = Array<Int32>(64, item: 0)
+        this.freqs = Array<Int32>(64, {_ => 0})
     }
 }
 
@@ -275,7 +271,7 @@ public class TlaCheckInfo {
 
     public init() {
         this.depth = 0
-        this.parent = UInt32.MAX
+        this.parent = UInt32.Max
         this.importRecordIndex = 0
     }
 }
@@ -368,11 +364,11 @@ public class PartList {
     }
 
     public func at(index: Int32): PartInfo {
-        return items.get(Int64(index))
+        return items[Int64(index)]
     }
 
-    public func mut(index: Int32): PartInfo {
-        return items.get(Int64(index))
+    public func `mut`(index: Int32): PartInfo {
+        return items[Int64(index)]
     }
 }
 
@@ -439,27 +435,6 @@ public class DependencyInfo {
     }
 }
 
-/// 导入记录列表
-public class ImportRecordList {
-    public var items: ArrayList<ImportRecordInfo>
-
-    public init() {
-        this.items = ArrayList<ImportRecordInfo>()
-    }
-
-    public func len(): Int64 {
-        return items.size
-    }
-
-    public func at(index: Int32): ImportRecordInfo {
-        return items.get(Int64(index))
-    }
-
-    public func slice(): ArrayList<ImportRecordInfo> {
-        return items
-    }
-}
-
 /// 导入记录信息
 public class ImportRecordInfo {
     public var path: String
@@ -470,7 +445,7 @@ public class ImportRecordInfo {
     public init() {
         this.path = ""
         this.kind = 0
-        this.sourceIndex = UInt32.MAX
+        this.sourceIndex = UInt32.Max
         this.range = RangeValue.None
     }
 }

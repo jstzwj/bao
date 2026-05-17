@@ -3,8 +3,9 @@
 // 严格翻译自 Web Encoding API
 package bao_runtime.web_api
 
-import bao_core.*
 import bao_collections.*
+import bao_runtime.*
+import bao_core.BaoString
 
 // ============================================================================
 // Encoding Labels — 编码标签映射
@@ -18,7 +19,7 @@ public class EncodingLabel {
     /// 将编码标签映射为规范名称
     /// 对应 Bun: EncodingLabel.toEncoding
     public static func canonicalize(label: String): String {
-        let lower = label.toLowerCase().trim()
+        let lower = label.toAsciiLower().trimAscii()
 
         // UTF-8 别名
         if (lower == "utf-8" || lower == "utf8" || lower == "unicode-1-1-utf-8" ||
@@ -244,9 +245,9 @@ public class DOMException {
         return JsValue(obj)
     }
 
-    /// 作为 JsError 抛出
-    public func toJsError(): JsError {
-        return JsError(toJsValue())
+    /// 作为异常抛出
+    public func toJsError(): JsException {
+        return JsException(toString())
     }
 }
 

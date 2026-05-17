@@ -3,7 +3,7 @@
 
 package bao_runtime.test_runner.harness
 
-import std.collection.HashMap
+import bao_collections.*  // HashMap
 
 // ========== Fixtures - 测试夹具 ==========
 

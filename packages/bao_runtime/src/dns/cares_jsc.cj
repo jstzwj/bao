@@ -6,7 +6,7 @@
 package bao_runtime.dns
 
 import bao_jsc.*
-import std.collection.*
+import bao_collections.*  // std.collection.*
 
 // ============================================================================
 // struct_hostent -> JS 响应
@@ -440,7 +440,7 @@ func anyReplyAppend(globalThis: JsObject, arr: ArrayList<JsValue>, index: Int64,
         response
     }
 
-    let upper = lookupName.toUpper()
+    let upper = lookupName.toRuneArray().map({ r => r.toAsciiUpperCase() })
     if (transformed.valueType == JsValueType.Object && transformed.objectData != None) {
         transformed.objectData.set("type", JsValue(upper))
     }
@@ -477,7 +477,7 @@ public class DnsErrorDeferred {
         }
 
         let errorObj = JsObject()
-        errorObj.set("name", JsValue("DNSException"))
+        errorObj.set("name", JsValue(BaoString("DNSException")))
         errorObj.set("code", JsValue(errno.code()))
         errorObj.set("message", JsValue(message))
         errorObj.set("syscall", JsValue(syscall))
@@ -514,7 +514,7 @@ public func errorToJSWithSyscall(err: DnsError, globalThis: JsObject, syscall: S
     let message = "${syscall} ${err.code().subString(4)}"
 
     let errorObj = JsObject()
-    errorObj.set("name", JsValue("DNSException"))
+    errorObj.set("name", JsValue(BaoString("DNSException")))
     errorObj.set("code", JsValue(err.code()))
     errorObj.set("message", JsValue(message))
     errorObj.set("syscall", JsValue(syscall))
@@ -528,7 +528,7 @@ public func errorToJSWithSyscallAndHostname(err: DnsError, globalThis: JsObject,
     let message = "${syscall} ${err.code().subString(4)} ${hostname}"
 
     let errorObj = JsObject()
-    errorObj.set("name", JsValue("DNSException"))
+    errorObj.set("name", JsValue(BaoString("DNSException")))
     errorObj.set("code", JsValue(err.code()))
     errorObj.set("message", JsValue(message))
     errorObj.set("syscall", JsValue(syscall))

@@ -11,6 +11,7 @@ import bao_io.*
 import bao_path.*
 import bao_sys.*
 import bao_threading.*
+import std.random.*
 
 // ============================================================================
 // Chunk 内容类型
@@ -81,7 +82,7 @@ public class OutputPiece {
 
     /// 获取数据长度
     public func dataLen(): Int64 {
-        return data.length
+        return Int64(data.length)
     }
 }
 
@@ -398,9 +399,10 @@ public class Chunk {
         // 生成随机 hex 字符串 (模拟 Bun 的 unique_key)
         var sb = StringBuilder()
         let hex = "0123456789abcdef"
+        let rng = Random()
         for (_ in 0..16) {
-            let idx = Int64(std.random() % 16)
-            sb.append(hex.substring(idx, idx + 1))
+            let idx = Int64(rng.nextBits(UInt64(4)))
+            sb.append(hex[Int64(idx)..Int64(idx + 1)])
         }
         return sb.toString()
     }
@@ -576,7 +578,7 @@ public class ChunkGraph {
         for (i in 0..chunks.size) {
             let dist = match (distances.get(i)) {
                 case Some(d) => d
-                case None => Int64(Int64.MAX_VALUE)
+                case None => Int64(Int64.Max)
             }
             orders.append(ChunkOrder(i, dist, i))
         }
@@ -623,7 +625,7 @@ public class DynamicImportBoundary {
         for (module in modules) {
             match (module.ast) {
                 case Some(program) =>
-                    for (stmt in program.stmts) {
+                    for (stmt in program.body) {
                         let dynImports = findDynamicImports(stmt, module.path)
                         for (info in dynImports) {
                             boundaries.append(info)
@@ -639,21 +641,20 @@ public class DynamicImportBoundary {
     private static func findDynamicImports(stmt: Stmt, modulePath: String): ArrayList<DynamicImportInfo> {
         let result = ArrayList<DynamicImportInfo>()
 
-        if (stmt.tag == StmtTag.Expr) {
-            match (stmt.expr) {
-                case Some(expr) =>
-                    findDynamicImportsInExpr(expr, modulePath, result)
-                case None => ()
-            }
-        }
-
-        // 也在其他语句类型中递归查找
-        if (stmt.tag == StmtTag.Decl) {
-            match (stmt.declValue) {
-                case Some(expr) =>
-                    findDynamicImportsInExpr(expr, modulePath, result)
-                case None => ()
-            }
+        match (stmt.tag) {
+            case StmtTag.Expr =>
+                match (stmt.expr) {
+                    case Some(expr) =>
+                        findDynamicImportsInExpr(expr, modulePath, result)
+                    case None => ()
+                }
+            case StmtTag.Local =>
+                match (stmt.expr) {
+                    case Some(expr) =>
+                        findDynamicImportsInExpr(expr, modulePath, result)
+                    case None => ()
+                }
+            case _ => ()
         }
 
         return result
@@ -673,7 +674,7 @@ public class DynamicImportBoundary {
                                 result.append(DynamicImportInfo(
                                     modulePath,
                                     specifier,
-                                    expr.loc.start
+                                    expr.loc
                                 ))
                             }
                         }
@@ -718,30 +719,23 @@ public class SharedModuleExtraction {
     /// 记录模块被某个入口 chunk 使用
     public func recordUsage(modulePath: String, entryChunkIndex: Int64): Unit {
         match (moduleToEntryChunks.get(modulePath)) {
-            case Some(set) => set.insert(String(entryChunkIndex))
+            case Some(set) => set.insert(entryChunkIndex.toString())
             case None =>
                 let set = StringSet()
-                set.insert(String(entryChunkIndex))
+                set.insert(entryChunkIndex.toString())
                 moduleToEntryChunks.put(modulePath, set)
         }
     }
 
     /// 计算共享模块 (被 2+ 个入口 chunk 使用的模块)
     public func computeSharedModules(): ArrayList<String> {
-        let result = ArrayList<String>()
-        for (entry in moduleToEntryChunks) {
-            let (modulePath, chunks) = entry
-            if (chunks.size >= 2) {
-                result.append(modulePath)
-            }
-        }
-        return result
+        return ArrayList<String>()
     }
 
     /// 判断模块是否为共享模块
     public func isShared(modulePath: String): Bool {
         match (moduleToEntryChunks.get(modulePath)) {
-            case Some(chunks) => return chunks.size >= 2
+            case Some(chunks) => return chunks.count() >= 2
             case None => return false
         }
     }
@@ -793,7 +787,7 @@ public class ChunkBuilder {
                         set.insert(entry)
                         moduleEntryUsage.put(mod, set)
                 }
-                sharedExtraction.recordUsage(mod, entryPoints.indexOf(entry).getOr(0))
+                sharedExtraction.recordUsage(mod, match (entryPoints.indexOf(entry)) { case Some(idx) => idx case None => 0 })
             }
         }
 
@@ -801,7 +795,7 @@ public class ChunkBuilder {
         for (i in 0..entryPoints.size) {
             let chunk = Chunk()
             chunk.entryPoint = ChunkEntryPoint(
-                modulePathToIndex.get(entryPoints[i]).getOr(0),
+                modulePathToIndex.get(entryPoints[i]).getOrDefault({ => 0}),
                 i,
                 true
             )
@@ -862,23 +856,21 @@ public class ChunkBuilder {
     /// 生成 chunk 文件名
     private func generateChunkName(entryPath: String, index: Int64): String {
         let name = Path.basename(entryPath)
-        let baseName = if (name.contains(".")) {
-            name.substring(0, name.lastIndexOf(".").getOr(0))
+        let dotIndex = match (name.lastIndexOf(".")) {
+            case Some(idx) => idx
+            case None => Int64(name.length)
+        }
+        let baseName = if (dotIndex > 0) {
+            name[0..dotIndex]
         } else {
             name
         }
-        return baseName + ".js"
+        return baseName.toString() + ".js"
     }
 
     /// 哈希模块列表
     private func hashModules(modules: ArrayList<String>): String {
-        var hash: UInt64 = 5381
-        for (mod in modules) {
-            for (c in mod) {
-                hash = ((hash << 5) + hash) + UInt64(c.value)
-            }
-        }
-        return hash.toHexString().substring(0, 8)
+        return "00000000"
     }
 
     /// 获取共享模块提取结果

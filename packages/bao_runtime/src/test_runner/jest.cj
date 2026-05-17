@@ -4,7 +4,7 @@
 package bao_runtime.test_runner
 
 import bao_jsc.*
-import std.collection.*
+import bao_collections.*  // std.collection.*
 
 // ========== TestRunner 嵌套类型提取到顶层 ==========
 

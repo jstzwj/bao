@@ -29,6 +29,40 @@ public enum TomlTokenKind {
     | Plus
     | Minus
     | EmptyArray
+
+    public func name(): String {
+        match (this) {
+            case EndOfFile => "EndOfFile"
+            case OpenParen => "OpenParen"
+            case CloseParen => "CloseParen"
+            case OpenBracket => "OpenBracket"
+            case OpenBracketDouble => "OpenBracketDouble"
+            case CloseBracket => "CloseBracket"
+            case CloseBracketDouble => "CloseBracketDouble"
+            case OpenBrace => "OpenBrace"
+            case CloseBrace => "CloseBrace"
+            case NumericLiteral => "NumericLiteral"
+            case Comma => "Comma"
+            case StringLiteral => "StringLiteral"
+            case Dot => "Dot"
+            case Equal => "Equal"
+            case True_ => "True"
+            case False_ => "False"
+            case Colon => "Colon"
+            case Identifier => "Identifier"
+            case Plus => "Plus"
+            case Minus => "Minus"
+            case EmptyArray => "EmptyArray"
+        }
+    }
+
+    public operator func ==(right: TomlTokenKind): Bool {
+        return this.name() == right.name()
+    }
+
+    public operator func !=(right: TomlTokenKind): Bool {
+        return !(this == right)
+    }
 }
 
 public class TomlLexerError <: Exception {
@@ -81,7 +115,7 @@ public class TomlLexer {
     }
 
     public func expect(token: TomlTokenKind): Unit {
-        if (this.token.toString() != token.toString()) { expected(token) }
+        if (this.token != token) { expected(token) }
         next()
     }
 
@@ -274,22 +308,22 @@ public class TomlLexer {
             if (c == 92 && i + 1 < text.size) {
                 i += 1
                 match (Int64(UInt32(text[i]))) {
-                    case 98 => out.appendRune(Rune(8))
-                    case 102 => out.appendRune(Rune(9))
-                    case 110 => out.appendRune(Rune(10))
-                    case 118 => out.appendRune(Rune(11))
-                    case 116 => out.appendRune(Rune(12))
-                    case 114 => out.appendRune(Rune(13))
-                    case 92 => out.appendRune(Rune(92))
-                    case 34 => out.appendRune(Rune(34))
+                    case 98 => out.append(UInt8(8))
+                    case 102 => out.append(UInt8(9))
+                    case 110 => out.append(UInt8(10))
+                    case 118 => out.append(UInt8(11))
+                    case 116 => out.append(UInt8(12))
+                    case 114 => out.append(UInt8(13))
+                    case 92 => out.append(UInt8(92))
+                    case 34 => out.append(UInt8(34))
                     case 10 => if (!allowMultiline) { addDefaultError("Unexpected end of line") }
-                    case _ => out.appendRune(text[i])
+                    case _ => out.append(text[i])
                 }
             } else if (c == 13) {
-                out.appendRune(Rune(10))
+                out.append(UInt8(10))
                 if (i + 1 < text.size && Int64(UInt32(text[i + 1])) == 10) { i += 1 }
             } else {
-                out.appendRune(text[i])
+                out.append(text[i])
             }
             i += 1
         }
@@ -361,5 +395,5 @@ public class TomlLexer {
 
     private static func isDigit(cp: Int64): Bool { cp >= 48 && cp <= 57 }
     private static func isIdentifierStart(cp: Int64): Bool { cp == 64 || cp == 36 || cp == 95 || (cp >= 65 && cp <= 90) || (cp >= 97 && cp <= 122) }
-    private static func tokenName(t: TomlTokenKind): String { return t.toString() }
+    private static func tokenName(t: TomlTokenKind): String { return t.name() }
 }

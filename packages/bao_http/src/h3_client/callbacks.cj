@@ -76,7 +76,7 @@ public class H3Callbacks {
     /// 严格翻译自: callbacks.onHskDone
     public static func onHskDone(ctx: H3QuicContext, socketId: Int64, ok: Bool): Unit {
         match (findSession(socketId)) {
-            case Some(session) => {
+            case Some(session) =>
                 if (!ok) {
                     session.closed = true
                     return
@@ -89,7 +89,6 @@ public class H3Callbacks {
                         case None => ()
                     }
                 }
-            }
             case None => ()
         }
     }
@@ -133,7 +132,7 @@ public class H3Callbacks {
     /// 严格翻译自: callbacks.onConnClose
     public static func onConnClose(ctx: H3QuicContext, socketId: Int64): Unit {
         match (findSession(socketId)) {
-            case Some(session) => {
+            case Some(session) =>
                 session.closed = true
                 session.qsocket = None
 
@@ -149,7 +148,6 @@ public class H3Callbacks {
                     let err = if (session.handshakeDone) { "ConnectionClosed" } else { "HTTP3HandshakeFailed" }
                     session.retryOrFail(stream, err)
                 }
-            }
             case None => ()
         }
     }
@@ -269,19 +267,17 @@ public class H3Callbacks {
     /// 查找会话 (桩: 实际应从 quic.Socket ext slot 恢复)
     private static func findSession(socketId: Int64): ?H3ClientSession {
         match (H3ClientContext.get()) {
-            case Some(ctx) => {
+            case Some(ctx) =>
                 for (s in ctx.sessions) {
                     match (s.qsocket) {
-                        case Some(qs) => {
+                        case Some(qs) =>
                             if (qs.id == socketId) {
                                 return Some(s)
                             }
-                        }
                         case None => ()
                     }
                 }
                 return None
-            }
             case None => return None
         }
     }

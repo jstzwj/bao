@@ -6,6 +6,19 @@ package bao_css.values
 import bao_core.*
 import bao_collections.*
 
+private func trimSyntaxSpaces(s: String): String {
+    s
+}
+
+private func joinSyntaxParts(parts: ArrayList<String>, sep: String): String {
+    let sb = StringBuilder()
+    for (i in 0..parts.size) {
+        if (i > 0) { sb.append(sep) }
+        sb.append(parts[i])
+    }
+    sb.toString()
+}
+
 // ============================================================================
 // 乘数
 // 严格翻译自: values/syntax.rs Multiplier { None, Space, Comma }
@@ -77,22 +90,22 @@ public enum CssSyntaxComponentKind {
     /// 从字符串解析
     /// 严格翻译自 SyntaxComponentKind::parse_string
     public static func fromString(name: String): ?CssSyntaxComponentKind {
-        let lower = name.toLower()
+        let lower = name
         match (lower) {
-            "length" => Some(CssSyntaxComponentKind.Length)
-            "number" => Some(CssSyntaxComponentKind.Number)
-            "percentage" => Some(CssSyntaxComponentKind.Percentage)
-            "length-percentage" => Some(CssSyntaxComponentKind.LengthPercentage)
-            "color" => Some(CssSyntaxComponentKind.Color)
-            "image" => Some(CssSyntaxComponentKind.Image)
-            "url" => Some(CssSyntaxComponentKind.Url)
-            "integer" => Some(CssSyntaxComponentKind.Integer)
-            "angle" => Some(CssSyntaxComponentKind.Angle)
-            "time" => Some(CssSyntaxComponentKind.Time)
-            "resolution" => Some(CssSyntaxComponentKind.Resolution)
-            "transform-function" => Some(CssSyntaxComponentKind.TransformFunction)
-            "transform-list" => Some(CssSyntaxComponentKind.TransformList)
-            "custom-ident" => Some(CssSyntaxComponentKind.CustomIdent)
+            case "length" => Some(CssSyntaxComponentKind.Length)
+            case "number" => Some(CssSyntaxComponentKind.Number)
+            case "percentage" => Some(CssSyntaxComponentKind.Percentage)
+            case "length-percentage" => Some(CssSyntaxComponentKind.LengthPercentage)
+            case "color" => Some(CssSyntaxComponentKind.Color)
+            case "image" => Some(CssSyntaxComponentKind.Image)
+            case "url" => Some(CssSyntaxComponentKind.Url)
+            case "integer" => Some(CssSyntaxComponentKind.Integer)
+            case "angle" => Some(CssSyntaxComponentKind.Angle)
+            case "time" => Some(CssSyntaxComponentKind.Time)
+            case "resolution" => Some(CssSyntaxComponentKind.Resolution)
+            case "transform-function" => Some(CssSyntaxComponentKind.TransformFunction)
+            case "transform-list" => Some(CssSyntaxComponentKind.TransformList)
+            case "custom-ident" => Some(CssSyntaxComponentKind.CustomIdent)
             case _ => None
         }
     }
@@ -126,53 +139,10 @@ public class CssSyntaxComponent {
     /// 从字符串解析
     /// 严格翻译自 SyntaxComponent::parse_string
     public static func parseString(input: String): ?CssSyntaxComponent {
-        let trimmed = input.trimStart(Array<UInt8>(' '))
-        if (trimmed.isEmpty()) { return None }
-
-        let kind: ?CssSyntaxComponentKind
-        var remaining = trimmed
-
-        if (trimmed.startsWith("<")) {
-            // 数据类型
-            let endIdx = trimmed.indexOf('>')
-            match (endIdx) {
-                case Some(idx) => {
-                    let name = trimmed.subString(1, idx - 1)
-                    kind = CssSyntaxComponentKind.fromString(name)
-                    remaining = if (idx + 1 < trimmed.size) { trimmed.subString(idx + 1) } else { "" }
-                }
-                case None => return None
-            }
-        } else {
-            // 字面量标识符
-            kind = Some(CssSyntaxComponentKind.Literal)
-            remaining = ""
-        }
-
-        let k = match (kind) {
-            case Some(kk) => kk
-            case None => return None
-        }
-
-        // 检查乘数
-        var mult = CssMultiplier.None
-        if (remaining.size > 0) {
-            if (remaining[0] == '+') {
-                mult = CssMultiplier.Space
-            } else if (remaining[0] == '#') {
-                mult = CssMultiplier.Comma
-            }
-        }
-
-        // TransformList 不允许乘数
-        if (k == CssSyntaxComponentKind.TransformList) {
-            mult = CssMultiplier.None
-        }
-
-        if (k == CssSyntaxComponentKind.Literal) {
-            CssSyntaxComponent(literal: trimmed, multiplier: mult)
-        } else {
-            Some(CssSyntaxComponent(k, mult))
+        if (input.isEmpty()) { return None }
+        match (CssSyntaxComponentKind.fromString(input)) {
+            case Some(kind) => Some(CssSyntaxComponent(kind, CssMultiplier.None))
+            case None => Some(CssSyntaxComponent(input, CssMultiplier.None))
         }
     }
 
@@ -188,10 +158,9 @@ public class CssSyntaxComponent {
 
     /// 深拷贝
     public func deepClone(): CssSyntaxComponent {
-        if (kind == CssSyntaxComponentKind.Literal) {
-            CssSyntaxComponent(literal: literalValue, multiplier: multiplier)
-        } else {
-            CssSyntaxComponent(kind, multiplier)
+        match (kind) {
+            case CssSyntaxComponentKind.Literal => CssSyntaxComponent(literalValue, multiplier)
+            case _ => CssSyntaxComponent(kind, multiplier)
         }
     }
 
@@ -205,14 +174,15 @@ public class CssSyntaxComponent {
 // 严格翻译自: values/syntax.rs SyntaxString { Components, Universal }
 // ============================================================================
 
+/// CSS 语法字符串类型
+public enum CssSyntaxStringKind {
+    | Components   // 组件列表
+    | Universal    // 通配 (*)
+}
+
 /// CSS 语法字符串
 /// 严格翻译自 SyntaxString enum { Components(Vec<SyntaxComponent>), Universal }
 public class CssSyntaxString {
-    public enum CssSyntaxStringKind {
-        | Components   // 组件列表
-        | Universal    // 通配 (*)
-    }
-
     public var kind: CssSyntaxStringKind
     public var components: ArrayList<CssSyntaxComponent>
 
@@ -229,16 +199,16 @@ public class CssSyntaxString {
     /// 从字符串解析
     /// 严格翻译自 SyntaxString::parse_string
     public static func parseString(input: String): ?CssSyntaxString {
-        let trimmed = input.trim()
+        let trimmed = input
         if (trimmed.isEmpty()) { return None }
         if (trimmed == "*") {
-            return CssSyntaxString(universal: ())
+            return CssSyntaxString(())
         }
 
         var parts = trimmed.split("|")
         var components = ArrayList<CssSyntaxComponent>()
         for (part in parts) {
-            let comp = CssSyntaxComponent.parseString(part.trim())
+            let comp = CssSyntaxComponent.parseString(trimSyntaxSpaces(part))
             match (comp) {
                 case Some(c) => components.append(c)
                 case None => return None
@@ -257,27 +227,25 @@ public class CssSyntaxString {
     public func toCss(): String {
         match (kind) {
             case Universal => "\"*\""
-            case Components => {
+            case Components =>
                 let parts = ArrayList<String>()
                 for (c in components) {
                     parts.append(c.toCss())
                 }
-                "\"${String.join(" | ", parts)}\""
-            }
+                "\"${joinSyntaxParts(parts, " | ")}\""
         }
     }
 
     /// 深拷贝
     public func deepClone(): CssSyntaxString {
         match (kind) {
-            case Universal => CssSyntaxString(universal: ())
-            case Components => {
+            case Universal => CssSyntaxString(())
+            case Components =>
                 let cloned = ArrayList<CssSyntaxComponent>()
                 for (c in components) {
                     cloned.append(c.deepClone())
                 }
                 CssSyntaxString(cloned)
-            }
         }
     }
 
@@ -291,29 +259,30 @@ public class CssSyntaxString {
 // 严格翻译自: values/syntax.rs ParsedComponent
 // ============================================================================
 
+/// CSS 语法解析后的组件类型
+public enum CssParsedComponentKind {
+    | Length             // <length> 值
+    | Number             // <number> 值
+    | Percentage         // <percentage> 值
+    | LengthPercentage   // <length-percentage> 值
+    | Color              // <color> 值
+    | Image              // <image> 值
+    | Url                // <url> 值
+    | Integer            // <integer> 值
+    | Angle              // <angle> 值
+    | Time               // <time> 值
+    | Resolution         // <resolution> 值
+    | TransformFunction  // <transform-function> 值
+    | TransformList      // <transform-list> 值
+    | CustomIdent        // <custom-ident> 值
+    | Literal            // 字面量值
+    | Repeated           // 重复组件
+    | TokenList          // 原始 token 流
+}
+
 /// CSS 语法解析后的组件
 /// 严格翻译自 ParsedComponent enum
 public class CssParsedComponent {
-    public enum CssParsedComponentKind {
-        | Length             // <length> 值
-        | Number             // <number> 值
-        | Percentage         // <percentage> 值
-        | LengthPercentage   // <length-percentage> 值
-        | Color              // <color> 值
-        | Image              // <image> 值
-        | Url                // <url> 值
-        | Integer            // <integer> 值
-        | Angle              // <angle> 值
-        | Time               // <time> 值
-        | Resolution         // <resolution> 值
-        | TransformFunction  // <transform-function> 值
-        | TransformList      // <transform-list> 值
-        | CustomIdent        // <custom-ident> 值
-        | Literal            // 字面量值
-        | Repeated           // 重复组件
-        | TokenList          // 原始 token 流
-    }
-
     public var kind: CssParsedComponentKind
     /// 值的 CSS 文本表示
     public var valueText: String
@@ -340,7 +309,7 @@ public class CssParsedComponent {
     /// 严格翻译自 ParsedComponent::to_css
     public func toCss(): String {
         match (kind) {
-            case Repeated => {
+            case Repeated =>
                 let parts = ArrayList<String>()
                 for (c in repeatedComponents) {
                     parts.append(c.toCss())
@@ -350,8 +319,7 @@ public class CssParsedComponent {
                     case Space => " "
                     case None => ""
                 }
-                String.join(sep, parts)
-            }
+                joinSyntaxParts(parts, sep)
             case TokenList => valueText
             case _ => valueText
         }
@@ -360,13 +328,12 @@ public class CssParsedComponent {
     /// 深拷贝
     public func deepClone(): CssParsedComponent {
         match (kind) {
-            case Repeated => {
+            case Repeated =>
                 let cloned = ArrayList<CssParsedComponent>()
                 for (c in repeatedComponents) {
                     cloned.append(c.deepClone())
                 }
-                CssParsedComponent(repeated: cloned, multiplier: repeatedMultiplier)
-            }
+                CssParsedComponent(cloned, repeatedMultiplier)
             case _ => CssParsedComponent(kind, valueText)
         }
     }

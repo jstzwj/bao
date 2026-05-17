@@ -48,7 +48,7 @@ public func dependencyVersionToJS(dep: DependencyVersion, buf: Array<Byte>, glob
                     object.put(globalThis, "url", remote.toJS(buf, globalThis))
             }
         default =>
-            globalThis.throwTODO("Unsupported dependency type")
+            globalThis.throwUnsupported("Unsupported dependency type")
     }
 
     return object

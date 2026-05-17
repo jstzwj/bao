@@ -18,87 +18,99 @@ import bao_core.*
 
 /// Windows 事件循环
 /// 翻译自: pub const Loop = uv.Loop
-public typealias WindowsLoop = UvLoop
+public type WindowsLoop = UvLoop
 
 // ============================================================================
 // KeepAlive - 保持事件循环活跃 (Windows 版本)
 // 严格翻译自: windows_event_loop.zig KeepAlive
 // ============================================================================
 
+public enum WindowsKeepAliveStatus {
+    | Active
+    | Inactive
+    | Done
+
+    public operator func ==(right: WindowsKeepAliveStatus): Bool {
+        match (this) {
+            case Active => match (right) { case Active => true case _ => false }
+            case Inactive => match (right) { case Inactive => true case _ => false }
+            case Done => match (right) { case Done => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: WindowsKeepAliveStatus): Bool {
+        return !(this == right)
+    }
+}
+
 /// Windows KeepAlive
 /// 严格翻译自 windows_event_loop.zig KeepAlive
 public class WindowsKeepAlive {
-    public enum Status {
-        | Active
-        | Inactive
-        | Done
-    }
-
-    public var status: Status = Status.Inactive
+    public var status: WindowsKeepAliveStatus = WindowsKeepAliveStatus.Inactive
 
     public init() {}
 
     public func isActive(): Bool {
-        return status == Status.Active
+        return status == WindowsKeepAliveStatus.Active
     }
 
     /// 禁用
     /// 严格翻译自: pub fn disable(this: *KeepAlive) void
     public func disable(): Unit {
-        if (status == Status.Active) {
+        if (status == WindowsKeepAliveStatus.Active) {
             unref()
         }
-        status = Status.Done
+        status = WindowsKeepAliveStatus.Done
     }
 
     /// 停用
     public func deactivate(loop: WindowsLoop): Unit {
-        if (status != Status.Active) {
+        if (status != WindowsKeepAliveStatus.Active) {
             return
         }
-        status = Status.Inactive
+        status = WindowsKeepAliveStatus.Inactive
         loop.subActive(1)
     }
 
     /// 激活
     public func activate(loop: WindowsLoop): Unit {
-        if (status != Status.Active) {
+        if (status != WindowsKeepAliveStatus.Active) {
             return
         }
-        status = Status.Active
+        status = WindowsKeepAliveStatus.Active
         loop.inc()
     }
 
     /// 取消引用
     public func unref(): Unit {
-        if (status != Status.Active) {
+        if (status != WindowsKeepAliveStatus.Active) {
             return
         }
-        status = Status.Inactive
+        status = WindowsKeepAliveStatus.Inactive
     }
 
     /// 引用
     public func refKeepAlive(): Unit {
-        if (status != Status.Inactive) {
+        if (status != WindowsKeepAliveStatus.Inactive) {
             return
         }
-        status = Status.Active
+        status = WindowsKeepAliveStatus.Active
     }
 
     /// 从另一个线程取消引用
     public func unrefConcurrently(): Unit {
-        if (status != Status.Active) {
+        if (status != WindowsKeepAliveStatus.Active) {
             return
         }
-        status = Status.Inactive
+        status = WindowsKeepAliveStatus.Inactive
     }
 
     /// 在下一个 tick 取消引用
     public func unrefOnNextTick(): Unit {
-        if (status != Status.Active) {
+        if (status != WindowsKeepAliveStatus.Active) {
             return
         }
-        status = Status.Inactive
+        status = WindowsKeepAliveStatus.Inactive
     }
 }
 
@@ -112,71 +124,71 @@ public class WindowsKeepAlive {
 /// 严格翻译自 windows_event_loop.zig FilePoll
 public class WindowsFilePoll {
     public var fd: Int32
-    public var flags: FilePollFlags
+    public var flags: WindowsWindowsFilePollFlags
     public var nextToFree: ?WindowsFilePoll = None
 
     public init(fd: Int32) {
         this.fd = fd
-        this.flags = FilePollFlags()
+        this.flags = WindowsWindowsFilePollFlags()
     }
 
     public func isActive(): Bool {
-        return flags.contains(FilePollFlag.HasIncrementedPollCount)
+        return flags.contains(WindowsFilePollFlag.HasIncrementedPollCount)
     }
 
     public func isWatching(): Bool {
-        return !flags.contains(FilePollFlag.NeedsRearm) &&
-            (flags.contains(FilePollFlag.PollReadable) ||
-             flags.contains(FilePollFlag.PollWritable) ||
-             flags.contains(FilePollFlag.PollProcess))
+        return !flags.contains(WindowsFilePollFlag.NeedsRearm) &&
+            (flags.contains(WindowsFilePollFlag.PollReadable) ||
+             flags.contains(WindowsFilePollFlag.PollWritable) ||
+             flags.contains(WindowsFilePollFlag.PollProcess))
     }
 
     public func isKeepingProcessAlive(): Bool {
-        return !flags.contains(FilePollFlag.Closed) && isActive()
+        return !flags.contains(WindowsFilePollFlag.Closed) && isActive()
     }
 
     public func isRegistered(): Bool {
-        return flags.contains(FilePollFlag.PollWritable) ||
-            flags.contains(FilePollFlag.PollReadable) ||
-            flags.contains(FilePollFlag.PollProcess) ||
-            flags.contains(FilePollFlag.PollMachPort)
+        return flags.contains(WindowsFilePollFlag.PollWritable) ||
+            flags.contains(WindowsFilePollFlag.PollReadable) ||
+            flags.contains(WindowsFilePollFlag.PollProcess) ||
+            flags.contains(WindowsFilePollFlag.PollMachPort)
     }
 
     public func disableKeepingProcessAlive(): Unit {
-        if (flags.contains(FilePollFlag.Closed)) {
+        if (flags.contains(WindowsFilePollFlag.Closed)) {
             return
         }
-        flags.insert(FilePollFlag.Closed)
+        flags.insert(WindowsFilePollFlag.Closed)
     }
 
     public func enableKeepingProcessAlive(): Unit {
-        if (!flags.contains(FilePollFlag.Closed)) {
+        if (!flags.contains(WindowsFilePollFlag.Closed)) {
             return
         }
-        flags.remove(FilePollFlag.Closed)
+        flags.remove(WindowsFilePollFlag.Closed)
     }
 
     public func isReadable(): Bool {
-        let r = flags.contains(FilePollFlag.Readable)
-        flags.remove(FilePollFlag.Readable)
+        let r = flags.contains(WindowsFilePollFlag.Readable)
+        flags.remove(WindowsFilePollFlag.Readable)
         return r
     }
 
     public func isHup(): Bool {
-        let h = flags.contains(FilePollFlag.Hup)
-        flags.remove(FilePollFlag.Hup)
+        let h = flags.contains(WindowsFilePollFlag.Hup)
+        flags.remove(WindowsFilePollFlag.Hup)
         return h
     }
 
     public func isEof(): Bool {
-        let e = flags.contains(FilePollFlag.Eof)
-        flags.remove(FilePollFlag.Eof)
+        let e = flags.contains(WindowsFilePollFlag.Eof)
+        flags.remove(WindowsFilePollFlag.Eof)
         return e
     }
 
     public func isWritable(): Bool {
-        let w = flags.contains(FilePollFlag.Writable)
-        flags.remove(FilePollFlag.Writable)
+        let w = flags.contains(WindowsFilePollFlag.Writable)
+        flags.remove(WindowsFilePollFlag.Writable)
         return w
     }
 
@@ -186,8 +198,8 @@ public class WindowsFilePoll {
     }
 
     public func onEnded(): Unit {
-        flags.remove(FilePollFlag.KeepsEventLoopAlive)
-        flags.insert(FilePollFlag.Closed)
+        flags.remove(WindowsFilePollFlag.KeepsEventLoopAlive)
+        flags.insert(WindowsFilePollFlag.Closed)
     }
 }
 
@@ -256,7 +268,7 @@ public class UvLoop {
 }
 
 /// 从 posix_event_loop.cj 引用的类型
-public enum FilePollFlag {
+public enum WindowsFilePollFlag {
     | PollReadable
     | PollWritable
     | PollProcess
@@ -273,24 +285,24 @@ public enum FilePollFlag {
     | IgnoreUpdates
 }
 
-public class FilePollFlags {
-    private var flags: HashSet<FilePollFlag> = HashSet<FilePollFlag>()
+public class WindowsWindowsFilePollFlags {
+    private var flags: WindowsFilePollFlagSet = WindowsFilePollFlagSet()
 
-    public func contains(flag: FilePollFlag): Bool {
+    public func contains(flag: WindowsFilePollFlag): Bool {
         return flags.contains(flag)
     }
 
-    public func insert(flag: FilePollFlag): Unit {
+    public func insert(flag: WindowsFilePollFlag): Unit {
         flags.put(flag)
     }
 
-    public func remove(flag: FilePollFlag): Unit {
+    public func remove(flag: WindowsFilePollFlag): Unit {
         flags.remove(flag)
     }
 }
 
-private class HashSet<T> {
-    public func contains(key: T): Bool { return false }
-    public func put(key: T): Unit {}
-    public func remove(key: T): Unit {}
+private class WindowsFilePollFlagSet {
+    public func contains(key: WindowsFilePollFlag): Bool { return false }
+    public func put(key: WindowsFilePollFlag): Unit {}
+    public func remove(key: WindowsFilePollFlag): Unit {}
 }

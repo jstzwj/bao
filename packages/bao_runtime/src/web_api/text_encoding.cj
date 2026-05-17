@@ -3,8 +3,9 @@
 // 严格翻译自: src/api/text_encoder.zig
 package bao_runtime.web_api
 
-import bao_core.*
+import bao_core.BaoString
 import bao_collections.*
+import bao_runtime.*
 
 // ============================================================================
 // EncodeIntoResult — encodeInto 返回值
@@ -68,7 +69,7 @@ public class TextEncoder {
         var byteIndex = 0
         let destCapacity = dest.size
 
-        for (i in 0..src.length) {
+        for (i in 0..src.size) {
             let codePoint = Int64(src[Int64(i)])
             let byteLen = Utf8Codec.codePointLength(UInt8(codePoint & 0xFF))
 
@@ -131,7 +132,7 @@ public class TextEncoder {
                 let text = Interpreter.jsToString(args[0])
                 let bytes = self.encode(text)
                 let result = EncodeIntoResult(0, bytes.size)
-                result.read = text.length
+                result.read = Int64(text.size)
                 return result.toJsValue()
             }
             return EncodeIntoResult().toJsValue()
@@ -256,7 +257,7 @@ public class TextDecoder {
             bytes.append(b)
         }
 
-        let arr = bytes.toArray()
+        let arr = bytes.toOwnedSlice()
 
         // 处理 BOM
         var start = 0
@@ -307,7 +308,7 @@ public class TextDecoder {
             } else {
                 hi | (lo << 8)
             }
-            sb.append(Char(codeUnit))
+            sb.append(String(Rune(Int32(codeUnit))))
             i += 2
         }
         return sb.toString()
@@ -317,14 +318,14 @@ public class TextDecoder {
     private func decodeLatin1(input: Array<UInt8>): String {
         let sb = StringBuilder()
         for (b in input) {
-            sb.append(Char(Int64(b)))
+            sb.append(String(Rune(Int32(Int64(b)))))
         }
         return sb.toString()
     }
 
     /// 规范化编码名称
     private static func normalizeEncoding(name: String): String {
-        let lower = name.toLowerCase()
+        let lower = name.toAsciiLower()
         // 处理常见别名
         if (lower == "utf-8" || lower == "utf8") { return "utf-8" }
         if (lower == "utf-16le" || lower == "utf-16-le" || lower == "utf16le") { return "utf-16le" }
@@ -348,13 +349,12 @@ public class TextDecoder {
             let bytes = if (args.size >= 1) {
                 // 从 JsValue 中提取字节数组
                 match (args[0].arrayData) {
-                    case Some(arr) => {
+                    case Some(arr) =>
                         let result = ArrayList<UInt8>()
                         for (v in arr) {
                             result.append(UInt8(Int64(Interpreter.jsToNumber(v))))
                         }
-                        result.toArray()
-                    }
+                        result.toOwnedSlice()
                     case None => Array<UInt8>()
                 }
             } else {
@@ -364,12 +364,11 @@ public class TextDecoder {
             let opts = TextDecodeOptions()
             if (args.size >= 2) {
                 match (args[1].objectData) {
-                    case Some(obj) => {
+                    case Some(obj) =>
                         let stream = obj.get("stream")
                         if (stream.valueType == JsValueType.Boolean) {
                             opts.stream = stream.boolValue
                         }
-                    }
                     case None => ()
                 }
             }
@@ -394,7 +393,7 @@ public class Utf8Codec {
     /// 对应 Bun: bun.strings.encodeUtf8
     public static func encode(text: String): Array<UInt8> {
         let bytes = ArrayList<UInt8>()
-        for (i in 0..text.length) {
+        for (i in 0..text.size) {
             let codePoint = Int64(text[Int64(i)])
 
             if (codePoint < 0x80) {
@@ -417,7 +416,7 @@ public class Utf8Codec {
                 bytes.append(UInt8(0x80 | (codePoint & 0x3F)))
             }
         }
-        return bytes.toArray()
+        return bytes.toOwnedSlice()
     }
 
     /// 将 UTF-8 字节数组解码为字符串
@@ -439,27 +438,27 @@ public class Utf8Codec {
 
             if (i + cpLen > end) {
                 // 不完整的序列，替换为 U+FFFD
-                sb.append("\uFFFD")
+                sb.append(Rune(0xFFFD))
                 i += 1
                 continue
             }
 
             if (cpLen == 1) {
                 // ASCII: 0xxxxxxx
-                sb.append(Char(Int64(firstByte)))
+                sb.append(String(Rune(Int32(Int64(firstByte)))))
                 i += 1
             } else if (cpLen == 2) {
                 // 2-byte: 110xxxxx 10xxxxxx
                 let cp = (Int64(firstByte & UInt8(0x1F)) << 6) |
                          Int64(bytes[Int64(i) + 1] & UInt8(0x3F))
-                sb.append(Char(cp))
+                sb.append(String(Rune(Int32(cp))))
                 i += 2
             } else if (cpLen == 3) {
                 // 3-byte: 1110xxxx 10xxxxxx 10xxxxxx
                 let cp = (Int64(firstByte & UInt8(0x0F)) << 12) |
                          (Int64(bytes[Int64(i) + 1] & UInt8(0x3F)) << 6) |
                          Int64(bytes[Int64(i) + 2] & UInt8(0x3F))
-                sb.append(Char(cp))
+                sb.append(String(Rune(Int32(cp))))
                 i += 3
             } else {
                 // 4-byte: 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
@@ -469,15 +468,15 @@ public class Utf8Codec {
                          Int64(bytes[Int64(i) + 3] & UInt8(0x3F))
                 // 超出 BMP 的字符需要 surrogate pair
                 if (cp > 0x10FFFF) {
-                    sb.append("\uFFFD")
+                    sb.append(Rune(0xFFFD))
                 } else if (cp >= 0x10000) {
                     // 代理对编码
                     let high = 0xD800 + ((cp - 0x10000) >> 10)
                     let low = 0xDC00 + ((cp - 0x10000) & 0x3FF)
-                    sb.append(Char(high))
-                    sb.append(Char(low))
+                    sb.append(String(Rune(Int32(high))))
+                    sb.append(String(Rune(Int32(low))))
                 } else {
-                    sb.append(Char(cp))
+                    sb.append(String(Rune(Int32(cp))))
                 }
                 i += 4
             }
@@ -573,7 +572,7 @@ public class TextEncodingModule {
                     // 解析 options
                     let opts = TextDecoderOptions()
                     match (args[1].objectData) {
-                        case Some(obj) => {
+                        case Some(obj) =>
                             let fatal = obj.get("fatal")
                             if (fatal.valueType == JsValueType.Boolean) {
                                 opts.fatal = fatal.boolValue
@@ -582,7 +581,6 @@ public class TextEncodingModule {
                             if (ignoreBOM.valueType == JsValueType.Boolean) {
                                 opts.ignoreBOM = ignoreBOM.boolValue
                             }
-                        }
                         case None => ()
                     }
                     TextDecoder(encoding, opts)

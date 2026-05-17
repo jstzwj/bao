@@ -8,6 +8,7 @@
 package bao_css.properties
 
 import bao_core.*
+import bao_collections.*
 
 // ============================================================================
 // OutlineStyle
@@ -18,17 +19,17 @@ import bao_core.*
 /// 严格翻译自 OutlineStyle
 public enum OutlineStyle {
     | Auto                // 自动
-    | LineStyle(LineStyle) // 等同于 border-style
+    | LineStyleVal(LineStyle) // 等同于 border-style
 
     public func toCss(): String {
         match (this) {
             case Auto => "auto"
-            case LineStyle(ls) => ls.toCss()
+            case LineStyleVal(ls) => ls.toCss()
         }
     }
 
     public static func default(): OutlineStyle {
-        OutlineStyle.LineStyle(LineStyle.None)
+        OutlineStyle.LineStyleVal(LineStyle.None)
     }
 }
 
@@ -52,28 +53,29 @@ public class Outline {
 
     public static func default(): Outline {
         Outline(
-            width: BorderSideWidth.Length("medium"),
-            style: OutlineStyle.LineStyle(LineStyle.None),
-            color: "currentcolor"
+            BorderSideWidth.Length("medium"),
+            OutlineStyle.LineStyleVal(LineStyle.None),
+            "currentcolor"
         )
+    }
+
+    private func widthCss(): String {
+        match (width) {
+            case BorderSideWidth.Length(l) => if (l != "medium") { l } else { "" }
+            case _ => width.toCss()
+        }
     }
 
     public func toCss(): String {
         var parts = ArrayList<String>()
 
         // 宽度
-        match (width) {
-            case BorderSideWidth.Length(l) => {
-                if (l != "medium") {
-                    parts.append(l)
-                }
-            }
-            case _ => parts.append(width.toCss())
-        }
+        let w = widthCss()
+        if (w != "") { parts.append(w) }
 
         // 样式
         match (style) {
-            case OutlineStyle.LineStyle(LineStyle.None) => ()
+            case OutlineStyle.LineStyleVal(LineStyle.None) => ()
             case _ => parts.append(style.toCss())
         }
 
@@ -85,6 +87,11 @@ public class Outline {
         if (parts.isEmpty()) {
             return "none"
         }
-        return String.join(" ", parts)
+        var result = ""
+        for (i in 0..parts.size) {
+            if (i > 0) { result += " " }
+            result += parts[i]
+        }
+        return result
     }
 }

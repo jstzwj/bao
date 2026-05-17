@@ -4,6 +4,8 @@
 //   支持 processNamesArray 处理 glob 模式, processWorkspaceName 读取包名
 package bao_install.lockfile
 
+import bao_install.*
+
 import bao_core.*
 import bao_collections.*
 
@@ -137,17 +139,13 @@ public class WorkspaceMap {
 
             // 跳过根 package.json
             let dirName = Path.dirname(absPackageJsonPath)
-            if (dirName == sourceDir) { continue }
+            if (dirName == sourceDir) { () }
 
             // 处理工作区名称
             let entry = processWorkspaceName(absPackageJsonPath)
             match (entry) {
-                case Some(e) => {
-                    if (e.name.length == 0) { continue }
-                    let relPath = Path.relative(sourceDir, Path.dirname(absPackageJsonPath))
-                    workspaceNames.insert(relPath, e)
-                }
-                case None => continue
+                case Some(e) => processWorkspaceEntry(e, absPackageJsonPath, sourceDir, workspaceNames)
+                case None => ()
             }
         }
 
@@ -166,6 +164,27 @@ public class WorkspaceMap {
     /// 翻译自: WorkspaceMap.processWorkspaceName
     ///   fn processWorkspaceName(allocator, json_cache, abs_package_json_path, log) !Entry
     ///   读取工作区的 package.json 获取名称和版本
+    private static func buildWorkspaceEntry(json: JsonParserResult, nameExpr: JsonParserResult): ?WorkspaceEntry {
+        let name = nameExpr.asString()
+        if (name.size == 0) { return None }
+
+        var version: ?String = None
+        match (json.get("version")) {
+            case Some(verExpr) =>
+                let vs = verExpr.asString()
+                if (vs.size > 0) { version = Some(vs) }
+            case None => ()
+        }
+
+        return WorkspaceEntry(name, version)
+    }
+
+    private static func processWorkspaceEntry(e: WorkspaceEntry, absPackageJsonPath: String, sourceDir: String, workspaceNames: HashMap<String, WorkspaceEntry>): Unit {
+        if (e.name.size == 0) { return }
+        let relPath = Path.relative(sourceDir, Path.dirname(absPackageJsonPath))
+        workspaceNames.insert(relPath, e)
+    }
+
     public static func processWorkspaceName(absPackageJsonPath: String): ?WorkspaceEntry {
         // 读取 package.json
         try {
@@ -173,22 +192,7 @@ public class WorkspaceMap {
             let json = JsonParser.parseObject(content)
 
             match (json.get("name")) {
-                case Some(nameExpr) => {
-                    let name = nameExpr.asString()
-                    if (name.length == 0) { return None }
-
-                    let version: ?String = match (json.get("version")) {
-                        case Some(verExpr) => {
-                            match (verExpr.asString()) {
-                                case s: String => Some(s)
-                                case _: None => None
-                            }
-                        }
-                        case None => None
-                    }
-
-                    return WorkspaceEntry(name: name, version: version)
-                }
+                case Some(nameExpr) => return buildWorkspaceEntry(json, nameExpr)
                 case None => return None
             }
         } catch (_: Exception) {

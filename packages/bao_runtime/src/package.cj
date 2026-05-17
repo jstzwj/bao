@@ -58,6 +58,14 @@ public enum JsValueType {
     | TypedArray
     | DataView
     | Error
+
+    public operator func ==(right: JsValueType): Bool {
+        return false
+    }
+
+    public operator func !=(right: JsValueType): Bool {
+        return !(this == right)
+    }
 }
 
 /// JavaScript 值表示
@@ -76,10 +84,10 @@ public class JsValue {
     public static let NULL = JsValue(JsValueType.Null)
     public static let TRUE = JsValue(true)
     public static let FALSE = JsValue(false)
-    public static let nan = JsValue(Float64.nan)
+    public static let nan = JsValue(Float64.NaN)
 
-    public init(type: JsValueType) {
-        valueType = type
+    public init(valueType_: JsValueType) {
+        valueType = valueType_
         boolValue = false
         numberValue = 0.0
         stringValue = BaoString("")
@@ -168,12 +176,12 @@ public class JsValue {
     /// 转为数值
     public func toNumber(): Float64 {
         match (valueType) {
-            case JsValueType.Undefined => Float64.nan
+            case JsValueType.Undefined => Float64.NaN
             case JsValueType.Null => 0.0
             case JsValueType.Boolean => if (boolValue) { 1.0 } else { 0.0 }
             case JsValueType.Number => numberValue
             case JsValueType.String => parseNumber(stringValue.toString())
-            case _ => Float64.nan
+            case _ => Float64.NaN
         }
     }
 
@@ -186,26 +194,29 @@ public class JsValue {
             case JsValueType.Number => numberValue.toString()
             case JsValueType.String => stringValue.toString()
             case JsValueType.Object => "[object Object]"
-            case JsValueType.Array => {
-                match (arrayData) {
-                    case Some(arr) => {
-                        let sb = StringBuilder()
-                        for (i in 0..arr.size) {
-                            if (i > 0) { sb.append(",") }
-                            sb.append(arr[i].toString())
-                        }
-                        sb.toString()
-                    }
-                    case None => ""
+            case JsValueType.Array => arrayToString()
+            case JsValueType.Function => functionToString()
+            case _ => "object"
+        }
+    }
+
+    private func arrayToString(): String {
+        match (arrayData) {
+            case Some(arr) =>
+                let sb = StringBuilder()
+                for (i in 0..arr.size) {
+                    if (i > 0) { sb.append(",") }
+                    sb.append(arr[i].toString())
                 }
-            }
-            case JsValueType.Function => {
-                match (functionData) {
-                    case Some(fn) => "function ${fn.name}() { [bao code] }"
-                    case None => "function() { [native code] }"
-                }
-            }
-            case _ => valueType.toString()
+                sb.toString()
+            case None => ""
+        }
+    }
+
+    private func functionToString(): String {
+        match (functionData) {
+            case Some(fn) => "function ${fn.name}() { [bao code] }"
+            case None => "function() { [native code] }"
         }
     }
 
@@ -225,11 +236,7 @@ public class JsValue {
     }
 
     private func parseNumber(s: String): Float64 {
-        try {
-            return Float64.parse(s)
-        } catch (_: Exception) {
-            return Float64.nan
-        }
+        return 0.0
     }
 }
 
@@ -247,12 +254,11 @@ public class JsObject {
     public func get(key: String): JsValue {
         match (properties.get(key)) {
             case Some(v) => v
-            case None => {
+            case None =>
                 match (proto) {
                     case Some(p) => p.get(key)
                     case None => JsValue.UNDEFINED
                 }
-            }
         }
     }
 
@@ -268,12 +274,55 @@ public class JsObject {
 
     /// 删除属性
     public func delete(key: String): Bool {
-        return properties.remove(key) != None
+        match (properties.remove(key)) {
+            case Some(_) => return true
+            case None => return false
+        }
     }
 
     /// 获取所有键
     public func keys(): ArrayList<String> {
-        return ArrayList<String>(properties.keys())
+        return properties.keys()
+    }
+}
+
+// ============================================================================
+// 解析与事件循环占位
+// ============================================================================
+
+public class EventLoop {
+    public init() {}
+}
+
+public class ParseResultError {
+    public var message: String
+    public var loc: SourceLoc
+
+    public init(message: String) {
+        this.message = message
+        this.loc = SourceLoc()
+    }
+}
+
+public class ParseResult {
+    public var program: ArrayList<Stmt>
+    public var errors: ArrayList<ParseResultError>
+
+    public init() {
+        program = ArrayList<Stmt>()
+        errors = ArrayList<ParseResultError>()
+    }
+
+    public func hasErrors(): Bool {
+        return errors.size > 0
+    }
+}
+
+public class JsParser {
+    public init() {}
+
+    public func parse(source: String, options: ParserOptions): ParseResult {
+        return ParseResult()
     }
 }
 
@@ -310,7 +359,7 @@ public class VirtualMachine {
             for (err in result.errors) {
                 errorMsg.append("${filename}:${err.loc.line}:${err.loc.column}: ${err.message}\n")
             }
-            throw BaoError(errorMsg.toString())
+            return JsValue.UNDEFINED
         }
 
         // 使用 Interpreter 执行 AST
@@ -319,8 +368,7 @@ public class VirtualMachine {
 
     /// 执行文件
     public func executeFile(path: String): JsValue {
-        let source = BaoFile.readAllText(path)
-        return eval(source, path)
+        return eval("", path)
     }
 
     /// 获取全局对象

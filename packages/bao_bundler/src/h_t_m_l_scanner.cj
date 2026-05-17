@@ -71,7 +71,7 @@ public class HTMLScanner {
                 let ext = inputPath.substring(dotIndex)
                 if (ext.length <= 4) {
                     // 尝试相对于 HTML 文件目录解析
-                    let dirname = source.path.dirname()
+                    let dirname = sourcePathDirname(source.path)
                     if (dirname.length > 0) {
                         let resolved = dirname + "/" + inputPath
                         // 在 Bun 中会检查文件是否存在
@@ -85,7 +85,7 @@ public class HTMLScanner {
         let record = ImportRecord(
             path: pathToUse,
             kind: kind,
-            range: Range.None
+            range: RangeValue.None
         )
         importRecords.append(record)
     }
@@ -353,99 +353,14 @@ public class HTMLProcessor {
     }
 }
 
-// ============================================================================
-// 辅助类型
-// ============================================================================
-
-/// 导入类型 - 对应 Bun ImportKind
-/// Bun: const ImportKind = @import("../options_types/import_record.zig").ImportKind
-public enum ImportKind {
-    | Stmt   // script, worker 等 (语句级导入)
-    | At     // stylesheet, CSS (at 规则级导入)
-    | Url    // image, font, icon 等 (URL 级引用)
-
-    public func name(): String {
-        match (this) {
-            case Stmt => "stmt"
-            case At => "at"
-            case Url => "url"
-        }
-    }
-}
-
-/// 导入记录 - 对应 Bun ImportRecord
-/// Bun: const ImportRecord = @import("../options_types/import_record.zig").ImportRecord
-public class ImportRecord {
-    /// 导入路径
-    public var path: String
-    /// 导入类型
-    public var kind: ImportKind
-    /// 源码范围
-    public var range: Range
-
-    public init(path: String, kind: ImportKind, range: Range) {
-        this.path = path
-        this.kind = kind
-        this.range = range
-    }
-}
-
-/// Range - 对应 Bun logger.Range
-public class Range {
-    public static let None = Range()
-
-    public init() {}
-}
-
-/// Source 路径辅助
-public class Source {
-    public var path: SourcePath
-
-    public init(path: SourcePath) {
-        this.path = path
-    }
-
-    public init() {
-        this.path = SourcePath()
-    }
-}
-
-/// 源文件路径
-public class SourcePath {
-    public var text: String
-
-    public init(text: String) {
-        this.text = text
-    }
-
-    public init() {
-        this.text = ""
-    }
-
-    /// 获取目录名
-    public func dirname(): String {
-        let lastSlash = text.lastIndexOf('/')
-        if (lastSlash < 0) {
-            return ""
-        }
-        return text.substring(0, lastSlash)
-    }
-
-    /// 获取漂亮路径
-    public func pretty(): String {
-        return text
-    }
-}
-
-/// Log - 日志引用类型
-public class Log {
-    public init() {}
-
-    /// 添加错误 - 对应 Bun Logger.Log.addError()
-    public func addError(source: Source, loc: Loc, message: String): Unit {
-        // 简化: 记录错误
-    }
-}
-
 /// Loc - 位置引用
-public typealias Loc = bao_ast.Loc
+// HTMLScannerLoc removed - use Loc directly
+
+/// 源路径辅助函数 - 从路径中提取目录名
+private func sourcePathDirname(path: String): String {
+    let lastSlash = path.lastIndexOf('/')
+    if (lastSlash < 0) {
+        return ""
+    }
+    return path.substring(0, lastSlash)
+}

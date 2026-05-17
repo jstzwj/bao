@@ -12,6 +12,7 @@
 package bao_css.properties
 
 import bao_core.*
+import bao_collections.*
 
 // ============================================================================
 // AnimationDirection
@@ -35,6 +36,14 @@ public enum AnimationDirection {
         }
     }
 
+    public operator func ==(rhs: AnimationDirection): Bool {
+        this.toCss() == rhs.toCss()
+    }
+
+    public operator func !=(rhs: AnimationDirection): Bool {
+        !(this == rhs)
+    }
+
     public static func default(): AnimationDirection {
         AnimationDirection.Normal
     }
@@ -56,6 +65,14 @@ public enum AnimationPlayState {
             case Running => "running"
             case Paused => "paused"
         }
+    }
+
+    public operator func ==(rhs: AnimationPlayState): Bool {
+        this.toCss() == rhs.toCss()
+    }
+
+    public operator func !=(rhs: AnimationPlayState): Bool {
+        !(this == rhs)
     }
 
     public static func default(): AnimationPlayState {
@@ -83,6 +100,14 @@ public enum AnimationFillMode {
             case Backwards => "backwards"
             case Both => "both"
         }
+    }
+
+    public operator func ==(rhs: AnimationFillMode): Bool {
+        this.toCss() == rhs.toCss()
+    }
+
+    public operator func !=(rhs: AnimationFillMode): Bool {
+        !(this == rhs)
     }
 
     public static func default(): AnimationFillMode {
@@ -127,6 +152,14 @@ public enum AnimationIterationCount {
             case Number(n) => n.toString()
             case Infinite => "infinite"
         }
+    }
+
+    public operator func ==(rhs: AnimationIterationCount): Bool {
+        this.toCss() == rhs.toCss()
+    }
+
+    public operator func !=(rhs: AnimationIterationCount): Bool {
+        !(this == rhs)
     }
 
     public static func default(): AnimationIterationCount {
@@ -229,6 +262,14 @@ public enum AnimationTimeline {
             case Scroll(st) => "scroll(" + st.toCss() + ")"
             case View(vt) => "view(" + vt.toCss() + ")"
         }
+    }
+
+    public operator func ==(rhs: AnimationTimeline): Bool {
+        this.toCss() == rhs.toCss()
+    }
+
+    public operator func !=(rhs: AnimationTimeline): Bool {
+        !(this == rhs)
     }
 
     public static func default(): AnimationTimeline {
@@ -443,10 +484,11 @@ public class Animation {
 
     /// 供应商前缀映射
     /// 严格翻译自 VENDOR_PREFIX_MAP
-    public static let vendorPrefixMap: ArrayList<(String, Bool)> = ArrayList<String>([
-        ("name", true), ("duration", true), ("timing_function", true),
-        ("iteration_count", true), ("direction", true), ("play_state", true),
-        ("delay", true), ("fill_mode", true)
+    /// 简化为 String 列表 (原为 (String, Bool) 元组列表)
+    public static let vendorPrefixMap: ArrayList<String> = ArrayList<String>([
+        "name", "duration", "timing_function",
+        "iteration_count", "direction", "play_state",
+        "delay", "fill_mode"
     ])
 
     public func toCss(): String {
@@ -499,6 +541,9 @@ public class Animation {
             }
         }
 
-        return String.join(" ", parts)
+        var partArr = Array<String>(parts.size, repeat: "")
+        var pi: Int64 = 0
+        for (p in parts) { partArr[pi] = p; pi += 1 }
+        return String.join(partArr, delimiter: " ")
     }
 }

@@ -463,7 +463,7 @@ public let NODE_BUILTIN_PATTERNS_RAW: Array<String> = [
     "fs",
     "path",
     "process",
-    "test",
+    "test"
 ]
 
 /// Node.js 内建模块名称 (含 node: 前缀版本)
@@ -585,7 +585,7 @@ public let NODE_BUILTIN_PATTERNS: Array<String> = [
     "node:fs",
     "node:path",
     "node:process",
-    "node:test",
+    "node:test"
 ]
 
 /// Bun 兼容的 Node.js 内建模块子集
@@ -644,7 +644,7 @@ public let BUN_NODE_BUILTIN_PATTERNS_COMPAT: Array<String> = [
     "vm",
     "wasi",
     "worker_threads",
-    "zlib",
+    "zlib"
 ]
 
 // ============================================================================
@@ -682,6 +682,10 @@ public class ResolveBuiltins {
     /// Bun 在编译时生成完美哈希表，此处使用 HashMap
     private static var hardcodedMap: HashMap<String, HardcodedModule> = initHardcodedMap()
 
+    /// "node:" 前缀长度常量
+    private static let NODE_PREFIX: String = "node:"
+    private static let NODE_PREFIX_LEN: Int64 = 5
+
     /// Node.js 别名查找表 - 对应 Bun Alias.node_aliases
     /// 仅包含 common_alias_kvs
     private static var nodeAliasMap: HashMap<String, BuiltinAlias> = initNodeAliases()
@@ -697,10 +701,6 @@ public class ResolveBuiltins {
     /// Node.js 内建模块快速查找集合 (裸名)
     /// 对应 Bun 中用于 isBuiltinModule 的判断
     private static var nodeBuiltinSet: HashSet<String> = initNodeBuiltinSet()
-
-    /// "node:" 前缀长度常量
-    private static let NODE_PREFIX: String = "node:"
-    private static let NODE_PREFIX_LEN: Int64 = 5
 
     // ========================================================================
     // HardcodedModule 查找表初始化
@@ -822,11 +822,7 @@ public class ResolveBuiltins {
         let resolvedPath = ensureNodePrefix(path)
         return Tuple2(
             path,
-            BuiltinAlias(
-                path: resolvedPath,
-                tag: ImportTag.Builtin,
-                nodeBuiltin: true,
-                nodeOnlyPrefix: false
+            BuiltinAlias(resolvedPath, ImportTag.Builtin, true, false
             )
         )
     }
@@ -837,11 +833,7 @@ public class ResolveBuiltins {
         let resolvedPath = ensureNodePrefix(path)
         return Tuple2(
             path,
-            BuiltinAlias(
-                path: resolvedPath,
-                tag: ImportTag.Builtin,
-                nodeBuiltin: true,
-                nodeOnlyPrefix: true
+            BuiltinAlias(resolvedPath, ImportTag.Builtin, true, true
             )
         )
     }
@@ -850,11 +842,7 @@ public class ResolveBuiltins {
     private static func entry(path: String): Tuple2<String, BuiltinAlias> {
         return Tuple2(
             path,
-            BuiltinAlias(
-                path: path,
-                tag: ImportTag.Builtin,
-                nodeBuiltin: false,
-                nodeOnlyPrefix: false
+            BuiltinAlias(path, ImportTag.Builtin, false, false
             )
         )
     }
@@ -862,7 +850,7 @@ public class ResolveBuiltins {
     /// 确保 "node:" 前缀 - 对应 Bun ensure_node_prefix! 宏
     /// Zig: if (path.len > 5 and std.mem.eql(u8, path[0..5], "node:")) path else "node:" ++ path
     private static func ensureNodePrefix(path: String): String {
-        if (path.length > NODE_PREFIX_LEN && path.substring(Int64(0), NODE_PREFIX_LEN) == NODE_PREFIX) {
+        if (Int64(path.size) > NODE_PREFIX_LEN && path[Int64(0)..NODE_PREFIX_LEN] == NODE_PREFIX) {
             return path
         }
         return NODE_PREFIX + path
@@ -1017,17 +1005,9 @@ public class ResolveBuiltins {
 
         // sys 是 util 的已弃用别名
         // Bun: .{ "sys", .{ .path = "node:util", .node_builtin = true } }
-        m.put("sys", BuiltinAlias(
-            path: "node:util",
-            tag: ImportTag.Builtin,
-            nodeBuiltin: true,
-            nodeOnlyPrefix: false
+        m.put("sys", BuiltinAlias("node:util", ImportTag.Builtin, true, false
         ))
-        m.put("node:sys", BuiltinAlias(
-            path: "node:util",
-            tag: ImportTag.Builtin,
-            nodeBuiltin: true,
-            nodeOnlyPrefix: false
+        m.put("node:sys", BuiltinAlias("node:util", ImportTag.Builtin, true, false
         ))
 
         // 以下模块在 builtinModules 中返回，但使用量不大，作为别名处理
@@ -1042,11 +1022,7 @@ public class ResolveBuiltins {
         fillNodeEntry(m, "node:_tls_common")
 
         // _tls_wrap 映射到 node:tls
-        m.put("node:_tls_wrap", BuiltinAlias(
-            path: "node:tls",
-            tag: ImportTag.Builtin,
-            nodeBuiltin: true,
-            nodeOnlyPrefix: false
+        m.put("node:_tls_wrap", BuiltinAlias("node:tls", ImportTag.Builtin, true, false
         ))
 
         fillNodeEntry(m, "_stream_duplex")
@@ -1058,11 +1034,7 @@ public class ResolveBuiltins {
         fillNodeEntry(m, "_tls_common")
 
         // _tls_wrap 映射到 node:tls (裸名版本)
-        m.put("_tls_wrap", BuiltinAlias(
-            path: "node:tls",
-            tag: ImportTag.Builtin,
-            nodeBuiltin: true,
-            nodeOnlyPrefix: false
+        m.put("_tls_wrap", BuiltinAlias("node:tls", ImportTag.Builtin, true, false
         ))
     }
 
@@ -1088,11 +1060,7 @@ public class ResolveBuiltins {
     private static func fillBunExtraAliases(m: HashMap<String, BuiltinAlias>): Unit {
         // ===== Bun 专有模块 =====
         // "bun" 本身使用 ImportTag.Bun 标签 - 对应 Bun .{ .tag = .bun }
-        m.put("bun", BuiltinAlias(
-            path: "bun",
-            tag: ImportTag.Bun,
-            nodeBuiltin: false,
-            nodeOnlyPrefix: false
+        m.put("bun", BuiltinAlias("bun", ImportTag.Bun, false, false
         ))
 
         fillEntry(m, "bun:test")
@@ -1106,11 +1074,7 @@ public class ResolveBuiltins {
 
         // ffi 别名 -> bun:ffi
         // Bun: .{ "ffi", .{ .path = "bun:ffi" } }
-        m.put("ffi", BuiltinAlias(
-            path: "bun:ffi",
-            tag: ImportTag.Builtin,
-            nodeBuiltin: false,
-            nodeOnlyPrefix: false
+        m.put("ffi", BuiltinAlias("bun:ffi", ImportTag.Builtin, false, false
         ))
 
         // ===== 第三方覆盖包 =====
@@ -1123,43 +1087,23 @@ public class ResolveBuiltins {
 
         // ws/lib/websocket -> ws
         // Bun: .{ "ws/lib/websocket", .{ .path = "ws" } }
-        m.put("ws/lib/websocket", BuiltinAlias(
-            path: "ws",
-            tag: ImportTag.Builtin,
-            nodeBuiltin: false,
-            nodeOnlyPrefix: false
+        m.put("ws/lib/websocket", BuiltinAlias("ws", ImportTag.Builtin, false, false
         ))
 
         // ===== 强制原生化的 polyfill =====
         fillEntry(m, "abort-controller")
 
         // abort-controller/polyfill -> abort-controller
-        m.put("abort-controller/polyfill", BuiltinAlias(
-            path: "abort-controller",
-            tag: ImportTag.Builtin,
-            nodeBuiltin: false,
-            nodeOnlyPrefix: false
+        m.put("abort-controller/polyfill", BuiltinAlias("abort-controller", ImportTag.Builtin, false, false
         ))
 
         // ===== Next.js 编译依赖覆盖 =====
         // 强制 Next.js 不使用其打包的依赖
-        m.put("next/dist/compiled/ws", BuiltinAlias(
-            path: "ws",
-            tag: ImportTag.Builtin,
-            nodeBuiltin: false,
-            nodeOnlyPrefix: false
+        m.put("next/dist/compiled/ws", BuiltinAlias("ws", ImportTag.Builtin, false, false
         ))
-        m.put("next/dist/compiled/node-fetch", BuiltinAlias(
-            path: "node-fetch",
-            tag: ImportTag.Builtin,
-            nodeBuiltin: false,
-            nodeOnlyPrefix: false
+        m.put("next/dist/compiled/node-fetch", BuiltinAlias("node-fetch", ImportTag.Builtin, false, false
         ))
-        m.put("next/dist/compiled/undici", BuiltinAlias(
-            path: "undici",
-            tag: ImportTag.Builtin,
-            nodeBuiltin: false,
-            nodeOnlyPrefix: false
+        m.put("next/dist/compiled/undici", BuiltinAlias("undici", ImportTag.Builtin, false, false
         ))
     }
 
@@ -1174,18 +1118,10 @@ public class ResolveBuiltins {
     /// 填充测试框架别名
     private static func fillBunTestExtraAliases(m: HashMap<String, BuiltinAlias>): Unit {
         // @jest/globals -> bun:test
-        m.put("@jest/globals", BuiltinAlias(
-            path: "bun:test",
-            tag: ImportTag.Builtin,
-            nodeBuiltin: false,
-            nodeOnlyPrefix: false
+        m.put("@jest/globals", BuiltinAlias("bun:test", ImportTag.Builtin, false, false
         ))
         // vitest -> bun:test
-        m.put("vitest", BuiltinAlias(
-            path: "bun:test",
-            tag: ImportTag.Builtin,
-            nodeBuiltin: false,
-            nodeOnlyPrefix: false
+        m.put("vitest", BuiltinAlias("bun:test", ImportTag.Builtin, false, false
         ))
     }
 
@@ -1247,7 +1183,7 @@ public class ResolveBuiltins {
     /// 返回: 是否为已知的内建模块
     public static func isBuiltin(name: String): Bool {
         // 先检查 HardcodedModule 映射 (包含所有已知的内建和覆盖模块)
-        if (hardcodedMap.get(name) != None) {
+        if (hardcodedMap.get(name).isSome()) {
             return true
         }
         // 再检查 Node.js 内建模块集合
@@ -1282,7 +1218,7 @@ public class ResolveBuiltins {
     /// 返回: 是否为内部模块
     public static func isInternalModule(name: String): Bool {
         let bare = stripNodePrefix(name)
-        return bare.length > 0 && bare[0] == Char('_')
+        return bare.size > 0 && bare[0] == UInt8(95)
     }
 
     /// 获取内建模块分类
@@ -1299,7 +1235,7 @@ public class ResolveBuiltins {
 
         // Node.js 内部模块 (下划线前缀)
         let bare = stripNodePrefix(name)
-        if (bare.length > 0 && bare[0] == Char('_')) {
+        if (bare.size > 0 && bare[0] == UInt8(95)) {
             return Some(BuiltinCategory.Internal)
         }
 
@@ -1349,7 +1285,7 @@ public class ResolveBuiltins {
     /// 对应 Bun: Alias.has(name, target, cfg) -> bool
     public static func hasAlias(name: String, target: String,
                                  rewriteJestForTests: Bool): Bool {
-        return resolveBuiltin(name, target, rewriteJestForTests) != None
+        return resolveBuiltin(name, target, rewriteJestForTests).isSome()
     }
 
     /// 查找 HardcodedModule 枚举值
@@ -1377,9 +1313,9 @@ public class ResolveBuiltins {
     ///   name: 模块名称
     /// 返回: 剥离前缀后的裸名
     public static func stripNodePrefix(name: String): String {
-        if (name.length > NODE_PREFIX_LEN &&
-            name.substring(Int64(0), NODE_PREFIX_LEN) == NODE_PREFIX) {
-            return name.substring(NODE_PREFIX_LEN, Int64(name.length))
+        if (Int64(name.size) > NODE_PREFIX_LEN &&
+            name[Int64(0)..NODE_PREFIX_LEN] == NODE_PREFIX) {
+            return name[NODE_PREFIX_LEN..Int64(name.size)]
         }
         return name
     }
@@ -1396,8 +1332,8 @@ public class ResolveBuiltins {
 
     /// 检查是否有 "node:" 前缀
     public static func hasNodePrefix(name: String): Bool {
-        return name.length > NODE_PREFIX_LEN &&
-               name.substring(Int64(0), NODE_PREFIX_LEN) == NODE_PREFIX
+        return Int64(name.size) > NODE_PREFIX_LEN &&
+               name[Int64(0)..NODE_PREFIX_LEN] == NODE_PREFIX
     }
 
     // ========================================================================

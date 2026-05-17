@@ -45,13 +45,13 @@ public func isSafeAltName(name: Array<UInt8>, utf8: Bool): Bool {
 }
 
 public func canonicalizeIP(addrStr: Array<UInt8>, outIP: CPointer<UInt8>): ?Array<UInt8> {
-    bao_core.canonicalizeIP(addrStr, outIP)
+    canonicalizeIP(addrStr, outIP)
 }
 
 public func checkX509ServerIdentity(x509: CPointer<Unit>, hostname: Array<UInt8>): Bool {
-    bao_core.checkX509ServerIdentity(x509, hostname)
+    checkX509ServerIdentity(x509, hostname)
 }
 
 public func checkServerIdentity(sslPtr: CPointer<Unit>, hostname: Array<UInt8>): Bool {
-    bao_core.checkServerIdentity(sslPtr, hostname)
+    checkServerIdentity(sslPtr, hostname)
 }

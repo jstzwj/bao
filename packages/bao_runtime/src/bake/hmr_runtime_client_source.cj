@@ -63,7 +63,7 @@ async function performRouteReload() {
     }
   }
 
-  // Fallback for when reloading fails or is not implemented by the framework is
+  // Fallback for when reloading fails or is unsupported by the framework is
   // to hard-reload.
   fullReload();
 }
@@ -149,7 +149,7 @@ const handlers = {
     do {
       const routeId = reader.i32();
       if (routeId === -1 || routeId == undefined) break;
-      serverSideRoutesUpdated.add(routeId);
+      serverSideRoutesUpdated.append(routeId);
     } while (true);
     // List 2
     let isServerSideRouteUpdate = false;

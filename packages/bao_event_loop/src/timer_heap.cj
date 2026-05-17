@@ -25,6 +25,7 @@
 package bao_event_loop
 
 import bao_core.*
+import bao_collections.*
 
 // ============================================================================
 // TimerHeap - 定时器最小堆
@@ -132,7 +133,7 @@ public class TimerHeap {
     /// 对应 Bun timer remove by ID
     public func remove(id: Int64): ?EventLoopTimer {
         let idx = idToIndex.get(id)
-        if (let Some(index) = idx) {
+        if (let Some(index) <- idx) {
             let timer = heap[Int64(index)]
             idToIndex.remove(id)
             timer.inHeap = InHeap.None
@@ -273,13 +274,16 @@ public class TimerHeap {
 
     /// 检查定时器是否在堆中
     public func contains(id: Int64): Bool {
-        idToIndex.get(id) != None
+        match (idToIndex.get(id)) {
+            case Some(_) => true
+            case None => false
+        }
     }
 
     /// 获取指定 ID 的定时器
     public func get(id: Int64): ?EventLoopTimer {
         let idx = idToIndex.get(id)
-        if (let Some(index) = idx) {
+        if (let Some(index) <- idx) {
             return Some(heap[Int64(index)])
         }
         return None
@@ -384,8 +388,9 @@ public class TimersList {
             case Some(h) =>
                 let timer = h.timer
                 head = h.next
-                if (head == None) {
-                    tail = None
+                match (head) {
+                    case None => tail = None
+                    case Some(_) => ()
                 }
                 length -= 1
                 return Some(timer)
@@ -397,22 +402,26 @@ public class TimersList {
     public func remove(id: Int64): ?EventLoopTimer {
         var prev: ?TimerNode = None
         var current = head
-        while (current != None) {
-            let node = current.getOrThrow()
-            if (node.timer.id == id) {
-                // 移除节点
-                match (prev) {
-                    case Some(p) => p.next = node.next
-                    case None => head = node.next
-                }
-                if (node.next == None) {
-                    tail = prev
-                }
-                length -= 1
-                return Some(node.timer)
+        while (true) {
+            match (current) {
+                case None => break
+                case Some(node) =>
+                    if (node.timer.id == id) {
+                        // 移除节点
+                        match (prev) {
+                            case Some(p) => p.next = node.next
+                            case None => head = node.next
+                        }
+                        match (node.next) {
+                            case None => tail = prev
+                            case Some(_) => ()
+                        }
+                        length -= 1
+                        return Some(node.timer)
+                    }
+                    prev = current
+                    current = node.next
             }
-            prev = current
-            current = node.next
         }
         return None
     }
@@ -430,10 +439,13 @@ public class TimersList {
     /// 遍历所有定时器
     public func forEach(fn: (EventLoopTimer) -> Unit): Unit {
         var current = head
-        while (current != None) {
-            let node = current.getOrThrow()
-            fn(node.timer)
-            current = node.next
+        while (true) {
+            match (current) {
+                case None => break
+                case Some(node) =>
+                    fn(node.timer)
+                    current = node.next
+            }
         }
     }
 }

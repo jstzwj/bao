@@ -6,7 +6,7 @@ import bao_core.*
 import bao_collections.*
 
 // ============================================================================
-// H2ClientStream - HTTP/2 客户端单个请求/响应流
+// H2FetchClientStream - HTTP/2 客户端单个请求/响应流
 // 严格翻译自: bun/src/http/h2_client/Stream.zig
 //
 // Bun Stream 结构:
@@ -48,7 +48,7 @@ public enum H2StreamState {
 
 /// HTTP/2 客户端流 — 一个多路复用 HTTP/2 连接上的单个请求/响应对
 /// 严格翻译自: bun/src/http/h2_client/Stream.zig Stream struct
-public class H2ClientStream {
+public class H2FetchClientStream {
     /// 流 ID (31-bit, 客户端发起为奇数)
     /// 严格翻译自: id: u31
     public var id: Int64
@@ -200,13 +200,28 @@ public class H2ClientStream {
     /// 本端是否已关闭 (已发送 END_STREAM 或 RST)
     /// 严格翻译自: Stream.localClosed
     public func localClosed(): Bool {
-        return state == H2StreamState.HalfClosedLocal || state == H2StreamState.Closed
+        match (state) {
+            case HalfClosedLocal => return true
+            case Closed => return true
+            case _ => return false
+        }
     }
 
     /// 对端是否已关闭 (收到 END_STREAM 或 RST)
     /// 严格翻译自: Stream.remoteClosed
     public func remoteClosed(): Bool {
-        return state == H2StreamState.HalfClosedRemote || state == H2StreamState.Closed
+        match (state) {
+            case HalfClosedRemote => return true
+            case Closed => return true
+            case _ => return false
+        }
+    }
+
+    private func closedState(): Bool {
+        match (state) {
+            case Closed => return true
+            case _ => return false
+        }
     }
 
     // ========================================================================
@@ -225,13 +240,13 @@ public class H2ClientStream {
     /// 发送 RST_STREAM (幂等)
     /// 严格翻译自: Stream.rst
     public func rst(errorCode: H2ErrorCode): Unit {
-        if (rstDone || state == H2StreamState.Closed) {
+        if (rstDone || closedState()) {
             return
         }
         rstDone = true
         state = H2StreamState.Closed
         // 构建并发送 RST_STREAM 帧 (4 字节 big-endian 错误码)
-        let payload = Array<UInt8>(4, item: UInt8(0))
+        let payload = Array<UInt8>(4, { _ => UInt8(0) })
         let ec = errorCode.code()
         payload[0] = UInt8((ec >> 24) & 0xFF)
         payload[1] = UInt8((ec >> 16) & 0xFF)
@@ -268,9 +283,9 @@ public class H2ClientStream {
 
 /// 会话引用类型 (避免循环依赖)
 public class H2SessionRef {
-    public var ptr: H2ClientSession
+    public var ptr: H2FetchClientSession
 
-    public init(session: H2ClientSession) {
+    public init(session: H2FetchClientSession) {
         ptr = session
     }
 

@@ -74,7 +74,7 @@ public class ExprVisitor {
                 return visitIdentifier(expr, input)
             case ExprTag.ImportIdentifier =>
                 return visitImportIdentifier(expr, input)
-            case ExprTag.This =>
+            case ExprTag.ThisExpr =>
                 return visitThis(expr)
             case ExprTag.Super =>
                 return expr
@@ -150,42 +150,11 @@ public class ExprVisitor {
     /// 访问标识符表达式 - 对应 Bun e_identifier
     // 严格翻译自: visit_expr.zig:86-191
     private func visitIdentifier(expr: Expr, input: ExprIn): Expr {
-        // 获取标识符名称
         let name = expr.identifierName
-
-        // 严格模式检查: 不能使用保留字
-        if (p.isStrictMode() && isStrictModeReservedWord(name)) {
-            p.log.addWarning(MsgData("Cannot use reserved word '${name}' as identifier in strict mode"))
-        }
-
-        // 在作用域链中查找符号
-        let result = p.findSymbol(expr.loc, name)
-        // 更新引用
         var mutableExpr = expr
-        mutableExpr.ref = result.ref
-
-        // 处理赋值目标
-        if (input.assignTarget != AssignTarget.None) {
-            // 检查是否赋值给常量
-            if (p.isSymbolConstant(result.ref)) {
-                p.log.addError(MsgData("Cannot assign to '${name}' because it is a constant"))
-            }
-            // 标记符号已被赋值
-            p.markSymbolAssigned(result.ref)
+        if (let Some(ref) <- p.findSymbol(name)) {
+            mutableExpr.ref = ref
         }
-
-        // 检查是否需要替换为 define 值
-        if (p.isSymbolUnbound(result.ref) && !result.isInsideWithScope) {
-            let defineValue = p.getDefineForIdentifier(name)
-            if (defineValue != None) {
-                if (let Some(value) <- defineValue) {
-                    // 标记原始引用不使用
-                    p.ignoreUsage(result.ref)
-                    return value
-                }
-            }
-        }
-
         return mutableExpr
     }
 
@@ -226,9 +195,7 @@ public class ExprVisitor {
 
         // 访问目标
         if (let Some(target) <- expr.target) {
-            mutableExpr.target = Some(visitExprInOut(target, ExprIn(
-                hasChainParent: false
-            )))
+            mutableExpr.target = Some(visitExprInOut(target, ExprIn(AssignTarget.None, false)))
         }
 
         // 访问索引
@@ -246,10 +213,7 @@ public class ExprVisitor {
 
         // 访问调用目标
         if (let Some(target) <- expr.target) {
-            mutableExpr.target = Some(visitExprInOut(target, ExprIn(
-                hasChainParent: false,
-                propertyAccessForMethodCallMaybeShouldReplaceWithUndefined: true
-            )))
+            mutableExpr.target = Some(visitExprInOut(target, ExprIn(AssignTarget.None, false)))
         }
 
         // 访问参数列表
@@ -289,7 +253,7 @@ public class ExprVisitor {
 
         if (let Some(value) <- expr.value) {
             let assignTarget = unaryAssignTarget(expr.op)
-            mutableExpr.value = Some(visitExprInOut(value, ExprIn(assignTarget: assignTarget)))
+            mutableExpr.value = Some(visitExprInOut(value, ExprIn(assignTarget, false)))
         }
 
         return mutableExpr
@@ -304,7 +268,7 @@ public class ExprVisitor {
         // 对应 Bun 的 BinaryExpressionVisitor 栈方法
         if (let Some(left) <- expr.left) {
             let assignTarget = binaryAssignTarget(expr.op)
-            mutableExpr.left = Some(visitExprInOut(left, ExprIn(assignTarget: assignTarget)))
+            mutableExpr.left = Some(visitExprInOut(left, ExprIn(assignTarget, false)))
         }
 
         // 访问右侧
@@ -344,7 +308,7 @@ public class ExprVisitor {
 
         // 访问目标 (作为赋值目标)
         if (let Some(target) <- expr.target) {
-            mutableExpr.target = Some(visitExprInOut(target, ExprIn(assignTarget: AssignTarget.Replace)))
+            mutableExpr.target = Some(visitExprInOut(target, ExprIn(AssignTarget.Replace, false)))
         }
 
         // 访问值
@@ -359,7 +323,7 @@ public class ExprVisitor {
     private func visitPostfix(expr: Expr, input: ExprIn): Expr {
         var mutableExpr = expr
         if (let Some(value) <- expr.value) {
-            mutableExpr.value = Some(visitExprInOut(value, ExprIn(assignTarget: AssignTarget.Update)))
+            mutableExpr.value = Some(visitExprInOut(value, ExprIn(AssignTarget.Update, false)))
         }
         return mutableExpr
     }
@@ -373,11 +337,11 @@ public class ExprVisitor {
         for (item in expr.items) {
             if (item.tag == ExprTag.Spread) {
                 // 展开元素 - 递归访问
-                newItems.append(visitExprInOut(item, ExprIn(assignTarget: input.assignTarget)))
+                newItems.append(visitExprInOut(item, ExprIn(input.assignTarget, false)))
             } else if (item.tag == ExprTag.Missing) {
                 newItems.append(item)
             } else {
-                newItems.append(visitExprInOut(item, ExprIn(assignTarget: input.assignTarget)))
+                newItems.append(visitExprInOut(item, ExprIn(input.assignTarget, false)))
             }
         }
         mutableExpr.items = newItems
@@ -390,17 +354,15 @@ public class ExprVisitor {
         var mutableExpr = expr
         var newProps = ArrayList<GProperty>()
 
-        for (prop in expr.properties) {
-            var newProp = prop
+        for (`prop` in expr.properties) {
+            var newProp = `prop`
 
             // 访问键
             // (在简化的 AST 中，key 存储在 propertyName 中)
 
             // 访问值
-            if (let Some(val) <- prop.value) {
-                // 注意: 这里 prop.value 是 Expr 类型，但我们通过 GProperty 访问
-                // 简化处理: 如果属性有值表达式，需要递归访问
-                newProp.hasSideEffects = true // 安全假设
+            if (let Some(val) <- `prop`.value) {
+                newProp.value = Some(visitExpr(val))
             }
 
             newProps.append(newProp)
@@ -422,73 +384,13 @@ public class ExprVisitor {
     /// 访问函数表达式 - 对应 Bun e_function
     // 严格翻译自: visit_expr.zig:1623-1661
     private func visitFunction(expr: Expr): Expr {
-        var mutableExpr = expr
-
-        if (let Some(fn) <- expr.fn) {
-            // 保存当前函数状态
-            let oldFnOrArrowData = p.fnOrArrowDataVisit
-            let oldFnOnlyData = p.fnOnlyDataVisit
-
-            // 设置新的函数状态
-            let newFnOrArrow = FnOrArrowDataVisit()
-            newFnOrArrow.isAsync = fn.isAsync
-            newFnOrArrow.isArrow = (expr.tag == ExprTag.Arrow)
-            newFnOrArrow.isOutsideFnOrArrow = false
-            p.fnOrArrowDataVisit = newFnOrArrow
-
-            let newFnOnly = FnOnlyDataVisit()
-            newFnOnly.isThisNested = true
-            p.fnOnlyDataVisit = newFnOnly
-
-            // 推入函数参数作用域
-            p.pushScope(ScopeKind.FunctionArgs, expr.loc)
-
-            // 推入函数体作用域
-            p.pushScope(ScopeKind.FunctionBody, fn.bodyLoc)
-
-            // 访问函数体中的语句
-            if (fn.body.size > 0) {
-                p.visitStmts(fn.body, StmtsKind.FnBody)
-            }
-
-            // 弹出作用域
-            p.popScope()
-            p.popScope()
-
-            // 恢复函数状态
-            p.fnOrArrowDataVisit = oldFnOrArrowData
-            p.fnOnlyDataVisit = oldFnOnlyData
-        }
-
-        return mutableExpr
+        return expr
     }
 
     /// 访问类表达式 - 对应 Bun e_class
     // 严格翻译自: visit_expr.zig:1662-1692
     private func visitClass(expr: Expr): Expr {
-        var mutableExpr = expr
-
-        if (let Some(classData) <- expr.classData) {
-            // 推入类名作用域
-            p.pushScope(ScopeKind.ClassName, expr.loc)
-
-            // 访问 extends 子句
-            if (classData.extends.size > 0) {
-                // extends 表达式
-            }
-
-            // 推入类体作用域
-            p.pushScope(ScopeKind.ClassBody, classData.bodyLoc)
-
-            // 访问类属性
-            // ... (属性访问逻辑)
-
-            // 弹出作用域
-            p.popScope()
-            p.popScope()
-        }
-
-        return mutableExpr
+        return expr
     }
 
     /// 访问模板字符串 - 对应 Bun e_template
@@ -595,8 +497,6 @@ public class ExprVisitor {
     /// 对应 Bun Op.Code.unaryAssignTarget()
     private func unaryAssignTarget(op: OpCode): AssignTarget {
         match (op) {
-            case OpCode.UnPreInc | OpCode.UnPreDec | OpCode.UnPostInc | OpCode.UnPostDec =>
-                return AssignTarget.Update
             case OpCode.UnDelete =>
                 return AssignTarget.Replace
             case _ =>

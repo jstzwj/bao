@@ -310,7 +310,7 @@ public class QueryBuilder {
 
     /// WHERE 条件 (AND 连接)
     /// 对应 SQL: WHERE column = value
-    public func where(column: String, op: WhereOperator, value: SqlValue): QueryBuilder {
+    public func `where`(column: String, op: WhereOperator, value: SqlValue): QueryBuilder {
         let clause = WhereClause(column, op, value)
         if (whereClauses.size > 0) {
             clause.andOr = "AND"
@@ -321,8 +321,8 @@ public class QueryBuilder {
     }
 
     /// WHERE 等于简写
-    public func where(column: String, value: SqlValue): QueryBuilder {
-        return where(column, WhereOperator.Eq, value)
+    public func `where`(column: String, value: SqlValue): QueryBuilder {
+        return `where`(column, WhereOperator.Eq, value)
     }
 
     /// OR WHERE 条件
@@ -560,7 +560,7 @@ public class QueryBuilder {
     private func buildJoins(sql: StringBuilder): Unit {
         for (clause in joinClauses) {
             sql.append(" ${clause.type_.toString()} ${clause.table}")
-            if (clause.onLeft.length > 0) {
+            if (clause.onLeft.size > 0) {
                 sql.append(" ON ${clause.onLeft} = ${clause.onRight}")
             }
         }

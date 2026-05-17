@@ -11,6 +11,7 @@
 package bao_sys
 
 import bao_core.*
+import bao_collections.*
 
 // ============================================================================
 // Glob 模式 AST 节点
@@ -55,7 +56,7 @@ public class CharRange {
 }
 
 /// 字符类 (方括号表达式)
-/// 对应 Bun matcher.zig 中 '[' 分支
+/// 对应 Bun matcher.zig 中 UInt8(91) 分支
 public class CharClassExpr {
     /// 是否取反 ([!...] 或 [^...])
     public var negated: Bool
@@ -115,7 +116,7 @@ public class GlobSegment {
         this.alternatives = ArrayList<String>()
     }
 
-    public static func literal(s: String): GlobSegment {
+    public static func fromLiteral(s: String): GlobSegment {
         let seg = GlobSegment(GlobSegmentKind.Literal)
         seg.literal = s
         return seg
@@ -133,7 +134,7 @@ public class GlobSegment {
         return GlobSegment(GlobSegmentKind.Question)
     }
 
-    public static func charClass(cc: CharClassExpr): GlobSegment {
+    public static func fromCharClass(cc: CharClassExpr): GlobSegment {
         let seg = GlobSegment(GlobSegmentKind.CharClass)
         seg.charClass = Some(cc)
         return seg
@@ -190,8 +191,8 @@ public class GlobPattern {
         let pattern = raw
 
         // 处理前导 ! 取反
-        // 对应 Bun: while (glob_index < glob.len and glob[glob_index] == '!')
-        while (idx < pattern.size && pattern[Int64(idx)] == Char('!')) {
+        // 对应 Bun: while (glob_index < glob.len and glob[glob_index] == UInt8(33))
+        while (idx < pattern.size && pattern[Int64(idx)] == UInt8(33)) {
             negated = !negated
             negateCount += 1
             idx += 1
@@ -201,54 +202,54 @@ public class GlobPattern {
         while (idx < pattern.size) {
             let ch = pattern[Int64(idx)]
 
-            if (ch == Char('*')) {
+            if (ch == UInt8(42)) {
                 // 检查 ** (DoubleStar)
-                // 对应 Bun: is_globstar = glob_index + 1 < glob.len and glob[index+1] == '*'
-                if (idx + 1 < pattern.size && pattern[Int64(idx + 1)] == Char('*')) {
+                // 对应 Bun: is_globstar = glob_index + 1 < glob.len and glob[index+1] == UInt8(42)
+                if (idx + 1 < pattern.size && pattern[Int64(idx + 1)] == UInt8(42)) {
                     segments.append(GlobSegment.doubleStar())
                     // 跳过连续的 **/
                     // 对应 Bun: skipGlobstars()
                     idx += 2
                     while (idx + 3 < pattern.size &&
-                           pattern[Int64(idx)] == Char('/') &&
-                           pattern[Int64(idx + 1)] == Char('*') &&
-                           pattern[Int64(idx + 2)] == Char('*')) {
+                           pattern[Int64(idx)] == UInt8(47) &&
+                           pattern[Int64(idx + 1)] == UInt8(42) &&
+                           pattern[Int64(idx + 2)] == UInt8(42)) {
                         idx += 3
                     }
                     // 跳过尾部的 /**
                     if (idx + 2 < pattern.size &&
-                        pattern[Int64(idx)] == Char('/') &&
-                        pattern[Int64(idx + 1)] == Char('*') &&
-                        pattern[Int64(idx + 2)] == Char('*')) {
+                        pattern[Int64(idx)] == UInt8(47) &&
+                        pattern[Int64(idx + 1)] == UInt8(42) &&
+                        pattern[Int64(idx + 2)] == UInt8(42)) {
                         idx += 3
                     }
                 } else {
                     segments.append(GlobSegment.star())
                     idx += 1
                 }
-            } else if (ch == Char('?')) {
+            } else if (ch == UInt8(63)) {
                 segments.append(GlobSegment.question())
                 idx += 1
-            } else if (ch == Char('[')) {
+            } else if (ch == UInt8(91)) {
                 // 解析字符类
                 let (newIdx, cc) = parseCharClass(pattern, idx)
                 match (cc) {
-                    case Some(charClass) => segments.append(GlobSegment.charClass(charClass))
-                    case None => segments.append(GlobSegment.literal("["))
+                    case Some(charClass) => segments.append(GlobSegment.fromCharClass(charClass))
+                    case None => segments.append(GlobSegment.fromLiteral("["))
                 }
                 idx = newIdx
-            } else if (ch == Char('{')) {
+            } else if (ch == UInt8(123)) {
                 // 解析花括号替代
                 let (newIdx, alts) = parseAlternation(pattern, idx)
                 segments.append(GlobSegment.alternation(alts))
                 idx = newIdx
-            } else if (ch == Char('\\')) {
+            } else if (ch == UInt8(92)) {
                 // 转义字符
                 // 对应 Bun: unescape()
                 if (idx + 1 < pattern.size) {
                     let next = pattern[Int64(idx + 1)]
                     let escaped = unescapeChar(next)
-                    segments.append(GlobSegment.literal(escaped))
+                    segments.append(GlobSegment.fromLiteral(escaped))
                     idx += 2
                 } else {
                     idx += 1
@@ -258,22 +259,22 @@ public class GlobPattern {
                 var literal = StringBuilder()
                 while (idx < pattern.size) {
                     let c = pattern[Int64(idx)]
-                    if (c == Char('*') || c == Char('?') || c == Char('[') ||
-                        c == Char('{') || c == Char('\\')) {
+                    if (c == UInt8(42) || c == UInt8(63) || c == UInt8(91) ||
+                        c == UInt8(123) || c == UInt8(92)) {
                         break
                     }
                     literal.append(c)
                     idx += 1
                 }
-                if (literal.length > 0) {
-                    segments.append(GlobSegment.literal(literal.toString()))
+                if (literal.toString().size > 0) {
+                    segments.append(GlobSegment.fromLiteral(literal.toString()))
                 }
             }
         }
     }
 
     /// 解析字符类 [abc] 或 [a-z] 或 [!abc]
-    /// 严格对应 Bun matcher.zig 中 '[' 分支
+    /// 严格对应 Bun matcher.zig 中 UInt8(91) 分支
     private func parseCharClass(pattern: String, startIdx: Int64): (Int64, ?CharClassExpr) {
         var idx = startIdx + 1  // 跳过 [
         if (idx >= pattern.size) {
@@ -283,39 +284,39 @@ public class GlobPattern {
         let cc = CharClassExpr()
 
         // 检查取反 [!] 或 [^]
-        // 对应 Bun: if (glob[index] == '^' or glob[index] == '!')
-        if (idx < pattern.size && (pattern[Int64(idx)] == Char('!') || pattern[Int64(idx)] == Char('^'))) {
+        // 对应 Bun: if (glob[index] == UInt8(94) or glob[index] == UInt8(33))
+        if (idx < pattern.size && (pattern[Int64(idx)] == UInt8(33) || pattern[Int64(idx)] == UInt8(94))) {
             cc.negated = true
             idx += 1
         }
 
         // 解析字符/范围
-        while (idx < pattern.size && pattern[Int64(idx)] != Char(']')) {
+        while (idx < pattern.size && pattern[Int64(idx)] != UInt8(93)) {
             // 处理转义
-            if (pattern[Int64(idx)] == Char('\\') && idx + 1 < pattern.size) {
+            if (pattern[Int64(idx)] == UInt8(92) && idx + 1 < pattern.size) {
                 idx += 1
-                let ch = UInt8(pattern[Int64(idx)].value)
+                let ch = pattern[Int64(idx)]
                 // 检查范围: \a-\z
-                if (idx + 2 < pattern.size && pattern[Int64(idx + 1)] == Char('-') && pattern[Int64(idx + 2)] != Char(']')) {
+                if (idx + 2 < pattern.size && pattern[Int64(idx + 1)] == UInt8(45) && pattern[Int64(idx + 2)] != UInt8(93)) {
                     let low = ch
                     idx += 2
-                    let high = UInt8(pattern[Int64(idx)].value)
+                    let high = pattern[Int64(idx)]
                     cc.addRange(low, high)
                 } else {
                     cc.addChar(ch)
                 }
                 idx += 1
             } else {
-                let ch = UInt8(pattern[Int64(idx)].value)
+                let ch = pattern[Int64(idx)]
                 // 检查范围: a-z
-                if (idx + 2 < pattern.size && pattern[Int64(idx + 1)] == Char('-') && pattern[Int64(idx + 2)] != Char(']')) {
+                if (idx + 2 < pattern.size && pattern[Int64(idx + 1)] == UInt8(45) && pattern[Int64(idx + 2)] != UInt8(93)) {
                     let low = ch
                     idx += 2
                     // 处理结束字符的转义
-                    if (pattern[Int64(idx)] == Char('\\') && idx + 1 < pattern.size) {
+                    if (pattern[Int64(idx)] == UInt8(92) && idx + 1 < pattern.size) {
                         idx += 1
                     }
-                    let high = UInt8(pattern[Int64(idx)].value)
+                    let high = pattern[Int64(idx)]
                     cc.addRange(low, high)
                 } else {
                     cc.addChar(ch)
@@ -325,7 +326,7 @@ public class GlobPattern {
         }
 
         // 跳过 ]
-        if (idx < pattern.size && pattern[Int64(idx)] == Char(']')) {
+        if (idx < pattern.size && pattern[Int64(idx)] == UInt8(93)) {
             idx += 1
         }
 
@@ -342,14 +343,14 @@ public class GlobPattern {
 
         while (idx < pattern.size && depth > 0) {
             let ch = pattern[Int64(idx)]
-            if (ch == Char('\\') && idx + 1 < pattern.size) {
+            if (ch == UInt8(92) && idx + 1 < pattern.size) {
                 current.append(pattern[Int64(idx + 1)])
                 idx += 2
-            } else if (ch == Char('{')) {
+            } else if (ch == UInt8(123)) {
                 depth += 1
                 current.append(ch)
                 idx += 1
-            } else if (ch == Char('}')) {
+            } else if (ch == UInt8(125)) {
                 depth -= 1
                 if (depth == 0) {
                     alternatives.append(current.toString())
@@ -357,7 +358,7 @@ public class GlobPattern {
                     current.append(ch)
                 }
                 idx += 1
-            } else if (ch == Char(',') && depth == 1) {
+            } else if (ch == UInt8(44) && depth == 1) {
                 alternatives.append(current.toString())
                 current = StringBuilder()
                 idx += 1
@@ -372,13 +373,13 @@ public class GlobPattern {
 
     /// 转义字符处理
     /// 对应 Bun matcher.zig: unescape()
-    private func unescapeChar(ch: Char): String {
+    private func unescapeChar(ch: UInt8): String {
         match (ch) {
-            case Char('a') => "a"      // \a -> alarm (literal 'a' in Bun)
-            case Char('b') => "\b"     // \b -> backspace
-            case Char('n') => "\n"     // \n -> newline
-            case Char('r') => "\r"     // \r -> carriage return
-            case Char('t') => "\t"     // \t -> tab
+            case 97 => "a"      // \a -> alarm (literal UInt8(97) in Bun)
+            case 98 => "\b"     // \b -> backspace
+            case 110 => "\n"     // \n -> newline
+            case 114 => "\r"     // \r -> carriage return
+            case 116 => "\t"     // \t -> tab
             case _ => ch.toString()    // 其他: 字面量
         }
     }
@@ -470,13 +471,13 @@ public class GlobMatcher {
 
     /// 匹配 glob 模式与路径
     /// 对应 Bun: match(glob, path) -> MatchResult
-    public func match(glob: String, path: String): GlobMatchResult {
+    public func `match`(glob: String, path: String): GlobMatchResult {
         let state = MatchState()
         var negated = false
 
         // 处理前导 ! 取反
-        // 对应 Bun: while (glob_index < glob.len and glob[glob_index] == '!')
-        while (state.globIndex < glob.size && glob[Int64(state.globIndex)] == Char('!')) {
+        // 对应 Bun: while (glob_index < glob.len and glob[glob_index] == UInt8(33))
+        while (state.globIndex < glob.size && glob[Int64(state.globIndex)] == UInt8(33)) {
             negated = !negated
             state.globIndex += 1
         }
@@ -492,13 +493,13 @@ public class GlobMatcher {
     }
 
     /// 静态匹配方法
-    public static func match(pattern: String, path: String): Bool {
-        return GlobMatcher().match(pattern, path).isMatch()
+    public static func matchPattern(pattern: String, path: String): Bool {
+        return GlobMatcher().`match`(pattern, path).isMatch()
     }
 
     /// 静态匹配方法 (带大小写选项)
-    public static func match(pattern: String, path: String, caseSensitive: Bool): Bool {
-        return GlobMatcher(caseSensitive).match(pattern, path).isMatch()
+    public static func matchPattern(pattern: String, path: String, caseSensitive: Bool): Bool {
+        return GlobMatcher(caseSensitive).`match`(pattern, path).isMatch()
     }
 
     /// 核心匹配实现
@@ -512,10 +513,10 @@ public class GlobMatcher {
                 let ch = glob[Int64(state.globIndex)]
 
                 match (ch) {
-                    case Char('*') => {
+                    case 42 =>
                         // 检查 ** (globstar)
                         let isGlobstar = state.globIndex + 1 < glob.size &&
-                                         glob[Int64(state.globIndex + 1)] == Char('*')
+                                         glob[Int64(state.globIndex + 1)] == UInt8(42)
 
                         if (isGlobstar) {
                             // 跳过连续 **/
@@ -536,16 +537,16 @@ public class GlobMatcher {
                             // 跳过尾部的 /**
                             if (isEndInvalid && state.globIndex + 2 <= glob.size) {
                                 let remaining = glob.size - state.globIndex
-                                if (remaining == 2 && glob[Int64(state.globIndex)] == Char('/') &&
-                                    glob[Int64(state.globIndex + 1)] == Char('*')) {
+                                if (remaining == 2 && glob[Int64(state.globIndex)] == UInt8(47) &&
+                                    glob[Int64(state.globIndex + 1)] == UInt8(42)) {
                                     continue
                                 }
                             }
 
                             // ** 必须匹配完整路径段
                             let idx3 = if (state.globIndex >= 3) { state.globIndex - 3 } else { 0 }
-                            if (state.globIndex - 0 < 3 || glob[Int64(idx3)] == Char('/')) {
-                                if (!isEndInvalid || glob[Int64(state.globIndex)] == Char('/')) {
+                            if (state.globIndex - 0 < 3 || glob[Int64(idx3)] == UInt8(47)) {
+                                if (!isEndInvalid || glob[Int64(state.globIndex)] == UInt8(47)) {
                                     if (isEndInvalid) {
                                         state.globIndex += 1
                                     }
@@ -575,8 +576,7 @@ public class GlobMatcher {
                         }
 
                         continue
-                    }
-                    case Char('?') => {
+                    case 63 =>
                         // ? 匹配单个非 / 字符
                         if (state.pathIndex < path.size) {
                             if (!isSeparator(path[Int64(state.pathIndex)])) {
@@ -587,37 +587,36 @@ public class GlobMatcher {
                         } else {
                             // 路径耗尽, 需要回溯
                         }
-                    }
-                    case Char('[') => {
+                    case 91 =>
                         // 字符类匹配
                         if (state.pathIndex < path.size) {
                             state.globIndex += 1
                             var charNegated = false
                             if (state.globIndex < glob.size &&
-                                (glob[Int64(state.globIndex)] == Char('^') || glob[Int64(state.globIndex)] == Char('!'))) {
+                                (glob[Int64(state.globIndex)] == UInt8(94) || glob[Int64(state.globIndex)] == UInt8(33))) {
                                 charNegated = true
                                 state.globIndex += 1
                             }
 
                             var isMatch = false
                             var first = true
-                            let pathCh = UInt8(path[Int64(state.pathIndex)].value)
+                            let pathCh = path[Int64(state.pathIndex)]
 
-                            while (state.globIndex < glob.size && (first || glob[Int64(state.globIndex)] != Char(']'))) {
+                            while (state.globIndex < glob.size && (first || glob[Int64(state.globIndex)] != UInt8(93))) {
                                 first = false
                                 if (state.globIndex >= glob.size) { break }
 
                                 var low = glob[Int64(state.globIndex)]
-                                var lowVal = UInt8(low.value)
+                                var lowVal = low
                                 state.globIndex += 1
 
                                 // 检查范围 a-z
                                 var highVal = lowVal
                                 if (state.globIndex + 1 < glob.size &&
-                                    glob[Int64(state.globIndex)] == Char('-') &&
-                                    glob[Int64(state.globIndex + 1)] != Char(']')) {
+                                    glob[Int64(state.globIndex)] == UInt8(45) &&
+                                    glob[Int64(state.globIndex + 1)] != UInt8(93)) {
                                     state.globIndex += 1
-                                    highVal = UInt8(glob[Int64(state.globIndex)].value)
+                                    highVal = glob[Int64(state.globIndex)]
                                     state.globIndex += 1
                                 }
 
@@ -627,7 +626,7 @@ public class GlobMatcher {
                             }
 
                             // 跳过 ]
-                            if (state.globIndex < glob.size && glob[Int64(state.globIndex)] == Char(']')) {
+                            if (state.globIndex < glob.size && glob[Int64(state.globIndex)] == UInt8(93)) {
                                 state.globIndex += 1
                             }
 
@@ -637,22 +636,20 @@ public class GlobMatcher {
                             }
                             // 不匹配, 回溯
                         }
-                    }
-                    case Char('{') => {
+                    case 123 =>
                         // 花括号替代 - 展开所有选项并尝试
                         let result = tryAlternatives(glob, path, state)
                         if (result) { continue }
-                    }
-                    case Char(',') => {
+                    case 44 =>
                         // 在花括号内的逗号, 应该由花括号处理
-                    }
-                    case Char('}') => {
+                        ()
+                    case 125 =>
                         // 闭合花括号
-                    }
-                    case _ => {
+                        ()
+                    case _ =>
                         // 字面量匹配 (含转义处理)
                         var cc = ch
-                        if (cc == Char('\\')) {
+                        if (cc == UInt8(92)) {
                             state.globIndex += 1
                             if (state.globIndex >= glob.size) { return false }
                             cc = glob[Int64(state.globIndex)]
@@ -661,25 +658,24 @@ public class GlobMatcher {
                         // 路径字符比较
                         if (state.pathIndex < path.size) {
                             let pathCh = path[Int64(state.pathIndex)]
-                            let isMatch = if (cc == Char('/')) {
+                            let isMatch = if (cc == UInt8(47)) {
                                 isSeparator(pathCh)
                             } else if (caseSensitive) {
                                 cc == pathCh
                             } else {
-                                cc.toLower() == pathCh.toLower()
+                                toLowerAscii(cc) == toLowerAscii(pathCh)
                             }
 
                             if (isMatch) {
                                 state.globIndex += 1
                                 state.pathIndex += 1
-                                if (cc == Char('/') && state.hasGlobstar) {
+                                if (cc == UInt8(47) && state.hasGlobstar) {
                                     state.wildcardGlobIdx = state.globstarGlobIdx
                                     state.wildcardPathIdx = state.globstarPathIdx
                                 }
                                 continue
                             }
                         }
-                    }
                 }
             }
 
@@ -695,18 +691,24 @@ public class GlobMatcher {
         return true
     }
 
+    private func toLowerAscii(b: UInt8): UInt8 {
+        if (b >= UInt8(65) && b <= UInt8(90)) {
+            return b + UInt8(32)
+        }
+        return b
+    }
+
     /// 跳过连续的 **/ 段
     /// 对应 Bun: skipGlobstars()
     private func skipGlobstars(glob: String, idx: Int64): Int64 {
         var i = idx + 2
         while (i + 3 <= glob.size) {
-            let s = glob.substring(Int64(i), Int64(i + 3))
-            if (s == "/**") {
+            if (glob[Int64(i)] == UInt8(47) && glob[Int64(i + 1)] == UInt8(42) && glob[Int64(i + 2)] == UInt8(42)) {
                 if (i + 3 == glob.size) {
                     return i
                 }
                 // 检查是否是 **/
-                if (glob[Int64(i + 3)] == Char('/')) {
+                if (glob[Int64(i + 3)] == UInt8(47)) {
                     i += 3
                 } else {
                     break
@@ -749,14 +751,14 @@ public class GlobMatcher {
 
         while (idx < glob.size && depth > 0) {
             let ch = glob[Int64(idx)]
-            if (ch == Char('\\') && idx + 1 < glob.size) {
+            if (ch == UInt8(92) && idx + 1 < glob.size) {
                 current.append(glob[Int64(idx + 1)])
                 idx += 2
-            } else if (ch == Char('{')) {
+            } else if (ch == UInt8(123)) {
                 depth += 1
                 current.append(ch)
                 idx += 1
-            } else if (ch == Char('}')) {
+            } else if (ch == UInt8(125)) {
                 depth -= 1
                 if (depth == 0) {
                     alternatives.append(current.toString())
@@ -764,7 +766,7 @@ public class GlobMatcher {
                     current.append(ch)
                 }
                 idx += 1
-            } else if (ch == Char(',') && depth == 1) {
+            } else if (ch == UInt8(44) && depth == 1) {
                 alternatives.append(current.toString())
                 current = StringBuilder()
                 idx += 1
@@ -775,12 +777,12 @@ public class GlobMatcher {
         }
 
         // 构建剩余模式 (花括号之后)
-        let rest = glob.substring(Int64(idx))
+        let rest = glob[Int64(idx)..]
 
         // 尝试每个选项
         for (alt in alternatives) {
             let newGlob = alt + rest
-            let result = GlobMatcher(caseSensitive).match(newGlob, path.substring(Int64(state.pathIndex)))
+            let result = GlobMatcher(caseSensitive).`match`(newGlob, path[Int64(state.pathIndex)..])
             if (result.isMatch()) {
                 return true
             }
@@ -790,9 +792,9 @@ public class GlobMatcher {
     }
 
     /// 判断是否为路径分隔符
-    /// 对应 Bun: isSeparator() - Linux: '/', Windows: '/' or '\'
-    private func isSeparator(ch: Char): Bool {
-        return ch == Char('/')
+    /// 对应 Bun: isSeparator() - Linux: UInt8(47), Windows: UInt8(47) or '\'
+    private func isSeparator(ch: UInt8): Bool {
+        return ch == UInt8(47)
     }
 }
 
@@ -848,16 +850,16 @@ public class BraceExpander {
         var deepestOpen = -1
 
         for (i in 0..pattern.size) {
-            if (pattern[Int64(i)] == Char('\\')) {
+            if (pattern[Int64(i)] == UInt8(92)) {
                 continue  // 跳过转义
             }
-            if (pattern[Int64(i)] == Char('{')) {
+            if (pattern[Int64(i)] == UInt8(123)) {
                 depth += 1
                 if (depth > maxDepth) {
                     maxDepth = depth
                     deepestOpen = i
                 }
-            } else if (pattern[Int64(i)] == Char('}')) {
+            } else if (pattern[Int64(i)] == UInt8(125)) {
                 if (depth > 0) {
                     depth -= 1
                 }
@@ -874,9 +876,9 @@ public class BraceExpander {
         var closeIdx = -1
         depth = 0
         for (i in deepestOpen..pattern.size) {
-            if (pattern[Int64(i)] == Char('{')) {
+            if (pattern[Int64(i)] == UInt8(123)) {
                 depth += 1
-            } else if (pattern[Int64(i)] == Char('}')) {
+            } else if (pattern[Int64(i)] == UInt8(125)) {
                 depth -= 1
                 if (depth == 0) {
                     closeIdx = i
@@ -892,11 +894,11 @@ public class BraceExpander {
         }
 
         // 提取选项
-        let inner = pattern.substring(Int64(deepestOpen + 1), Int64(closeIdx))
+        let inner = pattern[Int64(deepestOpen + 1)..Int64(closeIdx)]
         let options = splitAlternatives(inner)
-        let before = pattern.substring(0, Int64(deepestOpen))
+        let before = pattern[0..Int64(deepestOpen)]
         let after = if (closeIdx + 1 < pattern.size) {
-            pattern.substring(Int64(closeIdx + 1))
+            pattern[Int64(closeIdx + 1)..]
         } else {
             ""
         }
@@ -916,18 +918,18 @@ public class BraceExpander {
 
         for (i in 0..s.size) {
             let ch = s[Int64(i)]
-            if (ch == Char('\\') && i + 1 < s.size) {
+            if (ch == UInt8(92) && i + 1 < s.size) {
                 current.append(ch)
                 current.append(s[Int64(i + 1)])
                 continue
             }
-            if (ch == Char('{')) {
+            if (ch == UInt8(123)) {
                 depth += 1
                 current.append(ch)
-            } else if (ch == Char('}')) {
+            } else if (ch == UInt8(125)) {
                 depth -= 1
                 current.append(ch)
-            } else if (ch == Char(',') && depth == 0) {
+            } else if (ch == UInt8(44) && depth == 0) {
                 options.append(current.toString())
                 current = StringBuilder()
             } else {
@@ -951,12 +953,12 @@ public class GlobUtils {
     /// 排除反斜杠转义的特殊字符
     public static func detectGlobSyntax(potentialPattern: String): Bool {
         // 取反仅允许在模式开头
-        if (potentialPattern.size > 0 && potentialPattern[Int64(0)] == Char('!')) {
+        if (potentialPattern.size > 0 && potentialPattern[Int64(0)] == UInt8(33)) {
             return true
         }
 
         // 按流行度排序的特殊语法字符
-        let specialChars = [Char('*'), Char('{'), Char('['), Char('?')]
+        let specialChars = [UInt8(42), UInt8(123), UInt8(91), UInt8(63)]
 
         for (token in specialChars) {
             var idx = 0
@@ -968,7 +970,7 @@ public class GlobUtils {
                         // 检查前面的反斜杠数是否为偶数
                         var backslashCount = 0
                         var j = i
-                        while (j > 0 && potentialPattern[Int64(j - 1)] == Char('\\')) {
+                        while (j > 0 && potentialPattern[Int64(j - 1)] == UInt8(92)) {
                             backslashCount += 1
                             j -= 1
                         }

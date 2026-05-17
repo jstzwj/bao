@@ -1,1 +1,13 @@
 target/
+
+# Test run artifacts
+/test/**/.bun/
+/test/**/.vite/
+/test/**/.svelte-kit/
+/test/**/.next/
+/test/**/coverage/
+/test/**/.nyc_output/
+/test/**/*.tsbuildinfo
+/test/**/*.log
+/test/**/.tmp.*
+/test/**/fails.txt

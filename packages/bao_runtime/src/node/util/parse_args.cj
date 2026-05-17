@@ -4,7 +4,7 @@
 package bao_runtime.node.util
 
 import bao_core.*
-import std.collection.*
+import bao_collections.*  // std.collection.*
 
 // ============================================================================
 // 选项定义
@@ -146,18 +146,18 @@ public class ParseArgs {
                     let token = ParseToken()
                     token.kind = "option-terminator"
                     token.index = i
-                    result.tokens.add(token)
+                    result.tokens.append(token)
                 }
                 i += 1
                 // 之后的所有参数都是位置参数
                 while (i < args.size) {
-                    result.positionals.add(args[Int64(i)])
+                    result.positionals.append(args[Int64(i)])
                     if (returnTokens) {
                         let posToken = ParseToken()
                         posToken.kind = "positional"
                         posToken.index = i
                         posToken.value = args[Int64(i)]
-                        result.tokens.add(posToken)
+                        result.tokens.append(posToken)
                     }
                     i += 1
                 }
@@ -170,13 +170,13 @@ public class ParseArgs {
                     throw NodeError("ERR_PARSE_ARGS_UNEXPECTED_POSITIONAL",
                         "Unexpected argument '${arg}'. This command does not take positional arguments")
                 }
-                result.positionals.add(arg)
+                result.positionals.append(arg)
                 if (returnTokens) {
                     let posToken = ParseToken()
                     posToken.kind = "positional"
                     posToken.index = i
                     posToken.value = arg
-                    result.tokens.add(posToken)
+                    result.tokens.append(posToken)
                 }
                 i += 1
                 continue
@@ -204,7 +204,7 @@ public class ParseArgs {
         for (optDef in options) {
             if (!result.values.contains(optDef.longName) && optDef.defaultValue.isSome()) {
                 if (optDef.longName != "__proto__") {
-                    result.values.add(optDef.longName, optDef.defaultValue.getOrThrow())
+                    result.values.put(optDef.longName, optDef.defaultValue.getOrThrow())
                 }
             }
         }
@@ -308,7 +308,7 @@ public class ParseArgs {
             token.value = value
             token.inlineValue = inlineValue
             token.negative = negative
-            result.tokens.add(token)
+            result.tokens.append(token)
         }
 
         return i + 1
@@ -345,7 +345,7 @@ public class ParseArgs {
                 token.rawName = arg[0..2]
                 token.value = value
                 token.inlineValue = true
-                result.tokens.add(token)
+                result.tokens.append(token)
             }
             return i + 1
         }
@@ -375,7 +375,7 @@ public class ParseArgs {
                 token.rawName = arg
                 token.value = value
                 token.inlineValue = !hasValue
-                result.tokens.add(token)
+                result.tokens.append(token)
             }
             return i + 1
         }
@@ -409,7 +409,7 @@ public class ParseArgs {
                         token.rawName = "-" + shortName
                         token.value = value
                         token.inlineValue = !hasValue
-                        result.tokens.add(token)
+                        result.tokens.append(token)
                     }
 
                     if (hasValue) {
@@ -428,7 +428,7 @@ public class ParseArgs {
                         token.rawName = "-" + shortName
                         token.value = value
                         token.inlineValue = true
-                        result.tokens.add(token)
+                        result.tokens.append(token)
                     }
                     break // 短选项组结束
                 }
@@ -471,16 +471,16 @@ public class ParseArgs {
                 // 多值布尔: 累积到数组
                 let existing = result.values.get(name)
                 if (existing.isSome() && existing.getOrThrow().isArray) {
-                    existing.getOrThrow().arrayValues.add(newValue)
-                    result.values.add(name, existing.getOrThrow())
+                    existing.getOrThrow().arrayValues.append(newValue)
+                    result.values.put(name, existing.getOrThrow())
                 } else {
                     let list = ArrayList<ParseArgValue>()
-                    list.add(newValue)
+                    list.append(newValue)
                     let arr = ParseArgValue.fromArray(list)
-                    result.values.add(name, arr)
+                    result.values.put(name, arr)
                 }
             } else {
-                result.values.add(name, newValue)
+                result.values.put(name, newValue)
             }
         } else {
             // 字符串选项
@@ -494,16 +494,16 @@ public class ParseArgs {
             if (optDef.multiple) {
                 let existing = result.values.get(name)
                 if (existing.isSome() && existing.getOrThrow().isArray) {
-                    existing.getOrThrow().arrayValues.add(newValue)
-                    result.values.add(name, existing.getOrThrow())
+                    existing.getOrThrow().arrayValues.append(newValue)
+                    result.values.put(name, existing.getOrThrow())
                 } else {
                     let list = ArrayList<ParseArgValue>()
-                    list.add(newValue)
+                    list.append(newValue)
                     let arr = ParseArgValue.fromArray(list)
-                    result.values.add(name, arr)
+                    result.values.put(name, arr)
                 }
             } else {
-                result.values.add(name, newValue)
+                result.values.put(name, newValue)
             }
         }
     }

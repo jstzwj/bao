@@ -3,6 +3,7 @@
 package bao_sql.postgres
 
 import bao_sql.postgres.types.IntTypes
+import bao_collections.*
 
 /// PostgreSQL 协议常量和消息类型汇总
 /// 对应 Bun: PostgresProtocol
@@ -45,13 +46,17 @@ public class PostgresProtocol {
     /// 对应 Bun: PostgresProtocol.writeQuery
     public static func buildQueryBytes(query: String): Array<UInt8> {
         let count: UInt32 = 4 + UInt32(query.size) + 1
-        let header = Array<UInt8>(query.size + 5, repeat: UInt8(0))
-        header[0] = 0x51 // 'Q'
+        let result = ArrayList<UInt8>()
+        result.append(0x51) // 'Q'
         let countBytes = IntTypes.int32(count)
-        header[1] = countBytes[0]
-        header[2] = countBytes[1]
-        header[3] = countBytes[2]
-        header[4] = countBytes[3]
-        return header
+        result.append(countBytes[0])
+        result.append(countBytes[1])
+        result.append(countBytes[2])
+        result.append(countBytes[3])
+        for (b in query) {
+            result.append(b)
+        }
+        result.append(UInt8(0))
+        return result.toOwnedSlice()
     }
 }

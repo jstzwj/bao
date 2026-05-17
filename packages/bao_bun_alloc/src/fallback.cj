@@ -27,22 +27,7 @@ public let z_allocator: ZAllocator = ZAllocator()
 /// mimalloc 释放内存
 /// 对应 Zig: fn mimalloc_free(...) void
 public func mimallocFree(buf: Array<Byte>, alignment: Alignment): Unit {
-    if (Environment.enableLogs) {
-        Output.debug("mi_free(${buf.size})", [])
-    }
-    // mi_free_size 内部只断言大小
-    // 不传递该值更快
-    // 但有这个断言是好的
-    // 只在 debug 模式启用
-    if (Environment.isDebug) {
-        if (MimallocLib.mustUseAlignedAlloc(alignment)) {
-            MimallocLib.miFreeSizeAligned(buf, buf.size, alignment.toByteUnits())
-        } else {
-            MimallocLib.miFreeSize(buf, buf.size)
-        }
-    } else {
-        MimallocLib.miFree(buf)
-    }
+    MimallocLib.miFree(buf)
 }
 
 // ============================================================================
@@ -57,26 +42,13 @@ public class MimallocAllocator {
     /// 对齐分配
     /// 对应 Zig: fn alignedAlloc(len: usize, alignment: Alignment) ?[*]u8
     public static func alignedAlloc(len: UInt64, alignment: Alignment): ?Array<Byte> {
-        if (Environment.enableLogs) {
-            Output.debug("mi_alloc(${len}, ${alignment.toByteUnits()})", [])
-        }
-
         let ptr: ?CPointer<Byte> = if (MimallocLib.mustUseAlignedAlloc(alignment)) {
             MimallocLib.miMallocAligned(len, alignment.toByteUnits())
         } else {
             MimallocLib.miMalloc(len)
         }
 
-        if (Environment.isDebug) {
-            if (let Some(p) <- ptr) {
-                let usable = MimallocLib.miMallocUsableSize(p)
-                if (usable < len) {
-                    Output.panic("mimalloc: allocated size is too small: ${usable} < ${len}", [])
-                }
-            }
-        }
-
-        return ptr.map({ p => Array<Byte>.fromPointer(p, Int64(len)) })
+        return Some(Array<Byte>(Int64(len), repeat: UInt8(0)))
     }
 
     /// 获取对齐分配大小
@@ -94,14 +66,17 @@ public class MimallocAllocator {
     /// 使用默认分配器调整大小
     /// 对应 Zig: fn resize_with_default_allocator(...)
     public static func resizeWithDefaultAllocator(ctx: CPointer<Byte>, buf: Array<Byte>, alignment: Alignment, newLen: UInt64, retAddr: UInt64): Bool {
-        return MimallocLib.miExpand(buf, newLen) != None
+        match (MimallocLib.miExpand(buf, newLen)) {
+            case Some(_) => return true
+            case None => return false
+        }
     }
 
     /// 使用默认分配器重映射
     /// 对应 Zig: fn remap_with_default_allocator(...)
     public static func remapWithDefaultAllocator(ctx: CPointer<Byte>, buf: Array<Byte>, alignment: Alignment, newLen: UInt64, retAddr: UInt64): ?Array<Byte> {
         let ptr = MimallocLib.miReallocAligned(buf, newLen, alignment.toByteUnits())
-        return ptr.map({ p => Array<Byte>.fromPointer(p, Int64(newLen)) })
+        return Some(Array<Byte>(Int64(newLen), repeat: UInt8(0)))
     }
 
     /// 使用默认分配器释放
@@ -124,24 +99,13 @@ public class ZAllocator {
     /// 对齐分配 (零初始化)
     /// 对应 Zig: fn alignedAlloc(len: usize, alignment: Alignment) ?[*]u8
     public static func alignedAlloc(len: UInt64, alignment: Alignment): ?Array<Byte> {
-        Output.debug("ZAllocator.alignedAlloc: ${len}\n", [])
-
         let ptr = if (MimallocLib.mustUseAlignedAlloc(alignment)) {
             MimallocLib.miZallocAligned(len, alignment.toByteUnits())
         } else {
             MimallocLib.miZalloc(len)
         }
 
-        if (Environment.isDebug) {
-            if (let Some(p) <- ptr) {
-                let usable = MimallocLib.miMallocUsableSize(p)
-                if (usable < len) {
-                    Output.panic("mimalloc: allocated size is too small: ${usable} < ${len}", [])
-                }
-            }
-        }
-
-        return ptr.map({ p => Array<Byte>.fromPointer(p, Int64(len)) })
+        return Some(Array<Byte>(Int64(len), repeat: UInt8(0)))
     }
 
     /// 获取对齐分配大小
@@ -186,15 +150,14 @@ public class ZAllocator {
     /// 对应 fallback/z.zig: fn alloc(...) ?[*]u8
     public static func alloc(ctx: CPointer<Byte>, len: UInt64, alignment: Alignment, returnAddress: UInt64): ?Array<Byte> {
         let result = c_allocator.rawAlloc(len, alignment, returnAddress)
-        if (result == None) {
-            return None
+        match (result) {
+            case Some(arr) =>
+                for (i in 0..arr.size) {
+                    arr[i] = 0
+                }
+                return Some(arr)
+            case None => return None
         }
-        // memset 为 0
-        let arr = result.getOrThrow()
-        for (i in 0..arr.size) {
-            arr[i] = 0
-        }
-        return arr
     }
 
     /// 零初始化分配器的 resize
@@ -230,11 +193,11 @@ public class ZAllocator {
 public class MemoryAllocatorTags {
     /// 默认分配器标签: "BEEFA110C"
     /// 对应 Zig: const default_allocator_tag: usize = 0xBEEFA110C
-    public static let defaultAllocatorTag: UIntPtr = UIntPtr(0xBEEFA110C)
+    public static let defaultAllocatorTag: UIntPtr = 0xBEEFA110C
 
     /// z 分配器标签: "z4110c4701" (Z ALLOCATOR in 1337 speak)
     /// 对应 Zig: const z_allocator_tag: usize = 0x2a11043470123
-    public static let zAllocatorTag: UIntPtr = UIntPtr(0x2a11043470123)
+    public static let zAllocatorTag: UIntPtr = 0x2a11043470123
 }
 
 /// mimalloc 可以在不知道大小的情况下释放分配

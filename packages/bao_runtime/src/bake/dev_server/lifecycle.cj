@@ -29,7 +29,7 @@ public func onFileUpdate(
     server: DevServer,
     events: Array<WatchEvent>,
     changedFiles: Array<ChangedFilePath>,
-    watchlist: WatchList,
+    watchlist: WatchList
 ): Unit {
     server.onFileUpdate(events, changedFiles, watchlist)
 }
@@ -44,11 +44,10 @@ public func onWatchError(server: DevServer, err: SystemError): Unit {
 /// WatcherAtomics 初始化。
 /// 对应 DevServer.zig WatcherAtomics.init。
 public func initWatcherAtomics(owner: DevServer): WatcherAtomics {
-    let mkEvent = (): HotReloadEvent => HotReloadEvent.initEmpty(owner)
     return WatcherAtomics(
-        events: [mkEvent(), mkEvent(), mkEvent()],
-        nextEvent: NextEvent.done,
-        currentEvent: None,
-        pendingEvent: None,
+        events: [HotReloadEvent.initEmpty(owner), HotReloadEvent.initEmpty(owner), HotReloadEvent.initEmpty(owner)],
+        next_event: Atomic<UInt8>(WatcherAtomics.nextEventDone),
+        current_event: None,
+        pending_event: None,
     )
 }

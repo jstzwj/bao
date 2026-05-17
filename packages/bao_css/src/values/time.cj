@@ -10,15 +10,22 @@ import bao_core.*
 // 严格翻译自: values/time.rs Time { Seconds(f32), Milliseconds(f32) }
 // ============================================================================
 
+public enum CssTimeKind {
+    | Seconds       // 秒 (s)
+    | Milliseconds  // 毫秒 (ms)
+
+    public operator func ==(right: CssTimeKind): Bool {
+        match (this) {
+            case Seconds => match (right) { case Seconds => true case _ => false }
+            case Milliseconds => match (right) { case Milliseconds => true case _ => false }
+        }
+    }
+}
+
 /// CSS <time> 值
 /// 严格翻译自 Time enum { Seconds(f32), Milliseconds(f32) }
 /// 时间值可以为显式值或由 calc() 计算, 但总是存储和序列化为计算值
 public class CssTime {
-    public enum CssTimeKind {
-        | Seconds       // 秒 (s)
-        | Milliseconds  // 毫秒 (ms)
-    }
-
     public var kind: CssTimeKind
     public var value: Float64
 
@@ -29,24 +36,23 @@ public class CssTime {
 
     /// 解析时间值
     /// 严格翻译自 Time::parse
-    public static func parse(input: CssParser): Result<CssTime> {
-        let token = input.next()
-        match (token) {
-            case Some(t) => {
-                let dim = t.asDimension()
-                match (dim) {
-                    case Some(d) => {
-                        let unit = d.unit.toLower()
-                        match (unit) {
-                            "s" => Result<CssTime>.ok(CssTime(CssTimeKind.Seconds, d.value))
-                            "ms" => Result<CssTime>.ok(CssTime(CssTimeKind.Milliseconds, d.value))
-                            case _ => Result<CssTime>.err(CssParseError.invalidValue)
+    public static func parse(input: CssParser): Result<CssTime, CssParseError> {
+        let numOpt = input.expectNumber()
+        match (numOpt) {
+            case Some(num) =>
+                let delimOpt = input.expectIdent()
+                match (delimOpt) {
+                    case Some(unit) =>
+                        if (unit == "s") {
+                            Result<CssTime, CssParseError>.Ok(CssTime(CssTimeKind.Seconds, num))
+                        } else if (unit == "ms") {
+                            Result<CssTime, CssParseError>.Ok(CssTime(CssTimeKind.Milliseconds, num))
+                        } else {
+                            Result<CssTime, CssParseError>.Err(CssParseError.invalidValue)
                         }
-                    }
-                    case None => Result<CssTime>.err(CssParseError.invalidValue)
+                    case None => Result<CssTime, CssParseError>.Err(CssParseError.invalidValue)
                 }
-            }
-            case None => Result<CssTime>.err(CssParseError.invalidValue)
+            case None => Result<CssTime, CssParseError>.Err(CssParseError.invalidValue)
         }
     }
 
@@ -55,22 +61,18 @@ public class CssTime {
     /// 0.1s 比 100ms 短, 更小的值更长
     public func toCss(): String {
         match (kind) {
-            case Seconds => {
+            case Seconds =>
                 if (value > 0.0 && value < 0.1) {
-                    // 使用毫秒更短
                     "${CSSNumberFns.toCss(value * 1000.0)}ms"
                 } else {
                     "${CSSNumberFns.toCss(value)}s"
                 }
-            }
-            case Milliseconds => {
+            case Milliseconds =>
                 if (value == 0.0 || value >= 100.0) {
-                    // 使用秒更短
                     "${CSSNumberFns.toCss(value / 1000.0)}s"
                 } else {
                     "${CSSNumberFns.toCss(value)}ms"
                 }
-            }
         }
     }
 
@@ -110,12 +112,13 @@ public class CssTime {
     /// 操作
     /// 严格翻译自 Time::op
     public func op(other: CssTime, opFn: (Float64, Float64) -> Float64): CssTime {
-        match (kind, other.kind) {
-            case (CssTimeKind.Seconds, CssTimeKind.Seconds) => CssTime(CssTimeKind.Seconds, opFn(value, other.value))
-            case (CssTimeKind.Milliseconds, CssTimeKind.Milliseconds) => CssTime(CssTimeKind.Milliseconds, opFn(value, other.value))
-            case (CssTimeKind.Seconds, CssTimeKind.Milliseconds) => CssTime(CssTimeKind.Seconds, opFn(value, other.value / 1000.0))
-            case (CssTimeKind.Milliseconds, CssTimeKind.Seconds) => CssTime(CssTimeKind.Milliseconds, opFn(value, other.value * 1000.0))
+        if (kind == CssTimeKind.Seconds && other.kind == CssTimeKind.Milliseconds) {
+            return CssTime(CssTimeKind.Seconds, opFn(value, other.value / 1000.0))
         }
+        if (kind == CssTimeKind.Milliseconds && other.kind == CssTimeKind.Seconds) {
+            return CssTime(CssTimeKind.Milliseconds, opFn(value, other.value * 1000.0))
+        }
+        return CssTime(kind, opFn(value, other.value))
     }
 
     /// 偏序比较
@@ -123,9 +126,9 @@ public class CssTime {
     public func partialCmp(other: CssTime): ?Ordering {
         let aMs = toMs()
         let bMs = other.toMs()
-        if (aMs < bMs) { Some(Ordering.Less) }
-        else if (aMs > bMs) { Some(Ordering.Greater) }
-        else if (aMs == bMs) { Some(Ordering.Equal) }
+        if (aMs < bMs) { Some(Ordering.LT) }
+        else if (aMs > bMs) { Some(Ordering.GT) }
+        else if (aMs == bMs) { Some(Ordering.EQ) }
         else { None }
     }
 

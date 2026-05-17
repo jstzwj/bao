@@ -29,6 +29,7 @@ package bao_watcher
 
 import bao_core.*
 import bao_sys.*
+import std.collection.*
 
 // ============================================================================
 // 常量 - 对应 Bun Watcher.zig 中的常量
@@ -54,7 +55,7 @@ public type WatchItemIndex = UInt16
 public type HashType = UInt32
 
 /// 无效监视项索引 - 对应 Bun no_watch_item = maxInt(WatchItemIndex)
-public let NO_WATCH_ITEM: WatchItemIndex = UInt16.max
+public let NO_WATCH_ITEM: WatchItemIndex = UInt16(65535)
 
 // ============================================================================
 // WatcherEventOp - 事件操作位域
@@ -122,12 +123,12 @@ public class WatcherEventOp {
     ///   }
     public static func merge(before: WatcherEventOp, after: WatcherEventOp): WatcherEventOp {
         return WatcherEventOp(
-            delete: before.delete || after.delete,
-            metadata: before.metadata || after.metadata,
-            rename: before.rename || after.rename,
-            write: before.write || after.write,
-            moveTo: before.moveTo || after.moveTo,
-            create: before.create || after.create
+            before.delete || after.delete,
+            before.metadata || after.metadata,
+            before.rename || after.rename,
+            before.write || after.write,
+            before.moveTo || after.moveTo,
+            before.create || after.create
         )
     }
 
@@ -148,13 +149,19 @@ public class WatcherEventOp {
     ///   }
     public func format(): String {
         var parts = ArrayList<String>()
-        if (delete) { parts.append("delete") }
-        if (metadata) { parts.append("metadata") }
-        if (rename) { parts.append("rename") }
-        if (write) { parts.append("write") }
-        if (moveTo) { parts.append("move_to") }
-        if (create) { parts.append("create") }
-        return "{" + ",".join(parts) + "}"
+        if (delete) { parts.add("delete") }
+        if (metadata) { parts.add("metadata") }
+        if (rename) { parts.add("rename") }
+        if (write) { parts.add("write") }
+        if (moveTo) { parts.add("move_to") }
+        if (create) { parts.add("create") }
+        var result = "{"
+        for (i in 0..parts.size) {
+            if (i > 0) { result += "," }
+            result += parts[i]
+        }
+        result += "}"
+        return result
     }
 }
 
@@ -208,9 +215,9 @@ public class WatcherEvent {
         }
         var result = ArrayList<?String>()
         let end = Int64(nameOff) + Int64(nameLen)
-        for (i in Int64(nameOff)..<end) {
+        for (i in Int64(nameOff)..end) {
             if (i < buf.size) {
-                result.append(buf[i])
+                result.add(buf[i])
             }
         }
         return result.toArray()
@@ -321,32 +328,32 @@ public class WatchItem {
     /// 便利构造: 文件类型监视项
     public static func forFile(filePath: String, hash: HashType, fd: Int64,
                                loader: Int64, parentHash: HashType): WatchItem {
-        return WatchItem(
-            filePath: filePath,
-            hash: hash,
-            loader: loader,
-            fd: fd,
-            count: UInt32(0),
-            parentHash: parentHash,
-            kind: WatchItemKind.File,
-            packageJson: None,
-            eventlistIndex: Int32(0)
-        )
+        let item = WatchItem()
+        item.filePath = filePath
+        item.hash = hash
+        item.loader = loader
+        item.fd = fd
+        item.count = UInt32(0)
+        item.parentHash = parentHash
+        item.kind = WatchItemKind.File
+        item.packageJson = None
+        item.eventlistIndex = Int32(0)
+        return item
     }
 
     /// 便利构造: 目录类型监视项
     public static func forDirectory(filePath: String, hash: HashType, fd: Int64): WatchItem {
-        return WatchItem(
-            filePath: filePath,
-            hash: hash,
-            loader: 0,  // options.Loader.file
-            fd: fd,
-            count: UInt32(0),
-            parentHash: UInt32(0),
-            kind: WatchItemKind.Directory,
-            packageJson: None,
-            eventlistIndex: Int32(0)
-        )
+        let item = WatchItem()
+        item.filePath = filePath
+        item.hash = hash
+        item.loader = 0  // options.Loader.file
+        item.fd = fd
+        item.count = UInt32(0)
+        item.parentHash = UInt32(0)
+        item.kind = WatchItemKind.Directory
+        item.packageJson = None
+        item.eventlistIndex = Int32(0)
+        return item
     }
 }
 
@@ -385,7 +392,7 @@ public class WatchList {
     /// 追加元素 (假设已有足够容量) - 对应 MultiArrayList.appendAssumeCapacity
     /// 严格翻译自: Watcher.zig 中多处调用 watchlist.appendAssumeCapacity(item)
     public func appendAssumeCapacity(item: WatchItem): Unit {
-        items.append(item)
+        items.add(item)
     }
 
     /// 确保额外容量 - 对应 MultiArrayList.ensureUnusedCapacity
@@ -406,7 +413,7 @@ public class WatchList {
         if (index < items.size - 1) {
             items[index] = items[items.size - 1]
         }
-        items.removeAt(items.size - 1)
+        items.remove(at: items.size - 1)
         return removed
     }
 
@@ -447,7 +454,7 @@ public class WatchList {
     public func fds(): Array<Int64> {
         var result = ArrayList<Int64>()
         for (item in items) {
-            result.append(item.fd)
+            result.add(item.fd)
         }
         return result.toArray()
     }
@@ -456,7 +463,7 @@ public class WatchList {
     public func hashes(): Array<HashType> {
         var result = ArrayList<HashType>()
         for (item in items) {
-            result.append(item.hash)
+            result.add(item.hash)
         }
         return result.toArray()
     }
@@ -465,7 +472,7 @@ public class WatchList {
     public func filePaths(): Array<String> {
         var result = ArrayList<String>()
         for (item in items) {
-            result.append(item.filePath)
+            result.add(item.filePath)
         }
         return result.toArray()
     }
@@ -476,7 +483,7 @@ public class WatchList {
     public func eventlistIndices(): Array<Int32> {
         var result = ArrayList<Int32>()
         for (item in items) {
-            result.append(item.eventlistIndex)
+            result.add(item.eventlistIndex)
         }
         return result.toArray()
     }

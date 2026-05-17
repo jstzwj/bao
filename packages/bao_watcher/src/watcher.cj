@@ -13,6 +13,7 @@ package bao_watcher
 import bao_core.*
 import bao_sys.*
 import bao_event_loop.*
+import bao_collections.*
 import bao_threading.*
 
 // ============================================================================
@@ -158,13 +159,13 @@ public class Watcher {
         closeDescriptors = false
 
         // 初始化事件缓冲区 - 对应 allocator.alloc(WatchEvent, max_count)
-        watchEvents = Array<WatcherEvent>(WATCHER_MAX_COUNT, item: WatcherEvent())
+        watchEvents = Array<WatcherEvent>(WATCHER_MAX_COUNT, { _ => WatcherEvent() })
 
         // 初始化变更路径缓冲区 - 对应 [_]?[:0]u8{null} ** max_count
-        changedFilepaths = Array<?String>(WATCHER_MAX_COUNT, item: None)
+        changedFilepaths = Array<?String>(WATCHER_MAX_COUNT, { _ => None })
 
         // 初始化驱逐列表 - 对应 [max_eviction_count]WatchItemIndex
-        evictList = Array<WatchItemIndex>(WATCHER_MAX_EVICTION_COUNT, item: UInt16(0))
+        evictList = Array<WatchItemIndex>(WATCHER_MAX_EVICTION_COUNT, { _ => UInt16(0) })
         evictListI = UInt16(0)
 
         // 平台特定初始化
@@ -178,7 +179,7 @@ public class Watcher {
     /// 必须在构造后调用, 因为可能涉及系统调用 (inotify_init1 等)
     public func initPlatform(): Unit {
         let inotify = InotifyWatcher()
-        let result = inotify.init(topLevelDir)
+        let result = inotify.initFunc(topLevelDir)
         match (result) {
             case Ok(_) => platform = inotify
             case Err(e) => throw BaoError(ErrorCode.Unexpected,
@@ -186,7 +187,7 @@ public class Watcher {
         }
 
         // 初始化 trace - 对应 WatcherTrace.init()
-        WatcherTrace.instance.init()
+        WatcherTrace.instance.initFunc()
     }
 
     // ========================================================================
@@ -200,12 +201,12 @@ public class Watcher {
     ///       this.thread = try std.Thread.spawn(.{}, threadMain, .{this});
     ///   }
     public func start(): Unit {
-        if (watchloopHandle != None) {
+        if (watchloopHandle.isSome()) {
             throw BaoError(ErrorCode.Unexpected, "Watcher already started")
         }
 
         // 启动监视线程 - 对应 std.Thread.spawn(.{}, threadMain, .{this})
-        let thread = spawnThread({
+        let thread = spawnThread({ =>
             this.threadMain()
         })
     }
@@ -229,7 +230,7 @@ public class Watcher {
     ///       }
     ///   }
     public func deinit(closeDescriptors: Bool): Unit {
-        if (watchloopHandle != None) {
+        if (watchloopHandle.isSome()) {
             mutex.lock()
             this.closeDescriptors = closeDescriptors
             running = false
@@ -290,18 +291,17 @@ public class Watcher {
         let loopResult = watchLoop()
 
         match (loopResult) {
-            case Err(err) => {
+            case Err(err) =>
                 watchloopHandle = None
-                if (let Some(p) = platform) {
+                if (let Some(p) <- platform) {
                     p.stop()
                 }
                 if (running) {
                     onErrorFn(ctx, err)
                 }
-            }
-            case Ok(_) => {
+            case Ok(_) =>
                 // 正常退出
-            }
+                ()
         }
 
         // deinit 和 close descriptors
@@ -334,7 +334,7 @@ public class Watcher {
             // 调用平台特定的 watchLoopCycle
             // 严格翻译自: Platform.watchLoopCycle(this)
             // 在 Linux 上, 这会调用 INotifyWatcher.watchLoopCycle
-            if (let Some(p) = platform) {
+            if (let Some(p) <- platform) {
                 let cycleResult = p.watchLoopCycle(this)
                 match (cycleResult) {
                     case Err(err) => return SysMaybe<Unit>.Err(err)
@@ -361,7 +361,7 @@ public class Watcher {
         // 使用简单的 FNV-1a 哈希近似 Bun 的 bun.hash
         var hash: UInt32 = UInt32(2166136261)
         for (i in 0..filepath.size) {
-            let ch = UInt32(Int32(filepath[i].value) & 0xFF)
+            let ch = UInt32(Int64(filepath[i]))
             hash = hash ^ ch
             hash = hash * UInt32(16777619)
         }
@@ -393,18 +393,18 @@ public class Watcher {
                          loader: Int64, dirFd: Int64,
                          packageJson: ?Any, cloneFilePath: Bool): SysMaybe<Unit> {
         mutex.lock()
-        defer {
-            mutex.unlock()
-        }
 
         // 如果已经监视, 直接返回成功
         // 严格翻译自: Watcher.zig:735-746
-        if (let Some(index) = indexOf(hash)) {
+        if (let Some(index) <- indexOf(hash)) {
+            mutex.unlock()
             return SysMaybe<Unit>.Ok(())
         }
 
-        return appendFileMaybeLock(fd, filePath, hash, loader, dirFd,
+        let result = appendFileMaybeLock(fd, filePath, hash, loader, dirFd,
                                     packageJson, cloneFilePath, false)
+        mutex.unlock()
+        return result
     }
 
     /// 添加文件 (可能加锁) - 对应 Bun Watcher.appendFileMaybeLock
@@ -419,33 +419,30 @@ public class Watcher {
         if (lock) {
             mutex.lock()
         }
-        defer {
-            if (lock) {
-                mutex.unlock()
+
+        try {
+            // 路径必须非空
+            if (filePath.size <= 1) {
+                if (lock) { mutex.unlock() }
+                return SysMaybe<Unit>.Ok(())
             }
+
+            // 计算父目录哈希
+            let parentDir = parentDirectory(filePath)
+            let parentDirHash = getHash(parentDir)
+
+            // 确保监视列表有足够容量
+            watchlist.ensureUnusedCapacity(2)
+
+            // 追加文件 - 对应 appendFileAssumeCapacity
+            let result = appendFileAssumeCapacity(fd, filePath, hash, loader,
+                                             parentDirHash, packageJson, cloneFilePath)
+            if (lock) { mutex.unlock() }
+            return result
+        } catch (e: Exception) {
+            if (lock) { mutex.unlock() }
+            throw e
         }
-
-        // 路径必须非空
-        if (filePath.size <= 1) {
-            return SysMaybe<Unit>.Ok(())
-        }
-
-        // 计算父目录哈希
-        // 严格翻译自: Watcher.zig:553-555
-        //   const pathname = bun.fs.PathName.init(file_path);
-        //   const parent_dir = pathname.dirWithTrailingSlash();
-        //   const parent_dir_hash: HashType = getHash(parent_dir);
-        let parentDir = parentDirectory(filePath)
-        let parentDirHash = getHash(parentDir)
-
-        // 确保监视列表有足够容量
-        // 严格翻译自: Watcher.zig:577
-        //   bun.handleOom(this.watchlist.ensureUnusedCapacity(this.allocator, 1 + ...))
-        watchlist.ensureUnusedCapacity(2)
-
-        // 追加文件 - 对应 appendFileAssumeCapacity
-        return appendFileAssumeCapacity(fd, filePath, hash, loader,
-                                         parentDirHash, packageJson, cloneFilePath)
     }
 
     /// 追加文件 (假设有足够容量) - 对应 Bun Watcher.appendFileAssumeCapacity
@@ -466,7 +463,7 @@ public class Watcher {
         //       item.eventlist_index = switch (this.platform.watchPath(slice)) { ... };
         //   }
         var eventlistIndex: Int32 = Int32(0)
-        if (let Some(p) = platform) {
+        if (let Some(p) <- platform) {
             match (p.watchPath(filePath)) {
                 case Ok(wd) => eventlistIndex = wd
                 case Err(err) => return SysMaybe<Unit>.Err(err)
@@ -474,15 +471,9 @@ public class Watcher {
         }
 
         let item = WatchItem(
-            filePath: filePath,
-            hash: hash,
-            loader: loader,
-            fd: fd,
-            count: UInt32(0),
-            parentHash: parentHash,
-            kind: WatchItemKind.File,
-            packageJson: packageJson,
-            eventlistIndex: eventlistIndex
+            filePath, hash, loader, fd,
+            UInt32(0), parentHash,
+            WatchItemKind.File, packageJson, eventlistIndex
         )
 
         watchlist.appendAssumeCapacity(item)
@@ -502,17 +493,17 @@ public class Watcher {
     public func addDirectory(fd: Int64, filePath: String, hash: HashType,
                               cloneFilePath: Bool): SysMaybe<WatchItemIndex> {
         mutex.lock()
-        defer {
-            mutex.unlock()
-        }
 
         // 如果已存在, 返回索引
-        if (let Some(idx) = indexOf(hash)) {
+        if (let Some(idx) <- indexOf(hash)) {
+            mutex.unlock()
             return SysMaybe<WatchItemIndex>.Ok(UInt16(Int64(idx)))
         }
 
         watchlist.ensureUnusedCapacity(1)
-        return appendDirectoryAssumeCapacity(fd, filePath, hash, cloneFilePath)
+        let result = appendDirectoryAssumeCapacity(fd, filePath, hash, cloneFilePath)
+        mutex.unlock()
+        return result
     }
 
     /// 追加目录 (假设有足够容量) - 对应 Bun Watcher.appendDirectoryAssumeCapacity
@@ -540,7 +531,7 @@ public class Watcher {
         // 平台特定注册 - inotify watchDir
         // 严格翻译自: Watcher.zig:511-529
         var eventlistIndex: Int32 = Int32(0)
-        if (let Some(p) = platform) {
+        if (let Some(p) <- platform) {
             match (p.watchDir(filePath)) {
                 case Ok(wd) => eventlistIndex = wd
                 case Err(err) => return SysMaybe<WatchItemIndex>.Err(
@@ -549,15 +540,9 @@ public class Watcher {
         }
 
         let item = WatchItem(
-            filePath: filePath,
-            hash: hash,
-            loader: 0,  // options.Loader.file
-            fd: effectiveFd,
-            count: UInt32(0),
-            parentHash: parentHash,
-            kind: WatchItemKind.Directory,
-            packageJson: None,
-            eventlistIndex: eventlistIndex
+            filePath, hash, 0, effectiveFd,
+            UInt32(0), parentHash,
+            WatchItemKind.Directory, Option<Any>.None, eventlistIndex
         )
 
         watchlist.appendAssumeCapacity(item)
@@ -578,14 +563,14 @@ public class Watcher {
         // 检查是否已监视 (加锁避免竞争)
         // 严格翻译自: Watcher.zig:668-676
         mutex.lock()
-        let alreadyWatched = indexOf(hash) != None
+        let alreadyWatched = indexOf(hash).isSome()
         mutex.unlock()
         if (alreadyWatched) {
             return true
         }
 
         let res = addFile(INVALID_FD, filePath, hash, loader,
-                           INVALID_FD, None, true)
+                           INVALID_FD, Option<Any>.None, true)
         match (res) {
             case Ok(_) => return true
             case Err(_) => return false
@@ -603,12 +588,10 @@ public class Watcher {
     ///   }
     public func remove(hash: HashType): Unit {
         mutex.lock()
-        defer {
-            mutex.unlock()
-        }
-        if (let Some(index) = indexOf(hash)) {
+        if (let Some(index) <- indexOf(hash)) {
             removeAtIndex(UInt16(Int64(index)), hash, [], WatchItemKind.File)
         }
+        mutex.unlock()
     }
 
     /// 按索引移除 - 对应 Bun Watcher.removeAtIndex
@@ -631,7 +614,7 @@ public class Watcher {
 
         // 目录类型: 同时驱逐匹配的父项
         // 严格翻译自: Watcher.zig:772-779
-        if (kind == WatchItemKind.Directory) {
+        if (match (kind) { case WatchItemKind.Directory => true case _ => false }) {
             for (parent in parents) {
                 if (parent == hash) {
                     evictList[Int64(evictListI)] = UInt16(Int64(parent))
@@ -655,21 +638,17 @@ public class Watcher {
         if (evictListI == UInt16(0)) {
             return
         }
-        defer {
-            evictListI = UInt16(0)
-        }
 
         let count = Int64(evictListI)
 
         // 按降序排序 - 对应 std.sort.insertion(desc)
-        // 严格翻译自: Watcher.zig:271-275
         var indices = ArrayList<WatchItemIndex>()
         for (i in 0..count) {
             indices.append(evictList[i])
         }
         // 降序排序 (冒泡排序近似 insertion sort)
         for (i in 0..indices.size) {
-            for (j in (i + 1)..<indices.size) {
+            for (j in (i + 1)..indices.size) {
                 if (indices[Int64(i)] < indices[Int64(j)]) {
                     let tmp = indices[Int64(i)]
                     indices[Int64(i)] = indices[Int64(j)]
@@ -679,29 +658,26 @@ public class Watcher {
         }
 
         // 第一遍: 关闭文件描述符
-        // 严格翻译自: Watcher.zig:278-296
         var lastItem: WatchItemIndex = NO_WATCH_ITEM
         for (i in 0..indices.size) {
             let item = indices[i]
-            // 去重
             if (item == lastItem) {
                 continue
             }
-            // 越界检查
             if (Int64(item) >= watchlist.size) {
                 continue
             }
-            // 关闭 fd
-            if (let Some(wi) = watchlist.get(Int64(item))) {
-                if (FdUtils.isValid(wi.fd)) {
-                    SysFs.close(wi.fd)
-                }
+            match (watchlist.get(Int64(item))) {
+                case Some(wi) =>
+                    if (FdUtils.isValid(wi.fd)) {
+                        SysFs.close(wi.fd)
+                    }
+                case None => ()
             }
             lastItem = item
         }
 
         // 第二遍: swapRemove
-        // 严格翻译自: Watcher.zig:299-318
         lastItem = NO_WATCH_ITEM
         for (i in 0..indices.size) {
             let item = indices[i]
@@ -711,6 +687,8 @@ public class Watcher {
             watchlist.swapRemove(Int64(item))
             lastItem = item
         }
+
+        evictListI = UInt16(0)
     }
 
     // ========================================================================
@@ -817,16 +795,19 @@ public class Watcher {
     /// 对应 Bun bun.fs.PathName.init(file_path).dirWithTrailingSlash()
     private func parentDirectory(filePath: String): String {
         let lastSlash = filePath.lastIndexOf('/')
-        if (lastSlash < 0) {
-            return "./"
+        match (lastSlash) {
+            case Some(idx) =>
+                if (idx < 0) { return "./" }
+                return filePath[0..Int64(idx + 1)]
+            case None =>
+                return "./"
         }
-        return filePath.substring(0, lastSlash + 1)
     }
 
     /// 获取当前线程 ID (简化实现)
     private func currentThreadId(): Int64 {
         // 仓颉暂无直接获取线程 ID 的 API, 使用简化值
-        return Int64(std.time.DateTime.now().getYear())
+        return Int64(1)
     }
 
     /// 启动线程 (简化实现)

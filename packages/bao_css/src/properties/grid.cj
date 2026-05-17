@@ -9,6 +9,7 @@
 package bao_css.properties
 
 import bao_core.*
+import bao_collections.*
 
 // ============================================================================
 // TrackSizing
@@ -80,7 +81,10 @@ public class TrackList {
             first = false
         }
 
-        return String.join("", parts)
+        var partArr = Array<String>(parts.size, repeat: "")
+        var pi: Int64 = 0
+        for (p in parts) { partArr[pi] = p; pi += 1 }
+        return String.join(partArr, delimiter: "")
     }
 }
 
@@ -92,13 +96,13 @@ public class TrackList {
 /// 轨道列表项（轨道尺寸或 repeat()）
 /// 严格翻译自 TrackListItem
 public enum TrackListItem {
-    | TrackSize(TrackSize)         // 轨道尺寸
-    | TrackRepeat(TrackRepeat)     // repeat() 函数
+    | TrackSizeVal(TrackSize)      // 轨道尺寸
+    | TrackRepeatVal(TrackRepeat)  // repeat() 函数
 
     public func toCss(): String {
         match (this) {
-            case TrackSize(ts) => ts.toCss()
-            case TrackRepeat(tr) => tr.toCss()
+            case TrackSizeVal(ts) => ts.toCss()
+            case TrackRepeatVal(tr) => tr.toCss()
         }
     }
 }
@@ -111,20 +115,20 @@ public enum TrackListItem {
 /// <track-size> 值
 /// 严格翻译自 TrackSize
 public enum TrackSize {
-    | TrackBreadth(TrackBreadth)   // 显式轨道宽度
-    | MinMax(TrackBreadth, TrackBreadth) // minmax() 函数
-    | FitContent(String)           // fit-content() 函数
+    | TrackBreadthVal(TrackBreadth)  // 显式轨道宽度
+    | MinMaxVal(TrackBreadth, TrackBreadth) // minmax() 函数
+    | FitContent(String)             // fit-content() 函数
 
     public func toCss(): String {
         match (this) {
-            case TrackBreadth(tb) => tb.toCss()
-            case MinMax(min, max) => "minmax(" + min.toCss() + ", " + max.toCss() + ")"
+            case TrackBreadthVal(tb) => tb.toCss()
+            case MinMaxVal(min, max) => "minmax(" + min.toCss() + ", " + max.toCss() + ")"
             case FitContent(lp) => "fit-content(" + lp + ")"
         }
     }
 
     public static func default(): TrackSize {
-        TrackSize.TrackBreadth(TrackBreadth.Auto)
+        TrackSize.TrackBreadthVal(TrackBreadth.Auto)
     }
 }
 
@@ -179,7 +183,10 @@ public class TrackSizeList {
         for (item in v) {
             parts.append(item.toCss())
         }
-        return String.join(" ", parts)
+        var partArr = Array<String>(parts.size, repeat: "")
+        var pi: Int64 = 0
+        for (p in parts) { partArr[pi] = p; pi += 1 }
+        return String.join(partArr, delimiter: " ")
     }
 }
 
@@ -237,7 +244,10 @@ public class TrackRepeat {
         }
 
         parts.append(")")
-        return String.join("", parts)
+        var partArr = Array<String>(parts.size, repeat: "")
+        var pi: Int64 = 0
+        for (p in parts) { partArr[pi] = p; pi += 1 }
+        return String.join(partArr, delimiter: "")
     }
 }
 
@@ -273,35 +283,40 @@ public enum GridTemplateAreas {
     | None                                    // 无命名区域
     | Areas(UInt32, ArrayList<Option<String>>) // 列数 + 扁平化区域名称列表
 
+    private func areasToCss(columns: UInt32, areas: ArrayList<Option<String>>): String {
+        var parts = ArrayList<String>()
+        var rowStr = ""
+        var col = 0
+        for (i in 0..areas.size) {
+            let area = areas[i]
+            let name = match (area) {
+                case Some(s) => s
+                case None => "."
+            }
+            if (col == 0) {
+                rowStr = "\""
+            } else {
+                rowStr = rowStr + " "
+            }
+            rowStr = rowStr + name
+            col = col + 1
+            if (col == Int64(columns)) {
+                rowStr = rowStr + "\""
+                parts.append(rowStr)
+                rowStr = ""
+                col = 0
+            }
+        }
+        var partArr = Array<String>(parts.size, repeat: "")
+        var pi: Int64 = 0
+        for (p in parts) { partArr[pi] = p; pi += 1 }
+        return String.join(partArr, delimiter: " ")
+    }
+
     public func toCss(): String {
         match (this) {
             case None => "none"
-            case Areas(columns, areas) => {
-                var parts = ArrayList<String>()
-                var rowStr = ""
-                var col = 0
-                for (i in 0..areas.size) {
-                    let area = areas[i]
-                    let name = match (area) {
-                        case Some(s) => s
-                        case None => "."
-                    }
-                    if (col == 0) {
-                        rowStr = "\""
-                    } else {
-                        rowStr = rowStr + " "
-                    }
-                    rowStr = rowStr + name
-                    col = col + 1
-                    if (col == columns) {
-                        rowStr = rowStr + "\""
-                        parts.append(rowStr)
-                        rowStr = ""
-                        col = 0
-                    }
-                }
-                return String.join(" ", parts)
-            }
+            case Areas(columns, areas) => areasToCss(columns, areas)
         }
     }
 }

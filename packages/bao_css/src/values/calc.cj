@@ -105,8 +105,8 @@ public enum CssConstant {
         match (this) {
             case E => 2.718281828459045
             case Pi => 3.141592653589793
-            case Infinity => Float64.MAX
-            case NegInfinity => Float64.MIN
+            case Infinity => 1.7976931348623157e308
+            case NegInfinity => -1.7976931348623157e308
             case Nan => 0.0 / 0.0
         }
     }
@@ -127,18 +127,18 @@ public enum CssConstant {
 // 严格翻译自: values/calc.rs Calc<V> enum
 // ============================================================================
 
+public enum CssCalcKind {
+    | Value
+    | Number
+    | Sum
+    | Product
+    | Function
+}
+
 /// CSS calc() 数学表达式
 /// 严格翻译自 Calc enum { Value, Number, Sum, Product, Function }
 /// 泛型 V 支持 Length, Percentage, Time, Angle 等值类型
 public class CssCalc {
-    public enum CssCalcKind {
-        | Value     // 字面值
-        | Number    // 字面数字
-        | Sum       // 两个表达式之和
-        | Product   // 数字与表达式的积
-        | Function  // 数学函数 (calc/min/max 等)
-    }
-
     public var kind: CssCalcKind
     /// 数值
     public var numberValue: Float64
@@ -205,7 +205,7 @@ public class CssCalc {
         this.functionArgs = ArrayList<CssCalc>()
     }
 
-    public init(func: CssCalcUnit, args: ArrayList<CssCalc>) {
+    public init(calcFunc: CssCalcUnit, args: ArrayList<CssCalc>) {
         this.kind = CssCalcKind.Function
         this.numberValue = 0.0
         this.textValue = ""
@@ -213,7 +213,7 @@ public class CssCalc {
         this.right = None
         this.multiplier = 1.0
         this.expression = None
-        this.functionKind = Some(func)
+        this.functionKind = Some(calcFunc)
         this.functionArgs = args
     }
 
@@ -221,11 +221,10 @@ public class CssCalc {
     /// 严格翻译自 Calc.try_sign
     public func trySign(): Float64 {
         match (kind) {
-            case Number => {
+            case Number =>
                 if (numberValue > 0.0) { 1.0 }
                 else if (numberValue < 0.0) { -1.0 }
                 else { 0.0 }
-            }
             case _ => 0.0
         }
     }
@@ -241,7 +240,7 @@ public class CssCalc {
         if (other == 1.0) { return this }
         match (kind) {
             case Number => CssCalc(numberValue * other)
-            case Product => {
+            case Product =>
                 let num = multiplier * other
                 if (num == 1.0) {
                     match (expression) {
@@ -252,14 +251,16 @@ public class CssCalc {
                     let c = CssCalc(num, match (expression) { case Some(e) => e case None => CssCalc(0.0) })
                     return c
                 }
-            }
-            case Sum => {
-                match (left, right) {
-                    case (Some(l), Some(r)) => CssCalc(sum: l.mulF32(other), rhs: r.mulF32(other))
-                    case _ => this
+            case Sum =>
+                match (left) {
+                    case Some(l) =>
+                        match (right) {
+                            case Some(r) => CssCalc(l.mulF32(other), r.mulF32(other))
+                            case None => this
+                        }
+                    case None => this
                 }
-            }
-            case _ => CssCalc(product: other, expr: this)
+            case _ => CssCalc(other, this)
         }
     }
 
@@ -269,7 +270,7 @@ public class CssCalc {
         match (kind) {
             case Value => textValue
             case Number => "${numberValue}"
-            case Sum => {
+            case Sum =>
                 let leftCss = match (left) { case Some(l) => l.toCss() case None => "" }
                 let rightCalc = match (right) { case Some(r) => r case None => CssCalc(0.0) }
                 if (rightCalc.isSignNegative()) {
@@ -278,9 +279,8 @@ public class CssCalc {
                 } else {
                     "${leftCss} + ${rightCalc.toCss()}"
                 }
-            }
-            case Product => {
-                let num = Math.abs(multiplier)
+            case Product =>
+                let num = if (multiplier < 0.0) { -multiplier } else { multiplier }
                 let exprCss = match (expression) { case Some(e) => e.toCss() case None => "" }
                 if (num < 1.0 && num != 0.0) {
                     let div = 1.0 / multiplier
@@ -288,13 +288,11 @@ public class CssCalc {
                 } else {
                     "${multiplier} * ${exprCss}"
                 }
-            }
-            case Function => {
+            case Function =>
                 match (functionKind) {
                     case Some(f) => "${f.toCss()}(...)"
                     case None => ""
                 }
-            }
         }
     }
 
@@ -308,22 +306,22 @@ public class CssCalc {
 // 严格翻译自: values/calc.rs MathFunction<V> enum
 // ============================================================================
 
+public enum CssMathFunctionKind {
+    | Calc
+    | Min
+    | Max
+    | Clamp
+    | Round
+    | Rem
+    | Mod
+    | Abs
+    | Sign
+    | Hypot
+}
+
 /// CSS 数学函数
 /// 严格翻译自 MathFunction enum { Calc, Min, Max, Clamp, Round, Rem, Mod, Abs, Sign, Hypot }
 public class CssMathFunction {
-    public enum CssMathFunctionKind {
-        | Calc       // calc()
-        | Min        // min()
-        | Max        // max()
-        | Clamp      // clamp()
-        | Round      // round()
-        | Rem        // rem()
-        | Mod        // mod()
-        | Abs        // abs()
-        | Sign       // sign()
-        | Hypot      // hypot()
-    }
-
     public var kind: CssMathFunctionKind
     /// calc 表达式
     public var calc: ?CssCalc
@@ -388,64 +386,63 @@ public class CssMathFunction {
         this.divisor = None
     }
 
+    private func joinParts(parts: ArrayList<String>): String {
+        let sb = StringBuilder()
+        for (i in 0..parts.size) {
+            if (i > 0) { sb.append(", ") }
+            sb.append(parts[i])
+        }
+        sb.toString()
+    }
+
     /// 转为 CSS 文本
     /// 严格翻译自 MathFunction.to_css
     public func toCss(): String {
         match (kind) {
-            case Calc => {
+            case Calc =>
                 match (calc) {
                     case Some(c) => "calc(${c.toCss()})"
                     case None => "calc()"
                 }
-            }
-            case Min => {
+            case Min =>
                 let parts = ArrayList<String>()
                 for (a in args) { parts.append(a.toCss()) }
-                "min(${String.join(", ", parts)})"
-            }
-            case Max => {
+                "min(${joinParts(parts)})"
+            case Max =>
                 let parts = ArrayList<String>()
                 for (a in args) { parts.append(a.toCss()) }
-                "max(${String.join(", ", parts)})"
-            }
-            case Clamp => {
+                "max(${joinParts(parts)})"
+            case Clamp =>
                 let minStr = match (clampMin) { case Some(c) => c.toCss() case None => "" }
                 let centerStr = match (clampCenter) { case Some(c) => c.toCss() case None => "" }
                 let maxStr = match (clampMax) { case Some(c) => c.toCss() case None => "" }
                 "clamp(${minStr}, ${centerStr}, ${maxStr})"
-            }
-            case Round => {
+            case Round =>
                 let valStr = match (roundValue) { case Some(c) => c.toCss() case None => "" }
                 let intStr = match (roundInterval) { case Some(c) => c.toCss() case None => "" }
                 "round(${roundStrategy.toCss()}, ${valStr}, ${intStr})"
-            }
-            case Rem => {
+            case Rem =>
                 let d1 = match (dividend) { case Some(c) => c.toCss() case None => "" }
                 let d2 = match (divisor) { case Some(c) => c.toCss() case None => "" }
                 "rem(${d1}, ${d2})"
-            }
-            case Mod => {
+            case Mod =>
                 let d1 = match (dividend) { case Some(c) => c.toCss() case None => "" }
                 let d2 = match (divisor) { case Some(c) => c.toCss() case None => "" }
                 "mod(${d1}, ${d2})"
-            }
-            case Abs => {
+            case Abs =>
                 match (calc) {
                     case Some(c) => "abs(${c.toCss()})"
                     case None => "abs()"
                 }
-            }
-            case Sign => {
+            case Sign =>
                 match (calc) {
                     case Some(c) => "sign(${c.toCss()})"
                     case None => "sign()"
                 }
-            }
-            case Hypot => {
+            case Hypot =>
                 let parts = ArrayList<String>()
                 for (a in args) { parts.append(a.toCss()) }
-                "hypot(${String.join(", ", parts)})"
-            }
+                "hypot(${joinParts(parts)})"
         }
     }
 

@@ -121,7 +121,7 @@ public class HmrRuntimeClient {
         let serverSideRoutesUpdated: HashSet<Int64> = HashSet<Int64>()
         var routeId = reader.i32()
         while (routeId != -1) {
-            serverSideRoutesUpdated.add(routeId)
+            serverSideRoutesUpdated.append(routeId)
             routeId = reader.i32()
         }
 

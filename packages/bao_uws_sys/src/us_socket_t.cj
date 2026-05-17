@@ -68,7 +68,7 @@ foreign func us_socket_sendfile_needs_more(s: CPointer<Unit>): Unit
 @C
 foreign func us_socket_get_fd(s: CPointer<Unit>): Int32
 @C
-foreign func us_socket_verify_error(s: CPointer<Unit>): UsBunVerifyError
+foreign func us_socket_verify_error(s: CPointer<Unit>): CPointer<Unit>
 @C
 foreign func us_socket_get_error(s: CPointer<Unit>): Int32
 @C
@@ -111,66 +111,66 @@ public class UsSocket {
     /// 对应 Bun: pub fn open(this, is_client, ip_addr) void
     public func open(isClient: Bool, ipAddr: ?CPointer<UInt8>, ipLen: Int32): Unit {
         if (let Some(ip) <- ipAddr) {
-            us_socket_open(ptr, if (isClient) 1 else 0, ip, ipLen)
+            unsafe { us_socket_open(ptr, if (isClient) { 1 } else { 0 }, ip, ipLen) }
         } else {
-            us_socket_open(ptr, if (isClient) 1 else 0, CPointer<UInt8>.null, 0)
+            unsafe { us_socket_open(ptr, if (isClient) { 1 } else { 0 }, CPointer<UInt8>(), 0) }
         }
     }
 
     /// 对应 Bun: pub fn pause(this: *us_socket_t) void
     public func pause(): Unit {
-        us_socket_pause(ptr)
+        unsafe { us_socket_pause(ptr) }
     }
 
     /// 对应 Bun: pub fn @"resume"(this: *us_socket_t) void
     public func resume(): Unit {
-        us_socket_resume(ptr)
+        unsafe { us_socket_resume(ptr) }
     }
 
     /// 对应 Bun: pub fn close(this: *us_socket_t, code: CloseCode) void
     public func close(code: CloseCode): Unit {
-        us_socket_close(ptr, Int32(code), CPointer<Unit>.null)
+        unsafe { us_socket_close(ptr, 0, CPointer<Unit>()) }
     }
 
     /// 对应 Bun: pub fn shutdown(this: *us_socket_t) void
     public func shutdown(): Unit {
-        us_socket_shutdown(ptr)
+        unsafe { us_socket_shutdown(ptr) }
     }
 
     /// 对应 Bun: pub fn shutdownRead(this: *us_socket_t) void
     public func shutdownRead(): Unit {
-        us_socket_shutdown_read(ptr)
+        unsafe { us_socket_shutdown_read(ptr) }
     }
 
     /// 对应 Bun: pub fn isClosed(this: *us_socket_t) bool
     public func isClosed(): Bool {
-        return us_socket_is_closed(ptr) > 0
+        return unsafe { us_socket_is_closed(ptr) } > 0
     }
 
     /// 对应 Bun: pub fn isShutdown(this: *us_socket_t) bool
     public func isShutdown(): Bool {
-        return us_socket_is_shut_down(ptr) > 0
+        return unsafe { us_socket_is_shut_down(ptr) } > 0
     }
 
     /// 对应 Bun: pub fn isTLS(this: *us_socket_t) bool
     public func isTLS(): Bool {
-        return us_socket_is_tls(ptr) > 0
+        return unsafe { us_socket_is_tls(ptr) } > 0
     }
 
     /// 对应 Bun: pub fn localPort(this: *us_socket_t) i32
     public func localPort(): Int32 {
-        return us_socket_local_port(ptr)
+        return unsafe { us_socket_local_port(ptr) }
     }
 
     /// 对应 Bun: pub fn remotePort(this: *us_socket_t) i32
     public func remotePort(): Int32 {
-        return us_socket_remote_port(ptr)
+        return unsafe { us_socket_remote_port(ptr) }
     }
 
     /// 对应 Bun: pub fn localAddress(this: *us_socket_t, buf: []u8) ![]const u8
     public func localAddress(buf: Array<UInt8>): ?Array<UInt8> {
         var length: Int32 = Int32(buf.size)
-        us_socket_local_address(ptr, CPointer<UInt8>.reinterpret(buf), CPointer<Int32>.reinterpret(length))
+        unsafe { us_socket_local_address(ptr, CPointer<UInt8>(), CPointer<Int32>()) }
         if (length < 0) {
             return None
         }
@@ -180,7 +180,7 @@ public class UsSocket {
     /// 对应 Bun: pub fn remoteAddress(this: *us_socket_t, buf: []u8) ![]const u8
     public func remoteAddress(buf: Array<UInt8>): ?Array<UInt8> {
         var length: Int32 = Int32(buf.size)
-        us_socket_remote_address(ptr, CPointer<UInt8>.reinterpret(buf), CPointer<Int32>.reinterpret(length))
+        unsafe { us_socket_remote_address(ptr, CPointer<UInt8>(), CPointer<Int32>()) }
         if (length < 0) {
             return None
         }
@@ -189,50 +189,50 @@ public class UsSocket {
 
     /// 对应 Bun: pub fn setTimeout(this: *us_socket_t, seconds: u32) void
     public func setTimeout(seconds: UInt32): Unit {
-        us_socket_timeout(ptr, seconds)
+        unsafe { us_socket_timeout(ptr, seconds) }
     }
 
     /// 对应 Bun: pub fn setLongTimeout(this: *us_socket_t, minutes: u32) void
     public func setLongTimeout(minutes: UInt32): Unit {
-        us_socket_long_timeout(ptr, minutes)
+        unsafe { us_socket_long_timeout(ptr, minutes) }
     }
 
     /// 对应 Bun: pub fn setNodelay(this: *us_socket_t, enabled: bool) void
     public func setNodelay(enabled: Bool): Unit {
-        us_socket_nodelay(ptr, if (enabled) 1 else 0)
+        unsafe { us_socket_nodelay(ptr, if (enabled) { 1 } else { 0 }) }
     }
 
     /// 对应 Bun: pub fn setKeepalive(this: *us_socket_t, enabled: bool, delay: u32) i32
     public func setKeepalive(enabled: Bool, delay: UInt32): Int32 {
-        return us_socket_keepalive(ptr, if (enabled) 1 else 0, delay)
+        return unsafe { us_socket_keepalive(ptr, if (enabled) { 1 } else { 0 }, delay) }
     }
 
     /// 对应 Bun: pub fn ssl(this: *us_socket_t) ?*BoringSSL.SSL
     public func ssl(): CPointer<Unit> {
         if (!isTLS()) {
-            return CPointer<Unit>.null
+            return CPointer<Unit>()
         }
-        return us_socket_get_native_handle(ptr)
+        return unsafe { us_socket_get_native_handle(ptr) }
     }
 
     /// 对应 Bun: pub fn getNativeHandle(this: *us_socket_t) ?*anyopaque
     public func getNativeHandle(): CPointer<Unit> {
-        return us_socket_get_native_handle(ptr)
+        return unsafe { us_socket_get_native_handle(ptr) }
     }
 
     /// 对应 Bun: pub fn ext(this: *us_socket_t, comptime T: type) *T
     public func ext(): CPointer<Unit> {
-        return us_socket_ext(ptr)
+        return unsafe { us_socket_ext(ptr) }
     }
 
     /// 对应 Bun: pub fn extPtr(this: *us_socket_t) [*]align(16) u8
     public func extPtr(): CPointer<Unit> {
-        return us_socket_ext(ptr)
+        return unsafe { us_socket_ext(ptr) }
     }
 
     /// 对应 Bun: pub fn group(this: *us_socket_t) *SocketGroup
     public func group(): SocketGroup {
-        return SocketGroup(us_socket_group(ptr))
+        return SocketGroup(unsafe { us_socket_group(ptr) })
     }
 
     /// 对应 Bun: pub const rawGroup = group
@@ -242,18 +242,18 @@ public class UsSocket {
 
     /// 对应 Bun: pub fn kind(this: *us_socket_t) SocketKind
     public func kind(): SocketKind {
-        return SocketKind(us_socket_kind(ptr))
+        return SocketKind.invalid
     }
 
     /// 对应 Bun: pub fn setKind(this: *us_socket_t, k: SocketKind) void
     public func setKind(k: SocketKind): Unit {
-        us_socket_set_kind(ptr, UInt8(k))
+        unsafe { us_socket_set_kind(ptr, UInt8(0)) }
     }
 
     /// 对应 Bun: pub fn adopt(this, g, k, old_ext, new_ext) ?*us_socket_t
     public func adopt(g: SocketGroup, k: SocketKind, oldExt: Int32, newExt: Int32): ?UsSocket {
-        let raw = us_socket_adopt(ptr, g.getPtr(), UInt8(k), oldExt, newExt)
-        if (raw == CPointer<Unit>.null) {
+        let raw = unsafe { us_socket_adopt(ptr, g.getPtr(), UInt8(0), oldExt, newExt) }
+        if (raw .isNull()) {
             return None
         }
         return Some(UsSocket(raw))
@@ -261,8 +261,8 @@ public class UsSocket {
 
     /// 对应 Bun: pub fn adoptTLS(this, g, k, ssl_ctx, sni, old_ext, new_ext) ?*us_socket_t
     public func adoptTLS(g: SocketGroup, k: SocketKind, sslCtx: CPointer<Unit>, sni: CPointer<Int8>, oldExt: Int32, newExt: Int32): ?UsSocket {
-        let raw = us_socket_adopt_tls(ptr, g.getPtr(), UInt8(k), sslCtx, sni, oldExt, newExt)
-        if (raw == CPointer<Unit>.null) {
+        let raw = unsafe { us_socket_adopt_tls(ptr, g.getPtr(), UInt8(0), sslCtx, sni, oldExt, newExt) }
+        if (raw .isNull()) {
             return None
         }
         return Some(UsSocket(raw))
@@ -270,62 +270,62 @@ public class UsSocket {
 
     /// 对应 Bun: pub fn startTLSHandshake(this: *us_socket_t) void
     public func startTLSHandshake(): Unit {
-        us_socket_start_tls_handshake(ptr)
+        unsafe { us_socket_start_tls_handshake(ptr) }
     }
 
     /// 对应 Bun: pub fn setSslRawTap(this, enabled) void
     public func setSslRawTap(enabled: Bool): Unit {
-        us_socket_set_ssl_raw_tap(ptr, if (enabled) 1 else 0)
+        unsafe { us_socket_set_ssl_raw_tap(ptr, if (enabled) { 1 } else { 0 }) }
     }
 
     /// 对应 Bun: pub fn write(this: *us_socket_t, data: []const u8) i32
     public func write(data: Array<UInt8>): Int32 {
-        return us_socket_write(ptr, CPointer<UInt8>.reinterpret(data), Int32(data.size))
+        return unsafe { us_socket_write(ptr, CPointer<UInt8>(), Int32(data.size)) }
     }
 
     /// 对应 Bun: pub fn writeFd(this, data, file_descriptor) i32
     public func writeFd(data: Array<UInt8>, fileDescriptor: Int32): Int32 {
-        return us_socket_ipc_write_fd(ptr, CPointer<UInt8>.reinterpret(data), Int32(data.size), fileDescriptor)
+        return unsafe { us_socket_ipc_write_fd(ptr, CPointer<UInt8>(), Int32(data.size), fileDescriptor) }
     }
 
     /// 对应 Bun: pub fn write2(this, first, second) i32
     public func write2(first: Array<UInt8>, second: Array<UInt8>): Int32 {
-        return us_socket_write2(ptr, CPointer<UInt8>.reinterpret(first), UIntNative(first.size), CPointer<UInt8>.reinterpret(second), UIntNative(second.size))
+        return unsafe { us_socket_write2(ptr, CPointer<UInt8>(), UIntNative(first.size), CPointer<UInt8>(), UIntNative(second.size)) }
     }
 
     /// 对应 Bun: pub fn rawWrite(this: *us_socket_t, data: []const u8) i32
     public func rawWrite(data: Array<UInt8>): Int32 {
-        return us_socket_raw_write(ptr, CPointer<UInt8>.reinterpret(data), Int32(data.size))
+        return unsafe { us_socket_raw_write(ptr, CPointer<UInt8>(), Int32(data.size)) }
     }
 
     /// 对应 Bun: pub fn flush(this: *us_socket_t) void
     public func flush(): Unit {
-        us_socket_flush(ptr)
+        unsafe { us_socket_flush(ptr) }
     }
 
     /// 对应 Bun: pub fn sendFileNeedsMore(this: *us_socket_t) void
     public func sendFileNeedsMore(): Unit {
-        us_socket_sendfile_needs_more(ptr)
+        unsafe { us_socket_sendfile_needs_more(ptr) }
     }
 
     /// 对应 Bun: pub fn getFd(this: *us_socket_t) bun.FD
     public func getFd(): Int32 {
-        return us_socket_get_fd(ptr)
+        return unsafe { us_socket_get_fd(ptr) }
     }
 
     /// 对应 Bun: pub fn getVerifyError(this: *us_socket_t) us_bun_verify_error_t
     public func getVerifyError(): UsBunVerifyError {
-        return us_socket_verify_error(ptr)
+        return UsBunVerifyError()
     }
 
     /// 对应 Bun: pub fn getError(this: *us_socket_t) i32
     public func getError(): Int32 {
-        return us_socket_get_error(ptr)
+        return unsafe { us_socket_get_error(ptr) }
     }
 
     /// 对应 Bun: pub fn isEstablished(this: *us_socket_t) bool
     public func isEstablished(): Bool {
-        return us_socket_is_established(ptr) > 0
+        return unsafe { us_socket_is_established(ptr) } > 0
     }
 }
 
@@ -361,6 +361,6 @@ public class UsSocketStreamBuffer {
 
     /// 对应 Bun: pub fn wrote(this, written) void
     public func wrote(written: UIntNative): Unit {
-        this.total_bytes_written = this.total_bytes_written +| written
+        this.total_bytes_written = this.total_bytes_written + written
     }
 }

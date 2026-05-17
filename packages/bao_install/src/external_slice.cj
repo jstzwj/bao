@@ -47,13 +47,13 @@ public class ExternalSlice<T> {
     /// 无效标记
     /// 翻译自: pub const invalid = .{ .off = std.math.maxInt(u32), .len = std.math.maxInt(u32) }
     public static func invalid(): ExternalSlice<T> {
-        return ExternalSlice<T>(off: UInt32.MAX, len: UInt32.MAX)
+        return ExternalSlice<T>(4294967295u32, 4294967295u32)
     }
 
     /// 是否无效
     /// 翻译自: pub inline fn isInvalid(this: Slice) bool
     public func isInvalid(): Bool {
-        return off == UInt32.MAX && len == UInt32.MAX
+        return off == 4294967295u32 && len == 4294967295u32
     }
 
     /// 是否包含指定 ID
@@ -94,7 +94,7 @@ public class ExternalSlice<T> {
         // 在 Zig 中, 通过指针算术计算偏移量
         // 在仓颉中, 我们需要找到 slice 在 buffer 中的位置
         // 简化: 使用第一个元素的引用
-        return ExternalSlice<T>(off: UInt32(0), len: UInt32(slice.size))
+        return ExternalSlice<T>(UInt32(0), UInt32(slice.size))
     }
 }
 

@@ -5,6 +5,7 @@
 package bao_path
 
 import bao_core.*
+import bao_collections.*
 
 // ============================================================================
 // Platform - 平台枚举
@@ -30,11 +31,11 @@ public enum Platform {
     ///           .nt, .windows => std.fs.path.sep_windows,
     ///       };
     ///   }
-    public func separator(): Char {
+    public func separator(): UInt8 {
         match (this) {
-            case Loose => Char('/')
-            case Posix => Char('/')
-            case Windows => Char('\\')
+            case Loose => UInt8(47)
+            case Posix => UInt8(47)
+            case Windows => UInt8(92)
         }
     }
 
@@ -66,10 +67,10 @@ public enum Platform {
     ///           .windows => isSepAnyT(T, char),
     ///       };
     ///   }
-    public func isSeparator(c: Char): Bool {
+    public func isSeparator(c: UInt8): Bool {
         match (this) {
             case Loose => isSepAnyChar(c)
-            case Posix => c == Char('/')
+            case Posix => c == UInt8(47)
             case Windows => isSepAnyChar(c)
         }
     }
@@ -84,14 +85,14 @@ public enum Platform {
     ///   }
     public func isAbsolute(path: String): Bool {
         match (this) {
-            case Posix => path.size > 0 && path[0] == Char('/')
-            case Loose => path.size > 0 && (path[0] == Char('/') || path[0] == Char('\\'))
+            case Posix => path.size > 0 && path[0] == UInt8(47)
+            case Loose => path.size > 0 && (path[0] == UInt8(47) || path[0] == UInt8(92))
             case Windows =>
-                if (path.size > 0 && (path[0] == Char('/') || path[0] == Char('\\'))) {
+                if (path.size > 0 && (path[0] == UInt8(47) || path[0] == UInt8(92))) {
                     return true
                 }
-                if (path.size > 2 && isDriveLetterChar(path[0]) && path[1] == Char(':') &&
-                    (path[2] == Char('/') || path[2] == Char('\\'))) {
+                if (path.size > 2 && isDriveLetterChar(path[0]) && path[1] == UInt8(58) &&
+                    (path[2] == UInt8(47) || path[2] == UInt8(92))) {
                     return true
                 }
                 return false
@@ -129,10 +130,10 @@ public let PLATFORM_AUTO: Platform = Platform.Posix
 public func normalizeStringGeneric(
     path: String,
     allowAboveRoot: Bool,
-    separator: Char,
+    separator: UInt8,
     preserveTrailingSlash: Bool
 ): String {
-    if (path.isEmpty) {
+    if (path.isEmpty()) {
         return "."
     }
 
@@ -145,7 +146,7 @@ public func normalizeStringGeneric(
 
     // 如果是绝对路径, 跳过前导分隔符
     let bufStart: Int64 = if (isAbsolute) {
-        result.append(separator.toString())
+        result.append(String(Rune(Int32(separator))))
         dotdot = 1
         r = 1
         1
@@ -163,13 +164,13 @@ public func normalizeStringGeneric(
         }
 
         // "." 元素 - 跳过
-        if (c == Char('.') && (r + 1 == n || path[Int64(r + 1)] == separator)) {
+        if (c == UInt8(46) && (r + 1 == n || path[Int64(r + 1)] == separator)) {
             r += 1
             continue
         }
 
         // ".." 元素 - 回退
-        let remaining = path.substring(Int64(r))
+        let remaining = path[r..]
         if (remaining.startsWith("..") &&
             (r + 2 == n || (r + 2 < n && path[Int64(r + 2)] == separator))) {
             r += 2
@@ -179,7 +180,7 @@ public func normalizeStringGeneric(
             } else if (allowAboveRoot) {
                 // 不能回退则添加 ".."
                 if (result.size > Int64(bufStart) && result[result.size - 1] != "..") {
-                    result.append(separator.toString())
+                    result.append(String(Rune(Int32(separator))))
                     result.append("..")
                 } else {
                     result.append("..")
@@ -191,23 +192,23 @@ public func normalizeStringGeneric(
 
         // 真实路径元素 - 添加分隔符(如果需要)然后复制
         if (result.size > Int64(bufStart) && result.size > 0 &&
-            result[result.size - 1] != separator.toString()) {
-            result.append(separator.toString())
+            result[result.size - 1] != String(Rune(Int32(separator)))) {
+            result.append(String(Rune(Int32(separator))))
         }
 
         let from = r
         while (r < n && path[Int64(r)] != separator) {
             r += 1
         }
-        result.append(path.substring(Int64(from), Int64(r)))
+        result.append(path[from..r])
     }
 
     // 处理尾部分隔符
     if (preserveTrailingSlash) {
         if (path[Int64(path.size - 1)] == separator) {
             let last = result[result.size - 1]
-            if (last != separator.toString()) {
-                result.append(separator.toString())
+            if (last != String(Rune(Int32(separator)))) {
+                result.append(String(Rune(Int32(separator))))
             }
         }
     }
@@ -223,8 +224,8 @@ public func normalizeStringGeneric(
     }
     let normalized = sb.toString()
 
-    if (normalized.isEmpty) {
-        return if (isAbsolute) { separator.toString() } else { "." }
+    if (normalized.isEmpty()) {
+        return if (isAbsolute) { String(Rune(Int32(separator))) } else { "." }
     }
     return normalized
 }
@@ -276,7 +277,7 @@ public func joinParts(parts: Array<String>, platform: Platform): String {
     var sb = StringBuilder()
     var first = true
     for (part in parts) {
-        if (part.isEmpty) {
+        if (part.isEmpty()) {
             continue
         }
         if (!first) {
@@ -287,7 +288,7 @@ public func joinParts(parts: Array<String>, platform: Platform): String {
     }
 
     let joined = sb.toString()
-    if (joined.isEmpty) {
+    if (joined.isEmpty()) {
         return "."
     }
 
@@ -327,7 +328,7 @@ public func joinAbsString(cwd: String, parts: Array<String>, platform: Platform)
     sb.append(effectiveCwd)
     for (i in startIdx..parts.size) {
         let part = parts[Int64(i)]
-        if (part.isEmpty) {
+        if (part.isEmpty()) {
             continue
         }
         let current = sb.toString()
@@ -363,7 +364,7 @@ public func joinAbsString(cwd: String, parts: Array<String>, platform: Platform)
 ///       return out;
 ///   }
 public func normalizeStringNode(path: String, platform: Platform): String {
-    if (path.isEmpty) {
+    if (path.isEmpty()) {
         return "."
     }
 
@@ -431,7 +432,7 @@ public func longestCommonPath(paths: Array<String>, platform: Platform): String 
     }
 
     // 找到最短路径长度
-    var minLen: Int64 = Int64.MAX_VALUE
+    var minLen: Int64 = paths[0].size
     for (p in paths) {
         if (p.size < minLen) {
             minLen = p.size
@@ -462,18 +463,18 @@ public func longestCommonPath(paths: Array<String>, platform: Platform): String 
     }
 
     if (index == 0) {
-        return separator.toString()
+        return String(Rune(Int32(separator)))
     }
 
     // 检查是否有路径在 index 位置刚好是分隔符
     // 对应 Bun: "do one of you have a path separator after what we thought was the end?"
     for (p in paths) {
         if (p.size > index && platform.isSeparator(p[Int64(index)])) {
-            return p.substring(0, Int64(index + 1))
+            return p[0..index + 1]
         }
     }
 
-    return paths[0].substring(0, Int64(lastCommonSep + 1))
+    return paths[0][0..lastCommonSep + 1]
 }
 
 /// 计算相对路径 (核心算法)
@@ -494,26 +495,28 @@ public func relativeToCommonPath(
     // 去除绝对路径前导 '/'
     var from = normalizedFrom
     var to = normalizedTo
-    let common = if (commonPath.startsWith(separator.toString())) {
-        commonPath.substring(1)
+    let common = if (commonPath.startsWith(String(Rune(Int32(separator))))) {
+        commonPath[1..]
     } else {
         commonPath
     }
 
     // 找到最后一个公共分隔符
-    let lastCommonSep = common.lastIndexOf(separator)
-    let lastCommonIdx: Int64 = if (lastCommonSep >= 0) { Int64(lastCommonSep) } else { 0 }
+    let lastCommonIdx: Int64 = match (common.lastIndexOf(separator)) {
+        case Some(idx) => idx
+        case None => 0
+    }
 
     var sb = StringBuilder()
 
     // 从 from 到公共路径用 ".." 回退
     if (from.size > 0) {
-        let fromRemaining = from.substring(Int64(lastCommonIdx))
+        let fromRemaining = from[lastCommonIdx..]
         var i: Int64 = 0
         while (i <= fromRemaining.size) {
             if (i == fromRemaining.size ||
                 (fromRemaining[Int64(i)] == separator && i + 1 < fromRemaining.size)) {
-                if (sb.length() == 0) {
+                if (sb.toString().size == 0) {
                     sb.append("..")
                 } else {
                     sb.append(separator)
@@ -526,15 +529,15 @@ public func relativeToCommonPath(
 
     // 追加 to 的剩余部分
     if (to.size > lastCommonIdx + 1) {
-        var tail = to.substring(Int64(lastCommonIdx))
+        var tail = to[lastCommonIdx..]
         // 去除前导分隔符 (如果需要)
         if (tail.size > 0 && platform.isSeparator(tail[0])) {
-            tail = tail.substring(1)
+            tail = tail[1..]
         }
 
         // 避免使非绝对路径变成绝对路径
         if (tail.size > 0 && !platform.isSeparator(tail[0]) &&
-            sb.length() > 0 && !platform.isSeparator(sb.toString()[Int64(sb.length() - 1)])) {
+            sb.toString().size > 0 && !platform.isSeparator(sb.toString()[Int64(sb.toString().size - 1)])) {
             sb.append(separator)
         }
 
@@ -544,7 +547,7 @@ public func relativeToCommonPath(
     // 去除尾部分隔符
     var result = sb.toString()
     if (result.size > 3 && result[Int64(result.size - 1)] == separator) {
-        result = result.substring(0, Int64(result.size - 1))
+        result = result[0..result.size - 1]
     }
 
     return result
@@ -572,7 +575,7 @@ public func relativePath(from: String, to: String, platform: Platform): String {
     }
 
     // 找最长公共路径
-    let paths = Array<String>([normalizedFrom, normalizedTo])
+    let paths = [normalizedFrom, normalizedTo]
     let commonPath = longestCommonPath(paths, platform)
 
     return relativeToCommonPath(commonPath, normalizedFrom, normalizedTo, platform)
@@ -607,46 +610,51 @@ public func relativePath(from: String, to: String): String {
 ///       return path[0..0];
 ///   }
 public func windowsFilesystemRoot(path: String): String {
-    if (path.isEmpty) {
+    if (path.isEmpty()) {
         return ""
     }
     if (path.size < 2) {
-        return if (isSepAnyChar(path[0])) { path.substring(0, 1) } else { "" }
+        return if (isSepAnyChar(path[0])) { path[0..1] } else { "" }
     }
     // 驱动器号: "C:" 或 "C:\"
-    if (path[1] == Char(':') && isDriveLetterChar(path[0])) {
+    if (path[1] == UInt8(58) && isDriveLetterChar(path[0])) {
         if (path.size > 2 && isSepAnyChar(path[2])) {
-            return path.substring(0, 3)
+            return path[0..3]
         }
-        return path.substring(0, 2)
+        return path[0..2]
     }
     // UNC 路径: "\\server\share\"
     if (path.size >= 5 && isSepAnyChar(path[0]) && isSepAnyChar(path[1]) &&
         !isSepAnyChar(path[2])) {
         // 设备路径: "\\."
-        if (path[2] == Char('.') && isSepAnyChar(path[3])) {
-            return path.substring(0, 4)
+        if (path[2] == UInt8(46) && isSepAnyChar(path[3])) {
+            return path[0..4]
         }
         // UNC: 查找第二和第三个分隔符
-        var idx1 = path.indexOf('/', 3)
-        if (idx1 < 0) {
-            idx1 = path.indexOf('\\', 3)
+        var idx1: ?Int64 = path.indexOf('/', 3)
+        match (idx1) {
+            case Some(_) => ()
+            case None => idx1 = path.indexOf('\\', 3)
         }
-        if (idx1 >= 0) {
-            let remaining = path.substring(Int64(idx1 + 1))
-            var idx2 = remaining.indexOf('/')
-            if (idx2 < 0) {
-                idx2 = remaining.indexOf('\\')
-            }
-            if (idx2 >= 0) {
-                return path.substring(0, Int64(idx1 + 1 + idx2 + 1 + 1))
-            }
+        match (idx1) {
+            case Some(firstSep) =>
+                let remaining = path[firstSep + 1..]
+                var idx2: ?Int64 = remaining.indexOf('/')
+                match (idx2) {
+                    case Some(_) => ()
+                    case None => idx2 = remaining.indexOf('\\')
+                }
+                match (idx2) {
+                    case Some(secondSep) => return path[0..firstSep + 1 + secondSep + 1 + 1]
+                    case None => ()
+                }
+            case None => ()
         }
         return path
     }
     // 单个分隔符
     if (isSepAnyChar(path[0])) {
-        return path.substring(0, 1)
+        return path[0..1]
     }
     return ""
 }
@@ -655,33 +663,39 @@ public func windowsFilesystemRoot(path: String): String {
 /// 对应 Bun: windowsVolumeNameLen
 ///   pub fn windowsVolumeNameLen(path: []const u8) struct { usize, usize }
 /// 返回 (卷名长度, 第三个UNC斜杠位置)
-public func windowsVolumeNameLen(path: String): Tuple<Int64, Int64> {
+public func windowsVolumeNameLen(path: String): (Int64, Int64) {
     if (path.size < 2) {
-        return Tuple<Int64, Int64>(0, 0)
+        return (0, 0)
     }
     // 驱动器号
-    if (path[1] == Char(':') && isDriveLetterChar(path[0])) {
-        return Tuple<Int64, Int64>(2, 0)
+    if (path[1] == UInt8(58) && isDriveLetterChar(path[0])) {
+        return (2, 0)
     }
     // UNC 路径
     if (path.size >= 5 && isSepAnyChar(path[0]) && isSepAnyChar(path[1]) &&
-        !isSepAnyChar(path[2]) && path[2] != Char('.')) {
-        var idx = path.indexOfAny("/\\", 3)
-        if (idx >= 0) {
-            let idx2 = path.indexOfAny("/\\", idx + 1)
-            if (idx2 >= 0) {
-                return Tuple<Int64, Int64>(Int64(idx2 + 1), Int64(idx + 1))
-            }
-            return Tuple<Int64, Int64>(Int64(path.size), Int64(idx + 1))
+        !isSepAnyChar(path[2]) && path[2] != UInt8(46)) {
+        var idx: Int64 = 3
+        while (idx < path.size && !isSepAnyChar(path[idx])) {
+            idx += 1
         }
-        return Tuple<Int64, Int64>(Int64(path.size), 0)
+        if (idx < path.size) {
+            var idx2 = idx + 1
+            while (idx2 < path.size && !isSepAnyChar(path[idx2])) {
+                idx2 += 1
+            }
+            if (idx2 < path.size) {
+                return (idx2 + 1, idx + 1)
+            }
+            return (path.size, idx + 1)
+        }
+        return (path.size, 0)
     }
-    return Tuple<Int64, Int64>(0, 0)
+    return (0, 0)
 }
 
 /// 获取 Windows 卷名
 /// 对应 Bun: windowsVolumeName
 public func windowsVolumeName(path: String): String {
     let (len, _) = windowsVolumeNameLen(path)
-    return path.substring(0, Int64(len))
+    return path[0..len]
 }

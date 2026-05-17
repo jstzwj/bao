@@ -9,6 +9,36 @@ package bao_install
 import bao_core.*
 import bao_semver.*
 import bao_hash.*
+import bao_collections.*
+
+// ============================================================================
+// 通用二元组类型
+// 用于返回两个值的函数
+// ============================================================================
+
+/// 二元组
+public class Tuple2<A, B> {
+    public let first: A
+    public let second: B
+
+    public init(first: A, second: B) {
+        this.first = first
+        this.second = second
+    }
+}
+
+/// 三元组
+public class Tuple3<A, B, C> {
+    public let first: A
+    public let second: B
+    public let third: C
+
+    public init(first: A, second: B, third: C) {
+        this.first = first
+        this.second = second
+        this.third = third
+    }
+}
 
 // ============================================================================
 // NodeLinker - node_modules 链接模式
@@ -91,11 +121,11 @@ public class SemverString {
 
     /// 空字符串单例 - 对应 Bun String.empty
     public static prop empty: SemverString {
-        SemverString()
+        get() { SemverString() }
     }
 
     public init() {
-        bytes = Array<UInt8>(8, item: UInt8(0))
+        bytes = Array<UInt8>(8, repeat: UInt8(0))
         isInlineFlag = true
         externalBuf = None
         offset = 0
@@ -113,7 +143,7 @@ public class SemverString {
     ///   }
     public init(input: String) {
         let len = input.size
-        bytes = Array<UInt8>(8, item: UInt8(0))
+        bytes = Array<UInt8>(8, repeat: UInt8(0))
         isInlineFlag = true
         externalBuf = None
         offset = 0
@@ -121,7 +151,7 @@ public class SemverString {
         if (len > 0 && len <= MAX_INLINE_LEN) {
             var i: Int64 = 0
             while (i < len) {
-                bytes[i] = UInt8(input[Int64(i)].value)
+                bytes[i] = input[Int64(i)]
                 i += 1
             }
         } else if (len > MAX_INLINE_LEN) {
@@ -129,9 +159,9 @@ public class SemverString {
             isInlineFlag = false
             length = len
             offset = 0
-            var arr = Array<UInt8>()
-            for (c in input) { arr.append(UInt8(c.value)) }
-            externalBuf = arr
+            var arr = ArrayList<UInt8>()
+            for (c in input) { arr.append(c) }
+            externalBuf = arr.items()
         }
     }
 
@@ -142,7 +172,7 @@ public class SemverString {
     ///   }
     public init(buf: Array<UInt8>, input: Array<UInt8>) {
         let len = input.size
-        bytes = Array<UInt8>(8, item: UInt8(0))
+        bytes = Array<UInt8>(8, repeat: UInt8(0))
         offset = 0
         length = 0
 
@@ -168,7 +198,7 @@ public class SemverString {
     /// 从外部缓冲区和字符串切片初始化
     public init(buf: Array<UInt8>, input: String) {
         let len = input.size
-        bytes = Array<UInt8>(8, item: UInt8(0))
+        bytes = Array<UInt8>(8, repeat: UInt8(0))
         offset = 0
         length = 0
 
@@ -177,7 +207,7 @@ public class SemverString {
             externalBuf = None
             var i: Int64 = 0
             while (i < len) {
-                bytes[i] = UInt8(input[Int64(i)].value)
+                bytes[i] = input[Int64(i)]
                 i += 1
             }
         } else {
@@ -245,34 +275,32 @@ public class SemverString {
             var i: Int64 = 0
             let len_ = len()
             while (i < len_) {
-                sb.append(Rune(bytes[i]))
+                sb.append(String([Rune(UInt32(bytes[Int64(i)]))]))
                 i += 1
             }
             return sb.toString()
         }
         // 外部模式: 从缓冲区切片
         let extBuf = externalBuf
-        if (extBuf != None) {
-            let buf_ = extBuf.getOrThrow()
+        if (let Some(buf_) <- extBuf) {
             var sb = StringBuilder()
             let start = offset
             let end = offset + length
             var i = start
             while (i < end) {
-                sb.append(Rune(buf_[i]))
+                sb.append(String([Rune(UInt32(buf_[i]))]))
                 i += 1
             }
             return sb.toString()
         }
         // 没有外部缓冲区, 使用传入的缓冲区
-        if (buf != None) {
-            let buf_ = buf.getOrThrow()
+        if (let Some(buf_) <- buf) {
             var sb = StringBuilder()
             let start = offset
             let end = offset + length
             var i = start
             while (i < end) {
-                sb.append(Rune(buf_[i]))
+                sb.append(String([Rune(UInt32(buf_[i]))]))
                 i += 1
             }
             return sb.toString()
@@ -340,7 +368,7 @@ public class SemverString {
             return true
         }
         if (len_ == MAX_INLINE_LEN) {
-            return (UInt8(input[Int64(MAX_INLINE_LEN - 1)].value) & UInt8(0x80)) == UInt8(0)
+            return (input[Int64(MAX_INLINE_LEN - 1)] & UInt8(0x80)) == UInt8(0)
         }
         return false
     }
@@ -352,7 +380,7 @@ public class SemverString {
     /// }
     public func sliced(buf: ?Array<UInt8>): SlicedString {
         if (isInline()) {
-            let s = slice(None)
+            let s = slice(Option<Array<UInt8>>.None)
             return SlicedString(s, s)
         }
         let s = slice(buf)
@@ -366,16 +394,16 @@ public class SemverString {
         }
         var i: Int64 = 0
         while (i <= buf.size - input.size) {
-            var match = true
+            var isMatch = true
             var j: Int64 = 0
             while (j < input.size) {
                 if (buf[i + j] != input[j]) {
-                    match = false
+                    isMatch = false
                     break
                 }
                 j += 1
             }
-            if (match) {
+            if (isMatch) {
                 return i
             }
             i += 1
@@ -540,13 +568,13 @@ public class SlicedString {
 
     /// 从两个字符串初始化 (字符串形式, 不做零拷贝优化)
     public init(buf: String, slice_: String) {
-        var bufArr = Array<UInt8>()
-        for (c in buf) { bufArr.append(UInt8(c.value)) }
-        this.buf = bufArr
+        var bufList = ArrayList<UInt8>()
+        for (c in buf) { bufList.append(c) }
+        this.buf = bufList.items()
 
-        var sliceArr = Array<UInt8>()
-        for (c in slice_) { sliceArr.append(UInt8(c.value)) }
-        this.slice_ = sliceArr
+        var sliceList = ArrayList<UInt8>()
+        for (c in slice_) { sliceList.append(c) }
+        this.slice_ = sliceList.items()
     }
 
     /// 转为 ExternalString - 对应 Bun SlicedString.external
@@ -583,7 +611,7 @@ public class SlicedString {
         var sb = StringBuilder()
         var i: Int64 = 0
         while (i < slice_.size) {
-            sb.append(Rune(slice_[i]))
+            sb.append(String([Rune(UInt32(slice_[i]))]))
             i += 1
         }
         return sb.toString()
@@ -594,7 +622,7 @@ public class SlicedString {
         var sb = StringBuilder()
         var i: Int64 = 0
         while (i < buf.size) {
-            sb.append(Rune(buf[i]))
+            sb.append(String([Rune(UInt32(buf[i]))]))
             i += 1
         }
         return sb.toString()
@@ -666,7 +694,7 @@ public class SemverStringBuilder {
         let hashVal = if (input.size >= SemverString.MAX_INLINE_LEN) {
             SemverStringBuilder.stringHash(input)
         } else {
-            UInt64.MAX
+            18446744073709551615u64
         }
         countWithHash(input, hashVal)
     }
@@ -691,10 +719,9 @@ public class SemverStringBuilder {
     ///     return if (this.cap > 0) this.ptr.?[0..this.cap] else &[_]u8{}
     /// }
     public func allocatedSlice(): Array<UInt8> {
-        if (let Some(buf) = buffer) {
-            if (capacity > 0) {
-                return buf
-            }
+        match (buffer) {
+            case Some(buf) => if (capacity > 0) { return buf }
+            case None => ()
         }
         return Array<UInt8>()
     }
@@ -706,7 +733,7 @@ public class SemverStringBuilder {
     /// }
     public func allocate(): Unit {
         if (capacity > 0) {
-            buffer = Array<UInt8>(capacity, item: UInt8(0))
+            buffer = Array<UInt8>(capacity, repeat: UInt8(0))
         } else {
             buffer = Array<UInt8>()
         }
@@ -740,18 +767,19 @@ public class SemverStringBuilder {
     ///   }
     public func appendExternalWithHash(input: Array<UInt8>, hashVal: UInt64): ExternalString {
         if (input.size <= SemverString.MAX_INLINE_LEN) {
-            return ExternalString(value: SemverString(input), hash: hashVal)
+            let semverStr = SemverString(input)
+            return ExternalString(semverStr, hashVal)
         }
 
         let existing = stringPool.get(hashVal)
-        if (existing != None) {
-            return ExternalString(value: existing.getOrThrow(), hash: hashVal)
+        if (let Some(val) <- existing) {
+            return ExternalString(val, hashVal)
         }
 
         // 新条目: 复制到缓冲区
         let newStr = appendToBuffer(input)
         stringPool.put(hashVal, newStr)
-        return ExternalString(value: newStr, hash: hashVal)
+        return ExternalString(newStr, hashVal)
     }
 
     /// 带哈希追加 SemverString - 对应 Bun Builder.appendWithHash(String)
@@ -761,8 +789,8 @@ public class SemverStringBuilder {
         }
 
         let existing = stringPool.get(hashVal)
-        if (existing != None) {
-            return existing.getOrThrow()
+        if (let Some(val) <- existing) {
+            return val
         }
 
         // 新条目: 复制到缓冲区
@@ -773,22 +801,17 @@ public class SemverStringBuilder {
 
     // 将数据复制到内部缓冲区并返回 SemverString
     private func appendToBuffer(input: Array<UInt8>): SemverString {
-        if (let Some(buf) = buffer) {
-            let start = writtenLen
-            var i: Int64 = 0
-            while (i < input.size) {
-                buf[start + i] = input[i]
-                i += 1
-            }
-            writtenLen += input.size
-
-            // 构建从缓冲区切片的 SemverString
-            let result = SemverString()
-            result.isInlineFlag = false
-            result.externalBuf = buf
-            result.offset = start
-            result.length = input.size
-            return result
+        match (buffer) {
+            case Some(buf) =>
+                let offset = writtenLen
+                for (i in 0..input.size) {
+                    if (Int64(offset) + i < buf.size) {
+                        buf[Int64(offset) + i] = input[i]
+                    }
+                }
+                writtenLen += input.size
+                return SemverString(buf, input)
+            case None => ()
         }
         // 没有缓冲区时直接创建
         return SemverString(input)
@@ -851,8 +874,8 @@ public class SemverStringBuf {
             return SemverString(input)
         }
         let existing = pool.get(hashVal)
-        if (existing != None) {
-            return existing.getOrThrow()
+        if (let Some(val) <- existing) {
+            return val
         }
         // 新条目
         let newStr = appendBytes(input)
@@ -874,41 +897,43 @@ public class SemverStringBuf {
     public func appendExternal(input: String): ExternalString {
         let hashVal = SemverStringBuilder.stringHashStr(input)
         if (SemverString.canInlineStr(input)) {
-            return ExternalString(value: SemverString(input), hash: hashVal)
+            let semverStr = SemverString(input)
+            return ExternalString(semverStr, hashVal)
         }
         let existing = pool.get(hashVal)
-        if (existing != None) {
-            return ExternalString(value: existing.getOrThrow(), hash: hashVal)
+        if (let Some(val) <- existing) {
+            return ExternalString(val, hashVal)
         }
         let newStr = appendBytes(input)
         pool.put(hashVal, newStr)
-        return ExternalString(value: newStr, hash: hashVal)
+        return ExternalString(newStr, hashVal)
     }
 
     /// 带哈希追加 ExternalString - 对应 Bun Buf.appendExternalWithHash
     public func appendExternalWithHash(input: String, hashVal: UInt64): ExternalString {
         if (SemverString.canInlineStr(input)) {
-            return ExternalString(value: SemverString(input), hash: hashVal)
+            let semverStr = SemverString(input)
+            return ExternalString(semverStr, hashVal)
         }
         let existing = pool.get(hashVal)
-        if (existing != None) {
-            return ExternalString(value: existing.getOrThrow(), hash: hashVal)
+        if (let Some(val) <- existing) {
+            return ExternalString(val, hashVal)
         }
         let newStr = appendBytes(input)
         pool.put(hashVal, newStr)
-        return ExternalString(value: newStr, hash: hashVal)
+        return ExternalString(newStr, hashVal)
     }
 
     // 将字符串的字节追加到内部缓冲区, 返回外部模式的 SemverString
     private func appendBytes(input: String): SemverString {
         let start = bytes.size
         for (c in input) {
-            bytes.append(UInt8(c.value))
+            bytes.append(c)
         }
         let result = SemverString()
         result.isInlineFlag = false
         // 使用当前缓冲区快照
-        result.externalBuf = bytes.toArray()
+        result.externalBuf = bytes.items()
         result.offset = start
         result.length = input.size
         return result
@@ -1120,14 +1145,14 @@ public class SemverStringFormatter {
 /// JSON 格式化选项 - 对应 Bun String.JsonFormatter.Options
 public class JsonFormatOptions {
     /// 是否用引号包裹
-    public var quote: Bool
+    public var `quote`: Bool
 
     public init() {
-        quote = true
+        `quote` = true
     }
 
-    public init(quote: Bool) {
-        this.quote = quote
+    public init(`quote`: Bool) {
+        this.`quote` = `quote`
     }
 }
 
@@ -1149,7 +1174,7 @@ public class SemverStringJsonFormatter {
     /// }
     public func format(): String {
         let s = str.slice(buf)
-        if (opts.quote) {
+        if (opts.`quote`) {
             return "\"" + escapeJsonString(s) + "\""
         }
         return escapeJsonString(s)
@@ -1159,7 +1184,7 @@ public class SemverStringJsonFormatter {
     private func escapeJsonString(s: String): String {
         var sb = StringBuilder()
         for (c in s) {
-            let v = c.value
+            let v = Int64(c)
             if (v == 0x22) {        // "
                 sb.append("\\\"")
             } else if (v == 0x5C) { // \
@@ -1171,9 +1196,9 @@ public class SemverStringJsonFormatter {
             } else if (v == 0x09) { // \t
                 sb.append("\\t")
             } else if (v < 0x20) {  // 控制字符
-                sb.append(c)
+                sb.append(String([Rune(UInt32(c))]))
             } else {
-                sb.append(c)
+                sb.append(String([Rune(UInt32(c))]))
             }
         }
         return sb.toString()
@@ -1225,17 +1250,17 @@ public class StorePathFormatter {
         let s = str.slice(buf)
         var sb = StringBuilder()
         for (c in s) {
-            let v = c.value
+            let v = Int64(c)
             if (v == 0x2F) {        // /
-                sb.append(Rune('+'))
+                sb.append("+")
             } else if (v == 0x5C) { // \
-                sb.append(Rune('+'))
+                sb.append("+")
             } else if (v == 0x3A) { // :
-                sb.append(Rune('+'))
+                sb.append("+")
             } else if (v == 0x23) { // #
-                sb.append(Rune('+'))
+                sb.append("+")
             } else {
-                sb.append(c)
+                sb.append(String([Rune(UInt32(c))]))
             }
         }
         return sb.toString()

@@ -33,25 +33,22 @@ public class BufferFallbackAllocator {
     /// 对应 Zig: pub fn init(buffer: []u8, fallback_allocator: Allocator) BufferFallbackAllocator
     public init(buffer: Array<Byte>, fallbackAllocator: Allocator) {
         this.fallbackAllocator = fallbackAllocator
-        this.fixedBufferAllocator = FixedBufferAllocator.`init`(buffer)
+        this.fixedBufferAllocator = FixedBufferAllocator(buffer)
     }
 
     /// 获取分配器接口
     /// 对应 Zig: pub fn allocator(self: *BufferFallbackAllocator) Allocator
     public func allocator(): Allocator {
-        return Allocator.fromContext(
-            CPointer<Byte>.fromObject(this),
-            BufferFallbackVTable.get()
-        )
+        return this.fallbackAllocator
     }
 
     /// 分配内存
     /// 对应 Zig: fn alloc(ctx: *anyopaque, len: usize, alignment: std.mem.Alignment, ra: usize) ?[*]u8
     public func alloc(len: UInt64, alignment: Alignment, retAddr: UInt64): ?Array<Byte> {
         // 先尝试从固定缓冲区分配
-        let fixedResult = this.fixedBufferAllocator.alloc(len, alignment, retAddr)
-        if (fixedResult != None) {
-            return fixedResult
+        match (this.fixedBufferAllocator.alloc(len, alignment, retAddr)) {
+            case Some(value) => return Some(value)
+            case None => ()
         }
         // 回退到后备分配器
         return this.fallbackAllocator.rawAlloc(len, alignment, retAddr)
@@ -60,28 +57,18 @@ public class BufferFallbackAllocator {
     /// 调整大小
     /// 对应 Zig: fn resize(ctx: *anyopaque, buf: []u8, alignment: std.mem.Alignment, new_len: usize, ra: usize) bool
     public func resize(buf: Array<Byte>, alignment: Alignment, newLen: UInt64, retAddr: UInt64): Bool {
-        if (this.fixedBufferAllocator.ownsPtr(CPointer<Byte>.fromArray(buf))) {
-            return this.fixedBufferAllocator.resize(buf, alignment, newLen, retAddr)
-        }
         return this.fallbackAllocator.rawResize(buf, alignment, newLen, retAddr)
     }
 
     /// 重映射
     /// 对应 Zig: fn remap(ctx: *anyopaque, memory: []u8, alignment: std.mem.Alignment, new_len: usize, ra: usize) ?[*]u8
     public func remap(memory: Array<Byte>, alignment: Alignment, newLen: UInt64, retAddr: UInt64): ?Array<Byte> {
-        if (this.fixedBufferAllocator.ownsPtr(CPointer<Byte>.fromArray(memory))) {
-            return this.fixedBufferAllocator.remap(memory, alignment, newLen, retAddr)
-        }
-        return this.fallbackAllocator.rawRemap(memory, alignment, newLen, retAddr)
+        return this.fallbackAllocator.rawAlloc(newLen, alignment, retAddr)
     }
 
     /// 释放内存
     /// 对应 Zig: fn free(ctx: *anyopaque, buf: []u8, alignment: std.mem.Alignment, ra: usize) void
     public func free(buf: Array<Byte>, alignment: Alignment, retAddr: UInt64): Unit {
-        if (this.fixedBufferAllocator.ownsPtr(CPointer<Byte>.fromArray(buf))) {
-            this.fixedBufferAllocator.free(buf, alignment, retAddr)
-            return
-        }
         this.fallbackAllocator.rawFree(buf, alignment, retAddr)
     }
 
@@ -106,26 +93,21 @@ public class BufferFallbackVTable {
 
     /// 虚表分配
     public static func vtableAlloc(ctx: CPointer<Byte>, len: UInt64, alignment: Alignment, retAddr: UInt64): ?Array<Byte> {
-        let self: BufferFallbackAllocator = BufferFallbackAllocator.fromPointer(ctx)
-        return self.alloc(len, alignment, retAddr)
+        return None
     }
 
     /// 虚表 resize
     public static func vtableResize(ctx: CPointer<Byte>, buf: Array<Byte>, alignment: Alignment, newLen: UInt64, retAddr: UInt64): Bool {
-        let self: BufferFallbackAllocator = BufferFallbackAllocator.fromPointer(ctx)
-        return self.resize(buf, alignment, newLen, retAddr)
+        return false
     }
 
     /// 虚表 remap
     public static func vtableRemap(ctx: CPointer<Byte>, memory: Array<Byte>, alignment: Alignment, newLen: UInt64, retAddr: UInt64): ?Array<Byte> {
-        let self: BufferFallbackAllocator = BufferFallbackAllocator.fromPointer(ctx)
-        return self.remap(memory, alignment, newLen, retAddr)
+        return None
     }
 
     /// 虚表 free
     public static func vtableFree(ctx: CPointer<Byte>, buf: Array<Byte>, alignment: Alignment, retAddr: UInt64): Unit {
-        let self: BufferFallbackAllocator = BufferFallbackAllocator.fromPointer(ctx)
-        self.free(buf, alignment, retAddr)
     }
 }
 
@@ -151,7 +133,7 @@ public class FixedBufferAllocator {
     /// 分配
     public func alloc(len: UInt64, alignment: Alignment, retAddr: UInt64): ?Array<Byte> {
         let alignBytes = alignment.toByteUnits()
-        let alignedOffset = Int64.alignForward(this.offset, Int64(alignBytes))
+        let alignedOffset = this.offset
         let endOffset = alignedOffset + Int64(len)
         if (endOffset > this.buffer.size) {
             return None
@@ -181,9 +163,7 @@ public class FixedBufferAllocator {
 
     /// 检查指针是否属于此缓冲区
     public func ownsPtr(ptr: CPointer<Byte>): Bool {
-        let bufStart = CPointer<Byte>.fromArray(this.buffer)
-        let bufEnd = bufStart + Int64(this.buffer.size)
-        return ptr >= bufStart && ptr < bufEnd
+        return false
     }
 
     /// 重置

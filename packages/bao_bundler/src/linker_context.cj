@@ -97,15 +97,6 @@ public enum LinkerMode {
     | Bundle
 }
 
-/// Sourcemap 选项
-// 严格翻译自: options.zig:1604 SourceMapOption
-public enum SourceMapOption {
-    | None
-    | Inline
-    | External
-    | Linked
-}
-
 /// 导入匹配结果
 // 严格翻译自: LinkerContext.zig:531 MatchImport
 public class MatchImport {
@@ -189,15 +180,12 @@ public class StmtList {
     /// 批量追加语句到指定列表
     public func appendSlice(list: StmtListKind, stmts: ArrayList<Stmt>): Unit {
         match (list) {
-            case StmtListKind.OutsideWrapperPrefix => {
+            case StmtListKind.OutsideWrapperPrefix =>
                 for (s in stmts) { outsideWrapperPrefix.append(s) }
-            }
-            case StmtListKind.InsideWrapperSuffix => {
+            case StmtListKind.InsideWrapperSuffix =>
                 for (s in stmts) { insideWrapperSuffix.append(s) }
-            }
-            case StmtListKind.AllStmts => {
+            case StmtListKind.AllStmts =>
                 for (s in stmts) { allStmts.append(s) }
-            }
         }
     }
 }
@@ -470,10 +458,9 @@ public class LinkerContext {
             for (entry in entryPoints) {
                 // 入口点需要生成 exports 对象
                 match (graph.getNode(entry)) {
-                    case Some(node) => {
+                    case Some(node) =>
                         // 标记需要导出
                         node.needsRuntime = true
-                    }
                     case None => ()
                 }
             }
@@ -527,11 +514,10 @@ public class LinkerContext {
 
         // 标记所有依赖也为活跃
         match (graph.getNode(path)) {
-            case Some(node) => {
+            case Some(node) =>
                 for (dep in node.dependencies) {
                     markFileLiveForTreeShaking(dep)
                 }
-            }
             case None => ()
         }
     }
@@ -542,12 +528,11 @@ public class LinkerContext {
         if (!graph.filesLive.contains(path)) { return }
 
         match (graph.getNode(path)) {
-            case Some(node) => {
+            case Some(node) =>
                 node.entryBits.set(entryIndex)
                 for (dep in node.dependencies) {
                     markFileReachableForCodeSplitting(dep, entryIndex)
                 }
-            }
             case None => ()
         }
     }
@@ -605,13 +590,12 @@ public class LinkerContext {
             result.append(path)
 
             match (graph.getNode(path)) {
-                case Some(node) => {
+                case Some(node) =>
                     for (dep in node.dependencies) {
                         if (!visited.contains(dep)) {
                             queue.append(dep)
                         }
                     }
-                }
                 case None => ()
             }
         }
@@ -628,10 +612,9 @@ public class LinkerContext {
             for (entry in chunk.filesWithParts.entries()) {
                 let path = graph.getPathByIndex(entry.key)
                 match (path) {
-                    case Some(p) => {
+                    case Some(p) =>
                         let count = moduleRefCount.get(p) ?? 0
                         moduleRefCount.put(p, count + 1)
-                    }
                     case None => ()
                 }
             }
@@ -680,9 +663,9 @@ public class LinkerContext {
                 let sourceIndex = entry.key
                 let path = graph.getPathByIndex(sourceIndex)
                 match (path) {
-                    case Some(p) => {
+                    case Some(p) =>
                         match (graph.getNode(p)) {
-                            case Some(node) => {
+                            case Some(node) =>
                                 for (dep in node.dependencies) {
                                     let depSourceIdx = graph.getSourceIndex(dep)
                                     // 查找 dep 在哪个 chunk 中
@@ -696,10 +679,8 @@ public class LinkerContext {
                                         }
                                     }
                                 }
-                            }
                             case None => ()
                         }
-                    }
                     case None => ()
                 }
             }
@@ -720,26 +701,21 @@ public class LinkerContext {
         // 遍历该文件的所有导入记录
         for (imp in node.imports) {
             match (imp.resolvedPath) {
-                case Some(resolvedPath) => {
+                case Some(resolvedPath) =>
                     // 尝试匹配导入到导出
                     let matchResult = matchImportWithExport(imp, resolvedPath)
                     // 处理匹配结果
                     match (matchResult.kind) {
-                        case MatchImportKind.Normal => {
-                            // 绑定导入到导出
-                        }
-                        case MatchImportKind.Namespace => {
-                            // 设置命名空间别名
-                        }
-                        case MatchImportKind.Cycle => {
-                            // 报告循环依赖
-                        }
-                        case MatchImportKind.Ambiguous => {
-                            // 报告歧义
-                        }
+                        case MatchImportKind.Normal =>
+                            ()
+                        case MatchImportKind.Namespace =>
+                            ()
+                        case MatchImportKind.Cycle =>
+                            ()
+                        case MatchImportKind.Ambiguous =>
+                            ()
                         case _ => ()
                     }
-                }
                 case None => ()
             }
         }
@@ -758,7 +734,7 @@ public class LinkerContext {
 
         // 在目标模块中查找导出
         match (graph.getNode(resolvedPath)) {
-            case Some(targetNode) => {
+            case Some(targetNode) =>
                 // 查找匹配的导出
                 for (exp in targetNode.exports) {
                     if (exp.kind == ExportKind.Named) {
@@ -770,10 +746,8 @@ public class LinkerContext {
                 }
                 // 没有找到匹配
                 result.kind = MatchImportKind.Ignore
-            }
-            case None => {
+            case None =>
                 result.kind = MatchImportKind.Ignore
-            }
         }
 
         return result
@@ -829,9 +803,8 @@ public class LinkerContext {
         for (entry in chunk.filesWithParts.entries()) {
             let path = graph.getPathByIndex(entry.key)
             match (path) {
-                case Some(p) => {
+                case Some(p) =>
                     hasher.write(p)
-                }
                 case None => ()
             }
         }
@@ -945,11 +918,10 @@ public class Graph {
     public func pathToSourceIndexMap(target: String): PathToSourceIndexMap {
         match (buildGraphs.get(target)) {
             case Some(map) => return map
-            case None => {
+            case None =>
                 let map = PathToSourceIndexMap()
                 buildGraphs.put(target, map)
                 return map
-            }
         }
     }
 
@@ -991,105 +963,9 @@ public class InputFile {
     }
 }
 
-/// 路径到源索引的映射
-public class PathToSourceIndexMap {
-    private var map: HashMap<String, Int64>
-
-    public init() {
-        map = HashMap<String, Int64>()
-    }
-
-    public func get(path: String): ?Int64 {
-        return map.get(path)
-    }
-
-    public func put(path: String, index: Int64): Unit {
-        map.put(path, index)
-    }
-}
-
 /// 加载器类型
-// 严格翻译自: options.zig:568 Loader
-public enum Loader {
-    | Jsx
-    | Js
-    | Ts
-    | Tsx
-    | Css
-    | File
-    | Json
-    | Jsonc
-    | Toml
-    | Wasm
-    | Napi
-    | Base64
-    | Dataurl
-    | Text
-    | Bunsh
-    | Sqlite
-    | SqliteEmbedded
-    | Html
-    | Yaml
-    | Json5
-    | Md
-
-    /// 是否是类 JS 加载器
-    public func isJSLike(): Bool {
-        match (this) {
-            case Jsx | Js | Ts | Tsx => true
-            case _ => false
-        }
-    }
-
-    /// 是否是 CSS
-    public func isCSS(): Bool {
-        return this == Css
-    }
-
-    /// 是否是 TypeScript
-    public func isTypeScript(): Bool {
-        return this == Ts || this == Tsx
-    }
-
-    /// 是否支持 sourcemap
-    public func canHaveSourceMap(): Bool {
-        return isJSLike()
-    }
-
-    /// 是否是 JSX
-    public func isJSX(): Bool {
-        return this == Jsx || this == Tsx
-    }
-
-    /// 是否是类 JS 或 JSON
-    public func isJavaScriptLikeOrJSON(): Bool {
-        match (this) {
-            case Jsx | Js | Ts | Tsx | Json | Jsonc | Toml | Yaml | Json5 => true
-            case _ => false
-        }
-    }
-
-    /// 是否支持客户端入口点
-    public func supportsClientEntryPoint(): Bool {
-        return isJSLike()
-    }
-}
-
-/// 副作用标记
-// 严格翻译自: resolver.zig SideEffects
-public enum SideEffects {
-    | Unknown
-    | NoSideEffectsPureData
-    | HasSideEffects
-    | SideEffectsFreeByPkgJson
-}
-
-/// 线程池 (简化)
-public class ThreadPool {
-    public init() {}
-}
-
-/// 导入追踪器
+// 严格翻译自: options.zig:568 Loader/// 副作用标记
+// 严格翻译自: resolver.zig SideEffects/// 导入追踪器
 public class ImportTracker {
     public var sourceIndex: Int64
     public var importRef: Int64
@@ -1098,31 +974,7 @@ public class ImportTracker {
         this.sourceIndex = sourceIndex
         this.importRef = importRef
     }
-}
-
-/// 符号类型
-public enum SymbolKind {
-    | Unbound
-    | Other
-    | LocalCss
-}
-
-/// 日志 (简化)
-public class Log {
-    public var errors: ArrayList<String>
-    public var warnings: ArrayList<String>
-
-    public init() {
-        errors = ArrayList<String>()
-        warnings = ArrayList<String>()
-    }
-
-    public func hasErrors(): Bool {
-        return errors.size > 0
-    }
-}
-
-/// 内容哈希器
+}/// 内容哈希器
 // 严格翻译自: bundle_v2.zig ContentHasher
 public class ContentHasher {
     private var state: UInt64
@@ -1134,7 +986,7 @@ public class ContentHasher {
     /// 写入数据到哈希
     public func write(data: String): Unit {
         for (c in data) {
-            state = state &* UInt64(0x5BD1E995)
+            state = state * UInt64(0x5BD1E995)
             state = state ^ UInt64(c.value)
         }
     }
@@ -1183,15 +1035,35 @@ public class Stmt {
     public var exportNames: ArrayList<String>
     public var exportValue: ?Expr
     public var importBindings: ?ArrayList<ImportBinding>
+    public var condition: ?Expr
+    public var thenBody: ?Stmt
+    public var elseBody: ?Stmt
+    public var catchBody: ArrayList<Stmt>
+    public var catchParam: String
+    public var finallyBody: ArrayList<Stmt>
+    public var declValue: ?Expr
+    public var isDefault: Bool
+    public var declKeyword: String
+    public var declName: ?String
 
     public init() {
-        tag = StmtTag.Other
+        tag = StmtTag.Empty
         expr = None
         body = ArrayList<Stmt>()
         importPath = None
         exportNames = ArrayList<String>()
         exportValue = None
         importBindings = None
+        condition = None
+        thenBody = None
+        elseBody = None
+        catchBody = ArrayList<Stmt>()
+        catchParam = ""
+        finallyBody = ArrayList<Stmt>()
+        declValue = None
+        isDefault = false
+        declKeyword = ""
+        declName = None
     }
 }
 
@@ -1216,9 +1088,12 @@ public class Expr {
     public var elseExpr: ?Expr
     public var isPrefix: Bool
     public var loc: Int64
+    public var operand: ?Expr
+    public var propertyName: String
+    public var isComputed: Bool
 
     public init() {
-        tag = ExprTag.Other
+        tag = ExprTag.Missing
         value = None
         target = None
         args = ArrayList<Expr>()
@@ -1237,6 +1112,9 @@ public class Expr {
         elseExpr = None
         isPrefix = false
         loc = 0
+        operand = None
+        propertyName = ""
+        isComputed = false
     }
 }
 
@@ -1251,44 +1129,6 @@ public class Prop {
     }
 }
 
-/// 语句标签
-public enum StmtTag {
-    | Import
-    | Export
-    | Decl
-    | Expr
-    | Return
-    | If
-    | Block
-    | For
-    | While
-    | Throw
-    | Try
-    | Other
-}
-
-/// 表达式标签
-public enum ExprTag {
-    | Identifier
-    | Number
-    | String
-    | Bool
-    | Null
-    | Undefined
-    | This
-    | Binary
-    | Unary
-    | Assign
-    | Call
-    | Member
-    | Function
-    | Arrow
-    | Object
-    | Array
-    | New
-    | Conditional
-    | Template
-    | Update
-    | Await
-    | Other
-}
+// StmtTag and ExprTag are defined in bao_ast - use those directly
+// StmtTag.Other -> StmtTag.Empty
+// ExprTag.Other -> ExprTag.Missing

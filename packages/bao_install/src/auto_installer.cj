@@ -65,7 +65,7 @@ public class ResolutionValue {
 /// AutoInstaller 协议
 /// 翻译自: hooks::AutoInstaller trait
 ///   定义了 resolver 需要从 PackageManager 获得的操作
-public protocol AutoInstaller {
+public interface AutoInstaller {
     /// 获取锁文件中包的数量
     /// 翻译自: fn lockfile_packages_len(&self) -> usize
     func lockfilePackagesLen(): Int64
@@ -100,7 +100,7 @@ public protocol AutoInstaller {
 
     /// 获取旧版包到依赖ID的映射
     /// 翻译自: fn lockfile_legacy_package_to_dependency_id(&self, package_id: PackageID) -> Result<DependencyID, Error>
-    func lockfileLegacyPackageToDependencyId(packageId: UInt32): Result<UInt32>
+    func lockfileLegacyPackageToDependencyId(packageId: UInt32): ?UInt32
 
     /// 从锁文件读取字符串
     /// 翻译自: fn lockfile_str<'a>(&'a self, s: &'a SemverString) -> &'a [u8]
@@ -111,11 +111,11 @@ public protocol AutoInstaller {
     func lockfileAppendFromPackageJson(
         packageJson: PackageJsonView,
         features: Features
-    ): Result<UInt32>
+    ): ?UInt32
 
     /// 追加根存根
     /// 翻译自: fn lockfile_append_root_stub(&mut self) -> Result<PackageID, Error>
-    func lockfileAppendRootStub(): Result<UInt32>
+    func lockfileAppendRootStub(): ?UInt32
 
     /// 设置唤醒回调
     /// 翻译自: fn set_on_wake(&mut self, handler: WakeHandler)
@@ -127,7 +127,7 @@ public protocol AutoInstaller {
         packageId: UInt32,
         resolution: ResolutionValue,
         buf: Array<Byte>
-    ): Result<Array<Byte>>
+    ): ?Array<Byte>
 
     /// 获取预安装状态
     /// 翻译自: fn get_preinstall_state(&self, package_id: PackageID) -> PreinstallState
@@ -142,7 +142,7 @@ public protocol AutoInstaller {
         resolution: ResolutionValue,
         ctx: TaskCallbackContext,
         patchNameAndVersionHash: ?UInt64
-    ): Result<Unit>
+    ): ?Unit
 
     /// 从磁盘缓存解析
     /// 翻译自: fn resolve_from_disk_cache(...) -> Option<PackageID>
@@ -191,16 +191,6 @@ public protocol AutoInstaller {
 // 严格翻译自: auto_installer.rs 中的引用类型
 // ============================================================================
 
-/// 唤醒处理器
-/// 翻译自: hooks::WakeHandler
-public class WakeHandler {
-    public var callback: () -> Unit
-
-    public init(callback: () -> Unit) {
-        this.callback = callback
-    }
-}
-
 /// 任务回调上下文
 /// 翻译自: hooks::TaskCallbackContext
 public class TaskCallbackContext {
@@ -230,27 +220,13 @@ public enum PreinstallState {
 
 /// 包 JSON 视图
 /// 翻译自: hooks::PackageJsonView trait
-public protocol PackageJsonView {
+public interface PackageJsonView {
     func name(): Array<Byte>
     func version(): Array<Byte>
     func dependencySourceBuf(): Array<Byte>
     func dependencyIter(): ArrayList<DependencyEntry>
     func arch(): ArchitectureSet
     func os(): OperatingSystemSet
-}
-
-/// 依赖条目
-/// 翻译自: hooks::DependencyEntry
-public class DependencyEntry {
-    public var behavior: Behavior
-    public var name: Array<Byte>
-    public var version: Array<Byte>
-
-    public init(behavior: Behavior, name: Array<Byte>, version: Array<Byte>) {
-        this.behavior = behavior
-        this.name = name
-        this.version = version
-    }
 }
 
 /// 架构集合
@@ -263,10 +239,12 @@ public class ArchitectureSet {
     }
 
     public init() {
-        value = UInt64.MAX
+        value = UInt64(0) ^ UInt64(0) - UInt64(1)
     }
 
-    public static let ALL_VALUE: UInt64 = UInt64.MAX
+    public static func ALL_VALUE(): UInt64 {
+        return UInt64(0) - UInt64(1)
+    }
 
     public func has(arch: UInt64): Bool {
         return (value & arch) != 0
@@ -283,10 +261,12 @@ public class OperatingSystemSet {
     }
 
     public init() {
-        value = UInt64.MAX
+        value = UInt64(0) - UInt64(1)
     }
 
-    public static let ALL_VALUE: UInt64 = UInt64.MAX
+    public static func ALL_VALUE(): UInt64 {
+        return UInt64(0) - UInt64(1)
+    }
 
     public func has(os: UInt64): Bool {
         return (value & os) != 0
@@ -323,36 +303,7 @@ public class Features {
     }
 
     public init() {
-        mask = UInt32.MAX
-    }
-}
-
-/// 切片字符串
-/// 翻译自: semver::SlicedString
-public class SlicedString {
-    public var offset: UInt32
-    public var length: UInt32
-
-    public init(offset: UInt32, length: UInt32) {
-        this.offset = offset
-        this.length = length
-    }
-
-    public init() {
-        offset = 0
-        length = 0
-    }
-}
-
-/// 日志
-/// 翻译自: bun_ast::Log
-public class Log {
-    public var errors: Int64
-    public var warnings: Int64
-
-    public init() {
-        errors = 0
-        warnings = 0
+        mask = UInt32(0xFFFFFFFF)
     }
 }
 
@@ -378,7 +329,7 @@ public func initPackageManagerFromResolver(
     //   bun_http.http_thread.init({})
     //   let pm = PackageManager.initWithRuntime(log, bun_install, allocator, {}, env)
     //   return NonNull::new(pm as *mut dyn AutoInstaller)
-    return PackageManager.initWithRuntime(log, install, env)
+    return PackageManager.initWithRuntime(log, Allocator(), CommandLineArguments(), env)
 }
 
 /// Bun 安装配置
@@ -390,19 +341,5 @@ public class BunInstallConfig {
     public init(registry: String, cacheDirectory: String) {
         this.registry = registry
         this.cacheDirectory = cacheDirectory
-    }
-}
-
-/// DotEnv 加载器
-/// 翻译自: bun_dotenv::Loader
-public class DotEnvLoader {
-    public var entries: HashMap<String, String>
-
-    public init() {
-        entries = HashMap<String, String>()
-    }
-
-    public func get(key: String): ?String {
-        return entries.get(key)
     }
 }

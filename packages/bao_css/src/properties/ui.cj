@@ -9,6 +9,7 @@
 package bao_css.properties
 
 import bao_core.*
+import bao_collections.*
 
 // ============================================================================
 // ColorScheme
@@ -37,11 +38,11 @@ public class ColorScheme {
     }
 
     public static func default(): ColorScheme {
-        ColorScheme(light: false, dark: false, only: false)
+        ColorScheme(false, false, false)
     }
 
     public static func normal(): ColorScheme {
-        ColorScheme(light: false, dark: false, only: false)
+        ColorScheme(false, false, false)
     }
 
     public func toCss(): String {
@@ -58,7 +59,12 @@ public class ColorScheme {
         if (only) {
             parts.append("only")
         }
-        return String.join(" ", parts)
+        var result = ""
+        for (i in 0..parts.size) {
+            if (i > 0) { result = result + " " }
+            result = result + parts[i]
+        }
+        return result
     }
 }
 
@@ -121,7 +127,7 @@ public class Cursor {
     }
 
     public static func default(): Cursor {
-        Cursor(images: ArrayList<CursorImage>(), keyword: "auto")
+        Cursor(ArrayList<CursorImage>(), "auto")
     }
 
     public func toCss(): String {
@@ -135,7 +141,12 @@ public class Cursor {
         if (parts.isEmpty()) {
             return "auto"
         }
-        return String.join(", ", parts) + " " + keyword
+        var result = ""
+        for (i in 0..parts.size) {
+            if (i > 0) { result = result + ", " }
+            result = result + parts[i]
+        }
+        return result + " " + keyword
     }
 }
 
@@ -155,16 +166,23 @@ public class CursorImage {
         this.hotspot = hotspot
     }
 
-    public func toCss(): String {
-        match (hotspot) {
-            Some(coords) => {
-                if (coords.size >= 2) {
-                    return "url(" + url + ") " + coords[0].toString() + " " + coords[1].toString()
-                }
-                return "url(" + url + ")"
-            }
-            None => "url(" + url + ")"
+    private func coordsToCss(coords: ArrayList<Float64>): String {
+        if (coords.size >= 2) {
+            "url(" + url + ") " + coords[0].toString() + " " + coords[1].toString()
+        } else {
+            "url(" + url + ")"
         }
+    }
+
+    private func hotspotToCss(): String {
+        match (hotspot) {
+            case Some(coords) => coordsToCss(coords)
+            case None => "url(" + url + ")"
+        }
+    }
+
+    public func toCss(): String {
+        hotspotToCss()
     }
 }
 

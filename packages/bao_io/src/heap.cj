@@ -36,7 +36,7 @@ public class IntrusiveHeapField<T> {
 ///   count: O(N) traversal
 ///   deleteMin: combine-siblings
 ///   remove: detach + combine-children + meld
-public class IntrusiveHeap<T> {
+public class IntrusiveHeap<T> where T <: Equatable<T> {
     /// 堆根节点
     public var root: ?T = None
     /// 比较函数: 返回 true 表示 a 的优先级低于 b (less than)
@@ -51,7 +51,7 @@ public class IntrusiveHeap<T> {
     public func getHeapField(elem: T): IntrusiveHeapField<T> {
         // 需要元素类型提供 heap 字段访问
         // 由具体使用处实现
-        fatal("getHeapField must be overridden")
+        throw Exception("getHeapField must be overridden")
     }
 
     /// 插入元素到堆中
@@ -59,7 +59,7 @@ public class IntrusiveHeap<T> {
     ///   self.root = if (self.root) |root| self.meld(v, root) else v;
     public func insert(v: T): Unit {
         let field = getHeapField(v)
-        if (let Some(r) = root) {
+        if (let Some(r) <- root) {
             root = meld(v, r)
         } else {
             root = v
@@ -80,7 +80,7 @@ public class IntrusiveHeap<T> {
     }
 
     private func countInternal(node: ?T): Int64 {
-        if (let Some(current) = node) {
+        if (let Some(current) <- node) {
             var result: Int64 = 1
             let field = getHeapField(current)
             // 统计子节点
@@ -95,7 +95,7 @@ public class IntrusiveHeap<T> {
     /// 查找堆中最大值 - O(N) 操作
     /// 严格翻译自 heap.zig:51-66 findMax() + findMaxInternal()
     public func findMax(): ?T {
-        if (let Some(r) = root) {
+        if (let Some(r) <- root) {
             return findMaxInternal(r, r)
         }
         return None
@@ -111,12 +111,12 @@ public class IntrusiveHeap<T> {
         }
 
         // 遍历子节点
-        if (let Some(child) = field.child) {
+        if (let Some(child) <- field.child) {
             maxSoFar = findMaxInternal(child, maxSoFar)
         }
 
         // 遍历兄弟节点
-        if (let Some(next) = field.next) {
+        if (let Some(next) <- field.next) {
             maxSoFar = findMaxInternal(next, maxSoFar)
         }
 
@@ -128,9 +128,9 @@ public class IntrusiveHeap<T> {
     ///   root = combine_siblings(root.child) else null
     ///   root.heap = .{} (清空指针)
     public func deleteMin(): ?T {
-        if (let Some(r) = root) {
+        if (let Some(r) <- root) {
             let field = getHeapField(r)
-            if (let Some(child) = field.child) {
+            if (let Some(child) <- field.child) {
                 root = combineSiblings(child)
             } else {
                 root = None
@@ -151,9 +151,9 @@ public class IntrusiveHeap<T> {
     public func remove(v: T): Unit {
         let field = getHeapField(v)
 
-        if (let Some(prev) = field.prev) {
+        if (let Some(prev) <- field.prev) {
             // 从链表中移除 v
-            if (let Some(next) = field.next) {
+            if (let Some(next) <- field.next) {
                 getHeapField(next).prev = prev
             }
             let prevField = getHeapField(prev)
@@ -166,16 +166,16 @@ public class IntrusiveHeap<T> {
             field.next = None
 
             // 合并子树并 meld 回 root
-            if (let Some(child) = field.child) {
+            if (let Some(child) <- field.child) {
                 field.child = None
-                if (let Some(r) = root) {
+                if (let Some(r) <- root) {
                     let x = combineSiblings(child)
                     root = meld(x, r)
                 }
             }
         } else {
             // 必须是 root
-            if (let Some(r) = root) {
+            if (let Some(r) <- root) {
                 if (r == v) {
                     let _ = deleteMin()
                 }
@@ -196,14 +196,14 @@ public class IntrusiveHeap<T> {
             bField.prev = a
 
             // A 继承 B 的兄弟
-            if (let Some(bNext) = bField.next) {
+            if (let Some(bNext) <- bField.next) {
                 aField.next = bNext
                 getHeapField(bNext).prev = a
                 bField.next = None
             }
 
             // B 成为 A 的左子节点
-            if (let Some(aChild) = aField.child) {
+            if (let Some(aChild) <- aField.child) {
                 bField.next = aChild
                 getHeapField(aChild).prev = b
             }
@@ -214,7 +214,7 @@ public class IntrusiveHeap<T> {
         // A 成为 B 的子节点
         bField.prev = aField.prev
         aField.prev = b
-        if (let Some(bChild) = bField.child) {
+        if (let Some(bChild) <- bField.child) {
             aField.next = bChild
             getHeapField(bChild).prev = a
         }
@@ -234,11 +234,11 @@ public class IntrusiveHeap<T> {
         var a: T = left
         while (true) {
             let aField = getHeapField(a)
-            if (let Some(b) = aField.next) {
+            if (let Some(b) <- aField.next) {
                 aField.next = None
                 var bNode = meld(a, b)
                 let bField = getHeapField(bNode)
-                if (let Some(nextB) = bField.next) {
+                if (let Some(nextB) <- bField.next) {
                     a = nextB
                 } else {
                     rootRes = bNode
@@ -251,11 +251,11 @@ public class IntrusiveHeap<T> {
         }
 
         // 从右到左合并
-        if (let Some(r) = rootRes) {
+        if (let Some(r) <- rootRes) {
             var currentRoot = r
             while (true) {
                 let rField = getHeapField(currentRoot)
-                if (let Some(b) = rField.prev) {
+                if (let Some(b) <- rField.prev) {
                     getHeapField(b).next = None
                     currentRoot = meld(b, currentRoot)
                 } else {

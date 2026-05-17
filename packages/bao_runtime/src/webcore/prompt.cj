@@ -34,7 +34,7 @@ public class Prompt {
         Output.print(message)
         Output.print(" [y/N] ")
         Output.flush()
-        let input = Console.readln().trim().toLowerCase()
+        let input = Console.readln().trimAscii().toLowerCase()
         return input == "y" || input == "yes"
     }
 
@@ -45,7 +45,7 @@ public class Prompt {
         Output.print(message)
         Output.print(": ")
         Output.flush()
-        let input = Console.readln().trim()
+        let input = Console.readln().trimAscii()
         if (input.length == 0) {
             return None
         }
@@ -57,7 +57,7 @@ public class Prompt {
         Output.print(message)
         Output.print(" [${defaultValue}]: ")
         Output.flush()
-        let input = Console.readln().trim()
+        let input = Console.readln().trimAscii()
         if (input.length == 0) {
             if (defaultValue.length == 0) {
                 return None

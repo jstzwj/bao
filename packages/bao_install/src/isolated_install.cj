@@ -19,6 +19,7 @@ import bao_io.*
 import bao_hash.*
 import bao_path.*
 import bao_http.*
+import bao_sys.*
 
 // ============================================================================
 // Store 节点
@@ -211,12 +212,49 @@ public class PackageStore {
         // 格式: name@version 或 name@version+peerhash
         var storePath = "${name}@${version}"
         if (entry.peerHash != UInt64(0)) {
-            let hashHex = bao_hash.Wyhash.toHexString(entry.peerHash)
+            let hashHex = uint64ToHex(entry.peerHash)
             storePath = "${storePath}_${hashHex}"
         }
 
         return storePath
     }
+}
+
+/// UInt64 转 hex 字符串
+func uint64ToHex(value: UInt64): String {
+    var v = value
+    // Handle zero
+    if (v == UInt64(0)) { return "0" }
+    var digits = ArrayList<UInt8>()
+    while (v > UInt64(0)) {
+        let digit = UInt8(v % UInt64(16))
+        digits.append(digit)
+        v = v / UInt64(16)
+    }
+    let sb = StringBuilder()
+    var i = digits.size - 1
+    while (i >= 0) {
+        let d = Int64(digits[i])
+        if (d == 0) { sb.append("0") }
+        else if (d == 1) { sb.append("1") }
+        else if (d == 2) { sb.append("2") }
+        else if (d == 3) { sb.append("3") }
+        else if (d == 4) { sb.append("4") }
+        else if (d == 5) { sb.append("5") }
+        else if (d == 6) { sb.append("6") }
+        else if (d == 7) { sb.append("7") }
+        else if (d == 8) { sb.append("8") }
+        else if (d == 9) { sb.append("9") }
+        else if (d == 10) { sb.append("a") }
+        else if (d == 11) { sb.append("b") }
+        else if (d == 12) { sb.append("c") }
+        else if (d == 13) { sb.append("d") }
+        else if (d == 14) { sb.append("e") }
+        else if (d == 15) { sb.append("f") }
+        else { sb.append("0") }
+        i -= 1
+    }
+    return sb.toString()
 }
 
 // ============================================================================
@@ -275,7 +313,7 @@ public class IsolatedInstaller {
         buildStore(lockfile, installRootDependencies, workspaceFilters, packagesToInstall)
 
         // 步骤 2: 计算全局虚拟存储哈希 (如果启用)
-        if (manager.cacheDirectoryPath.length > 0) {
+        if (manager.cacheDirectoryPath.size > 0) {
             globalStorePath = "${manager.cacheDirectoryPath}/links"
         }
 
@@ -308,51 +346,47 @@ public class IsolatedInstaller {
         // DFS 队列
         let nodeQueue = ArrayList<QueuedNode>()
         // 根节点
-        nodeQueue.append(QueuedNode(
-            parentId: Int64(-1),
-            depId: INVALID_DEPENDENCY_ID,
-            pkgId: UInt32(0)
-        ))
+        nodeQueue.append(QueuedNode(Int64(-1), INVALID_DEPENDENCY_ID, UInt32(0)))
 
         // 早期去重映射: (pkg_id, ctx_hash) -> node_id
         let earlyDedupe = HashMap<UInt64, Int64>()
 
         // 遍历队列
         while (nodeQueue.size > 0) {
-            let entry = nodeQueue.removeAt(nodeQueue.size - 1) // pop last (DFS)
-            let nodeId = store.addNode(entry.pkgId, entry.depId, entry.parentId)
+            let qEntry = nodeQueue.removeAt(nodeQueue.size - 1) // pop last (DFS)
+            let nodeId = store.addNode(qEntry.pkgId, qEntry.depId, qEntry.parentId)
             let node = store.nodes[nodeId]
 
             // 将节点添加到父节点的子列表
-            if (entry.parentId >= 0) {
-                store.nodes[entry.parentId].childNodes.append(nodeId)
+            if (qEntry.parentId >= 0) {
+                store.nodes[qEntry.parentId].childNodes.append(nodeId)
             }
 
             // 根节点或无父节点: 跳过依赖
-            if (entry.pkgId == UInt32(0) && entry.depId != INVALID_DEPENDENCY_ID) {
+            if (qEntry.pkgId == UInt32(0) && qEntry.depId != INVALID_DEPENDENCY_ID) {
                 continue
             }
 
             // 检查循环
             // 翻译自: isolated_install 中的 check_cycle 逻辑
-            if (checkCycle(nodeId, entry.pkgId, entry.depId, lockfile)) {
+            if (checkCycle(nodeId, qEntry.pkgId, qEntry.depId, lockfile)) {
                 continue
             }
 
             // 获取此包的依赖
-            let pkgDeps = getPackageDependencies(entry.pkgId, lockfile)
+            let pkgDeps = getPackageDependencies(qEntry.pkgId, lockfile)
             for (dep in pkgDeps) {
                 // 过滤掉不需要的依赖
-                if (shouldFilterDependency(dep, entry.pkgId, workspaceFilters, installRootDependencies)) {
+                if (shouldFilterDependency(dep, qEntry.pkgId, workspaceFilters, installRootDependencies)) {
                     continue
                 }
 
                 let pkgId = lockfile.resolutions[Int64(dep)]
-                if (pkgId == INVALID_PACKAGE_ID) { continue }
+                if (pkgId == INVALID_PACKAGE_ID) { () }
 
                 // 非peer依赖: 直接加入队列
                 node.dependencies.append(StoreDependency(dep, pkgId))
-                nodeQueue.append(QueuedNode(parentId: nodeId, depId: dep, pkgId: pkgId))
+                nodeQueue.append(QueuedNode(nodeId, dep, pkgId))
             }
 
             // 处理 peer 依赖
@@ -383,40 +417,39 @@ public class IsolatedInstaller {
     /// 翻译自: isolated_install 中的第二次遍历 (next_entry)
     private func buildEntries(lockfile: LockfileData): Unit {
         let entryQueue = ArrayList<QueuedEntry>()
-        entryQueue.append(QueuedEntry(nodeId: Int64(0), entryParentId: Int64(-1)))
+        entryQueue.append(QueuedEntry(Int64(0), Int64(-1)))
 
         // 去重映射: pkg_id -> [DedupeInfo]
         let dedupe = HashMap<UInt32, ArrayList<DedupeInfo>>()
 
         while (entryQueue.size > 0) {
-            let entry = entryQueue.removeAt(0)
-            let pkgId = store.nodes[entry.nodeId].pkgId
+            let qEntry = entryQueue.removeAt(0)
+            let pkgId = store.nodes[qEntry.nodeId].pkgId
 
             // 检查是否可以复用已有 entry
-            let entryId = store.addEntry(entry.nodeId)
+            let entryId = store.addEntry(qEntry.nodeId)
             let newEntry = store.entries[entryId]
 
             // 添加到父条目的依赖
-            if (entry.entryParentId >= 0) {
-                let parentEntry = store.entries[entry.entryParentId]
-                parentEntry.dependencies.append(StoreEntryDependency(entryId, store.nodes[entry.nodeId].depId))
-                parentEntry.parents.append(entry.entryParentId)
+            if (qEntry.entryParentId >= 0) {
+                let parentEntry = store.entries[qEntry.entryParentId]
+                parentEntry.dependencies.append(StoreEntryDependency(entryId, store.nodes[qEntry.nodeId].depId))
+                parentEntry.parents.append(qEntry.entryParentId)
             }
 
             // 将子节点加入队列
-            let node = store.nodes[entry.nodeId]
+            let node = store.nodes[qEntry.nodeId]
             for (childId in node.childNodes) {
-                entryQueue.append(QueuedEntry(nodeId: childId, entryParentId: entryId))
+                entryQueue.append(QueuedEntry(childId, entryId))
             }
 
             // 添加到去重映射
             match (dedupe.get(pkgId)) {
-                case Some(list) => list.append(DedupeInfo(entryId, store.nodes[entry.nodeId].depId))
-                case None => {
+                case Some(list) => list.append(DedupeInfo(entryId, store.nodes[qEntry.nodeId].depId))
+                case None =>
                     let list = ArrayList<DedupeInfo>()
-                    list.append(DedupeInfo(entryId, store.nodes[entry.nodeId].depId))
+                    list.append(DedupeInfo(entryId, store.nodes[qEntry.nodeId].depId))
                     dedupe.put(pkgId, list)
-                }
             }
         }
     }
@@ -424,17 +457,17 @@ public class IsolatedInstaller {
     /// 设置 node_modules/.bun 目录
     /// 翻译自: isolated_install 中的 is_new_bun_modules 设置逻辑
     private func setupBunModules(): Unit {
-        let cwd = bao_io.File.getCurrentDirectory()
+        let cwd = OS.getcwd()
         let nodeModulesPath = "${cwd}/node_modules"
         let bunModulesPath = "${nodeModulesPath}/${PackageStore.MODULES_DIR_NAME}"
 
-        if (!bao_io.File.directoryExists(nodeModulesPath)) {
-            bao_io.File.createDirectory(nodeModulesPath)
+        if (!SysFs.exists(nodeModulesPath)) {
+            BaoFile.mkdir(nodeModulesPath, true)
             isNewBunModules = true
         }
 
-        if (!bao_io.File.directoryExists(bunModulesPath)) {
-            bao_io.File.createDirectory(bunModulesPath)
+        if (!SysFs.exists(bunModulesPath)) {
+            BaoFile.mkdir(bunModulesPath, true)
             isNewBunModules = true
         }
     }
@@ -454,66 +487,62 @@ public class IsolatedInstaller {
         let tag = lockfile.getResolutionTag(pkgId)
 
         match (tag) {
-            case DependencyVersionTag.Root => {
-                // 根包: 设置为符号链接阶段
+            case DependencyVersionTag.Uninitialized =>
+                // 根包/未初始化: 设置为符号链接阶段
                 entry.step = StoreEntryStep.SymlinkDependencies
-            }
-            case DependencyVersionTag.Workspace => {
+            case DependencyVersionTag.Workspace =>
                 // workspace: 只需符号链接
                 entry.step = StoreEntryStep.SymlinkDependencies
-            }
-            case DependencyVersionTag.Symlink => {
+            case DependencyVersionTag.Symlink =>
                 // symlink: 无需安装
                 entry.step = StoreEntryStep.Done
                 return
-            }
-            case DependencyVersionTag.Folder => {
-                // folder: 需要硬链接
-            }
+            case DependencyVersionTag.Folder => ()  // folder: 需要硬链接
             case DependencyVersionTag.Npm |
                  DependencyVersionTag.Git |
                  DependencyVersionTag.Github |
-                 DependencyVersionTag.Tarball => {
-                // 检查是否需要下载
-                let needsInstall = checkNeedsInstall(entryId, pkgId, tag, lockfile)
-                if (!needsInstall) {
-                    // 检查全局存储链接
-                    match (globalStorePath) {
-                        case Some(_) => linkProjectToGlobalStore(entryId)
-                        case None => ()
-                    }
-                    if (entry.hoisted) {
-                        linkToHiddenNodeModules(entryId)
-                    }
-                    entry.step = StoreEntryStep.Done
-                    return
-                }
-
-                // 检查缓存
-                if (!isPackageMissingFromCache(pkgId, lockfile)) {
-                    // 缓存命中, 可以直接安装
-                    return
-                }
-
-                // 需要下载: 加入网络任务队列
-                enqueuePackageForDownload(depId, pkgId, pkgName, resolution, tag, lockfile)
-            }
-            case _ => {
+                 DependencyVersionTag.Tarball => handleDownloadablePackage(entryId, pkgId, tag, lockfile, depId, pkgName, resolution)
+            case _ =>
                 entry.step = StoreEntryStep.Done
                 return
-            }
         }
+    }
+
+    private func handleDownloadablePackage(entryId: UInt32, pkgId: UInt32, tag: DependencyVersionTag, lockfile: LockfileData, depId: UInt32, pkgName: String, resolution: String): Unit {
+        // 检查是否需要下载
+        let needsInstall = checkNeedsInstall(entryId, pkgId, tag, lockfile)
+        if (!needsInstall) {
+            // 检查全局存储链接
+            match (globalStorePath) {
+                case Some(_) => linkProjectToGlobalStore(entryId)
+                case None => ()
+            }
+            if (store.entries[Int64(entryId)].hoisted) {
+                linkToHiddenNodeModules(entryId)
+            }
+            store.entries[Int64(entryId)].step = StoreEntryStep.Done
+            return
+        }
+
+        // 检查缓存
+        if (!isPackageMissingFromCache(pkgId, lockfile)) {
+            // 缓存命中, 可以直接安装
+            return
+        }
+
+        // 需要下载: 加入网络任务队列
+        enqueuePackageForDownload(depId, pkgId, pkgName, resolution, tag, lockfile)
     }
 
     /// 检查是否需要安装
     /// 翻译自: isolated_install 中的 needs_install 检查
     private func checkNeedsInstall(entryId: UInt32, pkgId: UInt32, tag: DependencyVersionTag, lockfile: LockfileData): Bool {
-        if (manager.cacheDirectoryPath.length == 0) { return true }
+        if (manager.cacheDirectoryPath.size == 0) { return true }
 
         let storePath = store.formatStorePath(Int64(entryId), lockfile)
         let fullPath = "${manager.cacheDirectoryPath}/${storePath}"
 
-        return !bao_io.File.directoryExists(fullPath)
+        return !SysFs.exists(fullPath)
     }
 
     /// 检查包是否在缓存中缺失
@@ -521,7 +550,7 @@ public class IsolatedInstaller {
         let name = lockfile.getPackageName(pkgId)
         let version = lockfile.getResolution(pkgId)
         let cachePath = "${manager.cacheDirectoryPath}/${name}@${version}"
-        return !bao_io.File.directoryExists(cachePath)
+        return !SysFs.exists(cachePath)
     }
 
     /// 加入下载队列

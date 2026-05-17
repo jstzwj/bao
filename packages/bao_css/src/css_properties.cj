@@ -452,7 +452,7 @@ public enum CssPropertyIdTag {
 public class CssPropertyUtils {
     /// 获取属性的逻辑分组
     public static func getLogicalGroup(property: String): CssLogicalGroup {
-        let lower = property.toLowerCase()
+        let lower = property
         match (lower) {
             case "margin" | "margin-top" | "margin-right" | "margin-bottom" |
                  "margin-left" | "margin-block" | "margin-block-start" |
@@ -478,7 +478,7 @@ public class CssPropertyUtils {
 
     /// 获取属性类别
     public static func getCategory(property: String): CssPropertyCategory {
-        let lower = property.toLowerCase()
+        let lower = property
         match (lower) {
             case "display" | "position" | "float" | "clear" |
                  "flex" | "flex-direction" | "flex-wrap" | "flex-flow" |
@@ -526,7 +526,7 @@ public class CssPropertyUtils {
 
     /// 是否为简写属性
     public static func isShorthand(property: String): Bool {
-        let lower = property.toLowerCase()
+        let lower = property
         match (lower) {
             case "margin" | "padding" | "border" | "border-radius" |
                  "border-width" | "border-style" | "border-color" |
@@ -547,7 +547,7 @@ public class CssPropertyUtils {
 
     /// 是否为继承属性
     public static func isInherited(property: String): Bool {
-        let lower = property.toLowerCase()
+        let lower = property
         match (lower) {
             case "font" | "font-family" | "font-size" | "font-style" |
                  "font-weight" | "font-variant" | "line-height" |
@@ -563,7 +563,7 @@ public class CssPropertyUtils {
 
     /// 获取简写属性包含的子属性列表
     public static func getLonghands(property: String): ArrayList<String> {
-        let lower = property.toLowerCase()
+        let lower = property
         match (lower) {
             case "margin" =>
                 ArrayList<String>(["margin-top", "margin-right", "margin-bottom", "margin-left"])

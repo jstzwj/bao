@@ -35,7 +35,7 @@ public interface BundleCompletion {
 
 /// 打包线程
 // 严格翻译自: BundleThread.zig:12 BundleThread(CompletionStruct)
-public class BundleThread<T <: BundleCompletion> {
+public class BundleThread<T> where T <: BundleCompletion {
     /// 唤醒器
     public var waker: Waker
     /// 就绪事件
@@ -54,7 +54,7 @@ public class BundleThread<T <: BundleCompletion> {
 
     /// 启动打包线程
     // 严格翻译自: BundleThread.zig:29 spawn
-    public func spawn(): Thread {
+    public func `spawn`(): Thread {
         let thread = Thread(bundleThreadMain)
         thread.start()
         readyEvent.wait()
@@ -71,7 +71,7 @@ public class BundleThread<T <: BundleCompletion> {
     /// 线程主函数
     // 严格翻译自: BundleThread.zig:69 threadMain
     private func bundleThreadMain(): Unit {
-        waker.init()
+        waker.initFunc()
 
         // 解除调用线程阻塞
         readyEvent.set()
@@ -85,7 +85,7 @@ public class BundleThread<T <: BundleCompletion> {
                     break
                 }
                 // 在新线程中生成
-                generateInNewThread(completion.value())
+                generateInNewThread(completion.getOrThrow())
                 hasBundled = true
             }
             generation = generation + 1
@@ -106,7 +106,7 @@ public class BundleThread<T <: BundleCompletion> {
         let heap = ThreadLocalArena()
         let allocator = heap.allocator()
 
-        let astMemoryAllocator = ASTMemoryAllocator(allocator: allocator)
+        let astMemoryAllocator = ASTMemoryAllocator(allocator)
         astMemoryAllocator.reset()
         astMemoryAllocator.push()
 
@@ -122,8 +122,8 @@ public class BundleThread<T <: BundleCompletion> {
 
         // 执行打包
         try {
-            let bundleV2 = BundleV2(transpiler, allocator)
-            bundleV2.run()
+            let bundleV2 = BundleV2()
+            bundleV2.initFunc(transpiler)
         } catch (e: Exception) {
             // 错误处理
         }
@@ -131,25 +131,26 @@ public class BundleThread<T <: BundleCompletion> {
         astMemoryAllocator.pop()
         completion.completeOnBundleThread()
     }
+}
 
-    /// 打包线程单例
-    // 严格翻译自: BundleThread.zig:37 singleton
-    public static class Singleton {
-        private static var instance: BundleThread<BundleCompletion>
+/// 打包线程单例
+// 严格翻译自: BundleThread.zig:37 singleton
+public class BundleThreadSingleton {
+    private static var instance: ?BundleThread<BundleCompletion>
 
-        /// 获取单例
-        public static func get(): BundleThread<BundleCompletion> {
-            if (instance == null) {
-                instance = BundleThread<BundleCompletion>()
-                instance.spawn()
-            }
-            return instance
+    /// 获取单例
+    public static func get(): BundleThread<BundleCompletion> {
+        if (instance.isNone()) {
+            let bt = BundleThread<BundleCompletion>()
+            bt.`spawn`()
+            instance = bt
         }
+        return instance.getOrThrow()
+    }
 
-        /// 入队
-        public static func enqueue(completion: BundleCompletion): Unit {
-            get().enqueue(completion)
-        }
+    /// 入队
+    public static func enqueue(completion: BundleCompletion): Unit {
+        get().enqueue(completion)
     }
 }
 
@@ -191,7 +192,7 @@ public class UnboundedQueue<T> {
         items.append(item)
     }
 
-    public func pop(): Option<T> {
+    public func pop(): ?T {
         if (items.size > 0) {
             return Some(items.removeAt(0))
         }
@@ -199,34 +200,14 @@ public class UnboundedQueue<T> {
     }
 }
 
-/// 可选值
-public enum Option<T> {
-    | Some(T)
-    | None
-
-    public func isNone(): Bool {
-        match (this) {
-            case None => true
-            case Some(_) => false
-        }
-    }
-
-    public func value(): T {
-        match (this) {
-            case Some(v) => v
-            case None => throw RuntimeException("Option is None")
-        }
-    }
-}
-
 /// AST 内存分配器 (打包线程使用)
 public class ASTMemoryAllocator {
     public var allocator: Allocator
-    public var previous: ASTMemoryAllocator
+    public var previous: ?ASTMemoryAllocator
 
     public init(allocator: Allocator) {
         this.allocator = allocator
-        this.previous = null
+        this.previous = None
     }
 
     public func reset(): Unit {}
@@ -234,22 +215,6 @@ public class ASTMemoryAllocator {
     public func push(): Unit {}
 
     public func pop(): Unit {}
-}
-
-/// Transpiler (简化引用)
-public class Transpiler {
-    public init() {}
-}
-
-/// BundleV2 (简化引用)
-public class BundleV2 {
-    public var transpiler: Transpiler
-
-    public init(transpiler: Transpiler, allocator: Allocator) {
-        this.transpiler = transpiler
-    }
-
-    public func run(): Unit {}
 }
 
 /// 线程本地 Arena
@@ -265,15 +230,15 @@ public class ThreadLocalArena {
 
 /// 线程
 public class Thread {
-    private var func: () -> Unit
+    private var `func`: () -> Unit
 
-    public init(_ func: () -> Unit) {
-        this.func = func
+    public init(`func`: () -> Unit) {
+        this.`func` = `func`
     }
 
     public func start(): Unit {
         // 简化: 在实际实现中创建新线程
-        func()
+        `func`()
     }
 
     public func detach(): Unit {}

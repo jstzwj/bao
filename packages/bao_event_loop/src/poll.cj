@@ -11,6 +11,7 @@ package bao_event_loop
 import bao_core.*
 import bao_sys.*
 import bao_threading.*
+import bao_collections.*
 
 // ============================================================================
 // Epoll 常量 - Linux epoll 系统调用参数
@@ -191,7 +192,7 @@ public class EpollData {
 /// 使用 epoll (Linux) 或 kqueue (macOS) 进行 I/O 多路复用
 public class Poller {
     /// epoll/kqueue 实例的文件描述符
-    private var pollFd: Int64
+    private var pollerFd: Int64
     /// 注册的文件描述符映射 (fd -> PollEntry)
     private var registered: HashMap<Int64, PollEntry>
     /// 是否活跃
@@ -202,13 +203,13 @@ public class Poller {
     public init() {
         registered = HashMap<Int64, PollEntry>()
         active = false
-        pollFd = -1
+        pollerFd = -1
         platform = ""
 
         // 尝试创建 epoll 实例 (Linux)
         let epollResult = createEpoll()
         if (epollResult >= 0) {
-            pollFd = epollResult
+            pollerFd = epollResult
             active = true
             platform = "epoll"
             return
@@ -217,14 +218,14 @@ public class Poller {
         // 尝试创建 kqueue 实例 (macOS)
         let kqResult = createKqueue()
         if (kqResult >= 0) {
-            pollFd = kqResult
+            pollerFd = kqResult
             active = true
             platform = "kqueue"
             return
         }
 
         // 两个都不可用
-        pollFd = -1
+        pollerFd = -1
         active = false
     }
 
@@ -242,7 +243,7 @@ public class Poller {
     /// 创建 epoll 实例 - 对应 epoll_create1(EPOLL_CLOEXEC)
     private static func createEpoll(): Int64 {
         unsafe {
-            return epoll_create1(EPOLL_CLOEXEC)
+            return Int64(epoll_create1(EPOLL_CLOEXEC))
         }
     }
 
@@ -280,7 +281,7 @@ public class Poller {
             }
 
             unsafeFreeEpollEvents(bufferPtr, Int64(maxEvents))
-            return events.toArray()
+            return events.toOwnedSlice()
         }
     }
 
@@ -296,7 +297,7 @@ public class Poller {
     /// 创建 kqueue 实例 - 对应 kqueue()
     private static func createKqueue(): Int64 {
         unsafe {
-            return kqueue()
+            return Int64(kqueue())
         }
     }
 
@@ -307,7 +308,7 @@ public class Poller {
             // 分配一个 kevent 结构并设置
             let changePtr = unsafeMallocKevent()
             keventSet(changePtr, UInt64(fd), filter, flags, 0, 0, CPointer<Unit>())
-            let result = kevent(Int32(kq), changePtr, 1, CPointer<Unit>(), 0, CPointer<Unit>())
+            let result = kevent(Int32(kq), changePtr, 1, CPointer<UInt8>(), 0, CPointer<UInt8>())
             unsafeFreeKevent(changePtr)
             return Int64(result)
         }
@@ -326,8 +327,8 @@ public class Poller {
                 setTimespec(tsPtr, timeoutMs / 1000, (timeoutMs % 1000) * 1000000)
             }
 
-            let readyCount = kevent(Int32(kq), CPointer<Unit>(), 0, bufferPtr, maxEvents,
-                if (timeoutMs >= 0) { tsPtr } else { CPointer<Unit>() })
+            let readyCount = kevent(Int32(kq), CPointer<UInt8>(), 0, bufferPtr, maxEvents,
+                if (timeoutMs >= 0) { tsPtr } else { CPointer<UInt8>() })
 
             if (readyCount > 0) {
                 for (i in 0..Int64(readyCount)) {
@@ -356,7 +357,7 @@ public class Poller {
 
             unsafeFreeTimespec(tsPtr)
             unsafeFreeKevents(bufferPtr, Int64(maxEvents))
-            return events.toArray()
+            return events.toOwnedSlice()
         }
     }
 
@@ -374,18 +375,18 @@ public class Poller {
         }
 
         if (platform == "epoll") {
-            let result = epollControl(pollFd, EpollOp.CTL_ADD, fd, events, UInt64(fd))
+            let result = epollControl(pollerFd, EpollOp.CTL_ADD, fd, events, UInt64(fd))
             if (result < 0) {
                 return result
             }
         } else if (platform == "kqueue") {
             // kqueue: 为每个关注的 filter 添加事件
             if ((events & EpollEvents.EPOLLIN) != 0) {
-                kqueueControl(pollFd, fd, KqueueEvents.EVFILT_READ,
+                kqueueControl(pollerFd, fd, KqueueEvents.EVFILT_READ,
                     KqueueEvents.EV_ADD | KqueueEvents.EV_CLEAR)
             }
             if ((events & EpollEvents.EPOLLOUT) != 0) {
-                kqueueControl(pollFd, fd, KqueueEvents.EVFILT_WRITE,
+                kqueueControl(pollerFd, fd, KqueueEvents.EVFILT_WRITE,
                     KqueueEvents.EV_ADD | KqueueEvents.EV_CLEAR)
             }
         }
@@ -404,33 +405,33 @@ public class Poller {
         }
 
         if (platform == "epoll") {
-            let result = epollControl(pollFd, EpollOp.CTL_MOD, fd, events, UInt64(fd))
+            let result = epollControl(pollerFd, EpollOp.CTL_MOD, fd, events, UInt64(fd))
             if (result < 0) {
                 return result
             }
         } else if (platform == "kqueue") {
             // kqueue: 先删除旧的 filter，再添加新的
             let entry = registered.get(fd)
-            if (let Some(e) = entry) {
+            if (let Some(e) <- entry) {
                 if ((e.events & EpollEvents.EPOLLIN) != 0 && (events & EpollEvents.EPOLLIN) == 0) {
-                    kqueueControl(pollFd, fd, KqueueEvents.EVFILT_READ, KqueueEvents.EV_DELETE)
+                    kqueueControl(pollerFd, fd, KqueueEvents.EVFILT_READ, KqueueEvents.EV_DELETE)
                 }
                 if ((e.events & EpollEvents.EPOLLOUT) != 0 && (events & EpollEvents.EPOLLOUT) == 0) {
-                    kqueueControl(pollFd, fd, KqueueEvents.EVFILT_WRITE, KqueueEvents.EV_DELETE)
+                    kqueueControl(pollerFd, fd, KqueueEvents.EVFILT_WRITE, KqueueEvents.EV_DELETE)
                 }
             }
             if ((events & EpollEvents.EPOLLIN) != 0) {
-                kqueueControl(pollFd, fd, KqueueEvents.EVFILT_READ,
+                kqueueControl(pollerFd, fd, KqueueEvents.EVFILT_READ,
                     KqueueEvents.EV_ADD | KqueueEvents.EV_CLEAR)
             }
             if ((events & EpollEvents.EPOLLOUT) != 0) {
-                kqueueControl(pollFd, fd, KqueueEvents.EVFILT_WRITE,
+                kqueueControl(pollerFd, fd, KqueueEvents.EVFILT_WRITE,
                     KqueueEvents.EV_ADD | KqueueEvents.EV_CLEAR)
             }
         }
 
         let entry = registered.get(fd)
-        if (let Some(e) = entry) {
+        if (let Some(e) <- entry) {
             e.events = events
         }
         return 0
@@ -447,10 +448,10 @@ public class Poller {
 
         if (platform == "epoll") {
             // epoll_ctl 删除时 event 参数不能为 NULL (Linux < 2.6.9)
-            epollControl(pollFd, EpollOp.CTL_DEL, fd, 0, 0)
+            epollControl(pollerFd, EpollOp.CTL_DEL, fd, 0, 0)
         } else if (platform == "kqueue") {
-            kqueueControl(pollFd, fd, KqueueEvents.EVFILT_READ, KqueueEvents.EV_DELETE)
-            kqueueControl(pollFd, fd, KqueueEvents.EVFILT_WRITE, KqueueEvents.EV_DELETE)
+            kqueueControl(pollerFd, fd, KqueueEvents.EVFILT_READ, KqueueEvents.EV_DELETE)
+            kqueueControl(pollerFd, fd, KqueueEvents.EVFILT_WRITE, KqueueEvents.EV_DELETE)
         }
 
         registered.remove(fd)
@@ -472,9 +473,9 @@ public class Poller {
         var rawEvents: Array<PollEvent> = Array<PollEvent>()
 
         if (platform == "epoll") {
-            rawEvents = epollWait(pollFd, maxEvents, timeoutMs)
+            rawEvents = epollWait(pollerFd, maxEvents, timeoutMs)
         } else if (platform == "kqueue") {
-            rawEvents = kqueueWait(pollFd, maxEvents, timeoutMs)
+            rawEvents = kqueueWait(pollerFd, maxEvents, timeoutMs)
         }
 
         // 分发回调
@@ -482,7 +483,7 @@ public class Poller {
             let ev = rawEvents[i]
             events.append(ev)
             let entry = registered.get(ev.fd)
-            if (let Some(e) = entry) {
+            if (let Some(e) <- entry) {
                 e.callback(ev)
             }
         }
@@ -493,14 +494,14 @@ public class Poller {
     /// 关闭轮询器
     public func close(): Unit {
         if (active) {
-            if (pollFd >= 0) {
+            if (pollerFd >= 0) {
                 unsafe {
-                    Int64(close(Int32(pollFd)))
+                    Int64(close(Int32(pollerFd)))
                 }
             }
             registered.clear()
             active = false
-            pollFd = -1
+            pollerFd = -1
         }
     }
 
@@ -510,7 +511,7 @@ public class Poller {
     public func pollFd(fd: Int64, events: UInt32, timeoutMs: Int64): ?PollEvent {
         let result = ArrayList<PollEvent>()
         // 临时注册
-        let registerResult = register(fd, events, { (ev: PollEvent) => result.append(ev) })
+        let registerResult = register(fd, events, { ev: PollEvent => result.append(ev) })
         if (registerResult < 0) {
             return None
         }
@@ -532,79 +533,42 @@ public class Poller {
         return register(fd, events, callback)
     }
 
-    // ========================================================================
-    // C FFI 外部函数声明
-    // 仓颉通过 foreign func 声明 C 函数
-    // ========================================================================
-
-    // epoll C FFI
-    @Foreign
-    private static func epoll_create1(flags: Int32): Int32
-    @Foreign
-    private static func epoll_ctl(epfd: Int32, op: Int32, fd: Int32, event: CPointer<UInt8>): Int32
-    @Foreign
-    private static func epoll_wait(epfd: Int32, events: CPointer<UInt8>, maxevents: Int32, timeout: Int32): Int32
-
-    // kqueue C FFI
-    @Foreign
-    private static func kqueue(): Int32
-    @Foreign
-    private static func kevent(kq: Int32, changelist: CPointer<UInt8>, nchanges: Int32,
-        eventlist: CPointer<UInt8>, nevents: Int32, timeout: CPointer<UInt8>): Int32
-
-    // 通用 C FFI
-    @Foreign
-    private static func close(fd: Int32): Int32
-
-    // epoll_event 辅助 (opaque 指针操作)
-    @Foreign
-    private static func unsafeMallocEpollEvent(): CPointer<UInt8>
-    @Foreign
-    private static func setEpollEventEvents(ptr: CPointer<UInt8>, events: UInt32): Unit
-    @Foreign
-    private static func setEpollEventData(ptr: CPointer<UInt8>, data: UInt64): Unit
-    @Foreign
-    private static func getEpollEventEvents(ptr: CPointer<UInt8>): UInt32
-    @Foreign
-    private static func getEpollEventData(ptr: CPointer<UInt8>): UInt64
-    @Foreign
-    private static func getEpollEventAt(buffer: CPointer<UInt8>, index: Int64): CPointer<UInt8>
-    @Foreign
-    private static func unsafeMallocEpollEvents(count: Int64): CPointer<UInt8>
-    @Foreign
-    private static func unsafeFreeEpollEvent(ptr: CPointer<UInt8>): Unit
-    @Foreign
-    private static func unsafeFreeEpollEvents(ptr: CPointer<UInt8>, count: Int64): Unit
-
-    // kevent 辅助
-    @Foreign
-    private static func unsafeMallocKevent(): CPointer<UInt8>
-    @Foreign
-    private static func unsafeMallocKevents(count: Int64): CPointer<UInt8>
-    @Foreign
-    private static func unsafeFreeKevent(ptr: CPointer<UInt8>): Unit
-    @Foreign
-    private static func unsafeFreeKevents(ptr: CPointer<UInt8>, count: Int64): Unit
-    @Foreign
-    private static func keventSet(ptr: CPointer<UInt8>, ident: UInt64, filter: Int16,
-        flags: UInt16, fflags: UInt32, data: Int64, udata: CPointer<Unit>): Unit
-    @Foreign
-    private static func getKeventIdent(ptr: CPointer<UInt8>): UInt64
-    @Foreign
-    private static func getKeventFilter(ptr: CPointer<UInt8>): Int16
-    @Foreign
-    private static func getKeventFlags(ptr: CPointer<UInt8>): UInt16
-    @Foreign
-    private static func getKeventAt(buffer: CPointer<UInt8>, index: Int64): CPointer<UInt8>
-
-    // timespec 辅助
-    @Foreign
-    private static func unsafeMallocTimespec(): CPointer<UInt8>
-    @Foreign
-    private static func setTimespec(ptr: CPointer<UInt8>, sec: Int64, nsec: Int64): Unit
-    @Foreign
-    private static func unsafeFreeTimespec(ptr: CPointer<UInt8>): Unit
 }
+
+// ============================================================================
+// C FFI 外部函数声明
+// ============================================================================
+
+foreign func epoll_create1(flags: Int32): Int32
+foreign func epoll_ctl(epfd: Int32, op: Int32, fd: Int32, event: CPointer<UInt8>): Int32
+foreign func epoll_wait(epfd: Int32, events: CPointer<UInt8>, maxevents: Int32, timeout: Int32): Int32
+foreign func kqueue(): Int32
+foreign func kevent(kq: Int32, changelist: CPointer<UInt8>, nchanges: Int32,
+    eventlist: CPointer<UInt8>, nevents: Int32, timeout: CPointer<UInt8>): Int32
+foreign func close(fd: Int32): Int32
+foreign func write(fd: Int32, buf: CPointer<UInt8>, count: Int64): Int64
+foreign func unsafeMallocEpollEvent(): CPointer<UInt8>
+foreign func setEpollEventEvents(ptr: CPointer<UInt8>, events: UInt32): Unit
+foreign func setEpollEventData(ptr: CPointer<UInt8>, data: UInt64): Unit
+foreign func getEpollEventEvents(ptr: CPointer<UInt8>): UInt32
+foreign func getEpollEventData(ptr: CPointer<UInt8>): UInt64
+foreign func getEpollEventAt(buffer: CPointer<UInt8>, index: Int64): CPointer<UInt8>
+foreign func unsafeMallocEpollEvents(count: Int64): CPointer<UInt8>
+foreign func unsafeFreeEpollEvent(ptr: CPointer<UInt8>): Unit
+foreign func unsafeFreeEpollEvents(ptr: CPointer<UInt8>, count: Int64): Unit
+foreign func unsafeMallocKevent(): CPointer<UInt8>
+foreign func unsafeMallocKevents(count: Int64): CPointer<UInt8>
+foreign func unsafeFreeKevent(ptr: CPointer<UInt8>): Unit
+foreign func unsafeFreeKevents(ptr: CPointer<UInt8>, count: Int64): Unit
+foreign func keventSet(ptr: CPointer<UInt8>, ident: UInt64, filter: Int16,
+    flags: UInt16, fflags: UInt32, data: Int64, udata: CPointer<Unit>): Unit
+foreign func getKeventIdent(ptr: CPointer<UInt8>): UInt64
+foreign func getKeventFilter(ptr: CPointer<UInt8>): Int16
+foreign func getKeventFlags(ptr: CPointer<UInt8>): UInt16
+foreign func getKeventAt(buffer: CPointer<UInt8>, index: Int64): CPointer<UInt8>
+foreign func unsafeMallocTimespec(): CPointer<UInt8>
+foreign func setTimespec(ptr: CPointer<UInt8>, sec: Int64, nsec: Int64): Unit
+foreign func unsafeFreeTimespec(ptr: CPointer<UInt8>): Unit
 
 /// 轮询条目 - 内部使用
 class PollEntry {
@@ -649,14 +613,14 @@ class PollEntry {
 public class ConcurrentTaskQueue {
     /// 无界 MPSC 任务队列
     /// Bun: UnboundedQueue<ConcurrentTask> (lock-free, intrusive linked list)
-    private var queue: ConcurrentLinkedQueue<ConcurrentTask>
+    private var queue: ConcurrentQueue<ConcurrentTask>
     /// 事件循环引用 (用于唤醒)
     private var eventLoop: ?MiniEventLoop
     /// 事件 FD (用于唤醒事件循环, Linux eventfd)
     private var eventFd: Int64
 
     public init() {
-        queue = ConcurrentLinkedQueue<ConcurrentTask>()
+        queue = ConcurrentQueue<ConcurrentTask>()
         eventLoop = None
         eventFd = -1
     }
@@ -680,7 +644,7 @@ public class ConcurrentTaskQueue {
     ///   }
     /// push 是原子 store next (release store), 无 RMW
     public func push(task: ConcurrentTask): Unit {
-        queue.put(task)
+        queue.push(task)
         // 通知事件循环有新任务
         wakeupLoop()
     }
@@ -688,7 +652,7 @@ public class ConcurrentTaskQueue {
     /// 批量推送任务
     public func pushBatch(tasks: Array<ConcurrentTask>): Unit {
         for (i in 0..tasks.size) {
-            queue.put(tasks[i])
+            queue.push(tasks[i])
         }
         wakeupLoop()
     }
@@ -703,9 +667,10 @@ public class ConcurrentTaskQueue {
     public func drain(): ArrayList<ConcurrentTask> {
         var tasks = ArrayList<ConcurrentTask>()
         while (true) {
-            let task = queue.remove()
-            if (task == None) { break }
-            tasks.append(task.unwrap())
+            match (queue.pop()) {
+                case None => break
+                case Some(task) => tasks.append(task)
+            }
         }
         return tasks
     }
@@ -716,10 +681,12 @@ public class ConcurrentTaskQueue {
         var tasks = ArrayList<ConcurrentTask>()
         var count: Int64 = 0
         while (count < maxCount) {
-            let task = queue.remove()
-            if (task == None) { break }
-            tasks.append(task.unwrap())
-            count += 1
+            match (queue.pop()) {
+                case None => break
+                case Some(task) =>
+                    tasks.append(task)
+                    count += 1
+            }
         }
         return tasks
     }
@@ -742,13 +709,11 @@ public class ConcurrentTaskQueue {
         }
         match (eventLoop) {
             case Some(loop) =>
-                loop.enqueue({ })
+                loop.enqueue({ => () })
             case None => ()
         }
     }
 
-    @Foreign
-    private static func write(fd: Int32, buf: CPointer<UInt8>, count: Int64): Int64
 }
 
 // ============================================================================
@@ -780,7 +745,10 @@ public class FilePollStore {
         watchers.put(path, callback)
         match (fileWatcher) {
             case Some(fw) =>
-                return fw.watch(path)
+                match (fw.watch(path)) {
+                    case Ok(_) => return 0
+                    case Err(_) => return -1
+                }
             case None =>
                 let result = FileWatcher.create()
                 match (result) {
@@ -790,7 +758,7 @@ public class FilePollStore {
                         match (poller) {
                             case Some(p) =>
                                 p.register(fw.fd(), EpollEvents.EPOLLIN,
-                                    { (ev: PollEvent) => handleEvents() })
+                                    { ev: PollEvent => handleEvents() })
                             case None => ()
                         }
                         return 0
@@ -815,14 +783,14 @@ public class FilePollStore {
                 let events = fw.readEvents()
                 for (event in events) {
                     let callback = watchers.get(event.fileName)
-                    if (let Some(cb) = callback) {
+                    if (let Some(cb) <- callback) {
                         cb(event)
                     }
                     // 也尝试匹配目录前缀
                     for (path in watchers.keys()) {
                         if (event.fileName.startsWith(path)) {
                             let cb = watchers.get(path)
-                            if (let Some(c) = cb) {
+                            if (let Some(c) <- cb) {
                                 c(event)
                             }
                         }

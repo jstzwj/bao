@@ -70,7 +70,7 @@ public class HotReloadEvent {
         let platform = bun.path.Platform.auto
         let ends_with_sep = platform.isSeparator(dir_path[dir_path.length - 1])
         let starts_with_sep = platform.isSeparator(sub_path[0])
-        let sep_offset: Int32 = if (ends_with_sep && starts_with_sep) -1 else 1
+        let sep_offset: Int32 = if (ends_with_sep && starts_with_sep) { -1 } else { 1 }
 
         extra_files.ensureUnusedCapacity(allocator, Int32(dir_path.length + sub_path.length) + sep_offset + 1)
         if (ends_with_sep) {
@@ -87,10 +87,9 @@ public class HotReloadEvent {
     public func processFileList(
         dev: DevServer,
         entry_points: EntryPointList,
-        temp_alloc: Allocator,
+        temp_alloc: Allocator
     ): Unit {
         dev.graph_safety_lock.lock()
-        defer dev.graph_safety_lock.unlock()
 
         // 首先处理目录，因为这可能修改 event.files
         if (dev.directory_watchers.watches.count() > 0) {
@@ -101,19 +100,19 @@ public class HotReloadEvent {
                 dev.server_transpiler.resolver.bustDirCache(changed_dir)
 
                 // 如果存在解析失败的目录监控，现在检查
-                if (let Some(watcher_index) = dev.directory_watchers.watches.getIndex(changed_dir)) {
+                if (let Some(watcher_index) <- dev.directory_watchers.watches.getIndex(changed_dir)) {
                     let entry = dev.directory_watchers.watches.values()[watcher_index]
                     var new_chain: DirectoryWatchStore.Dep.Index.Optional = DirectoryWatchStore.Dep.Index.Optional.none
                     var it: ?DirectoryWatchStore.Dep.Index = entry.first_dep
 
-                    while (let Some(index) = it) {
+                    while (let Some(index) <- it) {
                         let dep = dev.directory_watchers.dependencies.items[index.get()]
                         it = dep.next.unwrap()
 
                         if ((dev.server_transpiler.resolver.resolve(
                             bun.path.dirname(dep.source_file_path),
                             dep.specifier,
-                            .stmt,
+                            ImportKind.stmt,
                         )) != None) {
                             appendFile(dev.allocator(), dep.source_file_path)
                             dev.directory_watchers.freeDependencyIndex(dev.allocator(), index)
@@ -123,7 +122,7 @@ public class HotReloadEvent {
                         }
                     }
 
-                    if (let Some(new_first_dep) = new_chain.unwrap()) {
+                    if (let Some(new_first_dep) <- new_chain.unwrap()) {
                         entry.first_dep = new_first_dep
                     } else {
                         dev.directory_watchers.freeEntry(dev.allocator(), watcher_index)
@@ -134,12 +133,12 @@ public class HotReloadEvent {
 
         // 处理额外文件
         var rest_extra = extra_files.items
-        while (let Some(str) = bun.strings.indexOfChar(rest_extra, 0)) {
-            files.put(dev.allocator(), rest_extra.slice(0, str), Unit())
+        while (let Some(str) <- bun.strings.indexOfChar(rest_extra, 0)) {
+            files.put(dev.allocator(), rest_extra.slice(0, str), ())
             rest_extra = rest_extra.slice(str + 1)
         }
         if (rest_extra.length > 0) {
-            files.put(dev.allocator(), rest_extra, Unit())
+            files.put(dev.allocator(), rest_extra, ())
         }
 
         let changed_file_paths = files.keys()
@@ -148,14 +147,14 @@ public class HotReloadEvent {
         }
 
         if (entry_points.set.count() == 0) {
-            dev.publish(.testing_watch_synchronization, [MessageId.testing_watch_synchronization.char(), 1], .binary)
+            dev.publish(TestingBatchEvents.testing_watch_synchronization, [MessageId.testing_watch_synchronization.char(), 1], Opcode.binary)
             return
         }
     }
 
     /// 运行热重载事件
     public static func run(first: HotReloadEvent): Unit {
-        assert(first.owner.magic == .valid)
+        assert(first.owner.magic == Magic.valid)
 
         let dev = first.owner
 
@@ -165,7 +164,6 @@ public class HotReloadEvent {
         }
 
         var entry_points: EntryPointList = EntryPointList.empty
-        defer entry_points.deinit(dev.allocator())
 
         first.processFileList(dev, entry_points, dev.allocator())
 
@@ -186,11 +184,4 @@ public class HotReloadEvent {
 }
 
 // 类型别名
-public type Timer = std.time.Timer
-public type ConcurrentTask = jsc.ConcurrentTask
-public type StringArrayHashMapUnmanaged<V> = std.StringArrayHashMapUnmanaged<V>
-public type ArrayListUnmanaged<T> = std.ArrayListUnmanaged<T>
-public type Atomic<T> = std.atomic.Value<T>
 public type Mutex = bun.Mutex
-public type Allocator = std.mem.Allocator
-public type DirectoryWatchStore = dev_server.DirectoryWatchStore

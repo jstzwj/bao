@@ -75,37 +75,6 @@ public let LIBUS_LISTEN_REUSE_ADDR: Int64 = 16
 public let LIBUS_LISTEN_DISALLOW_REUSE_PORT_FAILURE: Int64 = 32
 
 // ============================================================================
-// us_bun_verify_error_t - TLS 握手验证结果
-// 严格翻译自: src/uws_sys/lib.rs us_bun_verify_error_t
-//   #[repr(C)] struct { error_no: c_int, code: *const c_char, reason: *const c_char }
-// ============================================================================
-
-/// TLS 验证错误
-/// 对应 Bun: us_bun_verify_error_t
-public class UsBunVerifyError {
-    public var errorNo: Int64
-    public var code: String
-    public var reason: String
-
-    public init() {
-        this.errorNo = 0
-        this.code = ""
-        this.reason = ""
-    }
-
-    public init(errorNo: Int64, code: String, reason: String) {
-        this.errorNo = errorNo
-        this.code = code
-        this.reason = reason
-    }
-
-    /// 无错误
-    public static func none(): UsBunVerifyError {
-        return UsBunVerifyError()
-    }
-}
-
-// ============================================================================
 // create_bun_socket_error_t - SSL 上下文创建错误
 // 严格翻译自: src/uws_sys/lib.rs create_bun_socket_error_t
 //   #[repr(C)] enum { none = 0, load_ca_file, invalid_ca_file, invalid_ca, invalid_ciphers }
@@ -122,12 +91,12 @@ public enum CreateBunSocketError {
 }
 
 /// CreateBunSocketError 工具方法
-public extension CreateBunSocketError {
+extend CreateBunSocketError {
     /// 获取错误消息
     /// 对应 Bun: create_bun_socket_error_t::message
     public func message(): ?String {
         match(this) {
-            case None => None
+            case None => Option<String>.None
             case LoadCaFile => "Failed to load CA file"
             case InvalidCaFile => "Invalid CA file"
             case InvalidCa => "Invalid CA"

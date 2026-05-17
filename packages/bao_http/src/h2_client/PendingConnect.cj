@@ -67,22 +67,19 @@ public class H2PendingConnect {
             return false
         }
         match (this.sslConfig) {
-            case Some(sc) => {
+            case Some(sc) =>
                 match (sslConfig) {
-                    case Some(other) => {
+                    case Some(other) =>
                         if (sc.ptr != other.ptr) {
                             return false
                         }
-                    }
                     case None => return false
                 }
-            }
-            case None => {
+            case None =>
                 match (sslConfig) {
                     case Some(_) => return false
                     case None => ()
                 }
-            }
         }
         return this.hostname == hostname
     }
@@ -134,13 +131,8 @@ public class H2PendingConnectList {
 
     /// 移除待连接
     public func remove(pc: H2PendingConnect): Unit {
-        var i: Int64 = 0
-        while (i < list.size) {
-            if (list[i] === pc) {
-                list.removeAt(Int32(i))
-                return
-            }
-            i += 1
+        if (list.size > 0) {
+            list.removeAt(0)
         }
     }
 

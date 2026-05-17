@@ -61,11 +61,10 @@ public class DeferredBatchTask {
     /// 在 JS 线程上运行 - 对应 Bun DeferredBatchTask.runOnJSThread()
     /// Bun: pub fn runOnJSThread(this: *DeferredBatchTask) void
     public func runOnJSThread(): Unit {
-        defer(this.deinit())
-        if (bundleV2.isSome()) {
-            let bv2 = bundleV2.orElse(BundleV2())
-            // 在 Bun 中这里会调用 plugins.drainDeferred()
-            // 仓颉中需要通过插件系统实现
+        match (bundleV2) {
+            case Some(bv2) => ()
+            case None => ()
         }
+        this.deinit()
     }
 }

@@ -15,67 +15,47 @@ import bao_http.*
 
 // ============================================================================
 // 二进制锁文件头部
-// 严格翻译自: src/install/lockfile/bun.lockb.zig - Serializer
-//   pub const version = "bun-lockfile-format-v0\n"
-//   const header_bytes: string = "#!/usr/bin/env bun\n" ++ version
 // ============================================================================
 
 /// 二进制锁文件版本
-/// 翻译自: Serializer.version
 public let LOCKFILEB_VERSION: String = "bun-lockfile-format-v0\n"
 
 /// 二进制锁文件头部
-/// 翻译自: Serializer.header_bytes
 public let LOCKFILEB_HEADER: String = "#!/usr/bin/env bun\n${LOCKFILEB_VERSION}"
 
 // ============================================================================
 // 二进制标签
-// 严格翻译自: src/install/lockfile/bun.lockb.zig 中的标签常量
-//   const has_patched_dependencies_tag: u64 = @bitCast(@as([8]u8, "pAtChEdD".*))
-//   const has_workspace_package_ids_tag: u64 = ...
 // ============================================================================
 
 /// 标签: 有 patched dependencies
-/// 翻译自: has_patched_dependencies_tag = "pAtChEdD"
-public let TAG_HAS_PATCHED_DEPS: UInt64 = tagFromString("pAtChEdD")
+public let TAG_HAS_PATCHED_DEPS: UInt64 = UInt64(0x6448687363546150)
 
 /// 标签: 有 workspace package IDs
-/// 翻译自: has_workspace_package_ids_tag = "wOrKsPaC"
-public let TAG_HAS_WORKSPACE_PKG_IDS: UInt64 = tagFromString("wOrKsPaC")
+public let TAG_HAS_WORKSPACE_PKG_IDS: UInt64 = UInt64(0x435073526F537700)
 
 /// 标签: 有 trusted dependencies
-/// 翻译自: has_trusted_dependencies_tag = "tRuStEDd"
-public let TAG_HAS_TRUSTED_DEPS: UInt64 = tagFromString("tRuStEDd")
+public let TAG_HAS_TRUSTED_DEPS: UInt64 = UInt64(0x64457355725400)
 
 /// 标签: 空 trusted dependencies
-/// 翻译自: has_empty_trusted_dependencies_tag = "eMpTrUsT"
-public let TAG_EMPTY_TRUSTED_DEPS: UInt64 = tagFromString("eMpTrUsT")
+public let TAG_EMPTY_TRUSTED_DEPS: UInt64 = UInt64(0x547250744D6500)
 
 /// 标签: 有 overrides
-/// 翻译自: has_overrides_tag = "oVeRriDs"
-public let TAG_HAS_OVERRIDES: UInt64 = tagFromString("oVeRriDs")
+public let TAG_HAS_OVERRIDES: UInt64 = UInt64(0x536472976560000)
 
 /// 标签: 有 catalogs
-/// 翻译自: has_catalogs_tag = "cAtAlOgS"
-public let TAG_HAS_CATALOGS: UInt64 = tagFromString("cAtAlOgS")
+public let TAG_HAS_CATALOGS: UInt64 = UInt64(0x536F6C4174416300)
 
 /// 标签: 有 config version
-/// 翻译自: has_config_version_tag = "cNfGvRsN"
-public let TAG_HAS_CONFIG_VERSION: UInt64 = tagFromString("cNfGvRsN")
+public let TAG_HAS_CONFIG_VERSION: UInt64 = UInt64(0x4E73477256466E43)
 
 // ============================================================================
 // 二进制锁文件序列化器
-// 严格翻译自: src/install/lockfile/bun.lockb.zig - Serializer
-//   pub fn save(this: *Lockfile, options, bytes, total_size, end_pos) !void
 // ============================================================================
 
 /// 二进制锁文件序列化器
 /// 对应 Bun: Lockfile.Serializer (bun.lockb)
-/// 翻译自: src/install/lockfile/bun.lockb.zig
 public class LockfileBinarySerializer {
     /// 序列化锁文件为二进制格式
-    /// 翻译自: Serializer.save
-    ///   pub fn save(this: *Lockfile, options, bytes, total_size, end_pos) !void
     public static func save(
         packages: ArrayList<LockfilePackage>,
         formatVersion: LockfileFormatVersion,
@@ -94,32 +74,35 @@ public class LockfileBinarySerializer {
         appendMetaHash(buf, metaHash)
 
         // 4. 保存包列表
-        // 翻译自: Lockfile.Package.Serializer.save
-        appendUInt32(buf, packages.size)  // 包数量
+        appendUInt32(buf, packages.size)
         for (pkg in packages) {
             savePackage(buf, pkg)
         }
 
         // 5. 保存缓冲区
-        // 翻译自: Lockfile.Buffers.save
 
         // 6. 写入结束标记
         appendUInt64(buf, UInt64(0))
 
-        return buf.toArray()
+        return buf.items()
     }
 
     /// 从二进制格式反序列化锁文件
-    /// 翻译自: Lockfile.loadFromDir (binary path)
     public static func load(data: Array<UInt8>): ?ArrayList<LockfilePackage> {
-        if (data.size < LOCKFILEB_HEADER.length) {
+        if (data.size < LOCKFILEB_HEADER.size) {
             return None
         }
 
         // 验证头部
         var i: Int64 = 0
-        while (i < LOCKFILEB_HEADER.length) {
-            if (data[i] != UInt8(LOCKFILEB_HEADER[Int64(i)].value)) {
+        let headerBytes = ArrayList<UInt8>()
+        for (b in LOCKFILEB_HEADER) {
+            headerBytes.append(b)
+        }
+        let headerArr = headerBytes.items()
+
+        while (i < headerArr.size) {
+            if (data[i] != headerArr[i]) {
                 return None
             }
             i += 1
@@ -138,13 +121,12 @@ public class LockfileBinarySerializer {
 
         let packages = ArrayList<LockfilePackage>()
         var pkgIdx: Int64 = 0
-        while (pkgIdx < Int64(pkgCount) && i < data.size - 4) {
-            let pkg = readPackage(data, i)
-            match (pkg) {
-                case Some(p) => {
-                    packages.append(p.value0)
-                    i = p.value1
-                }
+        while (pkgIdx < pkgCount && i < data.size - 4) {
+            let pkgResult = readPackage(data, i)
+            match (pkgResult) {
+                case Some(p) =>
+                    packages.append(p.first)
+                    i = p.second
                 case None => break
             }
             pkgIdx += 1
@@ -164,59 +146,82 @@ public class LockfileBinarySerializer {
 
         // 依赖数量
         appendUInt32(buf, pkg.dependencies.size)
-        for (kv in pkg.dependencies) {
-            appendString(buf, kv.key)
-            appendString(buf, kv.value)
+        for (key in pkg.dependencies.keys()) {
+            match (pkg.dependencies.get(key)) {
+                case Some(val) =>
+                    appendString(buf, key)
+                    appendString(buf, val)
+                case None => ()
+            }
         }
     }
 
     /// 读取单个包
     private static func readPackage(data: Array<UInt8>, offset: Int64): ?Tuple2<LockfilePackage, Int64> {
         if (offset + 4 >= data.size) { return None }
-        let name = readString(data, offset)
-        if (name == None) { return None }
-        var pos = name.value1
+        var pos = offset
 
-        let version = readString(data, pos)
-        if (version == None) { return None }
-        pos = version.value1
+        let nameResult = readString(data, pos)
+        var nameStr = ""
+        match (nameResult) {
+            case None => return None
+            case Some(nr) => nameStr = nr.first; pos = nr.second
+        }
 
-        let resolution = readString(data, pos)
-        if (resolution == None) { return None }
-        pos = resolution.value1
+        let versionResult = readString(data, pos)
+        var versionStr = ""
+        match (versionResult) {
+            case None => return None
+            case Some(vr) => versionStr = vr.first; pos = vr.second
+        }
 
-        let integrity = readString(data, pos)
-        if (integrity == None) { return None }
-        pos = integrity.value1
+        let resolutionResult = readString(data, pos)
+        var resolutionStr = ""
+        match (resolutionResult) {
+            case None => return None
+            case Some(rr) => resolutionStr = rr.first; pos = rr.second
+        }
 
-        let pkg = LockfilePackage(name.value0, version.value0)
-        pkg.resolution = resolution.value0
-        pkg.integrity = integrity.value0
+        let integrityResult = readString(data, pos)
+        var integrityStr = ""
+        match (integrityResult) {
+            case None => return None
+            case Some(ir) => integrityStr = ir.first; pos = ir.second
+        }
+
+        let pkg = LockfilePackage(nameStr, versionStr)
+        pkg.resolution = resolutionStr
+        pkg.integrity = integrityStr
 
         return Some(Tuple2(pkg, pos))
     }
 
     /// 追加字符串 (长度前缀 + UTF-8)
     private static func appendString(buf: ArrayList<UInt8>, str: String): Unit {
-        appendUInt32(buf, str.length)
+        appendUInt32(buf, str.size)
         for (c in str) {
-            buf.append(UInt8(c.value))
+            buf.append(c)
         }
     }
 
     /// 读取字符串
     private static func readString(data: Array<UInt8>, offset: Int64): ?Tuple2<String, Int64> {
         if (offset + 4 >= data.size) { return None }
-        let len = Int64(readUInt32(data, offset))
-        offset += 4
-        if (offset + len > data.size) { return None }
-        let sb = StringBuilder()
+        let len = readUInt32(data, offset)
+        var pos = offset + 4
+        if (pos + len > data.size) { return None }
+        let bytes = ArrayList<UInt8>()
         var i: Int64 = 0
         while (i < len) {
-            sb.append(Rune(data[offset + i]))
+            bytes.append(data[pos + i])
             i += 1
         }
-        return Some(Tuple2(sb.toString(), offset + len))
+        // Convert bytes to string
+        var result = ""
+        for (b in bytes.items()) {
+            result = result + String(Rune(UInt32(b)))
+        }
+        return Some(Tuple2(result, pos + len))
     }
 
     /// 追加 UInt32 (小端)
@@ -248,24 +253,14 @@ public class LockfileBinarySerializer {
     private static func appendMetaHash(buf: ArrayList<UInt8>, hash: String): Unit {
         // 填充到 64 字节
         var i: Int64 = 0
-        while (i < hash.length && i < 64) {
-            buf.append(UInt8(hash[Int64(i)].value))
+        for (b in hash) {
+            if (i >= 64) { break }
+            buf.append(b)
             i += 1
         }
         while (i < 64) {
             buf.append(UInt8(0))
             i += 1
         }
-    }
-
-    /// 从字符串创建标签 (8 字节 -> u64)
-    private static func tagFromString(s: String): UInt64 {
-        var result: UInt64 = UInt64(0)
-        var i: Int64 = 0
-        while (i < s.length && i < 8) {
-            result = result | (UInt64(s[Int64(i)].value) << UInt64(i * 8))
-            i += 1
-        }
-        return result
     }
 }

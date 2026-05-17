@@ -35,14 +35,19 @@ public class CssStartingStyleRule {
     /// 严格翻译自 StartingStyleRule.to_css
     public func toCss(indent: String): String {
         let sb = StringBuilder()
-        sb.append("${indent}@starting-style {\n")
-        for (rule in rules.rules) {
-            let css = rule.toCss(indent + "  ")
-            if (css.length > 0) {
-                sb.append("${indent}  ${css}\n")
+        sb.append(indent)
+        sb.append("@starting-style {\n")
+        for (rule in rules.v) {
+            let css = rule.toString()
+            if (css.size > 0) {
+                sb.append(indent)
+                sb.append("  ")
+                sb.append(css)
+                sb.append("\n")
             }
         }
-        sb.append("${indent}}")
+        sb.append(indent)
+        sb.append("}")
         return sb.toString()
     }
 

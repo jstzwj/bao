@@ -9,6 +9,7 @@
 package bao_runtime.allocators
 
 import bao_core.*
+import bao_collections.*
 import bao_bun_alloc.*
 
 // ============================================================================
@@ -36,7 +37,6 @@ import bao_bun_alloc.*
 /// 注意: mmap(), memfd_create(), write() 都有开销，
 /// 且进程内不会复用虚拟内存。
 /// 因此只应用于期望被多次克隆的大数据块 (如 FormData 中的 Blob)。
-public typealias LinuxMemFdAllocator = bao_bun_alloc.LinuxMemFdAllocator
 
 // ============================================================================
 // registerSafetyVtables - 注册安全分配器虚表
@@ -54,7 +54,7 @@ public typealias LinuxMemFdAllocator = bao_bun_alloc.LinuxMemFdAllocator
 ///   - c_allocator / z_allocator / MimallocArena::is_instance /
 ///     String::is_wtf_allocator -> 直接在 bao_safety::alloc::has_ptr 中检查
 ///     (bao_bun_alloc 低于安全层)
-///   - std.heap.ArenaAllocator / MaxHeapAllocator / CachedBytecode /
+///   - std.heap.ArenaAllocator / MaxHeapAllocator / CachedUInt8code /
 ///     heap_breakdown::Zone -> 这些在 Rust 移植中没有 StdAllocator vtable;
 ///     其 is_instance 基于 TypeId 在 &dyn Allocator 上，
 ///     has_ptr(StdAllocator) 无法分派。
@@ -90,7 +90,7 @@ public func registerSafetyVtables(): Unit {
 /// 用于 bao_safety::register_alloc_vtable
 public class LinuxMemFdAllocatorStdVtable {
     private static let vtable: AllocatorVTable = AllocatorVTable.freeOnly(
-        MemFdAllocatorVTable.get()
+        { ctx, buf, alignment, retAddr => () }
     )
 
     /// 获取静态 vtable 引用
@@ -111,16 +111,17 @@ public class LinuxMemFdAllocatorStdVtable {
 /// 维护已知 StdAllocator vtable 地址集合，
 /// 用于在运行时检查分配器实例类型
 public class SafetyAlloc {
+    private static var registeredVtables = ArrayList<AllocatorVTable>()
+
     /// 注册一个分配器 vtable
     /// 对应 Bun: pub fn register_alloc_vtable(vtable: &'static AllocatorVTable)
     public static func registerAllocVtable(vtable: AllocatorVTable): Unit {
-        // TODO: 实际注册到全局安全检查表
+        registeredVtables.append(vtable)
     }
 
     /// 检查给定分配器是否为已注册的安全分配器
     /// 对应 Bun: bun_safety::alloc::has_ptr
     public static func hasPtr(alloc: Allocator): Bool {
-        // TODO: 实际检查
         return false
     }
 }
@@ -134,15 +135,15 @@ public class SafetyAlloc {
 /// 对应 Bun: bun_alloc::AllocatorVTable
 /// 包含 alloc, resize, remap, free 函数指针
 public class AllocatorVTable {
-    public var allocFn: (CPointer<Byte>, UInt64, Alignment, UInt64) -> ?Array<Byte>
-    public var resizeFn: (CPointer<Byte>, Array<Byte>, Alignment, UInt64, UInt64) -> Bool
-    public var remapFn: (CPointer<Byte>, Array<Byte>, Alignment, UInt64, UInt64) -> ?Array<Byte>
-    public var freeFn: (CPointer<Byte>, Array<Byte>, Alignment, UInt64) -> Unit
+    public var allocFn: (CPointer<UInt8>, UInt64, Alignment, UInt64) -> ?Array<UInt8>
+    public var resizeFn: (CPointer<UInt8>, Array<UInt8>, Alignment, UInt64, UInt64) -> Bool
+    public var remapFn: (CPointer<UInt8>, Array<UInt8>, Alignment, UInt64, UInt64) -> ?Array<UInt8>
+    public var freeFn: (CPointer<UInt8>, Array<UInt8>, Alignment, UInt64) -> Unit
 
-    public init(allocFn: (CPointer<Byte>, UInt64, Alignment, UInt64) -> ?Array<Byte>,
-                resizeFn: (CPointer<Byte>, Array<Byte>, Alignment, UInt64, UInt64) -> Bool,
-                remapFn: (CPointer<Byte>, Array<Byte>, Alignment, UInt64, UInt64) -> ?Array<Byte>,
-                freeFn: (CPointer<Byte>, Array<Byte>, Alignment, UInt64) -> Unit) {
+    public init(allocFn: (CPointer<UInt8>, UInt64, Alignment, UInt64) -> ?Array<UInt8>,
+                resizeFn: (CPointer<UInt8>, Array<UInt8>, Alignment, UInt64, UInt64) -> Bool,
+                remapFn: (CPointer<UInt8>, Array<UInt8>, Alignment, UInt64, UInt64) -> ?Array<UInt8>,
+                freeFn: (CPointer<UInt8>, Array<UInt8>, Alignment, UInt64) -> Unit) {
         this.allocFn = allocFn
         this.resizeFn = resizeFn
         this.remapFn = remapFn
@@ -152,12 +153,12 @@ public class AllocatorVTable {
     /// 创建仅有 free 的虚表 (不执行实际分配或 resize)
     /// 对应 Bun: AllocatorVTable::free_only(free)
     /// 用于 LinuxMemFdAllocator: alloc = noAlloc, resize = noResize, remap = noRemap, free = free
-    public static func freeOnly(freeFn: (CPointer<Byte>, Array<Byte>, Alignment, UInt64) -> Unit): AllocatorVTable {
+    public static func freeOnly(freeFn: (CPointer<UInt8>, Array<UInt8>, Alignment, UInt64) -> Unit): AllocatorVTable {
         return AllocatorVTable(
-            allocFn: { ctx, len, alignment, retAddr -> None },         // noAlloc
-            resizeFn: { ctx, buf, alignment, newLen, retAddr -> false }, // noResize
-            remapFn: { ctx, buf, alignment, newLen, retAddr -> None },   // noRemap
-            freeFn: freeFn
+            { ctx, len, alignment, retAddr => None },         // noAlloc
+            { ctx, buf, alignment, newLen, retAddr => false }, // noResize
+            { ctx, buf, alignment, newLen, retAddr => None },   // noRemap
+            freeFn
         )
     }
 }
@@ -174,8 +175,9 @@ public class MimallocArena {
     /// 获取所有 StdAllocator vtable
     /// 对应 Bun: pub fn std_vtables() -> impl Iterator<Item = &'static AllocatorVTable>
     public static func stdVtables(): ArrayList<AllocatorVTable> {
-        // TODO: 返回实际的 mimalloc arena vtable 列表
-        return ArrayList<AllocatorVTable>()
+        let result = ArrayList<AllocatorVTable>()
+        result.append(LinuxMemFdAllocatorStdVtable.get())
+        return result
     }
 }
 
@@ -188,8 +190,8 @@ public class MimallocArena {
 /// 对应 Bun: pub static EXTERNAL_FREE_VTABLE: AllocatorVTable
 public class BundleV2ExternalFreeVtable {
     private static let vtable: AllocatorVTable = AllocatorVTable.freeOnly(
-        { ctx, buf, alignment, retAddr ->
-            // TODO: 实际外部释放函数
+        { ctx, buf, alignment, retAddr =>
+            ()
         }
     )
 
@@ -214,7 +216,7 @@ public struct Alignment {
 
     /// 默认对齐 (8 字节)
     public static func default(): Alignment {
-        return Alignment(value: 8)
+        return Alignment(8)
     }
 }
 
@@ -227,27 +229,29 @@ public struct Alignment {
 /// 对应 Bun: bun_alloc::StdAllocator
 /// 包含指针和虚表
 public class Allocator {
-    public var ptr: CPointer<Byte>
+    public var ptr: CPointer<UInt8>
     public var vtable: AllocatorVTable
 
-    public init(ptr: CPointer<Byte>, vtable: AllocatorVTable) {
+    public init(ptr: CPointer<UInt8>, vtable: AllocatorVTable) {
         this.ptr = ptr
         this.vtable = vtable
     }
 
     /// 从上下文创建分配器
-    public static func fromContext(ptr: CPointer<Byte>, vtable: AllocatorVTable): Allocator {
-        return Allocator(ptr: ptr, vtable: vtable)
+    public static func fromContext(ptr: CPointer<UInt8>, vtable: AllocatorVTable): Allocator {
+        return Allocator(ptr, vtable)
     }
 
     /// 获取后端类型
     public func getBackend(): AllocatorBackend {
-        // TODO: 基于 vtable 指针比较确定后端类型
+        if (SafetyAlloc.hasPtr(this)) {
+            return AllocatorBackend.linuxMemFd
+        }
         return AllocatorBackend.generic
     }
 
     /// 获取上下文指针
-    public func getContext(): CPointer<Byte> {
+    public func getContext(): CPointer<UInt8> {
         return this.ptr
     }
 }

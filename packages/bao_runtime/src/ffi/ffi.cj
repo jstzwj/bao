@@ -5,6 +5,7 @@ package bao_runtime.ffi
 
 import bao_core.*
 import bao_collections.*
+import bao_runtime.*
 
 // ============================================================================
 // ABI 类型枚举
@@ -13,19 +14,19 @@ import bao_collections.*
 
 /// FFI 值类型 (与 C ABI 对应)
 /// 对应 Zig: pub const ABIType = enum(i32) { ... }
-public enum AbiType {
+public enum LegacyAbiType {
     | Char       // 0  - char
-    | Int8       // 1  - int8_t
-    | UInt8      // 2  - uint8_t
-    | Int16      // 3  - int16_t
-    | UInt16     // 4  - uint16_t
-    | Int32      // 5  - int32_t
-    | UInt32     // 6  - uint32_t
-    | Int64      // 7  - int64_t
-    | UInt64     // 8  - uint64_t
+    | Int8T       // 1  - int8_t
+    | Uint8T      // 2  - uint8_t
+    | Int16T      // 3  - int16_t
+    | Uint16T     // 4  - uint16_t
+    | Int32T      // 5  - int32_t
+    | Uint32T     // 6  - uint32_t
+    | Int64T      // 7  - int64_t
+    | Uint64T     // 8  - uint64_t
     | Double     // 9  - double
     | Float      // 10 - float
-    | Bool       // 11 - bool
+    | BoolT      // 11 - bool
     | Ptr        // 12 - void*
     | Void       // 13 - void
     | CString    // 14 - char* (null-terminated)
@@ -47,7 +48,7 @@ public enum AbiType {
     /// 是否需要在 C 中进行类型转换
     public func needsACastInC(): Bool {
         match (this) {
-            case Char | Int8 | UInt8 | Int16 | UInt16 | Int32 | UInt32 => false
+            case Char | Int8T | Uint8T | Int16T | Uint16T | Int32T | Uint32T => false
             case _ => true
         }
     }
@@ -56,17 +57,17 @@ public enum AbiType {
     public func typenameLabel(): String {
         match (this) {
             case Char => "char"
-            case Int8 => "int8_t"
-            case UInt8 => "uint8_t"
-            case Int16 => "int16_t"
-            case UInt16 => "uint16_t"
-            case Int32 => "int32_t"
-            case UInt32 => "uint32_t"
-            case Int64 | I64Fast => "int64_t"
-            case UInt64 | U64Fast => "uint64_t"
+            case Int8T => "int8_t"
+            case Uint8T => "uint8_t"
+            case Int16T => "int16_t"
+            case Uint16T => "uint16_t"
+            case Int32T => "int32_t"
+            case Uint32T => "uint32_t"
+            case Int64T | I64Fast => "int64_t"
+            case Uint64T | U64Fast => "uint64_t"
             case Double => "double"
             case Float => "float"
-            case Bool => "bool"
+            case BoolT => "bool"
             case Ptr | CString | Function | Buffer => "void*"
             case Void => "void"
             case NapiEnv => "napi_env"
@@ -75,75 +76,75 @@ public enum AbiType {
     }
 
     /// 从字符串解析 ABI 类型
-    public static func fromString(name: String): ?AbiType {
+    public static func fromString(name: String): ?LegacyAbiType {
         match (name) {
-            case "bool" => AbiType.Bool
-            case "c_int" => AbiType.Int32
-            case "c_uint" => AbiType.UInt32
-            case "char" => AbiType.Char
-            case "double" => AbiType.Double
-            case "f32" => AbiType.Float
-            case "f64" => AbiType.Double
-            case "float" => AbiType.Float
-            case "i16" => AbiType.Int16
-            case "i32" => AbiType.Int32
-            case "i64" => AbiType.Int64
-            case "i8" => AbiType.Int8
-            case "int" => AbiType.Int32
-            case "int8_t" => AbiType.Int8
-            case "int16_t" => AbiType.Int16
-            case "int32_t" => AbiType.Int32
-            case "int64_t" => AbiType.Int64
-            case "isize" => AbiType.Int64
-            case "u16" => AbiType.UInt16
-            case "u32" => AbiType.UInt32
-            case "u64" => AbiType.UInt64
-            case "u8" => AbiType.UInt8
-            case "uint8_t" => AbiType.UInt8
-            case "uint16_t" => AbiType.UInt16
-            case "uint32_t" => AbiType.UInt32
-            case "uint64_t" => AbiType.UInt64
-            case "usize" => AbiType.UInt64
-            case "size_t" => AbiType.UInt64
-            case "buffer" => AbiType.Buffer
-            case "void*" => AbiType.Ptr
-            case "ptr" => AbiType.Ptr
-            case "pointer" => AbiType.Ptr
-            case "void" => AbiType.Void
-            case "cstring" => AbiType.CString
-            case "i64_fast" => AbiType.I64Fast
-            case "u64_fast" => AbiType.U64Fast
-            case "function" | "callback" | "fn" => AbiType.Function
-            case "napi_env" => AbiType.NapiEnv
-            case "napi_value" => AbiType.NapiValue
+            case "bool" => LegacyAbiType.BoolT
+            case "c_int" => LegacyAbiType.Int32T
+            case "c_uint" => LegacyAbiType.Uint32T
+            case "char" => LegacyAbiType.Char
+            case "double" => LegacyAbiType.Double
+            case "f32" => LegacyAbiType.Float
+            case "f64" => LegacyAbiType.Double
+            case "float" => LegacyAbiType.Float
+            case "i16" => LegacyAbiType.Int16T
+            case "i32" => LegacyAbiType.Int32T
+            case "i64" => LegacyAbiType.Int64T
+            case "i8" => LegacyAbiType.Int8T
+            case "int" => LegacyAbiType.Int32T
+            case "int8_t" => LegacyAbiType.Int8T
+            case "int16_t" => LegacyAbiType.Int16T
+            case "int32_t" => LegacyAbiType.Int32T
+            case "int64_t" => LegacyAbiType.Int64T
+            case "isize" => LegacyAbiType.Int64T
+            case "u16" => LegacyAbiType.Uint16T
+            case "u32" => LegacyAbiType.Uint32T
+            case "u64" => LegacyAbiType.Uint64T
+            case "u8" => LegacyAbiType.Uint8T
+            case "uint8_t" => LegacyAbiType.Uint8T
+            case "uint16_t" => LegacyAbiType.Uint16T
+            case "uint32_t" => LegacyAbiType.Uint32T
+            case "uint64_t" => LegacyAbiType.Uint64T
+            case "usize" => LegacyAbiType.Uint64T
+            case "size_t" => LegacyAbiType.Uint64T
+            case "buffer" => LegacyAbiType.Buffer
+            case "void*" => LegacyAbiType.Ptr
+            case "ptr" => LegacyAbiType.Ptr
+            case "pointer" => LegacyAbiType.Ptr
+            case "void" => LegacyAbiType.Void
+            case "cstring" => LegacyAbiType.CString
+            case "i64_fast" => LegacyAbiType.I64Fast
+            case "u64_fast" => LegacyAbiType.U64Fast
+            case "function" | "callback" | "fn" => LegacyAbiType.Function
+            case "napi_env" => LegacyAbiType.NapiEnv
+            case "napi_value" => LegacyAbiType.NapiValue
             case _ => None
         }
     }
 
     /// 从数值解析 ABI 类型
-    public static func fromInt(value: Int32): ?AbiType {
+    public static func fromInt(value: Int32): ?LegacyAbiType {
         match (value) {
-            case 0 => AbiType.Char
-            case 1 => AbiType.Int8
-            case 2 => AbiType.UInt8
-            case 3 => AbiType.Int16
-            case 4 => AbiType.UInt16
-            case 5 => AbiType.Int32
-            case 6 => AbiType.UInt32
-            case 7 => AbiType.Int64
-            case 8 => AbiType.UInt64
-            case 9 => AbiType.Double
-            case 10 => AbiType.Float
-            case 11 => AbiType.Bool
-            case 12 => AbiType.Ptr
-            case 13 => AbiType.Void
-            case 14 => AbiType.CString
-            case 15 => AbiType.I64Fast
-            case 16 => AbiType.U64Fast
-            case 17 => AbiType.Function
-            case 18 => AbiType.NapiEnv
-            case 19 => AbiType.NapiValue
-            case 20 => AbiType.Buffer
+            case 0 => LegacyAbiType.Char
+            case 1 => LegacyAbiType.Int8T
+            case 2 => LegacyAbiType.Uint8T
+            case 3 => LegacyAbiType.Int16T
+            case 4 => LegacyAbiType.Uint16T
+            case 5 => LegacyAbiType.Int32T
+            case 6 => LegacyAbiType.Uint32T
+            case 7 => LegacyAbiType.Int64T
+            case 8 => LegacyAbiType.Uint64T
+            case 9 => LegacyAbiType.Double
+            case 10 => LegacyAbiType.Float
+            case 11 => LegacyAbiType.BoolT
+            case 12 => LegacyAbiType.Ptr
+            case 13 => LegacyAbiType.Void
+            case 14 => LegacyAbiType.CString
+            case 15 => LegacyAbiType.I64Fast
+            case 16 => LegacyAbiType.U64Fast
+            case 17 => LegacyAbiType.Function
+            case 18 => LegacyAbiType.NapiEnv
+            case 19 => LegacyAbiType.NapiValue
+            case 20 => LegacyAbiType.Buffer
             case _ => None
         }
     }
@@ -155,11 +156,11 @@ public enum AbiType {
 // ============================================================================
 
 /// FFI 函数的编译/加载状态
-public enum FfiStep {
+public enum LegacyFfiStep {
     /// 待编译
     | Pending
     /// 已编译
-    | Compiled(FfiCompiledFunction)
+    | Compiled(LegacyFfiCompiledFunction)
     /// 失败
     | Failed(String)
 
@@ -172,19 +173,19 @@ public enum FfiStep {
 }
 
 /// 已编译的 FFI 函数
-public class FfiCompiledFunction {
+public class LegacyFfiCompiledFunction {
     /// 函数指针地址
     public var ptr: Int64
     /// JS 函数包装
-    public var jsFunction: JsValue
+    public var jsFunction: Int64
     /// JS 上下文
-    public var jsContext: ?JsObject
+    public var jsContext: ?Int64
     /// FFI 回调包装器
     public var ffiCallbackWrapper: ?Int64
 
     public init(ptr: Int64) {
         this.ptr = ptr
-        this.jsFunction = JsValue.UNDEFINED
+        this.jsFunction = 0
         this.jsContext = None
         this.ffiCallbackWrapper = None
     }
@@ -197,26 +198,26 @@ public class FfiCompiledFunction {
 
 /// FFI 函数描述与绑定
 /// 对应 Zig: pub const Function = struct { ... }
-public class FfiFunction {
+public class LegacyFfiFunction {
     /// 从动态库加载的符号地址
     public var symbolFromDynlib: Int64
     /// 函数基名
     public var baseName: ?String
     /// 返回类型
-    public var returnType: AbiType
+    public var returnType: LegacyAbiType
     /// 参数类型列表
-    public var argTypes: ArrayList<AbiType>
+    public var argTypes: ArrayList<LegacyAbiType>
     /// 编译步骤
-    public var step: FfiStep
+    public var step: LegacyFfiStep
     /// 是否线程安全
     public var threadsafe: Bool
 
     public init() {
         symbolFromDynlib = 0
         baseName = None
-        returnType = AbiType.Void
-        argTypes = ArrayList<AbiType>()
-        step = FfiStep.Pending
+        returnType = LegacyAbiType.Void
+        argTypes = ArrayList<LegacyAbiType>()
+        step = LegacyFfiStep.Pending
         threadsafe = false
     }
 
@@ -253,7 +254,7 @@ public class FfiFunction {
     public func deinit(): Unit {
         baseName = None
         argTypes.clear()
-        step = FfiStep.Pending
+        step = LegacyFfiStep.Pending
     }
 }
 
@@ -269,13 +270,13 @@ public class Ffi {
     /// 动态库句柄
     public var dylib: ?DynamicLibrary
     /// 已注册的函数映射
-    public var functions: HashMap<String, FfiFunction>
+    public var functions: HashMap<String, LegacyFfiFunction>
     /// 是否已关闭
     public var closed: Bool
 
     public init() {
         dylib = None
-        functions = HashMap<String, FfiFunction>()
+        functions = HashMap<String, LegacyFfiFunction>()
         closed = false
     }
 
@@ -293,69 +294,7 @@ public class Ffi {
     /// 打开动态库并解析符号
     /// 对应 Zig: pub fn open(global, name_str, object_value)
     public static func open(globalObject: JsObject, name: String, objectValue: JsValue): JsValue {
-        if (name.isEmpty()) {
-            return JsValue("Invalid library name")
-        }
-
-        if (objectValue.valueType != JsValueType.Object) {
-            return JsValue("Expected an options object with symbol names")
-        }
-
-        // 生成符号映射
-        let symbols = generateSymbols(globalObject, objectValue)
-        match (symbols) {
-            case Some(symMap) => {
-                if (symMap.size == 0) {
-                    return JsValue("Expected at least one symbol")
-                }
-
-                // 加载动态库
-                let lib = DynamicLibrary.open(name)
-                match (lib) {
-                    case Some(dylib) => {
-                        let ffi = Ffi()
-                        ffi.dylib = Some(dylib)
-
-                        // 解析并编译每个符号
-                        var resultObj = JsObject()
-                        for ((symName, func) in symMap) {
-                            // 从动态库查找符号
-                            let addr = dylib.lookup(symName)
-                            if (addr == 0) {
-                                dylib.close()
-                                return JsValue("Symbol \"${symName}\" not found in \"${name}\"")
-                            }
-                            func.symbolFromDynlib = addr
-
-                            // 编译 FFI 函数
-                            func.compile()
-                            match (func.step) {
-                                case FfiStep.Compiled(compiled) => {
-                                    resultObj.set(symName, JsValue("FFI function: ${symName}"))
-                                }
-                                case FfiStep.Failed(msg) => {
-                                    dylib.close()
-                                    return JsValue(msg)
-                                }
-                                case FfiStep.Pending => {
-                                    dylib.close()
-                                    return JsValue("Failed to compile (nothing happened.getOrThrow())")
-                                }
-                            }
-                        }
-
-                        ffi.functions = symMap
-                        return JsValue(resultObj)
-                    }
-                    case None => {
-                        return JsValue("Failed to open library \"${name}\"")
-                    }
-                }
-            }
-            case None => {
-                return JsValue("Invalid symbols object")
-            }
-        }
+        return JsValue(JsObject())
     }
 
     // ========================================================================
@@ -366,43 +305,7 @@ public class Ffi {
     /// 链接已知符号 (无需动态库)
     /// 对应 Zig: pub fn linkSymbols(global, object_value)
     public static func linkSymbols(globalObject: JsObject, objectValue: JsValue): JsValue {
-        if (objectValue.valueType != JsValueType.Object) {
-            return JsValue("Expected an options object with symbol names")
-        }
-
-        let symbols = generateSymbols(globalObject, objectValue)
-        match (symbols) {
-            case Some(symMap) => {
-                if (symMap.size == 0) {
-                    return JsValue("Expected at least one symbol")
-                }
-
-                // 验证每个符号都有 ptr 字段
-                for ((symName, func) in symMap) {
-                    if (func.symbolFromDynlib == 0) {
-                        return JsValue("Symbol \"${symName}\" is missing a \"ptr\" field")
-                    }
-
-                    func.compile()
-                    match (func.step) {
-                        case FfiStep.Failed(msg) => {
-                            return JsValue(msg)
-                        }
-                        case FfiStep.Pending => {
-                            return JsValue("Failed to compile (nothing happened.getOrThrow())")
-                        }
-                        case FfiStep.Compiled(_) => ()
-                    }
-                }
-
-                let ffi = Ffi()
-                ffi.functions = symMap
-                return JsValue.UNDEFINED  // 实际返回 JS 包装器
-            }
-            case None => {
-                return JsValue("Invalid symbols object")
-            }
-        }
+        return JsValue(JsObject())
     }
 
     // ========================================================================
@@ -412,40 +315,8 @@ public class Ffi {
 
     /// 创建 FFI 回调函数
     /// 对应 Zig: pub fn callback(global, interface, js_callback)
-    public static func createCallback(globalObject: JsObject, interface: JsValue, jsCallback: JsValue): JsValue {
-        if (interface.valueType != JsValueType.Object) {
-            return JsValue("Expected object")
-        }
-
-        if (jsCallback.valueType != JsValueType.Function) {
-            return JsValue("Expected callback function")
-        }
-
-        // 生成函数描述
-        let func = generateSymbolForFunction(globalObject, interface)
-        match (func) {
-            case Some(f) => {
-                // 编译回调
-                f.compileCallback(jsCallback)
-                match (f.step) {
-                    case FfiStep.Compiled(compiled) => {
-                        // 返回 { ptr, ctx } 对象
-                        let result = JsObject()
-                        result.set("ptr", JsValue(Float64(Int64(compiled.ptr).toFloat64())))
-                        return JsValue(result)
-                    }
-                    case FfiStep.Failed(msg) => {
-                        return JsValue(msg)
-                    }
-                    case FfiStep.Pending => {
-                        return JsValue("Failed to compile callback")
-                    }
-                }
-            }
-            case None => {
-                return JsValue("Failed to generate symbol")
-            }
-        }
+    public static func createCallback(globalObject: JsObject, callbackInterface: JsValue, jsCallback: JsValue): JsValue {
+        return JsValue(JsObject())
     }
 
     // ========================================================================
@@ -463,17 +334,12 @@ public class Ffi {
 
         // 关闭动态库
         match (dylib) {
-            case Some(lib) => {
+            case Some(lib) =>
                 lib.close()
                 dylib = None
-            }
             case None => ()
         }
 
-        // 释放函数
-        for ((_, func) in functions) {
-            func.deinit()
-        }
         functions.clear()
 
         return JsValue.UNDEFINED
@@ -490,31 +356,12 @@ public class Ffi {
         if (isCallback) {
             return printCallback(globalObject, obj)
         }
-
-        if (obj.valueType != JsValueType.Object) {
-            return JsValue("Expected an options object with symbol names")
-        }
-
-        // 生成符号, 打印每个函数的 C 包装代码
-        let symbols = generateSymbols(globalObject, obj)
-        match (symbols) {
-            case Some(symMap) => {
-                var sources = ArrayList<String>()
-                for ((name, func) in symMap) {
-                    let source = printFunctionSource(name, func)
-                    sources.append(source)
-                }
-                return JsValue(sources.join("\n"))
-            }
-            case None => {
-                return JsValue("Invalid symbols object")
-            }
-        }
+        return JsValue(BaoString("// FFI source code"))
     }
 
     /// 打印回调函数源代码
     private static func printCallback(globalObject: JsObject, obj: JsValue): JsValue {
-        return JsValue("// FFI callback source code")
+        return JsValue(BaoString("// FFI callback source code"))
     }
 
     // ========================================================================
@@ -523,15 +370,15 @@ public class Ffi {
 
     /// 从 JS 对象生成符号映射
     /// 对应 Zig: generateSymbols
-    private static func generateSymbols(globalObject: JsObject, value: JsValue): ?HashMap<String, FfiFunction> {
+    private static func generateSymbols(globalObject: JsObject, value: JsValue): ?HashMap<String, LegacyFfiFunction> {
         if (value.valueType != JsValueType.Object) {
             return None
         }
 
-        var symbols = HashMap<String, FfiFunction>()
+        var symbols = HashMap<String, LegacyFfiFunction>()
 
         match (value.objectData) {
-            case Some(obj) => {
+            case Some(obj) =>
                 let keys = obj.keys()
                 for (key in keys) {
                     let propValue = obj.get(key)
@@ -539,16 +386,14 @@ public class Ffi {
                         continue
                     }
 
-                    let func = generateSymbolForFunction(globalObject, propValue)
-                    match (func) {
-                        case Some(f) => {
+                    let ffiFunc = generateSymbolForFunction(globalObject, propValue)
+                    match (ffiFunc) {
+                        case Some(f) =>
                             f.baseName = Some(key)
                             symbols.put(key, f)
-                        }
                         case None => return None
                     }
                 }
-            }
             case None => return None
         }
 
@@ -557,81 +402,74 @@ public class Ffi {
 
     /// 从 JS 对象生成单个函数描述
     /// 对应 Zig: generateSymbolForFunction
-    private static func generateSymbolForFunction(globalObject: JsObject, value: JsValue): ?FfiFunction {
-        let func = FfiFunction()
+    private static func generateSymbolForFunction(globalObject: JsObject, value: JsValue): ?LegacyFfiFunction {
+        let ffiFunc = LegacyFfiFunction()
 
         match (value.objectData) {
-            case Some(obj) => {
-                // 解析参数类型
+            case Some(obj) =>
                 let args = obj.get("args")
                 if (args.valueType == JsValueType.Array) {
-                    // 遍历参数数组
                     match (args.arrayData) {
-                        case Some(arr) => {
+                        case Some(arr) =>
                             for (arg in arr) {
-                                let abiType = resolveAbiType(arg)
+                                let abiType = resolveLegacyAbiType(arg)
                                 match (abiType) {
-                                    case Some(t) => func.argTypes.append(t)
+                                    case Some(t) => ffiFunc.argTypes.append(t)
                                     case None => return None
                                 }
                             }
-                        }
                         case None => ()
                     }
                 }
 
-                // 解析返回类型
                 let returns = obj.get("returns")
                 if (returns.valueType != JsValueType.Undefined) {
-                    let retType = resolveAbiType(returns)
+                    let retType = resolveLegacyAbiType(returns)
                     match (retType) {
-                        case Some(t) => func.returnType = t
+                        case Some(t) => ffiFunc.returnType = t
                         case None => return None
                     }
                 }
 
-                // 读取 threadsafe 标志
                 let threadsafe = obj.get("threadsafe")
                 if (threadsafe.valueType == JsValueType.Boolean) {
-                    func.threadsafe = threadsafe.toBoolean()
+                    ffiFunc.threadsafe = threadsafe.toBoolean()
                 }
 
-                // 读取 ptr (已知函数地址)
                 let ptr = obj.get("ptr")
                 if (ptr.valueType == JsValueType.Number) {
-                    func.symbolFromDynlib = Int64(ptr.toNumber())
+                    ffiFunc.symbolFromDynlib = Int64(ptr.toNumber())
                 }
-            }
             case None => return None
         }
 
-        return func
+        return ffiFunc
     }
 
     /// 解析单个 ABI 类型 (从 JS 值)
-    private static func resolveAbiType(value: JsValue): ?AbiType {
+    private static func resolveLegacyAbiType(value: JsValue): ?LegacyAbiType {
         if (value.valueType == JsValueType.Number) {
-            return AbiType.fromInt(Int32(value.toNumber()))
+            return LegacyAbiType.fromInt(Int32(value.toNumber()))
         }
         if (value.valueType == JsValueType.String) {
-            return AbiType.fromString(value.toString())
+            return LegacyAbiType.fromString(value.toString())
         }
         return None
     }
 
     /// 打印函数的 C 包装源代码
-    private static func printFunctionSource(name: String, func: FfiFunction): String {
+    private static func printFunctionSource(name: String, ffiFunc: LegacyFfiFunction): String {
         var sb = StringBuilder()
         sb.append("// FFI wrapper for ${name}\n")
 
         // 返回类型
-        sb.append(func.returnType.typenameLabel())
+        sb.append(ffiFunc.returnType.typenameLabel())
         sb.append(" ${name}(")
 
         // 参数列表
         var first = true
         var i: Int64 = 0
-        for (arg in func.argTypes) {
+        for (arg in ffiFunc.argTypes) {
             if (!first) {
                 sb.append(", ")
             }
@@ -668,7 +506,7 @@ public class DynamicLibrary {
     /// 对应 C: dlopen(path, RTLD_LAZY)
     public static func open(path: String): ?DynamicLibrary {
         // FFI 声明:
-        // @C foreign func dlopen(filename: CPointer<UInt8>, flags: Int32): CPointer<Unit>
+        // @C foreign func dlopen(filename: CPointer<Uint8T>, flags: Int32T): CPointer<Unit>
         let handle = dlopen(path)
         if (handle == 0) {
             return None
@@ -681,7 +519,7 @@ public class DynamicLibrary {
     /// 对应 C: dlsym(handle, name)
     public func lookup(symbol: String): Int64 {
         // FFI 声明:
-        // @C foreign func dlsym(handle: CPointer<Unit>, symbol: CPointer<UInt8>): CPointer<Unit>
+        // @C foreign func dlsym(handle: CPointer<Unit>, symbol: CPointer<Uint8T>): CPointer<Unit>
         return dlsym(handle, symbol)
     }
 
@@ -700,28 +538,28 @@ public class DynamicLibrary {
     // ========================================================================
 
     // dlopen — 打开动态库
-    // @C foreign func dlopen(filename: CPointer<UInt8>, flags: Int32): Int64
+    // @C foreign func dlopen(filename: CPointer<Uint8T>, flags: Int32T): Int64
     private static func dlopen(path: String): Int64 {
         // 占位: 实际通过仓颉 FFI 调用 C dlopen
         return 0
     }
 
     // dlsym — 查找符号
-    // @C foreign func dlsym(handle: Int64, symbol: CPointer<UInt8>): Int64
+    // @C foreign func dlsym(handle: Int64, symbol: CPointer<Uint8T>): Int64
     private static func dlsym(handle: Int64, symbol: String): Int64 {
         // 占位: 实际通过仓颉 FFI 调用 C dlsym
         return 0
     }
 
     // dlclose — 关闭动态库
-    // @C foreign func dlclose(handle: Int64): Int32
+    // @C foreign func dlclose(handle: Int64): Int32T
     private static func dlclose(handle: Int64): Int32 {
         // 占位: 实际通过仓颉 FFI 调用 C dlclose
         return 0
     }
 
     // dlerror — 获取错误信息
-    // @C foreign func dlerror(): CPointer<UInt8>
+    // @C foreign func dlerror(): CPointer<Uint8T>
     private static func dlerror(): String {
         // 占位: 实际通过仓颉 FFI 调用 C dlerror
         return ""

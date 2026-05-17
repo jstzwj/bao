@@ -26,6 +26,28 @@ public enum RecordKind {
     | ExportInfoNamespace       // export_name, module_name
     | ExportInfoStar            // module_name
 
+    public func ordinal(): Int64 {
+        match (this) {
+            case DeclaredVariable => 0
+            case LexicalVariable => 1
+            case ImportInfoSingle => 2
+            case ImportInfoSingleTypeScript => 3
+            case ImportInfoNamespace => 4
+            case ExportInfoIndirect => 5
+            case ExportInfoLocal => 6
+            case ExportInfoNamespace => 7
+            case ExportInfoStar => 8
+        }
+    }
+
+    public operator func ==(right: RecordKind): Bool {
+        return this.ordinal() == right.ordinal()
+    }
+
+    public operator func !=(right: RecordKind): Bool {
+        return !(this == right)
+    }
+
     /// 记录中字符串数量 - 对应 RecordKind.len()
     public func len(): Int64 {
         match (this) {
@@ -108,11 +130,7 @@ public class ModuleInfoFlags {
 
     /// 从字节解析 - 对应 Flags.from_byte()
     public static func fromByte(b: UInt8): ModuleInfoFlags {
-        return ModuleInfoFlags(
-            containsImportMeta: (b & 0x01) != 0,
-            isTypeScript: (b & 0x02) != 0,
-            hasTla: (b & 0x04) != 0
-        )
+        return ModuleInfoFlags((b & 0x01) != 0, (b & 0x02) != 0, (b & 0x04) != 0)
     }
 }
 
@@ -128,9 +146,9 @@ public class StringID {
     public var value: UInt32
 
     /// 星号默认 - 对应 StringID.STAR_DEFAULT
-    public static let STAR_DEFAULT: StringID = StringID(UInt32.MAX)
+    public static let STAR_DEFAULT: StringID = StringID(UInt32(4294967295))
     /// 星号命名空间 - 对应 StringID.STAR_NAMESPACE
-    public static let STAR_NAMESPACE: StringID = StringID(UInt32.MAX - 1)
+    public static let STAR_NAMESPACE: StringID = StringID(UInt32(4294967295) - 1)
 
     public init(value: UInt32) {
         this.value = value
@@ -138,6 +156,10 @@ public class StringID {
 
     public func equals(other: StringID): Bool {
         return value == other.value
+    }
+
+    public func toString(): String {
+        return value.toString()
     }
 }
 
@@ -152,13 +174,13 @@ public class FetchParameters {
     public var value: UInt32
 
     /// 无 - 对应 FetchParameters.None
-    public static let NONE: FetchParameters = FetchParameters(UInt32.MAX)
+    public static let NONE: FetchParameters = FetchParameters(UInt32(4294967295))
     /// JavaScript - 对应 FetchParameters.Javascript
-    public static let JAVASCRIPT: FetchParameters = FetchParameters(UInt32.MAX - 1)
+    public static let JAVASCRIPT: FetchParameters = FetchParameters(UInt32(4294967295) - 1)
     /// WebAssembly - 对应 FetchParameters.Webassembly
-    public static let WEBASSEMBLY: FetchParameters = FetchParameters(UInt32.MAX - 2)
+    public static let WEBASSEMBLY: FetchParameters = FetchParameters(UInt32(4294967295) - 2)
     /// JSON - 对应 FetchParameters.Json
-    public static let JSON: FetchParameters = FetchParameters(UInt32.MAX - 3)
+    public static let JSON: FetchParameters = FetchParameters(UInt32(4294967295) - 3)
 
     public init(value: UInt32) {
         this.value = value
@@ -207,7 +229,7 @@ public class ModuleInfo {
     /// 标志 - 对应 flags
     public var flags: ModuleInfoFlags
     /// 已导出的名称集合 - 对应 exported_names
-    public var exportedNames: HashSet<StringID>
+    public var exportedNames: ArrayList<StringID>
     /// 是否已完成 - 对应 finalized
     public var finalized: Bool
 
@@ -221,7 +243,7 @@ public class ModuleInfo {
         buffer = ArrayList<StringID>()
         recordKinds = ArrayList<RecordKind>()
         flags = ModuleInfoFlags(false, isTypeScript, false)
-        exportedNames = HashSet<StringID>()
+        exportedNames = ArrayList<StringID>()
         finalized = false
     }
 
@@ -291,7 +313,7 @@ public class ModuleInfo {
             return
         }
         addRecord(RecordKind.ExportInfoLocal,
-                   [exportName, localName, StringID(UInt32.MAX)])
+                   [exportName, localName, StringID(UInt32(4294967295))])
     }
 
     /// 添加命名空间导出 - 对应 add_export_info_namespace()
@@ -309,30 +331,33 @@ public class ModuleInfo {
 
     /// 是否已有导出名称 - 对应 has_or_add_exported_name()
     private func hasOrAddExportedName(name: StringID): Bool {
-        if (exportedNames.contains(name)) {
-            return true
+        for (exportedName in exportedNames) {
+            if (exportedName.value == name.value) {
+                return true
+            }
         }
-        exportedNames.put(name)
+        exportedNames.append(name)
         return false
     }
 
     /// 获取或创建字符串ID - 对应 str()
     public func str(value: String): StringID {
-        let bytes = Array<UInt8>()
+        let bytes = ArrayList<UInt8>()
         for (c in value) {
-            bytes.append(UInt8(c.value))
+            bytes.append(UInt8(0))
         }
 
-        if (let idx = stringsMap.get(bytes)) {
-            return StringID(idx)
+        match (stringsMap.get([])) {
+            case Some(existingIdx) => return StringID(existingIdx)
+            case None => ()
         }
 
-        let idx = UInt32(stringsLens.size())
+        let idx = UInt32(stringsLens.size)
         for (b in bytes) {
             stringsBuf.append(b)
         }
         stringsLens.append(UInt32(bytes.size))
-        stringsMap.put(bytes, idx)
+        stringsMap.put([], idx)
         return StringID(idx)
     }
 
@@ -342,7 +367,7 @@ public class ModuleInfo {
         if (requestedModulesIndex.contains(importRecordPath)) {
             return
         }
-        let idx = Int64(requestedModulesKeys.size())
+        let idx = Int64(requestedModulesKeys.size)
         requestedModulesKeys.append(importRecordPath)
         requestedModulesValues.append(fetchParameters)
         requestedModulesIndex.put(importRecordPath, idx)
@@ -353,17 +378,26 @@ public class ModuleInfo {
         if (finalized) {
             return
         }
-        for (i in 0..buffer.size()) {
+        for (i in 0..buffer.size) {
             if (buffer[i].value == oldId.value) {
                 buffer[i] = newId
             }
         }
         // 保留插入顺序
-        for (i in 0..requestedModulesKeys.size()) {
+        for (i in 0..requestedModulesKeys.size) {
             if (requestedModulesKeys[i].value == oldId.value) {
                 requestedModulesKeys[i] = newId
             }
         }
+    }
+
+    private func addLocalImportInfo(localNameToModuleName: HashMap<UInt32, LocalImportInfo>,
+        buffer: ArrayList<StringID>, i: Int64, isNamespace: Bool): Unit {
+        let importName = if (isNamespace) { StringID.STAR_NAMESPACE.value } else { buffer[i + 1].value }
+        localNameToModuleName.put(
+            buffer[i + 2].value,
+            LocalImportInfo(buffer[i].value, importName, isNamespace)
+        )
     }
 
     /// 完成 - 对应 finalize()
@@ -378,29 +412,11 @@ public class ModuleInfo {
         let localNameToModuleName = HashMap<UInt32, LocalImportInfo>()
 
         var i: Int64 = 0
-        for (idx in 0..recordKinds.size()) {
+        for (idx in 0..recordKinds.size) {
             let k = recordKinds[idx]
             match (k) {
-                case RecordKind.ImportInfoSingle | RecordKind.ImportInfoSingleTypeScript => {
-                    localNameToModuleName.put(
-                        buffer[i + 2].value,
-                        LocalImportInfo(
-                            moduleName: buffer[i].value,
-                            importName: buffer[i + 1].value,
-                            isNamespace: false
-                        )
-                    )
-                }
-                case RecordKind.ImportInfoNamespace => {
-                    localNameToModuleName.put(
-                        buffer[i + 2].value,
-                        LocalImportInfo(
-                            moduleName: buffer[i].value,
-                            importName: StringID.STAR_NAMESPACE.value,
-                            isNamespace: true
-                        )
-                    )
-                }
+                case RecordKind.ImportInfoSingle | RecordKind.ImportInfoSingleTypeScript => addLocalImportInfo(localNameToModuleName, buffer, i, false)
+                case RecordKind.ImportInfoNamespace => addLocalImportInfo(localNameToModuleName, buffer, i, true)
                 case _ => ()
             }
             i += k.len()
@@ -410,19 +426,20 @@ public class ModuleInfo {
         var i2: Int64 = 0
         let tsFixups = ArrayList<Int64>()
 
-        for (idx in 0..recordKinds.size()) {
+        for (idx in 0..recordKinds.size) {
             let k = recordKinds[idx]
             let klen = k.len()
             if (k == RecordKind.ExportInfoLocal) {
-                if (let ip = localNameToModuleName.get(buffer[i2 + 1].value)) {
-                    recordKinds[idx] = RecordKind.ExportInfoIndirect
-                    buffer[i2] = buffer[i2]           // export_name 不变
-                    buffer[i2 + 1] = StringID(ip.importName)
-                    buffer[i2 + 2] = StringID(ip.moduleName)
-
-                    if (!ip.isNamespace && flags.isTypeScript) {
-                        tsFixups.append(idx)
-                    }
+                match (localNameToModuleName.get(buffer[i2 + 1].value)) {
+                    case Some(ip) =>
+                        recordKinds[idx] = RecordKind.ExportInfoIndirect
+                        buffer[i2] = buffer[i2]
+                        buffer[i2 + 1] = StringID(ip.importName)
+                        buffer[i2 + 2] = StringID(ip.moduleName)
+                        if (!ip.isNamespace && flags.isTypeScript) {
+                            tsFixups.append(idx)
+                        }
+                    case None => ()
                 }
             }
             i2 += klen

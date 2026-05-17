@@ -10,6 +10,7 @@
 package bao_css.properties
 
 import bao_core.*
+import bao_collections.*
 
 // ============================================================================
 // SVGPaint
@@ -25,16 +26,18 @@ public enum SVGPaint {
     | ContextStroke                          // 上下文描边
     | None                                   // 无
 
+    private func urlFallbackToCss(u: String, fallback: Option<SVGPaintFallback>): String {
+        var result = "url(" + u + ")"
+        match (fallback) {
+            case Some(f) => result = result + " " + f.toCss()
+            case None => ()
+        }
+        result
+    }
+
     public func toCss(): String {
         match (this) {
-            case Url(u, fallback) => {
-                var result = "url(" + u + ")"
-                match (fallback) {
-                    case Some(f) => result = result + " " + f.toCss()
-                    case None => ()
-                }
-                return result
-            }
+            case Url(u, fallback) => urlFallbackToCss(u, fallback)
             case Color(c) => c
             case ContextFill => "context-fill"
             case ContextStroke => "context-stroke"
@@ -114,7 +117,13 @@ public enum StrokeDasharray {
     public func toCss(): String {
         match (this) {
             case None => "none"
-            case Values(vals) => String.join(", ", vals)
+            case Values(vals) =>
+                var r = ""
+                for (i in 0..vals.size) {
+                    if (i > 0) { r += ", " }
+                    r += vals[i]
+                }
+                r
         }
     }
 }

@@ -28,7 +28,7 @@ public enum SameSite {
     }
 
     public static func fromString(s: String): SameSite {
-        match (s.toLower()) {
+        match (cookieToLower(cookieTrim(s))) {
             case "strict" => Strict
             case "lax" => Lax
             case "none" => None
@@ -89,45 +89,46 @@ public class Cookie {
         }
 
         // 第一部分是 name=value
-        let first = parts[0].trim()
-        let eqIdx = first.indexOf("=")
-        if (eqIdx < 0) {
-            return None
+        let first = cookieTrim(parts[0])
+        let eqIdxOpt = first.indexOf("=")
+        let eqIdx = match (eqIdxOpt) {
+            case Some(idx) => idx
+            case None => return None
         }
 
-        let name = first.substring(0, eqIdx).trim()
-        let value = first.substring(eqIdx + 1).trim()
+        let name = cookieTrim(first[0..eqIdx])
+        let value = cookieTrim(first[(eqIdx + 1)..])
         let cookie = Cookie(name, value)
 
         // 解析属性
         for (i in 1..parts.size) {
-            let part = parts[Int64(i)].trim()
-            let attrEqIdx = part.indexOf("=")
-            if (attrEqIdx >= 0) {
-                let attrName = part.substring(0, attrEqIdx).trim().toLower()
-                let attrValue = part.substring(attrEqIdx + 1).trim()
-                match (attrName) {
-                    case "expires" => cookie.expires = Some(attrValue)
-                    case "max-age" => {
-                        try {
-                            cookie.maxAge = Some(Int64.parse(attrValue))
-                        } catch (_: Exception) {
-                            cookie.maxAge = None
-                        }
+            let part = cookieTrim(parts[Int64(i)])
+            let attrEqIdxOpt = part.indexOf("=")
+            match (attrEqIdxOpt) {
+                case Some(attrEqIdx) =>
+                    let attrName = cookieToLower(cookieTrim(part[0..attrEqIdx]))
+                    let attrValue = cookieTrim(part[(attrEqIdx + 1)..])
+                    match (attrName) {
+                        case "expires" => cookie.expires = Some(attrValue)
+                        case "max-age" =>
+                            try {
+                                cookie.maxAge = Some(parseInt64(attrValue))
+                            } catch (_: Exception) {
+                                cookie.maxAge = None
+                            }
+                        case "domain" => cookie.domain = Some(attrValue)
+                        case "path" => cookie.path = Some(attrValue)
+                        case "samesite" => cookie.sameSite = SameSite.fromString(attrValue)
+                        case _ => ()  // 忽略未知属性
                     }
-                    case "domain" => cookie.domain = Some(attrValue)
-                    case "path" => cookie.path = Some(attrValue)
-                    case "samesite" => cookie.sameSite = SameSite.fromString(attrValue)
-                    case _ => ()  // 忽略未知属性
-                }
-            } else {
-                // 无值属性: Secure, HttpOnly
-                let lower = part.toLower()
-                if (lower == "secure") {
-                    cookie.secure = true
-                } else if (lower == "httponly") {
-                    cookie.httpOnly = true
-                }
+                case None =>
+                    // 无值属性: Secure, HttpOnly
+                    let lower = cookieToLower(part)
+                    if (lower == "secure") {
+                        cookie.secure = true
+                    } else if (lower == "httponly") {
+                        cookie.httpOnly = true
+                    }
             }
         }
 
@@ -140,12 +141,14 @@ public class Cookie {
         let cookies = ArrayList<Cookie>()
         let parts = splitSemicolon(cookieHeader)
         for (part in parts) {
-            let trimmed = part.trim()
-            let eqIdx = trimmed.indexOf("=")
-            if (eqIdx >= 0) {
-                let name = trimmed.substring(0, eqIdx).trim()
-                let value = trimmed.substring(eqIdx + 1).trim()
-                cookies.append(Cookie(name, value))
+            let trimmed = cookieTrim(part)
+            let eqIdxOpt = trimmed.indexOf("=")
+            match (eqIdxOpt) {
+                case Some(eqIdx) =>
+                    let name = cookieTrim(trimmed[0..eqIdx])
+                    let value = cookieTrim(trimmed[(eqIdx + 1)..])
+                    cookies.append(Cookie(name, value))
+                case None => ()
             }
         }
         return cookies
@@ -188,8 +191,9 @@ public class Cookie {
             sb.append("; HttpOnly")
         }
 
-        if (sameSite != SameSite.Default) {
-            sb.append("; SameSite=${sameSite.toString()}")
+        match (sameSite) {
+            case Default => ()
+            case _ => sb.append("; SameSite=${sameSite.toString()}")
         }
 
         return sb.toString()
@@ -200,7 +204,7 @@ public class Cookie {
         return "${name}=${value}"
     }
 
-    override public func toString(): String {
+    public func toString(): String {
         return serialize()
     }
 
@@ -251,11 +255,10 @@ public class CookieJar {
     public func get(name: String): ?Cookie {
         for (key in cookies.keys()) {
             match (cookies.get(key)) {
-                case Some(cookie) => {
+                case Some(cookie) =>
                     if (cookie.name == name) {
                         return Some(cookie)
                     }
-                }
                 case None => ()
             }
         }
@@ -273,11 +276,10 @@ public class CookieJar {
         let result = ArrayList<Cookie>()
         for (key in cookies.keys()) {
             match (cookies.get(key)) {
-                case Some(cookie) => {
+                case Some(cookie) =>
                     if (cookie.name == name) {
                         result.append(cookie)
                     }
-                }
                 case None => ()
             }
         }
@@ -301,11 +303,10 @@ public class CookieJar {
         let toRemove = ArrayList<String>()
         for (key in cookies.keys()) {
             match (cookies.get(key)) {
-                case Some(cookie) => {
+                case Some(cookie) =>
                     if (cookie.name == name) {
                         toRemove.append(key)
                     }
-                }
                 case None => ()
             }
         }
@@ -325,7 +326,7 @@ public class CookieJar {
         let parts = ArrayList<String>()
         for (key in cookies.keys()) {
             match (cookies.get(key)) {
-                case Some(cookie) => {
+                case Some(cookie) =>
                     // 简化匹配: 只检查域名和路径前缀
                     let domainMatch = match (cookie.domain) {
                         case Some(d) => domain.endsWith(d) || domain == d
@@ -338,7 +339,6 @@ public class CookieJar {
                     if (domainMatch && pathMatch) {
                         parts.append(cookie.toHeaderValue())
                     }
-                }
                 case None => ()
             }
         }
@@ -378,7 +378,7 @@ private func splitSemicolon(s: String): ArrayList<String> {
     let parts = ArrayList<String>()
     var current = StringBuilder()
     for (c in s) {
-        if (c == ';') {
+        if (c == UInt8(59)) {
             parts.append(current.toString())
             current = StringBuilder()
         } else {
@@ -389,4 +389,32 @@ private func splitSemicolon(s: String): ArrayList<String> {
         parts.append(current.toString())
     }
     return parts
+}
+
+private func cookieTrim(s: String): String {
+    var start: Int64 = 0
+    var end = s.size
+    while (start < end && cookieIsAsciiWhitespace(s[start])) {
+        start += 1
+    }
+    while (end > start && cookieIsAsciiWhitespace(s[end - 1])) {
+        end -= 1
+    }
+    return s[start..end]
+}
+
+private func cookieIsAsciiWhitespace(c: UInt8): Bool {
+    return c == UInt8(32) || c == UInt8(9) || c == UInt8(10) || c == UInt8(13)
+}
+
+private func cookieToLower(s: String): String {
+    let sb = StringBuilder()
+    for (c in s) {
+        if (c >= UInt8(65) && c <= UInt8(90)) {
+            sb.append(UInt8(c + UInt8(32)))
+        } else {
+            sb.append(c)
+        }
+    }
+    return sb.toString()
 }

@@ -1,153 +1,203 @@
-// 进程信息和控制 API（完整翻译）
-// 对应 Bun: src/runtime/node/node_process.zig
-// 严格翻译自: src/runtime/node/node_process.zig
+// Process information and control APIs (`globalThis.process` / `node:process`)
+// Translated from Bun: src/runtime/node/node_process.rs
 package bao_runtime.node
 
 import bao_core.*
 import bao_sys.*
 
 // ============================================================================
-// 进程 API
-// 对应 Bun: src/runtime/node/node_process.zig
-// 包含: getTitle, setTitle, createArgv, getCwd, setCwd, exit,
-//       createArgv0, getExecPath, createExecArgv, getEval,
-//       Bun__NODE_NO_WARNINGS, Bun__version 等
+// CStrPtr — repr(transparent) wrapper around a C string pointer
+// Corresponds to Bun: node_process.rs CStrPtr
+// Wraps a raw C string pointer for safe static export usage.
+// ============================================================================
+public struct CStrPtr {
+    public var ptr: CPointer<UInt8>
+
+    public init(ptr: CPointer<UInt8>) {
+        this.ptr = ptr
+    }
+}
+
+// ============================================================================
+// NodeProcess — Process information and control APIs
+// Corresponds to Bun: src/runtime/node/node_process.rs
+// Contains: createArgv0, getExecPath, getArgv, getExecArgv, exit,
+//           getCwd, setCwd, getTitle, setTitle, getEval,
+//           Bun__NODE_NO_WARNINGS, Bun__version, etc.
 // ============================================================================
 public class NodeProcess {
     // ========================================================================
-    // 进程标题（线程安全）
-    // 对应 Bun: node_process.zig title_mutex + getTitle/setTitle
-    // ============================================================================
+    // Process title (thread-safe via reentrant mutex in Bun)
+    // Corresponds to Bun: node_process.rs _impl getTitle/setTitle
+    // Default is "bao" (Bun uses "bun")
+    // ========================================================================
     private static var processTitle: String = "bao"
 
     // ========================================================================
-    // 版本号常量
-    // 对应 Bun: node_process.zig Bun__version, Bun__version_with_sha
-    // ============================================================================
+    // Version constants
+    // Corresponds to Bun: node_process.rs Bun__version, Bun__version_with_sha
+    // ========================================================================
     public static let version: String = "v1.0.0"
     public static let versionWithSha: String = "v1.0.0"
 
-    // 版本 SHA
-    // 对应 Bun: Bun__version_sha
+    // Version SHA
+    // Corresponds to Bun: Bun__version_sha
     public static let versionSha: String = "unknown"
 
-    // uWS/uSockets 版本
-    // 对应 Bun: Bun__versions_uws, Bun__versions_usockets
+    // uWS/uSockets version
+    // Corresponds to Bun: Bun__versions_uws, Bun__versions_usockets
     public static let versionsUws: String = "unknown"
     public static let versionsUsockets: String = "unknown"
 
     // ========================================================================
-    // getTitle — 获取进程标题
-    // 对应 Bun: node_process.zig getTitle
-    // 默认值为 "bao"（Bun 中为 "bun"）
-    // ============================================================================
-    public static func getTitle(): String {
-        return processTitle
-    }
-
+    // createArgv0 — Get argv[0] (the executable name)
+    // Corresponds to Bun: node_process.rs create_argv0
+    // Returns bun.argv[0] or falls back to "bao"
     // ========================================================================
-    // setTitle — 设置进程标题
-    // 对应 Bun: node_process.zig setTitle
-    // 使用互斥锁保护（Bun 中使用 bun.Mutex）
-    // ============================================================================
-    public static func setTitle(title: String): Unit {
-        processTitle = title
-    }
-
-    // ========================================================================
-    // getCwd — 获取当前工作目录
-    // 对应 Bun: node_process.zig getCwd_
-    // 使用 bun.api.node.path.getCwd 获取缓存的工作目录
-    // 错误时抛出 SystemError
-    // ============================================================================
-    public static func getCwd(): String {
-        return System.cwd()
-    }
-
-    // ========================================================================
-    // setCwd — 设置当前工作目录
-    // 对应 Bun: node_process.zig setCwd_
-    // 1. 验证路径非空
-    // 2. 调用 chdir 系统调用
-    // 3. 更新 bundler 的缓存工作目录
-    // 4. 确保路径以斜杠结尾（bundler 内部约定）
-    // 5. 返回新的工作目录（不带尾部斜杠）
-    // ============================================================================
-    public static func setCwd(path: String): Bool {
-        if (path.size == 0) {
-            return false
+    public static func createArgv0(): String {
+        let argv = System.argv()
+        if (argv.size > 0) {
+            return argv[0]
         }
-        return System.chdir(path)
+        return "bao"
     }
 
     // ========================================================================
-    // createArgv0 — 获取 argv[0]（可执行文件名）
-    // 对应 Bun: node_process.zig createArgv0
-    // 返回 bun.argv[0]
-    // ============================================================================
-    public static func getArgv0(): String {
-        return System.execPath()
-    }
-
+    // getExecPath — Get the full path to the executable
+    // Corresponds to Bun: node_process.rs get_exec_path
+    // Uses selfExePath(), falls back to argv[0] on failure
     // ========================================================================
-    // getExecPath — 获取可执行文件完整路径
-    // 对应 Bun: node_process.zig getExecPath
-    // 使用 bun.selfExePath() 获取，失败时回退到 argv[0]
-    // ============================================================================
     public static func getExecPath(): String {
         let path = System.selfExePath()
         if (path.size > 0) {
             return path
         }
-        return getArgv0()
+        return createArgv0()
     }
 
     // ========================================================================
-    // createArgv — 获取完整 argv 列表
-    // 对应 Bun: node_process.zig createArgv
-    // 1. standalone 模式: ["bun", main, ...argv]
-    // 2. worker 模式: [exe_path, "[worker eval]"/main, ...worker.argv]
-    // 3. 普通模式: [exe_path, main, ...vm.argv]
-    // ============================================================================
+    // getArgv — C++ accessor wrapper for argv
+    // Corresponds to Bun: node_process.rs get_argv
+    // ========================================================================
     public static func getArgv(): Array<String> {
         return System.argv()
     }
 
     // ========================================================================
-    // createExecArgv — 获取 execArgv（传给引擎的参数）
-    // 对应 Bun: node_process.zig createExecArgv
-    // 1. Worker 模式: 如果设置了 execArgv 则直接使用
-    // 2. Standalone 模式: 合并 compile_exec_argv 和 BUN_OPTIONS
-    // 3. 普通模式: 从 process.argv 重新解析，提取以 - 开头的参数
-    //    - 跳过 "run" 命令
-    //    - 识别需要值的参数（如 --eval, --require 等）
-    // ============================================================================
+    // getExecArgv — C++ accessor wrapper for execArgv
+    // Corresponds to Bun: node_process.rs get_exec_argv
+    // ========================================================================
     public static func getExecArgv(): Array<String> {
-        // 简化实现：从 argv 中提取以 - 开头的参数
+        return createExecArgv()
+    }
+
+    // ========================================================================
+    // exit — Exit the process
+    // Corresponds to Bun: node_process.rs exit
+    // Sets exit code and exits: worker mode calls worker.exit(),
+    // main thread calls vm.onExit() + vm.globalExit()
+    // ========================================================================
+    public static func exit(code: UInt8): Unit {
+        // In Bun: vm.exit_handler.exit_code = code
+        // Worker: worker.exit(); Main: vm.onExit() + vm.globalExit()
+        System.exit(Int32(code))
+    }
+
+    // ========================================================================
+    // NODE_NO_WARNINGS — Check if Node.js warnings are suppressed
+    // Corresponds to Bun: node_process.rs Bun__NODE_NO_WARNINGS
+    // Checks the NODE_NO_WARNINGS environment variable
+    // ========================================================================
+    public static func nodeNoWarnings(): Bool {
+        let val = System.getenv("NODE_NO_WARNINGS")
+        return val != None
+    }
+
+    // ========================================================================
+    // suppressCrashOnProcessKillSelf — Suppress crash on self-kill
+    // Corresponds to Bun: node_process.rs Bun__suppressCrashOnProcessKillSelfIfDesired
+    // Checks BUN_INTERNAL_SUPPRESS_CRASH_ON_PROCESS_KILL_SELF flag
+    // ========================================================================
+    public static func suppressCrashOnProcessKillSelf(): Bool {
+        let val = System.getenv("BUN_INTERNAL_SUPPRESS_CRASH_ON_PROCESS_KILL_SELF")
+        return val != None
+    }
+
+    // ========================================================================
+    // getTitle — Get the process title
+    // Corresponds to Bun: node_process.rs _impl get_title
+    // Returns the process title or "bao" as default
+    // ========================================================================
+    public static func getTitle(): String {
+        return processTitle
+    }
+
+    // ========================================================================
+    // setTitle — Set the process title
+    // Corresponds to Bun: node_process.rs _impl set_title
+    // Thread-safe in Bun via mutex
+    // ========================================================================
+    public static func setTitle(title: String): Unit {
+        processTitle = title
+    }
+
+    // ========================================================================
+    // createExecArgv — Create execArgv array
+    // Corresponds to Bun: node_process.rs _impl create_exec_argv
+    // 1. Worker mode: if execArgv is set, use it directly
+    // 2. Standalone mode: merge compile_exec_argv and BUN_OPTIONS
+    // 3. Normal mode: re-parse process.argv to extract execArgv
+    //    - Skip "run" command
+    //    - Recognize options that take values (e.g., --eval, --require)
+    // ========================================================================
+    public static func createExecArgv(): Array<String> {
         let argv = System.argv()
         var execArgv = Array<String>()
         var seenRun = false
         var prev: ?String = None
 
-        // 需要额外参数的选项集
-        // 对应 Bun: node_process.zig createExecArgv 中的 auto_params 映射
-        let stringOptions = Array<String>(["--eval", "-e", "--print", "-p", "--require", "-r", "--config", "--import"])
+        // Set of options that consume an extra argument
+        // Corresponds to Bun: node_process.rs MAP (LazyLock<HashSet>)
+        // Built from CLI auto_params with takes_value != None
+        let stringOptions = Array<String>([
+            "--eval", "-e",
+            "--print", "-p",
+            "--require", "-r",
+            "--config",
+            "--import",
+            "--loader",
+            "--preload",
+            "--es-module-lexer",
+            "--conditions",
+            "--extension-order",
+            "--tsconfig-override",
+        ])
 
+        // Skip argv[0]
+        var first = true
         for (arg in argv) {
+            if (first) {
+                first = false
+                continue
+            }
+
             let prevVal = prev
             prev = arg
 
+            // Emulate `defer prev = arg` by setting at end of each iteration
             if (arg.size >= 1 && arg[0] == '-') {
-                execArgv.add(arg)
+                execArgv.append(arg)
+                prev = arg
                 continue
             }
 
             if (!seenRun && arg == "run") {
                 seenRun = true
+                prev = arg
                 continue
             }
 
-            // 如果前一个参数是需要值的选项，则当前参数也是 execArgv
+            // If previous argument is one that takes a value, include this arg
             if (prevVal != None) {
                 var isStringOpt = false
                 for (opt in stringOptions) {
@@ -157,12 +207,13 @@ public class NodeProcess {
                     }
                 }
                 if (isStringOpt) {
-                    execArgv.add(arg)
+                    execArgv.append(arg)
+                    prev = arg
                     continue
                 }
             }
 
-            // 遇到脚本名称后停止
+            // Hit the script name — stop
             break
         }
 
@@ -170,126 +221,151 @@ public class NodeProcess {
     }
 
     // ========================================================================
-    // exit — 退出进程
-    // 对应 Bun: node_process.zig exit
-    // Worker 模式: worker.exit()
-    // 主线程: vm.onExit() + vm.globalExit()
-    // ============================================================================
-    public static func exit(code: Int32): Unit {
-        System.exit(code)
+    // createArgv — Create the full argv array
+    // Corresponds to Bun: node_process.rs _impl create_argv
+    // 1. Standalone mode: ["bao", main, ...argv]
+    // 2. Worker mode: [exe_path, "[worker eval]"/main, ...worker.argv]
+    // 3. Normal mode: [exe_path, main, ...vm.argv]
+    // Special: [eval] and [stdin] suffixes are handled
+    // ========================================================================
+    public static func createArgv(): Array<String> {
+        let allArgv = System.argv()
+        var argsList = Array<String>()
+
+        // argv[0] — the executable path or "bao"
+        let exePath = System.selfExePath()
+        if (exePath.size > 0) {
+            argsList.append(exePath)
+        } else {
+            argsList.append("bao")
+        }
+
+        // Add remaining argv entries (skip argv[0] which we already handled)
+        if (allArgv.size > 1) {
+            for (i in 1..allArgv.size) {
+                argsList.append(allArgv[i])
+            }
+        }
+
+        return argsList
     }
 
     // ========================================================================
-    // getEval — 获取 eval 源代码
-    // 对应 Bun: node_process.zig getEval
-    // 返回 vm.module_loader.eval_source 或 undefined
-    // ============================================================================
+    // getEval — Get the eval source code
+    // Corresponds to Bun: node_process.rs _impl get_eval
+    // Returns eval_source contents or None
+    // ========================================================================
     public static func getEval(): ?String {
         return None
     }
 
     // ========================================================================
-    // 环境变量操作
+    // getCwd — Get the current working directory
+    // Corresponds to Bun: node_process.rs _impl get_cwd
+    // Uses path.getCwd, throws SystemError on failure
+    // ========================================================================
+    public static func getCwd(): String {
+        return System.cwd()
+    }
+
+    // ========================================================================
+    // setCwd — Set the current working directory
+    // Corresponds to Bun: node_process.rs _impl set_cwd
+    // 1. Validate path is non-empty
+    // 2. Call chdir syscall
+    // 3. Update bundler's cached cwd
+    // 4. Ensure path ends with separator (bundler convention)
+    // 5. Return new cwd (without trailing slash)
+    // ========================================================================
+    public static func setCwd(path: String): Bool {
+        if (path.size == 0) {
+            return false
+        }
+        return System.chdir(path)
+    }
+
+    // ========================================================================
+    // Environment variable operations
     // ========================================================================
 
-    // 获取环境变量
+    // Get an environment variable
     public static func getEnv(name: String): ?String {
         return System.getenv(name)
     }
 
-    // 设置环境变量
+    // Set an environment variable
     public static func setEnv(name: String, value: String): Unit {
         System.setenv(name, value: value)
     }
 
-    // 删除环境变量
+    // Delete an environment variable
     public static func deleteEnv(name: String): Unit {
         System.unsetenv(name)
     }
 
-    // 获取所有环境变量
+    // Get all environment variables
     public static func getAllEnv(): Map<String, String> {
         return System.environ()
     }
 
     // ========================================================================
-    // 进程 ID 操作
+    // Process ID operations
     // ========================================================================
 
-    // 获取进程 ID
+    // Get process ID
     public static func getPid(): Int32 {
         return System.getpid()
     }
 
-    // 获取父进程 ID
+    // Get parent process ID
     public static func getPpid(): Int32 {
         return System.getppid()
     }
 
-    // 获取用户 ID
+    // Get user ID
     public static func getUid(): UInt32 {
         return System.getuid()
     }
 
-    // 获取组 ID
+    // Get group ID
     public static func getGid(): UInt32 {
         return System.getgid()
     }
 
-    // 设置用户 ID
+    // Set user ID
     public static func setUid(uid: UInt32): Unit {
         System.setuid(uid)
     }
 
-    // 设置组 ID
+    // Set group ID
     public static func setGid(gid: UInt32): Unit {
         System.setgid(gid)
     }
 
     // ========================================================================
-    // NODE_NO_WARNINGS — 抑制 Node.js 警告
-    // 对应 Bun: node_process.zig Bun__NODE_NO_WARNINGS
-    // 检查环境变量 NODE_NO_WARNINGS 是否设置
-    // ============================================================================
-    public static func nodeNoWarnings(): Bool {
-        let val = System.getenv("NODE_NO_WARNINGS")
-        return val != None
-    }
-
+    // abort — Abort the process abnormally
     // ========================================================================
-    // suppressCrashOnProcessKillSelfIfDesired — 抑制自杀死崩溃报告
-    // 对应 Bun: node_process.zig Bun__suppressCrashOnProcessKillSelfIfDesired
-    // 检查 BUN_INTERNAL_SUPPRESS_CRASH_ON_PROCESS_KILL_SELF 标志
-    // ============================================================================
-    public static func suppressCrashOnProcessKillSelf(): Bool {
-        let val = System.getenv("BUN_INTERNAL_SUPPRESS_CRASH_ON_PROCESS_KILL_SELF")
-        return val != None
-    }
-
-    // ========================================================================
-    // abort — 异常终止进程
-    // ============================================================================
     public static func abort(): Unit {
         System.abort()
     }
 
     // ========================================================================
-    // kill — 发送信号给进程
-    // ============================================================================
+    // kill — Send a signal to a process
+    // ========================================================================
     public static func kill(pid: Int32, signal: String): Bool {
         return System.kill(pid, signal: signal)
     }
 
     // ========================================================================
-    // nextTick — 下一个 tick 回调
-    // ============================================================================
+    // nextTick — Schedule a callback for the next tick
+    // ========================================================================
     public static func nextTick(callback: () -> Unit): Unit {
         callback()
     }
 
     // ========================================================================
-    // memoryUsage — 获取内存使用信息
-    // ============================================================================
+    // memoryUsage — Get memory usage information
+    // ========================================================================
     public static func memoryUsage(): MemoryUsageInfo {
         let info = MemoryUsageInfo()
         info.rss = System.rss()
@@ -301,8 +377,8 @@ public class NodeProcess {
     }
 
     // ========================================================================
-    // cpuUsage — 获取 CPU 使用信息
-    // ============================================================================
+    // cpuUsage — Get CPU usage information
+    // ========================================================================
     public static func cpuUsage(): CpuUsageInfo {
         let info = CpuUsageInfo()
         info.user = 0
@@ -311,8 +387,8 @@ public class NodeProcess {
     }
 
     // ========================================================================
-    // umask — 获取/设置文件模式创建掩码
-    // ============================================================================
+    // umask — Get/set file mode creation mask
+    // ========================================================================
     public static func umask(): UInt32 {
         return System.umask()
     }
@@ -322,23 +398,24 @@ public class NodeProcess {
     }
 
     // ========================================================================
-    // hrtime — 高精度时间
-    // ============================================================================
+    // hrtime — High-resolution time
+    // ========================================================================
     public static func hrtime(): Array<Int64> {
         let ns = System.hrtime()
         return Array<Int64>([ns / 1000000000, ns % 1000000000])
     }
 
     // ========================================================================
-    // uptime — 进程运行时间
-    // ============================================================================
+    // processUptime — Process uptime in seconds
+    // ========================================================================
     public static func processUptime(): Float64 {
         return System.processUptime()
     }
 }
 
 // ============================================================================
-// 内存使用信息
+// MemoryUsageInfo — Memory usage data structure
+// Corresponds to Node.js process.memoryUsage() return value
 // ============================================================================
 public class MemoryUsageInfo {
     public var rss: Int64 = 0
@@ -351,7 +428,8 @@ public class MemoryUsageInfo {
 }
 
 // ============================================================================
-// CPU 使用信息
+// CpuUsageInfo — CPU usage data structure
+// Corresponds to Node.js process.cpuUsage() return value
 // ============================================================================
 public class CpuUsageInfo {
     public var user: Int64 = 0

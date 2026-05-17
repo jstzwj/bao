@@ -68,6 +68,11 @@ public let BAO_USER_AGENT = "bao/0.1.0"
 // 严格翻译自: bun/src/http/http.zig HTTPClient 的方法
 // ============================================================================
 
+public enum HTTPShouldContinue {
+    | continueStreaming
+    | finished
+}
+
 /// HTTP 客户端核心操作
 /// 严格翻译自: http.zig 中 HTTPClient 的各个方法
 public class HTTPClientCore {
@@ -81,7 +86,7 @@ public class HTTPClientCore {
     /// 严格翻译自: HTTPClient.start
     public static func start(client: HTTPClient, body: HTTPRequestBody, bodyOutStr: MutableString): Unit {
         bodyOutStr.reset()
-        client.state = InternalState.init(body, bodyOutStr)
+        client.state = InternalState.initFunc(body, bodyOutStr)
 
         if (isHTTPS(client)) {
             start_(client, true)
@@ -111,19 +116,18 @@ public class HTTPClientCore {
 
         // 连接
         match (httpThread.connect(client, isSsl)) {
-            case Some(socketFd) => {
+            case Some(socketFd) =>
                 if (socketFd < 0) {
                     fail(client, "ConnectionClosed")
                 } else {
                     // 注册中止跟踪器
-                    if (client.state.requestStage == HTTPStage.pending) {
+                    if (isPendingStage(client.state.requestStage)) {
                         client.state.requestStage = HTTPStage.opened
                     }
                 }
-            }
-            case None => {
+            case None =>
                 // 合并到 H2 会话
-            }
+                ()
         }
 
         completeConnectingProcess(client)
@@ -151,7 +155,7 @@ public class HTTPClientCore {
             return
         }
 
-        if (client.state.requestStage == HTTPStage.pending) {
+        if (isPendingStage(client.state.requestStage)) {
             client.state.requestStage = HTTPStage.opened
         }
 
@@ -169,12 +173,8 @@ public class HTTPClientCore {
     /// 严格翻译自: HTTPClient.firstCall
     public static func firstCall(client: HTTPClient, isSsl: Bool, socketFd: Int64): Unit {
         match (client.state.requestStage) {
-            case opened => {
-                onWritable(client, true, isSsl, socketFd)
-            }
-            case pending => {
-                onWritable(client, true, isSsl, socketFd)
-            }
+            case opened => onWritable(client, true, isSsl, socketFd)
+            case pending => onWritable(client, true, isSsl, socketFd)
             case _ => ()
         }
     }
@@ -199,19 +199,16 @@ public class HTTPClientCore {
         }
 
         match (client.state.requestStage) {
-            case pending => {
+            case pending =>
                 setTimeout(client, socketFd)
                 sendInitialRequestPayload(client, isFirstCall, isSsl, socketFd)
-            }
-            case opened => {
+            case opened =>
                 setTimeout(client, socketFd)
                 sendInitialRequestPayload(client, isFirstCall, isSsl, socketFd)
-            }
-            case headers => {
+            case headers =>
                 setTimeout(client, socketFd)
                 sendInitialRequestPayload(client, isFirstCall, isSsl, socketFd)
-            }
-            case body => {
+            case body =>
                 setTimeout(client, socketFd)
                 // 发送 body 数据
                 let bodyLen = client.state.requestBody.size
@@ -221,15 +218,12 @@ public class HTTPClientCore {
                 if (client.state.requestBody.size == 0) {
                     client.state.requestStage = HTTPStage.done
                 }
-            }
-            case proxyHeaders => {
+            case proxyHeaders =>
                 setTimeout(client, socketFd)
                 // 通过代理隧道发送头部
-            }
-            case proxyBody => {
+            case proxyBody =>
                 setTimeout(client, socketFd)
                 // 通过代理隧道发送 body
-            }
             case _ => ()
         }
     }
@@ -254,40 +248,32 @@ public class HTTPClientCore {
 
         // 代理隧道 — 直接转发
         match (client.proxyTunnel) {
-            case Some(tunnel) => {
+            case Some(tunnel) =>
                 setTimeout(client, socketFd)
                 ProxyTunnelOps.receive(tunnel, data)
                 return
-            }
             case None => ()
         }
 
         match (client.state.responseStage) {
-            case pending => {
-                handleOnDataHeaders(client, isSsl, data, ctx, socketFd)
-            }
-            case headers => {
-                handleOnDataHeaders(client, isSsl, data, ctx, socketFd)
-            }
-            case body => {
+            case pending => handleOnDataHeaders(client, isSsl, data, ctx, socketFd)
+            case headers => handleOnDataHeaders(client, isSsl, data, ctx, socketFd)
+            case body =>
                 setTimeout(client, socketFd)
-                let reportProgress = handleResponseBody(client, bytesToString(data), false)
+                let reportProgress = handleResponseBody(client, httpCoreBytesToString(data), false)
                 if (reportProgress) {
                     progressUpdate(client, isSsl, ctx, socketFd)
                 }
-            }
-            case bodyChunk => {
+            case bodyChunk =>
                 setTimeout(client, socketFd)
-                let reportProgress = handleResponseBodyChunkedEncoding(client, bytesToString(data))
+                let reportProgress = handleResponseBodyChunkedEncoding(client, httpCoreBytesToString(data))
                 if (reportProgress) {
                     progressUpdate(client, isSsl, ctx, socketFd)
                 }
-            }
             case fail => ()
-            case _ => {
+            case _ =>
                 client.state.pendingResponse = None
                 closeAndFail(client, "UnexpectedData", isSsl, socketFd)
-            }
         }
     }
 
@@ -299,7 +285,7 @@ public class HTTPClientCore {
     /// 处理响应头部
     /// 严格翻译自: HTTPClient.handleOnDataHeaders
     public static func handleOnDataHeaders(client: HTTPClient, isSsl: Bool, data: Array<UInt8>, ctx: HTTPContext, socketFd: Int64): Unit {
-        var toRead = bytesToString(data)
+        var toRead = httpCoreBytesToString(data)
 
         // 简短读取处理
         if (toRead.size < 16) {
@@ -310,7 +296,7 @@ public class HTTPClientCore {
         // 解析 HTTP 响应
         let parsed = parseRawResponse(toRead)
         match (parsed) {
-            case Some(response) => {
+            case Some(response) =>
                 client.state.pendingResponse = Some(response)
 
                 // 101 升级响应
@@ -326,7 +312,7 @@ public class HTTPClientCore {
                 // 处理响应元数据
                 let shouldContinue = handleResponseMetadata(client, response)
                 match (shouldContinue) {
-                    case ShouldContinue.finished => {
+                    case HTTPShouldContinue.finished =>
                         if (client.state.flags.isRedirectPending) {
                             doRedirect(client, isSsl, ctx, socketFd)
                             return
@@ -336,11 +322,12 @@ public class HTTPClientCore {
                         client.state.contentLength = Some(0)
                         progressUpdate(client, isSsl, ctx, socketFd)
                         return
-                    }
-                    case ShouldContinue.continueStreaming => {
-                        if (client.flags.proxyTunneling && client.proxyTunnel == None) {
-                            // 启动代理握手
-                            return
+                    case HTTPShouldContinue.continueStreaming =>
+                        if (client.flags.proxyTunneling) {
+                            match (client.proxyTunnel) {
+                                case None => return
+                                case Some(_) => ()
+                            }
                         }
 
                         cloneMetadata(client)
@@ -349,12 +336,9 @@ public class HTTPClientCore {
                         if (client.signals.headerProgress) {
                             progressUpdate(client, isSsl, ctx, socketFd)
                         }
-                    }
                 }
-            }
-            case None => {
+            case None =>
                 handleShortRead(client, isSsl, data, socketFd, true)
-            }
         }
     }
 
@@ -365,29 +349,21 @@ public class HTTPClientCore {
     // 解析状态码、头部字段，处理重定向
     // ========================================================================
 
-    /// 是否继续枚举
-    /// 严格翻译自: HTTPClient.ShouldContinue
-    public enum ShouldContinue {
-        | continueStreaming
-        | finished
-    }
-
     /// 处理响应元数据
     /// 严格翻译自: HTTPClient.handleResponseMetadata
-    public static func handleResponseMetadata(client: HTTPClient, response: RawResponse): ShouldContinue {
+    public static func handleResponseMetadata(client: HTTPClient, response: RawResponse): HTTPShouldContinue {
         var location = ""
 
         // 解析头部
         for (header in response.headers) {
-            let nameLower = header.name.toLower()
+            let nameLower = httpCoreLower(header.name)
             match (nameLower) {
-                case "content-length" => {
-                    let cl = parseInt64(header.value.trim())
+                case "content-length" =>
+                    let cl = parseInt64(httpCoreTrim(header.value))
                     client.state.contentLength = Some(cl)
-                }
-                case "content-encoding" => {
+                case "content-encoding" =>
                     if (!client.flags.disableDecompression) {
-                        client.state.encoding = match (header.value.trim().toLower()) {
+                        client.state.encoding = match (httpCoreLower(httpCoreTrim(header.value))) {
                             case "gzip" => Encoding.gzip
                             case "deflate" => Encoding.deflate
                             case "br" => Encoding.brotli
@@ -395,25 +371,21 @@ public class HTTPClientCore {
                             case _ => Encoding.identity
                         }
                     }
-                }
-                case "transfer-encoding" => {
-                    let val = header.value.trim().toLower()
+                case "transfer-encoding" =>
+                    let val = httpCoreLower(httpCoreTrim(header.value))
                     if (val == "chunked") {
                         client.state.transferEncoding = Encoding.chunked
                     } else if (val == "identity") {
                         client.state.transferEncoding = Encoding.identity
                     }
-                }
-                case "location" => {
+                case "location" =>
                     location = header.value
-                }
-                case "connection" => {
+                case "connection" =>
                     if (response.statusCode >= 200 && response.statusCode <= 299) {
-                        if (header.value.trim().toLower() == "close") {
+                        if (httpCoreLower(httpCoreTrim(header.value)) == "close") {
                             client.state.flags.allowKeepalive = false
                         }
                     }
-                }
                 case _ => ()
             }
         }
@@ -425,14 +397,14 @@ public class HTTPClientCore {
         }
 
         // 无 Content-Length 且非 chunked -> 关闭 keep-alive
-        if (client.state.contentLength == None && client.state.transferEncoding != Encoding.chunked) {
+        if (!client.state.contentLength.isSome() && !isChunkedEncoding(client.state.transferEncoding)) {
             client.state.flags.allowKeepalive = false
         }
 
         // 代理隧道
-        if (client.flags.proxyTunneling && client.proxyTunnel == None) {
+        if (client.flags.proxyTunneling && !client.proxyTunnel.isSome()) {
             if (response.statusCode == 200) {
-                return ShouldContinue.continueStreaming
+                return HTTPShouldContinue.continueStreaming
             }
             client.flags.proxyTunneling = false
             client.flags.disableKeepalive = true
@@ -443,30 +415,22 @@ public class HTTPClientCore {
         if (isRedirect && location.size > 0 && client.state.flags.allowKeepalive) {
             // 301/302 POST -> GET, 303 -> GET
             match (response.statusCode) {
-                case 301 => {
-                    // 可能降级为 GET
-                }
-                case 302 => {
-                    // 可能降级为 GET
-                }
-                case 303 => {
-                    client.state.flags.isRedirectPending = true
-                }
-                case 307 => {
+                case 301 => ()
+                case 302 => ()
+                case 303 => client.state.flags.isRedirectPending = true
+                case 307 =>
                     client.state.flags.isRedirectPending = true
                     client.state.flags.resendRequestBodyOnRedirect = true
-                }
-                case 308 => {
+                case 308 =>
                     client.state.flags.isRedirectPending = true
                     client.state.flags.resendRequestBodyOnRedirect = true
-                }
                 case _ => ()
             }
             client.state.flags.isRedirectPending = true
         }
 
         // 设置响应阶段
-        client.state.responseStage = if (client.state.transferEncoding == Encoding.chunked) {
+        client.state.responseStage = if (isChunkedEncoding(client.state.transferEncoding)) {
             HTTPStage.bodyChunk
         } else {
             HTTPStage.body
@@ -474,11 +438,11 @@ public class HTTPClientCore {
 
         // 检查是否需要继续接收 body
         let contentLength = client.state.contentLength
-        let hasBody = contentLength != None && contentLength != Some(0)
-        if (hasBody || client.state.transferEncoding == Encoding.chunked) {
-            return ShouldContinue.continueStreaming
+        let hasBody = contentLength.isSome() && contentLength.getOrThrow() != 0
+        if (hasBody || isChunkedEncoding(client.state.transferEncoding)) {
+            return HTTPShouldContinue.continueStreaming
         } else {
-            return ShouldContinue.finished
+            return HTTPShouldContinue.finished
         }
     }
 
@@ -491,13 +455,10 @@ public class HTTPClientCore {
     /// 严格翻译自: HTTPClient.handleResponseBody
     public static func handleResponseBody(client: HTTPClient, data: String, isOnlyBuffer: Bool): Bool {
         let contentLength = client.state.contentLength
-        if (isOnlyBuffer && contentLength != None) {
-            let cl = match (contentLength) {
-                case Some(v) => v
-                case None => 0
-            }
+        if (isOnlyBuffer && contentLength.isSome()) {
+            let cl = contentLength.getOrThrow()
             if (data.size >= cl) {
-                handleResponseBodyFromSinglePacket(client, data.substring(0, cl))
+                handleResponseBodyFromSinglePacket(client, data[0..cl])
                 return true
             }
         }
@@ -513,11 +474,10 @@ public class HTTPClientCore {
         }
         // 追加到输出缓冲区
         match (client.state.bodyOutStr) {
-            case Some(buf) => {
+            case Some(buf) =>
                 for (c in data) {
-                    buf.data.append(UInt8(c.value & 0xFF))
+                    buf.data.append(c)
                 }
-            }
             case None => ()
         }
     }
@@ -527,33 +487,27 @@ public class HTTPClientCore {
     private static func handleResponseBodyFromMultiplePackets(client: HTTPClient, data: String): Bool {
         let contentLength = client.state.contentLength
         var remainder = data
-        match (contentLength) {
-            case Some(cl) => {
-                let remaining = cl - client.state.totalBodyReceived
-                let end = if (data.size < remaining) { data.size } else { remaining }
-                remainder = data.substring(0, end)
-            }
-            case None => ()
+        if (contentLength.isSome()) {
+            let cl = contentLength.getOrThrow()
+            let remaining = cl - client.state.totalBodyReceived
+            let end = if (data.size < remaining) { data.size } else { remaining }
+            remainder = data[0..end]
         }
 
         if (!client.state.flags.isRedirectPending) {
             match (client.state.bodyOutStr) {
-                case Some(buf) => {
+                case Some(buf) =>
                     for (c in remainder) {
-                        buf.data.append(UInt8(c.value & 0xFF))
+                        buf.data.append(c)
                     }
-                }
                 case None => ()
             }
         }
 
         client.state.totalBodyReceived += remainder.size
 
-        let cl = match (contentLength) {
-            case Some(v) => v
-            case None => -1
-        }
-        let isDone = contentLength != None && client.state.totalBodyReceived >= cl
+        let cl = if (contentLength.isSome()) { contentLength.getOrThrow() } else { -1 }
+        let isDone = contentLength.isSome() && client.state.totalBodyReceived >= cl
         return isDone
     }
 
@@ -572,15 +526,16 @@ public class HTTPClientCore {
 
         while (remaining.size > 0 && !done) {
             // 查找 chunk 大小行
-            let crlfIdx = remaining.indexOf("\r\n")
-            if (crlfIdx < 0) {
+            let crlfIdxOpt = remaining.indexOf("\r\n")
+            if (!crlfIdxOpt.isSome()) {
                 return false  // 需要更多数据
             }
+            let crlfIdx = crlfIdxOpt.getOrThrow()
 
-            let sizeStr = remaining.substring(0, crlfIdx).trim()
+            let sizeStr = httpCoreTrim(remaining[0..crlfIdx])
             // 跳过 chunk 扩展
-            let semiIdx = sizeStr.indexOf(";")
-            let cleanSize = if (semiIdx >= 0) { sizeStr.substring(0, semiIdx) } else { sizeStr }
+            let semiIdxOpt = sizeStr.indexOf(";")
+            let cleanSize = if (semiIdxOpt.isSome()) { sizeStr[0..semiIdxOpt.getOrThrow()] } else { sizeStr }
             let chunkSize = parseHexInt(cleanSize)
 
             if (chunkSize == 0) {
@@ -596,21 +551,20 @@ public class HTTPClientCore {
             }
 
             // 提取 chunk 数据
-            let chunkData = remaining.substring(dataStart, dataStart + chunkSize)
+            let chunkData = remaining[dataStart..(dataStart + chunkSize)]
             totalDecoded += chunkSize
 
             // 追加到输出
             match (client.state.bodyOutStr) {
-                case Some(buf) => {
+                case Some(buf) =>
                     for (c in chunkData) {
-                        buf.data.append(UInt8(c.value & 0xFF))
+                        buf.data.append(c)
                     }
-                }
                 case None => ()
             }
 
             // 移动到下一个 chunk
-            remaining = remaining.substring(dataStart + chunkSize + 2)
+            remaining = remaining[(dataStart + chunkSize + 2)..]
         }
 
         client.state.totalBodyReceived += totalDecoded
@@ -625,8 +579,12 @@ public class HTTPClientCore {
     /// 执行重定向
     /// 严格翻译自: HTTPClient.doRedirect
     public static func doRedirect(client: HTTPClient, isSsl: Bool, ctx: HTTPContext, socketFd: Int64): Unit {
-        if (client.state.originalRequestBody == HTTPRequestBody.bytes("")) {
-            client.flags.isStreamingRequestBody = false
+        match (client.state.originalRequestBody) {
+            case bytes(b) =>
+                if (b.size == 0) {
+                    client.flags.isStreamingRequestBody = false
+                }
+            case _ => ()
         }
 
         let requestBody = if (client.state.flags.resendRequestBodyOnRedirect) {
@@ -643,16 +601,14 @@ public class HTTPClientCore {
 
         // 关闭代理隧道
         match (client.proxyTunnel) {
-            case Some(tunnel) => {
+            case Some(tunnel) =>
                 client.proxyTunnel = None
                 ProxyTunnelOps.shutdown(tunnel)
                 ProxyTunnelOps.detachAndDeref(tunnel)
                 ctx.closeSocket(socketFd)
-            }
-            case None => {
+            case None =>
                 // keep-alive socket 复用
                 ctx.closeSocket(socketFd)
-            }
         }
 
         client.state.reset()
@@ -672,16 +628,15 @@ public class HTTPClientCore {
     public static func onClose(client: HTTPClient, isSsl: Bool, socketFd: Int64): Unit {
         // 关闭代理隧道
         match (client.proxyTunnel) {
-            case Some(tunnel) => {
+            case Some(tunnel) =>
                 client.proxyTunnel = None
                 ProxyTunnelOps.shutdown(tunnel)
                 ProxyTunnelOps.detachAndDeref(tunnel)
-            }
             case None => ()
         }
 
-        let inProgress = client.state.stage != Stage.done &&
-            client.state.stage != Stage.fail &&
+        let inProgress = !isDoneStage(client.state.stage) &&
+            !isFailStage(client.state.stage) &&
             !client.state.flags.isRedirectPending
 
         if (client.state.flags.isRedirectPending) {
@@ -696,19 +651,18 @@ public class HTTPClientCore {
                 return
             }
             match (client.state.contentLength) {
-                case None => {
-                    if (client.state.responseStage == HTTPStage.body) {
+                case None =>
+                    if (isBodyStage(client.state.responseStage)) {
                         client.state.flags.receivedLastChunk = true
                         return
                     }
-                }
                 case _ => ()
             }
         }
 
         // 幂等方法重试
-        if (client.state.responseStage != HTTPStage.body &&
-            client.state.responseStage != HTTPStage.bodyChunk) {
+        if (!isBodyStage(client.state.responseStage) &&
+            !isBodyChunkStage(client.state.responseStage)) {
             // 重试逻辑
         }
 
@@ -739,8 +693,8 @@ public class HTTPClientCore {
     /// 进度更新
     /// 严格翻译自: HTTPClient.progressUpdate
     public static func progressUpdate(client: HTTPClient, isSsl: Bool, ctx: HTTPContext, socketFd: Int64): Unit {
-        if (client.state.stage != Stage.done && client.state.stage != Stage.fail) {
-            if (client.state.flags.isRedirectPending && client.state.fail == None) {
+        if (!isDoneStage(client.state.stage) && !isFailStage(client.state.stage)) {
+            if (client.state.flags.isRedirectPending && !client.state.fail.isSome()) {
                 if (client.state.isDone()) {
                     doRedirect(client, isSsl, ctx, socketFd)
                 }
@@ -796,15 +750,14 @@ public class HTTPClientCore {
     public static func fail(client: HTTPClient, err: String): Unit {
         // 关闭代理隧道
         match (client.proxyTunnel) {
-            case Some(tunnel) => {
+            case Some(tunnel) =>
                 client.proxyTunnel = None
                 ProxyTunnelOps.shutdown(tunnel)
                 ProxyTunnelOps.detachAndDeref(tunnel)
-            }
             case None => ()
         }
 
-        if (client.state.stage != Stage.done && client.state.stage != Stage.fail) {
+        if (!isDoneStage(client.state.stage) && !isFailStage(client.state.stage)) {
             client.state.requestStage = HTTPStage.fail
             client.state.responseStage = HTTPStage.fail
             client.state.fail = Some(err)
@@ -845,7 +798,7 @@ public class HTTPClientCore {
     private static func completeConnectingProcess(client: HTTPClient): Unit {
         if (client.flags.deferFailUntilConnectingIsComplete) {
             client.flags.deferFailUntilConnectingIsComplete = false
-            if (client.state.stage == Stage.fail) {
+            if (isFailStage(client.state.stage)) {
                 let callback = client.resultCallback
                 let result = toResult(client)
                 client.state.reset()
@@ -877,13 +830,12 @@ public class HTTPClientCore {
     /// 严格翻译自: HTTPClient.cloneMetadata
     public static func cloneMetadata(client: HTTPClient): Unit {
         match (client.state.pendingResponse) {
-            case Some(response) => {
+            case Some(response) =>
                 let meta = HTTPResponseMetadata()
                 meta.response = Some(response)
-                meta.url = client.url.toString()
+                meta.url = httpCoreUrlToString(client.url)
                 client.state.clonedMetadata = Some(meta)
                 client.state.pendingResponse = None
-            }
             case None => ()
         }
     }
@@ -902,25 +854,24 @@ public class HTTPClientCore {
 
         var hasMore = false
         match (client.state.fail) {
-            case None => {
+            case None =>
                 if (!client.state.isDone()) {
                     hasMore = true
                 }
-            }
             case Some(_) => ()
         }
 
-        return HTTPClientResult(
-            body: client.state.bodyOutStr,
-            hasMore: hasMore,
-            redirected: client.flags.redirected,
-            canStream: false,
-            isHttp2: client.flags.protocol != HTTPProtocol.http1_1,
-            fail: client.state.fail,
-            metadata: client.state.clonedMetadata,
-            bodySize: bodySize,
-            certificateInfo: client.state.certificateInfo
-        )
+        let result = HTTPClientResult()
+        result.body = client.state.bodyOutStr
+        result.hasMore = hasMore
+        result.redirected = client.flags.redirected
+        result.canStream = false
+        result.isHttp2 = !isHttp11Protocol(client.flags.protocol)
+        result.fail = client.state.fail
+        result.metadata = client.state.clonedMetadata
+        result.bodySize = bodySize
+        result.certificateInfo = client.state.certificateInfo
+        return result
     }
 
     /// 发送初始请求载荷
@@ -931,14 +882,14 @@ public class HTTPClientCore {
         let rawRequest = serializeRequest(request, client)
 
         // 写入 socket
-        // writeToSocket(isSsl, socketFd, stringToBytes(rawRequest))
+        // writeToSocket(isSsl, socketFd, httpCoreStringToBytes(rawRequest))
     }
 
     /// 构建请求
     /// 严格翻译自: HTTPClient.buildRequest
     public static func buildRequest(client: HTTPClient, bodyLen: Int64): RawRequest {
         let request = RawRequest()
-        request.method = client.url.toString() // 简化
+        request.method = "GET" // 简化
         request.path = client.url.path
         request.minorVersion = 1
 
@@ -1040,6 +991,55 @@ public class HTTPClientCore {
         sb.append("\r\n")
         return sb.toString()
     }
+
+    private static func isPendingStage(stage: HTTPStage): Bool {
+        match (stage) {
+            case pending => true
+            case _ => false
+        }
+    }
+
+    private static func isBodyStage(stage: HTTPStage): Bool {
+        match (stage) {
+            case body => true
+            case _ => false
+        }
+    }
+
+    private static func isBodyChunkStage(stage: HTTPStage): Bool {
+        match (stage) {
+            case bodyChunk => true
+            case _ => false
+        }
+    }
+
+    private static func isDoneStage(stage: Stage): Bool {
+        match (stage) {
+            case done => true
+            case _ => false
+        }
+    }
+
+    private static func isFailStage(stage: Stage): Bool {
+        match (stage) {
+            case fail => true
+            case _ => false
+        }
+    }
+
+    private static func isChunkedEncoding(encoding: Encoding): Bool {
+        match (encoding) {
+            case chunked => true
+            case _ => false
+        }
+    }
+
+    private static func isHttp11Protocol(protocol: HTTPProtocol): Bool {
+        match (protocol) {
+            case http1_1 => true
+            case _ => false
+        }
+    }
 }
 
 // ============================================================================
@@ -1050,12 +1050,13 @@ public class HTTPClientCore {
 public func parseRawResponse(raw: String): ?RawResponse {
     let response = RawResponse()
 
-    let headerEnd = raw.indexOf("\r\n\r\n")
-    if (headerEnd < 0) {
+    let headerEndOpt = raw.indexOf("\r\n\r\n")
+    if (!headerEndOpt.isSome()) {
         return None
     }
+    let headerEnd = headerEndOpt.getOrThrow()
 
-    let headerSection = raw.substring(0, headerEnd)
+    let headerSection = raw[0..headerEnd]
     let lines = splitLines(headerSection)
     if (lines.size == 0) {
         return None
@@ -1080,10 +1081,11 @@ public func parseRawResponse(raw: String): ?RawResponse {
     // 解析头部
     for (i in 1..lines.size) {
         let line = lines[Int64(i)]
-        let colonIdx = line.indexOf(":")
-        if (colonIdx >= 0) {
-            let name = line.substring(0, colonIdx).trim()
-            let value = line.substring(colonIdx + 1).trim()
+        let colonIdxOpt = line.indexOf(":")
+        if (colonIdxOpt.isSome()) {
+            let colonIdx = colonIdxOpt.getOrThrow()
+            let name = httpCoreTrim(line[0..colonIdx])
+            let value = httpCoreTrim(line[(colonIdx + 1)..])
             response.headers.append(HeaderPair(name, value))
         }
     }
@@ -1097,7 +1099,7 @@ private func splitLines(s: String): ArrayList<String> {
     var current = StringBuilder()
     var i = 0
     while (i < s.size) {
-        if (i + 1 < s.size && s[Int64(i)] == '\r' && s[Int64(i + 1)] == '\n') {
+        if (i + 1 < s.size && s[Int64(i)] == UInt8(13) && s[Int64(i + 1)] == UInt8(10)) {
             lines.append(current.toString())
             current = StringBuilder()
             i += 2
@@ -1117,13 +1119,14 @@ private func split(s: String, sep: String): ArrayList<String> {
     let parts = ArrayList<String>()
     var remaining = s
     while (true) {
-        let idx = remaining.indexOf(sep)
-        if (idx < 0) {
+        let idxOpt = remaining.indexOf(sep)
+        if (!idxOpt.isSome()) {
             parts.append(remaining)
             break
         }
-        parts.append(remaining.substring(0, idx))
-        remaining = remaining.substring(idx + sep.size)
+        let idx = idxOpt.getOrThrow()
+        parts.append(remaining[0..idx])
+        remaining = remaining[(idx + sep.size)..]
     }
     return parts
 }
@@ -1133,14 +1136,14 @@ public func parseInt64(s: String): Int64 {
     var result: Int64 = 0
     var neg = false
     var idx = 0
-    if (s.size > 0 && s[Int64(0)] == '-') {
+    if (s.size > 0 && s[Int64(0)] == UInt8(45)) {
         neg = true
         idx = 1
     }
     while (idx < s.size) {
         let c = s[Int64(idx)]
-        if (c.value >= 48 && c.value <= 57) {
-            result = result * 10 + Int64(c.value - 48)
+        if (c >= UInt8(48) && c <= UInt8(57)) {
+            result = result * 10 + Int64(c - UInt8(48))
         } else {
             break
         }
@@ -1152,14 +1155,13 @@ public func parseInt64(s: String): Int64 {
 /// 解析十六进制整数
 public func parseHexInt(s: String): Int64 {
     var result: Int64 = 0
-    for (c in s) {
-        let v = c.value
-        if (v >= 48 && v <= 57) {       // 0-9
-            result = result * 16 + Int64(v - 48)
-        } else if (v >= 97 && v <= 102) { // a-f
-            result = result * 16 + Int64(v - 87)
-        } else if (v >= 65 && v <= 70) {  // A-F
-            result = result * 16 + Int64(v - 55)
+    for (v in s) {
+        if (v >= UInt8(48) && v <= UInt8(57)) {       // 0-9
+            result = result * 16 + Int64(v - UInt8(48))
+        } else if (v >= UInt8(97) && v <= UInt8(102)) { // a-f
+            result = result * 16 + Int64(v - UInt8(87))
+        } else if (v >= UInt8(65) && v <= UInt8(70)) {  // A-F
+            result = result * 16 + Int64(v - UInt8(55))
         } else {
             break
         }
@@ -1168,21 +1170,73 @@ public func parseHexInt(s: String): Int64 {
 }
 
 /// 字节数组转字符串
-public func bytesToString(bytes: Array<UInt8>): String {
+public func httpCoreBytesToString(bytes: Array<UInt8>): String {
     let sb = StringBuilder()
     for (b in bytes) {
-        sb.append(Char(Int32(b)))
+        sb.append(Rune(UInt32(b)))
     }
     return sb.toString()
 }
 
 /// 字符串转字节数组
-public func stringToBytes(s: String): Array<UInt8> {
-    var bytes = Array<UInt8>()
+public func httpCoreStringToBytes(s: String): Array<UInt8> {
+    let bytes = ArrayList<UInt8>()
     for (c in s) {
-        bytes.append(UInt8(c.value & 0xFF))
+        bytes.append(c)
     }
-    return bytes
+    return bytes.toOwnedSlice()
+}
+
+private func httpCoreTrim(s: String): String {
+    var start: Int64 = 0
+    var end = s.size
+    while (start < end && httpCoreIsAsciiWhitespace(s[start])) {
+        start += 1
+    }
+    while (end > start && httpCoreIsAsciiWhitespace(s[end - 1])) {
+        end -= 1
+    }
+    return s[start..end]
+}
+
+private func httpCoreIsAsciiWhitespace(c: UInt8): Bool {
+    return c == UInt8(32) || c == UInt8(9) || c == UInt8(10) || c == UInt8(13)
+}
+
+private func httpCoreLowerByte(c: UInt8): UInt8 {
+    if (c >= UInt8(65) && c <= UInt8(90)) {
+        return c + UInt8(32)
+    }
+    return c
+}
+
+private func httpCoreLower(s: String): String {
+    let sb = StringBuilder()
+    for (c in s) {
+        sb.append(httpCoreLowerByte(c))
+    }
+    return sb.toString()
+}
+
+private func httpCoreUrlToString(url: ParsedUrl): String {
+    let sb = StringBuilder()
+    sb.append(url.protocol)
+    sb.append("://")
+    sb.append(url.hostname)
+    if ((url.protocol == "http" && url.port != 80) || (url.protocol == "https" && url.port != 443)) {
+        sb.append(":")
+        sb.append(url.port.toString())
+    }
+    sb.append(url.path)
+    if (url.search.size > 0) {
+        sb.append("?")
+        sb.append(url.search)
+    }
+    if (url.hash.size > 0) {
+        sb.append("#")
+        sb.append(url.hash)
+    }
+    return sb.toString()
 }
 
 /// 头部名称哈希
@@ -1190,7 +1244,7 @@ public func stringToBytes(s: String): Array<UInt8> {
 public func hashHeaderName(name: String): UInt64 {
     var hash: UInt64 = UInt64(0)
     for (c in name) {
-        let lower = c.toLower().value
+        let lower = httpCoreLowerByte(c)
         hash = hash * UInt64(31) + UInt64(lower)
     }
     return hash

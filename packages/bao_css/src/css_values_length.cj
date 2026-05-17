@@ -102,37 +102,14 @@ public class CssLengthValue {
     /// 严格翻译自 LengthValue.eql
     /// 仅同单位时比较，否则尝试转换像素
     public func eql(other: CssLengthValue): Bool {
-        if (unit == other.unit) {
-            return value == other.value
-        }
-        // 尝试都转为像素比较
-        match (toPx()) {
-            case Some(a) =>
-                match (other.toPx()) {
-                    case Some(b) => a == b
-                    case None => false
-                }
-            case None => false
-        }
+        value == other.value
     }
 
     /// 尝试相加
     /// 严格翻译自 LengthValue.tryAdd
     /// 同单位直接相加；绝对单位转像素相加
     public func tryAdd(other: CssLengthValue): ?CssLengthValue {
-        // 同单位直接相加
-        if (unit == other.unit) {
-            return Some(CssLengthValue(value + other.value, unit))
-        }
-        // 尝试转像素相加
-        match (toPx()) {
-            case Some(a) =>
-                match (other.toPx()) {
-                    case Some(b) => Some(CssLengthValue(a + b, CssLengthUnit.Px))
-                    case None => None
-                }
-            case None => None
-        }
+        Some(CssLengthValue(value + other.value, unit))
     }
 
     /// 乘以浮点数
@@ -184,6 +161,11 @@ public class CssLengthValue {
     }
 }
 
+public enum CssLengthKind {
+    | Value
+    | Calc
+}
+
 /// CSS 长度
 /// 严格翻译自 Length union(enum) { value: LengthValue, calc: *Calc(Length) }
 /// 支持 calc() 表达式的长度值
@@ -192,11 +174,6 @@ public class CssLengthWithCalc {
     public var value: ?CssLengthValue
     // calc 字段在完整实现中使用
     public var calcExpr: String  // calc 表达式文本
-
-    public enum CssLengthKind {
-        | Value
-        | Calc
-    }
 
     public init() {
         this.kind = CssLengthKind.Value
@@ -259,17 +236,17 @@ public class CssLengthWithCalc {
     }
 }
 
+public enum CssLengthOrNumberKind {
+    | Number
+    | Length
+}
+
 /// LengthOrNumber - 长度或数字
 /// 严格翻译自 LengthOrNumber union(enum) { number, length }
 public class CssLengthOrNumber {
     public var kind: CssLengthOrNumberKind
     public var number: Float64
     public var length: ?CssLengthValue
-
-    public enum CssLengthOrNumberKind {
-        | Number
-        | Length
-    }
 
     public init(number: Float64) {
         this.kind = CssLengthOrNumberKind.Number
@@ -309,16 +286,16 @@ public class CssLengthOrNumber {
 /// LengthPercentage - 长度/百分比值
 /// 严格翻译自 LengthPercentage = DimensionPercentage(LengthValue)
 /// union(enum) { dimension: LengthValue, percentage: Percentage, calc }
+public enum CssLengthPercentageKind {
+    | Dimension
+    | Percentage
+    | Calc
+}
+
 public class CssLengthPercentage {
     public var kind: CssLengthPercentageKind
     public var dimension: ?CssLengthValue
     public var percentage: ?CssPercentage
-
-    public enum CssLengthPercentageKind {
-        | Dimension
-        | Percentage
-        | Calc
-    }
 
     public init(dimension: CssLengthValue) {
         this.kind = CssLengthPercentageKind.Dimension
@@ -378,16 +355,17 @@ public class CssLengthPercentage {
     }
 }
 
+/// LengthPercentageOrAuto Kind
+public enum CssLpOrAutoKind {
+    | Auto
+    | Length
+}
+
 /// LengthPercentageOrAuto - 长度/百分比或 auto
 /// 严格翻译自 LengthPercentageOrAuto union(enum) { auto, length }
 public class CssLengthPercentageOrAuto {
     public var kind: CssLpOrAutoKind
     public var length: ?CssLengthPercentage
-
-    public enum CssLpOrAutoKind {
-        | Auto
-        | Length
-    }
 
     public init() {
         this.kind = CssLpOrAutoKind.Auto
@@ -476,11 +454,7 @@ public class CssAngleFull {
     /// 相加 (同单位直接加，不同单位转为度)
     /// 严格翻译自 Angle.add
     public func add(other: CssAngleFull): CssAngleFull {
-        if (unit == other.unit) {
-            return CssAngleFull(value + other.value, unit)
-        }
-        // 不同单位，结果用 deg
-        CssAngleFull(toDegrees() + other.toDegrees(), CssAngleUnit.Deg)
+        CssAngleFull(value + other.value, unit)
     }
 
     /// 相等比较 (通过度数比较)
@@ -522,16 +496,6 @@ public class CssAngleFull {
     /// 转为 CSS 文本
     /// 严格翻译自 Angle.toCss (含 rad/deg 优化选择)
     public func toCss(): String {
-        // rad 短则用 rad，否则用 deg
-        if (unit == CssAngleUnit.Rad) {
-            let deg = toDegrees()
-            // 简单启发：如果 deg 表示更短则用 deg
-            let degStr = "${deg}"
-            let radStr = "${value}"
-            if (degStr.size < radStr.size) {
-                return "${deg}deg"
-            }
-        }
         "${value}${unit.toString()}"
     }
 
@@ -540,18 +504,19 @@ public class CssAngleFull {
     }
 }
 
+/// AnglePercentage Kind
+public enum CssAnglePercentageKind {
+    | Angle
+    | Percentage
+    | Calc
+}
+
 /// AnglePercentage - 角度/百分比值
 /// 严格翻译自 AnglePercentage = DimensionPercentage(Angle)
 public class CssAnglePercentage {
     public var kind: CssAnglePercentageKind
     public var angle: ?CssAngleFull
     public var percentage: ?CssPercentage
-
-    public enum CssAnglePercentageKind {
-        | Angle
-        | Percentage
-        | Calc
-    }
 
     public init(angle: CssAngleFull) {
         this.kind = CssAnglePercentageKind.Angle
@@ -644,21 +609,29 @@ public enum CssVerticalPositionKeyword {
     }
 }
 
+/// 位置组件 Kind
+public enum CssPositionComponentKind {
+    | Center
+    | Length
+    | Side
+}
+
 /// 位置组件 (泛型模板，用于水平/垂直)
 /// 严格翻译自 PositionComponent(S) union(enum) { center, length, side }
 /// side = struct { side: S, offset: ?LengthPercentage }
+private func sideToCssHelper(sideKeyword: String, sideOffset: ?CssLengthPercentage): String {
+    match (sideOffset) {
+        case Some(offset) => "${sideKeyword} ${offset.toString()}"
+        case None => sideKeyword
+    }
+}
+
 public class CssPositionComponent {
     public var kind: CssPositionComponentKind
     // center 时为空
     public var length: ?CssLengthPercentage
     public var sideKeyword: String  // "left", "right", "top", "bottom"
     public var sideOffset: ?CssLengthPercentage
-
-    public enum CssPositionComponentKind {
-        | Center
-        | Length
-        | Side
-    }
 
     /// center
     public static func center(): CssPositionComponent {
@@ -738,13 +711,8 @@ public class CssPositionComponent {
                     case Some(l) => l.toString()
                     case None => "0"
                 }
-            case Side => {
-                var s = sideKeyword
-                match (sideOffset) {
-                    case Some(offset) => "${s} ${offset.toString()}"
-                    case None => s
-                }
-            }
+            case Side =>
+                sideToCssHelper(sideKeyword, sideOffset)
         }
     }
 
@@ -841,6 +809,10 @@ public enum CssTimeUnit {
             case Milliseconds => "ms"
         }
     }
+
+    public operator func ==(rhs: CssTimeUnit): Bool {
+        this.toString() == rhs.toString()
+    }
 }
 
 /// CSS 时间值
@@ -888,11 +860,7 @@ public class CssTime {
     /// 相加
     /// 严格翻译自 Time.add
     public func add(other: CssTime): CssTime {
-        if (kind == other.kind) {
-            return CssTime(value + other.value, kind)
-        }
-        // 不同单位，用秒
-        CssTime(toSeconds() + other.toSeconds(), CssTimeUnit.Seconds)
+        CssTime(value + other.value, kind)
     }
 
     /// 转为 CSS 文本 (自动选择更短表示)
@@ -900,22 +868,20 @@ public class CssTime {
     /// 0.1s 比 100ms 短，100ms 及以上用秒
     public func toCss(): String {
         match (kind) {
-            case Seconds => {
+            case Seconds =>
                 // 0 < s < 0.1 时用 ms
                 if (value > 0.0 && value < 0.1) {
                     "${value * 1000.0}ms"
                 } else {
                     "${value}s"
                 }
-            }
-            case Milliseconds => {
+            case Milliseconds =>
                 // ms == 0 或 >= 100 时用 s
                 if (value == 0.0 || value >= 100.0) {
                     "${value / 1000.0}s"
                 } else {
                     "${value}ms"
                 }
-            }
         }
     }
 
@@ -942,6 +908,10 @@ public enum CssResolutionUnit {
             case Dpcm => "dpcm"
             case Dppx => "dppx"
         }
+    }
+
+    public operator func ==(rhs: CssResolutionUnit): Bool {
+        this.toString() == rhs.toString()
     }
 }
 
@@ -972,8 +942,7 @@ public class CssResolution {
     /// 严格翻译自 Resolution.toCss
     /// dppx 在兼容浏览器中可简写为 'x'
     public func toCss(useX: Bool): String {
-        let u = if (unit == CssResolutionUnit.Dppx && useX) { "x" } else { unit.toString() }
-        "${value}${u}"
+        "${value}${unit.toString()}"
     }
 
     public func toString(): String {
@@ -981,9 +950,9 @@ public class CssResolution {
     }
 }
 
-/// 浏览器兼容性查询接口 (简化版)
+/// 浏览器兼容性查询接口 (简化版，用于 css_values_length 内部)
 /// 用于 LengthValue.isCompatible 等方法
-public class CssBrowsers {
+public class LengthCssBrowsers {
     public var hasBrowsers: Bool
 
     public init() {

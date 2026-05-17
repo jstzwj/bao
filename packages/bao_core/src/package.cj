@@ -394,6 +394,11 @@ public type Port = UInt16
 /// 对应 Bun: OSPathChar = if (Environment.isWindows) u16 else u8
 public type OSPathChar = UInt8
 
+/// 字符类型 - 用于字符串索引比较
+/// String[Int64] returns UInt8; Char wraps byte values
+/// Note: Use Char(Int32Value) to construct, e.g. Char(35) for '#'
+public type Char = UInt8
+
 /// 最大路径长度 - 对应 Bun MAX_PATH_BYTES
 public let MAX_PATH_BYTES: Int64 = 4096
 

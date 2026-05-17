@@ -219,7 +219,7 @@ public class TranspilerParseOptions {
 // 现在主要作为配置对象，但也包含日志和模块解析的状态逻辑
 public class Transpiler {
     /// Bundle 选项
-    public var options: BundleOptions
+    public var options: BundlerOptions
     /// 日志
     public var log: Log
     /// 分配器
@@ -254,7 +254,7 @@ public class Transpiler {
     public var macroContext: ?MacroContext
 
     public init() {
-        options = BundleOptions()
+        options = BundlerOptions()
         log = Log()
         allocator = Allocator()
         result = TransformResult()
@@ -315,18 +315,16 @@ public class Transpiler {
         if (autoJsx) {
             // 尝试从 tsconfig.json 获取 JSX 配置
             match (resolver.readDirInfo(fs.topLevelDir)) {
-                case Some(dirInfo) => {
+                case Some(dirInfo) =>
                     match (dirInfo.tsconfigJson) {
-                        case Some(tsconfig) => {
+                        case Some(tsconfig) =>
                             if (options.transformOptions.jsx == None) {
                                 options.jsxConfig = tsconfig.jsx
                             }
                             options.emitDecoratorMetadata = tsconfig.emitDecoratorMetadata
                             options.experimentalDecorators = tsconfig.experimentalDecorators
-                        }
                         case None => ()
                     }
-                }
                 case None => ()
             }
         }
@@ -345,13 +343,12 @@ public class Transpiler {
 
         // 检查 NODE_ENV 值
         match (options.define.dots.get("NODE_ENV")) {
-            case Some(nodeEnvList) => {
+            case Some(nodeEnvList) =>
                 if (nodeEnvList.size > 0) {
                     let firstData = nodeEnvList[0].data
                     // 检查是否是 production/development
                     // 简化处理
                 }
-            }
             case None => ()
         }
     }
@@ -386,22 +383,18 @@ public class Transpiler {
         // 获取源文件内容
         let source: Source
         match (opts.virtualSource) {
-            case Some(vs) => {
+            case Some(vs) =>
                 source = vs
-            }
-            case None => {
+            case None =>
                 // 读取文件内容
                 match (resolver.readFile(path, opts.dirnameFd, opts.fileDescriptor)) {
-                    case Some(entry) => {
+                    case Some(entry) =>
                         inputFd = Some(entry.fd)
                         source = Source(path: path, contents: entry.contents, index: -1)
-                    }
-                    case None => {
+                    case None =>
                         log.addError("Error reading \"${path}\"")
                         return None
-                    }
                 }
-            }
         }
 
         if (returnFileOnly) {
@@ -417,42 +410,34 @@ public class Transpiler {
         if (source.contents.length == 0) {
             match (loader) {
                 case Loader.Wasm | Loader.File | Loader.Text => ()
-                case _ => {
+                case _ =>
                     let result = ParseResult()
                     result.source = source
                     result.inputFd = inputFd
                     result.loader = loader
                     result.empty = true
                     return result
-                }
             }
         }
 
         // 按加载器类型解析
         match (loader) {
-            case Loader.Js | Loader.Jsx | Loader.Ts | Loader.Tsx => {
+            case Loader.Js | Loader.Jsx | Loader.Ts | Loader.Tsx =>
                 return parseJS(source, opts, inputFd, loader)
-            }
-            case Loader.Json | Loader.Jsonc | Loader.Json5 | Loader.Toml | Loader.Yaml => {
+            case Loader.Json | Loader.Jsonc | Loader.Json5 | Loader.Toml | Loader.Yaml =>
                 return parseDataFormat(source, opts, inputFd, loader)
-            }
-            case Loader.Text => {
+            case Loader.Text =>
                 return parseText(source, inputFd)
-            }
-            case Loader.Md => {
+            case Loader.Md =>
                 return parseMarkdown(source, inputFd)
-            }
-            case Loader.Wasm => {
+            case Loader.Wasm =>
                 return parseWasm(source, inputFd)
-            }
-            case Loader.Css => {
+            case Loader.Css =>
                 // CSS 不在此处处理
                 return None
-            }
-            case _ => {
+            case _ =>
                 log.addError("Unsupported loader for path: ${source.path}")
                 return None
-            }
         }
     }
 
@@ -540,12 +525,10 @@ public class Transpiler {
         // 解析所有入口点
         for (entryPoint in options.entryPoints) {
             match (resolveEntryPoint(entryPoint)) {
-                case Some(resolveResult) => {
+                case Some(resolveResult) =>
                     resolveQueue.append(resolveResult)
-                }
-                case None => {
+                case None =>
                     log.addError("Error resolving \"${entryPoint}\"")
-                }
             }
         }
 
@@ -570,9 +553,8 @@ public class Transpiler {
 
             // 构建
             match (buildWithResolveResult(item)) {
-                case Some(outputFile) => {
+                case Some(outputFile) =>
                     outputFiles.append(outputFile)
-                }
                 case None => ()
             }
         }
@@ -615,40 +597,7 @@ public class BuildResolveResultPair {
         inputFd = None
         empty = false
     }
-}
-
-/// 解析结果
-public class ResolveResult {
-    public var path: String
-    public var isExternal: Bool
-    public var dirnameFd: FileDescriptor
-    public var fileFd: FileDescriptor
-    public var importKind: ImportKind
-    public var jsx: JsxPragma
-    public var primarySideEffectsData: SideEffects
-    public var moduleType: ModuleType
-    public var emitDecoratorMetadata: Bool
-    public var experimentalDecorators: Bool
-    public var packageVersion: String
-    public var packageName: String
-
-    public init() {
-        path = ""
-        isExternal = false
-        dirnameFd = FileDescriptor()
-        fileFd = FileDescriptor()
-        importKind = ImportKind.EntryPointBuild
-        jsx = JsxPragma()
-        primarySideEffectsData = SideEffects.HasSideEffects
-        moduleType = ModuleType.Unknown
-        emitDecoratorMetadata = false
-        experimentalDecorators = false
-        packageVersion = ""
-        packageName = ""
-    }
-}
-
-/// 转换选项
+}/// 转换选项
 // 严格翻译自: transpiler.zig:2108 TransformOptions
 public class TransformOptions {
     public var footer: String
@@ -741,75 +690,14 @@ public enum LogKind {
     | Info
     | Debug
     | Verbose
-}
-
-/// 链接器 (简化)
-public class Linker {
-    public var log: Log
-    public var allocator: Allocator
-
-    public init() {
-        log = Log()
-        allocator = Allocator()
-    }
-
-    public static func initWithTranspiler(transpiler: Transpiler): Linker {
-        let linker = Linker()
-        linker.log = transpiler.log
-        linker.allocator = transpiler.allocator
-        return linker
-    }
-}
-
-/// 解析器 (简化)
-public class Resolver {
-    public var log: Log
-    public var allocator: Allocator
-
-    public init() {
-        log = Log()
-        allocator = Allocator()
-    }
-
-    public func resolve(baseDir: String, path: String, kind: ImportKind): ?ResolveResult {
-        // 简化
-        return None
-    }
-
-    public func readDirInfo(path: String): ?DirInfo {
-        return None
-    }
-
-    public func readFile(path: String, dirFd: FileDescriptor, fd: ?FileDescriptor): ?FileEntry {
-        return None
-    }
-
-    public func getPackageManager(): PackageManager {
-        return PackageManager()
-    }
-}
-
-/// 文件系统
+}/// 文件系统
 public class FileSystem {
     public var topLevelDir: String
 
     public init() {
         topLevelDir = "/"
     }
-}
-
-/// 目录信息
-public class DirInfo {
-    public var tsconfigJson: ?TsconfigJson
-    public var packageJson: ?PackageJson
-
-    public init() {
-        tsconfigJson = None
-        packageJson = None
-    }
-}
-
-/// Tsconfig JSON
+}/// Tsconfig JSON
 public class TsconfigJson {
     public var jsx: JsxPragma
     public var emitDecoratorMetadata: Bool
@@ -877,65 +765,5 @@ public class PackageManager {
 }
 
 /// 模块类型
-// 严格翻译自: options.zig:368 ModuleType
-public enum ModuleType {
-    | Unknown
-    | CJS
-    | ESM
-}
-
-/// JSX 编译指示
+// 严格翻译自: options.zig:368 ModuleType/// JSX 编译指示
 // 严格翻译自: options.zig:1187 JSX.Pragma
-public class JsxPragma {
-    /// 工厂函数 (如 ["React", "createElement"])
-    public var factory: ArrayList<String>
-    /// Fragment 函数 (如 ["React", "Fragment"])
-    public var fragment: ArrayList<String>
-    /// 运行时
-    public var runtime: JsxRuntime
-    /// 导入源
-    public var importSource: JsxImportSource
-    /// 经典导入源
-    public var classicImportSource: String
-    /// 包名
-    public var packageName: String
-    /// 是否是开发模式
-    public var development: Bool
-    /// 是否解析 JSX
-    public var parse: Bool
-    /// 是否有副作用
-    public var sideEffects: Bool
-
-    public init() {
-        factory = ArrayList<String>()
-        factory.append("React")
-        factory.append("createElement")
-        fragment = ArrayList<String>()
-        fragment.append("React")
-        fragment.append("Fragment")
-        runtime = JsxRuntime.Automatic
-        importSource = JsxImportSource()
-        classicImportSource = "react"
-        packageName = "react"
-        development = true
-        parse = true
-        sideEffects = false
-    }
-}
-
-/// JSX 导入源
-public class JsxImportSource {
-    public var development: String
-    public var production: String
-
-    public init() {
-        development = "react/jsx-dev-runtime"
-        production = "react/jsx-runtime"
-    }
-}
-
-/// JSX 运行时
-public enum JsxRuntime {
-    | Classic
-    | Automatic
-}

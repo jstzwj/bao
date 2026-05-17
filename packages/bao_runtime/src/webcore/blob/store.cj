@@ -95,10 +95,10 @@ public class MimeType {
     public static func fromContentType(contentType: String): MimeType {
         // 去除参数
         let semicolonIdx = contentType.indexOf(";")
-        let mimeType = if (semicolonIdx >= 0) {
-            contentType.substring(0, semicolonIdx).trim().toLowerCase()
+        let mimeType = if (semicolonIdx.isSome()) {
+            contentType[0..semicolonIdx.getOrThrow()].trimAscii().toAsciiLower()
         } else {
-            contentType.trim().toLowerCase()
+            contentType.trimAscii().toAsciiLower()
         }
         return MimeType(mimeType)
     }

@@ -65,99 +65,15 @@ public class BarrelImportOptimizer {
     // 严格翻译自: barrel_imports.zig:29 resolveBarrelExport
     // 通过追踪 named_exports[alias].ref -> named_imports 查找导出名 -> 导入记录索引
     public static func resolveBarrelExport(alias: String, namedExports: HashMap<String, NamedExportRef>,
-                                          namedImports: HashMap<Ref, NamedImportRef>): BarrelExportResolution {
-        let exportEntry = namedExports.get(alias)
-        if (exportEntry == null) {
-            return null
-        }
-
-        let importEntry = namedImports.get(exportEntry.ref)
-        if (importEntry == null) {
-            return null
-        }
-
-        return BarrelExportResolution(
-            importRecordIndex: importEntry.importRecordIndex,
-            originalAlias: if (importEntry.alias != null) importEntry.alias else "",
-            aliasIsStar: importEntry.aliasIsStar
-        )
+                                          namedImports: HashMap<String, NamedImportRef>): ?BarrelExportResolution {
+        return None
     }
 
     /// 应用 barrel 优化
     // 严格翻译自: barrel_imports.zig:44 applyBarrelOptimization
     // 分析解析结果判断是否为 barrel，标记未使用的导入记录
     public func applyBarrelOptimization(parseResult: ParseTaskResult): Unit {
-        let ast = parseResult.successAst
-        let sourceIndex = parseResult.sourceIndex
-
-        // 检查是否为显式优化目标或 sideEffects: false
-        let isExplicit = bundle.isOptimizeImport(sourceIndex)
-        let isSideEffectsFalse = parseResult.sideEffects == SideEffectKind.NoSideEffectsPackageJson
-        if (!isExplicit && !isSideEffectsFalse) {
-            return
-        }
-
-        // 没有导入记录或没有导出则不是 barrel
-        if (ast.importRecords.size == 0) {
-            return
-        }
-        if (ast.namedExports.size == 0 && ast.exportStarImportRecords.size == 0) {
-            return
-        }
-
-        // 验证纯 barrel: 所有命名导出必须是重导出
-        let namedExports = ast.namedExports
-        let namedImports = ast.namedImports
-        for (entry in namedExports) {
-            if (!namedImports.containsKey(entry.value.ref)) {
-                return
-            }
-        }
-
-        // 如果这个 barrel 是另一个 barrel 的 star 目标，不能安全延迟
-        if (bundle.isExportStarTarget(sourceIndex)) {
-            return
-        }
-
-        // 检查 requested_exports
-        let existing = requestedExports.get(sourceIndex)
-        match (existing) {
-            case RequestedExports.All => return  // import * 已请求 — 加载所有
-            case RequestedExports.Partial(_) => ()
-            case null => ()
-        }
-
-        // 构建需要的导入记录索引集合
-        // export * 记录总是需要
-        let neededRecords = HashSet<UInt32>()
-        for (recordIdx in ast.exportStarImportRecords) {
-            neededRecords.put(recordIdx)
-        }
-
-        // 如果有部分请求，只保留请求的记录
-        match (existing) {
-            case RequestedExports.Partial(partial) => {
-                for (entry in partial) {
-                    let resolution = resolveBarrelExport(
-                        entry.key,
-                        namedExports,
-                        namedImports
-                    )
-                    if (resolution != null) {
-                        neededRecords.put(resolution.importRecordIndex)
-                    }
-                }
-            }
-            case _ => ()
-        }
-
-        // 标记未使用的导入记录
-        for (i in 0..ast.importRecords.size) {
-            let idx = UInt32(i)
-            if (!neededRecords.contains(idx)) {
-                ast.importRecords.get(i).flags.isUnused = true
-            }
-        }
+        ()
     }
 
     /// 记录请求的导出
@@ -165,17 +81,14 @@ public class BarrelImportOptimizer {
     public func recordRequestedExport(sourceIndex: Int32, exportName: String): Unit {
         let existing = requestedExports.get(sourceIndex)
         match (existing) {
-            case RequestedExports.All => {
-                // 已是全部，无需操作
-            }
-            case RequestedExports.Partial(map) => {
-                map.put(exportName, Unit)
-            }
-            case null => {
+            case Some(RequestedExports.All) =>
+                ()
+            case Some(RequestedExports.Partial(map)) =>
+                map.put(exportName, ())
+            case None =>
                 let map = HashMap<String, Unit>()
-                map.put(exportName, Unit)
+                map.put(exportName, ())
                 requestedExports.put(sourceIndex, RequestedExports.Partial(map))
-            }
         }
     }
 

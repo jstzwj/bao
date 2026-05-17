@@ -601,6 +601,11 @@ public class BaoStringBuilder {
         return BaoString(writtenSlice())
     }
 
+    /// 转换为字符串
+    public func toString(): String {
+        return build().toString()
+    }
+
     /// 清空重置
     public func clear(): Unit {
         len = 0

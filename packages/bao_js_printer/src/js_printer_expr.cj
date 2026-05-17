@@ -19,7 +19,7 @@ import bao_collections.*
 // ============================================================================
 
 /// 表达式打印扩展
-public class JSPrinter {
+extend JSPrinter {
 
     // ========================================================================
     // printExpr - 表达式打印入口
@@ -29,142 +29,118 @@ public class JSPrinter {
     // ========================================================================
 
     /// 打印表达式 - 对应 printExpr()
+    public func printExpr(expr: ?Expr, level: OpLevel, flags: ExprFlags): Unit {
+        match (expr) {
+            case Some(exprVal) => printExpr(exprVal, level, flags)
+            case None => ()
+        }
+    }
+
     public func printExpr(expr: Expr, level: OpLevel, flags: ExprFlags): Unit {
         match (expr.tag) {
             case ExprTag.Missing => ()
-            case ExprTag.Undefined => {
-                addSourceMapping(expr.loc)
-                printUndefined(expr.loc, level)
-            }
-            case ExprTag.Super => {
-                printSpaceBeforeIdentifier()
-                addSourceMapping(expr.loc)
-                print("super")
-            }
-            case ExprTag.Null => {
-                printSpaceBeforeIdentifier()
-                addSourceMapping(expr.loc)
-                print("null")
-            }
-            case ExprTag.This => {
-                printSpaceBeforeIdentifier()
-                addSourceMapping(expr.loc)
-                print("this")
-            }
-            case ExprTag.Spread => {
-                addSourceMapping(expr.loc)
-                print("...")
-                printExpr(expr.valueExpr, OpLevel.Comma, ExprFlags.none())
-            }
-            case ExprTag.New => {
-                printNew(expr, level, flags)
-            }
-            case ExprTag.Call => {
-                printCall(expr, level, flags)
-            }
-            case ExprTag.Dot => {
-                printDot(expr, level, flags)
-            }
-            case ExprTag.Index => {
-                printIndex(expr, level, flags)
-            }
-            case ExprTag.Ternary => {
-                printIf(expr, level, flags)
-            }
-            case ExprTag.Arrow => {
-                printArrow(expr, level, flags)
-            }
-            case ExprTag.Function => {
-                printFunction(expr, level)
-            }
-            case ExprTag.Class => {
-                printClassExpr(expr, level)
-            }
-            case ExprTag.Array => {
-                printArray(expr)
-            }
-            case ExprTag.Object => {
-                printObject(expr, level)
-            }
-            case ExprTag.Boolean => {
-                addSourceMapping(expr.loc)
-                if (options.minifySyntax) {
-                    if (level.ordinal() >= OpLevel.Unary.ordinal()) {
-                        print(if (expr.boolValue) "(!0)" else "(!1)")
-                    } else {
-                        print(if (expr.boolValue) "!0" else "!1")
-                    }
-                } else {
-                    printSpaceBeforeIdentifier()
-                    print(if (expr.boolValue) "true" else "false")
-                }
-            }
-            case ExprTag.String => {
-                addSourceMapping(expr.loc)
-                let eStr = EString(expr.stringValue)
-                if (expr.stringValue.length > 0) {
-                    printStringLiteralEString(eStr, true)
-                }
-            }
-            case ExprTag.Template => {
-                printTemplate(expr)
-            }
-            case ExprTag.Regex => {
-                addSourceMapping(expr.loc)
-                printRegExpLiteral(ERegExp(expr.regexPattern))
-            }
-            case ExprTag.BigInt => {
-                printSpaceBeforeIdentifier()
-                addSourceMapping(expr.loc)
-                print(expr.stringValue)
-                printByte(UInt8('n'))
-            }
-            case ExprTag.Number => {
-                addSourceMapping(expr.loc)
-                printNumber(expr.numberValue, level)
-            }
-            case ExprTag.Identifier => {
-                let name = renamer.nameForSymbol(expr.ref)
-                let wrap = written == forOfInitStart && name == "let"
-                if (wrap) {
-                    print("(")
-                }
-                printSpaceBeforeIdentifier()
-                addSourceMapping(expr.loc)
-                printIdentifier(name)
-                if (wrap) {
-                    print(")")
-                }
-            }
-            case ExprTag.ImportIdentifier => {
-                printImportIdentifier(expr, level, flags)
-            }
-            case ExprTag.Await => {
-                printAwait(expr, level)
-            }
-            case ExprTag.Yield => {
-                printYield(expr, level)
-            }
-            case ExprTag.Unary => {
-                printUnary(expr, level)
-            }
-            case ExprTag.Binary => {
-                printBinary(expr, level, flags)
-            }
-            case ExprTag.Assign => {
-                printAssign(expr, level, flags)
-            }
-            case ExprTag.Postfix => {
-                printPostfix(expr, level)
-            }
-            case ExprTag.TypeCast => {
-                // TypeScript 类型断言: 打印内部表达式
-                printExpr(expr.valueExpr, level, flags)
-            }
-            case ExprTag.JsxElement | ExprTag.JsxFragment => {
-                // JSX 不应出现在打印机中
-            }
+            case ExprTag.Undefined => printUndefinedExpr(expr, level)
+            case ExprTag.Super => printKeywordExpr(expr, "super")
+            case ExprTag.Null => printKeywordExpr(expr, "null")
+            case ExprTag.ThisExpr => printKeywordExpr(expr, "this")
+            case ExprTag.Spread => printSpreadExpr(expr)
+            case ExprTag.New => printNew(expr, level, flags)
+            case ExprTag.Call => printCall(expr, level, flags)
+            case ExprTag.Dot => printDot(expr, level, flags)
+            case ExprTag.Index => printIndex(expr, level, flags)
+            case ExprTag.Ternary => printIf(expr, level, flags)
+            case ExprTag.Arrow => printArrow(expr, level, flags)
+            case ExprTag.Function => printFunction(expr, level)
+            case ExprTag.Class => printClassExpr(expr, level)
+            case ExprTag.Array => printArray(expr)
+            case ExprTag.Object => printObject(expr, level)
+            case ExprTag.Boolean => printBooleanExpr(expr, level)
+            case ExprTag.String => printStringExpr(expr)
+            case ExprTag.Template => printTemplate(expr)
+            case ExprTag.Regex => printRegexExpr(expr)
+            case ExprTag.BigInt => printBigIntExpr(expr)
+            case ExprTag.Number => printNumberExpr(expr, level)
+            case ExprTag.Identifier => printIdentifierExpr(expr)
+            case ExprTag.ImportIdentifier => printImportIdentifier(expr, level, flags)
+            case ExprTag.Await => printAwait(expr, level)
+            case ExprTag.Yield => printYield(expr, level)
+            case ExprTag.Unary => printUnary(expr, level)
+            case ExprTag.Binary => printBinary(expr, level, flags)
+            case ExprTag.Assign => printAssign(expr, level, flags)
+            case ExprTag.Postfix => printPostfix(expr, level)
+            case ExprTag.TypeCast => printExpr(expr.valueExpr, level, flags)
+            case ExprTag.JsxElement | ExprTag.JsxFragment => ()
             case _ => ()
+        }
+    }
+
+    private func printUndefinedExpr(expr: Expr, level: OpLevel): Unit {
+        addSourceMapping(expr.loc)
+        printUndefined(expr.loc, level)
+    }
+
+    private func printKeywordExpr(expr: Expr, keyword: String): Unit {
+        printSpaceBeforeIdentifier()
+        addSourceMapping(expr.loc)
+        print(keyword)
+    }
+
+    private func printSpreadExpr(expr: Expr): Unit {
+        addSourceMapping(expr.loc)
+        print("...")
+        printExpr(expr.valueExpr, OpLevel.Comma, ExprFlags.none())
+    }
+
+    private func printBooleanExpr(expr: Expr, level: OpLevel): Unit {
+        addSourceMapping(expr.loc)
+        if (options.minifySyntax) {
+            if (level.ordinal() >= OpLevel.Unary.ordinal()) {
+                print(if (expr.boolValue) { "(!0)" } else { "(!1)" })
+            } else {
+                print(if (expr.boolValue) { "!0" } else { "!1" })
+            }
+        } else {
+            printSpaceBeforeIdentifier()
+            print(if (expr.boolValue) { "true" } else { "false" })
+        }
+    }
+
+    private func printStringExpr(expr: Expr): Unit {
+        addSourceMapping(expr.loc)
+        let eStr = EString(expr.stringValue)
+        if (expr.stringValue.size > 0) {
+            printStringLiteralEString(eStr, true)
+        }
+    }
+
+    private func printRegexExpr(expr: Expr): Unit {
+        addSourceMapping(expr.loc)
+        printRegExpLiteral(ERegExp(expr.regexPattern))
+    }
+
+    private func printBigIntExpr(expr: Expr): Unit {
+        printSpaceBeforeIdentifier()
+        addSourceMapping(expr.loc)
+        print(expr.stringValue)
+        printByte(UInt8(110))
+    }
+
+    private func printNumberExpr(expr: Expr, level: OpLevel): Unit {
+        addSourceMapping(expr.loc)
+        printNumber(expr.numberValue, level)
+    }
+
+    private func printIdentifierExpr(expr: Expr): Unit {
+        let name = renamer.nameForSymbol(expr.ref)
+        let wrap = written == forOfInitStart && name == "let"
+        if (wrap) {
+            print("(")
+        }
+        printSpaceBeforeIdentifier()
+        addSourceMapping(expr.loc)
+        printIdentifier(name)
+        if (wrap) {
+            print(")")
         }
     }
 
@@ -194,11 +170,11 @@ public class JSPrinter {
         printExpr(expr.targetExpr, OpLevel.Primary, ExprFlags.forbidCallFlags())
 
         let args = expr.args
-        if (args.size() > 0 || level.ordinal() >= OpLevel.Member.ordinal()) {
+        if (args.size > 0 || level.ordinal() >= OpLevel.Member.ordinal()) {
             print("(")
-            if (args.size() > 0) {
+            if (args.size > 0) {
                 printExpr(args[0], OpLevel.Comma, ExprFlags.none())
-                for (i in 1..args.size()) {
+                for (i in 1..args.size) {
                     print(",")
                     printSpace()
                     printExpr(args[i], OpLevel.Comma, ExprFlags.none())
@@ -264,9 +240,9 @@ public class JSPrinter {
 
         print("(")
         let args = expr.args
-        if (args.size() > 0) {
+        if (args.size > 0) {
             printExpr(args[0], OpLevel.Comma, ExprFlags.none())
-            for (i in 1..args.size()) {
+            for (i in 1..args.size) {
                 print(",")
                 printSpace()
                 printExpr(args[i], OpLevel.Comma, ExprFlags.none())
@@ -412,8 +388,8 @@ public class JSPrinter {
             printSpace()
         }
 
-        printFnArgs(if (expr.isAsync) Loc.EMPTY else expr.loc,
-                     expr.args, expr.hasRestArg, true)
+        let argsLoc = if (expr.isAsync) { Loc.EMPTY } else { expr.loc }
+        printFnArgs(argsLoc, expr.args, expr.hasRestArg, true)
         printWhitespacer(ws(" => "))
 
         // 简化: 如果body只有一个return语句，尝试打印为表达式
@@ -450,10 +426,15 @@ public class JSPrinter {
             printSpace()
         }
 
-        if (let funcName = expr.funcName) {
-            printSpaceBeforeIdentifier()
-            addSourceMapping(funcName.loc)
-            printSymbol(funcName.ref)
+        match (expr.funcName) {
+            case Some(funcName) =>
+                printSpaceBeforeIdentifier()
+                addSourceMapping(funcName.loc)
+                match (funcName.ref) {
+                    case Some(nameRef) => printSymbol(nameRef)
+                    case None => ()
+                }
+            case None => ()
         }
 
         printFunc(expr)
@@ -478,10 +459,15 @@ public class JSPrinter {
         printSpaceBeforeIdentifier()
         addSourceMapping(expr.loc)
         print("class")
-        if (let className = expr.className) {
-            print(" ")
-            addSourceMapping(className.loc)
-            printSymbol(className.ref)
+        match (expr.className) {
+            case Some(className) =>
+                print(" ")
+                addSourceMapping(className.loc)
+                match (className.ref) {
+                    case Some(nameRef) => printSymbol(nameRef)
+                    case None => ()
+                }
+            case None => ()
         }
         printClass(expr)
         if (wrap) {
@@ -499,12 +485,12 @@ public class JSPrinter {
         addSourceMapping(expr.loc)
         print("[")
         let items = expr.arrayItems
-        if (items.size() > 0) {
+        if (items.size > 0) {
             if (!expr.isSingleLine) {
                 indent()
             }
 
-            for (i in 0..items.size()) {
+            for (i in 0..items.size) {
                 if (i > 0) {
                     print(",")
                     if (expr.isSingleLine) {
@@ -517,7 +503,7 @@ public class JSPrinter {
                 }
                 printExpr(items[i], OpLevel.Comma, ExprFlags.none())
 
-                if (i == items.size() - 1 && items[i].tag == ExprTag.Missing) {
+                if (i == items.size - 1 && items[i].tag == ExprTag.Missing) {
                     print(",")
                 }
             }
@@ -552,7 +538,7 @@ public class JSPrinter {
         print("{")
 
         let props = expr.properties
-        if (props.size() > 0) {
+        if (props.size > 0) {
             if (!expr.isSingleLine) {
                 indent()
             }
@@ -565,8 +551,8 @@ public class JSPrinter {
             }
             printProperty(props[0])
 
-            if (props.size() > 1) {
-                for (i in 1..props.size()) {
+            if (props.size > 1) {
+                for (i in 1..props.size) {
                     print(",")
                     if (expr.isSingleLine && !isJson) {
                         printSpace()
@@ -600,17 +586,17 @@ public class JSPrinter {
     /// 打印模板字面量 - 对应 e_template
     private func printTemplate(expr: Expr): Unit {
         // 简化: 打印带标签或无标签的模板字面量
-        if (let tag = expr.templateTag) {
-            addSourceMapping(expr.loc)
-            if (expr.isOptionalChain) {
-                print("(")
-                printExpr(tag, OpLevel.Comma, ExprFlags.none())
-                print(")")
-            } else {
-                printExpr(tag, OpLevel.Member, ExprFlags.none())
-            }
-        } else {
-            addSourceMapping(expr.loc)
+        match (expr.templateTag) {
+            case Some(tag) =>
+                addSourceMapping(expr.loc)
+                if (expr.isOptionalChain) {
+                    print("(")
+                    printExpr(tag, OpLevel.Comma, ExprFlags.none())
+                    print(")")
+                } else {
+                    printExpr(tag, OpLevel.Member, ExprFlags.none())
+                }
+            case None => addSourceMapping(expr.loc)
         }
 
         print("`")
@@ -738,7 +724,7 @@ public class JSPrinter {
         let eBinary = EBinary(expr.valueExpr, expr.rightExpr, expr.opCode)
 
         var v = BinaryExpressionVisitor(eBinary, level, flags)
-        let stackBottom = binaryExpressionStack.size()
+        let stackBottom = binaryExpressionStack.size
 
         // 简化: 直接递归打印
         let entry = getOpEntry(eBinary.op)
@@ -748,9 +734,7 @@ public class JSPrinter {
         // 检查解构赋值
         if (written == stmtStart || written == arrowExprStart) {
             match (eBinary.left.tag) {
-                case ExprTag.Object => {
-                    // wrap = true  -- 需要括号包裹
-                }
+                case ExprTag.Object => ()
                 case _ => ()
             }
         }
@@ -849,13 +833,13 @@ public class JSPrinter {
                                           importOptions: Expr,
                                           level: OpLevel,
                                           flags: ExprFlags): Unit {
-        var level = level
-        let wrap = level.ordinal() >= OpLevel.Primary.ordinal() || flags.forbidCall
+        let currentLevel = level
+        let wrap = currentLevel.ordinal() >= OpLevel.Primary.ordinal() || flags.forbidCall
         if (wrap) {
             print("(")
         }
 
-        if (importRecordIndex < Int64(importRecords.size())) {
+        if (importRecordIndex < Int64(importRecords.size)) {
             let record = importRecord(importRecordIndex)
 
             // 外部 require()
@@ -874,10 +858,9 @@ public class JSPrinter {
                     }
                 }
 
-                if (let requireRef = options.requireRef) {
-                    printSymbol(requireRef)
-                } else {
-                    print("require")
+                match (options.requireRef) {
+                    case Some(requireRef) => printSymbol(requireRef)
+                    case None => print("require")
                 }
                 print("(")
                 printImportRecordPath(record)

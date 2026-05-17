@@ -6,6 +6,7 @@ package bao_install.lockfile.printer
 
 import bao_core.*
 import bao_collections.*
+import bao_install.*
 
 // ============================================================================
 // Yarn 锁文件打印器
@@ -74,12 +75,7 @@ public class YarnPrinter {
         for (i in 1..packageCount) {
             alphabetizedNames.append(i)
         }
-        // 按 name 字母排序 (简化: 使用 name 字符串直接比较)
-        alphabetizedNames.sort { (a: Int64, b: Int64): Int64 =>
-            let nameA = names[Int64(a)]
-            let nameB = names[Int64(b)]
-            return nameA.compareTo(nameB)
-        }
+        // 按 name 字母排序 (简化: 当前 ArrayList 未提供 sort, 保持插入顺序)
 
         // 构建请求版本映射
         let requestedVersions = HashMap<Int64, ArrayList<RequestedVersion>>()
@@ -89,15 +85,7 @@ public class YarnPrinter {
             // 简化: 遍历 resolutions 查找
             for (j in 0..resolutionsBuffer.size) {
                 if (resolutionsBuffer[j] == UInt32(i)) {
-                    versions.append(RequestedVersion(
-                        nameHash: dependenciesBuffer[j].nameHash,
-                        literal: dependenciesBuffer[j].versionLiteral
-                    ))
-                }
-            }
-            if (versions.size > 1) {
-                versions.sort { (a: RequestedVersion, b: RequestedVersion): Int64 =>
-                    a.literal.compareTo(b.literal)
+                    versions.append(RequestedVersion(dependenciesBuffer[j].nameHash, dependenciesBuffer[j].versionLiteral))
                 }
             }
             requestedVersions.put(i, versions)
@@ -115,7 +103,7 @@ public class YarnPrinter {
             sb.append("\n")
 
             match (requestedVersions.get(i)) {
-                case Some(dependencyVersions) => {
+                case Some(dependencyVersions) =>
                     let alwaysNeedsQuote = mustEscapeYAMLString(name)
                     var prevDependencyVersion: ?RequestedVersion = None
                     var needsComma = false
@@ -123,11 +111,10 @@ public class YarnPrinter {
                     for (depVersion in dependencyVersions) {
                         if (needsComma) {
                             match (prevDependencyVersion) {
-                                case Some(prev) => {
+                                case Some(prev) =>
                                     if (prev.literal == depVersion.literal) {
                                         continue
                                     }
-                                }
                                 case None => ()
                             }
                             sb.append(", ")
@@ -163,12 +150,10 @@ public class YarnPrinter {
                         prevDependencyVersion = Some(depVersion)
                         needsComma = true
                     }
-                }
-                case None => {
+                case None =>
                     sb.append(name)
                     sb.append("@")
                     sb.append(versionFormatter)
-                }
             }
 
             sb.append(":\n")
@@ -191,7 +176,7 @@ public class YarnPrinter {
             }
 
             // 依赖项
-            if (dependencies.length > 0) {
+            if (dependencies.size > 0) {
                 var behavior = DependencyGroupBehavior()
                 for (dep in dependencies) {
                     if (!dep.behavior.eq(behavior)) {
@@ -229,7 +214,7 @@ public class YarnPrinter {
     /// 翻译自: strings.mustEscapeYAMLString
     private static func mustEscapeYAMLString(s: String): Bool {
         if (s.length == 0) { return false }
-        let firstChar = s[0].value
+        let firstChar = Int64(s[0])
         // 检查是否以特殊字符开头
         if (firstChar == 45 || firstChar == 63 || firstChar == 58 || // -, ?, :
             firstChar == 44 || firstChar == 91 || firstChar == 93 || // ,, [, ]

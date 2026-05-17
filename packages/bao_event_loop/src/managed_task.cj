@@ -168,7 +168,7 @@ public class ManagedTask {
     public func cancel(): Unit {
         // Bun:
         //   this.callback = &struct { fn f(...) !void {} }.f
-        callback = { }
+        callback = { => () }
         cancelled = true
     }
 

@@ -327,7 +327,7 @@ public class FSEventsLoop {
         let concurrent = ConcurrentFsEventsTask()
         concurrent.task = task
         concurrent.autoDelete = true
-        tasks.add(concurrent)
+        tasks.append(concurrent)
 
         // 信号 CF 线程
         let cf = CoreFoundation.load()
@@ -348,7 +348,7 @@ public class FSEventsLoop {
         mutex.lock()
         if (Int64(watcherCount) == watchers.size) {
             watcherCount = watcherCount + 1
-            watchers.add(watcher)
+            watchers.append(watcher)
         } else {
             for (i in 0..watchers.size) {
                 if (watchers[i] == None) {

@@ -5,6 +5,8 @@ package bao_runtime.webcore.fetch
 
 import bao_core.*
 import bao_collections.*
+import bao_runtime.*
+import bao_runtime.webcore.*
 
 // ============================================================================
 // FetchTaskletState - Fetch 任务状态
@@ -78,18 +80,18 @@ public class FetchTasklet {
         state = FetchTaskletState.Running
 
         // 构建 Request
-        let init = RequestInit()
-        init.method = method
-        init.headers = requestHeaders
+        let requestInit = RequestInit()
+        requestInit.method = method
+        requestInit.headers = requestHeaders
         if (requestBody.size > 0) {
             let bodyValue = BodyValue(requestBody)
-            init.body = Some(Body(value: bodyValue))
+            requestInit.body = Some(Body(value: bodyValue))
         }
-        let request = Request(url, init)
+        let request = Request(url, requestInit)
 
         // 执行 fetch
         try {
-            let result = fetch(url, init)
+            let result = fetch(url, requestInit)
             response = Some(result)
             state = FetchTaskletState.Completed
         } catch (e: Exception) {

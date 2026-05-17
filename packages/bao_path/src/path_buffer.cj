@@ -5,6 +5,7 @@
 package bao_path
 
 import bao_core.*
+import bao_collections.*
 
 // ============================================================================
 // PathBufferPool - 路径缓冲区池
@@ -109,12 +110,12 @@ public enum PathSeparator {
 
     /// 获取分隔符字符
     /// 对应 Bun Options.PathSeparators.char()
-    public func separatorChar(): Char {
+    public func separatorChar(): Rune {
         match (this) {
-            case Any => Char('/')     // 默认使用 POSIX
-            case Auto => Char('/')    // POSIX 平台
-            case Posix => Char('/')
-            case Windows => Char('\\')
+            case Any => Rune(47)
+            case Auto => Rune(47)
+            case Posix => Rune(47)
+            case Windows => Rune(92)
         }
     }
 
@@ -163,8 +164,9 @@ public class AbsPathBuilder {
     }
 
     public init() {
-        this.pool = pathBufferPool
-        this.buffer = pathBufferPool.get()
+        let defaultPool = PathBufferPool()
+        this.pool = defaultPool
+        this.buffer = defaultPool.get()
         this.separator = PathSeparator.Auto
     }
 
@@ -188,7 +190,7 @@ public class AbsPathBuilder {
     ///   }
     public func append(path: String): Unit {
         let trimmed = trimRelative(path)
-        if (trimmed.isEmpty) {
+        if (trimmed.isEmpty()) {
             return
         }
         let needsSep = buffer.len() > 0 &&
@@ -224,6 +226,10 @@ public class AbsPathBuilder {
         buffer.clear()
     }
 
+    public func setLength(newLen: Int64): Unit {
+        buffer.setLength(newLen)
+    }
+
     /// 获取路径长度 - 对应 Bun Path.len()
     public func len(): Int64 {
         return buffer.len()
@@ -252,20 +258,20 @@ public class AbsPathBuilder {
         var s = slice()
         var i: Int64 = 0
         while (i < nComponents) {
-            let lastSlash = s.lastIndexOf('/')
-            if (lastSlash < 0) {
-                buffer.setLength(0)
-                return
+            match (s.lastIndexOf('/')) {
+                case Some(lastSlash) =>
+                    let minLen: Int64 = if (s.startsWith("/")) { 1 } else { 0 }
+                    if (lastSlash < minLen) {
+                        buffer.setLength(minLen)
+                        return
+                    }
+                    s = s[0..lastSlash]
+                    buffer.setLength(lastSlash)
+                    i += 1
+                case None =>
+                    buffer.setLength(0)
+                    return
             }
-            // 保留根: 如果是绝对路径不能回退到根之前
-            let minLen: Int64 = if (s.startsWith("/")) { 1 } else { 0 }
-            if (Int64(lastSlash) < minLen) {
-                buffer.setLength(minLen)
-                return
-            }
-            s = s.substring(0, Int64(lastSlash))
-            buffer.setLength(Int64(lastSlash))
-            i += 1
         }
     }
 
@@ -274,7 +280,7 @@ public class AbsPathBuilder {
     ///       return .{ .path = this, .saved_len = this.len() };
     ///   }
     public func save(): PathResetScope {
-        return PathResetScope(builder: this, savedLen: buffer.len())
+        return PathResetScope(this, buffer.len())
     }
 
     /// 释放缓冲区到池 - 对应 Bun Path.deinit()
@@ -295,7 +301,7 @@ public class AbsPathBuilder {
     ///       trimmed = trimmed[0 .. trimmed.len - 1];
     ///   }
     private static func trimAbs(input: String): String {
-        if (input.isEmpty) {
+        if (input.isEmpty()) {
             return input
         }
         var end = input.size
@@ -303,7 +309,7 @@ public class AbsPathBuilder {
         while (end > rootLen && isSepAnyChar(input[Int64(end - 1)])) {
             end -= 1
         }
-        return input.substring(0, Int64(end))
+        return input[0..end]
     }
 
     /// 去除相对路径的前导 "./" 和尾部分隔符
@@ -315,16 +321,16 @@ public class AbsPathBuilder {
     private static func trimRelative(input: String): String {
         var trimmed = input
         // 去除前导 "./"
-        if (trimmed.size > 1 && trimmed[0] == Char('.') && trimmed[1] == Char('/')) {
-            trimmed = trimmed.substring(2)
+        if (trimmed.size > 1 && trimmed[0] == UInt8(46) && trimmed[1] == UInt8(47)) {
+            trimmed = trimmed[2..]
         }
         // 去除前导分隔符
         while (trimmed.size > 0 && isSepAnyChar(trimmed[0])) {
-            trimmed = trimmed.substring(1)
+            trimmed = trimmed[1..]
         }
         // 去除尾部分隔符
         while (trimmed.size > 0 && isSepAnyChar(trimmed[Int64(trimmed.size - 1)])) {
-            trimmed = trimmed.substring(0, Int64(trimmed.size - 1))
+            trimmed = trimmed[0..trimmed.size - 1]
         }
         return trimmed
     }
@@ -349,6 +355,6 @@ public class PathResetScope {
 
     /// 恢复到保存时的长度
     public func restore(): Unit {
-        builder.buffer.setLength(savedLen)
+        builder.setLength(savedLen)
     }
 }

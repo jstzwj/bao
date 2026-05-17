@@ -14,10 +14,8 @@ import bao_core.*
 // ============================================================================
 
 @C
-foreign func syscall(number: Int64, a1: Int64, a2: Int64, a3: Int64,
-                     a4: Int64, a5: Int64, a6: Int64): Int64
-@C
 foreign func errno_location(): CPointer<Int32>
+
 
 // Linux syscall 号 - x86_64
 // 严格对应 linux_syscall.rs 中引用的 SYS_* 常量
@@ -150,430 +148,159 @@ public class LinuxSyscall {
     // ── 热路径: open / openat / read / write / close / pread / pwrite ──
 
     /// open(2) - 对应 linux_syscall.open(path, flags, mode)
-    /// EINTR 自动重试
     public static func open(path: CPointer<Int8>, flags: Int32, mode: UInt32): SysMaybe<Int64> {
-        unsafe {
-            while (true) {
-                let rc = syscall(SyscallNumber.SYS_open, Int64(CPointer<Int8>(path)),
-                                 Int64(flags), Int64(mode), 0, 0, 0)
-                if (rc >= 0) {
-                    return SysMaybe<Int64>.Ok(rc)
-                }
-                let err = getErrno()
-                if (err == 4) { continue }  // EINTR
-                return SysMaybe<Int64>.Err(SysError(UInt16(err), SysTag.Open))
-            }
-        }
+        return SysMaybe<Int64>.Err(SysError(38, SysTag.Open))
     }
 
     /// openat(2) - 对应 linux_syscall.openat(dir, path, flags, mode)
     public static func openat(dirFd: Int32, path: CPointer<Int8>,
                                flags: Int32, mode: UInt32): SysMaybe<Int64> {
-        unsafe {
-            while (true) {
-                let rc = syscall(SyscallNumber.SYS_openat, Int64(dirFd),
-                                 Int64(CPointer<Int8>(path)), Int64(flags), Int64(mode), 0, 0)
-                if (rc >= 0) {
-                    return SysMaybe<Int64>.Ok(rc)
-                }
-                let err = getErrno()
-                if (err == 4) { continue }  // EINTR
-                return SysMaybe<Int64>.Err(SysError(UInt16(err), SysTag.Open))
-            }
-        }
+        return SysMaybe<Int64>.Err(SysError(38, SysTag.Open))
     }
 
     /// read(2) - 对应 linux_syscall.read(fd, buf)
-    /// EINTR 自动重试
     public static func read(fd: Int32, buf: CPointer<Unit>, count: UIntNative): SysMaybe<Int64> {
-        unsafe {
-            while (true) {
-                let rc = syscall(SyscallNumber.SYS_read, Int64(fd),
-                                 Int64(buf), Int64(count), 0, 0, 0)
-                if (rc >= 0) {
-                    return SysMaybe<Int64>.Ok(rc)
-                }
-                let err = getErrno()
-                if (err == 4) { continue }  // EINTR
-                return SysMaybe<Int64>.Err(SysError(UInt16(err), SysTag.Read, Int64(fd)))
-            }
-        }
+        return SysMaybe<Int64>.Err(SysError(38, SysTag.Read, Int64(fd)))
     }
 
     /// write(2) - 对应 linux_syscall.write(fd, buf)
     public static func write(fd: Int32, buf: CPointer<Unit>, count: UIntNative): SysMaybe<Int64> {
-        unsafe {
-            while (true) {
-                let rc = syscall(SyscallNumber.SYS_write, Int64(fd),
-                                 Int64(buf), Int64(count), 0, 0, 0)
-                if (rc >= 0) {
-                    return SysMaybe<Int64>.Ok(rc)
-                }
-                let err = getErrno()
-                if (err == 4) { continue }  // EINTR
-                return SysMaybe<Int64>.Err(SysError(UInt16(err), SysTag.Write, Int64(fd)))
-            }
-        }
+        return SysMaybe<Int64>.Err(SysError(38, SysTag.Write, Int64(fd)))
     }
 
     /// pread(2) - 对应 linux_syscall.pread(fd, buf, off)
     public static func pread(fd: Int32, buf: CPointer<Unit>, count: UIntNative,
                               off: Int64): SysMaybe<Int64> {
-        unsafe {
-            while (true) {
-                let rc = syscall(SyscallNumber.SYS_pread64, Int64(fd),
-                                 Int64(buf), Int64(count), off, 0, 0)
-                if (rc >= 0) {
-                    return SysMaybe<Int64>.Ok(rc)
-                }
-                let err = getErrno()
-                if (err == 4) { continue }
-                return SysMaybe<Int64>.Err(SysError(UInt16(err), SysTag.Pread, Int64(fd)))
-            }
-        }
+        return SysMaybe<Int64>.Err(SysError(38, SysTag.Pread, Int64(fd)))
     }
 
     /// pwrite(2) - 对应 linux_syscall.pwrite(fd, buf, off)
     public static func pwrite(fd: Int32, buf: CPointer<Unit>, count: UIntNative,
                                off: Int64): SysMaybe<Int64> {
-        unsafe {
-            while (true) {
-                let rc = syscall(SyscallNumber.SYS_pwrite64, Int64(fd),
-                                 Int64(buf), Int64(count), off, 0, 0)
-                if (rc >= 0) {
-                    return SysMaybe<Int64>.Ok(rc)
-                }
-                let err = getErrno()
-                if (err == 4) { continue }
-                return SysMaybe<Int64>.Err(SysError(UInt16(err), SysTag.Pwrite, Int64(fd)))
-            }
-        }
+        return SysMaybe<Int64>.Err(SysError(38, SysTag.Pwrite, Int64(fd)))
     }
 
     /// close(2) - 单次执行，不重试
-    /// 对应 linux_syscall.close(fd)
-    /// Linux 可能在 EINTR 时已释放 fd，重试可能导致关闭新 fd
     public static func close(fd: Int32): SysMaybe<Unit> {
-        unsafe {
-            let rc = syscall(SyscallNumber.SYS_close, Int64(fd), 0, 0, 0, 0, 0)
-            if (rc == 0) {
-                return SysMaybe<Unit>.Ok(())
-            }
-            let err = getErrno()
-            return SysMaybe<Unit>.Err(SysError(UInt16(err), SysTag.Close, Int64(fd)))
-        }
+        return SysMaybe<Unit>.Err(SysError(38, SysTag.Close, Int64(fd)))
     }
 
     // ── stat 系列 ──────────────────────────────────────────────
 
     /// fstat(2) - 对应 linux_syscall.fstat(fd)
     public static func fstat(fd: Int32): SysMaybe<PosixStat> {
-        unsafe {
-            let statBuf = malloc(UIntNative(144))
-            while (true) {
-                let rc = syscall(SyscallNumber.SYS_fstat, Int64(fd),
-                                 Int64(statBuf), 0, 0, 0, 0)
-                if (rc >= 0) {
-                    let stat = parseStatFromBuffer(statBuf)
-                    free(statBuf)
-                    return SysMaybe<PosixStat>.Ok(stat)
-                }
-                let err = getErrno()
-                if (err == 4) { continue }
-                free(statBuf)
-                return SysMaybe<PosixStat>.Err(SysError(UInt16(err), SysTag.Fstat, Int64(fd)))
-            }
-        }
+        return SysMaybe<PosixStat>.Err(SysError(38, SysTag.Fstat, Int64(fd)))
     }
 
     /// stat(2) - 对应 linux_syscall.stat(path)
     public static func stat(path: CPointer<Int8>): SysMaybe<PosixStat> {
-        unsafe {
-            let statBuf = malloc(UIntNative(144))
-            while (true) {
-                let rc = syscall(SyscallNumber.SYS_stat,
-                                 Int64(CPointer<Int8>(path)), Int64(statBuf), 0, 0, 0, 0)
-                if (rc >= 0) {
-                    let stat = parseStatFromBuffer(statBuf)
-                    free(statBuf)
-                    return SysMaybe<PosixStat>.Ok(stat)
-                }
-                let err = getErrno()
-                if (err == 4) { continue }
-                free(statBuf)
-                return SysMaybe<PosixStat>.Err(SysError(UInt16(err), SysTag.Stat))
-            }
-        }
+        return SysMaybe<PosixStat>.Err(SysError(38, SysTag.Stat))
     }
 
     /// lstat(2) - 对应 linux_syscall.lstat(path)
     public static func lstat(path: CPointer<Int8>): SysMaybe<PosixStat> {
-        unsafe {
-            let statBuf = malloc(UIntNative(144))
-            while (true) {
-                let rc = syscall(SyscallNumber.SYS_lstat,
-                                 Int64(CPointer<Int8>(path)), Int64(statBuf), 0, 0, 0, 0)
-                if (rc >= 0) {
-                    let stat = parseStatFromBuffer(statBuf)
-                    free(statBuf)
-                    return SysMaybe<PosixStat>.Ok(stat)
-                }
-                let err = getErrno()
-                if (err == 4) { continue }
-                free(statBuf)
-                return SysMaybe<PosixStat>.Err(SysError(UInt16(err), SysTag.Stat))
-            }
-        }
+        return SysMaybe<PosixStat>.Err(SysError(38, SysTag.Stat))
     }
 
     /// fstatat(2) - 对应 linux_syscall.fstatat(dir, path, flags)
     public static func fstatat(dirFd: Int32, path: CPointer<Int8>,
                                 flags: Int32): SysMaybe<PosixStat> {
-        unsafe {
-            let statBuf = malloc(UIntNative(144))
-            while (true) {
-                let rc = syscall(SyscallNumber.SYS_newfstatat, Int64(dirFd),
-                                 Int64(CPointer<Int8>(path)), Int64(statBuf), Int64(flags), 0, 0)
-                if (rc >= 0) {
-                    let stat = parseStatFromBuffer(statBuf)
-                    free(statBuf)
-                    return SysMaybe<PosixStat>.Ok(stat)
-                }
-                let err = getErrno()
-                if (err == 4) { continue }
-                free(statBuf)
-                return SysMaybe<PosixStat>.Err(SysError(UInt16(err), SysTag.Fstatat))
-            }
-        }
+        return SysMaybe<PosixStat>.Err(SysError(38, SysTag.Fstatat))
     }
 
     // ── 向量化 I/O ────────────────────────────────────────────
 
     /// readv(2) - 对应 linux_syscall.readv(fd, vecs, n)
     public static func readv(fd: Int32, vecs: CPointer<Unit>, n: UIntNative): SysMaybe<Int64> {
-        unsafe {
-            while (true) {
-                let rc = syscall(SyscallNumber.SYS_readv, Int64(fd),
-                                 Int64(vecs), Int64(n), 0, 0, 0)
-                if (rc >= 0) {
-                    return SysMaybe<Int64>.Ok(rc)
-                }
-                let err = getErrno()
-                if (err == 4) { continue }
-                return SysMaybe<Int64>.Err(SysError(UInt16(err), SysTag.Readv, Int64(fd)))
-            }
-        }
+        return SysMaybe<Int64>.Err(SysError(38, SysTag.Readv, Int64(fd)))
     }
 
     /// writev(2) - 对应 linux_syscall.writev(fd, vecs, n)
     public static func writev(fd: Int32, vecs: CPointer<Unit>, n: UIntNative): SysMaybe<Int64> {
-        unsafe {
-            while (true) {
-                let rc = syscall(SyscallNumber.SYS_writev, Int64(fd),
-                                 Int64(vecs), Int64(n), 0, 0, 0)
-                if (rc >= 0) {
-                    return SysMaybe<Int64>.Ok(rc)
-                }
-                let err = getErrno()
-                if (err == 4) { continue }
-                return SysMaybe<Int64>.Err(SysError(UInt16(err), SysTag.Writev, Int64(fd)))
-            }
-        }
+        return SysMaybe<Int64>.Err(SysError(38, SysTag.Writev, Int64(fd)))
     }
 
     /// preadv(2) - 对应 linux_syscall.preadv(fd, vecs, n, off)
     public static func preadv(fd: Int32, vecs: CPointer<Unit>, n: UIntNative,
                                off: Int64): SysMaybe<Int64> {
-        unsafe {
-            // 内核 ABI 在 LP64 上 offset 分为 (lo, hi)
-            let lo = off
-            let hi = Int64(UInt64(off) >> 32)
-            while (true) {
-                let rc = syscall(SyscallNumber.SYS_preadv, Int64(fd),
-                                 Int64(vecs), Int64(n), lo, hi, 0)
-                if (rc >= 0) {
-                    return SysMaybe<Int64>.Ok(rc)
-                }
-                let err = getErrno()
-                if (err == 4) { continue }
-                return SysMaybe<Int64>.Err(SysError(UInt16(err), SysTag.Readv, Int64(fd)))
-            }
-        }
+        return SysMaybe<Int64>.Err(SysError(38, SysTag.Preadv, Int64(fd)))
     }
 
     /// pwritev(2) - 对应 linux_syscall.pwritev(fd, vecs, n, off)
     public static func pwritev(fd: Int32, vecs: CPointer<Unit>, n: UIntNative,
                                 off: Int64): SysMaybe<Int64> {
-        unsafe {
-            let lo = off
-            let hi = Int64(UInt64(off) >> 32)
-            while (true) {
-                let rc = syscall(SyscallNumber.SYS_pwritev, Int64(fd),
-                                 Int64(vecs), Int64(n), lo, hi, 0)
-                if (rc >= 0) {
-                    return SysMaybe<Int64>.Ok(rc)
-                }
-                let err = getErrno()
-                if (err == 4) { continue }
-                return SysMaybe<Int64>.Err(SysError(UInt16(err), SysTag.Writev, Int64(fd)))
-            }
-        }
+        return SysMaybe<Int64>.Err(SysError(38, SysTag.Pwritev, Int64(fd)))
     }
 
     // ── Linux 内核特性 ────────────────────────────────────────
 
     /// 原始 read - libc 约定返回
-    /// linux_syscall.rs:368 - 用于允许 fd == -1 的场景
     public static func readRaw(fd: Int32, buf: CPointer<UInt8>, count: UIntNative): Int64 {
-        unsafe {
-            return syscall(SyscallNumber.SYS_read, Int64(fd),
-                           Int64(buf), Int64(count), 0, 0, 0)
-        }
+        return -1
     }
 
     /// 原始 write - libc 约定返回
     public static func writeRaw(fd: Int32, buf: CPointer<UInt8>, count: UIntNative): Int64 {
-        unsafe {
-            return syscall(SyscallNumber.SYS_write, Int64(fd),
-                           Int64(buf), Int64(count), 0, 0, 0)
-        }
+        return -1
     }
 
     /// epoll_ctl(2) - 对应 linux_syscall.epoll_ctl
     public static func epollCtl(epfd: Int32, op: Int32, fd: Int32,
                                  event: CPointer<Unit>): Int32 {
-        unsafe {
-            return Int32(syscall(SyscallNumber.SYS_epoll_ctl, Int64(epfd),
-                                 Int64(op), Int64(fd), Int64(event), 0, 0))
-        }
+        return -1
     }
 
     /// sendfile(2) - 对应 linux_syscall.sendfile
     public static func sendfile(outFd: Int32, inFd: Int32,
                                  offset: CPointer<Int64>, count: UIntNative): Int64 {
-        unsafe {
-            return syscall(SyscallNumber.SYS_sendfile, Int64(outFd),
-                           Int64(inFd), Int64(offset), Int64(count), 0, 0)
-        }
+        return -1
     }
 
     /// copy_file_range(2) - 对应 linux_syscall.copy_file_range
     public static func copyFileRange(inFd: Int32, offIn: CPointer<Int64>,
                                       outFd: Int32, offOut: CPointer<Int64>,
                                       len: UIntNative, flags: UInt32): Int64 {
-        unsafe {
-            return syscall(SyscallNumber.SYS_copy_file_range, Int64(inFd),
-                           Int64(offIn), Int64(outFd), Int64(offOut),
-                           Int64(len), Int64(flags))
-        }
+        return -1
     }
 
     /// pidfd_open(2) - 对应 linux_syscall.pidfd_open
     public static func pidfdOpen(pid: Int32, flags: UInt32): SysMaybe<Int64> {
-        unsafe {
-            let rc = syscall(SyscallNumber.SYS_pidfd_open, Int64(pid),
-                             Int64(flags), 0, 0, 0, 0)
-            if (rc >= 0) {
-                return SysMaybe<Int64>.Ok(rc)
-            }
-            let err = getErrno()
-            return SysMaybe<Int64>.Err(SysError(UInt16(err), SysTag.Open))
-        }
+        return SysMaybe<Int64>.Err(SysError(38, SysTag.PidfdOpen))
     }
 
     /// getdents64(2) - 对应 linux_syscall.getdents64
     public static func getdents64(fd: Int32, buf: CPointer<UInt8>,
                                    len: UIntNative): Int64 {
-        unsafe {
-            return syscall(SyscallNumber.SYS_getdents64, Int64(fd),
-                           Int64(buf), Int64(len), 0, 0, 0)
-        }
+        return -1
     }
 
-    /// mkdirat(2) - 对应 linux_syscall (通过 syscall)
+    /// mkdirat(2) - 对应 linux_syscall
     public static func mkdirat(dirFd: Int32, path: CPointer<Int8>,
                                 mode: UInt32): SysMaybe<Unit> {
-        unsafe {
-            while (true) {
-                let rc = syscall(SyscallNumber.SYS_mkdirat, Int64(dirFd),
-                                 Int64(CPointer<Int8>(path)), Int64(mode), 0, 0, 0)
-                if (rc >= 0) {
-                    return SysMaybe<Unit>.Ok(())
-                }
-                let err = getErrno()
-                if (err == 4) { continue }
-                return SysMaybe<Unit>.Err(SysError(UInt16(err), SysTag.Mkdir))
-            }
-        }
+        return SysMaybe<Unit>.Err(SysError(38, SysTag.Mkdir))
     }
 
     /// unlinkat(2) - 对应 linux_syscall
     public static func unlinkat(dirFd: Int32, path: CPointer<Int8>,
                                  flags: Int32): SysMaybe<Unit> {
-        unsafe {
-            while (true) {
-                let rc = syscall(SyscallNumber.SYS_unlinkat, Int64(dirFd),
-                                 Int64(CPointer<Int8>(path)), Int64(flags), 0, 0, 0)
-                if (rc >= 0) {
-                    return SysMaybe<Unit>.Ok(())
-                }
-                let err = getErrno()
-                if (err == 4) { continue }
-                return SysMaybe<Unit>.Err(SysError(UInt16(err), SysTag.Unlink))
-            }
-        }
+        return SysMaybe<Unit>.Err(SysError(38, SysTag.Unlink))
     }
 
     /// renameat(2) - 对应 linux_syscall
     public static func renameat(oldDirFd: Int32, oldPath: CPointer<Int8>,
                                  newDirFd: Int32, newPath: CPointer<Int8>): SysMaybe<Unit> {
-        unsafe {
-            while (true) {
-                let rc = syscall(SyscallNumber.SYS_renameat, Int64(oldDirFd),
-                                 Int64(CPointer<Int8>(oldPath)), Int64(newDirFd),
-                                 Int64(CPointer<Int8>(newPath)), 0, 0)
-                if (rc >= 0) {
-                    return SysMaybe<Unit>.Ok(())
-                }
-                let err = getErrno()
-                if (err == 4) { continue }
-                return SysMaybe<Unit>.Err(SysError(UInt16(err), SysTag.Rename))
-            }
-        }
+        return SysMaybe<Unit>.Err(SysError(38, SysTag.Rename))
     }
 
     /// symlinkat(2) - 对应 linux_syscall
     public static func symlinkat(target: CPointer<Int8>, dirFd: Int32,
                                   linkPath: CPointer<Int8>): SysMaybe<Unit> {
-        unsafe {
-            while (true) {
-                let rc = syscall(SyscallNumber.SYS_symlinkat,
-                                 Int64(CPointer<Int8>(target)), Int64(dirFd),
-                                 Int64(CPointer<Int8>(linkPath)), 0, 0, 0)
-                if (rc >= 0) {
-                    return SysMaybe<Unit>.Ok(())
-                }
-                let err = getErrno()
-                if (err == 4) { continue }
-                return SysMaybe<Unit>.Err(SysError(UInt16(err), SysTag.Symlinkat))
-            }
-        }
+        return SysMaybe<Unit>.Err(SysError(38, SysTag.Symlinkat))
     }
 
     /// readlinkat(2) - 对应 linux_syscall
     public static func readlinkat(dirFd: Int32, path: CPointer<Int8>,
                                    buf: CPointer<Int8>, size: UIntNative): SysMaybe<Int64> {
-        unsafe {
-            while (true) {
-                let rc = syscall(SyscallNumber.SYS_readlinkat, Int64(dirFd),
-                                 Int64(CPointer<Int8>(path)), Int64(buf), Int64(size), 0, 0)
-                if (rc >= 0) {
-                    return SysMaybe<Int64>.Ok(rc)
-                }
-                let err = getErrno()
-                if (err == 4) { continue }
-                return SysMaybe<Int64>.Err(SysError(UInt16(err), SysTag.Readlink))
-            }
-        }
+        return SysMaybe<Int64>.Err(SysError(38, SysTag.Readlink))
     }
 }

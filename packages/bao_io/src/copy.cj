@@ -86,7 +86,7 @@ public class CopyResult {
         this.error = None
     }
 
-    public static func error(err: SysError, method: CopyMethod): CopyResult {
+    public static func createError(err: SysError, method: CopyMethod): CopyResult {
         let r = CopyResult(0, method)
         r.error = Some(err)
         return r
@@ -94,7 +94,10 @@ public class CopyResult {
 
     /// 是否成功
     public func isOk(): Bool {
-        return error == None
+        match (error) {
+            case None => true
+            case Some(_) => false
+        }
     }
 
     /// 吞吐量 (字节/秒)
@@ -206,17 +209,19 @@ public class StreamCopy {
     ///   fn copy_file_range(src_fd, dst_fd, src_offset, dst_offset, len) Maybe(usize)
     public static func copyFileRange(srcFd: Int64, dstFd: Int64, options: CopyOptions): CopyResult {
         var totalCopied: Int64 = 0
-        let maxCopy = if (options.maxBytes < 0) { Int64.MAX_VALUE } else { options.maxBytes }
+        let maxCopy = if (options.maxBytes < 0) { 9223372036854775807 } else { options.maxBytes }
 
         while (totalCopied < maxCopy) {
             let remaining = maxCopy - totalCopied
             let chunkSize = if (remaining > MAX_BUF_SIZE) { UIntNative(MAX_BUF_SIZE) } else { UIntNative(remaining) }
 
-            let copied = copy_file_range(
-                Int32(srcFd), CPointer<Int64>(),
-                Int32(dstFd), CPointer<Int64>(),
-                chunkSize, UInt32(0)
-            )
+            let copied = unsafe {
+                copy_file_range(
+                    Int32(srcFd), CPointer<Int64>(),
+                    Int32(dstFd), CPointer<Int64>(),
+                    chunkSize, UInt32(0)
+                )
+            }
 
             if (copied < 0) {
                 let errno = OS.errno()
@@ -228,7 +233,7 @@ public class StreamCopy {
                 if (errno == 11) {
                     continue
                 }
-                return CopyResult.error(
+                return CopyResult.createError(
                     SysError(UInt16(errno), SysTag.CopyFileRange),
                     CopyMethod.CopyFileRange
                 )
@@ -250,17 +255,19 @@ public class StreamCopy {
     /// sys.zig: pub fn sendfile(out_fd, in_fd, offset, count) Maybe(usize)
     public static func sendfileCopy(srcFd: Int64, dstFd: Int64, options: CopyOptions): CopyResult {
         var totalCopied: Int64 = 0
-        let maxCopy = if (options.maxBytes < 0) { Int64.MAX_VALUE } else { options.maxBytes }
+        let maxCopy = if (options.maxBytes < 0) { 9223372036854775807 } else { options.maxBytes }
 
         while (totalCopied < maxCopy) {
             let remaining = maxCopy - totalCopied
             let chunkSize = if (remaining > MAX_BUF_SIZE) { UIntNative(MAX_BUF_SIZE) } else { UIntNative(remaining) }
 
-            let copied = sendfile(
-                Int32(dstFd), Int32(srcFd),
-                CPointer<Int64>(),
-                chunkSize
-            )
+            let copied = unsafe {
+                sendfile(
+                    Int32(dstFd), Int32(srcFd),
+                    CPointer<Int64>(),
+                    chunkSize
+                )
+            }
 
             if (copied < 0) {
                 let errno = OS.errno()
@@ -270,7 +277,7 @@ public class StreamCopy {
                 if (errno == 11) {
                     continue  // EAGAIN
                 }
-                return CopyResult.error(
+                return CopyResult.createError(
                     SysError(UInt16(errno), SysTag.Sendfile),
                     CopyMethod.Sendfile
                 )
@@ -294,18 +301,20 @@ public class StreamCopy {
         let SPLICE_F_MORE: UInt32 = 4
 
         var totalCopied: Int64 = 0
-        let maxCopy = if (options.maxBytes < 0) { Int64.MAX_VALUE } else { options.maxBytes }
+        let maxCopy = if (options.maxBytes < 0) { 9223372036854775807 } else { options.maxBytes }
 
         while (totalCopied < maxCopy) {
             let remaining = maxCopy - totalCopied
             let chunkSize = if (remaining > MAX_BUF_SIZE) { UIntNative(MAX_BUF_SIZE) } else { UIntNative(remaining) }
 
-            let copied = splice(
-                Int32(srcFd), CPointer<Int64>(),
-                Int32(dstFd), CPointer<Int64>(),
-                chunkSize,
-                SPLICE_F_MOVE | SPLICE_F_MORE
-            )
+            let copied = unsafe {
+                splice(
+                    Int32(srcFd), CPointer<Int64>(),
+                    Int32(dstFd), CPointer<Int64>(),
+                    chunkSize,
+                    SPLICE_F_MOVE | SPLICE_F_MORE
+                )
+            }
 
             if (copied < 0) {
                 let errno = OS.errno()
@@ -315,7 +324,7 @@ public class StreamCopy {
                 if (errno == 11) {
                     continue
                 }
-                return CopyResult.error(
+                return CopyResult.createError(
                     SysError(UInt16(errno), SysTag.Splice),
                     CopyMethod.Splice
                 )
@@ -337,36 +346,32 @@ public class StreamCopy {
     public static func copyBuffered(srcFd: Int64, dstFd: Int64, options: CopyOptions): CopyResult {
         var totalCopied: Int64 = 0
         let bufSize = options.bufferSize
-        let maxCopy = if (options.maxBytes < 0) { Int64.MAX_VALUE } else { options.maxBytes }
-        let buf = Array<UInt8>(bufSize, item: UInt8(0))
-
+        let maxCopy = if (options.maxBytes < 0) { 9223372036854775807 } else { options.maxBytes }
         while (totalCopied < maxCopy) {
             let remaining = maxCopy - totalCopied
             let toRead = if (remaining < bufSize) { remaining } else { bufSize }
 
             // 读取源
-            var readBuf = Array<UInt8>(toRead, item: UInt8(0))
+            var readBuf = Array<UInt8>(toRead, { _ => UInt8(0) })
             match (SysFs.read(srcFd, readBuf)) {
                 case SysMaybe<Int64>.Err(err) =>
                     if (totalCopied > 0) {
                         return CopyResult(totalCopied, CopyMethod.Userspace)
                     }
-                    return CopyResult.error(err, CopyMethod.Userspace)
+                    return CopyResult.createError(err, CopyMethod.Userspace)
                 case SysMaybe<Int64>.Ok(bytesRead) =>
                     if (bytesRead == 0) {
                         break  // EOF
                     }
                     // 写入目标
-                    var writeBuf = Array<UInt8>()
-                    for (i in 0..bytesRead) {
-                        writeBuf.append(readBuf[i])
-                    }
+                    let sourceBuf = readBuf
+                    let writeBuf = Array<UInt8>(bytesRead, { i => sourceBuf[i] })
                     match (SysFs.write(dstFd, writeBuf)) {
                         case SysMaybe<Int64>.Err(err) =>
                             if (totalCopied > 0) {
                                 return CopyResult(totalCopied, CopyMethod.Userspace)
                             }
-                            return CopyResult.error(err, CopyMethod.Userspace)
+                            return CopyResult.createError(err, CopyMethod.Userspace)
                         case SysMaybe<Int64>.Ok(bytesWritten) =>
                             totalCopied += bytesWritten
                             if (bytesWritten < bytesRead) {
@@ -391,13 +396,13 @@ public class StreamCopy {
         // 打开源文件
         match (SysFs.openRead(srcPath)) {
             case SysMaybe<Int64>.Err(e) =>
-                return CopyResult.error(e, options.method)
+                return CopyResult.createError(e, options.method)
             case SysMaybe<Int64>.Ok(srcFd) =>
                 // 创建目标文件
                 match (SysFs.openWrite(dstPath)) {
                     case SysMaybe<Int64>.Err(e) =>
                         SysFs.close(srcFd)
-                        return CopyResult.error(e, options.method)
+                        return CopyResult.createError(e, options.method)
                     case SysMaybe<Int64>.Ok(dstFd) =>
                         // 执行拷贝
                         let result = copy(srcFd, dstFd, options)
@@ -419,7 +424,7 @@ public class StreamCopy {
             let fillResult = reader.fillFromFd()
             match (fillResult) {
                 case Err(e) =>
-                    return CopyResult.error(e, CopyMethod.Userspace)
+                    return CopyResult.createError(e, CopyMethod.Userspace)
                 case Ok(n) =>
                     if (n == 0) {
                         break
@@ -433,7 +438,7 @@ public class StreamCopy {
                                 if (!writeResult.isOk()) {
                                     match (writeResult.err) {
                                         case Some(e) =>
-                                            return CopyResult.error(e, CopyMethod.Userspace)
+                                            return CopyResult.createError(e, CopyMethod.Userspace)
                                         case None => ()
                                     }
                                 }

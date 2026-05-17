@@ -12,6 +12,7 @@ import bao_io.*
 import bao_hash.*
 import bao_path.*
 import bao_http.*
+import bao_sys.*
 
 // ============================================================================
 // 加载结果
@@ -145,13 +146,13 @@ public class IdMapValue {
     /// 特殊值: 表示链接
     /// 翻译自: package_id_is_link = std.math.maxInt(u32)
     public static func isLink(id: UInt32): Bool {
-        return id == UInt32.MAX
+        return id == UInt32(4294967295)
     }
 
     /// 特殊值: 表示打包
     /// 翻译自: package_id_is_bundled = std.math.maxInt(u32) - 1
     public static func isBundled(id: UInt32): Bool {
-        return id == UInt32.MAX - 1
+        return id == UInt32(4294967294)
     }
 }
 
@@ -233,20 +234,20 @@ public class LockfileMigrator {
         log: ArrayList<String>
     ): LoadResult {
         // 检查 package-lock.json
-        let npmLockPath = bao_path.PathModule.join(ArrayList<String>([dir, "package-lock.json"]))
-        if (bao_io.File.exists(npmLockPath)) {
+        let npmLockPath = Path.join([dir, "package-lock.json"])
+        if (BaoFile.exists(npmLockPath)) {
             return migrateNPMLockfile(npmLockPath, manager, log)
         }
 
         // 检查 yarn.lock
-        let yarnLockPath = bao_path.PathModule.join(ArrayList<String>([dir, "yarn.lock"]))
-        if (bao_io.File.exists(yarnLockPath)) {
+        let yarnLockPath = Path.join([dir, "yarn.lock"])
+        if (BaoFile.exists(yarnLockPath)) {
             return migrateYarnLockfile(yarnLockPath, manager, log)
         }
 
         // 检查 pnpm-lock.yaml
-        let pnpmLockPath = bao_path.PathModule.join(ArrayList<String>([dir, "pnpm-lock.yaml"]))
-        if (bao_io.File.exists(pnpmLockPath)) {
+        let pnpmLockPath = Path.join([dir, "pnpm-lock.yaml"])
+        if (BaoFile.exists(pnpmLockPath)) {
             return migratePnpmLockfile(pnpmLockPath, manager, log)
         }
 
@@ -268,73 +269,69 @@ public class LockfileMigrator {
         log: ArrayList<String>
     ): LoadResult {
         // 读取文件
-        let data = try {
-            bao_io.File.readTextFile(lockfilePath)
-        } catch (_: Exception) {
-            return LoadResult.Err(MigrationError(
-                step: MigrationStep.Reading,
-                errorMessage: "Failed to read package-lock.json",
-                lockfilePath: lockfilePath
-            ))
+        var data = ""
+        match (BaoFile.readAllText(lockfilePath)) {
+            case SysMaybe<String>.Ok(text) => data = text
+            case _ =>
+                return LoadResult.Err(MigrationError(
+                    MigrationStep.Reading,
+                    "Failed to read package-lock.json",
+                    lockfilePath
+                ))
         }
 
         // 解析 JSON
+        let jsonParser = JsonParser()
         let json = jsonParser.parse(data)
         match (json) {
-            case Some(root) => {
-                // 验证 lockfileVersion
-                match (JsonHelper.getField(root, "lockfileVersion")) {
-                    case Some(JsonValue.Number(v)) => {
-                        if (v < 2.0 || v > 3.0) {
-                            return LoadResult.Err(MigrationError(
-                                step: MigrationStep.Parsing,
-                                errorMessage: "Please upgrade package-lock.json to lockfileVersion 2 or 3",
-                                lockfilePath: lockfilePath
-                            ))
-                        }
-                    }
-                    case _ => {
-                        return LoadResult.Err(MigrationError(
-                            step: MigrationStep.Parsing,
-                            errorMessage: "Invalid or missing lockfileVersion in package-lock.json",
-                            lockfilePath: lockfilePath
-                        ))
-                    }
+            case Some(root) => validateLockfileJson(root, lockfilePath, log)
+            case None => return LoadResult.Err(MigrationError(
+                MigrationStep.Parsing,
+                "Invalid JSON in package-lock.json",
+                lockfilePath
+            ))
+        }
+    }
+
+    private func validateLockfileJson(root: JsonValue, lockfilePath: String, log: ArrayList<String>): LoadResult {
+        // 验证 lockfileVersion
+        match (JsonHelper.getField(root, "lockfileVersion")) {
+            case Some(JsonValue.Number(v)) =>
+                if (v < 2.0 || v > 3.0) {
+                    return LoadResult.Err(MigrationError(
+                        MigrationStep.Parsing,
+                        "Please upgrade package-lock.json to lockfileVersion 2 or 3",
+                        lockfilePath
+                    ))
                 }
-
-                // 检查 packages 字段
-                match (JsonHelper.getField(root, "packages")) {
-                    case Some(JsonValue.Object(packages)) => {
-                        if (packages.keys().size == 0) {
-                            return LoadResult.Err(MigrationError(
-                                step: MigrationStep.Parsing,
-                                errorMessage: "package-lock.json has no packages",
-                                lockfilePath: lockfilePath
-                            ))
-                        }
-
-                        // 解析包
-                        let entries = parseNPMPackages(packages, log)
-
-                        // 构建锁文件
-                        return LoadResult.OK(MigrationOK(source: MigrationSource.Npm))
-                    }
-                    case _ => {
-                        return LoadResult.Err(MigrationError(
-                            step: MigrationStep.Parsing,
-                            errorMessage: "Invalid or missing 'packages' in package-lock.json",
-                            lockfilePath: lockfilePath
-                        ))
-                    }
-                }
-            }
-            case None => {
+            case _ =>
                 return LoadResult.Err(MigrationError(
-                    step: MigrationStep.Parsing,
-                    errorMessage: "Failed to parse package-lock.json",
-                    lockfilePath: lockfilePath
+                    MigrationStep.Parsing,
+                    "Invalid or missing lockfileVersion in package-lock.json",
+                    lockfilePath
                 ))
-            }
+        }
+
+        // 检查 packages 字段
+        match (JsonHelper.getField(root, "packages")) {
+            case Some(JsonValue.Object(packages)) =>
+                if (packages.keys().size == 0) {
+                    return LoadResult.Err(MigrationError(
+                        MigrationStep.Parsing,
+                        "package-lock.json has no packages",
+                        lockfilePath
+                    ))
+                }
+                // 解析包
+                let entries = parseNPMPackages(packages, log)
+                // 构建锁文件
+                return LoadResult.OK(MigrationOK(MigrationSource.Npm))
+            case _ =>
+                return LoadResult.Err(MigrationError(
+                    MigrationStep.Parsing,
+                    "Invalid or missing 'packages' in package-lock.json",
+                    lockfilePath
+                ))
         }
     }
 
@@ -348,108 +345,95 @@ public class LockfileMigrator {
 
         for (pkgPath in packages.keys()) {
             match (packages.get(pkgPath)) {
-                case Some(JsonValue.Object(pkg)) => {
+                case Some(JsonValue.Object(pkg)) =>
                     // 跳过 link 包
                     match (pkg.get("link")) {
-                        case Some(_) => continue
+                        case Some(_) => ()
                         case None => ()
                     }
-
                     // 跳过 inBundle 包
                     match (pkg.get("inBundle")) {
-                        case Some(JsonValue.Bool(true)) => continue
+                        case Some(JsonValue.JsonBool(true)) => ()
                         case _ => ()
                     }
-
                     // 跳过 extraneous 包
                     match (pkg.get("extraneous")) {
-                        case Some(JsonValue.Bool(true)) => continue
+                        case Some(JsonValue.JsonBool(true)) => ()
                         case _ => ()
                     }
 
                     let name = packageNameFromPath(pkgPath)
-                    let version = match (JsonHelper.getString(pkg, "version")) {
+                    let version = match (JsonHelper.getString(JsonValue.Object(pkg), "version")) {
                         case Some(v) => v
                         case None => ""
                     }
-                    let resolved = match (JsonHelper.getString(pkg, "resolved")) {
+                    let resolved = match (JsonHelper.getString(JsonValue.Object(pkg), "resolved")) {
                         case Some(v) => v
                         case None => ""
                     }
-                    let integrity = match (JsonHelper.getString(pkg, "integrity")) {
+                    let integrity = match (JsonHelper.getString(JsonValue.Object(pkg), "integrity")) {
                         case Some(v) => v
                         case None => ""
                     }
 
                     let entry = NPMPackageEntry(
-                        path: pkgPath,
-                        name: name,
-                        version: version,
-                        resolved: resolved,
-                        integrity: integrity
+                        pkgPath,
+                        name,
+                        version,
+                        resolved,
+                        integrity
                     )
 
                     // 解析依赖
                     for (depKey in DependencyKeys.ALL) {
                         match (pkg.get(depKey)) {
-                            case Some(JsonValue.Object(deps)) => {
+                            case Some(JsonValue.Object(deps)) =>
                                 for (depName in deps.keys()) {
                                     match (deps.get(depName)) {
-                                        case Some(JsonValue.Str(depVer)) => {
-                                            entry.dependencies.put(depName, depVer)
-                                        }
+                                        case Some(JsonValue.Str(depVer))=> entry.dependencies.put(depName, depVer)
                                         case _ => ()
                                     }
                                 }
-                            }
                             case _ => ()
                         }
                     }
 
                     // 解析 bin
                     match (pkg.get("bin")) {
-                        case Some(JsonValue.Str(binPath)) => {
-                            entry.binFile = binPath
-                        }
-                        case Some(JsonValue.Object(binMap)) => {
+                        case Some(JsonValue.Str(binPath))=> entry.binFile = binPath
+                        case Some(JsonValue.Object(binMap)) =>
                             for (binName in binMap.keys()) {
                                 match (binMap.get(binName)) {
-                                    case Some(JsonValue.Str(binPath)) => {
-                                        entry.binMap.put(binName, binPath)
-                                    }
+                                    case Some(JsonValue.Str(bp))=> entry.binMap.put(binName, bp)
                                     case _ => ()
                                 }
                             }
-                        }
                         case _ => ()
                     }
 
                     // 解析 OS/CPU 限制
                     match (pkg.get("os")) {
-                        case Some(JsonValue.Array(osArr)) => {
+                        case Some(JsonValue.Array(osArr)) =>
                             for (item in osArr) {
                                 match (item) {
                                     case JsonValue.Str(s) => entry.osList.append(s)
                                     case _ => ()
                                 }
                             }
-                        }
                         case _ => ()
                     }
                     match (pkg.get("cpu")) {
-                        case Some(JsonValue.Array(cpuArr)) => {
+                        case Some(JsonValue.Array(cpuArr)) =>
                             for (item in cpuArr) {
                                 match (item) {
                                     case JsonValue.Str(s) => entry.cpuList.append(s)
                                     case _ => ()
                                 }
                             }
-                        }
                         case _ => ()
                     }
 
                     entries.append(entry)
-                }
                 case _ => ()
             }
         }
@@ -470,21 +454,23 @@ public class LockfileMigrator {
     ///       return pkg_path[pkg_name_start..];
     ///   }
     public static func packageNameFromPath(pkgPath: String): String {
-        if (pkgPath.length == 0) { return "" }
+        if (pkgPath.size == 0) { return "" }
 
         let nodeModulesSuffix = "/node_modules/"
-        let lastIdx = pkgPath.lastIndexOf(nodeModulesSuffix)
-        if (lastIdx >= 0) {
-            return pkgPath.substring(lastIdx + nodeModulesSuffix.length)
+        match (pkgPath.lastIndexOf(nodeModulesSuffix)) {
+            case Some(lastIdx) =>
+                return pkgPath[lastIdx + Int64(nodeModulesSuffix.size)..]
+            case None => ()
         }
 
         if (pkgPath.startsWith("node_modules/")) {
-            return pkgPath.substring("node_modules/".length)
+            return pkgPath[14..]
         }
 
-        let lastSlash = pkgPath.lastIndexOf("/")
-        if (lastSlash >= 0) {
-            return pkgPath.substring(lastSlash + 1)
+        match (pkgPath.lastIndexOf("/")) {
+            case Some(lastSlash) =>
+                return pkgPath[lastSlash + 1..]
+            case None => ()
         }
 
         return pkgPath
@@ -498,7 +484,7 @@ public class LockfileMigrator {
         log: ArrayList<String>
     ): LoadResult {
         // yarn.lock 迁移委托给 yarn.cj 中的迁移逻辑
-        return LoadResult.OK(MigrationOK(source: MigrationSource.Yarn))
+        return LoadResult.OK(MigrationOK(MigrationSource.Yarn))
     }
 
     /// 迁移 pnpm-lock.yaml
@@ -509,7 +495,7 @@ public class LockfileMigrator {
         log: ArrayList<String>
     ): LoadResult {
         // pnpm-lock.yaml 迁移委托给 pnpm.cj 中的迁移逻辑
-        return LoadResult.OK(MigrationOK(source: MigrationSource.Pnpm))
+        return LoadResult.OK(MigrationOK(MigrationSource.Pnpm))
     }
 }
 
@@ -560,3 +546,4 @@ public class NPMPackageEntry {
         cpuList = ArrayList<String>()
     }
 }
+

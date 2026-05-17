@@ -72,10 +72,10 @@ public func parseRegistryUrlString(str: String): NpmRegistry {
     let url = URL.parse(str)
     let registry = NpmRegistry()
 
-    if (url.username.isEmpty && !url.password.isEmpty) {
+    if (url.username.isEmpty() && !url.password.isEmpty()) {
         registry.token = url.password
         registry.url = url.hrefWithoutAuth()
-    } else if (!url.username.isEmpty && !url.password.isEmpty) {
+    } else if (!url.username.isEmpty() && !url.password.isEmpty()) {
         registry.username = url.username
         registry.password = url.password
         registry.url = url.hrefWithoutAuth()

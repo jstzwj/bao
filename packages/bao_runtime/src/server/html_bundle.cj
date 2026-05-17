@@ -140,13 +140,13 @@ public enum HTMLBundleRouteState {
                     case Some(t) =>
                         t.cancelled = true
                         t.deref()
-                    case None => {}
+                    case None => ()
                 }
             case Err(_) => {}
             case Html(let html) =>
                 match (html) {
                     case Some(h) => h.deref()
-                    case None => {}
+                    case None => ()
                 }
         }
     }
@@ -258,7 +258,7 @@ public class HTMLBundleRoute {
                         case Some(dev) =>
                             dev.respondForHTMLBundle(this, req, resp)
                             return
-                        case None => {}
+                        case None => ()
                     }
 
                     // 开发模式：每次请求重新打包
@@ -269,7 +269,7 @@ public class HTMLBundleRoute {
                         else => {}
                     }
                 }
-            case None => {}
+            case None => ()
         }
 
         // 根据状态分发
@@ -445,7 +445,7 @@ public class HTMLBundleRoute {
                         }
 
                         srv.reloadStaticRoutes()
-                    case None => {}
+                    case None => ()
                 }
             case .pending =>
                 // 不应该发生
@@ -492,7 +492,7 @@ public class HTMLBundleRoute {
                             if (srv.config.isDevelopment()) {
                                 // 开发模式下显示错误
                             }
-                        case None => {}
+                        case None => ()
                     }
                     resp.writeStatus("500 Build Failed")
                     resp.endWithoutBody(false)
@@ -526,7 +526,7 @@ public class HTMLBundleRoute {
 
         match (bundle) {
             case Some(b) => b.deref()
-            case None => {}
+            case None => ()
         }
 
         state.deinit()
@@ -571,7 +571,7 @@ public class PendingResponse {
                 // 从路由的待处理列表中移除
                 route.pendingResponses.remove(pending)
                 route.deref()
-            case None => {}
+            case None => ()
         }
     }
 }

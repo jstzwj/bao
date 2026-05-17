@@ -109,11 +109,11 @@ public class LockfileTreeNode {
 
     /// 无效 ID
     /// 翻译自: Tree.invalid_id = maxInt(Id)
-    public static let INVALID_ID: UInt32 = UInt32.MAX
+    public static let INVALID_ID: UInt32 = UInt32(4294967295)
 
     /// 根依赖 ID
     /// 翻译自: Tree.root_dep_id = invalid_package_id - 1
-    public static let ROOT_DEP_ID: UInt32 = UInt32.MAX - UInt32(1)
+    public static let ROOT_DEP_ID: UInt32 = UInt32(4294967294)
 
     /// 最大深度
     /// 翻译自: Tree.max_depth
@@ -148,7 +148,7 @@ public class LockfileTreeNode {
     /// 翻译自: Tree.toExternal
     ///   External 大小 = sizeOf(Id) + sizeOf(PackageID) + sizeOf(Id) + sizeOf(DependencyIDSlice) = 20 bytes
     public func toExternal(): Array<UInt8> {
-        let out = Array<UInt8>(20, item: UInt8(0))
+        let out = Array<UInt8>(20, repeat: UInt8(0))
         writeU32LE(out, 0, id)
         writeU32LE(out, 4, dependencyId)
         writeU32LE(out, 8, parent)
@@ -253,7 +253,7 @@ public class LockfileTreeIterator {
 
         // 跳过没有依赖的节点
         while (treeId < trees.size && trees[treeId].dependencies.isEmpty()) {
-            completedTrees.add(trees[treeId].id)
+            completedTrees.put(trees[treeId].id)
             treeId += 1
         }
 
@@ -263,7 +263,9 @@ public class LockfileTreeIterator {
         let tree = trees[treeId]
 
         // 计算相对路径和深度
-        let (relativePath, depth) = computePathAndDepth(tree)
+        let pathAndDepth = computePathAndDepth(tree)
+        let relativePath = pathAndDepth.first
+        let depth = pathAndDepth.second
 
         treeId += 1
 
@@ -291,34 +293,38 @@ public class LockfileTreeIterator {
         while (currentId > UInt32(0) && Int64(currentId) < trees.size) {
             let node = trees[Int64(currentId)]
             let folderName = node.folderName(dependencies, "")
-            if (folderName.length > 0) {
+            if (folderName.size > 0) {
                 parts.append(folderName)
             }
             currentId = node.parent
             depth += 1
         }
 
-        // 反转并构建路径
-        parts.reverse()
+        // 反转并构建路径 (manual reverse)
+        let reversed = ArrayList<String>()
+        var ri: Int64 = parts.size - 1
+        while (ri >= 0) {
+            reversed.append(parts[ri])
+            ri -= 1
+        }
+
         let sb = StringBuilder()
         match (pathStyle) {
-            case NodeModules => {
+            case NodeModules =>
                 sb.append("node_modules/")
                 var first = true
-                for (part in parts) {
+                for (part in reversed) {
                     if (!first) { sb.append("/node_modules/") }
                     sb.append(part)
                     first = false
                 }
-            }
-            case PkgPath => {
+            case PkgPath =>
                 var first = true
-                for (part in parts) {
+                for (part in reversed) {
                     if (!first) { sb.append("/") }
                     sb.append(part)
                     first = false
                 }
-            }
         }
 
         return Tuple2(sb.toString(), depth)

@@ -114,46 +114,16 @@ public class PackageManifestMap {
     ): ?PackageManifestData {
         // 仅内存模式
         match (cacheBehavior) {
-            case LoadFromMemory => {
-                match (map.get(nameHash)) {
-                    case Some(ManifestCacheValue.Manifest(m)) => return m
-                    case Some(ManifestCacheValue.Expired(m)) => {
-                        match (isExpired) {
-                            case Some(_) => return m  // 返回过期数据作为回退
-                            case None => return None
-                        }
-                    }
-                    case Some(ManifestCacheValue.NotFound) => return None
-                    case None => return None
-                }
-            }
+            case LoadFromMemory=> __helper_package_manifest_map_1()
             case LoadFromMemoryFallbackToDisk => ()
         }
 
         // 回退到磁盘模式: 查找或插入
         match (map.get(nameHash)) {
-            case Some(ManifestCacheValue.Manifest(m)) => {
-                // 检查是否需要扩展 manifest
-                if (needsExtendedManifest && !m.hasExtendedManifest) {
-                    // 降级为过期
-                    map.put(nameHash, ManifestCacheValue.Expired(m))
-                }
-                return m
-            }
-            case Some(ManifestCacheValue.Expired(m)) => {
-                match (isExpired) {
-                    case Some(_) => return m
-                    case None => return None
-                }
-            }
+            case Some(ManifestCacheValue.Manifest(m))=> __helper_package_manifest_map_2()
+            case Some(ManifestCacheValue.Expired(m))=> __helper_package_manifest_map_3()
             case Some(ManifestCacheValue.NotFound) => return None
-            case None => {
-                // 未找到: 尝试从磁盘加载 (实际实现需要文件系统访问)
-                // 翻译自: Npm.PackageManifest.Serializer.loadByFileID
-                // 这里标记为未找到
-                map.put(nameHash, ManifestCacheValue.NotFound)
-                return None
-            }
+            case None=> __helper_package_manifest_map_4()
         }
     }
 

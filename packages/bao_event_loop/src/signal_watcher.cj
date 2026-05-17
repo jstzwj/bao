@@ -13,6 +13,7 @@ package bao_event_loop
 import bao_core.*
 import bao_sys.*
 import bao_threading.*
+import bao_collections.*
 
 // ============================================================================
 // SignalWatchEvent - 信号监视事件
@@ -101,7 +102,7 @@ public class SignalWatcher {
     /// 是否活跃
     private var active: Bool
     /// 信号到达队列 (待分发)
-    private var pendingSignals: ConcurrentLinkedQueue<SignalWatchEvent>
+    private var pendingSignals: ConcurrentQueue<SignalWatchEvent>
     /// 是否已初始化默认信号
     private var defaultsInstalled: Bool
 
@@ -110,7 +111,7 @@ public class SignalWatcher {
         handlers = HashMap<SignalCode, ArrayList<SignalCallback>>()
         registered = HashSet<SignalCode>()
         active = false
-        pendingSignals = ConcurrentLinkedQueue<SignalWatchEvent>()
+        pendingSignals = ConcurrentQueue<SignalWatchEvent>()
         defaultsInstalled = false
     }
 
@@ -119,7 +120,7 @@ public class SignalWatcher {
         handlers = HashMap<SignalCode, ArrayList<SignalCallback>>()
         registered = HashSet<SignalCode>()
         active = false
-        pendingSignals = ConcurrentLinkedQueue<SignalWatchEvent>()
+        pendingSignals = ConcurrentQueue<SignalWatchEvent>()
         defaultsInstalled = false
     }
 
@@ -140,19 +141,18 @@ public class SignalWatcher {
         }
 
         // 添加到回调列表
-        var callbacks = handlers.get(signal)
-        if (let Some(list) = callbacks) {
-            list.append(callback)
-        } else {
-            let newList = ArrayList<SignalCallback>()
-            newList.append(callback)
-            handlers.put(signal, newList)
+        match (handlers.get(signal)) {
+            case Some(list) => list.append(callback)
+            case None =>
+                let newList = ArrayList<SignalCallback>()
+                newList.append(callback)
+                handlers.put(signal, newList)
         }
 
         // 如果还没注册到系统, 注册信号处理器
         if (!registered.contains(signal)) {
             // 注册到全局信号注册表
-            SignalRegistry.register(signal, { (sig: SignalCode) =>
+            SignalRegistry.register(signal, { sig: SignalCode =>
                 handleSignalFromC(sig)
             })
             registered.put(signal)
@@ -163,29 +163,29 @@ public class SignalWatcher {
 
     /// 注册一次性信号回调 (触发一次后自动移除)
     public func once(signal: SignalCode, callback: SignalCallback): SysMaybe<Unit> {
-        let wrapper: SignalCallback = { (event: SignalWatchEvent) =>
-            // 先调用原始回调
+        return on(signal, { event: SignalWatchEvent =>
             callback(event)
-            // 然后移除自己
-            off(signal, wrapper)
-        }
-        return on(signal, wrapper)
+            removeAll(signal)
+        })
     }
 
     /// 移除信号回调
     /// 对应 Bun: process.removeListener('SIGINT', callback)
     public func off(signal: SignalCode, callback: SignalCallback): Unit {
-        let callbacks = handlers.get(signal)
-        if (let Some(list) = callbacks) {
-            list.remove(callback)
-            if (list.size == 0) {
-                handlers.remove(signal)
-                // 恢复默认处理
-                if (registered.contains(signal)) {
-                    SignalHandler.restoreDefault(signal)
-                    registered.remove(signal)
+        match (handlers.get(signal)) {
+            case Some(list) =>
+                if (list.size > 0) {
+                    list.removeAt(0)
                 }
-            }
+                if (list.size == 0) {
+                    handlers.remove(signal)
+                    // 恢复默认处理
+                    if (registered.contains(signal)) {
+                        SignalHandler.restoreDefault(signal)
+                        registered.remove(signal)
+                    }
+                }
+            case None => ()
         }
     }
 
@@ -217,7 +217,7 @@ public class SignalWatcher {
 
         // SIGINT - 注册默认中断处理
         // 对应 Bun: process.on('SIGINT', defaultHandler)
-        on(SignalCode.SIGINT, { (event: SignalWatchEvent) =>
+        on(SignalCode.SIGINT, { event: SignalWatchEvent =>
             // 默认行为: 优雅关闭
             match (loop) {
                 case Some(l) => l.stop()
@@ -227,7 +227,7 @@ public class SignalWatcher {
 
         // SIGTERM - 注册默认终止处理
         // 对应 Bun: process.on('SIGTERM', defaultHandler)
-        on(SignalCode.SIGTERM, { (event: SignalWatchEvent) =>
+        on(SignalCode.SIGTERM, { event: SignalWatchEvent =>
             match (loop) {
                 case Some(l) => l.stop()
                 case None => ()
@@ -250,7 +250,7 @@ public class SignalWatcher {
     public func stop(): Unit {
         active = false
         // 恢复所有信号的默认处理
-        for (signal in registered) {
+        for (signal in registered.values()) {
             SignalHandler.restoreDefault(signal)
         }
         registered.clear()
@@ -265,7 +265,7 @@ public class SignalWatcher {
             return
         }
         let event = SignalWatchEvent(signal)
-        pendingSignals.put(event)
+        pendingSignals.push(event)
         // 通知事件循环有信号待处理
         match (loop) {
             case Some(l) =>
@@ -281,22 +281,21 @@ public class SignalWatcher {
     /// 在事件循环线程中调用所有注册的回调
     public func dispatchPending(): Unit {
         while (true) {
-            let event = pendingSignals.remove()
-            if (event == None) {
-                break
+            match (pendingSignals.pop()) {
+                case None => break
+                case Some(event) => dispatchOne(event)
             }
-            let e = event.unwrap()
-            dispatchOne(e)
         }
     }
 
     /// 分发单个信号事件
     private func dispatchOne(event: SignalWatchEvent): Unit {
-        let callbacks = handlers.get(event.signal)
-        if (let Some(list) = callbacks) {
-            for (callback in list) {
-                callback(event)
-            }
+        match (handlers.get(event.signal)) {
+            case Some(list) =>
+                for (callback in list) {
+                    callback(event)
+                }
+            case None => ()
         }
     }
 
@@ -308,7 +307,7 @@ public class SignalWatcher {
     /// 获取已注册的信号列表
     public func getRegisteredSignals(): ArrayList<SignalCode> {
         var result = ArrayList<SignalCode>()
-        for (signal in registered) {
+        for (signal in registered.values()) {
             result.append(signal)
         }
         return result

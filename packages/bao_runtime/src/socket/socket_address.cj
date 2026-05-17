@@ -28,7 +28,7 @@ public enum AddressFamily {
     /// 从字符串解析地址族
     /// 对应 Zig: AF.fromJS
     public static func fromString(value: String): ?AddressFamily {
-        let lower = value.toLower()
+        let lower = value.toRuneArray().map({ r => r.toAsciiLowerCase() })
         if (lower == "ipv4") {
             return AddressFamily.IPv4
         }

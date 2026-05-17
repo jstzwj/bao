@@ -10,6 +10,8 @@
 //   detachModuleFolderFromSharedStore: 从共享存储分离模块文件夹
 package bao_install.package_manager
 
+import bao_install.*
+
 import bao_core.*
 import bao_collections.*
 import bao_io.*
@@ -85,6 +87,22 @@ public class PackageInfoForPatch {
 /// 翻译自: src/install/PackageManager/patchPackage.zig
 public class PatchPackage {
 
+    /// 构建补丁提交结果
+    private static func buildPatchResult(
+        manager: PackageManagerRef,
+        patchfilePath: String,
+        info: PackageInfoForPatch,
+        hash: UInt64
+    ): ?PatchCommitResult {
+        let patchRelativePath = Path.relative(manager.cwd, patchfilePath)
+        return PatchCommitResult(
+            patchfilePath: patchRelativePath,
+            packageName: info.name,
+            packageVersion: info.version,
+            patchfileHash: hash
+        )
+    }
+
     /// 执行补丁提交
     /// 严格翻译自: doPatchCommit
     ///   pub fn doPatchCommit(manager, ctx, patch_dir, patches_dir) !PatchCommitResult
@@ -119,21 +137,8 @@ public class PatchPackage {
         )
 
         match (diffResult) {
-            case Some(hash) => {
-                // 4. 更新 package.json 中的 patchedDependencies
-                let patchRelativePath = Path.relative(
-                    manager.cwd,
-                    patchfilePath
-                )
-
-                return PatchCommitResult(
-                    patchfilePath: patchRelativePath,
-                    packageName: info.name,
-                    packageVersion: info.version,
-                    patchfileHash: hash
-                )
-            }
-            case None => return None
+            case Some(hash) => buildPatchResult(manager, patchfilePath, info, hash)
+            case None => None
         }
     }
 
@@ -250,6 +255,12 @@ public class PatchPackage {
         return Path.join(cacheDir, "${pkgInfo.name}@${pkgInfo.version}")
     }
 
+    /// write patch file and compute hash
+    private static func writePatchAndHash(patchfilePath: String, output: String): ?UInt64 {
+        bao_io.File.writeTextFile(patchfilePath, output)
+        return SemverStringBuilder.stringHashStr(output)
+    }
+
     /// 生成补丁文件
     private static func generatePatch(
         originalDir: String,
@@ -266,13 +277,8 @@ public class PatchPackage {
             )
 
             match (result) {
-                case Some(output) => {
-                    // 写入补丁文件
-                    bao_io.File.writeTextFile(patchfilePath, output)
-                    // 计算哈希
-                    return SemverStringBuilder.stringHashStr(output)
-                }
-                case None => return None
+                case Some(output) => writePatchAndHash(patchfilePath, output)
+                case None => None
             }
         } catch (_: Exception) {
             return None

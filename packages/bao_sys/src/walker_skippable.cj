@@ -6,6 +6,7 @@
 package bao_sys
 
 import bao_core.*
+import bao_collections.*
 
 // ============================================================================
 // WalkerEntry - 遍历条目
@@ -37,17 +38,26 @@ public class WalkerEntry {
 
     /// 是否为目录
     public func isDirectory(): Bool {
-        return kind == DirEntryType.Directory
+        match (kind) {
+            case Directory => true
+            case _ => false
+        }
     }
 
     /// 是否为普通文件
     public func isFile(): Bool {
-        return kind == DirEntryType.File
+        match (kind) {
+            case File => true
+            case _ => false
+        }
     }
 
     /// 是否为符号链接
     public func isSymlink(): Bool {
-        return kind == DirEntryType.Symlink
+        match (kind) {
+            case Symlink => true
+            case _ => false
+        }
     }
 }
 
@@ -58,15 +68,15 @@ public class WalkerEntry {
 // ============================================================================
 
 /// 遍历器栈项 - 对应 Bun StackItem (内部使用)
-class WalkerStackItem {
+public class WalkerStackItem {
     /// 目录遍历器
-    var iterator: DirIterator
+    public var iterator: DirIterator
     /// 目录路径长度
-    var dirnameLen: Int64
+    public var dirnameLen: Int64
     /// 目录 FD
-    var dirFd: Int64
+    public var dirFd: Int64
 
-    init(iterator: DirIterator, dirnameLen: Int64, dirFd: Int64) {
+    public init(iterator: DirIterator, dirnameLen: Int64, dirFd: Int64) {
         this.iterator = iterator
         this.dirnameLen = dirnameLen
         this.dirFd = dirFd
@@ -91,21 +101,21 @@ class WalkerStackItem {
 /// 递归遍历目录，支持跳过指定文件名和目录名
 public class Walker {
     /// 遍历栈 - 对应 Bun stack
-    private var stack: ArrayList<WalkerStackItem>
+    public var stack: ArrayList<WalkerStackItem>
     /// 跳过的文件名哈希范围 - 对应 Bun skip_filenames
-    private var skipFilenamesStart: Int64
-    private var skipFilenamesEnd: Int64
+    public var skipFilenamesStart: Int64
+    public var skipFilenamesEnd: Int64
     /// 跳过的目录名哈希范围 - 对应 Bun skip_dirnames
-    private var skipDirnamesStart: Int64
-    private var skipDirnamesEnd: Int64
+    public var skipDirnamesStart: Int64
+    public var skipDirnamesEnd: Int64
     /// 所有跳过名称的哈希 - 对应 Bun skip_all
-    private var skipAll: Array<UInt64>
+    public var skipAll: Array<UInt64>
     /// 哈希种子 - 对应 Bun seed
-    private var seed: UInt64
+    public var seed: UInt64
     /// 是否解析未知条目类型 - 对应 Bun resolve_unknown_entry_types
     public var resolveUnknownEntryTypes: Bool
 
-    private init() {
+    public init() {
         stack = ArrayList<WalkerStackItem>()
         skipFilenamesStart = 0
         skipFilenamesEnd = 0
@@ -137,14 +147,12 @@ public class Walker {
                     var entryKind = e.entryType
 
                     // 可选: 解析未知类型
-                    if (entryKind == DirEntryType.Unknown && resolveUnknownEntryTypes) {
-                        // 尝试 lstat 获取准确类型
-                        let fullPath = if (stack.size == 1) {
-                            e.name
-                        } else {
-                            Path.join(["", e.name])  // 相对路径
-                        }
-                        // 简化: 保留 Unknown
+                    match (entryKind) {
+                        case Unknown =>
+                            if (resolveUnknownEntryTypes) {
+                                // 简化: 保留 Unknown
+                            }
+                        case _ => ()
                     }
 
                     // 检查是否需要跳过
@@ -163,22 +171,23 @@ public class Walker {
                     let fullPath = currentPath.toString()
 
                     // 如果是目录，推入栈
-                    if (entryKind == DirEntryType.Directory) {
-                        let openResult = DirIterator.open(e.name)
-                        match (openResult) {
-                            case Ok(iter) =>
-                                stack.append(WalkerStackItem(
-                                    iter, Int64(currentPath.toString().size), top.dirFd
-                                ))
-                            case Err(err) =>
-                                return SysMaybe<?WalkerEntry>.Err(err)
-                        }
+                    match (entryKind) {
+                        case Directory =>
+                            let openResult = DirIterator.open(e.name)
+                            match (openResult) {
+                                case Ok(iter) =>
+                                    stack.append(WalkerStackItem(
+                                        iter, Int64(currentPath.toString().size), top.dirFd
+                                    ))
+                                case Err(err) =>
+                                    return SysMaybe<?WalkerEntry>.Err(err)
+                            }
+                        case _ => ()
                     }
 
-                    let dirFd = if (entryKind == DirEntryType.Directory) {
-                        stack[stack.size - 1].dirFd
-                    } else {
-                        top.dirFd
+                    let dirFd = match (entryKind) {
+                        case Directory => stack[stack.size - 1].dirFd
+                        case _ => top.dirFd
                     }
 
                     return SysMaybe<?WalkerEntry>.Ok(
@@ -186,7 +195,7 @@ public class Walker {
                     )
             }
         }
-        return SysMaybe<?WalkerEntry>.Ok(None)
+        return SysMaybe<?WalkerEntry>.Ok(Option<WalkerEntry>.None)
     }
 
     /// 是否应跳过 - 内部使用
@@ -219,14 +228,14 @@ public class Walker {
     }
 
     /// 哈希名称 - 对应 Bun hash_with_seed
-    private func hashName(name: String): UInt64 {
+    public func hashName(name: String): UInt64 {
         // 简化的 FNV-1a 哈希
         var hash: UInt64 = seed
         if (seed == 0) {
-            hash = UInt64(14695981039346656037)
+            hash = UInt64(1469598103934665607)
         }
         for (i in 0..name.size) {
-            hash = hash ^ UInt64(Int64(name[Int64(i)].value))
+            hash = hash ^ UInt64(Int64(name[Int64(i)]))
             hash = hash * UInt64(1099511628211)
         }
         return hash
@@ -282,7 +291,7 @@ public func walkSkippable(startFd: Int64,
     for (name in skipDirnames) {
         skipAll.append(walker.hashName(name))
     }
-    walker.skipAll = skipAll.toArray()
+    walker.skipAll = skipAll.toOwnedSlice()
 
     // 打开根目录迭代器
     // 注意: 假设 startFd 已经是一个打开的目录 FD

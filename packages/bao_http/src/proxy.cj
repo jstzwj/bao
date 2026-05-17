@@ -8,6 +8,8 @@ package bao_http
 
 import bao_core.*
 import bao_collections.*
+import bao_io.*
+import bao_sys.*
 
 // ============================================================================
 // ProxyHeaders - 代理相关头部
@@ -60,7 +62,7 @@ public class ProxyHeaders {
     /// 对应 Bun AsyncHTTP 中 proxy basic auth 处理
     public static func setProxyAuth(headers: Headers, username: String, password: String): Unit {
         let credentials = "${username}:${password}"
-        let encoded = base64Encode(stringToBytes(credentials))
+        let encoded = base64Encode(proxyStringToBytes(credentials))
         headers.set("Proxy-Authorization", "Basic ${encoded}")
     }
 
@@ -69,14 +71,14 @@ public class ProxyHeaders {
     public static func extractClientIp(headers: Headers, remoteAddr: String): String {
         let forwarded = headers.get("x-forwarded-for")
         match (forwarded) {
-            case Some(v) => {
+            case Some(v) =>
                 // X-Forwarded-For 可能包含多个 IP, 取第一个
-                let commaIdx = v.indexOf(",")
-                if (commaIdx >= 0) {
-                    return v.substring(0, commaIdx).trim()
+                let commaIdxOpt = v.indexOf(",")
+                if (commaIdxOpt.isSome()) {
+                    let commaIdx = commaIdxOpt.getOrThrow()
+                    return proxyTrim(v[0..commaIdx])
                 }
-                return v.trim()
-            }
+                return proxyTrim(v)
             case None => remoteAddr
         }
     }
@@ -84,7 +86,10 @@ public class ProxyHeaders {
     /// 从请求中提取原始协议
     public static func extractOriginalProto(headers: Headers): String {
         let proto = headers.get("x-forwarded-proto")
-        return proto.getOrElse { "http" }
+        if (proto.isSome()) {
+            return proto.getOrThrow()
+        }
+        return "http"
     }
 
     /// 检查是否通过代理到达
@@ -221,13 +226,13 @@ public class HttpProxy {
         // 连接到代理服务器
         let proxyFd = tcpConnectToProxy(proxyHost, proxyPort)
         match (proxyFd) {
-            case Some(fd) => {
+            case Some(fd) =>
                 // 构建 CONNECT 请求
                 // 对应 ProxyTunnel: CONNECT host:port HTTP/1.1
                 let connectRequest = buildConnectRequest(targetHost, targetPort)
 
                 // 发送 CONNECT 请求
-                let writeResult = writeRaw(fd, stringToBytes(connectRequest))
+                let writeResult = proxyWriteRaw(fd, proxyStringToBytes(connectRequest))
                 if (writeResult < 0) {
                     SysFs.close(fd)
                     return None
@@ -236,7 +241,7 @@ public class HttpProxy {
                 // 读取代理响应 (应为 200 Connection Established)
                 let response = readProxyResponse(fd)
                 match (response) {
-                    case Some(resp) => {
+                    case Some(resp) =>
                         if (resp.statusCode == 200) {
                             // 隧道建立成功
                             // 后续在此 FD 上进行 TLS 握手
@@ -245,13 +250,10 @@ public class HttpProxy {
                         // 代理拒绝 CONNECT
                         SysFs.close(fd)
                         return None
-                    }
-                    case None => {
+                    case None =>
                         SysFs.close(fd)
                         return None
-                    }
                 }
-            }
             case None => return None
         }
     }
@@ -270,7 +272,7 @@ public class HttpProxy {
         // 代理认证
         if (config.needsAuth()) {
             let credentials = "${config.username}:${config.password}"
-            let encoded = base64Encode(stringToBytes(credentials))
+            let encoded = base64Encode(proxyStringToBytes(credentials))
             sb.append("Proxy-Authorization: Basic ${encoded}\r\n")
         }
 
@@ -306,10 +308,10 @@ public class HttpProxy {
         // 连接到代理
         let proxyFd = tcpConnectToProxy(config.getHostname(), config.getPort())
         match (proxyFd) {
-            case Some(fd) => {
+            case Some(fd) =>
                 // 构建代理请求 (使用完整 URL)
                 let proxyRequest = buildProxyRequest(request)
-                let writeResult = writeRaw(fd, stringToBytes(proxyRequest))
+                let writeResult = proxyWriteRaw(fd, proxyStringToBytes(proxyRequest))
                 if (writeResult < 0) {
                     SysFs.close(fd)
                     return None
@@ -318,7 +320,7 @@ public class HttpProxy {
                 // 读取代理响应
                 let response = readProxyResponse(fd)
                 match (response) {
-                    case Some(parsed) => {
+                    case Some(parsed) =>
                         let resp = Response(parsed.statusCode)
                         resp.statusText = parsed.statusText
                         for (h in parsed.headers) {
@@ -329,13 +331,10 @@ public class HttpProxy {
                         }
                         SysFs.close(fd)
                         return resp
-                    }
-                    case None => {
+                    case None =>
                         SysFs.close(fd)
                         return None
-                    }
                 }
-            }
             case None => return None
         }
     }
@@ -376,15 +375,15 @@ public class HttpProxy {
         }
 
         // Body
-        match (request.body) {
-            case Some(body) => {
-                if (!request.headers.has("content-length")) {
-                    sb.append("Content-Length: ${body.size}\r\n")
-                }
-                sb.append("\r\n")
-                sb.append(bytesToString(body))
+        if (request.body.isSome()) {
+            let body = request.body.getOrThrow()
+            if (!request.headers.has("content-length")) {
+                sb.append("Content-Length: ${body.size}\r\n")
             }
-            case None => sb.append("\r\n")
+            sb.append("\r\n")
+            sb.append(proxyBytesToString(body))
+        } else {
+            sb.append("\r\n")
         }
 
         return sb.toString()
@@ -403,23 +402,22 @@ public class HttpProxy {
 
     /// 读取代理响应
     private func readProxyResponse(fd: Int64): ?ParsedResponse {
-        var allData = Array<UInt8>()
-        let buf = Array<UInt8>(4096, item: UInt8(0))
+        var allData = ArrayList<UInt8>()
+        let buf = Array<UInt8>(4096, { _ => UInt8(0) })
 
         var headerComplete = false
         while (!headerComplete) {
             let result = SysFs.read(fd, buf)
             match (result) {
-                case Ok(n) => {
+                case Ok(n) =>
                     if (n == 0) { break }
                     for (i in 0..n) {
                         allData.append(buf[i])
                     }
                     // 检查头部结束
-                    if (containsHeaderEnd(allData)) {
+                    if (containsHeaderEnd(allData.toOwnedSlice())) {
                         headerComplete = true
                     }
-                }
                 case Err(_) => break
             }
         }
@@ -428,7 +426,7 @@ public class HttpProxy {
             return None
         }
 
-        return HttpResponseParser.parse(allData)
+        return HttpResponseParser.parse(allData.toOwnedSlice())
     }
 
     /// 获取配置
@@ -620,7 +618,7 @@ public class ReverseProxy {
     /// 最少连接选择
     private func selectLeastConn(upstreams: ArrayList<UpstreamServer>): ?UpstreamServer {
         var best: ?UpstreamServer = None
-        var minConn: Int64 = Int64.MAX
+        var minConn: Int64 = 9223372036854775807
         for (upstream in upstreams) {
             // 简化: 使用连接池状态作为活跃连接数
             // 实际应追踪每个上游的活跃请求数
@@ -637,7 +635,7 @@ public class ReverseProxy {
     private func selectWeightedRoundRobin(upstreams: ArrayList<UpstreamServer>): UpstreamServer {
         var totalWeight: Int64 = 0
         var bestIdx: Int64 = -1
-        var bestWeight: Int64 = Int64.MIN
+        var bestWeight: Int64 = -9223372036854775808
 
         for (i in 0..upstreams.size) {
             let upstream = upstreams[i]
@@ -685,37 +683,33 @@ public class ReverseProxy {
         // 选择上游
         let upstream = selectUpstream()
         match (upstream) {
-            case Some(server) => {
+            case Some(server) =>
+                var upstreamServer = server
                 var retries: Int64 = 0
                 var lastError: ?String = None
 
                 while (retries <= maxRetries) {
-                    let result = tryProxy(request, server, clientIp)
+                    let result = tryProxy(request, upstreamServer, clientIp)
                     match (result) {
-                        case Some(response) => {
-                            // 检查上游是否仍然健康
+                        case Some(response) =>
                             if (response.status >= 500) {
-                                server.markUnhealthy()
+                                upstreamServer.markUnhealthy()
                             }
                             return response
-                        }
-                        case None => {
+                        case None =>
                             retries += 1
-                            lastError = Some("Upstream ${server.host}:${server.port} failed")
+                            lastError = Some("Upstream ${upstreamServer.host}:${upstreamServer.port} failed")
                             if (retries <= maxRetries) {
-                                // 重试: 尝试选择另一个上游
                                 let nextUpstream = selectUpstream()
                                 match (nextUpstream) {
-                                    case Some(next) => server = next
+                                    case Some(next) => upstreamServer = next
                                     case None => break
                                 }
                             }
-                        }
                     }
                 }
 
                 return None
-            }
             case None => return None
         }
     }
@@ -724,7 +718,7 @@ public class ReverseProxy {
     private func tryProxy(request: Request, upstream: UpstreamServer,
                            clientIp: String): ?Response {
         // 构建上游请求
-        let upstreamUrl = "${upstream.baseUrl()}${request.path()}"
+        var upstreamUrl = "${upstream.baseUrl()}${request.path()}"
         if (request.search().size > 0) {
             upstreamUrl = "${upstreamUrl}?${request.search()}"
         }
@@ -755,9 +749,8 @@ public class ReverseProxy {
         upstreamRequest.headers.set("Host", "${upstream.host}:${upstream.port}")
 
         // 复制 body
-        match (request.body) {
-            case Some(body) => upstreamRequest.body = Some(body)
-            case None => ()
+        if (request.body.isSome()) {
+            upstreamRequest.body = Some(request.body.getOrThrow())
         }
 
         // 发送到上游
@@ -777,10 +770,7 @@ public class ReverseProxy {
             let url = "${upstream.baseUrl()}/"
             let response = HttpClient.fetch(url)
             match (response) {
-                case _ => {
-                    // 如果有响应就标记为健康
-                    upstream.markHealthy()
-                }
+                case _ => upstream.markHealthy()
             }
         }
     }
@@ -809,13 +799,13 @@ private func base64Encode(data: Array<UInt8>): String {
     var i = 0
     while (i < data.size) {
         let b0 = Int32(data[i])
-        let b1 = if (i + 1 < data.size) { Int32(data[i + 1]) } else { 0 }
-        let b2 = if (i + 2 < data.size) { Int32(data[i + 2]) } else { 0 }
+        let b1 = if (i + 1 < data.size) { Int32(data[i + 1]) } else { Int32(0) }
+        let b2 = if (i + 2 < data.size) { Int32(data[i + 2]) } else { Int32(0) }
         let triplet = (b0 << 16) | (b1 << 8) | b2
         sb.append(chars[Int64((triplet >> 18) & 0x3F)])
         sb.append(chars[Int64((triplet >> 12) & 0x3F)])
-        sb.append(if (i + 1 < data.size) { chars[Int64((triplet >> 6) & 0x3F)] } else { '=' })
-        sb.append(if (i + 2 < data.size) { chars[Int64(triplet & 0x3F)] } else { '=' })
+        sb.append(if (i + 1 < data.size) { chars[Int64((triplet >> 6) & 0x3F)] } else { UInt8(61) })
+        sb.append(if (i + 2 < data.size) { chars[Int64(triplet & 0x3F)] } else { UInt8(61) })
         i += 3
     }
     return sb.toString()
@@ -836,32 +826,52 @@ private func containsHeaderEnd(data: Array<UInt8>): Bool {
 /// 获取当前时间戳 (毫秒)
 private func currentTimeMillis(): Int64 {
     unsafe {
-        var ts = Array<Int64>(2, item: 0)
-        clock_gettime(0, ts.toArray().unsafePtr())
-        return ts[0] * 1000 + ts[1] / 1000000
+        let tsBuf = malloc(UIntNative(16))
+        let tsPtr = CPointer<Int64>(tsBuf)
+        proxy_clock_gettime(0, tsPtr)
+        let seconds = tsPtr.read()
+        let nanos = (tsPtr + 1).read()
+        free(tsBuf)
+        return seconds * 1000 + nanos / 1000000
     }
 }
 
+private func proxyTrim(s: String): String {
+    var start: Int64 = 0
+    var end = s.size
+    while (start < end && proxyIsAsciiWhitespace(s[start])) {
+        start += 1
+    }
+    while (end > start && proxyIsAsciiWhitespace(s[end - 1])) {
+        end -= 1
+    }
+    return s[start..end]
+}
+
+private func proxyIsAsciiWhitespace(c: UInt8): Bool {
+    return c == UInt8(32) || c == UInt8(9) || c == UInt8(10) || c == UInt8(13)
+}
+
 /// 字节数组转字符串
-private func bytesToString(bytes: Array<UInt8>): String {
+private func proxyBytesToString(bytes: Array<UInt8>): String {
     let sb = StringBuilder()
     for (b in bytes) {
-        sb.append(Char(Int32(b)))
+        sb.append(Rune(UInt32(b)))
     }
     return sb.toString()
 }
 
 /// 字符串转字节数组
-private func stringToBytes(s: String): Array<UInt8> {
-    let bytes = Array<UInt8>()
+private func proxyStringToBytes(s: String): Array<UInt8> {
+    let bytes = ArrayList<UInt8>()
     for (c in s) {
-        bytes.append(UInt8(c.value & 0xFF))
+        bytes.append(c)
     }
-    return bytes
+    return bytes.toOwnedSlice()
 }
 
 /// 原始写入
-private func writeRaw(fd: Int64, data: Array<UInt8>): Int64 {
+private func proxyWriteRaw(fd: Int64, data: Array<UInt8>): Int64 {
     let result = SysFs.write(fd, data)
     match (result) {
         case Ok(n) => n
@@ -869,6 +879,6 @@ private func writeRaw(fd: Int64, data: Array<UInt8>): Int64 {
     }
 }
 
-/// C FFI: clock_gettime
+/// C FFI: proxy_clock_gettime
 @C
-foreign func clock_gettime(clockid: Int32, tp: CPointer<Int64>): Int32
+foreign func proxy_clock_gettime(clockid: Int32, tp: CPointer<Int64>): Int32

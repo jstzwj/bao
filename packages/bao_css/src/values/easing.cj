@@ -83,19 +83,19 @@ public class CssSteps {
 // 严格翻译自: values/easing.rs EasingFunction enum
 // ============================================================================
 
+public enum CssEasingFunctionKind {
+    | Linear
+    | Ease
+    | EaseIn
+    | EaseOut
+    | EaseInOut
+    | CubicBezier
+    | Steps
+}
+
 /// CSS <easing-function>
 /// 严格翻译自 EasingFunction enum { Linear, Ease, EaseIn, EaseOut, EaseInOut, CubicBezier, Steps }
 public class CssEasingFunction {
-    public enum CssEasingFunctionKind {
-        | Linear
-        | Ease         // 等效于 cubic-bezier(0.25, 0.1, 0.25, 1)
-        | EaseIn       // 等效于 cubic-bezier(0.42, 0, 1, 1)
-        | EaseOut      // 等效于 cubic-bezier(0, 0, 0.58, 1)
-        | EaseInOut    // 等效于 cubic-bezier(0.42, 0, 0.58, 1)
-        | CubicBezier
-        | Steps
-    }
-
     public var kind: CssEasingFunctionKind
     /// 三次贝塞尔参数
     public var cubicBezier: ?CssCubicBezier
@@ -123,7 +123,10 @@ public class CssEasingFunction {
     /// 是否等效于 ease
     /// 严格翻译自 EasingFunction.is_ease
     public func isEase(): Bool {
-        if (kind == CssEasingFunctionKind.Ease) { return true }
+        match (kind) {
+            case Ease => return true
+            case _ => ()
+        }
         match (cubicBezier) {
             case Some(cb) => cb.eql(CssCubicBezier(0.25, 0.1, 0.25, 1.0))
             case None => false
@@ -139,36 +142,37 @@ public class CssEasingFunction {
             case EaseIn => "ease-in"
             case EaseOut => "ease-out"
             case EaseInOut => "ease-in-out"
-            case CubicBezier => {
+            case CubicBezier =>
                 match (cubicBezier) {
-                    case Some(cb) => {
+                    case Some(cb) =>
                         // 检查是否匹配预设值
                         if (cb.eql(CssCubicBezier(0.25, 0.1, 0.25, 1.0))) { return "ease" }
                         if (cb.eql(CssCubicBezier(0.42, 0.0, 1.0, 1.0))) { return "ease-in" }
                         if (cb.eql(CssCubicBezier(0.0, 0.0, 0.58, 1.0))) { return "ease-out" }
                         if (cb.eql(CssCubicBezier(0.42, 0.0, 0.58, 1.0))) { return "ease-in-out" }
                         "cubic-bezier(${cb.x1}, ${cb.y1}, ${cb.x2}, ${cb.y2})"
-                    }
                     case None => "cubic-bezier(0, 0, 1, 1)"
                 }
-            }
-            case Steps => {
+            case Steps =>
                 match (steps) {
-                    case Some(s) => {
-                        if (s.count == 1 && s.position == CssStepPosition.Start) { return "step-start" }
-                        if (s.count == 1 && s.position == CssStepPosition.End) { return "step-end" }
+                    case Some(s) =>
+                        if (s.count == 1) {
+                            match (s.position) {
+                                case CssStepPosition.Start => return "step-start"
+                                case CssStepPosition.End => return "step-end"
+                                case _ => ()
+                            }
+                        }
                         "steps(${s.count}, ${s.position.toCss()})"
-                    }
                     case None => "steps(1, end)"
                 }
-            }
         }
     }
 
     /// 是否为有效的缓动函数名
     /// 严格翻译自 EasingFunction.is_ident
     public static func isIdent(s: String): Bool {
-        let lower = s.toLower()
+        let lower = s
         lower == "linear" || lower == "ease" || lower == "ease-in" || lower == "ease-out" || lower == "ease-in-out" || lower == "step-start" || lower == "step-end"
     }
 

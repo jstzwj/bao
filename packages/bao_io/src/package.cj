@@ -10,6 +10,7 @@ package bao_io
 
 import bao_core.*
 import bao_sys.*
+import bao_collections.*
 
 // ============================================================================
 // MaxBuf - 最大缓冲区大小
@@ -50,6 +51,18 @@ public enum ReadState {
             case Eof => false
             case Error => false
         }
+    }
+
+    public operator func ==(right: ReadState): Bool {
+        match (this) {
+            case ReadyForData => match (right) { case ReadyForData => true case _ => false }
+            case Eof => match (right) { case Eof => true case _ => false }
+            case Error => match (right) { case Error => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: ReadState): Bool {
+        return !(this == right)
     }
 }
 
@@ -120,7 +133,10 @@ public class WriteResult {
     }
 
     public func isOk(): Bool {
-        return err == None
+        match (err) {
+            case None => true
+            case Some(_) => false
+        }
     }
 }
 
@@ -254,7 +270,7 @@ public class BaoFile {
                     case SysMaybe<Int64>.Err(err) =>
                         return SysMaybe<Array<UInt8>>.Err(err)
                     case SysMaybe<Int64>.Ok(fd) =>
-                        var result = Array<UInt8>(fileSize, item: UInt8(0))
+                        var result = Array<UInt8>(fileSize, { _ => UInt8(0) })
                         var offset: Int64 = 0
                         while (offset < fileSize) {
                             let toRead = if (fileSize - offset > MAX_BUF_SIZE) {
@@ -262,7 +278,7 @@ public class BaoFile {
                             } else {
                                 fileSize - offset
                             }
-                            let chunk = Array<UInt8>(toRead, item: UInt8(0))
+                            let chunk = Array<UInt8>(toRead, { _ => UInt8(0) })
                             match (SysFs.read(fd, chunk)) {
                                 case SysMaybe<Int64>.Err(err) =>
                                     SysFs.close(fd)
@@ -290,7 +306,7 @@ public class BaoFile {
             case SysMaybe<Array<UInt8>>.Ok(bytes) =>
                 var sb = StringBuilder()
                 for (b in bytes) {
-                    sb.append(Char(Int32(b)))
+                    sb.append(Rune(Int32(b)))
                 }
                 return SysMaybe<String>.Ok(sb.toString())
             case SysMaybe<Array<UInt8>>.Err(err) =>
@@ -312,7 +328,7 @@ public class BaoFile {
                     } else {
                         data.size - offset
                     }
-                    var chunk = Array<UInt8>(toWrite, item: UInt8(0))
+                    var chunk = Array<UInt8>(toWrite, { _ => UInt8(0) })
                     for (i in 0..toWrite) {
                         chunk[i] = data[offset + i]
                     }
@@ -331,11 +347,7 @@ public class BaoFile {
 
     /// 写入字符串到文件
     public static func writeAllText(path: String, text: String): SysMaybe<Unit> {
-        var bytes = Array<UInt8>()
-        for (c in text) {
-            bytes.append(UInt8(c.value))
-        }
-        return writeAllBytes(path, bytes)
+        return writeAllBytes(path, text.toArray())
     }
 
     /// 关闭文件
@@ -355,6 +367,53 @@ public class BaoFile {
     /// 获取文件描述符
     public func getFd(): Int64 {
         return fd
+    }
+
+    /// 检查文件是否存在
+    public static func exists(path: String): Bool {
+        return SysFs.exists(path)
+    }
+
+    /// 删除文件
+    public static func remove(path: String): Bool {
+        match (SysFs.unlink(path)) {
+            case SysMaybe<Unit>.Ok(_) => return true
+            case SysMaybe<Unit>.Err(_) => return false
+        }
+    }
+
+    /// 创建符号链接
+    public static func createSymlink(target: String, linkPath: String): Bool {
+        match (SysFs.symlink(target, linkPath)) {
+            case SysMaybe<Unit>.Ok(_) => return true
+            case SysMaybe<Unit>.Err(_) => return false
+        }
+    }
+
+    /// 创建目录
+    public static func mkdir(path: String, recursive: Bool): Bool {
+        match (SysFs.mkdir(path, UInt32(0x1FF))) {  // 0777
+            case SysMaybe<Unit>.Ok(_) => return true
+            case SysMaybe<Unit>.Err(_) => return false
+        }
+    }
+
+    /// 递归删除目录
+    public static func removeRecursive(path: String): Bool {
+        // TODO: 实现递归删除
+        return remove(path)
+    }
+
+    /// 判断是否是目录
+    public static func isDirectory(path: String): Bool {
+        // TODO: 使用 SysFs.stat 实现
+        return false
+    }
+
+    /// 读取目录条目
+    public static func readdir(path: String): Array<String> {
+        // TODO: 使用 SysFs.readdir 或 std.fs 实现
+        return Array<String>()
     }
 }
 
@@ -383,7 +442,7 @@ public class BufferedReader {
     public init(fd: Int64, capacity: Int64) {
         this.fd = fd
         this.capacity = capacity
-        this.buffer = Array<UInt8>(capacity, item: UInt8(0))
+        this.buffer = Array<UInt8>(capacity, { _ => UInt8(0) })
         this.pos = 0
         this.limit = 0
         this.state = ReadState.ReadyForData
@@ -392,7 +451,7 @@ public class BufferedReader {
     public init(capacity: Int64) {
         this.fd = INVALID_FD
         this.capacity = capacity
-        this.buffer = Array<UInt8>(capacity, item: UInt8(0))
+        this.buffer = Array<UInt8>(capacity, { _ => UInt8(0) })
         this.pos = 0
         this.limit = 0
         this.state = ReadState.ReadyForData
@@ -415,7 +474,7 @@ public class BufferedReader {
             return SysMaybe<Int64>.Ok(0)
         }
 
-        let chunk = Array<UInt8>(toRead, item: UInt8(0))
+        let chunk = Array<UInt8>(toRead, { _ => UInt8(0) })
         match (SysFs.read(fd, chunk)) {
             case SysMaybe<Int64>.Err(err) =>
                 state = ReadState.Error
@@ -457,17 +516,17 @@ public class BufferedReader {
         while (pos < limit) {
             let b = buffer[pos]
             pos += 1
-            if (b == UInt8('\n')) {
+            if (b == UInt8(10)) {
                 break
             }
-            if (b == UInt8('\r')) {
+            if (b == UInt8(13)) {
                 // 处理 \r\n - 对应 Bun 的换行处理
-                if (pos < limit && buffer[pos] == UInt8('\n')) {
+                if (pos < limit && buffer[pos] == UInt8(10)) {
                     pos += 1
                 }
                 break
             }
-            sb.append(Char(Int32(b)))
+            sb.append(Rune(Int32(b)))
         }
         return Some(sb.toString())
     }
@@ -479,10 +538,7 @@ public class BufferedReader {
             return None
         }
         let toRead = if (count < available) { count } else { available }
-        var result = Array<UInt8>()
-        for (i in 0..toRead) {
-            result.append(buffer[pos + i])
-        }
+        let result = Array<UInt8>(toRead, { i => buffer[pos + i] })
         pos += toRead
         return Some(result)
     }
@@ -601,27 +657,19 @@ public class StreamBuffer {
     private var len: Int64
 
     public init(capacity: Int64) {
-        data = Array<UInt8>(capacity, item: UInt8(0))
+        data = Array<UInt8>(capacity, { _ => UInt8(0) })
         pos = 0
         len = capacity
     }
 
     /// 获取缓冲区
     public func slice(): Array<UInt8> {
-        var result = Array<UInt8>()
-        for (i in 0..len) {
-            result.append(data[i])
-        }
-        return result
+        return Array<UInt8>(len, { i => data[i] })
     }
 
     /// 获取可写切片
     public func writableSlice(): Array<UInt8> {
-        var result = Array<UInt8>()
-        for (i in pos..len) {
-            result.append(data[i])
-        }
-        return result
+        return Array<UInt8>(len - pos, { i => data[pos + i] })
     }
 
     /// 标记已写入

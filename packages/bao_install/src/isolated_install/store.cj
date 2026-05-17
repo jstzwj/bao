@@ -15,38 +15,66 @@ import bao_collections.*
 
 /// 条目 ID
 /// 对应 Bun: Store.Entry.Id (NewId(Entry))
-public struct EntryId : UInt32 {
-    public static let ROOT: EntryId = EntryId(0)
-    public static let INVALID: EntryId = EntryId(UInt32.MAX)
+public class EntryId {
+    public var value: UInt32
+
+    public init(value: UInt32) {
+        this.value = value
+    }
+
+    public static let ROOT: EntryId = EntryId(UInt32(0))
+    public static let INVALID: EntryId = EntryId(UInt32(4294967295))
 
     public func get(): UInt32 {
-        return this.value
+        return value
     }
 
     public func tryGet(): ?UInt32 {
         if (this == EntryId.INVALID) { return None }
-        return this.value
+        return value
     }
 
     public func getOr(default: UInt32): UInt32 {
         if (this == EntryId.INVALID) { return default }
-        return this.value
+        return value
+    }
+
+    public operator func ==(right: EntryId): Bool {
+        return value == right.value
+    }
+
+    public operator func !=(right: EntryId): Bool {
+        return !(this == right)
     }
 }
 
 /// 节点 ID
 /// 对应 Bun: Store.Node.Id (NewId(Node))
-public struct NodeId : UInt32 {
-    public static let ROOT: NodeId = NodeId(0)
-    public static let INVALID: NodeId = NodeId(UInt32.MAX)
+public class NodeId {
+    public var value: UInt32
+
+    public init(value: UInt32) {
+        this.value = value
+    }
+
+    public static let ROOT: NodeId = NodeId(UInt32(0))
+    public static let INVALID: NodeId = NodeId(UInt32(4294967295))
 
     public func get(): UInt32 {
-        return this.value
+        return value
     }
 
     public func tryGet(): ?UInt32 {
         if (this == NodeId.INVALID) { return None }
-        return this.value
+        return value
+    }
+
+    public operator func ==(right: NodeId): Bool {
+        return value == right.value
+    }
+
+    public operator func !=(right: NodeId): Bool {
+        return !(this == right)
     }
 }
 
@@ -58,7 +86,13 @@ public struct NodeId : UInt32 {
 
 /// 对等哈希
 /// 对应 Bun: Store.Entry.PeerHash
-public struct PeerHash : UInt64 {
+public class PeerHash {
+    public var value: UInt64
+
+    public init(value: UInt64) {
+        this.value = value
+    }
+
     public static let NONE: PeerHash = PeerHash(UInt64(0))
 
     public static func from(int: UInt64): PeerHash {
@@ -66,7 +100,15 @@ public struct PeerHash : UInt64 {
     }
 
     public func cast(): UInt64 {
-        return this.value
+        return value
+    }
+
+    public operator func ==(right: PeerHash): Bool {
+        return value == right.value
+    }
+
+    public operator func !=(right: PeerHash): Bool {
+        return !(this == right)
     }
 }
 
@@ -144,7 +186,7 @@ public class OrderedArraySet<T> {
     }
 
     public func slice(): Array<T> {
-        return list.toArray()
+        return list.toOwnedSlice()
     }
 
     public func len(): Int64 {
@@ -159,13 +201,12 @@ public class OrderedArraySet<T> {
             if (ctx.eql(new, existing)) {
                 return
             }
-            let order = ctx.order(new, existing)
-            if (order == Order.EQ) {
-                return
-            }
-            if (order == Order.LT) {
-                list.insert(i, new)
-                return
+            match (ctx.order(new, existing)) {
+                case Order.EQ => return
+                case Order.LT =>
+                    list.insert(i, new)
+                    return
+                case Order.GT => ()
             }
         }
         list.append(new)
@@ -301,30 +342,6 @@ public class StoreNode {
 }
 
 // ============================================================================
-// 安装器任务步骤
-// 严格翻译自: Installer.zig - Task.Step
-//   pub const Step = enum { link_package, symlink_dependencies, check_if_blocked,
-//       symlink_dependency_binaries, run_preinstall, binaries, run_scripts, done }
-// ============================================================================
-
-/// 安装器任务步骤
-/// 对应 Bun: Installer.Task.Step
-public enum InstallerTaskStep {
-    | LinkPackage                  // 链接包文件
-    | SymlinkDependencies          // 创建依赖符号链接
-    | CheckIfBlocked               // 检查是否被阻塞
-    | SymlinkDependencyBinaries    // 创建依赖二进制文件符号链接
-    | RunPreinstall                // 运行预安装脚本
-    | Binaries                     // 处理二进制文件
-    | RunScripts                   // 运行脚本
-    | Done                         // 完成
-
-    public func isDone(): Bool {
-        return this == InstallerTaskStep.Done
-    }
-}
-
-// ============================================================================
 // 脚本列表 (轻量引用)
 // ============================================================================
 
@@ -377,27 +394,24 @@ public class Store {
     /// 严格翻译自: Store.isCycle
     ///   pub fn isCycle(this: *const Store, id, maybe_parent_id, parent_dedupe) bool
     ///   检查条目的父链中是否存在循环
-    public func isCycle(id: EntryId, maybeParentId: EntryId, parentDedupe: HashSet<EntryId>): Bool {
+    public func isCycle(id: EntryId, maybeParentId: EntryId, parentDedupe: ArrayList<EntryId>): Bool {
         let entryParents = entries[Int64(id.get())].parents
 
         for (parentId in entryParents) {
-            if (parentId == EntryId.INVALID) { continue }
+            if (parentId == EntryId.INVALID) { () }
             if (parentId == maybeParentId) { return true }
-            parentDedupe.add(parentId)
+            parentDedupe.append(parentId)
         }
 
         var i: Int64 = 0
         var len: Int64 = parentDedupe.size
         while (i < len) {
-            // 遍历 dedupe 中的键, 检查其父节点
-            let keys = parentDedupe.toArray()
-            if (Int64(i) >= keys.size) { break }
-            let currentParents = entries[Int64(keys[Int64(i)].get())].parents
+            let currentParents = entries[Int64(parentDedupe[i].get())].parents
 
             for (parentId in currentParents) {
-                if (parentId == EntryId.INVALID) { continue }
+                if (parentId == EntryId.INVALID) { () }
                 if (parentId == maybeParentId) { return true }
-                parentDedupe.add(parentId)
+                parentDedupe.append(parentId)
                 len = parentDedupe.size
             }
             i += 1

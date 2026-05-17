@@ -5,6 +5,7 @@ package bao_css.selectors
 
 import bao_core.*
 import bao_collections.*
+import bao_css.*
 
 // ============================================================================
 // RTL 语言列表
@@ -23,12 +24,12 @@ let RTL_LANGS: Array<String> = [
 
 /// 降级选择器以兼容目标浏览器
 /// 严格翻译自 downlevel_selectors
-public func downlevelSelectors(selectors: ArrayList<CssSelectorImpl>, targets: CssTargets): CssVendorPrefix {
-    let necessaryPrefixes = CssVendorPrefix()
+public func downlevelSelectors(selectors: ArrayList<CssSelectorImpl>, targets: CssTargets): VendorPrefix {
+    let necessaryPrefixes = VendorPrefix()
     for (selector in selectors) {
         for (component in selector.components) {
             let prefix = downlevelComponent(component, targets)
-            necessaryPrefixes.insert(prefix)
+            necessaryPrefixes.merge(prefix)
         }
     }
     necessaryPrefixes
@@ -36,45 +37,39 @@ public func downlevelSelectors(selectors: ArrayList<CssSelectorImpl>, targets: C
 
 /// 降级组件
 /// 严格翻译自 downlevel_component
-public func downlevelComponent(component: CssSelectorComponent, targets: CssTargets): CssVendorPrefix {
+public func downlevelComponent(component: CssSelectorComponent, targets: CssTargets): VendorPrefix {
     match (component.kind) {
-        case CssComponentKind.NonTsPseudoClass => {
+        case CssComponentKind.NonTsPseudoClass =>
             match (component.pseudoClass) {
-                case Some(pc) => pc.getNecessaryPrefixes(targets)
-                case None => CssVendorPrefix()
+                case Some(_pc) => VendorPrefix()  // TODO: implement getNecessaryPrefixes
+                case None => VendorPrefix()
             }
-        }
-        case CssComponentKind.PseudoElement => {
+        case CssComponentKind.PseudoElement =>
             match (component.pseudoElement) {
-                case Some(pe) => pe.getNecessaryPrefixes(targets)
-                case None => CssVendorPrefix()
+                case Some(_pe) => VendorPrefix()  // TODO: implement getNecessaryPrefixes
+                case None => VendorPrefix()
             }
-        }
-        case CssComponentKind.Is => {
+        case CssComponentKind.Is =>
             match (component.nestedSelectors) {
                 case Some(sels) => downlevelSelectors(sels.v, targets)
-                case None => CssVendorPrefix()
+                case None => VendorPrefix()
             }
-        }
-        case CssComponentKind.Negation => {
+        case CssComponentKind.Negation =>
             match (component.nestedSelectors) {
                 case Some(sels) => downlevelSelectors(sels.v, targets)
-                case None => CssVendorPrefix()
+                case None => VendorPrefix()
             }
-        }
-        case CssComponentKind.Where => {
+        case CssComponentKind.Where =>
             match (component.nestedSelectors) {
                 case Some(sels) => downlevelSelectors(sels.v, targets)
-                case None => CssVendorPrefix()
+                case None => VendorPrefix()
             }
-        }
-        case CssComponentKind.Has => {
+        case CssComponentKind.Has =>
             match (component.nestedSelectors) {
                 case Some(sels) => downlevelSelectors(sels.v, targets)
-                case None => CssVendorPrefix()
+                case None => VendorPrefix()
             }
-        }
-        case _ => CssVendorPrefix()
+        case _ => VendorPrefix()
     }
 }
 
@@ -87,36 +82,33 @@ public func isCompatible(selectors: Array<CssSelectorImpl>, targets: CssTargets)
                 case CssComponentKind.Id => true
                 case CssComponentKind.Class => true
                 case CssComponentKind.LocalName => true
-                case CssComponentKind.Root => targets.isCompatible(CssCompatFeature.Selectors3)
-                case CssComponentKind.Empty => targets.isCompatible(CssCompatFeature.Selectors3)
-                case CssComponentKind.Scope => targets.isCompatible(CssCompatFeature.Shadowdomv1)
-                case CssComponentKind.Nesting => targets.isCompatible(CssCompatFeature.IsSelector)
-                case CssComponentKind.Is => {
+                case CssComponentKind.Root => targets.isCompatible(CompatFeature.selectors3)
+                case CssComponentKind.Empty => targets.isCompatible(CompatFeature.selectors3)
+                case CssComponentKind.Scope => targets.isCompatible(CompatFeature.shadowdomv1)
+                case CssComponentKind.Nesting => targets.isCompatible(CompatFeature.is_selector)
+                case CssComponentKind.Is =>
                     match (component.nestedSelectors) {
-                        case Some(sels) => {
-                            if (!targets.isCompatible(CssCompatFeature.IsSelector)) {
+                        case Some(sels) =>
+                            if (!targets.isCompatible(CompatFeature.is_selector)) {
                                 false
                             } else {
-                                isCompatible(sels.v.toArray(), targets)
+                                isCompatible(sels.v.toOwnedSlice(), targets)
                             }
-                        }
                         case None => true
                     }
-                }
-                case CssComponentKind.Where => targets.isCompatible(CssCompatFeature.IsSelector)
-                case CssComponentKind.Has => {
-                    if (!targets.isCompatible(CssCompatFeature.HasSelector)) { false }
+                case CssComponentKind.Where => targets.isCompatible(CompatFeature.is_selector)
+                case CssComponentKind.Has =>
+                    if (!targets.isCompatible(CompatFeature.has_selector)) { false }
                     else {
                         match (component.nestedSelectors) {
-                            case Some(sels) => isCompatible(sels.v.toArray(), targets)
+                            case Some(sels) => isCompatible(sels.v.toOwnedSlice(), targets)
                             case None => true
                         }
                     }
-                }
-                case CssComponentKind.Negation => targets.isCompatible(CssCompatFeature.Selectors3)
-                case CssComponentKind.Host => targets.isCompatible(CssCompatFeature.Shadowdomv1)
-                case CssComponentKind.Slotted => targets.isCompatible(CssCompatFeature.Shadowdomv1)
-                case CssComponentKind.Part => targets.isCompatible(CssCompatFeature.PartPseudo)
+                case CssComponentKind.Negation => targets.isCompatible(CompatFeature.selectors3)
+                case CssComponentKind.Host => targets.isCompatible(CompatFeature.shadowdomv1)
+                case CssComponentKind.Slotted => targets.isCompatible(CompatFeature.shadowdomv1)
+                case CssComponentKind.Part => targets.isCompatible(CompatFeature.part_pseudo)
                 case _ => true
             }
             if (!compatible) { return false }
@@ -150,32 +142,25 @@ func isSelectorUnused(
 ): Bool {
     for (component in selector.components) {
         match (component.kind) {
-            case CssComponentKind.Class => {
+            case CssComponentKind.Class =>
                 if (unusedSymbols.contains(component.identifier)) { return true }
-            }
-            case CssComponentKind.Id => {
+            case CssComponentKind.Id =>
                 if (unusedSymbols.contains(component.identifier)) { return true }
-            }
-            case CssComponentKind.Is => {
+            case CssComponentKind.Is =>
                 match (component.nestedSelectors) {
-                    case Some(sels) => {
-                        if (isUnused(sels.v.toArray(), unusedSymbols, parentIsUnused)) { return true }
-                    }
-                    case None => {}
+                    case Some(sels) =>
+                        if (isUnused(sels.v.toOwnedSlice(), unusedSymbols, parentIsUnused)) { return true }
+                    case None => ()
                 }
-            }
-            case CssComponentKind.Where => {
+            case CssComponentKind.Where =>
                 match (component.nestedSelectors) {
-                    case Some(sels) => {
-                        if (isUnused(sels.v.toArray(), unusedSymbols, parentIsUnused)) { return true }
-                    }
-                    case None => {}
+                    case Some(sels) =>
+                        if (isUnused(sels.v.toOwnedSlice(), unusedSymbols, parentIsUnused)) { return true }
+                    case None => ()
                 }
-            }
-            case CssComponentKind.Nesting => {
+            case CssComponentKind.Nesting =>
                 if (parentIsUnused) { return true }
-            }
-            case _ => {}
+            case _ => ()
         }
     }
     false
@@ -186,27 +171,25 @@ func isSelectorUnused(
 // ============================================================================
 
 /// 伪类获取必需前缀
-public func getNecessaryPrefixes(pc: CssSelectorPseudoClass, targets: CssTargets): CssVendorPrefix {
-    let prefix = CssVendorPrefix()
+public func getNecessaryPrefixes(pc: CssSelectorPseudoClass, targets: CssTargets): VendorPrefix {
+    let prefix = VendorPrefix()
     match (pc.kind) {
-        case CssPseudoClassKind.AnyLink => {
-            if (targets.shouldCompileSame(CssCompatFeature.AnyLink)) {
+        case CssPseudoClassKind.AnyLink =>
+            if (targets.shouldCompileSame(CompatFeature.any_link)) {
                 // 需要前缀
             }
-        }
-        case CssPseudoClassKind.Fullscreen => {
-            if (targets.shouldCompileSame(CssCompatFeature.Fullscreen)) {
+        case CssPseudoClassKind.Fullscreen =>
+            if (targets.shouldCompileSame(CompatFeature.fullscreen)) {
                 // 需要前缀
             }
-        }
-        case _ => {}
+        case _ => ()
     }
     prefix
 }
 
 /// 伪元素获取必需前缀
-public func getNecessaryPrefixes(pe: CssSelectorPseudoElement, targets: CssTargets): CssVendorPrefix {
-    CssVendorPrefix()
+public func getNecessaryPrefixes(pe: CssSelectorPseudoElement, targets: CssTargets): VendorPrefix {
+    VendorPrefix()
 }
 
 /// 是否应展开 :is()
@@ -237,5 +220,8 @@ public func serializeSelectorList(
         parts.append(sel.toCss())
     }
     let sep = if (minify) { "," } else { ", " }
-    String.join(sep, parts)
+    var partArr = Array<String>(parts.size, repeat: "")
+    var si: Int64 = 0
+    for (p in parts) { partArr[si] = p; si += 1 }
+    String.join(partArr, delimiter: sep)
 }

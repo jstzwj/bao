@@ -50,9 +50,9 @@ public class FallbackModule {
     public var codeLoader: () -> String
 
     public init(name: String, codeLoader: () -> String) {
-        this.path = IMPORT_PATH + name + "/index.js"
+        this.path = NodeFallbackModules.IMPORT_PATH + name + "/index.js"
         this.packageName = name
-        this.version = POLYFILL_VERSION
+        this.version = NodeFallbackModules.POLYFILL_VERSION
         this.codeLoader = codeLoader
     }
 }
@@ -91,29 +91,29 @@ public class NodeFallbackModules {
 
         // 所有 23 个 Node.js 核心模块回退
         // 严格对应 Bun node_fallbacks.zig Map 中的条目
-        m.put("assert", FallbackModule("assert", { "" }))
-        m.put("buffer", FallbackModule("buffer", { "" }))
-        m.put("console", FallbackModule("console", { "" }))
-        m.put("constants", FallbackModule("constants", { "" }))
-        m.put("crypto", FallbackModule("crypto", { "" }))
-        m.put("domain", FallbackModule("domain", { "" }))
-        m.put("events", FallbackModule("events", { "" }))
-        m.put("http", FallbackModule("http", { "" }))
-        m.put("https", FallbackModule("https", { "" }))
-        m.put("net", FallbackModule("net", { "" }))
-        m.put("os", FallbackModule("os", { "" }))
-        m.put("path", FallbackModule("path", { "" }))
-        m.put("process", FallbackModule("process", { "" }))
-        m.put("punycode", FallbackModule("punycode", { "" }))
-        m.put("querystring", FallbackModule("querystring", { "" }))
-        m.put("stream", FallbackModule("stream", { "" }))
-        m.put("string_decoder", FallbackModule("string_decoder", { "" }))
-        m.put("sys", FallbackModule("sys", { "" }))
-        m.put("timers", FallbackModule("timers", { "" }))
-        m.put("tty", FallbackModule("tty", { "" }))
-        m.put("url", FallbackModule("url", { "" }))
-        m.put("util", FallbackModule("util", { "" }))
-        m.put("zlib", FallbackModule("zlib", { "" }))
+        m.put("assert", FallbackModule("assert", { => "" }))
+        m.put("buffer", FallbackModule("buffer", { => "" }))
+        m.put("console", FallbackModule("console", { => "" }))
+        m.put("constants", FallbackModule("constants", { => "" }))
+        m.put("crypto", FallbackModule("crypto", { => "" }))
+        m.put("domain", FallbackModule("domain", { => "" }))
+        m.put("events", FallbackModule("events", { => "" }))
+        m.put("http", FallbackModule("http", { => "" }))
+        m.put("https", FallbackModule("https", { => "" }))
+        m.put("net", FallbackModule("net", { => "" }))
+        m.put("os", FallbackModule("os", { => "" }))
+        m.put("path", FallbackModule("path", { => "" }))
+        m.put("process", FallbackModule("process", { => "" }))
+        m.put("punycode", FallbackModule("punycode", { => "" }))
+        m.put("querystring", FallbackModule("querystring", { => "" }))
+        m.put("stream", FallbackModule("stream", { => "" }))
+        m.put("string_decoder", FallbackModule("string_decoder", { => "" }))
+        m.put("sys", FallbackModule("sys", { => "" }))
+        m.put("timers", FallbackModule("timers", { => "" }))
+        m.put("tty", FallbackModule("tty", { => "" }))
+        m.put("url", FallbackModule("url", { => "" }))
+        m.put("util", FallbackModule("util", { => "" }))
+        m.put("zlib", FallbackModule("zlib", { => "" }))
 
         return m
     }
@@ -142,10 +142,10 @@ public class NodeFallbackModules {
         // 提取模块名: 路径中前缀之后到第一个 '/' 之前的部分
         // /bun-vfs$$/node_modules/assert/index.js
         //                       ^^^^^^
-        let afterPrefix = path.substring(Int64(IMPORT_PATH.length), Int64(path.length))
-        let slashIndex = afterPrefix.indexOf('/')
-        let moduleName = if (slashIndex >= 0) {
-            afterPrefix.substring(Int64(0), Int64(slashIndex))
+        let afterPrefix = path[Int64(IMPORT_PATH.size)..Int64(path.size)]
+        let slashIndexOpt = afterPrefix.indexOf("/")
+        let moduleName = if (let Some(slashIndex) <- slashIndexOpt) {
+            afterPrefix[Int64(0)..slashIndex]
         } else {
             afterPrefix
         }
@@ -170,6 +170,6 @@ public class NodeFallbackModules {
     /// 判断给定模块名是否有回退实现
     /// 对应 Bun Map 中是否存在该键
     public static func has(name: String): Bool {
-        return moduleMap.get(name) != None
+        return moduleMap.get(name).isSome()
     }
 }

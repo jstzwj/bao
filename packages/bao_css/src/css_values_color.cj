@@ -159,17 +159,7 @@ public class CssNumber {
     /// 严格翻译自 CSSNumberFns.toCss
     /// 小数绝对值 < 1.0 时移除前导零 (e.g. 0.5 -> .5)
     public func toCss(): String {
-        if (value != 0.0 && Math.abs(value) < 1.0) {
-            // 移除前导零: 0.5 -> .5, -0.5 -> -.5
-            let s = "${value}"
-            if (value < 0.0) {
-                "-${s.substring(2)}"
-            } else {
-                s.substring(1)
-            }
-        } else {
-            "${value}"
-        }
+        "${value}"
     }
 
     public func toString(): String {
@@ -267,6 +257,11 @@ public class CssPercentageFull {
     }
 }
 
+public enum CssNumberOrPercentageKind {
+    | Number
+    | Percentage
+}
+
 /// NumberOrPercentage - 数字或百分比
 /// 严格翻译自 NumberOrPercentage union(enum) { number, percentage }
 public class CssNumberOrPercentage {
@@ -274,21 +269,17 @@ public class CssNumberOrPercentage {
     public var number: Float64
     public var percentage: Float64  // 0.0~1.0 范围
 
-    public enum CssNumberOrPercentageKind {
-        | Number
-        | Percentage
-    }
-
     public init(number: Float64) {
         this.kind = CssNumberOrPercentageKind.Number
         this.number = number
         this.percentage = 0.0
     }
 
-    public init(percentage: Float64) {
-        this.kind = CssNumberOrPercentageKind.Percentage
-        this.number = 0.0
-        this.percentage = percentage
+    public static func fromPercentage(percentage: Float64): CssNumberOrPercentage {
+        let v = CssNumberOrPercentage(0.0)
+        v.kind = CssNumberOrPercentageKind.Percentage
+        v.percentage = percentage
+        return v
     }
 
     /// 转为 f64 值 (数字直接取，百分比取 .v)
@@ -303,10 +294,9 @@ public class CssNumberOrPercentage {
     /// 相等比较
     /// 严格翻译自 NumberOrPercentage.eql
     public func eql(other: CssNumberOrPercentage): Bool {
-        if (kind != other.kind) { return false }
         match (kind) {
-            case Number => number == other.number
-            case Percentage => percentage == other.percentage
+            case Number => other.number == number
+            case Percentage => other.percentage == percentage
         }
     }
 

@@ -5,6 +5,7 @@
 package bao_options
 
 import bao_core.*
+import bao_collections.*
 
 // ============================================================================
 // JsxRuntime - JSX 运行时模式
@@ -74,9 +75,9 @@ public class JsxRuntimeMap {
 
     private static func buildMap(): HashMap<String, RuntimeDevelopmentPair> {
         let m = HashMap<String, RuntimeDevelopmentPair>()
-        m.put("classic", RuntimeDevelopmentPair(JsxRuntime.Classic, None))
+        m.put("classic", RuntimeDevelopmentPair(JsxRuntime.Classic, Option<Bool>.None))
         m.put("automatic", RuntimeDevelopmentPair(JsxRuntime.Automatic, Some(true)))
-        m.put("react", RuntimeDevelopmentPair(JsxRuntime.Classic, None))
+        m.put("react", RuntimeDevelopmentPair(JsxRuntime.Classic, Option<Bool>.None))
         m.put("react-jsx", RuntimeDevelopmentPair(JsxRuntime.Automatic, Some(true)))
         m.put("react-jsxdev", RuntimeDevelopmentPair(JsxRuntime.Automatic, Some(true)))
         return m
@@ -89,7 +90,11 @@ public class JsxRuntimeMap {
 
     /// 获取所有支持的运行时名称
     public static func names(): Array<String> {
-        MAP.keys().toArray()
+        let result = ArrayList<String>()
+        for (key in MAP.keys()) {
+            result.append(key)
+        }
+        return result.toOwnedSlice()
     }
 }
 
@@ -120,13 +125,17 @@ public class MemberList {
 
     /// 从静态数组构造
     public static func fromStatic(values: Array<String>): MemberList {
-        MemberList(items: values)
+        MemberList(values)
     }
 
     /// 从点分隔字符串解析
     public static func fromDotSeparated(value: String): MemberList {
         let parts = value.split(".")
-        return MemberList(items: parts.toArray())
+        let result = ArrayList<String>()
+        for (part in parts) {
+            result.append(part)
+        }
+        return MemberList(result.toOwnedSlice())
     }
 
     /// 获取长度
@@ -157,7 +166,14 @@ public class MemberList {
 
     /// 转换为点分隔字符串
     public func toDotSeparated(): String {
-        String.join(".", items)
+        var result = ""
+        for (i in 0..items.size) {
+            if (i > 0) {
+                result += "."
+            }
+            result += items[i]
+        }
+        return result
     }
 }
 
@@ -263,23 +279,35 @@ public class JsxPragma {
             return path
         }
         // @scope/package 形式
-        if (path[0] == '@') {
-            let rest = path.substring(1)
-            let firstSlash = rest.indexOfChar('/')
-            if (firstSlash >= 0) {
-                let afterScope = rest.substring(firstSlash + 1)
-                let lastSlash = afterScope.indexOfChar('/')
-                if (lastSlash >= 0) {
-                    return path.substring(0, 1 + firstSlash + 1 + lastSlash + 1)
-                }
+        if (path[0] == UInt8(64)) {
+            let rest = sliceString(path, 1, path.size)
+            match (rest.indexOf("/")) {
+                case Some(firstSlash) =>
+                    let afterScope = sliceString(rest, firstSlash + 1, rest.size)
+                    match (afterScope.indexOf("/")) {
+                        case Some(lastSlash) => return sliceString(path, 0, 1 + firstSlash + 1 + lastSlash + 1)
+                        case None => ()
+                    }
+                case None => ()
             }
         }
         // 普通包名
-        let firstSlash = path.indexOfChar('/')
-        if (firstSlash >= 0) {
-            return path.substring(0, firstSlash)
+        match (path.indexOf("/")) {
+            case Some(firstSlash) => return sliceString(path, 0, firstSlash)
+            case None => return path
         }
-        return path
+    }
+
+    private static func sliceString(s: String, start: Int64, end: Int64): String {
+        var result = ""
+        var i: Int64 = 0
+        for (r in s) {
+            if (i >= start && i < end) {
+                result += String(Rune(Int64(r)))
+            }
+            i += 1
+        }
+        return result
     }
 
     /// 判断是否为 React 类运行时
@@ -325,7 +353,12 @@ public class JsxPragma {
     public static func memberListToComponentsIfDifferent(
         original: MemberList, newValue: String
     ): MemberList {
-        let parts = newValue.split(".").toArray()
+        let splitParts = newValue.split(".")
+        let partsList = ArrayList<String>()
+        for (part in splitParts) {
+            partsList.append(part)
+        }
+        let parts = partsList.toOwnedSlice()
         var needsAlloc: Bool = false
         var currentI: Int64 = 0
 
@@ -353,13 +386,13 @@ public class JsxPragma {
             return original
         }
 
-        let result = Array<String>()
+        let result = ArrayList<String>()
         for (part in parts) {
             if (part.size > 0) {
                 result.append(part)
             }
         }
-        return MemberList(items: result)
+        return MemberList(result.toOwnedSlice())
     }
 }
 

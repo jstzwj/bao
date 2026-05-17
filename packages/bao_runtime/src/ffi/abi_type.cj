@@ -3,6 +3,9 @@
 // 提供 ABIType 枚举、类型标签查找表、C/JS 格式化器
 package bao_runtime.ffi
 
+/// 最大标准类型索引 (NapiValue = 19)
+public let ABI_TYPE_MAX: Int32 = 19
+
 // ============================================================================
 // ABI 类型枚举
 // 对应 Bun: ABIType (abi_type.rs:16)
@@ -23,7 +26,7 @@ public enum AbiType {
     | Uint64T    // 8  - uint64_t
     | Double     // 9  - double
     | Float      // 10 - float
-    | Bool       // 11 - bool
+    | BoolT      // 11 - bool
     | Ptr        // 12 - void*
     | Void       // 13 - void
     | CString    // 14 - void* (null-terminated string)
@@ -33,10 +36,6 @@ public enum AbiType {
     | NapiEnv    // 18 - napi_env
     | NapiValue  // 19 - napi_value
     | Buffer     // 20 - void* (typed array buffer)
-
-    /// 最大标准类型索引 (NapiValue = 19)
-    /// 对应 Rust: pub const MAX: i32 = ABIType::NapiValue as i32
-    public static let MAX: Int32 = 19
 
     /// 从数值解析 ABI 类型
     /// 对应 Rust: ABIType::from_int (abi_type.rs:204)
@@ -53,7 +52,7 @@ public enum AbiType {
             case 8 => AbiType.Uint64T
             case 9 => AbiType.Double
             case 10 => AbiType.Float
-            case 11 => AbiType.Bool
+            case 11 => AbiType.BoolT
             case 12 => AbiType.Ptr
             case 13 => AbiType.Void
             case 14 => AbiType.CString
@@ -71,7 +70,7 @@ public enum AbiType {
     /// 对应 Rust: ABI_TYPE_LABEL (abi_type.rs:76) phf_map
     public static func fromLabel(label: String): ?AbiType {
         match (label) {
-            case "bool" => AbiType.Bool
+            case "bool" => AbiType.BoolT
             case "c_int" => AbiType.Int32T
             case "c_uint" => AbiType.Uint32T
             case "char" => AbiType.Char
@@ -148,7 +147,7 @@ public enum AbiType {
             case Uint64T | U64Fast => "uint64_t"
             case Double => "double"
             case Float => "float"
-            case Bool => "bool"
+            case BoolT => "bool"
             case Ptr => "void*"
             case Void => "void"
             case CString => "void*"
@@ -177,67 +176,52 @@ public enum AbiType {
             case Void => ""
             case NapiEnv => "((napi_env)&Bun__thisFFIModuleNapiEnv)"
             case NapiValue => "${symbol}.asNapiValue"
-            case Char => {
+            case Char =>
                 if (exact) { "(char)JSVALUE_TO_INT32(${symbol})" }
                 else { "JSVALUE_TO_INT32(${symbol})" }
-            }
-            case Int8T => {
+            case Int8T =>
                 if (exact) { "(int8_t)JSVALUE_TO_INT32(${symbol})" }
                 else { "JSVALUE_TO_INT32(${symbol})" }
-            }
-            case Uint8T => {
+            case Uint8T =>
                 if (exact) { "(uint8_t)JSVALUE_TO_INT32(${symbol})" }
                 else { "JSVALUE_TO_INT32(${symbol})" }
-            }
-            case Int16T => {
+            case Int16T =>
                 if (exact) { "(int16_t)JSVALUE_TO_INT32(${symbol})" }
                 else { "JSVALUE_TO_INT32(${symbol})" }
-            }
-            case Uint16T => {
+            case Uint16T =>
                 if (exact) { "(uint16_t)JSVALUE_TO_INT32(${symbol})" }
                 else { "JSVALUE_TO_INT32(${symbol})" }
-            }
-            case Int32T => {
+            case Int32T =>
                 if (exact) { "(int32_t)JSVALUE_TO_INT32(${symbol})" }
                 else { "JSVALUE_TO_INT32(${symbol})" }
-            }
-            case Uint32T => {
+            case Uint32T =>
                 if (exact) { "(uint32_t)JSVALUE_TO_INT32(${symbol})" }
                 else { "JSVALUE_TO_INT32(${symbol})" }
-            }
-            case Int64T => {
+            case Int64T =>
                 if (exact) { "(int64_t)JSVALUE_TO_INT64(${symbol})" }
                 else { "JSVALUE_TO_INT64(${symbol})" }
-            }
-            case Uint64T => {
+            case Uint64T =>
                 if (exact) { "(uint64_t)JSVALUE_TO_UINT64(${symbol})" }
                 else { "JSVALUE_TO_UINT64(${symbol})" }
-            }
-            case Double => {
+            case Double =>
                 if (exact) { "(double)JSVALUE_TO_DOUBLE(${symbol})" }
                 else { "JSVALUE_TO_DOUBLE(${symbol})" }
-            }
-            case Float => {
+            case Float =>
                 if (exact) { "(float)JSVALUE_TO_FLOAT(${symbol})" }
                 else { "JSVALUE_TO_FLOAT(${symbol})" }
-            }
-            case Bool => {
+            case BoolT =>
                 if (exact) { "(bool)JSVALUE_TO_BOOL(${symbol})" }
                 else { "JSVALUE_TO_BOOL(${symbol})" }
-            }
-            case Ptr | CString | Function => {
+            case Ptr | CString | Function =>
                 if (exact) { "(void*)JSVALUE_TO_PTR(${symbol})" }
                 else { "JSVALUE_TO_PTR(${symbol})" }
-            }
             case Buffer => "JSVALUE_TO_TYPED_ARRAY_VECTOR(${symbol})"
-            case I64Fast => {
+            case I64Fast =>
                 if (exact) { "(int64_t)JSVALUE_TO_INT64(${symbol})" }
                 else { "JSVALUE_TO_INT64(${symbol})" }
-            }
-            case U64Fast => {
+            case U64Fast =>
                 if (exact) { "(uint64_t)JSVALUE_TO_UINT64(${symbol})" }
                 else { "JSVALUE_TO_UINT64(${symbol})" }
-            }
         }
     }
 
@@ -259,7 +243,7 @@ public enum AbiType {
             case Uint64T => "UINT64_TO_JSVALUE_SLOW(JS_GLOBAL_OBJECT, ${symbol})"
             case Double => "DOUBLE_TO_JSVALUE(${symbol})"
             case Float => "FLOAT_TO_JSVALUE(${symbol})"
-            case Bool => "BOOLEAN_TO_JSVALUE(${symbol})"
+            case BoolT => "BOOLEAN_TO_JSVALUE(${symbol})"
             case Ptr | CString | Function => "PTR_TO_JSVALUE(${symbol})"
             case I64Fast => "INT64_TO_JSVALUE(JS_GLOBAL_OBJECT, (int64_t)${symbol})"
             case U64Fast => "UINT64_TO_JSVALUE(JS_GLOBAL_OBJECT, ${symbol})"
@@ -281,7 +265,7 @@ public enum AbiType {
             case Uint64T => 8
             case Double => 9
             case Float => 10
-            case Bool => 11
+            case BoolT => 11
             case Ptr => 12
             case Void => 13
             case CString => 14
@@ -292,6 +276,36 @@ public enum AbiType {
             case NapiValue => 19
             case Buffer => 20
         }
+    }
+
+    public operator func ==(right: AbiType): Bool {
+        match (this) {
+            case Char => match (right) { case Char => true case _ => false }
+            case Int8T => match (right) { case Int8T => true case _ => false }
+            case Uint8T => match (right) { case Uint8T => true case _ => false }
+            case Int16T => match (right) { case Int16T => true case _ => false }
+            case Uint16T => match (right) { case Uint16T => true case _ => false }
+            case Int32T => match (right) { case Int32T => true case _ => false }
+            case Uint32T => match (right) { case Uint32T => true case _ => false }
+            case Int64T => match (right) { case Int64T => true case _ => false }
+            case Uint64T => match (right) { case Uint64T => true case _ => false }
+            case Double => match (right) { case Double => true case _ => false }
+            case Float => match (right) { case Float => true case _ => false }
+            case BoolT => match (right) { case BoolT => true case _ => false }
+            case Ptr => match (right) { case Ptr => true case _ => false }
+            case Void => match (right) { case Void => true case _ => false }
+            case CString => match (right) { case CString => true case _ => false }
+            case I64Fast => match (right) { case I64Fast => true case _ => false }
+            case U64Fast => match (right) { case U64Fast => true case _ => false }
+            case Function => match (right) { case Function => true case _ => false }
+            case NapiEnv => match (right) { case NapiEnv => true case _ => false }
+            case NapiValue => match (right) { case NapiValue => true case _ => false }
+            case Buffer => match (right) { case Buffer => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: AbiType): Bool {
+        return !(this == right)
     }
 }
 

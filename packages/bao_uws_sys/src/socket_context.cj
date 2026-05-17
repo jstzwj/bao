@@ -46,7 +46,7 @@ public class BunSocketContextOptions {
     /// and releases with SSL_CTX_free.
     public func createSSLContext(err: CPointer<Unit>): CPointer<Unit> {
         // In real implementation, marshal options to C struct and call
-        return CPointer<Unit>.null
+        return CPointer<Unit>()
     }
 
     /// 对应 Bun: pub fn digest(self) [32]u8
@@ -54,7 +54,7 @@ public class BunSocketContextOptions {
     /// pointers so the digest is content-addressed.
     public func digest(): Array<UInt8> {
         // Simplified - in real impl would compute SHA256
-        return Array<UInt8>(32, item: 0)
+        return Array<UInt8>(32, { _ => UInt8(0) })
     }
 
     /// 对应 Bun: pub fn approxCertBytes(self) usize
@@ -70,6 +70,6 @@ public class BunSocketContextOptions {
 public class SocketContextC {
     /// 对应 Bun: pub extern fn us_ssl_ctx_live_count() c_long
     public static func sslCtxLiveCount(): Int64 {
-        return us_ssl_ctx_live_count()
+        return unsafe { us_ssl_ctx_live_count() }
     }
 }

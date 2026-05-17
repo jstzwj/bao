@@ -44,7 +44,7 @@ public class TSTransformer {
         this.pos = 0
         this.output = StringBuilder()
 
-        while (pos < source.length) {
+        while (pos < source.size) {
             // 检测并处理 TypeScript 特有语法
             if (matchKeyword("enum ")) {
                 transformEnum()
@@ -72,9 +72,9 @@ public class TSTransformer {
     /// 检查 "type " 是否为类型别名 (而非 "typeof" 等)
     private func isTypeAlias(): Bool {
         // "type " 后面不跟 "of"
-        if (pos + 5 < source.length) {
+        if (pos + 5 < source.size) {
             let nextChar = source[Int64(pos + 5)]
-            if (nextChar != Char('o')) {
+            if (nextChar != UInt8(111)) {
                 return true
             }
         }
@@ -113,7 +113,7 @@ public class TSTransformer {
         let name = readIdentifier()
         skipWhitespace()
 
-        if (pos >= source.length || source[Int64(pos)] != Char('{')) {
+        if (pos >= source.size || source[Int64(pos)] != UInt8(123)) {
             output.append("var ${name} = {};")
             return ""
         }
@@ -123,9 +123,9 @@ public class TSTransformer {
         let members = ArrayList<EnumMember>()
         var autoValue: Int64 = 0
 
-        while (pos < source.length && source[Int64(pos)] != Char('}')) {
+        while (pos < source.size && source[Int64(pos)] != UInt8(125)) {
             skipWhitespace()
-            if (pos >= source.length || source[Int64(pos)] == Char('}')) {
+            if (pos >= source.size || source[Int64(pos)] == UInt8(125)) {
                 break
             }
 
@@ -136,7 +136,7 @@ public class TSTransformer {
             var value = ""
             var isNumeric = true
 
-            if (pos < source.length && source[Int64(pos)] == Char('=')) {
+            if (pos < source.size && source[Int64(pos)] == UInt8(61)) {
                 pos += 1  // skip '='
                 skipWhitespace()
                 value = readExpression()
@@ -152,12 +152,12 @@ public class TSTransformer {
             }
 
             // 跳过逗号
-            if (pos < source.length && source[Int64(pos)] == Char(',')) {
+            if (pos < source.size && source[Int64(pos)] == UInt8(44)) {
                 pos += 1
             }
         }
 
-        if (pos < source.length && source[Int64(pos)] == Char('}')) {
+        if (pos < source.size && source[Int64(pos)] == UInt8(125)) {
             pos += 1
         }
 
@@ -216,7 +216,7 @@ public class TSTransformer {
         let name = readIdentifier()
         skipWhitespace()
 
-        if (pos >= source.length || source[Int64(pos)] != Char('{')) {
+        if (pos >= source.size || source[Int64(pos)] != UInt8(123)) {
             output.append("var ${name} = {};")
             return ""
         }
@@ -224,7 +224,7 @@ public class TSTransformer {
         // 读取整个 namespace 块体
         let bodyStart = pos + 1
         let bodyEnd = findMatchingBrace(bodyStart)
-        let body = source.substring(Int64(bodyStart), Int64(bodyEnd))
+        let body = sliceString(source, bodyStart, bodyEnd)
         pos = bodyEnd + 1
 
         // 处理 namespace 体中的 export
@@ -245,32 +245,32 @@ public class TSTransformer {
         let sb = StringBuilder()
         var i = 0
 
-        while (i < body.length) {
+        while (i < body.size) {
             // 检测 "export " 关键字
             if (startsWithAt(body, i, "export ")) {
                 i += 7  // skip "export "
 
                 // 读取被 export 的声明
                 let declStart = i
-                while (i < body.length && body[i] != Char(';') && body[i] != Char('{')) {
+                while (i < body.size && body[i] != UInt8(59) && body[i] != UInt8(123)) {
                     i += 1
                 }
 
-                let decl = body.substring(Int64(declStart), Int64(i)).trim()
+                let decl = sliceString(body, declStart, i)
                 sb.append("  ${decl}")
 
                 // 提取导出名称并添加属性赋值
                 let exportName = extractExportName(decl)
-                if (exportName.length > 0) {
+                if (exportName.size > 0) {
                     sb.append(";\n  ${nsName}.${exportName} = ${exportName};")
                 }
 
-                if (i < body.length && body[i] == Char(';')) {
+                if (i < body.size && body[i] == UInt8(59)) {
                     i += 1
-                } else if (i < body.length && body[i] == Char('{')) {
+                } else if (i < body.size && body[i] == UInt8(123)) {
                     // 函数/类体
                     let braceEnd = findMatchingBraceInString(body, i + 1)
-                    sb.append(body.substring(Int64(i), Int64(braceEnd + 1)))
+                    sb.append(sliceString(body, i, braceEnd + 1))
                     i = braceEnd + 1
                 }
                 sb.append("\n")
@@ -292,9 +292,9 @@ public class TSTransformer {
         let patterns = ["function ", "const ", "let ", "var ", "class ", "interface "]
         for (pattern in patterns) {
             if (decl.startsWith(pattern)) {
-                let rest = decl.substring(Int64(pattern.length), Int64(decl.length))
+                let rest = sliceString(decl, pattern.size, decl.size)
                 let name = readIdentifierFromString(rest)
-                if (name.length > 0) {
+                if (name.size > 0) {
                     return name
                 }
             }
@@ -352,18 +352,18 @@ public class TSTransformer {
         let sb = StringBuilder()
         var depth = 0
 
-        while (pos < source.length) {
+        while (pos < source.size) {
             let ch = source[Int64(pos)]
-            if (ch == Char('(')) {
+            if (ch == UInt8(40)) {
                 depth += 1
                 sb.append(ch)
                 pos += 1
-            } else if (ch == Char(')')) {
+            } else if (ch == UInt8(41)) {
                 depth -= 1
                 sb.append(ch)
                 pos += 1
-            } else if (depth == 0 && (ch == Char('\n') || ch == Char('\r') ||
-                       (ch == Char(' ') && pos + 1 < source.length &&
+            } else if (depth == 0 && (ch == UInt8(10) || ch == UInt8(13) ||
+                       (ch == UInt8(32) && pos + 1 < source.size &&
                         (startsWithAt(source, pos + 1, "class") ||
                          startsWithAt(source, pos + 1, "abstract") ||
                          startsWithAt(source, pos + 1, "export"))))) {
@@ -374,7 +374,7 @@ public class TSTransformer {
             }
         }
 
-        return sb.toString().trim()
+        return sb.toString()
     }
 
     /// 转换类装饰器
@@ -397,7 +397,7 @@ public class TSTransformer {
         skipWhitespace()
 
         // 跳过泛型参数
-        if (pos < source.length && source[Int64(pos)] == Char('<')) {
+        if (pos < source.size && source[Int64(pos)] == UInt8(60)) {
             let gtEnd = findMatchingGeneric(pos)
             pos = gtEnd + 1
         }
@@ -405,11 +405,11 @@ public class TSTransformer {
         skipWhitespace()
 
         // 跳过 extends/implements
-        while (pos < source.length && source[Int64(pos)] != Char('{')) {
+        while (pos < source.size && source[Int64(pos)] != UInt8(123)) {
             pos += 1
         }
 
-        if (pos < source.length) {
+        if (pos < source.size) {
             let endBrace = findMatchingBrace(pos + 1)
             pos = endBrace + 1
         }
@@ -418,10 +418,10 @@ public class TSTransformer {
     /// 跳过类型别名
     private func skipTypeAlias(): Unit {
         // type Foo = ...
-        while (pos < source.length && source[Int64(pos)] != Char(';') && source[Int64(pos)] != Char('\n')) {
+        while (pos < source.size && source[Int64(pos)] != UInt8(59) && source[Int64(pos)] != UInt8(10)) {
             pos += 1
         }
-        if (pos < source.length && source[Int64(pos)] == Char(';')) {
+        if (pos < source.size && source[Int64(pos)] == UInt8(59)) {
             pos += 1
         }
     }
@@ -434,18 +434,18 @@ public class TSTransformer {
         // 跳过整个声明直到分号或块结束
         if (startsWithAt(source, pos, "module ") || startsWithAt(source, pos, "global ")) {
             // declare module/global 可以有块体
-            while (pos < source.length && source[Int64(pos)] != Char('{')) {
+            while (pos < source.size && source[Int64(pos)] != UInt8(123)) {
                 pos += 1
             }
-            if (pos < source.length) {
+            if (pos < source.size) {
                 let endBrace = findMatchingBrace(pos + 1)
                 pos = endBrace + 1
             }
         } else {
-            while (pos < source.length && source[Int64(pos)] != Char(';') && source[Int64(pos)] != Char('\n')) {
+            while (pos < source.size && source[Int64(pos)] != UInt8(59) && source[Int64(pos)] != UInt8(10)) {
                 pos += 1
             }
-            if (pos < source.length && source[Int64(pos)] == Char(';')) {
+            if (pos < source.size && source[Int64(pos)] == UInt8(59)) {
                 pos += 1
             }
         }
@@ -463,38 +463,38 @@ public class TSTransformer {
 
     /// 处理单个字符，识别并跳过类型注解
     private func processChar(): Unit {
-        if (pos >= source.length) {
+        if (pos >= source.size) {
             return
         }
 
         let ch = source[Int64(pos)]
 
         // 处理字符串字面量
-        if (ch == Char('\'') || ch == Char('"') || ch == Char('`')) {
+        if (ch == UInt8(39) || ch == UInt8(34) || ch == UInt8(96)) {
             copyStringLiteral()
             return
         }
 
         // 处理模板字符串
-        if (ch == Char('`')) {
+        if (ch == UInt8(96)) {
             copyTemplateLiteral()
             return
         }
 
         // 处理单行注释
-        if (ch == Char('/') && pos + 1 < source.length && source[Int64(pos + 1)] == Char('/')) {
+        if (ch == UInt8(47) && pos + 1 < source.size && source[Int64(pos + 1)] == UInt8(47)) {
             skipLineComment()
             return
         }
 
         // 处理多行注释
-        if (ch == Char('/') && pos + 1 < source.length && source[Int64(pos + 1)] == Char('*')) {
+        if (ch == UInt8(47) && pos + 1 < source.size && source[Int64(pos + 1)] == UInt8(42)) {
             skipBlockComment()
             return
         }
 
         // 检测类型注解 ": Type"
-        if (ch == Char(':')) {
+        if (ch == UInt8(58)) {
             // 需要判断是否在类型注解上下文中
             // 例如: let x: number = 5  ->  let x = 5
             // 但不是: case "foo":  或  obj.prop:
@@ -507,7 +507,7 @@ public class TSTransformer {
         }
 
         // 检测泛型参数 "<Type>"
-        if (ch == Char('<') && isGenericContext()) {
+        if (ch == UInt8(60) && isGenericContext()) {
             let gtEnd = findMatchingGeneric(pos)
             pos = gtEnd + 1
             return
@@ -522,9 +522,9 @@ public class TSTransformer {
         }
 
         // 检测非空断言 "!"
-        if (ch == Char('!') && pos + 1 < source.length) {
+        if (ch == UInt8(33) && pos + 1 < source.size) {
             let next = source[Int64(pos + 1)]
-            if (next != Char('=') && isPostfixNonNullAssertion()) {
+            if (next != UInt8(61) && isPostfixNonNullAssertion()) {
                 pos += 1  // skip '!'
                 return
             }
@@ -551,7 +551,7 @@ public class TSTransformer {
     }
 
     private func isIdentOrBracket(ch: Char): Bool {
-        let v = ch.value
+        let v = ch
         return (v >= 97 && v <= 122) || (v >= 65 && v <= 90) ||
                (v >= 48 && v <= 57) || v == 95 || v == 36 ||
                v == 41 || v == 93  // ')' or ']'
@@ -564,22 +564,22 @@ public class TSTransformer {
             return false
         }
         let prev = source[Int64(pos - 1)]
-        let v = prev.value
+        let v = prev
         return (v >= 97 && v <= 122) || (v >= 65 && v <= 90) ||
                v == 95 || v == 36 || (v >= 48 && v <= 57)
     }
 
     /// 检测 "as" 类型断言
     private func isAsCast(): Bool {
-        if (pos + 2 >= source.length) {
+        if (pos + 2 >= source.size) {
             return false
         }
-        if (source[Int64(pos)] == Char('a') && source[Int64(pos + 1)] == Char('s') &&
-            (source[Int64(pos + 2)] == Char(' ') || source[Int64(pos + 2)] == Char('<'))) {
+        if (source[Int64(pos)] == UInt8(97) && source[Int64(pos + 1)] == UInt8(115) &&
+            (source[Int64(pos + 2)] == UInt8(32) || source[Int64(pos + 2)] == UInt8(60))) {
             // 确保 "as" 是一个独立的关键字，不是标识符的一部分
             if (pos > 0) {
                 let prev = source[Int64(pos - 1)]
-                if (isIdentCharValue(prev.value)) {
+                if (isIdentCharValue(Int32(prev))) {
                     return false
                 }
             }
@@ -592,9 +592,9 @@ public class TSTransformer {
     private func isPostfixNonNullAssertion(): Bool {
         // TypeScript 中 expr! 表示非空断言
         // 在表达式末尾出现，且后面不是 '=' 或 '=='
-        if (pos + 1 < source.length) {
+        if (pos + 1 < source.size) {
             let next = source[Int64(pos + 1)]
-            if (next == Char('=') || next == Char('!')) {
+            if (next == UInt8(61) || next == UInt8(33)) {
                 return false
             }
         }
@@ -614,7 +614,7 @@ public class TSTransformer {
     private func skipType(): Unit {
         skipWhitespace()
 
-        if (pos >= source.length) {
+        if (pos >= source.size) {
             return
         }
 
@@ -624,23 +624,23 @@ public class TSTransformer {
         if (isIdentStart(ch)) {
             let typeName = readIdentifier()
             // 检查泛型参数
-            if (pos < source.length && source[Int64(pos)] == Char('<')) {
+            if (pos < source.size && source[Int64(pos)] == UInt8(60)) {
                 let gtEnd = findMatchingGeneric(pos)
                 pos = gtEnd + 1
             }
             // 检查数组标记 []
-            while (pos + 1 < source.length && source[Int64(pos)] == Char('[') &&
-                   source[Int64(pos + 1)] == Char(']')) {
+            while (pos + 1 < source.size && source[Int64(pos)] == UInt8(91) &&
+                   source[Int64(pos + 1)] == UInt8(93)) {
                 pos += 2
             }
             // 检查联合类型 |
             skipWhitespace()
-            if (pos < source.length && source[Int64(pos)] == Char('|')) {
+            if (pos < source.size && source[Int64(pos)] == UInt8(124)) {
                 pos += 1
                 skipType()
             }
             // 检查交叉类型 &
-            if (pos < source.length && source[Int64(pos)] == Char('&')) {
+            if (pos < source.size && source[Int64(pos)] == UInt8(38)) {
                 pos += 1
                 skipType()
             }
@@ -648,33 +648,33 @@ public class TSTransformer {
         }
 
         // 对象类型 { ... }
-        if (ch == Char('{')) {
+        if (ch == UInt8(123)) {
             let endBrace = findMatchingBrace(pos + 1)
             pos = endBrace + 1
             return
         }
 
         // 数组类型 Type[]
-        if (ch == Char('[')) {
+        if (ch == UInt8(91)) {
             let endBracket = findMatchingBracket(pos + 1)
             pos = endBracket + 1
             // 跳过后续的 []
-            while (pos + 1 < source.length && source[Int64(pos)] == Char('[') &&
-                   source[Int64(pos + 1)] == Char(']')) {
+            while (pos + 1 < source.size && source[Int64(pos)] == UInt8(91) &&
+                   source[Int64(pos + 1)] == UInt8(93)) {
                 pos += 2
             }
             return
         }
 
         // 元组类型 [Type1, Type2]
-        if (ch == Char('(')) {
+        if (ch == UInt8(40)) {
             let endParen = findMatchingParen(pos + 1)
             pos = endParen + 1
             return
         }
 
         // 字符串字面量类型 "foo"
-        if (ch == Char('\'') || ch == Char('"')) {
+        if (ch == UInt8(39) || ch == UInt8(34)) {
             copyStringLiteral()
             return
         }
@@ -705,11 +705,11 @@ public class TSTransformer {
             pos += 7
             skipType()
             skipWhitespace()
-            if (pos < source.length && source[Int64(pos)] == Char('?')) {
+            if (pos < source.size && source[Int64(pos)] == UInt8(63)) {
                 pos += 1
                 skipType()
                 skipWhitespace()
-                if (pos < source.length && source[Int64(pos)] == Char(':')) {
+                if (pos < source.size && source[Int64(pos)] == UInt8(58)) {
                     pos += 1
                     skipType()
                 }
@@ -730,19 +730,29 @@ public class TSTransformer {
         // 确保关键字前面不是标识符字符
         if (pos > 0) {
             let prev = source[Int64(pos - 1)]
-            if (isIdentCharValue(prev.value)) {
+            if (isIdentCharValue(Int32(prev))) {
                 return false
             }
         }
         return true
     }
 
+    private static func sliceString(s: String, start: Int64, end: Int64): String {
+        let sb = StringBuilder()
+        var i = start
+        while (i < end && i < s.size) {
+            sb.append(s[Int64(i)])
+            i += 1
+        }
+        return sb.toString()
+    }
+
     /// 检查字符串在指定位置是否以给定前缀开始
     private static func startsWithAt(s: String, index: Int64, prefix: String): Bool {
-        if (index + prefix.length > s.length) {
+        if (index + prefix.size > s.size) {
             return false
         }
-        for (i in 0..prefix.length) {
+        for (i in 0..prefix.size) {
             if (s[Int64(index + i)] != prefix[Int64(i)]) {
                 return false
             }
@@ -752,9 +762,9 @@ public class TSTransformer {
 
     /// 跳过空白
     private func skipWhitespace(): Unit {
-        while (pos < source.length) {
+        while (pos < source.size) {
             let ch = source[Int64(pos)]
-            if (ch == Char(' ') || ch == Char('\t') || ch == Char('\n') || ch == Char('\r')) {
+            if (ch == UInt8(32) || ch == UInt8(9) || ch == UInt8(10) || ch == UInt8(13)) {
                 pos += 1
             } else {
                 break
@@ -765,9 +775,9 @@ public class TSTransformer {
     /// 读取标识符
     private func readIdentifier(): String {
         let sb = StringBuilder()
-        while (pos < source.length) {
+        while (pos < source.size) {
             let ch = source[Int64(pos)]
-            let v = ch.value
+            let v = ch
             if ((v >= 97 && v <= 122) || (v >= 65 && v <= 90) ||
                 v == 95 || v == 36 || (v >= 48 && v <= 57)) {
                 sb.append(ch)
@@ -783,7 +793,7 @@ public class TSTransformer {
     private static func readIdentifierFromString(s: String): String {
         let sb = StringBuilder()
         for (ch in s) {
-            let v = ch.value
+            let v = ch
             if ((v >= 97 && v <= 122) || (v >= 65 && v <= 90) ||
                 v == 95 || v == 36 || (v >= 48 && v <= 57)) {
                 sb.append(ch)
@@ -798,13 +808,13 @@ public class TSTransformer {
     private func readExpression(): String {
         let sb = StringBuilder()
         var depth = 0
-        while (pos < source.length) {
+        while (pos < source.size) {
             let ch = source[Int64(pos)]
-            if (ch == Char('(') || ch == Char('[') || ch == Char('{')) {
+            if (ch == UInt8(40) || ch == UInt8(91) || ch == UInt8(123)) {
                 depth += 1
                 sb.append(ch)
                 pos += 1
-            } else if (ch == Char(')') || ch == Char(']') || ch == Char('}')) {
+            } else if (ch == UInt8(41) || ch == UInt8(93) || ch == UInt8(125)) {
                 if (depth > 0) {
                     depth -= 1
                     sb.append(ch)
@@ -812,27 +822,27 @@ public class TSTransformer {
                 } else {
                     break
                 }
-            } else if (depth == 0 && (ch == Char(',') || ch == Char(';'))) {
+            } else if (depth == 0 && (ch == UInt8(44) || ch == UInt8(59))) {
                 break
             } else {
                 sb.append(ch)
                 pos += 1
             }
         }
-        return sb.toString().trim()
+        return sb.toString()
     }
 
     /// 查找匹配的右花括号
     private func findMatchingBrace(start: Int64): Int64 {
         var depth = 1
         var i = start
-        while (i < source.length && depth > 0) {
+        while (i < source.size && depth > 0) {
             let ch = source[Int64(i)]
-            if (ch == Char('{')) {
+            if (ch == UInt8(123)) {
                 depth += 1
-            } else if (ch == Char('}')) {
+            } else if (ch == UInt8(125)) {
                 depth -= 1
-            } else if (ch == Char('\'') || ch == Char('"') || ch == Char('`')) {
+            } else if (ch == UInt8(39) || ch == UInt8(34) || ch == UInt8(96)) {
                 i = skipStringInScan(i)
                 continue
             }
@@ -845,11 +855,11 @@ public class TSTransformer {
     private func findMatchingParen(start: Int64): Int64 {
         var depth = 1
         var i = start
-        while (i < source.length && depth > 0) {
+        while (i < source.size && depth > 0) {
             let ch = source[Int64(i)]
-            if (ch == Char('(')) { depth += 1 }
-            else if (ch == Char(')')) { depth -= 1 }
-            else if (ch == Char('\'') || ch == Char('"') || ch == Char('`')) {
+            if (ch == UInt8(40)) { depth += 1 }
+            else if (ch == UInt8(41)) { depth -= 1 }
+            else if (ch == UInt8(39) || ch == UInt8(34) || ch == UInt8(96)) {
                 i = skipStringInScan(i)
                 continue
             }
@@ -862,10 +872,10 @@ public class TSTransformer {
     private func findMatchingBracket(start: Int64): Int64 {
         var depth = 1
         var i = start
-        while (i < source.length && depth > 0) {
+        while (i < source.size && depth > 0) {
             let ch = source[Int64(i)]
-            if (ch == Char('[')) { depth += 1 }
-            else if (ch == Char(']')) { depth -= 1 }
+            if (ch == UInt8(91)) { depth += 1 }
+            else if (ch == UInt8(93)) { depth -= 1 }
             i += 1
         }
         return i - 1
@@ -875,11 +885,11 @@ public class TSTransformer {
     private func findMatchingGeneric(start: Int64): Int64 {
         var depth = 1
         var i = start + 1
-        while (i < source.length && depth > 0) {
+        while (i < source.size && depth > 0) {
             let ch = source[Int64(i)]
-            if (ch == Char('<')) { depth += 1 }
-            else if (ch == Char('>')) { depth -= 1 }
-            else if (ch == Char('\'') || ch == Char('"') || ch == Char('`')) {
+            if (ch == UInt8(60)) { depth += 1 }
+            else if (ch == UInt8(62)) { depth -= 1 }
+            else if (ch == UInt8(39) || ch == UInt8(34) || ch == UInt8(96)) {
                 i = skipStringInScan(i)
                 continue
             }
@@ -892,10 +902,10 @@ public class TSTransformer {
     private static func findMatchingBraceInString(s: String, start: Int64): Int64 {
         var depth = 1
         var i = start
-        while (i < s.length && depth > 0) {
+        while (i < s.size && depth > 0) {
             let ch = s[Int64(i)]
-            if (ch == Char('{')) { depth += 1 }
-            else if (ch == Char('}')) { depth -= 1 }
+            if (ch == UInt8(123)) { depth += 1 }
+            else if (ch == UInt8(125)) { depth -= 1 }
             i += 1
         }
         return i - 1
@@ -903,15 +913,15 @@ public class TSTransformer {
 
     /// 跳过扫描中的字符串
     private func skipStringInScan(start: Int64): Int64 {
-        let quote = source[Int64(start)]
+        let quoteChar = source[Int64(start)]
         var i = start + 1
-        while (i < source.length) {
+        while (i < source.size) {
             let ch = source[Int64(i)]
-            if (ch == Char('\\')) {
+            if (ch == UInt8(92)) {
                 i += 2
                 continue
             }
-            if (ch == quote) {
+            if (ch == quoteChar) {
                 return i + 1
             }
             i += 1
@@ -921,17 +931,17 @@ public class TSTransformer {
 
     /// 复制字符串字面量到输出
     private func copyStringLiteral(): Unit {
-        let quote = source[Int64(pos)]
-        output.append(quote)
+        let quoteChar = source[Int64(pos)]
+        output.append(quoteChar)
         pos += 1
-        while (pos < source.length) {
+        while (pos < source.size) {
             let ch = source[Int64(pos)]
             output.append(ch)
             pos += 1
-            if (ch == Char('\\') && pos < source.length) {
+            if (ch == UInt8(92) && pos < source.size) {
                 output.append(source[Int64(pos)])
                 pos += 1
-            } else if (ch == quote) {
+            } else if (ch == quoteChar) {
                 break
             }
         }
@@ -939,31 +949,31 @@ public class TSTransformer {
 
     /// 复制模板字符串到输出
     private func copyTemplateLiteral(): Unit {
-        output.append(Char('`'))
+        output.append(UInt8(96))
         pos += 1
-        while (pos < source.length) {
+        while (pos < source.size) {
             let ch = source[Int64(pos)]
-            if (ch == Char('\\')) {
+            if (ch == UInt8(92)) {
                 output.append(ch)
                 pos += 1
-                if (pos < source.length) {
+                if (pos < source.size) {
                     output.append(source[Int64(pos)])
                     pos += 1
                 }
-            } else if (ch == Char('`')) {
+            } else if (ch == UInt8(96)) {
                 output.append(ch)
                 pos += 1
                 break
-            } else if (ch == Char('$') && pos + 1 < source.length && source[Int64(pos + 1)] == Char('{')) {
-                output.append(Char('$'))
-                output.append(Char('{'))
+            } else if (ch == UInt8(36) && pos + 1 < source.size && source[Int64(pos + 1)] == UInt8(123)) {
+                output.append(UInt8(36))
+                output.append(UInt8(123))
                 pos += 2
                 // 简化: 复制到匹配的 }
                 var depth = 1
-                while (pos < source.length && depth > 0) {
+                while (pos < source.size && depth > 0) {
                     let c = source[Int64(pos)]
-                    if (c == Char('{')) { depth += 1 }
-                    else if (c == Char('}')) { depth -= 1 }
+                    if (c == UInt8(123)) { depth += 1 }
+                    else if (c == UInt8(125)) { depth -= 1 }
                     output.append(c)
                     pos += 1
                 }
@@ -976,10 +986,10 @@ public class TSTransformer {
 
     /// 跳过行注释
     private func skipLineComment(): Unit {
-        output.append(Char('/'))
-        output.append(Char('/'))
+        output.append(UInt8(47))
+        output.append(UInt8(47))
         pos += 2
-        while (pos < source.length && source[Int64(pos)] != Char('\n')) {
+        while (pos < source.size && source[Int64(pos)] != UInt8(10)) {
             output.append(source[Int64(pos)])
             pos += 1
         }
@@ -987,13 +997,13 @@ public class TSTransformer {
 
     /// 跳过块注释
     private func skipBlockComment(): Unit {
-        output.append(Char('/'))
-        output.append(Char('*'))
+        output.append(UInt8(47))
+        output.append(UInt8(42))
         pos += 2
-        while (pos + 1 < source.length) {
+        while (pos + 1 < source.size) {
             output.append(source[Int64(pos)])
-            if (source[Int64(pos)] == Char('*') && source[Int64(pos + 1)] == Char('/')) {
-                output.append(Char('/'))
+            if (source[Int64(pos)] == UInt8(42) && source[Int64(pos + 1)] == UInt8(47)) {
+                output.append(UInt8(47))
                 pos += 2
                 break
             }
@@ -1002,14 +1012,14 @@ public class TSTransformer {
     }
 
     private func isIdentStart(ch: Char): Bool {
-        let v = ch.value
+        let v = ch
         return (v >= 97 && v <= 122) || (v >= 65 && v <= 90) || v == 95 || v == 36
     }
 
     private func isNumericString(s: String): Bool {
-        if (s.length == 0) { return false }
+        if (s.size == 0) { return false }
         for (ch in s) {
-            let v = ch.value
+            let v = ch
             if (!((v >= 48 && v <= 57) || v == 45 || v == 46)) {
                 return false
             }
@@ -1020,7 +1030,7 @@ public class TSTransformer {
     private func parseInt64(s: String): Int64 {
         var result: Int64 = 0
         for (ch in s) {
-            let v = ch.value
+            let v = ch
             if (v >= 48 && v <= 57) {
                 result = result * 10 + Int64(v - 48)
             }

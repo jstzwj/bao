@@ -94,36 +94,35 @@ public class NpmRegistryScope {
     public static func hashURL(url: String): UInt64 {
         var normalized = url
         if (normalized.endsWith("/")) {
-            normalized = normalized.substring(0, normalized.length - 1)
+            normalized = normalized[..normalized.size - 1]
         }
-        return UInt64(bao_hash.Wyhash.hash(0, normalized.toByteArray()))
+        return Wyhash.hash(normalized)
     }
 
     /// 从包名获取 scope 名称
     /// 翻译自: Scope.getName
     ///   "@babel/core" -> "babel"
     public static func getScopeName(name: String): String {
-        if (name.length == 0 || name[0] != '@') { return name }
-        let slashIdx = name.indexOf("/")
-        match (slashIdx) {
-            case Some(idx) => name.substring(1, idx)
-            case None => name.substring(1)
+        if (name.size == 0 || !name.startsWith("@")) { return name }
+        match (name.indexOf("/")) {
+            case Some(idx) => name[1..idx]
+            case None => name[1..]
         }
     }
 
     /// 是否有认证信息
     public func hasAuth(): Bool {
-        return token.length > 0 || auth.length > 0
+        return token.size > 0 || auth.size > 0
     }
 
     /// 构建 Authorization 头值
     /// 翻译自: NetworkTask.appendAuth
     public func authHeaderValue(): ?String {
-        if (token.length > 0) {
-            return "Bearer ${token}"
+        if (token.size > 0) {
+            return Some("Bearer ${token}")
         }
-        if (auth.length > 0) {
-            return "Basic ${auth}"
+        if (auth.size > 0) {
+            return Some("Basic ${auth}")
         }
         return None
     }
@@ -146,7 +145,7 @@ public class NpmRegistryMap {
     /// 获取指定包名对应的 scope
     /// 翻译自: PackageManager.scopeForPackageName
     public func scopeForPackageName(name: String): NpmRegistryScope {
-        if (name.length > 0 && name[0] == '@') {
+        if (name.size > 0 && name.startsWith("@")) {
             let scopeName = NpmRegistryScope.getScopeName(name)
             let scopeHash = NpmRegistryScope.hashURL(scopeName)
             match (scopes.get(scopeHash)) {
@@ -165,7 +164,10 @@ public class NpmRegistryMap {
 
     /// 移除 scope
     public func remove(hash: UInt64): Bool {
-        return scopes.remove(hash)
+        match (scopes.remove(hash)) {
+            case Some(_) => return true
+            case None => return false
+        }
     }
 }
 
@@ -264,21 +266,20 @@ public class NpmClient {
     ///   向 registry 发送 GET /-/whoami 请求, 返回当前用户名
     public static func whoami(registry: NpmRegistryScope): ?String {
         // 如果 user 中有 "username:password" 格式
-        if (registry.user.length > 0) {
-            let sepIdx = registry.user.indexOf(":")
-            match (sepIdx) {
-                case Some(idx) => return registry.user.substring(0, idx)
-                case None => return registry.user
+        if (registry.user.size > 0) {
+            match (registry.user.indexOf(":")) {
+                case Some(idx) => return Some(registry.user[..idx])
+                case None => return Some(registry.user)
             }
         }
 
         // URL 中的用户名
-        if (registry.username.length > 0) {
-            return registry.username
+        if (registry.username.size > 0) {
+            return Some(registry.username)
         }
 
         // 没有 token 则无法认证
-        if (registry.token.length == 0) {
+        if (registry.token.size == 0) {
             return None
         }
 
@@ -288,14 +289,17 @@ public class NpmClient {
         let whoamiUrl = "${baseUrl}${sep}-/whoami"
 
         try {
-            let response = bao_http.HttpClient.get(whoamiUrl, [
-                HttpHeader("Authorization", "Bearer ${registry.token}"),
-                HttpHeader("Accept", "*/*")
-            ])
-            if (response.statusCode == 200) {
-                let json = bao_json.JsonParser.parse(response.body)
-                match (json.get("username")) {
-                    case Some(u) => return u.asString()
+            let response = HttpClient.fetch(whoamiUrl)
+            if (response.status == 200) {
+                let bodyText = response.text()
+                let jsonParser = JsonParser()
+                let json = jsonParser.parse(bodyText)
+                match (json) {
+                    case Some(root) =>
+                        match (JsonHelper.getString(root, "username")) {
+                            case Some(u) => return Some(u)
+                            case None => return None
+                        }
                     case None => return None
                 }
             }
@@ -316,19 +320,24 @@ public class NpmClient {
         packageVersion: ?String
     ): String {
         var message = "HTTP ${statusCode}"
-        if (statusText.length > 0) {
+        if (statusText.size > 0) {
             message = message + " ${statusText}"
         }
         // 尝试从响应体解析 error 字段
         try {
-            let json = bao_json.JsonParser.parse(body)
-            match (json.get("error")) {
-                case Some(e) => message = message + ": ${e.asString()}"
+            let jsonParser = JsonParser()
+            let json = jsonParser.parse(body)
+            match (json) {
+                case Some(root) =>
+                    match (JsonHelper.getString(root, "error")) {
+                        case Some(e) => message = message + ": ${e}"
+                        case None => ()
+                    }
                 case None => ()
             }
         } catch (_: Exception) {
             // 无法解析 JSON, 使用原始 body
-            if (body.length > 0 && body.length < 200) {
+            if (body.size > 0 && body.size < 200) {
                 message = message + ": ${body}"
             }
         }
@@ -336,12 +345,11 @@ public class NpmClient {
         // 404 特殊处理
         if (statusCode == 404) {
             match (packageName) {
-                case Some(name) => {
+                case Some(name) =>
                     match (packageVersion) {
                         case Some(ver) => message = message + "\n - '${name}@${ver}' does not exist in this registry"
                         case None => message = message + "\n - '${name}' does not exist in this registry"
                     }
-                }
                 case None => ()
             }
         }
@@ -381,21 +389,10 @@ public class NegatableSet {
     /// 合并结果: 返回最终允许的集合
     /// 翻译自: Negatable.combine
     public func combine(): HashSet<String> {
-        if (hadWildcard) {
-            // 通配符: 所有值减去排除的
-            let result = HashSet<String>()
-            // all_value minus removed
-            for (item in added) {
-                if (!removed.contains(item)) {
-                    result.add(item)
-                }
-            }
-            return result
-        }
         let result = HashSet<String>()
-        for (item in added) {
+        for (item in added.values()) {
             if (!removed.contains(item)) {
-                result.add(item)
+                result.put(item)
             }
         }
         return result
@@ -408,10 +405,10 @@ public class NegatableSet {
             return
         }
         if (value.startsWith("!")) {
-            let negated = value.substring(1)
-            removed.add(negated)
+            let negated = value[1..]
+            removed.put(negated)
         } else {
-            added.add(value)
+            added.put(value)
         }
     }
 

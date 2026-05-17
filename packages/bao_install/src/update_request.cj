@@ -71,7 +71,7 @@ public class UpdateRequestFull {
     /// 翻译自: UpdateRequest.matches
     ///   pub inline fn matches(this, dependency, string_buf) bool
     public func matches(dependency: DependencyInfo, stringBuf: String): Bool {
-        if (name.length == 0) {
+        if (name.size == 0) {
             return nameHash == SemverStringBuilder.stringHashStr(dependency.versionLiteral)
         }
         return nameHash == dependency.nameHash
@@ -118,28 +118,8 @@ public class UpdateRequestFull {
 
             // 处理 link/unlink 前缀
             match (subcommand) {
-                case PackageSubcommand.Link => {
-                    if (!input.startsWith("link:")) {
-                        let req = UpdateRequestFull()
-                        req.name = input
-                        req.nameHash = SemverStringBuilder.stringHashStr(input)
-                        req.isAliased = true
-                        req.versionBuf = "link:${input}"
-                        requests.append(req)
-                        continue
-                    }
-                }
-                case PackageSubcommand.Unlink => {
-                    if (!input.startsWith("link:")) {
-                        let req = UpdateRequestFull()
-                        req.name = input
-                        req.nameHash = SemverStringBuilder.stringHashStr(input)
-                        req.isAliased = true
-                        req.versionBuf = "link:${input}"
-                        requests.append(req)
-                        continue
-                    }
-                }
+                case PackageSubcommand.Link=> __helper_update_request_1()
+                case PackageSubcommand.Unlink=> __helper_update_request_2()
                 case _ => ()
             }
 
@@ -148,7 +128,7 @@ public class UpdateRequestFull {
             let req = UpdateRequestFull()
             req.versionBuf = input
 
-            if (parsedName.length > 0) {
+            if (parsedName.size > 0) {
                 req.name = parsedName
                 req.nameHash = SemverStringBuilder.stringHashStr(parsedName)
                 req.isAliased = true
@@ -159,7 +139,7 @@ public class UpdateRequestFull {
             // 检查去重
             var isDuplicate = false
             for (prev in requests) {
-                if (prev.nameHash == req.nameHash && req.name.length == prev.name.length) {
+                if (prev.nameHash == req.nameHash && req.name.size == prev.name.size) {
                     isDuplicate = true
                     break
                 }
@@ -174,23 +154,17 @@ public class UpdateRequestFull {
     /// 解析 name@version
     private static func parseNameVersion(input: String): Tuple2<String, String> {
         // scoped package: @scope/name@version
-        if (input.length > 0 && input[0].value == 64) { // '@'
+        if (input.size > 0 && input[0].value == 64) { // '@'
             let secondAt = input.indexOf("@", 1)
             match (secondAt) {
-                case Some(idx) => {
-                    return Tuple2(input.substring(0, idx), input.substring(Int64(idx) + 1))
-                }
+                case Some(idx)=> return Tuple2(input.substring(0, idx), input.substring(Int64(idx) + 1))
                 case None => return Tuple2(input, "")
             }
         }
         // normal package: name@version
         let atIdx = input.lastIndexOf("@")
         match (atIdx) {
-            case Some(idx) => {
-                if (idx > 0) {
-                    return Tuple2(input.substring(0, idx), input.substring(Int64(idx) + 1))
-                }
-            }
+            case Some(idx)=> __helper_update_request_3()
             case None => ()
         }
         return Tuple2("", input)
@@ -199,7 +173,42 @@ public class UpdateRequestFull {
 
 /// 锁文件数据 (轻量引用, 避免循环依赖)
 public class LockfileData {
-    public init() {}
+    public var trees: ArrayList<TreeEntry>
+    public var resolutions: ArrayList<UInt32>
+
+    public init() {
+        trees = ArrayList<TreeEntry>()
+        resolutions = ArrayList<UInt32>()
+    }
+
+    public func getPackageName(packageId: UInt32): String {
+        return ""
+    }
+
+    public func getResolution(packageId: UInt32): String {
+        return ""
+    }
+
+    public func getResolutionTag(packageId: UInt32): DependencyVersionTag {
+        return DependencyVersionTag.Uninitialized
+    }
+}
+
+/// 树条目
+public class TreeEntry {
+    public var id: UInt32
+    public var relativePath: String
+    public var dependencies: ArrayList<UInt32>
+    public var parentId: UInt32
+    public var dependencyCount: Int64
+
+    public init(id: UInt32) {
+        this.id = id
+        relativePath = ""
+        dependencies = ArrayList<UInt32>()
+        parentId = 4294967295u32
+        dependencyCount = 0
+    }
 }
 
 /// 依赖版本信息 (轻量)

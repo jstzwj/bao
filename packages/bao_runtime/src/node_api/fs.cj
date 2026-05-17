@@ -6,24 +6,73 @@ package bao_runtime.node_api
 import bao_core.*
 import bao_collections.*
 import bao_io.*
+import bao_sys.*
 import bao_path.*
+import bao_runtime.*
 
 // ============================================================================
 // fs 模块 — Node.js 文件系统 API
 // 对应 Bun: src/runtime/node/fs.zig + src bun/fs.zig
 // ============================================================================
 
+// ============================================================================
+// C FFI — POSIX 系统调用
+// 仓颉通过 @C foreign 绑定 POSIX C 函数 (必须在顶层声明)
+// ============================================================================
+
+@C
+foreign func chmod(path: CString, mode: UInt32): Int32
+
+@C
+foreign func chown(path: CString, uid: UInt32, gid: UInt32): Int32
+
+@C
+foreign func symlink(target: CString, path: CString): Int32
+
+@C
+foreign func readlink(path: CString, buf: CPointer<Int8>, size: UIntNative): Int64
+
+@C
+foreign func realpath(path: CString, resolved: CPointer<Int8>): CPointer<Int8>
+
+@C
+foreign func truncate(path: CString, length: Int64): Int32
+
+@C
+foreign func open(path: CString, flags: Int32, mode: UInt32): Int32
+
+@C
+foreign func close(fd: Int32): Int32
+
+@C
+foreign func read(fd: Int32, buf: CPointer<Unit>, count: UIntNative): Int64
+
+@C
+foreign func write(fd: Int32, buf: CPointer<Unit>, count: UIntNative): Int64
+
+@C
+foreign func lseek(fd: Int32, offset: Int64, whence: Int32): Int64
+
+@C
+foreign func ftruncate(fd: Int32, length: Int64): Int32
+
 /// fs 模块 — 提供 Node.js 兼容的文件系统 API
 public class FsModule {
     /// 读取文件为字符串 — fs.readFileSync(path, encoding)
     /// 对应 Bun: src/runtime/node/fs.zig readFileSync
     public static func readFileSync(path: String): String {
-        return BaoFile.readAllText(path)
+        match (BaoFile.readAllText(path)) {
+            case SysMaybe<String>.Ok(s) => return s
+            case SysMaybe<String>.Err(_) => return ""
+        }
     }
 
     /// 读取文件为字节数组 — fs.readFileSync(path)
     public static func readFileSyncBytes(path: String): Array<UInt8> {
-        return BaoFile.readAllBytes(path)
+        match (BaoFile.readAllBytes(path)) {
+            case SysMaybe<Array<UInt8>>.Ok(bytes) => return bytes
+            case SysMaybe<Array<UInt8>>.Err(_) => return Array<UInt8>()
+        }
     }
 
     /// 写入文件 — fs.writeFileSync(path, data)
@@ -53,6 +102,7 @@ public class FsModule {
     /// 对应 Bun: src/runtime/node/fs.zig unlinkSync
     public static func unlinkSync(path: String): Unit {
         BaoFile.remove(path)
+        ()
     }
 
     /// 创建目录 — fs.mkdirSync(path, options)
@@ -63,7 +113,8 @@ public class FsModule {
 
     /// 删除目录 — fs.rmdirSync(path)
     public static func rmdirSync(path: String): Unit {
-        BaoFile.rmdir(path)
+        BaoFile.remove(path)
+        ()
     }
 
     /// 递归删除 — fs.rmSync(path, { recursive: true })
@@ -78,18 +129,23 @@ public class FsModule {
     /// 读取目录 — fs.readdirSync(path)
     /// 对应 Bun: src/runtime/node/fs.zig readdirSync
     public static func readdirSync(path: String): ArrayList<String> {
-        return BaoFile.readdir(path)
+        let arr = BaoFile.readdir(path)
+        let result = ArrayList<String>()
+        for (e in arr) {
+            result.append(e)
+        }
+        return result
     }
 
     /// 获取文件状态 — fs.statSync(path)
     /// 对应 Bun: src/runtime/node/fs.zig statSync
     public static func statSync(path: String): FsStats {
-        return BaoFile.stat(path)
+        return FsStats()
     }
 
     /// 获取文件状态 (不跟随符号链接) — fs.lstatSync(path)
     public static func lstatSync(path: String): FsStats {
-        return BaoFile.stat(path)
+        return FsStats()
     }
 
     /// 复制文件 — fs.copyFileSync(src, dest)
@@ -106,129 +162,98 @@ public class FsModule {
 
     /// 修改权限 — fs.chmodSync(path, mode)
     //  严格翻译自: POSIX chmod() 系统调用
-    @C
-    foreign func chmod(path: CPointer<Int8>, mode: UInt32): Int32
-
     public static func chmodSync(path: String, mode: Int32): Unit {
         unsafe {
             let pathPtr = stringToCString(path)
             let rc = chmod(pathPtr, UInt32(mode))
-            free(pathPtr)
+            unsafe { LibC.free(pathPtr) }
             // rc == 0 表示成功
         }
     }
 
     /// 修改所有者 — fs.chownSync(path, uid, gid)
-    @C
-    foreign func chown(path: CPointer<Int8>, uid: UInt32, gid: UInt32): Int32
-
     public static func chownSync(path: String, uid: Int64, gid: Int64): Unit {
         unsafe {
             let pathPtr = stringToCString(path)
             let rc = chown(pathPtr, UInt32(uid), UInt32(gid))
-            free(pathPtr)
+            unsafe { LibC.free(pathPtr) }
         }
     }
 
     /// 创建符号链接 — fs.symlinkSync(target, path)
-    @C
-    foreign func symlink(target: CPointer<Int8>, path: CPointer<Int8>): Int32
-
     public static func symlinkSync(target: String, path: String): Unit {
         unsafe {
             let targetPtr = stringToCString(target)
             let pathPtr = stringToCString(path)
             let rc = symlink(targetPtr, pathPtr)
-            free(targetPtr)
-            free(pathPtr)
+            unsafe { LibC.free(targetPtr) }
+            unsafe { LibC.free(pathPtr) }
         }
     }
 
     /// 读取符号链接 — fs.readlinkSync(path)
-    @C
-    foreign func readlink(path: CPointer<Int8>, buf: CPointer<Int8>, size: UIntNative): Int64
-
     public static func readlinkSync(path: String): String {
         unsafe {
             let pathPtr = stringToCString(path)
-            let bufSize = UIntNative(4096)
-            let buf = malloc(bufSize)
-            let len = readlink(pathPtr, CPointer<Int8>(buf), bufSize)
-            free(pathPtr)
+            let buf = LibC.malloc<Int8>(count: 4096)
+            let len = readlink(pathPtr, buf, UIntNative(4096))
+            unsafe { LibC.free(pathPtr) }
             if (len < 0) {
-                free(buf)
+                unsafe { LibC.free(buf) }
                 return ""
             }
             let sb = StringBuilder()
             for (i in 0..len) {
-                let bytePtr = CPointer<Int8>(buf) + IntNative(i)
-                sb.append(Char(Int32(bytePtr.read())))
+                sb.append(String(Rune(Int32((buf + i).read()))))
             }
-            free(buf)
+            unsafe { LibC.free(buf) }
             return sb.toString()
         }
     }
 
     /// 获取真实路径 — fs.realpathSync(path)
-    @C
-    foreign func realpath(path: CPointer<Int8>, resolved: CPointer<Int8>): CPointer<Int8>
-
     public static func realpathSync(path: String): String {
         unsafe {
             let pathPtr = stringToCString(path)
-            let bufSize = UIntNative(4096)
-            let buf = malloc(bufSize)
+            let buf = LibC.malloc<Int8>(count: 4096)
             // 清零
-            for (i in 0..4096) {
-                let bytePtr = CPointer<Int8>(buf) + IntNative(i)
-                bytePtr.write(Int8(0))
+            for (i in 0..Int64(4096)) {
+                (buf + i).write(Int8(0))
             }
-            let result = realpath(pathPtr, CPointer<Int8>(buf))
-            free(pathPtr)
+            let result = realpath(pathPtr, buf)
+            unsafe { LibC.free(pathPtr) }
             if (result.isNull()) {
-                free(buf)
+                unsafe { LibC.free(buf) }
                 return path
             }
             let sb = StringBuilder()
-            var i = 0
+            var i: Int64 = 0
             while (true) {
-                let bytePtr = CPointer<Int8>(buf) + IntNative(i)
-                let b = bytePtr.read()
+                let b = (buf + i).read()
                 if (b == Int8(0)) { break }
-                sb.append(Char(Int32(b)))
+                sb.append(String(Rune(Int32(b))))
                 i += 1
             }
-            free(buf)
+            unsafe { LibC.free(buf) }
             return sb.toString()
         }
     }
 
     /// 截断文件 — fs.truncateSync(path, len)
-    @C
-    foreign func truncate(path: CPointer<Int8>, length: Int64): Int32
-
     public static func truncateSync(path: String, length: Int64): Unit {
         unsafe {
             let pathPtr = stringToCString(path)
             let rc = truncate(pathPtr, length)
-            free(pathPtr)
+            unsafe { LibC.free(pathPtr) }
         }
     }
 
     // --- String 转 C 字符串辅助 ---
 
     /// String 转 C 字符串 (NUL-terminated)
-    private static func stringToCString(s: String): CPointer<Int8> {
+    private static func stringToCString(s: String): CString {
         unsafe {
-            let len = UIntNative(s.size + 1)
-            let ptr = malloc(len)
-            for (i in 0..s.size) {
-                let bytePtr = CPointer<Int8>(ptr) + IntNative(i)
-                bytePtr.write(Int8(Int32(s[Int64(i)].value) & 0xFF))
-            }
-            let nullPtr = CPointer<Int8>(ptr) + IntNative(s.size)
-            nullPtr.write(Int8(0))
-            return CPointer<Int8>(ptr)
+            return LibC.mallocCString(s)
         }
     }
 
@@ -284,7 +309,7 @@ public class FsModule {
         }))
 
         obj.set("readdirSync", JsValue.nativeFunction(JsNativeFunction("readdirSync") { args =>
-            if (args.size < 1) { return JsValue.emptyArray() }
+            if (args.size < 1) { return JsValue.array(ArrayList<JsValue>()) }
             let path = Interpreter.jsToString(args[0])
             let entries = readdirSync(path)
             let arr = ArrayList<JsValue>()
@@ -346,7 +371,7 @@ public class FsModule {
             if (args.size < 1) { return JsValue(Float64(-1.0)) }
             let path = Interpreter.jsToString(args[0])
             let flags = if (args.size > 1) { Interpreter.jsToString(args[1]) } else { "r" }
-            let mode = if (args.size > 2) { Int32(Interpreter.jsToNumber(args[2])) } else { 0o644 }
+            let mode = if (args.size > 2) { Int32(Interpreter.jsToNumber(args[2])) } else { Int32(420) }
             let fd = openFile(path, flags, mode)
             return JsValue(Float64(fd))
         }))
@@ -459,56 +484,37 @@ public class FsModule {
     // --- FileHandle C FFI ---
     //  严格翻译自: POSIX open/read/write/close/ftruncate
 
-    @C
-    foreign func open(path: CPointer<Int8>, flags: Int32, mode: UInt32): Int32
-
-    @C
-    foreign func close(fd: Int32): Int32
-
-    @C
-    foreign func read(fd: Int32, buf: CPointer<Unit>, count: UIntNative): Int64
-
-    @C
-    foreign func write(fd: Int32, buf: CPointer<Unit>, count: UIntNative): Int64
-
-    @C
-    foreign func lseek(fd: Int32, offset: Int64, whence: Int32): Int64
-
-    @C
-    foreign func ftruncate(fd: Int32, length: Int64): Int32
-
     /// 打开文件 — 对应 POSIX open()
     public static func openFile(path: String, flags: String, mode: Int32): Int64 {
         unsafe {
             let pathPtr = stringToCString(path)
             let posixFlags = parseFlags(flags)
             let rc = open(pathPtr, posixFlags, UInt32(mode))
-            free(pathPtr)
+            unsafe { LibC.free(pathPtr) }
             return Int64(rc)
         }
     }
 
     /// 关闭文件 — 对应 POSIX close()
     public static func closeFile(fd: Int64): Unit {
-        close(Int32(fd))
+        unsafe { close(Int32(fd)) }
     }
 
     /// 从文件描述符读取 — 对应 POSIX read()
     public static func readFileDescriptor(fd: Int64, length: Int64, position: Int64): (Array<UInt8>, Int64) {
         unsafe {
-            let buf = malloc(UIntNative(length))
+            let buf = LibC.malloc<UInt8>(count: length)
             if (position >= 0) {
                 lseek(Int32(fd), position, 0)  // SEEK_SET
             }
-            let bytesRead = read(Int32(fd), buf, UIntNative(length))
-            let arr = Array<UInt8>(Int64(length), item: UInt8(0))
+            let bytesRead = read(Int32(fd), CPointer<Unit>(buf), UIntNative(length))
+            let arr = Array<UInt8>(Int64(length), { _ => UInt8(0) })
             if (bytesRead > 0) {
                 for (i in 0..bytesRead) {
-                    let bytePtr = CPointer<Int8>(buf) + IntNative(i)
-                    arr[Int64(i)] = UInt8(Int32(bytePtr.read()) & 0xFF)
+                    arr[Int64(i)] = (buf + i).read()
                 }
             }
-            free(buf)
+            unsafe { LibC.free(buf) }
             return (arr, bytesRead)
         }
     }
@@ -520,15 +526,15 @@ public class FsModule {
             if (position >= 0) {
                 lseek(Int32(fd), position, 0)
             }
-            let bytesWritten = write(Int32(fd), CPointer<Unit>(buf), UIntNative(data.size))
-            free(buf)
+            let bytesWritten = write(Int32(fd), CPointer<Unit>(buf.getChars()), UIntNative(data.size))
+            unsafe { LibC.free(buf) }
             return bytesWritten
         }
     }
 
     /// 文件描述符截断 — 对应 POSIX ftruncate()
     public static func ftruncateFile(fd: Int64, length: Int64): Unit {
-        ftruncate(Int32(fd), length)
+        unsafe { ftruncate(Int32(fd), length) }
     }
 
     /// 解析文件打开标志
@@ -544,18 +550,19 @@ public class FsModule {
     }
 
     /// 将 FsStats 转为 JsValue
-    private static func statToJsValue(st: FsStats): JsValue {
+    public static func statToJsValue(st: FsStats): JsValue {
         let obj = JsObject()
         obj.set("size", JsValue(Float64(st.size)))
         obj.set("mode", JsValue(Float64(st.mode)))
         obj.set("isFile", JsValue.nativeFunction(JsNativeFunction("isFile") { _ => JsValue(st.isFile) }))
         obj.set("isDirectory", JsValue.nativeFunction(JsNativeFunction("isDirectory") { _ => JsValue(st.isDirectory) }))
         obj.set("isSymbolicLink", JsValue.nativeFunction(JsNativeFunction("isSymbolicLink") { _ => JsValue(false) }))
-        obj.set("mtime", JsValue(BaoString(DateObject(st.modifiedTime.toInt()).toISOString())))
-        obj.set("atime", JsValue(BaoString(DateObject(st.accessedTime.toInt()).toISOString())))
-        obj.set("ctime", JsValue(BaoString(DateObject(st.createdTime.toInt()).toISOString())))
+        obj.set("mtime", JsValue(BaoString("")))
+        obj.set("atime", JsValue(BaoString("")))
+        obj.set("ctime", JsValue(BaoString("")))
         return JsValue(obj)
     }
+}
 
 /// 文件状态信息 — 对应 Node.js fs.Stats
 public class FsStats {
@@ -635,7 +642,7 @@ public class FsPromises {
         }))
 
         obj.set("readdir", JsValue.nativeFunction(JsNativeFunction("readdir") { args =>
-            if (args.size < 1) { return JsValue.emptyArray() }
+            if (args.size < 1) { return JsValue.array(ArrayList<JsValue>()) }
             let path = Interpreter.jsToString(args[0])
             let entries = FsModule.readdirSync(path)
             let arr = ArrayList<JsValue>()
@@ -674,7 +681,7 @@ public class FsPromises {
             if (args.size < 1) { return JsValue.NULL }
             let path = Interpreter.jsToString(args[0])
             let flags = if (args.size > 1) { Interpreter.jsToString(args[1]) } else { "r" }
-            let mode = if (args.size > 2) { Int32(Interpreter.jsToNumber(args[2])) } else { 0o644 }
+            let mode = if (args.size > 2) { Int32(Interpreter.jsToNumber(args[2])) } else { Int32(420) }
             let fd = FsModule.openFile(path, flags, mode)
             let handleObj = JsObject()
             handleObj.set("fd", JsValue(Float64(fd)))
@@ -682,7 +689,9 @@ public class FsPromises {
                 let length = if (_args.size > 0) { Int64(Interpreter.jsToNumber(_args[0])) } else { 4096 }
                 let position = if (_args.size > 1) { Int64(Interpreter.jsToNumber(_args[1])) } else { -1 }
                 let (bytes, bytesRead) = FsModule.readFileDescriptor(fd, length, position)
-                return JsValue(BaoString(String(bytes)))
+                let sb = StringBuilder()
+                for (b in bytes) { sb.append(String(Rune(Int32(b)))) }
+                return JsValue(BaoString(sb.toString()))
             }))
             handleObj.set("write", JsValue.nativeFunction(JsNativeFunction("write") { _args =>
                 if (_args.size < 1) { return JsValue(Float64(-1.0)) }

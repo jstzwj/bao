@@ -360,6 +360,25 @@ public enum DependencyVersionTag {
         }
     }
 
+    public operator func ==(right: DependencyVersionTag): Bool {
+        match (this) {
+            case Uninitialized => match (right) { case Uninitialized => true case _ => false }
+            case Npm => match (right) { case Npm => true case _ => false }
+            case DistTag => match (right) { case DistTag => true case _ => false }
+            case Tarball => match (right) { case Tarball => true case _ => false }
+            case Folder => match (right) { case Folder => true case _ => false }
+            case Symlink => match (right) { case Symlink => true case _ => false }
+            case Workspace => match (right) { case Workspace => true case _ => false }
+            case Git => match (right) { case Git => true case _ => false }
+            case Github => match (right) { case Github => true case _ => false }
+            case Catalog => match (right) { case Catalog => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: DependencyVersionTag): Bool {
+        return !(this == right)
+    }
+
     /// 是否是 NPM 相关类型 (tag < 3)
     /// 翻译自: Tag.isNPM
     public func isNPM(): Bool {
@@ -371,34 +390,34 @@ public enum DependencyVersionTag {
     public func canEnqueueInstallTask(): Bool {
         match (this) {
             case Npm => true
-            | Tarball => true
-            | Git => true
-            | Github => true
-            | _ => false
+            case Tarball => true
+            case Git => true
+            case Github => true
+            case _ => false
         }
     }
 
     /// 从依赖字符串推断类型
     /// 翻译自: Dependency.Version.Tag.infer
     public static func infer(dependency: String): DependencyVersionTag {
-        if (dependency.length == 0) { return DistTag }
+        if (dependency.size == 0) { return DistTag }
 
         let c = dependency[0]
 
         // ^, =, >, <, *, | -> npm semver range
-        if (c == '=' || c == '>' || c == '<' || c == '^' || c == '*' || c == '|') {
+        if (c == UInt8(61) || c == UInt8(62) || c == UInt8(60) || c == UInt8(94) || c == UInt8(42) || c == UInt8(124)) {
             return Npm
         }
 
         // ./path or ../path
-        if (c == '.') {
+        if (c == UInt8(46)) {
             if (isTarballExt(dependency)) { return Tarball }
             return Folder
         }
 
         // ~1.2.3 or ~/path
-        if (c == '~') {
-            if (dependency.length > 1 && dependency[1] == '/') {
+        if (c == UInt8(126)) {
+            if (dependency.size > 1 && dependency[1] == UInt8(47)) {
                 if (isTarballExt(dependency)) { return Tarball }
                 return Folder
             }
@@ -406,13 +425,13 @@ public enum DependencyVersionTag {
         }
 
         // /absolute/path
-        if (c == '/') {
+        if (c == UInt8(47)) {
             if (isTarballExt(dependency)) { return Tarball }
             return Folder
         }
 
         // 0-9: version number or 123.tar.gz
-        if (c >= '0' && c <= '9') {
+        if (c >= UInt8(48) && c <= UInt8(57)) {
             if (isTarballExt(dependency)) { return Tarball }
             return Npm
         }
@@ -476,15 +495,15 @@ public enum DependencyVersionTag {
         }
 
         // v1.2.3
-        if (c == 'v' && dependency.length > 1) {
+        if (c == UInt8(118) && dependency.size > 1) {
             let next = dependency[1]
-            if (next >= '0' && next <= '9') {
+            if (next >= UInt8(48) && next <= UInt8(57)) {
                 return Npm
             }
         }
 
         // x or X (wildcard)
-        if (c == 'x' || c == 'X') {
+        if (c == UInt8(120) || c == UInt8(88)) {
             return Npm
         }
 
@@ -522,20 +541,20 @@ public enum DependencyVersionTag {
     /// 是否是 SCP 风格路径
     /// 翻译自: Dependency.isSCPLikePath
     public static func isSCPLikePath(dependency: String): Bool {
-        if (dependency.length < 3) { return false }
+        if (dependency.size < 3) { return false }
         var atIndex: Int64 = -1
         var i: Int64 = 0
-        while (i < dependency.length) {
+        while (i < dependency.size) {
             let c = dependency[i]
-            if (c == '@') {
+            if (c == UInt8(64)) { // '@'
                 if (atIndex < 0) { atIndex = i }
-            } else if (c == ':') {
+            } else if (c == UInt8(58)) { // ':'
                 // 跳过 ://
-                if (i + 2 < dependency.length && dependency[Int64(i) + 1] == '/' && dependency[Int64(i) + 2] == '/') {
+                if (i + 2 < dependency.size && dependency[Int64(i) + 1] == UInt8(47) && dependency[Int64(i) + 2] == UInt8(47)) {
                     return false
                 }
                 return i > atIndex + 1 && atIndex >= 0
-            } else if (c == '/') {
+            } else if (c == UInt8(47)) { // '/'
                 return if (atIndex >= 0) { i > atIndex + 1 } else { false }
             }
             i += 1
@@ -708,36 +727,31 @@ public class DependencyInfo {
     /// 翻译自: Dependency.realname
     public func realname(): String {
         match (versionTag) {
-            case DistTag => {
+            case DistTag =>
                 match (versionValue.distTagInfo) {
-                    case Some(info) => info.name
+                    case Some(info) => if (info.name.size > 0) { info.name } else { name }
                     case None => name
                 }
-            }
-            case Git => {
+            case Git =>
                 match (versionValue.gitInfo) {
-                    case Some(info) => if (info.repo.length > 0) { info.repo } else { name }
+                    case Some(info) => if (info.repo.size > 0) { info.repo } else { name }
                     case None => name
                 }
-            }
-            case Github => {
+            case Github =>
                 match (versionValue.githubInfo) {
-                    case Some(info) => if (info.repo.length > 0) { info.repo } else { name }
+                    case Some(info) => if (info.repo.size > 0) { info.repo } else { name }
                     case None => name
                 }
-            }
-            case Npm => {
+            case Npm =>
                 match (versionValue.npmInfo) {
-                    case Some(info) => if (info.name.length > 0) { info.name } else { name }
+                    case Some(info) => if (info.name.size > 0) { info.name } else { name }
                     case None => name
                 }
-            }
-            case Tarball => {
+            case Tarball =>
                 match (versionValue.tarballInfo) {
-                    case Some(info) => if (info.packageName.length > 0) { info.packageName } else { name }
+                    case Some(info) => if (info.packageName.size > 0) { info.packageName } else { name }
                     case None => name
                 }
-            }
             case _ => name
         }
     }
@@ -746,12 +760,11 @@ public class DependencyInfo {
     /// 翻译自: Dependency.isAliased
     public func isAliased(buf: String): Bool {
         match (versionTag) {
-            case Npm => {
+            case Npm =>
                 match (versionValue.npmInfo) {
-                    case Some(info) => info.name != name
+                    case Some(info) => info.isAlias && info.name.size > 0 && info.name != buf
                     case None => false
                 }
-            }
             case _ => false
         }
     }
@@ -767,31 +780,24 @@ public class DependencyInfo {
     /// 拆分 name@version
     /// 翻译自: Dependency.splitNameAndMaybeVersion
     public static func splitNameAndMaybeVersion(s: String): Tuple2<String, ?String> {
-        let atIndex = s.indexOf("@")
-        match (atIndex) {
-            case Some(idx) => {
-                if (idx > 0) {
-                    let version = if (idx + 1 < s.length) { Some(s.substring(Int64(idx) + 1)) } else { None }
-                    return Tuple2(s.substring(0, idx), version)
-                }
-                // scoped package: @foo/bar@1.0.0
-                let secondAt = s.indexOf("@", Int64(idx) + 1)
-                match (secondAt) {
-                    case Some(idx2) => {
-                        let version = if (idx2 + 1 < s.length) { Some(s.substring(Int64(idx2) + 1)) } else { None }
-                        return Tuple2(s.substring(0, idx2), version)
-                    }
-                    case None => return Tuple2(s, None)
-                }
-            }
-            case None => return Tuple2(s, None)
+        // scoped package: @scope/name@version - skip leading @
+        let startIndex: ?Int64 = if (s.size > 0 && s[0] == UInt8(64)) {
+            s.indexOf("@", Int64(1))
+        } else {
+            s.indexOf("@")
+        }
+        match (startIndex) {
+            case Some(idx) => Tuple2(s[0..idx], Some(s[(idx + 1)..s.size]))
+            case None => Tuple2(s, Option<String>.None)
         }
     }
 
     /// 拆分 name@version 或返回 "latest"
     /// 翻译自: Dependency.splitNameAndVersionOrLatest
     public static func splitNameAndVersionOrLatest(s: String): Tuple2<String, String> {
-        let (name, version) = splitNameAndMaybeVersion(s)
+        let result = splitNameAndMaybeVersion(s)
+        let name = result.first
+        let version = result.second
         match (version) {
             case Some(v) => return Tuple2(name, v)
             case None => return Tuple2(name, "latest")
@@ -803,17 +809,8 @@ public class DependencyInfo {
     public static func splitVersionAndMaybeName(s: String): Tuple2<String, ?String> {
         let atIndex = s.indexOf("@")
         match (atIndex) {
-            case Some(idx) => {
-                if (idx > 0) {
-                    return Tuple2(s.substring(Int64(idx) + 1), s.substring(0, idx))
-                }
-                let secondAt = s.indexOf("@", Int64(idx) + 1)
-                match (secondAt) {
-                    case Some(idx2) => return Tuple2(s.substring(Int64(idx2) + 1), s.substring(0, idx2))
-                    case None => return Tuple2(s, None)
-                }
-            }
-            case None => return Tuple2(s, None)
+            case Some(idx) => Tuple2(s[(idx + 1)..s.size], Some(s[0..idx]))
+            case None => Tuple2(s, Option<String>.None)
         }
     }
 
@@ -822,7 +819,7 @@ public class DependencyInfo {
     public static func withoutBuildTag(version: String): String {
         let plusIdx = version.indexOf("+")
         match (plusIdx) {
-            case Some(idx) => version.substring(0, idx)
+            case Some(idx) => version[0..idx]
             case None => version
         }
     }
@@ -830,11 +827,11 @@ public class DependencyInfo {
     /// 获取不带 scope 的包名
     /// 翻译自: Dependency.unscopedPackageName
     public static func unscopedPackageName(name: String): String {
-        if (name.length == 0 || name[0] != '@') { return name }
-        let withoutAt = name.substring(1)
+        if (name.size == 0 || name[0] != UInt8(64)) { return name }
+        let withoutAt = name[1..name.size]
         let slashIdx = withoutAt.indexOf("/")
         match (slashIdx) {
-            case Some(idx) => withoutAt.substring(Int64(idx) + 1)
+            case Some(idx) => withoutAt[(idx + 1)..withoutAt.size]
             case None => name
         }
     }
@@ -842,11 +839,11 @@ public class DependencyInfo {
     /// 是否是 scoped package
     /// 翻译自: Dependency.isScopedPackageName
     public static func isScopedPackageName(name: String): Bool {
-        if (name.length == 0) { return false }
-        if (name[0] != '@') { return false }
+        if (name.size == 0) { return false }
+        if (name[0] != UInt8(64)) { return false }
         let slashIdx = name.indexOf("/")
         match (slashIdx) {
-            case Some(idx) => idx > 1 && idx < name.length - 1
+            case Some(idx) => idx > 1 && idx < Int64(name.size) - 1
             case None => false
         }
     }
@@ -855,7 +852,7 @@ public class DependencyInfo {
     /// 翻译自: Dependency.eql
     public func eql(other: DependencyInfo): Bool {
         return nameHash == other.nameHash &&
-            name.length == other.name.length &&
+            name.size == other.name.size &&
             versionTag == other.versionTag &&
             versionLiteral == other.versionLiteral
     }
@@ -896,107 +893,29 @@ public class DependencyVersionValue {
 //   pub const invalid_dependency_id = std.math.maxInt(DependencyID)
 // ============================================================================
 
-/// 无效包 ID
-/// 翻译自: invalid_package_id = maxInt(u32)
-public let INVALID_PACKAGE_ID: UInt32 = UInt32.MAX
-
 /// 无效依赖 ID
 /// 翻译自: invalid_dependency_id = maxInt(u32)
-public let INVALID_DEPENDENCY_ID: UInt32 = UInt32.MAX
+public let INVALID_DEPENDENCY_ID: UInt32 = 4294967295u32
 
 /// 包名哈希类型
 /// 翻译自: PackageNameHash = u64
-public typealias PackageNameHash = UInt64
+public type PackageNameHash = UInt64
 
 /// 包名+版本哈希类型
 /// 翻译自: PackageNameAndVersionHash = u64
-public typealias PackageNameAndVersionHash = UInt64
+public type PackageNameAndVersionHash = UInt64
 
 /// 截断的包名哈希
 /// 翻译自: TruncatedPackageNameHash = u32
-public typealias TruncatedPackageNameHash = UInt32
+public type TruncatedPackageNameHash = UInt32
 
 /// 包 ID
 /// 翻译自: PackageID = u32
-public typealias PackageID = UInt32
+public type PackageID = UInt32
 
 /// 依赖 ID
 /// 翻译自: DependencyID = u32
-public typealias DependencyID = UInt32
-
-// ============================================================================
-// 提取数据
-// 严格翻译自: src/install/install.zig - ExtractData
-// ============================================================================
-
-/// 提取数据
-/// 对应 Bun: install.ExtractData
-public class ExtractData {
-    public var url: String
-    public var resolved: String
-    public var jsonPath: String
-    public var jsonBuf: String
-    public var integrity: Integrity
-
-    public init() {
-        url = ""
-        resolved = ""
-        jsonPath = ""
-        jsonBuf = ""
-        integrity = Integrity()
-    }
-}
-
-// ============================================================================
-// 任务回调上下文
-// 严格翻译自: src/install/install.zig - TaskCallbackContext
-// ============================================================================
-
-/// 任务回调上下文 (union)
-/// 翻译自: install.TaskCallbackContext
-public enum TaskCallbackContext {
-    | Dependency(DependencyID)
-    | DependencyInstallContext(DependencyInstallContextData)
-    | IsolatedPackageInstallContext(UInt32)
-    | RootDependency(DependencyID)
-    | RootRequestID(PackageID)
-}
-
-/// 依赖安装上下文
-/// 翻译自: install.DependencyInstallContext
-public class DependencyInstallContextData {
-    public var treeId: UInt32
-    public var path: String
-    public var dependencyId: DependencyID
-
-    public init(treeId: UInt32, path: String, dependencyId: DependencyID) {
-        this.treeId = treeId
-        this.path = path
-        this.dependencyId = dependencyId
-    }
-}
-
-// ============================================================================
-// 预安装状态
-// 严格翻译自: src/install/install.zig - PreinstallState
-//   pub const PreinstallState = enum(u4) {
-//       unknown, done, extract, extracting,
-//       calc_patch_hash, calcing_patch_hash,
-//       apply_patch, applying_patch
-//   }
-// ============================================================================
-
-/// 预安装状态
-public enum PreinstallState {
-    | Unknown
-    | Done
-    | Extract
-    | Extracting
-    | CalcPatchHash
-    | CalcingPatchHash
-    | ApplyPatch
-    | ApplyingPatch
-}
+public type DependencyID = UInt32
 
 // ============================================================================
 // 安装来源
@@ -1039,6 +958,3 @@ public enum PackageManifestError {
 //   pub const bun_hash_tag = ".bun-tag-"
 // ============================================================================
 
-/// Bun hash tag 前缀
-/// 翻译自: install.bun_hash_tag
-public let BUN_HASH_TAG: String = ".bun-tag-"

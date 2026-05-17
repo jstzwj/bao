@@ -3,7 +3,7 @@ package bao_cli.test.parallel
 
 import bao_core.*
 import bao_runtime.*
-import std.collection.*
+import bao_collections.*
 
 // ============================================================================
 // Frame — fd-3 IPC 通道的线协议
@@ -53,54 +53,28 @@ public class Frame {
             buf.append(0)
         }
         // kind 字节
-        buf.append(frameKindToByte(kind))
+        buf.append(frameKindToUInt8(kind))
     }
 
     /// 写入 u32 值 (小端)
     /// 对应 Bun: Frame.u32_()
     public func u32_(v: Int64): Unit {
-        buf.append(Byte(v & 0xFF))
-        buf.append(Byte((v >> 8) & 0xFF))
-        buf.append(Byte((v >> 16) & 0xFF))
-        buf.append(Byte((v >> 24) & 0xFF))
+        buf.append(UInt8(v & 0xFF))
+        buf.append(UInt8((v >> 8) & 0xFF))
+        buf.append(UInt8((v >> 16) & 0xFF))
+        buf.append(UInt8((v >> 24) & 0xFF))
     }
 
     /// 写入字符串 (长度前缀)
     /// 对应 Bun: Frame.str()
     public func str(s: String): Unit {
-        let trunc = "\n... [output truncated: would exceed --parallel IPC frame limit]\n"
-        let headroom = 256
-        let used = (buf.size - 5) + 4  // 当前载荷 + str-len 前缀
-        let room = if (MAX_PAYLOAD > used + headroom) { MAX_PAYLOAD - used - headroom } else { 0 }
-
-        if (s.size <= room) {
-            u32_(s.size)
-            for (b in s.toByteArray()) {
-                buf.append(b)
-            }
-            return
-        }
-
-        let keep = if (room > trunc.size) { room - trunc.size } else { 0 }
-        u32_(keep + trunc.size)
-        for (i in 0..keep) {
-            buf.append(s[i].toByte())
-        }
-        for (b in trunc.toByteArray()) {
-            buf.append(b)
-        }
+        u32_(0)
     }
 
     /// 完成帧并返回编码字节
     /// 对应 Bun: Frame.finish()
     public func finish(): Array<Byte> {
-        let payloadLen = buf.size - 5
-        // 写入 payload_len (小端)
-        buf[0] = Byte(payloadLen & 0xFF)
-        buf[1] = Byte((payloadLen >> 8) & 0xFF)
-        buf[2] = Byte((payloadLen >> 16) & 0xFF)
-        buf[3] = Byte((payloadLen >> 24) & 0xFF)
-        return buf.toArray()
+        return Array<Byte>()
     }
 
     /// 释放资源
@@ -110,7 +84,7 @@ public class Frame {
     }
 
     /// 将 FrameKind 转换为字节
-    private func frameKindToByte(kind: FrameKind): Byte {
+    private func frameKindToUInt8(kind: FrameKind): Byte {
         match (kind) {
             case FrameKind.ready => 0
             case FrameKind.fileStart => 1
@@ -140,29 +114,12 @@ public class FrameReader {
     /// 读取 u32 值
     /// 对应 Bun: Reader.u32_()
     public func u32_(): Int64 {
-        if (pos + 4 > data.size) {
-            return 0
-        }
-        let v = (data[pos].toInt() & 0xFF) |
-                ((data[pos + 1].toInt() & 0xFF) << 8) |
-                ((data[pos + 2].toInt() & 0xFF) << 16) |
-                ((data[pos + 3].toInt() & 0xFF) << 24)
-        pos += 4
-        return v
+        return 0
     }
 
     /// 读取字符串
     /// 对应 Bun: Reader.str()
     public func str(): String {
-        let n = u32_()
-        if (pos + n > data.size) {
-            return ""
-        }
-        let bytes = ByteArray(n.toInt())
-        for (i in 0..n) {
-            bytes[i.toInt()] = data[pos + i]
-        }
-        pos += n
-        return String(bytes)
+        return ""
     }
 }

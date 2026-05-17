@@ -8,6 +8,35 @@
 
 package bao_runtime.bake.dev_server
 
+/// 当前 chunk 的 source map 数据
+public class CurrentChunkSourceMapData {
+    public var file_index: FileIndex
+    public var source_map: PackedMap.Shared
+
+    public func deinit(): Unit {
+        source_map.deinit()
+    }
+}
+
+/// 文件索引
+public struct FileIndex {
+    public var value: UInt32
+}
+
+/// 边索引
+public struct EdgeIndex {
+    public var value: UInt32
+}
+
+/// Edge - 导入关系图的边
+public class Edge {
+    public var dependency: FileIndex
+    public var imported: FileIndex
+    public var next_import: EdgeIndex.Optional
+    public var next_dependency: EdgeIndex.Optional
+    public var prev_dependency: EdgeIndex.Optional
+}
+
 /// 增量图 - 存储 Bake 的增量捆绑状态。
 /// 此泛型结构根据 side 参数为客户端和服务器端分别实例化。
 public class IncrementalGraph {
@@ -50,35 +79,6 @@ public class IncrementalGraph {
         current_chunk_source_maps: ArrayListUnmanaged<CurrentChunkSourceMapData>.empty,
     )
 
-    /// 当前 chunk 的 source map 数据
-    public class CurrentChunkSourceMapData {
-        public var file_index: FileIndex
-        public var source_map: PackedMap.Shared
-
-        public func deinit(): Unit {
-            source_map.deinit()
-        }
-    }
-
-    /// 文件索引
-    public struct FileIndex <: UInt30 {}
-
-    /// 边索引
-    public struct EdgeIndex <: UInt32 {}
-
-    /// Edge - 导入关系图的边
-    public class Edge {
-        /// 包含 import 语句的文件
-        public var dependency: FileIndex
-        /// import 语句引用的文件
-        public var imported: FileIndex
-        /// dependency 文件的"导入"链表中的下一条边
-        public var next_import: EdgeIndex.Optional
-        /// imported 文件的"依赖"链表中的下一条边
-        public var next_dependency: EdgeIndex.Optional
-        /// imported 文件的"依赖"链表中的上一条边（启用双向遍历）
-        public var prev_dependency: EdgeIndex.Optional
-    }
 
     /// 析构
     public func deinit(): Unit {
@@ -113,20 +113,13 @@ public class IncrementalGraph {
         graph += DevServer.memoryCostArrayList(edges_free_list)
         graph += DevServer.memoryCostArrayList(current_chunk_parts)
         graph += DevServer.memoryCostArrayList(current_css_files)
-        return MemoryCost(graph: graph, code: code, source_maps: source_maps)
-    }
-
-    /// 内存成本结构
-    public class MemoryCost {
-        public var graph: UInt64
-        public var code: UInt64
-        public var source_maps: UInt64
+        return MemoryCost(graph, code, source_maps)
     }
 
     /// 获取文件索引
     public func getFileIndex(path: String): ?FileIndex {
-        if (let Some(i) = bundled_files.getIndex(path)) {
-            return FileIndex.init(i)
+        if (let Some(i) <- bundled_files.getIndex(path)) {
+            return FileIndex.`init`(i)
         }
         return None
     }
@@ -141,7 +134,7 @@ public class IncrementalGraph {
         ctx: HotUpdateContext,
         index: AstIndex,
         content: ChunkContent,
-        is_ssr_graph: Bool,
+        is_ssr_graph: Bool
     ): Unit {
         let dev = owner()
         dev.graph_safety_lock.assertLocked()
@@ -150,7 +143,7 @@ public class IncrementalGraph {
         let key = path.keyForIncrementalGraph()
 
         let gop = bundled_files.getOrPut(dev.allocator(), key)
-        let file_index = FileIndex.init(gop.index)
+        let file_index = FileIndex.`init`(gop.index)
 
         if (!gop.found_existing) {
             gop.key_ptr = dev.allocator().dupe(key)
@@ -178,13 +171,12 @@ public class IncrementalGraph {
         ctx: HotUpdateContext,
         mode: ProcessMode,
         bundle_graph_index: AstIndex,
-        temp_alloc: Allocator,
+        temp_alloc: Allocator
     ): Unit {
         let file_index: FileIndex = ctx.getCachedIndex(side, bundle_graph_index).unwrap() ?? panic("unresolved index")
 
         // 构建从现有导入列表的映射
         var quick_lookup: TempLookupHashTable = TempLookupHashTable()
-        defer quick_lookup.deinit(temp_alloc)
 
         // 处理导入记录并更新边
         match (mode) {
@@ -193,7 +185,7 @@ public class IncrementalGraph {
         }
 
         // 跟踪依赖
-        traceDependencies(file_index, ctx.gts, .stop_at_boundary, file_index)
+        traceDependencies(file_index, ctx.gts, TraceDependencyGoal.stop_at_boundary, file_index)
     }
 
     /// 跟踪依赖项
@@ -201,7 +193,7 @@ public class IncrementalGraph {
         file_index: FileIndex,
         gts: GraphTraceState,
         goal: TraceDependencyGoal,
-        from_file_index: FileIndex,
+        from_file_index: FileIndex
     ): Unit {
         owner().graph_safety_lock.assertLocked()
 
@@ -223,18 +215,18 @@ public class IncrementalGraph {
                 let dev = owner()
                 if (file.is_hmr_root) {
                     // 跟踪到服务器图
-                } else if (let Some(route_bundle_index) = file.html_route_bundle_index) {
+                } else if (let Some(route_bundle_index) <- file.html_route_bundle_index) {
                     // 标记 HTML 路由受影响
                 }
         }
 
-        if (goal == .stop_at_boundary && file.stopsDependencyTrace()) {
+        if (goal == TraceDependencyGoal.stop_at_boundary && file.stopsDependencyTrace()) {
             return
         }
 
         // 递归跟踪依赖
         var it: ?EdgeIndex = first_dep.items[file_index.get()].unwrap()
-        while (let Some(dep_index) = it) {
+        while (let Some(dep_index) <- it) {
             let edge = edges.items[dep_index.get()]
             it = edge.next_dependency.unwrap()
             traceDependencies(edge.dependency, gts, goal, file_index)
@@ -245,7 +237,7 @@ public class IncrementalGraph {
     public func traceImports(
         file_index: FileIndex,
         gts: GraphTraceState,
-        goal: TraceImportGoal,
+        goal: TraceImportGoal
     ): Unit {
         owner().graph_safety_lock.assertLocked()
 
@@ -256,7 +248,7 @@ public class IncrementalGraph {
 
         match (side) {
             case server =>
-                if (file.is_client_component_boundary || file.kind == .css) {
+                if (file.is_client_component_boundary || file.kind == FileKind.css) {
                     let dev = owner()
                     let key = bundled_files.keys()[file_index.get()]
                     let index = dev.client_graph.getFileIndex(key) ?? panic("Missing client component")
@@ -264,14 +256,14 @@ public class IncrementalGraph {
                 }
             case client =>
                 match (file.content) {
-                    case css_root(let id) =>
-                        if (goal == .find_css) {
+                    case css_root(id) =>
+                        if (goal == TraceImportGoal.find_css) {
                             current_css_files.append(allocator(), id)
                         }
                         return
                     case _ => ()
                 }
-                if (goal == .find_client_modules) {
+                if (goal == TraceImportGoal.find_client_modules) {
                     current_chunk_parts.append(allocator(), file_index)
                     current_chunk_len += file.jsCode()?.length ?? 0
                 }
@@ -279,7 +271,7 @@ public class IncrementalGraph {
 
         // 递归跟踪导入
         var it: ?EdgeIndex = first_import.items[file_index.get()].unwrap()
-        while (let Some(dep_index) = it) {
+        while (let Some(dep_index) <- it) {
             let edge = edges.items[dep_index.get()]
             it = edge.next_import.unwrap()
             traceImports(edge.imported, gts, goal)
@@ -297,7 +289,7 @@ public class IncrementalGraph {
         let dev_alloc = allocator()
 
         let gop = bundled_files.getOrPut(dev_alloc, abs_path)
-        let file_index = FileIndex.init(gop.index)
+        let file_index = FileIndex.`init`(gop.index)
 
         if (!gop.found_existing) {
             gop.key_ptr = dev_alloc.dupe(abs_path)
@@ -323,7 +315,7 @@ public class IncrementalGraph {
             first_import.append(dev_alloc, EdgeIndex.Optional.none)
             ensureStaleBitCapacity(true)
         }
-        return (FileIndex.init(gop.index), gop.key_ptr)
+        return (FileIndex.`init`(gop.index), gop.key_ptr)
     }
 
     /// 使文件失效
@@ -347,7 +339,7 @@ public class IncrementalGraph {
 
     /// 获取 JS Bundle
     public func takeJSBundle(options: TakeJSBundleOptions): Array<Byte> {
-        var chunk: ArrayList<Byte> = ArrayList<Byte>.init(allocator())
+        var chunk: ArrayList<Byte> = ArrayList<Byte>.`init`(allocator())
         takeJSBundleToList(chunk, options)
         return chunk.items
     }
@@ -360,8 +352,8 @@ public class IncrementalGraph {
         let runtime: HmrRuntime = match (options.kind) {
             case initial_response => bake.getHmrRuntime(side)
             case hmr_chunk => match (side) {
-                case server => HmrRuntime.init("({")
-                case client => HmrRuntime.init("self[Symbol.for(\"bun:hmr\")]({\n")
+                case server => HmrRuntime.`init`("({")
+                case client => HmrRuntime.`init`("self[Symbol.for(\"bun:hmr\")]({\n")
             }
         }
 
@@ -371,7 +363,7 @@ public class IncrementalGraph {
         for (entry in current_chunk_parts.items) {
             match (side) {
                 case client =>
-                    if (let Some(code) = bundled_files.values()[entry.get()].unpack().jsCode()) {
+                    if (let Some(code) <-  bundled_files.values()[entry.get()].unpack().jsCode()) {
                         list.appendSlice(code)
                     }
                 case server =>
@@ -431,7 +423,7 @@ public class IncrementalGraph {
         // 断开所有导入
         var it: ?EdgeIndex = first_import.items[file_index.get()].unwrap()
         first_import.items[file_index.get()] = EdgeIndex.Optional.none
-        while (let Some(edge_index) = it) {
+        while (let Some(edge_index) <-  it) {
             let dep = edges.items[edge_index.get()]
             it = dep.next_import.unwrap()
             assert(dep.dependency == file_index)
@@ -449,15 +441,15 @@ public class IncrementalGraph {
         let edge = edges.items[edge_index.get()]
         let imported = edge.imported.get()
 
-        if (let Some(prev) = edge.prev_dependency.unwrap()) {
+        if (let Some(prev) <-  edge.prev_dependency.unwrap()) {
             let prev_dependency = edges.items[prev.get()]
             prev_dependency.next_dependency = edge.next_dependency
-            if (let Some(next) = edge.next_dependency.unwrap()) {
+            if (let Some(next) <-  edge.next_dependency.unwrap()) {
                 let next_dependency = edges.items[next.get()]
                 next_dependency.prev_dependency = edge.prev_dependency
             }
         } else {
-            if (let Some(next) = edge.next_dependency.unwrap()) {
+            if (let Some(next) <-  edge.next_dependency.unwrap()) {
                 let next_dependency = edges.items[next.get()]
                 next_dependency.prev_dependency = EdgeIndex.Optional.none
                 first_dep.items[edge.imported.get()] = next.toOptional()
@@ -469,11 +461,11 @@ public class IncrementalGraph {
 
     /// 创建新边
     func newEdge(edge: Edge): EdgeIndex {
-        if (let Some(index) = edges_free_list.pop()) {
+        if (let Some(index) <-  edges_free_list.pop()) {
             edges.items[index.get()] = edge
             return index
         }
-        let index = EdgeIndex.init(edges.items.length)
+        let index = EdgeIndex.`init`(edges.items.length)
         edges.append(allocator(), edge)
         return index
     }
@@ -539,7 +531,8 @@ public class ClientFile {
 
     public func jsCode(): ?String {
         return match (content) {
-            case js(let code) | asset(let code) => code
+            case js(code) => code
+            case asset(code) => code
             case _ => None
         }
     }
@@ -589,13 +582,7 @@ public class TakeJSBundleOptions {
 }
 
 // 类型别名
-public type StringArrayHashMapUnmanaged<V> = std.StringArrayHashMapUnmanaged<V>
-public type ArrayListUnmanaged<T> = std.ArrayListUnmanaged<T>
 public type DynamicBitSetUnmanaged = bun.bit_set.DynamicBitSetUnmanaged
-public type Allocator = std.mem.Allocator
-public type RouteBundle = dev_server.RouteBundle
-public type SourceMapStore = dev_server.SourceMapStore
-public type PackedMap = dev_server.PackedMap
 public type HotUpdateContext = dev_server.HotUpdateContext
 public type GraphTraceState = dev_server.GraphTraceState
 public type EntryPointList = dev_server.EntryPointList

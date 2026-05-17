@@ -3,6 +3,8 @@
 // 定义 FFI 对象在 JS 侧的类结构: 构造函数、原型方法、属性访问器
 package bao_runtime.ffi
 
+import bao_collections.*
+
 // ============================================================================
 // FFI 类描述
 // 对应 Bun: ffi.classes.ts — define({ name: "FFI", ... })
@@ -37,11 +39,7 @@ public class FfiClassDefinition {
     /// 对应 TypeScript: klass: {}
     /// 注意: Bun 中 FFI 的静态方法 (如 dlopen, callback, cc) 不在 klass 中，
     /// 而是通过 FFIObject.zig 的 toJS() 创建为普通函数属性
-    public static let STATIC_METHODS: ArrayList<FfiMethodDef> = {
-        let list = ArrayList<FfiMethodDef>()
-        // FFI 类无静态方法 — 所有方法通过 FFIObject.toJS() 以字段形式暴露
-        return list
-    }()
+    public static let STATIC_METHODS: ArrayList<FfiMethodDef> = ArrayList<FfiMethodDef>()
 
     // ========================================================================
     // 原型方法 (proto: { close, symbols })
@@ -50,36 +48,15 @@ public class FfiClassDefinition {
     /// FFI 实例的原型方法
     /// 对应 TypeScript: proto: { close: { fn: "close", length: 0 },
     ///   symbols: { cache: "symbolsValue", getter: "getSymbols" } }
-    public static let PROTOTYPE_METHODS: ArrayList<FfiPrototypeMethodDef> = {
-        let list = ArrayList<FfiPrototypeMethodDef>()
-
-        // close() — 关闭 FFI 实例, 释放动态库
-        // 对应 TypeScript: close: { fn: "close", length: 0 }
-        list.append(FfiPrototypeMethodDef(
-            name: "close",
-            functionName: "close",
-            argumentCount: 0
-        ))
-
-        return list
-    }()
+    public static let PROTOTYPE_METHODS: ArrayList<FfiPrototypeMethodDef> = ArrayList<FfiPrototypeMethodDef>([
+        FfiPrototypeMethodDef("close", "close", 0)
+    ])
 
     /// FFI 实例的原型属性访问器
     /// 对应 TypeScript: proto: { symbols: { cache: "symbolsValue", getter: "getSymbols" } }
-    public static let PROTOTYPE_PROPERTIES: ArrayList<FfiPrototypePropertyDef> = {
-        let list = ArrayList<FfiPrototypePropertyDef>()
-
-        // symbols — 已加载符号的缓存 getter
-        // cache: "symbolsValue" — 使用 symbolsValue 属性缓存结果
-        // getter: "getSymbols" — 首次访问时调用 getSymbols()
-        list.append(FfiPrototypePropertyDef(
-            name: "symbols",
-            cachePropertyName: "symbolsValue",
-            getterFunctionName: "getSymbols"
-        ))
-
-        return list
-    }()
+    public static let PROTOTYPE_PROPERTIES: ArrayList<FfiPrototypePropertyDef> = ArrayList<FfiPrototypePropertyDef>([
+        FfiPrototypePropertyDef("symbols", "symbolsValue", "getSymbols")
+    ])
 
     // ========================================================================
     // 内部缓存值 (values: ["symbolsValue"])
@@ -88,11 +65,7 @@ public class FfiClassDefinition {
     /// FFI 实例的内部缓存值属性名列表
     /// 对应 TypeScript: values: ["symbolsValue"]
     /// symbolsValue 用于缓存 symbols getter 的返回值
-    public static let CACHED_VALUES: ArrayList<String> = {
-        let list = ArrayList<String>()
-        list.append("symbolsValue")
-        return list
-    }()
+    public static let CACHED_VALUES: ArrayList<String> = ArrayList<String>(["symbolsValue"])
 }
 
 // ============================================================================

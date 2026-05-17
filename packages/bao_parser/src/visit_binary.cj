@@ -53,7 +53,7 @@ public class BinaryExpressionVisitor {
     /// 返回非 null 表示可以立即返回结果 (如 private-in 的情况)
     public func checkAndPrepare(p: Parser): ?Expr {
         // 设置左操作数的赋值目标
-        leftIn = ExprIn(assignTarget: binaryAssignTarget(expr.op))
+        leftIn = ExprIn(binaryAssignTarget(expr.op), false)
 
         // 设置 isStmtExpr 标志
         // 对应 Bun: v.is_stmt_expr = p.stmt_expr_value == .e_binary and ...
@@ -119,10 +119,8 @@ public class BinaryExpressionVisitor {
         }
 
         // --- 算术运算常量折叠 ---
-        if (p.shouldFoldConstantExpressions()) {
-            if (let Some(result) <- tryFoldArithmetic(mutableExpr)) {
-                return result
-            }
+        if (let Some(result) <- tryFoldArithmetic(mutableExpr)) {
+            return result
         }
 
         // --- 逻辑运算优化 ---
@@ -223,42 +221,13 @@ public class BinaryExpressionVisitor {
                             }
                         case OpCode.BinRem =>
                             if (rv != 0.0) {
-                                // 使用 fmod 语义
-                                return Some(Expr.number(expr.loc, lv.remainder(rv)))
+                                return Some(Expr.number(expr.loc, lv))
                             }
                         case OpCode.BinPow =>
-                            return Some(Expr.number(expr.loc, Math.pow(lv, rv)))
-                        case OpCode.BinShl => {
-                            let leftInt = floatToInt32(lv)
-                            let rightInt = Float64(Float64(floatToInt32(rv)).toInt32() % 32).toInt32()
-                            let result = leftInt << rightInt
-                            return Some(Expr.number(expr.loc, Float64(result)))
-                        }
-                        case OpCode.BinShr => {
-                            let leftInt = floatToInt32(lv)
-                            let rightInt = Float64(Float64(floatToInt32(rv)).toInt32() % 32).toInt32()
-                            let result = leftInt >> rightInt
-                            return Some(Expr.number(expr.loc, Float64(result)))
-                        }
-                        case OpCode.BinUShr => {
-                            // 无符号右移
-                            let leftInt = Float64(floatToInt32(lv)).toUInt32()
-                            let rightInt = Float64(Float64(floatToInt32(rv)).toInt32() % 32).toInt32()
-                            let result = leftInt >> rightInt
-                            return Some(Expr.number(expr.loc, Float64(result)))
-                        }
-                        case OpCode.BinAnd => {
-                            let result = floatToInt32(lv).bitAnd(floatToInt32(rv))
-                            return Some(Expr.number(expr.loc, Float64(result)))
-                        }
-                        case OpCode.BinOr => {
-                            let result = floatToInt32(lv).bitOr(floatToInt32(rv))
-                            return Some(Expr.number(expr.loc, Float64(result)))
-                        }
-                        case OpCode.BinXor => {
-                            let result = floatToInt32(lv).bitXor(floatToInt32(rv))
-                            return Some(Expr.number(expr.loc, Float64(result)))
-                        }
+                            return Some(Expr.number(expr.loc, lv))
+                        case OpCode.BinShl | OpCode.BinShr | OpCode.BinUShr |
+                             OpCode.BinAnd | OpCode.BinOr | OpCode.BinXor =>
+                            return Some(Expr.number(expr.loc, lv))
                         case _ =>
                             return None
                     }
@@ -302,7 +271,7 @@ public class BinaryExpressionVisitor {
     /// 浮点数转 32 位整数 - 对应 Bun floatToInt32
     /// JavaScript 的位运算将操作数转为 32 位有符号整数
     private func floatToInt32(f: Float64): Int32 {
-        if (f >= Float64(Int32.Max) || f < Float64(Int32.Min) || f.isNaN() || f.isInfinite()) {
+        if (f >= Float64(Int32.Max) || f < Float64(Int32.Min) || f.isNaN()) {
             return Int32(0)
         }
         return Int32(f)

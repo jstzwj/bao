@@ -81,28 +81,28 @@ public class URL {
     /// Zig: 纯字符串扫描，无分配；Rust: 借用视图
     /// 仓颉: 值拷贝，自包含
     public static func parse(text: String): URL {
-        if (text.isEmpty) {
+        if (text.isEmpty()) {
             return URL()
         }
         let url = URL()
         url.href = text
         var offset = 0
 
-        let bytes = text.toUtf8()
+        let bytes = stringToBytes(text)
         if (bytes.size == 0) {
             return url
         }
 
-        let firstChar = bytes[0]
+        let firstRune = bytes[0]
 
-        if (firstChar == UInt8('@')) {
+        if (firstRune == UInt8(64)) {
             offset += url.parsePassword(bytes, offset)
             offset += url.parseHost(bytes, offset)
-        } else if (isAlphaNum(firstChar) || firstChar == UInt8('/') ||
-                   firstChar == UInt8('-') || firstChar == UInt8('_') ||
-                   firstChar == UInt8(':')) {
+        } else if (isAlphaNum(firstRune) || firstRune == UInt8(47) ||
+                   firstRune == UInt8(45) || firstRune == UInt8(95) ||
+                   firstRune == UInt8(58)) {
             // 检查是否为协议相对 URL (以 // 开头)
-            let isProtocolRelative = bytes.size > 1 && bytes[1] == UInt8('/')
+            let isProtocolRelative = bytes.size > 1 && bytes[1] == UInt8(47)
 
             if (isProtocolRelative) {
                 offset += 1
@@ -110,15 +110,15 @@ public class URL {
                 offset += url.parseProtocol(bytes, offset)
             }
 
-            let isRelativePath = !isProtocolRelative && firstChar == UInt8('/')
+            let isRelativePath = !isProtocolRelative && firstRune == UInt8(47)
 
             if (!isRelativePath) {
                 // 如果存在协议或 @，冒号是端口还是用户名有歧义
                 // 参考: https://github.com/oven-sh/bun/issues/1390
                 if (offset > 0) {
-                    let firstAt = indexOfChar(bytes, offset, UInt8('@'))
-                    let firstColon = indexOfChar(bytes, offset, UInt8(':'))
-                    let firstSlash = indexOfChar(bytes, offset, UInt8('/'))
+                    let firstAt = indexOfRune(bytes, offset, UInt8(64))
+                    let firstColon = indexOfRune(bytes, offset, UInt8(58))
+                    let firstSlash = indexOfRune(bytes, offset, UInt8(47))
 
                     if (firstAt > firstColon && firstAt < firstSlash) {
                         offset += url.parseUsername(bytes, offset)
@@ -131,7 +131,7 @@ public class URL {
         }
 
         url.origin = utf8Slice(bytes, 0, offset)
-        var hashOffset = Int64.MAX_VALUE
+        var hashOffset = 9223372036854775807
 
         if (offset > bytes.size) {
             return url
@@ -140,13 +140,13 @@ public class URL {
         let pathOffset = offset
         var canUpdatePath = true
 
-        if (bytes.size > offset + 1 && bytes[offset] == UInt8('/') && offset < bytes.size) {
+        if (bytes.size > offset + 1 && bytes[offset] == UInt8(47) && offset < bytes.size) {
             url.path = utf8Slice(bytes, offset, bytes.size)
             url.pathname = url.path
         }
 
         // 查找 '?' 查询字符串开始位置
-        let queryPos = indexOfChar(bytes, offset, UInt8('?'))
+        let queryPos = indexOfRune(bytes, offset, UInt8(63))
         if (queryPos < bytes.size) {
             let q = queryPos - offset
             url.path = utf8Slice(bytes, pathOffset, queryPos)
@@ -157,7 +157,7 @@ public class URL {
         }
 
         // 查找 '#' 片段标识符开始位置
-        let hashPos = indexOfChar(bytes, offset, UInt8('#'))
+        let hashPos = indexOfRune(bytes, offset, UInt8(35))
         if (hashPos < bytes.size) {
             let h = hashPos - offset
             hashOffset = hashPos
@@ -167,7 +167,7 @@ public class URL {
             }
             url.hash = utf8Slice(bytes, hashPos, bytes.size)
 
-            if (!url.search.isEmpty) {
+            if (!url.search.isEmpty()) {
                 url.search = utf8Slice(bytes, queryPos, hashPos)
             }
 
@@ -176,11 +176,17 @@ public class URL {
 
         // 提取 pathname
         if (bytes.size > pathOffset && pathOffset < bytes.size &&
-            bytes[pathOffset] == UInt8('/') && offset > 0) {
-            if (!url.search.isEmpty) {
-                let searchEnd = (offset + url.search.toUtf8().size).min(bytes.size).min(hashOffset)
+            bytes[pathOffset] == UInt8(47) && offset > 0) {
+            if (!url.search.isEmpty()) {
+                var searchEnd = offset + stringToBytes(url.search).size
+                if (searchEnd > bytes.size) {
+                    searchEnd = bytes.size
+                }
+                if (searchEnd > hashOffset) {
+                    searchEnd = hashOffset
+                }
                 url.pathname = utf8Slice(bytes, pathOffset, searchEnd)
-            } else if (hashOffset < Int64.MAX_VALUE) {
+            } else if (hashOffset < 9223372036854775807) {
                 url.pathname = utf8Slice(bytes, pathOffset, hashOffset)
             }
 
@@ -188,8 +194,8 @@ public class URL {
         }
 
         // 路径规范化
-        if (url.path.toUtf8().size > 1) {
-            let trimmed = url.path.trim("/ \t\n\r")
+        if (stringToBytes(url.path).size > 1) {
+            let trimmed = trimChars(url.path, "/ \t\n\r")
             if (trimmed.size > 1) {
                 // 简化: 保持原路径
             } else {
@@ -199,20 +205,20 @@ public class URL {
             url.path = "/"
         }
 
-        if (url.pathname.isEmpty) {
+        if (url.pathname.isEmpty()) {
             url.pathname = "/"
         }
 
         // 去除前导双斜杠
         while (url.pathname.size > 1 && url.pathname.startsWith("//")) {
-            url.pathname = url.pathname.substring(1)
+            url.pathname = sliceString(url.pathname, 1, url.pathname.size)
         }
 
         // 规范化 origin
-        url.origin = url.origin.trim("/ ?#")
+        url.origin = trimChars(url.origin, "/ ?#")
 
         // 如果有查询字符串，解析 searchParams
-        if (!url.search.isEmpty) {
+        if (!url.search.isEmpty()) {
             url.searchParams = URLSearchParams.parse(url.search)
         }
 
@@ -232,13 +238,13 @@ public class URL {
         var i = start
         while (i < bytes.size) {
             let c = bytes[i]
-            if (c == UInt8('/') || c == UInt8('?') || c == UInt8('%')) {
+            if (c == UInt8(47) || c == UInt8(63) || c == UInt8(37)) {
                 return 0
             }
-            if (c == UInt8(':')) {
+            if (c == UInt8(58)) {
                 if (i + 3 <= bytes.size &&
-                    bytes[i + 1] == UInt8('/') &&
-                    bytes[i + 2] == UInt8('/')) {
+                    bytes[i + 1] == UInt8(47) &&
+                    bytes[i + 2] == UInt8(47)) {
                     protocol = utf8Slice(bytes, start, i)
                     return i + 3 - start
                 }
@@ -257,11 +263,11 @@ public class URL {
         var i = start
         while (i < bytes.size) {
             let c = bytes[i]
-            if (c == UInt8(':') || c == UInt8('@')) {
+            if (c == UInt8(58) || c == UInt8(64)) {
                 username = utf8Slice(bytes, start, i)
                 return i + 1 - start
             }
-            if (c == UInt8('?') || c == UInt8('/')) {
+            if (c == UInt8(63) || c == UInt8(47)) {
                 return 0
             }
             i += 1
@@ -278,11 +284,11 @@ public class URL {
         var i = start
         while (i < bytes.size) {
             let c = bytes[i]
-            if (c == UInt8('@')) {
+            if (c == UInt8(64)) {
                 password = utf8Slice(bytes, start, i)
                 return i + 1 - start
             }
-            if (c == UInt8('?') || c == UInt8('/')) {
+            if (c == UInt8(63) || c == UInt8(47)) {
                 return 0
             }
             i += 1
@@ -304,19 +310,19 @@ public class URL {
         }
 
         // IPv6 地址以 '[' 开头
-        if (bytes[i] == UInt8('[')) {
+        if (bytes[i] == UInt8(91)) {
             i += 1
             var ipv6End: Int64 = -1
             var colonPos: Int64 = -1
 
             while (i < bytes.size) {
-                if (ipv6End < 0 && bytes[i] == UInt8(']')) {
+                if (ipv6End < 0 && bytes[i] == UInt8(93)) {
                     ipv6End = i
                 }
-                if (ipv6End >= 0 && colonPos < 0 && bytes[i] == UInt8(':')) {
+                if (ipv6End >= 0 && colonPos < 0 && bytes[i] == UInt8(58)) {
                     colonPos = i
                 }
-                if (bytes[i] == UInt8('?') || bytes[i] == UInt8('/')) {
+                if (bytes[i] == UInt8(63) || bytes[i] == UInt8(47)) {
                     break
                 }
                 i += 1
@@ -335,10 +341,10 @@ public class URL {
             var colonPos: Int64 = -1
 
             while (i < bytes.size) {
-                if (colonPos < 0 && bytes[i] == UInt8(':')) {
+                if (colonPos < 0 && bytes[i] == UInt8(58)) {
                     colonPos = i
                 }
-                if (bytes[i] == UInt8('?') || bytes[i] == UInt8('/')) {
+                if (bytes[i] == UInt8(63) || bytes[i] == UInt8(47)) {
                     break
                 }
                 i += 1
@@ -375,7 +381,7 @@ public class URL {
     /// 是否为 localhost
     /// 对应 Bun: pub fn isLocalhost(this: *const URL) bool
     public func isLocalhost(): Bool {
-        return hostname.isEmpty || hostname == "localhost" || hostname == "0.0.0.0"
+        return hostname.isEmpty() || hostname == "localhost" || hostname == "0.0.0.0"
     }
 
     /// 是否为 Unix 域套接字
@@ -405,14 +411,15 @@ public class URL {
     /// 显示协议 (推断默认)
     /// 对应 Bun: pub fn displayProtocol(this: *const URL) string
     public func displayProtocol(): String {
-        if (!protocol.isEmpty) {
+        if (!protocol.isEmpty()) {
             return protocol
         }
-        let portVal = getPort()
-        if (portVal != None) {
-            if (portVal.getOrThrow() == UInt16(443)) {
-                return "https"
-            }
+        match (getPort()) {
+            case Some(portVal) =>
+                if (portVal == UInt16(443)) {
+                    return "https"
+                }
+            case None => ()
         }
         return "http"
     }
@@ -420,7 +427,7 @@ public class URL {
     /// 显示主机名 (推断默认)
     /// 对应 Bun: pub fn displayHostname(this: *const URL) string
     public func displayHostname(): String {
-        if (!hostname.isEmpty) {
+        if (!hostname.isEmpty()) {
             return hostname
         }
         return "localhost"
@@ -429,20 +436,26 @@ public class URL {
     /// 获取端口号
     /// 对应 Bun: pub fn getPort(this: *const URL) ?u16
     public func getPort(): ?UInt16 {
-        if (port.isEmpty) {
+        if (port.isEmpty()) {
             return None
         }
-        return UInt16(port)
+        var result: UInt16 = UInt16(0)
+        for (c in port) {
+            if (c < 48 || c > 57) {
+                return None
+            }
+            result = UInt16(Int64(result) * 10 + Int64(c - 48))
+        }
+        return Some(result)
     }
 
     /// 获取自动端口号
     /// 对应 Bun: pub fn getPortAuto(this: *const URL) u16
     public func getPortAuto(): UInt16 {
-        let p = getPort()
-        if (p != None) {
-            return p.getOrThrow()
+        match (getPort()) {
+            case Some(p) => return p
+            case None => return getDefaultPort()
         }
-        return getDefaultPort()
     }
 
     /// 获取默认端口
@@ -466,12 +479,12 @@ public class URL {
         if (parts.size == 4) {
             var allDigits = true
             for (part in parts) {
-                if (part.isEmpty) {
+                if (part.isEmpty()) {
                     allDigits = false
                     break
                 }
                 for (c in part) {
-                    if (!c.isAsciiDigit()) {
+                    if (c < 48 || c > 57) {
                         allDigits = false
                         break
                     }
@@ -487,37 +500,40 @@ public class URL {
     /// 是否有有效端口
     /// 对应 Bun: pub fn hasValidPort(this: *const URL) bool
     public func hasValidPort(): Bool {
-        let p = getPort()
-        if (p == None) { return false }
-        return p.getOrThrow() > UInt16(0)
+        match (getPort()) {
+            case Some(p) => return p > UInt16(0)
+            case None => return false
+        }
     }
 
     /// 是否为空 URL
     /// 对应 Bun: pub fn isEmpty(this: *const URL) bool
     public func isEmpty(): Bool {
-        return href.isEmpty
+        return href.isEmpty()
     }
 
     /// 是否为绝对 URL
     /// 对应 Bun: pub fn isAbsolute(this: *const URL) bool
     public func isAbsolute(): Bool {
-        return !hostname.isEmpty && !pathname.isEmpty
+        return !hostname.isEmpty() && !pathname.isEmpty()
     }
 
     /// URL 验证
     /// Bun 的 URL 解析器较为宽松 (不产生验证错误)
     /// 此方法进行基本 WHATWG 有效性检查
     public func isValid(): Bool {
-        if (href.isEmpty) {
+        if (href.isEmpty()) {
             return false
         }
         // 必须有协议或者主机
-        if (protocol.isEmpty && host.isEmpty) {
+        if (protocol.isEmpty() && host.isEmpty()) {
             return false
         }
         // 协议必须为合法字符
         for (c in protocol) {
-            if (!c.isAsciiAlpha() && !c.isAsciiDigit() && c != '+' && c != '-' && c != '.') {
+            let isAlpha = (c >= 65 && c <= 90) || (c >= 97 && c <= 122)
+            let isDigit = c >= 48 && c <= 57
+            if (!isAlpha && !isDigit && c != 43 && c != 45 && c != 46) {
                 return false
             }
         }
@@ -528,21 +544,21 @@ public class URL {
     /// 对应 Bun: pub fn s3Path(this: *const URL) string
     public func s3Path(): String {
         var h = href
-        if (!protocol.isEmpty && h.size > protocol.size + 2) {
-            h = h.substring(protocol.size + 2)
+        if (!protocol.isEmpty() && h.size > protocol.size + 2) {
+            h = sliceString(h, protocol.size + 2, h.size)
         }
-        let searchSize = search.toUtf8().size
-        let hashSize = hash.toUtf8().size
-        return h.substring(0, h.size - searchSize - hashSize)
+        let searchSize = stringToBytes(search).size
+        let hashSize = stringToBytes(hash).size
+        return sliceString(h, 0, h.size - searchSize - hashSize)
     }
 
     /// 主机 + 路径 (去除尾部斜杠、协议、查询参数和片段)
     /// 对应 Bun: pub fn hostWithPath(this: *const URL) []const u8
     public func hostWithPath(): String {
-        if (!host.isEmpty) {
+        if (!host.isEmpty()) {
             var p = path
             if (p.endsWith("/") && p.size > 1) {
-                p = p.substring(0, p.size - 1)
+                p = sliceString(p, 0, p.size - 1)
             }
             return host + p
         }
@@ -553,7 +569,7 @@ public class URL {
     /// 对应 Bun: pub fn hrefWithoutAuth
     public func hrefWithoutAuth(): String {
         let proto = displayProtocol()
-        let trimmedPath = pathname.trim("/")
+        let trimmedPath = trimChars(pathname, "/")
         return "${proto}://${displayHostname()}/${trimmedPath}/"
     }
 
@@ -608,10 +624,10 @@ public class URLSearchParams {
 
         // 去除前导 '?'
         if (input.startsWith("?")) {
-            input = input.substring(1)
+            input = sliceString(input, 1, input.size)
         }
 
-        if (input.isEmpty) {
+        if (input.isEmpty()) {
             return result
         }
 
@@ -619,9 +635,9 @@ public class URLSearchParams {
         var i = 0
         var start = 0
         while (i <= input.size) {
-            if (i == input.size || input[i] == '&') {
+            if (i == input.size || input[i] == UInt8(38)) {
                 if (i > start) {
-                    let pair = input.substring(start, i)
+                    let pair = sliceString(input, start, i)
                     result.parsePair(pair)
                 }
                 start = i + 1
@@ -635,19 +651,18 @@ public class URLSearchParams {
     /// 解析单个 name=value 对
     /// 对应 Bun Scanner.next() 中的 '=' 分隔逻辑
     private func parsePair(pair: String): Unit {
-        let eqIdx = pair.indexOf('=')
-        if (eqIdx < 0) {
-            // 只有键没有值: key&
-            let name = PercentEncoding.decodeComponent(pair)
-            if (!name.isEmpty) {
-                params.append(QueryParam(name, ""))
-            }
-        } else {
-            let name = PercentEncoding.decodeComponent(pair.substring(0, eqIdx))
-            let value = PercentEncoding.decodeComponent(pair.substring(eqIdx + 1))
-            if (!name.isEmpty) {
-                params.append(QueryParam(name, value))
-            }
+        match (pair.indexOf('=')) {
+            case Some(eqIdx) =>
+                let name = PercentEncoding.decodeComponent(sliceString(pair, 0, eqIdx))
+                let value = PercentEncoding.decodeComponent(sliceString(pair, eqIdx + 1, pair.size))
+                if (!name.isEmpty()) {
+                    params.append(QueryParam(name, value))
+                }
+            case None =>
+                let name = PercentEncoding.decodeComponent(pair)
+                if (!name.isEmpty()) {
+                    params.append(QueryParam(name, ""))
+                }
         }
     }
 
@@ -797,13 +812,20 @@ public class URLSearchParams {
         for (p in params) {
             let encName = PercentEncoding.encodeComponent(p.name)
             let encValue = PercentEncoding.encodeComponent(p.value)
-            if (p.value.isEmpty) {
+            if (p.value.isEmpty()) {
                 parts.append(encName)
             } else {
                 parts.append("${encName}=${encValue}")
             }
         }
-        return parts.iterator().reduce({ a, b => "${a}&${b}" })
+        var output = ""
+        for (i in 0..parts.size) {
+            if (i > 0) {
+                output += "&"
+            }
+            output += parts[i]
+        }
+        return output
     }
 
     /// 清空所有参数
@@ -829,34 +851,34 @@ public class PercentEncoding {
     /// 对应 Bun: pub fn decodeAlloc(allocator, input) ![]u8
     /// 例如: "hello%20world" -> "hello world"
     public static func decodeComponent(input: String): String {
-        if (input.isEmpty) {
+        if (input.isEmpty()) {
             return ""
         }
-        let bytes = input.toUtf8()
+        let bytes = stringToBytes(input)
         if (bytes.size == 0) {
             return input
         }
         var result = StringBuilder()
         var i = 0
         while (i < bytes.size) {
-            if (bytes[i] == UInt8('%')) {
+            if (bytes[i] == UInt8(37)) {
                 if (i + 2 < bytes.size) {
                     let hi = hexValue(bytes[i + 1])
                     let lo = hexValue(bytes[i + 2])
                     if (hi >= 0 && lo >= 0) {
-                        result.append(String.fromUtf8(Array<UInt8>([UInt8(hi * 16 + lo)])))
+                        result.append(stringFromByte(UInt8(hi * 16 + lo)))
                         i += 3
                         continue
                     }
                 }
                 result.append("%")
                 i += 1
-            } else if (bytes[i] == UInt8('+')) {
+            } else if (bytes[i] == UInt8(43)) {
                 // application/x-www-form-urlencoded: '+' -> ' '
                 result.append(" ")
                 i += 1
             } else {
-                result.append(String.fromUtf8(Array<UInt8>([bytes[i]])))
+                result.append(stringFromByte(bytes[i]))
                 i += 1
             }
         }
@@ -867,17 +889,17 @@ public class PercentEncoding {
     /// 对应 Bun 编码逻辑 (WHATWG URL Standard percent-encode sets)
     /// 保留字符: A-Z a-z 0-9 - _ . ~
     public static func encodeComponent(input: String): String {
-        if (input.isEmpty) {
+        if (input.isEmpty()) {
             return ""
         }
-        let bytes = input.toUtf8()
+        let bytes = stringToBytes(input)
         if (bytes.size == 0) {
             return input
         }
         var result = StringBuilder()
         for (b in bytes) {
             if (isUnreserved(b)) {
-                result.append(String.fromUtf8(Array<UInt8>([b])))
+                result.append(stringFromByte(b))
             } else {
                 result.append("%")
                 result.append(hexDigit((b >> 4) & 0x0F))
@@ -894,7 +916,7 @@ public class PercentEncoding {
         var written = 0
         var i = 0
         while (i < input.size) {
-            if (input[i] == UInt8('%')) {
+            if (input[i] == UInt8(37)) {
                 if (i + 2 < input.size && isAsciiHexDigit(input[i + 1]) && isAsciiHexDigit(input[i + 2])) {
                     if (written < output.size) {
                         output[written] = UInt8(toAsciiHexValue(input[i + 1]) * 16 + toAsciiHexValue(input[i + 2]))
@@ -922,33 +944,33 @@ public class PercentEncoding {
     /// 是否为非保留字符 (不需编码)
     /// WHATWG URL Standard: unreserved = ALPHA / DIGIT / "-" / "." / "_" / "~"
     private static func isUnreserved(b: UInt8): Bool {
-        return (b >= UInt8('a') && b <= UInt8('z')) ||
-               (b >= UInt8('A') && b <= UInt8('Z')) ||
-               (b >= UInt8('0') && b <= UInt8('9')) ||
-               b == UInt8('-') || b == UInt8('.') ||
-               b == UInt8('_') || b == UInt8('~')
+        return (b >= UInt8(97) && b <= UInt8(122)) ||
+               (b >= UInt8(65) && b <= UInt8(90)) ||
+               (b >= UInt8(48) && b <= UInt8(57)) ||
+               b == UInt8(45) || b == UInt8(46) ||
+               b == UInt8(95) || b == UInt8(126)
     }
 
     /// 十六进制数字值
     /// 对应 Bun: strings.toASCIIHexValue
     private static func toAsciiHexValue(b: UInt8): Int64 {
-        if (b >= UInt8('0') && b <= UInt8('9')) {
-            return Int64(b) - Int64(UInt8('0'))
+        if (b >= UInt8(48) && b <= UInt8(57)) {
+            return Int64(b) - 48
         }
-        if (b >= UInt8('a') && b <= UInt8('f')) {
-            return Int64(b) - Int64(UInt8('a')) + 10
+        if (b >= UInt8(97) && b <= UInt8(102)) {
+            return Int64(b) - 97 + 10
         }
-        if (b >= UInt8('A') && b <= UInt8('F')) {
-            return Int64(b) - Int64(UInt8('A')) + 10
+        if (b >= UInt8(65) && b <= UInt8(70)) {
+            return Int64(b) - 65 + 10
         }
         return 0
     }
 
     /// 是否为 ASCII 十六进制数字
     private static func isAsciiHexDigit(b: UInt8): Bool {
-        return (b >= UInt8('0') && b <= UInt8('9')) ||
-               (b >= UInt8('a') && b <= UInt8('f')) ||
-               (b >= UInt8('A') && b <= UInt8('F'))
+        return (b >= UInt8(48) && b <= UInt8(57)) ||
+               (b >= UInt8(97) && b <= UInt8(102)) ||
+               (b >= UInt8(65) && b <= UInt8(70))
     }
 }
 
@@ -966,12 +988,12 @@ public class URLResolver {
     /// 简化的 WHATWG URL 解析器: 基于 base URL 和相对引用构建绝对 URL
     public static func resolve(base: String, relative: String): String {
         // 相对 URL 为空，返回 base
-        if (relative.isEmpty) {
+        if (relative.isEmpty()) {
             return base
         }
 
         // 如果 relative 是绝对 URL (包含协议)
-        let relBytes = relative.toUtf8()
+        let relBytes = stringToBytes(relative)
         if (relBytes.size > 0) {
             let hasProtocol = hasProtocolPrefix(relative)
             if (hasProtocol) {
@@ -979,9 +1001,9 @@ public class URLResolver {
             }
 
             // 协议相对 URL: //host/path
-            if (relBytes.size > 1 && relBytes[0] == UInt8('/') && relBytes[1] == UInt8('/')) {
+            if (relBytes.size > 1 && relBytes[0] == UInt8(47) && relBytes[1] == UInt8(47)) {
                 let baseUrl = URL.parse(base)
-                if (baseUrl.protocol.isEmpty) {
+                if (baseUrl.protocol.isEmpty()) {
                     return relative
                 }
                 return "${baseUrl.protocol}:${relative}"
@@ -989,30 +1011,33 @@ public class URLResolver {
         }
 
         let baseUrl = URL.parse(base)
-        if (baseUrl.protocol.isEmpty) {
+        if (baseUrl.protocol.isEmpty()) {
             return relative
         }
 
         // 绝对路径: /path
-        if (relBytes.size > 0 && relBytes[0] == UInt8('/')) {
+        if (relBytes.size > 0 && relBytes[0] == UInt8(47)) {
             return "${baseUrl.origin}${relative}"
         }
 
         // 查询字符串: ?query
-        if (relBytes.size > 0 && relBytes[0] == UInt8('?')) {
+        if (relBytes.size > 0 && relBytes[0] == UInt8(63)) {
             return "${baseUrl.origin}${baseUrl.pathname}${relative}"
         }
 
         // 片段标识符: #fragment
-        if (relBytes.size > 0 && relBytes[0] == UInt8('#')) {
-            let searchPart = if (baseUrl.search.isEmpty) { "" } else { baseUrl.search }
+        if (relBytes.size > 0 && relBytes[0] == UInt8(35)) {
+            let searchPart = if (baseUrl.search.isEmpty()) { "" } else { baseUrl.search }
             return "${baseUrl.origin}${baseUrl.pathname}${searchPart}${relative}"
         }
 
         // 相对路径: path/to/resource
         let basePath = baseUrl.pathname
-        let lastSlash = basePath.lastIndexOf('/')
-        let dir = if (lastSlash >= 0) { basePath.substring(0, lastSlash + 1) } else { "/" }
+        let lastSlash = basePath.lastIndexOf("/")
+        let dir = match (lastSlash) {
+            case Some(idx) => sliceString(basePath, 0, idx + 1)
+            case None => "/"
+        }
         let raw = "${dir}${relative}"
         let normalized = PathNormalizer.normalize(raw)
         return "${baseUrl.origin}${normalized}"
@@ -1020,20 +1045,20 @@ public class URLResolver {
 
     /// 检查是否包含协议前缀
     private static func hasProtocolPrefix(s: String): Bool {
-        let bytes = s.toUtf8()
+        let bytes = stringToBytes(s)
         for (i in 0..bytes.size) {
             let c = bytes[i]
-            if (c == UInt8(':')) {
+            if (c == UInt8(58)) {
                 return i > 0
             }
-            if (c == UInt8('/') || c == UInt8('?') || c == UInt8('#')) {
+            if (c == UInt8(47) || c == UInt8(63) || c == UInt8(35)) {
                 return false
             }
             // 协议字符: ALPHA DIGIT + - .
-            if (!((c >= UInt8('a') && c <= UInt8('z')) ||
-                  (c >= UInt8('A') && c <= UInt8('Z')) ||
-                  (c >= UInt8('0') && c <= UInt8('9')) ||
-                  c == UInt8('+') || c == UInt8('-') || c == UInt8('.'))) {
+            if (!((c >= UInt8(97) && c <= UInt8(122)) ||
+                  (c >= UInt8(65) && c <= UInt8(90)) ||
+                  (c >= UInt8(48) && c <= UInt8(57)) ||
+                  c == UInt8(43) || c == UInt8(45) || c == UInt8(46))) {
                 return false
             }
         }
@@ -1055,29 +1080,29 @@ public class PathNormalizer {
     /// 对应 Bun: resolve_path.normalizeStringBuf
     /// 例如: "/a/b/../c/./d" -> "/a/c/d"
     public static func normalize(path: String): String {
-        if (path.isEmpty) {
+        if (path.isEmpty()) {
             return "/"
         }
 
-        let bytes = path.toUtf8()
+        let bytes = stringToBytes(path)
         var segments = ArrayList<String>()
         var current = StringBuilder()
-        var isAbsolute = bytes.size > 0 && bytes[0] == UInt8('/')
+        var isAbsolute = bytes.size > 0 && bytes[0] == UInt8(47)
 
         // 按 '/' 分割
         for (b in bytes) {
-            if (b == UInt8('/')) {
+            if (b == UInt8(47)) {
                 let seg = current.toString()
-                if (!seg.isEmpty) {
+                if (!seg.isEmpty()) {
                     segments.append(seg)
                 }
                 current = StringBuilder()
             } else {
-                current.append(String.fromUtf8(Array<UInt8>([b])))
+                current.append(stringFromByte(b))
             }
         }
         let lastSeg = current.toString()
-        if (!lastSeg.isEmpty) {
+        if (!lastSeg.isEmpty()) {
             segments.append(lastSeg)
         }
 
@@ -1109,7 +1134,7 @@ public class PathNormalizer {
             }
         }
         let s = out.toString()
-        if (s.isEmpty) {
+        if (s.isEmpty()) {
             return "/"
         }
         return s
@@ -1196,7 +1221,7 @@ public class URLPattern {
             let pat = patternParts[i]
             let val = pathParts[i]
             if (pat.startsWith(":")) {
-                let name = pat.substring(1)
+                let name = sliceString(pat, 1, pat.size)
                 result.put(name, val)
             }
         }
@@ -1240,7 +1265,7 @@ public class URLPattern {
             let val = pathParts[i]
             if (pat.startsWith(":")) {
                 // 命名参数匹配任意非空值
-                if (val.isEmpty) {
+                if (val.isEmpty()) {
                     return false
                 }
             } else if (pat == "*") {
@@ -1271,9 +1296,9 @@ public class URLPattern {
         let result = ArrayList<String>()
         var current = StringBuilder()
         for (c in pattern) {
-            if (c == '/') {
+            if (c == UInt8(47)) {
                 let s = current.toString()
-                if (!s.isEmpty) {
+                if (!s.isEmpty()) {
                     result.append(s)
                 }
                 current = StringBuilder()
@@ -1282,7 +1307,7 @@ public class URLPattern {
             }
         }
         let last = current.toString()
-        if (!last.isEmpty) {
+        if (!last.isEmpty()) {
             result.append(last)
         }
         return result
@@ -1293,9 +1318,9 @@ public class URLPattern {
         let result = ArrayList<String>()
         var current = StringBuilder()
         for (c in path) {
-            if (c == '/') {
+            if (c == UInt8(47)) {
                 let s = current.toString()
-                if (!s.isEmpty) {
+                if (!s.isEmpty()) {
                     result.append(s)
                 }
                 current = StringBuilder()
@@ -1304,7 +1329,7 @@ public class URLPattern {
             }
         }
         let last = current.toString()
-        if (!last.isEmpty) {
+        if (!last.isEmpty()) {
             result.append(last)
         }
         return result
@@ -1354,32 +1379,31 @@ public class Punycode {
     /// 将数字转换为基本码点 (digit)
     /// 0-25 -> 'a'-'z' (或 'A'-'Z' 当 flag != 0), 26-35 -> '0'-'9'
     /// 对应 Bun punycode.js: digitToBasic
-    private static func digitToBasic(digit: Int64, flag: Bool): Char {
+    private static func digitToBasic(digit: Int64, flag: Bool): Rune {
         // 0..25 map to ASCII a..z or A..Z
         // 26..35 map to ASCII 0..9
         let code = digit + 22
         if (digit < 26) {
             // 75 = 0x4B; digit < 26 时加上 75 (但 flag 非零时减 32)
             if (flag) {
-                return Char(code + 75 - 32)
+                return Rune(code + 75 - 32)
             }
-            return Char(code + 75)
+            return Rune(code + 75)
         }
-        return Char(code)
+        return Rune(code)
     }
 
     /// RFC 3492 Section 3.4 偏差自适应函数
     /// 对应 Bun punycode.js: adapt
     private static func adapt(delta: Int64, numPoints: Int64, firstTime: Bool): Int64 {
-        var delta = delta
-        delta = if (firstTime) { delta / DAMP } else { delta >> 1 }
-        delta += delta / numPoints
+        var deltaValue = if (firstTime) { delta / DAMP } else { delta >> 1 }
+        deltaValue += deltaValue / numPoints
         var k: Int64 = 0
-        while (delta > (BASE_MINUS_TMIN * TMAX) >> 1) {
-            delta = delta / BASE_MINUS_TMIN
+        while (deltaValue > (BASE_MINUS_TMIN * TMAX) >> 1) {
+            deltaValue = deltaValue / BASE_MINUS_TMIN
             k += BASE
         }
-        return k + (BASE_MINUS_TMIN + 1) * delta / (delta + SKEW)
+        return k + (BASE_MINUS_TMIN + 1) * deltaValue / (deltaValue + SKEW)
     }
 
     /// 将字符串转换为 Unicode 码点数组 (UCS-2 解码)
@@ -1389,11 +1413,11 @@ public class Punycode {
         let output = ArrayList<Int64>()
         var counter = 0
         while (counter < input.size) {
-            let value = Int64(input[counter].value)
+            let value = Int64(input[counter])
             counter += 1
             if (value >= 0xD800 && value <= 0xDBFF && counter < input.size) {
                 // 高代理项，检查下一个字符是否为低代理项
-                let extra = Int64(input[counter].value)
+                let extra = Int64(input[counter])
                 if ((extra & 0xFC00) == 0xDC00) {
                     // 有效的代理对
                     counter += 1
@@ -1407,7 +1431,7 @@ public class Punycode {
                 output.append(value)
             }
         }
-        return output.toArray()
+        return output.toOwnedSlice()
     }
 
     /// 将 Unicode 码点数组转换为字符串 (UCS-2 编码)
@@ -1423,12 +1447,12 @@ public class Punycode {
     /// 从码点创建字符 (支持补充平面)
     private static func charFromCodePoint(cp: Int64): String {
         if (cp <= 0xFFFF) {
-            return String(Char(cp))
+            return String(Rune(cp))
         }
         // 补充平面: 需要代理对
         let hi = ((cp - 0x10000) >> 10) + 0xD800
         let lo = ((cp - 0x10000) & 0x3FF) + 0xDC00
-        return String(Char(hi)) + String(Char(lo))
+        return String(Rune(hi)) + String(Rune(lo))
     }
 
     /// Punycode 解码: 将 ASCII Punycode 字符串转换为 Unicode 字符串
@@ -1443,12 +1467,15 @@ public class Punycode {
 
         // 处理基本码点: 找到最后一个分隔符的位置
         let basicIdx = input.lastIndexOf(DELIMITER)
-        let basic = if (basicIdx >= 0) { basicIdx } else { 0 }
+        let basic = match (basicIdx) {
+            case Some(idx) => idx
+            case None => 0
+        }
 
         // 复制基本码点到输出
         var j = 0
         while (j < basic) {
-            let cp = Int64(input[j].value)
+            let cp = Int64(input[j])
             if (cp >= 0x80) {
                 // 非基本码点 - 非法输入
                 return input
@@ -1467,7 +1494,7 @@ public class Punycode {
                 if (index >= inputLength) {
                     return input  // 无效输入，返回原字符串
                 }
-                let digit = basicToDigit(Int64(input[index].value))
+                let digit = basicToDigit(Int64(input[index]))
                 index += 1
                 if (digit >= BASE) {
                     return input  // 无效输入
@@ -1518,7 +1545,7 @@ public class Punycode {
         let codePoints = ucs2Decode(input)
         let inputLength = codePoints.size
 
-        let output = ArrayList<Char>()
+        let output = ArrayList<Rune>()
         var n: Int64 = INITIAL_N
         var delta: Int64 = 0
         var bias: Int64 = INITIAL_BIAS
@@ -1526,7 +1553,7 @@ public class Punycode {
         // 处理基本码点 (ASCII < 0x80)
         for (cp in codePoints) {
             if (cp < 0x80) {
-                output.append(Char(cp))
+                output.append(Rune(cp))
             }
         }
 
@@ -1535,7 +1562,7 @@ public class Punycode {
 
         // 如果有基本码点，在末尾添加分隔符
         if (basicLength > 0) {
-            output.append(Char('-'))  // DELIMITER
+            output.append(Rune(45))  // DELIMITER
         }
 
         // 主编码循环
@@ -1610,9 +1637,9 @@ public class Punycode {
 public class IDNA {
 
     /// RFC 3490 域名分隔符: U+002E (.), U+3002 (。), U+FF0E (．), U+FF61 (｡)
-    private static func isSeparator(c: Char): Bool {
-        let v = c.value
-        return v == 0x002E || v == 0x3002 || v == 0xFF0E || v == 0xFF61
+    private static func isSeparator(c: UInt8): Bool {
+        let v = Int64(c)
+        return v == 0x2E
     }
 
     /// 将域名的分隔符统一替换为 ASCII 点 '.'
@@ -1635,7 +1662,7 @@ public class IDNA {
         let result = ArrayList<String>()
         var current = StringBuilder()
         for (c in normalized) {
-            if (c == '.') {
+            if (c == UInt8(46)) {
                 result.append(current.toString())
                 current = StringBuilder()
             } else {
@@ -1650,7 +1677,7 @@ public class IDNA {
     /// 检查字符串是否包含非 ASCII 字符
     private static func hasNonASCII(s: String): Bool {
         for (c in s) {
-            if (c.value > 0x7F) {
+            if (Int64(c) > 0x7F) {
                 return true
             }
         }
@@ -1663,29 +1690,31 @@ public class IDNA {
     /// 例如: "例子.中国" -> "xn--fsq.xn--fiqs8s"
     ///       "münchen.de" -> "xn--mnchen-3ya.de"
     public static func toASCII(domain: String): String {
-        if (domain.isEmpty) {
+        if (domain.isEmpty()) {
             return domain
         }
 
         // 处理邮件地址: 只编码 @ 后面的域名部分
-        let atIdx = domain.lastIndexOf('@')
+        let atIdx = domain.lastIndexOf("@")
         var prefix = ""
         var domainPart = domain
-        if (atIdx >= 0) {
-            prefix = domain.substring(0, atIdx + 1)
-            domainPart = domain.substring(atIdx + 1)
+        match (atIdx) {
+            case Some(idx) =>
+                prefix = sliceString(domain, 0, idx + 1)
+                domainPart = sliceString(domain, idx + 1, domain.size)
+            case None => ()
         }
 
         // 分割标签并逐个编码
         let labels = splitLabels(domainPart)
         let encoded = ArrayList<String>()
         for (label in labels) {
-            if (label.isEmpty) {
+            if (label.isEmpty()) {
                 encoded.append("")
             } else if (hasNonASCII(label)) {
                 encoded.append("xn--" + Punycode.encode(label))
             } else {
-                encoded.append(label.toLowerCase())
+                encoded.append(lowerString(label))
             }
         }
 
@@ -1706,17 +1735,19 @@ public class IDNA {
     /// 例如: "xn--fsq.xn--fiqs8s" -> "例子.中国"
     ///       "xn--mnchen-3ya.de" -> "münchen.de"
     public static func toUnicode(domain: String): String {
-        if (domain.isEmpty) {
+        if (domain.isEmpty()) {
             return domain
         }
 
         // 处理邮件地址: 只解码 @ 后面的域名部分
-        let atIdx = domain.lastIndexOf('@')
+        let atIdx = domain.lastIndexOf("@")
         var prefix = ""
         var domainPart = domain
-        if (atIdx >= 0) {
-            prefix = domain.substring(0, atIdx + 1)
-            domainPart = domain.substring(atIdx + 1)
+        match (atIdx) {
+            case Some(idx) =>
+                prefix = sliceString(domain, 0, idx + 1)
+                domainPart = sliceString(domain, idx + 1, domain.size)
+            case None => ()
         }
 
         // 分割标签并逐个解码
@@ -1725,7 +1756,7 @@ public class IDNA {
         for (label in labels) {
             if (label.startsWith("xn--") || label.startsWith("XN--")) {
                 // 去除 "xn--" 前缀，解码剩余部分
-                let punycodePart = label.substring(4).toLowerCase()
+                let punycodePart = lowerString(sliceString(label, 4, label.size))
                 decoded.append(Punycode.decode(punycodePart))
             } else {
                 decoded.append(label)
@@ -1746,7 +1777,7 @@ public class IDNA {
     /// 验证域名的有效性
     /// 包含标签长度、域名总长度的检查
     public static func isValidDomain(domain: String): Bool {
-        if (domain.isEmpty) {
+        if (domain.isEmpty()) {
             return false
         }
         // 域名总长度不超过 253 字符
@@ -1755,7 +1786,7 @@ public class IDNA {
         }
         let labels = splitLabels(domain)
         for (label in labels) {
-            if (label.isEmpty || label.size > 63) {
+            if (label.isEmpty() || label.size > 63) {
                 return false
             }
         }
@@ -1778,18 +1809,104 @@ public class IDNA {
 // 辅助函数
 // ============================================================================
 
+private func stringToBytes(s: String): Array<UInt8> {
+    let result = ArrayList<UInt8>()
+    for (r in s) {
+        result.append(UInt8(Int64(r) & 0xFF))
+    }
+    return result.toOwnedSlice()
+}
+
+private func stringFromByte(b: UInt8): String {
+    return String(Rune(Int64(b)))
+}
+
+private func sliceString(s: String, start: Int64, end: Int64): String {
+    var result = ""
+    var i: Int64 = 0
+    for (r in s) {
+        if (i >= start && i < end) {
+            result += String(Rune(Int64(r)))
+        }
+        i += 1
+    }
+    return result
+}
+
+private func lowerString(s: String): String {
+    var result = ""
+    for (r in s) {
+        let v = Int64(r)
+        if (v >= 65 && v <= 90) {
+            result += String(Rune(v + 32))
+        } else {
+            result += String(Rune(v))
+        }
+    }
+    return result
+}
+
+private func containsChar(chars: String, r: UInt8): Bool {
+    for (c in chars) {
+        if (c == r) {
+            return true
+        }
+    }
+    return false
+}
+
+private func trimChars(s: String, chars: String): String {
+    var start: Int64 = 0
+    var end: Int64 = s.size
+    while (start < end) {
+        var matched = false
+        var i: Int64 = 0
+        for (r in s) {
+            if (i == start) {
+                matched = containsChar(chars, r)
+                break
+            }
+            i += 1
+        }
+        if (!matched) {
+            break
+        }
+        start += 1
+    }
+    while (end > start) {
+        var matched = false
+        var i: Int64 = 0
+        for (r in s) {
+            if (i == end - 1) {
+                matched = containsChar(chars, r)
+                break
+            }
+            i += 1
+        }
+        if (!matched) {
+            break
+        }
+        end -= 1
+    }
+    return sliceString(s, start, end)
+}
+
 /// 从字节数组切片构造 UTF-8 字符串
 private func utf8Slice(bytes: Array<UInt8>, start: Int64, end: Int64): String {
     let e = if (end > bytes.size) { bytes.size } else { end }
     if (start >= e || start < 0) {
         return ""
     }
-    return String.fromUtf8(Array<UInt8>(bytes[start..e]))
+    var result = ""
+    for (i in start..e) {
+        result += stringFromByte(bytes[i])
+    }
+    return result
 }
 
 /// 在字节数组中查找字符位置
-/// 对应 Bun: strings.indexOfChar
-private func indexOfChar(bytes: Array<UInt8>, start: Int64, ch: UInt8): Int64 {
+/// 对应 Bun: strings.indexOfRune
+private func indexOfRune(bytes: Array<UInt8>, start: Int64, ch: UInt8): Int64 {
     var i = start
     while (i < bytes.size) {
         if (bytes[i] == ch) {
@@ -1802,21 +1919,21 @@ private func indexOfChar(bytes: Array<UInt8>, start: Int64, ch: UInt8): Int64 {
 
 /// 是否为字母或数字
 private func isAlphaNum(b: UInt8): Bool {
-    return (b >= UInt8('a') && b <= UInt8('z')) ||
-           (b >= UInt8('A') && b <= UInt8('Z')) ||
-           (b >= UInt8('0') && b <= UInt8('9'))
+    return (b >= UInt8(97) && b <= UInt8(122)) ||
+           (b >= UInt8(65) && b <= UInt8(90)) ||
+           (b >= UInt8(48) && b <= UInt8(57))
 }
 
 /// 十六进制字符值
 private func hexValue(b: UInt8): Int64 {
-    if (b >= UInt8('0') && b <= UInt8('9')) {
-        return Int64(b) - Int64(UInt8('0'))
+    if (b >= UInt8(48) && b <= UInt8(57)) {
+        return Int64(b) - 48
     }
-    if (b >= UInt8('a') && b <= UInt8('f')) {
-        return Int64(b) - Int64(UInt8('a')) + 10
+    if (b >= UInt8(97) && b <= UInt8(102)) {
+        return Int64(b) - 97 + 10
     }
-    if (b >= UInt8('A') && b <= UInt8('F')) {
-        return Int64(b) - Int64(UInt8('A')) + 10
+    if (b >= UInt8(65) && b <= UInt8(70)) {
+        return Int64(b) - 65 + 10
     }
     return -1
 }
@@ -1827,7 +1944,7 @@ private func hexDigit(v: UInt8): String {
     if (nibble < 10) {
         return "${nibble}"
     }
-    return String(Char(nibble - 10 + Int64(Char('a').value)))
+    return String(Rune(nibble - 10 + 97))
 }
 
 /// StringBuilder - 字符串构建器
@@ -1844,22 +1961,10 @@ private class StringBuilder {
     }
 
     func toString(): String {
-        // 连接所有部分
-        var totalSize = 0
+        var result = ""
         for (p in parts) {
-            totalSize += p.size
+            result += p
         }
-        if (totalSize == 0) {
-            return ""
-        }
-        var arr = Array<Char>(totalSize, item: '\0')
-        var pos = 0
-        for (p in parts) {
-            for (c in p) {
-                arr[pos] = c
-                pos += 1
-            }
-        }
-        return String(arr)
+        return result
     }
 }

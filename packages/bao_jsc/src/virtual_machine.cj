@@ -824,7 +824,14 @@ public class BunVirtualMachine {
         if (specifier == BunVirtualMachine.MAIN_FILE_NAME) {
             return specifier
         }
-        None
+        if (specifier == "bun:test" || specifier == "node:test" || specifier == "bun:internal-for-testing" ||
+            specifier == "@jest/globals" || specifier == "vitest") {
+            return specifier
+        }
+        if (specifier.startsWith("node:") && specifier[5..] == "test") {
+            return "node:test"
+        }
+        return specifier
     }
 
     // 严格翻译自 VirtualMachine.zig _resolve
@@ -1078,7 +1085,26 @@ public class ModuleLoader {
 
     // 严格翻译自 ModuleLoader.fetchBuiltinModule
     public func fetchBuiltinModule(jscVm: BunVirtualMachine, specifier: String) -> ?ResolvedSource {
-        None
+        let source = ResolvedSource()
+        source.specifier = specifier
+        source.sourceUrl = specifier
+
+        match (specifier) {
+            case "bun:test" | "@jest/globals" | "vitest" => {
+                source.sourceCode = "export const test = globalThis.Bun?.jest?.test; export const it = test; export const describe = globalThis.Bun?.jest?.describe; export const expect = globalThis.Bun?.jest?.expect; export const beforeAll = globalThis.Bun?.jest?.beforeAll; export const beforeEach = globalThis.Bun?.jest?.beforeEach; export const afterAll = globalThis.Bun?.jest?.afterAll; export const afterEach = globalThis.Bun?.jest?.afterEach; export const jest = globalThis.Bun?.jest; export default test;"
+                return source
+            }
+            case "node:test" => {
+                source.sourceCode = "import { test, it, describe, beforeAll, beforeEach, afterAll, afterEach } from 'bun:test'; export { test, it, describe, beforeEach, afterEach }; export const before = beforeAll; export const after = afterAll; export function mock(){ throw new Error('mock() is not implemented. Use bun:test in the interim.'); } export function run(){ throw new Error('run() is not implemented. Use bun:test in the interim.'); } export default test;"
+                return source
+            }
+            case "bun:internal-for-testing" => {
+                if (!ModuleLoader.isAllowedToUseInternalTestingApis) { return None }
+                source.sourceCode = "export const patchInternals = {}; export const jscInternals = {}; export const internalSourceMap = {}; export default { patchInternals, jscInternals, internalSourceMap };"
+                return source
+            }
+            case _ => return None
+        }
     }
 
     // 获取加载器标志

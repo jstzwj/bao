@@ -12,6 +12,7 @@ import bao_core.*
 import bao_sys.*
 import bao_hash.*
 import bao_options.*
+import bao_collections.*
 
 // ============================================================================
 // isPackagePath - 判断路径是否为包路径
@@ -133,48 +134,6 @@ public enum ModuleType {
 }
 
 // ============================================================================
-// PathPair - 路径对
-// 严格翻译自: resolver.zig - PathPair
-//   pub const PathPair = struct {
-//       primary: Path,
-//       secondary: ?Path = null,
-//       ...
-//   };
-// ============================================================================
-
-/// 路径对 - 对应 Bun PathPair
-/// 解析结果可能包含主路径和备选路径
-public class PathPair {
-    /// 主路径
-    public var primary: ResolvedPath
-    /// 备选路径 (用于大小写不匹配)
-    public var secondary: ?ResolvedPath
-
-    public init(primary: ResolvedPath) {
-        this.primary = primary
-        secondary = None
-    }
-
-    public init(primary: ResolvedPath, secondary: ?ResolvedPath) {
-        this.primary = primary
-        this.secondary = secondary
-    }
-
-    /// 获取有效路径
-    public func path(): ?ResolvedPath {
-        if (!primary.isDisabled) {
-            return Some(primary)
-        }
-        if (let Some(sec) <- secondary) {
-            if (!sec.isDisabled) {
-                return Some(sec)
-            }
-        }
-        None
-    }
-}
-
-// ============================================================================
 // ResolvedPath - 解析后的路径
 // 对应 Bun Fs.Path
 // ============================================================================
@@ -232,20 +191,20 @@ public class ResolvedPath {
         // 查找最后一个路径分隔符
         var lastSep = -1
         for (i in 0..text.size) {
-            if (text[i] == '/' || text[i] == '\\') {
+            if (text[i] == UInt8(47) || text[i] == UInt8(92)) {
                 lastSep = i
             }
         }
         if (lastSep >= 0) {
-            dir = text.subString(0, lastSep)
-            filename = text.subString(lastSep + 1)
+            dir = text[Int64(0)..lastSep]
+            filename = text[Int64(lastSep + 1)..text.size]
         } else {
             filename = text
         }
         // 查找扩展名
-        let dotIndex = filename.lastIndexOf('.')
-        if (dotIndex >= 0) {
-            ext = filename.subString(dotIndex)
+        let dotIndexOpt = filename.lastIndexOf('.')
+        if (let Some(dotIndex) <- dotIndexOpt) {
+            ext = filename[dotIndex..filename.size]
         }
     }
 
@@ -259,8 +218,7 @@ public class ResolvedPath {
 // ResolveResultFlags - 解析结果标志
 // 严格翻译自: resolver.zig - Result.Flags
 //   pub const Flags = packed struct(u8) {
-//       is_external: bool = false,
-//       is_external_and_rewrite_import_path: bool = false,
+//       is_external: bool = false..//       is_external_and_rewrite_import_path: bool = false,
 //       is_standalone_module: bool = false,
 //       is_from_node_modules: bool = false,
 //       preserve_unused_imports_ts: bool = false,
@@ -314,9 +272,9 @@ public class ResolveResult {
     /// 路径对
     public var pathPair: PathPair
     /// JSX 配置
-    public var jsx: JsxPragma
+    public var jsx: JSXConfig
     /// package.json 引用
-    public var packageJson: ?PackageJsonInfo
+    public var packageJson: ?PackageJson
     /// 大小写不匹配信息
     public var diffCase: ?String
     /// 副作用数据
@@ -334,7 +292,7 @@ public class ResolveResult {
 
     public init(pathPair: PathPair) {
         this.pathPair = pathPair
-        jsx = JsxPragma()
+        jsx = JSXConfig()
         packageJson = None
         diffCase = None
         primarySideEffectsData = SideEffects.HasSideEffects
@@ -348,11 +306,11 @@ public class ResolveResult {
     /// 判断是否可能为 node_modules 模块
     /// 对应 Bun Result.isLikelyNodeModule()
     public func isLikelyNodeModule(): Bool {
-        if (let Some(p) <- pathPair.path()) {
-            if (flags.isFromNodeModules) {
-                return true
-            }
-            return p.text.contains("/node_modules/")
+        if (flags.isFromNodeModules) {
+            return true
+        }
+        if (pathPair.primary.text.contains("/node_modules/")) {
+            return true
         }
         false
     }
@@ -363,12 +321,11 @@ public class ResolveResult {
         match (moduleType) {
             case Esm => false
             case Cjs => true
-            case Unknown => {
-                if (kind == ImportKind.Require || kind == ImportKind.RequireResolve) {
+            case Unknown =>
+                if (match (kind) { case ImportKind.Require | ImportKind.RequireResolve => true case _ => false }) {
                     return true
                 }
                 isLikelyNodeModule()
-            }
         }
     }
 }
@@ -408,7 +365,7 @@ public class MatchResult {
     public var dirnameFd: Int64
     public var fileFd: Int64
     public var isNodeModule: Bool
-    public var packageJson: ?PackageJsonInfo
+    public var packageJson: ?PackageJson
     public var diffCase: ?String
     public var dirInfo: ?DirInfo
     public var moduleType: ModuleType
@@ -501,7 +458,7 @@ public class DebugLogs {
     /// 减少缩进
     public func decreaseIndent(): Unit {
         if (indent.size > 0) {
-            indent = indent.subString(0, indent.size - 1)
+            indent = indent[0..indent.size - 1]
         }
     }
 
@@ -549,8 +506,8 @@ public enum JsxRuntime {
 public class PackageJsonInfo {
     public var name: String
     public var version: String
-    public var main: String
-    public var module: String
+    public var `main`: String
+    public var `module`: String
     public var types: String
     public var typings: String
     public var exports: ?String
@@ -566,8 +523,8 @@ public class PackageJsonInfo {
     public init() {
         name = ""
         version = ""
-        main = ""
-        module = ""
+        `main` = ""
+        `module` = ""
         types = ""
         typings = ""
         exports = None
@@ -580,6 +537,24 @@ public class PackageJsonInfo {
         peerDependencies = HashMap<String, String>()
         packageManager = ""
     }
+
+    /// 转换为 PackageJson
+    public func toPackageJson(): PackageJson {
+        let pkg = PackageJson()
+        pkg.name = name
+        pkg.version = version
+        pkg.moduleType = moduleType
+        pkg.browserMap = browserMap
+        pkg.dependencies = dependencies
+        pkg.devDependencies = devDependencies
+        pkg.peerDependencies = peerDependencies
+        pkg.types = types
+        match (sideEffects) {
+            case SideEffectsPolicy.NoSideEffects => pkg.sideEffects = SideEffectsKind.NoSideEffects
+            case _ => pkg.sideEffects = SideEffectsKind.Unspecified
+        }
+        pkg
+    }
 }
 
 /// 副作用策略
@@ -589,116 +564,6 @@ public enum SideEffectsPolicy {
     | Glob              // sideEffects: ["*.css"]
     | Map               // sideEffects: 具体文件映射
     | Mixed             // 混合
-}
-
-// ============================================================================
-// DirInfo - 目录信息
-// 严格翻译自: resolver.zig - DirInfo (简化版)
-//   pub const DirInfo = struct {
-//       ...
-//       abs_real_path: string = "",
-//       package_json: ?*PackageJSON = null,
-//       enclosing_browser_scope: ?*DirInfo = null,
-//       package_json_for_browser_field: ?*PackageJSON = null,
-//       enclosing_tsconfig_json: ?*TSConfigJSON = null,
-//       enclosing_package_json: ?*PackageJSON = null,
-//       ...
-//   };
-// ============================================================================
-
-/// 目录信息 - 对应 Bun DirInfo
-public class DirInfo {
-    /// 绝对路径
-    public var absPath: String
-    /// 真实路径 (解析符号链接后)
-    public var absRealPath: String
-    /// 此目录的 package.json
-    public var packageJson: ?PackageJsonInfo
-    /// 包围浏览器作用域
-    public var enclosingBrowserScope: ?DirInfo
-    /// 用于浏览器字段查找的 package.json
-    public var packageJsonForBrowserField: ?PackageJsonInfo
-    /// 包围 tsconfig
-    public var enclosingTsconfigJson: ?TsconfigInfo
-    /// 包围 package.json
-    public var enclosingPackageJson: ?PackageJsonInfo
-    /// 用于依赖查找的 package.json
-    public var packageJsonForDependencies: ?PackageJsonInfo
-    /// 是否在 node_modules 内
-    public var insideNodeModules: Bool
-    /// 是否为 node_modules 目录
-    public var isNodeModulesDir: Bool
-    /// 目录条目
-    public var entries: HashMap<String, DirEntry>
-    /// 文件描述符
-    public var fd: Int64
-    /// 生成号
-    public var generation: Int64
-
-    public init(absPath: String) {
-        this.absPath = absPath
-        absRealPath = absPath
-        packageJson = None
-        enclosingBrowserScope = None
-        packageJsonForBrowserField = None
-        enclosingTsconfigJson = None
-        enclosingPackageJson = None
-        packageJsonForDependencies = None
-        insideNodeModules = false
-        isNodeModulesDir = false
-        entries = HashMap<String, DirEntry>()
-        fd = -1
-        generation = 0
-    }
-
-    /// 是否在 node_modules 中
-    public func isInsideNodeModules(): Bool {
-        insideNodeModules
-    }
-
-    /// 是否为 node_modules 目录
-    public func isNodeModules(): Bool {
-        isNodeModulesDir
-    }
-
-    /// 获取条目
-    public func getEntries(generation: Int64): ?HashMap<String, DirEntry> {
-        if (this.generation == generation && entries.size > 0) {
-            Some(entries)
-        } else {
-            None
-        }
-    }
-}
-
-// ============================================================================
-// DirEntry - 目录条目
-// 严格翻译自: resolver.zig - Fs.FileSystem.Entry
-// ============================================================================
-
-/// 目录条目 - 对应 Bun Entry
-public class DirEntry {
-    /// 文件名
-    public var base: String
-    /// 真实路径
-    public var realPath: String
-    /// 符号链接目标
-    public var symlink: String
-    /// 是否为目录
-    public var isDir: Bool
-    /// 是否为文件
-    public var isFile: Bool
-    /// 缓存的文件描述符
-    public var cacheFd: Int64
-
-    public init(base: String) {
-        this.base = base
-        realPath = ""
-        symlink = ""
-        isDir = false
-        isFile = false
-        cacheFd = -1
-    }
 }
 
 // ============================================================================
@@ -760,7 +625,7 @@ public class Dirname {
 
         var endIndex = path.size - 1
         // 跳过尾部的路径分隔符
-        while (endIndex > 0 && (path[endIndex] == '/' || path[endIndex] == '\\')) {
+        while (endIndex > 0 && (path[endIndex] == 0x2F || path[endIndex] == 0x5C)) {
             endIndex = endIndex - 1
         }
         if (endIndex == 0) {
@@ -768,14 +633,14 @@ public class Dirname {
         }
 
         // 查找前一个路径分隔符
-        while (endIndex > 0 && path[endIndex] != '/' && path[endIndex] != '\\') {
+        while (endIndex > 0 && path[endIndex] != 0x2F && path[endIndex] != 0x5C) {
             endIndex = endIndex - 1
         }
         if (endIndex == 0) {
             return "/"
         }
 
-        path.subString(0, endIndex + 1)
+        path[0..endIndex + 1]
     }
 }
 
@@ -894,6 +759,14 @@ public class ResolveUnionResult {
     public var pending: ?PendingResolution
     public var error: ?String
 
+    public init() {
+        status = ResolveStatus.NotFound
+        result = None
+        matchResult = None
+        pending = None
+        error = None
+    }
+
     public static func success(result: ResolveResult): ResolveUnionResult {
         let r = ResolveUnionResult()
         r.status = ResolveStatus.Success
@@ -914,7 +787,7 @@ public class ResolveUnionResult {
         r
     }
 
-    public static func pending(p: PendingResolution): ResolveUnionResult {
+    public static func createPending(p: PendingResolution): ResolveUnionResult {
         let r = ResolveUnionResult()
         r.status = ResolveStatus.Pending
         r.pending = Some(p)
@@ -1008,7 +881,7 @@ public class Resolver {
         log = ArrayList<String>()
         extensionOrder = opts.extensionOrder
         careAboutBinFolder = false
-        careAboutBrowserField = opts.target == BundleTarget.Browser
+        careAboutBrowserField = match (opts.target) { case BundleTarget.Browser => true case _ => false }
         debugLogs = None
         elapsed = 0
         generation = 0
@@ -1034,9 +907,10 @@ public class Resolver {
     /// - kind: 导入类型
     public func resolve(sourceDir: String, importPath: String,
                          kind: ImportKind): ?ResolveResult {
-        match (resolveAndAutoInstall(sourceDir, importPath, kind,
-                                      GlobalCache.Disable)) {
-            case success(r) => r
+        let resolveResult = resolveAndAutoInstall(sourceDir, importPath, kind,
+                                      GlobalCache.Disable)
+        match (resolveResult.status) {
+            case ResolveStatus.Success => resolveResult.result
             case _ => None
         }
     }
@@ -1072,7 +946,7 @@ public class Resolver {
         //   }
         if (opts.markBuiltinsAsExternal) {
             if (importPath.startsWith("node:") || importPath.startsWith("bun:")) {
-                let result = ResolveResult(PathPair(ResolvedPath(importPath)))
+                let result = ResolveResult(PathPair(ResolverPath(importPath)))
                 result.importKind = kind
                 result.moduleType = ModuleType.Cjs
                 result.primarySideEffectsData = SideEffects.NoSideEffectsPureData
@@ -1085,13 +959,13 @@ public class Resolver {
         // 严格翻译自:
         //   if (kind != .entry_point_build and kind != .entry_point_run and
         //       (r.isExternalPattern(import_path) or ...))
-        if (kind != ImportKind.Entry) {
+        if (match (kind) { case ImportKind.Entry => false case _ => true }) {
             if (isExternalPattern(importPath) ||
                 (kind.isFromCSS() && importPath.startsWith("#")) ||
                 importPath.startsWith("http://") ||
                 importPath.startsWith("https://") ||
                 importPath.startsWith("//")) {
-                let result = ResolveResult(PathPair(ResolvedPath(importPath)))
+                let result = ResolveResult(PathPair(ResolverPath(importPath)))
                 result.importKind = kind
                 result.flags.isExternal = true
                 if (!kind.isFromCSS()) {
@@ -1117,15 +991,15 @@ public class Resolver {
         //       const maybe_suffix = bun.strings.indexOfAny(import_path, "?#");
         //       ...
         //   }
-        if (tmp.status == ResolveStatus.NotFound && kind.isFromCSS()) {
+        if (match (tmp.status) { case ResolveStatus.NotFound => true case _ => false } && kind.isFromCSS()) {
             let suffixIndex = indexOfAny(importPath, "?#")
-            if (suffixIndex != None) {
+            if (suffixIndex.isSome()) {
                 if (let Some(idx) <- suffixIndex) {
                     if (idx > 0) {
-                        let cleanPath = importPath.subString(0, idx)
+                        let cleanPath = importPath[Int64(0)..idx]
                         let retry = resolveWithoutSymlinks(normalizedSourceDir,
                                                             cleanPath, kind, globalCache)
-                        if (retry.status != ResolveStatus.NotFound) {
+                        if (match (retry.status) { case ResolveStatus.NotFound => false case _ => true }) {
                             tmp = retry
                         }
                     }
@@ -1135,13 +1009,12 @@ public class Resolver {
 
         // 最终化结果
         match (tmp.status) {
-            case Success => {
+            case Success =>
                 if (let Some(r) <- tmp.result) {
                     r.importKind = kind
                     finalizeResult(r, kind)
                 }
                 tmp
-            }
             case _ => tmp
         }
     }
@@ -1163,7 +1036,7 @@ public class Resolver {
     public func resolveWithoutSymlinks(sourceDir: String, importPath: String,
                                         kind: ImportKind,
                                         globalCache: GlobalCache): ResolveUnionResult {
-        var result = ResolveResult(PathPair(ResolvedPath.empty()))
+        var result = ResolveResult(PathPair(ResolverPath.empty))
 
         // 绝对路径处理
         // 严格翻译自:
@@ -1210,7 +1083,7 @@ public class Resolver {
         //       bun.strings.startsWith(import_path, "../"))
         if (importPath.startsWith("./") || importPath.startsWith("../")) {
             // 解析相对路径
-            let absPath = Path.join(sourceDir, importPath)
+            let absPath = Path.join([sourceDir, importPath])
             let normalized = Path.normalize(absPath)
 
             // 浏览器映射
@@ -1295,14 +1168,14 @@ public class Resolver {
         //   }
         var dir = sourceDir
         while (true) {
-            let nmPath = Path.join(dir, "node_modules")
-            let pkgPath = Path.join(nmPath, pkgName)
+            let nmPath = Path.join([dir, "node_modules"])
+            let pkgPath = Path.join([nmPath, pkgName])
 
             if (Fs.dirExists(pkgPath)) {
                 // 找到包目录
                 let result = loadPackageFromNodeModules(pkgPath, pkgSubpath,
                                                          pkgName, kind)
-                if (result.status == ResolveStatus.Success) {
+                if (match (result.status) { case ResolveStatus.Success => true case _ => false }) {
                     if (let Some(r) <- result.result) {
                         r.flags.isFromNodeModules = true
                     }
@@ -1321,7 +1194,7 @@ public class Resolver {
         // 全局缓存查找
         if (globalCache.isEnabled()) {
             // 尝试在全局缓存中查找
-            let cachePath = Path.join("/.bun/install/cache", pkgName)
+            let cachePath = Path.join(["/.bun/install/cache", pkgName])
             if (Fs.dirExists(cachePath)) {
                 return loadPackageFromNodeModules(cachePath, pkgSubpath,
                                                    pkgName, kind)
@@ -1346,7 +1219,7 @@ public class Resolver {
 
         // 精确匹配
         if (Fs.fileExists(absPath)) {
-            let result = ResolveResult(PathPair(ResolvedPath(absPath)))
+            let result = ResolveResult(PathPair(ResolverPath(absPath)))
             return ResolveUnionResult.success(result)
         }
 
@@ -1354,7 +1227,7 @@ public class Resolver {
         for (ext in extensionOrder) {
             let tryPath = "${absPath}${ext}"
             if (Fs.fileExists(tryPath)) {
-                let result = ResolveResult(PathPair(ResolvedPath(tryPath)))
+                let result = ResolveResult(PathPair(ResolverPath(tryPath)))
                 return ResolveUnionResult.success(result)
             }
         }
@@ -1362,23 +1235,23 @@ public class Resolver {
         // 尝试作为目录 (查找 index 文件)
         if (Fs.dirExists(absPath)) {
             // 检查 package.json 中的 main 字段
-            let pkgJsonPath = Path.join(absPath, "package.json")
+            let pkgJsonPath = Path.join([absPath, "package.json"])
             if (Fs.fileExists(pkgJsonPath)) {
                 if (let Some(pkgJson) <- loadPackageJson(pkgJsonPath)) {
                     // 优先使用 module 字段 (如果 prefer_module_field)
                     var mainPath = ""
-                    if (preferModuleField && pkgJson.module.size > 0) {
-                        mainPath = pkgJson.module
-                    } else if (pkgJson.main.size > 0) {
-                        mainPath = pkgJson.main
+                    if (preferModuleField && pkgJson.`module`.size > 0) {
+                        mainPath = pkgJson.`module`
+                    } else if (pkgJson.`main`.size > 0) {
+                        mainPath = pkgJson.`main`
                     }
 
                     if (mainPath.size > 0) {
-                        let resolvedMain = Path.join(absPath, mainPath)
+                        let resolvedMain = Path.join([absPath, mainPath])
                         let mainResult = loadAsFileOrDirectory(resolvedMain, kind)
-                        if (mainResult.status == ResolveStatus.Success) {
+                        if (match (mainResult.status) { case ResolveStatus.Success => true case _ => false }) {
                             if (let Some(r) <- mainResult.result) {
-                                r.packageJson = Some(pkgJson)
+                                r.packageJson = Some(pkgJson.toPackageJson())
                             }
                             return mainResult
                         }
@@ -1388,9 +1261,9 @@ public class Resolver {
 
             // 查找 index 文件
             for (ext in extensionOrder) {
-                let indexPath = Path.join(absPath, "index${ext}")
+                let indexPath = Path.join([absPath, "index${ext}"])
                 if (Fs.fileExists(indexPath)) {
-                    let result = ResolveResult(PathPair(ResolvedPath(indexPath)))
+                    let result = ResolveResult(PathPair(ResolverPath(indexPath)))
                     return ResolveUnionResult.success(result)
                 }
             }
@@ -1412,11 +1285,11 @@ public class Resolver {
     func loadPackageFromNodeModules(pkgPath: String, subpath: String,
                                      pkgName: String,
                                      kind: ImportKind): ResolveUnionResult {
-        let pkgJsonPath = Path.join(pkgPath, "package.json")
+        let pkgJsonPath = Path.join([pkgPath, "package.json"])
         if (!Fs.fileExists(pkgJsonPath)) {
             // 没有 package.json，直接解析子路径
             if (subpath.size > 0) {
-                let subPath = Path.join(pkgPath, subpath)
+                let subPath = Path.join([pkgPath, subpath])
                 return loadAsFileOrDirectory(subPath, kind)
             }
             return loadAsFileOrDirectory(pkgPath, kind)
@@ -1430,7 +1303,7 @@ public class Resolver {
             if (let Some(exportsJson) <- pkgJson.exports) {
                 if (let Some(result) <- resolvePackageExports(pkgPath, subpath,
                                                                 exportsJson, kind)) {
-                    result.packageJson = Some(pkgJson)
+                    result.packageJson = Some(pkgJson.toPackageJson())
                     result.moduleType = moduleType
                     return ResolveUnionResult.success(result)
                 }
@@ -1438,23 +1311,23 @@ public class Resolver {
 
             // 使用 main/module 解析
             var entryPath = ""
-            if (preferModuleField && pkgJson.module.size > 0) {
-                entryPath = pkgJson.module
-            } else if (pkgJson.main.size > 0) {
-                entryPath = pkgJson.main
+            if (preferModuleField && pkgJson.`module`.size > 0) {
+                entryPath = pkgJson.`module`
+            } else if (pkgJson.`main`.size > 0) {
+                entryPath = pkgJson.`main`
             }
 
             if (subpath.size > 0) {
-                let subPath = Path.join(pkgPath, subpath)
+                let subPath = Path.join([pkgPath, subpath])
                 return loadAsFileOrDirectory(subPath, kind)
             }
 
             if (entryPath.size > 0) {
-                let resolvedEntry = Path.join(pkgPath, entryPath)
+                let resolvedEntry = Path.join([pkgPath, entryPath])
                 let result = loadAsFileOrDirectory(resolvedEntry, kind)
-                if (result.status == ResolveStatus.Success) {
+                if (match (result.status) { case ResolveStatus.Success => true case _ => false }) {
                     if (let Some(r) <- result.result) {
-                        r.packageJson = Some(pkgJson)
+                        r.packageJson = Some(pkgJson.toPackageJson())
                         r.moduleType = moduleType
                     }
                     return result
@@ -1462,11 +1335,11 @@ public class Resolver {
             }
 
             // 回退到 index
-            let indexPath = Path.join(pkgPath, "index")
+            let indexPath = Path.join([pkgPath, "index"])
             let indexResult = loadAsFileOrDirectory(indexPath, kind)
-            if (indexResult.status == ResolveStatus.Success) {
+            if (match (indexResult.status) { case ResolveStatus.Success => true case _ => false }) {
                 if (let Some(r) <- indexResult.result) {
-                    r.packageJson = Some(pkgJson)
+                    r.packageJson = Some(pkgJson.toPackageJson())
                     r.moduleType = moduleType
                 }
                 return indexResult
@@ -1498,9 +1371,9 @@ public class Resolver {
             // 查找 "." 入口
             let dotEntry = parseExportEntry(exportsJson, ".")
             if (dotEntry.size > 0) {
-                let resolvedPath = Path.join(pkgPath, dotEntry)
+                let resolvedPath = Path.join([pkgPath, dotEntry])
                 if (Fs.fileExists(resolvedPath)) {
-                    return Some(ResolveResult(PathPair(ResolvedPath(resolvedPath))))
+                    return Some(ResolveResult(PathPair(ResolverPath(resolvedPath))))
                 }
             }
         }
@@ -1508,9 +1381,9 @@ public class Resolver {
         // 处理子路径
         let matchEntry = parseExportEntry(exportsJson, "./${subpath}")
         if (matchEntry.size > 0) {
-            let resolvedPath = Path.join(pkgPath, matchEntry)
+            let resolvedPath = Path.join([pkgPath, matchEntry])
             if (Fs.fileExists(resolvedPath)) {
-                return Some(ResolveResult(PathPair(ResolvedPath(resolvedPath))))
+                return Some(ResolveResult(PathPair(ResolverPath(resolvedPath))))
             }
         }
 
@@ -1524,7 +1397,7 @@ public class Resolver {
     // ============================================================================
 
     /// 匹配 tsconfig paths
-    func matchTSConfigPaths(tsconfig: TsconfigInfo, importPath: String,
+    func matchTSConfigPaths(tsconfig: TsConfig, importPath: String,
                              kind: ImportKind): ?MatchResult {
         if (tsconfig.paths.size == 0) {
             return None
@@ -1534,26 +1407,25 @@ public class Resolver {
         if (let Some(targets) <- tsconfig.paths.get(importPath)) {
             for (target in targets) {
                 let absTarget = if (tsconfig.baseUrl.size > 0) {
-                    Path.join(tsconfig.baseUrl, target)
+                    Path.join([tsconfig.baseUrl, target])
                 } else {
                     target
                 }
                 let normalized = Path.normalize(absTarget)
                 if (Fs.fileExists(normalized)) {
-                    return Some(MatchResult(PathPair(ResolvedPath(normalized))))
+                    return Some(MatchResult(PathPair(ResolverPath(normalized))))
                 }
             }
         }
 
         // 通配符匹配
         // 严格翻译自 tsconfig paths 的 "*" 通配符匹配
-        for (entry in tsconfig.paths) {
-            let pattern = entry.key
-            let targets = entry.value
+        for ((pattern, targets) in tsconfig.paths.iterator()) {
             if (pattern.contains("*")) {
-                let prefix = pattern.subString(0, pattern.indexOf("*"))
-                let suffix = if (pattern.indexOf("*") + 1 < pattern.size) {
-                    pattern.subString(pattern.indexOf("*") + 1)
+                let starIdx = pattern.indexOf("*").getOrThrow()
+                let prefix = pattern[0..starIdx]
+                let suffix = if (starIdx + 1 < pattern.size) {
+                    pattern[starIdx + 1..pattern.size]
                 } else {
                     ""
                 }
@@ -1561,22 +1433,21 @@ public class Resolver {
                 if (importPath.startsWith(prefix) &&
                     (suffix.size == 0 || importPath.endsWith(suffix))) {
                     let starMatch = if (suffix.size > 0) {
-                        importPath.subString(prefix.size,
-                                              importPath.size - suffix.size)
+                        importPath[prefix.size..importPath.size - suffix.size]
                     } else {
-                        importPath.subString(prefix.size)
+                        importPath[prefix.size..importPath.size]
                     }
 
                     for (target in targets) {
                         let resolved = target.replace("*", starMatch)
                         let absTarget = if (tsconfig.baseUrl.size > 0) {
-                            Path.join(tsconfig.baseUrl, resolved)
+                            Path.join([tsconfig.baseUrl, resolved])
                         } else {
                             resolved
                         }
                         let normalized = Path.normalize(absTarget)
                         if (Fs.fileExists(normalized)) {
-                            return Some(MatchResult(PathPair(ResolvedPath(normalized))))
+                            return Some(MatchResult(PathPair(ResolverPath(normalized))))
                         }
                     }
                 }
@@ -1598,12 +1469,13 @@ public class Resolver {
             return
         }
 
-        let path = result.pathPair.path()
-        if (path == None) {
+        let path = result.pathPair.primary
+        if (path.isDisabled) {
             return
         }
 
-        if (let Some(p) <- path) {
+        if (true) {
+            let p = path
             // 设置副作用信息
             if (let Some(pkg) <- result.packageJson) {
                 match (pkg.sideEffects) {
@@ -1625,13 +1497,13 @@ public class Resolver {
                 }
 
                 // 设置 package.json
-                if (result.packageJson == None) {
+                if (result.packageJson.isNone()) {
                     result.packageJson = dirInfo.enclosingPackageJson
                 }
             }
 
             // 设置模块类型
-            if (!kind.isFromCSS() && result.moduleType == ModuleType.Unknown) {
+            if (!kind.isFromCSS() && match (result.moduleType) { case ModuleType.Unknown => true case _ => false }) {
                 if (let Some(pkg) <- result.packageJson) {
                     result.moduleType = pkg.moduleType
                 }
@@ -1646,7 +1518,7 @@ public class Resolver {
     /// 是否为外部模式
     /// 对应 Bun Resolver.isExternalPattern()
     func isExternalPattern(importPath: String): Bool {
-        if (opts.packages == PackagePolicy.External && isPackagePath(importPath)) {
+        if (match (opts.packages) { case PackagePolicy.External => true case _ => false } && isPackagePath(importPath)) {
             return true
         }
         matchesUserExternalPattern(importPath)
@@ -1678,27 +1550,27 @@ public class Resolver {
     func parsePackageSpecifier(specifier: String): Tuple2<String, String> {
         // 作用域包 (@scope/package)
         if (specifier.startsWith("@")) {
-            let firstSlash = specifier.indexOf('/')
+            let firstSlash = specifier.indexOf('/').getOrDefault({ => Int64(-1) })
             if (firstSlash < 0) {
                 return Tuple2(specifier, "")
             }
-            let afterScope = specifier.subString(firstSlash + 1)
-            let secondSlash = afterScope.indexOf('/')
+            let afterScope = specifier[firstSlash + 1..specifier.size]
+            let secondSlash = afterScope.indexOf('/').getOrDefault({ => Int64(-1) })
             if (secondSlash < 0) {
                 return Tuple2(specifier, "")
             }
-            let pkgName = specifier.subString(0, firstSlash + 1 + secondSlash)
-            let subpath = "./${afterScope.subString(secondSlash + 1)}"
+            let pkgName = specifier[0..firstSlash + 1 + secondSlash]
+            let subpath = "./${afterScope[secondSlash + 1..afterScope.size]}"
             return Tuple2(pkgName, subpath)
         }
 
         // 普通包
-        let slashIndex = specifier.indexOf('/')
+        let slashIndex = specifier.indexOf('/').getOrDefault({ => Int64(-1) })
         if (slashIndex < 0) {
             return Tuple2(specifier, "")
         }
-        let pkgName = specifier.subString(0, slashIndex)
-        let subpath = "./${specifier.subString(slashIndex + 1)}"
+        let pkgName = specifier[Int64(0)..slashIndex]
+        let subpath = "./${specifier[slashIndex + 1..specifier.size]}"
         Tuple2(pkgName, subpath)
     }
 
@@ -1751,21 +1623,6 @@ public class Resolver {
 }
 
 // ============================================================================
-// Tuple2 - 二元组辅助类
-// ============================================================================
-
-/// 二元组
-public class Tuple2<T1, T2> {
-    public var first: T1
-    public var second: T2
-
-    public init(first: T1, second: T2) {
-        this.first = first
-        this.second = second
-    }
-}
-
-// ============================================================================
 // Fs - 文件系统辅助
 // ============================================================================
 
@@ -1774,7 +1631,7 @@ class Fs {
     static func fileExists(path: String): Bool {
         let stat = Fs.stat(path)
         if (let Some(s) <- stat) {
-            return s.isFile()
+            return s.isFile
         }
         false
     }
@@ -1782,7 +1639,7 @@ class Fs {
     static func dirExists(path: String): Bool {
         let stat = Fs.stat(path)
         if (let Some(s) <- stat) {
-            return s.isDirectory()
+            return s.isDirectory
         }
         false
     }
@@ -1795,16 +1652,16 @@ class Fs {
 
 /// 文件信息
 class FileInfo {
-    public var isFile(): Bool {
-        true
+    public prop isFile: Bool {
+        get() { true }
     }
 
-    public var isDirectory(): Bool {
-        false
+    public prop isDirectory: Bool {
+        get() { false }
     }
 
-    public var isExecutable(): Bool {
-        false
+    public prop isExecutable: Bool {
+        get() { false }
     }
 }
 
@@ -1813,12 +1670,14 @@ class FileInfo {
 // ============================================================================
 
 /// GlobalCache 扩展方法
-public func GlobalCache.isEnabled(): Bool {
-    match (this) {
-        case Auto => true
-        case Disable => false
-        case Fallback => true
-        case Force => true
+extend GlobalCache {
+    public func isEnabled(): Bool {
+        match (this) {
+            case Auto => true
+            case Disable => false
+            case Fallback => true
+            case Force => true
+        }
     }
 }
 

@@ -5,6 +5,8 @@
 package bao_runtime.crypto
 
 import bao_core.*
+import bao_collections.*
+import bao_runtime.*
 
 // ============================================================================
 // 加密类定义
@@ -54,7 +56,7 @@ public class CryptoClasses {
         let obj = JsObject()
         // getRandomValues
         obj.set("getRandomValues", JsValue.nativeFunction(
-            JsNativeFunction("getRandomValues", { global, args  =>
+            JsNativeFunction("getRandomValues", { args  =>
                 if (args.size == 0) { return JsValue.UNDEFINED }
                 let value = args[0]
                 match (value.arrayData) {
@@ -69,7 +71,7 @@ public class CryptoClasses {
         ))
         // randomUUID
         obj.set("randomUUID", JsValue.nativeFunction(
-            JsNativeFunction("randomUUID", { global, _  =>
+            JsNativeFunction("randomUUID", { _  =>
                 var bytes = Array<Byte>(16, repeat: 0)
                 CryptoRandom.bytes(bytes)
                 bytes[6] = (bytes[6] & 0x0f) | 0x40
@@ -79,7 +81,7 @@ public class CryptoClasses {
         ))
         // timingSafeEqual
         obj.set("timingSafeEqual", JsValue.nativeFunction(
-            JsNativeFunction("timingSafeEqual", { global, args  =>
+            JsNativeFunction("timingSafeEqual", { args  =>
                 if (args.size < 2) { return JsValue(false) }
                 let a = jsValueToBytes(args[0])
                 let b = jsValueToBytes(args[1])
@@ -108,11 +110,11 @@ public class CryptoClasses {
 
         // 静态方法: hash(input, output)
         obj.set("hash", JsValue.nativeFunction(
-            JsNativeFunction("hash", { global, args  =>
+            JsNativeFunction("hash", { args  =>
                 if (args.size == 0) { return JsValue.UNDEFINED }
                 let input = jsValueToBytes(args[0])
-                let output = if (args.size > 1 && args[1].valueType == JsValueType.String) { Some(args[1].stringValue.toString()) } else { None }
-                return CryptoHasher.hashStatic(global, name, input, output)
+                let output = if (args.size > 1 && args[1].valueType == JsValueType.String) { Some(args[1].stringValue.toString()) } else { Option<String>.None }
+                return CryptoHasher.hashStatic(globalThis, name, input, output)
             })
         ))
 
@@ -137,19 +139,8 @@ public class CryptoClasses {
     public static func createCryptoHasherClass(globalThis: JsObject): JsValue {
         let obj = JsObject()
 
-        // 静态方法: hash(algorithm, input, output)
-        obj.set("hash", JsValue.nativeFunction(
-            JsNativeFunction("hash", { global, args  =>
-                if (args.size < 2) { return JsValue.UNDEFINED }
-                let algorithm = args[0].stringValue.toString()
-                let input = jsValueToBytes(args[1])
-                let output = if (args.size > 2 && args[2].valueType == JsValueType.String) { Some(args[2].stringValue.toString()) } else { None }
-                return CryptoHasher.hashStatic(global, algorithm, input, output)
-            })
-        ))
-
         // 静态属性: algorithms (cached)
-        obj.set("algorithms", CryptoHasher.getAlgorithms(globalObject))
+        obj.set("algorithms", CryptoHasher.getAlgorithms(globalThis))
 
         return JsValue(obj)
     }
@@ -157,15 +148,15 @@ public class CryptoClasses {
     /// 注册所有加密类到全局对象
     public static func register(globalThis: JsObject): Unit {
         // Crypto 类
-        globalObject.set("Crypto", createCryptoClass(globalObject))
+        globalThis.set("Crypto", createCryptoClass(globalThis))
 
         // 各静态哈希器类
         for (name in HASHER_NAMES) {
-            globalObject.set(name, createHasherClass(globalObject, name))
+            globalThis.set(name, createHasherClass(globalThis, name))
         }
 
         // CryptoHasher 类
-        globalObject.set("CryptoHasher", createCryptoHasherClass(globalObject))
+        globalThis.set("CryptoHasher", createCryptoHasherClass(globalThis))
     }
 }
 
@@ -175,8 +166,7 @@ private func jsValueToBytes(value: JsValue): Array<Byte> {
         case JsValueType.String => return value.stringValue.toString().toArray()
         case JsValueType.Array =>
             let list = value.arrayData.getOrThrow()
-            var out = Array<Byte>(list.size, { _ => Byte(0) })
-            for (i in 0..list.size) { out[i] = Byte(Int64(list[i].toNumber()) & 0xff) }
+            var out = Array<Byte>(list.size, { _ => 0 })
             return out
         case _ => return Array<Byte>()
     }
@@ -187,8 +177,9 @@ private func formatUuid(bytes: Array<Byte>): String {
     var sb = StringBuilder()
     for (i in 0..16) {
         if (i == 4 || i == 6 || i == 8 || i == 10) { sb.append("-") }
-        sb.append(hex[(bytes[i].toInt64() >> 4) & 0x0f])
-        sb.append(hex[bytes[i].toInt64() & 0x0f])
+        let v = Int64(bytes[i])
+        sb.append(hex[(v >> 4) & 0x0f])
+        sb.append(hex[v & 0x0f])
     }
     return sb.toString()
 }

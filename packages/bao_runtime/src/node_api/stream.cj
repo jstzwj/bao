@@ -76,7 +76,7 @@ public class NodeReadable {
 
     /// 注册字符串数据回调
     public func onDataString(callback: (String) -> Unit): NodeReadable {
-        dataCallbacks.append({ (data: Array<UInt8>) =>
+        dataCallbacks.append({data: Array<UInt8> =>
             callback(bytesToString(data))
         })
         return this
@@ -140,10 +140,10 @@ public class NodeReadable {
 
     /// 将所有数据管道到可写流 - 对应 readable.pipe(writable)
     public func pipe(destination: NodeWritable): NodeWritable {
-        onData({ (data: Array<UInt8>) =>
+        onData({data: Array<UInt8> =>
             destination.write(data)
         })
-        onEnd({ () =>
+        onEnd({ =>
             destination.end()
         })
         return destination
@@ -192,7 +192,7 @@ public class NodeReadable {
     private func bytesToString(data: Array<UInt8>): String {
         var sb = StringBuilder()
         for (b in data) {
-            sb.append(Char(Int32(b)))
+            sb.append(String(Rune(Int32(b))))
         }
         return sb.toString()
     }
@@ -367,8 +367,8 @@ public class NodeDuplex {
     }
 
     public func destroy(): Unit {
-        readable.destroy(None)
-        writable.destroy(None)
+        readable.destroy(Option<String>.None)
+        writable.destroy(Option<String>.None)
     }
 }
 
@@ -402,8 +402,8 @@ public class NodeTransform {
     }
 
     public func destroy(): Unit {
-        readable.destroy(None)
-        writable.destroy(None)
+        readable.destroy(Option<String>.None)
+        writable.destroy(Option<String>.None)
     }
 }
 
@@ -444,13 +444,13 @@ public class NodeStreamFactory {
 
     /// 多级管道 (readable -> transform -> writable)
     public static func pipeline(src: NodeReadable, transform: NodeTransform, dest: NodeWritable): NodeWritable {
-        src.onData({ (data: Array<UInt8>) =>
+        src.onData({data: Array<UInt8> =>
             transform.writeTransform(data)
         })
-        transform.readable.onData({ (data: Array<UInt8>) =>
+        transform.readable.onData({data: Array<UInt8> =>
             dest.write(data)
         })
-        src.onEnd({ () =>
+        src.onEnd({ =>
             dest.end()
         })
         return dest

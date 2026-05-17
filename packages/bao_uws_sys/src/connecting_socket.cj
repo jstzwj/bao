@@ -54,12 +54,12 @@ public class ConnectingSocket {
 
     /// 对应 Bun: pub fn close(this: *ConnectingSocket) void
     public func close(): Unit {
-        us_connecting_socket_close(ptr)
+        unsafe { us_connecting_socket_close(ptr) }
     }
 
     /// 对应 Bun: pub fn group(this: *ConnectingSocket) *SocketGroup
     public func group(): SocketGroup {
-        return SocketGroup(us_connecting_socket_group(ptr))
+        return SocketGroup(unsafe { us_connecting_socket_group(ptr) })
     }
 
     /// 对应 Bun: pub const rawGroup = group
@@ -69,56 +69,56 @@ public class ConnectingSocket {
 
     /// 对应 Bun: pub fn kind(this: *ConnectingSocket) SocketKind
     public func kind(): SocketKind {
-        return SocketGroup.socketKindFromInt(us_connecting_socket_kind(ptr))
+        return SocketGroup.socketKindFromInt(unsafe { us_connecting_socket_kind(ptr) })
     }
 
     /// 对应 Bun: pub fn ext(this: *ConnectingSocket, comptime T: type) *T
     public func ext(): CPointer<Unit> {
-        return us_connecting_socket_ext(ptr)
+        return unsafe { us_connecting_socket_ext(ptr) }
     }
 
     /// 对应 Bun: pub fn getError(this: *ConnectingSocket) i32
     public func getError(): Int32 {
-        return us_connecting_socket_get_error(ptr)
+        return unsafe { us_connecting_socket_get_error(ptr) }
     }
 
     /// 对应 Bun: pub fn getNativeHandle(this: *ConnectingSocket) ?*anyopaque
     public func getNativeHandle(): CPointer<Unit> {
-        return us_connecting_socket_get_native_handle(ptr)
+        return unsafe { us_connecting_socket_get_native_handle(ptr) }
     }
 
     /// 对应 Bun: pub fn isClosed(this: *ConnectingSocket) bool
     public func isClosed(): Bool {
-        return us_connecting_socket_is_closed(ptr) == 1
+        return unsafe { us_connecting_socket_is_closed(ptr) } == 1
     }
 
     /// 对应 Bun: pub fn isShutdown(this: *ConnectingSocket) bool
     public func isShutdown(): Bool {
-        return us_connecting_socket_is_shut_down(ptr) == 1
+        return unsafe { us_connecting_socket_is_shut_down(ptr) } == 1
     }
 
     /// 对应 Bun: pub fn longTimeout(this: *ConnectingSocket, seconds: c_uint) void
     public func longTimeout(seconds: UInt32): Unit {
-        us_connecting_socket_long_timeout(ptr, seconds)
+        unsafe { us_connecting_socket_long_timeout(ptr, seconds) }
     }
 
     /// 对应 Bun: pub fn shutdown(this: *ConnectingSocket) void
     public func shutdown(): Unit {
-        us_connecting_socket_shutdown(ptr)
+        unsafe { us_connecting_socket_shutdown(ptr) }
     }
 
     /// 对应 Bun: pub fn shutdownRead(this: *ConnectingSocket) void
     public func shutdownRead(): Unit {
-        us_connecting_socket_shutdown_read(ptr)
+        unsafe { us_connecting_socket_shutdown_read(ptr) }
     }
 
     /// 对应 Bun: pub fn timeout(this: *ConnectingSocket, seconds: c_uint) void
     public func timeout(seconds: UInt32): Unit {
-        us_connecting_socket_timeout(ptr, seconds)
+        unsafe { us_connecting_socket_timeout(ptr, seconds) }
     }
 
     /// 对应 Bun: pub fn loop(this: *ConnectingSocket) *uws.Loop
     public func loop_(): CPointer<Unit> {
-        return us_connecting_socket_get_loop(ptr)
+        return unsafe { us_connecting_socket_get_loop(ptr) }
     }
 }

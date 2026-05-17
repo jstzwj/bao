@@ -3,6 +3,8 @@
 //   包含缓存目录管理、临时目录、全局目录设置、锁文件保存、yarn 锁写入等
 package bao_install.package_manager
 
+import bao_install.*
+
 import bao_core.*
 import bao_collections.*
 import bao_io.*
@@ -66,12 +68,14 @@ public class InstallWithManager {
     public static func getCacheDirectory(manager: PackageManagerRef): String {
         match (manager.cacheDirectory) {
             case Some(dir) => return dir
-            case None => {
-                let dir = fetchCacheDirectoryPath()
-                manager.cacheDirectory = dir
-                return dir
-            }
+            case None => return initCacheDir(manager)
         }
+    }
+
+    private static func initCacheDir(manager: PackageManagerRef): String {
+        let dir = fetchCacheDirectoryPath().path.toString()
+        manager.cacheDirectory = dir
+        return dir
     }
 
     /// 获取临时目录
@@ -80,13 +84,15 @@ public class InstallWithManager {
     public static func getTemporaryDirectory(manager: PackageManagerRef): String {
         match (manager.temporaryDirectory) {
             case Some(dir) => return dir
-            case None => {
-                let cacheDir = getCacheDirectory(manager)
-                let tmpDir = Path.join(cacheDir, ".tmp")
-                manager.temporaryDirectory = tmpDir
-                return tmpDir
-            }
+            case None => return initTmpDir(manager)
         }
+    }
+
+    private static func initTmpDir(manager: PackageManagerRef): String {
+        let cacheDir = getCacheDirectory(manager)
+        let tmpDir = Path.join(cacheDir, ".tmp")
+        manager.temporaryDirectory = tmpDir
+        return tmpDir
     }
 
     /// 获取缓存目录路径
@@ -151,19 +157,26 @@ public class InstallWithManager {
     /// 翻译自: setupGlobalDir
     ///   pub fn setupGlobalDir(this, ctx) !void
     public static func setupGlobalDir(manager: PackageManagerRef, ctx: CommandContext): Unit {
-        let globalDir = match (manager.globalConfigDir) {
-            case Some(dir) => dir
-            case None => {
-                let home = bao_io.File.getHomeDirectory()
-                let dir = Path.join(home, ".bun", "install", "global")
-                manager.globalConfigDir = dir
-                dir
-            }
-        }
-
+        let globalDir = resolveGlobalDir(manager)
         bao_io.File.makeDirectory(globalDir)
         let nodeModules = Path.join(globalDir, "node_modules")
         bao_io.File.makeDirectory(nodeModules)
+    }
+
+    /// resolve global dir, creating if needed
+    private static func resolveGlobalDir(manager: PackageManagerRef): String {
+        match (manager.globalConfigDir) {
+            case Some(dir) => dir
+            case None => initGlobalDir(manager)
+        }
+    }
+
+    /// initialize global dir
+    private static func initGlobalDir(manager: PackageManagerRef): String {
+        let home = bao_io.File.getHomeDirectory()
+        let dir = Path.join(home, ".bun", "install", "global")
+        manager.globalConfigDir = dir
+        return dir
     }
 
     /// 获取全局链接目录
@@ -190,21 +203,25 @@ public class InstallWithManager {
         let metaHash = lockfile.generateMetaHash()
 
         match (saveFormat) {
-            case LockfileSaveFormat.Binary => {
-                // 保存二进制锁文件 (bun.lockb)
-                let lockfilePath = Path.join(manager.cwd, "bun.lockb")
-                lockfile.saveBinary(lockfilePath, metaHash)
-            }
-            case LockfileSaveFormat.Text => {
-                // 保存文本锁文件 (bun.lock)
-                let lockfilePath = Path.join(manager.cwd, "bun.lock")
-                lockfile.saveText(lockfilePath, metaHash)
-            }
+            case LockfileSaveFormat.Binary => saveLockfileBinary(manager, lockfile, metaHash)
+            case LockfileSaveFormat.Text => saveLockfileText(manager, lockfile, metaHash)
         }
 
         if (logLevel.isVerbose()) {
             bao_core.Output.print("Saved lockfile (${saveFormat.name()})\n")
         }
+    }
+
+    /// save lockfile binary helper
+    private static func saveLockfileBinary(manager: PackageManagerRef, lockfile: LockfileRef, metaHash: String): Unit {
+        let lockfilePath = Path.join(manager.cwd, "bun.lockb")
+        lockfile.saveBinary(lockfilePath, metaHash)
+    }
+
+    /// save lockfile text helper
+    private static func saveLockfileText(manager: PackageManagerRef, lockfile: LockfileRef, metaHash: String): Unit {
+        let lockfilePath = Path.join(manager.cwd, "bun.lock")
+        lockfile.saveText(lockfilePath, metaHash)
     }
 
     /// 写入 Yarn 锁文件

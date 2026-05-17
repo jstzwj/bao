@@ -37,39 +37,52 @@ public class CssScopeRule {
         CssScopeRule(scopeStart, scopeEnd, rules.deepClone())
     }
 
+    private func appendScopeStart(sb: StringBuilder, start: String): Unit {
+        sb.append(" (")
+        sb.append(start)
+        sb.append(")")
+    }
+
+    private func appendScopeEnd(sb: StringBuilder, end: String): Unit {
+        sb.append(" to (")
+        sb.append(end)
+        sb.append(")")
+    }
+
     /// 转为 CSS 文本
     /// 严格翻译自 ScopeRule.to_css
     public func toCss(indent: String, minify: Bool): String {
         let sb = StringBuilder()
-        sb.append("${indent}@scope")
+        sb.append(indent)
+        sb.append("@scope")
 
         // scope-start
         match (scopeStart) {
-            case Some(start) => {
-                sb.append(" (${start})")
-            }
+            case Some(start) => appendScopeStart(sb, start)
             case None => ()
         }
 
         // scope-end
         match (scopeEnd) {
-            case Some(end) => {
-                sb.append(" to (${end})")
-            }
+            case Some(end) => appendScopeEnd(sb, end)
             case None => ()
         }
 
         sb.append(" {\n")
 
         // 子规则
-        for (rule in rules.rules) {
-            let css = rule.toCss(indent + "  ")
-            if (css.length > 0) {
-                sb.append("${indent}  ${css}\n")
+        for (rule in rules.v) {
+            let css = rule.toString()
+            if (css.size > 0) {
+                sb.append(indent)
+                sb.append("  ")
+                sb.append(css)
+                sb.append("\n")
             }
         }
 
-        sb.append("${indent}}")
+        sb.append(indent)
+        sb.append("}")
         return sb.toString()
     }
 

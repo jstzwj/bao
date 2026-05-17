@@ -114,13 +114,13 @@ public enum CssQueryOperator {
 /// CSS 样式查询
 /// 严格翻译自 StyleQuery enum { Feature(Property), Not(Box<StyleQuery>), Operation { operator, conditions } }
 /// 表示容器条件中的样式查询
-public class CssStyleQuery {
-    public enum CssStyleQueryKind {
-        | Feature      // 样式特征
-        | Not          // 否定
-        | Operation    // 操作 (and/or)
-    }
+public enum CssStyleQueryKind {
+    | Feature      // 样式特征
+    | Not          // 否定
+    | Operation    // 操作 (and/or)
+}
 
+public class CssStyleQuery {
     public var kind: CssStyleQueryKind
     /// 特征属性名
     public var featureProperty: String
@@ -129,7 +129,7 @@ public class CssStyleQuery {
     /// 否定子条件
     public var notCondition: ?CssStyleQuery
     /// 操作运算符
-    public var operator: CssQueryOperator
+    public var `operator`: CssQueryOperator
     /// 操作条件列表
     public var conditions: ArrayList<CssStyleQuery>
 
@@ -138,7 +138,7 @@ public class CssStyleQuery {
         this.featureProperty = featureProperty
         this.featureValue = featureValue
         this.notCondition = None
-        this.operator = CssQueryOperator.And
+        this.`operator` = CssQueryOperator.And
         this.conditions = ArrayList<CssStyleQuery>()
     }
 
@@ -147,17 +147,32 @@ public class CssStyleQuery {
         this.featureProperty = ""
         this.featureValue = ""
         this.notCondition = Some(not)
-        this.operator = CssQueryOperator.And
+        this.`operator` = CssQueryOperator.And
         this.conditions = ArrayList<CssStyleQuery>()
     }
 
-    public init(operator: CssQueryOperator, conditions: ArrayList<CssStyleQuery>) {
+    public init(`operator`!: CssQueryOperator, conditions!: ArrayList<CssStyleQuery>) {
         this.kind = CssStyleQueryKind.Operation
         this.featureProperty = ""
         this.featureValue = ""
         this.notCondition = None
-        this.operator = operator
+        this.`operator` = `operator`
         this.conditions = conditions
+    }
+
+    private func deepCloneNot(): CssStyleQuery {
+        match (notCondition) {
+            case Some(c) => CssStyleQuery(c.deepClone())
+            case None => CssStyleQuery("", "")
+        }
+    }
+
+    private func deepCloneOperation(): CssStyleQuery {
+        let newConditions = ArrayList<CssStyleQuery>()
+        for (c in conditions) {
+            newConditions.append(c.deepClone())
+        }
+        CssStyleQuery(`operator`: `operator`, conditions: newConditions)
     }
 
     /// 深拷贝
@@ -165,44 +180,40 @@ public class CssStyleQuery {
     public func deepClone(): CssStyleQuery {
         match (kind) {
             case Feature => CssStyleQuery(featureProperty, featureValue)
-            case Not => {
-                match (notCondition) {
-                    case Some(c) => CssStyleQuery(c.deepClone())
-                    case None => CssStyleQuery("", "")
-                }
-            }
-            case Operation => {
-                let newConditions = ArrayList<CssStyleQuery>()
-                for (c in conditions) {
-                    newConditions.append(c.deepClone())
-                }
-                CssStyleQuery(operator, newConditions)
-            }
+            case Not => deepCloneNot()
+            case Operation => deepCloneOperation()
         }
     }
 
+    private func notToCss(): String {
+        match (notCondition) {
+            case Some(c) => "not ${c.toCss()}"
+            case None => ""
+        }
+    }
+
+    private func operationToCss(): String {
+        let parts = ArrayList<String>()
+        for (c in conditions) {
+            parts.append(c.toCss())
+        }
+        let sep = match (`operator`) {
+            case And => " and "
+            case Or => " or "
+        }
+        var partArr = Array<String>(parts.size, repeat: "")
+        var pi: Int64 = 0
+        for (p in parts) { partArr[pi] = p; pi += 1 }
+        String.join(partArr, delimiter: sep)
+    }
+
     /// 转为 CSS 文本
-    /// 严格翻译自 StyleQuery.to_css → condition_to_css
+    /// 严格翻译自 StyleQuery.to_css -> condition_to_css
     public func toCss(): String {
         match (kind) {
             case Feature => "(${featureProperty}: ${featureValue})"
-            case Not => {
-                match (notCondition) {
-                    case Some(c) => "not ${c.toCss()}"
-                    case None => ""
-                }
-            }
-            case Operation => {
-                let parts = ArrayList<String>()
-                for (c in conditions) {
-                    parts.append(c.toCss())
-                }
-                let sep = match (operator) {
-                    case And => " and "
-                    case Or => " or "
-                }
-                String.join(sep, parts)
-            }
+            case Not => notToCss()
+            case Operation => operationToCss()
         }
     }
 }
@@ -215,14 +226,14 @@ public class CssStyleQuery {
 /// CSS 容器条件
 /// 严格翻译自 ContainerCondition enum { Feature, Not, Operation, Style }
 /// 表示 @container 规则的条件
-public class CssContainerCondition {
-    public enum CssContainerConditionKind {
-        | Feature      // 尺寸特征
-        | Not          // 否定
-        | Operation    // 操作 (and/or)
-        | Style        // 样式查询
-    }
+public enum CssContainerConditionKind {
+    | Feature      // 尺寸特征
+    | Not          // 否定
+    | Operation    // 操作 (and/or)
+    | Style        // 样式查询
+}
 
+public class CssContainerCondition {
     public var kind: CssContainerConditionKind
     /// 尺寸特征名
     public var featureName: String
@@ -231,7 +242,7 @@ public class CssContainerCondition {
     /// 否定子条件
     public var notCondition: ?CssContainerCondition
     /// 操作运算符
-    public var operator: CssQueryOperator
+    public var `operator`: CssQueryOperator
     /// 操作条件列表
     public var conditions: ArrayList<CssContainerCondition>
     /// 样式查询
@@ -242,7 +253,7 @@ public class CssContainerCondition {
         this.featureName = featureName
         this.featureValue = featureValue
         this.notCondition = None
-        this.operator = CssQueryOperator.And
+        this.`operator` = CssQueryOperator.And
         this.conditions = ArrayList<CssContainerCondition>()
         this.styleQuery = None
     }
@@ -252,17 +263,17 @@ public class CssContainerCondition {
         this.featureName = ""
         this.featureValue = ""
         this.notCondition = Some(not)
-        this.operator = CssQueryOperator.And
+        this.`operator` = CssQueryOperator.And
         this.conditions = ArrayList<CssContainerCondition>()
         this.styleQuery = None
     }
 
-    public init(operator: CssQueryOperator, conditions: ArrayList<CssContainerCondition>) {
+    public init(`operator`!: CssQueryOperator, conditions!: ArrayList<CssContainerCondition>) {
         this.kind = CssContainerConditionKind.Operation
         this.featureName = ""
         this.featureValue = ""
         this.notCondition = None
-        this.operator = operator
+        this.`operator` = `operator`
         this.conditions = conditions
         this.styleQuery = None
     }
@@ -272,9 +283,31 @@ public class CssContainerCondition {
         this.featureName = ""
         this.featureValue = ""
         this.notCondition = None
-        this.operator = CssQueryOperator.And
+        this.`operator` = CssQueryOperator.And
         this.conditions = ArrayList<CssContainerCondition>()
         this.styleQuery = Some(style)
+    }
+
+    private func deepCloneNot(): CssContainerCondition {
+        match (notCondition) {
+            case Some(c) => CssContainerCondition(c.deepClone())
+            case None => CssContainerCondition("", "")
+        }
+    }
+
+    private func deepCloneOperation(): CssContainerCondition {
+        let newConditions = ArrayList<CssContainerCondition>()
+        for (c in conditions) {
+            newConditions.append(c.deepClone())
+        }
+        CssContainerCondition(`operator`: `operator`, conditions: newConditions)
+    }
+
+    private func deepCloneStyle(): CssContainerCondition {
+        match (styleQuery) {
+            case Some(q) => CssContainerCondition(q.deepClone())
+            case None => CssContainerCondition("", "")
+        }
     }
 
     /// 深拷贝
@@ -282,56 +315,49 @@ public class CssContainerCondition {
     public func deepClone(): CssContainerCondition {
         match (kind) {
             case Feature => CssContainerCondition(featureName, featureValue)
-            case Not => {
-                match (notCondition) {
-                    case Some(c) => CssContainerCondition(c.deepClone())
-                    case None => CssContainerCondition("", "")
-                }
-            }
-            case Operation => {
-                let newConditions = ArrayList<CssContainerCondition>()
-                for (c in conditions) {
-                    newConditions.append(c.deepClone())
-                }
-                CssContainerCondition(operator, newConditions)
-            }
-            case Style => {
-                match (styleQuery) {
-                    case Some(q) => CssContainerCondition(q.deepClone())
-                    case None => CssContainerCondition("", "")
-                }
-            }
+            case Not => deepCloneNot()
+            case Operation => deepCloneOperation()
+            case Style => deepCloneStyle()
+        }
+    }
+
+    private func notConditionToCss(): String {
+        match (notCondition) {
+            case Some(c) => "not ${c.toCss()}"
+            case None => ""
+        }
+    }
+
+    private func operationConditionToCss(): String {
+        let parts = ArrayList<String>()
+        for (c in conditions) {
+            parts.append(c.toCss())
+        }
+        let sep = match (`operator`) {
+            case And => " and "
+            case Or => " or "
+        }
+        var partArr = Array<String>(parts.size, repeat: "")
+        var pi: Int64 = 0
+        for (p in parts) { partArr[pi] = p; pi += 1 }
+        String.join(partArr, delimiter: sep)
+    }
+
+    private func styleConditionToCss(): String {
+        match (styleQuery) {
+            case Some(q) => "style(${q.toCss()})"
+            case None => ""
         }
     }
 
     /// 转为 CSS 文本
-    /// 严格翻译自 ContainerCondition.to_css → condition_to_css
+    /// 严格翻译自 ContainerCondition.to_css -> condition_to_css
     public func toCss(): String {
         match (kind) {
             case Feature => "(${featureName}: ${featureValue})"
-            case Not => {
-                match (notCondition) {
-                    case Some(c) => "not ${c.toCss()}"
-                    case None => ""
-                }
-            }
-            case Operation => {
-                let parts = ArrayList<String>()
-                for (c in conditions) {
-                    parts.append(c.toCss())
-                }
-                let sep = match (operator) {
-                    case And => " and "
-                    case Or => " or "
-                }
-                String.join(sep, parts)
-            }
-            case Style => {
-                match (styleQuery) {
-                    case Some(q) => "style(${q.toCss()})"
-                    case None => ""
-                }
-            }
+            case Not => notConditionToCss()
+            case Operation => operationConditionToCss()
+            case Style => styleConditionToCss()
         }
     }
 }
@@ -366,7 +392,7 @@ public class CssContainerRuleFull {
     public func deepClone(): CssContainerRuleFull {
         let clonedName = match (name) {
             case Some(n) => Some(n.deepClone())
-            case None => None
+            case None => Option<CssContainerName>.None
         }
         CssContainerRuleFull(clonedName, condition.deepClone(), rules.deepClone())
     }
@@ -379,9 +405,9 @@ public class CssContainerRuleFull {
             case Some(n) => sb.append("${indent}@container ${n.toCss()} ${condition.toCss()} {\n")
             case None => sb.append("${indent}@container ${condition.toCss()} {\n")
         }
-        for (rule in rules.rules) {
-            let css = rule.toCss(indent + "  ")
-            if (css.length > 0) {
+        for (rule in rules.v) {
+            let css = rule.toString()
+            if (css.size > 0) {
                 sb.append("${indent}  ${css}\n")
             }
         }

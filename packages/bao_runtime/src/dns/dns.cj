@@ -5,7 +5,7 @@
 package bao_runtime.dns
 
 import bao_jsc.*
-import std.collection.*
+import bao_collections.*  // std.collection.*
 
 // ============================================================================
 // 常量
@@ -1009,9 +1009,9 @@ public enum DnsOrder {
     /// 对应 Bun: Order.toJS
     public func toJS(globalThis: JsObject): JsValue {
         match (this) {
-            case DnsOrder.verbatim => return JsValue("verbatim")
-            case DnsOrder.ipv4first => return JsValue("ipv4first")
-            case DnsOrder.ipv6first => return JsValue("ipv6first")
+            case DnsOrder.verbatim => return JsValue(BaoString("verbatim"))
+            case DnsOrder.ipv4first => return JsValue(BaoString("ipv4first"))
+            case DnsOrder.ipv6first => return JsValue(BaoString("ipv6first"))
         }
     }
 }
@@ -1509,7 +1509,7 @@ public class DnsResolver {
     /// 获取默认结果排序
     /// 对应 Bun: Resolver.getRuntimeDefaultResultOrderOption
     public static func getRuntimeDefaultResultOrderOption(globalThis: JsObject): JsValue {
-        return JsValue("verbatim")
+        return JsValue(BaoString("verbatim"))
     }
 
     // ========================================================================

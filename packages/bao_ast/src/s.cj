@@ -16,16 +16,16 @@ import bao_parser.*
 /// Bun: pub const Block = struct { stmts: StmtNodeList, close_brace_loc: logger.Loc }
 public class SBlock {
     public var stmts: ArrayList<StmtNode>
-    public var closeBraceLoc: Loc
+    public var closeBraceLoc: ASTLoc
 
-    public init(stmts: ArrayList<StmtNode>, closeBraceLoc: Loc) {
+    public init(stmts: ArrayList<StmtNode>, closeBraceLoc: ASTLoc) {
         this.stmts = stmts
         this.closeBraceLoc = closeBraceLoc
     }
 
     public init(stmts: ArrayList<StmtNode>) {
         this.stmts = stmts
-        this.closeBraceLoc = Loc.Empty
+        this.closeBraceLoc = ASTLoc.EMPTY
     }
 }
 
@@ -211,10 +211,10 @@ public class SNamespace {
 /// S.Function - 函数声明
 /// Bun: pub const Function = struct { func: G.Fn }
 public class SFunction {
-    public var func: GFn
+    public var `func`: GFn
 
-    public init(func: GFn) {
-        this.func = func
+    public init(`func`: GFn) {
+        this.`func` = `func`
     }
 }
 
@@ -247,13 +247,13 @@ public class SIf {
 /// S.For - for 循环
 /// Bun: pub const For = struct { init: ?StmtNodeIndex, test_: ?ExprNodeIndex, update: ?ExprNodeIndex, body: StmtNodeIndex }
 public class SFor {
-    public var init: ?StmtNode
+    public var `init`: ?StmtNode
     public var test_: ?ASTNode
     public var update: ?ASTNode
     public var body: StmtNode
 
-    public init(init: ?StmtNode, test_: ?ASTNode, update: ?ASTNode, body: StmtNode) {
-        this.init = init
+    public init(`init`: ?StmtNode, test_: ?ASTNode, update: ?ASTNode, body: StmtNode) {
+        this.`init` = `init`
         this.test_ = test_
         this.update = update
         this.body = body
@@ -263,12 +263,12 @@ public class SFor {
 /// S.ForIn - for-in 循环
 /// Bun: pub const ForIn = struct { init: StmtNodeIndex, value: ExprNodeIndex, body: StmtNodeIndex }
 public class SForIn {
-    public var init: StmtNode
+    public var `init`: StmtNode
     public var value: ASTNode
     public var body: StmtNode
 
-    public init(init: StmtNode, value: ASTNode, body: StmtNode) {
-        this.init = init
+    public init(`init`: StmtNode, value: ASTNode, body: StmtNode) {
+        this.`init` = `init`
         this.value = value
         this.body = body
     }
@@ -278,13 +278,13 @@ public class SForIn {
 /// Bun: pub const ForOf = struct { is_await: bool, init: StmtNodeIndex, value: ExprNodeIndex, body: StmtNodeIndex }
 public class SForOf {
     public var isAwait: Bool
-    public var init: StmtNode
+    public var `init`: StmtNode
     public var value: ASTNode
     public var body: StmtNode
 
-    public init(isAwait: Bool, init: StmtNode, value: ASTNode, body: StmtNode) {
+    public init(isAwait: Bool, `init`: StmtNode, value: ASTNode, body: StmtNode) {
         this.isAwait = isAwait
-        this.init = init
+        this.`init` = `init`
         this.value = value
         this.body = body
     }
@@ -319,9 +319,9 @@ public class SWhile {
 public class SWith {
     public var value: ASTNode
     public var body: StmtNode
-    public var bodyLoc: Loc
+    public var bodyLoc: ASTLoc
 
-    public init(value: ASTNode, body: StmtNode, bodyLoc: Loc) {
+    public init(value: ASTNode, body: StmtNode, bodyLoc: ASTLoc) {
         this.value = value
         this.body = body
         this.bodyLoc = bodyLoc
@@ -331,27 +331,27 @@ public class SWith {
 /// S.Try - try-catch-finally
 /// Bun: pub const Try = struct { body_loc, body: StmtNodeList, catch_: ?Catch, finally: ?Finally }
 public class STry {
-    public var bodyLoc: Loc
+    public var bodyLoc: ASTLoc
     public var body: ArrayList<StmtNode>
     public var catch_: ?SCatch
-    public var finally: ?SFinally
+    public var `finally`: ?SFinally
 
-    public init(bodyLoc: Loc, body: ArrayList<StmtNode>, catch_: ?SCatch, finally: ?SFinally) {
+    public init(bodyLoc: ASTLoc, body: ArrayList<StmtNode>, catch_: ?SCatch, `finally`: ?SFinally) {
         this.bodyLoc = bodyLoc
         this.body = body
         this.catch_ = catch_
-        this.finally = finally
+        this.`finally` = `finally`
     }
 }
 
 /// Catch 子句 - 对应 Bun Catch
 public class SCatch {
-    public var loc: Loc
+    public var loc: ASTLoc
     public var binding: ?Binding
     public var body: ArrayList<StmtNode>
-    public var bodyLoc: Loc
+    public var bodyLoc: ASTLoc
 
-    public init(loc: Loc, binding: ?Binding, body: ArrayList<StmtNode>, bodyLoc: Loc) {
+    public init(loc: ASTLoc, binding: ?Binding, body: ArrayList<StmtNode>, bodyLoc: ASTLoc) {
         this.loc = loc
         this.binding = binding
         this.body = body
@@ -361,10 +361,10 @@ public class SCatch {
 
 /// Finally 子句 - 对应 Bun Finally
 public class SFinally {
-    public var loc: Loc
+    public var loc: ASTLoc
     public var stmts: ArrayList<StmtNode>
 
-    public init(loc: Loc, stmts: ArrayList<StmtNode>) {
+    public init(loc: ASTLoc, stmts: ArrayList<StmtNode>) {
         this.loc = loc
         this.stmts = stmts
     }
@@ -374,10 +374,10 @@ public class SFinally {
 /// Bun: pub const Switch = struct { test_: ExprNodeIndex, body_loc, cases: []Case }
 public class SSwitch {
     public var test_: ASTNode
-    public var bodyLoc: Loc
+    public var bodyLoc: ASTLoc
     public var cases: ArrayList<SCase>
 
-    public init(test_: ASTNode, bodyLoc: Loc, cases: ArrayList<SCase>) {
+    public init(test_: ASTNode, bodyLoc: ASTLoc, cases: ArrayList<SCase>) {
         this.test_ = test_
         this.bodyLoc = bodyLoc
         this.cases = cases
@@ -386,11 +386,11 @@ public class SSwitch {
 
 /// Switch Case - 对应 Bun Case
 public class SCase {
-    public var loc: Loc
+    public var loc: ASTLoc
     public var value: ?ASTNode  // null for default case
     public var body: ArrayList<StmtNode>
 
-    public init(loc: Loc, value: ?ASTNode, body: ArrayList<StmtNode>) {
+    public init(loc: ASTLoc, value: ?ASTNode, body: ArrayList<StmtNode>) {
         this.loc = loc
         this.value = value
         this.body = body
@@ -403,12 +403,12 @@ public class SImport {
     public var namespaceRef: Ref
     public var defaultName: ?LocRef
     public var items: ArrayList<ClauseItem>
-    public var starNameLoc: ?Loc
+    public var starNameLoc: ?ASTLoc
     public var importRecordIndex: UInt32
     public var isSingleLine: Bool
 
     public init(namespaceRef: Ref, defaultName: ?LocRef, items: ArrayList<ClauseItem>,
-                starNameLoc: ?Loc, importRecordIndex: UInt32, isSingleLine: Bool) {
+                starNameLoc: ?ASTLoc, importRecordIndex: UInt32, isSingleLine: Bool) {
         this.namespaceRef = namespaceRef
         this.defaultName = defaultName
         this.items = items
@@ -440,42 +440,60 @@ public class SThrow {
 
 /// S.Local - 变量声明 (var/let/const)
 /// Bun: pub const Local = struct { kind: Kind, decls: G.Decl.List, is_export, was_ts_import_equals, was_commonjs_export }
-public class SLocal {
-    /// 声明类型 - 对应 Bun S.Local.Kind
-    public enum LocalKind {
-        | Var
-        | Let
-        | Const
-        | Using
-        | AwaitUsing
+/// 声明类型 - 对应 Bun S.Local.Kind
+public enum LocalKind {
+    | Var
+    | Let
+    | Const
+    | Using
+    | AwaitUsing
 
-        public func name(): String {
-            match (this) {
-                case Var => "var"
-                case Let => "let"
-                case Const => "const"
-                case Using => "using"
-                case AwaitUsing => "await using"
-            }
-        }
+    public operator func ==(right: LocalKind): Bool {
+        return ordinal() == right.ordinal()
+    }
 
-        /// 是否为 using 声明 - 对应 Bun Kind.isUsing()
-        public func isUsing(): Bool {
-            match (this) {
-                case Using | AwaitUsing => true
-                case _ => false
-            }
-        }
+    public operator func !=(right: LocalKind): Bool {
+        return !(this == right)
+    }
 
-        /// 是否可重新赋值 - 对应 Bun Kind.isReassignable()
-        public func isReassignable(): Bool {
-            match (this) {
-                case Var | Let => true
-                case _ => false
-            }
+    public func ordinal(): Int64 {
+        match (this) {
+            case Var => 0
+            case Let => 1
+            case Const => 2
+            case Using => 3
+            case AwaitUsing => 4
         }
     }
 
+    public func name(): String {
+        match (this) {
+            case Var => "var"
+            case Let => "let"
+            case Const => "const"
+            case Using => "using"
+            case AwaitUsing => "await using"
+        }
+    }
+
+    /// 是否为 using 声明 - 对应 Bun Kind.isUsing()
+    public func isUsing(): Bool {
+        match (this) {
+            case Using | AwaitUsing => true
+            case _ => false
+        }
+    }
+
+    /// 是否可重新赋值 - 对应 Bun Kind.isReassignable()
+    public func isReassignable(): Bool {
+        match (this) {
+            case Var | Let => true
+            case _ => false
+        }
+    }
+}
+
+public class SLocal {
     public var kind: LocalKind
     public var decls: ArrayList<GDecl>
     public var isExport: Bool
@@ -529,14 +547,14 @@ public class SContinue {
 /// 对应 Bun ClauseItem
 public class ClauseItem {
     public var name: String
-    public var nameLoc: Loc
+    public var nameLoc: ASTLoc
     public var alias: String
-    public var aliasLoc: Loc
+    public var aliasLoc: ASTLoc
     public var originalName: String
     public var ref: Ref
     public var importRecordIndex: UInt32
 
-    public init(name: String, nameLoc: Loc, alias: String, aliasLoc: Loc,
+    public init(name: String, nameLoc: ASTLoc, alias: String, aliasLoc: ASTLoc,
                 originalName: String, ref: Ref, importRecordIndex: UInt32) {
         this.name = name
         this.nameLoc = nameLoc
@@ -562,6 +580,3 @@ public class EnumValue {
     }
 }
 
-/// ExportStarAlias - export * as ns
-/// 对应 Bun G.ExportStarAlias (已在 e.cj 中定义, 这里提供别名)
-public typealias GExportStarAlias = GExportStarAlias

@@ -3,8 +3,16 @@
 // 严格翻译自: src/api/abort.zig
 package bao_runtime.web_api
 
-import bao_core.*
 import bao_collections.*
+import bao_runtime.*
+import bao_core.BaoString
+
+/// JavaScript 异常包装 — 可被 throw 抛出
+public class JsException <: Exception {
+    public init(message: String) {
+        super(message)
+    }
+}
 
 // ============================================================================
 // AbortController — 中止控制器
@@ -75,7 +83,7 @@ public class AbortSignal {
     /// 中止原因
     public var reason: ?String
     /// abort 事件监听器列表
-    private var listeners: ArrayList<(AbortSignal) -> Unit>
+    public var listeners: ArrayList<(AbortSignal) -> Unit>
 
     public init() {
         aborted = false
@@ -91,7 +99,7 @@ public class AbortSignal {
                 case Some(r) => r
                 case None => "The operation was aborted"
             }
-            throw JsError(JsValue(BaoString(msg)))
+            throw JsException(msg)
         }
     }
 

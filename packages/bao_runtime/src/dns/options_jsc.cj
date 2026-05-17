@@ -6,7 +6,7 @@
 package bao_runtime.dns
 
 import bao_jsc.*
-import std.collection.*
+import bao_collections.*  // std.collection.*
 
 // ============================================================================
 // 从 JS 值解析 DNS 选项

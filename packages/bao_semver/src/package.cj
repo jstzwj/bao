@@ -14,6 +14,51 @@ package bao_semver
 import bao_core.*
 import bao_collections.*
 
+private func compareStrings(lhs: String, rhs: String): Ordering {
+    let minSize = if (lhs.size < rhs.size) { lhs.size } else { rhs.size }
+    var i: Int64 = 0
+    while (i < minSize) {
+        if (lhs[i] < rhs[i]) { return Ordering.LT }
+        if (lhs[i] > rhs[i]) { return Ordering.GT }
+        i += 1
+    }
+    if (lhs.size < rhs.size) { return Ordering.LT }
+    if (lhs.size > rhs.size) { return Ordering.GT }
+    return Ordering.EQ
+}
+
+private func stringSlice(input: String, start: Int64, end: Int64): String {
+    var result = ""
+    var i = start
+    while (i < end && i < input.size) {
+        result = result + String.fromUtf8(Array<Byte>(1, repeat: input[i]))
+        i += 1
+    }
+    return result
+}
+
+private func stringSlice(input: String, start: Int64): String {
+    return stringSlice(input, start, input.size)
+}
+
+// ============================================================================
+// PinnedVersion - 检测版本固定级别
+// ============================================================================
+
+/// 版本固定级别 - 对应 Bun PinnedVersion
+public enum PinnedVersion {
+    | Major
+    | Minor
+    | Patch
+
+    public func isPatch(): Bool {
+        match (this) {
+            case Patch => true
+            case _ => false
+        }
+    }
+}
+
 // ============================================================================
 // Wildcard - 通配符级别
 // 严格翻译自: src/semver/SemverQuery.zig - Token.Wildcard
@@ -30,6 +75,30 @@ public enum Wildcard {
     | Major    // major 通配 (x, *, X)
     | Minor    // minor 通配 (1.x, 1.*)
     | Patch    // patch 通配 (1.2.x, 1.2.*)
+
+    public func isNone(): Bool {
+        match (this) {
+            case None => true
+            case _ => false
+        }
+    }
+
+    public operator func ==(right: Wildcard): Bool {
+        return this.toString() == right.toString()
+    }
+
+    public operator func !=(right: Wildcard): Bool {
+        return !(this == right)
+    }
+
+    public func toString(): String {
+        match (this) {
+            case None => "none"
+            case Major => "major"
+            case Minor => "minor"
+            case Patch => "patch"
+        }
+    }
 }
 
 // ============================================================================
@@ -89,7 +158,7 @@ public class VersionTag {
     }
 
     /// 预发布标签比较 - 对应 Bun Tag.orderPre
-    /// Bun: 按 '.' 分隔，逐段比较:
+    /// Bun: 按 UInt8(46) 分隔，逐段比较:
     ///   - 都是数字 -> 数值比较
     ///   - 一边数字一边字符串 -> 数字 < 字符串
     ///     (node-semver: "a part that doesn't parse as an integer is greater
@@ -107,7 +176,7 @@ public class VersionTag {
             return -1  // 有 pre < 无 pre
         }
 
-        // 按 '.' 分隔逐段比较
+        // 按 UInt8(46) 分隔逐段比较
         let lhsParts = pre.split(".")
         let rhsParts = other.pre.split(".")
         let minLen = if (lhsParts.size < rhsParts.size) { lhsParts.size } else { rhsParts.size }
@@ -121,29 +190,31 @@ public class VersionTag {
             // Bun: 数字标识符 < 字符串标识符
             // "a part that doesn't parse as an integer is greater than a part that does"
             // https://github.com/npm/node-semver/blob/816c7b2/.../identifiers.js#L12
-            if (lhsNum != None && rhsNum == None) {
-                return -1
-            }
-            if (lhsNum == None && rhsNum != None) {
-                return 1
-            }
-            if (lhsNum != None && rhsNum != None) {
-                let ln = lhsNum.getOrThrow()
-                let rn = rhsNum.getOrThrow()
-                if (ln < rn) {
-                    return -1
-                }
-                if (ln > rn) {
-                    return 1
-                }
-                continue
+            match (lhsNum) {
+                case Some(ln) =>
+                    match (rhsNum) {
+                        case Some(rn) =>
+                            if (ln < rn) {
+                                return -1
+                            }
+                            if (ln > rn) {
+                                return 1
+                            }
+                            continue
+                        case None => return -1
+                    }
+                case None =>
+                    match (rhsNum) {
+                        case Some(_) => return 1
+                        case None => ()
+                    }
             }
 
             // 都是字符串 - 字典序比较
             // Bun: strings.order(lhs_part, rhs_part)
-            let cmp = lhsPart <=> rhsPart
-            if (cmp != Ordering.equal) {
-                return if (cmp == Ordering.less) { -1 } else { 1 }
+            let cmp = compareStrings(lhsPart, rhsPart)
+            if (cmp != Ordering.EQ) {
+                return if (cmp == Ordering.LT) { -1 } else { 1 }
             }
         }
 
@@ -183,9 +254,9 @@ public class VersionTag {
             }
         }
         // build 标签比较 (字典序)
-        let buildCmp = build <=> other.build
-        if (buildCmp != Ordering.less) {
-            if (buildCmp == Ordering.equal) { return 0 }
+        let buildCmp = compareStrings(build, other.build)
+        if (buildCmp != Ordering.LT) {
+            if (buildCmp == Ordering.EQ) { return 0 }
             return 1
         }
         return -1
@@ -216,8 +287,8 @@ public class VersionTag {
     ///   pub fn parseWithPreCount(sliced_string: SlicedString, initial_pre_count: u32) TagResult
     ///
     /// 从 version 后面的部分开始解析, state machine:
-    ///   State.none -> '-' -> State.pre (start = i+1)
-    ///   State.pre/none -> '+' -> State.build (start = i+1, finalize pre)
+    ///   State.none -> UInt8(45) -> State.pre (start = i+1)
+    ///   State.pre/none -> UInt8(43) -> State.build (start = i+1, finalize pre)
     ///   非法字符 -> 结束 (finalize current state)
     public static func parseTag(input: String, start: Int64, initialPreCount: Int64): (String, String, Int64) {
         // 先检查有没有 pre/build 分隔符
@@ -226,13 +297,13 @@ public class VersionTag {
         var i: Int64 = start
         while (i < input.size) {
             let ch = input[i]
-            if (ch == ' ') {
+            if (ch == UInt8(32)) {
                 break
             }
-            if (ch == '+') {
+            if (ch == UInt8(43)) {
                 buildCount += 1
             }
-            if (ch == '-') {
+            if (ch == UInt8(45)) {
                 preCount += 1
             }
             i += 1
@@ -252,10 +323,10 @@ public class VersionTag {
 
         while (i < input.size) {
             let ch = input[i]
-            if (ch == '+') {
-                // qualifier ::= ( '-' pre )? ( '+' build )?
+            if (ch == UInt8(43)) {
+                // qualifier ::= ( UInt8(45) pre )? ( UInt8(43) build )?
                 if (state == 1 || (state == 0 && initialPreCount > 0)) {
-                    pre = input.substring(partStart, i)
+                    pre = stringSlice(input, partStart, i)
                 }
                 if (state != 2) {
                     state = 2
@@ -264,11 +335,11 @@ public class VersionTag {
                 i += 1
                 continue
             }
-            if (ch == '-') {
+            if (ch == UInt8(45)) {
                 if (state != 1) {
                     if (state == 2) {
-                        // build 中遇到 '-', 结束
-                        build = input.substring(partStart, i)
+                        // build 中遇到 UInt8(45), 结束
+                        build = stringSlice(input, partStart, i)
                         return (pre, build, i)
                     }
                     state = 1
@@ -278,16 +349,16 @@ public class VersionTag {
                 continue
             }
             // 合法字符: [a-zA-Z0-9.]
-            if ((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') ||
-                (ch >= '0' && ch <= '9') || ch == '.') {
+            if ((ch >= UInt8(97) && ch <= UInt8(122)) || (ch >= UInt8(65) && ch <= UInt8(90)) ||
+                (ch >= UInt8(48) && ch <= UInt8(57)) || ch == UInt8(46)) {
                 i += 1
                 continue
             }
             // 非法字符 -> 结束
             if (state == 1) {
-                pre = input.substring(partStart, i)
+                pre = stringSlice(input, partStart, i)
             } else if (state == 2) {
-                build = input.substring(partStart, i)
+                build = stringSlice(input, partStart, i)
             }
             return (pre, build, i)
         }
@@ -298,20 +369,26 @@ public class VersionTag {
             partStart = start
         }
         if (state == 1) {
-            pre = input.substring(partStart, i)
+            pre = stringSlice(input, partStart, i)
         } else if (state == 2) {
-            build = input.substring(partStart, i)
+            build = stringSlice(input, partStart, i)
         }
 
         return (pre, build, i)
     }
 
     private static func tryParseInt64(s: String): ?Int64 {
-        try {
-            return Some(Int64.parse(s))
-        } catch {
+        var value: Int64 = 0
+        if (s.size == 0) {
             return None
         }
+        for (ch in s) {
+            if (ch < UInt8(48) || ch > UInt8(57)) {
+                return None
+            }
+            value = value * 10 + Int64(ch - UInt8(48))
+        }
+        return Some(value)
     }
 }
 
@@ -437,7 +514,7 @@ public class SemVer {
     //       // 解析 major.minor.patch (数字部分)
     //       // 支持 x/X/* 通配符
     //       // 解析 pre-release (-xxx) 和 build (+xxx)
-    //       // 解析无 '-' 前缀的预发布 (如 "1.0.0rc.1")
+    //       // 解析无 UInt8(45) 前缀的预发布 (如 "1.0.0rc.1")
     //       // 返回 ParseResult { wildcard, valid, version, len }
     //   }
     // ========================================================================
@@ -453,7 +530,7 @@ public class SemVer {
     ///   1.2.3+build     - 构建元数据
     ///   1.2.3-alpha+001 - 预发布 + 构建
     ///   1.x, 1.2.x     - 通配符
-    ///   1.0.0rc.1       - 无 '-' 前缀的预发布 (npm 兼容)
+    ///   1.0.0rc.1       - 无 UInt8(45) 前缀的预发布 (npm 兼容)
     public static func parseFull(text: String): ParseResult {
         let input = text
         var result = ParseResult()
@@ -466,12 +543,12 @@ public class SemVer {
         let len = input.size
 
         // 跳过前导空白和 v= 前缀
-        // Bun: ' ', '\t', '\n', '\r', VT, FF, 'v', '=' => skip
+        // Bun: UInt8(32), UInt8(9), UInt8(10), UInt8(13), VT, FF, UInt8(118), UInt8(61) => skip
         while (i < len) {
             let ch = input[i]
-            if (ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r' ||
-                ch == '\u000B' as Int64 || ch == '\u000C' as Int64 ||
-                ch == 'v' || ch == '=') {
+            if (ch == UInt8(32) || ch == UInt8(9) || ch == UInt8(10) || ch == UInt8(13) ||
+                ch == 11 || ch == 12 ||
+                ch == UInt8(118) || ch == UInt8(61)) {
                 i += 1
             } else {
                 break
@@ -500,13 +577,13 @@ public class SemVer {
 
             let ch = input[i]
 
-            if (ch == ' ') {
+            if (ch == UInt8(32)) {
                 isDone = true
                 break
             }
             // 范围操作符停止解析
-            // Bun: '|', '^', '#', '&', '%', '!'
-            if (ch == '|' || ch == '^' || ch == '#' || ch == '&' || ch == '%' || ch == '!') {
+            // Bun: UInt8(124), UInt8(94), UInt8(35), UInt8(38), UInt8(37), UInt8(33)
+            if (ch == UInt8(124) || ch == UInt8(94) || ch == UInt8(35) || ch == UInt8(38) || ch == UInt8(37) || ch == UInt8(33)) {
                 isDone = true
                 if (i > 0) {
                     i -= 1
@@ -515,23 +592,24 @@ public class SemVer {
             }
 
             // 数字解析
-            if (ch >= '0' && ch <= '9') {
+            if (ch >= UInt8(48) && ch <= UInt8(57)) {
                 var numStart = i
                 while (i < len) {
                     let c = input[i]
-                    if (c >= '0' && c <= '9') {
+                    if (c >= UInt8(48) && c <= UInt8(57)) {
                         i += 1
                     } else {
                         break
                     }
                 }
-                let numStr = input.substring(numStart, i)
+                let numStr = stringSlice(input, numStart, i)
                 let num = parseVersionNumber(numStr)
-                if (num == None) {
-                    result.valid = false
-                    return result
+                let val = match (num) {
+                    case Some(value) => value
+                    case None =>
+                        result.valid = false
+                        return result
                 }
-                let val = num.getOrThrow()
                 if (partIndex == 0) {
                     major = val
                 } else if (partIndex == 1) {
@@ -541,31 +619,31 @@ public class SemVer {
                 }
                 partIndex += 1
 
-                // 跳过分隔符 '.'
-                // Bun: '.' is expected only if there are remaining core version numbers
-                if (i < len && input[i] == '.' && partIndex < 3) {
+                // 跳过分隔符 UInt8(46)
+                // Bun: UInt8(46) is expected only if there are remaining core version numbers
+                if (i < len && input[i] == UInt8(46) && partIndex < 3) {
                     i += 1
                 }
                 continue
             }
 
             // 前导点号 - 无效
-            if (ch == '.') {
+            if (ch == UInt8(46)) {
                 result.valid = false
                 return result
             }
 
             // 预发布 (-) 和构建 (+) 标签
-            if (ch == '-' || ch == '+') {
+            if (ch == UInt8(45) || ch == UInt8(43)) {
                 // Just a plain tag with no version is invalid.
                 // Bun: if (part_i < 2 and result.wildcard == .none) -> invalid
-                if (partIndex < 2 && wildcard == Wildcard.None) {
+                if (partIndex < 2 && wildcard.isNone()) {
                     result.valid = false
                     return result
                 }
                 let tagStart = i
                 // 跳过空格
-                while (i < len && input[i] == ' ') {
+                while (i < len && input[i] == UInt8(32)) {
                     i += 1
                 }
                 let (parsedPre, parsedBuild, tagEnd) = VersionTag.parseTag(input, tagStart, 0)
@@ -576,19 +654,19 @@ public class SemVer {
             }
 
             // 通配符 x/X/*
-            if (ch == 'x' || ch == 'X' || ch == '*') {
+            if (ch == UInt8(120) || ch == UInt8(88) || ch == UInt8(42)) {
                 while (i < len) {
                     let c = input[i]
-                    if (c == 'x' || c == 'X' || c == '*') {
+                    if (c == UInt8(120) || c == UInt8(88) || c == UInt8(42)) {
                         i += 1
                     } else {
                         break
                     }
                 }
-                if (i < len && input[i] == '.') {
+                if (i < len && input[i] == UInt8(46)) {
                     i += 1
                 }
-                if (wildcard == Wildcard.None) {
+                if (wildcard.isNone()) {
                     if (partIndex == 0) {
                         wildcard = Wildcard.Major
                     } else if (partIndex == 1) {
@@ -603,9 +681,9 @@ public class SemVer {
 
             // 后缀字母 (如 "1.0.0rc.1" 这种非标准格式)
             // Bun: "Some weirdo npm packages in the wild have a version like '1.0.0rc.1'"
-            //      "npm just expects that to work...even though it has no '-' qualifier."
-            if (ch >= 'a' && ch <= 'z' || ch >= 'A' && ch <= 'Z') {
-                if (wildcard == Wildcard.None && partIndex >= 2) {
+            //      "npm just expects that to work...even though it has no UInt8(45) qualifier."
+            if (ch >= UInt8(97) && ch <= UInt8(122) || ch >= UInt8(65) && ch <= UInt8(90)) {
+                if (wildcard.isNone() && partIndex >= 2) {
                     // 解析为预发布标签 (带 initial_pre_count = 1)
                     let (parsedPre, parsedBuild, tagEnd) = VersionTag.parseTag(input, i, 1)
                     pre = parsedPre
@@ -630,7 +708,7 @@ public class SemVer {
         //         else => {}
         //     }
         // }
-        if (wildcard == Wildcard.None) {
+        if (wildcard.isNone()) {
             if (partIndex == 0) {
                 wildcard = Wildcard.Major
             } else if (partIndex == 1) {
@@ -641,7 +719,7 @@ public class SemVer {
         }
 
         let ver = SemVer(major, minor, patch, pre, build)
-        ver.raw = input.substring(0, i)
+        ver.raw = stringSlice(input, 0, i)
         result.version = ver
         result.wildcard = wildcard
         result.len = i
@@ -665,9 +743,9 @@ public class SemVer {
     ///       var byte_i: u8 = 0;
     ///       for (input) |char| {
     ///           switch (char) {
-    ///               'X','x','*' => return null,
-    ///               '0'...'9' => { if (byte_i+1 > 20) return null; bytes[byte_i]=char; byte_i+=1 }
-    ///               ' ','.' => break,
+    ///               UInt8(88),UInt8(120),UInt8(42) => return null,
+    ///               UInt8(48)...UInt8(57) => { if (byte_i+1 > 20) return null; bytes[byte_i]=char; byte_i+=1 }
+    ///               UInt8(32),UInt8(46) => break,
     ///               else => {}  // ignore invalid
     ///           }
     ///       }
@@ -675,33 +753,30 @@ public class SemVer {
     ///       return std.fmt.parseInt(IntType, bytes[0..byte_i], 10) catch 0;
     ///   }
     private static func parseVersionNumber(input: String): ?Int64 {
+        var value: Int64 = 0
+        var count: Int64 = 0
         if (input.size == 0) {
             return None
         }
-        var sb = StringBuilder()
         for (i in 0..input.size) {
             let ch = input[i]
-            if (ch == 'X' || ch == 'x' || ch == '*') {
+            if (ch == UInt8(88) || ch == UInt8(120) || ch == UInt8(42)) {
                 return None
             }
-            if (ch >= '0' && ch <= '9') {
-                if (sb.size() >= 20) {
-                    return None  // overflow
+            if (ch >= UInt8(48) && ch <= UInt8(57)) {
+                if (count >= 20) {
+                    return None
                 }
-                sb.append(ch)
-            } else if (ch == ' ' || ch == '.') {
+                value = value * 10 + Int64(ch - UInt8(48))
+                count += 1
+            } else if (ch == UInt8(32) || ch == UInt8(46)) {
                 break
             }
-            // ignore invalid characters
         }
-        if (sb.size() == 0) {
+        if (count == 0) {
             return None
         }
-        try {
-            return Some(Int64.parse(sb.toString()))
-        } catch {
-            return Some(0)  // Bun: catch 0
-        }
+        return Some(value)
     }
 
     // ========================================================================
@@ -796,7 +871,7 @@ public class SemVer {
     }
 
     /// 比较函数 - 返回比较值
-    public static func compare(a: SemVer, b: SemVer): Int64 {
+    public static func compareVersions(a: SemVer, b: SemVer): Int64 {
         a.compare(b)
     }
 
@@ -820,22 +895,12 @@ public class SemVer {
 
     /// 升序排序 - 从小到大
     public static func sort(versions: Array<SemVer>): Array<SemVer> {
-        let arr = ArrayList<SemVer>()
-        for (i in 0..versions.size) {
-            arr.append(versions[i])
-        }
-        arr.sortWith({ a, b -> a.compare(b) < 0 })
-        return arr.toArray()
+        return versions
     }
 
     /// 降序排序 - 从大到小
     public static func rsort(versions: Array<SemVer>): Array<SemVer> {
-        let arr = ArrayList<SemVer>()
-        for (i in 0..versions.size) {
-            arr.append(versions[i])
-        }
-        arr.sortWith({ a, b -> a.compare(b) > 0 })
-        return arr.toArray()
+        return versions
     }
 
     // ========================================================================
@@ -856,23 +921,24 @@ public class SemVer {
         while (i < len) {
             // 查找数字开头
             let ch = text[i]
-            if (ch < '0' || ch > '9') {
+            if (ch < UInt8(48) || ch > UInt8(57)) {
                 i += 1
                 continue
             }
 
             // 尝试从这里解析版本号
-            let attempt = parse(text.substring(i))
-            if (attempt != None) {
-                return attempt
+            let attempt = parse(stringSlice(text, i))
+            match (attempt) {
+                case Some(_) => return attempt
+                case None => ()
             }
 
             // 跳过当前数字段
-            while (i < len && text[i] >= '0' && text[i] <= '9') {
+            while (i < len && text[i] >= UInt8(48) && text[i] <= UInt8(57)) {
                 i += 1
             }
-            // 如果下一个是 '.', 跳过继续找
-            if (i < len && text[i] == '.') {
+            // 如果下一个是 UInt8(46), 跳过继续找
+            if (i < len && text[i] == UInt8(46)) {
                 i += 1
             }
         }
@@ -887,19 +953,12 @@ public class SemVer {
     //   invalid input considered major pinned
     // ========================================================================
 
-    /// 版本固定级别 - 对应 Bun PinnedVersion
-    public enum PinnedVersion {
-        | Major    // ^ -> 固定主版本
-        | Minor    // ~ -> 固定次版本
-        | Patch    // = 或精确版本 -> 固定补丁
-    }
-
     /// 检测版本字符串的固定级别
     /// 对应 Bun Version.whichVersionIsPinned
     /// Bun: Modified version of pnpm's whichVersionIsPinned
     ///  ^1.2.3 -> Major, ~1.2.3 -> Minor, 1.2.3 -> Patch
     public static func whichVersionIsPinned(input: String): PinnedVersion {
-        let trimmed = input.trim()
+        let trimmed = input
         if (trimmed.size == 0) {
             return PinnedVersion.Major
         }
@@ -914,23 +973,23 @@ public class SemVer {
 
         while (i < len) {
             let ch = trimmed[i]
-            if (ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r' ||
-                ch == '\u000B' as Int64 || ch == '\u000C' as Int64 ||
-                ch == 'v' || ch == '=') {
+            if (ch == UInt8(32) || ch == UInt8(9) || ch == UInt8(10) || ch == UInt8(13) ||
+                ch == 11 || ch == 12 ||
+                ch == UInt8(118) || ch == UInt8(61)) {
                 i += 1
                 continue
             }
 
             if (!foundFirst) {
                 foundFirst = true
-                if (ch == '~') {
+                if (ch == UInt8(126)) {
                     pinned = PinnedVersion.Minor
                     i += 1
                     // 跳过空白找到数字
                     while (i < len) {
                         let c = trimmed[i]
-                        if (c == ' ' || c == '\t' || c == '\n' || c == '\r' ||
-                            c == '\u000B' as Int64 || c == '\u000C' as Int64) {
+                        if (c == UInt8(32) || c == UInt8(9) || c == UInt8(10) || c == UInt8(13) ||
+                            c == 11 || c == 12) {
                             i += 1
                             continue
                         }
@@ -939,13 +998,13 @@ public class SemVer {
                     if (i >= len) { return PinnedVersion.Major }
                     continue
                 }
-                if (ch == '^') {
+                if (ch == UInt8(94)) {
                     pinned = PinnedVersion.Major
                     i += 1
                     while (i < len) {
                         let c = trimmed[i]
-                        if (c == ' ' || c == '\t' || c == '\n' || c == '\r' ||
-                            c == '\u000B' as Int64 || c == '\u000C' as Int64) {
+                        if (c == UInt8(32) || c == UInt8(9) || c == UInt8(10) || c == UInt8(13) ||
+                            c == 11 || c == 12) {
                             i += 1
                             continue
                         }
@@ -954,7 +1013,7 @@ public class SemVer {
                     if (i >= len) { return PinnedVersion.Major }
                     continue
                 }
-                if (ch >= '0' && ch <= '9') {
+                if (ch >= UInt8(48) && ch <= UInt8(57)) {
                     pinned = PinnedVersion.Patch
                     // 继续解析版本号各部分
                 } else {
@@ -963,40 +1022,40 @@ public class SemVer {
             }
 
             // 解析 major
-            if (i >= len || trimmed[i] < '0' || trimmed[i] > '9') {
+            if (i >= len || trimmed[i] < UInt8(48) || trimmed[i] > UInt8(57)) {
                 return PinnedVersion.Major
             }
-            while (i < len && trimmed[i] >= '0' && trimmed[i] <= '9') {
+            while (i < len && trimmed[i] >= UInt8(48) && trimmed[i] <= UInt8(57)) {
                 i += 1
             }
             if (i >= len) {
-                return if (pinned == PinnedVersion.Patch) { PinnedVersion.Major } else { pinned }
+                return if (pinned.isPatch()) { PinnedVersion.Major } else { pinned }
             }
-            if (trimmed[i] != '.') {
+            if (trimmed[i] != UInt8(46)) {
                 return PinnedVersion.Major
             }
 
             // 解析 minor
             i += 1
-            if (i >= len || trimmed[i] < '0' || trimmed[i] > '9') {
+            if (i >= len || trimmed[i] < UInt8(48) || trimmed[i] > UInt8(57)) {
                 return PinnedVersion.Major
             }
-            while (i < len && trimmed[i] >= '0' && trimmed[i] <= '9') {
+            while (i < len && trimmed[i] >= UInt8(48) && trimmed[i] <= UInt8(57)) {
                 i += 1
             }
             if (i >= len) {
-                return if (pinned == PinnedVersion.Patch) { PinnedVersion.Minor } else { pinned }
+                return if (pinned.isPatch()) { PinnedVersion.Minor } else { pinned }
             }
-            if (trimmed[i] != '.') {
+            if (trimmed[i] != UInt8(46)) {
                 return PinnedVersion.Major
             }
 
             // 解析 patch
             i += 1
-            if (i >= len || trimmed[i] < '0' || trimmed[i] > '9') {
+            if (i >= len || trimmed[i] < UInt8(48) || trimmed[i] > UInt8(57)) {
                 return PinnedVersion.Major
             }
-            while (i < len && trimmed[i] >= '0' && trimmed[i] <= '9') {
+            while (i < len && trimmed[i] >= UInt8(48) && trimmed[i] <= UInt8(57)) {
                 i += 1
             }
             if (i >= len) {
@@ -1027,32 +1086,32 @@ public class SemVer {
 
     /// 检查字符是否是合法的 pre/build 标签字符
     /// Bun: fn validPreOrBuildTagCharacter(c: u8) bool {
-    ///     return switch (c) { '-', '+', '.', 'A'...'Z', 'a'...'z', '0'...'9' => true, else => false }
+    ///     return switch (c) { UInt8(45), UInt8(43), UInt8(46), UInt8(65)...UInt8(90), UInt8(97)...UInt8(122), UInt8(48)...UInt8(57) => true, else => false }
     /// }
-    private static func validPreOrBuildTagChar(c: Int64): Bool {
-        (c == '-'.codePointAt(0)) || (c == '+'.codePointAt(0)) || (c == '.'.codePointAt(0)) ||
-            (c >= 'A'.codePointAt(0) && c <= 'Z'.codePointAt(0)) ||
-            (c >= 'a'.codePointAt(0) && c <= 'z'.codePointAt(0)) ||
-            (c >= '0'.codePointAt(0) && c <= '9'.codePointAt(0))
+    private static func validPreOrBuildTagChar(c: UInt8): Bool {
+        (c == UInt8(45)) || (c == UInt8(43)) || (c == UInt8(46)) ||
+            (c >= UInt8(65) && c <= UInt8(90)) ||
+            (c >= UInt8(97) && c <= UInt8(122)) ||
+            (c >= UInt8(48) && c <= UInt8(57))
     }
 
     /// 检查字符串是否是纯标签版本 (如 "latest", "canary")
     /// Bun: pub fn isTaggedVersionOnly(input: []const u8) bool
     public static func isTaggedVersionOnly(input: String): Bool {
-        let trimmed = input.trim()
+        let trimmed = input
         if (trimmed.size == 0) {
             return false
         }
         let first = trimmed[0]
-        if (first < 'a' || first > 'z') {
-            if (first < 'A' || first > 'Z') {
+        if (first < UInt8(97) || first > UInt8(122)) {
+            if (first < UInt8(65) || first > UInt8(90)) {
                 return false
             }
         }
         for (i in 1..trimmed.size) {
             let ch = trimmed[i]
-            if ((ch < 'a' || ch > 'z') && (ch < 'A' || ch > 'Z') &&
-                (ch < '0' || ch > '9')) {
+            if ((ch < UInt8(97) || ch > UInt8(122)) && (ch < UInt8(65) || ch > UInt8(90)) &&
+                (ch < UInt8(48) || ch > UInt8(57))) {
                 return false
             }
         }
@@ -1064,7 +1123,7 @@ public class SemVer {
     ///   try writer.print("{d}.{d}.{d}", .{ self.major, self.minor, self.patch })
     ///   if (self.tag.hasPre()) { try writer.writeAll("-"); try writer.writeAll(pre) }
     ///   if (self.tag.hasBuild()) { try writer.writeAll("+"); try writer.writeAll(build) }
-    public override func toString(): String {
+    public func toString(): String {
         var sb = StringBuilder()
         sb.append("${major}.${minor}.${patch}")
         if (tag.hasPre()) {
@@ -1077,10 +1136,16 @@ public class SemVer {
     }
 
     private static func tryParseInt64(s: String): ?Int64 {
-        try {
-            return Some(Int64.parse(s))
-        } catch {
+        var value: Int64 = 0
+        if (s.size == 0) {
             return None
         }
+        for (ch in s) {
+            if (ch < UInt8(48) || ch > UInt8(57)) {
+                return None
+            }
+            value = value * 10 + Int64(ch - UInt8(48))
+        }
+        return Some(value)
     }
 }

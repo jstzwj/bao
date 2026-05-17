@@ -22,22 +22,22 @@ import bao_collections.*
 // 翻译自: resolver_hooks.rs 中的类型别名和常量
 
 /// 包 ID - 翻译自: pub type PackageID = u32
-public typealias PackageID = UInt32
+public type PackageID = UInt32
 
 /// 依赖 ID - 翻译自: pub type DependencyID = u32
-public typealias DependencyID = UInt32
+public type DependencyID = UInt32
 
 /// 包名哈希 - 翻译自: pub type PackageNameHash = u64
-public typealias PackageNameHash = UInt64
+public type PackageNameHash = UInt64
 
 /// 截断的包名哈希 - 翻译自: pub type TruncatedPackageNameHash = u32
-public typealias TruncatedPackageNameHash = UInt32
+public type TruncatedPackageNameHash = UInt32
 
 /// 无效包 ID - 翻译自: pub const INVALID_PACKAGE_ID: PackageID = PackageID::MAX
-public let INVALID_PACKAGE_ID: PackageID = PackageID.MAX
+public let INVALID_PACKAGE_ID: PackageID = UInt32.Max
 
 /// 无效依赖 ID - 翻译自: pub const INVALID_DEPENDENCY_ID: DependencyID = DependencyID::MAX
-public let INVALID_DEPENDENCY_ID: DependencyID = DependencyID.MAX
+public let INVALID_DEPENDENCY_ID: DependencyID = UInt32.Max
 
 // ─── Re-exports from sub-modules ─────────────────────────────────────────
 // 翻译自: lib.rs 中的 pub use 语句

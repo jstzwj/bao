@@ -77,7 +77,7 @@ public enum EncodingLabel {
     /// 从字符串解析编码标签
     /// 对应 Bun: EncodingLabel string_map 查找
     public static func fromString(label: String): ?EncodingLabel {
-        let lower = label.toLowerCase().trim()
+        let lower = label.toLowerCase().trimAscii()
 
         // UTF-8 别名
         if (lower == "utf-8" || lower == "utf8" || lower == "unicode11utf8" ||

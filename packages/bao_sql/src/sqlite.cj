@@ -1,5 +1,5 @@
 // 严格翻译自: src/sql/lib.rs, src/sql/sqlite.zig
-// SQLite C FFI 绑定与 SQLiteDatabase 实现
+// SQLite C FFI 绑定与 SQLiteDatabaseImpl 实现
 package bao_sql
 
 import bao_core.*
@@ -76,6 +76,10 @@ public let SQLITE_TRANSIENT: Int64 = -1
 
 /// SQLITE_STATIC 常量 — 告诉 SQLite 不复制数据
 public let SQLITE_STATIC: Int64 = 0
+
+private func sqliteDestructorStatic(): CPointer<Unit> {
+    return CPointer<Unit>()
+}
 
 // ============================================================================
 // SQLite C FFI 函数声明
@@ -165,6 +169,7 @@ public let SQLITE_STATIC: Int64 = 0
 /// @C foreign func sqlite3_bind_parameter_index(
 ///     stmt: CPointer<Unit>, name: CPointer<UInt8>
 /// ): Int32
+/// @C foreign func sqlite3_clear_bindings(stmt: CPointer<Unit>): Int32
 ///
 /// @C foreign func sqlite3_column_count(stmt: CPointer<Unit>): Int32
 /// @C foreign func sqlite3_column_type(stmt: CPointer<Unit>, idx: Int32): Int32
@@ -200,18 +205,153 @@ public class SQLiteError <: BaoError {
     public let sqliteCode: Int32
 
     public init(code: Int32, message: String) {
-        this.sqliteCode = code
         super(ErrorCode.Unexpected, "SQLite error (${code}): ${message}")
+        this.sqliteCode = code
     }
 
     public init(message: String) {
-        this.sqliteCode = -1
         super(ErrorCode.Unexpected, message)
+        this.sqliteCode = -1
     }
 }
 
 // ============================================================================
-// SQLiteDatabase — SQLite 数据库连接
+// SQLite SQL 查询分类
+// 严格翻译自: src/js/internal/sql/sqlite.ts parseSQLQuery
+// ============================================================================
+
+public enum SQLiteSQLCommand {
+    | Insert
+    | Update
+    | UpdateSet
+    | Where
+    | In
+    | None
+}
+
+public class SQLiteParsedInfo {
+    public var command: SQLiteSQLCommand
+    public var lastToken: String
+    public var canReturnRows: Bool
+
+    public init(command: SQLiteSQLCommand, lastToken: String, canReturnRows: Bool) {
+        this.command = command
+        this.lastToken = lastToken
+        this.canReturnRows = canReturnRows
+    }
+}
+
+public func parseSQLiteSQLQuery(query: String): SQLiteParsedInfo {
+    return parseSQLiteSQLQuery(query, false)
+}
+
+public func parseSQLiteSQLQuery(query: String, partial: Bool): SQLiteParsedInfo {
+    let text = sqliteUpper(sqliteTrim(query))
+    var token = ""
+    var command = SQLiteSQLCommand.None
+    var lastToken = ""
+    var canReturnRows = false
+    var quoted: UInt8 = UInt8(0)
+    var i = text.size - 1
+    while (i >= 0) {
+        let c = text[i]
+        if (sqliteIsSqlWhitespace(c)) {
+            let parsed = sqliteApplyToken(token, command, lastToken, canReturnRows, partial)
+            command = parsed.command
+            lastToken = parsed.lastToken
+            canReturnRows = parsed.canReturnRows
+            token = ""
+            if (partial && !sqliteIsNoneCommand(command)) {
+                return parsed
+            }
+        } else {
+            if (c == UInt8(34) || c == UInt8(39)) {
+                if (quoted == c) {
+                    quoted = UInt8(0)
+                } else {
+                    quoted = c
+                }
+            } else if (quoted == UInt8(0)) {
+                token = "${Rune(UInt32(c))}${token}"
+            }
+        }
+        i -= 1
+    }
+    if (token.size > 0) {
+        let parsed = sqliteApplyToken(token, command, lastToken, canReturnRows, false)
+        command = parsed.command
+        lastToken = parsed.lastToken
+        canReturnRows = parsed.canReturnRows
+    }
+    return SQLiteParsedInfo(command, lastToken, canReturnRows)
+}
+
+private func sqliteApplyToken(token: String, command: SQLiteSQLCommand, lastToken: String, canReturnRows: Bool, partial: Bool): SQLiteParsedInfo {
+    var nextCommand = command
+    var nextLastToken = lastToken
+    var nextCanReturnRows = canReturnRows
+    match (token) {
+        case "INSERT" =>
+            if (sqliteIsNoneCommand(nextCommand)) { nextCommand = SQLiteSQLCommand.Insert }
+            nextLastToken = token
+        case "UPDATE" =>
+            if (sqliteIsNoneCommand(nextCommand)) { nextCommand = SQLiteSQLCommand.Update }
+            nextLastToken = token
+        case "WHERE" =>
+            if (sqliteIsNoneCommand(nextCommand)) { nextCommand = SQLiteSQLCommand.Where }
+            nextLastToken = token
+        case "SET" =>
+            if (sqliteIsNoneCommand(nextCommand)) { nextCommand = SQLiteSQLCommand.UpdateSet }
+            nextLastToken = token
+        case "IN" =>
+            if (sqliteIsNoneCommand(nextCommand)) { nextCommand = SQLiteSQLCommand.In }
+            nextLastToken = token
+        case "SELECT" | "PRAGMA" | "WITH" | "EXPLAIN" | "RETURNING" =>
+            nextLastToken = token
+            nextCanReturnRows = true
+        case _ =>
+            nextLastToken = token
+    }
+    return SQLiteParsedInfo(nextCommand, nextLastToken, nextCanReturnRows)
+}
+
+private func sqliteIsNoneCommand(command: SQLiteSQLCommand): Bool {
+    match (command) {
+        case SQLiteSQLCommand.None => true
+        case _ => false
+    }
+}
+
+private func sqliteTrim(s: String): String {
+    var start: Int64 = 0
+    var end = s.size
+    while (start < end && sqliteIsSqlWhitespace(s[start])) {
+        start += 1
+    }
+    while (end > start && sqliteIsSqlWhitespace(s[end - 1])) {
+        end -= 1
+    }
+    return s[start..end]
+}
+
+private func sqliteUpper(s: String): String {
+    var result = ""
+    for (c in s) {
+        if (c >= UInt8(97) && c <= UInt8(122)) {
+            result += "${Rune(UInt32(UInt8(c - UInt8(32))))}"
+        } else {
+            result += "${Rune(UInt32(c))}"
+        }
+    }
+    return result
+}
+
+private func sqliteIsSqlWhitespace(c: UInt8): Bool {
+    return c == UInt8(32) || c == UInt8(10) || c == UInt8(9) || c == UInt8(13) || c == UInt8(12) || c == UInt8(11)
+}
+
+// ============================================================================
+// SQLiteDatabaseImpl — SQLite 数据库连接
 // 严格翻译自: src/sql/SqliteDatabase
 // 对应 Bun: bun:sqlite 模块中的 Database 类
 // ============================================================================
@@ -220,11 +360,11 @@ public class SQLiteError <: BaoError {
 /// 对应 Bun: bun:sqlite 中的 Database 构造函数
 ///
 /// 示例:
-///   let db = SQLiteDatabase()
+///   let db = SQLiteDatabaseImpl()
 ///   db.open(":memory:")
 ///   defer { db.close() }
 ///   db.exec("CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT)")
-public class SQLiteDatabase <: Database {
+public class SQLiteDatabaseImpl <: Database {
     /// 数据库文件路径
     /// 对应 Bun: Database.filename
     public var path: String
@@ -233,9 +373,11 @@ public class SQLiteDatabase <: Database {
     private var open_: Bool
 
     /// 数据库句柄
-    /// 实际类型: CPointer<Unit> (sqlite3*)
-    /// 桩实现: Int64
-    private var handle: Int64
+    public var handle: CPointer<Unit>
+
+    public var lastChanges_: Int64
+    public var totalChanges_: Int64
+    public var lastInsertRowId_: Int64
 
     /// 打开标志 — 对应 Bun: Database.openFlags
     private var flags: Int32
@@ -255,7 +397,10 @@ public class SQLiteDatabase <: Database {
     public init() {
         path = ""
         open_ = false
-        handle = 0
+        handle = CPointer<Unit>()
+        lastChanges_ = 0
+        totalChanges_ = 0
+        lastInsertRowId_ = 0
         flags = SQLiteOpenFlags.READWRITE | SQLiteOpenFlags.CREATE
         inMemory = false
         readonly = false
@@ -269,26 +414,28 @@ public class SQLiteDatabase <: Database {
         this.path = path
         this.inMemory = (path == ":memory:")
 
-        // 实际 C FFI 实现:
-        // unsafe {
-        //     var dbHandle: CPointer<Unit>
-        //     let cPath = path.toCString()
-        //     let rc = sqlite3_open_v2(cPath, &dbHandle, flags, null)
-        //     if (rc != SQLiteResultCode.OK) {
-        //         let msg = if (dbHandle != null) {
-        //             cStringToString(sqlite3_errmsg(dbHandle))
-        //         } else {
-        //             "Failed to open database"
-        //         }
-        //         if (dbHandle != null) { sqlite3_close(dbHandle) }
-        //         throw SQLiteError(rc, msg)
-        //     }
-        //     this.handle = dbHandle
-        //     sqlite3_busy_timeout(dbHandle, busyTimeout)
-        // }
+        unsafe {
+            let handleBuf = malloc(UIntNative(8))
+            let handlePtr = CPointer<CPointer<Unit>>(handleBuf)
+            handlePtr.write(CPointer<Unit>())
+            let pathBytes = sqlCString(path)
+            let pathPtr = sqlArrayPtr(pathBytes)
+            let rc = sqlite3_open_v2(pathPtr, handlePtr, flags, CPointer<UInt8>())
+            this.handle = handlePtr.read()
+            free(CPointer<Unit>(pathPtr))
+            free(handleBuf)
+            if (rc != SQLiteResultCode.OK) {
+                let msg = if (!this.handle.isNull()) { sqlCStringToString(sqlite3_errmsg(this.handle)) } else { "Failed to open database" }
+                if (!this.handle.isNull()) { sqlite3_close(this.handle) }
+                throw SQLiteError(rc, msg)
+            }
+            sqlite3_busy_timeout(this.handle, busyTimeout)
+        }
 
         this.open_ = true
-        this.handle = 1
+        this.lastChanges_ = 0
+        this.totalChanges_ = 0
+        this.lastInsertRowId_ = 0
     }
 
     /// 以只读模式打开
@@ -304,15 +451,14 @@ public class SQLiteDatabase <: Database {
     /// SQLite: sqlite3_close
     public func close(): Unit {
         if (open_) {
-            // 实际 C FFI 实现:
-            // unsafe {
-            //     let rc = sqlite3_close(handle)
-            //     if (rc != SQLiteResultCode.OK) {
-            //         throw SQLiteError(rc, "Failed to close database")
-            //     }
-            // }
+            unsafe {
+                let rc = sqlite3_close(handle)
+                if (rc != SQLiteResultCode.OK) {
+                    throw SQLiteError(rc, "Failed to close database")
+                }
+            }
             open_ = false
-            handle = 0
+            handle = CPointer<Unit>()
         }
     }
 
@@ -329,18 +475,26 @@ public class SQLiteDatabase <: Database {
             throw SQLiteError("Database is not open")
         }
 
-        // 实际 C FFI 实现:
-        // unsafe {
-        //     var errMsg: CPointer<UInt8>
-        //     let rc = sqlite3_exec(handle, sql.toCString(), null, null, &errMsg)
-        //     if (rc != SQLiteResultCode.OK) {
-        //         let msg = cStringToString(errMsg)
-        //         sqlite3_free(errMsg)
-        //         throw SQLiteError(rc, msg)
-        //     }
-        //     return Int64(sqlite3_changes(handle))
-        // }
-        return 0
+        unsafe {
+            let sqlBytes = sqlCString(sql)
+            let sqlPtr = sqlArrayPtr(sqlBytes)
+            let errBuf = malloc(UIntNative(8))
+            let errPtr = CPointer<CPointer<UInt8>>(errBuf)
+            errPtr.write(CPointer<UInt8>())
+            let rc = sqlite3_exec(handle, sqlPtr, CPointer<Unit>(), CPointer<Unit>(), errPtr)
+            let errMsg = errPtr.read()
+            free(CPointer<Unit>(sqlPtr))
+            free(errBuf)
+            if (rc != SQLiteResultCode.OK) {
+                let msg = sqlCStringToString(errMsg)
+                if (!errMsg.isNull()) { sqlite3_free(CPointer<Unit>(errMsg)) }
+                throw SQLiteError(rc, msg)
+            }
+            lastChanges_ = Int64(sqlite3_changes(handle))
+            totalChanges_ = Int64(sqlite3_total_changes(handle))
+            lastInsertRowId_ = sqlite3_last_insert_rowid(handle)
+            return lastChanges_
+        }
     }
 
     /// 执行带参数的 SQL 语句
@@ -402,35 +556,33 @@ public class SQLiteDatabase <: Database {
     /// 对应 Bun: Database.lastInsertRowId
     /// SQLite: sqlite3_last_insert_rowid
     public func lastInsertRowId(): Int64 {
-        // 实际实现:
-        // unsafe { return sqlite3_last_insert_rowid(handle) }
-        return 0
+        if (handle.isNull()) {
+            return lastInsertRowId_
+        }
+        unsafe { return sqlite3_last_insert_rowid(handle) }
     }
 
     /// 获取受影响的行数
     /// 对应 Bun: Database.changes
     /// SQLite: sqlite3_changes
     public func changes(): Int64 {
-        // 实际实现:
-        // unsafe { return Int64(sqlite3_changes(handle)) }
-        return 0
+        if (handle.isNull()) { return lastChanges_ }
+        unsafe { return Int64(sqlite3_changes(handle)) }
     }
 
     /// 获取总变更次数
     /// 对应 Bun: Database.totalChanges
     /// SQLite: sqlite3_total_changes
     public func totalChanges(): Int64 {
-        // 实际实现:
-        // unsafe { return Int64(sqlite3_total_changes(handle)) }
-        return 0
+        if (handle.isNull()) { return totalChanges_ }
+        unsafe { return Int64(sqlite3_total_changes(handle)) }
     }
 
     /// 是否处于自动提交模式
     /// SQLite: sqlite3_get_autocommit
     public func isAutocommit(): Bool {
-        // 实际实现:
-        // unsafe { return sqlite3_get_autocommit(handle) != 0 }
-        return true
+        if (handle.isNull()) { return true }
+        unsafe { return sqlite3_get_autocommit(handle) != 0 }
     }
 
     /// 获取表名列表
@@ -516,41 +668,46 @@ public class SQLiteDatabase <: Database {
 ///   stmt.finalize()
 class SQLitePreparedStatement <: Statement {
     /// 所属数据库
-    private var db: SQLiteDatabase
+    private var db: SQLiteDatabaseImpl
 
     /// SQL 文本
     private var sql: String
 
     /// 语句句柄
-    /// 实际类型: CPointer<Unit> (sqlite3_stmt*)
-    private var stmtHandle: Int64
+    private var stmtHandle: CPointer<Unit>
 
     /// 是否已绑定参数
     private var bound: Bool
 
+    private var boundBuffers: ArrayList<CPointer<Unit>>
+
     /// 参数数量
     private var paramCount: Int32
 
-    public init(db: SQLiteDatabase, sql: String) {
+    public init(db: SQLiteDatabaseImpl, sql: String) {
         this.db = db
         this.sql = sql
-        this.stmtHandle = 0
+        this.stmtHandle = CPointer<Unit>()
         this.bound = false
+        this.boundBuffers = ArrayList<CPointer<Unit>>()
         this.paramCount = 0
 
-        // 实际 C FFI 实现:
-        // unsafe {
-        //     var stmt: CPointer<Unit>
-        //     let rc = sqlite3_prepare_v2(
-        //         db.handle, sql.toCString(), -1, &stmt, null
-        //     )
-        //     if (rc != SQLiteResultCode.OK) {
-        //         let msg = cStringToString(sqlite3_errmsg(db.handle))
-        //         throw SQLiteError(rc, "Prepare failed: ${msg}")
-        //     }
-        //     this.stmtHandle = stmt
-        //     this.paramCount = sqlite3_bind_parameter_count(stmt)
-        // }
+        unsafe {
+            let stmtBuf = malloc(UIntNative(8))
+            let stmtPtr = CPointer<CPointer<Unit>>(stmtBuf)
+            stmtPtr.write(CPointer<Unit>())
+            let sqlBytes = sqlCString(sql)
+            let sqlPtr = sqlArrayPtr(sqlBytes)
+            let rc = sqlite3_prepare_v2(db.handle, sqlPtr, -1, stmtPtr, CPointer<CPointer<UInt8>>())
+            this.stmtHandle = stmtPtr.read()
+            free(CPointer<Unit>(sqlPtr))
+            free(stmtBuf)
+            if (rc != SQLiteResultCode.OK) {
+                let msg = sqlCStringToString(sqlite3_errmsg(db.handle))
+                throw SQLiteError(rc, "Prepare failed: ${msg}")
+            }
+            this.paramCount = sqlite3_bind_parameter_count(stmtHandle)
+        }
     }
 
     /// 绑定参数
@@ -558,58 +715,55 @@ class SQLitePreparedStatement <: Statement {
     /// SQLite: sqlite3_bind_int64, sqlite3_bind_double, sqlite3_bind_text,
     ///         sqlite3_bind_blob, sqlite3_bind_null
     public func bind(params: Array<SqlValue>): Unit {
-        // 实际 C FFI 实现:
-        // unsafe {
-        //     for (i in 0..params.size) {
-        //         let idx = Int32(i) + 1
-        //         let rc = match (params[i]) {
-        //             case SqlValue.Null =>
-        //                 sqlite3_bind_null(stmtHandle, idx)
-        //             case SqlValue.Integer(v) =>
-        //                 sqlite3_bind_int64(stmtHandle, idx, v)
-        //             case SqlValue.Float(v) =>
-        //                 sqlite3_bind_double(stmtHandle, idx, v)
-        //             case SqlValue.Text(v) =>
-        //                 sqlite3_bind_text(
-        //                     stmtHandle, idx, v.toCString(),
-        //                     Int32(v.length), SQLITE_TRANSIENT
-        //                 )
-        //             case SqlValue.Blob(v) =>
-        //                 sqlite3_bind_blob(
-        //                     stmtHandle, idx, v.toCPointer(),
-        //                     Int32(v.size), SQLITE_TRANSIENT
-        //                 )
-        //         }
-        //         if (rc != SQLiteResultCode.OK) {
-        //             throw SQLiteError(rc, "Bind failed at index ${idx}")
-        //         }
-        //     }
-        // }
+        clearBoundBuffers()
+        for (i in 0..params.size) {
+            bindValue(Int32(i) + 1, params[i])
+        }
         bound = true
+    }
+
+    private func bindValue(idx: Int32, value: SqlValue): Unit {
+        unsafe {
+            let rc = match (value) {
+                case SqlValue.Null => sqlite3_bind_null(stmtHandle, idx)
+                case SqlValue.Integer(v) => sqlite3_bind_int64(stmtHandle, idx, v)
+                case SqlValue.Float(v) => sqlite3_bind_double(stmtHandle, idx, v)
+                case SqlValue.Text(v) =>
+                    let textBytes = sqlCString(v)
+                    let textPtr = sqlArrayPtr(textBytes)
+                    boundBuffers.append(CPointer<Unit>(textPtr))
+                    sqlite3_bind_text(stmtHandle, idx, textPtr, Int32(v.size), sqliteDestructorStatic())
+                case SqlValue.Blob(v) =>
+                    let blobPtr = sqlArrayPtr(v)
+                    boundBuffers.append(CPointer<Unit>(blobPtr))
+                    sqlite3_bind_blob(stmtHandle, idx, CPointer<Unit>(blobPtr), Int32(v.size), sqliteDestructorStatic())
+            }
+            if (rc != SQLiteResultCode.OK) {
+                throw SQLiteError(rc, "Bind failed at index ${idx}")
+            }
+        }
     }
 
     /// 按名称绑定参数
     /// 对应 Bun: Statement.bind({ name: value })
     /// SQLite: sqlite3_bind_parameter_index + sqlite3_bind_*
     public func bindNamed(params: HashMap<String, SqlValue>): Unit {
-        // 实际 C FFI 实现:
-        // unsafe {
-        //     let keys = params.keys()
-        //     for (key in keys) {
-        //         let idx = sqlite3_bind_parameter_index(stmtHandle, key.toCString())
-        //         if (idx == 0) {
-        //             throw SQLiteError("Unknown parameter: ${key}")
-        //         }
-        //         match (params.get(key)) {
-        //             case Some(SqlValue.Null) => sqlite3_bind_null(stmtHandle, idx)
-        //             case Some(SqlValue.Integer(v)) => sqlite3_bind_int64(stmtHandle, idx, v)
-        //             case Some(SqlValue.Float(v)) => sqlite3_bind_double(stmtHandle, idx, v)
-        //             case Some(SqlValue.Text(v)) => sqlite3_bind_text(stmtHandle, idx, v.toCString(), -1, SQLITE_TRANSIENT)
-        //             case Some(SqlValue.Blob(v)) => sqlite3_bind_blob(stmtHandle, idx, v.toCPointer(), Int32(v.size), SQLITE_TRANSIENT)
-        //             case None => ()
-        //         }
-        //     }
-        // }
+        clearBoundBuffers()
+        for (key in params.keys()) {
+            let nameBytes = sqlCString(key)
+            unsafe {
+                let namePtr = sqlArrayPtr(nameBytes)
+                let idx = sqlite3_bind_parameter_index(stmtHandle, namePtr)
+                free(CPointer<Unit>(namePtr))
+                if (idx == 0) {
+                    throw SQLiteError(SQLiteResultCode.RANGE, "Unknown parameter: ${key}")
+                }
+                match (params.get(key)) {
+                    case Some(value) => bindValue(idx, value)
+                    case None => ()
+                }
+            }
+        }
         bound = true
     }
 
@@ -617,17 +771,18 @@ class SQLitePreparedStatement <: Statement {
     /// 对应 Bun: Statement.run()
     /// SQLite: sqlite3_step + sqlite3_reset
     public func exec(): Int64 {
-        // 实际 C FFI 实现:
-        // unsafe {
-        //     let rc = sqlite3_step(stmtHandle)
-        //     sqlite3_reset(stmtHandle)
-        //     if (rc != SQLiteResultCode.DONE && rc != SQLiteResultCode.ROW) {
-        //         let msg = cStringToString(sqlite3_errmsg(db.handle))
-        //         throw SQLiteError(rc, msg)
-        //     }
-        //     return Int64(sqlite3_changes(db.handle))
-        // }
-        return 0
+        unsafe {
+            let rc = sqlite3_step(stmtHandle)
+            sqlite3_reset(stmtHandle)
+            if (rc != SQLiteResultCode.DONE && rc != SQLiteResultCode.ROW) {
+                let msg = sqlCStringToString(sqlite3_errmsg(db.handle))
+                throw SQLiteError(rc, msg)
+            }
+            db.lastChanges_ = Int64(sqlite3_changes(db.handle))
+            db.totalChanges_ = Int64(sqlite3_total_changes(db.handle))
+            db.lastInsertRowId_ = sqlite3_last_insert_rowid(db.handle)
+            return db.lastChanges_
+        }
     }
 
     /// 执行查询并返回结果
@@ -635,56 +790,37 @@ class SQLitePreparedStatement <: Statement {
     /// SQLite: sqlite3_step 循环 + column access
     public func query(): SqlResult {
         let result = SqlResult()
-
-        // 实际 C FFI 实现:
-        // unsafe {
-        //     // 读取列元数据
-        //     let colCount = sqlite3_column_count(stmtHandle)
-        //     for (i in 0..colCount) {
-        //         let name = cStringToString(sqlite3_column_name(stmtHandle, i))
-        //         result.columns.append(name)
-        //     }
-        //
-        //     // 逐行读取
-        //     var rc = sqlite3_step(stmtHandle)
-        //     while (rc == SQLiteResultCode.ROW) {
-        //         let row = ArrayList<SqlValue>()
-        //         for (i in 0..colCount) {
-        //             let colType = sqlite3_column_type(stmtHandle, i)
-        //             match (colType) {
-        //                 case SQLiteColumnType.INTEGER =>
-        //                     row.append(SqlValue.Integer(sqlite3_column_int64(stmtHandle, i)))
-        //                 case SQLiteColumnType.FLOAT =>
-        //                     row.append(SqlValue.Float(sqlite3_column_double(stmtHandle, i)))
-        //                 case SQLiteColumnType.TEXT => {
-        //                     let textPtr = sqlite3_column_text(stmtHandle, i)
-        //                     let textLen = sqlite3_column_bytes(stmtHandle, i)
-        //                     row.append(SqlValue.Text(cStringToString(textPtr)))
-        //                 }
-        //                 case SQLiteColumnType.BLOB => {
-        //                     let blobPtr = sqlite3_column_blob(stmtHandle, i)
-        //                     let blobLen = sqlite3_column_bytes(stmtHandle, i)
-        //                     row.append(SqlValue.Blob(readBlobData(blobPtr, blobLen)))
-        //                 }
-        //                 case SQLiteColumnType.NULL =>
-        //                     row.append(SqlValue.Null)
-        //                 case _ =>
-        //                     row.append(SqlValue.Null)
-        //             }
-        //         }
-        //         result.rows.append(row)
-        //         rc = sqlite3_step(stmtHandle)
-        //     }
-        //
-        //     if (rc != SQLiteResultCode.DONE) {
-        //         let msg = cStringToString(sqlite3_errmsg(db.handle))
-        //         sqlite3_reset(stmtHandle)
-        //         throw SQLiteError(rc, msg)
-        //     }
-        //
-        //     sqlite3_reset(stmtHandle)
-        // }
-
+        unsafe {
+            let colCount = sqlite3_column_count(stmtHandle)
+            for (i in 0..colCount) {
+                result.columns.append(sqlCStringToString(sqlite3_column_name(stmtHandle, i)))
+            }
+            var rc = sqlite3_step(stmtHandle)
+            while (rc == SQLiteResultCode.ROW) {
+                let row = ArrayList<SqlValue>()
+                for (i in 0..colCount) {
+                    let colType = sqlite3_column_type(stmtHandle, i)
+                    if (colType == SQLiteColumnType.INTEGER) {
+                        row.append(SqlValue.Integer(sqlite3_column_int64(stmtHandle, i)))
+                    } else if (colType == SQLiteColumnType.FLOAT) {
+                        row.append(SqlValue.Float(sqlite3_column_double(stmtHandle, i)))
+                    } else if (colType == SQLiteColumnType.TEXT) {
+                        row.append(SqlValue.Text(sqlCStringToString(sqlite3_column_text(stmtHandle, i))))
+                    } else if (colType == SQLiteColumnType.BLOB) {
+                        row.append(SqlValue.Blob(sqlReadBlobData(sqlite3_column_blob(stmtHandle, i), sqlite3_column_bytes(stmtHandle, i))))
+                    } else {
+                        row.append(SqlValue.Null)
+                    }
+                }
+                result.rows.append(row)
+                rc = sqlite3_step(stmtHandle)
+            }
+            sqlite3_reset(stmtHandle)
+            if (rc != SQLiteResultCode.DONE) {
+                let msg = sqlCStringToString(sqlite3_errmsg(db.handle))
+                throw SQLiteError(rc, msg)
+            }
+        }
         return result
     }
 
@@ -692,18 +828,35 @@ class SQLitePreparedStatement <: Statement {
     /// 对应 Bun: Statement.reset()
     /// SQLite: sqlite3_reset
     public func reset(): Unit {
-        // 实际 C FFI 实现:
-        // unsafe { sqlite3_reset(stmtHandle) }
+        unsafe {
+            sqlite3_reset(stmtHandle)
+            sqlite3_clear_bindings(stmtHandle)
+        }
+        clearBoundBuffers()
         bound = false
+    }
+
+    private func clearBoundBuffers(): Unit {
+        unsafe {
+            for (ptr in boundBuffers) {
+                free(ptr)
+            }
+        }
+        boundBuffers.clear()
     }
 
     /// 释放语句
     /// 对应 Bun: Statement.finalize()
     /// SQLite: sqlite3_finalize
     public func finalize(): Unit {
-        // 实际 C FFI 实现:
-        // unsafe { sqlite3_finalize(stmtHandle) }
-        stmtHandle = 0
+        if (!stmtHandle.isNull()) {
+            unsafe {
+                sqlite3_clear_bindings(stmtHandle)
+                sqlite3_finalize(stmtHandle)
+            }
+        }
+        clearBoundBuffers()
+        stmtHandle = CPointer<Unit>()
         bound = false
     }
 
@@ -754,27 +907,53 @@ public class ColumnInfo {
 
 /// 将 C 字符串转为仓颉 String
 /// 实际使用 C FFI 时启用
-private func cStringToString(ptr: Int64): String {
-    // 实际实现:
-    // unsafe {
-    //     if (ptr == null) { return "" }
-    //     var len = 0
-    //     while (ptr[len] != 0) { len++ }
-    //     return String.fromUtf8(ptr[0..len])
-    // }
-    return ""
+private func sqlCString(s: String): Array<UInt8> {
+    let bytes = ArrayList<UInt8>()
+    for (b in s) {
+        bytes.append(b)
+    }
+    bytes.append(UInt8(0))
+    return bytes.toOwnedSlice()
 }
 
-/// 读取 blob 数据
-/// 实际使用 C FFI 时启用
-private func readBlobData(ptr: Int64, len: Int32): Array<UInt8> {
-    // 实际实现:
-    // unsafe {
-    //     var result = Array<UInt8>(len)
-    //     for (i in 0..len) {
-    //         result[i] = ptr[i]
-    //     }
-    //     return result
-    // }
-    return Array<UInt8>()
+private func sqlArrayPtr(bytes: Array<UInt8>): CPointer<UInt8> {
+    unsafe {
+        let ptr = malloc(UIntNative(bytes.size))
+        let out = CPointer<UInt8>(ptr)
+        for (i in 0..bytes.size) {
+            (out + i).write(bytes[i])
+        }
+        return out
+    }
+}
+
+private func sqlCStringToString(ptr: CPointer<UInt8>): String {
+    if (ptr.isNull()) {
+        return ""
+    }
+    var result = ""
+    unsafe {
+        var i: Int64 = 0
+        var b = (ptr + i).read()
+        while (b != UInt8(0)) {
+            result += "${Rune(UInt32(b))}"
+            i += 1
+            b = (ptr + i).read()
+        }
+    }
+    return result
+}
+
+private func sqlReadBlobData(ptr: CPointer<Unit>, len: Int32): Array<UInt8> {
+    if (len <= 0 || ptr.isNull()) {
+        return Array<UInt8>()
+    }
+    let result = ArrayList<UInt8>()
+    unsafe {
+        let bytes = CPointer<UInt8>(ptr)
+        for (i in 0..Int64(len)) {
+            result.append((bytes + i).read())
+        }
+    }
+    return result.toOwnedSlice()
 }

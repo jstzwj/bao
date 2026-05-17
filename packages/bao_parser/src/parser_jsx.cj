@@ -28,6 +28,14 @@ public enum JSXElementNameTag {
     | Namespaced    // <svg:rect> - 命名空间限定
     | Member        // <Component.Sub> - 成员访问链
 
+    public operator func ==(right: JSXElementNameTag): Bool {
+        this.isBuiltIn() == right.isBuiltIn()
+    }
+
+    public operator func !=(right: JSXElementNameTag): Bool {
+        !(this == right)
+    }
+
     /// 是否为内置 HTML 元素 (小写开头)
     public func isBuiltIn(): Bool {
         match (this) {
@@ -227,95 +235,7 @@ public class JSXElementData {
 //   JSX 解析器需要回溯和前瞻能力，使用 TokenStream 封装 token 列表
 // ============================================================================
 
-/// Token 流 - 封装 token 列表，提供读取、前瞻、回溯等操作
-/// 由 parser_ts.cj 定义，此处为独立版本供 JSX 解析使用
-public class TokenStream {
-    /// token 类型列表
-    public var tokens: ArrayList<Token>
-    /// token 字符串值列表 (标识符名、字符串字面量内容等)
-    public var tokenStrings: ArrayList<String>
-    /// token 位置列表
-    public var tokenLocs: ArrayList<Loc>
-    /// 当前读取位置
-    public var pos: Int64
-
-    public init() {
-        tokens = ArrayList<Token>()
-        tokenStrings = ArrayList<String>()
-        tokenLocs = ArrayList<Loc>()
-        pos = 0
-    }
-
-    public init(tokens: ArrayList<Token>, strings: ArrayList<String>, locs: ArrayList<Loc>) {
-        this.tokens = tokens
-        this.tokenStrings = strings
-        this.tokenLocs = locs
-        pos = 0
-    }
-
-    /// 当前 token
-    public func current(): Token {
-        if (pos >= tokens.size) { return Token.EndOfFile }
-        return tokens[Int64(pos)]
-    }
-
-    /// 当前 token 的字符串值
-    public func currentString(): String {
-        if (pos >= tokenStrings.size) { return "" }
-        return tokenStrings[Int64(pos)]
-    }
-
-    /// 当前 token 的位置
-    public func currentLoc(): Loc {
-        if (pos >= tokenLocs.size) { return Loc.EMPTY }
-        return tokenLocs[Int64(pos)]
-    }
-
-    /// 前进到下一个 token
-    public func advance(): Unit {
-        if (pos < tokens.size) {
-            pos += 1
-        }
-    }
-
-    /// 期望指定 token，不匹配时记录错误但仍前进
-    public func expect(tok: Token): Unit {
-        if (current() == tok) {
-            advance()
-        }
-    }
-
-    /// 如果当前 token 匹配则前进并返回 true
-    public func match_(tok: Token): Bool {
-        if (current() == tok) {
-            advance()
-            return true
-        }
-        return false
-    }
-
-    /// 查看前方第 n 个 token (不移动位置)
-    public func peek(offset: Int64): Token {
-        let idx = pos + offset
-        if (idx >= tokens.size) { return Token.EndOfFile }
-        return tokens[Int64(idx)]
-    }
-
-    /// 如果当前 token 匹配则消费，否则不操作
-    public func eat(tok: Token): Bool {
-        return match_(tok)
-    }
-
-    /// 向前查看而不消费
-    public func lookahead(): Token {
-        return peek(1)
-    }
-
-    /// 是否已到达末尾
-    public func isEof(): Bool {
-        return pos >= tokens.size || current() == Token.EndOfFile
-    }
-}
+// TokenStream 定义在 parser_ts.cj，此处不再重复
 
 // ============================================================================
 // JSXParser - JSX 解析工具
@@ -493,9 +413,9 @@ public class JSXParser {
             value = Some(Expr.bool_(loc, true))
         }
 
-        let prop = GProperty(loc, name, value)
-        prop.kind = GPropertyKind.Field
-        return prop
+        let `prop` = GProperty(loc, name, value)
+        `prop`.kind = GPropertyKind.Field
+        return `prop`
     }
 
     /// 解析 JSX 属性值 - 对应 Bun parseJSXAttributeValue
@@ -540,10 +460,10 @@ public class JSXParser {
 
         tokens.expect(Token.CloseBrace) // skip }
 
-        let prop = GProperty(loc, "...", Some(expr))
-        prop.kind = GPropertyKind.Spread
-        prop.flags.isSpread = true
-        return prop
+        let `prop` = GProperty(loc, "...", Some(expr))
+        `prop`.kind = GPropertyKind.Spread
+        `prop`.flags.isSpread = true
+        return `prop`
     }
 
     // ========================================================================
@@ -556,7 +476,7 @@ public class JSXParser {
         var children = ArrayList<Expr>()
         while (!tokens.isEof()) {
             // 结束条件: 遇到 </
-            if (tokens.current() == Token.LessThan && tokens.lookahead() == Token.Slash) {
+            if (tokens.current() == Token.LessThan && tokens.lookahead(1) == Token.Slash) {
                 break
             }
             let child = parseJsxChild(tokens)
@@ -578,11 +498,11 @@ public class JSXParser {
         if (tok == Token.EndOfFile) { return None }
         if (tok == Token.LessThan) {
             // 检查是否为结束标签 </
-            if (tokens.lookahead() == Token.Slash) {
+            if (tokens.lookahead(1) == Token.Slash) {
                 return None
             }
             // 检查是否为片段 <>
-            if (tokens.lookahead() == Token.GreaterThan) {
+            if (tokens.lookahead(1) == Token.GreaterThan) {
                 return Some(parseJsxFragment(loc, tokens))
             }
             // 嵌套元素
@@ -728,7 +648,7 @@ public class JSXParser {
         if (tokens.current() != Token.LessThan) {
             return false
         }
-        let next = tokens.lookahead()
+        let next = tokens.lookahead(1)
         return next == Token.Identifier || next == Token.GreaterThan
     }
 
@@ -751,9 +671,9 @@ public class JSXParser {
     public static func isValidJsxElementName(name: String): Bool {
         if (name.size == 0) { return false }
         let firstChar = name[0]
-        return (firstChar >= 'a' && firstChar <= 'z') ||
-               (firstChar >= 'A' && firstChar <= 'Z') ||
-               firstChar == '_'
+        return (firstChar >= UInt8(97) && firstChar <= UInt8(122)) ||
+               (firstChar >= UInt8(65) && firstChar <= UInt8(90)) ||
+               firstChar == UInt8(95)
     }
 
     /// 判断是否为内置 JSX 元素 (HTML/SVG 标签)
@@ -761,7 +681,7 @@ public class JSXParser {
     public static func isBuiltInJsxElement(name: String): Bool {
         if (name.size == 0) { return false }
         let firstChar = name[0]
-        return firstChar >= 'a' && firstChar <= 'z'
+        return firstChar >= UInt8(97) && firstChar <= UInt8(122)
     }
 
     /// 将 JSXElementData 转换为 Expr
@@ -866,7 +786,9 @@ public class JSXTransform {
         let callee = Expr.identifier(loc, runtimeFunc)
 
         // 提取 key 属性
-        let (keyExpr, remainingAttrs) = extractKeyProp(element.attributes)
+        let extractedKey = extractKeyProp(element.attributes)
+        let keyExpr = extractedKey.first
+        let remainingAttrs = extractedKey.second
 
         // 构建 props (包含 children)
         let props = buildPropsObject(remainingAttrs, element.children)
@@ -930,8 +852,11 @@ public class JSXTransform {
             if (attr.key == "key") {
                 continue
             }
-            if (attr.key == "ref" && attr.kind != GPropertyKind.Spread) {
-                // ref 在 automatic runtime 中特殊处理
+            if (attr.key == "ref") {
+                match (attr.kind) {
+                    case GPropertyKind.Spread => ()
+                    case _ => ()
+                }
             }
             props.append(attr)
         }
@@ -960,7 +885,7 @@ public class JSXTransform {
             case JSXElementNameTag.Identifier =>
                 // 小写开头 = 内置 HTML 元素，用字符串字面量
                 if (name.name.size > 0 &&
-                    name.name[0] >= 'a' && name.name[0] <= 'z') {
+                    name.name[0] >= UInt8(97) && name.name[0] <= UInt8(122)) {
                     return Expr.string(name.loc, name.name)
                 }
                 // 大写开头 = 自定义组件，用标识符引用
@@ -1005,21 +930,20 @@ public class JSXTransform {
 
         for (i in 0..text.size) {
             let c = text[Int64(i)]
-            if (c == ' ' || c == '\t' || c == '\n' || c == '\r') {
+            if (c == UInt8(32) || c == UInt8(9) || c == UInt8(10) || c == UInt8(13)) {
                 if (!inWhitespace && hasContent) {
-                    sb.append(' ')
+                    sb.append(Rune(Int32(32)))
                     inWhitespace = true
                 }
             } else {
-                sb.append(c)
+                sb.append(Rune(Int32(c)))
                 inWhitespace = false
                 hasContent = true
             }
         }
 
-        var result = sb.toString()
-        // 去除首尾空格
+        let result = sb.toString()
         // 简化实现: 直接返回处理后的字符串
-        return result.trim()
+        return result
     }
 }

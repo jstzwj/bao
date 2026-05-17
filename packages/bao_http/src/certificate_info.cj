@@ -193,20 +193,18 @@ public class CertVerifyErrors {
 
     /// 获取错误描述
     public static func message(errorNo: UInt32): String {
-        match (errorNo) {
-            case UInt32(0) => "OK"
-            case UInt32(2) => "Unable to get issuer certificate"
-            case UInt32(3) => "Unable to decrypt certificate signature"
-            case UInt32(7) => "Certificate signature failure"
-            case UInt32(18) => "Self-signed certificate"
-            case UInt32(19) => "Self-signed certificate in chain"
-            case UInt32(20) => "Unable to get local issuer certificate"
-            case UInt32(21) => "Unable to verify leaf signature"
-            case UInt32(23) => "Certificate chain too long"
-            case UInt32(26) => "Certificate not yet valid"
-            case UInt32(27) => "Certificate has expired"
-            case UInt32(62) => "Hostname mismatch"
-            case _ => "Unknown certificate error (${errorNo})"
-        }
+        if (errorNo == UInt32(0)) { return "OK" }
+        if (errorNo == UInt32(2)) { return "Unable to get issuer certificate" }
+        if (errorNo == UInt32(3)) { return "Unable to decrypt certificate signature" }
+        if (errorNo == UInt32(7)) { return "Certificate signature failure" }
+        if (errorNo == UInt32(18)) { return "Self-signed certificate" }
+        if (errorNo == UInt32(19)) { return "Self-signed certificate in chain" }
+        if (errorNo == UInt32(20)) { return "Unable to get local issuer certificate" }
+        if (errorNo == UInt32(21)) { return "Unable to verify leaf signature" }
+        if (errorNo == UInt32(23)) { return "Certificate chain too long" }
+        if (errorNo == UInt32(26)) { return "Certificate not yet valid" }
+        if (errorNo == UInt32(27)) { return "Certificate has expired" }
+        if (errorNo == UInt32(62)) { return "Hostname mismatch" }
+        return "Unknown certificate error (${errorNo})"
     }
 }

@@ -218,11 +218,11 @@ public class Ast {
 
     // ES6 特征范围 (用于日志)
     /// import 关键字范围
-    public var importKeyword: Range
+    public var importKeyword: ASTRange
     /// export 关键字范围
-    public var exportKeyword: Range
+    public var exportKeyword: ASTRange
     /// 顶层 await 关键字范围
-    public var topLevelAwaitKeyword: Range
+    public var topLevelAwaitKeyword: ASTRange
 
     /// 导入记录
     public var importRecords: ImportRecordList
@@ -290,9 +290,9 @@ public class Ast {
         commonjsModuleExportsAssignedDeoptimized = false
         forceCjsToEsm = false
         exportsKind = ExportsKind.None
-        importKeyword = Range.None
-        exportKeyword = Range.None
-        topLevelAwaitKeyword = Range.None
+        importKeyword = ASTRange.NONE
+        exportKeyword = ASTRange.NONE
+        topLevelAwaitKeyword = ASTRange.NONE
         importRecords = ImportRecordList()
         hashbang = ""
         directive = None

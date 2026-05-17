@@ -742,7 +742,7 @@ public class TOML {
     /// Parse a TOML source.
     // Corresponds to Bun: TOML::parse(source, log, bump, allow_slow)
     public static func parse(source: Source, log: Log, allowSlow: Bool): Result<Expr, BaoError> {
-        let parser = TomlParser(source.contents)
+        let parser = TomlParser(source.content)
         let parsed = parser.parse()
         if (parsed.hasErrors()) {
             for (err in parsed.errors) {

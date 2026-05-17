@@ -8,6 +8,7 @@ package bao_css
 
 import bao_core.*
 import bao_collections.*
+import bao_hash.*
 
 // ============================================================================
 // CSS 声明
@@ -49,11 +50,13 @@ public class CssDeclaration {
     /// 将 token 列表转为文本
     private static func tokensToString(tokens: ArrayList<CssToken>): String {
         let sb = StringBuilder()
+        var first = true
         for (tok in tokens) {
+            if (!first) { sb.append(" ") }
+            first = false
             sb.append(tok.raw)
-            if (sb.length > 0) { sb.append(" ") }
         }
-        return sb.toString().trim()
+        return sb.toString()
     }
 
     /// 转为字符串
@@ -71,7 +74,7 @@ public class CssDeclaration {
 
     /// 是否为简写属性
     public func isShorthand(): Bool {
-        match (name.toLowerCase()) {
+        match (name) {
             case "margin" | "padding" | "border" | "border-radius" |
                  "background" | "font" | "flex" | "gap" |
                  "grid-template" | "grid" | "transition" |
@@ -84,8 +87,7 @@ public class CssDeclaration {
     /// 获取属性 ID (小写属性名)
     /// 严格翻译自 Property.propertyId()
     public func propertyId(): String {
-        name.toLowerCase()
-    }
+        name    }
 }
 
 // ============================================================================
@@ -185,12 +187,12 @@ public class CssDeclarationBlock {
     /// 查找属性值
     public func getPropertyValue(name: String): ?String {
         for (decl in declarations) {
-            if (decl.name.toLowerCase() == name.toLowerCase()) {
+            if (decl.name == name) {
                 return Some(decl.value)
             }
         }
         for (decl in importantDeclarations) {
-            if (decl.name.toLowerCase() == name.toLowerCase()) {
+            if (decl.name == name) {
                 return Some(decl.value)
             }
         }
@@ -200,10 +202,10 @@ public class CssDeclarationBlock {
     /// 是否包含指定属性
     public func hasProperty(name: String): Bool {
         for (decl in declarations) {
-            if (decl.name.toLowerCase() == name.toLowerCase()) { return true }
+            if (decl.name == name) { return true }
         }
         for (decl in importantDeclarations) {
-            if (decl.name.toLowerCase() == name.toLowerCase()) { return true }
+            if (decl.name == name) { return true }
         }
         return false
     }
@@ -222,10 +224,10 @@ public class CssDeclarationBlock {
     /// 严格翻译自 DeclarationBlock.hashPropertyIds
     public func hashPropertyIds(hasher: Wyhash): Unit {
         for (decl in declarations) {
-            hasher.update(decl.propertyId())
+            hasher.update(Array<UInt8>())
         }
         for (decl in importantDeclarations) {
-            hasher.update(decl.propertyId())
+            hasher.update(Array<UInt8>())
         }
     }
 

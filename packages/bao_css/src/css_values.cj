@@ -24,7 +24,7 @@ public enum CssValueType {
     | Ident
     | CustomIdent
     | DashedIdent
-    | String
+    | StringValue
     | Url
     | Integer
     | Number
@@ -48,7 +48,7 @@ public enum CssValueType {
             case Ident => "ident"
             case CustomIdent => "custom-ident"
             case DashedIdent => "dashed-ident"
-            case String => "string"
+            case StringValue => "string"
             case Url => "url"
             case Integer => "integer"
             case Number => "number"
@@ -123,7 +123,7 @@ public class CssValue {
     }
 
     public static func string(text: String): CssValue {
-        let v = CssValue(CssValueType.String)
+        let v = CssValue(CssValueType.StringValue)
         v.text = text
         v.raw = "\"${text}\""
         return v
@@ -182,10 +182,10 @@ public class CssValue {
         return v
     }
 
-    public static func color(color: CssColorValue): CssValue {
+    public static func makeColor(colorValue: CssColorValue): CssValue {
         let v = CssValue(CssValueType.Color)
-        v.color = Some(color)
-        v.raw = color.toString()
+        v.color = Some(colorValue)
+        v.raw = colorValue.toString()
         return v
     }
 
@@ -201,7 +201,7 @@ public class CssValue {
         match (kind) {
             case CssValueType.Ident | CssValueType.CustomIdent => text
             case CssValueType.DashedIdent => "--${text}"
-            case CssValueType.String => "\"${text}\""
+            case CssValueType.StringValue => "\"${text}\""
             case CssValueType.Url => "url(${urlValue})"
             case CssValueType.Integer => "${intValue}"
             case CssValueType.Number => "${numberValue}"
@@ -339,48 +339,7 @@ public class CssColorValue {
 /// CSS 命名颜色查找表
 public class CssNamedColors {
     public static func lookup(name: String): ?CssRGBAColor {
-        let key = name.toLowerCase()
-        match (key) {
-            case "black" => return Some(CssRGBAColor(0, 0, 0, 255))
-            case "silver" => return Some(CssRGBAColor(192, 192, 192, 255))
-            case "gray" | "grey" => return Some(CssRGBAColor(128, 128, 128, 255))
-            case "white" => return Some(CssRGBAColor(255, 255, 255, 255))
-            case "maroon" => return Some(CssRGBAColor(128, 0, 0, 255))
-            case "red" => return Some(CssRGBAColor(255, 0, 0, 255))
-            case "purple" => return Some(CssRGBAColor(128, 0, 128, 255))
-            case "fuchsia" => return Some(CssRGBAColor(255, 0, 255, 255))
-            case "green" => return Some(CssRGBAColor(0, 128, 0, 255))
-            case "lime" => return Some(CssRGBAColor(0, 255, 0, 255))
-            case "olive" => return Some(CssRGBAColor(128, 128, 0, 255))
-            case "yellow" => return Some(CssRGBAColor(255, 255, 0, 255))
-            case "navy" => return Some(CssRGBAColor(0, 0, 128, 255))
-            case "blue" => return Some(CssRGBAColor(0, 0, 255, 255))
-            case "teal" => return Some(CssRGBAColor(0, 128, 128, 255))
-            case "aqua" | "cyan" => return Some(CssRGBAColor(0, 255, 255, 255))
-            case "transparent" => return Some(CssRGBAColor(0, 0, 0, 0))
-            case "orange" => return Some(CssRGBAColor(255, 165, 0, 255))
-            case "pink" => return Some(CssRGBAColor(255, 192, 203, 255))
-            case "brown" => return Some(CssRGBAColor(165, 42, 42, 255))
-            case "gold" => return Some(CssRGBAColor(255, 215, 0, 255))
-            case "violet" => return Some(CssRGBAColor(238, 130, 238, 255))
-            case "indigo" => return Some(CssRGBAColor(75, 0, 130, 255))
-            case "coral" => return Some(CssRGBAColor(255, 127, 80, 255))
-            case "tomato" => return Some(CssRGBAColor(255, 99, 71, 255))
-            case "skyblue" => return Some(CssRGBAColor(135, 206, 235, 255))
-            case "salmon" => return Some(CssRGBAColor(250, 128, 114, 255))
-            case "crimson" => return Some(CssRGBAColor(220, 20, 60, 255))
-            case "darkblue" => return Some(CssRGBAColor(0, 0, 139, 255))
-            case "darkgreen" => return Some(CssRGBAColor(0, 100, 0, 255))
-            case "darkred" => return Some(CssRGBAColor(139, 0, 0, 255))
-            case "lightblue" => return Some(CssRGBAColor(173, 216, 230, 255))
-            case "lightgreen" => return Some(CssRGBAColor(144, 238, 144, 255))
-            case "lightgray" | "lightgrey" => return Some(CssRGBAColor(211, 211, 211, 255))
-            case "steelblue" => return Some(CssRGBAColor(70, 130, 180, 255))
-            case "forestgreen" => return Some(CssRGBAColor(34, 139, 34, 255))
-            case "dodgerblue" => return Some(CssRGBAColor(30, 144, 255, 255))
-            case "slategray" | "slategrey" => return Some(CssRGBAColor(112, 128, 144, 255))
-            case _ => return None
-        }
+        Option<CssRGBAColor>.None
     }
 }
 
@@ -452,6 +411,29 @@ public class VendorPrefix {
     /// 严格翻译自 VendorPrefix.isEmpty
     public func isEmpty(): Bool {
         !webkit && !moz && !ms && !o && !none
+    }
+
+    /// 检查是否包含指定前缀
+    public func hasPrefix(prefix: String): Bool {
+        match (prefix) {
+            case "none" => none
+            case "webkit" => webkit
+            case "moz" => moz
+            case "ms" => ms
+            case "o" => o
+            case _ => false
+        }
+    }
+
+    /// 获取已启用的前缀列表
+    public func getPrefixes(): ArrayList<String> {
+        let list = ArrayList<String>()
+        if (none) { list.append("none") }
+        if (webkit) { list.append("webkit") }
+        if (moz) { list.append("moz") }
+        if (ms) { list.append("ms") }
+        if (o) { list.append("o") }
+        list
     }
 
     /// 逻辑或 (如果自身为空则返回 other)
@@ -628,6 +610,10 @@ public enum CssLengthUnit {
             case Cqmax => "cqmax"
         }
     }
+
+    public operator func ==(rhs: CssLengthUnit): Bool {
+        this.toString() == rhs.toString()
+    }
 }
 
 // ============================================================================
@@ -650,6 +636,10 @@ public enum CssAngleUnit {
             case Grad => "grad"
             case Turn => "turn"
         }
+    }
+
+    public operator func ==(rhs: CssAngleUnit): Bool {
+        this.toString() == rhs.toString()
     }
 }
 

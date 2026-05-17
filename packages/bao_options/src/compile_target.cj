@@ -4,6 +4,7 @@
 package bao_options
 
 import bao_core.*
+import bao_collections.*
 
 // ============================================================================
 // OperatingSystem - 操作系统
@@ -151,9 +152,9 @@ public class CompileTarget {
     /// 判断是否与另一个编译目标相等
     /// 对应 Bun CompileTarget.eql()
     public func eql(other: CompileTarget): Bool {
-        os == other.os && arch == other.arch && baseline == other.baseline &&
+        sameOs(os, other.os) && sameArch(arch, other.arch) && baseline == other.baseline &&
         major == other.major && minor == other.minor && patch == other.patch &&
-        libc == other.libc
+        sameLibc(libc, other.libc)
     }
 
     /// 是否为默认编译目标
@@ -167,7 +168,7 @@ public class CompileTarget {
     /// 对应 Bun CompileTarget.isSupported()
     public func isSupported(): Bool {
         match (os) {
-            case Windows => arch == Architecture.X64 || arch == Architecture.Arm64
+            case Windows => sameArch(arch, Architecture.X64) || sameArch(arch, Architecture.Arm64)
             case Mac => true
             case Linux => true
             case FreeBSD => true
@@ -175,10 +176,68 @@ public class CompileTarget {
         }
     }
 
+    private static func sameOs(a: OperatingSystem, b: OperatingSystem): Bool {
+        match ((a, b)) {
+            case (Linux, Linux) => true
+            case (Mac, Mac) => true
+            case (Windows, Windows) => true
+            case (FreeBSD, FreeBSD) => true
+            case (Wasm, Wasm) => true
+            case _ => false
+        }
+    }
+
+    private static func sameArch(a: Architecture, b: Architecture): Bool {
+        match ((a, b)) {
+            case (X64, X64) => true
+            case (Arm64, Arm64) => true
+            case (Wasm, Wasm) => true
+            case _ => false
+        }
+    }
+
+    private static func sameLibc(a: Libc, b: Libc): Bool {
+        match ((a, b)) {
+            case (Default, Default) => true
+            case (Musl, Musl) => true
+            case (Android, Android) => true
+            case _ => false
+        }
+    }
+
+    private static func sliceString(s: String, start: Int64, end: Int64): String {
+        var result = ""
+        var i: Int64 = 0
+        for (r in s) {
+            if (i >= start && i < end) {
+                result += String(Rune(Int64(r)))
+            }
+            i += 1
+        }
+        return result
+    }
+
+    private static func parseInt(s: String): Int64 {
+        var result: Int64 = 0
+        var hasDigit = false
+        for (r in s) {
+            let v = Int64(r)
+            if (v < 48 || v > 57) {
+                return -1
+            }
+            hasDigit = true
+            result = result * 10 + (v - 48)
+        }
+        if (!hasDigit) {
+            return -1
+        }
+        return result
+    }
+
     /// 格式化为字符串 (如 "bun-darwin-x64-baseline-v1.0.0")
     /// 对应 Bun CompileTarget.format()
     public func toString(): String {
-        let baselineStr = if (baseline) "-baseline" else ""
+        let baselineStr = if (baseline) { "-baseline" } else { "" }
         let libcStr = libc.npmName()
         "bun-${os.npmName()}-${arch.npmName()}${libcStr}${baselineStr}-v${major}.${minor}.${patch}"
     }
@@ -188,7 +247,7 @@ public class CompileTarget {
     /// 格式: "bun-darwin-x64-musl-baseline-v1.0.0" (顺序无关)
     public static func tryFrom(input: String): ?CompileTarget {
         var target = CompileTarget()
-        let trimmed = input.trim()
+        let trimmed = input.trimStart().trimEnd()
 
         if (trimmed.size == 0) {
             return target
@@ -236,12 +295,12 @@ public class CompileTarget {
 
             // 版本号 (v1.x.x 或 v0.x.x)
             if (part.startsWith("v1.") || part.startsWith("v0.")) {
-                let versionStr = part.subString(1)
+                let versionStr = sliceString(part, 1, part.size)
                 let versionParts = versionStr.split(".")
                 if (versionParts.size >= 3) {
-                    let maj = Int64(versionParts[0])
-                    let min = Int64(versionParts[1])
-                    let pat = Int64(versionParts[2])
+                    let maj = parseInt(versionParts[0])
+                    let min = parseInt(versionParts[1])
+                    let pat = parseInt(versionParts[2])
                     if (maj >= 0 && min >= 0 && pat >= 0) {
                         target.major = maj
                         target.minor = min
@@ -273,17 +332,17 @@ public class CompileTarget {
         }
 
         // arm64 没有 baseline
-        if (target.baseline && target.arch == Architecture.Arm64) {
+        if (target.baseline && sameArch(target.arch, Architecture.Arm64)) {
             target.baseline = false
         }
 
         // 非 Linux 不支持 musl/android
-        if (target.libc != Libc.Default && target.os != OperatingSystem.Linux) {
+        if (!sameLibc(target.libc, Libc.Default) && !sameOs(target.os, OperatingSystem.Linux)) {
             return None
         }
 
         // wasm 不支持
-        if (target.arch == Architecture.Wasm || target.os == OperatingSystem.Wasm) {
+        if (sameArch(target.arch, Architecture.Wasm) || sameOs(target.os, OperatingSystem.Wasm)) {
             return None
         }
 
@@ -305,7 +364,7 @@ public class CompileTarget {
     public func defineValues(): ArrayList<String> {
         let values = ArrayList<String>()
         // process.platform
-        if (libc == Libc.Android) {
+        if (sameLibc(libc, Libc.Android)) {
             values.append("\"android\"")
         } else {
             values.append("\"${os.npmName()}\"")

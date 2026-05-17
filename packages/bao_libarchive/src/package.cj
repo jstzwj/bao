@@ -4,6 +4,7 @@
 package bao_libarchive
 
 import bao_core.*
+import std.collection.*
 
 // ============================================================================
 // SeekWhence - 定位基准枚举
@@ -17,7 +18,9 @@ import bao_core.*
 
 /// 定位基准枚举 - 对应 Bun libarchive.Seek
 public enum SeekWhence {
-    | None
+    | Set
+    | Current
+    | End
 }
 
 // ============================================================================
@@ -28,12 +31,20 @@ public enum SeekWhence {
 
 /// 归档操作结果 - 对应 Bun Archive.Result
 public enum ArchiveResult {
-    | this
-}
+    | Ok
+    | Eof
+    | Retry
+    | Warn
+    | Failed
+    | Fatal
 
     /// 是否可继续 (非致命错误)
     public func isContinuable(): Bool {
-        value > -30
+        match (this) {
+            case Fatal => false
+            case Failed => false
+            case _ => true
+        }
     }
 }
 
@@ -50,14 +61,31 @@ public enum EntryType {
     | SymLink
     | Other
 
+    public func toString(): String {
+        match (this) {
+            case File => "file"
+            case Directory => "directory"
+            case SymLink => "symlink"
+            case Other => "other"
+        }
+    }
+
+    public operator func ==(right: EntryType): Bool {
+        return this.toString() == right.toString()
+    }
+
+    public operator func !=(right: EntryType): Bool {
+        return !(this == right)
+    }
+
     /// 从 mode 值判断类型
     public static func fromMode(mode: UInt32): EntryType {
         let fileType = (mode >> 12) & 0xF000
         match (fileType) {
-            | 0x8000 => EntryType.File       // S_IFREG
-            | 0x4000 => EntryType.Directory   // S_IFDIR
-            | 0xA000 => EntryType.SymLink     // S_IFLNK
-            | _ => EntryType.Other
+            case 0x8000 => EntryType.File       // S_IFREG
+            case 0x4000 => EntryType.Directory   // S_IFDIR
+            case 0xA000 => EntryType.SymLink     // S_IFLNK
+            case _ => EntryType.Other
         }
     }
 }
@@ -208,9 +236,9 @@ public class BufferReadStream {
     public func seek(offset: Int64, whence: SeekWhence): Int64 {
         let bufLen = Int64(buf.size)
         let newPos = match (whence) {
-            | Current => max(min(pos + offset, bufLen - 1), 0)
-            | End => max(min(bufLen - offset, bufLen), 0)
-            | Set => max(min(offset, bufLen - 1), 0)
+            case Current => max(min(pos + offset, bufLen - 1), 0)
+            case End => max(min(bufLen - offset, bufLen), 0)
+            case Set => max(min(offset, bufLen - 1), 0)
         }
         pos = newPos
         newPos
@@ -238,7 +266,7 @@ public class SymlinkSafety {
     /// 返回 false 表示会逃逸 (如通过 ../ 遍历或绝对路径)
     public static func isTargetSafe(symlinkPath: String, linkTarget: String): Bool {
         // 绝对路径的符号链接目标永远不安全
-        if (linkTarget.size > 0 && linkTarget[0] == '/') {
+        if (linkTarget.size > 0 && linkTarget[0] == UInt8(47)) {
             return false
         }
 
@@ -265,7 +293,7 @@ public class SymlinkSafety {
         let sb = StringBuilder()
         var prevSlash = false
         for (c in path) {
-            if (c == '/') {
+            if (c == UInt8(47)) {
                 if (!prevSlash) {
                     sb.append(c)
                 }
@@ -281,19 +309,19 @@ public class SymlinkSafety {
     /// 分割路径为组件
     static func splitPath(path: String): ArrayList<String> {
         let parts = ArrayList<String>()
-        let sb = StringBuilder()
+        var sb = StringBuilder()
         for (c in path) {
-            if (c == '/') {
-                if (sb.size() > 0) {
-                    parts.append(sb.toString())
+            if (c == UInt8(47)) {
+                if (sb.toString().size > 0) {
+                    parts.add(sb.toString())
                     sb = StringBuilder()
                 }
             } else {
                 sb.append(c)
             }
         }
-        if (sb.size() > 0) {
-            parts.append(sb.toString())
+        if (sb.toString().size > 0) {
+            parts.add(sb.toString())
         }
         parts
     }
@@ -330,7 +358,6 @@ public class Plucker {
         this.filename = filename
         filenameHash = hashString(filename)
         contents = ArrayList<Byte>()
-        contents.ensureCapacity(estimatedSize)
     }
 
     /// 获取内容为字符串
@@ -370,7 +397,7 @@ public class ArchiverContext {
     /// 添加要提取的文件
     public func addPlucker(filename: String): Plucker {
         let plucker = Plucker(filename)
-        pluckers.append(plucker)
+        pluckers.add(plucker)
         plucker
     }
 
@@ -381,7 +408,7 @@ public class ArchiverContext {
 
     /// 添加文件条目
     public func addFile(path: String): Unit {
-        allFiles.put(hashString(path), path)
+        allFiles[hashString(path)] = path
     }
 }
 
@@ -472,8 +499,8 @@ public class Archiver {
             // 读取下一个条目标头
             let entryResult = readNextEntry(stream)
             match (entryResult) {
-                | None => break // EOF
-                | Some(entry) => {
+                case None => break // EOF
+                case Some(entry) =>
                     // 跳过指定深度的路径前缀
                     var pathname = stripPathDepth(entry.pathname, options.depthToSkip)
 
@@ -501,17 +528,12 @@ public class Archiver {
                     if (entry.entryType == EntryType.File && entry.size > 0) {
                         let dataResult = readFileData(stream, entry.size)
                         match (dataResult) {
-                            | Some(data) => {
-                                // 成功读取
-                            }
-                            | None => {
-                                // 读取失败, 继续处理下一个条目
-                            }
+                            case Some(data) => ()
+                            case None => ()
                         }
                     }
 
-                    entries.append(entry)
-                }
+                    entries.add(entry)
             }
         }
 
@@ -542,8 +564,8 @@ public class Archiver {
         while (true) {
             let entryResult = readNextEntry(stream)
             match (entryResult) {
-                | None => break
-                | Some(entry) => {
+                case None => break
+                case Some(entry) =>
                     if (entry.entryType != EntryType.File || entry.size <= 0) {
                         continue
                     }
@@ -554,9 +576,8 @@ public class Archiver {
                     // 获取顶层目录或文件名
                     let topLevel = getTopLevelComponent(pathname)
                     if (topLevel.size > 0) {
-                        overwriteList.append(topLevel)
+                        overwriteList.add(topLevel)
                     }
-                }
             }
         }
 
@@ -596,7 +617,7 @@ public class Archiver {
                 return None
             }
             let c = chunk.getOrThrow()
-            for (b in c) { data.append(b) }
+            for (b in c) { data.add(b) }
             remaining -= c.size
         }
         data.toArray()
@@ -609,7 +630,7 @@ public class Archiver {
         var count = 0
         var i = 0
         while (i < path.size && count < depth) {
-            if (path[i] == '/') {
+            if (path[i] == UInt8(47)) {
                 count += 1
                 i += 1
             } else {
@@ -617,23 +638,22 @@ public class Archiver {
             }
         }
         if (count < depth) { return "" }
-        if (i < path.size && path[i] == '/') { i += 1 }
-        path.subString(i)
+        if (i < path.size && path[i] == UInt8(47)) { i += 1 }
+        slicePath(path, i, path.size)
     }
 
     /// 规范化路径组件
     /// 对应 Bun: bun.path.normalizeBufT()
     static func normalizePathComponent(path: String): String {
         let sb = StringBuilder()
-        var skipDot = false
         var i = 0
         // 跳过前导 ./
-        while (i < path.size - 1 && path[i] == '.' && path[i + 1] == '/') {
+        while (i < path.size - 1 && path[i] == UInt8(46) && path[i + 1] == UInt8(47)) {
             i += 2
         }
         while (i < path.size) {
-            if (path[i] == '\\' ) {
-                sb.append('/')
+            if (path[i] == UInt8(92)) {
+                sb.append(UInt8(47))
                 i += 1
             } else {
                 sb.append(path[i])
@@ -646,9 +666,22 @@ public class Archiver {
     /// 获取顶层路径组件
     static func getTopLevelComponent(path: String): String {
         if (path == "") { return "" }
-        let idx = path.indexOf('/')
-        if (idx < 0) { return path }
-        path.subString(0, idx)
+        var i = 0
+        while (i < path.size) {
+            if (path[i] == UInt8(47)) { return slicePath(path, 0, i) }
+            i += 1
+        }
+        path
+    }
+
+    static func slicePath(path: String, start: Int64, end: Int64): String {
+        let sb = StringBuilder()
+        var i = start
+        while (i < end && i < path.size) {
+            sb.append(path[i])
+            i += 1
+        }
+        sb.toString()
     }
 }
 
@@ -687,10 +720,10 @@ public class TarHeader {
     public static let LINKNAME_LEN: Int64 = 100
 
     /// 类型标志值
-    public static let TYPE_REGULAR: UInt8 = '0'.value
-    public static let TYPE_REGULAR_ALT: UInt8 = '\0'.value
-    public static let TYPE_DIRECTORY: UInt8 = '5'.value
-    public static let TYPE_SYMLINK: UInt8 = '2'.value
+    public static let TYPE_REGULAR: UInt8 = UInt8(48)
+    public static let TYPE_REGULAR_ALT: UInt8 = UInt8(0)
+    public static let TYPE_DIRECTORY: UInt8 = UInt8(53)
+    public static let TYPE_SYMLINK: UInt8 = UInt8(50)
 
     /// 从字节数组解析 tar 头部
     public static func parse(data: Array<Byte>): ?ArchiveEntry {
@@ -717,13 +750,12 @@ public class TarHeader {
         // 解析类型标志
         let typeFlag = data[Int64(TYPEFLAG_OFFSET)]
         entry.entryType = match (typeFlag) {
-            | v where v == TYPE_REGULAR || v == TYPE_REGULAR_ALT => EntryType.File
-            | v where v == TYPE_DIRECTORY => EntryType.Directory
-            | v where v == TYPE_SYMLINK => {
+            case v where v == TYPE_REGULAR || v == TYPE_REGULAR_ALT => EntryType.File
+            case v where v == TYPE_DIRECTORY => EntryType.Directory
+            case v where v == TYPE_SYMLINK =>
                 entry.symlink = readString(data, LINKNAME_OFFSET, LINKNAME_LEN)
                 EntryType.SymLink
-            }
-            | _ => EntryType.Other
+            case _ => EntryType.Other
         }
 
         // 解析权限
@@ -738,8 +770,8 @@ public class TarHeader {
         var i = 0
         while (i < len) {
             let b = data[offset + i]
-            if (b == 0) { break }
-            sb.append(Char(b))
+            if (b == UInt8(0)) { break }
+            sb.append(b)
             i += 1
         }
         sb.toString()
@@ -751,8 +783,8 @@ public class TarHeader {
         var i = 0
         while (i < len) {
             let b = data[offset + i]
-            if (b >= UInt8('0') && b <= UInt8('9')) {
-                result = result * 8 + Int64(b - UInt8('0'))
+            if (b >= UInt8(48) && b <= UInt8(57)) {
+                result = result * 8 + Int64(b - UInt8(48))
             }
             i += 1
         }
@@ -765,20 +797,20 @@ public class TarHeader {
 // ============================================================================
 
 /// 简单字符串哈希
-static func hashString(s: String): UInt64 {
+func hashString(s: String): UInt64 {
     var hash = UInt64(5381)
     for (c in s) {
-        hash = ((hash << 5) + hash) + UInt64(c.value)
+        hash = ((hash << 5) + hash) + UInt64(c)
     }
     hash
 }
 
 /// 整数最小值
-static func min(a: Int64, b: Int64): Int64 {
+func min(a: Int64, b: Int64): Int64 {
     if (a < b) { a } else { b }
 }
 
 /// 整数最大值
-static func max(a: Int64, b: Int64): Int64 {
+func max(a: Int64, b: Int64): Int64 {
     if (a > b) { a } else { b }
 }

@@ -10,6 +10,29 @@ package bao_event_loop
 
 import bao_core.*
 import bao_threading.*
+import bao_collections.*
+
+public class AtomicInt64 {
+    private var value: Int64
+
+    public init(value: Int64) {
+        this.value = value
+    }
+
+    public func incrementAndGet(): Int64 {
+        value += 1
+        return value
+    }
+
+    public func decrementAndGet(): Int64 {
+        value -= 1
+        return value
+    }
+
+    public func get(): Int64 {
+        return value
+    }
+}
 
 // ============================================================================
 // Timespec - 时间规格
@@ -85,6 +108,19 @@ public enum TimerState {
     | Active      // 活跃
     | Cancelled   // 已取消
     | Fired       // 已触发
+
+    public operator func ==(right: TimerState): Bool {
+        match (this) {
+            case Pending => match (right) { case Pending => true case _ => false }
+            case Active => match (right) { case Active => true case _ => false }
+            case Cancelled => match (right) { case Cancelled => true case _ => false }
+            case Fired => match (right) { case Fired => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: TimerState): Bool {
+        return !(this == right)
+    }
 }
 
 /// 定时器标签 - 对应 Bun EventLoopTimer.Tag
@@ -128,7 +164,7 @@ public class EventLoopTimer {
         state = TimerState.Pending
         this.tag = tag
         inHeap = InHeap.None
-        callback = { }
+        callback = { => () }
         intervalMs = 0
         id = 0
     }
@@ -252,13 +288,13 @@ public enum TaskTagKind {
 // ============================================================================
 
 /// 并发任务接口 - 对应 Bun Taskable
-public interface Taskable {
+public interface LegacyTaskable {
     func run(): Unit
 }
 
 /// 并发任务 - 对应 Bun ConcurrentTask
 /// 在线程池中运行，结果返回主线程
-public class ConcurrentTask {
+public class LegacyConcurrentTask {
     /// 任务标签 - 对应 Bun ConcurrentTask.tag: TaskTag
     public var tag: TaskTagKind
     /// 任务回调
@@ -276,13 +312,13 @@ public class ConcurrentTask {
     }
 
     /// 创建任务 - 对应 Bun ConcurrentTask.create(task)
-    public static func create(tag: TaskTagKind, task: () -> Unit): ConcurrentTask {
-        return ConcurrentTask(tag, task)
+    public static func create(tag: TaskTagKind, task: () -> Unit): LegacyConcurrentTask {
+        return LegacyConcurrentTask(tag, task)
     }
 
     /// 从回调创建 - 对应 Bun ConcurrentTask.fromCallback(ptr, callback)
-    public static func fromCallback(tag: TaskTagKind, callback: () -> Unit): ConcurrentTask {
-        return ConcurrentTask(tag, callback)
+    public static func fromCallback(tag: TaskTagKind, callback: () -> Unit): LegacyConcurrentTask {
+        return LegacyConcurrentTask(tag, callback)
     }
 
     /// 执行任务
@@ -302,7 +338,7 @@ public class ConcurrentTask {
 
 /// 通用任务 - 对应 Bun AnyTask
 /// 可以是即时任务、定时器任务或 IO 任务
-public enum AnyTask {
+public enum LegacyAnyTask {
     | Immediate(() -> Unit)         // 立即执行
     | Timer(EventLoopTimer)         // 定时器
     | Concurrent(ConcurrentTask)    // 并发任务
@@ -339,9 +375,9 @@ public enum EventLoopKind {
 /// 提供基本的事件循环功能，不依赖 JavaScript 运行时
 public class MiniEventLoop {
     /// 任务队列 - 对应 Bun tasks: Queue
-    private var tasks: ConcurrentLinkedQueue<() -> Unit>
+    private var tasks: ConcurrentQueue<() -> Unit>
     /// 并发任务队列 - 对应 Bun concurrent_tasks: ConcurrentTaskQueue
-    private var concurrentTasks: ConcurrentLinkedQueue<ConcurrentTask>
+    private var concurrentTasks: ConcurrentQueue<ConcurrentTask>
     /// 定时器列表 - 使用排序列表模拟配对堆
     private var timers: ArrayList<EventLoopTimer>
     /// 下一个定时器 ID
@@ -351,19 +387,19 @@ public class MiniEventLoop {
     /// 迭代计数 - 对应 Bun iteration_number
     private var iterationNumber: UInt64
     /// 互斥锁
-    private var lock: ReentrantMutex
+    private var lock: Mutex
     /// 条件变量
-    private var condVar: Condition
+    private var condVar: Condvar
 
     public init() {
-        tasks = ConcurrentLinkedQueue<() -> Unit>()
-        concurrentTasks = ConcurrentLinkedQueue<ConcurrentTask>()
+        tasks = ConcurrentQueue<() -> Unit>()
+        concurrentTasks = ConcurrentQueue<ConcurrentTask>()
         timers = ArrayList<EventLoopTimer>()
         nextTimerId = AtomicInt64(1)
         running = false
         iterationNumber = 0
-        lock = ReentrantMutex()
-        condVar = Condition()
+        lock = Mutex()
+        condVar = Condvar(lock)
     }
 
     /// 静态初始化 - 对应 Bun MiniEventLoop.init()
@@ -405,23 +441,23 @@ public class MiniEventLoop {
     public func stop(): Unit {
         running = false
         synchronized(lock) {
-            condVar.notifyAll()
+            condVar.broadcast()
         }
     }
 
     /// 排队任务 - 对应 Bun MiniEventLoop.enqueue
     public func enqueue(task: () -> Unit): Unit {
-        tasks.put(task)
+        tasks.push(task)
         synchronized(lock) {
-            condVar.notify()
+            condVar.signal()
         }
     }
 
     /// 排队并发任务 - 对应 Bun concurrent_tasks.push
     public func enqueueConcurrent(task: ConcurrentTask): Unit {
-        concurrentTasks.put(task)
+        concurrentTasks.push(task)
         synchronized(lock) {
-            condVar.notify()
+            condVar.signal()
         }
     }
 
@@ -472,22 +508,20 @@ public class MiniEventLoop {
     /// 处理任务
     private func processTasks(): Unit {
         while (true) {
-            let task = tasks.remove()
-            if (task == None) {
-                break
+            match (tasks.pop()) {
+                case None => break
+                case Some(task) => task()
             }
-            task.unwrap()()
         }
     }
 
     /// 处理并发任务
     private func processConcurrentTasks(): Unit {
         while (true) {
-            let task = concurrentTasks.remove()
-            if (task == None) {
-                break
+            match (concurrentTasks.pop()) {
+                case None => break
+                case Some(task) => task.run()
             }
-            task.unwrap().run()
         }
     }
 
@@ -528,9 +562,20 @@ public class MiniEventLoop {
 
     /// 获取当前时间 (毫秒)
     private func currentTimeMillis(): Int64 {
-        return Int64(std.time.DateTime.now().getYear())  // 简化
+        unsafe {
+            let tsBuf = malloc(UIntNative(16))
+            let tsPtr = CPointer<Int64>(tsBuf)
+            clock_gettime(0, tsBuf)
+            let sec = tsPtr.read()
+            let nsec = (tsPtr + Int64(1)).read()
+            free(tsBuf)
+            return sec * 1000 + nsec / 1000000
+        }
     }
 }
+
+@C
+foreign func clock_gettime(clkId: Int32, tp: CPointer<Unit>): Int32
 
 // ============================================================================
 // AnyEventLoop - 通用事件循环
@@ -636,7 +681,7 @@ public class AutoFlusher {
     /// 停止自动刷新
     public func stop(): Unit {
         if (timerId >= 0) {
-            if (let Some(loop) = eventLoop) {
+            if (let Some(loop) <- eventLoop) {
                 loop.clearTimer(timerId)
             }
             timerId = -1

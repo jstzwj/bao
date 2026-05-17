@@ -6,6 +6,7 @@ package bao_css.rules
 import bao_core.*
 import bao_collections.*
 import bao_hash.*
+import bao_css.*
 
 // ============================================================================
 // CSS 样式规则
@@ -52,10 +53,8 @@ public class CssStyleRuleFull {
     /// 返回规则哈希键 (选择器 + 属性)
     /// 严格翻译自 StyleRule.hash_key
     public func hashKey(): Int64 {
-        let hasher = Wyhash()
-        hasher.update(selectors.toString())
-        declarations.hashPropertyIds(hasher)
-        return hasher.finalize()
+        let hashVal = Wyhash.hash(selectors.toString())
+        Int64(hashVal)
     }
 
     /// 判断是否为重复规则 (相同选择器 + 相同属性)
@@ -103,15 +102,19 @@ public class CssStyleRuleFull {
     /// 基本样式输出 (无前缀)
     private func toCssBase(indent: String): String {
         let sb = StringBuilder()
-        sb.append("${indent}${selectors.toString()}")
+        sb.append(indent)
+        sb.append(selectors.toString())
         sb.append(declarations.toCssBlock(indent))
 
         // 嵌套规则
         if (rules.size > 0) {
             for (rule in rules) {
-                let nestedCss = rule.toCss(indent + "  ")
-                if (nestedCss.length > 0) {
-                    sb.append("\n${indent}  ${nestedCss}")
+                let nestedCss = rule.toString()
+                if (nestedCss.size > 0) {
+                    sb.append("\n")
+                    sb.append(indent)
+                    sb.append("  ")
+                    sb.append(nestedCss)
                 }
             }
         }
@@ -123,7 +126,9 @@ public class CssStyleRuleFull {
     private func toCssWithPrefix(indent: String, prefix: String): String {
         let sb = StringBuilder()
         let prefixStr = vendorPrefixToPrefixString(prefix)
-        sb.append("${indent}${prefixStr}${selectors.toString()}")
+        sb.append(indent)
+        sb.append(prefixStr)
+        sb.append(selectors.toString())
         sb.append(declarations.toCssBlock(indent))
         return sb.toString()
     }

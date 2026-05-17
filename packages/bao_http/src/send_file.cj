@@ -6,6 +6,9 @@ import bao_core.*
 import bao_collections.*
 import bao_sys.*
 
+@C
+foreign func sysSendFile(outFd: Int64, inFd: Int64, offset: Int64, count: Int64): Int64
+
 // ============================================================================
 // SendFile - 零拷贝文件传输 (sendfile syscall)
 // 严格翻译自: bun/src/http/SendFile.zig
@@ -130,31 +133,26 @@ public class SendFile {
         }
 
         // Linux sendfile: sendfile(out_fd, in_fd, offset, count)
-        let adjustedCount = if (remain > Int64.max) { Int64.max } else { remain }
+        let adjustedCount = if (remain > 9223372036854775807) { 9223372036854775807 } else { remain }
 
-        let result = sysSendFile(socketFd, fd, offset, adjustedCount)
-        match (result) {
-            case SendFileResult.ok(written) => {
-                offset += written
-                remain -= written
-                if (remain <= 0) {
-                    return SendFileStatus.done
-                }
-                return SendFileStatus.again
+        let written = unsafe { sysSendFile(socketFd, fd, offset, adjustedCount) }
+        if (written > 0) {
+            offset += written
+            remain -= written
+            if (remain <= 0) {
+                return SendFileStatus.done
             }
-            case SendFileResult.again => {
-                return SendFileStatus.again
-            }
-            case SendFileResult.err(msg) => {
-                return SendFileStatus.err(msg)
-            }
+            return SendFileStatus.again
         }
+        if (written == 0) {
+            return SendFileStatus.done
+        }
+        let errno = OS.errno()
+        if (errno == 11) {
+            return SendFileStatus.again
+        }
+        return SendFileStatus.err("sendfile failed")
     }
-
-    /// sendfile syscall 封装
-    /// Linux: ssize_t sendfile(int out_fd, int in_fd, off_t *offset, size_t count);
-    @C
-    foreign func sysSendFile(outFd: Int64, inFd: Int64, offset: Int64, count: Int64): SendFileResult
 }
 
 /// SendFile 操作状态

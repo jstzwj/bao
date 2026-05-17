@@ -35,8 +35,8 @@ public class CssUnicodeRange {
             var shift: UInt32 = 24
             var mask: UInt32 = 0xFu32 << shift
             while (shift > 0) {
-                let c1 = start && mask
-                let c2 = end && mask
+                let c1 = start & mask
+                let c2 = end & mask
                 if (c1 != c2) {
                     break
                 }
@@ -47,11 +47,12 @@ public class CssUnicodeRange {
             // 获取余数
             shift = shift + 4
             let remainderMask: UInt32 = (1u32 << shift) - 1u32
-            let startRemainder = start && remainderMask
-            let endRemainder = end && remainderMask
+            let startRemainder = start & remainderMask
+            let endRemainder = end & remainderMask
 
             if (startRemainder == 0 && endRemainder == remainderMask) {
-                let startVal = (start && ~remainderMask) >> shift
+                let invertedMask = remainderMask ^ 0xFFFFFFFFu32
+                let startVal = (start & invertedMask) >> shift
                 var result = ""
                 if (startVal != 0) {
                     result = "U+${startVal}"
@@ -86,13 +87,13 @@ public class CssUnicodeRange {
 
 /// CSS @font-face 字体样式
 /// 严格翻译自 FontStyle enum { Normal, Italic, Oblique(Size2D<Angle>) }
-public class CssFontFaceStyle {
-    public enum CssFontFaceStyleKind {
-        | Normal
-        | Italic
-        | Oblique
-    }
+public enum CssFontFaceStyleKind {
+    | Normal
+    | Italic
+    | Oblique
+}
 
+public class CssFontFaceStyle {
     public var kind: CssFontFaceStyleKind
     /// Oblique 角度值 (度数)
     public var obliqueAngle: Float64
@@ -116,17 +117,19 @@ public class CssFontFaceStyle {
 
     /// 转为 CSS 文本
     /// 严格翻译自 FontStyle.to_css
+    private func obliqueToCss(): String {
+        if (obliqueAngle == 14.0) {
+            "oblique"
+        } else {
+            "oblique ${obliqueAngle}deg"
+        }
+    }
+
     public func toCss(): String {
         match (kind) {
             case Normal => "normal"
             case Italic => "italic"
-            case Oblique => {
-                if (obliqueAngle == 14.0) {
-                    "oblique"
-                } else {
-                    "oblique ${obliqueAngle}deg"
-                }
-            }
+            case Oblique => obliqueToCss()
         }
     }
 }
@@ -241,7 +244,10 @@ public class CssUrlSource {
             for (t in tech) {
                 techStrs.append(t.toCss())
             }
-            sb.append(" tech(${String.join(", ", techStrs)})")
+            var techArr = Array<String>(techStrs.size, repeat: "")
+            var ti: Int64 = 0
+            for (t in techStrs) { techArr[ti] = t; ti += 1 }
+            sb.append(" tech(${String.join(techArr, delimiter: ", ")})")
         }
         return sb.toString()
     }
@@ -254,12 +260,12 @@ public class CssUrlSource {
 
 /// CSS @font-face 字体源
 /// 严格翻译自 Source enum { Url(UrlSource), Local(FontFamily) }
-public class CssFontSource {
-    public enum CssFontSourceKind {
-        | Url
-        | Local
-    }
+public enum CssFontSourceKind {
+    | Url
+    | Local
+}
 
+public class CssFontSource {
     public var kind: CssFontSourceKind
     /// URL 源
     public var urlSource: ?CssUrlSource
@@ -278,15 +284,24 @@ public class CssFontSource {
         this.localName = localName
     }
 
+    private func urlDeepClone(): CssFontSource {
+        match (urlSource) {
+            case Some(u) => CssFontSource(u.deepClone())
+            case None => CssFontSource("")
+        }
+    }
+
+    private func urlToCss(): String {
+        match (urlSource) {
+            case Some(u) => u.toCss()
+            case None => ""
+        }
+    }
+
     /// 深拷贝
     public func deepClone(): CssFontSource {
         match (kind) {
-            case Url => {
-                match (urlSource) {
-                    case Some(u) => CssFontSource(u.deepClone())
-                    case None => CssFontSource("")
-                }
-            }
+            case Url => urlDeepClone()
             case Local => CssFontSource(localName)
         }
     }
@@ -295,12 +310,7 @@ public class CssFontSource {
     /// 严格翻译自 Source.to_css
     public func toCss(): String {
         match (kind) {
-            case Url => {
-                match (urlSource) {
-                    case Some(u) => u.toCss()
-                    case None => ""
-                }
-            }
+            case Url => urlToCss()
             case Local => "local(${localName})"
         }
     }
@@ -313,17 +323,17 @@ public class CssFontSource {
 
 /// CSS @font-face 属性
 /// 严格翻译自 FontFaceProperty enum { Source, FontFamily, FontStyle, FontWeight, FontStretch, UnicodeRange, Custom }
-public class CssFontFaceProperty {
-    public enum CssFontFacePropertyKind {
-        | Source        // src 属性
-        | FontFamily    // font-family 属性
-        | FontStyle     // font-style 属性
-        | FontWeight    // font-weight 属性
-        | FontStretch   // font-stretch 属性
-        | UnicodeRange  // unicode-range 属性
-        | Custom        // 自定义属性
-    }
+public enum CssFontFacePropertyKind {
+    | Source        // src 属性
+    | FontFamily    // font-family 属性
+    | FontStyle     // font-style 属性
+    | FontWeight    // font-weight 属性
+    | FontStretch   // font-stretch 属性
+    | UnicodeRange  // unicode-range 属性
+    | Custom        // 自定义属性
+}
 
+public class CssFontFaceProperty {
     public var kind: CssFontFacePropertyKind
     /// 源列表 (Source)
     public var sources: ArrayList<CssFontSource>
@@ -354,52 +364,22 @@ public class CssFontFaceProperty {
         this.customValue = ""
     }
 
-    public init(fontFamily: String) {
-        this.kind = CssFontFacePropertyKind.FontFamily
+    public init(kind!: CssFontFacePropertyKind, stringValue!: String) {
+        this.kind = kind
         this.sources = ArrayList<CssFontSource>()
-        this.fontFamily = fontFamily
+        this.fontFamily = ""
         this.fontStyle = CssFontFaceStyle(CssFontFaceStyleKind.Normal)
         this.fontWeight = ""
         this.fontStretch = ""
         this.unicodeRanges = ArrayList<CssUnicodeRange>()
         this.customName = ""
         this.customValue = ""
-    }
-
-    public init(fontStyle: CssFontFaceStyle) {
-        this.kind = CssFontFacePropertyKind.FontStyle
-        this.sources = ArrayList<CssFontSource>()
-        this.fontFamily = ""
-        this.fontStyle = fontStyle
-        this.fontWeight = ""
-        this.fontStretch = ""
-        this.unicodeRanges = ArrayList<CssUnicodeRange>()
-        this.customName = ""
-        this.customValue = ""
-    }
-
-    public init(fontWeight: String, kind: CssFontFacePropertyKind) {
-        this.kind = CssFontFacePropertyKind.FontWeight
-        this.sources = ArrayList<CssFontSource>()
-        this.fontFamily = ""
-        this.fontStyle = CssFontFaceStyle(CssFontFaceStyleKind.Normal)
-        this.fontWeight = fontWeight
-        this.fontStretch = ""
-        this.unicodeRanges = ArrayList<CssUnicodeRange>()
-        this.customName = ""
-        this.customValue = ""
-    }
-
-    public init(fontStretch: String) {
-        this.kind = CssFontFacePropertyKind.FontStretch
-        this.sources = ArrayList<CssFontSource>()
-        this.fontFamily = ""
-        this.fontStyle = CssFontFaceStyle(CssFontFaceStyleKind.Normal)
-        this.fontWeight = ""
-        this.fontStretch = fontStretch
-        this.unicodeRanges = ArrayList<CssUnicodeRange>()
-        this.customName = ""
-        this.customValue = ""
+        match (kind) {
+            case FontFamily => this.fontFamily = stringValue
+            case FontWeight => this.fontWeight = stringValue
+            case FontStretch => this.fontStretch = stringValue
+            case _ => ()
+        }
     }
 
     public init(unicodeRanges: ArrayList<CssUnicodeRange>) {
@@ -414,7 +394,7 @@ public class CssFontFaceProperty {
         this.customValue = ""
     }
 
-    public init(customName: String, customValue: String) {
+    public init(customName!: String, customValue!: String) {
         this.kind = CssFontFacePropertyKind.Custom
         this.sources = ArrayList<CssFontSource>()
         this.fontFamily = ""
@@ -426,28 +406,38 @@ public class CssFontFaceProperty {
         this.customValue = customValue
     }
 
+    private func sourceToCss(): String {
+        let parts = ArrayList<String>()
+        for (s in sources) {
+            parts.append(s.toCss())
+        }
+        var partArr = Array<String>(parts.size, repeat: "")
+        var pi: Int64 = 0
+        for (p in parts) { partArr[pi] = p; pi += 1 }
+        "src: ${String.join(partArr, delimiter: ", ")}"
+    }
+
+    private func unicodeRangeToCss(): String {
+        let parts = ArrayList<String>()
+        for (r in unicodeRanges) {
+            parts.append(r.toCss())
+        }
+        var partArr = Array<String>(parts.size, repeat: "")
+        var pi: Int64 = 0
+        for (p in parts) { partArr[pi] = p; pi += 1 }
+        "unicode-range: ${String.join(partArr, delimiter: ", ")}"
+    }
+
     /// 转为 CSS 文本
     /// 严格翻译自 FontFaceProperty.to_css
     public func toCss(): String {
         match (kind) {
-            case Source => {
-                let parts = ArrayList<String>()
-                for (s in sources) {
-                    parts.append(s.toCss())
-                }
-                "src: ${String.join(", ", parts)}"
-            }
+            case Source => sourceToCss()
             case FontFamily => "font-family: ${fontFamily}"
             case FontStyle => "font-style: ${fontStyle.toCss()}"
             case FontWeight => "font-weight: ${fontWeight}"
             case FontStretch => "font-stretch: ${fontStretch}"
-            case UnicodeRange => {
-                let parts = ArrayList<String>()
-                for (r in unicodeRanges) {
-                    parts.append(r.toCss())
-                }
-                "unicode-range: ${String.join(", ", parts)}"
-            }
+            case UnicodeRange => unicodeRangeToCss()
             case Custom => "${customName}: ${customValue}"
         }
     }

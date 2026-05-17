@@ -11,7 +11,7 @@
 package bao_runtime.image
 
 import bao_jsc.*
-import std.collection.*
+import bao_collections.*  // std.collection.*
 
 // ============================================================================
 // Image - 图像处理主类
@@ -316,7 +316,7 @@ public class BunImage {
         let obj = JsObject()
         obj.set("width", JsValue(Float64(lastWidth)))
         obj.set("height", JsValue(Float64(lastHeight)))
-        obj.set("format", JsValue("png"))
+        obj.set("format", JsValue(BaoString("png")))
         return JsValue(obj)
     }
 
@@ -523,7 +523,7 @@ public enum ImageFilter {
     | mitchell
 
     public static func fromString(s: String): ImageFilter {
-        match (s.toLower()) {
+        match (s.toRuneArray().map({ r => r.toAsciiLowerCase() })) {
             case "nearest" => nearest
             case "box" => box
             case "bilinear" => bilinear
@@ -546,7 +546,7 @@ public enum ImageFit {
     | inside  // 保持纵横比，适应内框
 
     public static func fromString(s: String): ImageFit {
-        match (s.toLower()) {
+        match (s.toRuneArray().map({ r => r.toAsciiLowerCase() })) {
             case "inside" => inside
             case _ => fill
         }
@@ -918,7 +918,6 @@ public class PipelineTask {
         let maxIn: UInt32 = 100
         var w = sw
         var h = sh
-        var owned: ?Array<Byte> = None
         var pixels = rgba
 
         if (w > maxIn || h > maxIn) {
@@ -930,30 +929,25 @@ public class PipelineTask {
                 h = maxIn
                 w = UInt32((Float32(maxIn) * r + 0.5f32).clamp(1.0f32, Float32(maxIn)))
             }
-            // owned = Codecs.resize(rgba, sw, sh, w, h, Filter.box)
-            // if (owned == None) { return PipelineResult.err("DecodeFailed") }
-            // pixels = owned.getOrThrow()
+            let resized = Codecs.resize(rgba, sw, sh, w, h, Filter.box)
+            if (resized == None) { return PipelineResult.err("DecodeFailed") }
+            pixels = resized.getOrThrow()
         }
 
-        // 1. 编码为 ThumbHash
         let hashOpt = ThumbHash.encode(w, h, pixels)
         if (hashOpt == None) { return PipelineResult.err("DecodeFailed") }
 
-        // 2. 解码 ThumbHash 到 RGBA
         let renderedOpt = ThumbHash.decode(hashOpt.getOrThrow())
         if (renderedOpt == None) { return PipelineResult.err("DecodeFailed") }
-        // defer: 释放 rendered
+        let rendered = renderedOpt.getOrThrow()
 
-        // 3. 编码为 PNG
-        // 占位符是合成 ThumbHash 渲染, 不是源图像 — 没有 ICC 配置文件附加。
-        // let pngOut = CodecPng.encode(renderedOpt.getOrThrow().rgba, renderedOpt.getOrThrow().width,
-        //                               renderedOpt.getOrThrow().height, -1, None)
-        // if (pngOut == None) { return PipelineResult.err("DecodeFailed") }
+        let pngOut = CodecPng.encode(rendered.rgba, rendered.width, rendered.height, -1, None)
+        if (pngOut == None) { return PipelineResult.err("DecodeFailed") }
+        let out = pngOut.getOrThrow()
 
-        // return PipelineResult.encoded(EncodedResult(
-        //     bytes: pngOut.getOrThrow().bytes, format: ImageFormat.png,
-        //     w: renderedOpt.getOrThrow().width, h: renderedOpt.getOrThrow().height))
-        return PipelineResult.err("DecodeFailed")
+        return PipelineResult.encoded(EncodedResult(
+            bytes: out.bytes, format: ImageFormat.png,
+            w: rendered.width, h: rendered.height))
     }
 
     /// 清理资源

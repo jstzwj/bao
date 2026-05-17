@@ -68,7 +68,7 @@ public func scanImportsAndExportsExt(linker: LinkerContext): Unit {
             let otherKind = exportsKind[otherFile]
 
             match (record.kind) {
-                case ImportKind.Static => {
+                case ImportKind.Static =>
                     // import ... from 'path'
                     // 如果目标文件没有 ES6 语法，且有 * 或 default 导入，
                     // 则目标被当作 CJS 模块
@@ -84,8 +84,7 @@ public func scanImportsAndExportsExt(linker: LinkerContext): Unit {
                         exportsKind[otherFile] = ExportsKind.CJS
                         flags[otherFile].wrap = WrapKind.CJS
                     }
-                }
-                case ImportKind.Require => {
+                case ImportKind.Require =>
                     // require('path') 导入的文件必须是 CJS
                     if (otherKind == ExportsKind.ESM) {
                         flags[otherFile].wrap = WrapKind.ESM
@@ -93,8 +92,7 @@ public func scanImportsAndExportsExt(linker: LinkerContext): Unit {
                         flags[otherFile].wrap = WrapKind.CJS
                         exportsKind[otherFile] = ExportsKind.CJS
                     }
-                }
-                case ImportKind.Dynamic => {
+                case ImportKind.Dynamic =>
                     // 动态导入
                     if (!linker.graph.codeSplitting) {
                         if (exportsKind[otherFile] == ExportsKind.ESM) {
@@ -104,7 +102,6 @@ public func scanImportsAndExportsExt(linker: LinkerContext): Unit {
                             exportsKind[otherFile] = ExportsKind.CJS
                         }
                     }
-                }
                 case _ => ()
             }
         }
@@ -261,35 +258,7 @@ private func matchImportWithExportForFile(linker: LinkerContext,
 // ============================================================================
 
 /// CSS 导入顺序条目
-// 严格翻译自: Chunk.zig 中 CssImportOrder
-public class CssImportOrder {
-    /// 条目类型
-    public var kind: CssImportOrderKind
-    /// 导入条件列表
-    public var conditions: ArrayList<ImportCondition>
-    /// 条件导入记录列表
-    public var conditionImportRecords: ArrayList<ImportRecord>
-
-    public init() {
-        kind = CssImportOrderKind.SourceIndex(0)
-        conditions = ArrayList<ImportCondition>()
-        conditionImportRecords = ArrayList<ImportRecord>()
-    }
-
-    /// 计算哈希
-    public func hash(hasher: ContentHasher): Unit {
-        match (kind) {
-            case CssImportOrderKind.SourceIndex(idx) => {
-                hasher.writeInts([idx])
-            }
-            case CssImportOrderKind.ExternalPath(path) => {
-                hasher.write(path.toString())
-            }
-        }
-    }
-}
-
-/// CSS 导入顺序条目类型
+// 严格翻译自: Chunk.zig 中 CssImportOrder/// CSS 导入顺序条目类型
 public enum CssImportOrderKind {
     | SourceIndex(Int64)
     | ExternalPath(FsPath)
@@ -466,16 +435,14 @@ private func deduplicateCSSOrder(order: ArrayList<CssImportOrder>): ArrayList<Cs
     while (i >= 0) {
         let entry = order[i]
         match (entry.kind) {
-            case CssImportOrderKind.SourceIndex(idx) => {
+            case CssImportOrderKind.SourceIndex(idx) =>
                 if (!seen.contains(idx)) {
                     seen.put(idx)
                     result.insertAt(0, entry)
                 }
-            }
-            case CssImportOrderKind.ExternalPath(_) => {
+            case CssImportOrderKind.ExternalPath(_) =>
                 // 外部导入总是保留
                 result.insertAt(0, entry)
-            }
         }
         i--
     }
@@ -496,62 +463,12 @@ public class CssStyleSheet {
         rules = ArrayList<CssRule>()
         localScope = HashMap<String, Bool>()
     }
-}
-
-/// CSS 规则
-public class CssRule {
-    public var tag: CssRuleTag
-    public var hasConditions: Bool
-    public var conditions: ArrayList<ImportCondition>
-
-    public init() {
-        tag = CssRuleTag.Other
-        hasConditions = false
-        conditions = ArrayList<ImportCondition>()
-    }
-}
-
-/// CSS 规则标签
+}/// CSS 规则标签
 public enum CssRuleTag {
     | Import
     | Layer
     | Other
-}
-
-/// 包装类型
-public enum WrapKind {
-    | None
-    | ESM
-    | CJS
-}
-
-/// 元标志
-public class MetaFlags {
-    public var wrap: WrapKind
-    public var hasLazyExport: Bool
-    public var forceCjsToEsm: Bool
-
-    public init() {
-        wrap = WrapKind.None
-        hasLazyExport = false
-        forceCjsToEsm = false
-    }
-}
-
-/// 入口点类型
-public class EntryPointKind {
-    public var kind: EntryPointKindTag
-
-    public init() {
-        kind = EntryPointKindTag.None
-    }
-
-    public func isEntryPoint(): Bool {
-        return kind == EntryPointKindTag.UserDefined
-    }
-}
-
-/// 入口点类型标签
+}/// 入口点类型标签
 public enum EntryPointKindTag {
     | None
     | UserDefined

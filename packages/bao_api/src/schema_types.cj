@@ -7,9 +7,8 @@
 package bao_api
 
 import bao_options.*
-import bao_options.*
 import bao_core.*
-import bao_collections.*
+import bao_collections.ArrayList
 
 // ============================================================================
 // Re-exports from bao_options.schema
@@ -405,12 +404,12 @@ public class SourceLine {
 
 /// Stack trace - corresponding to Bun api::StackTrace
 public class StackTrace {
-    public var sourceLines: Array<SourceLine>
-    public var frames: Array<StackFrame>
+    public var sourceLines: ArrayList<SourceLine>
+    public var frames: ArrayList<StackFrame>
 
     public init() {
-        sourceLines = Array<SourceLine>()
-        frames = Array<StackFrame>()
+        sourceLines = ArrayList<SourceLine>()
+        frames = ArrayList<StackFrame>()
     }
 }
 
@@ -448,13 +447,13 @@ public class ApiJsException {
 public class ApiProblems {
     public var code: UInt16
     public var name: String
-    public var exceptions: Array<ApiJsException>
+    public var exceptions: ArrayList<ApiJsException>
     public var build: ApiLog
 
     public init() {
         code = 0
         name = ""
-        exceptions = Array<ApiJsException>()
+        exceptions = ArrayList<ApiJsException>()
         build = ApiLog()
     }
 }
@@ -609,22 +608,22 @@ public class JavascriptBundledPackage {
 
 /// JavaScript bundle - corresponding to Bun api::JavascriptBundle
 public class JavascriptBundle {
-    public var modules: Array<JavascriptBundledModule>
-    public var packages: Array<JavascriptBundledPackage>
-    public var etag: Array<UInt8>
+    public var modules: ArrayList<JavascriptBundledModule>
+    public var packages: ArrayList<JavascriptBundledPackage>
+    public var etag: ArrayList<UInt8>
     public var generatedAt: UInt32
-    public var appPackageJsonDependenciesHash: Array<UInt8>
-    public var importFromName: Array<UInt8>
-    public var manifestString: Array<UInt8>
+    public var appPackageJsonDependenciesHash: ArrayList<UInt8>
+    public var importFromName: ArrayList<UInt8>
+    public var manifestString: ArrayList<UInt8>
 
     public init() {
-        modules = Array<JavascriptBundledModule>()
-        packages = Array<JavascriptBundledPackage>()
-        etag = Array<UInt8>()
+        modules = ArrayList<JavascriptBundledModule>()
+        packages = ArrayList<JavascriptBundledPackage>()
+        etag = ArrayList<UInt8>()
         generatedAt = 0
-        appPackageJsonDependenciesHash = Array<UInt8>()
-        importFromName = Array<UInt8>()
-        manifestString = Array<UInt8>()
+        appPackageJsonDependenciesHash = ArrayList<UInt8>()
+        importFromName = ArrayList<UInt8>()
+        manifestString = ArrayList<UInt8>()
     }
 }
 
@@ -638,13 +637,13 @@ public class JavascriptBundle {
 /// Loaded route config - corresponding to Bun api::LoadedRouteConfig
 public class ApiLoadedRouteConfig {
     public var dir: String
-    public var extensions: Array<String>
+    public var extensions: ArrayList<String>
     public var staticDir: String
     public var assetPrefix: String
 
     public init() {
         dir = ""
-        extensions = Array<String>()
+        extensions = ArrayList<String>()
         staticDir = ""
         assetPrefix = ""
     }
@@ -703,11 +702,11 @@ public class ApiModuleImportRecord {
 /// Module - corresponding to Bun api::Module
 public class ApiModule {
     public var path: String
-    public var imports: Array<ApiModuleImportRecord>
+    public var imports: ArrayList<ApiModuleImportRecord>
 
     public init() {
         path = ""
-        imports = Array<ApiModuleImportRecord>()
+        imports = ArrayList<ApiModuleImportRecord>()
     }
 }
 
@@ -769,8 +768,8 @@ public class ApiFrameworkConfig {
 
 /// Route config - corresponding to Bun api::RouteConfig
 public class ApiRouteConfig {
-    public var dir: ?Array<String>
-    public var extensions: ?Array<String>
+    public var dir: ?ArrayList<String>
+    public var extensions: ?ArrayList<String>
     public var staticDir: ?String
     public var assetPrefix: ?String
 
@@ -797,17 +796,17 @@ public class ApiTransformOptions {
     public var absoluteWorkingDir: ?String
     public var define: ?StringMap
     public var preserveSymlinks: ?Bool
-    public var entryPoints: ?Array<String>
+    public var entryPoints: ?ArrayList<String>
     public var write: ?Bool
-    public var inject: ?Array<String>
+    public var inject: ?ArrayList<String>
     public var outputDir: ?String
-    public var external: ?Array<String>
+    public var external: ?ArrayList<String>
     public var loaders: ?LoaderMap
-    public var mainFields: ?Array<String>
+    public var mainFields: ?ArrayList<String>
     public var target: ?SchemaTarget
     public var serve: ?Bool
-    public var envFiles: ?Array<String>
-    public var extensionOrder: ?Array<String>
+    public var envFiles: ?ArrayList<String>
+    public var extensionOrder: ?ArrayList<String>
     public var framework: ?ApiFrameworkConfig
     public var router: ?ApiRouteConfig
     public var noSummary: ?Bool
@@ -819,7 +818,7 @@ public class ApiTransformOptions {
     public init() {
         jsx = None
         tsconfigOverride = None
-        resolve = None
+        resolve = Option<ResolveMode>.None
         origin = None
         absoluteWorkingDir = None
         define = None
@@ -831,7 +830,7 @@ public class ApiTransformOptions {
         external = None
         loaders = None
         mainFields = None
-        target = None
+        target = Option<SchemaTarget>.None
         serve = None
         envFiles = None
         extensionOrder = None
@@ -841,7 +840,7 @@ public class ApiTransformOptions {
         disableHmr = None
         port = None
         logLevel = None
-        sourceMap = None
+        sourceMap = Option<SourceMapMode>.None
     }
 }
 
@@ -875,7 +874,7 @@ public class FileHandle {
 public class ApiTransform {
     public var handle: ?FileHandle
     public var path: ?String
-    public var contents: ?Array<UInt8>
+    public var contents: ?ArrayList<UInt8>
     public var loader: ?Loader
     public var options: ?ApiTransformOptions
 
@@ -897,7 +896,7 @@ public class ApiTransform {
 /// Scan - corresponding to Bun api::Scan
 public class ApiScan {
     public var path: ?String
-    public var contents: ?Array<UInt8>
+    public var contents: ?ArrayList<UInt8>
     public var loader: ?Loader
 
     public init() {
@@ -997,13 +996,13 @@ public class ApiMessageMeta {
 public class ApiMessage {
     public var level: MessageLevel
     public var data: ApiMessageData
-    public var notes: Array<ApiMessageData>
+    public var notes: ArrayList<ApiMessageData>
     public var on: ApiMessageMeta
 
     public init() {
         level = MessageLevel.None
         data = ApiMessageData()
-        notes = Array<ApiMessageData>()
+        notes = ArrayList<ApiMessageData>()
         on = ApiMessageMeta()
     }
 }
@@ -1016,14 +1015,14 @@ public class ApiMessage {
 
 /// Scan result - corresponding to Bun api::ScanResult
 public class ScanResult {
-    public var exports: Array<String>
-    public var imports: Array<ScannedImport>
-    public var errors: Array<ApiMessage>
+    public var exports: ArrayList<String>
+    public var imports: ArrayList<ScannedImport>
+    public var errors: ArrayList<ApiMessage>
 
     public init() {
-        exports = Array<String>()
-        imports = Array<ScannedImport>()
-        errors = Array<ApiMessage>()
+        exports = ArrayList<String>()
+        imports = ArrayList<ScannedImport>()
+        errors = ArrayList<ApiMessage>()
     }
 }
 
@@ -1035,11 +1034,11 @@ public class ScanResult {
 
 /// Output file - corresponding to Bun api::OutputFile
 public class OutputFile {
-    public var data: Array<UInt8>
+    public var data: ArrayList<UInt8>
     public var path: String
 
     public init() {
-        data = Array<UInt8>()
+        data = ArrayList<UInt8>()
         path = ""
     }
 }
@@ -1053,13 +1052,13 @@ public class OutputFile {
 /// Transform response - corresponding to Bun api::TransformResponse
 public class TransformResponse {
     public var status: TransformResponseStatus
-    public var files: Array<OutputFile>
-    public var errors: Array<ApiMessage>
+    public var files: ArrayList<OutputFile>
+    public var errors: ArrayList<ApiMessage>
 
     public init() {
         status = TransformResponseStatus.None
-        files = Array<OutputFile>()
-        errors = Array<ApiMessage>()
+        files = ArrayList<OutputFile>()
+        errors = ArrayList<ApiMessage>()
     }
 }
 
@@ -1073,12 +1072,12 @@ public class TransformResponse {
 public class ApiLog {
     public var warnings: UInt32
     public var errors: UInt32
-    public var msgs: Array<ApiMessage>
+    public var msgs: ArrayList<ApiMessage>
 
     public init() {
         warnings = 0
         errors = 0
-        msgs = Array<ApiMessage>()
+        msgs = ArrayList<ApiMessage>()
     }
 }
 
@@ -1299,12 +1298,12 @@ public class ApiNpmRegistry {
 
 /// NPM registry map - corresponding to Bun api::NPMRegistryMap
 public class ApiNpmRegistryMap {
-    public var scopes: Array<String>
-    public var registries: Array<ApiNpmRegistry>
+    public var scopes: ArrayList<String>
+    public var registries: ArrayList<ApiNpmRegistry>
 
     public init() {
-        scopes = Array<String>()
-        registries = Array<ApiNpmRegistry>()
+        scopes = ArrayList<String>()
+        registries = ArrayList<ApiNpmRegistry>()
     }
 }
 
@@ -1329,7 +1328,7 @@ public class ApiBunInstall {
     public var saveLockfile: ?Bool
     public var production: ?Bool
     public var saveYarnLockfile: ?Bool
-    public var nativeBinLinks: ?Array<String>
+    public var nativeBinLinks: ?ArrayList<String>
     public var disableCache: ?Bool
     public var disableManifestCache: ?Bool
     public var globalDir: ?String
@@ -1397,19 +1396,19 @@ public class ClientServerModule {
 /// Corresponding to Bun api::ClientServerModuleManifest
 public class ClientServerModuleManifest {
     public var version: UInt32
-    public var clientModules: Array<ClientServerModule>
-    public var serverModules: Array<ClientServerModule>
-    public var ssrModules: Array<ClientServerModule>
-    public var exportNames: Array<StringPointer>
-    public var contents: Array<UInt8>
+    public var clientModules: ArrayList<ClientServerModule>
+    public var serverModules: ArrayList<ClientServerModule>
+    public var ssrModules: ArrayList<ClientServerModule>
+    public var exportNames: ArrayList<StringPointer>
+    public var contents: ArrayList<UInt8>
 
     public init() {
         version = 0
-        clientModules = Array<ClientServerModule>()
-        serverModules = Array<ClientServerModule>()
-        ssrModules = Array<ClientServerModule>()
-        exportNames = Array<StringPointer>()
-        contents = Array<UInt8>()
+        clientModules = ArrayList<ClientServerModule>()
+        serverModules = ArrayList<ClientServerModule>()
+        ssrModules = ArrayList<ClientServerModule>()
+        exportNames = ArrayList<StringPointer>()
+        contents = ArrayList<UInt8>()
     }
 }
 
@@ -1422,11 +1421,11 @@ public class ClientServerModuleManifest {
 /// Get tests request - corresponding to Bun api::GetTestsRequest
 public class GetTestsRequest {
     public var path: String
-    public var contents: Array<UInt8>
+    public var contents: ArrayList<UInt8>
 
     public init() {
         path = ""
-        contents = Array<UInt8>()
+        contents = ArrayList<UInt8>()
     }
 }
 
@@ -1457,11 +1456,11 @@ public class TestResponseItem {
 
 /// Get tests response - corresponding to Bun api::GetTestsResponse
 public class GetTestsResponse {
-    public var tests: Array<TestResponseItem>
-    public var contents: Array<UInt8>
+    public var tests: ArrayList<TestResponseItem>
+    public var contents: ArrayList<UInt8>
 
     public init() {
-        tests = Array<TestResponseItem>()
-        contents = Array<UInt8>()
+        tests = ArrayList<TestResponseItem>()
+        contents = ArrayList<UInt8>()
     }
 }

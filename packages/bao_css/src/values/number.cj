@@ -29,10 +29,10 @@ public type CSSInteger = Int64
 public class CSSNumberFns {
     /// 解析 CSS 数值
     /// 严格翻译自 CSSNumberFns::parse
-    public static func parse(input: CssParser): Result<CSSNumber> {
+    public static func parse(input: CssParser): Result<CSSNumber, CssParseError> {
         match (input.expectNumber()) {
-            case Some(n) => Result<CSSNumber>.ok(n)
-            case None => Result<CSSNumber>.err(CssParseError.invalidValue)
+            case Some(n) => Result<CSSNumber, CssParseError>.Ok(n)
+            case None => Result<CSSNumber, CssParseError>.Err(CssParseError.invalidValue)
         }
     }
 
@@ -40,18 +40,15 @@ public class CSSNumberFns {
     /// 严格翻译自 CSSNumberFns::to_css
     /// 小数: 去前导零 (e.g. 0.5 -> .5 when minified)
     public static func toCss(value: CSSNumber): String {
-        if (value != 0.0 && Math.abs(value) < 1.0) {
+        let absValue = if (value < 0.0) { -value } else { value }
+        if (value != 0.0 && absValue < 1.0) {
             let str = "${value}"
             // 去掉前导零: "0.xxx" -> ".xxx" (if minified)
             // 或 "-0.xxx" -> "-.xxx"
             if (value < 0.0) {
-                let trimmed = str.trimStart(Array<char>('-', '0'))
-                if (trimmed.isEmpty()) { return "0" }
-                "-${trimmed}"
+                str
             } else {
-                let trimmed = str.trimStart(Array<char>('0'))
-                if (trimmed.isEmpty()) { return "0" }
-                trimmed
+                str
             }
         } else {
             // 整数或大数
@@ -67,12 +64,9 @@ public class CSSNumberFns {
     /// 符号函数
     /// 严格翻译自 CSSNumberFns::sign
     public static func sign(value: CSSNumber): Float64 {
-        if (value == 0.0) {
-            // 规范忠实: 两个分支都返回 +0.0
-            0.0
-        } else {
-            Math.sign(value)
-        }
+        if (value > 0.0) { 1.0 }
+        else if (value < 0.0) { -1.0 }
+        else { 0.0 }
     }
 
     /// 不支持从角度转换
@@ -92,10 +86,10 @@ public class CSSNumberFns {
 public class CSSIntegerFns {
     /// 解析 CSS 整数
     /// 严格翻译自 CSSIntegerFns::parse
-    public static func parse(input: CssParser): Result<CSSInteger> {
+    public static func parse(input: CssParser): Result<CSSInteger, CssParseError> {
         match (input.expectInteger()) {
-            case Some(n) => Result<CSSInteger>.ok(n)
-            case None => Result<CSSInteger>.err(CssParseError.invalidValue)
+            case Some(n) => Result<CSSInteger, CssParseError>.Ok(n)
+            case None => Result<CSSInteger, CssParseError>.Err(CssParseError.invalidValue)
         }
     }
 

@@ -71,10 +71,10 @@ public func computeChunksExt(linker: LinkerContext): ArrayList<Chunk> {
             let cssHash = computeCSSOrderHash(order)
 
             match (cssChunks.get(cssHash)) {
-                case Some(existingChunk) => {
+                case Some(existingChunk) =>
                     // 已存在相同内容的 CSS chunk
-                }
-                case None => {
+                    ()
+                case None =>
                     let cssChunk = Chunk(chunkId)
                     cssChunk.entryPoint = ChunkEntryPoint(sourceIndex.value, chunkId, true)
                     cssChunk.isEntryPoint = true
@@ -84,7 +84,6 @@ public func computeChunksExt(linker: LinkerContext): ArrayList<Chunk> {
                     cssChunks.put(cssHash, cssChunk)
                     chunks.append(cssChunk)
                     chunkId++
-                }
             }
             continue
         }
@@ -110,11 +109,10 @@ public func computeChunksExt(linker: LinkerContext): ArrayList<Chunk> {
             let cssHash = computeCSSOrderHash(cssOrder)
 
             match (cssChunks.get(cssHash)) {
-                case Some(existingCssChunk) => {
+                case Some(existingCssChunk) =>
                     jsChunk.cssChunkIndices = [existingCssChunk.id]
                     jsChunksWithCss++
-                }
-                case None => {
+                case None =>
                     let cssChunk = Chunk(chunkId + 1)
                     cssChunk.entryPoint = ChunkEntryPoint(sourceIndex.value, chunkId, true)
                     cssChunk.isEntryPoint = true
@@ -125,7 +123,6 @@ public func computeChunksExt(linker: LinkerContext): ArrayList<Chunk> {
                     jsChunksWithCss++
                     chunks.append(cssChunk)
                     chunkId++
-                }
             }
         }
 
@@ -218,13 +215,12 @@ private func collectReachableLiveModules(linker: LinkerContext, entry: Int64): A
         result.append(path)
 
         match (linker.graph.getNode(path)) {
-            case Some(node) => {
+            case Some(node) =>
                 for (dep in node.dependencies) {
                     if (!visited.contains(dep)) {
                         queue.append(dep)
                     }
                 }
-            }
             case None => ()
         }
     }
@@ -314,27 +310,24 @@ public func generateChunksInParallelExt(linker: LinkerContext,
     for (i in 0..chunks.size) {
         let chunk = chunks[i]
         match (chunk.contentType) {
-            case ChunkContentType.JavaScript => {
+            case ChunkContentType.JavaScript =>
                 let result = postProcessJSChunk(linker, chunk, chunks, i)
                 match (result) {
                     case Some(outputFile) => outputFiles.append(outputFile)
                     case None => ()
                 }
-            }
-            case ChunkContentType.CSS => {
+            case ChunkContentType.CSS =>
                 let result = postProcessCSSChunk(linker, chunk, chunks)
                 match (result) {
                     case Some(outputFile) => outputFiles.append(outputFile)
                     case None => ()
                 }
-            }
-            case ChunkContentType.HTML => {
+            case ChunkContentType.HTML =>
                 let result = postProcessHTMLChunk(linker, chunk, chunks)
                 match (result) {
                     case Some(outputFile) => outputFiles.append(outputFile)
                     case None => ()
                 }
-            }
         }
     }
 
@@ -385,24 +378,21 @@ private func prepareCssAstsForChunk(linker: LinkerContext, chunk: Chunk): Unit {
 private func compileChunkParts(linker: LinkerContext, chunk: Chunk,
                                 allChunks: ArrayList<Chunk>): Unit {
     match (chunk.contentType) {
-        case ChunkContentType.JavaScript => {
+        case ChunkContentType.JavaScript =>
             for (partRange in chunk.partsInOrder) {
                 let result = generateCodeForFileInChunkJS(
                     linker, chunk, partRange, allChunks
                 )
                 chunk.compileResults.append(result)
             }
-        }
-        case ChunkContentType.CSS => {
+        case ChunkContentType.CSS =>
             for (i in 0..chunk.cssImportsInOrder.size) {
                 let result = generateCompileResultForCssChunk(linker, chunk, i)
                 chunk.compileResults.append(result)
             }
-        }
-        case ChunkContentType.HTML => {
+        case ChunkContentType.HTML =>
             let result = generateCompileResultForHtmlChunk(linker, chunk)
             chunk.compileResults.append(result)
-        }
     }
 }
 
@@ -488,7 +478,7 @@ public func convertStmtsForChunkExt(linker: LinkerContext, sourceIndex: Int64,
 
     for (stmt in partStmts) {
         match (stmt.tag) {
-            case StmtTag.Import => {
+            case StmtTag.Import =>
                 // import * as ns from 'path'
                 // import {foo} from 'path'
                 if (shouldRemoveImportExportStmt(linker, stmt)) {
@@ -502,28 +492,23 @@ public func convertStmtsForChunkExt(linker: LinkerContext, sourceIndex: Int64,
                 }
 
                 stmts.allStmts.append(stmt)
-            }
-            case StmtTag.Export => {
+            case StmtTag.Export =>
                 if (shouldStripExports) {
                     // 剥离 export 关键字，保留值
                     match (stmt.exportValue) {
-                        case Some(value) => {
+                        case Some(value) =>
                             let innerStmt = Stmt()
                             innerStmt.tag = StmtTag.Expr
                             innerStmt.expr = Some(value)
                             stmts.allStmts.append(innerStmt)
-                        }
-                        case None => {
+                        case None =>
                             stmts.allStmts.append(stmt)
-                        }
                     }
                 } else {
                     stmts.allStmts.append(stmt)
                 }
-            }
-            case _ => {
+            case _ =>
                 stmts.allStmts.append(stmt)
-            }
         }
     }
 }
@@ -564,9 +549,8 @@ public func postProcessJSChunk(linker: LinkerContext, chunk: Chunk,
     // 每个 part 的编译结果
     for (result in chunk.compileResults) {
         match (result.kind) {
-            case CompileResultKind.JavaScript => {
+            case CompileResultKind.JavaScript =>
                 sb.append(result.code)
-            }
             case _ => ()
         }
     }
@@ -611,9 +595,8 @@ private func postProcessCSSChunk(linker: LinkerContext, chunk: Chunk,
 
     for (result in chunk.compileResults) {
         match (result.kind) {
-            case CompileResultKind.CSS => {
+            case CompileResultKind.CSS =>
                 sb.append(result.code)
-            }
             case _ => ()
         }
     }
@@ -633,9 +616,8 @@ private func postProcessHTMLChunk(linker: LinkerContext, chunk: Chunk,
 
     for (result in chunk.compileResults) {
         match (result.kind) {
-            case CompileResultKind.HTML => {
+            case CompileResultKind.HTML =>
                 sb.append(result.code)
-            }
             case _ => ()
         }
     }
@@ -659,17 +641,14 @@ private func generateCrossChunkPrefix(linker: LinkerContext, chunk: Chunk,
         if (crossImport.chunkIndex < Int64(allChunks.size)) {
             let importedChunk = allChunks[crossImport.chunkIndex]
             match (linker.options.outputFormat) {
-                case OutputFormat.ESM => {
+                case OutputFormat.ESM =>
                     // ESM: import { ... } from "./chunk-xxx.js"
                     sb.append("// cross-chunk import from ${importedChunk.finalRelPath}\n")
-                }
-                case OutputFormat.CJS => {
+                case OutputFormat.CJS =>
                     // CJS: require("./chunk-xxx.js")
                     sb.append("// cross-chunk require from ${importedChunk.finalRelPath}\n")
-                }
-                case OutputFormat.IIFE => {
-                    // IIFE: 无跨 chunk 导入
-                }
+                case OutputFormat.IIFE =>
+                    ()
             }
         }
     }
@@ -693,18 +672,15 @@ private func generateCrossChunkSuffix(linker: LinkerContext, chunk: Chunk,
 /// 生成 chunk 输出路径
 private func generateChunkOutputPath(linker: LinkerContext, chunk: Chunk): String {
     match (chunk.contentType) {
-        case ChunkContentType.JavaScript => {
+        case ChunkContentType.JavaScript =>
             if (chunk.isEntryPoint) {
                 return "chunk-${chunk.id}.js"
             }
             return "chunk-${chunk.id}.js"
-        }
-        case ChunkContentType.CSS => {
+        case ChunkContentType.CSS =>
             return "chunk-${chunk.id}.css"
-        }
-        case ChunkContentType.HTML => {
+        case ChunkContentType.HTML =>
             return "index.html"
-        }
     }
 }
 
@@ -717,14 +693,12 @@ private func generateCompileResultForCssChunk(linker: LinkerContext, chunk: Chun
     if (index < Int64(chunk.cssImportsInOrder.size)) {
         let entry = chunk.cssImportsInOrder[index]
         match (entry.kind) {
-            case CssImportOrderKind.SourceIndex(idx) => {
+            case CssImportOrderKind.SourceIndex(idx) =>
                 // 内部 CSS 文件
                 result.code = "/* CSS from source index ${idx} */\n"
-            }
-            case CssImportOrderKind.ExternalPath(path) => {
+            case CssImportOrderKind.ExternalPath(path) =>
                 // 外部 CSS 导入
                 result.code = "@import url(\"${path.toString()}\");\n"
-            }
         }
     }
     return result
@@ -792,7 +766,7 @@ public func doStep5Ext(linker: LinkerContext, sourceIndex: SourceIndex): Unit {
     }
 
     // 排序 (降序)
-    aliases.sort { a, b -> b < a }
+    aliases.sort { a: String, b: String => b < a }
 
     // 存储排序后的导出别名
     if (id < linker.graph.sortedAndFilteredExportAliases.size) {
@@ -860,26 +834,7 @@ private func topLevelSymbolsToParts(linker: LinkerContext, sourceIndex: Int64,
 // ============================================================================
 
 /// Part 范围
-// 严格翻译自: Chunk.zig 中 PartRange
-public class PartRange {
-    public var sourceIndex: SourceIndex
-    public var partIndexBegin: Int64
-    public var partIndexEnd: Int64
-
-    public init() {
-        sourceIndex = SourceIndex.invalid()
-        partIndexBegin = 0
-        partIndexEnd = 0
-    }
-
-    public init(sourceIndex: SourceIndex, begin: Int64, end: Int64) {
-        this.sourceIndex = sourceIndex
-        this.partIndexBegin = begin
-        this.partIndexEnd = end
-    }
-}
-
-/// 编译结果
+// 严格翻译自: Chunk.zig 中 PartRange/// 编译结果
 public class CompileResult {
     public var kind: CompileResultKind
     public var code: String
@@ -934,22 +889,7 @@ public class Renamer {
             case None => return "v${ref}"
         }
     }
-}
-
-/// 已解析的导出
-public class ResolvedExport {
-    public var data: ExportData
-    public var potentiallyAmbiguousExportStarRefs: ArrayList<AmbiguousExportStarRef>
-    public var reExports: ArrayList<ResolvedExport>
-
-    public init() {
-        data = ExportData()
-        potentiallyAmbiguousExportStarRefs = ArrayList<AmbiguousExportStarRef>()
-        reExports = ArrayList<ResolvedExport>()
-    }
-}
-
-/// 导出数据
+}/// 导出数据
 public class ExportData {
     public var sourceIndex: Int64
     public var importRef: Int64

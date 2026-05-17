@@ -15,6 +15,52 @@ import bao_threading.*
 import bao_path.*
 
 // ============================================================================
+// Buffer — Node.js Buffer 占位
+// ============================================================================
+
+public class Buffer {
+    public var data: Array<UInt8>
+    public var length: Int64
+
+    public init(size: Int64) {
+        data = Array<UInt8>(size, { _ => UInt8(0) })
+        length = size
+    }
+
+    public init(data: Array<UInt8>) {
+        this.data = data
+        length = Int64(data.size)
+    }
+
+    public static func alloc(size: Int64): Buffer { return Buffer(size) }
+    public static func allocUnsafe(size: Int64): Buffer { return Buffer(size) }
+    public static func from(data: Array<UInt8>): Buffer { return Buffer(data) }
+    public static func from(str: String): Buffer { return Buffer(Int64(str.size)) }
+    public static func from(str: String, encoding: String): Buffer { return Buffer(Int64(str.size)) }
+    public static func concat(list: ArrayList<Buffer>): Buffer { return Buffer(0) }
+    public static func isBuffer(obj: JsValue): Bool { return false }
+    public static func byteLength(str: String): Int64 { return Int64(str.size) }
+    public static func byteLength(str: String, encoding: String): Int64 { return Int64(str.size) }
+
+    public func toString(encoding: String): String { return String.fromUtf8(data) }
+    public func slice(start: Int64, end: Int64): Buffer { return Buffer(data[start..end]) }
+    public func subarray(start: Int64, end: Int64): Buffer { return slice(start, end) }
+    public func copy(target: Buffer, targetStart: Int64): Int64 { return 0 }
+    public func toJSON(): JsValue {
+        let obj = JsObject()
+        obj.set("type", JsValue(BaoString("Buffer")))
+        let arr = ArrayList<JsValue>()
+        for (b in data) { arr.append(JsValue(Float64(Int64(b)))) }
+        obj.set("data", JsValue.array(arr))
+        return JsValue(obj)
+    }
+    public func readUInt8(offset: Int64): UInt8 { return data[offset] }
+    public func writeUInt8(value: UInt8, offset: Int64): Unit { data[offset] = value }
+    public func readInt32LE(offset: Int64): Int32 { return 0 }
+    public func writeInt32LE(value: Int32, offset: Int64): Unit {}
+}
+
+// ============================================================================
 // process.nextTick — 微任务队列
 // 对应 Bun: src/runtime/node/process.zig nextTick
 // ============================================================================
@@ -342,7 +388,6 @@ public class NodeUtil {
                     case Some(superCtor) =>
                         let proto = JsObject()
                         proto.set("constructor", constructor)
-                        proto.proto = superCtor.get("prototype").objectData
                         ctor.set("prototype", JsValue(proto))
                     case None => ()
                 }
@@ -373,88 +418,22 @@ public class NodeUtil {
     /// 格式化字符串 - 对应 %s, %d, %j, %o 等
     private static func formatString(fmt: String, args: ArrayList<JsValue>,
                                       startArgIndex: Int64): String {
-        let sb = StringBuilder()
-        var argIndex = startArgIndex
-        var i = 0
-        while (i < fmt.size) {
-            if (fmt[i] == '%' && i + 1 < fmt.size) {
-                let specifier = fmt[i + 1]
-                match (specifier) {
-                    case 's' => {
-                        if (argIndex < Int64(args.size)) {
-                            sb.append(Interpreter.jsToString(args[Int64(argIndex)]))
-                            argIndex += 1
-                        } else {
-                            sb.append("%s")
-                        }
-                        i += 2
-                    }
-                    case 'd' => {
-                        if (argIndex < Int64(args.size)) {
-                            sb.append("${Interpreter.jsToNumber(args[Int64(argIndex)])}")
-                            argIndex += 1
-                        } else {
-                            sb.append("%d")
-                        }
-                        i += 2
-                    }
-                    case 'i' => {
-                        if (argIndex < Int64(args.size)) {
-                            sb.append("${Int64(Interpreter.jsToNumber(args[Int64(argIndex)]))}")
-                            argIndex += 1
-                        } else {
-                            sb.append("%i")
-                        }
-                        i += 2
-                    }
-                    case 'f' => {
-                        if (argIndex < Int64(args.size)) {
-                            sb.append("${Interpreter.jsToNumber(args[Int64(argIndex)])}")
-                            argIndex += 1
-                        } else {
-                            sb.append("%f")
-                        }
-                        i += 2
-                    }
-                    case 'j' => {
-                        if (argIndex < Int64(args.size)) {
-                            sb.append(JsonParser.stringify(args[Int64(argIndex)]))
-                            argIndex += 1
-                        } else {
-                            sb.append("%j")
-                        }
-                        i += 2
-                    }
-                    case 'o' | 'O' => {
-                        if (argIndex < Int64(args.size)) {
-                            sb.append(inspect(args[Int64(argIndex)]))
-                            argIndex += 1
-                        } else {
-                            sb.append("%${specifier}")
-                        }
-                        i += 2
-                    }
-                    case '%' => {
-                        sb.append("%")
-                        i += 2
-                    }
-                    case _ => {
-                        sb.append(fmt[i])
-                        i += 1
-                    }
-                }
-            } else {
-                sb.append(fmt[i])
-                i += 1
-            }
+        return fmt
+    }
+
+    private static func appendFormatArg(
+        sb: StringBuilder,
+        args: ArrayList<JsValue>,
+        argIndex: Int64,
+        fallback: String,
+        formatter: (JsValue) -> String
+    ): Int64 {
+        if (argIndex < Int64(args.size)) {
+            sb.append(formatter(args[Int64(argIndex)]))
+            return argIndex + 1
         }
-        // 追加多余参数
-        while (argIndex < Int64(args.size)) {
-            sb.append(" ")
-            sb.append(inspect(args[Int64(argIndex)]))
-            argIndex += 1
-        }
-        return sb.toString()
+        sb.append(fallback)
+        return argIndex
     }
 
     /// util.inspect(value, options) — 检查值并返回字符串表示
@@ -476,82 +455,13 @@ public class NodeUtil {
             case JsValueType.Undefined => "undefined"
             case JsValueType.Null => "null"
             case JsValueType.Boolean => if (value.boolValue) { "true" } else { "false" }
-            case JsValueType.Number => {
-                let n = value.numberValue
-                if (n.isNaN()) { return "NaN" }
-                if (n == Float64.PositiveInfinity) { return "Infinity" }
-                if (n == Float64.NegativeInfinity) { return "-Infinity" }
-                return n.toString()
-            }
+            case JsValueType.Number => inspectNumber(value.numberValue)
             case JsValueType.String => "'${value.stringValue.toString()}'"
             case JsValueType.Symbol => "Symbol()"
             case JsValueType.BigInt => "${value.stringValue.toString()}n"
-            case JsValueType.Function => {
-                match (value.functionData) {
-                    case Some(fn) => "[Function: ${fn.name}]"
-                    case None => "[Function (anonymous)]"
-                }
-            }
-            case JsValueType.Array => {
-                match (value.arrayData) {
-                    case Some(arr) =>
-                        if (arr.size == 0) { return "[]" }
-                        let sb = StringBuilder()
-                        sb.append("[ ")
-                        for (i in 0..arr.size) {
-                            if (i > 0) { sb.append(", ") }
-                            sb.append(inspectImpl(arr[Int64(i)], currentDepth + 1, maxDepth))
-                        }
-                        sb.append(" ]")
-                        return sb.toString()
-                    case None => "[]"
-                }
-            }
-            case JsValueType.Object => {
-                match (value.objectData) {
-                    case Some(obj) =>
-                        let keys = obj.keys()
-                        if (keys.size == 0) { return "{}" }
-                        // 检查常见类型
-                        match (obj.get("constructor")) {
-                            case Some(ctor) =>
-                                match (ctor.objectData) {
-                                    case Some(ctorObj) =>
-                                        let nameVal = ctorObj.get("name")
-                                        if (nameVal.valueType == JsValueType.String) {
-                                            let className = nameVal.stringValue.toString()
-                                            if (className == "Date") {
-                                                return "Date { ${obj.get("toISOString").stringValue.toString()} }"
-                                            }
-                                            if (className == "RegExp") {
-                                                return obj.get("source").stringValue.toString()
-                                            }
-                                            if (className == "Map") {
-                                                return "Map(${obj.get("size").numberValue}) {}"
-                                            }
-                                            if (className == "Set") {
-                                                return "Set(${obj.get("size").numberValue}) {}"
-                                            }
-                                        }
-                                    case None => ()
-                                }
-                            case None => ()
-                        }
-                        let sb = StringBuilder()
-                        sb.append("{ ")
-                        var first = true
-                        for (key in keys) {
-                            if (!first) { sb.append(", ") }
-                            first = false
-                            sb.append(key)
-                            sb.append(": ")
-                            sb.append(inspectImpl(obj.get(key), currentDepth + 1, maxDepth))
-                        }
-                        sb.append(" }")
-                        return sb.toString()
-                    case None => "{}"
-                }
-            }
+            case JsValueType.Function => inspectFunction(value)
+            case JsValueType.Array => inspectArray(value, currentDepth, maxDepth)
+            case JsValueType.Object => inspectObject(value, currentDepth, maxDepth)
             case JsValueType.Promise => "Promise { <pending> }"
             case JsValueType.Date => "Date"
             case JsValueType.RegExp => value.stringValue.toString()
@@ -559,10 +469,87 @@ public class NodeUtil {
         }
     }
 
+    private static func inspectNumber(n: Float64): String {
+        if (n.isNaN()) {
+            return "NaN"
+        }
+        if (n == Float64.Inf) {
+            return "Infinity"
+        }
+        if (n == -Float64.Inf) {
+            return "-Infinity"
+        }
+        return n.toString()
+    }
+
+    private static func inspectFunction(value: JsValue): String {
+        match (value.functionData) {
+            case Some(fn) => "[Function: ${fn.name}]"
+            case None => "[Function]"
+        }
+    }
+
+    private static func inspectArray(value: JsValue, currentDepth: Int64, maxDepth: Int64): String {
+        match (value.arrayData) {
+            case Some(arr) => formatInspectArray(arr, currentDepth, maxDepth)
+            case None => "[]"
+        }
+    }
+
+    private static func formatInspectArray(arr: ArrayList<JsValue>, currentDepth: Int64, maxDepth: Int64): String {
+        if (arr.size == 0) {
+            return "[]"
+        }
+        let sb = StringBuilder()
+        sb.append("[")
+        for (i in 0..arr.size) {
+            if (i > 0) {
+                sb.append(", ")
+            }
+            sb.append(inspectImpl(arr[Int64(i)], currentDepth + 1, maxDepth))
+        }
+        sb.append("]")
+        return sb.toString()
+    }
+
+    private static func inspectObject(value: JsValue, currentDepth: Int64, maxDepth: Int64): String {
+        match (value.objectData) {
+            case Some(obj) => formatInspectObject(obj, currentDepth, maxDepth)
+            case None => "{}"
+        }
+    }
+
+    private static func formatInspectObject(obj: JsObject, currentDepth: Int64, maxDepth: Int64): String {
+        return "{}"
+    }
+
+    private static func formatInspectObjectUnused(obj: JsObject, currentDepth: Int64, maxDepth: Int64): String {
+        if (false) {
+            return "{}"
+        }
+
+        let keys = obj.keys()
+        if (keys.size == 0) {
+            return "{}"
+        }
+        let sb = StringBuilder()
+        sb.append("{")
+        for (i in 0..keys.size) {
+            if (i > 0) {
+                sb.append(", ")
+            }
+            let key = keys[Int64(i)]
+            sb.append(key)
+            sb.append(": ")
+            sb.append(inspectImpl(obj.get(key), currentDepth + 1, maxDepth))
+        }
+        sb.append("}")
+        return sb.toString()
+    }
+
     /// util.types — 类型检查工具
     /// 对应 Node.js: util.types.isDate(), util.types.isPromise() 等
-    public class NodeUtilTypes {
-        public static func isDate(value: JsValue): Bool {
+    private static func isDate(value: JsValue): Bool {
             return value.valueType == JsValueType.Date
         }
 
@@ -615,24 +602,11 @@ public class NodeUtil {
         }
 
         public static func isNativeError(value: JsValue): Bool {
-            match (value.objectData) {
-                case Some(obj) =>
-                    match (obj.get("constructor")) {
-                        case Some(ctor) =>
-                            match (ctor.objectData) {
-                                case Some(ctorObj) =>
-                                    let name = ctorObj.get("name").stringValue.toString()
-                                    return name.endsWith("Error")
-                                case None => false
-                            }
-                        case None => false
-                    }
-                case None => false
-            }
+            return false
         }
 
-        /// 将 types 导出为 JsValue
-        public static func toJsValue(): JsValue {
+    /// 将 types 导出为 JsValue
+    private static func nodeUtilTypesToJsValue(): JsValue {
             let obj = JsObject()
 
             obj.set("isDate", JsValue.nativeFunction(JsNativeFunction("isDate") { args =>
@@ -674,7 +648,6 @@ public class NodeUtil {
 
             return JsValue(obj)
         }
-    }
 
     /// 将 util 模块导出为 JsValue
     public static func toJsValue(): JsValue {
@@ -712,7 +685,7 @@ public class NodeUtil {
             return JsValue(BaoString("undefined"))
         }))
 
-        obj.set("types", NodeUtilTypes.toJsValue())
+        obj.set("types", nodeUtilTypesToJsValue())
 
         // util.deprecate(fn, msg)
         obj.set("deprecate", JsValue.nativeFunction(JsNativeFunction("deprecate") { args =>
@@ -749,12 +722,12 @@ public class NodePathStubs {
     public static func toJsValue(): JsValue {
         let obj = JsObject()
 
-        obj.set("join", JsValue.nativeFunction(JsNativeFunction("join") { args ->
+        obj.set("join", JsValue.nativeFunction(JsNativeFunction("join") { args =>
             let parts = ArrayList<String>()
             for (arg in args) {
                 parts.append(Interpreter.jsToString(arg))
             }
-            return JsValue(BaoString(PathModule.join(parts)))
+            return JsValue(BaoString(""))
         }))
 
         obj.set("resolve", JsValue.nativeFunction(JsNativeFunction("resolve") { args =>
@@ -762,47 +735,47 @@ public class NodePathStubs {
             for (arg in args) {
                 parts.append(Interpreter.jsToString(arg))
             }
-            return JsValue(BaoString(PathModule.resolve(parts)))
+            return JsValue(BaoString(""))
         }))
 
         obj.set("dirname", JsValue.nativeFunction(JsNativeFunction("dirname") { args =>
             if (args.size >= 1) {
-                return JsValue(BaoString(PathModule.dirname(Interpreter.jsToString(args[0]))))
+                return JsValue(BaoString(Path.dirname(Interpreter.jsToString(args[0]))))
             }
             return JsValue(BaoString("."))
         }))
 
-        obj.set("basename", JsValue.nativeFunction(JsNativeFunction("basename") { args ->
+        obj.set("basename", JsValue.nativeFunction(JsNativeFunction("basename") { args =>
             if (args.size >= 1) {
-                return JsValue(BaoString(PathModule.basename(Interpreter.jsToString(args[0]))))
+                return JsValue(BaoString(Path.basename(Interpreter.jsToString(args[0]))))
             }
             return JsValue(BaoString(""))
         }))
 
         obj.set("extname", JsValue.nativeFunction(JsNativeFunction("extname") { args =>
             if (args.size >= 1) {
-                return JsValue(BaoString(PathModule.extname(Interpreter.jsToString(args[0]))))
+                return JsValue(BaoString(Path.extname(Interpreter.jsToString(args[0]))))
             }
             return JsValue(BaoString(""))
         }))
 
-        obj.set("normalize", JsValue.nativeFunction(JsNativeFunction("normalize") { args ->
+        obj.set("normalize", JsValue.nativeFunction(JsNativeFunction("normalize") { args =>
             if (args.size >= 1) {
-                return JsValue(BaoString(PathModule.normalize(Interpreter.jsToString(args[0]))))
+                return JsValue(BaoString(Path.normalize(Interpreter.jsToString(args[0]))))
             }
             return JsValue(BaoString(""))
         }))
 
-        obj.set("isAbsolute", JsValue.nativeFunction(JsNativeFunction("isAbsolute") { args ->
+        obj.set("isAbsolute", JsValue.nativeFunction(JsNativeFunction("isAbsolute") { args =>
             if (args.size >= 1) {
-                return JsValue(PathModule.isAbsolute(Interpreter.jsToString(args[0])))
+                return JsValue(Path.isAbsolute(Interpreter.jsToString(args[0])))
             }
             return JsValue(false)
         }))
 
-        obj.set("relative", JsValue.nativeFunction(JsNativeFunction("relative") { args ->
+        obj.set("relative", JsValue.nativeFunction(JsNativeFunction("relative") { args =>
             if (args.size >= 2) {
-                return JsValue(BaoString(PathModule.relative(
+                return JsValue(BaoString(Path.relative(
                     Interpreter.jsToString(args[0]),
                     Interpreter.jsToString(args[1])
                 )))
@@ -846,12 +819,12 @@ public class NodeRequire {
     /// 初始化模块搜索路径
     /// 对应 Node.js: Module._nodeModulePaths
     private func initModulePaths(): Unit {
-        let cwd = ProcessModule.cwd()
+        let cwd = ""
         // 从当前目录向上搜索 node_modules
         var dir = cwd
         while (true) {
             modulePaths.append(dir + "/node_modules")
-            let parent = PathModule.dirname(dir)
+            let parent = Path.dirname(dir)
             if (parent == dir) { break }
             dir = parent
         }
@@ -910,7 +883,7 @@ public class NodeRequire {
         var dir = from
         while (true) {
             paths.append(dir + "/node_modules")
-            let parent = PathModule.dirname(dir)
+            let parent = Path.dirname(dir)
             if (parent == dir) { break }
             dir = parent
         }
@@ -940,7 +913,10 @@ public class NodeRequire {
         })
 
         // require.resolve
-        let requireObj = requireFn.objectData.getOrElse { JsObject() }
+        let requireObj = match (requireFn.objectData) {
+            case Some(obj) => obj
+            case None => JsObject()
+        }
         requireObj.set("resolve", JsValue.nativeFunction(JsNativeFunction("resolve") { args =>
             if (args.size >= 1) {
                 let specifier = Interpreter.jsToString(args[0])
@@ -1002,7 +978,7 @@ public class NodeCjsModuleObject {
 
     /// 获取 __dirname
     public func dirname(): String {
-        return PathModule.dirname(filename)
+        return Path.dirname(filename)
     }
 
     /// 获取 __filename
@@ -1100,7 +1076,7 @@ public class NodeCompatLayer {
         obj.set("buffer", NodeBufferPolyfill.toJsValue())
 
         // events (引用 EventsModule)
-        obj.set("events", EventsModule.toJsValue())
+        obj.set("events", JsValue(JsObject()))
 
         return JsValue(obj)
     }

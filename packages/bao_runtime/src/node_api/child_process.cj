@@ -8,6 +8,7 @@ import bao_core.*
 import bao_collections.*
 import bao_sys.*
 import bao_io.*
+import bao_runtime.*
 
 // ============================================================================
 // child_process 模块 — Node.js 子进程 API
@@ -19,10 +20,10 @@ import bao_io.*
 public class ChildProcessModule {
     /// child_process.spawn(command, args, options) — 创建子进程
     /// 对应 Bun: spawn -> src/spawn/spawn.zig
-    public static func spawn(command: String, args: ArrayList<String>, options: SpawnOptions): ChildProcessHandle {
-        let sysOpts = bao_sys.SpawnOptions()
-        sysOpts.args = args.toArray()
-        sysOpts.cwd = options.cwd
+    public static func `spawn`(command: String, args: ArrayList<String>, options: NodeSpawnOptions): ChildProcessHandle {
+        let sysOpts = SpawnOptions()
+        sysOpts.args = Array<String>(args.size, { i => args[i] })
+        sysOpts.cwd = if (options.cwd.size > 0) { Some(options.cwd) } else { None }
         // 转换环境变量
         if (options.env.size > 0) {
             for (key in options.env.keys()) {
@@ -33,11 +34,11 @@ public class ChildProcessModule {
             }
         }
         // 转换 stdio 配置
-        sysOpts.stdin = toSysStdio(options.stdio)
-        sysOpts.stdout = toSysStdio(options.stdio)
-        sysOpts.stderr = toSysStdio(options.stdio)
+        sysOpts.stdin = options.stdio
+        sysOpts.stdout = options.stdio
+        sysOpts.stderr = options.stdio
 
-        let sysChild = ProcessSpawner.spawn(command, sysOpts)
+        let sysChild = ProcessSpawner.`spawn`(command, sysOpts)
         let child = ChildProcessHandle()
         child.pid = sysChild.pid
         child.killed = false
@@ -59,23 +60,23 @@ public class ChildProcessModule {
     }
 
     /// child_process.spawn(command) — 简化版 spawn
-    public static func spawn(command: String): ChildProcessHandle {
-        return spawn(command, ArrayList<String>(), SpawnOptions())
+    public static func `spawn`(command: String): ChildProcessHandle {
+        return `spawn`(command, ArrayList<String>(), NodeSpawnOptions())
     }
 
     /// child_process.spawn(command, args) — 带 args 的 spawn
-    public static func spawn(command: String, args: ArrayList<String>): ChildProcessHandle {
-        return spawn(command, args, SpawnOptions())
+    public static func `spawn`(command: String, args: ArrayList<String>): ChildProcessHandle {
+        return `spawn`(command, args, NodeSpawnOptions())
     }
 
     /// child_process.exec(command, options, callback) — 执行命令 (回调版)
     /// 对应 Bun: exec -> spawn + buffer output + callback
-    public static func exec(command: String, options: ExecOptions, callback: (ExecError, String, String) -> Unit): ChildProcessHandle {
-        let spawnOpts = SpawnOptions()
+    public static func exec(command: String, options: NodeExecOptions, callback: (NodeExecError, String, String) -> Unit): ChildProcessHandle {
+        let spawnOpts = NodeSpawnOptions()
         spawnOpts.cwd = options.cwd
         spawnOpts.shell = true
         // 使用 shell 执行命令
-        let child = spawn("/bin/sh", ArrayList<String>(["-c", command]), spawnOpts)
+        let child = `spawn`("/bin/sh", ArrayList<String>(["-c", command]), spawnOpts)
 
         // 收集输出 — 在同步回调中立即读取
         var stdout = ""
@@ -113,9 +114,9 @@ public class ChildProcessModule {
 
         // 构造结果并调用回调
         if (child.exitCode == 0) {
-            callback(ExecError(), stdout, stderr)
+            callback(NodeExecError(), stdout, stderr)
         } else {
-            let err = ExecError()
+            let err = NodeExecError()
             err.message = "Command failed: ${command}"
             err.code = if (child.exitCode == -1) { "null" } else { child.exitCode.toString() }
             err.killed = child.killed
@@ -128,19 +129,19 @@ public class ChildProcessModule {
     }
 
     /// child_process.exec(command, callback) — 简化版 exec
-    public static func exec(command: String, callback: (ExecError, String, String) -> Unit): ChildProcessHandle {
-        return exec(command, ExecOptions(), callback)
+    public static func exec(command: String, callback: (NodeExecError, String, String) -> Unit): ChildProcessHandle {
+        return exec(command, NodeExecOptions(), callback)
     }
 
     /// child_process.execSync(command, options) — 执行命令 (同步版)
     /// 对应 Bun: execSync -> spawn + read + wait
-    public static func execSync(command: String, options: ExecOptions): ExecResult {
-        let spawnOpts = SpawnOptions()
+    public static func execSync(command: String, options: NodeExecOptions): NodeExecResult {
+        let spawnOpts = NodeSpawnOptions()
         spawnOpts.cwd = options.cwd
         spawnOpts.shell = true
         spawnOpts.stdio = StdioConfig.Pipe
 
-        let child = spawn("/bin/sh", ArrayList<String>(["-c", command]), spawnOpts)
+        let child = `spawn`("/bin/sh", ArrayList<String>(["-c", command]), spawnOpts)
 
         // 读取输出
         var stdout = ""
@@ -172,7 +173,7 @@ public class ChildProcessModule {
             case ExitStatus.Running => -1
         }
 
-        let result = ExecResult()
+        let result = NodeExecResult()
         result.stdout = stdout
         result.stderr = stderr
         result.exitCode = exitCode
@@ -180,25 +181,25 @@ public class ChildProcessModule {
     }
 
     /// child_process.execSync(command) — 简化版 execSync
-    public static func execSync(command: String): ExecResult {
-        return execSync(command, ExecOptions())
+    public static func execSync(command: String): NodeExecResult {
+        return execSync(command, NodeExecOptions())
     }
 
     /// child_process.execFile(file, args, options) — 执行文件 (无 shell)
     /// 对应 Bun: execFile -> spawn without shell
-    public static func execFile(file: String, args: ArrayList<String>, options: SpawnOptions): ChildProcessHandle {
-        return spawn(file, args, options)
+    public static func execFile(file: String, args: ArrayList<String>, options: NodeSpawnOptions): ChildProcessHandle {
+        return `spawn`(file, args, options)
     }
 
     /// child_process.execFile(file) — 简化版 execFile
     public static func execFile(file: String): ChildProcessHandle {
-        return spawn(file, ArrayList<String>(), SpawnOptions())
+        return `spawn`(file, ArrayList<String>(), NodeSpawnOptions())
     }
 
     /// child_process.fork(modulePath, args, options) — 创建子 Node 进程
     /// 对应 Bun: fork -> spawn with ipc channel
-    public static func fork(modulePath: String, args: ArrayList<String>, options: SpawnOptions): ChildProcessHandle {
-        let forkOpts = SpawnOptions()
+    public static func fork(modulePath: String, args: ArrayList<String>, options: NodeSpawnOptions): ChildProcessHandle {
+        let forkOpts = NodeSpawnOptions()
         forkOpts.cwd = options.cwd
         forkOpts.env = options.env
         forkOpts.stdio = StdioConfig.Pipe
@@ -212,29 +213,19 @@ public class ChildProcessModule {
             allArgs.append(arg)
         }
 
-        return spawn("bao", allArgs, forkOpts)
+        return `spawn`("bao", allArgs, forkOpts)
     }
 
     /// child_process.fork(modulePath) — 简化版 fork
     public static func fork(modulePath: String): ChildProcessHandle {
-        return fork(modulePath, ArrayList<String>(), SpawnOptions())
-    }
-
-    /// 将 stdio 配置转换为 bao_sys 的 StdioConfig
-    private static func toSysStdio(config: StdioConfig): bao_sys.StdioConfig {
-        match (config) {
-            case StdioConfig.Pipe => bao_sys.StdioConfig.Pipe
-            case StdioConfig.Inherit => bao_sys.StdioConfig.Inherit
-            case StdioConfig.Null => bao_sys.StdioConfig.Null
-            case StdioConfig.Fd(fd) => bao_sys.StdioConfig.Fd(fd)
-        }
+        return fork(modulePath, ArrayList<String>(), NodeSpawnOptions())
     }
 
     /// 字节数组转字符串
-    private static func byteArrayToString(bytes: Array<UInt8>): String {
+    public static func byteArrayToString(bytes: Array<UInt8>): String {
         let sb = StringBuilder()
         for (b in bytes) {
-            sb.append(Char(Int32(b)))
+            sb.append(String(Rune(Int32(b))))
         }
         return sb.toString()
     }
@@ -255,15 +246,15 @@ public class ChildProcessModule {
                     case None => ()
                 }
             }
-            let options = if (args.size > 2) { parseSpawnOptions(args[2]) } else { SpawnOptions() }
-            let child = spawn(command, spawnArgs, options)
+            let options = if (args.size > 2) { parseSpawnOptions(args[2]) } else { NodeSpawnOptions() }
+            let child = `spawn`(command, spawnArgs, options)
             return child.toJsValue()
         }))
 
         obj.set("exec", JsValue.nativeFunction(JsNativeFunction("exec") { args =>
             if (args.size < 1) { return JsValue.NULL }
             let command = Interpreter.jsToString(args[0])
-            let options = if (args.size > 1) { parseExecOptions(args[1]) } else { ExecOptions() }
+            let options = if (args.size > 1) { parseExecOptions(args[1]) } else { NodeExecOptions() }
             // 简化: 同步执行，立即调用回调
             let child = exec(command, options) { _, _, _ => }
             return child.toJsValue()
@@ -272,7 +263,7 @@ public class ChildProcessModule {
         obj.set("execSync", JsValue.nativeFunction(JsNativeFunction("execSync") { args =>
             if (args.size < 1) { return JsValue(BaoString("")) }
             let command = Interpreter.jsToString(args[0])
-            let options = if (args.size > 1) { parseExecOptions(args[1]) } else { ExecOptions() }
+            let options = if (args.size > 1) { parseExecOptions(args[1]) } else { NodeExecOptions() }
             let result = execSync(command, options)
             return JsValue(BaoString(result.stdout))
         }))
@@ -288,7 +279,7 @@ public class ChildProcessModule {
                     case None => ()
                 }
             }
-            let options = if (args.size > 2) { parseSpawnOptions(args[2]) } else { SpawnOptions() }
+            let options = if (args.size > 2) { parseSpawnOptions(args[2]) } else { NodeSpawnOptions() }
             let child = execFile(file, fileArgs, options)
             return child.toJsValue()
         }))
@@ -304,7 +295,7 @@ public class ChildProcessModule {
                     case None => ()
                 }
             }
-            let options = if (args.size > 2) { parseSpawnOptions(args[2]) } else { SpawnOptions() }
+            let options = if (args.size > 2) { parseSpawnOptions(args[2]) } else { NodeSpawnOptions() }
             let child = fork(modulePath, forkArgs, options)
             return child.toJsValue()
         }))
@@ -319,73 +310,51 @@ public class ChildProcessModule {
     }
 
     /// 从 JsValue 解析 SpawnOptions
-    private static func parseSpawnOptions(v: JsValue): SpawnOptions {
-        let opts = SpawnOptions()
+    private static func parseSpawnOptions(v: JsValue): NodeSpawnOptions {
+        let opts = NodeSpawnOptions()
         match (v.objectData) {
             case Some(obj) =>
-                match (obj.get("cwd")) {
-                    case Some(cwd) => opts.cwd = Interpreter.jsToString(cwd)
-                    case None => ()
-                }
-                match (obj.get("shell")) {
-                    case Some(shell) => opts.shell = Interpreter.jsToBoolean(shell)
-                    case None => ()
-                }
-                match (obj.get("detached")) {
-                    case Some(det) => opts.detached = Interpreter.jsToBoolean(det)
-                    case None => ()
-                }
+                let cwdVal = obj.get("cwd")
+                if (cwdVal.valueType != JsValueType.Undefined) { opts.cwd = Interpreter.jsToString(cwdVal) }
+                let shellVal = obj.get("shell")
+                if (shellVal.valueType != JsValueType.Undefined) { opts.shell = Interpreter.jsToBoolean(shellVal) }
+                let detVal = obj.get("detached")
+                if (detVal.valueType != JsValueType.Undefined) { opts.detached = Interpreter.jsToBoolean(detVal) }
                 // 解析 env 对象
-                match (obj.get("env")) {
-                    case Some(envVal) =>
-                        match (envVal.objectData) {
-                            case Some(envObj) =>
-                                for (key in envObj.keys()) {
-                                    opts.env.put(key, Interpreter.jsToString(envObj.get(key)))
-                                }
-                            case None => ()
+                let envVal = obj.get("env")
+                match (envVal.objectData) {
+                    case Some(envObj) =>
+                        for (key in envObj.keys()) {
+                            let val = envObj.get(key)
+                            if (val.valueType != JsValueType.Undefined) { opts.env.put(key, Interpreter.jsToString(val)) }
                         }
                     case None => ()
                 }
                 // 解析 uid/gid
-                match (obj.get("uid")) {
-                    case Some(uid) => opts.uid = Int64(Interpreter.jsToNumber(uid))
-                    case None => ()
-                }
-                match (obj.get("gid")) {
-                    case Some(gid) => opts.gid = Int64(Interpreter.jsToNumber(gid))
-                    case None => ()
-                }
+                let uidVal = obj.get("uid")
+                if (uidVal.valueType != JsValueType.Undefined) { opts.uid = Int64(Interpreter.jsToNumber(uidVal)) }
+                let gidVal = obj.get("gid")
+                if (gidVal.valueType != JsValueType.Undefined) { opts.gid = Int64(Interpreter.jsToNumber(gidVal)) }
             case None => ()
         }
         return opts
     }
 
     /// 从 JsValue 解析 ExecOptions
-    private static func parseExecOptions(v: JsValue): ExecOptions {
-        let opts = ExecOptions()
+    private static func parseExecOptions(v: JsValue): NodeExecOptions {
+        let opts = NodeExecOptions()
         match (v.objectData) {
             case Some(obj) =>
-                match (obj.get("cwd")) {
-                    case Some(cwd) => opts.cwd = Interpreter.jsToString(cwd)
-                    case None => ()
-                }
-                match (obj.get("encoding")) {
-                    case Some(enc) => opts.encoding = Interpreter.jsToString(enc)
-                    case None => ()
-                }
-                match (obj.get("timeout")) {
-                    case Some(t) => opts.timeout = Int64(Interpreter.jsToNumber(t))
-                    case None => ()
-                }
-                match (obj.get("maxBuffer")) {
-                    case Some(mb) => opts.maxBuffer = Int64(Interpreter.jsToNumber(mb))
-                    case None => ()
-                }
-                match (obj.get("killSignal")) {
-                    case Some(ks) => opts.killSignal = Interpreter.jsToString(ks)
-                    case None => ()
-                }
+                let cwdVal = obj.get("cwd")
+                if (cwdVal.valueType != JsValueType.Undefined) { opts.cwd = Interpreter.jsToString(cwdVal) }
+                let encVal = obj.get("encoding")
+                if (encVal.valueType != JsValueType.Undefined) { opts.encoding = Interpreter.jsToString(encVal) }
+                let tVal = obj.get("timeout")
+                if (tVal.valueType != JsValueType.Undefined) { opts.timeout = Int64(Interpreter.jsToNumber(tVal)) }
+                let mbVal = obj.get("maxBuffer")
+                if (mbVal.valueType != JsValueType.Undefined) { opts.maxBuffer = Int64(Interpreter.jsToNumber(mbVal)) }
+                let ksVal = obj.get("killSignal")
+                if (ksVal.valueType != JsValueType.Undefined) { opts.killSignal = Interpreter.jsToString(ksVal) }
             case None => ()
         }
         return opts
@@ -397,7 +366,7 @@ public class ChildProcessModule {
 // ============================================================================
 
 /// spawn 选项 — 对应 Node.js child_process.spawn options
-public class SpawnOptions {
+public class NodeSpawnOptions {
     /// 工作目录
     public var cwd: String
     /// 环境变量
@@ -428,7 +397,7 @@ public class SpawnOptions {
 }
 
 /// Exec 选项 — 对应 Node.js child_process.exec options
-public class ExecOptions {
+public class NodeExecOptions {
     /// 工作目录
     public var cwd: String
     /// 环境变量
@@ -452,21 +421,14 @@ public class ExecOptions {
     }
 }
 
-/// 标准 IO 配置 — 对应 Node.js child_process stdio 配置
-/// 复用 bao_sys 的 StdioConfig 定义，并在运行时层面扩展
-public enum StdioConfig {
-    | Pipe      // 创建管道 (默认)
-    | Inherit   // 继承父进程
-    | Null      // 忽略 (/dev/null)
-    | Fd(Int64) // 指定文件描述符
-}
+// StdioConfig 使用 bao_sys.StdioConfig，不在此重复定义
 
 // ============================================================================
 // 子进程句柄
 // ============================================================================
 
 /// 子进程句柄 — 对应 Node.js ChildProcess 实例
-/// 封装 bao_sys.ChildProcess，提供 Node.js 兼容 API
+/// 封装 ChildProcess，提供 Node.js 兼容 API
 public class ChildProcessHandle {
     /// 进程 ID
     public var pid: Int64
@@ -484,7 +446,7 @@ public class ChildProcessHandle {
     public var killed: Bool
 
     /// 内部 bao_sys 子进程引用
-    private var sysChild: ?bao_sys.ChildProcess
+    private var sysChild: ?ChildProcess
 
     public init() {
         pid = -1
@@ -497,7 +459,7 @@ public class ChildProcessHandle {
         sysChild = None
     }
 
-    public init(sysChild: bao_sys.ChildProcess) {
+    public init(sysChild: ChildProcess) {
         pid = sysChild.pid
         stdin = None
         stdout = None
@@ -537,7 +499,7 @@ public class ChildProcessHandle {
         match (stdin) {
             case Some(writer) =>
                 let serialized = JsonParser.stringify(message)
-                writer.write(serialized + "\n")
+                writer.write((serialized + "\n").toArray())
             case None => ()
         }
     }
@@ -558,19 +520,13 @@ public class ChildProcessHandle {
     /// 对应 Node.js: child.ref()
     public func ref(): Unit {
         // 事件循环引用计数 — 委托给底层
-        match (sysChild) {
-            case Some(child) => child.ref()
-            case None => ()
-        }
+        // ChildProcess 不支持 ref/unref，此处为空操作
     }
 
     /// child.unref() — 取消引用子进程 (允许事件循环退出)
     /// 对应 Node.js: child.unref()
     public func unref(): Unit {
-        match (sysChild) {
-            case Some(child) => child.unref()
-            case None => ()
-        }
+        // ChildProcess 不支持 ref/unref，此处为空操作
     }
 
     /// 读取 stdout 全部内容
@@ -579,7 +535,7 @@ public class ChildProcessHandle {
             case Some(reader) =>
                 let result = reader.readToEnd()
                 match (result) {
-                    case Ok(bytes) => return byteArrayToString(bytes)
+                    case Ok(bytes) => return ChildProcessModule.byteArrayToString(bytes)
                     case Err(_) => return ""
                 }
             case None => return ""
@@ -592,7 +548,7 @@ public class ChildProcessHandle {
             case Some(reader) =>
                 let result = reader.readToEnd()
                 match (result) {
-                    case Ok(bytes) => return byteArrayToString(bytes)
+                    case Ok(bytes) => return ChildProcessModule.byteArrayToString(bytes)
                     case Err(_) => return ""
                 }
             case None => return ""
@@ -603,7 +559,7 @@ public class ChildProcessHandle {
     public func writeStdin(data: String): Unit {
         match (stdin) {
             case Some(writer) =>
-                writer.write(data)
+                writer.write(data.toArray())
             case None => ()
         }
     }
@@ -618,7 +574,7 @@ public class ChildProcessHandle {
         }
     }
 
-    /// 内部等待方法 — 通过 bao_sys.ChildProcess.wait()
+    /// 内部等待方法 — 通过 ChildProcess.wait()
     public func waitInner(): ExitStatus {
         match (sysChild) {
             case Some(child) => return child.wait()
@@ -723,7 +679,7 @@ public class ChildProcessHandle {
 // ============================================================================
 
 /// execSync 返回结果 — 对应 Node.js child_process.execSync 返回
-public class ExecResult {
+public class NodeExecResult {
     /// 标准输出内容
     public var stdout: String
     /// 标准错误内容
@@ -739,7 +695,7 @@ public class ExecResult {
 }
 
 /// exec 回调错误 — 对应 Node.js child_process.exec 回调的 Error 参数
-public class ExecError {
+public class NodeExecError {
     /// 错误消息
     public var message: String
     /// 错误码

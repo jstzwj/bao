@@ -108,24 +108,22 @@ public class SecurityAdvisory {
         }
 
         match (description) {
-            case Some(desc) => {
-                if (desc.length > 0) {
-                    sb.append("    ${desc}\n")
-                }
-            }
+            case Some(desc) => appendIfNonEmpty(sb, desc)
             case None => ()
         }
 
         match (url) {
-            case Some(u) => {
-                if (u.length > 0) {
-                    sb.append("    ${u}\n")
-                }
-            }
+            case Some(u) => appendIfNonEmpty(sb, u)
             case None => ()
         }
 
         return sb.toString()
+    }
+
+    private func appendIfNonEmpty(sb: StringBuilder, s: String): Unit {
+        if (s.size > 0) {
+            sb.append("    ${s}\n")
+        }
     }
 }
 
@@ -314,9 +312,9 @@ public class PackageCollector {
         // 收集根依赖
         for (i in 0..lockfile.resolutions.size) {
             let packageId = lockfile.resolutions[i]
-            if (packageId == INVALID_PACKAGE_ID) { continue }
+            if (packageId == INVALID_PACKAGE_ID) { () }
 
-            if (dedupe.contains(packageId)) { continue }
+            if (dedupe.contains(packageId)) { () }
             dedupe.add(packageId)
 
             let pkgPath = PackagePathInfo()
@@ -335,7 +333,7 @@ public class PackageCollector {
         updateRequests: ArrayList<UInt32>
     ): Unit {
         for (pkgId in updateRequests) {
-            if (dedupe.contains(pkgId)) { continue }
+            if (dedupe.contains(pkgId)) { () }
             dedupe.add(pkgId)
 
             let pkgPath = PackagePathInfo()
@@ -355,7 +353,7 @@ public class PackageCollector {
         var first = true
         for (entry in packagePaths) {
             let pkgId = entry.key
-            if (Int64(pkgId) >= lockfile.names.size) { continue }
+            if (Int64(pkgId) >= lockfile.names.size) { () }
 
             let name = lockfile.getPackageName(pkgId)
             let version = lockfile.getResolution(pkgId)
@@ -453,19 +451,9 @@ public class SecurityScanner {
         )
 
         match (result) {
-            case ScanAttemptResult.Success(results) => {
-                collector.deinit()
-                return results
-            }
-            case ScanAttemptResult.NeedsInstall(_) => {
-                // 扫描器需要安装, 简化处理
-                collector.deinit()
-                return None
-            }
-            case ScanAttemptResult.Error(_) => {
-                collector.deinit()
-                return None
-            }
+            case ScanAttemptResult.Success(results) => _matchHelper_security_scanner_232()
+            case ScanAttemptResult.NeedsInstall(_) => _matchHelper_security_scanner_233()
+            case ScanAttemptResult.Error(_) => _matchHelper_security_scanner_234()
         }
     }
 
@@ -493,26 +481,16 @@ public class SecurityScanner {
             "--json"
         ])
 
-        let result = bao_sys.Process.run(
+        let result = Process.run(
             command: args,
-            cwd: bao_io.File.getCurrentDirectory(),
+            cwd: SysFs.getcwd(),
             env: ArrayList<String>(),
             timeout: 60000
         )
 
         match (result) {
-            case Some(exitCode) => {
-                if (exitCode != 0) {
-                    return ScanAttemptResult.Error("Security scanner exited with code ${exitCode}")
-                }
-                // 解析结果 (简化)
-                let results = SecurityScanResults()
-                results.scannerName = scanner
-                return ScanAttemptResult.Success(results)
-            }
-            case None => {
-                return ScanAttemptResult.Error("Failed to run security scanner")
-            }
+            case Some(exitCode) => _matchHelper_security_scanner_235()
+            case None=> return ScanAttemptResult.Error("Failed to run security scanner")
         }
     }
 
@@ -522,38 +500,65 @@ public class SecurityScanner {
         if (!results.hasAdvisories()) { return }
 
         for (advisory in results.advisories) {
-            bao_core.Output.print("\n")
-            bao_core.Output.print(advisory.format())
+            Output.print("\n")
+            Output.print(advisory.format())
         }
 
-        bao_core.Output.print("\n")
-        bao_core.Output.print(results.formatSummary())
-        bao_core.Output.print("\n")
+        Output.print("\n")
+        Output.print(results.formatSummary())
+        Output.print("\n")
     }
 
     /// 提示用户是否继续
     /// 严格翻译自: promptForWarnings
     /// 返回 true 表示继续安装, false 表示中止
     public static func promptForWarnings(): Bool {
-        bao_core.Output.print("\nSecurity warnings found. Continue anyway? [y/N] ")
+        Output.print("\nSecurity warnings found. Continue anyway? [y/N] ")
 
         // 简化: 直接从 stdin 读取一个字符
         try {
-            let input = bao_io.Stdin.readLine()
-            if (input.length > 0) {
+            let input = BaoFile.readStdin()
+            if (input.size > 0) {
                 let c = input[0]
                 if (c == 'y' || c == 'Y') {
-                    bao_core.Output.print("\nContinuing with installation...\n\n")
+                    Output.print("\nContinuing with installation...\n\n")
                     return true
                 }
             }
         } catch (_: Exception) {}
 
-        bao_core.Output.print("\nInstallation cancelled.\n")
+        Output.print("\nInstallation cancelled.\n")
         return false
     }
 }
 
 /// 无效包 ID 常量
 /// 翻译自: invalid_package_id
-public let INVALID_PACKAGE_ID: UInt32 = UInt32.MAX
+public let INVALID_PACKAGE_ID: UInt32 = 4294967295u32
+
+
+            private func _matchHelper_security_scanner_232(): Unit {
+                collector.deinit()
+                return results
+            }
+
+            private func _matchHelper_security_scanner_233(): Unit {
+                // 扫描器需要安装, 简化处理
+                collector.deinit()
+                return None
+            }
+
+            private func _matchHelper_security_scanner_234(): Unit {
+                collector.deinit()
+                return None
+            }
+
+            private func _matchHelper_security_scanner_235(): Unit {
+                if (exitCode != 0) {
+                    return ScanAttemptResult.Error("Security scanner exited with code ${exitCode}")
+                }
+                // 解析结果 (简化)
+                let results = SecurityScanResults()
+                results.scannerName = scanner
+                return ScanAttemptResult.Success(results)
+            }

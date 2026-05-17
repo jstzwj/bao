@@ -6,6 +6,7 @@ package bao_runtime.valkey
 import bao_core.*
 import bao_collections.*
 import bao_valkey.*
+import bao_runtime.*
 
 // ============================================================================
 // SubscriptionCtx - 订阅上下文
@@ -61,7 +62,7 @@ public class SubscriptionCtx {
     /// 获取订阅的频道总数
     /// 对应 Bun SubscriptionCtx.channelsSubscribedToCount()
     public func channelsSubscribedToCount(): UInt32 {
-        callbackMap.size
+        UInt32(callbackMap.size)
     }
 
     /// 测试此上下文是否有任何订阅
@@ -146,9 +147,9 @@ public class SubscriptionCtx {
         for (callback in callbacks.getOrThrow()) {
             // 调用回调函数
             match (callback.functionData) {
-                case Some(fn) => {
-                    fn.call(args)
-                }
+                case Some(fn) =>
+                    // TODO: 需要通过 Interpreter 执行 JsFunction
+                    ()
                 case None => ()
             }
         }
@@ -215,7 +216,7 @@ public class JSValkeyClient {
         this.globalObject = globalObject
         thisValue = JsValue.UNDEFINED
         pollRef = KeepAlive()
-        subscriptionCtx = SubscriptionCtx(this)
+        subscriptionCtx = SubscriptionCtx()
         secure = None
         timer = EventLoopTimer("ValkeyConnectionTimeout")
         reconnectTimer = EventLoopTimer("ValkeyConnectionReconnect")
@@ -294,25 +295,24 @@ public class JSValkeyClient {
         // 确定端口
         let port: UInt16 = match (uri) {
             case ValkeyProtocol.StandaloneUnix | ValkeyProtocol.StandaloneTlsUnix => 0
-            case _ => {
+            case _ =>
                 if (url.port > 0 && url.port <= 65535) {
                     UInt16(url.port)
                 } else {
                     6379
                 }
-            }
         }
 
         // 解析连接选项
         let options = if (arguments.size >= 2 && arguments[1].valueType == JsValueType.Object) {
-            ValkeyOptions.fromJS(arguments[1])
+            JSValkeyOptions.fromJS(arguments[1])
         } else {
             ValkeyOptions()
         }
 
         // 从路径名解析数据库编号 (如 "/1" -> 数据库 1)
         let database: UInt32 = if (url.pathname.size > 1) {
-            Int64.tryParse(url.pathname.subString(1)).getOr(0)
+            UInt32(match (IntParser.parseDecimal(url.pathname[1..])) { case Some(v) => v case None => 0 })
         } else {
             0
         }
@@ -377,7 +377,7 @@ public class JSValkeyClient {
         // 如果已连接，立即解析
         if (client.status == ConnectionStatus.Connected) {
             deref()
-            return JsPromise.resolvedPromise(JsValue.UNDEFINED)
+            return promiseToJsValue(JsPromise.resolve(JsValue.UNDEFINED))
         }
 
         let promise = JsPromise()
@@ -395,26 +395,38 @@ public class JSValkeyClient {
             } catch (_: Exception) {
                 pollRef.unref()
                 client.flags.needsToOpenSocket = true
-                promise.reject(JsValue("Error connecting to Valkey"))
+                let rejected = JsPromise.reject(JsValue(BaoString("Error connecting to Valkey")))
                 deref()
-                return promise.toJsValue()
+                return promiseToJsValue(rejected)
             }
 
             deref()
-            return promise.toJsValue()
+            return promiseToJsValue(promise)
         }
 
         match (client.status) {
-            case ConnectionStatus.Disconnected => {
+            case ConnectionStatus.Disconnected =>
                 client.flags.isReconnecting = true
                 client.retryAttempts = 0
                 reconnect()
-            }
             case _ => ()
         }
 
         deref()
-        promise.toJsValue()
+        promiseToJsValue(promise)
+    }
+
+    /// 将 JsPromise 转换为 JsValue
+    private static func promiseToJsValue(promise: JsPromise): JsValue {
+        let obj = JsObject()
+        let stateStr = match (promise.state) {
+            case PromiseState.Pending => "pending"
+            case PromiseState.Fulfilled => "fulfilled"
+            case PromiseState.Rejected => "rejected"
+        }
+        obj.set("[[PromiseState]]", JsValue(BaoString(stateStr)))
+        obj.set("[[PromiseResult]]", promise.result)
+        JsValue(obj)
     }
 
     /// JS 连接方法
@@ -462,7 +474,7 @@ public class JSValkeyClient {
             connect()
             resetConnectionTimeout()
         } catch (_: Exception) {
-            clientFailWithJSValue(JsValue("Error reconnecting"))
+            clientFailWithJSValue(JsValue(BaoString("Error reconnecting")))
             pollRef.disable()
             deref()
             return
@@ -547,14 +559,12 @@ public class JSValkeyClient {
         }
 
         match (client.status) {
-            case ConnectionStatus.Connected => {
+            case ConnectionStatus.Connected =>
                 clientFail("Idle timeout reached after ${client.idleTimeoutIntervalMs}ms",
                     RedisError.IdleTimeout)
-            }
-            case ConnectionStatus.Disconnected | ConnectionStatus.Connecting => {
+            case ConnectionStatus.Disconnected | ConnectionStatus.Connecting =>
                 clientFail("Connection timeout reached after ${client.connectionTimeoutMs}ms",
                     RedisError.ConnectionTimeout)
-            }
         }
 
         deref()
@@ -716,16 +726,14 @@ public class JSValkeyClient {
     /// 关闭回调
     /// 对应 Bun JSValkeyClient.onValkeyClose()
     public func onValkeyClose(): Unit {
-        defer {
-            updatePollRef()
-            deref()
-        }
-
         // 创建错误值
         let errorValue = ProtocolJsc.valkeyErrorToJS("Connection closed", RedisError.ConnectionClosed)
 
         // 调用 onClose 回调 (如果存在)
         // 对应: if (js.oncloseGetCached(this_jsvalue)) |on_close| { ... }
+
+        updatePollRef()
+        deref()
     }
 
     /// 超时回调
@@ -765,14 +773,13 @@ public class JSValkeyClient {
                 resetConnectionTimeout()
             } catch (_: Exception) {
                 client.flags.needsToOpenSocket = true
-                let promise = JsPromise()
-                promise.reject(JsValue("Error connecting to Valkey"))
-                return promise
+                return JsPromise.reject(JsValue(BaoString("Error connecting to Valkey")))
             }
         }
 
-        defer { updatePollRef() }
-        client.send(globalThis, command)
+        let result = client.send(globalThis, command)
+        updatePollRef()
+        result
     }
 
     // ========================================================================
@@ -807,12 +814,11 @@ public class JSValkeyClient {
     /// 终结化 (GC 调用)
     /// 对应 Bun JSValkeyClient.finalize()
     public func finalize(): Unit {
-        defer { deref() }
-
         stopTimers()
         client.flags.finalized = true
         // 关闭 socket
         client.close()
+        deref()
     }
 
     // ========================================================================
@@ -917,10 +923,6 @@ public class ValkeySocketHandler {
     /// 对应 Bun SocketHandler.onHandshake_()
     public func onHandshake(success: Bool, sslError: ?SslVerifyError): Unit {
         client.ref()
-        defer {
-            client.deref()
-            client.updatePollRef()
-        }
 
         if (success) {
             if (client.client.tls.rejectUnauthorized()) {
@@ -929,6 +931,8 @@ public class ValkeySocketHandler {
                     client.client.flags.isAuthenticated = false
                     client.client.flags.isManuallyClosed = true
                     client.client.close()
+                    client.deref()
+                    client.updatePollRef()
                     return
                 }
             }
@@ -939,6 +943,8 @@ public class ValkeySocketHandler {
             client.client.flags.isManuallyClosed = true
             client.client.close()
         }
+        client.deref()
+        client.updatePollRef()
     }
 
     /// Socket 关闭回调
@@ -946,13 +952,12 @@ public class ValkeySocketHandler {
     public func onClose(): Unit {
         client.ref()
         client.client.socket = AnySocket()
-        defer {
-            client.client.status = ConnectionStatus.Disconnected
-            client.updatePollRef()
-            client.deref()
-        }
 
         client.client.onClose()
+
+        client.client.status = ConnectionStatus.Disconnected
+        client.updatePollRef()
+        client.deref()
     }
 
     /// Socket 结束回调
@@ -967,13 +972,12 @@ public class ValkeySocketHandler {
     public func onConnectError(): Unit {
         client.client.socket = AnySocket()
         client.ref()
-        defer {
-            client.client.status = ConnectionStatus.Disconnected
-            client.updatePollRef()
-            client.deref()
-        }
 
         client.client.onClose()
+
+        client.client.status = ConnectionStatus.Disconnected
+        client.updatePollRef()
+        client.deref()
     }
 
     /// 超时回调
@@ -986,20 +990,18 @@ public class ValkeySocketHandler {
     /// 对应 Bun SocketHandler.onData()
     public func onData(data: Array<Byte>): Unit {
         client.ref()
-        defer {
-            client.deref()
-        }
         client.client.onData(data)
         client.updatePollRef()
+        client.deref()
     }
 
     /// 可写回调
     /// 对应 Bun SocketHandler.onWritable()
     public func onWritable(): Unit {
         client.ref()
-        defer { client.deref() }
         client.client.onWritable()
         client.updatePollRef()
+        client.deref()
     }
 }
 
@@ -1012,8 +1014,8 @@ public class ValkeySocketHandler {
 // ============================================================================
 
 /// JS 选项解析扩展
-public class ValkeyOptions {
-    // (继承自 valkey.cj 中的 ValkeyOptions，这里添加 JS 解析方法)
+public class JSValkeyOptions {
+    // JS 选项解析辅助类
 
     /// 从 JS 对象解析选项
     /// 对应 Bun Options.fromJS()
@@ -1110,6 +1112,18 @@ public enum TimerState {
     | Active
     | Cancelled
     | Fired
+
+    public operator func ==(right: TimerState): Bool {
+        match (this) {
+            case Active => match (right) { case Active => true case _ => false }
+            case Cancelled => match (right) { case Cancelled => true case _ => false }
+            case Fired => match (right) { case Fired => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: TimerState): Bool {
+        !(this == right)
+    }
 }
 
 /// 事件循环定时器
@@ -1169,26 +1183,27 @@ public class ParsedUrl {
 
         // 简化的 URL 解析
         // 查找 ://
-        let protoEnd = url.indexOf("://")
-        if (protoEnd >= 0) {
-            result.protocol = url.subString(0, protoEnd)
-            let rest = url.subString(protoEnd + 3)
+        let protoEndOpt = url.indexOf("://")
+        if (let Some(protoEnd) <- protoEndOpt) {
+            result.protocol = url[0..protoEnd]
+            let rest = url[(protoEnd + 3)..]
 
             // 查找 /
-            let pathStart = rest.indexOf("/")
-            if (pathStart >= 0) {
-                result.host = rest.subString(0, pathStart)
-                result.pathname = rest.subString(pathStart)
+            let pathStartOpt = rest.indexOf("/")
+            if (let Some(pathStart) <- pathStartOpt) {
+                result.host = rest[0..pathStart]
+                result.pathname = rest[pathStart..]
             } else {
                 result.host = rest
                 result.pathname = ""
             }
 
             // 解析 host:port
-            let colonIdx = result.host.indexOf(":")
-            if (colonIdx >= 0) {
-                result.port = Int64.tryParse(result.host.subString(colonIdx + 1)).getOr(0)
-                result.host = result.host.subString(0, colonIdx)
+            let colonIdxOpt = result.host.indexOf(":")
+            if (let Some(colonIdx) <- colonIdxOpt) {
+                let portOpt = IntParser.parseDecimal(result.host[(colonIdx + 1)..])
+                result.port = match (portOpt) { case Some(v) => v case None => 6379 }
+                result.host = result.host[0..colonIdx]
             } else {
                 result.port = 6379
             }

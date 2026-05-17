@@ -59,8 +59,8 @@ public class ExternalString {
         hash = UInt64(0)
     }
 
-    public init(value: String, hash: UInt64) {
-        this.value = value
+    public init(`value`: String, hash: UInt64) {
+        this.`value` = `value`
         this.hash = hash
     }
 
@@ -73,10 +73,7 @@ public class ExternalString {
     ///       };
     ///   }
     public static func from(input: String): ExternalString {
-        return ExternalString(
-            value: input,
-            hash: Wyhash11.hash(input)
-        )
+        return ExternalString(input, Wyhash11.hash(input))
     }
 
     /// 初始化 (带指定缓冲区引用和哈希)
@@ -84,8 +81,8 @@ public class ExternalString {
     ///   pub inline fn init(buf: string, in: string, hash: u64) ExternalString {
     ///       return ExternalString{ .value = String.init(buf, in), .hash = hash };
     ///   }
-    public static func init(buf: String, input: String, hash: UInt64): ExternalString {
-        return ExternalString(value: input, hash: hash)
+    public static func make(buf: String, input: String, hash: UInt64): ExternalString {
+        return ExternalString(input, hash)
     }
 
     /// 比较顺序
@@ -112,7 +109,7 @@ public class ExternalString {
     ///       return this.value.isEmpty();
     ///   }
     public func isEmpty(): Bool {
-        return value.length == 0
+        return value.size == 0
     }
 
     /// 字符串长度
@@ -121,7 +118,7 @@ public class ExternalString {
     ///       return this.value.len();
     ///   }
     public func len(): Int64 {
-        return value.length
+        return Int64(value.size)
     }
 
     /// 获取字符串切片

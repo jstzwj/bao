@@ -182,7 +182,7 @@ public class TarballStream {
                 // step() 调用 libarchive 处理
                 // 翻译自: this.step() catch |err| { this.fail = err }
                 if (fail == None && phase != TarballPhase.Done) {
-                    if (more) { continue }
+                    if (more) { () }
                     // 释放 worker, 等待下一个 HTTP chunk
                     draining = false
                     return
@@ -200,7 +200,7 @@ public class TarballStream {
 
             draining = false
             if (pending.size > 0 || closed) {
-                if (!draining) { continue }
+                if (!draining) { () }
             }
             return
         }
@@ -313,10 +313,7 @@ public class StreamingIntegrity {
     /// 验证完整性
     public func verify(): Bool {
         match (expectedHash) {
-            case Some(expected) => {
-                let computed = sha.finalize()
-                return computed == expected
-            }
+            case Some(expected) => _matchHelper_tarball_stream_240()
             case None => return true
         }
     }
@@ -347,9 +344,15 @@ public class Sha512State {
         let sb = StringBuilder()
         for (b in hash) {
             let hex = Int64(b).toString(16)
-            if (hex.length < 2) { sb.append("0") }
+            if (hex.size < 2) { sb.append("0") }
             sb.append(hex)
         }
         return "sha512-${sb.toString()}"
     }
 }
+
+
+            private func _matchHelper_tarball_stream_240(): Unit {
+                let computed = sha.finalize()
+                return computed == expected
+            }

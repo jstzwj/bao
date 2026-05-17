@@ -14,6 +14,7 @@
 package bao_runtime.crypto
 
 import bao_core.*
+import bao_collections.*
 
 // Native password-hash shim implemented on the C/Rust side, mirroring Bun's
 // rust-argon2 plus bcrypt crate bridge in src/runtime/crypto/pwhash.rs.
@@ -53,15 +54,15 @@ foreign func getrandom(buf: CPointer<Byte>, buflen: UIntNative, flags: UInt32): 
 /// 进行便宜的 is_ascii 检查后视图转换
 /// 对应 Bun: fn phc_ascii_str(&[u8]) -> Result<&str, Error>
 public func phcAsciiStr(input: Array<Byte>): ?String {
-    for (b in s) {
-        if (b.toInt64() > 0x7F) {
+    for (b in input) {
+        if (Int64(b) > 0x7F) {
             return None
         }
     }
     // 所有字节 < 0x80, 有效 ASCII
     var sb = StringBuilder()
-    for (b in s) {
-        sb.append(Char(b))
+    for (b in input) {
+        sb.append(Rune(b))
     }
     return sb.toString()
 }
@@ -77,6 +78,17 @@ public func phcAsciiStr(input: Array<Byte>): ?String {
 public enum Encoding {
 | Phc       // PHC 字符串格式 ($argon2id$v=19$...)
 | Crypt     // 传统 crypt(3) 格式 ($2b$...)
+
+    public operator func ==(right: Encoding): Bool {
+        match (this) {
+            case Phc => match (right) { case Phc => true; case _ => false }
+            case Crypt => match (right) { case Crypt => true; case _ => false }
+        }
+    }
+
+    public operator func !=(right: Encoding): Bool {
+        return !(this == right)
+    }
 }
 
 // ============================================================================
@@ -145,7 +157,7 @@ public class PwhashArgon2Params {
     }
 
     public init(n: UInt32, m: UInt32, p: UInt32) {
-        this.t = t
+        this.t = n
         this.m = m
         this.p = p
     }
@@ -165,7 +177,7 @@ public class PwhashArgon2HashOptions {
     public var encoding: Encoding
 
     public init(argon2Params: PwhashArgon2Params, mode: Argon2Mode, encoding: Encoding) {
-        this.params = params
+        this.params = argon2Params
         this.mode = mode
         this.encoding = encoding
     }
@@ -191,7 +203,7 @@ public func argon2StrHash(password: Array<Byte>, options: PwhashArgon2HashOption
     }
 
     // Zig: var salt: [default_salt_len]u8 = undefined; crypto.random.bytes(&salt);
-    var salt = Array<Byte>(ARGON2_DEFAULT_SALT_LEN, item: 0)
+    var salt = Array<Byte>(ARGON2_DEFAULT_SALT_LEN, repeat: 0)
     CryptoRandom.bytes(salt)
 
     // Zig (argon2.zig:499) 故意禁用 m < 8*p 检查
@@ -208,17 +220,17 @@ public func argon2StrHash(password: Array<Byte>, options: PwhashArgon2HashOption
         case Argon2Mode.Argon2i => 1
         case Argon2Mode.Argon2id => 2
     }
-    var written = Array<UIntNative>([UIntNative(0)])
-    let rc = bao_argon2_str_hash(
-        unsafe { CPointerUtils.fromArray(password) }, UIntNative(password.size),
+    var written = Array<UIntNative>(1, repeat: UIntNative(0))
+    let rc = unsafe { bao_argon2_str_hash(
+        CPointerUtils.fromArray(password), UIntNative(password.size),
         UInt32(mode), options.params.t, memCost, options.params.p,
-        unsafe { CPointerUtils.fromArray(out) }, UIntNative(out.size),
-        unsafe { CPointerUtils.fromArray(written) }
-    )
+        CPointerUtils.fromArray(out), UIntNative(out.size),
+        CPointerUtils.fromArray(written)
+    ) }
     if (rc != 0) {
         return None
     }
-    return out[0..written[0].toInt64()]
+    return out[0..Int64(written[0])]
 }
 
 /// std.crypto.pwhash.argon2.strVerify
@@ -234,32 +246,36 @@ public func argon2StrVerify(encoded: Array<Byte>, password: Array<Byte>,
 /// 对应 Bun: argon2::str_verify 中的 normalised 逻辑
 private func normalizeArgon2Version(v: String): ?String {
     // 编码格式: $<alg>$[v=N$]m=..,t=..,p=..$<salt>$<hash>
-    if (!encoded.startsWith("$")) {
+    if (!v.startsWith("$")) {
         return None
     }
 
     // 查找 alg-id 后的 $ 分隔符
-    let afterDollar = encoded.substring(1)
-    let sepIndex = afterDollar.indexOf("$")
-    if (sepIndex < 0) {
+    let afterDollar = v[1..]
+    let sepIndexOpt = afterDollar.indexOf("$")
+    if (sepIndexOpt.isNone()) {
         return None
     }
+    let sepIndex = sepIndexOpt.getOrThrow()
 
     let algEnd = 1 + sepIndex
-    let rest = encoded.substring(algEnd + 1)
+    let rest = v[(algEnd + 1)..]
 
     if (rest.startsWith("v=")) {
         // 检查版本号
-        let afterV = rest.substring(2)
+        let afterV = rest[2..]
         let endIdx = afterV.indexOf("$")
-        let versionStr = if (endIdx >= 0) { afterV.substring(0, endIdx) } else { afterV }
+        let versionStr = match (endIdx) {
+            case Some(idx) => afterV[0..idx]
+            case None => afterV
+        }
         if (versionStr != "19") {
             return None  // InvalidEncoding: 版本不是 19
         }
-        return encoded
+        return v
     } else {
         // 缺少 v= 段 -- 插入 v=19$ 使库使用 Version13
-        return "${encoded.substring(0, algEnd + 1)}\$v=19\$${rest}"
+        return "${v[0..(algEnd + 1)]}\$v=19\$${rest}"
     }
 }
 
@@ -303,7 +319,7 @@ public class BcryptParams {
     }
 
     public init(uInt8: UInt8, silentlyTruncatePassword: Bool) {
-        this.roundsLog = roundsLog
+        this.roundsLog = uInt8
         this.silentlyTruncatePassword = silentlyTruncatePassword
     }
 }
@@ -315,7 +331,7 @@ public class BcryptHashOptionsPw {
     public var encoding: Encoding
 
     public init(bcryptParams: BcryptParams, encoding: Encoding) {
-        this.params = params
+        this.params = bcryptParams
         this.encoding = encoding
     }
 }
@@ -330,7 +346,7 @@ public class BcryptVerifyOptions {
     }
 
     public init(bool: Bool) {
-        this.silentlyTruncatePassword = silentlyTruncatePassword
+        this.silentlyTruncatePassword = bool
     }
 }
 
@@ -357,17 +373,17 @@ public func bcryptStrHash(password: Array<Byte>, options: BcryptHashOptionsPw,
     // Bun 的唯一调用者始终传入 silently_truncate_password = true
     // 并自行对长密码进行预哈希
 
-    var written = Array<UIntNative>([UIntNative(0)])
-    let rc = bao_bcrypt_str_hash(
-        unsafe { CPointerUtils.fromArray(password) }, UIntNative(password.size),
+    var written = Array<UIntNative>(1, repeat: UIntNative(0))
+    let rc = unsafe { bao_bcrypt_str_hash(
+        CPointerUtils.fromArray(password), UIntNative(password.size),
         UInt32(cost),
-        unsafe { CPointerUtils.fromArray(out) }, UIntNative(out.size),
-        unsafe { CPointerUtils.fromArray(written) }
-    )
+        CPointerUtils.fromArray(out), UIntNative(out.size),
+        CPointerUtils.fromArray(written)
+    ) }
     if (rc != 0) {
         return None
     }
-    return out[0..written[0].toInt64()]
+    return out[0..Int64(written[0])]
 }
 
 /// std.crypto.pwhash.bcrypt.strVerify
@@ -392,10 +408,10 @@ public func bcryptStrVerify(encoded: Array<Byte>, password: Array<Byte>,
                 // 检查 str.len == hash_length
                 // Rust crate 在 split_hash 内部做相同检查
                 let encodedBytes = s.toArray()
-                let rc = bao_bcrypt_str_verify(
-                    unsafe { CPointerUtils.fromArray(encodedBytes) }, UIntNative(encodedBytes.size),
-                    unsafe { CPointerUtils.fromArray(password) }, UIntNative(password.size)
-                )
+                let rc = unsafe { bao_bcrypt_str_verify(
+                    CPointerUtils.fromArray(encodedBytes), UIntNative(encodedBytes.size),
+                    CPointerUtils.fromArray(password), UIntNative(password.size)
+                ) }
                 if (rc == 0) { return Some(()) }
                 return None
             } else {
@@ -412,48 +428,54 @@ public func bcryptStrVerify(encoded: Array<Byte>, password: Array<Byte>,
 /// 解析 PHC 字符串, 重新计算原始块密码, 比较 23 字节摘要
 private func bcryptVerifyPhc(hash: String, password: Array<Byte>): ?Unit {
     // alg_id
-    if (!encoded.startsWith("\$")) {
+    if (!hash.startsWith("$")) {
         return None
     }
-    let afterFirst = encoded.substring(1)
-    let firstDollar = afterFirst.indexOf("\$")
-    if (firstDollar < 0) {
+    let afterFirst = hash[1..]
+    let firstDollarOpt = afterFirst.indexOf("$")
+    if (firstDollarOpt.isNone()) {
         return None
     }
+    let firstDollar = firstDollarOpt.getOrThrow()
 
-    let algId = afterFirst.substring(0, firstDollar)
+    let algId = afterFirst[0..firstDollar]
     // Zig: if (!mem.eql(u8, hash_result.alg_id, alg_id)) return PasswordVerificationFailed
     if (algId != "bcrypt") {
         return None  // PasswordVerificationFailed
     }
 
     // r=N
-    let rest1 = afterFirst.substring(firstDollar + 1)
-    let secondDollar = rest1.indexOf("\$")
-    if (secondDollar < 0) {
+    let rest1 = afterFirst[(firstDollar + 1)..]
+    let secondDollarOpt = rest1.indexOf("$")
+    if (secondDollarOpt.isNone()) {
         return None
     }
+    let secondDollar = secondDollarOpt.getOrThrow()
 
-    let paramsStr = rest1.substring(0, secondDollar)
+    let paramsStr = rest1[0..secondDollar]
     if (!paramsStr.startsWith("r=")) {
         return None  // InvalidEncoding
     }
 
-    let roundsStr = paramsStr.substring(2)
-    let roundsLog = roundsStr.toInt64()
+    let roundsStr = paramsStr[2..]
+    let roundsLog = match (IntParser.parseDecimal(roundsStr)) {
+        case Some(v) => v
+        case None => -1
+    }
     if (roundsLog < 0 || roundsLog > 63) {
         return None  // InvalidEncoding
     }
 
     // salt / hash -- 使用标准 base64 (no padding)
-    let rest2 = rest1.substring(secondDollar + 1)
-    let thirdDollar = rest2.indexOf("\$")
-    if (thirdDollar < 0) {
+    let rest2 = rest1[(secondDollar + 1)..]
+    let thirdDollarOpt = rest2.indexOf("$")
+    if (thirdDollarOpt.isNone()) {
         return None
     }
+    let thirdDollar = thirdDollarOpt.getOrThrow()
 
-    let saltB64 = rest2.substring(0, thirdDollar)
-    let hashB64 = rest2.substring(thirdDollar + 1)
+    let saltB64 = rest2[0..thirdDollar]
+    let hashB64 = rest2[(thirdDollar + 1)..]
 
     let salt = base64NoPadDecode(saltB64)
     if (salt.size != BCRYPT_SALT_LENGTH) {
@@ -472,20 +494,20 @@ private func bcryptVerifyPhc(hash: String, password: Array<Byte>): ?Unit {
 
     // 复制 Zig bcryptWithTruncation / crate 的 _hash_password:
     // null-终止然后限制到 72 字节
-    var buf = Array<Byte>(72, item: 0)
-    let copyLen = Math.min(password.size, 72)
+    var buf = Array<Byte>(72, repeat: 0)
+    let copyLen = min(password.size, 72)
     for (i in 0..copyLen) {
         buf[i] = password[i]
     }
-    let used = Math.min(copyLen + 1, 72)
+    let used = min(copyLen + 1, 72)
 
-    var computed = Array<Byte>(BCRYPT_DK_LENGTH, item: 0)
-    let rc = bao_bcrypt_hash_raw(
+    var computed = Array<Byte>(BCRYPT_DK_LENGTH, repeat: 0)
+    let rc = unsafe { bao_bcrypt_hash_raw(
         UInt32(roundsLog),
-        unsafe { CPointerUtils.fromArray(salt) }, UIntNative(salt.size),
-        unsafe { CPointerUtils.fromArray(buf) }, UIntNative(used),
-        unsafe { CPointerUtils.fromArray(computed) }, UIntNative(computed.size)
-    )
+        CPointerUtils.fromArray(salt), UIntNative(salt.size),
+        CPointerUtils.fromArray(buf), UIntNative(used),
+        CPointerUtils.fromArray(computed), UIntNative(computed.size)
+    ) }
     if (rc != 0) { return None }
     if (!constantTimeEqual(computed, expected)) { return None }
     return Some(())
@@ -504,7 +526,7 @@ public class CryptoRandom {
     /// 对应 Zig: std.crypto.random.bytes
     public static func bytes(data: Array<Byte>): Unit {
         if (data.size == 0) { return }
-        let rc = getrandom(unsafe { CPointerUtils.fromArray(data) }, UIntNative(data.size), 0)
+        let rc = unsafe { getrandom(CPointerUtils.fromArray(data), UIntNative(data.size), 0) }
         if (rc != data.size) {
             // Match Bun's getrandom::fill failure path: surface an unexpected failure
             // through callers by leaving the buffer untouched only when the OS fails.
@@ -527,9 +549,9 @@ private func base64NoPadEncode(data: Array<Byte>): String {
     let chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
     var i: Int64 = 0
     while (i < data.size) {
-        let b0 = data[i].toInt64()
-        let b1 = if (i + 1 < data.size) { data[i + 1].toInt64() } else { 0 }
-        let b2 = if (i + 2 < data.size) { data[i + 2].toInt64() } else { 0 }
+        let b0 = Int64(data[i])
+        let b1 = if (i + 1 < data.size) { Int64(data[i + 1]) } else { 0 }
+        let b2 = if (i + 2 < data.size) { Int64(data[i + 2]) } else { 0 }
 
         let c0 = (b0 >> 2) & 0x3F
         let c1 = ((b0 & 0x03) << 4) | (b1 >> 4)
@@ -563,9 +585,9 @@ private func bcryptBase64Encode(data: Array<Byte>): String {
     var sb = StringBuilder()
     var i: Int64 = 0
     while (i < data.size) {
-        let b0 = data[i].toInt64()
-        let b1 = if (i + 1 < data.size) { data[i + 1].toInt64() } else { 0 }
-        let b2 = if (i + 2 < data.size) { data[i + 2].toInt64() } else { 0 }
+        let b0 = Int64(data[i])
+        let b1 = if (i + 1 < data.size) { Int64(data[i + 1]) } else { 0 }
+        let b2 = if (i + 2 < data.size) { Int64(data[i + 2]) } else { 0 }
 
         let c0 = (b0 >> 2) & 0x3F
         let c1 = ((b0 & 0x03) << 4) | (b1 >> 4)
@@ -587,22 +609,25 @@ private func bcryptBase64Encode(data: Array<Byte>): String {
 
 
 private func base64DecodeWithAlphabet(input: String, chars: String): Array<Byte> {
-    var values = Array<Int64>(256, item: -1)
-    for (i in 0..chars.size) { values[Int64(chars[i])] = i }
+    var values = Array<Int64>(256, repeat: -1)
+    let charsArr = chars.toArray()
+    for (i in 0..charsArr.size) { values[Int64(charsArr[i])] = i }
     var out = ArrayList<Byte>()
     var acc: Int64 = 0
     var bits: Int64 = 0
-    for (ch in input) {
-        let v = values[Int64(ch)]
+    let inputArr = input.toArray()
+    for (i in 0..inputArr.size) {
+        let ch = Int64(inputArr[i])
+        let v = values[ch]
         if (v < 0) { return Array<Byte>() }
         acc = (acc << 6) | v
         bits += 6
         if (bits >= 8) {
             bits -= 8
-            out.append(Byte((acc >> bits) & 0xff))
+            out.append(UInt8((acc >> bits) & 0xff))
         }
     }
-    return out.toArray()
+    return Array<Byte>()
 }
 
 private func constantTimeEqual(a: Array<Byte>, b: Array<Byte>): Bool {

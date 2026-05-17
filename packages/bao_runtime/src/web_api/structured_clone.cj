@@ -3,8 +3,9 @@
 // 严格翻译自 Web structuredClone API
 package bao_runtime.web_api
 
-import bao_core.*
+import bao_core.BaoString
 import bao_collections.*
+import bao_runtime.*
 
 // ============================================================================
 // structuredClone — 结构化克隆算法
@@ -51,43 +52,46 @@ private func cloneValue(value: JsValue): JsValue {
         case JsValueType.Null => return JsValue.NULL
         case JsValueType.Boolean => return JsValue(value.boolValue)
         case JsValueType.Number => return JsValue(value.numberValue)
-        case JsValueType.String => {
-            match (value.stringData) {
-                case Some(s) => return JsValue(BaoString(s.toString()))
-                case None => return JsValue(BaoString(""))
-            }
-        }
-        case JsValueType.Array => {
-            match (value.arrayData) {
-                case Some(arr) => {
-                    let cloned = ArrayList<JsValue>()
-                    for (item in arr) {
-                        cloned.append(cloneValue(item))
-                    }
-                    return JsValue.array(cloned)
-                }
-                case None => return JsValue.emptyArray()
-            }
-        }
-        case JsValueType.Object => {
-            match (value.objectData) {
-                case Some(obj) => {
-                    let cloned = JsObject()
-                    for (key in obj.keys()) {
-                        let val = obj.get(key)
-                        cloned.set(key, cloneValue(val))
-                    }
-                    return JsValue(cloned)
-                }
-                case None => return JsValue(JsObject())
-            }
-        }
-        case _ => {
-            // 对于无法克隆的类型 (function, symbol 等) 抛出错误
-            // 简化: 直接返回原值
-            return value
-        }
+        case JsValueType.String => return cloneString(value)
+        case JsValueType.Array => return cloneArray(value)
+        case JsValueType.Object => return cloneObject(value)
+        case _ => return value
     }
+}
+
+private func cloneString(value: JsValue): JsValue {
+    return JsValue(BaoString(value.stringValue.toString()))
+}
+
+private func cloneArray(value: JsValue): JsValue {
+    match (value.arrayData) {
+        case Some(arr) => return cloneArrayHelper(arr)
+        case None => return JsValue.array(ArrayList<JsValue>())
+    }
+}
+
+private func cloneArrayHelper(arr: ArrayList<JsValue>): JsValue {
+    let cloned = ArrayList<JsValue>()
+    for (item in arr) {
+        cloned.append(cloneValue(item))
+    }
+    return JsValue.array(cloned)
+}
+
+private func cloneObject(value: JsValue): JsValue {
+    match (value.objectData) {
+        case Some(obj) => return cloneObjectHelper(obj)
+        case None => return JsValue(JsObject())
+    }
+}
+
+private func cloneObjectHelper(obj: JsObject): JsValue {
+    let cloned = JsObject()
+    for (key in obj.keys()) {
+        let val = obj.get(key)
+        cloned.set(key, cloneValue(val))
+    }
+    return JsValue(cloned)
 }
 
 /// 克隆原生类型 (非 JsValue)
@@ -116,7 +120,7 @@ public func cloneStringList(list: ArrayList<String>): ArrayList<String> {
 
 /// 克隆 Array<UInt8>
 public func cloneByteArray(arr: Array<UInt8>): Array<UInt8> {
-    let result = Array<UInt8>(arr.size, item: UInt8(0))
+    let result = Array<UInt8>(arr.size, { _ => 0 })
     for (i in 0..arr.size) {
         result[Int64(i)] = arr[Int64(i)]
     }
@@ -126,13 +130,13 @@ public func cloneByteArray(arr: Array<UInt8>): Array<UInt8> {
 /// 克隆 Blob
 public func cloneBlob(blob: Blob): Blob {
     let data = cloneByteArray(blob.arrayBuffer())
-    return Blob(data, blob.type)
+    return Blob(data, blob.`type`)
 }
 
 /// 克隆 File
 public func cloneFile(file: File): File {
     let data = cloneByteArray(file.arrayBuffer())
-    return File(data, file.name, file.type)
+    return File(data, file.name, file.`type`)
 }
 
 // ============================================================================
@@ -145,7 +149,7 @@ public class StructuredCloneModule {
     public static func registerGlobals(env: Environment): Unit {
         env.define("structuredClone", Interpreter.makeNativeFn("structuredClone") { args =>
             if (args.size < 1) {
-                throw JsError(JsValue(BaoString("structuredClone requires at least 1 argument")))
+                throw JsException("structuredClone requires at least 1 argument")
             }
             let value = args[0]
             return structuredClone(value)

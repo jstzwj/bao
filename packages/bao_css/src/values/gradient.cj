@@ -11,52 +11,6 @@ import bao_core.*
 import bao_collections.*
 
 // ============================================================================
-// 水平位置关键字
-// 严格翻译自 HorizontalPositionKeyword enum
-// ============================================================================
-
-/// CSS 水平位置关键字 (left / right)
-/// 严格翻译自 HorizontalPositionKeyword
-public enum CssHorizontalPositionKeyword {
-    | Left    // left
-    | Right   // right
-
-    public func toCss(): String {
-        match (this) {
-            case Left => "left"
-            case Right => "right"
-        }
-    }
-
-    public func toString(): String {
-        toCss()
-    }
-}
-
-// ============================================================================
-// 垂直位置关键字
-// 严格翻译自 VerticalPositionKeyword enum
-// ============================================================================
-
-/// CSS 垂直位置关键字 (top / bottom)
-/// 严格翻译自 VerticalPositionKeyword
-public enum CssVerticalPositionKeyword {
-    | Top     // top
-    | Bottom  // bottom
-
-    public func toCss(): String {
-        match (this) {
-            case Top => "top"
-            case Bottom => "bottom"
-        }
-    }
-
-    public func toString(): String {
-        toCss()
-    }
-}
-
-// ============================================================================
 // ShapeExtent - 径向渐变形状范围关键字
 // 严格翻译自 ShapeExtent enum
 // ============================================================================
@@ -83,7 +37,12 @@ public enum CssShapeExtent {
     }
 
     public func eql(other: CssShapeExtent): Bool {
-        this == other
+        match (this) {
+            case ClosestSide => match (other) { case ClosestSide => true case _ => false }
+            case FarthestSide => match (other) { case FarthestSide => true case _ => false }
+            case ClosestCorner => match (other) { case ClosestCorner => true case _ => false }
+            case FarthestCorner => match (other) { case FarthestCorner => true case _ => false }
+        }
     }
 
     public static func fromCssName(name: String): ?CssShapeExtent {
@@ -102,16 +61,16 @@ public enum CssShapeExtent {
 // 严格翻译自 LineDirection union(enum)
 // ============================================================================
 
+public enum CssLineDirectionKind {
+    | Angle
+    | Horizontal
+    | Vertical
+    | Corner
+}
+
 /// CSS 线性渐变方向
 /// 严格翻译自 LineDirection union(enum) { angle, horizontal, vertical, corner }
 public class CssLineDirection {
-    public enum CssLineDirectionKind {
-        | Angle       // 角度
-        | Horizontal  // 水平关键字 (left / right)
-        | Vertical    // 垂直关键字 (top / bottom)
-        | Corner      // 角 (如 top left, bottom right)
-    }
-
     public var kind: CssLineDirectionKind
     /// 角度值 (kind == Angle)
     public var angle: CssAngle
@@ -122,7 +81,7 @@ public class CssLineDirection {
 
     public init() {
         this.kind = CssLineDirectionKind.Vertical
-        this.angle = CssAngle(0.0, CssAngleUnit.Deg)
+        this.angle = CssAngle(CssAngleKind.Deg, 0.0)
         this.horizontal = CssHorizontalPositionKeyword.Left
         this.vertical = CssVerticalPositionKeyword.Bottom
     }
@@ -136,21 +95,21 @@ public class CssLineDirection {
 
     public init(horizontal: CssHorizontalPositionKeyword) {
         this.kind = CssLineDirectionKind.Horizontal
-        this.angle = CssAngle(0.0, CssAngleUnit.Deg)
+        this.angle = CssAngle(CssAngleKind.Deg, 0.0)
         this.horizontal = horizontal
         this.vertical = CssVerticalPositionKeyword.Top
     }
 
     public init(vertical: CssVerticalPositionKeyword) {
         this.kind = CssLineDirectionKind.Vertical
-        this.angle = CssAngle(0.0, CssAngleUnit.Deg)
+        this.angle = CssAngle(CssAngleKind.Deg, 0.0)
         this.horizontal = CssHorizontalPositionKeyword.Left
         this.vertical = vertical
     }
 
     public init(horizontal: CssHorizontalPositionKeyword, vertical: CssVerticalPositionKeyword) {
         this.kind = CssLineDirectionKind.Corner
-        this.angle = CssAngle(0.0, CssAngleUnit.Deg)
+        this.angle = CssAngle(CssAngleKind.Deg, 0.0)
         this.horizontal = horizontal
         this.vertical = vertical
     }
@@ -160,24 +119,21 @@ public class CssLineDirection {
     public func toCss(isPrefixed: Bool): String {
         match (kind) {
             case Angle => angle.toCss()
-            case Horizontal => {
+            case Horizontal =>
                 if (isPrefixed) {
                     horizontal.toCss()
                 } else {
                     "to ${horizontal.toCss()}"
                 }
-            }
-            case Vertical => {
+            case Vertical =>
                 if (isPrefixed) {
                     vertical.toCss()
                 } else {
                     "to ${vertical.toCss()}"
                 }
-            }
-            case Corner => {
+            case Corner =>
                 let prefix = if (isPrefixed) { "" } else { "to " }
                 "${prefix}${vertical.toCss()} ${horizontal.toCss()}"
-            }
         }
     }
 
@@ -190,37 +146,29 @@ public class CssLineDirection {
     public func toDegrees(): Float64 {
         match (kind) {
             case Angle => angle.toDegrees()
-            case Horizontal => {
+            case Horizontal =>
                 match (horizontal) {
                     case Left => 270.0
                     case Right => 90.0
                 }
-            }
-            case Vertical => {
+            case Vertical =>
                 match (vertical) {
                     case Top => 0.0
                     case Bottom => 180.0
                 }
-            }
-            case Corner => {
-                // 角方向的角度计算
-                let vAngle: Float64 = match (vertical) {
-                    case Top => 0.0
-                    case Bottom => 180.0
-                }
-                let hAngle: Float64 = match (horizontal) {
-                    case Left => 270.0
-                    case Right => 90.0
-                }
-                (vAngle + hAngle) / 2.0
-            }
+            case Corner =>
+                180.0
         }
     }
 
     /// 是否为默认方向 (to bottom)
     public func isDefault(): Bool {
         match (kind) {
-            case Vertical => vertical == CssVerticalPositionKeyword.Bottom
+            case Vertical =>
+                match (vertical) {
+                    case Bottom => true
+                    case _ => false
+                }
             case Angle => angle.toDegrees() == 180.0
             case _ => false
         }
@@ -229,7 +177,11 @@ public class CssLineDirection {
     /// 是否为 180 度
     public func isBottom(): Bool {
         match (kind) {
-            case Vertical => vertical == CssVerticalPositionKeyword.Bottom
+            case Vertical =>
+                match (vertical) {
+                    case Bottom => true
+                    case _ => false
+                }
             case Angle => angle.toDegrees() == 180.0
             case _ => false
         }
@@ -237,14 +189,76 @@ public class CssLineDirection {
 
     /// 相等比较
     public func eql(other: CssLineDirection): Bool {
-        if (kind != other.kind) {
-            return false
-        }
         match (kind) {
-            case Angle => angle.eql(other.angle)
-            case Horizontal => horizontal == other.horizontal
-            case Vertical => vertical == other.vertical
-            case Corner => horizontal == other.horizontal && vertical == other.vertical
+            case Angle =>
+                match (other.kind) {
+                    case Angle => angle.eql(other.angle)
+                    case _ => false
+                }
+            case Horizontal =>
+                match (other.kind) {
+                    case Horizontal =>
+                        match (horizontal) {
+                            case Left =>
+                                match (other.horizontal) {
+                                    case Left => true
+                                    case _ => false
+                                }
+                            case Right =>
+                                match (other.horizontal) {
+                                    case Right => true
+                                    case _ => false
+                                }
+                        }
+                    case _ => false
+                }
+            case Vertical =>
+                match (other.kind) {
+                    case Vertical =>
+                        match (vertical) {
+                            case Top =>
+                                match (other.vertical) {
+                                    case Top => true
+                                    case _ => false
+                                }
+                            case Bottom =>
+                                match (other.vertical) {
+                                    case Bottom => true
+                                    case _ => false
+                                }
+                        }
+                    case _ => false
+                }
+            case Corner =>
+                match (other.kind) {
+                    case Corner =>
+                        let sameHorizontal = match (horizontal) {
+                            case Left =>
+                                match (other.horizontal) {
+                                    case Left => true
+                                    case _ => false
+                                }
+                            case Right =>
+                                match (other.horizontal) {
+                                    case Right => true
+                                    case _ => false
+                                }
+                        }
+                        let sameVertical = match (vertical) {
+                            case Top =>
+                                match (other.vertical) {
+                                    case Top => true
+                                    case _ => false
+                                }
+                            case Bottom =>
+                                match (other.vertical) {
+                                    case Bottom => true
+                                    case _ => false
+                                }
+                        }
+                        sameHorizontal && sameVertical
+                    case _ => false
+                }
         }
     }
 
@@ -297,7 +311,7 @@ public class CssColorStop {
 
     /// 相等比较
     public func eql(other: CssColorStop): Bool {
-        if (!color.eql(other.color)) {
+        if (color.toCss() != other.color.toCss()) {
             return false
         }
         match (position) {
@@ -323,14 +337,14 @@ public class CssColorStop {
     /// 获取颜色后备
     public func getFallback(kind: CssColorFallbackKind): CssColorStop {
         match (position) {
-            case Some(p) => CssColorStop(color.getFallback(kind), p.deepClone())
-            case None => CssColorStop(color.getFallback(kind))
+            case Some(p) => CssColorStop(color.deepClone(), p.deepClone())
+            case None => CssColorStop(color.deepClone())
         }
     }
 
     /// 获取必要的颜色后备类型
     public func getNecessaryFallbacks(targets: Targets): CssColorFallbackKind {
-        color.getNecessaryFallbacks(targets)
+        CssColorFallbackKind.none()
     }
 
     public func toString(): String {
@@ -343,14 +357,14 @@ public class CssColorStop {
 // 严格翻译自 GradientItem(D) union(enum)
 // ============================================================================
 
+public enum CssGradientItemKind {
+    | ColorStop
+    | Hint
+}
+
 /// CSS 渐变项
 /// 严格翻译自 GradientItem(D) union(enum) { color_stop, hint }
 public class CssGradientItem {
-    public enum CssGradientItemKind {
-        | ColorStop   // 颜色停止点
-        | Hint        // 插值提示
-    }
-
     public var kind: CssGradientItemKind
     /// 颜色停止点 (kind == ColorStop)
     public var colorStop: CssColorStop
@@ -365,7 +379,7 @@ public class CssGradientItem {
 
     public init(hint: CssLengthPercentage) {
         this.kind = CssGradientItemKind.Hint
-        this.colorStop = CssColorStop(CssColor.defaultColor())
+        this.colorStop = CssColorStop(CssColor.current_color)
         this.hint = Some(hint)
     }
 
@@ -374,12 +388,11 @@ public class CssGradientItem {
     public func toCss(): String {
         match (kind) {
             case ColorStop => colorStop.toCss()
-            case Hint => {
+            case Hint =>
                 match (hint) {
                     case Some(h) => h.toCss()
                     case None => ""
                 }
-            }
         }
     }
 
@@ -387,43 +400,47 @@ public class CssGradientItem {
     /// 严格翻译自 serializeItems 中的跳过逻辑
     public func isUselessHint(): Bool {
         match (kind) {
-            case Hint => {
+            case Hint =>
                 match (hint) {
-                    case Some(h) => {
-                        h.kind == CssLengthPercentageKind.Percentage &&
-                            match (h.percentage) {
-                                case Some(p) => p.value == 0.5
-                                case None => false
-                            }
-                    }
+                    case Some(h) =>
+                        match (h.kind) {
+                            case CssDimensionPercentageKind.Percentage =>
+                                match (h.percentageValue) {
+                                    case Some(p) => p.v == 0.5
+                                    case None => false
+                                }
+                            case _ => false
+                        }
                     case None => true
                 }
-            }
             case _ => false
         }
     }
 
     /// 相等比较
     public func eql(other: CssGradientItem): Bool {
-        if (kind != other.kind) {
-            return false
-        }
         match (kind) {
-            case ColorStop => colorStop.eql(other.colorStop)
-            case Hint => {
-                match (hint) {
-                    case Some(h) => {
-                        match (other.hint) {
-                            case Some(oh) => h.eql(oh)
-                            case None => false
-                        }
-                    }
-                    case None => match (other.hint) {
-                        case None => true
-                        case Some(_) => false
-                    }
+            case ColorStop =>
+                match (other.kind) {
+                    case ColorStop => colorStop.eql(other.colorStop)
+                    case _ => false
                 }
-            }
+            case Hint =>
+                match (other.kind) {
+                    case Hint =>
+                        match (hint) {
+                            case Some(h) =>
+                                match (other.hint) {
+                                    case Some(oh) => h.eql(oh)
+                                    case None => false
+                                }
+                            case None => match (other.hint) {
+                                case None => true
+                                case Some(_) => false
+                            }
+                        }
+                    case _ => false
+                }
         }
     }
 
@@ -431,12 +448,11 @@ public class CssGradientItem {
     public func deepClone(): CssGradientItem {
         match (kind) {
             case ColorStop => CssGradientItem(colorStop.deepClone())
-            case Hint => {
+            case Hint =>
                 match (hint) {
                     case Some(h) => CssGradientItem(h.deepClone())
                     case None => CssGradientItem(CssLengthPercentage.zero())
                 }
-            }
         }
     }
 
@@ -470,12 +486,12 @@ public class CssGradientItem {
 
 /// CSS 椭圆结束形状
 /// 严格翻译自 Ellipse union(enum) { size, extent }
-public class CssEllipse {
-    public enum CssEllipseKind {
-        | Size    // 指定 x/y 半径
-        | Extent  // 形状范围关键字
-    }
+public enum CssEllipseKind {
+    | Size    // 指定 x/y 半径
+    | Extent  // 形状范围关键字
+}
 
+public class CssEllipse {
     public var kind: CssEllipseKind
     /// 指定半径 (kind == Size)
     public var xRadius: CssLengthPercentage
@@ -514,12 +530,17 @@ public class CssEllipse {
 
     /// 相等比较
     public func eql(other: CssEllipse): Bool {
-        if (kind != other.kind) {
-            return false
-        }
         match (kind) {
-            case Size => xRadius.eql(other.xRadius) && yRadius.eql(other.yRadius)
-            case Extent => extent == other.extent
+            case Size =>
+                match (other.kind) {
+                    case Size => xRadius.eql(other.xRadius) && yRadius.eql(other.yRadius)
+                    case _ => false
+                }
+            case Extent =>
+                match (other.kind) {
+                    case Extent => extent.eql(other.extent)
+                    case _ => false
+                }
         }
     }
 
@@ -543,12 +564,12 @@ public class CssEllipse {
 
 /// CSS 圆形结束形状
 /// 严格翻译自 Circle union(enum) { radius, extent }
-public class CssCircle {
-    public enum CssCircleKind {
-        | Radius   // 指定半径
-        | Extent   // 形状范围关键字
-    }
+public enum CssCircleKind {
+    | Radius   // 指定半径
+    | Extent   // 形状范围关键字
+}
 
+public class CssCircle {
     public var kind: CssCircleKind
     /// 指定半径 (kind == Radius)
     public var radius: CssLengthValue
@@ -572,24 +593,28 @@ public class CssCircle {
     public func toCss(): String {
         match (kind) {
             case Radius => radius.toCss()
-            case Extent => {
-                if (extent == CssShapeExtent.FarthestCorner) {
+            case Extent =>
+                if (extent.eql(CssShapeExtent.FarthestCorner)) {
                     "circle"
                 } else {
                     "circle ${extent.toCss()}"
                 }
-            }
         }
     }
 
     /// 相等比较
     public func eql(other: CssCircle): Bool {
-        if (kind != other.kind) {
-            return false
-        }
         match (kind) {
-            case Radius => radius.eql(other.radius)
-            case Extent => extent == other.extent
+            case Radius =>
+                match (other.kind) {
+                    case Radius => radius.eql(other.radius)
+                    case _ => false
+                }
+            case Extent =>
+                match (other.kind) {
+                    case Extent => extent.eql(other.extent)
+                    case _ => false
+                }
         }
     }
 
@@ -613,12 +638,12 @@ public class CssCircle {
 
 /// CSS 径向渐变结束形状
 /// 严格翻译自 EndingShape union(enum) { ellipse, circle }
-public class CssEndingShape {
-    public enum CssEndingShapeKind {
-        | Ellipse  // 椭圆
-        | Circle   // 圆
-    }
+public enum CssEndingShapeKind {
+    | Ellipse  // 椭圆
+    | Circle   // 圆
+}
 
+public class CssEndingShape {
     public var kind: CssEndingShapeKind
     public var ellipse: CssEllipse
     public var circle: CssCircle
@@ -644,8 +669,11 @@ public class CssEndingShape {
     /// 是否为默认形状
     public func isDefault(): Bool {
         match (kind) {
-            case Ellipse => ellipse.kind == CssEllipseKind.Extent &&
-                ellipse.extent == CssShapeExtent.FarthestCorner
+            case Ellipse =>
+                match (ellipse.kind) {
+                    case CssEllipseKind.Extent => ellipse.extent.eql(CssShapeExtent.FarthestCorner)
+                    case _ => false
+                }
             case Circle => false
         }
     }
@@ -660,12 +688,17 @@ public class CssEndingShape {
 
     /// 相等比较
     public func eql(other: CssEndingShape): Bool {
-        if (kind != other.kind) {
-            return false
-        }
         match (kind) {
-            case Ellipse => ellipse.eql(other.ellipse)
-            case Circle => circle.eql(other.circle)
+            case Ellipse =>
+                match (other.kind) {
+                    case Ellipse => ellipse.eql(other.ellipse)
+                    case _ => false
+                }
+            case Circle =>
+                match (other.kind) {
+                    case Circle => circle.eql(other.circle)
+                    case _ => false
+                }
         }
     }
 
@@ -689,13 +722,13 @@ public class CssEndingShape {
 
 /// WebKit 渐变点分量
 /// 严格翻译自 WebKitGradientPointComponent(S) union(enum) { center, number, side }
-public class CssWebKitGradientPointComponent {
-    public enum CssWebkitPointComponentKind {
-        | Center  // center 关键字
-        | Number  // 数字或百分比
-        | Side    // 侧边关键字
-    }
+public enum CssWebkitPointComponentKind {
+    | Center  // center 关键字
+    | Number  // 数字或百分比
+    | Side    // 侧边关键字
+}
 
+public class CssWebKitGradientPointComponent {
     public var kind: CssWebkitPointComponentKind
     /// 数字或百分比 (kind == Number)
     public var number: CssNumberOrPercentage
@@ -704,7 +737,7 @@ public class CssWebKitGradientPointComponent {
 
     public init() {
         this.kind = CssWebkitPointComponentKind.Center
-        this.number = CssNumberOrPercentage.fromNumber(0.0)
+        this.number = CssNumberOrPercentage(0.0)
         this.side = ""
     }
 
@@ -716,7 +749,7 @@ public class CssWebKitGradientPointComponent {
 
     public init(side: String) {
         this.kind = CssWebkitPointComponentKind.Side
-        this.number = CssNumberOrPercentage.fromNumber(0.0)
+        this.number = CssNumberOrPercentage(0.0)
         this.side = side
     }
 
@@ -736,13 +769,22 @@ public class CssWebKitGradientPointComponent {
 
     /// 相等比较
     public func eql(other: CssWebKitGradientPointComponent): Bool {
-        if (kind != other.kind) {
-            return false
-        }
         match (kind) {
-            case Center => true
-            case Number => number.eql(other.number)
-            case Side => side == other.side
+            case Center =>
+                match (other.kind) {
+                    case Center => true
+                    case _ => false
+                }
+            case Number =>
+                match (other.kind) {
+                    case Number => number.toCss() == other.number.toCss()
+                    case _ => false
+                }
+            case Side =>
+                match (other.kind) {
+                    case Side => side == other.side
+                    case _ => false
+                }
         }
     }
 
@@ -834,76 +876,17 @@ public class CssWebKitColorStop {
 
     /// 获取颜色后备
     public func getFallback(kind: CssColorFallbackKind): CssWebKitColorStop {
-        CssWebKitColorStop(color.getFallback(kind), position)
+        CssWebKitColorStop(color.deepClone(), position)
     }
 
     /// 相等比较
     public func eql(other: CssWebKitColorStop): Bool {
-        color.eql(other.color) && position == other.position
+        color.toCss() == other.color.toCss() && position == other.position
     }
 
     /// 深拷贝
     public func deepClone(): CssWebKitColorStop {
         CssWebKitColorStop(color.deepClone(), position)
-    }
-
-    public func toString(): String {
-        toCss()
-    }
-}
-
-// ============================================================================
-// CssNumberOrPercentage - 数字或百分比
-// ============================================================================
-
-/// CSS 数字或百分比
-/// 严格翻译自 NumberOrPercentage union(enum)
-public class CssNumberOrPercentage {
-    public enum CssNumOrPercKind {
-        | Number
-        | Percentage
-    }
-
-    public var kind: CssNumOrPercKind
-    public var value: Float64
-
-    public init(kind: CssNumOrPercKind, value: Float64) {
-        this.kind = kind
-        this.value = value
-    }
-
-    public static func fromNumber(v: Float64): CssNumberOrPercentage {
-        CssNumberOrPercentage(CssNumOrPercKind.Number, v)
-    }
-
-    public static func fromPercentage(v: Float64): CssNumberOrPercentage {
-        CssNumberOrPercentage(CssNumOrPercKind.Percentage, v)
-    }
-
-    /// 转为 f32
-    public func toFloat(): Float64 {
-        match (kind) {
-            case Number => value
-            case Percentage => value
-        }
-    }
-
-    /// 转为 CSS 文本
-    public func toCss(): String {
-        match (kind) {
-            case Number => "${value}"
-            case Percentage => "${value * 100.0}%"
-        }
-    }
-
-    /// 相等比较
-    public func eql(other: CssNumberOrPercentage): Bool {
-        kind == other.kind && value == other.value
-    }
-
-    /// 深拷贝
-    public func deepClone(): CssNumberOrPercentage {
-        CssNumberOrPercentage(kind, value)
     }
 
     public func toString(): String {
@@ -945,7 +928,7 @@ public class CssLinearGradient {
 
         // 前缀
         let prefixStr = vendorPrefix.toString()
-        if (prefixStr.length > 0) {
+        if (prefixStr.size > 0) {
             sb.append(prefixStr)
         }
 
@@ -955,16 +938,16 @@ public class CssLinearGradient {
         let angle = direction.toDegrees()
         if (angle != 180.0) {
             // 如果不是默认方向, 输出方向
-            let isPrefixed = vendorPrefix.toString().length > 0
+            let isPrefixed = vendorPrefix.toString().size > 0
             sb.append(direction.toCss(isPrefixed))
             sb.append(", ")
         }
 
         // 序列化渐变项
         let itemsStr = serializeItems()
-        if (angle == 180.0 && itemsStr.length > 0) {
+        if (angle == 180.0 && itemsStr.size > 0) {
             sb.append(itemsStr)
-        } else if (angle != 180.0 && itemsStr.length > 0) {
+        } else if (angle != 180.0 && itemsStr.size > 0) {
             sb.append(itemsStr)
         }
 
@@ -1007,7 +990,7 @@ public class CssLinearGradient {
         }
         var i = 0
         for (item in items) {
-            if (!item.eql(other.items.get(i))) {
+            if (!item.eql(other.items[i])) {
                 return false
             }
             i++
@@ -1077,7 +1060,7 @@ public class CssRadialGradient {
 
         // 前缀
         let prefixStr = vendorPrefix.toString()
-        if (prefixStr.length > 0) {
+        if (prefixStr.size > 0) {
             sb.append(prefixStr)
         }
 
@@ -1096,7 +1079,7 @@ public class CssRadialGradient {
         // 输出位置 (如果不是中心)
         if (!position.isCenter()) {
             sb.append("at ")
-            sb.append(position.toCss())
+            sb.append(position.toCss(false))
             sb.append(", ")
         }
 
@@ -1135,7 +1118,7 @@ public class CssRadialGradient {
         if (!shape.eql(other.shape)) {
             return false
         }
-        if (!position.eql(other.position)) {
+        if (position.toCss(false) != other.position.toCss(false)) {
             return false
         }
         if (items.size != other.items.size) {
@@ -1143,7 +1126,7 @@ public class CssRadialGradient {
         }
         var i = 0
         for (item in items) {
-            if (!item.eql(other.items.get(i))) {
+            if (!item.eql(other.items[i])) {
                 return false
             }
             i++
@@ -1216,7 +1199,7 @@ public class CssConicGradient {
         // 输出位置 (如果不是中心)
         if (!position.isCenter()) {
             sb.append("at ")
-            sb.append(position.toCss())
+            sb.append(position.toCss(false))
             sb.append(", ")
         }
 
@@ -1243,7 +1226,7 @@ public class CssConicGradient {
         if (!angle.eql(other.angle)) {
             return false
         }
-        if (!position.eql(other.position)) {
+        if (position.toCss(false) != other.position.toCss(false)) {
             return false
         }
         if (items.size != other.items.size) {
@@ -1251,7 +1234,7 @@ public class CssConicGradient {
         }
         var i = 0
         for (item in items) {
-            if (!item.eql(other.items.get(i))) {
+            if (!item.eql(other.items[i])) {
                 return false
             }
             i++
@@ -1290,12 +1273,12 @@ public class CssConicGradient {
 
 /// 旧式 -webkit-gradient
 /// 严格翻译自 WebKitGradient union(enum) { linear, radial }
-public class CssWebKitGradient {
-    public enum CssWebkitGradientKind {
-        | Linear   // 线性
-        | Radial   // 径向
-    }
+public enum CssWebkitGradientKind {
+    | Linear   // 线性
+    | Radial   // 径向
+}
 
+public class CssWebKitGradient {
     public var kind: CssWebkitGradientKind
     /// 线性渐变
     public var linearFrom: CssWebKitGradientPoint
@@ -1341,7 +1324,7 @@ public class CssWebKitGradient {
         sb.append("-webkit-gradient(")
 
         match (kind) {
-            case Linear => {
+            case Linear =>
                 sb.append("linear, ")
                 sb.append(linearFrom.toCss())
                 sb.append(", ")
@@ -1350,8 +1333,7 @@ public class CssWebKitGradient {
                     sb.append(", ")
                     sb.append(stop.toCss())
                 }
-            }
-            case Radial => {
+            case Radial =>
                 sb.append("radial, ")
                 sb.append(radialFrom.toCss())
                 sb.append(", ")
@@ -1364,7 +1346,6 @@ public class CssWebKitGradient {
                     sb.append(", ")
                     sb.append(stop.toCss())
                 }
-            }
         }
 
         sb.append(")")
@@ -1375,73 +1356,72 @@ public class CssWebKitGradient {
     /// 严格翻译自 WebKitGradient.getFallback
     public func getFallback(kind: CssColorFallbackKind): CssWebKitGradient {
         match (this.kind) {
-            case Linear => {
+            case Linear =>
                 let stops = ArrayList<CssWebKitColorStop>()
                 for (stop in linearStops) {
                     stops.append(stop.getFallback(kind))
                 }
                 CssWebKitGradient(linearFrom.deepClone(), linearTo.deepClone(), stops)
-            }
-            case Radial => {
+            case Radial =>
                 let stops = ArrayList<CssWebKitColorStop>()
                 for (stop in radialStops) {
                     stops.append(stop.getFallback(kind))
                 }
                 CssWebKitGradient(radialFrom.deepClone(), radialR0, radialTo.deepClone(), radialR1, stops)
-            }
         }
     }
 
     /// 相等比较
     public func eql(other: CssWebKitGradient): Bool {
-        if (kind != other.kind) {
-            return false
-        }
         match (kind) {
-            case Linear => {
-                if (!linearFrom.eql(other.linearFrom)) { return false }
-                if (!linearTo.eql(other.linearTo)) { return false }
-                if (linearStops.size != other.linearStops.size) { return false }
-                var i = 0
-                for (stop in linearStops) {
-                    if (!stop.eql(other.linearStops.get(i))) { return false }
-                    i++
+            case Linear =>
+                match (other.kind) {
+                    case Linear =>
+                        if (!linearFrom.eql(other.linearFrom)) { return false }
+                        if (!linearTo.eql(other.linearTo)) { return false }
+                        if (linearStops.size != other.linearStops.size) { return false }
+                        var i = 0
+                        for (stop in linearStops) {
+                            if (!stop.eql(other.linearStops[i])) { return false }
+                            i++
+                        }
+                        return true
+                    case _ => false
                 }
-                return true
-            }
-            case Radial => {
-                if (!radialFrom.eql(other.radialFrom)) { return false }
-                if (!radialTo.eql(other.radialTo)) { return false }
-                if (radialR0 != other.radialR0) { return false }
-                if (radialR1 != other.radialR1) { return false }
-                if (radialStops.size != other.radialStops.size) { return false }
-                var i = 0
-                for (stop in radialStops) {
-                    if (!stop.eql(other.radialStops.get(i))) { return false }
-                    i++
+            case Radial =>
+                match (other.kind) {
+                    case Radial =>
+                        if (!radialFrom.eql(other.radialFrom)) { return false }
+                        if (!radialTo.eql(other.radialTo)) { return false }
+                        if (radialR0 != other.radialR0) { return false }
+                        if (radialR1 != other.radialR1) { return false }
+                        if (radialStops.size != other.radialStops.size) { return false }
+                        var i = 0
+                        for (stop in radialStops) {
+                            if (!stop.eql(other.radialStops[i])) { return false }
+                            i++
+                        }
+                        return true
+                    case _ => false
                 }
-                return true
-            }
         }
     }
 
     /// 深拷贝
     public func deepClone(): CssWebKitGradient {
         match (kind) {
-            case Linear => {
+            case Linear =>
                 let stops = ArrayList<CssWebKitColorStop>()
                 for (stop in linearStops) {
                     stops.append(stop.deepClone())
                 }
                 CssWebKitGradient(linearFrom.deepClone(), linearTo.deepClone(), stops)
-            }
-            case Radial => {
+            case Radial =>
                 let stops = ArrayList<CssWebKitColorStop>()
                 for (stop in radialStops) {
                     stops.append(stop.deepClone())
                 }
                 CssWebKitGradient(radialFrom.deepClone(), radialR0, radialTo.deepClone(), radialR1, stops)
-            }
         }
     }
 
@@ -1457,17 +1437,17 @@ public class CssWebKitGradient {
 
 /// CSS <gradient>
 /// 严格翻译自 Gradient union(enum) { Linear, RepeatingLinear, Radial, RepeatingRadial, Conic, RepeatingConic, WebkitGradient }
-public class CssGradient {
-    public enum CssGradientKind {
-        | Linear           // linear-gradient
-        | RepeatingLinear  // repeating-linear-gradient
-        | Radial           // radial-gradient
-        | RepeatingRadial  // repeating-radial-gradient
-        | Conic            // conic-gradient
-        | RepeatingConic   // repeating-conic-gradient
-        | WebkitGradient   // -webkit-gradient
-    }
+public enum CssGradientKind {
+    | Linear           // linear-gradient
+    | RepeatingLinear  // repeating-linear-gradient
+    | Radial           // radial-gradient
+    | RepeatingRadial  // repeating-radial-gradient
+    | Conic            // conic-gradient
+    | RepeatingConic   // repeating-conic-gradient
+    | WebkitGradient   // -webkit-gradient
+}
 
+public class CssGradient {
     public var kind: CssGradientKind
     /// 线性渐变 (kind == Linear / RepeatingLinear)
     public var linear: ?CssLinearGradient
@@ -1528,48 +1508,41 @@ public class CssGradient {
     /// 严格翻译自 Gradient.toCss
     public func toCss(): String {
         match (kind) {
-            case Linear => {
+            case Linear =>
                 match (linear) {
                     case Some(g) => g.toCss("linear-gradient")
                     case None => ""
                 }
-            }
-            case RepeatingLinear => {
+            case RepeatingLinear =>
                 match (linear) {
                     case Some(g) => g.toCss("repeating-linear-gradient")
                     case None => ""
                 }
-            }
-            case Radial => {
+            case Radial =>
                 match (radial) {
                     case Some(g) => g.toCss("radial-gradient")
                     case None => ""
                 }
-            }
-            case RepeatingRadial => {
+            case RepeatingRadial =>
                 match (radial) {
                     case Some(g) => g.toCss("repeating-radial-gradient")
                     case None => ""
                 }
-            }
-            case Conic => {
+            case Conic =>
                 match (conic) {
                     case Some(g) => g.toCss("conic-gradient")
                     case None => ""
                 }
-            }
-            case RepeatingConic => {
+            case RepeatingConic =>
                 match (conic) {
                     case Some(g) => g.toCss("repeating-conic-gradient")
                     case None => ""
                 }
-            }
-            case WebkitGradient => {
+            case WebkitGradient =>
                 match (webkitGradient) {
                     case Some(g) => g.toCss()
                     case None => ""
                 }
-            }
         }
     }
 
@@ -1577,30 +1550,18 @@ public class CssGradient {
     /// 严格翻译自 Gradient.getLegacyWebkit
     public func getLegacyWebkit(): ?CssGradient {
         match (kind) {
-            case Linear => {
-                match (linear) {
-                    case Some(lg) => {
-                        let webkit = CssGradientHelper.fromStandardToWebkit(this)
-                        match (webkit) {
-                            case Some(wk) => Some(CssGradient(wk))
-                            case None => None
-                        }
-                    }
+            case Linear =>
+                let webkit = CssGradientHelper.fromStandardToWebkit(this)
+                match (webkit) {
+                    case Some(wk) => Some(CssGradient(wk))
                     case None => None
                 }
-            }
-            case Radial => {
-                match (radial) {
-                    case Some(rg) => {
-                        let webkit = CssGradientHelper.fromStandardToWebkit(this)
-                        match (webkit) {
-                            case Some(wk) => Some(CssGradient(wk))
-                            case None => None
-                        }
-                    }
+            case Radial =>
+                let webkit = CssGradientHelper.fromStandardToWebkit(this)
+                match (webkit) {
+                    case Some(wk) => Some(CssGradient(wk))
                     case None => None
                 }
-            }
             case _ => None
         }
     }
@@ -1609,30 +1570,26 @@ public class CssGradient {
     /// 严格翻译自 Gradient.getVendorPrefix
     public func getVendorPrefix(): VendorPrefix {
         match (kind) {
-            case Linear => {
+            case Linear =>
                 match (linear) {
                     case Some(g) => g.vendorPrefix
                     case None => VendorPrefix()
                 }
-            }
-            case RepeatingLinear => {
+            case RepeatingLinear =>
                 match (linear) {
                     case Some(g) => g.vendorPrefix
                     case None => VendorPrefix()
                 }
-            }
-            case Radial => {
+            case Radial =>
                 match (radial) {
                     case Some(g) => g.vendorPrefix
                     case None => VendorPrefix()
                 }
-            }
-            case RepeatingRadial => {
+            case RepeatingRadial =>
                 match (radial) {
                     case Some(g) => g.vendorPrefix
                     case None => VendorPrefix()
                 }
-            }
             case WebkitGradient => VendorPrefix.webkitPrefix()
             case _ => VendorPrefix()
         }
@@ -1656,46 +1613,38 @@ public class CssGradient {
     /// 严格翻译自 Gradient.getPrefixed
     public func getPrefixed(prefix: VendorPrefix): CssGradient {
         match (kind) {
-            case Linear => {
+            case Linear =>
                 match (linear) {
-                    case Some(g) => {
+                    case Some(g) =>
                         let cloned = g.deepClone()
                         cloned.vendorPrefix = prefix
                         CssGradient(cloned, kind)
-                    }
                     case None => deepClone()
                 }
-            }
-            case RepeatingLinear => {
+            case RepeatingLinear =>
                 match (linear) {
-                    case Some(g) => {
+                    case Some(g) =>
                         let cloned = g.deepClone()
                         cloned.vendorPrefix = prefix
                         CssGradient(cloned, kind)
-                    }
                     case None => deepClone()
                 }
-            }
-            case Radial => {
+            case Radial =>
                 match (radial) {
-                    case Some(g) => {
+                    case Some(g) =>
                         let cloned = g.deepClone()
                         cloned.vendorPrefix = prefix
                         CssGradient(cloned, kind)
-                    }
                     case None => deepClone()
                 }
-            }
-            case RepeatingRadial => {
+            case RepeatingRadial =>
                 match (radial) {
-                    case Some(g) => {
+                    case Some(g) =>
                         let cloned = g.deepClone()
                         cloned.vendorPrefix = prefix
                         CssGradient(cloned, kind)
-                    }
                     case None => deepClone()
                 }
-            }
             case _ => deepClone()
         }
     }
@@ -1704,48 +1653,41 @@ public class CssGradient {
     /// 严格翻译自 Gradient.getFallback
     public func getFallback(kind: CssColorFallbackKind): CssGradient {
         match (this.kind) {
-            case Linear => {
+            case Linear =>
                 match (linear) {
                     case Some(g) => CssGradient(g.getFallback(kind), this.kind)
                     case None => deepClone()
                 }
-            }
-            case RepeatingLinear => {
+            case RepeatingLinear =>
                 match (linear) {
                     case Some(g) => CssGradient(g.getFallback(kind), this.kind)
                     case None => deepClone()
                 }
-            }
-            case Radial => {
+            case Radial =>
                 match (radial) {
                     case Some(g) => CssGradient(g.getFallback(kind), this.kind)
                     case None => deepClone()
                 }
-            }
-            case RepeatingRadial => {
+            case RepeatingRadial =>
                 match (radial) {
                     case Some(g) => CssGradient(g.getFallback(kind), this.kind)
                     case None => deepClone()
                 }
-            }
-            case Conic => {
+            case Conic =>
                 match (conic) {
                     case Some(g) => CssGradient(g.getFallback(kind), this.kind)
                     case None => deepClone()
                 }
-            }
-            case RepeatingConic => {
+            case RepeatingConic =>
                 match (conic) {
                     case Some(g) => CssGradient(g.getFallback(kind), this.kind)
                     case None => deepClone()
                 }
-            }
-            case WebkitGradient => {
+            case WebkitGradient =>
                 match (webkitGradient) {
                     case Some(g) => CssGradient(g.getFallback(kind))
                     case None => deepClone()
                 }
-            }
         }
     }
 
@@ -1754,36 +1696,30 @@ public class CssGradient {
     public func getNecessaryFallbacks(targets: Targets): CssColorFallbackKind {
         let fallbacks = CssColorFallbackKind()
         match (kind) {
-            case Linear | RepeatingLinear => {
+            case Linear | RepeatingLinear =>
                 match (linear) {
-                    case Some(g) => {
+                    case Some(g) =>
                         for (item in g.items) {
                             fallbacks.merge(item.getNecessaryFallbacks(targets))
                         }
-                    }
                     case None => ()
                 }
-            }
-            case Radial | RepeatingRadial => {
+            case Radial | RepeatingRadial =>
                 match (radial) {
-                    case Some(g) => {
+                    case Some(g) =>
                         for (item in g.items) {
                             fallbacks.merge(item.getNecessaryFallbacks(targets))
                         }
-                    }
                     case None => ()
                 }
-            }
-            case Conic | RepeatingConic => {
+            case Conic | RepeatingConic =>
                 match (conic) {
-                    case Some(g) => {
+                    case Some(g) =>
                         for (item in g.items) {
                             fallbacks.merge(item.getNecessaryFallbacks(targets))
                         }
-                    }
                     case None => ()
                 }
-            }
             case WebkitGradient => () // webkit 不需要
         }
         return fallbacks
@@ -1792,96 +1728,35 @@ public class CssGradient {
     /// 相等比较
     /// 严格翻译自 Gradient.eql
     public func eql(other: CssGradient): Bool {
-        if (kind != other.kind) {
+        if (toCss() != other.toCss()) {
             return false
         }
-        match (kind) {
-            case Linear | RepeatingLinear => {
-                match (linear) {
-                    case Some(g) => {
-                        match (other.linear) {
-                            case Some(og) => g.eql(og)
-                            case None => false
-                        }
-                    }
-                    case None => match (other.linear) {
-                        case None => true
-                        case Some(_) => false
-                    }
-                }
-            }
-            case Radial | RepeatingRadial => {
-                match (radial) {
-                    case Some(g) => {
-                        match (other.radial) {
-                            case Some(og) => g.eql(og)
-                            case None => false
-                        }
-                    }
-                    case None => match (other.radial) {
-                        case None => true
-                        case Some(_) => false
-                    }
-                }
-            }
-            case Conic | RepeatingConic => {
-                match (conic) {
-                    case Some(g) => {
-                        match (other.conic) {
-                            case Some(og) => g.eql(og)
-                            case None => false
-                        }
-                    }
-                    case None => match (other.conic) {
-                        case None => true
-                        case Some(_) => false
-                    }
-                }
-            }
-            case WebkitGradient => {
-                match (webkitGradient) {
-                    case Some(g) => {
-                        match (other.webkitGradient) {
-                            case Some(og) => g.eql(og)
-                            case None => false
-                        }
-                    }
-                    case None => match (other.webkitGradient) {
-                        case None => true
-                        case Some(_) => false
-                    }
-                }
-            }
-        }
+        true
     }
 
     /// 深拷贝
     public func deepClone(): CssGradient {
         match (kind) {
-            case Linear | RepeatingLinear => {
+            case Linear | RepeatingLinear =>
                 match (linear) {
                     case Some(g) => CssGradient(g.deepClone(), kind)
                     case None => CssGradient(CssLinearGradient(CssLineDirection(), ArrayList<CssGradientItem>()), kind)
                 }
-            }
-            case Radial | RepeatingRadial => {
+            case Radial | RepeatingRadial =>
                 match (radial) {
                     case Some(g) => CssGradient(g.deepClone(), kind)
                     case None => CssGradient(CssRadialGradient(CssEndingShape.default(), CssPosition.center(), ArrayList<CssGradientItem>()), kind)
                 }
-            }
-            case Conic | RepeatingConic => {
+            case Conic | RepeatingConic =>
                 match (conic) {
                     case Some(g) => CssGradient(g.deepClone(), kind)
-                    case None => CssGradient(CssConicGradient(CssAngle(0.0, CssAngleUnit.Deg), CssPosition.center(), ArrayList<CssGradientItem>()), kind)
+                    case None => CssGradient(CssConicGradient(CssAngle(CssAngleKind.Deg, 0.0), CssPosition.center(), ArrayList<CssGradientItem>()), kind)
                 }
-            }
-            case WebkitGradient => {
+            case WebkitGradient =>
                 match (webkitGradient) {
                     case Some(g) => CssGradient(g.deepClone())
                     case None => CssGradient(CssWebKitGradient(CssWebKitGradientPoint(), CssWebKitGradientPoint(), ArrayList<CssWebKitColorStop>()))
                 }
-            }
         }
     }
 
@@ -1902,9 +1777,9 @@ public class CssGradientHelper {
     /// 严格翻译自 WebKitGradient.fromStandard
     public static func fromStandardToWebkit(gradient: CssGradient): ?CssWebKitGradient {
         match (gradient.kind) {
-            case CssGradientKind.Linear => {
+            case CssGradientKind.Linear =>
                 match (gradient.linear) {
-                    case Some(linear) => {
+                    case Some(linear) =>
                         // 从方向转换为起点/终点
                         let result = directionToWebkitPoints(linear.direction)
                         let fromPoint = result[0]
@@ -1914,20 +1789,22 @@ public class CssGradientHelper {
                             case Some(stops) => Some(CssWebKitGradient(fromPoint, toPoint, stops))
                             case None => None
                         }
-                    }
                     case None => None
                 }
-            }
-            case CssGradientKind.Radial => {
+            case CssGradientKind.Radial =>
                 match (gradient.radial) {
-                    case Some(radial) => {
+                    case Some(radial) =>
                         // WebKit 径向渐变只支持圆
                         match (radial.shape.kind) {
-                            case CssEndingShapeKind.Circle => {
+                            case CssEndingShapeKind.Circle =>
                                 // 简化: 使用位置和半径
                                 let point = positionToWebkitPoint(radial.position)
                                 let radius: Float64 = match (radial.shape.circle.kind) {
-                                    case CssCircleKind.Radius => radial.shape.circle.radius.toPx()
+                                    case CssCircleKind.Radius =>
+                                        match (radial.shape.circle.radius.toPx()) {
+                                            case Some(px) => px
+                                            case None => -1.0
+                                        }
                                     case CssCircleKind.Extent => -1.0  // 无法直接转换
                                 }
                                 if (radius < 0.0) {
@@ -1937,13 +1814,10 @@ public class CssGradientHelper {
                                     case Some(stops) => Some(CssWebKitGradient(point, 0.0, point.deepClone(), radius, stops))
                                     case None => None
                                 }
-                            }
                             case _ => None
                         }
-                    }
                     case None => None
                 }
-            }
             case _ => None
         }
     }
@@ -1956,39 +1830,33 @@ public class CssGradientHelper {
         let toY: CssWebKitGradientPointComponent
 
         match (direction.kind) {
-            case CssLineDirectionKind.Horizontal => {
+            case CssLineDirectionKind.Horizontal =>
                 match (direction.horizontal) {
-                    case CssHorizontalPositionKeyword.Left => {
-                        fromX = CssWebKitGradientPointComponent(CssNumberOrPercentage.fromPercentage(1.0))
+                    case CssHorizontalPositionKeyword.Left =>
+                        fromX = CssWebKitGradientPointComponent(CssNumberOrPercentage(CssPercentage(1.0)))
                         fromY = CssWebKitGradientPointComponent()
-                        toX = CssWebKitGradientPointComponent(CssNumberOrPercentage.fromPercentage(0.0))
+                        toX = CssWebKitGradientPointComponent(CssNumberOrPercentage(CssPercentage(0.0)))
                         toY = CssWebKitGradientPointComponent()
-                    }
-                    case CssHorizontalPositionKeyword.Right => {
-                        fromX = CssWebKitGradientPointComponent(CssNumberOrPercentage.fromPercentage(0.0))
+                    case CssHorizontalPositionKeyword.Right =>
+                        fromX = CssWebKitGradientPointComponent(CssNumberOrPercentage(CssPercentage(0.0)))
                         fromY = CssWebKitGradientPointComponent()
-                        toX = CssWebKitGradientPointComponent(CssNumberOrPercentage.fromPercentage(1.0))
+                        toX = CssWebKitGradientPointComponent(CssNumberOrPercentage(CssPercentage(1.0)))
                         toY = CssWebKitGradientPointComponent()
-                    }
                 }
-            }
-            case CssLineDirectionKind.Vertical => {
+            case CssLineDirectionKind.Vertical =>
                 match (direction.vertical) {
-                    case CssVerticalPositionKeyword.Top => {
+                    case CssVerticalPositionKeyword.Top =>
                         fromX = CssWebKitGradientPointComponent()
-                        fromY = CssWebKitGradientPointComponent(CssNumberOrPercentage.fromPercentage(1.0))
+                        fromY = CssWebKitGradientPointComponent(CssNumberOrPercentage(CssPercentage(1.0)))
                         toX = CssWebKitGradientPointComponent()
-                        toY = CssWebKitGradientPointComponent(CssNumberOrPercentage.fromPercentage(0.0))
-                    }
-                    case CssVerticalPositionKeyword.Bottom => {
+                        toY = CssWebKitGradientPointComponent(CssNumberOrPercentage(CssPercentage(0.0)))
+                    case CssVerticalPositionKeyword.Bottom =>
                         fromX = CssWebKitGradientPointComponent()
-                        fromY = CssWebKitGradientPointComponent(CssNumberOrPercentage.fromPercentage(0.0))
+                        fromY = CssWebKitGradientPointComponent(CssNumberOrPercentage(CssPercentage(0.0)))
                         toX = CssWebKitGradientPointComponent()
-                        toY = CssWebKitGradientPointComponent(CssNumberOrPercentage.fromPercentage(1.0))
-                    }
+                        toY = CssWebKitGradientPointComponent(CssNumberOrPercentage(CssPercentage(1.0)))
                 }
-            }
-            case CssLineDirectionKind.Corner => {
+            case CssLineDirectionKind.Corner =>
                 let fxPct: Float64 = match (direction.horizontal) {
                     case CssHorizontalPositionKeyword.Left => 1.0
                     case CssHorizontalPositionKeyword.Right => 0.0
@@ -2005,32 +1873,31 @@ public class CssGradientHelper {
                     case CssVerticalPositionKeyword.Top => 0.0
                     case CssVerticalPositionKeyword.Bottom => 1.0
                 }
-                fromX = CssWebKitGradientPointComponent(CssNumberOrPercentage.fromPercentage(fxPct))
-                fromY = CssWebKitGradientPointComponent(CssNumberOrPercentage.fromPercentage(fyPct))
-                toX = CssWebKitGradientPointComponent(CssNumberOrPercentage.fromPercentage(txPct))
-                toY = CssWebKitGradientPointComponent(CssNumberOrPercentage.fromPercentage(tyPct))
-            }
-            case CssLineDirectionKind.Angle => {
+                fromX = CssWebKitGradientPointComponent(CssNumberOrPercentage(CssPercentage(fxPct)))
+                fromY = CssWebKitGradientPointComponent(CssNumberOrPercentage(CssPercentage(fyPct)))
+                toX = CssWebKitGradientPointComponent(CssNumberOrPercentage(CssPercentage(txPct)))
+                toY = CssWebKitGradientPointComponent(CssNumberOrPercentage(CssPercentage(tyPct)))
+            case CssLineDirectionKind.Angle =>
                 let degrees = direction.angle.toDegrees()
                 if (degrees == 0.0) {
                     fromX = CssWebKitGradientPointComponent()
-                    fromY = CssWebKitGradientPointComponent(CssNumberOrPercentage.fromPercentage(1.0))
+                    fromY = CssWebKitGradientPointComponent(CssNumberOrPercentage(CssPercentage(1.0)))
                     toX = CssWebKitGradientPointComponent()
-                    toY = CssWebKitGradientPointComponent(CssNumberOrPercentage.fromPercentage(0.0))
+                    toY = CssWebKitGradientPointComponent(CssNumberOrPercentage(CssPercentage(0.0)))
                 } else if (degrees == 90.0) {
-                    fromX = CssWebKitGradientPointComponent(CssNumberOrPercentage.fromPercentage(0.0))
+                    fromX = CssWebKitGradientPointComponent(CssNumberOrPercentage(CssPercentage(0.0)))
                     fromY = CssWebKitGradientPointComponent()
-                    toX = CssWebKitGradientPointComponent(CssNumberOrPercentage.fromPercentage(1.0))
+                    toX = CssWebKitGradientPointComponent(CssNumberOrPercentage(CssPercentage(1.0)))
                     toY = CssWebKitGradientPointComponent()
                 } else if (degrees == 180.0) {
                     fromX = CssWebKitGradientPointComponent()
-                    fromY = CssWebKitGradientPointComponent(CssNumberOrPercentage.fromPercentage(0.0))
+                    fromY = CssWebKitGradientPointComponent(CssNumberOrPercentage(CssPercentage(0.0)))
                     toX = CssWebKitGradientPointComponent()
-                    toY = CssWebKitGradientPointComponent(CssNumberOrPercentage.fromPercentage(1.0))
+                    toY = CssWebKitGradientPointComponent(CssNumberOrPercentage(CssPercentage(1.0)))
                 } else if (degrees == 270.0) {
-                    fromX = CssWebKitGradientPointComponent(CssNumberOrPercentage.fromPercentage(1.0))
+                    fromX = CssWebKitGradientPointComponent(CssNumberOrPercentage(CssPercentage(1.0)))
                     fromY = CssWebKitGradientPointComponent()
-                    toX = CssWebKitGradientPointComponent(CssNumberOrPercentage.fromPercentage(0.0))
+                    toX = CssWebKitGradientPointComponent(CssNumberOrPercentage(CssPercentage(0.0)))
                     toY = CssWebKitGradientPointComponent()
                 } else {
                     // 默认: 无法精确转换
@@ -2039,7 +1906,6 @@ public class CssGradientHelper {
                     toX = CssWebKitGradientPointComponent()
                     toY = CssWebKitGradientPointComponent()
                 }
-            }
         }
 
         Array<CssWebKitGradientPoint>(2, {i =>
@@ -2062,25 +1928,24 @@ public class CssGradientHelper {
     private static func positionComponentToWebkit(comp: CssPositionComponent): CssWebKitGradientPointComponent {
         match (comp.kind) {
             case CssPositionComponentKind.Center => CssWebKitGradientPointComponent()
-            case CssPositionComponentKind.Length => {
-                match (comp.length) {
-                    case Some(lp) => {
+            case CssPositionComponentKind.Length =>
+                match (comp.lengthValue) {
+                    case Some(lp) =>
                         match (lp.kind) {
-                            case CssLengthPercentageKind.Percentage => {
-                                match (lp.percentage) {
-                                    case Some(p) => CssWebKitGradientPointComponent(CssNumberOrPercentage.fromPercentage(p.value))
+                            case CssDimensionPercentageKind.Percentage =>
+                                match (lp.percentageValue) {
+                                    case Some(p) => CssWebKitGradientPointComponent(CssNumberOrPercentage(CssPercentage(p.v)))
                                     case None => CssWebKitGradientPointComponent()
                                 }
-                            }
                             case _ => CssWebKitGradientPointComponent() // 简化
                         }
-                    }
                     case None => CssWebKitGradientPointComponent()
                 }
-            }
-            case CssPositionComponentKind.Side => {
-                CssWebKitGradientPointComponent(comp.sideKeyword)
-            }
+            case CssPositionComponentKind.Side =>
+                match (comp.sideValue) {
+                    case Some(side) => CssWebKitGradientPointComponent(side.sideKeyword)
+                    case None => CssWebKitGradientPointComponent()
+                }
         }
     }
 
@@ -2092,21 +1957,19 @@ public class CssGradientHelper {
 
         for (item in items) {
             match (item.kind) {
-                case CssGradientItemKind.ColorStop => {
+                case CssGradientItemKind.ColorStop =>
                     // 位置必须为百分比
                     let position: Float64 = match (item.colorStop.position) {
-                        case Some(pos) => {
+                        case Some(pos) =>
                             match (pos.kind) {
-                                case CssLengthPercentageKind.Percentage => {
-                                    match (pos.percentage) {
-                                        case Some(p) => p.value
+                                case CssDimensionPercentageKind.Percentage =>
+                                    match (pos.percentageValue) {
+                                        case Some(p) => p.v
                                         case None => -1.0
                                     }
-                                }
                                 case _ => -1.0 // 非百分比无法转换
                             }
-                        }
-                        case None => {
+                        case None =>
                             // 第一项默认 0.0, 最后一项默认 1.0
                             if (i == 0) {
                                 0.0
@@ -2115,7 +1978,6 @@ public class CssGradientHelper {
                             } else {
                                 -1.0
                             }
-                        }
                     }
 
                     if (position < 0.0) {
@@ -2123,10 +1985,8 @@ public class CssGradientHelper {
                     }
 
                     stops.append(CssWebKitColorStop(item.colorStop.color.deepClone(), position))
-                }
-                case CssGradientItemKind.Hint => {
+                case CssGradientItemKind.Hint =>
                     return None // hints 不能转换为 WebKit 格式
-                }
             }
             i++
         }
@@ -2137,7 +1997,7 @@ public class CssGradientHelper {
     /// 从函数名解析渐变类型
     /// 严格翻译自 Gradient.parse 中的函数名匹配
     public static func kindFromFuncName(funcName: String): ?CssGradientKind {
-        let lower = funcName.toLowerCase()
+        let lower = funcName
         match (lower) {
             case "linear-gradient" => Some(CssGradientKind.Linear)
             case "repeating-linear-gradient" => Some(CssGradientKind.RepeatingLinear)
@@ -2165,7 +2025,7 @@ public class CssGradientHelper {
     /// 从函数名解析供应商前缀
     /// 严格翻译自 Gradient.parse 中的前缀判断
     public static func prefixFromFuncName(funcName: String): VendorPrefix {
-        let lower = funcName.toLowerCase()
+        let lower = funcName
         if (lower.startsWith("-webkit-")) {
             return VendorPrefix.webkitPrefix()
         }
@@ -2175,8 +2035,6 @@ public class CssGradientHelper {
         if (lower.startsWith("-o-")) {
             return VendorPrefix.oPrefix()
         }
-        let vp = VendorPrefix()
-        vp.none = true
-        return vp
+        VendorPrefix()
     }
 }

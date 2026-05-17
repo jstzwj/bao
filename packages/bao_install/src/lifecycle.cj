@@ -8,6 +8,7 @@ import bao_io.*
 import bao_hash.*
 import bao_path.*
 import bao_http.*
+import bao_sys.*
 
 // ============================================================================
 // 脚本钩子名称
@@ -193,13 +194,13 @@ public class ScriptEnvironment {
 
         // 继承当前环境 PATH
         // 翻译自: Bun 使用 inherited PATH + node_modules/.bin
-        let pathEnv = bao_sys.SysModule.getEnv("PATH")
+        let pathEnv = OS.getEnv("PATH")
         match (pathEnv) {
             case Some(p) => env.put("PATH", "${binPath}:${p}")
             case None => env.put("PATH", binPath)
         }
 
-        let homeEnv = bao_sys.SysModule.getEnv("HOME")
+        let homeEnv = OS.getEnv("HOME")
         match (homeEnv) {
             case Some(h) => env.put("HOME", h)
             case None => ()
@@ -209,7 +210,7 @@ public class ScriptEnvironment {
         // 翻译自: Bun 设置 npm_package_name, npm_package_version 等
         env.put("npm_package_name", packageName)
         env.put("npm_package_version", packageVersion)
-        env.put("npm_package_json", bao_path.PathModule.join(ArrayList<String>([packagePath, "package.json"])))
+        env.put("npm_package_json", Path.join([packagePath, "package.json"]))
         env.put("npm_package_path", packagePath)
 
         // 项目根信息
@@ -221,10 +222,13 @@ public class ScriptEnvironment {
         env.put("NODE", "bao")
 
         // npm_config 前缀变量
-        env.put("npm_config_node_gyp", bao_path.PathModule.join(ArrayList<String>([
-            bao_sys.SysModule.getEnv("HOME").getOrElse(() => "/tmp"),
-            ".bao", "install", "global", "node_modules", "node-gyp", "bin", "node-gyp.js"
-        ])))
+        let home = match (OS.getEnv("HOME")) {
+            case Some(h) => h
+            case None => "/tmp"
+        }
+        env.put("npm_config_node_gyp", Path.join([
+            home, ".bao", "install", "global", "node_modules", "node-gyp", "bin", "node-gyp.js"
+        ]))
 
         // 额外环境变量
         for (key in extraEnv.keys()) {
@@ -244,7 +248,7 @@ public class ScriptEnvironment {
         env.packageVersion = version
         env.packagePath = pkgPath
         env.rootDir = root
-        env.binPath = bao_path.PathModule.join(ArrayList<String>([root, "node_modules", ".bin"]))
+        env.binPath = Path.join([root, "node_modules", ".bin"])
         return env
     }
 }
@@ -291,7 +295,7 @@ public class ScriptRunner {
     /// 返回退出码, -1 表示启动失败
     public func run(command: String, cwd: String): Int64 {
         if (ignoreScripts) { return 0 }
-        if (command.length == 0) { return 0 }
+        if (command.size == 0) { return 0 }
 
         // 构建环境变量
         let envMap = env.toEnvMap()
@@ -306,29 +310,47 @@ public class ScriptRunner {
         // 执行 shell 命令
         // 翻译自: LifecycleScriptSubprocess 中 argv 构造
         //   argv = [shell_bin, "-c", combined_script, null] 或 [bun_exe, "exec", combined_script, null]
-        let shell = bao_sys.SysModule.getEnv("SHELL").getOrElse(() => "/bin/sh")
+        let shell = match (OS.getEnv("SHELL")) {
+            case Some(s) => s
+            case None => "/bin/sh"
+        }
         let args = ArrayList<String>([shell, "-c", command])
 
         // 清除输出缓冲区
         outputCapture.clear()
 
-        // 使用 bao_sys 执行子进程
-        let result = bao_sys.Process.run(
-            command: args,
-            cwd: cwd,
-            env: envArgs,
-            timeout: timeout
-        )
+        // 使用 ProcessSpawner 执行子进程
+        let spawnOpts = SpawnOptions()
+        spawnOpts.args = args.items()
+        spawnOpts.cwd = Some(cwd)
+        spawnOpts.stdout = StdioConfig.Pipe
+        spawnOpts.stderr = StdioConfig.Pipe
 
-        match (result) {
-            case Some(exitCode) => {
-                outputCapture.exitCode = exitCode
-                return exitCode
+        // 设置环境变量
+        for (e in envArgs) {
+            let parts = e.split("=")
+            if (parts.size >= 2) {
+                spawnOpts.env.put(parts[0], parts[1..].toString())
             }
-            case None => {
-                outputCapture.exitCode = -1
-                return -1
+        }
+
+        try {
+            let child = ProcessSpawner.`spawn`(shell, spawnOpts)
+            let status = child.wait()
+            match (status) {
+                case ExitStatus.Exited(code) =>
+                    outputCapture.exitCode = code
+                    return code
+                case ExitStatus.Signaled(sig) =>
+                    outputCapture.exitCode = -1
+                    return -1
+                case _ =>
+                    outputCapture.exitCode = -1
+                    return -1
             }
+        } catch (_: Exception) {
+            outputCapture.exitCode = -1
+            return -1
         }
     }
 
@@ -421,8 +443,8 @@ public class LifecycleScripts {
         // 按顺序执行脚本
         for (hookName in ScriptHooks.ALL) {
             match (pkg.scripts.get(hookName)) {
-                case Some(script) => {
-                    if (script.length == 0) { continue }
+                case Some(script) =>
+                    if (script.size == 0) { () }
 
                     // 不可信的包只运行 install/postinstall
                     // 翻译自: Bun 的 trustedDependencies 行为
@@ -431,10 +453,10 @@ public class LifecycleScripts {
                         if (hookName != ScriptHooks.INSTALL &&
                             hookName != ScriptHooks.POSTINSTALL) {
                             let r = ScriptResult(
-                                hook: hookName,
-                                exitCode: 0,
-                                skipped: true,
-                                output: "Skipped: package not in trustedDependencies"
+                                hookName,
+                                0,
+                                true,
+                                "Skipped: package not in trustedDependencies"
                             )
                             results.append(r)
                             continue
@@ -442,7 +464,7 @@ public class LifecycleScripts {
                     }
 
                     // 记录开始时间
-                    let startTime = bao_sys.SysModule.currentTimeMillis()
+                    let startTime = cacheCurrentTimeMillis()
 
                     // 检查并行限制
                     // 翻译自: MAX_PARALLEL_PROCESSES
@@ -458,21 +480,21 @@ public class LifecycleScripts {
                     activeCount -= 1
 
                     // 记录耗时
-                    let elapsed = bao_sys.SysModule.currentTimeMillis() - startTime
+                    let elapsed = cacheCurrentTimeMillis() - startTime
                     // 翻译自: min_milliseconds_to_log = 500
                     if (elapsed > 500) {
                         timeLog.append(ScriptTimeEntry(
-                            packageName: pkg.name,
-                            hook: hookName,
-                            elapsedMs: elapsed
+                            pkg.name,
+                            hookName,
+                            elapsed
                         ))
                     }
 
                     let r = ScriptResult(
-                        hook: hookName,
-                        exitCode: exitCode,
-                        skipped: false,
-                        output: if (exitCode == 0) { "OK (${elapsed}ms)" } else { "Failed with exit code ${exitCode} (${elapsed}ms)" }
+                        hookName,
+                        exitCode,
+                        false,
+                        if (exitCode == 0) { "OK (${elapsed}ms)" } else { "Failed with exit code ${exitCode} (${elapsed}ms)" }
                     )
                     results.append(r)
 
@@ -481,10 +503,9 @@ public class LifecycleScripts {
                     if (exitCode != 0) {
                         // 可选包的脚本失败不中断
                         if (!runner.env.optional) {
-                            break
+                            return results
                         }
                     }
-                }
                 case None => ()
             }
         }
@@ -500,19 +521,18 @@ public class LifecycleScripts {
 
         for (hookName in ScriptHooks.INSTALL_ONLY) {
             match (pkg.scripts.get(hookName)) {
-                case Some(script) => {
-                    if (script.length == 0) { continue }
-                    let startTime = bao_sys.SysModule.currentTimeMillis()
+                case Some(script) =>
+                    if (script.size == 0) { () }
+                    let startTime = cacheCurrentTimeMillis()
                     let exitCode = runner.run(script, pkgPath)
-                    let elapsed = bao_sys.SysModule.currentTimeMillis() - startTime
+                    let elapsed = cacheCurrentTimeMillis() - startTime
                     results.append(ScriptResult(
-                        hook: hookName,
-                        exitCode: exitCode,
-                        skipped: false,
-                        output: if (exitCode == 0) { "OK (${elapsed}ms)" } else { "Failed (${elapsed}ms)" }
+                        hookName,
+                        exitCode,
+                        false,
+                        if (exitCode == 0) { "OK (${elapsed}ms)" } else { "Failed (${elapsed}ms)" }
                     ))
-                    if (exitCode != 0 && !runner.env.optional) { break }
-                }
+                    if (exitCode != 0 && !runner.env.optional) { () }
                 case None => ()
             }
         }
@@ -529,17 +549,16 @@ public class LifecycleScripts {
 
         for (hookName in ScriptHooks.ALL) {
             match (scripts.get(hookName)) {
-                case Some(script) => {
-                    if (script.length == 0) { continue }
+                case Some(script) =>
+                    if (script.size == 0) { () }
                     let exitCode = runner.run(script, rootDir)
                     results.append(ScriptResult(
-                        hook: hookName,
-                        exitCode: exitCode,
-                        skipped: false,
-                        output: if (exitCode == 0) { "OK" } else { "Failed with exit code ${exitCode}" }
+                        hookName,
+                        exitCode,
+                        false,
+                        if (exitCode == 0) { "OK" } else { "Failed with exit code ${exitCode}" }
                     ))
-                    if (exitCode != 0) { break }
-                }
+                    if (exitCode != 0) { () }
                 case None => ()
             }
         }

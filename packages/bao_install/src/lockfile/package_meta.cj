@@ -3,6 +3,8 @@
 //   Meta 包含包的来源、架构、操作系统、完整性校验等信息
 package bao_install.lockfile
 
+import bao_install.*
+
 import bao_core.*
 import bao_collections.*
 
@@ -14,7 +16,7 @@ import bao_collections.*
 
 /// 安装脚本状态
 /// 对应 Bun: Meta.has_install_script (enum)
-public enum HasInstallScript : UInt8 {
+public enum HasInstallScript {
     | Old    // 旧值: 该字段之前的默认值
     | False  // 无安装脚本
     | True   // 有安装脚本
@@ -24,6 +26,14 @@ public enum HasInstallScript : UInt8 {
             case Old => return false
             case False => return false
             case True => return true
+        }
+    }
+
+    public func value(): UInt8 {
+        match (this) {
+            case Old => UInt8(0)
+            case False => UInt8(1)
+            case True => UInt8(2)
         }
     }
 }

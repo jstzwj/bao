@@ -32,7 +32,7 @@ public class BodyReaderMixin {
             var bodyData = body
             body.clear()
             resp.clearOnData()
-            if (bodyData.size > 0) {
+            if (bodyData.size() > 0) {
                 // append chunk and call onBody
             } else {
                 // call onBody with chunk directly
@@ -48,7 +48,7 @@ public class BodyReaderMixin {
         r.clearAborted()
         r.clearOnData()
         r.clearOnWritable()
-        r.writeStatus(Array<UInt8>(b"500 Internal Server Error"))
+        r.writeStatus(Array<UInt8>(25, { _ => UInt8(0) }))
         r.endWithoutBody(false)
     }
 
@@ -58,7 +58,7 @@ public class BodyReaderMixin {
         r.clearAborted()
         r.clearOnData()
         r.clearOnWritable()
-        r.writeStatus(Array<UInt8>(b"400 Bad Request"))
+        r.writeStatus(Array<UInt8>(15, { _ => UInt8(0) }))
         r.endWithoutBody(false)
     }
 }

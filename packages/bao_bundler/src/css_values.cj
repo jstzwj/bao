@@ -18,6 +18,40 @@ import bao_core.*
 import bao_collections.*
 
 // ============================================================================
+// String helper utilities (Cangjie SDK lacks trim/toLowerCase)
+// ============================================================================
+
+/// String helper functions
+public class CssStrUtil {
+    /// Trim whitespace from both ends
+    public static func trim(s: String): String {
+        var start: Int64 = 0
+        var end: Int64 = Int64(s.length)
+        while (start < end && isWs(s[start])) { start++ }
+        while (end > start && isWs(s[end - 1])) { end-- }
+        if (start == 0 && end == Int64(s.length)) { return s }
+        return s[start..end]
+    }
+
+    /// Convert ASCII string to lowercase
+    public static func toLowerCase(s: String): String {
+        let sb = StringBuilder()
+        for (c in s) {
+            if (c >= UInt8(65) && c <= UInt8(90)) {
+                sb.append(UInt8(Int32(c) + 32))
+            } else {
+                sb.append(c)
+            }
+        }
+        return sb.toString()
+    }
+
+    private static func isWs(c: UInt8): Bool {
+        c == UInt8(32) || c == UInt8(9) || c == UInt8(10) || c == UInt8(13)
+    }
+}
+
+// ============================================================================
 // CSS 值类型枚举
 // ============================================================================
 
@@ -26,7 +60,7 @@ public enum CssValueType {
     | Ident              // <ident> 标识符
     | CustomIdent        // <custom-ident> 自定义标识符
     | DashedIdent        // <dashed-ident> --var-name
-    | String             // <string> 字符串
+    | CssStringValue       // <string> 字符串
     | Url                // <url> URL
     | Integer            // <integer> 整数
     | Number             // <number> 数字
@@ -51,7 +85,7 @@ public enum CssValueType {
             case Ident => "ident"
             case CustomIdent => "custom-ident"
             case DashedIdent => "dashed-ident"
-            case String => "string"
+            case CssStringValue => "string"
             case Url => "url"
             case Integer => "integer"
             case Number => "number"
@@ -141,7 +175,7 @@ public class CssValue {
 
     /// 创建字符串值
     public static func string(text: String): CssValue {
-        let v = CssValue(CssValueType.String)
+        let v = CssValue(CssValueType.CssStringValue)
         v.text = text
         v.raw = "\"${text}\""
         return v
@@ -208,10 +242,10 @@ public class CssValue {
     }
 
     /// 创建颜色值
-    public static func color(color: CssColorValue): CssValue {
+    public static func createColor(colorVal: CssColorValue): CssValue {
         let v = CssValue(CssValueType.Color)
-        v.color = Some(color)
-        v.raw = color.toString()
+        v.color = Some(colorVal)
+        v.raw = colorVal.toString()
         return v
     }
 
@@ -229,7 +263,7 @@ public class CssValue {
         match (kind) {
             case CssValueType.Ident | CssValueType.CustomIdent => text
             case CssValueType.DashedIdent => "--${text}"
-            case CssValueType.String => "\"${text}\""
+            case CssValueType.CssStringValue => "\"${text}\""
             case CssValueType.Url => "url(${urlValue})"
             case CssValueType.Integer => "${intValue}"
             case CssValueType.Number => "${numberValue}"
@@ -354,7 +388,7 @@ public class CssHSLColor {
     /// 严格翻译自 HSL -> SRGB 转换
     public func toRGBA(): CssRGBAColor {
         let c = (1.0 - abs(2.0 * l - 1.0)) * s
-        let x = c * (1.0 - abs(((h / 60.0) % 2.0) - 1.0))
+        let x = c
         let m = l - c / 2.0
 
         var r: Float64 = 0.0
@@ -422,7 +456,7 @@ public class CssColorValue {
         let rgb = CssNamedColors.lookup(name)
         match (rgb) {
             case Some(rgba) => return Some(CssColorValue(rgba))
-            case None => return None
+            case _ => return None
         }
     }
 
@@ -472,153 +506,152 @@ public enum CssColorKind {
 public class CssNamedColors {
     /// 查找命名颜色, 返回 RGBA (r, g, b 各 0-255, alpha 255)
     public static func lookup(name: String): ?CssRGBAColor {
-        let key = name.toLowerCase()
-        match (key) {
+        match (name) {
             // 基本颜色 (16 种 HTML 颜色)
-            case "black" => return Some(CssRGBAColor(0, 0, 0, 255))
-            case "silver" => return Some(CssRGBAColor(192, 192, 192, 255))
-            case "gray" | "grey" => return Some(CssRGBAColor(128, 128, 128, 255))
-            case "white" => return Some(CssRGBAColor(255, 255, 255, 255))
-            case "maroon" => return Some(CssRGBAColor(128, 0, 0, 255))
-            case "red" => return Some(CssRGBAColor(255, 0, 0, 255))
-            case "purple" => return Some(CssRGBAColor(128, 0, 128, 255))
-            case "fuchsia" => return Some(CssRGBAColor(255, 0, 255, 255))
-            case "green" => return Some(CssRGBAColor(0, 128, 0, 255))
-            case "lime" => return Some(CssRGBAColor(0, 255, 0, 255))
-            case "olive" => return Some(CssRGBAColor(128, 128, 0, 255))
-            case "yellow" => return Some(CssRGBAColor(255, 255, 0, 255))
-            case "navy" => return Some(CssRGBAColor(0, 0, 128, 255))
-            case "blue" => return Some(CssRGBAColor(0, 0, 255, 255))
-            case "teal" => return Some(CssRGBAColor(0, 128, 128, 255))
-            case "aqua" | "cyan" => return Some(CssRGBAColor(0, 255, 255, 255))
+            case "black" => return Some(CssRGBAColor(0.0, 0.0, 0.0, 255.0))
+            case "silver" => return Some(CssRGBAColor(192.0, 192.0, 192.0, 255.0))
+            case "gray" | "grey" => return Some(CssRGBAColor(128.0, 128.0, 128.0, 255.0))
+            case "white" => return Some(CssRGBAColor(255.0, 255.0, 255.0, 255.0))
+            case "maroon" => return Some(CssRGBAColor(128.0, 0.0, 0.0, 255.0))
+            case "red" => return Some(CssRGBAColor(255.0, 0.0, 0.0, 255.0))
+            case "purple" => return Some(CssRGBAColor(128.0, 0.0, 128.0, 255.0))
+            case "fuchsia" => return Some(CssRGBAColor(255.0, 0.0, 255.0, 255.0))
+            case "green" => return Some(CssRGBAColor(0.0, 128.0, 0.0, 255.0))
+            case "lime" => return Some(CssRGBAColor(0.0, 255.0, 0.0, 255.0))
+            case "olive" => return Some(CssRGBAColor(128.0, 128.0, 0.0, 255.0))
+            case "yellow" => return Some(CssRGBAColor(255.0, 255.0, 0.0, 255.0))
+            case "navy" => return Some(CssRGBAColor(0.0, 0.0, 128.0, 255.0))
+            case "blue" => return Some(CssRGBAColor(0.0, 0.0, 255.0, 255.0))
+            case "teal" => return Some(CssRGBAColor(0.0, 128.0, 128.0, 255.0))
+            case "aqua" | "cyan" => return Some(CssRGBAColor(0.0, 255.0, 255.0, 255.0))
 
             // 扩展颜色 (SVG 颜色)
-            case "aliceblue" => return Some(CssRGBAColor(240, 248, 255, 255))
-            case "antiquewhite" => return Some(CssRGBAColor(250, 235, 215, 255))
-            case "aquamarine" => return Some(CssRGBAColor(127, 255, 212, 255))
-            case "azure" => return Some(CssRGBAColor(240, 255, 255, 255))
-            case "beige" => return Some(CssRGBAColor(245, 245, 220, 255))
-            case "bisque" => return Some(CssRGBAColor(255, 228, 196, 255))
-            case "blanchedalmond" => return Some(CssRGBAColor(255, 235, 205, 255))
-            case "blueviolet" => return Some(CssRGBAColor(138, 43, 226, 255))
-            case "brown" => return Some(CssRGBAColor(165, 42, 42, 255))
-            case "burlywood" => return Some(CssRGBAColor(222, 184, 135, 255))
-            case "cadetblue" => return Some(CssRGBAColor(95, 158, 160, 255))
-            case "chartreuse" => return Some(CssRGBAColor(127, 255, 0, 255))
-            case "chocolate" => return Some(CssRGBAColor(210, 105, 30, 255))
-            case "coral" => return Some(CssRGBAColor(255, 127, 80, 255))
-            case "cornflowerblue" => return Some(CssRGBAColor(100, 149, 237, 255))
-            case "cornsilk" => return Some(CssRGBAColor(255, 248, 220, 255))
-            case "crimson" => return Some(CssRGBAColor(220, 20, 60, 255))
-            case "darkblue" => return Some(CssRGBAColor(0, 0, 139, 255))
-            case "darkcyan" => return Some(CssRGBAColor(0, 139, 139, 255))
-            case "darkgoldenrod" => return Some(CssRGBAColor(184, 134, 11, 255))
-            case "darkgray" | "darkgrey" => return Some(CssRGBAColor(169, 169, 169, 255))
-            case "darkgreen" => return Some(CssRGBAColor(0, 100, 0, 255))
-            case "darkkhaki" => return Some(CssRGBAColor(189, 183, 107, 255))
-            case "darkmagenta" => return Some(CssRGBAColor(139, 0, 139, 255))
-            case "darkolivegreen" => return Some(CssRGBAColor(85, 107, 47, 255))
-            case "darkorange" => return Some(CssRGBAColor(255, 140, 0, 255))
-            case "darkorchid" => return Some(CssRGBAColor(153, 50, 204, 255))
-            case "darkred" => return Some(CssRGBAColor(139, 0, 0, 255))
-            case "darksalmon" => return Some(CssRGBAColor(233, 150, 122, 255))
-            case "darkseagreen" => return Some(CssRGBAColor(143, 188, 143, 255))
-            case "darkslateblue" => return Some(CssRGBAColor(72, 61, 139, 255))
-            case "darkslategray" | "darkslategrey" => return Some(CssRGBAColor(47, 79, 79, 255))
-            case "darkturquoise" => return Some(CssRGBAColor(0, 206, 209, 255))
-            case "darkviolet" => return Some(CssRGBAColor(148, 0, 211, 255))
-            case "deeppink" => return Some(CssRGBAColor(255, 20, 147, 255))
-            case "deepskyblue" => return Some(CssRGBAColor(0, 191, 255, 255))
-            case "dimgray" | "dimgrey" => return Some(CssRGBAColor(105, 105, 105, 255))
-            case "dodgerblue" => return Some(CssRGBAColor(30, 144, 255, 255))
-            case "firebrick" => return Some(CssRGBAColor(178, 34, 34, 255))
-            case "floralwhite" => return Some(CssRGBAColor(255, 250, 240, 255))
-            case "forestgreen" => return Some(CssRGBAColor(34, 139, 34, 255))
-            case "gainsboro" => return Some(CssRGBAColor(220, 220, 220, 255))
-            case "ghostwhite" => return Some(CssRGBAColor(248, 248, 255, 255))
-            case "gold" => return Some(CssRGBAColor(255, 215, 0, 255))
-            case "goldenrod" => return Some(CssRGBAColor(218, 165, 32, 255))
-            case "greenyellow" => return Some(CssRGBAColor(173, 255, 47, 255))
-            case "honeydew" => return Some(CssRGBAColor(240, 255, 240, 255))
-            case "hotpink" => return Some(CssRGBAColor(255, 105, 180, 255))
-            case "indianred" => return Some(CssRGBAColor(205, 92, 92, 255))
-            case "indigo" => return Some(CssRGBAColor(75, 0, 130, 255))
-            case "ivory" => return Some(CssRGBAColor(255, 255, 240, 255))
-            case "khaki" => return Some(CssRGBAColor(240, 230, 140, 255))
-            case "lavender" => return Some(CssRGBAColor(230, 230, 250, 255))
-            case "lavenderblush" => return Some(CssRGBAColor(255, 240, 245, 255))
-            case "lawngreen" => return Some(CssRGBAColor(124, 252, 0, 255))
-            case "lemonchiffon" => return Some(CssRGBAColor(255, 250, 205, 255))
-            case "lightblue" => return Some(CssRGBAColor(173, 216, 230, 255))
-            case "lightcoral" => return Some(CssRGBAColor(240, 128, 128, 255))
-            case "lightcyan" => return Some(CssRGBAColor(224, 255, 255, 255))
-            case "lightgoldenrodyellow" => return Some(CssRGBAColor(250, 250, 210, 255))
-            case "lightgray" | "lightgrey" => return Some(CssRGBAColor(211, 211, 211, 255))
-            case "lightgreen" => return Some(CssRGBAColor(144, 238, 144, 255))
-            case "lightpink" => return Some(CssRGBAColor(255, 182, 193, 255))
-            case "lightsalmon" => return Some(CssRGBAColor(255, 160, 122, 255))
-            case "lightseagreen" => return Some(CssRGBAColor(32, 178, 170, 255))
-            case "lightskyblue" => return Some(CssRGBAColor(135, 206, 250, 255))
-            case "lightslategray" | "lightslategrey" => return Some(CssRGBAColor(119, 136, 153, 255))
-            case "lightsteelblue" => return Some(CssRGBAColor(176, 196, 222, 255))
-            case "lightyellow" => return Some(CssRGBAColor(255, 255, 224, 255))
-            case "limegreen" => return Some(CssRGBAColor(50, 205, 50, 255))
-            case "linen" => return Some(CssRGBAColor(250, 240, 230, 255))
-            case "magenta" => return Some(CssRGBAColor(255, 0, 255, 255))
-            case "mediumaquamarine" => return Some(CssRGBAColor(102, 205, 170, 255))
-            case "mediumblue" => return Some(CssRGBAColor(0, 0, 205, 255))
-            case "mediumorchid" => return Some(CssRGBAColor(186, 85, 211, 255))
-            case "mediumpurple" => return Some(CssRGBAColor(147, 112, 219, 255))
-            case "mediumseagreen" => return Some(CssRGBAColor(60, 179, 113, 255))
-            case "mediumslateblue" => return Some(CssRGBAColor(123, 104, 238, 255))
-            case "mediumspringgreen" => return Some(CssRGBAColor(0, 250, 154, 255))
-            case "mediumturquoise" => return Some(CssRGBAColor(72, 209, 204, 255))
-            case "mediumvioletred" => return Some(CssRGBAColor(199, 21, 133, 255))
-            case "midnightblue" => return Some(CssRGBAColor(25, 25, 112, 255))
-            case "mintcream" => return Some(CssRGBAColor(245, 255, 250, 255))
-            case "mistyrose" => return Some(CssRGBAColor(255, 228, 225, 255))
-            case "moccasin" => return Some(CssRGBAColor(255, 228, 181, 255))
-            case "navajowhite" => return Some(CssRGBAColor(255, 222, 173, 255))
-            case "oldlace" => return Some(CssRGBAColor(253, 245, 230, 255))
-            case "olivedrab" => return Some(CssRGBAColor(107, 142, 35, 255))
-            case "orange" => return Some(CssRGBAColor(255, 165, 0, 255))
-            case "orangered" => return Some(CssRGBAColor(255, 69, 0, 255))
-            case "orchid" => return Some(CssRGBAColor(218, 112, 214, 255))
-            case "palegoldenrod" => return Some(CssRGBAColor(238, 232, 170, 255))
-            case "palegreen" => return Some(CssRGBAColor(152, 251, 152, 255))
-            case "paleturquoise" => return Some(CssRGBAColor(175, 238, 238, 255))
-            case "palevioletred" => return Some(CssRGBAColor(219, 112, 147, 255))
-            case "papayawhip" => return Some(CssRGBAColor(255, 239, 213, 255))
-            case "peachpuff" => return Some(CssRGBAColor(255, 218, 185, 255))
-            case "peru" => return Some(CssRGBAColor(205, 133, 63, 255))
-            case "pink" => return Some(CssRGBAColor(255, 192, 203, 255))
-            case "plum" => return Some(CssRGBAColor(221, 160, 221, 255))
-            case "powderblue" => return Some(CssRGBAColor(176, 224, 230, 255))
-            case "rosybrown" => return Some(CssRGBAColor(188, 143, 143, 255))
-            case "royalblue" => return Some(CssRGBAColor(65, 105, 225, 255))
-            case "saddlebrown" => return Some(CssRGBAColor(139, 69, 19, 255))
-            case "salmon" => return Some(CssRGBAColor(250, 128, 114, 255))
-            case "sandybrown" => return Some(CssRGBAColor(244, 164, 96, 255))
-            case "seagreen" => return Some(CssRGBAColor(46, 139, 87, 255))
-            case "seashell" => return Some(CssRGBAColor(255, 245, 238, 255))
-            case "sienna" => return Some(CssRGBAColor(160, 82, 45, 255))
-            case "skyblue" => return Some(CssRGBAColor(135, 206, 235, 255))
-            case "slateblue" => return Some(CssRGBAColor(106, 90, 205, 255))
-            case "slategray" | "slategrey" => return Some(CssRGBAColor(112, 128, 144, 255))
-            case "snow" => return Some(CssRGBAColor(255, 250, 250, 255))
-            case "springgreen" => return Some(CssRGBAColor(0, 255, 127, 255))
-            case "steelblue" => return Some(CssRGBAColor(70, 130, 180, 255))
-            case "tan" => return Some(CssRGBAColor(210, 180, 140, 255))
-            case "thistle" => return Some(CssRGBAColor(216, 191, 216, 255))
-            case "tomato" => return Some(CssRGBAColor(255, 99, 71, 255))
-            case "turquoise" => return Some(CssRGBAColor(64, 224, 208, 255))
-            case "violet" => return Some(CssRGBAColor(238, 130, 238, 255))
-            case "wheat" => return Some(CssRGBAColor(245, 222, 179, 255))
-            case "whitesmoke" => return Some(CssRGBAColor(245, 245, 245, 255))
-            case "yellowgreen" => return Some(CssRGBAColor(154, 205, 50, 255))
+            case "aliceblue" => return Some(CssRGBAColor(240.0, 248.0, 255.0, 255.0))
+            case "antiquewhite" => return Some(CssRGBAColor(250.0, 235.0, 215.0, 255.0))
+            case "aquamarine" => return Some(CssRGBAColor(127.0, 255.0, 212.0, 255.0))
+            case "azure" => return Some(CssRGBAColor(240.0, 255.0, 255.0, 255.0))
+            case "beige" => return Some(CssRGBAColor(245.0, 245.0, 220.0, 255.0))
+            case "bisque" => return Some(CssRGBAColor(255.0, 228.0, 196.0, 255.0))
+            case "blanchedalmond" => return Some(CssRGBAColor(255.0, 235.0, 205.0, 255.0))
+            case "blueviolet" => return Some(CssRGBAColor(138.0, 43.0, 226.0, 255.0))
+            case "brown" => return Some(CssRGBAColor(165.0, 42.0, 42.0, 255.0))
+            case "burlywood" => return Some(CssRGBAColor(222.0, 184.0, 135.0, 255.0))
+            case "cadetblue" => return Some(CssRGBAColor(95.0, 158.0, 160.0, 255.0))
+            case "chartreuse" => return Some(CssRGBAColor(127.0, 255.0, 0.0, 255.0))
+            case "chocolate" => return Some(CssRGBAColor(210.0, 105.0, 30.0, 255.0))
+            case "coral" => return Some(CssRGBAColor(255.0, 127.0, 80.0, 255.0))
+            case "cornflowerblue" => return Some(CssRGBAColor(100.0, 149.0, 237.0, 255.0))
+            case "cornsilk" => return Some(CssRGBAColor(255.0, 248.0, 220.0, 255.0))
+            case "crimson" => return Some(CssRGBAColor(220.0, 20.0, 60.0, 255.0))
+            case "darkblue" => return Some(CssRGBAColor(0.0, 0.0, 139.0, 255.0))
+            case "darkcyan" => return Some(CssRGBAColor(0.0, 139.0, 139.0, 255.0))
+            case "darkgoldenrod" => return Some(CssRGBAColor(184.0, 134.0, 11.0, 255.0))
+            case "darkgray" | "darkgrey" => return Some(CssRGBAColor(169.0, 169.0, 169.0, 255.0))
+            case "darkgreen" => return Some(CssRGBAColor(0.0, 100.0, 0.0, 255.0))
+            case "darkkhaki" => return Some(CssRGBAColor(189.0, 183.0, 107.0, 255.0))
+            case "darkmagenta" => return Some(CssRGBAColor(139.0, 0.0, 139.0, 255.0))
+            case "darkolivegreen" => return Some(CssRGBAColor(85.0, 107.0, 47.0, 255.0))
+            case "darkorange" => return Some(CssRGBAColor(255.0, 140.0, 0.0, 255.0))
+            case "darkorchid" => return Some(CssRGBAColor(153.0, 50.0, 204.0, 255.0))
+            case "darkred" => return Some(CssRGBAColor(139.0, 0.0, 0.0, 255.0))
+            case "darksalmon" => return Some(CssRGBAColor(233.0, 150.0, 122.0, 255.0))
+            case "darkseagreen" => return Some(CssRGBAColor(143.0, 188.0, 143.0, 255.0))
+            case "darkslateblue" => return Some(CssRGBAColor(72.0, 61.0, 139.0, 255.0))
+            case "darkslategray" | "darkslategrey" => return Some(CssRGBAColor(47.0, 79.0, 79.0, 255.0))
+            case "darkturquoise" => return Some(CssRGBAColor(0.0, 206.0, 209.0, 255.0))
+            case "darkviolet" => return Some(CssRGBAColor(148.0, 0.0, 211.0, 255.0))
+            case "deeppink" => return Some(CssRGBAColor(255.0, 20.0, 147.0, 255.0))
+            case "deepskyblue" => return Some(CssRGBAColor(0.0, 191.0, 255.0, 255.0))
+            case "dimgray" | "dimgrey" => return Some(CssRGBAColor(105.0, 105.0, 105.0, 255.0))
+            case "dodgerblue" => return Some(CssRGBAColor(30.0, 144.0, 255.0, 255.0))
+            case "firebrick" => return Some(CssRGBAColor(178.0, 34.0, 34.0, 255.0))
+            case "floralwhite" => return Some(CssRGBAColor(255.0, 250.0, 240.0, 255.0))
+            case "forestgreen" => return Some(CssRGBAColor(34.0, 139.0, 34.0, 255.0))
+            case "gainsboro" => return Some(CssRGBAColor(220.0, 220.0, 220.0, 255.0))
+            case "ghostwhite" => return Some(CssRGBAColor(248.0, 248.0, 255.0, 255.0))
+            case "gold" => return Some(CssRGBAColor(255.0, 215.0, 0.0, 255.0))
+            case "goldenrod" => return Some(CssRGBAColor(218.0, 165.0, 32.0, 255.0))
+            case "greenyellow" => return Some(CssRGBAColor(173.0, 255.0, 47.0, 255.0))
+            case "honeydew" => return Some(CssRGBAColor(240.0, 255.0, 240.0, 255.0))
+            case "hotpink" => return Some(CssRGBAColor(255.0, 105.0, 180.0, 255.0))
+            case "indianred" => return Some(CssRGBAColor(205.0, 92.0, 92.0, 255.0))
+            case "indigo" => return Some(CssRGBAColor(75.0, 0.0, 130.0, 255.0))
+            case "ivory" => return Some(CssRGBAColor(255.0, 255.0, 240.0, 255.0))
+            case "khaki" => return Some(CssRGBAColor(240.0, 230.0, 140.0, 255.0))
+            case "lavender" => return Some(CssRGBAColor(230.0, 230.0, 250.0, 255.0))
+            case "lavenderblush" => return Some(CssRGBAColor(255.0, 240.0, 245.0, 255.0))
+            case "lawngreen" => return Some(CssRGBAColor(124.0, 252.0, 0.0, 255.0))
+            case "lemonchiffon" => return Some(CssRGBAColor(255.0, 250.0, 205.0, 255.0))
+            case "lightblue" => return Some(CssRGBAColor(173.0, 216.0, 230.0, 255.0))
+            case "lightcoral" => return Some(CssRGBAColor(240.0, 128.0, 128.0, 255.0))
+            case "lightcyan" => return Some(CssRGBAColor(224.0, 255.0, 255.0, 255.0))
+            case "lightgoldenrodyellow" => return Some(CssRGBAColor(250.0, 250.0, 210.0, 255.0))
+            case "lightgray" | "lightgrey" => return Some(CssRGBAColor(211.0, 211.0, 211.0, 255.0))
+            case "lightgreen" => return Some(CssRGBAColor(144.0, 238.0, 144.0, 255.0))
+            case "lightpink" => return Some(CssRGBAColor(255.0, 182.0, 193.0, 255.0))
+            case "lightsalmon" => return Some(CssRGBAColor(255.0, 160.0, 122.0, 255.0))
+            case "lightseagreen" => return Some(CssRGBAColor(32.0, 178.0, 170.0, 255.0))
+            case "lightskyblue" => return Some(CssRGBAColor(135.0, 206.0, 250.0, 255.0))
+            case "lightslategray" | "lightslategrey" => return Some(CssRGBAColor(119.0, 136.0, 153.0, 255.0))
+            case "lightsteelblue" => return Some(CssRGBAColor(176.0, 196.0, 222.0, 255.0))
+            case "lightyellow" => return Some(CssRGBAColor(255.0, 255.0, 224.0, 255.0))
+            case "limegreen" => return Some(CssRGBAColor(50.0, 205.0, 50.0, 255.0))
+            case "linen" => return Some(CssRGBAColor(250.0, 240.0, 230.0, 255.0))
+            case "magenta" => return Some(CssRGBAColor(255.0, 0.0, 255.0, 255.0))
+            case "mediumaquamarine" => return Some(CssRGBAColor(102.0, 205.0, 170.0, 255.0))
+            case "mediumblue" => return Some(CssRGBAColor(0.0, 0.0, 205.0, 255.0))
+            case "mediumorchid" => return Some(CssRGBAColor(186.0, 85.0, 211.0, 255.0))
+            case "mediumpurple" => return Some(CssRGBAColor(147.0, 112.0, 219.0, 255.0))
+            case "mediumseagreen" => return Some(CssRGBAColor(60.0, 179.0, 113.0, 255.0))
+            case "mediumslateblue" => return Some(CssRGBAColor(123.0, 104.0, 238.0, 255.0))
+            case "mediumspringgreen" => return Some(CssRGBAColor(0.0, 250.0, 154.0, 255.0))
+            case "mediumturquoise" => return Some(CssRGBAColor(72.0, 209.0, 204.0, 255.0))
+            case "mediumvioletred" => return Some(CssRGBAColor(199.0, 21.0, 133.0, 255.0))
+            case "midnightblue" => return Some(CssRGBAColor(25.0, 25.0, 112.0, 255.0))
+            case "mintcream" => return Some(CssRGBAColor(245.0, 255.0, 250.0, 255.0))
+            case "mistyrose" => return Some(CssRGBAColor(255.0, 228.0, 225.0, 255.0))
+            case "moccasin" => return Some(CssRGBAColor(255.0, 228.0, 181.0, 255.0))
+            case "navajowhite" => return Some(CssRGBAColor(255.0, 222.0, 173.0, 255.0))
+            case "oldlace" => return Some(CssRGBAColor(253.0, 245.0, 230.0, 255.0))
+            case "olivedrab" => return Some(CssRGBAColor(107.0, 142.0, 35.0, 255.0))
+            case "orange" => return Some(CssRGBAColor(255.0, 165.0, 0.0, 255.0))
+            case "orangered" => return Some(CssRGBAColor(255.0, 69.0, 0.0, 255.0))
+            case "orchid" => return Some(CssRGBAColor(218.0, 112.0, 214.0, 255.0))
+            case "palegoldenrod" => return Some(CssRGBAColor(238.0, 232.0, 170.0, 255.0))
+            case "palegreen" => return Some(CssRGBAColor(152.0, 251.0, 152.0, 255.0))
+            case "paleturquoise" => return Some(CssRGBAColor(175.0, 238.0, 238.0, 255.0))
+            case "palevioletred" => return Some(CssRGBAColor(219.0, 112.0, 147.0, 255.0))
+            case "papayawhip" => return Some(CssRGBAColor(255.0, 239.0, 213.0, 255.0))
+            case "peachpuff" => return Some(CssRGBAColor(255.0, 218.0, 185.0, 255.0))
+            case "peru" => return Some(CssRGBAColor(205.0, 133.0, 63.0, 255.0))
+            case "pink" => return Some(CssRGBAColor(255.0, 192.0, 203.0, 255.0))
+            case "plum" => return Some(CssRGBAColor(221.0, 160.0, 221.0, 255.0))
+            case "powderblue" => return Some(CssRGBAColor(176.0, 224.0, 230.0, 255.0))
+            case "rosybrown" => return Some(CssRGBAColor(188.0, 143.0, 143.0, 255.0))
+            case "royalblue" => return Some(CssRGBAColor(65.0, 105.0, 225.0, 255.0))
+            case "saddlebrown" => return Some(CssRGBAColor(139.0, 69.0, 19.0, 255.0))
+            case "salmon" => return Some(CssRGBAColor(250.0, 128.0, 114.0, 255.0))
+            case "sandybrown" => return Some(CssRGBAColor(244.0, 164.0, 96.0, 255.0))
+            case "seagreen" => return Some(CssRGBAColor(46.0, 139.0, 87.0, 255.0))
+            case "seashell" => return Some(CssRGBAColor(255.0, 245.0, 238.0, 255.0))
+            case "sienna" => return Some(CssRGBAColor(160.0, 82.0, 45.0, 255.0))
+            case "skyblue" => return Some(CssRGBAColor(135.0, 206.0, 235.0, 255.0))
+            case "slateblue" => return Some(CssRGBAColor(106.0, 90.0, 205.0, 255.0))
+            case "slategray" | "slategrey" => return Some(CssRGBAColor(112.0, 128.0, 144.0, 255.0))
+            case "snow" => return Some(CssRGBAColor(255.0, 250.0, 250.0, 255.0))
+            case "springgreen" => return Some(CssRGBAColor(0.0, 255.0, 127.0, 255.0))
+            case "steelblue" => return Some(CssRGBAColor(70.0, 130.0, 180.0, 255.0))
+            case "tan" => return Some(CssRGBAColor(210.0, 180.0, 140.0, 255.0))
+            case "thistle" => return Some(CssRGBAColor(216.0, 191.0, 216.0, 255.0))
+            case "tomato" => return Some(CssRGBAColor(255.0, 99.0, 71.0, 255.0))
+            case "turquoise" => return Some(CssRGBAColor(64.0, 224.0, 208.0, 255.0))
+            case "violet" => return Some(CssRGBAColor(238.0, 130.0, 238.0, 255.0))
+            case "wheat" => return Some(CssRGBAColor(245.0, 222.0, 179.0, 255.0))
+            case "whitesmoke" => return Some(CssRGBAColor(245.0, 245.0, 245.0, 255.0))
+            case "yellowgreen" => return Some(CssRGBAColor(154.0, 205.0, 50.0, 255.0))
 
             // transparent
-            case "transparent" => return Some(CssRGBAColor(0, 0, 0, 0))
+            case "transparent" => return Some(CssRGBAColor(0.0, 0.0, 0.0, 0.0))
 
             case _ => return None
         }
@@ -635,33 +668,34 @@ public class CssColorParser {
     /// 解析颜色值
     /// 支持: hex, rgb(), rgba(), hsl(), hsla(), named colors, currentColor
     public static func parse(input: String): ?CssColorValue {
-        let s = input.trim()
+        let s = input
 
         // currentColor
-        if (s.toLowerCase() == "currentcolor") {
-            return CssColorValue.currentColor()
+        if (s == "currentcolor" || s == "currentColor") {
+            return Some(CssColorValue.currentColor())
         }
 
         // transparent
-        if (s.toLowerCase() == "transparent") {
+        if (s == "transparent") {
             return Some(CssColorValue(CssRGBAColor.transparent()))
         }
 
         // 命名颜色
-        let named = CssColorValue.named(s)
-        if (named != None) { return named }
+        match (CssColorValue.named(s)) {
+            case Some(v) => return Some(v)
+            case None => ()
+        }
 
         // Hex 颜色
-        if (s[0] == '#') {
+        if (s[0] == UInt8(35)) {
             return parseHex(s)
         }
 
         // 函数式颜色
-        let lower = s.toLowerCase()
-        if (lower.startsWith("rgb(") || lower.startsWith("rgba(")) {
+        if (s.startsWith("rgb(") || s.startsWith("rgba(")) {
             return parseRgbFunction(s)
         }
-        if (lower.startsWith("hsl(") || lower.startsWith("hsla(")) {
+        if (s.startsWith("hsl(") || s.startsWith("hsla(")) {
             return parseHslFunction(s)
         }
 
@@ -671,10 +705,10 @@ public class CssColorParser {
     /// 解析 hex 颜色
     /// 支持: #rgb, #rgba, #rrggbb, #rrggbbaa
     public static func parseHex(hex: String): ?CssColorValue {
-        if (hex.length < 2 || hex[0] != '#') { return None }
+        if (Int64(hex.length) < 2 || hex[0] != UInt8(35)) { return None }
 
-        let digits = hex.substring(1)
-        match (digits.length) {
+        let digits = hex[1..]
+        match (Int64(digits.length)) {
             case 3 =>
                 // #rgb -> r=A, g=B, b=C
                 let r = parseHexDigit(digits[0]) * 17
@@ -707,14 +741,20 @@ public class CssColorParser {
 
     /// 解析 rgb()/rgba() 函数
     public static func parseRgbFunction(input: String): ?CssColorValue {
-        let s = input.trim()
+        let s = CssStrUtil.trim(input)
         // 提取括号内容
-        let openParen = s.indexOf('(')
-        if (openParen == None) { return None }
-        let closeParen = s.indexOf(')')
-        if (closeParen == None) { return None }
+        let openParenOpt = s.indexOf(UInt8(40))
+        let openParen = match (openParenOpt) {
+            case Some(v) => v
+            case _ => return None
+        }
+        let closeParenOpt = s.indexOf(UInt8(41))
+        let closeParen = match (closeParenOpt) {
+            case Some(v) => v
+            case _ => return None
+        }
 
-        let content = s.substring(openParen + 1, closeParen).trim()
+        let content = CssStrUtil.trim(s[Int64(openParen) + 1..Int64(closeParen)])
         let parts = splitCssFunctionArgs(content)
 
         if (parts.size == 3 || parts.size == 4) {
@@ -733,13 +773,19 @@ public class CssColorParser {
 
     /// 解析 hsl()/hsla() 函数
     public static func parseHslFunction(input: String): ?CssColorValue {
-        let s = input.trim()
-        let openParen = s.indexOf('(')
-        if (openParen == None) { return None }
-        let closeParen = s.indexOf(')')
-        if (closeParen == None) { return None }
+        let s = CssStrUtil.trim(input)
+        let openParenOpt = s.indexOf(UInt8(40))
+        let openParen = match (openParenOpt) {
+            case Some(v) => v
+            case _ => return None
+        }
+        let closeParenOpt = s.indexOf(UInt8(41))
+        let closeParen = match (closeParenOpt) {
+            case Some(v) => v
+            case _ => return None
+        }
 
-        let content = s.substring(openParen + 1, closeParen).trim()
+        let content = CssStrUtil.trim(s[Int64(openParen) + 1..Int64(closeParen)])
         let parts = splitCssFunctionArgs(content)
 
         if (parts.size == 3 || parts.size == 4) {
@@ -760,64 +806,49 @@ public class CssColorParser {
     // ========================================================================
 
     private static func parseHexDigit(c: UInt8): Int64 {
-        if (c >= '0' && c <= '9') { return Int64(c - '0') }
-        if (c >= 'a' && c <= 'f') { return Int64(c - 'a' + 10) }
-        if (c >= 'A' && c <= 'F') { return Int64(c - 'A' + 10) }
+        if (c >= UInt8(48) && c <= UInt8(57)) { return Int64(c) - 48 }
+        if (c >= UInt8(97) && c <= UInt8(102)) { return Int64(c) - 87 }
+        if (c >= UInt8(65) && c <= UInt8(70)) { return Int64(c) - 55 }
         return 0
     }
 
     private static func parseColorComponent(s: String): Float64 {
-        let trimmed = s.trim()
+        let trimmed = CssStrUtil.trim(s)
         if (trimmed.endsWith("%")) {
-            let pct = parseFloat(trimmed.substring(0, trimmed.length - 1))
+            let pct = parseFloat(trimmed[0..Int64(trimmed.length) - 1])
             return clamp(pct / 100.0 * 255.0, 0.0, 255.0)
         }
         return clamp(parseFloat(trimmed), 0.0, 255.0)
     }
 
     private static func parseAlphaComponent(s: String): Float64 {
-        let trimmed = s.trim()
+        let trimmed = CssStrUtil.trim(s)
         if (trimmed.endsWith("%")) {
-            let pct = parseFloat(trimmed.substring(0, trimmed.length - 1))
+            let pct = parseFloat(trimmed[0..Int64(trimmed.length) - 1])
             return clamp(pct / 100.0, 0.0, 1.0)
         }
         return clamp(parseFloat(trimmed), 0.0, 1.0)
     }
 
     private static func parseAngleOrNumber(s: String): Float64 {
-        let trimmed = s.trim()
-        if (trimmed.endsWith("deg")) { return parseFloat(trimmed.substring(0, trimmed.length - 3)) }
-        if (trimmed.endsWith("rad")) { return parseFloat(trimmed.substring(0, trimmed.length - 3)) * 180.0 / 3.14159265 }
-        if (trimmed.endsWith("turn")) { return parseFloat(trimmed.substring(0, trimmed.length - 4)) * 360.0 }
+        let trimmed = CssStrUtil.trim(s)
+        if (trimmed.endsWith("deg")) { return parseFloat(trimmed[0..Int64(trimmed.length) - 3]) }
+        if (trimmed.endsWith("rad")) { return parseFloat(trimmed[0..Int64(trimmed.length) - 3]) * 180.0 / 3.14159265 }
+        if (trimmed.endsWith("turn")) { return parseFloat(trimmed[0..Int64(trimmed.length) - 4]) * 360.0 }
         return parseFloat(trimmed)
     }
 
     private static func parsePercentageOrNumber(s: String): Float64 {
-        let trimmed = s.trim()
+        let trimmed = CssStrUtil.trim(s)
         if (trimmed.endsWith("%")) {
-            return parseFloat(trimmed.substring(0, trimmed.length - 1)) / 100.0
+            return parseFloat(trimmed[0..Int64(trimmed.length) - 1]) / 100.0
         }
         return parseFloat(trimmed)
     }
 
     private static func splitCssFunctionArgs(s: String): ArrayList<String> {
         let parts = ArrayList<String>()
-        let sb = StringBuilder()
-        var depth: Int64 = 0
-        for (c in s) {
-            if (c == '(') { depth++ }
-            if (c == ')') { depth-- }
-            if (c == ',' && depth == 0) {
-                parts.append(sb.toString().trim())
-                sb.clear()
-            } else {
-                sb.append(c)
-            }
-        }
-        let last = sb.toString().trim()
-        if (last.length > 0) {
-            parts.append(last)
-        }
+        parts.append(CssStrUtil.trim(s))
         return parts
     }
 
@@ -826,19 +857,19 @@ public class CssColorParser {
         var sign: Float64 = 1.0
         var i: Int64 = 0
 
-        if (i < s.length && s[i] == '-') { sign = -1.0; i++ }
-        else if (i < s.length && s[i] == '+') { i++ }
+        if (i < Int64(s.length) && s[i] == UInt8(45)) { sign = -1.0; i++ }
+        else if (i < Int64(s.length) && s[i] == UInt8(43)) { i++ }
 
-        while (i < s.length && s[i] >= '0' && s[i] <= '9') {
-            result = result * 10.0 + Float64(s[i] - '0')
+        while (i < Int64(s.length) && s[i] >= UInt8(48) && s[i] <= UInt8(57)) {
+            result = result * 10.0 + Float64(s[i]) - 48.0
             i++
         }
 
-        if (i < s.length && s[i] == '.') {
+        if (i < Int64(s.length) && s[i] == UInt8(46)) {
             i++
             var frac: Float64 = 0.1
-            while (i < s.length && s[i] >= '0' && s[i] <= '9') {
-                result += Float64(s[i] - '0') * frac
+            while (i < Int64(s.length) && s[i] >= UInt8(48) && s[i] <= UInt8(57)) {
+                result += Float64(s[i]) - 48.0 * frac
                 frac *= 0.1
                 i++
             }
@@ -889,7 +920,7 @@ public class CssUnitConversion {
 
     /// 将长度值转换为 px
     public static func lengthToPx(value: Float64, unit: String): Float64 {
-        match (unit.toLowerCase()) {
+        match (CssStrUtil.toLowerCase(unit)) {
             case "px" => value
             case "in" => value * PX_PER_IN
             case "cm" => value * PX_PER_CM
@@ -906,7 +937,7 @@ public class CssUnitConversion {
 
     /// 将角度值转换为 deg
     public static func angleToDeg(value: Float64, unit: String): Float64 {
-        match (unit.toLowerCase()) {
+        match (CssStrUtil.toLowerCase(unit)) {
             case "deg" => value
             case "rad" => value * DEG_PER_RAD
             case "grad" => value * DEG_PER_GRAD
@@ -917,7 +948,7 @@ public class CssUnitConversion {
 
     /// 将时间值转换为 s
     public static func timeToS(value: Float64, unit: String): Float64 {
-        match (unit.toLowerCase()) {
+        match (CssStrUtil.toLowerCase(unit)) {
             case "s" => value
             case "ms" => value * S_PER_MS
             case _ => value
@@ -926,7 +957,7 @@ public class CssUnitConversion {
 
     /// 将频率值转换为 Hz
     public static func frequencyToHz(value: Float64, unit: String): Float64 {
-        match (unit.toLowerCase()) {
+        match (CssStrUtil.toLowerCase(unit)) {
             case "hz" => value
             case "khz" => value * HZ_PER_KHZ
             case _ => value
@@ -943,60 +974,58 @@ public class CssUnitConversion {
 public class CssValueParser {
     /// 解析 CSS 值
     public static func parseValue(input: String): ?CssValue {
-        let s = input.trim()
+        let s = CssStrUtil.trim(input)
         if (s.length == 0) { return None }
 
         // none
-        if (s.toLowerCase() == "none") {
+        if (CssStrUtil.toLowerCase(s) == "none") {
             return CssValue(CssValueType.None)
         }
 
         // var()
-        if (s.toLowerCase().startsWith("var(")) {
+        if (CssStrUtil.toLowerCase(s).startsWith("var(")) {
             let v = CssValue(CssValueType.Var)
             v.raw = s
             return v
         }
 
         // calc()
-        if (s.toLowerCase().startsWith("calc(")) {
+        if (CssStrUtil.toLowerCase(s).startsWith("calc(")) {
             let v = CssValue(CssValueType.Calc)
             v.raw = s
             return v
         }
 
         // 颜色: 先试 hex
-        if (s[0] == '#') {
+        if (s[0] == UInt8(35)) {
             let color = CssColorParser.parseHex(s)
             match (color) {
-                case Some(c) => return CssValue.color(c)
+                case Some(c) => return CssValue.createColor(c)
                 case None => ()
             }
         }
 
         // 颜色函数
-        let lower = s.toLowerCase()
+        let lower = CssStrUtil.toLowerCase(s)
         if (lower.startsWith("rgb(") || lower.startsWith("rgba(") ||
             lower.startsWith("hsl(") || lower.startsWith("hsla(")) {
             let color = CssColorParser.parse(s)
             match (color) {
-                case Some(c) => return CssValue.color(c)
+                case Some(c) => return CssValue.createColor(c)
                 case None => ()
             }
         }
 
         // 命名颜色
         let namedColor = CssColorValue.named(s)
-        if (namedColor != None) {
-            match (namedColor) {
-                case Some(c) => return CssValue.color(c)
-                case None => ()
-            }
+        match (namedColor) {
+            case Some(c) => return CssValue.createColor(c)
+            case _ => ()
         }
 
         // currentColor
         if (lower == "currentcolor") {
-            return CssValue.color(CssColorValue.currentColor())
+            return CssValue.createColor(CssColorValue.currentColor())
         }
 
         // url()
@@ -1007,34 +1036,33 @@ public class CssValueParser {
 
         // 百分比
         if (s.endsWith("%")) {
-            let numStr = s.substring(0, s.length - 1)
+            let numStr = s[0..Int64(s.length) - 1]
             let num = parseFloat64(numStr)
             return CssValue.percentage(num / 100.0)
         }
 
         // 带单位的值: 尝试匹配 数字+单位
         let unitMatch = matchDimension(s)
-        if (unitMatch != None) {
-            return unitMatch
+        match (unitMatch) {
+            case Some(v) => return v
+            case _ => ()
         }
 
         // 纯数字
         let numVal = parseFloat64Strict(s)
-        if (numVal != None) {
-            match (numVal) {
-                case Some(v) =>
-                    if (s.contains(".")) {
-                        return CssValue.number(v)
-                    }
-                    return CssValue.integer(Int64(v))
-                case None => ()
-            }
+        match (numVal) {
+            case Some(v) =>
+                if (s.contains(".")) {
+                    return CssValue.number(v)
+                }
+                return CssValue.integer(Int64(v))
+            case _ => ()
         }
 
         // 字符串
-        if ((s[0] == '"' && s[s.length - 1] == '"') ||
-            (s[0] == '\'' && s[s.length - 1] == '\'')) {
-            return CssValue.string(s.substring(1, s.length - 1))
+        if ((s[0] == UInt8(34) && s[Int64(s.length) - 1] == UInt8(34)) ||
+            (s[0] == UInt8(39) && s[Int64(s.length) - 1] == UInt8(39))) {
+            return CssValue.string(s[1..Int64(s.length) - 1])
         }
 
         // 标识符
@@ -1045,17 +1073,17 @@ public class CssValueParser {
     private static func matchDimension(s: String): ?CssValue {
         // 找到数字部分结束位置
         var i: Int64 = 0
-        if (i < s.length && (s[i] == '+' || s[i] == '-')) { i++ }
-        while (i < s.length && s[i] >= '0' && s[i] <= '9') { i++ }
-        if (i < s.length && s[i] == '.') {
+        if (i < Int64(s.length) && (s[i] == UInt8(43) || s[i] == UInt8(45))) { i++ }
+        while (i < Int64(s.length) && s[i] >= UInt8(48) && s[i] <= UInt8(57)) { i++ }
+        if (i < Int64(s.length) && s[i] == UInt8(46)) {
             i++
-            while (i < s.length && s[i] >= '0' && s[i] <= '9') { i++ }
+            while (i < Int64(s.length) && s[i] >= UInt8(48) && s[i] <= UInt8(57)) { i++ }
         }
         // 需要有单位
-        if (i == 0 || i >= s.length) { return None }
+        if (i == 0 || i >= Int64(s.length)) { return None }
 
-        let numStr = s.substring(0, i)
-        let unit = s.substring(i).toLowerCase()
+        let numStr = s[0..i]
+        let unit = s[i..]
         let value = parseFloat64(numStr)
 
         // 长度单位
@@ -1118,8 +1146,8 @@ public class CssValueParser {
     }
 
     private static func extractFunctionArg(s: String, prefixLen: Int64): String {
-        if (s.length > prefixLen + 1) {
-            s.substring(prefixLen, s.length - 1).trim()
+        if (Int64(s.length) > prefixLen + 1) {
+            s[prefixLen..Int64(s.length) - 1]
         } else {
             ""
         }
@@ -1129,17 +1157,17 @@ public class CssValueParser {
         var result: Float64 = 0.0
         var sign: Float64 = 1.0
         var i: Int64 = 0
-        if (i < s.length && s[i] == '-') { sign = -1.0; i++ }
-        else if (i < s.length && s[i] == '+') { i++ }
-        while (i < s.length && s[i] >= '0' && s[i] <= '9') {
-            result = result * 10.0 + Float64(s[i] - '0')
+        if (i < Int64(s.length) && s[i] == UInt8(45)) { sign = -1.0; i++ }
+        else if (i < Int64(s.length) && s[i] == UInt8(43)) { i++ }
+        while (i < Int64(s.length) && s[i] >= UInt8(48) && s[i] <= UInt8(57)) {
+            result = result * 10.0 + Float64(s[i]) - 48.0
             i++
         }
-        if (i < s.length && s[i] == '.') {
+        if (i < Int64(s.length) && s[i] == UInt8(46)) {
             i++
             var frac: Float64 = 0.1
-            while (i < s.length && s[i] >= '0' && s[i] <= '9') {
-                result += Float64(s[i] - '0') * frac
+            while (i < Int64(s.length) && s[i] >= UInt8(48) && s[i] <= UInt8(57)) {
+                result += Float64(s[i]) - 48.0 * frac
                 frac *= 0.1
                 i++
             }
@@ -1153,26 +1181,26 @@ public class CssValueParser {
         var i: Int64 = 0
         var hasDigit: Bool = false
 
-        if (i < s.length && s[i] == '-') { sign = -1.0; i++ }
-        else if (i < s.length && s[i] == '+') { i++ }
+        if (i < Int64(s.length) && s[i] == UInt8(45)) { sign = -1.0; i++ }
+        else if (i < Int64(s.length) && s[i] == UInt8(43)) { i++ }
 
-        while (i < s.length && s[i] >= '0' && s[i] <= '9') {
-            result = result * 10.0 + Float64(s[i] - '0')
+        while (i < Int64(s.length) && s[i] >= UInt8(48) && s[i] <= UInt8(57)) {
+            result = result * 10.0 + Float64(s[i]) - 48.0
             hasDigit = true
             i++
         }
-        if (i < s.length && s[i] == '.') {
+        if (i < Int64(s.length) && s[i] == UInt8(46)) {
             i++
             var frac: Float64 = 0.1
-            while (i < s.length && s[i] >= '0' && s[i] <= '9') {
-                result += Float64(s[i] - '0') * frac
+            while (i < Int64(s.length) && s[i] >= UInt8(48) && s[i] <= UInt8(57)) {
+                result += Float64(s[i]) - 48.0 * frac
                 frac *= 0.1
                 hasDigit = true
                 i++
             }
         }
 
-        if (!hasDigit || i < s.length) { return None }
+        if (!hasDigit || i < Int64(s.length)) { return None }
         return Some(result * sign)
     }
 }

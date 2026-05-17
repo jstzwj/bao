@@ -130,47 +130,47 @@ public class Binding {
     /// 绑定标签
     public var tag: BindingTag
     /// 源码位置
-    public var loc: Loc
+    public var loc: ASTLoc
     /// B.Identifier 数据
-    public var identifier: ?BIdentifier
+    public var identifierData: ?BIdentifier
     /// B.Array 数据
-    public var arrayBinding: ?BArray
+    public var arrayBindingData: ?BArray
     /// B.Object 数据
-    public var objectBinding: ?BObject
+    public var objectBindingData: ?BObject
 
-    public init(tag: BindingTag, loc: Loc) {
+    public init(tag: BindingTag, loc: ASTLoc) {
         this.tag = tag
         this.loc = loc
-        this.identifier = None
-        this.arrayBinding = None
-        this.objectBinding = None
+        this.identifierData = None
+        this.arrayBindingData = None
+        this.objectBindingData = None
     }
 
     /// 创建标识符绑定 - 对应 Bun Binding.init(*B.Identifier, loc)
-    public static func identifier(ref: Ref, loc: Loc): Binding {
+    public static func identifier(ref: Ref, loc: ASTLoc): Binding {
         let b = Binding(BindingTag.Identifier, loc)
-        b.identifier = BIdentifier(ref)
+        b.identifierData = BIdentifier(ref)
         return b
     }
 
     /// 创建数组绑定 - 对应 Bun Binding.init(*B.Array, loc)
     public static func arrayBinding(items: ArrayList<ArrayBinding>, hasSpread: Bool,
-                                     isSingleLine: Bool, loc: Loc): Binding {
+                                     isSingleLine: Bool, loc: ASTLoc): Binding {
         let b = Binding(BindingTag.Array, loc)
-        b.arrayBinding = BArray(items, hasSpread, isSingleLine)
+        b.arrayBindingData = BArray(items, hasSpread, isSingleLine)
         return b
     }
 
     /// 创建对象绑定 - 对应 Bun Binding.init(*B.Object, loc)
     public static func objectBinding(properties: ArrayList<BindingProperty>,
-                                      isSingleLine: Bool, loc: Loc): Binding {
+                                      isSingleLine: Bool, loc: ASTLoc): Binding {
         let b = Binding(BindingTag.Object, loc)
-        b.objectBinding = BObject(properties, isSingleLine)
+        b.objectBindingData = BObject(properties, isSingleLine)
         return b
     }
 
     /// 创建缺失绑定 - 对应 Bun Binding.init(B.Missing, loc)
-    public static func missing(loc: Loc): Binding {
+    public static func missing(loc: ASTLoc): Binding {
         return Binding(BindingTag.Missing, loc)
     }
 
@@ -181,14 +181,12 @@ public class Binding {
             case Missing =>
                 return ASTNode(ExprTag.Missing, loc)
             case Identifier =>
-                if (identifier.isSome()) {
-                    let id = identifier.orElse(BIdentifier(Ref.NONE))
+                if (let Some(id) <- identifierData) {
                     return ASTNode(ExprTag.Identifier, loc, id.ref)
                 }
                 return ASTNode(ExprTag.Missing, loc)
             case Array =>
-                if (arrayBinding.isSome()) {
-                    let arr = arrayBinding.orElse(BArray())
+                if (let Some(arr) <- arrayBindingData) {
                     let node = ASTNode(ExprTag.Array, loc)
                     for (item in arr.items) {
                         node.addChild(item.binding.toExpr())
@@ -197,11 +195,10 @@ public class Binding {
                 }
                 return ASTNode(ExprTag.Array, loc)
             case Object =>
-                if (objectBinding.isSome()) {
-                    let obj = objectBinding.orElse(BObject())
+                if (let Some(obj) <- objectBindingData) {
                     let node = ASTNode(ExprTag.Object, loc)
-                    for (prop in obj.properties) {
-                        node.addChild(prop.value.toExpr())
+                    for (`prop` in obj.properties) {
+                        node.addChild(`prop`.value.toExpr())
                     }
                     return node
                 }
@@ -213,19 +210,16 @@ public class Binding {
     /// 用于 React Fast Refresh 哈希计算
     public func writeToHasher(hasher: Hasher, symbolTable: SymbolList): Unit {
         match (tag) {
-            case Identifier => {
-                if (identifier.isSome()) {
-                    let id = identifier.orElse(BIdentifier(Ref.NONE))
-                    hasher.update(tag.ordinal())
-                    hasher.update(id.ref.innerIndex)
+            case Identifier =>
+                if (let Some(id) <- identifierData) {
+                    hasher.update(Int64(tag.ordinal()))
+                    hasher.update(Int64(id.ref.innerIndex))
                 }
-            }
-            case Array => {
-                if (arrayBinding.isSome()) {
-                    let arr = arrayBinding.orElse(BArray())
-                    hasher.update(tag.ordinal())
+            case Array =>
+                if (let Some(arr) <- arrayBindingData) {
+                    hasher.update(Int64(tag.ordinal()))
                     hasher.update(arr.hasSpread)
-                    hasher.update(arr.items.size)
+                    hasher.update(Int64(arr.items.size))
                     for (item in arr.items) {
                         hasher.update(item.defaultValue.isSome())
                         if (item.defaultValue.isSome()) {
@@ -234,18 +228,15 @@ public class Binding {
                         item.binding.writeToHasher(hasher, symbolTable)
                     }
                 }
-            }
-            case Object => {
-                if (objectBinding.isSome()) {
-                    let obj = objectBinding.orElse(BObject())
-                    hasher.update(tag.ordinal())
-                    hasher.update(obj.properties.size)
-                    for (prop in obj.properties) {
-                        hasher.update(prop.defaultValue.isSome())
-                        prop.value.writeToHasher(hasher, symbolTable)
+            case Object =>
+                if (let Some(obj) <- objectBindingData) {
+                    hasher.update(Int64(tag.ordinal()))
+                    hasher.update(Int64(obj.properties.size))
+                    for (`prop` in obj.properties) {
+                        hasher.update(`prop`.defaultValue.isSome())
+                        `prop`.value.writeToHasher(hasher, symbolTable)
                     }
                 }
-            }
             case Missing => ()
         }
     }
@@ -269,7 +260,7 @@ public class Hasher {
 
     public func update(bytes: String): Unit {
         for (c in bytes) {
-            state = state * UInt64(31) + UInt64(c.toInt())
+            state = state * UInt64(31) + UInt64(UInt32(c))
         }
     }
 

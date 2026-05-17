@@ -49,42 +49,32 @@ public class BUnion {
     /// Bun: pub fn writeToHasher(b: B, hasher: anytype, symbol_table: anytype) void
     /// 此函数用于 React Fast Refresh 变换的哈希计算
     public func writeToHasher(hasher: Hasher, symbolTable: ArrayList<Symbol>): Unit {
-        match (tag) {
-            case BindingTag.Identifier => {
-                if (identifier.isSome()) {
-                    let id = identifier.orElse(BIdentifier(Ref.NONE))
-                    // 在 Bun 中会获取 original_name, 这里简化
-                    hasher.update(tag.ordinal())
-                    hasher.update(id.ref.innerIndex)
+        if (tag == BindingTag.Identifier) {
+            if (let Some(id) <- identifier) {
+                hasher.update(Int64(tag.ordinal()))
+                hasher.update(Int64(id.ref.innerIndex))
+            }
+        } else if (tag == BindingTag.Array) {
+            if (let Some(arr) <- arrayBinding) {
+                hasher.update(Int64(tag.ordinal()))
+                hasher.update(arr.hasSpread)
+                hasher.update(Int64(arr.items.size))
+                for (item in arr.items) {
+                    hasher.update(item.defaultValue.isSome())
+                    item.binding.writeToHasher(hasher, SymbolList())
                 }
             }
-            case BindingTag.Array => {
-                if (arrayBinding.isSome()) {
-                    let arr = arrayBinding.orElse(BArray())
-                    hasher.update(tag.ordinal())
-                    hasher.update(arr.hasSpread)
-                    hasher.update(arr.items.size)
-                    for (item in arr.items) {
-                        hasher.update(item.defaultValue.isSome())
-                        // 递归写入默认值和绑定的哈希
-                        item.binding.writeToHasher(hasher, SymbolList())
-                    }
+        } else if (tag == BindingTag.Object) {
+            if (let Some(obj) <- objectBinding) {
+                hasher.update(Int64(tag.ordinal()))
+                hasher.update(Int64(obj.properties.size))
+                for (`prop` in obj.properties) {
+                    hasher.update(`prop`.defaultValue.isSome())
+                    `prop`.value.writeToHasher(hasher, SymbolList())
                 }
             }
-            case BindingTag.Object => {
-                if (objectBinding.isSome()) {
-                    let obj = objectBinding.orElse(BObject())
-                    hasher.update(tag.ordinal())
-                    hasher.update(obj.properties.size)
-                    for (prop in obj.properties) {
-                        hasher.update(prop.defaultValue.isSome())
-                        prop.value.writeToHasher(hasher, SymbolList())
-                    }
-                }
-            }
-            case BindingTag.Missing => {
-                // 空洞不做任何操作
-            }
+        } else if (tag == BindingTag.Missing) {
+            // 空洞不做任何操作
         }
     }
 }

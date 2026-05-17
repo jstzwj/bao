@@ -3,10 +3,11 @@
 // 严格翻译自: src/api/fetch.zig
 package bao_runtime.web_api
 
-import bao_core.*
 import bao_collections.*
+import bao_runtime.*
+import bao_core.BaoString
+import bao_core.IntParser
 import bao_sys.*
-import bao_io.*
 
 // ============================================================================
 // RequestRedirect — 重定向模式
@@ -44,15 +45,14 @@ public class Headers {
         headers = HashMap<String, ArrayList<String>>()
     }
 
-    public init(init: HashMap<String, String>) {
+    public init(`init`: HashMap<String, String>) {
         headers = HashMap<String, ArrayList<String>>()
-        for (key in init.keys()) {
-            match (init.get(key)) {
-                case Some(val) => {
+        for (key in `init`.keys()) {
+            match (`init`.get(key)) {
+                case Some(val) =>
                     let arr = ArrayList<String>()
                     arr.append(val)
                     headers.put(normalizeName(key), arr)
-                }
                 case None => ()
             }
         }
@@ -63,12 +63,11 @@ public class Headers {
     public func get(name: String): ?String {
         let normalizedName = normalizeName(name)
         match (headers.get(normalizedName)) {
-            case Some(arr) => {
+            case Some(arr) =>
                 if (arr.size > 0) {
                     return Some(arr[0])
                 }
                 return None
-            }
             case None => None
         }
     }
@@ -98,11 +97,10 @@ public class Headers {
         let normalizedName = normalizeName(name)
         match (headers.get(normalizedName)) {
             case Some(arr) => arr.append(value)
-            case None => {
+            case None =>
                 let arr = ArrayList<String>()
                 arr.append(value)
                 headers.put(normalizedName, arr)
-            }
         }
     }
 
@@ -123,11 +121,10 @@ public class Headers {
     public func forEach(callback: (String, String) -> Unit): Unit {
         for (key in headers.keys()) {
             match (headers.get(key)) {
-                case Some(arr) => {
+                case Some(arr) =>
                     for (val in arr) {
                         callback(key, val)
                     }
-                }
                 case None => ()
             }
         }
@@ -136,7 +133,11 @@ public class Headers {
     /// 获取所有 header 名
     /// 对应 Web API: headers.keys()
     public func keys(): ArrayList<String> {
-        return ArrayList<String>(headers.keys())
+        let result = ArrayList<String>()
+        for (key in headers.keys()) {
+            result.append(key)
+        }
+        return result
     }
 
     /// 获取所有 header 值 (每个 name 取第一个)
@@ -145,11 +146,10 @@ public class Headers {
         let result = ArrayList<String>()
         for (key in headers.keys()) {
             match (headers.get(key)) {
-                case Some(arr) => {
+                case Some(arr) =>
                     if (arr.size > 0) {
                         result.append(arr[0])
                     }
-                }
                 case None => ()
             }
         }
@@ -162,11 +162,10 @@ public class Headers {
         let result = ArrayList<(String, String)>()
         for (key in headers.keys()) {
             match (headers.get(key)) {
-                case Some(arr) => {
+                case Some(arr) =>
                     for (val in arr) {
                         result.append((key, val))
                     }
-                }
                 case None => ()
             }
         }
@@ -178,11 +177,10 @@ public class Headers {
         let result = HashMap<String, String>()
         for (key in headers.keys()) {
             match (headers.get(key)) {
-                case Some(arr) => {
+                case Some(arr) =>
                     if (arr.size > 0) {
                         result.put(key, arr[0])
                     }
-                }
                 case None => ()
             }
         }
@@ -259,7 +257,7 @@ public class Headers {
     /// 将 header 名规范化为小写
     /// HTTP header 名不区分大小写，统一使用小写
     private func normalizeName(name: String): String {
-        return name.toLowerCase()
+        return name.toAsciiLower()
     }
 }
 
@@ -366,13 +364,13 @@ public class Request {
         this.signal = None
     }
 
-    public init(url: String, init: RequestInit) {
+    public init(url: String, `init`: RequestInit) {
         this.url = url
-        this.method = init.method
-        this.headers = init.headers
-        this.body = init.body
-        this.redirect = init.redirect
-        this.signal = init.signal
+        this.method = `init`.method
+        this.headers = `init`.headers
+        this.body = `init`.body
+        this.redirect = `init`.redirect
+        this.signal = `init`.signal
     }
 
     /// 解析响应体为 JSON
@@ -516,13 +514,12 @@ public class Response {
         cloned.bodyUsed = false
         // 克隆 body
         match (body) {
-            case Some(b) => {
-                let clonedData = Array<UInt8>(b.data.size, item: UInt8(0))
+            case Some(b) =>
+                let clonedData = Array<UInt8>(b.data.size, { _ => 0 })
                 for (i in 0..b.data.size) {
                     clonedData[Int64(i)] = b.data[Int64(i)]
                 }
                 cloned.body = Some(Body(clonedData, b.mimeType))
-            }
             case None => cloned.body = None
         }
         // 克隆 headers
@@ -535,7 +532,7 @@ public class Response {
 
     /// 静态工厂: 从 JSON 数据创建 Response
     /// 对应 Web API: Response.json(data)
-    public static func json(data: JsValue): Response {
+    public static func jsonStatic(data: JsValue): Response {
         let jsonStr = data.toString()
         let bytes = Utf8Codec.encode(jsonStr)
         let body = Body(bytes, "application/json")
@@ -627,8 +624,8 @@ public class HttpClient {
         // 解析主机和端口
         let host = url.hostname
         let portStr = url.port
-        let port = if (portStr.length > 0) {
-            UInt16(Int64.parse(portStr))
+        let port = if (portStr.size > 0) {
+            UInt16(IntParser.parseInt(portStr, 10))
         } else {
             DEFAULT_HTTP_PORT
         }
@@ -638,31 +635,29 @@ public class HttpClient {
         let socketResult = TcpSocket.create(AddressFamily.Inet)
         let sock = match (socketResult) {
             case Ok(s) => s
-            case Err(_) => {
+            case Err(_) =>
                 let errResp = Response()
                 errResp.status = 0
                 errResp.statusText = "Connection failed"
                 errResp.ok = false
                 return errResp
-            }
         }
 
         // 连接服务器
         let connectResult = sock.connect(SocketAddr.V4(addr))
         match (connectResult) {
-            case Err(_) => {
+            case Err(_) =>
                 sock.close()
                 let errResp = Response()
                 errResp.status = 0
                 errResp.statusText = "Connection refused"
                 errResp.ok = false
                 return errResp
-            }
             case Ok(_) => ()
         }
 
         // 构建 HTTP/1.1 请求报文
-        let path = if (url.pathname.length > 0) { url.pathname } else { "/" }
+        let path = if (url.pathname.size > 0) { url.pathname } else { "/" }
         let fullPath = path + url.search
         let requestLine = "${request.method} ${fullPath} HTTP/1.1\r\n"
         let hostHeader = "Host: ${host}\r\n"
@@ -674,13 +669,16 @@ public class HttpClient {
         httpReq.append(connectionHeader)
 
         // 添加自定义 headers
-        request.headers.forEach({ name, value =>
-            httpReq.append("${name}: ${value}\r\n")
-        })
+        for (name in request.headers.keys()) {
+            match (request.headers.get(name)) {
+                case Some(value) => httpReq.append("${name}: ${value}\r\n")
+                case None => ()
+            }
+        }
 
         // 添加 body (如果有)
         match (request.body) {
-            case Some(b) => {
+            case Some(b) =>
                 let bodyBytes = b.arrayBuffer()
                 httpReq.append("Content-Length: ${bodyBytes.size}\r\n")
                 httpReq.append("\r\n")
@@ -689,22 +687,20 @@ public class HttpClient {
                 sock.send(headerBytes)
                 // 发送 body
                 sock.send(bodyBytes)
-            }
-            case None => {
+            case None =>
                 httpReq.append("\r\n")
                 let headerBytes = Utf8Codec.encode(httpReq.toString())
                 sock.send(headerBytes)
-            }
         }
 
         // 接收响应
-        let recvBuf = Array<UInt8>(RECV_BUFFER_SIZE, item: UInt8(0))
+        let recvBuf = Array<UInt8>(RECV_BUFFER_SIZE, { _ => 0 })
         let totalData = ArrayList<UInt8>()
         var done = false
         while (!done) {
             let recvResult = sock.recv(recvBuf)
             match (recvResult) {
-                case Ok(bytesRead) => {
+                case Ok(bytesRead) =>
                     if (bytesRead == 0) {
                         done = true
                     } else {
@@ -712,7 +708,6 @@ public class HttpClient {
                             totalData.append(recvBuf[Int64(i)])
                         }
                     }
-                }
                 case Err(_) => done = true
             }
         }
@@ -720,7 +715,7 @@ public class HttpClient {
         sock.close()
 
         // 解析 HTTP 响应
-        return parseHttpResponse(totalData.toArray())
+        return parseHttpResponse(totalData.toOwnedSlice())
     }
 
     /// 解析原始 HTTP 响应字节为 Response 对象
@@ -730,57 +725,43 @@ public class HttpClient {
         let resp = Response()
 
         // 查找 header 与 body 的分隔符 \r\n\r\n
-        let headerEndIdx = text.indexOf("\r\n\r\n")
-        if (headerEndIdx < 0) {
+        if (let Some(headerEndIdx) <- text.indexOf("\r\n\r\n")) {
+            let headerSection = text[0..headerEndIdx]
+            let bodyStart = headerEndIdx + 4
+
+            // 解析状态行: HTTP/1.1 200 OK
+            let lines = headerSection.split("\r\n")
+            if (lines.size > 0) {
+                let statusLine = lines[0]
+                let statusParts = statusLine.split(" ")
+                if (statusParts.size >= 2) {
+                    resp.status = IntParser.parseInt(statusParts[1], 10)
+                    resp.statusText = if (statusParts.size >= 3) { statusParts[2] } else { "" }
+                    resp.ok = resp.status >= 200 && resp.status <= 299
+                }
+            }
+
+            // 解析响应头
+            for (i in 1..lines.size) {
+                let line = lines[Int64(i)]
+                let colonIdxOpt = line.indexOf(":")
+                if (let Some(colonIdx) <- colonIdxOpt) {
+                    let name = line[0..colonIdx].trimAscii()
+                    let value = line[(colonIdx + 1)..].trimAscii()
+                    resp.headers.append(name, value)
+                }
+            }
+
+            // 提取 body
+            if (bodyStart < Int64(text.size)) {
+                let bodyText = text[bodyStart..]
+                let bodyBytes = Utf8Codec.encode(bodyText)
+                resp.body = Some(Body(bodyBytes))
+            }
+        } else {
             resp.status = 0
             resp.statusText = "Invalid HTTP response"
             resp.ok = false
-            return resp
-        }
-
-        let headerSection = text.substring(0, headerEndIdx)
-        let bodyStart = headerEndIdx + 4
-
-        // 解析状态行: HTTP/1.1 200 OK
-        let lines = headerSection.split("\r\n")
-        if (lines.size > 0) {
-            let statusLine = lines[0]
-            let statusParts = statusLine.split(" ")
-            if (statusParts.size >= 2) {
-                try {
-                    resp.status = Int64.parse(statusParts[1])
-                } catch (_: Exception) {
-                    resp.status = 0
-                }
-                resp.ok = resp.status >= 200 && resp.status <= 299
-                // 状态文本: 取状态码之后的部分
-                if (statusParts.size >= 3) {
-                    let sb = StringBuilder()
-                    for (i in 2..statusParts.size) {
-                        if (i > 2) { sb.append(" ") }
-                        sb.append(statusParts[Int64(i)])
-                    }
-                    resp.statusText = sb.toString()
-                }
-            }
-        }
-
-        // 解析响应头
-        for (i in 1..lines.size) {
-            let line = lines[Int64(i)]
-            let colonIdx = line.indexOf(":")
-            if (colonIdx >= 0) {
-                let name = line.substring(0, colonIdx).trim()
-                let value = line.substring(colonIdx + 1).trim()
-                resp.headers.append(name, value)
-            }
-        }
-
-        // 提取 body
-        if (bodyStart < text.length) {
-            let bodyText = text.substring(bodyStart)
-            let bodyBytes = Utf8Codec.encode(bodyText)
-            resp.body = Some(Body(bodyBytes))
         }
 
         return resp
@@ -802,8 +783,8 @@ public func fetch(url: String): Response {
 
 /// fetch(url, init) — 发送 HTTP 请求
 /// 对应 Web API: globalThis.fetch(url, init)
-public func fetch(url: String, init: RequestInit): Response {
-    let request = Request(url, init)
+public func fetch(url: String, `init`: RequestInit): Response {
+    let request = Request(url, `init`)
     return fetchWithRequest(request)
 }
 
@@ -812,7 +793,7 @@ public func fetch(url: String, init: RequestInit): Response {
 private func fetchWithRequest(request: Request): Response {
     // 检查 abort signal
     match (request.signal) {
-        case Some(signal) => {
+        case Some(signal) =>
             if (signal.aborted) {
                 let errResp = Response()
                 errResp.status = 0
@@ -820,7 +801,6 @@ private func fetchWithRequest(request: Request): Response {
                 errResp.ok = false
                 return errResp
             }
-        }
         case None => ()
     }
 
@@ -845,21 +825,19 @@ private func fetchWithRequest(request: Request): Response {
     let maxRedirects = 20
     while (response.status >= 300 && response.status < 400 && redirectCount < maxRedirects) {
         match (request.redirect) {
-            case RequestRedirect.Error => {
+            case RequestRedirect.Error =>
                 let errResp = Response()
                 errResp.status = 0
                 errResp.statusText = "Redirect encountered"
                 errResp.ok = false
                 return errResp
-            }
-            case RequestRedirect.Manual => {
+            case RequestRedirect.Manual =>
                 return response
-            }
-            case RequestRedirect.Follow => {
+            case RequestRedirect.Follow =>
                 // 获取 Location 头
                 let location = response.headers.get("location")
                 match (location) {
-                    case Some(loc) => {
+                    case Some(loc) =>
                         redirectCount++
                         response.redirected = true
                         let redirectUrl = if (loc.startsWith("http://") || loc.startsWith("https://")) {
@@ -871,10 +849,8 @@ private func fetchWithRequest(request: Request): Response {
                         let redirectRequest = Request(redirectUrl)
                         response = HttpClient.sendRequest(BaoUrl(redirectUrl), redirectRequest)
                         response.url = redirectUrl
-                    }
                     case None => return response
                 }
-            }
         }
     }
 
@@ -896,18 +872,17 @@ public class FetchModule {
 
             let response = if (args.size >= 2) {
                 // 简化: 第二个参数为 init 对象
-                let init = RequestInit()
+                let `init` = RequestInit()
                 match (args[1].objectData) {
-                    case Some(obj) => {
+                    case Some(obj) =>
                         // method
                         let method = obj.get("method")
                         if (method.valueType == JsValueType.String) {
-                            init.method = method.stringValue.toString()
+                            `init`.method = method.stringValue.toString()
                         }
-                    }
                     case None => ()
                 }
-                fetch(url, init)
+                fetch(url, `init`)
             } else {
                 fetch(url)
             }
@@ -935,12 +910,11 @@ public class FetchModule {
             let headers = Headers()
             if (args.size >= 1) {
                 match (args[0].objectData) {
-                    case Some(obj) => {
+                    case Some(obj) =>
                         for (key in obj.keys()) {
                             let val = obj.get(key)
                             headers.set(key, val.toString())
                         }
-                    }
                     case None => ()
                 }
             }

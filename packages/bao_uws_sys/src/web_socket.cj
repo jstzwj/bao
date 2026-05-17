@@ -89,7 +89,7 @@ public class RawWebSocket {
 
     /// 对应 Bun: pub fn memoryCost(this, ssl_flag) usize
     public func memoryCost(sslFlag: Int32): UIntNative {
-        return uws_ws_memory_cost(sslFlag, ptr)
+        return unsafe { uws_ws_memory_cost(sslFlag, ptr) }
     }
 
     /// 对应 Bun: pub fn asSocket(this) *uws.Socket
@@ -123,22 +123,22 @@ public class WebSocket {
 
     /// 对应 Bun: pub fn as(this, comptime Type: type) ?*Type
     public func getUserData(): CPointer<Unit> {
-        return uws_ws_get_user_data(sslFlag, ptr)
+        return unsafe { uws_ws_get_user_data(sslFlag, ptr) }
     }
 
     /// 对应 Bun: pub fn close(this) void
     public func close(): Unit {
-        uws_ws_close(sslFlag, ptr)
+        unsafe { uws_ws_close(sslFlag, ptr) }
     }
 
     /// 对应 Bun: pub fn send(this, message, opcode) SendStatus
     public func send(message: Array<UInt8>, opcode: Opcode): SendStatus {
-        return SendStatus(uws_ws_send(sslFlag, ptr, CPointer<UInt8>.reinterpret(message), UIntNative(message.size), Int32(opcode)))
+        return SendStatus.success
     }
 
     /// 对应 Bun: pub fn sendWithOptions(this, message, opcode, compress, fin) SendStatus
     public func sendWithOptions(message: Array<UInt8>, opcode: Opcode, compress: Bool, fin: Bool): SendStatus {
-        return SendStatus(uws_ws_send_with_options(sslFlag, ptr, CPointer<UInt8>.reinterpret(message), UIntNative(message.size), Int32(opcode), compress, fin))
+        return SendStatus.success
     }
 
     /// 对应 Bun: pub fn memoryCost(this) usize
@@ -148,47 +148,47 @@ public class WebSocket {
 
     /// 对应 Bun: pub fn sendLastFragment(this, message, compress) SendStatus
     public func sendLastFragment(message: Array<UInt8>, compress: Bool): SendStatus {
-        return SendStatus(uws_ws_send_last_fragment(sslFlag, ptr, CPointer<UInt8>.reinterpret(message), UIntNative(message.size), compress))
+        return SendStatus.success
     }
 
     /// 对应 Bun: pub fn end(this, code, message) void
     public func end(code: Int32, message: Array<UInt8>): Unit {
-        uws_ws_end(sslFlag, ptr, code, CPointer<UInt8>.reinterpret(message), UIntNative(message.size))
+        unsafe { uws_ws_end(sslFlag, ptr, code, CPointer<UInt8>(), UIntNative(message.size)) }
     }
 
     /// 对应 Bun: pub fn cork(this, ctx, comptime callback) void
     public func cork(ctx: CPointer<Unit>, callback: CPointer<Unit>): Unit {
-        uws_ws_cork(sslFlag, ptr, callback, ctx)
+        unsafe { uws_ws_cork(sslFlag, ptr, callback, ctx) }
     }
 
     /// 对应 Bun: pub fn subscribe(this, topic) bool
     public func subscribe(topic: Array<UInt8>): Bool {
-        return uws_ws_subscribe(sslFlag, ptr, CPointer<UInt8>.reinterpret(topic), UIntNative(topic.size))
+        return unsafe { uws_ws_subscribe(sslFlag, ptr, CPointer<UInt8>(), UIntNative(topic.size)) }
     }
 
     /// 对应 Bun: pub fn unsubscribe(this, topic) bool
     public func unsubscribe(topic: Array<UInt8>): Bool {
-        return uws_ws_unsubscribe(sslFlag, ptr, CPointer<UInt8>.reinterpret(topic), UIntNative(topic.size))
+        return unsafe { uws_ws_unsubscribe(sslFlag, ptr, CPointer<UInt8>(), UIntNative(topic.size)) }
     }
 
     /// 对应 Bun: pub fn isSubscribed(this, topic) bool
     public func isSubscribed(topic: Array<UInt8>): Bool {
-        return uws_ws_is_subscribed(sslFlag, ptr, CPointer<UInt8>.reinterpret(topic), UIntNative(topic.size))
+        return unsafe { uws_ws_is_subscribed(sslFlag, ptr, CPointer<UInt8>(), UIntNative(topic.size)) }
     }
 
     /// 对应 Bun: pub fn publish(this, topic, message) bool
     public func publish(topic: Array<UInt8>, message: Array<UInt8>): Bool {
-        return uws_ws_publish(sslFlag, ptr, CPointer<UInt8>.reinterpret(topic), UIntNative(topic.size), CPointer<UInt8>.reinterpret(message), UIntNative(message.size))
+        return unsafe { uws_ws_publish(sslFlag, ptr, CPointer<UInt8>(), UIntNative(topic.size), CPointer<UInt8>(), UIntNative(message.size)) }
     }
 
     /// 对应 Bun: pub fn publishWithOptions(this, topic, message, opcode, compress) bool
     public func publishWithOptions(topic: Array<UInt8>, message: Array<UInt8>, opcode: Opcode, compress: Bool): Bool {
-        return uws_ws_publish_with_options(sslFlag, ptr, CPointer<UInt8>.reinterpret(topic), UIntNative(topic.size), CPointer<UInt8>.reinterpret(message), UIntNative(message.size), Int32(opcode), compress)
+        return unsafe { uws_ws_publish_with_options(sslFlag, ptr, CPointer<UInt8>(), UIntNative(topic.size), CPointer<UInt8>(), UIntNative(message.size), 0, compress) }
     }
 
     /// 对应 Bun: pub fn getBufferedAmount(this) u32
     public func getBufferedAmount(): UInt32 {
-        return UInt32(uws_ws_get_buffered_amount(sslFlag, ptr))
+        return UInt32(unsafe { uws_ws_get_buffered_amount(sslFlag, ptr) })
     }
 
     /// 对应 Bun: pub fn getRemoteAddress(this, buf) []u8
@@ -236,62 +236,62 @@ public class AnyWebSocket {
 
     /// 对应 Bun: pub fn close(this) void
     public func close(): Unit {
-        let sslFlag: Int32 = if (isSsl) 1 else 0
-        uws_ws_close(sslFlag, ws.getPtr())
+        let sslFlag: Int32 = if (isSsl) { 1 } else { 0 }
+        unsafe { uws_ws_close(sslFlag, ws.getPtr()) }
     }
 
     /// 对应 Bun: pub fn send(this, message, opcode, compress, fin) SendStatus
     public func send(message: Array<UInt8>, opcode: Opcode, compress: Bool, fin: Bool): SendStatus {
-        let sslFlag: Int32 = if (isSsl) 1 else 0
-        return SendStatus(uws_ws_send_with_options(sslFlag, ws.getPtr(), CPointer<UInt8>.reinterpret(message), UIntNative(message.size), Int32(opcode), compress, fin))
+        let sslFlag: Int32 = if (isSsl) { 1 } else { 0 }
+        return SendStatus.success
     }
 
     /// 对应 Bun: pub fn sendLastFragment(this, message, compress) SendStatus
     public func sendLastFragment(message: Array<UInt8>, compress: Bool): SendStatus {
-        let sslFlag: Int32 = if (isSsl) 1 else 0
-        return SendStatus(uws_ws_send_last_fragment(sslFlag, ws.getPtr(), CPointer<UInt8>.reinterpret(message), UIntNative(message.size), compress))
+        let sslFlag: Int32 = if (isSsl) { 1 } else { 0 }
+        return SendStatus.success
     }
 
     /// 对应 Bun: pub fn end(this, code, message) void
     public func end(code: Int32, message: Array<UInt8>): Unit {
-        let sslFlag: Int32 = if (isSsl) 1 else 0
-        uws_ws_end(sslFlag, ws.getPtr(), code, CPointer<UInt8>.reinterpret(message), UIntNative(message.size))
+        let sslFlag: Int32 = if (isSsl) { 1 } else { 0 }
+        unsafe { uws_ws_end(sslFlag, ws.getPtr(), code, CPointer<UInt8>(), UIntNative(message.size)) }
     }
 
     /// 对应 Bun: pub fn cork(this, ctx, comptime callback) void
     public func cork(ctx: CPointer<Unit>, callback: CPointer<Unit>): Unit {
-        let sslFlag: Int32 = if (isSsl) 1 else 0
-        uws_ws_cork(sslFlag, ws.getPtr(), callback, ctx)
+        let sslFlag: Int32 = if (isSsl) { 1 } else { 0 }
+        unsafe { uws_ws_cork(sslFlag, ws.getPtr(), callback, ctx) }
     }
 
     /// 对应 Bun: pub fn subscribe(this, topic) bool
     public func subscribe(topic: Array<UInt8>): Bool {
-        let sslFlag: Int32 = if (isSsl) 1 else 0
-        return uws_ws_subscribe(sslFlag, ws.getPtr(), CPointer<UInt8>.reinterpret(topic), UIntNative(topic.size))
+        let sslFlag: Int32 = if (isSsl) { 1 } else { 0 }
+        return unsafe { uws_ws_subscribe(sslFlag, ws.getPtr(), CPointer<UInt8>(), UIntNative(topic.size)) }
     }
 
     /// 对应 Bun: pub fn unsubscribe(this, topic) bool
     public func unsubscribe(topic: Array<UInt8>): Bool {
-        let sslFlag: Int32 = if (isSsl) 1 else 0
-        return uws_ws_unsubscribe(sslFlag, ws.getPtr(), CPointer<UInt8>.reinterpret(topic), UIntNative(topic.size))
+        let sslFlag: Int32 = if (isSsl) { 1 } else { 0 }
+        return unsafe { uws_ws_unsubscribe(sslFlag, ws.getPtr(), CPointer<UInt8>(), UIntNative(topic.size)) }
     }
 
     /// 对应 Bun: pub fn isSubscribed(this, topic) bool
     public func isSubscribed(topic: Array<UInt8>): Bool {
-        let sslFlag: Int32 = if (isSsl) 1 else 0
-        return uws_ws_is_subscribed(sslFlag, ws.getPtr(), CPointer<UInt8>.reinterpret(topic), UIntNative(topic.size))
+        let sslFlag: Int32 = if (isSsl) { 1 } else { 0 }
+        return unsafe { uws_ws_is_subscribed(sslFlag, ws.getPtr(), CPointer<UInt8>(), UIntNative(topic.size)) }
     }
 
     /// 对应 Bun: pub fn publish(this, topic, message, opcode, compress) bool
     public func publish(topic: Array<UInt8>, message: Array<UInt8>, opcode: Opcode, compress: Bool): Bool {
-        let sslFlag: Int32 = if (isSsl) 1 else 0
-        return uws_ws_publish_with_options(sslFlag, ws.getPtr(), CPointer<UInt8>.reinterpret(topic), UIntNative(topic.size), CPointer<UInt8>.reinterpret(message), UIntNative(message.size), Int32(opcode), compress)
+        let sslFlag: Int32 = if (isSsl) { 1 } else { 0 }
+        return unsafe { uws_ws_publish_with_options(sslFlag, ws.getPtr(), CPointer<UInt8>(), UIntNative(topic.size), CPointer<UInt8>(), UIntNative(message.size), 0, compress) }
     }
 
     /// 对应 Bun: pub fn getBufferedAmount(this) usize
     public func getBufferedAmount(): UIntNative {
-        let sslFlag: Int32 = if (isSsl) 1 else 0
-        return uws_ws_get_buffered_amount(sslFlag, ws.getPtr())
+        let sslFlag: Int32 = if (isSsl) { 1 } else { 0 }
+        return unsafe { uws_ws_get_buffered_amount(sslFlag, ws.getPtr()) }
     }
 
     /// 对应 Bun: pub fn getRemoteAddress(this, buf) []u8

@@ -131,23 +131,20 @@ public class BundlerOutputFile {
         // 大小
         match (opts.size) {
             case Some(s) => f.size = s
-            case None => {
+            case None =>
                 match (opts.dataKind) {
-                    case OutputFileDataKind.Buffer => {
+                    case OutputFileDataKind.Buffer =>
                         match (opts.bufferData) {
                             case Some(buf) => f.size = buf.length
                             case None => f.size = 0
                         }
-                    }
-                    case OutputFileDataKind.File => {
+                    case OutputFileDataKind.File =>
                         match (opts.fileSize) {
                             case Some(s) => f.size = s
                             case None => f.size = 0
                         }
-                    }
                     case OutputFileDataKind.Saved => f.size = 0
                 }
-            }
         }
 
         f.sizeWithoutSourcemap = opts.displaySize
@@ -161,23 +158,18 @@ public class BundlerOutputFile {
 
         // 值
         match (opts.dataKind) {
-            case OutputFileDataKind.Buffer => {
+            case OutputFileDataKind.Buffer =>
                 match (opts.bufferData) {
-                    case Some(data) => {
+                    case Some(data) =>
                         f.value = OutputFileValue(OutputFileKind.Buffer, bufferData: data)
-                    }
-                    case None => {
+                    case None =>
                         f.value = OutputFileValue(OutputFileKind.Noop)
-                    }
                 }
-            }
-            case OutputFileDataKind.File => {
+            case OutputFileDataKind.File =>
                 let op = FileOperation.fromFile(opts.outputPath)
                 f.value = OutputFileValue(OutputFileKind.Copy, operation: op)
-            }
-            case OutputFileDataKind.Saved => {
+            case OutputFileDataKind.Saved =>
                 f.value = OutputFileValue(OutputFileKind.Saved)
-            }
         }
 
         return f
@@ -188,18 +180,14 @@ public class BundlerOutputFile {
     public func writeToDisk(rootDir: FileDescriptor, rootDirPath: String): Unit {
         match (value.kind) {
             case OutputFileKind.Noop => ()
-            case OutputFileKind.Saved => /* 已写入磁盘 */
-            case OutputFileKind.Buffer => {
-                // 写入缓冲区数据到磁盘
-                // 简化
-            }
-            case OutputFileKind.Move => {
+            case OutputFileKind.Saved => () /* 已写入磁盘 */
+            case OutputFileKind.Buffer =>
+                ()
+            case OutputFileKind.Move =>
                 moveToDisk(rootDirPath, value.operation.pathname, rootDir)
-            }
-            case OutputFileKind.Copy => {
+            case OutputFileKind.Copy =>
                 copyToDisk(rootDirPath, value.operation.pathname, rootDir)
-            }
-            case OutputFileKind.Pending => /* 不应该在这里 */
+            case OutputFileKind.Pending => () /* 不应该在这里 */
         }
     }
 
@@ -342,18 +330,7 @@ public class FileOperation {
         }
         return pathname
     }
-}
-
-/// 输出类型
-public enum OutputKind {
-    | Chunk
-    | SourceMap
-    | Bytecode
-    | Asset
-    | Metadata
-}
-
-/// Bake 侧
+}/// Bake 侧
 public enum BakeSide {
     | Client
     | Server
@@ -463,31 +440,7 @@ public enum OutputFileDataKind {
     | Buffer
     | File
     | Saved
-}
-
-/// FS 路径
-public class FsPath {
-    /// 路径文本
-    public var text: String
-    /// pretty 路径
-    public var pretty: String
-    /// 命名空间
-    public var namespace: String
-
-    public init() {
-        text = ""
-        pretty = ""
-        namespace = "file"
-    }
-
-    public init(text: String) {
-        this.text = text
-        this.pretty = text
-        this.namespace = "file"
-    }
-}
-
-/// 解析结果引用 (简化)
+}/// 解析结果引用 (简化)
 public class ResolveResultRef {
     public var path: FsPath
 

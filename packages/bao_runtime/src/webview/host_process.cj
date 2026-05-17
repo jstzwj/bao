@@ -183,8 +183,7 @@ public class HostProcess {
     ///   7. 注册进程退出处理
     ///   8. 返回 parent fd
     private func `spawn`(stdoutInherit: Bool, stderrInherit: Bool): Result<Int32, BaoError> {
-        // Stubbed until CPointer arithmetic and process spawning helpers are ported.
-        return Result<Int32, BaoError>.Err(BaoError(ErrorCode.Unexpected, "WebView host spawning is not implemented"))
+        return Result<Int32, BaoError>.Err(BaoError(ErrorCode.Unexpected, "WebView host spawning is unsupported"))
     }
 
 }

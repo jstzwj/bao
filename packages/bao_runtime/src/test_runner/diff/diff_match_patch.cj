@@ -4,7 +4,7 @@
 
 package bao_runtime.test_runner.diff
 
-import std.collection.*
+import bao_collections.*  // std.collection.*
 
 // ========== DiffMatchPatch - 差异匹配补丁算法 ==========
 

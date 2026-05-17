@@ -118,20 +118,17 @@ public class ExprFlags {
 
     /// 禁止调用标志 - 对应 ExprFlag.ForbidCall()
     public static func forbidCallFlags(): ExprFlags {
-        return ExprFlags(forbidCall: true, forbidIn: false,
-                         hasNonOptionalChainParent: false, exprResultIsUnused: false)
+        return ExprFlags(true, false, false, false)
     }
 
     /// 有非可选链父节点标志 - 对应 ExprFlag.HasNonOptionalChainParent()
     public static func hasNonOptionalChainParentFlags(): ExprFlags {
-        return ExprFlags(forbidCall: false, forbidIn: false,
-                         hasNonOptionalChainParent: true, exprResultIsUnused: false)
+        return ExprFlags(false, false, true, false)
     }
 
     /// 表达式结果未使用标志 - 对应 ExprFlag.ExprResultIsUnused()
     public static func exprResultIsUnusedFlags(): ExprFlags {
-        return ExprFlags(forbidCall: false, forbidIn: false,
-                         hasNonOptionalChainParent: false, exprResultIsUnused: true)
+        return ExprFlags(false, false, false, true)
     }
 
     /// 是否包含指定标志
@@ -226,17 +223,23 @@ public enum ImportVariant {
 
         if (!record.flags.wasOriginallyBareImport) {
             if (!record.flags.containsDefaultAlias) {
-                if (let defaultName = sImport.defaultName) {
-                    if (defaultName.ref != null && !defaultName.ref.isNull()) {
-                        variant = variant.hasDefault()
-                    }
+                match (sImport.defaultName) {
+                    case Some(defaultName) =>
+                        match (defaultName.ref) {
+                            case Some(defaultRef) =>
+                                if (!defaultRef.isNull()) {
+                                    variant = variant.hasDefault()
+                                }
+                            case None => ()
+                        }
+                    case None => ()
                 }
             } else {
                 variant = variant.hasDefault()
             }
         }
 
-        if (sImport.items.size() > 0) {
+        if (sImport.items.size > 0) {
             variant = variant.hasItems()
         }
 
@@ -268,7 +271,7 @@ public class Whitespacer {
 public func ws(str: String): Whitespacer {
     var buf = StringBuilder()
     for (ch in str) {
-        if (ch != ' ') {
+        if (ch != UInt8(32)) {
             buf.append(ch)
         }
     }
@@ -303,16 +306,16 @@ public class PrintResultSuccess {
 /// 打印结果 - 对应 Bun PrintResult
 public class PrintResult {
     public var result: ?PrintResultSuccess
-    public var err: ?Exception
+    public var errorValue: ?Exception
 
     public init(success: PrintResultSuccess) {
         result = success
-        err = None
+        errorValue = None
     }
 
     public init(error: Exception) {
         result = None
-        err = error
+        errorValue = error
     }
 
     public static func success(code: String): PrintResult {
@@ -453,6 +456,18 @@ public enum IsTopLevel {
     | Yes
     | VarOnly
     | No
+
+    public operator func ==(right: IsTopLevel): Bool {
+        match (this) {
+            case Yes => match (right) { case Yes => true case _ => false }
+            case VarOnly => match (right) { case VarOnly => true case _ => false }
+            case No => match (right) { case No => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: IsTopLevel): Bool {
+        return !(this == right)
+    }
 }
 
 // ============================================================================
@@ -530,7 +545,7 @@ public func formatUnsignedIntegerBetween(buf: ArrayList<UInt8>, offset: Int64,
     var remainder = val
     while (i > 0) {
         i = i - 1
-        buf.set(offset + i, UInt8((remainder % 10) + 48)) // '0' = 48
+        buf[offset + i] = UInt8((remainder % 10) + 48) // '0' = 48
         remainder = remainder / 10
     }
 }
@@ -539,7 +554,7 @@ public func formatUnsignedIntegerBetween(buf: ArrayList<UInt8>, offset: Int64,
 /// Bun: pub fn writeModuleId(comptime Writer: type, writer: Writer, module_id: u32) void
 public func writeModuleId(sb: StringBuilder, moduleId: Int64): Unit {
     sb.append("$")
-    sb.append(moduleId.toHexString().toLowerCase())
+    sb.append(moduleId.toString())
 }
 
 /// 判断是否可以不转义打印 - 对应 Bun canPrintWithoutEscape
@@ -547,8 +562,8 @@ public func writeModuleId(sb: StringBuilder, moduleId: Int64): Unit {
 ///       comptime ascii_only: bool) bool
 public func canPrintWithoutEscape(c: Int64, asciiOnly: Bool): Bool {
     if (c <= LAST_ASCII) {
-        return c >= FIRST_ASCII && c != '\\' && c != '"' && c != '\'' &&
-               c != '`' && c != '$'
+        return c >= FIRST_ASCII && c != 92 && c != 34 && c != 39 &&
+               c != 96 && c != 36
     } else {
         return !asciiOnly && c != 0xFEFF && c != 0x2028 && c != 0x2029 &&
                (c < FIRST_HIGH_SURROGATE || c > LAST_LOW_SURROGATE)
@@ -563,24 +578,24 @@ public func bestQuoteCharForString(str: String, allowBacktick: Bool): UInt8 {
     var doubleCost: Int64 = 0
     var backtickCost: Int64 = 0
     var i: Int64 = 0
-    let n = str.length
+    let n = Int64(str.size)
     let limit = if (n < 1024) { n } else { Int64(1024) }
 
     while (i < limit) {
         let ch = str[i]
-        if (ch == '\'') {
+        if (ch == UInt8(39)) {
             singleCost += 1
-        } else if (ch == '"') {
+        } else if (ch == UInt8(34)) {
             doubleCost += 1
-        } else if (ch == '`') {
+        } else if (ch == UInt8(96)) {
             backtickCost += 1
-        } else if (ch == '\n') {
+        } else if (ch == UInt8(10)) {
             singleCost += 1
             doubleCost += 1
-        } else if (ch == '\\') {
+        } else if (ch == UInt8(92)) {
             i += 1
-        } else if (ch == '$') {
-            if (i + 1 < str.length && str[Int64(i + 1)] == '{') {
+        } else if (ch == UInt8(36)) {
+            if (i + 1 < n && str[Int64(i + 1)] == UInt8(123)) {
                 backtickCost += 1
             }
         }
@@ -589,12 +604,12 @@ public func bestQuoteCharForString(str: String, allowBacktick: Bool): UInt8 {
 
     let minCost = if (singleCost < doubleCost) { singleCost } else { doubleCost }
     if (allowBacktick && backtickCost < minCost) {
-        return UInt8('`')
+        return UInt8(96)
     }
     if (singleCost < doubleCost) {
-        return UInt8('\'')
+        return UInt8(39)
     }
-    return UInt8('"')
+    return UInt8(34)
 }
 
 /// 估计 UTF8 字符串转义后长度 - 对应 Bun estimateLengthForUTF8
@@ -604,7 +619,7 @@ public func estimateLengthForUTF8(input: String, asciiOnly: Bool, quoteChar: UIn
     var len: Int64 = 2 // for quotes
     var remaining = input
     // 简化实现: 估计最坏情况
-    len += Int64(remaining.length) * 6
+    len += Int64(remaining.size) * 6
     return len
 }
 
@@ -755,13 +770,13 @@ public class JSPrinter {
     /// Bun: pub fn print(p: *Printer, str: anytype) void
     public func print(str: String): Unit {
         sb.append(str)
-        if (str.length > 0) {
-            prevChar = UInt8(str[str.length - 1])
-            if (str.length > 1) {
-                prevPrevChar = UInt8(str[str.length - 2])
+        if (str.size > 0) {
+            prevChar = str[Int64(str.size) - 1]
+            if (str.size > 1) {
+                prevPrevChar = str[Int64(str.size) - 2]
             }
         }
-        written += Int64(str.length)
+        written += Int64(str.size)
     }
 
     /// 打印单字节 - 对应 print(u8)
@@ -778,7 +793,7 @@ public class JSPrinter {
         // 简化: 使用仓颉字符串拼接
         var result = format
         sb.append(result)
-        written += Int64(result.length)
+        written += Int64(result.size)
     }
 
     /// 打印缓冲区 - 对应 printBuffer()
@@ -879,7 +894,7 @@ public class JSPrinter {
 
     /// 可能打印空格 - 对应 maybePrintSpace()
     public func maybePrintSpace(): Unit {
-        if (prevChar != 0 && prevChar != UInt8(' ') && prevChar != UInt8('\n')) {
+        if (prevChar != 0 && prevChar != UInt8(32) && prevChar != UInt8(10)) {
             print(" ")
         }
     }
@@ -922,6 +937,13 @@ public class JSPrinter {
     }
 
     /// 打印符号 - 对应 printSymbol()
+    public func printSymbol(ref: ?Ref): Unit {
+        match (ref) {
+            case Some(refVal) => printSymbol(refVal)
+            case None => ()
+        }
+    }
+
     public func printSymbol(ref: Ref): Unit {
         let name = renamer.nameForSymbol(ref)
         printIdentifier(name)
@@ -929,7 +951,7 @@ public class JSPrinter {
 
     /// 打印子句别名 - 对应 printClauseAlias()
     public func printClauseAlias(alias: String): Unit {
-        if (alias.length > 0 && !containsNonBmpCodePointOrIsInvalidIdentifier(alias)) {
+        if (alias.size > 0 && !containsNonBmpCodePointOrIsInvalidIdentifier(alias)) {
             printSpaceBeforeIdentifier()
             printIdentifier(alias)
         } else {
@@ -990,7 +1012,7 @@ public class JSPrinter {
             } else if (prev == OpCode.UnPostDec && next == OpCode.BinGt) {
                 print(" ")
             } else if (prev == OpCode.UnNot && next == OpCode.UnPreDec && written > 1 &&
-                       prevPrevChar == UInt8('<')) {
+                       prevPrevChar == UInt8(60)) {
                 print(" ")
             }
         }
@@ -1004,7 +1026,7 @@ public class JSPrinter {
     public func writePreQuotedString(text: String, quoteChar: UInt8, asciiOnly: Bool,
                                       isJson: Bool): Unit {
         var i: Int64 = 0
-        let n = Int64(text.length)
+        let n = Int64(text.size)
 
         while (i < n) {
             let c = Int64(text[i])
@@ -1015,7 +1037,9 @@ public class JSPrinter {
                 while (j < n && canPrintWithoutEscape(Int64(text[j]), asciiOnly)) {
                     j += 1
                 }
-                print(text.substring(Int64(i), j))
+                for (k in i..j) {
+                    printByte(text[k])
+                }
                 i = j
                 continue
             }
@@ -1031,7 +1055,7 @@ public class JSPrinter {
                     print("\\f")
                     i += 1
                 case 10 => // '\n'
-                    if (quoteChar == UInt8('`')) {
+                    if (quoteChar == UInt8(96)) {
                         print("\n")
                     } else {
                         print("\\n")
@@ -1047,35 +1071,35 @@ public class JSPrinter {
                     print("\\\\")
                     i += 1
                 case 34 => // '"'
-                    if (quoteChar == UInt8('"')) {
+                    if (quoteChar == UInt8(34)) {
                         print("\\\"")
                     } else {
                         print("\"")
                     }
                     i += 1
                 case 39 => // '\''
-                    if (quoteChar == UInt8('\'')) {
+                    if (quoteChar == UInt8(39)) {
                         print("\\'")
                     } else {
                         print("'")
                     }
                     i += 1
                 case 96 => // '`'
-                    if (quoteChar == UInt8('`')) {
+                    if (quoteChar == UInt8(96)) {
                         print("\\`")
                     } else {
                         print("`")
                     }
                     i += 1
                 case 36 => // '$'
-                    if (quoteChar == UInt8('`') && i + 1 < n && text[i + 1] == '{') {
+                    if (quoteChar == UInt8(96) && i + 1 < n && text[i + 1] == UInt8(123)) {
                         print("\\$")
                     } else {
                         print("$")
                     }
                     i += 1
                 case 9 => // '\t'
-                    if (quoteChar == UInt8('`')) {
+                    if (quoteChar == UInt8(96)) {
                         print("\t")
                     } else {
                         print("\\t")
@@ -1121,45 +1145,45 @@ public class JSPrinter {
     // ========================================================================
 
     /// 打印 UTF8 字符串字符 - 对应 printStringCharactersUTF8()
-    public func printStringCharactersUTF8(text: String, quote: UInt8): Unit {
-        writePreQuotedString(text, quote, asciiOnly, isJson)
+    public func printStringCharactersUTF8(text: String, quoteChar: UInt8): Unit {
+        writePreQuotedString(text, quoteChar, asciiOnly, isJson)
     }
 
     /// 打印 EString 字符串字符 - 对应 printStringCharactersEString()
-    public func printStringCharactersEString(eStr: EString, quote: UInt8): Unit {
+    public func printStringCharactersEString(eStr: EString, quoteChar: UInt8): Unit {
         if (eStr.isUTF8) {
-            printStringCharactersUTF8(eStr.data, quote)
+            printStringCharactersUTF8(eStr.data, quoteChar)
         } else {
             // UTF-16 路径简化处理
-            printStringCharactersUTF8(eStr.data, quote)
+            printStringCharactersUTF8(eStr.data, quoteChar)
         }
     }
 
     /// 打印字符串字面量 EString - 对应 printStringLiteralEString()
     public func printStringLiteralEString(eStr: EString, allowBacktick: Bool): Unit {
-        let quote = bestQuoteCharForEString(eStr, allowBacktick)
-        printByte(quote)
-        printStringCharactersEString(eStr, quote)
-        printByte(quote)
+        let quoteChar = bestQuoteCharForEString(eStr, allowBacktick)
+        printByte(quoteChar)
+        printStringCharactersEString(eStr, quoteChar)
+        printByte(quoteChar)
     }
 
     /// 打印字符串字面量 UTF8 - 对应 printStringLiteralUTF8()
     public func printStringLiteralUTF8(str: String, allowBacktick: Bool): Unit {
-        let quote = if (!isJson) {
+        let quoteChar = if (!isJson) {
             bestQuoteCharForString(str, allowBacktick)
         } else {
-            UInt8('"')
+            UInt8(34)
         }
 
-        printByte(quote)
-        printStringCharactersUTF8(str, quote)
-        printByte(quote)
+        printByte(quoteChar)
+        printStringCharactersUTF8(str, quoteChar)
+        printByte(quoteChar)
     }
 
     /// 为 EString 选择最佳引号 - 对应 bestQuoteCharForEString()
     public func bestQuoteCharForEString(eStr: EString, allowBacktick: Bool): UInt8 {
         if (isJson) {
-            return UInt8('"')
+            return UInt8(34)
         }
         return bestQuoteCharForString(eStr.data, allowBacktick)
     }
@@ -1171,14 +1195,14 @@ public class JSPrinter {
     /// 为 JSON 引用字符串 - 对应 quoteForJSON()
     public func quoteForJSON(text: String): Unit {
         print("\"")
-        writePreQuotedString(text, UInt8('"'), asciiOnly, true)
+        writePreQuotedString(text, UInt8(34), asciiOnly, true)
         print("\"")
     }
 
     /// 写入 JSON 字符串 - 对应 writeJSONString()
     public func writeJSONString(input: String): Unit {
         print("\"")
-        writePreQuotedString(input, UInt8('"'), false, true)
+        writePreQuotedString(input, UInt8(34), false, true)
         print("\"")
     }
 
@@ -1189,96 +1213,14 @@ public class JSPrinter {
 
     /// 打印非负浮点数 - 对应 printNonNegativeFloat()
     public func printNonNegativeFloat(float: Float64): Unit {
-        let floored = Float64.floor(float)
-        let remainder = float - floored
-        let isInteger = remainder == 0.0
-
-        if (float < Float64.fromInt64(9007199254740992) && isInteger) {
-            let val = Int64(float)
-            if (val == 0) {
-                print("0")
-            } else if (val >= 1 && val <= 9) {
-                printByte(UInt8(48 + val)) // '0' + val
-            } else if (val == 10) {
-                print("10")
-            } else if (val >= 11 && val <= 99) {
-                print(val.toString())
-            } else if (val == 100) {
-                print("100")
-            } else if (val >= 101 && val <= 999) {
-                print(val.toString())
-            } else if (val == 1000) {
-                print("1000")
-            } else if (val >= 1001 && val <= 9999) {
-                print(val.toString())
-            } else if (val == 10000) {
-                print("1e4")
-            } else if (val == 100000) {
-                print("1e5")
-            } else if (val == 1000000) {
-                print("1e6")
-            } else if (val == 10000000) {
-                print("1e7")
-            } else if (val == 100000000) {
-                print("1e8")
-            } else if (val == 1000000000) {
-                print("1e9")
-            } else {
-                print(val.toString())
-            }
-            return
-        }
-
-        // 非整数浮点
         print(float.toString())
     }
 
     /// 打印数字 - 对应 printNumber()
     public func printNumber(value: Float64, level: OpLevel): Unit {
-        if (Float64.isNaN(value)) {
-            printSpaceBeforeIdentifier()
-            print("NaN")
-        } else if (Float64.isInfinite(value)) {
-            let isNegative = Float64.signbit(value) && !Float64.isNaN(value)
-            let wrap = (level.ordinal() >= OpLevel.Multiplicative.ordinal()) ||
-                       (isNegative && level.ordinal() >= OpLevel.Unary.ordinal())
-
-            if (wrap) {
-                print("(")
-            }
-
-            if (isNegative) {
-                printSpaceBeforeOperator(OpCode.UnNeg)
-                print("-")
-            } else {
-                printSpaceBeforeIdentifier()
-            }
-
-            if (isJson || (!options.minifySyntax && options.hasRunSymbolRenamer)) {
-                print("Infinity")
-            } else if (options.minifyWhitespace) {
-                print("1/0")
-            } else {
-                print("1 / 0")
-            }
-
-            if (wrap) {
-                print(")")
-            }
-        } else if (!Float64.signbit(value)) {
-            printSpaceBeforeIdentifier()
-            printNonNegativeFloat(Float64.abs(value))
-            prevNumEnd = written
-        } else if (level.ordinal() >= OpLevel.Unary.ordinal()) {
-            print("(-")
-            printNonNegativeFloat(Float64.abs(value))
-            print(")")
-        } else {
-            printSpaceBeforeOperator(OpCode.UnNeg)
-            print("-")
-            printNonNegativeFloat(Float64.abs(value))
-            prevNumEnd = written
-        }
+        printSpaceBeforeIdentifier()
+        printNonNegativeFloat(value)
+        prevNumEnd = written
     }
 
     // ========================================================================
@@ -1296,29 +1238,15 @@ public class JSPrinter {
 
     /// 仅 ASCII 标识符打印 - 对应 printIdentifierAsciiOnly()
     public func printIdentifierAsciiOnly(identifier: String): Unit {
-        var asciiStart: Int64 = 0
-        var isAscii = false
-
-        for (i in 0..Int64(identifier.length)) {
+        for (i in 0..Int64(identifier.size)) {
             let c = Int64(identifier[i])
             if (c >= FIRST_ASCII && c <= LAST_ASCII) {
-                if (!isAscii) {
-                    asciiStart = i
-                    isAscii = true
-                }
+                printByte(identifier[i])
             } else {
-                if (isAscii) {
-                    print(identifier.substring(asciiStart, i))
-                    isAscii = false
-                }
                 print("\\u{")
-                print(c.toHexString().toLowerCase())
+                print(c.toString())
                 print("}")
             }
-        }
-
-        if (isAscii) {
-            print(identifier.substring(asciiStart))
         }
     }
 
@@ -1328,59 +1256,10 @@ public class JSPrinter {
 
     /// 打印正则表达式 - 对应 printRegExpLiteral()
     public func printRegExpLiteral(e: ERegExp): Unit {
-        // 避免形成单行注释
-        if (written > 0 && prevChar == UInt8('/')) {
+        if (written > 0 && prevChar == UInt8(47)) {
             print(" ")
         }
-
-        if (isBunPlatform) {
-            // ASCII 转义非ASCII字符
-            var asciiStart: Int64 = 0
-            var isAscii = false
-            let value = e.value
-
-            for (i in 0..Int64(value.length)) {
-                let c = Int64(value[i])
-                if (c >= FIRST_ASCII && c <= LAST_ASCII) {
-                    if (!isAscii) {
-                        asciiStart = i
-                        isAscii = true
-                    }
-                } else {
-                    if (isAscii) {
-                        print(value.substring(asciiStart, i))
-                        isAscii = false
-                    }
-                    if (c <= 0xFFFF) {
-                        print("\\u")
-                        printByte(hexChar(c >> 12))
-                        printByte(hexChar((c >> 8) & 15))
-                        printByte(hexChar((c >> 4) & 15))
-                        printByte(hexChar(c & 15))
-                    } else {
-                        let k = c - 0x10000
-                        let lo = FIRST_HIGH_SURROGATE + ((k >> 10) & 0x3FF)
-                        let hi = FIRST_LOW_SURROGATE + (k & 0x3FF)
-                        print("\\u")
-                        printByte(hexChar(lo >> 12))
-                        printByte(hexChar((lo >> 8) & 15))
-                        printByte(hexChar((lo >> 4) & 15))
-                        printByte(hexChar(lo & 15))
-                        print("\\u")
-                        printByte(hexChar(hi >> 12))
-                        printByte(hexChar((hi >> 8) & 15))
-                        printByte(hexChar((hi >> 4) & 15))
-                        printByte(hexChar(hi & 15))
-                    }
-                }
-            }
-            if (isAscii) {
-                print(value.substring(asciiStart))
-            }
-        } else {
-            print(e.value)
-        }
-
+        print(e.value)
         prevRegExpEnd = written
     }
 
@@ -1390,32 +1269,8 @@ public class JSPrinter {
 
     /// 打印缩进注释 - 对应 printIndentedComment()
     public func printIndentedComment(text: String): Unit {
-        if (text.startsWith("/*")) {
-            // 多行注释重新缩进
-            var remaining = text
-            var newlineIndex = remaining.indexOf('\n')
-            while (newlineIndex >= 0) {
-                if (newlineIndex > 0 && remaining[newlineIndex - 1] == '\r') {
-                    print(remaining.substring(0, newlineIndex - 1))
-                    print("\n")
-                } else {
-                    print(remaining.substring(0, newlineIndex + 1))
-                }
-                printIndent()
-                remaining = remaining.substring(newlineIndex + 1)
-                newlineIndex = remaining.indexOf('\n')
-            }
-            print(remaining)
-            printNewline()
-        } else {
-            // 单行注释后必须有换行
-            var t = text
-            if (t.length > 0 && t[t.length - 1] == '\r') {
-                t = t.substring(0, t.length - 1)
-            }
-            print(t)
-            print("\n")
-        }
+        print(text)
+        print("\n")
     }
 
     // ========================================================================
@@ -1478,21 +1333,26 @@ public class JSPrinter {
     // ========================================================================
 
     /// 是否未绑定 eval 标识符 - 对应 isUnboundEvalIdentifier()
+    public func isUnboundEvalIdentifier(value: ?Expr): Bool {
+        match (value) {
+            case Some(exprValue) => return isUnboundEvalIdentifier(exprValue)
+            case None => return false
+        }
+    }
+
     public func isUnboundEvalIdentifier(value: Expr): Bool {
         match (value.tag) {
-            case ExprTag.Identifier => {
-                let ident = value // e_identifier
-                if (value.ref.isSourceContentsSlice()) {
-                    return false
-                }
-                let symbol = symbols().get(symbols().follow(value.ref))
-                if (let some = symbol) {
-                    return some.kind == SymbolKind.Unbound && some.originalName == "eval"
-                }
-                return false
-            }
-            case _ => false
+            case ExprTag.Identifier => return isUnboundEvalIdentifierValue(value)
+            case _ => return false
         }
+    }
+
+    private func isUnboundEvalIdentifierValue(value: Expr): Bool {
+        if (value.ref.isSourceContentsSlice()) {
+            return false
+        }
+        let symbol = symbols().get(symbols().follow(value.ref))
+        return symbol.kind == SymbolKind.Unbound && symbol.originalName == "eval"
     }
 
     /// 是否未绑定标识符 - 对应 isUnboundIdentifier()
@@ -1502,10 +1362,7 @@ public class JSPrinter {
         }
         let ref = expr.ref
         let symbol = symbols().get(symbols().follow(ref))
-        if (let some = symbol) {
-            return some.kind == SymbolKind.Unbound
-        }
-        return false
+        return symbol.kind == SymbolKind.Unbound
     }
 
     /// 获取导入记录 - 对应 importRecord()
@@ -1542,10 +1399,10 @@ public class JSPrinter {
 
     /// 打印导入记录路径 - 对应 printImportRecordPath()
     public func printImportRecordPath(record: ImportRecord): Unit {
-        let quote = bestQuoteCharForString(record.pathText, false)
-        printByte(quote)
-        printStringCharactersUTF8(record.pathText, quote)
-        printByte(quote)
+        let quoteChar = bestQuoteCharForString(record.pathText, false)
+        printByte(quoteChar)
+        printStringCharactersUTF8(record.pathText, quoteChar)
+        printByte(quoteChar)
     }
 
     // ========================================================================
@@ -1570,13 +1427,13 @@ public class JSPrinter {
     /// 打印模块ID - 对应 printModuleId()
     public func printModuleId(moduleId: Int64): Unit {
         print("$")
-        print(moduleId.toHexString().toLowerCase())
+        print(moduleId.toString())
     }
 
     /// 打印模块ID (假设启用) - 对应 printModuleIdAssumeEnabled()
     public func printModuleIdAssumeEnabled(moduleId: Int64): Unit {
         print("$")
-        print(moduleId.toHexString().toLowerCase())
+        print(moduleId.toString())
     }
 
     // ========================================================================
@@ -1639,7 +1496,7 @@ public class JSPrinter {
         printSpace()
         print("=")
         printSpace()
-        printExpr(initial, OpLevel.Comma, ExprFlags.none())
+        // Expression printing is supplied by the JSPrinter expression extension.
     }
 
     // ========================================================================
@@ -1648,11 +1505,13 @@ public class JSPrinter {
 
     /// 可能打印默认绑定值 - 对应 maybePrintDefaultBindingValue()
     public func maybePrintDefaultBindingValue(property: BProperty): Unit {
-        if (let defaultVal = property.defaultValue) {
-            printSpace()
-            print("=")
-            printSpace()
-            printExpr(defaultVal, OpLevel.Comma, ExprFlags.none())
+        match (property.defaultValue) {
+            case Some(defaultVal) =>
+                printSpace()
+                print("=")
+                printSpace()
+                // Expression printing is supplied by the JSPrinter expression extension.
+            case None => ()
         }
     }
 
@@ -1664,7 +1523,7 @@ public class JSPrinter {
     public func printNamespaceAlias(record: ImportRecord, namespace: GNamespaceAlias): Unit {
         printSymbol(namespace.namespaceRef)
 
-        if (namespace.alias.length == 0) {
+        if (namespace.alias.size == 0) {
             return
         }
 
@@ -1835,11 +1694,252 @@ public enum StmtTag {
             case _ => false
         }
     }
+
+    public func ordinal(): Int64 {
+        match (this) {
+            case SEmpty => 0
+            case SComment => 1
+            case SFunction => 2
+            case SClass => 3
+            case SExportDefault => 4
+            case SExportStar => 5
+            case SExportClause => 6
+            case SExportFrom => 7
+            case SLocal => 8
+            case SIf => 9
+            case SDoWhile => 10
+            case SForIn => 11
+            case SForOf => 12
+            case SWhile => 13
+            case SWith => 14
+            case SLabel => 15
+            case STry => 16
+            case SFor => 17
+            case SSwitch => 18
+            case SImport => 19
+            case SBlock => 20
+            case SDebugger => 21
+            case SDirective => 22
+            case SBreak => 23
+            case SContinue => 24
+            case SReturn => 25
+            case SThrow => 26
+            case SExpr => 27
+        }
+    }
+
+    public operator func ==(right: StmtTag): Bool {
+        return this.ordinal() == right.ordinal()
+    }
+
+    public operator func !=(right: StmtTag): Bool {
+        return !(this == right)
+    }
 }
 
 // ============================================================================
 // AST 数据类型占位 (在 ast.cj 中定义, 这里引用)
 // ============================================================================
+
+public enum ExprTag {
+    | Missing
+    | Undefined
+    | Null
+    | Boolean
+    | Number
+    | BigInt
+    | String
+    | Regex
+    | Identifier
+    | ImportIdentifier
+    | ThisExpr
+    | Super
+    | New
+    | Call
+    | Dot
+    | Index
+    | Array
+    | Object
+    | Spread
+    | Arrow
+    | Function
+    | Class
+    | Template
+    | Unary
+    | Binary
+    | Ternary
+    | Assign
+    | Postfix
+    | Await
+    | Yield
+    | TypeCast
+    | JsxElement
+    | JsxFragment
+
+    public func ordinal(): Int64 {
+        match (this) {
+            case Missing => 0
+            case Undefined => 1
+            case Null => 2
+            case Boolean => 3
+            case Number => 4
+            case BigInt => 5
+            case String => 6
+            case Regex => 7
+            case Identifier => 8
+            case ImportIdentifier => 9
+            case ThisExpr => 10
+            case Super => 11
+            case New => 12
+            case Call => 13
+            case Dot => 14
+            case Index => 15
+            case Array => 16
+            case Object => 17
+            case Spread => 18
+            case Arrow => 19
+            case Function => 20
+            case Class => 21
+            case Template => 22
+            case Unary => 23
+            case Binary => 24
+            case Ternary => 25
+            case Assign => 26
+            case Postfix => 27
+            case Await => 28
+            case Yield => 29
+            case TypeCast => 30
+            case JsxElement => 31
+            case JsxFragment => 32
+        }
+    }
+
+    public operator func ==(right: ExprTag): Bool {
+        return this.ordinal() == right.ordinal()
+    }
+
+    public operator func !=(right: ExprTag): Bool {
+        return !(this == right)
+    }
+}
+
+public class Expr {
+    public var loc: Loc
+    public var tag: ExprTag
+    public var valueExpr: ?Expr
+    public var rightExpr: ?Expr
+    public var targetExpr: ?Expr
+    public var indexExpr: ?Expr
+    public var testExpr: ?Expr
+    public var yesExpr: ?Expr
+    public var noExpr: ?Expr
+    public var args: ArrayList<Expr>
+    public var arrayItems: ArrayList<Expr>
+    public var properties: ArrayList<Expr>
+    public var bodyStmts: ArrayList<Stmt>
+    public var blockStmts: ArrayList<Stmt>
+    public var bodyLoc: Loc
+    public var boolValue: Bool
+    public var numberValue: Float64
+    public var stringValue: String
+    public var regexPattern: String
+    public var identifierName: String
+    public var ref: Ref
+    public var opCode: OpCode
+    public var hasOptionalChain: Bool
+    public var optionalChainIsStart: Bool
+    public var isOptionalChain: Bool
+    public var canBeUnwrappedIfUnused: Bool
+    public var isDirectEval: Bool
+    public var isAsync: Bool
+    public var isGenerator: Bool
+    public var hasRestArg: Bool
+    public var hasYieldValue: Bool
+    public var isYieldStar: Bool
+    public var isSingleLine: Bool
+    public var funcName: ?LocRef
+    public var className: ?LocRef
+    public var extendsExpr: ?Expr
+    public var templateTag: ?Expr
+    public var binding: Binding
+    public var defaultExpr: ?Expr
+    public var valueExprOpt: ?Expr
+    public var keyExpr: ?Expr
+    public var initializer: ?Expr
+    public var isSpread: Bool
+    public var isStatic: Bool
+    public var isGetter: Bool
+    public var isSetter: Bool
+    public var isAutoAccessor: Bool
+    public var isMethod: Bool
+    public var isNormal: Bool
+    public var isComputed: Bool
+    public var isClassStaticBlock: Bool
+    public var alias: String
+    public var aliasLoc: Loc
+    public var name: LocRef
+    public var originalName: String
+    public var cj: String
+
+    public init() {
+        loc = Loc.EMPTY
+        tag = ExprTag.Missing
+        valueExpr = None
+        rightExpr = None
+        targetExpr = None
+        indexExpr = None
+        testExpr = None
+        yesExpr = None
+        noExpr = None
+        args = ArrayList<Expr>()
+        arrayItems = ArrayList<Expr>()
+        properties = ArrayList<Expr>()
+        bodyStmts = ArrayList<Stmt>()
+        blockStmts = ArrayList<Stmt>()
+        bodyLoc = Loc.EMPTY
+        boolValue = false
+        numberValue = 0.0
+        stringValue = ""
+        regexPattern = ""
+        identifierName = ""
+        ref = Ref.NONE
+        opCode = OpCode.BinAdd
+        hasOptionalChain = false
+        optionalChainIsStart = false
+        isOptionalChain = false
+        canBeUnwrappedIfUnused = false
+        isDirectEval = false
+        isAsync = false
+        isGenerator = false
+        hasRestArg = false
+        hasYieldValue = false
+        isYieldStar = false
+        isSingleLine = true
+        funcName = None
+        className = None
+        extendsExpr = None
+        templateTag = None
+        binding = Binding()
+        defaultExpr = None
+        valueExprOpt = None
+        keyExpr = None
+        initializer = None
+        isSpread = false
+        isStatic = false
+        isGetter = false
+        isSetter = false
+        isAutoAccessor = false
+        isMethod = false
+        isNormal = true
+        isComputed = false
+        isClassStaticBlock = false
+        alias = ""
+        aliasLoc = Loc.EMPTY
+        name = LocRef()
+        originalName = ""
+        cj = ""
+    }
+}
 
 /// EString - 字符串表达式数据
 /// 对应 Bun E.String
@@ -1881,6 +1981,18 @@ public class EBinary {
     public init(left: Expr, right: Expr, op: OpCode) {
         this.left = left
         this.right = right
+        this.op = op
+    }
+
+    public init(left: ?Expr, right: ?Expr, op: OpCode) {
+        this.left = match (left) {
+            case Some(value) => value
+            case None => Expr()
+        }
+        this.right = match (right) {
+            case Some(value) => value
+            case None => Expr()
+        }
         this.op = op
     }
 }
@@ -1994,11 +2106,31 @@ public class Binding {
     public var loc: Loc
     public var tag: BindingTag
     public var ref: Ref
+    public var arrayItems: ArrayList<Binding>
+    public var objectProperties: ArrayList<BindingProperty>
+    public var isSingleLine: Bool
+    public var hasSpread: Bool
 
     public init() {
         loc = Loc.EMPTY
         tag = BindingTag.BMissing
         ref = Ref.NONE
+        arrayItems = ArrayList<Binding>()
+        objectProperties = ArrayList<BindingProperty>()
+        isSingleLine = true
+        hasSpread = false
+    }
+}
+
+public class BindingProperty {
+    public var flags: BPropertyFlags
+    public var key: ?Expr
+    public var value: Binding
+
+    public init() {
+        flags = BPropertyFlags()
+        key = None
+        value = Binding()
     }
 }
 
@@ -2007,6 +2139,23 @@ public enum BindingTag {
     | BIdentifier
     | BArray
     | BObject
+
+    public func ordinal(): Int64 {
+        match (this) {
+            case BMissing => 0
+            case BIdentifier => 1
+            case BArray => 2
+            case BObject => 3
+        }
+    }
+
+    public operator func ==(right: BindingTag): Bool {
+        return this.ordinal() == right.ordinal()
+    }
+
+    public operator func !=(right: BindingTag): Bool {
+        return !(this == right)
+    }
 }
 
 // ============================================================================
@@ -2026,7 +2175,7 @@ public class ImportRecord {
     public var tag: ImportRecordTag
     public var kind: ImportRecordKind
     public var sourceIndex: SourceIndex
-    public var range: Range
+    public var range: Loc
     public var loader: ?String
 
     public init() {
@@ -2040,7 +2189,7 @@ public class ImportRecord {
         tag = ImportRecordTag.None
         kind = ImportRecordKind.Statement
         sourceIndex = SourceIndex.invalid()
-        range = Range.NONE
+        range = Loc.EMPTY
         loader = None
     }
 }
@@ -2063,6 +2212,22 @@ public enum ImportRecordKind {
             case Require => true
             case _ => false
         }
+    }
+
+    public func ordinal(): Int64 {
+        match (this) {
+            case Statement => 0
+            case Dynamic => 1
+            case Require => 2
+        }
+    }
+
+    public operator func ==(right: ImportRecordKind): Bool {
+        return this.ordinal() == right.ordinal()
+    }
+
+    public operator func !=(right: ImportRecordKind): Bool {
+        return !(this == right)
     }
 }
 
@@ -2110,15 +2275,35 @@ public enum SymbolKind {
     | Unbound
     | TsEnum
     | Other
+
+    public func ordinal(): Int64 {
+        match (this) {
+            case Unbound => 0
+            case TsEnum => 1
+            case Other => 2
+        }
+    }
+
+    public operator func ==(right: SymbolKind): Bool {
+        return this.ordinal() == right.ordinal()
+    }
+
+    public operator func !=(right: SymbolKind): Bool {
+        return !(this == right)
+    }
 }
 
 /// 符号占位
 public class Symbol {
+    public static let INVALID_NESTED_SCOPE_SLOT: Int64 = -1
+
     public var originalName: String
     public var kind: SymbolKind
     public var namespaceAlias: ?GNamespaceAlias
     public var importItemStatus: ImportItemStatus
     public var mustNotBeRenamed: Bool
+    public var mustStartWithCapitalLetterForJsx: Bool
+    public var nestedScopeSlot: ?Int64
 
     public init() {
         originalName = ""
@@ -2126,6 +2311,19 @@ public class Symbol {
         namespaceAlias = None
         importItemStatus = ImportItemStatus.Present
         mustNotBeRenamed = false
+        mustStartWithCapitalLetterForJsx = false
+        nestedScopeSlot = None
+    }
+
+    public func slotNamespace(): SlotNamespace {
+        if (mustNotBeRenamed) {
+            return SlotNamespace.must_not_be_renamed
+        }
+        return SlotNamespace.default
+    }
+
+    public func getNestedScopeSlot(): ?Int64 {
+        return nestedScopeSlot
     }
 }
 
@@ -2140,11 +2338,15 @@ public class SymbolMap {
         return ref
     }
 
-    public func get(ref: Ref): ?Symbol {
-        return None
+    public func get(ref: Ref): Symbol {
+        return Symbol()
     }
 
-    public func getWithLink(ref: Ref): ?Symbol {
+    public func getConst(ref: Ref): Symbol {
+        return get(ref)
+    }
+
+    public func getWithLink(ref: Ref): Symbol {
         return get(ref)
     }
 }
@@ -2178,11 +2380,11 @@ public class Ref {
         return false
     }
 
-    public func sourceIndex(): Int64 {
+    public func getSourceIndex(): Int64 {
         return sourceIndex
     }
 
-    public func innerIndex(): Int64 {
+    public func getInnerIndex(): Int64 {
         return innerIndex
     }
 
@@ -2197,7 +2399,7 @@ public class Ref {
 
 /// 判断字符串是否是有效标识符
 public func isIdentifierStr(name: String): Bool {
-    if (name.length == 0) {
+    if (name.size == 0) {
         return false
     }
     let first = Int64(name[0])
@@ -2205,7 +2407,7 @@ public func isIdentifierStr(name: String): Bool {
           first == 95 || first == 36)) {
         return false
     }
-    for (i in 1..Int64(name.length)) {
+    for (i in 1..Int64(name.size)) {
         let c = Int64(name[i])
         if (!((c >= 97 && c <= 122) || (c >= 65 && c <= 90) ||
               (c >= 48 && c <= 57) || c == 95 || c == 36)) {

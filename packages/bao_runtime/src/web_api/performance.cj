@@ -3,8 +3,10 @@
 // 严格翻译自 Web Performance API
 package bao_runtime.web_api
 
-import bao_core.*
+import bao_core.BaoString
 import bao_collections.*
+import bao_runtime.*
+import bao_sys.*
 
 // ============================================================================
 // PerformanceEntry — 性能条目基类
@@ -21,6 +23,21 @@ public enum PerformanceEntryType {
     | Paint       // "paint" — PerformancePaintTiming
     | UserTiming  // 自定义用户计时
 
+    public operator func ==(right: PerformanceEntryType): Bool {
+        match (this) {
+            case Mark => match (right) { case Mark => true case _ => false }
+            case Measure => match (right) { case Measure => true case _ => false }
+            case Navigation => match (right) { case Navigation => true case _ => false }
+            case Resource => match (right) { case Resource => true case _ => false }
+            case Paint => match (right) { case Paint => true case _ => false }
+            case UserTiming => match (right) { case UserTiming => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: PerformanceEntryType): Bool {
+        return !(this == right)
+    }
+
     public func toString(): String {
         match (this) {
             case Mark => "mark"
@@ -35,7 +52,7 @@ public enum PerformanceEntryType {
 
 /// PerformanceEntry — 性能条目
 /// 对应 Web API: PerformanceEntry
-public class PerformanceEntry {
+public open class PerformanceEntry {
     /// 条目名称
     public var name: String
     /// 条目类型
@@ -80,7 +97,7 @@ public class PerformanceEntry {
 
 /// PerformanceMark — 性能标记 (继承 PerformanceEntry)
 /// 对应 Web API: PerformanceMark
-public class PerformanceMark extends PerformanceEntry {
+public class PerformanceMark <: PerformanceEntry {
     /// 标记的详细信息
     public var detail: JsValue
 
@@ -98,9 +115,8 @@ public class PerformanceMark extends PerformanceEntry {
     public func toJsValueMark(): JsValue {
         let base = super.toJsValue()
         match (base.objectData) {
-            case Some(obj) => {
+            case Some(obj) =>
                 obj.set("detail", detail)
-            }
             case None => ()
         }
         return base
@@ -114,7 +130,7 @@ public class PerformanceMark extends PerformanceEntry {
 
 /// PerformanceMeasure — 性能度量 (继承 PerformanceEntry)
 /// 对应 Web API: PerformanceMeasure
-public class PerformanceMeasure extends PerformanceEntry {
+public class PerformanceMeasure <: PerformanceEntry {
     /// 度量的详细信息
     public var detail: JsValue
 
@@ -132,9 +148,8 @@ public class PerformanceMeasure extends PerformanceEntry {
     public func toJsValueMeasure(): JsValue {
         let base = super.toJsValue()
         match (base.objectData) {
-            case Some(obj) => {
+            case Some(obj) =>
                 obj.set("detail", detail)
-            }
             case None => ()
         }
         return base
@@ -176,8 +191,8 @@ public class PerformanceObserver {
 
     /// 观察单个类型
     /// 对应 Web API: observer.observe({ type: "..." })
-    public func observe(type: String): Unit {
-        observedTypes.append(type)
+    public func observe(`type`: String): Unit {
+        observedTypes.append(`type`)
         disconnected = false
     }
 
@@ -217,12 +232,11 @@ public class PerformanceObserver {
         obj.set("observe", JsValue.nativeFunction(JsNativeFunction("observe") { args =>
             if (args.size >= 1) {
                 match (args[0].objectData) {
-                    case Some(obj) => {
+                    case Some(obj) =>
                         let typeVal = obj.get("type")
                         if (typeVal.valueType == JsValueType.String) {
                             self.observe(typeVal.stringValue.toString())
                         }
-                    }
                     case None => ()
                 }
             }
@@ -236,7 +250,7 @@ public class PerformanceObserver {
 
         obj.set("takeRecords", JsValue.nativeFunction(JsNativeFunction("takeRecords") { _ =>
             // 简化: 返回空数组
-            return JsValue.emptyArray()
+            return JsValue.array(ArrayList<JsValue>())
         }))
 
         return JsValue(obj)
@@ -263,7 +277,7 @@ public class PerformanceObserver {
 /// Performance — 性能监控接口
 /// 对应 Web API: Performance
 /// 对应 Bun: performance 全局对象
-public class Performance extends EventTarget {
+public class Performance <: EventTarget {
     /// 性能条目列表
     private var entries: ArrayList<PerformanceEntry>
     /// 时间原点 (进程启动时间)
@@ -308,7 +322,7 @@ public class Performance extends EventTarget {
         let start = findMarkTime(startMark)
         let end = findMarkTime(endMark)
         match (start) {
-            case Some(s) => {
+            case Some(s) =>
                 let e = match (end) {
                     case Some(v) => v
                     case None => now()
@@ -318,7 +332,6 @@ public class Performance extends EventTarget {
                 entries.append(measure)
                 notifyObservers(measure)
                 return Some(measure)
-            }
             case None => return None
         }
     }
@@ -336,7 +349,7 @@ public class Performance extends EventTarget {
     /// 清除指定类型的性能条目
     /// 对应 Web API: performance.clearMarks(name) / clearMeasures(name)
     public func clearMarks(name: String): Unit {
-        if (name.length == 0) {
+        if (name.size == 0) {
             // 清除所有 mark
             let newArr = ArrayList<PerformanceEntry>()
             for (entry in entries) {
@@ -360,7 +373,7 @@ public class Performance extends EventTarget {
     /// 清除所有 measure
     /// 对应 Web API: performance.clearMeasures(name)
     public func clearMeasures(name: String): Unit {
-        if (name.length == 0) {
+        if (name.size == 0) {
             let newArr = ArrayList<PerformanceEntry>()
             for (entry in entries) {
                 if (entry.entryType != PerformanceEntryType.Measure) {
@@ -383,22 +396,25 @@ public class Performance extends EventTarget {
     /// 获取所有性能条目
     /// 对应 Web API: performance.getEntries()
     public func getEntries(): ArrayList<PerformanceEntry> {
-        return ArrayList<PerformanceEntry>(entries)
+        let result = ArrayList<PerformanceEntry>()
+        for (entry in entries) {
+            result.append(entry)
+        }
+        return result
     }
 
     /// 获取指定类型的性能条目
     /// 对应 Web API: performance.getEntriesByType(type)
-    public func getEntriesByType(type: String): ArrayList<PerformanceEntry> {
+    public func getEntriesByType(`type`: String): ArrayList<PerformanceEntry> {
         let result = ArrayList<PerformanceEntry>()
-        let targetType = parseEntryType(type)
+        let targetType = parseEntryType(`type`)
         match (targetType) {
-            case Some(t) => {
+            case Some(t) =>
                 for (entry in entries) {
                     if (entry.entryType == t) {
                         result.append(entry)
                     }
                 }
-            }
             case None => ()
         }
         return result
@@ -418,17 +434,16 @@ public class Performance extends EventTarget {
 
     /// 获取指定名称和类型的性能条目
     /// 对应 Web API: performance.getEntriesByName(name, type)
-    public func getEntriesByName(name: String, type: String): ArrayList<PerformanceEntry> {
+    public func getEntriesByName(name: String, `type`: String): ArrayList<PerformanceEntry> {
         let result = ArrayList<PerformanceEntry>()
-        let targetType = parseEntryType(type)
+        let targetType = parseEntryType(`type`)
         match (targetType) {
-            case Some(t) => {
+            case Some(t) =>
                 for (entry in entries) {
                     if (entry.name == name && entry.entryType == t) {
                         result.append(entry)
                     }
                 }
-            }
             case None => ()
         }
         return result
@@ -459,8 +474,8 @@ public class Performance extends EventTarget {
     }
 
     /// 解析条目类型字符串
-    private static func parseEntryType(type: String): ?PerformanceEntryType {
-        match (type) {
+    private static func parseEntryType(`type`: String): ?PerformanceEntryType {
+        match (`type`) {
             case "mark" => Some(PerformanceEntryType.Mark)
             case "measure" => Some(PerformanceEntryType.Measure)
             case "navigation" => Some(PerformanceEntryType.Navigation)
@@ -474,7 +489,7 @@ public class Performance extends EventTarget {
     public func toJsValuePerformance(): JsValue {
         let base = super.toJsValue()
         match (base.objectData) {
-            case Some(obj) => {
+            case Some(obj) =>
                 let self = this
 
                 obj.set("timeOrigin", JsValue(self.timeOrigin))
@@ -531,15 +546,15 @@ public class Performance extends EventTarget {
 
                 obj.set("getEntriesByType", JsValue.nativeFunction(JsNativeFunction("getEntriesByType") { args =>
                     if (args.size >= 1) {
-                        let type = Interpreter.jsToString(args[0])
-                        let entries = self.getEntriesByType(type)
+                        let `type` = Interpreter.jsToString(args[0])
+                        let entries = self.getEntriesByType(`type`)
                         let arr = ArrayList<JsValue>()
                         for (entry in entries) {
                             arr.append(entry.toJsValue())
                         }
                         return JsValue.array(arr)
                     }
-                    return JsValue.emptyArray()
+                    return JsValue.array(ArrayList<JsValue>())
                 }))
 
                 obj.set("getEntriesByName", JsValue.nativeFunction(JsNativeFunction("getEntriesByName") { args =>
@@ -552,7 +567,7 @@ public class Performance extends EventTarget {
                         }
                         return JsValue.array(arr)
                     }
-                    return JsValue.emptyArray()
+                    return JsValue.array(ArrayList<JsValue>())
                 }))
 
                 obj.set("toJSON", JsValue.nativeFunction(JsNativeFunction("toJSON") { _ =>
@@ -560,14 +575,13 @@ public class Performance extends EventTarget {
                     json.set("timeOrigin", JsValue(self.timeOrigin))
                     return JsValue(json)
                 }))
-            }
             case None => ()
         }
         return base
     }
 
     private static func currentTimeMillis(): Float64 {
-        return bao_sys.SysModule.currentTimeMillis()
+        return Float64(SysModule.currentTimeMillis())
     }
 }
 

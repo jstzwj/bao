@@ -4,6 +4,8 @@
 //   全局目录等路径操作
 package bao_install.package_manager
 
+import bao_install.*
+
 import bao_core.*
 import bao_collections.*
 import bao_io.*
@@ -34,80 +36,46 @@ public class CacheDir {
 public func fetchCacheDirectoryPath(env: DotEnvLoader, options: ?Options): CacheDir {
     // 1. BUN_INSTALL_CACHE_DIR 环境变量
     match (env.get("BUN_INSTALL_CACHE_DIR")) {
-        case Some(dir) => {
-            return CacheDir(
-                path: FileSystem.instance().abs(dir),
-                isNodeModules: false
-            )
-        }
-        case None => {}
+        case Some(dir) => return CacheDir(FileSystem.instance().abs(dir), false)
+        case None => ()
     }
 
     // 2. 选项中的 cache_directory
     match (options) {
-        case Some(opts) => {
-            if (opts.cacheDirectory.length > 0) {
-                return CacheDir(
-                    path: FileSystem.instance().abs(opts.cacheDirectory),
-                    isNodeModules: false
-                )
+        case Some(opts) =>
+            if (opts.cacheDirectory.size > 0) {
+                return CacheDir(FileSystem.instance().abs(opts.cacheDirectory), false)
             }
-        }
-        case None => {}
+        case None => ()
     }
 
     // 3. BUN_INSTALL 环境变量
     match (env.get("BUN_INSTALL")) {
-        case Some(dir) => {
-            let parts = ArrayList<Array<Byte>>()
-            parts.append(dir)
-            parts.append("install/")
-            parts.append("cache/")
-            return CacheDir(
-                path: FileSystem.instance().abs(parts),
-                isNodeModules: false
-            )
-        }
-        case None => {}
+        case Some(dir) => return makeCacheDirFromParts(dir, ["install/", "cache/"])
+        case None => ()
     }
 
     // 4. XDG_CACHE_HOME 环境变量
     match (env.get("XDG_CACHE_HOME")) {
-        case Some(dir) => {
-            let parts = ArrayList<Array<Byte>>()
-            parts.append(dir)
-            parts.append(".bun/")
-            parts.append("install/")
-            parts.append("cache/")
-            return CacheDir(
-                path: FileSystem.instance().abs(parts),
-                isNodeModules: false
-            )
-        }
-        case None => {}
+        case Some(dir) => return makeCacheDirFromParts(dir, [".bun/", "install/", "cache/"])
+        case None => ()
     }
 
     // 5. HOME 环境变量
     match (env.get("HOME")) {
-        case Some(dir) => {
-            let parts = ArrayList<Array<Byte>>()
-            parts.append(dir)
-            parts.append(".bun/")
-            parts.append("install/")
-            parts.append("cache/")
-            return CacheDir(
-                path: FileSystem.instance().abs(parts),
-                isNodeModules: false
-            )
-        }
-        case None => {}
+        case Some(dir) => return makeCacheDirFromParts(dir, [".bun/", "install/", "cache/"])
+        case None => ()
     }
 
     // 6. 回退: node_modules/.bun-cache
-    return CacheDir(
-        path: FileSystem.instance().abs("node_modules/.bun-cache"),
-        isNodeModules: true
-    )
+    return CacheDir(FileSystem.instance().abs("node_modules/.bun-cache"), true)
+}
+
+private func makeCacheDirFromParts(base: String, suffixes: Array<String>): CacheDir {
+    let parts = ArrayList<Array<UInt8>>()
+    parts.append(base.toArray())
+    for (s in suffixes) { parts.append(s.toArray()) }
+    return CacheDir(FileSystem.instance().abs(parts), false)
 }
 
 // ============================================================================
@@ -126,6 +94,13 @@ public class TemporaryDirectory {
         this.handle = handle
         this.path = path
         this.name = name
+    }
+}
+
+/// 临时目录回退处理
+private func handleTmpFallback(cacheDirectory: FileDescriptor, triedDotTmp: Bool): Unit {
+    if (!triedDotTmp) {
+        bao_sys.Syscall.makeOpenPath(cacheDirectory, ".tmp")
     }
 }
 
@@ -152,19 +127,8 @@ public func getTemporaryDirectory(manager: PackageManager): TemporaryDirectory {
         tempDir, tmpname, cacheDirectory, tmpname
     )
     match (renameResult) {
-        case SyscallResult.Success => {
-            // 删除测试文件
-            bao_sys.Syscall.unlinkat(cacheDirectory, tmpname)
-        }
-        case SyscallResult.Err(_) => {
-            if (!triedDotTmp) {
-                triedDotTmp = true
-                // 回退到缓存目录内的 .tmp 子目录
-                let fallbackDir = bao_sys.Syscall.makeOpenPath(
-                    cacheDirectory, ".tmp"
-                )
-            }
-        }
+        case SyscallResult.Success => bao_sys.Syscall.unlinkat(cacheDirectory, tmpname)
+        case SyscallResult.Err(_) => handleTmpFallback(cacheDirectory, triedDotTmp)
     }
 
     // 获取临时目录的绝对路径
@@ -188,12 +152,15 @@ public func getTemporaryDirectory(manager: PackageManager): TemporaryDirectory {
 public func getCacheDirectory(manager: PackageManager): FileDescriptor {
     match (manager.cacheDirectory) {
         case Some(fd) => return fd
-        case None => {
-            let fd = ensureCacheDirectory(manager)
-            manager.cacheDirectory = fd
-            return fd
-        }
+        case None => ensureAndSetCacheDir(manager)
     }
+}
+
+/// helper for getCacheDirectory None case
+private func ensureAndSetCacheDir(manager: PackageManager): FileDescriptor {
+    let fd = ensureCacheDirectory(manager)
+    manager.cacheDirectory = fd
+    return fd
 }
 
 /// 确保缓存目录存在
@@ -212,12 +179,7 @@ private func ensureCacheDirectory(manager: PackageManager): FileDescriptor {
         )
         match (openResult) {
             case SyscallResult.Success(d) => return d
-            case SyscallResult.Err(_) => {
-                // 无法打开, 禁用缓存
-                manager.options.enable.set(Enable.CACHE, false)
-                manager.cacheDirectoryPath = Array<Byte>()
-                // 继续尝试回退路径
-            }
+            case SyscallResult.Err(_) => disableCacheAndContinue(manager)
         }
     }
 
@@ -232,11 +194,20 @@ private func ensureCacheDirectory(manager: PackageManager): FileDescriptor {
     )
     match (result) {
         case SyscallResult.Success(d) => return d
-        case SyscallResult.Err(err) => {
-            Output.prettyErrorln("error: bun is unable to write files: ${err.name()}")
-            Global.crash()
-        }
+        case SyscallResult.Err(err) => crashOnWriteError(err)
     }
+}
+
+/// disable cache and continue
+private func disableCacheAndContinue(manager: PackageManager): Unit {
+    manager.options.enable.set(Enable.CACHE, false)
+    manager.cacheDirectoryPath = Array<Byte>()
+}
+
+/// crash on write error
+private func crashOnWriteError(err: SyscallError): Unit {
+    Output.prettyErrorln("error: bun is unable to write files: ${err.name()}")
+    Global.crash()
 }
 
 /// 获取缓存目录和路径
@@ -260,14 +231,15 @@ public func setupGlobalDir(manager: PackageManager, ctx: CommandContext): Result
     let outBuffer = PathBuffer()
     let result = bao_sys.Syscall.getFdPath(manager.options.globalBinDir, outBuffer)
     match (result) {
-        case SyscallResult.Success(path) => {
-            manager.options.binPath = path
-            return Result.Ok(())
-        }
-        case SyscallResult.Err(err) => {
-            return Result.Err(err)
-        }
+        case SyscallResult.Success(path) => setupGlobalDirSuccess(manager, path)
+        case SyscallResult.Err(err) => Result.Err(err)
     }
+}
+
+/// setupGlobalDir success helper
+private func setupGlobalDirSuccess(manager: PackageManager, path: Array<Byte>): Result<Unit> {
+    manager.options.binPath = path
+    return Result.Ok(())
 }
 
 /// 获取全局链接目录
@@ -276,7 +248,7 @@ public func setupGlobalDir(manager: PackageManager, ctx: CommandContext): Result
 public func globalLinkDir(manager: PackageManager): FileDescriptor {
     match (manager.globalLinkDir) {
         case Some(d) => return d
-        case None => {}
+        case None => ()
     }
 
     // 打开全局目录
@@ -290,10 +262,8 @@ public func globalLinkDir(manager: PackageManager): FileDescriptor {
     let pathBuf = PathBuffer()
     let pathResult = bao_sys.Syscall.getFdPath(nodeModules, pathBuf)
     match (pathResult) {
-        case SyscallResult.Success(p) => {
-            manager.globalLinkDirPath = p
-        }
-        case _ => {}
+        case SyscallResult.Success(p) => manager.globalLinkDirPath = p
+        case _ => ()
     }
 
     return nodeModules
@@ -329,7 +299,7 @@ public func cachedGitFolderName(
     var name = "@G@${resolved}"
     match (patchHash) {
         case Some(h) => name = "${name}_patch_hash=${bao_hash.Hex.encodeLower(h)}"
-        case None => {}
+        case None => ()
     }
     return name
 }
@@ -346,7 +316,7 @@ public func cachedGithubFolderName(
     var name = "@GH@${resolved}@@@${CacheVersion.CURRENT}"
     match (patchHash) {
         case Some(h) => name = "${name}_patch_hash=${bao_hash.Hex.encodeLower(h)}"
-        case None => {}
+        case None => ()
     }
     return name
 }
@@ -365,7 +335,7 @@ public func cachedNpmPackageFolderName(
     var folderName = "${name}@${version.major}.${version.minor}.${version.patch}"
     match (patchHash) {
         case Some(h) => folderName = "${folderName}_patch_hash=${bao_hash.Hex.encodeLower(h)}"
-        case None => {}
+        case None => ()
     }
 
     // 如果有自定义 scope, 添加 scope 后缀
@@ -381,7 +351,7 @@ public func cachedNpmPackageFolderName(
         }
         match (patchHash) {
             case Some(h) => folderName = "${folderName}_patch_hash=${bao_hash.Hex.encodeLower(h)}"
-            case None => {}
+            case None => ()
         }
     } else {
         // 默认 scope: 包含缓存版本号
@@ -403,7 +373,7 @@ public func cachedTarballFolderName(
     var name = "@T@${bao_hash.Hex.encodeLower(urlHash)}@@@${CacheVersion.CURRENT}"
     match (patchHash) {
         case Some(h) => name = "${name}_patch_hash=${bao_hash.Hex.encodeLower(h)}"
-        case None => {}
+        case None => ()
     }
     return name
 }
@@ -442,98 +412,70 @@ public func computeCacheDirAndSubpath(
     patchHash: ?UInt64
 ): CacheDirAndSubpath {
     match (resolution.tag) {
-        case ResolutionTag.Npm => {
-            let version = resolution.npm.version
-            let subpath = cachedNpmPackageFolderName(manager, pkgName, version, patchHash)
-            return CacheDirAndSubpath(
-                cacheDir: getCacheDirectory(manager),
-                cacheDirSubpath: subpath
-            )
-        }
-        case ResolutionTag.Git => {
-            let git = resolution.git
-            let subpath = cachedGitFolderName(manager, git, patchHash)
-            return CacheDirAndSubpath(
-                cacheDir: getCacheDirectory(manager),
-                cacheDirSubpath: subpath
-            )
-        }
-        case ResolutionTag.Github => {
-            let github = resolution.github
-            let subpath = cachedGithubFolderName(manager, github, patchHash)
-            return CacheDirAndSubpath(
-                cacheDir: getCacheDirectory(manager),
-                cacheDirSubpath: subpath
-            )
-        }
-        case ResolutionTag.Folder => {
-            let buf = manager.lockfile.buffers.stringBytes
-            let folder = resolution.folder.slice(buf)
-            let subpath = if (folder.length == 0 || folder == ".") {
-                "."
-            } else {
-                folder
-            }
-            return CacheDirAndSubpath(
-                cacheDir: FileDescriptor.cwd(),
-                cacheDirSubpath: subpath
-            )
-        }
-        case ResolutionTag.LocalTarball => {
-            let tarball = resolution.localTarball
-            let subpath = cachedTarballFolderName(manager, tarball, patchHash)
-            return CacheDirAndSubpath(
-                cacheDir: getCacheDirectory(manager),
-                cacheDirSubpath: subpath
-            )
-        }
-        case ResolutionTag.RemoteTarball => {
-            let tarball = resolution.remoteTarball
-            let subpath = cachedTarballFolderName(manager, tarball, patchHash)
-            return CacheDirAndSubpath(
-                cacheDir: getCacheDirectory(manager),
-                cacheDirSubpath: subpath
-            )
-        }
-        case ResolutionTag.Workspace => {
-            let buf = manager.lockfile.buffers.stringBytes
-            let folder = resolution.workspace.slice(buf)
-            let subpath = if (folder.length == 0 || folder == ".") {
-                "."
-            } else {
-                folder
-            }
-            return CacheDirAndSubpath(
-                cacheDir: FileDescriptor.cwd(),
-                cacheDirSubpath: subpath
-            )
-        }
-        case ResolutionTag.Symlink => {
-            let directory = globalLinkDir(manager)
-            let buf = manager.lockfile.buffers.stringBytes
-            let folder = resolution.symlink.slice(buf)
-
-            if (folder.length == 0 || folder == ".") {
-                return CacheDirAndSubpath(
-                    cacheDir: FileDescriptor.cwd(),
-                    cacheDirSubpath: "."
-                )
-            }
-
-            let globalLinkPath = globalLinkDirPath(manager)
-            let subpath = Path.join(globalLinkPath, folder)
-            return CacheDirAndSubpath(
-                cacheDir: directory,
-                cacheDirSubpath: subpath
-            )
-        }
-        case _ => {
-            return CacheDirAndSubpath(
-                cacheDir: FileDescriptor.cwd(),
-                cacheDirSubpath: ""
-            )
-        }
+        case ResolutionTag.Npm => computeNpmCacheDir(manager, pkgName, resolution, patchHash)
+        case ResolutionTag.Git => computeGitCacheDir(manager, resolution, patchHash)
+        case ResolutionTag.Github => computeGithubCacheDir(manager, resolution, patchHash)
+        case ResolutionTag.Folder => computeFolderCacheDir(manager, resolution)
+        case ResolutionTag.LocalTarball => computeTarballCacheDir(manager, resolution.localTarball, patchHash)
+        case ResolutionTag.RemoteTarball => computeTarballCacheDir(manager, resolution.remoteTarball, patchHash)
+        case ResolutionTag.Workspace => computeWorkspaceCacheDir(manager, resolution)
+        case ResolutionTag.Symlink => computeSymlinkCacheDir(manager, resolution)
+        case _ => CacheDirAndSubpath(cacheDir: FileDescriptor.cwd(), cacheDirSubpath: "")
     }
+}
+
+/// computeCacheDirAndSubpath helper for Npm
+private func computeNpmCacheDir(manager: PackageManager, pkgName: Array<Byte>, resolution: Resolution, patchHash: ?UInt64): CacheDirAndSubpath {
+    let version = resolution.npm.version
+    let subpath = cachedNpmPackageFolderName(manager, pkgName, version, patchHash)
+    return CacheDirAndSubpath(cacheDir: getCacheDirectory(manager), cacheDirSubpath: subpath)
+}
+
+/// computeCacheDirAndSubpath helper for Git
+private func computeGitCacheDir(manager: PackageManager, resolution: Resolution, patchHash: ?UInt64): CacheDirAndSubpath {
+    let subpath = cachedGitFolderName(manager, resolution.git, patchHash)
+    return CacheDirAndSubpath(cacheDir: getCacheDirectory(manager), cacheDirSubpath: subpath)
+}
+
+/// computeCacheDirAndSubpath helper for Github
+private func computeGithubCacheDir(manager: PackageManager, resolution: Resolution, patchHash: ?UInt64): CacheDirAndSubpath {
+    let subpath = cachedGithubFolderName(manager, resolution.github, patchHash)
+    return CacheDirAndSubpath(cacheDir: getCacheDirectory(manager), cacheDirSubpath: subpath)
+}
+
+/// computeCacheDirAndSubpath helper for Folder
+private func computeFolderCacheDir(manager: PackageManager, resolution: Resolution): CacheDirAndSubpath {
+    let buf = manager.lockfile.buffers.stringBytes
+    let folder = resolution.folder.slice(buf)
+    let subpath = if (folder.length == 0 || folder == ".") { "." } else { folder }
+    return CacheDirAndSubpath(cacheDir: FileDescriptor.cwd(), cacheDirSubpath: subpath)
+}
+
+/// computeCacheDirAndSubpath helper for Tarball
+private func computeTarballCacheDir(manager: PackageManager, tarball: String, patchHash: ?UInt64): CacheDirAndSubpath {
+    let subpath = cachedTarballFolderName(manager, tarball, patchHash)
+    return CacheDirAndSubpath(cacheDir: getCacheDirectory(manager), cacheDirSubpath: subpath)
+}
+
+/// computeCacheDirAndSubpath helper for Workspace
+private func computeWorkspaceCacheDir(manager: PackageManager, resolution: Resolution): CacheDirAndSubpath {
+    let buf = manager.lockfile.buffers.stringBytes
+    let folder = resolution.workspace.slice(buf)
+    let subpath = if (folder.length == 0 || folder == ".") { "." } else { folder }
+    return CacheDirAndSubpath(cacheDir: FileDescriptor.cwd(), cacheDirSubpath: subpath)
+}
+
+/// computeCacheDirAndSubpath helper for Symlink
+private func computeSymlinkCacheDir(manager: PackageManager, resolution: Resolution): CacheDirAndSubpath {
+    let directory = globalLinkDir(manager)
+    let buf = manager.lockfile.buffers.stringBytes
+    let folder = resolution.symlink.slice(buf)
+    if (folder.length == 0 || folder == ".") {
+        return CacheDirAndSubpath(cacheDir: FileDescriptor.cwd(), cacheDirSubpath: ".")
+    }
+    let globalLinkPath = globalLinkDirPath(manager)
+    let subpath = Path.join(globalLinkPath, folder)
+    return CacheDirAndSubpath(cacheDir: directory, cacheDirSubpath: subpath)
 }
 
 /// 根据 resolution 获取路径
@@ -545,15 +487,16 @@ public func pathForResolution(
     buf: PathBuffer
 ): Result<Array<Byte>> {
     match (resolution.tag) {
-        case ResolutionTag.Npm => {
-            let npm = resolution.npm
-            let packageName = manager.lockfile.packages.itemsName(packageId)
-            return pathForCachedNpmPath(manager, buf, packageName, npm.version)
-        }
-        case _ => {
-            return Result.Ok(Array<Byte>())
-        }
+        case ResolutionTag.Npm => pathForNpmResolution(manager, packageId, resolution, buf)
+        case _ => Result.Ok(Array<Byte>())
     }
+}
+
+/// pathForResolution Npm helper
+private func pathForNpmResolution(manager: PackageManager, packageId: UInt32, resolution: Resolution, buf: PathBuffer): Result<Array<Byte>> {
+    let npm = resolution.npm
+    let packageName = manager.lockfile.packages.itemsName(packageId)
+    return pathForCachedNpmPath(manager, buf, packageName, npm.version)
 }
 
 /// 获取 npm 缓存路径
@@ -570,14 +513,15 @@ public func pathForCachedNpmPath(
     let cacheDir = getCacheDirectory(manager)
     let result = bao_sys.Syscall.readlinkat(cacheDir, cachePath, buf)
     match (result) {
-        case SyscallResult.Success(n) => {
-            return Result.Ok(buf.slice(0, n))
-        }
-        case SyscallResult.Err(err) => {
-            bao_sys.Syscall.unlinkat(cacheDir, cachePath)
-            return Result.Err(Error.fromErrno(err.errno))
-        }
+        case SyscallResult.Success(n) => Result.Ok(buf.slice(0, n))
+        case SyscallResult.Err(err) => handleReadlinkError(cacheDir, cachePath, err)
     }
+}
+
+/// handle readlink error
+private func handleReadlinkError(cacheDir: FileDescriptor, cachePath: String, err: SyscallError): Result<Array<Byte>> {
+    bao_sys.Syscall.unlinkat(cacheDir, cachePath)
+    return Result.Err(Error.fromErrno(err.errno))
 }
 
 // ============================================================================
@@ -593,16 +537,22 @@ public func attemptToCreatePackageJson(): Result<Unit> {
         CreateFlags(read: true)
     )
     match (file) {
-        case SyscallResult.Success(f) => {
-            f.pwriteAll("{\"dependencies\": {}}", 0)
-            f.close()
-            return Result.Ok(())
-        }
-        case SyscallResult.Err(err) => {
-            Output.prettyErrorln("error: ${err.name()} create package.json")
-            Global.crash()
-        }
+        case SyscallResult.Success(f) => writePackageJson(f)
+        case SyscallResult.Err(err) => crashOnCreateError(err)
     }
+}
+
+/// write package.json helper
+private func writePackageJson(f: FileDescriptor): Result<Unit> {
+    f.pwriteAll("{\"dependencies\": {}}", 0)
+    f.close()
+    return Result.Ok(())
+}
+
+/// crash on create error
+private func crashOnCreateError(err: SyscallError): Unit {
+    Output.prettyErrorln("error: ${err.name()} create package.json")
+    Global.crash()
 }
 
 /// 保存锁文件
@@ -620,20 +570,18 @@ public func saveLockfile(
         // 空锁文件, 删除
         if (!manager.options.dryRun) {
             let deleteName = match (loadResult.format) {
-                LockfileFormat.Text => "bun.lock"
-                LockfileFormat.Binary => "bun.lockb"
+                case LockfileFormat.Text => "bun.lock"
+                case LockfileFormat.Binary => "bun.lockb"
             }
             bao_sys.Syscall.unlinkat(FileDescriptor.cwd(), deleteName)
         }
 
         if (!manager.options.global && logLevel != LogLevel.Silent) {
             match (manager.subcommand) {
-                case Subcommand.Remove => {
+                case Subcommand.Remove =>
                     Output.prettyErrorln("package.json has no dependencies! Deleted empty lockfile")
-                }
-                case _ => {
+                case _ =>
                     Output.prettyErrorln("No packages! Deleted empty lockfile")
-                }
             }
         }
         return Result.Ok(())
@@ -650,6 +598,16 @@ public func saveLockfile(
     return Result.Ok(())
 }
 
+/// update lockfile packages helper
+private func updateLockfilePackages(manager: PackageManager, ok: LoadSuccess): Unit {
+    if (ok.serializerResult.packagesNeedUpdate) {
+        let slice = manager.lockfile.packages.slice()
+        for (meta in slice.itemsMetaMut()) {
+            meta.setHasInstallScript(false)
+        }
+    }
+}
+
 /// 如需更新锁文件
 /// 翻译自: updateLockfileIfNeeded
 public func updateLockfileIfNeeded(
@@ -657,15 +615,8 @@ public func updateLockfileIfNeeded(
     loadResult: LoadResult
 ): Result<Unit> {
     match (loadResult) {
-        case LoadResult.Ok(ok) => {
-            if (ok.serializerResult.packagesNeedUpdate) {
-                let slice = manager.lockfile.packages.slice()
-                for (meta in slice.itemsMetaMut()) {
-                    meta.setHasInstallScript(false)
-                }
-            }
-        }
-        case _ => {}
+        case LoadResult.Ok(ok) => updateLockfilePackages(manager, ok)
+        case _ => ()
     }
     return Result.Ok(())
 }
@@ -678,27 +629,30 @@ public func writeYarnLock(manager: PackageManager): Result<Unit> {
 
     let tmpFile = bao_sys.Syscall.createTempFile(tmpName)
     match (tmpFile) {
-        case SyscallResult.Success(f) => {
-            // 写入 yarn lock 格式
-            let printer = LockfilePrinter(
-                lockfile: manager.lockfile,
-                options: manager.options,
-                successfullyInstalled: None,
-                updates: ArrayList<UpdateRequest>()
-            )
-            let buf = ArrayList<Byte>()
-            YarnPrinter.print(printer, buf)
-            f.writeAll(buf)
-
-            // 移动到最终位置
-            f.promoteToCwd(tmpName, "yarn.lock")
-            return Result.Ok(())
-        }
-        case SyscallResult.Err(err) => {
-            Output.prettyErrorln("error: failed to create tmpfile: ${err.name()}")
-            Global.crash()
-        }
+        case SyscallResult.Success(f) => writeYarnLockFile(f, manager, tmpName)
+        case SyscallResult.Err(err) => crashOnTmpfileError(err)
     }
+}
+
+/// write yarn lock file helper
+private func writeYarnLockFile(f: FileDescriptor, manager: PackageManager, tmpName: String): Result<Unit> {
+    let printer = LockfilePrinter(
+        lockfile: manager.lockfile,
+        options: manager.options,
+        successfullyInstalled: None,
+        updates: ArrayList<UpdateRequest>()
+    )
+    let buf = ArrayList<Byte>()
+    YarnPrinter.print(printer, buf)
+    f.writeAll(buf)
+    f.promoteToCwd(tmpName, "yarn.lock")
+    return Result.Ok(())
+}
+
+/// crash on tmpfile error
+private func crashOnTmpfileError(err: SyscallError): Unit {
+    Output.prettyErrorln("error: failed to create tmpfile: ${err.name()}")
+    Global.crash()
 }
 
 // ============================================================================
@@ -805,7 +759,7 @@ public class Enable {
         if (on) {
             value = value | flag
         } else {
-            value = value & ~flag
+            value = value & (flag ^ UInt32.MAX)
         }
     }
 }

@@ -4,6 +4,8 @@
 //   Scripts.List 包含脚本项列表, 支持 getScriptEntries, createList, parseCount/parseAlloc
 package bao_install.lockfile
 
+import bao_install.*
+
 import bao_core.*
 import bao_collections.*
 
@@ -95,12 +97,12 @@ public class PackageScripts {
     /// 翻译自: Scripts.hasAny
     ///   pub fn hasAny(this) bool
     public func hasAny(): Bool {
-        return preinstall.length > 0 ||
-            install.length > 0 ||
-            postinstall.length > 0 ||
-            preprepare.length > 0 ||
-            prepare.length > 0 ||
-            postprepare.length > 0
+        return preinstall.size > 0 ||
+            install.size > 0 ||
+            postinstall.size > 0 ||
+            preprepare.size > 0 ||
+            prepare.size > 0 ||
+            postprepare.size > 0
     }
 
     /// 获取脚本条目
@@ -128,7 +130,7 @@ public class PackageScripts {
             counter += 1
 
             // 只检查 postinstall
-            if (postinstall.length > 0) {
+            if (postinstall.size > 0) {
                 if (firstScriptIndex == -1) { firstScriptIndex = scriptIndex }
                 if (Int64(scriptIndex) < scripts.size) {
                     scripts[Int64(scriptIndex) - 1] = postinstall
@@ -140,7 +142,7 @@ public class PackageScripts {
             // 安装脚本: preinstall, install, postinstall
             let installScripts = [preinstall, install, postinstall]
             for (script in installScripts) {
-                if (script.length > 0) {
+                if (script.size > 0) {
                     if (firstScriptIndex == -1) { firstScriptIndex = scriptIndex }
                     if (Int64(scriptIndex) < scripts.size) {
                         scripts[Int64(scriptIndex)] = script
@@ -153,37 +155,17 @@ public class PackageScripts {
 
         // 准备脚本: 根据 resolution tag 决定
         match (resolutionTag) {
-            case ResolutionTag.Git | ResolutionTag.GitHub | ResolutionTag.Root => {
-                let prepareScripts = [preprepare, prepare, postprepare]
-                for (script in prepareScripts) {
-                    if (script.length > 0) {
-                        if (firstScriptIndex == -1) { firstScriptIndex = scriptIndex }
-                        if (Int64(scriptIndex) < scripts.size) {
-                            scripts[Int64(scriptIndex)] = script
-                        }
-                        counter += 1
-                    }
-                    scriptIndex += 1
-                }
-            }
-            case ResolutionTag.Workspace => {
-                scriptIndex += 1
-                if (prepare.length > 0) {
-                    if (firstScriptIndex == -1) { firstScriptIndex = scriptIndex }
-                    if (Int64(scriptIndex) < scripts.size) {
-                        scripts[Int64(scriptIndex)] = prepare
-                    }
-                    counter += 1
-                }
-                scriptIndex += 2
-            }
+            case ResolutionTag.Git => scriptIndex = processPrepareScripts(preprepare, prepare, postprepare, scripts, scriptIndex, counter, firstScriptIndex)
+            case ResolutionTag.GitHub => scriptIndex = processPrepareScripts(preprepare, prepare, postprepare, scripts, scriptIndex, counter, firstScriptIndex)
+            case ResolutionTag.Root => scriptIndex = processPrepareScripts(preprepare, prepare, postprepare, scripts, scriptIndex, counter, firstScriptIndex)
+            case ResolutionTag.Workspace => scriptIndex = processWorkspaceScripts(prepare, scripts, scriptIndex, counter, firstScriptIndex)
             case _ => ()
         }
 
         return ScriptEntriesResult(
-            firstIndex: firstScriptIndex,
-            total: counter,
-            entries: scripts
+            firstScriptIndex,
+            counter,
+            scripts
         )
     }
 
@@ -198,17 +180,17 @@ public class PackageScripts {
         addNodeGypRebuildScript: Bool
     ): ?ScriptsList {
         let result = getScriptEntries(
-            resolutionTag: resolutionTag,
-            addNodeGypRebuildScript: addNodeGypRebuildScript
+            resolutionTag,
+            addNodeGypRebuildScript
         )
 
         if (result.firstIndex != -1) {
             return ScriptsList(
-                items: result.entries,
-                firstIndex: UInt8(result.firstIndex),
-                total: UInt8(result.total),
-                cwd: cwd,
-                packageName: packageName
+                result.entries,
+                UInt8(result.firstIndex),
+                UInt8(result.total),
+                cwd,
+                packageName
             )
         }
 
@@ -236,13 +218,55 @@ public class PackageScripts {
     ///   pub fn count(this, buf, Builder, builder) void
     public func count(): Int64 {
         var total: Int64 = 0
-        total += Int64(preinstall.length)
-        total += Int64(install.length)
-        total += Int64(postinstall.length)
-        total += Int64(preprepare.length)
-        total += Int64(prepare.length)
-        total += Int64(postprepare.length)
+        total += Int64(preinstall.size)
+        total += Int64(install.size)
+        total += Int64(postinstall.size)
+        total += Int64(preprepare.size)
+        total += Int64(prepare.size)
+        total += Int64(postprepare.size)
         return total
+    }
+
+    /// Helper: process prepare scripts for Git/GitHub/Root
+    private func processPrepareScripts(
+        preprepare: String, prepare: String, postprepare: String,
+        scripts: ArrayList<?String>, scriptIndex: Int64, counter: Int64, firstScriptIndex: Int64
+    ): Int64 {
+        var idx = scriptIndex
+        var cnt = counter
+        var first = firstScriptIndex
+        let prepareScripts = [preprepare, prepare, postprepare]
+        for (script in prepareScripts) {
+            if (script.size > 0) {
+                if (first == -1) { first = idx }
+                if (idx < scripts.size) {
+                    scripts[idx] = script
+                }
+                cnt += 1
+            }
+            idx += 1
+        }
+        return idx
+    }
+
+    /// Helper: process workspace scripts
+    private func processWorkspaceScripts(
+        prepare: String,
+        scripts: ArrayList<?String>, scriptIndex: Int64, counter: Int64, firstScriptIndex: Int64
+    ): Int64 {
+        var idx = scriptIndex
+        var cnt = counter
+        var first = firstScriptIndex
+        idx += 1
+        if (prepare.size > 0) {
+            if (first == -1) { first = idx }
+            if (idx < scripts.size) {
+                scripts[idx] = prepare
+            }
+            cnt += 1
+        }
+        idx += 2
+        return idx
     }
 }
 
@@ -320,18 +344,15 @@ public class ScriptsList {
 
         for (i in 0..items.size) {
             match (items[i]) {
-                case Some(script) => {
-                    if (i < SCRIPT_NAMES.size) {
-                        let fmt = match (formatType) {
-                            case ScriptFormatType.Completed => "  [${SCRIPT_NAMES[i]}]: ${script}\n"
-                            case ScriptFormatType.Untrusted => "  [${SCRIPT_NAMES[i]}]: ${script}\n"
-                            case ScriptFormatType.Info => "  [${SCRIPT_NAMES[i]}]: ${script}\n"
-                        }
-                        bao_core.Output.print(fmt)
-                    }
-                }
+                case Some(script) => printScriptEntry(script, i, formatType)
                 case None => ()
             }
+        }
+    }
+
+    private func printScriptEntry(script: String, i: Int64, formatType: ScriptFormatType): Unit {
+        if (i < SCRIPT_NAMES.size) {
+            bao_core.Output.print("  [${SCRIPT_NAMES[i]}]: ${script}\n")
         }
     }
 
@@ -341,13 +362,15 @@ public class ScriptsList {
     public func appendToLockfile(lockfileScripts: ArrayList<ArrayList<String>>): Unit {
         for (i in 0..items.size) {
             match (items[i]) {
-                case Some(script) => {
-                    if (i < lockfileScripts.size) {
-                        lockfileScripts[Int64(i)].append(script)
-                    }
-                }
+                case Some(script) => appendScriptEntry(lockfileScripts, i, script)
                 case None => ()
             }
+        }
+    }
+
+    private func appendScriptEntry(lockfileScripts: ArrayList<ArrayList<String>>, i: Int64, script: String): Unit {
+        if (i < lockfileScripts.size) {
+            lockfileScripts[i].append(script)
         }
     }
 }

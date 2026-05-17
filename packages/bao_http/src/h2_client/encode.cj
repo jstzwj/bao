@@ -49,27 +49,27 @@ public class H2FrameEncode {
 
     /// 发送 HTTP/2 连接预检
     /// 严格翻译自: encode.writePreface
-    public static func writePreface(session: H2ClientSession): Unit {
+    public static func writePreface(session: H2FetchClientSession): Unit {
         // 1. 连接预检字符串
-        let preface = H2ClientSession.CLIENT_PREFACE
-        let prefaceBytes = Array<UInt8>()
+        let preface = H2FetchClientSession.CLIENT_PREFACE
+        let prefaceBytes = ArrayList<UInt8>()
         for (c in preface) {
-            prefaceBytes.append(UInt8(c.value & 0xFF))
+            prefaceBytes.append(UInt8(c & 0xFF))
         }
-        session.queue(prefaceBytes)
+        session.queue(prefaceBytes.toOwnedSlice())
 
         // 2. SETTINGS 帧 (3 个参数)
-        let settings = Array<UInt8>()
+        let settings = ArrayList<UInt8>()
         // SETTINGS_ENABLE_PUSH = 0 (禁用推送)
         appendSetting(settings, 0x2, 0)
         // SETTINGS_INITIAL_WINDOW_SIZE = 16MB
-        appendSetting(settings, 0x4, H2ClientSession.LOCAL_INITIAL_WINDOW_SIZE)
+        appendSetting(settings, 0x4, H2FetchClientSession.LOCAL_INITIAL_WINDOW_SIZE)
         // SETTINGS_MAX_HEADER_LIST_SIZE = 256KB
-        appendSetting(settings, 0x6, H2ClientSession.LOCAL_MAX_HEADER_LIST_SIZE)
-        session.writeFrame(H2FrameType.Settings, 0, 0, settings)
+        appendSetting(settings, 0x6, H2FetchClientSession.LOCAL_MAX_HEADER_LIST_SIZE)
+        session.writeFrame(H2FrameType.Settings, 0, 0, settings.toOwnedSlice())
 
         // 3. 连接级窗口更新 (从 64KB 扩展到本端初始窗口大小)
-        session.writeWindowUpdate(0, H2ClientSession.LOCAL_INITIAL_WINDOW_SIZE - H2ClientSession.DEFAULT_WINDOW_SIZE)
+        session.writeWindowUpdate(0, H2FetchClientSession.LOCAL_INITIAL_WINDOW_SIZE - H2FetchClientSession.DEFAULT_WINDOW_SIZE)
         session.prefaceSent = true
     }
 
@@ -88,7 +88,7 @@ public class H2FrameEncode {
 
     /// 序列化 HTTP 请求为 HTTP/2 帧
     /// 严格翻译自: encode.writeRequest
-    public static func writeRequest(session: H2ClientSession, stream: H2ClientStream,
+    public static func writeRequest(session: H2FetchClientSession, stream: H2FetchClientStream,
                                      method: String, path: String, host: String,
                                      headers: ArrayList<HeaderPair>,
                                      body: Array<UInt8>, isStreaming: Bool): Unit {
@@ -96,10 +96,9 @@ public class H2FrameEncode {
 
         // HPACK Dynamic Table Size Update (如果需要)
         match (session.pendingHpackEncCapacity) {
-            case Some(cap) => {
+            case Some(cap) =>
                 session.pendingHpackEncCapacity = None
                 encodeHpackTableSizeUpdate(encoded, cap)
-            }
             case None => ()
         }
 
@@ -108,14 +107,13 @@ public class H2FrameEncode {
         var hasExpectContinue = false
 
         for (h in headers) {
-            let lower = h.name.toLower()
+            let lower = lowerString(h.name)
             match (lower) {
                 case "host" => authority = h.value
-                case "expect" => {
-                    if (h.value.toLower().trim() == "100-continue") {
+                case "expect" =>
+                    if (trimString(lowerString(h.value)) == "100-continue") {
                         hasExpectContinue = true
                     }
-                }
                 case _ => ()
             }
         }
@@ -134,20 +132,19 @@ public class H2FrameEncode {
         }
 
         // 编码用户头部 (跳过逐跳头部)
-        let skipHeaders = Array<String>(["connection", "keep-alive", "proxy-connection", "transfer-encoding", "upgrade"])
         for (h in headers) {
-            let lower = h.name.toLower()
+            let lower = lowerString(h.name)
             // 跳过逐跳头部和 host
             var skip = false
-            for (s in skipHeaders) {
-                if (lower == s) { skip = true }
+            if (lower == "connection" || lower == "keep-alive" || lower == "proxy-connection" ||
+                lower == "transfer-encoding" || lower == "upgrade" || lower == "host") {
+                skip = true
             }
-            if (lower == "host") { skip = true }
             if (lower == "content-length" && hasExpectContinue) { skip = true }
             if (skip) { continue }
 
             // 处理 te: 仅转发 "trailers"
-            if (lower == "te" && h.value.toLower().trim() != "trailers") { continue }
+            if (lower == "te" && trimString(lowerString(h.value)) != "trailers") { continue }
 
             let userHeaders = ArrayList<HeaderPair>()
             userHeaders.append(HeaderPair(lower, h.value))
@@ -161,7 +158,7 @@ public class H2FrameEncode {
         let endStream = !hasInlineBody && !isStreaming
 
         // 写入 HEADERS (可能 + CONTINUATION) 帧
-        writeHeaderBlock(session, stream.id, encoded.toArray(), endStream)
+        writeHeaderBlock(session, stream.id, encoded.toOwnedSlice(), endStream)
 
         // 处理请求体
         if (hasExpectContinue && (hasInlineBody || isStreaming)) {
@@ -170,7 +167,7 @@ public class H2FrameEncode {
 
         if (hasInlineBody) {
             stream.pendingBody = body
-            drainSendBody(session, stream, Int64.max)
+            drainSendBody(session, stream, 9223372036854775807)
         } else if (!isStreaming) {
             stream.sentEndStream()
         }
@@ -200,7 +197,7 @@ public class H2FrameEncode {
 
     /// 将头部块分割为 HEADERS + CONTINUATION 帧
     /// 严格翻译自: encode.writeHeaderBlock
-    public static func writeHeaderBlock(session: H2ClientSession, streamId: Int64,
+    public static func writeHeaderBlock(session: H2FetchClientSession, streamId: Int64,
                                          block: Array<UInt8>, endStream: Bool): Unit {
         let max = session.remoteMaxFrameSize
         var offset: Int64 = 0
@@ -211,7 +208,7 @@ public class H2FrameEncode {
             let chunkLen = if (remaining > max) { max } else { remaining }
 
             // 提取分片
-            let chunk = Array<UInt8>()
+            let chunk = ArrayList<UInt8>()
             for (i in 0..chunkLen) {
                 chunk.append(block[offset + i])
             }
@@ -228,7 +225,7 @@ public class H2FrameEncode {
             }
 
             let frameType = if (first) { H2FrameType.Headers } else { H2FrameType.Continuation }
-            session.writeFrame(frameType, flags, streamId, chunk)
+            session.writeFrame(frameType, flags, streamId, chunk.toOwnedSlice())
 
             first = false
             if (last) {
@@ -252,7 +249,7 @@ public class H2FrameEncode {
     /// 流量控制感知的 DATA 帧写入
     /// 严格翻译自: encode.writeDataWindowed
     /// 返回消耗的字节数
-    public static func writeDataWindowed(session: H2ClientSession, stream: H2ClientStream,
+    public static func writeDataWindowed(session: H2FetchClientSession, stream: H2FetchClientStream,
                                           data: Array<UInt8>, endStream: Bool, cap: Int64): Int64 {
         var offset: Int64 = 0
         var consumed: Int64 = 0
@@ -269,7 +266,7 @@ public class H2FrameEncode {
             }
 
             // 写入缓冲区高水位
-            if (remaining > 0 && session.writeBuffer.size >= H2ClientSession.WRITE_BUFFER_HIGH_WATER) {
+            if (remaining > 0 && session.writeBuffer.size >= H2FetchClientSession.WRITE_BUFFER_HIGH_WATER) {
                 break
             }
 
@@ -285,7 +282,7 @@ public class H2FrameEncode {
             let effectiveChunkLen = if (chunkLen < window) { chunkLen } else { window }
 
             // 提取分片
-            let chunk = Array<UInt8>()
+            let chunk = ArrayList<UInt8>()
             for (i in 0..effectiveChunkLen) {
                 chunk.append(data[offset + i])
             }
@@ -294,7 +291,7 @@ public class H2FrameEncode {
             let last = offset >= data.size
 
             let flags: UInt8 = if (last && endStream) { 0x01 } else { 0x00 }  // END_STREAM
-            session.writeFrame(H2FrameType.Data, flags, stream.id, chunk)
+            session.writeFrame(H2FrameType.Data, flags, stream.id, chunk.toOwnedSlice())
 
             stream.sendWindow -= effectiveChunkLen
             session.connSendWindow -= effectiveChunkLen
@@ -320,7 +317,7 @@ public class H2FrameEncode {
 
     /// 推送请求体到发送窗口
     /// 严格翻译自: encode.drainSendBody
-    public static func drainSendBody(session: H2ClientSession, stream: H2ClientStream, cap: Int64): Unit {
+    public static func drainSendBody(session: H2FetchClientSession, stream: H2FetchClientStream, cap: Int64): Unit {
         if (stream.localClosed() || stream.awaitingContinue) {
             match (stream.fatalError) {
                 case Some(_) => return
@@ -335,7 +332,7 @@ public class H2FrameEncode {
             for (i in sent..stream.pendingBody.size) {
                 remaining.append(stream.pendingBody[i])
             }
-            stream.pendingBody = remaining.toArray()
+            stream.pendingBody = remaining.toOwnedSlice()
             if (stream.pendingBody.size == 0) {
                 stream.sentEndStream()
             }
@@ -351,16 +348,16 @@ public class H2FrameEncode {
 
     /// 轮询所有流的请求体
     /// 严格翻译自: encode.drainSendBodies
-    public static func drainSendBodies(session: H2ClientSession): Unit {
+    public static func drainSendBodies(session: H2FetchClientSession): Unit {
         let slice = session.remoteMaxFrameSize
 
         while (session.connSendWindow > 0 &&
-               session.writeBuffer.size < H2ClientSession.WRITE_BUFFER_HIGH_WATER) {
+               session.writeBuffer.size < H2FetchClientSession.WRITE_BUFFER_HIGH_WATER) {
             var progressed = false
 
             for (key in session.streams.keys()) {
                 match (session.streams.get(key)) {
-                    case Some(stream) => {
+                    case Some(stream) =>
                         if (stream.localClosed() || stream.sendWindow <= 0) {
                             continue
                         }
@@ -369,7 +366,6 @@ public class H2FrameEncode {
                         if (session.connSendWindow != before || stream.localClosed()) {
                             progressed = true
                         }
-                    }
                     case None => ()
                 }
             }
@@ -415,12 +411,28 @@ public class H2FrameEncode {
     }
 
     /// 追加 SETTINGS 参数 (2 字节 ID + 4 字节 Value, big-endian)
-    private static func appendSetting(payload: Array<UInt8>, id: Int64, value: Int64): Unit {
+    private static func appendSetting(payload: ArrayList<UInt8>, id: Int64, value: Int64): Unit {
         payload.append(UInt8((id >> 8) & 0xFF))
         payload.append(UInt8(id & 0xFF))
         payload.append(UInt8((value >> 24) & 0xFF))
         payload.append(UInt8((value >> 16) & 0xFF))
         payload.append(UInt8((value >> 8) & 0xFF))
         payload.append(UInt8(value & 0xFF))
+    }
+
+    private static func lowerString(s: String): String {
+        var result = ""
+        for (r in s) {
+            if (r >= 65 && r <= 90) {
+                result += String(Rune(Int64(r) + 32))
+            } else {
+                result += String(Rune(Int64(r)))
+            }
+        }
+        return result
+    }
+
+    private static func trimString(s: String): String {
+        return s.trimStart().trimEnd()
     }
 }

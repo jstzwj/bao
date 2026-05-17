@@ -27,6 +27,18 @@ public enum KeepAliveStatus {
     | Active     // 活跃: poll 正在保持事件循环存活
     | Inactive   // 非活跃: 默认状态, 不影响事件循环
     | Done       // 完成: 已被禁用, ref() 变成空操作
+
+    public operator func ==(right: KeepAliveStatus): Bool {
+        match (this) {
+            case Active => match (right) { case Active => true case _ => false }
+            case Inactive => match (right) { case Inactive => true case _ => false }
+            case Done => match (right) { case Done => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: KeepAliveStatus): Bool {
+        return !(this == right)
+    }
 }
 
 /// 保持事件循环活跃
@@ -93,7 +105,7 @@ public class KeepAlive {
     /// 创建新实例
     /// 严格翻译自: pub fn init() -> KeepAlive
     ///   KeepAlive::default()
-    public static func init(): KeepAlive {
+    public static func create(): KeepAlive {
         return KeepAlive()
     }
 

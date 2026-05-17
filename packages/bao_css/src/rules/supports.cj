@@ -45,16 +45,35 @@ public class CssSupportsDeclaration {
 /// CSS <supports-condition>
 /// 严格翻译自 SupportsCondition enum { Not, And, Or, Declaration, Selector, Unknown }
 /// 用于 @supports 和 @import 规则
-public class CssSupportsCondition {
-    public enum CssSupportsConditionKind {
-        | Not           // not 表达式
-        | And           // and 表达式
-        | Or            // or 表达式
-        | Declaration   // 声明评估
-        | Selector      // 选择器评估
-        | Unknown       // 未知条件
+public enum CssSupportsConditionKind {
+    | Not           // not 表达式
+    | And           // and 表达式
+    | Or            // or 表达式
+    | Declaration   // 声明评估
+    | Selector      // 选择器评估
+    | Unknown       // 未知条件
+
+    public func toString(): String {
+        match (this) {
+            case Not => "Not"
+            case And => "And"
+            case Or => "Or"
+            case Declaration => "Declaration"
+            case Selector => "Selector"
+            case Unknown => "Unknown"
+        }
     }
 
+    public operator func ==(rhs: CssSupportsConditionKind): Bool {
+        this.toString() == rhs.toString()
+    }
+
+    public operator func !=(rhs: CssSupportsConditionKind): Bool {
+        !(this == rhs)
+    }
+}
+
+public class CssSupportsCondition {
     public var kind: CssSupportsConditionKind
     /// not 子条件
     public var notCondition: ?CssSupportsCondition
@@ -76,22 +95,21 @@ public class CssSupportsCondition {
         this.unknown = ""
     }
 
-    public init(andConditions: ArrayList<CssSupportsCondition>) {
-        this.kind = CssSupportsConditionKind.And
+    public init(kind!: CssSupportsConditionKind, conditions!: ArrayList<CssSupportsCondition>) {
+        this.kind = kind
         this.notCondition = None
-        this.conditions = andConditions
+        this.conditions = conditions
         this.declaration = None
         this.selector = ""
         this.unknown = ""
     }
 
-    public init(orConditions: ArrayList<CssSupportsCondition>) {
-        this.kind = CssSupportsConditionKind.Or
-        this.notCondition = None
-        this.conditions = orConditions
-        this.declaration = None
-        this.selector = ""
-        this.unknown = ""
+    public static func and(conditions: ArrayList<CssSupportsCondition>): CssSupportsCondition {
+        CssSupportsCondition(kind: CssSupportsConditionKind.And, conditions: conditions)
+    }
+
+    public static func or(conditions: ArrayList<CssSupportsCondition>): CssSupportsCondition {
+        CssSupportsCondition(kind: CssSupportsConditionKind.Or, conditions: conditions)
     }
 
     public init(declaration: CssSupportsDeclaration) {
@@ -121,38 +139,44 @@ public class CssSupportsCondition {
         this.unknown = unknown
     }
 
+    private func deepCloneNot(): CssSupportsCondition {
+        match (notCondition) {
+            case Some(c) => CssSupportsCondition(c.deepClone())
+            case None => CssSupportsCondition("", CssSupportsConditionKind.Unknown)
+        }
+    }
+
+    private func deepCloneAnd(): CssSupportsCondition {
+        let newConds = ArrayList<CssSupportsCondition>()
+        for (c in conditions) {
+            newConds.append(c.deepClone())
+        }
+        CssSupportsCondition(kind: CssSupportsConditionKind.And, conditions: newConds)
+    }
+
+    private func deepCloneOr(): CssSupportsCondition {
+        let newConds = ArrayList<CssSupportsCondition>()
+        for (c in conditions) {
+            newConds.append(c.deepClone())
+        }
+        CssSupportsCondition(kind: CssSupportsConditionKind.Or, conditions: newConds)
+    }
+
+    private func deepCloneDeclaration(): CssSupportsCondition {
+        match (declaration) {
+            case Some(d) => CssSupportsCondition(d.deepClone())
+            case None => CssSupportsCondition("", CssSupportsConditionKind.Unknown)
+        }
+    }
+
     /// 深拷贝
     /// 严格翻译自 SupportsCondition.deep_clone
     public func deepClone(): CssSupportsCondition {
         match (kind) {
-            case Not => {
-                match (notCondition) {
-                    case Some(c) => CssSupportsCondition(c.deepClone())
-                    case None => CssSupportsCondition("", CssSupportsConditionKind.Unknown)
-                }
-            }
-            case And => {
-                let newConds = ArrayList<CssSupportsCondition>()
-                for (c in conditions) {
-                    newConds.append(c.deepClone())
-                }
-                CssSupportsCondition(newConds)
-            }
-            case Or => {
-                let newConds = ArrayList<CssSupportsCondition>()
-                for (c in conditions) {
-                    newConds.append(c.deepClone())
-                }
-                let cond = CssSupportsCondition(newConds)
-                cond.kind = CssSupportsConditionKind.Or
-                return cond
-            }
-            case Declaration => {
-                match (declaration) {
-                    case Some(d) => CssSupportsCondition(d.deepClone())
-                    case None => CssSupportsCondition("", CssSupportsConditionKind.Unknown)
-                }
-            }
+            case Not => deepCloneNot()
+            case And => deepCloneAnd()
+            case Or => deepCloneOr()
+            case Declaration => deepCloneDeclaration()
             case Selector => CssSupportsCondition(selector)
             case Unknown => CssSupportsCondition(unknown, CssSupportsConditionKind.Unknown)
         }
@@ -169,53 +193,53 @@ public class CssSupportsCondition {
         }
     }
 
+    private func notChildToCss(c: CssSupportsCondition): String {
+        let css = c.toCss()
+        if (c.needsParens(this)) {
+            " not (${css})"
+        } else {
+            " not ${css}"
+        }
+    }
+
+    private func notToCss(): String {
+        match (notCondition) {
+            case Some(c) => notChildToCss(c)
+            case None => ""
+        }
+    }
+
+    private func conditionsToCss(sep: String): String {
+        let parts = ArrayList<String>()
+        for (c in conditions) {
+            let css = c.toCss()
+            if (c.needsParens(this)) {
+                parts.append("(${css})")
+            } else {
+                parts.append(css)
+            }
+        }
+        var partArr = Array<String>(parts.size, repeat: "")
+        var pi: Int64 = 0
+        for (p in parts) { partArr[pi] = p; pi += 1 }
+        String.join(partArr, delimiter: sep)
+    }
+
+    private func declarationToCss(): String {
+        match (declaration) {
+            case Some(d) => "(${d.propertyId}: ${d.value})"
+            case None => ""
+        }
+    }
+
     /// 转为 CSS 文本
     /// 严格翻译自 SupportsCondition.to_css
     public func toCss(): String {
         match (kind) {
-            case Not => {
-                match (notCondition) {
-                    case Some(c) => {
-                        let css = c.toCss()
-                        if (c.needsParens(this)) {
-                            " not (${css})"
-                        } else {
-                            " not ${css}"
-                        }
-                    }
-                    case None => ""
-                }
-            }
-            case And => {
-                let parts = ArrayList<String>()
-                for (c in conditions) {
-                    let css = c.toCss()
-                    if (c.needsParens(this)) {
-                        parts.append("(${css})")
-                    } else {
-                        parts.append(css)
-                    }
-                }
-                String.join(" and ", parts)
-            }
-            case Or => {
-                let parts = ArrayList<String>()
-                for (c in conditions) {
-                    let css = c.toCss()
-                    if (c.needsParens(this)) {
-                        parts.append("(${css})")
-                    } else {
-                        parts.append(css)
-                    }
-                }
-                String.join(" or ", parts)
-            }
-            case Declaration => {
-                match (declaration) {
-                    case Some(d) => "(${d.propertyId}: ${d.value})"
-                    case None => ""
-                }
-            }
+            case Not => notToCss()
+            case And => conditionsToCss(" and ")
+            case Or => conditionsToCss(" or ")
+            case Declaration => declarationToCss()
             case Selector => "selector(${selector})"
             case Unknown => unknown
         }
@@ -224,34 +248,40 @@ public class CssSupportsCondition {
     /// 相等比较
     /// 严格翻译自 SupportsCondition.eql
     public func eql(other: CssSupportsCondition): Bool {
-        if (kind != other.kind) { return false }
+        if (!(kind == other.kind)) { return false }
+        eqlInner(other)
+    }
+
+    private func eqlNot(other: CssSupportsCondition): Bool {
+        match (notCondition) {
+            case Some(a) => match (other.notCondition) { case Some(b) => a.eql(b) case None => false }
+            case None => match (other.notCondition) { case None => true case Some(_) => false }
+        }
+    }
+
+    private func eqlConditions(other: CssSupportsCondition): Bool {
+        if (conditions.size != other.conditions.size) { return false }
+        var i: Int64 = 0
+        while (i < conditions.size) {
+            if (!conditions[i].eql(other.conditions[i])) { return false }
+            i += 1
+        }
+        true
+    }
+
+    private func eqlDeclaration(other: CssSupportsCondition): Bool {
+        match (declaration) {
+            case Some(a) => match (other.declaration) { case Some(b) => a.eql(b) case None => false }
+            case None => match (other.declaration) { case None => true case Some(_) => false }
+        }
+    }
+
+    private func eqlInner(other: CssSupportsCondition): Bool {
         match (kind) {
-            case Not => {
-                match (notCondition, other.notCondition) {
-                    case (Some(a), Some(b)) => a.eql(b)
-                    case _ => false
-                }
-            }
-            case And => {
-                if (conditions.size != other.conditions.size) { return false }
-                for (i in 0..conditions.size) {
-                    if (!conditions[i].eql(other.conditions[i])) { return false }
-                }
-                return true
-            }
-            case Or => {
-                if (conditions.size != other.conditions.size) { return false }
-                for (i in 0..conditions.size) {
-                    if (!conditions[i].eql(other.conditions[i])) { return false }
-                }
-                return true
-            }
-            case Declaration => {
-                match (declaration, other.declaration) {
-                    case (Some(a), Some(b)) => a.eql(b)
-                    case _ => false
-                }
-            }
+            case Not => eqlNot(other)
+            case And => eqlConditions(other)
+            case Or => eqlConditions(other)
+            case Declaration => eqlDeclaration(other)
             case Selector => selector == other.selector
             case Unknown => unknown == other.unknown
         }
@@ -290,14 +320,21 @@ public class CssSupportsRuleFull {
     /// 严格翻译自 SupportsRule.to_css
     public func toCss(indent: String): String {
         let sb = StringBuilder()
-        sb.append("${indent}@supports ${condition.toCss()} {\n")
-        for (rule in rules.rules) {
-            let css = rule.toCss(indent + "  ")
-            if (css.length > 0) {
-                sb.append("${indent}  ${css}\n")
+        sb.append(indent)
+        sb.append("@supports ")
+        sb.append(condition.toCss())
+        sb.append(" {\n")
+        for (rule in rules.v) {
+            let css = rule.toString()
+            if (css.size > 0) {
+                sb.append(indent)
+                sb.append("  ")
+                sb.append(css)
+                sb.append("\n")
             }
         }
-        sb.append("${indent}}")
+        sb.append(indent)
+        sb.append("}")
         return sb.toString()
     }
 

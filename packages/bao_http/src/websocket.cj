@@ -151,7 +151,7 @@ public class WebSocketFrame {
         rsv3 = false
         opcode = WsOpCode.Text
         masked = false
-        maskingKey = Array<UInt8>(4, item: UInt8(0))
+        maskingKey = Array<UInt8>(4, { _ => UInt8(0) })
         payload = Array<UInt8>()
     }
 
@@ -162,7 +162,7 @@ public class WebSocketFrame {
         this.rsv3 = false
         this.opcode = opcode
         this.masked = false
-        this.maskingKey = Array<UInt8>(4, item: UInt8(0))
+        this.maskingKey = Array<UInt8>(4, { _ => UInt8(0) })
         this.payload = payload
     }
 
@@ -180,7 +180,7 @@ public class WebSocketFrame {
     /// 序列化帧为字节数组
     /// 对应 Bun WebsocketHeader.writeHeader + 负载写入
     public func serialize(): Array<UInt8> {
-        let result = Array<UInt8>()
+        let result = ArrayList<UInt8>()
 
         // 第 1 字节: FIN + RSV + Opcode
         var byte0: UInt8 = UInt8(opcode.toByte())
@@ -238,7 +238,7 @@ public class WebSocketFrame {
             }
         }
 
-        return result
+        return result.toOwnedSlice()
     }
 
     // ========================================================================
@@ -292,10 +292,11 @@ public class WebSocketFrame {
             if (data.size < offset + 4) {
                 return None
             }
-            frame.maskingKey = Array<UInt8>()
+            let mask = ArrayList<UInt8>()
             for (i in 0..4) {
-                frame.maskingKey.append(data[offset + Int64(i)])
+                mask.append(data[offset + Int64(i)])
             }
+            frame.maskingKey = mask.toOwnedSlice()
             offset += 4
         }
 
@@ -303,15 +304,16 @@ public class WebSocketFrame {
         if (data.size < offset + payloadLen) {
             return None
         }
-        frame.payload = Array<UInt8>()
+        let payload = ArrayList<UInt8>()
         for (i in 0..payloadLen) {
             let b = data[offset + i]
             if (frame.masked) {
-                frame.payload.append(b ^ frame.maskingKey[Int64(i) % 4])
+                payload.append(b ^ frame.maskingKey[Int64(i) % 4])
             } else {
-                frame.payload.append(b)
+                payload.append(b)
             }
         }
+        frame.payload = payload.toOwnedSlice()
         offset += payloadLen
 
         return Some(Tuple<WebSocketFrame, Int64>(frame, offset))
@@ -377,11 +379,11 @@ public class WebSocketHandshake {
     /// 生成 Sec-WebSocket-Key
     /// 16 字节随机数据，base64 编码
     public static func generateKey(): String {
-        let key = Array<UInt8>(16, item: UInt8(0))
+        let key = Array<UInt8>(16, { _ => UInt8(0) })
         // 填充随机数据 (简化: 使用时间戳的变体)
         let time = currentTimeMillis()
         for (i in 0..16) {
-            key[Int64(i)] = UInt8((time % 256).toInt32() ^ (i * 37 % 256))
+            key[Int64(i)] = UInt8((time % 256) ^ (i * 37 % 256))
         }
         return base64Encode(key)
     }
@@ -390,7 +392,7 @@ public class WebSocketHandshake {
     /// SHA1(Sec-WebSocket-Key + GUID)，base64 编码
     public static func computeAccept(key: String): String {
         let combined = key + WS_GUID
-        let hash = sha1(stringToBytes(combined))
+        let hash = sha1(websocketStringToBytes(combined))
         return base64Encode(hash)
     }
 
@@ -415,7 +417,7 @@ public class WebSocketHandshake {
         sb.append("Sec-WebSocket-Version: 13\r\n")
 
         match (protocols) {
-            case Some(p) => {
+            case Some(p) =>
                 if (p.size > 0) {
                     let protoList = ArrayList<String>()
                     for (proto in p) {
@@ -423,7 +425,6 @@ public class WebSocketHandshake {
                     }
                     sb.append("Sec-WebSocket-Protocol: ${join(protoList, ", ")}\r\n")
                 }
-            }
             case None => ()
         }
 
@@ -435,17 +436,18 @@ public class WebSocketHandshake {
     /// 验证 101 状态码和 Sec-WebSocket-Accept
     public static func parseServerHandshake(response: String, clientKey: String): Bool {
         // 检查状态行
-        if (!response.startsWith("HTTP/1.1 101")) {
+        if (!websocketStartsWith(response, "HTTP/1.1 101")) {
             return false
         }
 
+        let lowerResponse = websocketLower(response)
         // 验证 Upgrade 头
-        if (!response.toLower().contains("upgrade: websocket")) {
+        if (!websocketContains(lowerResponse, "upgrade: websocket")) {
             return false
         }
 
         // 验证 Connection 头
-        if (!response.toLower().contains("connection: upgrade")) {
+        if (!websocketContains(lowerResponse, "connection: upgrade")) {
             return false
         }
 
@@ -510,7 +512,7 @@ public class WebSocket {
 
     /// 是否已打开
     public func isOpen(): Bool {
-        return state == WebSocketState.Open
+        return isWebSocketOpen(state)
     }
 
     // ========================================================================
@@ -519,10 +521,10 @@ public class WebSocket {
 
     /// 发送文本消息
     public func send(text: String): Int64 {
-        if (state != WebSocketState.Open) {
+        if (!isWebSocketOpen(state)) {
             return -1
         }
-        let frame = WebSocketFrame(WsOpCode.Text, stringToBytes(text))
+        let frame = WebSocketFrame(WsOpCode.Text, websocketStringToBytes(text))
         if (!isServer) {
             frame.masked = true
             frame.maskingKey = generateMask()
@@ -532,7 +534,7 @@ public class WebSocket {
 
     /// 发送二进制消息
     public func sendBinary(data: Array<UInt8>): Int64 {
-        if (state != WebSocketState.Open) {
+        if (!isWebSocketOpen(state)) {
             return -1
         }
         let frame = WebSocketFrame(WsOpCode.Binary, data)
@@ -550,7 +552,7 @@ public class WebSocket {
     }
 
     public func ping(data: Array<UInt8>): Int64 {
-        if (state != WebSocketState.Open) {
+        if (!isWebSocketOpen(state)) {
             return -1
         }
         let frame = WebSocketFrame(WsOpCode.Ping, data)
@@ -567,7 +569,7 @@ public class WebSocket {
     }
 
     public func pong(data: Array<UInt8>): Int64 {
-        if (state != WebSocketState.Open) {
+        if (!isWebSocketOpen(state)) {
             return -1
         }
         let frame = WebSocketFrame(WsOpCode.Pong, data)
@@ -581,21 +583,21 @@ public class WebSocket {
     /// 发送关闭帧
     /// 对应 Bun WebSocket close(code, reason)
     public func close(code: Int64, reason: String): Unit {
-        if (state == WebSocketState.Closed || state == WebSocketState.Closing) {
+        if (isWebSocketClosed(state) || isWebSocketClosing(state)) {
             return
         }
         state = WebSocketState.Closing
 
         // 构造关闭帧 payload: 2 字节状态码 + 原因
-        var payload = Array<UInt8>()
+        let payload = ArrayList<UInt8>()
         payload.append(UInt8((code >> 8) & 0xFF))
         payload.append(UInt8(code & 0xFF))
-        let reasonBytes = stringToBytes(reason)
+        let reasonBytes = websocketStringToBytes(reason)
         for (b in reasonBytes) {
             payload.append(b)
         }
 
-        let frame = WebSocketFrame(WsOpCode.Close, payload)
+        let frame = WebSocketFrame(WsOpCode.Close, payload.toOwnedSlice())
         if (!isServer) {
             frame.masked = true
             frame.maskingKey = generateMask()
@@ -617,94 +619,88 @@ public class WebSocket {
     /// 接收并处理一帧
     /// 返回 true 表示成功处理，false 表示连接关闭或错误
     public func receive(): Bool {
-        if (state != WebSocketState.Open && state != WebSocketState.Closing) {
+        if (!isWebSocketOpen(state) && !isWebSocketClosing(state)) {
             return false
         }
 
         // 读取数据到缓冲区
-        let buf = Array<UInt8>(4096, item: UInt8(0))
+        let buf = Array<UInt8>(4096, { _ => UInt8(0) })
         let result = SysFs.read(fd, buf)
         match (result) {
-            case Ok(n) => {
+            case Ok(n) =>
                 if (n == 0) {
                     closeInternal()
                     return false
                 }
+                let combined = ArrayList<UInt8>()
+                for (b in buffer) { combined.append(b) }
                 for (i in 0..n) {
-                    buffer.append(buf[Int64(i)])
+                    combined.append(buf[Int64(i)])
                 }
-            }
-            case Err(_) => {
+                buffer = combined.toOwnedSlice()
+            case Err(_) =>
                 closeInternal()
                 return false
-            }
         }
 
         // 尝试解析帧
         let parsed = WebSocketFrame.parse(buffer)
         match (parsed) {
-            case Some(tuple) => {
+            case Some(tuple) =>
                 let frame = tuple.first
                 let consumed = tuple.second
 
                 // 从缓冲区移除已消耗的数据
-                let remaining = Array<UInt8>()
+                let remaining = ArrayList<UInt8>()
                 for (i in consumed..buffer.size) {
                     remaining.append(buffer[Int64(i)])
                 }
-                buffer = remaining
+                buffer = remaining.toOwnedSlice()
 
                 // 处理帧
                 return handleFrame(frame)
-            }
-            case None => {
+            case None =>
                 // 帧不完整，等待更多数据
                 return true
-            }
         }
     }
 
     /// 处理接收到的帧
     private func handleFrame(frame: WebSocketFrame): Bool {
         match (frame.opcode) {
-            case Text => {
+            case Text =>
                 match (onTextHandler) {
-                    case Some(h) => h(bytesToString(frame.payload))
+                    case Some(h) => h(websocketBytesToString(frame.payload))
                     case None => ()
                 }
                 return true
-            }
-            case Binary => {
+            case Binary =>
                 match (onBinaryHandler) {
                     case Some(h) => h(frame.payload)
                     case None => ()
                 }
                 return true
-            }
-            case Ping => {
-                // 自动回复 Pong
+            case Ping =>
                 pong(frame.payload)
                 match (onPingHandler) {
                     case Some(h) => h(frame.payload)
                     case None => ()
                 }
                 return true
-            }
-            case Pong => {
+            case Pong =>
                 match (onPongHandler) {
                     case Some(h) => h(frame.payload)
                     case None => ()
                 }
                 return true
-            }
-            case Close => {
+            case Close =>
                 let code = if (frame.payload.size >= 2) {
                     (Int64(frame.payload[0]) << 8) | Int64(frame.payload[1])
                 } else {
                     1000
                 }
                 let reason = if (frame.payload.size > 2) {
-                    bytesToString(frame.payload[2..])
+                    websocketBytesToString(frame.payload[2..])
                 } else {
                     ""
                 }
@@ -714,11 +710,8 @@ public class WebSocket {
                     case None => ()
                 }
                 return false
-            }
-            case Continue => {
-                // 分片帧的续帧 - 简化处理
+            case Continue =>
                 return true
-            }
             case _ => return true
         }
     }
@@ -773,18 +766,18 @@ public class WebSocket {
 
     /// 生成随机掩码
     private func generateMask(): Array<UInt8> {
-        let mask = Array<UInt8>(4, item: UInt8(0))
+        let mask = Array<UInt8>(4, { _ => UInt8(0) })
         let time = currentTimeMillis()
-        mask[0] = UInt8((time % 256).toInt32())
-        mask[1] = UInt8(((time >> 8) % 256).toInt32())
-        mask[2] = UInt8(((time >> 16) % 256).toInt32())
-        mask[3] = UInt8(((time >> 24) % 256).toInt32())
+        mask[0] = UInt8(time % 256)
+        mask[1] = UInt8((time >> 8) % 256)
+        mask[2] = UInt8((time >> 16) % 256)
+        mask[3] = UInt8((time >> 24) % 256)
         return mask
     }
 
     /// 内部关闭
     private func closeInternal(): Unit {
-        if (state != WebSocketState.Closed) {
+        if (!isWebSocketClosed(state)) {
             state = WebSocketState.Closed
             match (onCloseHandler) {
                 case Some(h) => h(1006, "Connection lost")
@@ -832,8 +825,11 @@ public class WebSocketServer {
             }
             listenFd = Int64(sockfd)
 
-            let optval: Int32 = 1
-            setsockopt(sockfd, Int32(SOL_SOCKET()), Int32(SO_REUSEADDR()), &optval, UIntNative(4))
+            let optBuf = malloc(UIntNative(4))
+            let optPtr = CPointer<Int32>(optBuf)
+            optPtr.write(1)
+            setsockopt(sockfd, Int32(SOL_SOCKET()), Int32(SO_REUSEADDR()), optBuf, UIntNative(4))
+            free(optBuf)
 
             var addr = SockAddrIn()
             addr.family = UInt16(AF_INET())
@@ -846,7 +842,7 @@ public class WebSocketServer {
                 throw BaoError(OS.errno(), "WebSocket server: bind failed")
             }
 
-            let listenResult = bao_sys.listen(sockfd, 128)
+            let listenResult = listen(sockfd, 128)
             if (listenResult != 0) {
                 close(sockfd)
                 throw BaoError(OS.errno(), "WebSocket server: listen failed")
@@ -858,8 +854,11 @@ public class WebSocketServer {
     public func accept(): ?WebSocket {
         unsafe {
             var clientAddr = SockAddrIn()
-            var clientLen: UInt32 = UInt32(clientAddr.size())
-            let clientFd = bao_sys.accept(Int32(listenFd), clientAddr.ptr(), &clientLen)
+            let lenBuf = malloc(UIntNative(4))
+            let lenPtr = CPointer<UInt32>(lenBuf)
+            lenPtr.write(UInt32(clientAddr.size()))
+            let clientFd = accept(Int32(listenFd), clientAddr.ptr(), lenPtr)
+            free(lenBuf)
             if (clientFd < 0) {
                 return None
             }
@@ -906,57 +905,44 @@ public class WebSocketClient {
         // TCP 连接
         let fd = HttpClient2.resolveHostname(pu.hostname, port)
         match (fd) {
-            case Some(addrs) => {
+            case Some(addrs) =>
                 if (addrs.size == 0) {
                     return None
                 }
                 let tcpFd = tcpConnect(addrs[0], port)
                 match (tcpFd) {
-                    case Some(sockfd) => {
-                        // 发送握手
+                    case Some(sockfd) =>
                         let key = WebSocketHandshake.generateKey()
                         let handshake = WebSocketHandshake.buildHandshake(url, protocols)
 
-                        // 替换 key (buildHandshake 中的 key 可能不同)
-                        // 简化: 直接发送
-                        let writeResult = SysFs.write(sockfd, stringToBytes(handshake))
+                        let writeResult = SysFs.write(sockfd, websocketStringToBytes(handshake))
                         match (writeResult) {
-                            case Ok(_) => {
-                                // 读取服务器响应
-                                let buf = Array<UInt8>(4096, item: UInt8(0))
+                            case Ok(_) =>
+                                let buf = Array<UInt8>(4096, { _ => UInt8(0) })
                                 let readResult = SysFs.read(sockfd, buf)
                                 match (readResult) {
-                                    case Ok(n) => {
+                                    case Ok(n) =>
                                         var response = StringBuilder()
                                         for (i in 0..n) {
-                                            response.append(Char(Int32(buf[Int64(i)])))
+                                            response.append(Rune(UInt32(buf[Int64(i)])))
                                         }
                                         let responseStr = response.toString()
 
-                                        // 验证握手
-                                        if (responseStr.startsWith("HTTP/1.1 101")) {
-                                            let ws = WebSocket(sockfd, false)
-                                            ws.state = WebSocketState.Open
-                                            return Some(ws)
+                                        if (websocketStartsWith(responseStr, "HTTP/1.1 101")) {
+                                            return Some(WebSocket(sockfd, false))
                                         }
                                         SysFs.close(sockfd)
                                         return None
-                                    }
-                                    case Err(_) => {
+                                    case Err(_) =>
                                         SysFs.close(sockfd)
                                         return None
-                                    }
                                 }
-                            }
-                            case Err(_) => {
+                            case Err(_) =>
                                 SysFs.close(sockfd)
                                 return None
-                            }
                         }
-                    }
                     case None => return None
                 }
-            }
             case None => return None
         }
     }
@@ -989,13 +975,14 @@ public class WebSocketClient {
 /// 从响应中提取指定头的值
 private func extractHeader(response: String, headerName: String): ?String {
     let lines = splitLines(response)
-    let lowerName = headerName.toLower()
+    let lowerName = websocketLower(headerName)
     for (line in lines) {
-        let colonIdx = line.indexOf(":")
-        if (colonIdx >= 0) {
-            let name = line.substring(0, colonIdx).trim().toLower()
+        let colonIdxOpt = line.indexOf(":")
+        if (colonIdxOpt.isSome()) {
+            let colonIdx = colonIdxOpt.getOrThrow()
+            let name = websocketLower(websocketTrim(line[0..colonIdx]))
             if (name == lowerName) {
-                return Some(line.substring(colonIdx + 1).trim())
+                return Some(websocketTrim(line[(colonIdx + 1)..]))
             }
         }
     }
@@ -1006,14 +993,14 @@ private func extractHeader(response: String, headerName: String): ?String {
 private func splitLines(s: String): ArrayList<String> {
     let lines = ArrayList<String>()
     var current = StringBuilder()
-    var i = 0
+    var i: Int64 = 0
     while (i < s.size) {
-        if (i + 1 < s.size && s[Int64(i)] == '\r' && s[Int64(i + 1)] == '\n') {
+        if (i + 1 < s.size && s[i] == UInt8(13) && s[i + 1] == UInt8(10)) {
             lines.append(current.toString())
             current = StringBuilder()
             i += 2
         } else {
-            current.append(s[Int64(i)])
+            current.append(Rune(UInt32(s[i])))
             i += 1
         }
     }
@@ -1040,13 +1027,13 @@ private func base64Encode(data: Array<UInt8>): String {
     var i = 0
     while (i < data.size) {
         let b0 = Int32(data[i])
-        let b1 = if (i + 1 < data.size) { Int32(data[i + 1]) } else { 0 }
-        let b2 = if (i + 2 < data.size) { Int32(data[i + 2]) } else { 0 }
+        let b1 = if (i + 1 < data.size) { Int32(data[i + 1]) } else { Int32(0) }
+        let b2 = if (i + 2 < data.size) { Int32(data[i + 2]) } else { Int32(0) }
         let triplet = (b0 << 16) | (b1 << 8) | b2
         sb.append(chars[Int64((triplet >> 18) & 0x3F)])
         sb.append(chars[Int64((triplet >> 12) & 0x3F)])
-        sb.append(if (i + 1 < data.size) { chars[Int64((triplet >> 6) & 0x3F)] } else { '=' })
-        sb.append(if (i + 2 < data.size) { chars[Int64(triplet & 0x3F)] } else { '=' })
+        sb.append(if (i + 1 < data.size) { chars[Int64((triplet >> 6) & 0x3F)] } else { UInt8(61) })
+        sb.append(if (i + 2 < data.size) { chars[Int64(triplet & 0x3F)] } else { UInt8(61) })
         i += 3
     }
     return sb.toString()
@@ -1057,7 +1044,7 @@ private func base64Encode(data: Array<UInt8>): String {
 private func sha1(data: Array<UInt8>): Array<UInt8> {
     // 返回 20 字节哈希 (SHA-1 输出)
     // 桩实现: 返回确定性填充
-    let hash = Array<UInt8>(20, item: UInt8(0))
+    let hash = Array<UInt8>(20, { _ => UInt8(0) })
     for (i in 0..20) {
         if (i < data.size) {
             hash[Int64(i)] = data[Int64(i)] ^ UInt8(i * 37 % 256)
@@ -1069,32 +1056,87 @@ private func sha1(data: Array<UInt8>): Array<UInt8> {
 }
 
 /// 字节数组转字符串
-public func bytesToString(bytes: Array<UInt8>): String {
+public func websocketBytesToString(bytes: Array<UInt8>): String {
     let sb = StringBuilder()
     for (b in bytes) {
-        sb.append(Char(Int32(b)))
+        sb.append(Rune(UInt32(b)))
     }
     return sb.toString()
 }
 
 /// 字符串转字节数组
-public func stringToBytes(s: String): Array<UInt8> {
-    var bytes = Array<UInt8>()
+public func websocketStringToBytes(s: String): Array<UInt8> {
+    let bytes = ArrayList<UInt8>()
     for (c in s) {
-        bytes.append(UInt8(c.value & 0xFF))
+        bytes.append(c)
     }
-    return bytes
+    return bytes.toOwnedSlice()
 }
 
 /// 当前时间 (毫秒)
 private func currentTimeMillis(): Int64 {
     unsafe {
-        var ts = Array<Int64>(2, item: 0)
-        clock_gettime(0, ts.toArray().unsafePtr())
-        return ts[0] * 1000 + ts[1] / 1000000
+        let tsBuf = malloc(UIntNative(16))
+        let tsPtr = CPointer<Int64>(tsBuf)
+        websocket_clock_gettime(0, tsPtr)
+        let seconds = tsPtr.read()
+        let nanos = (tsPtr + 1).read()
+        free(tsBuf)
+        return seconds * 1000 + nanos / 1000000
     }
 }
 
 /// C FFI
 @C
-foreign func clock_gettime(clockid: Int32, tp: CPointer<Int64>): Int32
+foreign func websocket_clock_gettime(clockid: Int32, tp: CPointer<Int64>): Int32
+
+private func websocketStartsWith(s: String, prefix: String): Bool {
+    if (s.size < prefix.size) { return false }
+    return s[0..prefix.size] == prefix
+}
+
+private func websocketContains(s: String, needle: String): Bool {
+    return s.indexOf(needle).isSome()
+}
+
+private func websocketLower(s: String): String {
+    let sb = StringBuilder()
+    for (c in s) {
+        let lowered = if (c >= UInt8(65) && c <= UInt8(90)) { c + UInt8(32) } else { c }
+        sb.append(Rune(UInt32(lowered)))
+    }
+    return sb.toString()
+}
+
+private func websocketTrim(s: String): String {
+    var start: Int64 = 0
+    var end = s.size
+    while (start < end && websocketIsSpace(s[start])) { start += 1 }
+    while (end > start && websocketIsSpace(s[end - 1])) { end -= 1 }
+    return s[start..end]
+}
+
+private func websocketIsSpace(c: UInt8): Bool {
+    return c == UInt8(32) || c == UInt8(9) || c == UInt8(10) || c == UInt8(13)
+}
+
+private func isWebSocketOpen(state: WebSocketState): Bool {
+    match (state) {
+        case Open => true
+        case _ => false
+    }
+}
+
+private func isWebSocketClosing(state: WebSocketState): Bool {
+    match (state) {
+        case Closing => true
+        case _ => false
+    }
+}
+
+private func isWebSocketClosed(state: WebSocketState): Bool {
+    match (state) {
+        case Closed => true
+        case _ => false
+    }
+}

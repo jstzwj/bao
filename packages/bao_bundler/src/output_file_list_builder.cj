@@ -45,7 +45,7 @@ public class OutputFileListBuilder {
 
     /// 初始化
     // 严格翻译自: OutputFileListBuilder.zig:38 init()
-    public static func init(linker: LinkerContext,
+    public static func `init`(linker: LinkerContext,
                               chunks: ArrayList<Chunk>): OutputFileListBuilder {
         let builder = OutputFileListBuilder()
 
@@ -137,13 +137,12 @@ public class OutputFileListBuilder {
     // 严格翻译自: OutputFileListBuilder.zig:112 insertForSourcemapOrBytecode()
     public func insertForSourcemapOrBytecode(outputFile: BundlerOutputFile): ?Int64 {
         match (indexForSourcemapsAndBytecode) {
-            case Some(index) => {
+            case Some(index) =>
                 let result = index
                 outputFiles[result] = outputFile
                 indexForSourcemapsAndBytecode = Some(index + 1)
                 totalInsertions++
                 return result
-            }
             case None => return None
         }
     }
@@ -176,11 +175,4 @@ public class OutputFileListBuilder {
     public func take(): ArrayList<BundlerOutputFile> {
         return outputFiles
     }
-}
-
-/// 输出格式
-public enum OutputFormat {
-    | ESM
-    | CJS
-    | IIFE
 }

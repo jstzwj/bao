@@ -98,39 +98,6 @@ public class InternalStateFlags {
     }
 }
 
-/// HTTP 请求体类型
-/// 严格翻译自: bun/src/http/HTTPRequestBody.zig
-public enum HTTPRequestBody {
-    | bytes(String)           // 普通字节 body
-    | stream(StreamBody)      // 流式 body
-    | sendfile(SendFileBody)  // 零拷贝文件发送
-
-    /// 获取 body 长度
-    public func len(): Int64 {
-        match (this) {
-            case bytes(s) => s.size
-            case stream(_) => -1  // 流式长度未知
-            case sendfile(_) => -1
-        }
-    }
-
-    /// 获取字节数据 (仅 bytes 模式)
-    public func bytes(): String {
-        match (this) {
-            case bytes(s) => s
-            case _ => ""
-        }
-    }
-
-    public func deinit(): Unit {
-        match (this) {
-            case bytes(_) => () // 字符串由 GC 管理
-            case stream(s) => s.detach()
-            case sendfile(_) => ()
-        }
-    }
-}
-
 /// 流式请求体
 /// 严格翻译自: bun/src/http/ThreadSafeStreamBuffer.zig (简化)
 public class StreamBody {
@@ -145,20 +112,6 @@ public class StreamBody {
     public func detach(): Unit {
         buffer = None
         ended = true
-    }
-}
-
-/// 零拷贝文件发送
-/// 严格翻译自: bun/src/http/SendFile.zig (简化)
-public class SendFileBody {
-    public var fd: Int64
-    public var offset: Int64
-    public var length: Int64
-
-    public init(fd: Int64, offset: Int64, length: Int64) {
-        this.fd = fd
-        this.offset = offset
-        this.length = length
     }
 }
 
@@ -200,44 +153,6 @@ public class RawResponse {
     }
 }
 
-/// 证书信息
-/// 严格翻译自: bun/src/http/CertificateInfo.zig (简化)
-public class CertificateInfo {
-    public var cert: Array<UInt8>
-    public var hostname: String
-    public var certError: HTTPCertError
-
-    public init(cert: Array<UInt8>, hostname: String, certError: HTTPCertError) {
-        this.cert = cert
-        this.hostname = hostname
-        this.certError = certError
-    }
-
-    public func deinit(): Unit {
-        cert = Array<UInt8>()
-        hostname = ""
-    }
-}
-
-/// HTTP 证书错误
-public class HTTPCertError {
-    public var errorNo: Int64
-    public var code: String
-    public var reason: String
-
-    public init() {
-        errorNo = 0
-        code = ""
-        reason = ""
-    }
-
-    public init(errorNo: Int64, code: String, reason: String) {
-        this.errorNo = errorNo
-        this.code = code
-        this.reason = reason
-    }
-}
-
 /// 可变字符串缓冲区
 /// 对应 Bun: MutableString — 动态增长的字节数组
 public class MutableString {
@@ -257,7 +172,7 @@ public class MutableString {
     /// 追加字符串
     public func append(s: String): Unit {
         for (c in s) {
-            data.append(UInt8(c.value & 0xFF))
+            data.append(c)
         }
     }
 
@@ -287,31 +202,9 @@ public class MutableString {
     public func toString(): String {
         let sb = StringBuilder()
         for (b in data) {
-            sb.append(Char(Int32(b)))
+            sb.append(Rune(UInt32(b)))
         }
         return sb.toString()
-    }
-}
-
-/// Decompressor 占位 — 对应 Bun: Decompressor union
-/// Bun 支持 gzip/deflate/brotli/zstd 解压
-public class Decompressor {
-    public enum DecompressorType {
-        | none
-        | gzip
-        | deflate
-        | brotli
-        | zstd
-    }
-
-    public var type_: DecompressorType
-
-    public init() {
-        type_ = DecompressorType.none
-    }
-
-    public func deinit(): Unit {
-        type_ = DecompressorType.none
     }
 }
 
@@ -443,7 +336,10 @@ public class InternalState {
     /// 是否为 chunked 编码
     /// 严格翻译自: InternalState.isChunkedEncoding
     public func isChunkedEncoding(): Bool {
-        return transferEncoding == Encoding.chunked
+        match (transferEncoding) {
+            case chunked => return true
+            case _ => return false
+        }
     }
 
     /// 是否完成
@@ -485,9 +381,7 @@ public class InternalState {
 
         // 清理克隆的元数据
         match (clonedMetadata) {
-            case Some(_) => {
-                clonedMetadata = None
-            }
+            case Some(_) => clonedMetadata = None
             case None => ()
         }
 
@@ -534,23 +428,18 @@ public class InternalState {
         }
 
         match (encoding) {
-            case brotli => {
+            case brotli =>
                 // 解压逻辑
                 // 简化: 直接追加
-                bodyOut.append(buffer.data.toArray())
-            }
-            case gzip => {
-                bodyOut.append(buffer.data.toArray())
-            }
-            case deflate => {
-                bodyOut.append(buffer.data.toArray())
-            }
-            case zstd => {
-                bodyOut.append(buffer.data.toArray())
-            }
-            case _ => {
-                bodyOut.append(buffer.data.toArray())
-            }
+                bodyOut.append(buffer.data.toOwnedSlice())
+            case gzip =>
+                bodyOut.append(buffer.data.toOwnedSlice())
+            case deflate =>
+                bodyOut.append(buffer.data.toOwnedSlice())
+            case zstd =>
+                bodyOut.append(buffer.data.toOwnedSlice())
+            case _ =>
+                bodyOut.append(buffer.data.toOwnedSlice())
         }
 
         return bodyOut.len() > 0

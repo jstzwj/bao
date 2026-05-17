@@ -9,6 +9,7 @@
 package bao_css.properties
 
 import bao_core.*
+import bao_collections.*
 
 // ============================================================================
 // ContentDistribution
@@ -33,7 +34,7 @@ public enum ContentDistribution {
     }
 
     public func parse(input: String): Option<ContentDistribution> {
-        let lower = input.toLowerCase()
+        let lower = input
         match (lower) {
             case "space-between" => Some(ContentDistribution.SpaceBetween)
             case "space-around" => Some(ContentDistribution.SpaceAround)
@@ -63,7 +64,7 @@ public enum OverflowPosition {
     }
 
     public func parse(input: String): Option<OverflowPosition> {
-        let lower = input.toLowerCase()
+        let lower = input
         match (lower) {
             case "safe" => Some(OverflowPosition.Safe)
             case "unsafe" => Some(OverflowPosition.Unsafe)
@@ -97,7 +98,7 @@ public enum ContentPosition {
     }
 
     public func parse(input: String): Option<ContentPosition> {
-        let lower = input.toLowerCase()
+        let lower = input
         match (lower) {
             case "center" => Some(ContentPosition.Center)
             case "start" => Some(ContentPosition.Start)
@@ -138,7 +139,7 @@ public enum SelfPosition {
     }
 
     public func parse(input: String): Option<SelfPosition> {
-        let lower = input.toLowerCase()
+        let lower = input
         match (lower) {
             case "center" => Some(SelfPosition.Center)
             case "start" => Some(SelfPosition.Start)
@@ -180,15 +181,15 @@ public enum BaselinePosition {
 /// 严格翻译自 AlignContent
 public enum AlignContent {
     | Normal
-    | BaselinePosition(BaselinePosition)
-    | ContentDistribution(ContentDistribution)
+    | BaselinePos(BaselinePosition)
+    | ContentDist(ContentDistribution)
     | ContentPosition(AlignContentContentPosition)
 
     public func toCss(): String {
         match (this) {
             case Normal => "normal"
-            case BaselinePosition(bp) => bp.toCss()
-            case ContentDistribution(cd) => cd.toCss()
+            case BaselinePos(bp) => bp.toCss()
+            case ContentDist(cd) => cd.toCss()
             case ContentPosition(cp) => cp.toCss()
         }
     }
@@ -224,14 +225,14 @@ public class AlignContentContentPosition {
 public enum AlignItems {
     | Normal
     | Stretch
-    | BaselinePosition(BaselinePosition)
+    | BaselinePos(BaselinePosition)
     | SelfPosition(AlignItemsSelfPosition)
 
     public func toCss(): String {
         match (this) {
             case Normal => "normal"
             case Stretch => "stretch"
-            case BaselinePosition(bp) => bp.toCss()
+            case BaselinePos(bp) => bp.toCss()
             case SelfPosition(sp) => sp.toCss()
         }
     }
@@ -268,7 +269,7 @@ public enum AlignSelf {
     | Auto
     | Normal
     | Stretch
-    | BaselinePosition(BaselinePosition)
+    | BaselinePos(BaselinePosition)
     | SelfPosition(AlignSelfSelfPosition)
 
     public func toCss(): String {
@@ -276,7 +277,7 @@ public enum AlignSelf {
             case Auto => "auto"
             case Normal => "normal"
             case Stretch => "stretch"
-            case BaselinePosition(bp) => bp.toCss()
+            case BaselinePos(bp) => bp.toCss()
             case SelfPosition(sp) => sp.toCss()
         }
     }
@@ -311,7 +312,7 @@ public class AlignSelfSelfPosition {
 /// 严格翻译自 JustifyContent
 public enum JustifyContent {
     | Normal
-    | ContentDistribution(ContentDistribution)
+    | ContentDist(ContentDistribution)
     | ContentPosition(JustifyContentContentPosition)
     | Left(JustifyLeftRight)
     | Right(JustifyLeftRight)
@@ -319,7 +320,7 @@ public enum JustifyContent {
     public func toCss(): String {
         match (this) {
             case Normal => "normal"
-            case ContentDistribution(cd) => cd.toCss()
+            case ContentDist(cd) => cd.toCss()
             case ContentPosition(cp) => cp.toCss()
             case Left(lr) => lr.toCss("left")
             case Right(lr) => lr.toCss("right")
@@ -375,7 +376,7 @@ public class JustifyLeftRight {
 public enum JustifyItems {
     | Normal
     | Stretch
-    | BaselinePosition(BaselinePosition)
+    | BaselinePos(BaselinePosition)
     | SelfPosition(JustifyItemsSelfPosition)
     | Left(JustifyLeftRight)
     | Right(JustifyLeftRight)
@@ -385,7 +386,7 @@ public enum JustifyItems {
         match (this) {
             case Normal => "normal"
             case Stretch => "stretch"
-            case BaselinePosition(bp) => bp.toCss()
+            case BaselinePos(bp) => bp.toCss()
             case SelfPosition(sp) => sp.toCss()
             case Left(lr) => lr.toCss("left")
             case Right(lr) => lr.toCss("right")
@@ -425,7 +426,7 @@ public enum JustifySelf {
     | Auto
     | Normal
     | Stretch
-    | BaselinePosition(BaselinePosition)
+    | BaselinePos(BaselinePosition)
     | SelfPosition(JustifySelfSelfPosition)
     | Left(JustifyLeftRight)
     | Right(JustifyLeftRight)
@@ -435,7 +436,7 @@ public enum JustifySelf {
             case Auto => "auto"
             case Normal => "normal"
             case Stretch => "stretch"
-            case BaselinePosition(bp) => bp.toCss()
+            case BaselinePos(bp) => bp.toCss()
             case SelfPosition(sp) => sp.toCss()
             case Left(lr) => lr.toCss("left")
             case Right(lr) => lr.toCss("right")
@@ -501,6 +502,10 @@ public enum GapValue {
             case Normal => "normal"
             case LengthPercentage(lp) => lp
         }
+    }
+
+    public operator func ==(rhs: GapValue): Bool {
+        this.toCss() == rhs.toCss()
     }
 }
 

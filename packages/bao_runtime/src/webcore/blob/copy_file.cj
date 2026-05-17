@@ -5,6 +5,7 @@ package bao_runtime.webcore.blob
 
 import bao_core.*
 import bao_io.*
+import bao_sys.*
 
 // ============================================================================
 // CopyFileResult - 文件复制结果
@@ -42,10 +43,10 @@ public class CopyFile {
             case SysMaybe<Array<UInt8>>.Ok(bytes) =>
                 match (BaoFile.writeAllBytes(destinationPath, bytes)) {
                     case SysMaybe<Unit>.Ok(_) => return CopyFileResult.Success(bytes.size)
-                    case SysMaybe<Unit>.Err(err) => return CopyFileResult.Error(err.message)
+                    case SysMaybe<Unit>.Err(err) => return CopyFileResult.Error(err.toString())
                 }
             case SysMaybe<Array<UInt8>>.Err(err) =>
-                return CopyFileResult.Error(err.message)
+                return CopyFileResult.Error(err.toString())
         }
     }
 }

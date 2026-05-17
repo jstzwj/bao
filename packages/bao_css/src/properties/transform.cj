@@ -11,6 +11,7 @@
 package bao_css.properties
 
 import bao_core.*
+import bao_collections.*
 
 // ============================================================================
 // TransformList
@@ -38,7 +39,12 @@ public class TransformList {
         for (item in v) {
             parts.append(item.toCss())
         }
-        return String.join(" ", parts)
+        var result = ""
+        for (i in 0..parts.size) {
+            if (i > 0) { result = result + " " }
+            result = result + parts[Int64(i)]
+        }
+        return result
     }
 }
 
@@ -194,18 +200,20 @@ public enum Translate {
     | None                     // "none"
     | Xyz(String, String, String) // x, y, z 平移
 
+    private func xyzTranslateToCss(x: String, y: String, z: String): String {
+        if (z != "0") {
+            x + " " + y + " " + z
+        } else if (y != "0") {
+            x + " " + y
+        } else {
+            x
+        }
+    }
+
     public func toCss(): String {
         match (this) {
             case None => "none"
-            case Xyz(x, y, z) => {
-                if (z != "0") {
-                    x + " " + y + " " + z
-                } else if (y != "0") {
-                    x + " " + y
-                } else {
-                    x
-                }
-            }
+            case Xyz(x, y, z) => xyzTranslateToCss(x, y, z)
         }
     }
 }
@@ -231,7 +239,7 @@ public class Rotate {
     }
 
     public static func default(): Rotate {
-        Rotate(x: 0.0, y: 0.0, z: 1.0, angle: "0deg")
+        Rotate(0.0, 0.0, 1.0, "0deg")
     }
 
     public func toCss(): String {
@@ -263,18 +271,20 @@ public enum Scale {
     | None                          // "none"
     | Xyz(String, String, String)   // x, y, z 缩放
 
+    private func xyzScaleToCss(x: String, y: String, z: String): String {
+        if (z != "1") {
+            x + " " + y + " " + z
+        } else if (y != x) {
+            x + " " + y
+        } else {
+            x
+        }
+    }
+
     public func toCss(): String {
         match (this) {
             case None => "none"
-            case Xyz(x, y, z) => {
-                if (z != "1") {
-                    x + " " + y + " " + z
-                } else if (y != x) {
-                    x + " " + y
-                } else {
-                    x
-                }
-            }
+            case Xyz(x, y, z) => xyzScaleToCss(x, y, z)
         }
     }
 }

@@ -36,8 +36,9 @@ public class FdExt {
     /// fd.zig:236: pub fn close(fd: FD) void
     public static func close(fd: Int64): Unit {
         // 不关闭标准 IO
-        if (FdUtils.stdioTag(fd) != None) {
-            return
+        match (FdUtils.stdioTag(fd)) {
+            case Some(_) => return
+            case None => ()
         }
         closeAllowingBadFileDescriptor(fd)
     }
@@ -46,8 +47,9 @@ public class FdExt {
     /// fd.zig: 用于 JS 提供的 fd，可能无效
     public static func closeAllowingBadFileDescriptor(fd: Int64): ?SysError {
         // 不关闭标准 IO
-        if (FdUtils.stdioTag(fd) != None) {
-            return None
+        match (FdUtils.stdioTag(fd)) {
+            case Some(_) => return None
+            case None => ()
         }
         return closeAllowingStandardIo(fd)
     }
@@ -58,18 +60,20 @@ public class FdExt {
         if (!FdUtils.isValid(fd)) {
             return None
         }
-        let rc = bao_sys.close(Int32(fd))
-        if (rc != 0) {
-            let errno = UInt16(Int64(OS.errno()))
-            return Some(SysError(errno, SysTag.Close, fd))
+        unsafe {
+            let rc = close(Int32(fd))
+            if (rc != 0) {
+                let errno = UInt16(Int64(OS.errno()))
+                return Some(SysError(errno, SysTag.Close, fd))
+            }
+            return None
         }
-        return None
     }
 
     /// 创建路径 - 对应 Bun FdExt.makePathU8
     /// mkdir -p 语义，递归创建目录
     public static func makePath(fd: Int64, subPath: String): SysMaybe<Unit> {
-        return mkdirRecursiveAt(fd, subPath)
+        return DirHelper.mkdirRecursiveAt(fd, subPath)
     }
 
     /// 删除目录树 - 对应 Bun FdExt.deleteTree
@@ -270,7 +274,7 @@ public class DirHelper {
                         if (e.errno != 2) {
                             return SysMaybe<Unit>.Err(e)
                         }
-                    case _ => {}
+                    case _ => ()
                 }
                 return SysMaybe<Unit>.Ok(())
         }

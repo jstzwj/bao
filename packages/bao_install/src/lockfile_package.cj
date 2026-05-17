@@ -13,6 +13,7 @@ import bao_io.*
 import bao_hash.*
 import bao_path.*
 import bao_http.*
+import bao_sys.*
 
 // ============================================================================
 // 锁文件包条目 (Package)
@@ -157,10 +158,10 @@ public enum DependencyGroupKind {
         let beh = DependencyBehavior()
         match (this) {
             case Dependencies => beh.prod = true
-            case Dev => beh.isDev = true
-            case Optional => beh.isOptional = true
-            case Peer => beh.isPeer = true
-            case Workspaces => beh.isWorkspace = true
+            case Dev => beh.dev = true
+            case Optional => beh.optional = true
+            case Peer => beh.peer = true
+            case Workspaces => beh.workspace = true
         }
         return beh
     }
@@ -289,75 +290,66 @@ public class LockfileResolution {
     /// 翻译自: Resolution.order
     public func compare(other: LockfileResolution): Int64 {
         if (tag != other.tag) {
-            return tag.toString().compare(other.tag.toString())
+            return match (tag.toString().compare(other.tag.toString())) {
+                case Ordering.LT => -1
+                case Ordering.GT => 1
+                case Ordering.EQ => 0
+            }
         }
-        return versionString().compare(other.versionString())
+        return match (versionString().compare(other.versionString())) {
+            case Ordering.LT => -1
+            case Ordering.GT => 1
+            case Ordering.EQ => 0
+        }
     }
 
     /// 从 pnpm lockfile 构建 resolution
     /// 翻译自: Resolution.fromPnpmLockfile
     public static func fromPnpmLockfile(versionStr: String): LockfileResolution {
         let res = LockfileResolution()
-        // pnpm 格式: /name@version, url, github:user/repo#ref, etc.
         if (versionStr.startsWith("github:")) {
             res.tag = DependencyTag.Github
-            let rest = versionStr.substring(7)
-            let hashIdx = rest.indexOf("#")
-            match (hashIdx) {
-                case Some(idx) => {
-                    let path = rest.substring(0, idx)
-                    res.githubCommittish = rest.substring(idx + 1)
-                    let slashIdx = path.indexOf("/")
-                    match (slashIdx) {
-                        case Some(sIdx) => {
-                            res.githubUser = path.substring(0, sIdx)
-                            res.githubRepo = path.substring(sIdx + 1)
-                        }
-                        case None => {
-                            res.githubRepo = path
-                        }
+            let rest = versionStr[7..]
+            match (rest.indexOf("#")) {
+                case Some(idx) =>
+                    let path = rest[..idx]
+                    res.githubCommittish = rest[idx + 1..]
+                    match (path.indexOf("/")) {
+                        case Some(sIdx) =>
+                            res.githubUser = path[..sIdx]
+                            res.githubRepo = path[sIdx + 1..]
+                        case None => res.githubRepo = path
                     }
-                }
-                case None => {
-                    let slashIdx = rest.indexOf("/")
-                    match (slashIdx) {
-                        case Some(sIdx) => {
-                            res.githubUser = rest.substring(0, sIdx)
-                            res.githubRepo = rest.substring(sIdx + 1)
-                        }
-                        case None => {
-                            res.githubRepo = rest
-                        }
+                case None =>
+                    match (rest.indexOf("/")) {
+                        case Some(sIdx) =>
+                            res.githubUser = rest[..sIdx]
+                            res.githubRepo = rest[sIdx + 1..]
+                        case None => res.githubRepo = rest
                     }
-                }
             }
         } else if (versionStr.startsWith("git+")) {
             res.tag = DependencyTag.Git
-            let rest = versionStr.substring(4)
-            let hashIdx = rest.indexOf("#")
-            match (hashIdx) {
-                case Some(idx) => {
-                    res.gitRepo = rest.substring(0, idx)
-                    res.gitRef = rest.substring(idx + 1)
-                }
-                case None => {
-                    res.gitRepo = rest
-                }
+            let rest = versionStr[4..]
+            match (rest.indexOf("#")) {
+                case Some(idx) =>
+                    res.gitRepo = rest[..idx]
+                    res.gitRef = rest[idx + 1..]
+                case None => res.gitRepo = rest
             }
         } else if (versionStr.startsWith("https://") || versionStr.startsWith("http://")) {
             res.tag = DependencyTag.Tarball
             res.tarballUrl = versionStr
         } else if (versionStr.startsWith("file:")) {
             res.tag = DependencyTag.Folder
-            res.folderPath = versionStr.substring(5)
+            res.folderPath = versionStr[5..]
         } else if (versionStr.startsWith("link:")) {
             res.tag = DependencyTag.Symlink
-            res.symlinkPath = versionStr.substring(5)
+            res.symlinkPath = versionStr[5..]
         } else if (versionStr.startsWith("workspace:")) {
             res.tag = DependencyTag.Workspace
-            res.workspacePath = versionStr.substring(10)
+            res.workspacePath = versionStr[10..]
         } else {
-            // npm version
             res.tag = DependencyTag.Npm
             res.npmVersion = versionStr
         }
@@ -409,10 +401,10 @@ public class LockfileDependency {
     /// 翻译自: Dependency.toExternal
     public func toExternal(): LockfileDependencyExternal {
         return LockfileDependencyExternal(
-            nameHash: nameHash,
-            versionTag: DependencyTag.Npm.toInt(),
-            behaviorByte: behavior.toByte(),
-            isAlias: isAlias
+            nameHash,
+            Int64(1),  // DependencyTag.Npm value
+            behavior.toByte(),
+            isAlias
         )
     }
 }
@@ -513,7 +505,7 @@ public class PackageMeta {
                 var negate = false
                 if (osName.startsWith("!")) {
                     negate = true
-                    osName = osName.substring(1)
+                    osName = osName[1..]
                 }
                 if (osName == "*" || osName == checkOs) {
                     if (negate) { return true }
@@ -531,7 +523,7 @@ public class PackageMeta {
                 var negate = false
                 if (cpuName.startsWith("!")) {
                     negate = true
-                    cpuName = cpuName.substring(1)
+                    cpuName = cpuName[1..]
                 }
                 if (cpuName == "*" || cpuName == checkCpu) {
                     if (negate) { return true }
@@ -546,91 +538,8 @@ public class PackageMeta {
 }
 
 // ============================================================================
-// 完整性哈希
-// 严格翻译自: src/install/install.zig - Integrity
-//   pub const Integrity = packed struct {
-//       tag: Tag = .sha512,
-//       value: [Integrity.digest_length]u8 = .{0} ** Integrity.digest_length,
-//   }
-//   pub const Tag = enum(u8) { sha512, sha1, sha256 }
+// IntegrityTag 和 Integrity 已移至 integrity.cj
 // ============================================================================
-
-/// 完整性哈希算法
-/// 对应 Bun: Integrity.Tag
-public enum IntegrityTag {
-    | Sha512
-    | Sha1
-    | Sha256
-
-    public func toString(): String {
-        match (this) {
-            case Sha512 => "sha512"
-            case Sha1 => "sha1"
-            case Sha256 => "sha256"
-        }
-    }
-
-    public static func fromString(s: String): IntegrityTag {
-        if (s.startsWith("sha512")) { return Sha512 }
-        if (s.startsWith("sha1")) { return Sha1 }
-        if (s.startsWith("sha256")) { return Sha256 }
-        return Sha512
-    }
-}
-
-/// 完整性哈希值
-/// 对应 Bun: install.Integrity
-/// 翻译自: src/install/install.zig Integrity
-public class Integrity {
-    /// 哈希算法
-    /// 对应 Bun: tag: Tag = .sha512
-    public var tag: IntegrityTag
-    /// Base64 编码的哈希值
-    /// 对应 Bun: value (原始字节), 仓颉用 base64 字符串表示
-    public var value: String
-
-    public init() {
-        tag = IntegrityTag.Sha512
-        value = ""
-    }
-
-    public init(tag: IntegrityTag, value: String) {
-        this.tag = tag
-        this.value = value
-    }
-
-    /// 从 SRI 字符串解析
-    /// 翻译自: Integrity.fromSlice
-    ///   格式: "sha512-xxxxx" 或 "sha1-xxxxx"
-    public static func parse(sri: String): Integrity {
-        if (sri.length == 0) { return Integrity() }
-        let dashIdx = sri.indexOf("-")
-        match (dashIdx) {
-            case Some(idx) => {
-                let tagStr = sri.substring(0, idx)
-                let val = sri.substring(idx + 1)
-                return Integrity(tag: IntegrityTag.fromString(tagStr), value: val)
-            }
-            case None => return Integrity(tag: IntegrityTag.Sha512, value: sri)
-        }
-    }
-
-    /// 转为 SRI 字符串
-    public func toSRI(): String {
-        if (value.length == 0) { return "" }
-        return "${tag.toString()}-${value}"
-    }
-
-    /// 是否为空
-    public func isEmpty(): Bool {
-        return value.length == 0
-    }
-
-    /// 比较是否相等
-    public func eql(other: Integrity): Bool {
-        return tag == other.tag && value == other.value
-    }
-}
 
 // ============================================================================
 // 包脚本 (Package.Scripts)
@@ -728,11 +637,11 @@ public class PackageScripts {
 
 /// 无效 Tree ID
 /// 翻译自: Tree.invalid_id = std.math.maxInt(Id)
-public let TREE_INVALID_ID: UInt32 = UInt32.MAX
+public let TREE_INVALID_ID: UInt32 = UInt32(4294967295)
 
 /// Tree 根依赖 ID
 /// 翻译自: Tree.root_dep_id = invalid_package_id - 1
-public let TREE_ROOT_DEP_ID: UInt32 = UInt32.MAX - UInt32(1)
+public let TREE_ROOT_DEP_ID: UInt32 = UInt32(4294967294)
 
 /// 最大 node_modules 深度
 /// 翻译自: Tree.max_depth
@@ -794,22 +703,18 @@ public class TreeNode {
     ///   pub fn toExternal(this) External { ... }
     public func toExternal(): TreeExternal {
         return TreeExternal(
-            id: id,
-            dependencyId: dependencyId,
-            parentId: parentId,
-            depsOffset: UInt32(0),
-            depsLength: UInt32(dependencies.size)
+            id,
+            dependencyId,
+            parentId,
+            UInt32(0),
+            UInt32(dependencies.size)
         )
     }
 
     /// 从外部格式反序列化
     /// 翻译自: Tree.toTree
     public static func fromExternal(ext: TreeExternal): TreeNode {
-        let node = TreeNode(
-            id: ext.id,
-            dependencyId: ext.dependencyId,
-            parentId: ext.parentId
-        )
+        let node = TreeNode(ext.id, ext.dependencyId, ext.parentId)
         return node
     }
 }
@@ -858,25 +763,16 @@ public class TreeExternal {
 public enum TreePathStyle {
     | NodeModules  // node_modules/jquery/node_modules/zod
     | PkgPath      // jquery/zod (posix 风格)
-}
 
-/// Tree 迭代结果
-/// 翻译自: Tree.Iterator.Next
-public class TreeIteratorNext {
-    /// 相对路径
-    public var relativePath: String
-    /// 依赖 ID 列表
-    public var dependencies: ArrayList<UInt32>
-    /// Tree 节点 ID
-    public var treeId: UInt32
-    /// 深度 (node_modules 嵌套层数)
-    public var depth: Int64
+    public operator func ==(right: TreePathStyle): Bool {
+        match (this) {
+            case NodeModules => match (right) { case NodeModules => true case _ => false }
+            case PkgPath => match (right) { case PkgPath => true case _ => false }
+        }
+    }
 
-    public init(relativePath: String, dependencies: ArrayList<UInt32>, treeId: UInt32, depth: Int64) {
-        this.relativePath = relativePath
-        this.dependencies = dependencies
-        this.treeId = treeId
-        this.depth = depth
+    public operator func !=(right: TreePathStyle): Bool {
+        return !(this == right)
     }
 }
 
@@ -923,15 +819,17 @@ public class TreeIterator {
         let tree = trees[Int64(currentId)]
 
         // 计算相对路径和深度
-        let (relativePath, depth) = computeRelativePathAndDepth(currentId)
+        let pathAndDepth = computeRelativePathAndDepth(currentId)
+        let relativePath = pathAndDepth.first
+        let depth = pathAndDepth.second
 
         treeId = treeId + UInt32(1)
 
         return TreeIteratorNext(
-            relativePath: relativePath,
-            dependencies: tree.dependencies,
-            treeId: currentId,
-            depth: depth
+            relativePath,
+            tree.dependencies,
+            currentId,
+            depth
         )
     }
 
@@ -944,17 +842,23 @@ public class TreeIterator {
         var currentId: ?UInt32 = treeId
 
         // 向上遍历 parent 链
-        while (currentId != None && Int64(currentId.getOrThrow()) < trees.size) {
-            let id = currentId.getOrThrow()
-            if (id == UInt32(0)) { break }
-            let tree = trees[Int64(id)]
-            let name = tree.folderName(deps)
-            if (name.length > 0) {
-                pathParts.append(name)
-                depth += 1
+        var keepGoing = true
+        while (keepGoing) {
+            match (currentId) {
+                case Some(id) =>
+                    if (Int64(id) >= trees.size) { keepGoing = false }
+                    else {
+                        let tree = trees[Int64(id)]
+                        let name = tree.folderName(deps)
+                        if (name.size > 0) {
+                            pathParts.append(name)
+                            depth += 1
+                        }
+                        if (tree.parentId == TREE_INVALID_ID) { keepGoing = false }
+                        else { currentId = tree.parentId }
+                    }
+                case None => keepGoing = false
             }
-            if (tree.parentId == TREE_INVALID_ID) { break }
-            currentId = tree.parentId
         }
 
         // 反转路径部分
@@ -991,37 +895,15 @@ public class TreeIterator {
 //   }
 // ============================================================================
 
-/// 提升依赖结果
-/// 对应 Bun: Tree.HoistDependencyResult
-/// 翻译自: src/install/lockfile/Tree.zig HoistDependencyResult
-public enum HoistResult {
-    | DependencyLoop     // 检测到依赖循环
-    | Hoisted            // 已提升
-    | Resolved(UInt32)   // 解析到指定 PackageID
-    | ResolveReplace     // 需要替换
-    | ResolveLater       // 延迟解析
-    | Placement          // 放置完成
+/// 替换信息
+/// 对应 Bun: Tree.PlacementInfo
+public class PlacementInfo {
+    public var id: UInt32
+    public var isBundled: Bool
 
-    /// 替换信息
-    public class ResolveReplaceInfo {
-        public var id: UInt32
-        public var depId: UInt32
-
-        public init(id: UInt32, depId: UInt32) {
-            this.id = id
-            this.depId = depId
-        }
-    }
-
-    /// 放置信息
-    public class PlacementInfo {
-        public var id: UInt32
-        public var isBundled: Bool
-
-        public init(id: UInt32, isBundled: Bool) {
-            this.id = id
-            this.isBundled = isBundled
-        }
+    public init(id: UInt32, isBundled: Bool) {
+        this.id = id
+        this.isBundled = isBundled
     }
 }
 
@@ -1076,7 +958,7 @@ public class CatalogMap {
     ///       return group.getContext(dep_name, ...) orelse null;
     ///   }
     public func get(catalogName: String, depName: String): ?LockfileDependency {
-        if (catalogName.length == 0) {
+        if (catalogName.size == 0) {
             return defaultCatalog.get(depName)
         }
         let group = groups.get(catalogName)
@@ -1095,17 +977,16 @@ public class CatalogMap {
     ///       return entry.value_ptr;
     ///   }
     public func getOrPutGroup(catalogName: String): HashMap<String, LockfileDependency> {
-        if (catalogName.length == 0) {
+        if (catalogName.size == 0) {
             return defaultCatalog
         }
         let existing = groups.get(catalogName)
         match (existing) {
             case Some(g) => return g
-            case None => {
+            case None =>
                 let newGroup = HashMap<String, LockfileDependency>()
                 groups.put(catalogName, newGroup)
                 return newGroup
-            }
         }
     }
 
@@ -1116,35 +997,31 @@ public class CatalogMap {
 
         // 解析 "catalog" (默认 catalog)
         match (JsonHelper.getField(root, "catalog")) {
-            case Some(JsonValue.Object(obj)) => {
+            case Some(JsonValue.Object(obj)) =>
                 for (key in obj.keys()) {
-                    // 计数字符串
                     match (obj.get(key)) {
-                        case Some(JsonValue.Str(_)) => () // 计入
+                        case Some(JsonValue.Str(_)) => ()
                         case _ => ()
                     }
                 }
-            }
             case _ => ()
         }
 
         // 解析 "catalogs" (命名 catalog)
         match (JsonHelper.getField(root, "catalogs")) {
-            case Some(JsonValue.Object(catalogs)) => {
+            case Some(JsonValue.Object(catalogs)) =>
                 for (catalogName in catalogs.keys()) {
                     match (catalogs.get(catalogName)) {
-                        case Some(JsonValue.Object(obj)) => {
+                        case Some(JsonValue.Object(obj)) =>
                             for (key in obj.keys()) {
                                 match (obj.get(key)) {
                                     case Some(JsonValue.Str(_)) => ()
                                     case _ => ()
                                 }
                             }
-                        }
                         case _ => ()
                     }
                 }
-            }
             case _ => ()
         }
     }
@@ -1157,44 +1034,39 @@ public class CatalogMap {
 
         // 解析 "catalog" (默认)
         match (JsonHelper.getField(root, "catalog")) {
-            case Some(JsonValue.Object(obj)) => {
+            case Some(JsonValue.Object(obj)) =>
                 foundAny = true
                 let group = getOrPutGroup("")
                 for (depName in obj.keys()) {
                     match (obj.get(depName)) {
-                        case Some(JsonValue.Str(versionStr)) => {
+                        case Some(JsonValue.Str(versionStr)) =>
                             let dep = LockfileDependency(depName, Wyhash11.hash(depName), versionStr)
                             group.put(depName, dep)
-                        }
                         case _ => ()
                     }
                 }
-            }
             case _ => ()
         }
 
         // 解析 "catalogs" (命名)
         match (JsonHelper.getField(root, "catalogs")) {
-            case Some(JsonValue.Object(catalogs)) => {
+            case Some(JsonValue.Object(catalogs)) =>
                 foundAny = true
                 for (catalogName in catalogs.keys()) {
                     match (catalogs.get(catalogName)) {
-                        case Some(JsonValue.Object(obj)) => {
+                        case Some(JsonValue.Object(obj)) =>
                             let group = getOrPutGroup(catalogName)
                             for (depName in obj.keys()) {
                                 match (obj.get(depName)) {
-                                    case Some(JsonValue.Str(versionStr)) => {
+                                    case Some(JsonValue.Str(versionStr)) =>
                                         let dep = LockfileDependency(depName, Wyhash11.hash(depName), versionStr)
                                         group.put(depName, dep)
-                                    }
                                     case _ => ()
                                 }
                             }
-                        }
                         case _ => ()
                     }
                 }
-            }
             case _ => ()
         }
 
@@ -1206,14 +1078,13 @@ public class CatalogMap {
     public func fromPnpmLockfile(catalogsObj: HashMap<String, JsonValue>): Unit {
         for (groupName in catalogsObj.keys()) {
             match (catalogsObj.get(groupName)) {
-                case Some(JsonValue.Object(entriesObj)) => {
+                case Some(JsonValue.Object(entriesObj)) =>
                     if (groupName == "default") {
                         putEntriesFromPnpm(defaultCatalog, entriesObj)
                     } else {
                         let group = getOrPutGroup(groupName)
                         putEntriesFromPnpm(group, entriesObj)
                     }
-                }
                 case _ => ()
             }
         }
@@ -1224,19 +1095,16 @@ public class CatalogMap {
     private func putEntriesFromPnpm(catalogMap: HashMap<String, LockfileDependency>, entriesObj: HashMap<String, JsonValue>): Unit {
         for (depName in entriesObj.keys()) {
             match (entriesObj.get(depName)) {
-                case Some(JsonValue.Object(info)) => {
+                case Some(JsonValue.Object(info)) =>
                     match (JsonHelper.getString(JsonValue.Object(info), "specifier")) {
-                        case Some(versionStr) => {
+                        case Some(versionStr) =>
                             let dep = LockfileDependency(depName, Wyhash11.hash(depName), versionStr)
                             catalogMap.put(depName, dep)
-                        }
                         case None => ()
                     }
-                }
-                case Some(JsonValue.Str(versionStr)) => {
+                case Some(JsonValue.Str(versionStr)) =>
                     let dep = LockfileDependency(depName, Wyhash11.hash(depName), versionStr)
                     catalogMap.put(depName, dep)
-                }
                 case _ => ()
             }
         }
@@ -1255,27 +1123,24 @@ public class CatalogMap {
     public func count(builder: SemverStringBuilder): Unit {
         for (depName in defaultCatalog.keys()) {
             match (defaultCatalog.get(depName)) {
-                case Some(dep) => {
-                    builder.count(Array<UInt8>(depName.length, item: UInt8(0)))
-                    builder.count(Array<UInt8>(dep.version.length, item: UInt8(0)))
-                }
+                case Some(dep) =>
+                    builder.count(Array<UInt8>(depName.size, repeat: UInt8(0)))
+                    builder.count(Array<UInt8>(dep.version.size, repeat: UInt8(0)))
                 case None => ()
             }
         }
         for (catalogName in groups.keys()) {
-            builder.count(Array<UInt8>(catalogName.length, item: UInt8(0)))
+            builder.count(Array<UInt8>(catalogName.size, repeat: UInt8(0)))
             match (groups.get(catalogName)) {
-                case Some(group) => {
+                case Some(group) =>
                     for (depName in group.keys()) {
                         match (group.get(depName)) {
-                            case Some(dep) => {
-                                builder.count(Array<UInt8>(depName.length, item: UInt8(0)))
-                                builder.count(Array<UInt8>(dep.version.length, item: UInt8(0)))
-                            }
+                            case Some(dep) =>
+                                builder.count(Array<UInt8>(depName.size, repeat: UInt8(0)))
+                                builder.count(Array<UInt8>(dep.version.size, repeat: UInt8(0)))
                             case None => ()
                         }
                     }
-                }
                 case None => ()
             }
         }
@@ -1342,11 +1207,8 @@ public class LockfileBuffers {
     ///       ...
     ///   }
     public func preallocate(other: LockfileBuffers): Unit {
-        trees.ensureCapacity(other.trees.size)
-        resolutions.ensureCapacity(other.resolutions.size)
-        dependencies.ensureCapacity(other.dependencies.size)
-        externStrings.ensureCapacity(other.externStrings.size)
-        stringBytes.ensureCapacity(other.stringBytes.size)
+        // Preallocation is handled internally by ArrayList
+        // No-op in this implementation
     }
 
     /// 清空所有缓冲区
@@ -1469,11 +1331,10 @@ public class WorkspaceMap {
     public func findByPackageName(name: String): ?String {
         for (key in map.keys()) {
             match (map.get(key)) {
-                case Some(entry) => {
+                case Some(entry) =>
                     if (entry.name == name) {
                         return key
                     }
-                }
                 case None => ()
             }
         }
@@ -1485,38 +1346,37 @@ public class WorkspaceMap {
     ///   解析 workspaces 字段中的 glob 模式和路径
     public func processNamesArray(workspaces: ArrayList<String>, rootDir: String): Unit {
         for (wsPath in workspaces) {
-            if (wsPath.length == 0 || wsPath == "." || wsPath == "./" || wsPath == ".\\") {
+            if (wsPath.size == 0 || wsPath == "." || wsPath == "./" || wsPath == ".\\") {
                 continue
             }
 
             // 构造 package.json 路径
-            let pkgJsonPath = bao_path.PathModule.join(ArrayList<String>([
+            let pkgJsonPath = Path.join([
                 rootDir, wsPath, "package.json"
-            ]))
+            ])
 
             // 尝试读取 workspace 包的 package.json
-            let content = try {
-                BaoFile.readAllText(pkgJsonPath)
-            } catch (_: Exception) {
-                ""
+            var content = ""
+            match (BaoFile.readAllText(pkgJsonPath)) {
+                case SysMaybe<String>.Ok(text) => content = text
+                case _ => ()
             }
 
-            if (content.length > 0) {
+            if (content.size > 0) {
                 let parser = JsonParser()
                 let json = parser.parse(content)
                 match (json) {
-                    case Some(root) => {
+                    case Some(root) =>
                         let wsName = match (JsonHelper.getString(root, "name")) {
                             case Some(n) => n
                             case None => ""
                         }
-                        if (wsName.length > 0) {
+                        if (wsName.size > 0) {
                             let wsVersion = JsonHelper.getString(root, "version")
-                            let absPath = bao_path.PathModule.join(ArrayList<String>([rootDir, wsPath]))
+                            let absPath = Path.join([rootDir, wsPath])
                             let entry = WorkspaceMapEntry(wsName, absPath, wsVersion)
                             insert(absPath, entry)
                         }
-                    }
                     case None => ()
                 }
             }
@@ -1567,9 +1427,9 @@ public class PackageAlphabetizer {
     public func isAlphabetical(lhs: Int64, rhs: Int64): Bool {
         if (Int64(lhs) >= names.size || Int64(rhs) >= names.size) { return false }
         let nameCmp = names[Int64(lhs)].compare(names[Int64(rhs)])
-        if (nameCmp < 0) { return true }
-        if (nameCmp > 0) { return false }
-        // 名称相同, 按版本排序
+        if (nameCmp == Ordering.LT) { return true }
+        if (nameCmp == Ordering.GT) { return false }
         return resolutions[Int64(lhs)].compare(resolutions[Int64(rhs)]) < 0
     }
 }
+

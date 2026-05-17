@@ -65,7 +65,7 @@ public class PackageJson {
     /// TypeScript 类型定义 - 对应 Bun types/typings 字段
     public var types: String
     /// 副作用标记 - 对应 Bun side_effects
-    public var sideEffects: SideEffects
+    public var sideEffects: SideEffectsKind
     /// 原始 JSON 文本
     public var rawJson: String
 
@@ -83,14 +83,14 @@ public class PackageJson {
         peerDependencies = HashMap<String, String>()
         optionalDependencies = HashMap<String, String>()
         types = ""
-        sideEffects = SideEffects.Unspecified
+        sideEffects = SideEffectsKind.Unspecified
         rawJson = ""
     }
 }
 
 /// 副作用标记 - 对应 Bun SideEffects
 /// Bun: pub const SideEffects = union(enum) { unspecified, false, map, glob, mixed }
-public enum SideEffects {
+public enum SideEffectsKind {
     | Unspecified  // 未指定 (默认视为有副作用)
     | NoSideEffects  // "sideEffects": false
     | HasSideEffects  // "sideEffects": true
@@ -133,15 +133,15 @@ public class PackageJsonParser {
 
         // 跳到顶层对象
         skipWhitespace()
-        if (pos >= source.length || source[Int64(pos)] != Char('{')) {
+        if (pos >= Int64(source.size) || source[Int64(pos)] != UInt8(123)) {
             return result
         }
         pos += 1  // skip '{'
 
         // 解析对象的每个属性
-        while (pos < source.length) {
+        while (pos < Int64(source.size)) {
             skipWhitespace()
-            if (pos >= source.length || source[Int64(pos)] == Char('}')) {
+            if (pos >= Int64(source.size) || source[Int64(pos)] == UInt8(125)) {
                 break
             }
 
@@ -150,75 +150,60 @@ public class PackageJsonParser {
             skipWhitespace()
 
             // 跳过冒号
-            if (pos < source.length && source[Int64(pos)] == Char(':')) {
+            if (pos < Int64(source.size) && source[Int64(pos)] == UInt8(58)) {
                 pos += 1
             }
             skipWhitespace()
 
             // 根据 key 处理对应的值
             match (key) {
-                case "name" => {
+                case "name" =>
                     result.name = parseStringValue()
-                }
-                case "version" => {
+                case "version" =>
                     result.version = parseStringValue()
-                }
-                case "type" => {
+                case "type" =>
                     let typeValue = parseStringValue()
                     match (typeValue) {
-                        case "module" => result.moduleType = ModuleType.ESM
-                        case "commonjs" => result.moduleType = ModuleType.CJS
+                        case "module" => result.moduleType = ModuleType.Esm
+                        case "commonjs" => result.moduleType = ModuleType.Cjs
                         case _ => result.moduleType = ModuleType.Unknown
                     }
-                }
-                case "main" => {
-                    let main = parseStringValue()
-                    if (main.length > 0) {
-                        result.mainFields.put("main", main)
+                case "main" =>
+                    let `main` = parseStringValue()
+                    if (`main`.size > 0) {
+                        result.mainFields.put("main", `main`)
                     }
-                }
-                case "module" => {
-                    let mod = parseStringValue()
-                    if (mod.length > 0) {
-                        result.mainFields.put("module", mod)
+                case "module" =>
+                    let `mod` = parseStringValue()
+                    if (`mod`.size > 0) {
+                        result.mainFields.put("module", `mod`)
                     }
-                }
-                case "browser" => {
+                case "browser" =>
                     parseBrowserField(result)
-                }
-                case "types" | "typings" => {
+                case "types" | "typings" =>
                     result.types = parseStringValue()
-                }
-                case "exports" => {
+                case "exports" =>
                     result.exports = parseExportsMap()
-                }
-                case "imports" => {
+                case "imports" =>
                     result.importsMap = parseImportsMap()
-                }
-                case "dependencies" => {
+                case "dependencies" =>
                     result.dependencies = parseDependencyObject()
-                }
-                case "devDependencies" => {
+                case "devDependencies" =>
                     result.devDependencies = parseDependencyObject()
-                }
-                case "peerDependencies" => {
+                case "peerDependencies" =>
                     result.peerDependencies = parseDependencyObject()
-                }
-                case "optionalDependencies" => {
+                case "optionalDependencies" =>
                     result.optionalDependencies = parseDependencyObject()
-                }
-                case "sideEffects" => {
+                case "sideEffects" =>
                     result.sideEffects = parseSideEffects()
-                }
-                case _ => {
+                case _ =>
                     // 跳过不认识的字段
                     skipValue()
-                }
             }
 
             skipWhitespace()
             // 跳过逗号
-            if (pos < source.length && source[Int64(pos)] == Char(',')) {
+            if (pos < Int64(source.size) && source[Int64(pos)] == UInt8(44)) {
                 pos += 1
             }
         }
@@ -237,43 +222,43 @@ public class PackageJsonParser {
     /// 解析 browser 字段
     private func parseBrowserField(result: PackageJson): Unit {
         skipWhitespace()
-        if (pos >= source.length) {
+        if (pos >= Int64(source.size)) {
             return
         }
 
         let ch = source[Int64(pos)]
-        if (ch == Char('"')) {
+        if (ch == UInt8(34)) {
             // 字符串形式: "browser": "dist/browser.js"
             // 对应 Bun 中作为替换 main 字段使用
             let browserMain = parseStringValue()
-            if (browserMain.length > 0) {
+            if (browserMain.size > 0) {
                 result.mainFields.put("browser", browserMain)
             }
-        } else if (ch == Char('{')) {
+        } else if (ch == UInt8(123)) {
             // 对象形式: "browser": { "./node.js": "./browser.js" }
             // 对应 Bun browser_map
             pos += 1  // skip '{'
-            while (pos < source.length) {
+            while (pos < Int64(source.size)) {
                 skipWhitespace()
-                if (source[Int64(pos)] == Char('}')) {
+                if (source[Int64(pos)] == UInt8(125)) {
                     pos += 1
                     break
                 }
 
                 let from = parseStringValue()
                 skipWhitespace()
-                if (source[Int64(pos)] == Char(':')) {
+                if (source[Int64(pos)] == UInt8(58)) {
                     pos += 1
                 }
                 skipWhitespace()
 
                 let to = parseBrowserMapValue()
-                if (from.length > 0) {
+                if (from.size > 0) {
                     result.browserMap.put(from, to)
                 }
 
                 skipWhitespace()
-                if (pos < source.length && source[Int64(pos)] == Char(',')) {
+                if (pos < Int64(source.size) && source[Int64(pos)] == UInt8(44)) {
                     pos += 1
                 }
             }
@@ -286,18 +271,18 @@ public class PackageJsonParser {
     /// 对应 Bun browser map 中值可以是字符串或布尔值(false 表示禁用)
     private func parseBrowserMapValue(): String {
         skipWhitespace()
-        if (pos >= source.length) {
+        if (pos >= Int64(source.size)) {
             return ""
         }
         let ch = source[Int64(pos)]
-        if (ch == Char('"')) {
+        if (ch == UInt8(34)) {
             return parseStringValue()
         }
-        if (ch == Char('t')) {
+        if (ch == UInt8(116)) {
             pos += 4  // skip "true"
             return "__true__"
         }
-        if (ch == Char('f')) {
+        if (ch == UInt8(102)) {
             pos += 5  // skip "false"
             return ""  // false 映射为空字符串表示禁用
         }
@@ -322,26 +307,26 @@ public class PackageJsonParser {
     private func parseExportsMap(): HashMap<String, String> {
         let result = HashMap<String, String>()
         skipWhitespace()
-        if (pos >= source.length) {
+        if (pos >= Int64(source.size)) {
             return result
         }
 
         let ch = source[Int64(pos)]
 
         // 字符串: "exports": "./dist/index.js"
-        if (ch == Char('"')) {
+        if (ch == UInt8(34)) {
             let value = parseStringValue()
             result.put(".", value)
             return result
         }
 
         // 对象: "exports": { ".": {...}, "./foo": {...} }
-        if (ch == Char('{')) {
+        if (ch == UInt8(123)) {
             return parseExportObject()
         }
 
         // 数组: "exports": ["./dist/index.js", "./src/index.js"]
-        if (ch == Char('[')) {
+        if (ch == UInt8(91)) {
             let arr = parseStringArray()
             if (arr.size > 0) {
                 result.put(".", arr[0])
@@ -350,7 +335,7 @@ public class PackageJsonParser {
         }
 
         // null
-        if (ch == Char('n')) {
+        if (ch == UInt8(110)) {
             pos += 4  // skip "null"
             return result
         }
@@ -364,33 +349,33 @@ public class PackageJsonParser {
         let result = HashMap<String, String>()
         pos += 1  // skip '{'
 
-        while (pos < source.length) {
+        while (pos < Int64(source.size)) {
             skipWhitespace()
-            if (pos >= source.length || source[Int64(pos)] == Char('}')) {
+            if (pos >= Int64(source.size) || source[Int64(pos)] == UInt8(125)) {
                 pos += 1
                 break
             }
 
             let key = parseStringValue()
             skipWhitespace()
-            if (pos < source.length && source[Int64(pos)] == Char(':')) {
+            if (pos < Int64(source.size) && source[Int64(pos)] == UInt8(58)) {
                 pos += 1
             }
             skipWhitespace()
 
             // 解析值 - 可能是字符串、对象或数组
-            if (pos < source.length) {
+            if (pos < Int64(source.size)) {
                 let ch = source[Int64(pos)]
-                if (ch == Char('"')) {
+                if (ch == UInt8(34)) {
                     let value = parseStringValue()
                     result.put(key, value)
-                } else if (ch == Char('{')) {
+                } else if (ch == UInt8(123)) {
                     // 条件导出: { "import": "./esm/index.js", "require": "./cjs/index.js" }
                     let conditionMap = parseConditionExports(key)
                     for (entry in conditionMap) {
                         result.put(entry.first, entry.second)
                     }
-                } else if (ch == Char('[')) {
+                } else if (ch == UInt8(91)) {
                     let arr = parseStringArray()
                     if (arr.size > 0) {
                         result.put(key, arr[0])
@@ -401,7 +386,7 @@ public class PackageJsonParser {
             }
 
             skipWhitespace()
-            if (pos < source.length && source[Int64(pos)] == Char(',')) {
+            if (pos < Int64(source.size) && source[Int64(pos)] == UInt8(44)) {
                 pos += 1
             }
         }
@@ -414,23 +399,23 @@ public class PackageJsonParser {
         let result = ArrayList<Tuple2<String, String>>()
         pos += 1  // skip '{'
 
-        while (pos < source.length) {
+        while (pos < Int64(source.size)) {
             skipWhitespace()
-            if (pos >= source.length || source[Int64(pos)] == Char('}')) {
+            if (pos >= Int64(source.size) || source[Int64(pos)] == UInt8(125)) {
                 pos += 1
                 break
             }
 
             let condition = parseStringValue()
             skipWhitespace()
-            if (pos < source.length && source[Int64(pos)] == Char(':')) {
+            if (pos < Int64(source.size) && source[Int64(pos)] == UInt8(58)) {
                 pos += 1
             }
             skipWhitespace()
 
-            if (pos < source.length) {
+            if (pos < Int64(source.size)) {
                 let ch = source[Int64(pos)]
-                if (ch == Char('"')) {
+                if (ch == UInt8(34)) {
                     let value = parseStringValue()
                     // 将条件和导出键组合
                     result.append(Tuple2("${exportKey}:${condition}", value))
@@ -440,7 +425,7 @@ public class PackageJsonParser {
             }
 
             skipWhitespace()
-            if (pos < source.length && source[Int64(pos)] == Char(',')) {
+            if (pos < Int64(source.size) && source[Int64(pos)] == UInt8(44)) {
                 pos += 1
             }
         }
@@ -466,21 +451,21 @@ public class PackageJsonParser {
         let result = HashMap<String, String>()
         skipWhitespace()
 
-        if (pos >= source.length || source[Int64(pos)] != Char('{')) {
+        if (pos >= Int64(source.size) || source[Int64(pos)] != UInt8(123)) {
             return result
         }
         pos += 1  // skip '{'
 
-        while (pos < source.length) {
+        while (pos < Int64(source.size)) {
             skipWhitespace()
-            if (pos >= source.length || source[Int64(pos)] == Char('}')) {
+            if (pos >= Int64(source.size) || source[Int64(pos)] == UInt8(125)) {
                 pos += 1
                 break
             }
 
             let name = parseStringValue()
             skipWhitespace()
-            if (pos < source.length && source[Int64(pos)] == Char(':')) {
+            if (pos < Int64(source.size) && source[Int64(pos)] == UInt8(58)) {
                 pos += 1
             }
             skipWhitespace()
@@ -489,7 +474,7 @@ public class PackageJsonParser {
             result.put(name, version)
 
             skipWhitespace()
-            if (pos < source.length && source[Int64(pos)] == Char(',')) {
+            if (pos < Int64(source.size) && source[Int64(pos)] == UInt8(44)) {
                 pos += 1
             }
         }
@@ -498,28 +483,28 @@ public class PackageJsonParser {
     }
 
     /// 解析 sideEffects 字段
-    private func parseSideEffects(): SideEffects {
+    private func parseSideEffects(): SideEffectsKind {
         skipWhitespace()
-        if (pos >= source.length) {
-            return SideEffects.Unspecified
+        if (pos >= Int64(source.size)) {
+            return SideEffectsKind.Unspecified
         }
 
         let ch = source[Int64(pos)]
-        if (ch == Char('f')) {
+        if (ch == UInt8(102)) {
             pos += 5  // skip "false"
-            return SideEffects.NoSideEffects
+            return SideEffectsKind.NoSideEffects
         }
-        if (ch == Char('t')) {
+        if (ch == UInt8(116)) {
             pos += 4  // skip "true"
-            return SideEffects.HasSideEffects
+            return SideEffectsKind.HasSideEffects
         }
-        if (ch == Char('[')) {
+        if (ch == UInt8(91)) {
             parseStringArray()  // 跳过数组
-            return SideEffects.SideEffectsList
+            return SideEffectsKind.SideEffectsList
         }
 
         skipValue()
-        return SideEffects.Unspecified
+        return SideEffectsKind.Unspecified
     }
 
     // ========================================================================
@@ -574,35 +559,35 @@ public class PackageJsonParser {
     /// 解析字符串值
     private func parseStringValue(): String {
         skipWhitespace()
-        if (pos >= source.length) {
+        if (pos >= Int64(source.size)) {
             return ""
         }
         let ch = source[Int64(pos)]
-        if (ch != Char('"') && ch != Char('\'')) {
+        if (ch != UInt8(34) && ch != UInt8(39)) {
             return ""
         }
-        let quote = ch
+        let `quote` = ch
         pos += 1
 
         let sb = StringBuilder()
-        while (pos < source.length) {
+        while (pos < Int64(source.size)) {
             let c = source[Int64(pos)]
-            if (c == Char('\\') && pos + 1 < source.length) {
+            if (c == UInt8(92) && pos + 1 < Int64(source.size)) {
                 pos += 1
                 let escaped = source[Int64(pos)]
-                match (escaped.value) {
-                    case 34 => sb.append(Char(34))   // \"
-                    case 92 => sb.append(Char(92))   // \\
-                    case 47 => sb.append(Char(47))   // \/
-                    case 98 => sb.append(Char(8))    // \b
-                    case 102 => sb.append(Char(12))  // \f
-                    case 110 => sb.append(Char(10))  // \n
-                    case 114 => sb.append(Char(13))  // \r
-                    case 116 => sb.append(Char(9))   // \t
+                match (escaped) {
+                    case 34 => sb.append(UInt8(34))   // \"
+                    case 92 => sb.append(UInt8(92))   // \\
+                    case 47 => sb.append(UInt8(47))   // \/
+                    case 98 => sb.append(UInt8(8))    // \b
+                    case 102 => sb.append(UInt8(12))  // \f
+                    case 110 => sb.append(UInt8(10))  // \n
+                    case 114 => sb.append(UInt8(13))  // \r
+                    case 116 => sb.append(UInt8(9))   // \t
                     case _ => sb.append(escaped)
                 }
                 pos += 1
-            } else if (c == quote) {
+            } else if (c == `quote`) {
                 pos += 1
                 break
             } else {
@@ -617,23 +602,23 @@ public class PackageJsonParser {
     private func parseStringArray(): ArrayList<String> {
         let result = ArrayList<String>()
         skipWhitespace()
-        if (pos >= source.length || source[Int64(pos)] != Char('[')) {
+        if (pos >= Int64(source.size) || source[Int64(pos)] != UInt8(91)) {
             return result
         }
         pos += 1  // skip '['
 
-        while (pos < source.length) {
+        while (pos < Int64(source.size)) {
             skipWhitespace()
-            if (source[Int64(pos)] == Char(']')) {
+            if (source[Int64(pos)] == UInt8(93)) {
                 pos += 1
                 break
             }
             let str = parseStringValue()
-            if (str.length > 0) {
+            if (str.size > 0) {
                 result.append(str)
             }
             skipWhitespace()
-            if (pos < source.length && source[Int64(pos)] == Char(',')) {
+            if (pos < Int64(source.size) && source[Int64(pos)] == UInt8(44)) {
                 pos += 1
             }
         }
@@ -643,36 +628,36 @@ public class PackageJsonParser {
 
     /// 跳过值
     private func skipValue(): Unit {
-        if (pos >= source.length) {
+        if (pos >= Int64(source.size)) {
             return
         }
         let ch = source[Int64(pos)]
-        if (ch == Char('"')) {
+        if (ch == UInt8(34)) {
             // 字符串
             pos += 1
-            while (pos < source.length) {
-                if (source[Int64(pos)] == Char('\\') && pos + 1 < source.length) {
+            while (pos < Int64(source.size)) {
+                if (source[Int64(pos)] == UInt8(92) && pos + 1 < Int64(source.size)) {
                     pos += 2
-                } else if (source[Int64(pos)] == Char('"')) {
+                } else if (source[Int64(pos)] == UInt8(34)) {
                     pos += 1
                     break
                 } else {
                     pos += 1
                 }
             }
-        } else if (ch == Char('{')) {
+        } else if (ch == UInt8(123)) {
             // 对象
             var depth = 1
             pos += 1
-            while (pos < source.length && depth > 0) {
-                if (source[Int64(pos)] == Char('{')) { depth += 1 }
-                else if (source[Int64(pos)] == Char('}')) { depth -= 1 }
-                else if (source[Int64(pos)] == Char('"')) {
+            while (pos < Int64(source.size) && depth > 0) {
+                if (source[Int64(pos)] == UInt8(123)) { depth += 1 }
+                else if (source[Int64(pos)] == UInt8(125)) { depth -= 1 }
+                else if (source[Int64(pos)] == UInt8(34)) {
                     pos += 1
-                    while (pos < source.length) {
-                        if (source[Int64(pos)] == Char('\\') && pos + 1 < source.length) {
+                    while (pos < Int64(source.size)) {
+                        if (source[Int64(pos)] == UInt8(92) && pos + 1 < Int64(source.size)) {
                             pos += 2
-                        } else if (source[Int64(pos)] == Char('"')) {
+                        } else if (source[Int64(pos)] == UInt8(34)) {
                             pos += 1
                             break
                         } else {
@@ -683,19 +668,19 @@ public class PackageJsonParser {
                 }
                 pos += 1
             }
-        } else if (ch == Char('[')) {
+        } else if (ch == UInt8(91)) {
             // 数组
             var depth = 1
             pos += 1
-            while (pos < source.length && depth > 0) {
-                if (source[Int64(pos)] == Char('[')) { depth += 1 }
-                else if (source[Int64(pos)] == Char(']')) { depth -= 1 }
-                else if (source[Int64(pos)] == Char('"')) {
+            while (pos < Int64(source.size) && depth > 0) {
+                if (source[Int64(pos)] == UInt8(91)) { depth += 1 }
+                else if (source[Int64(pos)] == UInt8(93)) { depth -= 1 }
+                else if (source[Int64(pos)] == UInt8(34)) {
                     pos += 1
-                    while (pos < source.length) {
-                        if (source[Int64(pos)] == Char('\\') && pos + 1 < source.length) {
+                    while (pos < Int64(source.size)) {
+                        if (source[Int64(pos)] == UInt8(92) && pos + 1 < Int64(source.size)) {
                             pos += 2
-                        } else if (source[Int64(pos)] == Char('"')) {
+                        } else if (source[Int64(pos)] == UInt8(34)) {
                             pos += 1
                             break
                         } else {
@@ -708,10 +693,10 @@ public class PackageJsonParser {
             }
         } else {
             // 布尔/null/数字
-            while (pos < source.length) {
+            while (pos < Int64(source.size)) {
                 let c = source[Int64(pos)]
-                if (c == Char(',') || c == Char('}') c == Char(']') ||
-                    c == Char('\n')) {
+                if (c == UInt8(44) || c == UInt8(125) || c == UInt8(93) ||
+                    c == UInt8(10)) {
                     break
                 }
                 pos += 1
@@ -720,9 +705,9 @@ public class PackageJsonParser {
     }
 
     private func skipWhitespace(): Unit {
-        while (pos < source.length) {
+        while (pos < Int64(source.size)) {
             let ch = source[Int64(pos)]
-            if (ch == Char(' ') || ch == Char('\t') || ch == Char('\n') || ch == Char('\r')) {
+            if (ch == UInt8(32) || ch == UInt8(9) || ch == UInt8(10) || ch == UInt8(13)) {
                 pos += 1
             } else {
                 break

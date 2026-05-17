@@ -5,6 +5,8 @@
 package bao_runtime.crypto
 
 import bao_core.*
+import bao_collections.*
+import bao_runtime.*
 
 // ============================================================================
 // 加密错误创建
@@ -21,34 +23,9 @@ public func createCryptoError(globalThis: JsObject, errCode: UInt32): JsValue {
 // ============================================================================
 
 /// PBKDF2 密码派生函数
-public func pbkdf2(output: Array<Byte>, password: Array<Byte>, salt: Array<Byte>,
+public func pbkdf2Compat(output: Array<Byte>, password: Array<Byte>, salt: Array<Byte>,
                     iterationCount: UInt32, algorithm: EvpAlgorithm): ?Array<Byte> {
-    // output.fill(0)
-    for (i in 0..output.size) {
-        output[i] = 0
-    }
-
-    BoringSSL.errClearError()
-
-    let md = algorithm.md()
-    match (md) {
-        case None => return None
-        case Some(mdVal) =>
-            let passwordPtr: ?Array<Byte> = if (password.size > 0) { password } else { None }
-
-            let rc = BoringSSL.pkcs5Pbkdf2Hmac(
-                passwordPtr,
-                password.size.toInt64(),
-                salt, salt.size.toInt64(),
-                iterationCount, mdVal,
-                output.size.toInt64(), output
-            )
-
-            if (rc <= 0) {
-                return None
-            }
-            return output
-    }
+    return pbkdf2(output, password, salt, iterationCount, algorithm)
 }
 
 // ============================================================================

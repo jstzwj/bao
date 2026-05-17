@@ -10,6 +10,7 @@ import bao_collections.*
 import bao_io.*
 import bao_hash.*
 import bao_path.*
+import bao_sys.*
 
 // ============================================================================
 // Shim 实现常量
@@ -63,12 +64,12 @@ public class BunShimImpl {
     /// 翻译自: EMBEDDED_EXECUTABLE_DATA
     ///   在构建时, 这个数据是 bun_shim_impl.exe 的二进制内容
     ///   在运行时, 它为空 (非独立模式) 或为嵌入的 PE 数据
-    public static let EMBEDDED_EXECUTABLE_DATA: Array<Byte> = Array<Byte>()
+    public static let EMBEDDED_EXECUTABLE_DATA: Array<UInt8> = Array<UInt8>()
 
     /// 获取嵌入的可执行文件数据
     /// 翻译自: embedded_executable_data()
     ///   如果数据为空, 报错并退出
-    public static func embeddedExecutableData(): Array<Byte> {
+    public static func embeddedExecutableData(): Array<UInt8> {
         if (EMBEDDED_EXECUTABLE_DATA.size == 0) {
             Output.prettyErrorln(
                 "error: bun_shim_impl.exe is empty - the Windows shim PE must be built before this crate is compiled"
@@ -84,19 +85,17 @@ public class BunShimImpl {
         // 1. 读取 .bunx 文件内容
         let content = readFile(shimPath)
         match (content) {
-            case None => {
+            case None =>
                 Output.prettyErrorln("error: failed to read shim file: ${shimPath}")
                 return 1
-            }
-            case Some(data) => {
+            case Some(data) =>
                 // 2. 解码 shim 配置
                 let decoded = BinLinkingShimModule.looseDecode(data)
                 match (decoded) {
-                    case None => {
+                    case None =>
                         Output.prettyErrorln("error: failed to decode shim file: ${shimPath}")
                         return 1
-                    }
-                    case Some(d) => {
+                    case Some(d) =>
                         // 3. 获取 bin_path 并构建命令行
                         let binPath = d.binPath
                         let flags = d.flags
@@ -116,39 +115,25 @@ public class BunShimImpl {
 
                         // 6. 直接启动
                         return spawnProcess(commandLine)
-                    }
                 }
-            }
         }
     }
 
     /// 启动子进程
     /// 翻译自: CreateProcessW 调用
     private static func spawnProcess(commandLine: String): Int64 {
-        // 翻译自:
-        //   var startup_info = std.mem.zeroes(STARTUPINFOW)
-        //   var proc_info = std.mem.zeroes(PROCESS_INFORMATION)
-        //   CreateProcessW(null, cmd_line, null, null, TRUE, 0, null, null, &startup_info, &proc_info)
-        let result = bao_sys.Windows.createProcess(commandLine)
-        match (result) {
-            case Some(exitCode) => return exitCode
-            case None => {
-                Output.prettyErrorln("error: failed to spawn process: ${commandLine}")
-                return 1
-            }
-        }
+        // 翻译自: CreateProcessW - Windows-only API
+        // TODO: implement Windows process creation via bao_sys FFI
+        Output.prettyErrorln("error: spawnProcess not implemented on this platform: ${commandLine}")
+        return 1
     }
 
     /// 读取文件内容
-    private static func readFile(path: String): ?Array<Byte> {
-        let file = bao_io.File.open(path, OpenMode.Read)
-        match (file) {
-            case Some(f) => {
-                let content = f.readAllBytes()
-                f.close()
-                return content
-            }
-            case None => return None
+    private static func readFile(path: String): ?Array<UInt8> {
+        let result = BaoFile.readAllBytes(path)
+        match (result) {
+            case SysMaybe.Ok(data) => return Some(data)
+            case SysMaybe.Err(_) => return None
         }
     }
 }
@@ -252,10 +237,7 @@ public class IoStatusBlock {
 /// 内部引用 BinLinkingShim 的 looseDecode 函数
 /// 在仓颉中, 通过 import 引用
 private class BinLinkingShimModule {
-    public static func looseDecode(input: Array<Byte>): ?Decoded {
-        return bao_install.windows_shim.looseDecode(input)
+    public static func looseDecode(input: Array<UInt8>): ?Decoded {
+        return looseDecode(input)
     }
 }
-
-/// 模块引用
-public typealias Decoded = bao_install.windows_shim.Decoded

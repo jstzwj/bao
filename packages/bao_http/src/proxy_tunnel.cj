@@ -165,6 +165,7 @@ public class HTTPClient {
     public var hostname: ?String
     public var state: InternalState
     public var flags: HTTPClientFlags
+    public var signals: Signals
     public var proxyTunnel: ?ProxyTunnel
     public var resultCallback: HTTPClientResultCallback
 
@@ -173,6 +174,7 @@ public class HTTPClient {
         hostname = None
         state = InternalState()
         flags = HTTPClientFlags()
+        signals = Signals()
         proxyTunnel = None
         resultCallback = HTTPClientResultCallback()
     }
@@ -306,7 +308,7 @@ public class HTTPClientResult {
     /// 是否成功
     /// 严格翻译自: HTTPClientResult.isSuccess
     public func isSuccess(): Bool {
-        return fail == None
+        return !fail.isSome()
     }
 
     /// 是否超时
@@ -356,7 +358,7 @@ public class ProxyTunnelOps {
         let tunnel = ProxyTunnel()
 
         // 创建 SSL 包装器
-        let sslWrapper = SSLWrapper.init(rejectUnauthorized, Some(client))
+        let sslWrapper = SSLWrapper.initFunc(rejectUnauthorized, Some(client))
         tunnel.wrapper = Some(sslWrapper)
 
         // 设置 socket
@@ -527,7 +529,7 @@ public class ProxyTunnelOps {
             return
         }
 
-        let written = writeRaw(socketFd, tunnel.writeBuffer.toArray())
+        let written = writeRaw(socketFd, tunnel.writeBuffer.toOwnedSlice())
         if (written >= tunnel.writeBuffer.size) {
             tunnel.writeBuffer = ArrayList<UInt8>()
         } else {
@@ -552,10 +554,9 @@ public class ProxyTunnelOps {
     public static func deinit(tunnel: ProxyTunnel): Unit {
         detachSocket(tunnel)
         match (tunnel.wrapper) {
-            case Some(w) => {
+            case Some(w) =>
                 w.deinit()
                 tunnel.wrapper = None
-            }
             case None => ()
         }
         tunnel.writeBuffer = ArrayList<UInt8>()

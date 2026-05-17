@@ -230,7 +230,7 @@ public class PathWatcher {
 
     // 添加处理程序
     public func addHandler(handler: PathWatchHandler): Unit {
-        handlers.add(handler)
+        handlers.append(handler)
     }
 
     // 移除处理程序

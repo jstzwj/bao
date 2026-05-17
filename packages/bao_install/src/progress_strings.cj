@@ -153,13 +153,15 @@ public class ProgressBarManager {
     public static func start(manager: PackageManager): Unit {
         manager.downloadsNode = Some(ProgressNode())
         match (manager.downloadsNode) {
-            case Some(node) => {
-                node.name = ProgressStringsFull.download()
-                node.estimatedTotalItems = manager.totalTasks + Int64(manager.extractedCount)
-                node.completedItems = manager.totalTasks - manager.pendingTasks
-            }
+            case Some(node) => initProgressNode(node, manager)
             case None => ()
         }
+    }
+
+    private static func initProgressNode(node: ProgressNode, manager: PackageManager): Unit {
+        node.name = ProgressStringsFull.download()
+        node.estimatedTotalItems = manager.totalTasks + Int64(manager.extractedCount)
+        node.completedItems = manager.totalTasks - manager.pendingTasks
     }
 
     /// 如果没有进度条则启动
@@ -175,12 +177,14 @@ public class ProgressBarManager {
     /// 翻译自: endProgressBar
     public static func end(manager: PackageManager): Unit {
         match (manager.downloadsNode) {
-            case Some(node) => {
-                node.completedItems = node.estimatedTotalItems
-                manager.downloadsNode = None
-            }
+            case Some(node) => finalizeProgressNode(node, manager)
             case None => ()
         }
+    }
+
+    private static func finalizeProgressNode(node: ProgressNode, manager: PackageManager): Unit {
+        node.completedItems = node.estimatedTotalItems
+        manager.downloadsNode = None
     }
 
     /// 设置进度节点名称

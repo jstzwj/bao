@@ -5,6 +5,7 @@ package bao_css.rules
 
 import bao_core.*
 import bao_collections.*
+import bao_css.*
 
 // ============================================================================
 // @viewport 规则
@@ -40,7 +41,7 @@ public class CssViewportRule {
         let sb = StringBuilder()
         sb.append("${indent}@")
         // 供应商前缀
-        let prefixStr = vendorPrefix.toPrefixString()
+        let prefixStr = vendorPrefix.toString()
         sb.append("${prefixStr}viewport")
         sb.append(declarations.toCssBlock(indent))
         return sb.toString()

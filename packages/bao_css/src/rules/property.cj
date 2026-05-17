@@ -35,6 +35,14 @@ public class CssPropertyRuleFull {
         this.loc = CssLocation()
     }
 
+    private static func appendInitialValue(sb: StringBuilder, v: String, indent: String, minify: Bool): Unit {
+        sb.append(";\n")
+        sb.append("${indent}  initial-value: ${v}")
+        if (!minify) {
+            sb.append(";")
+        }
+    }
+
     /// 深拷贝
     /// 严格翻译自 PropertyRule.deep_clone
     public func deepClone(): CssPropertyRuleFull {
@@ -56,18 +64,8 @@ public class CssPropertyRuleFull {
 
         // initial-value (可选)
         match (initialValue) {
-            case Some(v) => {
-                sb.append(";\n")
-                sb.append("${indent}  initial-value: ${v}")
-                if (!minify) {
-                    sb.append(";")
-                }
-            }
-            case None => {
-                if (!minify) {
-                    sb.append(";")
-                }
-            }
+            case Some(v) => appendInitialValue(sb, v, indent, minify)
+            case None => if (!minify) { sb.append(";") }
         }
 
         sb.append("\n${indent}}")

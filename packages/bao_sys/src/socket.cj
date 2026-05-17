@@ -5,6 +5,7 @@
 package bao_sys
 
 import bao_core.*
+import bao_collections.*
 
 // ============================================================================
 // Socket 地址族 - 对应 Bun socket.AF_*
@@ -100,6 +101,8 @@ foreign func ntohs(netshort: UInt16): UInt16
 foreign func htonl(hostlong: UInt32): UInt32
 @C
 foreign func ntohl(netlong: UInt32): UInt32
+@C
+foreign func fcntl(fd: Int32, cmd: Int32, arg: Int32): Int32
 
 // Socket 选项常量
 public class SocketOption {
@@ -146,17 +149,25 @@ public class SocketAddrV4 {
         var current = StringBuilder()
         for (i in 0..ip.size) {
             let c = ip[Int64(i)]
-            if (c == Char('.')) {
+            if (c == UInt8(46)) {
                 parts.append(current.toString())
                 current = StringBuilder()
             } else {
-                current.append(c)
+                current.append(Rune(Int32(c)))
             }
         }
-        if (current.length() > 0) { parts.append(current.toString()) }
+        if (current.toString().size > 0) { parts.append(current.toString()) }
         if (parts.size == 4) {
             for (i in 0..4) {
-                addr[Int64(i)] = UInt8(Int64.parse(parts[Int64(i)]))
+                var n: Int64 = 0
+                let part = parts[Int64(i)]
+                for (j in 0..part.size) {
+                    let ch = part[Int64(j)]
+                    if (ch >= UInt8(48) && ch <= UInt8(57)) {
+                        n = n * 10 + Int64(ch) - Int64(48)
+                    }
+                }
+                addr[Int64(i)] = UInt8(n)
             }
         }
     }
@@ -188,7 +199,7 @@ public class SocketAddrV6 {
         this.port = port
         this.flowInfo = 0
         this.scopeId = 0
-        this.addr = Array<UInt8>(16, item: UInt8(0))
+        this.addr = Array<UInt8>(16, { _ => UInt8(0) })
     }
 
     /// Loopback ::1
@@ -238,20 +249,22 @@ public class TcpSocket {
     }
 
     /// 获取文件描述符
-    public func fd(): Int64 {
+    public func getFd(): Int64 {
         return fd
     }
 
     /// 创建 TCP socket
     /// 对应 Bun: sys.socket(AF_INET, SOCK_STREAM, 0)
     public static func create(family: AddressFamily): SysMaybe<TcpSocket> {
-        let sockFd = socket(family.toInt(), SocketType.Stream.toInt(),
-                            SocketProtocol.Default.toInt())
-        if (sockFd < 0) {
-            return SysMaybe<TcpSocket>.Err(
-                SysError(UInt16(Int64(OS.errno())), SysTag.Connect))
+        unsafe {
+            let sockFd = socket(family.toInt(), SocketType.Stream.toInt(),
+                                SocketProtocol.Default.toInt())
+            if (sockFd < 0) {
+                return SysMaybe<TcpSocket>.Err(
+                    SysError(UInt16(Int64(OS.errno())), SysTag.Connect))
+            }
+            return SysMaybe<TcpSocket>.Ok(TcpSocket(Int64(sockFd)))
         }
-        return SysMaybe<TcpSocket>.Ok(TcpSocket(Int64(sockFd)))
     }
 
     /// 绑定地址 — 完整实现，构造 sockaddr_in
@@ -264,22 +277,22 @@ public class TcpSocket {
                     let addrBuf = malloc(UIntNative(16))
                     // 清零
                     for (i in 0..16) {
-                        let bytePtr = CPointer<Int8>(addrBuf) + IntNative(i)
+                        let bytePtr = CPointer<Int8>(addrBuf) + Int64(i)
                         bytePtr.write(Int8(0))
                     }
                     // sin_family = AF_INET
                     let familyPtr = CPointer<Int16>(addrBuf)
                     familyPtr.write(Int16(2))  // AF_INET
                     // sin_port = htons(port)
-                    let portPtr = CPointer<UInt16>(addrBuf + UIntNative(2))
+                    let portPtr = CPointer<UInt16>(CPointer<Int8>(addrBuf) + Int64(2))
                     portPtr.write(htons(v4.port))
                     // sin_addr
-                    let addrPtr = CPointer<UInt8>(addrBuf + UIntNative(4))
+                    let addrPtr = CPointer<UInt8>(CPointer<Int8>(addrBuf) + Int64(4))
                     for (i in 0..4) {
-                        let bytePtr = addrPtr + IntNative(i)
+                        let bytePtr = addrPtr + Int64(i)
                         bytePtr.write(v4.addr[Int64(i)])
                     }
-                    let rc = bao_sys.bind(Int32(fd), addrBuf, UInt32(16))
+                    let rc = bind(Int32(fd), addrBuf, UInt32(16))
                     free(addrBuf)
                     if (rc != 0) {
                         return SysMaybe<Unit>.Err(
@@ -289,22 +302,22 @@ public class TcpSocket {
                     // 分配 sockaddr_in6 (28 bytes)
                     let addrBuf = malloc(UIntNative(28))
                     for (i in 0..28) {
-                        let bytePtr = CPointer<Int8>(addrBuf) + IntNative(i)
+                        let bytePtr = CPointer<Int8>(addrBuf) + Int64(i)
                         bytePtr.write(Int8(0))
                     }
                     // sin6_family = AF_INET6
                     let familyPtr = CPointer<Int16>(addrBuf)
                     familyPtr.write(Int16(10))  // AF_INET6
                     // sin6_port = htons(port)
-                    let portPtr = CPointer<UInt16>(addrBuf + UIntNative(2))
+                    let portPtr = CPointer<UInt16>(CPointer<Int8>(addrBuf) + Int64(2))
                     portPtr.write(htons(v6.port))
                     // sin6_addr (16 bytes at offset 8)
-                    let addrPtr = CPointer<UInt8>(addrBuf + UIntNative(8))
+                    let addrPtr = CPointer<UInt8>(CPointer<Int8>(addrBuf) + Int64(8))
                     for (i in 0..16) {
-                        let bytePtr = addrPtr + IntNative(i)
+                        let bytePtr = addrPtr + Int64(i)
                         bytePtr.write(v6.addr[Int64(i)])
                     }
-                    let rc = bao_sys.bind(Int32(fd), addrBuf, UInt32(28))
+                    let rc = bind(Int32(fd), addrBuf, UInt32(28))
                     free(addrBuf)
                     if (rc != 0) {
                         return SysMaybe<Unit>.Err(
@@ -318,24 +331,28 @@ public class TcpSocket {
     /// 监听
     /// 对应 Bun: sys.listen(fd, backlog)
     public func listen(backlog: Int64): SysMaybe<Unit> {
-        let rc = bao_sys.listen(Int32(fd), Int32(backlog))
-        if (rc != 0) {
-            return SysMaybe<Unit>.Err(
-                SysError(UInt16(Int64(OS.errno())), SysTag.Listen))
+        unsafe {
+            let rc = listen(Int32(fd), Int32(backlog))
+            if (rc != 0) {
+                return SysMaybe<Unit>.Err(
+                    SysError(UInt16(Int64(OS.errno())), SysTag.Listen))
+            }
+            return SysMaybe<Unit>.Ok(())
         }
-        return SysMaybe<Unit>.Ok(())
     }
 
     /// 接受连接
     /// 对应 Bun: sys.accept(fd, addr, len)
     public func accept(): SysMaybe<TcpSocket> {
-        let clientFd = bao_sys.accept(Int32(fd), CPointer<Unit>(),
-                                       CPointer<UInt32>())
-        if (clientFd < 0) {
-            return SysMaybe<TcpSocket>.Err(
-                SysError(UInt16(Int64(OS.errno())), SysTag.Accept))
+        unsafe {
+            let clientFd = accept(Int32(fd), CPointer<Unit>(),
+                                           CPointer<UInt32>())
+            if (clientFd < 0) {
+                return SysMaybe<TcpSocket>.Err(
+                    SysError(UInt16(Int64(OS.errno())), SysTag.Accept))
+            }
+            return SysMaybe<TcpSocket>.Ok(TcpSocket(Int64(clientFd)))
         }
-        return SysMaybe<TcpSocket>.Ok(TcpSocket(Int64(clientFd)))
     }
 
     /// 连接远程 — 完整实现，构造 sockaddr_in
@@ -346,19 +363,19 @@ public class TcpSocket {
                 case V4(v4) =>
                     let addrBuf = malloc(UIntNative(16))
                     for (i in 0..16) {
-                        let bytePtr = CPointer<Int8>(addrBuf) + IntNative(i)
+                        let bytePtr = CPointer<Int8>(addrBuf) + Int64(i)
                         bytePtr.write(Int8(0))
                     }
                     let familyPtr = CPointer<Int16>(addrBuf)
                     familyPtr.write(Int16(2))
-                    let portPtr = CPointer<UInt16>(addrBuf + UIntNative(2))
+                    let portPtr = CPointer<UInt16>(CPointer<Int8>(addrBuf) + Int64(2))
                     portPtr.write(htons(v4.port))
-                    let addrPtr = CPointer<UInt8>(addrBuf + UIntNative(4))
+                    let addrPtr = CPointer<UInt8>(CPointer<Int8>(addrBuf) + Int64(4))
                     for (i in 0..4) {
-                        let bytePtr = addrPtr + IntNative(i)
+                        let bytePtr = addrPtr + Int64(i)
                         bytePtr.write(v4.addr[Int64(i)])
                     }
-                    let rc = bao_sys.connect(Int32(fd), addrBuf, UInt32(16))
+                    let rc = connect(Int32(fd), addrBuf, UInt32(16))
                     free(addrBuf)
                     if (rc != 0) {
                         return SysMaybe<Unit>.Err(
@@ -367,19 +384,19 @@ public class TcpSocket {
                 case V6(v6) =>
                     let addrBuf = malloc(UIntNative(28))
                     for (i in 0..28) {
-                        let bytePtr = CPointer<Int8>(addrBuf) + IntNative(i)
+                        let bytePtr = CPointer<Int8>(addrBuf) + Int64(i)
                         bytePtr.write(Int8(0))
                     }
                     let familyPtr = CPointer<Int16>(addrBuf)
                     familyPtr.write(Int16(10))
-                    let portPtr = CPointer<UInt16>(addrBuf + UIntNative(2))
+                    let portPtr = CPointer<UInt16>(CPointer<Int8>(addrBuf) + Int64(2))
                     portPtr.write(htons(v6.port))
-                    let addrPtr = CPointer<UInt8>(addrBuf + UIntNative(8))
+                    let addrPtr = CPointer<UInt8>(CPointer<Int8>(addrBuf) + Int64(8))
                     for (i in 0..16) {
-                        let bytePtr = addrPtr + IntNative(i)
+                        let bytePtr = addrPtr + Int64(i)
                         bytePtr.write(v6.addr[Int64(i)])
                     }
-                    let rc = bao_sys.connect(Int32(fd), addrBuf, UInt32(28))
+                    let rc = connect(Int32(fd), addrBuf, UInt32(28))
                     free(addrBuf)
                     if (rc != 0) {
                         return SysMaybe<Unit>.Err(
@@ -392,9 +409,6 @@ public class TcpSocket {
 
     /// 设置非阻塞 — 通过 fcntl F_SETFL O_NONBLOCK
     //  严格翻译自: POSIX fcntl(fd, F_SETFL, O_NONBLOCK)
-    @C
-    foreign func fcntl(fd: Int32, cmd: Int32, arg: Int32): Int32
-
     public func setNonblocking(nonblocking: Bool): SysMaybe<Unit> {
         unsafe {
             // F_GETFL = 3, F_SETFL = 4
@@ -406,7 +420,7 @@ public class TcpSocket {
             let newFlags = if (nonblocking) {
                 flags | 2048  // O_NONBLOCK
             } else {
-                flags & ~2048
+                flags & (2147483647 - 2048)
             }
             let rc = fcntl(Int32(fd), 4, newFlags)  // F_SETFL
             if (rc < 0) {
@@ -512,7 +526,7 @@ public class TcpSocket {
             let lenPtr = CPointer<UInt32>(lenBuf)
             lenPtr.write(UInt32(4))
             let rc = getsockopt(Int32(fd), SocketOption.SOL_SOCKET,
-                                Int32(4), valBuf, lenBuf)  // SO_ERROR = 4
+                                Int32(4), valBuf, CPointer<UInt32>(lenBuf))  // SO_ERROR = 4
             let valPtr = CPointer<Int32>(valBuf)
             let err = valPtr.read()
             free(valBuf)
@@ -530,7 +544,7 @@ public class TcpSocket {
     public func recv(buf: Array<UInt8>): SysMaybe<Int64> {
         unsafe {
             let bufPtr = malloc(UIntNative(buf.size))
-            let bytesRead = bao_sys.recv(Int32(fd), bufPtr, UIntNative(buf.size), 0)
+            let bytesRead = recv(Int32(fd), bufPtr, UIntNative(buf.size), 0)
             if (Int64(bytesRead) < 0) {
                 free(bufPtr)
                 return SysMaybe<Int64>.Err(
@@ -538,7 +552,7 @@ public class TcpSocket {
             }
             let count = Int64(bytesRead)
             for (i in 0..count) {
-                let bytePtr = CPointer<Int8>(bufPtr) + IntNative(i)
+                let bytePtr = CPointer<Int8>(bufPtr) + Int64(i)
                 buf[Int64(i)] = UInt8(Int32(bytePtr.read()) & 0xFF)
             }
             free(bufPtr)
@@ -552,10 +566,10 @@ public class TcpSocket {
         unsafe {
             let bufPtr = malloc(UIntNative(data.size))
             for (i in 0..data.size) {
-                let bytePtr = CPointer<Int8>(bufPtr) + IntNative(i)
+                let bytePtr = CPointer<Int8>(bufPtr) + Int64(i)
                 bytePtr.write(Int8(Int32(data[Int64(i)])))
             }
-            let bytesWritten = bao_sys.send(Int32(fd), bufPtr, UIntNative(data.size),
+            let bytesWritten = send(Int32(fd), bufPtr, UIntNative(data.size),
                                              SocketOption.MSG_NOSIGNAL)
             free(bufPtr)
             if (Int64(bytesWritten) < 0) {
@@ -573,12 +587,14 @@ public class TcpSocket {
 
     /// 关闭写端
     public func shutdownWrite(): SysMaybe<Unit> {
-        let rc = shutdown(Int32(fd), SocketOption.SHUT_WR)
-        if (rc != 0) {
-            return SysMaybe<Unit>.Err(
-                SysError(UInt16(Int64(OS.errno())), SysTag.Shutdown))
+        unsafe {
+            let rc = shutdown(Int32(fd), SocketOption.SHUT_WR)
+            if (rc != 0) {
+                return SysMaybe<Unit>.Err(
+                    SysError(UInt16(Int64(OS.errno())), SysTag.Shutdown))
+            }
+            return SysMaybe<Unit>.Ok(())
         }
-        return SysMaybe<Unit>.Ok(())
     }
 }
 
@@ -626,7 +642,7 @@ public class TcpListener {
     }
 
     /// 获取底层 socket
-    public func socket(): TcpSocket {
+    public func getSocket(): TcpSocket {
         return socket
     }
 

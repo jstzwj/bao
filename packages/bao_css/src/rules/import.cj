@@ -33,17 +33,16 @@ public class CssImportLayer {
 
     /// 相等比较
     public func eql(other: CssImportLayer): Bool {
-        match (name, other.name) {
-            case (None, None) => true
-            case (Some(a), Some(b)) => a == b
-            case _ => false
+        match (name) {
+            case None => match (other.name) { case None => true case _ => false }
+            case Some(a) => match (other.name) { case Some(b) => a == b case _ => false }
         }
     }
 
     /// 是否为匿名层
     /// 严格翻译自 ImportConditions.has_anonymous_layer
     public func isAnonymous(): Bool {
-        name == None
+        name.isNone()
     }
 
     /// 转为 CSS 文本
@@ -86,7 +85,7 @@ public class CssImportConditions {
     /// 是否有条件
     /// 严格翻译自 ImportRule.has_conditions
     public func hasConditions(): Bool {
-        layer != None || supports != None || media.length > 0
+        layer.isSome() || supports.isSome() || media.size > 0
     }
 
     /// 转为 CSS 文本
@@ -98,12 +97,10 @@ public class CssImportConditions {
             case None => ()
         }
         match (supports) {
-            case Some(s) => {
-                sb.append(" supports(${s})")
-            }
+            case Some(s) => sb.append(" supports(${s})")
             case None => ()
         }
-        if (media.length > 0) {
+        if (media.size > 0) {
             sb.append(" ${media}")
         }
         return sb.toString()
@@ -137,7 +134,7 @@ public class CssImportRuleFull {
         this.layer = None
         this.supports = None
         this.media = ""
-        this.importRecordIdx = UInt32.MAX
+        this.importRecordIdx = 4294967295u32
         this.loc = CssLocation()
     }
 
@@ -146,7 +143,7 @@ public class CssImportRuleFull {
         this.layer = conditions.layer
         this.supports = conditions.supports
         this.media = conditions.media
-        this.importRecordIdx = UInt32.MAX
+        this.importRecordIdx = 4294967295u32
         this.loc = CssLocation()
     }
 
@@ -159,7 +156,7 @@ public class CssImportRuleFull {
     /// 是否有条件
     /// 严格翻译自 ImportRule.has_conditions
     public func hasConditions(): Bool {
-        layer != None || supports != None || media.length > 0
+        layer.isSome() || supports.isSome() || media.size > 0
     }
 
     /// 深拷贝
@@ -188,14 +185,12 @@ public class CssImportRuleFull {
 
         // supports 条件
         match (supports) {
-            case Some(s) => {
-                sb.append(" supports(${s})")
-            }
+            case Some(s) => sb.append(" supports(${s})")
             case None => ()
         }
 
         // 媒体查询
-        if (media.length > 0) {
+        if (media.size > 0) {
             sb.append(" ${media}")
         }
 

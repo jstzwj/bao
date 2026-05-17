@@ -207,11 +207,18 @@ public enum VisitFlag {
     | ServerComponents                  // Server Components
 
     public func has(flag: VisitFlag): Bool {
-        if (this == flag) {
-            return true
+        match (this) {
+            case None => match (flag) { case None => true case _ => false }
+            case SkipDeadCode => match (flag) { case SkipDeadCode => true case _ => false }
+            case FoldConstants => match (flag) { case FoldConstants => true case _ => false }
+            case MinifySyntax => match (flag) { case MinifySyntax => true case _ => false }
+            case DeadCodeElimination => match (flag) { case DeadCodeElimination => true case _ => false }
+            case KeepNames => match (flag) { case KeepNames => true case _ => false }
+            case InlineConstants => match (flag) { case InlineConstants => true case _ => false }
+            case ReactFastRefresh => match (flag) { case ReactFastRefresh => true case _ => false }
+            case TypeScriptEnabled => match (flag) { case TypeScriptEnabled => true case _ => false }
+            case ServerComponents => match (flag) { case ServerComponents => true case _ => false }
         }
-        // None 匹配所有
-        return false
     }
 }
 
@@ -222,40 +229,7 @@ public enum VisitFlag {
 //       ref: Ref,
 //       is_top_level: bool,
 //   }
-// ============================================================================
-
-/// 已声明符号 - 对应 Bun DeclaredSymbol
-public class DeclaredSymbol {
-    /// 符号引用
-    public var ref: Ref
-    /// 是否为顶层声明
-    public var isTopLevel: Bool
-
-    public init(ref: Ref, isTopLevel: Bool) {
-        this.ref = ref
-        this.isTopLevel = isTopLevel
-    }
-}
-
-// ============================================================================
-// TempRef - 临时引用
-// 严格翻译自: src/js_parser/js_parser.zig
-//   pub const TempRef = struct { ref: Ref, value: Expr }
-// ============================================================================
-
-/// 临时引用 - 对应 Bun TempRef
-/// 用于存储需要前置声明的临时变量
-public class TempRef {
-    /// 临时变量引用
-    public var ref: Ref
-    /// 初始值表达式
-    public var value: Expr
-
-    public init(ref: Ref, value: Expr) {
-        this.ref = ref
-        this.value = value
-    }
-}
+// DeclaredSymbol, TempRef - 已在 parser.cj 中定义
 
 // ============================================================================
 // PrependTempRefsOpts - 临时引用前置选项
@@ -415,6 +389,17 @@ public class ImportScanner {
 public enum SideEffectFlag {
     | CouldHaveSideEffects
     | NoSideEffects
+
+    public operator func ==(right: SideEffectFlag): Bool {
+        match (this) {
+            case CouldHaveSideEffects => match (right) { case CouldHaveSideEffects => true case _ => false }
+            case NoSideEffects => match (right) { case NoSideEffects => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: SideEffectFlag): Bool {
+        !(this == right)
+    }
 }
 
 // ============================================================================
@@ -478,7 +463,7 @@ public func fnBodyContainsUseStrict(body: ArrayList<Stmt>): ?Loc {
             case StmtTag.Empty =>
                 // 空语句可以出现在 "use strict" 之前
                 continue
-            case _ => {
+            case _ =>
                 // 检查是否为指令 (字符串表达式语句)
                 if (stmt.tag == StmtTag.Expr) {
                     if (let Some(expr) <- stmt.expr) {
@@ -491,7 +476,6 @@ public func fnBodyContainsUseStrict(body: ArrayList<Stmt>): ?Loc {
                 }
                 // 非指令语句出现在 "use strict" 之前，则不可能有 "use strict"
                 return None
-            }
         }
     }
     return None

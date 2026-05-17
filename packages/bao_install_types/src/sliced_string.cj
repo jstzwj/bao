@@ -65,17 +65,17 @@ public class SlicedString {
     ///       }
     ///       return SlicedString{ .buf = buf, .slice = slice };
     ///   }
-    public static func init(buf: String, slice_: String): SlicedString {
-        return SlicedString(buf: buf, slice_: slice_)
+    public static func make(buf: String, slice_: String): SlicedString {
+        return SlicedString(buf, slice_)
     }
 
     /// 转为 ExternalString (带哈希)
     /// 翻译自:
     ///   pub inline fn external(this: SlicedString) ExternalString {
-    ///       return ExternalString.init(this.buf, this.slice, bun.Wyhash11.hash(0, this.slice));
+    ///       return ExternalString.make(this.buf, this.slice, bun.Wyhash11.hash(0, this.slice));
     ///   }
     public func external(): ExternalString {
-        return ExternalString.init(buf, slice_, Wyhash11.hash(slice_))
+        return ExternalString.make(buf, slice_, Wyhash11.hash(slice_))
     }
 
     /// 获取 String 值
@@ -94,7 +94,7 @@ public class SlicedString {
     ///       return SlicedString{ .buf = this.buf, .slice = input };
     ///   }
     public func sub(input: String): SlicedString {
-        return SlicedString(buf: buf, slice_: input)
+        return SlicedString(buf, input)
     }
 
     /// 获取切片内容
@@ -104,11 +104,11 @@ public class SlicedString {
 
     /// 是否为空
     public func isEmpty(): Bool {
-        return slice_.length == 0
+        return slice_.size == 0
     }
 
     /// 字符串长度
     public func len(): Int64 {
-        return slice_.length
+        return Int64(slice_.size)
     }
 }

@@ -26,19 +26,6 @@ public enum SideEffects {
     | NoSideEffects_PureData            // 纯数据加载器（如 text）
 }
 
-/// 导入种类
-// 严格翻译自: resolver.zig 中 ast.ImportKind 的使用
-public enum ImportKind {
-    | Stmt                              // import 'x' / import ... from 'x'
-    | Dynamic                           // import('x')
-    | Require                           // require('x')
-    | RequireResolve                    // require.resolve('x')
-    | EntryPoint                        // 入口点
-    | Url                               // CSS url()
-    | At                                // CSS @import
-    | AtConditional                     // CSS @import with conditions
-}
-
 /// 路径对 - 主路径 + 可选次要路径（用于大小写不敏感匹配）
 // 严格翻译自: resolver.zig:90 PathPair
 public class PathPair {
@@ -559,7 +546,7 @@ public class PathResolver {
 //   }
 public class ModuleResolver {
     /// 文件系统
-    private var fs: BaoFileSystem
+    private var fs: FileSystem
     /// 扩展名搜索顺序 (ESM)
     private var esmExtensionOrder: Array<String>
     /// 扩展名搜索顺序 (默认)
@@ -610,15 +597,15 @@ public class ModuleResolver {
         this.externalPatterns = ArrayList<ExternalPattern>()
         this.target = "browser"
         this.errors = ArrayList<String>()
-        this.fs = BaoFileSystem()
+        this.fs = FileSystem()
     }
 
     /// 主解析入口
     // 严格翻译自: resolver.zig:661 resolveAndAutoInstall
-    public func resolve(sourceDir: String, importPath: String, kind: ImportKind): ResolveResult.Union {
+    public func resolve(sourceDir: String, importPath: String, kind: ImportKind): ResolveResultUnion {
         // 空路径
         if (importPath.length == 0) {
-            return ResolveResult.Union.NotFound
+            return ResolveResultUnion.NotFound
         }
 
         // 内置模块 (node:*, bun:*)
@@ -668,7 +655,7 @@ public class ModuleResolver {
                 result.moduleType = ModuleType.JavaScript
             }
 
-            return ResolveResult.Union.Success(result)
+            return ResolveResultUnion.Success(result)
         }
 
         // data: URL
@@ -677,7 +664,7 @@ public class ModuleResolver {
             let result = ResolveResult(pathPair)
             result.importKind = kind
             result.isExternal = true
-            return ResolveResult.Union.Success(result)
+            return ResolveResultUnion.Success(result)
         }
 
         // 外部 URL (http://, https://, //)
@@ -687,7 +674,7 @@ public class ModuleResolver {
             result.importKind = kind
             result.isExternal = true
             result.moduleType = ModuleType.JavaScript
-            return ResolveResult.Union.Success(result)
+            return ResolveResultUnion.Success(result)
         }
 
         // CSS 中的 # fragment
@@ -696,7 +683,7 @@ public class ModuleResolver {
             let result = ResolveResult(pathPair)
             result.importKind = kind
             result.isExternal = true
-            return ResolveResult.Union.Success(result)
+            return ResolveResultUnion.Success(result)
         }
 
         // 外部模式匹配
@@ -705,7 +692,7 @@ public class ModuleResolver {
             let result = ResolveResult(pathPair)
             result.importKind = kind
             result.isExternal = true
-            return ResolveResult.Union.Success(result)
+            return ResolveResultUnion.Success(result)
         }
 
         // 选择扩展名搜索顺序
@@ -726,7 +713,7 @@ public class ModuleResolver {
         if (kind == ImportKind.At || kind == ImportKind.AtConditional || kind == ImportKind.Url) {
             let cssResult = resolveCssImport(sourceDir, importPath, kind)
             match (cssResult) {
-                case ResolveResult.Union.Success(_) => return cssResult
+                case ResolveResultUnion.Success(_) => return cssResult
                 case _ => ()
             }
         }
@@ -736,17 +723,17 @@ public class ModuleResolver {
         if (importPath.startsWith("#")) {
             let importResult = resolvePackageImport(sourceDir, importPath, kind, extOrder)
             match (importResult) {
-                case ResolveResult.Union.Success(_) => return importResult
+                case ResolveResultUnion.Success(_) => return importResult
                 case _ => ()
             }
-            return ResolveResult.Union.NotFound
+            return ResolveResultUnion.NotFound
         }
 
         // 包路径 (node_modules 查找)
         // 先尝试 tsconfig paths
         let tsconfigResult = resolveViaTSConfigPaths(sourceDir, importPath, kind)
         match (tsconfigResult) {
-            case Some(r) => return ResolveResult.Union.Success(r)
+            case Some(r) => return ResolveResultUnion.Success(r)
             case None => ()
         }
 
@@ -755,12 +742,12 @@ public class ModuleResolver {
     }
 
     /// 解析 import 语句
-    public func resolveImport(sourceDir: String, specifier: String): ResolveResult.Union {
+    public func resolveImport(sourceDir: String, specifier: String): ResolveResultUnion {
         return resolve(sourceDir, specifier, ImportKind.Stmt)
     }
 
     /// 解析 require 调用
-    public func resolveRequire(sourceDir: String, specifier: String): ResolveResult.Union {
+    public func resolveRequire(sourceDir: String, specifier: String): ResolveResultUnion {
         return resolve(sourceDir, specifier, ImportKind.Require)
     }
 
@@ -768,7 +755,7 @@ public class ModuleResolver {
     // 绝对路径解析
     // -----------------------------------------------------------------------
 
-    private func resolveAbsolutePath(importPath: String, kind: ImportKind, extOrder: Array<String>): ResolveResult.Union {
+    private func resolveAbsolutePath(importPath: String, kind: ImportKind, extOrder: Array<String>): ResolveResultUnion {
         let resolved = tryResolveWithExtensions(importPath, extOrder)
         match (resolved) {
             case Some(path) =>
@@ -776,9 +763,9 @@ public class ModuleResolver {
                 let result = ResolveResult(pathPair)
                 result.importKind = kind
                 finalizeResult(result)
-                return ResolveResult.Union.Success(result)
+                return ResolveResultUnion.Success(result)
             case None =>
-                return ResolveResult.Union.NotFound
+                return ResolveResultUnion.NotFound
         }
     }
 
@@ -786,7 +773,7 @@ public class ModuleResolver {
     // 相对路径解析
     // -----------------------------------------------------------------------
 
-    private func resolveRelativePath(sourceDir: String, importPath: String, kind: ImportKind, extOrder: Array<String>): ResolveResult.Union {
+    private func resolveRelativePath(sourceDir: String, importPath: String, kind: ImportKind, extOrder: Array<String>): ResolveResultUnion {
         let fullPath = Path.join([sourceDir, importPath])
         let resolved = tryResolveWithExtensions(fullPath, extOrder)
         match (resolved) {
@@ -795,7 +782,7 @@ public class ModuleResolver {
                 let result = ResolveResult(pathPair)
                 result.importKind = kind
                 finalizeResult(result)
-                return ResolveResult.Union.Success(result)
+                return ResolveResultUnion.Success(result)
             case None =>
                 // CSS URL 带 query/hash 重试
                 if (kind == ImportKind.Url || kind == ImportKind.At) {
@@ -812,14 +799,14 @@ public class ModuleResolver {
                                         let result = ResolveResult(pathPair)
                                         result.importKind = kind
                                         finalizeResult(result)
-                                        return ResolveResult.Union.Success(result)
+                                        return ResolveResultUnion.Success(result)
                                     case None => ()
                                 }
                             }
                         case None => ()
                     }
                 }
-                return ResolveResult.Union.NotFound
+                return ResolveResultUnion.NotFound
         }
     }
 
@@ -828,7 +815,7 @@ public class ModuleResolver {
     // 严格翻译自: resolver.zig 中的 resolveWithoutSymlinks -> package path 分支
     // -----------------------------------------------------------------------
 
-    private func resolvePackagePath(sourceDir: String, importPath: String, kind: ImportKind, extOrder: Array<String>): ResolveResult.Union {
+    private func resolvePackagePath(sourceDir: String, importPath: String, kind: ImportKind, extOrder: Array<String>): ResolveResultUnion {
         // 解析包名 (处理 @scope/package 和 plain-package)
         let (packageName, subpath) = parsePackageSpecifier(importPath)
 
@@ -881,7 +868,7 @@ public class ModuleResolver {
                                     if (careAboutBrowserField) {
                                         applyBrowserField(result, pkg)
                                     }
-                                    return ResolveResult.Union.Success(result)
+                                    return ResolveResultUnion.Success(result)
                                 }
                             case None => ()
                         }
@@ -898,7 +885,7 @@ public class ModuleResolver {
                                     result.isFromNodeModules = true
                                     result.packageJson = Some(pkg)
                                     result.moduleType = detectModuleTypeFromPkg(pkg)
-                                    return ResolveResult.Union.Success(result)
+                                    return ResolveResultUnion.Success(result)
                                 case None => ()
                             }
                         } else {
@@ -912,7 +899,7 @@ public class ModuleResolver {
                                     result.isFromNodeModules = true
                                     result.packageJson = Some(pkg)
                                     result.moduleType = detectModuleTypeFromPkg(pkg)
-                                    return ResolveResult.Union.Success(result)
+                                    return ResolveResultUnion.Success(result)
                                 case None => ()
                             }
                         }
@@ -926,7 +913,7 @@ public class ModuleResolver {
                                 result.importKind = kind
                                 result.isFromNodeModules = true
                                 result.packageJson = Some(pkg)
-                                return ResolveResult.Union.Success(result)
+                                return ResolveResultUnion.Success(result)
                             case None => ()
                         }
                     case None => ()
@@ -940,7 +927,7 @@ public class ModuleResolver {
                         let result = ResolveResult(pathPair)
                         result.importKind = kind
                         result.isFromNodeModules = true
-                        return ResolveResult.Union.Success(result)
+                        return ResolveResultUnion.Success(result)
                     case None => ()
                 }
             }
@@ -953,7 +940,7 @@ public class ModuleResolver {
             dir = parent
         }
 
-        return ResolveResult.Union.NotFound
+        return ResolveResultUnion.NotFound
     }
 
     // -----------------------------------------------------------------------
@@ -1373,11 +1360,11 @@ public class ModuleResolver {
                             // 找值数组
                             let arrStart = content.indexOf("[", ke)
                             match (arrStart) {
-                                case Some(as) =>
-                                    let arrEnd = content.indexOf("]", as)
+                                case Some(arrStartIdx) =>
+                                    let arrEnd = content.indexOf("]", arrStartIdx)
                                     match (arrEnd) {
                                         case Some(ae) =>
-                                            let arrContent = content.substring(as + 1, ae)
+                                            let arrContent = content.substring(arrStartIdx + 1, ae)
                                             let values = parseJsonStringArray(arrContent)
                                             ts.paths.put(key, values)
                                             pos = ae + 1
@@ -1566,10 +1553,10 @@ public class ModuleResolver {
     /// 解析 package.json imports 字段中的 # 前缀导入
     // 严格翻译自: resolver.zig 中 resolvePackageImports 逻辑
     // Node.js 的 Package Imports 规范: # 开头的导入必须匹配 package.json "imports" 字段
-    private func resolvePackageImport(sourceDir: String, importPath: String, kind: ImportKind, extOrder: Array<String>): ResolveResult.Union {
+    private func resolvePackageImport(sourceDir: String, importPath: String, kind: ImportKind, extOrder: Array<String>): ResolveResultUnion {
         // importPath 必须以 # 开头
         if (!importPath.startsWith("#")) {
-            return ResolveResult.Union.NotFound
+            return ResolveResultUnion.NotFound
         }
 
         // 查找 enclosing package.json
@@ -1587,10 +1574,11 @@ public class ModuleResolver {
                             tryResolveWithExtensions(mappedPath, extOrder)
                         } else {
                             // 非相对路径: 作为包导入递归解析
-                            resolvePackagePath(pkgDir, mappedPath, kind, extOrder).match(
-                                { r => Some(r.pathPair.primary.text) },
-                                { None }
-                            )
+                            let pkgResolveResult = resolvePackagePath(pkgDir, mappedPath, kind, extOrder)
+                            match (pkgResolveResult) {
+                                case Some(r) => Some(r.pathPair.primary.text)
+                                case None => None
+                            }
                         }
                         match (resolved) {
                             case Some(path) =>
@@ -1600,7 +1588,7 @@ public class ModuleResolver {
                                 result.packageJson = Some(pkg)
                                 result.moduleType = detectModuleTypeFromPkg(pkg)
                                 finalizeResult(result)
-                                return ResolveResult.Union.Success(result)
+                                return ResolveResultUnion.Success(result)
                             case None => ()
                         }
                     case None => ()
@@ -1608,7 +1596,7 @@ public class ModuleResolver {
             case None => ()
         }
 
-        return ResolveResult.Union.NotFound
+        return ResolveResultUnion.NotFound
     }
 
     /// 检测文件是否为原生 Node 插件 (.node)
@@ -1620,7 +1608,7 @@ public class ModuleResolver {
     /// 解析 CSS 中的 @import / url()
     // 严格翻译自: resolver.zig 中 CSS 解析分支
     // CSS 导入支持: @import url(), url(), @import "file.css"
-    private func resolveCssImport(sourceDir: String, importPath: String, kind: ImportKind): ResolveResult.Union {
+    private func resolveCssImport(sourceDir: String, importPath: String, kind: ImportKind): ResolveResultUnion {
         // CSS 文件只解析 CSS 扩展
         let cssOrder = cssExtensionOrder
         let fullPath = Path.join([sourceDir, importPath])
@@ -1632,7 +1620,7 @@ public class ModuleResolver {
                 result.importKind = kind
                 result.moduleType = ModuleType.CSS
                 finalizeResult(result)
-                return ResolveResult.Union.Success(result)
+                return ResolveResultUnion.Success(result)
             case None =>
                 // CSS url() 中可能包含查询参数或哈希
                 let suffixIdx = importPath.indexOfAny("?#")
@@ -1649,13 +1637,13 @@ public class ModuleResolver {
                                     result.importKind = kind
                                     result.moduleType = ModuleType.CSS
                                     finalizeResult(result)
-                                    return ResolveResult.Union.Success(result)
+                                    return ResolveResultUnion.Success(result)
                                 case None => ()
                             }
                         }
                     case None => ()
                 }
-                return ResolveResult.Union.NotFound
+                return ResolveResultUnion.NotFound
         }
     }
 
@@ -1864,7 +1852,7 @@ public class ModuleResolver {
 // ============================================================================
 
 /// 解析结果枚举
-public enum ResolveResult.Union {
+public enum ResolveResultUnion {
     | Success(ResolveResult)           // 成功解析
     | NotFound                         // 未找到
     | Failure(String)                  // 解析失败
@@ -1872,20 +1860,7 @@ public enum ResolveResult.Union {
 }
 
 /// 等待解析 (需要安装的包)
-// 严格翻译自: resolver.zig:362 PendingResolution
-public class PendingResolution {
-    public var packageName: String
-    public var dependency: String
-    public var tag: PendingTag
-
-    public init(packageName: String, dependency: String, tag: PendingTag) {
-        this.packageName = packageName
-        this.dependency = dependency
-        this.tag = tag
-    }
-}
-
-/// 等待解析标签
+// 严格翻译自: resolver.zig:362 PendingResolution/// 等待解析标签
 public enum PendingTag {
     | Download                         // 需要下载
     | Resolve                          // 需要解析版本

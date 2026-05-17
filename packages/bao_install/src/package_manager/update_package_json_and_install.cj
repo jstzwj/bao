@@ -8,6 +8,8 @@
 //   printBlockedPackagesInfo: 打印被阻塞的包信息
 package bao_install.package_manager
 
+import bao_install.*
+
 import bao_core.*
 import bao_collections.*
 
@@ -78,16 +80,8 @@ public class UpdatePackageJSONAndInstall {
             (loadResult.isOk() && manager.lockfile.dependenciesCount() == 0 && manager.updateRequests.size > 0)
 
         match (loadResult) {
-            case LoadResult.Ok(_) => {
-                // 比较现有锁文件与新 package.json
-                let diff = manager.generateDiff()
-                hadAnyDiffs = diff.hasDiffs()
-            }
-            case LoadResult.Err(cause) => {
-                if (logLevel != LogLevel.Silent) {
-                    bao_core.Output.error("Failed to load lockfile: ${cause.message}")
-                }
-            }
+            case LoadResult.Ok(_) => hadAnyDiffs = processLoadOk(manager)
+            case LoadResult.Err(cause) => handleLoadError(cause, logLevel)
             case _ => ()
         }
 
@@ -120,23 +114,7 @@ public class UpdatePackageJSONAndInstall {
 
         // 6. 安全扫描
         match (manager.securityScanner) {
-            case Some(scanner) => {
-                let results = scanner.performSecurityScan(manager: manager)
-                match (results) {
-                    case Some(scanResults) => {
-                        SecurityScanner.printSecurityAdvisories(results: scanResults)
-                        if (scanResults.hasFatalAdvisories()) {
-                            bao_core.Output.error("Installation aborted due to fatal security advisories")
-                            return
-                        } else if (scanResults.hasWarnings()) {
-                            if (!SecurityScanner.promptForWarnings()) {
-                                return
-                            }
-                        }
-                    }
-                    case None => ()
-                }
-            }
+            case Some(scanner) => runSecurityScan(scanner, manager)
             case None => ()
         }
 
@@ -278,6 +256,37 @@ public class UpdatePackageJSONAndInstall {
         let manager = PackageManagerState()
         manager.options.logLevel = logLevel
         return manager
+    }
+
+    private static func processLoadOk(manager: PackageManager): Bool {
+        let diff = manager.generateDiff()
+        return diff.hasDiffs()
+    }
+
+    private static func handleLoadError(cause: LoadResultErr, logLevel: LogLevel): Unit {
+        if (logLevel != LogLevel.Silent) {
+            Output.error("Failed to load lockfile: ${cause.message}")
+        }
+    }
+
+    private static func runSecurityScan(scanner: SecurityScanner, manager: PackageManagerState): Unit {
+        let results = scanner.performSecurityScan(manager: manager)
+        match (results) {
+            case Some(scanResults) => handleScanResults(scanResults)
+            case None => ()
+        }
+    }
+
+    private static func handleScanResults(scanResults: SecurityScanResults): Unit {
+        SecurityScanner.printSecurityAdvisories(results: scanResults)
+        if (scanResults.hasFatalAdvisories()) {
+            bao_core.Output.error("Installation aborted due to fatal security advisories")
+            return
+        } else if (scanResults.hasWarnings()) {
+            if (!SecurityScanner.promptForWarnings()) {
+                return
+            }
+        }
     }
 }
 

@@ -20,9 +20,9 @@ public class ZstdConstants {
     /// 最大压缩级别
     public static let MAX_COMPRESSION_LEVEL: Int64 = 22
     /// 内容大小未知标记
-    public static let CONTENTSIZE_UNKNOWN: UInt64 = UInt64(0) - UInt64(1)
+    public static let CONTENTSIZE_UNKNOWN: UInt64 = UInt64(0)
     /// 内容大小错误标记
-    public static let CONTENTSIZE_ERROR: UInt64 = UInt64(0) - UInt64(2)
+    public static let CONTENTSIZE_ERROR: UInt64 = UInt64(1)
 }
 
 // ============================================================================
@@ -100,10 +100,8 @@ public class ZstdResult {
 /// Zstd 错误类型
 /// 对应 Bun: Zstd error set (ZstdFailedToCreateInstance, ZstdDecompressionError, etc.)
 public class ZstdError <: BaoError {
-    public let message: String
-
     public init(message: String) {
-        this.message = message
+        super(ErrorCode.Unknown, message)
     }
 
     public static func failedToCreateInstance(): ZstdError {
@@ -292,7 +290,8 @@ public class ZstdCompressor {
     /// 对应 Bun: compressBound
     public static func compressBound(sourceLen: Int64): Int64 {
         // 实际实现: unsafe { Int64(ZSTD_compressBound(UIntNative(sourceLen))) }
-        return sourceLen + (sourceLen >> 8) + ((sourceLen < 128) ? 128 : 0)
+        let extra = if (sourceLen < 128) { 128 } else { 0 }
+        return sourceLen + (sourceLen >> 8) + extra
     }
 }
 
@@ -396,41 +395,53 @@ public class ZstdDecompressor {
 // 严格翻译自: src/zstd/zstd.zig - compressStream 相关 API
 // ============================================================================
 
+public enum ZstdCompressStreamState {
+    | Uninitialized
+    | Compressing
+    | End
+    | Error
+
+    public operator func ==(right: ZstdCompressStreamState): Bool {
+        match (this) {
+            case Uninitialized => match (right) { case Uninitialized => true case _ => false }
+            case Compressing => match (right) { case Compressing => true case _ => false }
+            case End => match (right) { case End => true case _ => false }
+            case Error => match (right) { case Error => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: ZstdCompressStreamState): Bool {
+        return !(this == right)
+    }
+}
+
 /// Zstd 流式压缩
 /// 对应 Bun: ZSTD_createCStream + ZSTD_compressStream2
 /// 使用 ZSTD_createCStream 创建压缩流，反复调用 ZSTD_compressStream2 压缩数据块
 public class ZstdCompressStream {
-    /// 流状态
-    public enum State {
-        | Uninitialized
-        | Compressing
-        | End
-        | Error
-    }
-
-    private var state: State
+    private var state: ZstdCompressStreamState
     private var level: ZstdCompressionLevel
     /// 压缩流句柄 (未来对接 C FFI 时为 CPointer<Unit>)
     private var handle: Int64
-    private var totalIn: Int64
-    private var totalOut: Int64
+    private var totalInBytes: Int64
+    private var totalOutBytes: Int64
     private var outputBuffer: ArrayList<UInt8>
 
     public init() {
-        state = State.Uninitialized
+        state = ZstdCompressStreamState.Uninitialized
         level = ZstdCompressionLevel.Default
         handle = 0
-        totalIn = 0
-        totalOut = 0
+        totalInBytes = 0
+        totalOutBytes = 0
         outputBuffer = ArrayList<UInt8>()
     }
 
     public init(level: ZstdCompressionLevel) {
-        state = State.Uninitialized
+        state = ZstdCompressStreamState.Uninitialized
         this.level = level
         handle = 0
-        totalIn = 0
-        totalOut = 0
+        totalInBytes = 0
+        totalOutBytes = 0
         outputBuffer = ArrayList<UInt8>()
     }
 
@@ -452,14 +463,14 @@ public class ZstdCompressStream {
         //       throw ZstdError.compressionError(cStringToString(ZSTD_getErrorName(rc)))
         //   }
         //   this.handle = cstream
-        state = State.Compressing
+        state = ZstdCompressStreamState.Compressing
     }
 
     /// 写入数据块
     /// 对应 Bun: ZSTD_compressStream2 with ZSTD_e_continue
     /// 翻译自: src/zstd/zstd.zig - ZSTD_compressStream2
     public func write(data: Array<UInt8>): Array<UInt8> {
-        if (state != State.Compressing) {
+        if (state != ZstdCompressStreamState.Compressing) {
             throw ZstdError.compressionError("stream not in compressing state")
         }
         // 翻译自 Bun zstd.zig (以及 NativeZstd.zig Context.doWork):
@@ -480,7 +491,7 @@ public class ZstdCompressStream {
         //   totalOut += chunk.size
         //   outputBuffer.appendAll(chunk)
         //   return chunk.toArray()
-        totalIn += data.size
+        totalInBytes += data.size
         return Array<UInt8>()
     }
 
@@ -488,8 +499,8 @@ public class ZstdCompressStream {
     /// 对应 Bun: ZSTD_compressStream2 with ZSTD_e_end + ZSTD_freeCStream
     /// 翻译自: src/zstd/zstd.zig - ZSTD_compressStream2 (ZSTD_e_end)
     public func finish(): Array<UInt8> {
-        if (state != State.Compressing) {
-            return outputBuffer.toArray()
+        if (state != ZstdCompressStreamState.Compressing) {
+            return outputBuffer.toOwnedSlice()
         }
         // 翻译自 Bun zstd.zig (以及 NativeZstd.zig Context.doWork):
         //   ZSTD_compressStream2(state, &output, &input, ZSTD_e_end) 循环直到 rc == 0
@@ -509,35 +520,35 @@ public class ZstdCompressStream {
         //       remaining = (rc > 0)
         //   }
         //   ZSTD_freeCStream(handle)
-        state = State.End
-        return outputBuffer.toArray()
+        state = ZstdCompressStreamState.End
+        return outputBuffer.toOwnedSlice()
     }
 
     /// 销毁压缩流
     /// 对应 Bun: ZSTD_freeCStream
     /// 翻译自: src/zstd/zstd.zig - ZstdReaderArrayList.end / NativeZstd.zig - Context.close
     public func deinit(): Unit {
-        if (state != State.End) {
+        if (state != ZstdCompressStreamState.End) {
             // 翻译自 Bun NativeZstd.zig Context.close:
             //   ZSTD_CCtx_reset(state, ZSTD_reset_session_and_parameters)
             //   deinitState() => ZSTD_freeCCtx(state)
             // FFI: ZSTD_freeCStream(handle)
-            state = State.End
+            state = ZstdCompressStreamState.End
         }
     }
 
     /// 获取总输入字节数
     public func totalIn(): Int64 {
-        return totalIn
+        return totalInBytes
     }
 
     /// 获取总输出字节数
     public func totalOut(): Int64 {
-        return totalOut
+        return totalOutBytes
     }
 
     /// 获取状态
-    public func getState(): State {
+    public func getState(): ZstdCompressStreamState {
         return state
     }
 }
@@ -547,33 +558,44 @@ public class ZstdCompressStream {
 // 严格翻译自: src/zstd/zstd.zig - ZstdReaderArrayList
 // ============================================================================
 
+public enum ZstdDecompressStreamState {
+    | Uninitialized
+    | Inflating
+    | End
+    | Error
+
+    public operator func ==(right: ZstdDecompressStreamState): Bool {
+        match (this) {
+            case Uninitialized => match (right) { case Uninitialized => true case _ => false }
+            case Inflating => match (right) { case Inflating => true case _ => false }
+            case End => match (right) { case End => true case _ => false }
+            case Error => match (right) { case Error => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: ZstdDecompressStreamState): Bool {
+        return !(this == right)
+    }
+}
+
 /// Zstd 流式解压缩
 /// 对应 Bun: ZstdReaderArrayList
 /// 使用 ZSTD_createDStream 创建解压流，反复调用 ZSTD_decompressStream 解压数据块
 public class ZstdDecompressStream {
-    /// 流状态
-    /// 对应 Bun: ZstdReaderArrayList.State
-    public enum State {
-        | Uninitialized
-        | Inflating
-        | End
-        | Error
-    }
-
-    private var state: State
+    private var state: ZstdDecompressStreamState
     /// 解压流句柄 (未来对接 C FFI 时为 CPointer<Unit>)
     private var handle: Int64
-    private var totalIn: Int64
-    private var totalOut: Int64
+    private var totalInBytes: Int64
+    private var totalOutBytes: Int64
     private var input: Array<UInt8>
     private var inputPos: Int64
     private var outputBuffer: ArrayList<UInt8>
 
     public init() {
-        state = State.Uninitialized
+        state = ZstdDecompressStreamState.Uninitialized
         handle = 0
-        totalIn = 0
-        totalOut = 0
+        totalInBytes = 0
+        totalOutBytes = 0
         input = Array<UInt8>()
         inputPos = 0
         outputBuffer = ArrayList<UInt8>()
@@ -595,7 +617,7 @@ public class ZstdDecompressStream {
         //       throw ZstdError.decompressionError(cStringToString(ZSTD_getErrorName(rc)))
         //   }
         //   this.handle = dstream
-        state = State.Inflating
+        state = ZstdDecompressStreamState.Inflating
     }
 
     /// 设置输入数据
@@ -671,20 +693,20 @@ public class ZstdDecompressStream {
             //       }
             //   }
         }
-        state = State.End
-        return outputBuffer.toArray()
+        state = ZstdDecompressStreamState.End
+        return outputBuffer.toOwnedSlice()
     }
 
     /// 结束解压
     /// 对应 Bun: ZstdReaderArrayList.end
     /// 翻译自: src/zstd/zstd.zig - ZstdReaderArrayList.end
     public func end(): Unit {
-        if (state != State.End) {
+        if (state != ZstdDecompressStreamState.End) {
             // 翻译自 Bun zstd.zig ZstdReaderArrayList.end:
             //   _ = c.ZSTD_freeDStream(this.zstd)
             //   state = End
             // FFI: ZSTD_freeDStream(handle)
-            state = State.End
+            state = ZstdDecompressStreamState.End
         }
     }
 
@@ -697,16 +719,16 @@ public class ZstdDecompressStream {
 
     /// 获取总输入字节数
     public func totalIn(): Int64 {
-        return totalIn
+        return totalInBytes
     }
 
     /// 获取总输出字节数
     public func totalOut(): Int64 {
-        return totalOut
+        return totalOutBytes
     }
 
     /// 获取状态
-    public func getState(): State {
+    public func getState(): ZstdDecompressStreamState {
         return state
     }
 

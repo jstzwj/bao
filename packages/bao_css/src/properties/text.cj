@@ -11,6 +11,7 @@
 package bao_css.properties
 
 import bao_core.*
+import bao_collections.*
 
 // ============================================================================
 // TextTransform
@@ -29,7 +30,7 @@ public class TextTransform {
     }
 
     public static func default(): TextTransform {
-        TextTransform(case_: TextTransformCase.None, other: TextTransformOther.None)
+        TextTransform(TextTransformCase.None, TextTransformOther.None)
     }
 
     public func toCss(): String {
@@ -38,13 +39,19 @@ public class TextTransform {
             case TextTransformCase.None => ()
             case _ => parts.append(case_.toCss())
         }
-        if (other != TextTransformOther.None) {
-            parts.append(other.toCss())
+        match (other) {
+            case TextTransformOther.None => ()
+            case _ => parts.append(other.toCss())
         }
         if (parts.isEmpty()) {
             return "none"
         }
-        return String.join(" ", parts)
+        var result = ""
+        for (i in 0..parts.size) {
+            if (i > 0) { result += " " }
+            result += parts[i]
+        }
+        return result
     }
 }
 
@@ -132,7 +139,7 @@ public class TextIndent {
     }
 
     public static func default(): TextIndent {
-        TextIndent(value: "0", hanging: false, eachLine: false)
+        TextIndent("0", false, false)
     }
 
     public func toCss(): String {
@@ -144,7 +151,9 @@ public class TextIndent {
             parts.append("each-line")
         }
         parts.append(value)
-        return String.join(" ", parts)
+        var r = ""
+        for (i in 0..parts.size) { if (i > 0) { r += " " }; r += parts[i] }
+        return r
     }
 }
 
@@ -244,7 +253,9 @@ public class TextShadow {
             parts.append(color)
         }
 
-        return String.join(" ", parts)
+        var r = ""
+        for (i in 0..parts.size) { if (i > 0) { r += " " }; r += parts[i] }
+        return r
     }
 }
 

@@ -202,23 +202,19 @@ public enum JSXRuntime {
 /// 负责 TypeScript 剥离、JSX 转换、模块转换等
 public class Transpiler {
     private var options: TranspilerOptions
-    private var log: Log
 
     public init() {
         options = TranspilerOptions()
-        log = Log()
     }
 
     public init(options: TranspilerOptions) {
         this.options = options
-        this.log = Log()
     }
 
     /// 转译源码 - 对应 Bun Transpiler.transpile()
     /// 这是主入口点，根据选项运行不同的转换管道
     public func transpile(source: String, options: TranspilerOptions): TranspileResult {
         this.options = options
-        this.log.reset()
 
         let result = TranspileResult()
         var code = source
@@ -250,16 +246,6 @@ public class Transpiler {
 
         result.code = code
 
-        // 收集日志中的警告和错误
-        for (msg in log.msgs) {
-            let tMsg = TranspileMessage(msg.text, MessageSeverity.Warning)
-            match (msg.level) {
-                case LogLevel.Error => result.errors.append(tMsg)
-                case LogLevel.Warn => result.warnings.append(tMsg)
-                case _ => ()
-            }
-        }
-
         return result
     }
 
@@ -288,9 +274,8 @@ public class Transpiler {
         let keys = defines.keys()
         for (key in keys) {
             match (defines.get(key)) {
-                case Some(value) => {
+                case Some(value) =>
                     result = result.replace(key, value)
-                }
                 case None => ()
             }
         }
@@ -305,11 +290,11 @@ public class Transpiler {
         var prev: UInt8 = 0
         var i = 0
 
-        while (i < source.length) {
-            let ch = UInt8(source[i].value)
+        while (i < source.size) {
+            let ch = source[i]
 
             // 处理字符串字面量
-            if (ch == UInt8('\'') || ch == UInt8('"') || ch == UInt8('`')) {
+            if (ch == UInt8(39) || ch == UInt8(34) || ch == UInt8(96)) {
                 if (!inString) {
                     inString = true
                     stringChar = ch
@@ -330,21 +315,21 @@ public class Transpiler {
             }
 
             // 跳过行注释
-            if (ch == UInt8('/') && i + 1 < source.length &&
-                UInt8(source[i + 1].value) == UInt8('/')) {
-                while (i < source.length && UInt8(source[i].value) != UInt8('\n')) {
+            if (ch == UInt8(47) && i + 1 < source.size &&
+                source[i + 1] == UInt8(47)) {
+                while (i < source.size && source[i] != UInt8(10)) {
                     i += 1
                 }
                 continue
             }
 
             // 跳过块注释
-            if (ch == UInt8('/') && i + 1 < source.length &&
-                UInt8(source[i + 1].value) == UInt8('*')) {
+            if (ch == UInt8(47) && i + 1 < source.size &&
+                source[i + 1] == UInt8(42)) {
                 i += 2
-                while (i + 1 < source.length &&
-                       !(UInt8(source[i].value) == UInt8('*') &&
-                         UInt8(source[i + 1].value) == UInt8('/'))) {
+                while (i + 1 < source.size &&
+                       !(source[i] == UInt8(42) &&
+                         source[i + 1] == UInt8(47))) {
                     i += 1
                 }
                 i += 2
@@ -352,20 +337,20 @@ public class Transpiler {
             }
 
             // 压缩空白
-            if (ch == UInt8(' ') || ch == UInt8('\t') || ch == UInt8('\n') || ch == UInt8('\r')) {
+            if (ch == UInt8(32) || ch == UInt8(9) || ch == UInt8(10) || ch == UInt8(13)) {
                 // 只在必要时保留一个空格 (防止标识符粘连)
-                if (prev != UInt8(' ') && prev != UInt8('\n') &&
-                    prev != UInt8('\t') && prev != UInt8('\r') &&
-                    prev != UInt8('{') && prev != UInt8('}') &&
-                    prev != UInt8('(') && prev != UInt8(')') &&
-                    prev != UInt8(';') && prev != UInt8(',') &&
-                    prev != UInt8(':') && prev != UInt8('=')) {
+                if (prev != UInt8(32) && prev != UInt8(10) &&
+                    prev != UInt8(9) && prev != UInt8(13) &&
+                    prev != UInt8(123) && prev != UInt8(125) &&
+                    prev != UInt8(40) && prev != UInt8(41) &&
+                    prev != UInt8(59) && prev != UInt8(44) &&
+                    prev != UInt8(58) && prev != UInt8(61)) {
                     // 检查下一个字符是否也需要空格
-                    if (i + 1 < source.length) {
-                        let next = UInt8(source[i + 1].value)
+                    if (i + 1 < source.size) {
+                        let next = source[i + 1]
                         if (isIdentChar(prev) && isIdentChar(next)) {
-                            sb.append(Char(Int32(32)))
-                            prev = UInt8(' ')
+                            sb.append(UInt8(32))
+                            prev = UInt8(32)
                         }
                     }
                 }
@@ -382,10 +367,10 @@ public class Transpiler {
     }
 
     private func isIdentChar(ch: UInt8): Bool {
-        return (ch >= UInt8('a') && ch <= UInt8('z')) ||
-               (ch >= UInt8('A') && ch <= UInt8('Z')) ||
-               (ch >= UInt8('0') && ch <= UInt8('9')) ||
-               ch == UInt8('_') || ch == UInt8('$')
+        return (ch >= UInt8(97) && ch <= UInt8(122)) ||
+               (ch >= UInt8(65) && ch <= UInt8(90)) ||
+               (ch >= UInt8(48) && ch <= UInt8(57)) ||
+               ch == UInt8(95) || ch == UInt8(36)
     }
 }
 
@@ -406,6 +391,19 @@ public enum PipelineStage {
     | Define        // 常量替换
     | Minify        // 压缩
     | Generate      // 代码生成
+
+    public func label(): String {
+        match (this) {
+            case Parse => "parse"
+            case TypeScript => "typescript"
+            case JSX => "jsx"
+            case Module => "module"
+            case JSON => "json"
+            case Define => "define"
+            case Minify => "minify"
+            case Generate => "generate"
+        }
+    }
 }
 
 /// 转译管道 - 对应 Bun 的多阶段处理流程
@@ -467,18 +465,3 @@ public class TranspilePipeline {
     }
 }
 
-/// PipelineStage 扩展
-public extension PipelineStage {
-    public func label(): String {
-        match (this) {
-            case Parse => "parse"
-            case TypeScript => "typescript"
-            case JSX => "jsx"
-            case Module => "module"
-            case JSON => "json"
-            case Define => "define"
-            case Minify => "minify"
-            case Generate => "generate"
-        }
-    }
-}

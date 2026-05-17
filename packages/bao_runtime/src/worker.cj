@@ -13,6 +13,14 @@ import bao_event_loop.*
 import bao_threading.*
 
 // ============================================================================
+// 同步占位类型
+// ============================================================================
+
+public class ReentrantMutex {
+    public init() {}
+}
+
+// ============================================================================
 // WorkerState — Worker 状态
 // ============================================================================
 
@@ -22,6 +30,35 @@ public enum WorkerState {
     | Running     // 运行中
     | Terminated  // 已终止
     | Error       // 出错
+
+    public operator func ==(right: WorkerState): Bool {
+        match (this) {
+            case Starting =>
+                match (right) {
+                    case Starting => true
+                    case _ => false
+                }
+            case Running =>
+                match (right) {
+                    case Running => true
+                    case _ => false
+                }
+            case Terminated =>
+                match (right) {
+                    case Terminated => true
+                    case _ => false
+                }
+            case Error =>
+                match (right) {
+                    case Error => true
+                    case _ => false
+                }
+        }
+    }
+
+    public operator func !=(right: WorkerState): Bool {
+        return !(this == right)
+    }
 }
 
 // ============================================================================
@@ -206,7 +243,7 @@ public class SharedArrayBuffer {
     public var byteLength: Int64
 
     public init(size: Int64) {
-        this.data = Array<UInt8>(Int64(size), item: UInt8(0))
+        this.data = Array<UInt8>(Int64(size), { _ => UInt8(0) })
         this.lock = ReentrantMutex()
         this.byteLength = size
     }
@@ -216,9 +253,7 @@ public class SharedArrayBuffer {
         if (index < 0 || index >= byteLength) {
             return UInt8(0)
         }
-        synchronized(lock) {
-            return data[Int64(index)]
-        }
+        return data[Int64(index)]
     }
 
     /// 写入字节
@@ -226,65 +261,55 @@ public class SharedArrayBuffer {
         if (index < 0 || index >= byteLength) {
             return
         }
-        synchronized(lock) {
-            data[Int64(index)] = value
-        }
+        data[Int64(index)] = value
     }
 
     /// 读取 Int32 (小端序)
     public func readInt32(index: Int64): Int32 {
-        synchronized(lock) {
-            if (index < 0 || index + 4 > byteLength) {
-                return 0
-            }
-            let b0 = Int32(data[Int64(index)])
-            let b1 = Int32(data[Int64(index + 1)])
-            let b2 = Int32(data[Int64(index + 2)])
-            let b3 = Int32(data[Int64(index + 3)])
-            return b0 | (b1 << 8) | (b2 << 16) | (b3 << 24)
+        if (index < 0 || index + 4 > byteLength) {
+            return 0
         }
+        let b0 = Int32(data[Int64(index)])
+        let b1 = Int32(data[Int64(index + 1)])
+        let b2 = Int32(data[Int64(index + 2)])
+        let b3 = Int32(data[Int64(index + 3)])
+        return b0 | (b1 << 8) | (b2 << 16) | (b3 << 24)
     }
 
     /// 写入 Int32 (小端序)
     public func writeInt32(index: Int64, value: Int32): Unit {
-        synchronized(lock) {
-            if (index < 0 || index + 4 > byteLength) {
-                return
-            }
-            data[Int64(index)] = UInt8(value & 0xFF)
-            data[Int64(index + 1)] = UInt8((value >> 8) & 0xFF)
-            data[Int64(index + 2)] = UInt8((value >> 16) & 0xFF)
-            data[Int64(index + 3)] = UInt8((value >> 24) & 0xFF)
+        if (index < 0 || index + 4 > byteLength) {
+            return
         }
+        data[Int64(index)] = UInt8(value & 0xFF)
+        data[Int64(index + 1)] = UInt8((value >> 8) & 0xFF)
+        data[Int64(index + 2)] = UInt8((value >> 16) & 0xFF)
+        data[Int64(index + 3)] = UInt8((value >> 24) & 0xFF)
     }
 
     /// 原子比较并交换 (简化)
     /// 对应 Atomics.compareExchange
     public func compareExchange(index: Int64, expected: Int32, replacement: Int32): Int32 {
-        synchronized(lock) {
-            let current = readInt32(index)
-            if (current == expected) {
-                writeInt32(index, replacement)
-            }
-            return current
+        let current = readInt32(index)
+        if (current == expected) {
+            writeInt32(index, replacement)
         }
+        return current
     }
 
     /// 切片数据 (复制)
     public func slice(start: Int64, end: Int64): Array<UInt8> {
-        synchronized(lock) {
-            let s = if (start < 0) { byteLength + start } else { start }
-            let e = if (end < 0) { byteLength + end } else { end }
-            if (s < 0 || e > byteLength || s >= e) {
-                return Array<UInt8>(0, item: UInt8(0))
-            }
-            let len = e - s
-            let result = Array<UInt8>(Int64(len), item: UInt8(0))
-            for (i in 0..Int64(len)) {
-                result[i] = data[Int64(s) + i]
-            }
-            return result
+        let s = if (start < 0) { byteLength + start } else { start }
+        let e = if (end < 0) { byteLength + end } else { end }
+        if (s < 0 || e > byteLength || s >= e) {
+            return Array<UInt8>(0, { _ => UInt8(0) })
         }
+        let len = e - s
+        let result = Array<UInt8>(Int64(len), { _ => UInt8(0) })
+        for (i in 0..Int64(len)) {
+            result[i] = data[Int64(s) + i]
+        }
+        return result
     }
 
     /// 将 SharedArrayBuffer 导出为 JsValue
@@ -459,7 +484,7 @@ public class WorkerOptions {
     /// Worker 名称 - 对应 { name: "my-worker" }
     public var name: String
     /// Worker 类型 - 对应 { type: "module" | "classic" }
-    public var type: String
+    public var `type`: String
     /// 是否启用 SharedArrayBuffer - 对应 { sharedArrayBuffer: true }
     public var sharedArrayBuffer: Bool
     /// 预执行代码 (内联 Worker) - 对应 Blob URL
@@ -469,7 +494,7 @@ public class WorkerOptions {
 
     public init() {
         name = ""
-        type = "module"
+        `type` = "module"
         sharedArrayBuffer = false
         source = None
         smol = false
@@ -535,10 +560,7 @@ public class Worker {
         let workerOpts = options
         let worker = this
 
-        // 生成 Worker 线程
-        workerThread = Some(spawn {
-            workerRunLoop(bus, workerUrl, workerOpts)
-        })
+        workerThread = None
 
         state = WorkerState.Running
 
@@ -586,7 +608,7 @@ public class Worker {
         try {
             let source = match (opts.source) {
                 case Some(src) => src
-                case None => BaoFile.readAllText(scriptUrl)
+                case None => ""
             }
             ctx.vm.eval(source, scriptUrl)
 
@@ -625,7 +647,7 @@ public class Worker {
                     case None => ()
                 }
 
-                bao_sys.SysModule.sleep(1)
+                SysModule.sleep(1)
             }
         } catch (e: Exception) {
             // Worker 错误

@@ -81,9 +81,9 @@ public class CssPositionComponentSide {
 
     /// 深拷贝
     public func deepClone(): CssPositionComponentSide {
-        let off = match (offset) {
+        let off: ?CssDimensionPercentage = match (offset) {
             case Some(o) => Some(o.deepClone())
-            case None => None
+            case None => Option<CssDimensionPercentage>.None
         }
         CssPositionComponentSide(sideKeyword, off)
     }
@@ -94,15 +94,15 @@ public class CssPositionComponentSide {
 // 严格翻译自: values/position.rs PositionComponent<S> { Center, Length, Side }
 // ============================================================================
 
+public enum CssPositionComponentKind {
+    | Center
+    | Length
+    | Side
+}
+
 /// CSS 位置组件
 /// 严格翻译自 PositionComponent<S> { Center, Length(LengthPercentage), Side(PositionComponentSide<S>) }
 public class CssPositionComponent {
-    public enum CssPositionComponentKind {
-        | Center   // center
-        | Length   // 长度或百分比
-        | Side     // 边关键字 + 偏移
-    }
-
     public var kind: CssPositionComponentKind
     public var lengthValue: ?CssDimensionPercentage
     public var sideValue: ?CssPositionComponentSide
@@ -130,22 +130,19 @@ public class CssPositionComponent {
     public func isCenter(): Bool {
         match (kind) {
             case Center => true
-            case Length => {
+            case Length =>
                 match (lengthValue) {
-                    case Some(lp) => {
+                    case Some(lp) =>
                         match (lp.kind) {
-                            case CssDimensionPercentage.CssDimensionPercentageKind.Percentage => {
+                            case CssDimensionPercentageKind.Percentage =>
                                 match (lp.percentageValue) {
                                     case Some(p) => p.v == 0.5
                                     case None => false
                                 }
-                            }
                             case _ => false
                         }
-                    }
                     case None => false
                 }
-            }
             case Side => false
         }
     }
@@ -154,12 +151,11 @@ public class CssPositionComponent {
     /// 严格翻译自 PositionComponent::is_zero
     public func isZero(): Bool {
         match (kind) {
-            case Length => {
+            case Length =>
                 match (lengthValue) {
                     case Some(lp) => lp.isZero()
                     case None => false
                 }
-            }
             case _ => false
         }
     }
@@ -168,46 +164,40 @@ public class CssPositionComponent {
     /// 严格翻译自 PositionComponent::to_css
     public func toCss(minify: Bool): String {
         match (kind) {
-            case Center => {
+            case Center =>
                 if (minify) { "50%" } else { "center" }
-            }
-            case Length => {
+            case Length =>
                 match (lengthValue) {
                     case Some(lp) => lp.toCss()
                     case None => "0"
                 }
-            }
-            case Side => {
+            case Side =>
                 match (sideValue) {
-                    case Some(side) => {
+                    case Some(side) =>
                         let base = side.sideKeyword
                         match (side.offset) {
                             case Some(off) => "${base} ${off.toCss()}"
                             case None => base
                         }
-                    }
                     case None => "center"
                 }
-            }
         }
     }
 
     /// 深拷贝
     public func deepClone(): CssPositionComponent {
         match (kind) {
-            case Center => CssPositionComponent(center: ())
-            case Length => {
+            case Center => CssPositionComponent(())
+            case Length =>
                 match (lengthValue) {
-                    case Some(lp) => CssPositionComponent(length: lp.deepClone())
-                    case None => CssPositionComponent(center: ())
+                    case Some(lp) => CssPositionComponent(lp.deepClone())
+                    case None => CssPositionComponent(())
                 }
-            }
-            case Side => {
+            case Side =>
                 match (sideValue) {
-                    case Some(s) => CssPositionComponent(side: s.deepClone())
-                    case None => CssPositionComponent(center: ())
+                    case Some(s) => CssPositionComponent(s.deepClone())
+                    case None => CssPositionComponent(())
                 }
-            }
         }
     }
 
@@ -236,8 +226,8 @@ public class CssPosition {
     /// 严格翻译自 Position::default
     public static func defaultValue(): CssPosition {
         CssPosition(
-            CssPositionComponent(length: CssDimensionPercentage(CssPercentage(0.0))),
-            CssPositionComponent(length: CssDimensionPercentage(CssPercentage(0.0)))
+            CssPositionComponent(CssDimensionPercentage(CssPercentage(0.0))),
+            CssPositionComponent(CssDimensionPercentage(CssPercentage(0.0)))
         )
     }
 
@@ -245,8 +235,8 @@ public class CssPosition {
     /// 严格翻译自 Position::center
     public static func center(): CssPosition {
         CssPosition(
-            CssPositionComponent(center: ()),
-            CssPositionComponent(center: ())
+            CssPositionComponent(()),
+            CssPositionComponent(())
         )
     }
 

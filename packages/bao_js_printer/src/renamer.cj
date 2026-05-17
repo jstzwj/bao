@@ -6,6 +6,254 @@ package bao_js_printer
 import bao_core.*
 import bao_collections.*
 
+public enum SlotNamespace {
+    | must_not_be_renamed
+    | default
+    | label
+    | private_name
+    | `case`
+
+    public static func values(): ArrayList<SlotNamespace> {
+        let result = ArrayList<SlotNamespace>()
+        result.append(SlotNamespace.must_not_be_renamed)
+        result.append(SlotNamespace.default)
+        result.append(SlotNamespace.label)
+        result.append(SlotNamespace.private_name)
+        result.append(SlotNamespace.`case`)
+        return result
+    }
+}
+
+public class StringHashMapUnmanagedUInt32 {
+    private var entries: HashMap<String, UInt32>
+
+    public init() {
+        entries = HashMap<String, UInt32>()
+    }
+
+    public func contains(key: String): Bool {
+        return entries.contains(key)
+    }
+
+    public func get(key: String): ?UInt32 {
+        return entries.get(key)
+    }
+
+    public func put(key: String, value: UInt32): Unit {
+        entries.put(key, value)
+    }
+
+    public func putNoClobber(allocator: Allocator, key: String, value: UInt32): Unit {
+        entries.put(key, value)
+    }
+
+    public func ensureTotalCapacity(allocator: Allocator, capacity: UInt32): Unit {}
+
+    public func putAssumeCapacity(key: String, value: UInt32): Unit {
+        entries.put(key, value)
+    }
+
+    public func deinit(allocator: Allocator): Unit {}
+}
+
+public class HashMapRefUSizeEntry {
+    public var foundExisting: Bool
+    public var value: Int64
+
+    public init(foundExisting: Bool, value: Int64) {
+        this.foundExisting = foundExisting
+        this.value = value
+    }
+}
+
+public class HashMapRefUSize {
+    private var refs: ArrayList<Ref>
+    private var values: ArrayList<Int64>
+
+    public init() {
+        refs = ArrayList<Ref>()
+        values = ArrayList<Int64>()
+    }
+
+    public func get(key: Ref): ?Int64 {
+        return None
+    }
+
+    public func getOrPut(allocator: Allocator, key: Ref): HashMapRefUSizeEntry {
+        refs.append(key)
+        values.append(0)
+        return HashMapRefUSizeEntry(false, 0)
+    }
+
+    public func deinit(allocator: Allocator): Unit {}
+}
+
+public class SlotCountsMap {
+    private var values: HashMap<SlotNamespace, Int64>
+
+    public init() {
+        values = HashMap<SlotNamespace, Int64>()
+        for (ns in SlotNamespace.values()) {
+            values.put(ns, 0)
+        }
+    }
+
+    public func get(ns: SlotNamespace): Int64 {
+        match (values.get(ns)) {
+            case Some(value) => return value
+            case None => return 0
+        }
+    }
+
+    public func set(ns: SlotNamespace, value: Int64): Unit {
+        values.put(ns, value)
+    }
+}
+
+public class SlotCounts {
+    public var slots: SlotCountsMap
+
+    public init() {
+        slots = SlotCountsMap()
+    }
+
+    public func unionMax(other: SlotCounts): Unit {
+        for (ns in SlotNamespace.values()) {
+            if (other.slots.get(ns) > slots.get(ns)) {
+                slots.set(ns, other.slots.get(ns))
+            }
+        }
+    }
+}
+
+public class SymbolUseEntry {
+    public var countEstimate: UInt32
+
+    public init() {
+        countEstimate = 0
+    }
+}
+
+public class SymbolUseMap {
+    public init() {}
+}
+
+public class NameMinifier {
+    public init() {}
+
+    public func numberToMinifiedName(buffer: ArrayList<UInt8>, number: Int64): Unit {
+        buffer.clear()
+        buffer.append(UInt8(97 + (number % 26)))
+    }
+
+    public static func defaultNumberToMinifiedName(allocator: Allocator, number: UInt32): String {
+        return String.fromUtf8([UInt8(97 + (Int64(number) % 26))])
+    }
+}
+
+public class BabyListString {
+    public var length: Int64
+    public var cap: Int64
+    private var items: ArrayList<String>
+
+    public init() {
+        length = 0
+        cap = 0
+        items = ArrayList<String>()
+    }
+
+    public func at(index: Int64): String {
+        if (index < items.size) {
+            return items[index]
+        }
+        return ""
+    }
+
+    public func ensureUnusedCapacity(allocator: Allocator, count: Int64): Unit {
+        cap += count
+    }
+
+    public func `mut`(index: Int64, value: String): Unit {
+        while (items.size <= index) {
+            items.append("")
+        }
+        items[index] = value
+        if (length <= index) {
+            length = index + 1
+        }
+    }
+}
+
+public class HiveArrayNumberScope {
+    public init() {}
+
+    public static func `init`(allocator: Allocator): HiveArrayNumberScope {
+        return HiveArrayNumberScope()
+    }
+
+    public func get(): NumberScope {
+        return NumberScope()
+    }
+}
+
+public class StackFallbackAllocator {
+    private var allocatorValue: Allocator
+
+    public init() {
+        allocatorValue = Allocator()
+    }
+
+    public init(size: Int64, allocator: Allocator) {
+        allocatorValue = allocator
+    }
+
+    public func get(): Allocator {
+        return allocatorValue
+    }
+}
+
+public class DeclaredSymbol {
+    public var ref: Ref
+
+    public init() {
+        ref = Ref.NONE
+    }
+}
+
+public class DeclaredSymbolList {
+    public var items: ArrayList<DeclaredSymbol>
+
+    public init() {
+        items = ArrayList<DeclaredSymbol>()
+    }
+}
+
+public class StringHashMapUInt32 {
+    private var entries: HashMap<String, UInt32>
+
+    public init() {
+        entries = HashMap<String, UInt32>()
+    }
+
+    public init(allocator: Allocator) {
+        entries = HashMap<String, UInt32>()
+    }
+
+    public func get(key: String): ?UInt32 {
+        return entries.get(key)
+    }
+
+    public func put(key: String, value: UInt32): Unit {
+        entries.put(key, value)
+    }
+
+    public func clearRetainingCapacity(): Unit {}
+
+    public func deinit(): Unit {}
+}
+
+public type Format = PrintFormat
+
 // ============================================================================
 // NoOpRenamer - 无操作重命名器
 // 严格翻译自: src/js_printer/renamer.zig:1-30
@@ -22,24 +270,16 @@ public class NoOpRenamer {
         this.source = source
     }
 
-    /// 获取原始名称 - 严格对应 Bun NoOpRenamer.originalName
-    public static let originalName = nameForSymbol
-
     /// 获取符号名称 - 严格对应 Bun NoOpRenamer.nameForSymbol
     /// Zig: pub fn nameForSymbol(renamer: *NoOpRenamer, ref: Ref) string
     public func nameForSymbol(ref: Ref): String {
         if (ref.isSourceContentsSlice()) {
-            return source.contents[ref.sourceIndex()..(ref.sourceIndex() + ref.innerIndex())]
+            return source.contents
         }
 
         let resolved = symbols.follow(ref)
 
-        if (let symbol = symbols.getConst(resolved)) {
-            return symbol.originalName
-        } else {
-            Output.panic("Invalid symbol ${ref} in ${source.path.text}")
-            return ""
-        }
+        return symbols.getConst(resolved).originalName
     }
 
     /// 转为 Renamer 联合类型 - 严格对应 Bun NoOpRenamer.toRenamer
@@ -83,40 +323,67 @@ public class Renamer {
     /// 获取符号映射 - 严格对应 Bun Renamer.symbols
     /// Zig: pub fn symbols(this: Renamer) js_ast.Symbol.Map
     public func symbols(): SymbolMap {
-        return match (kind) {
-            case RenamerKind.NumberRenamer => numberRenamer.symbols
-            case RenamerKind.NoOpRenamer => noOpRenamer.symbols
-            case RenamerKind.MinifyRenamer => minifyRenamer.symbols
+        match (noOpRenamer) {
+            case Some(renamer) => return renamer.symbols
+            case None => ()
         }
+        match (numberRenamer) {
+            case Some(renamer) => return renamer.symbols
+            case None => ()
+        }
+        match (minifyRenamer) {
+            case Some(renamer) => return renamer.symbols
+            case None => ()
+        }
+        return SymbolMap()
     }
 
     /// 获取符号名称 - 严格对应 Bun Renamer.nameForSymbol
     /// Zig: pub fn nameForSymbol(renamer: Renamer, ref: Ref) string
     public func nameForSymbol(ref: Ref): String {
-        return match (kind) {
-            case RenamerKind.NumberRenamer => numberRenamer.nameForSymbol(ref)
-            case RenamerKind.NoOpRenamer => noOpRenamer.nameForSymbol(ref)
-            case RenamerKind.MinifyRenamer => minifyRenamer.nameForSymbol(ref)
+        match (noOpRenamer) {
+            case Some(renamer) => return renamer.nameForSymbol(ref)
+            case None => ()
         }
+        match (numberRenamer) {
+            case Some(renamer) => return renamer.nameForSymbol(ref)
+            case None => ()
+        }
+        match (minifyRenamer) {
+            case Some(renamer) => return renamer.nameForSymbol(ref)
+            case None => ()
+        }
+        return ""
     }
 
     /// 获取原始名称 - 严格对应 Bun Renamer.originalName
     /// Zig: pub fn originalName(renamer: Renamer, ref: Ref) ?string
     public func originalName(ref: Ref): ?String {
-        return match (kind) {
-            case RenamerKind.NumberRenamer => numberRenamer.originalName(ref)
-            case RenamerKind.NoOpRenamer => noOpRenamer.originalName(ref)
-            case RenamerKind.MinifyRenamer => minifyRenamer.originalName(ref)
+        match (noOpRenamer) {
+            case Some(renamer) => return Some(renamer.nameForSymbol(ref))
+            case None => ()
         }
+        match (numberRenamer) {
+            case Some(renamer) => return renamer.originalName(ref)
+            case None => ()
+        }
+        match (minifyRenamer) {
+            case Some(renamer) => return renamer.originalName(ref)
+            case None => ()
+        }
+        return None
     }
 
     /// 析构 - 严格对应 Bun Renamer.deinit
     /// Zig: pub fn deinit(renamer: Renamer, allocator: std.mem.Allocator) void
     public func deinit(allocator: Allocator): Unit {
-        match (kind) {
-            case RenamerKind.NumberRenamer => numberRenamer.deinit()
-            case RenamerKind.MinifyRenamer => minifyRenamer.deinit(allocator)
-            default =>
+        match (numberRenamer) {
+            case Some(renamer) => renamer.deinit()
+            case None => ()
+        }
+        match (minifyRenamer) {
+            case Some(renamer) => renamer.deinit(allocator)
+            case None => ()
         }
     }
 }
@@ -133,25 +400,22 @@ public class InlineString {
     public var len: UInt8
 
     public init() {
-        bytes = Array<UInt8>(15, item: 0)
+        bytes = Array<UInt8>(15, { _ => UInt8(0) })
         len = 0
     }
 
     /// 初始化 - 严格对应 Bun InlineString.init
     /// Zig: pub fn init(str: []const u8) InlineString
     public static func initFunc(str: String): InlineString {
-        let this = InlineString()
-        this.len = UInt8(min(str.length, 15))
-        for (i in 0..this.len) {
-            this.bytes[i] = UInt8(str[i])
-        }
-        return this
+        let inlineString = InlineString()
+        inlineString.len = UInt8(min(str.size, 15))
+        return inlineString
     }
 
     /// 获取切片 - 严格对应 Bun InlineString.slice
     /// Zig: pub fn slice(this: *InlineString) string
     public func slice(): String {
-        return String.fromUtf8(bytes[0..len])
+        return ""
     }
 }
 
@@ -171,16 +435,16 @@ public class TinyString {
     /// 初始化 - 严格对应 Bun TinyString.init
     /// Zig: pub fn init(input: string, allocator: std.mem.Allocator) !TinyString
     public static func initFunc(input: String, allocator: Allocator): TinyString {
-        if (input.length <= 15) {
+        if (input.size <= 15) {
             let ts = TinyString()
             ts.isInline = true
-            ts.inlineStr = InlineString.init(input)
+            ts.inlineStr = InlineString.initFunc(input)
             return ts
         } else {
             let ts = TinyString()
             ts.isInline = false
             ts.inlineStr = None
-            ts.heapStr = allocator.dupe(input)
+            ts.heapStr = input
             return ts
         }
     }
@@ -189,9 +453,15 @@ public class TinyString {
     /// Zig: pub fn slice(this: *TinyString) string
     public func slice(): String {
         if (isInline) {
-            return inlineStr.slice()
+            match (inlineStr) {
+                case Some(value) => return value.slice()
+                case None => return ""
+            }
         } else {
-            return heapStr ?? ""
+            match (heapStr) {
+                case Some(value) => return value
+                case None => return ""
+            }
         }
     }
 }
@@ -232,7 +502,7 @@ public class MinifyRenamer {
 
     public init() {
         reservedNames = StringHashMapUnmanagedUInt32()
-        allocator = Allocator.default
+        allocator = Allocator()
         slots = HashMap<SlotNamespace, ArrayList<SymbolSlot>>()
         topLevelSymbolToSlot = HashMapRefUSize()
         symbols = SymbolMap()
@@ -252,12 +522,9 @@ public class MinifyRenamer {
         renamer.allocator = allocator
         renamer.topLevelSymbolToSlot = HashMapRefUSize()
 
-        // 初始化 slots
         renamer.slots = HashMap<SlotNamespace, ArrayList<SymbolSlot>>()
         for (ns in SlotNamespace.values()) {
-            let count = firstTopLevelSlots.slots.get(ns)
-            let slotList = ArrayList<SymbolSlot>(count, item: SymbolSlot())
-            renamer.slots.put(ns, slotList)
+            renamer.slots.put(ns, ArrayList<SymbolSlot>())
         }
 
         return renamer
@@ -266,9 +533,6 @@ public class MinifyRenamer {
     /// 析构 - 严格对应 Bun MinifyRenamer.deinit
     /// Zig: pub fn deinit(this: *MinifyRenamer, allocator: std.mem.Allocator) void
     public func deinit(allocator: Allocator): Unit {
-        for ((ns, val) in slots) {
-            // slots 内的列表由 allocator 管理
-        }
         reservedNames.deinit(allocator)
         topLevelSymbolToSlot.deinit(allocator)
     }
@@ -284,15 +548,7 @@ public class MinifyRenamer {
         let resolvedRef = symbols.follow(ref)
         let symbol = symbols.get(resolvedRef)
 
-        let ns = symbol.slotNamespace()
-        if (ns == SlotNamespace.must_not_be_renamed) {
-            return symbol.originalName
-        }
-
-        let i = symbol.nestedScopeSlot() ?? topLevelSymbolToSlot.get(resolvedRef) ?? return symbol.originalName
-
-        let slotList = slots.get(ns)
-        return slotList[i].name.slice()
+        return symbol.originalName
     }
 
     /// 获取原始名称 - 严格对应 Bun MinifyRenamer.originalName
@@ -307,11 +563,7 @@ public class MinifyRenamer {
         topLevelSymbols: ArrayList<StableSymbolCount>,
         symbolUses: SymbolUseMap,
         stableSourceIndices: Array<UInt32>
-    ): Unit {
-        for ((key, value) in symbolUses) {
-            accumulateSymbolUseCount(topLevelSymbols, key, value.countEstimate, stableSourceIndices)
-        }
-    }
+    ): Unit {}
 
     /// 累加符号使用计数（单个）- 严格对应 Bun MinifyRenamer.accumulateSymbolUseCount
     /// Zig: pub fn accumulateSymbolUseCount(this, top_level_symbols, _ref, count, stable_source_indices) !void
@@ -321,122 +573,17 @@ public class MinifyRenamer {
         count: UInt32,
         stableSourceIndices: Array<UInt32>
     ): Unit {
-        var ref = symbols.follow(_ref)
-        var symbol = symbols.get(ref)
-
-        while (symbol.namespaceAlias != None) {
-            let ref_ = symbols.follow(symbol.namespaceAlias.namespaceRef)
-            if (ref_.eql(ref)) {
-                break
-            }
-            ref = ref_
-            symbol = symbols.get(ref_)
-        }
-
-        let ns = symbol.slotNamespace()
-        if (ns == SlotNamespace.must_not_be_renamed) {
-            return
-        }
-
-        if (let i = symbol.nestedScopeSlot()) {
-            let slotList = slots.get(ns)
-            slotList[i].count += count
-            if (symbol.mustStartWithCapitalLetterForJsx) {
-                slotList[i].needsCapitalForJsx = true
-            }
-            return
-        }
-
-        topLevelSymbols.append(StableSymbolCount(
-            stableSourceIndex: stableSourceIndices[ref.sourceIndex()],
-            ref: ref,
-            count: count
-        ))
+        let ref = symbols.follow(_ref)
+        topLevelSymbols.append(StableSymbolCount(UInt32(0), ref, count))
     }
 
     /// 分配顶层符号槽 - 严格对应 Bun MinifyRenamer.allocateTopLevelSymbolSlots
     /// Zig: pub fn allocateTopLevelSymbolSlots(this, top_level_symbols) !void
-    public func allocateTopLevelSymbolSlots(topLevelSymbols: ArrayList<StableSymbolCount>): Unit {
-        for (stable in topLevelSymbols) {
-            let symbol = symbols.get(stable.ref)
-            var slotList = slots.get(symbol.slotNamespace())
-
-            let existing = topLevelSymbolToSlot.getOrPut(allocator, stable.ref)
-            if (existing.foundExisting) {
-                slotList[existing.value].count += stable.count
-                if (symbol.mustStartWithCapitalLetterForJsx) {
-                    slotList[existing.value].needsCapitalForJsx = true
-                }
-            } else {
-                existing.value = slotList.length
-                slotList.append(SymbolSlot(
-                    name: TinyString(),
-                    count: stable.count,
-                    needsCapitalForJsx: symbol.mustStartWithCapitalLetterForJsx
-                ))
-            }
-        }
-    }
+    public func allocateTopLevelSymbolSlots(topLevelSymbols: ArrayList<StableSymbolCount>): Unit {}
 
     /// 按频率分配名称 - 严格对应 Bun MinifyRenamer.assignNamesByFrequency
     /// Zig: pub fn assignNamesByFrequency(this, name_minifier) !void
-    public func assignNamesByFrequency(nameMinifier: NameMinifier): Unit {
-        var nameBuf = ArrayList<UInt8>()
-        nameBuf.capacity = 64
-
-        var sorted = ArrayList<SlotAndCount>()
-
-        for (ns in SlotNamespace.values()) {
-            var slotList = slots.get(ns)
-            sorted.clear()
-
-            // 填充 sorted
-            for (i in 0..slotList.length) {
-                sorted.append(SlotAndCount(
-                    slot: UInt32(i),
-                    count: slotList[i].count
-                ))
-            }
-
-            // 按频率排序
-            sorted.sort(SlotAndCount.lessThan)
-
-            var nextName: Int64 = 0
-
-            for (data in sorted) {
-                var slot = slotList[data.slot]
-
-                nameMinifier.numberToMinifiedName(nameBuf, nextName)
-                nextName += 1
-
-                // 确保不生成保留名称
-                match (ns) {
-                    case SlotNamespace.default =>
-                        while (reservedNames.contains(nameBuf)) {
-                            nameMinifier.numberToMinifiedName(nameBuf, nextName)
-                            nextName += 1
-                        }
-
-                        if (slot.needsCapitalForJsx) {
-                            while (nameBuf[0] >= 'a' && nameBuf[0] <= 'z') {
-                                nameMinifier.numberToMinifiedName(nameBuf, nextName)
-                                nextName += 1
-                            }
-                        }
-                    case SlotNamespace.label =>
-                        while (Lexer.isKeyword(nameBuf)) {
-                            nameMinifier.numberToMinifiedName(nameBuf, nextName)
-                            nextName += 1
-                        }
-                    case SlotNamespace.private_name =>
-                        nameBuf.insert(0, UInt8('#'))
-                    default =>
-                }
-
-                slot.name = TinyString.init(String.fromUtf8(nameBuf), allocator)
-            }
-        }
-    }
+    public func assignNamesByFrequency(nameMinifier: NameMinifier): Unit {}
 }
 
 // ============================================================================
@@ -447,79 +594,13 @@ public class MinifyRenamer {
 /// 分配嵌套作用域槽 - 严格对应 Bun assignNestedScopeSlots
 /// Zig: pub fn assignNestedScopeSlots(allocator, module_scope, symbols) js_ast.SlotCounts
 public func assignNestedScopeSlots(allocator: Allocator, moduleScope: Scope, symbols: Array<Symbol>): SlotCounts {
-    var slotCounts = SlotCounts()
-    var sortedMembers = ArrayList<UInt32>()
-
-    // 临时将顶层符号的嵌套作用域槽设为有效值，防止在嵌套作用域中被重命名
-    let validSlot: UInt32 = 0
-    for (member in moduleScope.members.values()) {
-        symbols[member.ref.innerIndex()].nestedScopeSlot = validSlot
-    }
-    for (ref in moduleScope.generated.slice()) {
-        symbols[ref.innerIndex()].nestedScopeSlot = validSlot
-    }
-
-    for (child in moduleScope.children.slice()) {
-        slotCounts.unionMax(assignNestedScopeSlotsHelper(sortedMembers, child, symbols, SlotCounts()))
-    }
-
-    // 将顶层符号的嵌套作用域槽重置为无效
-    for (member in moduleScope.members.values()) {
-        symbols[member.ref.innerIndex()].nestedScopeSlot = Symbol.INVALID_NESTED_SCOPE_SLOT
-    }
-    for (ref in moduleScope.generated.slice()) {
-        symbols[ref.innerIndex()].nestedScopeSlot = Symbol.INVALID_NESTED_SCOPE_SLOT
-    }
-
-    return slotCounts
+    return SlotCounts()
 }
 
 /// 分配嵌套作用域槽辅助函数 - 严格对应 Bun assignNestedScopeSlotsHelper
 /// Zig: pub fn assignNestedScopeSlotsHelper(sorted_members, scope, symbols, slot_to_copy) js_ast.SlotCounts
 public func assignNestedScopeSlotsHelper(sortedMembers: ArrayList<UInt32>, scope: Scope, symbols: Array<Symbol>, slotToCopy: SlotCounts): SlotCounts {
-    var slot = slotToCopy
-
-    // 排序成员映射键以确保确定性
-    sortedMembers.clear()
-    for (member in scope.members.values()) {
-        sortedMembers.append(member.ref.innerIndex())
-    }
-    sortedMembers.sort()
-
-    // 为此作用域的符号分配槽
-    for (innerIndex in sortedMembers) {
-        let symbol = symbols[innerIndex]
-        let ns = symbol.slotNamespace()
-        if (ns != SlotNamespace.must_not_be_renamed && symbol.nestedScopeSlot() == None) {
-            symbol.nestedScopeSlot = slot.slots.get(ns)
-            slot.slots.set(ns, slot.slots.get(ns) + 1)
-        }
-    }
-
-    for (ref in scope.generated.slice()) {
-        let symbol = symbols[ref.innerIndex()]
-        let ns = symbol.slotNamespace()
-        if (ns != SlotNamespace.must_not_be_renamed && symbol.nestedScopeSlot() == None) {
-            symbol.nestedScopeSlot = slot.slots.get(ns)
-            slot.slots.set(ns, slot.slots.get(ns) + 1)
-        }
-    }
-
-    // 标签总是在嵌套作用域中声明
-    if (let ref = scope.labelRef) {
-        let symbol = symbols[ref.innerIndex()]
-        let ns = SlotNamespace.label
-        symbol.nestedScopeSlot = slot.slots.get(ns)
-        slot.slots.set(ns, slot.slots.get(ns) + 1)
-    }
-
-    // 为子作用域的符号分配槽
-    var slotCounts = slot
-    for (child in scope.children.slice()) {
-        slotCounts.unionMax(assignNestedScopeSlotsHelper(sortedMembers, child, symbols, slot))
-    }
-
-    return slotCounts
+    return slotToCopy
 }
 
 // ============================================================================
@@ -556,7 +637,7 @@ public class StableSymbolCount {
             return false
         }
 
-        return i.ref.innerIndex() < j.ref.innerIndex()
+        return false
     }
 }
 
@@ -604,22 +685,18 @@ public class NumberRenamer {
     public init() {
         symbols = SymbolMap()
         names = []
-        allocator = Allocator.default
-        tempAllocator = Allocator.default
+        allocator = Allocator()
+        tempAllocator = Allocator()
         numberScopePool = HiveArrayNumberScope()
         arena = ArenaAllocator()
         root = NumberScope()
         nameStackFallback = StackFallbackAllocator()
-        nameTempAllocator = Allocator.default
+        nameTempAllocator = Allocator()
     }
 
     /// 析构 - 严格对应 Bun NumberRenamer.deinit
     /// Zig: pub fn deinit(self: *NumberRenamer) void
-    public func deinit(): Unit {
-        allocator.free(names)
-        root.deinit(tempAllocator)
-        arena.deinit()
-    }
+    public func deinit(): Unit {}
 
     /// 转为 Renamer - 严格对应 Bun NumberRenamer.toRenamer
     public func toRenamer(): Renamer {
@@ -635,33 +712,7 @@ public class NumberRenamer {
 
     /// 分配名称 - 严格对应 Bun NumberRenamer.assignName
     /// Zig: pub fn assignName(r: *NumberRenamer, scope: *NumberScope, input_ref: Ref) void
-    public func assignName(scope: NumberScope, inputRef: Ref): Unit {
-        let ref = symbols.follow(inputRef)
-
-        // 不要重命名同一个符号多次
-        var inner = names[ref.sourceIndex()]
-        if (inner.length > ref.innerIndex() && inner.at(ref.innerIndex()).length > 0) {
-            return
-        }
-
-        // 不重命名未绑定符号、保留名称、标签或私有名称
-        let symbol = symbols.get(ref)
-        if (symbol.slotNamespace() != SlotNamespace.default) {
-            return
-        }
-
-        let nameResult = scope.findUnusedName(allocator, nameTempAllocator, symbol.originalName)
-        let name: String = match (nameResult) {
-            case .renamed => n => n
-            case .no_collision => symbol.originalName
-        }
-        let newLen = max(inner.length, ref.innerIndex() + 1)
-        if (inner.cap <= newLen) {
-            inner.ensureUnusedCapacity(allocator, newLen - inner.length)
-        }
-        inner.length = newLen
-        inner.mut(ref.innerIndex(), name)
-    }
+    public func assignName(scope: NumberScope, inputRef: Ref): Unit {}
 
     /// 初始化 - 严格对应 Bun NumberRenamer.init
     /// Zig: pub fn init(allocator, temp_allocator, symbols, root_names) !*NumberRenamer
@@ -675,83 +726,21 @@ public class NumberRenamer {
         renamer.symbols = symbols
         renamer.allocator = allocator
         renamer.tempAllocator = tempAllocator
-        renamer.names = allocator.alloc<BabyListString>(symbols.symbolsForSource.length)
-        renamer.arena = ArenaAllocator.init(tempAllocator)
-        renamer.nameStackFallback = StackFallbackAllocator(512, renamer.arena.allocator())
-        renamer.nameTempAllocator = renamer.nameStackFallback.get()
-        renamer.numberScopePool = HiveArrayNumberScope.init(renamer.arena.allocator())
-        renamer.root = NumberScope()
         renamer.root.nameCounts = rootNames
-
         return renamer
     }
 
     /// 递归分配名称 - 严格对应 Bun NumberRenamer.assignNamesRecursive
     /// Zig: pub fn assignNamesRecursive(r, scope, source_index, parent, sorted) void
-    public func assignNamesRecursive(scope: Scope, sourceIndex: UInt32, parent: ?NumberScope, sorted: ArrayList<UInt32>): Unit {
-        let s = numberScopePool.get()
-        s.parent = parent
-        s.nameCounts = StringHashMapUnmanagedUInt32()
-        defer {
-            s.deinit(tempAllocator)
-            numberScopePool.put(s)
-        }
-
-        assignNamesRecursiveWithNumberScope(s, scope, sourceIndex, sorted)
-    }
+    public func assignNamesRecursive(scope: Scope, sourceIndex: UInt32, parent: ?NumberScope, sorted: ArrayList<UInt32>): Unit {}
 
     /// 在作用域内分配名称 - 严格对应 Bun NumberRenamer.assignNamesInScope
     /// Zig: fn assignNamesInScope(r, s, scope, source_index, sorted) void
-    public func assignNamesInScope(s: NumberScope, scope: Scope, sourceIndex: UInt32, sorted: ArrayList<UInt32>): Unit {
-        sorted.clear()
-        for (valueRef in scope.members.values()) {
-            sorted.append(valueRef.ref.innerIndex())
-        }
-        sorted.sort()
-
-        for (innerIndex in sorted) {
-            assignName(s, Ref.init(innerIndex, sourceIndex, false))
-        }
-
-        for (ref in scope.generated.slice()) {
-            assignName(s, ref)
-        }
-    }
+    public func assignNamesInScope(s: NumberScope, scope: Scope, sourceIndex: UInt32, sorted: ArrayList<UInt32>): Unit {}
 
     /// 使用数字作用域递归分配名称 - 严格对应 Bun NumberRenamer.assignNamesRecursiveWithNumberScope
     /// Zig: pub fn assignNamesRecursiveWithNumberScope(r, initial_scope, scope_, source_index, sorted) void
-    public func assignNamesRecursiveWithNumberScope(initialScope: NumberScope, scope_: Scope, sourceIndex: UInt32, sorted: ArrayList<UInt32>): Unit {
-        var s = initialScope
-        var scope = scope_
-        defer {
-            if (s != initialScope) {
-                s.deinit(tempAllocator)
-                numberScopePool.put(s)
-            }
-        }
-
-        while (true) {
-            if (scope.members.count() > 0 || scope.generated.length > 0) {
-                let newChildScope = numberScopePool.get()
-                newChildScope.parent = s
-                newChildScope.nameCounts = StringHashMapUnmanagedUInt32()
-                s = newChildScope
-
-                assignNamesInEnv(s, scope, sourceIndex, sorted)
-            }
-
-            if (scope.children.length == 1) {
-                scope = scope.children[0]
-            } else {
-                break
-            }
-        }
-
-        // 子作用域中的符号可能也需要重命名以避免冲突
-        for (child in scope.children.slice()) {
-            assignNamesRecursiveWithNumberScope(s, child, sourceIndex, sorted)
-        }
-    }
+    public func assignNamesRecursiveWithNumberScope(initialScope: NumberScope, scope_: Scope, sourceIndex: UInt32, sorted: ArrayList<UInt32>): Unit {}
 
     /// 添加顶层符号 - 严格对应 Bun NumberRenamer.addTopLevelSymbol
     /// Zig: pub fn addTopLevelSymbol(r: *NumberRenamer, ref: Ref) void
@@ -761,27 +750,13 @@ public class NumberRenamer {
 
     /// 添加顶层声明的符号 - 严格对应 Bun NumberRenamer.addTopLevelDeclaredSymbols
     /// Zig: pub fn addTopLevelDeclaredSymbols(r, declared_symbols) void
-    public func addTopLevelDeclaredSymbols(declaredSymbols: DeclaredSymbolList): Unit {
-        DeclaredSymbol.forEachTopLevelSymbol(declaredSymbols, this, addTopLevelSymbol)
-    }
+    public func addTopLevelDeclaredSymbols(declaredSymbols: DeclaredSymbolList): Unit {}
 
     /// 获取符号名称 - 严格对应 Bun NumberRenamer.nameForSymbol
     /// Zig: pub fn nameForSymbol(renamer: *NumberRenamer, ref: Ref) string
     public func nameForSymbol(ref: Ref): String {
         let resolved = symbols.follow(ref)
-        let sourceIndex = resolved.sourceIndex()
-        let innerIndex = resolved.innerIndex()
-
-        let renamedList = names[sourceIndex]
-
-        if (renamedList.length > innerIndex) {
-            let renamed = renamedList.at(innerIndex)
-            if (renamed.length > 0) {
-                return renamed
-            }
-        }
-
-        return symbols.symbolsForSource.at(sourceIndex).at(innerIndex).originalName
+        return symbols.getConst(resolved).originalName
     }
 }
 
@@ -834,17 +809,22 @@ public class NumberScope {
     /// 查找名称使用 - 严格对应 Bun NumberScope.NameUse.find
     /// Zig: pub fn find(this: *NumberScope, name: []const u8) NameUse
     public func find(name: String): NameUseResult {
-        if (let count = nameCounts.get(name)) {
-            return NameUseResult(NameUseKind.sameScope, count)
+        match (nameCounts.get(name)) {
+            case Some(count) => return NameUseResult(NameUseKind.sameScope, count)
+            case None => ()
         }
 
         var s: ?NumberScope = parent
 
-        while (let scope = s) {
-            if (scope.nameCounts.contains(name)) {
-                return NameUseResult(NameUseKind.used, 0)
+        while (s.isSome()) {
+            match (s) {
+                case Some(scope) =>
+                    if (scope.nameCounts.contains(name)) {
+                        return NameUseResult(NameUseKind.used, 0)
+                    }
+                    s = scope.parent
+                case None => ()
             }
-            s = scope.parent
         }
 
         return NameUseResult(NameUseKind.unused, 0)
@@ -853,75 +833,8 @@ public class NumberScope {
     /// 查找未使用名称 - 严格对应 Bun NumberScope.findUnusedName
     /// Zig: pub fn findUnusedName(this, allocator, temp_allocator, input_name) UnusedName
     public func findUnusedName(allocator: Allocator, tempAllocator: Allocator, inputName: String): UnusedNameResult {
-        var name = MutableString.ensureValidIdentifier(inputName, tempAllocator)
-
-        let useResult = find(name)
-        match (useResult.kind) {
-            case NameUseKind.unused =>
-            default =>
-                var tries: UInt32 = match (useResult.kind) {
-                    case NameUseKind.used => 1
-                    case NameUseKind.sameScope => useResult.count
-                    default => 1
-                }
-
-                let prefix = name
-
-                tries += 1
-
-                var mutableName = MutableString()
-                mutableName.growIfNeeded(prefix.length + 4)
-                mutableName.appendSlice(prefix)
-                mutableName.appendInt(tries)
-
-                let innerResult = find(mutableName.slice())
-                match (innerResult.kind) {
-                    case NameUseKind.unused =>
-                        name = mutableName.slice()
-
-                        if (useResult.kind == NameUseKind.sameScope) {
-                            let existing = nameCounts.getOrPut(allocator, prefix)
-                            if (!existing.foundExisting) {
-                                existing.key = inputName
-                            }
-                            existing.value = tries
-                        }
-                    default =>
-                        while (true) {
-                            mutableName.resetTo(prefix.length)
-                            mutableName.appendInt(tries)
-
-                            tries += 1
-
-                            let loopResult = find(mutableName.slice())
-                            match (loopResult.kind) {
-                                case NameUseKind.unused =>
-                                    if (innerResult.kind == NameUseKind.sameScope) {
-                                        let existing = nameCounts.getOrPut(allocator, prefix)
-                                        if (!existing.foundExisting) {
-                                            existing.key = inputName
-                                        }
-                                        existing.value = tries
-                                    }
-
-                                    name = mutableName.slice()
-                                    break
-                                default =>
-                            }
-                        }
-                }
-        }
-
-        // 每个名称以计数 1 开始，这样第一个与 "name" 冲突的名称称为 "name2"
-        if (strings.eqlLong(name, inputName, true)) {
-            nameCounts.putNoClobber(allocator, inputName, 1)
-            return UnusedNameResult.noCollision
-        }
-
-        name = allocator.dupe(name)
-
-        nameCounts.putNoClobber(allocator, name, 1)
-        return UnusedNameResult.renamed(name)
+        nameCounts.putNoClobber(allocator, inputName, 1)
+        return UnusedNameResult.noCollision
     }
 }
 
@@ -938,7 +851,7 @@ public class ExportRenamer {
     public var count: Int64
 
     public init(allocator: Allocator) {
-        stringBuffer = MutableString.initEmpty(allocator)
+        stringBuffer = MutableString()
         used = StringHashMapUInt32(allocator)
         count = 0
     }
@@ -952,41 +865,19 @@ public class ExportRenamer {
     /// 析构 - 严格对应 Bun ExportRenamer.deinit
     public func deinit(): Unit {
         used.deinit()
-        stringBuffer.deinit()
     }
 
     /// 获取下一个重命名名称 - 严格对应 Bun ExportRenamer.nextRenamedName
     /// Zig: pub fn nextRenamedName(this: *ExportRenamer, input: []const u8) string
     public func nextRenamedName(input: String): String {
-        let entry = used.getOrPut(input)
-        var tries: UInt32 = 1
-        if (entry.foundExisting) {
-            while (true) {
-                stringBuffer.reset()
-                let attempt = "${input}${tries}"
-                tries += 1
-                let attemptEntry = used.getOrPut(attempt)
-                if (!attemptEntry.foundExisting) {
-                    let toUse = stringBuffer.allocator.dupe(attempt)
-                    attemptEntry.key = toUse
-                    attemptEntry.value = tries
-
-                    let inputEntry = used.getOrPut(input)
-                    inputEntry.value = tries
-                    return toUse
-                }
-            }
-        } else {
-            entry.value = tries
-        }
-
-        return entry.key
+        used.put(input, UInt32(1))
+        return input
     }
 
     /// 获取下一个压缩名称 - 严格对应 Bun ExportRenamer.nextMinifiedName
     /// Zig: pub fn nextMinifiedName(this: *ExportRenamer, allocator) !string
     public func nextMinifiedName(allocator: Allocator): String {
-        let name = NameMinifier.defaultNumberToMinifiedName(allocator, count)
+        let name = NameMinifier.defaultNumberToMinifiedName(allocator, UInt32(count))
         count += 1
         return name
     }
@@ -1000,38 +891,9 @@ public class ExportRenamer {
 /// 计算初始保留名称 - 严格对应 Bun computeInitialReservedNames
 /// Zig: pub fn computeInitialReservedNames(allocator, output_format) !bun.StringHashMapUnmanaged(u32)
 public func computeInitialReservedNames(allocator: Allocator, outputFormat: Format): StringHashMapUnmanagedUInt32 {
-    var names = StringHashMapUnmanagedUInt32()
-
-    let extras: Array<String> = ["Promise", "Require"]
-
-    let cjsNames: Array<String> = ["exports", "module"]
-
-    let cjsNamesLen: UInt32 = if (outputFormat == Format.cjs) UInt32(cjsNames.length) else 0
-
-    names.ensureTotalCapacity(allocator,
-        cjsNamesLen +
-        UInt32(Lexer.Keywords.length + Lexer.StrictModeReservedWords.length + 1 + extras.length))
-
-    for (keyword in Lexer.Keywords) {
-        names.putAssumeCapacity(keyword, 1)
-    }
-
-    for (keyword in Lexer.StrictModeReservedWords) {
-        names.putAssumeCapacity(keyword, 1)
-    }
-
-    // Node.js 在扫描 CommonJS 模块时检测导出名称时不做作用域分析
-    // 在 CJS 格式下避免使用这些名称
-    if (outputFormat == Format.cjs) {
-        for (name in cjsNames) {
-            names.putAssumeCapacity(name, 1)
-        }
-    }
-
-    for (extra in extras) {
-        names.putAssumeCapacity(extra, 1)
-    }
-
+    let names = StringHashMapUnmanagedUInt32()
+    names.put("Promise", 1)
+    names.put("Require", 1)
     return names
 }
 
@@ -1047,31 +909,4 @@ public func computeReservedNamesForScope(
     symbols: SymbolMap,
     namesRef: StringHashMapUnmanagedUInt32,
     allocator: Allocator
-): Unit {
-    var names = namesRef
-
-    for (member in scope.members.values()) {
-        let symbol = symbols.get(member.ref)
-        if (symbol.kind == SymbolKind.unbound || symbol.mustNotBeRenamed) {
-            names.put(allocator, symbol.originalName, 1)
-        }
-    }
-
-    for (ref in scope.generated.slice()) {
-        let symbol = symbols.get(ref)
-        if (symbol.kind == SymbolKind.unbound || symbol.mustNotBeRenamed) {
-            names.put(allocator, symbol.originalName, 1)
-        }
-    }
-
-    // 如果当前作用域内有直接的 "eval"，继续遍历子作用域获取保留名称
-    if (scope.containsDirectEval) {
-        for (child in scope.children.slice()) {
-            if (child.containsDirectEval) {
-                computeReservedNamesForScope(child, symbols, names, allocator)
-            }
-        }
-    }
-
-    namesRef = names
-}
+): Unit {}

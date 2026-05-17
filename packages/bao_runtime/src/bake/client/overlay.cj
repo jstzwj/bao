@@ -208,7 +208,7 @@ export function onServerErrorPayload(view: DataView<ArrayBuffer>) {
 
   for (let i = 0; i < removedCount; i++) {
     const removed = reader.u32();
-    updatedErrorOwners.add(removed);
+    updatedErrorOwners.append(removed);
     buildErrors.delete(removed);
   }
 
@@ -380,7 +380,7 @@ export function decodeAndAppendServerError(r: DataViewReader) {
     messages[i] = decodeSerializedError(r);
   }
   buildErrors.set(owner, { file, messages });
-  updatedErrorOwners.add(owner);
+  updatedErrorOwners.append(owner);
 
   activeErrorIndex = -1;
   needUpdateNavbar = true;

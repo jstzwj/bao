@@ -7,6 +7,7 @@ import bao_collections.*
 import bao_io.*
 import bao_path.*
 import bao_hash.*
+import bao_sys.*
 
 // ============================================================================
 // FolderResolution — corresponds to Bun install/resolvers/folder_resolver.zig
@@ -33,7 +34,7 @@ public class FolderResolution {
         errorMessage = ""
     }
 
-    public static func packageId(id: Int64): FolderResolution {
+    public static func fromPackageId(id: Int64): FolderResolution {
         let r = FolderResolution()
         r.tag = FolderResolutionTag.PackageId
         r.packageId = id
@@ -182,7 +183,7 @@ public class FolderResolver {
             case None => ()
         }
 
-        if (!BaoFile.exists(paths.abs)) {
+        if (!SysFs.exists(paths.abs)) {
             let missing = FolderResolution.err("MissingPackageJSON")
             folders.put(absHash, missing)
             return missing
@@ -192,7 +193,7 @@ public class FolderResolver {
         match (result.tag) {
             case FolderResolutionTag.Err => folders.put(absHash, result)
             case FolderResolutionTag.PackageId => folders.put(absHash, result)
-            case FolderResolutionTag.NewPackageId => folders.put(absHash, FolderResolution.packageId(result.packageId))
+            case FolderResolutionTag.NewPackageId => folders.put(absHash, FolderResolution.fromPackageId(result.packageId))
         }
         return result
     }
@@ -201,21 +202,22 @@ public class FolderResolver {
     /// and return a package id. Bao's full lockfile PackageManager wiring is still
     /// represented by the caller-owned `folders` map in this port.
     private func readPackageJSONFromDisk(abs: String, version: String, rel: String): FolderResolution {
-        try {
-            let source = BaoFile.readAllText(abs)
-            let id = Int64(FolderResolver.hash(abs + "\n" + rel + "\n" + version + "\n" + source) & UInt64(0x7FFFFFFFFFFFFFFF))
-            return FolderResolution.newPackageId(id)
-        } catch (e: Exception) {
-            return FolderResolution.err(e.message)
+        let sourceResult = BaoFile.readAllText(abs)
+        match (sourceResult) {
+            case SysMaybe<String>.Ok(source) =>
+                let id = Int64(FolderResolver.hash(abs + "\n" + rel + "\n" + version + "\n" + source) & UInt64(0x7FFFFFFFFFFFFFFF))
+                return FolderResolution.newPackageId(id)
+            case SysMaybe<String>.Err(err) =>
+                return FolderResolution.err(err.toString())
         }
     }
 
     private static func trimTrailingSeparators(path: String): String {
         var end = path.size
-        while (end > 1 && (path[end - 1] == '/' || path[end - 1] == '\\')) {
+        while (end > 1 && (path[Int64(end - 1)] == UInt8(47) || path[Int64(end - 1)] == UInt8(92))) {
             end -= 1
         }
-        return path[0..end]
+        return path[Int64(0)..Int64(end)]
     }
 
     private static func dirname(path: String): String {

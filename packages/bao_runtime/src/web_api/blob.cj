@@ -3,8 +3,10 @@
 // 严格翻译自 Bun 的 Blob / File API
 package bao_runtime.web_api
 
-import bao_core.*
 import bao_collections.*
+import bao_runtime.*
+import bao_core.BaoString
+import bao_sys.*
 
 // ============================================================================
 // Blob — 二进制大对象
@@ -15,11 +17,11 @@ import bao_collections.*
 /// Blob — 二进制大对象
 /// 对应 Web API: Blob
 /// 对应 Bun: src/runtime/webcore/Blob.zig Blob
-public class Blob {
+public open class Blob {
     /// 内部字节数据
     public var data: Array<UInt8>
     /// MIME 类型
-    public var type: String
+    public var `type`: String
     /// Blob 大小
     public var size: Int64
     /// 编码
@@ -27,23 +29,23 @@ public class Blob {
 
     public init() {
         data = Array<UInt8>()
-        type = ""
+        `type` = ""
         size = 0
         encoding = "utf-8"
     }
 
     public init(data: Array<UInt8>, mimeType: String) {
         this.data = data
-        this.type = mimeType
+        this.`type` = mimeType
         this.size = Int64(data.size)
         this.encoding = "utf-8"
     }
 
     public init(data: Array<UInt8>, options: BlobOptions) {
         this.data = data
-        this.type = options.type
+        this.`type` = options.`type`
         this.size = Int64(data.size)
-        this.encoding = if (options.encoding.length > 0) { options.encoding } else { "utf-8" }
+        this.encoding = if (options.encoding.size > 0) { options.encoding } else { "utf-8" }
     }
 
     /// 将 Blob 的内容读取为 ArrayBuffer (Array<UInt8>)
@@ -69,7 +71,7 @@ public class Blob {
     /// 对应 Web API: 不标准，但广泛使用
     public func dataURL(): String {
         let base64 = Base64Codec.encode(data)
-        let mediaType = if (type.length > 0) { type } else { "application/octet-stream" }
+        let mediaType = if (`type`.size > 0) { `type` } else { "application/octet-stream" }
         return "data:${mediaType};base64,${base64}"
     }
 
@@ -77,14 +79,14 @@ public class Blob {
     /// 对应 Web API: blob.slice(start, end, contentType)
     public func slice(start: Int64, end: Int64, contentType: String): Blob {
         let effectiveStart = if (start < 0) {
-            Int64(Math.max(Int64(0), size + start))
+            if (Int64(0) > size + start) { Int64(0) } else { size + start }
         } else {
-            Int64(Math.min(start, size))
+            if (start < size) { start } else { size }
         }
         let effectiveEnd = if (end < 0) {
-            Int64(Math.max(Int64(0), size + end))
+            if (Int64(0) > size + end) { Int64(0) } else { size + end }
         } else {
-            Int64(Math.min(end, size))
+            if (end < size) { end } else { size }
         }
 
         if (effectiveStart >= effectiveEnd) {
@@ -92,8 +94,8 @@ public class Blob {
         }
 
         let length = effectiveEnd - effectiveStart
-        let sliceData = Array<UInt8>(length, item: UInt8(0))
-        for (i in 0..length) {
+        let sliceData = Array<UInt8>(length, { _ => 0 })
+        for (i in 0..size) {
             sliceData[Int64(i)] = data[effectiveStart + Int64(i)]
         }
 
@@ -125,12 +127,12 @@ public class Blob {
     }
 
     /// 转为 JsValue
-    public func toJsValue(): JsValue {
+    public open func toJsValue(): JsValue {
         let obj = JsObject()
         let self = this
 
         obj.set("size", JsValue(Float64(self.size)))
-        obj.set("type", JsValue(BaoString(self.type)))
+        obj.set("type", JsValue(BaoString(self.`type`)))
 
         obj.set("arrayBuffer", JsValue.nativeFunction(JsNativeFunction("arrayBuffer") { _ =>
             let bytes = self.arrayBuffer()
@@ -173,26 +175,26 @@ public class Blob {
 /// 对应 Web API: BlobPropertyBag
 public class BlobOptions {
     /// MIME 类型
-    public var type: String
+    public var `type`: String
     /// 编码
     public var encoding: String
     /// 结尾符 (transparent / native)
     public var endings: String
 
     public init() {
-        type = ""
+        `type` = ""
         encoding = "utf-8"
         endings = "transparent"
     }
 
-    public init(type: String) {
-        this.type = type
+    public init(`type`: String) {
+        this.`type` = `type`
         this.encoding = "utf-8"
         this.endings = "transparent"
     }
 
-    public init(type: String, encoding: String, endings: String) {
-        this.type = type
+    public init(`type`: String, encoding: String, endings: String) {
+        this.`type` = `type`
         this.encoding = encoding
         this.endings = endings
     }
@@ -208,7 +210,7 @@ public class BlobOptions {
 /// 继承 Blob 的所有功能，并增加文件名和最后修改时间
 /// 对应 Web API: File
 /// 对应 Bun: src/runtime/webcore/Blob.zig (File variant)
-public class File extends Blob {
+public class File <: Blob {
     /// 文件名
     public var name: String
     /// 最后修改时间 (毫秒时间戳)
@@ -221,7 +223,7 @@ public class File extends Blob {
     }
 
     public init(data: Array<UInt8>, name: String, options: FileOptions) {
-        super(data, BlobOptions(options.type))
+        super(data, BlobOptions(options.`type`))
         this.name = name
         this.lastModified = if (options.lastModified >= 0) {
             options.lastModified
@@ -237,12 +239,12 @@ public class File extends Blob {
     }
 
     /// 转为 JsValue
-    public func toJsValue(): JsValue {
+    public override func toJsValue(): JsValue {
         let obj = JsObject()
         let self = this
 
         obj.set("size", JsValue(Float64(self.size)))
-        obj.set("type", JsValue(BaoString(self.type)))
+        obj.set("type", JsValue(BaoString(self.`type`)))
         obj.set("name", JsValue(BaoString(self.name)))
         obj.set("lastModified", JsValue(Float64(self.lastModified)))
 
@@ -275,7 +277,7 @@ public class File extends Blob {
 
     /// 获取当前时间戳 (毫秒)
     private static func currentTimeMillis(): Int64 {
-        return bao_sys.SysModule.currentTimeMillis()
+        return SysModule.currentTimeMillis()
     }
 }
 
@@ -288,17 +290,17 @@ public class File extends Blob {
 /// 对应 Web API: FilePropertyBag
 public class FileOptions {
     /// MIME 类型
-    public var type: String
+    public var `type`: String
     /// 最后修改时间
     public var lastModified: Int64
 
     public init() {
-        type = ""
+        `type` = ""
         lastModified = -1
     }
 
-    public init(type: String, lastModified: Int64) {
-        this.type = type
+    public init(`type`: String, lastModified: Int64) {
+        this.`type` = `type`
         this.lastModified = lastModified
     }
 }
@@ -331,8 +333,8 @@ public class BlobStreamReader {
         }
 
         let remaining = blob.size - position
-        let chunkSize = Math.min(DEFAULT_CHUNK_SIZE, remaining)
-        let chunk = Array<UInt8>(chunkSize, item: UInt8(0))
+        let chunkSize = if (DEFAULT_CHUNK_SIZE < remaining) { DEFAULT_CHUNK_SIZE } else { remaining }
+        let chunk = Array<UInt8>(chunkSize, { _ => 0 })
 
         for (i in 0..chunkSize) {
             chunk[Int64(i)] = blob.data[position + Int64(i)]
@@ -358,7 +360,7 @@ public class BlobStreamReader {
 
         obj.set("read", JsValue.nativeFunction(JsNativeFunction("read") { _ =>
             match (self.read()) {
-                case Some(chunk) => {
+                case Some(chunk) =>
                     let arr = ArrayList<JsValue>()
                     for (b in chunk) {
                         arr.append(JsValue(Float64(Int64(b))))
@@ -367,13 +369,11 @@ public class BlobStreamReader {
                     chunkObj.set("done", JsValue(false))
                     chunkObj.set("value", JsValue.array(arr))
                     return JsValue(chunkObj)
-                }
-                case None => {
+                case None =>
                     let doneObj = JsObject()
                     doneObj.set("done", JsValue(true))
                     doneObj.set("value", JsValue.NULL)
                     return JsValue(doneObj)
-                }
             }
         }))
 
@@ -394,13 +394,13 @@ public class Base64Codec {
     /// 将字节数组编码为 Base64 字符串
     public static func encode(data: Array<UInt8>): String {
         let sb = StringBuilder()
-        var i = 0
+        var i: Int64 = 0
         let len = data.size
 
         while (i + 2 < len) {
-            let b0 = Int64(data[Int64(i)])
-            let b1 = Int64(data[Int64(i + 1)])
-            let b2 = Int64(data[Int64(i + 2)])
+            let b0 = Int64(data[i])
+            let b1 = Int64(data[i + 1])
+            let b2 = Int64(data[i + 2])
 
             sb.append(base64Char((b0 >> 2) & 0x3F))
             sb.append(base64Char(((b0 & 0x03) << 4) | ((b1 >> 4) & 0x0F)))
@@ -411,17 +411,17 @@ public class Base64Codec {
         }
 
         if (i < len) {
-            let b0 = Int64(data[Int64(i)])
+            let b0 = Int64(data[i])
             sb.append(base64Char((b0 >> 2) & 0x3F))
             sb.append(base64Char((b0 & 0x03) << 4))
 
             if (i + 1 < len) {
-                let b1 = Int64(data[Int64(i + 1)])
+                let b1 = Int64(data[i + 1])
                 sb.append(base64Char(((b1 & 0x0F) << 2)))
             } else {
-                sb.append('=')
+                sb.append(String(Rune(61))) // '='
             }
-            sb.append('=')
+            sb.append(String(Rune(61))) // '='
         }
 
         return sb.toString()
@@ -434,7 +434,7 @@ public class Base64Codec {
         var bits: Int64 = 0
 
         for (c in str) {
-            if (c == '=') { break }
+            if (c == UInt8(61)) { break } // '='
             let val = base64Value(c)
             if (val < 0) { continue }
             buffer = (buffer << 6) | val
@@ -445,19 +445,24 @@ public class Base64Codec {
             }
         }
 
-        return result.toArray()
+        return result.toOwnedSlice()
     }
 
-    private static func base64Char(index: Int64): Char {
-        return BASE64_CHARS[Int64(index)]
+    private static func base64Char(index: Int64): String {
+        let bytes = Utf8Codec.encode(BASE64_CHARS)
+        if (index >= 0 && index < bytes.size) {
+            return String(Rune(Int32(bytes[index])))
+        }
+        return "?"
     }
 
-    private static func base64Value(c: Char): Int64 {
-        if (c >= 'A' && c <= 'Z') { return Int64(c) - Int64('A') }
-        if (c >= 'a' && c <= 'z') { return Int64(c) - Int64('a') + 26 }
-        if (c >= '0' && c <= '9') { return Int64(c) - Int64('0') + 52 }
-        if (c == '+') { return 62 }
-        if (c == '/') { return 63 }
+    private static func base64Value(c: UInt8): Int64 {
+        let v = Int64(c)
+        if (v >= 65 && v <= 90) { return v - 65 }       // A-Z
+        if (v >= 97 && v <= 122) { return v - 97 + 26 } // a-z
+        if (v >= 48 && v <= 57) { return v - 48 + 52 }  // 0-9
+        if (v == 43) { return 62 } // +
+        if (v == 47) { return 63 } // /
         return -1
     }
 }
@@ -478,30 +483,27 @@ public class BlobModule {
             // 解析第一个参数 (blobParts)
             if (args.size >= 1) {
                 match (args[0].arrayData) {
-                    case Some(arr) => {
+                    case Some(arr) =>
                         let bytes = ArrayList<UInt8>()
                         for (v in arr) {
                             bytes.append(UInt8(Int64(Interpreter.jsToNumber(v))))
                         }
-                        data = bytes.toArray()
-                    }
-                    case None => {
+                        data = bytes.toOwnedSlice()
+                    case None =>
                         // 尝试从字符串创建
                         let str = Interpreter.jsToString(args[0])
                         data = Utf8Codec.encode(str)
-                    }
                 }
             }
 
             // 解析第二个参数 (options)
             if (args.size >= 2) {
                 match (args[1].objectData) {
-                    case Some(obj) => {
+                    case Some(obj) =>
                         let typeVal = obj.get("type")
                         if (typeVal.valueType == JsValueType.String) {
                             mimeType = typeVal.stringValue.toString()
                         }
-                    }
                     case None => ()
                 }
             }
@@ -520,17 +522,15 @@ public class BlobModule {
             // 解析第一个参数 (fileParts)
             if (args.size >= 1) {
                 match (args[0].arrayData) {
-                    case Some(arr) => {
+                    case Some(arr) =>
                         let bytes = ArrayList<UInt8>()
                         for (v in arr) {
                             bytes.append(UInt8(Int64(Interpreter.jsToNumber(v))))
                         }
-                        data = bytes.toArray()
-                    }
-                    case None => {
+                        data = bytes.toOwnedSlice()
+                    case None =>
                         let str = Interpreter.jsToString(args[0])
                         data = Utf8Codec.encode(str)
-                    }
                 }
             }
 
@@ -542,7 +542,7 @@ public class BlobModule {
             // 解析第三个参数 (options)
             if (args.size >= 3) {
                 match (args[2].objectData) {
-                    case Some(obj) => {
+                    case Some(obj) =>
                         let typeVal = obj.get("type")
                         if (typeVal.valueType == JsValueType.String) {
                             mimeType = typeVal.stringValue.toString()
@@ -551,7 +551,6 @@ public class BlobModule {
                         if (lmVal.valueType == JsValueType.Number) {
                             lastModified = Int64(Interpreter.jsToNumber(lmVal))
                         }
-                    }
                     case None => ()
                 }
             }

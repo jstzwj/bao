@@ -25,6 +25,7 @@ package bao_install
 import bao_core.*
 import bao_collections.*
 import bao_io.*
+import bao_sys.*
 import bao_hash.*
 import bao_path.*
 import bao_http.*
@@ -551,7 +552,7 @@ public class PackageManager {
         manager.log = log
         manager.env = env
         manager.subcommand = subcommand
-        manager.cpuCount = bao_sys.SysModule.cpuCount()
+        manager.cpuCount = SysModule.cpuCount()
 
         // 设置缓存目录
         manager.cacheDirectoryPath = resolveCacheDirectory(env)
@@ -584,7 +585,7 @@ public class PackageManager {
         manager.log = log
         manager.env = env
         manager.subcommand = PackageSubcommand.Install
-        manager.cpuCount = bao_sys.SysModule.cpuCount()
+        manager.cpuCount = SysModule.cpuCount()
         return manager
     }
 
@@ -603,7 +604,7 @@ public class PackageManager {
     /// 翻译自: PackageManager.sleepUntil
     public func sleepUntil(isDone: () -> Bool): Unit {
         while (!isDone()) {
-            bao_sys.SysModule.sleep(1) // 1ms
+            SysModule.sleep(1) // 1ms
             runTasks()
         }
     }
@@ -611,7 +612,7 @@ public class PackageManager {
     /// 休眠
     /// 翻译自: PackageManager.sleep
     public func sleep(): Unit {
-        bao_sys.SysModule.sleep(10) // 10ms
+        SysModule.sleep(10) // 10ms
     }
 
     /// 崩溃
@@ -620,7 +621,7 @@ public class PackageManager {
         if (options.logLevel != LogLevel.Silent) {
             log.print()
         }
-        bao_core.Output.error("Install failed")
+        Output.printErrorln("Install failed")
     }
 
     /// 失败的根解析
@@ -643,7 +644,7 @@ public class PackageManager {
             case None => ()
         }
         // 默认: ~/.bun/install/cache
-        match (bao_sys.SysModule.getEnv("HOME")) {
+        match (SysModule.getEnv("HOME")) {
             case Some(home) => return "${home}/.bun/install/cache"
             case None => return ".bun/install/cache"
         }
@@ -652,7 +653,7 @@ public class PackageManager {
     /// 获取缓存目录
     /// 翻译自: PackageManager.getCacheDirectory
     public func getCacheDirectory(): String {
-        if (cacheDirectoryPath.length == 0) {
+        if (cacheDirectoryPath.size == 0) {
             cacheDirectoryPath = resolveCacheDirectory(env)
         }
         return cacheDirectoryPath
@@ -661,7 +662,7 @@ public class PackageManager {
     /// 获取临时目录
     /// 翻译自: PackageManager.getTemporaryDirectory
     public func getTemporaryDirectory(): String {
-        if (temporaryDirectoryPath.length == 0) {
+        if (temporaryDirectoryPath.size == 0) {
             temporaryDirectoryPath = "${getCacheDirectory()}/tmp"
         }
         return temporaryDirectoryPath
@@ -672,23 +673,25 @@ public class PackageManager {
     public func getGlobalLinkDir(): ?String {
         match (globalLinkDir) {
             case Some(dir) => return dir
-            case None => {
-                match (bao_sys.SysModule.getEnv("HOME")) {
-                    case Some(home) => {
-                        let dir = "${home}/.bun/install/global/node_modules"
-                        globalLinkDir = dir
-                        return dir
-                    }
+            case None =>
+                let home = SysModule.getEnv("HOME")
+                match (home) {
+                    case Some(h) =>
+                        let path = "${h}/.bun/install/global/node_modules"
+                        if (!BaoFile.isDirectory(path)) {
+                            BaoFile.mkdir(path, true)
+                        }
+                        globalLinkDir = Some(path)
+                        return Some(path)
                     case None => return None
                 }
-            }
         }
     }
 
     /// 获取全局链接目录路径
     /// 翻译自: PackageManager.globalLinkDirPath
     public func getGlobalLinkDirPath(): String {
-        if (globalLinkDirPath.length == 0) {
+        if (globalLinkDirPath.size == 0) {
             match (getGlobalLinkDir()) {
                 case Some(dir) => globalLinkDirPath = dir
                 case None => globalLinkDirPath = ""
@@ -704,7 +707,7 @@ public class PackageManager {
     public func cachedNPMPackageFolderName(name: String, version: String, patchHash: ?UInt64): String {
         var folderName = "${name}@${version}"
         match (patchHash) {
-            case Some(hash) => folderName = "${folderName}_${bao_hash.Wyhash.toHexString(hash)}"
+            case Some(hash) => folderName = "${folderName}_${(hash)}"
             case None => ()
         }
         return folderName.replace("/", "+")
@@ -714,12 +717,11 @@ public class PackageManager {
     /// 翻译自: cachedGitFolderName
     public func cachedGitFolderName(repo: GitRepositoryInfo, patchHash: ?UInt64): String {
         var folderName = "git_${repo.owner}_${repo.repo}"
-        match (repo.committish) {
-            case c if c.length > 0 => folderName = "${folderName}_${c}"
-            case _ => ()
+        if (repo.committish.size > 0) {
+            folderName = "${folderName}_${repo.committish}"
         }
         match (patchHash) {
-            case Some(hash) => folderName = "${folderName}_${bao_hash.Wyhash.toHexString(hash)}"
+            case Some(hash) => folderName = "${folderName}_${(hash)}"
             case None => ()
         }
         return folderName
@@ -729,12 +731,11 @@ public class PackageManager {
     /// 翻译自: cachedGitHubFolderName
     public func cachedGitHubFolderName(repo: GitRepositoryInfo, patchHash: ?UInt64): String {
         var folderName = "github_${repo.owner}_${repo.repo}"
-        match (repo.committish) {
-            case c if c.length > 0 => folderName = "${folderName}_${c}"
-            case _ => ()
+        if (repo.committish.size > 0) {
+            folderName = "${folderName}_${repo.committish}"
         }
         match (patchHash) {
-            case Some(hash) => folderName = "${folderName}_${bao_hash.Wyhash.toHexString(hash)}"
+            case Some(hash) => folderName = "${folderName}_${(hash)}"
             case None => ()
         }
         return folderName
@@ -743,10 +744,10 @@ public class PackageManager {
     /// 获取 tarball 的缓存文件夹名
     /// 翻译自: cachedTarballFolderName
     public func cachedTarballFolderName(tarballUrl: String, patchHash: ?UInt64): String {
-        let hash = bao_hash.Wyhash.hash(0, tarballUrl.toByteArray())
-        var folderName = "tar_${bao_hash.Wyhash.toHexString(hash)}"
+        let hash = Wyhash.hash(tarballUrl)
+        var folderName = "tar_${(hash)}"
         match (patchHash) {
-            case Some(h) => folderName = "${folderName}_${bao_hash.Wyhash.toHexString(h)}"
+            case Some(h) => folderName = "${folderName}_${(h)}"
             case None => ()
         }
         return folderName
@@ -799,7 +800,7 @@ public class PackageManager {
     /// 处理 manifest 响应
     private func processManifestResponse(task: NetworkTask): Unit {
         match (task.manifestCallback) {
-            case Some(cb) => {
+            case Some(cb) =>
                 let response = PackageVersionResponse.fromResponse(
                     task.statusCode,
                     task.responseBody,
@@ -810,25 +811,18 @@ public class PackageManager {
                     timestampForManifestCacheControl,
                     cb.isExtendedManifest
                 )
-                // 缓存 manifest
                 match (response.tag) {
-                    case PackageVersionResponseTag.Fresh => {
+                    case PackageVersionResponseTag.Fresh =>
                         match (response.manifest) {
                             case Some(m) => manifests.put(cb.name, m)
                             case None => ()
                         }
-                    }
-                    case PackageVersionResponseTag.Cached => {
-                        // 使用缓存的 manifest
-                    }
-                    case PackageVersionResponseTag.NotFound => {
-                        // 404 错误
+                    case PackageVersionResponseTag.Cached=> ()
+                    case PackageVersionResponseTag.NotFound =>
                         if (!task.isOptional) {
-                            bao_core.Output.error("Package not found: ${cb.name}")
+                            Output.printErrorln("Package not found: ${cb.name}")
                         }
-                    }
                 }
-            }
             case None => ()
         }
     }
@@ -836,15 +830,13 @@ public class PackageManager {
     /// 处理提取响应
     private func processExtractResponse(task: NetworkTask): Unit {
         match (task.extractCallback) {
-            case Some(cb) => {
+            case Some(cb) =>
                 if (task.statusCode >= 200 && task.statusCode <= 299) {
-                    // 解压 tarball 到缓存
                     let cachePath = "${getCacheDirectory()}/${cb.name}"
-                    // 解压逻辑
+                    // TODO: extract tarball to cache
                 } else {
-                    bao_core.Output.error("Failed to download tarball for ${cb.name}: HTTP ${task.statusCode}")
+                    Output.printErrorln("Failed to download tarball for ${cb.name}: HTTP ${task.statusCode}")
                 }
-            }
             case None => ()
         }
     }
@@ -862,7 +854,7 @@ public class PackageManager {
         context: TaskCallbackContext,
         patchHash: ?UInt64
     ): Unit {
-        let taskId = bao_hash.Wyhash.hash(0, "${name}@${version}".toByteArray())
+        let taskId = Int64(Wyhash.hash("${name}@${version}"))
 
         // 检查去重
         if (networkDedupeMap.contains(taskId)) {
@@ -877,16 +869,16 @@ public class PackageManager {
         // 创建新的网络任务
         let task = NetworkTask(taskId)
         let tarballCb = ExtractTarballCallback(name, tarballUrl)
-        task.forTarball(tarballCb, registryScopes.scopeForPackageName(name), NetworkAuthorization.AllowAuthorization)
+        let scopeConfig = RegistryConfig(registryScopes.scopeForPackageName(name).url)
+        task.forTarball(tarballCb, scopeConfig, NetworkAuthorization.AllowAuthorization)
 
         networkDedupeMap.getOrInsert(taskId, true)
         match (taskQueue.get(taskId)) {
             case Some(list) => list.append(context)
-            case None => {
+            case None =>
                 let list = ArrayList<TaskCallbackContext>()
                 list.append(context)
                 taskQueue.put(taskId, list)
-            }
         }
 
         networkTaskQueue.push(task)
@@ -902,8 +894,9 @@ public class PackageManager {
         isOptional: Bool,
         needsExtended: Bool
     ): Unit {
-        let task = NetworkTask(bao_hash.Wyhash.hash(0, name.toByteArray()))
-        task.forManifest(name, scope, loadedManifest, isOptional, needsExtended)
+        let task = NetworkTask(Int64(Wyhash.hash(name)))
+        let scopeConfig = RegistryConfig(scope.url)
+        task.forManifest(name, scopeConfig, loadedManifest, isOptional, needsExtended)
         networkTaskQueue.push(task)
         incrementPendingTasks(1)
     }
@@ -1017,14 +1010,14 @@ public class PackageManager {
         if (Int64(pkgId) < preinstallState.size) {
             return preinstallState[Int64(pkgId)]
         }
-        return PreinstallState.Unknown
+        return PreinstallState.NotStarted
     }
 
     /// 设置预安装状态
     /// 翻译自: PackageManager.setPreinstallState
     public func setPreinstallState(pkgId: UInt32, lockfile: LockfileData, state: PreinstallState): Unit {
         while (Int64(pkgId) >= preinstallState.size) {
-            preinstallState.append(PreinstallState.Unknown)
+            preinstallState.append(PreinstallState.NotStarted)
         }
         preinstallState[Int64(pkgId)] = state
     }
@@ -1052,7 +1045,7 @@ public class PackageManager {
     public func buildGitHubURL(repo: GitRepositoryInfo): String {
         let owner = repo.owner
         let repoName = repo.repo
-        let committish = if (repo.committish.length > 0) { repo.committish } else { "HEAD" }
+        let committish = if (repo.committish.size > 0) { repo.committish } else { "HEAD" }
         return "https://codeload.github.com/${owner}/${repoName}/tar.gz/${committish}"
     }
 }
@@ -1064,7 +1057,7 @@ public class PackageManager {
 /// 分配器 (抽象)
 public class Allocator {
     public func alloc(size: Int64): Array<UInt8> {
-        return Array<UInt8>(size, item: UInt8(0))
+        return Array<UInt8>(size, repeat: UInt8(0))
     }
 }
 
@@ -1092,10 +1085,10 @@ public class Log {
 
     public func print(): Unit {
         for (e in errors) {
-            bao_core.Output.error(e)
+            Output.printErrorln(e)
         }
         for (w in warnings) {
-            bao_core.Output.warn(w)
+            Output.warn(w)
         }
     }
 }
@@ -1145,7 +1138,7 @@ public class FolderResolution {
     }
 
     public static func hash(path: String): UInt64 {
-        return UInt64(bao_hash.Wyhash.hash(0, path.toByteArray()))
+        return UInt64(Wyhash.hash(path))
     }
 }
 
@@ -1205,3 +1198,5 @@ public class UpdateRequest {
         packageId = INVALID_PACKAGE_ID
     }
 }
+
+

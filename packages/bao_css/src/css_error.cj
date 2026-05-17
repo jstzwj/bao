@@ -3,6 +3,14 @@ package bao_css
 
 import bao_core.*
 
+public class Token {
+    public init() {}
+
+    public func toString(): String {
+        ""
+    }
+}
+
 // ============================================================================
 // PrinterErrorKind - 打印器错误类型
 // 严格翻译自: error.zig PrinterErrorKind
@@ -63,7 +71,7 @@ public class PrinterError {
 /// 创建一个 fmt 错误
 /// 严格翻译自 fmtPrinterError()
 public func fmtPrinterError(): PrinterError {
-    return PrinterError(PrinterErrorKind.fmt_error, None)
+    return PrinterError(PrinterErrorKind.fmt_error, Option<ErrorLocation>.None)
 }
 
 // ============================================================================

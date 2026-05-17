@@ -40,32 +40,28 @@ public class CssUrl {
         if (url.isEmpty()) { return false }
 
         // 以 '.' 开头为相对路径
-        if (url[0] == '.') { return false }
+        if (url[0] == UInt8(46)) { return false }
 
         // 以 '/' 开头为绝对路径
-        if (url[0] == '/') { return true }
+        if (url[0] == UInt8(47)) { return true }
 
         // 以 '#' 开头为片段 URL
-        if (url[0] == '#') { return true }
+        if (url[0] == UInt8(35)) { return true }
 
         // 检查 scheme
         let first = url[0]
-        if (!((first >= 'a' && first <= 'z') || (first >= 'A' && first <= 'Z'))) {
+        if (!((first >= UInt8(97) && first <= UInt8(122)) || (first >= UInt8(65) && first <= UInt8(90)))) {
             return false
         }
 
-        // 查找 ':' 字符 (scheme 分隔符)
         for (c in url) {
-            match (c) {
-                case 'a'..'z' => {}
-                case 'A'..'Z' => {}
-                case '0'..'9' => {}
-                case '+' => {}
-                case '-' => {}
-                case '.' => {}
-                case ':' => return true
-                case _ => break
+            if (c == UInt8(58)) {
+                return true
             }
+            if ((c >= UInt8(97) && c <= UInt8(122)) || (c >= UInt8(65) && c <= UInt8(90)) || (c >= UInt8(48) && c <= UInt8(57)) || c == UInt8(43) || c == UInt8(45) || c == UInt8(46)) {
+                continue
+            }
+            break
         }
 
         false

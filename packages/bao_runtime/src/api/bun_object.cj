@@ -1,4 +1,5 @@
-// 严格翻译自: src/runtime/api/BunObject.zig
+// 严格翻译自: src/runtime/api/BunObject.rs
+// `globalThis.Bun` — 顶层宿主函数和惰性属性 getter。
 package bao_runtime.api
 
 import bao_jsc.*
@@ -7,10 +8,152 @@ import bao_collections.*
 import bao_sys.*
 import bao_io.*
 import bao_event_loop.*
+import bao_path.*
+import bao_zlib.*
+import bao_zstd.*
+import bao_shell_parser.braces
+
+// ============================================================================
+// 公共路径工具
+// ============================================================================
+
+/// 构建公共路径字符串，将 `to` 相对于 `dir` 解析，并加上 `origin` 前缀
+/// （当 `origin` 为绝对路径时，还会加上 `asset_prefix`）。
+/// 被 bundler dev-server 和 `Bun.FileSystemRouter` 的 `scriptSrc` getter 调用。
+public func getPublicPathWithAssetPrefix(
+    to: Array<UInt8>,
+    dir: Array<UInt8>,
+    origin: URL,
+    assetPrefix: Array<UInt8>,
+    writer: IoWriter,
+    platform: Platform,
+): Unit {
+    var relativePath: Array<UInt8> = if (Strings.hasPrefix(to, dir)) {
+        Strings.withoutTrailingSlash(to[dir.len..])
+    } else {
+        // 根据 platform 分发到不同的路径解析实现
+        match (platform) {
+            case Posix => ResolvePath.relativePlatformPosix(dir, to, false)
+            case Windows => ResolvePath.relativePlatformWindows(dir, to, false)
+            case Loose => ResolvePath.relativePlatformLoose(dir, to, false)
+            case Nt => ResolvePath.relativePlatformNt(dir, to, false)
+        }
+    }
+
+    if (origin.isAbsolute()) {
+        if (Strings.hasPrefix(relativePath, "..") || Strings.hasPrefix(relativePath, "./")) {
+            writer.write(origin.origin) catch { return }
+            writer.write("/abs:") catch { return }
+            if (Path.isAbsolute(to)) {
+                writer.write(to) catch { return }
+            } else {
+                let fs = VirtualMachine.get().fs()
+                writer.write(fs.abs([to])) catch { return }
+            }
+        } else {
+            var buf = ArrayList<UInt8>()
+            origin.joinWrite(buf, assetPrefix, "", relativePath, "")
+            writer.write(buf.items) catch { return }
+        }
+    } else {
+        writer.write(Strings.trimLeft(relativePath, "/")) catch { return }
+    }
+}
+
+/// `Bun.getPublicPath` — 使用 VM 的顶级目录、无 asset prefix 和 loose 平台的封装。
+public func getPublicPath(to: Array<UInt8>, origin: URL, writer: IoWriter): Unit {
+    getPublicPathWithAssetPrefix(
+        to,
+        VirtualMachine.get().topLevelDir(),
+        origin,
+        [],
+        writer,
+        Platform.Loose,
+    )
+}
+
+// ============================================================================
+// 静态适配器 (Static Adapters)
+// ============================================================================
+
+/// 静态方法适配器 — 手动解码 CallFrame 参数的薄封装层。
+public class StaticAdapters {
+
+    /// Bun.connect 适配器
+    public static func listenerConnect(global: JsGlobalObject, callFrame: JsCallFrame): JsValue {
+        let args = callFrame.argumentsOld(1)
+        let opts = if (args.len >= 1) { args.ptr[0] } else { JsValue.UNDEFINED }
+        return Listener.connect(global, opts)
+    }
+
+    /// Bun.listen 适配器
+    public static func listenerListen(global: JsGlobalObject, callFrame: JsCallFrame): JsValue {
+        let args = callFrame.argumentsOld(1)
+        let opts = if (args.len >= 1) { args.ptr[0] } else { JsValue.UNDEFINED }
+        return Listener.listen(global, opts)
+    }
+
+    /// Bun.udpSocket 适配器
+    public static func udpSocket(global: JsGlobalObject, callFrame: JsCallFrame): JsValue {
+        let args = callFrame.argumentsOld(1)
+        let opts = if (args.len >= 1) { args.ptr[0] } else { JsValue.UNDEFINED }
+        return UDPSocket.udpSocket(global, opts)
+    }
+
+    /// Bun.spawn 适配器
+    public static func subprocessSpawn(global: JsGlobalObject, callFrame: JsCallFrame): JsValue {
+        let args = callFrame.argumentsOld(2)
+        let a0 = if (args.len >= 1) { args.ptr[0] } else { JsValue.UNDEFINED }
+        let a1 = if (args.len >= 2) { Some(args.ptr[1]) } else { None }
+        return Spawn.spawn(global, a0, a1)
+    }
+
+    /// Bun.spawnSync 适配器
+    public static func subprocessSpawnSync(global: JsGlobalObject, callFrame: JsCallFrame): JsValue {
+        let args = callFrame.argumentsOld(2)
+        let a0 = if (args.len >= 1) { args.ptr[0] } else { JsValue.UNDEFINED }
+        let a1 = if (args.len >= 2) { Some(args.ptr[1]) } else { None }
+        return Spawn.spawnSync(global, a0, a1)
+    }
+
+    /// Bun.build 适配器
+    public static func jsBundlerBuild(global: JsGlobalObject, callFrame: JsCallFrame): JsValue {
+        return JSBundler.buildFn(global, callFrame)
+    }
+
+    /// Bun.\$ 解析脚本构造器适配器
+    public static func parsedShellScriptCreate(global: JsGlobalObject, callFrame: JsCallFrame): JsValue {
+        return ParsedShellScript.create(global, callFrame)
+    }
+
+    /// Bun.shell 解释器构造器适配器
+    public static func shellInterpreterCreate(global: JsGlobalObject, callFrame: JsCallFrame): JsValue {
+        return ShellInterpreter.create(global, callFrame)
+    }
+
+    /// Bun.sha(input, output?) — SHA512_256 哈希封装。
+    public static func sha(global: JsGlobalObject, callFrame: JsCallFrame): JsValue {
+        let args = callFrame.argumentsOld(2)
+        let a0 = if (args.len >= 1) { args.ptr[0] } else { JsValue.UNDEFINED }
+        let a1 = if (args.len >= 2) { args.ptr[1] } else { JsValue.UNDEFINED }
+        // auto_protect = true
+        a0.protect()
+        a1.protect()
+        defer {
+            a0.unprotect()
+            a1.unprotect()
+        }
+
+        let input = BlobOrStringOrBuffer.fromJS(global, a0) ?? {
+            return global.throwInvalidArguments("expected string, buffer, TypedArray, or Blob")
+        }
+        let output = if (a1.isUndefinedOrNull()) { None } else { StringOrBuffer.fromJS(global, a1) }
+        return Crypto.SHA512_256.hash(global, input, output)
+    }
+}
 
 // ============================================================================
 // BunObject - Bun 全局对象的属性和方法注册表
-// 对应 Bun: src/runtime/api/BunObject.zig
 // ============================================================================
 
 /// BunObject 定义了所有挂载在 Bun 全局对象上的回调函数和惰性属性
@@ -42,9 +185,7 @@ public class BunObject {
         if (globalThis.hasException()) { return JsValue.zero }
         defer bunstr.deref()
 
-        var outbuf = ArrayList<UInt8>.init(default_allocator)
-        defer outbuf.deinit()
-
+        var outbuf = ArrayList<UInt8>()
         if (Shell.needsEscapeBunstr(bunstr)) {
             let result = try Shell.escapeBunStr(bunstr, outbuf, true)
             if (!result) {
@@ -55,6 +196,67 @@ public class BunObject {
         }
 
         return jsval
+    }
+
+    /// braces - 大括号展开
+    public static func braces(global: JsGlobalObject, braceStr: BunString, opts: BracesOptions): JsValue {
+        let braceSlice = braceStr.toUTF8()
+
+        var arena = Arena.new()
+
+        var lexerOutput = if (Strings.isAllASCII(braceSlice.slice())) {
+            match (Braces.Lexer.tokenize(braceSlice.slice())) {
+                case Ok(v) => v
+                case Err(err) => return global.throwError(err.into(), "failed to tokenize braces")
+            }
+        } else {
+            match (Braces.NewLexerWtf8.tokenize(braceSlice.slice())) {
+                case Ok(v) => v
+                case Err(err) => return global.throwError(err.into(), "failed to tokenize braces")
+            }
+        }
+
+        let expansionCount = Braces.calculateExpandedAmount(lexerOutput.tokens)
+
+        if (opts.tokenize) {
+            let str = Braces.tokensToJSON(lexerOutput.tokens)
+            let bunStr = BunString.fromBytes(str)
+            return bunStr.toJS(global)
+        }
+        if (opts.parse) {
+            var parser = Braces.Parser.init(lexerOutput.tokens, arena)
+            let astNode = match (parser.parse()) {
+                case Ok(v) => v
+                case Err(err) => return global.throwError(err.into(), "failed to parse braces")
+            }
+            let str = Braces.astToJSON(astNode)
+            let bunStr = BunString.fromBytes(str)
+            return bunStr.toJS(global)
+        }
+
+        if (expansionCount == 0) {
+            return BunString.toJSArray(global, [braceStr])
+        }
+
+        var expandedStrings = ArrayList<ArrayList<UInt8>>(expansionCount)
+        for (_ in 0..<expansionCount) {
+            expandedStrings.append(ArrayList<UInt8>())
+        }
+
+        match (Braces.expand(arena, lexerOutput.tokens, expandedStrings, lexerOutput.containsNested)) {
+            case Ok(()) => {}
+            case Err(Braces.ParserError.OutOfMemory) => return JsError.outOfMemory
+            case Err(Braces.ParserError.UnexpectedToken) => {
+                return global.throwPretty("Unexpected token while expanding braces")
+            }
+        }
+
+        var outStrings = ArrayList<BunString>(expansionCount)
+        for (i in 0..<expansionCount) {
+            outStrings.append(BunString.fromBytes(expandedStrings[i].items))
+        }
+
+        return BunString.toJSArray(global, outStrings.items)
     }
 
     /// which - 查找可执行文件路径
@@ -84,10 +286,10 @@ public class BunObject {
             return JsValue.jsNull()
         }
 
-        let pathStr = ZigString.Slice.fromUTF8NeverFree(
+        var pathStr = ZigString.Slice.fromUTF8NeverFree(
             globalThis.bunVM().transpiler.env.get("PATH") ?? "",
         )
-        let cwdStr = ZigString.Slice.fromUTF8NeverFree(
+        var cwdStr = ZigString.Slice.fromUTF8NeverFree(
             globalThis.bunVM().transpiler.fs.top_level_dir,
         )
 
@@ -107,6 +309,141 @@ public class BunObject {
         }
 
         return JsValue.jsNull()
+    }
+
+    /// inspectTable - 生成表格形式的检查输出
+    public static func inspectTable(globalThis: JsGlobalObject, callframe: JsCallFrame): JsValue {
+        var argsBuf = callframe.argumentsUndef(5)
+        var allArguments = argsBuf.mut()
+        if (allArguments[0].isUndefinedOrNull() || !allArguments[0].isObject()) {
+            return BunString.empty.toJS(globalThis)
+        }
+
+        for (arg in allArguments) { arg.protect() }
+        defer {
+            for (arg in allArguments) { arg.unprotect() }
+        }
+
+        var arguments = allArguments[0..]
+        let value = arguments[0]
+
+        if (!arguments[1].isArray()) {
+            arguments[2] = arguments[1]
+            arguments[1] = JsValue.jsUndefined()
+        }
+
+        var formatOptions = ConsoleObject.FormatOptions{
+            enable_colors = false,
+            add_newline = false,
+            flush = false,
+            max_depth = 5,
+            quote_strings = true,
+            ordered_properties = false,
+            single_line = true,
+        }
+        if (arguments[2].isObject()) {
+            try formatOptions.fromJS(globalThis, arguments[2..])
+        }
+
+        var array = IoWriter.Allocating.init(default_allocator)
+        defer array.deinit()
+        let writer = array.writer
+
+        let properties = if (arguments[1].jsType().isArray()) arguments[1] else JsValue.jsUndefined()
+        var tablePrinter = try ConsoleObject.TablePrinter.init(globalThis, .Log, value, properties)
+        tablePrinter.value_formatter.depth = formatOptions.max_depth
+        tablePrinter.value_formatter.ordered_properties = formatOptions.ordered_properties
+        tablePrinter.value_formatter.single_line = formatOptions.single_line
+
+        let printResult = tablePrinter.printTable(writer, formatOptions.enable_colors)
+        if (printResult.isErr()) {
+            if (!globalThis.hasException()) {
+                return globalThis.throwOutOfMemory()
+            }
+            return JsValue.zero
+        }
+
+        return BunString.createUTF8ForJS(globalThis, array.written())
+    }
+
+    /// inspect - 检查值并返回字符串表示
+    public static func inspect(globalThis: JsGlobalObject, callframe: JsCallFrame): JsValue {
+        let arguments = callframe.argumentsOld(4).slice()
+        if (arguments.len == 0) {
+            return BunString.empty.toJS(globalThis)
+        }
+
+        for (arg in arguments) { arg.protect() }
+        defer {
+            for (arg in arguments) { arg.unprotect() }
+        }
+
+        var formatOptions = ConsoleObject.FormatOptions{
+            enable_colors = false,
+            add_newline = false,
+            flush = false,
+            max_depth = 8,
+            quote_strings = true,
+            ordered_properties = false,
+        }
+        if (arguments.len > 1) {
+            try formatOptions.fromJS(globalThis, arguments[1..])
+        }
+
+        var array = IoWriter.Allocating.init(default_allocator)
+        defer array.deinit()
+        let writer = array.writer
+
+        try ConsoleObject.format2(
+            .Debug,
+            globalThis,
+            arguments.ptr,
+            1,
+            writer,
+            formatOptions,
+        )
+        if (globalThis.hasException()) { return Error.JSError }
+        writer.flush() catch { return globalThis.throwOutOfMemory() }
+
+        var out = ZigString.init(array.written()).withEncoding()
+        let ret = out.toJS(globalThis)
+        return ret
+    }
+
+    /// bunInspect - C API 级别的 inspect
+    public static func bunInspect(globalThis: JsGlobalObject, value: JsValue): BunString {
+        var array = ArrayList<UInt8>()
+
+        var formatter = ConsoleObject.Formatter.new(globalThis)
+        formatter.format(array, value) catch {
+            return BunString.empty
+        }
+        return BunString.cloneUTF8(array.items)
+    }
+
+    /// bunInspectSingleline - C API 级别的单行 inspect
+    public static func bunInspectSingleline(globalThis: JsGlobalObject, value: JsValue): BunString {
+        var array = ArrayList<UInt8>()
+        let result = ConsoleObject.format2(
+            .Debug,
+            globalThis,
+            [value].ptr,
+            1,
+            array.writer(),
+            ConsoleObject.FormatOptions{
+                enable_colors = false,
+                add_newline = false,
+                flush = false,
+                max_depth = UInt16.MAX,
+                quote_strings = true,
+                ordered_properties = false,
+                single_line = true,
+            },
+        )
+        if (result.isErr() || globalThis.hasException()) {
+            return BunString.empty
+        }
+        return BunString.cloneUTF8(array.items)
     }
 
     /// sleepSync - 同步休眠
@@ -195,50 +532,6 @@ public class BunObject {
         return JsValue.jsNumberFromInt32(-1)
     }
 
-    /// inspect - 检查值并返回字符串表示
-    public static func inspect(globalThis: JsGlobalObject, callframe: JsCallFrame): JsValue {
-        let arguments = callframe.argumentsOld(4).slice()
-        if (arguments.len == 0) {
-            return BunString.empty.toJS(globalThis)
-        }
-
-        for (arg in arguments) { arg.protect() }
-        defer {
-            for (arg in arguments) { arg.unprotect() }
-        }
-
-        var formatOptions = ConsoleObject.FormatOptions{
-            enable_colors = false,
-            add_newline = false,
-            flush = false,
-            max_depth = 8,
-            quote_strings = true,
-            ordered_properties = false,
-        }
-        if (arguments.len > 1) {
-            try formatOptions.fromJS(globalThis, arguments[1..])
-        }
-
-        var array = IoWriter.Allocating.init(default_allocator)
-        defer array.deinit()
-        let writer = array.writer
-
-        try ConsoleObject.format2(
-            .Debug,
-            globalThis,
-            arguments.ptr,
-            1,
-            writer,
-            formatOptions,
-        )
-        if (globalThis.hasException()) { return Error.JSError }
-        writer.flush() catch { return globalThis.throwOutOfMemory() }
-
-        var out = ZigString.init(array.written()).withEncoding()
-        let ret = out.toJS(globalThis)
-        return ret
-    }
-
     /// resolveSync - 同步解析模块路径
     public static func resolveSync(globalObject: JsGlobalObject, callframe: JsCallFrame): JsValue {
         return try doResolve(globalObject, callframe.arguments())
@@ -254,16 +547,146 @@ public class BunObject {
         return JsPromise.resolvedPromiseValue(globalObject, value)
     }
 
+    /// bunResolve - C API 级别的 resolve (用于 HOST_EXPORT)
+    public static func bunResolve(
+        global: JsGlobalObject,
+        specifier: JsValue,
+        source: JsValue,
+        isEsm: Bool,
+    ): JsValue {
+        let specifierStr = try specifier.toBunString(global) ?? return JsValue.zero
+        defer specifierStr.deref()
+
+        let sourceStr = try source.toBunString(global) ?? return JsValue.zero
+        defer sourceStr.deref()
+
+        let value = match (doResolveWithArgs(global, specifierStr, sourceStr, isEsm, false, true)) {
+            case Ok(v) => v
+            case Err(_) => {
+                let err = global.tryTakeException()
+                return JsPromise.dangerouslyCreateRejectedPromiseValueWithoutNotifyingVM(global, err)
+            }
+        }
+
+        return JsPromise.resolvedPromiseValue(global, value)
+    }
+
+    /// bunResolveSync - C API 级别的同步 resolve
+    public static func bunResolveSync(
+        global: JsGlobalObject,
+        specifier: JsValue,
+        source: JsValue,
+        isEsm: Bool,
+        isUserRequireResolve: Bool,
+    ): JsValue {
+        let specifierStr = try specifier.toBunString(global) ?? return JsValue.zero
+        defer specifierStr.deref()
+
+        if (specifierStr.length() == 0) {
+            global.err(JsErrorCode.InvalidArgValue, "The argument 'id' must be a non-empty string. Received ''").throw()
+            return JsValue.zero
+        }
+
+        let sourceStr = try source.toBunString(global) ?? return JsValue.zero
+        defer sourceStr.deref()
+
+        return doResolveWithArgs(global, specifierStr, sourceStr, isEsm, isUserRequireResolve, true)
+    }
+
+    /// bunResolveSyncWithPaths - C API 级别的带路径同步 resolve
+    public static func bunResolveSyncWithPaths(
+        global: JsGlobalObject,
+        specifier: JsValue,
+        source: JsValue,
+        isEsm: Bool,
+        isUserRequireResolve: Bool,
+        paths: Array<BunString>,
+    ): JsValue {
+        let specifierStr = try specifier.toBunString(global) ?? return JsValue.zero
+        defer specifierStr.deref()
+
+        if (specifierStr.length() == 0) {
+            global.err(JsErrorCode.InvalidArgValue, "The argument 'id' must be a non-empty string. Received ''").throw()
+            return JsValue.zero
+        }
+
+        let sourceStr = try source.toBunString(global) ?? return JsValue.zero
+        defer sourceStr.deref()
+
+        let bunVM = global.bunVM()
+        bunVM.transpiler.resolver.custom_dir_paths = paths
+        defer {
+            bunVM.transpiler.resolver.custom_dir_paths = None
+        }
+
+        return doResolveWithArgs(global, specifierStr, sourceStr, isEsm, isUserRequireResolve, true)
+    }
+
+    /// bunResolveSyncWithStrings - C API 级别的直接使用 BunString 的同步 resolve
+    public static func bunResolveSyncWithStrings(
+        global: JsGlobalObject,
+        specifier: BunString,
+        source: BunString,
+        isEsm: Bool,
+    ): JsValue {
+        return doResolveWithArgs(global, specifier, source, isEsm, false, true)
+    }
+
+    /// bunResolveSyncWithSource - C API 级别的带 BunString source 的同步 resolve
+    public static func bunResolveSyncWithSource(
+        global: JsGlobalObject,
+        specifier: JsValue,
+        source: BunString,
+        isEsm: Bool,
+        isUserRequireResolve: Bool,
+    ): JsValue {
+        let specifierStr = try specifier.toBunString(global) ?? return JsValue.zero
+        defer specifierStr.deref()
+
+        if (specifierStr.length() == 0) {
+            global.err(JsErrorCode.InvalidArgValue, "The argument 'id' must be a non-empty string. Received ''").throw()
+            return JsValue.zero
+        }
+
+        return doResolveWithArgs(global, specifierStr, source, isEsm, isUserRequireResolve, true)
+    }
+
+    /// registerMacro - 注册宏
+    public static func registerMacro(globalObject: JsGlobalObject, callframe: JsCallFrame): JsValue {
+        let arguments = callframe.argumentsOld(2).slice()
+        if (arguments.len != 2 || !arguments[0].isNumber()) {
+            return globalObject.throwInvalidArguments("Internal error registering macros: invalid args")
+        }
+        let id = arguments[0].toInt32()
+        if (id == -1 || id == 0) {
+            return globalObject.throwInvalidArguments("Internal error registering macros: invalid id")
+        }
+
+        if (!arguments[1].isCell() || !arguments[1].isCallable()) {
+            return globalObject.throw("Macro must be a function")
+        }
+
+        let getOrPutResult = VirtualMachine.get().macros.getOrPut(id)
+        if (getOrPutResult.foundExisting) {
+            getOrPutResult.valuePtr.unprotect()
+        }
+
+        arguments[1].protect()
+        getOrPutResult.valuePtr = arguments[1].asObjectRef()
+
+        return JsValue.jsUndefined()
+    }
+
     /// openInEditor - 在编辑器中打开文件
     public static func openInEditor(globalThis: JsGlobalObject, callframe: JsCallFrame): JsValue {
-        var edit = globalThis.bunVM().rareData().editor_context
+        var edit = EDITOR_CONTEXT.ctx
         let args = callframe.argumentsOld(4)
         var arguments = JsCallFrame.ArgumentsSlice.init(globalThis.bunVM(), args.slice())
         defer arguments.deinit()
         var path: String = ""
-        var editorChoice: Editor = null
-        var line: String = null
-        var column: String = null
+        var editorChoice: ?Editor = None
+        var line: ?String = None
+        var column: ?String = None
 
         if (let filePath = arguments.nextEat()) {
             path = (try filePath.toSlice(globalThis, arguments.arena.allocator())).slice()
@@ -277,10 +700,11 @@ public class BunObject {
 
                     if (!Strings.eqlLong(prevName, sliced.slice(), true)) {
                         let prev = edit
-                        edit.name = sliced.slice()
+                        EDITOR_CONTEXT.nameStorage = sliced.slice().toArrayList()
+                        edit.name = EDITOR_CONTEXT.nameStorage.items
                         edit.detectEditor(globalThis.bunVM().transpiler.env)
                         editorChoice = edit.editor
-                        if (editorChoice == null) {
+                        if (editorChoice == None) {
                             edit = prev
                             return globalThis.throw("Could not find editor \"\{sliced.slice()}\"")
                         }
@@ -299,7 +723,7 @@ public class BunObject {
 
         let editor = editorChoice ?? edit.editor ?? {
             edit.autoDetectEditor(globalThis.bunVM().transpiler.env)
-            if (edit.editor == null) {
+            if (edit.editor == None) {
                 return globalThis.throw("Failed to auto-detect editor")
             }
             return edit.editor
@@ -378,7 +802,7 @@ public class BunObject {
             }
         }
 
-        let hasSSLConfig = config.ssl_config != null
+        let hasSSLConfig = config.ssl_config != None
         let development = config.isDevelopment()
 
         // 根据 SSL 和开发模式选择服务器类型
@@ -406,6 +830,129 @@ public class BunObject {
         }
 
         return obj
+    }
+
+    /// mmapFile - 内存映射文件
+    public static func mmapFile(globalThis: JsGlobalObject, callframe: JsCallFrame): JsValue {
+        if (Environment.isWindows) {
+            return globalThis.throwUnsupported("mmapFile is not supported on Windows")
+        }
+
+        let arguments = callframe.argumentsOld(2)
+        var args = JsCallFrame.ArgumentsSlice.init(globalThis.bunVM(), arguments.slice())
+        defer args.deinit()
+
+        var buf = PathBuffer()
+        let path = {
+            if (let path = args.nextEat()) {
+                if (path.isString()) {
+                    let pathStr = try path.toSlice(globalThis, args.arena.allocator())
+                    if (pathStr.len > MAX_PATH_BYTES) {
+                        return globalThis.throwInvalidArguments("Path too long")
+                    }
+                    let paths = [pathStr.slice()]
+                    return Path.joinAbsStringBuf(Fs.FileSystem.instance.top_level_dir, buf, paths, .auto)
+                }
+            }
+            return globalThis.throwInvalidArguments("Expected a path")
+        }
+
+        buf[path.len] = 0
+
+        var flags = MMapFlags{ TYPE = .SHARED }
+        var offset: Int64 = 0
+        var mapSize: ?Int64 = None
+
+        if (let opts = args.nextEat()) {
+            if (opts.isObject()) {
+                flags.TYPE = if ((try opts.getBooleanLoose(globalThis, "shared")) ?? true) .SHARED else .PRIVATE
+
+                if (try opts.get(globalThis, "size")) {
+                    let sizeValue = try value.coerceToInt64(globalThis)
+                    if (sizeValue < 0) {
+                        return globalThis.throwInvalidArguments("size must be a non-negative integer")
+                    }
+                    mapSize = UInt64(sizeValue)
+                }
+
+                if (let value = try opts.get(globalThis, "offset")) {
+                    let offsetValue = try value.coerceToInt64(globalThis)
+                    if (offsetValue < 0) {
+                        return globalThis.throwInvalidArguments("offset must be a non-negative integer")
+                    }
+                    offset = UInt64(offsetValue)
+                    offset = Math.alignBackwardAnyAlign(offset, PageSize)
+                }
+            } else if (!opts.isUndefinedOrNull()) {
+                return globalThis.throwInvalidArguments("Expected options to be an object")
+            }
+        }
+
+        let map = switch (Sys.mmapFile(buf, flags, mapSize, offset)) {
+            case .result(let map) => map
+            case .err(let err) => {
+                return globalThis.throwValue(try err.toJS(globalThis))
+            }
+        }
+
+        return ArrayBuffer.makeTypedArrayWithBytesNoCopy(globalThis, .TypeUint8, map.ptr, map.len, munmapCallback, Int64(map.len))
+    }
+
+    /// escapeHTML16 - 转义 HTML (UTF-16 输入)
+    public static func escapeHTML16(
+        globalObject: JsGlobalObject,
+        inputValue: JsValue,
+        ptr: UnsafePointer<UInt16>,
+        len: UInt64,
+    ): JsValue {
+        let inputSlice = ptr.toArray(len)
+        let escaped = match (EscapeHTML.escapeForUTF16Input(inputSlice)) {
+            case Ok(v) => v
+            case Err(_) => {
+                globalObject.throwValue(ZigString.init("Out of memory").toErrorInstance(globalObject))
+                return JsValue.zero
+            }
+        }
+
+        return match (escaped) {
+            case .Static(val) => ZigString.init(val).toJS(globalObject)
+            case .Original => inputValue
+            case .Allocated(escapedHTML) => {
+                ZigString.toExternalU16(escapedHTML.ptr, escapedHTML.len, globalObject)
+            }
+        }
+    }
+
+    /// escapeHTML8 - 转义 HTML (Latin-1 输入)
+    public static func escapeHTML8(
+        globalObject: JsGlobalObject,
+        inputValue: JsValue,
+        ptr: UnsafePointer<UInt8>,
+        len: UInt64,
+    ): JsValue {
+        let inputSlice = ptr.toArray(len)
+
+        let escaped = match (EscapeHTML.escapeForLatin1Input(inputSlice)) {
+            case Ok(v) => v
+            case Err(_) => {
+                globalObject.throwValue(ZigString.init("Out of memory").toErrorInstance(globalObject))
+                return JsValue.zero
+            }
+        }
+
+        return match (escaped) {
+            case .Static(val) => ZigString.init(val).toJS(globalObject)
+            case .Original => inputValue
+            case .Allocated(escapedHTML) => {
+                if (inputSlice.len <= 32) {
+                    let zigStr = ZigString.init(escapedHTML)
+                    return zigStr.toAtomicValue(globalObject)
+                }
+
+                // 所有权转移给 JSC 外部字符串终结器
+                return ZigString.init(escapedHTML).toExternalValue(globalObject)
+            }
+        }
     }
 
     // ========================================================================
@@ -511,6 +1058,11 @@ public class BunObject {
         return CSRFObject.create(globalObject)
     }
 
+    /// getCronObject
+    public static func getCronObject(globalThis: JsGlobalObject, object: JsObject): JsValue {
+        return Cron.getCronObject(globalThis, object)
+    }
+
     /// getS3ClientConstructor
     public static func getS3ClientConstructor(globalThis: JsGlobalObject, object: JsObject): JsValue {
         return S3Client.js.getConstructor(globalThis)
@@ -518,7 +1070,56 @@ public class BunObject {
 
     /// getS3DefaultClient
     public static func getS3DefaultClient(globalThis: JsGlobalObject, object: JsObject): JsValue {
-        return globalThis.bunVM().rareData().s3DefaultClient(globalThis)
+        let vm = globalThis.bunVM()
+        let envPtr = vm.transpiler.env
+        let rare = vm.rareData()
+        if (let v = rare.s3DefaultClient.get()) {
+            return v
+        }
+        let envCreds = S3Credentials.s3CredentialsFromEnv(envPtr.getS3Credentials())
+        let awsOptions = match (S3Credentials.getCredentialsWithOptions(
+            envCreds,
+            S3Options.default(),
+            None, None, None,
+            false,
+            globalThis,
+        )) {
+            case Ok(v) => v
+            case Err(JsError.OutOfMemory) => handleOom()
+            case Err(err) => {
+                globalThis.reportActiveExceptionAsUnhandled(err)
+                return JsValue.jsUndefined()
+            }
+        }
+        let client = S3Client{
+            credentials = awsOptions.credentials.dupe(),
+            options = awsOptions.options,
+            acl = awsOptions.acl,
+            storageClass = awsOptions.storageClass,
+            requestPayer = awsOptions.requestPayer,
+        }
+        let jsClient = S3Client.toJS(client, globalThis)
+        jsClient.ensureStillAlive()
+        rare.s3DefaultClient = StrongOptional.create(jsClient, globalThis)
+        return jsClient
+    }
+
+    /// getTLSDefaultCiphers - 获取默认 TLS 密码套件
+    public static func getTLSDefaultCiphers(globalThis: JsGlobalObject, object: JsObject): JsValue {
+        let vm = globalThis.bunVM()
+        let bytes: Array<UInt8> = match (vm.rareData().tlsDefaultCiphers()) {
+            case Some(c) => c
+            case None => UWS.getDefaultCiphers().toBytes()
+        }
+        return BunString.createUTF8ForJS(globalThis, bytes) ?? JsValue.zero
+    }
+
+    /// setTLSDefaultCiphers - 设置默认 TLS 密码套件
+    public static func setTLSDefaultCiphers(globalThis: JsGlobalObject, object: JsObject, ciphers: JsValue): JsValue {
+        let vm = globalThis.bunVM()
+        let sliced = try ciphers.toSlice(globalThis) ?? return JsValue.zero
+        vm.rareData().setTLSDefaultCiphers(sliced.slice())
+        return JsValue.jsUndefined()
     }
 
     /// getValkeyClientConstructor
@@ -528,7 +1129,7 @@ public class BunObject {
 
     /// getValkeyDefaultClient
     public static func getValkeyDefaultClient(globalThis: JsGlobalObject, object: JsObject): JsValue {
-        var valkey = try Valkey.createNoJsNoPubsub(globalThis, [JsValue.jsUndefined()])
+        var valkey = try Valkey.createNoJsNoPubsub(globalThis, [JsValue.jsUndefined()]) ?? return JsValue.zero
         let asJs = valkey.toJS(globalThis)
         valkey.this_value = JsRef.initWeak(asJs)
         valkey._subscription_ctx = SubscriptionCtx.init(valkey) catch { err =>
@@ -546,7 +1147,7 @@ public class BunObject {
         return Terminal.js.getConstructor(globalThis)
     }
 
-    /// getEmbeddedFiles
+    /// getEmbeddedFiles - 获取嵌入的文件列表
     public static func getEmbeddedFiles(globalThis: JsGlobalObject, object: JsObject): JsValue {
         let vm = globalThis.bunVM()
         let graph = vm.standalone_module_graph ?? return try JsValue.createEmptyArray(globalThis, 0)
@@ -564,7 +1165,7 @@ public class BunObject {
         sort(sortIndices.items, unsortedFiles, StandaloneModuleGraph.File.lessThanByIndex)
         for (index in sortIndices.items) {
             let file = unsortedFiles[index]
-            let inputBlob = file.blob(globalThis)
+            let inputBlob = standaloneFileBlob(file, globalThis)
             let blob = Blob.new(inputBlob.dupeWithContentType(true))
             blob.name = inputBlob.name.dupeRef()
             try array.putIndex(globalThis, i, blob.toJS(globalThis))
@@ -588,6 +1189,33 @@ public class BunObject {
             return vm.main_resolved_path.toJS(globalThis) catch JsValue.zero
         }
 
+        // 如果是 eval 或 stdin，不尝试解析
+        if (Strings.endsWith(vm.main, "[eval]") || Strings.endsWith(vm.main, "[stdin]")) {
+            // 跳过文件路径解析
+        } else {
+            // 尝试通过打开文件描述符获取真实路径
+            let fd = Sys.openat(
+                if (Environment.isWindows) Fd.INVALID else Fd.cwd(),
+                vm.main,
+                if (Environment.isLinux || Environment.isAndroid) Sys.O.PATH else Sys.O.RDONLY,
+                0,
+            )
+            if (fd.isOk()) {
+                defer fd.value.close()
+                var pathBuf = PathBuffer()
+                let fdPath = Sys.getFdPath(fd.value, pathBuf)
+                if (fdPath.isOk()) {
+                    // 尝试创建原子字符串
+                    if (let atom = BunString.tryCreateAtom(fdPath.value)) {
+                        vm.main_resolved_path = atom
+                    } else {
+                        vm.main_resolved_path = BunString.cloneUTF8(fdPath.value)
+                    }
+                    return vm.main_resolved_path.toJS(globalThis) catch JsValue.zero
+                }
+            }
+        }
+
         return ZigString.init(vm.main).toJS(globalThis)
     }
 
@@ -603,29 +1231,17 @@ public class BunObject {
 
     /// 创建 Bun.stdin 的惰性属性值
     public static func createBunStdin(globalThis: JsGlobalObject): JsValue {
-        var rareData = globalThis.bunVM().rareData()
-        var store = rareData.stdin()
-        store.ref()
-        var blob = Blob.new(Blob.initWithStore(store, globalThis))
-        return blob.toJS(globalThis)
+        return StdioStores.stdin(globalThis)
     }
 
     /// 创建 Bun.stderr 的惰性属性值
     public static func createBunStderr(globalThis: JsGlobalObject): JsValue {
-        var rareData = globalThis.bunVM().rareData()
-        var store = rareData.stderr()
-        store.ref()
-        var blob = Blob.new(Blob.initWithStore(store, globalThis))
-        return blob.toJS(globalThis)
+        return StdioStores.stderr(globalThis)
     }
 
     /// 创建 Bun.stdout 的惰性属性值
     public static func createBunStdout(globalThis: JsGlobalObject): JsValue {
-        var rareData = globalThis.bunVM().rareData()
-        var store = rareData.stdout()
-        store.ref()
-        var blob = Blob.new(Blob.initWithStore(store, globalThis))
-        return blob.toJS(globalThis)
+        return StdioStores.stdout(globalThis)
     }
 
     // ========================================================================
@@ -718,126 +1334,45 @@ public class BunObject {
         return errorable.result.value.toJS(ctx)
     }
 
-    /// inspectTable - 生成表格形式的检查输出
-    public static func inspectTable(globalThis: JsGlobalObject, callframe: JsCallFrame): JsValue {
-        var argsBuf = callframe.argumentsUndef(5)
-        var allArguments = argsBuf.mut()
-        if (allArguments[0].isUndefinedOrNull() || !allArguments[0].isObject()) {
-            return BunString.empty.toJS(globalThis)
+    /// standaloneFileBlob - 为独立模块图文件创建 Blob
+    static func standaloneFileBlob(file: StandaloneModuleGraph.File, global: JsGlobalObject): Blob {
+        if (let cached = file.cached_blob) {
+            return cached
         }
-
-        for (arg in allArguments) { arg.protect() }
-        defer {
-            for (arg in allArguments) { arg.unprotect() }
-        }
-
-        var arguments = allArguments[0..]
-        let value = arguments[0]
-
-        if (!arguments[1].isArray()) {
-            arguments[2] = arguments[1]
-            arguments[1] = JsValue.jsUndefined()
-        }
-
-        var formatOptions = ConsoleObject.FormatOptions{
-            enable_colors = false,
-            add_newline = false,
-            flush = false,
-            max_depth = 5,
-            quote_strings = true,
-            ordered_properties = false,
-            single_line = true,
-        }
-        if (arguments[2].isObject()) {
-            try formatOptions.fromJS(globalThis, arguments[2..])
-        }
-
-        var array = IoWriter.Allocating.init(default_allocator)
-        defer array.deinit()
-        let writer = array.writer
-
-        let properties = if (arguments[1].jsType().isArray()) arguments[1] else JsValue.jsUndefined()
-        var tablePrinter = try ConsoleObject.TablePrinter.init(globalThis, .Log, value, properties)
-        tablePrinter.value_formatter.depth = formatOptions.max_depth
-        tablePrinter.value_formatter.ordered_properties = formatOptions.ordered_properties
-        tablePrinter.value_formatter.single_line = formatOptions.single_line
-
-        tablePrinter.printTable(writer, formatOptions.enable_colors) catch {
-            if (!globalThis.hasException()) {
-                return globalThis.throwOutOfMemory()
-            }
-            return JsValue.zero
-        }
-
-        writer.flush() catch { return Error.OutOfMemory }
-
-        return BunString.createUTF8ForJS(globalThis, array.written())
+        let store = Store.init(file.contents.asBytes().toArrayList())
+        var blobBody = Blob.initWithStore(store, global)
+        let mime = MimeType.byLoader(file.loader, Path.extension(file.name))
+        blobBody.content_type = mime.value
+        blobBody.name = BunString.cloneUTF8(Path.basename(file.name))
+        let blob = Blob.new(blobBody)
+        file.cached_blob = blob
+        return blob
     }
+}
 
-    /// mmapFile - 内存映射文件
-    public static func mmapFile(globalThis: JsGlobalObject, callframe: JsCallFrame): JsValue {
-        if (Environment.isWindows) {
-            return globalThis.throwTODO("mmapFile is not supported on Windows")
-        }
+// ============================================================================
+// CSRFObject - CSRF 令牌对象
+// ============================================================================
 
-        let arguments = callframe.argumentsOld(2)
-        var args = JsCallFrame.ArgumentsSlice.init(globalThis.bunVM(), arguments.slice())
-        defer args.deinit()
+/// CSRFObject 提供 generate 和 verify 方法
+public class CSRFObject {
+    /// 创建 CSRF 对象
+    public static func create(globalThis: JsGlobalObject): JsValue {
+        let object = JsValue.createEmptyObject(globalThis, 2)
 
-        var buf = PathBuffer()
-        let path = {
-            if (let path = args.nextEat()) {
-                if (path.isString()) {
-                    let pathStr = try path.toSlice(globalThis, args.arena.allocator())
-                    if (pathStr.len > MAX_PATH_BYTES) {
-                        return globalThis.throwInvalidArguments("Path too long")
-                    }
-                    let paths = [pathStr.slice()]
-                    return Path.joinAbsStringBuf(Fs.FileSystem.instance.top_level_dir, buf, paths, .auto)
-                }
-            }
-            return globalThis.throwInvalidArguments("Expected a path")
-        }
+        object.put(
+            globalThis,
+            "generate",
+            JsFunction.create(globalThis, "generate", CSRFJsc.csrfGenerate, 1),
+        )
 
-        buf[path.len] = 0
+        object.put(
+            globalThis,
+            "verify",
+            JsFunction.create(globalThis, "verify", CSRFJsc.csrfVerify, 1),
+        )
 
-        var flags = MMapFlags{ TYPE = .SHARED }
-        var offset: Int64 = 0
-        var mapSize: Int64 = null
-
-        if (let opts = args.nextEat()) {
-            if (opts.isObject()) {
-                flags.TYPE = if ((try opts.getBooleanLoose(globalThis, "shared")) ?? true) .SHARED else .PRIVATE
-
-                if (try opts.get(globalThis, "size")) {
-                    let sizeValue = try value.coerceToInt64(globalThis)
-                    if (sizeValue < 0) {
-                        return globalThis.throwInvalidArguments("size must be a non-negative integer")
-                    }
-                    mapSize = UInt64(sizeValue)
-                }
-
-                if (let value = try opts.get(globalThis, "offset")) {
-                    let offsetValue = try value.coerceToInt64(globalThis)
-                    if (offsetValue < 0) {
-                        return globalThis.throwInvalidArguments("offset must be a non-negative integer")
-                    }
-                    offset = UInt64(offsetValue)
-                    offset = Math.alignBackwardAnyAlign(offset, PageSize)
-                }
-            } else if (!opts.isUndefinedOrNull()) {
-                return globalThis.throwInvalidArguments("Expected options to be an object")
-            }
-        }
-
-        let map = switch (Sys.mmapFile(buf, flags, mapSize, offset)) {
-            case .result(let map) => map
-            case .err(let err) => {
-                return globalThis.throwValue(try err.toJS(globalThis))
-            }
-        }
-
-        return ArrayBuffer.makeTypedArrayWithBytesNoCopy(globalThis, .TypeUint8, map.ptr, map.len, munmapCallback, Int64(map.len))
+        return object
     }
 }
 
@@ -900,7 +1435,7 @@ public class EnvironmentVariables {
 
         if (let old = slot.ptr) {
             old.deref()
-            slot.ptr = null
+            slot.ptr = None
         }
 
         if (value.isEmpty()) {
@@ -931,21 +1466,710 @@ public class EnvironmentVariables {
         var vm = globalObject.bunVM()
         var sliced = name.toSlice(vm.allocator)
         defer sliced.deinit()
-        let value = vm.transpiler.env.get(sliced.slice()) ?? return null
+        let value = vm.transpiler.env.get(sliced.slice()) ?? return None
         return ZigString.initUTF8(value)
     }
 }
 
 // ============================================================================
+// 压缩参数解析
+// ============================================================================
+
+/// 解析压缩函数的参数前缀 (gzip/gunzip/deflate/inflate/zstd compress/decompress)
+/// 返回 (bufferValue, optionsValue)
+public func parseCompressArgs(
+    global: JsGlobalObject,
+    callFrame: JsCallFrame,
+): (JsValue, ?JsValue) {
+    let arguments = callFrame.arguments()
+    let bufferValue: JsValue = if (arguments.len > 0) { arguments[0] } else { JsValue.UNDEFINED }
+    let optionsVal: ?JsValue = if (arguments.len > 1 && arguments[1].isObject()) {
+        Some(arguments[1])
+    } else if (arguments.len > 1 && !arguments[1].isUndefined()) {
+        return global.throwInvalidArguments("Expected options to be an object")
+    } else {
+        None
+    }
+    return (bufferValue, optionsVal)
+}
+
+/// parseCompressArgs + 同步的 StringOrBuffer 转换
+public func parseCompressBufferAndOptions(
+    global: JsGlobalObject,
+    callFrame: JsCallFrame,
+): (StringOrBuffer, ?JsValue) {
+    let (bufferValue, optionsVal) = parseCompressArgs(global, callFrame)
+    if (let buffer = StringOrBuffer.fromJS(global, bufferValue)) {
+        return (buffer, optionsVal)
+    }
+    return global.throwInvalidArguments("Expected buffer to be a string or buffer")
+}
+
+// ============================================================================
+// JSZlib - Zlib 压缩/解压缩操作
+// ============================================================================
+
+/// JSZlib 模块提供 gzip/gunzip/deflate/inflate 的同步操作
+public class JSZlib {
+
+    /// 全局释放器
+    public static let globalDeallocator = MiFreeCtx.miFreeCtx
+
+    /// 压缩库类型
+    public enum Library {
+        | Zlib
+        | Libdeflate
+    }
+
+    /// 库名称映射
+    public static let LIBRARY_MAP: HashMap<Array<UInt8>, Library> = HashMap<Array<UInt8>, Library>.from([
+        ("zlib".toBytes(), Library.Zlib),
+        ("libdeflate".toBytes(), Library.Libdeflate),
+    ])
+
+    /// gzipSync - 同步 gzip 压缩
+    public static func gzipSync(globalThis: JsGlobalObject, callframe: JsCallFrame): JsValue {
+        let (buffer, optionsVal) = parseCompressBufferAndOptions(globalThis, callframe)
+        return gzipOrDeflateSync(globalThis, buffer, optionsVal, true)
+    }
+
+    /// inflateSync - 同步 inflate 解压
+    public static func inflateSync(globalThis: JsGlobalObject, callframe: JsCallFrame): JsValue {
+        let (buffer, optionsVal) = parseCompressBufferAndOptions(globalThis, callframe)
+        return gunzipOrInflateSync(globalThis, buffer, optionsVal, false)
+    }
+
+    /// deflateSync - 同步 deflate 压缩
+    public static func deflateSync(globalThis: JsGlobalObject, callframe: JsCallFrame): JsValue {
+        let (buffer, optionsVal) = parseCompressBufferAndOptions(globalThis, callframe)
+        return gzipOrDeflateSync(globalThis, buffer, optionsVal, false)
+    }
+
+    /// gunzipSync - 同步 gunzip 解压
+    public static func gunzipSync(globalThis: JsGlobalObject, callframe: JsCallFrame): JsValue {
+        let (buffer, optionsVal) = parseCompressBufferAndOptions(globalThis, callframe)
+        return gunzipOrInflateSync(globalThis, buffer, optionsVal, true)
+    }
+
+    /// gunzip 或 inflate 同步操作
+    public static func gunzipOrInflateSync(
+        globalThis: JsGlobalObject,
+        buffer: StringOrBuffer,
+        optionsVal: ?JsValue,
+        isGzip: Bool,
+    ): JsValue {
+        var opts = Zlib.Options{
+            gzip = isGzip,
+            windowBits = if (isGzip) 31 else -15,
+        }
+        var library = Library.Zlib
+
+        if (let optionsValue = optionsVal) {
+            if (let window = try optionsValue.get(globalThis, "windowBits")) {
+                opts.windowBits = try window.coerceInt32(globalThis)
+                library = Library.Zlib
+            }
+
+            if (let level = try optionsValue.get(globalThis, "level")) {
+                opts.level = try level.coerceInt32(globalThis)
+            }
+
+            if (let memLevel = try optionsValue.get(globalThis, "memLevel")) {
+                opts.memLevel = try memLevel.coerceInt32(globalThis)
+                library = Library.Zlib
+            }
+
+            if (let strategy = try optionsValue.get(globalThis, "strategy")) {
+                opts.strategy = try strategy.coerceInt32(globalThis)
+                library = Library.Zlib
+            }
+
+            if (let libraryValue = try optionsValue.getTruthy(globalThis, "library")) {
+                if (!libraryValue.isString()) {
+                    return globalThis.throwInvalidArguments("Expected library to be a string")
+                }
+
+                library = match (LIBRARY_MAP.fromJS(globalThis, libraryValue)) {
+                    case Some(v) => v
+                    case None => return globalThis.throwInvalidArguments("Expected library to be one of 'zlib' or 'libdeflate'")
+                }
+            }
+        }
+
+        if (globalThis.hasException()) { return JsValue.zero }
+
+        let compressed = buffer.slice()
+
+        var list: ArrayList<UInt8> = if (isGzip && compressed.len > 64) {
+            // 从 gzip 尾部读取 ISIZE 字段来估算解压大小
+            let estimatedSize: UInt32 = UInt32.fromNeBytes(compressed[compressed.len - 4..])
+            if (estimatedSize > 0 && estimatedSize < 256 * 1024 * 1024) {
+                ArrayList<UInt8>.initCapacity(Math.max(estimatedSize, 64))
+            } else if (compressed.len > 512) {
+                ArrayList<UInt8>.initCapacity(compressed.len)
+            } else {
+                ArrayList<UInt8>.initCapacity(32)
+            }
+        } else {
+            if (compressed.len > 512) {
+                ArrayList<UInt8>.initCapacity(compressed.len)
+            } else {
+                ArrayList<UInt8>.initCapacity(32)
+            }
+        }
+
+        return match (library) {
+            case Library.Zlib => {
+                var reader = match (ZlibReaderArrayList.initWithOptions(
+                    compressed,
+                    list,
+                    Zlib.Options{ windowBits = opts.windowBits, level = opts.level },
+                )) {
+                    case Ok(r) => r
+                    case Err(err) => {
+                        if (err == ZlibError.InvalidArgument) {
+                            return globalThis.throw("Zlib error: Invalid argument")
+                        }
+                        return globalThis.throwError(err, "Zlib error")
+                    }
+                }
+
+                if (reader.readAll(true).isErr()) {
+                    let msg = reader.errorMessage() ?? "Zlib returned an error"
+                    return globalThis.throwValue(ZigString.init(msg).toErrorInstance(globalThis))
+                }
+
+                list.shrinkToFit()
+                let leaked = list.leak()
+                let arrayBuffer = ArrayBuffer.fromBytes(leaked, JSType.Uint8Array)
+                return arrayBuffer.toJSWithContext(globalThis, leaked.ptr, Some(globalDeallocator))
+            }
+            case Library.Libdeflate => {
+                let decompressorPtr = Libdeflate.Decompressor.alloc()
+                if (decompressorPtr.isNull()) {
+                    return globalThis.throwOutOfMemory()
+                }
+                defer Libdeflate.Decompressor.destroy(decompressorPtr)
+
+                let encoding = if (isGzip) Libdeflate.Encoding.Gzip else Libdeflate.Encoding.Deflate
+                let result = decompressorPtr.decompressToVecGrow(
+                    compressed,
+                    list,
+                    encoding,
+                    1024 * 1024 * 1024,
+                )
+                match (result.status) {
+                    case Libdeflate.Status.Success => {}
+                    case Libdeflate.Status.InsufficientSpace => return globalThis.throwOutOfMemory()
+                    case _ => return globalThis.throw("libdeflate returned an error: \{result.status}")
+                }
+
+                let leaked = list.leak()
+                let arrayBuffer = ArrayBuffer.fromBytes(leaked, JSType.Uint8Array)
+                return arrayBuffer.toJSWithContext(globalThis, leaked.ptr, Some(globalDeallocator))
+            }
+        }
+    }
+
+    /// gzip 或 deflate 同步操作
+    public static func gzipOrDeflateSync(
+        globalThis: JsGlobalObject,
+        buffer: StringOrBuffer,
+        optionsVal: ?JsValue,
+        isGzip: Bool,
+    ): JsValue {
+        var level: ?Int32 = None
+        var library = Library.Zlib
+        var windowBits: Int32 = 0
+
+        if (let optionsValue = optionsVal) {
+            if (let window = try optionsValue.get(globalThis, "windowBits")) {
+                windowBits = try window.coerceInt32(globalThis)
+                library = Library.Zlib
+            }
+
+            if (let libraryValue = try optionsValue.getTruthy(globalThis, "library")) {
+                if (!libraryValue.isString()) {
+                    return globalThis.throwInvalidArguments("Expected library to be a string")
+                }
+
+                library = match (LIBRARY_MAP.fromJS(globalThis, libraryValue)) {
+                    case Some(v) => v
+                    case None => return globalThis.throwInvalidArguments("Expected library to be one of 'zlib' or 'libdeflate'")
+                }
+            }
+
+            if (let levelValue = try optionsValue.get(globalThis, "level")) {
+                level = try levelValue.coerceInt32(globalThis)
+                if (globalThis.hasException()) { return JsValue.zero }
+            }
+        }
+
+        if (globalThis.hasException()) { return JsValue.zero }
+
+        let compressed = buffer.slice()
+        // windowBits 在 Zig 中也未使用
+
+        return match (library) {
+            case Library.Zlib => {
+                var list = ArrayList<UInt8>.initCapacity(if (compressed.len > 512) compressed.len else 32)
+
+                var reader = match (ZlibCompressorArrayList.init(
+                    compressed,
+                    list,
+                    Zlib.Options{ windowBits = 15, gzip = isGzip, level = level ?? 6 },
+                )) {
+                    case Ok(r) => r
+                    case Err(err) => {
+                        if (err == ZlibError.InvalidArgument) {
+                            return globalThis.throw("Zlib error: Invalid argument")
+                        }
+                        return globalThis.throwError(err, "Zlib error")
+                    }
+                }
+
+                if (reader.readAll().isErr()) {
+                    let msg = reader.errorMessage() ?? "Zlib returned an error"
+                    return globalThis.throwValue(ZigString.init(msg).toErrorInstance(globalThis))
+                }
+
+                list.shrinkToFit()
+                let leaked = list.leak()
+                let arrayBuffer = ArrayBuffer.fromBytes(leaked, JSType.Uint8Array)
+                return arrayBuffer.toJSWithContext(globalThis, leaked.ptr, Some(globalDeallocator))
+            }
+            case Library.Libdeflate => {
+                let compressorPtr = Libdeflate.Compressor.alloc(level ?? 6)
+                if (compressorPtr.isNull()) {
+                    return globalThis.throwOutOfMemory()
+                }
+                defer Libdeflate.Compressor.destroy(compressorPtr)
+
+                let encoding = if (isGzip) Libdeflate.Encoding.Gzip else Libdeflate.Encoding.Deflate
+
+                var list = ArrayList<UInt8>.initCapacity(
+                    compressorPtr.maxBytesNeeded(compressed, encoding),
+                )
+
+                let result = compressorPtr.compressToVec(compressed, list, encoding)
+                if (result.status != Libdeflate.Status.Success) {
+                    return globalThis.throw("libdeflate error: \{result.status}")
+                }
+
+                let leaked = list.leak()
+                let arrayBuffer = ArrayBuffer.fromBytes(leaked, JSType.Uint8Array)
+                return arrayBuffer.toJSWithContext(globalThis, leaked.ptr, Some(globalDeallocator))
+            }
+        }
+    }
+}
+
+// ============================================================================
+// JSZstd - Zstd 压缩/解压缩操作
+// ============================================================================
+
+/// JSZstd 模块提供 zstd 压缩和解压缩的同步和异步操作
+public class JSZstd {
+
+    /// 释放器
+    public static let deallocator = MiFreeCtx.miFreeCtx
+
+    /// 获取压缩级别
+    static func getLevel(globalThis: JsGlobalObject, optionsVal: ?JsValue): Int32 {
+        if (let optionObj = optionsVal) {
+            if (let levelVal = try optionObj.get(globalThis, "level")) {
+                let value = try levelVal.coerceInt32(globalThis)
+                if (globalThis.hasException()) { return 3 }
+
+                if (value < 1 || value > 22) {
+                    globalThis.throwInvalidArguments("Compression level must be between 1 and 22")
+                    return 3
+                }
+
+                return value
+            }
+        }
+        return 3
+    }
+
+    /// 获取异步操作选项
+    static func getOptionsAsync(
+        globalThis: JsGlobalObject,
+        callFrame: JsCallFrame,
+    ): (StringOrBuffer, ?JsValue, Int32) {
+        let (bufferValue, optionsVal) = parseCompressArgs(globalThis, callFrame)
+        let level = getLevel(globalThis, optionsVal)
+
+        let allowStringObject = true
+        if (let buffer = StringOrBuffer.fromJSMaybeAsync(globalThis, bufferValue, true, allowStringObject)) {
+            return (buffer, optionsVal, level)
+        }
+
+        globalThis.throwInvalidArguments("Expected buffer to be a string or buffer")
+        return (StringOrBuffer.default(), None, 3)
+    }
+
+    /// compressSync - 同步 zstd 压缩
+    public static func compressSync(globalThis: JsGlobalObject, callFrame: JsCallFrame): JsValue {
+        let (buffer, optionsVal) = parseCompressBufferAndOptions(globalThis, callFrame)
+        let level = getLevel(globalThis, optionsVal)
+
+        let input = buffer.slice()
+
+        // 计算最大压缩大小
+        let maxSize = Zstd.compressBound(input.len)
+        var output = ArrayList<UInt8>(maxSize)
+
+        // 执行压缩
+        let compressedSize = match (Zstd.compress(output, input, Some(level))) {
+            case Zstd.Result.Success(size) => size
+            case Zstd.Result.Err(err) => {
+                return globalThis.err(JsErrorCode.ZSTD, "\{err}").throw()
+            }
+        }
+
+        // 调整到实际压缩大小
+        if (compressedSize < output.len) {
+            output.truncate(compressedSize)
+            output.shrinkToFit()
+        }
+
+        return JsValue.createBuffer(globalThis, output.leak())
+    }
+
+    /// decompressSync - 同步 zstd 解压
+    public static func decompressSync(globalThis: JsGlobalObject, callFrame: JsCallFrame): JsValue {
+        let (buffer, _) = parseCompressBufferAndOptions(globalThis, callFrame)
+
+        let input = buffer.slice()
+
+        let output = match (Zstd.decompressAlloc(input)) {
+            case Ok(v) => v
+            case Err(err) => {
+                return globalThis.err(JsErrorCode.ZSTD, "Decompression failed: \{err}").throw()
+            }
+        }
+
+        return JsValue.createBuffer(globalThis, output.leak())
+    }
+
+    // --- 异步版本 ---
+
+    /// ZstdCtx - zstd 异步任务的上下文
+    public class ZstdCtx : AnyTaskJobCtx {
+        public var buffer: ThreadSafe<StringOrBuffer>
+        public var isCompress: Bool
+        public var level: Int32
+        public var output: ArrayList<UInt8>
+        public var errorMessage: ?String
+        public var promise: JsPromiseStrong
+
+        public func run(global: UnsafeRawPointer): Unit {
+            let input = self.buffer.slice()
+
+            if (self.isCompress) {
+                // 压缩路径
+                let maxSize = Zstd.compressBound(input.len)
+                self.output = ArrayList<UInt8>(maxSize)
+
+                self.output = match (Zstd.compress(self.output, input, Some(self.level))) {
+                    case Zstd.Result.Success(size) => {
+                        if (size < self.output.len) {
+                            var out = self.output
+                            out.truncate(size)
+                            out.shrinkToFit()
+                            out
+                        } else {
+                            self.output
+                        }
+                    }
+                    case Zstd.Result.Err(err) => {
+                        self.output = ArrayList<UInt8>()
+                        self.errorMessage = err
+                        return
+                    }
+                }
+            } else {
+                // 解压路径
+                self.output = match (Zstd.decompressAlloc(input)) {
+                    case Ok(v) => v
+                    case Err(_) => {
+                        self.errorMessage = "Decompression failed"
+                        return
+                    }
+                }
+            }
+        }
+
+        public func then(globalThis: JsGlobalObject): Unit {
+            let promise = self.promise.swap()
+
+            if (let errMsg = self.errorMessage) {
+                promise.rejectWithAsyncStack(
+                    globalThis,
+                    globalThis.err(JsErrorCode.ZSTD, "\{errMsg}").toJS(),
+                )
+                return
+            }
+
+            let outputSlice = self.output
+            self.output = ArrayList<UInt8>()
+            let bufferValue = JsValue.createBuffer(globalThis, outputSlice.leak())
+            promise.resolve(globalThis, bufferValue)
+        }
+    }
+
+    /// 创建异步 zstd 任务
+    static func createJob(
+        globalThis: JsGlobalObject,
+        buffer: StringOrBuffer,
+        isCompress: Bool,
+        level: Int32,
+    ): JsValue {
+        let promise = JsPromiseStrong.init(globalThis)
+        let promiseValue = promise.value()
+        let job = AnyTaskJob.create(
+            globalThis,
+            ZstdCtx{
+                buffer = ThreadSafe.adopt(buffer),
+                isCompress = isCompress,
+                level = level,
+                output = ArrayList<UInt8>(),
+                errorMessage = None,
+                promise = promise,
+            },
+        )
+        AnyTaskJob.schedule(job)
+        return promiseValue
+    }
+
+    /// compress - 异步 zstd 压缩
+    public static func compress(globalThis: JsGlobalObject, callFrame: JsCallFrame): JsValue {
+        let (buffer, _, level) = getOptionsAsync(globalThis, callFrame)
+        return createJob(globalThis, buffer, true, level)
+    }
+
+    /// decompress - 异步 zstd 解压
+    public static func decompress(globalThis: JsGlobalObject, callFrame: JsCallFrame): JsValue {
+        let (buffer, _, _) = getOptionsAsync(globalThis, callFrame)
+        return createJob(globalThis, buffer, false, 0) // 解压时忽略 level
+    }
+}
+
+// ============================================================================
+// 编辑器上下文 (线程本地存储)
+// ============================================================================
+
+/// 编辑器上下文槽位
+public class EditorContextSlot {
+    public var ctx: EditorContext
+    public var nameStorage: ArrayList<UInt8>
+
+    public init() {
+        ctx = EditorContext{ editor = None, name = "", path = "" }
+        nameStorage = ArrayList<UInt8>()
+    }
+}
+
+/// 线程本地的编辑器上下文
+public let EDITOR_CONTEXT = ThreadLocal<EditorContextSlot>(() => EditorContextSlot())
+
+// ============================================================================
+// Stdio 存储模块
+// ============================================================================
+
+/// StdioStores - 管理 stdin/stdout/stderr 的 Blob 存储
+public class StdioStores {
+
+    static let STDIN = ThreadLocal(?StoreRef>(() => None)
+    static let STDOUT = ThreadLocal(?StoreRef>(() => None)
+    static let STDERR = ThreadLocal(?StoreRef>(() => None)
+
+    /// 构建一个 Blob Store
+    static func buildStore(uvFd: Int32, isAtty: Bool): StoreRef {
+        let fd = Fd.fromUv(uvFd)
+        let mode: UInt32 = match (Sys.fstat(fd)) {
+            case Ok(stat) => UInt32.tryFrom(stat.st_mode) ?? 0
+            case Err(_) => 0
+        }
+        let store = Store.new(Store{
+            data = Data.File(FileStore{
+                pathlike = PathOrFileDescriptor.Fd(fd),
+                is_atty = Some(isAtty),
+                mode = mode,
+            }),
+            mime_type = MimeType.NONE,
+            ref_count = ThreadSafeRefCount.init(),
+            is_all_ascii = None,
+        })
+        return StoreRef.from(store)
+    }
+
+    /// 创建 Blob 的通用方法
+    static func makeBlob(
+        globalThis: JsGlobalObject,
+        slot: ThreadLocal(?StoreRef>,
+        uvFd: Int32,
+        isAtty: Bool,
+        feature: AtomicUInt64,
+    ): JsValue {
+        // 分析特性计数
+        feature.fetchAdd(1, MemoryOrder.Relaxed)
+
+        let store = slot.with(func(cell: RefCell(?StoreRef)): StoreRef {
+            var s = cell.borrowMut()
+            if (s == None) {
+                s = Some(buildStore(uvFd, isAtty))
+            }
+            return s.get().clone()
+        })
+        let blob = Blob.new(Blob.initWithStore(store, globalThis))
+        return blob.toJS(globalThis)
+    }
+
+    /// 创建 stdin Blob
+    public static func stdin(globalThis: JsGlobalObject): JsValue {
+        let isAtty = Sys.isatty(Fd.fromUv(0))
+        return makeBlob(globalThis, STDIN, 0, isAtty, Features.BUN_STDIN)
+    }
+
+    /// 创建 stdout Blob
+    public static func stdout(globalThis: JsGlobalObject): JsValue {
+        let isAtty = Output.stdoutDescriptorType() == OutputStreamDescriptor.Terminal
+        return makeBlob(globalThis, STDOUT, 1, isAtty, Features.BUN_STDOUT)
+    }
+
+    /// 创建 stderr Blob
+    public static func stderr(globalThis: JsGlobalObject): JsValue {
+        let isAtty = Output.stderrDescriptorType() == OutputStreamDescriptor.Terminal
+        return makeBlob(globalThis, STDERR, 2, isAtty, Features.BUN_STDERR)
+    }
+}
+
+// ============================================================================
+// BunObject 回调/属性注册表
+// ============================================================================
+
+/// BunObject 回调注册表 - 包含所有 Bun 全局对象的回调函数名称到实现的映射
+public class BunObjectRegistry {
+
+    // --- 回调函数注册表 ---
+    public static let CALLBACKS: HashMap<String, (JsGlobalObject, JsCallFrame) -> JsValue> = HashMap<String, (JsGlobalObject, JsCallFrame) -> JsValue>.from([
+        ("allocUnsafe", (global, cf) => BunObject.allocUnsafe(global, cf)),
+        ("build", (global, cf) => StaticAdapters.jsBundlerBuild(global, cf)),
+        ("color", (global, cf) => CssJs.jsFunctionColor(global, cf)),
+        ("connect", (global, cf) => StaticAdapters.listenerConnect(global, cf)),
+        ("deflateSync", (global, cf) => JSZlib.deflateSync(global, cf)),
+        ("file", (global, cf) => Blob.constructBunFile(global, cf)),
+        ("gunzipSync", (global, cf) => JSZlib.gunzipSync(global, cf)),
+        ("gzipSync", (global, cf) => JSZlib.gzipSync(global, cf)),
+        ("indexOfLine", (global, cf) => BunObject.indexOfLine(global, cf)),
+        ("inflateSync", (global, cf) => JSZlib.inflateSync(global, cf)),
+        ("jest", (global, cf) => Jest.call(global, cf)),
+        ("listen", (global, cf) => StaticAdapters.listenerListen(global, cf)),
+        ("mmap", (global, cf) => BunObject.mmapFile(global, cf)),
+        ("nanoseconds", (global, cf) => BunObject.nanoseconds(global, cf)),
+        ("openInEditor", (global, cf) => BunObject.openInEditor(global, cf)),
+        ("registerMacro", (global, cf) => BunObject.registerMacro(global, cf)),
+        ("resolve", (global, cf) => BunObject.resolve(global, cf)),
+        ("resolveSync", (global, cf) => BunObject.resolveSync(global, cf)),
+        ("serve", (global, cf) => BunObject.serve(global, cf)),
+        ("sha", (global, cf) => StaticAdapters.sha(global, cf)),
+        ("shellEscape", (global, cf) => BunObject.shellEscape(global, cf)),
+        ("shrink", (global, cf) => BunObject.shrink(global, cf)),
+        ("stringWidth", (global, cf) => BunObject.stringWidth(global, cf)),
+        ("sleepSync", (global, cf) => BunObject.sleepSync(global, cf)),
+        ("spawn", (global, cf) => StaticAdapters.subprocessSpawn(global, cf)),
+        ("spawnSync", (global, cf) => StaticAdapters.subprocessSpawnSync(global, cf)),
+        ("udpSocket", (global, cf) => StaticAdapters.udpSocket(global, cf)),
+        ("which", (global, cf) => BunObject.which(global, cf)),
+        ("write", (global, cf) => Blob.writeFile(global, cf)),
+        ("zstdCompressSync", (global, cf) => JSZstd.compressSync(global, cf)),
+        ("zstdDecompressSync", (global, cf) => JSZstd.decompressSync(global, cf)),
+        ("zstdCompress", (global, cf) => JSZstd.compress(global, cf)),
+        ("zstdDecompress", (global, cf) => JSZstd.decompress(global, cf)),
+        ("createParsedShellScript", (global, cf) => StaticAdapters.parsedShellScriptCreate(global, cf)),
+        ("createShellInterpreter", (global, cf) => StaticAdapters.shellInterpreterCreate(global, cf)),
+    ])
+
+    // --- 惰性属性回调注册表 ---
+    public static let LAZY_PROPERTIES: HashMap<String, (JsGlobalObject, JsObject) -> JsValue> = HashMap<String, (JsGlobalObject, JsObject) -> JsValue>.from([
+        ("Archive", (global, obj) => BunObject.getArchiveConstructor(global, obj)),
+        ("CryptoHasher", (global, obj) => Crypto.CryptoHasher.getter(global, obj)),
+        ("CSRF", (global, obj) => BunObject.getCSRFObject(global, obj)),
+        ("FFI", (global, obj) => FFIObject.getter(global, obj)),
+        ("FileSystemRouter", (global, obj) => BunObject.getFileSystemRouter(global, obj)),
+        ("Glob", (global, obj) => BunObject.getGlobConstructor(global, obj)),
+        ("Image", (global, obj) => BunObject.getImageConstructor(global, obj)),
+        ("MD4", (global, obj) => Crypto.MD4.getter(global, obj)),
+        ("MD5", (global, obj) => Crypto.MD5.getter(global, obj)),
+        ("SHA1", (global, obj) => Crypto.SHA1.getter(global, obj)),
+        ("SHA224", (global, obj) => Crypto.SHA224.getter(global, obj)),
+        ("SHA256", (global, obj) => Crypto.SHA256.getter(global, obj)),
+        ("SHA384", (global, obj) => Crypto.SHA384.getter(global, obj)),
+        ("SHA512", (global, obj) => Crypto.SHA512.getter(global, obj)),
+        ("SHA512_256", (global, obj) => Crypto.SHA512_256.getter(global, obj)),
+        ("JSONC", (global, obj) => BunObject.getJSONCObject(global, obj)),
+        ("markdown", (global, obj) => BunObject.getMarkdownObject(global, obj)),
+        ("TOML", (global, obj) => BunObject.getTOMLObject(global, obj)),
+        ("JSON5", (global, obj) => BunObject.getJSON5Object(global, obj)),
+        ("YAML", (global, obj) => BunObject.getYAMLObject(global, obj)),
+        ("Transpiler", (global, obj) => BunObject.getTranspilerConstructor(global, obj)),
+        ("argv", (global, obj) => BunObject.getArgv(global, obj)),
+        ("cron", (global, obj) => BunObject.getCronObject(global, obj)),
+        ("cwd", (global, obj) => BunObject.getCWD(global, obj)),
+        ("embeddedFiles", (global, obj) => BunObject.getEmbeddedFiles(global, obj)),
+        ("enableANSIColors", (global, obj) => BunObject.enableANSIColors(global, obj)),
+        ("hash", (global, obj) => BunObject.getHashObject(global, obj)),
+        ("inspect", (global, obj) => BunObject.getInspect(global, obj)),
+        ("origin", (global, obj) => BunObject.getOrigin(global, obj)),
+        ("semver", (global, obj) => BunObject.getSemver(global, obj)),
+        ("unsafe", (global, obj) => BunObject.getUnsafe(global, obj)),
+        ("S3Client", (global, obj) => BunObject.getS3ClientConstructor(global, obj)),
+        ("s3", (global, obj) => BunObject.getS3DefaultClient(global, obj)),
+        ("ValkeyClient", (global, obj) => BunObject.getValkeyClientConstructor(global, obj)),
+        ("valkey", (global, obj) => BunObject.getValkeyDefaultClient(global, obj)),
+        ("Terminal", (global, obj) => BunObject.getTerminalConstructor(global, obj)),
+    ])
+
+    // --- Getter / Setter ---
+    public static func mainGetter(globalThis: JsGlobalObject): JsValue {
+        return BunObject.getMain(globalThis)
+    }
+
+    public static func mainSetter(globalThis: JsGlobalObject, newValue: JsValue): Bool {
+        return BunObject.setMain(globalThis, newValue)
+    }
+
+    // --- 惰性属性初始化器 ---
+    public static func createBunStdin(globalThis: JsGlobalObject): JsValue {
+        return BunObject.createBunStdin(globalThis)
+    }
+
+    public static func createBunStderr(globalThis: JsGlobalObject): JsValue {
+        return BunObject.createBunStderr(globalThis)
+    }
+
+    public static func createBunStdout(globalThis: JsGlobalObject): JsValue {
+        return BunObject.createBunStdout(globalThis)
+    }
+}
+
+// ============================================================================
 // 常量
-// ========================================================================
+// ============================================================================
 
 /// 每毫秒的纳秒数
 public let NS_PER_MS: UInt64 = 1_000_000
+
+/// 默认分配器
+public let default_allocator = default_allocator
+
+/// 最大路径长度
+public let MAX_PATH_BYTES: Int64 = MAX_PATH_BYTES
 
 // ============================================================================
 // 类型别名
 // ============================================================================
 
 public typealias BunString = BunString
-public let default_allocator = default_allocator

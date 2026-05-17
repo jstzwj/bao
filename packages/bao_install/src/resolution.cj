@@ -21,57 +21,6 @@ import bao_http.*
 //   }
 // ============================================================================
 
-/// 依赖行为标志
-/// 对应 Bun: Dependency.Behavior (bitfield)
-public class DependencyBehavior {
-    public var isPeer: Bool
-    public var isDev: Bool
-    public var isOptional: Bool
-    public var isWorkspace: Bool
-    public var isBundled: Bool
-
-    public init() {
-        isPeer = false
-        isDev = false
-        isOptional = false
-        isWorkspace = false
-        isBundled = false
-    }
-
-    /// 比较排序优先级
-    /// 对应 Bun: Behavior.cmp
-    /// 翻译自: src/install/dependency.zig Behavior.cmp
-    /// 排序: peer > optional > dev > normal (按权重降序)
-    public func compare(other: DependencyBehavior): Int64 {
-        let thisVal = (if (isPeer) { 8 } else { 0 }) +
-                      (if (isOptional) { 4 } else { 0 }) +
-                      (if (isDev) { 2 } else { 0 }) +
-                      (if (isBundled) { 1 } else { 0 })
-        let otherVal = (if (other.isPeer) { 8 } else { 0 }) +
-                       (if (other.isOptional) { 4 } else { 0 }) +
-                       (if (other.isDev) { 2 } else { 0 }) +
-                       (if (other.isBundled) { 1 } else { 0 })
-        if (thisVal < otherVal) { return -1 }
-        if (thisVal > otherVal) { return 1 }
-        return 0
-    }
-
-    /// 是否包含指定行为
-    public func includes(other: DependencyBehavior): Bool {
-        if (other.isPeer && !isPeer) { return false }
-        if (other.isDev && !isDev) { return false }
-        if (other.isOptional && !isOptional) { return false }
-        if (other.isWorkspace && !isWorkspace) { return false }
-        if (other.isBundled && !isBundled) { return false }
-        return true
-    }
-
-    /// 是否是 optional peer
-    public func isOptionalPeer(): Bool {
-        return isPeer && isOptional
-    }
-}
-
 // ============================================================================
 // 依赖版本标签
 // 严格翻译自: src/install/dependency.zig - Dependency.Version.Tag
@@ -107,6 +56,25 @@ public enum DependencyTag {
             case Github => "github"
             case Catalog => "catalog"
         }
+    }
+
+    public operator func ==(right: DependencyTag): Bool {
+        match (this) {
+            case Uninitialized => match (right) { case Uninitialized => true case _ => false }
+            case Npm => match (right) { case Npm => true case _ => false }
+            case DistTag => match (right) { case DistTag => true case _ => false }
+            case Tarball => match (right) { case Tarball => true case _ => false }
+            case Folder => match (right) { case Folder => true case _ => false }
+            case Symlink => match (right) { case Symlink => true case _ => false }
+            case Workspace => match (right) { case Workspace => true case _ => false }
+            case Git => match (right) { case Git => true case _ => false }
+            case Github => match (right) { case Github => true case _ => false }
+            case Catalog => match (right) { case Catalog => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: DependencyTag): Bool {
+        return !(this == right)
     }
 
     /// 是否需要网络请求
@@ -173,7 +141,7 @@ public class Dependency {
     /// 对应 Bun: Dependency.Version.Tag.infer
     /// 翻译自: src/install/dependency.zig Tag.infer
     public static func inferTag(version: String): DependencyTag {
-        if (version.length == 0) { return DependencyTag.DistTag }
+        if (version.size == 0) { return DependencyTag.DistTag }
 
         let c = version[0]
         // ^, =, >, <, *, | -> npm semver
@@ -182,7 +150,7 @@ public class Dependency {
         }
         // ~1.2.3 or ~/path
         if (c == '~') {
-            if (version.length > 1 && version[1] == '/') {
+            if (version.size > 1 && version[1] == '/') {
                 return DependencyTag.Folder
             }
             return DependencyTag.Npm
@@ -248,15 +216,15 @@ public class Dependency {
     /// 翻译自: Dependency.isSCPLikePath
     ///   user@host:path 或 git@github.com:user/repo
     private static func isSCPLikePath(dependency: String): Bool {
-        if (dependency.length < 3) { return false }
+        if (dependency.size < 3) { return false }
         var atIndex: Int64 = -1
         var i: Int64 = 0
-        while (i < dependency.length) {
+        while (i < dependency.size) {
             let c = dependency[i]
             if (c == '@') {
                 if (atIndex < 0) { atIndex = i }
             } else if (c == ':') {
-                if (i + 2 < dependency.length && dependency[Int64(i) + 1] == '/' && dependency[Int64(i) + 2] == '/') {
+                if (i + 2 < dependency.size && dependency[Int64(i) + 1] == '/' && dependency[Int64(i) + 2] == '/') {
                     // "://" -> 这是 URL, 不是 SCP
                     return false
                 }
@@ -304,22 +272,8 @@ public class Dependency {
             // 处理 scoped package: npm:@scope/pkg@version
             let startIdx: Int64 = if (rest.startsWith("@")) { Int64(1) + rest.indexOf("@", Int64(1)) } else { -1 }
             match (startIdx) {
-                case -1 => {
-                    // 没有 @version 部分, 整个字符串是包名
-                    let atIndex = rest.indexOf("@", Int64(1))
-                    if (atIndex >= 0) {
-                        return rest.substring(0, atIndex)
-                    }
-                    return rest
-                }
-                case idx => {
-                    // 跳过第一个 @ (scope)
-                    let atIndex = rest.indexOf("@", Int64(1))
-                    if (atIndex >= 0) {
-                        return rest.substring(0, atIndex)
-                    }
-                    return rest
-                }
+                case -1 => _matchHelper_resolution_202()
+                case idx => _matchHelper_resolution_203()
             }
         }
         return name
@@ -453,7 +407,7 @@ public class ResolvedPackage {
 
         // 检查 OS
         if (os.size > 0) {
-            let currentOs = bao_sys.SysModule.getOsName()
+            let currentOs = SysModule.getOsName()
             var osMatch = false
             for (o in os) {
                 let osName = if (o.startsWith("!")) { o.substring(1) } else { o }
@@ -467,7 +421,7 @@ public class ResolvedPackage {
 
         // 检查 CPU
         if (cpu.size > 0) {
-            let currentArch = bao_sys.SysModule.getArchName()
+            let currentArch = SysModule.getArchName()
             var cpuMatch = false
             for (c in cpu) {
                 let cpuName = if (c.startsWith("!")) { c.substring(1) } else { c }
@@ -535,17 +489,8 @@ public class ResolutionTree {
     /// 添加依赖边
     public func addEdge(from: String, to: String): Unit {
         match (edges.get(from)) {
-            case Some(list) => {
-                // 避免重复边
-                if (!list.contains(to)) {
-                    list.append(to)
-                }
-            }
-            case None => {
-                let list = ArrayList<String>()
-                list.append(to)
-                edges.put(from, list)
-            }
+            case Some(list) => _matchHelper_resolution_204()
+            case None => _matchHelper_resolution_205()
         }
     }
 
@@ -553,14 +498,7 @@ public class ResolutionTree {
     public func getDependencies(pkgKey: String): ArrayList<ResolvedPackage> {
         let result = ArrayList<ResolvedPackage>()
         match (edges.get(pkgKey)) {
-            case Some(deps) => {
-                for (depKey in deps) {
-                    match (packages.get(depKey)) {
-                        case Some(pkg) => result.append(pkg)
-                        case None => ()
-                    }
-                }
-            }
+            case Some(deps) => _matchHelper_resolution_206()
             case None => ()
         }
         return result
@@ -571,28 +509,7 @@ public class ResolutionTree {
         var best: ?ResolvedPackage = None
         for (key in packages.keys()) {
             match (packages.get(key)) {
-                case Some(pkg) => {
-                    if (pkg.name == name) {
-                        match (best) {
-                            case Some(b) => {
-                                let bestSv = SemVer.parse(b.version)
-                                let pkgSv = SemVer.parse(pkg.version)
-                                match (bestSv) {
-                                    case Some(bsv) => match (pkgSv) {
-                                        case Some(psv) => {
-                                            if (psv.compare(bsv) > 0) {
-                                                best = Some(pkg)
-                                            }
-                                        }
-                                        case None => ()
-                                    }
-                                    case None => ()
-                                }
-                            }
-                            case None => best = Some(pkg)
-                        }
-                    }
-                }
+                case Some(pkg) => _matchHelper_resolution_207()
                 case None => ()
             }
         }
@@ -605,11 +522,7 @@ public class ResolutionTree {
         let inStack = HashSet<String>()
         for (key in packages.keys()) {
             match (key) {
-                case Some(k) => {
-                    if (detectCycle(k, visited, inStack)) {
-                        return true
-                    }
-                }
+                case Some(k) => _matchHelper_resolution_208()
                 case None => ()
             }
         }
@@ -624,13 +537,7 @@ public class ResolutionTree {
         inStack.put(node)
 
         match (edges.get(node)) {
-            case Some(deps) => {
-                for (dep in deps) {
-                    if (detectCycle(dep, visited, inStack)) {
-                        return true
-                    }
-                }
-            }
+            case Some(deps) => _matchHelper_resolution_209()
             case None => ()
         }
 
@@ -648,21 +555,13 @@ public class ResolutionTree {
         let allDepended = HashSet<String>()
         for (key in edges.keys()) {
             match (edges.get(key)) {
-                case Some(deps) => {
-                    for (dep in deps) {
-                        allDepended.put(dep)
-                    }
-                }
+                case Some(deps) => _matchHelper_resolution_210()
                 case None => ()
             }
         }
         for (key in packages.keys()) {
             match (key) {
-                case Some(k) => {
-                    if (!allDepended.contains(k)) {
-                        rootPkgs.append(k)
-                    }
-                }
+                case Some(k) => _matchHelper_resolution_211()
                 case None => ()
             }
         }
@@ -679,11 +578,7 @@ public class ResolutionTree {
         visited.put(node)
 
         match (edges.get(node)) {
-            case Some(deps) => {
-                for (dep in deps) {
-                    flattenDfs(dep, visited, result)
-                }
-            }
+            case Some(deps) => _matchHelper_resolution_212()
             case None => ()
         }
 
@@ -863,15 +758,7 @@ public class DependencyResolver {
         let rootDeps = ArrayList<Dependency>()
         for (name in deps.keys()) {
             match (deps.get(name)) {
-                case Some(ver) => {
-                    // 检查 overrides
-                    var effectiveVer = ver
-                    match (overrides.get(name)) {
-                        case Some(overrideVer) => effectiveVer = overrideVer
-                        case None => ()
-                    }
-                    rootDeps.append(Dependency(name, effectiveVer))
-                }
+                case Some(ver) => _matchHelper_resolution_213()
                 case None => ()
             }
         }
@@ -907,10 +794,7 @@ public class DependencyResolver {
         // 解析 dependencies
         for (name in dependencies.keys()) {
             match (dependencies.get(name)) {
-                case Some(ver) => {
-                    let dep = Dependency(name, applyOverride(name, ver))
-                    resolveDependency(dep, tree, 0)
-                }
+                case Some(ver) => _matchHelper_resolution_214()
                 case None => ()
             }
         }
@@ -919,11 +803,7 @@ public class DependencyResolver {
         if (!productionMode) {
             for (name in devDependencies.keys()) {
                 match (devDependencies.get(name)) {
-                    case Some(ver) => {
-                        let dep = Dependency(name, applyOverride(name, ver))
-                        dep.behavior.isDev = true
-                        resolveDependency(dep, tree, 0)
-                    }
+                    case Some(ver) => _matchHelper_resolution_215()
                     case None => ()
                 }
             }
@@ -932,11 +812,7 @@ public class DependencyResolver {
         // 解析 peerDependencies
         for (name in peerDependencies.keys()) {
             match (peerDependencies.get(name)) {
-                case Some(ver) => {
-                    let dep = Dependency(name, applyOverride(name, ver))
-                    dep.behavior.isPeer = true
-                    resolveDependency(dep, tree, 0)
-                }
+                case Some(ver) => _matchHelper_resolution_216()
                 case None => ()
             }
         }
@@ -944,11 +820,7 @@ public class DependencyResolver {
         // 解析 optionalDependencies
         for (name in optionalDependencies.keys()) {
             match (optionalDependencies.get(name)) {
-                case Some(ver) => {
-                    let dep = Dependency(name, applyOverride(name, ver))
-                    dep.behavior.isOptional = true
-                    resolveDependency(dep, tree, 0)
-                }
+                case Some(ver) => _matchHelper_resolution_217()
                 case None => ()
             }
         }
@@ -974,24 +846,7 @@ public class DependencyResolver {
         // 检查同包名是否已有解析版本 (扁平化去重)
         // 对应 Bun: hoisted install 中同名包只安装一个版本
         match (resolvedVersions.get(dep.name)) {
-            case Some(existingVer) => {
-                let existingKey = "${dep.name}@${existingVer}"
-                match (resolved.get(existingKey)) {
-                    case Some(existing) => {
-                        // 检查现有版本是否满足新约束
-                        let existingSv = SemVer.parse(existingVer)
-                        match (existingSv) {
-                            case Some(sv) => {
-                                if (SemVer.satisfies(sv, dep.resolvedVersion())) {
-                                    return Some(existing)
-                                }
-                            }
-                            case None => ()
-                        }
-                    }
-                    case None => ()
-                }
-            }
+            case Some(existingVer) => _matchHelper_resolution_218()
             case None => ()
         }
 
@@ -1024,28 +879,8 @@ public class DependencyResolver {
         resolving.remove(depKey)
 
         match (pkg) {
-            case Some(p) => {
-                resolved.put(depKey, p)
-                resolvedVersions.put(dep.name, p.version)
-                tree.addPackage(p)
-
-                // 记录 peer 依赖
-                for (pd in p.peerDependencies) {
-                    availablePeers.put(pd.name, pd.version)
-                }
-
-                return Some(p)
-            }
-            case None => {
-                // 记录解析失败
-                let isOptionalDep = dep.behavior.isOptional
-                tree.errors.append(ResolutionError(
-                    packageName: dep.name,
-                    message: "Failed to resolve ${dep.name}@${dep.version}",
-                    isOptional: isOptionalDep
-                ))
-                return None
-            }
+            case Some(p) => _matchHelper_resolution_219()
+            case None => _matchHelper_resolution_220()
         }
     }
 
@@ -1055,42 +890,7 @@ public class DependencyResolver {
     private func resolveNpmDependency(dep: Dependency, tree: ResolutionTree, depth: Int64): ?ResolvedPackage {
         let meta = registry.fetchPackageMetadata(dep.realName())
         match (meta) {
-            case Some(m) => {
-                let versionRange = dep.resolvedVersion()
-                let best = m.findBestVersion(versionRange)
-                match (best) {
-                    case Some(vi) => {
-                        let pkg = ResolvedPackage(dep.name, vi.version)
-                        pkg.tag = DependencyTag.Npm
-                        pkg.resolved = vi.distTarball
-                        pkg.integrity = vi.distIntegrity
-                        pkg.depth = depth
-                        pkg.isDev = dep.behavior.isDev
-                        pkg.isPeer = dep.behavior.isPeer
-                        pkg.isOptional = dep.behavior.isOptional
-                        pkg.hasInstallScript = vi.hasInstallScript
-                        pkg.bin = vi.bin
-                        pkg.os = vi.os
-                        pkg.cpu = vi.cpu
-                        pkg.deprecated = vi.deprecated
-                        pkg.registryUrl = ""  // 使用默认 registry
-
-                        // 递归解析子依赖
-                        resolveSubDependencies(pkg, vi.dependencies, tree, depth + 1)
-                        resolvePeerDependencies(pkg, vi.peerDependencies, vi.peerDependenciesMeta, tree, depth + 1)
-                        resolveOptionalDependencies(pkg, vi.optionalDependencies, tree, depth + 1)
-
-                        // 检查平台兼容性
-                        if (!pkg.isPlatformCompatible()) {
-                            // 标记为 optional, 安装时跳过
-                            pkg.isOptional = true
-                        }
-
-                        return Some(pkg)
-                    }
-                    case None => return None
-                }
-            }
+            case Some(m) => _matchHelper_resolution_221()
             case None => return None
         }
     }
@@ -1100,28 +900,7 @@ public class DependencyResolver {
     private func resolveDistTagDependency(dep: Dependency, tree: ResolutionTree, depth: Int64): ?ResolvedPackage {
         let meta = registry.fetchPackageMetadata(dep.realName())
         match (meta) {
-            case Some(m) => {
-                let tagName = if (dep.version.length == 0) { "latest" } else { dep.version }
-                let version = m.getDistTag(tagName)
-                match (version) {
-                    case Some(v) => {
-                        // 用解析出的精确版本重新构造 npm 依赖
-                        let exactDep = Dependency(dep.name, v, DependencyTag.Npm)
-                        return resolveNpmDependency(exactDep, tree, depth)
-                    }
-                    case None => {
-                        // fallback: 尝试 latest
-                        let latest = m.latestVersion()
-                        match (latest) {
-                            case Some(v) => {
-                                let exactDep = Dependency(dep.name, v, DependencyTag.Npm)
-                                return resolveNpmDependency(exactDep, tree, depth)
-                            }
-                            case None => return None
-                        }
-                    }
-                }
-            }
+            case Some(m) => _matchHelper_resolution_222()
             case None => return None
         }
     }
@@ -1136,7 +915,7 @@ public class DependencyResolver {
         } else if (dep.version.startsWith("file:")) {
             url = dep.version.substring(5)
         } else {
-            url = bao_path.PathModule.resolve(ArrayList<String>([dep.version]))
+            url = Path.resolve([dep.version])
         }
 
         let pkg = ResolvedPackage(dep.name, dep.version)
@@ -1156,14 +935,14 @@ public class DependencyResolver {
             dep.version
         }
 
-        let absPath = bao_path.PathModule.resolve(ArrayList<String>([path]))
+        let absPath = Path.resolve([path])
         let pkg = ResolvedPackage(dep.name, dep.version)
         pkg.tag = DependencyTag.Folder
         pkg.resolved = absPath
         pkg.depth = depth
 
         // 尝试读取文件夹中的 package.json 以获取子依赖
-        let pkgJsonPath = bao_path.PathModule.join(ArrayList<String>([absPath, "package.json"]))
+        let pkgJsonPath = Path.join([absPath, "package.json"])
         let content = try {
             BaoFile.readAllText(pkgJsonPath)
         } catch (_: Exception) {
@@ -1173,12 +952,7 @@ public class DependencyResolver {
         let parser = JsonParser()
         let json = parser.parse(content)
         match (json) {
-            case Some(root) => {
-                let subDeps = JsonHelper.getStringMap(root, "dependencies")
-                resolveSubDependencies(pkg, subDeps, tree, depth + 1)
-                let peerDeps = JsonHelper.getStringMap(root, "peerDependencies")
-                resolvePeerDependencies(pkg, peerDeps, HashMap<String, HashMap<String, String>>(), tree, depth + 1)
-            }
+            case Some(root) => _matchHelper_resolution_223()
             case None => ()
         }
 
@@ -1197,7 +971,7 @@ public class DependencyResolver {
 
         let pkg = ResolvedPackage(dep.name, dep.version)
         pkg.tag = DependencyTag.Symlink
-        pkg.resolved = bao_path.PathModule.resolve(ArrayList<String>([path]))
+        pkg.resolved = Path.resolve([path])
         pkg.depth = depth
         return Some(pkg)
     }
@@ -1229,10 +1003,7 @@ public class DependencyResolver {
 
         // 查找 workspace 路径
         match (workspacePackages.get(dep.name)) {
-            case Some(ver) => {
-                // workspace 包的路径在安装时确定
-                pkg.packagePath = dep.name
-            }
+            case Some(ver) => _matchHelper_resolution_224()
             case None => ()
         }
 
@@ -1240,8 +1011,8 @@ public class DependencyResolver {
 
         // 读取 workspace 包的依赖
         let wsPath = pkg.packagePath
-        if (wsPath.length > 0) {
-            let pkgJsonPath = bao_path.PathModule.join(ArrayList<String>([wsPath, "package.json"]))
+        if (wsPath.size > 0) {
+            let pkgJsonPath = Path.join([wsPath, "package.json"])
             let content = try {
                 BaoFile.readAllText(pkgJsonPath)
             } catch (_: Exception) {
@@ -1251,10 +1022,7 @@ public class DependencyResolver {
             let parser = JsonParser()
             let json = parser.parse(content)
             match (json) {
-                case Some(root) => {
-                    let subDeps = JsonHelper.getStringMap(root, "dependencies")
-                    resolveSubDependencies(pkg, subDeps, tree, depth + 1)
-                }
+                case Some(root) => _matchHelper_resolution_225()
                 case None => ()
             }
         }
@@ -1305,19 +1073,7 @@ public class DependencyResolver {
     ): Unit {
         for (name in deps.keys()) {
             match (deps.get(name)) {
-                case Some(ver) => {
-                    let effectiveVer = applyOverride(name, ver)
-                    let dep = Dependency(name, effectiveVer)
-                    dep.behavior.isDev = pkg.isDev
-                    let child = resolveDependency(dep, tree, depth)
-                    match (child) {
-                        case Some(c) => {
-                            tree.addEdge(pkg.key(), c.key())
-                            pkg.dependencies.append(dep)
-                        }
-                        case None => ()
-                    }
-                }
+                case Some(ver) => _matchHelper_resolution_226()
                 case None => ()
             }
         }
@@ -1336,42 +1092,7 @@ public class DependencyResolver {
     ): Unit {
         for (name in peers.keys()) {
             match (peers.get(name)) {
-                case Some(ver) => {
-                    let effectiveVer = applyOverride(name, ver)
-                    let dep = Dependency(name, effectiveVer)
-                    dep.behavior.isPeer = true
-
-                    // 检查 peerDependenciesMeta 中的 optional 标记
-                    match (peersMeta.get(name)) {
-                        case Some(meta) => {
-                            match (meta.get("optional")) {
-                                case Some("true") => dep.behavior.isOptional = true
-                                case _ => ()
-                            }
-                        }
-                        case None => ()
-                    }
-
-                    let child = resolveDependency(dep, tree, depth)
-                    match (child) {
-                        case Some(c) => {
-                            tree.addEdge(pkg.key(), c.key())
-                            pkg.peerDependencies.append(dep)
-                        }
-                        case None => {
-                            // peer dep 未解析 -> 记录警告
-                            let isOptionalPeer = dep.behavior.isOptional
-                            if (!isOptionalPeer) {
-                                tree.peerWarnings.append(PeerWarning(
-                                    packageName: name,
-                                    peerName: name,
-                                    peerVersion: ver,
-                                    requiredBy: pkg.key()
-                                ))
-                            }
-                        }
-                    }
-                }
+                case Some(ver) => _matchHelper_resolution_227()
                 case None => ()
             }
         }
@@ -1388,20 +1109,7 @@ public class DependencyResolver {
     ): Unit {
         for (name in optionals.keys()) {
             match (optionals.get(name)) {
-                case Some(ver) => {
-                    let effectiveVer = applyOverride(name, ver)
-                    let dep = Dependency(name, effectiveVer)
-                    dep.behavior.isOptional = true
-                    // optional 依赖解析失败不报错
-                    let child = resolveDependency(dep, tree, depth)
-                    match (child) {
-                        case Some(c) => {
-                            tree.addEdge(pkg.key(), c.key())
-                            pkg.optionalDependencies.append(dep)
-                        }
-                        case None => ()  // 静默忽略
-                    }
-                }
+                case Some(ver) => _matchHelper_resolution_228()
                 case None => ()
             }
         }
@@ -1414,21 +1122,7 @@ public class DependencyResolver {
         let requests = HashMap<String, ArrayList<String>>()
         for (key in resolved.keys()) {
             match (key) {
-                case Some(k) => {
-                    match (resolved.get(k)) {
-                        case Some(pkg) => {
-                            match (requests.get(pkg.name)) {
-                                case Some(list) => list.append(pkg.version)
-                                case None => {
-                                    let list = ArrayList<String>()
-                                    list.append(pkg.version)
-                                    requests.put(pkg.name, list)
-                                }
-                            }
-                        }
-                        case None => ()
-                    }
-                }
+                case Some(k) => _matchHelper_resolution_229()
                 case None => ()
             }
         }
@@ -1436,7 +1130,265 @@ public class DependencyResolver {
         // 检查冲突: 同名但版本不同
         for (name in requests.keys()) {
             match (requests.get(name)) {
-                case Some(versions) => {
+                case Some(versions) => _matchHelper_resolution_230()
+                case None => ()
+            }
+        }
+    }
+
+    /// 检查 peer 依赖满足性
+    /// 翻译自: PackageManager 中 peer dependency 验证
+    ///   Bun 在安装完成后检查 peer 是否被正确满足
+    private func checkPeerDependencies(tree: ResolutionTree): Unit {
+        for (key in tree.packages.keys()) {
+            match (tree.packages.get(key)) {
+                case Some(pkg) => _matchHelper_resolution_231()
+                case None => ()
+            }
+        }
+    }
+
+    /// 应用 override
+    /// 翻译自: Lockfile.overrides / package.json overrides
+    private func applyOverride(name: String, version: String): String {
+        match (overrides.get(name)) {
+            case Some(overrideVer) => return overrideVer
+            case None => return version
+        }
+    }
+}
+
+
+                private func _matchHelper_resolution_202(): Unit {
+                    // 没有 @version 部分, 整个字符串是包名
+                    let atIndex = rest.indexOf("@", Int64(1))
+                    if (atIndex >= 0) {
+                        return rest.substring(0, atIndex)
+                    }
+                    return rest
+                }
+
+                private func _matchHelper_resolution_203(): Unit {
+                    // 跳过第一个 @ (scope)
+                    let atIndex = rest.indexOf("@", Int64(1))
+                    if (atIndex >= 0) {
+                        return rest.substring(0, atIndex)
+                    }
+                    return rest
+                }
+
+            private func _matchHelper_resolution_204(): Unit {
+                // 避免重复边
+                if (!list.contains(to)) {
+                    list.append(to)
+                }
+            }
+
+            private func _matchHelper_resolution_205(): Unit {
+                let list = ArrayList<String>()
+                list.append(to)
+                edges.put(from, list)
+            }
+
+            private func _matchHelper_resolution_206(): Unit {
+                for (depKey in deps) {
+                    match (packages.get(depKey)) {
+                        case Some(pkg) => result.append(pkg)
+                        case None => ()
+                    }
+                }
+            }
+
+                private func _matchHelper_resolution_207(): Unit {
+                    if (pkg.name == name) {
+                        match (best) {
+                            case Some(b) => _matchHelper_resolution_67()
+                            case None => best = Some(pkg)
+                        }
+                    }
+                }
+
+                private func _matchHelper_resolution_208(): Unit {
+                    if (detectCycle(k, visited, inStack)) {
+                        return true
+                    }
+                }
+
+            private func _matchHelper_resolution_209(): Unit {
+                for (dep in deps) {
+                    if (detectCycle(dep, visited, inStack)) {
+                        return true
+                    }
+                }
+            }
+
+                private func _matchHelper_resolution_210(): Unit {
+                    for (dep in deps) {
+                        allDepended.put(dep)
+                    }
+                }
+
+                private func _matchHelper_resolution_211(): Unit {
+                    if (!allDepended.contains(k)) {
+                        rootPkgs.append(k)
+                    }
+                }
+
+            private func _matchHelper_resolution_212(): Unit {
+                for (dep in deps) {
+                    flattenDfs(dep, visited, result)
+                }
+            }
+
+                private func _matchHelper_resolution_213(): Unit {
+                    // 检查 overrides
+                    var effectiveVer = ver
+                    match (overrides.get(name)) {
+                        case Some(overrideVer) => effectiveVer = overrideVer
+                        case None => ()
+                    }
+                    rootDeps.append(Dependency(name, effectiveVer))
+                }
+
+                private func _matchHelper_resolution_214(): Unit {
+                    let dep = Dependency(name, applyOverride(name, ver))
+                    resolveDependency(dep, tree, 0)
+                }
+
+                    private func _matchHelper_resolution_215(): Unit {
+                        let dep = Dependency(name, applyOverride(name, ver))
+                        dep.behavior.isDev = true
+                        resolveDependency(dep, tree, 0)
+                    }
+
+                private func _matchHelper_resolution_216(): Unit {
+                    let dep = Dependency(name, applyOverride(name, ver))
+                    dep.behavior.isPeer = true
+                    resolveDependency(dep, tree, 0)
+                }
+
+                private func _matchHelper_resolution_217(): Unit {
+                    let dep = Dependency(name, applyOverride(name, ver))
+                    dep.behavior.isOptional = true
+                    resolveDependency(dep, tree, 0)
+                }
+
+            private func _matchHelper_resolution_218(): Unit {
+                let existingKey = "${dep.name}@${existingVer}"
+                match (resolved.get(existingKey)) {
+                    case Some(existing) => _matchHelper_resolution_68()
+                    case None => ()
+                }
+            }
+
+            private func _matchHelper_resolution_219(): Unit {
+                resolved.put(depKey, p)
+                resolvedVersions.put(dep.name, p.version)
+                tree.addPackage(p)
+
+                // 记录 peer 依赖
+                for (pd in p.peerDependencies) {
+                    availablePeers.put(pd.name, pd.version)
+                }
+
+                return Some(p)
+            }
+
+            private func _matchHelper_resolution_220(): Unit {
+                // 记录解析失败
+                let isOptionalDep = dep.behavior.isOptional
+                tree.errors.append(ResolutionError(
+                    packageName: dep.name,
+                    message: "Failed to resolve ${dep.name}@${dep.version}",
+                    isOptional: isOptionalDep
+                ))
+                return None
+            }
+
+            private func _matchHelper_resolution_221(): Unit {
+                let versionRange = dep.resolvedVersion()
+                let best = m.findBestVersion(versionRange)
+                match (best) {
+                    case Some(vi) => _matchHelper_resolution_69()
+                    case None => return None
+                }
+            }
+
+            private func _matchHelper_resolution_222(): Unit {
+                let tagName = if (dep.version.size == 0) { "latest" } else { dep.version }
+                let version = m.getDistTag(tagName)
+                match (version) {
+                    case Some(v) => _matchHelper_resolution_70()
+                    case None => _matchHelper_resolution_71()
+                }
+            }
+
+            private func _matchHelper_resolution_223(): Unit {
+                let subDeps = JsonHelper.getStringMap(root, "dependencies")
+                resolveSubDependencies(pkg, subDeps, tree, depth + 1)
+                let peerDeps = JsonHelper.getStringMap(root, "peerDependencies")
+                resolvePeerDependencies(pkg, peerDeps, HashMap<String, HashMap<String, String>>(), tree, depth + 1)
+            }
+
+            private func _matchHelper_resolution_224(): Unit {
+                // workspace 包的路径在安装时确定
+                pkg.packagePath = dep.name
+            }
+
+                private func _matchHelper_resolution_225(): Unit {
+                    let subDeps = JsonHelper.getStringMap(root, "dependencies")
+                    resolveSubDependencies(pkg, subDeps, tree, depth + 1)
+                }
+
+                private func _matchHelper_resolution_226(): Unit {
+                    let effectiveVer = applyOverride(name, ver)
+                    let dep = Dependency(name, effectiveVer)
+                    dep.behavior.isDev = pkg.isDev
+                    let child = resolveDependency(dep, tree, depth)
+                    match (child) {
+                        case Some(c) => _matchHelper_resolution_72()
+                        case None => ()
+                    }
+                }
+
+                private func _matchHelper_resolution_227(): Unit {
+                    let effectiveVer = applyOverride(name, ver)
+                    let dep = Dependency(name, effectiveVer)
+                    dep.behavior.isPeer = true
+
+                    // 检查 peerDependenciesMeta 中的 optional 标记
+                    match (peersMeta.get(name)) {
+                        case Some(meta) => _matchHelper_resolution_73()
+                        case None => ()
+                    }
+
+                    let child = resolveDependency(dep, tree, depth)
+                    match (child) {
+                        case Some(c) => _matchHelper_resolution_74()
+                        case None => _matchHelper_resolution_75()
+                    }
+                }
+
+                private func _matchHelper_resolution_228(): Unit {
+                    let effectiveVer = applyOverride(name, ver)
+                    let dep = Dependency(name, effectiveVer)
+                    dep.behavior.isOptional = true
+                    // optional 依赖解析失败不报错
+                    let child = resolveDependency(dep, tree, depth)
+                    match (child) {
+                        case Some(c) => _matchHelper_resolution_76()
+                        case None => ()  // 静默忽略
+                    }
+                }
+
+                private func _matchHelper_resolution_229(): Unit {
+                    match (resolved.get(k)) {
+                        case Some(pkg) => _matchHelper_resolution_77()
+                        case None => ()
+                    }
+                }
+
+                private func _matchHelper_resolution_230(): Unit {
                     let uniqueVersions = HashSet<String>()
                     for (v in versions) {
                         uniqueVersions.put(v)
@@ -1450,25 +1402,7 @@ public class DependencyResolver {
                         var bestVer = ""
                         for (v in uniqueVersions) {
                             match (v) {
-                                case Some(ver) => {
-                                    if (bestVer.length == 0) {
-                                        bestVer = ver
-                                    } else {
-                                        let svA = SemVer.parse(ver)
-                                        let svB = SemVer.parse(bestVer)
-                                        match (svA) {
-                                            case Some(a) => match (svB) {
-                                                case Some(b) => {
-                                                    if (a.compare(b) > 0) {
-                                                        bestVer = ver
-                                                    }
-                                                }
-                                                case None => bestVer = ver
-                                            }
-                                            case None => ()
-                                        }
-                                    }
-                                }
+                                case Some(ver) => _matchHelper_resolution_78()
                                 case None => ()
                             }
                         }
@@ -1476,18 +1410,8 @@ public class DependencyResolver {
                         tree.conflicts.append(conflict)
                     }
                 }
-                case None => ()
-            }
-        }
-    }
 
-    /// 检查 peer 依赖满足性
-    /// 翻译自: PackageManager 中 peer dependency 验证
-    ///   Bun 在安装完成后检查 peer 是否被正确满足
-    private func checkPeerDependencies(tree: ResolutionTree): Unit {
-        for (key in tree.packages.keys()) {
-            match (tree.packages.get(key)) {
-                case Some(pkg) => {
+                private func _matchHelper_resolution_231(): Unit {
                     for (pd in pkg.peerDependencies) {
                         // 检查 peer 是否在已解析包中
                         let peerKey = "${pd.name}@${pd.resolvedVersion()}"
@@ -1503,17 +1427,7 @@ public class DependencyResolver {
                         if (!found) {
                             let peerPkg = tree.findPackage(pd.name)
                             match (peerPkg) {
-                                case Some(pp) => {
-                                    let peerSv = SemVer.parse(pp.version)
-                                    match (peerSv) {
-                                        case Some(sv) => {
-                                            if (SemVer.satisfies(sv, pd.resolvedVersion())) {
-                                                found = true
-                                            }
-                                        }
-                                        case None => ()
-                                    }
-                                }
+                                case Some(pp) => _matchHelper_resolution_79()
                                 case None => ()
                             }
                         }
@@ -1538,17 +1452,170 @@ public class DependencyResolver {
                         }
                     }
                 }
-                case None => ()
-            }
-        }
-    }
 
-    /// 应用 override
-    /// 翻译自: Lockfile.overrides / package.json overrides
-    private func applyOverride(name: String, version: String): String {
-        match (overrides.get(name)) {
-            case Some(overrideVer) => return overrideVer
-            case None => return version
-        }
-    }
-}
+                            private func _matchHelper_resolution_67(): Unit {
+                                let bestSv = SemVer.parse(b.version)
+                                let pkgSv = SemVer.parse(pkg.version)
+                                match (bestSv) {
+                                    case Some(bsv) => match (pkgSv) {
+                                        case Some(psv) => _matchHelper_resolution_31()
+                                        case None => ()
+                                    }
+                                    case None => ()
+                                }
+                            }
+
+                    private func _matchHelper_resolution_68(): Unit {
+                        // 检查现有版本是否满足新约束
+                        let existingSv = SemVer.parse(existingVer)
+                        match (existingSv) {
+                            case Some(sv) => _matchHelper_resolution_32()
+                            case None => ()
+                        }
+                    }
+
+                    private func _matchHelper_resolution_69(): Unit {
+                        let pkg = ResolvedPackage(dep.name, vi.version)
+                        pkg.tag = DependencyTag.Npm
+                        pkg.resolved = vi.distTarball
+                        pkg.integrity = vi.distIntegrity
+                        pkg.depth = depth
+                        pkg.isDev = dep.behavior.isDev
+                        pkg.isPeer = dep.behavior.isPeer
+                        pkg.isOptional = dep.behavior.isOptional
+                        pkg.hasInstallScript = vi.hasInstallScript
+                        pkg.bin = vi.bin
+                        pkg.os = vi.os
+                        pkg.cpu = vi.cpu
+                        pkg.deprecated = vi.deprecated
+                        pkg.registryUrl = ""  // 使用默认 registry
+
+                        // 递归解析子依赖
+                        resolveSubDependencies(pkg, vi.dependencies, tree, depth + 1)
+                        resolvePeerDependencies(pkg, vi.peerDependencies, vi.peerDependenciesMeta, tree, depth + 1)
+                        resolveOptionalDependencies(pkg, vi.optionalDependencies, tree, depth + 1)
+
+                        // 检查平台兼容性
+                        if (!pkg.isPlatformCompatible()) {
+                            // 标记为 optional, 安装时跳过
+                            pkg.isOptional = true
+                        }
+
+                        return Some(pkg)
+                    }
+
+                    private func _matchHelper_resolution_70(): Unit {
+                        // 用解析出的精确版本重新构造 npm 依赖
+                        let exactDep = Dependency(dep.name, v, DependencyTag.Npm)
+                        return resolveNpmDependency(exactDep, tree, depth)
+                    }
+
+                    private func _matchHelper_resolution_71(): Unit {
+                        // fallback: 尝试 latest
+                        let latest = m.latestVersion()
+                        match (latest) {
+                            case Some(v) => _matchHelper_resolution_33()
+                            case None => return None
+                        }
+                    }
+
+                        private func _matchHelper_resolution_72(): Unit {
+                            tree.addEdge(pkg.key(), c.key())
+                            pkg.dependencies.append(dep)
+                        }
+
+                        private func _matchHelper_resolution_73(): Unit {
+                            match (meta.get("optional")) {
+                                case Some("true") => dep.behavior.isOptional = true
+                                case _ => ()
+                            }
+                        }
+
+                        private func _matchHelper_resolution_74(): Unit {
+                            tree.addEdge(pkg.key(), c.key())
+                            pkg.peerDependencies.append(dep)
+                        }
+
+                        private func _matchHelper_resolution_75(): Unit {
+                            // peer dep 未解析 -> 记录警告
+                            let isOptionalPeer = dep.behavior.isOptional
+                            if (!isOptionalPeer) {
+                                tree.peerWarnings.append(PeerWarning(
+                                    packageName: name,
+                                    peerName: name,
+                                    peerVersion: ver,
+                                    requiredBy: pkg.key()
+                                ))
+                            }
+                        }
+
+                        private func _matchHelper_resolution_76(): Unit {
+                            tree.addEdge(pkg.key(), c.key())
+                            pkg.optionalDependencies.append(dep)
+                        }
+
+                        private func _matchHelper_resolution_77(): Unit {
+                            match (requests.get(pkg.name)) {
+                                case Some(list) => list.append(pkg.version)
+                                case None => _matchHelper_resolution_34()
+                            }
+                        }
+
+                                private func _matchHelper_resolution_78(): Unit {
+                                    if (bestVer.size == 0) {
+                                        bestVer = ver
+                                    } else {
+                                        let svA = SemVer.parse(ver)
+                                        let svB = SemVer.parse(bestVer)
+                                        match (svA) {
+                                            case Some(a) => match (svB) {
+                                                case Some(b) => _matchHelper_resolution_35()
+                                                case None => bestVer = ver
+                                            }
+                                            case None => ()
+                                        }
+                                    }
+                                }
+
+                                private func _matchHelper_resolution_79(): Unit {
+                                    let peerSv = SemVer.parse(pp.version)
+                                    match (peerSv) {
+                                        case Some(sv) => _matchHelper_resolution_36()
+                                        case None => ()
+                                    }
+                                }
+
+                                        private func _matchHelper_resolution_31(): Unit {
+                                            if (psv.compare(bsv) > 0) {
+                                                best = Some(pkg)
+                                            }
+                                        }
+
+                            private func _matchHelper_resolution_32(): Unit {
+                                if (SemVer.satisfies(sv, dep.resolvedVersion())) {
+                                    return Some(existing)
+                                }
+                            }
+
+                            private func _matchHelper_resolution_33(): Unit {
+                                let exactDep = Dependency(dep.name, v, DependencyTag.Npm)
+                                return resolveNpmDependency(exactDep, tree, depth)
+                            }
+
+                                private func _matchHelper_resolution_34(): Unit {
+                                    let list = ArrayList<String>()
+                                    list.append(pkg.version)
+                                    requests.put(pkg.name, list)
+                                }
+
+                                                private func _matchHelper_resolution_35(): Unit {
+                                                    if (a.compare(b) > 0) {
+                                                        bestVer = ver
+                                                    }
+                                                }
+
+                                        private func _matchHelper_resolution_36(): Unit {
+                                            if (SemVer.satisfies(sv, pd.resolvedVersion())) {
+                                                found = true
+                                            }
+                                        }

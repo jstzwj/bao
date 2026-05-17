@@ -25,13 +25,7 @@ import bao_sys.*
 // ============================================================================
 
 /// 写入目标
-// 严格翻译自: options.zig:8 WriteDestination
-public enum WriteDestination {
-    | Stdout
-    | Disk
-}
-
-/// 目标平台
+// 严格翻译自: options.zig:8 WriteDestination/// 目标平台
 // 严格翻译自: options.zig:379 Target
 public enum BundleTarget {
     | Browser
@@ -86,21 +80,18 @@ public enum BundleTarget {
     public func defaultMainFields(): ArrayList<String> {
         let fields = ArrayList<String>()
         match (this) {
-            case Node => {
+            case Node =>
                 fields.append("main")
                 fields.append("module")
-            }
-            case Browser => {
+            case Browser =>
                 fields.append("browser")
                 fields.append("module")
                 fields.append("jsnext:main")
                 fields.append("main")
-            }
-            case Bun | BunMacro | BakeServerComponentsSSR => {
+            case Bun | BunMacro | BakeServerComponentsSSR =>
                 fields.append("module")
                 fields.append("main")
                 fields.append("jsnext:main")
-            }
         }
         return fields
     }
@@ -109,26 +100,21 @@ public enum BundleTarget {
     public func defaultConditions(): ArrayList<String> {
         let conditions = ArrayList<String>()
         match (this) {
-            case Node => {
+            case Node =>
                 conditions.append("node")
-            }
-            case Browser => {
+            case Browser =>
                 conditions.append("browser")
                 conditions.append("module")
-            }
-            case Bun => {
+            case Bun =>
                 conditions.append("bun")
                 conditions.append("node")
-            }
-            case BunMacro => {
+            case BunMacro =>
                 conditions.append("macro")
                 conditions.append("bun")
                 conditions.append("node")
-            }
-            case BakeServerComponentsSSR => {
+            case BakeServerComponentsSSR =>
                 conditions.append("bun")
                 conditions.append("node")
-            }
         }
         return conditions
     }
@@ -136,25 +122,15 @@ public enum BundleTarget {
     /// 从 API 值创建
     public static func from(apiValue: ?String): BundleTarget {
         match (apiValue) {
-            case Some(v) => {
+            case Some(v) =>
                 if (v == "node") { return Node }
                 if (v == "browser") { return Browser }
                 if (v == "bun") { return Bun }
                 if (v == "bun_macro" || v == "macro") { return BunMacro }
                 return Browser
-            }
             case None => return Browser
         }
     }
-}
-
-/// 输出格式
-// 严格翻译自: options.zig:560 Format
-public enum OutputFormat {
-    | ESM
-    | CJS
-    | IIFE
-    | InternalBakeDev
 }
 
 /// 允许未解析的模式
@@ -193,42 +169,42 @@ public class ExternalModules {
     /// 是否是 Node 内置模块
     public static func isNodeBuiltin(str: String): Bool {
         let builtins = HashSet<String>()
-        builtins.add("assert")
-        builtins.add("buffer")
-        builtins.add("child_process")
-        builtins.add("cluster")
-        builtins.add("console")
-        builtins.add("constants")
-        builtins.add("crypto")
-        builtins.add("dgram")
-        builtins.add("dns")
-        builtins.add("domain")
-        builtins.add("events")
-        builtins.add("fs")
-        builtins.add("http")
-        builtins.add("https")
-        builtins.add("module")
-        builtins.add("net")
-        builtins.add("os")
-        builtins.add("path")
-        builtins.add("perf_hooks")
-        builtins.add("process")
-        builtins.add("punycode")
-        builtins.add("querystring")
-        builtins.add("readline")
-        builtins.add("repl")
-        builtins.add("stream")
-        builtins.add("string_decoder")
-        builtins.add("sys")
-        builtins.add("timers")
-        builtins.add("tls")
-        builtins.add("tty")
-        builtins.add("url")
-        builtins.add("util")
-        builtins.add("vm")
-        builtins.add("wasi")
-        builtins.add("worker_threads")
-        builtins.add("zlib")
+        builtins.put("assert")
+        builtins.put("buffer")
+        builtins.put("child_process")
+        builtins.put("cluster")
+        builtins.put("console")
+        builtins.put("constants")
+        builtins.put("crypto")
+        builtins.put("dgram")
+        builtins.put("dns")
+        builtins.put("domain")
+        builtins.put("events")
+        builtins.put("fs")
+        builtins.put("http")
+        builtins.put("https")
+        builtins.put("module")
+        builtins.put("net")
+        builtins.put("os")
+        builtins.put("path")
+        builtins.put("perf_hooks")
+        builtins.put("process")
+        builtins.put("punycode")
+        builtins.put("querystring")
+        builtins.put("readline")
+        builtins.put("repl")
+        builtins.put("stream")
+        builtins.put("string_decoder")
+        builtins.put("sys")
+        builtins.put("timers")
+        builtins.put("tls")
+        builtins.put("tty")
+        builtins.put("url")
+        builtins.put("util")
+        builtins.put("vm")
+        builtins.put("wasi")
+        builtins.put("worker_threads")
+        builtins.put("zlib")
         return builtins.contains(str)
     }
 
@@ -245,48 +221,53 @@ public class ExternalModules {
         result.patterns.append(WildcardPattern("/bun:", ""))
 
         // Node 目标添加内置模块
-        if (target == BundleTarget.Node) {
+        match (target) {
+            case BundleTarget.Node =>
             // 简化: 添加主要的 Node 内置模块
-            result.nodeModules.add("assert")
-            result.nodeModules.add("buffer")
-            result.nodeModules.add("child_process")
-            result.nodeModules.add("crypto")
-            result.nodeModules.add("fs")
-            result.nodeModules.add("http")
-            result.nodeModules.add("https")
-            result.nodeModules.add("module")
-            result.nodeModules.add("net")
-            result.nodeModules.add("os")
-            result.nodeModules.add("path")
-            result.nodeModules.add("process")
-            result.nodeModules.add("stream")
-            result.nodeModules.add("url")
-            result.nodeModules.add("util")
-            result.nodeModules.add("vm")
-            result.nodeModules.add("zlib")
+            result.nodeModules.put("assert")
+            result.nodeModules.put("buffer")
+            result.nodeModules.put("child_process")
+            result.nodeModules.put("crypto")
+            result.nodeModules.put("fs")
+            result.nodeModules.put("http")
+            result.nodeModules.put("https")
+            result.nodeModules.put("module")
+            result.nodeModules.put("net")
+            result.nodeModules.put("os")
+            result.nodeModules.put("path")
+            result.nodeModules.put("process")
+            result.nodeModules.put("stream")
+            result.nodeModules.put("url")
+            result.nodeModules.put("util")
+            result.nodeModules.put("vm")
+            result.nodeModules.put("zlib")
+            case _ => ()
         }
 
         // 处理用户指定的外部模块
         for (external in externals) {
-            let wildcardIndex = external.indexOf('*')
-            if (wildcardIndex >= 0) {
-                // 通配符模式
-                let suffix = if (wildcardIndex + 1 < external.length) {
-                    external.substring(wildcardIndex + 1)
-                } else {
-                    ""
-                }
-                result.patterns.append(WildcardPattern(
-                    external.substring(0, wildcardIndex),
-                    suffix
-                ))
-            } else if (isPackagePath(external)) {
-                result.nodeModules.add(external)
-            } else {
-                // 绝对路径
-                if (external.length > 0) {
-                    result.absPaths.add(external)
-                }
+            let wildcardIdx = external.indexOf('*')
+            match (wildcardIdx) {
+                case Some(wildcardIndex) =>
+                    // 通配符模式
+                    let suffix = if (wildcardIndex + 1 < Int64(external.length)) {
+                        external[Int64(wildcardIndex + 1)..]
+                    } else {
+                        ""
+                    }
+                    result.patterns.append(WildcardPattern(
+                        external[Int64(0)..Int64(wildcardIndex)],
+                        suffix
+                    ))
+                case None =>
+                    if (isPackagePath(external)) {
+                        result.nodeModules.put(external)
+                    } else {
+                        // 绝对路径
+                        if (external.length > 0) {
+                            result.absPaths.put(external)
+                        }
+                    }
             }
         }
 
@@ -295,7 +276,7 @@ public class ExternalModules {
 
     private static func isPackagePath(s: String): Bool {
         if (s.length == 0) { return false }
-        if (s[0] == '.' || s[0] == '/') { return false }
+        if (s.startsWith(".") || s.startsWith("/")) { return false }
         return true
     }
 }
@@ -614,20 +595,20 @@ public class BundlerOptions {
 }
 
 /// 导入路径格式
-// 严格翻译自: options.zig:1899 ImportPathFormat
-public enum ImportPathFormat {
-    | Relative
-    | AbsoluteUrl
-    | AbsolutePath
-    | PackagePath
-}
-
-/// 强制 NODE_ENV
+// 严格翻译自: options.zig:1899 ImportPathFormat/// 强制 NODE_ENV
 // 严格翻译自: options.zig:1815 ForceNodeEnv
 public enum ForceNodeEnv {
     | Unspecified
     | Development
     | Production
+
+    public operator func ==(other: ForceNodeEnv): Bool {
+        match (this) {
+            case Unspecified => match (other) { case Unspecified => true case _ => false }
+            case Development => match (other) { case Development => true case _ => false }
+            case Production => match (other) { case Production => true case _ => false }
+        }
+    }
 }
 
 /// ESM 条件
@@ -658,39 +639,39 @@ public class ESMConditions {
         let result = ESMConditions()
 
         // import 包含 "import"
-        result.importConditions.add("import")
+        result.importConditions.put("import")
         // require 包含 "require"
-        result.requireConditions.add("require")
+        result.requireConditions.put("require")
         // style 包含 "style"
-        result.styleConditions.add("style")
+        result.styleConditions.put("style")
 
         // 添加用户条件
         for (condition in conditions) {
-            result.defaultConditions.add(condition)
-            result.importConditions.add(condition)
-            result.requireConditions.add(condition)
+            result.defaultConditions.put(condition)
+            result.importConditions.put(condition)
+            result.requireConditions.put(condition)
         }
 
         // 添加默认条件
         for (default in defaults) {
-            result.defaultConditions.add(default)
-            result.importConditions.add(default)
-            result.requireConditions.add(default)
-            result.styleConditions.add(default)
+            result.defaultConditions.put(default)
+            result.importConditions.put(default)
+            result.requireConditions.put(default)
+            result.styleConditions.put(default)
         }
 
         // node-addons
         if (allowAddons) {
-            result.defaultConditions.add("node-addons")
-            result.importConditions.add("node-addons")
-            result.requireConditions.add("node-addons")
+            result.defaultConditions.put("node-addons")
+            result.importConditions.put("node-addons")
+            result.requireConditions.put("node-addons")
         }
 
         // 所有条件都包含 "default"
-        result.defaultConditions.add("default")
-        result.importConditions.add("default")
-        result.requireConditions.add("default")
-        result.styleConditions.add("default")
+        result.defaultConditions.put("default")
+        result.importConditions.put("default")
+        result.requireConditions.put("default")
+        result.styleConditions.put("default")
 
         return result
     }
@@ -802,15 +783,7 @@ public enum GlobalCache {
     | Disable
     | Auto
     | Force
-}
-
-/// CSS in JS 行为
-public enum CssInJsBehavior {
-    | AutoOnImportCSS
-    | Facade
-}
-
-/// 入口点
+}/// 入口点
 // 严格翻译自: options.zig:2303 EntryPoint
 public class EntryPoint {
     /// 路径
@@ -839,44 +812,18 @@ public enum EntryPointKind {
     | Server
     | Fallback
     | Disabled
-}
 
-/// 路径模板
-// 严格翻译自: options.zig:2504 PathTemplate
-public class PathTemplate {
-    /// 模板数据 (如 "[dir]/[name].[ext]")
-    public var data: String
-    /// 占位符值
-    public var placeholder: PathTemplatePlaceholder
-
-    public init(data: String) {
-        this.data = data
-        this.placeholder = PathTemplatePlaceholder()
+    public operator func ==(other: EntryPointKind): Bool {
+        match (this) {
+            case Client => match (other) { case Client => true case _ => false }
+            case Server => match (other) { case Server => true case _ => false }
+            case Fallback => match (other) { case Fallback => true case _ => false }
+            case Disabled => match (other) { case Disabled => true case _ => false }
+        }
     }
 
-    public init() {
-        data = ""
-        placeholder = PathTemplatePlaceholder()
-    }
-
-    /// 是否需要指定字段
-    public func needs(field: String): Bool {
-        return data.contains("[${field}]")
-    }
-
-    /// 预定义的 chunk 模板
-    public static func chunk(): PathTemplate {
-        return PathTemplate("./chunk-[hash].[ext]")
-    }
-
-    /// 预定义的文件模板
-    public static func file(): PathTemplate {
-        return PathTemplate("[dir]/[name].[ext]")
-    }
-
-    /// 预定义的资源模板
-    public static func asset(): PathTemplate {
-        return PathTemplate("./[name]-[hash].[ext]")
+    public operator func !=(other: EntryPointKind): Bool {
+        return !(this == other)
     }
 }
 
@@ -911,14 +858,4 @@ public class DevServerRef {
 /// Framework 引用
 public class FrameworkRef {
     public init() {}
-}
-
-/// 导入类型
-public enum ImportKind {
-    | Stmt
-    | Dynamic
-    | EntryPointBuild
-    | EntryPointRun
-    | RequireResolve
-    | Internal
 }

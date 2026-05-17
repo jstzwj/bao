@@ -100,13 +100,6 @@ import bao_options.*
 // 严格翻译自: src/bundler/lib.rs pub use 声明
 // ============================================================================
 
-/// AdditionalFile — 严格翻译自: lib.rs:206 AdditionalFile
-/// 对应 bundle_v2.zig 中的 AdditionalFile
-public enum AdditionalFile {
-    | SourceIndex(UInt32)
-    | OutputFile(UInt32)
-}
-
 /// OutputKind — 严格翻译自: lib.rs:242 options::OutputKind
 /// jsc.API.BuildArtifact.OutputKind (JSBundler.zig:1799)
 /// 表示输出文件的类型标签
@@ -258,7 +251,7 @@ public interface VmLoaderCtx {
     func evalSource(): Source
 
     /// 获取 main 入口
-    func main(): Array<Byte>
+    func getMain(): Array<Byte>
 
     /// 读取目录信息中的 package.json
     func readDirInfoPackageJson(dir: Array<Byte>): PackageJSON
@@ -297,16 +290,6 @@ public enum BakeGraph {
     | SSR
 }
 
-/// BundleV2 引用 (前向声明)
-/// 实际实现在 bundle_v2.cj
-public class BundleV2 {
-    public var options: BundleOptions
-
-    public init() {
-        this.options = BundleOptions()
-    }
-}
-
 /// DevServer 输出 (简化)
 /// 实际实现在 bundle_v2.cj
 public class DevServerOutput {
@@ -339,42 +322,6 @@ public class OpaqueBlob {
 
 /// StringHashMap 别名
 public type StringHashMap<V> = HashMap<String, V>
-
-/// Chunk 引用
-public class Chunk {
-    public var id: Int64
-    public var filename: String
-
-    public init() {
-        this.id = 0
-        this.filename = ""
-    }
-}
-
-/// Source 引用
-public class Source {
-    public var path: String
-    public var index: Int32
-
-    public init() {
-        this.path = ""
-        this.index = 0
-    }
-}
-
-/// Log 引用
-public class Log {
-    public var errors: Int32
-    public var warnings: Int32
-
-    public init() {
-        this.errors = 0
-        this.warnings = 0
-    }
-}
-
-/// Loader 引用 (来自 bao_ast)
-public type Loader = String
 
 /// Error 引用 (来自 bao_core)
 public class Error {
@@ -462,14 +409,4 @@ public class OutputFileInitOptions {
 public enum IndexOptional {
     | None
     | Some(UInt32)
-}
-
-/// Bake 额外信息
-/// 严格翻译自: output_file.zig BakeExtra
-public class BakeExtra {
-    public var isDevServer: Bool
-
-    public init() {
-        this.isDevServer = false
-    }
 }

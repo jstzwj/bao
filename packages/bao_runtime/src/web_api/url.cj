@@ -3,8 +3,10 @@
 // 严格翻译 Bun 的 URL API
 package bao_runtime.web_api
 
-import bao_core.*
+import bao_core.BaoString
+import bao_core.IntFormatter
 import bao_collections.*
+import bao_runtime.*
 
 // ============================================================================
 // URL 模块 — Web URL API
@@ -44,7 +46,7 @@ public class BaoUrl {
         if (url.startsWith("/")) {
             let baseUrl = BaoUrl(base)
             href = baseUrl.protocol + "//" + baseUrl.hostname +
-                   (if (baseUrl.port.length > 0) { ":" + baseUrl.port } else { "" }) + url
+                   (if (baseUrl.port.size > 0) { ":" + baseUrl.port } else { "" }) + url
         } else if (!url.contains("://")) {
             href = base + (if (base.endsWith("/")) { "" } else { "/" }) + url
         } else {
@@ -68,61 +70,54 @@ public class BaoUrl {
         var remaining = url
 
         // 解析 protocol
-        let protoIdx = remaining.indexOf("://")
-        if (protoIdx >= 0) {
-            protocol = remaining.substring(0, protoIdx + 1)
-            remaining = remaining.substring(protoIdx + 3)
+        if (let Some(protoIdx) <- remaining.indexOf("://")) {
+            protocol = remaining[0..(protoIdx + 1)]
+            remaining = remaining[(protoIdx + 3)..]
         }
 
         // 解析 hash
-        let hashIdx = remaining.indexOf("#")
-        if (hashIdx >= 0) {
-            hash = remaining.substring(hashIdx)
-            remaining = remaining.substring(0, hashIdx)
+        if (let Some(hashIdx) <- remaining.indexOf("#")) {
+            hash = remaining[hashIdx..]
+            remaining = remaining[0..hashIdx]
         }
 
         // 解析 search
-        let searchIdx = remaining.indexOf("?")
-        if (searchIdx >= 0) {
-            search = remaining.substring(searchIdx)
-            remaining = remaining.substring(0, searchIdx)
+        if (let Some(searchIdx) <- remaining.indexOf("?")) {
+            search = remaining[searchIdx..]
+            remaining = remaining[0..searchIdx]
         }
 
         // 解析 pathname
-        let pathIdx = remaining.indexOf("/")
-        if (pathIdx >= 0) {
-            pathname = remaining.substring(pathIdx)
-            remaining = remaining.substring(0, pathIdx)
+        if (let Some(pathIdx) <- remaining.indexOf("/")) {
+            pathname = remaining[pathIdx..]
+            remaining = remaining[0..pathIdx]
         } else {
             pathname = "/"
         }
 
         // 解析 host (username:password@hostname:port)
-        let atIndex = remaining.indexOf("@")
-        if (atIndex >= 0) {
-            let userInfo = remaining.substring(0, atIndex)
-            remaining = remaining.substring(atIndex + 1)
-            let colonIdx = userInfo.indexOf(":")
-            if (colonIdx >= 0) {
-                username = userInfo.substring(0, colonIdx)
-                password = userInfo.substring(colonIdx + 1)
+        if (let Some(atIdx) <- remaining.indexOf("@")) {
+            let userInfo = remaining[0..atIdx]
+            remaining = remaining[(atIdx + 1)..]
+            if (let Some(colIdx) <- userInfo.indexOf(":")) {
+                username = userInfo[0..colIdx]
+                password = userInfo[(colIdx + 1)..]
             } else {
                 username = userInfo
             }
         }
 
         // 解析 hostname:port
-        let colonIdx = remaining.lastIndexOf(":")
-        if (colonIdx >= 0) {
-            hostname = remaining.substring(0, colonIdx)
-            port = remaining.substring(colonIdx + 1)
+        if (let Some(colIdx) <- remaining.lastIndexOf(":")) {
+            hostname = remaining[0..colIdx]
+            port = remaining[(colIdx + 1)..]
         } else {
             hostname = remaining
         }
 
         // 构建 origin
         origin = protocol + "//" + hostname
-        if (port.length > 0) {
+        if (port.size > 0) {
             origin = origin + ":" + port
         }
 
@@ -186,15 +181,14 @@ public class URLSearchParams {
     private func parse(search: String): Unit {
         var s = search
         if (s.startsWith("?")) {
-            s = s.substring(1)
+            s = s[1..]
         }
-        if (s.length == 0) { return }
+        if (s.size == 0) { return }
         let pairs = s.split("&")
         for (pair in pairs) {
-            let idx = pair.indexOf("=")
-            if (idx >= 0) {
-                let key = decodeComponent(pair.substring(0, idx))
-                let val = decodeComponent(pair.substring(idx + 1))
+            if (let Some(idx) <- pair.indexOf("=")) {
+                let key = decodeComponent(pair[0..idx])
+                let val = decodeComponent(pair[(idx + 1)..])
                 params.append(Pair<String, String>(key, val))
             } else {
                 params.append(Pair<String, String>(decodeComponent(pair), ""))
@@ -346,7 +340,7 @@ public class URLSearchParams {
                 for (v in vals) { arr.append(JsValue(BaoString(v))) }
                 return JsValue.array(arr)
             }
-            return JsValue.emptyArray()
+            return JsValue.array(ArrayList<JsValue>())
         }))
 
         obj.set("has", JsValue.nativeFunction(JsNativeFunction("has") { args =>
@@ -378,16 +372,16 @@ public class URLSearchParams {
     /// 简化的 URL 编码
     private static func encodeComponent(s: String): String {
         // 简化: 只编码特殊字符
-        var sb = StringBuilder()
+        let sb = StringBuilder()
         for (c in s) {
-            if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
-                (c >= '0' && c <= '9') || c == '-' || c == '_' || c == '.' || c == '~') {
-                sb.append(c)
+            let v = Int64(c)
+            if ((v >= 97 && v <= 122) || (v >= 65 && v <= 90) ||
+                (v >= 48 && v <= 57) || v == 45 || v == 95 || v == 46 || v == 126) {
+                sb.append(String(Rune(Int32(c))))
             } else {
-                let code = Int64(c)
                 sb.append("%")
-                if (code < 16) { sb.append("0") }
-                sb.append(code.toHexString().toUpperCase())
+                if (v < 16) { sb.append("0") }
+                sb.append(IntFormatter.toHexString(v).toAsciiUpper())
             }
         }
         return sb.toString()
@@ -395,30 +389,48 @@ public class URLSearchParams {
 
     /// 简化的 URL 解码
     private static func decodeComponent(s: String): String {
-        var sb = StringBuilder()
-        var i = 0
-        let chars = s
-        while (i < chars.length) {
-            if (chars[i] == '%' && i + 2 < chars.length) {
-                let hex = chars.substring(i + 1, i + 3)
+        let sb = StringBuilder()
+        var i: Int64 = 0
+        let len = Int64(s.size)
+        while (i < len) {
+            let c = s[i]
+            if (c == UInt8(37) && i + 2 < len) { // '%'
+                let hex = s[(i + 1)..(i + 3)]
                 try {
-                    let code = Int64(hex, 16)
-                    sb.append(Char(code))
+                    let code = parseHexInt(hex)
+                    sb.append(String(Rune(Int32(code))))
                     i += 3
                 } catch (_: Exception) {
-                    sb.append(chars[i])
-                    i++
+                    sb.append(String(Rune(Int32(c))))
+                    i += 1
                 }
-            } else if (chars[i] == '+') {
-                sb.append(' ')
-                i++
+            } else if (c == UInt8(43)) { // '+'
+                sb.append(" ")
+                i += 1
             } else {
-                sb.append(chars[i])
-                i++
+                sb.append(String(Rune(Int32(c))))
+                i += 1
             }
         }
         return sb.toString()
     }
+}
+
+/// 解析十六进制字符串为整数
+private func parseHexInt(hex: String): Int64 {
+    var result: Int64 = 0
+    for (i in 0..hex.size) {
+        let c = hex[Int64(i)]
+        result = result * 16
+        if (c >= UInt8(48) && c <= UInt8(57)) {
+            result += Int64(c) - 48
+        } else if (c >= UInt8(65) && c <= UInt8(70)) {
+            result += Int64(c) - 55
+        } else if (c >= UInt8(97) && c <= UInt8(102)) {
+            result += Int64(c) - 87
+        }
+    }
+    return result
 }
 
 /// URL 模块辅助 — Pair 类

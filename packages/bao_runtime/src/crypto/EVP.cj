@@ -5,7 +5,8 @@
 package bao_runtime.crypto
 
 import bao_core.*
-import std.collection.*
+import bao_collections.*
+import bao_runtime.*
 
 // ============================================================================
 // EVP Algorithm 算法枚举（提取到顶层）
@@ -84,8 +85,7 @@ public enum EvpAlgorithm {
 
     /// 算法名称映射表
     public static func fromName(s: String): ?EvpAlgorithm {
-        let nameLower = name.toLowerCase()
-        match (nameLower) {
+        match (s) {
             case "blake2b256" => EvpAlgorithm.blake2b256
             case "blake2b512" => EvpAlgorithm.blake2b512
             case "blake2s256" => EvpAlgorithm.blake2s256
@@ -219,9 +219,9 @@ public class EVP {
 
     /// 不区分大小写的算法名称查找
     public static func lookupIgnoreCase(arr: Array<Byte>): ?EvpAlgorithm {
-        var lowerBytes = Array<Byte>(bytes.size, repeat: 0)
-        for (i in 0..bytes.size) {
-            let b = bytes[i]
+        var lowerBytes = Array<Byte>(arr.size, repeat: 0)
+        for (i in 0..arr.size) {
+            let b = arr[i]
             if (b >= 0x41 && b <= 0x5A) {
                 lowerBytes[i] = b + 0x20
             } else {
@@ -247,10 +247,12 @@ public class EVP {
     public func hash(engine: ?Engine, input: Array<Byte>, output: Array<Byte>): ?UInt32 {
         BoringSSL.errClearError()
 
-        var outSize: UInt32 = Math.min(output.size.toInt64(), this.size().toInt64()).toUInt32()
+        let outputSize = output.size
+        let thisSize = Int64(this.size())
+        var outSize: UInt32 = UInt32(min(outputSize, thisSize))
 
-        if (BoringSSL.evpDigest(input, input.size.toInt64(), output,
-                Array<UInt32>([outSize]), this.md, engine) != 1) {
+        if (BoringSSL.evpDigest(input, input.size, output,
+                Array<UInt32>(1, repeat: outSize), this.md, engine) != 1) {
             return None
         }
 
@@ -261,8 +263,10 @@ public class EVP {
     public func final(engine: ?Engine, output: Array<Byte>): Array<Byte> {
         BoringSSL.errClearError()
 
-        var outSize: UInt32 = Math.min(output.size.toInt64(), this.size().toInt64()).toUInt32()
-        var outSizeArr = Array<UInt32>([outSize])
+        let outputSize = output.size
+        let thisSize = Int64(this.size())
+        var outSize: UInt32 = UInt32(min(outputSize, thisSize))
+        var outSizeArr = Array<UInt32>(1, repeat: outSize)
 
         if (BoringSSL.evpDigestFinalEx(this.ctx, output, outSizeArr) != 1) {
             return Array<Byte>()
@@ -270,7 +274,7 @@ public class EVP {
 
         this.reset(engine)
 
-        let finalSize = outSizeArr[0].toInt64()
+        let finalSize = Int64(outSizeArr[0])
         if (finalSize > 0 && finalSize <= output.size) {
             return output[0..finalSize]
         }
@@ -280,7 +284,7 @@ public class EVP {
     /// 更新哈希数据
     public func update(arr: Array<Byte>): Unit {
         BoringSSL.errClearError()
-        BoringSSL.evpDigestUpdate(this.ctx, input, input.size.toInt64())
+        BoringSSL.evpDigestUpdate(this.ctx, arr, arr.size)
     }
 
     /// 获取摘要大小
@@ -325,7 +329,7 @@ public class EVP {
     /// 根据名称获取 EVP
     public static func byName(s: String, globalThis: JsObject): ?EVP {
         let engine = RareData.getBoringEngine(globalThis)
-        return byNameAndEngine(engine, name)
+        return byNameAndEngine(engine, s)
     }
 
     /// 释放 EVP

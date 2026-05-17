@@ -37,30 +37,34 @@ public class CssUnknownAtRuleFull {
         CssUnknownAtRuleFull(name, prelude, block)
     }
 
+    private func toCssWithBlock(blockContent: String, indent: String): String {
+        let sb = StringBuilder()
+        sb.append("${indent}@${name}")
+        if (prelude.size > 0) {
+            sb.append(" ${prelude}")
+        }
+        sb.append(" {\n")
+        sb.append("${indent}  ${blockContent}\n")
+        sb.append("${indent}}")
+        sb.toString()
+    }
+
+    private func toCssWithoutBlock(indent: String): String {
+        let sb = StringBuilder()
+        sb.append("${indent}@${name}")
+        if (prelude.size > 0) {
+            sb.append(" ${prelude}")
+        }
+        sb.append(";")
+        sb.toString()
+    }
+
     /// 转为 CSS 文本
     /// 严格翻译自 UnknownAtRule.to_css
     public func toCss(indent: String): String {
         match (block) {
-            case Some(blockContent) => {
-                let sb = StringBuilder()
-                sb.append("${indent}@${name}")
-                if (prelude.length > 0) {
-                    sb.append(" ${prelude}")
-                }
-                sb.append(" {\n")
-                sb.append("${indent}  ${blockContent}\n")
-                sb.append("${indent}}")
-                return sb.toString()
-            }
-            case None => {
-                let sb = StringBuilder()
-                sb.append("${indent}@${name}")
-                if (prelude.length > 0) {
-                    sb.append(" ${prelude}")
-                }
-                sb.append(";")
-                return sb.toString()
-            }
+            case Some(blockContent) => toCssWithBlock(blockContent, indent)
+            case None => toCssWithoutBlock(indent)
         }
     }
 

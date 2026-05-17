@@ -31,7 +31,7 @@ public class Crypto {
     /// 对应 Bun: Crypto.randomUUID()
     public static func randomUUID(): String {
         // UUID v4 格式: xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
-        let bytes = Array<UInt8>(16, item: UInt8(0))
+        let bytes = Array<UInt8>(16, { _ => UInt8(0) })
         for (i in 0..16) {
             bytes[Int64(i)] = UInt8(randomByte())
         }
@@ -48,7 +48,7 @@ public class Crypto {
     /// 对应 Bun: Crypto.Bun__randomUUIDv7_()
     public static func randomUUIDv7(): String {
         let timestamp = DateTime.now().toUnixMilliSeconds()
-        let bytes = Array<UInt8>(16, item: UInt8(0))
+        let bytes = Array<UInt8>(16, { _ => UInt8(0) })
 
         // 时间戳 (前 48 位)
         bytes[0] = UInt8((timestamp >> 40) & 0xFF)

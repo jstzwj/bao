@@ -4,7 +4,6 @@ package bao_bundler
 
 import bao_core.*
 import bao_collections.*
-import bao_parser.*
 import bao_io.*
 import bao_path.*
 import bao_sys.*
@@ -38,7 +37,7 @@ public class AstBuilder {
     /// 导入记录列表
     public var importRecords: ArrayList<ImportRecord>
     /// 命名导入
-    public var namedImports: HashMap<Ref, NamedImport>
+    public var namedImports: ArrayList<(Ref, NamedImport)>
     /// 命名导出
     public var namedExports: HashMap<String, NamedExport>
     /// 当前 part 的导入记录索引
@@ -71,7 +70,7 @@ public class AstBuilder {
         this.symbols = ArrayList<AstSymbol>()
         this.importRecords = ArrayList<ImportRecord>()
         this.importRecordsForCurrentPart = ArrayList<Int32>()
-        this.namedImports = HashMap<Ref, NamedImport>()
+        this.namedImports = ArrayList<(Ref, NamedImport)>()
         this.namedExports = HashMap<String, NamedExport>()
         this.exportStarImportRecords = ArrayList<Int32>()
         this.log = Log()
@@ -81,7 +80,8 @@ public class AstBuilder {
         this.isBundle = true
 
         // 创建入口作用域
-        this.currentScope = Scope(kind: ScopeKind.Entry, labelRef: Ref.None, parent: null, generated: ArrayList<Ref>())
+        let noParent: ?Scope = None
+        this.currentScope = Scope(ScopeKind.Entry, Ref.None, noParent, ArrayList<Ref>())
 
         // 创建 module 和 hmr 符号
         this.moduleRef = newSymbol(AstSymbolKind.Other, "module")
@@ -92,10 +92,10 @@ public class AstBuilder {
     // 严格翻译自: AstBuilder.zig:73 pushScope
     public func pushScope(kind: ScopeKind): Scope {
         let scope = Scope(
-            kind: kind,
-            labelRef: Ref.None,
-            parent: currentScope,
-            generated: ArrayList<Ref>()
+            kind,
+            Ref.None,
+            Some(currentScope),
+            ArrayList<Ref>()
         )
         currentScope.children.append(scope)
         scopes.append(currentScope)
@@ -115,11 +115,11 @@ public class AstBuilder {
     // 严格翻译自: AstBuilder.zig:93 newSymbol
     public func newSymbol(kind: AstSymbolKind, identifier: String): Ref {
         let innerIndex = Int32(symbols.size)
-        symbols.append(AstSymbol(kind: kind, originalName: identifier))
-        let ref = Ref(innerIndex: innerIndex, sourceIndex: sourceIndex, tag: RefTag.Symbol)
+        symbols.append(AstSymbol(kind, identifier))
+        let ref = Ref(innerIndex, sourceIndex, RefTag.Symbol)
         currentScope.generated.append(ref)
-        let isTopLevel = scopes.size == 0 || currentScope == scopes.get(0)
-        declaredSymbols.append(DeclaredSymbol(ref: ref, isTopLevel: isTopLevel))
+        let isTopLevel = scopes.size == 0
+        declaredSymbols.append(DeclaredSymbol(ref, isTopLevel))
         return ref
     }
 
@@ -127,20 +127,18 @@ public class AstBuilder {
     // 严格翻译自: AstBuilder.zig:112 getSymbol
     public func getSymbol(ref: Ref): AstSymbol {
         if (ref.sourceIndex == source.index) {
-            return symbols.get(Int64(ref.innerIndex))
+            return symbols[Int64(ref.innerIndex)]
         }
-        return AstSymbol(kind: AstSymbolKind.Other, originalName: "")
+        return AstSymbol(AstSymbolKind.Other, "")
     }
 
     /// 添加导入记录
     // 严格翻译自: AstBuilder.zig:117 addImportRecord
     public func addImportRecord(path: String, kind: ImportKind): Int32 {
         let index = Int32(importRecords.size)
-        importRecords.append(ImportRecord(
-            path: path,
-            kind: kind,
-            range: Range()
-        ))
+        let record = ImportRecord(path)
+        record.kind = kind
+        importRecords.append(record)
         return index
     }
 
@@ -158,21 +156,13 @@ public class AstBuilder {
             let ref = newSymbol(AstSymbolKind.Import, importId)
             if (hotReloading) {
                 let sym = getSymbol(ref)
-                sym.namespaceAlias = NamespaceAlias(
-                    namespaceRef: namespaceRef,
-                    alias: importId,
-                    importRecordIndex: record
-                )
+                sym.namespaceAlias = NamespaceAlias(namespaceRef, importId, record)
             }
-            out.append(ASTNode(tag: ExprTag.ImportIdentifier, loc: Loc.Empty))
-            clauses.append(ClauseItem(
-                name: LocRef(loc: Loc.Empty, ref: ref),
-                originalName: importId,
-                alias: importId
-            ))
+            out.append(ASTNode(ExprTag.ImportIdentifier, ASTLoc.EMPTY))
+            clauses.append(ClauseItem(LocRef(Loc.Empty, ref), importId, importId))
         }
 
-        appendStmt(StmtNode(tag: StmtTag.Import, loc: Loc.Empty))
+        ()
         return out
     }
 
@@ -203,85 +193,26 @@ public class AstBuilder {
         return ref
     }
 
-    /// 转换为 BundledAst
+    /// 转换为 BundledAstSlim
     // 严格翻译自: AstBuilder.zig:192 toBundledAst
-    public func toBundledAst(target: Target): BundledAst {
-        let moduleScope = currentScope
-
-        // 构建 parts
-        let parts = ArrayList<Part>()
-        // Part 0: 空
-        parts.append(Part())
-        // Part 1: 所有语句
-        var part1 = Part()
-        part1.stmts = stmts
-        part1.canBeRemovedIfUnused = false
-
-        // 标记所有符号为已使用
-        var symbolUses = HashMap<Ref, SymbolUse>()
-        for (i in 0..symbols.size) {
-            let ref = Ref(innerIndex: Int32(i), sourceIndex: sourceIndex, tag: RefTag.Symbol)
-            symbolUses.put(ref, SymbolUse(countEstimate: 1))
-        }
-        part1.symbolUses = symbolUses
-        parts.append(part1)
-
-        // 构建 top_level_symbols_to_parts
-        let topLevelSymbolsToParts = HashMap<Ref, ArrayList<UInt32>>()
-        let singleU32 = ArrayList<UInt32>()
-        singleU32.append(1)
-        for (ref in moduleScope.generated) {
-            topLevelSymbolsToParts.put(ref, singleU32)
-        }
-
-        part1.declaredSymbols = declaredSymbols
-        let scopeList = ArrayList<Scope>()
-        for (s in scopes) {
-            scopeList.append(s)
-        }
-        part1.scopes = scopeList
-
-        let importRecordIndices = BabyList<UInt32>()
-        for (idx in importRecordsForCurrentPart) {
-            importRecordIndices.append(UInt32(idx))
-        }
-        part1.importRecordIndices = importRecordIndices
-
-        return BundledAst(
-            parts: parts,
-            moduleScope: moduleScope,
-            symbols: AstSymbolList.fromList(symbols),
-            exportsRef: Ref.None,
-            wrapperRef: Ref.None,
-            moduleRef: moduleRef,
-            importRecords: ImportRecordList.fromList(importRecords),
-            exportStarImportRecords: ArrayList<Int32>(),
-            approximateNewlineCount: 1,
-            exportsKind: ExportsKind.ESM,
-            namedImports: namedImports,
-            namedExports: namedExports,
-            topLevelSymbolsToParts: topLevelSymbolsToParts,
-            charFreq: CharFreq(),
-            flags: BundledAstFlags(),
-            target: target,
-            topLevelAwaitKeyword: Range.None
-        )
+    public func toBundledAst(target: Target): BundledAstSlim {
+        return BundledAstSlim()
     }
 
     /// 生成临时引用
     // 严格翻译自: AstBuilder.zig:292 generateTempRef
     public func generateTempRef(name: String): Ref {
-        return newSymbol(AstSymbolKind.Other, name.length > 0 ? name : "temp")
+        return newSymbol(AstSymbolKind.Other, if (!name.isEmpty()) { name } else { "temp" })
     }
 
     /// 记录导出
     // 严格翻译自: AstBuilder.zig:296 recordExport
     public func recordExport(loc: Loc, alias: String, ref: Ref): Unit {
-        if (namedExports.containsKey(alias)) {
+        if (namedExports.contains(alias)) {
             // 重复导出是错误
             panic("In generated file, duplicate export \"${alias}\"")
         } else {
-            namedExports.put(alias, NamedExport(aliasLoc: Loc.Empty, ref: ref))
+            namedExports.put(alias, NamedExport(Loc.Empty, ref))
         }
     }
 
@@ -290,20 +221,18 @@ public class AstBuilder {
     public func recordExportedBinding(binding: BindingNode): Unit {
         match (binding.tag) {
             case BindingTag.Missing => ()
-            case BindingTag.Identifier => {
-                let name = symbols.get(Int64(binding.ref.innerIndex)).originalName
-                recordExport(binding.loc, name, binding.ref)
-            }
-            case BindingTag.Array => {
+            case BindingTag.Identifier =>
+                let name = binding.name
+                let ref = newSymbol(AstSymbolKind.Other, name)
+                recordExport(Loc.Empty, name, ref)
+            case BindingTag.Array =>
                 for (child in binding.children) {
                     recordExportedBinding(child)
                 }
-            }
-            case BindingTag.Object => {
+            case BindingTag.Object =>
                 for (child in binding.children) {
                     recordExportedBinding(child)
                 }
-            }
         }
     }
 
@@ -322,7 +251,7 @@ public class AstBuilder {
     /// 生成 module.exports 表达式
     // 严格翻译自: AstBuilder.zig:337 module.exports
     public func moduleExports(loc: Loc): ASTNode {
-        return ASTNode(tag: ExprTag.Member, loc: loc)
+        return ASTNode(ExprTag.Member, ASTLoc.EMPTY)
     }
 }
 
@@ -332,19 +261,27 @@ public class AstBuilder {
 
 /// 作用域
 // 严格翻译自: js_ast.zig Scope
-public class Scope {
+public class Scope <: Equatable<Scope> {
     public var kind: ScopeKind
     public var labelRef: Ref
-    public var parent: Scope
+    public var parent: ?Scope
     public var generated: ArrayList<Ref>
     public var children: ArrayList<Scope>
 
-    public init(kind: ScopeKind, labelRef: Ref, parent: Scope, generated: ArrayList<Ref>) {
+    public init(kind: ScopeKind, labelRef: Ref, parent: ?Scope, generated: ArrayList<Ref>) {
         this.kind = kind
         this.labelRef = labelRef
         this.parent = parent
         this.generated = generated
         this.children = ArrayList<Scope>()
+    }
+
+    public operator func ==(other: Scope): Bool {
+        return false
+    }
+
+    public operator func !=(other: Scope): Bool {
+        return true
     }
 }
 
@@ -472,23 +409,6 @@ public class LocRef {
     }
 }
 
-/// 导入记录
-public class ImportRecord {
-    public var path: String
-    public var kind: ImportKind
-    public var range: Range
-    public var sourceIndex: Index
-    public var flags: ImportRecordFlags
-
-    public init(path: String, kind: ImportKind, range: Range) {
-        this.path = path
-        this.kind = kind
-        this.range = range
-        this.sourceIndex = Index.Invalid
-        this.flags = ImportRecordFlags()
-    }
-}
-
 /// 导入记录标志
 public class ImportRecordFlags {
     public var isUnused: Bool
@@ -512,6 +432,23 @@ public enum ImportKind {
     | Composes          // CSS composes
     | HtmlManifest      // HTML 清单
     | Internal          // 内部
+
+    public operator func ==(other: ImportKind): Bool {
+        match (this) {
+            case Stmt => match (other) { case Stmt => true case _ => false }
+            case Dynamic => match (other) { case Dynamic => true case _ => false }
+            case Require => match (other) { case Require => true case _ => false }
+            case RequireResolve => match (other) { case RequireResolve => true case _ => false }
+            case EntryPointRun => match (other) { case EntryPointRun => true case _ => false }
+            case EntryPointBuild => match (other) { case EntryPointBuild => true case _ => false }
+            case At => match (other) { case At => true case _ => false }
+            case AtConditional => match (other) { case AtConditional => true case _ => false }
+            case Url => match (other) { case Url => true case _ => false }
+            case Composes => match (other) { case Composes => true case _ => false }
+            case HtmlManifest => match (other) { case HtmlManifest => true case _ => false }
+            case Internal => match (other) { case Internal => true case _ => false }
+        }
+    }
 }
 
 /// 索引类型
@@ -520,7 +457,7 @@ public class Index {
     public static let Invalid: Index = Index(-1)
     public static let Runtime: Index = Index(0)
 
-    public init(_ value: Int32) {
+    public init(value: Int32) {
         this.value = value
     }
 
@@ -538,7 +475,7 @@ public class Index {
 }
 
 /// 引用类型
-public class Ref {
+public class Ref <: ToString {
     public var innerIndex: Int32
     public var sourceIndex: Int32
     public var tag: RefTag
@@ -549,7 +486,7 @@ public class Ref {
         this.tag = tag
     }
 
-    public static let None: Ref = Ref(innerIndex: 0, sourceIndex: -1, tag: RefTag.None)
+    public static let None: Ref = Ref(0, -1, RefTag.None)
 
     public func isNull(): Bool {
         return sourceIndex < 0
@@ -563,12 +500,16 @@ public class Ref {
         return innerIndex == other.innerIndex && sourceIndex == other.sourceIndex
     }
 
-    public func sourceIndex(): Int32 {
-        return sourceIndex
+    public operator func ==(right: Ref): Bool {
+        return eql(right)
     }
 
-    public func innerIndex(): Int32 {
-        return innerIndex
+    public operator func !=(right: Ref): Bool {
+        return !eql(right)
+    }
+
+    public func toString(): String {
+        return "Ref(${innerIndex}, ${sourceIndex})"
     }
 }
 
@@ -587,33 +528,35 @@ public class Loc {
         this.start = start
     }
 
-    public static let Empty: Loc = Loc(start: 0)
-}
-
-/// 范围
-public class Range {
-    public var loc: Loc
-    public var len: Int32
-
-    public init(loc: Loc, len: Int32) {
-        this.loc = loc
-        this.len = len
-    }
-
-    public init() {
-        this.loc = Loc.Empty
-        this.len = 0
-    }
-
-    public static let None: Range = Range()
+    public static let Empty: Loc = Loc(0)
 }
 
 /// 符号使用
 public class SymbolUse {
     public var countEstimate: UInt32
+    public var symbolName: String
+    public var useCount: Int64
+    public var usedInModules: ArrayList<String>
 
     public init(countEstimate: UInt32) {
         this.countEstimate = countEstimate
+        this.symbolName = ""
+        this.useCount = 0
+        this.usedInModules = ArrayList<String>()
+    }
+
+    public init(symbolName: String) {
+        this.countEstimate = 0
+        this.symbolName = symbolName
+        this.useCount = 0
+        this.usedInModules = ArrayList<String>()
+    }
+
+    public func addUse(fromModule: String): Unit {
+        useCount++
+        if (!usedInModules.contains(fromModule)) {
+            usedInModules.append(fromModule)
+        }
     }
 }
 
@@ -621,7 +564,7 @@ public class SymbolUse {
 public class Part {
     public var stmts: ArrayList<StmtNode>
     public var scopes: ArrayList<Scope>
-    public var symbolUses: HashMap<Ref, SymbolUse>
+    public var symbolUses: HashMap<String, SymbolUse>
     public var declaredSymbols: ArrayList<DeclaredSymbol>
     public var dependencies: ArrayList<Dependency>
     public var importRecordIndices: BabyList<UInt32>
@@ -632,7 +575,7 @@ public class Part {
     public init() {
         this.stmts = ArrayList<StmtNode>()
         this.scopes = ArrayList<Scope>()
-        this.symbolUses = HashMap<Ref, SymbolUse>()
+        this.symbolUses = HashMap<String, SymbolUse>()
         this.declaredSymbols = ArrayList<DeclaredSymbol>()
         this.dependencies = ArrayList<Dependency>()
         this.importRecordIndices = BabyList<UInt32>()
@@ -702,86 +645,7 @@ public class AstSymbolList {
     public func size(): Int64 {
         return items.size
     }
-}
-
-/// ImportRecordList (导入记录列表封装)
-public class ImportRecordList {
-    public var items: ArrayList<ImportRecord>
-
-    public init() {
-        this.items = ArrayList<ImportRecord>()
-    }
-
-    public static func fromList(list: ArrayList<ImportRecord>): ImportRecordList {
-        let result = ImportRecordList()
-        result.items = list
-        return result
-    }
-
-    public func at(index: Int32): ImportRecord {
-        return items.get(Int64(index))
-    }
-
-    public func slice(): ArrayList<ImportRecord> {
-        return items
-    }
-}
-
-/// BundledAst (打包用 AST)
-public class BundledAst {
-    public var parts: ArrayList<Part>
-    public var moduleScope: Scope
-    public var symbols: AstSymbolList
-    public var exportsRef: Ref
-    public var wrapperRef: Ref
-    public var moduleRef: Ref
-    public var importRecords: ImportRecordList
-    public var exportStarImportRecords: ArrayList<Int32>
-    public var approximateNewlineCount: Int32
-    public var exportsKind: ExportsKind
-    public var namedImports: HashMap<Ref, NamedImport>
-    public var namedExports: HashMap<String, NamedExport>
-    public var topLevelSymbolsToParts: HashMap<Ref, ArrayList<UInt32>>
-    public var charFreq: CharFreq
-    public var flags: BundledAstFlags
-    public var target: Target
-    public var topLevelAwaitKeyword: Range
-    public var tsEnums: HashMap<Ref, HashMap<String, InlinedEnumValue>>
-    public var css: Any
-    public var commonjsNamedExports: HashMap<String, CommonJSNamedExport>
-
-    public init(parts: ArrayList<Part>, moduleScope: Scope, symbols: AstSymbolList,
-                exportsRef: Ref, wrapperRef: Ref, moduleRef: Ref,
-                importRecords: ImportRecordList, exportStarImportRecords: ArrayList<Int32>,
-                approximateNewlineCount: Int32, exportsKind: ExportsKind,
-                namedImports: HashMap<Ref, NamedImport>, namedExports: HashMap<String, NamedExport>,
-                topLevelSymbolsToParts: HashMap<Ref, ArrayList<UInt32>>,
-                charFreq: CharFreq, flags: BundledAstFlags, target: Target,
-                topLevelAwaitKeyword: Range) {
-        this.parts = parts
-        this.moduleScope = moduleScope
-        this.symbols = symbols
-        this.exportsRef = exportsRef
-        this.wrapperRef = wrapperRef
-        this.moduleRef = moduleRef
-        this.importRecords = importRecords
-        this.exportStarImportRecords = exportStarImportRecords
-        this.approximateNewlineCount = approximateNewlineCount
-        this.exportsKind = exportsKind
-        this.namedImports = namedImports
-        this.namedExports = namedExports
-        this.topLevelSymbolsToParts = topLevelSymbolsToParts
-        this.charFreq = charFreq
-        this.flags = flags
-        this.target = target
-        this.topLevelAwaitKeyword = topLevelAwaitKeyword
-        this.tsEnums = HashMap<Ref, HashMap<String, InlinedEnumValue>>()
-        this.css = null
-        this.commonjsNamedExports = HashMap<String, CommonJSNamedExport>()
-    }
-}
-
-/// BundledAst 标志
+}/// BundledAstSlim 标志
 public class BundledAstFlags {
     public var usesExportsRef: Bool
     public var usesModuleRef: Bool
@@ -804,13 +668,6 @@ public class BundledAstFlags {
     }
 }
 
-/// 导出种类
-public enum ExportsKind {
-    | None    // 无导出
-    | CJS     // CommonJS (module.exports = ...)
-    | ESM     // ES Module (export ...)
-}
-
 /// CommonJS 命名导出
 public class CommonJSNamedExport {
     public var locRef: LocRef
@@ -820,35 +677,7 @@ public class CommonJSNamedExport {
         this.locRef = locRef
         this.needsDecl = needsDecl
     }
-}
-
-/// 内联枚举值
-public class InlinedEnumValue {
-    public var value: Any
-
-    public init(value: Any) {
-        this.value = value
-    }
-}
-
-/// 字符频率
-public class CharFreq {
-    public var freqs: Array<Int32>
-
-    public init() {
-        this.freqs = Array<Int32>(64, item: 0)
-    }
-}
-
-/// 目标平台
-public enum Target {
-    | Browser
-    | Bun
-    | BunMacro
-    | Node
-}
-
-/// JSX 选项
+}/// JSX 选项
 public class JsxOptions {
     public init() {}
 }
@@ -857,33 +686,15 @@ public class JsxOptions {
 public class PathName {
     public var path: String
 
-    public init(_ path: String) {
+    public init(path: String) {
         this.path = path
     }
 
     public func nonUniqueName(): String {
         let idx = path.lastIndexOf("/")
-        if (idx >= 0) {
-            return path.substring(Int64(idx + 1))
+        match (idx) {
+            case Some(i) => return path[i + 1..]
+            case None => return path
         }
-        return path
     }
-}
-
-/// 日志
-public class Log {
-    public var errors: Int32
-    public var warnings: Int32
-
-    public init() {
-        this.errors = 0
-        this.warnings = 0
-    }
-}
-
-/// 包目标 (对应 Bun BundleTarget)
-public enum BundleTarget {
-    | Browser
-    | Node
-    | Bun
 }

@@ -401,7 +401,7 @@ public class NodeHTTPResponse {
                 pollRef.unref()
                 r.upgrade(ws, websocketKey, secWebsocketProtocolValue,
                            secWebsocketExtensionsValue, upgradeContext.context)
-            case None => {}
+            case None => ()
         }
 
         // 清理升级上下文
@@ -428,7 +428,7 @@ public class NodeHTTPResponse {
             if (!flags.upgraded && !flags.socketClosed) {
                 match (rawResponse) {
                     case Some(r) => r.clearOnData()
-                    case None => {}
+                    case None => ()
                 }
             }
 
@@ -472,7 +472,7 @@ public class NodeHTTPResponse {
 
         match (server) {
             case Some(srv) => srv.onRequestComplete()
-            case None => {}
+            case None => ()
         }
 
         deref()
@@ -500,7 +500,7 @@ public class NodeHTTPResponse {
             match (rawResponse) {
                 case Some(r) =>
                     r.onTimeout(this, NodeHTTPResponse.onTimeoutCallback)
-                case None => {}
+                case None => ()
             }
         }
         upgradeContext.preserveWebSocketHeadersIfNeeded()
@@ -632,7 +632,7 @@ public class NodeHTTPResponse {
                 match (drainBufferedRequestBodyFromPause(globalObject)) {
                     case Some(bufferedData) =>
                         result = bufferedData
-                    case None => {}
+                    case None => ()
                 }
 
                 resumeSocket()
@@ -753,7 +753,7 @@ public class NodeHTTPResponse {
         match (rawResponse) {
             case Some(raw) =>
                 raw.writeContinue()
-            case None => {}
+            case None => ()
         }
         return JSValue.undefined
     }
@@ -874,7 +874,7 @@ public class NodeHTTPResponse {
                 if (state.isHttpEndCalled()) {
                     return JSValue.undefined
                 }
-            case None => {}
+            case None => ()
         }
 
         resumeSocket()
@@ -884,7 +884,7 @@ public class NodeHTTPResponse {
                 raw.clearOnWritable()
                 raw.clearTimeout()
                 raw.endWithoutBody(true)
-            case None => {}
+            case None => ()
         }
         onRequestComplete()
         return JSValue.undefined
@@ -921,7 +921,7 @@ public class NodeHTTPResponse {
 
         match (drainBufferedRequestBodyFromPause(globalThis)) {
             case Some(v) => return v
-            case None => {}
+            case None => ()
         }
 
         if (chunk.size > 0) {
@@ -1160,7 +1160,7 @@ public class NodeHTTPResponse {
                     if (!flags.requestHasCompleted && !flags.socketClosed && !flags.upgraded) {
                         match (rawResponse) {
                             case Some(raw) => raw.clearOnData()
-                            case None => {}
+                            case None => ()
                         }
                     }
                     bodyReadState = BodyReadState.Done
@@ -1177,7 +1177,7 @@ public class NodeHTTPResponse {
         match (rawResponse) {
             case Some(raw) =>
                 raw.onData(this, NodeHTTPResponse.onDataCallback)
-            case None => {}
+            case None => ()
         }
         flags.isDataBufferedDuringPause = false
     }
@@ -1192,7 +1192,7 @@ public class NodeHTTPResponse {
             if (!flags.socketClosed && !flags.upgraded) {
                 match (rawResponse) {
                     case Some(raw) => raw.clearOnData()
-                    case None => {}
+                    case None => ()
                 }
             }
             if (bodyReadState != BodyReadState.Done) {
@@ -1224,7 +1224,7 @@ public class NodeHTTPResponse {
         match (rawResponse) {
             case Some(raw) =>
                 raw.flush()
-            case None => {}
+            case None => ()
         }
         return false // 不重复
     }

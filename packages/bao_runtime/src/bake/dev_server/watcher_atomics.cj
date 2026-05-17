@@ -19,7 +19,7 @@ public class WatcherAtomics {
 
     /// 下一个要运行的事件。如果事件已在运行，新事件存储在此字段中，
     /// 而不是直接调度，将在当前事件完成后运行。
-    public var next_event: Atomic<UInt8> = Atomic<UInt8>(NextEvent.done)
+    public var next_event: Atomic<UInt8> = Atomic<UInt8>(WatcherAtomics.nextEventDone)
 
     /// 只有 watcher 线程使用这两个字段。它们都是 events 数组的索引，
     /// 指示哪些元素正在使用，不可修改。最多只能有两个这样的事件在用，
@@ -27,14 +27,8 @@ public class WatcherAtomics {
     public var current_event: ?UInt8 = None
     public var pending_event: ?UInt8 = None
 
-    /// NextEvent 枚举值
-    public struct NextEvent <: UInt8 {
-        /// 事件正在运行，没有下一个事件待定
-        public static let waiting: UInt8 = UInt8.max - 1
-        /// 没有事件正在运行
-        public static let done: UInt8 = UInt8.max
-        /// 任何其他值表示 events 数组的索引
-    }
+    public static let nextEventWaiting: UInt8 = UInt8.max - 1
+    public static let nextEventDone: UInt8 = UInt8.max
 
     /// 初始化
     public static func initFunc(dev: DevServer): WatcherAtomics {
@@ -51,8 +45,8 @@ public class WatcherAtomics {
     /// 从 watcher 线程调用。
     public func watcherAcquireEvent(): HotReloadEvent {
         var available: Array<Bool> = [true, true, true]
-        if (let Some(i) = current_event) { available[i] = false }
-        if (let Some(i) = pending_event) { available[i] = false }
+        if (let Some(i) <- current_event) { available[i] = false }
+        if (let Some(i) <- pending_event) { available[i] = false }
 
         let index = available.first(true)
         let ev = events[index]
@@ -72,17 +66,17 @@ public class WatcherAtomics {
         if (ev.isEmpty()) { return }
 
         let ev_index: UInt8 = UInt8(ev - events[0])
-        let old_next = next_event.swap(ev_index, .acq_rel)
+        let old_next = next_event.swap(ev_index, AtomicOrdering.acqRel)
         match (old_next) {
-            case NextEvent.done =>
+            case WatcherAtomics.nextEventDone =>
                 // DevServer 完成运行事件。我们需要直接调度事件。
                 current_event = ev_index
                 pending_event = None
-                next_event.store(NextEvent.waiting, .monotonic)
-                ev.concurrent_task = ConcurrentTask(task: Task.init(ev))
+                next_event.store(WatcherAtomics.nextEventWaiting, AtomicOrdering.monotonic)
+                ev.concurrent_task = ConcurrentTask(task: Task.`init`(ev))
                 ev.owner.vm.event_loop.enqueueTaskConcurrent(ev.concurrent_task)
 
-            case NextEvent.waiting =>
+            case WatcherAtomics.nextEventWaiting =>
                 if (pending_event != None) {
                     current_event = pending_event
                 }
@@ -103,14 +97,14 @@ public class WatcherAtomics {
         old_event.reset()
 
         while (true) {
-            let next = next_event.swap(NextEvent.waiting, .acq_rel)
+            let next = next_event.swap(WatcherAtomics.nextEventWaiting, AtomicOrdering.acqRel)
             match (next) {
-                case NextEvent.waiting =>
-                    if (next_event.cmpxchgWeak(NextEvent.waiting, NextEvent.done, .release, .monotonic) != None) {
+                case WatcherAtomics.nextEventWaiting =>
+                    if (next_event.cmpxchgWeak(WatcherAtomics.nextEventWaiting, WatcherAtomics.nextEventDone, AtomicOrdering.release, AtomicOrdering.monotonic) != None) {
                         continue  // 可能添加了另一个事件
                     }
                     return None  // 完成运行事件
-                case NextEvent.done => unreachable
+                case WatcherAtomics.nextEventDone => unreachable
                 case _ => return events[next]
             }
         }

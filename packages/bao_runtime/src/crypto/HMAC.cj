@@ -28,7 +28,7 @@ public class HMAC {
     /// 初始化 HMAC
     /// 对应 Bun: pub fn init(EVP.Algorithm, key: []const u8) ?*HMAC
     public static func initFunc(algo: EvpAlgorithm, key: Array<Byte>): ?HMAC {
-        let md = algorithm.md()
+        let md = algo.md()
         match (md) {
             case None => return None
             case _ => ()
@@ -43,20 +43,20 @@ public class HMAC {
         // if (BoringSSL.HMAC_Init_ex(&ctx, key.ptr, @intCast(key.len), md, null) != 1)
         //     BoringSSL.HMAC_CTX_cleanup(&ctx);
         //     return null;
-        if (BoringSSL.hmacInitEx(ctx, key, key.size.toInt64(), mdVal, None) != 1) {
+        if (BoringSSL.hmacInitEx(ctx, key, key.size, mdVal, Option<Engine>.None) != 1) {
             BoringSSL.hmacCtxCleanup(ctx)
             return None
         }
 
         // return HMAC.new(.{ .ctx = ctx, .algorithm = algorithm });
-        return HMAC(ctx, algorithm)
+        return HMAC(ctx, algo)
     }
 
     /// 更新 HMAC 数据
     /// 对应 Bun: pub fn update(*HMAC, data: []const u8) void
     public func update(arr: Array<Byte>): Unit {
         // _ = BoringSSL.HMAC_Update(&this.ctx, data.ptr, data.len);
-        BoringSSL.hmacUpdate(this.ctx, data, data.size.toInt64())
+        BoringSSL.hmacUpdate(this.ctx, arr, arr.size)
     }
 
     /// 获取 HMAC 输出大小
@@ -92,12 +92,12 @@ public class HMAC {
         var outLen = Array<UInt32>(1, repeat: UInt32(0))
 
         // _ = BoringSSL.HMAC_Final(&this.ctx, out.ptr, &outlen);
-        BoringSSL.hmacFinal(this.ctx, out, outLen)
+        BoringSSL.hmacFinal(this.ctx, arr, outLen)
 
-        // return out[0..outlen];
-        let len = outLen[0].toInt64()
-        if (len > 0 && len <= out.size) {
-            return out[0..len]
+        // return arr[0..outlen];
+        let len = Int64(outLen[0])
+        if (len > 0 && len <= arr.size) {
+            return arr[0..len]
         }
         return Array<Byte>()
     }

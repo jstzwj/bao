@@ -63,11 +63,11 @@ public class JSXTransformer {
 
         // 第一遍: 收集 JSX 元素并转换
         var result = StringBuilder()
-        while (pos < source.length) {
-            if (source[Int64(pos)] == Char('<')) {
+        while (pos < source.size) {
+            if (source[Int64(pos)] == UInt8(60)) {
                 // 检测 JSX 元素开始
                 let nextPos = pos + 1
-                if (nextPos < source.length) {
+                if (nextPos < source.size) {
                     let nextCh = source[Int64(nextPos)]
                     // JSX 元素: <Identifier, <>, 或 </
                     if (isJSXElementStart(nextCh)) {
@@ -84,15 +84,15 @@ public class JSXTransformer {
 
         // 生成运行时导入
         let imports = generateRuntimeImports()
-        if (imports.length > 0) {
+        if (imports.size > 0) {
             return imports + "\n" + result.toString()
         }
         return result.toString()
     }
 
     /// 检测字符是否为 JSX 元素开始
-    private func isJSXElementStart(ch: Char): Bool {
-        let v = ch.value
+    private func isJSXElementStart(ch: UInt8): Bool {
+        let v = ch
         // 标识符开始, 或 Fragment <>
         return (v >= 97 && v <= 122) || (v >= 65 && v <= 90) ||
                v == 95 || v == 36 || v == 62  // '>' for <>
@@ -107,26 +107,26 @@ public class JSXTransformer {
         pos += 1  // skip '<'
 
         // Fragment: <>
-        if (pos < source.length && source[Int64(pos)] == Char('>')) {
+        if (pos < source.size && source[Int64(pos)] == UInt8(62)) {
             pos += 1  // skip '>'
             let children = parseJSXChildren("</>")
             // skip closing </>
-            if (pos + 2 < source.length &&
-                source[Int64(pos)] == Char('<') &&
-                source[Int64(pos + 1)] == Char('/')) {
+            if (pos + 2 < source.size &&
+                source[Int64(pos)] == UInt8(60) &&
+                source[Int64(pos + 1)] == UInt8(47)) {
                 pos += 4  // skip "</>"
             }
             return JSXElement("<>", ArrayList<JSXAttribute>(), children, true)
         }
 
         // 自闭合标签
-        let isClosing = pos < source.length && source[Int64(pos)] == Char('/')
+        let isClosing = pos < source.size && source[Int64(pos)] == UInt8(47)
         if (isClosing) {
             // 这是关闭标签，不应该在这里出现
             pos += 1
             let tagName = readJSXIdentifier()
             skipWhitespace()
-            if (pos < source.length && source[Int64(pos)] == Char('>')) {
+            if (pos < source.size && source[Int64(pos)] == UInt8(62)) {
                 pos += 1
             }
             return JSXElement(tagName, ArrayList<JSXAttribute>(), ArrayList<JSXChild>(), false)
@@ -140,18 +140,18 @@ public class JSXTransformer {
         let attrs = ArrayList<JSXAttribute>()
         var selfClosing = false
 
-        while (pos < source.length) {
+        while (pos < source.size) {
             let ch = source[Int64(pos)]
-            if (ch == Char('>')) {
+            if (ch == UInt8(62)) {
                 pos += 1
                 break
             }
-            if (ch == Char('/') && pos + 1 < source.length && source[Int64(pos + 1)] == Char('>')) {
+            if (ch == UInt8(47) && pos + 1 < source.size && source[Int64(pos + 1)] == UInt8(62)) {
                 pos += 2
                 selfClosing = true
                 break
             }
-            if (ch == Char('{') || ch == Char('}')) {
+            if (ch == UInt8(123) || ch == UInt8(125)) {
                 pos += 1
                 continue
             }
@@ -166,7 +166,9 @@ public class JSXTransformer {
         let children = ArrayList<JSXChild>()
         if (!selfClosing) {
             let closeTag = "</${tagName}>"
-            children.addAll(parseJSXChildren(closeTag))
+            for (child in parseJSXChildren(closeTag)) {
+                children.append(child)
+            }
         }
 
         return JSXElement(tagName, attrs, children, tagName == "<>")
@@ -175,9 +177,9 @@ public class JSXTransformer {
     /// 读取 JSX 标识符 (支持 member expression: Foo.Bar.Baz)
     private func readJSXIdentifier(): String {
         let sb = StringBuilder()
-        while (pos < source.length) {
+        while (pos < source.size) {
             let ch = source[Int64(pos)]
-            let v = ch.value
+            let v = ch
             if ((v >= 97 && v <= 122) || (v >= 65 && v <= 90) ||
                 v == 95 || v == 36 || (v >= 48 && v <= 57) || v == 46) {
                 sb.append(ch)
@@ -194,13 +196,13 @@ public class JSXTransformer {
         skipWhitespace()
 
         // 处理 spread 属性: {...obj}
-        if (source[Int64(pos)] == Char('{')) {
+        if (source[Int64(pos)] == UInt8(123)) {
             pos += 1  // skip '{'
-            if (pos < source.length && source[Int64(pos)] == Char('.')) {
+            if (pos < source.size && source[Int64(pos)] == UInt8(46)) {
                 pos += 3  // skip "..."
             }
             let value = readJSXExpressionValue()
-            if (pos < source.length && source[Int64(pos)] == Char('}')) {
+            if (pos < source.size && source[Int64(pos)] == UInt8(125)) {
                 pos += 1
             }
             return JSXAttribute("__spread__", value, true)
@@ -213,20 +215,20 @@ public class JSXTransformer {
         var value = ""
         var isExpression = false
 
-        if (pos < source.length && source[Int64(pos)] == Char('=')) {
+        if (pos < source.size && source[Int64(pos)] == UInt8(61)) {
             pos += 1  // skip '='
             skipWhitespace()
 
-            if (pos < source.length && source[Int64(pos)] == Char('"')) {
+            if (pos < source.size && source[Int64(pos)] == UInt8(34)) {
                 // 字符串值: name="value"
                 value = readJSXStringValue()
-            } else if (pos < source.length && source[Int64(pos)] == Char('\'')) {
+            } else if (pos < source.size && source[Int64(pos)] == UInt8(39)) {
                 value = readJSXSingleQuoteValue()
-            } else if (pos < source.length && source[Int64(pos)] == Char('{')) {
+            } else if (pos < source.size && source[Int64(pos)] == UInt8(123)) {
                 // 表达式值: name={expr}
                 pos += 1  // skip '{'
                 value = readJSXExpressionValue()
-                if (pos < source.length && source[Int64(pos)] == Char('}')) {
+                if (pos < source.size && source[Int64(pos)] == UInt8(125)) {
                     pos += 1  // skip '}'
                 }
                 isExpression = true
@@ -242,9 +244,9 @@ public class JSXTransformer {
     /// 读取属性名 (支持 data-*, aria-*, on* 等)
     private func readJSXAttributeName(): String {
         let sb = StringBuilder()
-        while (pos < source.length) {
+        while (pos < source.size) {
             let ch = source[Int64(pos)]
-            let v = ch.value
+            let v = ch
             if ((v >= 97 && v <= 122) || (v >= 65 && v <= 90) ||
                 (v >= 48 && v <= 57) || v == 45 || v == 95 ||
                 v == 58 || v == 46) {
@@ -261,9 +263,9 @@ public class JSXTransformer {
     private func readJSXStringValue(): String {
         pos += 1  // skip opening "
         let sb = StringBuilder()
-        while (pos < source.length && source[Int64(pos)] != Char('"')) {
+        while (pos < source.size && source[Int64(pos)] != UInt8(34)) {
             let ch = source[Int64(pos)]
-            if (ch == Char('\\') && pos + 1 < source.length) {
+            if (ch == UInt8(92) && pos + 1 < source.size) {
                 sb.append(ch)
                 pos += 1
                 sb.append(source[Int64(pos)])
@@ -273,7 +275,7 @@ public class JSXTransformer {
                 pos += 1
             }
         }
-        if (pos < source.length) {
+        if (pos < source.size) {
             pos += 1  // skip closing "
         }
         return sb.toString()
@@ -283,9 +285,9 @@ public class JSXTransformer {
     private func readJSXSingleQuoteValue(): String {
         pos += 1  // skip opening '
         let sb = StringBuilder()
-        while (pos < source.length && source[Int64(pos)] != Char('\'')) {
+        while (pos < source.size && source[Int64(pos)] != UInt8(39)) {
             let ch = source[Int64(pos)]
-            if (ch == Char('\\') && pos + 1 < source.length) {
+            if (ch == UInt8(92) && pos + 1 < source.size) {
                 sb.append(ch)
                 pos += 1
                 sb.append(source[Int64(pos)])
@@ -295,7 +297,7 @@ public class JSXTransformer {
                 pos += 1
             }
         }
-        if (pos < source.length) {
+        if (pos < source.size) {
             pos += 1  // skip closing '
         }
         return sb.toString()
@@ -305,17 +307,17 @@ public class JSXTransformer {
     private func readJSXExpressionValue(): String {
         let sb = StringBuilder()
         var depth = 0
-        while (pos < source.length) {
+        while (pos < source.size) {
             let ch = source[Int64(pos)]
-            if (ch == Char('{')) { depth += 1 }
-            else if (ch == Char('}')) {
+            if (ch == UInt8(123)) { depth += 1 }
+            else if (ch == UInt8(125)) {
                 if (depth == 0) { break }
                 depth -= 1
             }
             sb.append(ch)
             pos += 1
         }
-        return sb.toString().trim()
+        return sb.toString()
     }
 
     /// 解析 JSX 子元素
@@ -323,22 +325,22 @@ public class JSXTransformer {
         let children = ArrayList<JSXChild>()
         let textBuffer = StringBuilder()
 
-        while (pos < source.length) {
+        while (pos < source.size) {
             // 检查关闭标签
             if (startsWithAt(source, pos, closeTag)) {
-                pos += closeTag.length
+                pos += closeTag.size
                 break
             }
 
             // 检查嵌套 JSX 元素
-            if (source[Int64(pos)] == Char('<')) {
+            if (source[Int64(pos)] == UInt8(60)) {
                 // 刷新文本缓冲
-                if (textBuffer.length > 0) {
-                    let text = textBuffer.toString().trim()
-                    if (text.length > 0) {
+                if (textBuffer.size > 0) {
+                    let text = textBuffer.toString()
+                    if (text.size > 0) {
                         children.append(JSXChild.textChild(text))
                     }
-                    textBuffer.clearBuffer()
+                    ()
                 }
 
                 let child = parseJSXElement()
@@ -347,19 +349,19 @@ public class JSXTransformer {
             }
 
             // JSX 表达式子元素: {expression}
-            if (source[Int64(pos)] == Char('{')) {
+            if (source[Int64(pos)] == UInt8(123)) {
                 // 刷新文本缓冲
-                if (textBuffer.length > 0) {
-                    let text = textBuffer.toString().trim()
-                    if (text.length > 0) {
+                if (textBuffer.size > 0) {
+                    let text = textBuffer.toString()
+                    if (text.size > 0) {
                         children.append(JSXChild.textChild(text))
                     }
-                    textBuffer.clearBuffer()
+                    ()
                 }
 
                 pos += 1  // skip '{'
                 let expr = readJSXExpressionValue()
-                if (pos < source.length && source[Int64(pos)] == Char('}')) {
+                if (pos < source.size && source[Int64(pos)] == UInt8(125)) {
                     pos += 1
                 }
                 children.append(JSXChild.expressionChild(expr))
@@ -372,9 +374,9 @@ public class JSXTransformer {
         }
 
         // 刷新剩余文本
-        if (textBuffer.length > 0) {
-            let text = textBuffer.toString().trim()
-            if (text.length > 0) {
+        if (textBuffer.size > 0) {
+            let text = textBuffer.toString()
+            if (text.size > 0) {
                 children.append(JSXChild.textChild(text))
             }
         }
@@ -583,15 +585,14 @@ public class JSXTransformer {
 
     /// 检查是否只有静态子元素
     private func hasOnlyStaticChildren(elem: JSXElement): Bool {
-        // 如果子元素中没有表达式，就是静态的
         for (child in elem.children) {
-            if (child.kind == JSXChildKind.Expression) {
-                return false
-            }
-            if (child.kind == JSXChildKind.Element) {
-                if (!hasOnlyStaticChildren(child.elementValue)) {
-                    return false
-                }
+            match (child.kind) {
+                case JSXChildKind.Expression => return false
+                case JSXChildKind.Element =>
+                    if (!hasOnlyStaticChildren(child.elementValue)) {
+                        return false
+                    }
+                case JSXChildKind.Text => ()
             }
         }
         return true
@@ -599,8 +600,8 @@ public class JSXTransformer {
 
     /// 是否是用户自定义组件 (大写开头)
     private func isUserComponent(tagName: String): Bool {
-        if (tagName.length == 0) { return false }
-        let first = tagName[Int64(0)].value
+        if (tagName.size == 0) { return false }
+        let first = tagName[Int64(0)]
         return first >= 65 && first <= 90  // A-Z
     }
 
@@ -613,11 +614,9 @@ public class JSXTransformer {
         let sb = StringBuilder()
 
         match (options.jsxRuntime) {
-            case Classic => {
-                // Classic 模式不需要自动导入
-                // React 通常由用户手动导入
-            }
-            case Automatic => {
+            case Classic =>
+                ()
+            case Automatic =>
                 // Automatic 模式: 从 jsx-runtime 导入
                 let importSource = options.jsxImportSource
                 let devSuffix = if (options.jsxDevelopment) { "/jsx-dev-runtime" } else { "/jsx-runtime" }
@@ -647,8 +646,7 @@ public class JSXTransformer {
                     if (i > 0) { sb.append("\n") }
                     sb.append(imports[Int64(i)])
                 }
-            }
-            case Solid => {
+            case Solid =>
                 // Solid 模式: 从 solid-js 导入
                 let importSource = options.jsxImportSource
                 if (importSource == "react") {
@@ -656,7 +654,6 @@ public class JSXTransformer {
                 } else {
                     sb.append("import { createElement as _createElement } from \"${importSource}\"")
                 }
-            }
         }
 
         return sb.toString()
@@ -695,9 +692,9 @@ public class JSXTransformer {
     }
 
     private func skipWhitespace(): Unit {
-        while (pos < source.length) {
+        while (pos < source.size) {
             let ch = source[Int64(pos)]
-            if (ch == Char(' ') || ch == Char('\t') || ch == Char('\n') || ch == Char('\r')) {
+            if (ch == UInt8(32) || ch == UInt8(9) || ch == UInt8(10) || ch == UInt8(13)) {
                 pos += 1
             } else {
                 break
@@ -706,10 +703,10 @@ public class JSXTransformer {
     }
 
     private static func startsWithAt(s: String, index: Int64, prefix: String): Bool {
-        if (index + prefix.length > s.length) {
+        if (index + prefix.size > s.size) {
             return false
         }
-        for (i in 0..prefix.length) {
+        for (i in 0..prefix.size) {
             if (s[Int64(index + i)] != prefix[Int64(i)]) {
                 return false
             }

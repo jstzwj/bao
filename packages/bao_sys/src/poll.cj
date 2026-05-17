@@ -174,19 +174,19 @@ public class PollResult {
         this.error = None
     }
 
-    public static func interrupted(): PollResult {
+    public static func interruptedResult(): PollResult {
         let r = PollResult(0)
         r.interrupted = true
         return r
     }
 
-    public static func timedOut(): PollResult {
+    public static func timedOutResult(): PollResult {
         let r = PollResult(0)
         r.timedOut = true
         return r
     }
 
-    public static func error(err: SysError): PollResult {
+    public static func errorResult(err: SysError): PollResult {
         let r = PollResult(0)
         r.error = Some(err)
         return r
@@ -194,7 +194,10 @@ public class PollResult {
 
     /// 是否成功
     public func isOk(): Bool {
-        return error == None
+        match (error) {
+            case Some(_) => false
+            case None => true
+        }
     }
 }
 
@@ -223,11 +226,11 @@ public class SysPoll {
             let buf = malloc(bufSize)
             // 构造 pollfd 数组
             for (i in 0..fds.size) {
-                let base = CPointer<Int32>(buf) + IntNative(i * 2)  // 每个元素 2 个 int32
+                let base = CPointer<Int32>(buf) + Int64(i * 2)  // 每个元素 2 个 int32
                 // fd 字段
                 base.write(Int32(fds[Int64(i)].fd))
                 // events 字段 (offset 4)
-                (base + IntNative(1)).write(Int32(fds[Int64(i)].events))
+                (base + Int64(1)).write(Int32(fds[Int64(i)].events))
             }
 
             let rc = poll(buf, UIntNative(fds.size), Int32(timeoutMs))
@@ -237,18 +240,18 @@ public class SysPoll {
                 let errNum = OS.errno()
                 if (errNum == 4) {
                     // EINTR - 被信号中断
-                    return PollResult.interrupted()
+                    return PollResult.interruptedResult()
                 }
-                return PollResult.error(SysError(UInt16(errNum), SysTag.Poll))
+                return PollResult.errorResult(SysError(UInt16(errNum), SysTag.Poll))
             }
 
             // 解析结果
             var readyCount: Int64 = 0
             for (i in 0..fds.size) {
-                let base = CPointer<Int32>(buf) + IntNative(i * 2)
+                let base = CPointer<Int32>(buf) + Int64(i * 2)
                 // revents 字段 (offset 6, 但读取 offset 4+2 = 需要 short)
                 // 简化: 读取第二对 int32 的低 16 位
-                let reventsRaw = (base + IntNative(1)).read()
+                let reventsRaw = (base + Int64(1)).read()
                 fds[Int64(i)].revents = Int16(reventsRaw >> 16)
                 if (fds[Int64(i)].hasEvents()) {
                     readyCount += 1
@@ -342,8 +345,9 @@ public class PollerBuilder {
     /// 对应 Bun: Poll.Flags.registerForEpoll 中的标志组合
     public func buildEpollEvents(base: UInt32): UInt32 {
         var events = base
-        if (triggerMode == TriggerMode.EdgeTriggered) {
-            events = events | UInt32(Int32(EpollEvents.EPOLLET))
+        match (triggerMode) {
+            case EdgeTriggered => events = events | EpollEvents.EPOLLET
+            case _ => ()
         }
         if (oneShot) {
             events = events | UInt32(Int32(EpollEvents.EPOLLONESHOT))
@@ -381,9 +385,8 @@ public class TriggerModeHelper {
     /// 对应 Bun: ReadFile.onReady() 中的循环读取
     public static func readAllEt(fd: Int64, buf: Array<UInt8>): SysMaybe<Int64> {
         var totalRead: Int64 = 0
-        var remaining = buf
-        while (true) {
-            let chunk = Array<UInt8>(8192, item: UInt8(0))
+        while (totalRead < buf.size) {
+            let chunk = Array<UInt8>(8192, { _ => UInt8(0) })
             match (SysFs.read(fd, chunk)) {
                 case Err(e) =>
                     // EAGAIN 表示暂无更多数据 - ET 模式下这是正常的
@@ -403,11 +406,9 @@ public class TriggerModeHelper {
                         }
                     }
                     totalRead += n
-                    if (totalRead >= buf.size) {
-                        return SysMaybe<Int64>.Ok(totalRead)
-                    }
             }
         }
+        return SysMaybe<Int64>.Ok(totalRead)
     }
 
     /// 水平触发模式下的单次读取

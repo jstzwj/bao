@@ -218,7 +218,7 @@ public class SideEffectsAnalysis {
     /// 判断表达式是否有副作用
     private func exprHasSideEffects(expr: Expr): Bool {
         // 字面量: 无副作用
-        if (expr.tag == ExprTag.Number || expr.tag == ExprTag.String || expr.tag == ExprTag.Bool || expr.tag == ExprTag.Null) {
+        if (expr.tag == ExprTag.Number || expr.tag == ExprTag.String || expr.tag == ExprTag.`Bool` || expr.tag == ExprTag.`Null`) {
             return false
         }
 
@@ -286,28 +286,6 @@ public class SideEffectsAnalysis {
 // 严格翻译自: LinkerGraph.zig:200 generateSymbolImportAndUse
 //   追踪符号使用，构建模块间的可达关系
 // ============================================================================
-
-/// 符号使用信息
-// 严格翻译自: LinkerGraph 中 symbol_uses 映射
-public class SymbolUse {
-    public var symbolName: String
-    public var useCount: Int64
-    public var usedInModules: ArrayList<String>   // 使用此符号的模块路径列表
-
-    public init(symbolName: String) {
-        this.symbolName = symbolName
-        this.useCount = 0
-        this.usedInModules = ArrayList<String>()
-    }
-
-    /// 增加使用计数
-    public func addUse(fromModule: String): Unit {
-        useCount++
-        if (!usedInModules.contains(fromModule)) {
-            usedInModules.append(fromModule)
-        }
-    }
-}
 
 /// 可达性图 - 追踪模块和符号的使用关系
 // 严格翻译自: LinkerGraph 中的 imports_to_bind, symbol_uses 追踪
@@ -873,7 +851,7 @@ public class DeadCodeEliminator {
 
     /// 判断是否为字面量 false
     private func isLiteralFalse(expr: Expr): Bool {
-        if (expr.tag == ExprTag.Bool && expr.boolValue == false) {
+        if (expr.tag == ExprTag.`Bool` && expr.boolValue == false) {
             return true
         }
         if (expr.tag == ExprTag.Null) {
@@ -884,7 +862,7 @@ public class DeadCodeEliminator {
 
     /// 判断是否为字面量 true
     private func isLiteralTrue(expr: Expr): Bool {
-        return expr.tag == ExprTag.Bool && expr.boolValue == true
+        return expr.tag == ExprTag.`Bool` && expr.boolValue == true
     }
 
     /// 判断是否为 void 表达式

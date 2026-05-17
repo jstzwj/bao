@@ -229,7 +229,8 @@ public class HTTPContext {
                     pooled.hostname = hostname
                     pooled.port = port
                     pooled.owner = Some(this)
-                    pooled.didHaveHandshakingErrorWhileRejectUnauthorizedIsFalse = didHaveHandshakingError && !sslConfig.map({ c => c.rejectUnauthorized }).getOrElse(true)
+                    let rejectUnauthorized = if (sslConfig.isSome()) { sslConfig.getOrThrow().rejectUnauthorized } else { true }
+                    pooled.didHaveHandshakingErrorWhileRejectUnauthorizedIsFalse = didHaveHandshakingError && !rejectUnauthorized
                     pooled.sslConfig = sslConfig
                     pooled.proxyTunnel = tunnel
                     pooled.proxyAuthHash = proxyAuthHash
@@ -263,10 +264,9 @@ public class HTTPContext {
 
         // 关闭隧道
         match (tunnel) {
-            case Some(t) => {
+            case Some(t) =>
                 ProxyTunnelOps.shutdown(t)
                 ProxyTunnelOps.detachAndDeref(t)
-            }
             case None => ()
         }
 
@@ -388,18 +388,16 @@ public class HTTPContext {
         )
 
         match (found) {
-            case Some(existing) => {
+            case Some(existing) =>
                 // 复用已有连接
                 client.flags.didHaveHandshakingError = false
                 match (existing.tunnel) {
-                    case Some(tunnel) => {
+                    case Some(tunnel) =>
                         // 复用隧道
                         ProxyTunnelOps.adopt(tunnel, client, isSsl, existing.socketFd)
-                    }
                     case None => ()
                 }
                 return Some(existing.socketFd)
-            }
             case None => ()
         }
 
@@ -423,55 +421,6 @@ public class HTTPContext {
     // Bun 使用 uws 的回调系统:
     //   onOpen, onHandshake, onClose, onData, onWritable, onTimeout
     // ========================================================================
-
-    /// Handler 回调接口
-    public class Handler {
-        /// socket 打开回调
-        /// 严格翻译自: Handler.onOpen
-        public static func onOpen(ctx: HTTPContext, client: HTTPClient, socketFd: Int64): Unit {
-            // 设置超时
-            client.state.requestStage = HTTPStage.opened
-        }
-
-        /// 数据到达回调
-        /// 严格翻译自: Handler.onData
-        public static func onData(ctx: HTTPContext, client: HTTPClient, socketFd: Int64, data: Array<UInt8>): Unit {
-            // 根据响应阶段分发
-            match (client.state.responseStage) {
-                case pending => ()
-                case headers => ()
-                case body => ()
-                case bodyChunk => ()
-                case fail => ()
-                case _ => ()
-            }
-        }
-
-        /// socket 可写回调
-        /// 严格翻译自: Handler.onWritable
-        public static func onWritable(ctx: HTTPContext, client: HTTPClient, socketFd: Int64): Unit {
-            // 根据请求阶段处理
-            match (client.state.requestStage) {
-                case pending => ()
-                case headers => ()
-                case body => ()
-                case done => ()
-                case _ => ()
-            }
-        }
-
-        /// socket 关闭回调
-        /// 严格翻译自: Handler.onClose
-        public static func onClose(ctx: HTTPContext, client: HTTPClient, socketFd: Int64): Unit {
-            // 清理连接状态
-        }
-
-        /// 超时回调
-        /// 严格翻译自: Handler.onLongTimeout / Handler.onTimeout
-        public static func onTimeout(ctx: HTTPContext, client: HTTPClient, socketFd: Int64): Unit {
-            // 处理超时
-        }
-    }
 
     // ========================================================================
     // 辅助方法
@@ -528,12 +477,51 @@ public class HTTPContext {
             return false
         }
         for (i in 0..a.size) {
-            if (a[i].toLower() != b[i].toLower()) {
+            if (lowerAsciiByte(a[i]) != lowerAsciiByte(b[i])) {
                 return false
             }
         }
         return true
     }
+
+    private static func lowerAsciiByte(c: UInt8): UInt8 {
+        if (c >= UInt8(65) && c <= UInt8(90)) {
+            return c + UInt8(32)
+        }
+        return c
+    }
+}
+
+/// Handler 回调接口
+public class HTTPContextHandler {
+    public static func onOpen(ctx: HTTPContext, client: HTTPClient, socketFd: Int64): Unit {
+        client.state.requestStage = HTTPStage.opened
+    }
+
+    public static func onData(ctx: HTTPContext, client: HTTPClient, socketFd: Int64, data: Array<UInt8>): Unit {
+        match (client.state.responseStage) {
+            case pending => ()
+            case headers => ()
+            case body => ()
+            case bodyChunk => ()
+            case fail => ()
+            case _ => ()
+        }
+    }
+
+    public static func onWritable(ctx: HTTPContext, client: HTTPClient, socketFd: Int64): Unit {
+        match (client.state.requestStage) {
+            case pending => ()
+            case headers => ()
+            case body => ()
+            case done => ()
+            case _ => ()
+        }
+    }
+
+    public static func onClose(ctx: HTTPContext, client: HTTPClient, socketFd: Int64): Unit {}
+
+    public static func onTimeout(ctx: HTTPContext, client: HTTPClient, socketFd: Int64): Unit {}
 }
 
 /// Socket 组 — 对应 uws.SocketGroup
@@ -541,5 +529,3 @@ public class SocketGroup {
     public init() {}
 }
 
-/// Any 类型 (仓颉没有 Any，用这代替)
-public type Any = ?Object

@@ -4,6 +4,7 @@ package bao_runtime.jsc
 
 import bao_core.*
 import bao_collections.*
+import bao_runtime.*
 
 // ============================================================================
 // JsValue 运行时扩展
@@ -110,28 +111,34 @@ public class JsObjectHelper {
             case JsValueType.Boolean => if (v.boolValue) { "true" } else { "false" }
             case JsValueType.Number => v.numberValue.toString()
             case JsValueType.String => "\"${v.stringValue.toString()}\""
-            case JsValueType.Object => {
-                match (v.objectData) {
-                    case Some(obj) => toJsonString(obj)
-                    case None => "{}"
-                }
-            }
-            case JsValueType.Array => {
-                match (v.arrayData) {
-                    case Some(arr) => {
-                        let sb = StringBuilder()
-                        sb.append("[")
-                        for (i in 0..arr.size) {
-                            if (i > 0) { sb.append(", ") }
-                            sb.append(jsValueToJson(arr[i]))
-                        }
-                        sb.append("]")
-                        sb.toString()
-                    }
-                    case None => "[]"
-                }
-            }
+            case JsValueType.Object => objectValueToJson(v)
+            case JsValueType.Array => arrayValueToJson(v)
             case _ => "null"
         }
+    }
+
+    private static func objectValueToJson(v: JsValue): String {
+        match (v.objectData) {
+            case Some(obj) => toJsonString(obj)
+            case None => "{}"
+        }
+    }
+
+    private static func arrayValueToJson(v: JsValue): String {
+        match (v.arrayData) {
+            case Some(arr) => arrayToJson(arr)
+            case None => "[]"
+        }
+    }
+
+    private static func arrayToJson(arr: ArrayList<JsValue>): String {
+        let sb = StringBuilder()
+        sb.append("[")
+        for (i in 0..arr.size) {
+            if (i > 0) { sb.append(", ") }
+            sb.append(jsValueToJson(arr[i]))
+        }
+        sb.append("]")
+        sb.toString()
     }
 }

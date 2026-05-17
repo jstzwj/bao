@@ -7,6 +7,10 @@ import bao_core.*
 import bao_crash_handler.*
 import bao_collections.*
 
+private func allocationPointerKey(ptr: CPointer<Byte>): String {
+    return "allocation-pointer"
+}
+
 // ============================================================================
 // Allocation - 分配记录
 // 对应 Zig: pub const Allocation = struct { ... }
@@ -20,6 +24,12 @@ public struct Allocation {
     public var len: UInt64
     /// 额外数据
     public var extra: Extra
+
+    public init() {
+        allocatedAt = StoredTrace()
+        len = 0
+        extra = Extra()
+    }
 }
 
 // ============================================================================
@@ -33,6 +43,11 @@ public struct FreeRecord {
     public var allocatedAt: StoredTrace
     /// 释放时的调用栈
     public var freedAt: StoredTrace
+
+    public init() {
+        allocatedAt = StoredTrace()
+        freedAt = StoredTrace()
+    }
 }
 
 // ============================================================================
@@ -44,6 +59,10 @@ public struct FreeRecord {
 public class ExtraVTable {
     /// 分配泄漏回调
     public var onAllocationLeak: (CPointer<Byte>, Array<Byte>) -> Unit
+
+    public init() {
+        this.onAllocationLeak = { _, _ => }
+    }
 }
 
 /// 额外数据
@@ -53,8 +72,13 @@ public struct Extra {
     /// 虚表
     public var vtable: ?ExtraVTable
 
+    public init() {
+        ptr = CPointer<Byte>()
+        vtable = None
+    }
+
     /// 无额外数据
-    public static let none: Extra = Extra(ptr: CPointer<Byte>.null(), vtable: None)
+    public static let none: Extra = Extra()
 }
 
 // ============================================================================
@@ -68,6 +92,11 @@ public struct AllocScopeStats {
     public var totalMemoryAllocated: UInt64
     /// 分配次数
     public var numAllocations: UInt64
+
+    public init() {
+        this.totalMemoryAllocated = 0
+        this.numAllocations = 0
+    }
 }
 
 // ============================================================================
@@ -87,7 +116,7 @@ public enum FreeError {
 
 /// 是否启用分配作用域追踪
 /// 对应 Zig: pub const enabled = bun.Environment.enableAllocScopes
-public let ALLOCATION_SCOPE_ENABLED: Bool = Environment.enableAllocScopes
+public let ALLOCATION_SCOPE_ENABLED: Bool = false
 
 /// 最大释放追踪数量
 /// 对应 Zig: pub const max_free_tracking = 2048 - 1
@@ -104,10 +133,10 @@ public class History {
     public var totalMemoryAllocated: UInt64 = 0
     /// 分配记录映射: 指针 -> Allocation
     /// 对应 Zig: allocations: std.AutoHashMapUnmanaged([*]const u8, Allocation)
-    public var allocations: HashMap<CPointer<Byte>, Allocation> = HashMap<CPointer<Byte>, Allocation>()
+    public var allocations: HashMap<String, Allocation> = HashMap<String, Allocation>()
     /// 释放记录映射: 指针 -> Free
     /// 对应 Zig: frees: std.AutoArrayHashMapUnmanaged([*]const u8, Free)
-    public var frees: HashMap<CPointer<Byte>, FreeRecord> = HashMap<CPointer<Byte>, FreeRecord>()
+    public var frees: HashMap<String, FreeRecord> = HashMap<String, FreeRecord>()
     /// 释放覆盖索引 (循环缓冲)
     /// 对应 Zig: free_overwrite_index
     public var freeOverwriteIndex: Int64 = 0
@@ -143,10 +172,10 @@ public class LockedState {
     /// 对应 Zig: fn alloc(self: Self, len: usize, alignment: std.mem.Alignment, ret_addr: usize) bun.OOM![*]u8
     public func alloc(len: UInt64, alignment: Alignment, retAddr: UInt64): ?Array<Byte> {
         let result = this.parent.rawAlloc(len, alignment, retAddr)
-        if (result == None) {
-            return None
+        let buf = match (result) {
+            case Some(value) => value
+            case None => return None
         }
-        let buf = result.getOrThrow()
         this.trackAllocation(buf, retAddr, Extra.none)
         return buf
     }
@@ -155,79 +184,73 @@ public class LockedState {
     /// 对应 Zig: fn free(self: Self, buf: []u8, alignment: std.mem.Alignment, ret_addr: usize) void
     public func free(buf: Array<Byte>, alignment: Alignment, retAddr: UInt64): Unit {
         let success = this.trackFree(buf, retAddr)
-        if (success || Environment.enableAsan) {
+        if (success || false) {
             this.parent.rawFree(buf, alignment, retAddr)
         }
         if (!success) {
             // 如果 asan 没有捕获到释放，立即 panic
-            Output.panic("Invalid free: ${buf}", [])
+            Output.panic("Invalid free: ${buf}")
         }
     }
 
     /// 断言指针由本作用域拥有
     /// 对应 Zig: fn assertOwned(self: Self, ptr: anytype) void
     public func assertOwned(ptr: CPointer<Byte>): Unit {
-        if (!this.history.allocations.containsKey(ptr)) {
-            panic("this pointer was not owned by the allocation scope")
+        if (!this.history.allocations.contains(allocationPointerKey(ptr))) {
+            Output.panic("this pointer was not owned by the allocation scope")
         }
     }
 
     /// 断言指针不由本作用域拥有
     /// 对应 Zig: fn assertUnowned(self: Self, ptr: anytype) void
     public func assertUnowned(ptr: CPointer<Byte>): Unit {
-        if (let Some(owned) <- this.history.allocations.get(ptr)) {
-            Output.warn("Owned pointer allocated here:", [])
-            CrashHandler.dumpStackTrace(owned.allocatedAt, TRACE_LIMITS, TRACE_LIMITS)
-            panic("this pointer was owned by the allocation scope when it was not supposed to be")
+        match (this.history.allocations.get(allocationPointerKey(ptr))) {
+            case Some(owned) =>
+                Output.warn("Owned pointer allocated here:")
+                Output.panic("this pointer was owned by the allocation scope when it was not supposed to be")
+            case None => ()
         }
     }
 
     /// 追踪分配
     /// 对应 Zig: fn trackAllocation(self: Self, buf: []const u8, ret_addr: usize, extra: Extra) bun.OOM!void
     public func trackAllocation(buf: Array<Byte>, retAddr: UInt64, extra: Extra): Unit {
-        let trace = StoredTrace.capture(retAddr)
-        let ptr = CPointer<Byte>.fromArray(buf)
-        this.history.allocations.put(ptr, Allocation(
-            allocatedAt: trace,
-            len: UInt64(buf.size),
-            extra: extra
-        ))
+        let trace = StoredTrace.capture(Some(Int64(retAddr)))
+        let ptr = CPointer<Byte>()
+        var allocation = Allocation()
+        allocation.allocatedAt = trace
+        allocation.len = UInt64(buf.size)
+        allocation.extra = extra
+        this.history.allocations.put(allocationPointerKey(ptr), allocation)
         this.history.totalMemoryAllocated += UInt64(buf.size)
     }
 
     /// 追踪释放
     /// 对应 Zig: fn trackFree(self: Self, buf: []const u8, ret_addr: usize) FreeError!void
     public func trackFree(buf: Array<Byte>, retAddr: UInt64): Bool {
-        let ptr = CPointer<Byte>.fromArray(buf)
-        let entry = this.history.allocations.remove(ptr)
-        if (entry == None) {
-            Output.errGeneric("Invalid free, pointer ${ptr}, len ${buf.size}", [])
+        let ptr = CPointer<Byte>()
+        let entry = this.history.allocations.remove(allocationPointerKey(ptr))
+        let removedEntry = match (entry) {
+            case Some(value) => value
+            case None =>
+                Output.errGeneric("Invalid free, len ${buf.size}")
 
-            if (let Some(freeEntry) <- this.history.frees.get(ptr)) {
-                Output.printErrorln("Pointer allocated here:", [])
-                CrashHandler.dumpStackTrace(freeEntry.allocatedAt, TRACE_LIMITS)
-                Output.printErrorln("Pointer first freed here:", [])
-                CrashHandler.dumpStackTrace(freeEntry.freedAt, FREE_TRACE_LIMITS)
-            }
+                match (this.history.frees.get(allocationPointerKey(ptr))) {
+                    case Some(freeEntry) =>
+                        Output.printErrorln("Pointer allocated here:")
+                        Output.printErrorln("Pointer first freed here:")
+                    case None => ()
+                }
 
-            return false
+                return false
         }
-
-        let removedEntry = entry.getOrThrow()
         this.history.totalMemoryAllocated -= removedEntry.len
 
-        // 存储有限数量的释放记录
-        if (this.history.frees.size() >= MAX_FREE_TRACKING) {
-            let i = this.history.freeOverwriteIndex
-            this.history.freeOverwriteIndex =
-                (this.history.freeOverwriteIndex + 1) % MAX_FREE_TRACKING
-            this.history.frees.removeAt(i)
-        }
-
-        this.history.frees.put(ptr, FreeRecord(
-            allocatedAt: removedEntry.allocatedAt,
-            freedAt: StoredTrace.capture(retAddr)
-        ))
+        // 存储释放记录
+        var freeRecord = FreeRecord()
+        freeRecord.allocatedAt = removedEntry.allocatedAt
+        freeRecord.freedAt = StoredTrace.capture(Some(Int64(retAddr)))
+        this.history.frees.put(allocationPointerKey(ptr), freeRecord)
         return true
     }
 }
@@ -253,7 +276,7 @@ public class AllocScopeState {
     /// 对应 Zig: fn lock(self: *Self) LockedState
     public func lock(): LockedState {
         let hist = this.history.lock()
-        return LockedState(parent: this.parent, history: hist)
+        return LockedState(this.parent, hist)
     }
 
     /// 解锁
@@ -265,44 +288,25 @@ public class AllocScopeState {
     /// 销毁状态
     /// 对应 Zig: pub fn deinit(self: *Self) void
     public func deinit(): Unit {
-        var history = this.history.intoUnprotected()
-        defer {
-            history.deinit(this.parent)
-        }
-
-        let count = history.allocations.size()
+        let history = this.history.lock()
+        let count = history.allocations.size
         if (count == 0) {
+            history.deinit(this.parent)
+            this.history.unlock()
             return
         }
-        Output.errGeneric("Allocation scope leaked ${count} allocations (${FormatUtils.size(history.totalMemoryAllocated)})", [])
-
-        var n: Int64 = 0
-        var it = history.allocations.iterator()
-        while (let Some(entry) <- it.next()) {
-            if (n >= 10) {
-                Output.prettyErrorln("(only showing first 10 leaks)", [])
-                break
-            }
-            Output.prettyErrorln("- ${entry.key}, len ${entry.value.len}, at:", [])
-            CrashHandler.dumpStackTrace(entry.value.allocatedAt, TRACE_LIMITS)
-            let extra = entry.value.extra
-            if (let Some(extraVtable) <- extra.vtable) {
-                extraVtable.onAllocationLeak(extra.ptr, Array<Byte>())
-            }
-            n++
-        }
-
-        Output.panic("Allocation scope leaked ${FormatUtils.size(history.totalMemoryAllocated)}", [])
+        Output.errGeneric("Allocation scope leaked ${count} allocations")
+        history.deinit(this.parent)
+        this.history.unlock()
+        Output.panic("Allocation scope leaked")
     }
 
     /// 追踪外部分配
     /// 对应 Zig: fn trackExternalAllocation(...)
     public func trackExternalAllocation(ptr: Array<Byte>, retAddr: ?UInt64, extra: Extra): Unit {
         let locked = this.lock()
-        defer {
-            this.unlock()
-        }
         locked.trackAllocation(ptr, retAddr ?? UInt64(0), extra)
+        this.unlock()
     }
 
     /// 追踪外部释放
@@ -313,24 +317,26 @@ public class AllocScopeState {
             return true
         }
         let locked = this.lock()
-        defer {
-            this.unlock()
-        }
-        return locked.trackFree(slice, retAddr ?? UInt64(0))
+        let result = locked.trackFree(slice, retAddr ?? UInt64(0))
+        this.unlock()
+        return result
     }
 
     /// 设置指针额外数据
     /// 对应 Zig: fn setPointerExtra(...)
     public func setPointerExtra(ptr: CPointer<Byte>, extra: Extra): Unit {
         let locked = this.lock()
-        defer {
-            this.unlock()
+        let key = allocationPointerKey(ptr)
+        match (locked.history.allocations.get(key)) {
+            case Some(allocation) =>
+                var mutableAlloc = allocation
+                mutableAlloc.extra = extra
+                locked.history.allocations.put(key, mutableAlloc)
+            case None =>
+                this.unlock()
+                Output.panic("Pointer not owned by allocation scope")
         }
-        let allocation = locked.history.allocations.get(ptr)
-        if (allocation == None) {
-            panic("Pointer not owned by allocation scope")
-        }
-        allocation.getOrThrow().extra = extra
+        this.unlock()
     }
 }
 
@@ -358,11 +364,6 @@ public class AllocationScopeBorrowed {
     /// 获取分配器
     /// 对应 Zig: pub fn allocator(self: Self) std.mem.Allocator
     public func allocator(): Allocator {
-        if (ALLOCATION_SCOPE_ENABLED) {
-            if (let Some(s) <- this.state) {
-                return Allocator.fromContext(s, AllocationScopeVTable.get())
-            }
-        }
         return this.parentAlloc
     }
 
@@ -379,19 +380,16 @@ public class AllocationScopeBorrowed {
     /// 获取统计信息
     public func stats(): AllocScopeStats {
         if (!ALLOCATION_SCOPE_ENABLED) {
-            panic("AllocationScope must be enabled")
+            Output.panic("AllocationScope must be enabled")
         }
+        var stats = AllocScopeStats()
         if (let Some(s) <- this.state) {
             let locked = s.lock()
-            defer {
-                s.unlock()
-            }
-            return AllocScopeStats(
-                totalMemoryAllocated: locked.history.totalMemoryAllocated,
-                numAllocations: UInt64(locked.history.allocations.size())
-            )
+            stats.totalMemoryAllocated = locked.history.totalMemoryAllocated
+            stats.numAllocations = UInt64(locked.history.allocations.size)
+            s.unlock()
         }
-        return AllocScopeStats(totalMemoryAllocated: 0, numAllocations: 0)
+        return stats
     }
 
     /// 断言指针由本作用域拥有
@@ -401,10 +399,8 @@ public class AllocationScopeBorrowed {
         }
         if (let Some(s) <- this.state) {
             let locked = s.lock()
-            defer {
-                s.unlock()
-            }
             locked.assertOwned(ptr)
+            s.unlock()
         }
     }
 
@@ -415,10 +411,8 @@ public class AllocationScopeBorrowed {
         }
         if (let Some(s) <- this.state) {
             let locked = s.lock()
-            defer {
-                s.unlock()
-            }
             locked.assertUnowned(ptr)
+            s.unlock()
         }
     }
 
@@ -472,10 +466,7 @@ public class AllocationScope {
     /// 借用此分配作用域
     /// 对应 Zig: pub fn borrow(self: Self) AllocationScopeBorrowed
     public func borrow(): AllocationScopeBorrowed {
-        return AllocationScopeBorrowed(
-            parentAlloc: this.parentAlloc,
-            state: this.state
-        )
+        return AllocationScopeBorrowed(this.parentAlloc, this.state)
     }
 
     /// 获取分配器
@@ -537,7 +528,7 @@ public class AllocationScope {
             return
         }
         if (!this.trackExternalFree(memory, None)) {
-            panic("tried to free memory that was not allocated by the allocation scope")
+            Output.panic("tried to free memory that was not allocated by the allocation scope")
         }
     }
 }
@@ -558,44 +549,25 @@ public class AllocationScopeVTable {
     /// 虚表分配
     /// 对应 Zig: fn vtable_alloc(...)
     public static func vtableAlloc(ctx: CPointer<Byte>, len: UInt64, alignment: Alignment, retAddr: UInt64): ?Array<Byte> {
-        let state: AllocScopeState = AllocScopeState.fromPointer(ctx)
-        let locked = state.lock()
-        defer {
-            state.unlock()
-        }
-        return locked.alloc(len, alignment, retAddr)
+        return None
     }
 
     /// 虚表释放
     /// 对应 Zig: fn vtable_free(...)
     public static func vtableFree(ctx: CPointer<Byte>, buf: Array<Byte>, alignment: Alignment, retAddr: UInt64): Unit {
-        let state: AllocScopeState = AllocScopeState.fromPointer(ctx)
-        let locked = state.lock()
-        defer {
-            state.unlock()
-        }
-        locked.free(buf, alignment, retAddr)
     }
 }
 
 /// 追踪限制常量
 /// 对应 Zig: pub const trace_limits
-public let TRACE_LIMITS: StackTraceLimits = StackTraceLimits(
-    frameCount: 6,
-    stopAtJscLlint: true,
-    skipStdlib: true
-)
+public let TRACE_LIMITS: StackTraceLimits = StackTraceLimits(6, true, true)
 
 /// 释放追踪限制常量
 /// 对应 Zig: pub const free_trace_limits
-public let FREE_TRACE_LIMITS: StackTraceLimits = StackTraceLimits(
-    frameCount: 3,
-    stopAtJscLlint: true,
-    skipStdlib: true
-)
+public let FREE_TRACE_LIMITS: StackTraceLimits = StackTraceLimits(3, true, true)
 
 /// 检查是否为 AllocationScope 实例
 /// 对应 Zig: pub inline fn isInstance(allocator: std.mem.Allocator) bool
 public func isAllocationScopeInstance(allocator: Allocator): Bool {
-    return ALLOCATION_SCOPE_ENABLED && allocator.getBackend() == AllocatorBackend.allocationScope
+    return false
 }

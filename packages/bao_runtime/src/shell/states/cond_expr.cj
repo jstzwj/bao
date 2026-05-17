@@ -6,7 +6,7 @@ package bao_runtime.shell.states
 
 import bao_core.*
 import bao_runtime.shell.*
-import std.collection.*
+import bao_collections.*  // std.collection.*
 
 // ============================================================================
 // 条件表达式状态

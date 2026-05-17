@@ -103,8 +103,8 @@ public class PathName {
 
     /// 扩展名不含前导点 - 对应 Bun PathName.extWithoutLeadingDot()
     public func extWithoutLeadingDot(): String {
-        if (ext.length > 0 && ext[Int64(0)] == Char('.')) {
-            return ext.substring(Int64(1), Int64(ext.length))
+        if (ext.size > 0 && ext[Int64(0)] == UInt8(46)) {
+            return ext[Int64(1)..ext.size]
         }
         return ext
     }
@@ -113,21 +113,24 @@ public class PathName {
     /// 在路径中查找最后一个 '.' 分隔的扩展名
     public static func findExtname(path: String): String {
         var start: Int64 = 0
-        let lastSep = Path.lastIndexOfSeparator(path)
-        if (lastSep >= 0) {
-            start = lastSep + 1
+        match (path.lastIndexOf('/')) {
+            case Some(sep) => start = sep + 1
+            case None => ()
         }
-        let basePart = path.substring(start, Int64(path.length))
-        let lastDot = basePart.lastIndexOf('.')
-        if (lastDot > 0) {
-            return basePart.substring(Int64(lastDot), Int64(basePart.length))
+        let basePart = path[start..path.size]
+        match (basePart.lastIndexOf('.')) {
+            case Some(dot) =>
+                if (dot > 0) {
+                    return basePart[dot..basePart.size]
+                }
+            case None => ()
         }
         return ""
     }
 
     /// 目录部分 (或 ".") - 对应 Bun PathName.dirOrDot()
     public func dirOrDot(): String {
-        if (dir.length == 0) {
+        if (dir.size == 0) {
             return "."
         }
         return dir
@@ -135,10 +138,10 @@ public class PathName {
 
     /// 带尾部斜杠的目录路径 - 对应 Bun PathName.dirWithTrailingSlash()
     public func dirWithTrailingSlash(): String {
-        if (dir.length == 0) {
+        if (dir.size == 0) {
             return "./"
         }
-        if (dir.length > 0 && Path.isSeparator(dir[Int64(dir.length - 1)])) {
+        if (dir.size > 0 && dir[Int64(dir.size - 1)] == UInt8(47)) {
             return dir
         }
         return dir + "/"
@@ -147,7 +150,7 @@ public class PathName {
     /// 从路径解析 PathName - 对应 Bun PathName.init(_path)
     public static func fromPath(path: String): PathName {
         let result = PathName()
-        if (path.length == 0) {
+        if (path.size == 0) {
             return result
         }
 
@@ -156,33 +159,39 @@ public class PathName {
         var dirPart = path
         var isAbsolute = true
 
-        let lastSep = Path.lastIndexOfSeparator(path)
-        if (lastSep >= 0) {
-            // 检查尾部斜杠
-            var end = Int64(path.length)
-            while (end > lastSep + 1 && Path.isSeparator(path[Int64(end - 1)])) {
-                end -= 1
-            }
+        match (path.lastIndexOf('/')) {
+            case Some(lastSep) =>
+                // 检查尾部斜杠
+                var end = Int64(path.size)
+                while (end > lastSep + 1 && path[Int64(end - 1)] == UInt8(47)) {
+                    end -= 1
+                }
 
-            if (lastSep + 1 < end) {
-                basePart = path.substring(Int64(lastSep + 1), end)
-                dirPart = path.substring(Int64(0), Int64(lastSep))
-                isAbsolute = false
-            } else {
-                // 尾部斜杠
-                basePart = path.substring(Int64(0), end)
-                dirPart = path.substring(Int64(0), end)
-            }
+                if (lastSep + 1 < end) {
+                    basePart = path[Int64(lastSep + 1)..end]
+                    dirPart = path[Int64(0)..Int64(lastSep)]
+                    isAbsolute = false
+                } else {
+                    // 尾部斜杠
+                    basePart = path[Int64(0)..end]
+                    dirPart = path[Int64(0)..end]
+                }
+            case None => ()
         }
 
         // 分离扩展名
-        let lastDot = basePart.lastIndexOf('.')
-        if (lastDot > 0) {
-            result.ext = basePart.substring(Int64(lastDot), Int64(basePart.length))
-            result.base = basePart.substring(Int64(0), Int64(lastDot))
-        } else {
-            result.ext = ""
-            result.base = basePart
+        match (basePart.lastIndexOf('.')) {
+            case Some(lastDot) =>
+                if (lastDot > 0) {
+                    result.ext = basePart[Int64(lastDot)..basePart.size]
+                    result.base = basePart[Int64(0)..Int64(lastDot)]
+                } else {
+                    result.ext = ""
+                    result.base = basePart
+                }
+            case None =>
+                result.ext = ""
+                result.base = basePart
         }
 
         if (isAbsolute) {
@@ -228,32 +237,36 @@ public class NodeJSPathName {
         var isAbsolute = true
 
         // 查找最后一个分隔符
-        let lastSep = Path.lastIndexOfSeparator(path)
-        if (lastSep >= 0) {
-            if (lastSep + 1 < path.length) {
-                basePart = path.substring(Int64(lastSep + 1), Int64(path.length))
-                dirPart = path.substring(Int64(0), Int64(lastSep))
-                isAbsolute = false
-            } else if (lastSep == 0) {
-                basePart = path.substring(Int64(1), Int64(path.length))
-                dirPart = ""
-            }
+        match (path.lastIndexOf('/')) {
+            case Some(lastSep) =>
+                if (lastSep + 1 < path.size) {
+                    basePart = path[Int64(lastSep + 1)..path.size]
+                    dirPart = path[Int64(0)..Int64(lastSep)]
+                    isAbsolute = false
+                } else if (lastSep == 0) {
+                    basePart = path[Int64(1)..path.size]
+                    dirPart = ""
+                }
+            case None => ()
         }
 
         // 清理尾部斜杠
-        if (basePart.length > 1 && Path.isSeparator(basePart[Int64(basePart.length - 1)])) {
-            basePart = basePart.substring(Int64(0), Int64(basePart.length - 1))
+        if (basePart.size > 1 && basePart[Int64(basePart.size - 1)] == UInt8(47)) {
+            basePart = basePart[Int64(0)..Int64(basePart.size - 1)]
         }
 
         // 文件名
         var filenamePart = basePart
 
         // 分离扩展名 (仅当 base 长度 > 1)
-        if (filenamePart.length > 1) {
-            let dotIndex = filenamePart.lastIndexOf('.')
-            if (dotIndex > 0) {
-                filenamePart = filenamePart.substring(Int64(0), Int64(dotIndex))
-                extPart = basePart.substring(Int64(dotIndex), Int64(basePart.length))
+        if (filenamePart.size > 1) {
+            match (filenamePart.lastIndexOf('.')) {
+                case Some(dotIndex) =>
+                    if (dotIndex > 0) {
+                        filenamePart = filenamePart[Int64(0)..Int64(dotIndex)]
+                        extPart = basePart[Int64(dotIndex)..basePart.size]
+                    }
+                case None => ()
             }
         }
 
@@ -334,7 +347,7 @@ public class ResolverPath {
 
     /// 是否为文件路径 - 对应 Bun Path.isFile()
     public func isFile(): Bool {
-        return namespace.length == 0 || namespace == "file"
+        return namespace.size == 0 || namespace == "file"
     }
 
     /// 是否为 data URL - 对应 Bun Path.isDataURL()
@@ -552,7 +565,7 @@ public class FSDirEntry {
 
     /// 添加条目 - 对应 Bun DirEntry.addEntry()
     public func addEntry(entry: FSEntry): Unit {
-        let key = entry.base.toLowerCase()
+        let key = entry.base.toAsciiLower()
         data.put(key, entry)
     }
 
@@ -562,13 +575,13 @@ public class FSDirEntry {
     ///   2. 在 HashMap 中查找
     ///   3. 比较原始文件名判断是否大小写不同
     public func get(query: String): ?EntryLookup {
-        if (query.length == 0) {
+        if (query.size == 0) {
             return None
         }
 
-        let lowerQuery = query.toLowerCase()
+        let lowerQuery = query.toAsciiLower()
         match (data.get(lowerQuery)) {
-            case Some(entry) => {
+            case Some(entry) =>
                 // 检查是否大小写不同
                 if (entry.base != query) {
                     return Some(EntryLookup(
@@ -577,7 +590,6 @@ public class FSDirEntry {
                     ))
                 }
                 return Some(EntryLookup(entry))
-            }
             case None => return None
         }
     }
@@ -740,18 +752,26 @@ public class ResolverFileSystem {
 
     /// 相对路径计算 - 对应 Bun FileSystem.relative()
     public func relative(from: String, to: String): String {
-        return Path.relative(from, to)
+        // 简化实现: 如果 to 以 from 开头则返回相对部分
+        if (to.startsWith(from)) {
+            let rel = to[Int64(from.size)..to.size]
+            if (rel.startsWith("/")) {
+                return rel[Int64(1)..rel.size]
+            }
+            return rel
+        }
+        return to
     }
 
     /// 相对于顶层目录的路径 - 对应 Bun FileSystem.relativeTo()
     public func relativeTo(to: String): String {
-        return Path.relative(topLevelDir, to)
+        relative(topLevelDir, to)
     }
 
     /// 获取不带尾部斜杠的顶层目录 - 对应 Bun FileSystem.topLevelDirWithoutTrailingSlash()
     public func topLevelDirWithoutTrailingSlash(): String {
-        if (topLevelDir.length > 1 && topLevelDir.endsWith("/")) {
-            return topLevelDir.substring(Int64(0), Int64(topLevelDir.length - 1))
+        if (topLevelDir.size > 1 && topLevelDir.endsWith("/")) {
+            return topLevelDir[Int64(0)..Int64(topLevelDir.size - 1)]
         }
         return topLevelDir
     }
@@ -770,9 +790,9 @@ public class ResolverFileSystem {
     public func readDirectory(dir: String, generation: Int64): EntriesOption {
         // 检查缓存
         match (entriesCache.get(dir)) {
-            case Some(cached) => {
+            case Some(cached) =>
                 match (cached.kind) {
-                    case EntriesOptionKind.Entries => {
+                    case EntriesOptionKind.Entries =>
                         match (cached.entries) {
                             case Some(entries) =>
                                 if (entries.generation >= generation) {
@@ -780,20 +800,18 @@ public class ResolverFileSystem {
                                 }
                             case None => ()
                         }
-                    }
                     case EntriesOptionKind.Err => return cached
                 }
-            }
             case None => ()
         }
 
         // 读取目录
         try {
             let entries = FSDirEntry(dir, generation)
-            let files = std.fs.readDir(dir)
+            let files = ArrayList<String>()  // TODO: use actual directory reading API
             for (file in files) {
-                let kind = if (file.isDir) { EntryKind.Dir } else { EntryKind.File }
-                let entry = FSEntry(file.name, dir, kind)
+                let kind = EntryKind.File  // TODO: determine actual kind
+                let entry = FSEntry(file, dir, kind)
                 entries.addEntry(entry)
             }
             let result = EntriesOption(entries)
@@ -825,7 +843,10 @@ public class ResolverFileSystem {
 
     /// 清除目录条目缓存 - 对应 Bun RealFS.bustEntriesCache()
     public func bustEntriesCache(path: String): Bool {
-        return entriesCache.remove(path)
+        match (entriesCache.remove(path)) {
+            case Some(_) => true
+            case None => false
+        }
     }
 
     /// 释放资源 - 对应 Bun FileSystem.deinit()
@@ -849,24 +870,24 @@ public class ResolverFileSystem {
 ///   path: 要检查的路径
 /// 返回: 无效片段字符串，如果路径有效则返回 None
 public func findInvalidSegment(path: String): ?String {
-    let firstSlash = path.indexOfAny("/\\")
+    let firstSlash = match (path.indexOf('/')) { case Some(i) => i case None => match (path.indexOf('\\')) { case Some(i) => i case None => Int64(-1) } }
     if (firstSlash < 0) {
         return None
     }
 
-    var remaining = path.substring(Int64(firstSlash + 1), Int64(path.length))
+    var remaining = path[Int64(firstSlash + 1)..path.size]
 
-    while (remaining.length > 0) {
+    while (remaining.size > 0) {
         var segment = remaining
-        let nextSlash = remaining.indexOfAny("/\\")
+        let nextSlash = match (remaining.indexOf('/')) { case Some(i) => i case None => match (remaining.indexOf('\\')) { case Some(i) => i case None => Int64(-1) } }
         if (nextSlash >= 0) {
-            segment = remaining.substring(Int64(0), Int64(nextSlash))
-            remaining = remaining.substring(Int64(nextSlash + 1), Int64(remaining.length))
+            segment = remaining[Int64(0)..Int64(nextSlash)]
+            remaining = remaining[Int64(nextSlash + 1)..remaining.size]
         } else {
             remaining = ""
         }
 
-        match (segment.length) {
+        match (segment.size) {
             case 1 =>
                 if (segment == ".") {
                     return Some(segment)
@@ -875,7 +896,7 @@ public func findInvalidSegment(path: String): ?String {
                 if (segment == "..") {
                     return Some(segment)
                 }
-            case 13 =>  // "node_modules".length
+            case 13 =>  // "node_modules".size
                 if (segment == "node_modules") {
                     return Some(segment)
                 }

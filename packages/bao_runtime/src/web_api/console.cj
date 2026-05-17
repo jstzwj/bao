@@ -3,8 +3,9 @@
 // 严格翻译 Bun 的 console API
 package bao_runtime.web_api
 
-import bao_core.*
 import bao_collections.*
+import bao_runtime.*
+import bao_sys.*
 
 // ============================================================================
 // console 模块 — Web Console API
@@ -64,11 +65,10 @@ public class ConsoleModule {
     /// 对应 Bun: console.timeEnd
     public static func timeEnd(label: String): Unit {
         match (timers.get(label)) {
-            case Some(start) => {
+            case Some(start) =>
                 let elapsed = currentTimeMillis() - start
                 timers.remove(label)
                 outputFn("${label}: ${elapsed}ms")
-            }
             case None => outputFn("Timer '${label}' does not exist")
         }
     }
@@ -76,10 +76,9 @@ public class ConsoleModule {
     /// console.timeLog(label?)
     public static func timeLog(label: String): Unit {
         match (timers.get(label)) {
-            case Some(start) => {
+            case Some(start) =>
                 let elapsed = currentTimeMillis() - start
                 outputFn("${label}: ${elapsed}ms")
-            }
             case None => outputFn("Timer '${label}' does not exist")
         }
     }
@@ -277,6 +276,6 @@ public class ConsoleModule {
     /// 获取当前时间戳 (毫秒)
     private static func currentTimeMillis(): Float64 {
         // 简化实现，使用 bao_sys 的时间 API
-        return bao_sys.SysModule.currentTimeMillis()
+        return Float64(SysModule.currentTimeMillis())
     }
 }

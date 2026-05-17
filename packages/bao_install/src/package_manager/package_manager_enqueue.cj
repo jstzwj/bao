@@ -10,6 +10,8 @@
 //   enqueueDependencyWithMainAndSuccessFn: 入队依赖 (带成功回调)
 package bao_install.package_manager
 
+import bao_install.*
+
 import bao_core.*
 import bao_collections.*
 
@@ -95,68 +97,14 @@ public class PackageManagerEnqueue {
 
         // 根据版本标签分支处理
         match (version.tag) {
-            case DependencyVersionTag.DistTag | DependencyVersionTag.NPM => {
-                // NPM 包: 获取 manifest -> 解析版本 -> 下载 tarball
-                enqueueNPMPackage(
-                    manager: manager,
-                    depId: depId,
-                    dep: dep,
-                    installPeer: installPeer,
-                    successFn: successFn,
-                    failFn: failFn
-                )
-            }
-            case DependencyVersionTag.Folder => {
-                // 文件夹包: 直接链接
-                enqueueFolderPackage(
-                    manager: manager,
-                    depId: depId,
-                    dep: dep
-                )
-            }
-            case DependencyVersionTag.Git => {
-                // Git 包: 克隆仓库
-                enqueueGitPackage(
-                    manager: manager,
-                    depId: depId,
-                    dep: dep
-                )
-            }
-            case DependencyVersionTag.GitHub => {
-                // GitHub 包: 下载 tarball
-                enqueueGitHubPackage(
-                    manager: manager,
-                    depId: depId,
-                    dep: dep
-                )
-            }
-            case DependencyVersionTag.Symlink => {
-                // 符号链接包: 创建符号链接
-                enqueueSymlinkPackage(
-                    manager: manager,
-                    depId: depId,
-                    dep: dep
-                )
-            }
-            case DependencyVersionTag.Workspace => {
-                // 工作区包: 创建符号链接
-                enqueueWorkspacePackage(
-                    manager: manager,
-                    depId: depId,
-                    dep: dep
-                )
-            }
-            case DependencyVersionTag.Tarball => {
-                // Tarball 包: 下载或读取
-                enqueueTarballPackage(
-                    manager: manager,
-                    depId: depId,
-                    dep: dep
-                )
-            }
-            case _ => {
-                // 未初始化或其他类型
-            }
+            case DependencyVersionTag.DistTag | DependencyVersionTag.NPM => enqueueNPMPackage(manager, depId, dep, installPeer, successFn, failFn)
+            case DependencyVersionTag.Folder => enqueueFolderPackage(manager, depId, dep)
+            case DependencyVersionTag.Git => enqueueGitPackage(manager, depId, dep)
+            case DependencyVersionTag.GitHub => enqueueGitHubPackage(manager, depId, dep)
+            case DependencyVersionTag.Symlink => enqueueSymlinkPackage(manager, depId, dep)
+            case DependencyVersionTag.Workspace => enqueueWorkspacePackage(manager, depId, dep)
+            case DependencyVersionTag.Tarball => enqueueTarballPackage(manager, depId, dep)
+            case _ => ()
         }
     }
 
@@ -186,39 +134,40 @@ public class PackageManagerEnqueue {
         let scope = manager.scopeForPackageName(pkgName)
 
         match (manager.manifests.byName(pkgName: pkgName, scope: scope)) {
-            case Some(manifest) => {
-                // 2. 解析版本
-                let resolvedVersion = manifest.resolveVersion(dep.version)
-                match (resolvedVersion) {
-                    case Some(version) => {
-                        // 3. 下载 tarball
-                        enqueuePackageForDownload(
-                            manager: manager,
-                            depId: depId,
-                            dep: dep,
-                            tarballUrl: version.tarballUrl,
-                            integrity: version.integrity
-                        )
-                    }
-                    case None => {
-                        // 版本解析失败
-                        match (failFn) {
-                            case Some(fn) => fn(depId, "Failed to resolve version")
-                            case None => ()
-                        }
-                    }
-                }
-            }
-            case None => {
-                // 启动 manifest 获取任务
-                enqueueParseNPMPackage(
-                    manager: manager,
-                    depId: depId,
-                    dep: dep,
-                    installPeer: installPeer,
-                    successFn: successFn,
-                    failFn: failFn
-                )
+            case Some(manifest) => enqueueNPMPackageWithManifest(manager, depId, dep, installPeer, successFn, failFn, manifest)
+            case None => enqueueParseNPMPackage(
+                manager: manager,
+                depId: depId,
+                dep: dep,
+                installPeer: installPeer,
+                successFn: successFn,
+                failFn: failFn
+            )
+        }
+    }
+
+    /// NPM 包 (带 manifest) 入队辅助
+    private static func enqueueNPMPackageWithManifest(
+        manager: PackageManagerState,
+        depId: UInt32,
+        dep: DependencyRef,
+        installPeer: Bool,
+        successFn: ?SuccessFn,
+        failFn: ?FailFn,
+        manifest: ManifestData
+    ): Unit {
+        let resolvedVersion = manifest.resolveVersion(dep.version)
+        match (resolvedVersion) {
+            case Some(version) => enqueuePackageForDownload(
+                manager: manager,
+                depId: depId,
+                dep: dep,
+                tarballUrl: version.tarballUrl,
+                integrity: version.integrity
+            )
+            case None => match (failFn) {
+                case Some(fn) => fn(depId, "Failed to resolve version")
+                case None => ()
             }
         }
     }
@@ -348,10 +297,10 @@ public class PackageManagerEnqueue {
 // ============================================================================
 
 /// 成功回调
-public typealias SuccessFn = (UInt32, UInt32) -> Unit
+public type SuccessFn = (UInt32, UInt32) -> Unit
 
 /// 失败回调
-public typealias FailFn = (UInt32, String) -> Unit
+public type FailFn = (UInt32, String) -> Unit
 
 /// 依赖引用
 public class DependencyRef {
@@ -380,7 +329,7 @@ public class IntegrityInfo {
 }
 
 /// 依赖列表
-public typealias DependencyList = ArrayList<UInt32>
+public type DependencyList = ArrayList<UInt32>
 
 /// 包管理器状态
 public class PackageManagerState {

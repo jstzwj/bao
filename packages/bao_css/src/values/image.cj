@@ -11,16 +11,16 @@ import bao_collections.*
 // 严格翻译自: values/image.rs Image enum
 // ============================================================================
 
+public enum CssImageKind {
+    | None        // none 关键字
+    | Url         // url()
+    | Gradient    // 渐变
+    | ImageSet    // image-set()
+}
+
 /// CSS <image> 值
 /// 严格翻译自 Image enum { None, Url, Gradient, ImageSet }
 public class CssImage {
-    public enum CssImageKind {
-        | None        // none 关键字
-        | Url         // url()
-        | Gradient    // 渐变
-        | ImageSet    // image-set()
-    }
-
     public var kind: CssImageKind
     /// URL
     public var url: String
@@ -63,18 +63,16 @@ public class CssImage {
         match (kind) {
             case None => "none"
             case Url => "url(\"${url}\")"
-            case Gradient => {
+            case Gradient =>
                 match (gradient) {
                     case Some(g) => g.toCss()
                     case None => ""
                 }
-            }
-            case ImageSet => {
+            case ImageSet =>
                 match (imageSet) {
                     case Some(s) => s.toCss()
                     case None => ""
                 }
-            }
         }
     }
 
@@ -123,7 +121,12 @@ public class CssImageSet {
         for (item in items) {
             parts.append(item.toCss())
         }
-        "image-set(${String.join(", ", parts)})"
+        let sb = StringBuilder()
+        for (i in 0..parts.size) {
+            if (i > 0) { sb.append(", ") }
+            sb.append(parts[i])
+        }
+        "image-set(${sb.toString()})"
     }
 
     public func toString(): String {

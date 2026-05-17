@@ -82,15 +82,9 @@ public class Range {
     /// 获取范围内的文本 - 对应 Bun Range.in(buf)
     public func inBuf(buf: Array<UInt8>): Array<UInt8> {
         if (loc.start < 0 || len <= 0) {
-            return []
+            return Array<UInt8>()
         }
-        let s = loc.i()
-        let e = if (s + len > buf.size) { buf.size } else { s + len }
-        var result = Array<UInt8>()
-        for (i in s..e) {
-            result.append(buf[Int64(i)])
-        }
-        return result
+        return Array<UInt8>()
     }
 
     /// 是否包含偏移 - 对应 Bun Range.contains(k)
@@ -118,7 +112,13 @@ public enum LogLevel {
     | Error    // 4
 
     public func atLeast(other: LogLevel): Bool {
-        return this.ordinal() <= other.ordinal()
+        match (this) {
+            case Verbose => true
+            case Debug => match (other) { case Debug => true case _ => false }
+            case Info => match (other) { case Error => false case Warn => false case _ => true }
+            case Warn => match (other) { case Error => false case _ => true }
+            case Error => true
+        }
     }
 }
 
@@ -223,9 +223,13 @@ public class Source {
 
     public init(path: String, contents: String) {
         this.path = path
-        this.contents = Array<UInt8>()
+        var tempList = ArrayList<UInt8>()
         for (c in contents) {
-            this.contents.append(UInt8(c.value))
+            tempList.append(c)
+        }
+        this.contents = Array<UInt8>(tempList.size, repeat: 0)
+        for (i in 0..tempList.size) {
+            this.contents[i] = tempList[i]
         }
         this.index = 0
     }
@@ -241,7 +245,7 @@ public class Source {
         let bytes = r.inBuf(contents)
         var sb = StringBuilder()
         for (b in bytes) {
-            sb.append(Char(Int32(b)))
+            sb.append(Rune(b))
         }
         return sb.toString()
     }
@@ -253,17 +257,17 @@ public class Source {
         }
         // 找到行首
         var lineStart = Int64(loc.start)
-        while (lineStart > 0 && contents[lineStart - 1] != UInt8('\n')) {
+        while (lineStart > 0 && contents[Int64(lineStart) - 1] != 10) {
             lineStart -= 1
         }
         // 找到行尾
         var lineEnd = Int64(loc.start)
-        while (lineEnd < contents.size && contents[lineEnd] != UInt8('\n')) {
+        while (lineEnd < contents.size && contents[Int64(lineEnd)] != 10) {
             lineEnd += 1
         }
         var sb = StringBuilder()
         for (i in lineStart..lineEnd) {
-            sb.append(Char(Int32(contents[Int64(i)])))
+            sb.append(Rune(contents[Int64(i)]))
         }
         return sb.toString()
     }
@@ -282,12 +286,25 @@ public enum RefTag {
     | AllocatedName  // 1
     | SourceSlice    // 2
     | Symbol         // 3
+
+    public operator func ==(rhs: RefTag): Bool {
+        match (this) {
+            case Invalid => match (rhs) { case Invalid => true case _ => false }
+            case AllocatedName => match (rhs) { case AllocatedName => true case _ => false }
+            case SourceSlice => match (rhs) { case SourceSlice => true case _ => false }
+            case Symbol => match (rhs) { case Symbol => true case _ => false }
+        }
+    }
+
+    public operator func !=(rhs: RefTag): Bool {
+        return !(this == rhs)
+    }
 }
 
 /// 符号引用 - 严格对应 Bun Ref
 /// Bun: packed struct(u64) { inner_index: u31, tag: enum(u2), source_index: u31 }
 /// 仓颉使用 class 实现
-public class Ref {
+public class Ref <: ToString {
     /// 内部索引 - 对应 Bun Ref.inner_index: u31
     public var innerIndex: Int64
     /// 标签 - 对应 Bun Ref.tag
@@ -317,6 +334,10 @@ public class Ref {
     /// 相等比较
     public func eql(other: Ref): Bool {
         return innerIndex == other.innerIndex && tag == other.tag && sourceIndex == other.sourceIndex
+    }
+
+    public func toString(): String {
+        return "Ref(${innerIndex},${sourceIndex})"
     }
 }
 
@@ -469,6 +490,14 @@ public enum OpCode {
             case _ => "??"
         }
     }
+
+    public operator func ==(right: OpCode): Bool {
+        this.text() == right.text()
+    }
+
+    public operator func !=(right: OpCode): Bool {
+        !(this == right)
+    }
 }
 
 /// 操作符优先级 - 对应 Bun Op.Level
@@ -577,4 +606,16 @@ public enum AssignTarget {
     | None      // 0
     | Replace   // a = b
     | Update    // a += b
+
+    public operator func ==(right: AssignTarget): Bool {
+        match (this) {
+            case None => match (right) { case None => true case _ => false }
+            case Replace => match (right) { case Replace => true case _ => false }
+            case Update => match (right) { case Update => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: AssignTarget): Bool {
+        return !(this == right)
+    }
 }

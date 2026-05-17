@@ -5,6 +5,7 @@ package bao_css.rules
 
 import bao_core.*
 import bao_collections.*
+import bao_css.*
 
 // ============================================================================
 // @counter-style 规则

@@ -8,56 +8,6 @@ package bao_ast
 import bao_core.*
 import bao_collections.*
 
-// ============================================================================
-// SymbolKind - 符号类型
-// 严格翻译自: src/ast/symbol.zig - Symbol.Kind
-// Bun: pub const Kind = enum { unbound, hoisted, hoisted_function, ... }
-// ============================================================================
-
-/// 符号类型 - 对应 Bun Symbol.Kind
-public enum SymbolKind {
-    | Unbound               // 未绑定
-    | Hoisted               // var 声明提升
-    | HoistedFunction       // 函数声明提升
-    | GeneratorOrAsyncFunction // generator/async 函数
-    | Class                 // class 声明
-    | Constant              // const 声明
-    | Let                   // let 声明
-    | Import                // import 绑定
-    | PrivateGet            // private getter
-    | PrivateSet            // private setter
-    | PrivateStaticGet      // private static getter
-    | PrivateStaticSet      // private static setter
-    | TsEnum                // TypeScript enum
-    | TsNamespace           // TypeScript namespace
-    | Label                 // label 标签
-    | Other                 // 其他
-
-    /// 是否为提升类型 - 对应 Bun Symbol.isKindHoistedOrFunction()
-    public func isHoisted(): Bool {
-        match (this) {
-            case Hoisted | HoistedFunction | GeneratorOrAsyncFunction => true
-            case _ => false
-        }
-    }
-
-    /// 是否为函数类型
-    public func isFunction(): Bool {
-        match (this) {
-            case HoistedFunction | GeneratorOrAsyncFunction => true
-            case _ => false
-        }
-    }
-
-    /// 是否为块级作用域绑定
-    public func isBlockScoped(): Bool {
-        match (this) {
-            case Constant | Let | Class => true
-            case _ => false
-        }
-    }
-}
-
 /// 符号信息 - 对应 Bun Symbol
 /// Bun: pub const Symbol = struct { kind, original_name, use_count_estimate, link, ... }
 public class SymbolInfo {
@@ -93,43 +43,6 @@ public class SymbolInfo {
     /// 是否可重命名
     public func canRename(): Bool {
         kind != SymbolKind.Import && kind != SymbolKind.Unbound
-    }
-}
-
-// ============================================================================
-// ScopeKind - 作用域类型
-// 严格翻译自: src/ast/scope.zig - Scope.Kind
-// Bun: pub const Kind = enum { block, with, label, ... }
-// ============================================================================
-
-/// 作用域类型 - 对应 Bun Scope.Kind
-public enum ScopeKind {
-    | Block           // 块级作用域 {}
-    | With            // with 语句
-    | Label           // 标签作用域 (break/continue)
-    | Entry           // 模块入口作用域
-    | FunctionBody    // 函数体
-    | FunctionArgs    // 函数参数
-    | ClassBody       // class 体
-    | ClassStaticInit // class static {}
-    | CatchBinding    // catch 绑定
-    | ForLoop         // for 循环
-    | TsModule        // TypeScript module/namespace
-
-    /// 是否为函数级作用域 - 对应 Bun Scope 判断
-    public func isFunctionScope(): Bool {
-        match (this) {
-            case FunctionBody | FunctionArgs | Entry => true
-            case _ => false
-        }
-    }
-
-    /// 是否为块级作用域
-    public func isBlockScope(): Bool {
-        match (this) {
-            case Block | ForLoop | CatchBinding => true
-            case _ => false
-        }
     }
 }
 
@@ -550,48 +463,41 @@ public class ControlFlowGraph {
             addEdge(currentId, block.id, EdgeKind.Normal)
             // 处理控制流语句
             match (stmt.tag) {
-                case StmtTag.If => {
+                case StmtTag.If =>
                     let mergeBlock = newBlock()
                     addEdge(block.id, mergeBlock.id, EdgeKind.TrueBranch)
                     addEdge(block.id, mergeBlock.id, EdgeKind.FalseBranch)
                     currentId = mergeBlock.id
-                }
-                case StmtTag.Return => {
+                case StmtTag.Return =>
                     let exit = createExitBlock()
                     addEdge(block.id, exit.id, EdgeKind.Return)
                     if (i + Int64(1) < stmts.size) {
                         let nextBlock = newBlock()
                         currentId = nextBlock.id
                     }
-                }
-                case StmtTag.Throw => {
+                case StmtTag.Throw =>
                     let catchBlock = newBlock()
                     addEdge(block.id, catchBlock.id, EdgeKind.Throw)
                     currentId = catchBlock.id
-                }
-                case StmtTag.For | StmtTag.ForIn | StmtTag.ForOf | StmtTag.While | StmtTag.DoWhile => {
+                case StmtTag.For | StmtTag.ForIn | StmtTag.ForOf | StmtTag.While | StmtTag.DoWhile =>
                     let loopEnd = newBlock()
                     addEdge(block.id, loopEnd.id, EdgeKind.FalseBranch)
                     addEdge(block.id, block.id, EdgeKind.LoopBack)
                     currentId = loopEnd.id
-                }
-                case StmtTag.Break => {
+                case StmtTag.Break =>
                     addEdge(block.id, currentId, EdgeKind.Break)
                     if (i + Int64(1) < stmts.size) {
                         let nextBlock = newBlock()
                         currentId = nextBlock.id
                     }
-                }
-                case StmtTag.Continue => {
+                case StmtTag.Continue =>
                     addEdge(block.id, currentId, EdgeKind.Continue)
                     if (i + Int64(1) < stmts.size) {
                         let nextBlock = newBlock()
                         currentId = nextBlock.id
                     }
-                }
-                case _ => {
+                case _ =>
                     currentId = block.id
-                }
             }
         }
         // 确保有出口块
@@ -720,15 +626,14 @@ public class DataFlowAnalysis {
             for (i in Int64(0)..block.stmts.size) {
                 let stmt = block.stmts[i]
                 match (stmt.tag) {
-                    case StmtTag.Local => {
+                    case StmtTag.Local =>
                         // 变量声明: gen 新定义, kill 旧定义
                         // 对应 Bun 中声明变量时的 symbol 绑定
                         let def = Definition("var", block.id, i)
                         genSet.append(def)
-                    }
-                    case StmtTag.Expr => {
+                    case StmtTag.Expr =>
                         // 赋值表达式: 可能定义变量
-                    }
+                        ()
                     case _ => ()
                 }
             }
@@ -973,57 +878,49 @@ public class ComplexityAnalysis {
         }
 
         match (stmt.tag) {
-            case StmtTag.If => {
+            case StmtTag.If =>
                 result.cyclomaticComplexity += Int64(1)
                 result.branchCount += Int64(1)
                 // 分析子语句
                 for (child in stmt.stmts) {
                     analyzeStmt(child, result, currentDepth + Int64(1))
                 }
-            }
             case StmtTag.For | StmtTag.ForIn | StmtTag.ForOf |
-                 StmtTag.While | StmtTag.DoWhile => {
+                 StmtTag.While | StmtTag.DoWhile =>
                 result.cyclomaticComplexity += Int64(1)
                 result.loopCount += Int64(1)
                 for (child in stmt.stmts) {
                     analyzeStmt(child, result, currentDepth + Int64(1))
                 }
-            }
-            case StmtTag.Switch => {
+            case StmtTag.Switch =>
                 // switch 每个 case 增加一条路径
                 result.cyclomaticComplexity += stmt.stmts.size
                 result.branchCount += Int64(1)
                 for (child in stmt.stmts) {
                     analyzeStmt(child, result, currentDepth + Int64(1))
                 }
-            }
-            case StmtTag.Function | StmtTag.Class => {
+            case StmtTag.Function | StmtTag.Class =>
                 result.functionCount += Int64(1)
                 for (child in stmt.stmts) {
                     analyzeStmt(child, result, Int64(0)) // 函数重置嵌套深度
                 }
-            }
-            case StmtTag.Block => {
+            case StmtTag.Block =>
                 for (child in stmt.stmts) {
                     analyzeStmt(child, result, currentDepth)
                 }
-            }
-            case StmtTag.Try => {
+            case StmtTag.Try =>
                 result.cyclomaticComplexity += Int64(1)
                 for (child in stmt.stmts) {
                     analyzeStmt(child, result, currentDepth + Int64(1))
                 }
-            }
-            case StmtTag.Expr => {
+            case StmtTag.Expr =>
                 for (child in stmt.children) {
                     countExprs(child, result)
                 }
-            }
-            case _ => {
+            case _ =>
                 for (child in stmt.stmts) {
                     analyzeStmt(child, result, currentDepth)
                 }
-            }
         }
     }
 

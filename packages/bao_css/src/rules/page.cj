@@ -6,6 +6,7 @@ package bao_css.rules
 
 import bao_core.*
 import bao_collections.*
+import bao_css.*
 
 // ============================================================================
 // 页面伪类
@@ -202,24 +203,30 @@ public class CssPageRule {
     /// 严格翻译自 PageRule.to_css
     public func toCss(indent: String, minify: Bool): String {
         let sb = StringBuilder()
-        sb.append("${indent}@page")
+        sb.append(indent)
+        sb.append("@page")
         if (selectors.size >= 1) {
             let first = selectors[0]
-            if (!minify && first.name != None) {
+            if (!minify && first.name.isSome()) {
                 sb.append(" ")
             }
             let selStrs = ArrayList<String>()
             for (s in selectors) {
                 selStrs.append(s.toCss())
             }
-            sb.append(" ${String.join(", ", selStrs)}")
+            var selArr = Array<String>(selStrs.size, repeat: "")
+            var si: Int64 = 0
+            for (s in selStrs) { selArr[si] = s; si += 1 }
+            sb.append(" ")
+            sb.append(String.join(selArr, delimiter: ", "))
         }
         sb.append(declarations.toCssBlock(indent))
 
         // 边距规则
         if (rules.size > 0) {
             for (rule in rules) {
-                sb.append("\n${rule.toCss(indent)}")
+                sb.append("\n")
+                sb.append(rule.toCss(indent))
             }
         }
 

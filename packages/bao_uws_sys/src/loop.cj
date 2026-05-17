@@ -63,7 +63,7 @@ public class PosixLoop {
     public var active: UInt32 = 0
     public var pending_wakeups: UInt32 = 0
 
-    private var ptr: CPointer<Unit> = CPointer<Unit>.null
+    private var ptr: CPointer<Unit> = CPointer<Unit>()
 
     public init() {}
 
@@ -77,22 +77,22 @@ public class PosixLoop {
 
     /// 对应 Bun: pub fn uncork(this) void
     public func uncork(): Unit {
-        if (ptr != CPointer<Unit>.null) {
-            uws_res_clear_corked_socket(ptr)
+        if (!ptr.isNull()) {
+            unsafe { uws_res_clear_corked_socket(ptr) }
         }
     }
 
     /// 对应 Bun: pub fn updateDate(this) void
     public func updateDate(): Unit {
-        if (ptr != CPointer<Unit>.null) {
-            uws_loop_date_header_timer_update(ptr)
+        if (!ptr.isNull()) {
+            unsafe { uws_loop_date_header_timer_update(ptr) }
         }
     }
 
     /// 对应 Bun: pub fn iterationNumber(this) u64
     public func iterationNumber(): UInt64 {
-        if (ptr != CPointer<Unit>.null) {
-            return UInt64(us_loop_iteration_number(ptr))
+        if (!ptr.isNull()) {
+            return UInt64(unsafe { us_loop_iteration_number(ptr) })
         }
         return UInt64(internal_loop_data.iteration_nr)
     }
@@ -116,7 +116,11 @@ public class PosixLoop {
     /// 对应 Bun: pub fn unref(this) void
     public func unref(): Unit {
         num_polls -= 1
-        active = active > 0 ? active - 1 : 0
+        if (active > 0) {
+            active = active - 1
+        } else {
+            active = 0
+        }
     }
 
     /// 对应 Bun: pub fn isActive(this) bool
@@ -126,39 +130,47 @@ public class PosixLoop {
 
     /// 对应 Bun: pub fn addActive(this, value) void
     public func addActive(value: UInt32): Unit {
-        active = active +| value
+        active = active + value
     }
 
     /// 对应 Bun: pub fn subActive(this, value) void
     public func subActive(value: UInt32): Unit {
-        active = active -| value
+        if (active > value) {
+            active = active - value
+        } else {
+            active = 0
+        }
     }
 
     /// 对应 Bun: pub fn unrefCount(this, count) void
     public func unrefCount(count: Int32): Unit {
         num_polls -= count
-        active = active -| UInt32(count)
+        if (active > UInt32(count)) {
+            active = active - UInt32(count)
+        } else {
+            active = 0
+        }
     }
 
     /// 对应 Bun: pub fn get() *Loop
     public static func get(): CPointer<Unit> {
-        return uws_get_loop()
+        return unsafe { uws_get_loop() }
     }
 
     /// 对应 Bun: pub fn drainQuicIfNecessary(this) void
     public func drainQuicIfNecessary(): Unit {
-        if (internal_loop_data.quic_head == None) {
+        if (internal_loop_data.quic_head .isNone()) {
             return
         }
-        if (ptr != CPointer<Unit>.null) {
-            us_quic_loop_flush_if_pending(ptr)
+        if (!ptr.isNull()) {
+            unsafe { us_quic_loop_flush_if_pending(ptr) }
         }
     }
 
     /// 对应 Bun: pub fn wakeup(this) void
     public func wakeup(): Unit {
-        if (ptr != CPointer<Unit>.null) {
-            us_wakeup_loop(ptr)
+        if (!ptr.isNull()) {
+            unsafe { us_wakeup_loop(ptr) }
         }
     }
 
@@ -169,37 +181,37 @@ public class PosixLoop {
 
     /// 对应 Bun: pub fn tick(this) void
     public func tick(): Unit {
-        if (ptr != CPointer<Unit>.null) {
-            us_loop_run_bun_tick(ptr, CPointer<Unit>.null)
+        if (!ptr.isNull()) {
+            unsafe { us_loop_run_bun_tick(ptr, CPointer<Unit>()) }
         }
     }
 
     /// 对应 Bun: pub fn tickWithoutIdle(this) void
     public func tickWithoutIdle(): Unit {
-        if (ptr != CPointer<Unit>.null) {
-            us_loop_run_bun_tick(ptr, CPointer<Unit>.null)
+        if (!ptr.isNull()) {
+            unsafe { us_loop_run_bun_tick(ptr, CPointer<Unit>()) }
         }
     }
 
     /// 对应 Bun: pub fn drainClosedSockets(this) void
     public func drainClosedSockets(): Unit {
-        if (ptr != CPointer<Unit>.null) {
-            us_internal_free_closed_sockets(ptr)
+        if (!ptr.isNull()) {
+            unsafe { us_internal_free_closed_sockets(ptr) }
         }
     }
 
     /// 对应 Bun: pub fn closeAllGroups(this) bool
     public func closeAllGroups(): Bool {
-        if (ptr != CPointer<Unit>.null) {
-            return us_loop_close_all_groups(ptr) != 0
+        if (!ptr.isNull()) {
+            return unsafe { us_loop_close_all_groups(ptr) } != 0
         }
         return false
     }
 
     /// 对应 Bun: pub fn run(this) void
     public func run(): Unit {
-        if (ptr != CPointer<Unit>.null) {
-            us_loop_run(ptr)
+        if (!ptr.isNull()) {
+            unsafe { us_loop_run(ptr) }
         }
     }
 
@@ -210,8 +222,8 @@ public class PosixLoop {
 
     /// 对应 Bun: pub fn deinit(this) void
     public func deinit(): Unit {
-        if (ptr != CPointer<Unit>.null) {
-            us_loop_free(ptr)
+        if (!ptr.isNull()) {
+            unsafe { us_loop_free(ptr) }
         }
     }
 }
@@ -223,7 +235,7 @@ public class PosixLoop {
 public class WindowsLoop {
     public var internal_loop_data: InternalLoopData = InternalLoopData()
 
-    private var ptr: CPointer<Unit> = CPointer<Unit>.null
+    private var ptr: CPointer<Unit> = CPointer<Unit>()
 
     public init() {}
 
@@ -242,20 +254,20 @@ public class WindowsLoop {
 
     /// 对应 Bun: pub fn uncork(this) void
     public func uncork(): Unit {
-        if (ptr != CPointer<Unit>.null) {
-            uws_res_clear_corked_socket(ptr)
+        if (!ptr.isNull()) {
+            unsafe { uws_res_clear_corked_socket(ptr) }
         }
     }
 
     /// 对应 Bun: pub fn get() *WindowsLoop
     public static func get(): CPointer<Unit> {
-        return uws_get_loop()
+        return unsafe { uws_get_loop() }
     }
 
     /// 对应 Bun: pub fn wakeup(this) void
     public func wakeup(): Unit {
-        if (ptr != CPointer<Unit>.null) {
-            us_wakeup_loop(ptr)
+        if (!ptr.isNull()) {
+            unsafe { us_wakeup_loop(ptr) }
         }
     }
 
@@ -265,25 +277,25 @@ public class WindowsLoop {
 
     /// 对应 Bun: pub fn tickWithoutIdle(this) void
     public func tickWithoutIdle(): Unit {
-        if (ptr != CPointer<Unit>.null) {
-            us_loop_pump(ptr)
+        if (!ptr.isNull()) {
+            unsafe { us_loop_pump(ptr) }
         }
     }
 
     /// 对应 Bun: pub fn drainQuicIfNecessary(this) void
     public func drainQuicIfNecessary(): Unit {
-        if (internal_loop_data.quic_head == None) {
+        if (internal_loop_data.quic_head .isNone()) {
             return
         }
-        if (ptr != CPointer<Unit>.null) {
-            us_quic_loop_flush_if_pending(ptr)
+        if (!ptr.isNull()) {
+            unsafe { us_quic_loop_flush_if_pending(ptr) }
         }
     }
 
     /// 对应 Bun: pub fn run(this) void
     public func run(): Unit {
-        if (ptr != CPointer<Unit>.null) {
-            us_loop_run(ptr)
+        if (!ptr.isNull()) {
+            unsafe { us_loop_run(ptr) }
         }
     }
 
@@ -292,21 +304,21 @@ public class WindowsLoop {
     }
 
     public func drainClosedSockets(): Unit {
-        if (ptr != CPointer<Unit>.null) {
-            us_internal_free_closed_sockets(ptr)
+        if (!ptr.isNull()) {
+            unsafe { us_internal_free_closed_sockets(ptr) }
         }
     }
 
     public func closeAllGroups(): Bool {
-        if (ptr != CPointer<Unit>.null) {
-            return us_loop_close_all_groups(ptr) != 0
+        if (!ptr.isNull()) {
+            return unsafe { us_loop_close_all_groups(ptr) } != 0
         }
         return false
     }
 
     public func deinit(): Unit {
-        if (ptr != CPointer<Unit>.null) {
-            us_loop_free(ptr)
+        if (!ptr.isNull()) {
+            unsafe { us_loop_free(ptr) }
         }
     }
 }
@@ -316,4 +328,4 @@ public class WindowsLoop {
 // 严格翻译自: Loop.zig
 //  pub const Loop = if (bun.Environment.isWindows) WindowsLoop else PosixLoop
 // ============================================================================
-public typealias Loop = PosixLoop
+public type Loop = PosixLoop

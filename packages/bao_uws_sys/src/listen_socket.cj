@@ -43,7 +43,7 @@ public class ListenSocket {
 
     /// 对应 Bun: pub fn close(this: *ListenSocket) void
     public func close(): Unit {
-        us_listen_socket_close(ptr)
+        unsafe { us_listen_socket_close(ptr) }
     }
 
     /// 对应 Bun: pub fn getLocalAddress(this: *ListenSocket, buf: []u8) ![]const u8
@@ -70,17 +70,17 @@ public class ListenSocket {
     /// 对应 Bun: pub fn group(this: *ListenSocket) *SocketGroup
     /// Group accepted sockets are linked into.
     public func group(): SocketGroup {
-        return SocketGroup(us_listen_socket_group(ptr))
+        return SocketGroup(unsafe { us_listen_socket_group(ptr) })
     }
 
     /// 对应 Bun: pub fn ext(this: *ListenSocket, comptime T: type) *T
     public func ext(): CPointer<Unit> {
-        return us_listen_socket_ext(ptr)
+        return unsafe { us_listen_socket_ext(ptr) }
     }
 
     /// 对应 Bun: pub fn fd(this: *ListenSocket) bun.FD
     public func fd(): Int32 {
-        return us_listen_socket_get_fd(ptr)
+        return unsafe { us_listen_socket_get_fd(ptr) }
     }
 
     /// 对应 Bun: pub fn addServerName(this: *ListenSocket, hostname, ssl_ctx, user) bool
@@ -88,21 +88,21 @@ public class ListenSocket {
     /// that ref on close / removeServerName. user is the per-domain handle
     /// findServerNameUserdata recovers.
     public func addServerName(hostname: CPointer<Int8>, sslCtx: CPointer<Unit>, user: CPointer<Unit>): Bool {
-        return us_listen_socket_add_server_name(ptr, hostname, sslCtx, user) == 0
+        return unsafe { us_listen_socket_add_server_name(ptr, hostname, sslCtx, user) } == 0
     }
 
     /// 对应 Bun: pub fn removeServerName(this: *ListenSocket, hostname) void
     public func removeServerName(hostname: CPointer<Int8>): Unit {
-        us_listen_socket_remove_server_name(ptr, hostname)
+        unsafe { us_listen_socket_remove_server_name(ptr, hostname) }
     }
 
     /// 对应 Bun: pub fn findServerNameUserdata(this: *ListenSocket, comptime T, hostname) ?*T
     public func findServerNameUserdata(hostname: CPointer<Int8>): CPointer<Unit> {
-        return us_listen_socket_find_server_name_userdata(ptr, hostname)
+        return unsafe { us_listen_socket_find_server_name_userdata(ptr, hostname) }
     }
 
     /// 对应 Bun: pub fn onServerName(this: *ListenSocket, cb) void
     public func onServerName(cb: CPointer<Unit>): Unit {
-        us_listen_socket_on_server_name(ptr, cb)
+        unsafe { us_listen_socket_on_server_name(ptr, cb) }
     }
 }

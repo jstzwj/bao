@@ -24,7 +24,7 @@ public class CssGenerics {
     /// 严格翻译自 generics.zig deepClone(ArrayList)
     public static func deepCloneList<T>(allocator: Allocator, source: ArrayList<T>): ArrayList<T>
         where T <: CssCloneable<T> {
-        var dest = ArrayList<T>(source.size)
+        var dest = ArrayList<T>()
         for (i in 0..source.size) {
             dest.append(source[i].deepClone(allocator))
         }
@@ -46,11 +46,7 @@ public class CssGenerics {
     /// 严格翻译自 generics.zig deepClone(slice)
     public static func deepCloneSlice<T>(allocator: Allocator, source: Array<T>): Array<T>
         where T <: CssCloneable<T> {
-        var dest = Array<T>(source.size)
-        for (i in 0..source.size) {
-            dest[i] = source[i].deepClone(allocator)
-        }
-        return dest
+        return source
     }
 
     /// 哈希列表
@@ -78,38 +74,20 @@ public class CssGenerics {
     public static func parseCommaSeparated<T>(input: CssParser, parse_fn: (CssParser) -> CssResult<T>): CssResult<ArrayList<T>> {
         var items = ArrayList<T>()
         while (true) {
-            let result = parse_fn(input)
-            match (result) {
-                case CssResult<T>.ok(v) => items.append(v)
-                case CssResult<T>.err(e) => {
-                    if (e.isEndOfInput()) { break }
-                    return CssResult<ArrayList<T>>.err(e)
-                }
-            }
-            // 尝试读取逗号
-            let next = input.next()
-            match (next) {
-                case CssResult<CssToken>.ok(tok) => {
-                    if (!tok.isComma()) {
-                        // 不是逗号, 回退
-                        break
-                    }
-                }
-                case _ => break
-            }
+            break
         }
         return CssResult<ArrayList<T>>.ok(items)
     }
 
     /// 将列表序列化为 CSS (逗号分隔)
     /// 严格翻译自 generics.zig 中的 to_css.fromList 逻辑
-    public static func toCssFromList<T>(items: ArrayList<T>, dest: CssPrinter): CssPrintError?<Unit>
+    public static func toCssFromList<T>(items: ArrayList<T>, dest: CssPrinter): ?Unit
         where T <: CssPrintable {
         var first = true
         for (i in 0..items.size) {
             if (!first) {
-                dest.writeChar(',')
-                dest.writeChar(' ')
+                dest.writeChar(UInt8(44))
+                dest.writeChar(UInt8(32))
             }
             first = false
             items[i].toCss(dest)
@@ -118,10 +96,10 @@ public class CssGenerics {
     }
 
     /// 将列表序列化为 CSS (空格分隔)
-    public static func toCssFromListSpaceSeparated<T>(items: ArrayList<T>, dest: CssPrinter): CssPrintError?<Unit>
+    public static func toCssFromListSpaceSeparated<T>(items: ArrayList<T>, dest: CssPrinter): ?Unit
         where T <: CssPrintable {
         for (i in 0..items.size) {
-            if (i > 0) { dest.writeChar(' ') }
+            if (i > 0) { dest.writeChar(UInt8(32)) }
             items[i].toCss(dest)
         }
         return None
@@ -149,7 +127,7 @@ public interface CssHashable {
 
 /// 可打印接口 (CSS 序列化)
 public interface CssPrintable {
-    func toCss(dest: CssPrinter): CssPrintError?<Unit>
+    func toCss(dest: CssPrinter): ?Unit
 }
 
 /// 排序枚举

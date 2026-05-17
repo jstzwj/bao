@@ -20,7 +20,8 @@ import bao_collections.*
 public enum TransformResult {
     | Continue            // 继续遍历子节点
     | Skip                // 跳过子节点
-    | Replace(ASTNode)    // 替换当前节点
+    | Replace(ASTNode)    // 替换当前表达式节点
+    | ReplaceStmt(StmtNode) // 替换当前语句节点
     | Remove              // 删除当前节点
     | Stop                // 停止遍历
 }
@@ -63,31 +64,30 @@ public open class ASTTransformer {
     public func applyExpr(node: ASTNode): ASTNode {
         let result = transformExpr(node)
         match (result) {
-            case TransformResult.Continue => {
+            case TransformResult.Continue =>
                 // 递归处理子节点
                 let newChildren = ArrayList<ASTNode>()
                 for (child in node.children) {
                     let transformed = applyExpr(child)
-                    match (transformResultFor(transformed)) {
-                        case Int64(0) => newChildren.append(transformed) // keep
-                        case Int64(1) => () // removed
-                        case _ => newChildren.append(transformed)
+                    let tr = transformResultFor(transformed)
+                    if (tr == Int64(1)) {
+                        // removed
+                    } else {
+                        newChildren.append(transformed)
                     }
                 }
                 node.children = newChildren
                 return node
-            }
             case TransformResult.Skip => return node
-            case TransformResult.Replace(newNode) => {
+            case TransformResult.Replace(newNode) =>
                 modified = true
                 transformCount += Int64(1)
                 return newNode
-            }
-            case TransformResult.Remove => {
+            case TransformResult.ReplaceStmt(_) => return node
+            case TransformResult.Remove =>
                 modified = true
                 removeCount += Int64(1)
                 return ASTNode(ExprTag.Missing, node.loc)
-            }
             case TransformResult.Stop => return node
         }
     }
@@ -96,7 +96,7 @@ public open class ASTTransformer {
     public func applyStmt(node: StmtNode): StmtNode {
         let result = transformStmt(node)
         match (result) {
-            case TransformResult.Continue => {
+            case TransformResult.Continue =>
                 // 递归处理子语句
                 let newStmts = ArrayList<StmtNode>()
                 for (stmt in node.stmts) {
@@ -113,18 +113,19 @@ public open class ASTTransformer {
                 }
                 node.children = newChildren
                 return node
-            }
             case TransformResult.Skip => return node
-            case TransformResult.Replace(_) => {
+            case TransformResult.Replace(_) =>
                 modified = true
                 transformCount += Int64(1)
                 return node
-            }
-            case TransformResult.Remove => {
+            case TransformResult.ReplaceStmt(newNode) =>
+                modified = true
+                transformCount += Int64(1)
+                return newNode
+            case TransformResult.Remove =>
                 modified = true
                 removeCount += Int64(1)
                 return StmtNode(StmtTag.Empty, node.loc)
-            }
             case TransformResult.Stop => return node
         }
     }
@@ -221,7 +222,7 @@ public class ESVersionDowngrader <: ASTTransformer {
         match (node.tag) {
             // 可选链 (?.) - ES2020 特性，降到 ES2019 需要展开
             // Bun: src/js_parser/ lower_optional_chain
-            case ExprTag.Member => {
+            case ExprTag.Member =>
                 let optional = node.properties.get("optional")
                 match (optional) {
                     case Some(b) => match (b as Bool) {
@@ -234,10 +235,9 @@ public class ESVersionDowngrader <: ASTTransformer {
                     case None => ()
                 }
                 return TransformResult.Continue
-            }
             // 空值合并 (??) - ES2020 特性
             // Bun: src/js_parser/ lower_nullish_coalescing
-            case ExprTag.Binary => {
+            case ExprTag.Binary =>
                 let op = node.properties.get("op")
                 match (op) {
                     case Some(v) => match (v as String) {
@@ -250,10 +250,9 @@ public class ESVersionDowngrader <: ASTTransformer {
                     case None => ()
                 }
                 return TransformResult.Continue
-            }
             // 逻辑赋值 (&&=, ||=, ??=) - ES2021 特性
             // Bun: src/js_parser/ lower_logical_assignment
-            case ExprTag.Assign => {
+            case ExprTag.Assign =>
                 let op = node.properties.get("op")
                 match (op) {
                     case Some(v) => match (v as String) {
@@ -266,7 +265,6 @@ public class ESVersionDowngrader <: ASTTransformer {
                     case None => ()
                 }
                 return TransformResult.Continue
-            }
             case _ => return TransformResult.Continue
         }
     }
@@ -395,27 +393,23 @@ public class CommonJSTransformer <: ASTTransformer {
         match (node.tag) {
             // import 语句 → require 调用
             // Bun: import { foo } from 'bar' → var foo = require('bar').foo
-            case StmtTag.Import => {
+            case StmtTag.Import =>
                 usesRequire = true
                 return transformImportToRequire(node)
-            }
             // export 语句 → module.exports 赋值
-            case StmtTag.ExportClause => {
+            case StmtTag.ExportClause =>
                 usesExports = true
                 return transformExportToCJS(node)
-            }
             // export default → module.exports.default
-            case StmtTag.ExportDefault => {
+            case StmtTag.ExportDefault =>
                 usesModule = true
                 usesExports = true
                 return transformExportDefaultToCJS(node)
-            }
             // export * from '...' → Object.assign
-            case StmtTag.ExportStar => {
+            case StmtTag.ExportStar =>
                 usesExports = true
                 usesRequire = true
                 return transformExportStarToCJS(node)
-            }
             case _ => return TransformResult.Continue
         }
     }
@@ -444,7 +438,7 @@ public class CommonJSTransformer <: ASTTransformer {
         localStmt.children.append(requireCall)
         modified = true
         transformCount += Int64(1)
-        return TransformResult.Replace(localStmt)
+        return TransformResult.ReplaceStmt(localStmt)
     }
 
     /// export → module.exports 赋值
@@ -461,7 +455,7 @@ public class CommonJSTransformer <: ASTTransformer {
         }
         modified = true
         transformCount += Int64(1)
-        return TransformResult.Replace(assignStmt)
+        return TransformResult.ReplaceStmt(assignStmt)
     }
 
     /// export default → module.exports.default
@@ -482,7 +476,7 @@ public class CommonJSTransformer <: ASTTransformer {
         assignStmt.children.append(assign)
         modified = true
         transformCount += Int64(1)
-        return TransformResult.Replace(assignStmt)
+        return TransformResult.ReplaceStmt(assignStmt)
     }
 
     /// export * → Object.assign(exports, require(...))
@@ -497,7 +491,7 @@ public class CommonJSTransformer <: ASTTransformer {
         assignStmt.children.append(call)
         modified = true
         transformCount += Int64(1)
-        return TransformResult.Replace(assignStmt)
+        return TransformResult.ReplaceStmt(assignStmt)
     }
 
     /// 是否使用了 exports
@@ -559,7 +553,7 @@ public class IIFEWrapper <: ASTTransformer {
     /// 输出: var wrapper = function(exports, module, require) { stmt1; stmt2; ... }
     public func wrap(stmts: ArrayList<StmtNode>): StmtNode {
         // 创建函数体
-        let funcBody = StmtNode(StmtTag.Function, Loc(Int64(0)))
+        let funcBody = StmtNode(StmtTag.Function, ASTLoc(Int32(0)))
         funcBody.properties.put("name", wrapperName)
         funcBody.properties.put("isArrow", false)
         funcBody.properties.put("isAsync", false)
@@ -567,12 +561,12 @@ public class IIFEWrapper <: ASTTransformer {
         // 添加参数列表
         let params = ArrayList<ASTNode>()
         for (name in paramNames) {
-            params.append(ASTNode(ExprTag.Identifier, Loc(Int64(0)), name))
+            params.append(ASTNode(ExprTag.Identifier, ASTLoc(Int32(0)), name))
         }
         funcBody.properties.put("params", params)
         // 如果使用严格模式，添加 "use strict" 指令
         if (useStrict) {
-            let directive = StmtNode(StmtTag.Directive, Loc(Int64(0)))
+            let directive = StmtNode(StmtTag.Directive, ASTLoc(Int32(0)))
             directive.value = "use strict"
             funcBody.stmts.append(directive)
         }
@@ -581,22 +575,22 @@ public class IIFEWrapper <: ASTTransformer {
             funcBody.stmts.append(stmt)
         }
         // 创建变量声明: var wrapperName = function(...) { ... }
-        let varDecl = StmtNode(StmtTag.Local, Loc(Int64(0)))
+        let varDecl = StmtNode(StmtTag.Local, ASTLoc(Int32(0)))
         varDecl.properties.put("kind", "var")
-        let funcExpr = ASTNode(ExprTag.Function, Loc(Int64(0)))
-        funcExpr.children.append(ASTNode(ExprTag.Identifier, Loc(Int64(0)), wrapperName))
+        let funcExpr = ASTNode(ExprTag.Function, ASTLoc(Int32(0)))
+        funcExpr.children.append(ASTNode(ExprTag.Identifier, ASTLoc(Int32(0)), wrapperName))
         varDecl.children.append(funcExpr)
         // 创建调用语句: wrapperName(exports, module, require)
-        let callStmt = StmtNode(StmtTag.Expr, Loc(Int64(0)))
-        let callExpr = ASTNode(ExprTag.Call, Loc(Int64(0)))
-        callExpr.children.append(ASTNode(ExprTag.Identifier, Loc(Int64(0)), wrapperName))
+        let callStmt = StmtNode(StmtTag.Expr, ASTLoc(Int32(0)))
+        let callExpr = ASTNode(ExprTag.Call, ASTLoc(Int32(0)))
+        callExpr.children.append(ASTNode(ExprTag.Identifier, ASTLoc(Int32(0)), wrapperName))
         for (value in paramValues) {
             callExpr.children.append(value)
         }
         callStmt.children.append(callExpr)
         // 组合结果: 先声明函数，再调用
         // 返回一个 Block 包含两个语句
-        let block = StmtNode(StmtTag.Block, Loc(Int64(0)))
+        let block = StmtNode(StmtTag.Block, ASTLoc(Int32(0)))
         block.stmts.append(funcBody)
         block.stmts.append(callStmt)
         modified = true
@@ -607,11 +601,11 @@ public class IIFEWrapper <: ASTTransformer {
     /// 创建简单的 IIFE 包装 (无名称)
     /// (function() { ... })()
     public func wrapAnonymous(stmts: ArrayList<StmtNode>): ASTNode {
-        let callExpr = ASTNode(ExprTag.Call, Loc(Int64(0)))
-        let funcExpr = ASTNode(ExprTag.Function, Loc(Int64(0)))
-        let funcBody = StmtNode(StmtTag.Block, Loc(Int64(0)))
+        let callExpr = ASTNode(ExprTag.Call, ASTLoc(Int32(0)))
+        let funcExpr = ASTNode(ExprTag.Function, ASTLoc(Int32(0)))
+        let funcBody = StmtNode(StmtTag.Block, ASTLoc(Int32(0)))
         if (useStrict) {
-            let directive = StmtNode(StmtTag.Directive, Loc(Int64(0)))
+            let directive = StmtNode(StmtTag.Directive, ASTLoc(Int32(0)))
             directive.value = "use strict"
             funcBody.stmts.append(directive)
         }
@@ -641,6 +635,23 @@ public enum HoistKind {
     | FunctionDeclaration  // function 声明提升 (含函数体)
     | ImportDeclaration    // import 声明提升
     | ClassDeclaration     // class 声明 (不提升，仅收集)
+
+    public operator func ==(right: HoistKind): Bool {
+        return ordinal() == right.ordinal()
+    }
+
+    public operator func !=(right: HoistKind): Bool {
+        return !(this == right)
+    }
+
+    public func ordinal(): Int64 {
+        match (this) {
+            case VarDeclaration => 0
+            case FunctionDeclaration => 1
+            case ImportDeclaration => 2
+            case ClassDeclaration => 3
+        }
+    }
 }
 
 /// 待提升的声明
@@ -737,7 +748,7 @@ public class HoistTransformer <: ASTTransformer {
         for (stmt in stmts) {
             match (stmt.tag) {
                 // function 声明 - 始终提升 (含函数体)
-                case StmtTag.Function => {
+                case StmtTag.Function =>
                     if (depth <= Int64(1)) {
                         let name = match (stmt.properties.get("name")) {
                             case Some(v) => match (v as String) {
@@ -751,9 +762,8 @@ public class HoistTransformer <: ASTTransformer {
                                 HoistKind.FunctionDeclaration, stmt, name, idx))
                         }
                     }
-                }
                 // 变量声明 - var 提升到函数作用域
-                case StmtTag.Local => {
+                case StmtTag.Local =>
                     let kind = match (stmt.properties.get("kind")) {
                         case Some(v) => match (v as String) {
                             case Some(s) => s
@@ -773,18 +783,15 @@ public class HoistTransformer <: ASTTransformer {
                             }
                         }
                     }
-                }
                 // import 声明 - 提升到模块顶部
-                case StmtTag.Import => {
+                case StmtTag.Import =>
                     hoistedDecls.append(HoistableDecl(
                         HoistKind.ImportDeclaration, stmt, "import", idx))
-                }
                 // 嵌套块 - 不提升 var (var 提升到最近的函数作用域)
                 case StmtTag.Block | StmtTag.If | StmtTag.For |
                      StmtTag.ForIn | StmtTag.ForOf |
-                     StmtTag.While | StmtTag.DoWhile => {
+                     StmtTag.While | StmtTag.DoWhile =>
                     collectHoisted(stmt.stmts, depth + Int64(1))
-                }
                 // 函数创建新的作用域边界
                 case StmtTag.Function => () // 已处理
                 case _ => ()

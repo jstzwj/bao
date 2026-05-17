@@ -174,7 +174,7 @@ public class ThreadSafeStreamBuffer {
     /// 返回当前缓冲区中所有数据并清空
     public func read(): Array<UInt8> {
         mutex.lock()
-        let data = buffer.toArray()
+        let data = buffer.toOwnedSlice()
         buffer = ArrayList<UInt8>()
         mutex.unlock()
         return data
@@ -184,7 +184,7 @@ public class ThreadSafeStreamBuffer {
     public func read(maxBytes: Int64): Array<UInt8> {
         mutex.lock()
         let count = if (maxBytes < buffer.size) { maxBytes } else { buffer.size }
-        let result = Array<UInt8>()
+        let result = ArrayList<UInt8>()
         for (i in 0..count) {
             result.append(buffer[Int64(i)])
         }
@@ -195,7 +195,7 @@ public class ThreadSafeStreamBuffer {
         }
         buffer = remaining
         mutex.unlock()
-        return result
+        return result.toOwnedSlice()
     }
 
     /// 缓冲区是否为空

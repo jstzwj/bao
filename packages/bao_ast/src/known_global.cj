@@ -133,7 +133,7 @@ public class KnownGlobalOptimizer {
         targetName: String,
         args: ArrayList<ASTNode>,
         minifyWhitespace: Bool,
-        loc: Loc
+        loc: ASTLoc
     ): ?ASTNode {
         let global = KnownGlobal.fromString(targetName)
         match (global) {
@@ -147,7 +147,7 @@ public class KnownGlobalOptimizer {
         constructor: KnownGlobal,
         args: ArrayList<ASTNode>,
         minifyWhitespace: Bool,
-        loc: Loc
+        loc: ASTLoc
     ): ?ASTNode {
         let n = args.size
 
@@ -157,20 +157,19 @@ public class KnownGlobalOptimizer {
             case KnownGlobal.Error | KnownGlobal.TypeError |
                  KnownGlobal.SyntaxError | KnownGlobal.RangeError |
                  KnownGlobal.ReferenceError | KnownGlobal.EvalError |
-                 KnownGlobal.URIError | KnownGlobal.AggregateError => {
+                 KnownGlobal.URIError | KnownGlobal.AggregateError =>
                 // 返回不带 new 的调用表达式
                 return ExprFactory.call(
                     ExprFactory.identifier(Ref.NONE, loc),
                     args, loc
                 )
-            }
 
             // new Object() => {}
             // new Object({...}) => {...}
             // new Object([...]) => [...]
             // new Object(null) => {}
             // new Object(undefined) => {}
-            case KnownGlobal.Object => {
+            case KnownGlobal.Object =>
                 if (n == Int64(0)) {
                     return ExprFactory.object(ArrayList<GProperty>(), loc)
                 }
@@ -188,12 +187,11 @@ public class KnownGlobalOptimizer {
                     ExprFactory.identifier(Ref.NONE, loc),
                     args, loc
                 )
-            }
 
             // new Array() => []
             // new Array(1, 2, 3) => [1, 2, 3]
             // new Array(3) => 不优化 (创建 3 个空位的数组)
-            case KnownGlobal.Array => {
+            case KnownGlobal.Array =>
                 if (n == Int64(0)) {
                     return ExprFactory.array(ArrayList<ASTNode>(), loc)
                 }
@@ -203,60 +201,50 @@ public class KnownGlobalOptimizer {
                 }
                 // 单参数: 可能是 Array(3) 创建空位数组, 不优化
                 return None
-            }
 
             // new Function(...) => Function(...)
-            case KnownGlobal.Function => {
+            case KnownGlobal.Function =>
                 return ExprFactory.call(
                     ExprFactory.identifier(Ref.NONE, loc),
                     args, loc
                 )
-            }
 
             // RegExp 不优化 - 语义太复杂
             // new RegExp(re) 创建副本, 但 RegExp(re) 返回相同实例
-            case KnownGlobal.RegExp => {
+            case KnownGlobal.RegExp =>
                 return None
-            }
 
             // new WeakSet()/WeakMap() 无参数时是纯的
-            case KnownGlobal.WeakSet | KnownGlobal.WeakMap => {
+            case KnownGlobal.WeakSet | KnownGlobal.WeakMap =>
                 // 无参数或 null/undefined 参数时是纯的
                 // 返回 null 表示不替换表达式, 但可能设置纯标志
                 return None
-            }
 
             // new Date() 无参数时是纯的
-            case KnownGlobal.Date => {
+            case KnownGlobal.Date =>
                 return None
-            }
 
             // new Set() 无参数时是纯的
             // new Set([...]) 是纯的
-            case KnownGlobal.Set => {
+            case KnownGlobal.Set =>
                 return None
-            }
 
             // new Headers() 无参数时是纯的
-            case KnownGlobal.Headers => {
+            case KnownGlobal.Headers =>
                 return None
-            }
 
             // new Response() 无参数时是纯的
-            case KnownGlobal.Response => {
+            case KnownGlobal.Response =>
                 return None
-            }
 
             // new TextEncoder()/TextDecoder() 无参数时是纯的
-            case KnownGlobal.TextEncoder | KnownGlobal.TextDecoder => {
+            case KnownGlobal.TextEncoder | KnownGlobal.TextDecoder =>
                 return None
-            }
 
             // new Map() 无参数时是纯的
             // new Map([[a, b], [c, d]]) 是纯的
-            case KnownGlobal.Map => {
+            case KnownGlobal.Map =>
                 return None
-            }
         }
     }
 }

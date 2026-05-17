@@ -77,7 +77,7 @@ public class ModuleTransformer {
         let exportsList = ArrayList<ExportInfo>()
         let body = StringBuilder()
 
-        while (pos < source.length) {
+        while (pos < source.size) {
             // 检测 require() 调用
             if (isRequireCall()) {
                 let reqInfo = parseRequire()
@@ -157,7 +157,7 @@ public class ModuleTransformer {
 
     /// 检测 require() 调用
     private func isRequireCall(): Bool {
-        if (pos + 7 > source.length) {
+        if (pos + 7 > source.size) {
             return false
         }
         if (!startsWithAt(source, pos, "require")) {
@@ -166,7 +166,7 @@ public class ModuleTransformer {
         // 确保前面不是标识符字符
         if (pos > 0) {
             let prev = source[Int64(pos - 1)]
-            let v = prev.value
+            let v = prev
             if ((v >= 97 && v <= 122) || (v >= 65 && v <= 90) ||
                 v == 95 || v == 36 || (v >= 48 && v <= 57)) {
                 return false
@@ -174,7 +174,7 @@ public class ModuleTransformer {
         }
         // 检查后面是 '('
         let afterRequire = pos + 7
-        if (afterRequire < source.length && source[Int64(afterRequire)] == Char('(')) {
+        if (afterRequire < source.size && source[Int64(afterRequire)] == UInt8(40)) {
             return true
         }
         return false
@@ -186,7 +186,7 @@ public class ModuleTransformer {
         skipWhitespace()
 
         // 跳过 '('
-        if (pos < source.length && source[Int64(pos)] == Char('(')) {
+        if (pos < source.size && source[Int64(pos)] == UInt8(40)) {
             pos += 1
         }
         skipWhitespace()
@@ -196,7 +196,7 @@ public class ModuleTransformer {
         skipWhitespace()
 
         // 跳过 ')'
-        if (pos < source.length && source[Int64(pos)] == Char(')')) {
+        if (pos < source.size && source[Int64(pos)] == UInt8(41)) {
             pos += 1
         }
 
@@ -205,7 +205,7 @@ public class ModuleTransformer {
         var isDestructured = false
         var isNamespace = false
 
-        if (pos < source.length && source[Int64(pos)] == Char('.')) {
+        if (pos < source.size && source[Int64(pos)] == UInt8(46)) {
             pos += 1
             property = readIdentifier()
         }
@@ -213,13 +213,7 @@ public class ModuleTransformer {
         // 生成唯一标识符
         let identifier = makeIdentifier(specifier)
 
-        return RequireInfo(
-            moduleSpecifier: specifier,
-            identifier: identifier,
-            isDestructured: property.length > 0,
-            property: property,
-            isNamespace: isNamespace
-        )
+        return RequireInfo(specifier, identifier, property.size > 0, property, isNamespace)
     }
 
     /// 检测 module.exports
@@ -233,27 +227,27 @@ public class ModuleTransformer {
         skipWhitespace()
 
         // 检查是 module.exports = 还是 module.exports.xxx =
-        if (pos < source.length && source[Int64(pos)] == Char('.')) {
+        if (pos < source.size && source[Int64(pos)] == UInt8(46)) {
             pos += 1
-            let prop = readIdentifier()
+            let propName = readIdentifier()
             skipWhitespace()
-            if (pos < source.length && source[Int64(pos)] == Char('=')) {
+            if (pos < source.size && source[Int64(pos)] == UInt8(61)) {
                 pos += 1
                 skipWhitespace()
                 let value = readUntilSemicolon()
-                return ExportInfo(name: prop, value: value, isDefault: false)
+                return ExportInfo(propName, value, false)
             }
         }
 
         // module.exports = ...
-        if (pos < source.length && source[Int64(pos)] == Char('=')) {
+        if (pos < source.size && source[Int64(pos)] == UInt8(61)) {
             pos += 1
             skipWhitespace()
             let value = readUntilSemicolon()
-            return ExportInfo(name: "", value: value, isDefault: true)
+            return ExportInfo("", value, true)
         }
 
-        return ExportInfo(name: "", value: "", isDefault: false)
+        return ExportInfo("", "", false)
     }
 
     /// 检测 exports.xxx = ...
@@ -264,7 +258,7 @@ public class ModuleTransformer {
         // 确保 "exports" 前面不是标识符字符
         if (pos > 0) {
             let prev = source[Int64(pos - 1)]
-            let v = prev.value
+            let v = prev
             if ((v >= 97 && v <= 122) || (v >= 65 && v <= 90) ||
                 v == 95 || v == 36 || (v >= 48 && v <= 57)) {
                 return false
@@ -279,14 +273,14 @@ public class ModuleTransformer {
         let name = readIdentifier()
         skipWhitespace()
 
-        if (pos < source.length && source[Int64(pos)] == Char('=')) {
+        if (pos < source.size && source[Int64(pos)] == UInt8(61)) {
             pos += 1
             skipWhitespace()
             let value = readUntilSemicolon()
-            return ExportInfo(name: name, value: value, isDefault: false)
+            return ExportInfo(name, value, false)
         }
 
-        return ExportInfo(name: name, value: "", isDefault: false)
+        return ExportInfo(name, "", false)
     }
 
     /// 检测 Object.defineProperty(exports, ...)
@@ -297,20 +291,20 @@ public class ModuleTransformer {
     /// 跳过 Object.defineProperty 调用
     private func skipDefineProperty(): Unit {
         // 找到匹配的右括号
-        while (pos < source.length && source[Int64(pos)] != Char('(')) {
+        while (pos < source.size && source[Int64(pos)] != UInt8(40)) {
             pos += 1
         }
-        if (pos < source.length) {
+        if (pos < source.size) {
             pos += 1
             var depth = 1
-            while (pos < source.length && depth > 0) {
-                if (source[Int64(pos)] == Char('(')) { depth += 1 }
-                else if (source[Int64(pos)] == Char(')')) { depth -= 1 }
+            while (pos < source.size && depth > 0) {
+                if (source[Int64(pos)] == UInt8(40)) { depth += 1 }
+                else if (source[Int64(pos)] == UInt8(41)) { depth -= 1 }
                 pos += 1
             }
         }
         // 跳过分号
-        if (pos < source.length && source[Int64(pos)] == Char(';')) {
+        if (pos < source.size && source[Int64(pos)] == UInt8(59)) {
             pos += 1
         }
     }
@@ -339,7 +333,7 @@ public class ModuleTransformer {
         let exports = ArrayList<ExportDecl>()
         let body = StringBuilder()
 
-        while (pos < source.length) {
+        while (pos < source.size) {
             // 检测 import 声明
             if (isImportStatement()) {
                 let imp = parseImportStatement()
@@ -365,18 +359,19 @@ public class ModuleTransformer {
         // 生成 require() 调用
         for (imp in imports) {
             if (imp.isDefault) {
-                if (imp.defaultName.length > 0) {
+                if (imp.defaultName.size > 0) {
                     sb.append("const ${imp.defaultName} = require(\"${imp.moduleSpecifier}\").default;\n")
                 }
             } else if (imp.isNamespace) {
                 sb.append("const ${imp.namespaceName} = require(\"${imp.moduleSpecifier}\");\n")
             } else if (imp.names.size > 0) {
-                let names = ArrayList<String>()
-                for (n in imp.names) {
-                    names.append(n)
+                var names = ""
+                for (i in 0..imp.names.size) {
+                    if (i > 0) { names += ", " }
+                    names += imp.names[Int64(i)]
                 }
-                sb.append("const { ${String.fromCString(names.toArray())} } = require(\"${imp.moduleSpecifier}\");\n")
-            } else if (imp.defaultName.length > 0) {
+                sb.append("const { ${names} } = require(\"${imp.moduleSpecifier}\");\n")
+            } else if (imp.defaultName.size > 0) {
                 sb.append("const ${imp.defaultName} = require(\"${imp.moduleSpecifier}\");\n")
             }
         }
@@ -415,7 +410,7 @@ public class ModuleTransformer {
         // 确保 "import" 前面不是标识符字符
         if (pos > 0) {
             let prev = source[Int64(pos - 1)]
-            let v = prev.value
+            let v = prev
             if ((v >= 97 && v <= 122) || (v >= 65 && v <= 90) ||
                 v == 95 || v == 36 || (v >= 48 && v <= 57)) {
                 return false
@@ -423,9 +418,9 @@ public class ModuleTransformer {
         }
         // 排除 dynamic import: import("mod") 或 import.meta
         let afterImport = pos + 7
-        if (afterImport < source.length) {
+        if (afterImport < source.size) {
             let ch = source[Int64(afterImport)]
-            if (ch == Char('(') || (ch == Char('.') && afterImport + 4 < source.length &&
+            if (ch == UInt8(40) || (ch == UInt8(46) && afterImport + 4 < source.size &&
                 startsWithAt(source, afterImport, ".meta"))) {
                 return false
             }
@@ -441,7 +436,7 @@ public class ModuleTransformer {
         let decl = ImportDecl()
 
         // 检测: import "mod" (副作用导入)
-        if (source[Int64(pos)] == Char('"') || source[Int64(pos)] == Char('\'')) {
+        if (source[Int64(pos)] == UInt8(34) || source[Int64(pos)] == UInt8(39)) {
             decl.moduleSpecifier = readStringLiteral()
             skipWhitespace()
             skipSemicolon()
@@ -453,12 +448,12 @@ public class ModuleTransformer {
         // 检测: import * as name from "mod"
         // 检测: import name, { a, b } from "mod"
 
-        if (source[Int64(pos)] == Char('{')) {
+        if (source[Int64(pos)] == UInt8(123)) {
             // 命名导入: import { a, b as c } from "mod"
             pos += 1  // skip '{'
             skipWhitespace()
             let names = ArrayList<String>()
-            while (pos < source.length && source[Int64(pos)] != Char('}')) {
+            while (pos < source.size && source[Int64(pos)] != UInt8(125)) {
                 skipWhitespace()
                 let name = readIdentifier()
                 names.append(name)
@@ -471,12 +466,12 @@ public class ModuleTransformer {
                     // 保留原始名称用于 import
                     skipWhitespace()
                 }
-                if (pos < source.length && source[Int64(pos)] == Char(',')) {
+                if (pos < source.size && source[Int64(pos)] == UInt8(44)) {
                     pos += 1
                 }
                 skipWhitespace()
             }
-            if (pos < source.length && source[Int64(pos)] == Char('}')) {
+            if (pos < source.size && source[Int64(pos)] == UInt8(125)) {
                 pos += 1
             }
             decl.names = names
@@ -497,14 +492,14 @@ public class ModuleTransformer {
             skipWhitespace()
 
             // 检查是否有额外的命名导入: import name, { a, b } from "mod"
-            if (pos < source.length && source[Int64(pos)] == Char(',')) {
+            if (pos < source.size && source[Int64(pos)] == UInt8(44)) {
                 pos += 1
                 skipWhitespace()
-                if (source[Int64(pos)] == Char('{')) {
+                if (source[Int64(pos)] == UInt8(123)) {
                     pos += 1
                     skipWhitespace()
                     let names = ArrayList<String>()
-                    while (pos < source.length && source[Int64(pos)] != Char('}')) {
+                    while (pos < source.size && source[Int64(pos)] != UInt8(125)) {
                         skipWhitespace()
                         let name = readIdentifier()
                         names.append(name)
@@ -515,12 +510,12 @@ public class ModuleTransformer {
                             readIdentifier()
                             skipWhitespace()
                         }
-                        if (pos < source.length && source[Int64(pos)] == Char(',')) {
+                        if (pos < source.size && source[Int64(pos)] == UInt8(44)) {
                             pos += 1
                         }
                         skipWhitespace()
                     }
-                    if (pos < source.length && source[Int64(pos)] == Char('}')) {
+                    if (pos < source.size && source[Int64(pos)] == UInt8(125)) {
                         pos += 1
                     }
                     decl.names = names
@@ -560,7 +555,7 @@ public class ModuleTransformer {
         }
         if (pos > 0) {
             let prev = source[Int64(pos - 1)]
-            let v = prev.value
+            let v = prev
             if ((v >= 97 && v <= 122) || (v >= 65 && v <= 90) ||
                 v == 95 || v == 36 || (v >= 48 && v <= 57)) {
                 return false
@@ -588,10 +583,10 @@ public class ModuleTransformer {
         }
 
         // export { a, b, c }
-        if (source[Int64(pos)] == Char('{')) {
+        if (source[Int64(pos)] == UInt8(123)) {
             pos += 1
             skipWhitespace()
-            while (pos < source.length && source[Int64(pos)] != Char('}')) {
+            while (pos < source.size && source[Int64(pos)] != UInt8(125)) {
                 skipWhitespace()
                 let name = readIdentifier()
                 decl.names.append(name)
@@ -602,12 +597,12 @@ public class ModuleTransformer {
                     readIdentifier()
                     skipWhitespace()
                 }
-                if (pos < source.length && source[Int64(pos)] == Char(',')) {
+                if (pos < source.size && source[Int64(pos)] == UInt8(44)) {
                     pos += 1
                 }
                 skipWhitespace()
             }
-            if (pos < source.length && source[Int64(pos)] == Char('}')) {
+            if (pos < source.size && source[Int64(pos)] == UInt8(125)) {
                 pos += 1
             }
             skipWhitespace()
@@ -631,7 +626,7 @@ public class ModuleTransformer {
 
         // 输出声明 (去掉 export 关键字)
         output.append("${keyword} ${name}")
-        if (pos < source.length && source[Int64(pos)] == Char('=')) {
+        if (pos < source.size && source[Int64(pos)] == UInt8(61)) {
             pos += 1
             skipWhitespace()
             let value = readUntilSemicolon()
@@ -639,12 +634,16 @@ public class ModuleTransformer {
         } else if (keyword == "function" || keyword == "class") {
             // 函数/类体
             let bodyStart = pos
-            while (pos < source.length && source[Int64(pos)] != Char('{')) {
+            while (pos < source.size && source[Int64(pos)] != UInt8(123)) {
                 pos += 1
             }
-            if (pos < source.length) {
+            if (pos < source.size) {
                 let endBrace = findMatchingBrace(pos + 1)
-                output.append(source.substring(Int64(bodyStart), Int64(endBrace + 1)))
+                var i = bodyStart
+                while (i <= endBrace && i < source.size) {
+                    output.append(source[Int64(i)])
+                    i += 1
+                }
                 pos = endBrace + 1
             }
         }
@@ -684,9 +683,9 @@ public class ModuleTransformer {
     // ========================================================================
 
     private func skipWhitespace(): Unit {
-        while (pos < source.length) {
+        while (pos < source.size) {
             let ch = source[Int64(pos)]
-            if (ch == Char(' ') || ch == Char('\t') || ch == Char('\n') || ch == Char('\r')) {
+            if (ch == UInt8(32) || ch == UInt8(9) || ch == UInt8(10) || ch == UInt8(13)) {
                 pos += 1
             } else {
                 break
@@ -696,9 +695,9 @@ public class ModuleTransformer {
 
     private func readIdentifier(): String {
         let sb = StringBuilder()
-        while (pos < source.length) {
+        while (pos < source.size) {
             let ch = source[Int64(pos)]
-            let v = ch.value
+            let v = ch
             if ((v >= 97 && v <= 122) || (v >= 65 && v <= 90) ||
                 v == 95 || v == 36 || (v >= 48 && v <= 57)) {
                 sb.append(ch)
@@ -711,20 +710,20 @@ public class ModuleTransformer {
     }
 
     private func readStringLiteral(): String {
-        if (pos >= source.length) {
+        if (pos >= source.size) {
             return ""
         }
-        let quote = source[Int64(pos)]
+        let quoteChar = source[Int64(pos)]
         pos += 1
         let sb = StringBuilder()
-        while (pos < source.length) {
+        while (pos < source.size) {
             let ch = source[Int64(pos)]
-            if (ch == Char('\\') && pos + 1 < source.length) {
+            if (ch == UInt8(92) && pos + 1 < source.size) {
                 sb.append(ch)
                 pos += 1
                 sb.append(source[Int64(pos)])
                 pos += 1
-            } else if (ch == quote) {
+            } else if (ch == quoteChar) {
                 pos += 1
                 break
             } else {
@@ -738,29 +737,29 @@ public class ModuleTransformer {
     private func readUntilSemicolon(): String {
         let sb = StringBuilder()
         var depth = 0
-        while (pos < source.length) {
+        while (pos < source.size) {
             let ch = source[Int64(pos)]
-            if (ch == Char('(') || ch == Char('[') || ch == Char('{')) {
+            if (ch == UInt8(40) || ch == UInt8(91) || ch == UInt8(123)) {
                 depth += 1
                 sb.append(ch)
                 pos += 1
-            } else if (ch == Char(')') || ch == Char(']') || ch == Char('}')) {
+            } else if (ch == UInt8(41) || ch == UInt8(93) || ch == UInt8(125)) {
                 if (depth > 0) { depth -= 1 }
                 sb.append(ch)
                 pos += 1
-            } else if (depth == 0 && (ch == Char(';') || ch == Char('\n'))) {
-                if (ch == Char(';')) { pos += 1 }
+            } else if (depth == 0 && (ch == UInt8(59) || ch == UInt8(10))) {
+                if (ch == UInt8(59)) { pos += 1 }
                 break
             } else {
                 sb.append(ch)
                 pos += 1
             }
         }
-        return sb.toString().trim()
+        return sb.toString()
     }
 
     private func skipSemicolon(): Unit {
-        if (pos < source.length && source[Int64(pos)] == Char(';')) {
+        if (pos < source.size && source[Int64(pos)] == UInt8(59)) {
             pos += 1
         }
     }
@@ -768,16 +767,16 @@ public class ModuleTransformer {
     private func findMatchingBrace(start: Int64): Int64 {
         var depth = 1
         var i = start
-        while (i < source.length && depth > 0) {
+        while (i < source.size && depth > 0) {
             let ch = source[Int64(i)]
-            if (ch == Char('{')) { depth += 1 }
-            else if (ch == Char('}')) { depth -= 1 }
-            else if (ch == Char('\'') || ch == Char('"') || ch == Char('`')) {
+            if (ch == UInt8(123)) { depth += 1 }
+            else if (ch == UInt8(125)) { depth -= 1 }
+            else if (ch == UInt8(39) || ch == UInt8(34) || ch == UInt8(96)) {
                 // 跳过字符串
                 let q = ch
                 i += 1
-                while (i < source.length && source[Int64(i)] != q) {
-                    if (source[Int64(i)] == Char('\\')) { i += 1 }
+                while (i < source.size && source[Int64(i)] != q) {
+                    if (source[Int64(i)] == UInt8(92)) { i += 1 }
                     i += 1
                 }
             }
@@ -791,11 +790,15 @@ public class ModuleTransformer {
         let sb = StringBuilder()
         var capitalize = true
         for (ch in specifier) {
-            let v = ch.value
+            let v = ch
             if ((v >= 97 && v <= 122) || (v >= 65 && v <= 90) ||
                 (v >= 48 && v <= 57)) {
                 if (capitalize) {
-                    sb.append(ch.toUpperCase())
+                    if (ch >= UInt8(97) && ch <= UInt8(122)) {
+                        sb.append(ch - UInt8(32))
+                    } else {
+                        sb.append(ch)
+                    }
                     capitalize = false
                 } else {
                     sb.append(ch)
@@ -808,10 +811,10 @@ public class ModuleTransformer {
     }
 
     private static func startsWithAt(s: String, index: Int64, prefix: String): Bool {
-        if (index + prefix.length > s.length) {
+        if (index + prefix.size > s.size) {
             return false
         }
-        for (i in 0..prefix.length) {
+        for (i in 0..prefix.size) {
             if (s[Int64(index + i)] != prefix[Int64(i)]) {
                 return false
             }

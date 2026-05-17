@@ -45,14 +45,12 @@ public func generateCodeForLazyExportExt(linker: LinkerContext,
 
     // 根据 exports_kind 生成不同的输出
     match (exportsKind) {
-        case ExportsKind.CJS => {
+        case ExportsKind.CJS =>
             // CommonJS: module.exports = expr
             generateCJSLazyExport(linker, sourceIndex, part, moduleRef)
-        }
-        case ExportsKind.ESM | ExportsKind.None => {
+        case ExportsKind.ESM | ExportsKind.None =>
             // ESM: 分解为单独的 export 语句
             generateESMLazyExports(linker, sourceIndex, part, parts, moduleRef)
-        }
     }
 }
 
@@ -131,7 +129,7 @@ private func visitComposes(cssAst: CssStyleSheet, composes: CssComposes,
         // 如果 composes 来自导入
         if (composes.from != None) {
             match (composes.from) {
-                case CssComposeFrom.ImportRecordIndex(idx) => {
+                case CssComposeFrom.ImportRecordIndex(idx) =>
                     // 从其他 CSS 文件导入的名称
                     let importRecords = allImportRecords[sourceIndex]
                     if (idx < importRecords.size) {
@@ -150,8 +148,7 @@ private func visitComposes(cssAst: CssStyleSheet, composes: CssComposes,
                             }
                         }
                     }
-                }
-                case CssComposeFrom.LocalPath(path) => {
+                case CssComposeFrom.LocalPath(path) =>
                     // 本地名称
                     let nameEntry = cssAst.localScope.get(name.v)
                     if (nameEntry != None) {
@@ -160,7 +157,6 @@ private func visitComposes(cssAst: CssStyleSheet, composes: CssComposes,
                             tail: " "
                         ))
                     }
-                }
             }
         } else {
             // 当前文件中的 compose
@@ -215,13 +211,13 @@ private func generateESMLazyExports(linker: LinkerContext, sourceIndex: Int64,
     part.stmts.clear()
 
     // 获取 lazy export 表达式
-    let expr = part.stmts.size > 0 ? part.stmts[0].expr : None
+    let expr = if (part.stmts.size > 0) { part.stmts[0].expr } else { None }
     match (expr) {
-        case Some(e) => {
+        case Some(e) =>
             // 如果是对象表达式，为每个属性生成独立的 export
             if (e.tag == ExprTag.Object) {
-                for (prop in e.properties) {
-                    let name = prop.key
+                for (p in e.properties) {
+                    let name = p.key
                     if (name.length == 0 || name == "default" || name == "__esModule") {
                         continue
                     }
@@ -237,7 +233,7 @@ private func generateESMLazyExports(linker: LinkerContext, sourceIndex: Int64,
                     let exportStmt = Stmt()
                     exportStmt.tag = StmtTag.Export
                     exportStmt.exportNames.append(name)
-                    exportStmt.exportValue = Some(prop.value)
+                    exportStmt.exportValue = Some(p.value)
                     newPart.stmts.append(exportStmt)
                     parts.append(newPart)
                 }
@@ -254,7 +250,6 @@ private func generateESMLazyExports(linker: LinkerContext, sourceIndex: Int64,
             defaultStmt.exportValue = Some(e)
             defaultPart.stmts.append(defaultStmt)
             parts.append(defaultPart)
-        }
         case None => ()
     }
 }
@@ -331,17 +326,6 @@ private func getAllSources(linker: LinkerContext): ArrayList<InputFile> {
     return ArrayList<InputFile>()
 }
 
-// ============================================================================
-// 辅助类型
-// ============================================================================
-
-/// 导出类型
-public enum ExportsKind {
-    | ESM
-    | CJS
-    | None
-}
-
 /// 模板部分 (用于 CSS module 模板字符串生成)
 public class TemplatePart {
     public var value: String
@@ -361,16 +345,5 @@ public class CssLocalScopeEntry {
     public init(ref: Int64, loc: Int64) {
         this.ref = ref
         this.loc = loc
-    }
-}
-
-/// 符号 (简化)
-public class Symbol {
-    public var originalName: String
-    public var kind: SymbolKind
-
-    public init(originalName: String, kind: SymbolKind) {
-        this.originalName = originalName
-        this.kind = kind
     }
 }

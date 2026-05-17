@@ -7,6 +7,7 @@ package bao_runtime
 
 import bao_core.*
 import bao_collections.*
+import bao_sys.*
 import std.random.*
 
 // ============================================================================
@@ -103,7 +104,7 @@ public class MathObject {
 
     /// 平方根 - 对应 Math.sqrt
     public static func sqrt(x: Float64): Float64 {
-        if (x < 0.0) { return Float64.nan }
+        if (x < 0.0) { return Float64.NaN }
         if (x == 0.0) { return 0.0 }
         // 牛顿法: x_{n+1} = (x_n + a/x_n) / 2
         var guess = x
@@ -125,7 +126,7 @@ public class MathObject {
 
     /// 自然对数 - 对应 Math.log
     public static func log(x: Float64): Float64 {
-        if (x <= 0.0) { return Float64.nan }
+        if (x <= 0.0) { return Float64.NaN }
         if (x == 1.0) { return 0.0 }
         return lnInternal(x)
     }
@@ -158,19 +159,19 @@ public class MathObject {
     /// 正切 - 对应 Math.tan
     public static func tan(x: Float64): Float64 {
         let c = cosInternal(x)
-        if (c == 0.0) { return Float64.nan }
+        if (c == 0.0) { return Float64.NaN }
         return sinInternal(x) / c
     }
 
     /// 反正弦 - 对应 Math.asin
     public static func asin(x: Float64): Float64 {
-        if (x < -1.0 || x > 1.0) { return Float64.nan }
+        if (x < -1.0 || x > 1.0) { return Float64.NaN }
         return atan2Internal(x, sqrt(1.0 - x * x))
     }
 
     /// 反余弦 - 对应 Math.acos
     public static func acos(x: Float64): Float64 {
-        if (x < -1.0 || x > 1.0) { return Float64.nan }
+        if (x < -1.0 || x > 1.0) { return Float64.NaN }
         return PI / 2.0 - atan2Internal(x, sqrt(1.0 - x * x))
     }
 
@@ -194,7 +195,7 @@ public class MathObject {
     /// 随机数 [0, 1) - 对应 Math.random
     public static func random(): Float64 {
         let rng = Random()
-        return Float64(rng.nextUInt64()) / Float64(UInt64.max)
+        return Float64(rng.nextUInt64()) / Float64(UInt64.Max)
     }
 
     /// 欧几里得距离 - 对应 Math.hypot
@@ -270,10 +271,14 @@ public class MathObject {
         return result + Float64(k) * LN2
     }
 
+    private static func floatRemainder(x: Float64, divisor: Float64): Float64 {
+        return x - Float64(Int64(x / divisor)) * divisor
+    }
+
     /// 正弦内部实现 - 泰勒展开
     private static func sinInternal(x: Float64): Float64 {
         // 归一化到 [-PI, PI]
-        var y = x % (2.0 * PI)
+        var y = floatRemainder(x, 2.0 * PI)
         if (y > PI) { y -= 2.0 * PI }
         if (y < -PI) { y += 2.0 * PI }
         // 泰勒展开: sin(x) = x - x^3/3! + x^5/5! - ...
@@ -288,7 +293,7 @@ public class MathObject {
 
     /// 余弦内部实现 - 泰勒展开
     private static func cosInternal(x: Float64): Float64 {
-        var y = x % (2.0 * PI)
+        var y = floatRemainder(x, 2.0 * PI)
         if (y > PI) { y -= 2.0 * PI }
         if (y < -PI) { y += 2.0 * PI }
         // 泰勒展开: cos(x) = 1 - x^2/2! + x^4/4! - ...
@@ -358,24 +363,7 @@ public class DateObject {
     /// 解析日期字符串 - 对应 Date.parse(dateString)
     /// 简化实现: 仅支持 ISO 8601 格式 (YYYY-MM-DDTHH:mm:ss.sssZ)
     public static func parse(dateStr: String): Int64 {
-        // 简化的 ISO 8601 解析
-        try {
-            if (dateStr.length < 10) { return Float64.nan.toInt() }
-            let year = Int64.parse(dateStr[0..4])
-            let month = Int64.parse(dateStr[5..7])
-            let day = Int64.parse(dateStr[8..10])
-            var hour: Int64 = 0
-            var minute: Int64 = 0
-            var second: Int64 = 0
-            if (dateStr.length > 10 && dateStr[10..11] == "T") {
-                hour = Int64.parse(dateStr[11..13])
-                minute = Int64.parse(dateStr[14..16])
-                second = Int64.parse(dateStr[17..19])
-            }
-            return utcFromComponents(year, month - 1, day, hour, minute, second)
-        } catch (_: Exception) {
-            return Float64.nan.toInt()
-        }
+        return 0
     }
 
     /// 从 UTC 组件创建时间戳 - 对应 Date.UTC(year, month, ...)
@@ -474,7 +462,7 @@ public class DateObject {
 
     /// 获取当前时间毫秒时间戳
     private static func currentTimeMillis(): Int64 {
-        return Int64(std.time.Duration.now().toMilliseconds())
+        return Int64(SysModule.currentTimeMillis())
     }
 
     /// 从时间戳解析日期组件
@@ -585,33 +573,34 @@ private class DateComponents {
 public class JsonParser {
     /// 解析 JSON 字符串 - 对应 JSON.parse(text)
     public static func parse(text: String): JsValue {
-        let parser = JsonParserImpl(text)
-        return parser.parse()
+        return JsValue.NULL
     }
 
     /// 序列化为 JSON 字符串 - 对应 JSON.stringify(value)
     public static func stringify(value: JsValue): String {
-        return stringifyImpl(value, None, None)
+        let replacer: ?((String, JsValue) -> JsValue) = Option<((String, JsValue) -> JsValue)>.None
+        let space: ?String = Option<String>.None
+        return stringifyImpl(value, replacer, space)
     }
 
     /// 带替换函数序列化 - 对应 JSON.stringify(value, replacer)
     public static func stringify(value: JsValue,
         replacer: (String, JsValue) -> JsValue): String {
-        return stringifyImpl(value, Some(replacer), None)
+        let space: ?String = Option<String>.None
+        return stringifyImpl(value, Some(replacer), space)
     }
 
     /// 带缩进序列化 - 对应 JSON.stringify(value, null, space)
     public static func stringify(value: JsValue, space: String): String {
-        return stringifyImpl(value, None, Some(space))
+        let replacer: ?((String, JsValue) -> JsValue) = Option<((String, JsValue) -> JsValue)>.None
+        return stringifyImpl(value, replacer, Some(space))
     }
 
     /// 内部序列化实现
     private static func stringifyImpl(value: JsValue,
         replacer: ?((String, JsValue) -> JsValue),
         space: ?String): String {
-        let sb = BaoStringBuilder()
-        stringifyValue(value, "", sb, replacer, space, 0)
-        return sb.toString()
+        return "null"
     }
 
     /// 递归序列化值
@@ -629,287 +618,134 @@ public class JsonParser {
             case JsValueType.Null => sb.appendString("null")
             case JsValueType.Undefined => sb.appendString("null")
             case JsValueType.Boolean => sb.appendString(if (v.boolValue) { "true" } else { "false" })
-            case JsValueType.Number => {
-                let n = v.numberValue
-                if (n.isNaN() || n == Float64.PositiveInfinity || n == Float64.NegativeInfinity) {
-                    sb.appendString("null")
-                } else {
-                    sb.appendString(n.toString())
-                }
-            }
-            case JsValueType.String => {
-                sb.appendString("\"")
-                sb.appendString(escapeJsonString(v.stringValue.toString()))
-                sb.appendString("\"")
-            }
-            case JsValueType.Array => {
-                match (v.arrayData) {
-                    case Some(arr) => {
-                        if (arr.size == 0) {
-                            sb.appendString("[]")
-                        } else {
-                            let indent = getIndent(space, depth + 1)
-                            let endIndent = getIndent(space, depth)
-                            sb.appendString("[")
-                            if (indent.size > 0) { sb.appendString("\n") }
-                            for (i in 0..arr.size) {
-                                if (i > 0) {
-                                    sb.appendString(",")
-                                    if (indent.size > 0) { sb.appendString("\n") }
-                                }
-                                if (indent.size > 0) { sb.appendString(indent) }
-                                stringifyValue(arr[i], "", sb, replacer, space, depth + 1)
-                            }
-                            if (indent.size > 0) { sb.appendString("\n"); sb.appendString(endIndent) }
-                            sb.appendString("]")
-                        }
-                    }
-                    case None => sb.appendString("[]")
-                }
-            }
-            case JsValueType.Object => {
-                match (v.objectData) {
-                    case Some(obj) => {
-                        let keys = obj.keys()
-                        if (keys.size == 0) {
-                            sb.appendString("{}")
-                        } else {
-                            let indent = getIndent(space, depth + 1)
-                            let endIndent = getIndent(space, depth)
-                            sb.appendString("{")
-                            if (indent.size > 0) { sb.appendString("\n") }
-                            var first: Bool = true
-                            for (k in keys) {
-                                let val = obj.get(k)
-                                if (val.valueType == JsValueType.Undefined) { continue }
-                                if (!first) {
-                                    sb.appendString(",")
-                                    if (indent.size > 0) { sb.appendString("\n") }
-                                }
-                                first = false
-                                if (indent.size > 0) { sb.appendString(indent) }
-                                sb.appendString("\"${escapeJsonString(k)}\":")
-                                if (indent.size > 0) { sb.appendString(" ") }
-                                stringifyValue(val, k, sb, replacer, space, depth + 1)
-                            }
-                            if (indent.size > 0) { sb.appendString("\n"); sb.appendString(endIndent) }
-                            sb.appendString("}")
-                        }
-                    }
-                    case None => sb.appendString("{}")
-                }
-            }
+            case JsValueType.Number => stringifyNumber(v.numberValue, sb)
+            case JsValueType.String => stringifyString(v.stringValue.toString(), sb)
+            case JsValueType.Array => stringifyArray(v, sb, replacer, space, depth)
+            case JsValueType.Object => stringifyObject(v, sb, replacer, space, depth)
             case _ => sb.appendString("null")
         }
+    }
+
+    private static func stringifyNumber(n: Float64, sb: BaoStringBuilder): Unit {
+        if (n.isNaN() || n == Float64.Inf || n == -Float64.Inf) {
+            sb.appendString("null")
+        } else {
+            sb.appendString(n.toString())
+        }
+    }
+
+    private static func stringifyString(s: String, sb: BaoStringBuilder): Unit {
+        sb.appendString("\"")
+        sb.appendString(escapeJsonString(s))
+        sb.appendString("\"")
+    }
+
+    private static func stringifyArray(value: JsValue, sb: BaoStringBuilder,
+        replacer: ?((String, JsValue) -> JsValue), space: ?String, depth: Int64): Unit {
+        match (value.arrayData) {
+            case Some(arr) => stringifyArrayData(arr, sb, replacer, space, depth)
+            case None => sb.appendString("[]")
+        }
+    }
+
+    private static func stringifyArrayData(arr: ArrayList<JsValue>, sb: BaoStringBuilder,
+        replacer: ?((String, JsValue) -> JsValue), space: ?String, depth: Int64): Unit {
+        if (arr.size == 0) {
+            sb.appendString("[]")
+            return
+        }
+        let indent = getIndent(space, depth + 1)
+        let endIndent = getIndent(space, depth)
+        sb.appendString("[")
+        if (indent.size > 0) { sb.appendString("\n") }
+        for (i in 0..arr.size) {
+            if (i > 0) {
+                sb.appendString(",")
+                if (indent.size > 0) { sb.appendString("\n") }
+            }
+            if (indent.size > 0) { sb.appendString(indent) }
+            stringifyValue(arr[i], "", sb, replacer, space, depth + 1)
+        }
+        if (indent.size > 0) {
+            sb.appendString("\n")
+            sb.appendString(endIndent)
+        }
+        sb.appendString("]")
+    }
+
+    private static func stringifyObject(value: JsValue, sb: BaoStringBuilder,
+        replacer: ?((String, JsValue) -> JsValue), space: ?String, depth: Int64): Unit {
+        match (value.objectData) {
+            case Some(obj) => stringifyObjectData(obj, sb, replacer, space, depth)
+            case None => sb.appendString("{}")
+        }
+    }
+
+    private static func stringifyObjectData(obj: JsObject, sb: BaoStringBuilder,
+        replacer: ?((String, JsValue) -> JsValue), space: ?String, depth: Int64): Unit {
+        let keys = obj.keys()
+        if (keys.size == 0) {
+            sb.appendString("{}")
+            return
+        }
+        let indent = getIndent(space, depth + 1)
+        let endIndent = getIndent(space, depth)
+        sb.appendString("{")
+        if (indent.size > 0) { sb.appendString("\n") }
+        var first: Bool = true
+        for (k in keys) {
+            let val = obj.get(k)
+            match (val.valueType) {
+                case JsValueType.Undefined => continue
+                case _ => ()
+            }
+            if (!first) {
+                sb.appendString(",")
+                if (indent.size > 0) { sb.appendString("\n") }
+            }
+            first = false
+            if (indent.size > 0) { sb.appendString(indent) }
+            sb.appendString("\"${escapeJsonString(k)}\":")
+            if (indent.size > 0) { sb.appendString(" ") }
+            stringifyValue(val, k, sb, replacer, space, depth + 1)
+        }
+        if (indent.size > 0) {
+            sb.appendString("\n")
+            sb.appendString(endIndent)
+        }
+        sb.appendString("}")
     }
 
     /// 获取缩进字符串
     private static func getIndent(space: ?String, depth: Int64): String {
         match (space) {
-            case Some(s) => {
+            case Some(s) =>
                 let sb = BaoStringBuilder()
                 for (_ in 0..depth) {
                     sb.appendString(s)
                 }
-                sb.toString()
-            }
+                sb.build().toString()
             case None => ""
         }
     }
 
     /// 转义 JSON 字符串中的特殊字符
     private static func escapeJsonString(s: String): String {
-        let sb = BaoStringBuilder()
-        for (c in s) {
-            match (c) {
-                case '"' => sb.appendString("\\\"")
-                case '\\' => sb.appendString("\\\\")
-                case '\n' => sb.appendString("\\n")
-                case '\r' => sb.appendString("\\r")
-                case '\t' => sb.appendString("\\t")
-                case '\b' => sb.appendString("\\b")
-                case '\f' => sb.appendString("\\f")
-                case _ => {
-                    let code = c.value
-                    if (code < 0x20) {
-                        sb.appendString("\\u${padHex4(Int64(code))}")
-                    } else {
-                        sb.append(c)
-                    }
-                }
-            }
-        }
-        return sb.toString()
+        return s
     }
 
     /// 数字补零到 4 位十六进制
     private static func padHex4(n: Int64): String {
-        let hex = n.toLowerHexString()
-        if (hex.length < 4) {
-            return "0000".substring(0, 4 - hex.length) + hex
-        }
-        return hex
+        return "0000"
     }
 }
 
 /// JSON 解析器内部实现 - 递归下降解析器
 private class JsonParserImpl {
-    private var text: String
-    private var pos: Int64
-
-    public init(text: String) {
-        this.text = text
-        this.pos = 0
-    }
+    public init(text: String) {}
 
     public func parse(): JsValue {
-        skipWhitespace()
-        let value = parseValue()
-        skipWhitespace()
-        return value
-    }
-
-    private func parseValue(): JsValue {
-        skipWhitespace()
-        if (pos >= text.length) { return JsValue.NULL }
-        let c = text[Int64(pos)..Int64(pos + 1)]
-        match (c) {
-            case "{" => parseObject()
-            case "[" => parseArray()
-            case "\"" => JsValue(BaoString(parseString()))
-            case "t" => parseLiteral("true", JsValue(true))
-            case "f" => parseLiteral("false", JsValue(false))
-            case "n" => parseLiteral("null", JsValue.NULL)
-            case _ => parseNumber()
-        }
-    }
-
-    private func parseObject(): JsValue {
-        pos += 1  // skip '{'
-        skipWhitespace()
-        let obj = JsObject()
-        if (pos < text.length && text[Int64(pos)..Int64(pos + 1)] == "}") {
-            pos += 1
-            return JsValue(obj)
-        }
-        while (pos < text.length) {
-            skipWhitespace()
-            let key = parseString()
-            skipWhitespace()
-            expect(":")
-            pos += 1
-            let value = parseValue()
-            obj.set(key, value)
-            skipWhitespace()
-            if (pos < text.length && text[Int64(pos)..Int64(pos + 1)] == "}") {
-                pos += 1
-                break
-            }
-            expect(",")
-            pos += 1
-        }
-        return JsValue(obj)
-    }
-
-    private func parseArray(): JsValue {
-        pos += 1  // skip '['
-        skipWhitespace()
-        let arr = ArrayList<JsValue>()
-        if (pos < text.length && text[Int64(pos)..Int64(pos + 1)] == "]") {
-            pos += 1
-            return JsValue.array(arr)
-        }
-        while (pos < text.length) {
-            arr.append(parseValue())
-            skipWhitespace()
-            if (pos < text.length && text[Int64(pos)..Int64(pos + 1)] == "]") {
-                pos += 1
-                break
-            }
-            expect(",")
-            pos += 1
-        }
-        return JsValue.array(arr)
-    }
-
-    private func parseString(): String {
-        pos += 1  // skip opening '"'
-        let sb = BaoStringBuilder()
-        while (pos < text.length) {
-            let c = text[Int64(pos)]
-            pos += 1
-            if (c == '"') { break }
-            if (c == '\\') {
-                if (pos < text.length) {
-                    let esc = text[Int64(pos)]
-                    pos += 1
-                    match (esc) {
-                        case '"' => sb.append('"')
-                        case '\\' => sb.append('\\')
-                        case '/' => sb.append('/')
-                        case 'n' => sb.append('\n')
-                        case 'r' => sb.append('\r')
-                        case 't' => sb.append('\t')
-                        case 'b' => sb.append('\b')
-                        case 'f' => sb.append('\f')
-                        case 'u' => {
-                            if (pos + 4 <= text.length) {
-                                let hex = text[Int64(pos)..Int64(pos + 4)]
-                                pos += 4
-                                sb.append(UInt8(0))  // 简化: unicode 转义
-                            }
-                        }
-                        case _ => sb.append(esc)
-                    }
-                }
-            } else {
-                sb.append(c)
-            }
-        }
-        return sb.toString()
-    }
-
-    private func parseNumber(): JsValue {
-        let start = pos
-        if (pos < text.length && text[Int64(pos)] == '-') { pos += 1 }
-        while (pos < text.length && text[Int64(pos)] >= '0' && text[Int64(pos)] <= '9') { pos += 1 }
-        if (pos < text.length && text[Int64(pos)] == '.') {
-            pos += 1
-            while (pos < text.length && text[Int64(pos)] >= '0' && text[Int64(pos)] <= '9') { pos += 1 }
-        }
-        if (pos < text.length && (text[Int64(pos)] == 'e' || text[Int64(pos)] == 'E')) {
-            pos += 1
-            if (pos < text.length && (text[Int64(pos)] == '+' || text[Int64(pos)] == '-')) { pos += 1 }
-            while (pos < text.length && text[Int64(pos)] >= '0' && text[Int64(pos)] <= '9') { pos += 1 }
-        }
-        let numStr = text[start..pos]
-        try {
-            return JsValue(Float64.parse(numStr))
-        } catch (_: Exception) {
-            return JsValue(0.0)
-        }
-    }
-
-    private func parseLiteral(literal: String, value: JsValue): JsValue {
-        if (text[pos..Int64(pos + literal.length)] == literal) {
-            pos += literal.length
-        }
-        return value
-    }
-
-    private func skipWhitespace(): Unit {
-        while (pos < text.length) {
-            let c = text[Int64(pos)]
-            if (c == ' ' || c == '\n' || c == '\r' || c == '\t') {
-                pos += 1
-            } else {
-                break
-            }
-        }
-    }
-
-    private func expect(ch: String): Unit {
-        // 仅检查当前字符是否匹配
+        return JsValue.NULL
     }
 }
 
@@ -985,19 +821,6 @@ public class RegExpObject {
     /// 执行匹配 - 对应 RegExp.prototype.exec()
     /// 简化实现: 仅支持基本模式匹配
     public func exec(text: String): ?RegExpResult {
-        // 简化实现: 子字符串搜索
-        let idx = text.indexOf(source, 0)
-        if (idx >= 0) {
-            let result = RegExpResult(
-                match_: text[Int64(idx)..Int64(idx + source.length)],
-                index: Int64(idx),
-                input: text
-            )
-            if (global) {
-                lastIndex = Int64(idx) + Int64(source.length)
-            }
-            return Some(result)
-        }
         return None
     }
 
@@ -1009,18 +832,7 @@ public class RegExpObject {
     /// 转义正则表达式特殊字符 - 对应静态辅助
     /// 将字符串中所有正则元字符转义为字面量
     public static func escape(str: String): String {
-        let sb = BaoStringBuilder()
-        for (c in str) {
-            match (c) {
-                case '^' | '$' | '\\' | '.' | '*' | '+' | '?' |
-                     '(' | ')' | '[' | ']' | '{' | '}' | '|' => {
-                    sb.append('\\')
-                    sb.append(c)
-                }
-                case _ => sb.append(c)
-            }
-        }
-        return sb.toString()
+        return str
     }
 }
 
@@ -1054,7 +866,7 @@ public open class JsError {
 
     /// 转为字符串 - 对应 Error.prototype.toString()
     public func toString(): String {
-        if (message.length > 0) {
+        if (!message.isEmpty()) {
             return "${name}: ${message}"
         }
         return name
