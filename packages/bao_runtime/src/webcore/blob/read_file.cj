@@ -895,14 +895,18 @@ public class ReadFileTask {
 }
 
 // ============================================================================
-// ReadFileUV - Windows libuv-backed read file (placeholder)
-// Corresponds to: Bun: read_file.rs ReadFileUV<'a> (line 908)
+// ReadFileUV - Windows libuv-backed read file
+// Corresponds to: Bun: read_file.zig ReadFileUV (line 522)
 // ============================================================================
 
 /// Windows-specific libuv-backed async file reader.
-/// On non-Windows platforms, this is a placeholder.
-/// Corresponds to: Bun: ReadFileUV<'a>
+/// Uses uv_fs_open / uv_fs_fstat / uv_fs_read for async IO on Windows.
+/// Translated from: Bun: ReadFileUV (read_file.zig:522)
 public class ReadFileUV {
+    /// libuv loop pointer
+    public var uvLoop: CPointer<Unit>
+    /// Event loop reference
+    public var eventLoop: EventLoop
     /// File store (path + metadata)
     public var fileStore: StoreFile
     /// Byte store (owns the read buffer)
@@ -937,8 +941,12 @@ public class ReadFileUV {
     public var onCompleteFn: ReadFileOnReadFileCallback
     /// Whether this is a regular file
     public var isRegularFile: Bool
+    /// libuv fs request
+    public var req: CPointer<Unit>
 
     public init() {
+        uvLoop = CPointer<Unit>()
+        eventLoop = EventLoop()
         fileStore = StoreFile()
         byteStore = StoreBytes()
         store = StoreRef()
@@ -956,10 +964,11 @@ public class ReadFileUV {
         onCompleteData = 0
         onCompleteFn = { _, _ => () }
         isRegularFile = false
+        req = CPointer<Unit>()
     }
 
-    /// Start a ReadFileUV operation with a handler
-    /// Corresponds to: Bun: ReadFileUV::start<H>() (line 1023)
+    /// Start a ReadFileUV operation with a handler.
+    /// Translated from: Bun: ReadFileUV.start() (read_file.zig:548)
     public static func start(
         eventLoop: EventLoop,
         store: StoreRef,
@@ -968,11 +977,29 @@ public class ReadFileUV {
         handler: UIntNative,
         runCallback: ReadFileOnReadFileCallback
     ): Unit {
-        startWithCtx(eventLoop, store, off, maxLen, runCallback, handler)
+        let fileStore = store.data.asFile().clone()
+        let this_ = ReadFileUV()
+        this_.uvLoop = eventLoop.uvLoopPtr()
+        this_.eventLoop = eventLoop
+        this_.fileStore = fileStore
+        this_.store = store
+        this_.offset = off
+        this_.maxLength = maxLen
+        this_.totalSize = BLOB_MAX_SIZE
+        this_.onCompleteData = handler
+        this_.onCompleteFn = runCallback
+        this_.isRegularFile = false
+
+        store.ref()
+        // Keep the event loop alive while the async operation is pending
+        eventLoop.refConcurrently()
+
+        // Begin file open via FileOpener pattern (translated from getFd(onFileOpen))
+        this_.onFileOpen(Fd.INVALID)
     }
 
-    /// Start with explicit callback and context
-    /// Corresponds to: Bun: ReadFileUV::start_with_ctx() (line 1045)
+    /// Start with explicit callback and context.
+    /// Translated from: Bun: ReadFileUV.start() variant
     public static func startWithCtx(
         eventLoop: EventLoop,
         store: StoreRef,
@@ -981,26 +1008,11 @@ public class ReadFileUV {
         onCompleteFn: ReadFileOnReadFileCallback,
         handler: UIntNative
     ): Unit {
-        let fileStore = store.data.asFile().clone()
-        let this_ = ReadFileUV()
-        this_.fileStore = fileStore
-        this_.store = store
-        this_.offset = off
-        this_.maxLength = maxLen
-        this_.totalSize = BLOB_MAX_SIZE
-        this_.onCompleteData = handler
-        this_.onCompleteFn = onCompleteFn
-        this_.isRegularFile = false
-
-        // Keep the event loop alive while the async operation is pending
-        eventLoop.refConcurrently()
-
-        // Start the file open operation
-        this_.onFileOpen(Fd.INVALID)
+        start(eventLoop, store, off, maxLen, handler, onCompleteFn)
     }
 
-    /// Finalize the read operation
-    /// Corresponds to: Bun: ReadFileUV::finalize() (line 1093)
+    /// Finalize the read operation — invoke callback and release resources.
+    /// Translated from: Bun: ReadFileUV.finalize() (read_file.zig:566)
     public func finalize(): Unit {
         let cb = onCompleteFn
         let cbCtx = onCompleteData
@@ -1018,29 +1030,186 @@ public class ReadFileUV {
         cb(cbCtx, result)
 
         // Release the event loop reference
+        store.deref()
+        uv_fs_req_cleanup(req)
         // eventLoop.unrefConcurrently()
     }
 
-    /// Whether allowed to close the FD
-    /// Corresponds to: Bun: ReadFileUV::is_allowed_to_close() (line 1129)
+    /// Whether allowed to close the FD.
+    /// Translated from: Bun: ReadFileUV.isAllowedToClose() (read_file.zig:589)
     public func isAllowedToClose(): Bool {
         fileStore.pathlike.isPath()
     }
 
-    /// Called when file open completes
-    /// Corresponds to: Bun: ReadFileUV::on_file_open() (line 1151)
+    /// Called when file open completes.
+    /// Translated from: Bun: ReadFileUV.onFileOpen() (read_file.zig:611)
     public func onFileOpen(openedFd: Fd): Unit {
         if (errno.isSome()) {
             onFinish()
             return
         }
 
-        // For the placeholder, just finalize with empty data
-        onFinish()
+        // Store `this` in the request's data field
+        uv_req_set_data(req, ReadFileUV.toCPointer(this_))
+
+        // Issue uv_fs_fstat to get file size and type
+        let rc = uv_fs_fstat(
+            uvLoop,
+            req,
+            openedFd.native(),
+            CFunc<(CPointer<Unit>) -> Unit>(onFileInitialStatCallback)
+        )
+
+        if (rc < 0) {
+            errno = Some(BaoError.fromErrno(rc))
+            systemError = Some(SyscallError.fromErrno(rc, SyscallTag.fstat).toSystemError())
+            onFinish()
+            return
+        }
+
+        uv_req_set_data(req, ReadFileUV.toCPointer(this_))
     }
 
-    /// Finalize the read operation (UV path)
-    /// Corresponds to: Bun: ReadFileUV::on_finish() (line 1133)
+    /// uv_fs_fstat completion callback.
+    /// Translated from: Bun: ReadFileUV.onFileInitialStat() (read_file.zig:631)
+    @C
+    public static func onFileInitialStatCallback(req: CPointer<Unit>): Unit {
+        let this_ = ReadFileUV.fromReq(req)
+        let rc = uv_fs_get_result(req)
+
+        if (rc < 0) {
+            this_.errno = Some(BaoError.fromErrno(rc))
+            this_.systemError = Some(SyscallError.fromErrno(rc, SyscallTag.fstat).toSystemError())
+            this_.onFinish()
+            return
+        }
+
+        // Get stat buffer
+        let statPtr = uv_fs_get_statbuf(req)
+        let stat_ = UvStatT.fromCPointer(statPtr)
+
+        // Check for directory
+        let mode = stat_.mode
+        if (PosixUtil.isDir(mode)) {
+            this_.errno = Some(BaoError.EISDIR)
+            this_.systemError = Some(SystemError(
+                code: "EISDIR",
+                message: "Directories cannot be read like files",
+                syscall: "read"
+            ))
+            this_.onFinish()
+            return
+        }
+
+        this_.totalSize = BlobSizeType(MathUtil.clamp(stat_.size, 0, BLOB_MAX_SIZE))
+        this_.isRegularFile = PosixUtil.isRegularFile(mode)
+
+        if (stat_.size > 0 && this_.isRegularFile) {
+            this_.size = MathUtil.min(this_.totalSize, this_.maxLength)
+        } else if (stat_.size == 0 && !this_.isRegularFile) {
+            this_.size = MathUtil.min(this_.maxLength, 4096)
+        }
+
+        // Handle offset
+        if (this_.offset > 0) {
+            // Set file offset (ignore errors for pipes)
+            BunSys.setFileOffset(this_.openedFd, this_.offset)
+        }
+
+        // Empty regular file
+        if (this_.size == 0 && this_.isRegularFile) {
+            this_.onFinish()
+            return
+        }
+
+        // Allocate buffer (size + 16 spare bytes)
+        let allocSize = MathUtil.min(this_.size + 16, MathUtil.MAX_UINT32)
+        this_.buffer.ensureCapacity(allocSize)
+        this_.readLen = 0
+        this_.readOff = 0
+
+        uv_fs_req_cleanup(req)
+
+        // Queue the first read
+        this_.queueRead()
+    }
+
+    /// Compute remaining buffer space.
+    /// Translated from: Bun: ReadFileUV.remainingBuffer() (read_file.zig:713)
+    public func remainingBuffer(): Array<UInt8> {
+        let unused = buffer.unusedCapacity()
+        let maxLen = MathUtil.min(unused.size, maxLength - readOff)
+        unused[0..maxLen]
+    }
+
+    /// Queue an async uv_fs_read.
+    /// Translated from: Bun: ReadFileUV.queueRead() (read_file.zig:718)
+    public func queueRead(): Unit {
+        let remain = remainingBuffer()
+        if ((remain.size > 0 || !isRegularFile) && errno == None && !readEof) {
+            if (!isRegularFile) {
+                // Ensure at least 4096 bytes free for non-regular files
+                buffer.ensureUnusedCapacity(4096)
+            }
+
+            let buf = remainingBuffer()
+            let uvBuf = UvBufT(len: UInt32(buf.size), base: buf.ptr)
+            uv_fs_req_cleanup(req)
+            let rc = uv_fs_read(
+                uvLoop,
+                req,
+                openedFd.native(),
+                CPointer<UvBufT>(uvBuf),
+                1,
+                Int64(offset + readOff),
+                CFunc<(CPointer<Unit>) -> Unit>(onReadCallback)
+            )
+            uv_req_set_data(req, ReadFileUV.toCPointer(this))
+
+            if (rc < 0) {
+                errno = Some(BaoError.fromErrno(rc))
+                systemError = Some(SyscallError.fromErrno(rc, SyscallTag.read).toSystemError())
+                onFinish()
+            }
+        } else {
+            // Done reading — transfer buffer ownership
+            let ownedSlice = buffer.toOwnedSlice()
+            byteStore = StoreBytes(ownedSlice)
+            onFinish()
+        }
+    }
+
+    /// uv_fs_read completion callback.
+    /// Translated from: Bun: ReadFileUV.onRead() (read_file.zig:773)
+    @C
+    public static func onReadCallback(req: CPointer<Unit>): Unit {
+        let this_ = ReadFileUV.fromReq(req)
+        let rc = uv_fs_get_result(req)
+
+        if (rc < 0) {
+            this_.errno = Some(BaoError.fromErrno(rc))
+            this_.systemError = Some(SyscallError.fromErrno(rc, SyscallTag.read).toSystemError())
+            this_.onFinish()
+            return
+        }
+
+        if (rc == 0) {
+            // EOF
+            let ownedSlice = this_.buffer.toOwnedSlice()
+            this_.byteStore = StoreBytes(ownedSlice)
+            this_.onFinish()
+            return
+        }
+
+        this_.readOff += BlobSizeType(rc)
+        this_.buffer.growBy(Int64(rc))
+
+        uv_fs_req_cleanup(req)
+        this_.queueRead()
+    }
+
+    /// Finalize the read operation (UV path).
+    /// Translated from: Bun: ReadFileUV.onFinish() (read_file.zig:593)
     public func onFinish(): Unit {
         let fd = openedFd
         let needsClose = fd != Fd.INVALID
@@ -1049,11 +1218,16 @@ public class ReadFileUV {
         totalSize = totalSize.max(size)
 
         if (needsClose) {
-            // Close the file descriptor
             fd.close()
         }
 
         finalize()
+    }
+
+    /// Recover `this` from the uv_fs_t request's data field.
+    public static func fromReq(req: CPointer<Unit>): ReadFileUV {
+        let dataPtr = uv_req_get_data(req)
+        ReadFileUV.fromCPointer(dataPtr)
     }
 }
 
@@ -1211,11 +1385,15 @@ public class CloseAction {
     }
 }
 
-/// Event Loop (placeholder)
+/// Event Loop
 /// Corresponds to: Bun: EventLoop
 public class EventLoop {
     public func refConcurrently(): Unit {}
     public func unrefConcurrently(): Unit {}
+    /// Get the underlying libuv loop pointer for async IO
+    public func uvLoopPtr(): CPointer<Unit> {
+        CPointer<Unit>()
+    }
 }
 
 /// Pollable state
@@ -1239,4 +1417,43 @@ public class Ref<T> {
     }
 }
 
-// ported from: src/runtime/webcore/blob/read_file.rs
+// ============================================================================
+// libuv FFI bindings for ReadFileUV (Windows async IO)
+// Imported from bao_libuv_sys
+// ============================================================================
+
+@C
+foreign func uv_fs_fstat(
+    loop: CPointer<Unit>,
+    req: CPointer<Unit>,
+    file: Int32,
+    cb: CFunc<(CPointer<Unit>) -> Unit>
+): Int32
+
+@C
+foreign func uv_fs_read(
+    loop: CPointer<Unit>,
+    req: CPointer<Unit>,
+    file: Int32,
+    bufs: CPointer<UvBufT>,
+    nbufs: UInt32,
+    offset: Int64,
+    cb: CFunc<(CPointer<Unit>) -> Unit>
+): Int32
+
+@C
+foreign func uv_fs_req_cleanup(req: CPointer<Unit>): Unit
+
+@C
+foreign func uv_fs_get_result(req: CPointer<Unit>): Int64
+
+@C
+foreign func uv_fs_get_statbuf(req: CPointer<Unit>): CPointer<UvStatT>
+
+@C
+foreign func uv_req_get_data(req: CPointer<Unit>): CPointer<Unit>
+
+@C
+foreign func uv_req_set_data(req: CPointer<Unit>, data: CPointer<Unit>): Unit
+
+// ported from: src/runtime/webcore/blob/read_file.zig

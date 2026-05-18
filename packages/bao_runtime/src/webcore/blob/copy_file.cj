@@ -847,55 +847,553 @@ public class ReadWriteLoop {
 }
 
 // ============================================================================
-// CopyFileWindows (Windows, libuv async) - placeholder for Windows path
-// Corresponds to: Bun: copy_file.rs CopyFileWindows<'a> (line 994)
+// CopyFileWindows - Windows libuv async copy file
+// Corresponds to: Bun: copy_file.zig CopyFileWindows (line 623)
 // ============================================================================
 
 /// Windows-specific async copy file implementation using libuv.
-/// On non-Windows platforms, this is a placeholder.
-/// Corresponds to: Bun: CopyFileWindows
+/// Uses uv_fs_copyfile for fast copy, falling back to a read-write loop
+/// via uv_fs_read / uv_fs_write for non-path file descriptors.
+/// Translated from: Bun: CopyFileWindows (copy_file.zig:623)
 public class CopyFileWindows {
     public var destinationFileStore: StoreRef
     public var sourceFileStore: StoreRef
+    /// libuv fs request (shared for all uv_fs_* calls)
+    public var ioRequest: CPointer<Unit>
+    /// JS promise for async result
     public var promise: JSPromiseStrong
     public var mkdirpIfNotExists: Bool
     public var destinationMode: ?Mode
+    /// Event loop reference
+    public var eventLoop: EventLoop
+    /// libuv loop pointer
+    public var uvLoop: CPointer<Unit>
+    /// Expected total size (Blob.max_size if unknown)
     public var size: BlobSizeType
+    /// Bytes written, stored for use after async chmod
     public var writtenBytes: Int64
+    /// Error, if any (used for mkdirp flow)
     public var err: ?SyscallError
+    /// Read-write loop fallback for FD-based copies
     public var readWriteLoop: ReadWriteLoop
 
     public init() {
         destinationFileStore = StoreRef()
         sourceFileStore = StoreRef()
+        ioRequest = CPointer<Unit>()
         promise = JSPromiseStrong()
         mkdirpIfNotExists = false
         destinationMode = None
-        size = 0
+        eventLoop = EventLoop()
+        uvLoop = CPointer<Unit>()
+        size = BLOB_MAX_SIZE
         writtenBytes = 0
         err = None
         readWriteLoop = ReadWriteLoop()
     }
 
-    /// Initialize a Windows copy file operation
-    /// Corresponds to: Bun: CopyFileWindows::init() (line 1297)
+    /// Initialize and start a Windows copy file operation.
+    /// Returns a JS promise. The copy runs asynchronously via libuv.
+    /// Translated from: Bun: CopyFileWindows.init() (copy_file.zig:841)
     public static func init(
         destinationFileStore: StoreRef,
         sourceFileStore: StoreRef,
+        eventLoop: EventLoop,
         mkdirpIfNotExists: Bool,
         size: BlobSizeType,
         destinationMode: ?Mode
     ): JsValue {
+        destinationFileStore.ref()
+        sourceFileStore.ref()
+
         let copyFile = CopyFileWindows()
         copyFile.destinationFileStore = destinationFileStore
         copyFile.sourceFileStore = sourceFileStore
+        copyFile.promise = JSPromiseStrong.init(eventLoop.global())
+        copyFile.eventLoop = eventLoop
+        copyFile.uvLoop = eventLoop.uvLoopPtr()
         copyFile.mkdirpIfNotExists = mkdirpIfNotExists
-        copyFile.size = size
         copyFile.destinationMode = destinationMode
-        // On Windows, this would call copyfile() using libuv.
-        // On POSIX, use CopyFile instead.
-        return JsValue.zero()
+        copyFile.size = size
+
+        let promiseValue = copyFile.promise.value()
+
+        // On error, this function might free the CopyFileWindows struct.
+        // So we can no longer reference it beyond this point.
+        copyFile.copyfile()
+
+        return promiseValue
+    }
+
+    /// Attempt uv_fs_copyfile (fast path for path-to-path copies).
+    /// Falls back to prepareReadWriteLoop() for FD-based copies.
+    /// Translated from: Bun: CopyFileWindows.copyfile() (copy_file.zig:942)
+    public func copyfile(): Unit {
+        let destPathlike = destinationFileStore.data.asFile().pathlike
+        let srcPathlike = sourceFileStore.data.asFile().pathlike
+
+        if (destPathlike.isFd() || srcPathlike.isFd()) {
+            // Cannot use uv_fs_copyfile with FDs; fall back to read-write loop
+            prepareReadWriteLoop()
+            return
+        }
+
+        let oldPath = srcPathlike.pathSlice()
+        let newPath = destPathlike.pathSlice()
+
+        uv_req_set_data(ioRequest, CopyFileWindows.toCPointer(this_))
+
+        let rc = uv_fs_copyfile(
+            uvLoop,
+            ioRequest,
+            oldPath,
+            newPath,
+            0,  // flags
+            CFunc<(CPointer<Unit>) -> Unit>(onCopyFileCallback)
+        )
+
+        if (rc < 0) {
+            // uv_fs_copyfile error — may need mkdirp
+            let errNo = rc
+            let mappedErr = if (errNo == UV_EPERM) { UV_ENOENT } else { errNo }
+            throw(SyscallError.fromErrno(mappedErr, SyscallTag.copyfile))
+            return
+        }
+
+        eventLoop.refConcurrently()
+    }
+
+    /// uv_fs_copyfile completion callback.
+    /// Translated from: Bun: CopyFileWindows.onCopyFile() (copy_file.zig:1069)
+    @C
+    public static func onCopyFileCallback(req: CPointer<Unit>): Unit {
+        let this_ = CopyFileWindows.fromIoRequest(req)
+        this_.eventLoop.unrefConcurrently()
+
+        let rc = uv_fs_get_result(req)
+
+        if (rc < 0) {
+            let errNo = rc.toInt32()
+            if (this_.mkdirpIfNotExists && errNo == UV_ENOENT) {
+                uv_fs_req_cleanup(req)
+                this_.mkdirpIfNotExists = false
+                this_.mkdirp()
+                return
+            }
+            let mappedErr = if (errNo == UV_EPERM) { UV_ENOENT } else { errNo }
+            var sysErr = SyscallError.fromErrno(mappedErr, SyscallTag.copyfile)
+            let destPathlike = this_.destinationFileStore.data.asFile().pathlike
+            if (destPathlike.isPath()) {
+                sysErr = sysErr.withPath(destPathlike.pathSlice())
+            }
+            this_.throwError(sysErr)
+            return
+        }
+
+        let statPtr = uv_fs_get_statbuf(req)
+        let statSize = if (statPtr.isNull()) { Int64(0) } else { UvStatT.fromCPointer(statPtr).size }
+        this_.onComplete(UInt64(statSize))
+    }
+
+    /// Completion handler after copy finishes (handles truncation + chmod).
+    /// Translated from: Bun: CopyFileWindows.onComplete() (copy_file.zig:1107)
+    public func onComplete(writtenActual: UInt64): Unit {
+        var written = writtenActual
+        if (written != UInt64(size) && size != BLOB_MAX_SIZE) {
+            truncate()
+            written = UInt64(size)
+        }
+
+        // Apply destination mode if specified (async chmod)
+        if (destinationMode.isSome()) {
+            let mode = destinationMode.unwrap()
+            let destPathlike = destinationFileStore.data.asFile().pathlike
+            if (destPathlike.isPath()) {
+                writtenBytes = Int64(written)
+                let path = destPathlike.pathSlice()
+                uv_fs_req_cleanup(ioRequest)
+                uv_req_set_data(ioRequest, CopyFileWindows.toCPointer(this_))
+
+                let rc = uv_fs_chmod(
+                    uvLoop,
+                    ioRequest,
+                    path,
+                    Int32(mode),
+                    CFunc<(CPointer<Unit>) -> Unit>(onChmodCallback)
+                )
+
+                if (rc < 0) {
+                    let sysErr = SyscallError.fromErrno(rc, SyscallTag.chmod)
+                    if (destPathlike.isPath()) {
+                        sysErr.withPath(destPathlike.pathSlice())
+                    }
+                    throwError(sysErr)
+                    return
+                }
+                eventLoop.refConcurrently()
+                return
+            }
+        }
+
+        resolvePromise(written)
+    }
+
+    /// uv_fs_chmod completion callback.
+    /// Translated from: Bun: CopyFileWindows.onChmod() (copy_file.zig:1151)
+    @C
+    public static func onChmodCallback(req: CPointer<Unit>): Unit {
+        let this_ = CopyFileWindows.fromIoRequest(req)
+        this_.eventLoop.unrefConcurrently()
+
+        let rc = uv_fs_get_result(req)
+        if (rc < 0) {
+            var sysErr = SyscallError.fromErrno(rc, SyscallTag.chmod)
+            let destPathlike = this_.destinationFileStore.data.asFile().pathlike
+            if (destPathlike.isPath()) {
+                sysErr = sysErr.withPath(destPathlike.pathSlice())
+            }
+            this_.throwError(sysErr)
+            return
+        }
+
+        this_.resolvePromise(UInt64(this_.writtenBytes))
+    }
+
+    /// Resolve the JS promise with the bytes written count.
+    /// Translated from: Bun: CopyFileWindows.resolvePromise() (copy_file.zig:1172)
+    public func resolvePromise(written: UInt64): Unit {
+        let globalThis = eventLoop.global()
+        let promise = promise.swap()
+        eventLoop.enter()
+        defer { eventLoop.exit() }
+
+        deinit()
+        promise.resolve(globalThis, JsValue.jsNumberFromUInt64(written))
+    }
+
+    /// Throw an error by rejecting the JS promise.
+    /// Translated from: Bun: CopyFileWindows.throw() (copy_file.zig:1057)
+    public func throwError(err: SyscallError): Unit {
+        let globalThis = eventLoop.global()
+        let promise = promise.swap()
+        let errInstance = err.toJsWithAsyncStack(globalThis, promise)
+
+        eventLoop.enter()
+        defer { eventLoop.exit() }
+
+        deinit()
+        promise.reject(globalThis, errInstance)
+    }
+
+    /// Truncate the destination file to the expected size.
+    /// Translated from: Bun: CopyFileWindows.truncate() (copy_file.zig:1183)
+    public func truncate(): Unit {
+        let destPathlike = destinationFileStore.data.asFile().pathlike
+        if (destPathlike.isPath()) {
+            BunSys.truncatePath(destPathlike.pathSlice(), Int64(size))
+        }
+    }
+
+    /// Create parent directories if needed.
+    /// Translated from: Bun: CopyFileWindows.mkdirp() (copy_file.zig:1206)
+    public func mkdirp(): Unit {
+        mkdirpIfNotExists = false
+        let destPathlike = destinationFileStore.data.asFile().pathlike
+        if (!destPathlike.isPath()) {
+            throwError(SyscallError.fromErrno(UV_EINVAL, SyscallTag.mkdir))
+            return
+        }
+        eventLoop.refConcurrently()
+        let dirPath = PathUtil.dirname(destPathlike.pathSlice())
+        AsyncMkdirp.schedule(
+            dirPath,
+            onComplete: CFunc<(CPointer<Unit>) -> Unit>(onMkdirpCompleteCallback),
+            context: CopyFileWindows.toCPointer(this_)
+        )
+    }
+
+    /// mkdirp completion callback — retry copyfile.
+    /// Translated from: Bun: CopyFileWindows.onMkdirpComplete() (copy_file.zig:1230)
+    @C
+    public static func onMkdirpCompleteCallback(req: CPointer<Unit>): Unit {
+        let this_ = CopyFileWindows.fromIoRequest(req)
+        this_.eventLoop.unrefConcurrently()
+        this_.copyfile()
+    }
+
+    /// Prepare the read-write loop for FD-based copies.
+    /// Translated from: Bun: CopyFileWindows.prepareReadWriteLoop() (copy_file.zig:906)
+    public func prepareReadWriteLoop(): Unit {
+        // Open destination first (so mkdirp can work if needed)
+        let destPathlike = destinationFileStore.data.asFile().pathlike
+        let srcPathlike = sourceFileStore.data.asFile().pathlike
+
+        let destFd = openPathlikeForWrite(destPathlike)
+        match (destFd) {
+            case Err(e) =>
+                if (mkdirpIfNotExists && e.isNoent()) {
+                    mkdirp()
+                    return
+                }
+                throwError(e)
+                return
+            case Ok(fd) =>
+                readWriteLoop.destinationFd = fd
+                readWriteLoop.mustCloseDestinationFd = true
+        }
+
+        let srcFd = openPathlikeForRead(srcPathlike)
+        match (srcFd) {
+            case Err(e) =>
+                throwError(e)
+                return
+            case Ok(fd) =>
+                readWriteLoop.sourceFd = fd
+                readWriteLoop.mustCloseSourceFd = true
+        }
+
+        readWriteLoop.start(this_)
+        eventLoop.refConcurrently()
+    }
+
+    /// Open a pathlike for reading (helper).
+    public func openPathlikeForRead(pathlike: PathOrFileDescriptor): Result<Fd, SyscallError> {
+        if (pathlike.isPath()) {
+            match (BunSys.openPath(pathlike.pathSlice(), OpenFlags.RDONLY, 0)) {
+                case Ok(fd) => return Result.Ok(fd)
+                case Err(e) => return Result.Err(e)
+            }
+        }
+        Result.Ok(pathlike.fd())
+    }
+
+    /// Open a pathlike for writing (helper).
+    public func openPathlikeForWrite(pathlike: PathOrFileDescriptor): Result<Fd, SyscallError> {
+        if (pathlike.isPath()) {
+            let flags = OpenFlags.WRONLY | OpenFlags.CREAT
+            match (BunSys.openPath(pathlike.pathSlice(), flags, 0)) {
+                case Ok(fd) => return Result.Ok(fd)
+                case Err(e) => return Result.Err(e)
+            }
+        }
+        Result.Ok(pathlike.fd())
+    }
+
+    /// Cleanup resources.
+    /// Translated from: Bun: CopyFileWindows.deinit() (copy_file.zig:1197)
+    public func deinit(): Unit {
+        readWriteLoop.close()
+        destinationFileStore.deref()
+        sourceFileStore.deref()
+        promise.deinit()
+        uv_fs_req_cleanup(ioRequest)
+    }
+
+    /// Recover `this` from the uv_fs_t request's data field.
+    public static func fromIoRequest(req: CPointer<Unit>): CopyFileWindows {
+        let dataPtr = uv_req_get_data(req)
+        CopyFileWindows.fromCPointer(dataPtr)
     }
 }
 
-// ported from: src/runtime/webcore/blob/copy_file.rs
+// ============================================================================
+// ReadWriteLoop - libuv read-write loop for FD-based copies on Windows
+// Translated from: Bun: CopyFileWindows.ReadWriteLoop (copy_file.zig:644)
+// ============================================================================
+
+/// Read-write loop for copying between FDs using libuv async IO.
+/// Used when uv_fs_copyfile cannot be used (e.g., pipe or socket FDs).
+public class ReadWriteLoop {
+    public var sourceFd: Fd
+    public var mustCloseSourceFd: Bool
+    public var destinationFd: Fd
+    public var mustCloseDestinationFd: Bool
+    public var written: Int64
+    public var readBuf: ArrayList<UInt8>
+    public var uvBuf: UvBufT
+
+    public init() {
+        sourceFd = Fd.INVALID
+        mustCloseSourceFd = false
+        destinationFd = Fd.INVALID
+        mustCloseDestinationFd = false
+        written = 0
+        readBuf = ArrayList<UInt8>()
+        uvBuf = UvBufT(len: 0, base: CPointer<UInt8>())
+    }
+
+    /// Start the read-write loop with 64KB buffer.
+    /// Translated from: Bun: ReadWriteLoop.start() (copy_file.zig:653)
+    public func start(parent: CopyFileWindows): Result<Unit, SyscallError> {
+        readBuf.ensureCapacity(64 * 1024)
+        read(parent)
+    }
+
+    /// Issue a uv_fs_read.
+    /// Translated from: Bun: ReadWriteLoop.read() (copy_file.zig:659)
+    public func read(parent: CopyFileWindows): Result<Unit, SyscallError> {
+        readBuf.clear()
+        uvBuf = UvBufT(len: UInt32(readBuf.capacity()), base: readBuf.ptr())
+
+        let loop = parent.uvLoop
+        uv_req_set_data(parent.ioRequest, CopyFileWindows.toCPointer(parent))
+
+        let rc = uv_fs_read(
+            loop,
+            parent.ioRequest,
+            sourceFd.native(),
+            CPointer<UvBufT>(uvBuf),
+            1,
+            Int64(-1),
+            CFunc<(CPointer<Unit>) -> Unit>(onReadCallback)
+        )
+
+        if (rc < 0) {
+            return Result.Err(SyscallError.fromErrno(rc, SyscallTag.read))
+        }
+        Result.Ok(())
+    }
+
+    /// uv_fs_read completion callback for ReadWriteLoop.
+    /// Translated from: Bun: ReadWriteLoop.onRead() (copy_file.zig:686)
+    @C
+    public static func onReadCallback(req: CPointer<Unit>): Unit {
+        let parent = CopyFileWindows.fromIoRequest(req)
+        let loop_ = parent.readWriteLoop
+
+        let rc = uv_fs_get_result(req)
+
+        if (rc < 0) {
+            parent.err = Some(SyscallError.fromErrno(rc, SyscallTag.read))
+            parent.onReadWriteLoopComplete()
+            return
+        }
+
+        let bytesRead = rc
+        if (bytesRead == 0) {
+            // EOF
+            parent.onReadWriteLoopComplete()
+            return
+        }
+
+        loop_.readBuf.growBy(bytesRead)
+        loop_.uvBuf = UvBufT(len: UInt32(loop_.readBuf.size()), base: loop_.readBuf.ptr())
+
+        // Now write the data we just read
+        uv_fs_req_cleanup(req)
+        uv_req_set_data(req, CopyFileWindows.toCPointer(parent))
+        let rc2 = uv_fs_write(
+            parent.uvLoop,
+            parent.ioRequest,
+            loop_.destinationFd.native(),
+            CPointer<UvBufT>(loop_.uvBuf),
+            1,
+            Int64(-1),
+            CFunc<(CPointer<Unit>) -> Unit>(onWriteCallback)
+        )
+
+        if (rc2 < 0) {
+            parent.err = Some(SyscallError.fromErrno(rc2, SyscallTag.write))
+            parent.onReadWriteLoopComplete()
+        }
+    }
+
+    /// uv_fs_write completion callback for ReadWriteLoop.
+    /// Translated from: Bun: ReadWriteLoop.onWrite() (copy_file.zig:734)
+    @C
+    public static func onWriteCallback(req: CPointer<Unit>): Unit {
+        let parent = CopyFileWindows.fromIoRequest(req)
+        let loop_ = parent.readWriteLoop
+
+        let rc = uv_fs_get_result(req)
+
+        if (rc < 0) {
+            parent.err = Some(SyscallError.fromErrno(rc, SyscallTag.write))
+            parent.onReadWriteLoopComplete()
+            return
+        }
+
+        let wrote = rc
+        loop_.written += wrote
+
+        let bufLen = loop_.readBuf.size()
+        if (wrote < bufLen) {
+            if (wrote == 0) {
+                // EOF — cannot write more
+                parent.onReadWriteLoopComplete()
+                return
+            }
+
+            // Partial write — write remaining bytes
+            uv_fs_req_cleanup(req)
+            let remaining = loop_.readBuf[wrote..bufLen]
+            loop_.uvBuf = UvBufT(len: UInt32(remaining.size), base: remaining.ptr)
+            uv_req_set_data(req, CopyFileWindows.toCPointer(parent))
+            let rc2 = uv_fs_write(
+                parent.uvLoop,
+                parent.ioRequest,
+                loop_.destinationFd.native(),
+                CPointer<UvBufT>(loop_.uvBuf),
+                1,
+                Int64(-1),
+                CFunc<(CPointer<Unit>) -> Unit>(onWriteCallback)
+            )
+
+            if (rc2 < 0) {
+                parent.err = Some(SyscallError.fromErrno(rc2, SyscallTag.write))
+                parent.onReadWriteLoopComplete()
+            }
+            return
+        }
+
+        // Full write done — read next chunk
+        uv_fs_req_cleanup(req)
+        match (loop_.read(parent)) {
+            case Ok(()) => ()
+            case Err(e) =>
+                parent.err = Some(e)
+                parent.onReadWriteLoopComplete()
+        }
+    }
+
+    /// Close file descriptors and free buffer.
+    /// Translated from: Bun: ReadWriteLoop.close() (copy_file.zig:796)
+    public func close(): Unit {
+        if (mustCloseSourceFd) {
+            sourceFd.close()
+            mustCloseSourceFd = false
+            sourceFd = Fd.INVALID
+        }
+        if (mustCloseDestinationFd) {
+            destinationFd.close()
+            mustCloseDestinationFd = false
+            destinationFd = Fd.INVALID
+        }
+        readBuf.clear()
+    }
+}
+
+// ============================================================================
+// libuv FFI bindings for CopyFileWindows (Windows async IO)
+// ============================================================================
+
+@C
+foreign func uv_fs_copyfile(
+    loop: CPointer<Unit>,
+    req: CPointer<Unit>,
+    path: CString,
+    newPath: CString,
+    flags: Int32,
+    cb: CFunc<(CPointer<Unit>) -> Unit>
+): Int32
+
+@C
+foreign func uv_fs_chmod(
+    loop: CPointer<Unit>,
+    req: CPointer<Unit>,
+    path: CString,
+    mode: Int32,
+    cb: CFunc<(CPointer<Unit>) -> Unit>
+): Int32
+
+// ported from: src/runtime/webcore/blob/copy_file.zig
