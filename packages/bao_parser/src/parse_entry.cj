@@ -456,32 +456,6 @@ public class ParserResult {
     }
 }
 
-/// Part - AST 部分 - 对应 Bun Part
-public class Part {
-    /// 语句列表
-    public var stmts: ArrayList<Stmt>
-    /// 是否可以短路
-    public var canShortCircuit: Bool
-
-    public init() {
-        stmts = ArrayList<Stmt>()
-        canShortCircuit = false
-    }
-}
-
-/// NamedExport - 命名导出 - 对应 Bun NamedExport
-public class NamedExport {
-    public var alias: String
-    public var aliasLoc: Loc
-    public var ref: Ref
-
-    public init() {
-        alias = ""
-        aliasLoc = Loc.EMPTY
-        ref = Ref.NONE
-    }
-}
-
 /// SourceMapEntry - 源映射条目
 public class SourceMapEntry {
     public var sourceIndex: Int64

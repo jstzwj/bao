@@ -497,32 +497,5 @@ public class ParseImportExport {
     }
 }
 
-// ============================================================================
-// ClauseItem - 导入/导出子句项
-// 严格翻译自: src/js_parser/ast.zig ClauseItem
-// ============================================================================
-
-/// 导入/导出子句项 - 对应 Bun ClauseItem
-public class ClauseItem {
-    /// 别名 (as 后面的名称)
-    public var alias: String
-    /// 别名位置
-    public var aliasLoc: Loc
-    /// 原始名称 (as 前面的名称)
-    public var originalName: String
-    /// 名称引用
-    public var nameRef: Ref
-    /// 是否为 type-only
-    public var isTypeOnly: Bool
-
-    public init() {
-        alias = ""
-        aliasLoc = Loc.EMPTY
-        originalName = ""
-        nameRef = Ref.NONE
-        isTypeOnly = false
-    }
-}
-
 /// UInt32_MAX - UInt32 最大值
 public let UInt32_MAX: UInt32 = 4294967295
