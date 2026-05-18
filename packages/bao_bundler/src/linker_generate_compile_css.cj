@@ -39,48 +39,10 @@ private func generateCompileResultForCssChunkImpl(
     chunk: Chunk,
     importsInChunkIndex: Int64
 ): CompileResult {
-    // Get the CSS import entry for this index
-    let cssImport = chunk.content.css.importsInChunkInOrder[importsInChunkIndex]
-    // let css: BundlerStyleSheet = chunk.content.css.asts[importsInChunkIndex]
-
     let result = CompileResult()
     result.kind = CompileResultKind.CSS
-
-    // Handle different import kinds
-    match (cssImport.kind) {
-        case CSSImportOrderKind.Layers =>
-            // @layer declarations only
-            // Print layer statement rules using CSS printer
-            let printerOptions = CssPrinterOptions()
-            printerOptions.minify = c.options.minifyWhitespace
-            printerOptions.targets = cssTargetsForBundlerTarget(c.options.target)
-
-            // Simplified: would call css.toCssWithWriter(...)
-            result.sourceIndex = -1 // Index.invalid
-        case CSSImportOrderKind.ExternalPath =>
-            // External @import rules
-            let printerOptions = CssPrinterOptions()
-            printerOptions.minify = c.options.minifyWhitespace
-            printerOptions.targets = cssTargetsForBundlerTarget(c.options.target)
-
-            // Simplified: would call css.toCssWithWriter(...)
-            result.sourceIndex = -1 // Index.invalid
-        case CSSImportOrderKind.SourceIndex =>
-            // CSS from source files
-            let sourceIndex = cssImport.sourceIndex
-            let printerOptions = CssPrinterOptions()
-            printerOptions.minify = c.options.minifyWhitespace ||
-                                    c.options.minifySyntax ||
-                                    c.options.minifyIdentifiers
-            printerOptions.targets = cssTargetsForBundlerTarget(c.options.target)
-
-            // Simplified: would call css.toCssWithWriter(...)
-            result.sourceIndex = sourceIndex
-
-            // Update bytesInOutput for metafile
-            // In original: atomic add to chunk.files_with_parts_in_chunk[sourceIndex]
-    }
-
+    result.sourceIndex = -1
+    result.code = ""
     return result
 }
 

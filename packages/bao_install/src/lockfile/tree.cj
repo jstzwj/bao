@@ -83,7 +83,7 @@ public class Tree {
     /// 翻译自: Tree.folderName
     ///   通过关联的 dependency_id 获取依赖名称
     ///   如果 dependency_id 无效, 返回空字符串
-    public func folderName(deps: ArrayList<DependencyInfo>, stringBuf: String): String {
+    public func folderName(deps: ArrayList<TreeDependencyInfo>, stringBuf: String): String {
         let depId = dependencyId
         if (depId == INVALID_PACKAGE_ID) { return "" }
         if (Int64(depId) >= deps.size) { return "" }
@@ -219,7 +219,7 @@ public enum HoistResult {
 // ============================================================================
 
 /// 依赖信息
-public class DependencyInfo {
+public class TreeDependencyInfo {
     public var name: String
     public var version: String
 

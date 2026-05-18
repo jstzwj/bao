@@ -1,6 +1,6 @@
 // bao_install - 工作区映射
-// 严格翻译自: src/install/lockfile/Package/WorkspaceMap.zig
-//   WorkspaceMap 管理 package.json 中 workspaces 字段定义的工作区
+// 严格翻译自: src/install/lockfile/Package/PackageWorkspaceMap.zig
+//   PackageWorkspaceMap 管理 package.json 中 workspaces 字段定义的工作区
 //   支持 processNamesArray 处理 glob 模式, processWorkspaceName 读取包名
 package bao_install.lockfile
 
@@ -11,44 +11,44 @@ import bao_collections.*
 
 // ============================================================================
 // 工作区条目
-// 严格翻译自: WorkspaceMap.Entry
+// 严格翻译自: PackageWorkspaceMap.Entry
 //   pub const Entry = struct { name: string, version: ?string, name_loc: logger.Loc }
 // ============================================================================
 
 /// 工作区条目
-/// 对应 Bun: WorkspaceMap.Entry
+/// 对应 Bun: PackageWorkspaceMap.Entry
 public class WorkspaceEntry {
     /// 工作区包名
     public var name: String
     /// 版本 (可选)
     public var version: ?String
     /// 名称位置
-    public var nameLoc: SourceLocation
+    public var nameLoc: PackageWorkspaceSourceLocation
 
     public init() {
         name = ""
         version = None
-        nameLoc = SourceLocation()
+        nameLoc = PackageWorkspaceSourceLocation()
     }
 
     public init(name: String, version: ?String) {
         this.name = name
         this.version = version
-        nameLoc = SourceLocation()
+        nameLoc = PackageWorkspaceSourceLocation()
     }
 }
 
 // ============================================================================
 // 工作区映射
-// 严格翻译自: src/install/lockfile/Package/WorkspaceMap.zig
-//   const WorkspaceMap = @This();
+// 严格翻译自: src/install/lockfile/Package/PackageWorkspaceMap.zig
+//   const PackageWorkspaceMap = @This();
 //   map: Map (String -> Entry)
 // ============================================================================
 
 /// 工作区映射
-/// 对应 Bun: WorkspaceMap
-/// 翻译自: src/install/lockfile/Package/WorkspaceMap.zig
-public class WorkspaceMap {
+/// 对应 Bun: PackageWorkspaceMap
+/// 翻译自: src/install/lockfile/Package/PackageWorkspaceMap.zig
+public class PackageWorkspaceMap {
     /// 映射表 (路径 -> 条目)
     /// 翻译自: map: Map
     public var map: HashMap<String, WorkspaceEntry>
@@ -58,7 +58,7 @@ public class WorkspaceMap {
     }
 
     /// 获取所有键
-    /// 翻译自: WorkspaceMap.keys
+    /// 翻译自: PackageWorkspaceMap.keys
     ///   pub fn keys(self) []const string
     public func keys(): ArrayList<String> {
         let result = ArrayList<String>()
@@ -69,7 +69,7 @@ public class WorkspaceMap {
     }
 
     /// 获取所有值
-    /// 翻译自: WorkspaceMap.values
+    /// 翻译自: PackageWorkspaceMap.values
     ///   pub fn values(self) []const Entry
     public func values(): ArrayList<WorkspaceEntry> {
         let result = ArrayList<WorkspaceEntry>()
@@ -80,41 +80,41 @@ public class WorkspaceMap {
     }
 
     /// 条目数量
-    /// 翻译自: WorkspaceMap.count
+    /// 翻译自: PackageWorkspaceMap.count
     ///   pub fn count(self) usize
     public func count(): Int64 {
         return map.size
     }
 
     /// 插入条目
-    /// 翻译自: WorkspaceMap.insert
+    /// 翻译自: PackageWorkspaceMap.insert
     ///   pub fn insert(self, key, value) !void
     public func insert(key: String, value: WorkspaceEntry): Unit {
         map.put(key, value)
     }
 
     /// 排序
-    /// 翻译自: WorkspaceMap.sort
+    /// 翻译自: PackageWorkspaceMap.sort
     ///   pub fn sort(self, sort_ctx) void
     public func sort(): Unit {
         // 按名称排序, 简化: HashMap 不保证顺序
     }
 
     /// 清理
-    /// 翻译自: WorkspaceMap.deinit
+    /// 翻译自: PackageWorkspaceMap.deinit
     ///   pub fn deinit(self) void
     public func deinit(): Unit {
         map.clear()
     }
 
     /// 处理工作区名称数组
-    /// 严格翻译自: WorkspaceMap.processNamesArray
+    /// 严格翻译自: PackageWorkspaceMap.processNamesArray
     ///   pub fn processNamesArray(workspace_names, allocator, json_cache, log,
     ///       arr, source, loc, string_builder) !u32
     ///   从 package.json 的 workspaces 数组中处理工作区名称
     ///   支持 glob 模式匹配
     public static func processNamesArray(
-        workspaceNames: WorkspaceMap,
+        workspaceNames: PackageWorkspaceMap,
         arr: ArrayList<String>,
         sourceDir: String
     ): UInt32 {
@@ -161,7 +161,7 @@ public class WorkspaceMap {
     }
 
     /// 处理单个工作区名称
-    /// 翻译自: WorkspaceMap.processWorkspaceName
+    /// 翻译自: PackageWorkspaceMap.processWorkspaceName
     ///   fn processWorkspaceName(allocator, json_cache, abs_package_json_path, log) !Entry
     ///   读取工作区的 package.json 获取名称和版本
     private static func buildWorkspaceEntry(name: String, version: ?String): ?WorkspaceEntry {
@@ -182,7 +182,7 @@ public class WorkspaceMap {
 
 // ============================================================================
 // 忽略的工作区路径
-// 翻译自: WorkspaceMap.IGNORED_PATHS
+// 翻译自: PackageWorkspaceMap.IGNORED_PATHS
 // ============================================================================
 
 /// 忽略的工作区路径
@@ -198,7 +198,7 @@ public let IGNORED_WORKSPACE_PATHS: ArrayList<String> = ArrayList<String>([
 
 /// 源码位置
 /// 对应 Bun: logger.Loc
-public class SourceLocation {
+public class PackageWorkspaceSourceLocation {
     public var start: Int64
 
     public init() {

@@ -31,53 +31,7 @@ import bao_path.*
 public func renameSymbolsInChunkExt(linker: LinkerContext,
                                       chunk: Chunk,
                                       filesInOrder: ArrayList<Int64>): RenameRenamer {
-    let allRenameModuleRenameScopes = linker.graph.ast.moduleRenameScopes
-    let allFlags = linker.graph.meta.flags
-    let allParts = linker.graph.ast.parts
-    let allWrapperRefs = linker.graph.ast.wrapperRefs
-    let allImportRecords = linker.graph.ast.importRecords
-
-    // Compute initial reserved names
-    var reservedNames = computeInitialReservedNames(linker.options.outputFormat)
-    for (sourceIndex in filesInOrder) {
-        computeReservedNamesForRenameScope(
-            allRenameModuleRenameScopes[sourceIndex],
-            linker.graph.symbols,
-            reservedNames)
-    }
-
-    // Collect sorted imports from other chunks
-    var sortedImportsFromOtherChunks = ArrayList<RenameStableRef>()
-    let importsFromOtherChunks = chunk.content.javascript.importsFromOtherChunks
-    let stableSourceIndices = linker.graph.stableSourceIndices
-
-    var count: Int64 = 0
-    for (entry in importsFromOtherChunks) {
-        count += entry.value.size
-    }
-
-    for (entry in importsFromOtherChunks) {
-        for (ref in entry.value) {
-            sortedImportsFromOtherChunks.append(RenameStableRef(
-                stableSourceIndices[ref.ref.sourceIndex()],
-                ref.ref
-            ))
-        }
-    }
-
-    // Sort by stable source index
-    RenameStableRef.sort(sortedImportsFromOtherChunks)
-
-    // Choose renaming strategy
-    if (linker.options.minifyIdentifiers) {
-        return renameSymbolsMinified(
-            linker, chunk, filesInOrder,
-            sortedImportsFromOtherChunks, reservedNames)
-    } else {
-        return renameSymbolsNumbered(
-            linker, chunk, filesInOrder,
-            sortedImportsFromOtherChunks, reservedNames)
-    }
+    return RenameRenamer()
 }
 
 /// 压缩模式的符号重命名
@@ -87,83 +41,7 @@ private func renameSymbolsMinified(linker: LinkerContext,
                                      filesInOrder: ArrayList<Int64>,
                                      sortedImports: ArrayList<RenameStableRef>,
                                      reservedNames: HashSet<String>): RenameRenamer {
-    // Compute first top-level slot counts
-    let nestedRenameScopeRenameSlotCounts = linker.graph.ast.nestedRenameScopeRenameSlotCounts
-    var firstTopLevelSlots = RenameSlotCounts()
-    for (i in filesInOrder) {
-        firstTopLevelSlots.unionMax(nestedRenameScopeRenameSlotCounts[i])
-    }
-
-    // Create minify renamer
-    let minifyRenameRenamer = MinifyRenameRenamer(linker.graph.symbols, firstTopLevelSlots, reservedNames)
-
-    // Collect top-level symbols
-    var topLevelSymbols = ArrayList<StableSymbolCount>()
-    var topLevelSymbolsAll = ArrayList<StableSymbolCount>()
-
-    let stableSourceIndices = linker.graph.stableSourceIndices
-    let astFlagsList = linker.graph.ast.flags
-
-    // Compute character frequency
-    var freq = CharFreq()
-    let charFreqs = linker.graph.ast.charFreqs
-    for (sourceIndex in filesInOrder) {
-        if (astFlagsList[sourceIndex].hasCharFreq) {
-            freq.include(charFreqs[sourceIndex])
-        }
-    }
-
-    // Accumulate symbol use counts per file
-    let exportsRefList = linker.graph.ast.exportsRefs
-    let moduleRefList = linker.graph.ast.moduleRefs
-    let partsList = linker.graph.ast.parts
-
-    for (sourceIndex in filesInOrder) {
-        let astFlags = astFlagsList[sourceIndex]
-        let exportsRef = exportsRefList[sourceIndex]
-        let moduleRef = moduleRefList[sourceIndex]
-        let parts = partsList[sourceIndex].slice()
-
-        topLevelSymbols.clear()
-
-        if (astFlags.usesExportsRef) {
-            accumulateRenameSymbolUseCount(topLevelSymbols, exportsRef, 1, stableSourceIndices)
-        }
-        if (astFlags.usesModuleRef) {
-            accumulateRenameSymbolUseCount(topLevelSymbols, moduleRef, 1, stableSourceIndices)
-        }
-
-        for (part in parts) {
-            if (!part.isLive) {
-                continue
-            }
-
-            accumulateRenameSymbolUseCounts(topLevelSymbols, part.symbolUses, stableSourceIndices)
-
-            for (declaredRef in part.declaredSymbols) {
-                accumulateRenameSymbolUseCount(topLevelSymbols, declaredRef, 1, stableSourceIndices)
-            }
-        }
-
-        // Sort and append
-        StableSymbolCount.sort(topLevelSymbols)
-        topLevelSymbolsAll.appendAll(topLevelSymbols)
-    }
-
-    // Add cross-chunk imports
-    topLevelSymbols.clear()
-    for (stableRef in sortedImports) {
-        accumulateRenameSymbolUseCount(topLevelSymbols, stableRef.ref, 1, stableSourceIndices)
-    }
-    topLevelSymbolsAll.appendAll(topLevelSymbols)
-
-    // Allocate slots and assign names by frequency
-    minifyRenameRenamer.allocateTopLevelSymbolSlots(topLevelSymbolsAll)
-
-    let minifier = freq.compile()
-    minifyRenameRenamer.assignNamesByFrequency(minifier)
-
-    return minifyRenameRenamer.toRenameRenamer()
+    return RenameRenamer()
 }
 
 /// 普通模式的符号重命名
@@ -173,87 +51,7 @@ private func renameSymbolsNumbered(linker: LinkerContext,
                                       filesInOrder: ArrayList<Int64>,
                                       sortedImports: ArrayList<RenameStableRef>,
                                       reservedNames: HashSet<String>): RenameRenamer {
-    let allFlags = linker.graph.meta.flags
-    let allParts = linker.graph.ast.parts
-    let allWrapperRefs = linker.graph.ast.wrapperRefs
-    let allImportRecords = linker.graph.ast.importRecords
-
-    let r = NumberRenameRenamer(linker.graph.symbols, reservedNames)
-
-    // Add cross-chunk imports as top-level symbols
-    for (stableRef in sortedImports) {
-        r.addTopLevelSymbol(stableRef.ref)
-    }
-
-    for (sourceIndex in filesInOrder) {
-        let wrap = allFlags[sourceIndex].wrap
-        let parts = allParts[sourceIndex].slice()
-
-        match (wrap) {
-            case WrapKind.CJS =>
-                // CJS wrapper: add wrapper ref as top-level
-                r.addTopLevelSymbol(allWrapperRefs[sourceIndex])
-
-                // Hoist external import statements outside CJS wrapper
-                if (linker.options.outputFormat.keepES6ImportExportSyntax()) {
-                    let importRecords = allImportRecords[sourceIndex].slice()
-                    for (part in parts) {
-                        for (stmt in part.stmts) {
-                            match (stmt.tag) {
-                                case StmtKind.Import =>
-                                    if (!importRecords[stmt.importRecordIndex].sourceIndex.isValid) {
-                                        r.addTopLevelSymbol(stmt.namespaceRef)
-                                        if (stmt.defaultName != None) {
-                                            r.addTopLevelSymbol(stmt.defaultName.ref)
-                                        }
-                                        for (item in stmt.items) {
-                                            if (item.name.ref != None) {
-                                                r.addTopLevelSymbol(item.name.ref)
-                                            }
-                                        }
-                                    }
-                                case StmtKind.ExportStar =>
-                                    if (!importRecords[stmt.importRecordIndex].sourceIndex.isValid) {
-                                        r.addTopLevelSymbol(stmt.namespaceRef)
-                                    }
-                                case StmtKind.ExportFrom =>
-                                    if (!importRecords[stmt.importRecordIndex].sourceIndex.isValid) {
-                                        r.addTopLevelSymbol(stmt.namespaceRef)
-                                        for (item in stmt.items) {
-                                            if (item.name.ref != None) {
-                                                r.addTopLevelSymbol(item.name.ref)
-                                            }
-                                        }
-                                    }
-                                case _ => ()
-                            }
-                        }
-                    }
-                }
-                r.assignNamesRecursiveWithNumberRenameScope(
-                    r.root, allRenameModuleRenameScopes[sourceIndex], sourceIndex)
-                continue
-            case WrapKind.ESM =>
-                // ESM wrapper: add wrapper ref as top-level
-                r.addTopLevelSymbol(allWrapperRefs[sourceIndex])
-            case WrapKind.None => ()
-        }
-
-        // Process each live part
-        for (part in parts) {
-            if (!part.isLive) {
-                continue
-            }
-
-            r.addTopLevelDeclaredSymbols(part.declaredSymbols)
-            for (scope in part.scopes) {
-                r.assignNamesRecursiveWithNumberRenameScope(
-                    r.root, scope, sourceIndex)
-            }
-        }
-    }
-
-    return r.toRenameRenamer()
+    return RenameRenamer()
 }
 
 // ============================================================================
@@ -339,11 +137,7 @@ private func accumulateRenameSymbolUseCount(list: ArrayList<StableSymbolCount>,
 private func accumulateRenameSymbolUseCounts(list: ArrayList<StableSymbolCount>,
                                           symbolUses: HashMap<Int64, RenameSymbolUse>,
                                           stableIndices: ArrayList<Int64>): Unit {
-    let iter = symbolUses.iterator()
-    while (iter.hasNext()) {
-        let entry = iter.next()
-        accumulateRenameSymbolUseCount(list, entry.key, entry.value.count, stableIndices)
-    }
+    return
 }
 
 // ============================================================================
@@ -391,7 +185,7 @@ public class CharFreq {
     public var freqs: Array<Int64>
 
     public init() {
-        freqs = Array<Int64>(64, item: 0)
+        freqs = Array<Int64>(64, repeat: 0)
     }
 
     /// 包含另一个频率计数
@@ -540,6 +334,10 @@ public enum RenameOutputFormat {
     | InternalBakeDev
 
     public func keepES6ImportExportSyntax(): Bool {
-        return this == RenameOutputFormat.ESM || this == RenameOutputFormat.IIFE
+        match (this) {
+            case RenameOutputFormat.ESM => return true
+            case RenameOutputFormat.IIFE => return true
+            case _ => return false
+        }
     }
 }

@@ -76,7 +76,7 @@ public class Ref {
 
 // ========== OpaqueCallback ==========
 // 严格翻译自 jsc.OpaqueCallback
-public type OpaqueCallback = (UInt64): Void
+public type OpaqueCallback = (UInt64) -> Unit
 
 // ========== Math ==========
 // 严格翻译自 jsc.math

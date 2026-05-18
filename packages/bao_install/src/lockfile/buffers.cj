@@ -36,7 +36,7 @@ public class LockfileBuffers {
 
     /// 依赖列表
     /// 翻译自: dependencies: DependencyList = .{}
-    public var dependencies: ArrayList<DependencyInfo>
+    public var dependencies: ArrayList<BufferDependencyInfo>
 
     /// 外部字符串缓冲区
     /// 用于锁文件中所有 Semver.ExternalString 实例
@@ -52,7 +52,7 @@ public class LockfileBuffers {
         trees = ArrayList<TreeEntry>()
         hoistedDependencies = ArrayList<UInt32>()
         resolutions = ArrayList<UInt32>()
-        dependencies = ArrayList<DependencyInfo>()
+        dependencies = ArrayList<BufferDependencyInfo>()
         externStrings = ArrayList<ExternalStringEntry>()
         stringBytes = ArrayList<Byte>()
     }
@@ -150,23 +150,23 @@ public class TreeEntry {
 
 /// 依赖信息
 /// 对应 Bun: Dependency
-public class DependencyInfo {
+public class BufferDependencyInfo {
     public var name: String
     public var nameHash: UInt64
     public var version: DependencyVersionInfo
-    public var behavior: DependencyBehavior
+    public var behavior: BufferDependencyBehavior
 
     public init() {
         name = ""
         nameHash = UInt64(0)
         version = DependencyVersionInfo()
-        behavior = DependencyBehavior()
+        behavior = BufferDependencyBehavior()
     }
 }
 
 /// 依赖行为
 /// 对应 Bun: Dependency.Behavior
-public class DependencyBehavior {
+public class BufferDependencyBehavior {
     public var optional: Bool
     public var dev: Bool
     public var prod: Bool

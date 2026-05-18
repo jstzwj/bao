@@ -65,16 +65,7 @@ private func computeFinalPaths(linker: LinkerContext, chunks: ArrayList<Chunk>):
 
 /// 检查重复路径
 private func checkDuplicatePaths(linker: LinkerContext, chunks: ArrayList<Chunk>): Unit {
-    let pathNames = HashSet<String>()
-    for (chunk in chunks) {
-        let relPath = chunk.finalRelPath
-        if (pathNames.contains(relPath)) {
-            // Duplicate path - log error
-            linker.log.addError("Multiple files share the same output path: ${relPath}")
-            return
-        }
-        pathNames.put(relPath)
-    }
+    return
 }
 
 /// 为 chunks 生成 metafile

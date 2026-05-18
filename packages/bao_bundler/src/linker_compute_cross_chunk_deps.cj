@@ -85,7 +85,21 @@ public class CrossChunkDependencies {
     public var ctx: LinkerContext
     public var symbols: SymbolMap
 
-    public init() {}
+    public init() {
+        chunkMeta = ArrayList<ChunkMetaExt>()
+        chunks = ArrayList<Chunk>()
+        parts = ArrayList<CrossDepsPartList>()
+        importRecords = ArrayList<CrossDepsImportRecordList>()
+        flags = ArrayList<MetaFlags>()
+        entryPointChunkIndices = ArrayList<Int64>()
+        importsToBind = ArrayList<RefCrossDepsImportData>()
+        wrapperRefs = ArrayList<Int64>()
+        exportsRefs = ArrayList<Int64>()
+        sortedAndFilteredExportAliases = ArrayList<ArrayList<String>>()
+        resolvedExports = ArrayList<ResolvedExports>()
+        ctx = LinkerContext()
+        symbols = SymbolMap()
+    }
 
     /// 遍历单个 chunk 收集符号信息
     // 严格翻译自: computeCrossChunkDependencies.zig:71 walk()

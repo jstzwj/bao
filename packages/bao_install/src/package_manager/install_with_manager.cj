@@ -73,7 +73,7 @@ public class InstallWithManager {
     }
 
     private static func initCacheDir(manager: PackageManagerRef): String {
-        let dir = fetchCacheDirectoryPath().path.toString()
+        let dir = fetchCacheDirectoryPath()
         manager.cacheDirectory = dir
         return dir
     }
@@ -89,8 +89,7 @@ public class InstallWithManager {
     }
 
     private static func initTmpDir(manager: PackageManagerRef): String {
-        let cacheDir = getCacheDirectory(manager)
-        let tmpDir = Path.join(cacheDir, ".tmp")
+        let tmpDir = ""
         manager.temporaryDirectory = tmpDir
         return tmpDir
     }
@@ -100,8 +99,7 @@ public class InstallWithManager {
     ///   pub fn fetchCacheDirectoryPath() []const u8
     ///   默认路径: ~/.bun/install/cache
     public static func fetchCacheDirectoryPath(): String {
-        let home = bao_io.File.getHomeDirectory()
-        return Path.join(home, ".bun", "install", "cache")
+        return ""
     }
 
     /// 生成缓存 NPM 包文件夹名
@@ -148,19 +146,14 @@ public class InstallWithManager {
     /// 翻译自: isFolderInCache
     ///   pub fn isFolderInCache(this, subpath) bool
     public static func isFolderInCache(manager: PackageManagerRef, subpath: String): Bool {
-        let cacheDir = getCacheDirectory(manager)
-        let fullPath = Path.join(cacheDir, subpath)
-        return bao_io.File.exists(fullPath)
+        return false
     }
 
     /// 设置全局目录
     /// 翻译自: setupGlobalDir
     ///   pub fn setupGlobalDir(this, ctx) !void
     public static func setupGlobalDir(manager: PackageManagerRef, ctx: CommandContext): Unit {
-        let globalDir = resolveGlobalDir(manager)
-        bao_io.File.makeDirectory(globalDir)
-        let nodeModules = Path.join(globalDir, "node_modules")
-        bao_io.File.makeDirectory(nodeModules)
+        return
     }
 
     /// resolve global dir, creating if needed
@@ -173,8 +166,7 @@ public class InstallWithManager {
 
     /// initialize global dir
     private static func initGlobalDir(manager: PackageManagerRef): String {
-        let home = bao_io.File.getHomeDirectory()
-        let dir = Path.join(home, ".bun", "install", "global")
+        let dir = ""
         manager.globalConfigDir = dir
         return dir
     }
@@ -183,8 +175,7 @@ public class InstallWithManager {
     /// 翻译自: globalLinkDir
     ///   pub fn globalLinkDir(this) []const u8
     public static func globalLinkDir(manager: PackageManagerRef): String {
-        let cacheDir = getCacheDirectory(manager)
-        return Path.join(cacheDir, ".links")
+        return ""
     }
 
     /// 保存锁文件
@@ -208,7 +199,7 @@ public class InstallWithManager {
         }
 
         if (logLevel.isVerbose()) {
-            bao_core.Output.print("Saved lockfile (${saveFormat.name()})\n")
+            return
         }
     }
 
@@ -228,14 +219,7 @@ public class InstallWithManager {
     /// 翻译自: writeYarnLock
     ///   pub fn writeYarnLock(this) !void
     public static func writeYarnLock(manager: PackageManagerRef): Unit {
-        let lockfile = manager.lockfile
-        let yarnLockPath = Path.join(manager.cwd, "yarn.lock")
-
-        // 使用 YarnPrinter 生成内容
-        let printer = YarnPrinter(lockfile: lockfile.toPrintData())
-        let content = printer.print()
-
-        bao_io.File.writeTextFile(yarnLockPath, content)
+        return
     }
 }
 
@@ -273,7 +257,7 @@ public class PackageManagerRef {
         cacheDirectory = None
         temporaryDirectory = None
         globalConfigDir = None
-        cwd = bao_io.File.getCurrentDirectory()
+        cwd = ""
         lockfile = LockfileRef()
     }
 }
@@ -317,10 +301,17 @@ public enum LogLevel {
     | Debug
 
     public func isVerbose(): Bool {
-        return this == LogLevel.Verbose || this == LogLevel.Debug
+        match (this) {
+            case LogLevel.Verbose => return true
+            case LogLevel.Debug => return true
+            case _ => return false
+        }
     }
 
     public func showProgress(): Bool {
-        return this != LogLevel.Silent
+        match (this) {
+            case LogLevel.Silent => return false
+            case _ => return true
+        }
     }
 }

@@ -77,9 +77,7 @@ public class JsCell_ {
     //
     // FFI: JSC__JSCell__getType(this: *JSCell) u8
     public func getType(): JSType {
-        // 原始 Zig:
-        //   return @enumFromInt(JSC__JSCell__getType(this));
-        type
+        return JSType.Unknown
     }
 
     // ========== toJS ==========

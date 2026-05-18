@@ -81,12 +81,12 @@ public class UUID7 {
     public static func init_(timestamp: UInt64, random: Array<UInt8>): UUID7 {
         let uuid7 = UUID7()
         // First 6 bytes: timestamp in big-endian
-        uuid7.bytes[0] = UInt8(truncating: timestamp >> 40)
-        uuid7.bytes[1] = UInt8(truncating: timestamp >> 32)
-        uuid7.bytes[2] = UInt8(truncating: timestamp >> 24)
-        uuid7.bytes[3] = UInt8(truncating: timestamp >> 16)
-        uuid7.bytes[4] = UInt8(truncating: timestamp >> 8)
-        uuid7.bytes[5] = UInt8(truncating: timestamp)
+        uuid7.bytes[0] = UInt8((timestamp >> 40) & UInt64(0xFF))
+        uuid7.bytes[1] = UInt8((timestamp >> 32) & UInt64(0xFF))
+        uuid7.bytes[2] = UInt8((timestamp >> 24) & UInt64(0xFF))
+        uuid7.bytes[3] = UInt8((timestamp >> 16) & UInt64(0xFF))
+        uuid7.bytes[4] = UInt8((timestamp >> 8) & UInt64(0xFF))
+        uuid7.bytes[5] = UInt8(timestamp & UInt64(0xFF))
         // Version 7
         uuid7.bytes[6] = (UInt8(7) << 4) | 0
         // Variant

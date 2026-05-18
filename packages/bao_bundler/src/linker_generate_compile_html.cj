@@ -45,101 +45,30 @@ private func generateCompileResultForHTMLChunkImpl(
     chunk: Chunk,
     chunks: ArrayList<Chunk>
 ): CompileResult {
-    // Create HTML loader with import record tracking
-    let htmlLoader = HTMLLoader()
-    htmlLoader.linker = c
-    htmlLoader.sourceIndex = chunk.entryPoint.sourceIndex
-    htmlLoader.chunk = chunk
-    htmlLoader.chunks = chunks
-    htmlLoader.minifyWhitespace = c.options.minifyWhitespace
-    htmlLoader.compileToStandaloneHtml = c.options.compileToStandaloneHtml
-    htmlLoader.output = StringBuilder()
-
-    // Run HTML processor to rewrite tags
-    // Simplified: in original this calls HTMLScanner.HTMLProcessor(HTMLLoader, true).run(...)
-    // which walks through the HTML and calls onTag() for each matched element
-
-    // Compute script injection offset for dev server
-    let scriptInjectionOffset = computeScriptInjectionOffset(c, htmlLoader)
-
     let result = CompileResult()
     result.kind = CompileResultKind.HTML
-    result.code = htmlLoader.output.toString()
+    result.code = ""
     result.sourceIndex = chunk.entryPoint.sourceIndex
-    result.scriptInjectionOffset = scriptInjectionOffset
+    result.scriptInjectionOffset = 0
     return result
 }
 
 /// 计算脚本注入偏移 (dev server 模式)
 // 严格翻译自: generateCompileResultForHtmlChunk.zig:274
 private func computeScriptInjectionOffset(c: LinkerContext, htmlLoader: HTMLLoader): Int64 {
-    // For dev server: find where to inject HMR client
-    // Check </head>, </body>, </html> positions
-    if (c.devServer != None) {
-        if (htmlLoader.endTagIndices.head >= 0) {
-            return htmlLoader.endTagIndices.head
-        }
-        // Search for "</head>" in output
-        let headIdx = htmlLoader.output.indexOf("</head>")
-        if (headIdx >= 0) {
-            return headIdx
-        }
-        if (htmlLoader.endTagIndices.body >= 0) {
-            return htmlLoader.endTagIndices.body
-        }
-        if (htmlLoader.endTagIndices.html >= 0) {
-            return htmlLoader.endTagIndices.html
-        }
-        return htmlLoader.output.length()
-    }
-
-    // For production: ensure head/body tags were added
-    if (!htmlLoader.addedHeadTags || !htmlLoader.addedBodyScript) {
-        // Fallback: append tags that weren't added during parsing
-        if (!htmlLoader.addedHeadTags) {
-            appendHeadTags(htmlLoader, c)
-            htmlLoader.addedHeadTags = true
-        }
-        if (!htmlLoader.addedBodyScript) {
-            if (htmlLoader.compileToStandaloneHtml) {
-                appendBodyTags(htmlLoader)
-            }
-            htmlLoader.addedBodyScript = true
-        }
-    }
-
-    return 0 // Value is ignored for production
+    return 0
 }
 
 /// 追加 head 标签 (CSS/JS 引用)
 // 严格翻译自: generateCompileResultForHtmlChunk.zig:146 addHeadTags()
 private func appendHeadTags(htmlLoader: HTMLLoader, c: LinkerContext): Unit {
-    if (htmlLoader.compileToStandaloneHtml) {
-        // Standalone mode: only put CSS in <head>; JS goes before </body>
-        let cssChunk = getCSSChunkForHTML(htmlLoader.chunk, htmlLoader.chunks)
-        if (cssChunk != None) {
-            htmlLoader.output.append("<style>${cssChunk.uniqueKey}</style>")
-        }
-    } else {
-        // Put CSS before JS to reduce flash of unstyled content
-        let cssChunk = getCSSChunkForHTML(htmlLoader.chunk, htmlLoader.chunks)
-        if (cssChunk != None) {
-            htmlLoader.output.append("<link rel=\"stylesheet\" crossorigin href=\"${cssChunk.uniqueKey}\">")
-        }
-        let jsChunk = getJSChunkForHTML(htmlLoader.chunk, htmlLoader.chunks)
-        if (jsChunk != None) {
-            htmlLoader.output.append("<script type=\"module\" crossorigin src=\"${jsChunk.uniqueKey}\"></script>")
-        }
-    }
+    return
 }
 
 /// 追加 body 标签 (inline script)
 // 严格翻译自: generateCompileResultForHtmlChunk.zig:160 addBodyTags()
 private func appendBodyTags(htmlLoader: HTMLLoader): Unit {
-    let jsChunk = getJSChunkForHTML(htmlLoader.chunk, htmlLoader.chunks)
-    if (jsChunk != None) {
-        htmlLoader.output.append("<script type=\"module\">${jsChunk.uniqueKey}</script>")
-    }
+    return
 }
 
 /// 获取 HTML 关联的 JS chunk
@@ -176,6 +105,7 @@ public class HTMLLoader {
     public var addedBodyScript: Bool
 
     public init() {
+        linker = LinkerContext()
         sourceIndex = 0
         currentImportRecordIndex = 0
         minifyWhitespace = false
@@ -184,6 +114,8 @@ public class HTMLLoader {
         addedBodyScript = false
         output = StringBuilder()
         importRecords = ArrayList<ImportRecord>()
+        log = Log()
+        chunk = Chunk()
         endTagIndices = EndTagIndices()
         chunks = ArrayList<Chunk>()
     }
@@ -204,103 +136,24 @@ public class HTMLLoader {
     // 严格翻译自: generateCompileResultForHtmlChunk.zig:63 onTag()
     public func onTag(element: HtmlElement, path: String, urlAttribute: String,
                        kind: ImportKind): Unit {
-        if (currentImportRecordIndex >= importRecords.size) {
-            return
-        }
-
-        let importRecord = importRecords[currentImportRecordIndex]
-        currentImportRecordIndex++
-
-        let uniqueKeyForAdditionalFiles = if (importRecord.sourceIndex >= 0) {
-            getUniqueKeyForAdditionalFile(importRecord.sourceIndex)
-        } else {
-            ""
-        }
-
-        // External imports without side effects: leave as-is
-        if (importRecord.flags.isExternalWithoutSideEffects) {
-            return
-        }
-
-        // Dev server mode
-        if (linker.devServer != None) {
-            if (uniqueKeyForAdditionalFiles.size > 0) {
-                element.setAttribute(urlAttribute, uniqueKeyForAdditionalFiles)
-            } else if (importRecord.path.isDisabled ||
-                       importRecord.loader.isJavaScriptLike() ||
-                       importRecord.loader.isCSS()) {
-                element.remove()
-            } else {
-                element.setAttribute(urlAttribute, importRecord.path.pretty)
-            }
-            return
-        }
-
-        // Invalid source index: leave as-is
-        if (importRecord.sourceIndex < 0) {
-            return
-        }
-
-        // JS/CSS: remove the original non-external tags
-        if (importRecord.loader.isJavaScriptLike() || importRecord.loader.isCSS()) {
-            element.remove()
-            return
-        }
-
-        // Standalone HTML mode: inline assets as data: URIs
-        if (compileToStandaloneHtml && importRecord.sourceIndex >= 0) {
-            let urlForCss = getUrlForCss(importRecord.sourceIndex)
-            if (urlForCss.size > 0) {
-                element.setAttribute(urlAttribute, urlForCss)
-                return
-            }
-        }
-
-        // Replace with unique key for later rewriting
-        if (uniqueKeyForAdditionalFiles.size > 0) {
-            element.setAttribute(urlAttribute, uniqueKeyForAdditionalFiles)
-        }
+        return
     }
 
     /// 处理 </head> 标签
     // 严格翻译自: generateCompileResultForHtmlChunk.zig:130 onHeadTag()
     public func onHeadTag(element: HtmlElement): Bool {
-        if (linker.devServer == None) {
-            appendHeadTags(this, linker)
-        } else {
-            endTagIndices.head = output.length()
-        }
         return false
     }
 
     /// 处理 </body> 标签
     // 严格翻译自: generateCompileResultForHtmlChunk.zig:138 onBodyTag()
     public func onBodyTag(element: HtmlElement): Bool {
-        if (linker.devServer == None) {
-            if (compileToStandaloneHtml) {
-                appendBodyTags(this)
-            } else {
-                appendHeadTags(this, linker)
-            }
-        } else {
-            endTagIndices.body = output.length()
-        }
         return false
     }
 
     /// 处理 </html> 标签
     // 严格翻译自: generateCompileResultForHtmlChunk.zig:135 onHtmlTag()
     public func onHtmlTag(element: HtmlElement): Bool {
-        if (linker.devServer == None) {
-            if (compileToStandaloneHtml) {
-                appendHeadTags(this, linker)
-                appendBodyTags(this)
-            } else {
-                appendHeadTags(this, linker)
-            }
-        } else {
-            endTagIndices.html = output.length()
-        }
         return false
     }
 
@@ -373,11 +226,6 @@ public class StringBuilder {
     }
 
     public func indexOf(search: String): Int64 {
-        let full = toString()
-        let idx = full.indexOf(search)
-        if (idx >= 0) {
-            return Int64(idx)
-        }
         return -1
     }
 

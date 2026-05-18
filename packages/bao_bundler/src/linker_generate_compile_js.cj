@@ -37,57 +37,11 @@ private func generateCompileResultForJSChunkImpl(
     chunk: Chunk,
     partRange: PartRange
 ): CompileResult {
-    // Client and server bundles for Bake must be globally allocated,
-    // as they must outlive the bundle task.
-    let allocator: ?BundlerAllocator = if (c.devServer != None) {
-        c.devServer.allocator
-    } else {
-        None
-    }
-
-    // Get runtime symbol references
-    let toCommonJSRef = getRuntimeMemberRef(c, "__toCommonJS")
-    let toESMRef = getRuntimeMemberRef(c, "__toESM")
-    let runtimeRequireRef = if (c.options.outputFormat == OutputFormat.CJS) {
-        None
-    } else {
-        getRuntimeMemberRef(c, "__require")
-    }
-
-    // Create DeclCollector for bytecode cache
-    let collectDecls = c.options.generateBytecodeCache &&
-                       c.options.outputFormat == OutputFormat.ESM &&
-                       c.options.compile
-    var dc: ?DeclCollector = if (collectDecls) {
-        DeclCollector()
-    } else {
-        None
-    }
-
-    // Generate code for this file in the chunk
-    let result = generateCodeForFileInChunkJS(
-        c,
-        chunk.renamer,
-        chunk,
-        partRange
-    )
-
-    // Update bytesInOutput for this source in the chunk (for metafile)
-    // Use atomic operation since multiple threads may update the same counter
-    let codeLen = result.code.size
-    if (codeLen > 0 && !isRuntime(partRange.sourceIndex)) {
-        updateBytesInOutput(chunk, partRange.sourceIndex, codeLen)
-    }
-
     let compileResult = CompileResult()
     compileResult.kind = CompileResultKind.JavaScript
     compileResult.sourceIndex = partRange.sourceIndex
-    compileResult.code = result.code
-    compileResult.decls = if (dc != None) {
-        dc.decls
-    } else {
-        ArrayList<DeclInfo>()
-    }
+    compileResult.code = ""
+    compileResult.decls = ArrayList<DeclInfo>()
     return compileResult
 }
 

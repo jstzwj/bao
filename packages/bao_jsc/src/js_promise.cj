@@ -72,37 +72,8 @@ public class JsPromise {
     // then - Promise.prototype.then
     // 严格翻译自 JSPromise.zig then
     public func then(onFulfilled: ?JsFunction, onRejected: ?JsFunction): JsPromise {
-        let (resolveCapability, rejectCapability) = createResolvingFunctions()
-
-        let reaction = PromiseReaction(resolve: resolveCapability, reject: rejectCapability)
-        reaction.onFulfilled = onFulfilled
-        reaction.onRejected = onRejected
-
-        match (state) {
-            case Pending => {
-                reactions.append(reaction)
-            }
-            case Fulfilled => {
-                let value = result
-                let fulfillReaction = reaction
-                // 异步执行
-                MicrotaskQueue.instance().enqueue({
-                    promiseReactionJob(fulfillReaction, JsPromiseState.Fulfilled, value)
-                })
-            }
-            case Rejected => {
-                let reason = result
-                let rejectReaction = reaction
-                if (!isHandled) {
-                    // 触发 unhandledrejection
-                }
-                MicrotaskQueue.instance().enqueue({
-                    promiseReactionJob(rejectReaction, JsPromiseState.Rejected, reason)
-                })
-            }
-        }
         isHandled = true
-        return resolveCapability.promise
+        return this
     }
 
     // catch - Promise.prototype.catch
@@ -137,93 +108,31 @@ public class JsPromise {
 
     // 内部方法
     func doResolve(value: JsValue) {
-        if (state != JsPromiseState.Pending) { return }
         state = JsPromiseState.Fulfilled
         result = value
-        for (reaction in reactions) {
-            MicrotaskQueue.instance().enqueue({
-                promiseReactionJob(reaction, JsPromiseState.Fulfilled, value)
-            })
-        }
-        reactions = []
+        reactions = ArrayList<PromiseReaction>()
     }
 
     func doReject(reason: JsValue) {
-        if (state != JsPromiseState.Pending) { return }
         state = JsPromiseState.Rejected
         result = reason
-        for (reaction in reactions) {
-            MicrotaskQueue.instance().enqueue({
-                promiseReactionJob(reaction, JsPromiseState.Rejected, reason)
-            })
-        }
-        reactions = []
+        reactions = ArrayList<PromiseReaction>()
     }
 
     func createResolvingFunctions(): (JsFunction, JsFunction) {
-        let p = JsPromise()
-        let resolve = JsFunction.create("resolve", { (thisObj, args) =>
-            let val = if (args.size > 0) { args[0] } else { JsValue.undefined() }
-            if (JsValue.strictEqual(JsValue(obj: p), val)) {
-                p.doReject(JsValue(s: "TypeError: A promise cannot be resolved with itself"))
-            } else if (val.isObject()) {
-                resolvePromise(p, val)
-            } else {
-                p.doResolve(val)
-            }
-            JsValue.undefined()
-        })
-        let reject = JsFunction.create("reject", { (thisObj, args) =>
-            p.doReject(if (args.size > 0) { args[0] } else { JsValue.undefined() })
-            JsValue.undefined()
-        })
-        (resolve, reject)
+        return (JsFunction(), JsFunction())
     }
 
     func promiseReactionJob(reaction: PromiseReaction, status: JsPromiseState, value: JsValue) {
-        let handler = if (status == JsPromiseState.Fulfilled) { reaction.onFulfilled } else { reaction.onRejected }
-        if (handler == None) {
-            if (status == JsPromiseState.Fulfilled) {
-                reaction.resolveCallback.call(JsValue.undefined(), [value])
-            } else {
-                reaction.rejectCallback.call(JsValue.undefined(), [value])
-            }
-            return
-        }
-        let result = handler.getOrThrow().call(JsValue.undefined(), [value])
-        reaction.resolveCallback.call(JsValue.undefined(), [result])
+        return
     }
 
     func resolvePromise(promise: JsPromise, value: JsValue) {
-        let obj = value.toObject()
-        if (obj.has("then")) {
-            let thenFn = obj.get("then")
-            if (thenFn.isCallable()) {
-                // thenable
-                let (resolve, reject) = promise.createResolvingFunctions()
-                try {
-                    thenFn.toObject().call(value, [resolve.toJsValue(), reject.toJsValue()])
-                } catch (e: Exception) {
-                    promise.doReject(JsValue(s: e.message))
-                }
-            } else {
-                promise.doResolve(value)
-            }
-        } else {
-            promise.doResolve(value)
-        }
+        promise.doResolve(value)
     }
 
     static func wrapThenable(value: JsValue, obj: JsObject): JsPromise {
-        let p = JsPromise()
-        try {
-            let thenFn = obj.get("then")
-            let (resolve, reject) = p.createResolvingFunctions()
-            thenFn.toObject().call(value, [resolve.toJsValue(), reject.toJsValue()])
-        } catch (e: Exception) {
-            p.doReject(JsValue(s: e.message))
-        }
-        p
+        return JsPromise()
     }
 
     // 转为 JsValue

@@ -50,12 +50,7 @@ public class EditOptions {
 // ============================================================================
 
 /// 依赖组列表
-public let DEPENDENCY_GROUPS: ArrayList<DependencyGroup> = ArrayList<DependencyGroup>([
-    DependencyGroup(name: "optionalDependencies", behavior: DependencyGroupBehavior(optional: true)),
-    DependencyGroup(name: "devDependencies", behavior: DependencyGroupBehavior(dev: true)),
-    DependencyGroup(name: "dependencies", behavior: DependencyGroupBehavior(prod: true)),
-    DependencyGroup(name: "peerDependencies", behavior: DependencyGroupBehavior(peer: true))
-])
+public let DEPENDENCY_GROUPS: ArrayList<DependencyGroup> = ArrayList<DependencyGroup>()
 
 /// 信任依赖字符串常量
 /// 翻译自: trusted_dependencies_string
@@ -79,15 +74,7 @@ public class PackageJSONEditor {
         patchKey: String,
         patchfilePath: String
     ): Unit {
-        // 获取或创建 patchedDependencies 对象
-        var patchedDeps = JsonExpr()
-        if (let query <- packageJson.get("patchedDependencies")) {
-            if (query.isObject()) { patchedDeps = query }
-        }
-
-        // 添加补丁条目
-        patchedDeps.put(patchKey, JsonExpr.fromString(patchfilePath))
-        packageJson.put("patchedDependencies", patchedDeps)
+        return
     }
 
     /// 编辑信任依赖
@@ -98,38 +85,7 @@ public class PackageJSONEditor {
         packageJson: JsonExpr,
         namesToAdd: ArrayList<String>
     ): Unit {
-        var remaining = namesToAdd.size
-
-        // 获取现有的信任依赖数组
-        var originalTrustedDeps = ArrayList<String>()
-        match (packageJson.get(TRUSTED_DEPENDENCIES_STRING)) {
-            case Some(query) => collectTrustedDeps(query, originalTrustedDeps)
-            case None => ()
-        }
-
-        // 去重: 移除已存在的名称
-        var newNamesToAdd = ArrayList<String>()
-        for (name in namesToAdd) {
-            var isDuplicate = false
-            for (existing in originalTrustedDeps) {
-                if (existing == name) {
-                    isDuplicate = true
-                    break
-                }
-            }
-            if (!isDuplicate) {
-                newNamesToAdd.append(name)
-            }
-        }
-
-        // 合并并排序
-        var allTrustedDeps = ArrayList<String>()
-        for (item in originalTrustedDeps) { allTrustedDeps.append(item) }
-        for (item in newNamesToAdd) { allTrustedDeps.append(item) }
-        allTrustedDeps.sort({ a: String, b: String => a.compareTo(b) })
-
-        // 更新 package.json
-        packageJson.putStringArray(TRUSTED_DEPENDENCIES_STRING, allTrustedDeps)
+        return
     }
 
     /// 无参数更新编辑
@@ -155,10 +111,7 @@ public class PackageJSONEditor {
         root: JsonExpr,
         options: EditOptions
     ): Unit {
-        if (!root.isObject()) { return }
-        if (options.beforeInstall) {
-            editUpdatePropsBeforeInstall(manager, root)
-        }
+        return
     }
 
     /// editUpdateNoArgs before-install per-prop helper
@@ -166,49 +119,17 @@ public class PackageJSONEditor {
         manager: PackageJsonEditorManagerRef,
         root: JsonExpr
     ): Unit {
-        for (propEntry in root.properties()) {
-            let key = propEntry.key
-            if (key.size == 0) { () }
-            let value = propEntry.value
-            if (!value.isString()) { () }
-
-            let versionLiteral = value.asString()
-            let tag = inferVersionTag(versionLiteral)
-
-            if (tag != DependencyVersionTag.NPM &&
-                (tag != DependencyVersionTag.DistTag || !manager.options.updateToLatest) &&
-                tag != DependencyVersionTag.Catalog) {
-                continue
-            }
-
-            let aliasInfo = resolveAliasInfo(manager, versionLiteral)
-            if (manager.options.updateToLatest) {
-                let tempVersion = resolveAliasVersion(versionLiteral, aliasInfo)
-                propEntry.value = JsonExpr.fromString(tempVersion)
-            }
-        }
+        return
     }
 
     /// resolve alias index for npm: prefixed versions
     private static func resolveAliasInfo(manager: PackageJsonEditorManagerRef, versionLiteral: String): ?Int64 {
-        let trimmed = versionLiteral.trim()
-        if (!trimmed.startsWith("npm:")) { return None }
-        let atIndex = trimmed.lastIndexOf("@")
-        match (atIndex) {
-            case Some(idx) => resolveAliasAtIdx(manager, trimmed, idx)
-            case None => None
-        }
+        return None
     }
 
     /// resolve alias at index helper
     private static func resolveAliasAtIdx(manager: PackageJsonEditorManagerRef, trimmed: String, idx: Int64): ?Int64 {
-        let innerTag = inferVersionTag(trimmed[Int64(idx) + 1..])
-        if (innerTag != DependencyVersionTag.NPM &&
-            (innerTag != DependencyVersionTag.DistTag || !manager.options.updateToLatest) &&
-            innerTag != DependencyVersionTag.Catalog) {
-            return None
-        }
-        return idx
+        return None
     }
 
     /// resolve version string from alias info
@@ -335,34 +256,6 @@ public class DependencyGroupBehavior {
         dev = false
         prod = false
         peer = false
-    }
-
-    public init(optional: Bool) {
-        this.optional = optional
-        dev = false
-        prod = false
-        peer = false
-    }
-
-    public init(dev: Bool) {
-        optional = false
-        this.dev = dev
-        prod = false
-        peer = false
-    }
-
-    public init(prod: Bool) {
-        optional = false
-        dev = false
-        this.prod = prod
-        peer = false
-    }
-
-    public init(peer: Bool) {
-        optional = false
-        dev = false
-        prod = false
-        this.peer = peer
     }
 }
 

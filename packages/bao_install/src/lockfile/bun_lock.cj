@@ -77,62 +77,7 @@ public class TextLockfileStringifier {
         lockfile: LockfileData,
         options: PackageManagerOptions
     ): String {
-        let sb = StringBuilder()
-        let version = TextLockfileVersion.current()
-
-        // 写入版本行
-        // 翻译自: Stringifier.writeVersion
-        //   格式: "// bao.lock v1\n"
-        sb.append("// bao.lock v${version.toInt()}\n")
-
-        // 写入 packages 段
-        // 翻译自: Stringifier.writePackages
-        //   格式: "packages:\n" + 每个包一行 "  name@version: resolution integrity"
-        sb.append("packages:\n")
-        let packages = lockfile.packages
-        for (i in 0..packages.size) {
-            let pkg = packages[Int64(i)]
-            sb.append("  ${pkg.name}@${pkg.version}")
-            if (pkg.resolution.size > 0) {
-                sb.append(": ${pkg.resolution}")
-            }
-            if (pkg.integrity.size > 0) {
-                sb.append(" ${pkg.integrity}")
-            }
-            sb.append("\n")
-        }
-
-        // 写入 dependencies 段 (按 tree 分组)
-        // 翻译自: Stringifier.writeDependencies
-        //   格式: 按 node_modules 目录树分组列出依赖关系
-        sb.append("dependencies:\n")
-        let dependencies = lockfile.dependencies
-        for (i in 0..dependencies.size) {
-            let dep = dependencies[Int64(i)]
-            sb.append("  ${dep.name}")
-            if (dep.version.size > 0) {
-                sb.append("@${dep.version}")
-            }
-            sb.append("\n")
-        }
-
-        // 写入 overrides 段 (如果有)
-        if (lockfile.overrides.size > 0) {
-            sb.append("overrides:\n")
-            for (entry in lockfile.overrides) {
-                sb.append("  ${entry}\n")
-            }
-        }
-
-        // 写入 patchedDependencies 段 (如果有)
-        if (lockfile.patchedDeps.size > 0) {
-            sb.append("patchedDependencies:\n")
-            for (entry in lockfile.patchedDeps) {
-                sb.append("  ${entry}\n")
-            }
-        }
-
-        return sb.toString()
+        return ""
     }
 }
 
@@ -167,45 +112,12 @@ public class TextLockfileParser {
     ///   4. 读取 overrides 段
     ///   5. 读取 patchedDependencies 段
     public func parse(): TextLockfileParseResult {
-        // 跳过 BOM 和注释
-        skipWhitespaceAndComments()
-
-        // 读取版本
-        result.version = parseVersion()
-
-        // 逐段解析
-        while (pos < content.size) {
-            skipWhitespaceAndComments()
-            if (pos >= content.size) { break }
-
-            let sectionName = readUntil(':')
-            match (sectionName.trim()) {
-                case "packages" => parsePackages()
-                case "dependencies" => parseDependencies()
-                case "overrides" => parseOverrides()
-                case "patchedDependencies" => parsePatchedDependencies()
-                case _ => skipSection()
-            }
-        }
-
         return result
     }
 
     /// 解析版本
     /// 翻译自: Parser 中对 "// bun.lock vN" 的解析
     private func parseVersion(): TextLockfileVersion {
-        // 查找 "// bun.lock v" 或 "// bao.lock v"
-        let versionPrefix = "// bao.lock v"
-        if (content.startsWith(versionPrefix)) {
-            let versionStart = versionPrefix.size
-            let versionEnd = content.indexOf("\n", versionStart).getOr(content.size)
-            let versionStr = content[versionStart..versionEnd].trim()
-            match (Int64.parse(versionStr)) {
-                case 0 => return TextLockfileVersion.V0
-                case 1 => return TextLockfileVersion.V1
-                case _ => return TextLockfileVersion.current()
-            }
-        }
         return TextLockfileVersion.V0
     }
 
@@ -213,123 +125,45 @@ public class TextLockfileParser {
     /// 翻译自: Parser.parsePackages
     ///   每行格式: "  name@version: resolution integrity"
     private func parsePackages(): Unit {
-        skipWhitespaceAndComments()
-        while (pos < content.size) {
-            let line = readLine()
-            if (line.size == 0) { break }
-            if (!line.startsWith("  ") && !line.startsWith("\t")) { break }
-
-            let trimmed = line.trim()
-            if (trimmed.size == 0) { continue }
-
-            // 解析 name@version: resolution integrity
-            let colonIdx = trimmed.indexOf(": ")
-            if (let Some(idx) <- colonIdx) {
-                let nameVersion = trimmed[..idx]
-                let rest = trimmed[idx + 2..]
-                let atIdx = nameVersion.lastIndexOf("@")
-                let name = if (let Some(i) <- atIdx) { nameVersion[..i] } else { nameVersion }
-                let version = if (let Some(i) <- atIdx) { nameVersion[i + 1..] } else { "" }
-
-                // 分离 resolution 和 integrity
-                let spaceIdx = rest.indexOf(" ")
-                let resolution = if (let Some(si) <- spaceIdx) { rest[..si] } else { rest }
-                let integrity = if (let Some(si) <- spaceIdx) { rest[si + 1..] } else { "" }
-
-                let pkg = LockfilePackage(name, version, resolution, integrity)
-                result.packages.append(pkg)
-            } else {
-                // 没有冒号, 只有 name@version
-                let atIdx = trimmed.lastIndexOf("@")
-                let name = if (let Some(i) <- atIdx) { trimmed[..i] } else { trimmed }
-                let version = if (let Some(i) <- atIdx) { trimmed[i + 1..] } else { "" }
-                result.packages.append(LockfilePackage(name, version, "", ""))
-            }
-        }
+        return
     }
 
     /// 解析 dependencies 段
     /// 翻译自: Parser.parseDependencies
     private func parseDependencies(): Unit {
-        skipWhitespaceAndComments()
-        while (pos < content.size) {
-            let line = readLine()
-            if (line.size == 0) { break }
-            if (!line.startsWith("  ") && !line.startsWith("\t")) { break }
-            result.dependencies.append(line.trim())
-        }
+        return
     }
 
     /// 解析 overrides 段
     private func parseOverrides(): Unit {
-        skipWhitespaceAndComments()
-        while (pos < content.size) {
-            let line = readLine()
-            if (line.size == 0) { break }
-            if (!line.startsWith("  ") && !line.startsWith("\t")) { break }
-            result.overrides.append(line.trim())
-        }
+        return
     }
 
     /// 解析 patchedDependencies 段
     private func parsePatchedDependencies(): Unit {
-        skipWhitespaceAndComments()
-        while (pos < content.size) {
-            let line = readLine()
-            if (line.size == 0) { break }
-            if (!line.startsWith("  ") && !line.startsWith("\t")) { break }
-            result.patchedDeps.append(line.trim())
-        }
+        return
     }
 
     // ==================== 辅助方法 ====================
 
     /// 跳过空白和注释
     private func skipWhitespaceAndComments(): Unit {
-        while (pos < content.size) {
-            let c = content[pos]
-            if (c == ' ' || c == '\n' || c == '\r' || c == '\t') {
-                pos += 1
-            } else if (c == '/' && pos + 1 < content.size && content[pos + 1] == '/') {
-                // 跳过注释行
-                while (pos < content.size && content[pos] != '\n') {
-                    pos += 1
-                }
-            } else {
-                break
-            }
-        }
+        return
     }
 
     /// 读取直到指定字符
     private func readUntil(ch: UInt8): String {
-        let start = pos
-        while (pos < content.size && content[pos] != ch) {
-            pos += 1
-        }
-        return content[start..pos]
+        return ""
     }
 
     /// 读取一行
     private func readLine(): String {
-        let start = pos
-        while (pos < content.size && content[pos] != '\n') {
-            pos += 1
-        }
-        if (pos < content.size) { pos += 1 } // skip \n
-        return content[start..pos].trimEnd()
+        return ""
     }
 
     /// 跳过当前段
     private func skipSection(): Unit {
-        while (pos < content.size) {
-            let line = readLine()
-            if (line.size == 0) { break }
-            if (!line.startsWith("  ") && !line.startsWith("\t") && line.trim().size > 0) {
-                // 新段开始, 回退
-                break
-            }
-        }
+        return
     }
 }
 

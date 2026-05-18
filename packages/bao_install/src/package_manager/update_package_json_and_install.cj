@@ -311,12 +311,12 @@ public enum LoadResult {
 
 /// 加载结果 (成功)
 public class LoadResultOk {
-    public var lockfile: LockfileRef
+    public var lockfile: UpdateInstallLockfileRef
     public var migrated: MigrationKind
     public var format: LockfileFormat
 
     public init() {
-        lockfile = LockfileRef()
+        lockfile = UpdateInstallLockfileRef()
         migrated = MigrationKind.None
         format = LockfileFormat.Binary
     }
@@ -426,7 +426,7 @@ public enum PackageSubcommand {
 /// 包管理器状态
 public class UpdateInstallPackageManagerState {
     public var options: UpdateInstallPackageManagerOptions
-    public var lockfile: LockfileRef
+    public var lockfile: UpdateInstallLockfileRef
     public var updateRequests: ArrayList<UpdateInstallRequest>
     public var summary: InstallDiffSummary
     public var securityScanner: ?SecurityScannerRef
@@ -434,7 +434,7 @@ public class UpdateInstallPackageManagerState {
 
     public init() {
         options = UpdateInstallPackageManagerOptions()
-        lockfile = LockfileRef()
+        lockfile = UpdateInstallLockfileRef()
         updateRequests = ArrayList<UpdateInstallRequest>()
         summary = InstallDiffSummary()
         securityScanner = None
@@ -447,7 +447,7 @@ public class UpdateInstallPackageManagerState {
     public func runAndWaitForTasks(): Unit {}
     public func cleanLockfile(): Unit {}
     public func enqueueDependencyList(deps: ArrayList<UInt32>): Unit {}
-    public func parseRootPackage(path: String): PackageData { return PackageData() }
+    public func parseRootPackage(path: String): UpdateInstallPackageData { return UpdateInstallPackageData() }
     public func generateDiff(): InstallDiffSummary { return InstallDiffSummary() }
     public func saveLockfile(): Unit {}
     public func runLifecycleScripts(): Unit {}
@@ -484,18 +484,18 @@ public class UpdateInstallPackageManagerOptions {
 }
 
 /// 锁文件引用
-public class LockfileRef {
+public class UpdateInstallLockfileRef {
     public init() {}
     public func loadFromCwd(): LoadResult { return LoadResult.NotFound }
     public func initEmpty(): Unit {}
-    public func appendPackage(pkg: PackageData): Unit {}
+    public func appendPackage(pkg: UpdateInstallPackageData): Unit {}
     public func dependenciesCount(): Int64 { return 0 }
     public func packagesCount(): Int64 { return 0 }
     public func isEmpty(): Bool { return true }
 }
 
 /// 包数据
-public class PackageData {
+public class UpdateInstallPackageData {
     public var dependencies: ArrayList<UInt32>
 
     public init() {

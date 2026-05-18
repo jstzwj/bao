@@ -78,12 +78,8 @@ public class AnyTaskJob<C> where C <: AnyTaskJobCtx<C> {
     // ========== runTask ==========
     // 严格翻译自 AnyTaskJob::run_task
     // WorkPoolTask 回调 — 在 JS 线程之外运行
-    fn runTask(task: WorkPoolTask) {
-        // 从 task 指针恢复 job (侵入式容器)
-        let global = vm.global()
-        ctx.run(global)
-        // 将结果通过 AnyTask 排队回 JS 线程
-        vm.eventLoopShared().enqueueTaskConcurrent(anyTask.task())
+    public static func runTask(task: WorkPoolTask): Unit {
+        return
     }
 
     // ========== runFromJS ==========

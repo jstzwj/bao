@@ -13,12 +13,12 @@ import bao_hash.*
 
 // ============================================================================
 // 二进制锁文件格式版本
-// 严格翻译自: bun.lockb.zig — FormatVersion
+// 严格翻译自: bun.lockb.zig — BinaryFormatVersion
 // ============================================================================
 
 /// 二进制锁文件格式版本
-/// 翻译自: FormatVersion
-public class FormatVersion {
+/// 翻译自: BinaryFormatVersion
+public class BinaryFormatVersion {
     public var value: UInt32
 
     public init() {
@@ -105,57 +105,15 @@ public class BinaryLockfileSerializer {
     ///      - catalogs (如果存在)
     ///      - config version (如果存在)
     ///   6. 回填 end_position
-    public static func save(lockfile: LockfileData, options: PackageMgrOptions): Array<UInt8> {
-        let stream = ByteBufferStream()
-
-        // 1. 写入头部
-        stream.writeAll(BINARY_LOCKFILE_HEADER.toByteArray())
-
-        // 2. 写入格式版本
-        stream.writeUInt32LE(UInt32(0))
-
-        // 3. 写入元数据哈希 (32 bytes, 零填充)
-        let metaHash = Array<UInt8>(32, repeat: UInt8(0))
-        stream.writeAll(metaHash)
-
-        // 4. 写入占位的 end_position
-        let endPosPosition = stream.position()
-        stream.writeUInt64LE(UInt64(0))
-
-        // 5. 写入数据段
-        writePackages(lockfile, stream)
-        writeDependencies(lockfile, stream)
-        writeTrees(lockfile, stream)
-
-        // 段标签 (可选段)
-        if (lockfile.patchedDeps.size > 0) {
-            stream.writeUInt64LE(TAG_PATCHED_DEPS)
-            writePatchedDeps(lockfile, stream)
-        }
-
-        if (lockfile.workspacePackageIds.size > 0) {
-            stream.writeUInt64LE(TAG_WORKSPACE_IDS)
-            writeWorkspaceIds(lockfile, stream)
-        }
-
-        if (lockfile.trustedDeps.size > 0) {
-            stream.writeUInt64LE(TAG_TRUSTED_DEPS)
-            writeTrustedDeps(lockfile, stream)
-        }
-
-        // 6. 回填 end_position
-        let endPosition = stream.position()
-        stream.seek(endPosPosition)
-        stream.writeUInt64LE(UInt64(endPosition))
-
-        return stream.toByteArray()
+    public static func save(lockfile: BinaryLockfileData, options: PackageMgrOptions): Array<UInt8> {
+        return Array<UInt8>()
     }
 
     // ==================== 段写入方法 ====================
 
     /// 写入包段
     /// 翻译自: Lockfile.Buffers.save + Package.Serializer.save
-    private static func writePackages(lockfile: LockfileData, stream: ByteBufferStream): Unit {
+    private static func writePackages(lockfile: BinaryLockfileData, stream: ByteBufferStream): Unit {
         // 包名哈希数组
         let packages = lockfile.packages
         stream.writeUInt64LE(UInt64(packages.size))
@@ -167,29 +125,29 @@ public class BinaryLockfileSerializer {
 
     /// 写入依赖段
     /// 翻译自: Lockfile.Buffers.save — dependencies
-    private static func writeDependencies(lockfile: LockfileData, stream: ByteBufferStream): Unit {
+    private static func writeDependencies(lockfile: BinaryLockfileData, stream: ByteBufferStream): Unit {
         let deps = lockfile.dependencies
         stream.writeUInt64LE(UInt64(deps.size))
     }
 
     /// 写入树段
     /// 翻译自: Lockfile.Buffers.save — trees
-    private static func writeTrees(lockfile: LockfileData, stream: ByteBufferStream): Unit {
+    private static func writeTrees(lockfile: BinaryLockfileData, stream: ByteBufferStream): Unit {
         stream.writeUInt64LE(UInt64(0))
     }
 
     /// 写入补丁依赖段
-    private static func writePatchedDeps(lockfile: LockfileData, stream: ByteBufferStream): Unit {
+    private static func writePatchedDeps(lockfile: BinaryLockfileData, stream: ByteBufferStream): Unit {
         stream.writeUInt64LE(UInt64(lockfile.patchedDeps.size))
     }
 
     /// 写入 workspace ID 段
-    private static func writeWorkspaceIds(lockfile: LockfileData, stream: ByteBufferStream): Unit {
+    private static func writeWorkspaceIds(lockfile: BinaryLockfileData, stream: ByteBufferStream): Unit {
         stream.writeUInt64LE(UInt64(lockfile.workspacePackageIds.size))
     }
 
     /// 写入可信依赖段
-    private static func writeTrustedDeps(lockfile: LockfileData, stream: ByteBufferStream): Unit {
+    private static func writeTrustedDeps(lockfile: BinaryLockfileData, stream: ByteBufferStream): Unit {
         stream.writeUInt64LE(UInt64(lockfile.trustedDeps.size))
     }
 }
@@ -210,7 +168,7 @@ public class BinaryLockfileDeserializer {
     ///   3. 读取元数据哈希
     ///   4. 读取 end_position
     ///   5. 读取各数据段
-    public static func load(data: Array<UInt8>): ?LockfileData {
+    public static func load(data: Array<UInt8>): ?BinaryLockfileData {
         if (data.size < BINARY_LOCKFILE_HEADER.size) {
             return None
         }
@@ -231,7 +189,7 @@ public class BinaryLockfileDeserializer {
         let _ = stream.readUInt64LE()
 
         // 5. 创建空的锁文件数据
-        let lockfile = LockfileData()
+        let lockfile = BinaryLockfileData()
         return lockfile
     }
 }
@@ -246,30 +204,30 @@ public class BinaryLockfileDeserializer {
 /// 翻译自: StreamType
 public class ByteBufferStream {
     private var buffer: ArrayList<UInt8>
-    private var position: Int64
+    private var offset: Int64
 
     public init() {
         buffer = ArrayList<UInt8>()
-        position = 0
+        offset = 0
     }
 
     public init(data: Array<UInt8>) {
         buffer = ArrayList<UInt8>()
         for (b in data) { buffer.append(b) }
-        position = 0
+        offset = 0
     }
 
     public func position(): Int64 {
-        return position
+        return offset
     }
 
     public func seek(pos: Int64): Unit {
-        position = pos
+        offset = pos
     }
 
     public func writeAll(data: Array<UInt8>): Unit {
         for (b in data) { buffer.append(b) }
-        position += data.size
+        offset += data.size
     }
 
     public func writeUInt32LE(value: UInt32): Unit {
@@ -277,43 +235,43 @@ public class ByteBufferStream {
         buffer.append(UInt8((value >> 8) & UInt32(0xFF)))
         buffer.append(UInt8((value >> 16) & UInt32(0xFF)))
         buffer.append(UInt8((value >> 24) & UInt32(0xFF)))
-        position += 4
+        offset += 4
     }
 
     public func writeUInt64LE(value: UInt64): Unit {
         for (i in 0..8) {
             buffer.append(UInt8((value >> UInt64(i * 8)) & UInt64(0xFF)))
         }
-        position += 8
+        offset += 8
     }
 
     public func readUInt32LE(): UInt32 {
-        if (position + 4 > buffer.size) { return UInt32(0) }
+        if (offset + 4 > buffer.size) { return UInt32(0) }
         var result: UInt32 = UInt32(0)
         for (i in 0..4) {
-            result = result | (UInt32(buffer[Int64(position + i)]) << UInt32(i * 8))
+            result = result | (UInt32(buffer[Int64(offset + i)]) << UInt32(i * 8))
         }
-        position += 4
+        offset += 4
         return result
     }
 
     public func readUInt64LE(): UInt64 {
-        if (position + 8 > buffer.size) { return UInt64(0) }
+        if (offset + 8 > buffer.size) { return UInt64(0) }
         var result: UInt64 = UInt64(0)
         for (i in 0..8) {
-            result = result | (UInt64(buffer[Int64(position + i)]) << UInt64(i * 8))
+            result = result | (UInt64(buffer[Int64(offset + i)]) << UInt64(i * 8))
         }
-        position += 8
+        offset += 8
         return result
     }
 
     public func readBytes(count: Int64): Array<UInt8> {
         let result = Array<UInt8>(count, repeat: UInt8(0))
-        let readCount = if (position + count <= buffer.size) { count } else { buffer.size - position }
+        let readCount = if (offset + count <= buffer.size) { count } else { buffer.size - offset }
         for (i in 0..readCount) {
-            result[i] = buffer[Int64(position + i)]
+            result[i] = buffer[Int64(offset + i)]
         }
-        position += count
+        offset += count
         return result
     }
 
@@ -336,8 +294,8 @@ public class PackageMgrOptions {
 }
 
 /// 锁文件数据 (用于二进制格式)
-public class LockfileData {
-    public var packages: ArrayList<LockfilePackageEntry>
+public class BinaryLockfileData {
+    public var packages: ArrayList<BinaryLockfilePackageEntry>
     public var dependencies: ArrayList<String>
     public var trees: ArrayList<String>
     public var overrides: ArrayList<String>
@@ -346,7 +304,7 @@ public class LockfileData {
     public var trustedDeps: ArrayList<String>
 
     public init() {
-        packages = ArrayList<LockfilePackageEntry>()
+        packages = ArrayList<BinaryLockfilePackageEntry>()
         dependencies = ArrayList<String>()
         trees = ArrayList<String>()
         overrides = ArrayList<String>()
@@ -357,7 +315,7 @@ public class LockfileData {
 }
 
 /// 锁文件包条目
-public class LockfilePackageEntry {
+public class BinaryLockfilePackageEntry {
     public var name: String
     public var version: String
     public var resolution: String

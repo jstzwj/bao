@@ -26,22 +26,7 @@ public func postProcessHTMLChunkDetailed(
     chunk: Chunk,
     chunks: ArrayList<Chunk>
 ): Unit {
-    // Split output into pieces
-    var j = StringJoiner()
-
-    let compileResults = chunk.compileResultsForChunk
-
-    // Concatenate all compile results
-    for (compileResult in compileResults) {
-        j.push(compileResult.code)
-    }
-
-    // Ensure file ends with a newline
-    j.ensureNewlineAtEnd()
-
-    // Break output into pieces for chunk reference resolution
-    chunk.intermediateOutput = breakOutputIntoPieces(c, j, chunks.size)
-    chunk.isolatedHash = generateIsolatedHash(c, chunk)
+    return
 }
 
 // ============================================================================

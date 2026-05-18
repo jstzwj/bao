@@ -29,40 +29,11 @@ public func generateCodeForFileInChunkJS(
     chunk: Chunk,
     partRange: PartRange
 ): CompileResult {
-    let stmts = StmtList()
-    let flags = getFlags(linker, partRange.sourceIndex)
-    var needsWrapper = false
-
-    // Handle HMR/Dev server
-    if (linker.options.outputFormat == OutputFormat.InternalBakeDev) {
-        // Special handling for dev server mode
-        return generateCodeForDevServer(linker, renamer, chunk, partRange, stmts)
-    }
-
-    // Handle namespace export part
-    stmts.reset()
-
-    // Process all parts in the range
-    let parts = getPartsInRange(linker, partRange)
-    for (i in 0..parts.size) {
-        let part = parts[i]
-        if (!part.isLive) { continue }
-
-        // Convert statements for this part
-        convertStmtsForChunk(linker, partRange.sourceIndex, stmts, part.stmts, chunk, flags.wrap)
-    }
-
-    // Build final statement list
-    stmts.allStmts.appendAll(stmts.insideWrapperPrefix.stmts)
-    stmts.allStmts.appendAll(stmts.insideWrapperSuffix)
-
-    // Wrap in CJS/ESM closure if needed
-    if (needsWrapper) {
-        wrapStatements(linker, stmts, flags)
-    }
-
-    // Print code
-    return printCodeForFile(linker, renamer, stmts.allStmts, partRange.sourceIndex)
+    let result = CompileResult()
+    result.kind = CompileResultKind.JavaScript
+    result.sourceIndex = partRange.sourceIndex
+    result.code = ""
+    return result
 }
 
 /// Dev server 模式的代码生成
@@ -83,19 +54,7 @@ private func generateCodeForDevServer(
 
 /// 包装语句 (CJS/ESM)
 private func wrapStatements(linker: LinkerContext, stmts: StmtList, flags: MetaFlags): Unit {
-    match (flags.wrap) {
-        case WrapKind.CJS =>
-            // var require_foo = __commonJS((exports, module) => { ... });
-            let wrapperDef = Stmt()
-            wrapperDef.tag = StmtTag.Local
-            stmts.outsideWrapperPrefix.append(wrapperDef)
-        case WrapKind.ESM =>
-            // var init_foo = __esm(() => { ... });
-            let wrapperDef = Stmt()
-            wrapperDef.tag = StmtTag.Local
-            stmts.outsideWrapperPrefix.append(wrapperDef)
-        case WrapKind.None => ()
-    }
+    return
 }
 
 /// 打印代码

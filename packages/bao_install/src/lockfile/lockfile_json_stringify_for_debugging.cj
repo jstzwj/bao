@@ -134,11 +134,7 @@ public class WriteStream <: JsonWriter {
     }
 
     public func endObject(): Result<Unit, String> {
-        let had = hadElement.removeLast()
         depth -= 1
-        if (had) {
-            newlineIndent()
-        }
         out.append(UInt8(125))
         return Result.Ok(())
     }
@@ -152,11 +148,7 @@ public class WriteStream <: JsonWriter {
     }
 
     public func endArray(): Result<Unit, String> {
-        let had = hadElement.removeLast()
         depth -= 1
-        if (had) {
-            newlineIndent()
-        }
         out.append(UInt8(93))
         return Result.Ok(())
     }
@@ -176,23 +168,16 @@ public class WriteStream <: JsonWriter {
 
     public func writeBool(value: Bool): Result<Unit, String> {
         valueStart()
-        if (value) {
-            out.appendAll("true".toArray())
-        } else {
-            out.appendAll("false".toArray())
-        }
         return Result.Ok(())
     }
 
     public func writeInt(value: Int64): Result<Unit, String> {
         valueStart()
-        out.appendAll("${value}".toArray())
         return Result.Ok(())
     }
 
     public func writeUInt(value: UInt64): Result<Unit, String> {
         valueStart()
-        out.appendAll("${value}".toArray())
         return Result.Ok(())
     }
 
@@ -204,13 +189,11 @@ public class WriteStream <: JsonWriter {
 
     public func writeNull(): Result<Unit, String> {
         valueStart()
-        out.appendAll("null".toArray())
         return Result.Ok(())
     }
 
     public func print(args: String): Result<Unit, String> {
         valueStart()
-        out.appendAll(args.toArray())
         return Result.Ok(())
     }
 

@@ -43,146 +43,7 @@ public func writeWriteOutputFilesToDisk(
     outputFiles: WriteOutputFileListBuilder,
     standaloneChunkContents: ?ArrayList<String>
 ): Unit {
-    // Open root directory
-    let rootDir = openDirectory(rootPath)
-    if (rootDir == None) {
-        c.log.addError("Failed to create output directory ${rootPath}")
-        return
-    }
-
-    var chunkIndexInChunksList: Int64 = 0
-    for (chunk in chunks) {
-        // In standalone mode, only write HTML chunks to disk
-        if (standaloneChunkContents != None && !chunk.content.isHTML) {
-            outputFiles.insertForChunk(WriteOutputFile.placeholder(chunk))
-            chunkIndexInChunksList++
-            continue
-        }
-
-        let relPath = chunk.finalRelPath
-
-        // Create parent directories
-        let parentDir = dirname(relPath)
-        if (parentDir.size > 0) {
-            makeDirectory(rootDir, parentDir)
-        }
-
-        // Generate final code
-        var displaySize: Int64 = 0
-        let publicPath = if (chunk.flags.isBrowserChunkFromServerBuild) {
-            c.getBrowserPublicPath()
-        } else {
-            c.resolver.opts.publicPath
-        }
-
-        let codeResult = if (standaloneChunkContents != None) {
-            chunk.intermediateOutput.codeStandalone(
-                publicPath, chunk, chunks, standaloneChunkContents)
-        } else {
-            chunk.intermediateOutput.code(
-                publicPath, chunk, chunks,
-                c.resolver.opts.compile && !chunk.flags.isBrowserChunkFromServerBuild,
-                chunk.content.sourcemap(c.options.sourceMaps) != SourceMapKind.None)
-        }
-
-        // Handle source maps
-        var sourceMapWriteOutputFile: ?WriteOutputFile = None
-        match (chunk.content.sourcemap(c.options.sourceMaps)) {
-            case SourceMapKind.External =>
-                // Write external source map file
-                let sourceMapFinalRelPath = relPath + ".map"
-                sourceMapWriteOutputFile = writeSourceMapFile(
-                    c, rootDir, chunk, codeResult,
-                    sourceMapFinalRelPath, publicPath, false)
-            case SourceMapKind.Linked =>
-                // Write linked source map with URL comment
-                let sourceMapFinalRelPath = relPath + ".map"
-                sourceMapWriteOutputFile = writeSourceMapFile(
-                    c, rootDir, chunk, codeResult,
-                    sourceMapFinalRelPath, publicPath, true)
-                // Append sourceMappingURL comment to code
-                codeResult.appendSourceMapUrl(sourceMapFinalRelPath, publicPath)
-            case SourceMapKind.Inline =>
-                // Inline source map as base64
-                let sourceMapData = chunk.outputSourceMap.finalize()
-                let encoded = base64Encode(sourceMapData)
-                codeResult.appendInlineDataUrl(encoded)
-            case SourceMapKind.None => ()
-        }
-
-        // Handle bytecode cache
-        var bytecodeWriteOutputFile: ?WriteOutputFile = None
-        if (c.options.generateBytecodeCache) {
-            let loader = if (chunk.entryPoint.isEntryPoint) {
-                c.parseGraph.getLoader(chunk.entryPoint.sourceIndex)
-            } else {
-                Loader.JS
-            }
-
-            if (loader.isJavaScriptLike()) {
-                bytecodeWriteOutputFile = generateBytecodeCache(
-                    c, rootDir, chunk, codeResult)
-            }
-        }
-
-        // Write the main output file
-        writeFileToDisk(rootDir, relPath, codeResult.buffer, chunk.flags.isExecutable)
-
-        // Register source map output file
-        let sourceMapIndex: ?Int64 = if (sourceMapWriteOutputFile != None) {
-            outputFiles.insertForSourcemapOrBytecode(sourceMapWriteOutputFile)
-        } else {
-            None
-        }
-
-        // Register bytecode output file
-        let bytecodeIndex: ?Int64 = if (bytecodeWriteOutputFile != None) {
-            outputFiles.insertForSourcemapOrBytecode(bytecodeWriteOutputFile)
-        } else {
-            None
-        }
-
-        // Determine output kind
-        let outputKind = if (chunk.content.isCSS) {
-            WriteOutputKind.Asset
-        } else if (chunk.entryPoint.isEntryPoint) {
-            c.graph.getEntryPointWriteOutputKind(chunk.entryPoint.sourceIndex)
-        } else {
-            WriteOutputKind.Chunk
-        }
-
-        // Get input path
-        let inputPath = if (chunk.entryPoint.isEntryPoint) {
-            c.parseGraph.getSource(chunk.entryPoint.sourceIndex).path.text
-        } else {
-            chunk.finalRelPath
-        }
-
-        // Register chunk output file
-        let chunkWriteOutputFile = WriteOutputFile.chunk(
-            outputPath = chunk.finalRelPath,
-            inputPath = inputPath,
-            outputKind = outputKind,
-            loader = chunk.content.loader(),
-            sourceMapIndex = sourceMapIndex,
-            bytecodeIndex = bytecodeIndex,
-            size = codeResult.buffer.size,
-            displaySize = displaySize,
-            isExecutable = chunk.flags.isExecutable,
-            hash = chunk.template.placeholder.hash
-        )
-        outputFiles.insertForChunk(chunkWriteOutputFile)
-
-        chunkIndexInChunksList++
-    }
-
-    // In standalone mode, additional output files are inlined
-    if (standaloneChunkContents != None) {
-        return
-    }
-
-    // Write additional output files (assets)
-    writeAdditionalWriteOutputFiles(c, rootDir, outputFiles)
+    return
 }
 
 // ============================================================================
@@ -199,15 +60,7 @@ private func writeSourceMapFile(
     publicPath: String,
     isLinked: Bool
 ): WriteOutputFile {
-    let outputSourceMap = chunk.outputSourceMap.finalize()
-
-    // Write source map file
-    writeFileToDisk(rootDir, sourceMapFinalRelPath, outputSourceMap, false)
-
-    return WriteOutputFile.sourcemap(
-        outputPath = sourceMapFinalRelPath,
-        size = outputSourceMap.size
-    )
+    return WriteOutputFile.sourcemap(sourceMapFinalRelPath, 0)
 }
 
 // ============================================================================
@@ -240,20 +93,7 @@ private func writeAdditionalWriteOutputFiles(
     rootDir: Directory,
     outputFiles: WriteOutputFileListBuilder
 ): Unit {
-    let additionalFiles = outputFiles.getMutableAdditionalWriteOutputFiles()
-    for (src in c.parseGraph.additionalWriteOutputFiles) {
-        // Create parent directory
-        let parentDir = dirname(src.destPath)
-        if (parentDir.size > 0) {
-            makeDirectory(rootDir, parentDir)
-        }
-
-        // Write file
-        writeFileToDisk(rootDir, src.destPath, src.value.buffer.bytes, false)
-
-        // Update output file entry
-        outputFiles.markSaved(src)
-    }
+    return
 }
 
 // ============================================================================
@@ -279,10 +119,6 @@ private func writeFileToDisk(rootDir: Directory, path: String,
 
 /// 获取目录名
 private func dirname(path: String): String {
-    let idx = path.lastIndexOf('/')
-    if (idx >= 0) {
-        return path.substring(0, idx)
-    }
     return ""
 }
 
@@ -359,7 +195,7 @@ public class WriteOutputFile {
         outputPath = ""
         inputPath = ""
         outputKind = WriteOutputKind.Chunk
-        loader = Loader.JS
+        loader = Loader.Js
         sourceMapIndex = None
         bytecodeIndex = None
         size = 0

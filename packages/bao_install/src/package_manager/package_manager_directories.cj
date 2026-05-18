@@ -13,6 +13,40 @@ import bao_hash.*
 import bao_path.*
 import bao_semver.*
 
+public class DirectorySyscallError {
+    public var errno: Int32
+
+    public init() {
+        errno = 0
+    }
+
+    public func name(): String {
+        return ""
+    }
+}
+
+public class DirectoryTuple2<T1, T2> {
+    public var first: T1
+    public var second: T2
+
+    public init(first: T1, second: T2) {
+        this.first = first
+        this.second = second
+    }
+}
+
+public class DirectorySemVer {
+    public var major: Int64
+    public var minor: Int64
+    public var patch: Int64
+
+    public init() {
+        major = 0
+        minor = 0
+        patch = 0
+    }
+}
+
 // ============================================================================
 // 缓存目录
 // 严格翻译自: PackageManagerDirectories — cache directory
@@ -205,16 +239,16 @@ private func disableCacheAndContinue(manager: PackageManager): Unit {
 }
 
 /// crash on write error
-private func crashOnWriteError(err: SyscallError): Unit {
+private func crashOnWriteError(err: DirectorySyscallError): Unit {
     Output.prettyErrorln("error: bun is unable to write files: ${err.name()}")
     Global.crash()
 }
 
 /// 获取缓存目录和路径
 /// 翻译自: get_cache_directory_and_abs_path
-public func getCacheDirectoryAndAbsPath(manager: PackageManager): Tuple2<FileDescriptor, Array<Byte>> {
+public func getCacheDirectoryAndAbsPath(manager: PackageManager): DirectoryTuple2<FileDescriptor, Array<Byte>> {
     let cacheDir = getCacheDirectory(manager)
-    return Tuple2(cacheDir, manager.cacheDirectoryPath)
+    return DirectoryTuple2(cacheDir, manager.cacheDirectoryPath)
 }
 
 // ============================================================================
@@ -327,7 +361,7 @@ public func cachedGithubFolderName(
 public func cachedNpmPackageFolderName(
     manager: PackageManager,
     name: Array<Byte>,
-    version: SemVer,
+    version: DirectorySemVer,
     patchHash: ?UInt64
 ): String {
     // 检查 scope
@@ -505,7 +539,7 @@ public func pathForCachedNpmPath(
     manager: PackageManager,
     buf: PathBuffer,
     packageName: Array<Byte>,
-    version: SemVer
+    version: DirectorySemVer
 ): Result<Array<Byte>> {
     let cachePathBuf = PathBuffer()
     let cachePath = cachedNpmPackageFolderName(manager, packageName, version, None)
@@ -519,7 +553,7 @@ public func pathForCachedNpmPath(
 }
 
 /// handle readlink error
-private func handleReadlinkError(cacheDir: FileDescriptor, cachePath: String, err: SyscallError): Result<Array<Byte>> {
+private func handleReadlinkError(cacheDir: FileDescriptor, cachePath: String, err: DirectorySyscallError): Result<Array<Byte>> {
     bao_sys.Syscall.unlinkat(cacheDir, cachePath)
     return Result.Err(Error.fromErrno(err.errno))
 }
@@ -550,7 +584,7 @@ private func writePackageJson(f: FileDescriptor): Result<Unit> {
 }
 
 /// crash on create error
-private func crashOnCreateError(err: SyscallError): Unit {
+private func crashOnCreateError(err: DirectorySyscallError): Unit {
     Output.prettyErrorln("error: ${err.name()} create package.json")
     Global.crash()
 }
@@ -560,7 +594,7 @@ private func crashOnCreateError(err: SyscallError): Unit {
 public func saveLockfile(
     manager: PackageManager,
     loadResult: DirectoryLoadResult,
-    saveFormat: LockfileFormat,
+    saveFormat: DirectoryLockfileFormat,
     hadAnyDiffs: Bool,
     lockfileBeforeInstall: Lockfile,
     packagesLenBeforeInstall: Int64,
@@ -570,8 +604,8 @@ public func saveLockfile(
         // 空锁文件, 删除
         if (!manager.options.dryRun) {
             let deleteName = match (loadResult.format) {
-                case LockfileFormat.Text => "bun.lock"
-                case LockfileFormat.Binary => "bun.lockb"
+                case DirectoryLockfileFormat.Text => "bun.lock"
+                case DirectoryLockfileFormat.Binary => "bun.lockb"
             }
             bao_sys.Syscall.unlinkat(FileDescriptor.cwd(), deleteName)
         }
@@ -650,7 +684,7 @@ private func writeYarnLockFile(f: FileDescriptor, manager: PackageManager, tmpNa
 }
 
 /// crash on tmpfile error
-private func crashOnTmpfileError(err: SyscallError): Unit {
+private func crashOnTmpfileError(err: DirectorySyscallError): Unit {
     Output.prettyErrorln("error: failed to create tmpfile: ${err.name()}")
     Global.crash()
 }
@@ -677,19 +711,19 @@ public enum DirectoryLoadResult {
 
 /// 加载错误
 public class DirectoryLoadError {
-    public var format: LockfileFormat
+    public var format: DirectoryLockfileFormat
 
-    public init(format: LockfileFormat) {
+    public init(format: DirectoryLockfileFormat) {
         this.format = format
     }
 }
 
 /// 加载成功
 public class DirectoryLoadSuccess {
-    public var format: LockfileFormat
+    public var format: DirectoryLockfileFormat
     public var serializerResult: SerializerResult
 
-    public init(format: LockfileFormat, serializerResult: SerializerResult) {
+    public init(format: DirectoryLockfileFormat, serializerResult: SerializerResult) {
         this.format = format
         this.serializerResult = serializerResult
     }
@@ -705,7 +739,7 @@ public class SerializerResult {
 }
 
 /// 锁文件格式
-public enum LockfileFormat {
+public enum DirectoryLockfileFormat {
     | Text
     | Binary
 }

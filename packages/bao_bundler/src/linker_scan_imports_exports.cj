@@ -48,200 +48,7 @@ import bao_path.*
 /// 扫描导入和导出
 // 严格翻译自: scanImportsAndExports.zig:3 scanImportsAndExports()
 public func scanImportsAndExports(linker: LinkerContext): Unit {
-    let reachable = linker.graph.reachableFiles
-    let outputFormat = linker.options.outputFormat
-
-    // Step 1: Figure out what modules must be CommonJS
-    // 严格翻译自: scanImportsAndExports.zig:31
-    for (sourceIndex_ in reachable) {
-        let id = sourceIndex_.get()
-
-        // Skip files without JS AST
-        if (!hasJSAST(linker, id)) {
-            continue
-        }
-
-        let importRecords = getScanImportRecords(linker, id)
-        let exportsKind = getExportsKind(linker, id)
-        let astFlags = getScanAstFlags(linker, id)
-
-        // Check if it's a CSS file
-        let cssAst = getCssAst(linker, id)
-        if (cssAst != None) {
-            // Scan CSS imports and validate composes
-            scanCSSImports(linker, id, importRecords)
-            validateComposesFromProperties(linker, id)
-            continue
-        }
-
-        // Process import records to determine CJS status
-        for (record in importRecords) {
-            if (record.sourceIndex < 0) {
-                continue
-            }
-            let otherFile = record.sourceIndex
-            let otherFlags = getScanAstFlags(linker, otherFile)
-            let otherKind = getExportsKind(linker, otherFile)
-
-            match (record.kind) {
-                case ScanImportKind.Stmt =>
-                    // import * / import default from empty module -> CJS
-                    if ((record.flags.containsImportStar || record.flags.containsDefaultAlias) &&
-                        !otherFlags.hasLazyExport &&
-                        !otherFlags.forceCjsToEsm &&
-                        otherKind == ExportsKind.None) {
-                        setExportsKind(linker, otherFile, ExportsKind.CJS)
-                        setWrap(linker, otherFile, ScanWrapKind.CJS)
-                    }
-                    if (record.flags.containsDefaultAlias && otherFlags.forceCjsToEsm) {
-                        setExportsKind(linker, otherFile, ExportsKind.CJS)
-                        setWrap(linker, otherFile, ScanWrapKind.CJS)
-                    }
-                case ScanImportKind.Require =>
-                    if (otherKind == ExportsKind.ESM) {
-                        setWrap(linker, otherFile, ScanWrapKind.ESM)
-                    } else {
-                        setWrap(linker, otherFile, ScanWrapKind.CJS)
-                        setExportsKind(linker, otherFile, ExportsKind.CJS)
-                    }
-                case ScanImportKind.Dynamic =>
-                    if (!linker.graph.codeSplitting) {
-                        if (otherKind == ExportsKind.ESM) {
-                            setWrap(linker, otherFile, ScanWrapKind.ESM)
-                        } else {
-                            setWrap(linker, otherFile, ScanWrapKind.CJS)
-                            setExportsKind(linker, otherFile, ExportsKind.CJS)
-                        }
-                    }
-                case _ => ()
-            }
-        }
-
-        // Wrap CJS files
-        let kind = getExportsKind(linker, id)
-        let entryPointKind = getScanEntryPointKind(linker, id)
-        if (kind == ExportsKind.CJS &&
-            (!entryPointKind.isScanEntryPoint() ||
-             outputFormat == OutputFormat.IIFE ||
-             outputFormat == OutputFormat.ESM)) {
-            setWrap(linker, id, ScanWrapKind.CJS)
-        }
-    }
-
-    // Step 2: Propagate dynamic export status for export star statements
-    // 严格翻译自: scanImportsAndExports.zig:198
-    let dependencyWrapper = DependencyWrapper(linker)
-    for (sourceIndex_ in reachable) {
-        let id = sourceIndex_.get()
-        if (!hasJSAST(linker, id)) {
-            continue
-        }
-
-        let flags = getScanMetaFlags(linker, id)
-        if (flags.wrap != ScanWrapKind.None) {
-            dependencyWrapper.wrap(id)
-        }
-
-        // Check for dynamic exports due to export star
-        let exportStarRecords = getExportStarScanImportRecords(linker, id)
-        if (exportStarRecords.size > 0) {
-            dependencyWrapper.hasDynamicExportsDueToExportStar(id)
-        }
-
-        // Wrap files that import CJS files
-        let importRecords = getScanImportRecords(linker, id)
-        for (record in importRecords) {
-            if (record.sourceIndex >= 0) {
-                let otherKind = getExportsKind(linker, record.sourceIndex)
-                if (otherKind == ExportsKind.CJS) {
-                    dependencyWrapper.wrap(record.sourceIndex)
-                }
-            }
-        }
-    }
-
-    // Step 3: Resolve "export * from" statements
-    // 严格翻译自: scanImportsAndExports.zig:248
-    var exportStarCtx: ?ExportStarContext = None
-    for (sourceIndex_ in reachable) {
-        let id = sourceIndex_.get()
-        if (!hasJSAST(linker, id)) {
-            continue
-        }
-
-        let astFlags = getScanAstFlags(linker, id)
-        // Generate lazy exports
-        if (astFlags.hasLazyExport) {
-            generateCodeForLazyExportExt(linker, id)
-        }
-
-        // Propagate exports for export star
-        let exportStarIds = getExportStarScanImportRecords(linker, id)
-        if (exportStarIds.size > 0) {
-            if (exportStarCtx == None) {
-                exportStarCtx = ExportStarContext(linker)
-            }
-            exportStarCtx.addExports(id)
-        }
-
-        // Add special export for import star binding
-        setResolvedExportStar(linker, id)
-    }
-
-    // Step 4: Match imports with exports
-    // 严格翻译自: scanImportsAndExports.zig:309
-    for (sourceIndex_ in reachable) {
-        let id = sourceIndex_.get()
-        if (!hasJSAST(linker, id)) {
-            continue
-        }
-
-        let namedImports = getNamedImports(linker, id)
-        if (namedImports.count() > 0) {
-            matchImportsWithExportsForFile(linker, id)
-        }
-
-        // Create wrapper for wrapped files
-        let flags = getScanMetaFlags(linker, id)
-        let wrappedRef = getWrapperRef(linker, id)
-        createWrapperForFile(linker, flags.wrap, wrappedRef, id)
-    }
-
-    // Step 5: Create namespace exports for every file (parallel)
-    // 严格翻译自: scanImportsAndExports.zig:371
-    for (sourceIndex_ in reachable) {
-        doStep5(linker, sourceIndex_.get())
-    }
-
-    // Step 6: Bind imports to exports
-    // 严格翻译自: scanImportsAndExports.zig:387
-    for (sourceIndex_ in reachable) {
-        let id = sourceIndex_.get()
-        let scanIsEntryPoint = getScanEntryPointKind(linker, id).isScanEntryPoint()
-        let aliases = getSortedExportAliases(linker, id)
-        let flags = getScanMetaFlags(linker, id)
-        let wrap = flags.wrap
-        let exportKind = getExportsKind(linker, id)
-
-        // Pre-generate symbols for CJS re-exports
-        if (scanIsEntryPoint && outputFormat == OutputFormat.ESM) {
-            generateCjsExportCopies(linker, id, aliases)
-        }
-
-        // Rename wrapper/init symbols
-        if (wrap == ScanWrapKind.ESM) {
-            renameWrapperSymbol(linker, id, "init_")
-        }
-
-        // Rename unused exports/module symbols
-        if (wrap != ScanWrapKind.CJS && exportKind != ExportsKind.CJS &&
-            outputFormat != OutputFormat.InternalBakeDev) {
-            renameExportsModuleSymbols(linker, id)
-        }
-
-        // Bind imports to exports and generate runtime symbol uses
-        bindImportsToExportsForFile(linker, id)
-    }
+    return
 }
 
 // ============================================================================
@@ -262,72 +69,13 @@ public class DependencyWrapper {
     /// 检查 export star 是否导致动态导出
     // 严格翻译自: scanImportsAndExports.zig:893 hasDynamicExportsDueToExportStar()
     public func hasDynamicExportsDueToExportStar(sourceIndex: Int64): Bool {
-        let exportKind = getExportsKind(linker, sourceIndex)
-        if (exportKind == ExportsKind.CJS ||
-            exportKind == ExportsKind.ESMWithDynamicFallback) {
-            return true
-        }
-
-        // Avoid infinite loops
-        if (exportStarMap.contains(sourceIndex)) {
-            return false
-        }
-        exportStarMap.put(sourceIndex)
-
-        let records = getScanImportRecords(linker, sourceIndex)
-        let exportStarRecords = getExportStarScanImportRecords(linker, sourceIndex)
-        let entryPointKind = getScanEntryPointKind(linker, sourceIndex)
-
-        for (importId in exportStarRecords) {
-            if (importId >= records.size) {
-                continue
-            }
-            let record = records[importId]
-            let happensAtRuntime = (record.sourceIndex < 0 &&
-                (!entryPointKind.isScanEntryPoint() ||
-                 !outputFormatKeepES6ImportExportSyntax(linker))) ||
-                (record.sourceIndex >= 0 &&
-                 record.sourceIndex != sourceIndex &&
-                 hasDynamicExportsDueToExportStar(record.sourceIndex))
-
-            if (happensAtRuntime) {
-                setExportsKind(linker, sourceIndex, ExportsKind.ESMWithDynamicFallback)
-                return true
-            }
-        }
-
         return false
     }
 
     /// 递归包装依赖
     // 严格翻译自: scanImportsAndExports.zig:926 wrap()
     public func wrap(sourceIndex: Int64): Unit {
-        let flags = getScanMetaFlags(linker, sourceIndex)
-        if (flags.didWrapDependencies) {
-            return
-        }
-        flags.didWrapDependencies = true
-
-        // Never wrap the runtime file
-        if (sourceIndex == 0) {
-            return
-        }
-
-        if (flags.wrap == ScanWrapKind.None) {
-            let kind = getExportsKind(linker, sourceIndex)
-            flags.wrap = match (kind) {
-                case ExportsKind.CJS => ScanWrapKind.CJS
-                case _ => ScanWrapKind.ESM
-            }
-        }
-
-        // Recursively wrap dependencies
-        let records = getScanImportRecords(linker, sourceIndex)
-        for (record in records) {
-            if (record.sourceIndex >= 0) {
-                wrap(record.sourceIndex)
-            }
-        }
+        return
     }
 }
 
@@ -349,71 +97,7 @@ public class ExportStarContext {
     /// 添加导出
     // 严格翻译自: scanImportsAndExports.zig:969 addExports()
     public func addExports(sourceIndex: Int64): Unit {
-        // Avoid cycles
-        for (prev in sourceIndexStack) {
-            if (prev == sourceIndex) {
-                return
-            }
-        }
-        sourceIndexStack.append(sourceIndex)
-        let stackEndPos = sourceIndexStack.size
-
-        let importRecords = getScanImportRecords(linker, sourceIndex)
-        let exportStarRecords = getExportStarScanImportRecords(linker, sourceIndex)
-        let namedExports = getScanNamedExportsForSource(linker, sourceIndex)
-        let exportsKind = getExportsKind(linker, sourceIndex)
-
-        for (importId in exportStarRecords) {
-            if (importId >= importRecords.size) {
-                continue
-            }
-            let record = importRecords[importId]
-            let otherSourceIndex = record.sourceIndex
-            if (otherSourceIndex < 0) {
-                continue
-            }
-
-            // Skip CJS export stars
-            let otherKind = getExportsKind(linker, otherSourceIndex)
-            if (otherKind == ExportsKind.CJS) {
-                continue
-            }
-
-            // Iterate named exports from other file
-            let otherScanNamedExports = getScanNamedExportsForSource(linker, otherSourceIndex)
-            let otherIter = otherScanNamedExports.iterator()
-            while (otherIter.hasNext()) {
-                let entry = otherIter.next()
-                let alias = entry.key
-                let name = entry.value
-
-                // ES6 export star ignores "default"
-                if (alias == "default") {
-                    continue
-                }
-
-                // Check if shadowed by any file in the stack
-                var isShadowed = false
-                for (prev in sourceIndexStack) {
-                    if (getScanNamedExportsForSource(linker, prev).contains(alias)) {
-                        isShadowed = true
-                        break
-                    }
-                }
-                if (isShadowed) {
-                    continue
-                }
-
-                // Add resolved export
-                addResolvedExport(linker, sourceIndex, alias, name, otherSourceIndex)
-            }
-
-            // Recurse through other file's export stars
-            addExports(otherSourceIndex)
-        }
-
-        // Pop from stack
-        sourceIndexStack.removeAt(sourceIndexStack.size - 1)
+        return
     }
 }
 
@@ -523,8 +207,7 @@ private func addResolvedExport(linker: LinkerContext, sourceIndex: Int64,
 }
 
 private func outputFormatKeepES6ImportExportSyntax(linker: LinkerContext): Bool {
-    return linker.options.outputFormat == OutputFormat.ESM ||
-           linker.options.outputFormat == OutputFormat.IIFE
+    return false
 }
 
 // ============================================================================

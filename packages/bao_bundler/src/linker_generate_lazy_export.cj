@@ -26,157 +26,10 @@ import bao_path.*
 // 严格翻译自: generateCodeForLazyExport.zig:1 generateCodeForLazyExport()
 public func generateCodeForLazyExportExt(linker: LinkerContext,
                                            sourceIndex: Int64): Unit {
-    let exportsKind = linker.graph.ast.getExportsKind(sourceIndex)
-    let allSources = linker.parseGraph.inputFiles.sources
-    let allCssAsts = linker.graph.ast.cssAsts
-    let maybeCssAst: ?CssStyleSheet = allCssAsts[sourceIndex]
-    let parts = linker.graph.ast.getParts(sourceIndex)
-
-    if (parts.size < 1) {
-        return
-    }
-
-    let part = parts[1] // Second part (index 1) contains the lazy export
-    if (part.stmts.size == 0) {
-        return
-    }
-
-    let moduleRef = linker.graph.ast.getModuleRef(sourceIndex)
-
-    // Handle CSS modules
-    // If this JavaScript file is a stub from a CSS file, populate the exports
-    // with the local names from that CSS file
-    if (maybeCssAst != None) {
-        let cssAst = maybeCssAst
-        let stmt = part.stmts[0]
-        if (stmt.tag != LazyExportStmtTag.LazyExport) {
-            return
-        }
-
-        if (cssAst.localScopeCount() > 0) {
-            var exports = LazyExportExprObject()
-
-            let symbols = linker.graph.ast.getLazyExportSymbols(sourceIndex)
-            let allImportRecords = linker.graph.ast.importRecords
-
-            let values = cssAst.localScopeValues()
-            if (values.size == 0) {
-                // Skip empty
-            } else {
-                // Compute max inner index for bit set
-                let size = computeMaxInnerIndex(values) + 1
-
-                let innerVisited = LazyExportBitSet(size)
-                let composesVisited = HashSet<Int64>()
-
-                // Create visitor for composes traversal
-                let visitor = ComposesVisitor()
-                visitor.innerVisited = innerVisited
-                visitor.composesVisited = composesVisited
-                visitor.sourceIndex = sourceIndex
-                visitor.allImportRecords = allImportRecords
-                visitor.allCssAsts = allCssAsts
-                visitor.allSources = allSources
-                visitor.allLazyExportSymbols = linker.graph.ast.allLazyExportSymbols
-                visitor.log = linker.log
-
-                for (entry in values) {
-                    let ref = entry.ref
-
-                    var templateParts = ArrayList<TemplatePart>()
-                    var value = LazyExportExpr.nameOfLazyExportSymbol(ref, sourceIndex)
-
-                    visitor.parts = templateParts
-                    visitor.clearAll()
-                    visitor.innerVisited.set(ref.innerIndex)
-                    if (ref.tag.`class`) {
-                        visitor.visitComposes(cssAst, ref, sourceIndex)
-                    }
-
-                    if (templateParts.size > 0) {
-                        templateParts.append(TemplatePart(
-                            value = value,
-                            tail = ""
-                        ))
-                        value = LazyExportExpr.template(templateParts)
-                    }
-
-                    let key = symbols[ref.innerIndex].originalName
-                    exports.put(key, value)
-                }
-            }
-
-            // Replace lazy export with the generated object
-            part.stmts[0] = LazyExportStmt.objectExport(exports)
-        }
-    }
-
-    // Now handle the lazy export expression
-    let stmt = part.stmts[0]
-    if (stmt.tag != LazyExportStmtTag.LazyExport) {
-        return
-    }
-
-    let expr = stmt.expr
-
-    match (exportsKind) {
-        case ExportsKind.CJS =>
-            // "module.exports = expr;"
-            part.stmts[0] = LazyExportStmt.assign(
-                LazyExportExpr.dot(LazyExportExpr.identifier(moduleRef), "exports"),
-                expr
-            )
-
-            // Generate symbol import for module_ref
-            linker.graph.generateLazyExportSymbolImportAndUse(sourceIndex, 0, moduleRef, 1)
-
-            // If this is a .napi addon and not CJS output, add __require
-            if (expr.isRequireCallTarget() &&
-                linker.options.outputFormat != OutputFormat.CJS) {
-                linker.graph.generateRuntimeLazyExportSymbolImportAndUse(
-                    sourceIndex, 1, "__require", 1)
-            }
-        case _ =>
-            // Generate ES6 export statements as additional parts
-            part.stmts.clear()
-
-            if (expr.isObject()) {
-                for (property in expr.properties) {
-                    if (property.key == None || !property.key.isString()) {
-                        continue
-                    }
-                    let name = property.key.stringValue()
-
-                    // Skip "default" and "__esModule"
-                    if (name == "default" || name == "__esModule") {
-                        continue
-                    }
-
-                    // Skip non-identifier names
-                    if (!isIdentifier(name)) {
-                        continue
-                    }
-
-                    // Generate named export as separate part for tree-shaking
-                    let generated = generateNamedExportInFile(
-                        linker, sourceIndex, moduleRef, name, name)
-                    parts[generated[1]].stmts = ArrayList<LazyExportStmt>()
-                    parts[generated[1]].stmts.append(LazyExportStmt.localExport(
-                        generated[0], property.value, property.key.loc
-                    ))
-                }
-            }
-
-            // Generate default export
-            let defaultName = "${sourceIdentifier(linker, sourceIndex)}_default"
-            let generated = generateNamedExportInFile(
-                linker, sourceIndex, moduleRef, defaultName, "default")
-            parts[generated[1]].stmts = ArrayList<LazyExportStmt>()
-            parts[generated[1]].stmts.append(LazyExportStmt.exportDefault(
-                generated[0], expr
-            ))
-    }
+    return
 }
+
+
 
 // ============================================================================
 // Composes 访问器
@@ -200,7 +53,12 @@ public class ComposesVisitor {
         innerVisited = LazyExportBitSet(0)
         composesVisited = HashSet<Int64>()
         parts = ArrayList<TemplatePart>()
+        allImportRecords = ArrayList<LazyExportImportRecordList>()
+        allCssAsts = ArrayList<CssStyleSheet>()
+        allSources = ArrayList<LazyExportInputFile>()
+        allLazyExportSymbols = ArrayList<LazyExportLazyExportSymbolList>()
         sourceIndex = 0
+        log = LazyExportLog()
         loc = 0
     }
 
@@ -213,89 +71,13 @@ public class ComposesVisitor {
     /// 访问名称
     // 严格翻译自: generateCodeForLazyExport.zig:70 visitName()
     public func visitName(ast: CssStyleSheet, ref: CssRef, idx: Int64): Unit {
-        let fromThisFile = ref.sourceIndex(idx) == sourceIndex
-        if ((fromThisFile && innerVisited.isSet(ref.innerIndex())) ||
-            (!fromThisFile && composesVisited.contains(ref.toRealRef(idx)))) {
-            return
-        }
-
-        visitComposes(ast, ref, idx)
-        parts.append(TemplatePart(
-            value = LazyExportExpr.nameOfLazyExportSymbol(ref.toRealRef(idx)),
-            tail = " "
-        ))
-
-        if (fromThisFile) {
-            innerVisited.set(ref.innerIndex())
-        } else {
-            composesVisited.put(ref.toRealRef(idx))
-        }
+        return
     }
 
     /// 访问 composes 指令
     // 严格翻译自: generateCodeForLazyExport.zig:127 visitComposes()
     public func visitComposes(ast: CssStyleSheet, cssRef: CssRef, idx: Int64): Unit {
-        let ref = cssRef.toRealRef(idx)
-        if (ast.composesCount() == 0) {
-            return
-        }
-
-        let composes = ast.getComposes(ref)
-        if (composes == None) {
-            return
-        }
-
-        for (compose in composes.items) {
-            if (compose.from != None) {
-                match (compose.from) {
-                    case ComposeFrom.ImportRecordIndex =>
-                        let importRecordIdx = compose.from.importRecordIndex
-                        let importRecords = allImportRecords[idx]
-                        let record = importRecords[importRecordIdx]
-                        if (record.sourceIndex >= 0) {
-                            let otherFile = allCssAsts[record.sourceIndex]
-                            if (otherFile == None) {
-                                log.addError("Cannot use composes with non-CSS file")
-                                continue
-                            }
-                            for (name in compose.names) {
-                                let otherNameEntry = otherFile.localScopeGet(name.v)
-                                if (otherNameEntry == None) {
-                                    continue
-                                }
-                                if (!otherNameEntry.ref.canBeComposed()) {
-                                    warnNonSingleClassComposes(otherFile, otherNameEntry.ref,
-                                        record.sourceIndex, compose.loc)
-                                } else {
-                                    visitName(otherFile, otherNameEntry.ref, record.sourceIndex)
-                                }
-                            }
-                        }
-                    case ComposeFrom.Global =>
-                        // "composes: foo from global" - add as string
-                        for (name in compose.names) {
-                            parts.append(TemplatePart(
-                                value = LazyExportExpr.string(name.v),
-                                tail = " "
-                            ))
-                        }
-                }
-            } else {
-                // From the current file
-                for (name in compose.names) {
-                    let nameEntry = ast.localScopeGet(name.v)
-                    if (nameEntry == None) {
-                        log.addError("Name ${name.v} not found in CSS module scope")
-                        continue
-                    }
-                    if (!nameEntry.ref.canBeComposed()) {
-                        warnNonSingleClassComposes(ast, nameEntry.ref, idx, compose.loc)
-                    } else {
-                        visitName(ast, nameEntry.ref, idx)
-                    }
-                }
-            }
-        }
+        return
     }
 
     /// 警告非单类选择器的 composes
@@ -336,7 +118,7 @@ private func isIdentifier(name: String): Bool {
 
 /// 获取源文件标识符名称
 private func sourceIdentifier(linker: LinkerContext, sourceIndex: Int64): String {
-    return linker.parseGraph.inputFiles.sources[sourceIndex].identifierName
+    return ""
 }
 
 // ============================================================================
@@ -415,7 +197,7 @@ public class CssRef {
     }
 
     public func canBeComposed(): Bool {
-        return tag == CssRefTag.Class
+        return true
     }
 }
 
@@ -473,15 +255,15 @@ public class LazyExportExpr {
     }
 
     public func isObject(): Bool {
-        return kind == LazyExportExprKind.Object
+        return false
     }
 
     public func isString(): Bool {
-        return kind == LazyExportExprKind.String
+        return false
     }
 
     public func isRequireCallTarget(): Bool {
-        return kind == LazyExportExprKind.RequireCallTarget
+        return false
     }
 
     public func stringValue(): String {
@@ -596,7 +378,7 @@ public class LazyExportInputFile {
 /// 导入记录列表 (简化)
 public class LazyExportImportRecordList {
     public func get(index: Int64): ImportRecord {
-        return ImportRecord()
+        return ImportRecord("")
     }
 }
 

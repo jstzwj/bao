@@ -28,77 +28,7 @@ public func postProcessCSSChunkDetailed(
     chunk: Chunk,
     chunks: ArrayList<Chunk>
 ): Unit {
-    var j = StringJoiner()
-    var lineOffset = CssLineColumnOffset()
-    if (c.options.sourceMaps != SourceMaps.None) {
-        lineOffset = CssLineColumnOffset()
-    }
-
-    var newlineBeforeComment = false
-
-    // Concatenate the generated CSS chunks together
-    let compileResults = chunk.compileResultsForChunk
-
-    var compileResultsForSourceMap = ArrayList<CssCompileResultForSourceMap>()
-
-    let sources = c.parseGraph.inputFiles.sources
-    for (compileResult in compileResults) {
-        let sourceIndex = compileResult.sourceIndex
-
-        // Add file path comment (non-minified bundle mode)
-        if (c.options.mode == BundleMode.Bundle &&
-            !c.options.minifyWhitespace &&
-            sourceIndex >= 0) {
-            if (newlineBeforeComment) {
-                j.pushStatic("\n")
-                lineOffset.advance("\n")
-            }
-
-            let pretty = getSourcePrettyPath(c, sourceIndex)
-            j.pushStatic("/* ")
-            lineOffset.advance("/* ")
-            j.pushStatic(pretty)
-            lineOffset.advance(pretty)
-            j.pushStatic(" */\n")
-            lineOffset.advance(" */\n")
-        }
-
-        if (compileResult.code.size > 0) {
-            newlineBeforeComment = true
-        }
-
-        // Append the generated code
-        j.push(compileResult.code)
-
-        if (compileResult.sourceMapChunk != None) {
-            if (c.options.sourceMaps != SourceMaps.None) {
-                compileResultsForSourceMap.append(CssCompileResultForSourceMap(
-                    compileResult.sourceMapChunk,
-                    lineOffset,
-                    compileResult.sourceIndex
-                ))
-            }
-            lineOffset.reset()
-        } else {
-            lineOffset.advance(compileResult.code)
-        }
-    }
-
-    // Ensure file ends with a newline
-    j.ensureNewlineAtEnd()
-
-    // Break output into pieces for chunk reference resolution
-    chunk.intermediateOutput = breakOutputIntoPieces(c, j, chunks.size)
-    chunk.isolatedHash = generateIsolatedHash(c, chunk)
-
-    // Generate source map if enabled
-    if (c.options.sourceMaps != SourceMaps.None) {
-        let canHaveShifts = chunk.intermediateOutput.isPieces
-        chunk.outputSourceMap = generateSourceMapForChunk(
-            c, chunk.isolatedHash, compileResultsForSourceMap,
-            c.resolver.opts.outputDir, canHaveShifts
-        )
-    }
+    return
 }
 
 // ============================================================================
@@ -130,14 +60,7 @@ public class CssLineColumnOffset {
     }
 
     public func advance(text: String): Unit {
-        for (c in text) {
-            if (c == '\n') {
-                line++
-                column = 0
-            } else {
-                column++
-            }
-        }
+        column += text.size
     }
 
     public func reset(): Unit {

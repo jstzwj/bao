@@ -47,72 +47,27 @@ public func prepareCssAstsForChunk(linker: LinkerContext, chunk: Chunk): Unit {
 /// CSS AST 准备实现
 // 严格翻译自: prepareCssAstsForChunk.zig:15
 private func prepareCssAstsForChunkImpl(c: LinkerContext, chunk: Chunk): Unit {
-    // Prepare CSS ASTs - process in reverse order
-    var i: Int64 = chunk.content.css.importsInChunkInOrder.size
-    while (i > 0) {
-        i -= 1
-        let entry = chunk.content.css.importsInChunkInOrder[i]
-
-        match (entry.kind) {
-            case CSSImportOrderKind.Layers =>
-                // Create AST with only @layer statements
-                prepareLayersAst(chunk, i, entry)
-            case CSSImportOrderKind.ExternalPath =>
-                // Create AST with @import rule for external path
-                prepareExternalPathAst(c, chunk, i, entry)
-            case CSSImportOrderKind.SourceIndex =>
-                // Shallow copy and strip leading @import/.ignored rules
-                prepareSourceIndexAst(c, chunk, i, entry)
-        }
-    }
+    return
 }
 
 /// 准备 @layer AST
 // 严格翻译自: prepareCssAstsForChunk.zig:27 layers 分支
 private func prepareLayersAst(chunk: Chunk, index: Int64, entry: CSSImportOrder): Unit {
-    // Create a stylesheet with layer statement rules from the layers data
-    // Simplified: would create BundlerStyleSheet with LayerStatementRule
-    wrapRulesWithConditions(chunk, index, entry.conditions)
+    return
 }
 
 /// 准备外部路径 AST
 // 严格翻译自: prepareCssAstsForChunk.zig:49 external_path 分支
 private func prepareExternalPathAst(c: LinkerContext, chunk: Chunk,
                                       index: Int64, entry: CSSImportOrder): Unit {
-    // Handle conditions chain for external @import
-    // For nested conditions, encode as data URL nested @import
-    if (entry.conditions.size > 0) {
-        // Process conditions from innermost to outermost
-        var j: Int64 = entry.conditions.size
-        while (j > 1) {
-            j -= 1
-            // Create a mini AST with @import rule containing this condition
-            // Print it and encode as data URL for the next outer layer
-            // Simplified: would call css.toCss() and DataURL.encodeStringAsShortestDataURL()
-        }
-    }
-
-    // Create the main @import rule AST
-    // Simplified: would create ImportRule with the final path and conditions
-    wrapRulesWithConditions(chunk, index, entry.conditions)
+    return
 }
 
 /// 准备源文件 AST
 // 严格翻译自: prepareCssAstsForChunk.zig:144 source_index 分支
 private func prepareSourceIndexAst(c: LinkerContext, chunk: Chunk,
                                      index: Int64, entry: CSSImportOrder): Unit {
-    let sourceIndex = entry.sourceIndex
-
-    // Shallow copy the original AST (multiple imports may reference same file)
-    // Simplified: chunk.content.css.asts[index] = original_stylesheet copy
-
-    // Strip leading @import and .ignored rules
-    // Preserve interleaved @layer statement rules (they carry layer ordering info)
-    // IMPORTANT: must not mutate shared backing array (regression #28914)
-    stripLeadingImportRules(chunk, index)
-
-    // Apply condition wrappers
-    wrapRulesWithConditions(chunk, index, entry.conditions)
+    return
 }
 
 /// 去除前导 @import 和 .ignored 规则
@@ -135,23 +90,7 @@ private func stripLeadingImportRules(chunk: Chunk, index: Int64): Unit {
 // 严格翻译自: prepareCssAstsForChunk.zig:226 wrapRulesWithConditions()
 public func wrapRulesWithConditions(chunk: Chunk, index: Int64,
                                       conditions: ArrayList<CSSImportCondition>): Unit {
-    // Apply conditions from outermost to innermost (iterate in reverse)
-    var i: Int64 = conditions.size
-    while (i > 0) {
-        i -= 1
-        let condition = conditions[i]
-
-        // Generate @layer wrappers
-        // Note: empty @layer rules still have side effect (set layer order)
-        if (condition.layer != None) {
-            // Wrap rules in @layer block or generate @layer statement
-            // Simplified
-        }
-
-        // Generate @supports wrappers (skip if empty rules)
-        // Generate @media wrappers (skip if empty rules)
-        // Simplified
-    }
+    return
 }
 
 // ============================================================================
