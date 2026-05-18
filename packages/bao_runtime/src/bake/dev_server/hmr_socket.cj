@@ -39,14 +39,20 @@ public class HmrSocket {
 
     /// WebSocket 打开回调
     public func onOpen(ws: AnyWebSocket): Unit {
-        // TODO: 实现发送版本信息
+        // 对应 Bun HmrSocket.onOpen: send version + configuration hash
+        let versionPayload = Array<Byte>([MessageId.version.char()])
+        for (b in dev.configuration_hash_key) {
+            versionPayload.append(b)
+        }
+        let sendStatus = ws.send(versionPayload, Opcode.binary, false, true)
         underlying = ws
 
-        // TODO: 实现 send_status 检查
-        // 通知 inspector 客户端连接
-        if (let Some(agent) <- dev.inspector()) {
-            inspector_connection_id = agent.nextConnectionID()
-            agent.notifyClientConnected(dev.inspector_server_id, inspector_connection_id)
+        if (sendStatus != SendStatus.dropped) {
+            // 通知 inspector 客户端连接
+            if (let Some(agent) <- dev.inspector()) {
+                inspector_connection_id = agent.nextConnectionID()
+                agent.notifyClientConnected(dev.inspector_server_id, inspector_connection_id)
+            }
         }
     }
 

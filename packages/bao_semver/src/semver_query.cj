@@ -122,14 +122,16 @@ public class SemverToken {
             case Tilda =>
                 return toTildeRange(ver)
             case Version =>
-                if (wildcard != SemverWildcard.None) {
-                    let w = match (wildcard) {
-                        case SemverWildcard.Major => Wildcard.Major
-                        case SemverWildcard.Minor => Wildcard.Minor
-                        case SemverWildcard.Patch => Wildcard.Patch
-                        case _ => Wildcard.None
-                    }
-                    return SemVerRange.initWildcard(ver, w)
+                match (wildcard) {
+                    case SemverWildcard.None => ()
+                    case _ =>
+                        let w = match (wildcard) {
+                            case SemverWildcard.Major => Wildcard.Major
+                            case SemverWildcard.Minor => Wildcard.Minor
+                            case SemverWildcard.Patch => Wildcard.Patch
+                            case _ => Wildcard.None
+                        }
+                        return SemVerRange.initWildcard(ver, w)
                 }
                 return SemVerRange(Comparator(Op.Eql, ver), Comparator())
             case _ => () // gt/gte/lt/lte handled below
@@ -989,7 +991,7 @@ public class SemverParse {
             } else {
                 i = rollback
 
-                if (count == Int64(0) && token.tag == SemverTokenTag.Version) {
+                if (count == Int64(0) && isSemverTokenTag(token.tag, SemverTokenTag.Version)) {
                     if (parseResult.wildcard != Wildcard.None) {
                         let range = token.toRange(version.major, version.minor, version.patch, version.tag)
                         group.orRange(range)
@@ -997,7 +999,7 @@ public class SemverParse {
                         group.orVersion(version)
                     }
                 } else if (count == Int64(0)) {
-                    if (token.tag == SemverTokenTag.None) {
+                    if (isSemverTokenTag(token.tag, SemverTokenTag.None)) {
                         isOr = false
                         continue
                     }

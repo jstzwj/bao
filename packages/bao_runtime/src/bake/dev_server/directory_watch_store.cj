@@ -74,9 +74,9 @@ public class DirectoryWatchStore {
                 assert(false) // 这些 loader 不依赖导入其他文件
         }
 
-        // TODO: 实现 path buffer pool 和路径拼接
-        let joined = import_source
-        let dir = joined
+        // 对应 Bun: bun.path_buffer_pool.get() / joinAbsStringBuf / dirname
+        let joined = Path.join([Path.dirname(import_source), specifier])
+        let dir = Path.dirname(joined)
 
         let dev = owner()
         dev.graph_safety_lock.lock()
