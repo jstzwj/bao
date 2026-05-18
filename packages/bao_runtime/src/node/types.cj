@@ -4,6 +4,7 @@
 package bao_runtime.node
 
 import bao_core.*
+import bao_jsc.*
 
 // ============================================================================
 // 编码类型枚举
@@ -52,10 +53,144 @@ public enum Encoding {
         return None
     }
 
+    // 从 JS 值解析编码
+    // 对应 Bun: Encoding.fromJS
+    public static func fromJS(value: JsValue, globalObject: JsGlobalObject): ?Encoding {
+        if (value.isUndefinedOrNull()) {
+            return None
+        }
+        if (value.isString()) {
+            return from(value.toString())
+        }
+        return None
+    }
+
     // 是否为二进制到文本的编码
     // 对应 Bun: Encoding.isBinaryToText
     public func isBinaryToText(): Bool {
         return this == hex || this == base64 || this == base64url
+    }
+
+    // 编码断言 — 验证编码值有效，否则抛出错误
+    // 对应 Bun: Encoding.assert
+    public static func assert(value: JsValue, globalObject: JsGlobalObject, default: Encoding): Encoding {
+        let enc = fromJS(value, globalObject: globalObject)
+        if (enc != None) {
+            return enc.getOrThrow()
+        }
+        if (!value.isUndefined()) {
+            globalObject.throwTypeError("Unknown encoding")
+        }
+        return default
+    }
+
+    // 从 JS 值获取编码，空值时返回默认
+    // 对应 Bun: Encoding.fromJSWithDefaultOnEmpty
+    public static func fromJSWithDefaultOnEmpty(value: JsValue, globalObject: JsGlobalObject, default: Encoding): ?Encoding {
+        if (value.isUndefinedOrNull()) {
+            return default
+        }
+        return fromJS(value, globalObject: globalObject)
+    }
+
+    // 编码名称转 JS 值
+    // 对应 Bun: Encoding.toJS
+    public func toJS(): JsValue {
+        let name: String = match (this) {
+            case utf8 => "utf8"
+            case utf16le => "utf16le"
+            case latin1 => "latin1"
+            case ascii => "ascii"
+            case base64 => "base64"
+            case hex => "hex"
+            case base64url => "base64url"
+            case ucs2 => "ucs2"
+            case buffer => "buffer"
+        }
+        return JsValue(BaoString(name))
+    }
+
+    // 将字节数组用指定编码转为 JS 值
+    // 对应 Bun: Encoding.encodeWithSize / encodeWithMaxSize
+    public func encodeToJS(globalObject: JsGlobalObject, input: Array<UInt8>): JsValue {
+        match (this) {
+            case Encoding.hex => {
+                return JsValue(BaoString(EncodingUtils.hexEncode(input)))
+            }
+            case Encoding.base64 => {
+                return JsValue(BaoString(Base64Codec.encode(input)))
+            }
+            case Encoding.base64url => {
+                let b64 = Base64Codec.encode(input)
+                return JsValue(BaoString(b64.replace("+", "-").replace("/", "_").replace("=", "")))
+            }
+            case _ => {
+                return JsValue(BaoString.fromUtf8(input))
+            }
+        }
+    }
+}
+
+// ============================================================================
+// 编码工具
+// 对应 Bun: src/runtime/node/types.zig - Encoding helpers
+// ============================================================================
+public class EncodingUtils {
+    // 抛出编码错误
+    // 对应 Bun: Encoding.throwEncodingError
+    public static func throwEncodingError(globalObject: JsGlobalObject): Unit {
+        globalObject.throwTypeError("Unknown encoding")
+    }
+
+    // Hex 编码
+    public static func hexEncode(bytes: Array<UInt8>): String {
+        let hexChars = "0123456789abcdef"
+        var result = StringBuilder()
+        for (b in bytes) {
+            result.append(hexChars[Int32(b >> 4)])
+            result.append(hexChars[Int32(b & 0x0F)])
+        }
+        return result.toString()
+    }
+
+    // Hex 解码
+    public static func hexDecode(hex: String): Array<UInt8> {
+        let arr = Array<UInt8>(hex.size / 2, item: UInt8(0))
+        var i = 0
+        while (i < hex.size) {
+            let high = hexCharToNibble(hex[i])
+            let low = hexCharToNibble(hex[i + 1])
+            arr[i / 2] = high * 16 + low
+            i += 2
+        }
+        return arr
+    }
+
+    private static func hexCharToNibble(c: UInt8): UInt8 {
+        if (c >= UInt8('0') && c <= UInt8('9')) {
+            return c - UInt8('0')
+        }
+        if (c >= UInt8('a') && c <= UInt8('f')) {
+            return c - UInt8('a') + 10
+        }
+        if (c >= UInt8('A') && c <= UInt8('F')) {
+            return c - UInt8('A') + 10
+        }
+        return 0
+    }
+
+    // 编码的 JS 断言函数
+    // 对应 Bun: jsAssertEncodingValid
+    public static func jsAssertEncodingValid(globalObject: JsGlobalObject, callFrame: JsCallFrame): JsValue {
+        let args = callFrame.arguments(1)
+        if (args.size < 1) {
+            return JsValue()
+        }
+        let encoding = Encoding.fromJS(args[0], globalObject: globalObject)
+        if (encoding == None) {
+            throwEncodingError(globalObject)
+        }
+        return JsValue()
     }
 }
 
@@ -133,11 +268,71 @@ public enum FileSystemFlags {
         return r
     }
 
+    // 从 JS 值解析文件系统标志
+    // 对应 Bun: FileSystemFlags.fromJS
+    public static func fromJS(globalObject: JsGlobalObject, val: JsValue): ?FileSystemFlags {
+        if (val.isNumber()) {
+            let number = val.toInt32()
+            let flags = if (number > 0) { number } else { 0 }
+            return fromNumber(flags)
+        }
+        if (val.isString()) {
+            let str = val.toString()
+            if (str.size == 0) {
+                globalObject.throwTypeError("Expected flags to be a non-empty string.")
+                return None
+            }
+            if (str.size > 12) {
+                globalObject.throwTypeError("Invalid flag '" + str + "'.")
+                return None
+            }
+            // 尝试解析数字字符串
+            if (str[0] >= '0' && str[0] <= '9') {
+                return fromNumber(Int32.parse(str))
+            }
+            return from(str)
+        }
+        return None
+    }
+
+    // 从 JS 值解析数字标志（用于 access/copyFile）
+    // 对应 Bun: FileSystemFlags.fromJSNumberOnly
+    public static func fromJSNumberOnly(globalObject: JsGlobalObject, value: JsValue): ?FileSystemFlags {
+        if (!value.isNumber()) {
+            if (value.isUndefinedOrNull()) {
+                return r  // F_OK = 0
+            }
+            globalObject.throwTypeError("mode must be int32 or null/undefined")
+            return None
+        }
+        let int: Int32 = value.toInt32()
+        if (int < 0 || int > 7) {
+            globalObject.throwRangeError("mode is out of range: >= 0 and <= 7")
+            return None
+        }
+        return fromNumber(int)
+    }
+
     // 获取整数值
     // 对应 Bun: FileSystemFlags.asInt
     public func asInt(): Int32 {
         return Int32(this.ordinal())
     }
+}
+
+// ============================================================================
+// O_* 常量
+// 对应 Bun: bun.O
+// ============================================================================
+public class OConstants {
+    public static let O_RDONLY: Int32 = 0
+    public static let O_WRONLY: Int32 = 1
+    public static let O_RDWR: Int32 = 2
+    public static let O_CREAT: Int32 = 64
+    public static let O_EXCL: Int32 = 128
+    public static let O_TRUNC: Int32 = 512
+    public static let O_APPEND: Int32 = 1024
+    public static let O_SYNC: Int32 = 4096
 }
 
 // ============================================================================
@@ -166,7 +361,7 @@ public class PathOrFileDescriptor {
     }
 
     // 释放资源
-    // 对应 Bun: PathOrFileDescriptor.deinit / deinitAndUnprotect
+    // 对应 Bun: PathOrFileDescriptor.deinit
     public func deinit(): Unit {
         if (!isFd) {
             path.deinit()
@@ -181,6 +376,14 @@ public class PathOrFileDescriptor {
         }
     }
 
+    // 释放并取消保护
+    // 对应 Bun: PathOrFileDescriptor.deinitAndUnprotect
+    public func deinitAndUnprotect(): Unit {
+        if (!isFd) {
+            path.deinitAndUnprotect()
+        }
+    }
+
     // 哈希值
     // 对应 Bun: PathOrFileDescriptor.hash
     public func hash(): UInt64 {
@@ -189,6 +392,40 @@ public class PathOrFileDescriptor {
         } else {
             UInt64(path.slice().hashValue())
         }
+    }
+
+    // 从 JS 值解析
+    // 对应 Bun: PathOrFileDescriptor.fromJS
+    public static func fromJS(globalObject: JsGlobalObject, arguments: JsArgumentsSlice): ?PathOrFileDescriptor {
+        let first = arguments.next()
+        if (first == None) {
+            return None
+        }
+        let val = first.getOrThrow()
+        if (val.isNumber()) {
+            let fd = val.toInt32()
+            if (fd >= 0) {
+                arguments.eat()
+                return PathOrFileDescriptor(fd: fd)
+            }
+        }
+        let pathLike = PathLike.fromJS(globalObject, arguments: arguments)
+        if (pathLike != None) {
+            return PathOrFileDescriptor(path: pathLike.getOrThrow())
+        }
+        return None
+    }
+
+    // 估算内存大小
+    // 对应 Bun: PathOrFileDescriptor.estimatedSize
+    public func estimatedSize(): Int64 {
+        return if (isFd) { 0 } else { path.estimatedSize() }
+    }
+
+    // 格式化为字符串
+    // 对应 Bun: PathOrFileDescriptor.format
+    public func format(): String {
+        return if (isFd) { fd.toString() } else { path.slice() }
     }
 }
 
@@ -236,6 +473,45 @@ public class PathLike {
     public func estimatedSize(): Int64 {
         return value.size
     }
+
+    // 从 JS 值解析路径
+    // 对应 Bun: PathLike.fromJS
+    public static func fromJS(globalObject: JsGlobalObject, arguments: JsArgumentsSlice): ?PathLike {
+        let value = arguments.next()
+        if (value == None) {
+            return None
+        }
+        let val = value.getOrThrow()
+        if (val.isString()) {
+            return PathLike(value: val.toString())
+        }
+        if (val.isArrayBuffer() || val.isTypedArray()) {
+            let buf = val.toArrayBuffer()
+            let path = Utf8Codec.decode(buf)
+            let result = PathLike(value: path)
+            result.isBuffer = true
+            return result
+        }
+        return None
+    }
+
+    // 从 JS 值解析路径（带分配器）
+    // 对应 Bun: PathLike.fromJSWithAllocator
+    public static func fromJSWithAllocator(globalObject: JsGlobalObject, arguments: JsArgumentsSlice): ?PathLike {
+        return fromJS(globalObject, arguments: arguments)
+    }
+
+    // 获取以 null 结尾的路径（C 字符串）
+    // 对应 Bun: PathLike.sliceZ
+    public func sliceZ(): String {
+        return value
+    }
+
+    // 获取操作系统路径
+    // 对应 Bun: PathLike.osPath
+    public func osPath(): String {
+        return value
+    }
 }
 
 // ============================================================================
@@ -259,18 +535,28 @@ public class StringOrBuffer {
         this.isBuffer = true
     }
 
+    // 空常量
+    // 对应 Bun: StringOrBuffer.empty
+    public static let EMPTY: StringOrBuffer = StringOrBuffer()
+
     // 获取字节切片
     // 对应 Bun: StringOrBuffer.slice
     public func slice(): Array<UInt8> {
         if (isBuffer) {
             return bufferValue
         }
-        return Array<UInt8>() // 简化
+        return Utf8Codec.encode(stringValue)
     }
 
     // 获取字符串值
     public func stringSlice(): String {
         return if (isBuffer) { "" } else { stringValue }
+    }
+
+    // 获取字节长度
+    // 对应 Bun: StringOrBuffer.byteLength
+    public func byteLength(): Int64 {
+        return if (isBuffer) { bufferValue.size } else { stringValue.size }
     }
 
     // 释放资源
@@ -289,6 +575,71 @@ public class StringOrBuffer {
     // 对应 Bun: StringOrBuffer.toThreadSafe
     public func toThreadSafe(): Unit {
         // 在仓颉中字符串天然线程安全
+    }
+
+    // 保护 JS 值（防止 GC）
+    // 对应 Bun: StringOrBuffer.protect
+    public func protect(): Unit {
+        // 在 Cangjie 中由 GC 管理
+    }
+
+    // 转换为 JS 值
+    // 对应 Bun: StringOrBuffer.toJS
+    public func toJS(globalObject: JsGlobalObject): JsValue {
+        if (isBuffer) {
+            return JsValue.fromArrayBuffer(globalObject, bufferValue)
+        }
+        return JsValue(BaoString(stringValue))
+    }
+
+    // 从 JS 值解析
+    // 对应 Bun: StringOrBuffer.fromJS
+    public static func fromJS(globalObject: JsGlobalObject, value: JsValue): ?StringOrBuffer {
+        if (value.isUndefinedOrNull()) {
+            return None
+        }
+        if (value.isString()) {
+            return StringOrBuffer(value: value.toString())
+        }
+        if (value.isArrayBuffer() || value.isTypedArray()) {
+            let buf = value.toArrayBuffer()
+            return StringOrBuffer(buffer: buf)
+        }
+        return None
+    }
+
+    // 从 JS 值解析（带编码）
+    // 对应 Bun: StringOrBuffer.fromJSWithEncoding
+    public static func fromJSWithEncoding(globalObject: JsGlobalObject, value: JsValue, encoding: Encoding): ?StringOrBuffer {
+        if (value.isUndefinedOrNull()) {
+            return None
+        }
+        if (value.isString()) {
+            return StringOrBuffer(value: value.toString())
+        }
+        if (value.isArrayBuffer() || value.isTypedArray()) {
+            let buf = value.toArrayBuffer()
+            return StringOrBuffer(buffer: buf)
+        }
+        return None
+    }
+
+    // 从 JS 值解析（带编码值）
+    // 对应 Bun: StringOrBuffer.fromJSWithEncodingValue
+    public static func fromJSWithEncodingValue(globalObject: JsGlobalObject, value: JsValue, encodingValue: JsValue): ?StringOrBuffer {
+        let encoding = Encoding.fromJS(encodingValue, globalObject: globalObject)
+        let enc = if (encoding != None) { encoding.getOrThrow() } else { Encoding.utf8 }
+        return fromJSWithEncoding(globalObject, value: value, encoding: enc)
+    }
+
+    // 从 JS 值获取拥有的字节切片
+    // 对应 Bun: StringOrBuffer.fromJSToOwnedSlice
+    public static func fromJSToOwnedSlice(globalObject: JsGlobalObject, value: JsValue): Array<UInt8> {
+        if (value.isArrayBuffer() || value.isTypedArray()) {
+            return value.toArrayBuffer()
+        }
+        let str = value.toString()
+        return Utf8Codec.encode(str)
     }
 }
 
@@ -324,9 +675,45 @@ public class BlobOrStringOrBuffer {
     }
 
     // 释放资源
-    // 对应 Bun: BlobOrStringOrBuffer.deinit / deinitAndUnprotect
+    // 对应 Bun: BlobOrStringOrBuffer.deinit
     public func deinit(): Unit {
         // 在仓颉中由 GC 管理
+    }
+
+    // 保护 JS 值
+    // 对应 Bun: BlobOrStringOrBuffer.protect
+    public func protect(): Unit {
+        stringOrBuffer.protect()
+    }
+
+    // 释放并取消保护
+    // 对应 Bun: BlobOrStringOrBuffer.deinitAndUnprotect
+    public func deinitAndUnprotect(): Unit {
+        stringOrBuffer.deinitAndUnprotect()
+    }
+
+    // 从 JS 值解析
+    // 对应 Bun: BlobOrStringOrBuffer.fromJS
+    public static func fromJS(globalObject: JsGlobalObject, value: JsValue): ?BlobOrStringOrBuffer {
+        let sob = StringOrBuffer.fromJS(globalObject, value: value)
+        if (sob != None) {
+            let result = BlobOrStringOrBuffer()
+            result.stringOrBuffer = sob.getOrThrow()
+            return result
+        }
+        return None
+    }
+
+    // 从 JS 值解析（允许文件）
+    // 对应 Bun: BlobOrStringOrBuffer.fromJSMaybeFile
+    public static func fromJSMaybeFile(globalObject: JsGlobalObject, value: JsValue, allowFile: Bool): ?BlobOrStringOrBuffer {
+        return fromJS(globalObject, value: value)
+    }
+
+    // 从 JS 值异步解析
+    // 对应 Bun: BlobOrStringOrBuffer.fromJSAsync
+    public static func fromJSAsync(globalObject: JsGlobalObject, value: JsValue): ?BlobOrStringOrBuffer {
+        return fromJS(globalObject, value: value)
     }
 }
 
@@ -348,9 +735,19 @@ public class Dirent {
         this.kind = kind
     }
 
+    // UV_DIRENT 类型常量
+    // 对应 Bun: Dirent.Kind -> UV_DIRENT_* 映射
+    public static let UV_DIRENT_UNKNOWN: Int32 = 0
+    public static let UV_DIRENT_FILE: Int32 = 1
+    public static let UV_DIRENT_DIR: Int32 = 2
+    public static let UV_DIRENT_LINK: Int32 = 3
+    public static let UV_DIRENT_FIFO: Int32 = 4
+    public static let UV_DIRENT_SOCKET: Int32 = 5
+    public static let UV_DIRENT_CHAR: Int32 = 6
+    public static let UV_DIRENT_BLOCK: Int32 = 7
+
     // 文件类型判断方法
     // 对应 Bun: Dirent 中的 toJS 映射到 UV_DIRENT_* 常量
-
     public func isFile(): Bool {
         return kind == EntryKind.file
     }
@@ -377,6 +774,45 @@ public class Dirent {
 
     public func isSocket(): Bool {
         return kind == EntryKind.unix_domain_socket
+    }
+
+    // 转换为 UV_DIRENT 类型值
+    // 对应 Bun: Dirent.toJS 中的 kind switch
+    public func toUVType(): Int32 {
+        return match (kind) {
+            case EntryKind.file => Dirent.UV_DIRENT_FILE
+            case EntryKind.block_device => Dirent.UV_DIRENT_BLOCK
+            case EntryKind.character_device => Dirent.UV_DIRENT_CHAR
+            case EntryKind.directory => Dirent.UV_DIRENT_DIR
+            case EntryKind.event_port => Dirent.UV_DIRENT_FIFO
+            case EntryKind.named_pipe => Dirent.UV_DIRENT_FIFO
+            case EntryKind.unix_domain_socket => Dirent.UV_DIRENT_SOCKET
+            case EntryKind.sym_link => Dirent.UV_DIRENT_LINK
+            case EntryKind.whiteout => Dirent.UV_DIRENT_UNKNOWN
+            case EntryKind.door => Dirent.UV_DIRENT_UNKNOWN
+            case EntryKind.unknown => Dirent.UV_DIRENT_UNKNOWN
+        }
+    }
+
+    // 转换为 JS 值
+    // 对应 Bun: Dirent.toJS
+    public func toJS(globalObject: JsGlobalObject): JsValue {
+        let obj = JsObject(globalObject)
+        obj.set("name", JsValue(BaoString(name)))
+        obj.set("path", JsValue(BaoString(path)))
+        return obj.toJsValue()
+    }
+
+    // 新创建后转换为 JS 值
+    // 对应 Bun: Dirent.toJSNewlyCreated
+    public func toJSNewlyCreated(globalObject: JsGlobalObject): JsValue {
+        return toJS(globalObject)
+    }
+
+    // 释放资源
+    // 对应 Bun: Dirent.deref
+    public func deref(): Unit {
+        // 在 Cangjie 中由 GC 管理
     }
 }
 
@@ -409,12 +845,11 @@ public class Valid {
 
     // 验证路径长度
     // 对应 Bun: Valid.pathStringLength
-    // 路径长度必须在 0..MAX_PATH_BYTES 之间，否则抛出 NAMETOOLONG
     public static func pathStringLength(len: Int64): Bool {
         return len >= 0 && len <= MAX_PATH_BYTES
     }
 
-    // 验证路径字符串长度（使用 ZigString）
+    // 验证路径字符串长度
     // 对应 Bun: Valid.pathString
     public static func pathString(len: Int64): Bool {
         return pathStringLength(len)
@@ -422,15 +857,12 @@ public class Valid {
 
     // 验证路径不包含空字节
     // 对应 Bun: Valid.pathNullBytes
-    // 如果包含空字节则抛出 ERR_INVALID_ARG_VALUE
     public static func pathNullBytes(path: String): Bool {
         return !path.contains('\u{00}')
     }
 
     // 验证路径缓冲区
     // 对应 Bun: Valid.pathBuffer
-    // 空缓冲区抛出 "Invalid path buffer: can't be empty"
-    // 超长缓冲区抛出 NAMETOOLONG
     public static func pathBuffer(buffer: Array<UInt8>): Bool {
         if (buffer.size == 0) {
             return false
@@ -448,19 +880,15 @@ public class Valid {
 // ============================================================================
 // 模式解析
 // 对应 Bun: src/runtime/node/types.zig - modeFromJS
-// Node.js 文件权限模式（如 0o644, 0o755）
 // ============================================================================
 public class ModeUtils {
-    // 从字符串或数字解析文件权限模式
-    // 对应 Bun: modeFromJS
-    // 字符串格式: "0o644", "644"（八进制）
-    // 数字格式: 直接使用，截断为 0o777
+    // 从字符串解析文件权限模式
+    // 对应 Bun: modeFromJS 字符串路径
     public static func fromString(modeStr: String): ?UInt32 {
         var str = modeStr
         if (str.startsWith("0o") || str.startsWith("0O")) {
             str = str.substring(2)
         }
-        // 解析八进制字符串
         var result: UInt32 = 0
         for (c in str) {
             if (c >= '0' && c <= '7') {
@@ -473,7 +901,7 @@ public class ModeUtils {
     }
 
     // 从数字解析模式
-    // 对应 Bun: modeFromJS 中的数字路径
+    // 对应 Bun: modeFromJS 数字路径
     public static func fromNumber(mode: Int64): UInt32 {
         return UInt32(mode) & 0o777
     }
@@ -488,6 +916,24 @@ public class ModeUtils {
         }
         return None
     }
+
+    // 从 JS 值解析模式
+    // 对应 Bun: modeFromJS
+    public static func fromJS(globalObject: JsGlobalObject, value: JsValue): ?UInt32 {
+        if (value.isNumber()) {
+            let num = value.toInt64()
+            return UInt32(num) & 0o777
+        }
+        if (value.isUndefinedOrNull()) {
+            return None
+        }
+        if (value.isString()) {
+            let str = value.toString()
+            return fromString(str)
+        }
+        globalObject.throwTypeError("mode must be a number or octal string")
+        return None
+    }
 }
 
 // ============================================================================
@@ -497,7 +943,7 @@ public class ModeUtils {
 public class CallbackTask<Result> {
     public var callback: () -> Unit = { }
     public var success: Bool = false
-    public var option: CallbackOption<Result> = CallbackTask.Option.err("")
+    public var option: CallbackTask.Option<Result> = CallbackTask.Option.err("")
 
     public init() {}
 
@@ -518,6 +964,37 @@ public class VectorArrayBuffer {
     public var buffers: Array<IoVec> = Array<IoVec>()
 
     public init() {}
+
+    // 转换为 JS 值
+    // 对应 Bun: VectorArrayBuffer.toJS
+    public func toJS(globalObject: JsGlobalObject): JsValue {
+        return JsValue()
+    }
+
+    // 从 JS 值解析
+    // 对应 Bun: VectorArrayBuffer.fromJS
+    public static func fromJS(globalObject: JsGlobalObject, val: JsValue): ?VectorArrayBuffer {
+        if (!val.isArrayLike()) {
+            globalObject.throwTypeError("Expected ArrayBufferView[]")
+            return None
+        }
+        let result = VectorArrayBuffer()
+        let len = val.getLength()
+        var i: Int64 = 0
+        while (i < len) {
+            let element = val.getIndex(UInt32(i))
+            if (!element.isCell()) {
+                globalObject.throwTypeError("Expected ArrayBufferView[]")
+                return None
+            }
+            let arrayBuffer = element.toArrayBuffer()
+            let iovec = IoVec()
+            iovec.data = arrayBuffer
+            result.buffers.append(iovec)
+            i += 1
+        }
+        return result
+    }
 }
 
 // ============================================================================
@@ -539,4 +1016,16 @@ public class PathOrBlob {
     public var isBlob: Bool = false
 
     public init() {}
+
+    // 从 JS 值解析（不复制）
+    // 对应 Bun: PathOrBlob.fromJSNoCopy
+    public static func fromJSNoCopy(globalObject: JsGlobalObject, args: JsArgumentsSlice): ?PathOrBlob {
+        let path = PathOrFileDescriptor.fromJS(globalObject, arguments: args)
+        if (path != None) {
+            let result = PathOrBlob()
+            result.path = path.getOrThrow()
+            return result
+        }
+        return None
+    }
 }

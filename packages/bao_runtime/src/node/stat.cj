@@ -3,6 +3,8 @@
 // 严格翻译自: src/runtime/node/Stat.zig
 package bao_runtime.node
 
+import bao_jsc.*
+
 // ============================================================================
 // Stats 类 — 文件状态信息（使用浮点时间）
 // 对应 Bun: src/runtime/node/Stat.zig - StatType(false) - StatsSmall
@@ -72,6 +74,53 @@ public class Stats {
 
     public func isSocket(): Bool {
         return (mode & 0xF000) == 0xC000  // S_IFSOCK
+    }
+
+    // 转换为 JS 对象
+    // 对应 Bun: Stat.zig - StatType(false).toJS
+    public func toJS(globalObject: JsGlobalObject): JsValue {
+        let obj = JsObject(globalObject)
+        obj.set("dev", JsValue(Int64(dev)))
+        obj.set("ino", JsValue(Int64(ino)))
+        obj.set("mode", JsValue(Int64(mode)))
+        obj.set("nlink", JsValue(Int64(nlink)))
+        obj.set("uid", JsValue(Int64(uid)))
+        obj.set("gid", JsValue(Int64(gid)))
+        obj.set("rdev", JsValue(Int64(rdev)))
+        obj.set("size", JsValue(Int64(size)))
+        obj.set("blksize", JsValue(Int64(blksize)))
+        obj.set("blocks", JsValue(Int64(blocks)))
+        obj.set("atimeMs", JsValue(atimeMs))
+        obj.set("mtimeMs", JsValue(mtimeMs))
+        obj.set("ctimeMs", JsValue(ctimeMs))
+        obj.set("birthtimeMs", JsValue(birthtimeMs))
+        obj.set("atime", JsValue(atimeMs))
+        obj.set("mtime", JsValue(mtimeMs))
+        obj.set("ctime", JsValue(ctimeMs))
+        obj.set("birthtime", JsValue(birthtimeMs))
+        // 设置文件类型判断方法
+        obj.set("isFile", JsValue.nativeFunction(JsNativeFunction("isFile") { _ =>
+            JsValue(this.isFile())
+        }))
+        obj.set("isDirectory", JsValue.nativeFunction(JsNativeFunction("isDirectory") { _ =>
+            JsValue(this.isDirectory())
+        }))
+        obj.set("isSymbolicLink", JsValue.nativeFunction(JsNativeFunction("isSymbolicLink") { _ =>
+            JsValue(this.isSymbolicLink())
+        }))
+        obj.set("isBlockDevice", JsValue.nativeFunction(JsNativeFunction("isBlockDevice") { _ =>
+            JsValue(this.isBlockDevice())
+        }))
+        obj.set("isCharacterDevice", JsValue.nativeFunction(JsNativeFunction("isCharacterDevice") { _ =>
+            JsValue(this.isCharacterDevice())
+        }))
+        obj.set("isFIFO", JsValue.nativeFunction(JsNativeFunction("isFIFO") { _ =>
+            JsValue(this.isFIFO())
+        }))
+        obj.set("isSocket", JsValue.nativeFunction(JsNativeFunction("isSocket") { _ =>
+            JsValue(this.isSocket())
+        }))
+        return obj.toJsValue()
     }
 }
 
@@ -152,6 +201,53 @@ public class BigIntStats {
 
     public func isSocket(): Bool {
         return (mode & 0xF000) == 0xC000
+    }
+
+    // 转换为 JS 对象
+    // 对应 Bun: Stat.zig - StatType(true).toJS
+    public func toJS(globalObject: JsGlobalObject): JsValue {
+        let obj = JsObject(globalObject)
+        obj.set("dev", JsValue(Int64(dev)))
+        obj.set("ino", JsValue(Int64(ino)))
+        obj.set("mode", JsValue(Int64(mode)))
+        obj.set("nlink", JsValue(Int64(nlink)))
+        obj.set("uid", JsValue(Int64(uid)))
+        obj.set("gid", JsValue(Int64(gid)))
+        obj.set("rdev", JsValue(Int64(rdev)))
+        obj.set("size", JsValue(Int64(size)))
+        obj.set("blksize", JsValue(Int64(blksize)))
+        obj.set("blocks", JsValue(Int64(blocks)))
+        obj.set("atimeMs", JsValue(atimeMs))
+        obj.set("mtimeMs", JsValue(mtimeMs))
+        obj.set("ctimeMs", JsValue(ctimeMs))
+        obj.set("birthtimeMs", JsValue(birthtimeMs))
+        obj.set("atimeNs", JsValue(Int64(atimeNs)))
+        obj.set("mtimeNs", JsValue(Int64(mtimeNs)))
+        obj.set("ctimeNs", JsValue(Int64(ctimeNs)))
+        obj.set("birthtimeNs", JsValue(Int64(birthtimeNs)))
+        // 文件类型判断方法
+        obj.set("isFile", JsValue.nativeFunction(JsNativeFunction("isFile") { _ =>
+            JsValue(this.isFile())
+        }))
+        obj.set("isDirectory", JsValue.nativeFunction(JsNativeFunction("isDirectory") { _ =>
+            JsValue(this.isDirectory())
+        }))
+        obj.set("isSymbolicLink", JsValue.nativeFunction(JsNativeFunction("isSymbolicLink") { _ =>
+            JsValue(this.isSymbolicLink())
+        }))
+        obj.set("isBlockDevice", JsValue.nativeFunction(JsNativeFunction("isBlockDevice") { _ =>
+            JsValue(this.isBlockDevice())
+        }))
+        obj.set("isCharacterDevice", JsValue.nativeFunction(JsNativeFunction("isCharacterDevice") { _ =>
+            JsValue(this.isCharacterDevice())
+        }))
+        obj.set("isFIFO", JsValue.nativeFunction(JsNativeFunction("isFIFO") { _ =>
+            JsValue(this.isFIFO())
+        }))
+        obj.set("isSocket", JsValue.nativeFunction(JsNativeFunction("isSocket") { _ =>
+            JsValue(this.isSocket())
+        }))
+        return obj.toJsValue()
     }
 }
 
