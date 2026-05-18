@@ -44,10 +44,10 @@ public class ParseFn {
         asyncRange: ?Range
     ): Stmt {
         let isGenerator = p.lexer.token == Token.Asterisk
-        let isAsync = asyncRange != None
+        let isAsync = asyncRange.isSome()
 
         if (isGenerator) {
-            p.lexer.next()
+            p.lexer.nextToken()
         }
 
         // 处理词法声明限制
@@ -80,27 +80,30 @@ public class ParseFn {
         }
 
         // 为 if 语句中的函数声明引入假的块作用域
-        var ifStmtScopeIndex: Int64 = 0
-        let hasIfScope = opts.lexicalDecl == LexicalDecl.AllowFnInsideIf
+        let hasIfScope = match (opts.lexicalDecl) {
+            case LexicalDecl.AllowFnInsideIf => true
+            case _ => false
+        }
         if (hasIfScope) {
-            ifStmtScopeIndex = p.pushScopeForParsePass(ScopeKind.Block, loc)
+            p.pushScope(ScopeKind.Block)
         }
 
         // 函数参数作用域
-        let scopeIndex = p.pushScopeForParsePass(ScopeKind.FunctionArgs, p.lexer.loc())
+        p.pushScope(ScopeKind.FunctionArgs)
 
         // 解析函数
         let fnOrArrowData = FnOrArrowDataParse()
-        fnOrArrowData.allowAwait = if (isAsync) { AwaitOrYield.AllowExpr } else { AwaitOrYield.AllowIdent }
-        fnOrArrowData.allowYield = if (isGenerator) { AwaitOrYield.AllowExpr } else { AwaitOrYield.AllowIdent }
-        fnOrArrowData.isTypescriptDeclare = opts.isTypescriptDeclare
+        fnOrArrowData.allowAwait = isAsync
+        fnOrArrowData.allowYield = isGenerator
+        fnOrArrowData.isAsync = isAsync
+        fnOrArrowData.isGenerator = isGenerator
 
         var fnData = parseFn(p, name, fnOrArrowData)
 
         // TypeScript forward declaration 处理
         if (p.options.features.typescript) {
             if (opts.isTypescriptDeclare) {
-                p.popAndDiscardScope(scopeIndex)
+                p.popScope()
                 if (hasIfScope) {
                     p.popScope()
                 }
@@ -161,7 +164,7 @@ public class ParseFn {
         // TypeScript 返回类型
         if (p.options.features.typescript) {
             if (p.lexer.token == Token.Colon) {
-                p.lexer.next()
+                p.lexer.nextToken()
                 skipTypeScriptReturnType(p)
             }
         }
@@ -194,8 +197,8 @@ public class ParseFn {
         // await/yield 在参数中不允许
         let oldAllowAwait = p.fnOrArrowData.allowAwait
         let oldAllowYield = p.fnOrArrowData.allowYield
-        p.fnOrArrowData.allowAwait = AwaitOrYield.Forbid
-        p.fnOrArrowData.allowYield = AwaitOrYield.Forbid
+        p.fnOrArrowData.allowAwait = false
+        p.fnOrArrowData.allowYield = false
 
         var hasRest = false
 
@@ -206,7 +209,7 @@ public class ParseFn {
 
             // rest 参数 ...
             if (p.lexer.token == Token.DotDotDot) {
-                p.lexer.next()
+                p.lexer.nextToken()
                 hasRest = true
             }
 
@@ -215,14 +218,14 @@ public class ParseFn {
 
             // TypeScript 类型注解
             if (p.options.features.typescript && p.lexer.token == Token.Colon) {
-                p.lexer.next()
+                p.lexer.nextToken()
                 skipTypeScriptType(p, Level.Lowest)
             }
 
             // 默认值
             var value: ?Expr = None
             if (p.lexer.token == Token.Equals) {
-                p.lexer.next()
+                p.lexer.nextToken()
                 value = Some(p.parseExpr(Level.Comma))
             }
 
@@ -232,7 +235,7 @@ public class ParseFn {
             args.append(arg)
 
             if (p.lexer.token == Token.Comma) {
-                p.lexer.next()
+                p.lexer.nextToken()
             } else {
                 break
             }
@@ -255,7 +258,7 @@ public class ParseFn {
         p.lexer.expect(Token.OpenBrace)
 
         // 进入函数体作用域
-        p.pushScopeForParsePass(ScopeKind.FunctionBody, p.lexer.loc())
+        p.pushScope(ScopeKind.FunctionBody)
 
         let stmts = ArrayList<Stmt>()
         while (p.lexer.token != Token.CloseBrace && p.lexer.token != Token.EndOfFile) {
@@ -279,7 +282,7 @@ public class ParseFn {
             case Token.Identifier =>
                 let loc = p.lexer.loc()
                 let name = p.lexer.identifier
-                p.lexer.next()
+                p.lexer.nextToken()
                 let binding = BindingPattern(loc, BindingPatternTag.Identifier)
                 binding.name = name
                 binding.ref = p.storeNameInRef(name)
@@ -297,18 +300,18 @@ public class ParseFn {
     /// 解析数组解构绑定
     private static func parseArrayBinding(p: Parser): BindingPattern {
         let loc = p.lexer.loc()
-        p.lexer.next() // [
+        p.lexer.nextToken() // [
 
         let binding = BindingPattern(loc, BindingPatternTag.ArrayPattern)
 
         while (p.lexer.token != Token.CloseBracket && p.lexer.token != Token.EndOfFile) {
             if (p.lexer.token == Token.Comma) {
-                p.lexer.next()
+                p.lexer.nextToken()
                 continue
             }
 
             if (p.lexer.token == Token.DotDotDot) {
-                p.lexer.next()
+                p.lexer.nextToken()
                 let elem = parseBindingPattern(p)
                 elem.tag = BindingPatternTag.RestPattern
                 binding.elements.append(elem)
@@ -318,7 +321,7 @@ public class ParseFn {
             }
 
             if (p.lexer.token == Token.Comma) {
-                p.lexer.next()
+                p.lexer.nextToken()
             }
         }
 
@@ -329,18 +332,18 @@ public class ParseFn {
     /// 解析对象解构绑定
     private static func parseObjectBinding(p: Parser): BindingPattern {
         let loc = p.lexer.loc()
-        p.lexer.next() // {
+        p.lexer.nextToken() // {
 
         let binding = BindingPattern(loc, BindingPatternTag.ObjectPattern)
 
         while (p.lexer.token != Token.CloseBrace && p.lexer.token != Token.EndOfFile) {
             if (p.lexer.token == Token.Comma) {
-                p.lexer.next()
+                p.lexer.nextToken()
                 continue
             }
 
             if (p.lexer.token == Token.DotDotDot) {
-                p.lexer.next()
+                p.lexer.nextToken()
                 let elem = parseBindingPattern(p)
                 elem.tag = BindingPatternTag.RestPattern
                 binding.restProperty = Some(elem)
@@ -349,11 +352,11 @@ public class ParseFn {
 
             let keyLoc = p.lexer.loc()
             let keyName = p.lexer.identifier
-            p.lexer.next()
+            p.lexer.nextToken()
 
             var value: BindingPattern
             if (p.lexer.token == Token.Colon) {
-                p.lexer.next()
+                p.lexer.nextToken()
                 value = parseBindingPattern(p)
             } else {
                 value = BindingPattern(keyLoc, BindingPatternTag.Identifier)
@@ -362,14 +365,14 @@ public class ParseFn {
 
             var defaultValue: ?Expr = None
             if (p.lexer.token == Token.Equals) {
-                p.lexer.next()
+                p.lexer.nextToken()
                 defaultValue = Some(p.parseExpr(Level.Comma))
             }
 
             binding.properties.append(BindingPatternProperty(keyLoc, keyName, value, defaultValue))
 
             if (p.lexer.token == Token.Comma) {
-                p.lexer.next()
+                p.lexer.nextToken()
             }
         }
 
@@ -380,7 +383,7 @@ public class ParseFn {
     /// 跳过 TypeScript 类型参数
     private static func skipTypeScriptTypeParameters(p: Parser, flag: TypeParameterFlag): Unit {
         if (p.lexer.token == Token.LessThan) {
-            p.lexer.next()
+            p.lexer.nextToken()
             var depth = 1
             while (depth > 0 && p.lexer.token != Token.EndOfFile) {
                 match (p.lexer.token) {
@@ -388,7 +391,7 @@ public class ParseFn {
                     case Token.GreaterThan => depth--
                     case _ => ()
                 }
-                p.lexer.next()
+                p.lexer.nextToken()
             }
         }
     }
@@ -407,11 +410,11 @@ public class ParseFn {
             match (p.lexer.token) {
                 case Token.OpenParen | Token.OpenBracket | Token.OpenBrace =>
                     depth++
-                    p.lexer.next()
+                    p.lexer.nextToken()
                 case Token.CloseParen | Token.CloseBracket | Token.CloseBrace =>
                     if (depth > 0) {
                         depth--
-                        p.lexer.next()
+                        p.lexer.nextToken()
                     } else {
                         done = true
                     }
@@ -419,18 +422,18 @@ public class ParseFn {
                     if (depth == 0 && level == Level.Comma) {
                         done = true
                     } else {
-                        p.lexer.next()
+                        p.lexer.nextToken()
                     }
                 case Token.EqualsGreaterThan =>
                     if (depth == 0) {
                         done = true
                     } else {
-                        p.lexer.next()
+                        p.lexer.nextToken()
                     }
                 case Token.Semicolon | Token.EndOfFile =>
                     done = true
                 case _ =>
-                    p.lexer.next()
+                    p.lexer.nextToken()
                     if (depth == 0) {
                         done = true
                     }

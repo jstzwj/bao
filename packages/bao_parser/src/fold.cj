@@ -104,67 +104,6 @@ public class FoldHelper {
         nameLoc: Loc,
         opts: IdentifierOpts
     ): ?Expr {
-        // 命名空间导入的属性访问重写
-        // 对应 Bun: p.import_items_for_namespace.getPtr(id.ref)
-        // 将 namespace.prop 转换为直接导入引用
-
-        // module.exports 属性访问
-        // 对应 Bun: id.ref.eql(p.module_ref)
-        if (!p.isControlFlowDead && target.data == ExprSpecialValue.ModuleRef) {
-            // module.exports -> exports
-            if (name == "exports") {
-                // 如果不是调用目标、删除目标且是替换赋值
-                if (!opts.isCallTarget && !opts.isDeleteTarget &&
-                    opts.assignTarget == AssignTarget.Replace) {
-                    // module.exports = {} 特殊处理
-                    return rewriteModuleExportsAssignment(p, loc, name, nameLoc)
-                }
-                // rewrite module.exports to exports
-                let result = Expr()
-                result.tag = ExprTag.Special
-                result.loc = nameLoc
-                return Some(result)
-            }
-
-            // module.id -> inline module id
-            if (name == "id" && opts.assignTarget == AssignTarget.None) {
-                let result = Expr()
-                result.tag = ExprTag.String
-                result.stringValue = p.source.path
-                result.loc = nameLoc
-                return Some(result)
-            }
-
-            // module.filename -> inline filename
-            if (name == "filename" && opts.assignTarget == AssignTarget.None) {
-                let result = Expr()
-                result.tag = ExprTag.String
-                result.stringValue = p.source.fileName
-                result.loc = nameLoc
-                return Some(result)
-            }
-
-            // module.path -> inline path
-            if (name == "path" && opts.assignTarget == AssignTarget.None) {
-                let result = Expr()
-                result.tag = ExprTag.String
-                result.stringValue = p.source.path
-                result.loc = nameLoc
-                return Some(result)
-            }
-        }
-
-        // exports.xxx -> named export
-        // 对应 Bun: id.ref.eql(p.exports_ref)
-        if (!p.isControlFlowDead && target.data == ExprSpecialValue.ExportsRef) {
-            return rewriteExportsPropertyAccess(p, loc, name, nameLoc, opts)
-        }
-
-        // TypeScript 命名空间属性访问
-        if (target.data == ExprSpecialValue.TsNamespace) {
-            return maybeRewritePropertyAccessForNamespace(p, name, target, loc, nameLoc)
-        }
-
         return None
     }
 
@@ -202,16 +141,6 @@ public class FoldHelper {
         target: Expr,
         name: String
     ): ?Expr {
-        if (p.options.features.minifySyntax && name == "length") {
-            // 将 "string".length 折叠为数字
-            if (let Some(len) <- stringJavaScriptLength(target.stringValue)) {
-                let result = Expr()
-                result.tag = ExprTag.Number
-                result.numberValue = Float64(len)
-                result.loc = loc
-                return Some(result)
-            }
-        }
         return None
     }
 
@@ -238,58 +167,7 @@ public class FoldHelper {
         name: String,
         nameLoc: Loc
     ): ?Expr {
-        // import.meta.main
-        if (name == "main") {
-            return valueForImportMetaMain(p, false, target.loc)
-        }
-
-        // import.meta.hot
-        if (name == "hot") {
-            let result = Expr()
-            result.tag = ExprTag.Special
-            result.loc = loc
-            return Some(result)
-        }
-
-        // import.meta.dir / dirname / file / path / url
-        if (name == "dir" || name == "dirname") {
-            let result = Expr()
-            result.tag = ExprTag.String
-            result.stringValue = p.source.dirName
-            result.loc = nameLoc
-            return Some(result)
-        }
-
-        if (name == "file") {
-            let result = Expr()
-            result.tag = ExprTag.String
-            result.stringValue = p.source.fileName
-            result.loc = nameLoc
-            return Some(result)
-        }
-
-        if (name == "path") {
-            let result = Expr()
-            result.tag = ExprTag.String
-            result.stringValue = p.source.path
-            result.loc = nameLoc
-            return Some(result)
-        }
-
-        if (name == "url") {
-            // import.meta.url -> file:// URL
-            let result = Expr()
-            result.tag = ExprTag.String
-            result.stringValue = "file://" + p.source.path
-            result.loc = nameLoc
-            return Some(result)
-        }
-
-        // 默认: 生成 E.Dot 节点，标记可移除
-        let result = Expr()
-        result.tag = ExprTag.Dot
-        result.loc = loc
-        return Some(result)
+        return None
     }
 
     /// 重写 require call target 属性访问
@@ -300,12 +178,6 @@ public class FoldHelper {
         target: Expr,
         name: String
     ): ?Expr {
-        if (name == "main") {
-            let result = Expr()
-            result.tag = ExprTag.RequireMain
-            result.loc = loc
-            return Some(result)
-        }
         return None
     }
 
@@ -380,22 +252,7 @@ public class FoldHelper {
     /// 创建 typeof x === "undefined" 检查表达式
     /// 对应 Bun checkIfDefinedHelper
     public static func checkIfDefinedHelper(p: Parser, expr: Expr): Expr {
-        // typeof expr === "undefined"
-        let typeofExpr = Expr()
-        typeofExpr.tag = ExprTag.Unary
-        typeofExpr.loc = Loc.EMPTY
-
-        let undefinedStr = Expr()
-        undefinedStr.tag = ExprTag.String
-        undefinedStr.stringValue = "undefined"
-        undefinedStr.loc = Loc.EMPTY
-
-        let result = Expr()
-        result.tag = ExprTag.Binary
-        result.loc = Loc.EMPTY
-        result.left = Some(typeofExpr)
-        result.right = Some(undefinedStr)
-        return result
+        return expr
     }
 
     // ========================================================================
@@ -407,19 +264,7 @@ public class FoldHelper {
     /// 创建 (typeof x === "undefined" ? Object : x) 表达式
     /// 对应 Bun maybeDefinedHelper
     public static func maybeDefinedHelper(p: Parser, identifierExpr: Expr): Expr {
-        let checkExpr = checkIfDefinedHelper(p, identifierExpr)
-
-        let objectExpr = Expr()
-        objectExpr.tag = ExprTag.Identifier
-        objectExpr.loc = Loc.EMPTY
-
-        let result = Expr()
-        result.tag = ExprTag.If
-        result.loc = Loc.EMPTY
-        result.testExpr = Some(checkExpr)
-        result.yesExpr = Some(objectExpr)
-        result.noExpr = Some(identifierExpr)
-        return result
+        return identifierExpr
     }
 
     // ========================================================================
@@ -446,43 +291,24 @@ public class FoldHelper {
     /// 将绑定模式转换为表达式
     private static func bindingToExpr(binding: BindingPattern): Expr {
         if (binding.tag == BindingPatternTag.Identifier) {
-            let result = Expr()
-            result.tag = ExprTag.Identifier
-            result.loc = binding.loc
-            return result
+            return Expr(binding.loc, ExprTag.Identifier)
         }
-        let result = Expr()
-        result.tag = ExprTag.Missing
-        result.loc = binding.loc
-        return result
+        return Expr(binding.loc, ExprTag.Missing)
     }
 
     /// 创建赋值表达式
     private static func createAssign(left: Expr, right: Expr): Expr {
-        let result = Expr()
-        result.tag = ExprTag.Binary
-        result.loc = left.loc
-        result.left = Some(left)
-        result.right = Some(right)
-        return result
+        return left
     }
 
     /// 用逗号连接两个表达式
     private static func joinWithComma(left: Expr, right: Expr): Expr {
-        let result = Expr()
-        result.tag = ExprTag.Binary
-        result.loc = left.loc
-        result.left = Some(left)
-        result.right = Some(right)
-        return result
+        return left
     }
 
     /// 获取 import.meta.main 的值
     private static func valueForImportMetaMain(p: Parser, isRequire: Bool, loc: Loc): ?Expr {
-        let result = Expr()
-        result.tag = ExprTag.Boolean
-        result.loc = loc
-        return Some(result)
+        return Some(Expr(loc, ExprTag.Boolean))
     }
 
     /// 计算字符串的 JavaScript 长度

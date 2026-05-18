@@ -787,7 +787,7 @@ public class OS {
             let pathPtr = unsafeNewCString(path)
             let result = chdir(pathPtr)
             if (result != 0) {
-                throw BaoError(ErrorCode.fromRaw(UInt16(OS.errno())), "chdir failed: ${path}")
+                throw BaoError(ErrorCode.fromRaw(UInt16(Int64(OS.errno()))), "chdir failed: ${path}")
             }
         }
     }
@@ -1236,7 +1236,7 @@ public class ChildProcess {
             let result = waitpid(Int32(pid), statusPtr, 0)
             if (result < 0) {
                 free(statusBuf)
-                throw BaoError(ErrorCode.fromRaw(UInt16(OS.errno())), "waitpid failed")
+                throw BaoError(ErrorCode.fromRaw(UInt16(Int64(OS.errno()))), "waitpid failed")
             }
             let status = statusPtr.read()
             free(statusBuf)
@@ -1257,7 +1257,7 @@ public class ChildProcess {
         unsafe {
             let rc = kill(Int32(pid), Int32(sig))
             if (rc != 0) {
-                throw BaoError(ErrorCode.fromRaw(UInt16(OS.errno())), "kill failed")
+                throw BaoError(ErrorCode.fromRaw(UInt16(Int64(OS.errno()))), "kill failed")
             }
         }
     }
@@ -1307,7 +1307,7 @@ public class ProcessSpawner {
         unsafe {
             let pid = fork()
             if (pid < 0) {
-                throw BaoError(ErrorCode.fromRaw(UInt16(OS.errno())), "fork failed")
+                throw BaoError(ErrorCode.fromRaw(UInt16(Int64(OS.errno()))), "fork failed")
             }
             if (pid == 0) {
                 // 子进程

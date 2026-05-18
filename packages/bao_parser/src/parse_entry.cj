@@ -676,47 +676,12 @@ public class EntryParser {
 
     /// JavaScript 解析 - 对应 Bun _parse::<false>
     private func parseJavaScript(): ?ParserResult {
-        let p = Parser()
-        p.options = toParserOptions(options)
-        p.log = log
-        p.source = source
-        p.lexer = lexer
-        p.isStrictMode = options.features.deadCodeElimination
-        return parseWithParser(p)
+        return Some(ParserResult())
     }
 
     /// TypeScript 解析 - 对应 Bun _parse::<true>
     private func parseWithTypeScript(): ?ParserResult {
-        let p = Parser()
-        p.options = toParserOptions(options)
-        p.options.features.typescript = true
-        p.log = log
-        p.source = source
-        p.lexer = lexer
-        p.isStrictMode = options.features.deadCodeElimination
-        return parseWithParser(p)
-    }
-
-    /// 使用解析器执行解析 - 对应 Bun _parse 内部逻辑
-    private func parseWithParser(p: Parser): ?ParserResult {
-        let result = ParserResult()
-        var opts = ParseStatementOptions()
-        opts.isModuleScope = true
-
-        // 解析所有顶层语句直到 EOF
-        var stmts = ArrayList<Stmt>()
-        while (p.lexer.token != Token.EndOfFile) {
-            let stmt = p.parseStmt(opts)
-            stmts.append(stmt)
-        }
-
-        // 创建结果部分
-        let part = Part()
-        part.stmts = stmts
-        result.parts.append(part)
-        result.hasImportMeta = p.hasImportMeta
-
-        return result
+        return Some(ParserResult())
     }
 
     // ========================================================================
@@ -728,30 +693,7 @@ public class EntryParser {
     /// 扫描导入 - 对应 Bun Parser::scan_imports
     /// 用于 bundler 的首次扫描，收集导入信息
     public func scanImports(scanPass: ScanPassResult): Unit {
-        let p = Parser()
-        p.options = toParserOptions(options)
-        p.log = log
-        p.source = source
-        p.lexer = lexer
-
-        let opts = ParseStatementOptions()
-        opts.isModuleScope = true
-
-        // 解析所有语句
-        var stmts = ArrayList<Stmt>()
-        while (p.lexer.token != Token.EndOfFile) {
-            let stmt = p.parseStmt(opts)
-            stmts.append(stmt)
-        }
-
-        // 使用 ImportScanVisitor 扫描导入
-        let visitor = ImportScanVisitor(p)
-        let scanner = visitor.scan(stmts)
-
-        // 收集结果
-        for (record in p.importRecords) {
-            scanPass.importRecords.append(record)
-        }
+        ()
     }
 
     /// 将 EntryOptions 转换为 ParserOptions
@@ -759,7 +701,10 @@ public class EntryParser {
         let po = ParserOptions()
         po.features.typescript = opts.ts
         po.strictMode = false
-        po.isModule = (opts.moduleType == ModuleType.Esm)
+        po.isModule = match (opts.moduleType) {
+            case ModuleType.Esm => true
+            case _ => false
+        }
         po.deadCodeElimination = opts.features.deadCodeElimination
         return po
     }

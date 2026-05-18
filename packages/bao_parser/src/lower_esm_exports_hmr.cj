@@ -219,9 +219,9 @@ public class ConvertESMExportsForHmr {
             case BindingPatternTag.Identifier =>
                 // 为标识符创建导出属性
                 let property = Property()
-                property.key = Expr()
-                property.key.tag = ExprTag.String
-                property.key.stringValue = binding.name
+                let key = Expr(binding.loc, ExprTag.String)
+                key.stringValue = BaoString(binding.name)
+                property.key = Some(key)
                 exportProps.append(property)
             case BindingPatternTag.ObjectPattern =>
                 for (property in binding.properties) {
