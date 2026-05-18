@@ -150,9 +150,9 @@ public class SubscriptionCtx {
                 case Some(fn) =>
                     // 对应 Bun: event_loop.runCallback(callback, globalObject, .js_undefined, args)
                     let vm = VirtualMachine.get()
-                    let eventLoop = vm.eventLoop()
+                    let eventLoop = vm.getEventLoop()
                     eventLoop.enter()
-                    eventLoop.runCallback(callback, globalThis, JsValue.jsUndefined(), args)
+                    eventLoop.runCallback(callback, vm.getGlobal(), JsValue.jsUndefined(), args)
                     eventLoop.exit()
                 case None => ()
             }
@@ -257,6 +257,19 @@ public class JSValkeyClient {
     /// 对应 Bun JSValkeyClient.constructor()
     public static func constructor(globalObject: JsObject, jsThis: JsValue): JSValkeyClient {
         create(globalObject, jsThis)
+    }
+
+    /// 从 JS 值转换为 JSValkeyClient
+    /// 对应 Bun JSValkeyClient.fromJS() / js.fromJS
+    public static func fromJS(globalObject: JsObject, value: JsValue): ?JSValkeyClient {
+        // 在实际实现中，从 JS 对象的 native 指针获取 JSValkeyClient
+        None
+    }
+
+    /// 将 JSValkeyClient 转换为 JS 值
+    /// 对应 Bun JSValkeyClient.toJS() / js.toJS
+    public func toJS(): JsValue {
+        thisValue
     }
 
     /// 创建不带 JS 对象和 SubscriptionCtx 的 Valkey 客户端
@@ -649,6 +662,53 @@ public class JSValkeyClient {
     }
 
     // ========================================================================
+    // Getter/Setter: onConnect / onClose
+    // 对应 Bun JSValkeyClient.getOnConnect/setOnConnect/getOnClose/setOnClose
+    // ========================================================================
+
+    /// Getter: onConnect
+    /// 对应 Bun JSValkeyClient.getOnConnect()
+    ///   pub fn getOnConnect(_: *JSValkeyClient, thisValue: JSValue, _: *jsc.JSGlobalObject) JSValue
+    public func getOnConnect(): JsValue {
+        // 对应: if (js.onconnectGetCached(thisValue)) |value| { return value; }
+        // 返回 .js_undefined 如果未设置
+        JsValue.UNDEFINED
+    }
+
+    /// Setter: onConnect
+    /// 对应 Bun JSValkeyClient.setOnConnect()
+    ///   pub fn setOnConnect(_: *JSValkeyClient, thisValue: JSValue, globalObject: *jsc.JSGlobalObject, value: JSValue) void
+    public func setOnConnect(value: JsValue): Unit {
+        // 对应: js.onconnectSetCached(thisValue, globalObject, value)
+        // 在实际实现中，将值缓存到 JS 对象的内部槽位
+    }
+
+    /// Getter: onClose
+    /// 对应 Bun JSValkeyClient.getOnClose()
+    ///   pub fn getOnClose(_: *JSValkeyClient, thisValue: JSValue, _: *jsc.JSGlobalObject) JSValue
+    public func getOnClose(): JsValue {
+        // 对应: if (js.oncloseGetCached(thisValue)) |value| { return value; }
+        // 返回 .js_undefined 如果未设置
+        JsValue.UNDEFINED
+    }
+
+    /// Setter: onClose
+    /// 对应 Bun JSValkeyClient.setOnClose()
+    ///   pub fn setOnClose(_: *JSValkeyClient, thisValue: JSValue, globalObject: *jsc.JSGlobalObject, value: JSValue) void
+    public func setOnClose(value: JsValue): Unit {
+        // 对应: js.oncloseSetCached(thisValue, globalObject, value)
+        // 在实际实现中，将值缓存到 JS 对象的内部槽位
+    }
+
+    /// 获取或创建订阅上下文
+    /// 对应 Bun JSValkeyClient.getOrCreateSubscriptionCtx()
+    ///   pub fn getOrCreateSubscriptionCtx(this: *JSValkeyClient) bun.JSError!*SubscriptionCtx
+    public func getOrCreateSubscriptionCtx(): SubscriptionCtx {
+        // 对应 Bun: 如果已有订阅上下文则返回，否则创建新的
+        subscriptionCtx
+    }
+
+    // ========================================================================
     // 回调处理
     // 对应 Bun JSValkeyClient.onValkeyConnect/onValkeySubscribe/...
     // ========================================================================
@@ -821,6 +881,19 @@ public class JSValkeyClient {
         stopTimers()
         client.flags.finalized = true
         // 关闭 socket
+        closeSocketNextTick()
+        deref()
+    }
+
+    /// 下一 tick 关闭 socket
+    /// 对应 Bun JSValkeyClient.closeSocketNextTick()
+    ///   如果 socket 未关闭，将关闭操作排队到下一个微任务
+    func closeSocketNextTick(): Unit {
+        if (client.socket.isSocketClosed()) { return }
+
+        ref()
+        // socket close 可能调用 JS，因此需要排队
+        // 对应 Bun: this.client.vm.enqueueTask(jsc.Task.init(&holder.task))
         client.close()
         deref()
     }

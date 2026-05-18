@@ -928,8 +928,89 @@ public class ValkeyClient {
 
     /// 处理从 socket 接收的数据
     /// 对应 Bun ValkeyClient.onData()
+    ///   双路径处理:
+    ///     路径1: 如果 read_buffer 已有数据，追加并从缓冲区处理
+    ///     路径2: 缓冲区为空，直接从栈上 data 处理
     public func onData(data: Array<Byte>): Unit {
-        readBuffer.write(data)
+        // 路径 1: 缓冲区已有数据，追加并从缓冲区处理
+        if (readBuffer.readableLength() > 0) {
+            readBuffer.write(data)
+
+            // 从缓冲区处理尽可能多的完整消息
+            var continueProcessing = true
+            while (continueProcessing) {
+                let remainingBuffer = readBuffer.remaining()
+                if (remainingBuffer.size == 0) {
+                    continueProcessing = false
+                    continue // 缓冲区处理完毕
+                }
+
+                // 尝试从缓冲区解析 RESP 值
+                let parseResult = ValkeyReader.tryParse(remainingBuffer)
+                match (parseResult) {
+                    case ParseResult.Incomplete =>
+                        // 需要更多数据，等待下次 onData
+                        continueProcessing = false
+                    case ParseResult.Error(err) =>
+                        fail("Failed to read data (buffer path)", err)
+                        return
+                    case ParseResult.Complete(result) =>
+                        let bytesConsumed = result.bytesConsumed
+                        if (bytesConsumed == 0 && remainingBuffer.size > 0) {
+                            fail("Parser consumed 0 bytes unexpectedly (buffer path)",
+                                RedisError.InvalidResponse)
+                            return
+                        }
+
+                        readBuffer.consume(bytesConsumed)
+                        handleResponse(result.value)
+
+                        if (status == ConnectionStatus.Disconnected || flags.failed) {
+                            return
+                        }
+                        sendNextCommand()
+                }
+            }
+            return // 完成缓冲区数据处理
+        }
+
+        // 路径 2: 缓冲区为空，直接从栈上 data 处理
+        var currentDataSlice = data
+        while (currentDataSlice.size > 0) {
+            let parseResult = ValkeyReader.tryParse(currentDataSlice)
+            match (parseResult) {
+                case ParseResult.Incomplete =>
+                    // 栈上遇到部分消息，将剩余部分复制到堆缓冲区
+                    readBuffer.write(currentDataSlice)
+                    return // 退出 onData，下次调用将使用缓冲区路径
+                case ParseResult.Error(err) =>
+                    fail("Failed to read data (stack path)", err)
+                    return
+                case ParseResult.Complete(result) =>
+                    let bytesConsumed = result.bytesConsumed
+                    if (bytesConsumed == 0) {
+                        fail("Parser consumed 0 bytes unexpectedly (stack path)",
+                            RedisError.InvalidResponse)
+                        return
+                    }
+
+                    // 推进栈数据切片视图
+                    currentDataSlice = currentDataSlice[bytesConsumed..]
+
+                    // 处理成功解析的响应
+                    handleResponse(result.value)
+
+                    // 检查处理后的连接状态
+                    if (status == ConnectionStatus.Disconnected || flags.failed) {
+                        return
+                    }
+
+                    // 处理响应后，尝试发送下一个命令
+                    sendNextCommand()
+                // 循环继续处理 currentDataSlice 的剩余部分
+            }
+        }
+        // 循环完成，整个 data 已处理完毕，无需使用缓冲区
     }
 
     // ========================================================================
@@ -1374,6 +1455,13 @@ public class ValkeyClient {
         data.size
     }
 
+    /// 获取写入器用于写入命令数据
+    /// 对应 Bun ValkeyClient.writer()
+    ///   pub fn writer(this: *ValkeyClient) std.Io.GenericWriter(*ValkeyClient, protocol.RedisError, write)
+    func writer(): ValkeyWriter {
+        ValkeyWriter(this)
+    }
+
     /// 获取全局对象
     func globalObject(): JsObject {
         vm.getGlobal()
@@ -1482,5 +1570,566 @@ public class AnySocket {
     /// 获取原生句柄
     public func getNativeHandle(): Int64 {
         fd
+    }
+}
+
+// ============================================================================
+// ValkeyWriter - RESP 命令写入器
+// 对应 Bun std.Io.GenericWriter(*ValkeyClient, protocol.RedisError, write)
+//   pub fn writer(this: *ValkeyClient) std.Io.GenericWriter(...)
+// ============================================================================
+
+/// RESP 命令写入器
+/// 对应 Bun ValkeyClient.writer() 返回的 GenericWriter
+public class ValkeyWriter {
+    private var client: ValkeyClient
+
+    public init(client: ValkeyClient) {
+        this.client = client
+    }
+
+    /// 写入数据到客户端写缓冲区
+    /// 对应 Bun GenericWriter 的 write 调用
+    public func write(data: Array<Byte>): Int64 {
+        client.write(data)
+    }
+
+    /// 写入字符串到客户端写缓冲区
+    public func write(str: String): Int64 {
+        client.write(str.toArray())
+    }
+}
+
+// ============================================================================
+// ParseResult - 解析结果
+// 对应 Bun protocol.ValkeyReader.readValue() 的返回值
+// ============================================================================
+
+/// RESP 协议解析结果
+/// 对应 Bun readValue 返回的三种状态
+public enum ParseResult {
+    | Incomplete                             // 需要更多数据
+    | Error(RedisError)                      // 解析错误
+    | Complete(ParseResultData)              // 解析完成
+
+    public operator func ==(right: ParseResult): Bool {
+        match (this) {
+            case Incomplete =>
+                match (right) { case Incomplete => true case _ => false }
+            case Error(err1) =>
+                match (right) { case Error(err2) => err1 == err2 case _ => false }
+            case Complete(data1) =>
+                match (right) { case Complete(data2) => data1.bytesConsumed == data2.bytesConsumed case _ => false }
+        }
+    }
+
+    public operator func !=(right: ParseResult): Bool {
+        !(this == right)
+    }
+}
+
+/// 解析完成的数据
+public class ParseResultData {
+    /// 消费的字节数
+    public var bytesConsumed: Int64
+    /// 解析出的 RESP 值
+    public var value: RESPValue
+
+    public init(bytesConsumed: Int64, value: RESPValue) {
+        this.bytesConsumed = bytesConsumed
+        this.value = value
+    }
+}
+
+// ============================================================================
+// ValkeyReader - RESP 协议读取器
+// 对应 Bun protocol.ValkeyReader
+//   pub const ValkeyReader = struct { ... }
+// ============================================================================
+
+/// RESP 协议读取器 - 从字节缓冲区解析 RESP 值
+/// 对应 Bun protocol.ValkeyReader
+public class ValkeyReader {
+    /// 尝试从字节缓冲区解析 RESP 值
+    /// 对应 Bun protocol.ValkeyReader.readValue()
+    ///
+    /// pub fn readValue(self: *ValkeyReader, allocator: std.mem.Allocator)
+    ///     !RESPValue
+    public static func tryParse(data: Array<Byte>): ParseResult {
+        if (data.size == 0) {
+            return ParseResult.Incomplete
+        }
+
+        // 检查 RESP 类型标识
+        let firstByte = data[0]
+        match (firstByte) {
+            // SimpleString: "+OK\r\n"
+            case 43 => // '+'
+                let lineEnd = findLineEnd(data, 1)
+                if (lineEnd.isNone()) {
+                    return ParseResult.Incomplete
+                }
+                let end = lineEnd.getOrThrow()
+                let str = String.fromUtf8(data[1..end])
+                let value = RESPValue()
+                value.respType = RESPType.SimpleString
+                value.simpleString = str
+                return ParseResult.Complete(ParseResultData(end + 2, value))
+
+            // Error: "-ERR message\r\n"
+            case 45 => // '-'
+                let lineEnd = findLineEnd(data, 1)
+                if (lineEnd.isNone()) {
+                    return ParseResult.Incomplete
+                }
+                let end = lineEnd.getOrThrow()
+                let str = String.fromUtf8(data[1..end])
+                let value = RESPValue()
+                value.respType = RESPType.Error
+                value.error = str
+                return ParseResult.Complete(ParseResultData(end + 2, value))
+
+            // Integer: ":123\r\n"
+            case 58 => // ':'
+                let lineEnd = findLineEnd(data, 1)
+                if (lineEnd.isNone()) {
+                    return ParseResult.Incomplete
+                }
+                let end = lineEnd.getOrThrow()
+                let numStr = String.fromUtf8(data[1..end])
+                let num = IntParser.parseDecimal(numStr)
+                let value = RESPValue()
+                value.respType = RESPType.Integer
+                match (num) {
+                    case Some(n) => value.integerValue = n
+                    case None => return ParseResult.Error(RedisError.InvalidInteger)
+                }
+                return ParseResult.Complete(ParseResultData(end + 2, value))
+
+            // BulkString: "$5\r\nhello\r\n"
+            case 36 => // '$'
+                let lineEnd = findLineEnd(data, 1)
+                if (lineEnd.isNone()) {
+                    return ParseResult.Incomplete
+                }
+                let end = lineEnd.getOrThrow()
+                let lenStr = String.fromUtf8(data[1..end])
+                let bulkLen = IntParser.parseDecimal(lenStr)
+                match (bulkLen) {
+                    case None => return ParseResult.Error(RedisError.InvalidBulkString)
+                    case Some(len) =>
+                        if (len == -1) {
+                            // Null bulk string
+                            let value = RESPValue()
+                            value.respType = RESPType.BulkString
+                            value.bulkString = None
+                            return ParseResult.Complete(ParseResultData(end + 2, value))
+                        }
+                        let totalLen = end + 2 + len + 2 // \r\n after length + data + \r\n
+                        if (data.size < totalLen) {
+                            return ParseResult.Incomplete
+                        }
+                        let bulkData = String.fromUtf8(data[(end + 2)..(end + 2 + len)])
+                        let value = RESPValue()
+                        value.respType = RESPType.BulkString
+                        value.bulkString = Some(bulkData)
+                        return ParseResult.Complete(ParseResultData(totalLen, value))
+                }
+
+            // Array: "*2\r\n..."
+            case 42 => // '*'
+                let lineEnd = findLineEnd(data, 1)
+                if (lineEnd.isNone()) {
+                    return ParseResult.Incomplete
+                }
+                let end = lineEnd.getOrThrow()
+                let countStr = String.fromUtf8(data[1..end])
+                let arrayCount = IntParser.parseDecimal(countStr)
+                match (arrayCount) {
+                    case None => return ParseResult.Error(RedisError.InvalidArray)
+                    case Some(count) =>
+                        if (count == -1) {
+                            let value = RESPValue()
+                            value.respType = RESPType.Array
+                            value.array = None
+                            return ParseResult.Complete(ParseResultData(end + 2, value))
+                        }
+                        // 递归解析数组元素
+                        var offset: Int64 = end + 2
+                        let items = ArrayList<RESPValue>()
+                        var i: Int64 = 0
+                        while (i < count) {
+                            if (offset >= data.size) {
+                                return ParseResult.Incomplete
+                            }
+                            let elemResult = tryParse(data[offset..])
+                            match (elemResult) {
+                                case ParseResult.Incomplete => return ParseResult.Incomplete
+                                case ParseResult.Error(err) => return ParseResult.Error(err)
+                                case ParseResult.Complete(result) =>
+                                    items.append(result.value)
+                                    offset += result.bytesConsumed
+                            }
+                            i += 1
+                        }
+                        let value = RESPValue()
+                        value.respType = RESPType.Array
+                        value.array = Some(items)
+                        return ParseResult.Complete(ParseResultData(offset, value))
+                }
+
+            // Null: "_\r\n"
+            case 95 => // '_'
+                if (data.size < 3) {
+                    return ParseResult.Incomplete
+                }
+                let value = RESPValue()
+                value.respType = RESPType.Null
+                return ParseResult.Complete(ParseResultData(3, value))
+
+            // Boolean: "#t\r\n" or "#f\r\n"
+            case 35 => // '#'
+                if (data.size < 3) {
+                    return ParseResult.Incomplete
+                }
+                let boolValue = data[1] != 48 // '0' = false, 't'/'1' = true
+                let value = RESPValue()
+                value.respType = RESPType.Boolean
+                value.booleanValue = boolValue
+                return ParseResult.Complete(ParseResultData(3, value))
+
+            // Double: ",1.23\r\n"
+            case 44 => // ','
+                let lineEnd = findLineEnd(data, 1)
+                if (lineEnd.isNone()) {
+                    return ParseResult.Incomplete
+                }
+                let end = lineEnd.getOrThrow()
+                let numStr = String.fromUtf8(data[1..end])
+                let value = RESPValue()
+                value.respType = RESPType.Double
+                value.doubleValue = FloatParser.parse(numStr)
+                return ParseResult.Complete(ParseResultData(end + 2, value))
+
+            // BlobError: "!21\r\nSYNTAX invalid syntax\r\n"
+            case 33 => // '!'
+                let lineEnd = findLineEnd(data, 1)
+                if (lineEnd.isNone()) {
+                    return ParseResult.Incomplete
+                }
+                let end = lineEnd.getOrThrow()
+                let lenStr = String.fromUtf8(data[1..end])
+                let blobLen = IntParser.parseDecimal(lenStr)
+                match (blobLen) {
+                    case None => return ParseResult.Error(RedisError.InvalidBlobError)
+                    case Some(len) =>
+                        let totalLen = end + 2 + len + 2
+                        if (data.size < totalLen) {
+                            return ParseResult.Incomplete
+                        }
+                        let errStr = String.fromUtf8(data[(end + 2)..(end + 2 + len)])
+                        let value = RESPValue()
+                        value.respType = RESPType.BlobError
+                        value.blobError = errStr
+                        return ParseResult.Complete(ParseResultData(totalLen, value))
+                }
+
+            // VerbatimString: "=15\r\ntxt:Some string\r\n"
+            case 61 => // '='
+                let lineEnd = findLineEnd(data, 1)
+                if (lineEnd.isNone()) {
+                    return ParseResult.Incomplete
+                }
+                let end = lineEnd.getOrThrow()
+                let lenStr = String.fromUtf8(data[1..end])
+                let vLen = IntParser.parseDecimal(lenStr)
+                match (vLen) {
+                    case None => return ParseResult.Error(RedisError.InvalidVerbatimString)
+                    case Some(len) =>
+                        let totalLen = end + 2 + len + 2
+                        if (data.size < totalLen) {
+                            return ParseResult.Incomplete
+                        }
+                        let content = String.fromUtf8(data[(end + 2)..(end + 2 + len)])
+                        let vs = VerbatimStringData()
+                        vs.format = content[0..3]
+                        vs.content = content[4..]
+                        let value = RESPValue()
+                        value.respType = RESPType.VerbatimString
+                        value.verbatimString = Some(vs)
+                        return ParseResult.Complete(ParseResultData(totalLen, value))
+                }
+
+            // Map: "%2\r\n..."
+            case 37 => // '%'
+                let lineEnd = findLineEnd(data, 1)
+                if (lineEnd.isNone()) {
+                    return ParseResult.Incomplete
+                }
+                let end = lineEnd.getOrThrow()
+                let countStr = String.fromUtf8(data[1..end])
+                let mapCount = IntParser.parseDecimal(countStr)
+                match (mapCount) {
+                    case None => return ParseResult.Error(RedisError.InvalidMap)
+                    case Some(count) =>
+                        var offset: Int64 = end + 2
+                        let entries = ArrayList<MapEntry>()
+                        var i: Int64 = 0
+                        while (i < count) {
+                            // 解析 key
+                            if (offset >= data.size) {
+                                return ParseResult.Incomplete
+                            }
+                            let keyResult = tryParse(data[offset..])
+                            match (keyResult) {
+                                case ParseResult.Incomplete => return ParseResult.Incomplete
+                                case ParseResult.Error(err) => return ParseResult.Error(err)
+                                case ParseResult.Complete(kr) =>
+                                    offset += kr.bytesConsumed
+                                    // 解析 value
+                                    if (offset >= data.size) {
+                                        return ParseResult.Incomplete
+                                    }
+                                    let valResult = tryParse(data[offset..])
+                                    match (valResult) {
+                                        case ParseResult.Incomplete => return ParseResult.Incomplete
+                                        case ParseResult.Error(err2) => return ParseResult.Error(err2)
+                                        case ParseResult.Complete(vr) =>
+                                            offset += vr.bytesConsumed
+                                            entries.append(MapEntry(kr.value, vr.value))
+                                    }
+                            }
+                            i += 1
+                        }
+                        let value = RESPValue()
+                        value.respType = RESPType.Map
+                        value.map = entries
+                        return ParseResult.Complete(ParseResultData(offset, value))
+                }
+
+            // Set: "~5\r\n..."
+            case 126 => // '~'
+                let lineEnd = findLineEnd(data, 1)
+                if (lineEnd.isNone()) {
+                    return ParseResult.Incomplete
+                }
+                let end = lineEnd.getOrThrow()
+                let countStr = String.fromUtf8(data[1..end])
+                let setCount = IntParser.parseDecimal(countStr)
+                match (setCount) {
+                    case None => return ParseResult.Error(RedisError.InvalidSet)
+                    case Some(count) =>
+                        var offset: Int64 = end + 2
+                        let items = ArrayList<RESPValue>()
+                        var i: Int64 = 0
+                        while (i < count) {
+                            if (offset >= data.size) {
+                                return ParseResult.Incomplete
+                            }
+                            let elemResult = tryParse(data[offset..])
+                            match (elemResult) {
+                                case ParseResult.Incomplete => return ParseResult.Incomplete
+                                case ParseResult.Error(err) => return ParseResult.Error(err)
+                                case ParseResult.Complete(result) =>
+                                    items.append(result.value)
+                                    offset += result.bytesConsumed
+                            }
+                            i += 1
+                        }
+                        let value = RESPValue()
+                        value.respType = RESPType.Set
+                        value.set = items
+                        return ParseResult.Complete(ParseResultData(offset, value))
+                }
+
+            // Attribute: "|1\r\n..."
+            case 124 => // '|'
+                let lineEnd = findLineEnd(data, 1)
+                if (lineEnd.isNone()) {
+                    return ParseResult.Incomplete
+                }
+                let end = lineEnd.getOrThrow()
+                let countStr = String.fromUtf8(data[1..end])
+                let attrCount = IntParser.parseDecimal(countStr)
+                match (attrCount) {
+                    case None => return ParseResult.Error(RedisError.InvalidAttribute)
+                    case Some(count) =>
+                        var offset: Int64 = end + 2
+                        let attrs = ArrayList<MapEntry>()
+                        var i: Int64 = 0
+                        while (i < count) {
+                            if (offset >= data.size) {
+                                return ParseResult.Incomplete
+                            }
+                            let keyResult = tryParse(data[offset..])
+                            match (keyResult) {
+                                case ParseResult.Incomplete => return ParseResult.Incomplete
+                                case ParseResult.Error(err) => return ParseResult.Error(err)
+                                case ParseResult.Complete(kr) =>
+                                    offset += kr.bytesConsumed
+                                    if (offset >= data.size) {
+                                        return ParseResult.Incomplete
+                                    }
+                                    let valResult = tryParse(data[offset..])
+                                    match (valResult) {
+                                        case ParseResult.Incomplete => return ParseResult.Incomplete
+                                        case ParseResult.Error(err2) => return ParseResult.Error(err2)
+                                        case ParseResult.Complete(vr) =>
+                                            offset += vr.bytesConsumed
+                                            attrs.append(MapEntry(kr.value, vr.value))
+                                    }
+                            }
+                            i += 1
+                        }
+                        // 属性后跟一个值
+                        if (offset >= data.size) {
+                            return ParseResult.Incomplete
+                        }
+                        let innerResult = tryParse(data[offset..])
+                        match (innerResult) {
+                            case ParseResult.Incomplete => return ParseResult.Incomplete
+                            case ParseResult.Error(err) => return ParseResult.Error(err)
+                            case ParseResult.Complete(result) =>
+                                let totalOffset = offset + result.bytesConsumed
+                                let attrData = AttributeData()
+                                attrData.attributes = attrs
+                                attrData.value = result.value
+                                let value = RESPValue()
+                                value.respType = RESPType.Attribute
+                                value.attribute = Some(attrData)
+                                return ParseResult.Complete(ParseResultData(totalOffset, value))
+                        }
+                }
+
+            // Push: ">2\r\n..."
+            case 62 => // '>'
+                let lineEnd = findLineEnd(data, 1)
+                if (lineEnd.isNone()) {
+                    return ParseResult.Incomplete
+                }
+                let end = lineEnd.getOrThrow()
+                let countStr = String.fromUtf8(data[1..end])
+                let pushCount = IntParser.parseDecimal(countStr)
+                match (pushCount) {
+                    case None => return ParseResult.Error(RedisError.InvalidPush)
+                    case Some(count) =>
+                        var offset: Int64 = end + 2
+                        // 第一个元素是 kind (字符串)
+                        if (offset >= data.size) {
+                            return ParseResult.Incomplete
+                        }
+                        let kindResult = tryParse(data[offset..])
+                        match (kindResult) {
+                            case ParseResult.Incomplete => return ParseResult.Incomplete
+                            case ParseResult.Error(err) => return ParseResult.Error(err)
+                            case ParseResult.Complete(kr) =>
+                                offset += kr.bytesConsumed
+                                let items = ArrayList<RESPValue>()
+                                var i: Int64 = 1 // 第一个已读
+                                while (i < count) {
+                                    if (offset >= data.size) {
+                                        return ParseResult.Incomplete
+                                    }
+                                    let elemResult = tryParse(data[offset..])
+                                    match (elemResult) {
+                                        case ParseResult.Incomplete => return ParseResult.Incomplete
+                                        case ParseResult.Error(err2) => return ParseResult.Error(err2)
+                                        case ParseResult.Complete(result) =>
+                                            items.append(result.value)
+                                            offset += result.bytesConsumed
+                                    }
+                                    i += 1
+                                }
+                                let pushData = PushData()
+                                pushData.kind = kr.value.simpleString
+                                pushData.data = items
+                                let value = RESPValue()
+                                value.respType = RESPType.Push
+                                value.push = Some(pushData)
+                                return ParseResult.Complete(ParseResultData(offset, value))
+                        }
+                }
+
+            // BigNumber: "(12345\r\n"
+            case 40 => // '('
+                let lineEnd = findLineEnd(data, 1)
+                if (lineEnd.isNone()) {
+                    return ParseResult.Incomplete
+                }
+                let end = lineEnd.getOrThrow()
+                let numStr = String.fromUtf8(data[1..end])
+                let value = RESPValue()
+                value.respType = RESPType.BigNumber
+                value.bigNumber = numStr
+                return ParseResult.Complete(ParseResultData(end + 2, value))
+
+            case _ =>
+                ParseResult.Error(RedisError.InvalidResponse)
+        }
+    }
+
+    /// 查找 \r\n 行结束符的位置
+    /// 返回 \r 的索引，如果找不到则返回 None
+    private static func findLineEnd(data: Array<Byte>, start: Int64): ?Int64 {
+        var i = start
+        while (i < data.size - 1) {
+            if (data[i] == 13 && data[i + 1] == 10) { // \r\n
+                return i
+            }
+            i += 1
+        }
+        None
+    }
+}
+
+// ============================================================================
+// 辅助类型 - 用于 RESP 值解析
+// ============================================================================
+
+/// VerbatimString 数据
+/// 对应 RESP verbatim string (format:content)
+public class VerbatimStringData {
+    public var format: String
+    public var content: String
+
+    public init() {
+        format = ""
+        content = ""
+    }
+}
+
+/// Map 条目
+/// 对应 RESP Map 的键值对
+public class MapEntry {
+    public var key: RESPValue
+    public var value: RESPValue
+
+    public init(key: RESPValue, value: RESPValue) {
+        this.key = key
+        this.value = value
+    }
+}
+
+/// Attribute 数据
+/// 对应 RESP Attribute
+public class AttributeData {
+    public var attributes: ArrayList<MapEntry>
+    public var value: RESPValue
+
+    public init() {
+        attributes = ArrayList<MapEntry>()
+        value = RESPValue()
+    }
+}
+
+/// Push 数据
+/// 对应 RESP Push
+public class PushData {
+    public var kind: String
+    public var data: ArrayList<RESPValue>
+
+    public init() {
+        kind = ""
+        data = ArrayList<RESPValue>()
     }
 }

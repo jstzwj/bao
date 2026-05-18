@@ -173,7 +173,8 @@ public class RedisClientClass {
         // randomkey: { fn: "randomkey", length: 0 }
         methods.append(MethodDef("randomkey", "randomkey", 0))
         // type: { fn: "type", length: 1 }
-        methods.append(MethodDef("type", "type", 1))
+        // 注意: Cangjie 中 type 是关键字，原生函数使用 typeCommand
+        methods.append(MethodDef("type", "typeCommand", 1))
         // rename: { fn: "rename", length: 2 }
         methods.append(MethodDef("rename", "rename", 2))
         // renamenx: { fn: "renamenx", length: 2 }
