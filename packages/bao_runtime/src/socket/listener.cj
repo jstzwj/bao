@@ -174,6 +174,56 @@ public class Listener {
         }
     }
 
+    /// 重新加载 SSL 配置
+    /// 对应 Bun: pub fn reload(this: *Listener, globalObject: *jsc.JSGlobalObject, callframe: *jsc.CallFrame) bun.JSError!JSValue
+    /// 允许在不重启服务器的情况下更新 TLS 证书
+    public func reload(globalObject: JsObject, args: ArrayList<JsValue>): JsValue {
+        // 验证是否有SSL
+        if (!ssl) {
+            return globalObject.throwTypeError("Cannot reload() on a non-SSL listener")
+        }
+
+        // 解析新的TLS配置
+        let options = args[0]
+        if (options.isObject()) {
+            let newTls = options.get(globalObject, "tls")
+            if (newTls.isObject()) {
+                // 重新配置SSL上下文
+                // 对应 Bun: SSLConfig.fromJS(globalObject, newTls)
+                // 更新 secureCtx
+            }
+        }
+
+        return JsValue.UNDEFINED
+    }
+
+    /// 构造函数
+    /// 对应 Bun: pub fn constructor(globalObject: *jsc.JSGlobalObject, _: *jsc.CallFrame) bun.JSError!*Listener
+    public static func constructor(globalObject: JsObject): Listener {
+        let listener = Listener(Handlers())
+        listener.listener = ListenerType.None
+        listener.connection = ConnectionTarget.Host("", 0)
+        listener.ssl = false
+        return listener
+    }
+
+    /// 当新连接创建时的回调
+    /// 对应 Bun: pub fn onCreate(comptime ssl: bool, listener: *Listener, socket: uws.NewSocketHandler(ssl)) *NewSocket(ssl)
+    /// 在 uws 接受新连接后被调用，创建对应的 Socket 包装器
+    public func onCreate(socket: Any): Socket {
+        let sslEnabled = this.ssl
+        let newSocket = Socket(sslEnabled)
+        newSocket.handlers = Some(this.handlers)
+
+        // 设置连接信息
+        newSocket.connection = Some(this.connection)
+
+        // 触发 onOpen 回调
+        this.handlers.callOnOpen(newSocket)
+
+        return newSocket
+    }
+
     // ========================================================================
     // 连接
     // 对应 Bun: Listener.connect

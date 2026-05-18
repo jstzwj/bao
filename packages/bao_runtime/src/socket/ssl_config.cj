@@ -229,6 +229,83 @@ public class SSLConfig {
         sslCiphers = None
         protos = None
     }
+
+    /// 克隆配置
+    /// 对应 Bun: pub fn clone(this: *const SSLConfig) SSLConfig
+    public func clone(): SSLConfig {
+        let config = SSLConfig()
+        config.serverName = this.serverName
+        config.keyFileName = this.keyFileName
+        config.certFileName = this.certFileName
+        config.caFileName = this.caFileName
+        config.dhParamsFileName = this.dhParamsFileName
+        config.passphrase = this.passphrase
+        config.key = this.key
+        config.cert = this.cert
+        config.ca = this.ca
+        config.secureOptions = this.secureOptions
+        config.requestCert = this.requestCert
+        config.rejectUnauthorized = this.rejectUnauthorized
+        config.sslCiphers = this.sslCiphers
+        config.protos = this.protos
+        config.clientRenegotiationLimit = this.clientRenegotiationLimit
+        config.clientRenegotiationWindow = this.clientRenegotiationWindow
+        config.requiresCustomRequestCtx = this.requiresCustomRequestCtx
+        config.isUsingDefaultCiphers = this.isUsingDefaultCiphers
+        config.lowMemoryMode = this.lowMemoryMode
+        config.cachedHash = this.cachedHash
+        return config
+    }
+
+    /// 判断两个配置是否相同
+    /// 对应 Bun: pub fn isSame(this: *const SSLConfig, other: *const SSLConfig) bool
+    public func isSame(other: SSLConfig): Bool {
+        if (this.serverName != other.serverName) return false
+        if (this.keyFileName != other.keyFileName) return false
+        if (this.certFileName != other.certFileName) return false
+        if (this.caFileName != other.caFileName) return false
+        if (this.dhParamsFileName != other.dhParamsFileName) return false
+        if (this.passphrase != other.passphrase) return false
+        if (this.secureOptions != other.secureOptions) return false
+        if (this.requestCert != other.requestCert) return false
+        if (this.rejectUnauthorized != other.rejectUnauthorized) return false
+        if (this.sslCiphers != other.sslCiphers) return false
+        if (this.lowMemoryMode != other.lowMemoryMode) return false
+        return true
+    }
+
+    /// 计算内容哈希
+    /// 对应 Bun: pub fn contentHash(this: *SSLConfig) u64
+    public func contentHash(): UInt64 {
+        var h: UInt64 = 0
+        if (let sn = this.serverName) { h = h * 31 + UInt64(sn.hash()) }
+        if (let kf = this.keyFileName) { h = h * 31 + UInt64(kf.hash()) }
+        if (let cf = this.certFileName) { h = h * 31 + UInt64(cf.hash()) }
+        if (let ca = this.caFileName) { h = h * 31 + UInt64(ca.hash()) }
+        if (let dp = this.dhParamsFileName) { h = h * 31 + UInt64(dp.hash()) }
+        if (let pp = this.passphrase) { h = h * 31 + UInt64(pp.hash()) }
+        h = h * 31 + UInt64(this.secureOptions)
+        h = h * 31 + UInt64(this.requestCert)
+        h = h * 31 + UInt64(this.rejectUnauthorized)
+        this.cachedHash = h
+        return h
+    }
+
+    /// 创建用于客户端验证的配置
+    /// 对应 Bun: pub fn forClientVerification(this: SSLConfig) SSLConfig
+    public func forClientVerification(): SSLConfig {
+        let config = this.clone()
+        config.requestCert = 1
+        config.rejectUnauthorized = 1
+        return config
+    }
+
+    /// 转为客户端验证用的 uWS 选项
+    /// 对应 Bun: pub fn asUSocketsForClientVerification(this: *const SSLConfig) uws.SocketContext.BunSocketContextOptions
+    public func asUSocketsForClientVerification(): BunSocketContextOptions {
+        let config = this.forClientVerification()
+        return config.asUSockets()
+    }
 }
 
 // ============================================================================
