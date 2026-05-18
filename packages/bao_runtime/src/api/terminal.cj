@@ -366,7 +366,7 @@ public enum InitError {
         return match (this) {
             case OpenPtyFailed => SysError(0, SysTag.Open)
             case DupFailed => SysError(0, SysTag.Dup)
-            case NotSupported => SysError(0, SysTag.TODO)
+            case NotSupported => SysError(38, SysTag.Open)  // ENOSYS - 平台不支持
             case WriterStartFailed => SysError(0, SysTag.Write)
             case ReaderStartFailed => SysError(0, SysTag.Read)
         }

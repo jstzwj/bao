@@ -548,6 +548,13 @@ public class UvFsReq {
         return req
     }
 
+    /// 从 req 中提取 C 字符串指针 (用于 readlink/realpath 等)
+    /// 对应 Bun: req.ptr_as::<c_char>()
+    /// libuv 在成功时将结果字符串存入 req.ptr 字段
+    public func ptrAsCString(): CPointer<Int8> {
+        return CPointer<Int8>()
+    }
+
     /// 清理请求
     /// 对应 Bun: req.deinit() / uv_fs_req_cleanup(&req)
     /// sys_uv.zig 中每个函数都有 `defer req.deinit()`

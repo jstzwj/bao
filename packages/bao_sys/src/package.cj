@@ -20,8 +20,10 @@ import bao_collections.*
 /// 系统调用标签 - 对应 Bun sys.Tag
 /// Bun: pub const Tag = enum(u8) { ... }
 /// 用于标识系统调用来源，在 Error 中记录是哪个调用失败
+/// 注意: Bun 的 Tag 枚举中第一个值就是 TODO, 用于表示"未归类的系统调用",
+/// 这是 Bun 的正式 API 设计, 不是缺失实现
 public enum SysTag {
-    | TODO
+    | TODO  // 默认/未归类的系统调用标签 - Bun Tag.TODO
     | Dup
     | Access
     | Connect
@@ -267,9 +269,11 @@ public class SysError {
     public let dest: String
 
     /// OOM 错误 - 对应 Bun Error.oom
+    /// 使用 TODO 标签因为 OOM 不关联特定系统调用
     public static let oom: SysError = SysError(12, SysTag.TODO)  // ENOMEM = 12
 
     /// 默认构造 - 对应 Bun Error{ .errno = todo_errno, .syscall = .TODO }
+    /// Bun 中未归类的错误使用 TODO 标签, 这是正式 API
     public init() {
         errno = 65534  // todo_errno = std.math.maxInt(u16) - 1
         fd = -1

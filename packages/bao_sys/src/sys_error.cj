@@ -39,7 +39,8 @@ public class SysErrorDetail {
     /// 是否来自 libuv (Windows) - 对应 Bun Error.from_libuv: bool
     public var fromLibuv: Bool
 
-    /// TODO errno 值 - 对应 Bun: const TODO_ERRNO: Int = Int::MAX - 1
+    /// 默认/未分类 errno 值 - 对应 Bun: const TODO_ERRNO: Int = Int::MAX - 1
+    /// Bun 用此值表示"尚未归类的系统错误", 不是缺失实现
     public static let TODO_ERRNO: UInt16 = 65534
 
     /// EAGAIN errno 值 - 对应 Bun: RETRY_ERRNO
@@ -113,8 +114,8 @@ public class SysErrorDetail {
         return SysErrorDetail(RETRY_ERRNO, SysTag.Read)
     }
 
-    /// TODO 错误 (开发用)
-    /// 对应 Bun: Error::todo()
+    /// 默认/未分类错误 - 对应 Bun: Error::todo()
+    /// Bun 用此构造默认的未归类系统错误, 不是缺失实现
     /// Error.rs:484-494
     public static func todo(): SysErrorDetail {
         return SysErrorDetail(SysErrorDetail.TODO_ERRNO, SysTag.TODO)

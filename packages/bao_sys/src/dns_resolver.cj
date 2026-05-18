@@ -381,7 +381,7 @@ public class DnsResolver {
         // 非 A/AAAA 类型需要完整的 DNS 协议实现 (res_query 等)
         // 此处提供基于 /etc/hosts 和 getaddrinfo 的简化实现
         return Result<Array<DnsRecord>, SysError>.Err(
-            SysError(0, SysTag.TODO, hostname)
+            SysError(38, SysTag.Getaddrinfo, hostname)  // ENOSYS = 38
         )
     }
 
@@ -403,7 +403,7 @@ public class DnsResolver {
             reversed.append(".in-addr.arpa")
             // 完整实现需要 res_query(DNS_CLASS_IN, DNS_TYPE_PTR)
             return Result<String, SysError>.Err(
-                SysError(0, SysTag.TODO, ip)
+                SysError(38, SysTag.Getaddrinfo, ip)  // ENOSYS = 38
             )
         }
         return Result<String, SysError>.Err(

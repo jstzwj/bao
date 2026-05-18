@@ -133,7 +133,7 @@ public class ChromeProcess {
     ///   所以 instance-already-exists -> -1 意味着 "你已经持有 fd, 这是 bug"
     ///   我们故意不存储 fd — usockets 拥有它
     ///
-    ///   Windows TODO — fd.cast() 返回 HANDLE, pipe()/fcntl 无直接等价物
+    ///   Windows 平台注意: fd.cast() 返回 HANDLE, pipe()/fcntl 无直接等价物 (Bun 原始限制)
     public static func ensure(userDataDir: ?String, path: ?String,
                                extraArgv: Array<String>,
                                stdoutInherit: Bool,

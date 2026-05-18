@@ -261,11 +261,35 @@ public class SysImpl {
     /// statfs - 获取文件系统信息
     /// 严格翻译自: sys.zig:547-572
     ///   pub fn statfs(path: [:0]const u8) Maybe(bun.StatFS)
+    ///   包含 EINTR 自动重试
     public static func statfs(path: String): SysMaybe<Unit> {
-        // TODO: 需要 statfs C FFI 绑定
-        return SysMaybe<Unit>.Err(
-            SysError(E.ENOSYS, SysTag.Statfs, path)
-        )
+        unsafe {
+            let pathPtr = unsafeNewCString(path)
+            // struct statfs 大小因平台而异, Linux x86_64 约 120 字节
+            let statfsBuf = malloc(UIntNative(128))
+            memset(statfsBuf, 0, UIntNative(128))
+            var retries = 0
+            while (retries < 100) {
+                let rc = statfs(pathPtr, statfsBuf)
+                if (rc != 0) {
+                    let errnoVal = OS.errno()
+                    if (errnoVal == Int64(E.EINTR)) {
+                        retries += 1
+                        continue
+                    }
+                    free(statfsBuf)
+                    return SysMaybe<Unit>.Err(
+                        SysError(UInt16(errnoVal), SysTag.Statfs, path)
+                    )
+                }
+                free(statfsBuf)
+                return SysMaybe<Unit>.Ok(())
+            }
+            free(statfsBuf)
+            return SysMaybe<Unit>.Err(
+                SysError(E.EINTR, SysTag.Statfs, path)
+            )
+        }
     }
 
     /// openat - 打开文件 (相对目录)
@@ -922,6 +946,8 @@ foreign func pwrite(fd: Int32, buf: CPointer<Unit>, count: UIntNative, offset: I
 foreign func mkdirat(dirfd: Int32, path: CPointer<Int8>, mode: UInt32): Int32
 @C
 foreign func fchown(fd: Int32, uid: UInt32, gid: UInt32): Int32
+@C
+foreign func statfs(path: CPointer<Int8>, buf: CPointer<Unit>): Int32
 
 /// 辅助函数: C 字符串转 String (指定长度)
 internal func unsafeCStringToStringN(ptr: CPointer<Int8>, len: Int64): String {

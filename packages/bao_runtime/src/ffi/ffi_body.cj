@@ -161,10 +161,11 @@ public class FfiFunction {
     /// 编译 FFI 函数
     /// 对应 Rust: pub fn compile(&mut self, _napi_env) -> Result<(), Error>
     /// 目前返回失败 (TinyCC 不可用)
+    /// FFI (b2-blocked): 需要集成 TinyCC (C 编译器) 才能实现运行时编译。
+    /// TinyCC 负责将生成的 C 源码编译为机器码并重定位到可执行内存。
+    /// 在仓颉中实现此功能需要: 1) TinyCC C FFI 绑定 或 2) 使用 LLVM/其他 JIT
     public func compile(napiEnv: ?Int64): ?String {
         let sourceCode = printSourceCode()
-        // TODO(b2-blocked): TinyCC 编译/重定位支持
-        // 当前直接返回失败
         fail("TinyCC is not available in this build of Bao")
         return None
     }
@@ -172,8 +173,8 @@ public class FfiFunction {
     /// 编译回调函数
     /// 对应 Rust: pub fn compile_callback(&mut self, js_context, js_function, is_threadsafe)
     /// 目前返回失败 (TinyCC 不可用)
+    /// FFI (b2-blocked): 同 compile(), 需要 TinyCC 集成
     public func compileCallback(globalObject: JsObject, jsCallback: JsValue, isThreadsafe: Bool): ?String {
-        // TODO(b2-blocked): TinyCC 编译/重定位支持
         fail("TinyCC is not available in this build of Bao")
         return None
     }

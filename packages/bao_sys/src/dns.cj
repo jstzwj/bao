@@ -201,7 +201,7 @@ public class BasicDnsResolver {
             if (sa.isNull()) {
                 free(hostBuf)
                 free(servBuf)
-                return SysMaybe<String>.Err(SysError(0, SysTag.TODO))
+                return SysMaybe<String>.Err(SysError(0, SysTag.Getaddrinfo))
             }
             // NI_NAMEREQD = 8
             let rc = getnameinfo(sa, UIntNative(128), CPointer<Int8>(hostBuf), UIntNative(1025),
@@ -210,7 +210,7 @@ public class BasicDnsResolver {
                 free(hostBuf)
                 free(servBuf)
                 free(sa)
-                return SysMaybe<String>.Err(SysError(UInt16(rc), SysTag.TODO))
+                return SysMaybe<String>.Err(SysError(UInt16(rc), SysTag.Getaddrinfo))
             }
             let hostname = unsafeCStringToString(CPointer<Int8>(hostBuf))
             free(hostBuf)

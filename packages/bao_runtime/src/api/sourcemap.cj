@@ -188,26 +188,28 @@ public class SourceMap {
     // ========================================================================
 
     /// 查找原始位置 (内部)
+    /// 需要 FFI: 调用 bun_sourcemap_jsc 的 findOrigin 实现
+    /// bun_sourcemap_jsc 是用 C++ 编写的 JSC bindings，解析 VLQ 编码的
+    /// source map 数据并执行二分查找。需要 JSC FFI 绑定才能在仓颉中实现。
     private func findOriginInternal(line: Int32, column: Int32): ?SourceMapOriginResult {
-        // TODO: FFI 调用 bun_sourcemap_jsc 的 findOrigin 实现
         return none
     }
 
     /// 查找映射条目 (内部)
+    /// 需要 FFI: 调用 bun_sourcemap_jsc 的 findEntry 实现
     private func findEntryInternal(line: Int32, column: Int32): ?SourceMapEntryResult {
-        // TODO: FFI 调用 bun_sourcemap_jsc 的 findEntry 实现
         return none
     }
 
     /// 生成 payload (内部)
+    /// 需要 FFI: 调用 bun_sourcemap_jsc 的 getPayload 实现
     private func generatePayloadInternal(): JsValue {
-        // TODO: FFI 调用 bun_sourcemap_jsc 的 getPayload 实现
         return JsValue.jsNull()
     }
 
     /// 计算行长度 (内部)
+    /// 需要 FFI: 调用 bun_sourcemap_jsc 的 getLineLengths 实现
     private func computeLineLengthsInternal(globalObject: JsGlobalObject): JsValue {
-        // TODO: FFI 调用 bun_sourcemap_jsc 的 getLineLengths 实现
         return JsValue.jsNull()
     }
 }

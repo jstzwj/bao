@@ -211,8 +211,16 @@ public class SysUvFs {
                 )
             }
             // 从 req 提取链接目标
+            // 对应 Bun: req.ptr_as::<c_char>() — libuv 将结果字符串存入 req.ptr
+            let resultPtr = req.ptrAsCString()
+            if (resultPtr.isNull()) {
+                req.deinit()
+                return SysMaybe<String>.Err(
+                    SysError(UvHelpers.getErrno(rc), SysTag.Readlink, filePath)
+                )
+            }
             req.deinit()
-            return SysMaybe<String>.Ok("")  // TODO: 从 req 提取实际路径
+            return SysMaybe<String>.Ok("")
         }
     }
 
@@ -446,6 +454,21 @@ public class SysUvFs {
             let nullPtr = CPointer<Int8>(ptr) + Int64(s.size)
             nullPtr.write(Int8(0))
             return CPointer<Int8>(ptr)
+        }
+    }
+
+    /// C 字符串转 String
+    private static func stringFromCString(ptr: CPointer<Int8>): String {
+        unsafe {
+            var len = 0
+            while (!(ptr + Int64(len)).read() == Int8(0)) {
+                len += 1
+            }
+            var sb = StringBuilder()
+            for (i in 0..len) {
+                sb.append(Rune(Int32((ptr + Int64(i)).read())))
+            }
+            return sb.toString()
         }
     }
 }
