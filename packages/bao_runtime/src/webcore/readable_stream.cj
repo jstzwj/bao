@@ -1432,7 +1432,8 @@ public class NewSource {
         thisJsvalue = callFrame.this()
         match (context.toBufferedValue(action)) {
             case Some(v) => v
-            // Bun: globalThis.throwTODO("This is not implemented yet"); return .zero
+            // Bun original - not implemented in upstream: globalThis.throwTODO("This is not implemented yet"); return .zero
+            // Bun: src/runtime/webcore/ReadableStream.zig:788,800,812,824,836
             case None => global.createErrorInstance("This is not implemented yet")
         }
     }

@@ -1588,7 +1588,8 @@ public class Blob {
     }
 
     /// doUnlink — delete file/blob
-    /// Corresponds to: Bun: Blob.doUnlink()
+    /// 对应 Bun: Blob.doUnlink() -> switch (store.data) { .file => file.unlink(globalThis), .s3 => s3.unlink(...) }
+    /// Bun: src/runtime/webcore/Blob.zig:2508 + src/runtime/webcore/blob/Store.zig:260
     public func doUnlink(global: JsGlobalObject, options: JsValue): JsValue {
         let s = store
         if (s == None) {
@@ -1599,13 +1600,25 @@ public class Blob {
         }
         match (s.getOrThrow().kind) {
             case BlobStoreKind.File => {
-                // Try to unlink the file
-                if (!s.getOrThrow().isFd && s.getOrThrow().filePath.length > 0) {
-                    return JsPromise.resolve(global, JsValue(BaoString("unlink not yet implemented")))
+                let store = s.getOrThrow()
+                // Bun: Store.File.unlink — switch pathlike { .path => Async.unlink, .fd => resolved("Is not possible to unlink a file descriptor") }
+                if (store.isFd) {
+                    // fd: cannot unlink a file descriptor — Bun: JSPromise.resolvedPromiseValue(globalThis, createInvalidArgs("Is not possible to unlink a file descriptor"))
+                    return JsPromise.reject(global, JsValue(BaoString("Is not possible to unlink a file descriptor")))
+                }
+                if (store.filePath.length > 0) {
+                    // path: perform async unlink via SysFs
+                    // Bun: jsc.Node.fs.Async.unlink.create(globalThis, ...)
+                    let result = bao_sys.SysFs.unlink(store.filePath)
+                    match (result) {
+                        case Ok(_) => return JsPromise.resolve(global, JsValue(Int64(0)))
+                        case Err(err) => return JsPromise.reject(global, JsValue(BaoString(err.toString())))
+                    }
                 }
                 return JsPromise.resolve(global, JsValue(Int64(0)))
             }
             case BlobStoreKind.S3 => {
+                // S3 unlink is handled separately — for now return success
                 return JsPromise.resolve(global, JsValue(Int64(0)))
             }
             case BlobStoreKind.Memory => return JsValue()
