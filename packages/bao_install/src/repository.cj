@@ -64,13 +64,13 @@ public class Repository {
         var remain = input
         // 去掉 "git+" 前缀
         if (remain.startsWith("git+")) {
-            remain = remain.substring(4)
+            remain = remain[4..]
         }
 
         // 查找 "#" 分隔的 committish
         let hashIdx = remain.lastIndexOf("#")
         match (hashIdx) {
-            case Some(idx) => Repository.fromParts("", remain.substring(0, idx), remain.substring(Int64(idx) + 1))
+            case Some(idx) => Repository.fromParts("", remain[0..idx], remain[Int64(idx) + 1..])
             case None => Repository.fromParts("", remain, "")
         }
     }
@@ -82,16 +82,16 @@ public class Repository {
         var remain = input
         // 去掉 "github:" 前缀
         if (remain.startsWith("github:")) {
-            remain = remain.substring(7)
+            remain = remain[7..]
         }
 
         var slashIdx: Int64 = -1
         var hashIdx: Int64 = -1
         var i: Int64 = 0
         while (i < remain.size) {
-            let c = remain[i].value
-            if (c == 47) { slashIdx = i }  // '/'
-            if (c == 35) { hashIdx = i }  // '#'
+            let c = remain[i]
+            if (c == UInt8(47)) { slashIdx = i }
+            if (c == UInt8(35)) { hashIdx = i }
             i += 1
         }
 
@@ -99,14 +99,14 @@ public class Repository {
             return Repository()
         }
 
-        let owner = remain.substring(0, slashIdx)
-        let repoAndCommit = remain.substring(Int64(slashIdx) + 1)
+        let owner = remain[0..slashIdx]
+        let repoAndCommit = remain[Int64(slashIdx) + 1..]
         let repoName: String
         let committish: String
 
         if (hashIdx > slashIdx) {
-            repoName = remain.substring(Int64(slashIdx) + 1, hashIdx)
-            committish = remain.substring(Int64(hashIdx) + 1)
+            repoName = remain[Int64(slashIdx) + 1..hashIdx]
+            committish = remain[Int64(hashIdx) + 1..]
         } else {
             repoName = repoAndCommit
             committish = ""
@@ -120,17 +120,17 @@ public class Repository {
     ///   pub fn tryHTTPS(url: string) ?string
     public static func tryHTTPS(url: String): ?String {
         if (url.startsWith("git+https://")) {
-            return Some(url.substring(4))  // 去掉 "git+" 前缀
+            return Some(url[4..])  // 去掉 "git+" 前缀
         }
         if (url.startsWith("https://")) {
             return Some(url)
         }
         if (url.startsWith("git://")) {
-            return Some("https://${url.substring(6)}")
+            return Some("https://${url[6..]}")
         }
         if (url.startsWith("ssh://git@")) {
             // ssh://git@github.com/owner/repo -> https://github.com/owner/repo
-            return Some("https://${url.substring(11)}")
+            return Some("https://${url[11..]}")
         }
         // SCP-like: git@github.com:owner/repo
         let atIdx = url.indexOf("@")
@@ -152,8 +152,8 @@ public class Repository {
     }
 
     private static func buildScpHttps(url: String, at: Int64, colon: Int64): ?String {
-        let host = url.substring(at + 1, colon)
-        let path = url.substring(colon + 1)
+        let host = url[at + 1..colon]
+        let path = url[colon + 1..]
         return Some("https://${host}/${path}")
     }
 
@@ -162,7 +162,7 @@ public class Repository {
     ///   pub fn trySSH(url: string) ?string
     public static func trySSH(url: String): ?String {
         if (url.startsWith("git+ssh://")) {
-            return Some(url.substring(4))  // 去掉 "git+" 前缀
+            return Some(url[4..])  // 去掉 "git+" 前缀
         }
         if (url.startsWith("ssh://")) {
             return Some(url)

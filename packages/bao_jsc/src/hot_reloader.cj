@@ -8,46 +8,46 @@ package bao_jsc
 // 严格翻译自 ImportWatcher union
 // ============================================================================
 public enum ImportWatcher {
-    case none
-    case hot(Watcher)
-    case watch(Watcher)
+    | none
+    | hot(Watcher)
+    | watch(Watcher)
 
     /// 启动监视器
     /// 对应 Bun: ImportWatcher.start
     public func start() {
         match (this) {
-            case hot(let w) => w.start()
-            case watch(let w) => w.start()
+            case hot(w) => w.start()
+            case watch(w) => w.start()
             case none => ()
         }
     }
 
     /// 获取监视列表
     /// 对应 Bun: ImportWatcher.watchlist
-    public func watchlist() -> WatchList {
+    public func watchlist(): WatchList {
         match (this) {
-            case hot(let w) => w.watchlist()
-            case watch(let w) => w.watchlist()
+            case hot(w) => w.watchlist()
+            case watch(w) => w.watchlist()
             case none => WatchList()
         }
     }
 
     /// 获取哈希索引
     /// 对应 Bun: ImportWatcher.indexOf
-    public func indexOf(hash: UInt32) -> ?UInt32 {
+    public func indexOf(hash: UInt32): ?UInt32 {
         match (this) {
-            case hot(let w) => w.indexOf(hash)
-            case watch(let w) => w.indexOf(hash)
+            case hot(w) => w.indexOf(hash)
+            case watch(w) => w.indexOf(hash)
             case none => None
         }
     }
 
     /// 通过路径缓慢添加文件
     /// 对应 Bun: ImportWatcher.addFileByPathSlow
-    public func addFileByPathSlow(filePath: String, loader: Loader) -> Bool {
+    public func addFileByPathSlow(filePath: String, loader: Loader): Bool {
         match (this) {
-            case hot(let w) => w.addFileByPathSlow(filePath, loader)
-            case watch(let w) => w.addFileByPathSlow(filePath, loader)
+            case hot(w) => w.addFileByPathSlow(filePath, loader)
+            case watch(w) => w.addFileByPathSlow(filePath, loader)
             case none => true
         }
     }
@@ -62,10 +62,10 @@ public enum ImportWatcher {
         dirFd: FD,
         packageJson: ?PackageJSON,
         copyFilePath: Bool
-    ) -> MaybeVoid {
+    ): MaybeVoid {
         match (this) {
-            case hot(let watcher) => watcher.addFile(fd, filePath, hash, loader, dirFd, packageJson, copyFilePath)
-            case watch(let watcher) => watcher.addFile(fd, filePath, hash, loader, dirFd, packageJson, copyFilePath)
+            case hot(watcher) => watcher.addFile(fd, filePath, hash, loader, dirFd, packageJson, copyFilePath)
+            case watch(watcher) => watcher.addFile(fd, filePath, hash, loader, dirFd, packageJson, copyFilePath)
             case none => MaybeVoid.success
         }
     }
@@ -140,7 +140,7 @@ public class HotReloader {
 
     /// 初始化热重载器
     /// 对应 Bun: NewHotReloader.init
-    public static func init_(ctx: BunVirtualMachine, fs: FileSystem, verbose: Bool, clearScreenFlag: Bool) -> Watcher {
+    public static func init_(ctx: BunVirtualMachine, fs: FileSystem, verbose: Bool, clearScreenFlag: Bool): Watcher {
         let reloader = HotReloader(ctx)
         reloader.verbose = verbose
 
@@ -158,7 +158,7 @@ public class HotReloader {
 
     /// 获取事件循环
     /// 对应 Bun: NewHotReloader.eventLoop
-    public func eventLoop() -> EventLoop {
+    public func eventLoop(): EventLoop {
         ctx.eventLoop()
     }
 
@@ -176,7 +176,7 @@ public class HotReloader {
 
     /// 获取墓碑
     /// 对应 Bun: getTombstone
-    public func getTombstone(key: String) -> ?EntriesOption {
+    public func getTombstone(key: String): ?EntriesOption {
         tombstones.get(key)
     }
 
@@ -188,7 +188,7 @@ public class HotReloader {
 
     /// 获取上下文（Watcher）
     /// 对应 Bun: NewHotReloader.getContext
-    public func getContext() -> Watcher {
+    public func getContext(): Watcher {
         ctx.getWatcher()
     }
 
@@ -482,13 +482,13 @@ public class WatchReloader {
 
     /// 获取上下文（Watcher）
     /// 对应 Bun: NewHotReloader.getContext
-    public func getContext() -> Watcher {
+    public func getContext(): Watcher {
         ctx.getWatcher()
     }
 
     /// 获取事件循环
     /// 对应 Bun: NewHotReloader.eventLoop
-    public func eventLoop() -> EventLoop {
+    public func eventLoop(): EventLoop {
         ctx.eventLoop()
     }
 
@@ -577,7 +577,7 @@ public class MainFile {
 
     /// 初始化主文件
     /// 对应 Bun: MainFile.init
-    public static func init_(file: String) -> MainFile {
+    public static func init_(file: String): MainFile {
         let main = MainFile()
         main.file = file
         main.hash = if (!file.isEmpty) { WatcherGetHash.fromString(file) } else { 0 }
@@ -617,14 +617,14 @@ public class HotReloaderTask {
 
     /// 创建空任务
     /// 对应 Bun: Task.initEmpty
-    public static func initEmpty(reloader: HotReloader) -> HotReloaderTask {
+    public static func initEmpty(reloader: HotReloader): HotReloaderTask {
         let task = HotReloaderTask(reloader)
         task.count = 0
         return task
     }
 
     /// 创建空任务（监视模式）
-    public static func initEmptyForWatch(reloader: WatchReloader) -> HotReloaderTask {
+    public static func initEmptyForWatch(reloader: WatchReloader): HotReloaderTask {
         let task = HotReloaderTask(watchReloader: reloader)
         task.count = 0
         return task
@@ -698,23 +698,23 @@ public class NewHotReloaderStatic {
 
 public class Watcher {
     public func start() {}
-    public func watchlist() -> WatchList { WatchList() }
-    public func indexOf(_ hash: UInt32) -> ?UInt32 { None }
-    public func addFileByPathSlow(_ path: String, _ loader: Loader) -> Bool { true }
-    public func addFile(_ fd: FD, _ filePath: String, _ hash: UInt32, _ loader: Loader, _ dirFd: FD, _ packageJson: ?PackageJSON, _ copyFilePath: Bool) -> MaybeVoid { MaybeVoid.success }
+    public func watchlist(): WatchList { WatchList() }
+    public func indexOf(_ hash: UInt32): ?UInt32 { None }
+    public func addFileByPathSlow(_ path: String, _ loader: Loader): Bool { true }
+    public func addFile(_ fd: FD, _ filePath: String, _ hash: UInt32, _ loader: Loader, _ dirFd: FD, _ packageJson: ?PackageJSON, _ copyFilePath: Bool): MaybeVoid { MaybeVoid.success }
     public func flushEvictions() {}
     public func removeAtIndex(_ index: Int64, _ count: Int64, _ items: Array<Any>, _ kind: WatchKind) {}
-    public static func initForReloader(_ reloader: HotReloader, _ fs: FileSystem) -> Watcher { Watcher() }
+    public static func initForReloader(_ reloader: HotReloader, _ fs: FileSystem): Watcher { Watcher() }
 }
 
 public class WatcherGetHash {
-    public static func fromString(_ str: String) -> UInt32 { 0 }
-    public static func fromBytes(_ bytes: Array<Byte>) -> UInt32 { 0 }
+    public static func fromString(_ str: String): UInt32 { 0 }
+    public static func fromBytes(_ bytes: Array<Byte>): UInt32 { 0 }
 }
 
 public class WatchList {
     public init() {}
-    public func slice() -> WatchListSlice { WatchListSlice() }
+    public func slice(): WatchListSlice { WatchListSlice() }
 }
 
 public class WatchListSlice {
@@ -736,7 +736,7 @@ public class WatchEvent {
     public var op: WatchEventOp = WatchEventOp()
     public init() {}
 
-    public func names(_ changedFiles: Array<?String>) -> Array<String> { [] }
+    public func names(_ changedFiles: Array<?String>): Array<String> { [] }
 }
 
 public class WatchEventOp {
@@ -757,13 +757,13 @@ public enum MaybeVoid {
 
 public class StringSet {
     public func insert(_ key: String) {}
-    public func count() -> Int64 { 0 }
-    public func keys() -> Array<String> { [] }
+    public func count(): Int64 { 0 }
+    public func keys(): Array<String> { [] }
 }
 
 public class StringHashMapEntriesOption {
     public func put(_ key: String, _ value: EntriesOption) {}
-    public func get(_ key: String) -> ?EntriesOption { None }
+    public func get(_ key: String): ?EntriesOption { None }
 }
 
 public class EntriesOption {
@@ -771,7 +771,7 @@ public class EntriesOption {
 }
 
 public class StringHashMapFileEntry {
-    public func get(_ key: String) -> ?FileEntry { None }
+    public func get(_ key: String): ?FileEntry { None }
 }
 
 public class FileEntry {
@@ -790,8 +790,8 @@ public class FileCache {
 
 public class FD {
     public static let invalid: FD = FD(-1)
-    public static func cwd() -> FD { FD(0) }
-    public func isValid() -> Bool { true }
+    public static func cwd(): FD { FD(0) }
+    public func isValid(): Bool { true }
     public var value: Int64
     public init(_ v: Int64) { value = v }
 }
@@ -807,7 +807,7 @@ public class PackageJSON {}
 public class FileSystem {
     public static let instance: FileSystem = FileSystem()
     public var realFS: RealFS = RealFS()
-    public func relativeTo(_ path: String) -> String { path }
+    public func relativeTo(_ path: String): String { path }
 }
 
 public class RealFS {
@@ -819,14 +819,14 @@ public class PathBuffer {
 }
 
 public class FsPathName {
-    public static func dirname(_ path: String) -> ?String {
+    public static func dirname(_ path: String): ?String {
         if (path.isEmpty) { return None }
         let lastSep = path.lastIndexOf('/')
         if (lastSep < 0) { return None }
         return path[0..lastSep]
     }
 
-    public static func findExtname(_ name: String) -> String {
+    public static func findExtname(_ name: String): String {
         let dotIndex = name.lastIndexOf('.')
         if (dotIndex < 0) { return "" }
         return name[dotIndex..name.length]
@@ -834,7 +834,7 @@ public class FsPathName {
 }
 
 public class PathBasename {
-    public static func basename(_ path: String) -> String {
+    public static func basename(_ path: String): String {
         let lastSep = path.lastIndexOf('/')
         if (lastSep < 0) { return path }
         return path[(lastSep + 1)..path.length]
@@ -842,7 +842,7 @@ public class PathBasename {
 }
 
 public class PathString {
-    public func slice() -> String { "" }
+    public func slice(): String { "" }
 }
 
 public class PathSeparator {
@@ -851,11 +851,11 @@ public class PathSeparator {
 }
 
 public class SysAccess {
-    public static func fileExists(_ path: String) -> Bool { true }
+    public static func fileExists(_ path: String): Bool { true }
 }
 
 public class SysFaccessat {
-    public static func fileAccessible(_ fd: FD, _ path: String) -> Bool { true }
+    public static func fileAccessible(_ fd: FD, _ path: String): Bool { true }
 }
 
 public class SystemError {
@@ -865,12 +865,12 @@ public class SystemError {
 public class AtomicUInt32 {
     public var value: UInt32
     public init(_ v: UInt32) { value = v }
-    public func swap(_ newVal: UInt32) -> UInt32 {
+    public func swap(_ newVal: UInt32): UInt32 {
         let old = value
         value = newVal
         return old
     }
-    public func fetchAdd(_ val: UInt32) -> UInt32 {
+    public func fetchAdd(_ val: UInt32): UInt32 {
         let old = value
         value = value + val
         return old
@@ -883,18 +883,18 @@ public class ArrayListByte {
     public func appendSlice(_ s: String) { data.appendAll(s.toByteArray()) }
     public func append(_ b: Byte) { data.append(b) }
     public func appendAll(_ bytes: Array<Byte>) { data.appendAll(bytes) }
-    public func items() -> Array<Byte> { data }
+    public func items(): Array<Byte> { data }
 }
 
 public class BunVirtualMachine {
-    public func eventLoop() -> EventLoop { EventLoop() }
+    public func eventLoop(): EventLoop { EventLoop() }
     public func reload(_ task: HotReloaderTask) {}
-    public func bustDirCache(_ path: String) -> Bool { false }
-    public func getLoaders() -> StringHashMapLoader { StringHashMapLoader() }
-    public func hasWatcher() -> Bool { false }
-    public func getWatcher() -> Watcher { Watcher() }
+    public func bustDirCache(_ path: String): Bool { false }
+    public func getLoaders(): StringHashMapLoader { StringHashMapLoader() }
+    public func hasWatcher(): Bool { false }
+    public func getWatcher(): Watcher { Watcher() }
     public func setupWatcher(_ reloader: HotReloader) {}
-    public func env() -> BunEnvironment { BunEnvironment() }
+    public func env(): BunEnvironment { BunEnvironment() }
 }
 
 public class EventLoop {
@@ -903,7 +903,7 @@ public class EventLoop {
 }
 
 public class BunEnvironment {
-    public func hasSetNoClearTerminalOnReload(_ v: Bool) -> Bool { false }
+    public func hasSetNoClearTerminalOnReload(_ v: Bool): Bool { false }
 }
 
 public class Environment {
@@ -924,8 +924,8 @@ public class File {
 }
 
 public class Strings {
-    public static func withoutTrailingSlashWindowsPath(_ path: String) -> String { path }
-    public static func trimRight(_ s: String, _ chars: String) -> String { s }
+    public static func withoutTrailingSlashWindowsPath(_ path: String): String { path }
+    public static func trimRight(_ s: String, _ chars: String): String { s }
 }
 
 public class BunReload {
@@ -937,5 +937,5 @@ public class BunAlloc {
 }
 
 public class StringHashMapLoader {
-    public func get(_ key: String) -> ?Loader { None }
+    public func get(_ key: String): ?Loader { None }
 }

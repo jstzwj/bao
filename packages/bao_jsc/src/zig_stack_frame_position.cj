@@ -28,15 +28,15 @@ public class ZigStackFramePosition {
     )
 
     // 严格翻译自 ZigStackFramePosition.isInvalid
-    public func isInvalid() -> Bool {
+    public func isInvalid(): Bool {
         line == Ordinal.invalid && column == Ordinal.invalid && lineStartByte == -1
     }
 
     // 严格翻译自 ZigStackFramePosition.decode
-    public static func decode(reader: ByteReader) -> ZigStackFramePosition {
+    public static func decode(reader: ByteReader): ZigStackFramePosition {
         ZigStackFramePosition(
-            line: Ordinal.fromZeroBased(reader.readInt32()),
-            column: Ordinal.fromZeroBased(reader.readInt32())
+            line: Ordinal.fromZeroBased(v:reader.readInt32()),
+            column: Ordinal.fromZeroBased(v:reader.readInt32())
         )
     }
 
@@ -53,18 +53,18 @@ public class Ordinal {
     public var value: Int32 = 0
 
     public init() {}
-    public init(_ v: Int32) { value = v }
+    public init(v: Int32) { value = v }
 
-    public static let invalid: Ordinal = Ordinal(-1)
+    public static let invalid: Ordinal = Ordinal(v: -1)
 
-    public func zeroBased() -> Int32 { value }
-    public static func fromZeroBased(_ v: Int32) -> Ordinal { Ordinal(v) }
+    public func zeroBased(): Int32 { value }
+    public static func fromZeroBased(v: Int32): Ordinal { Ordinal(v: v) }
 
-    public func equals(_ other: Ordinal) -> Bool {
+    public func equals(other: Ordinal): Bool {
         value == other.value
     }
 }
 
 // 支撑类型
-public class ByteReader { public func readInt32() -> Int32 { 0 } }
-public class ByteWriter { public func writeInt32(_ v: Int32) {} }
+public class ByteReader { public func readInt32(): Int32 { 0 } }
+public class ByteWriter { public func writeInt32(v: Int32) {} }

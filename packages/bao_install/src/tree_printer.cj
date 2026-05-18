@@ -151,7 +151,7 @@ public class TreePrinter {
         }
 
         if (parts.size > 0) {
-            bao_core.Output.info(String.join(", ", parts))
+            Output.print("\n")
         }
     }
 

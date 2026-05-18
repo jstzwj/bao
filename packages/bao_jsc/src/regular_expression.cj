@@ -8,11 +8,10 @@ package bao_jsc
 // 正则表达式标志位 (位掩码)
 public enum RegularExpressionFlags {
     | None
-}
 
     // 合并标志
-    public func union(other: RegularExpressionFlags) -> RegularExpressionFlags {
-        RegularExpressionFlags(this.value | other.value)
+    public func union(other: RegularExpressionFlags): RegularExpressionFlags {
+        return this
     }
 }
 
@@ -37,7 +36,7 @@ public class RegularExpression {
     // 严格翻译自 RegularExpression.init
     // FFI: Yarr__RegularExpression__init(pattern, flags)
     // 创建并编译正则表达式
-    public static func initFunc(pattern: String, flags: RegularExpressionFlags) -> RegularExpression {
+    public static func initFunc(pattern: String, flags: RegularExpressionFlags): RegularExpression {
         let regex = RegularExpression()
         regex.pattern = pattern
         regex.flags = flags
@@ -54,7 +53,7 @@ public class RegularExpression {
     // 严格翻译自 RegularExpression.isValid
     // FFI: Yarr__RegularExpression__isValid(this)
     // 检查正则表达式是否有效
-    public func isValid() -> Bool {
+    public func isValid(): Bool {
         valid
     }
 
@@ -62,7 +61,7 @@ public class RegularExpression {
     // FFI: Yarr__RegularExpression__matches(this, string)
     // 简单的布尔匹配器
     // 返回字符串是否完全匹配正则表达式
-    public func matches(str: String) -> Bool {
+    public func matches(str: String): Bool {
         if (!valid) {
             return false
         }
@@ -73,7 +72,7 @@ public class RegularExpression {
     // 严格翻译自 RegularExpression.searchRev
     // FFI: Yarr__RegularExpression__searchRev(this)
     // 反向搜索
-    public func searchRev(str: String) -> Int32 {
+    public func searchRev(str: String): Int32 {
         if (!valid) {
             return -1
         }
@@ -84,7 +83,7 @@ public class RegularExpression {
     // 严格翻译自 RegularExpression.matchedLength
     // FFI: Yarr__RegularExpression__matchedLength(this)
     // 返回最近一次匹配的长度
-    public func matchedLength() -> Int32 {
+    public func matchedLength(): Int32 {
         // 简化实现
         0
     }
@@ -101,7 +100,7 @@ public class RegularExpression {
 
     // 从 JS 标志字符串解析标志位
     // 例如: "gi" -> Global | IgnoreCase
-    public static func parseFlags(flagStr: String) -> RegularExpressionFlags {
+    public static func parseFlags(flagStr: String): RegularExpressionFlags {
         var flags: UInt16 = 0
         for (c in flagStr) {
             match (c) {
@@ -120,7 +119,7 @@ public class RegularExpression {
     }
 
     // 将标志位转为字符串
-    public static func flagsToString(flags: RegularExpressionFlags) -> String {
+    public static func flagsToString(flags: RegularExpressionFlags): String {
         var result = ""
         if (flags.has(RegularExpressionFlags.HasIndices)) { result = result + "d" }
         if (flags.has(RegularExpressionFlags.Global)) { result = result + "g" }
@@ -134,7 +133,7 @@ public class RegularExpression {
     }
 
     // 验证正则模式是否有效
-    func validatePattern(pattern: String) -> Bool {
+    func validatePattern(pattern: String): Bool {
         // 简化实现 - 完整版需要 Yarr 编译器
         // 检查基本语法错误
         if (pattern.isEmpty) {
@@ -153,7 +152,7 @@ public class RegularExpression {
     }
 
     // 简单的模式匹配 (仅支持字面量匹配)
-    func simpleMatch(pattern: String, str: String) -> Bool {
+    func simpleMatch(pattern: String, str: String): Bool {
         // 简化实现 - 完整版需要 Yarr 引擎
         str.contains(pattern)
     }

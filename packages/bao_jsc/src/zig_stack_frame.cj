@@ -46,7 +46,7 @@ public class ZigStackFrame {
 
     // 严格翻译自 ZigStackFrame.toAPI
     // 转为 API 格式的堆栈帧
-    public func toAPI(rootPath: String, origin: ?String) -> StackFrameApi {
+    public func toAPI(rootPath: String, origin: ?String): StackFrameApi {
         let frame = StackFrameApi()
         if (!functionName.isEmpty) {
             frame.functionName = functionName
@@ -60,7 +60,7 @@ public class ZigStackFrame {
     }
 
     // 严格翻译自 ZigStackFrame.Zero
-    public static func zero() -> ZigStackFrame {
+    public static func zero(): ZigStackFrame {
         ZigStackFrame(
             functionName: "",
             sourceUrl: "",
@@ -71,7 +71,7 @@ public class ZigStackFrame {
     }
 
     // 严格翻译自 ZigStackFrame.nameFormatter
-    public func nameFormatter(enableColor: Bool) -> NameFormatter {
+    public func nameFormatter(enableColor: Bool): NameFormatter {
         NameFormatter(
             functionName: functionName,
             codeType: codeType,
@@ -86,7 +86,7 @@ public class ZigStackFrame {
         origin: ?String,
         excludeLineColumn: Bool,
         enableColor: Bool
-    ) -> String {
+    ): String {
         var result = sourceUrl
         if (!excludeLineColumn) {
             if (position.line > 0 && position.column > 0) {
@@ -112,7 +112,7 @@ public class ZigStackFrame {
         public init() {}
 
         // 严格翻译自 SourceURLFormatter.format
-        public func format() -> String {
+        public func format(): String {
             var result = ""
 
             if (!remapped) {
@@ -163,7 +163,7 @@ public class ZigStackFrame {
         }
 
         // 严格翻译自 NameFormatter.format
-        public func format() -> String {
+        public func format(): String {
             match (codeType) {
                 case Eval => {
                     var result = "eval"

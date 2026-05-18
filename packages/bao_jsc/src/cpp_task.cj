@@ -55,7 +55,7 @@ public class EventLoopTaskNoContext {
 
     // 严格翻译自 EventLoopTaskNoContext.getVM
     // 获取创建此任务的 VM
-    public func getVM() -> ?BunVirtualMachine {
+    public func getVM(): ?BunVirtualMachine {
         // FFI: Bun__EventLoopTaskNoContext__createdInBunVm
         None
     }

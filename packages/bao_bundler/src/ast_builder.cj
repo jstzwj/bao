@@ -78,6 +78,9 @@ public class AstBuilder {
         this.hotReloading = hotReloading
         this.jsxOptions = JsxOptions()
         this.isBundle = true
+        this.moduleRef = Ref.None
+        this.hmrApiRef = Ref.None
+        this.currentScope = Scope(ScopeKind.Entry, Ref.None, Option<Scope>.None, ArrayList<Ref>())
 
         // 创建入口作用域
         let noParent: ?Scope = None

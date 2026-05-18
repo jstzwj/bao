@@ -45,7 +45,7 @@ public class ZigStackFramePosition {
 
     public init() {}
 
-    public func isInvalid() -> Bool {
+    public func isInvalid(): Bool {
         line == 0 && column == 0
     }
 }
@@ -68,7 +68,7 @@ public enum JsErrorCode {
     | ResolutionFailed
 
     // 转为 Error 类型
-    public func toError() -> Exception {
+    public func toError(): Exception {
         Exception(this.toString())
     }
 }
@@ -90,7 +90,7 @@ public class DeferredError {
     }
 
     // 严格翻译自 DeferredError.toError
-    public func toError(global: JsObject) -> JsValue {
+    public func toError(global: JsObject): JsValue {
         let err = match (kind) {
             case PlainError => JsValue(JsError(message).toString())
             case TypeError => JsValue(JsTypeError(message).toString())
@@ -117,7 +117,7 @@ public class Errorable<T> {
     public init() {}
 
     // 严格翻译自 Errorable.value
-    public static func ok<T>(val: T) -> Errorable<T> {
+    public static func ok<T>(val: T): Errorable<T> {
         let e = Errorable<T>()
         e.result = val
         e.success = true
@@ -125,7 +125,7 @@ public class Errorable<T> {
     }
 
     // 严格翻译自 Errorable.err
-    public static func err<T>(code: JsErrorCode, errValue: JsValue) -> Errorable<T> {
+    public static func err<T>(code: JsErrorCode, errValue: JsValue): Errorable<T> {
         let e = Errorable<T>()
         e.errorValue = ZigErrorType.Error
         e.success = false
@@ -133,7 +133,7 @@ public class Errorable<T> {
     }
 
     // 严格翻译自 Errorable.unwrap
-    public func unwrap() -> ?T {
+    public func unwrap(): ?T {
         if (success) {
             return result
         }
@@ -156,12 +156,12 @@ public class GetterSetter {
     }
 
     // 严格翻译自 GetterSetter.isGetterNull
-    public func isGetterNull() -> Bool {
+    public func isGetterNull(): Bool {
         getter == None
     }
 
     // 严格翻译自 GetterSetter.isSetterNull
-    public func isSetterNull() -> Bool {
+    public func isSetterNull(): Bool {
         setter == None
     }
 }
@@ -176,12 +176,12 @@ public class CustomGetterSetter {
     public init() {}
 
     // 严格翻译自 CustomGetterSetter.isGetterNull
-    public func isGetterNull() -> Bool {
+    public func isGetterNull(): Bool {
         getter == None
     }
 
     // 严格翻译自 CustomGetterSetter.isSetterNull
-    public func isSetterNull() -> Bool {
+    public func isSetterNull(): Bool {
         setter == None
     }
 }
@@ -198,7 +198,7 @@ public class DeprecatedStrong<T> {
         value = None
     }
 
-    public func get() -> ?T {
+    public func get(): ?T {
         value
     }
 
@@ -232,7 +232,7 @@ public class JsRef {
         isProtected = false
     }
 
-    public func get() -> JsValue {
+    public func get(): JsValue {
         value
     }
 
@@ -276,7 +276,7 @@ public class JsPropertyIterator {
     }
 
     // 严格翻译自 JSPropertyIterator.next
-    public func next() -> ?String {
+    public func next(): ?String {
         while (true) {
             let idx = iterI
             if (idx >= len) {
@@ -314,7 +314,7 @@ public class JsPropertyIterator {
     }
 
     // 严格翻译自 JSPropertyIterator.getLongestPropertyName
-    public func getLongestPropertyName() -> Int64 {
+    public func getLongestPropertyName(): Int64 {
         var maxLen: Int64 = 0
         let names = object.getOwnPropertyNames()
         for (name in names) {
@@ -343,7 +343,7 @@ public class TopExceptionScope {
         // 恢复异常状态
     }
 
-    public func returnIfException() -> Bool {
+    public func returnIfException(): Bool {
         false
     }
 }

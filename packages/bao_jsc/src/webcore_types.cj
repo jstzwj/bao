@@ -15,7 +15,7 @@ import bao_core.*
 import bao_http_types.MimeType
 import bao_ptr.RawRefCount
 
-// Stub type not yet fully ported
+// Stub `type` not yet fully ported
 struct AsciiStatus { var value: UInt8 = 0 }
 
 // ========== SizeType ==========
@@ -30,9 +30,9 @@ public let MAX_SIZE: SizeType = (1 as UInt64 << 52) - 1
 
 // ========== ClosingState ==========
 // 严格翻译自 webcore_types.rs ClosingState
-public enum ClosingState <: UInt8 {
-    | Running = 0
-    | Closing = 1
+public enum ClosingState {
+    | Running
+    | Closing
 }
 
 // ========== Blob ==========
@@ -63,7 +63,7 @@ public class Blob {
     // 是否通过 File 构造函数创建
     public var isJsdomFile: Bool = false
     // 内部引用计数 (计算异步读取器的借用)
-    public var refCount: RawRefCount = RawRefCount.init(0)
+    public var refCount: RawRefCount = RawRefCount(value:0)
     // 全局对象引用
     public var globalThis: ?JSGlobalObject = None
     // 最后修改时间
@@ -77,7 +77,7 @@ public class Blob {
     // bun.TrivialNew(@This()) (Blob.zig:16) — 堆提升并标记为堆分配
     public static func new(blob: Blob): Blob {
         let result = Blob()
-        result.refCount = RawRefCount.init(1)
+        result.refCount = RawRefCount(value:1)
         // 复制字段
         result.size = blob.size
         result.offset = blob.offset
@@ -102,28 +102,28 @@ public class Blob {
     }
 
     // 严格翻译自 Blob::is_heap_allocated
-    public func isHeapAllocated() -> Bool {
+    public func isHeapAllocated(): Bool {
         refCount.rawValue != 0
     }
 
     // 严格翻译自 Blob::set_not_heap_allocated
     public func setNotHeapAllocated() {
-        refCount = RawRefCount.init(0)
+        refCount = RawRefCount(value:0)
     }
 
     // 严格翻译自 Blob::content_type_slice
-    public func contentTypeSlice() -> Array<Byte> {
+    public func contentTypeSlice(): Array<Byte> {
         contentType
     }
 
     // 严格翻译自 Blob::store (borrowed accessor)
-    public func storeRef() -> ?StoreRef {
+    public func storeRef(): ?StoreRef {
         store
     }
 
     // 严格翻译自 Blob::take_store
     // 移出 store 引用 (Zig: this.store = null 不带 .deref(); 调用者采用现有的 +1)
-    public func takeStore() -> ?StoreRef {
+    public func takeStore(): ?StoreRef {
         let s = store
         store = None
         s
@@ -175,7 +175,7 @@ public class Blob {
 
     // 严格翻译自 Blob::shared_view
     // Blob.sharedView() (Blob.zig:3737) — 内存中字节的借用视图
-    public func sharedView() -> Array<Byte> {
+    public func sharedView(): Array<Byte> {
         if (store == None) { return [] }
         if (size == 0) { return [] }
         let s = store.getOrThrow()
@@ -211,7 +211,7 @@ public class Blob {
         result.contentTypeWasSet = contentTypeWasSet
         result.charset = charset
         result.isJsdomFile = isJsdomFile
-        result.refCount = RawRefCount.init(0)
+        result.refCount = RawRefCount(value:0)
         result.globalThis = globalThis
         result.lastModified = lastModified
         result.name = name
@@ -231,7 +231,7 @@ public class Blob {
         duped.contentTypeWasSet = contentTypeWasSet
         duped.charset = charset
         duped.isJsdomFile = isJsdomFile
-        duped.refCount = RawRefCount.init(0)
+        duped.refCount = RawRefCount(value:0)
         duped.globalThis = globalThis
         duped.lastModified = lastModified
         duped.name = name
@@ -245,7 +245,7 @@ public class Blob {
     // ========== 数据谓词 ==========
 
     // 严格翻译自 Blob::has_content_type_from_user
-    public func hasContentTypeFromUser() -> Bool {
+    public func hasContentTypeFromUser(): Bool {
         contentTypeWasSet || (match(store) {
             case Some(s) =>
                 match(s.data) {
@@ -258,7 +258,7 @@ public class Blob {
     }
 
     // 严格翻译自 Blob::content_type_or_mime_type
-    public func contentTypeOrMimeType() -> ?Array<Byte> {
+    public func contentTypeOrMimeType(): ?Array<Byte> {
         if (!contentType.isEmpty()) { return Some(contentType) }
         match(store) {
             case Some(s) =>
@@ -272,7 +272,7 @@ public class Blob {
     }
 
     // 严格翻译自 Blob::is_bun_file
-    public func isBunFile() -> Bool {
+    public func isBunFile(): Bool {
         match(store) {
             case Some(s) =>
                 match(s.data) {
@@ -284,7 +284,7 @@ public class Blob {
     }
 
     // 严格翻译自 Blob::is_s3
-    public func isS3() -> Bool {
+    public func isS3(): Bool {
         match(store) {
             case Some(s) =>
                 match(s.data) {
@@ -296,12 +296,12 @@ public class Blob {
     }
 
     // 严格翻译自 Blob::needs_to_read_file
-    public func needsToReadFile() -> Bool {
+    public func needsToReadFile(): Bool {
         isBunFile()
     }
 
     // 严格翻译自 Blob::get_file_name
-    public func getFileName() -> ?Array<Byte> {
+    public func getFileName(): ?Array<Byte> {
         match(store) {
             case Some(s) =>
                 match(s.data) {
@@ -327,7 +327,7 @@ public class Blob {
         freeContentType()
         if (isHeapAllocated()) {
             // 堆分配的 Blob 会在 refCount 降到 0 时被释放
-            refCount = RawRefCount.init(0)
+            refCount = RawRefCount(value:0)
         }
     }
 
@@ -381,7 +381,7 @@ public enum SerializeTag <: UInt8 {
 }
 
 public extension SerializeTag {
-    public static func fromRaw(raw: UInt8) -> ?SerializeTag {
+    public static func fromRaw(raw: UInt8): ?SerializeTag {
         match(raw) {
             case 0 => Some(SerializeTag.File)
             case 1 => Some(SerializeTag.Bytes)
@@ -434,12 +434,12 @@ public class Bytes {
     }
 
     // 严格翻译自 Bytes::len
-    public func length() -> SizeType {
+    public func length(): SizeType {
         len
     }
 
     // 严格翻译自 Bytes::slice
-    public func slice() -> Array<Byte> {
+    public func slice(): Array<Byte> {
         match(ptr) {
             case Some(p) =>
                 // 从原始指针创建切片
@@ -449,7 +449,7 @@ public class Bytes {
     }
 
     // 严格翻译自 Bytes::allocated_slice
-    public func allocatedSlice() -> Array<Byte> {
+    public func allocatedSlice(): Array<Byte> {
         match(ptr) {
             case Some(p) => Array<Byte>()
             case None => []
@@ -462,7 +462,7 @@ public class Bytes {
     }
 
     // 严格翻译自 Bytes::into_boxed_slice
-    public func intoBoxedSlice() -> Array<Byte> {
+    public func intoBoxedSlice(): Array<Byte> {
         slice()
     }
 
@@ -498,7 +498,7 @@ public class File {
     }
 
     // 严格翻译自 File::is_seekable
-    public func isSeekable() -> ?Bool {
+    public func isSeekable(): ?Bool {
         if (let Some(s) <- seekable) { return s }
         if (mode != 0) {
             // return kindFromMode(mode) == FileKind.File
@@ -523,7 +523,7 @@ public class S3 {
     public init() {}
 
     // 严格翻译自 S3::is_seekable
-    public func isSeekable() -> ?Bool {
+    public func isSeekable(): ?Bool {
         Some(true)
     }
 
@@ -610,7 +610,7 @@ public class Store {
     }
 
     // 严格翻译自 Store::get_path
-    public func getPath() -> ?Array<Byte> {
+    public func getPath(): ?Array<Byte> {
         match(data) {
             case Data.Bytes(bytes) =>
                 let n = bytes.storedName.slice()
@@ -625,7 +625,7 @@ public class Store {
     }
 
     // 严格翻译自 Store::memory_cost
-    public func memoryCost() -> Int64 {
+    public func memoryCost(): Int64 {
         if (hasOneRef()) {
             Int64(STORE_SIZE) + match(data) {
                 case Data.Bytes(bytes) => Int64(bytes.len)
@@ -638,7 +638,7 @@ public class Store {
     }
 
     // 严格翻译自 Store::size
-    public func size() -> SizeType {
+    public func size(): SizeType {
         match(data) {
             case Data.Bytes(b) => b.length()
             case Data.File(_) => MAX_SIZE
@@ -647,7 +647,7 @@ public class Store {
     }
 
     // 严格翻译自 Store::shared_view
-    public func sharedView() -> Array<Byte> {
+    public func sharedView(): Array<Byte> {
         match(data) {
             case Data.Bytes(bytes) => bytes.slice()
             case _ => []
@@ -660,7 +660,7 @@ public class Store {
     }
 
     // 严格翻译自 Store::has_one_ref
-    public func hasOneRef() -> Bool {
+    public func hasOneRef(): Bool {
         refCount == 1
     }
 
@@ -776,7 +776,7 @@ public class StoreRef {
     }
 
     // 获取 size
-    public func size() -> SizeType {
+    public func size(): SizeType {
         match(ptr) {
             case Some(s) => s.size()
             case None => 0
@@ -784,7 +784,7 @@ public class StoreRef {
     }
 
     // 获取 sharedView
-    public func sharedView() -> Array<Byte> {
+    public func sharedView(): Array<Byte> {
         match(ptr) {
             case Some(s) => s.sharedView()
             case None => []
@@ -832,7 +832,7 @@ public class RawRefCount {
         this.rawValue = value
     }
 
-    public static func init(value: Int32): RawRefCount {
+    public static func initValue(value: Int32): RawRefCount {
         RawRefCount(value: value)
     }
 

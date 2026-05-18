@@ -11,14 +11,14 @@ public class ComptimeStringMapJSC {
 
     // 严格翻译自 fromJS
     // 从 JS 值中获取映射中的值
-    public static func fromJS(map: ComptimeStringMap, globalThis: JsObject, input: JsValue) -> ?UInt64 {
+    public static func fromJS(map: ComptimeStringMap, globalThis: JsObject, input: JsValue): ?UInt64 {
         // Parse string from JS value and look up in map
         None
     }
 
     // 严格翻译自 fromJSCaseInsensitive
     // 从 JS 值中获取映射中的值（大小写不敏感）
-    public static func fromJSCaseInsensitive(map: ComptimeStringMap, globalThis: JsObject, input: JsValue) -> ?UInt64 {
+    public static func fromJSCaseInsensitive(map: ComptimeStringMap, globalThis: JsObject, input: JsValue): ?UInt64 {
         None
     }
 }

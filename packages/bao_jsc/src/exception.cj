@@ -36,27 +36,27 @@ public class JsException {
 
     // 严格翻译自 Exception.value (asJSValue)
     // 获取异常的 JS 值表示
-    public func asJSValue() -> JsValue {
+    public func asJSValue(): JsValue {
         value
     }
 
     // 判断是否有有效值
-    public func hasValue() -> Bool {
+    public func hasValue(): Bool {
         !value.isUndefined()
     }
 
     // 转为 JsValue (用于 throw)
-    public func toJsValue() -> JsValue {
+    public func toJsValue(): JsValue {
         value
     }
 
     // 获取错误消息字符串
-    public func getMessage() -> String {
+    public func getMessage(): String {
         value.toString()
     }
 
     // 获取堆栈追踪字符串
-    public func getStackString() -> String {
+    public func getStackString(): String {
         if (stackTrace.frames.size == 0) {
             return ""
         }

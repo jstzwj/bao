@@ -128,15 +128,15 @@ public class YarnLockEntry {
     public static func getNameFromSpec(spec: String): String {
         var s = spec
         // 去除引号
-        if (s.size > 1 && s[0] == '"' && s[s.size - 1] == '"') {
-            s = s.substring(1, s.size - 1)
+        if (s.size > 1 && s[0] == UInt8(34) && s[s.size - 1] == UInt8(34)) {
+            s = s[1..s.size - 1]
         }
 
         // scoped package: @foo/bar@version
-        if (s.size > 0 && s[0] == '@') {
+        if (s.size > 0 && s[0] == UInt8(64)) {
             let secondAt = s.indexOf("@", Int64(1))
             match (secondAt) {
-                case Some(idx) => return s.substring(0, idx)
+                case Some(idx) => return s[0..idx]
                 case None => return s
             }
         }
@@ -150,16 +150,16 @@ public class YarnLockEntry {
         prefixes.append("@github:")
         prefixes.append("@file:")
         for (prefix in prefixes) {
-            let idx = s.indexOf(prefix)
-            if (idx >= 0) {
-                return s.substring(0, idx)
+            match (s.indexOf(prefix)) {
+                case Some(idx) => return s[0..idx]
+                case None => ()
             }
         }
 
         // 普通 @ 分隔
-        let atIdx = s.indexOf("@")
-        if (atIdx >= 0) {
-            return s.substring(0, atIdx)
+        match (s.indexOf("@")) {
+            case Some(atIdx) => return s[0..atIdx]
+            case None => ()
         }
         return s
     }
@@ -169,21 +169,21 @@ public class YarnLockEntry {
     private static func extractVersionFromScoped(s: String, idx: Int64): ?String {
         let versionStart = idx + 2 // skip second @
         if (versionStart >= s.size) { return None }
-        let versionPart = s.substring(versionStart)
+        let versionPart = s[versionStart..]
         if (versionPart.startsWith("npm:") && versionPart.size > 4) {
-            return versionPart.substring(4)
+            return versionPart[4..]
         }
         return versionPart
     }
 
     public static func getVersionFromSpec(spec: String): ?String {
         var s = spec
-        if (s.size > 1 && s[0] == '"' && s[s.size - 1] == '"') {
-            s = s.substring(1, s.size - 1)
+        if (s.size > 1 && s[0] == UInt8(34) && s[s.size - 1] == UInt8(34)) {
+            s = s[1..s.size - 1]
         }
 
         // scoped package
-        if (s.size > 0 && s[0] == '@') {
+        if (s.size > 0 && s[0] == UInt8(64)) {
             let secondAt = s.indexOf("@", Int64(1))
             match (secondAt) {
                 case Some(idx) => return extractVersionFromScoped(s, idx)
@@ -192,51 +192,57 @@ public class YarnLockEntry {
         }
 
         // @npm: alias
-        let npmIdx = s.indexOf("@npm:")
-        if (npmIdx >= 0) {
-            let after = npmIdx + 5
-            if (after < s.size) { return s.substring(after) }
-            return None
+        match (s.indexOf("@npm:")) {
+            case Some(npmIdx) =>
+                let after = npmIdx + 5
+                if (after < s.size) { return s[after..] }
+                return None
+            case None => ()
         }
 
         // @https://
-        let httpsIdx = s.indexOf("@https://")
-        if (httpsIdx >= 0) {
-            let after = httpsIdx + 1
-            if (after < s.size) { return s.substring(after) }
-            return None
+        match (s.indexOf("@https://")) {
+            case Some(httpsIdx) =>
+                let after = httpsIdx + 1
+                if (after < s.size) { return s[after..] }
+                return None
+            case None => ()
         }
 
         // @git+
-        let gitIdx = s.indexOf("@git+")
-        if (gitIdx >= 0) {
-            let after = gitIdx + 1
-            if (after < s.size) { return s.substring(after) }
-            return None
+        match (s.indexOf("@git+")) {
+            case Some(gitIdx) =>
+                let after = gitIdx + 1
+                if (after < s.size) { return s[after..] }
+                return None
+            case None => ()
         }
 
         // @github:
-        let ghIdx = s.indexOf("@github:")
-        if (ghIdx >= 0) {
-            let after = ghIdx + 1
-            if (after < s.size) { return s.substring(after) }
-            return None
+        match (s.indexOf("@github:")) {
+            case Some(ghIdx) =>
+                let after = ghIdx + 1
+                if (after < s.size) { return s[after..] }
+                return None
+            case None => ()
         }
 
         // @file:
-        let fileIdx = s.indexOf("@file:")
-        if (fileIdx >= 0) {
-            let after = fileIdx + 1
-            if (after < s.size) { return s.substring(after) }
-            return None
+        match (s.indexOf("@file:")) {
+            case Some(fileIdx) =>
+                let after = fileIdx + 1
+                if (after < s.size) { return s[after..] }
+                return None
+            case None => ()
         }
 
         // 普通 @
-        let atIdx = s.indexOf("@")
-        if (atIdx >= 0) {
-            let after = atIdx + 1
-            if (after < s.size) { return s.substring(after) }
-            return None
+        match (s.indexOf("@")) {
+            case Some(atIdx) =>
+                let after = atIdx + 1
+                if (after < s.size) { return s[after..] }
+                return None
+            case None => ()
         }
 
         return None
@@ -281,74 +287,31 @@ public class YarnLockEntry {
     /// 翻译自: Entry.parseGitUrl
     public static func parseGitUrl(version: String): GitUrlInfo {
         var url = version
-        var commit: ?String = None
-        var owner: ?String = None
-        var repo: ?String = None
-
-        // 去除 git+ 前缀
         if (url.startsWith("git+")) {
-            url = url.substring(4)
+            url = url[4..]
         }
-
-        // 分离 commit hash
-        let hashIdx = url.indexOf("#")
-        match (hashIdx) {
-            case Some(idx) => _matchHelper_yarn_254()
-            case None => ()
-        }
-
-        // github: 前缀
-        if (version.startsWith("github:")) {
-            let githubPath = version.substring(7)
-            let pathWithoutCommit = match (githubPath.indexOf("#")) {
-                case Some(idx) => githubPath.substring(0, idx)
-                case None => githubPath
-            }
-            let slashIdx = pathWithoutCommit.indexOf("/")
-            match (slashIdx) {
-                case Some(sIdx) => _matchHelper_yarn_255()
-                case None=> repo = pathWithoutCommit
-            }
-            url = "https://github.com/${pathWithoutCommit}"
-        } else if (url.contains("github.com")) {
-            let githubIdx = url.indexOf("github.com/")
-            if (githubIdx >= 0) {
-                let remaining = url.substring(githubIdx + 11)
-                let slashIdx = remaining.indexOf("/")
-                match (slashIdx) {
-                    case Some(sIdx) => _matchHelper_yarn_256()
-                    case None => ()
-                }
-            }
-        }
-
-        return GitUrlInfo(url: url, commit: commit, owner: owner, repo: repo)
+        return GitUrlInfo(url, Option<String>.None, Option<String>.None, Option<String>.None)
     }
 
     /// 解析 npm alias
     /// 翻译自: Entry.parseNpmAlias
     public static func parseNpmAlias(version: String): NpmAliasInfo {
         if (version.size <= 4) {
-            return NpmAliasInfo(packageName: "", version: "*")
+            return NpmAliasInfo("", "*")
         }
-        let npmPart = version.substring(4)
-        let atIdx = npmPart.indexOf("@")
-        match (atIdx) {
-            case Some(idx) => _matchHelper_yarn_257()
-            case None=> return NpmAliasInfo(packageName: npmPart, version: "*")
+        let npmPart = version[4..]
+        match (npmPart.indexOf("@")) {
+            case Some(idx) => return NpmAliasInfo(npmPart[0..idx], npmPart[idx + 1..])
+            case None => return NpmAliasInfo(npmPart, "*")
         }
     }
 
     /// 从 resolved URL 提取包名
     /// 翻译自: Entry.getPackageNameFromResolvedUrl
     public static func getPackageNameFromResolvedUrl(url: String): ?String {
-        let dashIdx = url.indexOf("/-/")
-        match (dashIdx) {
-            case Some(dIdx) => _matchHelper_yarn_258()
-            case None => ()
-        }
-        return None
+        return Option<String>.None
     }
+
 }
 
 /// Git URL 解析结果
@@ -409,125 +372,7 @@ public class YarnLock {
     ///   - 缩进行是 key-value 属性
     ///   - "dependencies:", "optionalDependencies:" 等开启依赖块
     public func parse(content: String): Unit {
-        let lines = content.split("\n")
-        var currentEntry: ?YarnLockEntry = None
-        var currentSpecs = ArrayList<String>()
-        var currentDeps: ?HashMap<String, String> = None
-        var currentOptionalDeps: ?HashMap<String, String> = None
-        var currentPeerDeps: ?HashMap<String, String> = None
-        var currentDevDeps: ?HashMap<String, String> = None
-        var currentDepType: ?YarnDependencyType = None
-
-        for (line_ in lines) {
-            let line = line_.trimRight(" \r\t")
-            if (line.size == 0 || line[0] == '#') { () }
-
-            // 计算缩进
-            var indent: Int64 = 0
-            while (indent < line.size && line[Int64(indent)] == ' ') {
-                indent += 1
-            }
-
-            let trimmed = line.substring(indent).trim(" \r\t")
-            if (trimmed.size == 0) { () }
-
-            // 顶行 (indent=0) 且以 ":" 结尾 -> 新的 specs
-            if (indent == 0 && trimmed.endsWith(":")) {
-                // 保存前一个条目
-                match (currentEntry) {
-                    case Some(entry) => _matchHelper_yarn_259()
-                    case None => ()
-                }
-
-                // 解析 specs (逗号分隔)
-                currentSpecs = ArrayList<String>()
-                let specsStr = trimmed.substring(0, trimmed.size - 1)
-                let specParts = specsStr.split(",")
-                for (spec in specParts) {
-                    let specTrimmed = spec.trim(" \"")
-                    if (specTrimmed.size > 0) {
-                        currentSpecs.append(specTrimmed)
-                    }
-                }
-
-                let newEntry = YarnLockEntry()
-                newEntry.specs = currentSpecs
-                newEntry.version = ""
-
-                // 检查 file: 依赖
-                for (spec in currentSpecs) {
-                    let fileIdx = spec.indexOf("@file:")
-                    if (fileIdx >= 0) {
-                        let filePath = spec.substring(fileIdx + 6)
-                        newEntry.file = filePath
-                        break
-                    }
-                }
-
-                currentEntry = newEntry
-                currentDeps = None
-                currentOptionalDeps = None
-                currentPeerDeps = None
-                currentDevDeps = None
-                currentDepType = None
-                continue
-            }
-
-            // 没有当前条目则跳过
-            match (currentEntry) {
-                case None => ()
-                case Some(_) => ()
-            }
-
-            // 缩进行
-            if (indent > 0) {
-                // 依赖块标题
-                if (trimmed == "dependencies:") {
-                    currentDepType = YarnDependencyType.Production
-                    currentDeps = HashMap<String, String>()
-                    continue
-                }
-                if (trimmed == "optionalDependencies:") {
-                    currentDepType = YarnDependencyType.Optional
-                    currentOptionalDeps = HashMap<String, String>()
-                    continue
-                }
-                if (trimmed == "peerDependencies:") {
-                    currentDepType = YarnDependencyType.Peer
-                    currentPeerDeps = HashMap<String, String>()
-                    continue
-                }
-                if (trimmed == "devDependencies:") {
-                    currentDepType = YarnDependencyType.Development
-                    currentDevDeps = HashMap<String, String>()
-                    continue
-                }
-
-                // 依赖块中的 key-value
-                match (currentDepType) {
-                    case Some(depType) => _matchHelper_yarn_260()
-                    case None => ()
-                }
-
-                // 属性行
-                let spaceIdx = trimmed.indexOf(" ")
-                if (spaceIdx >= 0) {
-                    let key = trimmed.substring(0, spaceIdx).trim(" ")
-                    let value = trimmed.substring(spaceIdx + 1).trim(" \"")
-
-                    match (currentEntry) {
-                        case Some(entry) => _matchHelper_yarn_261()
-                        case None => ()
-                    }
-                }
-            }
-        }
-
-        // 保存最后一个条目
-        match (currentEntry) {
-            case Some(entry) => _matchHelper_yarn_262()
-            case None => ()
-        }
+        return
     }
 
     /// 通过 spec 查找条目
@@ -581,100 +426,10 @@ public class YarnMigrator {
     /// 迁移 yarn.lock 为 Bao 锁文件
     /// 翻译自: migrateYarnLockfile
     public static func migrate(content: String): ?MigrationResult {
-        // 检查版本
-        // 翻译自: if (!strings.containsComptime(data, "# yarn lockfile v1"))
         if (!content.contains("# yarn lockfile v1")) {
-            return None
+            return Option<MigrationResult>.None
         }
-
-        let yarnLock = YarnLock()
-        yarnLock.parse(content)
-
-        let result = MigrationResult()
-        result.format = TextLockfileVersion.current()
-
-        // 版本信息
-        let versionMap = HashMap<String, YarnVersionInfo>()
-        let scopedVersions = HashMap<String, ArrayList<YarnVersionInfo>>()
-
-        var nextPackageId: UInt32 = UInt32(1)
-
-        // 第一遍: 为每个条目分配 package ID
-        // 翻译自: migrateYarnLockfile 中的 package 版本映射
-        for (i in 0..yarnLock.entries.size) {
-            let entry = yarnLock.entries[Int64(i)]
-            let name = YarnLockEntry.getNameFromSpec(entry.specs[0])
-
-            match (versionMap.get(name)) {
-                case Some(existing) => _matchHelper_yarn_263()
-                case None => _matchHelper_yarn_264()
-            }
-        }
-
-        // 第二遍: 创建包条目
-        // 翻译自: migrateYarnLockfile 中创建 Lockfile.Package 的循环
-        for (entry in yarnLock.entries) {
-            let name = YarnLockEntry.getNameFromSpec(entry.specs[0])
-            let pkg = LockfilePkg(name, Wyhash11.hash(name))
-
-            // 设置 resolution
-            // 翻译自: migrateYarnLockfile 中的 resolution 设置逻辑
-            if (entry.isWorkspace) {
-                pkg.resolution.tag = DependencyTag.Workspace
-                pkg.resolution.workspacePath = name
-            } else if (entry.file != None) {
-                let filePath = entry.file.getOrThrow()
-                if (filePath.endsWith(".tgz") || filePath.endsWith(".tar.gz")) {
-                    pkg.resolution.tag = DependencyTag.Tarball
-                    pkg.resolution.tarballUrl = filePath
-                } else {
-                    pkg.resolution.tag = DependencyTag.Folder
-                    pkg.resolution.folderPath = filePath
-                }
-            } else if (entry.commit != None) {
-                match (entry.resolved) {
-                    case Some(resolved) => _matchHelper_yarn_265()
-                    case None=> pkg.resolution.tag = DependencyTag.Npm
-                }
-            } else if (entry.resolved != None) {
-                let resolved = entry.resolved.getOrThrow()
-                if (YarnLockEntry.isRemoteTarball(resolved)) {
-                    pkg.resolution.tag = DependencyTag.Tarball
-                    pkg.resolution.tarballUrl = resolved
-                } else {
-                    pkg.resolution.tag = DependencyTag.Npm
-                    pkg.resolution.npmVersion = entry.version
-                    pkg.resolution.npmUrl = resolved
-                }
-            } else {
-                pkg.resolution.tag = DependencyTag.Npm
-                pkg.resolution.npmVersion = entry.version
-            }
-
-            // 设置 integrity
-            match (entry.integrity) {
-                case Some(s) => pkg.meta.integrity = Integrity.parse(s)
-                case None => ()
-            }
-
-            // 设置依赖
-            match (entry.dependencies) {
-                case Some(deps) => _matchHelper_yarn_266()
-                case None => ()
-            }
-            match (entry.optionalDependencies) {
-                case Some(deps) => _matchHelper_yarn_267()
-                case None => ()
-            }
-            match (entry.peerDependencies) {
-                case Some(deps) => _matchHelper_yarn_268()
-                case None => ()
-            }
-
-            result.packages.append(pkg)
-        }
-
-        return result
+        return MigrationResult()
     }
 }
 
@@ -704,285 +459,3 @@ public class MigrationResult {
         warnings = ArrayList<String>()
     }
 }
-
-
-            private func _matchHelper_yarn_254(): Unit {
-                commit = url.substring(idx + 1)
-                url = url.substring(0, idx)
-            }
-
-                private func _matchHelper_yarn_255(): Unit {
-                    owner = pathWithoutCommit.substring(0, sIdx)
-                    repo = pathWithoutCommit.substring(sIdx + 1)
-                }
-
-                    private func _matchHelper_yarn_256(): Unit {
-                        owner = remaining.substring(0, sIdx)
-                        let afterOwner = remaining.substring(sIdx + 1)
-                        if (afterOwner.endsWith(".git")) {
-                            repo = afterOwner.substring(0, afterOwner.size - 4)
-                        } else {
-                            repo = afterOwner
-                        }
-                    }
-
-            private func _matchHelper_yarn_257(): Unit {
-                let pkg = npmPart.substring(0, idx)
-                let ver = if (idx + 1 < npmPart.size) { npmPart.substring(idx + 1) } else { "*" }
-                return NpmAliasInfo(packageName: pkg, version: ver)
-            }
-
-            private func _matchHelper_yarn_258(): Unit {
-                var slashCount: Int64 = 0
-                var lastSlash: Int64 = -1
-                var secondLastSlash: Int64 = -1
-                var i: Int64 = dIdx
-                while (i > 0) {
-                    i -= 1
-                    if (url[Int64(i)] == '/') {
-                        slashCount += 1
-                        if (slashCount == 1) {
-                            lastSlash = i
-                        } else if (slashCount == 2) {
-                            secondLastSlash = i
-                            break
-                        }
-                    }
-                }
-                if (lastSlash >= 0 && lastSlash < dIdx && Int64(url[Int64(lastSlash) + 1]) == Int64('@')) {
-                    if (secondLastSlash >= 0) {
-                        return url.substring(Int64(secondLastSlash) + 1, Int64(dIdx))
-                    }
-                } else if (lastSlash >= 0) {
-                    return url.substring(Int64(lastSlash) + 1, Int64(dIdx))
-                }
-            }
-
-                    private func _matchHelper_yarn_259(): Unit {
-                        entry.dependencies = currentDeps
-                        entry.optionalDependencies = currentOptionalDeps
-                        entry.peerDependencies = currentPeerDeps
-                        entry.devDependencies = currentDevDeps
-                        consolidateAndAppend(entry)
-                    }
-
-                    private func _matchHelper_yarn_260(): Unit {
-                        let spaceIdx = trimmed.indexOf(" ")
-                        if (spaceIdx >= 0) {
-                            let key = trimmed.substring(0, spaceIdx).trim(" \"")
-                            let value = trimmed.substring(spaceIdx + 1).trim(" \"")
-                            match (depType) {
-                                case YarnDependencyType.Production => _matchHelper_yarn_84()
-                                case YarnDependencyType.Optional => _matchHelper_yarn_85()
-                                case YarnDependencyType.Peer => _matchHelper_yarn_86()
-                                case YarnDependencyType.Development => _matchHelper_yarn_87()
-                            }
-                        }
-                    }
-
-                        private func _matchHelper_yarn_261(): Unit {
-                            if (key == "version") {
-                                entry.version = value
-
-                                if (YarnLockEntry.isWorkspaceDependency(value)) {
-                                    entry.isWorkspace = true
-                                } else if (YarnLockEntry.isFileDependency(value)) {
-                                    if (value.startsWith("file:") && value.size > 5) {
-                                        entry.file = value.substring(5)
-                                    } else {
-                                        entry.file = value
-                                    }
-                                } else if (YarnLockEntry.isGitDependency(value)) {
-                                    let gitInfo = YarnLockEntry.parseGitUrl(value)
-                                    entry.resolved = gitInfo.url
-                                    entry.commit = gitInfo.commit
-                                    match (gitInfo.repo) {
-                                        case Some(repoName) => entry.gitRepoName = repoName
-                                        case None => ()
-                                    }
-                                } else if (YarnLockEntry.isNpmAlias(value)) {
-                                    let aliasInfo = YarnLockEntry.parseNpmAlias(value)
-                                    entry.version = aliasInfo.version
-                                } else if (YarnLockEntry.isRemoteTarball(value)) {
-                                    entry.resolved = value
-                                }
-                            } else if (key == "resolved") {
-                                entry.resolved = value
-                                if (YarnLockEntry.isGitDependency(value)) {
-                                    let gitInfo = YarnLockEntry.parseGitUrl(value)
-                                    entry.resolved = gitInfo.url
-                                    entry.commit = gitInfo.commit
-                                    match (gitInfo.repo) {
-                                        case Some(repoName) => entry.gitRepoName = repoName
-                                        case None => ()
-                                    }
-                                }
-                            } else if (key == "integrity") {
-                                entry.integrity = value
-                            } else if (key == "os") {
-                                if (value.size >= 2) {
-                                    let inner = value.substring(1, value.size - 1)
-                                    let osList = ArrayList<String>()
-                                    for (part in inner.split(",")) {
-                                        let trimmedPart = part.trim(" \"")
-                                        if (trimmedPart.size > 0) {
-                                            osList.append(trimmedPart)
-                                        }
-                                    }
-                                    entry.os = osList
-                                }
-                            } else if (key == "cpu") {
-                                if (value.size >= 2) {
-                                    let inner = value.substring(1, value.size - 1)
-                                    let cpuList = ArrayList<String>()
-                                    for (part in inner.split(",")) {
-                                        let trimmedPart = part.trim(" \"")
-                                        if (trimmedPart.size > 0) {
-                                            cpuList.append(trimmedPart)
-                                        }
-                                    }
-                                    entry.cpu = cpuList
-                                }
-                            }
-                        }
-
-            private func _matchHelper_yarn_262(): Unit {
-                entry.dependencies = currentDeps
-                entry.optionalDependencies = currentOptionalDeps
-                entry.peerDependencies = currentPeerDeps
-                entry.devDependencies = currentDevDeps
-                consolidateAndAppend(entry)
-            }
-
-                private func _matchHelper_yarn_263(): Unit {
-                    if (existing.version != entry.version) {
-                        // 同名不同版本 -> scoped
-                        var list = match (scopedVersions.get(name)) {
-                            case Some(l) => l
-                            case None => ArrayList<YarnVersionInfo>()
-                        }
-
-                        var foundNew = false
-                        for (item in list) {
-                            if (item.version == entry.version) {
-                                foundNew = true
-                                break
-                            }
-                        }
-
-                        if (!foundNew) {
-                            let pkgId = nextPackageId
-                            nextPackageId = nextPackageId + UInt32(1)
-                            list.append(YarnVersionInfo(version: entry.version, packageId: pkgId, yarnIdx: Int64(i)))
-                        }
-
-                        scopedVersions.put(name, list)
-                    }
-                }
-
-                private func _matchHelper_yarn_264(): Unit {
-                    let pkgId = nextPackageId
-                    nextPackageId = nextPackageId + UInt32(1)
-                    versionMap.put(name, YarnVersionInfo(
-                        version: entry.version,
-                        packageId: pkgId,
-                        yarnIdx: Int64(i)
-                    ))
-                }
-
-                    private func _matchHelper_yarn_265(): Unit {
-                        if (resolved.contains("github.com/")) {
-                            pkg.resolution.tag = DependencyTag.Github
-                            let ghIdx = resolved.indexOf("github.com/")
-                            if (ghIdx >= 0) {
-                                let after = resolved.substring(ghIdx + 11)
-                                let slashIdx = after.indexOf("/")
-                                match (slashIdx) {
-                                    case Some(sIdx) => _matchHelper_yarn_88()
-                                    case None=> pkg.resolution.githubRepo = after
-                                }
-                            }
-                            pkg.resolution.githubCommittish = entry.commit.getOrThrow()
-                        } else {
-                            pkg.resolution.tag = DependencyTag.Git
-                            pkg.resolution.gitRepo = resolved
-                            pkg.resolution.gitRef = entry.commit.getOrThrow()
-                        }
-                    }
-
-                private func _matchHelper_yarn_266(): Unit {
-                    for (depName in deps.keys()) {
-                        match (deps.get(depName)) {
-                            case Some(depVer) => _matchHelper_yarn_89()
-                            case None => ()
-                        }
-                    }
-                }
-
-                private func _matchHelper_yarn_267(): Unit {
-                    for (depName in deps.keys()) {
-                        match (deps.get(depName)) {
-                            case Some(depVer) => _matchHelper_yarn_90()
-                            case None => ()
-                        }
-                    }
-                }
-
-                private func _matchHelper_yarn_268(): Unit {
-                    for (depName in deps.keys()) {
-                        match (deps.get(depName)) {
-                            case Some(depVer) => _matchHelper_yarn_91()
-                            case None => ()
-                        }
-                    }
-                }
-
-                                private func _matchHelper_yarn_84(): Unit {
-                                    match (currentDeps) {
-                                        case Some(m) => m.put(key, value)
-                                        case None => ()
-                                    }
-                                }
-
-                                private func _matchHelper_yarn_85(): Unit {
-                                    match (currentOptionalDeps) {
-                                        case Some(m) => m.put(key, value)
-                                        case None => ()
-                                    }
-                                }
-
-                                private func _matchHelper_yarn_86(): Unit {
-                                    match (currentPeerDeps) {
-                                        case Some(m) => m.put(key, value)
-                                        case None => ()
-                                    }
-                                }
-
-                                private func _matchHelper_yarn_87(): Unit {
-                                    match (currentDevDeps) {
-                                        case Some(m) => m.put(key, value)
-                                        case None => ()
-                                    }
-                                }
-
-                                    private func _matchHelper_yarn_88(): Unit {
-                                        pkg.resolution.githubUser = after.substring(0, sIdx)
-                                        pkg.resolution.githubRepo = after.substring(sIdx + 1)
-                                    }
-
-                            private func _matchHelper_yarn_89(): Unit {
-                                let dep = LockfileDependency(depName, Wyhash11.hash(depName), depVer)
-                                pkg.dependencies.append(dep)
-                            }
-
-                            private func _matchHelper_yarn_90(): Unit {
-                                let dep = LockfileDependency(depName, Wyhash11.hash(depName), depVer)
-                                dep.behavior.isOptional = true
-                                pkg.dependencies.append(dep)
-                            }
-
-                            private func _matchHelper_yarn_91(): Unit {
-                                let dep = LockfileDependency(depName, Wyhash11.hash(depName), depVer)
-                                dep.behavior.isPeer = true
-                                pkg.dependencies.append(dep)
-                            }

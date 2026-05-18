@@ -69,7 +69,7 @@ public class ExitHandler {
 public class UnhandledRejectionScope {
     public var ctx: ?BunVirtualMachine = None
     public var count: Int64 = 0
-    public var onUnhandledRejection: ((BunVirtualMachine, JsObject, JsValue) -> Unit)? = None
+    public var onUnhandledRejection: ?((BunVirtualMachine, JsObject, JsValue) -> Unit) = None
 
     public init() {}
 
@@ -149,7 +149,7 @@ public class VMHolder {
     }
 
     // 严格翻译自 VMHolder.Bun__getDefaultGlobalObject
-    public static func getDefaultGlobalObject() -> ?JsObject {
+    public static func getDefaultGlobalObject(): ?JsObject {
         if (let Some(cached) <- cachedGlobalObject) {
             return cached
         }
@@ -160,7 +160,7 @@ public class VMHolder {
     }
 
     // 严格翻译自 VMHolder.Bun__thisThreadHasVM
-    public static func thisThreadHasVM() -> Bool {
+    public static func thisThreadHasVM(): Bool {
         vm != None
     }
 }
@@ -267,7 +267,7 @@ public class BunVirtualMachine {
     public var exitHandler: ExitHandler = ExitHandler()
 
     // ---- 未处理 Rejection ----
-    public var onUnhandledRejection: ((BunVirtualMachine, JsObject, JsValue) -> Unit)? = None
+    public var onUnhandledRejection: ?((BunVirtualMachine, JsObject, JsValue) -> Unit) = None
     public var onUnhandledRejectionCtx: ?BunVirtualMachine = None
     public var onUnhandledRejectionExceptionList: ?ExceptionList = None
     public var unhandledRejectionsMode_: UnhandledRejectionsMode = UnhandledRejectionsMode.Bun
@@ -325,55 +325,55 @@ public class BunVirtualMachine {
     // ========== 获取/设置方法 ==========
 
     // 严格翻译自 VirtualMachine.zig get()
-    public static func get() -> BunVirtualMachine {
+    public static func get(): BunVirtualMachine {
         VMHolder.vm.getOrThrow()
     }
 
     // 严格翻译自 VirtualMachine.zig getOrNull()
-    public static func getOrNull() -> ?BunVirtualMachine {
+    public static func getOrNull(): ?BunVirtualMachine {
         VMHolder.vm
     }
 
     // 严格翻译自 VirtualMachine.zig getMainThreadVM()
-    public static func getMainThreadVM() -> ?BunVirtualMachine {
+    public static func getMainThreadVM(): ?BunVirtualMachine {
         VMHolder.mainThreadVM
     }
 
     // 严格翻译自 VirtualMachine.zig isLoaded()
-    public static func isLoaded() -> Bool {
+    public static func isLoaded(): Bool {
         VMHolder.vm != None
     }
 
     // 严格翻译自 VirtualMachine.zig isMainThread()
-    public func isMainThread() -> Bool {
+    public func isMainThread(): Bool {
         worker == None && isMainThread_
     }
 
     // 严格翻译自 VirtualMachine.zig isInspectorEnabled()
-    public func isInspectorEnabled() -> Bool {
+    public func isInspectorEnabled(): Bool {
         debugger_ != None
     }
 
     // 严格翻译自 VirtualMachine.zig isShuttingDown()
-    public func isShuttingDown() -> Bool {
+    public func isShuttingDown(): Bool {
         isShuttingDown_
     }
 
     // 严格翻译自 VirtualMachine.zig isWatcherEnabled()
-    public func isWatcherEnabled() -> Bool {
+    public func isWatcherEnabled(): Bool {
         hotReload != HotReloadMode.None
     }
 
     // ========== 事件循环 ==========
 
     // 严格翻译自 VirtualMachine.zig isEventLoopAlive
-    public func isEventLoopAlive() -> Bool {
+    public func isEventLoopAlive(): Bool {
         unhandledErrorCounter == 0 &&
         (activeTasks > 0 || pendingUnrefCounter > 0)
     }
 
     // 严格翻译自 VirtualMachine.zig isEventLoopAliveExcludingImmediates
-    public func isEventLoopAliveExcludingImmediates() -> Bool {
+    public func isEventLoopAliveExcludingImmediates(): Bool {
         unhandledErrorCounter == 0 &&
         (activeTasks > 0 || pendingUnrefCounter > 0)
     }
@@ -408,7 +408,7 @@ public class BunVirtualMachine {
     }
 
     // 严格翻译自 VirtualMachine.zig enqueueTask
-    public func enqueueTask(task: () -> Unit) {
+    public func enqueueTask(task: (): Unit) {
         activeTasks++
         task()
         activeTasks--
@@ -422,7 +422,7 @@ public class BunVirtualMachine {
     // ========== 初始化 ==========
 
     // 严格翻译自 VirtualMachine.zig getOriginTimestamp()
-    static func getOriginTimestamp() -> Int64 {
+    static func getOriginTimestamp(): Int64 {
         // 截断时间戳相对于 Y2K
         let now = System.currentTimeMillis()
         if (now < ORIGIN_RELATIVE_EPOCH) {
@@ -432,7 +432,7 @@ public class BunVirtualMachine {
     }
 
     // 严格翻译自 VirtualMachine.zig init
-    public static func create(opts: BunVirtualMachineOptions) -> BunVirtualMachine {
+    public static func create(opts: BunVirtualMachineOptions): BunVirtualMachine {
         let vm = BunVirtualMachine()
         vm.smol = opts.smol
         vm.isMainThread_ = opts.isMainThread
@@ -451,7 +451,7 @@ public class BunVirtualMachine {
     }
 
     // 严格翻译自 VirtualMachine.zig initWithModuleGraph
-    public static func createWithModuleGraph(graph: StandaloneModuleGraph, opts: BunVirtualMachineOptions) -> BunVirtualMachine {
+    public static func createWithModuleGraph(graph: StandaloneModuleGraph, opts: BunVirtualMachineOptions): BunVirtualMachine {
         let vm = BunVirtualMachine()
         vm.standaloneModuleGraph = graph
         vm.smol = opts.smol
@@ -467,7 +467,7 @@ public class BunVirtualMachine {
     }
 
     // 严格翻译自 VirtualMachine.zig initWorker
-    public static func createForWorker(worker: WebWorker, opts: BunVirtualMachineOptions) -> BunVirtualMachine {
+    public static func createForWorker(worker: WebWorker, opts: BunVirtualMachineOptions): BunVirtualMachine {
         let vm = BunVirtualMachine()
         vm.worker = worker
         vm.smol = opts.smol
@@ -481,7 +481,7 @@ public class BunVirtualMachine {
     // ========== 入口点加载 ==========
 
     // 严格翻译自 VirtualMachine.zig loadEntryPoint
-    public func loadEntryPoint(entryPath: String) -> ?JsObject {
+    public func loadEntryPoint(entryPath: String): ?JsObject {
         hasLoaded = false
         main = entryPath
         mainHash = hashPath(entryPath)
@@ -502,7 +502,7 @@ public class BunVirtualMachine {
     }
 
     // 严格翻译自 VirtualMachine.zig reloadEntryPoint
-    public func reloadEntryPoint(entryPath: String) -> ?JsObject {
+    public func reloadEntryPoint(entryPath: String): ?JsObject {
         hasLoaded = false
         main = entryPath
         mainResolvedPath = ""
@@ -516,7 +516,7 @@ public class BunVirtualMachine {
     }
 
     // 严格翻译自 VirtualMachine.zig loadEntryPointForWebWorker
-    public func loadEntryPointForWebWorker(entryPath: String) -> ?JsObject {
+    public func loadEntryPointForWebWorker(entryPath: String): ?JsObject {
         let promise = reloadEntryPoint(entryPath)
         drainMicrotasks()
         waitForPromise(pendingInternalPromise.getOr(JsObject.make()))
@@ -530,7 +530,7 @@ public class BunVirtualMachine {
     }
 
     // 严格翻译自 VirtualMachine.zig loadEntryPointForTestRunner
-    public func loadEntryPointForTestRunner(entryPath: String) -> ?JsObject {
+    public func loadEntryPointForTestRunner(entryPath: String): ?JsObject {
         let promise = reloadEntryPoint(entryPath)
 
         if (isWatcherEnabled()) {
@@ -554,7 +554,7 @@ public class BunVirtualMachine {
     }
 
     // 严格翻译自 VirtualMachine.zig loadPreloads
-    public func loadPreloads() -> ?JsObject {
+    public func loadPreloads(): ?JsObject {
         isInPreload = true
         defer { isInPreload = false }
 
@@ -596,7 +596,7 @@ public class BunVirtualMachine {
     // ========== GC ==========
 
     // 严格翻译自 VirtualMachine.zig garbageCollect
-    public func garbageCollect(sync: Bool) -> Int64 {
+    public func garbageCollect(sync: Bool): Int64 {
         if (sync) {
             // 同步 GC
             return 0
@@ -681,7 +681,7 @@ public class BunVirtualMachine {
     }
 
     // 严格翻译自 VirtualMachine.zig uncaughtException
-    public func uncaughtException(globalObject: JsObject, err: JsValue, isRejection: Bool) -> Bool {
+    public func uncaughtException(globalObject: JsObject, err: JsValue, isRejection: Bool): Bool {
         if (isShuttingDown()) {
             return true
         }
@@ -724,7 +724,7 @@ public class BunVirtualMachine {
     }
 
     // 严格翻译自 VirtualMachine.zig unhandledRejectionScope
-    public func unhandledRejectionScope() -> UnhandledRejectionScope {
+    public func unhandledRejectionScope(): UnhandledRejectionScope {
         let scope = UnhandledRejectionScope()
         scope.ctx = this
         scope.count = unhandledErrorCounter
@@ -790,7 +790,7 @@ public class BunVirtualMachine {
     }
 
     // 严格翻译自 VirtualMachine.zig scriptExecutionStatus
-    public func scriptExecutionStatus() -> ScriptExecutionStatus {
+    public func scriptExecutionStatus(): ScriptExecutionStatus {
         if (isShuttingDown_) {
             return ScriptExecutionStatus.Stopped
         }
@@ -809,7 +809,7 @@ public class BunVirtualMachine {
     }
 
     // 严格翻译自 VirtualMachine.zig globalExit
-    public func globalExit() -> Int64 {
+    public func globalExit(): Int64 {
         onExit()
         exitHandler.exitCode
     }
@@ -817,7 +817,7 @@ public class BunVirtualMachine {
     // ========== 模块解析 ==========
 
     // 严格翻译自 VirtualMachine.zig resolve
-    public func resolve(specifier: String, source: String, queryString: ?String, isEsm: Bool) -> ?String {
+    public func resolve(specifier: String, source: String, queryString: ?String, isEsm: Bool): ?String {
         // 1. 检查硬编码模块别名
         // 2. 通过解析器解析
         // 3. 返回解析后的路径
@@ -847,14 +847,14 @@ public class BunVirtualMachine {
     // ========== 工具方法 ==========
 
     // 加载并执行模块
-    func loadAndEvaluateModule(path: String) -> ?JsObject {
+    func loadAndEvaluateModule(path: String): ?JsObject {
         let ctx = JsContext(vm: JsVirtualMachine())
         ctx.evaluateModule(path, main)
         None
     }
 
     // 计算路径哈希
-    func hashPath(path: String) -> Int64 {
+    func hashPath(path: String): Int64 {
         var hash: Int64 = 0
         for (c in path) {
             hash = hash * 31 + Int64(c.code)
@@ -863,22 +863,22 @@ public class BunVirtualMachine {
     }
 
     // 严格翻译自 VirtualMachine.zig allowAddons
-    public func allowAddons() -> Bool {
+    public func allowAddons(): Bool {
         true
     }
 
     // 严格翻译自 VirtualMachine.zig allowRejectionHandledWarning
-    public func allowRejectionHandledWarning() -> Bool {
+    public func allowRejectionHandledWarning(): Bool {
         unhandledRejectionsMode_ != UnhandledRejectionsMode.Bun
     }
 
     // 严格翻译自 VirtualMachine.zig shouldDestructMainThreadOnExit
-    public func shouldDestructMainThreadOnExit() -> Bool {
+    public func shouldDestructMainThreadOnExit(): Bool {
         false
     }
 
     // 严格翻译自 VirtualMachine.zig mimeType
-    public func mimeType(str: String) -> ?MimeType {
+    public func mimeType(str: String): ?MimeType {
         None
     }
 
@@ -888,7 +888,7 @@ public class BunVirtualMachine {
     }
 
     // 严格翻译自 VirtualMachine.zig nextAsyncTaskID
-    public func nextAsyncTaskID() -> Int64 {
+    public func nextAsyncTaskID(): Int64 {
         0
     }
 
@@ -960,12 +960,12 @@ public class WebWorker {
 
     public init() {}
 
-    public func hasRequestedTerminate() -> Bool {
+    public func hasRequestedTerminate(): Bool {
         requestedTerminate
     }
 
     // 严格翻译自 web_worker.zig create
-    public static func create(parent: BunVirtualMachine, specifier: String, opts: BunVirtualMachineOptions) -> WebWorker {
+    public static func create(parent: BunVirtualMachine, specifier: String, opts: BunVirtualMachineOptions): WebWorker {
         let worker = WebWorker()
         worker.parent = parent
         worker.unresolvedSpecifier = specifier
@@ -1074,7 +1074,7 @@ public class ModuleLoader {
         log: ArrayList<String>,
         virtualSource: ?String,
         globalObject: ?JsObject
-    ) -> ?ResolvedSource {
+    ): ?ResolvedSource {
         jscVm.transpiledCount++
         let source = ResolvedSource()
         source.specifier = inputSpecifier
@@ -1084,7 +1084,7 @@ public class ModuleLoader {
     }
 
     // 严格翻译自 ModuleLoader.fetchBuiltinModule
-    public func fetchBuiltinModule(jscVm: BunVirtualMachine, specifier: String) -> ?ResolvedSource {
+    public func fetchBuiltinModule(jscVm: BunVirtualMachine, specifier: String): ?ResolvedSource {
         let source = ResolvedSource()
         source.specifier = specifier
         source.sourceUrl = specifier
@@ -1113,7 +1113,7 @@ public class ModuleLoader {
         | PrintSource
         | DisableTranspiling
 
-        public func disableTranspiling() -> Bool {
+        public func disableTranspiling(): Bool {
             match (this) {
                 case DisableTranspiling => true
                 case _ => false
@@ -1152,7 +1152,7 @@ public class RefString {
 
     public init() {}
 
-    public static func computeHash(input: String) -> Int64 {
+    public static func computeHash(input: String): Int64 {
         var hash: Int64 = 0
         for (c in input) {
             hash = hash * 31 + Int64(c.code)
@@ -1165,7 +1165,7 @@ public class RefString {
 public class StandaloneModuleGraph {
     public init() {}
 
-    public func find(path: String) -> ?ModuleGraphFile {
+    public func find(path: String): ?ModuleGraphFile {
         None
     }
 }

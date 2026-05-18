@@ -87,7 +87,8 @@ public class PackageManifestMap {
         cacheBehavior: ManifestCacheBehavior,
         needsExtendedManifest: Bool
     ): ?PackageManifestData {
-        return byNameHashAllowExpired(nameHash, None, cacheBehavior, needsExtendedManifest)
+        let isExpired: ?Bool = None
+        return byNameHashAllowExpired(nameHash, isExpired, cacheBehavior, needsExtendedManifest)
     }
 
     /// 按包名查找, 允许返回过期的 manifest
@@ -112,18 +113,11 @@ public class PackageManifestMap {
         cacheBehavior: ManifestCacheBehavior,
         needsExtendedManifest: Bool
     ): ?PackageManifestData {
-        // 仅内存模式
-        match (cacheBehavior) {
-            case LoadFromMemory=> __helper_package_manifest_map_1()
-            case LoadFromMemoryFallbackToDisk => ()
-        }
-
-        // 回退到磁盘模式: 查找或插入
         match (map.get(nameHash)) {
-            case Some(ManifestCacheValue.Manifest(m))=> __helper_package_manifest_map_2()
-            case Some(ManifestCacheValue.Expired(m))=> __helper_package_manifest_map_3()
+            case Some(ManifestCacheValue.Manifest(m)) => return Some(m)
+            case Some(ManifestCacheValue.Expired(m)) => return Some(m)
             case Some(ManifestCacheValue.NotFound) => return None
-            case None=> __helper_package_manifest_map_4()
+            case None => return None
         }
     }
 

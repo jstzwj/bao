@@ -51,12 +51,19 @@ public class IndexStringMap {
 
     /// 是否包含键
     public func contains(index: UInt32): Bool {
-        return map.containsKey(index)
+        match (map.get(index)) {
+            case Some(_) => return true
+            case None => return false
+        }
     }
 
     /// 删除键
     public func remove(index: UInt32): Bool {
-        return map.remove(index)
+        let removed = map.remove(index)
+        match (removed) {
+            case Some(_) => return true
+            case None => return false
+        }
     }
 
     /// 获取或插入 - 对应 Bun getOrPut 语义

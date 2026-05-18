@@ -15,7 +15,7 @@ public class ResolvePathJSC {
     public static func joinAbsStringBufCurrentPlatformBunString(
         globalObject: JsObject,
         input: String
-    ) -> String {
+    ): String {
         // 1. 将输入转换为 UTF8
         // 2. 获取当前工作目录
         // 3. 拼接路径

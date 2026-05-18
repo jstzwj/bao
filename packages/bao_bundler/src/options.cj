@@ -53,7 +53,10 @@ public enum Loader {
 
     /// 是否是 CSS
     public func isCSS(): Bool {
-        return this == Loader.Css
+        match (this) {
+            case Css => true
+            case _ => false
+        }
     }
 
     /// 是否是 JS 类语言
@@ -122,32 +125,13 @@ public enum Loader {
 
     /// 从字符串解析
     public static func fromString(slice: String): Loader {
-        var s = slice
-        if (s.length > 0 && s[0] == '.') {
-            s = s.substring(1)
-        }
-        match (s.toLowerCase()) {
-            case "js" | "mjs" | "cjs" => Loader.Js
-            case "jsx" => Loader.Jsx
-            case "ts" | "mts" | "cts" => Loader.Ts
-            case "tsx" => Loader.Tsx
-            case "css" => Loader.Css
-            case "file" => Loader.File
-            case "json" => Loader.Json
-            case "jsonc" => Loader.Jsonc
-            case "toml" => Loader.Toml
-            case "yaml" | "yml" => Loader.Yaml
-            case "json5" => Loader.Json5
-            case "wasm" => Loader.Wasm
-            case "napi" | "node" => Loader.Napi
-            case "base64" => Loader.Base64
-            case "dataurl" => Loader.DataUrl
-            case "txt" | "text" => Loader.Text
-            case "sh" => Loader.Bunsh
-            case "sqlite" => Loader.Sqlite
-            case "sqlite_embedded" => Loader.SqliteEmbedded
-            case "html" => Loader.Html
-            case "md" | "markdown" => Loader.Md
+        match (slice) {
+            case "js" | ".js" | "mjs" | ".mjs" | "cjs" | ".cjs" => Loader.Js
+            case "jsx" | ".jsx" => Loader.Jsx
+            case "ts" | ".ts" | "mts" | ".mts" | "cts" | ".cts" => Loader.Ts
+            case "tsx" | ".tsx" => Loader.Tsx
+            case "css" | ".css" => Loader.Css
+            case "json" | ".json" => Loader.Json
             case _ => Loader.File
         }
     }
@@ -178,7 +162,7 @@ public enum Loader {
     /// 副作用评估
     public func sideEffects(): SideEffects {
         match (this) {
-            case Text | Json | Jsonc | Toml | Yaml | Json5 | File | Md => SideEffects.NoSideEffectsPureData
+            case Text | Json | Jsonc | Toml | Yaml | Json5 | File | Md => SideEffects.NoSideEffects_PureData
             case _ => SideEffects.HasSideEffects
         }
     }
@@ -289,11 +273,7 @@ public enum OutputFormat {
 
     /// 转为模块类型
     public func toModuleType(): ModuleType {
-        match (this) {
-            case ESM => ModuleType.ESM
-            case CJS => ModuleType.CJS
-            case _ => ModuleType.ESM
-        }
+        return ModuleType.JavaScript
     }
 }
 

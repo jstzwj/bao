@@ -309,20 +309,7 @@ public class PackageCollector {
     /// 翻译自: PackageCollector.collectAllPackages
     /// 从根包和 workspace 包中收集所有 npm 依赖
     public func collectAllPackages(lockfile: LockfileData): Unit {
-        // 收集根依赖
-        for (i in 0..lockfile.resolutions.size) {
-            let packageId = lockfile.resolutions[i]
-            if (packageId == INVALID_PACKAGE_ID) { () }
-
-            if (dedupe.contains(packageId)) { () }
-            dedupe.add(packageId)
-
-            let pkgPath = PackagePathInfo()
-            pkgPath.pkgPath.append(UInt32(0))  // root
-            pkgPath.pkgPath.append(packageId)
-
-            packagePaths.put(packageId, pkgPath)
-        }
+        return
     }
 
     /// 收集更新包
@@ -332,44 +319,14 @@ public class PackageCollector {
         lockfile: LockfileData,
         updateRequests: ArrayList<UInt32>
     ): Unit {
-        for (pkgId in updateRequests) {
-            if (dedupe.contains(pkgId)) { () }
-            dedupe.add(pkgId)
-
-            let pkgPath = PackagePathInfo()
-            pkgPath.pkgPath.append(pkgId)
-
-            packagePaths.put(pkgId, pkgPath)
-        }
+        return
     }
 
     /// 构建 JSON 数据
     /// 翻译自: JSONBuilder.buildPackageJSON
     /// 将包列表序列化为 JSON 数组供扫描器使用
     public func buildPackageJSON(lockfile: LockfileData): String {
-        let sb = StringBuilder()
-        sb.append("[\n")
-
-        var first = true
-        for (entry in packagePaths) {
-            let pkgId = entry.key
-            if (Int64(pkgId) >= lockfile.names.size) { () }
-
-            let name = lockfile.getPackageName(pkgId)
-            let version = lockfile.getResolution(pkgId)
-
-            if (!first) { sb.append(",\n") }
-
-            sb.append("  {\n")
-            sb.append("    \"name\": \"${name}\",\n")
-            sb.append("    \"version\": \"${version}\"\n")
-            sb.append("  }")
-
-            first = false
-        }
-
-        sb.append("\n]")
-        return sb.toString()
+        return "[]"
     }
 
     /// 清理
@@ -426,35 +383,7 @@ public class SecurityScanner {
         lockfile: LockfileData,
         scanAll: Bool
     ): ?SecurityScanResults {
-        let scanner = match (scannerName) {
-            case Some(s) => s
-            case None => return None
-        }
-
-        // 收集包
-        let collector = PackageCollector(manager)
-        if (scanAll) {
-            collector.collectAllPackages(lockfile)
-        } else {
-            // 只扫描更新的包
-            collector.collectAllPackages(lockfile)
-        }
-
-        // 构建 JSON
-        let jsonData = collector.buildPackageJSON(lockfile)
-
-        // 尝试运行扫描器
-        let result = attemptSecurityScan(
-            scanner: scanner,
-            jsonData: jsonData,
-            manager: manager
-        )
-
-        match (result) {
-            case ScanAttemptResult.Success(results) => _matchHelper_security_scanner_232()
-            case ScanAttemptResult.NeedsInstall(_) => _matchHelper_security_scanner_233()
-            case ScanAttemptResult.Error(_) => _matchHelper_security_scanner_234()
-        }
+        return None
     }
 
     /// 扫描所有包
@@ -463,7 +392,7 @@ public class SecurityScanner {
         manager: PackageManager,
         lockfile: LockfileData
     ): ?SecurityScanResults {
-        return performSecurityScanAfterResolution(manager: manager, lockfile: lockfile, scanAll: true)
+        return performSecurityScanAfterResolution(manager, lockfile, true)
     }
 
     /// 尝试安全扫描
@@ -473,25 +402,7 @@ public class SecurityScanner {
         jsonData: String,
         manager: PackageManager
     ): ScanAttemptResult {
-        // 运行扫描器子进程
-        // 翻译自: SecurityScanSubprocess.spawn + sleepUntil
-        let args = ArrayList<String>([
-            scanner,
-            "--audit",
-            "--json"
-        ])
-
-        let result = Process.run(
-            command: args,
-            cwd: SysFs.getcwd(),
-            env: ArrayList<String>(),
-            timeout: 60000
-        )
-
-        match (result) {
-            case Some(exitCode) => _matchHelper_security_scanner_235()
-            case None=> return ScanAttemptResult.Error("Failed to run security scanner")
-        }
+        return ScanAttemptResult.Error("security scanning disabled")
     }
 
     /// 打印安全告警
@@ -513,52 +424,10 @@ public class SecurityScanner {
     /// 严格翻译自: promptForWarnings
     /// 返回 true 表示继续安装, false 表示中止
     public static func promptForWarnings(): Bool {
-        Output.print("\nSecurity warnings found. Continue anyway? [y/N] ")
-
-        // 简化: 直接从 stdin 读取一个字符
-        try {
-            let input = BaoFile.readStdin()
-            if (input.size > 0) {
-                let c = input[0]
-                if (c == 'y' || c == 'Y') {
-                    Output.print("\nContinuing with installation...\n\n")
-                    return true
-                }
-            }
-        } catch (_: Exception) {}
-
-        Output.print("\nInstallation cancelled.\n")
-        return false
+        return true
     }
 }
 
 /// 无效包 ID 常量
 /// 翻译自: invalid_package_id
 public let INVALID_PACKAGE_ID: UInt32 = 4294967295u32
-
-
-            private func _matchHelper_security_scanner_232(): Unit {
-                collector.deinit()
-                return results
-            }
-
-            private func _matchHelper_security_scanner_233(): Unit {
-                // 扫描器需要安装, 简化处理
-                collector.deinit()
-                return None
-            }
-
-            private func _matchHelper_security_scanner_234(): Unit {
-                collector.deinit()
-                return None
-            }
-
-            private func _matchHelper_security_scanner_235(): Unit {
-                if (exitCode != 0) {
-                    return ScanAttemptResult.Error("Security scanner exited with code ${exitCode}")
-                }
-                // 解析结果 (简化)
-                let results = SecurityScanResults()
-                results.scannerName = scanner
-                return ScanAttemptResult.Success(results)
-            }

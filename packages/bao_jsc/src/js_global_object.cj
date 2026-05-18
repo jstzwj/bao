@@ -55,7 +55,7 @@ public class JSGlobalObject {
     // ========== 分配器 ==========
 
     // 严格翻译自 JSGlobalObject.allocator
-    public func allocator() -> String {
+    public func allocator(): String {
         if (let Some(vmInstance) <- vm) {
             return vmInstance.allocator
         }
@@ -65,22 +65,22 @@ public class JSGlobalObject {
     // ========== 错误创建 ==========
 
     // 严格翻译自 JSGlobalObject.throwStackOverflow
-    public func throwStackOverflow() -> JsError {
+    public func throwStackOverflow(): JsError {
         JsError("Stack overflow")
     }
 
     // 严格翻译自 JSGlobalObject.throwOutOfMemory
-    public func throwOutOfMemory() -> JsError {
+    public func throwOutOfMemory(): JsError {
         JsError("Out of memory")
     }
 
     // 严格翻译自 JSGlobalObject.createOutOfMemoryError
-    public func createOutOfMemoryError() -> JsValue {
+    public func createOutOfMemoryError(): JsValue {
         JsValue(JsError("Out of memory").toString())
     }
 
     // 创建不支持功能错误
-    public func throwUnsupported(msg: String) -> JsError {
+    public func throwUnsupported(msg: String): JsError {
         JsError("Unsupported: " + msg)
     }
 
@@ -91,7 +91,7 @@ public class JSGlobalObject {
         year: Int64, month: Int64, day: Int64,
         hour: Int64, minute: Int64, second: Int64,
         millisecond: Int64, isLocal: Bool
-    ) -> Float64 {
+    ): Float64 {
         // 简化实现 - 完整版需要时区支持
         let totalMs = (year * 365 * 24 * 3600 * 1000).toFloat64() +
                       (month * 30 * 24 * 3600 * 1000).toFloat64() +
@@ -108,12 +108,12 @@ public class JSGlobalObject {
         year: Int64, month: Int64, day: Int64,
         hour: Int64, minute: Int64, second: Int64,
         millisecond: Int64
-    ) -> Float64 {
+    ): Float64 {
         gregorianDateTimeToMS(year, month, day, hour, minute, second, millisecond, false)
     }
 
     // 严格翻译自 JSGlobalObject.msToGregorianDateTimeUTC
-    public func msToGregorianDateTimeUTC(ms: Float64) -> GregorianDateTime {
+    public func msToGregorianDateTimeUTC(ms: Float64): GregorianDateTime {
         // 简化实现
         GregorianDateTime()
     }
@@ -121,12 +121,12 @@ public class JSGlobalObject {
     // ========== 参数验证 ==========
 
     // 严格翻译自 JSGlobalObject.throwInvalidArguments
-    public func throwInvalidArguments(fmt: String) -> JsError {
+    public func throwInvalidArguments(fmt: String): JsError {
         JsError("Invalid arguments: " + fmt)
     }
 
     // 严格翻译自 JSGlobalObject.throwMissingArgumentsValue
-    public func throwMissingArgumentsValue(argNames: Array<String>) -> JsError {
+    public func throwMissingArgumentsValue(argNames: Array<String>): JsError {
         let names = String.join(", ", argNames)
         if (argNames.size == 1) {
             return JsError("The \"" + names + "\" argument must be specified")
@@ -137,30 +137,30 @@ public class JSGlobalObject {
     }
 
     // 严格翻译自 JSGlobalObject.createInvalidArgumentType
-    public func createInvalidArgumentType(name: String, field: String, typename: String) -> JsValue {
+    public func createInvalidArgumentType(name: String, field: String, typename: String): JsValue {
         let msg = "Expected " + field + " to be a " + typename + " for '" + name + "'."
         JsValue(JsError(msg).toString())
     }
 
     // 严格翻译自 JSGlobalObject.throwInvalidArgumentType
-    public func throwInvalidArgumentType(name: String, field: String, typename: String) -> JsError {
+    public func throwInvalidArgumentType(name: String, field: String, typename: String): JsError {
         JsError(createInvalidArgumentType(name, field, typename).toString())
     }
 
     // 严格翻译自 JSGlobalObject.throwInvalidArgumentValue
-    public func throwInvalidArgumentValue(argname: String, value: JsValue) -> JsError {
+    public func throwInvalidArgumentValue(argname: String, value: JsValue): JsError {
         let typeStr = determineSpecificType(value)
         JsError("The \"" + argname + "\" argument is invalid. Received " + typeStr)
     }
 
     // 严格翻译自 JSGlobalObject.throwInvalidArgumentValueCustom
-    public func throwInvalidArgumentValueCustom(argname: String, value: JsValue, message: String) -> JsError {
+    public func throwInvalidArgumentValueCustom(argname: String, value: JsValue, message: String): JsError {
         let typeStr = determineSpecificType(value)
         JsError("The \"" + argname + "\" argument " + message + ". Received " + typeStr)
     }
 
     // 严格翻译自 JSGlobalObject.throwInvalidArgumentPropertyValue
-    public func throwInvalidArgumentPropertyValue(argname: String, expected: ?String, value: JsValue) -> JsError {
+    public func throwInvalidArgumentPropertyValue(argname: String, expected: ?String, value: JsValue): JsError {
         let typeStr = determineSpecificType(value)
         if (let Some(exp) <- expected) {
             return JsError("The property \"" + argname + "\" is invalid. Expected " + exp + ", received " + typeStr)
@@ -169,25 +169,25 @@ public class JSGlobalObject {
     }
 
     // 严格翻译自 JSGlobalObject.throwIncompatibleOptionPair
-    public func throwIncompatibleOptionPair(opt1: String, opt2: String) -> JsError {
+    public func throwIncompatibleOptionPair(opt1: String, opt2: String): JsError {
         JsError("Option \"" + opt1 + "\" cannot be used in combination with option \"" + opt2 + "\"")
     }
 
     // 严格翻译自 JSGlobalObject.throwInvalidScryptParams
-    public func throwInvalidScryptParams() -> JsError {
+    public func throwInvalidScryptParams(): JsError {
         JsError("Invalid scrypt params")
     }
 
     // 严格翻译自 JSGlobalObject.throwInvalidArgumentTypeValue
-    public func throwInvalidArgumentTypeValue(argname: String, typename: String, value: JsValue) -> JsError {
+    public func throwInvalidArgumentTypeValue(argname: String, typename: String, value: JsValue): JsError {
         let typeStr = determineSpecificType(value)
-        JsError("The \"" + argname + "\" argument must be of type " + typename + ". Received " + typeStr)
+        JsError("The \"" + argname + "\" argument must be of `type` " + typename + ". Received " + typeStr)
     }
 
     // ========== 类型判断 ==========
 
     // 严格翻译自 JSGlobalObject.determineSpecificType
-    public func determineSpecificType(value: JsValue) -> String {
+    public func determineSpecificType(value: JsValue): String {
         if (value.isUndefined()) { return "undefined" }
         if (value.isNull()) { return "null" }
         if (value.isBoolean()) { return "boolean" }
@@ -214,7 +214,7 @@ public class JSGlobalObject {
     // ========== 异常处理 ==========
 
     // 严格翻译自 JSGlobalObject.hasException
-    public func hasException() -> Bool {
+    public func hasException(): Bool {
         false
     }
 
@@ -222,12 +222,12 @@ public class JSGlobalObject {
     public func clearException() {}
 
     // 严格翻译自 JSGlobalObject.takeException
-    public func takeException(err: JsError) -> JsValue {
+    public func takeException(err: JsError): JsValue {
         JsValue(err.message)
     }
 
     // 严格翻译自 JSGlobalObject.reportUncaughtException
-    public func reportUncaughtException(exception: JsValue) -> Bool {
+    public func reportUncaughtException(exception: JsValue): Bool {
         if (let Some(vmInstance) <- vm) {
             return vmInstance.uncaughtException(globalThis, exception, false)
         }
@@ -237,7 +237,7 @@ public class JSGlobalObject {
     // ========== ERR 辅助 ==========
 
     // 严格翻译自 ERR 方法
-    public func err(code: ErrorCode, message: String) -> JsValue {
+    public func err(code: ErrorCode, message: String): JsValue {
         let errorName = match (code) {
             case ErrorCode.MissingArgs => "MISSING_ARGS"
             case ErrorCode.InvalidArgType => "INVALID_ARG_TYPE"
@@ -254,12 +254,12 @@ public class JSGlobalObject {
     // ========== 创建错误实例 ==========
 
     // 严格翻译自 JSGlobalObject.createErrorInstance
-    public func createErrorInstance(message: String) -> JsValue {
+    public func createErrorInstance(message: String): JsValue {
         JsValue(JsError(message).toString())
     }
 
     // 严格翻译自 JSGlobalObject.createAggregateError
-    public func createAggregateError(errors: Array<JsValue>, message: String) -> JsValue {
+    public func createAggregateError(errors: Array<JsValue>, message: String): JsValue {
         let obj = JsObject.make()
         obj.className = "AggregateError"
         obj.set("message", JsValue(message))
@@ -282,21 +282,21 @@ public class JSGlobalObject {
     // ========== 时区 ==========
 
     // 严格翻译自 JSGlobalObject.setTimeZone
-    public func setTimeZone(timeZone: String) -> Bool {
+    public func setTimeZone(timeZone: String): Bool {
         true
     }
 
     // ========== toJSValue ==========
 
     // 严格翻译自 JSGlobalObject.toJSValue
-    public func toJSValue() -> JsValue {
+    public func toJSValue(): JsValue {
         JsValue(obj: globalThis)
     }
 
     // ========== JS 值转换 ==========
 
     // 严格翻译自 JSGlobalObject.toJS
-    public func toJS(value: JsValue) -> JsValue {
+    public func toJS(value: JsValue): JsValue {
         value
     }
 
@@ -310,7 +310,7 @@ public class JSGlobalObject {
         smol: Bool,
         evalMode: Bool,
         cppWorker: ?WebWorker
-    ) -> JsObject {
+    ): JsObject {
         let global = JsObject.make()
 
         // 设置全局属性
@@ -429,7 +429,7 @@ public class JSGlobalObject {
     }
 
     // 严格翻译自 JSGlobalObject.createForTestIsolation
-    public static func createForTestIsolation(oldGlobal: JsObject, console: ConsoleObject) -> JsObject {
+    public static func createForTestIsolation(oldGlobal: JsObject, console: ConsoleObject): JsObject {
         let newGlobal = JsObject.make()
         // 复制全局属性
         for (key in oldGlobal.keys()) {
@@ -445,7 +445,7 @@ public class JSGlobalObject {
     }
 
     // ========== vm() ==========
-    public func vm() -> ?BunVirtualMachine {
+    public func vm(): ?BunVirtualMachine {
         vm
     }
 }
@@ -463,7 +463,7 @@ public class ZigStackFrame {
     public init() {}
 
     // 严格翻译自 ZigStackFrame.position.isInvalid
-    public func isPositionInvalid() -> Bool {
+    public func isPositionInvalid(): Bool {
         isInvalid || (positionLine == 0 && positionColumn == 0)
     }
 }
@@ -478,7 +478,7 @@ public class ZigStackTrace {
 
     public init() {}
 
-    public func frames() -> Array<ZigStackFrame> {
+    public func frames(): Array<ZigStackFrame> {
         frames
     }
 }
@@ -516,7 +516,7 @@ public class ZigExceptionHolder {
     public init() {}
 
     // 严格翻译自 ZigException.Holder.init
-    public static func init_() -> ZigExceptionHolder {
+    public static func init_(): ZigExceptionHolder {
         ZigExceptionHolder()
     }
 
@@ -527,7 +527,7 @@ public class ZigExceptionHolder {
         }
     }
 
-    public func zigException() -> ZigException {
+    public func zigException(): ZigException {
         exception
     }
 }

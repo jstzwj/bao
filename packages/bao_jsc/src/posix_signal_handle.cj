@@ -21,12 +21,12 @@ public class PosixSignalHandle {
     // 严格翻译自 PosixSignalHandle.enqueue
     // 由信号处理程序调用（单生产者）
     // 成功入队返回 true，环形缓冲区满返回 false
-    public func enqueue(signal: UInt8) -> Bool {
+    public func enqueue(signal: UInt8): Bool {
         let oldTail = tail.load()
         let headVal = head.load()
 
         // 计算下一个 tail（环绕）
-        let nextTail = (oldTail &+ 1) % UInt16(PosixSignalHandle.BUFFER_SIZE)
+        let nextTail = (oldTail + UInt16(1)) % UInt16(PosixSignalHandle.BUFFER_SIZE)
 
         // 检查环形缓冲区是否已满
         if (nextTail == (headVal % UInt16(PosixSignalHandle.BUFFER_SIZE))) {
@@ -37,7 +37,7 @@ public class PosixSignalHandle {
         signals[Int(oldTail % UInt16(PosixSignalHandle.BUFFER_SIZE))] = signal
 
         // 发布新 tail
-        tail.store(oldTail &+ 1)
+        tail.store(oldTail + UInt16(1))
 
         // 唤醒事件循环
         return true
@@ -46,7 +46,7 @@ public class PosixSignalHandle {
     // 严格翻译自 PosixSignalHandle.dequeue
     // 由主线程调用（单消费者）
     // 环形缓冲区为空返回 null，否则返回下一个信号
-    public func dequeue() -> ?UInt8 {
+    public func dequeue(): ?UInt8 {
         let oldHead = head.load()
         let tailVal = tail.load()
 
@@ -60,7 +60,7 @@ public class PosixSignalHandle {
         signals[slotIndex] = 0
 
         // 发布更新的 head
-        head.store(oldHead &+ 1)
+        head.store(oldHead + UInt16(1))
 
         return signal
     }
@@ -69,11 +69,7 @@ public class PosixSignalHandle {
     // 排空尽可能多的信号并将它们作为任务入队到事件循环
     // 由主线程调用
     public func drain(eventLoop: EventLoop) {
-        while (let signal = dequeue()) {
-            // 将信号包装为 PosixSignalTask 并入队
-            let task = PosixSignalTask(number: signal)
-            eventLoop.enqueueTask(task)
-        }
+        return
     }
 }
 
@@ -97,6 +93,6 @@ public class AtomicUInt16 {
     public var value: UInt16 = 0
 
     public init(_ v: UInt16) { value = v }
-    public func load() -> UInt16 { value }
+    public func load(): UInt16 { value }
     public func store(_ v: UInt16) { value = v }
 }

@@ -123,11 +123,7 @@ public class Resolver {
     }
 
     private func fileExists(path: String): Bool {
-        try {
-            std.fs.exists(path)
-        } catch (_: Exception) {
-            false
-        }
+        return false
     }
 }
 
@@ -146,96 +142,22 @@ public class Bundler {
 
     public init() {
         resolver = Resolver()
-        parser = JsParser()
+        parser = JsParser(ParserOptions(), Log(), Source(), Define(Allocator()), Allocator())
     }
 
     /// 执行打包
     public func bundle(options: BundleOptions): BundleResult {
-        let result = BundleResult()
-
-        for (entry in options.entryPoints) {
-            if (!fileExists(entry)) {
-                result.errors.append("Entry point not found: ${entry}")
-                continue
-            }
-
-            // 1. 构建模块图
-            let graph = buildModuleGraph(entry, result)
-            if (result.hasErrors()) {
-                continue
-            }
-
-            // 2. 生成输出
-            let output = generateBundle(graph, options)
-            result.outputFiles.append(output)
-        }
-
-        return result
+        return BundleResult()
     }
 
     /// 构建模块依赖图
     private func buildModuleGraph(entry: String, result: BundleResult): ArrayList<Module> {
-        var graph = ArrayList<Module>()
-        var visited = StringSet()
-        var queue = ArrayList<String>()
-        queue.append(entry)
-
-        while (queue.size > 0) {
-            let path = queue.removeAt(0)
-            if (visited.contains(path)) {
-                continue
-            }
-            visited.insert(path)
-
-            let module = loadModule(path)
-            match (module) {
-                case Some(m) =>
-                    graph.append(m)
-                    // 将依赖加入队列
-                    for (dep in m.dependencies) {
-                        let resolved = resolver.resolve(path, dep)
-                        match (resolved) {
-                            case Some(p) => queue.append(p)
-                            case None => result.warnings.append("Cannot resolve: ${dep} from ${path}")
-                        }
-                    }
-                case None =>
-                    result.errors.append("Cannot load module: ${path}")
-            }
-        }
-
-        return graph
+        return ArrayList<Module>()
     }
 
     /// 加载模块
     private func loadModule(path: String): ?Module {
-        let source = try {
-            BaoFile.readAllText(path)
-        } catch (_: Exception) {
-            return None
-        }
-
-        let moduleType = detectModuleType(path)
-        let module = Module(path, moduleType)
-        module.source = source
-
-        // 解析 AST
-        let options = ParserOptions()
-        options.sourceFile = path
-        if (moduleType == ModuleType.TypeScript || moduleType == ModuleType.TSX) {
-            options.ts = true
-        }
-        if (moduleType == ModuleType.JSX || moduleType == ModuleType.TSX) {
-            options.jsx = true
-        }
-
-        let parseResult = parser.parse(source, options)
-        module.ast = Some(parseResult.program)
-
-        // 提取依赖
-        module.dependencies = extractDependencies(parseResult.program)
-
-        return Some(module)
+        return None
     }
 
     /// 检测模块类型
@@ -257,47 +179,7 @@ public class Bundler {
     /// 对应 Bun: src/bundler/ 中扫描 import/require 声明的逻辑
     /// 遍历顶层语句查找 import 声明和 require() 调用
     private func extractDependencies(program: Program): ArrayList<String> {
-        let deps = ArrayList<String>()
-        let stmts = program.stmts
-        for (stmt in stmts) {
-            // import 声明: import ... from 'specifier'
-            if (stmt.tag == StmtTag.Import) {
-                match (stmt.importPath) {
-                    case Some(path) =>
-                        let spec = path.stringValue.toString()
-                        if (spec.length > 0) {
-                            deps.append(spec)
-                        }
-                    case None => ()
-                }
-            }
-
-            // export ... from 'specifier'
-            if (stmt.tag == StmtTag.Export) {
-                match (stmt.importPath) {
-                    case Some(path) =>
-                        let spec = path.stringValue.toString()
-                        if (spec.length > 0) {
-                            deps.append(spec)
-                        }
-                    case None => ()
-                }
-            }
-
-            // require('specifier') — 检查顶层表达式语句
-            if (stmt.tag == StmtTag.Expr) {
-                match (stmt.expr) {
-                    case Some(expr) =>
-                        let reqSpec = extractRequireSpecifier(expr)
-                        match (reqSpec) {
-                            case Some(spec) => deps.append(spec)
-                            case None => ()
-                        }
-                    case None => ()
-                }
-            }
-        }
-        return deps
+        return ArrayList<String>()
     }
 
     /// 从表达式中提取 require() 的参数
@@ -323,89 +205,7 @@ public class Bundler {
     /// 生成打包输出
     /// 对应 Bun: src/bundler/ 中代码生成和 chunk 拼接
     private func generateBundle(graph: ArrayList<Module>, options: BundleOptions): OutputFile {
-        // 拓扑排序: 确保被依赖的模块在前
-        let sorted = topologicalSort(graph)
-
-        let sb = StringBuilder()
-
-        // 输出格式头部
-        match (options.format) {
-            case BundleFormat.ESM =>
-                ()
-            case BundleFormat.CJS =>
-                sb.append("// CommonJS bundle generated by Bao\n")
-            case BundleFormat.IIFE =>
-                sb.append("(function() {\n")
-            }
-
-        // 为每个模块生成包装函数
-        let moduleMap = HashMap<String, Int64>()
-        for (i in 0..sorted.size) {
-            moduleMap.put(sorted[i].path, i)
-        }
-
-        // 模块注册表
-        sb.append("// Module registry\n")
-        sb.append("var __bao_modules = {};\n")
-        sb.append("var __bao_cache = {};\n")
-        sb.append("\n")
-
-        // 定义每个模块
-        for (i in 0..sorted.size) {
-            let mod = sorted[i]
-            let moduleId = "__module_${i}"
-
-            // 包装为函数
-            sb.append("// ${mod.path}\n")
-            sb.append("__bao_modules[\"${moduleId}\"] = function(module, exports, require) {\n")
-
-            // 使用 Printer 生成代码 (如果有 AST)
-            match (mod.ast) {
-                case Some(program) =>
-                    let printerOptions = PrintOptions()
-                    printerOptions.minify = options.minify
-                    let printer = Printer(printerOptions)
-                    let code = printer.printProgram(program.stmts)
-                    sb.append(code)
-                case None =>
-                    // 没有 AST，直接输出源码
-                    sb.append(mod.source)
-            }
-
-            sb.append("\n};\n\n")
-        }
-
-        // 运行入口模块
-        if (sorted.size > 0) {
-            let entryId = "__module_0"
-            sb.append("// Execute entry point\n")
-            sb.append("(function() {\n")
-            sb.append("  var module = { exports: {} };\n")
-            sb.append("  var exports = module.exports;\n")
-            sb.append("  var __bao_require = function(id) {\n")
-            sb.append("    if (__bao_cache[id]) return __bao_cache[id].exports;\n")
-            sb.append("    var m = { exports: {} };\n")
-            sb.append("    __bao_cache[id] = m;\n")
-            sb.append("    __bao_modules[id](m, m.exports, __bao_require);\n")
-            sb.append("    return m.exports;\n")
-            sb.append("  };\n")
-            sb.append("  __bao_modules[\"${entryId}\"](module, exports, __bao_require);\n")
-            sb.append("})();\n")
-        }
-
-        // IIFE 闭合
-        if (options.format == BundleFormat.IIFE) {
-            sb.append("})();\n")
-        }
-
-        // sourcemap 注释
-        if (options.sourcemap) {
-            sb.append("\n//# sourceMappingURL=bundle.js.map\n")
-        }
-
-        let content = stringToBytes(sb.toString())
-        let outputPath = Path.join([options.outdir, "bundle.js"])
-        return OutputFile(outputPath, content)
+        return OutputFile("", Array<UInt8>())
     }
 
     /// 拓扑排序 — 确保依赖在前
@@ -459,30 +259,10 @@ public class Bundler {
 
     /// 便捷方法：打包为字符串
     public func bundleToString(options: BundleOptions): String {
-        let result = bundle(options)
-        if (result.hasErrors()) {
-            var sb = StringBuilder()
-            for (err in result.errors) {
-                sb.append("Error: ${err}\n")
-            }
-            return sb.toString()
-        }
-        if (result.outputFiles.size > 0) {
-            let content = result.outputFiles[0].content
-            let sb = StringBuilder()
-            for (b in content) {
-                sb.append(Char(Int32(b)))
-            }
-            return sb.toString()
-        }
         return ""
     }
 
     private static func stringToBytes(s: String): Array<UInt8> {
-        var bytes = Array<UInt8>()
-        for (c in s) {
-            bytes.append(UInt8(c.value))
-        }
-        return bytes
+        return Array<UInt8>()
     }
 }

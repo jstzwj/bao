@@ -57,17 +57,17 @@ public class SourceProvider_ {
     }
 
     // ========== 获取源码 ==========
-    public func source() -> String {
+    public func source(): String {
         sourceCode
     }
 
     // ========== 获取 URL ==========
-    public func url() -> String {
+    public func url(): String {
         sourceURL
     }
 
     // ========== 计算哈希 ==========
-    func computeHash(s: String) -> Int64 {
+    func computeHash(s: String): Int64 {
         var h: Int64 = 0
         for (c in s) {
             h = h * 31 + Int64(c.code)

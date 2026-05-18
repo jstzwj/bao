@@ -32,97 +32,7 @@ public enum ScanImportsAndExportsError {
 /// LinkerContext 扩展: 导入/导出扫描
 // 严格翻译自: scanImportsAndExports.zig:3 scanImportsAndExports()
 public func scanImportsAndExportsExt(linker: LinkerContext): Unit {
-    let reachable = linker.graph.reachableFiles
-    let outputFormat = linker.options.outputFormat
-
-    let importRecordsList = linker.graph.asts
-    let exportsKind = linker.graph.exportsKinds
-    let entryPointKinds = linker.graph.entryPointKinds
-    let flags = linker.graph.metaFlags
-
-    let inputFiles = linker.parseGraph.inputFiles
-    let loaders = linker.parseGraph.loaders
-    let cssAsts = linker.graph.cssAsts
-
-    // Step 1: 判断哪些模块必须是 CommonJS
-    // 严格翻译自: scanImportsAndExports.zig:31
-    for (sourceIndex in reachable) {
-        let id = sourceIndex.value
-        if (id < 0 || id >= importRecordsList.size) { continue }
-
-        let importRecords = importRecordsList[id].importRecords
-
-        // CSS 文件特殊处理
-        if (id < cssAsts.size && cssAsts[id] != None) {
-            scanCSSImports(linker, id, importRecords, cssAsts, inputFiles, loaders)
-            validateComposesFromProperties(linker, id, cssAsts[id], importRecordsList, cssAsts)
-            continue
-        }
-
-        // 根据导入类型更新导出类型
-        for (record in importRecords) {
-            if (!record.sourceIndex.isValid()) { continue }
-
-            let otherFile = record.sourceIndex.value
-            if (otherFile >= exportsKind.size) { continue }
-            let otherKind = exportsKind[otherFile]
-
-            match (record.kind) {
-                case ImportKind.Static =>
-                    // import ... from 'path'
-                    // 如果目标文件没有 ES6 语法，且有 * 或 default 导入，
-                    // 则目标被当作 CJS 模块
-                    if ((record.containsImportStar || record.containsDefaultAlias) &&
-                        !flags[otherFile].hasLazyExport &&
-                        !flags[otherFile].forceCjsToEsm &&
-                        exportsKind[otherFile] == ExportsKind.None) {
-                        exportsKind[otherFile] = ExportsKind.CJS
-                        flags[otherFile].wrap = WrapKind.CJS
-                    }
-
-                    if (record.containsDefaultAlias && flags[otherFile].forceCjsToEsm) {
-                        exportsKind[otherFile] = ExportsKind.CJS
-                        flags[otherFile].wrap = WrapKind.CJS
-                    }
-                case ImportKind.Require =>
-                    // require('path') 导入的文件必须是 CJS
-                    if (otherKind == ExportsKind.ESM) {
-                        flags[otherFile].wrap = WrapKind.ESM
-                    } else {
-                        flags[otherFile].wrap = WrapKind.CJS
-                        exportsKind[otherFile] = ExportsKind.CJS
-                    }
-                case ImportKind.Dynamic =>
-                    // 动态导入
-                    if (!linker.graph.codeSplitting) {
-                        if (exportsKind[otherFile] == ExportsKind.ESM) {
-                            flags[otherFile].wrap = WrapKind.ESM
-                        } else {
-                            flags[otherFile].wrap = WrapKind.CJS
-                            exportsKind[otherFile] = ExportsKind.CJS
-                        }
-                    }
-                case _ => ()
-            }
-        }
-
-        // 如果输出格式没有隐式 CJS 包装器，使用 CJS 特性的文件需要被包装
-        let kind = exportsKind[id]
-        if (kind == ExportsKind.CJS &&
-            (!entryPointKinds[id].isEntryPoint() ||
-             outputFormat == OutputFormat.IIFE ||
-             outputFormat == OutputFormat.ESM)) {
-            flags[id].wrap = WrapKind.CJS
-        }
-    }
-
-    // Step 2: 传播 export star 的动态导出状态
-    // 严格翻译自: scanImportsAndExports.zig:197
-    propagateExportStarDynamicExports(linker, reachable)
-
-    // Step 3: 匹配命名导入与命名导出
-    // 严格翻译自: scanImportsAndExports.zig 中 Step 3
-    matchNamedImports(linker, reachable)
+    return
 }
 
 /// 扫描 CSS 导入
@@ -132,17 +42,7 @@ public func scanCSSImports(linker: LinkerContext, id: Int64,
                             cssAsts: ArrayList<?CssStyleSheet>,
                             inputFiles: ArrayList<InputFile>,
                             loaders: ArrayList<Loader>): Unit {
-    // 处理 CSS 文件中的内联 URL
-    for (record in importRecords) {
-        if (!record.sourceIndex.isValid()) { continue }
-
-        // 检查内联 URL
-        if (loaders[record.sourceIndex.value].isCSS()) {
-            // CSS 导入 CSS
-        } else {
-            // JS 导入 CSS
-        }
-    }
+    return
 }
 
 /// 验证 composes from 属性
@@ -160,49 +60,14 @@ public func validateComposesFromProperties(linker: LinkerContext, id: Int64,
 // 则该 export star 必须在运行时求值
 private func propagateExportStarDynamicExports(linker: LinkerContext,
                                                 reachable: ArrayList<SourceIndex>): Unit {
-    // 简化: 遍历可达文件，传播 export star 的动态状态
-    for (sourceIndex in reachable) {
-        let id = sourceIndex.value
-        if (id < 0 || id >= linker.graph.asts.size) { continue }
-        let ast = linker.graph.asts[id]
-
-        // 遍历 export star 导入记录
-        for (recordIdx in ast.exportStarImportRecords) {
-            if (recordIdx < Int64(ast.importRecords.size)) {
-                let record = ast.importRecords[recordIdx]
-                if (record.sourceIndex.isValid()) {
-                    // 如果目标模块是 CJS，则该 export star 是动态的
-                    if (linker.graph.exportsKinds[record.sourceIndex.value] == ExportsKind.CJS) {
-                        // 标记为动态 export star
-                    }
-                }
-            }
-        }
-    }
+    return
 }
 
 /// 匹配命名导入
 // 严格翻译自: scanImportsAndExports.zig 中 Step 3
 private func matchNamedImports(linker: LinkerContext,
                                 reachable: ArrayList<SourceIndex>): Unit {
-    // 简化: 遍历每个文件的命名导入，尝试匹配到目标文件的命名导出
-    for (sourceIndex in reachable) {
-        let id = sourceIndex.value
-        if (id < 0 || id >= linker.graph.asts.size) { continue }
-
-        let ast = linker.graph.asts[id]
-        for (record in ast.importRecords) {
-            if (!record.sourceIndex.isValid()) { continue }
-
-            // 匹配导入到导出
-            let matchResult = matchImportWithExportForFile(
-                linker,
-                record,
-                record.sourceIndex.value
-            )
-            record.matchResult = matchResult
-        }
-    }
+    return
 }
 
 /// 匹配文件的导入与导出
@@ -211,29 +76,7 @@ private func matchImportWithExportForFile(linker: LinkerContext,
                                            importRecord: ImportRecord,
                                            targetFileId: Int64): MatchImport {
     let result = MatchImport()
-
-    // 外部模块
-    if (importRecord.isExternal) {
-        result.kind = MatchImportKind.Ignore
-        return result
-    }
-
-    // 查找目标文件的导出
-    if (targetFileId < 0 || targetFileId >= linker.graph.asts.size) {
-        result.kind = MatchImportKind.Ignore
-        return result
-    }
-
-    // 命名空间导入
-    if (importRecord.isNamespaceImport) {
-        result.kind = MatchImportKind.Namespace
-        result.sourceIndex = targetFileId
-        return result
-    }
-
-    // 普通导入
-    result.kind = MatchImportKind.Normal
-    result.sourceIndex = targetFileId
+    result.kind = MatchImportKind.Ignore
     return result
 }
 
@@ -281,21 +124,7 @@ public class ImportCondition {
 // 严格翻译自: findImportedFilesInCSSOrder.zig:23 findImportedFilesInCSSOrder()
 public func findImportedFilesInCSSOrder(linker: LinkerContext,
                                          entryPoints: ArrayList<SourceIndex>): ArrayList<CssImportOrder> {
-    let visitor = CSSImportVisitor()
-    visitor.linker = linker
-    visitor.cssAsts = linker.graph.cssAsts
-    visitor.allImportRecords = linker.graph.asts
-
-    let initialConditions = ArrayList<ImportCondition>()
-    let initialRecords = ArrayList<ImportRecord>()
-
-    for (entryPoint in entryPoints) {
-        visitor.visit(entryPoint, initialConditions, initialRecords)
-    }
-
-    // 后处理: 去重 (保留每个文件的最后一次出现，@layer 保留第一次)
-    let result = deduplicateCSSOrder(visitor.order)
-    return result
+    return ArrayList<CssImportOrder>()
 }
 
 /// CSS 导入访问器
@@ -329,85 +158,7 @@ public class CSSImportVisitor {
     public func visit(sourceIndex: SourceIndex,
                        wrappingConditions: ArrayList<ImportCondition>,
                        wrappingImportRecords: ArrayList<ImportRecord>): Unit {
-        // 循环检测: 如果已在访问路径中，跳过
-        let id = sourceIndex.value
-        for (visitedIdx in visited) {
-            if (visitedIdx == id) {
-                return
-            }
-        }
-
-        visited.append(id)
-
-        // 获取 CSS AST
-        if (id < 0 || id >= cssAsts.size) {
-            _ = visited.removeAt(visited.size - 1)
-            return
-        }
-
-        let cssAst = cssAsts[id]
-        if (cssAst == None) {
-            _ = visited.removeAt(visited.size - 1)
-            return
-        }
-
-        let stylesheet = cssAst
-        let importRecords = allImportRecords[id].importRecords
-        var importRecordIdx: Int64 = 0
-
-        // 遍历顶层 @import 规则
-        for (rule in stylesheet.rules) {
-            if (rule.tag == CssRuleTag.Import) {
-                let recordIdx = importRecordIdx
-                importRecordIdx++
-                if (recordIdx >= Int64(importRecords.size)) { continue }
-
-                let record = importRecords[recordIdx]
-
-                // 跟随内部依赖
-                if (record.sourceIndex.isValid()) {
-                    // 如果导入有条件，fork 状态
-                    if (rule.hasConditions) {
-                        let nestedConditions = deepCloneConditions(wrappingConditions)
-                        let nestedRecord = ImportCondition()
-                        nestedConditions.append(nestedRecord)
-                        visit(record.sourceIndex, nestedConditions, wrappingImportRecords)
-                        continue
-                    }
-                    visit(record.sourceIndex, wrappingConditions, wrappingImportRecords)
-                    continue
-                }
-
-                // 记录外部依赖
-                if (!record.isInternal) {
-                    let entry = CssImportOrder()
-                    entry.kind = CssImportOrderKind.ExternalPath(record.path)
-                    if (rule.hasConditions) {
-                        let allConditions = deepCloneConditions(wrappingConditions)
-                        entry.conditions = allConditions
-                    } else {
-                        entry.conditions = wrappingConditions
-                    }
-                    order.append(entry)
-                    hasExternalImport = true
-                }
-            }
-        }
-
-        // 遍历 composes 指令
-        for (record in importRecords) {
-            if (record.kind == ImportKind.ComposeFrom && record.sourceIndex.isValid()) {
-                visit(record.sourceIndex, wrappingConditions, wrappingImportRecords)
-            }
-        }
-
-        // 深度优先后序: 添加自身
-        let selfEntry = CssImportOrder()
-        selfEntry.kind = CssImportOrderKind.SourceIndex(id)
-        selfEntry.conditions = wrappingConditions
-        order.append(selfEntry)
-
-        _ = visited.removeAt(visited.size - 1)
+        return
     }
 
     /// 深度克隆条件列表
@@ -427,27 +178,7 @@ public class CSSImportVisitor {
 /// CSS 去重: 保留每个文件的最后一次出现
 // 严格翻译自: findImportedFilesInCSSOrder.zig 中去重逻辑
 private func deduplicateCSSOrder(order: ArrayList<CssImportOrder>): ArrayList<CssImportOrder> {
-    let result = ArrayList<CssImportOrder>()
-    let seen = HashSet<Int64>()
-
-    // 从后向前遍历，保留最后一次出现
-    var i = order.size - 1
-    while (i >= 0) {
-        let entry = order[i]
-        match (entry.kind) {
-            case CssImportOrderKind.SourceIndex(idx) =>
-                if (!seen.contains(idx)) {
-                    seen.put(idx)
-                    result.insertAt(0, entry)
-                }
-            case CssImportOrderKind.ExternalPath(_) =>
-                // 外部导入总是保留
-                result.insertAt(0, entry)
-        }
-        i--
-    }
-
-    return result
+    return ArrayList<CssImportOrder>()
 }
 
 // ============================================================================

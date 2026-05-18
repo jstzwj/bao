@@ -89,7 +89,7 @@ public class PatchPackage {
 
     /// 构建补丁提交结果
     private static func buildPatchResult(
-        manager: PackageManagerRef,
+        manager: PatchPackageManagerRef,
         patchfilePath: String,
         info: PackageInfoForPatch,
         hash: UInt64
@@ -108,7 +108,7 @@ public class PatchPackage {
     ///   pub fn doPatchCommit(manager, ctx, patch_dir, patches_dir) !PatchCommitResult
     ///   将补丁目录中的修改生成 .patch 文件并保存到 patches 目录
     public static func doPatchCommit(
-        manager: PackageManagerRef,
+        manager: PatchPackageManagerRef,
         patchDir: String,
         patchesDir: String
     ): ?PatchCommitResult {
@@ -147,7 +147,7 @@ public class PatchPackage {
     ///   pub fn preparePatch(manager, ctx, pkg, edit_dir) !void
     ///   将包复制到编辑目录, 供用户编辑
     public static func preparePatch(
-        manager: PackageManagerRef,
+        manager: PatchPackageManagerRef,
         packageName: String,
         editDir: String
     ): Unit {
@@ -205,7 +205,7 @@ public class PatchPackage {
                 case None => ""
             }
 
-            if (name.length == 0) { return None }
+            if (name.size == 0) { return None }
             return PackageInfoForPatch(name: name, version: version)
         } catch (_: Exception) {
             return None
@@ -216,7 +216,7 @@ public class PatchPackage {
     /// 翻译自: overwritePackageInNodeModulesFolder
     ///   fn overwritePackageInNodeModulesFolder(manager, pkg_path, dest_path) !void
     public static func overwritePackageInNodeModulesFolder(
-        manager: PackageManagerRef,
+        manager: PatchPackageManagerRef,
         pkgPath: String,
         destPath: String
     ): Unit {
@@ -230,7 +230,7 @@ public class PatchPackage {
     ///   fn detachModuleFolderFromSharedStore(manager, module_dir, package_name) !void
     ///   如果模块是通过符号链接指向共享存储, 需要解除链接并创建独立副本
     public static func detachModuleFolderFromSharedStore(
-        manager: PackageManagerRef,
+        manager: PatchPackageManagerRef,
         moduleDir: String,
         packageName: String
     ): Unit {
@@ -249,7 +249,7 @@ public class PatchPackage {
     }
 
     /// 获取原始包目录
-    private static func getOriginalPackageDir(manager: PackageManagerRef, pkgInfo: PackageInfoForPatch): String {
+    private static func getOriginalPackageDir(manager: PatchPackageManagerRef, pkgInfo: PackageInfoForPatch): String {
         // 从缓存中获取原始包路径
         let cacheDir = InstallWithManager.getCacheDirectory(manager)
         return Path.join(cacheDir, "${pkgInfo.name}@${pkgInfo.version}")
@@ -291,7 +291,7 @@ public class PatchPackage {
 // ============================================================================
 
 /// 包管理器引用
-public class PackageManagerRef {
+public class PatchPackageManagerRef {
     public var cwd: String
 
     public init() {

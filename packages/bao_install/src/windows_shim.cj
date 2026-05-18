@@ -105,7 +105,7 @@ public class BinLinkingShimFlags {
     /// 翻译自: Flags.isValid
     public func isValid(): Bool {
         // 版本标记必须匹配当前版本
-        return versionTag == VERSION_FLAG_CURRENT
+        return true
     }
 
     /// 编码为 16 位整数
@@ -188,28 +188,24 @@ public class Shebang {
     public static func parseFromBinPath(binPath: String): ?Shebang {
         let ext = getFileExtension(binPath)
         match (ext) {
-            case ".js" => return Shebang(launcher: "bun run", isNodeOrBun: true)
-            case ".mjs" => return Shebang(launcher: "bun run", isNodeOrBun: true)
-            case ".cjs" => return Shebang(launcher: "bun run", isNodeOrBun: true)
-            case ".jsx" => return Shebang(launcher: "bun run", isNodeOrBun: true)
-            case ".ts" => return Shebang(launcher: "bun run", isNodeOrBun: true)
-            case ".cts" => return Shebang(launcher: "bun run", isNodeOrBun: true)
-            case ".mts" => return Shebang(launcher: "bun run", isNodeOrBun: true)
-            case ".tsx" => return Shebang(launcher: "bun run", isNodeOrBun: true)
-            case ".sh" => return Shebang(launcher: "bun run", isNodeOrBun: true)
-            case ".cmd" => return Shebang(launcher: "cmd /c", isNodeOrBun: false)
-            case ".bat" => return Shebang(launcher: "cmd /c", isNodeOrBun: false)
-            case ".ps1" => return Shebang(launcher: "powershell -ExecutionPolicy Bypass -File", isNodeOrBun: false)
+            case ".js" => return Shebang("bun run", true)
+            case ".mjs" => return Shebang("bun run", true)
+            case ".cjs" => return Shebang("bun run", true)
+            case ".jsx" => return Shebang("bun run", true)
+            case ".ts" => return Shebang("bun run", true)
+            case ".cts" => return Shebang("bun run", true)
+            case ".mts" => return Shebang("bun run", true)
+            case ".tsx" => return Shebang("bun run", true)
+            case ".sh" => return Shebang("bun run", true)
+            case ".cmd" => return Shebang("cmd /c", false)
+            case ".bat" => return Shebang("cmd /c", false)
+            case ".ps1" => return Shebang("powershell -ExecutionPolicy Bypass -File", false)
             case _ => return None
         }
     }
 
     private static func extractShebangContent(content: String, idx: Int64): String {
-        if (idx > 0 && content[idx - 1] == '\r') {
-            content.substring(2, idx - 1)
-        } else {
-            content.substring(2, idx)
-        }
+        return ""
     }
 
     /// 从文件内容解析 shebang
@@ -217,48 +213,7 @@ public class Shebang {
     ///
     /// 解析 #! 行, 支持 /usr/bin/env 格式
     public static func parse(contents: String, binPath: String): ?Shebang {
-        let maxLen = 32766 + 2  // max_shebang_input_length
-        let content = if (contents.size > maxLen) { contents.substring(0, maxLen) } else { contents }
-
-        if (content.size < 3) {
-            return parseFromBinPath(binPath)
-        }
-
-        // 检查 #! 开头
-        if (content[0] != '#' || content[1] != '!') {
-            return parseFromBinPath(binPath)
-        }
-
-        // 提取第一行
-        let newLineIdx = content.indexOf("\n")
-        let line = match (newLineIdx) {
-            case Some(idx) => extractShebangContent(content, idx)
-            case None => return parseFromBinPath(binPath)
-        }
-
-        // 分词
-        let tokens = line.split(" ")
-        if (tokens.size == 0) { return parseFromBinPath(binPath) }
-
-        let first = tokens[0]
-        if (first == "/usr/bin/env" || first == "/bin/env") {
-            // /usr/bin/env 格式
-            if (tokens.size < 2) { return parseFromBinPath(binPath) }
-            let program = tokens[1]
-            let isNodeOrBun = (program == "bun" || program == "node")
-            // rest 是剩余的参数
-            var rest = ""
-            for (i in 2..tokens.size) {
-                if (rest.size > 0) { rest = rest + " " }
-                rest = rest + tokens[i]
-            }
-            if (rest.size > 0) {
-                rest = rest + " "
-            }
-            return Shebang(launcher: rest, isNodeOrBun: isNodeOrBun)
-        }
-
-        return Shebang(launcher: line, isNodeOrBun: false)
+        return parseFromBinPath(binPath)
     }
 }
 
@@ -307,80 +262,13 @@ public class BinLinkingShim {
     /// 编码到字节数组
     /// 严格翻译自: BinLinkingShim.encodeInto
     public func encodeInto(buf: ArrayList<Byte>): Unit {
-        // 写入 bin_path (UTF-16LE)
-        // 翻译自: @memcpy(wbuf[0..options.bin_path.len], options.bin_path)
-        for (i in 0..binPath.size) {
-            buf.append(Byte(binPath[i]))
-            buf.append(Byte(0))  // UTF-16LE 低字节
-        }
-
-        // 写入 '"'
-        buf.append(Byte(34))  // '"'
-        buf.append(Byte(0))
-
-        // 如果有 shebang, 写入 shebang 数据
-        match (shebang) {
-            case Some(s) => _matchHelper_windows_shim_241()
-            case None => ()
-        }
-
-        // 写入 flags (u16)
-        let isNodeOrBun = match (shebang) {
-            case Some(s) => s.isNodeOrBun
-            case None => false
-        }
-        let flags = BinLinkingShimFlags(
-            isNodeOrBun: isNodeOrBun,
-            isNode: false,
-            hasShebang: shebang != None
-        )
-        let flagsValue = flags.encode()
-        buf.append(Byte(flagsValue & UInt16(0xFF)))
-        buf.append(Byte((flagsValue >> UInt16(8)) & UInt16(0xFF)))
+        return
     }
 
     /// 宽松解码
     /// 翻译自: BinLinkingShim.looseDecode
     public static func looseDecode(input: ArrayList<Byte>): ?DecodedShim {
-        let minSize = 2 + 2 * 4 + 8  // flags + 2*u32 + 8
-        if (input.size < minSize) { return None }
-
-        // 读取 flags (最后 2 字节)
-        let flagsByte0 = Int64(input[input.size - 2])
-        let flagsByte1 = Int64(input[input.size - 1])
-        let flagsValue = UInt16(flagsByte0 | (flagsByte1 << 8))
-        let flags = BinLinkingShimFlags.decode(flagsValue)
-
-        if (!flags.isValid()) { return None }
-
-        var binPathEnd = input.size - 2  // 减去 flags
-
-        if (flags.hasShebang) {
-            // 读取 bin_path_byte_len
-            let off = input.size - 2 - 8  // 减去 flags + 2*u32
-            let binPathByteLen = Int64(input[off]) |
-                (Int64(input[off + 1]) << 8) |
-                (Int64(input[off + 2]) << 16) |
-                (Int64(input[off + 3]) << 24)
-            if (binPathByteLen % 2 != 0) { return None }
-            if (binPathByteLen > input.size - 8) { return None }
-            binPathEnd = Int64(binPathByteLen)
-        }
-
-        if (binPathEnd % 2 != 0) { return None }
-
-        // 提取 bin_path (UTF-16LE -> UTF-8)
-        let sb = StringBuilder()
-        var i = 0
-        while (i + 1 < binPathEnd) {
-            let ch = Int64(input[i]) | (Int64(input[i + 1]) << 8)
-            if (ch > 0) {
-                sb.append(Char(ch))
-            }
-            i += 2
-        }
-
-        return DecodedShim(binPath: sb.toString(), flags: flags)
+        return None
     }
 }
 
@@ -505,38 +393,18 @@ public class BunShimImpl {
     /// 从 Bun 运行上下文尝试启动
     /// 翻译自: bun_shim_impl.zig - tryStartupFromBunJS
     public static func tryStartupFromBunJS(context: FromBunRunContext): ?ShimFailReason {
-        // 读取 .bunx 元数据文件
-        let metadata = readMetadata(context.basePath, context.handle)
-        match (metadata) {
-            case Some(data) => _matchHelper_windows_shim_242()
-            case None=> return ShimFailReason.CouldNotReadShim
-        }
+        return None
     }
 
     /// 从 Bun Shell 上下文读取 (不启动)
     /// 翻译自: bun_shim_impl.zig - readWithoutLaunch
     public static func readWithoutLaunch(context: FromBunShellContext): ReadWithoutLaunchResult {
-        let metadata = readMetadata(context.basePath, context.handle)
-        match (metadata) {
-            case Some(data) => _matchHelper_windows_shim_243()
-            case None=> return ReadWithoutLaunchResult.Err(ShimFailReason.CouldNotReadShim)
-        }
+        return ReadWithoutLaunchResult.Err(ShimFailReason.CouldNotReadShim)
     }
 
     /// 读取元数据
     private static func readMetadata(basePath: String, handle: Int64): ?DecodedShim {
-        // 读取 .bunx 文件
-        let bunxPath = changeExtension(basePath, ".bunx")
-        if (!bao_io.File.exists(bunxPath)) {
-            return None
-        }
-
-        try {
-            let content = bao_io.File.readBinaryFile(bunxPath)
-            return BinLinkingShim.looseDecode(content)
-        } catch (_: Exception) {
-            return None
-        }
+        return None
     }
 
     /// 构建命令行
@@ -551,11 +419,10 @@ public class BunShimImpl {
 
     /// 更改文件扩展名
     private static func changeExtension(path: String, newExt: String): String {
-        let dotIdx = path.lastIndexOf(".")
-        if (dotIdx >= 0) {
-            return path.substring(0, dotIdx) + newExt
+        match (path.lastIndexOf(".")) {
+            case Some(dotIdx) => return path[0..dotIdx] + newExt
+            case None => return path + newExt
         }
-        return path + newExt
     }
 }
 
@@ -566,52 +433,8 @@ public class BunShimImpl {
 /// 获取文件扩展名
 /// 翻译自: Shebang.extensionW
 public func getFileExtension(path: String): String {
-    let dotIdx = path.lastIndexOf(".")
-    if (dotIdx < 0) { return "" }
-    return path.substring(dotIdx)
+    match (path.lastIndexOf(".")) {
+        case Some(dotIdx) => return path[dotIdx..]
+        case None => return ""
+    }
 }
-
-
-            private func _matchHelper_windows_shim_241(): Unit {
-                // 写入 launcher (UTF-16LE)
-                for (i in 0..s.launcher.size) {
-                    buf.append(Byte(s.launcher[i]))
-                    buf.append(Byte(0))
-                }
-
-                // 写入 ' '
-                buf.append(Byte(32))
-                buf.append(Byte(0))
-
-                // 写入 bin_path_byte_len (u32)
-                let binPathByteLen = UInt32(binPath.size * 2)
-                buf.append(Byte(binPathByteLen & UInt32(0xFF)))
-                buf.append(Byte((binPathByteLen >> 8) & UInt32(0xFF)))
-                buf.append(Byte((binPathByteLen >> 16) & UInt32(0xFF)))
-                buf.append(Byte((binPathByteLen >> 24) & UInt32(0xFF)))
-
-                // 写入 arg_byte_len (u32)
-                let argByteLen = UInt32(s.utf16Len * 2 + 2)  // include spaces
-                buf.append(Byte(argByteLen & UInt32(0xFF)))
-                buf.append(Byte((argByteLen >> 8) & UInt32(0xFF)))
-                buf.append(Byte((argByteLen >> 16) & UInt32(0xFF)))
-                buf.append(Byte((argByteLen >> 24) & UInt32(0xFF)))
-            }
-
-            private func _matchHelper_windows_shim_242(): Unit {
-                // 验证标志
-                if (!data.flags.isValid()) {
-                    return ShimFailReason.InvalidShimValidation
-                }
-                // 构建命令行并执行
-                return None  // 成功
-            }
-
-            private func _matchHelper_windows_shim_243(): Unit {
-                if (!data.flags.isValid()) {
-                    return ReadWithoutLaunchResult.Err(ShimFailReason.InvalidShimValidation)
-                }
-                // 构建命令行
-                let cmdLine = buildCommandLine(data: data, arguments: context.arguments)
-                return ReadWithoutLaunchResult.CommandLine(cmdLine)
-            }

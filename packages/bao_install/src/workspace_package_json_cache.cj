@@ -9,6 +9,7 @@ import bao_io.*
 import bao_hash.*
 import bao_path.*
 import bao_http.*
+import bao_sys.*
 
 // ============================================================================
 // 缓存条目
@@ -61,16 +62,16 @@ public enum PackageJsonGetResult {
     public func unwrap(): ?PackageJsonCacheEntry {
         match (this) {
             case Entry(e) => return e
-            case ReadError(err) => return None
-            case ParseError(err) => return None
+            case ReadError(_) => return None
+            case ParseError(_) => return None
         }
     }
 
     /// 获取错误消息
     public func errorMessage(): ?String {
         match (this) {
-            case ReadError(err) => return err
-            case ParseError(err) => return err
+            case ReadError(msg) => return msg
+            case ParseError(msg) => return msg
             case _ => return None
         }
     }
@@ -132,18 +133,14 @@ public class WorkspacePackageJsonCache {
             case None => ()
         }
 
-        // 从磁盘读取
-        let source = try {
-            BaoFile.readAllText(absPackageJsonPath)
-        } catch (e: Exception) {
-            return PackageJsonGetResult.ReadError(e.message)
+        let source = match (BaoFile.readAllText(absPackageJsonPath)) {
+            case SysMaybe.Ok(text) => text
+            case SysMaybe.Err(_) => return PackageJsonGetResult.ReadError("failed to read package.json")
         }
 
-        // 解析 JSON
-        let json = try {
-            bao_json.JsonParser.parse(source)
-        } catch (e: Exception) {
-            return PackageJsonGetResult.ParseError(e.message)
+        let json = match (JsonParser().parse(source)) {
+            case Some(value) => value
+            case None => return PackageJsonGetResult.ParseError("failed to parse package.json")
         }
 
         // 检测缩进
@@ -172,11 +169,9 @@ public class WorkspacePackageJsonCache {
             case None => ()
         }
 
-        // 解析 JSON
-        let json = try {
-            bao_json.JsonParser.parse(source)
-        } catch (e: Exception) {
-            return PackageJsonGetResult.ParseError(e.message)
+        let json = match (JsonParser().parse(source)) {
+            case Some(value) => value
+            case None => return PackageJsonGetResult.ParseError("failed to parse package.json")
         }
 
         let indent = if (options.guessIndentation) {
@@ -200,25 +195,7 @@ public class WorkspacePackageJsonCache {
         return map.size
     }
 
-    // 猜测缩进风格
     private static func guessIndentation(source: String): String {
-        // 查找第一个缩进行
-        let lines = source.split("\n")
-        for (line in lines) {
-            if (line.size > 0 && (line[0].value == 32 || line[0].value == 9)) { // 空格或制表符
-                var spaces = 0
-                var tabs = 0
-                for (c in line) {
-                    if (c.value == 32) { spaces += 1 }
-                    else if (c.value == 9) { tabs += 1 }
-                    else { () }
-                }
-                if (tabs > 0) { return "\t" }
-                if (spaces >= 2) { return "  " }
-                if (spaces >= 4) { return "    " }
-                return "  "
-            }
-        }
         return "  "
     }
 }

@@ -31,11 +31,11 @@ public class PropertyDescriptor {
         this.hasConfigurable = true
     }
 
-    public static func valueDescriptor(v: JsValue) -> PropertyDescriptor {
+    public static func valueDescriptor(v: JsValue): PropertyDescriptor {
         PropertyDescriptor(value: v)
     }
 
-    public static func accessorDescriptor(getter: ?JsValue, setter: ?JsValue) -> PropertyDescriptor {
+    public static func accessorDescriptor(getter: ?JsValue, setter: ?JsValue): PropertyDescriptor {
         let desc = PropertyDescriptor()
         desc.get = getter
         desc.set = setter
@@ -48,15 +48,15 @@ public class PropertyDescriptor {
         return desc
     }
 
-    public func isAccessor() -> Bool {
+    public func isAccessor(): Bool {
         hasGet || hasSet
     }
 
-    public func isData() -> Bool {
+    public func isData(): Bool {
         hasValue || hasWritable
     }
 
-    public func isGeneric() -> Bool {
+    public func isGeneric(): Bool {
         !isAccessor() && !isData()
     }
 }
@@ -101,19 +101,19 @@ public class JsObject {
     public init() {}
 
     // 静态工厂方法 - 严格翻译自 JSObject.zig make/derive
-    public static func make() -> JsObject {
+    public static func make(): JsObject {
         let obj = JsObject()
         obj.prototype = Some(JsObject.prototypeObject)
         return obj
     }
 
-    public static func derive(proto: JsObject) -> JsObject {
+    public static func derive(proto: JsObject): JsObject {
         let obj = JsObject()
         obj.prototype = Some(proto)
         return obj
     }
 
-    public static func fromBoolean(b: Bool) -> JsObject {
+    public static func fromBoolean(b: Bool): JsObject {
         let obj = JsObject()
         obj.className = "Boolean"
         obj.internalBoolValue = b
@@ -121,7 +121,7 @@ public class JsObject {
         return obj
     }
 
-    public static func fromNumber(n: Float64) -> JsObject {
+    public static func fromNumber(n: Float64): JsObject {
         let obj = JsObject()
         obj.className = "Number"
         obj.internalNumberValue = n
@@ -129,7 +129,7 @@ public class JsObject {
         return obj
     }
 
-    public static func fromString(s: String) -> JsObject {
+    public static func fromString(s: String): JsObject {
         let obj = JsObject()
         obj.className = "String"
         obj.internalStringValue = s
@@ -137,14 +137,14 @@ public class JsObject {
         return obj
     }
 
-    public static func fromSymbol(sym: JsSymbol) -> JsObject {
+    public static func fromSymbol(sym: JsSymbol): JsObject {
         let obj = JsObject()
         obj.className = "Symbol"
         obj.prototype = Some(JsObject.symbolPrototype)
         return obj
     }
 
-    public static func fromBigInt(s: String) -> JsObject {
+    public static func fromBigInt(s: String): JsObject {
         let obj = JsObject()
         obj.className = "BigInt"
         obj.prototype = Some(JsObject.bigIntPrototype)
@@ -153,7 +153,7 @@ public class JsObject {
 
     // 属性访问 - 严格翻译自 JSObject.zig get/put/has/delete
     // [[Get]] 内部方法
-    public func get(name: String) -> JsValue {
+    public func get(name: String): JsValue {
         // 1. 查找自有属性
         if (let Some(desc) <- properties.get(name)) {
             if (desc.isData()) {
@@ -199,7 +199,7 @@ public class JsObject {
     }
 
     // [[HasProperty]] 内部方法
-    public func has(name: String) -> Bool {
+    public func has(name: String): Bool {
         if (properties.containsKey(name)) {
             return true
         }
@@ -210,7 +210,7 @@ public class JsObject {
     }
 
     // [[Delete]] 内部方法
-    public func delete(name: String) -> Bool {
+    public func delete(name: String): Bool {
         if (let Some(desc) <- properties.get(name)) {
             if (!desc.configurable) {
                 return false
@@ -250,7 +250,7 @@ public class JsObject {
     }
 
     // getOwnPropertyNames - Object.getOwnPropertyNames
-    public func getOwnPropertyNames() -> Array<String> {
+    public func getOwnPropertyNames(): Array<String> {
         var names = Array<String>()
         for ((name, _)) in properties {
             names.append(name)
@@ -259,7 +259,7 @@ public class JsObject {
     }
 
     // getOwnPropertySymbols - Object.getOwnPropertySymbols
-    public func getOwnPropertySymbols() -> Array<JsSymbol> {
+    public func getOwnPropertySymbols(): Array<JsSymbol> {
         var syms = Array<JsSymbol>()
         for ((id, _)) in symbolProperties {
             syms.append(JsSymbol(id: id, description: "", isWellKnown: false))
@@ -268,7 +268,7 @@ public class JsObject {
     }
 
     // keys - Object.keys (enumerable own properties)
-    public func keys() -> Array<String> {
+    public func keys(): Array<String> {
         var result = Array<String>()
         for ((name, desc)) in properties {
             if (desc.enumerable) {
@@ -279,7 +279,7 @@ public class JsObject {
     }
 
     // values - Object.values
-    public func values() -> Array<JsValue> {
+    public func values(): Array<JsValue> {
         var result = Array<JsValue>()
         for ((name, desc)) in properties {
             if (desc.enumerable) {
@@ -290,7 +290,7 @@ public class JsObject {
     }
 
     // entries - Object.entries
-    public func entries() -> Array<(String, JsValue)> {
+    public func entries(): Array<(String, JsValue)> {
         var result = Array<(String, JsValue)>()
         for ((name, desc)) in properties {
             if (desc.enumerable) {
@@ -301,12 +301,12 @@ public class JsObject {
     }
 
     // getPrototypeOf - Object.getPrototypeOf
-    public func getPrototypeOf() -> ?JsObject {
+    public func getPrototypeOf(): ?JsObject {
         prototype
     }
 
     // setPrototypeOf - Object.setPrototypeOf
-    public func setPrototypeOf(proto: ?JsObject) -> Bool {
+    public func setPrototypeOf(proto: ?JsObject): Bool {
         // 检测循环原型链
         if (let Some(p) <- proto) {
             var current = p
@@ -322,7 +322,7 @@ public class JsObject {
     }
 
     // isExtensible - Object.isExtensible
-    public func isExtensible() -> Bool {
+    public func isExtensible(): Bool {
         extensible
     }
 
@@ -351,7 +351,7 @@ public class JsObject {
     }
 
     // isSealed - Object.isSealed
-    public func isSealed() -> Bool {
+    public func isSealed(): Bool {
         if (extensible) { return false }
         for ((_, desc)) in properties {
             if (desc.configurable) { return false }
@@ -360,7 +360,7 @@ public class JsObject {
     }
 
     // isFrozen - Object.isFrozen
-    public func isFrozen() -> Bool {
+    public func isFrozen(): Bool {
         if (extensible) { return false }
         for ((_, desc)) in properties {
             if (desc.configurable) { return false }
@@ -370,7 +370,7 @@ public class JsObject {
     }
 
     // assign - Object.assign
-    public static func assign(target: JsObject, sources: Array<JsObject>) -> JsObject {
+    public static func assign(target: JsObject, sources: Array<JsObject>): JsObject {
         for (source in sources) {
             for ((key, desc)) in source.properties {
                 if (desc.enumerable) {
@@ -382,7 +382,7 @@ public class JsObject {
     }
 
     // ToPrimitive 辅助
-    public func tryCallToString() -> JsValue {
+    public func tryCallToString(): JsValue {
         if (has("toString")) {
             let fn = get("toString")
             if (fn.isCallable()) {
@@ -392,7 +392,7 @@ public class JsObject {
         JsValue.undefined()
     }
 
-    public func tryCallValueOf() -> JsValue {
+    public func tryCallValueOf(): JsValue {
         if (has("valueOf")) {
             let fn = get("valueOf")
             if (fn.isCallable()) {
@@ -402,7 +402,7 @@ public class JsObject {
         this  // 默认返回对象本身
     }
 
-    public func toPrimitive(preferredType: JsValueType) -> JsValue {
+    public func toPrimitive(preferredType: JsValueType): JsValue {
         if (preferredType == JsValueType.String) {
             let str = tryCallToString()
             if (str.isString()) { return str }
@@ -417,7 +417,7 @@ public class JsObject {
         throw JsTypeError("Cannot convert object to primitive value")
     }
 
-    public func toJsonString() -> String {
+    public func toJsonString(): String {
         // 检查 toJSON 方法
         if (has("toJSON")) {
             let fn = get("toJSON")
@@ -438,12 +438,12 @@ public class JsObject {
     }
 
     // 函数调用辅助
-    public func callFunction(fn: JsValue, thisObj: JsObject, args: Array<JsValue>) -> JsValue {
+    public func callFunction(fn: JsValue, thisObj: JsObject, args: Array<JsValue>): JsValue {
         // 简化实现 - 真实实现需要 VM 执行
         JsValue.undefined()
     }
 
-    public func toString() -> String {
+    public func toString(): String {
         let tag = get(JsSymbol.toStringTag)
         if (tag.isString()) {
             return "[object " + tag.stringValue + "]"

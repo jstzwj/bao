@@ -12,12 +12,12 @@ public class FetchHeaders {
     public init() {}
 
     // 严格翻译自 FetchHeaders.create
-    public static func create(global: JsObject) -> JsValue {
+    public static func create(global: JsObject): JsValue {
         JsValue.undefined()
     }
 
     // 严格翻译自 FetchHeaders.fromJS
-    public static func fromJS(value: JsValue) -> ?FetchHeaders {
+    public static func fromJS(value: JsValue): ?FetchHeaders {
         None
     }
 
@@ -27,12 +27,12 @@ public class FetchHeaders {
     }
 
     // 严格翻译自 FetchHeaders.get
-    public func get(name: String) -> ?String {
+    public func get(name: String): ?String {
         None
     }
 
     // 严格翻译自 FetchHeaders.count
-    public func count() -> Int64 {
+    public func count(): Int64 {
         0
     }
 }

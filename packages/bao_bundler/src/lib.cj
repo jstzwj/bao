@@ -383,8 +383,8 @@ public class OutputFileInitOptions {
     public var bakeExtra: BakeExtra
 
     public init() {
-        this.loader = ""
-        this.inputLoader = ""
+        this.loader = Loader.Js
+        this.inputLoader = Loader.Js
         this.hash = 0
         this.sourceMapIndex = 0
         this.bytecodeIndex = 0

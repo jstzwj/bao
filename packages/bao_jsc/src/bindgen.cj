@@ -15,7 +15,7 @@ public class BindgenTrivial<T> {
     }
 
     // 严格翻译自 BindgenTrivial.convertFromExtern
-    public func convertFromExtern() -> T {
+    public func convertFromExtern(): T {
         externValue
     }
 }
@@ -39,7 +39,7 @@ public type BindgenRawAny = BindgenTrivial<JsValue>
 // 强引用类型的 FFI 桥接
 public class BindgenStrongAny {
     // 严格翻译自 BindgenStrongAny.convertFromExtern
-    public static func convertFromExtern(externValue: ?StrongImpl) -> Strong<JsValue> {
+    public static func convertFromExtern(externValue: ?StrongImpl): Strong<JsValue> {
         let strong = Strong<JsValue>()
         if (let Some(impl) <- externValue) {
             strong.impl = impl
@@ -48,7 +48,7 @@ public class BindgenStrongAny {
     }
 
     // 严格翻译自 BindgenStrongAny.convertOptionalFromExtern
-    public static func convertOptionalFromExtern(externValue: ?StrongImpl) -> StrongOptional<JsValue> {
+    public static func convertOptionalFromExtern(externValue: ?StrongImpl): StrongOptional<JsValue> {
         let strong = StrongOptional<JsValue>()
         if (let Some(impl) <- externValue) {
             strong.impl = impl
@@ -86,7 +86,7 @@ public class BindgenOptional<T> {
     }
 
     // 严格翻译自 BindgenOptional.convertFromExtern
-    public static func convertFromExtern<T>(externValue: BindgenExternOptional<T>) -> ?T {
+    public static func convertFromExtern<T>(externValue: BindgenExternOptional<T>): ?T {
         if (externValue.tag == 0) {
             return None
         }
@@ -111,7 +111,7 @@ public class BindgenExternOptional<T> {
 public class BindgenString {
     // 严格翻译自 BindgenString.convertFromExtern
     // 外部字符串表示为 UTF-8 字节切片
-    public static func convertFromExtern(ptr: CPointer<UInt8>, len: Int64) -> String {
+    public static func convertFromExtern(ptr: CPointer<UInt8>, len: Int64): String {
         if (len == 0 || ptr == CPointer<UInt8>()) {
             return ""
         }
@@ -120,7 +120,7 @@ public class BindgenString {
     }
 
     // 严格翻译自 BindgenString.convertOptionalFromExtern
-    public static func convertOptionalFromExtern(ptr: CPointer<UInt8>, len: Int64) -> ?String {
+    public static func convertOptionalFromExtern(ptr: CPointer<UInt8>, len: Int64): ?String {
         if (ptr == CPointer<UInt8>()) {
             return None
         }
@@ -133,7 +133,7 @@ public class BindgenString {
 // 标签联合体的 FFI 桥接
 public class BindgenUnion {
     // 严格翻译自 BindgenUnion.convertFromExtern
-    public static func convertFromExtern<T>(externValue: BindgenExternUnion<T>) -> ?T {
+    public static func convertFromExtern<T>(externValue: BindgenExternUnion<T>): ?T {
         if (externValue.tag == 0) {
             return None
         }
@@ -173,7 +173,7 @@ public class BindgenArray<T> {
 
     // 严格翻译自 BindgenArray.convertFromExtern
     // 将外部数组转换为仓颉 ArrayList
-    public func convertFromExtern() -> ArrayList<T> {
+    public func convertFromExtern(): ArrayList<T> {
         let result = ArrayList<T>()
         if (length == 0 || data == CPointer<T>()) {
             return result
@@ -198,12 +198,12 @@ public class BindgenExternalShared<T> {
     }
 
     // 严格翻译自 BindgenExternalShared.convertFromExtern
-    public static func convertFromExtern<T>(ptr: ?T) -> BindgenExternalShared<T> {
+    public static func convertFromExtern<T>(ptr: ?T): BindgenExternalShared<T> {
         BindgenExternalShared<T>(ptr: ptr)
     }
 
     // 严格翻译自 BindgenExternalShared.convertOptionalFromExtern
-    public static func convertOptionalFromExtern<T>(ptr: ?T) -> ?BindgenExternalShared<T> {
+    public static func convertOptionalFromExtern<T>(ptr: ?T): ?BindgenExternalShared<T> {
         if (ptr == None) {
             return None
         }

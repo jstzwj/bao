@@ -15,15 +15,9 @@ import bao_threading.WorkPool
 // 每个任务的上下文 trait。实现者拥有线程外工作体和 JS 线程完成回调;
 // 周围的堆/队列/keep-alive 管道由 AnyTaskJob 提供
 public interface AnyTaskJobCtx<C> {
-    // 可选的可失败 JS 线程设置, 在堆分配后、schedule 之前运行
-    // 默认: 无操作
-    func init(global: JSGlobalObject) -> Result<Unit>
-
-    // 工作池体 — 在 JS 线程之外运行
-    func run(global: CPointer<JSGlobalObject>)
-
-    // JS 线程完成回调。在 run 重新排队到事件循环后调用一次
-    func then(global: JSGlobalObject) -> Result<Unit>
+    func initJob(global: JSGlobalObject): Result<Unit>
+    func run(global: CPointer<JSGlobalObject>): Unit
+    func then(global: JSGlobalObject): Result<Unit>
 }
 
 // ========== AnyTaskJob ==========
@@ -43,24 +37,21 @@ public class AnyTaskJob<C> where C <: AnyTaskJobCtx<C> {
 
     // ========== create ==========
     // 严格翻译自 AnyTaskJob::create
-    // 堆分配, 连接 WorkPoolTask/AnyTask, 并运行 ctx.init()
+    // 堆分配, 连接 WorkPoolTask/AnyTask, 并运行 ctx.initJob()
     // 在 init 错误时释放分配 (运行 Drop for C)
-    public static func create(global: JSGlobalObject, ctx: C) -> Result<AnyTaskJob<C>> {
+    public static func create(global: JSGlobalObject, ctx: C): Result<AnyTaskJob<C>> {
         let vm = global.bunVM()
         let job = AnyTaskJob<C>(ctx: ctx)
         job.vm = vm
         job.task = WorkPoolTask(callback: job.runTask)
 
         // 构建 AnyTask (类型擦除的回调)
-        job.anyTask = AnyTask(
-            ctx: job,
-            callback: { (self_: AnyTaskJob<C>) => self_.runFromJS() }
-        )
+        job.anyTask = AnyTask()
 
         // ctx.init 可能抛出; 在错误时回收 job
-        match(ctx.init(global)) {
+        match(ctx.initJob(global)) {
             case Err(e) => return Err(e)
-            case Ok(_) => {}
+            case Ok(_) => ()
         }
         Ok(job)
     }
@@ -76,9 +67,11 @@ public class AnyTaskJob<C> where C <: AnyTaskJobCtx<C> {
     // ========== createAndSchedule ==========
     // 严格翻译自 AnyTaskJob::createAndSchedule
     // create + schedule 组合。用于调度后不需要从 ctx 读回数据的调用者
-    public static func createAndSchedule(global: JSGlobalObject, ctx: C) -> Result<Unit> {
-        let job = try create(global, ctx)
-        schedule(job)
+    public static func createAndSchedule(global: JSGlobalObject, ctx: C): Result<Unit> {
+        match (create(global, ctx)) {
+            case Ok(job) => schedule(job)
+            case Err(e) => return Err(e)
+        }
         Ok(())
     }
 
@@ -96,7 +89,7 @@ public class AnyTaskJob<C> where C <: AnyTaskJobCtx<C> {
     // ========== runFromJS ==========
     // 严格翻译自 AnyTaskJob::run_from_js
     // AnyTask 回调 — 在 JS 线程运行。回收堆分配
-    public func runFromJS() -> Result<Unit> {
+    public func runFromJS(): Result<Unit> {
         if (vm.isShuttingDown()) {
             return Ok(())
         }

@@ -38,19 +38,19 @@ public class StringBuilder {
 
     // 严格翻译自 StringBuilder.append
     // 追加字符串并返回切片
-    public func append(str: String) -> String {
+    public func append(str: String): String {
         length += str.size
         str
     }
 
     // 严格翻译自 StringBuilder.allocatedSlice
     // 返回已分配的切片
-    public func allocatedSlice() -> Array<UInt8> {
+    public func allocatedSlice(): Array<UInt8> {
         buffer
     }
 
     // 严格翻译自 StringBuilder.len
-    public func len() -> Int64 {
+    public func len(): Int64 {
         length
     }
 

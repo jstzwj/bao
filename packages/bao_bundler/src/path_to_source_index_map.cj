@@ -80,7 +80,10 @@ public class PathToSourceIndexMap {
     /// Bun: pub fn remove(this: *PathToSourceIndexMap, text: []const u8) bool
     /// 返回是否成功删除
     public func remove(text: String): Bool {
-        return map.remove(text)
+        match (map.remove(text)) {
+            case Some(_) => return true
+            case None => return false
+        }
     }
 
     /// 通过 Path 对象删除 - 对应 Bun PathToSourceIndexMap.removePath()
@@ -91,7 +94,10 @@ public class PathToSourceIndexMap {
 
     /// 是否包含键
     public func contains(text: String): Bool {
-        return map.containsKey(text)
+        match (map.get(text)) {
+            case Some(_) => return true
+            case None => return false
+        }
     }
 
     /// 获取条目数量
@@ -126,7 +132,7 @@ public class FsPath {
 
     /// 从字符串创建 - 对应 Bun Fs.Path.init()
     public static func initFunc(text: String): FsPath {
-        return FsPath(text: text)
+        return FsPath(text)
     }
 
     /// 获取漂亮路径

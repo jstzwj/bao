@@ -38,7 +38,7 @@ public class LiveWorkers {
         defer { mutex.unlock() }
         var idx = -1
         for (i in 0..list.size) {
-            if (list[i] === worker) {
+            if (list[i] == worker) {
                 idx = Int64(i)
                 break
             }
@@ -127,7 +127,7 @@ public class WebWorker {
         mini: Bool,
         evalMode: Bool,
         storeFd: Bool
-    ) -> WebWorker {
+    ): WebWorker {
         let worker = WebWorker()
         worker.parent = parent
         worker.cppWorker = cppWorker
@@ -263,7 +263,7 @@ public class WebWorker {
         }
     }
 
-    public func hasRequestedTerminate() -> Bool {
+    public func hasRequestedTerminate(): Bool {
         requestedTerminate
     }
 
@@ -319,7 +319,7 @@ public class Mutex {
 
     public func lock() {}
     public func unlock() {}
-    public func tryLock() -> Bool { true }
+    public func tryLock(): Bool { true }
 }
 
 // ========== 链表节点 ==========

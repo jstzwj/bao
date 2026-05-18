@@ -24,29 +24,22 @@ public class DeferredError {
 
     // 严格翻译自 DeferredError.from
     // 工厂方法: 从格式化字符串创建
-    public static func from(kind: DeferredErrorKind, code: NodeJsErrorCode, message: String) -> DeferredError {
+    public static func from(kind: DeferredErrorKind, code: NodeJsErrorCode, message: String): DeferredError {
         DeferredError(kind: kind, code: code, msg: message)
     }
 
     // 严格翻译自 DeferredError.toError
     // 在全局对象上实例化为 JS 错误
-    public func toError(globalThis: JsObject) -> JsValue {
+    public func toError(globalThis: JsObject): JsValue {
         let err = match (kind) {
-            case PlainError => {
-                JsValue(JsError(msg).toString())
-            }
-            case TypeError => {
-                JsValue(JsTypeError(msg).toString())
-            }
-            case RangeError => {
-                JsValue(JsRangeError(msg).toString())
-            }
+            case PlainError => JsValue(JsError(msg).toString())
+            case TypeError => JsValue(JsTypeError(msg).toString())
+            case RangeError => JsValue(JsRangeError(msg).toString())
         }
 
-        // 设置 code 属性
-        // 对应 Zig: err.put(globalThis, ZigString.static("code"), ZigString.init(@tagName(this.code)).toJS(globalThis))
-        if (let Some(errObj) <- err.toObject()) {
-            errObj.set("code", JsValue(s: code.toName()))
+        match (err.toObject()) {
+            case Some(errObj) => errObj.set("code", JsValue(s: code.toName()))
+            case None => ()
         }
         err
     }
@@ -78,7 +71,7 @@ public enum NodeJsErrorCode {
     | NotDir
     | IsDir
 
-    public func toName() -> String {
+    public func toName(): String {
         match (this) {
             case Unknown => "UNKNOWN"
             case ModuleNotFound => "MODULE_NOT_FOUND"

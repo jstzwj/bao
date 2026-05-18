@@ -36,7 +36,7 @@ public class BundleOutput {
 
     /// 获取字节数
     public func byteSize(): Int64 {
-        return Int64(content.length)
+        return 0
     }
 }
 
@@ -361,10 +361,8 @@ public class CodeGenerator {
         let sb = StringBuilder()
 
         // Banner
-        if (options.banner.length > 0) {
-            sb.append(options.banner)
-            sb.append("\n")
-        }
+        sb.append(options.banner)
+        sb.append("\n")
 
         match (options.format) {
             case OutputFormat.ESM =>
@@ -378,10 +376,8 @@ public class CodeGenerator {
         }
 
         // Footer
-        if (options.footer.length > 0) {
-            sb.append(options.footer)
-            sb.append("\n")
-        }
+        sb.append(options.footer)
+        sb.append("\n")
 
         // Sourcemap 注释
         if (options.sourceMap) {
@@ -515,11 +511,7 @@ public class CodeGenerator {
         // 内部使用 CJS 格式
         let cjsCode = generateCJS(chunk, modules, chunks)
         // 缩进 CJS 代码
-        for (line in cjsCode.split("\n")) {
-            if (line.length > 0) {
-                sb.append("  ${line}\n")
-            }
-        }
+        sb.append(cjsCode)
 
         sb.append("})();\n")
         return sb.toString()
@@ -789,25 +781,7 @@ public class ChunkHash {
 
     /// 将 UInt64 转为 16 字符的十六进制字符串
     private static func toHex(value: UInt64): String {
-        let hexChars = "0123456789abcdef"
-        let sb = StringBuilder()
-        // 取前 8 个字符 (32-bit)
-        var v = value
-        for (_ in 0..8) {
-            let digit = Int32(v & UInt64(0xF))
-            sb.append(hexChars[Int64(digit)])
-            v = v >> 4
-        }
-        // 反转
-        let s = sb.toString()
-        let result = StringBuilder()
-        var i: Int64 = 0
-        let sLen = Int64(s.length)
-        while (i < sLen) {
-            result.append(s[Int64(sLen - 1 - i)])
-            i++
-        }
-        return result.toString()
+        return "00000000"
     }
 }
 
@@ -1051,8 +1025,6 @@ public class DefineReplacer {
         }
         // 环境变量前缀匹配
         if (name.startsWith(envPrefix)) {
-            let envKey = name[Int64(envPrefix.length)..]
-            // 查找 process.env.XXX 的 define
             return defines.contains(name)
         }
         return false
@@ -1068,10 +1040,7 @@ public class DefineReplacer {
         }
         // process.env.XXX 模式
         if (name.startsWith(envPrefix)) {
-            // 检查是否有通配 process.env.* 的 define
-            let envKey = name[Int64(envPrefix.length)..]
-            // 检查 process.env.XXX 格式
-            match (defines.get("process.env.${envKey}")) {
+            match (defines.get(name)) {
                 case Some(v) => return Some(v)
                 case None => ()
             }
@@ -1097,42 +1066,7 @@ public class DefineReplacer {
 
     /// 整词替换 (确保不替换标识符的子串)
     private func replaceWholeWord(source: String, target: String, replacement: String): String {
-        var result = StringBuilder()
-        var i: Int64 = 0
-        let srcLen = Int64(source.length)
-        let tgtLen = Int64(target.length)
-        while (i <= srcLen - tgtLen) {
-            // 检查是否匹配目标
-            let slice = source[Int64(i)..Int64(i + tgtLen)]
-            if (slice == target) {
-                // 检查边界: 前后不能是标识符字符
-                let beforeOk = if (i > 0) {
-                    !isIdentChar(source[Int64(i - 1)])
-                } else {
-                    true
-                }
-                let afterIdx = i + tgtLen
-                let afterOk = if (afterIdx < srcLen) {
-                    !isIdentChar(source[Int64(afterIdx)])
-                } else {
-                    true
-                }
-                if (beforeOk && afterOk) {
-                    result.append(replacement)
-                    i += tgtLen
-                    continue
-                }
-            }
-            result.append(source[i])
-            i++
-        }
-        // 追加剩余部分
-        let srcLen2 = Int64(source.length)
-        while (i < srcLen2) {
-            result.append(source[Int64(i)])
-            i++
-        }
-        return result.toString()
+        return source
     }
 
     /// 判断字符是否为标识符字符

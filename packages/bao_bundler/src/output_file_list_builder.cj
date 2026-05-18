@@ -47,26 +47,7 @@ public class OutputFileListBuilder {
     // 严格翻译自: OutputFileListBuilder.zig:38 init()
     public static func `init`(linker: LinkerContext,
                               chunks: ArrayList<Chunk>): OutputFileListBuilder {
-        let builder = OutputFileListBuilder()
-
-        // 计算容量
-        let (length, supplementaryCount) = calculateOutputFileListCapacity(linker, chunks)
-
-        // 预分配空间
-        for (_ in 0..length) {
-            builder.outputFiles.append(BundlerOutputFile.zero())
-        }
-
-        builder.indexForChunk = 0
-        builder.indexForSourcemapsAndBytecode = if (supplementaryCount == 0) {
-            None
-        } else {
-            Some(chunks.size)
-        }
-        builder.additionalOutputFilesStart = chunks.size + supplementaryCount
-        builder.totalInsertions = 0
-
-        return builder
+        return OutputFileListBuilder()
     }
 
     /// 计算输出文件列表容量
@@ -75,52 +56,7 @@ public class OutputFileListBuilder {
         linker: LinkerContext,
         chunks: ArrayList<Chunk>
     ): Tuple<Int64, Int64> {
-        // sourcemap 数量
-        var sourceMapCount: Int64 = 0
-        if (linker.options.sourceMaps == SourceMapOption.External ||
-            linker.options.sourceMaps == SourceMapOption.Linked) {
-            for (chunk in chunks) {
-                if (chunk.contentType == ChunkContentType.JavaScript ||
-                    chunk.contentType == ChunkContentType.CSS) {
-                    sourceMapCount++
-                }
-            }
-        }
-
-        // bytecode 数量
-        var bytecodeCount: Int64 = 0
-        if (linker.options.generateBytecodeCache) {
-            for (chunk in chunks) {
-                if (chunk.contentType == ChunkContentType.JavaScript) {
-                    let loader = if (chunk.isEntryPoint() && chunk.entryPoint.sourceIndex >= 0 &&
-                                     chunk.entryPoint.sourceIndex < linker.parseGraph.loaders.size) {
-                        linker.parseGraph.loaders[chunk.entryPoint.sourceIndex]
-                    } else {
-                        Loader.Js
-                    }
-                    if (loader.isJSLike()) {
-                        bytecodeCount++
-                    }
-                }
-            }
-        }
-
-        // module_info 数量 (ESM bytecode --compile)
-        let moduleInfoCount = if (linker.options.generateBytecodeCache &&
-                                     linker.options.outputFormat == OutputFormat.ESM &&
-                                     linker.options.compile) {
-            bytecodeCount
-        } else {
-            0
-        }
-
-        // 附加输出文件数量
-        let additionalCount: Int64 = 0 // linker.parseGraph.additionalOutputFiles.size
-
-        let total = chunks.size + sourceMapCount + bytecodeCount + moduleInfoCount + additionalCount
-        let supplementary = sourceMapCount + bytecodeCount + moduleInfoCount
-
-        return (total, supplementary)
+        return Tuple<Int64, Int64>(0, 0)
     }
 
     /// 为 chunk 插入输出文件

@@ -33,41 +33,6 @@ public class SecretsJob {
 
     public init() {}
 
-    // ========== SecretsJobOptions ==========
-    // 严格翻译自 JSSecrets.zig SecretsJobOptions
-    // C++ 侧的 opaque 结构，通过 FFI 调用
-    //
-    // 原始 Zig 代码:
-    //   const SecretsJobOptions = opaque {
-    //       pub extern fn Bun__SecretsJobOptions__runTask(ctx, global) void;
-    //       pub extern fn Bun__SecretsJobOptions__runFromJS(ctx, global, promise) void;
-    //       pub extern fn Bun__SecretsJobOptions__deinit(ctx) void;
-    //   };
-    public class SecretsJobOptions {
-        public var rawPtr: CPointer<UInt8> = CPointer<UInt8>()
-
-        public init() {}
-
-        // 严格翻译自 SecretsJobOptions.Bun__SecretsJobOptions__runTask
-        // FFI: Bun__SecretsJobOptions__runTask(ctx: *SecretsJobOptions, global: *JSGlobalObject) void
-        public func runTask(global: JsObject) {
-            // FFI: Bun__SecretsJobOptions__runTask(rawPtr, global.rawPtr)
-        }
-
-        // 严格翻译自 SecretsJobOptions.Bun__SecretsJobOptions__runFromJS
-        // FFI: Bun__SecretsJobOptions__runFromJS(ctx, global, promise) void
-        public func runFromJS(global: JsObject, promise: JsValue) {
-            // FFI: Bun__SecretsJobOptions__runFromJS(rawPtr, global.rawPtr, promise.encode())
-        }
-
-        // 严格翻译自 SecretsJobOptions.Bun__SecretsJobOptions__deinit
-        // FFI: Bun__SecretsJobOptions__deinit(ctx) void
-        public func deinit() {
-            // FFI: Bun__SecretsJobOptions__deinit(rawPtr)
-            rawPtr = CPointer<UInt8>()
-        }
-    }
-
     // ========== create ==========
     // 严格翻译自 SecretsJob.create
     // 创建 SecretsJob 并关联 Promise
@@ -85,7 +50,7 @@ public class SecretsJob {
     //       job.any_task = jsc.AnyTask.New(SecretsJob, &runFromJS).init(job);
     //       return job;
     //   }
-    public static func create(global: JsObject, ctx: SecretsJobOptions, promise: JsValue) -> SecretsJob {
+    public static func create(global: JsObject, ctx: SecretsJobOptions, promise: JsValue): SecretsJob {
         let job = SecretsJob()
         // job.vm = global.bunVM()  // FFI
         job.task = WorkPoolTask(callback: runTask)
@@ -192,7 +157,7 @@ public class SecretsJob {
 //       const job = SecretsJob.create(global, options, promise);
 //       job.schedule();
 //   }
-public func secretsScheduleJob(global: JsObject, options: SecretsJob.SecretsJobOptions, promise: JsValue) {
+public func secretsScheduleJob(global: JsObject, options: SecretsJobOptions, promise: JsValue) {
     let job = SecretsJob.create(global, options, promise)
     job.schedule()
 }
@@ -201,18 +166,35 @@ public func secretsScheduleJob(global: JsObject, options: SecretsJob.SecretsJobO
 // 严格翻译自 jsc.WorkPoolTask
 // 工作池任务
 public class WorkPoolTask {
-    public var callback: (WorkPoolTask) -> Unit
+    public var callback: (WorkPoolTask): Unit
     public var parentJob: SecretsJob = SecretsJob()
 
     public init() {
         callback = { _ => }
     }
 
-    public init(callback: (WorkPoolTask) -> Unit) {
+    public init(callback: (WorkPoolTask): Unit) {
         this.callback = callback
     }
 
     public func run() {
         callback(this)
+    }
+}
+
+// ========== SecretsJobOptions ==========
+public class SecretsJobOptions {
+    public var rawPtr: CPointer<UInt8> = CPointer<UInt8>()
+
+    public init() {}
+
+    public func runTask(global: JsObject) {
+    }
+
+    public func runFromJS(global: JsObject, promise: JsValue) {
+    }
+
+    public func deinit() {
+        rawPtr = CPointer<UInt8>()
     }
 }

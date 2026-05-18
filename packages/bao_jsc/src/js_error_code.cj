@@ -27,7 +27,7 @@ public enum JSErrorCode {
     | Unknown          // 255 (默认/未初始化)
 
     // 严格翻译自 JSErrorCode 的整数值
-    public func toInt() -> Int64 {
+    public func toInt(): Int64 {
         match (this) {
             case Error => 0
             case EvalError => 1
@@ -46,7 +46,7 @@ public enum JSErrorCode {
     }
 
     // 从整数值创建
-    public static func fromInt(value: Int64) -> JSErrorCode {
+    public static func fromInt(value: Int64): JSErrorCode {
         match (value) {
             case 0 => Error
             case 1 => EvalError
@@ -65,7 +65,7 @@ public enum JSErrorCode {
     }
 
     // 转为字符串名称
-    public func toName() -> String {
+    public func toName(): String {
         match (this) {
             case Error => "Error"
             case EvalError => "EvalError"
@@ -140,7 +140,7 @@ public enum DOMExceptionCode {
     | CryptoOperationFailedError
 
     // 转为字符串名称
-    public func toName() -> String {
+    public func toName(): String {
         match (this) {
             case IndexSizeError => "IndexSizeError"
             case HierarchyRequestError => "HierarchyRequestError"

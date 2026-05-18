@@ -240,7 +240,7 @@ public class SmolStrInlined {
     public static func initFunc(str: String): SmolStrInlined {
         let bytes = str.toArray()
         if (bytes.size > MAX_INLINE_LEN) {
-            throw IllegalArgumentException("SmolStrInlined: 字符串太长,无法内联")
+            throw Exception("SmolStrInlined: 字符串太长,无法内联")
         }
         return SmolStrInlined(bytes)
     }

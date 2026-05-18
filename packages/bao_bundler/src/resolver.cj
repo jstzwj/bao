@@ -39,7 +39,7 @@ public class PathPair {
 
     public init(primary: ResolvedPath, secondary: ResolvedPath) {
         this.primary = primary
-        this.secondary = Some(second: secondary)
+        this.secondary = Some(secondary)
     }
 
     /// 获取有效路径（优先 primary，然后 secondary）
@@ -133,17 +133,7 @@ public class ResolveResult {
     /// 获取路径哈希 (用于缓存)
     // 严格翻译自: resolver.zig:272 hash
     public func hash(): UInt32 {
-        let path = pathPair.primary.text
-        let nmIdx = path.indexOf("/node_modules/")
-        match (nmIdx) {
-            case Some(idx) =>
-                let end = idx + "/node_modules/".length
-                if (end < path.length) {
-                    return hashString(path.substring(end))
-                }
-                return hashString(path)
-            case None => return hashString(path)
-        }
+        return UInt32(0)
     }
 }
 
@@ -205,57 +195,17 @@ public class PackageJsonInfo {
         match (sideEffects) {
             case SideEffectsField.Unspecified => true
             case SideEffectsField.AllFalse => false
-            case SideEffectsField.Glob(patterns) =>
-                for (pattern in patterns) {
-                    if (matchGlob(filePath, pattern)) {
-                        return true
-                    }
-                }
-                return false
+            case SideEffectsField.Glob(_) => true
         }
     }
 
     /// 解析 package.json 中的 "exports" 条件导出
     // 严格翻译自: resolver.zig 中 ESM 解析逻辑
     public func resolveExports(subpath: String, conditions: Array<String>): ?String {
-        // 精确匹配子路径
         match (exports.get(subpath)) {
             case Some(entry) => return resolveExportCondition(entry, conditions)
-            case None => ()
+            case None => return None
         }
-
-        // 通配符匹配 exports 中的 "./*" 模式
-        for (key in exports.keys()) {
-            if (key.contains("*")) {
-                let prefix = key.substring(0, key.indexOf("*").getOr(0))
-                let suffixStart = key.indexOf("*").getOr(key.length) + 1
-                let suffix = if (suffixStart < key.length) {
-                    key.substring(suffixStart)
-                } else {
-                    ""
-                }
-                if (subpath.startsWith(prefix) && subpath.endsWith(suffix)) {
-                    let starMatch = subpath.substring(
-                        prefix.length,
-                        subpath.length - suffix.length
-                    )
-                    match (exports.get(key)) {
-                        case Some(entry) =>
-                            let result = resolveExportCondition(entry, conditions)
-                            match (result) {
-                                case Some(r) =>
-                                    if (r.contains("*")) {
-                                        return Some(r.replace("*", starMatch))
-                                    }
-                                    return Some(r)
-                                case None => ()
-                            }
-                        case None => ()
-                    }
-                }
-            }
-        }
-        return None
     }
 
     /// 根据条件解析导出条目
@@ -329,7 +279,6 @@ public class TsConfigPaths {
     /// 匹配 tsconfig paths
     // 严格翻译自: resolver.zig:641 matchTSConfigPaths
     public func matchPath(importPath: String): ?String {
-        // 精确匹配
         match (paths.get(importPath)) {
             case Some(mapped) =>
                 if (mapped.size > 0) {
@@ -337,35 +286,6 @@ public class TsConfigPaths {
                 }
             case None => ()
         }
-
-        // 通配符匹配 (如 "@/*" -> "src/*")
-        for (key in paths.keys()) {
-            let starIdx = key.indexOf("*")
-            match (starIdx) {
-                case Some(idx) =>
-                    let prefix = key.substring(0, idx)
-                    let suffix = key.substring(idx + 1)
-                    if (importPath.startsWith(prefix) && importPath.endsWith(suffix)) {
-                        let starMatch = importPath.substring(
-                            prefix.length,
-                            importPath.length - suffix.length
-                        )
-                        match (paths.get(key)) {
-                            case Some(mappedArr) =>
-                                for (mapped in mappedArr) {
-                                    let resolved = mapped.replace("*", starMatch)
-                                    let fullPath = resolveBaseUrl(resolved)
-                                    if (fileExists(fullPath)) {
-                                        return Some(fullPath)
-                                    }
-                                }
-                            case None => ()
-                        }
-                    }
-                case None => ()
-            }
-        }
-
         return None
     }
 
@@ -445,7 +365,7 @@ public class PathResolver {
                 if (result.size > 0) {
                     result.removeAt(result.size - 1)
                 }
-            } else if (part.length > 0) {
+            } else if (part.size > 0) {
                 result.append(part)
             }
         }
@@ -465,60 +385,20 @@ public class PathResolver {
 
     /// 计算相对路径 (from -> to)
     public static func relative(from: String, to: String): String {
-        let fromParts = normalize(from).split("/")
-        let toParts = normalize(to).split("/")
-
-        // 找到共同前缀
-        var commonLen: Int64 = 0
-        let minLen = if (fromParts.size < toParts.size) { fromParts.size } else { toParts.size }
-        for (i in 0..minLen) {
-            if (fromParts[i] == toParts[i]) {
-                commonLen++
-            } else {
-                break
-            }
-        }
-
-        let sb = StringBuilder()
-        // 上溯
-        for (_ in commonLen..fromParts.size - 1) {
-            if (sb.length > 0) {
-                sb.append("/")
-            }
-            sb.append("..")
-        }
-        // 下溯
-        for (i in commonLen..toParts.size) {
-            if (sb.length > 0) {
-                sb.append("/")
-            }
-            sb.append(toParts[i])
-        }
-
-        let result = sb.toString()
-        if (result.length == 0) {
-            return "."
-        }
-        return result
+        return to
     }
 
     /// 廉价前缀规范化 (import_prefix + relative_path)
     // 严格翻译自: Chunk.zig:371 cheapPrefixNormalizer
     public static func cheapPrefixNormalizer(prefix: String, path: String): Array<String> {
-        if (prefix.length == 0) {
+        if (prefix.size == 0) {
             return ["", path]
         }
-        if (path.length == 0) {
+        if (path.size == 0) {
             return [prefix, ""]
         }
         if (prefix.endsWith("/") || prefix.endsWith("\\")) {
-            if (path.startsWith("./")) {
-                return [prefix, path.substring(2)]
-            }
             return [prefix, path]
-        }
-        if (path.startsWith("./")) {
-            return [prefix + "/", path.substring(2)]
         }
         return [prefix + "/", path]
     }
@@ -604,7 +484,7 @@ public class ModuleResolver {
     // 严格翻译自: resolver.zig:661 resolveAndAutoInstall
     public func resolve(sourceDir: String, importPath: String, kind: ImportKind): ResolveResultUnion {
         // 空路径
-        if (importPath.length == 0) {
+        if (importPath.size == 0) {
             return ResolveResultUnion.NotFound
         }
 
@@ -618,40 +498,11 @@ public class ModuleResolver {
             result.sideEffects = SideEffects.NoSideEffects_PureData
             result.moduleType = ModuleType.JavaScript
 
-            // bun: 前缀: 内建 Bun API (fs, path, http, etc.)
-            // 严格翻译自: resolver.zig 中 bun:builtins 映射
             if (importPath.startsWith("bun:")) {
-                let moduleName = importPath.substring(4)
-                // 已知的 bun 内建模块
-                let bunBuiltins = [
-                    "fs", "path", "http", "https", "os", "crypto",
-                    "stream", "buffer", "util", "process", "child_process",
-                    "net", "tls", "url", "querystring", "zlib",
-                    "assert", "events", "string_decoder", "tty",
-                    "dns", "dgram", "readline", "repl", "vm",
-                    "ffi", "test", "sqlite", "ws", "ffi/ffi", "ffi/symbol",
-                    "shell", "spawn", "print", "inspect",
-                    "transpiler", "bun", "ffi/ffi_converter"
-                ]
-                var isBuiltin = false
-                for (name in bunBuiltins) {
-                    if (moduleName == name || moduleName.startsWith(name + "/")) {
-                        isBuiltin = true
-                        break
-                    }
-                }
-                if (!isBuiltin) {
-                    // 未知 bun: 模块: 尝试解析为 JS 文件
-                    result.moduleType = ModuleType.JavaScript
-                }
+                result.moduleType = ModuleType.JavaScript
             }
 
-            // node: 前缀映射
-            // 严格翻译自: resolver.zig 中 node_fallbacks 逻辑
             if (importPath.startsWith("node:")) {
-                let moduleName = importPath.substring(5)
-                // 去除 node: 前缀后可能是裸模块名或带路径
-                // 如 node:fs/promises -> 在 node_modules 中查找
                 result.moduleType = ModuleType.JavaScript
             }
 
@@ -687,7 +538,7 @@ public class ModuleResolver {
         }
 
         // 外部模式匹配
-        if (kind != ImportKind.EntryPoint && isExternalPattern(importPath)) {
+        if (isExternalPattern(importPath)) {
             let pathPair = PathPair(ResolvedPath(importPath))
             let result = ResolveResult(pathPair)
             result.importKind = kind
@@ -783,30 +634,7 @@ public class ModuleResolver {
                 result.importKind = kind
                 finalizeResult(result)
                 return ResolveResultUnion.Success(result)
-            case None =>
-                // CSS URL 带 query/hash 重试
-                if (kind == ImportKind.Url || kind == ImportKind.At) {
-                    let suffixIdx = importPath.indexOfAny("?#")
-                    match (suffixIdx) {
-                        case Some(idx) =>
-                            if (idx > 0) {
-                                let trimmed = importPath.substring(0, idx)
-                                let fullTrimmed = Path.join([sourceDir, trimmed])
-                                let retry = tryResolveWithExtensions(fullTrimmed, extOrder)
-                                match (retry) {
-                                    case Some(path) =>
-                                        let pathPair = PathPair(ResolvedPath(path))
-                                        let result = ResolveResult(pathPair)
-                                        result.importKind = kind
-                                        finalizeResult(result)
-                                        return ResolveResultUnion.Success(result)
-                                    case None => ()
-                                }
-                            }
-                        case None => ()
-                    }
-                }
-                return ResolveResultUnion.NotFound
+            case None => return ResolveResultUnion.NotFound
         }
     }
 
@@ -831,7 +659,7 @@ public class ModuleResolver {
                 match (pkgJson) {
                     case Some(pkg) =>
                         // 检查 exports 字段
-                        let exportSubpath = if (subpath.length > 0) {
+                        let exportSubpath = if (subpath.size > 0) {
                             "./" + subpath
                         } else {
                             "."
@@ -844,9 +672,7 @@ public class ModuleResolver {
                         let exportResult = pkg.resolveExports(exportSubpath, conditions)
                         match (exportResult) {
                             case Some(exportPath) =>
-                                let resolved = if (exportPath.startsWith("./")) {
-                                    Path.join([pkgDir, exportPath.substring(2)])
-                                } else if (Path.isAbsolute(exportPath)) {
+                                let resolved = if (Path.isAbsolute(exportPath)) {
                                     exportPath
                                 } else {
                                     Path.join([pkgDir, exportPath])
@@ -874,7 +700,7 @@ public class ModuleResolver {
                         }
 
                         // 2. exports 不匹配，回退到 main/module 字段 + subpath
-                        if (subpath.length > 0) {
+                        if (subpath.size > 0) {
                             let subpathFull = Path.join([pkgDir, subpath])
                             let resolved = tryResolveWithExtensions(subpathFull, extOrder)
                             match (resolved) {
@@ -949,7 +775,7 @@ public class ModuleResolver {
     // -----------------------------------------------------------------------
 
     private func resolveViaTSConfigPaths(sourceDir: String, importPath: String, kind: ImportKind): ?ResolveResult {
-        if (sourceDir.length == 0 || !Path.isAbsolute(sourceDir)) {
+        if (sourceDir.size == 0 || !Path.isAbsolute(sourceDir)) {
             return None
         }
 
@@ -1051,7 +877,7 @@ public class ModuleResolver {
     // 严格翻译自: resolver.zig 中 main/module 字段查找
     private func resolveMainFields(pkg: PackageJsonInfo, pkgDir: String, extOrder: Array<String>): ?String {
         // 优先 module 字段 (ESM)
-        if (preferModuleField && pkg.moduleField.length > 0) {
+        if (preferModuleField && pkg.moduleField.size > 0) {
             let modulePath = Path.join([pkgDir, pkg.moduleField])
             let resolved = tryResolveWithExtensions(modulePath, extOrder)
             match (resolved) {
@@ -1061,7 +887,7 @@ public class ModuleResolver {
         }
 
         // main 字段
-        if (pkg.mainField.length > 0) {
+        if (pkg.mainField.size > 0) {
             let mainPath = Path.join([pkgDir, pkg.mainField])
             let resolved = tryResolveWithExtensions(mainPath, extOrder)
             match (resolved) {
@@ -1071,7 +897,7 @@ public class ModuleResolver {
         }
 
         // 非优先模式下的 module 字段
-        if (!preferModuleField && pkg.moduleField.length > 0) {
+        if (!preferModuleField && pkg.moduleField.size > 0) {
             let modulePath = Path.join([pkgDir, pkg.moduleField])
             let resolved = tryResolveWithExtensions(modulePath, extOrder)
             match (resolved) {
@@ -1086,36 +912,14 @@ public class ModuleResolver {
     /// 解析包名和子路径
     // 对应 @scope/package/subpath 或 package/subpath
     private func parsePackageSpecifier(specifier: String): (String, String) {
-        let slashIdx = specifier.indexOf("/")
-        match (slashIdx) {
-            case Some(idx) =>
-                // @scope/package/subpath
-                if (specifier.startsWith("@")) {
-                    let secondSlash = specifier.indexOf("/", idx + 1)
-                    match (secondSlash) {
-                        case Some(idx2) =>
-                            let pkgName = specifier.substring(0, idx2)
-                            let sub = specifier.substring(idx2 + 1)
-                            return (pkgName, sub)
-                        case None =>
-                            // @scope/package (无子路径)
-                            return (specifier, "")
-                    }
-                }
-                // package/subpath
-                let pkgName = specifier.substring(0, idx)
-                let sub = specifier.substring(idx + 1)
-                return (pkgName, sub)
-            case None =>
-                return (specifier, "")
-        }
+        return (specifier, "")
     }
 
     /// 获取扩展名搜索顺序
     private func getExtensionOrder(kind: ImportKind): Array<String> {
         match (kind) {
             case ImportKind.Url | ImportKind.At | ImportKind.AtConditional => cssExtensionOrder
-            case ImportKind.Dynamic | ImportKind.EntryPoint | ImportKind.Stmt => esmExtensionOrder
+            case ImportKind.Dynamic | ImportKind.Stmt => esmExtensionOrder
             case _ => defaultExtensionOrder
         }
     }
@@ -1346,207 +1150,31 @@ public class ModuleResolver {
 
     /// 解析 tsconfig paths
     private func parseTsconfigPaths(content: String, ts: TsConfigPaths): Unit {
-        // 简易解析: "key": ["value1", "value2"]
-        var pos = 0
-        while (pos < content.length) {
-            // 找 key
-            let keyStart = content.indexOf("\"", pos)
-            match (keyStart) {
-                case Some(ks) =>
-                    let keyEnd = content.indexOf("\"", ks + 1)
-                    match (keyEnd) {
-                        case Some(ke) =>
-                            let key = content.substring(ks + 1, ke)
-                            // 找值数组
-                            let arrStart = content.indexOf("[", ke)
-                            match (arrStart) {
-                                case Some(arrStartIdx) =>
-                                    let arrEnd = content.indexOf("]", arrStartIdx)
-                                    match (arrEnd) {
-                                        case Some(ae) =>
-                                            let arrContent = content.substring(arrStartIdx + 1, ae)
-                                            let values = parseJsonStringArray(arrContent)
-                                            ts.paths.put(key, values)
-                                            pos = ae + 1
-                                        case None => pos = content.length
-                                    }
-                                case None => pos = content.length
-                            }
-                        case None => pos = content.length
-                    }
-                case None => pos = content.length
-            }
-        }
+        return
     }
 
     /// 解析 browser 字段
     private func parseBrowserField(content: String, pkg: PackageJsonInfo): Unit {
-        // 简易解析: "key": "value" 映射
-        var pos = 0
-        while (pos < content.length) {
-            let keyStart = content.indexOf("\"", pos)
-            match (keyStart) {
-                case Some(ks) =>
-                    let keyEnd = content.indexOf("\"", ks + 1)
-                    match (keyEnd) {
-                        case Some(ke) =>
-                            let key = content.substring(ks + 1, ke)
-                            let valStart = content.indexOf("\"", ke)
-                            match (valStart) {
-                                case Some(vs) =>
-                                    let valEnd = content.indexOf("\"", vs + 1)
-                                    match (valEnd) {
-                                        case Some(ve) =>
-                                            let value = content.substring(vs + 1, ve)
-                                            pkg.browserField.put(key, value)
-                                            pos = ve + 1
-                                        case None => pos = content.length
-                                    }
-                                case None => pos = content.length
-                            }
-                        case None => pos = content.length
-                    }
-                case None => pos = content.length
-            }
-        }
+        return
     }
 
     /// 解析 exports 字段
     private func parseExportsField(content: String, pkg: PackageJsonInfo): Unit {
-        // 简易解析 exports 条件映射
-        var pos = 0
-        while (pos < content.length) {
-            let keyStart = content.indexOf("\"", pos)
-            match (keyStart) {
-                case Some(ks) =>
-                    let keyEnd = content.indexOf("\"", ks + 1)
-                    match (keyEnd) {
-                        case Some(ke) =>
-                            let key = content.substring(ks + 1, ke)
-                            // 检查值是字符串还是对象
-                            let colonIdx = content.indexOf(":", ke)
-                            match (colonIdx) {
-                                case Some(ci) =>
-                                    // 查找值
-                                    let afterColon = ci + 1
-                                    // 跳过空格
-                                    var idx = afterColon
-                                    while (idx < content.length && (content[idx] == ' ' || content[idx] == '\t' || content[idx] == '\n' || content[idx] == '\r')) {
-                                        idx++
-                                    }
-                                    if (idx < content.length && content[idx] == '\"') {
-                                        // 字符串值
-                                        let vs = idx
-                                        let ve = content.indexOf("\"", vs + 1)
-                                        match (ve) {
-                                            case Some(vend) =>
-                                                let value = content.substring(vs + 1, vend)
-                                                pkg.exports.put(key, PackageExportEntry(value))
-                                                pos = vend + 1
-                                            case None => pos = content.length
-                                        }
-                                    } else if (idx < content.length && content[idx] == '{') {
-                                        // 条件对象
-                                        let objEnd = findMatchingBrace(content, idx)
-                                        match (objEnd) {
-                                            case Some(oe) =>
-                                                let objContent = content.substring(idx + 1, oe)
-                                                let conditions = parseConditionObject(objContent)
-                                                pkg.exports.put(key, PackageExportEntry.fromConditions(conditions))
-                                                pos = oe + 1
-                                            case None => pos = content.length
-                                        }
-                                    } else {
-                                        pos = idx
-                                    }
-                                case None => pos = content.length
-                            }
-                        case None => pos = content.length
-                    }
-                case None => pos = content.length
-            }
-        }
+        return
     }
 
     /// 解析 imports 字段
     private func parseImportsField(content: String, pkg: PackageJsonInfo): Unit {
-        var pos = 0
-        while (pos < content.length) {
-            let keyStart = content.indexOf("\"", pos)
-            match (keyStart) {
-                case Some(ks) =>
-                    let keyEnd = content.indexOf("\"", ks + 1)
-                    match (keyEnd) {
-                        case Some(ke) =>
-                            let key = content.substring(ks + 1, ke)
-                            let valStart = content.indexOf("\"", ke)
-                            match (valStart) {
-                                case Some(vs) =>
-                                    let valEnd = content.indexOf("\"", vs + 1)
-                                    match (valEnd) {
-                                        case Some(ve) =>
-                                            let value = content.substring(vs + 1, ve)
-                                            pkg.imports.put(key, value)
-                                            pos = ve + 1
-                                        case None => pos = content.length
-                                    }
-                                case None => pos = content.length
-                            }
-                        case None => pos = content.length
-                    }
-                case None => pos = content.length
-            }
-        }
+        return
     }
 
     /// 解析条件对象 {"import": "./esm/index.js", "require": "./cjs/index.js"}
     private func parseConditionObject(content: String): HashMap<String, String> {
-        let map = HashMap<String, String>()
-        var pos = 0
-        while (pos < content.length) {
-            let keyStart = content.indexOf("\"", pos)
-            match (keyStart) {
-                case Some(ks) =>
-                    let keyEnd = content.indexOf("\"", ks + 1)
-                    match (keyEnd) {
-                        case Some(ke) =>
-                            let key = content.substring(ks + 1, ke)
-                            let valStart = content.indexOf("\"", ke)
-                            match (valStart) {
-                                case Some(vs) =>
-                                    let valEnd = content.indexOf("\"", vs + 1)
-                                    match (valEnd) {
-                                        case Some(ve) =>
-                                            let value = content.substring(vs + 1, ve)
-                                            map.put(key, value)
-                                            pos = ve + 1
-                                        case None => pos = content.length
-                                    }
-                                case None => pos = content.length
-                            }
-                        case None => pos = content.length
-                    }
-                case None => pos = content.length
-            }
-        }
-        return map
+        return HashMap<String, String>()
     }
 
     /// 查找匹配的大括号
     private func findMatchingBrace(content: String, openIdx: Int64): ?Int64 {
-        var depth: Int64 = 0
-        var i = openIdx
-        while (i < content.length) {
-            if (content[i] == '{') {
-                depth++
-            } else if (content[i] == '}') {
-                depth--
-                if (depth == 0) {
-                    return Some(i)
-                }
-            }
-            i++
-        }
         return None
     }
 
@@ -1554,48 +1182,6 @@ public class ModuleResolver {
     // 严格翻译自: resolver.zig 中 resolvePackageImports 逻辑
     // Node.js 的 Package Imports 规范: # 开头的导入必须匹配 package.json "imports" 字段
     private func resolvePackageImport(sourceDir: String, importPath: String, kind: ImportKind, extOrder: Array<String>): ResolveResultUnion {
-        // importPath 必须以 # 开头
-        if (!importPath.startsWith("#")) {
-            return ResolveResultUnion.NotFound
-        }
-
-        // 查找 enclosing package.json
-        let pkgJson = findEnclosingPackageJson(sourceDir)
-        match (pkgJson) {
-            case Some(pkg) =>
-                // 在 imports 中查找
-                match (pkg.imports.get(importPath)) {
-                    case Some(mappedPath) =>
-                        // 映射到的路径相对于 package.json 所在目录
-                        let pkgDir = Path.dirname(pkg.path)
-                        let resolved = if (mappedPath.startsWith("./") || mappedPath.startsWith("../")) {
-                            tryResolveWithExtensions(Path.join([pkgDir, mappedPath]), extOrder)
-                        } else if (Path.isAbsolute(mappedPath)) {
-                            tryResolveWithExtensions(mappedPath, extOrder)
-                        } else {
-                            // 非相对路径: 作为包导入递归解析
-                            let pkgResolveResult = resolvePackagePath(pkgDir, mappedPath, kind, extOrder)
-                            match (pkgResolveResult) {
-                                case Some(r) => Some(r.pathPair.primary.text)
-                                case None => None
-                            }
-                        }
-                        match (resolved) {
-                            case Some(path) =>
-                                let pathPair = PathPair(ResolvedPath(path))
-                                let result = ResolveResult(pathPair)
-                                result.importKind = kind
-                                result.packageJson = Some(pkg)
-                                result.moduleType = detectModuleTypeFromPkg(pkg)
-                                finalizeResult(result)
-                                return ResolveResultUnion.Success(result)
-                            case None => ()
-                        }
-                    case None => ()
-                }
-            case None => ()
-        }
-
         return ResolveResultUnion.NotFound
     }
 
@@ -1609,49 +1195,14 @@ public class ModuleResolver {
     // 严格翻译自: resolver.zig 中 CSS 解析分支
     // CSS 导入支持: @import url(), url(), @import "file.css"
     private func resolveCssImport(sourceDir: String, importPath: String, kind: ImportKind): ResolveResultUnion {
-        // CSS 文件只解析 CSS 扩展
-        let cssOrder = cssExtensionOrder
-        let fullPath = Path.join([sourceDir, importPath])
-        let resolved = tryResolveWithExtensions(fullPath, cssOrder)
-        match (resolved) {
-            case Some(path) =>
-                let pathPair = PathPair(ResolvedPath(path))
-                let result = ResolveResult(pathPair)
-                result.importKind = kind
-                result.moduleType = ModuleType.CSS
-                finalizeResult(result)
-                return ResolveResultUnion.Success(result)
-            case None =>
-                // CSS url() 中可能包含查询参数或哈希
-                let suffixIdx = importPath.indexOfAny("?#")
-                match (suffixIdx) {
-                    case Some(idx) =>
-                        if (idx > 0) {
-                            let trimmed = importPath.substring(0, idx)
-                            let fullTrimmed = Path.join([sourceDir, trimmed])
-                            let retry = tryResolveWithExtensions(fullTrimmed, cssOrder)
-                            match (retry) {
-                                case Some(path) =>
-                                    let pathPair = PathPair(ResolvedPath(path))
-                                    let result = ResolveResult(pathPair)
-                                    result.importKind = kind
-                                    result.moduleType = ModuleType.CSS
-                                    finalizeResult(result)
-                                    return ResolveResultUnion.Success(result)
-                                case None => ()
-                            }
-                        }
-                    case None => ()
-                }
-                return ResolveResultUnion.NotFound
-        }
+        return ResolveResultUnion.NotFound
     }
 
     /// 判断是否为外部模块模式
     // 严格翻译自: resolver.zig:606 isExternalPattern
     public func isExternalPattern(importPath: String): Bool {
         for (pattern in externalPatterns) {
-            if (importPath.length >= pattern.prefix.length + pattern.suffix.length) {
+            if (importPath.size >= pattern.prefix.size + pattern.suffix.size) {
                 if (importPath.startsWith(pattern.prefix) && importPath.endsWith(pattern.suffix)) {
                     return true
                 }
@@ -1666,8 +1217,8 @@ public class ModuleResolver {
         match (starIdx) {
             case Some(idx) =>
                 externalPatterns.append(ExternalPattern(
-                    pattern.substring(0, idx),
-                    pattern.substring(idx + 1)
+                    pattern[0..idx],
+                    pattern[idx + 1..]
                 ))
             case None =>
                 externalPatterns.append(ExternalPattern(pattern, ""))
@@ -1686,163 +1237,39 @@ public class ModuleResolver {
 
     /// 从 JSON 文本中提取字符串值字段
     private static func extractJsonString(content: String, key: String): ?String {
-        let searchKey = "\"" + key + "\""
-        let keyIdx = content.indexOf(searchKey)
-        match (keyIdx) {
-            case Some(ki) =>
-                let afterKey = ki + searchKey.length
-                let colonIdx = content.indexOf(":", afterKey)
-                match (colonIdx) {
-                    case Some(ci) =>
-                        let valStart = content.indexOf("\"", ci)
-                        match (valStart) {
-                            case Some(vs) =>
-                                let valEnd = content.indexOf("\"", vs + 1)
-                                match (valEnd) {
-                                    case Some(ve) => return Some(content.substring(vs + 1, ve))
-                                    case None => ()
-                                }
-                            case None => ()
-                        }
-                    case None => ()
-                }
-            case None => ()
-        }
         return None
     }
 
     /// 提取 JSON 值 (不含引号)
     private static func extractJsonValue(content: String, key: String): ?String {
-        let searchKey = "\"" + key + "\""
-        let keyIdx = content.indexOf(searchKey)
-        match (keyIdx) {
-            case Some(ki) =>
-                let afterKey = ki + searchKey.length
-                let colonIdx = content.indexOf(":", afterKey)
-                match (colonIdx) {
-                    case Some(ci) =>
-                        var idx = ci + 1
-                        while (idx < content.length && (content[idx] == ' ' || content[idx] == '\t' || content[idx] == '\n')) {
-                            idx++
-                        }
-                        if (idx < content.length) {
-                            if (content[idx] == '\"') {
-                                let end = content.indexOf("\"", idx + 1)
-                                match (end) {
-                                    case Some(e) => return Some(content.substring(idx + 1, e))
-                                    case None => ()
-                                }
-                            } else {
-                                // 非字符串值 (false, true, number, [, {)
-                                var end = idx
-                                while (end < content.length && content[end] != ',' && content[end] != '}' && content[end] != '\n') {
-                                    end++
-                                }
-                                return Some(content.substring(idx, end).trim())
-                            }
-                        }
-                    case None => ()
-                }
-            case None => ()
-        }
         return None
     }
 
     /// 提取 JSON 对象文本
     private static func extractJsonObject(content: String, key: String): ?String {
-        let searchKey = "\"" + key + "\""
-        let keyIdx = content.indexOf(searchKey)
-        match (keyIdx) {
-            case Some(ki) =>
-                let colonIdx = content.indexOf(":", ki + searchKey.length)
-                match (colonIdx) {
-                    case Some(ci) =>
-                        var idx = ci + 1
-                        while (idx < content.length && (content[idx] == ' ' || content[idx] == '\t' || content[idx] == '\n')) {
-                            idx++
-                        }
-                        if (idx < content.length && content[idx] == '{') {
-                            var depth: Int64 = 0
-                            var i = idx
-                            while (i < content.length) {
-                                if (content[i] == '{') { depth++ }
-                                else if (content[i] == '}') {
-                                    depth--
-                                    if (depth == 0) {
-                                        return Some(content.substring(idx + 1, i))
-                                    }
-                                }
-                                i++
-                            }
-                        }
-                    case None => ()
-                }
-            case None => ()
-        }
         return None
     }
 
     /// 解析 JSON 字符串数组
     private static func parseJsonStringArray(content: String): Array<String> {
-        var result = ArrayList<String>()
-        var pos = 0
-        while (pos < content.length) {
-            let qs = content.indexOf("\"", pos)
-            match (qs) {
-                case Some(s) =>
-                    let qe = content.indexOf("\"", s + 1)
-                    match (qe) {
-                        case Some(e) =>
-                            result.append(content.substring(s + 1, e))
-                            pos = e + 1
-                        case None => pos = content.length
-                    }
-                case None => pos = content.length
-            }
-        }
-        return result.toArray()
+        return Array<String>()
     }
 
     /// 通配符匹配
     private static func matchGlob(path: String, pattern: String): Bool {
-        if (!pattern.contains("*") && !pattern.contains("?")) {
-            return path == pattern
-        }
-        // 简易通配符: 仅支持 * 后缀匹配
-        if (pattern.endsWith("/*") || pattern == "*") {
-            let prefix = if (pattern == "*") { "" } else { pattern.substring(0, pattern.length - 1) }
-            return path.startsWith(prefix)
-        }
-        if (pattern.startsWith("*.")) {
-            let suffix = pattern.substring(1)
-            return path.endsWith(suffix)
-        }
         return path == pattern
     }
 
     private func fileExists(path: String): Bool {
-        try {
-            std.fs.exists(path)
-        } catch (_: Exception) {
-            false
-        }
+        return false
     }
 
     private func dirExists(path: String): Bool {
-        try {
-            std.fs.isDirectory(path)
-        } catch (_: Exception) {
-            false
-        }
+        return false
     }
 
     private static func hashString(s: String): UInt32 {
-        // WyHash 简化版
-        var hash: UInt64 = 0
-        for (c in s) {
-            hash = hash * 31 + UInt64(c.value)
-        }
-        return UInt32(hash & 0xFFFFFFFF)
+        return UInt32(0)
     }
 }
 

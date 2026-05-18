@@ -32,7 +32,7 @@ public class EventLoopHandle {
     }
 
     // 严格翻译自 globalObject
-    public func globalObject() -> ?JsGlobalObject {
+    public func globalObject(): ?JsGlobalObject {
         match (kind) {
             case Js => jsLoop.global
             case Mini => None
@@ -40,7 +40,7 @@ public class EventLoopHandle {
     }
 
     // 严格翻译自 stdout
-    public func stdout() -> BlobStore {
+    public func stdout(): BlobStore {
         match (kind) {
             case Js => jsLoop.virtualMachine.rareData().stdout()
             case Mini => miniLoop.stdout()
@@ -48,7 +48,7 @@ public class EventLoopHandle {
     }
 
     // 严格翻译自 bunVM
-    public func bunVM() -> ?VirtualMachine {
+    public func bunVM(): ?VirtualMachine {
         match (kind) {
             case Js => jsLoop.virtualMachine
             case Mini => None
@@ -56,7 +56,7 @@ public class EventLoopHandle {
     }
 
     // 严格翻译自 stderr
-    public func stderr() -> BlobStore {
+    public func stderr(): BlobStore {
         match (kind) {
             case Js => jsLoop.virtualMachine.rareData().stderr()
             case Mini => miniLoop.stderr()
@@ -80,7 +80,7 @@ public class EventLoopHandle {
     }
 
     // 严格翻译自 filePolls
-    public func filePolls() -> FilePollStore {
+    public func filePolls(): FilePollStore {
         match (kind) {
             case Js => jsLoop.virtualMachine.rareData().filePolls(jsLoop.virtualMachine)
             case Mini => miniLoop.filePolls()
@@ -114,7 +114,7 @@ public class EventLoopHandle {
     }
 
     // 严格翻译自 loop
-    public func loop() -> UwsLoop {
+    public func loop(): UwsLoop {
         match (kind) {
             case Js => jsLoop.usocketsLoop()
             case Mini => miniLoop.loop
@@ -122,7 +122,7 @@ public class EventLoopHandle {
     }
 
     // 严格翻译自 platformEventLoop (别名)
-    public func platformEventLoop() -> UwsLoop {
+    public func platformEventLoop(): UwsLoop {
         loop()
     }
 
@@ -137,7 +137,7 @@ public class EventLoopHandle {
     }
 
     // 严格翻译自 allocator
-    public func allocator() -> Allocator {
+    public func allocator(): Allocator {
         match (kind) {
             case Js => jsLoop.virtualMachine.allocator
             case Mini => miniLoop.allocator
@@ -145,7 +145,7 @@ public class EventLoopHandle {
     }
 
     // 严格翻译自 topLevelDir
-    public func topLevelDir() -> String {
+    public func topLevelDir(): String {
         match (kind) {
             case Js => jsLoop.virtualMachine.transpiler.fs.topLevelDir
             case Mini => miniLoop.topLevelDir
@@ -153,7 +153,7 @@ public class EventLoopHandle {
     }
 
     // 严格翻译自 env
-    public func env() -> DotEnvLoader {
+    public func env(): DotEnvLoader {
         match (kind) {
             case Js => jsLoop.virtualMachine.transpiler.env
             case Mini => miniLoop.env
@@ -161,7 +161,7 @@ public class EventLoopHandle {
     }
 
     // 严格翻译自 pipeReadBuffer
-    public func pipeReadBuffer() -> Array<UInt8> {
+    public func pipeReadBuffer(): Array<UInt8> {
         match (kind) {
             case Js => jsLoop.pipeReadBuffer()
             case Mini => miniLoop.pipeReadBuffer()
@@ -182,7 +182,7 @@ public class EventLoopTask {
     }
 
     // 严格翻译自 fromEventLoop
-    public static func fromEventLoop(loop_: EventLoopHandle) -> EventLoopTask {
+    public static func fromEventLoop(loop_: EventLoopHandle): EventLoopTask {
         match (loop_.kind) {
             case Js => EventLoopTask(EventLoopKind.Js)
             case Mini => EventLoopTask(EventLoopKind.Mini)
@@ -221,10 +221,10 @@ public class MiniEventLoop {
 
     public init() {}
 
-    public func stdout() -> BlobStore { BlobStore() }
-    public func stderr() -> BlobStore { BlobStore() }
-    public func filePolls() -> FilePollStore { FilePollStore() }
-    public func pipeReadBuffer() -> Array<UInt8> { Array<UInt8>() }
+    public func stdout(): BlobStore { BlobStore() }
+    public func stderr(): BlobStore { BlobStore() }
+    public func filePolls(): FilePollStore { FilePollStore() }
+    public func pipeReadBuffer(): Array<UInt8> { Array<UInt8>() }
     public func enqueueTaskConcurrent(task: AnyTaskWithExtraContext) {}
 }
 

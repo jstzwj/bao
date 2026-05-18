@@ -1105,7 +1105,6 @@ public class Lockfile {
                         match (currentPkg) {
                             case Some(pkg) =>
                                 if (key == "name") {}  // already set
-                                if (key == "version") { pkg.version = value }
                                 if (key == "resolution") { pkg.resolution = value }
                                 if (key == "integrity") { pkg.integrity = value }
                                 if (key == "optional") { pkg.isOptional = (value == "true") }

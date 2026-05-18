@@ -57,7 +57,7 @@ public class VersionedURL {
     /// 克隆
     /// 翻译自: VersionedURL.clone
     public func clone(): VersionedURL {
-        return VersionedURL(url: url, version: version)
+        return VersionedURL(url, version)
     }
 
     /// 格式化为字符串

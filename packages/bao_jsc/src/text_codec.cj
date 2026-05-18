@@ -16,7 +16,7 @@ public class TextCodec {
     // 严格翻译自 create
     // 创建指定编码的文本编解码器
     // extern fn Bun__createTextCodec(encodingName: [*]const u8, encodingNameLen: usize) ?*TextCodec
-    public static func create(encoding: String) -> ?TextCodec {
+    public static func create(encoding: String): ?TextCodec {
         // FFI: Bun__createTextCodec(encoding.ptr, encoding.len)
         if (encoding.isEmpty) {
             return None
@@ -40,7 +40,7 @@ public class TextCodec {
     // 严格翻译自 decode
     // 使用编解码器解码数据
     // extern fn Bun__decodeWithTextCodec(codec, data, length, flush, stopOnError, outSawError) bun.String
-    public func decode(data: Array<UInt8>, flush: Bool, stopOnError: Bool) -> DecodeResult {
+    public func decode(data: Array<UInt8>, flush: Bool, stopOnError: Bool): DecodeResult {
         // FFI: Bun__decodeWithTextCodec(self, data.ptr, data.size, flush, stopOnError, &sawError)
         var sawError: Bool = false
         // 实际 FFI 调用:
@@ -59,24 +59,21 @@ public class TextCodec {
     // 严格翻译自 isSupported
     // 检查编码是否被支持
     // extern fn Bun__isEncodingSupported(encodingName, encodingNameLen) bool
-    public static func isSupported(encoding: String) -> Bool {
+    public static func isSupported(encoding: String): Bool {
         // FFI: Bun__isEncodingSupported(encoding.ptr, encoding.size)
         // 常见编码支持列表
-        let supported = [
-            "utf-8", "utf-16", "utf-16le", "utf-16be",
-            "ascii", "us-ascii", "latin1", "iso-8859-1",
-            "gbk", "gb2312", "gb18030",
-            "big5", "euc-kr", "euc-jp",
-            "shift_jis", "iso-2022-jp",
-            "windows-1252", "windows-1251",
-        ]
-        supported.contains(encoding.toLowerCase())
+        let lower = encoding.toLowerCase()
+        lower == "utf-8" || lower == "utf-16" || lower == "utf-16le" || lower == "utf-16be" ||
+            lower == "ascii" || lower == "us-ascii" || lower == "latin1" || lower == "iso-8859-1" ||
+            lower == "gbk" || lower == "gb2312" || lower == "gb18030" || lower == "big5" ||
+            lower == "euc-kr" || lower == "euc-jp" || lower == "shift_jis" || lower == "iso-2022-jp" ||
+            lower == "windows-1252" || lower == "windows-1251"
     }
 
     // 严格翻译自 getCanonicalEncodingName
     // 获取编码的规范名称
     // extern fn Bun__getCanonicalEncodingName(encodingName, encodingNameLen, outLen) ?[*]const u8
-    public static func getCanonicalEncodingName(encoding: String) -> ?String {
+    public static func getCanonicalEncodingName(encoding: String): ?String {
         // FFI: Bun__getCanonicalEncodingName(encoding.ptr, encoding.size, &len)
         let lower = encoding.toLowerCase().trim()
         let canonicalMap: HashMap<String, String> = HashMap<String, String>()

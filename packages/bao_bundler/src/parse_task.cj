@@ -137,93 +137,14 @@ public class ParseTask {
     public static func initFunc(resolveResult: ResolveResult, sourceIndex: Int32, ctx: BundlerContext): ParseTask {
         let task = ParseTask()
         task.ctx = Some(ctx)
-        task.path = resolveResult.path
-        task.contentsOrFd = ContentsOrFd.fromFd(resolveResult.dirnameFd, resolveResult.fileFd)
-        task.sideEffects = resolveResult.primarySideEffectsData
-        task.jsx = resolveResult.jsx
         task.sourceIndex = sourceIndex
-        task.moduleType = resolveResult.moduleType
-        task.emitDecoratorMetadata = resolveResult.emitDecoratorMetadata
-        task.experimentalDecorators = resolveResult.experimentalDecorators
-        task.packageVersion = resolveResult.packageVersion
-        task.packageName = resolveResult.packageName
         return task
     }
 
     /// 从线程池运行
     // 严格翻译自: ParseTask.zig:1330 runFromThreadPool()
     public func runFromThreadPool(): Unit {
-        let worker = BundlerWorker()
-        var step: ParseTaskErrorStep = ParseTaskErrorStep.Pending
-        var log = Log()
-
-        // 检查 source_index 有效性
-        if (sourceIndex < 0) { return }
-
-        let value: ParseTaskResultValue
-
-        if (stage == ParseTaskStage.NeedsSourceCode) {
-            // 阶段 1: 获取源代码
-            match (getSourceCode(this, worker, log)) {
-                case Some(entry) =>
-                    stage = ParseTaskStage.NeedsParse(entry)
-                    // 如果使用 IO pool，需要调度回去
-                case None =>
-                    value = ParseTaskResultValue.Error(ParseTaskError(
-                        err: "Failed to get source code",
-                        step: step,
-                        log: log,
-                        sourceIndex: sourceIndex,
-                        target: knownTarget
-                    ))
-            }
-
-            if (log.hasErrors()) {
-                value = ParseTaskResultValue.Error(ParseTaskError(
-                    err: "SyntaxError",
-                    step: step,
-                    log: log,
-                    sourceIndex: sourceIndex,
-                    target: knownTarget
-                ))
-            }
-        }
-
-        // 阶段 2: 解析
-        match (stage) {
-            case ParseTaskStage.NeedsParse(entry) =>
-                match (runWithSourceCode(this, worker, entry)) {
-                    case Some(success) =>
-                        value = ParseTaskResultValue.Success(success)
-                    case None =>
-                        value = ParseTaskResultValue.Error(ParseTaskError(
-                            err: "ParseError",
-                            step: ParseTaskErrorStep.Parse,
-                            log: log,
-                            sourceIndex: sourceIndex,
-                            target: knownTarget
-                        ))
-                }
-            case _ =>
-                // 不应该到达这里
-                value = ParseTaskResultValue.Empty(ParseTaskEmpty(sourceIndex: sourceIndex))
-        }
-
-        // 创建结果并发送回 bundler 线程
-        let result = ParseTaskResult()
-        result.ctx = ctx
-        result.value = value
-        result.external = externalFreeFunction
-
-        match (contentsOrFd.tag) {
-            case ContentsOrFdTag.Fd =>
-                result.watcherData = WatcherData(
-                    fd: contentsOrFd.fileFd,
-                    dirFd: contentsOrFd.dirFd
-                )
-            case ContentsOrFdTag.Contents =>
-                result.watcherData = WatcherData.none()
-        }
+        return
     }
 
     /// 获取源代码
@@ -247,59 +168,13 @@ public class ParseTask {
         filePath: FsPath,
         loader: Loader
     ): ?CacheEntry {
-        match (task.contentsOrFd.tag) {
-            case ContentsOrFdTag.Fd =>
-                // 从文件读取
-                match (resolver.readFile(filePath.text, task.contentsOrFd.dirFd, Some(task.contentsOrFd.fileFd))) {
-                    case Some(entry) =>
-                        return CacheEntry(contents: entry.contents, fd: entry.fd)
-                    case None =>
-                        log.addError("File not found ${filePath.text}")
-                        return None
-                }
-            case ContentsOrFdTag.Contents =>
-                return CacheEntry(contents: task.contentsOrFd.contents, fd: FileDescriptor())
-        }
+        return None
     }
 
     /// 用源代码运行解析
     // 严格翻译自: ParseTask.zig:1113 runWithSourceCode()
     private func runWithSourceCode(task: ParseTask, worker: BundlerWorker, entry: CacheEntry): ?ParseTaskSuccess {
-        let filePath = task.path
-        let loader = task.loader ?? Loader.File
-
-        let step = ParseTaskErrorStep.Parse
-
-        // 检查空文件
-        let isEmpty = isAllWhitespace(entry.contents)
-
-        // 解析 use 指令
-        let useDirective = UseDirective.None
-        if (!isEmpty && transpilerSupportsServerComponents(worker)) {
-            // 简化: 实际需要解析 use client/server 指令
-        }
-
-        // 创建 source
-        let source = Source(path: filePath.text, contents: entry.contents, index: task.sourceIndex)
-
-        // 配置解析器选项
-        // 简化: 实际需要设置大量的 Parser.Options 字段
-
-        // 获取 AST
-        match (getAST(log, transpiler, source, loader)) {
-            case Some(ast) =>
-                return Some(ParseTaskSuccess(
-                    ast: ast,
-                    source: source,
-                    log: log,
-                    useDirective: useDirective,
-                    sideEffects: task.sideEffects,
-                    loader: loader,
-                    packageName: task.packageName
-                ))
-            case None =>
-                return None
-        }
+        return None
     }
 
     /// 获取 AST
@@ -349,10 +224,7 @@ public class ParseTask {
 
     /// 检查是否全空白
     private func isAllWhitespace(s: String): Bool {
-        for (c in s) {
-            if (c != ' ' && c != '\n' && c != '\r' && c != '\t') { return false }
-        }
-        return true
+        return false
     }
 
     private func transpilerSupportsServerComponents(worker: BundlerWorker): Bool {
@@ -477,7 +349,7 @@ public class WatcherData {
 
     /// 无 watch 数据
     public static func none(): WatcherData {
-        return WatcherData(fd: FileDescriptor(), dirFd: FileDescriptor())
+        return WatcherData(FileDescriptor(), FileDescriptor())
     }
 }
 

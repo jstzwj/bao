@@ -18,7 +18,7 @@ public class URLComponents {
     public init() {}
 
     // 获取完整 URL
-    public func toString() -> String {
+    public func toString(): String {
         var result = scheme + "://"
         if (!username.isEmpty) {
             result += username
@@ -42,7 +42,7 @@ public class URLComponents {
     }
 
     // 获取 origin
-    public func origin() -> String {
+    public func origin(): String {
         scheme + "://" + host + (if (!port.isEmpty) { ":" + port } else { "" })
     }
 }
@@ -153,12 +153,12 @@ public class URL {
     }
 
     // URL.canParse
-    public static func canParse(url: String) -> Bool {
+    public static func canParse(url: String): Bool {
         url.indexOf("://") >= 0 || url.startsWith("/") || url.startsWith("./") || url.startsWith("../")
     }
 
     // 转为 JsValue
-    public func toJsValue() -> JsValue {
+    public func toJsValue(): JsValue {
         let obj = JsObject.make()
         obj.className = "URL"
         obj.set("href", JsValue(s: href))
@@ -221,7 +221,7 @@ public class URLSearchParams {
     }
 
     // get
-    public func get(name: String) -> ?String {
+    public func get(name: String): ?String {
         for (pair in params) {
             if (pair.0 == name) {
                 return pair.1
@@ -231,7 +231,7 @@ public class URLSearchParams {
     }
 
     // getAll
-    public func getAll(name: String) -> Array<String> {
+    public func getAll(name: String): Array<String> {
         var result = Array<String>()
         for (pair in params) {
             if (pair.0 == name) {
@@ -242,7 +242,7 @@ public class URLSearchParams {
     }
 
     // has
-    public func has(name: String) -> Bool {
+    public func has(name: String): Bool {
         for (pair in params) {
             if (pair.0 == name) {
                 return true
@@ -278,7 +278,7 @@ public class URLSearchParams {
     }
 
     // toString
-    public func toString() -> String {
+    public func toString(): String {
         var parts = Array<String>()
         for (pair in params) {
             parts.append(encodeComponent(pair.0) + "=" + encodeComponent(pair.1))
@@ -287,11 +287,11 @@ public class URLSearchParams {
     }
 
     // URL 编码辅助
-    func encodeComponent(s: String) -> String {
+    func encodeComponent(s: String): String {
         s.replace(" ", "+")
     }
 
-    func decodeComponent(s: String) -> String {
+    func decodeComponent(s: String): String {
         s.replace("+", " ")
     }
 }
@@ -301,11 +301,11 @@ public class URLSearchParams {
 public class DOMURL {
     public init() {}
 
-    public static func create(url: String, base: String) -> URL {
+    public static func create(url: String, base: String): URL {
         URL(url, base)
     }
 
-    public static func canParse(url: String) -> Bool {
+    public static func canParse(url: String): Bool {
         URL.canParse(url)
     }
 }
@@ -339,7 +339,7 @@ public class DOMFormData {
     }
 
     // get
-    public func get(name: String) -> ?String {
+    public func get(name: String): ?String {
         for (entry in entries) {
             if (entry.0 == name) {
                 return entry.1.stringValue()
@@ -349,7 +349,7 @@ public class DOMFormData {
     }
 
     // getAll
-    public func getAll(name: String) -> Array<String> {
+    public func getAll(name: String): Array<String> {
         var result = Array<String>()
         for (entry in entries) {
             if (entry.0 == name) {
@@ -362,7 +362,7 @@ public class DOMFormData {
     }
 
     // has
-    public func has(name: String) -> Bool {
+    public func has(name: String): Bool {
         for (entry in entries) {
             if (entry.0 == name) {
                 return true
@@ -398,7 +398,7 @@ public enum FormDataValue {
     | StringValue(String)
     | FileValue(String, String)  // (data, filename)
 
-    public func stringValue() -> ?String {
+    public func stringValue(): ?String {
         match (this) {
             case StringValue(s) => s
             case FileValue(data, _) => data

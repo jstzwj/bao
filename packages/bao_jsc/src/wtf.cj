@@ -58,58 +58,58 @@ public class WTFStringImplStruct {
     }
 
     // 严格翻译自 refCount
-    public func refCount() -> UInt32 {
+    public func refCount(): UInt32 {
         mRefCount / S_REF_COUNT_INCREMENT
     }
 
     // 严格翻译自 memoryCost
-    public func memoryCost() -> Int64 {
+    public func memoryCost(): Int64 {
         Int64(byteLength())
     }
 
     // 严格翻译自 isStatic
-    public func isStatic() -> Bool {
+    public func isStatic(): Bool {
         (mRefCount & S_REF_COUNT_INCREMENT) != 0
     }
 
     // 严格翻译自 byteLength
-    public func byteLength() -> Int64 {
+    public func byteLength(): Int64 {
         if (is8Bit()) { Int64(mLength) } else { Int64(mLength) * 2 }
     }
 
     // 严格翻译自 is8Bit
-    public func is8Bit() -> Bool {
+    public func is8Bit(): Bool {
         (mHashAndFlags & S_HASH_FLAG_8BIT_BUFFER) != 0
     }
 
     // 严格翻译自 length
-    public func length() -> UInt32 {
+    public func length(): UInt32 {
         mLength
     }
 
     // 严格翻译自 byteSlice
-    public func byteSlice() -> Array<UInt8> {
+    public func byteSlice(): Array<UInt8> {
         mPtrLatin1
     }
 
     // 严格翻译自 utf16Slice
-    public func utf16Slice() -> Array<UInt16> {
+    public func utf16Slice(): Array<UInt16> {
         mPtrUtf16
     }
 
     // 严格翻译自 latin1Slice
-    public func latin1Slice() -> Array<UInt8> {
+    public func latin1Slice(): Array<UInt8> {
         mPtrLatin1
     }
 
     // 严格翻译自 utf8Slice
     // 调用者必须确保字符串是 8 位且 ASCII
-    public func utf8Slice() -> Array<UInt8> {
+    public func utf8Slice(): Array<UInt8> {
         mPtrLatin1
     }
 
     // 严格翻译自 toZigString
-    public func toZigString() -> ZigString {
+    public func toZigString(): ZigString {
         if (is8Bit()) {
             return ZigString.init(latin1Slice)
         } else {
@@ -130,7 +130,7 @@ public class WTFStringImplStruct {
 
     // 严格翻译自 hasAtLeastOneRef
     // WTF::StringImpl::hasAtLeastOneRef
-    public func hasAtLeastOneRef() -> Bool {
+    public func hasAtLeastOneRef(): Bool {
         mRefCount > 0
     }
 
@@ -143,12 +143,12 @@ public class WTFStringImplStruct {
     // 严格翻译自 canUseAsUTF8
     // 避免在即将获取 UTF-8 字符串的代码路径中使用此方法
     // 这种情况下应使用 toUTF8IfNeeded
-    public func canUseAsUTF8() -> Bool {
+    public func canUseAsUTF8(): Bool {
         is8Bit() && isAllAscii(mPtrLatin1)
     }
 
     // 严格翻译自 utf16ByteLength
-    public func utf16ByteLength() -> Int64 {
+    public func utf16ByteLength(): Int64 {
         if (is8Bit()) {
             Int64(length()) * 2
         } else {
@@ -157,7 +157,7 @@ public class WTFStringImplStruct {
     }
 
     // 严格翻译自 utf8ByteLength
-    public func utf8ByteLength() -> Int64 {
+    public func utf8ByteLength(): Int64 {
         if (is8Bit()) {
             if (!mPtrLatin1.isEmpty) {
                 encodingByteLengthU8(mPtrLatin1, EncodingFormat.Utf8)
@@ -175,12 +175,12 @@ public class WTFStringImplStruct {
 
     // 严格翻译自 latin1ByteLength
     // 并非所有 UTF-16 字符都可在 latin1 中表示
-    public func latin1ByteLength() -> Int64 {
+    public func latin1ByteLength(): Int64 {
         Int64(length())
     }
 
     // 严格翻译自 hasPrefix
-    public func hasPrefix(text: String) -> Bool {
+    public func hasPrefix(text: String): Bool {
         // FFI: bun.cpp.Bun__WTFStringImpl__hasPrefix(self, text.ptr, text.len)
         false
     }
@@ -188,7 +188,7 @@ public class WTFStringImplStruct {
     // ========== 辅助方法 ==========
 
     // 检查数组是否全是 ASCII
-    private func isAllAscii(data: Array<UInt8>) -> Bool {
+    private func isAllAscii(data: Array<UInt8>): Bool {
         for (b in data) {
             if (b > 0x7F) {
                 return false
@@ -198,12 +198,12 @@ public class WTFStringImplStruct {
     }
 
     // 计算 UTF-8 编码字节长度（U8 输入）
-    private func encodingByteLengthU8(data: Array<UInt8>, encoding: EncodingFormat) -> Int64 {
+    private func encodingByteLengthU8(data: Array<UInt8>, encoding: EncodingFormat): Int64 {
         Int64(data.size)
     }
 
     // 计算 UTF-16 到 UTF-8 的元素长度
-    private func elementLengthUtf16IntoUtf8(data: Array<UInt16>) -> Int64 {
+    private func elementLengthUtf16IntoUtf8(data: Array<UInt16>): Int64 {
         var len: Int64 = 0
         for (ch in data) {
             if (ch <= 0x7F) {
@@ -228,7 +228,7 @@ public class WTFStringImplStruct {
 // ========== WTFString ==========
 // 严格翻译自 wtf.zig WTFString
 // 行为类似于 WTF::Ref<WTF::StringImpl>
-public typealias WTFString = WTFStringImplStruct
+public type WTFString = WTFStringImplStruct
 
 // ========== StringImplAllocator ==========
 // 严格翻译自 wtf.zig StringImplAllocator
@@ -237,7 +237,7 @@ public class StringImplAllocator {
     public init() {}
 
     // 分配内存（实际是引用计数）
-    public func alloc(ptr: WTFStringImplStruct, len: Int64) -> ?Array<UInt8> {
+    public func alloc(ptr: WTFStringImplStruct, len: Int64): ?Array<UInt8> {
         let len_ = ptr.byteLength()
         if (len_ != len) {
             // 我们不实际分配，只是引用计数

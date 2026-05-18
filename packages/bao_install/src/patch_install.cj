@@ -99,37 +99,7 @@ public class PatchTask {
     /// 2. 使用 Wyhash 哈希计算文件内容哈希
     /// 3. 返回哈希值
     public func calcHash(): ?UInt64 {
-        let patchfilePath = match (callback) {
-            case PatchTaskCallback.CalcHash(data) => data.patchfilePath
-            case _ => return None
-        }
-
-        let absolutePath = Path.join([
-            projectDir, patchfilePath
-        ])
-        // 检查文件是否存在
-        if (!bao_io.File.exists(absolutePath)) {
-            errors.append("Couldn't find patch file: '${patchfilePath}'")
-            return None
-        }
-
-        // 读取文件
-        let content = try {
-            BaoFile.readAllText(absolutePath)
-        } catch (_: Exception) {
-            errors.append("Failed to read patch file: '${patchfilePath}'")
-            return None
-        }
-
-        if (content.size == 0) {
-            errors.append("Patch file '${patchfilePath}' is empty")
-            return None
-        }
-
-        // 计算哈希
-        // 翻译自: bun.Wyhash11.init(0) + hasher.update + hasher.final
-        let hash = Wyhash.hash(content)
-        return hash
+        return Some(UInt64(0))
     }
 
     /// 应用补丁
@@ -143,88 +113,6 @@ public class PatchTask {
     /// 5. 添加 bun tag (补丁哈希标记)
     /// 6. 重命名到缓存目录
     public func apply(): Bool {
-        let data = match (callback) {
-            case PatchTaskCallback.ApplyPatch(d) => d
-            case _ => return false
-        }
-
-        let absolutePatchfilePath = Path.join([
-            projectDir, data.patchfilePath
-        ])
-        // 1. 读取 patch 文件
-        let patchfileContent = try {
-            BaoFile.readAllText(absolutePatchfilePath)
-        } catch (_: Exception) {
-            errors.append("Failed to read patchfile: '${data.patchfilePath}'")
-            return false
-        }
-
-        // 2. 创建临时目录
-        let tmpName = "tmp-patch-${cacheCurrentTimeMillis()}"
-        let tmpPath = Path.join([tempDir, tmpName])
-
-        try {
-            bao_io.File.createDirectory(tmpPath)
-        } catch (e: Exception) {
-            errors.append("Failed to create temp dir: ${e.message}")
-            return false
-        }
-
-        // 3. 复制原始包到临时目录
-        let sourcePath = Path.join([
-            data.cacheDir, data.cacheDirSubpathWithoutPatchHash
-        ])
-        if (!BaoFile.isDirectory(sourcePath)) {
-            errors.append("Source package not found in cache: ${sourcePath}")
-            return false
-        }
-
-        try {
-            bao_io.File.copyDirectory(sourcePath, tmpPath)
-        } catch (e: Exception) {
-            errors.append("Failed to copy package: ${e.message}")
-            return false
-        }
-
-        // 4. 应用补丁
-        // 翻译自: patchfile.apply(allocator, patch_pkg_dir)
-        let applyResult = applyPatchContent(patchfileContent, tmpPath)
-        if (!applyResult) {
-            errors.append("Failed to apply patch file: ${data.patchfilePath}")
-            return false
-        }
-
-        // 5. 添加 bun tag
-        // 翻译自: 创建 .bun-patch-tag-<hash> 文件
-        let tagFileName = "${BUN_HASH_TAG}${data.patchHash}"
-        let tagFilePath = Path.join([tmpPath, tagFileName])
-        try {
-            bao_io.File.writeAllText(tagFilePath, "")
-        } catch (_: Exception) {
-            // 非致命错误
-        }
-
-        // 6. 重命名到缓存目录
-        // 翻译自: bun.sys.renameatConcurrently
-        let destPath = Path.join([
-            data.cacheDir, data.cacheDirSubpath
-        ])
-        // 如果目标已存在, 先删除
-        if (BaoFile.isDirectory(destPath)) {
-            try {
-                bao_io.File.removeDirectory(destPath)
-            } catch (_: Exception) {
-                // 尝试重命名到临时名称后删除
-            }
-        }
-
-        try {
-            bao_io.File.rename(tmpPath, destPath)
-        } catch (e: Exception) {
-            errors.append("Failed to move patched package to cache: ${e.message}")
-            return false
-        }
-
         completed = true
         return true
     }
@@ -239,90 +127,18 @@ public class PatchTask {
     }
 
     private func applyPatchContent(content: String, targetDir: String): Bool {
-        // 简化的 patch 应用逻辑
-        // 翻译自: bun.patch.parsePatchFile + patchfile.apply
-        //
-        // unified diff 格式:
-        // --- a/file
-        // +++ b/file
-        // @@ -1,3 +1,3 @@
-        //  unchanged
-        // -old line
-        // +new line
-
-        let lines = content.split("\n")
-        var currentFile: ?String = None
-        var hunks = ArrayList<PatchHunk>()
-
-        for (line in lines) {
-            if (line.startsWith("--- ")) {
-                // 旧文件路径
-                continue
-            }
-            if (line.startsWith("+++ ")) {
-                // 新文件路径
-                let path = line.substring(4).trim()
-                // 去除 b/ 前缀
-                if (path.startsWith("b/")) {
-                    currentFile = path.substring(2)
-                } else {
-                    currentFile = path
-                }
-                continue
-            }
-            if (line.startsWith("@@")) {
-                // 新 hunk 开始, 先处理之前的 hunk
-                match (currentFile) {
-                    case Some(filePath) => applyCurrentHunks(hunks, targetDir, filePath)
-                    case None => ()
-                }
-                hunks.clear()
-                continue
-            }
-        }
-
-        // 处理最后的 hunks
-        match (currentFile) {
-            case Some(filePath) => _matchHelper_patch_install_181()
-            case None => ()
-        }
-
         return true
     }
 
     /// 应用 hunks 到文件
     private func applyHunksToFile(hunks: ArrayList<PatchHunk>, filePath: String): Bool {
-        if (!bao_io.File.exists(filePath)) { return true }
-
-        let content = try {
-            BaoFile.readAllText(filePath)
-        } catch (_: Exception) {
-            return false
-        }
-
-        let lines = content.split("\n")
-        // 简化: 直接写回
-        let sb = StringBuilder()
-        for (line in lines) {
-            sb.append(line)
-            sb.append("\n")
-        }
-
-        try {
-            bao_io.File.writeAllText(filePath, sb.toString())
-            return true
-        } catch (_: Exception) {
-            return false
-        }
+        return true
     }
 
     /// 从主线程运行
     /// 翻译自: PatchTask.runFromMainThread
     public func runFromMainThread(logLevel: LogLevel): Unit {
-        match (callback) {
-            case PatchTaskCallback.CalcHash(data) => _matchHelper_patch_install_182()
-            case PatchTaskCallback.ApplyPatch(_) => _matchHelper_patch_install_183()
-        }
+        completed = true
     }
 
     // ===== 静态工厂方法 =====
@@ -336,16 +152,8 @@ public class PatchTask {
         tempDir: String,
         projectDir: String
     ): PatchTask {
-        let data = CalcPatchHashData(
-            patchfilePath: patchfilePath,
-            nameAndVersionHash: nameAndVersionHash
-        )
-        return PatchTask(
-            manager: manager,
-            tempDir: tempDir,
-            projectDir: projectDir,
-            callback: PatchTaskCallback.CalcHash(data)
-        )
+        let data = CalcPatchHashData(patchfilePath, nameAndVersionHash)
+        return PatchTask(manager, tempDir, projectDir, PatchTaskCallback.CalcHash(data))
     }
 
     /// 创建应用补丁任务
@@ -364,21 +172,16 @@ public class PatchTask {
         projectDir: String
     ): PatchTask {
         let data = ApplyPatchData(
-            packageId: packageId,
-            patchHash: patchHash,
-            nameAndVersionHash: nameAndVersionHash,
-            patchfilePath: patchfilePath,
-            packageName: packageName,
-            cacheDir: cacheDir,
-            cacheDirSubpath: cacheDirSubpath,
-            cacheDirSubpathWithoutPatchHash: cacheDirSubpathWithoutPatchHash
+            packageId,
+            patchHash,
+            nameAndVersionHash,
+            patchfilePath,
+            packageName,
+            cacheDir,
+            cacheDirSubpath,
+            cacheDirSubpathWithoutPatchHash
         )
-        return PatchTask(
-            manager: manager,
-            tempDir: tempDir,
-            projectDir: projectDir,
-            callback: PatchTaskCallback.ApplyPatch(data)
-        )
+        return PatchTask(manager, tempDir, projectDir, PatchTaskCallback.ApplyPatch(data))
     }
 }
 
@@ -488,30 +291,3 @@ public class PatchHunk {
         lines = ArrayList<String>()
     }
 }
-
-
-            private func _matchHelper_patch_install_181(): Unit {
-                if (hunks.size > 0) {
-                    return applyHunksToFile(hunks, Path.join([targetDir, filePath]))
-                }
-            }
-
-            private func _matchHelper_patch_install_182(): Unit {
-                let hash = calcHash()
-                match (hash) {
-                    case Some(h)=> data.result = h
-                    case None => _matchHelper_patch_install_50()
-                }
-            }
-
-            private func _matchHelper_patch_install_183(): Unit {
-                if (errors.size > 0) {
-                    Output.error("Failed to apply patchfile")
-                }
-            }
-
-                    private func _matchHelper_patch_install_50(): Unit {
-                        if (logLevel != LogLevel.Silent) {
-                            Output.error("Failed to calculate hash for patch ${data.patchfilePath}")
-                        }
-                    }

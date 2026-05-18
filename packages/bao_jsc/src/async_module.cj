@@ -25,7 +25,7 @@ public class AsyncModule {
     public init() {}
 
     // 严格翻译自 AsyncModule.init
-    public static func init_(opts: AsyncModuleOpts, globalObject: JsObject) -> AsyncModule {
+    public static func init_(opts: AsyncModuleOpts, globalObject: JsObject): AsyncModule {
         let module = AsyncModule()
         module.globalThis = globalObject
         module.specifier = opts.specifier
@@ -82,7 +82,7 @@ public class AsyncModule {
     }
 
     // 严格翻译自 AsyncModule.resumeLoadingModule
-    public func resumeLoadingModule() -> ResolvedSource_ {
+    public func resumeLoadingModule(): ResolvedSource_ {
         ResolvedSource_()
     }
 
@@ -127,7 +127,7 @@ public class AsyncModuleQueue {
     }
 
     // 严格翻译自 Queue.vm
-    public func vm() -> BunVirtualMachine {
+    public func vm(): BunVirtualMachine {
         BunVirtualMachine()
     }
 }
@@ -144,4 +144,4 @@ public class FileDescriptor { public init() {} }
 public class AsyncModuleOpts { public var specifier: String = ""; public var referrer: String = ""; public var path: FsPath = FsPath(); public var fd: ?FileDescriptor = None; public var packageJson: ?PackageJSON = None; public var loader: Loader = Loader.js; public var parseResult: ParseResult = ParseResult(); public var arena: ArenaAllocator = ArenaAllocator(); public var promisePtr: JsValue = JsValue.undefined(); public init() {} }
 public class PackageResolveError { public var name: String = ""; public var err: String = ""; public var url: String = ""; public var description: String { name + ": " + err }; public init() {} }
 public class PackageDownloadError { public var name: String = ""; public var resolution: String = ""; public var err: String = ""; public var url: String = ""; public var description: String { name + ": " + err }; public init() {} }
-public class AtomicUInt32 { public var value: UInt32 = 0; public init(_ v: UInt32) { value = v }; public func load() -> UInt32 { value } }
+public class AtomicUInt32 { public var value: UInt32 = 0; public init(_ v: UInt32) { value = v }; public func load(): UInt32 { value } }

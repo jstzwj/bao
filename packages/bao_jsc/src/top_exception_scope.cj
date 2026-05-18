@@ -45,14 +45,14 @@ public class TopExceptionScope {
     }
 
     // 严格翻译自 TopExceptionScope.hasException
-    public func hasException() -> Bool {
+    public func hasException(): Bool {
         if (!isInitialized) { return false }
         return exception() != None
     }
 
     // 严格翻译自 TopExceptionScope.exception
     // 获取抛出的异常 (如果存在)
-    public func exception() -> ?JsException {
+    public func exception(): ?JsException {
         if (!isInitialized) { return None }
         // FFI: TopExceptionScope__pureException(&self.bytes)
         None
@@ -66,7 +66,7 @@ public class TopExceptionScope {
 
     // 严格翻译自 TopExceptionScope.exceptionIncludingTraps
     // 获取抛出的异常 (如果存在)，或如果未处理的陷阱导致异常被抛出
-    public func exceptionIncludingTraps() -> ?JsException {
+    public func exceptionIncludingTraps(): ?JsException {
         if (!isInitialized) { return None }
         // FFI: TopExceptionScope__exceptionIncludingTraps(&self.bytes)
         None
@@ -74,7 +74,7 @@ public class TopExceptionScope {
 
     // 严格翻译自 TopExceptionScope.returnIfException
     // 设计用于 try。如果已存在待处理的异常或陷阱导致异常被抛出则返回错误
-    public func returnIfException() -> Bool {
+    public func returnIfException(): Bool {
         exceptionIncludingTraps() != None
     }
 
@@ -101,7 +101,7 @@ public class TopExceptionScope {
     // 如果没有异常，返回。
     // 如果是终止异常，返回错误。
     // 如果是非终止异常，断言失败。
-    public func assertNoExceptionExceptTermination() -> Bool {
+    public func assertNoExceptionExceptTermination(): Bool {
         if (let Some(e) <- exception()) {
             // 检查是否为终止异常
             // if (e.isTerminationException()) return true
@@ -167,7 +167,7 @@ public class ExceptionValidationScope {
     }
 
     // 严格翻译自 ExceptionValidationScope.assertNoExceptionExceptTermination
-    public func assertNoExceptionExceptTermination() -> Bool {
+    public func assertNoExceptionExceptTermination(): Bool {
         if (assertionsEnabled) {
             if (let Some(s) <- scope) {
                 return s.assertNoExceptionExceptTermination()
@@ -177,7 +177,7 @@ public class ExceptionValidationScope {
     }
 
     // 严格翻译自 ExceptionValidationScope.hasExceptionOrFalseWhenAssertionsAreDisabled
-    public func hasExceptionOrFalseWhenAssertionsAreDisabled() -> Bool {
+    public func hasExceptionOrFalseWhenAssertionsAreDisabled(): Bool {
         if (assertionsEnabled) {
             if (let Some(s) <- scope) {
                 return s.hasException()

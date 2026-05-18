@@ -47,16 +47,8 @@ public class ConsoleFormatOptions {
 
     public init() {}
 
-    // 错误显示级别
-    // 严格翻译自 ConsoleObject.zig ErrorDisplayLevel
-    public enum ErrorDisplayLevel {
-        | Normal
-        | Warn
-        | Full
-    }
-
     // 严格翻译自 FormatOptions.fromJS
-    public static func fromJS(globalThis: JsObject, arguments: Array<JsValue>) -> ConsoleFormatOptions {
+    public static func fromJS(globalThis: JsObject, arguments: Array<JsValue>): ConsoleFormatOptions {
         let opts = ConsoleFormatOptions()
         if (arguments.size == 0) {
             return opts
@@ -86,6 +78,12 @@ public class ConsoleFormatOptions {
 
 // ========== 百分比格式化标签 ==========
 // 严格翻译自 ConsoleObject.zig PercentTag
+public enum ErrorDisplayLevel {
+    | Normal
+    | Warn
+    | Full
+}
+
 public enum PercentTag {
     | S  // %s 字符串
     | I  // %i 或 %d 整数
@@ -133,7 +131,7 @@ public enum FormatTag {
     | RevokedProxy
 
     // 严格翻译自 Tag.isPrimitive
-    public func isPrimitive() -> Bool {
+    public func isPrimitive(): Bool {
         match (this) {
             case String | StringPossiblyFormatted | Undefined | Double |
                  Integer | Null | Boolean | Symbol | BigInt => true
@@ -142,7 +140,7 @@ public enum FormatTag {
     }
 
     // 严格翻译自 Tag.canHaveCircularReferences
-    public func canHaveCircularReferences() -> Bool {
+    public func canHaveCircularReferences(): Bool {
         match (this) {
             case Function | Array | Object | Map | Set | Error | Class | Event => true
             case _ => false
@@ -190,7 +188,7 @@ public class ConsoleFormatter {
     }
 
     // 严格翻译自 Formatter.goodTimeForANewLine
-    public func goodTimeForANewLine() -> Bool {
+    public func goodTimeForANewLine(): Bool {
         if (estimatedLineLength > 80) {
             resetLine()
             return true
@@ -209,7 +207,7 @@ public class ConsoleFormatter {
     }
 
     // 严格翻译自 Formatter.Tag.get
-    public static func getTag(value: JsValue, globalThis: JsObject) -> FormatTag {
+    public static func getTag(value: JsValue, globalThis: JsObject): FormatTag {
         if (value.isUndefined()) {
             return FormatTag.Undefined
         }
@@ -266,7 +264,7 @@ public class ConsoleFormatter {
         value: JsValue,
         globalThis: JsObject,
         enableColors: Bool
-    ) -> String {
+    ): String {
         match (tag) {
             case Undefined => "undefined"
             case Null => "null"
@@ -290,7 +288,7 @@ public class ConsoleFormatter {
     }
 
     // 格式化数字
-    func formatNumber(n: Float64) -> String {
+    func formatNumber(n: Float64): String {
         if (n != n) { return "NaN" }  // NaN
         if (n == Float64.PositiveInfinity) { return "Infinity" }
         if (n == Float64.NegativeInfinity) { return "-Infinity" }
@@ -299,7 +297,7 @@ public class ConsoleFormatter {
     }
 
     // 格式化数组
-    func formatArray(obj: JsObject, globalThis: JsObject, enableColors: Bool) -> String {
+    func formatArray(obj: JsObject, globalThis: JsObject, enableColors: Bool): String {
         let indentStr = String(" ").repeat(indent * 2)
         let childIndentStr = String(" ").repeat((indent + 1) * 2)
         var parts = Array<String>()
@@ -321,7 +319,7 @@ public class ConsoleFormatter {
     }
 
     // 格式化对象
-    func formatObject(obj: JsObject, globalThis: JsObject, enableColors: Bool) -> String {
+    func formatObject(obj: JsObject, globalThis: JsObject, enableColors: Bool): String {
         let keys = obj.keys()
         if (keys.size == 0) {
             return "{}"
@@ -343,7 +341,7 @@ public class ConsoleFormatter {
     }
 
     // 格式化函数
-    func formatFunction(obj: JsObject) -> String {
+    func formatFunction(obj: JsObject): String {
         let name = obj.get("name").toString()
         if (name.isEmpty) {
             return "[Function (anonymous)]"
@@ -352,7 +350,7 @@ public class ConsoleFormatter {
     }
 
     // 格式化错误
-    func formatError(obj: JsObject, enableColors: Bool) -> String {
+    func formatError(obj: JsObject, enableColors: Bool): String {
         let name = obj.get("name").toString()
         let message = obj.get("message").toString()
         if (name.isEmpty && message.isEmpty) {
@@ -368,7 +366,7 @@ public class ConsoleFormatter {
     }
 
     // 严格翻译自 Formatter.writeWithFormatting
-    func writeWithFormatting(input: String, globalThis: JsObject, enableColors: Bool) -> String {
+    func writeWithFormatting(input: String, globalThis: JsObject, enableColors: Bool): String {
         if (remainingValues.size == 0) {
             return input
         }
@@ -449,7 +447,7 @@ public class TablePrinter {
         level: ConsoleMessageLevel,
         tabularData: JsValue,
         properties: JsValue
-    ) -> TablePrinter {
+    ): TablePrinter {
         let printer = TablePrinter()
         printer.globalObject = globalObject
         printer.level = level
@@ -463,7 +461,7 @@ public class TablePrinter {
     }
 
     // 严格翻译自 TablePrinter.printTable
-    public func printTable(enableColors: Bool) -> String {
+    public func printTable(enableColors: Bool): String {
         var columns = Array<TablePrinter.Column>()
         columns.append(TablePrinter.Column())
 
@@ -497,7 +495,7 @@ public class TablePrinter {
     }
 
     // 严格翻译自 TablePrinter.getWidthForValue
-    func getWidthForValue(value: JsValue) -> Int64 {
+    func getWidthForValue(value: JsValue): Int64 {
         Int64(value.toString().size)
     }
 
@@ -750,7 +748,7 @@ public class ConsoleObject {
         global: JsObject,
         vals: Array<JsValue>,
         len: Int64
-    ) -> String {
+    ): String {
         if (len == 0) {
             return ""
         }
@@ -782,7 +780,7 @@ public class ConsoleObject {
     }
 
     // 严格翻译自 ConsoleObject.writeTrace
-    func writeTrace(global: JsObject) -> String {
+    func writeTrace(global: JsObject): String {
         "Trace:\n    at <anonymous>\n"
     }
 
@@ -810,7 +808,7 @@ public class StringBuilder {
         buffer.append(s)
     }
 
-    public func toString() -> String {
+    public func toString(): String {
         String.join("", buffer)
     }
 }

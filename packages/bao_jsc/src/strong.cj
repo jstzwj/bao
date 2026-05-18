@@ -28,7 +28,7 @@ public class Strong<T> {
 
     // 严格翻译自 Strong.create
     // 创建一个强引用，保护指定 JS 值不被 GC 回收
-    public static func create(value: T, global: JsObject) -> Strong<T> {
+    public static func create(value: T, global: JsObject): Strong<T> {
         let strong = Strong<T>()
         strong.cachedValue = value
         strong.global = global
@@ -49,7 +49,7 @@ public class Strong<T> {
 
     // 严格翻译自 Strong.get
     // 获取当前持有的值
-    public func get() -> T {
+    public func get(): T {
         cachedValue.getOrThrow()
     }
 
@@ -67,7 +67,7 @@ public class Strong<T> {
 
     // 严格翻译自 Strong.swap
     // 交换值并返回旧值
-    public func swap(global: JsObject, newValue: T) -> T {
+    public func swap(global: JsObject, newValue: T): T {
         let old = cachedValue.getOrThrow()
         cachedValue = newValue
         this.global = global
@@ -78,7 +78,7 @@ public class Strong<T> {
     }
 
     // 是否有值
-    public func hasValue() -> Bool {
+    public func hasValue(): Bool {
         cachedValue != None
     }
 }
@@ -94,12 +94,12 @@ public class StrongOptional<T> {
     public init() {}
 
     // 严格翻译自 Strong.Optional.empty
-    public static func empty() -> StrongOptional<T> {
+    public static func empty(): StrongOptional<T> {
         StrongOptional<T>()
     }
 
     // 严格翻译自 Strong.Optional.create
-    public static func create(value: T, global: JsObject) -> StrongOptional<T> {
+    public static func create(value: T, global: JsObject): StrongOptional<T> {
         let strong = StrongOptional<T>()
         strong.cachedValue = value
         strong.global = global
@@ -129,7 +129,7 @@ public class StrongOptional<T> {
 
     // 严格翻译自 Strong.Optional.call
     // 如果有值则调用函数
-    public func call(global: JsObject, args: Array<JsValue>) -> JsValue {
+    public func call(global: JsObject, args: Array<JsValue>): JsValue {
         let function = trySwap()
         if (let Some(fn) <- function) {
             if (fn is JsValue) {
@@ -148,12 +148,12 @@ public class StrongOptional<T> {
     }
 
     // 严格翻译自 Strong.Optional.get
-    public func get() -> ?T {
+    public func get(): ?T {
         cachedValue
     }
 
     // 严格翻译自 Strong.Optional.swap
-    public func swap() -> ?T {
+    public func swap(): ?T {
         let result = cachedValue
         cachedValue = None
         if (let Some(implRef) <- impl) {
@@ -163,12 +163,12 @@ public class StrongOptional<T> {
     }
 
     // 严格翻译自 Strong.Optional.has
-    public func has() -> Bool {
+    public func has(): Bool {
         cachedValue != None
     }
 
     // 严格翻译自 Strong.Optional.trySwap
-    public func trySwap() -> ?T {
+    public func trySwap(): ?T {
         swap()
     }
 
@@ -197,13 +197,13 @@ public class StrongImpl {
 
     // 严格翻译自 Strong.Impl.init
     // FFI: Bun__StrongRef__new(global, value)
-    public static func initFunc(global: JsObject, value: JsValue) -> StrongImpl {
+    public static func initFunc(global: JsObject, value: JsValue): StrongImpl {
         StrongImpl(value: value)
     }
 
     // 严格翻译自 Strong.Impl.get
     // 获取引用的 JS 值
-    public func get() -> JsValue {
+    public func get(): JsValue {
         value as JsValue
     }
 

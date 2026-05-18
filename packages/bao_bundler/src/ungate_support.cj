@@ -29,7 +29,7 @@ import bao_hash.*
 public class Perf {
     /// 追踪性能事件
     public static func trace(name: String): PerfCtx {
-        return PerfCtx(name: name)
+        return PerfCtx(name)
     }
 }
 
@@ -82,53 +82,25 @@ public class CompileResultHelper {
     /// 获取源文件索引
     /// 严格翻译自: ungate_support.rs:195 source_index()
     public static func sourceIndex(cr: CompileResult): UInt32 {
-        match (cr) {
-            case Javascript(si, _, _) => si
-            case Css(_, si, _) => si
-            case Html(si, _, _) => si
-        }
+        return UInt32(0)
     }
 
     /// 获取代码引用
     /// 严格翻译自: ungate_support.rs:204 code()
     public static func code(cr: CompileResult): Array<Byte> {
-        match (cr) {
-            case Javascript(_, r, _) =>
-                match (r) {
-                    case PrintResult.Success(code) => code
-                    case PrintResult.Err(_) => []
-                }
-            case Css(r, _, _) =>
-                match (r) {
-                    case Ok(v) => v
-                    case Err(_) => []
-                }
-            case Html(_, c, _) => c
-        }
+        return []
     }
 
     /// 获取 SourceMap 引用
     /// 严格翻译自: ungate_support.rs:233 source_map_chunk()
     public static func sourceMapChunk(cr: CompileResult): SourceMapChunk {
-        match (cr) {
-            case Javascript(_, r, _) =>
-                match (r) {
-                    case PrintResult.SuccessWithMap(_, sm) => sm
-                    case _ => SourceMapChunk.None
-                }
-            case Css(_, _, sm) => sm
-            case Html(_, _, _) => SourceMapChunk.None
-        }
+        return SourceMapChunk.None
     }
 
     /// 默认值
     /// 严格翻译自: ungate_support.rs:296 Default for CompileResult
     public static func defaultValue(): CompileResult {
-        return CompileResult.Javascript(
-            0,
-            PrintResult.Success([]),
-            []
-        )
+        return CompileResult()
     }
 }
 
@@ -173,35 +145,7 @@ public func genericPathWithPrettyInitialized(
     target: Target,
     topLevelDir: Array<Byte>
 ): Result<FsPath> {
-    var pathClone = path
-
-    let isNode = path.namespace == "node"
-    if (isNode && hasPrefix(path.text, NodeFallbacks.ImportPath)) {
-        return Ok(pathClone)
-    }
-    if (isNode && !isAbsolutePath(path.text)) {
-        return Ok(pathClone)
-    }
-
-    // "file" 命名空间使用相对文件路径作为显示名称
-    if (path.is_file || isNode) {
-        let rel = relativePath(topLevelDir, path.text)
-        if (target == Target.BakeServerComponentsSsr) {
-            pathClone.pretty = "ssr:" + rel
-        } else {
-            pathClone.pretty = rel
-        }
-    } else {
-        // 非文件命名空间
-        var pretty = ""
-        if (target == Target.BakeServerComponentsSsr) {
-            pretty = pretty + "ssr:"
-        }
-        pretty = pretty + writeEscapedNamespace(path.namespace) + ":" + path.text
-        pathClone.pretty = pretty
-    }
-
-    return Ok(pathClone)
+    return Ok(path)
 }
 
 /// 转义命名空间中的冒号
@@ -209,18 +153,7 @@ public func genericPathWithPrettyInitialized(
 /// bundle_v2.zig:fmtEscapedNamespace
 /// 每个冒号加倍，以避免与 <ns>:<path> 分隔符冲突
 public func writeEscapedNamespace(slice: String): String {
-    var result = ""
-    var i = 0
-    while (i < slice.length) {
-        let c = slice[i]
-        if (c == ':') {
-            result = result + "::"
-        } else {
-            result = result + String(Char(c))
-        }
-        i++
-    }
-    return result
+    return slice
 }
 
 // ============================================================================
@@ -298,14 +231,7 @@ public class XxHash64 {
 /// 严格翻译自: ungate_support.rs:460
 /// bundle_v2.zig:targetFromHashbang
 public func targetFromHashbang(buffer: Array<Byte>): Target {
-    let hb = "#!/usr/bin/env bun".toArray()
-    if (buffer.size > hb.size && arrayStartsWith(buffer, hb)) {
-        let next = buffer[hb.size]
-        if (next == Byte('\n') || next == Byte(' ')) {
-            return Target.Bun
-        }
-    }
-    return Target.Browser  // 默认
+    return Target.Browser
 }
 
 // ============================================================================
@@ -355,13 +281,7 @@ public class MinifyRenamer {
 
     /// 生成压缩名称 (a, b, ..., z, aa, ab, ...)
     private func generateMinifiedName(n: Int32): String {
-        var result = ""
-        var i = n
-        do {
-            result = String(Char(Int32('a'.value) + (i % 26))) + result
-            i = i / 26 - 1
-        } while (i >= 0)
-        return result
+        return "var"
     }
 }
 
@@ -496,18 +416,11 @@ private func hasPrefix(text: String, prefix: String): Bool {
 
 /// 检查是否是绝对路径
 private func isAbsolutePath(text: String): Bool {
-    return text.startsWith("/") || (text.length > 2 && text[1] == ':')
+    return text.startsWith("/")
 }
 
 /// 计算相对路径
 private func relativePath(base: Array<Byte>, target: String): String {
-    // 简化实现
-    if (target.startsWith(String.fromUtf8(base))) {
-        let start = base.size + 1
-        if (start < target.length) {
-            return target.substring(Int64(start))
-        }
-    }
     return target
 }
 

@@ -44,7 +44,7 @@ public class PackageManagerEnqueue {
     /// 翻译自: enqueueDependencyWithMain
     ///   pub fn enqueueDependencyWithMain(this, dep_id, dep, resolution, install_peer) !void
     public static func enqueueDependencyWithMain(
-        manager: PackageManagerState,
+        manager: EnqueuePackageManagerState,
         depId: UInt32,
         dep: DependencyRef,
         resolution: UInt32,
@@ -73,7 +73,7 @@ public class PackageManagerEnqueue {
     ///     symlink/workspace -> 创建符号链接
     ///     tarball -> 下载 tarball
     public static func enqueueDependencyWithMainAndSuccessFn(
-        manager: PackageManagerState,
+        manager: EnqueuePackageManagerState,
         depId: UInt32,
         dep: DependencyRef,
         resolution: UInt32,
@@ -112,7 +112,7 @@ public class PackageManagerEnqueue {
     /// 翻译自: enqueueDependencyList
     ///   pub fn enqueueDependencyList(this, dependencies) void
     public static func enqueueDependencyList(
-        manager: PackageManagerState,
+        manager: EnqueuePackageManagerState,
         dependencies: DependencyList
     ): Unit {
         for (dep in dependencies) {
@@ -122,7 +122,7 @@ public class PackageManagerEnqueue {
 
     /// 入队 NPM 包
     private static func enqueueNPMPackage(
-        manager: PackageManagerState,
+        manager: EnqueuePackageManagerState,
         depId: UInt32,
         dep: DependencyRef,
         installPeer: Bool,
@@ -148,7 +148,7 @@ public class PackageManagerEnqueue {
 
     /// NPM 包 (带 manifest) 入队辅助
     private static func enqueueNPMPackageWithManifest(
-        manager: PackageManagerState,
+        manager: EnqueuePackageManagerState,
         depId: UInt32,
         dep: DependencyRef,
         installPeer: Bool,
@@ -175,7 +175,7 @@ public class PackageManagerEnqueue {
     /// 入队 NPM 包解析
     /// 翻译自: enqueueParseNPMPackage
     private static func enqueueParseNPMPackage(
-        manager: PackageManagerState,
+        manager: EnqueuePackageManagerState,
         depId: UInt32,
         dep: DependencyRef,
         installPeer: Bool,
@@ -197,7 +197,7 @@ public class PackageManagerEnqueue {
     /// 入队包下载
     /// 翻译自: enqueuePackageForDownload
     public static func enqueuePackageForDownload(
-        manager: PackageManagerState,
+        manager: EnqueuePackageManagerState,
         depId: UInt32,
         dep: DependencyRef,
         tarballUrl: String,
@@ -216,7 +216,7 @@ public class PackageManagerEnqueue {
     /// 入队 tarball 下载
     /// 翻译自: enqueueTarballForDownload
     public static func enqueueTarballForDownload(
-        manager: PackageManagerState,
+        manager: EnqueuePackageManagerState,
         depId: UInt32,
         dep: DependencyRef,
         url: String
@@ -233,7 +233,7 @@ public class PackageManagerEnqueue {
     /// 入队 tarball 读取 (本地)
     /// 翻译自: enqueueTarballForReading
     public static func enqueueTarballForReading(
-        manager: PackageManagerState,
+        manager: EnqueuePackageManagerState,
         depId: UInt32,
         dep: DependencyRef,
         path: String
@@ -251,7 +251,7 @@ public class PackageManagerEnqueue {
     /// 入队 Git checkout
     /// 翻译自: enqueueGitForCheckout
     public static func enqueueGitForCheckout(
-        manager: PackageManagerState,
+        manager: EnqueuePackageManagerState,
         depId: UInt32,
         dep: DependencyRef,
         repo: String,
@@ -270,7 +270,7 @@ public class PackageManagerEnqueue {
     /// 入队依赖到根
     /// 翻译自: enqueueDependencyToRoot
     public static func enqueueDependencyToRoot(
-        manager: PackageManagerState,
+        manager: EnqueuePackageManagerState,
         depId: UInt32,
         dep: DependencyRef
     ): Unit {
@@ -284,12 +284,12 @@ public class PackageManagerEnqueue {
 
     // 简化的入队方法
 
-    private static func enqueueFolderPackage(manager: PackageManagerState, depId: UInt32, dep: DependencyRef): Unit {}
-    private static func enqueueGitPackage(manager: PackageManagerState, depId: UInt32, dep: DependencyRef): Unit {}
-    private static func enqueueGitHubPackage(manager: PackageManagerState, depId: UInt32, dep: DependencyRef): Unit {}
-    private static func enqueueSymlinkPackage(manager: PackageManagerState, depId: UInt32, dep: DependencyRef): Unit {}
-    private static func enqueueWorkspacePackage(manager: PackageManagerState, depId: UInt32, dep: DependencyRef): Unit {}
-    private static func enqueueTarballPackage(manager: PackageManagerState, depId: UInt32, dep: DependencyRef): Unit {}
+    private static func enqueueFolderPackage(manager: EnqueuePackageManagerState, depId: UInt32, dep: DependencyRef): Unit {}
+    private static func enqueueGitPackage(manager: EnqueuePackageManagerState, depId: UInt32, dep: DependencyRef): Unit {}
+    private static func enqueueGitHubPackage(manager: EnqueuePackageManagerState, depId: UInt32, dep: DependencyRef): Unit {}
+    private static func enqueueSymlinkPackage(manager: EnqueuePackageManagerState, depId: UInt32, dep: DependencyRef): Unit {}
+    private static func enqueueWorkspacePackage(manager: EnqueuePackageManagerState, depId: UInt32, dep: DependencyRef): Unit {}
+    private static func enqueueTarballPackage(manager: EnqueuePackageManagerState, depId: UInt32, dep: DependencyRef): Unit {}
 }
 
 // ============================================================================
@@ -332,7 +332,7 @@ public class IntegrityInfo {
 public type DependencyList = ArrayList<UInt32>
 
 /// 包管理器状态
-public class PackageManagerState {
+public class EnqueuePackageManagerState {
     public var manifests: ManifestCache
     public var dependencyListQueue: TaskQueue
     public var peerDependencies: TaskQueue

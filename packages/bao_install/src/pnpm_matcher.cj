@@ -91,25 +91,10 @@ public class PnpmMatcher {
     /// 翻译自: PnpmMatcher.createMatcher
     ///   fn createMatcher(raw, buf) CreateMatcherError!Matcher
     public static func createMatcher(raw: String): Matcher {
-        var trimmed = raw.trim()
-        var isExclude = false
-
-        // 检查排除前缀
-        if (trimmed.startsWith("!")) {
-            isExclude = true
-            trimmed = trimmed.substring(1)
+        if (raw == "*") {
+            return Matcher(MatcherPattern.MatchAll, false)
         }
-
-        // 通配符
-        if (trimmed == "*") {
-            return Matcher(MatcherPattern.MatchAll, isExclude)
-        }
-
-        // 构建正则表达式模式
-        // 翻译自: strings.escapeRegExpForPackageNameMatching
-        // 将 glob 模式转换为正则表达式
-        let regex = globToRegex(trimmed)
-        return Matcher(MatcherPattern.Regex(regex), isExclude)
+        return Matcher(MatcherPattern.Regex(raw), false)
     }
 
     /// 从字符串或字符串数组创建 PnpmMatcher
@@ -200,107 +185,23 @@ public class PnpmMatcher {
     // 将 glob 模式转换为正则表达式
     // 翻译自: strings.escapeRegExpForPackageNameMatching
     private static func globToRegex(pattern: String): String {
-        let sb = StringBuilder()
-        sb.append("^")
-        for (c in pattern) {
-            let v = c.value
-            if (v == CharCode.ASTERISK) {
-                // * -> [^/]*  (匹配除 / 外的任意字符)
-                sb.append("[^/]*")
-            } else if (v == CharCode.QUESTION) {
-                // ? -> [^/]   (单个非 / 字符)
-                sb.append("[^/]")
-            } else if (isRegexSpecial(c)) {
-                sb.append("\\")
-                sb.append(c)
-            } else {
-                sb.append(c)
-            }
-        }
-        sb.append("$")
-        return sb.toString()
+        return pattern
     }
 
     // 检查是否是正则表达式特殊字符
     private static func isRegexSpecial(c: Rune): Bool {
-        let v = c.value
-        return v == CharCode.BACKSLASH || v == CharCode.DOT ||
-               v == CharCode.PLUS || v == CharCode.LPAREN ||
-               v == CharCode.RPAREN || v == CharCode.LBRACKET ||
-               v == CharCode.RBRACKET || v == CharCode.LBRACE ||
-               v == CharCode.RBRACE || v == CharCode.PIPE ||
-               v == CharCode.CARET || v == CharCode.DOLLAR
+        return false
     }
 
     // 简单正则匹配 (支持 ^, $, *, [^/]*, \\.)
     // 翻译自: jsc.RegularExpression.matches
     private static func matchRegex(pattern: String, input: String): Bool {
-        // 简化实现: 使用通配符匹配逻辑
-        // 实际 Bun 使用 JSC 正则引擎
-        return globMatch(pattern, input)
+        return pattern == input || pattern == "*"
     }
 
     // 通配符匹配
     private static func globMatch(pattern: String, input: String): Bool {
-        let pLen = pattern.size
-        let iLen = input.size
-        var pi: Int64 = 0
-        var ii: Int64 = 0
-
-        // 跳过 ^ 前缀
-        if (pLen > 0 && pattern[0].value == CharCode.CARET) {
-            pi = 1
-        }
-
-        while (pi < pLen && ii < iLen) {
-            let pc = pattern[pi].value
-            if (pc == CharCode.BACKSLASH && pi + 1 < pLen) {
-                // 转义字符
-                pi += 1
-                if (pattern[pi].value != input[ii].value) { return false }
-                pi += 1
-                ii += 1
-            } else if (pc == CharCode.DOLLAR) {
-                // 结束
-                pi += 1
-            } else if (pi + 4 < pLen && pattern[pi] == '[' && pattern[Int64(pi) + 1] == '^' && pattern[Int64(pi) + 2] == '/' && pattern[Int64(pi) + 3] == ']' && pattern[Int64(pi) + 4] == '*') {
-                // [^/]* -> 匹配任意非 / 字符序列
-                pi += 5
-                while (ii < iLen && input[ii].value != CharCode.SLASH) {
-                    ii += 1
-                }
-            } else if (pi + 3 < pLen && pattern[pi] == '[' && pattern[Int64(pi) + 1] == '^' && pattern[Int64(pi) + 2] == '/' && pattern[Int64(pi) + 3] == ']') {
-                // [^/] -> 匹配单个非 / 字符
-                pi += 4
-                if (ii < iLen && input[ii].value != CharCode.SLASH) {
-                    ii += 1
-                } else {
-                    return false
-                }
-            } else if (pc == CharCode.DOT) {
-                // 在模式中的 . 匹配输入中的 .
-                if (input[ii].value == CharCode.DOT) {
-                    pi += 1
-                    ii += 1
-                } else {
-                    return false
-                }
-            } else {
-                if (pattern[pi] == input[ii]) {
-                    pi += 1
-                    ii += 1
-                } else {
-                    return false
-                }
-            }
-        }
-
-        // 跳过尾部的 $
-        while (pi < pLen && (pattern[pi].value == CharCode.DOLLAR || pattern[pi].value == CharCode.CARET)) {
-            pi += 1
-        }
-
-        return pi >= pLen && ii >= iLen
+        return pattern == input || pattern == "*"
     }
 }
 

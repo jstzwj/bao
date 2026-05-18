@@ -39,7 +39,7 @@ public class PopulateManifestCache {
     ///   pub fn populateManifestCache(manager, packages) !void
     ///   为锁文件中的包获取 npm 清单, 启动网络任务, 等待完成
     public static func populateManifestCache(
-        manager: PackageManagerState,
+        manager: ManifestPackageManagerState,
         packages: ManifestPackages
     ): Unit {
         let logLevel = manager.options.logLevel
@@ -96,7 +96,7 @@ public class PopulateManifestCache {
         seenPkgIds.clear()
     }
 
-    private static func populateNamedPackages(lockfile: LockfileData, manager: PackageManagerState, names: ArrayList<String>): Unit {
+    private static func populateNamedPackages(lockfile: LockfileData, manager: ManifestPackageManagerState, names: ArrayList<String>): Unit {
         // Simplified placeholder for named package population
     }
 
@@ -104,7 +104,7 @@ public class PopulateManifestCache {
     /// 翻译自: startManifestTask
     ///   fn startManifestTask(manager, pkg_name, dep, needs_extended_manifest) !void
     private static func startManifestTask(
-        manager: PackageManagerState,
+        manager: ManifestPackageManagerState,
         pkgName: String,
         dep: DependencyInfo,
         needsExtendedManifest: Bool
@@ -138,13 +138,13 @@ public class PopulateManifestCache {
 
 /// 包管理器状态
 /// 对应 Bun: PackageManager (清单缓存相关字段)
-public class PackageManagerState {
-    public var options: PackageManagerOptions
+public class ManifestPackageManagerState {
+    public var options: ManifestPackageManagerOptions
     public var lockfile: LockfileData
     public var manifests: ManifestCache
 
     public init() {
-        options = PackageManagerOptions()
+        options = ManifestPackageManagerOptions()
         lockfile = LockfileData()
         manifests = ManifestCache()
     }
@@ -161,7 +161,7 @@ public class PackageManagerState {
 }
 
 /// 包管理器选项
-public class PackageManagerOptions {
+public class ManifestPackageManagerOptions {
     public var logLevel: LogLevel
     public var minimumReleaseAgeMs: ?Int64
 

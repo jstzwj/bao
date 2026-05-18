@@ -26,7 +26,7 @@ public class JSONLineBuffer {
 
     // 严格翻译自 JSONLineBuffer.activeSlice
     // 获取活动（未消费的）缓冲区部分
-    public func activeSlice() -> Array<Byte> {
+    public func activeSlice(): Array<Byte> {
         if (head >= data.len) {
             return []
         }
@@ -41,13 +41,13 @@ public class JSONLineBuffer {
         let scannedPosInt = scannedPos
         if (scannedPosInt >= slice.size) { return }
 
-        let unscanned = slice[Int(scannedPosInt):]
-        if (let idx = unscanned.indexOf(Character('\n'))) {
-            let pos = scannedPosInt + UInt32(idx)
-            newlinePos = pos
-            scannedPos = pos + 1  // 只扫描到（并包括）换行符
-        } else {
-            scannedPos = UInt32(slice.size)  // 没有换行符，扫描了所有内容
+        let unscanned = slice[Int(scannedPosInt)..]
+        match (unscanned.indexOf(Character('\n'))) {
+            case Some(idx) =>
+                let pos = scannedPosInt + UInt32(idx)
+                newlinePos = pos
+                scannedPos = pos + 1
+            case None => scannedPos = UInt32(slice.size)
         }
     }
 
@@ -69,17 +69,22 @@ public class JSONLineBuffer {
 
     // 严格翻译自 JSONLineBuffer.next
     // 如果可用，返回下一个完整消息（直到并包括换行符）
-    public func next() -> ?JSONLineBufferEntry {
-        if let pos = newlinePos {
-            let slice = activeSlice()
-            if (Int(pos) + 1 <= slice.size) {
-                return JSONLineBufferEntry(
-                    data: slice[0..Int(pos) + 1],
-                    newlinePos: pos
-                )
-            }
+    public func next(): ?JSONLineBufferEntry {
+        match (newlinePos) {
+            case Some(pos) => return nextAt(pos)
+            case None => return None
         }
-        None
+    }
+
+    private func nextAt(pos: UInt32): ?JSONLineBufferEntry {
+        let slice = activeSlice()
+        if (Int(pos) + 1 <= slice.size) {
+            return JSONLineBufferEntry(
+                data: slice[0..Int(pos) + 1],
+                newlinePos: pos
+            )
+        }
+        return None
     }
 
     // 严格翻译自 JSONLineBuffer.consume
@@ -122,12 +127,12 @@ public class JSONLineBuffer {
     }
 
     // 严格翻译自 JSONLineBuffer.isEmpty
-    public func isEmpty() -> Bool {
+    public func isEmpty(): Bool {
         head >= data.len
     }
 
     // 严格翻译自 JSONLineBuffer.unusedCapacitySlice
-    public func unusedCapacitySlice() -> Array<Byte> {
+    public func unusedCapacitySlice(): Array<Byte> {
         data.unusedCapacitySlice()
     }
 
@@ -178,7 +183,7 @@ public class ByteList {
         cap = len
     }
 
-    public func slice(_ from: UInt32) -> Array<Byte> {
+    public func slice(_ from: UInt32): Array<Byte> {
         if (Int(from) >= buffer.size) { return [] }
         buffer[Int(from):]
     }
@@ -191,6 +196,6 @@ public class ByteList {
         cap = len
     }
 
-    public func unusedCapacitySlice() -> Array<Byte> { [] }
+    public func unusedCapacitySlice(): Array<Byte> { [] }
     public func ensureUnusedCapacity(_ additional: Int64) {}
 }

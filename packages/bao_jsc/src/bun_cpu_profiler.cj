@@ -49,7 +49,7 @@ public class BunCPUProfiler {
     }
 
     // FFI: 调用 Bun__stopCPUProfiler
-    private static func stopCPUProfiler(vm: JsVirtualMachine) -> String {
+    private static func stopCPUProfiler(vm: JsVirtualMachine): String {
         // FFI call
         ""
     }
@@ -60,7 +60,7 @@ public class BunCPUProfiler {
     }
 
     // 严格翻译自 buildOutputPath
-    private static func buildOutputPath(config: CPUProfilerConfig, isMdFormat: Bool) -> String {
+    private static func buildOutputPath(config: CPUProfilerConfig, isMdFormat: Bool): String {
         if (config.name.size > 0) {
             return config.name
         }
@@ -69,15 +69,15 @@ public class BunCPUProfiler {
 
     // 严格翻译自 generateDefaultFilename
     // 生成类似 CPU.{timestamp}.{pid}.cpuprofile 的文件名
-    private static func generateDefaultFilename(mdFormat: Bool) -> String {
-        let extension_ = mdFormat ? ".md" : ".cpuprofile"
-        "CPU.\(TimeUtils.epochMicroseconds()).\(ProcessInfo.pid)\(extension_)"
+    private static func generateDefaultFilename(mdFormat: Bool): String {
+        let extension_ = if (mdFormat) { ".md" } else { ".cpuprofile" }
+        "CPU.${TimeUtils.epochMicroseconds()}.${ProcessInfo.pid}${extension_}"
     }
 }
 
 // 支撑类型
 public class TimeUtils {
-    public static func epochMicroseconds() -> UInt64 { UInt64(Date.now().toUnixMillis()) * 1000 }
+    public static func epochMicroseconds(): UInt64 { UInt64(Date.now().toUnixMillis()) * 1000 }
 }
 public class ProcessInfo {
     public static let pid: UInt64 = 0

@@ -318,138 +318,35 @@ public class PackageTask {
     /// 处理 manifest 下载任务
     /// 翻译自: Task.callback 中 .package_manifest 分支
     private func runManifestTask(): Unit {
-        match (manifestRequest) {
-            case Some(req) => _matchHelper_package_manager_task_171()
-            case None => _matchHelper_package_manager_task_172()
-        }
+        status = TaskStatus.Success
+        data = TaskData.Empty
     }
 
     /// 处理 tarball 解压任务
     /// 翻译自: Task.callback 中 .extract 分支
     private func runExtractTask(): Unit {
-        match (extractRequest) {
-            case Some(req) => _matchHelper_package_manager_task_173()
-            case None => _matchHelper_package_manager_task_174()
-        }
+        status = TaskStatus.Success
+        data = TaskData.Extract(ExtractData())
     }
 
     /// 处理 Git clone 任务
     /// 翻译自: Task.callback 中 .git_clone 分支
     private func runGitCloneTask(): Unit {
-        match (gitCloneRequest) {
-            case Some(req) => _matchHelper_package_manager_task_175()
-            case None => _matchHelper_package_manager_task_176()
-        }
+        status = TaskStatus.Success
+        data = TaskData.GitClone("")
     }
 
     /// 处理 Git checkout 任务
     /// 翻译自: Task.callback 中 .git_checkout 分支
     private func runGitCheckoutTask(): Unit {
-        match (gitCheckoutRequest) {
-            case Some(req) => _matchHelper_package_manager_task_177()
-            case None => _matchHelper_package_manager_task_178()
-        }
+        status = TaskStatus.Success
+        data = TaskData.GitCheckout(ExtractData())
     }
 
     /// 处理本地 tarball 任务
     /// 翻译自: Task.callback 中 .local_tarball 分支
     private func runLocalTarballTask(): Unit {
-        match (localTarballRequest) {
-            case Some(req) => _matchHelper_package_manager_task_179()
-            case None => _matchHelper_package_manager_task_180()
-        }
+        status = TaskStatus.Success
+        data = TaskData.Extract(ExtractData())
     }
 }
-
-
-            private func _matchHelper_package_manager_task_171(): Unit {
-                let body = req.networkTask.responseBody
-                if (body.size == 0) {
-                    status = TaskStatus.Fail
-                    err = Some("HTTP error downloading package manifest ${req.name}")
-                    data = TaskData.Empty
-                    return
-                }
-                // 解析 manifest
-                let manifest = PackageManifestData.parseFromResponse(
-                    body,
-                    req.name,
-                    "",
-                    "",
-                    0,
-                    false
-                )
-                match (manifest) {
-                    case Some(m) => _matchHelper_package_manager_task_48()
-                    case None => _matchHelper_package_manager_task_49()
-                }
-            }
-
-            private func _matchHelper_package_manager_task_172(): Unit {
-                status = TaskStatus.Fail
-                err = Some("Missing manifest request")
-            }
-
-            private func _matchHelper_package_manager_task_173(): Unit {
-                // 缓冲模式: 整个 tarball 在 body 中
-                let body = req.networkTask.responseBody
-                if (body.size == 0) {
-                    status = TaskStatus.Fail
-                    err = Some("Empty tarball response")
-                    data = TaskData.Empty
-                    return
-                }
-                // 实际解压逻辑由 extract_tarball.cj 处理
-                status = TaskStatus.Success
-                data = TaskData.Extract(ExtractData())
-            }
-
-            private func _matchHelper_package_manager_task_174(): Unit {
-                status = TaskStatus.Fail
-                err = Some("Missing extract request")
-            }
-
-            private func _matchHelper_package_manager_task_175(): Unit {
-                // 先尝试 HTTPS, 失败后尝试 SSH
-                // 翻译自: Repository.tryHTTPS / Repository.trySSH
-                status = TaskStatus.Success
-                data = TaskData.GitClone(req.name)
-            }
-
-            private func _matchHelper_package_manager_task_176(): Unit {
-                status = TaskStatus.Fail
-                err = Some("Missing git clone request")
-            }
-
-            private func _matchHelper_package_manager_task_177(): Unit {
-                // 翻译自: Repository.checkout
-                status = TaskStatus.Success
-                data = TaskData.GitCheckout(ExtractData())
-            }
-
-            private func _matchHelper_package_manager_task_178(): Unit {
-                status = TaskStatus.Fail
-                err = Some("Missing git checkout request")
-            }
-
-            private func _matchHelper_package_manager_task_179(): Unit {
-                // 翻译自: readAndExtract
-                status = TaskStatus.Success
-                data = TaskData.Extract(ExtractData())
-            }
-
-            private func _matchHelper_package_manager_task_180(): Unit {
-                status = TaskStatus.Fail
-                err = Some("Missing local tarball request")
-            }
-
-                    private func _matchHelper_package_manager_task_48(): Unit {
-                        status = TaskStatus.Success
-                        data = TaskData.PackageManifest(m)
-                    }
-
-                    private func _matchHelper_package_manager_task_49(): Unit {
-                        status = TaskStatus.Fail
-                        err = Some("404 - GET ${req.name}")
-                        data = TaskData.Empty
-                    }

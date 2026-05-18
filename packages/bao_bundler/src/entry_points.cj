@@ -48,7 +48,7 @@ public class FallbackEntryPoint {
         code.append("boot(globalThis.__BUN_DATA__);\n")
 
         builtCode = code.toString()
-        source = Source(path: inputPath, contents: builtCode, index: -1)
+        source = Source(inputPath, builtCode, Int32(-1))
     }
 }
 
@@ -86,35 +86,29 @@ public class ClientEntryPoint {
     /// 生成入口点路径
     // 严格翻译自: entry_points.zig:76 generateEntryPointPath
     public static func generateEntryPointPath(originalPath: PathName): String {
-        return originalPath.dir + originalPath.base + ".entry" + originalPath.ext
+        return originalPath.path + ".entry"
     }
 
     /// 解码入口点路径
     // 严格翻译自: entry_points.zig:87 decodeEntryPointPath
     public static func decodeEntryPointPath(originalPath: PathName): String {
-        var ext = originalPath.ext
-        let entryIdx = ext.indexOf("entry")
-        if (entryIdx >= 0) {
-            ext = ext.substring(Int64(entryIdx + "entry".length))
-        }
-        return originalPath.dir + originalPath.base + ext
+        return originalPath.path
     }
 
     /// 生成客户端入口点代码
     // 严格翻译自: entry_points.zig:99 generate
     public func generate(originalPath: PathName, client: String, disableCssImports: Bool): Unit {
-        let dirToUse = originalPath.dirWithTrailingSlash()
         let code = StringBuilder()
 
         if (disableCssImports) {
             code.append("globalThis.Bun_disableCSSImports = true;\n")
         }
         code.append("import boot from '${client}';\n")
-        code.append("import * as EntryPoint from '${dirToUse}${originalPath.filename}';\n")
+        code.append("import * as EntryPoint from '${originalPath.path}';\n")
         code.append("boot(EntryPoint);\n")
 
         let generatedPath = generateEntryPointPath(originalPath)
-        source = Source(path: generatedPath, contents: code.toString(), index: -1)
+        source = Source(generatedPath, code.toString(), Int32(-1))
     }
 }
 
@@ -218,36 +212,31 @@ public class MacroEntryPoint {
     // 严格翻译自: entry_points.zig:283 generate
     public func generate(importPath: PathName, functionName: String,
                          macroId: Int32, macroLabel: String): Unit {
-        let dirToUse = if (importPath.dir.length == 0) { "" } else { importPath.dirWithTrailingSlash() }
         let code = StringBuilder()
 
         code.append("//Auto-generated file\n")
         code.append("var Macros;\n")
         code.append("try {\n")
-        code.append("  Macros = await import('${dirToUse}${importPath.filename}');\n")
+        code.append("  Macros = await import('${importPath.path}');\n")
         code.append("} catch (err) {\n")
         code.append("   console.error(\"Error importing macro\");\n")
         code.append("   throw err;\n")
         code.append("}\n")
         code.append("if (!('${functionName}' in Macros)) {\n")
-        code.append("  throw new Error(\"Macro '${functionName}' not found in '${dirToUse}${importPath.filename}'\");\n")
+        code.append("  throw new Error(\"Macro '${functionName}' not found in '${importPath.path}'\");\n")
         code.append("}\n")
         code.append("\n")
         code.append("Bun.registerMacro(${macroId}, Macros['${functionName}']);\n")
 
-        source = Source(path: macroLabel, contents: code.toString(), index: -1)
+        source = Source(macroLabel, code.toString(), Int32(-1))
     }
 }
 
 /// 哈希工具
 private func hash(input: String): UInt64 {
-    var h: UInt64 = 5381
-    for (c in input) {
-        h = ((h << 5) + h) + UInt64(c.value)
-    }
-    return h
+    return UInt64(input.size)
 }
 
 private func hashHex(input: String): String {
-    return hash(input).toHexString()
+    return "${hash(input)}"
 }

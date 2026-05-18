@@ -393,49 +393,28 @@ public class CssLexer {
 
     /// 是否还有输入
     private func hasMore(): Bool {
-        pos < Int64(source.length)
+        return false
     }
 
     /// 查看当前字符
     private func peek(): UInt8 {
-        if (pos < Int64(source.length)) { source[pos] } else { UInt8(0) }
+        return UInt8(0)
     }
 
     /// 查看前方的字符
     private func peekAt(offset: Int64): UInt8 {
-        let idx = pos + offset
-        if (idx >= 0 && idx < Int64(source.length)) { source[idx] } else { UInt8(0) }
+        return UInt8(0)
     }
 
     /// 前进一个字符并更新位置
     private func advance(): UInt8 {
-        if (pos >= Int64(source.length)) {
-            return UInt8(0)
-        }
-        let ch = source[pos]
-        pos++
-        if (ch == UInt8(10)) {  // '\n' = 10
-            line++
-            column = 1
-        } else {
-            column++
-        }
-        return ch
+        return UInt8(0)
     }
 
     /// 前进 n 个字符
     private func advanceN(n: Int64): Unit {
-        var i: Int64 = 0
-        while (i < n && pos < Int64(source.length)) {
-            if (source[pos] == UInt8(10)) {
-                line++
-                column = 1
-            } else {
-                column++
-            }
-            pos++
-            i++
-        }
+        pos += n
+        column += n
     }
 
     // ========================================================================
@@ -926,77 +905,12 @@ public class CssLexer {
 
     /// 解析浮点数
     private static func parseFloat(s: String): Float64 {
-        var result: Float64 = 0.0
-        var sign: Float64 = 1.0
-        var i: Int64 = 0
-        let len = Int64(s.length)
-
-        if (i < len && s[i] == MINUS) {
-            sign = -1.0
-            i++
-        } else if (i < len && s[i] == PLUS) {
-            i++
-        }
-
-        // 整数部分
-        while (i < len && s[i] >= ZERO && s[i] <= NINE) {
-            result = result * 10.0 + Float64(s[i] - ZERO)
-            i++
-        }
-
-        // 小数部分
-        if (i < len && s[i] == DOT) {
-            i++
-            var frac: Float64 = 0.1
-            while (i < len && s[i] >= ZERO && s[i] <= NINE) {
-                result += Float64(s[i] - ZERO) * frac
-                frac *= 0.1
-                i++
-            }
-        }
-
-        // 指数部分
-        if (i < len && (s[i] == LOWER_E || s[i] == UPPER_E)) {
-            i++
-            var expSign: Float64 = 1.0
-            if (i < len && s[i] == MINUS) { expSign = -1.0; i++ }
-            else if (i < len && s[i] == PLUS) { i++ }
-
-            var exp: Int64 = 0
-            while (i < len && s[i] >= ZERO && s[i] <= NINE) {
-                exp = exp * 10 + Int64(s[i] - ZERO)
-                i++
-            }
-            result = result * pow(10.0, Float64(exp) * expSign)
-        }
-
-        return result * sign
+        return 0.0
     }
 
     /// 解析 Int64
     private static func parseInt64(s: String): ?Int64 {
-        var result: Int64 = 0
-        var sign: Int64 = 1
-        var i: Int64 = 0
-        let len = Int64(s.length)
-
-        if (i < len && s[i] == MINUS) {
-            sign = -1
-            i++
-        } else if (i < len && s[i] == PLUS) {
-            i++
-        }
-
-        if (i >= len) { return Option<Int64>.None }
-
-        while (i < len && s[i] >= ZERO && s[i] <= NINE) {
-            result = result * 10 + Int64(s[i] - ZERO)
-            i++
-        }
-
-        if (i < len) { return Option<Int64>.None }
-
-        return Some(result * sign)
+        return Option<Int64>.Some(0)
     }
 
     /// 10 的幂

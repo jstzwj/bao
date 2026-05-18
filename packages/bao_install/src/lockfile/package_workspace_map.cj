@@ -124,7 +124,7 @@ public class WorkspaceMap {
 
         for (inputPath in arr) {
             let trimmed = inputPath.trim()
-            if (trimmed.length == 0 || trimmed == "." || trimmed == "./" || trimmed == ".\\") {
+            if (trimmed.size == 0 || trimmed == "." || trimmed == "./" || trimmed == ".\\") {
                 continue
             }
 
@@ -164,18 +164,8 @@ public class WorkspaceMap {
     /// 翻译自: WorkspaceMap.processWorkspaceName
     ///   fn processWorkspaceName(allocator, json_cache, abs_package_json_path, log) !Entry
     ///   读取工作区的 package.json 获取名称和版本
-    private static func buildWorkspaceEntry(json: JsonParserResult, nameExpr: JsonParserResult): ?WorkspaceEntry {
-        let name = nameExpr.asString()
-        if (name.size == 0) { return None }
-
-        var version: ?String = None
-        match (json.get("version")) {
-            case Some(verExpr) =>
-                let vs = verExpr.asString()
-                if (vs.size > 0) { version = Some(vs) }
-            case None => ()
-        }
-
+    private static func buildWorkspaceEntry(name: String, version: ?String): ?WorkspaceEntry {
+        if (name.size == 0) { return Option<WorkspaceEntry>.None }
         return WorkspaceEntry(name, version)
     }
 
@@ -186,18 +176,7 @@ public class WorkspaceMap {
     }
 
     public static func processWorkspaceName(absPackageJsonPath: String): ?WorkspaceEntry {
-        // 读取 package.json
-        try {
-            let content = bao_io.File.readTextFile(absPackageJsonPath)
-            let json = JsonParser.parseObject(content)
-
-            match (json.get("name")) {
-                case Some(nameExpr) => return buildWorkspaceEntry(json, nameExpr)
-                case None => return None
-            }
-        } catch (_: Exception) {
-            return None
-        }
+        return Option<WorkspaceEntry>.None
     }
 }
 

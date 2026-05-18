@@ -25,13 +25,13 @@ public struct CodegenDecl<T> {
 
     // 严格翻译自 wrappedName
     // 返回包装后的名称，加上 "wrap" 前缀
-    public func wrappedName() -> String {
+    public func wrappedName(): String {
         "wrap" + symbolName
     }
 
     // 严格翻译自 Decl
     // 获取声明信息（返回父类型中的声明名称）
-    public func decl() -> String {
+    public func decl(): String {
         localName
     }
 }

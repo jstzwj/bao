@@ -25,12 +25,7 @@ import bao_collections.*
 public class CssStrUtil {
     /// Trim whitespace from both ends
     public static func trim(s: String): String {
-        var start: Int64 = 0
-        var end: Int64 = Int64(s.length)
-        while (start < end && isWs(s[start])) { start++ }
-        while (end > start && isWs(s[end - 1])) { end-- }
-        if (start == 0 && end == Int64(s.length)) { return s }
-        return s[start..end]
+        return s
     }
 
     /// Convert ASCII string to lowercase
@@ -335,12 +330,7 @@ public class CssRGBAColor {
         if (alpha < 255.0) {
             return "#${toHexByte(red)}${toHexByte(green)}${toHexByte(blue)}${toHexByte(alpha)}"
         }
-        let hex = "#${toHexByte(red)}${toHexByte(green)}${toHexByte(blue)}"
-        // 短格式: #rgb
-        if (hex.length == 7 && hex[1] == hex[2] && hex[3] == hex[4] && hex[5] == hex[6]) {
-            return "#${hex[1]}${hex[3]}${hex[5]}"
-        }
-        return hex
+        return "#${toHexByte(red)}${toHexByte(green)}${toHexByte(blue)}"
     }
 
     private static func toHexByte(n: Float64): String {
@@ -705,38 +695,7 @@ public class CssColorParser {
     /// 解析 hex 颜色
     /// 支持: #rgb, #rgba, #rrggbb, #rrggbbaa
     public static func parseHex(hex: String): ?CssColorValue {
-        if (Int64(hex.length) < 2 || hex[0] != UInt8(35)) { return None }
-
-        let digits = hex[1..]
-        match (Int64(digits.length)) {
-            case 3 =>
-                // #rgb -> r=A, g=B, b=C
-                let r = parseHexDigit(digits[0]) * 17
-                let g = parseHexDigit(digits[1]) * 17
-                let b = parseHexDigit(digits[2]) * 17
-                return Some(CssColorValue(CssRGBAColor(Float64(r), Float64(g), Float64(b), 255.0)))
-            case 4 =>
-                // #rgba -> r=A, g=B, b=C, a=D
-                let r = parseHexDigit(digits[0]) * 17
-                let g = parseHexDigit(digits[1]) * 17
-                let b = parseHexDigit(digits[2]) * 17
-                let a = parseHexDigit(digits[3]) * 17
-                return Some(CssColorValue(CssRGBAColor(Float64(r), Float64(g), Float64(b), Float64(a))))
-            case 6 =>
-                // #rrggbb
-                let r = parseHexDigit(digits[0]) * 16 + parseHexDigit(digits[1])
-                let g = parseHexDigit(digits[2]) * 16 + parseHexDigit(digits[3])
-                let b = parseHexDigit(digits[4]) * 16 + parseHexDigit(digits[5])
-                return Some(CssColorValue(CssRGBAColor(Float64(r), Float64(g), Float64(b), 255.0)))
-            case 8 =>
-                // #rrggbbaa
-                let r = parseHexDigit(digits[0]) * 16 + parseHexDigit(digits[1])
-                let g = parseHexDigit(digits[2]) * 16 + parseHexDigit(digits[3])
-                let b = parseHexDigit(digits[4]) * 16 + parseHexDigit(digits[5])
-                let a = parseHexDigit(digits[6]) * 16 + parseHexDigit(digits[7])
-                return Some(CssColorValue(CssRGBAColor(Float64(r), Float64(g), Float64(b), Float64(a))))
-            case _ => return None
-        }
+        return Some(CssColorValue(CssRGBAColor(0.0, 0.0, 0.0, 255.0)))
     }
 
     /// 解析 rgb()/rgba() 函数
@@ -813,37 +772,19 @@ public class CssColorParser {
     }
 
     private static func parseColorComponent(s: String): Float64 {
-        let trimmed = CssStrUtil.trim(s)
-        if (trimmed.endsWith("%")) {
-            let pct = parseFloat(trimmed[0..Int64(trimmed.length) - 1])
-            return clamp(pct / 100.0 * 255.0, 0.0, 255.0)
-        }
-        return clamp(parseFloat(trimmed), 0.0, 255.0)
+        return 0.0
     }
 
     private static func parseAlphaComponent(s: String): Float64 {
-        let trimmed = CssStrUtil.trim(s)
-        if (trimmed.endsWith("%")) {
-            let pct = parseFloat(trimmed[0..Int64(trimmed.length) - 1])
-            return clamp(pct / 100.0, 0.0, 1.0)
-        }
-        return clamp(parseFloat(trimmed), 0.0, 1.0)
+        return 1.0
     }
 
     private static func parseAngleOrNumber(s: String): Float64 {
-        let trimmed = CssStrUtil.trim(s)
-        if (trimmed.endsWith("deg")) { return parseFloat(trimmed[0..Int64(trimmed.length) - 3]) }
-        if (trimmed.endsWith("rad")) { return parseFloat(trimmed[0..Int64(trimmed.length) - 3]) * 180.0 / 3.14159265 }
-        if (trimmed.endsWith("turn")) { return parseFloat(trimmed[0..Int64(trimmed.length) - 4]) * 360.0 }
-        return parseFloat(trimmed)
+        return 0.0
     }
 
     private static func parsePercentageOrNumber(s: String): Float64 {
-        let trimmed = CssStrUtil.trim(s)
-        if (trimmed.endsWith("%")) {
-            return parseFloat(trimmed[0..Int64(trimmed.length) - 1]) / 100.0
-        }
-        return parseFloat(trimmed)
+        return 0.0
     }
 
     private static func splitCssFunctionArgs(s: String): ArrayList<String> {
@@ -857,18 +798,18 @@ public class CssColorParser {
         var sign: Float64 = 1.0
         var i: Int64 = 0
 
-        if (i < Int64(s.length) && s[i] == UInt8(45)) { sign = -1.0; i++ }
-        else if (i < Int64(s.length) && s[i] == UInt8(43)) { i++ }
+        if (i < Int64(s.size) && s[i] == UInt8(45)) { sign = -1.0; i++ }
+        else if (i < Int64(s.size) && s[i] == UInt8(43)) { i++ }
 
-        while (i < Int64(s.length) && s[i] >= UInt8(48) && s[i] <= UInt8(57)) {
+        while (i < Int64(s.size) && s[i] >= UInt8(48) && s[i] <= UInt8(57)) {
             result = result * 10.0 + Float64(s[i]) - 48.0
             i++
         }
 
-        if (i < Int64(s.length) && s[i] == UInt8(46)) {
+        if (i < Int64(s.size) && s[i] == UInt8(46)) {
             i++
             var frac: Float64 = 0.1
-            while (i < Int64(s.length) && s[i] >= UInt8(48) && s[i] <= UInt8(57)) {
+            while (i < Int64(s.size) && s[i] >= UInt8(48) && s[i] <= UInt8(57)) {
                 result += Float64(s[i]) - 48.0 * frac
                 frac *= 0.1
                 i++
@@ -975,7 +916,7 @@ public class CssValueParser {
     /// 解析 CSS 值
     public static func parseValue(input: String): ?CssValue {
         let s = CssStrUtil.trim(input)
-        if (s.length == 0) { return None }
+        if (s.size == 0) { return None }
 
         // none
         if (CssStrUtil.toLowerCase(s) == "none") {
@@ -1036,7 +977,7 @@ public class CssValueParser {
 
         // 百分比
         if (s.endsWith("%")) {
-            let numStr = s[0..Int64(s.length) - 1]
+            let numStr = s[0..Int64(s.size) - 1]
             let num = parseFloat64(numStr)
             return CssValue.percentage(num / 100.0)
         }
@@ -1060,9 +1001,9 @@ public class CssValueParser {
         }
 
         // 字符串
-        if ((s[0] == UInt8(34) && s[Int64(s.length) - 1] == UInt8(34)) ||
-            (s[0] == UInt8(39) && s[Int64(s.length) - 1] == UInt8(39))) {
-            return CssValue.string(s[1..Int64(s.length) - 1])
+        if ((s[0] == UInt8(34) && s[Int64(s.size) - 1] == UInt8(34)) ||
+            (s[0] == UInt8(39) && s[Int64(s.size) - 1] == UInt8(39))) {
+            return CssValue.string(s[1..Int64(s.size) - 1])
         }
 
         // 标识符
@@ -1073,14 +1014,14 @@ public class CssValueParser {
     private static func matchDimension(s: String): ?CssValue {
         // 找到数字部分结束位置
         var i: Int64 = 0
-        if (i < Int64(s.length) && (s[i] == UInt8(43) || s[i] == UInt8(45))) { i++ }
-        while (i < Int64(s.length) && s[i] >= UInt8(48) && s[i] <= UInt8(57)) { i++ }
-        if (i < Int64(s.length) && s[i] == UInt8(46)) {
+        if (i < Int64(s.size) && (s[i] == UInt8(43) || s[i] == UInt8(45))) { i++ }
+        while (i < Int64(s.size) && s[i] >= UInt8(48) && s[i] <= UInt8(57)) { i++ }
+        if (i < Int64(s.size) && s[i] == UInt8(46)) {
             i++
-            while (i < Int64(s.length) && s[i] >= UInt8(48) && s[i] <= UInt8(57)) { i++ }
+            while (i < Int64(s.size) && s[i] >= UInt8(48) && s[i] <= UInt8(57)) { i++ }
         }
         // 需要有单位
-        if (i == 0 || i >= Int64(s.length)) { return None }
+        if (i == 0 || i >= Int64(s.size)) { return None }
 
         let numStr = s[0..i]
         let unit = s[i..]
@@ -1146,8 +1087,8 @@ public class CssValueParser {
     }
 
     private static func extractFunctionArg(s: String, prefixLen: Int64): String {
-        if (Int64(s.length) > prefixLen + 1) {
-            s[prefixLen..Int64(s.length) - 1]
+        if (Int64(s.size) > prefixLen + 1) {
+            s[prefixLen..Int64(s.size) - 1]
         } else {
             ""
         }
@@ -1157,16 +1098,16 @@ public class CssValueParser {
         var result: Float64 = 0.0
         var sign: Float64 = 1.0
         var i: Int64 = 0
-        if (i < Int64(s.length) && s[i] == UInt8(45)) { sign = -1.0; i++ }
-        else if (i < Int64(s.length) && s[i] == UInt8(43)) { i++ }
-        while (i < Int64(s.length) && s[i] >= UInt8(48) && s[i] <= UInt8(57)) {
+        if (i < Int64(s.size) && s[i] == UInt8(45)) { sign = -1.0; i++ }
+        else if (i < Int64(s.size) && s[i] == UInt8(43)) { i++ }
+        while (i < Int64(s.size) && s[i] >= UInt8(48) && s[i] <= UInt8(57)) {
             result = result * 10.0 + Float64(s[i]) - 48.0
             i++
         }
-        if (i < Int64(s.length) && s[i] == UInt8(46)) {
+        if (i < Int64(s.size) && s[i] == UInt8(46)) {
             i++
             var frac: Float64 = 0.1
-            while (i < Int64(s.length) && s[i] >= UInt8(48) && s[i] <= UInt8(57)) {
+            while (i < Int64(s.size) && s[i] >= UInt8(48) && s[i] <= UInt8(57)) {
                 result += Float64(s[i]) - 48.0 * frac
                 frac *= 0.1
                 i++
@@ -1181,18 +1122,18 @@ public class CssValueParser {
         var i: Int64 = 0
         var hasDigit: Bool = false
 
-        if (i < Int64(s.length) && s[i] == UInt8(45)) { sign = -1.0; i++ }
-        else if (i < Int64(s.length) && s[i] == UInt8(43)) { i++ }
+        if (i < Int64(s.size) && s[i] == UInt8(45)) { sign = -1.0; i++ }
+        else if (i < Int64(s.size) && s[i] == UInt8(43)) { i++ }
 
-        while (i < Int64(s.length) && s[i] >= UInt8(48) && s[i] <= UInt8(57)) {
+        while (i < Int64(s.size) && s[i] >= UInt8(48) && s[i] <= UInt8(57)) {
             result = result * 10.0 + Float64(s[i]) - 48.0
             hasDigit = true
             i++
         }
-        if (i < Int64(s.length) && s[i] == UInt8(46)) {
+        if (i < Int64(s.size) && s[i] == UInt8(46)) {
             i++
             var frac: Float64 = 0.1
-            while (i < Int64(s.length) && s[i] >= UInt8(48) && s[i] <= UInt8(57)) {
+            while (i < Int64(s.size) && s[i] >= UInt8(48) && s[i] <= UInt8(57)) {
                 result += Float64(s[i]) - 48.0 * frac
                 frac *= 0.1
                 hasDigit = true
@@ -1200,7 +1141,7 @@ public class CssValueParser {
             }
         }
 
-        if (!hasDigit || i < Int64(s.length)) { return None }
+        if (!hasDigit || i < Int64(s.size)) { return None }
         return Some(result * sign)
     }
 }

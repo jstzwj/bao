@@ -8,70 +8,102 @@ package bao_jsc
 // JSType 是 JavaScriptCore 中的关键性能优化，实现 O(1) 类型识别
 // 该枚举提供了 JavaScript 运行时类型的完整分类
 public enum JSType {
+    | Cell
+    | Structure
+    | String
+    | HeapBigInt
+    | HeapDouble
+    | HeapInt32
+    | Symbol
+    | StringObject
+    | DerivedStringObject
+    | JSFunction
+    | FunctionExecutable
+    | InternalFunction
+    | Array
+    | DerivedArray
+    | ArrayBuffer
+    | Int8Array
+    | Uint8Array
+    | Uint8ClampedArray
+    | Int16Array
+    | Uint16Array
+    | Int32Array
+    | Uint32Array
+    | Float16Array
+    | Float32Array
+    | Float64Array
+    | BigInt64Array
+    | BigUint64Array
+    | Set
+    | WeakSet
+    | Map
+    | WeakMap
+    | DirectArguments
+    | ClonedArguments
+    | ScopedArguments
     | None
-}
-    }
 
     // ========== 类型检查方法 ==========
 
     // 严格翻译自 JSType.isObject
-    public func isObject() -> Bool {
+    public func isObject(): Bool {
         this != Cell && this != Structure && this != String && this != HeapBigInt &&
         this != HeapDouble && this != HeapInt32 && this != Symbol
     }
 
     // 严格翻译自 JSType.isString
-    public func isString() -> Bool {
+    public func isString(): Bool {
         this == String
     }
 
     // 严格翻译自 JSType.isStringObject
-    public func isStringObject() -> Bool {
+    public func isStringObject(): Bool {
         this == StringObject
     }
 
     // 严格翻译自 JSType.isDerivedStringObject
-    public func isDerivedStringObject() -> Bool {
+    public func isDerivedStringObject(): Bool {
         this == DerivedStringObject
     }
 
     // 严格翻译自 JSType.isStringLike
-    public func isStringLike() -> Bool {
+    public func isStringLike(): Bool {
         this == String || this == StringObject || this == DerivedStringObject
     }
 
     // 严格翻译自 JSType.isFunction
-    public func isFunction() -> Bool {
+    public func isFunction(): Bool {
         this == JSFunction || this == FunctionExecutable || this == InternalFunction
     }
 
     // 严格翻译自 JSType.isArray
-    public func isArray() -> Bool {
+    public func isArray(): Bool {
         this == Array || this == DerivedArray
     }
 
     // 严格翻译自 JSType.isArrayLike
-    public func isArrayLike() -> Bool {
+    public func isArrayLike(): Bool {
         isArray() || isTypedArrayOrArrayBuffer()
     }
 
     // 严格翻译自 JSType.isSet
-    public func isSet() -> Bool {
+    public func isSet(): Bool {
         this == Set || this == WeakSet
     }
 
     // 严格翻译自 JSType.isMap
-    public func isMap() -> Bool {
+    public func isMap(): Bool {
         this == Map || this == WeakMap
     }
 
     // 严格翻译自 JSType.isArguments
-    public func isArguments() -> Bool {
+    public func isArguments(): Bool {
         this == DirectArguments || this == ClonedArguments || this == ScopedArguments
     }
 
     // 严格翻译自 JSType.isTypedArrayOrArrayBuffer
-    public func isTypedArrayOrArrayBuffer() -> Bool {
+    public func isTypedArrayOrArrayBuffer(): Bool {
         this == ArrayBuffer ||
         this == Int8Array || this == Uint8Array || this == Uint8ClampedArray ||
         this == Int16Array || this == Uint16Array ||
@@ -81,12 +113,12 @@ public enum JSType {
     }
 
     // 严格翻译自 JSType.isArrayBufferLike
-    public func isArrayBufferLike() -> Bool {
+    public func isArrayBufferLike(): Bool {
         isTypedArrayOrArrayBuffer() || this == DataView
     }
 
     // 严格翻译自 JSType.isHidden
-    public func isHidden() -> Bool {
+    public func isHidden(): Bool {
         this == APIValueWrapper ||
         this == NativeExecutable || this == ProgramExecutable ||
         this == ModuleProgramExecutable || this == EvalExecutable ||
@@ -97,7 +129,7 @@ public enum JSType {
     }
 
     // 严格翻译自 JSType.canGet
-    public func canGet() -> Bool {
+    public func canGet(): Bool {
         isArray() || isTypedArrayOrArrayBuffer() ||
         this == BooleanObject || this == DataView ||
         this == ErrorInstance || this == FinalObject ||
@@ -114,7 +146,7 @@ public enum JSType {
     }
 
     // 严格翻译自 JSType.isIndexable
-    public func isIndexable() -> Bool {
+    public func isIndexable(): Bool {
         this == Object || this == FinalObject || isArray() ||
         this == ErrorInstance || this == JSFunction || this == InternalFunction ||
         isTypedArrayOrArrayBuffer()

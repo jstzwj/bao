@@ -8,7 +8,7 @@ package bao_jsc
 // 严格翻译自 JSArray.zig
 public class JsArray {
     // 严格翻译自 JSArray.create
-    public static func create(global: JsObject, items: Array<JsValue>) -> JsValue {
+    public static func create(global: JsObject, items: Array<JsValue>): JsValue {
         let arr = JsObject.make()
         arr.className = "Array"
         arr.arrayStorage = items
@@ -17,7 +17,7 @@ public class JsArray {
     }
 
     // 严格翻译自 JSArray.createEmpty
-    public static func createEmpty(global: JsObject, len: Int64) -> JsValue {
+    public static func createEmpty(global: JsObject, len: Int64): JsValue {
         let arr = JsObject.make()
         arr.className = "Array"
         let storage = Array<JsValue>()
@@ -30,7 +30,7 @@ public class JsArray {
     }
 
     // 严格翻译自 JSArray.iterator
-    public static func iterator(array: JsValue, global: JsObject) -> JsArrayIterator {
+    public static func iterator(array: JsValue, global: JsObject): JsArrayIterator {
         JsArrayIterator(array: array, global: global)
     }
 }
@@ -54,7 +54,7 @@ public class JsArrayIterator {
     }
 
     // 严格翻译自 JSArrayIterator.next
-    public func next() -> ?JsValue {
+    public func next(): ?JsValue {
         if (!(i < len)) {
             return None
         }
@@ -91,12 +91,12 @@ public class JsUint8Array {
     }
 
     // 创建空的 Uint8Array
-    public static func create(length: Int64) -> JsUint8Array {
+    public static func create(length: Int64): JsUint8Array {
         JsUint8Array(Array<UInt8>(length, item: 0))
     }
 
     // 获取元素
-    public func get(index: Int64) -> UInt8 {
+    public func get(index: Int64): UInt8 {
         if (index < 0 || index >= byteLength) {
             return 0
         }
@@ -111,7 +111,7 @@ public class JsUint8Array {
     }
 
     // 转为 JsValue
-    public func toJsValue() -> JsValue {
+    public func toJsValue(): JsValue {
         let obj = JsObject.make()
         obj.className = "Uint8Array"
         obj.set("byteLength", JsValue(n: byteLength))
@@ -124,18 +124,18 @@ public class JsUint8Array {
 // 严格翻译自 JSCell.zig
 // JSCell 是所有堆分配的 JS 值的基类
 public class JsCell {
-    public var type: JSType = JSType.Cell
+    public var `type`: JSType = JSType.Cell
     public var rawPtr: CPointer<UInt8> = CPointer<UInt8>()
 
     public init() {}
 
     public init(type: JSType) {
-        this.type = type
+        this.`type` = type
     }
 
     // 严格翻译自 JSCell.getObject
     // 静态转换 cell 为 JSObject，非对象返回 None
-    public func getObject() -> ?JsObject {
+    public func getObject(): ?JsObject {
         if (type.isObject()) {
             let obj = JsObject.make()
             return obj
@@ -145,7 +145,7 @@ public class JsCell {
 
     // 严格翻译自 JSCell.toObject
     // 转换 cell 为 JSObject
-    public func toObject(global: JsObject) -> JsObject {
+    public func toObject(global: JsObject): JsObject {
         if (type.isObject()) {
             let obj = JsObject.make()
             return obj
@@ -155,12 +155,12 @@ public class JsCell {
     }
 
     // 严格翻译自 JSCell.getType
-    public func getType() -> JSType {
+    public func getType(): JSType {
         type
     }
 
     // 严格翻译自 JSCell.toJS
-    public func toJS() -> JsValue {
+    public func toJS(): JsValue {
         JsValue.fromCell(this)
     }
 
@@ -180,7 +180,7 @@ public class JsMap {
     public init() {}
 
     // 严格翻译自 JSMap.create
-    public static func create() -> JsMap {
+    public static func create(): JsMap {
         JsMap()
     }
 
@@ -197,7 +197,7 @@ public class JsMap {
     }
 
     // 严格翻译自 JSMap.get
-    public func get(key: JsValue) -> JsValue {
+    public func get(key: JsValue): JsValue {
         for (entry in entries) {
             if (JsValue.strictEqual(entry.0, key)) {
                 return entry.1
@@ -207,7 +207,7 @@ public class JsMap {
     }
 
     // 严格翻译自 JSMap.has
-    public func has(key: JsValue) -> Bool {
+    public func has(key: JsValue): Bool {
         for (entry in entries) {
             if (JsValue.strictEqual(entry.0, key)) {
                 return true
@@ -217,7 +217,7 @@ public class JsMap {
     }
 
     // 严格翻译自 JSMap.remove
-    public func remove(key: JsValue) -> Bool {
+    public func remove(key: JsValue): Bool {
         for (i in 0..entries.size) {
             if (JsValue.strictEqual(entries[Int64(i)].0, key)) {
                 entries.removeAt(Int64(i))
@@ -233,12 +233,12 @@ public class JsMap {
     }
 
     // 严格翻译自 JSMap.size
-    public func size() -> Int64 {
+    public func size(): Int64 {
         Int64(entries.size)
     }
 
     // 严格翻译自 JSMap.fromJS
-    public static func fromJS(value: JsValue) -> ?JsMap {
+    public static func fromJS(value: JsValue): ?JsMap {
         if (value.isObject()) {
             let obj = value.toObject()
             if (obj.className == "Map") {

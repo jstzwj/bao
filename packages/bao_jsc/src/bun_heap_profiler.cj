@@ -25,10 +25,11 @@ public class BunHeapProfiler {
 
     // 严格翻译自 generateAndWriteProfile
     public static func generateAndWriteProfile(vm: JsVirtualMachine, config: HeapProfilerConfig) {
-        let profileString = if (config.textFormat)
+        let profileString = if (config.textFormat) {
             generateHeapProfile(vm)
-        else
+        } else {
             generateHeapSnapshotV8(vm)
+        }
 
         if (profileString.size == 0) {
             return
@@ -40,18 +41,18 @@ public class BunHeapProfiler {
     }
 
     // FFI: Bun__generateHeapProfile
-    private static func generateHeapProfile(vm: JsVirtualMachine) -> String {
+    private static func generateHeapProfile(vm: JsVirtualMachine): String {
         ""
     }
 
     // FFI: Bun__generateHeapSnapshotV8
-    private static func generateHeapSnapshotV8(vm: JsVirtualMachine) -> String {
+    private static func generateHeapSnapshotV8(vm: JsVirtualMachine): String {
         ""
     }
 
     // 严格翻译自 buildOutputPath
-    private static func buildOutputPath(config: HeapProfilerConfig) -> String {
-        let filename = if (config.name.size > 0) config.name else generateDefaultFilename(config.textFormat)
+    private static func buildOutputPath(config: HeapProfilerConfig): String {
+        let filename = if (config.name.size > 0) { config.name } else { generateDefaultFilename(config.textFormat) }
         var path = ""
         if (config.dir.size > 0) {
             path = config.dir + "/" + filename
@@ -65,9 +66,9 @@ public class BunHeapProfiler {
     // 生成文件名:
     // - Markdown 格式: Heap.{timestamp}.{pid}.md
     // - V8 格式: Heap.{timestamp}.{pid}.heapsnapshot
-    private static func generateDefaultFilename(textFormat: Bool) -> String {
-        let extension_ = textFormat ? "md" : "heapsnapshot"
-        "Heap.\(TimeUtils.epochMicroseconds()).\(ProcessInfo.pid).\(extension_)"
+    private static func generateDefaultFilename(textFormat: Bool): String {
+        let extension_ = if (textFormat) { "md" } else { "heapsnapshot" }
+        "Heap.${TimeUtils.epochMicroseconds()}.${ProcessInfo.pid}.${extension_}"
     }
 
     private static func writeProfileToFile(profileString: String, path: String) {

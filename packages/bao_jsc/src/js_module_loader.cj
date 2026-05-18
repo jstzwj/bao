@@ -28,7 +28,7 @@ public class JSModuleLoader_ {
         originUrl: String,
         referrerUrl: String,
         thisValue: JsValue
-    ) -> JsValue {
+    ): JsValue {
         // FFI 调用桩 - 真实实现通过 C FFI 调用 JSC
         // 在仓颉侧通过互操作调用:
         //   JSC__JSModuleLoader__evaluate(
@@ -57,7 +57,7 @@ public class JSModuleLoader_ {
     public static func loadAndEvaluateModule(
         globalObject: JsObject,
         moduleName: ?String
-    ) -> ?JsPromise {
+    ): ?JsPromise {
         // FFI 调用桩
         // JSC__JSModuleLoader__loadAndEvaluateModule(globalObject, moduleName)
         None
@@ -71,7 +71,7 @@ public class JSModuleLoader_ {
     public static func import_(
         globalObject: JsObject,
         moduleName: String
-    ) -> JsPromise {
+    ): JsPromise {
         // FFI: JSModuleLoader__import(globalObject, moduleName) orelse error.JSError
         let result = importFFI(globalObject, moduleName)
         if (result == None) {
@@ -91,7 +91,7 @@ public class JSModuleLoader_ {
         referrerUrl: String,
         thisValue: JsValue,
         exception: JsValue
-    ) -> JsValue {
+    ): JsValue {
         // @CFFI 调用 JSC C++ 绑定
         // 实际实现:
         //   return JSC__JSModuleLoader__evaluate(
@@ -109,7 +109,7 @@ public class JSModuleLoader_ {
     private static func loadAndEvaluateModuleFFI(
         globalObject: JsObject,
         moduleName: ?String
-    ) -> ?JsPromise {
+    ): ?JsPromise {
         // @CFFI 调用 JSC C++ 绑定
         None
     }
@@ -118,7 +118,7 @@ public class JSModuleLoader_ {
     private static func importFFI(
         globalObject: JsObject,
         moduleName: String
-    ) -> ?JsPromise {
+    ): ?JsPromise {
         // @CFFI 调用 JSC C++ 绑定
         None
     }

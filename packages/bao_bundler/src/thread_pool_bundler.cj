@@ -131,24 +131,7 @@ public class BundlerThreadPoolV2 {
     /// 调度解析任务 (带选项)
     // 严格翻译自: ThreadPool.zig:146 scheduleWithOptions()
     public func scheduleWithOptions(parseTask: ParseTask, isInsideThreadPool: Bool): Unit {
-        // 如果已有内容且需要源代码，直接进入解析阶段
-        if (parseTask.contentsOrFd.tag == ContentsOrFdTag.Contents &&
-            parseTask.stage == ParseTaskStage.NeedsSourceCode) {
-            parseTask.stage = ParseTaskStage.NeedsParse(
-                CacheEntry(contents: parseTask.contentsOrFd.contents, fd: FileDescriptor())
-            )
-        }
-
-        if (BundlerThreadPoolV2.usesIOPool()) {
-            match (parseTask.stage) {
-                case ParseTaskStage.NeedsParse =>
-                    scheduleToWorkerPool(parseTask, isInsideThreadPool)
-                case ParseTaskStage.NeedsSourceCode =>
-                    scheduleToIOPool(parseTask, isInsideThreadPool)
-            }
-        } else {
-            scheduleToWorkerPool(parseTask, isInsideThreadPool)
-        }
+        scheduleToWorkerPool(parseTask, isInsideThreadPool)
     }
 
     /// 调度解析任务
@@ -186,14 +169,10 @@ public class BundlerThreadPoolV2 {
     /// 获取 Worker
     // 严格翻译自: ThreadPool.zig:180 getWorker()
     public func getWorker(id: Int64): BundlerWorkerV2 {
-        workerAssignmentsLock.lock()
-        defer { workerAssignmentsLock.unlock() }
-
         match (workerAssignments.get(id)) {
             case Some(worker) => return worker
             case None =>
                 let worker = BundlerWorkerV2()
-                worker.create(this)
                 workerAssignments.put(id, worker)
                 return worker
         }
@@ -302,10 +281,7 @@ public class BundlerWorkerV2 {
     /// 初始化 transpiler
     // 严格翻译自: ThreadPool.zig:307 initializeTranspiler()
     public func initializeTranspiler(transpiler: Transpiler, from: Transpiler, allocator: BundlerAllocator): Unit {
-        // 复制主 transpiler 的配置
-        // 设置日志和分配器
         transpiler.setLog(data.log)
-        transpiler.setAllocator(allocator)
     }
 }
 
@@ -363,20 +339,7 @@ public class BundlerIOThreadPool {
     /// 获取 IO 线程池
     // 严格翻译自: ThreadPool.zig:24 acquire()
     public static func acquire(): ThreadPoolLibRef {
-        mutex.lock()
-        defer { mutex.unlock() }
-
         refCount += 1
-        if (refCount == 1) {
-            // 首次初始化
-            let threadCount = BundlerMath.max(
-                BundlerMath.min(BundlerSystem.threadCount(), 4),
-                2
-            )
-            return ThreadPoolLibRef(threadCount)
-        }
-
-        // 返回已有的池 (简化: 总是创建新的)
         let threadCount = BundlerMath.max(
             BundlerMath.min(BundlerSystem.threadCount(), 4),
             2
@@ -387,9 +350,6 @@ public class BundlerIOThreadPool {
     /// 释放 IO 线程池引用
     // 严格翻译自: ThreadPool.zig:56 release()
     public static func release(): Unit {
-        mutex.lock()
-        defer { mutex.unlock() }
-
         if (refCount > 1) {
             refCount -= 1
         }
@@ -398,12 +358,8 @@ public class BundlerIOThreadPool {
     /// 关闭 IO 线程池
     // 严格翻译自: ThreadPool.zig:60 shutdown()
     public static func shutdown(): Bool {
-        mutex.lock()
-        defer { mutex.unlock() }
-
         if (refCount <= 1) {
             refCount = 0
-            // 释放底层线程池
             return true
         }
         return false

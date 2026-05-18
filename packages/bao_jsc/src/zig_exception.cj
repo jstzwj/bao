@@ -10,7 +10,7 @@ public class ZigException {
     // 错误类型
     public var type_: JSErrorCode = JSErrorCode.Error
     // 运行时类型
-    public var runtimeType: JSRuntimeType = JSRuntimeType.Nothing
+    public var runtimeType: JSRuntimeType = JSRuntimeType.`Nothing`
 
     // SystemError 专用字段
     public var errno: Int64 = 0
@@ -113,7 +113,7 @@ public class ZigException {
         }
 
         // 严格翻译自 Holder.init
-        public static func init_() -> Holder {
+        public static func init_(): Holder {
             let holder = Holder()
             for (i in 0..Int64(holder.frames.capacity)) {
                 holder.frames.append(ZigStackFrame.zero())
@@ -134,11 +134,11 @@ public class ZigException {
         }
 
         // 严格翻译自 Holder.zigException
-        public func zigException_() -> ZigException {
+        public func zigException_(): ZigException {
             if (!loaded) {
                 let exc = ZigException()
-                exc.type_ = JSErrorCode.fromInt(255)
-                exc.runtimeType = JSRuntimeType.Nothing
+                exc.`type`_ = JSErrorCode.fromInt(255)
+                exc.runtimeType = JSRuntimeType.`Nothing`
                 exc.name = ""
                 exc.message = ""
                 exc.exception = None
@@ -159,7 +159,7 @@ public class ZigException {
 
     // 严格翻译自 ZigException.fromException
     // 从 JSC Exception 创建 ZigException
-    public static func fromException(exception: JsException) -> ZigException {
+    public static func fromException(exception: JsException): ZigException {
         let exc = ZigException()
         exc.exception = exception
         exc.name = "Error"
@@ -172,7 +172,7 @@ public class ZigException {
 // ========== API 异常 ==========
 // 严格翻译自 api.JsException
 public class JsExceptionApi {
-    public var runtimeType: JSRuntimeType = JSRuntimeType.Nothing
+    public var runtimeType: JSRuntimeType = JSRuntimeType.`Nothing`
     public var code: JSErrorCode = JSErrorCode.Error
     public var name: String = ""
     public var message: String = ""

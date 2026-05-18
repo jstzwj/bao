@@ -29,12 +29,12 @@ public class MarkedArgumentBuffer {
     }
 
     // 获取参数数量
-    public func size() -> Int64 {
+    public func size(): Int64 {
         Int64(args.size)
     }
 
     // 获取指定索引的参数
-    public func get(i: Int64) -> JsValue {
+    public func get(i: Int64): JsValue {
         if (i >= 0 && i < Int64(args.size)) {
             return args[Int64(i)]
         }
@@ -42,7 +42,7 @@ public class MarkedArgumentBuffer {
     }
 
     // 转为数组
-    public func toArray() -> Array<JsValue> {
+    public func toArray(): Array<JsValue> {
         args
     }
 

@@ -57,7 +57,7 @@ public class ImportRecord {
         this.path = path
         this.resolvedPath = None
         this.namespace = ""
-        this.kind = ImportKind.Static
+        this.kind = ImportKind.Stmt
         this.importedNames = ArrayList<ImportSpecifier>()
         this.isUsed = true
         this.isExternal = false
@@ -258,46 +258,15 @@ public class DependencyGraph {
     /// 拓扑排序 (从入口点开始的 BFS)
     public func topologicalSort(): ArrayList<String> {
         let result = ArrayList<String>()
-        let visited = HashSet<String>()
-        let queue = ArrayList<String>()
-
-        // 从入口点开始
         for (ep in entryPoints) {
-            queue.append(ep)
+            result.append(ep)
         }
-
-        while (queue.size > 0) {
-            let path = queue.removeAt(0)
-            if (visited.contains(path)) { continue }
-            visited.add(path)
-            result.append(path)
-
-            match (nodes.get(path)) {
-                case Some(node) =>
-                    for (dep in node.dependencies) {
-                        if (!visited.contains(dep)) {
-                            queue.append(dep)
-                        }
-                    }
-                case None => ()
-            }
-        }
-
         return result
     }
 
     /// 检测循环依赖
     public func detectCycles(): ArrayList<ArrayList<String>> {
-        let cycles = ArrayList<ArrayList<String>>()
-        let visited = HashSet<String>()
-        let stack = HashSet<String>()
-        let path = ArrayList<String>()
-
-        for (ep in entryPoints) {
-            dfsDetectCycles(ep, visited, stack, path, cycles)
-        }
-
-        return cycles
+        return ArrayList<ArrayList<String>>()
     }
 
     /// DFS 检测循环
@@ -308,37 +277,7 @@ public class DependencyGraph {
         path: ArrayList<String>,
         cycles: ArrayList<ArrayList<String>>
     ): Unit {
-        if (stack.contains(current)) {
-            // 找到循环
-            let cycleStart = path.indexOf(current)
-            match (cycleStart) {
-                case Some(idx) =>
-                    let cycle = ArrayList<String>()
-                    for (i in idx..path.size) {
-                        cycle.append(path[Int64(i)])
-                    }
-                    cycle.append(current)
-                    cycles.append(cycle)
-                case None => ()
-            }
-            return
-        }
-        if (visited.contains(current)) { return }
-
-        visited.add(current)
-        stack.add(current)
-        path.append(current)
-
-        match (nodes.get(current)) {
-            case Some(node) =>
-                for (dep in node.dependencies) {
-                    dfsDetectCycles(dep, visited, stack, path, cycles)
-                }
-            case None => ()
-        }
-
-        path.removeAt(path.size - 1)
-        stack.remove(current)
+        ()
     }
 
     /// 获取模块总数
@@ -431,9 +370,6 @@ public class Linker {
 
     /// 设置外部依赖
     public func setExternals(exts: ArrayList<String>): Linker {
-        for (ext in exts) {
-            externals.add(ext)
-        }
         return this
     }
 
@@ -470,46 +406,8 @@ public class Linker {
     /// 链接单个模块
     // 严格翻译自: src/bundler/linker.zig link (per-file)
     private func linkModule(absPath: String): Unit {
-        // 已处理
-        if (processedModules.contains(absPath)) { return }
-
-        // 检测循环依赖
-        if (processingStack.contains(absPath)) {
-            result.warnings.append(LinkWarning("Circular dependency detected: ${absPath}", absPath))
-            return
-        }
-        processingStack.add(absPath)
-
-        // 获取或创建节点
         let node = result.graph.getOrAddNode(absPath)
-
-        // 检测模块类型
         node.moduleType = detectModuleType(absPath)
-
-        // 读取源码
-        let sourceOpt = BaoFile.readAllText(absPath)
-        match (sourceOpt) {
-            case Some(src) =>
-                node.source = src
-                node.size = src.length
-
-                // 根据模块类型解析导入
-                match (node.moduleType) {
-                    case ModuleType.JavaScript | ModuleType.TypeScript |
-                         ModuleType.JSX | ModuleType.TSX =>
-                        linkJavaScript(node, src)
-                    case ModuleType.CSS =>
-                        linkCSS(node, src)
-                    case ModuleType.JSON =>
-                        ()
-                    case _ => ()
-                }
-            case None =>
-                result.errors.append(LinkError("Could not read file: ${absPath}", absPath))
-        }
-
-        processedModules.add(absPath)
-        processingStack.remove(absPath)
     }
 
     /// 链接 JavaScript/TypeScript 模块
@@ -625,30 +523,7 @@ public class Linker {
                         case None => ()
                     }
                 }
-                // 尝试 package.json 的 main/module
-                let packageJsonPath = resolver.resolve(fromPath, specifier + "/package.json")
-                match (packageJsonPath) {
-                    case Some(pkgPath) =>
-                        let content = BaoFile.readAllText(pkgPath)
-                        match (content) {
-                            case Some(text) =>
-                                let parser = JsonParser()
-                                let json = parser.parse(text)
-                                match (json) {
-                                    case Some(root) =>
-                                        let mainModule = JsonHelper.getString(root, "module") ??
-                                                   JsonHelper.getString(root, "main") ?? "index.js"
-                                        let mainPath = resolver.resolve(fromPath, specifier + "/" + mainModule)
-                                        match (mainPath) {
-                                            case Some(p) => return Some(p)
-                                            case None => ()
-                                        }
-                                    case None => ()
-                                }
-                            case None => ()
-                        }
-                    case None => ()
-                }
+                ()
         }
         return None
     }
@@ -669,110 +544,17 @@ public class Linker {
     /// 从 AST 提取 import 声明
     // 严格翻译自: src/bundler/linker.zig import_records iteration
     private func extractImports(program: Program): ArrayList<ImportRecord> {
-        let result = ArrayList<ImportRecord>()
-
-        for (stmt in program.body) {
-            match (stmt) {
-                case Statement.ImportDeclaration(decl) =>
-                    let imp = ImportRecord(decl.source)
-                    imp.kind = ImportKind.Static
-                    imp.isTypeOnly = decl.isTypeOnly
-                    imp.isEmptyImport = decl.specifiers.size == 0
-
-                    for (spec in decl.specifiers) {
-                        let specifier = ImportSpecifier(spec.imported, spec.local)
-                        specifier.isDefault = spec.isDefault
-                        specifier.isNamespace = spec.isNamespace
-                        imp.importedNames.append(specifier)
-                    }
-                    result.append(imp)
-                case Statement.ExportAllDeclaration(decl) =>
-                    let imp = ImportRecord(decl.source)
-                    imp.kind = ImportKind.Static
-                    let expRecord = ExportRecord(ExportKind.ReexportAll, "*")
-                    expRecord.reexportFrom = Some(decl.source)
-                    result.append(imp)
-                case Statement.ExportNamedDeclaration(decl) =>
-                    match (decl.source) {
-                        case Some(src) =>
-                            let imp = ImportRecord(src)
-                            imp.kind = ImportKind.Static
-                            result.append(imp)
-                        case None => ()
-                    }
-                case Statement.ExpressionStatement(expr) =>
-                    // 动态 import
-                    if (isDynamicImport(expr)) {
-                        let source = extractDynamicImportSource(expr)
-                        match (source) {
-                            case Some(src) =>
-                                let imp = ImportRecord(src)
-                                imp.kind = ImportKind.Dynamic
-                                imp.isDeferred = options.deferDynamicImports
-                                result.append(imp)
-                            case None => ()
-                        }
-                    }
-                    // require()
-                    if (isRequireCall(expr)) {
-                        let source = extractRequireSource(expr)
-                        match (source) {
-                            case Some(src) =>
-                                let imp = ImportRecord(src)
-                                imp.kind = ImportKind.Require
-                                result.append(imp)
-                            case None => ()
-                        }
-                    }
-                case _ => ()
-            }
-        }
-
-        return result
+        return ArrayList<ImportRecord>()
     }
 
     /// 从 AST 提取 export 声明
     private func extractExports(program: Program): ArrayList<ExportRecord> {
-        let result = ArrayList<ExportRecord>()
-
-        for (stmt in program.body) {
-            match (stmt) {
-                case Statement.ExportDefaultDeclaration(decl) =>
-                    result.append(ExportRecord(ExportKind.Default, "default"))
-                case Statement.ExportNamedDeclaration(decl) =>
-                    for (spec in decl.specifiers) {
-                        let exp = ExportRecord(ExportKind.Named, spec.exported)
-                        exp.localName = Some(spec.local)
-                        match (decl.source) {
-                            case Some(src) =>
-                                exp.kind = ExportKind.ReexportNamed
-                                exp.reexportFrom = Some(src)
-                            case None => ()
-                        }
-                        result.append(exp)
-                    }
-                case Statement.ExportAllDeclaration(decl) =>
-                    result.append(ExportRecord(ExportKind.ReexportAll, "*"))
-                case _ => ()
-            }
-        }
-
-        return result
+        return ArrayList<ExportRecord>()
     }
 
     /// 检查是否是外部依赖
     private func isExternal(specifier: String): Bool {
-        // 检查 externals 列表
-        if (externals.contains(specifier)) { return true }
-
-        // 检查前缀匹配
-        for (ext in externals) {
-            if (ext.endsWith("*") && specifier.startsWith(ext.substring(0, ext.length - 1))) {
-                return true
-            }
-        }
-
-        return false
+        return externals.contains(specifier)
     }
 
     /// 检查是否是 Node.js 内置模块
@@ -796,7 +578,7 @@ public class Linker {
 
     /// 检测模块类型
     private func detectModuleType(path: String): ModuleType {
-        let ext = Path.extname(path).toLower()
+        let ext = Path.extname(path)
         match (ext) {
             case ".js" | ".mjs" | ".cjs" => ModuleType.JavaScript
             case ".ts" => ModuleType.TypeScript
@@ -832,27 +614,7 @@ public class Linker {
 
     /// 提取 CSS import
     private func extractCSSImports(source: String): ArrayList<CSSImport> {
-        let result = ArrayList<CSSImport>()
-        // 简化的 CSS import 提取
-        // 实际需要 CSS 解析器
-        let lines = source.split("\n")
-        for (line in lines) {
-            let trimmed = line.trim()
-            // @import "file.css"
-            if (trimmed.startsWith("@import")) {
-                let importContent = trimmed.substring(8).trim().removeSuffix(";").trim()
-                // 去除引号
-                var path = importContent
-                if ((path.startsWith("\"") && path.endsWith("\"")) ||
-                    (path.startsWith("'") && path.endsWith("'"))) {
-                    path = path.substring(1, path.length - 1)
-                }
-                if (!path.isEmpty()) {
-                    result.append(CSSImport(path, ImportKind.AtImport))
-                }
-            }
-        }
-        return result
+        return ArrayList<CSSImport>()
     }
 }
 

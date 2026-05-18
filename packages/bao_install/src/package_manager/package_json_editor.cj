@@ -137,7 +137,7 @@ public class PackageJSONEditor {
     ///   pub fn editUpdateNoArgs(manager, current_package_json, options) !void
     ///   当 bun update 不带包名时, 更新所有依赖
     public static func editUpdateNoArgs(
-        manager: PackageManagerRef,
+        manager: PackageJsonEditorManagerRef,
         currentPackageJson: JsonExpr,
         options: EditOptions
     ): Unit {
@@ -151,7 +151,7 @@ public class PackageJSONEditor {
 
     /// editUpdateNoArgs per-group helper
     private static func editUpdateNoArgsGroup(
-        manager: PackageManagerRef,
+        manager: PackageJsonEditorManagerRef,
         root: JsonExpr,
         options: EditOptions
     ): Unit {
@@ -163,12 +163,12 @@ public class PackageJSONEditor {
 
     /// editUpdateNoArgs before-install per-prop helper
     private static func editUpdatePropsBeforeInstall(
-        manager: PackageManagerRef,
+        manager: PackageJsonEditorManagerRef,
         root: JsonExpr
     ): Unit {
         for (propEntry in root.properties()) {
             let key = propEntry.key
-            if (key.length == 0) { () }
+            if (key.size == 0) { () }
             let value = propEntry.value
             if (!value.isString()) { () }
 
@@ -190,7 +190,7 @@ public class PackageJSONEditor {
     }
 
     /// resolve alias index for npm: prefixed versions
-    private static func resolveAliasInfo(manager: PackageManagerRef, versionLiteral: String): ?Int64 {
+    private static func resolveAliasInfo(manager: PackageJsonEditorManagerRef, versionLiteral: String): ?Int64 {
         let trimmed = versionLiteral.trim()
         if (!trimmed.startsWith("npm:")) { return None }
         let atIndex = trimmed.lastIndexOf("@")
@@ -201,8 +201,8 @@ public class PackageJSONEditor {
     }
 
     /// resolve alias at index helper
-    private static func resolveAliasAtIdx(manager: PackageManagerRef, trimmed: String, idx: Int64): ?Int64 {
-        let innerTag = inferVersionTag(trimmed.substring(Int64(idx) + 1))
+    private static func resolveAliasAtIdx(manager: PackageJsonEditorManagerRef, trimmed: String, idx: Int64): ?Int64 {
+        let innerTag = inferVersionTag(trimmed[Int64(idx) + 1..])
         if (innerTag != DependencyVersionTag.NPM &&
             (innerTag != DependencyVersionTag.DistTag || !manager.options.updateToLatest) &&
             innerTag != DependencyVersionTag.Catalog) {
@@ -215,7 +215,7 @@ public class PackageJSONEditor {
     private static func resolveAliasVersion(versionLiteral: String, aliasInfo: ?Int64): String {
         let trimmed = versionLiteral.trim()
         match (aliasInfo) {
-            case Some(atIdx) => "${trimmed.substring(0, Int64(atIdx))}@latest"
+            case Some(atIdx) => "${trimmed[0..Int64(atIdx)]}@latest"
             case None => "latest"
         }
     }
@@ -225,8 +225,8 @@ public class PackageJSONEditor {
     ///   pub fn edit(manager, updates, current_package_json, dependency_list, options) !void
     ///   主编辑函数: 处理 add/remove/update 依赖列表
     public static func edit(
-        manager: PackageManagerRef,
-        updates: ArrayList<UpdateRequest>,
+        manager: PackageJsonEditorManagerRef,
+        updates: ArrayList<PackageJsonUpdateRequest>,
         currentPackageJson: JsonExpr,
         dependencyList: String,
         options: EditOptions
@@ -250,7 +250,7 @@ public class PackageJSONEditor {
     }
 
     /// edit helper: write updates into existing dep list
-    private static func editIntoDepList(depList: JsonExpr, updates: ArrayList<UpdateRequest>): Unit {
+    private static func editIntoDepList(depList: JsonExpr, updates: ArrayList<PackageJsonUpdateRequest>): Unit {
         if (!depList.isObject()) { return }
         for (request in updates) {
             if (request.failed) { () }
@@ -263,7 +263,7 @@ public class PackageJSONEditor {
     }
 
     /// edit helper: create new dep list and write updates
-    private static func editCreateDepList(currentPackageJson: JsonExpr, dependencyList: String, updates: ArrayList<UpdateRequest>): Unit {
+    private static func editCreateDepList(currentPackageJson: JsonExpr, dependencyList: String, updates: ArrayList<PackageJsonUpdateRequest>): Unit {
         var newDepList = JsonExpr()
         for (request in updates) {
             if (request.failed) { () }
@@ -276,16 +276,16 @@ public class PackageJSONEditor {
         currentPackageJson.put(dependencyList, newDepList)
     }
 
-    /// get version string from UpdateRequest
-    private static func getReqVersion(request: UpdateRequest): ?String {
+    /// get version string from PackageJsonUpdateRequest
+    private static func getReqVersion(request: PackageJsonUpdateRequest): ?String {
         let buf = request.versionBuf
-        if (buf.length == 0) { return None }
+        if (buf.size == 0) { return None }
         return Some(buf)
     }
 
     /// 推断版本标签
     private static func inferVersionTag(version: String): DependencyVersionTag {
-        if (version.length == 0) { return DependencyVersionTag.Uninitialized }
+        if (version.size == 0) { return DependencyVersionTag.Uninitialized }
         let first = version[0].value
         if (first == 94 || first == 126 || first == 62 || // ^, ~, >
             first == 60 || first == 61 || first == 42) { // <, =, *
@@ -367,7 +367,7 @@ public class DependencyGroupBehavior {
 }
 
 /// 更新请求 (轻量引用)
-public class UpdateRequest {
+public class PackageJsonUpdateRequest {
     public var failed: Bool
     public var name: String
     public var version: DependencyVersionInfo
@@ -381,7 +381,7 @@ public class UpdateRequest {
     }
 
     public func getName(): String {
-        if (name.length > 0) { return name }
+        if (name.size > 0) { return name }
         return versionBuf
     }
 }
@@ -412,7 +412,7 @@ public enum DependencyVersionTag {
 }
 
 /// 包管理器引用
-public class PackageManagerRef {
+public class PackageJsonEditorManagerRef {
     public var options: PackageManagerEditOptions
     public var trustedDepsToAdd: ArrayList<String>
 

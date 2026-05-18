@@ -7,15 +7,8 @@ package bao_jsc
 // 严格翻译自 config.zig DefaultBunDefines
 // 默认的 Bun 全局定义键值
 public class DefaultBunDefines {
-    // ========== Keys ==========
-    public class Keys {
-        public static let window: String = "window"
-    }
-
-    // ========== Values ==========
-    public class Values {
-        public static let window: String = "undefined"
-    }
+    public static let keyWindow: String = "window"
+    public static let valueWindow: String = "undefined"
 
     public init() {}
 }
@@ -38,7 +31,7 @@ public class TransformOptions {
 
     // 严格翻译自 configureTransformOptionsForBunVM
     // 为 Bun VM 配置 Transform 选项
-    public static func configureForBunVM(options: TransformOptions) -> TransformOptions {
+    public static func configureForBunVM(options: TransformOptions): TransformOptions {
         var args = options
         args.write = false
         args.resolve = ResolveMode.Lazy
@@ -47,7 +40,7 @@ public class TransformOptions {
 
     // 严格翻译自 configureTransformOptionsForBun
     // 为 Bun 配置 Transform 选项（设置 target 为 bun）
-    public static func configureForBun(options: TransformOptions) -> TransformOptions {
+    public static func configureForBun(options: TransformOptions): TransformOptions {
         var args = options
         args.target = TransformTarget.Bun
         return args

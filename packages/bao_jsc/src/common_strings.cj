@@ -7,8 +7,19 @@ package bao_jsc
 // 严格翻译自 CommonStrings.zig CommonStringsForZig
 // 常用字符串的枚举标识符，所有 getter 返回 JSC::JSString
 public enum CommonStringsForZig {
+    | IPv4
+    | IPv6
+    | IN4Loopback
+    | IN6Any
+    | IPv4Lower
+    | IPv6Lower
+    | FetchDefault
+    | FetchError
+    | FetchInclude
+    | Buffer
+    | BinaryTypeArrayBuffer
+    | BinaryTypeNodeBuffer
     | None
-}
 }
 
 // ========== CommonStrings ==========
@@ -22,67 +33,67 @@ public class CommonStrings {
     }
 
     // 严格翻译自 IPv4
-    public func ipv4() -> JsValue {
+    public func ipv4(): JsValue {
         CommonStringsForZig.IPv4.toJS(globalObject)
     }
 
     // 严格翻译自 IPv6
-    public func ipv6() -> JsValue {
+    public func ipv6(): JsValue {
         CommonStringsForZig.IPv6.toJS(globalObject)
     }
 
     // 严格翻译自 127.0.0.1 (IN4Loopback)
-    public func loopback() -> JsValue {
+    public func loopback(): JsValue {
         CommonStringsForZig.IN4Loopback.toJS(globalObject)
     }
 
     // 严格翻译自 :: (IN6Any)
-    public func in6Any() -> JsValue {
+    public func in6Any(): JsValue {
         CommonStringsForZig.IN6Any.toJS(globalObject)
     }
 
     // 严格翻译自 ipv4 (小写)
-    public func ipv4Lower() -> JsValue {
+    public func ipv4Lower(): JsValue {
         CommonStringsForZig.IPv4Lower.toJS(globalObject)
     }
 
     // 严格翻译自 ipv6 (小写)
-    public func ipv6Lower() -> JsValue {
+    public func ipv6Lower(): JsValue {
         CommonStringsForZig.IPv6Lower.toJS(globalObject)
     }
 
     // 严格翻译自 default (fetch default)
-    public func fetchDefault() -> JsValue {
+    public func fetchDefault(): JsValue {
         CommonStringsForZig.FetchDefault.toJS(globalObject)
     }
 
     // 严格翻译自 error (fetch error)
-    public func fetchError() -> JsValue {
+    public func fetchError(): JsValue {
         CommonStringsForZig.FetchError.toJS(globalObject)
     }
 
     // 严格翻译自 include (fetch include)
-    public func fetchInclude() -> JsValue {
+    public func fetchInclude(): JsValue {
         CommonStringsForZig.FetchInclude.toJS(globalObject)
     }
 
     // 严格翻译自 buffer
-    public func buffer() -> JsValue {
+    public func buffer(): JsValue {
         CommonStringsForZig.Buffer.toJS(globalObject)
     }
 
     // 严格翻译自 arraybuffer (binary type)
-    public func arrayBuffer() -> JsValue {
+    public func arrayBuffer(): JsValue {
         CommonStringsForZig.BinaryTypeArrayBuffer.toJS(globalObject)
     }
 
     // 严格翻译自 nodebuffer (binary type)
-    public func nodeBuffer() -> JsValue {
+    public func nodeBuffer(): JsValue {
         CommonStringsForZig.BinaryTypeNodeBuffer.toJS(globalObject)
     }
 
     // 严格翻译自 uint8array (binary type)
-    public func uint8Array() -> JsValue {
+    public func uint8Array(): JsValue {
         CommonStringsForZig.BinaryTypeUint8Array.toJS(globalObject)
     }
 }

@@ -16,50 +16,21 @@ package bao_jsc
 //   export fn Bun__tickWhilePaused(...) void { ... }
 public class JSCScheduler {
     public init() {}
+}
 
-    // ========== JSCDeferredWorkTask ==========
-    // 严格翻译自 JSCScheduler.JSCDeferredWorkTask
-    // JSC 延迟工作任务 opaque 类型
-    //
-    // 原始 Zig:
-    //   pub const JSCDeferredWorkTask = opaque {
-    //       extern fn Bun__runDeferredWork(task: *JSCScheduler.JSCDeferredWorkTask) void;
-    //       pub fn run(task: *JSCScheduler.JSCDeferredWorkTask) bun.JSTerminated!void {
-    //           const globalThis = bun.jsc.VirtualMachine.get().global;
-    //           var scope: bun.jsc.ExceptionValidationScope = undefined;
-    //           scope.init(globalThis, @src());
-    //           defer scope.deinit();
-    //           Bun__runDeferredWork(task);
-    //           try scope.assertNoExceptionExceptTermination();
-    //       }
-    //   };
-    public class JSCDeferredWorkTask {
-        public var rawPtr: CPointer<UInt8> = CPointer<UInt8>()
+// ========== JSCDeferredWorkTask ==========
+// 严格翻译自 JSCScheduler.JSCDeferredWorkTask
+// JSC 延迟工作任务 opaque 类型
+public class JSCDeferredWorkTask {
+    public var rawPtr: CPointer<UInt8> = CPointer<UInt8>()
 
-        public init() {}
+    public init() {}
 
-        // 严格翻译自 JSCDeferredWorkTask.run
-        // 执行延迟工作
-        //
-        // FFI: Bun__runDeferredWork(task: *JSCDeferredWorkTask) void
-        public func run() {
-            // 1. 获取 VM 和 global
-            // FFI: const globalThis = bun.jsc.VirtualMachine.get().global
-            // 2. 创建异常验证作用域
-            // var scope = ExceptionValidationScope()
-            // scope.init(globalThis)
-            // defer scope.deinit()
-            // 3. 运行延迟工作
-            // FFI: Bun__runDeferredWork(rawPtr)
-            runDeferredWorkFFI()
-            // 4. 断言无异常 (除终止外)
-            // scope.assertNoExceptionExceptTermination()
-        }
+    public func run() {
+        runDeferredWorkFFI()
+    }
 
-        // FFI 桩: Bun__runDeferredWork
-        private func runDeferredWorkFFI() {
-            // 真实实现: @CFFI 调用 Bun__runDeferredWork(rawPtr)
-        }
+    private func runDeferredWorkFFI() {
     }
 }
 
@@ -99,7 +70,7 @@ public func eventLoopIncrementRefConcurrently(jscVm: BunVirtualMachine, delta: I
 //           .next = .auto_delete,
 //       }));
 //   }
-public func queueJSCDeferredWorkTaskConcurrently(jscVm: BunVirtualMachine, task: JSCScheduler.JSCDeferredWorkTask) {
+public func queueJSCDeferredWorkTaskConcurrently(jscVm: BunVirtualMachine, task: JSCDeferredWorkTask) {
     // FFI: var loop = jscVm.eventLoop()
     // loop.enqueueTaskConcurrent(ConcurrentTask.new({
     //     task = Task.init(task),

@@ -30,7 +30,7 @@ public class CustomGetterSetter {
     // 检查自定义 getter 是否为 null
     //
     // FFI: bun.cpp.JSC__CustomGetterSetter__isGetterNull(this) bool
-    public func isGetterNull() -> Bool {
+    public func isGetterNull(): Bool {
         // 原始 Zig:
         //   return bun.cpp.JSC__CustomGetterSetter__isGetterNull(this);
         getterValue == None
@@ -41,7 +41,7 @@ public class CustomGetterSetter {
     // 检查自定义 setter 是否为 null
     //
     // FFI: bun.cpp.JSC__CustomGetterSetter__isSetterNull(this) bool
-    public func isSetterNull() -> Bool {
+    public func isSetterNull(): Bool {
         // 原始 Zig:
         //   return bun.cpp.JSC__CustomGetterSetter__isSetterNull(this);
         setterValue == None
@@ -49,6 +49,6 @@ public class CustomGetterSetter {
 
     // ========== FFI 绑定 ==========
     // 外部 C 函数声明 (通过 bun.cpp 命名空间):
-    //   @extern "c" fn JSC__CustomGetterSetter__isGetterNull(this: CPointer<UInt8>) -> Bool
-    //   @extern "c" fn JSC__CustomGetterSetter__isSetterNull(this: CPointer<UInt8>) -> Bool
+    //   @extern "c" fn JSC__CustomGetterSetter__isGetterNull(this: CPointer<UInt8>): Bool
+    //   @extern "c" fn JSC__CustomGetterSetter__isSetterNull(this: CPointer<UInt8>): Bool
 }

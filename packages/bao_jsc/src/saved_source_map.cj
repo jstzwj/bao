@@ -44,7 +44,7 @@ public class SavedSourceMap {
     // 严格翻译自 SavedSourceMap.removeDevServerSourceProvider
     public func removeDevServerSourceProvider(opaqueSourceProvider: UInt64, path: String) {
         lock()
-        defer unlock()
+        defer { unlock() }
         // Remove entry from map
     }
 
@@ -56,7 +56,7 @@ public class SavedSourceMap {
     // 严格翻译自 SavedSourceMap.removeZigSourceProvider
     public func removeZigSourceProvider(opaqueSourceProvider: UInt64, path: String) {
         lock()
-        defer unlock()
+        defer { unlock() }
         // Remove entry from map
     }
 
@@ -68,7 +68,7 @@ public class SavedSourceMap {
     // 严格翻译自 SavedSourceMap.deinit
     public func deinit() {
         lock()
-        defer unlock()
+        defer { unlock() }
         // Free all values in map
     }
 
@@ -80,19 +80,19 @@ public class SavedSourceMap {
     // 严格翻译自 SavedSourceMap.putValue
     public func putValue(path: String, value: Value) {
         lock()
-        defer unlock()
+        defer { unlock() }
         findCache.invalidateAll()
         lastIsm = None
         // Store in hash table
     }
 
     // 严格翻译自 SavedSourceMap.get
-    public func get(path: String) -> ?ParsedSourceMap {
+    public func get(path: String): ?ParsedSourceMap {
         None
     }
 
     // 严格翻译自 SavedSourceMap.getValueLocked
-    public func getValueLocked(hash: UInt64) -> ?Value {
+    public func getValueLocked(hash: UInt64): ?Value {
         None
     }
 
@@ -102,15 +102,15 @@ public class SavedSourceMap {
         line: Int32,
         column: Int32,
         sourceHandling: SourceContentHandling
-    ) -> ?MappingLookup {
+    ): ?MappingLookup {
         None
     }
 }
 
 // 支撑类型
-public class HashTable { public init() {} public func getEntry(_ hash: UInt64) -> ?HashTableEntry { None } public func get(_ hash: UInt64) -> ?UInt64 { None } public func remove(_ hash: UInt64) {} public func valueIterator() -> HashTableValueIterator { HashTableValueIterator() } public func deinit() {} public func lockPointers() {} public func unlockPointers() {} }
+public class HashTable { public init() {} public func getEntry(_ hash: UInt64): ?HashTableEntry { None } public func get(_ hash: UInt64): ?UInt64 { None } public func remove(_ hash: UInt64) {} public func valueIterator(): HashTableValueIterator { HashTableValueIterator() } public func deinit() {} public func lockPointers() {} public func unlockPointers() {} }
 public class HashTableEntry { public var keyPtr: UInt64 = 0; public var valuePtr: UInt64 = 0; public init() {} }
-public class HashTableValueIterator { public func next() -> ?UInt64 { None } }
+public class HashTableValueIterator { public func next(): ?UInt64 { None } }
 public class Mutex { public init() {} public func lock() {} public func unlock() {} }
 public class FindCache { public init() {} public func invalidateAll() {} }
 public class Value { public init() {} }

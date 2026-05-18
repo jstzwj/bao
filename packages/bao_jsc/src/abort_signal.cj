@@ -4,22 +4,22 @@ package bao_jsc
 // ========== AbortReason ==========
 // 严格翻译自 AbortSignal.AbortReason
 public enum AbortReason {
-    case common(CommonAbortReason)
-    case js(JsValue)
+    | common(CommonAbortReason)
+    | js(JsValue)
 
     // 严格翻译自 AbortReason.toBodyValueError
-    public func toBodyValueError(globalObject: JsObject) -> BodyValueError {
+    public func toBodyValueError(globalObject: JsObject): BodyValueError {
         match (this) {
-            case common(let reason) => BodyValueError.abortReason(reason)
-            case js(let value) => BodyValueError.jsValue(JsValue.create(value, globalObject))
+            case common(reason) => BodyValueError.abortReason(reason)
+            case js(value) => BodyValueError.jsValue(JsValue.create(value, globalObject))
         }
     }
 
     // 严格翻译自 AbortReason.toJS
-    public func toJS(global: JsObject) -> JsValue {
+    public func toJS(global: JsObject): JsValue {
         match (this) {
-            case common(let reason) => reason.toJS(global)
-            case js(let value) => value
+            case common(reason) => reason.toJS(global)
+            case js(value) => value
         }
     }
 }
@@ -81,12 +81,12 @@ public class AbortSignal {
     public init() {}
 
     // 严格翻译自 AbortSignal.listen (with context and callback)
-    public func listen(ctx: UInt64, callback: (UInt64, JsValue) -> Void) -> AbortSignal {
+    public func listen(ctx: UInt64, callback: (UInt64, JsValue) -> Unit): AbortSignal {
         addListener(ctx, callback)
     }
 
     // 严格翻译自 AbortSignal.addListener
-    public func addListener(ctx: UInt64, callback: (UInt64, JsValue) -> Void) -> AbortSignal {
+    public func addListener(ctx: UInt64, callback: (UInt64, JsValue) -> Unit): AbortSignal {
         // FFI call to WebCore__AbortSignal__addListener
         this
     }
@@ -115,18 +115,18 @@ public class AbortSignal {
 
     // 严格翻译自 AbortSignal.aborted
     // 注意: 此函数非线程安全. aborted 是布尔值，非原子.getOrThrow()
-    public func aborted() -> Bool {
+    public func aborted(): Bool {
         aborted_
     }
 
     // 严格翻译自 AbortSignal.abortReason
     // 注意: 此函数非线程安全. JSValue 不能安全在线程间传递.
-    public func abortReason() -> JsValue {
+    public func abortReason(): JsValue {
         abortReasonValue
     }
 
     // 严格翻译自 AbortSignal.reasonIfAborted
-    public func reasonIfAborted(global: JsObject) -> ?AbortReason {
+    public func reasonIfAborted(global: JsObject): ?AbortReason {
         if (!aborted_) {
             return None
         }
@@ -137,7 +137,7 @@ public class AbortSignal {
     }
 
     // 严格翻译自 AbortSignal.ref
-    public func ref() -> AbortSignal {
+    public func ref(): AbortSignal {
         this
     }
 
@@ -153,7 +153,7 @@ public class AbortSignal {
     }
 
     // 严格翻译自 AbortSignal.fromJS
-    public static func fromJS(value: JsValue) -> ?AbortSignal {
+    public static func fromJS(value: JsValue): ?AbortSignal {
         // FFI call to WebCore__AbortSignal__fromJS
         if (value.isUndefinedOrNull()) {
             return None
@@ -162,24 +162,24 @@ public class AbortSignal {
     }
 
     // 严格翻译自 AbortSignal.toJS
-    public func toJS(global: JsObject) -> JsValue {
+    public func toJS(global: JsObject): JsValue {
         abortReasonValue
     }
 
     // 严格翻译自 AbortSignal.create
-    public static func create(global: JsObject) -> JsValue {
+    public static func create(global: JsObject): JsValue {
         // FFI call to WebCore__AbortSignal__create
         JsValue.undefined()
     }
 
     // 严格翻译自 AbortSignal.new
-    public static func new(global: JsObject) -> AbortSignal {
+    public static func new(global: JsObject): AbortSignal {
         AbortSignal()
     }
 
     // 严格翻译自 AbortSignal.getTimeout
     // 返回内部 Timeout 的借用句柄，或 null
-    public func getTimeout() -> ?AbortSignalTimeout {
+    public func getTimeout(): ?AbortSignalTimeout {
         None
     }
 }

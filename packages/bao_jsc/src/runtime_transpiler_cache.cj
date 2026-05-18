@@ -12,13 +12,14 @@ public class RuntimeTranspilerCache {
     public var featuresHash: ?UInt64 = None
     public var exportsKind: ExportsKind = ExportsKind.none_
     public var outputCode: ?String = None
-    public var entry: ?CacheEntry = None
+    public var entry: ?RuntimeTranspilerCacheEntry = None
 
     public init() {}
+}
 
-    // 严格翻译自 RuntimeTranspilerCache.Metadata
+// 严格翻译自 RuntimeTranspilerCache.Metadata
     // 缓存文件的元数据头部
-    public class Metadata {
+    public class RuntimeTranspilerCacheMetadata {
         public var cacheVersion: UInt32 = EXPECTED_VERSION
         public var outputEncoding: CacheEncoding = CacheEncoding.none_
         public var moduleType: CacheModuleType = CacheModuleType.none_
@@ -42,15 +43,15 @@ public class RuntimeTranspilerCache {
 
         public init() {}
 
-        // 严格翻译自 Metadata.encode
-        public func encode() -> Array<Byte> {
+        // 严格翻译自 RuntimeTranspilerCacheMetadata.encode
+        public func encode(): Array<Byte> {
             var buf = Array<Byte>()
             // Encode all fields as little-endian
             buf
         }
 
-        // 严格翻译自 Metadata.decode
-        public func decode(reader: ByteReader) -> Bool {
+        // 严格翻译自 RuntimeTranspilerCacheMetadata.decode
+        public func decode(reader: ByteReader): Bool {
             cacheVersion = reader.readUInt32()
             if (cacheVersion != EXPECTED_VERSION) { return false }
             moduleType = CacheModuleType(rawValue: reader.readUInt8())
@@ -72,8 +73,8 @@ public class RuntimeTranspilerCache {
     }
 
     // 严格翻译自 RuntimeTranspilerCache.Entry
-    public class CacheEntry {
-        public var metadata: Metadata = Metadata()
+    public class RuntimeTranspilerCacheEntry {
+        public var metadata: RuntimeTranspilerCacheMetadata = RuntimeTranspilerCacheMetadata()
         public var outputCode: OutputCode = OutputCode.utf8("")
         public var sourcemap: Array<Byte> = []
         public var esmRecord: Array<Byte> = []
@@ -96,7 +97,7 @@ public class RuntimeTranspilerCache {
         }
 
         // 严格翻译自 Entry.load
-        public func load(file: UInt64) -> Bool {
+        public func load(file: UInt64): Bool {
             // Read metadata and data from cache file
             true
         }
@@ -110,18 +111,18 @@ public class RuntimeTranspilerCache {
     }
 
     // 严格翻译自 RuntimeTranspilerCache.hash
-    public static func hash(bytes: Array<Byte>) -> UInt64 {
+    public static func hash(bytes: Array<Byte>): UInt64 {
         Wyhash.hash(SEED, bytes)
     }
 
     // 严格翻译自 RuntimeTranspilerCache.getCacheFilePath
-    public static func getCacheFilePath(buf: PathBuffer, inputHash: UInt64) -> String {
+    public static func getCacheFilePath(buf: PathBuffer, inputHash: UInt64): String {
         let cacheDir = getCacheDir(buf)
-        "\(cacheDir)/\(inputHash).pile"
+        "${cacheDir}/${inputHash}.pile"
     }
 
     // 严格翻译自 RuntimeTranspilerCache.getCacheDir
-    public static func getCacheDir(buf: PathBuffer) -> String {
+    public static func getCacheDir(buf: PathBuffer): String {
         // Check BUN_RUNTIME_TRANSPILER_CACHE_PATH, XDG_CACHE_HOME, HOME etc.
         "/tmp/bun/@t@"
     }
@@ -131,12 +132,12 @@ public class RuntimeTranspilerCache {
         inputHash: UInt64,
         featureHash: UInt64,
         inputStatSize: UInt64
-    ) -> ?CacheEntry {
+    ): ?RuntimeTranspilerCacheEntry {
         None
     }
 
     // 严格翻译自 RuntimeTranspilerCache.isEligible
-    public func isEligible(path: FsPath) -> Bool {
+    public func isEligible(path: FsPath): Bool {
         path.isFile()
     }
 
@@ -154,7 +155,7 @@ public class RuntimeTranspilerCache {
     }
 
     // 严格翻译自 RuntimeTranspilerCache.get
-    public func get(source: Source, parserOptions: ParserOptions, usedJsx: Bool) -> Bool {
+    public func get(source: Source, parserOptions: ParserOptions, usedJsx: Bool): Bool {
         if (entry != None) { return true }
         if (isDisabled) { return false }
         false
@@ -178,7 +179,7 @@ public enum OutputCode {
     case utf8(String)
     case string(String)
 
-    public func byteSlice() -> String {
+    public func byteSlice(): String {
         match (this) {
             case utf8(let s) => s
             case string(let s) => s
@@ -202,10 +203,10 @@ public enum CacheEncoding: UInt8 {
 }
 
 // 支撑类型
-public class Wyhash { public static func hash(_ seed: UInt64, _ data: Array<Byte>) -> UInt64 { 0 } }
-public class ByteReader { public func readUInt32() -> UInt32 { 0 } public func readUInt8() -> UInt8 { 0 } public func readUInt64() -> UInt64 { 0 } }
+public class Wyhash { public static func hash(_ seed: UInt64, _ data: Array<Byte>): UInt64 { 0 } }
+public class ByteReader { public func readUInt32(): UInt32 { 0 } public func readUInt8(): UInt8 { 0 } public func readUInt64(): UInt64 { 0 } }
 public class PathBuffer { public init() {} }
 public class Source { public init() {} }
 public class ParserOptions { public init() {} }
-public class FsPath { public func isFile() -> Bool { true } public init() {} }
+public class FsPath { public func isFile(): Bool { true } public init() {} }
 public class ExportsKind { public static let none_: ExportsKind = ExportsKind(); public init() {} }

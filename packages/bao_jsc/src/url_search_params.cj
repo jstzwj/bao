@@ -12,19 +12,19 @@ public class URLSearchParams {
     public init() {}
 
     // 严格翻译自 URLSearchParams.create
-    public static func create(globalObject: JsObject, init: ZigString) -> JsValue {
+    public static func create(globalObject: JsObject, initValue: ZigString): JsValue {
         // FFI: URLSearchParams__create
         JsValue.undefined()
     }
 
     // 严格翻译自 URLSearchParams.fromJS
-    public static func fromJS(value: JsValue) -> ?URLSearchParams {
+    public static func fromJS(value: JsValue): ?URLSearchParams {
         // FFI: URLSearchParams__fromJS
         None
     }
 
     // 严格翻译自 URLSearchParams.toString
-    public func toString(callback: (ZigString) -> Void) {
+    public func toString(callback: (ZigString) -> Unit) {
         // FFI: URLSearchParams__toString
     }
 }

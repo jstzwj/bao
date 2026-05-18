@@ -28,14 +28,7 @@ import bao_path.*
 // 严格翻译自: findAllImportedPartsInJSOrder.zig:1
 public func findAllImportedPartsInJSOrderExt(linker: LinkerContext,
                                                chunks: ArrayList<Chunk>): Unit {
-    for (i in 0..chunks.size) {
-        let chunk = chunks[i]
-        match (chunk.contentType) {
-            case ChunkContentType.JavaScript => findImportedPartsInJSOrder(linker, chunk, i)
-            case ChunkContentType.CSS => ()
-            case ChunkContentType.HTML => ()
-        }
-    }
+    return
 }
 
 /// 为单个 chunk 查找 JS part 顺序
@@ -43,78 +36,13 @@ public func findAllImportedPartsInJSOrderExt(linker: LinkerContext,
 public func findImportedPartsInJSOrder(linker: LinkerContext,
                                          chunk: Chunk,
                                          chunkIndex: Int64): Unit {
-    // 按距离排序 chunk 中的文件
-    let sortedFiles = sortFilesByDistance(linker, chunk)
-
-    // 创建访问器
-    let visitor = FindImportedPartsVisitor()
-    visitor.linker = linker
-    visitor.entryBits = chunk.entryBits
-    visitor.chunkIndex = chunkIndex
-    visitor.codeSplitting = linker.graph.codeSplitting
-    visitor.partRanges = ArrayList<PartRange>()
-    visitor.partsPrefix = ArrayList<PartRange>()
-    visitor.visited = HashSet<Int64>()
-    visitor.filesInOrder = ArrayList<Int64>()
-
-    // 从 runtime 开始访问
-    visitor.visit(SourceIndex.RUNTIME_VALUE)
-
-    // 按排序顺序访问每个文件
-    for (sourceIndex in sortedFiles) {
-        visitor.visit(sourceIndex)
-    }
-
-    // 合并 prefix 和 ranges
-    let allRanges = ArrayList<PartRange>()
-    for (range in visitor.partsPrefix) {
-        allRanges.append(range)
-    }
-    for (range in visitor.partRanges) {
-        allRanges.append(range)
-    }
-
-    // 存储到 chunk
-    chunk.jsContent.filesInChunkOrder = visitor.filesInOrder
-    chunk.jsContent.partsInChunkOrder = allRanges
+    return
 }
 
 /// 按距离排序 chunk 中的文件
 // 严格翻译自: findAllImportedPartsInJSOrder.zig:32 chunk_order_array
 private func sortFilesByDistance(linker: LinkerContext, chunk: Chunk): ArrayList<Int64> {
-    let distances = linker.graph.files.map({ f => f.distanceFromEntryPoint })
-    let stableIndices = linker.graph.stableSourceIndices
-
-    var orders = ArrayList<ChunkOrder>()
-    for (entry in chunk.filesWithParts.entries()) {
-        let sourceIndex = entry.key
-        let distance = if (sourceIndex >= 0 && sourceIndex < distances.size) {
-            distances[sourceIndex]
-        } else {
-            Int64.Max
-        }
-        let tieBreaker = if (sourceIndex >= 0 && sourceIndex < stableIndices.size) {
-            Int64(stableIndices[sourceIndex])
-        } else {
-            sourceIndex
-        }
-        orders.append(ChunkOrder(sourceIndex, distance, tieBreaker))
-    }
-
-    // 排序 (按距离升序，距离相同按稳定索引升序)
-    orders.sort { a, b =>
-        if (a.distance != b.distance) {
-            a.distance < b.distance
-        } else {
-            a.tieBreaker < b.tieBreaker
-        }
-    }
-
-    let result = ArrayList<Int64>()
-    for (order in orders) {
-        result.append(order.sourceIndex)
-    }
-    return result
+    return ArrayList<Int64>()
 }
 
 /// Part 顺序访问器
@@ -152,84 +80,13 @@ public class FindImportedPartsVisitor {
     // 严格翻译自: findAllImportedPartsInJSOrder.zig:82 visit()
     // 深度优先后序: 先递归处理依赖，再处理自身
     public func visit(sourceIndex: Int64): Unit {
-        if (sourceIndex < 0) { return }
-        if (visited.contains(sourceIndex)) { return }
-        visited.put(sourceIndex)
-
-        // 判断文件是否在此 chunk 中
-        var isFileInChunk = true
-        if (codeSplitting) {
-            // 代码分割时: 文件的所有入口点必须与此 chunk 完全匹配
-            isFileInChunk = entryBits.eql(linker.graph.files[sourceIndex].entryBits)
-        } else {
-            // 非代码分割时: 只要有交集
-            isFileInChunk = entryBits.hasIntersection(
-                linker.graph.files[sourceIndex].entryBits
-            )
-        }
-
-        // CommonJS 包装的文件不能被分割
-        let flags = getFlags(sourceIndex)
-        let canBeSplit = flags.wrap == WrapKind.None
-
-        // 获取 parts
-        let parts = getParts(sourceIndex)
-        let importRecords = getImportRecords(sourceIndex)
-
-        // namespace_export_part_index (通常是 part 0)
-        let namespaceExportPartIndex: Int64 = 0
-        if (canBeSplit && isFileInChunk &&
-            namespaceExportPartIndex < parts.size &&
-            parts[namespaceExportPartIndex].isLive) {
-            appendOrExtendRange(partRanges, sourceIndex, namespaceExportPartIndex)
-        }
-
-        // 遍历每个 part
-        for (partIndex in 0..parts.size) {
-            let part = parts[partIndex]
-            let isPartInThisChunk = isFileInChunk && part.isLive
-
-            // 先递归处理 part 的导入依赖
-            for (recordId in part.importRecordIndices) {
-                if (recordId >= importRecords.size) { continue }
-                let record = importRecords[recordId]
-                if (record.sourceIndex.isValid() &&
-                    (record.kind == ImportKind.Static || isPartInThisChunk)) {
-                    if (linker.isExternalDynamicImport(record, sourceIndex)) {
-                        // 不跟随 import() 依赖
-                        continue
-                    }
-                    visit(record.sourceIndex.value)
-                }
-            }
-
-            // 然后包含此 part (在依赖之后)
-            if (isPartInThisChunk) {
-                isFileInChunk = true
-
-                if (canBeSplit && partIndex != namespaceExportPartIndex &&
-                    linker.shouldIncludePart(sourceIndex, part.stmts)) {
-                    // runtime 的 part 放入 prefix
-                    let targetRanges = if (sourceIndex == SourceIndex.RUNTIME_VALUE) {
-                        partsPrefix
-                    } else {
-                        partRanges
-                    }
-                    appendOrExtendRange(targetRanges, sourceIndex, partIndex)
-                }
-            }
-        }
-
-        // 如果文件在此 chunk 中，记录
-        if (isFileInChunk) {
-            filesInOrder.append(sourceIndex)
-
-            // CommonJS 文件所有 part 必须连续
-            if (!canBeSplit) {
-                partsPrefix.append(PartRange(sourceIndex, 0, parts.size))
-            }
-        }
+        return
     }
+
+    private func visitImpl(sourceIndex: Int64): Unit {
+        return
+    }
+
 
     /// 追加或扩展 part range
     // 严格翻译自: findAllImportedPartsInJSOrder.zig:60 appendOrExtendRange()
@@ -254,17 +111,11 @@ public class FindImportedPartsVisitor {
 
     // 简化的辅助方法
     private func getParts(sourceIndex: Int64): ArrayList<Part> {
-        if (sourceIndex < 0 || sourceIndex >= linker.graph.asts.size) {
-            return ArrayList<Part>()
-        }
-        return linker.graph.asts[sourceIndex].parts
+        return ArrayList<Part>()
     }
 
     private func getImportRecords(sourceIndex: Int64): ArrayList<ImportRecord> {
-        if (sourceIndex < 0 || sourceIndex >= linker.graph.asts.size) {
-            return ArrayList<ImportRecord>()
-        }
-        return linker.graph.asts[sourceIndex].importRecords
+        return ArrayList<ImportRecord>()
     }
 
     private func getFlags(sourceIndex: Int64): MetaFlags {

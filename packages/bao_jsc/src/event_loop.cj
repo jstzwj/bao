@@ -38,8 +38,9 @@ public class EventLoopEntry {
 
     public func run() {
         if (isCancelled) { return }
-        if (let Some(cb) <- callback) {
-            cb()
+        match (callback) {
+            case Some(cb) => cb()
+            case None => ()
         }
     }
 
@@ -57,7 +58,7 @@ public class MicrotaskQueue {
 
     public init() {}
 
-    public static func instance() -> MicrotaskQueue {
+    public static func instance(): MicrotaskQueue {
         if (instance_ == None) {
             instance_ = MicrotaskQueue()
         }
@@ -70,7 +71,7 @@ public class MicrotaskQueue {
     }
 
     // 排空微任务队列
-    public func drain() -> Int64 {
+    public func drain(): Int64 {
         var count: Int64 = 0
         while (queue.size > 0) {
             let task = queue[0]
@@ -81,7 +82,7 @@ public class MicrotaskQueue {
         count
     }
 
-    public func size() -> Int64 {
+    public func size(): Int64 {
         Int64(queue.size)
     }
 }
@@ -108,7 +109,7 @@ public class EventLoopHandle {
         refCount--
     }
 
-    public func isActive() -> Bool {
+    public func isActive(): Bool {
         refCount > 0
     }
 }
@@ -182,7 +183,7 @@ public class EventLoop {
     }
 
     // 严格翻译自 event_loop.isAlive
-    public func isAlive() -> Bool {
+    public func isAlive(): Bool {
         isRefed && (activeHandles > 0 || activeRequests > 0)
     }
 
@@ -258,20 +259,20 @@ public class EventLoop {
         }
     }
 
-    public func refCount() -> Int64 {
+    public func refCount(): Int64 {
         activeHandles
     }
 
     // ========== 定时器辅助 ==========
 
-    public func setTimeout(callback: () -> Unit, delay: Float64) -> Int64 {
+    public func setTimeout(callback: () -> Unit, delay: Float64): Int64 {
         let entry = EventLoopEntry(EventLoopTag.Timer, callback)
         timerQueue.append(entry)
         activeHandles++
         Int64(timerQueue.size)
     }
 
-    public func setImmediate(callback: () -> Unit) -> Int64 {
+    public func setImmediate(callback: () -> Unit): Int64 {
         let entry = EventLoopEntry(EventLoopTag.Immediate, callback)
         immediateQueue.append(entry)
         activeHandles++

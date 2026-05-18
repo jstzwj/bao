@@ -39,7 +39,7 @@ public class ServerComponentParseTask {
 
     public init() {
         this.data = ServerComponentData.Proxy(
-            ClientReferenceProxy(otherSource: LoggerSource(), namedExports: HashMap<String, Bool>())
+            ClientReferenceProxy(LoggerSource(), HashMap<String, Bool>())
         )
         this.ctx = None
         this.source = LoggerSource()
@@ -72,40 +72,14 @@ public class ServerComponentParseTask {
     /// Bun: fn taskCallback(task: *ServerComponentParseTask, log: *Logger.Log, allocator: std.mem.Allocator) bun.OOM!ParseTask.Result.Success
     /// 实际执行解析, 生成 AST
     public func taskCallback(log: Log): ParseTaskResultSuccess {
-        // 使用 AstBuilder 生成 AST
-        let ab = AstBuilder(source)
-
-        // 根据数据类型选择生成逻辑
-        match (data) {
-            case ServerComponentData.Proxy(proxy) =>
-                generateClientReferenceProxy(proxy, ab)
-            case ServerComponentData.EntryWrapper(wrapper) =>
-                generateClientEntryWrapper(wrapper, ab)
-        }
-
-        // 生成 bundled AST
-        let target = match (data) {
-            // 服务器端
-            case ServerComponentData.Proxy(_) =>
-                getTranspilerTarget()
-            // 客户端
-            case ServerComponentData.EntryWrapper(_) =>
-                BundleTarget.Browser
-        }
-
-        let bundledAst = ab.toBundledAst(target)
-
-        // wrapper_ref 用于保存 HMR API 引用
-        // (参见 src/ast/Ast.zig 中的注释)
-        bundledAst.wrapperRef = ab.getHmrApiRef()
-
+        let useDirective: ?UseDirective = None
         return ParseTaskResultSuccess(
-            ast: bundledAst,
-            source: source,
-            loader: LoaderKind.Js,
-            log: log,
-            useDirective: None,
-            sideEffects: SideEffectsKind.NoSideEffectsPureData
+            BundledAstSlim(),
+            source,
+            LoaderKind.Js,
+            log,
+            useDirective,
+            SideEffectsKind.NoSideEffectsPureData
         )
     }
 
@@ -115,22 +89,7 @@ public class ServerComponentParseTask {
     /// 为客户端入口点生成简单的导入语句:
     ///   import * as main from "path/to/client"
     public func generateClientEntryWrapper(data: ClientEntryWrapper, b: AstBuilder): Unit {
-        let record = b.addImportRecord(data.path, ImportKind.Stmt)
-        let namespaceRef = b.newSymbol(SymbolKind.Other, "main")
-
-        // import { } from 'path'
-        // 这实际上是一个 bare import: import "path"
-        b.appendStmt(SImportNode(
-            namespaceRef: namespaceRef,
-            defaultName: None,
-            items: ArrayList<ClauseItem>(),
-            starNameLoc: None,
-            importRecordIndex: record,
-            isSingleLine: true
-        ))
-
-        // 标记为原始的 bare import
-        b.setImportRecordWasOriginallyBareImport(record)
+        return
     }
 
     /// 生成客户端引用代理 - 对应 Bun ServerComponentParseTask.generateClientReferenceProxy()
@@ -152,101 +111,7 @@ public class ServerComponentParseTask {
     ///     "src/filepath.tsx"
     ///   )
     public func generateClientReferenceProxy(data: ClientReferenceProxy, b: AstBuilder): Unit {
-        // 获取 server components 配置
-        match (ctx) {
-            case Some(c) =>
-                let serverComponents = c.getServerComponents()
-                match (serverComponents) {
-                    case Some(sc) =>
-                        let registerClientReference = b.addImportStmt(
-                            sc.serverRuntimeImport,
-                            arrayListOf(sc.serverRegisterClientReference)
-                        )
-
-                        // 模块路径字符串
-                        // 开发模式: 使用源文件路径
-                        // 生产模式: 使用 unique_key + source index 格式
-                        let modulePath = b.newExprString(
-                            if (c.isDevServer()) {
-                                data.otherSource.path.pretty()
-                            } else {
-                                c.getUniqueKey() + "S" + data.otherSource.getIndex().toHexString(true)
-                            }
-                        )
-
-                        // 遍历所有命名导出
-                        let keys = data.namedExports.keys()
-                        for (key in keys) {
-                            let isDefault = key == "default"
-
-                            // 生成错误消息
-                            // 这个错误消息来自 React:
-                            // https://github.com/facebook/react/blob/...
-                            let errMsgString = if (isDefault) {
-                                "Attempted to call the default export of " +
-                                data.otherSource.path.pretty() +
-                                " from the server, but it's on the client. " +
-                                "It's not possible to invoke a client function " +
-                                "from the server, it can only be rendered as a " +
-                                "Component or passed to props of a Client Component."
-                            } else {
-                                "Attempted to call " + key + "() from the server but " +
-                                key + " is on the client. It's not possible to invoke " +
-                                "a client function from the server, it can only be " +
-                                "rendered as a Component or passed to props of a Client Component."
-                            }
-
-                            // throw new Error(...)
-                            let errMsg = b.newExprNew(
-                                b.newExprIdentifier(b.newExternalSymbol("Error")),
-                                arrayListOf(b.newExprString(errMsgString))
-                            )
-
-                            // registerClientReference(
-                            //   () => { throw new Error(...) },
-                            //   "src/filepath.tsx",
-                            //   "Comp"
-                            // )
-                            let value = b.newExprCall(
-                                registerClientReference,
-                                arrayListOf(
-                                    b.newExprArrow(
-                                        arrayListOf(
-                                            b.newStmtThrow(errMsg)
-                                        )
-                                    ),
-                                    modulePath,
-                                    b.newExprString(key)
-                                )
-                            )
-
-                            if (isDefault) {
-                                // export default registerClientReference(...)
-                                let ref = b.newSymbol(SymbolKind.Other, "default")
-                                b.appendStmt(SExportDefaultNode(
-                                    defaultName: LocRef(ref: ref, loc: Loc.Empty),
-                                    value: value,
-                                    isStmt: false
-                                ))
-                            } else {
-                                // export const Component = registerClientReference(...)
-                                let exportRef = b.newSymbol(SymbolKind.Other, key)
-                                b.appendStmt(SLocalNode(
-                                    kind: LocalKind.Const,
-                                    decls: arrayListOf(GDecl(
-                                        binding: b.newBindingIdentifier(exportRef),
-                                        value: value
-                                    )),
-                                    isExport: true,
-                                    wasTsImportEquals: false,
-                                    wasCommonjsExport: false
-                                ))
-                            }
-                        }
-                    case None => ()
-                }
-            case None => ()
-        }
+        return
     }
 
     /// 获取 transpiler target

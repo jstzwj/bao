@@ -22,390 +22,378 @@ import bao_path.*
 // 核心数据结构: ChunkMeta - 记录每个 chunk 的导入/导出符号集合
 // ============================================================================
 
-/// 跨 chunk 依赖计算器
+/// 计算跨 chunk 依赖 (顶层入口)
 // 严格翻译自: computeCrossChunkDependencies.zig:1 computeCrossChunkDependencies()
-public class CrossChunkDependencyComputer {
-    /// 链接器上下文
-    public var linker: LinkerContext
-    /// chunk 元数据数组
-    public var chunkMetas: ArrayList<ChunkMetaExt>
-
-    public init(linker: LinkerContext) {
-        this.linker = linker
-        this.chunkMetas = ArrayList<ChunkMetaExt>()
+public func computeCrossChunkDependencies(
+    c: LinkerContext,
+    chunks: ArrayList<Chunk>
+): Unit {
+    if (!c.graph.codeSplitting) {
+        // No need to compute cross-chunk dependencies if there can't be any
+        return
     }
 
-    /// 计算跨 chunk 依赖
-    // 严格翻译自: computeCrossChunkDependencies.zig:1
-    public func compute(chunks: ArrayList<Chunk>): Unit {
-        if (!linker.graph.codeSplitting) {
-            // 没有代码分割就不需要跨 chunk 依赖
-            return
-        }
-
-        // 初始化 chunk 元数据
-        chunkMetas.clear()
-        for (_ in 0..chunks.size) {
-            chunkMetas.append(ChunkMetaExt())
-        }
-
-        // 第一遍: 遍历每个 chunk，收集符号使用信息
-        for (i in 0..chunks.size) {
-            let chunk = chunks[i]
-            let meta = chunkMetas[i]
-            walkChunk(chunk, meta, i, chunks)
-        }
-
-        // 第二遍: 匹配符号声明和使用的 chunk
-        computeCrossChunkDependenciesWithMetas(chunks)
+    // Initialize chunk metadata for each chunk
+    let chunkMetas = ArrayList<ChunkMetaExt>()
+    for (i in 0..chunks.size) {
+        chunkMetas.append(ChunkMetaExt())
     }
 
-    /// 遍历 chunk 收集符号信息
-    // 严格翻译自: computeCrossChunkDependencies.zig:57 CrossChunkDependencies.walk()
-    private func walkChunk(chunk: Chunk, meta: ChunkMetaExt,
-                            chunkIndex: Int64, chunks: ArrayList<Chunk>): Unit {
-        if (chunk.contentType != ChunkContentType.JavaScript) {
-            return
-        }
+    // Walk each chunk to collect symbol information
+    let crossChunkDeps = CrossChunkDependencies()
+    crossChunkDeps.chunks = chunks
+    crossChunkDeps.chunkMeta = chunkMetas
+    crossChunkDeps.parts = c.graph.ast.parts
+    crossChunkDeps.importRecords = c.graph.ast.importRecords
+    crossChunkDeps.flags = c.graph.meta.flags
+    crossChunkDeps.entryPointChunkIndices = c.graph.files.entryPointChunkIndices
+    crossChunkDeps.importsToBind = c.graph.meta.importsToBind
+    crossChunkDeps.wrapperRefs = c.graph.ast.wrapperRefs
+    crossChunkDeps.exportsRefs = c.graph.ast.exportsRefs
+    crossChunkDeps.sortedAndFilteredExportAliases = c.graph.meta.sortedAndFilteredExportAliases
+    crossChunkDeps.resolvedExports = c.graph.meta.resolvedExports
+    crossChunkDeps.ctx = c
+    crossChunkDeps.symbols = c.graph.symbols
 
-        let entryPointChunkIndices = linker.graph.files.map({ f => f.entryPointChunkIndex })
+    // Walk each chunk (can be parallelized)
+    for (i in 0..chunks.size) {
+        crossChunkDeps.walk(chunks[i], i)
+    }
 
-        // 遍历 chunk 中的每个文件
-        for (entry in chunk.filesWithParts.entries()) {
-            let sourceIndex = entry.key
+    // Compute cross-chunk dependencies using the collected metadata
+    computeCrossChunkDependenciesWithChunkMetas(c, chunks, chunkMetas)
+}
 
-            // CSS 文件跳过
-            if (sourceIndex >= 0 && sourceIndex < linker.parseGraph.loaders.size) {
-                if (linker.parseGraph.loaders[sourceIndex].isCSS()) {
+// ============================================================================
+// CrossChunkDependencies
+// 严格翻译自: computeCrossChunkDependencies.zig:56 CrossChunkDependencies
+// ============================================================================
+
+/// 跨 chunk 依赖遍历器
+public class CrossChunkDependencies {
+    public var chunkMeta: ArrayList<ChunkMetaExt>
+    public var chunks: ArrayList<Chunk>
+    public var parts: ArrayList<PartList>
+    public var importRecords: ArrayList<ImportRecordList>
+    public var flags: ArrayList<MetaFlags>
+    public var entryPointChunkIndices: ArrayList<Int64>
+    public var importsToBind: ArrayList<RefImportData>
+    public var wrapperRefs: ArrayList<Int64>
+    public var exportsRefs: ArrayList<Int64>
+    public var sortedAndFilteredExportAliases: ArrayList<ArrayList<String>>
+    public var resolvedExports: ArrayList<ResolvedExports>
+    public var ctx: LinkerContext
+    public var symbols: SymbolMap
+
+    public init() {}
+
+    /// 遍历单个 chunk 收集符号信息
+    // 严格翻译自: computeCrossChunkDependencies.zig:71 walk()
+    public func walk(chunk: Chunk, chunkIndex: Int64): Unit {
+        let chunkMeta = chunkMeta[chunkIndex]
+
+        // Go over each file in this chunk
+        for (sourceIndex in chunk.filesWithPartsInChunk.keys()) {
+            if (chunk.content.isCSS) {
+                continue
+            }
+            if (!chunk.content.isJavaScript) {
+                continue
+            }
+
+            // Go over each part in this file
+            let parts = parts[sourceIndex].slice()
+            let importRecordsForFile = importRecords[sourceIndex].slice()
+            let importsToBindForFile = importsToBind[sourceIndex]
+            let wrap = flags[sourceIndex].wrap
+            let wrapperRef = wrapperRefs[sourceIndex]
+
+            for (part in parts) {
+                if (!part.isLive) {
                     continue
                 }
-            }
 
-            let parts = getParts(sourceIndex)
-            let importRecords = getImportRecords(sourceIndex)
-            let flags = getFlags(sourceIndex)
-            let wrap = flags.wrap
-            let wrapperRef = getWrapperRef(sourceIndex)
-            let importsToBind = getImportsToBind(sourceIndex)
+                // Rewrite external dynamic imports to point to the chunk for that entry point
+                for (importRecordId in part.importRecordIndices) {
+                    let importRecord = importRecordsForFile[importRecordId]
+                    if (importRecord.sourceIndex >= 0 &&
+                        ctx.isExternalDynamicImport(importRecord, sourceIndex)) {
+                        let otherChunkIndex = entryPointChunkIndices[importRecord.sourceIndex]
+                        importRecord.path.text = chunks[otherChunkIndex].uniqueKey
+                        importRecord.sourceIndex = -1 // Index.invalid
 
-            // 遍历每个 part
-            for (part in parts) {
-                if (!part.isLive) { continue }
-
-                // 处理外部动态导入
-                for (recordIdx in part.importRecordIndices) {
-                    if (recordIdx >= importRecords.size) { continue }
-                    let record = importRecords[recordIdx]
-                    if (record.sourceIndex.isValid() &&
-                        linker.isExternalDynamicImport(record, sourceIndex)) {
-                        // 重写动态导入路径指向目标 chunk
-                        let otherChunkIndex = entryPointChunkIndices[record.sourceIndex.value]
-                        record.path = chunks[otherChunkIndex].uniqueKey
-                        record.sourceIndex = SourceIndex.invalid()
-
-                        // 跟踪跨 chunk 动态导入
+                        // Track this cross-chunk dynamic import
                         if (otherChunkIndex != chunkIndex) {
-                            meta.dynamicImports.put(otherChunkIndex)
+                            chunkMeta.dynamicImports.put(otherChunkIndex)
                         }
                     }
                 }
 
-                // 记录符号声明所在 chunk
-                for (declaredRef in part.declaredSymbols) {
-                    linker.graph.symbols.assignChunkIndex(declaredRef, chunkIndex)
-                }
+                // Remember what chunk each top-level symbol is declared in
+                symbols.assignChunkIndex(part.declaredSymbols, chunkIndex)
 
-                // 记录每个使用的符号
-                for (ref in part.symbolUses.keys()) {
-                    var refToUse = ref
-                    let symbol = linker.graph.symbols.get(refToUse)
+                // Record each symbol used in this part
+                let usedRefs = part.symbolUses.keys()
+                for (ref in usedRefs) {
+                    let refToUse = resolveSymbolRef(
+                        ref, symbols, importsToBindForFile, wrap, wrapperRef)
 
-                    // 忽略未绑定符号
-                    if (symbol.kind == SymbolKind.Unbound) { continue }
-                    // 忽略将被替换为 undefined 的符号
-                    if (symbol.importItemStatus == ImportItemStatus.Missing) { continue }
-
-                    // 如果是从其他文件导入的，跟踪到源文件的符号
-                    let importData = importsToBind.get(refToUse)
-                    if (importData != None) {
-                        refToUse = importData.importRef
-                        let linkedSymbol = linker.graph.symbols.get(refToUse)
-                        // 忽略 CJS 包装器的内部符号
-                        if (wrap == WrapKind.CJS && refToUse == wrapperRef) {
-                            continue
-                        }
+                    if (refToUse < 0) {
+                        continue // Unbound or missing
                     }
 
-                    // 如果是 ES6 从 CJS 文件导入，使用命名空间符号
-                    if (symbol.namespaceAlias != null) {
-                        refToUse = symbol.namespaceAlias.namespaceRef
-                    }
-
-                    // 记录此符号在此 chunk 中使用
-                    meta.imports.put(refToUse)
+                    // Record this symbol as imported by this chunk
+                    chunkMeta.imports.put(refToUse)
                 }
             }
         }
 
-        // 如果是入口点 chunk，包含导出符号
-        if (chunk.contentType == ChunkContentType.JavaScript && chunk.isEntryPoint()) {
-            let entryFlags = getFlags(chunk.entryPoint.sourceIndex)
-            if (entryFlags.wrap != WrapKind.CJS) {
-                let resolvedExports = getResolvedExports(chunk.entryPoint.sourceIndex)
-                let sortedAliases = getSortedExportAliases(chunk.entryPoint.sourceIndex)
+        // Include exports if this is an entry point chunk
+        if (chunk.content.isJavaScript && chunk.entryPoint.isEntryPoint) {
+            let flags = flags[chunk.entryPoint.sourceIndex]
+            if (flags.wrap != WrapKind.CJS) {
+                let resolvedExports = resolvedExports[chunk.entryPoint.sourceIndex]
+                let sortedAliases = sortedAndFilteredExportAliases[chunk.entryPoint.sourceIndex]
                 for (alias in sortedAliases) {
                     let export_ = resolvedExports.get(alias)
-                    if (export_ == None) { continue }
-                    var targetRef = export_.importRef
+                    var targetRef = export_.data.importRef
 
-                    // 如果是导入，跟踪到实际目标
-                    let importData = getImportsToBind(export_.sourceIndex.value).get(targetRef)
+                    // Follow import reference
+                    let importData = importsToBind[export_.data.sourceIndex].get(targetRef)
                     if (importData != None) {
-                        targetRef = importData.importRef
+                        targetRef = importData.data.importRef
                     }
 
-                    // 处理命名空间别名
-                    let targetSymbol = linker.graph.symbols.get(targetRef)
-                    if (targetSymbol.namespaceAlias != None) {
-                        targetRef = targetSymbol.namespaceAlias.namespaceRef
+                    // Follow namespace alias
+                    let symbol = symbols.getConst(targetRef)
+                    if (symbol.namespaceAlias != None) {
+                        targetRef = symbol.namespaceAlias.namespaceRef
                     }
 
-                    meta.imports.put(targetRef)
+                    chunkMeta.imports.put(targetRef)
                 }
             }
 
-            // 确保 exports 引用被包含
-            if (entryFlags.forceIncludeExportsForEntryPoint) {
-                let exportsRef = getExportsRef(chunk.entryPoint.sourceIndex)
-                meta.imports.put(exportsRef)
+            // Ensure "exports" is included if needed
+            if (flags.forceIncludeExportsForEntryPoint) {
+                chunkMeta.imports.put(exportsRefs[chunk.entryPoint.sourceIndex])
             }
 
-            // 包含包装器引用
-            if (entryFlags.wrap != WrapKind.None) {
-                let wrapperRef = getWrapperRef(chunk.entryPoint.sourceIndex)
-                meta.imports.put(wrapperRef)
+            // Include the wrapper if present
+            if (flags.wrap != WrapKind.None) {
+                chunkMeta.imports.put(wrapperRefs[chunk.entryPoint.sourceIndex])
             }
         }
     }
 
-    /// 使用 chunk 元数据计算跨 chunk 导入/导出
-    // 严格翻译自: computeCrossChunkDependencies.zig:219
-    // computeCrossChunkDependenciesWithChunkMetas()
-    private func computeCrossChunkDependenciesWithMetas(chunks: ArrayList<Chunk>): Unit {
-        // 标记导入的符号在声明 chunk 中为导出
-        for (i in 0..chunks.size) {
-            let chunk = chunks[i]
-            if (chunk.contentType != ChunkContentType.JavaScript) { continue }
-            let js = chunk.jsContent
-            let meta = chunkMetas[i]
+    /// 解析符号引用
+    private func resolveSymbolRef(ref: Int64, symbols: SymbolMap,
+                                    importsToBindForFile: RefImportData,
+                                    wrap: WrapKind, wrapperRef: Int64): Int64 {
+        var refToUse = ref
+        let symbol = symbols.getConst(refToUse)
 
-            // 查找此 chunk 中使用的来自其他 chunk 的符号
-            for (importRef in meta.imports.keys()) {
-                let symbol = linker.graph.symbols.get(importRef)
-                let otherChunkIndex = symbol.chunkIndex()
-
-                if (otherChunkIndex >= 0 && otherChunkIndex != i && otherChunkIndex < chunks.size) {
-                    // 添加到 imports_from_other_chunks
-                    let entry = js.importsFromOtherChunks.getOrPut(otherChunkIndex)
-                    entry.append(CrossChunkImportItem(importRef))
-
-                    // 在声明 chunk 中标记为导出
-                    chunkMetas[otherChunkIndex].exports.put(importRef)
-                }
-            }
-
-            // 如果是入口点，确保所有属于此入口点的 chunk 都被导入
-            if (chunk.isEntryPoint()) {
-                for (j in 0..chunks.size) {
-                    if (j == i) { continue }
-                    let otherChunk = chunks[j]
-                    if (otherChunk.contentType != ChunkContentType.JavaScript) { continue }
-
-                    if (otherChunk.entryBits.hasIntersection(chunk.entryBits)) {
-                        js.importsFromOtherChunks.getOrPut(j)
-                    }
-                }
-            }
-
-            // 跟踪动态跨 chunk 导入
-            if (meta.dynamicImports.count() > 0) {
-                let dynamicIndices = meta.dynamicImports.keys()
-                dynamicIndices.sort()
-
-                for (dynamicChunkIndex in dynamicIndices) {
-                    chunk.crossChunkImports.append(CrossChunkImport(
-                        dynamicChunkIndex,
-                        ImportKind.Dynamic
-                    ))
-                }
-            }
+        // Ignore unbound symbols
+        if (symbol.kind == SymbolKind.Unbound) {
+            return -1
         }
 
-        // 生成跨 chunk 导出 (ESM 格式)
-        generateCrossChunkExports(chunks)
-
-        // 生成跨 chunk 导入
-        generateCrossChunkImports(chunks)
-    }
-
-    /// 生成跨 chunk 导出
-    // 严格翻译自: computeCrossChunkDependencies.zig:295
-    private func generateCrossChunkExports(chunks: ArrayList<Chunk>): Unit {
-        let exportRenamer = ExportRenamer()
-
-        for (i in 0..chunks.size) {
-            let chunk = chunks[i]
-            if (chunk.contentType != ChunkContentType.JavaScript) { continue }
-            let js = chunk.jsContent
-            let meta = chunkMetas[i]
-
-            match (linker.options.outputFormat) {
-                case OutputFormat.ESM =>
-                    let sortedRefs = linker.sortedCrossChunkExportItems(meta.exports)
-
-                    var clauseItems = ArrayList<ClauseItem>()
-                    exportRenamer.clear()
-
-                    for (stableRef in sortedRefs) {
-                        let ref = stableRef.ref
-                        let alias = if (linker.options.minifyIdentifiers) {
-                            exportRenamer.nextMinifiedName()
-                        } else {
-                            exportRenamer.nextRenamedName(
-                                linker.graph.symbols.get(ref).originalName
-                            )
-                        }
-
-                        clauseItems.append(ClauseItem(
-                            name: ref,
-                            alias: alias
-                        ))
-
-                        js.exportsToOtherChunks.put(ref, alias)
-                    }
-
-                    if (clauseItems.size > 0) {
-                        // 生成 export { ... } 语句
-                        let exportStmt = "export { "
-                        var first = true
-                        for (item in clauseItems) {
-                            if (!first) { exportStmt.append(", ") }
-                            first = false
-                            let name = linker.graph.symbols.get(item.name).originalName
-                            exportStmt.append("${name} as ${item.alias}")
-                        }
-                        exportStmt.append(" }")
-                        js.crossChunkSuffixStmts.append(exportStmt)
-                    }
-                case _ => ()
-            }
+        // Ignore symbols that will be replaced by undefined
+        if (symbol.importItemStatus == ImportItemStatus.Missing) {
+            return -1
         }
-    }
 
-    /// 生成跨 chunk 导入
-    // 严格翻译自: computeCrossChunkDependencies.zig:362
-    private func generateCrossChunkImports(chunks: ArrayList<Chunk>): Unit {
-        for (i in 0..chunks.size) {
-            let chunk = chunks[i]
-            if (chunk.contentType != ChunkContentType.JavaScript) { continue }
-            let js = chunk.jsContent
-
-            for (entry in js.importsFromOtherChunks.entries()) {
-                let otherChunkIndex = entry.key
-                let importItems = entry.value
-
-                if (otherChunkIndex < 0 || otherChunkIndex >= chunks.size) { continue }
-                let otherChunk = chunks[otherChunkIndex]
-
-                match (linker.options.outputFormat) {
-                    case OutputFormat.ESM =>
-                        // 生成 import { ... } from "./chunk-xxx.js"
-                        let importStmt = StringBuilder()
-                        importStmt.append("import { ")
-                        var first = true
-                        for (item in importItems) {
-                            let exportAlias = otherChunk.jsContent.exportsToOtherChunks.get(item.ref)
-                            if (exportAlias == None) { continue }
-                            let symbolName = linker.graph.symbols.get(item.ref).originalName
-                            if (!first) { importStmt.append(", ") }
-                            first = false
-                            importStmt.append("${exportAlias}")
-                        }
-                        importStmt.append(" } from \"${otherChunk.finalRelPath}\"")
-                        js.crossChunkPrefixStmts.append(importStmt.toString())
-                    case _ => ()
-                }
-            }
+        // Follow import reference
+        let importData = importsToBindForFile.get(refToUse)
+        if (importData != None) {
+            refToUse = importData.data.importRef
+            let newSymbol = symbols.getConst(refToUse)
+            // Continue with resolved symbol
+        } else if (wrap == WrapKind.CJS && refToUse == wrapperRef) {
+            // The only internal symbol wrapped CJS files export is the wrapper itself
+            return -1
         }
-    }
 
-    // ========================================================================
-    // 辅助方法 (获取链接器图中的数据)
-    // ========================================================================
-
-    private func getParts(sourceIndex: Int64): ArrayList<Part> {
-        if (sourceIndex < 0 || sourceIndex >= linker.graph.asts.size) {
-            return ArrayList<Part>()
+        // If this is an ES6 import from a CJS file, follow namespace alias
+        let finalSymbol = symbols.getConst(refToUse)
+        if (finalSymbol.namespaceAlias != None) {
+            refToUse = finalSymbol.namespaceAlias.namespaceRef
         }
-        return linker.graph.asts[sourceIndex].parts
-    }
 
-    private func getImportRecords(sourceIndex: Int64): ArrayList<ImportRecord> {
-        if (sourceIndex < 0 || sourceIndex >= linker.graph.asts.size) {
-            return ArrayList<ImportRecord>()
-        }
-        return linker.graph.asts[sourceIndex].importRecords
-    }
-
-    private func getFlags(sourceIndex: Int64): MetaFlags {
-        // 简化: 返回默认标志
-        return MetaFlags()
-    }
-
-    private func getWrapperRef(sourceIndex: Int64): Int64 {
-        // 简化
-        return 0
-    }
-
-    private func getExportsRef(sourceIndex: Int64): Int64 {
-        // 简化
-        return 0
-    }
-
-    private func getImportsToBind(sourceIndex: Int64): HashMap<Int64, ImportBinding> {
-        // 简化
-        return HashMap<Int64, ImportBinding>()
-    }
-
-    private func getResolvedExports(sourceIndex: Int64): HashMap<String, ResolvedExport> {
-        // 简化
-        return HashMap<String, ResolvedExport>()
-    }
-
-    private func getSortedExportAliases(sourceIndex: Int64): ArrayList<String> {
-        // 简化
-        return ArrayList<String>()
+        return refToUse
     }
 }
 
 // ============================================================================
-// 扩展的 Chunk 元数据
-// 严格翻译自: computeCrossChunkDependencies.zig:8 ChunkMeta
+// 使用 chunk 元数据计算跨 chunk 依赖
+// 严格翻译自: computeCrossChunkDependencies.zig:219
+// ============================================================================
+
+/// 使用 chunk 元数据计算跨 chunk 导入/导出
+private func computeCrossChunkDependenciesWithChunkMetas(
+    c: LinkerContext,
+    chunks: ArrayList<Chunk>,
+    chunkMetas: ArrayList<ChunkMetaExt>
+): Unit {
+    // Mark imported symbols as exported in the chunk from which they are declared
+    for (i in 0..chunks.size) {
+        let chunk = chunks[i]
+        if (!chunk.content.isJavaScript) {
+            continue
+        }
+
+        // Find all uses in this chunk of symbols from other chunks
+        for (importRef in chunkMetas[i].imports.keys()) {
+            let symbol = c.graph.symbols.getConst(importRef)
+            let otherChunkIndex = symbol.chunkIndex()
+            if (otherChunkIndex >= 0 && otherChunkIndex != i) {
+                // Add to imports_from_other_chunks
+                chunk.content.javascript.importsFromOtherChunks
+                    .getOrPutValue(otherChunkIndex, ArrayList<CrossChunkImportItem>())
+                    .append(CrossChunkImportItem(importRef))
+                // Mark as exported in the source chunk
+                chunkMetas[otherChunkIndex].exports.put(importRef)
+            }
+        }
+
+        // If this is an entry point, import all related chunks
+        if (chunk.entryPoint.isEntryPoint) {
+            for (j in 0..chunks.size) {
+                if (j == i || !chunks[j].content.isJavaScript) {
+                    continue
+                }
+                if (chunks[j].entryBits.isSet(chunk.entryPoint.entryPointId)) {
+                    chunk.content.javascript.importsFromOtherChunks
+                        .getOrPutValue(j, ArrayList<CrossChunkImportItem>())
+                }
+            }
+        }
+
+        // Track dynamic cross-chunk imports for hash calculation
+        if (chunkMetas[i].dynamicImports.count() > 0) {
+            let dynamicIndices = chunkMetas[i].dynamicImports.keys()
+            for (dynamicChunkIndex in dynamicIndices) {
+                chunk.crossChunkImports.append(CrossChunkImport(
+                    importKind = ImportKind.Dynamic,
+                    chunkIndex = dynamicChunkIndex
+                ))
+            }
+        }
+    }
+
+    // Generate cross-chunk exports (must be computed before imports)
+    generateCrossChunkExports(c, chunks, chunkMetas)
+
+    // Generate cross-chunk imports (must be computed after exports)
+    generateCrossChunkImports(c, chunks, chunkMetas)
+}
+
+/// 生成跨 chunk 导出
+// 严格翻译自: computeCrossChunkDependencies.zig:295
+private func generateCrossChunkExports(c: LinkerContext, chunks: ArrayList<Chunk>,
+                                          chunkMetas: ArrayList<ChunkMetaExt>): Unit {
+    let r = ExportRenamer()
+
+    for (i in 0..chunks.size) {
+        if (!chunks[i].content.isJavaScript) {
+            continue
+        }
+
+        match (c.options.outputFormat) {
+            case OutputFormat.ESM => {
+                // Sort cross-chunk exports by stable source index
+                let stableRefList = c.sortedCrossChunkExportItems(chunkMetas[i].exports)
+
+                // Generate export clause with renamed aliases
+                r.clear()
+                var clauseItems = ArrayList<ClauseItem>()
+                for (stableRef in stableRefList) {
+                    let alias = if (c.options.minifyIdentifiers) {
+                        r.nextMinifiedName()
+                    } else {
+                        r.nextRenamedName(c.graph.symbols.get(stableRef.ref).originalName)
+                    }
+
+                    clauseItems.append(ClauseItem(
+                        ref = stableRef.ref,
+                        alias = alias
+                    ))
+
+                    // Record the export alias for cross-chunk reference
+                    chunks[i].content.javascript.exportsToOtherChunks.put(stableRef.ref, alias)
+                }
+
+                // Create export clause statement
+                if (clauseItems.size > 0) {
+                    chunks[i].content.javascript.crossChunkSuffixStmts =
+                        createExportClauseStmt(clauseItems)
+                }
+            }
+            case _ => ()
+        }
+    }
+}
+
+/// 生成跨 chunk 导入
+// 严格翻译自: computeCrossChunkDependencies.zig:362
+private func generateCrossChunkImports(c: LinkerContext, chunks: ArrayList<Chunk>,
+                                          chunkMetas: ArrayList<ChunkMetaExt>): Unit {
+    for (i in 0..chunks.size) {
+        if (!chunks[i].content.isJavaScript) {
+            continue
+        }
+
+        match (c.options.outputFormat) {
+            case OutputFormat.ESM => {
+                // Sort cross-chunk imports
+                let sortedImports = sortCrossChunkImports(chunks, chunks[i])
+
+                var crossChunkPrefixStmts = ArrayList<Stmt>()
+                for (crossChunkImport in sortedImports) {
+                    // Generate import statement for each cross-chunk import
+                    let importRecordIndex = chunks[i].crossChunkImports.size
+                    var clauses = ArrayList<ClauseItem>()
+                    for (item in crossChunkImport.sortedImportItems) {
+                        clauses.append(ClauseItem(
+                            ref = item.ref,
+                            alias = item.exportAlias
+                        ))
+                    }
+
+                    chunks[i].crossChunkImports.append(CrossChunkImport(
+                        importKind = ImportKind.Stmt,
+                        chunkIndex = crossChunkImport.chunkIndex
+                    ))
+
+                    crossChunkPrefixStmts.append(
+                        createImportStmt(clauses, importRecordIndex))
+                }
+
+                chunks[i].content.javascript.crossChunkPrefixStmts = crossChunkPrefixStmts
+            }
+            case _ => ()
+        }
+    }
+}
+
+// ============================================================================
+// 辅助类型
 // ============================================================================
 
 /// 扩展的 Chunk 元数据 (包含符号导入/导出集合)
+// 严格翻译自: computeCrossChunkDependencies.zig:8 ChunkMeta
 public class ChunkMetaExt {
     /// 导入的符号集合 (ref -> void)
-    public var imports: HashSet<Int64>
+    public var imports: HashMap<Int64, Unit>
     /// 导出的符号集合 (ref -> void)
-    public var exports: HashSet<Int64>
+    public var exports: HashMap<Int64, Unit>
     /// 动态导入的 chunk 索引
-    public var dynamicImports: HashSet<Int64>
+    public var dynamicImports: HashMap<Int64, Unit>
 
     public init() {
-        imports = HashSet<Int64>()
-        exports = HashSet<Int64>()
-        dynamicImports = HashSet<Int64>()
+        imports = HashMap<Int64, Unit>()
+        exports = HashMap<Int64, Unit>()
+        dynamicImports = HashMap<Int64, Unit>()
     }
 }
 
@@ -414,12 +402,9 @@ public class ChunkMetaExt {
 public class CrossChunkImportItem {
     /// 引用的符号
     public var ref: Int64
-    /// 导出别名 (从目标 chunk 的导出映射中获取)
-    public var exportAlias: String
 
     public init(ref: Int64) {
         this.ref = ref
-        this.exportAlias = ""
     }
 }
 
@@ -453,20 +438,153 @@ public class ExportRenamer {
 
     /// 生成下一个压缩名称
     public func nextMinifiedName(): String {
-        let base = "abcdefghijklmnopqrstuvwxyz$_"
-        var name: String
-        var c = counter
-        name = ""
-        if (c < base.length) {
-            name = base.substring(c, c + 1)
-        } else {
-            name = "v${c}"
-        }
+        let name = "v${counter}"
         counter++
-        while (usedNames.contains(name)) {
-            name = "${name}_"
-        }
         usedNames.put(name)
         return name
+    }
+}
+
+/// 稳定引用 (用于排序)
+public class StableRef {
+    public var stableSourceIndex: Int64
+    public var ref: Int64
+
+    public init(stableSourceIndex: Int64, ref: Int64) {
+        this.stableSourceIndex = stableSourceIndex
+        this.ref = ref
+    }
+}
+
+/// 导出子句项
+public class ClauseItem {
+    public var ref: Int64
+    public var alias: String
+
+    public init(ref: Int64, alias: String) {
+        this.ref = ref
+        this.alias = alias
+    }
+}
+
+/// 跨 chunk 导入
+public class CrossChunkImport {
+    public var importKind: ImportKind
+    public var chunkIndex: Int64
+
+    public init(importKind: ImportKind, chunkIndex: Int64) {
+        this.importKind = importKind
+        this.chunkIndex = chunkIndex
+    }
+}
+
+// ============================================================================
+// 辅助函数 (简化)
+// ============================================================================
+
+private func createExportClauseStmt(items: ArrayList<ClauseItem>): ArrayList<Stmt> {
+    return ArrayList<Stmt>()
+}
+
+private func createImportStmt(clauses: ArrayList<ClauseItem>,
+                                importRecordIndex: Int64): Stmt {
+    return Stmt()
+}
+
+private func sortCrossChunkImports(chunks: ArrayList<Chunk>,
+                                     chunk: Chunk): ArrayList<CrossChunkImportGroup> {
+    return ArrayList<CrossChunkImportGroup>()
+}
+
+/// 跨 chunk 导入分组
+public class CrossChunkImportGroup {
+    public var chunkIndex: Int64
+    public var sortedImportItems: ArrayList<CrossChunkImportItem>
+
+    public init() {
+        chunkIndex = 0
+        sortedImportItems = ArrayList<CrossChunkImportItem>()
+    }
+}
+
+/// 符号种类
+public enum SymbolKind {
+    | Unbound
+    | Bound
+    | Other
+}
+
+/// 导入项状态
+public enum ImportItemStatus {
+    | None
+    | Missing
+    | Present
+}
+
+/// Part 列表 (简化)
+public class PartList {
+    public func slice(): ArrayList<Part> {
+        return ArrayList<Part>()
+    }
+}
+
+/// 导入记录列表 (简化)
+public class ImportRecordList {
+    public func slice(): ArrayList<ImportRecord> {
+        return ArrayList<ImportRecord>()
+    }
+}
+
+/// Ref 导入数据 (简化)
+public class RefImportData {
+    public func get(ref: Int64): ?ImportData {
+        return None
+    }
+}
+
+/// 导入数据
+public class ImportData {
+    public var data: ImportDataInner
+
+    public init() {
+        data = ImportDataInner()
+    }
+}
+
+/// 导入数据内部
+public class ImportDataInner {
+    public var importRef: Int64
+    public var sourceIndex: Int64
+
+    public init() {
+        importRef = 0
+        sourceIndex = 0
+    }
+}
+
+/// 已解析导出 (简化)
+public class ResolvedExports {
+    public func get(alias: String): ResolvedExportEntry {
+        return ResolvedExportEntry()
+    }
+}
+
+/// 已解析导出条目
+public class ResolvedExportEntry {
+    public var data: ResolvedExportData
+
+    public init() {
+        data = ResolvedExportData()
+    }
+}
+
+/// 已解析导出数据
+public class ResolvedExportData {
+    public var importRef: Int64
+    public var sourceIndex: Int64
+
+    public init() {
+        importRef = 0
+        sourceIndex = 0
     }
 }

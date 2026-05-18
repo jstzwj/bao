@@ -10,7 +10,7 @@ public class HostFn {
 
     // 严格翻译自 toJSHostFnResult
     // 将宿主函数的结果转换为 JSValue
-    public static func toJSHostFnResult(globalThis: JsObject, result: ?JsValue) -> JsValue {
+    public static func toJSHostFnResult(globalThis: JsObject, result: ?JsValue): JsValue {
         result ?? JsValue.zero
     }
 
@@ -20,7 +20,7 @@ public class HostFn {
         globalThis: JsObject,
         function: (JsObject, CallFrame) -> JsValue,
         args: Array<JsValue>
-    ) -> JsValue {
+    ): JsValue {
         function(globalThis, CallFrame())
     }
 
@@ -30,7 +30,7 @@ public class HostFn {
         globalThis: JsObject,
         function: (JsObject, CallFrame) -> JsValue,
         args: Array<JsValue>
-    ) -> ?JsValue {
+    ): ?JsValue {
         let value = function(globalThis, CallFrame())
         if (value == JsValue.zero) { return None }
         Some(value)
@@ -40,7 +40,7 @@ public class HostFn {
     // 与 fromJSHostCall 类似，但不支持 JSValue
     public static func fromJSHostCallGeneric(
         globalThis: JsObject,
-        function: () -> Void,
+        function: () -> Unit,
         args: Array<Any>
     ) {
         function()
@@ -61,14 +61,14 @@ public class HostFn {
         functionPointer: UInt64,
         addPtrProperty: Bool,
         inputFunctionPtr: UInt64
-    ) -> JsValue {
+    ): JsValue {
         // FFI: Bun__CreateFFIFunctionValue
         JsValue.undefined()
     }
 
     // 严格翻译自 getFunctionData
     // 获取函数的关联数据
-    public static func getFunctionData(function: JsValue) -> UInt64 {
+    public static func getFunctionData(function: JsValue): UInt64 {
         // FFI: Bun__FFIFunction_getDataPtr
         0
     }
@@ -87,18 +87,18 @@ public class HostFn {
         argCount: UInt32,
         function: UInt64,
         data: UInt64
-    ) -> JsValue {
+    ): JsValue {
         // FFI: Bun__CreateFFIFunctionWithDataValue
         JsValue.undefined()
     }
 
     // 严格翻译自 wrap1, wrap2, wrap3, wrap4, wrap5
     // 包装不同参数数量的函数为宿主函数
-    public static func wrap1(func: (JsObject) -> JsValue) -> (JsObject) -> JsValue { func }
-    public static func wrap2(func: (JsObject, JsValue) -> JsValue) -> (JsObject, JsValue) -> JsValue { func }
-    public static func wrap3(func: (JsObject, JsValue, JsValue) -> JsValue) -> (JsObject, JsValue, JsValue) -> JsValue { func }
-    public static func wrap4(func: (JsObject, JsValue, JsValue, JsValue) -> JsValue) -> (JsObject, JsValue, JsValue, JsValue) -> JsValue { func }
-    public static func wrap5(func: (JsObject, JsValue, JsValue, JsValue, JsValue) -> JsValue) -> (JsObject, JsValue, JsValue, JsValue, JsValue) -> JsValue { func }
+    public static func wrap1(func: (JsObject): JsValue): (JsObject): JsValue { func }
+    public static func wrap2(func: (JsObject, JsValue): JsValue): (JsObject, JsValue): JsValue { func }
+    public static func wrap3(func: (JsObject, JsValue, JsValue): JsValue): (JsObject, JsValue, JsValue): JsValue { func }
+    public static func wrap4(func: (JsObject, JsValue, JsValue, JsValue): JsValue): (JsObject, JsValue, JsValue, JsValue): JsValue { func }
+    public static func wrap5(func: (JsObject, JsValue, JsValue, JsValue, JsValue): JsValue): (JsObject, JsValue, JsValue, JsValue, JsValue): JsValue { func }
 }
 
 // ========== DOMEffect ==========
@@ -113,19 +113,19 @@ public class DOMEffect {
     public static let top: DOMEffect = DOMEffect()
     public static let pure: DOMEffect = DOMEffect()
 
-    public static func forRead(read: DOMEffectID) -> DOMEffect {
+    public static func forRead(read: DOMEffectID): DOMEffect {
         let effect = DOMEffect()
         effect.reads[0] = read
         effect
     }
 
-    public static func forWrite(read: DOMEffectID) -> DOMEffect {
+    public static func forWrite(read: DOMEffectID): DOMEffect {
         let effect = DOMEffect()
         effect.writes[0] = read
         effect
     }
 
-    public func isPure() -> Bool {
+    public func isPure(): Bool {
         reads[0] == DOMEffectID.InvalidAbstractHeap && writes[0] == DOMEffectID.InvalidAbstractHeap
     }
 }

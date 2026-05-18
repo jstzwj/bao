@@ -30,14 +30,14 @@ public class BuildMessage {
 
     // 严格翻译自 BuildMessage.constructor
     // BuildMessage 不可构造
-    public static func constructor(globalThis: JsObject) -> ?BuildMessage {
+    public static func constructor(globalThis: JsObject): ?BuildMessage {
         // 对应 Zig 中 throw "BuildMessage is not constructable"
         None
     }
 
     // 严格翻译自 BuildMessage.getNotes
     // 获取附属的注释列表
-    public func getNotes(globalThis: JsObject) -> Array<BuildMessage> {
+    public func getNotes(globalThis: JsObject): Array<BuildMessage> {
         var notes: Array<BuildMessage> = []
         for (note in msg.notes) {
             let cloned = note.clone()
@@ -50,18 +50,18 @@ public class BuildMessage {
 
     // 严格翻译自 BuildMessage.toStringFn
     // 转为字符串
-    public func toStringFn(globalThis: JsObject) -> JsValue {
+    public func toStringFn(globalThis: JsObject): JsValue {
         let text = "BuildMessage: " + msg.data.text
         JsValue(s: text)
     }
 
     // 严格翻译自 BuildMessage.toString
-    public func toString(globalThis: JsObject) -> JsValue {
+    public func toString(globalThis: JsObject): JsValue {
         toStringFn(globalThis)
     }
 
     // 严格翻译自 BuildMessage.toPrimitive
-    public func toPrimitive(globalThis: JsObject, hint: JsValue) -> JsValue {
+    public func toPrimitive(globalThis: JsObject, hint: JsValue): JsValue {
         if (hint.isString()) {
             let str = hint.toString()
             if (str == "default" || str == "string") {
@@ -72,7 +72,7 @@ public class BuildMessage {
     }
 
     // 严格翻译自 BuildMessage.toJSON
-    public func toJSON(globalThis: JsObject) -> JsValue {
+    public func toJSON(globalThis: JsObject): JsValue {
         let obj = JsObject.make()
         obj.className = "BuildMessage"
         obj.set("name", JsValue(s: "BuildMessage"))
@@ -84,7 +84,7 @@ public class BuildMessage {
 
     // 严格翻译自 BuildMessage.getColumn
     // 获取列号 (0-based)
-    public func getColumn() -> JsValue {
+    public func getColumn(): JsValue {
         if (let Some(location) <- msg.data.location) {
             let col = location.column - 1
             return JsValue(n: Float64(if (col < 0) { 0 } else { col }))
@@ -94,7 +94,7 @@ public class BuildMessage {
 
     // 严格翻译自 BuildMessage.getLine
     // 获取行号 (0-based)
-    public func getLine() -> JsValue {
+    public func getLine(): JsValue {
         if (let Some(location) <- msg.data.location) {
             let line = location.line - 1
             return JsValue(n: Float64(if (line < 0) { 0 } else { line }))
@@ -104,23 +104,23 @@ public class BuildMessage {
 
     // 严格翻译自 BuildMessage.getPosition
     // 获取位置对象
-    public func getPosition(globalThis: JsObject) -> JsValue {
+    public func getPosition(globalThis: JsObject): JsValue {
         generatePositionObject(msg, globalThis)
     }
 
     // 严格翻译自 BuildMessage.getMessage
-    public func getMessage(globalThis: JsObject) -> JsValue {
+    public func getMessage(globalThis: JsObject): JsValue {
         JsValue(s: msg.data.text)
     }
 
     // 严格翻译自 BuildMessage.getLevel
-    public func getLevel(globalThis: JsObject) -> JsValue {
+    public func getLevel(globalThis: JsObject): JsValue {
         JsValue(s: msg.kind.toString())
     }
 
     // 严格翻译自 BuildMessage.generatePositionObject
     // 生成位置对象
-    public static func generatePositionObject(msg: LoggerMsg, globalThis: JsObject) -> JsValue {
+    public static func generatePositionObject(msg: LoggerMsg, globalThis: JsObject): JsValue {
         if (msg.data.location == None) {
             return JsValue.null()
         }
@@ -138,7 +138,7 @@ public class BuildMessage {
 
     // 严格翻译自 BuildMessage.create
     // 创建 BuildMessage 实例
-    public static func create(globalThis: JsObject, msg: LoggerMsg) -> BuildMessage {
+    public static func create(globalThis: JsObject, msg: LoggerMsg): BuildMessage {
         let buildMsg = BuildMessage()
         buildMsg.msg = msg.clone()
         buildMsg
@@ -159,7 +159,7 @@ public class LoggerMsg {
 
     public init() {}
 
-    public func clone() -> LoggerMsg {
+    public func clone(): LoggerMsg {
         let cloned = LoggerMsg()
         cloned.data = data.clone()
         cloned.kind = kind
@@ -176,7 +176,7 @@ public class MsgData {
 
     public init() {}
 
-    public func clone() -> MsgData {
+    public func clone(): MsgData {
         let cloned = MsgData()
         cloned.text = text
         cloned.location = location
@@ -207,7 +207,7 @@ public enum MsgKind {
     | Debug
     | Verbose
 
-    public func toString() -> String {
+    public func toString(): String {
         match (this) {
             case Err => "error"
             case Warning => "warning"

@@ -37,23 +37,27 @@ public class Counters {
     // 递增指定计数器 (饱和加法，不溢出)
     public func mark(field: CounterField) {
         match (field) {
-            case CounterField.SpawnSyncBlocking => {
-                if (spawnSyncBlocking < Int32.MaxValue) {
-                    spawnSyncBlocking++
-                }
-            }
-            case CounterField.SpawnMemfd => {
-                if (spawnMemfd < Int32.MaxValue) {
-                    spawnMemfd++
-                }
-            }
+            case CounterField.SpawnSyncBlocking => incrementSpawnSyncBlocking()
+            case CounterField.SpawnMemfd => incrementSpawnMemfd()
+        }
+    }
+
+    private func incrementSpawnSyncBlocking() {
+        if (spawnSyncBlocking < Int32.MaxValue) {
+            spawnSyncBlocking++
+        }
+    }
+
+    private func incrementSpawnMemfd() {
+        if (spawnMemfd < Int32.MaxValue) {
+            spawnMemfd++
         }
     }
 
     // ========== toJS ==========
     // 严格翻译自 Counters.toJS
     // 将计数器转为 JS 对象
-    public func toJS(globalObject: JsObject) -> JsValue {
+    public func toJS(globalObject: JsObject): JsValue {
         let obj = JsObject.make()
         obj.className = "Counters"
         obj.set("spawnSyncBlocking", JsValue(n: Float64(spawnSyncBlocking)))
@@ -64,7 +68,7 @@ public class Counters {
     // ========== createCountersObject ==========
     // 严格翻译自 Counters.createCountersObject
     // 创建计数器对象的 JS 绑定回调
-    public static func createCountersObject(globalObject: JsObject, callFrame: CallFrame) -> JsValue {
+    public static func createCountersObject(globalObject: JsObject, callFrame: CallFrame): JsValue {
         // 从 VM 获取计数器并转为 JS
         // 原始: globalObject.bunVM().counters.toJS(globalObject)
         let counters = Counters()

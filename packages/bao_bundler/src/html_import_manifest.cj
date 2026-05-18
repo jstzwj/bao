@@ -93,7 +93,7 @@ public class HtmlImportManifest {
     private func writeEntryItem(sb: StringBuilder, input: String, path: String,
                                 hash: UInt64, loader: String, isEntry: Bool): Unit {
         sb.append("{")
-        if (input.length > 0) {
+        if (input.size > 0) {
             sb.append("\"input\":")
             sb.append(quoteJSON(input))
             sb.append(",")
@@ -106,7 +106,7 @@ public class HtmlImportManifest {
         sb.append(if (isEntry) { "true" } else { "false" })
         sb.append(",\"headers\":{")
         if (hash > 0) {
-            let base64Hash = hash.toHexString()
+            let base64Hash = "${hash}"
             sb.append("\"etag\":\"")
             sb.append(base64Hash)
             sb.append("\",")

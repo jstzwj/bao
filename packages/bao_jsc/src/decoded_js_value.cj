@@ -57,7 +57,7 @@ public class DecodedJSValue {
     // 严格翻译自 DecodedJSValue.encode
     // 等价于 JSC::JSValue::encode
     // 将解码后的值重新编码为 JsValue
-    public func encode() -> JsValue {
+    public func encode(): JsValue {
         // 将 asInt64 编码为 JsValue
         let v = JsValue()
         v.rawPtr = u.ptr
@@ -67,21 +67,21 @@ public class DecodedJSValue {
     // ========== 类型检查 ==========
 
     // asU64 - 获取无符号 64 位视图
-    func asU64() -> UInt64 {
+    func asU64(): UInt64 {
         UInt64(u.asInt64)
     }
 
     // 严格翻译自 DecodedJSValue.isCell
     // 等价于 JSC::JSValue::isCell
     // 注意: 与 JSC 一样，此方法将 0 视为 Cell
-    public func isCell() -> Bool {
+    public func isCell(): Bool {
         (asU64() & NOT_CELL_MASK) == 0
     }
 
     // 严格翻译自 DecodedJSValue.asCell
     // 等价于 JSC::JSValue::asCell
     // 断言是 Cell 后返回 Cell 指针
-    public func asCell() -> ?CPointer<UInt8> {
+    public func asCell(): ?CPointer<UInt8> {
         if (!isCell()) {
             return None
         }
@@ -91,12 +91,12 @@ public class DecodedJSValue {
     // ========== 位操作 ==========
 
     // 获取 payload 部分
-    public func getPayload() -> Int32 {
+    public func getPayload(): Int32 {
         u.payload
     }
 
     // 获取 tag 部分
-    public func getTag() -> Int32 {
+    public func getTag(): Int32 {
         u.tag
     }
 

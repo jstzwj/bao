@@ -8,13 +8,7 @@ package bao_jsc
 // 解析源码的类型标签
 // 使用 UInt32 透明表示以支持 (1 << 9) | id 的内部模块 ID 编码
 public enum ResolvedSourceTag {
-    | this
-}
-                    this = Javascript
-                }
-            }
-        }
-    }
+    | Javascript
 }
 
 // ========== ResolvedSource ==========
@@ -112,7 +106,7 @@ public class ResolvedSource_ {
         specifier: String,
         sourceCode: String,
         sourceURL: String
-    ) -> ResolvedSource_ {
+    ): ResolvedSource_ {
         ResolvedSource_(
             specifier: specifier,
             sourceCode: sourceCode,
@@ -126,7 +120,7 @@ public class ResolvedSource_ {
         specifier: String,
         sourceCode: String,
         sourceURL: String
-    ) -> ResolvedSource_ {
+    ): ResolvedSource_ {
         let rs = ResolvedSource_(
             specifier: specifier,
             sourceCode: sourceCode,
@@ -142,7 +136,7 @@ public class ResolvedSource_ {
         specifier: String,
         sourceCode: String,
         sourceURL: String
-    ) -> ResolvedSource_ {
+    ): ResolvedSource_ {
         ResolvedSource_(
             specifier: specifier,
             sourceCode: sourceCode,

@@ -68,7 +68,7 @@ public class Debugger_ {
     }
 
     // 添加断点
-    public func addBreakpoint(url: String, line: Int64, column: Int64) -> Int64 {
+    public func addBreakpoint(url: String, line: Int64, column: Int64): Int64 {
         nextDebuggerId++
         let bp = Breakpoint(id: nextDebuggerId, url: url, line: line, column: column)
         breakpoints.append(bp)
@@ -76,7 +76,7 @@ public class Debugger_ {
     }
 
     // 移除断点
-    public func removeBreakpoint(id: Int64) -> Bool {
+    public func removeBreakpoint(id: Int64): Bool {
         var idx = -1
         for (i in 0..breakpoints.size) {
             if (breakpoints[Int64(i)].id == id) {
@@ -92,7 +92,7 @@ public class Debugger_ {
     }
 
     // 检查是否在断点处
-    public func shouldBreak(url: String, line: Int64) -> Bool {
+    public func shouldBreak(url: String, line: Int64): Bool {
         if (!isEnabled) { return false }
         if (breakOnFirstLine) { return true }
         for (bp in breakpoints) {
@@ -139,8 +139,8 @@ public class HotReloader {
     public var watchedPaths: Array<String> = []
     public var ignoredPatterns: Array<String> = []
     public var debounceMs: Int64 = 100
-    public var onReload: ?((String) -> Unit) = None
-    public var onError: ?((JsValue) -> Unit) = None
+    public var onReload: ?((String): Unit) = None
+    public var onError: ?((JsValue): Unit) = None
 
     public init() {}
 
@@ -193,7 +193,7 @@ public class HotReloader {
     }
 
     // 检查路径是否应该被忽略
-    public func shouldIgnore(path: String) -> Bool {
+    public func shouldIgnore(path: String): Bool {
         for (pattern in ignoredPatterns) {
             if (path.startsWith(pattern)) {
                 return true
@@ -212,7 +212,7 @@ public class AsyncModule_ {
     public var error: ?JsValue = None
     public var result: ?JsValue = None
     public var dependencySpecifiers: Array<String> = []
-    public var evaluateCallback: ?(() -> JsValue) = None
+    public var evaluateCallback: ?((): JsValue) = None
 
     // 队列相关
     public var queue: ?AsyncModuleQueue_ = None
@@ -241,7 +241,7 @@ public class AsyncModule_ {
     }
 
     // 是否已完成
-    public func isCompleted() -> Bool {
+    public func isCompleted(): Bool {
         isResolved || isRejected
     }
 }
@@ -291,7 +291,7 @@ public class SavedSourceMap {
     public init() {}
 
     // 查找原始位置
-    public func lookup(line: Int64, column: Int64) -> ?SourceMapLookup {
+    public func lookup(line: Int64, column: Int64): ?SourceMapLookup {
         // 简化实现
         let lookup = SourceMapLookup()
         lookup.originalLine = line
@@ -366,7 +366,7 @@ public class RuntimeTranspilerCache {
 
     public init() {}
 
-    public func get(key: String) -> ?CachedBytecode {
+    public func get(key: String): ?CachedBytecode {
         cache.get(key)
     }
 
@@ -422,7 +422,7 @@ public class AsyncTaskTracker {
     }
 
     // 严格翻译自 AsyncTaskTracker.init
-    public static func initFunc(vm: BunVirtualMachine) -> AsyncTaskTracker {
+    public static func initFunc(vm: BunVirtualMachine): AsyncTaskTracker {
         AsyncTaskTracker(id: vm.nextAsyncTaskID())
     }
 
@@ -503,7 +503,7 @@ public class TestReporterAgent {
     public init() {}
 
     // 是否已启用
-    public func isEnabled() -> Bool {
+    public func isEnabled(): Bool {
         handle != None
     }
 
@@ -570,7 +570,7 @@ public class LifecycleAgent {
     public init() {}
 
     // 是否已启用
-    public func isEnabled() -> Bool {
+    public func isEnabled(): Bool {
         handle != None
     }
 

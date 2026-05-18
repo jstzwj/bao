@@ -24,14 +24,14 @@ public class DOMUrl {
 
     // 严格翻译自 hash
     // 包括前导 '#'
-    public func getHash() -> String {
+    public func getHash(): String {
         // FFI: URL__hash(url)
         hash
     }
 
     // 严格翻译自 fragmentIdentifier
     // 与 hash 完全相同，但不包括前导 '#'
-    public func getFragmentIdentifier() -> String {
+    public func getFragmentIdentifier(): String {
         // FFI: URL__fragmentIdentifier(url)
         if (hash.size > 0 && hash[0] == '#') {
             hash[1..]
@@ -42,7 +42,7 @@ public class DOMUrl {
 
     // 严格翻译自 hrefFromString
     // 从字符串获取 href
-    public static func hrefFromString(str: String) -> String {
+    public static func hrefFromString(str: String): String {
         // FFI: URL__getHref(&input)
         // 将字符串解析为 URL 并返回 href
         let url = DOMUrl()
@@ -52,7 +52,7 @@ public class DOMUrl {
 
     // 严格翻译自 join
     // 拼接 base 和 relative URL
-    public static func join(base: String, relative: String) -> String {
+    public static func join(base: String, relative: String): String {
         // FFI: URL__getHrefJoin(&base_str, &relative_str)
         // 简化实现
         if (relative.startsWith("http://") || relative.startsWith("https://") ||
@@ -81,14 +81,14 @@ public class DOMUrl {
 
     // 严格翻译自 fileURLFromString
     // 从字符串获取文件 URL 字符串
-    public static func fileUrlFromString(str: String) -> String {
+    public static func fileUrlFromString(str: String): String {
         // FFI: URL__getFileURLString(&input)
         "file://" + str
     }
 
     // 严格翻译自 pathFromFileURL
     // 从文件 URL 获取路径
-    public static func pathFromFileUrl(str: String) -> String {
+    public static func pathFromFileUrl(str: String): String {
         // FFI: URL__pathFromFileURL(&input)
         if (str.startsWith("file://")) {
             str[7..]
@@ -99,7 +99,7 @@ public class DOMUrl {
 
     // 严格翻译自 hrefFromJS
     // 从 JS 值获取 href（百分号编码 URL，punycode 编码主机名）
-    public static func hrefFromJS(value: JsValue, globalObject: JsGlobalObject) -> ?String {
+    public static func hrefFromJS(value: JsValue, globalObject: JsGlobalObject): ?String {
         // FFI: URL__getHrefFromJS(value, globalObject)
         if (value.isString()) {
             return value.toStringOrDefault("")
@@ -109,7 +109,7 @@ public class DOMUrl {
 
     // 严格翻译自 fromJS
     // 从 JS 值创建 URL
-    public static func fromJS(value: JsValue, globalObject: JsGlobalObject) -> ?DOMUrl {
+    public static func fromJS(value: JsValue, globalObject: JsGlobalObject): ?DOMUrl {
         // FFI: URL__fromJS(value, globalObject)
         if (value.isString()) {
             let str = value.toStringOrDefault("")
@@ -124,13 +124,13 @@ public class DOMUrl {
 
     // 严格翻译自 fromUTF8
     // 从 UTF-8 字符串创建 URL
-    public static func fromUTF8(input: String) -> ?DOMUrl {
+    public static func fromUTF8(input: String): ?DOMUrl {
         return fromString(input)
     }
 
     // 严格翻译自 fromString
     // 从字符串创建 URL
-    public static func fromString(str: String) -> ?DOMUrl {
+    public static func fromString(str: String): ?DOMUrl {
         // FFI: URL__fromString(&input)
         let url = DOMUrl()
         url.parse(str)
@@ -141,31 +141,31 @@ public class DOMUrl {
     }
 
     // 严格翻译自 protocol
-    public func getProtocol() -> String {
+    public func getProtocol(): String {
         // FFI: URL__protocol(url)
         protocol
     }
 
     // 严格翻译自 href
-    public func getHref() -> String {
+    public func getHref(): String {
         // FFI: URL__href(url)
         href
     }
 
     // 严格翻译自 username
-    public func getUsername() -> String {
+    public func getUsername(): String {
         // FFI: URL__username(url)
         username
     }
 
     // 严格翻译自 password
-    public func getPassword() -> String {
+    public func getPassword(): String {
         // FFI: URL__password(url)
         password
     }
 
     // 严格翻译自 search
-    public func getSearch() -> String {
+    public func getSearch(): String {
         // FFI: URL__search(url)
         search
     }
@@ -173,7 +173,7 @@ public class DOMUrl {
     // 严格翻译自 host
     // 返回不带端口的主机名
     // 注意：这与 JS 行为不匹配，JS 返回带端口的主机名。参见 hostname
-    public func getHost() -> String {
+    public func getHost(): String {
         // FFI: URL__host(url)
         host
     }
@@ -181,14 +181,14 @@ public class DOMUrl {
     // 严格翻译自 hostname
     // 返回带端口的主机名
     // 注意：这与 JS 行为不匹配，JS 返回不带端口的主机名。参见 host
-    public func getHostname() -> String {
+    public func getHostname(): String {
         // FFI: URL__hostname(url)
         hostname
     }
 
     // 严格翻译自 port
     // 如果端口未设置，返回 UInt32 最大值。否则保证在 UInt16 范围内
-    public func getPort() -> UInt32 {
+    public func getPort(): UInt32 {
         // FFI: URL__port(url)
         port
     }
@@ -200,14 +200,14 @@ public class DOMUrl {
     }
 
     // 严格翻译自 pathname
-    public func getPathname() -> String {
+    public func getPathname(): String {
         // FFI: URL__pathname(url)
         pathname
     }
 
     // 严格翻译自 originFromSlice
     // 从字节切片获取 origin
-    public static func originFromSlice(slice: String) -> ?String {
+    public static func originFromSlice(slice: String): ?String {
         // FFI: URL__originLength(latin1_slice, len)
         // 简化实现：查找 origin（协议 + 主机 + 端口）
         let schemeEnd = slice.indexOf("://")

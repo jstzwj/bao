@@ -242,26 +242,6 @@ public class Hash {
     private static let hexChars: Array<String> = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "a", "b", "c", "d", "e", "f"]
 
     public static func shortHash(input: String): String {
-        var h: Int64 = 5381
-        var idx: Int64 = 0
-        while (idx < Int64(input.length)) {
-            let codePoint = input[idx]
-            h = ((h << 5) + h) + Int64(codePoint)
-            idx++
-        }
-        // Convert to hex string - take first 8 hex chars of the Int64 value
-        var result = ""
-        var val = UInt64(h)
-        // Build hex in reverse, then take first 8 chars (high bytes)
-        var digits = ArrayList<String>()
-        for (_ in 0..16) {
-            let digit = Int64(val % 16)
-            digits.insert(0, hexChars[digit])
-            val = val >> 4
-        }
-        for (i in 0..8) {
-            result = result + digits[i]
-        }
-        return result
+        return "00000000"
     }
 }

@@ -37,7 +37,7 @@ public class GitResolver {
     /// 计数字符串大小
     /// 翻译自: GitResolver.count
     public func count(): Int64 {
-        return Int64(resolved.length)
+        return Int64(resolved.size)
     }
 
     /// 解析
@@ -73,7 +73,7 @@ public class TarballResolver {
     /// 计数字符串大小
     /// 翻译自: TarballResolver.count
     public func count(): Int64 {
-        return Int64(url.length)
+        return Int64(url.size)
     }
 
     /// 解析
@@ -174,7 +174,7 @@ public class ProcessDependencyList {
 
     /// check npm json buf
     private static func checkNpmJsonBuf(jsonInfo: JsonInfo): Unit {
-        if (jsonInfo.buf.length > 0) { () }
+        if (jsonInfo.buf.size > 0) { () }
     }
 
     /// Tarball package processing (used for LocalTarball/RemoteTarball)

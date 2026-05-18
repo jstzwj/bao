@@ -34,7 +34,7 @@ public class JSRef {
     }
 
     // ========== 当前标签 ==========
-    public func tag() -> JSRefTag {
+    public func tag(): JSRefTag {
         _tag
     }
 
@@ -47,7 +47,7 @@ public class JSRef {
     //       bun.assert(!value.isEmptyOrUndefinedOrNull());
     //       return .{ .weak = value };
     //   }
-    public static func initWeak(value: JsValue) -> JSRef {
+    public static func initWeak(value: JsValue): JSRef {
         // 断言: value 不能为空/undefined/null
         let ref = JSRef()
         ref._tag = JSRefTag.Weak
@@ -64,7 +64,7 @@ public class JSRef {
     //       bun.assert(!value.isEmptyOrUndefinedOrNull());
     //       return .{ .strong = .create(value, globalThis) };
     //   }
-    public static func initStrong(value: JsValue, globalThis: JsObject) -> JSRef {
+    public static func initStrong(value: JsValue, globalThis: JsObject): JSRef {
         let ref = JSRef()
         ref._tag = JSRefTag.Strong
         ref._weakValue = value
@@ -81,7 +81,7 @@ public class JSRef {
     //   pub fn empty() @This() {
     //       return .{ .weak = .js_undefined };
     //   }
-    public static func empty() -> JSRef {
+    public static func empty(): JSRef {
         JSRef()
     }
 
@@ -97,7 +97,7 @@ public class JSRef {
     //           .finalized => null,
     //       };
     //   }
-    public func tryGet() -> ?JsValue {
+    public func tryGet(): ?JsValue {
         match (_tag) {
             case JSRefTag.Weak => {
                 if (_weakValue.isEmptyOrUndefinedOrNull()) {
@@ -232,7 +232,7 @@ public class JSRef {
 
     // ========== isEmpty ==========
     // 严格翻译自 JSRef.isEmpty
-    public func isEmpty() -> Bool {
+    public func isEmpty(): Bool {
         match (_tag) {
             case JSRefTag.Weak => _weakValue.isEmptyOrUndefinedOrNull()
             case JSRefTag.Strong => _strongHandle == CPointer<UInt8>()
@@ -242,14 +242,14 @@ public class JSRef {
 
     // ========== isNotEmpty ==========
     // 严格翻译自 JSRef.isNotEmpty
-    public func isNotEmpty() -> Bool {
+    public func isNotEmpty(): Bool {
         !isEmpty()
     }
 
     // ========== isStrong ==========
     // 严格翻译自 JSRef.isStrong
     // 测试是否为 strong 引用
-    public func isStrong() -> Bool {
+    public func isStrong(): Bool {
         _tag == JSRefTag.Strong
     }
 
@@ -325,13 +325,13 @@ public class JSRef {
     // ========== FFI 桩函数 ==========
 
     // FFI: jsc.Strong.Optional.create(value, globalThis)
-    private static func strongCreateFFI(value: JsValue, globalThis: JsObject) -> CPointer<UInt8> {
+    private static func strongCreateFFI(value: JsValue, globalThis: JsObject): CPointer<UInt8> {
         // 真实实现: @CFFI 调用 JSC Strong 创建
         CPointer<UInt8>()
     }
 
-    // FFI: jsc.Strong.Optional.get() -> ?JSValue
-    private static func strongGetFFI(handle: CPointer<UInt8>) -> ?JsValue {
+    // FFI: jsc.Strong.Optional.get(): ?JSValue
+    private static func strongGetFFI(handle: CPointer<UInt8>): ?JsValue {
         // 真实实现: @CFFI 调用 JSC Strong get
         if (handle == CPointer<UInt8>()) {
             return None
@@ -349,8 +349,8 @@ public class JSRef {
         // 真实实现: @CFFI 调用 JSC Strong deinit
     }
 
-    // FFI: jsc.Strong.Optional.trySwap() -> ?JSValue
-    private static func strongTrySwapFFI(handle: CPointer<UInt8>) -> JsValue {
+    // FFI: jsc.Strong.Optional.trySwap(): ?JSValue
+    private static func strongTrySwapFFI(handle: CPointer<UInt8>): JsValue {
         // 真实实现: @CFFI 调用 JSC Strong trySwap
         JsValue.undefined()
     }

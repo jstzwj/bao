@@ -12,13 +12,13 @@ public class DOMURL {
     public init() {}
 
     // 严格翻译自 DOMURL.cast_
-    public static func cast_(value: JsValue, vm: JsVirtualMachine) -> ?DOMURL {
+    public static func cast_(value: JsValue, vm: JsVirtualMachine): ?DOMURL {
         // FFI: WebCore__DOMURL__cast_
         None
     }
 
     // 严格翻译自 DOMURL.cast
-    public static func cast(value: JsValue) -> ?DOMURL {
+    public static func cast(value: JsValue): ?DOMURL {
         // cast_ with current VM
         None
     }
@@ -29,14 +29,14 @@ public class DOMURL {
     }
 
     // 严格翻译自 DOMURL.href
-    public func href() -> ZigString {
+    public func href(): ZigString {
         let out = ZigString.empty()
         href_(out)
         out
     }
 
     // 严格翻译自 DOMURL.fileSystemPath
-    public func fileSystemPath() -> ?String {
+    public func fileSystemPath(): ?String {
         // FFI: WebCore__DOMURL__fileSystemPath
         None
     }
@@ -47,7 +47,7 @@ public class DOMURL {
     }
 
     // 严格翻译自 DOMURL.pathname
-    public func pathname() -> ZigString {
+    public func pathname(): ZigString {
         let out = ZigString.empty()
         pathname_(out)
         out

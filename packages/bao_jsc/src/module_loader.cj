@@ -23,7 +23,7 @@ public enum Loader {
     | Napi
 
     // 严格翻译自 Loader.isJavaScriptLike
-    public func isJavaScriptLike() -> Bool {
+    public func isJavaScriptLike(): Bool {
         match (this) {
             case Js | Jsx | Ts | Tsx => true
             case _ => false
@@ -75,7 +75,7 @@ public class PackageJson {
     public var name: String = ""
     public var version: String = ""
     public var moduleType: ModuleType = ModuleType.Unknown
-    public var main: String = ""
+    public var `main`: String = ""
     public var module: String = ""
     public var exports: ?JsObject = None
 
@@ -119,13 +119,13 @@ public class ErrorableString {
 
     public init() {}
 
-    public static func ok(value: String) -> ErrorableString {
+    public static func ok(value: String): ErrorableString {
         let result = ErrorableString()
         result.ok = value
         return result
     }
 
-    public static func err(error: ModuleError, value: String) -> ErrorableString {
+    public static func err(error: ModuleError, value: String): ErrorableString {
         let result = ErrorableString()
         result.err = error
         result.hasError = true
@@ -142,13 +142,13 @@ public class ErrorableResolvedSource {
 
     public init() {}
 
-    public static func ok(value: ModuleResolvedSource) -> ErrorableResolvedSource {
+    public static func ok(value: ModuleResolvedSource): ErrorableResolvedSource {
         let result = ErrorableResolvedSource()
         result.ok = value
         return result
     }
 
-    public static func err(error: ModuleError, value: JsValue) -> ErrorableResolvedSource {
+    public static func err(error: ModuleError, value: JsValue): ErrorableResolvedSource {
         let result = ErrorableResolvedSource()
         result.err = error
         result.hasError = true
@@ -163,7 +163,7 @@ public class RuntimeTranspilerStore {
 
     public init() {}
 
-    public static func initFunc() -> RuntimeTranspilerStore {
+    public static func initFunc(): RuntimeTranspilerStore {
         RuntimeTranspilerStore()
     }
 }
@@ -239,7 +239,7 @@ public class PathName {
     }
 
     // 严格翻译自 PathName.dirWithTrailingSlash
-    public func dirWithTrailingSlash() -> String {
+    public func dirWithTrailingSlash(): String {
         if (dir.size > 0 && !dir.endsWith("/")) {
             return dir + "/"
         }
@@ -268,13 +268,13 @@ public class JSModuleLoader {
     public init() {}
 
     // 严格翻译自 JSModuleLoader.loadAndEvaluateModule
-    public static func loadAndEvaluateModule(global: JsObject, specifier: String) -> ?JsObject {
+    public static func loadAndEvaluateModule(global: JsObject, specifier: String): ?JsObject {
         // 加载并执行模块
         None
     }
 
     // 严格翻译自 JSModuleLoader.import
-    public static func import_(global: JsObject, specifier: String) -> ?JsObject {
+    public static func import_(global: JsObject, specifier: String): ?JsObject {
         loadAndEvaluateModule(global, specifier)
     }
 }
@@ -285,7 +285,7 @@ public class JSModuleLoader {
 
 // ========== 获取默认加载器 ==========
 // 严格翻译自 Bun__getDefaultLoader
-public func getDefaultLoader(global: JsObject, filename: String) -> Loader {
+public func getDefaultLoader(global: JsObject, filename: String): Loader {
     let ext = PathName(filename).ext
     match (ext) {
         case ".js" => Loader.Js
@@ -323,7 +323,7 @@ public func getLoaderAndVirtualSource(
     specifier: String,
     jscVm: BunVirtualMachine,
     virtualSource: ?VirtualSource
-) -> ?LoaderAndVirtualSource {
+): ?LoaderAndVirtualSource {
     let result = LoaderAndVirtualSource()
     result.specifier = specifier
     result.path = specifier
@@ -356,7 +356,7 @@ public func transpileSourceCode(
     log: ArrayList<String>,
     virtualSource: ?VirtualSource,
     globalObject: ?JsObject
-) -> ModuleResolvedSource {
+): ModuleResolvedSource {
     jscVm.transpiledCount++
 
     let sourceCode = if (let Some(vs) <- virtualSource) { vs.contents } else { "" }
@@ -374,7 +374,7 @@ public func resolveEmbeddedFile(
     vm: BunVirtualMachine,
     inputPath: String,
     extName: String
-) -> ?String {
+): ?String {
     if (inputPath.isEmpty) {
         return None
     }

@@ -27,7 +27,7 @@ public class WorkTask<Context> {
         allocator: UInt64,
         globalThis: JsObject,
         value: Context
-    ) -> WorkTask<Context> {
+    ): WorkTask<Context> {
         let vm = globalThis.bunVM()
         let task = WorkTask<Context>(ctx: value)
         task.eventLoop = vm.eventLoop()
@@ -69,6 +69,21 @@ public class WorkTask<Context> {
 }
 
 // 支撑类型
-public class WorkPoolTask { public init() {} }
-public class KeepAlive { public init() {} public func ref(_ vm: BunVirtualMachine) {} public func unref(_ vm: BunVirtualMachine) {} }
-public class AsyncTaskTracker { public init() {} public func didSchedule(_ global: JsObject) {} public func willDispatch(_ global: JsObject) {} public func didDispatch(_ global: JsObject) {} }
+public class WorkPoolTask {
+    public init() {}
+}
+
+public class KeepAlive {
+    public init() {}
+
+    public func ref(vm: BunVirtualMachine) {}
+    public func unref(vm: BunVirtualMachine) {}
+}
+
+public class AsyncTaskTracker {
+    public init() {}
+
+    public func didSchedule(global: JsObject) {}
+    public func willDispatch(global: JsObject) {}
+    public func didDispatch(global: JsObject) {}
+}

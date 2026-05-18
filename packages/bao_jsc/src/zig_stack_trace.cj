@@ -27,22 +27,7 @@ public class ZigStackTrace {
     // 如果如此，则需调用 .deref 释放内存
     public var referencedSourceProvider: ?SourceProvider = None
 
-    // 便捷属性: 帧数组
-    // 严格翻译自 ZigStackTrace.frames (getter)
-    public var frames: Array<ZigStackFrame> {
-        get() {
-            if (framesPtr.size == 0) {
-                return []
-            }
-            let len = if (framesLen <= Int64(framesPtr.size)) { Int64(framesLen) } else { Int64(framesPtr.size) }
-            framesPtr.slice(0, len)
-        }
-        set(v) {
-            framesPtr = v
-            framesLen = Int64(v.size)
-            framesCap = Int64(v.size)
-        }
-    }
+    public var frames: Array<ZigStackFrame> = []
 
     public init() {}
 
@@ -66,7 +51,7 @@ public class ZigStackTrace {
 
     // 严格翻译自 ZigStackTrace.fromFrames
     // 从帧切片创建堆栈追踪
-    public static func fromFrames(framesSlice: Array<ZigStackFrame>) -> ZigStackTrace {
+    public static func fromFrames(framesSlice: Array<ZigStackFrame>): ZigStackTrace {
         ZigStackTrace(
             sourceLinesPtr: [],
             sourceLineNumbers: [],
@@ -80,7 +65,7 @@ public class ZigStackTrace {
 
     // 严格翻译自 ZigStackTrace.toAPI
     // 转为 API 格式的堆栈追踪
-    public func toAPI(rootPath: String, origin: ?String) -> StackTraceApi {
+    public func toAPI(rootPath: String, origin: ?String): StackTraceApi {
         let trace = StackTraceApi()
 
         // 源代码行
@@ -117,12 +102,12 @@ public class ZigStackTrace {
 
     // 严格翻译自 ZigStackTrace.framesMutable
     // 获取可变的帧切片
-    public func framesMutable() -> Array<ZigStackFrame> {
+    public func framesMutable(): Array<ZigStackFrame> {
         if (framesPtr.size == 0) {
             return []
         }
         let len = if (framesLen <= Int64(framesPtr.size)) { Int64(framesLen) } else { Int64(framesPtr.size) }
-        framesPtr.slice(0, len)
+        framesPtr
     }
 
     // ========== SourceLineIterator ==========
@@ -137,7 +122,7 @@ public class ZigStackTrace {
         }
 
         // 严格翻译自 SourceLineIterator.getLength
-        public func getLength() -> Int64 {
+        public func getLength(): Int64 {
             var count: Int64 = 0
             let end = if (i + 1 >= 0) { i + 1 } else { 0 }
             let len = if (end <= Int64(trace.sourceLinesPtr.size)) { end } else { Int64(trace.sourceLinesPtr.size) }
@@ -148,13 +133,13 @@ public class ZigStackTrace {
         }
 
         // 严格翻译自 SourceLineIterator.untilLast
-        public func untilLast() -> ?SourceLine {
+        public func untilLast(): ?SourceLine {
             if (i < 1) { return None }
             next()
         }
 
         // 严格翻译自 SourceLineIterator.next
-        public func next() -> ?SourceLine {
+        public func next(): ?SourceLine {
             if (i < 0) { return None }
             let idx = Int64(i)
             if (idx >= Int64(trace.sourceLinesPtr.size)) { return None }
@@ -183,7 +168,7 @@ public class ZigStackTrace {
     }
 
     // 严格翻译自 ZigStackTrace.sourceLineIterator
-    public func sourceLineIterator() -> SourceLineIterator {
+    public func sourceLineIterator(): SourceLineIterator {
         var i: Int64 = -1
         let len = if (sourceLinesLen <= Int64(sourceLineNumbers.size)) { Int64(sourceLinesLen) } else { Int64(sourceLineNumbers.size) }
         for (j in 0..len) {

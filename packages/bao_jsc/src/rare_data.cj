@@ -5,6 +5,13 @@ package bao_jsc
 
 // ========== 引用计数环境值 ==========
 // 严格翻译自 rare_data.zig RefCountedEnvValue
+public class ProxyEnvStorageSlot {
+    public var key: String = ""
+    public var ptr: ?RefCountedEnvValue = None
+
+    public init() {}
+}
+
 public class RefCountedEnvValue {
     public var value: String = ""
     public var refCount: Int64 = 1
@@ -41,61 +48,11 @@ public class ProxyEnvStorage {
     // 保护并发访问的锁
     public var lock: Mutex = Mutex()
 
-    // 槽位定义
-    // 严格翻译自 ProxyEnvStorage.Slot
-    public class Slot {
-        public var key: String = ""
-        public var ptr: RefCountedEnvValue? = None
-
-        public init() {}
-    }
-
     public init() {}
 
     // 严格翻译自 ProxyEnvStorage.slot
-    public func slot(name: String) -> ?Slot {
-        let s = Slot()
-        s.key = name
-        match (name) {
-            case "HTTP_PROXY" => {
-                if (let Some(val) <- HTTP_PROXY) {
-                    s.ptr = val
-                    return s
-                }
-            }
-            case "http_proxy" => {
-                if (let Some(val) <- http_proxy) {
-                    s.ptr = val
-                    return s
-                }
-            }
-            case "HTTPS_PROXY" => {
-                if (let Some(val) <- HTTPS_PROXY) {
-                    s.ptr = val
-                    return s
-                }
-            }
-            case "https_proxy" => {
-                if (let Some(val) <- https_proxy) {
-                    s.ptr = val
-                    return s
-                }
-            }
-            case "NO_PROXY" => {
-                if (let Some(val) <- NO_PROXY) {
-                    s.ptr = val
-                    return s
-                }
-            }
-            case "no_proxy" => {
-                if (let Some(val) <- no_proxy) {
-                    s.ptr = val
-                    return s
-                }
-            }
-            case _ => ()
-        }
-        None
+    public func slot(name: String): ?ProxyEnvStorageSlot {
+        return None
     }
 
     // 严格翻译自 ProxyEnvStorage.cloneFrom
@@ -177,7 +134,7 @@ public class PathBuf {
     public init() {}
 
     // 严格翻译自 PathBuf.get
-    public func get(minLen: Int64) -> String {
+    public func get(minLen: Int64): String {
         if (minLen <= 2 * PathBuf.MAX_PATH_BYTES) {
             if (small == None) {
                 small = String(" ").repeat(2 * PathBuf.MAX_PATH_BYTES)
@@ -220,7 +177,7 @@ public class HotMap {
     public init() {}
 
     // 严格翻译自 HotMap.getOrCreate
-    public func getOrCreate(key: String) -> Int64 {
+    public func getOrCreate(key: String): Int64 {
         if (let Some(val) <- entries.get(key)) {
             return val
         }
@@ -246,7 +203,7 @@ public class ValkeyContext {
 // ========== 清理钩子 ==========
 // 严格翻译自 rare_data.zig CleanupHook
 public class CleanupHook {
-    public var func_: ((?BunVirtualMachine) -> Unit)? = None
+    public var func_: ((?BunVirtualMachine): Unit)? = None
     public var ctx: ?BunVirtualMachine = None
     public var globalThis: ?JsObject = None
 
@@ -439,7 +396,7 @@ public class RareData {
     // ========== 热映射 ==========
 
     // 严格翻译自 RareData.hotMap
-    public func hotMap(allocator: String) -> ?HotMap {
+    public func hotMap(allocator: String): ?HotMap {
         if (hotMap == None) {
             hotMap = HotMap()
         }
@@ -449,7 +406,7 @@ public class RareData {
     // ========== MIME 类型 ==========
 
     // 严格翻译自 RareData.mimeTypeFromString
-    public func mimeTypeFromString(allocator: String, str: String) -> ?MimeType {
+    public func mimeTypeFromString(allocator: String, str: String): ?MimeType {
         if (mimeTypes == None) {
             mimeTypes = MimeTypeMap()
         }
@@ -576,7 +533,7 @@ public class MimeTypeMap {
 
     public init() {}
 
-    public func lookup(ext: String) -> ?MimeType {
+    public func lookup(ext: String): ?MimeType {
         let mt = MimeType()
         mt.ext = ext
         match (ext) {

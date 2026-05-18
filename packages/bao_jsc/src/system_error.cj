@@ -29,7 +29,7 @@ public class SystemError {
     }
 
     // 转为 JsValue
-    public func toJS(global: JsObject) -> JsValue {
+    public func toJS(global: JsObject): JsValue {
         let obj = JsObject.make()
         obj.className = "Error"
         obj.set("code", JsValue(s: code))
@@ -43,7 +43,7 @@ public class SystemError {
     }
 
     // 严格翻译自 SystemError.fromCode
-    public static func fromCode(errnoCode: Int64, syscall: String) -> SystemError {
+    public static func fromCode(errnoCode: Int64, syscall: String): SystemError {
         let err = SystemError()
         err.errnoCode = errnoCode
         err.syscall = syscall
@@ -53,7 +53,7 @@ public class SystemError {
     }
 
     // 错误码到字符串
-    static func errorCodeToString(code: Int64) -> String {
+    static func errorCodeToString(code: Int64): String {
         match (code) {
             case 1 => "EPERM"
             case 2 => "ENOENT"
@@ -109,7 +109,7 @@ public class PosixSignalHandle {
 
     public init() {}
 
-    public init(signal: Int64, callback: () -> Unit) {
+    public init(signal: Int64, callback: (): Unit) {
         this.signal = signal
         this.callback = callback
     }
@@ -185,13 +185,13 @@ public class RegularExpression {
     }
 
     // 测试字符串是否匹配
-    public func test(input: String) -> Bool {
+    public func test(input: String): Bool {
         // 简化实现
         input.indexOf(pattern) >= 0
     }
 
     // 执行匹配
-    public func exec(input: String) -> ?RegexMatchResult {
+    public func exec(input: String): ?RegexMatchResult {
         let idx = input.indexOf(pattern)
         if (idx < 0) { return None }
         let result = RegexMatchResult()
@@ -203,7 +203,7 @@ public class RegularExpression {
     }
 
     // 转为 JsValue
-    public func toJsValue() -> JsValue {
+    public func toJsValue(): JsValue {
         let obj = JsObject.make()
         obj.className = "RegExp"
         obj.set("source", JsValue(s: pattern))
@@ -240,7 +240,7 @@ public class TextCodec {
     }
 
     // 编码
-    public func encode(input: String) -> Array<UInt8> {
+    public func encode(input: String): Array<UInt8> {
         // 简化实现 - UTF-8
         var result = Array<UInt8>()
         for (c in input) {
@@ -260,7 +260,7 @@ public class TextCodec {
     }
 
     // 解码
-    public func decode(input: Array<UInt8>) -> String {
+    public func decode(input: Array<UInt8>): String {
         // 简化实现 - UTF-8
         String.fromUtf8(input)
     }
@@ -272,12 +272,12 @@ public class JsModuleLoader {
     public init() {}
 
     // 严格翻译自 JSModuleLoader.loadAndEvaluateModule
-    public static func loadAndEvaluateModule(global: JsObject, specifier: String) -> ?JsObject {
+    public static func loadAndEvaluateModule(global: JsObject, specifier: String): ?JsObject {
         None  // 简化实现
     }
 
     // 严格翻译自 JSModuleLoader.import
-    public static func import_(global: JsObject, specifier: String) -> ?JsObject {
+    public static func import_(global: JsObject, specifier: String): ?JsObject {
         loadAndEvaluateModule(global, specifier)
     }
 }
@@ -306,7 +306,7 @@ public class NodeModuleModule {
     static var cache: HashMap<String, NodeModuleModule> = HashMap()
 
     // 转为 JsValue
-    public func toJsValue() -> JsValue {
+    public func toJsValue(): JsValue {
         let obj = JsObject.make()
         obj.className = "Module"
         obj.set("id", JsValue(s: id))
@@ -367,14 +367,14 @@ public class AbortSignal {
     public init() {}
 
     // AbortSignal.abort()
-    public static func abort() -> AbortSignal {
+    public static func abort(): AbortSignal {
         let signal = AbortSignal()
         signal.aborted = true
         signal.reason = JsValue(s: "AbortError")
         signal
     }
 
-    public static func abort(reason: JsValue) -> AbortSignal {
+    public static func abort(reason: JsValue): AbortSignal {
         let signal = AbortSignal()
         signal.aborted = true
         signal.reason = reason
@@ -382,7 +382,7 @@ public class AbortSignal {
     }
 
     // AbortSignal.timeout()
-    public static func timeout(ms: Int64) -> AbortSignal {
+    public static func timeout(ms: Int64): AbortSignal {
         AbortSignal()
     }
 
@@ -430,7 +430,7 @@ public class AbortSignal {
     }
 
     // 转为 JsValue
-    public func toJsValue() -> JsValue {
+    public func toJsValue(): JsValue {
         let obj = JsObject.make()
         obj.className = "AbortSignal"
         obj.set("aborted", JsValue(b: aborted))
@@ -455,7 +455,7 @@ public class AbortController {
     }
 
     // 转为 JsValue
-    public func toJsValue() -> JsValue {
+    public func toJsValue(): JsValue {
         let obj = JsObject.make()
         obj.className = "AbortController"
         obj.set("signal", signal.toJsValue())
@@ -475,11 +475,11 @@ public class AnyPromise {
         this.promise = promise
     }
 
-    public static func resolved(value: JsValue) -> AnyPromise {
+    public static func resolved(value: JsValue): AnyPromise {
         AnyPromise(JsPromise.resolve(value))
     }
 
-    public static func pending() -> AnyPromise {
+    public static func pending(): AnyPromise {
         AnyPromise(JsPromise())
     }
 }

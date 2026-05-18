@@ -28,7 +28,7 @@ public class Cpp {
     // ========== JSValue 操作 ==========
 
     // 严格翻译自 JSC__JSValue__get
-    public static func jsValueGet(globalObject: CPointer<JSGlobalObject>, value: JSValue, propertyName: CPointer<UInt8>, propertyNameLength: Int64) -> JSValue {
+    public static func jsValueGet(globalObject: CPointer<JSGlobalObject>, value: JSValue, propertyName: CPointer<UInt8>, propertyNameLength: Int64): JSValue {
         // FFI: JSC__JSValue__get(globalObject, value, propertyName, propertyNameLength)
         JSValue.zero
     }
@@ -39,37 +39,37 @@ public class Cpp {
     }
 
     // 严格翻译自 JSC__JSValue__strictEquals
-    public static func jsValueStrictEquals(a: JSValue, b: JSValue) -> Bool {
+    public static func jsValueStrictEquals(a: JSValue, b: JSValue): Bool {
         // FFI: JSC__JSValue__strictEquals(a, b)
         false
     }
 
     // 严格翻译自 JSC__JSValue__toNumber
-    public static func jsValueToNumber(globalObject: CPointer<JSGlobalObject>, value: JSValue) -> Float64 {
+    public static func jsValueToNumber(globalObject: CPointer<JSGlobalObject>, value: JSValue): Float64 {
         // FFI: JSC__JSValue__toNumber
         0.0
     }
 
     // 严格翻译自 JSC__JSValue__toString
-    public static func jsValueToString(globalObject: CPointer<JSGlobalObject>, value: JSValue) -> JSValue {
+    public static func jsValueToString(globalObject: CPointer<JSGlobalObject>, value: JSValue): JSValue {
         // FFI: JSC__JSValue__toString
         JSValue.zero
     }
 
     // 严格翻译自 JSC__JSValue__toObject
-    public static func jsValueToObject(globalObject: CPointer<JSGlobalObject>, value: JSValue) -> JSValue {
+    public static func jsValueToObject(globalObject: CPointer<JSGlobalObject>, value: JSValue): JSValue {
         // FFI: JSC__JSValue__toObject
         JSValue.zero
     }
 
     // 严格翻译自 JSC__JSValue__isCallable
-    public static func jsValueIsCallable(value: JSValue) -> Bool {
+    public static func jsValueIsCallable(value: JSValue): Bool {
         // FFI: JSC__JSValue__isCallable
         false
     }
 
     // 严格翻译自 JSC__JSValue__call
-    public static func jsValueCall(globalObject: CPointer<JSGlobalObject>, value: JSValue, thisValue: JSValue, args: CPointer<JSValue>, argCount: Int64) -> JSValue {
+    public static func jsValueCall(globalObject: CPointer<JSGlobalObject>, value: JSValue, thisValue: JSValue, args: CPointer<JSValue>, argCount: Int64): JSValue {
         // FFI: JSC__JSValue__call
         JSValue.zero
     }
@@ -77,13 +77,13 @@ public class Cpp {
     // ========== JSGlobalObject 操作 ==========
 
     // 严格翻译自 JSC__JSGlobalObject__createEmptyObject
-    public static func createEmptyObject(globalObject: CPointer<JSGlobalObject>, capacity: Int64) -> JSValue {
+    public static func createEmptyObject(globalObject: CPointer<JSGlobalObject>, capacity: Int64): JSValue {
         // FFI: JSC__JSGlobalObject__createEmptyObject
         JSValue.zero
     }
 
     // 严格翻译自 JSC__JSGlobalObject__createArray
-    public static func createArray(globalObject: CPointer<JSGlobalObject>, argCount: Int64) -> JSValue {
+    public static func createArray(globalObject: CPointer<JSGlobalObject>, argCount: Int64): JSValue {
         // FFI: JSC__JSGlobalObject__createArray
         JSValue.zero
     }
@@ -91,13 +91,13 @@ public class Cpp {
     // ========== 异常/错误 ==========
 
     // 严格翻译自 JSC__JSValue__createTypeError
-    public static func createTypeError(globalObject: CPointer<JSGlobalObject>, message: CPointer<UInt8>, messageLength: Int64) -> JSValue {
+    public static func createTypeError(globalObject: CPointer<JSGlobalObject>, message: CPointer<UInt8>, messageLength: Int64): JSValue {
         // FFI: JSC__JSValue__createTypeError
         JSValue.zero
     }
 
     // 严格翻译自 JSC__JSValue__createRangeError
-    public static func createRangeError(globalObject: CPointer<JSGlobalObject>, message: CPointer<UInt8>, messageLength: Int64) -> JSValue {
+    public static func createRangeError(globalObject: CPointer<JSGlobalObject>, message: CPointer<UInt8>, messageLength: Int64): JSValue {
         // FFI: JSC__JSValue__createRangeError
         JSValue.zero
     }
@@ -112,13 +112,13 @@ public class Cpp {
         argCount: Int64,
         functionPtr: UInt64,
         data: UInt64
-    ) -> JSValue {
+    ): JSValue {
         // FFI: Bun__createFFIFunctionValue
         JSValue.zero
     }
 
     // 严格翻译自 Bun__FFIFunction_getDataPtr
-    public static func ffiFunctionGetDataPtr(functionValue: JSValue) -> UInt64 {
+    public static func ffiFunctionGetDataPtr(functionValue: JSValue): UInt64 {
         // FFI: Bun__FFIFunction_getDataPtr
         0
     }
@@ -131,7 +131,7 @@ public class Cpp {
     // ========== 编码/解码 ==========
 
     // 严格翻译自 Zig__GlobalObject__encodeJSValueToJSON
-    public static func encodeJSValueToJSON(globalObject: CPointer<JSGlobalObject>, value: JSValue, indent: Int64) -> JSValue {
+    public static func encodeJSValueToJSON(globalObject: CPointer<JSGlobalObject>, value: JSValue, indent: Int64): JSValue {
         // FFI
         JSValue.zero
     }
@@ -139,7 +139,7 @@ public class Cpp {
     // ========== 调试/分析 ==========
 
     // 严格翻译自 Bun__startCPUProfiler
-    public static func startCPUProfiler(globalObject: CPointer<JSGlobalObject>) -> UInt64 {
+    public static func startCPUProfiler(globalObject: CPointer<JSGlobalObject>): UInt64 {
         // FFI
         0
     }

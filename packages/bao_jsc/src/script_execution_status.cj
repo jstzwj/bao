@@ -14,22 +14,23 @@ package bao_jsc
 //       stopped = 2,
 //   };
 public enum ScriptExecutionStatus {
+    | Running
+    | Suspended
+    | Stopped
     | None
-}
-    }
 
     // 是否正在运行
-    public func isRunning() -> Bool {
+    public func isRunning(): Bool {
         this == Running
     }
 
     // 是否已暂停
-    public func isSuspended() -> Bool {
+    public func isSuspended(): Bool {
         this == Suspended
     }
 
     // 是否已停止
-    public func isStopped() -> Bool {
+    public func isStopped(): Bool {
         this == Stopped
     }
 }

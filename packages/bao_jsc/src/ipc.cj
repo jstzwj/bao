@@ -6,11 +6,11 @@ package bao_jsc
 // ========== IPC 消息类型 ==========
 // 严格翻译自 ipc.zig
 public enum IPCMessageType {
-    | Version(0)
-    | Data(1)
-    | Internal(2)
-    | Buffer(3)
-    | Close(4)
+    | Version
+    | Data
+    | Internal
+    | Buffer
+    | Close
 }
 
 // ========== IPC 编码消息 ==========
@@ -53,7 +53,7 @@ public class IPCBuffer {
     }
 
     // 读取数据
-    public func read(count: Int64) -> Array<UInt8> {
+    public func read(count: Int64): Array<UInt8> {
         var result = Array<UInt8>()
         let end = readPos + count
         while (readPos < end && readPos < Int64(data.size)) {
@@ -64,7 +64,7 @@ public class IPCBuffer {
     }
 
     // 可读字节数
-    public func readableBytes() -> Int64 {
+    public func readableBytes(): Int64 {
         writePos - readPos
     }
 
@@ -87,14 +87,14 @@ public class IPCSendQueue_ {
         messages.append(message)
     }
 
-    public func dequeue() -> ?IPCEncodedMessage {
+    public func dequeue(): ?IPCEncodedMessage {
         if (messages.size == 0) { return None }
         let msg = messages[0]
         messages = messages.slice(1)
         Some(msg)
     }
 
-    public func drain() -> Array<IPCEncodedMessage> {
+    public func drain(): Array<IPCEncodedMessage> {
         let result = messages
         messages = []
         result
@@ -127,7 +127,7 @@ public class HostFunction {
     }
 
     // 调用
-    public func call(global: JsObject, callFrame: CallFrame) -> JsValue {
+    public func call(global: JsObject, callFrame: CallFrame): JsValue {
         if (let Some(cb) <- callback) {
             return cb(global, callFrame)
         }
@@ -155,7 +155,7 @@ public enum FFIValueType {
     | SizeT
 
     // 获取大小
-    public func size() -> Int64 {
+    public func size(): Int64 {
         match (this) {
             case Void => 0
             case Int8 | UInt8 | Bool => 1
@@ -166,7 +166,7 @@ public enum FFIValueType {
     }
 
     // 是否为整数类型
-    public func isInteger() -> Bool {
+    public func isInteger(): Bool {
         match (this) {
             case Int8 | Int16 | Int32 | Int64 | UInt8 | UInt16 | UInt32 | UInt64 | Bool | SizeT => true
             case _ => false
@@ -174,7 +174,7 @@ public enum FFIValueType {
     }
 
     // 是否为浮点类型
-    public func isFloat() -> Bool {
+    public func isFloat(): Bool {
         this == Float32 || this == Float64
     }
 }
@@ -190,7 +190,7 @@ public class FFIFunction {
     public init() {}
 
     // 获取参数总大小
-    public func paramsSize() -> Int64 {
+    public func paramsSize(): Int64 {
         var total: Int64 = 0
         for (t in paramTypes) {
             total += t.size()
@@ -208,7 +208,7 @@ public enum FFICallingConvention {
 
 // FFI 值包装
 public class FFIValue {
-    public var type: FFIValueType = FFIValueType.Void
+    public var `type`: FFIValueType = FFIValueType.Void
     public var intValue: Int64 = 0
     public var floatValue: Float64 = 0.0
     public var ptrValue: CPointer<UInt8> = CPointer<UInt8>()
@@ -216,22 +216,22 @@ public class FFIValue {
     public init() {}
 
     public init(v: Int64) {
-        this.type = FFIValueType.Int64
+        this.`type` = FFIValueType.Int64
         this.intValue = v
     }
 
     public init(v: Float64) {
-        this.type = FFIValueType.Float64
+        this.`type` = FFIValueType.Float64
         this.floatValue = v
     }
 
     public init(v: Bool) {
-        this.type = FFIValueType.Bool
+        this.`type` = FFIValueType.Bool
         this.intValue = if (v) { 1 } else { 0 }
     }
 
     // 从 JsValue 转换
-    public static func fromJS(value: JsValue) -> FFIValue {
+    public static func fromJS(value: JsValue): FFIValue {
         if (value.isNumber()) {
             return FFIValue(value.toNumber())
         }
@@ -242,7 +242,7 @@ public class FFIValue {
     }
 
     // 转为 JsValue
-    public func toJS() -> JsValue {
+    public func toJS(): JsValue {
         match (type) {
             case Bool => JsValue(b: intValue != 0)
             case Int8 | Int16 | Int32 | Int64 => JsValue(n: intValue)

@@ -38,7 +38,7 @@ public class ConcurrentPromiseTaskGeneric {
         allocator: String,
         globalThis: JsObject,
         value: ConcurrentTaskContext
-    ) -> ConcurrentPromiseTaskGeneric {
+    ): ConcurrentPromiseTaskGeneric {
         let task = ConcurrentPromiseTaskGeneric()
         task.eventLoop = EventLoop()
         task.ctx = value
@@ -64,7 +64,7 @@ public class ConcurrentPromiseTaskGeneric {
 
     // 严格翻译自 ConcurrentPromiseTask.runFromJS
     // 从 JS 线程运行
-    public func runFromJS() -> Bool {
+    public func runFromJS(): Bool {
         // 交换 promise
         let promise_ = promise
         if (let Some(ref) <- eventLoop) {
@@ -114,7 +114,7 @@ public abstract class ConcurrentTaskContext {
 
     // 在 JS 线程上用结果解决 Promise
     // 返回 true 表示正常，false 表示终止
-    public func then(promise: JsPromise) -> Bool {
+    public func then(promise: JsPromise): Bool {
         // 子类实现
         false
     }
@@ -128,7 +128,7 @@ public class WorkPoolTask {
 
     public init() {}
 
-    public init(callback: () -> Unit) {
+    public init(callback: (): Unit) {
         this.callback = callback
     }
 
@@ -155,7 +155,7 @@ public class ConcurrentTask {
     }
 
     // 从 ConcurrentPromiseTaskGeneric 创建
-    public static func from(task: ConcurrentPromiseTaskGeneric, mode: String) -> ConcurrentTask {
+    public static func from(task: ConcurrentPromiseTaskGeneric, mode: String): ConcurrentTask {
         let ct = ConcurrentTask(task: task)
         ct.manualDeinit = (mode == "manual_deinit")
         ct

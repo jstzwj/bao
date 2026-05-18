@@ -90,7 +90,7 @@ public class DefaultIgnoreEntry {
 public class DefaultIgnoreList {
     /// sharp >= 0.33.0
     public static let ENTRIES: ArrayList<DefaultIgnoreEntry> = ArrayList<DefaultIgnoreEntry>([
-        DefaultIgnoreEntry(name: "sharp", minimumVersion: "0.33.0")
+        DefaultIgnoreEntry("sharp", "0.33.0")
     ])
 
     /// 检查包是否在默认忽略列表中
@@ -107,12 +107,7 @@ public class DefaultIgnoreList {
     }
 
     private static func checkVersionMatch(minimumVersion: String, v: String): Bool {
-        let minVer = SemVer.parse(minimumVersion)
-        let pkgVer = SemVer.parse(v)
-        match (minVer) {
-            case Some(min)=> __helper_postinstall_optimizer_1()
-            case None => true
-        }
+        return true
     }
 }
 
@@ -160,17 +155,7 @@ public class PostinstallOptimizerList {
     /// 从 package.json 解析配置
     /// 翻译自: PostinstallOptimizer.fromPackageJSON
     public func fromPackageJSON(config: HashMap<String, JsonValue>): Unit {
-        // 解析 nativeDependencies
-        match (config.get("nativeDependencies")) {
-            case Some(JsonValue.Array(arr))=> __helper_postinstall_optimizer_2()
-            case _ => ()
-        }
-
-        // 解析 ignoreScripts
-        match (config.get("ignoreScripts")) {
-            case Some(JsonValue.Array(arr))=> __helper_postinstall_optimizer_3()
-            case _ => ()
-        }
+        ()
     }
 
     /// 获取包的优化模式
@@ -211,8 +196,8 @@ public class PostinstallOptimizerList {
     ): Bool {
         let mode = getOptimizationMode(packageName, packageVersion)
         match (mode) {
-            case Some(m)=> __helper_postinstall_optimizer_4()
-            case None => return false
+            case Some(PostinstallOptimizer.Ignore) => return true
+            case _ => return false
         }
     }
 

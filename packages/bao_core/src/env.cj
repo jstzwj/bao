@@ -311,7 +311,7 @@ public class EnvVar {
     // ========================================================================
 
     /// 获取原始环境变量值
-    private static func getRawEnv(name: String): String {
+    public static func getRawEnv(name: String): String {
         unsafe {
             let namePtr = stringToCPtr(name)
             let valuePtr = getenv(namePtr)
@@ -323,7 +323,7 @@ public class EnvVar {
     }
 
     /// 检查环境变量是否存在
-    private static func envExists(name: String): Bool {
+    public static func envExists(name: String): Bool {
         unsafe {
             let namePtr = stringToCPtr(name)
             let valuePtr = getenv(namePtr)

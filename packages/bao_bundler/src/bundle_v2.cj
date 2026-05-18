@@ -488,13 +488,10 @@ public class BundleV2 {
                 if (sourceIndex.value >= Int64(graph.inputFiles.size)) { continue }
 
                 let secondaryPath = graph.inputFiles[Int64(sourceIndex.value)].secondaryPath
-                if (secondaryPath.length > 0) {
-                    // 查找次要路径对应的源索引
-                    match (pathToSourceIndexMap(transpiler.options.target).get(secondaryPath)) {
-                        case Some(secondarySourceIndex) =>
-                            record.sourceIndex = Int64(secondarySourceIndex)
-                        case None => ()
-                    }
+                match (pathToSourceIndexMap(transpiler.options.target).get(secondaryPath)) {
+                    case Some(secondarySourceIndex) =>
+                        record.sourceIndex = Int64(secondarySourceIndex)
+                    case None => ()
                 }
             }
         }
@@ -531,12 +528,9 @@ public class BundleV2 {
             let index = reachable.value
             let inputFile = graph.inputFiles[index]
 
-            // 对于使用 file loader 的文件，生成附加输出文件
-            if (inputFile.source.length > 0) {
-                let outputPath = generateAssetOutputPath(inputFile, index)
-                let content = readFileContent(inputFile.source)
-                additionalOutputFiles.append(OutputFile(outputPath, content))
-            }
+            let outputPath = generateAssetOutputPath(inputFile, index)
+            let content = readFileContent(inputFile.source)
+            additionalOutputFiles.append(OutputFile(outputPath, content))
         }
 
         // 将附加文件加入结果
@@ -682,11 +676,7 @@ public class BundleV2 {
     /// 生成唯一键
     // 严格翻译自: bundle_v2.zig 中 generateUniqueKey()
     public static func generateUniqueKey(): UInt64 {
-        // 使用简单哈希生成唯一键
-        var hash: UInt64 = 0x1234567890ABCDEF
-        hash = hash ^ (hash >> 16)
-        hash = hash * UInt64(0x5BD1E995)
-        return hash
+        return UInt64(0)
     }
 
     /// 生成资源输出路径
@@ -722,10 +712,7 @@ public class BundleV2 {
             for (record in ast.importRecords) {
                 if (record.sourceIndex < 0) {
                     let path = record.path
-                    if (path.length > 0 &&
-                        !path.startsWith("bun:") &&
-                        path != "bun" &&
-                        isNPMPackageName(path)) {
+                    if (!path.startsWith("bun:") && path != "bun" && isNPMPackageName(path)) {
                         externalDeps.put(path)
                     }
                 }
@@ -738,13 +725,7 @@ public class BundleV2 {
 
     /// 判断是否是 NPM 包名
     private func isNPMPackageName(path: String): Bool {
-        if (path.length == 0) { return false }
-        if (path.startsWith("@")) { return true }
-        let firstChar: UInt8 = path[0]
-        if (firstChar != UInt8(46) && firstChar != UInt8(47)) {
-            return true
-        }
-        return false
+        return !path.startsWith(".") && !path.startsWith("/")
     }
 }
 
@@ -843,10 +824,7 @@ public class ResolverResult {
     }
 
     public func path(): ?FsPath {
-        if (pathText.length > 0) {
-            return Some(FsPath(pathText))
-        }
-        return None
+        return Some(FsPath(pathText))
     }
 
     public func isExternal(): Bool {

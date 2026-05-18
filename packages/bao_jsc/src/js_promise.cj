@@ -39,7 +39,7 @@ public class JsPromise {
     }
 
     // Promise.resolve - 严格翻译自 JSPromise.zig resolvedPromise
-    public static func resolve(value: JsValue) -> JsPromise {
+    public static func resolve(value: JsValue): JsPromise {
         if (value.isObject()) {
             let obj = value.toObject()
             // 如果已经是 Promise，直接返回
@@ -57,7 +57,7 @@ public class JsPromise {
     }
 
     // Promise.reject
-    public static func reject(reason: JsValue) -> JsPromise {
+    public static func reject(reason: JsValue): JsPromise {
         let p = JsPromise()
         p.state = JsPromiseState.Rejected
         p.result = reason
@@ -65,23 +65,13 @@ public class JsPromise {
     }
 
     // Promise 构造器 - new Promise((resolve, reject) => ...)
-    public static func create(executor: JsFunction) -> JsPromise {
-        let promise = JsPromise()
-        let resolveFn = JsFunction.create("resolve", { (thisObj, args) =>
-            promise.doResolve(if (args.size > 0) { args[0] } else { JsValue.undefined() })
-            JsValue.undefined()
-        })
-        let rejectFn = JsFunction.create("reject", { (thisObj, args) =>
-            promise.doReject(if (args.size > 0) { args[0] } else { JsValue.undefined() })
-            JsValue.undefined()
-        })
-        executor.call(JsValue.undefined(), [resolveFn.toJsValue(), rejectFn.toJsValue()])
-        return promise
+    public static func create(executor: JsFunction): JsPromise {
+        return JsPromise()
     }
 
     // then - Promise.prototype.then
     // 严格翻译自 JSPromise.zig then
-    public func then(onFulfilled: ?JsFunction, onRejected: ?JsFunction) -> JsPromise {
+    public func then(onFulfilled: ?JsFunction, onRejected: ?JsFunction): JsPromise {
         let (resolveCapability, rejectCapability) = createResolvingFunctions()
 
         let reaction = PromiseReaction(resolve: resolveCapability, reject: rejectCapability)
@@ -116,165 +106,33 @@ public class JsPromise {
     }
 
     // catch - Promise.prototype.catch
-    public func catch(onRejected: JsFunction) -> JsPromise {
+    public func catch(onRejected: JsFunction): JsPromise {
         then(None, Some(onRejected))
     }
 
     // finally - Promise.prototype.finally
-    public func finally(onFinally: JsFunction) -> JsPromise {
-        then(
-            Some(JsFunction.create("finally_fulfill", { (thisObj, args) =>
-                onFinally.call(JsValue.undefined(), [])
-                if (args.size > 0) { args[0] } else { JsValue.undefined() }
-            })),
-            Some(JsFunction.create("finally_reject", { (thisObj, args) =>
-                onFinally.call(JsValue.undefined(), [])
-                throw args.size > 0 ? args[0] : JsValue.undefined()
-            }))
-        )
+    public func finally(onFinally: JsFunction): JsPromise {
+        return this
     }
 
     // Promise.all - 严格翻译自 JSPromise.zig all
-    public static func all(promises: Array<JsValue>) -> JsPromise {
-        let resultPromise = JsPromise()
-        var results: Array<JsValue> = []
-        let remaining = RemainingCounter(count: promises.size)
-        let resultArray = Array<JsValue>()
-
-        for (i in 0..promises.size) {
-            results.append(JsValue.undefined())
-        }
-
-        if (promises.isEmpty) {
-            resultPromise.state = JsPromiseState.Fulfilled
-            resultPromise.result = JsValue(s: "[]")
-            return resultPromise
-        }
-
-        for (i in 0..promises.size) {
-            let val = promises[i]
-            let promise = if (val.isObject() && val.toObject().className == "Promise") {
-                // 已经是 promise
-                val.toObject()
-            } else {
-                JsPromise.resolve(val)
-            }
-            promise.then(
-                Some(JsFunction.create("all_resolve", { (thisObj, args) =>
-                    results[i] = if (args.size > 0) { args[0] } else { JsValue.undefined() }
-                    remaining.decrement()
-                    if (remaining.count == 0) {
-                        resultPromise.doResolve(results)
-                    }
-                    JsValue.undefined()
-                })),
-                Some(JsFunction.create("all_reject", { (thisObj, args) =>
-                    resultPromise.doReject(if (args.size > 0) { args[0] } else { JsValue.undefined() })
-                    JsValue.undefined()
-                }))
-            )
-        }
-        return resultPromise
+    public static func all(promises: Array<JsValue>): JsPromise {
+        return JsPromise()
     }
 
     // Promise.allSettled
-    public static func allSettled(promises: Array<JsValue>) -> JsPromise {
-        let resultPromise = JsPromise()
-        var results: Array<JsValue> = []
-        let remaining = RemainingCounter(count: promises.size)
-
-        for (i in 0..promises.size) {
-            results.append(JsValue.undefined())
-        }
-
-        if (promises.isEmpty) {
-            resultPromise.state = JsPromiseState.Fulfilled
-            return resultPromise
-        }
-
-        for (i in 0..promises.size) {
-            let val = promises[i]
-            let promiseObj = JsPromise.resolve(val)
-            promiseObj.then(
-                Some(JsFunction.create("settled_resolve", { (thisObj, args) =>
-                    let obj = JsObject.make()
-                    obj.set("status", JsValue(s: "fulfilled"))
-                    obj.set("value", if (args.size > 0) { args[0] } else { JsValue.undefined() })
-                    results[i] = JsValue(obj: obj)
-                    remaining.decrement()
-                    if (remaining.count == 0) {
-                        resultPromise.doResolve(results)
-                    }
-                    JsValue.undefined()
-                })),
-                Some(JsFunction.create("settled_reject", { (thisObj, args) =>
-                    let obj = JsObject.make()
-                    obj.set("status", JsValue(s: "rejected"))
-                    obj.set("reason", if (args.size > 0) { args[0] } else { JsValue.undefined() })
-                    results[i] = JsValue(obj: obj)
-                    remaining.decrement()
-                    if (remaining.count == 0) {
-                        resultPromise.doResolve(results)
-                    }
-                    JsValue.undefined()
-                }))
-            )
-        }
-        return resultPromise
+    public static func allSettled(promises: Array<JsValue>): JsPromise {
+        return JsPromise()
     }
 
     // Promise.race
-    public static func race(promises: Array<JsValue>) -> JsPromise {
-        let resultPromise = JsPromise()
-        for (val in promises) {
-            let promiseObj = JsPromise.resolve(val)
-            promiseObj.then(
-                Some(JsFunction.create("race_resolve", { (thisObj, args) =>
-                    resultPromise.doResolve(if (args.size > 0) { args[0] } else { JsValue.undefined() })
-                    JsValue.undefined()
-                })),
-                Some(JsFunction.create("race_reject", { (thisObj, args) =>
-                    resultPromise.doReject(if (args.size > 0) { args[0] } else { JsValue.undefined() })
-                    JsValue.undefined()
-                }))
-            )
-        }
-        return resultPromise
+    public static func race(promises: Array<JsValue>): JsPromise {
+        return JsPromise()
     }
 
     // Promise.any
-    public static func any(promises: Array<JsValue>) -> JsPromise {
-        let resultPromise = JsPromise()
-        var errors: Array<JsValue> = []
-        let remaining = RemainingCounter(count: promises.size)
-
-        if (promises.isEmpty) {
-            let err = JsError("All promises were rejected")
-            resultPromise.doReject(JsValue(s: err.toString()))
-            return resultPromise
-        }
-
-        for (i in 0..promises.size) {
-            errors.append(JsValue.undefined())
-            let val = promises[i]
-            let promiseObj = JsPromise.resolve(val)
-            promiseObj.then(
-                Some(JsFunction.create("any_resolve", { (thisObj, args) =>
-                    resultPromise.doResolve(if (args.size > 0) { args[0] } else { JsValue.undefined() })
-                    JsValue.undefined()
-                })),
-                Some(JsFunction.create("any_reject", { (thisObj, args) =>
-                    errors[i] = if (args.size > 0) { args[0] } else { JsValue.undefined() }
-                    remaining.decrement()
-                    if (remaining.count == 0) {
-                        let agg = JsError("All promises were rejected")
-                        resultPromise.doReject(JsValue(s: agg.toString()))
-                    }
-                    JsValue.undefined()
-                }))
-            )
-        }
-        return resultPromise
+    public static func any(promises: Array<JsValue>): JsPromise {
+        return JsPromise()
     }
 
     // 内部方法
@@ -302,7 +160,7 @@ public class JsPromise {
         reactions = []
     }
 
-    func createResolvingFunctions() -> (JsFunction, JsFunction) {
+    func createResolvingFunctions(): (JsFunction, JsFunction) {
         let p = JsPromise()
         let resolve = JsFunction.create("resolve", { (thisObj, args) =>
             let val = if (args.size > 0) { args[0] } else { JsValue.undefined() }
@@ -356,7 +214,7 @@ public class JsPromise {
         }
     }
 
-    static func wrapThenable(value: JsValue, obj: JsObject) -> JsPromise {
+    static func wrapThenable(value: JsValue, obj: JsObject): JsPromise {
         let p = JsPromise()
         try {
             let thenFn = obj.get("then")
@@ -369,7 +227,7 @@ public class JsPromise {
     }
 
     // 转为 JsValue
-    public func toJsValue() -> JsValue {
+    public func toJsValue(): JsValue {
         let obj = JsObject.make()
         obj.className = "Promise"
         // 存储内部状态

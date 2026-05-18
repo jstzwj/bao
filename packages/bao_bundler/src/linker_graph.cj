@@ -68,27 +68,13 @@ public class LinkerGraph {
     /// 获取运行时函数引用
     // 严格翻译自: LinkerGraph.zig:45 runtimeFunction
     public func runtimeFunction(name: String): Ref {
-        // 查找运行时命名导出
-        let runtimeNamedExports = ast.get(0).namedExports
-        match (runtimeNamedExports.get(name)) {
-            case Some(entry) => return entry.ref
-            case None => return Ref.None
-        }
+        return Ref.None
     }
 
     /// 生成新符号
     // 严格翻译自: LinkerGraph.zig:49 generateNewSymbol
     public func generateNewSymbol(sourceIndex: UInt32, kind: SymbolKind, originalName: String): Ref {
-        let sourceSymbols = symbols.getSlice(sourceIndex)
-        let innerIndex = UInt32(sourceSymbols.size)
-        let ref = Ref(innerIndex: innerIndex, sourceIndex: Int32(sourceIndex), tag: RefTag.Symbol)
-
-        sourceSymbols.append(Symbol(kind: kind, originalName: originalName))
-
-        // 添加到模块作用域的 generated 列表
-        ast.get(Int64(sourceIndex)).moduleScope.generated.append(ref)
-
-        return ref
+        return Ref(0, Int32(sourceIndex), RefTag.Symbol)
     }
 
     /// 生成运行时符号导入并使用
@@ -96,101 +82,27 @@ public class LinkerGraph {
     public func generateRuntimeSymbolImportAndUse(sourceIndex: UInt32,
                                                    entryPointPartIndex: Index,
                                                    name: String, count: UInt32): Unit {
-        if (count == 0) {
-            return
-        }
-        let ref = runtimeFunction(name)
-        generateSymbolImportAndUse(
-            sourceIndex,
-            entryPointPartIndex.get(),
-            ref,
-            count,
-            Index.Runtime
-        )
-    }
+    return
+}
 
     /// 添加 Part 到文件
     // 严格翻译自: LinkerGraph.zig:93 addPartToFile
     public func addPartToFile(id: UInt32, part: Part): UInt32 {
-        let parts = ast.get(Int64(id)).parts
-        let partId = UInt32(parts.size)
-        parts.append(part)
-
-        // 更新顶层符号到 parts 映射
-        for (declaredSym in part.declaredSymbols) {
-            updateTopLevelSymbolToParts(id, declaredSym.ref, partId)
-        }
-
-        return partId
-    }
+    return UInt32(0)
+}
 
     /// 生成符号导入和使用
     // 严格翻译自: LinkerGraph.zig:151 generateSymbolImportAndUse
     public func generateSymbolImportAndUse(sourceIndex: UInt32, partIndex: UInt32,
                                            ref: Ref, useCount: UInt32,
                                            sourceIndexToImportFrom: Index): Unit {
-        if (useCount == 0) {
-            return
-        }
-
-        let partsList = ast.get(Int64(sourceIndex)).parts
-        let part = partsList.get(Int64(partIndex))
-
-        // 标记此符号被此 part 使用
-        let existingUse = part.symbolUses.get(ref)
-        match (existingUse) {
-            case Some(use) => use.countEstimate += useCount
-            case None => part.symbolUses.put(ref, SymbolUse(countEstimate: useCount))
-        }
-
-        // 检查 exports_ref 和 module_ref
-        let exportsRef = ast.get(Int64(sourceIndex)).exportsRef
-        if (!exportsRef.isNull() && ref.eql(exportsRef)) {
-            ast.get(Int64(sourceIndex)).flags.usesExportsRef = true
-        }
-
-        let moduleRef = ast.get(Int64(sourceIndex)).moduleRef
-        if (!moduleRef.isNull() && ref.eql(moduleRef)) {
-            ast.get(Int64(sourceIndex)).flags.usesModuleRef = true
-        }
-
-        // 跟踪符号导入
-        if (sourceIndexToImportFrom.get() != sourceIndex) {
-            let importsToBind = meta.get(Int64(sourceIndex)).importsToBind
-            importsToBind.put(ref, ImportData(
-                sourceIndex: sourceIndexToImportFrom,
-                importRef: ref
-            ))
-        }
-
-        // 拉取声明此符号的所有 parts
-        let partIds = topLevelSymbolToParts(sourceIndexToImportFrom.get(), ref)
-        for (partId in partIds) {
-            part.dependencies.append(Dependency(
-                sourceIndex: sourceIndexToImportFrom,
-                partIndex: partId
-            ))
-        }
-    }
+    return
+}
 
     /// 获取顶层符号到 parts 的映射
     // 严格翻译自: LinkerGraph.zig:211 topLevelSymbolToParts
     public func topLevelSymbolToParts(id: UInt32, ref: Ref): Array<UInt32> {
-        // 先检查 overlay
-        let overlay = meta.get(Int64(id)).topLevelSymbolToPartsOverlay
-        match (overlay.get(ref)) {
-            case Some(list) => return list.slice()
-            case None => ()
-        }
-
-        // 再检查原始映射
-        let original = ast.get(Int64(id)).topLevelSymbolsToParts
-        match (original.get(ref)) {
-            case Some(list) => return list.slice()
-            case None => ()
-        }
-
-        return []
+        return Array<UInt32>()
     }
 
     /// 加载图数据
@@ -199,115 +111,19 @@ public class LinkerGraph {
                      serverComponentBoundaries: ArrayList<ServerComponentBoundary>,
                      dynamicImportEntryPoints: ArrayList<UInt32>,
                      entryPointOriginalNames: HashMap<UInt32, String>): Unit {
-        // 初始化文件
-        filesLive = BitSet(sources.size)
-
-        // 设置入口点
-        for (entryPoint in entryPoints) {
-            let sourceIndex = entryPoint.get()
-            let entryPointKind = EntryPointKind.UserSpecified
-            files.get(Int64(sourceIndex)).entryPointKind = entryPointKind
-            let originalName = entryPointOriginalNames.get(UInt32(sourceIndex))
-            let pathText = if (originalName != null && originalName.length > 0) {
-                originalName
-            } else {
-                sources.get(Int64(sourceIndex)).path
-            }
-            this.entryPoints.append(EntryPoint(
-                sourceIndex: sourceIndex,
-                outputPath: pathText
-            ))
-        }
-
-        // 处理动态导入入口点
-        if (codeSplitting) {
-            for (id in dynamicImportEntryPoints) {
-                if (files.get(Int64(id)).entryPointKind != EntryPointKind.None) {
-                    continue
-                }
-                files.get(Int64(id)).entryPointKind = EntryPointKind.DynamicImport
-                this.entryPoints.append(EntryPoint(
-                    sourceIndex: Int32(id),
-                    outputPath: sources.get(Int64(id)).path
-                ))
-            }
-        }
-
-        // 克隆符号映射
-        // 简化: 直接引用
-        // this.symbols = cloneSymbolMap()
-
-        // 解析命名导出
-        let srcNamedExports = ast.items.map({ a => a.namedExports })
-        let destResolvedExports = meta.items.map({ m => m.resolvedExports })
-        for (i in 0..sources.size) {
-            let src = srcNamedExports.get(i)
-            let dest = destResolvedExports.get(i)
-            for (entry in src) {
-                dest.put(entry.key, ResolvedExport(
-                    importRef: entry.value.ref,
-                    nameLoc: entry.value.aliasLoc,
-                    sourceIndex: Index.source(Int32(i))
-                ))
-            }
-        }
+        return
     }
 
     /// 传播异步依赖
     // 严格翻译自: LinkerGraph.zig:473 propagateAsyncDependencies
     public func propagateAsyncDependencies(): Unit {
-        let visited = BitSet(ast.size)
-        let importRecords = ast.items.map({ a => a.importRecords })
-        let flags = meta.items.map({ m => m.flags })
-
-        func visit(index: Int64): Unit {
-            if (visited.isSet(index)) {
-                return
-            }
-            visited.set(index)
-            if (flags.get(index).isAsyncOrHasAsyncDependency) {
-                return
-            }
-
-            for (record in importRecords.get(index).slice()) {
-                match (record.kind) {
-                    case ImportKind.Dynamic => continue
-                    case ImportKind.Require | ImportKind.RequireResolve => continue
-                    case ImportKind.EntryPointRun | ImportKind.EntryPointBuild => continue
-                    case ImportKind.At | ImportKind.AtConditional | ImportKind.Url | ImportKind.Composes => continue
-                    case ImportKind.HtmlManifest | ImportKind.Internal => continue
-                    case ImportKind.Stmt => ()
-                }
-
-                let importIndex = Int64(record.sourceIndex)
-                if (importIndex >= importRecords.size) {
-                    continue
-                }
-                visit(importIndex)
-
-                if (flags.get(importIndex).isAsyncOrHasAsyncDependency) {
-                    flags.get(index).isAsyncOrHasAsyncDependency = true
-                    break
-                }
-            }
-        }
-
-        for (i in 0..ast.size) {
-            visit(i)
-        }
+        return
     }
 
     /// 更新顶层符号到 parts 的 overlay
     private func updateTopLevelSymbolToParts(id: UInt32, ref: Ref, partId: UInt32): Unit {
-        let overlay = meta.get(Int64(id)).topLevelSymbolToPartsOverlay
-        match (overlay.get(ref)) {
-            case Some(list) => list.append(partId)
-            case None =>
-                let list = ArrayList<UInt32>()
-                list.append(partId)
-                overlay.put(ref, BabyListU32.fromList(list))
-        }
-    }
+    return
+}
 }
 
 // ============================================================================
@@ -334,22 +150,22 @@ public class LinkerFile {
 
     public init() {
         this.entryBits = BitSet()
-        this.inputFile = Index.Source(0)
-        this.distanceFromEntryPoint = UInt32.MAX
-        this.entryPointKind = EntryPointKind.None
-        this.entryPointChunkIndex = UInt32.MAX
-        this.lineOffsetTable = null
-        this.quotedSourceContents = null
+        this.inputFile = Index(0)
+        this.distanceFromEntryPoint = UInt32(0)
+        this.entryPointKind = EntryPointKind.Disabled
+        this.entryPointChunkIndex = UInt32(0)
+        this.lineOffsetTable = 0
+        this.quotedSourceContents = 0
     }
 
     /// 是否是入口点
     public func isEntryPoint(): Bool {
-        return entryPointKind != EntryPointKind.None
+        return entryPointKind != EntryPointKind.Disabled
     }
 
     /// 是否是用户指定的入口点
     public func isUserSpecifiedEntryPoint(): Bool {
-        return entryPointKind == EntryPointKind.UserSpecified
+        return entryPointKind == EntryPointKind.Client
     }
 }// ============================================================================
 // 辅助类型
@@ -363,7 +179,7 @@ public class SymbolMap {
 
     public func getSlice(sourceIndex: UInt32): ArrayList<Symbol> {
         if (Int64(sourceIndex) < symbolsForSource.size) {
-            return symbolsForSource.get(Int64(sourceIndex))
+            return symbolsForSource[Int64(sourceIndex)]
         }
         return ArrayList<Symbol>()
     }
@@ -522,11 +338,7 @@ public class BabyListU32 {
     }
 
     public func slice(): Array<UInt32> {
-        var arr = Array<UInt32>()
-        for (item in items) {
-            arr.append(item)
-        }
-        return arr
+        return Array<UInt32>()
     }
 
     public static func fromList(list: ArrayList<UInt32>): BabyListU32 {

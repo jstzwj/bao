@@ -13,14 +13,14 @@ public class CachedBytecode {
 
     // 严格翻译自 CachedBytecode.generateForESM
     // 为 ES 模块生成缓存的字节码
-    public static func generateForESM(sourceProviderURL: String, input: Array<Byte>) -> ?CachedBytecodeResult {
+    public static func generateForESM(sourceProviderURL: String, input: Array<Byte>): ?CachedBytecodeResult {
         // FFI: generateCachedModuleByteCodeFromSourceCode
         None
     }
 
     // 严格翻译自 CachedBytecode.generateForCJS
     // 为 CommonJS 模块生成缓存的字节码
-    public static func generateForCJS(sourceProviderURL: String, input: Array<Byte>) -> ?CachedBytecodeResult {
+    public static func generateForCJS(sourceProviderURL: String, input: Array<Byte>): ?CachedBytecodeResult {
         // FFI: generateCachedCommonJSProgramByteCodeFromSourceCode
         None
     }
@@ -32,7 +32,7 @@ public class CachedBytecode {
 
     // 严格翻译自 CachedBytecode.generate
     // 根据格式生成缓存字节码
-    public static func generate(format: Format, input: Array<Byte>, sourceProviderURL: String) -> ?CachedBytecodeResult {
+    public static func generate(format: Format, input: Array<Byte>, sourceProviderURL: String): ?CachedBytecodeResult {
         match (format) {
             case esm => generateForESM(sourceProviderURL: sourceProviderURL, input: input)
             case cjs => generateForCJS(sourceProviderURL: sourceProviderURL, input: input)
@@ -42,13 +42,13 @@ public class CachedBytecode {
 
     // 严格翻译自 CachedBytecode.allocator
     // 返回一个使用 CachedBytecode 作为底层释放器的分配器
-    public func allocator() -> CachedBytecodeAllocator {
+    public func allocator(): CachedBytecodeAllocator {
         CachedBytecodeAllocator(cachedBytecode: this)
     }
 
     // 严格翻译自 CachedBytecode.isInstance
     // 检查给定的分配器是否为 CachedBytecode 分配器
-    public static func isInstance(allocator: CachedBytecodeAllocator) -> Bool {
+    public static func isInstance(allocator: CachedBytecodeAllocator): Bool {
         allocator.cachedBytecode.ptr != 0
     }
 }
@@ -72,7 +72,7 @@ public class CachedBytecodeAllocator {
 
 // ========== Format ==========
 public enum Format {
-    case esm
-    case cjs
-    case iife
+    | esm
+    | cjs
+    | iife
 }

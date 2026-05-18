@@ -39,22 +39,6 @@ public class JsContext {
         // console
         let consoleObj = JsObject.make()
         consoleObj.className = "Console"
-        consoleObj.set("log", JsValue(obj: JsFunction.create("log", { (this, args) =>
-            println(args.map({ v => v.toString() }).join(" "))
-            JsValue.undefined()
-        }).toObject()))
-        consoleObj.set("error", JsValue(obj: JsFunction.create("error", { (this, args) =>
-            println("[ERROR] " + args.map({ v => v.toString() }).join(" "))
-            JsValue.undefined()
-        }).toObject()))
-        consoleObj.set("warn", JsValue(obj: JsFunction.create("warn", { (this, args) =>
-            println("[WARN] " + args.map({ v => v.toString() }).join(" "))
-            JsValue.undefined()
-        }).toObject()))
-        consoleObj.set("info", JsValue(obj: JsFunction.create("info", { (this, args) =>
-            println("[INFO] " + args.map({ v => v.toString() }).join(" "))
-            JsValue.undefined()
-        }).toObject()))
         globalObject.set("console", JsValue(obj: consoleObj))
 
         // 内置构造函数
@@ -62,77 +46,11 @@ public class JsContext {
     }
 
     func setupBuiltins() {
-        // Object
-        let objectCtor = JsFunction.create("Object", { (this, args) =>
-            if (args.size > 0) {
-                let val = args[0]
-                if (val.isObject()) { return val }
-                return JsValue(obj: val.toObject())
-            }
-            JsValue(obj: JsObject.make())
-        })
-        globalObject.set("Object", JsValue(obj: objectCtor.toObject()))
-
-        // Array
-        let arrayCtor = JsFunction.create("Array", { (this, args) =>
-            let arr = JsObject.make()
-            arr.className = "Array"
-            if (args.size == 1 && args[0].isNumber()) {
-                // Array(n)
-                let len = args[0].toLength()
-                arr.set("length", JsValue(n: Int64(len)))
-            } else {
-                arr.arrayStorage = args
-                arr.set("length", JsValue(n: Int64(args.size)))
-            }
-            JsValue(obj: arr)
-        })
-        globalObject.set("Array", JsValue(obj: arrayCtor.toObject()))
-
-        // Function
-        let functionCtor = JsFunction.create("Function", { (this, args) =>
-            JsValue.undefined()  // 简化
-        })
-        globalObject.set("Function", JsValue(obj: functionCtor.toObject()))
-
-        // String
-        let stringCtor = JsFunction.create("String", { (this, args) =>
-            let val = if (args.size > 0) { args[0].toString() } else { "" }
-            JsValue(obj: JsObject.fromString(val))
-        })
-        globalObject.set("String", JsValue(obj: stringCtor.toObject()))
-
-        // Number
-        let numberCtor = JsFunction.create("Number", { (this, args) =>
-            let val = if (args.size > 0) { args[0].toNumber() } else { 0.0 }
-            JsValue(obj: JsObject.fromNumber(val))
-        })
-        globalObject.set("Number", JsValue(obj: numberCtor.toObject()))
-
-        // Boolean
-        let boolCtor = JsFunction.create("Boolean", { (this, args) =>
-            let val = if (args.size > 0) { args[0].toBoolean() } else { false }
-            JsValue(obj: JsObject.fromBoolean(val))
-        })
-        globalObject.set("Boolean", JsValue(obj: boolCtor.toObject()))
-
-        // Promise
-        let promiseCtor = JsFunction.create("Promise", { (this, args) =>
-            if (args.size > 0 && args[0].isCallable()) {
-                JsPromise.create(args[0].toObject()).toJsValue()
-            } else {
-                throw JsTypeError("Promise resolver is not a function")
-            }
-        })
-        globalObject.set("Promise", JsValue(obj: promiseCtor.toObject()))
-
-        // Math
         let mathObj = JsObject.make()
         mathObj.className = "Math"
         setupMathObject(mathObj)
         globalObject.set("Math", JsValue(obj: mathObj))
 
-        // JSON
         let jsonObj = JsObject.make()
         jsonObj.className = "JSON"
         globalObject.set("JSON", JsValue(obj: jsonObj))
@@ -152,12 +70,12 @@ public class JsContext {
     }
 
     // 在上下文中执行脚本
-    public func evaluateScript(code: String, sourceUrl: String) -> JsValue {
+    public func evaluateScript(code: String, sourceUrl: String): JsValue {
         vm.evaluate(code, sourceUrl, JsCompileMode.Script, this)
     }
 
     // 在上下文中执行模块
-    public func evaluateModule(code: String, sourceUrl: String) -> JsValue {
+    public func evaluateModule(code: String, sourceUrl: String): JsValue {
         vm.evaluate(code, sourceUrl, JsCompileMode.Module, this)
     }
 }
@@ -182,18 +100,18 @@ public class JsVirtualMachine {
     }
 
     // 创建执行上下文
-    public func createContext() -> JsContext {
+    public func createContext(): JsContext {
         JsContext(vm: this)
     }
 
     // 执行脚本 - 严格翻译自 JavaScriptCore.zig evaluateScript
-    public func evaluateScript(code: String, sourceUrl: String) -> JsValue {
+    public func evaluateScript(code: String, sourceUrl: String): JsValue {
         let ctx = createContext()
         evaluate(code, sourceUrl, JsCompileMode.Script, ctx)
     }
 
     // 内部执行方法
-    func evaluate(code: String, sourceUrl: String, mode: JsCompileMode, ctx: JsContext) -> JsValue {
+    func evaluate(code: String, sourceUrl: String, mode: JsCompileMode, ctx: JsContext): JsValue {
         // 1. 编译
         let module = compile(code, sourceUrl, mode)
         // 2. 链接
@@ -203,7 +121,7 @@ public class JsVirtualMachine {
     }
 
     // 编译代码
-    func compile(code: String, sourceUrl: String, mode: JsCompileMode) -> JsModule {
+    func compile(code: String, sourceUrl: String, mode: JsCompileMode): JsModule {
         // 检查缓存
         let cacheKey = sourceUrl + ":" + mode.toString()
         if (let Some(cached) <- compileCache.get(cacheKey)) {
@@ -221,14 +139,14 @@ public class JsVirtualMachine {
     }
 
     // 执行模块
-    func executeModule(module: JsModule, ctx: JsContext) -> JsValue {
+    func executeModule(module: JsModule, ctx: JsContext): JsValue {
         // 简化实现 - 实际需要 AST 解释器
         // 由 bao_runtime 的 vm.cj 处理实际执行
         JsValue.undefined()
     }
 
     // 排队微任务 - 严格翻译自 VM.zig queueMicrotask
-    public func queueMicrotask(task: () -> Unit) {
+    public func queueMicrotask(task: (): Unit) {
         microtaskQueue.enqueue(task)
     }
 
@@ -240,12 +158,12 @@ public class JsVirtualMachine {
     }
 
     // 排空微任务队列 - 严格翻译自 VM.zig drainMicrotasks
-    public func drainMicrotasks() -> Int64 {
+    public func drainMicrotasks(): Int64 {
         microtaskQueue.drain()
     }
 
     // 加载模块 - 严格翻译自 JavaScriptCore.zig moduleLoader
-    public func loadModule(url: String, ctx: JsContext) -> ?JsModule {
+    public func loadModule(url: String, ctx: JsContext): ?JsModule {
         // 1. 检查已注册模块
         if (let Some(mod) <- moduleRegistry.get(url)) {
             return mod
@@ -266,7 +184,7 @@ public class JsVirtualMachine {
     }
 
     // 堆统计
-    public func heapStats() -> HeapStats {
+    public func heapStats(): HeapStats {
         HeapStats(
             totalSize: heapSize,
             usedSize: 0,  // 由 GC 子系统填充
@@ -299,12 +217,12 @@ public class JsModule {
     }
 
     // 获取导出
-    public func getExport(name: String) -> ?JsValue {
+    public func getExport(name: String): ?JsValue {
         exports.get(name)
     }
 
     // 获取所有导出名
-    public func getExportNames() -> Array<String> {
+    public func getExportNames(): Array<String> {
         var names = Array<String>()
         for ((name, _)) in exports {
             names.append(name)
@@ -313,7 +231,7 @@ public class JsModule {
     }
 
     // 获取命名空间对象
-    public func getNamespace() -> JsObject {
+    public func getNamespace(): JsObject {
         namespace
     }
 }

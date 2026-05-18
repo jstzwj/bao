@@ -21,17 +21,17 @@ public class ZigErrorType {
     }
 
     // 从错误码创建
-    public static func fromCode(code: ErrorCode) -> ZigErrorType {
+    public static func fromCode(code: ErrorCode): ZigErrorType {
         ZigErrorType(code: code, value: JsValue.undefined())
     }
 
     // 从错误码和值创建
-    public static func fromCodeAndValue(code: ErrorCode, value: JsValue) -> ZigErrorType {
+    public static func fromCodeAndValue(code: ErrorCode, value: JsValue): ZigErrorType {
         ZigErrorType(code: code, value: value)
     }
 
     // 转为错误
-    public func toError() -> Exception {
+    public func toError(): Exception {
         Exception(code.toString())
     }
 }

@@ -246,28 +246,10 @@ public class ExternalModules {
 
         // 处理用户指定的外部模块
         for (external in externals) {
-            let wildcardIdx = external.indexOf('*')
-            match (wildcardIdx) {
-                case Some(wildcardIndex) =>
-                    // 通配符模式
-                    let suffix = if (wildcardIndex + 1 < Int64(external.length)) {
-                        external[Int64(wildcardIndex + 1)..]
-                    } else {
-                        ""
-                    }
-                    result.patterns.append(WildcardPattern(
-                        external[Int64(0)..Int64(wildcardIndex)],
-                        suffix
-                    ))
-                case None =>
-                    if (isPackagePath(external)) {
-                        result.nodeModules.put(external)
-                    } else {
-                        // 绝对路径
-                        if (external.length > 0) {
-                            result.absPaths.put(external)
-                        }
-                    }
+            if (isPackagePath(external)) {
+                result.nodeModules.put(external)
+            } else {
+                result.absPaths.put(external)
             }
         }
 
@@ -275,9 +257,7 @@ public class ExternalModules {
     }
 
     private static func isPackagePath(s: String): Bool {
-        if (s.length == 0) { return false }
-        if (s.startsWith(".") || s.startsWith("/")) { return false }
-        return true
+        return !s.startsWith(".") && !s.startsWith("/")
     }
 }
 
@@ -801,7 +781,7 @@ public class EntryPoint {
 
     /// 是否启用
     public func isEnabled(): Bool {
-        return kind != EntryPointKind.Disabled && path.length > 0
+        return kind != EntryPointKind.Disabled
     }
 }
 

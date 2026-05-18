@@ -16,9 +16,9 @@ public enum WeakRefType {
 class WeakImpl {
     var value: ?JsValue = None
     var refType: WeakRefType = WeakRefType.None
-    var ctx: Any? = None
+    var ctx: ?Any = None
 
-    init(value: JsValue, refType: WeakRefType, ctx: Any?) {
+    init(value: JsValue, refType: WeakRefType, ctx: ?Any) {
         this.value = value
         this.refType = refType
         this.ctx = ctx
@@ -26,13 +26,13 @@ class WeakImpl {
 
     // 严格翻译自 WeakImpl.init
     // FFI: Bun__WeakRef__new(globalThis, value, refType, ctx)
-    static func initFunc(globalThis: JsObject, value: JsValue, refType: WeakRefType, ctx: Any?) -> WeakImpl {
+    static func initFunc(globalThis: JsObject, value: JsValue, refType: WeakRefType, ctx: ?Any): WeakImpl {
         WeakImpl(value: value, refType: refType, ctx: ctx)
     }
 
     // 严格翻译自 WeakImpl.get
     // FFI: Bun__WeakRef__get(this)
-    func get() -> JsValue {
+    func get(): JsValue {
         value.getOr(JsValue.undefined())
     }
 
@@ -63,7 +63,7 @@ public class Weak<T> {
     public init() {}
 
     // 严格翻译自 Weak.init
-    public static func initFunc() -> Weak<T> {
+    public static func initFunc(): Weak<T> {
         Weak<T>()
     }
 
@@ -74,7 +74,7 @@ public class Weak<T> {
         globalThis: JsObject,
         refType: WeakRefType,
         ctx: T
-    ) -> Weak<T> {
+    ): Weak<T> {
         let weak = Weak<T>()
         if (value != JsValue.undefined()) {
             weak.ref = WeakImpl(value: value, refType: refType, ctx: ctx)
@@ -87,7 +87,7 @@ public class Weak<T> {
 
     // 严格翻译自 Weak.call
     // 如果有值，调用关联的函数
-    public func call(args: Array<JsValue>) -> JsValue {
+    public func call(args: Array<JsValue>): JsValue {
         let function = trySwap()
         if (let Some(fn) <- function) {
             if (fn is JsValue) {
@@ -99,7 +99,7 @@ public class Weak<T> {
 
     // 严格翻译自 Weak.get
     // 获取引用的值，如果已被 GC 回收则返回 None
-    public func get() -> ?JsValue {
+    public func get(): ?JsValue {
         let refImpl = ref
         if (refImpl == None) {
             return None
@@ -113,7 +113,7 @@ public class Weak<T> {
 
     // 严格翻译自 Weak.swap
     // 获取并清除引用
-    public func swap() -> JsValue {
+    public func swap(): JsValue {
         let refImpl = ref
         if (refImpl == None) {
             return JsValue.undefined()
@@ -125,7 +125,7 @@ public class Weak<T> {
 
     // 严格翻译自 Weak.has
     // 检查引用是否仍然有效
-    public func has() -> Bool {
+    public func has(): Bool {
         let refImpl = ref
         if (refImpl == None) {
             return false
@@ -135,7 +135,7 @@ public class Weak<T> {
 
     // 严格翻译自 Weak.trySwap
     // 尝试获取并清除引用
-    public func trySwap() -> ?JsValue {
+    public func trySwap(): ?JsValue {
         let result = swap()
         if (result == JsValue.undefined()) {
             return None

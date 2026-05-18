@@ -12,24 +12,24 @@ public class DOMFormData {
     public init() {}
 
     // 严格翻译自 DOMFormData.create
-    public static func create(global: JsObject) -> JsValue {
+    public static func create(global: JsObject): JsValue {
         // FFI: WebCore__DOMFormData__create
         JsValue.undefined()
     }
 
     // 严格翻译自 DOMFormData.createFromURLQuery
-    public static func createFromURLQuery(global: JsObject, query: ZigString) -> JsValue {
+    public static func createFromURLQuery(global: JsObject, query: ZigString): JsValue {
         // FFI: WebCore__DOMFormData__createFromURLQuery
         JsValue.undefined()
     }
 
     // 严格翻译自 DOMFormData.toQueryString
-    public func toQueryString(callback: (ZigString) -> Void) {
+    public func toQueryString(callback: (ZigString) -> Unit) {
         // FFI: WebCore__DOMFormData__toQueryString
     }
 
     // 严格翻译自 DOMFormData.fromJS
-    public static func fromJS(value: JsValue) -> ?DOMFormData {
+    public static func fromJS(value: JsValue): ?DOMFormData {
         // FFI: WebCore__DOMFormData__fromJS
         if (value.isUndefinedOrNull()) { return None }
         DOMFormData()
@@ -46,13 +46,13 @@ public class DOMFormData {
     }
 
     // 严格翻译自 DOMFormData.count
-    public func count() -> Int64 {
+    public func count(): Int64 {
         // FFI: WebCore__DOMFormData__count
         0
     }
 
     // 严格翻译自 DOMFormData.cast_
-    public static func cast_(value: JsValue, vm: JsVirtualMachine) -> ?DOMFormData {
+    public static func cast_(value: JsValue, vm: JsVirtualMachine): ?DOMFormData {
         // FFI: WebCore__DOMFormData__cast_
         None
     }

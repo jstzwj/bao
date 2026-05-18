@@ -155,7 +155,7 @@ public class WTFStringImplStruct {
     /// 严格翻译自 WTFStringImplStruct.ref
     public func ref(): Unit {
         if (!hasAtLeastOneRef()) {
-            throw IllegalStateException("WTFStringImpl: ref() 在没有引用时调用")
+            throw Exception("WTFStringImpl: ref() 在没有引用时调用")
         }
         if (!isStatic()) {
             this.mRefCount += sRefCountIncrement
@@ -166,7 +166,7 @@ public class WTFStringImplStruct {
     /// 严格翻译自 WTFStringImplStruct.deref
     public func deref(): Unit {
         if (!hasAtLeastOneRef()) {
-            throw IllegalStateException("WTFStringImpl: deref() 在没有引用时调用")
+            throw Exception("WTFStringImpl: deref() 在没有引用时调用")
         }
         if (!isStatic()) {
             if (this.mRefCount >= sRefCountIncrement) {

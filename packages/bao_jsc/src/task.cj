@@ -297,7 +297,7 @@ public class GlobalTaskQueue {
 
     static var instance_: ?GlobalTaskQueue = None
 
-    public static func instance() -> GlobalTaskQueue {
+    public static func instance(): GlobalTaskQueue {
         if (instance_ == None) {
             instance_ = GlobalTaskQueue()
         }
@@ -310,14 +310,14 @@ public class GlobalTaskQueue {
         tasks.append(task)
     }
 
-    public func dequeue() -> ?Task {
+    public func dequeue(): ?Task {
         if (tasks.size == 0) { return None }
         let task = tasks[0]
         tasks = tasks.slice(1)
         Some(task)
     }
 
-    public func drain() -> Int64 {
+    public func drain(): Int64 {
         var count: Int64 = 0
         while (tasks.size > 0) {
             let task = dequeue()

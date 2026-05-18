@@ -36,20 +36,20 @@ public class JsFunction {
     }
 
     // 创建原生函数 - 严格翻译自 JSFunction.zig create/functionCreate
-    public static func create(name: String, callback: JsCallback) -> JsFunction {
+    public static func create(name: String, callback: JsCallback): JsFunction {
         let fn = JsFunction(name: name, callback: callback)
         fn.prototype = Some(JsObject.make())
         return fn
     }
 
-    public static func create(name: String, length: Int64, callback: JsCallback) -> JsFunction {
+    public static func create(name: String, length: Int64, callback: JsCallback): JsFunction {
         let fn = JsFunction(name: name, length: length, callback: callback)
         fn.prototype = Some(JsObject.make())
         return fn
     }
 
     // 从源码创建 - 编译函数
-    public static func fromSource(name: String, params: Array<String>, body: String) -> JsFunction {
+    public static func fromSource(name: String, params: Array<String>, body: String): JsFunction {
         let fn = JsFunction()
         fn.name = name
         fn.length = Int64(params.size)
@@ -59,7 +59,7 @@ public class JsFunction {
     }
 
     // 调用函数 - 严格翻译自 JSFunction.zig call
-    public func call(thisArg: JsValue, args: Array<JsValue>) -> JsValue {
+    public func call(thisArg: JsValue, args: Array<JsValue>): JsValue {
         let thisObj = resolveThis(thisArg)
         if (let Some(cb) <- callback) {
             return cb(thisObj, args)
@@ -69,7 +69,7 @@ public class JsFunction {
     }
 
     // 构造调用 - 严格翻译自 JSFunction.zig construct
-    public func construct(args: Array<JsValue>) -> JsObject {
+    public func construct(args: Array<JsValue>): JsObject {
         let newObj = JsObject.make()
         // 设置原型链
         if (let Some(proto) <- prototype) {
@@ -86,7 +86,7 @@ public class JsFunction {
     }
 
     // 绑定 this - Function.prototype.bind
-    public func bind(thisArg: JsValue, args: Array<JsValue>) -> JsFunction {
+    public func bind(thisArg: JsValue, args: Array<JsValue>): JsFunction {
         let bound = JsFunction()
         bound.name = "bound " + name
         bound.isBound = true
@@ -99,12 +99,12 @@ public class JsFunction {
     }
 
     // call - Function.prototype.call
-    public func callWith(thisArg: JsValue, args: Array<JsValue>) -> JsValue {
+    public func callWith(thisArg: JsValue, args: Array<JsValue>): JsValue {
         call(thisArg, args)
     }
 
     // apply - Function.prototype.apply
-    public func apply(thisArg: JsValue, argsArray: JsValue) -> JsValue {
+    public func apply(thisArg: JsValue, argsArray: JsValue): JsValue {
         let args: Array<JsValue>
         if (argsArray.isObject()) {
             let obj = argsArray.toObject()
@@ -125,7 +125,7 @@ public class JsFunction {
     }
 
     // resolveThis - 严格翻译自 JSFunction.zig resolveThisBinding
-    func resolveThis(thisArg: JsValue) -> JsObject {
+    func resolveThis(thisArg: JsValue): JsObject {
         if (isBound) {
             return boundThis.getOr(JsObject.make())
         }
@@ -145,7 +145,7 @@ public class JsFunction {
     }
 
     // toString - Function.prototype.toString
-    public func toString() -> String {
+    public func toString(): String {
         if (!sourceCode.isEmpty) {
             return "function " + name + "(" + sourceCode + ")"
         }
@@ -153,12 +153,12 @@ public class JsFunction {
     }
 
     // Getter/Setter 工厂
-    public static func getter(name: String, callback: JsCallback) -> JsFunction {
+    public static func getter(name: String, callback: JsCallback): JsFunction {
         let fn = JsFunction(name: "get " + name, callback: callback)
         return fn
     }
 
-    public static func setter(name: String, callback: JsCallback) -> JsFunction {
+    public static func setter(name: String, callback: JsCallback): JsFunction {
         let fn = JsFunction(name: "set " + name, callback: callback)
         return fn
     }
@@ -175,7 +175,7 @@ public class JsArguments {
         this.args = args
     }
 
-    public func get(index: Int64) -> JsValue {
+    public func get(index: Int64): JsValue {
         if (index >= 0 && index < args.size) {
             return args[Int64(index)]
         }
@@ -188,21 +188,21 @@ public class JsArguments {
         }
     }
 
-    public func length() -> Int64 {
+    public func length(): Int64 {
         Int64(args.size)
     }
 
-    public func toArray() -> Array<JsValue> {
+    public func toArray(): Array<JsValue> {
         args
     }
 
     // Symbol.iterator
-    public func iterator() -> Iterator<JsValue> {
+    public func iterator(): Iterator<JsValue> {
         args.iterator()
     }
 
     // 转为 JsObject
-    public func toObject() -> JsObject {
+    public func toObject(): JsObject {
         let obj = JsObject.make()
         obj.className = "Arguments"
         obj.arrayStorage = args

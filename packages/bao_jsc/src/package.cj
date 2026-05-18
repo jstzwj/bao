@@ -243,48 +243,48 @@ public let BAO_JSC_VERSION = "0.1.0"
 // 工具函数
 
 // 快速创建 undefined
-public func undefined() -> JsValue {
+public func undefined(): JsValue {
     JsValue.undefined()
 }
 
 // 快速创建 null
-public func null() -> JsValue {
+public func null(): JsValue {
     JsValue.null()
 }
 
 // 从 Bool 创建 JsValue
-public func value(b: Bool) -> JsValue {
+public func value(b: Bool): JsValue {
     JsValue(b: b)
 }
 
 // 从 Number 创建 JsValue
-public func value(n: Float64) -> JsValue {
+public func value(n: Float64): JsValue {
     JsValue(n: n)
 }
 
 // 从 String 创建 JsValue
-public func value(s: String) -> JsValue {
+public func value(s: String): JsValue {
     JsValue(s: s)
 }
 
 // 从 Object 创建 JsValue
-public func value(obj: JsObject) -> JsValue {
+public func value(obj: JsObject): JsValue {
     JsValue(obj: obj)
 }
 
 // 创建新 VM
-public func createVM() -> JsVirtualMachine {
+public func createVM(): JsVirtualMachine {
     JsVirtualMachine()
 }
 
 // 创建新上下文
-public func createContext() -> JsContext {
+public func createContext(): JsContext {
     let vm = JsVirtualMachine()
     vm.createContext()
 }
 
 // 执行脚本
-public func evaluate(code: String, sourceUrl: String) -> JsValue {
+public func evaluate(code: String, sourceUrl: String): JsValue {
     let vm = JsVirtualMachine()
     let ctx = vm.createContext()
     ctx.evaluateScript(code, sourceUrl)

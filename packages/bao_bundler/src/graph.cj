@@ -229,7 +229,7 @@ public class BundlerGraph {
     /// 添加入口点
     public func addEntryPoint(sourceIndex: Int32, originalName: String): Unit {
         entryPoints.append(sourceIndex)
-        if (originalName.length > 0) {
+        if (originalName.size > 0) {
             entryPointOriginalNames.put(sourceIndex, originalName)
         }
     }

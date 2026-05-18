@@ -15,7 +15,7 @@ public let MIN_SAFE_INTEGER: Int64 = -9007199254740991
 
 // 严格翻译自 jsc.init_timestamp / JSTimeType
 // 根据 MDN，JavaScript 中最大 Date 小于 Number.MAX_SAFE_INTEGER (u52)
-public typealias JSTimeType = UInt64
+public type JSTimeType = UInt64
 public let INIT_TIMESTAMP: JSTimeType = JSTimeType.maxValue
 
 // ========== markBinding ==========
@@ -41,7 +41,7 @@ public func initialize(evalMode: Bool) {
 // ========== toJSTime ==========
 // 严格翻译自 jsc.toJSTime
 // 将秒和纳秒转换为 JS 时间戳（毫秒精度，适配 u52）
-public func toJSTime(sec: Int64, nsec: Int64) -> JSTimeType {
+public func toJSTime(sec: Int64, nsec: Int64): JSTimeType {
     let millisec = nsec / 1000000
     UInt64(sec * 1000 + millisec)
 }
@@ -55,7 +55,7 @@ public class Ref {
     public init() {}
 
     // 严格翻译自 Ref.init
-    public static func init_() -> Ref {
+    public static func init_(): Ref {
         Ref()
     }
 
@@ -76,13 +76,13 @@ public class Ref {
 
 // ========== OpaqueCallback ==========
 // 严格翻译自 jsc.OpaqueCallback
-public typealias OpaqueCallback = (UInt64) -> Void
+public type OpaqueCallback = (UInt64): Void
 
 // ========== Math ==========
 // 严格翻译自 jsc.math
 public class JSCMath {
     // 严格翻译自 math.pow
-    public static func pow(x: Float64, y: Float64) -> Float64 {
+    public static func pow(x: Float64, y: Float64): Float64 {
         // FFI: Bun__JSC__operationMathPow
         Math.pow(x, y)
     }

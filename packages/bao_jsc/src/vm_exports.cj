@@ -11,7 +11,7 @@ public class VirtualMachineExports {
     public init() {}
 
     // 严格翻译自 Bun__VM__importMetaResolve
-    public static func importMetaResolve(vm: BunVirtualMachine, specifier: String, parentURL: String) -> String {
+    public static func importMetaResolve(vm: BunVirtualMachine, specifier: String, parentURL: String): String {
         if (let Some(result) <- vm.resolve(specifier, parentURL, None, true)) {
             return result
         }
@@ -19,7 +19,7 @@ public class VirtualMachineExports {
     }
 
     // 严格翻译自 Bun__VM__errors
-    public static func createError(message: String, code: String) -> JsValue {
+    public static func createError(message: String, code: String): JsValue {
         let obj = JsObject.make()
         obj.className = "Error"
         obj.set("message", JsValue(s: message))
@@ -28,7 +28,7 @@ public class VirtualMachineExports {
     }
 
     // 严格翻译自 Bun__VM__getImportedModule
-    public static func getImportedModule(vm: BunVirtualMachine, specifier: String) -> ?JsModule {
+    public static func getImportedModule(vm: BunVirtualMachine, specifier: String): ?JsModule {
         None
     }
 }
@@ -62,7 +62,7 @@ public class Bindgen {
     public init() {}
 
     // 生成绑定代码
-    public static func generate(moduleName: String) -> String {
+    public static func generate(moduleName: String): String {
         "// Auto-generated bindings for " + moduleName
     }
 }
@@ -76,7 +76,7 @@ public class Codegen {
     public init() {}
 
     // 获取生成的类列表
-    public static func generatedClasses() -> Array<String> {
+    public static func generatedClasses(): Array<String> {
         [
             "Blob", "Body", "Request", "Response",
             "Headers", "URL", "URLSearchParams",
@@ -115,12 +115,12 @@ public class JsArrayBuffer {
     }
 
     // 创建
-    public static func create(byteLength: Int64) -> JsArrayBuffer {
+    public static func create(byteLength: Int64): JsArrayBuffer {
         JsArrayBuffer(byteLength)
     }
 
     // 分离
-    public func detach() -> Array<UInt8> {
+    public func detach(): Array<UInt8> {
         isDetached = true
         let result = bytes
         bytes = []
@@ -129,7 +129,7 @@ public class JsArrayBuffer {
     }
 
     // 转为 JsValue
-    public func toJsValue() -> JsValue {
+    public func toJsValue(): JsValue {
         let obj = JsObject.make()
         obj.className = "ArrayBuffer"
         obj.set("byteLength", JsValue(n: byteLength))
@@ -162,7 +162,7 @@ public class JsTypedArray {
         | BigUint64
         | DataView
 
-        public func bytesPerElement() -> Int64 {
+        public func bytesPerElement(): Int64 {
             match (this) {
                 case Int8 | Uint8 | Uint8Clamped => 1
                 case Int16 | Uint16 | Float16 => 2
@@ -172,7 +172,7 @@ public class JsTypedArray {
             }
         }
 
-        public func name() -> String {
+        public func name(): String {
             match (this) {
                 case Int8 => "Int8Array"
                 case Uint8 => "Uint8Array"
@@ -206,7 +206,7 @@ public class UUID {
     }
 
     // 生成 v4 UUID
-    public static func v4() -> UUID {
+    public static func v4(): UUID {
         let uuid = UUID()
         // 简化的随机 UUID 生成
         for (i in 0..16) {
@@ -220,7 +220,7 @@ public class UUID {
     }
 
     // 转为字符串
-    public func toString() -> String {
+    public func toString(): String {
         String.format(
             "%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x",
             bytes[0], bytes[1], bytes[2], bytes[3],
@@ -231,7 +231,7 @@ public class UUID {
     }
 
     // 解析 UUID 字符串
-    public static func parse(s: String) -> ?UUID {
+    public static func parse(s: String): ?UUID {
         if (s.size != 36) { return None }
         // 简化解析
         let uuid = UUID()
@@ -250,15 +250,15 @@ public class HashSet<T> {
         map.put(value, true)
     }
 
-    public func contains(value: T) -> Bool {
+    public func contains(value: T): Bool {
         map.get(value) != None
     }
 
-    public func remove(value: T) -> Bool {
+    public func remove(value: T): Bool {
         map.remove(value) != None
     }
 
-    public func size() -> Int64 {
+    public func size(): Int64 {
         Int64(map.size)
     }
 

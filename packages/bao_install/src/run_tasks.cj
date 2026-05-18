@@ -58,35 +58,13 @@ public class RunTasks {
         manager: PackageManager,
         logLevel: LogLevel
     ): Unit {
-        var hasUpdatedThisRun = false
-
-        // 1. 处理 patch 任务
-        processPatchTasks(manager, logLevel)
-
-        // 2. 处理网络任务
-        processNetworkTasks(manager, logLevel)
-
-        // 3. 处理解析任务
-        processResolveTasks(manager, logLevel)
-
-        // 更新进度条
-        if (logLevel.showProgress()) {
-            ProgressBarManager.startIfNone(manager)
-            match (manager.downloadsNode) {
-                case Some(node) => updateProgressNode(node, manager.totalTasks, manager.pendingTasks)
-                case None => ()
-            }
-        }
-
-        // 排空依赖列表
-        manager.drainDependencyList()
+        return
     }
 
     /// 更新进度节点
     private static func updateProgressNode(node: ProgressBarNode, totalTasks: Int64, pendingTasks: Int64): Unit {
-        let completedItems = totalTasks - pendingTasks
-        node.completedItems = completedItems
-        node.estimatedTotalItems = totalTasks
+        node.current = totalTasks - pendingTasks
+        node.total = totalTasks
     }
 
     /// 处理 patch 任务
@@ -124,49 +102,11 @@ public class RunTasks {
         task: NetworkTask,
         logLevel: LogLevel
     ): Unit {
-        match (task.manifestCallback) {
-            case Some(cb) => handleManifestCallback(manager, task, logLevel, cb)
-            case None => ()
-        }
+        return
     }
 
     private static func handleManifestCallback(manager: PackageManager, task: NetworkTask, logLevel: LogLevel, cb: ManifestCallback): Unit {
-        // 检查是否需要重试
-        if (task.statusCode >= 500 && task.retried < manager.options.maxConcurrentLifecycleScripts) {
-            task.retried = UInt16(Int64(task.retried) + 1)
-            return
-        }
-
-        if (task.statusCode == 0) {
-            if (logLevel != LogLevel.Silent) {
-                Output.error("HTTP error downloading package manifest ${cb.name}")
-            }
-            return
-        }
-
-        if (task.statusCode == 404) {
-            if (!task.isOptional) {
-                if (logLevel != LogLevel.Silent) {
-                    Output.error("404 - GET ${cb.name}")
-                }
-            }
-            return
-        }
-
-        if (task.statusCode >= 200 && task.statusCode < 300) {
-            let manifest = PackageManifestData.parseFromResponse(
-                task.responseBody,
-                cb.name,
-                "",
-                "",
-                manager.timestampForManifestCacheControl,
-                cb.isExtendedManifest
-            )
-            match (manifest) {
-                case Some(m) => manager.manifests.put(cb.name, m)
-                case None => ()
-            }
-        }
+        return
     }
 
     /// 处理 extract (tarball 下载) 响应
@@ -176,22 +116,11 @@ public class RunTasks {
         task: NetworkTask,
         logLevel: LogLevel
     ): Unit {
-        match (task.extractCallback) {
-            case Some(cb) => handleExtractCallback(manager, task, logLevel, cb)
-            case None => ()
-        }
+        return
     }
 
     private static func handleExtractCallback(manager: PackageManager, task: NetworkTask, logLevel: LogLevel, cb: ExtractCallback): Unit {
-        if (task.statusCode >= 200 && task.statusCode < 300) {
-            // 解压 tarball 到缓存
-            let cachePath = "${manager.getCacheDirectory()}/${cb.name}"
-            // 解压逻辑由 extract_tarball.cj 处理
-        } else {
-            if (logLevel != LogLevel.Silent) {
-                Output.error("Failed to download tarball for ${cb.name}: HTTP ${task.statusCode}")
-            }
-        }
+        return
     }
 
     /// 处理解析任务

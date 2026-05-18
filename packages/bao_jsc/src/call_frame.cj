@@ -67,13 +67,13 @@ public class CallFrame {
 
     // 严格翻译自 CallFrame.arguments
     // 获取所有传入的参数
-    public func arguments() -> Array<JsValue> {
+    public func arguments(): Array<JsValue> {
         args
     }
 
     // 严格翻译自 CallFrame.argumentsAsArray
     // 获取指定数量的参数，不足的填充 undefined
-    public func argumentsAsArray(count: Int64) -> Array<JsValue> {
+    public func argumentsAsArray(count: Int64): Array<JsValue> {
         var result = Array<JsValue>()
         let n = if (count < Int64(args.size)) { count } else { Int64(args.size) }
         for (i in 0..n) {
@@ -88,7 +88,7 @@ public class CallFrame {
 
     // 严格翻译自 CallFrame.argument
     // 获取第 i 个参数，越界返回 undefined
-    public func argument(i: Int64) -> JsValue {
+    public func argument(i: Int64): JsValue {
         if (i >= 0 && i < Int64(args.size)) {
             return args[Int64(i)]
         }
@@ -97,40 +97,40 @@ public class CallFrame {
 
     // 严格翻译自 CallFrame.argumentsCount
     // 获取参数数量
-    public func argumentsCount() -> Int64 {
+    public func argumentsCount(): Int64 {
         Int64(args.size)
     }
 
     // 严格翻译自 CallFrame.this
     // 获取 this 值
-    public func this() -> JsValue {
+    public func this(): JsValue {
         thisValue
     }
 
     // 严格翻译自 CallFrame.callee
     // 获取被调用函数
-    public func callee() -> JsValue {
+    public func callee(): JsValue {
         calleeValue
     }
 
     // 严格翻译自 CallFrame.iterate
     // 返回参数迭代器
-    public func iterate() -> CallFrameIterator {
+    public func iterate(): CallFrameIterator {
         CallFrameIterator(args: args)
     }
 
     // 严格翻译自 CallFrame.isFromBunMain
-    public func isFromBunMain() -> Bool {
+    public func isFromBunMain(): Bool {
         false
     }
 
     // 严格翻译自 CallFrame.getCallerSrcLoc
-    public func getCallerSrcLoc() -> CallerSrcLoc {
+    public func getCallerSrcLoc(): CallerSrcLoc {
         CallerSrcLoc()
     }
 
     // 严格翻译自 CallFrame.describeFrame
-    public func describeFrame() -> String {
+    public func describeFrame(): String {
         if (calleeValue.isCallable()) {
             "native " + calleeValue.toString() + "()"
         } else {
@@ -142,9 +142,9 @@ public class CallFrame {
     // 严格翻译自 CallFrame.arguments_old
     // 不推荐使用。迁移路径:
     //   arguments(n).ptr[k] -> argumentsAsArray(n)[k]
-    //   arguments(n).slice() -> arguments()
-    //   arguments(n).mut() -> var args = argumentsAsArray(n); &args
-    public func argumentsOld(max: Int64) -> CallFrameArguments {
+    //   arguments(n).slice(): arguments()
+    //   arguments(n).mut(): var args = argumentsAsArray(n); &args
+    public func argumentsOld(max: Int64): CallFrameArguments {
         let slice = args
         let count = if (Int64(slice.size) < max) { Int64(slice.size) } else { max }
         var ptr = Array<JsValue>()
@@ -157,7 +157,7 @@ public class CallFrame {
     // ========== argumentsUndef (已弃用) ==========
     // 严格翻译自 CallFrame.argumentsUndef
     // 不推荐使用。迁移路径: 使用 argumentsAsArray(n)
-    public func argumentsUndef(max: Int64) -> CallFrameArguments {
+    public func argumentsUndef(max: Int64): CallFrameArguments {
         let slice = args
         let count = if (Int64(slice.size) < max) { Int64(slice.size) } else { max }
         var ptr = Array<JsValue>()
@@ -182,7 +182,7 @@ public class CallFrameIterator {
         this.args = args
     }
 
-    public func next() -> ?JsValue {
+    public func next(): ?JsValue {
         if (pos >= Int64(args.size)) {
             return None
         }
@@ -211,7 +211,7 @@ public class ArgumentsSlice {
     }
 
     // 严格翻译自 ArgumentsSlice.len
-    public func len() -> Int64 {
+    public func len(): Int64 {
         Int64(remaining.size)
     }
 
@@ -226,7 +226,7 @@ public class ArgumentsSlice {
 
     // 严格翻译自 ArgumentsSlice.next
     // 查看下一个参数但不消费
-    public func next() -> ?JsValue {
+    public func next(): ?JsValue {
         if (remaining.size == 0) {
             return None
         }
@@ -235,7 +235,7 @@ public class ArgumentsSlice {
 
     // 严格翻译自 ArgumentsSlice.nextEat
     // 获取并消费下一个参数
-    public func nextEat() -> ?JsValue {
+    public func nextEat(): ?JsValue {
         if (remaining.size == 0) {
             return None
         }
@@ -245,7 +245,7 @@ public class ArgumentsSlice {
     }
 
     // 严格翻译自 ArgumentsSlice.protectEatNext
-    public func protectEatNext() -> ?JsValue {
+    public func protectEatNext(): ?JsValue {
         nextEat()
     }
 
@@ -287,7 +287,7 @@ public class CallFrameArguments {
     }
 
     // 获取参数切片
-    public func slice() -> Array<JsValue> {
+    public func slice(): Array<JsValue> {
         if (len <= Int64(ptr.size)) {
             return ptr[0..Int64(len)]
         }
@@ -295,7 +295,7 @@ public class CallFrameArguments {
     }
 
     // 获取可变参数数组
-    public func mut() -> Array<JsValue> {
+    public func mut(): Array<JsValue> {
         ptr
     }
 }
@@ -337,7 +337,7 @@ public class Register {
 
     // 获取 unboxedInt32 - 对应 argumentCountIncludingThis 的读取方式
     // 在 JSC 中通过 .encodedValue.asBits.payload 读取
-    public func unboxedInt32() -> Int32 {
+    public func unboxedInt32(): Int32 {
         payload
     }
 }

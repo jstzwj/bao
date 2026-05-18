@@ -23,14 +23,14 @@ package bao_jsc
 //   };
 public class JsCell_ {
     // Cell 的 JSType
-    public var type: JSType = JSType.Cell
+    public var `type`: JSType = JSType.Cell
     // 原始 opaque 指针
     public var rawPtr: CPointer<UInt8> = CPointer<UInt8>()
 
     public init() {}
 
-    public init(type: JSType) {
-        this.type = type
+    public init(cellType: JSType) {
+        this.`type` = cellType
     }
 
     // ========== getObject ==========
@@ -39,10 +39,10 @@ public class JsCell_ {
     // 如果 cell 不是对象类型，返回 None
     //
     // FFI: JSC__JSCell__getObject(this: *JSCell) *JSObject
-    public func getObject() -> ?JsObject {
+    public func getObject(): ?JsObject {
         // 原始 Zig:
         //   return JSC__JSCell__getObject(this);
-        if (type.isObject()) {
+        if (this.`type`.isObject()) {
             let obj = JsObject.make()
             return obj
         }
@@ -56,10 +56,10 @@ public class JsCell_ {
     // 参考: ECMA-262 §7.1.18 ToObject
     //
     // FFI: JSC__JSCell__toObject(this: *JSCell, *JSGlobalObject) *JSObject
-    public func toObject(global: JsObject) -> JsObject {
+    public func toObject(global: JsObject): JsObject {
         // 原始 Zig:
         //   return JSC__JSCell__toObject(this, global);
-        if (type.isObject()) {
+        if (this.`type`.isObject()) {
             let obj = JsObject.make()
             return obj
         }
@@ -76,7 +76,7 @@ public class JsCell_ {
     // 保护我们免受未来 WebKit 升级可能的破坏性变更
     //
     // FFI: JSC__JSCell__getType(this: *JSCell) u8
-    public func getType() -> JSType {
+    public func getType(): JSType {
         // 原始 Zig:
         //   return @enumFromInt(JSC__JSCell__getType(this));
         type
@@ -85,7 +85,7 @@ public class JsCell_ {
     // ========== toJS ==========
     // 严格翻译自 JSCell.toJS
     // 将 Cell 转为 JSValue
-    public func toJS() -> JsValue {
+    public func toJS(): JsValue {
         // 原始 Zig:
         //   return jsc.JSValue.fromCell(this);
         JsValue.fromCell(this)
@@ -95,7 +95,7 @@ public class JsCell_ {
     // 严格翻译自 JSCell.getGetterSetter
     // 将 Cell 转为 GetterSetter
     // 断言此 Cell 确实是 GetterSetter 类型
-    public func getGetterSetter() -> GetterSetter {
+    public func getGetterSetter(): GetterSetter {
         // 原始 Zig:
         //   bun.assert(JSValue.fromCell(this).isGetterSetter());
         //   return @as(*GetterSetter, @ptrCast(@alignCast(this)));
@@ -106,7 +106,7 @@ public class JsCell_ {
     // 严格翻译自 JSCell.getCustomGetterSetter
     // 将 Cell 转为 CustomGetterSetter
     // 断言此 Cell 确实是 CustomGetterSetter 类型
-    public func getCustomGetterSetter() -> CustomGetterSetter {
+    public func getCustomGetterSetter(): CustomGetterSetter {
         // 原始 Zig:
         //   bun.assert(JSValue.fromCell(this).isCustomGetterSetter());
         //   return @as(*CustomGetterSetter, @ptrCast(@alignCast(this)));

@@ -31,7 +31,7 @@ public class JsBigInt {
     // ========== FFI 绑定 ==========
     // 严格翻译自 JSBigInt.fromJS
     // 从 JsValue 中提取 JSBigInt (如果它是 BigInt 类型)
-    public static func fromJS(value: JsValue) -> ?JsBigInt {
+    public static func fromJS(value: JsValue): ?JsBigInt {
         if (value.isBigInt()) {
             return JsBigInt(value: value.bigIntValue)
         }
@@ -42,7 +42,7 @@ public class JsBigInt {
     // 严格翻译自 JSBigInt.orderDouble
     // 比较 BigInt 与 double 值
     // 返回: -1 (this < num), 0 (this == num), 1 (this > num)
-    public func orderDouble(num: Float64) -> Int8 {
+    public func orderDouble(num: Float64): Int8 {
         // 特殊处理 NaN
         if (num != num) {
             return 1  // BigInt > NaN
@@ -56,47 +56,47 @@ public class JsBigInt {
 
     // 严格翻译自 JSBigInt.orderUint64
     // 比较 BigInt 与 UInt64 值
-    public func orderUint64(num: UInt64) -> Int8 {
+    public func orderUint64(num: UInt64): Int8 {
         let cmp = compareBigIntWithUInt64(value, num)
         cmp
     }
 
     // 严格翻译自 JSBigInt.orderInt64
     // 比较 BigInt 与 Int64 值
-    public func orderInt64(num: Int64) -> Int8 {
+    public func orderInt64(num: Int64): Int8 {
         let cmp = compareBigIntWithInt64(value, num)
         cmp
     }
 
     // 严格翻译自 JSBigInt.order (泛型版本)
     // 统一的比较入口
-    public func order(num: Float64) -> Int8 {
+    public func order(num: Float64): Int8 {
         orderDouble(num)
     }
 
-    public func order(num: Int64) -> Int8 {
+    public func order(num: Int64): Int8 {
         orderInt64(num)
     }
 
-    public func order(num: UInt64) -> Int8 {
+    public func order(num: UInt64): Int8 {
         orderUint64(num)
     }
 
     // ========== 类型转换 ==========
     // 严格翻译自 JSBigInt.toInt64
     // 将 BigInt 转为 Int64 (截断)
-    public func toInt64() -> Int64 {
+    public func toInt64(): Int64 {
         Int64.parseInt(value).getOr(0)
     }
 
     // 严格翻译自 JSBigInt.toString
     // 将 BigInt 转为字符串
-    public func toString() -> String {
+    public func toString(): String {
         value
     }
 
     // 转为 JsValue
-    public func toJsValue() -> JsValue {
+    public func toJsValue(): JsValue {
         let v = JsValue()
         v.valueType = JsValueType.BigInt
         v.bigIntValue = value
@@ -107,32 +107,32 @@ public class JsBigInt {
 
     // 严格翻译自 JSValue.bigIntSum
     // BigInt 加法
-    public static func add(a: JsBigInt, b: JsBigInt) -> JsBigInt {
+    public static func add(a: JsBigInt, b: JsBigInt): JsBigInt {
         let result = addBigIntStrings(a.value, b.value)
         JsBigInt(value: result)
     }
 
     // 严格翻译自 JSValue.fromInt64NoTruncate
     // 从 Int64 创建 BigInt (不截断)
-    public static func fromInt64NoTruncate(value: Int64) -> JsBigInt {
+    public static func fromInt64NoTruncate(value: Int64): JsBigInt {
         JsBigInt(value: value)
     }
 
     // 严格翻译自 JSValue.fromUInt64NoTruncate
     // 从 UInt64 创建 BigInt (不截断)
-    public static func fromUInt64NoTruncate(value: UInt64) -> JsBigInt {
+    public static func fromUInt64NoTruncate(value: UInt64): JsBigInt {
         JsBigInt(value: String(value))
     }
 
     // ========== 辅助方法 ==========
 
     // 将 BigInt 字符串解析为 double
-    func parseBigIntToDouble(s: String) -> Float64 {
+    func parseBigIntToDouble(s: String): Float64 {
         Float64.parseDouble(s).getOr(0.0)
     }
 
     // 比较 BigInt 字符串与 UInt64
-    func compareBigIntWithUInt64(bigIntStr: String, num: UInt64) -> Int8 {
+    func compareBigIntWithUInt64(bigIntStr: String, num: UInt64): Int8 {
         // 负数一定小于正数
         if (bigIntStr.size > 0 && bigIntStr[0] == '-') {
             return -1
@@ -152,7 +152,7 @@ public class JsBigInt {
     }
 
     // 比较 BigInt 字符串与 Int64
-    func compareBigIntWithInt64(bigIntStr: String, num: Int64) -> Int8 {
+    func compareBigIntWithInt64(bigIntStr: String, num: Int64): Int8 {
         let parsed = Int64.parseInt(bigIntStr)
         match (parsed) {
             case Some(v) => {
@@ -172,7 +172,7 @@ public class JsBigInt {
     }
 
     // BigInt 字符串加法
-    func addBigIntStrings(a: String, b: String) -> String {
+    func addBigIntStrings(a: String, b: String): String {
         let aVal = Int64.parseInt(a)
         let bVal = Int64.parseInt(b)
         match (aVal) {

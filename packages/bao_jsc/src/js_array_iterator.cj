@@ -45,7 +45,7 @@ public class JsArrayIterator_ {
     //       }
     //       return .{ .array = value, .global = global, .len = @truncate(try value.getLength(global)) };
     //   }
-    public static func initFunc(value: JsValue, global: JsObject) -> JsArrayIterator_ {
+    public static func initFunc(value: JsValue, global: JsObject): JsArrayIterator_ {
         let iter = JsArrayIterator_()
         iter.array = value
         iter.global = global
@@ -82,7 +82,7 @@ public class JsArrayIterator_ {
     //       }
     //       return try JSObject.getIndex(this.array, this.global, i);
     //   }
-    public func next() -> ?JsValue {
+    public func next(): ?JsValue {
         if (!(i < len)) {
             return None
         }
@@ -113,7 +113,7 @@ public class JsArrayIterator_ {
     }
 
     // ========== 是否已完成 ==========
-    public func isDone() -> Bool {
+    public func isDone(): Bool {
         !(i < len)
     }
 
@@ -126,7 +126,7 @@ public class JsArrayIterator_ {
 
     // FFI: Bun__JSArray__getContiguousVector(JSValue, *u32) ?[*]const JSValue
     // 获取数组的连续内存向量 (如果可用)
-    private static func getContiguousVectorFFI(value: JsValue, length: UInt32) -> CPointer<JsValue> {
+    private static func getContiguousVectorFFI(value: JsValue, length: UInt32): CPointer<JsValue> {
         // 真实实现: @extern "c" fn Bun__JSArray__getContiguousVector(...)
         CPointer<JsValue>()
     }
@@ -137,7 +137,7 @@ public class JsArrayIterator_ {
         value: JsValue,
         elements: CPointer<JsValue>,
         length: UInt32
-    ) -> Bool {
+    ): Bool {
         // 真实实现: @extern "c" fn Bun__JSArray__contiguousVectorIsStillValid(...)
         false
     }

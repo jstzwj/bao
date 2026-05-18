@@ -13,7 +13,7 @@ public class DeprecatedStrong {
     public init() {}
 
     // 严格翻译自 DeprecatedStrong.initNonCell
-    public static func initNonCell(nonCell: JsValue) -> DeprecatedStrong {
+    public static func initNonCell(nonCell: JsValue): DeprecatedStrong {
         let strong = DeprecatedStrong()
         strong.raw = nonCell
         strong.safety = None
@@ -21,7 +21,7 @@ public class DeprecatedStrong {
     }
 
     // 严格翻译自 DeprecatedStrong.init
-    public static func initFunc(value: JsValue) -> DeprecatedStrong {
+    public static func initFunc(value: JsValue): DeprecatedStrong {
         let strong = DeprecatedStrong()
         strong.raw = value
         strong.safety = None
@@ -34,12 +34,12 @@ public class DeprecatedStrong {
     }
 
     // 严格翻译自 DeprecatedStrong.get
-    public func get() -> JsValue {
+    public func get(): JsValue {
         raw
     }
 
     // 严格翻译自 DeprecatedStrong.swap
-    public func swap(next: JsValue) -> JsValue {
+    public func swap(next: JsValue): JsValue {
         let prev = raw
         deinit()
         raw = next
@@ -47,8 +47,8 @@ public class DeprecatedStrong {
     }
 
     // 严格翻译自 DeprecatedStrong.dupe
-    public func dupe() -> DeprecatedStrong {
-        DeprecatedStrong.init(value: raw)
+    public func dupe(): DeprecatedStrong {
+        DeprecatedStrong.initFunc(raw)
     }
 
     // 严格翻译自 DeprecatedStrong.ref
@@ -61,58 +61,57 @@ public class DeprecatedStrong {
         // unprotect JSValue
     }
 
-    // ========== Optional ==========
-    // 严格翻译自 DeprecatedStrong.Optional
-    public class Optional {
-        public var backing: DeprecatedStrong = DeprecatedStrong()
+}
 
-        public static let empty: Optional = Optional.initNonCell(JsValue.zero)
+public class DeprecatedStrongOptional {
+    public var backing: DeprecatedStrong = DeprecatedStrong()
 
-        public init() {}
+    public static let empty: DeprecatedStrongOptional = DeprecatedStrongOptional.initNonCell(JsValue.zero)
 
-        public static func initNonCell(nonCell: JsValue) -> Optional {
-            let opt = Optional()
-            opt.backing = DeprecatedStrong.initNonCell(nonCell)
-            opt
-        }
+    public init() {}
 
-        public static func initFunc(value: JsValue) -> Optional {
-            let opt = Optional()
-            opt.backing = DeprecatedStrong.init(value: value)
-            opt
-        }
+    public static func initNonCell(nonCell: JsValue): DeprecatedStrongOptional {
+        let opt = DeprecatedStrongOptional()
+        opt.backing = DeprecatedStrong.initNonCell(nonCell)
+        return opt
+    }
 
-        public func deinit() {
-            backing.deinit()
-        }
+    public static func initFunc(value: JsValue): DeprecatedStrongOptional {
+        let opt = DeprecatedStrongOptional()
+        opt.backing = DeprecatedStrong.initFunc(value)
+        return opt
+    }
 
-        public func get() -> ?JsValue {
-            let result = backing.get()
-            if (result == JsValue.zero) { return None }
-            Some(result)
-        }
+    public func deinit() {
+        backing.deinit()
+    }
 
-        public func swap(next: JsValue) -> ?JsValue {
-            let result = backing.swap(next)
-            if (result == JsValue.zero) { return None }
-            Some(result)
-        }
+    public func get(): ?JsValue {
+        let result = backing.get()
+        if (result == JsValue.zero) { return None }
+        return Some(result)
+    }
 
-        public func dupe() -> Optional {
-            Optional.init(value: backing.get())
-        }
+    public func swap(next: JsValue): ?JsValue {
+        let result = backing.swap(next)
+        if (result == JsValue.zero) { return None }
+        return Some(result)
+    }
 
-        public func has() -> Bool {
-            backing.get() != JsValue.zero
-        }
+    public func dupe(): DeprecatedStrongOptional {
+        return DeprecatedStrongOptional.initFunc(backing.get())
+    }
 
-        public func ref() {
-            backing.ref()
-        }
+    public func has(): Bool {
+        return backing.get() != JsValue.zero
+    }
 
-        public func unref() {
-            backing.unref()
-        }
+    public func ref() {
+        backing.ref()
+    }
+
+    public func unref() {
+        backing.unref()
     }
 }
 

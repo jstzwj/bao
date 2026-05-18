@@ -27,36 +27,23 @@ public class ResolveMessage {
 
     // 严格翻译自 ResolveMessage.constructor
     // ResolveMessage 不可构造
-    public static func constructor(globalThis: JsObject) -> ?ResolveMessage {
+    public static func constructor(globalThis: JsObject): ?ResolveMessage {
         // 对应 Zig 中 throw "ResolveMessage is not constructable"
         None
     }
 
     // 严格翻译自 ResolveMessage.getCode
     // 获取解析错误码
-    public func getCode(globalObject: JsObject) -> JsValue {
+    public func getCode(globalObject: JsObject): JsValue {
         if (msg.metadata.resolve != None) {
             let resolve = msg.metadata.resolve.getOrThrow()
             let specifier = resolve.specifier.slice(msg.data.text)
 
             let code: String = match (resolve.importKind) {
-                // 匹配 Node.js 错误码
-                case ImportKind_.Require => {
-                    if (specifier.startsWith("node:")) {
-                        "ERR_UNKNOWN_BUILTIN_MODULE"
-                    } else {
-                        "MODULE_NOT_FOUND"
-                    }
-                }
-                // require resolve 没有 UNKNOWN_BUILTIN_MODULE 错误码
+                case ImportKind_.Require => resolveRequireCode(specifier)
                 case ImportKind_.RequireResolve => "MODULE_NOT_FOUND"
-                case ImportKind_.Stmt | ImportKind_.Dynamic => {
-                    if (specifier.startsWith("node:")) {
-                        "ERR_UNKNOWN_BUILTIN_MODULE"
-                    } else {
-                        "ERR_MODULE_NOT_FOUND"
-                    }
-                }
+                case ImportKind_.Stmt => resolveImportCode(specifier)
+                case ImportKind_.Dynamic => resolveImportCode(specifier)
                 case _ => "RESOLVE_ERROR"
             }
             return JsValue(s: code)
@@ -64,9 +51,23 @@ public class ResolveMessage {
         JsValue.undefined()
     }
 
+    private static func resolveRequireCode(specifier: String): String {
+        if (specifier.startsWith("node:")) {
+            return "ERR_UNKNOWN_BUILTIN_MODULE"
+        }
+        return "MODULE_NOT_FOUND"
+    }
+
+    private static func resolveImportCode(specifier: String): String {
+        if (specifier.startsWith("node:")) {
+            return "ERR_UNKNOWN_BUILTIN_MODULE"
+        }
+        return "ERR_MODULE_NOT_FOUND"
+    }
+
     // 严格翻译自 ResolveMessage.getColumn
     // 获取列号 (0-based)
-    public func getColumn() -> JsValue {
+    public func getColumn(): JsValue {
         if (let Some(location) <- msg.data.location) {
             let col = location.column - 1
             return JsValue(n: Float64(if (col < 0) { 0 } else { col }))
@@ -76,7 +77,7 @@ public class ResolveMessage {
 
     // 严格翻译自 ResolveMessage.getLine
     // 获取行号 (0-based)
-    public func getLine() -> JsValue {
+    public func getLine(): JsValue {
         if (let Some(location) <- msg.data.location) {
             let line = location.line - 1
             return JsValue(n: Float64(if (line < 0) { 0 } else { line }))
@@ -91,7 +92,7 @@ public class ResolveMessage {
         referrer: String,
         err: ResolveError,
         importKind: ImportKind_
-    ) -> String {
+    ): String {
         if (importKind != ImportKind_.RequireResolve && specifier.startsWith("node:")) {
             // 完全匹配 Node.js 行为
             return "No such built-in module: " + specifier
@@ -123,17 +124,17 @@ public class ResolveMessage {
     }
 
     // 严格翻译自 ResolveMessage.toStringFn
-    public func toStringFn(globalThis: JsObject) -> JsValue {
+    public func toStringFn(globalThis: JsObject): JsValue {
         JsValue(s: "ResolveMessage: " + msg.data.text)
     }
 
     // 严格翻译自 ResolveMessage.toString
-    public func toString(globalThis: JsObject) -> JsValue {
+    public func toString(globalThis: JsObject): JsValue {
         toStringFn(globalThis)
     }
 
     // 严格翻译自 ResolveMessage.toPrimitive
-    public func toPrimitive(globalThis: JsObject, hint: JsValue) -> JsValue {
+    public func toPrimitive(globalThis: JsObject, hint: JsValue): JsValue {
         if (hint.isString()) {
             let str = hint.toString()
             if (str == "default" || str == "string") {
@@ -144,7 +145,7 @@ public class ResolveMessage {
     }
 
     // 严格翻译自 ResolveMessage.toJSON
-    public func toJSON(globalThis: JsObject) -> JsValue {
+    public func toJSON(globalThis: JsObject): JsValue {
         let obj = JsObject.make()
         obj.className = "ResolveMessage"
         obj.set("name", JsValue(s: "ResolveMessage"))
@@ -162,27 +163,27 @@ public class ResolveMessage {
         globalThis: JsObject,
         msg: LoggerMsg,
         referrer: String
-    ) -> ResolveMessage {
+    ): ResolveMessage {
         ResolveMessage(msg: msg.clone(), allocator: "", referrer: referrer)
     }
 
     // 严格翻译自 ResolveMessage.getPosition
-    public func getPosition(globalThis: JsObject) -> JsValue {
+    public func getPosition(globalThis: JsObject): JsValue {
         BuildMessage.generatePositionObject(msg, globalThis)
     }
 
     // 严格翻译自 ResolveMessage.getMessage
-    public func getMessage(globalThis: JsObject) -> JsValue {
+    public func getMessage(globalThis: JsObject): JsValue {
         JsValue(s: msg.data.text)
     }
 
     // 严格翻译自 ResolveMessage.getLevel
-    public func getLevel(globalThis: JsObject) -> JsValue {
+    public func getLevel(globalThis: JsObject): JsValue {
         JsValue(s: msg.kind.toString())
     }
 
     // 严格翻译自 ResolveMessage.getSpecifier
-    public func getSpecifier(globalThis: JsObject) -> JsValue {
+    public func getSpecifier(globalThis: JsObject): JsValue {
         if (msg.metadata.resolve != None) {
             let resolve = msg.metadata.resolve.getOrThrow()
             return JsValue(s: resolve.specifier.slice(msg.data.text))
@@ -191,7 +192,7 @@ public class ResolveMessage {
     }
 
     // 严格翻译自 ResolveMessage.getImportKind
-    public func getImportKind(globalThis: JsObject) -> JsValue {
+    public func getImportKind(globalThis: JsObject): JsValue {
         if (msg.metadata.resolve != None) {
             let resolve = msg.metadata.resolve.getOrThrow()
             return JsValue(s: resolve.importKind.label())
@@ -200,7 +201,7 @@ public class ResolveMessage {
     }
 
     // 严格翻译自 ResolveMessage.getReferrer
-    public func getReferrer(globalThis: JsObject) -> JsValue {
+    public func getReferrer(globalThis: JsObject): JsValue {
         if (let Some(ref) <- referrer) {
             return JsValue(s: ref.text)
         }
@@ -214,7 +215,7 @@ public class ResolveMessage {
     }
 
     // 辅助: 判断是否为包路径
-    static func isPackagePath(specifier: String) -> Bool {
+    static func isPackagePath(specifier: String): Bool {
         specifier.startsWith("@") || (!specifier.startsWith("/") && !specifier.startsWith("./") && !specifier.startsWith("../"))
     }
 }
@@ -235,7 +236,7 @@ public enum ImportKind_ {
     | Internal
     | Composes
 
-    public func label() -> String {
+    public func label(): String {
         match (this) {
             case Stmt => "import"
             case Require => "require"
@@ -264,7 +265,7 @@ public enum ResolveError {
     | UnexpectedToken
     | Unknown
 
-    public func name() -> String {
+    public func name(): String {
         match (this) {
             case ModuleNotFound => "ModuleNotFound"
             case InvalidDataURL => "InvalidDataURL"
@@ -303,7 +304,7 @@ public class MsgSpecifier {
     public init() {}
 
     // 从源文本切片
-    public func slice(text: String) -> String {
+    public func slice(text: String): String {
         let s = if (start >= 0 && start < Int64(text.size)) { start } else { 0 }
         let e = if (end <= Int64(text.size)) { end } else { Int64(text.size) }
         if (s < e) {

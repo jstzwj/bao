@@ -24,75 +24,43 @@ package bao_jsc
 //       _,
 //   };
 public enum JSRuntimeType {
-    | None
-}
-    }
+    | `Nothing`
+    | Function
+    | Undefined
+    | Null
+    | Boolean
+    | AnyInt
+    | Number
+    | String
+    | Object
+    | Symbol
+    | BigInt
+    | Unknown
 
-    // 获取原始值
-    public func toUInt16() -> UInt16 {
+    public func toUInt16(): UInt16 {
         match (this) {
-            | Nothing => 0x0000
-            | Function => 0x0001
-            | Undefined => 0x0002
-            | Null => 0x0004
-            | Boolean => 0x0008
-            | AnyInt => 0x0010
-            | Number => 0x0020
-            | String => 0x0040
-            | Object => 0x0080
-            | Symbol => 0x0100
-            | BigInt => 0x0200
-            | Unknown => 0xFFFF
+            case `Nothing` => return UInt16(0)
+            case Function => return UInt16(1)
+            case Undefined => return UInt16(2)
+            case Null => return UInt16(4)
+            case Boolean => return UInt16(8)
+            case AnyInt => return UInt16(16)
+            case Number => return UInt16(32)
+            case String => return UInt16(64)
+            case Object => return UInt16(128)
+            case Symbol => return UInt16(256)
+            case BigInt => return UInt16(512)
+            case Unknown => return UInt16(65535)
         }
     }
 
-    // 是否为 Nothing
-    public func isNothing() -> Bool {
-        this == Nothing
-    }
-
-    // 是否为函数类型
-    public func isFunction() -> Bool {
-        this == Function
-    }
-
-    // 是否为 undefined
-    public func isUndefined() -> Bool {
-        this == Undefined
-    }
-
-    // 是否为 null
-    public func isNull() -> Bool {
-        this == Null
-    }
-
-    // 是否为布尔类型
-    public func isBoolean() -> Bool {
-        this == Boolean
-    }
-
-    // 是否为数字类型 (包含 AnyInt 和 Number)
-    public func isNumber() -> Bool {
-        this == Number || this == AnyInt
-    }
-
-    // 是否为字符串类型
-    public func isString() -> Bool {
-        this == String
-    }
-
-    // 是否为对象类型
-    public func isObject() -> Bool {
-        this == Object
-    }
-
-    // 是否为 Symbol 类型
-    public func isSymbol() -> Bool {
-        this == Symbol
-    }
-
-    // 是否为 BigInt 类型
-    public func isBigInt() -> Bool {
-        this == BigInt
-    }
+    public func isNothing(): Bool { this == `Nothing` }
+    public func isFunction(): Bool { this == Function }
+    public func isUndefined(): Bool { this == Undefined }
+    public func isNull(): Bool { this == Null }
+    public func isBoolean(): Bool { this == Boolean }
+    public func isNumber(): Bool { this == Number || this == AnyInt }
+    public func isString(): Bool { this == String }
+    public func isObject(): Bool { this == Object }
+    public func isPrimitive(): Bool { this != Object && this != Function }
 }

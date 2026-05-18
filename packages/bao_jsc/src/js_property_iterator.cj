@@ -34,7 +34,7 @@ public class SourceProvider {
     }
 
     // 计算源码哈希
-    func computeHash(s: String) -> Int64 {
+    func computeHash(s: String): Int64 {
         var h: Int64 = 0
         for (c in s) {
             h = h * 31 + Int64(c.code)
@@ -43,12 +43,12 @@ public class SourceProvider {
     }
 
     // 获取源码
-    public func source() -> String {
+    public func source(): String {
         sourceCode
     }
 
     // 获取 URL
-    public func url() -> String {
+    public func url(): String {
         sourceURL
     }
 }
@@ -178,12 +178,12 @@ public class JsStringBuilder {
     }
 
     // 获取预计长度
-    public func length() -> Int64 {
+    public func length(): Int64 {
         estimatedLength
     }
 
     // 构建最终字符串
-    public func toString() -> String {
+    public func toString(): String {
         String.join("", parts)
     }
 
@@ -211,7 +211,7 @@ public class RefString {
         this.hash = computeHash(ptr)
     }
 
-    public static func computeHash(input: String) -> Int64 {
+    public static func computeHash(input: String): Int64 {
         var h: Int64 = 5381
         for (c in input) {
             h = ((h << 5) + h) + Int64(c.code)
@@ -227,11 +227,11 @@ public class RefString {
         refCount--
     }
 
-    public func slice() -> String {
+    public func slice(): String {
         ptr
     }
 
-    public func toString() -> String {
+    public func toString(): String {
         ptr
     }
 }
@@ -266,7 +266,7 @@ public class GCController {
     }
 
     // 获取统计信息
-    public func stats() -> GCStats {
+    public func stats(): GCStats {
         GCStats(
             allocatedBytes: allocatedBytes,
             heapSize: heapSize,

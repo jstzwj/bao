@@ -225,7 +225,7 @@ public func getCacheDirectoryAndAbsPath(manager: PackageManager): Tuple2<FileDes
 /// 设置全局目录
 /// 翻译自: setupGlobalDir
 ///   pub fn setupGlobalDir(manager: *PackageManager, ctx: *const Command.Context) !void
-public func setupGlobalDir(manager: PackageManager, ctx: CommandContext): Result<Unit> {
+public func setupGlobalDir(manager: PackageManager, ctx: DirectoryCommandContext): Result<Unit> {
     manager.options.globalBinDir = Options.openGlobalBinDir(ctx.install)
 
     let outBuffer = PathBuffer()
@@ -282,8 +282,8 @@ public func globalLinkDirPath(manager: PackageManager): Array<Byte> {
 // ============================================================================
 
 /// 缓存版本
-/// 翻译自: CacheVersion
-public class CacheVersion {
+/// 翻译自: DirectoryCacheVersion
+public class DirectoryCacheVersion {
     public static let CURRENT: Int64 = 1
 }
 
@@ -313,7 +313,7 @@ public func cachedGithubFolderName(
     patchHash: ?UInt64
 ): String {
     let resolved = manager.lockfile.str(repository.resolved)
-    var name = "@GH@${resolved}@@@${CacheVersion.CURRENT}"
+    var name = "@GH@${resolved}@@@${DirectoryCacheVersion.CURRENT}"
     match (patchHash) {
         case Some(h) => name = "${name}_patch_hash=${bao_hash.Hex.encodeLower(h)}"
         case None => ()
@@ -339,15 +339,15 @@ public func cachedNpmPackageFolderName(
     }
 
     // 如果有自定义 scope, 添加 scope 后缀
-    if (scope.name.length > 0) {
+    if (scope.name.size > 0) {
         let scopeUrl = scope.url
-        if (scopeUrl.hostname.length <= 32) {
-            folderName = "${folderName}@@${scopeUrl.hostname}@@@${CacheVersion.CURRENT}"
+        if (scopeUrl.hostname.size <= 32) {
+            folderName = "${folderName}@@${scopeUrl.hostname}@@@${DirectoryCacheVersion.CURRENT}"
         } else {
             // 长主机名截断
-            let short = scopeUrl.hostname.substring(0, 12)
+            let short = scopeUrl.hostname[0..12]
             let hash = bao_hash.Wyhash.hash(0, scopeUrl.href)
-            folderName = "${folderName}@@${short}__${bao_hash.Hex.encodeLower(hash)}@@@${CacheVersion.CURRENT}"
+            folderName = "${folderName}@@${short}__${bao_hash.Hex.encodeLower(hash)}@@@${DirectoryCacheVersion.CURRENT}"
         }
         match (patchHash) {
             case Some(h) => folderName = "${folderName}_patch_hash=${bao_hash.Hex.encodeLower(h)}"
@@ -355,7 +355,7 @@ public func cachedNpmPackageFolderName(
         }
     } else {
         // 默认 scope: 包含缓存版本号
-        folderName = "${folderName}@@@${CacheVersion.CURRENT}"
+        folderName = "${folderName}@@@${DirectoryCacheVersion.CURRENT}"
     }
 
     return folderName
@@ -370,7 +370,7 @@ public func cachedTarballFolderName(
     patchHash: ?UInt64
 ): String {
     let urlHash = bao_hash.Wyhash.hash(0, url.toByteArray())
-    var name = "@T@${bao_hash.Hex.encodeLower(urlHash)}@@@${CacheVersion.CURRENT}"
+    var name = "@T@${bao_hash.Hex.encodeLower(urlHash)}@@@${DirectoryCacheVersion.CURRENT}"
     match (patchHash) {
         case Some(h) => name = "${name}_patch_hash=${bao_hash.Hex.encodeLower(h)}"
         case None => ()
@@ -447,7 +447,7 @@ private func computeGithubCacheDir(manager: PackageManager, resolution: Resoluti
 private func computeFolderCacheDir(manager: PackageManager, resolution: Resolution): CacheDirAndSubpath {
     let buf = manager.lockfile.buffers.stringBytes
     let folder = resolution.folder.slice(buf)
-    let subpath = if (folder.length == 0 || folder == ".") { "." } else { folder }
+    let subpath = if (folder.size == 0 || folder == ".") { "." } else { folder }
     return CacheDirAndSubpath(cacheDir: FileDescriptor.cwd(), cacheDirSubpath: subpath)
 }
 
@@ -461,7 +461,7 @@ private func computeTarballCacheDir(manager: PackageManager, tarball: String, pa
 private func computeWorkspaceCacheDir(manager: PackageManager, resolution: Resolution): CacheDirAndSubpath {
     let buf = manager.lockfile.buffers.stringBytes
     let folder = resolution.workspace.slice(buf)
-    let subpath = if (folder.length == 0 || folder == ".") { "." } else { folder }
+    let subpath = if (folder.size == 0 || folder == ".") { "." } else { folder }
     return CacheDirAndSubpath(cacheDir: FileDescriptor.cwd(), cacheDirSubpath: subpath)
 }
 
@@ -470,7 +470,7 @@ private func computeSymlinkCacheDir(manager: PackageManager, resolution: Resolut
     let directory = globalLinkDir(manager)
     let buf = manager.lockfile.buffers.stringBytes
     let folder = resolution.symlink.slice(buf)
-    if (folder.length == 0 || folder == ".") {
+    if (folder.size == 0 || folder == ".") {
         return CacheDirAndSubpath(cacheDir: FileDescriptor.cwd(), cacheDirSubpath: ".")
     }
     let globalLinkPath = globalLinkDirPath(manager)
@@ -564,7 +564,7 @@ public func saveLockfile(
     hadAnyDiffs: Bool,
     lockfileBeforeInstall: Lockfile,
     packagesLenBeforeInstall: Int64,
-    logLevel: LogLevel
+    logLevel: DirectoryLogLevel
 ): Result<Unit> {
     if (manager.lockfile.isEmpty()) {
         // 空锁文件, 删除
@@ -576,7 +576,7 @@ public func saveLockfile(
             bao_sys.Syscall.unlinkat(FileDescriptor.cwd(), deleteName)
         }
 
-        if (!manager.options.global && logLevel != LogLevel.Silent) {
+        if (!manager.options.global && logLevel != DirectoryLogLevel.Silent) {
             match (manager.subcommand) {
                 case Subcommand.Remove =>
                     Output.prettyErrorln("package.json has no dependencies! Deleted empty lockfile")
@@ -640,10 +640,10 @@ private func writeYarnLockFile(f: FileDescriptor, manager: PackageManager, tmpNa
         lockfile: manager.lockfile,
         options: manager.options,
         successfullyInstalled: None,
-        updates: ArrayList<UpdateRequest>()
+        updates: ArrayList<DirectoryUpdateRequest>()
     )
     let buf = ArrayList<Byte>()
-    YarnPrinter.print(printer, buf)
+    DirectoryYarnPrinter.print(printer, buf)
     f.writeAll(buf)
     f.promoteToCwd(tmpName, "yarn.lock")
     return Result.Ok(())
@@ -660,7 +660,7 @@ private func crashOnTmpfileError(err: SyscallError): Unit {
 // ============================================================================
 
 /// 命令上下文
-public class CommandContext {
+public class DirectoryCommandContext {
     public var install: ?BunInstallConfig
 
     public init(install: ?BunInstallConfig) {
@@ -711,7 +711,7 @@ public enum LockfileFormat {
 }
 
 /// 日志级别
-public enum LogLevel {
+public enum DirectoryLogLevel {
     | Silent
     | Error
     | Warning
@@ -720,10 +720,10 @@ public enum LogLevel {
 }
 
 /// 日志级别扩展
-public class LogLevelExt {
-    public static func showProgress(level: LogLevel): Bool {
+public class DirectoryLogLevelExt {
+    public static func showProgress(level: DirectoryLogLevel): Bool {
         match (level) {
-            case LogLevel.Silent => false
+            case DirectoryLogLevel.Silent => false
             case _ => true
         }
     }
@@ -774,7 +774,7 @@ public class Options {
     public var dryRun: Bool
     public var global: Bool
     public var scope: NpmRegistryScope
-    public var logLevel: LogLevel
+    public var logLevel: DirectoryLogLevel
 
     public init() {
         cacheDirectory = Array<Byte>()
@@ -785,7 +785,7 @@ public class Options {
         dryRun = false
         global = false
         scope = NpmRegistryScope()
-        logLevel = LogLevel.Info
+        logLevel = DirectoryLogLevel.Info
     }
 
     public static func openGlobalBinDir(install: ?BunInstallConfig): FileDescriptor {
@@ -835,7 +835,7 @@ public class RegistryUrl {
 }
 
 /// 更新请求
-public class UpdateRequest {
+public class DirectoryUpdateRequest {
     public var name: String
     public var version: String
 
@@ -850,13 +850,13 @@ public class LockfilePrinter {
     public var lockfile: Lockfile
     public var options: Options
     public var successfullyInstalled: ?DynamicBitSet
-    public var updates: ArrayList<UpdateRequest>
+    public var updates: ArrayList<DirectoryUpdateRequest>
 
     public init(
         lockfile: Lockfile,
         options: Options,
         successfullyInstalled: ?DynamicBitSet,
-        updates: ArrayList<UpdateRequest>
+        updates: ArrayList<DirectoryUpdateRequest>
     ) {
         this.lockfile = lockfile
         this.options = options
@@ -866,7 +866,7 @@ public class LockfilePrinter {
 }
 
 /// Yarn 打印器
-public class YarnPrinter {
+public class DirectoryYarnPrinter {
     public static func print(printer: LockfilePrinter, buf: ArrayList<Byte>): Unit {
         // 翻译自: lockfile/printer/Yarn.print
     }

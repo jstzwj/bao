@@ -239,11 +239,11 @@ public class ArchitectureSet {
     }
 
     public init() {
-        value = UInt64(0) ^ UInt64(0) - UInt64(1)
+        value = UInt64.Max
     }
 
     public static func ALL_VALUE(): UInt64 {
-        return UInt64(0) - UInt64(1)
+        return UInt64.Max
     }
 
     public func has(arch: UInt64): Bool {
@@ -261,11 +261,11 @@ public class OperatingSystemSet {
     }
 
     public init() {
-        value = UInt64(0) - UInt64(1)
+        value = UInt64.Max
     }
 
     public static func ALL_VALUE(): UInt64 {
-        return UInt64(0) - UInt64(1)
+        return UInt64.Max
     }
 
     public func has(os: UInt64): Bool {

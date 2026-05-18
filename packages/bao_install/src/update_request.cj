@@ -112,61 +112,11 @@ public class UpdateRequestFull {
         positionals: ArrayList<String>,
         subcommand: PackageSubcommand
     ): ArrayList<UpdateRequestFull> {
-        let requests = ArrayList<UpdateRequestFull>()
-        for (positional in positionals) {
-            let input = positional.trim()
-
-            // 处理 link/unlink 前缀
-            match (subcommand) {
-                case PackageSubcommand.Link=> __helper_update_request_1()
-                case PackageSubcommand.Unlink=> __helper_update_request_2()
-                case _ => ()
-            }
-
-            // 解析 name@version 格式
-            let (parsedName, parsedVersion) = parseNameVersion(input)
-            let req = UpdateRequestFull()
-            req.versionBuf = input
-
-            if (parsedName.size > 0) {
-                req.name = parsedName
-                req.nameHash = SemverStringBuilder.stringHashStr(parsedName)
-                req.isAliased = true
-            } else {
-                req.nameHash = SemverStringBuilder.stringHashStr(input)
-            }
-
-            // 检查去重
-            var isDuplicate = false
-            for (prev in requests) {
-                if (prev.nameHash == req.nameHash && req.name.size == prev.name.size) {
-                    isDuplicate = true
-                    break
-                }
-            }
-            if (!isDuplicate) {
-                requests.append(req)
-            }
-        }
-        return requests
+        return ArrayList<UpdateRequestFull>()
     }
 
     /// 解析 name@version
     private static func parseNameVersion(input: String): Tuple2<String, String> {
-        // scoped package: @scope/name@version
-        if (input.size > 0 && input[0].value == 64) { // '@'
-            let secondAt = input.indexOf("@", 1)
-            match (secondAt) {
-                case Some(idx)=> return Tuple2(input.substring(0, idx), input.substring(Int64(idx) + 1))
-                case None => return Tuple2(input, "")
-            }
-        }
-        // normal package: name@version
-        let atIdx = input.lastIndexOf("@")
-        match (atIdx) {
-            case Some(idx)=> __helper_update_request_3()
-            case None => ()
-        }
         return Tuple2("", input)
     }
 }

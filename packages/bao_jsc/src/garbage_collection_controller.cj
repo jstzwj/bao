@@ -6,9 +6,9 @@ package bao_jsc
 // ========== GCTimerState ==========
 // 严格翻译自 GarbageCollectionController.GCTimerState
 public enum GCTimerState {
-    case pending
-    case scheduled
-    case runOnNextTick
+    | pending
+    | scheduled
+    | runOnNextTick
 }
 
 // ========== GarbageCollectionController ==========
@@ -53,7 +53,7 @@ public class GarbageCollectionController {
     }
 
     // 严格翻译自 GarbageCollectionController.bunVM
-    public func bunVM() -> BunVirtualMachine {
+    public func bunVM(): BunVirtualMachine {
         BunVirtualMachine()
     }
 
@@ -134,13 +134,13 @@ public class GarbageCollectionController {
 
 // ========== GCRepeatSetting ==========
 public enum GCRepeatSetting {
-    case fast
-    case slow
+    | fast
+    | slow
 }
 
 // ========== UwsTimer ==========
 public class UwsTimer {
     public init() {}
     public func deinit() {}
-    public func set(ctx: UInt64, callback: (UwsTimer) -> Void, delay: Int32, repeat: Int32) {}
+    public func set(ctx: UInt64, callback: (UwsTimer) -> Unit, delay: Int32, repeat: Int32) {}
 }

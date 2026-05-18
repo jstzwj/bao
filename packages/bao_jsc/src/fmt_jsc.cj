@@ -11,22 +11,13 @@ public class FmtJSC {
 
     // 严格翻译自 js_bindings.fmtString
     // 内部函数，用于 highlighter.test.ts 中的测试
-    public static func fmtString(global: JsObject, code: Array<Byte>, formatterId: Formatter) -> BunString {
-        match (formatterId) {
-            case highlightJavascript => {
-                // Format JavaScript with syntax highlighting
-                BunString()
-            }
-            case escapePowershell => {
-                // Escape for PowerShell
-                BunString()
-            }
-        }
+    public static func fmtString(global: JsObject, code: Array<Byte>, formatterId: Formatter): BunString {
+        return BunString()
     }
 }
 
 // ========== Formatter ==========
 public enum Formatter {
-    case highlightJavascript
-    case escapePowershell
+    | highlightJavascript
+    | escapePowershell
 }

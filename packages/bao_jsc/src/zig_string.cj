@@ -29,7 +29,7 @@ public class ZigString {
     }
 
     // 严格翻译自 ZigString.fromBytes
-    public static func fromBytes(slice: String) -> ZigString {
+    public static func fromBytes(slice: String): ZigString {
         if (!isAllAscii(slice)) {
             return initUTF8(slice)
         }
@@ -37,19 +37,19 @@ public class ZigString {
     }
 
     // 严格翻译自 ZigString.init
-    public static func initFunc(slice: String) -> ZigString {
+    public static func initFunc(slice: String): ZigString {
         ZigString(slice)
     }
 
     // 严格翻译自 ZigString.initUTF8
-    public static func initUTF8(slice: String) -> ZigString {
+    public static func initUTF8(slice: String): ZigString {
         let out = ZigString(slice)
         out.isUtf8 = true
         out
     }
 
     // 严格翻译自 ZigString.static
-    public static func static_(slice: String) -> ZigString {
+    public static func static_(slice: String): ZigString {
         let out = ZigString(slice)
         out.isStatic = true
         out
@@ -58,49 +58,49 @@ public class ZigString {
     // ========== 编码检查 ==========
 
     // 严格翻译自 ZigString.is16Bit
-    public func is16Bit() -> Bool {
+    public func is16Bit(): Bool {
         isUtf16
     }
 
     // 严格翻译自 ZigString.isUTF8
-    public func isUTF8() -> Bool {
+    public func isUTF8(): Bool {
         isUtf8
     }
 
     // 严格翻译自 ZigString.isGloballyAllocated
-    public func isGlobal() -> Bool {
+    public func isGlobal(): Bool {
         isGloballyAllocated
     }
 
     // 严格翻译自 ZigString.isEmpty
-    public func isEmpty() -> Bool {
+    public func isEmpty(): Bool {
         len == 0
     }
 
     // 严格翻译自 ZigString.isAllASCII
-    public func isAllASCII() -> Bool {
+    public func isAllASCII(): Bool {
         isAllAscii(ptr)
     }
 
     // ========== 字符串操作 ==========
 
     // 严格翻译自 ZigString.length
-    public func length() -> Int64 {
+    public func length(): Int64 {
         len
     }
 
     // 严格翻译自 ZigString.slice
-    public func slice() -> String {
+    public func slice(): String {
         ptr
     }
 
     // 严格翻译自 ZigString.substring
-    public func substring(startIndex: Int64) -> ZigString {
+    public func substring(startIndex: Int64): ZigString {
         substringWithLen(startIndex, len)
     }
 
     // 严格翻译自 ZigString.substringWithLen
-    public func substringWithLen(startIndex: Int64, endIndex: Int64) -> ZigString {
+    public func substringWithLen(startIndex: Int64, endIndex: Int64): ZigString {
         let s = if (startIndex < 0) { 0 } else { startIndex }
         let e = if (endIndex > len) { len } else { endIndex }
         if (s >= e) {
@@ -114,7 +114,7 @@ public class ZigString {
     }
 
     // 严格翻译自 ZigString.trunc
-    public func trunc(maxLen: Int64) -> ZigString {
+    public func trunc(maxLen: Int64): ZigString {
         if (maxLen >= len) {
             return this
         }
@@ -125,13 +125,13 @@ public class ZigString {
     }
 
     // 严格翻译自 ZigString.hasPrefixChar
-    public func hasPrefixChar(c: UInt8) -> Bool {
+    public func hasPrefixChar(c: UInt8): Bool {
         if (len == 0) { return false }
         ptr[0] == c
     }
 
     // 严格翻译自 ZigString.charAt
-    public func charAt(offset: Int64) -> UInt8 {
+    public func charAt(offset: Int64): UInt8 {
         if (offset < 0 || offset >= len) { return 0 }
         UInt8(ptr[Int64(offset)])
     }
@@ -139,7 +139,7 @@ public class ZigString {
     // ========== 比较 ==========
 
     // 严格翻译自 ZigString.eql
-    public func eql(other: ZigString) -> Bool {
+    public func eql(other: ZigString): Bool {
         if (len == 0 || other.len == 0) {
             return len == other.len
         }
@@ -151,49 +151,49 @@ public class ZigString {
     }
 
     // 严格翻译自 ZigString.eqlCaseInsensitive
-    public func eqlCaseInsensitive(other: ZigString) -> Bool {
+    public func eqlCaseInsensitive(other: ZigString): Bool {
         ptr.toLowerAscii() == other.ptr.toLowerAscii()
     }
 
     // 严格翻译自 ZigString.eqlComptime
-    public func eqlComptime(other: String) -> Bool {
+    public func eqlComptime(other: String): Bool {
         ptr == other
     }
 
     // ========== JS 互操作 ==========
 
     // 严格翻译自 ZigString.toJS
-    public func toJS(global: JsObject) -> JsValue {
+    public func toJS(global: JsObject): JsValue {
         JsValue(s: ptr)
     }
 
     // 严格翻译自 ZigString.toErrorInstance
-    public func toErrorInstance(global: JsObject) -> JsValue {
+    public func toErrorInstance(global: JsObject): JsValue {
         JsValue(JsError(ptr).toString())
     }
 
     // 严格翻译自 ZigString.toTypeErrorInstance
-    public func toTypeErrorInstance(global: JsObject) -> JsValue {
+    public func toTypeErrorInstance(global: JsObject): JsValue {
         JsValue(JsTypeError(ptr).toString())
     }
 
     // 严格翻译自 ZigString.toSyntaxErrorInstance
-    public func toSyntaxErrorInstance(global: JsObject) -> JsValue {
+    public func toSyntaxErrorInstance(global: JsObject): JsValue {
         JsValue(JsSyntaxError(ptr).toString())
     }
 
     // 严格翻译自 ZigString.toRangeErrorInstance
-    public func toRangeErrorInstance(global: JsObject) -> JsValue {
+    public func toRangeErrorInstance(global: JsObject): JsValue {
         JsValue(JsRangeError(ptr).toString())
     }
 
     // 严格翻译自 ZigString.toJSONObject
-    public func toJSONObject(global: JsObject) -> JsValue {
+    public func toJSONObject(global: JsObject): JsValue {
         JsValue.undefined()  // 简化实现
     }
 
     // 严格翻译自 ZigString.toURL
-    public func toURL(global: JsObject) -> JsValue {
+    public func toURL(global: JsObject): JsValue {
         JsValue.undefined()  // 简化实现
     }
 
@@ -229,24 +229,24 @@ public class ZigString {
     // ========== 辅助 ==========
 
     // 转为字符串
-    public func toString() -> String {
+    public func toString(): String {
         ptr
     }
 
     // 严格翻译自 ZigString.maxUTF8ByteLength
-    public func maxUTF8ByteLength() -> Int64 {
+    public func maxUTF8ByteLength(): Int64 {
         if (isUTF8()) { return len }
         if (is16Bit()) { return len * 3 }
         len * 2
     }
 
     // 严格翻译自 ZigString.toOwnedSlice
-    public func toOwnedSlice() -> String {
+    public func toOwnedSlice(): String {
         String(ptr)
     }
 
     // 严格翻译自 ZigString.trimmedSlice
-    public func trimmedSlice() -> String {
+    public func trimmedSlice(): String {
         ptr.trim()
     }
 
@@ -255,7 +255,7 @@ public class ZigString {
     public static let Empty = ZigString()
 
     // 检查字符串是否全为 ASCII
-    func isAllAscii(s: String) -> Bool {
+    func isAllAscii(s: String): Bool {
         for (c in s) {
             if (c.code > 127) {
                 return false
@@ -296,22 +296,22 @@ public class ZigStringSlice {
     public static let empty = ZigStringSlice()
 
     // 严格翻译自 Slice.byteLength
-    public func byteLength() -> Int64 {
+    public func byteLength(): Int64 {
         Int64(len)
     }
 
     // 严格翻译自 Slice.length
-    public func length() -> Int64 {
+    public func length(): Int64 {
         Int64(len)
     }
 
     // 严格翻译自 Slice.slice
-    public func slice() -> String {
+    public func slice(): String {
         ptr
     }
 
     // 严格翻译自 Slice.toZigString
-    public func toZigString() -> ZigString {
+    public func toZigString(): ZigString {
         ZigString(ptr)
     }
 

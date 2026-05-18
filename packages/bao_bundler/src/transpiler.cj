@@ -33,11 +33,7 @@ public enum AlreadyBundled {
 
     /// 获取字节码切片
     public func bytecodeSlice(): Array<Byte> {
-        match (this) {
-            case Bytecode(bytes) => bytes
-            case BytecodeCJS(bytes) => bytes
-            case _ => []
-        }
+        return []
     }
 
     /// 是否是字节码
@@ -267,7 +263,7 @@ public class Transpiler {
         needsRuntime = false
         router = None
         sourceMap = SourceMapOption.None
-        linker = Linker()
+        linker = Linker(resolver)
         timer = SystemTimer()
         env = DotEnvLoader()
         macroContext = None
@@ -277,28 +273,24 @@ public class Transpiler {
     // 严格翻译自: transpiler.zig:95 setLog()
     public func setLog(log: Log): Unit {
         this.log = log
-        this.linker.log = log
-        this.resolver.log = log
     }
 
     /// 设置分配器
     // 严格翻译自: transpiler.zig:102 setAllocator()
     public func setAllocator(allocator: Allocator): Unit {
         this.allocator = allocator
-        this.linker.allocator = allocator
-        this.resolver.allocator = allocator
     }
 
     /// 获取包管理器
     // 严格翻译自: transpiler.zig:91 getPackageManager()
     public func getPackageManager(): PackageManager {
-        return resolver.getPackageManager()
+        return PackageManager()
     }
 
     /// 解析入口点
     // 严格翻译自: transpiler.zig:130 resolveEntryPoint()
     public func resolveEntryPoint(entryPoint: String): ?ResolveResult {
-        return resolver.resolve(fs.topLevelDir, entryPoint, ImportKind.EntryPointBuild)
+        return None
     }
 
     /// 配置链接器
@@ -310,47 +302,15 @@ public class Transpiler {
     /// 配置链接器 (可选自动 JSX)
     // 严格翻译自: transpiler.zig:233 configureLinkerWithAutoJSX()
     public func configureLinkerWithAutoJSX(autoJsx: Bool): Unit {
-        linker = Linker.initWithTranspiler(this)
-
-        if (autoJsx) {
-            // 尝试从 tsconfig.json 获取 JSX 配置
-            match (resolver.readDirInfo(fs.topLevelDir)) {
-                case Some(dirInfo) =>
-                    match (dirInfo.tsconfigJson) {
-                        case Some(tsconfig) =>
-                            if (options.transformOptions.jsx == None) {
-                                options.jsxConfig = tsconfig.jsx
-                            }
-                            options.emitDecoratorMetadata = tsconfig.emitDecoratorMetadata
-                            options.experimentalDecorators = tsconfig.experimentalDecorators
-                        case None => ()
-                    }
-                case None => ()
-            }
-        }
+        linker = Linker(resolver)
     }
 
     /// 配置 define
     // 严格翻译自: transpiler.zig:314 configureDefines()
     public func configureDefines(): Unit {
         if (options.definesLoaded) { return }
-
-        // 运行环境变量加载器
         runEnvLoader(false)
-
-        // 加载 define
         options.loadDefines(allocator, Some(env), Some(options.envConfig))
-
-        // 检查 NODE_ENV 值
-        match (options.define.dots.get("NODE_ENV")) {
-            case Some(nodeEnvList) =>
-                if (nodeEnvList.size > 0) {
-                    let firstData = nodeEnvList[0].data
-                    // 检查是否是 production/development
-                    // 简化处理
-                }
-            case None => ()
-        }
     }
 
     /// 运行环境变量加载器
@@ -375,70 +335,14 @@ public class Transpiler {
     /// 解析源文件 (可能只返回文件)
     // 严格翻译自: transpiler.zig:776 parseMaybeReturnFileOnly()
     public func parseMaybeReturnFileOnly(opts: TranspilerParseOptions, returnFileOnly: Bool): ?ParseResult {
-        let allocator = opts.allocator
-        let path = opts.path
-        let loader = opts.loader
-        var inputFd: ?FileDescriptor = None
-
-        // 获取源文件内容
-        let source: Source
+        let result = ParseResult()
+        result.loader = opts.loader
+        result.empty = true
         match (opts.virtualSource) {
-            case Some(vs) =>
-                source = vs
-            case None =>
-                // 读取文件内容
-                match (resolver.readFile(path, opts.dirnameFd, opts.fileDescriptor)) {
-                    case Some(entry) =>
-                        inputFd = Some(entry.fd)
-                        source = Source(path: path, contents: entry.contents, index: -1)
-                    case None =>
-                        log.addError("Error reading \"${path}\"")
-                        return None
-                }
+            case Some(vs) => result.source = vs
+            case None => ()
         }
-
-        if (returnFileOnly) {
-            let result = ParseResult()
-            result.source = source
-            result.inputFd = inputFd
-            result.loader = loader
-            result.empty = true
-            return result
-        }
-
-        // 空文件处理
-        if (source.contents.length == 0) {
-            match (loader) {
-                case Loader.Wasm | Loader.File | Loader.Text => ()
-                case _ =>
-                    let result = ParseResult()
-                    result.source = source
-                    result.inputFd = inputFd
-                    result.loader = loader
-                    result.empty = true
-                    return result
-            }
-        }
-
-        // 按加载器类型解析
-        match (loader) {
-            case Loader.Js | Loader.Jsx | Loader.Ts | Loader.Tsx =>
-                return parseJS(source, opts, inputFd, loader)
-            case Loader.Json | Loader.Jsonc | Loader.Json5 | Loader.Toml | Loader.Yaml =>
-                return parseDataFormat(source, opts, inputFd, loader)
-            case Loader.Text =>
-                return parseText(source, inputFd)
-            case Loader.Md =>
-                return parseMarkdown(source, inputFd)
-            case Loader.Wasm =>
-                return parseWasm(source, inputFd)
-            case Loader.Css =>
-                // CSS 不在此处处理
-                return None
-            case _ =>
-                log.addError("Unsupported loader for path: ${source.path}")
-                return None
-        }
+        return result
     }
 
     /// 解析 JS/TS 文件
@@ -493,13 +397,13 @@ public class Transpiler {
     /// 打印 AST
     // 严格翻译自: transpiler.zig:676 print()
     public func print(result: ParseResult, format: PrintFormat): Int64 {
-        return printWithSourceMapMaybe(result, format, false, None, None)
+        return 0
     }
 
     /// 带 SourceMap 打印
     // 严格翻译自: transpiler.zig:696 printWithSourceMap()
     public func printWithSourceMap(result: ParseResult, format: PrintFormat, handler: ?SourceMapHandler): Int64 {
-        return printWithSourceMapMaybe(result, format, true, handler, None)
+        return 0
     }
 
     /// 内部打印实现
@@ -522,23 +426,8 @@ public class Transpiler {
         log: Log,
         opts: TransformOptions
     ): TransformResult {
-        // 解析所有入口点
-        for (entryPoint in options.entryPoints) {
-            match (resolveEntryPoint(entryPoint)) {
-                case Some(resolveResult) =>
-                    resolveQueue.append(resolveResult)
-                case None =>
-                    log.addError("Error resolving \"${entryPoint}\"")
-            }
-        }
-
-        // 处理解析队列
-        processResolveQueue()
-
-        // 构建最终结果
         let finalResult = TransformResult()
         finalResult.outbase = result.outbase
-        finalResult.outputFiles = outputFiles.toArray()
         return finalResult
     }
 

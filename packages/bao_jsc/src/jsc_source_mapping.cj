@@ -6,7 +6,7 @@ public class BunJscSourceMapping {
     public let bunPath: String
     public let baoPath: String
 
-    public init(_ bunPath: String, _ baoPath: String) {
+    public init(bunPath: String, baoPath: String) {
         this.bunPath = bunPath
         this.baoPath = baoPath
     }

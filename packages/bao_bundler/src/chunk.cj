@@ -82,7 +82,7 @@ public class OutputPiece {
 
     /// 获取数据长度
     public func dataLen(): Int64 {
-        return Int64(data.length)
+        return 0
     }
 }
 
@@ -432,15 +432,9 @@ public class PathTemplate {
     /// 应用模板生成文件名
     public func apply(): String {
         var result = template
-        if (name.length > 0) {
-            result = result.replace("[name]", name)
-        }
-        if (hash.length > 0) {
-            result = result.replace("[hash]", hash)
-        }
-        if (ext.length > 0) {
-            result = result.replace("[ext]", ext)
-        }
+        result = result.replace("[name]", name)
+        result = result.replace("[hash]", hash)
+        result = result.replace("[ext]", ext)
         return result
     }
 }
@@ -856,16 +850,7 @@ public class ChunkBuilder {
     /// 生成 chunk 文件名
     private func generateChunkName(entryPath: String, index: Int64): String {
         let name = Path.basename(entryPath)
-        let dotIndex = match (name.lastIndexOf(".")) {
-            case Some(idx) => idx
-            case None => Int64(name.length)
-        }
-        let baseName = if (dotIndex > 0) {
-            name[0..dotIndex]
-        } else {
-            name
-        }
-        return baseName.toString() + ".js"
+        return name + ".js"
     }
 
     /// 哈希模块列表

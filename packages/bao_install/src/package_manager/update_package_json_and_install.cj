@@ -29,7 +29,7 @@ public class UpdatePackageJSONAndInstall {
     ///   pub fn updatePackageJSONAndInstall(ctx, comptime cli, log_level) !void
     ///   创建包管理器, 加载配置, 执行安装
     public static func updatePackageJSONAndInstall(
-        ctx: CommandContext,
+        ctx: UpdateInstallCommandContext,
         logLevel: LogLevel
     ): Unit {
         try {
@@ -61,8 +61,8 @@ public class UpdatePackageJSONAndInstall {
     ///   5. 运行脚本
     ///   6. 保存锁文件
     public static func updatePackageJSONAndInstallWithManager(
-        manager: PackageManagerState,
-        ctx: CommandContext,
+        manager: UpdateInstallPackageManagerState,
+        ctx: UpdateInstallCommandContext,
         rootPackageJsonPath: String,
         originalCwd: String
     ): Unit {
@@ -167,7 +167,7 @@ public class UpdatePackageJSONAndInstall {
     /// 翻译自: getWorkspaceFilters
     ///   pub fn getWorkspaceFilters(manager, original_cwd) !struct { []const WorkspaceFilter, bool }
     public static func getWorkspaceFilters(
-        manager: PackageManagerState,
+        manager: UpdateInstallPackageManagerState,
         originalCwd: String
     ): WorkspaceFilterResult {
         var workspaceFilters = ArrayList<WorkspaceFilter>()
@@ -191,8 +191,8 @@ public class UpdatePackageJSONAndInstall {
     /// 严格翻译自: printInstallSummary
     ///   fn printInstallSummary(this, ctx, install_summary, did_meta_hash_change, log_level) !void
     public static func printInstallSummary(
-        manager: PackageManagerState,
-        ctx: CommandContext,
+        manager: UpdateInstallPackageManagerState,
+        ctx: UpdateInstallCommandContext,
         summary: PackageInstallSummary,
         hadAnyDiffs: Bool
     ): Unit {
@@ -241,7 +241,7 @@ public class UpdatePackageJSONAndInstall {
     /// 是否应保存锁文件
     private static func shouldSaveLockfile(
         loadResult: LoadResult,
-        manager: PackageManagerState,
+        manager: UpdateInstallPackageManagerState,
         hadAnyDiffs: Bool
     ): Bool {
         return manager.options.doSaveLockfile &&
@@ -252,8 +252,8 @@ public class UpdatePackageJSONAndInstall {
     }
 
     /// 创建包管理器
-    private static func createPackageManager(ctx: CommandContext, logLevel: LogLevel): PackageManagerState {
-        let manager = PackageManagerState()
+    private static func createPackageManager(ctx: UpdateInstallCommandContext, logLevel: LogLevel): UpdateInstallPackageManagerState {
+        let manager = UpdateInstallPackageManagerState()
         manager.options.logLevel = logLevel
         return manager
     }
@@ -269,7 +269,7 @@ public class UpdatePackageJSONAndInstall {
         }
     }
 
-    private static func runSecurityScan(scanner: SecurityScanner, manager: PackageManagerState): Unit {
+    private static func runSecurityScan(scanner: SecurityScanner, manager: UpdateInstallPackageManagerState): Unit {
         let results = scanner.performSecurityScan(manager: manager)
         match (results) {
             case Some(scanResults) => handleScanResults(scanResults)
@@ -424,18 +424,18 @@ public enum PackageSubcommand {
 }
 
 /// 包管理器状态
-public class PackageManagerState {
-    public var options: PackageManagerOptions
+public class UpdateInstallPackageManagerState {
+    public var options: UpdateInstallPackageManagerOptions
     public var lockfile: LockfileRef
-    public var updateRequests: ArrayList<UpdateRequest>
+    public var updateRequests: ArrayList<UpdateInstallRequest>
     public var summary: InstallDiffSummary
     public var securityScanner: ?SecurityScannerRef
     public var subcommand: PackageSubcommand
 
     public init() {
-        options = PackageManagerOptions()
+        options = UpdateInstallPackageManagerOptions()
         lockfile = LockfileRef()
-        updateRequests = ArrayList<UpdateRequest>()
+        updateRequests = ArrayList<UpdateInstallRequest>()
         summary = InstallDiffSummary()
         securityScanner = None
         subcommand = PackageSubcommand.Install
@@ -457,7 +457,7 @@ public class PackageManagerState {
 }
 
 /// 包管理器选项
-public class PackageManagerOptions {
+public class UpdateInstallPackageManagerOptions {
     public var logLevel: LogLevel
     public var doLoadLockfile: Bool
     public var doSaveLockfile: Bool
@@ -505,7 +505,7 @@ public class PackageData {
 
 /// 安全扫描器引用
 public class SecurityScannerRef {
-    public func performSecurityScan(manager: PackageManagerState): ?SecurityScanResults { return None }
+    public func performSecurityScan(manager: UpdateInstallPackageManagerState): ?SecurityScanResults { return None }
 }
 
 /// 安全扫描结果
@@ -521,7 +521,7 @@ public class SecurityScanner {
 }
 
 /// 命令上下文
-public class CommandContext {
+public class UpdateInstallCommandContext {
     public var cwd: String
 
     public init() {
@@ -530,7 +530,7 @@ public class CommandContext {
 }
 
 /// 更新请求
-public class UpdateRequest {
+public class UpdateInstallRequest {
     public var name: String
     public var failed: Bool
 

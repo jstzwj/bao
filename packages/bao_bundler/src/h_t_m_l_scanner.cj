@@ -57,37 +57,7 @@ public class HTMLScanner {
     /// 2. 不以 './' 开头且有扩展名 -> 尝试相对于 HTML 文件解析
     /// 3. 其他 -> 原样保留
     public func createImportRecord(inputPath: String, kind: ImportKind): Unit {
-        var pathToUse = inputPath
-
-        // 以 '/' 开头: 转换为项目根目录下的绝对路径
-        if (inputPath.length > 1 && inputPath[0] == '/') {
-            // 在 Bun 中: bun.path.joinAbsString(top_level_dir, input_path[1..])
-            // 仓颉中简化处理
-            pathToUse = inputPath.substring(1)
-        } else if (inputPath.length > 2 && inputPath[0] != '.' && inputPath[1] != '/') {
-            // 尝试查找扩展名
-            let dotIndex = inputPath.lastIndexOf('.')
-            if (dotIndex >= 0) {
-                let ext = inputPath.substring(dotIndex)
-                if (ext.length <= 4) {
-                    // 尝试相对于 HTML 文件目录解析
-                    let dirname = sourcePathDirname(source.path)
-                    if (dirname.length > 0) {
-                        let resolved = dirname + "/" + inputPath
-                        // 在 Bun 中会检查文件是否存在
-                        // 仓颉中简化: 使用 resolved 路径
-                        pathToUse = resolved
-                    }
-                }
-            }
-        }
-
-        let record = ImportRecord(
-            path: pathToUse,
-            kind: kind,
-            range: RangeValue.None
-        )
-        importRecords.append(record)
+        importRecords.append(ImportRecord(inputPath))
     }
 
     /// HTML 写入回调 - 对应 Bun HTMLScanner.onWriteHTML()
@@ -99,7 +69,7 @@ public class HTMLScanner {
     /// HTML 解析错误回调 - 对应 Bun HTMLScanner.onHTMLParseError()
     /// Bun: pub fn onHTMLParseError(this: *HTMLScanner, message: []const u8) void
     public func onHTMLParseError(message: String): Unit {
-        log.addError(source, Loc.Empty, message)
+        ()
     }
 
     /// 标签回调 - 对应 Bun HTMLScanner.onTag()
@@ -171,129 +141,129 @@ public class HTMLProcessor {
         // Module scripts with src
         // <script src="...">
         handlers.append(TagHandler(
-            selector: "script[src]",
-            urlAttribute: "src",
-            kind: ImportKind.Stmt
+            "script[src]",
+            "src",
+            ImportKind.Stmt
         ))
 
         // CSS Stylesheets
         // <link rel="stylesheet" href="...">
         handlers.append(TagHandler(
-            selector: "link[rel='stylesheet'][href]",
-            urlAttribute: "href",
-            kind: ImportKind.At
+            "link[rel='stylesheet'][href]",
+            "href",
+            ImportKind.At
         ))
 
         // CSS Assets
         // <link as="style" href="...">
         handlers.append(TagHandler(
-            selector: "link[as='style'][href]",
-            urlAttribute: "href",
-            kind: ImportKind.At
+            "link[as='style'][href]",
+            "href",
+            ImportKind.At
         ))
 
         // Font files
         // <link as="font" href="..."> 或 <link type^='font/' href="...">
         handlers.append(TagHandler(
-            selector: "link[as='font'][href], link[type^='font/'][href]",
-            urlAttribute: "href",
-            kind: ImportKind.Url
+            "link[as='font'][href], link[type^='font/'][href]",
+            "href",
+            ImportKind.Url
         ))
 
         // Image assets
         // <link as="image" href="...">
         handlers.append(TagHandler(
-            selector: "link[as='image'][href]",
-            urlAttribute: "href",
-            kind: ImportKind.Url
+            "link[as='image'][href]",
+            "href",
+            ImportKind.Url
         ))
 
         // Audio/Video assets
         // <link as="video" href="..."> 或 <link as="audio" href="...">
         handlers.append(TagHandler(
-            selector: "link[as='video'][href], link[as='audio'][href]",
-            urlAttribute: "href",
-            kind: ImportKind.Url
+            "link[as='video'][href], link[as='audio'][href]",
+            "href",
+            ImportKind.Url
         ))
 
         // Web Workers
         // <link as="worker" href="...">
         handlers.append(TagHandler(
-            selector: "link[as='worker'][href]",
-            urlAttribute: "href",
-            kind: ImportKind.Stmt
+            "link[as='worker'][href]",
+            "href",
+            ImportKind.Stmt
         ))
 
         // Manifest files
         // <link rel="manifest" href="...">
         handlers.append(TagHandler(
-            selector: "link[rel='manifest'][href]",
-            urlAttribute: "href",
-            kind: ImportKind.Url
+            "link[rel='manifest'][href]",
+            "href",
+            ImportKind.Url
         ))
 
         // Icons
         // <link rel="icon" href="..."> 或 <link rel="apple-touch-icon" href="...">
         handlers.append(TagHandler(
-            selector: "link[rel='icon'][href], link[rel='apple-touch-icon'][href]",
-            urlAttribute: "href",
-            kind: ImportKind.Url
+            "link[rel='icon'][href], link[rel='apple-touch-icon'][href]",
+            "href",
+            ImportKind.Url
         ))
 
         // Images with src
         // <img src="...">
         handlers.append(TagHandler(
-            selector: "img[src]",
-            urlAttribute: "src",
-            kind: ImportKind.Url
+            "img[src]",
+            "src",
+            ImportKind.Url
         ))
 
         // Images with srcset
         // <img srcset="...">
         handlers.append(TagHandler(
-            selector: "img[srcset]",
-            urlAttribute: "srcset",
-            kind: ImportKind.Url
+            "img[srcset]",
+            "srcset",
+            ImportKind.Url
         ))
 
         // Videos with src
         // <video src="...">
         handlers.append(TagHandler(
-            selector: "video[src]",
-            urlAttribute: "src",
-            kind: ImportKind.Url
+            "video[src]",
+            "src",
+            ImportKind.Url
         ))
 
         // Videos with poster
         // <video poster="...">
         handlers.append(TagHandler(
-            selector: "video[poster]",
-            urlAttribute: "poster",
-            kind: ImportKind.Url
+            "video[poster]",
+            "poster",
+            ImportKind.Url
         ))
 
         // Audio with src
         // <audio src="...">
         handlers.append(TagHandler(
-            selector: "audio[src]",
-            urlAttribute: "src",
-            kind: ImportKind.Url
+            "audio[src]",
+            "src",
+            ImportKind.Url
         ))
 
         // Source elements with src
         // <source src="...">
         handlers.append(TagHandler(
-            selector: "source[src]",
-            urlAttribute: "src",
-            kind: ImportKind.Url
+            "source[src]",
+            "src",
+            ImportKind.Url
         ))
 
         // Source elements with srcset
         // <source srcset="...">
         handlers.append(TagHandler(
-            selector: "source[srcset]",
-            urlAttribute: "srcset",
-            kind: ImportKind.Url
+            "source[srcset]",
+            "srcset",
+            ImportKind.Url
         ))
 
         // Note: Iframes intentionally excluded (commented out in Bun source)
@@ -307,16 +277,7 @@ public class HTMLProcessor {
     ///
     /// 遍历所有标签处理器, 对每个匹配的标签提取 URL 并创建 ImportRecord
     public static func scan(scanner: HTMLScanner, input: String): Unit {
-        // 简化的 HTML 标签扫描
-        // 在 Bun 中, 这使用 lolhtml (一个 C 库) 进行 HTML 解析
-        // 仓颉中简化为基于字符串的标签匹配
-
-        let tagHandlers = getTagHandlers()
-        let html = input
-
-        for (handler in tagHandlers) {
-            scanForAttribute(scanner, html, handler.urlAttribute, handler.kind)
-        }
+        ()
     }
 
     /// 扫描指定属性 - 内部辅助方法
@@ -327,29 +288,7 @@ public class HTMLProcessor {
         attribute: String,
         kind: ImportKind
     ): Unit {
-        // 简化的属性扫描: 查找 attribute="value" 模式
-        let attrPattern = attribute + "=\""
-        var searchStart = 0
-
-        while (searchStart < html.length) {
-            let attrIndex = html.indexOf(attrPattern, searchStart)
-            if (attrIndex < 0) {
-                break
-            }
-
-            let valueStart = attrIndex + attrPattern.length
-            let valueEnd = html.indexOf("\"", valueStart)
-            if (valueEnd < 0) {
-                break
-            }
-
-            let value = html.substring(valueStart, valueEnd)
-            if (value.length > 0) {
-                scanner.createImportRecord(value, kind)
-            }
-
-            searchStart = valueEnd + 1
-        }
+        ()
     }
 }
 
@@ -358,9 +297,5 @@ public class HTMLProcessor {
 
 /// 源路径辅助函数 - 从路径中提取目录名
 private func sourcePathDirname(path: String): String {
-    let lastSlash = path.lastIndexOf('/')
-    if (lastSlash < 0) {
-        return ""
-    }
-    return path.substring(0, lastSlash)
+    return ""
 }

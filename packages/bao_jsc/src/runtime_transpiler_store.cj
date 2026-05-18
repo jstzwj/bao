@@ -15,7 +15,7 @@ public class RuntimeTranspilerStore {
 
     // 严格翻译自 dumpSourceString
     public static func dumpSourceString(vm: BunVirtualMachine, specifier: String, written: String) {
-        try dumpSourceStringFailiable(vm, specifier, written)
+        dumpSourceStringFailiable(vm, specifier, written)
     }
 
     // 严格翻译自 dumpSourceStringFailiable
@@ -28,5 +28,5 @@ public class RuntimeTranspilerStore {
 
 // 支撑类型
 public class SourceCodePrinter {
-    public func getWritten() -> String { "" }
+    public func getWritten(): String { "" }
 }

@@ -69,13 +69,13 @@ public class JsValue {
     }
 
     // Undefined 单例
-    public static func undefined() -> JsValue {
+    public static func undefined(): JsValue {
         let v = JsValue()
         return v
     }
 
     // Null 单例
-    public static func null() -> JsValue {
+    public static func null(): JsValue {
         let v = JsValue()
         v.valueType = JsValueType.Null
         return v
@@ -127,7 +127,7 @@ public class JsValue {
 
     // 严格翻译自 JSValue.fromCell
     // 从 JSCell 创建 JsValue
-    public static func fromCell(cell: JsCell_) -> JsValue {
+    public static func fromCell(cell: JsCell_): JsValue {
         let v = JsValue()
         v.valueType = JsValueType.Object
         v.rawPtr = cell.rawPtr
@@ -135,47 +135,47 @@ public class JsValue {
     }
 
     // 类型检查方法 - 严格翻译自 JSValue.zig isXxx 方法
-    public func isUndefined() -> Bool {
+    public func isUndefined(): Bool {
         valueType == JsValueType.Undefined
     }
 
-    public func isNull() -> Bool {
+    public func isNull(): Bool {
         valueType == JsValueType.Null
     }
 
-    public func isBoolean() -> Bool {
+    public func isBoolean(): Bool {
         valueType == JsValueType.Boolean
     }
 
-    public func isNumber() -> Bool {
+    public func isNumber(): Bool {
         valueType == JsValueType.Number
     }
 
-    public func isString() -> Bool {
+    public func isString(): Bool {
         valueType == JsValueType.String
     }
 
-    public func isObject() -> Bool {
+    public func isObject(): Bool {
         valueType == JsValueType.Object
     }
 
-    public func isSymbol() -> Bool {
+    public func isSymbol(): Bool {
         valueType == JsValueType.Symbol
     }
 
-    public func isBigInt() -> Bool {
+    public func isBigInt(): Bool {
         valueType == JsValueType.BigInt
     }
 
-    public func isPrimitive() -> Bool {
+    public func isPrimitive(): Bool {
         !isObject()
     }
 
-    public func isNullOrUndefined() -> Bool {
+    public func isNullOrUndefined(): Bool {
         isNull() || isUndefined()
     }
 
-    public func isCallable() -> Bool {
+    public func isCallable(): Bool {
         if (isObject()) {
             let obj = objectValue.getOrThrow()
             return obj.isFunction
@@ -185,7 +185,7 @@ public class JsValue {
 
     // 类型转换 - 严格翻译自 JSValue.zig toXxx 方法
     // ToBoolean - JS ToBoolean 抽象操作
-    public func toBoolean() -> Bool {
+    public func toBoolean(): Bool {
         match (valueType) {
             case Undefined => false
             case Null => false
@@ -199,7 +199,7 @@ public class JsValue {
     }
 
     // ToNumber - JS ToNumber 抽象操作
-    public func toNumber() -> Float64 {
+    public func toNumber(): Float64 {
         match (valueType) {
             case Undefined => Float64.NaN
             case Null => 0.0
@@ -226,7 +226,7 @@ public class JsValue {
     }
 
     // ToString - JS ToString 抽象操作
-    public func toString() -> String {
+    public func toString(): String {
         match (valueType) {
             case Undefined => "undefined"
             case Null => "null"
@@ -252,7 +252,7 @@ public class JsValue {
     }
 
     // ToObject - JS ToObject 抽象操作
-    public func toObject() -> JsObject {
+    public func toObject(): JsObject {
         match (valueType) {
             case Undefined => throw JsTypeError("Cannot convert undefined to object")
             case Null => throw JsTypeError("Cannot convert null to object")
@@ -266,7 +266,7 @@ public class JsValue {
     }
 
     // ToInteger - JS ToIntegerOrInfinity 抽象操作
-    public func toInteger() -> Int64 {
+    public func toInteger(): Int64 {
         if (isNull() || isUndefined()) {
             return 0
         }
@@ -281,7 +281,7 @@ public class JsValue {
     }
 
     // ToLength - JS ToLength 抽象操作
-    public func toLength() -> UInt64 {
+    public func toLength(): UInt64 {
         let len = toInteger()
         if (len < 0) {
             return 0
@@ -291,7 +291,7 @@ public class JsValue {
 
     // JSValue 比较
     // Strict Equality (===)
-    public static func strictEqual(a: JsValue, b: JsValue) -> Bool {
+    public static func strictEqual(a: JsValue, b: JsValue): Bool {
         if (a.valueType != b.valueType) {
             // NaN === NaN is true in JS
             if (a.isNumber() && b.isNumber()) {
@@ -322,8 +322,8 @@ public class JsValue {
     }
 
     // Abstract Equality (==) - JS Abstract Equality Comparison
-    public static func abstractEqual(a: JsValue, b: JsValue) -> Bool {
-        // Same type -> strict equal
+    public static func abstractEqual(a: JsValue, b: JsValue): Bool {
+        // Same `type` -> strict equal
         if (a.valueType == b.valueType) {
             return strictEqual(a, b)
         }
@@ -363,7 +363,7 @@ public class JsValue {
     }
 
     // ToPrimitive - JS ToPrimitive 抽象操作
-    public func toPrimitive(preferredType: JsValueType) -> JsValue {
+    public func toPrimitive(preferredType: JsValueType): JsValue {
         if (!isObject()) {
             return this
         }
@@ -392,7 +392,7 @@ public class JsValue {
     }
 
     // JSON 序列化
-    public func toJsonString() -> String {
+    public func toJsonString(): String {
         match (valueType) {
             case Undefined => "undefined"
             case Null => "null"
@@ -411,7 +411,7 @@ public class JsValue {
     }
 
     // 工具方法
-    func stringToNumber(s: String) -> Float64 {
+    func stringToNumber(s: String): Float64 {
         let trimmed = s.trim()
         if (trimmed.isEmpty) {
             return 0.0
@@ -440,7 +440,7 @@ public class JsValue {
         Float64.parseDouble(trimmed).getOr(0.0)
     }
 
-    func numberToString(n: Float64) -> String {
+    func numberToString(n: Float64): String {
         if (isNaN(n)) {
             return "NaN"
         }
@@ -456,7 +456,7 @@ public class JsValue {
         String(n)
     }
 
-    func escapeJsonString(s: String) -> String {
+    func escapeJsonString(s: String): String {
         var result = StringBuilder()
         for (i in 0..s.size) {
             let c = s[i]
@@ -480,7 +480,7 @@ public class JsValue {
         result.toString()
     }
 
-    func isNaN(n: Float64) -> Bool {
+    func isNaN(n: Float64): Bool {
         n != n
     }
 }
@@ -523,7 +523,7 @@ public class JsSymbol {
     }
 
     // Symbol.for(key) - 全局注册表
-    public static func forKey(key: String) -> JsSymbol {
+    public static func forKey(key: String): JsSymbol {
         if (let Some(sym) <- registry.get(key)) {
             return sym
         }
@@ -533,7 +533,7 @@ public class JsSymbol {
     }
 
     // Symbol.keyFor(sym) - 查找全局注册的 key
-    public static func keyFor(sym: JsSymbol) -> ?String {
+    public static func keyFor(sym: JsSymbol): ?String {
         for ((k, v) in registry) {
             if (v.id == sym.id) {
                 return k
@@ -542,7 +542,7 @@ public class JsSymbol {
         return None
     }
 
-    public func toString() -> String {
+    public func toString(): String {
         if (description.isEmpty) {
             "Symbol()"
         } else {

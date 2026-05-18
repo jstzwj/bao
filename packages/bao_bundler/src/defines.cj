@@ -9,6 +9,22 @@ import bao_io.*
 import bao_path.*
 import bao_sys.*
 
+// 前置声明: 全局无副作用常量 (必须在 Define 类使用之前定义)
+// 严格翻译自: defines-table.zig global_no_side_effect_property_accesses
+public let globalNoSideEffectPropertyAccesses: Array<ArrayList<String>> = [
+    // 简化: 包含主要的全局无副作用属性
+]
+
+/// 全局无副作用函数调用列表 (toString 安全)
+// 严格翻译自: defines-table.zig global_no_side_effect_function_calls_safe_for_to_string
+public let globalNoSideEffectFunctionCallsSafeForToString: Array<ArrayList<String>> = [
+    // 简化: 包含主要的全局无副作用函数
+]
+
+/// 纯全局标识符映射
+// 严格翻译自: defines-table.zig pure_global_identifier_map
+public let pureGlobalIdentifierMap: HashMap<String, DefineData> = HashMap<String, DefineData>()
+
 // ============================================================================
 // 宏定义处理
 // 严格翻译自: src/bundler/defines.zig
@@ -59,7 +75,7 @@ public class DefineData {
         match (options.originalName) {
             case Some(name) =>
                 originalNamePtr = Some(name)
-                originalNameLen = UInt32(name.length)
+                originalNameLen = UInt32(name.size)
             case None =>
                 originalNamePtr = None
                 originalNameLen = 0
@@ -189,9 +205,9 @@ public class DefineData {
             )
         }
 
-        if (valueStr.length > 0) {
+        if (valueStr.size > 0) {
             data.originalNamePtr = Some(valueStr)
-            data.originalNameLen = UInt32(valueStr.length)
+            data.originalNameLen = UInt32(valueStr.size)
         }
 
         return data
@@ -217,7 +233,7 @@ public class DefineData {
         }
 
         for (dropItem in drop) {
-            if (dropItem.length > 0) {
+            if (dropItem.size > 0) {
                 let parsed = DefineData.parse(dropItem, "", true, true, log, allocator)
                 userDefines.put(dropItem, parsed)
             }
@@ -228,7 +244,7 @@ public class DefineData {
 
     /// 检查字符串是否是有效标识符
     private static func isIdentifier(s: String): Bool {
-        return Int64(s.length) > 0
+        return Int64(s.size) > 0
     }
 
     /// 检查字符串是否是关键字
@@ -553,17 +569,4 @@ public class Define {
 
 /// 全局无副作用属性访问列表
 // 例如 Object.create, Math.PI 等
-// 严格翻译自: defines-table.zig global_no_side_effect_property_accesses
-public let globalNoSideEffectPropertyAccesses: Array<ArrayList<String>> = [
-    // 简化: 包含主要的全局无副作用属性
-]
-
-/// 全局无副作用函数调用列表 (toString 安全)
-// 严格翻译自: defines-table.zig global_no_side_effect_function_calls_safe_for_to_string
-public let globalNoSideEffectFunctionCallsSafeForToString: Array<ArrayList<String>> = [
-    // 简化: 包含主要的全局无副作用函数
-]
-
-/// 纯全局标识符映射
-// 严格翻译自: defines-table.zig pure_global_identifier_map
-public let pureGlobalIdentifierMap: HashMap<String, DefineData> = HashMap<String, DefineData>()
+// (已移至文件顶部以避免 Cangjie 的声明顺序问题)

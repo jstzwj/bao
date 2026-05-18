@@ -136,7 +136,7 @@ public class BundleThread<T> where T <: BundleCompletion {
 /// 打包线程单例
 // 严格翻译自: BundleThread.zig:37 singleton
 public class BundleThreadSingleton {
-    private static var instance: ?BundleThread<BundleCompletion>
+    private static var instance: ?BundleThread<BundleCompletion> = None
 
     /// 获取单例
     public static func get(): BundleThread<BundleCompletion> {

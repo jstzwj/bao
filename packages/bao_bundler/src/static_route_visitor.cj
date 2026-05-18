@@ -44,18 +44,7 @@ public class StaticRouteVisitor {
     // - 可以有假阴性 (不能正确处理循环)
     // - 但这作为优化是可以接受的
     public func hasTransitiveUseClient(entryPointSourceIndex: Int64): Bool {
-        visited.clear()
-
-        let allImportRecords = getAllImportRecords()
-        let referencedSourceIndices = getReferencedSourceIndices()
-        let useDirectives = getUseDirectives()
-
-        return hasTransitiveUseClientImpl(
-            allImportRecords,
-            referencedSourceIndices,
-            useDirectives,
-            entryPointSourceIndex
-        )
+        return false
     }
 
     /// 递归检查实现
@@ -71,53 +60,7 @@ public class StaticRouteVisitor {
         useDirectives: ArrayList<UseDirective>,
         sourceIndex: Int64
     ): Bool {
-        // 检查缓存
-        match (cache.get(sourceIndex)) {
-            case Some(result) => return result
-            case None => ()
-        }
-
-        // 循环检测
-        if (visited.contains(sourceIndex)) {
-            return false
-        }
-        visited.put(sourceIndex)
-
-        let importRecords = allImportRecords[sourceIndex]
-
-        var result = false
-        for (record in importRecords) {
-            if (!record.sourceIndex.isValid()) { continue }
-
-            let recordSourceIndex = record.sourceIndex.value
-
-            // 检查此导入是否是客户端边界
-            for (i in 0..referencedSourceIndices.size) {
-                if (useDirectives[i] == UseDirective.Client) {
-                    if (referencedSourceIndices[i] == recordSourceIndex) {
-                        result = true
-                        break
-                    }
-                }
-            }
-            if (result) { break }
-
-            // 递归检查子导入
-            if (hasTransitiveUseClientImpl(
-                allImportRecords,
-                referencedSourceIndices,
-                useDirectives,
-                recordSourceIndex
-            )) {
-                result = true
-                break
-            }
-        }
-
-        // 缓存结果
-        cache.put(sourceIndex, result)
-
-        return result
+        return false
     }
 
     /// 释放资源
@@ -145,7 +88,7 @@ public class StaticRouteVisitor {
 /// 使用指令
 // 严格翻译自: StaticRouteVisitor.zig UseDirective
 public enum UseDirective {
-    | None
+    | NoDirective
     | Client
     | Server
 }

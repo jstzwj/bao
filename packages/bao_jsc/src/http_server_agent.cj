@@ -30,7 +30,7 @@ public class HTTPServerAgent {
     }
 
     // 下一个请求 ID
-    public func nextRequestId() -> Int64 {
+    public func nextRequestId(): Int64 {
         requestId++
         requestId
     }
@@ -64,7 +64,7 @@ public class FetchHeaders {
     }
 
     // 获取头部值
-    public func get(name: String) -> ?String {
+    public func get(name: String): ?String {
         let lower = name.toLowerAscii()
         for (entry in entries) {
             if (entry.name.toLowerAscii() == lower) {
@@ -93,12 +93,12 @@ public class FetchHeaders {
     }
 
     // 是否包含头部
-    public func has(name: String) -> Bool {
+    public func has(name: String): Bool {
         nameSet.contains(name.toLowerAscii())
     }
 
     // 删除头部
-    public func delete(name: String) -> Bool {
+    public func delete(name: String): Bool {
         let lower = name.toLowerAscii()
         var removed = false
         var i = 0
@@ -117,7 +117,7 @@ public class FetchHeaders {
     }
 
     // 获取所有值
-    public func getAll(name: String) -> Array<String> {
+    public func getAll(name: String): Array<String> {
         var result = Array<String>()
         let lower = name.toLowerAscii()
         for (entry in entries) {
@@ -129,12 +129,12 @@ public class FetchHeaders {
     }
 
     // 获取头部数量
-    public func count() -> Int64 {
+    public func count(): Int64 {
         Int64(entries.size)
     }
 
     // 转为 JsValue
-    public func toJsValue() -> JsValue {
+    public func toJsValue(): JsValue {
         let obj = JsObject.make()
         obj.className = "Headers"
         for (entry in entries) {
@@ -144,7 +144,7 @@ public class FetchHeaders {
     }
 
     // 转为 Map 形式
-    public func toMap() -> HashMap<String, String> {
+    public func toMap(): HashMap<String, String> {
         let map = HashMap<String, String>()
         for (entry in entries) {
             map.put(entry.name, entry.value)
@@ -231,7 +231,7 @@ public class BunHeapProfiler {
     }
 
     // 获取堆快照
-    public func takeSnapshot() -> String {
+    public func takeSnapshot(): String {
         "{}"
     }
 }
@@ -240,7 +240,7 @@ public class BunHeapProfiler {
 // 严格翻译自 WTF.zig
 public class WTF {
     // 栈帧描述
-    public static func stackTrace() -> String {
+    public static func stackTrace(): String {
         "    at <anonymous>\n"
     }
 

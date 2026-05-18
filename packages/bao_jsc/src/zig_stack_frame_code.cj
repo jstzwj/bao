@@ -6,17 +6,17 @@ package bao_jsc
 // ========== ZigStackFrameCode ==========
 // 严格翻译自 ZigStackFrameCode
 // 表示 JavaScript 栈帧的代码类型
-public enum ZigStackFrameCode: UInt8 {
-    case None = 0
-    case Eval = 1
-    case Module = 2
-    case Function = 3
-    case Global = 4
-    case Wasm = 5
-    case Constructor = 6
+public enum ZigStackFrameCode {
+    | None
+    | Eval
+    | Module
+    | Function
+    | Global
+    | Wasm
+    | Constructor
 
     // 严格翻译自 ZigStackFrameCode.emoji
-    public func emoji() -> String {
+    public func emoji(): String {
         match (this) {
             case Eval => "\u{1F3C3}"
             case Module => "\u{1F4E6}"
@@ -29,7 +29,7 @@ public enum ZigStackFrameCode: UInt8 {
     }
 
     // 严格翻译自 ZigStackFrameCode.ansiColor
-    public func ansiColor() -> String {
+    public func ansiColor(): String {
         match (this) {
             case Eval => "\u{1B}[31m"
             case Module => "\u{1B}[36m"

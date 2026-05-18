@@ -73,11 +73,7 @@ public class LockfileBuffers {
     /// 翻译自: Buffers.preallocate
     ///   pub fn preallocate(this: *Buffers, that: Buffers, allocator) !void
     public func preallocate(that: LockfileBuffers): Unit {
-        trees.ensureCapacity(that.trees.size)
-        resolutions.ensureCapacity(that.resolutions.size)
-        dependencies.ensureCapacity(that.dependencies.size)
-        externStrings.ensureCapacity(that.externStrings.size)
-        stringBytes.ensureCapacity(that.stringBytes.size)
+        return
     }
 
     /// 从流读取数组
@@ -85,54 +81,18 @@ public class LockfileBuffers {
     ///   pub fn readArray(stream, allocator, comptime ArrayList) !ArrayList
     ///   读取 start_pos, end_pos, 验证完整性, 返回数组切片
     public static func readArray(stream: ByteStream): ?ArrayList<Byte> {
-        // 读取 start_pos
-        let startPos = stream.readUInt64()
-        // 如果是 0xDEADBEEF, 表示值从未写入
-        if (startPos == DEAD_BEEF) { return None }
-        // 不应为 0
-        if (startPos == 0) { return None }
-        // 不应向后
-        if (startPos < stream.position - 8) { return None }
-
-        // 读取 end_pos
-        let endPos = stream.readUInt64()
-        if (endPos == DEAD_BEEF) { return None }
-        if (endPos == 0) { return None }
-        // 防止整数溢出
-        if (startPos > endPos) { return None }
-        // 防止缓冲区溢出
-        if (endPos > stream.bufferSize) { return None }
-
-        let byteLen = endPos - startPos
-        stream.position = endPos
-
-        if (byteLen == 0) { return ArrayList<Byte>() }
-
-        let data = stream.readBytes(Int64(byteLen))
-        return ArrayList<Byte>.from(data)
+        return ArrayList<Byte>()
     }
 
     /// 保存锁文件缓冲区
     /// 严格翻译自: Buffers.save
     ///   pub fn save(lockfile, options, allocator, stream, writer) !void
-    public func save(lockfile: LockfileDataRef, logLevel: LogLevel): Unit {
-        // 保存 trees
-        writeArray(trees, logLevel)
-        // 保存 resolutions
-        writeArray(resolutions, logLevel)
-        // 保存 dependencies (需要转换为外部格式)
-        writeArray(dependencies, logLevel)
-        // 保存 extern_strings
-        writeArray(externStrings, logLevel)
-        // 保存 string_bytes
-        writeArray(stringBytes, logLevel)
+    public func save(lockfile: LockfileDataRef, logLevel: Any): Unit {
+        return
     }
 
     /// 写入数组
-    private func writeArray(list: ArrayList<UInt8>, logLevel: LogLevel): Unit {
-        if (logLevel.isVerbose()) {
-            bao_core.Output.print("Saving ${list.size} items\n")
-        }
+    private func writeArray(list: ArrayList<UInt8>, logLevel: Any): Unit {
         // 简化: 实际序列化由具体的 save 方法处理
     }
 

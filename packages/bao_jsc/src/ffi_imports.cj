@@ -22,73 +22,73 @@ package bao_jsc
 // foreign 函数声明 - 这些映射到 JSC C API 的 C++ 绑定
 
 // 严格翻译自 JSC__JSValue__isUndefined
-public func jscJSValueIsUndefined(value: JSValue) -> Bool {
+public func jscJSValueIsUndefined(value: JSValue): Bool {
     // FFI: JSC__JSValue__isUndefined(value)
     value == JSValue.undefined()
 }
 
 // 严格翻译自 JSC__JSValue__isNull
-public func jscJSValueIsNull(value: JSValue) -> Bool {
+public func jscJSValueIsNull(value: JSValue): Bool {
     // FFI: JSC__JSValue__isNull(value)
     value == JSValue.null()
 }
 
 // 严格翻译自 JSC__JSValue__isBoolean
-public func jscJSValueIsBoolean(value: JSValue) -> Bool {
+public func jscJSValueIsBoolean(value: JSValue): Bool {
     // FFI: JSC__JSValue__isBoolean(value)
     value.isBoolean()
 }
 
 // 严格翻译自 JSC__JSValue__isNumber
-public func jscJSValueIsNumber(value: JSValue) -> Bool {
+public func jscJSValueIsNumber(value: JSValue): Bool {
     value.isNumber()
 }
 
 // 严格翻译自 JSC__JSValue__isString
-public func jscJSValueIsString(globalObject: CPointer<JSGlobalObject>, value: JSValue) -> Bool {
+public func jscJSValueIsString(globalObject: CPointer<JSGlobalObject>, value: JSValue): Bool {
     // FFI: JSC__JSValue__isString(globalObject, value)
     value.isString()
 }
 
 // 严格翻译自 JSC__JSValue__isSymbol
-public func jscJSValueIsSymbol(globalObject: CPointer<JSGlobalObject>, value: JSValue) -> Bool {
+public func jscJSValueIsSymbol(globalObject: CPointer<JSGlobalObject>, value: JSValue): Bool {
     // FFI
     false
 }
 
 // 严格翻译自 JSC__JSValue__isObject
-public func jscJSValueIsObject(value: JSValue) -> Bool {
+public func jscJSValueIsObject(value: JSValue): Bool {
     value.isObject()
 }
 
 // ---------- JSValue 类型转换 ----------
 
 // 严格翻译自 JSC__JSValue__toBoolean
-public func jscJSValueToBoolean(globalObject: CPointer<JSGlobalObject>, value: JSValue) -> Bool {
+public func jscJSValueToBoolean(globalObject: CPointer<JSGlobalObject>, value: JSValue): Bool {
     // FFI: JSC__JSValue__toBoolean(globalObject, value)
     value.toBoolean()
 }
 
 // 严格翻译自 JSC__JSValue__toNumber
-public func jscJSValueToNumber(globalObject: CPointer<JSGlobalObject>, value: JSValue) -> Float64 {
+public func jscJSValueToNumber(globalObject: CPointer<JSGlobalObject>, value: JSValue): Float64 {
     // FFI
     value.toDouble()
 }
 
 // 严格翻译自 JSC__JSValue__toInt32
-public func jscJSValueToInt32(globalObject: CPointer<JSGlobalObject>, value: JSValue) -> Int32 {
+public func jscJSValueToInt32(globalObject: CPointer<JSGlobalObject>, value: JSValue): Int32 {
     // FFI
     value.toInt32()
 }
 
 // 严格翻译自 JSC__JSValue__toUInt32
-public func jscJSValueToUInt32(globalObject: CPointer<JSGlobalObject>, value: JSValue) -> UInt32 {
+public func jscJSValueToUInt32(globalObject: CPointer<JSGlobalObject>, value: JSValue): UInt32 {
     // FFI
     value.toUInt32()
 }
 
 // 严格翻译自 JSC__JSValue__toDouble
-public func jscJSValueToDouble(globalObject: CPointer<JSGlobalObject>, value: JSValue) -> Float64 {
+public func jscJSValueToDouble(globalObject: CPointer<JSGlobalObject>, value: JSValue): Float64 {
     // FFI
     value.toDouble()
 }
@@ -96,7 +96,7 @@ public func jscJSValueToDouble(globalObject: CPointer<JSGlobalObject>, value: JS
 // ---------- JSValue 属性操作 ----------
 
 // 严格翻译自 JSC__JSValue__getIndex
-public func jscJSValueGetIndex(globalObject: CPointer<JSGlobalObject>, value: JSValue, index: UInt32) -> JSValue {
+public func jscJSValueGetIndex(globalObject: CPointer<JSGlobalObject>, value: JSValue, index: UInt32): JSValue {
     // FFI: JSC__JSValue__getIndex(globalObject, value, index)
     JSValue.zero
 }
@@ -109,19 +109,19 @@ public func jscJSValueSetIndex(globalObject: CPointer<JSGlobalObject>, value: JS
 // ========== CallFrame 操作 ==========
 
 // 严格翻译自 JSC__CallFrame__thisValue
-public func jscCallFrameThisValue(callFrame: CPointer<UInt8>) -> JSValue {
+public func jscCallFrameThisValue(callFrame: CPointer<UInt8>): JSValue {
     // FFI: JSC__CallFrame__thisValue
     JSValue.zero
 }
 
 // 严格翻译自 JSC__CallFrame__argument
-public func jscCallFrameArgument(callFrame: CPointer<UInt8>, index: UInt32) -> JSValue {
+public func jscCallFrameArgument(callFrame: CPointer<UInt8>, index: UInt32): JSValue {
     // FFI: JSC__CallFrame__argument
     JSValue.zero
 }
 
 // 严格翻译自 JSC__CallFrame__argumentCount
-public func jscCallFrameArgumentCount(callFrame: CPointer<UInt8>) -> UInt32 {
+public func jscCallFrameArgumentCount(callFrame: CPointer<UInt8>): UInt32 {
     // FFI: JSC__CallFrame__argumentCount
     0
 }
@@ -129,19 +129,19 @@ public func jscCallFrameArgumentCount(callFrame: CPointer<UInt8>) -> UInt32 {
 // ========== JSGlobalObject 操作 ==========
 
 // 严格翻译自 JSC__JSGlobalObject__builtinNames
-public func jscGlobalObjectBuiltinNames(globalObject: CPointer<JSGlobalObject>) -> CPointer<UInt8> {
+public func jscGlobalObjectBuiltinNames(globalObject: CPointer<JSGlobalObject>): CPointer<UInt8> {
     // FFI
     CPointer<UInt8>()
 }
 
 // 严格翻译自 JSC__JSGlobalObject__gcController
-public func jscGlobalObjectGCController(globalObject: CPointer<JSGlobalObject>) -> CPointer<UInt8> {
+public func jscGlobalObjectGCController(globalObject: CPointer<JSGlobalObject>): CPointer<UInt8> {
     // FFI
     CPointer<UInt8>()
 }
 
 // 严格翻译自 JSC__JSGlobalObject__vm
-public func jscGlobalObjectVM(globalObject: CPointer<JSGlobalObject>) -> CPointer<UInt8> {
+public func jscGlobalObjectVM(globalObject: CPointer<JSGlobalObject>): CPointer<UInt8> {
     // FFI
     CPointer<UInt8>()
 }
@@ -149,19 +149,19 @@ public func jscGlobalObjectVM(globalObject: CPointer<JSGlobalObject>) -> CPointe
 // ========== Bun 特定 FFI ==========
 
 // 严格翻译自 Bun__getCWD
-public func bunGetCWD(globalObject: CPointer<JSGlobalObject>, out: CPointer<UInt8>, outLen: Int64) -> Int64 {
+public func bunGetCWD(globalObject: CPointer<JSGlobalObject>, out: CPointer<UInt8>, outLen: Int64): Int64 {
     // FFI
     0
 }
 
 // 严格翻译自 Bun__readableStreamToArray
-public func bunReadableStreamToArray(globalObject: CPointer<JSGlobalObject>, stream: JSValue) -> JSValue {
+public func bunReadableStreamToArray(globalObject: CPointer<JSGlobalObject>, stream: JSValue): JSValue {
     // FFI
     JSValue.zero
 }
 
 // 严格翻译自 Bun__isBun
-public func bunIsBun(value: JSValue) -> Bool {
+public func bunIsBun(value: JSValue): Bool {
     // FFI
     false
 }
@@ -169,7 +169,7 @@ public func bunIsBun(value: JSValue) -> Bool {
 // ========== WebCore 类型 ==========
 
 // 严格翻译自 WebCore__Blob__create
-public func webCoreBlobCreate(globalObject: CPointer<JSGlobalObject>, data: CPointer<UInt8>, dataLen: Int64, contentType: CPointer<UInt8>, contentTypeLen: Int64) -> JSValue {
+public func webCoreBlobCreate(globalObject: CPointer<JSGlobalObject>, data: CPointer<UInt8>, dataLen: Int64, contentType: CPointer<UInt8>, contentTypeLen: Int64): JSValue {
     // FFI
     JSValue.zero
 }
@@ -177,18 +177,18 @@ public func webCoreBlobCreate(globalObject: CPointer<JSGlobalObject>, data: CPoi
 // ========== 外部 foreign 声明 ==========
 // 以下是通过 foreign 关键字声明的 C ABI 函数
 
-foreign func JSC__JSValue__isUndefined(value: Int64) -> Bool
-foreign func JSC__JSValue__isNull(value: Int64) -> Bool
-foreign func JSC__JSValue__isBoolean(value: Int64) -> Bool
-foreign func JSC__JSValue__isNumber(value: Int64) -> Bool
-foreign func JSC__JSValue__isString(globalObject: UInt64, value: Int64) -> Bool
-foreign func JSC__JSValue__isObject(value: Int64) -> Bool
-foreign func JSC__JSValue__toBoolean(globalObject: UInt64, value: Int64) -> Bool
-foreign func JSC__JSValue__toNumber(globalObject: UInt64, value: Int64) -> Float64
-foreign func JSC__JSValue__toString(globalObject: UInt64, value: Int64) -> Int64
-foreign func JSC__JSValue__toObject(globalObject: UInt64, value: Int64) -> Int64
-foreign func JSC__JSValue__get(globalObject: UInt64, value: Int64, propertyName: CPointer<UInt8>, propertyNameLength: Int64) -> Int64
-foreign func JSC__JSValue__put(globalObject: UInt64, value: Int64, propertyName: CPointer<UInt8>, propertyNameLength: Int64, putValue: Int64) -> Unit
-foreign func JSC__JSGlobalObject__createEmptyObject(globalObject: UInt64, capacity: Int64) -> Int64
-foreign func JSC__JSGlobalObject__createArray(globalObject: UInt64, argCount: Int64) -> Int64
-foreign func Bun__createFFIFunctionValue(globalObject: UInt64, symbolName: CPointer<UInt8>, symbolNameLen: Int64, argCount: Int64, functionPtr: UInt64, data: UInt64) -> Int64
+foreign func JSC__JSValue__isUndefined(value: Int64): Bool
+foreign func JSC__JSValue__isNull(value: Int64): Bool
+foreign func JSC__JSValue__isBoolean(value: Int64): Bool
+foreign func JSC__JSValue__isNumber(value: Int64): Bool
+foreign func JSC__JSValue__isString(globalObject: UInt64, value: Int64): Bool
+foreign func JSC__JSValue__isObject(value: Int64): Bool
+foreign func JSC__JSValue__toBoolean(globalObject: UInt64, value: Int64): Bool
+foreign func JSC__JSValue__toNumber(globalObject: UInt64, value: Int64): Float64
+foreign func JSC__JSValue__toString(globalObject: UInt64, value: Int64): Int64
+foreign func JSC__JSValue__toObject(globalObject: UInt64, value: Int64): Int64
+foreign func JSC__JSValue__get(globalObject: UInt64, value: Int64, propertyName: CPointer<UInt8>, propertyNameLength: Int64): Int64
+foreign func JSC__JSValue__put(globalObject: UInt64, value: Int64, propertyName: CPointer<UInt8>, propertyNameLength: Int64, putValue: Int64): Unit
+foreign func JSC__JSGlobalObject__createEmptyObject(globalObject: UInt64, capacity: Int64): Int64
+foreign func JSC__JSGlobalObject__createArray(globalObject: UInt64, argCount: Int64): Int64
+foreign func Bun__createFFIFunctionValue(globalObject: UInt64, symbolName: CPointer<UInt8>, symbolNameLen: Int64, argCount: Int64, functionPtr: UInt64, data: UInt64): Int64

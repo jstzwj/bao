@@ -35,7 +35,7 @@ public class GetterSetter {
     // 检查 getter 是否为 null
     //
     // FFI: JSC__GetterSetter__isGetterNull(this: *GetterSetter) bool
-    public func isGetterNull() -> Bool {
+    public func isGetterNull(): Bool {
         // 原始 Zig:
         //   return JSC__GetterSetter__isGetterNull(this);
         getterValue == None
@@ -46,7 +46,7 @@ public class GetterSetter {
     // 检查 setter 是否为 null
     //
     // FFI: JSC__GetterSetter__isSetterNull(this: *GetterSetter) bool
-    public func isSetterNull() -> Bool {
+    public func isSetterNull(): Bool {
         // 原始 Zig:
         //   return JSC__GetterSetter__isSetterNull(this);
         setterValue == None
@@ -54,6 +54,6 @@ public class GetterSetter {
 
     // ========== FFI 绑定 ==========
     // 外部 C 函数声明:
-    //   @extern "c" fn JSC__GetterSetter__isGetterNull(this: CPointer<UInt8>) -> Bool
-    //   @extern "c" fn JSC__GetterSetter__isSetterNull(this: CPointer<UInt8>) -> Bool
+    //   @extern "c" fn JSC__GetterSetter__isGetterNull(this: CPointer<UInt8>): Bool
+    //   @extern "c" fn JSC__GetterSetter__isSetterNull(this: CPointer<UInt8>): Bool
 }

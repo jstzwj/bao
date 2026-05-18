@@ -73,9 +73,9 @@ public class BundlerOutputFile {
         sizeWithoutSourcemap = 0
         hash = 0
         isExecutable = false
-        sourceMapIndex = UInt32.maxValue
-        bytecodeIndex = UInt32.maxValue
-        moduleInfoIndex = UInt32.maxValue
+        sourceMapIndex = UInt32(0)
+        bytecodeIndex = UInt32(0)
+        moduleInfoIndex = UInt32(0)
         outputKind = OutputKind.Chunk
         destPath = ""
         side = None
@@ -100,7 +100,7 @@ public class BundlerOutputFile {
         f.loader = loader
         f.srcPath = pending.path
         f.size = 0
-        f.value = OutputFileValue(OutputFileKind.Pending, pending: pending)
+        f.value = OutputFileValue(OutputFileKind.Pending, pending)
         return f
     }
 
@@ -111,7 +111,7 @@ public class BundlerOutputFile {
         f.loader = Loader.File
         f.srcPath = FsPath(pathname)
         f.size = size
-        f.value = OutputFileValue(OutputFileKind.Copy, operation: FileOperation.fromFile(pathname))
+        f.value = OutputFileValue(OutputFileKind.Copy, FileOperation.fromFile(pathname))
         return f
     }
 
@@ -135,7 +135,7 @@ public class BundlerOutputFile {
                 match (opts.dataKind) {
                     case OutputFileDataKind.Buffer =>
                         match (opts.bufferData) {
-                            case Some(buf) => f.size = buf.length
+                            case Some(buf) => f.size = Int64(buf.size)
                             case None => f.size = 0
                         }
                     case OutputFileDataKind.File =>
@@ -147,10 +147,10 @@ public class BundlerOutputFile {
                 }
         }
 
-        f.sizeWithoutSourcemap = opts.displaySize
-        f.bytecodeIndex = opts.bytecodeIndex ?? UInt32.maxValue
-        f.moduleInfoIndex = opts.moduleInfoIndex ?? UInt32.maxValue
-        f.sourceMapIndex = opts.sourceMapIndex ?? UInt32.maxValue
+        f.sizeWithoutSourcemap = Int64(opts.displaySize)
+        f.bytecodeIndex = opts.bytecodeIndex ?? UInt32(0)
+        f.moduleInfoIndex = opts.moduleInfoIndex ?? UInt32(0)
+        f.sourceMapIndex = opts.sourceMapIndex ?? UInt32(0)
         f.side = opts.side
         f.entryPointIndex = opts.entryPointIndex
         f.referencedCssChunks = opts.referencedCssChunks
@@ -161,13 +161,13 @@ public class BundlerOutputFile {
             case OutputFileDataKind.Buffer =>
                 match (opts.bufferData) {
                     case Some(data) =>
-                        f.value = OutputFileValue(OutputFileKind.Buffer, bufferData: data)
+                        f.value = OutputFileValue(OutputFileKind.Buffer, data)
                     case None =>
                         f.value = OutputFileValue(OutputFileKind.Noop)
                 }
             case OutputFileDataKind.File =>
                 let op = FileOperation.fromFile(opts.outputPath)
-                f.value = OutputFileValue(OutputFileKind.Copy, operation: op)
+                f.value = OutputFileValue(OutputFileKind.Copy, op)
             case OutputFileDataKind.Saved =>
                 f.value = OutputFileValue(OutputFileKind.Saved)
         }

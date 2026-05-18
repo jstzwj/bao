@@ -55,7 +55,7 @@ public class JsUint8Array_ {
     //   pub fn ptr(this: *JSUint8Array) [*]u8 {
     //       return @as(*[*]u8, @ptrFromInt(@intFromPtr(this) + Sizes.Bun_FFI_PointerOffsetToTypedArrayVector)).*;
     //   }
-    public func ptr() -> CPointer<UInt8> {
+    public func ptr(): CPointer<UInt8> {
         // 在仓颉中，直接返回缓冲区数据指针
         if (buffer.size == 0) {
             return CPointer<UInt8>()
@@ -72,7 +72,7 @@ public class JsUint8Array_ {
     //   pub fn len(this: *JSUint8Array) usize {
     //       return @as(*usize, @ptrFromInt(@intFromPtr(this) + Sizes.Bun_FFI_PointerOffsetToTypedArrayLength)).*;
     //   }
-    public func len() -> Int64 {
+    public func len(): Int64 {
         byteLength
     }
 
@@ -84,7 +84,7 @@ public class JsUint8Array_ {
     //   pub fn slice(this: *JSUint8Array) []u8 {
     //       return this.ptr()[0..this.len()];
     //   }
-    public func slice() -> Array<UInt8> {
+    public func slice(): Array<UInt8> {
         if (byteOffset == 0 && byteLength == Int64(buffer.size)) {
             buffer
         } else {
@@ -103,7 +103,7 @@ public class JsUint8Array_ {
     // bytes 必须来自 bun.default_allocator
     //
     // FFI: JSUint8Array__fromDefaultAllocator(*JSGlobalObject, [*]u8, usize) JSValue
-    public static func fromBytes(globalThis: JsObject, bytes: Array<UInt8>) -> JsValue {
+    public static func fromBytes(globalThis: JsObject, bytes: Array<UInt8>): JsValue {
         // FFI: JSUint8Array__fromDefaultAllocator(globalThis, bytes.ptr, bytes.len)
         let arr = JsUint8Array_(buffer: bytes)
         arr.toJsValue()
@@ -114,7 +114,7 @@ public class JsUint8Array_ {
     // 复制字节创建新的 Uint8Array
     //
     // FFI: Bun__createUint8ArrayForCopy(*JSGlobalObject, ?*const anyopaque, usize, bool) JSValue
-    public static func fromBytesCopy(globalThis: JsObject, bytes: Array<UInt8>) -> JsValue {
+    public static func fromBytesCopy(globalThis: JsObject, bytes: Array<UInt8>): JsValue {
         // FFI: Bun__createUint8ArrayForCopy(globalThis, bytes.ptr, bytes.len, false)
         let copy = Array<UInt8>()
         for (b in bytes) {
@@ -129,7 +129,7 @@ public class JsUint8Array_ {
     // 创建空的 Uint8Array
     //
     // FFI: Bun__createUint8ArrayForCopy(globalThis, null, 0, false)
-    public static func createEmpty(globalThis: JsObject) -> JsValue {
+    public static func createEmpty(globalThis: JsObject): JsValue {
         let arr = JsUint8Array_()
         arr.toJsValue()
     }
@@ -137,7 +137,7 @@ public class JsUint8Array_ {
     // ========== 元素访问 ==========
 
     // 获取指定索引的字节
-    public func get(index: Int64) -> UInt8 {
+    public func get(index: Int64): UInt8 {
         if (index < 0 || index >= byteLength) {
             return 0
         }
@@ -152,7 +152,7 @@ public class JsUint8Array_ {
     }
 
     // 转为 JsValue
-    public func toJsValue() -> JsValue {
+    public func toJsValue(): JsValue {
         let obj = JsObject.make()
         obj.className = "Uint8Array"
         obj.set("byteLength", JsValue(n: byteLength))

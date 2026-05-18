@@ -14,26 +14,24 @@ public class RefString {
     public var impl_: UInt64 = 0  // WTF.StringImpl native pointer
     public var allocator: UInt64 = 0  // std.mem.Allocator
     public var ctx: UInt64 = 0
-    public var onBeforeDeinit: ?(UInt64, RefString) -> Void = None
+    public var onBeforeDeinit: ?((UInt64, RefString) -> Unit) = None
 
     public init() {}
 
-    // 严格翻译自 RefString.Hash
-    public typealias Hash = UInt32
 
     // 严格翻译自 RefString.computeHash
-    public static func computeHash(input: Array<Byte>) -> UInt32 {
+    public static func computeHash(input: Array<Byte>): UInt32 {
         XxHash32.hash(0, input)
     }
 
     // 严格翻译自 RefString.toJS
-    public func toJS(global: JsObject) -> JsValue {
+    public func toJS(global: JsObject): JsValue {
         // FFI: bun.String.init(this.impl).toJS(global)
         JsValue.undefined()
     }
 
     // 严格翻译自 RefString.slice
-    public func slice() -> Array<Byte> {
+    public func slice(): Array<Byte> {
         ref()
         ptr
     }
@@ -44,7 +42,7 @@ public class RefString {
     }
 
     // 严格翻译自 RefString.leak
-    public func leak() -> Array<Byte> {
+    public func leak(): Array<Byte> {
         ptr
     }
 
@@ -55,8 +53,9 @@ public class RefString {
 
     // 严格翻译自 RefString.deinit
     public func deinit() {
-        if let callback = onBeforeDeinit {
-            callback(ctx, self)
+        match (onBeforeDeinit) {
+            case Some(callback) => callback(ctx, this)
+            case None => ()
         }
         ptr = []
     }
@@ -64,7 +63,7 @@ public class RefString {
 
 // 支撑类型
 public class XxHash32 {
-    public static func hash(_ seed: UInt32, _ data: Array<Byte>) -> UInt32 {
+    public static func hash(seed: UInt32, data: Array<Byte>): UInt32 {
         var hash = seed + UInt32(0x811C9DC5)
         for (byte in data) {
             hash = (hash ^ UInt32(byte)) * UInt32(0x01000193)

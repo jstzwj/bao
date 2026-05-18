@@ -13,7 +13,7 @@ public class Errorable<T> {
     public init() {}
 
     // 严格翻译自 Errorable.unwrap
-    public func unwrap() -> ?T {
+    public func unwrap(): ?T {
         if (success) {
             return result.value
         } else {
@@ -22,7 +22,7 @@ public class Errorable<T> {
     }
 
     // 严格翻译自 Errorable.value (静态构造)
-    public static func value(_ val: T) -> Errorable<T> {
+    public static func value(val: T): Errorable<T> {
         let e = Errorable<T>()
         e.result = ErrorableResult<T>.fromValue(val)
         e.success = true
@@ -30,7 +30,7 @@ public class Errorable<T> {
     }
 
     // 严格翻译自 Errorable.ok
-    public static func ok(_ val: T) -> Errorable<T> {
+    public static func ok(val: T): Errorable<T> {
         let e = Errorable<T>()
         e.result = ErrorableResult<T>.fromValue(val)
         e.success = true
@@ -38,7 +38,7 @@ public class Errorable<T> {
     }
 
     // 严格翻译自 Errorable.err
-    public static func err(code: ErrorCode_, errValue: JsValue) -> Errorable<T> {
+    public static func err(code: ErrorCode_, errValue: JsValue): Errorable<T> {
         let e = Errorable<T>()
         e.result = ErrorableResult<T>.fromError(errValue)
         e.success = false
@@ -53,13 +53,13 @@ public class ErrorableResult<T> {
 
     public init() {}
 
-    public static func fromValue(_ val: T) -> ErrorableResult<T> {
+    public static func fromValue(val: T): ErrorableResult<T> {
         let r = ErrorableResult<T>()
         r.value = val
         r
     }
 
-    public static func fromError(_ err: JsValue) -> ErrorableResult<T> {
+    public static func fromError(err: JsValue): ErrorableResult<T> {
         let r = ErrorableResult<T>()
         r.errorValue = err
         r
@@ -68,16 +68,16 @@ public class ErrorableResult<T> {
 
 // ========== ErrorableResolvedSource ==========
 // 严格翻译自 Errorable(ResolvedSource)
-public typealias ErrorableResolvedSource = Errorable<ResolvedSource_>
+public type ErrorableResolvedSource = Errorable<ResolvedSource_>
 
 // ========== ErrorableZigString ==========
 // 严格翻译自 Errorable(ZigString)
-public typealias ErrorableZigString = Errorable<ZigString>
+public type ErrorableZigString = Errorable<ZigString>
 
 // ========== ErrorableJSValue ==========
 // 严格翻译自 Errorable(JSValue)
-public typealias ErrorableJSValue = Errorable<JsValue>
+public type ErrorableJSValue = Errorable<JsValue>
 
 // ========== ErrorableString ==========
 // 严格翻译自 Errorable(bun.String)
-public typealias ErrorableString = Errorable<String>
+public type ErrorableString = Errorable<String>
