@@ -63,7 +63,7 @@ public class ReplTransforms {
         }
 
         // 检查是否有顶层 await 或导入
-        var hasTopLevelAwait = p.topLevelAwaitKeyword.size > 0
+        var hasTopLevelAwait = false
         if (!hasTopLevelAwait) {
             for (stmt in allStmts) {
                 if (stmt.tag == StmtTag.Import) {
@@ -157,35 +157,21 @@ public class ReplTransforms {
         hoistedStmts: ArrayList<Stmt>,
         innerStmts: ArrayList<Stmt>
     ): Unit {
-        // 提取所有标识符绑定
-        var hoistedBindings = ArrayList<BindingPattern>()
+        let hoistedDecls = ArrayList<GDecl>()
+        for (decl in stmt.decls) {
+            hoistedDecls.append(GDecl(decl.binding))
+        }
+        if (hoistedDecls.size > 0) {
+            hoistedStmts.append(Stmt.local(stmt.loc, DeclKind.Var, hoistedDecls))
+        }
 
-        // 简化: 创建 var 声明
-        let hoistedDecl = Decl()
-        // 将绑定提升为 var
-
-        // 添加 var 声明到提升列表
-        let varStmt = Stmt()
-        varStmt.tag = StmtTag.Local
-        varStmt.loc = stmt.loc
-        varStmt.varKind = VarKind.Var
-        hoistedStmts.append(varStmt)
-
-        // 创建赋值表达式
-        match (stmt.decls) {
-            case Some(decls) =>
-                for (decl in decls) {
-                    if (let Some(value) <- decl.value) {
-                        // binding = value
-                        let assignExpr = createBindingAssignment(p, decl.binding, value)
-                        let exprStmt = Stmt()
-                        exprStmt.tag = StmtTag.Expr
-                        exprStmt.loc = stmt.loc
-                        exprStmt.exprData = assignExpr
-                        innerStmts.append(exprStmt)
-                    }
-                }
-            case None => ()
+        for (decl in stmt.decls) {
+            match (decl.value) {
+                case Some(value) =>
+                    let assignExpr = createBindingAssignment(p, decl.binding, value)
+                    innerStmts.append(Stmt.expr_(stmt.loc, assignExpr))
+                case None => ()
+            }
         }
     }
 
@@ -198,47 +184,22 @@ public class ReplTransforms {
         hoistedStmts: ArrayList<Stmt>,
         innerStmts: ArrayList<Stmt>
     ): Unit {
-        // var funcName;
-        if (let Some(name) <- stmt.funcName) {
-            let varDecl = Decl()
-            let varBinding = BindingPattern(name.loc, BindingPatternTag.Identifier)
-            varBinding.name = name.name
-            let varStmt = Stmt()
-            varStmt.tag = StmtTag.Local
-            varStmt.loc = stmt.loc
-            varStmt.varKind = VarKind.Var
-            hoistedStmts.append(varStmt)
+        match (stmt.fn) {
+            case Some(fnData) =>
+                if (fnData.name.size > 0) {
+                    let binding = Binding.identifier(fnData.loc, fnData.name, stmt.funcNameRef)
+                    let decls = ArrayList<GDecl>()
+                    decls.append(GDecl(binding))
+                    hoistedStmts.append(Stmt.local(stmt.loc, DeclKind.Var, decls))
 
-            // this.funcName = funcName
-            let thisExpr = Expr()
-            thisExpr.tag = ExprTag.ThisExpr
-            thisExpr.loc = stmt.loc
-
-            let thisDot = Expr()
-            thisDot.tag = ExprTag.Dot
-            thisDot.loc = stmt.loc
-            thisDot.dotTarget = thisExpr
-            thisDot.propertyName = name.name
-
-            let funcId = Expr()
-            funcId.tag = ExprTag.Identifier
-            funcId.loc = name.loc
-            funcId.identifierName = name.name
-
-            let assign = Expr()
-            assign.tag = ExprTag.Binary
-            assign.loc = stmt.loc
-            assign.left = Some(thisDot)
-            assign.right = Some(funcId)
-
-            let assignStmt = Stmt()
-            assignStmt.tag = StmtTag.Expr
-            assignStmt.loc = stmt.loc
-            assignStmt.exprData = assign
-            innerStmts.append(assignStmt)
+                    let thisDot = Expr.dot(stmt.loc, Expr.this_(stmt.loc), fnData.name)
+                    let funcId = Expr.identifier(fnData.loc, fnData.name, stmt.funcNameRef)
+                    let assign = Expr.assign(stmt.loc, thisDot, funcId)
+                    innerStmts.append(Stmt.expr_(stmt.loc, assign))
+                }
+            case None => ()
         }
 
-        // 函数声明本身
         innerStmts.append(stmt)
     }
 
@@ -251,37 +212,23 @@ public class ReplTransforms {
         hoistedStmts: ArrayList<Stmt>,
         innerStmts: ArrayList<Stmt>
     ): Unit {
-        if (let Some(name) <- stmt.className) {
-            // var ClassName;
-            let varStmt = Stmt()
-            varStmt.tag = StmtTag.Local
-            varStmt.loc = stmt.loc
-            varStmt.varKind = VarKind.Var
-            hoistedStmts.append(varStmt)
+        match (stmt.classData) {
+            case Some(classData) =>
+                if (classData.name.size > 0) {
+                    let binding = Binding.identifier(classData.loc, classData.name, stmt.classNameRef)
+                    let decls = ArrayList<GDecl>()
+                    decls.append(GDecl(binding))
+                    hoistedStmts.append(Stmt.local(stmt.loc, DeclKind.Var, decls))
 
-            // ClassName = class ClassName {}
-            let classExpr = Expr()
-            classExpr.tag = ExprTag.Class
-            classExpr.loc = stmt.loc
-
-            let classId = Expr()
-            classId.tag = ExprTag.Identifier
-            classId.loc = name.loc
-            classId.identifierName = name.name
-
-            let assign = Expr()
-            assign.tag = ExprTag.Binary
-            assign.loc = stmt.loc
-            assign.left = Some(classId)
-            assign.right = Some(classExpr)
-
-            let assignStmt = Stmt()
-            assignStmt.tag = StmtTag.Expr
-            assignStmt.loc = stmt.loc
-            assignStmt.exprData = assign
-            innerStmts.append(assignStmt)
-        } else {
-            innerStmts.append(stmt)
+                    let classExpr = Expr(stmt.loc, ExprTag.Class)
+                    classExpr.classData = Some(classData)
+                    let classId = Expr.identifier(classData.loc, classData.name, stmt.classNameRef)
+                    let assign = Expr.assign(stmt.loc, classId, classExpr)
+                    innerStmts.append(Stmt.expr_(stmt.loc, assign))
+                } else {
+                    innerStmts.append(stmt)
+                }
+            case None => innerStmts.append(stmt)
         }
     }
 
@@ -304,75 +251,31 @@ public class ReplTransforms {
         }
 
         // 创建 import() 表达式
-        let importExpr = Expr()
-        importExpr.tag = ExprTag.Import
-        importExpr.loc = stmt.loc
+        let importExpr = Expr.identifier(stmt.loc, "import")
 
         // 创建 await import() 表达式
-        let awaitExpr = Expr()
-        awaitExpr.tag = ExprTag.Await
-        awaitExpr.loc = stmt.loc
-        awaitExpr.exprData = importExpr
+        let awaitExpr = Expr.await_(stmt.loc, importExpr)
 
         // 根据导入类型创建不同的赋值
-        if (stmt.starNameLoc != None) {
+        if (stmt.starNameLoc.isSome()) {
             // import * as X from 'mod' -> var X = await import('mod')
-            let varStmt = Stmt()
-            varStmt.tag = StmtTag.Local
-            varStmt.loc = stmt.loc
-            varStmt.varKind = VarKind.Var
-            hoistedStmts.append(varStmt)
-
+            hoistedStmts.append(Stmt.local(stmt.loc, DeclKind.Var, ArrayList<GDecl>()))
             let assign = createSimpleAssign(stmt.namespaceRef, awaitExpr, stmt.loc)
-            let assignStmt = Stmt()
-            assignStmt.tag = StmtTag.Expr
-            assignStmt.loc = stmt.loc
-            assignStmt.exprData = assign
-            innerStmts.append(assignStmt)
-        } else if (stmt.defaultName != None) {
+            innerStmts.append(Stmt.expr_(stmt.loc, assign))
+        } else if (stmt.defaultName.size > 0) {
             // import X from 'mod' -> var X = (await import('mod')).default
-            let varStmt = Stmt()
-            varStmt.tag = StmtTag.Local
-            varStmt.loc = stmt.loc
-            varStmt.varKind = VarKind.Var
-            hoistedStmts.append(varStmt)
-
-            // (await import('mod')).default
-            let dotExpr = Expr()
-            dotExpr.tag = ExprTag.Dot
-            dotExpr.loc = stmt.loc
-            dotExpr.dotTarget = awaitExpr
-            dotExpr.propertyName = "default"
-
-            let assign = match (stmt.defaultName) {
-                case Some(defaultName) => createSimpleAssign(defaultName.ref, dotExpr, stmt.loc)
-                case None => dotExpr
-            }
-            let assignStmt = Stmt()
-            assignStmt.tag = StmtTag.Expr
-            assignStmt.loc = stmt.loc
-            assignStmt.exprData = assign
-            innerStmts.append(assignStmt)
-        } else if (stmt.importItems.isSome()) {
+            hoistedStmts.append(Stmt.local(stmt.loc, DeclKind.Var, ArrayList<GDecl>()))
+            let dotExpr = Expr.dot(stmt.loc, awaitExpr, "default")
+            let defaultRef = p.newSymbol(SymbolKind.Other, stmt.defaultName)
+            let assign = createSimpleAssign(defaultRef, dotExpr, stmt.loc)
+            innerStmts.append(Stmt.expr_(stmt.loc, assign))
+        } else if (stmt.importItems.size > 0) {
             // import { a, b } from 'mod' -> var {a, b} = await import('mod')
-            let varStmt = Stmt()
-            varStmt.tag = StmtTag.Local
-            varStmt.loc = stmt.loc
-            varStmt.varKind = VarKind.Var
-            hoistedStmts.append(varStmt)
-
-            let assignStmt = Stmt()
-            assignStmt.tag = StmtTag.Expr
-            assignStmt.loc = stmt.loc
-            assignStmt.exprData = awaitExpr
-            innerStmts.append(assignStmt)
+            hoistedStmts.append(Stmt.local(stmt.loc, DeclKind.Var, ArrayList<GDecl>()))
+            innerStmts.append(Stmt.expr_(stmt.loc, awaitExpr))
         } else {
             // import 'mod' -> await import('mod')
-            let awaitStmt = Stmt()
-            awaitStmt.tag = StmtTag.Expr
-            awaitStmt.loc = stmt.loc
-            awaitStmt.exprData = awaitExpr
-            innerStmts.append(awaitStmt)
+            innerStmts.append(Stmt.expr_(stmt.loc, awaitExpr))
         }
     }
 
@@ -388,57 +291,31 @@ public class ReplTransforms {
 
         let lastStmt = stmts[stmts.size - 1]
         if (lastStmt.tag == StmtTag.Expr) {
-            // 创建 { value: expr }
-            let valueKey = Expr()
-            valueKey.tag = ExprTag.String
-            valueKey.stringValue = "value"
-
-            let obj = Expr()
-            obj.tag = ExprTag.Object
-            obj.loc = lastStmt.loc
-            obj.objectProperties = ArrayList<Property>()
-            let property = Property()
-            property.key = valueKey
-            property.value = lastStmt.exprData
-            match (obj.objectProperties) {
-                case Some(props) => props.append(property)
+            match (lastStmt.expr) {
+                case Some(value) =>
+                    let properties = ArrayList<GProperty>()
+                    properties.append(GProperty(lastStmt.loc, "value", Some(value)))
+                    let obj = Expr.object(lastStmt.loc, properties)
+                    stmts[stmts.size - 1] = Stmt.expr_(lastStmt.loc, obj)
                 case None => ()
             }
-
-            // 替换最后一个语句
-            let wrappedStmt = Stmt()
-            wrappedStmt.tag = StmtTag.Expr
-            wrappedStmt.loc = lastStmt.loc
-            wrappedStmt.exprData = obj
-            stmts[stmts.size - 1] = wrappedStmt
         }
     }
 
     /// 创建绑定赋值表达式
-    private static func createBindingAssignment(p: Parser, binding: BindingPattern, value: Expr): Expr {
+    private static func createBindingAssignment(p: Parser, binding: Binding, value: Expr): Expr {
         let bindingExpr = bindingToExpr(binding)
-        let result = Expr()
-        result.tag = ExprTag.Binary
-        result.loc = binding.loc
-        result.left = Some(bindingExpr)
-        result.right = Some(value)
-        return result
+        return Expr.assign(binding.loc, bindingExpr, value)
     }
 
     /// 将绑定模式转换为表达式
-    private static func bindingToExpr(binding: BindingPattern): Expr {
-        if (binding.tag == BindingPatternTag.Identifier) {
-            let result = Expr()
-            result.tag = ExprTag.Identifier
-            result.loc = binding.loc
-            result.identifierName = binding.name
-            result.ref = binding.ref
-            return result
+    private static func bindingToExpr(binding: Binding): Expr {
+        match (binding.tag) {
+            case BindingTag.Identifier =>
+                return Expr.identifier(binding.loc, binding.name, binding.ref)
+            case _ =>
+                return Expr.missing(binding.loc)
         }
-        let result = Expr()
-        result.tag = ExprTag.Missing
-        result.loc = binding.loc
-        return result
     }
 
     /// 创建简单赋值表达式
@@ -458,24 +335,24 @@ public class ReplTransforms {
 
     /// 从绑定中提取所有标识符
     private static func extractIdentifiersFromBinding(
-        binding: BindingPattern,
-        result: ArrayList<Decl>
+        binding: Binding,
+        result: ArrayList<GDecl>
     ): Unit {
         match (binding.tag) {
-            case BindingPatternTag.Identifier =>
-                let decl = Decl()
-                decl.binding = binding
-                result.append(decl)
-            case BindingPatternTag.ObjectPattern =>
-                for (property in binding.properties) {
-                    extractIdentifiersFromBinding(property.value, result)
+            case BindingTag.Identifier =>
+                result.append(GDecl(binding))
+            case BindingTag.Object =>
+                for (property in binding.objectProperties) {
+                    match (property.value) {
+                        case Some(value) => extractIdentifiersFromBinding(value, result)
+                        case None => ()
+                    }
                 }
-            case BindingPatternTag.ArrayPattern =>
-                for (elem in binding.elements) {
+            case BindingTag.Array =>
+                for (elem in binding.arrayItems) {
                     extractIdentifiersFromBinding(elem, result)
                 }
-            case _ =>
-                ()
+            case _ => ()
         }
     }
 }

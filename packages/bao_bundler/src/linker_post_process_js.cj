@@ -160,14 +160,12 @@ public func postProcessJSChunk(
 
     // Add IIFE wrapper start
     match (outputFormat) {
-        case OutputFormat.IIFE => {
+        case OutputFormat.IIFE =>
             let start = if (c.options.minifyWhitespace) "(()=>{" else "(() => {\n"
             j.pushStatic(start)
             lineOffset.advance(start)
-        }
-        case OutputFormat.InternalBakeDev => {
+        case OutputFormat.InternalBakeDev =>
             // Add HMR runtime start
-        }
         case _ => ()
     }
 
@@ -240,21 +238,18 @@ public func postProcessJSChunk(
 
     // Add wrapper endings
     match (outputFormat) {
-        case OutputFormat.IIFE => {
+        case OutputFormat.IIFE =>
             j.pushStatic("})();\n")
-        }
-        case OutputFormat.InternalBakeDev => {
+        case OutputFormat.InternalBakeDev =>
             // Add HMR runtime closing
             j.pushStatic("}, {\n  main: ")
             let inputPath = c.parseGraph.getInputPath(chunk.entryPoint.sourceIndex)
             j.pushStatic(inputPath)
             j.pushStatic("\n});")
-        }
-        case OutputFormat.CJS => {
+        case OutputFormat.CJS =>
             if (isBun) {
                 j.pushStatic("})\n")
             }
-        }
         case _ => ()
     }
 
@@ -302,13 +297,12 @@ public func generateEntryPointTailJS(
     var stmts = ArrayList<Stmt>()
 
     match (c.options.outputFormat) {
-        case OutputFormat.ESM => {
+        case OutputFormat.ESM =>
             match (flags.wrap) {
-                case WrapKind.CJS => {
+                case WrapKind.CJS =>
                     // "export default require_foo();"
                     // Simplified
-                }
-                case WrapKind.ESM => {
+                case WrapKind.ESM =>
                     if (flags.isAsyncOrHasAsyncDependency) {
                         // "await init_foo();"
                     } else {
@@ -316,30 +310,22 @@ public func generateEntryPointTailJS(
                     }
                     // Generate export clause for all exported symbols
                     // Simplified
-                }
-                case WrapKind.None => {
+                case WrapKind.None =>
                     // Generate export clause for all exported symbols
                     // Simplified
-                }
             }
-        }
-        case OutputFormat.IIFE => {
+        case OutputFormat.IIFE =>
             // Nothing needed for IIFE
-        }
-        case OutputFormat.InternalBakeDev => {
+        case OutputFormat.InternalBakeDev =>
             // Nothing needed - exports forwarded in module closure
-        }
-        case OutputFormat.CJS => {
+        case OutputFormat.CJS =>
             match (flags.wrap) {
-                case WrapKind.CJS => {
+                case WrapKind.CJS =>
                     // "module.exports = require_foo();"
-                }
-                case WrapKind.ESM => {
+                case WrapKind.ESM =>
                     // "init_foo();"
-                }
                 case WrapKind.None => ()
             }
-        }
         case _ => ()
     }
 
@@ -347,7 +333,6 @@ public func generateEntryPointTailJS(
     if (moduleInfo != None) {
         for (stmt in stmts) {
             // Add binding vars to module info
-        }
     }
 
     let result = CompileResult()
@@ -373,7 +358,6 @@ private func populateModuleInfo(c: LinkerContext, chunk: Chunk,
         for (decl in compileResult.decls) {
             let varKind = decl.kind
             moduleInfo.addVar(decl.name, varKind)
-        }
     }
 
     // 1b. Check if any source uses import.meta
@@ -411,22 +395,19 @@ private func addBindingVarsToModuleInfo(mi: ModuleInfo, binding: Binding,
                                           varKind: VarKind, renamer: Renamer,
                                           symbols: SymbolMap): Unit {
     match (binding.kind) {
-        case BindingKind.Identifier => {
+        case BindingKind.Identifier =>
             let name = renamer.nameForSymbol(symbols.follow(binding.ref))
             if (name.size > 0) {
                 mi.addVar(name, varKind)
             }
-        }
-        case BindingKind.Array => {
+        case BindingKind.Array =>
             for (item in binding.items) {
                 addBindingVarsToModuleInfo(mi, item.binding, varKind, renamer, symbols)
             }
-        }
-        case BindingKind.Object => {
+        case BindingKind.Object =>
             for (prop in binding.properties) {
                 addBindingVarsToModuleInfo(mi, prop.value, varKind, renamer, symbols)
             }
-        }
         case BindingKind.Missing => ()
     }
 }

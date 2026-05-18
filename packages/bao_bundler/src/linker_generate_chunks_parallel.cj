@@ -94,27 +94,24 @@ private func compileAllChunks(linker: LinkerContext,
     for (chunk in chunks) {
         let chunkResults = ArrayList<CompileResult>()
         match (chunk.content) {
-            case ChunkContent.JavaScript => {
+            case ChunkContent.JavaScript =>
                 let parts = chunk.partsInChunkInOrder
                 for (partRange in parts) {
                     let result = generateCompileResultForJSChunk(linker, chunk, partRange)
                     chunkResults.append(result)
                 }
                 hasJsChunk = true
-            }
-            case ChunkContent.CSS => {
+            case ChunkContent.CSS =>
                 let imports = chunk.cssImportsInOrder
                 for (i in 0..imports.size) {
                     let result = generateCompileResultForCssChunk(linker, chunk, i)
                     chunkResults.append(result)
                 }
                 hasCssChunk = true
-            }
-            case ChunkContent.HTML => {
+            case ChunkContent.HTML =>
                 let result = generateCompileResultForHtmlChunk(linker, chunk, chunks)
                 chunkResults.append(result)
                 hasHtmlChunk = true
-            }
             case _ => ()
         }
         chunk.compileResultsForChunk = chunkResults

@@ -721,6 +721,12 @@ foreign func realloc(ptr: CPointer<Unit>, size: UIntNative): CPointer<Unit>
 foreign func memcpy(dest: CPointer<Unit>, src: CPointer<Unit>, n: UIntNative): CPointer<Unit>
 @C
 foreign func memset(s: CPointer<Unit>, c: Int32, n: UIntNative): CPointer<Unit>
+@C
+foreign func clock_gettime(clockId: Int32, tp: CPointer<Unit>): Int32
+@C
+foreign func nanosleep(req: CPointer<Unit>, rem: CPointer<Unit>): Int32
+@C
+foreign func environPtr(index: Int64): CPointer<Int8>
 
 // ============================================================================
 // OS 接口
@@ -1430,9 +1436,24 @@ public class SysModule {
     }
 
     /// 获取当前时间毫秒数
+    /// 对应 Bun: std.time.milliTimestamp / clock_gettime(CLOCK_REALTIME)
     public static func currentTimeMillis(): Int64 {
-        // TODO: 使用 std.time 实现精确时间
-        return Int64(0)
+        unsafe {
+            // struct timespec: tv_sec (8 bytes) + tv_nsec (8 bytes)
+            let ts = malloc(UIntNative(16))
+            // CLOCK_REALTIME = 0
+            let rc = clock_gettime(0, ts)
+            if (rc == 0) {
+                let secPtr = CPointer<Int64>(ts)
+                let nsecPtr = CPointer<Int64>(ts) + Int64(1)
+                let sec = secPtr.read()
+                let nsec = nsecPtr.read()
+                free(ts)
+                return sec * Int64(1000) + nsec / Int64(1000000)
+            }
+            free(ts)
+            return Int64(0)
+        }
     }
 
     /// 获取 CPU 核心数
@@ -1441,8 +1462,19 @@ public class SysModule {
     }
 
     /// 休眠指定毫秒数
+    /// 对应 Bun: std.time.sleep / nanosleep
     public static func sleep(ms: Int64): Unit {
-        // TODO: 使用 std.time.Duration 实现精确休眠
+        unsafe {
+            // struct timespec: tv_sec (8 bytes) + tv_nsec (8 bytes)
+            let req = malloc(UIntNative(16))
+            let secPtr = CPointer<Int64>(req)
+            let nsecPtr = CPointer<Int64>(req) + Int64(1)
+            secPtr.write(ms / Int64(1000))
+            nsecPtr.write((ms % Int64(1000)) * Int64(1000000))
+            // nanosleep(req, NULL)
+            nanosleep(req, CPointer<Unit>.null())
+            free(req)
+        }
     }
 
     /// 获取操作系统名称
@@ -1453,5 +1485,23 @@ public class SysModule {
     /// 获取 CPU 架构名称
     public static func getArchName(): String {
         return "x86_64"
+    }
+
+    /// 获取所有环境变量 (KEY=VALUE 格式)
+    /// 对应 Bun: std.os.environ iteration
+    public static func getEnvAll(): Array<String> {
+        let result = ArrayList<String>()
+        unsafe {
+            var i = Int64(0)
+            while (true) {
+                let entryPtr = environPtr(i)
+                if (entryPtr.isNull()) { break }
+                let entry = entryPtr.readString()
+                if (entry.length == 0) { break }
+                result.append(entry)
+                i += 1
+            }
+        }
+        return result.toArray()
     }
 }

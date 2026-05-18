@@ -107,10 +107,7 @@ public class ParseFn {
                 if (hasIfScope) {
                     p.popScope()
                 }
-                let stmt = Stmt()
-                stmt.tag = StmtTag.Type
-                stmt.loc = loc
-                return stmt
+                return Stmt(loc, StmtTag.Type)
             }
         }
 
@@ -118,9 +115,7 @@ public class ParseFn {
 
         // 声明函数符号
         if (let Some(n) <- name) {
-            let kind = SymbolKind.HoistedFunction
-            // declareSymbol
-            p.declareSymbol(kind, n.loc, nameText)
+            p.declareSymbol(SymbolKind.HoistedFunction, nameText, p.currentScope)
         }
 
         if (opts.isExport) {
@@ -132,11 +127,7 @@ public class ParseFn {
             p.popScope()
         }
 
-        let stmt = Stmt()
-        stmt.tag = StmtTag.Function
-        stmt.loc = loc
-        stmt.funcData = fnData
-        return stmt
+        return Stmt.fn_(loc, fnData)
     }
 
     // ========================================================================
@@ -148,9 +139,9 @@ public class ParseFn {
     /// 解析函数定义 - 对应 Bun parse_fn
     /// 解析参数列表和函数体
     public static func parseFn(p: Parser, name: ?LocRef, opts: FnOrArrowDataParse): GFn {
-        var fnData = GFN()
-        fnData.name = name
-        fnData.openParensLoc = p.lexer.loc()
+        var fnData = GFn(p.lexer.loc())
+        fnData.isAsync = opts.isAsync
+        fnData.isGenerator = opts.isGenerator
 
         p.lexer.expect(Token.OpenParen)
 
@@ -171,10 +162,9 @@ public class ParseFn {
 
         // 解析函数体
         if (p.lexer.token == Token.OpenBrace) {
-            fnData.body = parseFnBody(p)
-        } else if (opts.allowMissingBodyForTypeScript && p.options.features.typescript) {
-            // TypeScript 允许省略函数体 (declare)
-            fnData.body = None
+            fnData.body = GFnBody.StmtsBody(parseFnBody(p))
+        } else if (p.options.features.typescript) {
+            fnData.body = GFnBody.StmtsBody(ArrayList<Stmt>())
         } else {
             p.log.addError(MsgData("Expected fnDatation body"))
         }
@@ -191,8 +181,8 @@ public class ParseFn {
     // ========================================================================
 
     /// 解析函数参数列表 - 对应 Bun parse_fn 内的参数解析
-    public static func parseFnArgs(p: Parser): ArrayList<Arg> {
-        let args = ArrayList<Arg>()
+    public static func parseFnArgs(p: Parser): ArrayList<GArg> {
+        let args = ArrayList<GArg>()
 
         // await/yield 在参数中不允许
         let oldAllowAwait = p.fnOrArrowData.allowAwait
@@ -226,12 +216,10 @@ public class ParseFn {
             var value: ?Expr = None
             if (p.lexer.token == Token.Equals) {
                 p.lexer.nextToken()
-                value = Some(p.parseExpr(Level.Comma))
+                value = Some(p.parseExpr(ParseExprOpts()))
             }
 
-            let arg = Arg()
-            arg.binding = binding
-            arg.default_ = value
+            let arg = GArg(binding.name, binding.loc, binding.ref, value, hasRest)
             args.append(arg)
 
             if (p.lexer.token == Token.Comma) {
@@ -254,7 +242,7 @@ public class ParseFn {
     // ========================================================================
 
     /// 解析函数体 - 对应 Bun parse_fn 内的函数体解析
-    public static func parseFnBody(p: Parser): ?ArrayList<Stmt> {
+    public static func parseFnBody(p: Parser): ArrayList<Stmt> {
         p.lexer.expect(Token.OpenBrace)
 
         // 进入函数体作用域
@@ -262,7 +250,7 @@ public class ParseFn {
 
         let stmts = ArrayList<Stmt>()
         while (p.lexer.token != Token.CloseBrace && p.lexer.token != Token.EndOfFile) {
-            let stmt = p.parseStmt(ParseStatementOptions())
+            let stmt = p.parseStmt(StmtOpts())
             stmts.append(stmt)
         }
 
@@ -285,7 +273,7 @@ public class ParseFn {
                 p.lexer.nextToken()
                 let binding = BindingPattern(loc, BindingPatternTag.Identifier)
                 binding.name = name
-                binding.ref = p.storeNameInRef(name)
+                binding.ref = p.newSymbol(SymbolKind.Other, name)
                 return binding
             case Token.OpenBracket =>
                 return parseArrayBinding(p)
@@ -366,7 +354,7 @@ public class ParseFn {
             var defaultValue: ?Expr = None
             if (p.lexer.token == Token.Equals) {
                 p.lexer.nextToken()
-                defaultValue = Some(p.parseExpr(Level.Comma))
+                defaultValue = Some(p.parseExpr(ParseExprOpts()))
             }
 
             binding.properties.append(BindingPatternProperty(keyLoc, keyName, value, defaultValue))
@@ -419,7 +407,11 @@ public class ParseFn {
                         done = true
                     }
                 case Token.Comma =>
-                    if (depth == 0 && level == Level.Comma) {
+                    let stopAtComma = match (level) {
+                        case Level.Comma => true
+                        case _ => false
+                    }
+                    if (depth == 0 && stopAtComma) {
                         done = true
                     } else {
                         p.lexer.nextToken()

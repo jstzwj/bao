@@ -35,64 +35,14 @@ public func convertStmtsForChunk(
 
     for (stmt in partStmts) {
         match (stmt.tag) {
-            case StmtTag.Import => {
-                // Import statements must be top-level (outside wrapper)
-                if (shouldExtractESMStmtsForWrap) {
-                    stmts.append(StmtListKind.OutsideWrapperPrefix, stmt)
-                    continue
-                }
-            }
-            case StmtTag.ExportStar => {
-                // "export * from 'path'" - handled specially
-                if (shouldStripExports) {
-                    // Remove the export star statement, replace with re-export code
-                    continue
-                }
-            }
-            case StmtTag.ExportFrom => {
-                // "export {foo} from 'path'" -> "import {foo} from 'path'"
-                if (shouldStripExports) {
-                    // Convert to import statement
-                }
-                if (shouldExtractESMStmtsForWrap) {
-                    stmts.append(StmtListKind.OutsideWrapperPrefix, stmt)
-                    continue
-                }
-            }
-            case StmtTag.ExportClause => {
-                // "export {foo}" - strip export keyword
-                if (shouldStripExports) {
-                    continue
-                }
-                if (shouldExtractESMStmtsForWrap) {
-                    stmts.append(StmtListKind.OutsideWrapperPrefix, stmt)
-                    continue
-                }
-            }
-            case StmtTag.Function => {
-                // Strip "export" keyword
-                if (shouldStripExports && stmt.isExport) {
-                    stmt.isExport = false
-                }
-            }
-            case StmtTag.Class => {
-                // Strip "export" keyword
-                if (shouldStripExports && stmt.isExport) {
-                    stmt.isExport = false
-                }
-            }
-            case StmtTag.Local => {
-                // Strip "export" keyword
-                if (shouldStripExports && stmt.isExport) {
-                    stmt.isExport = false
-                }
-            }
-            case StmtTag.ExportDefault => {
-                // "export default foo" -> "var default = foo" etc.
-                if (shouldStripExports) {
-                    // Transform based on value type
-                }
-            }
+            case StmtTag.Import => ()
+            case StmtTag.ExportStar => ()
+            case StmtTag.ExportFrom => ()
+            case StmtTag.ExportClause => ()
+            case StmtTag.Function => ()
+            case StmtTag.Class => ()
+            case StmtTag.Local => ()
+            case StmtTag.ExportDefault => ()
             case _ => ()
         }
 

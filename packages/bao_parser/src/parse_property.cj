@@ -46,10 +46,10 @@ public class ParseProperty {
         if (isComputed) {
             // 计算属性 [expr]
             p.lexer.expect(Token.OpenBracket)
-            key = p.parseExpr(Level.Comma)
+            key = p.parseExpr(ParseExprOpts())
             p.lexer.expect(Token.CloseBracket)
         } else {
-            key = parsePropertyKey(p)
+            key = parsePropertyKeyOrMissing(p)
         }
 
         // 检查是否为 getter/setter
@@ -59,23 +59,23 @@ public class ParseProperty {
                     p.lexer.token != Token.Comma && p.lexer.token != Token.CloseBrace &&
                     p.lexer.token != Token.EndOfFile) {
                     kind = PropertyKind.Get
-                    key = parsePropertyKey(p)
+                    key = parsePropertyKeyOrMissing(p)
                 } else if (key.identifierName == "set" && p.lexer.token != Token.Colon &&
                            p.lexer.token != Token.Comma && p.lexer.token != Token.CloseBrace &&
                            p.lexer.token != Token.EndOfFile) {
                     kind = PropertyKind.Set
-                    key = parsePropertyKey(p)
+                    key = parsePropertyKeyOrMissing(p)
                 }
             }
             if (key.tag == ExprTag.String) {
-                if (key.stringValue == "get" && p.lexer.token != Token.Colon &&
+                if (key.stringValue.toString() == "get" && p.lexer.token != Token.Colon &&
                     p.lexer.token != Token.Comma && p.lexer.token != Token.CloseBrace) {
                     kind = PropertyKind.Get
-                    key = parsePropertyKey(p)
-                } else if (key.stringValue == "set" && p.lexer.token != Token.Colon &&
+                    key = parsePropertyKeyOrMissing(p)
+                } else if (key.stringValue.toString() == "set" && p.lexer.token != Token.Colon &&
                            p.lexer.token != Token.Comma && p.lexer.token != Token.CloseBrace) {
                     kind = PropertyKind.Set
-                    key = parsePropertyKey(p)
+                    key = parsePropertyKeyOrMissing(p)
                 }
             }
         }
@@ -95,7 +95,7 @@ public class ParseProperty {
 
         // TypeScript 类型注解
         if (p.options.features.typescript && p.lexer.token == Token.Colon) {
-            p.lexer.next()
+            p.lexer.nextToken()
             // 跳过类型
             var depth = 0
             while (depth > 0 || (p.lexer.token != Token.Semicolon &&
@@ -108,19 +108,19 @@ public class ParseProperty {
                         depth--
                     case _ => ()
                 }
-                p.lexer.next()
+                p.lexer.nextToken()
             }
         }
 
         // 属性值
         if (p.lexer.token == Token.Equals) {
             // 类字段初始化器: foo = value
-            p.lexer.next()
-            value = Some(p.parseExpr(Level.Comma))
+            p.lexer.nextToken()
+            value = Some(p.parseExpr(ParseExprOpts()))
         } else if (p.lexer.token == Token.Colon) {
             // 对象属性值: foo: value
-            p.lexer.next()
-            value = Some(p.parseExpr(Level.Comma))
+            p.lexer.nextToken()
+            value = Some(p.parseExpr(ParseExprOpts()))
         } else {
             // 简写属性: { foo } 等同于 { foo: foo }
             if (key.tag == ExprTag.Identifier) {
@@ -157,32 +157,37 @@ public class ParseProperty {
         if (p.lexer.token != Token.OpenParen) {
             return None
         }
-        if (kind != PropertyKind.Normal && kind != PropertyKind.Get && kind != PropertyKind.Set) {
+        let isValidKind = match (kind) {
+            case PropertyKind.Normal | PropertyKind.Get | PropertyKind.Set => true
+            case _ => false
+        }
+        if (!isValidKind) {
             return None
         }
 
         let loc = p.lexer.loc()
 
         // 进入函数参数作用域
-        let scopeIndex = p.pushScopeForParsePass(ScopeKind.FunctionArgs, loc)
+        p.pushScope(ScopeKind.FunctionArgs)
         var isConstructor = false
 
         // 检查 constructor 和 prototype 限制
         if (opts.isClass && !isComputed) {
             if (key.tag == ExprTag.String) {
-                if (!opts.isStatic && key.stringValue == "constructor") {
-                    if (kind == PropertyKind.Get) {
-                        p.log.addError(MsgData("Class constructor cannot be a getter"))
-                    } else if (kind == PropertyKind.Set) {
-                        p.log.addError(MsgData("Class constructor cannot be a setter"))
-                    } else if (opts.isAsync) {
+                if (!opts.isStatic && key.stringValue.toString() == "constructor") {
+                    match (kind) {
+                        case PropertyKind.Get => p.log.addError(MsgData("Class constructor cannot be a getter"))
+                        case PropertyKind.Set => p.log.addError(MsgData("Class constructor cannot be a setter"))
+                        case _ => ()
+                    }
+                    if (opts.isAsync) {
                         p.log.addError(MsgData("Class constructor cannot be an async fnDatation"))
                     } else if (opts.isGenerator) {
                         p.log.addError(MsgData("Class constructor cannot be a generator fnDatation"))
                     } else {
                         isConstructor = true
                     }
-                } else if (opts.isStatic && key.stringValue == "prototype") {
+                } else if (opts.isStatic && key.stringValue.toString() == "prototype") {
                     p.log.addError(MsgData("Invalid static method name \"prototype\""))
                 }
             }
@@ -190,25 +195,15 @@ public class ParseProperty {
 
         // 解析函数
         let fnOrArrowData = FnOrArrowDataParse()
-        fnOrArrowData.asyncRange = opts.asyncRange
-        fnOrArrowData.hasAsyncRange = opts.isAsync
-        fnOrArrowData.allowAwait = if (opts.isAsync) {
-            AwaitOrYield.AllowExpr
-        } else {
-            AwaitOrYield.AllowIdent
-        }
-        fnOrArrowData.allowYield = if (opts.isGenerator) {
-            AwaitOrYield.AllowExpr
-        } else {
-            AwaitOrYield.AllowIdent
-        }
+        fnOrArrowData.isAsync = opts.isAsync
+        fnOrArrowData.isGenerator = opts.isGenerator
+        fnOrArrowData.allowAwait = opts.isAsync
+        fnOrArrowData.allowYield = opts.isGenerator
 
-        var fnData = ParseFn.parseFn(p, None, fnOrArrowData)
+        var fnData = ParseFn.parseFn(p, Option<LocRef>.None, fnOrArrowData)
         p.popScope()
 
-        let value = Expr()
-        value.tag = ExprTag.Function
-        value.funcData = fnData
+        let value = Expr.fn_(loc, fnData)
 
         return Some(createProperty(loc, key, Some(value), kind, isComputed, opts.isStatic, true, false))
     }
@@ -227,47 +222,47 @@ public class ParseProperty {
         while (true) {
             if (p.lexer.token == Token.Identifier) {
                 let name = p.lexer.identifier
-                if (PropertyModifierKeywords.get(name) != None) {
+                if (PropertyModifierKeywords.get(name).isSome()) {
                     match (name) {
                         case "static" =>
                             result.isStatic = true
-                            p.lexer.next()
+                            p.lexer.nextToken()
                             continue
                         case "async" =>
                             result.isAsync = true
-                            p.lexer.next()
+                            p.lexer.nextToken()
                             continue
                         case "abstract" =>
                             result.isAbstract = true
-                            p.lexer.next()
+                            p.lexer.nextToken()
                             continue
                         case "declare" =>
                             result.isDeclare = true
-                            p.lexer.next()
+                            p.lexer.nextToken()
                             continue
                         case "readonly" =>
                             result.isReadonly = true
-                            p.lexer.next()
+                            p.lexer.nextToken()
                             continue
                         case "private" =>
                             result.accessibility = Some(Accessibility.Private)
-                            p.lexer.next()
+                            p.lexer.nextToken()
                             continue
                         case "protected" =>
                             result.accessibility = Some(Accessibility.Protected)
-                            p.lexer.next()
+                            p.lexer.nextToken()
                             continue
                         case "public" =>
                             result.accessibility = Some(Accessibility.Public)
-                            p.lexer.next()
+                            p.lexer.nextToken()
                             continue
                         case "override" =>
                             result.isOverride = true
-                            p.lexer.next()
+                            p.lexer.nextToken()
                             continue
                         case "accessor" =>
                             result.isAccessor = true
-                            p.lexer.next()
+                            p.lexer.nextToken()
                             continue
                         case _ =>
                             break
@@ -280,14 +275,14 @@ public class ParseProperty {
         // 检查 * (generator)
         if (p.lexer.token == Token.Asterisk) {
             result.isGenerator = true
-            p.lexer.next()
+            p.lexer.nextToken()
         }
 
         // 检查 # (private field)
         if (p.lexer.token == Token.PrivateIdentifier) {
             result.isPrivate = true
             result.keyName = p.lexer.identifier
-            p.lexer.next()
+            p.lexer.nextToken()
             result.key = createKeyExpr(p, result.keyName, result.isPrivate)
             return result
         }
@@ -295,19 +290,19 @@ public class ParseProperty {
         // 检查 [ (computed propertyerty)
         if (p.lexer.token == Token.OpenBracket) {
             result.isComputed = true
-            p.lexer.next()
-            result.key = p.parseExpr(Level.Comma)
+            p.lexer.nextToken()
+            result.key = p.parseExpr(ParseExprOpts())
             p.lexer.expect(Token.CloseBracket)
             return result
         }
 
         // 正常键
-        result.key = parsePropertyKey(p)
+        result.key = parsePropertyKeyOrMissing(p)
         if (let Some(k) <- result.key) {
             if (k.tag == ExprTag.Identifier) {
                 result.keyName = k.identifierName
             } else if (k.tag == ExprTag.String) {
-                result.keyName = k.stringValue
+                result.keyName = k.stringValue.toString()
             }
         }
 
@@ -319,12 +314,19 @@ public class ParseProperty {
     // ========================================================================
 
     /// 解析属性键
+    private static func parsePropertyKeyOrMissing(p: Parser): Expr {
+        match (parsePropertyKey(p)) {
+            case Some(key) => key
+            case None => Expr(p.lexer.loc(), ExprTag.Missing)
+        }
+    }
+
     private static func parsePropertyKey(p: Parser): ?Expr {
         match (p.lexer.token) {
             case Token.Identifier =>
                 let loc = p.lexer.loc()
                 let name = p.lexer.identifier
-                p.lexer.next()
+                p.lexer.nextToken()
                 let result = Expr()
                 result.tag = ExprTag.Identifier
                 result.loc = loc
@@ -332,17 +334,17 @@ public class ParseProperty {
                 return Some(result)
             case Token.StringLiteral =>
                 let loc = p.lexer.loc()
-                let value = p.lexer.stringLiteral
-                p.lexer.next()
+                let value = p.lexer.stringLiteralRawContent
+                p.lexer.nextToken()
                 let result = Expr()
                 result.tag = ExprTag.String
                 result.loc = loc
-                result.stringValue = value
+                result.stringValue = BaoString(value)
                 return Some(result)
             case Token.NumericLiteral =>
                 let loc = p.lexer.loc()
                 let value = p.lexer.number
-                p.lexer.next()
+                p.lexer.nextToken()
                 let result = Expr()
                 result.tag = ExprTag.Number
                 result.loc = loc
@@ -351,18 +353,18 @@ public class ParseProperty {
             case Token.BigIntegerLiteral =>
                 let loc = p.lexer.loc()
                 let value = p.lexer.identifier
-                p.lexer.next()
+                p.lexer.nextToken()
                 let result = Expr()
                 result.tag = ExprTag.BigInt
                 result.loc = loc
-                result.stringValue = value
+                result.stringValue = BaoString(value)
                 return Some(result)
             case _ =>
                 // 保留字作为属性键
                 if (LexerTables.isReservedWord(p.lexer.token)) {
                     let loc = p.lexer.loc()
                     let name = LexerTables.tokenToString(p.lexer.token)
-                    p.lexer.next()
+                    p.lexer.nextToken()
                     let result = Expr()
                     result.tag = ExprTag.Identifier
                     result.loc = loc
@@ -379,7 +381,7 @@ public class ParseProperty {
         let keyName = if (key.tag == ExprTag.Identifier) {
             key.identifierName
         } else if (key.tag == ExprTag.String) {
-            key.stringValue
+            key.stringValue.toString()
         } else {
             ""
         }
@@ -400,11 +402,7 @@ public class ParseProperty {
     /// 创建键表达式
     private static func createKeyExpr(p: Parser, name: String, isPrivate: Bool): Expr {
         let result = Expr()
-        if (isPrivate) {
-            result.tag = ExprTag.PrivateIdentifier
-        } else {
-            result.tag = ExprTag.Identifier
-        }
+        result.tag = ExprTag.Identifier
         result.loc = p.lexer.loc()
         result.identifierName = name
         return result

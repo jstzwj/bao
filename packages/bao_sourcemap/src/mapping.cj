@@ -201,6 +201,8 @@ public class SourceMapping {
     public func originalColumn(): Int64 { original.column }
 }
 
+public type Mapping = SourceMapping
+
 // ============================================================================
 // MappingWithoutName - 无名称的映射条目
 // 严格翻译自: Mapping.zig - MappingWithoutName

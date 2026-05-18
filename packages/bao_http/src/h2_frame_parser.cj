@@ -51,73 +51,6 @@ public let H2_DEFAULT_WINDOW_SIZE: Int64 = 65535
 public let H2_DEFAULT_MAX_FRAME_SIZE: Int64 = 16384
 
 // ============================================================================
-// FrameType - HTTP/2 帧类型
-// 严格翻译自:
-//   pub const FrameType = enum(u8) {
-//       HTTP_FRAME_DATA = 0x00,
-//       HTTP_FRAME_HEADERS = 0x01,
-//       ...
-//       _,
-//   };
-// ============================================================================
-
-/// HTTP/2 帧类型
-/// 严格翻译自: H2FrameParser.FrameType
-public enum H2FrameType {
-    | DATA              // 0x00
-    | HEADERS           // 0x01
-    | PRIORITY          // 0x02
-    | RST_STREAM        // 0x03
-    | SETTINGS          // 0x04
-    | PUSH_PROMISE      // 0x05
-    | PING              // 0x06
-    | GOAWAY            // 0x07
-    | WINDOW_UPDATE     // 0x08
-    | CONTINUATION      // 0x09
-    | ALTSVC            // 0x0A
-    | ORIGIN            // 0x0C
-    | UNKNOWN           // 未知帧类型
-
-    /// 获取数值
-    public func toUInt8(): UInt8 {
-        match (this) {
-            case DATA => UInt8(0x00)
-            case HEADERS => UInt8(0x01)
-            case PRIORITY => UInt8(0x02)
-            case RST_STREAM => UInt8(0x03)
-            case SETTINGS => UInt8(0x04)
-            case PUSH_PROMISE => UInt8(0x05)
-            case PING => UInt8(0x06)
-            case GOAWAY => UInt8(0x07)
-            case WINDOW_UPDATE => UInt8(0x08)
-            case CONTINUATION => UInt8(0x09)
-            case ALTSVC => UInt8(0x0A)
-            case ORIGIN => UInt8(0x0C)
-            case UNKNOWN => UInt8(0xFF)
-        }
-    }
-
-    /// 从数值解析
-    public static func fromUInt8(v: UInt8): H2FrameType {
-        match (v) {
-            case UInt8(0x00) => DATA
-            case UInt8(0x01) => HEADERS
-            case UInt8(0x02) => PRIORITY
-            case UInt8(0x03) => RST_STREAM
-            case UInt8(0x04) => SETTINGS
-            case UInt8(0x05) => PUSH_PROMISE
-            case UInt8(0x06) => PING
-            case UInt8(0x07) => GOAWAY
-            case UInt8(0x08) => WINDOW_UPDATE
-            case UInt8(0x09) => CONTINUATION
-            case UInt8(0x0A) => ALTSVC
-            case UInt8(0x0C) => ORIGIN
-            case _ => UNKNOWN
-        }
-    }
-}
-
-// ============================================================================
 // PingFrameFlags - PING 帧标志
 // 严格翻译自: pub const PingFrameFlags = enum(u8) { ACK = 0x1 }
 // ============================================================================
@@ -153,64 +86,6 @@ public enum H2HeadersFrameFlags {
     | END_HEADERS
     | PADDED
     | PRIORITY
-}
-
-// ============================================================================
-// SettingsFlags - SETTINGS 帧标志
-// 严格翻译自: pub const SettingsFlags = enum(u8) { ACK = 0x1 }
-// ============================================================================
-
-/// SETTINGS 帧标志
-public enum H2SettingsFlags {
-    | ACK
-}
-
-// ============================================================================
-// ErrorCode - HTTP/2 错误码
-// 严格翻译自:
-//   pub const ErrorCode = enum(u32) {
-//       NO_ERROR = 0x0, PROTOCOL_ERROR = 0x1, ...,
-//   }
-// ============================================================================
-
-/// HTTP/2 错误码
-/// 严格翻译自: H2FrameParser.ErrorCode
-public enum H2ErrorCode {
-    | NO_ERROR
-    | PROTOCOL_ERROR
-    | INTERNAL_ERROR
-    | FLOW_CONTROL_ERROR
-    | SETTINGS_TIMEOUT
-    | STREAM_CLOSED
-    | FRAME_SIZE_ERROR
-    | REFUSED_STREAM
-    | CANCEL
-    | COMPRESSION_ERROR
-    | CONNECT_ERROR
-    | ENHANCE_YOUR_CALM
-    | INADEQUATE_SECURITY
-    | HTTP_1_1_REQUIRED
-    | MAX_PENDING_SETTINGS_ACK
-
-    public func toUInt32(): UInt32 {
-        match (this) {
-            case NO_ERROR => UInt32(0x0)
-            case PROTOCOL_ERROR => UInt32(0x1)
-            case INTERNAL_ERROR => UInt32(0x2)
-            case FLOW_CONTROL_ERROR => UInt32(0x3)
-            case SETTINGS_TIMEOUT => UInt32(0x4)
-            case STREAM_CLOSED => UInt32(0x5)
-            case FRAME_SIZE_ERROR => UInt32(0x6)
-            case REFUSED_STREAM => UInt32(0x7)
-            case CANCEL => UInt32(0x8)
-            case COMPRESSION_ERROR => UInt32(0x9)
-            case CONNECT_ERROR => UInt32(0xa)
-            case ENHANCE_YOUR_CALM => UInt32(0xb)
-            case INADEQUATE_SECURITY => UInt32(0xc)
-            case HTTP_1_1_REQUIRED => UInt32(0xd)
-            case MAX_PENDING_SETTINGS_ACK => UInt32(0xe)
-        }
-    }
 }
 
 // ============================================================================
@@ -251,17 +126,15 @@ public enum H2SettingsType {
     }
 
     public static func fromUInt16(v: UInt16): H2SettingsType {
-        match (v) {
-            case UInt16(0x1) => HEADER_TABLE_SIZE
-            case UInt16(0x2) => ENABLE_PUSH
-            case UInt16(0x3) => MAX_CONCURRENT_STREAMS
-            case UInt16(0x4) => INITIAL_WINDOW_SIZE
-            case UInt16(0x5) => MAX_FRAME_SIZE
-            case UInt16(0x6) => MAX_HEADER_LIST_SIZE
-            case UInt16(0x8) => ENABLE_CONNECT_PROTOCOL
-            case UInt16(0x9) => NO_RFC7540_PRIORITIES
-            case _ => UNKNOWN
-        }
+        if (v == UInt16(0x1)) { return HEADER_TABLE_SIZE }
+        if (v == UInt16(0x2)) { return ENABLE_PUSH }
+        if (v == UInt16(0x3)) { return MAX_CONCURRENT_STREAMS }
+        if (v == UInt16(0x4)) { return INITIAL_WINDOW_SIZE }
+        if (v == UInt16(0x5)) { return MAX_FRAME_SIZE }
+        if (v == UInt16(0x6)) { return MAX_HEADER_LIST_SIZE }
+        if (v == UInt16(0x8)) { return ENABLE_CONNECT_PROTOCOL }
+        if (v == UInt16(0x9)) { return NO_RFC7540_PRIORITIES }
+        return UNKNOWN
     }
 }
 
@@ -398,7 +271,7 @@ public class H2FrameHeader {
 
     public init() {
         length = 0
-        type_ = H2FrameType.SETTINGS
+        type_ = H2FrameType.Settings
         flags = UInt8(0)
         streamIdentifier = UInt32(0)
     }
@@ -418,7 +291,7 @@ public class H2FrameHeader {
         }
         // 长度: 3 字节大端序
         let len = (Int64(src[0]) << 16) | (Int64(src[1]) << 8) | Int64(src[2])
-        let frameType = H2FrameType.fromUInt8(src[3])
+        let frameType = H2FrameType.fromCode(src[3])
         let flags = src[4]
         // 流标识符: 4 字节大端序 (最高位保留)
         let streamId = u32FromBytesAt(src, 5) & UInt32(0x7FFFFFFF)
@@ -433,7 +306,7 @@ public class H2FrameHeader {
         buf.append(UInt8((length >> 8) & 0xFF))
         buf.append(UInt8(length & 0xFF))
         // 类型
-        buf.append(type_.toUInt8())
+        buf.append(type_.code())
         // 标志
         buf.append(flags)
         // 流标识符: 4 字节大端序

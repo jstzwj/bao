@@ -19,6 +19,13 @@ foreign func getaddrinfo(node: CPointer<Int8>, service: CPointer<Int8>,
 foreign func freeaddrinfo(res: CPointer<Unit>): Unit
 @C
 foreign func gai_strerror(errcode: Int32): CPointer<Int8>
+@C
+foreign func getnameinfo(sa: CPointer<Unit>, salen: UIntNative,
+    host: CPointer<Int8>, hostlen: UIntNative,
+    serv: CPointer<Int8>, servlen: UIntNative,
+    flags: Int32): Int32
+@C
+foreign func inet_pton(af: Int32, src: CPointer<Int8>, dst: CPointer<Unit>): Int32
 
 // getaddrinfo 常量
 public class AddrInfoFlags {
@@ -186,9 +193,60 @@ public class BasicDnsResolver {
         }
     }
 
-    /// 反向 DNS 查询 (简化)
+    /// 反向 DNS 查询
+    /// 对应 Bun: getnameinfo based reverse DNS lookup
     public static func reverse(ip: String): SysMaybe<String> {
-        // TODO: 完整实现需要 getnameinfo
-        return SysMaybe<String>.Err(SysError(0, SysTag.TODO))
+        unsafe {
+            let hostBuf = malloc(UIntNative(1025))
+            let servBuf = malloc(UIntNative(32))
+            let sa = SockAddrFromIp(ip)
+            if (sa.isNull()) {
+                free(hostBuf)
+                free(servBuf)
+                return SysMaybe<String>.Err(SysError(0, SysTag.TODO))
+            }
+            // NI_NAMEREQD = 8
+            let rc = getnameinfo(sa, UIntNative(128), hostBuf, UIntNative(1025),
+                servBuf, UIntNative(32), Int32(8))
+            if (rc != 0) {
+                free(hostBuf)
+                free(servBuf)
+                free(sa)
+                return SysMaybe<String>.Err(SysError(UInt16(rc), SysTag.TODO))
+            }
+            let hostname = CPointer<Int8>(hostBuf).readString()
+            free(hostBuf)
+            free(servBuf)
+            free(sa)
+            return SysMaybe<String>.Ok(hostname)
+        }
+    }
+}
+
+/// SockAddrFromIp helper - create a sockaddr from an IP string
+/// AF_INET = 2, AF_INET6 = 10
+private func SockAddrFromIp(ip: String): CPointer<Unit> {
+    unsafe {
+        let isV6 = ip.contains(":")
+        let af: Int32 = if (isV6) { 10 } else { 2 }
+        let saSize: UIntNative = if (isV6) { UIntNative(128) } else { UIntNative(16) }
+        let sa = malloc(saSize)
+        CPointer<Int8>(sa).write(Int8(0), count: Int64(saSize))
+        let ipPtr = unsafeNewCString(ip)
+        // Write address family
+        let familyPtr = CPointer<Int16>(sa)
+        familyPtr.write(Int16(af))
+        // Convert IP address
+        let dstOffset: Int64 = if (isV6) { Int64(8) } else { Int64(4) }
+        let dstPtr = CPointer<Unit>(sa) + dstOffset
+        let result = inet_pton(af, ipPtr, dstPtr)
+        if (result != 1) {
+            free(sa)
+            return CPointer<Unit>.null()
+        }
+        // Set port to 0
+        let portPtr = CPointer<Int16>(sa) + Int64(1)
+        portPtr.write(Int16(0))
+        return sa
     }
 }

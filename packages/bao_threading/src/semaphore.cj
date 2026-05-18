@@ -1,11 +1,11 @@
 // bao_threading - Semaphore 信号量
 // 严格翻译自:
-//   src/threading/Semaphore.rs - Semaphore (Mutex + Condition + permits)
+//   src/threading/Semaphore.rs - Semaphore (Mutex + Condvar + permits)
 //   Zig std.Thread.Semaphore (wait/post)
 //
 // Bun 的 Semaphore 实现 (Semaphore.rs):
 //   mutex: Mutex
-//   cond: Condition
+//   cond: Condvar
 //   permits: usize (被 mutex 保护)
 //
 //   new(): permits = 0
@@ -13,7 +13,7 @@
 //   wait(): lock -> while(permits==0) cond.wait -> permits-- -> if(permits>0) cond.signal -> unlock
 //   post(): lock -> permits++ -> cond.signal -> unlock
 //
-// 仓颉使用 Semaphore + Mutex/Condition 实现等价语义
+// 仓颉使用 Semaphore + Mutex/Condvar 实现等价语义
 package bao_threading
 
 import std.sync.*
@@ -23,7 +23,7 @@ import std.time.*
 // Semaphore - 计数信号量
 // 严格翻译自: src/threading/Semaphore.rs
 //
-// Bun/Zig Semaphore 使用 Mutex + Condition + atomic permits:
+// Bun/Zig Semaphore 使用 Mutex + Condvar + atomic permits:
 //   wait(): 获取一个许可 (阻塞直到有可用许可)
 //   post(): 释放一个许可并唤醒一个等待者
 //
@@ -41,12 +41,12 @@ import std.time.*
 //   4. mutex.unlock()
 //
 // 仓颉 Semaphore 原生提供 acquire/release
-// 本实现严格对应 Bun 的 Mutex + Condition + permits 模式
+// 本实现严格对应 Bun 的 Mutex + Condvar + permits 模式
 // ============================================================================
 
 /// 计数信号量 - 严格对应 Bun Semaphore (Semaphore.rs)
 ///
-/// Bun 的 Semaphore 使用 Mutex + Condition + usize permits:
+/// Bun 的 Semaphore 使用 Mutex + Condvar + usize permits:
 ///   - wait(): 阻塞获取一个许可
 ///   - post(): 释放一个许可并唤醒一个等待者
 ///
@@ -54,12 +54,12 @@ import std.time.*
 ///   - wait() 中获取许可后如果还有剩余许可，会 signal 唤醒下一个等待者
 ///   - 这实现了 "连锁唤醒" 模式，避免 post 一次只能唤醒一个线程
 ///
-/// 仓颉使用 Mutex + Condition 实现等价语义
+/// 仓颉使用 Mutex + Condvar 实现等价语义
 public class Semaphore {
     /// 互斥锁 - 对应 Bun Semaphore.mutex
     private let mutex: Mutex
     /// 条件变量 - 对应 Bun Semaphore.cond
-    private let cond: Condition
+    private let cond: Condvar
     /// 许可数 - 对应 Bun Semaphore.permits (UnsafeCell<usize>)
     /// 严格翻译: permits 被 mutex 保护
     private var permits: Int64
@@ -69,16 +69,16 @@ public class Semaphore {
     ///   Self::with_permits(0)
     public init() {
         mutex = Mutex()
-        cond = mutex.condition()
+        cond = Condvar(mutex)
         permits = 0
     }
 
     /// 初始化信号量，指定许可数 - 对应 Bun Semaphore::with_permits(permits)
     /// 严格翻译自: Semaphore.rs:38-44
-    ///   Self { mutex: Mutex::new(), cond: Condition::new(), permits: UnsafeCell::new(permits) }
+    ///   Self { mutex: Mutex::new(), cond: Condvar::new(), permits: UnsafeCell::new(permits) }
     public init(permits: Int64) {
         mutex = Mutex()
-        cond = mutex.condition()
+        cond = Condvar(mutex)
         this.permits = permits
     }
 
@@ -106,7 +106,7 @@ public class Semaphore {
             // 严格对应 Bun: if (*permits > 0) cond.signal()
             // 如果还有许可，主动唤醒下一个等待者 (连锁唤醒)
             if (permits > 0) {
-                cond.notify()
+                cond.signal()
             }
         }
     }
@@ -124,7 +124,7 @@ public class Semaphore {
             // 严格对应 Bun: *permits += 1
             permits += 1
             // 严格对应 Bun: cond.signal()
-            cond.notify()
+            cond.signal()
         }
     }
 
@@ -138,7 +138,7 @@ public class Semaphore {
             }
             permits -= 1
             if (permits > 0) {
-                cond.notify()
+                cond.signal()
             }
             return true
         }
@@ -151,14 +151,14 @@ public class Semaphore {
     public func tryAcquire(timeout: Duration): Bool {
         synchronized(mutex) {
             while (permits == 0) {
-                let signaled = cond.wait(timeout: timeout)
+                let signaled = cond.wait(timeout)
                 if (!signaled) {
                     return false
                 }
             }
             permits -= 1
             if (permits > 0) {
-                cond.notify()
+                cond.signal()
             }
             return true
         }

@@ -746,8 +746,19 @@ public class EnvironmentBuilder {
             return env
         }
         // 合并: 子 env 覆盖父 env
+        // 对应 Bun: std.os.environ iteration + child env override
         let result = HashMap<String, String>()
-        // TODO: 通过 C FFI extern char **environ 获取父进程环境
+        // Copy parent environment via SysModule.getEnvAll
+        let parentEnv = SysModule.getEnvAll()
+        for (entry in parentEnv) {
+            let eqIdx = entry.indexOf("=")
+            if (eqIdx >= 0) {
+                let key = entry.substring(0, eqIdx)
+                let val = entry.substring(eqIdx + 1)
+                result.put(key, val)
+            }
+        }
+        // Child env overrides parent
         for (key in env.keys()) {
             match (env.get(key)) {
                 case Some(v) => result.put(key, v)

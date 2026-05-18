@@ -41,7 +41,6 @@ public var defaultArena: Any = ()
 
 /// HTTP 线程
 /// 严格翻译自: pub var http_thread: HTTPThread = undefined
-public var httpThread: HTTPThread = undefined
 
 /// 中止追踪器
 /// 严格翻译自: pub var socket_async_http_abort_tracker = std.AutoArrayHashMap(u32, uws.AnySocket).init(...)
@@ -61,15 +60,12 @@ public var experimentalHttp3ClientFromCli: Bool = false
 
 /// 最大重定向 URL 长度
 /// 严格翻译自: const MAX_REDIRECT_URL_LENGTH = 128 * 1024
-public let MAX_REDIRECT_URL_LENGTH: Int64 = 128 * 1024
 
 /// 最大 HTTP 头部大小
 /// 严格翻译自: pub var max_http_header_size: usize = 16 * 1024
-public var maxHttpHeaderSize: Int64 = 16 * 1024
 
 /// 空闲超时 (秒), 0 禁用
 /// 严格翻译自: pub var idle_timeout_seconds: c_uint = 300
-public var idleTimeoutSeconds: Int64 = 300
 
 /// 覆盖的默认 User-Agent
 /// 严格翻译自: pub var overridden_default_user_agent: []const u8 = ""
@@ -77,23 +73,18 @@ public var overriddenDefaultUserAgent: String = ""
 
 /// chunked 编码终止标记
 /// 严格翻译自: pub const end_of_chunked_http1_1_encoding_response_body = "0\r\n\r\n"
-public let END_OF_CHUNKED_HTTP11 = "0\r\n\r\n"
 
 /// 默认重定向次数
 /// 严格翻译自: const default_redirect_count = 127
-public let DEFAULT_REDIRECT_COUNT: Int64 = 127
 
 /// TLS 记录最大大小
 /// 严格翻译自: const max_tls_record_size = 16 * 1024
-public let MAX_TLS_RECORD_SIZE: Int64 = 16 * 1024
 
 /// 最大请求头数量
 /// 严格翻译自: const max_request_headers = 256
-public let MAX_REQUEST_HEADERS: Int64 = 256
 
 /// H2 最大重试次数
 /// 严格翻译自: pub const max_h2_retries: u8 = 5
-public let MAX_H2_RETRIES: UInt8 = UInt8(5)
 
 /// 共享请求头缓冲区
 /// 严格翻译自: var shared_request_headers_buf: [max_request_headers]picohttp.Header = undefined
@@ -106,17 +97,6 @@ public var sharedResponseHeadersBuf: Array<HeaderPair> = Array<HeaderPair>(256, 
 /// 临时 hostname 缓冲区
 /// 严格翻译自: pub var temp_hostname: [8192]u8 = undefined
 public var tempHostname: Array<UInt8> = Array<UInt8>(8192, { _ => UInt8(0) })
-
-// ============================================================================
-// HTTPVerboseLevel - HTTP 调试级别
-// 严格翻译自: pub const HTTPVerboseLevel = enum { none, headers, curl }
-// ============================================================================
-
-public enum HTTPVerboseLevel {
-    | none
-    | headers
-    | curl
-}
 
 // ============================================================================
 // HTTPUpgradeState - HTTP 升级状态
@@ -138,6 +118,18 @@ public enum HTTPProtocol {
     | http1_1
     | http2
     | http3
+
+    public operator func ==(right: HTTPProtocol): Bool {
+        match (this) {
+            case http1_1 => match (right) { case http1_1 => true case _ => false }
+            case http2 => match (right) { case http2 => true case _ => false }
+            case http3 => match (right) { case http3 => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: HTTPProtocol): Bool {
+        return !(this == right)
+    }
 }
 
 // ============================================================================
@@ -201,39 +193,6 @@ public class HTTPClientFlags {
         forceHttp1 = false
         forceHttp3 = false
         h3Retried = false
-    }
-}
-
-// ============================================================================
-// HTTPResponseMetadata - HTTP 响应元数据
-// 严格翻译自: pub const HTTPResponseMetadata = struct { url, owned_buf, response }
-// ============================================================================
-
-/// HTTP 响应元数据
-/// 严格翻译自: http.zig HTTPResponseMetadata
-public class HTTPResponseMetadata {
-    /// URL
-    /// 严格翻译自: url: []const u8 = ""
-    public var url: String
-    /// 拥有的缓冲区
-    /// 严格翻译自: owned_buf: []u8 = ""
-    public var ownedBuf: Array<UInt8>
-    /// 响应
-    /// 严格翻译自: response: picohttp.Response = .{}
-    public var response: ?RawResponse
-
-    public init() {
-        url = ""
-        ownedBuf = Array<UInt8>()
-        response = None
-    }
-
-    /// 释放资源
-    /// 严格翻译自: HTTPResponseMetadata.deinit
-    public func deinit(): Unit {
-        ownedBuf = Array<UInt8>()
-        url = ""
-        response = None
     }
 }
 
@@ -401,7 +360,7 @@ public class HTTPClient {
 
     /// 代理隧道
     /// 严格翻译自: proxy_tunnel: ?*ProxyTunnel = null
-    public var proxyTunnel: Any
+    public var proxyTunnel: ?ProxyTunnel
 
     /// H2 流
     /// 严格翻译自: h2: ?*H2.Stream = null
@@ -454,7 +413,7 @@ public class HTTPClient {
         httpProxy = None
         proxyHeaders = ()
         proxyAuthorization = None
-        proxyTunnel = ()
+        proxyTunnel = None
         h2 = ()
         h3 = ()
         pendingH2 = ()
@@ -487,7 +446,7 @@ public class HTTPClient {
         prevRedirect = ""
         proxyAuthorization = None
         httpProxy = None
-        proxyTunnel = ()
+        proxyTunnel = None
         h2 = ()
         h3 = ()
         pendingH2 = ()
@@ -710,7 +669,7 @@ public class HTTPClient {
         }
 
         // TCP 连接
-        match (httpThreadConnect(this, isSsl)) {
+        match (httpThread.connect(this, isSsl)) {
             case Some(socketFd) =>
                 if (state.requestStage == HTTPStage.pending) {
                     state.requestStage = HTTPStage.opened
@@ -870,9 +829,7 @@ public class HTTPClient {
         remainingRedirectCount = remainingRedirectCount - 1
         flags.redirected = true
 
-        if (proxyTunnel != ()) {
-            proxyTunnel = ()
-        }
+        proxyTunnel = None
 
         connectedUrl = ParsedUrl()
         prevRedirect = ""
@@ -908,7 +865,7 @@ public class HTTPClient {
     /// 严格翻译自: HTTPClient.onClose
     public func onClose(isSsl: Bool, socketFd: Int64): Unit {
         // 代理隧道清理
-        proxyTunnel = ()
+        proxyTunnel = None
 
         let inProgress = state.stage != Stage.done && state.stage != Stage.fail &&
             !state.flags.isRedirectPending
@@ -1131,7 +1088,7 @@ public class HTTPClient {
             case Some(sniRaw) =>
                 let sni = stripPortFromHost(sniRaw)
                 if (!httpEqlCaseInsensitiveASCII(sni, url.hostname)) {
-                    combined = combined +% httpHash(sni)
+                    combined = combined + httpHash(sni)
                     any = true
                 }
             case None => ()
@@ -1141,7 +1098,7 @@ public class HTTPClient {
             case Some(auth) =>
                 var h: UInt64 = UInt64(0)
                 h = httpHash("proxy-authorization:" + auth)
-                combined = combined +% h
+                combined = combined + h
                 any = true
             case None => ()
         }
@@ -1270,27 +1227,6 @@ public class HTTPSignals {
     }
 }
 
-// ============================================================================
-// HTTPRequestBody - HTTP 请求体
-// ============================================================================
-
-/// HTTP 请求体
-public enum HTTPRequestBody {
-    | bytes(String)
-    | stream(HTTPBodyStream)
-    | sendfile(SendFileInfo)
-    | none
-
-    public func len(): Int64 {
-        match (this) {
-            case bytes(b) => b.size
-            case stream(_) => -1
-            case sendfile(_) => -1
-            case none => 0
-        }
-    }
-}
-
 /// HTTP Body 流
 public class HTTPBodyStream {
     public var buffer: Any
@@ -1352,6 +1288,10 @@ public class HTTPClientResult {
         bodySize = BodySize.unknown
         certificateInfo = ()
     }
+
+    public func isSuccess(): Bool {
+        return !fail.isSome()
+    }
 }
 
 /// Body 大小
@@ -1382,203 +1322,8 @@ public class HTTPClientResultCallback {
 }
 
 // ============================================================================
-// InternalState - HTTP 内部状态
-// 严格翻译自: bun/src/http/InternalState.zig
-// ============================================================================
-
-/// HTTP 内部状态
-/// 严格翻译自: InternalState struct
-public class InternalState {
-    /// 请求阶段
-    public var requestStage: HTTPStage
-    /// 响应阶段
-    public var responseStage: HTTPStage
-    /// 连接阶段
-    public var stage: Stage
-    /// 标志
-    public var flags: InternalStateFlags
-    /// 请求体
-    public var requestBody: String
-    /// 原始请求体
-    public var originalRequestBody: HTTPRequestBody
-    /// 已发送字节数
-    public var requestSentLen: Int64
-    /// Content-Length
-    public var contentLength: ?Int64
-    /// 内容编码
-    public var encoding: Encoding
-    /// 传输编码
-    public var transferEncoding: Encoding
-    /// 已接收 body 总量
-    public var totalBodyReceived: Int64
-    /// 响应消息缓冲区
-    public var responseMessageBuffer: MutableString
-    /// Body 输出字符串
-    public var bodyOutStr: ?MutableString
-    /// 待处理响应
-    public var pendingResponse: ?RawResponse
-    /// 克隆的元数据
-    public var clonedMetadata: ?HTTPResponseMetadata
-    /// 失败原因
-    public var fail: ?String
-    /// 证书信息
-    public var certificateInfo: Any
-
-    public init() {
-        requestStage = HTTPStage.pending
-        responseStage = HTTPStage.pending
-        stage = Stage.pending
-        flags = InternalStateFlags()
-        requestBody = ""
-        originalRequestBody = HTTPRequestBody.none
-        requestSentLen = 0
-        contentLength = None
-        encoding = Encoding.identity
-        transferEncoding = Encoding.identity
-        totalBodyReceived = 0
-        responseMessageBuffer = MutableString()
-        bodyOutStr = None
-        pendingResponse = None
-        clonedMetadata = None
-        fail = None
-        certificateInfo = ()
-    }
-
-    /// 初始化
-    /// 严格翻译自: InternalState.init
-    public static func initFunc(body: HTTPRequestBody, bodyOutStr: MutableString): InternalState {
-        let s = InternalState()
-        s.originalRequestBody = body
-        match (body) {
-            case bytes(b) => s.requestBody = b
-            case _ => s.requestBody = ""
-        }
-        s.bodyOutStr = Some(bodyOutStr)
-        return s
-    }
-
-    /// 是否为 chunked 编码
-    public func isChunkedEncoding(): Bool {
-        return transferEncoding == Encoding.chunked
-    }
-
-    /// 是否完成
-    public func isDone(): Bool {
-        return stage == Stage.done
-    }
-
-    /// 重置状态
-    public func reset(): Unit {
-        requestStage = HTTPStage.pending
-        responseStage = HTTPStage.pending
-        stage = Stage.pending
-        flags = InternalStateFlags()
-        requestBody = ""
-        originalRequestBody = HTTPRequestBody.none
-        requestSentLen = 0
-        contentLength = None
-        encoding = Encoding.identity
-        transferEncoding = Encoding.identity
-        totalBodyReceived = 0
-        responseMessageBuffer.reset()
-        pendingResponse = None
-        clonedMetadata = None
-        fail = None
-    }
-}
-
-// ============================================================================
-// MutableString - 可变字符串缓冲区
-// ============================================================================
-
-/// 可变字符串 — 缓冲区
-public class MutableString {
-    public var data: ArrayList<UInt8>
-
-    public init() {
-        data = ArrayList<UInt8>()
-    }
-
-    public func reset(): Unit {
-        data = ArrayList<UInt8>()
-    }
-
-    public func append(bytes: Array<UInt8>): Unit {
-        for (b in bytes) {
-            data.append(b)
-        }
-    }
-
-    public func size(): Int64 {
-        return data.size
-    }
-}
-
-// ============================================================================
-// HTTPThread - HTTP 线程
-// 严格翻译自: bun/src/http/HTTPThread.zig
-// ============================================================================
-
-/// HTTP 线程
-public class HTTPThread {
-    public var httpContext: Any
-    public var httpsContext: Any
-
-    public init() {
-        httpContext = ()
-        httpsContext = ()
-    }
-}
-
-// ============================================================================
 // 辅助类型
 // ============================================================================
-
-/// 原始请求
-public class RawRequest {
-    public var method: String
-    public var path: String
-    public var minorVersion: Int64
-    public var headers: ArrayList<HeaderPair>
-
-    public init() {
-        method = "GET"
-        path = "/"
-        minorVersion = 1
-        headers = ArrayList<HeaderPair>()
-    }
-}
-
-/// 原始响应
-public class RawResponse {
-    public var statusCode: Int64
-    public var statusText: String
-    public var headers: ArrayList<HeaderPair>
-    public var bytesRead: Int64
-
-    public init() {
-        statusCode = 0
-        statusText = ""
-        headers = ArrayList<HeaderPair>()
-        bytesRead = 0
-    }
-}
-
-/// 头部对
-public class HeaderPair {
-    public var name: String
-    public var value: String
-
-    public init(name: String, value: String) {
-        this.name = name
-        this.value = value
-    }
-}
-
-/// HTTPContext 引用
-public class HTTPContext {
-    public init() {}
-}
 
 /// HTTP 连接结果
 public enum HTTPConnectResult {
@@ -1636,37 +1381,6 @@ public func unregisterAbortTracker(client: HTTPClient): Unit {
         // socketAsyncHttpAbortTracker.swapRemove(client.asyncHttpId)
     }
 }
-
-/// 头部名称哈希
-/// 严格翻译自: HTTPClient.hashHeaderName
-public func hashHeaderName(name: String): UInt64 {
-    var hash: UInt64 = UInt64(0)
-    for (c in name) {
-        let lower = httpCoreLowerByte(c)
-        hash = hash * UInt64(31) + UInt64(lower)
-    }
-    return hash
-}
-
-/// HTTP 线程连接 (桩)
-public func httpThreadConnect(client: HTTPClient, isSsl: Bool): ?HTTPConnectResult {
-    return Some(HTTPConnectResult.socket(-1))
-}
-
-// ============================================================================
-// 头部哈希常量
-// 严格翻译自:
-//   const authorization_header_hash = hashHeaderConst("Authorization");
-//   const proxy_authorization_header_hash = hashHeaderConst("Proxy-Authorization");
-//   const cookie_header_hash = hashHeaderConst("Cookie");
-// ============================================================================
-
-public let AUTHORIZATION_HEADER_HASH: UInt64 = hashHeaderName("authorization")
-public let PROXY_AUTHORIZATION_HEADER_HASH: UInt64 = hashHeaderName("proxy-authorization")
-public let COOKIE_HEADER_HASH: UInt64 = hashHeaderName("cookie")
-
-/// BAO 版本 user-agent
-public let BAO_USER_AGENT = "bao/0.1.0"
 
 /// 无效 FD
 public let INVALID_FD: Int64 = -1

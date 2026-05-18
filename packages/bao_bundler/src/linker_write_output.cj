@@ -88,14 +88,13 @@ public func writeOutputFilesToDisk(
         // Handle source maps
         var sourceMapOutputFile: ?OutputFile = None
         match (chunk.content.sourcemap(c.options.sourceMaps)) {
-            case SourceMapKind.External => {
+            case SourceMapKind.External =>
                 // Write external source map file
                 let sourceMapFinalRelPath = relPath + ".map"
                 sourceMapOutputFile = writeSourceMapFile(
                     c, rootDir, chunk, codeResult,
                     sourceMapFinalRelPath, publicPath, false)
-            }
-            case SourceMapKind.Linked => {
+            case SourceMapKind.Linked =>
                 // Write linked source map with URL comment
                 let sourceMapFinalRelPath = relPath + ".map"
                 sourceMapOutputFile = writeSourceMapFile(
@@ -103,13 +102,11 @@ public func writeOutputFilesToDisk(
                     sourceMapFinalRelPath, publicPath, true)
                 // Append sourceMappingURL comment to code
                 codeResult.appendSourceMapUrl(sourceMapFinalRelPath, publicPath)
-            }
-            case SourceMapKind.Inline => {
+            case SourceMapKind.Inline =>
                 // Inline source map as base64
                 let sourceMapData = chunk.outputSourceMap.finalize()
                 let encoded = base64Encode(sourceMapData)
                 codeResult.appendInlineDataUrl(encoded)
-            }
             case SourceMapKind.None => ()
         }
 
@@ -125,7 +122,6 @@ public func writeOutputFilesToDisk(
             if (loader.isJavaScriptLike()) {
                 bytecodeOutputFile = generateBytecodeCache(
                     c, rootDir, chunk, codeResult)
-            }
         }
 
         // Write the main output file

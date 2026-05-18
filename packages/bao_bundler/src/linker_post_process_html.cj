@@ -32,7 +32,7 @@ public func postProcessHTMLChunk(
     let compileResults = chunk.compileResultsForChunk
 
     // Concatenate all compile results
-    for (compileResults) { compileResult =>
+    for (compileResult in compileResults) {
         j.push(compileResult.code)
     }
 

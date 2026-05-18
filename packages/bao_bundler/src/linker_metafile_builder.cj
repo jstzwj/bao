@@ -341,7 +341,7 @@ public class MetafileBuilder {
     private static func getFormatForLoader(loader: Loader, c: LinkerContext,
                                             sourceIndex: Int64): ?String {
         match (loader) {
-            case Loader.JS => {
+            case Loader.JS =>
                 let exportsKind = c.graph.getExportsKind(sourceIndex)
                 match (exportsKind) {
                     case ExportsKind.CJS => "cjs"
@@ -349,8 +349,6 @@ public class MetafileBuilder {
                     case ExportsKind.ESM => "esm"
                     case ExportsKind.ESMWithDynamicFallback => "esm"
                     case ExportsKind.None => None
-                }
-            }
             case Loader.JSON => "json"
             case Loader.CSS => "css"
             case _ => None

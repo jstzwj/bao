@@ -76,7 +76,7 @@ public class CertificateInfo {
         this.issuer = ""
         this.notBefore = 0
         this.notAfter = 0
-        this.valid = certError.errorNo == 0
+        this.valid = certError.errorNo == Int32(0)
     }
 
     // ========================================================================
@@ -106,54 +106,6 @@ public class CertificateInfo {
             return "Certificate error for ${hostname}: ${certError.toString()}"
         }
         return "Certificate for ${hostname}: subject=${subject}, issuer=${issuer}"
-    }
-}
-
-/// HTTP 证书错误
-/// 严格翻译自: bun/src/http/HTTPCertError.zig
-///
-/// Bun:
-///   pub const HTTPCertError = struct {
-///       error_no: u32 = 0,
-///       code: []const u8 = "",
-///       reason: []const u8 = "",
-///   };
-public class HTTPCertError {
-    /// 错误编号 — 对应 OpenSSL X509_V_ERR_* 常量
-    /// 严格翻译自: error_no: u32 = 0
-    public var errorNo: UInt32
-
-    /// 错误代码
-    /// 严格翻译自: code: []const u8 = ""
-    public var code: String
-
-    /// 错误原因描述
-    /// 严格翻译自: reason: []const u8 = ""
-    public var reason: String
-
-    public init() {
-        errorNo = UInt32(0)
-        code = ""
-        reason = ""
-    }
-
-    public init(errorNo: UInt32, code: String, reason: String) {
-        this.errorNo = errorNo
-        this.code = code
-        this.reason = reason
-    }
-
-    /// 是否有错误
-    public func hasError(): Bool {
-        return errorNo != UInt32(0) || code.size > 0
-    }
-
-    /// 获取错误描述
-    public func toString(): String {
-        if (reason.size > 0) {
-            return "${code}: ${reason}"
-        }
-        return code
     }
 }
 

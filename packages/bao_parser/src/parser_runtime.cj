@@ -327,40 +327,40 @@ public class ParserRuntime {
 
     /// 检查是否需要运行时
     public func needsRuntime(): Bool {
-        return imports.name != None ||
-               imports.require != None ||
-               imports.export_ != None ||
-               imports.reExport != None ||
-               imports.exportDefault != None ||
-               imports.merge != None ||
-               imports.publicField != None ||
-               imports.privateIn != None ||
-               imports.privateGet != None ||
-               imports.privateAdd != None ||
-               imports.privateSet != None ||
-               imports.privateMethod != None ||
-               imports.using != None ||
-               imports.callDispose != None
+        return imports.name.isSome() ||
+               imports.require.isSome() ||
+               imports.export_.isSome() ||
+               imports.reExport.isSome() ||
+               imports.exportDefault.isSome() ||
+               imports.merge.isSome() ||
+               imports.publicField.isSome() ||
+               imports.privateIn.isSome() ||
+               imports.privateGet.isSome() ||
+               imports.privateAdd.isSome() ||
+               imports.privateSet.isSome() ||
+               imports.privateMethod.isSome() ||
+               imports.using.isSome() ||
+               imports.callDispose.isSome()
     }
 
     /// 获取所有需要的运行时导入
     public func getRequiredImports(): ArrayList<String> {
         let result = ArrayList<String>()
-        if (imports.name != None) { result.append("__name") }
-        if (imports.require != None) { result.append("__require") }
-        if (imports.export_ != None) { result.append("__export") }
-        if (imports.reExport != None) { result.append("__reExport") }
-        if (imports.exportValue != None) { result.append("__exportValue") }
-        if (imports.exportDefault != None) { result.append("__exportDefault") }
-        if (imports.merge != None) { result.append("__merge") }
-        if (imports.publicField != None) { result.append("__publicField") }
-        if (imports.privateIn != None) { result.append("__privateIn") }
-        if (imports.privateGet != None) { result.append("__privateGet") }
-        if (imports.privateAdd != None) { result.append("__privateAdd") }
-        if (imports.privateSet != None) { result.append("__privateSet") }
-        if (imports.privateMethod != None) { result.append("__privateMethod") }
-        if (imports.using != None) { result.append("__using") }
-        if (imports.callDispose != None) { result.append("__callDispose") }
+        if (imports.name.isSome()) { result.append("__name") }
+        if (imports.require.isSome()) { result.append("__require") }
+        if (imports.export_.isSome()) { result.append("__export") }
+        if (imports.reExport.isSome()) { result.append("__reExport") }
+        if (imports.exportValue.isSome()) { result.append("__exportValue") }
+        if (imports.exportDefault.isSome()) { result.append("__exportDefault") }
+        if (imports.merge.isSome()) { result.append("__merge") }
+        if (imports.publicField.isSome()) { result.append("__publicField") }
+        if (imports.privateIn.isSome()) { result.append("__privateIn") }
+        if (imports.privateGet.isSome()) { result.append("__privateGet") }
+        if (imports.privateAdd.isSome()) { result.append("__privateAdd") }
+        if (imports.privateSet.isSome()) { result.append("__privateSet") }
+        if (imports.privateMethod.isSome()) { result.append("__privateMethod") }
+        if (imports.using.isSome()) { result.append("__using") }
+        if (imports.callDispose.isSome()) { result.append("__callDispose") }
         return result
     }
 

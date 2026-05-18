@@ -45,11 +45,11 @@ public func doStep5(linker: LinkerContext, sourceIndex: Int64): Unit {
 
         // Check for ambiguous export star refs
         if (export_.potentiallyAmbiguousExportStarRefs.size > 0) {
-            let main = importsToBind.get(thisId, export_.importRef)
+            let mainRef = importsToBind.get(thisId, export_.importRef)
             var isAmbiguous = false
             for (ambig in export_.potentiallyAmbiguousExportStarRefs) {
                 let ambigRef = importsToBind.get(ambig.sourceIndex, ambig.importRef)
-                if (main.importRef != ambigRef.importRef) {
+                if (mainRef.importRef != ambigRef.importRef) {
                     isAmbiguous = true
                     break
                 }

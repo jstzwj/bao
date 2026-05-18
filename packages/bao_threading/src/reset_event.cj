@@ -15,7 +15,7 @@
 //   set(): state.swap(IS_SET, Release) -> 如果旧状态==WAITING: futex.wake(MAX)
 //   reset(): state.store(UNSET, Relaxed)
 //
-// 仓颉使用 FutexWord (Mutex + Condition) 模拟 futex 语义
+// 仓颉使用 FutexWord (Mutex + Condvar) 模拟 futex 语义
 package bao_threading
 
 import std.sync.*
@@ -63,7 +63,7 @@ private let STATE_IS_SET: UInt32 = UInt32(2)
 //     reset():
 //       state.store(UNSET, Relaxed)
 //
-// 仓颉使用 FutexWord (封装了 Mutex + Condition) 实现等价语义
+// 仓颉使用 FutexWord (封装了 Mutex + Condvar) 实现等价语义
 // ============================================================================
 
 /// 手动重置事件 - 对应 Bun ResetEvent
@@ -89,12 +89,12 @@ public class ResetEvent {
     private let waitMutex: Mutex
 
     /// 条件变量 - 模拟 futex 唤醒
-    private let waitCond: Condition
+    private let waitCond: Condvar
 
     public init() {
         state = AtomicU32(STATE_UNSET)
         waitMutex = Mutex()
-        waitCond = waitMutex.condition()
+        waitCond = Condvar(waitMutex)
     }
 
     /// 检查事件是否已设置 - 对应 Bun ResetEvent.is_set()
@@ -165,7 +165,7 @@ public class ResetEvent {
             // 有线程在等待，唤醒所有
             // 对应 Bun Futex::wake(&self.state, u32::MAX)
             synchronized(waitMutex) {
-                waitCond.notifyAll()
+                waitCond.broadcast()
             }
         }
     }
@@ -244,7 +244,7 @@ public class ResetEvent {
             }
             if (s == STATE_WAITING) {
                 while (true) {
-                    let signaled = waitCond.wait(timeout: timeout)
+                    let signaled = waitCond.wait(timeout)
                     s = state.load()
                     if (s != STATE_WAITING) {
                         break

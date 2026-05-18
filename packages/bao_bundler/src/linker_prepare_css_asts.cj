@@ -54,18 +54,15 @@ private func prepareCssAstsForChunkImpl(c: LinkerContext, chunk: Chunk): Unit {
         let entry = chunk.content.css.importsInChunkInOrder[i]
 
         match (entry.kind) {
-            case CSSImportOrderKind.Layers => {
+            case CSSImportOrderKind.Layers =>
                 // Create AST with only @layer statements
                 prepareLayersAst(chunk, i, entry)
-            }
-            case CSSImportOrderKind.ExternalPath => {
+            case CSSImportOrderKind.ExternalPath =>
                 // Create AST with @import rule for external path
                 prepareExternalPathAst(c, chunk, i, entry)
-            }
-            case CSSImportOrderKind.SourceIndex => {
+            case CSSImportOrderKind.SourceIndex =>
                 // Shallow copy and strip leading @import/.ignored rules
                 prepareSourceIndexAst(c, chunk, i, entry)
-            }
         }
     }
 }

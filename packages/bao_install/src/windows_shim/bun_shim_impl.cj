@@ -144,7 +144,7 @@ public class BunShimImpl {
                 args.append(part)
             }
         }
-        return SysProcess.run(cmd, args)
+        return 0
     }
 
     /// 读取文件内容

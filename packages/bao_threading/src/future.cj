@@ -1,7 +1,7 @@
 // bao_threading - Future/Promise 异步结果
 // 严格翻译自:
 //   Bun JavaScript Promise 的线程同步等价
-//   src/threading/Condition.zig 中的等待/通知模式
+//   src/threading/Condvar.zig 中的等待/通知模式
 //   src/threading/WaitGroup.zig 的计数等待模式
 //
 // Future/Promise 是 JavaScript Promise 在多线程环境下的等价物:
@@ -39,10 +39,10 @@ public enum FutureState <: Equatable<FutureState> {
 // 严格翻译自: JavaScript Promise 的线程安全等价
 //
 // Bun 的线程同步模式:
-//   WaitGroup 等待 + Condition 通知
+//   WaitGroup 等待 + Condvar 通知
 //   用于跨线程传递一次性的异步结果
 //
-// 仓颉使用 Mutex + Condition 实现:
+// 仓颉使用 Mutex + Condvar 实现:
 //   complete/fail: 加锁 -> 设置结果 -> notifyAll
 //   get: 加锁 -> while(pending) wait -> 读取结果
 // ============================================================================
@@ -61,10 +61,10 @@ public class Future<T> {
     private var error: ?String
     /// 状态
     private var state: FutureState
-    /// 互斥锁 - 对应 Bun Condition 模式中的 Mutex
+    /// 互斥锁 - 对应 Bun Condvar 模式中的 Mutex
     private let mutex: Mutex
-    /// 条件变量 - 对应 Bun Condition
-    private let cond: Condition
+    /// 条件变量 - 对应 Bun Condvar
+    private let cond: Condvar
     /// 完成回调列表 - 对应 JS .then() 链
     private var onCompleteCallbacks: ArrayList<(T) -> Unit>
     /// 错误回调列表 - 对应 JS .catch() 链
@@ -79,7 +79,7 @@ public class Future<T> {
         error = None
         state = FutureState.Pending
         mutex = Mutex()
-        cond = mutex.condition()
+        cond = Condvar(mutex)
         onCompleteCallbacks = ArrayList<(T) -> Unit>()
         onErrorCallbacks = ArrayList<(String) -> Unit>()
         onAlwaysCallbacks = ArrayList<() -> Unit>()
@@ -111,7 +111,7 @@ public class Future<T> {
     public func get(timeout: Duration): ?T {
         synchronized(mutex) {
             if (state == FutureState.Pending && !cancelled) {
-                cond.wait(timeout: timeout)
+                cond.wait(timeout)
                 if (state == FutureState.Pending) {
                     return None
                 }
@@ -144,7 +144,7 @@ public class Future<T> {
             }
             result = Some(value)
             state = FutureState.Completed
-            cond.notifyAll()
+            cond.broadcast()
             // 复制回调列表，在锁外执行避免死锁
             callbacks = onCompleteCallbacks
             alwaysCallbacks = onAlwaysCallbacks
@@ -168,7 +168,7 @@ public class Future<T> {
             }
             error = Some(msg)
             state = FutureState.Failed
-            cond.notifyAll()
+            cond.broadcast()
             callbacks = onErrorCallbacks
             alwaysCallbacks = onAlwaysCallbacks
         }
@@ -189,7 +189,7 @@ public class Future<T> {
             cancelled = true
             state = FutureState.Failed
             error = Some("Future was cancelled")
-            cond.notifyAll()
+            cond.broadcast()
         }
     }
 

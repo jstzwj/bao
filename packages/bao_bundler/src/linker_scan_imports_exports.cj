@@ -84,7 +84,7 @@ public func scanImportsAndExports(linker: LinkerContext): Unit {
             let otherKind = getExportsKind(linker, otherFile)
 
             match (record.kind) {
-                case ImportKind.Stmt => {
+                case ImportKind.Stmt =>
                     // import * / import default from empty module -> CJS
                     if ((record.flags.containsImportStar || record.flags.containsDefaultAlias) &&
                         !otherFlags.hasLazyExport &&
@@ -97,16 +97,14 @@ public func scanImportsAndExports(linker: LinkerContext): Unit {
                         setExportsKind(linker, otherFile, ExportsKind.CJS)
                         setWrap(linker, otherFile, WrapKind.CJS)
                     }
-                }
-                case ImportKind.Require => {
+                case ImportKind.Require =>
                     if (otherKind == ExportsKind.ESM) {
                         setWrap(linker, otherFile, WrapKind.ESM)
                     } else {
                         setWrap(linker, otherFile, WrapKind.CJS)
                         setExportsKind(linker, otherFile, ExportsKind.CJS)
                     }
-                }
-                case ImportKind.Dynamic => {
+                case ImportKind.Dynamic =>
                     if (!linker.graph.codeSplitting) {
                         if (otherKind == ExportsKind.ESM) {
                             setWrap(linker, otherFile, WrapKind.ESM)
@@ -115,7 +113,6 @@ public func scanImportsAndExports(linker: LinkerContext): Unit {
                             setExportsKind(linker, otherFile, ExportsKind.CJS)
                         }
                     }
-                }
                 case _ => ()
             }
         }

@@ -84,18 +84,16 @@ private func generateCodeForDevServer(
 /// 包装语句 (CJS/ESM)
 private func wrapStatements(linker: LinkerContext, stmts: StmtList, flags: MetaFlags): Unit {
     match (flags.wrap) {
-        case WrapKind.CJS => {
+        case WrapKind.CJS =>
             // var require_foo = __commonJS((exports, module) => { ... });
             let wrapperDef = Stmt()
             wrapperDef.tag = StmtTag.Local
             stmts.outsideWrapperPrefix.append(wrapperDef)
-        }
-        case WrapKind.ESM => {
+        case WrapKind.ESM =>
             // var init_foo = __esm(() => { ... });
             let wrapperDef = Stmt()
             wrapperDef.tag = StmtTag.Local
             stmts.outsideWrapperPrefix.append(wrapperDef)
-        }
         case WrapKind.None => ()
     }
 }
@@ -135,15 +133,12 @@ public class DeclCollector {
                                   linker: LinkerContext): Unit {
         for (stmt in stmts) {
             match (stmt.tag) {
-                case StmtTag.Local => {
+                case StmtTag.Local =>
                     // Collect variable declarations
-                }
-                case StmtTag.Function => {
+                case StmtTag.Function =>
                     // Collect function name
-                }
-                case StmtTag.Class => {
+                case StmtTag.Class =>
                     // Collect class name
-                }
                 case _ => ()
             }
         }

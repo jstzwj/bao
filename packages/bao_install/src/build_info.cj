@@ -122,27 +122,27 @@ public let LOCKFILE_HEADER: String = "#!/usr/bin/env bun\nbao-lockfile-format-v0
 
 /// 补丁依赖段标签
 /// 翻译自: HAS_PATCHED_DEPENDENCIES_TAG = @bitCast(@as([8]u8, "pAtChEdD".*))
-public let HAS_PATCHED_DEPENDENCIES_TAG: UInt64 = UInt64(0)
+public let BUILD_INFO_HAS_PATCHED_DEPENDENCIES_TAG: UInt64 = UInt64(0)
 
 /// workspace 包 ID 段标签
 /// 翻译自: HAS_WORKSPACE_PACKAGE_IDS_TAG = @bitCast(@as([8]u8, "wOrKsPaC".*))
-public let HAS_WORKSPACE_PACKAGE_IDS_TAG: UInt64 = UInt64(1)
+public let BUILD_INFO_HAS_WORKSPACE_PACKAGE_IDS_TAG: UInt64 = UInt64(1)
 
 /// 可信依赖段标签
 /// 翻译自: HAS_TRUSTED_DEPENDENCIES_TAG = @bitCast(@as([8]u8, "tRuStEDd".*))
-public let HAS_TRUSTED_DEPENDENCIES_TAG: UInt64 = UInt64(2)
+public let BUILD_INFO_HAS_TRUSTED_DEPENDENCIES_TAG: UInt64 = UInt64(2)
 
 /// 空可信依赖段标签
 /// 翻译自: HAS_EMPTY_TRUSTED_DEPENDENCIES_TAG = @bitCast(@as([8]u8, "eMpTrUsT".*))
-public let HAS_EMPTY_TRUSTED_DEPENDENCIES_TAG: UInt64 = UInt64(3)
+public let BUILD_INFO_HAS_EMPTY_TRUSTED_DEPENDENCIES_TAG: UInt64 = UInt64(3)
 
 /// 覆盖段标签
 /// 翻译自: HAS_OVERRIDES_TAG = @bitCast(@as([8]u8, "oVeRriDs".*))
-public let HAS_OVERRIDES_TAG: UInt64 = UInt64(4)
+public let BUILD_INFO_HAS_OVERRIDES_TAG: UInt64 = UInt64(4)
 
 /// catalog 段标签
 /// 翻译自: HAS_CATALOGS_TAG = @bitCast(@as([8]u8, "cAtAlOgS".*))
-public let HAS_CATALOGS_TAG: UInt64 = UInt64(5)
+public let BUILD_INFO_HAS_CATALOGS_TAG: UInt64 = UInt64(5)
 
 /// 配置版本段标签
 /// 翻译自: HAS_CONFIG_VERSION_TAG = @bitCast(@as([8]u8, "cNfGvRsN".*))

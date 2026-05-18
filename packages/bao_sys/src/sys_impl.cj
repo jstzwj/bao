@@ -785,7 +785,7 @@ public class SysImpl {
         unsafe {
             var retries = 0
             while (retries < 100) {
-                let rc = recvfrom(Int32(fd), buf, count, flags, CPointer<Unit>(), CPointer<Unit>())
+                let rc = recvfrom(Int32(fd), buf, count, flags, CPointer<Unit>(), CPointer<UInt32>())
                 if (Int64(rc) < 0) {
                     let errnoVal = OS.errno()
                     if (errnoVal == Int64(E.EINTR)) {
@@ -809,7 +809,7 @@ public class SysImpl {
         unsafe {
             var retries = 0
             while (retries < 100) {
-                let rc = sendto(Int32(fd), buf, count, flags, CPointer<Unit>(), UIntNative(0))
+                let rc = sendto(Int32(fd), buf, count, flags, CPointer<Unit>(), UInt32(0))
                 if (Int64(rc) < 0) {
                     let errnoVal = OS.errno()
                     if (errnoVal == Int64(E.EINTR)) {

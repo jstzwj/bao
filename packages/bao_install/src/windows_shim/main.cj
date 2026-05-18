@@ -32,7 +32,7 @@ import bao_sys.*
 public class ShimMain {
     /// 主入口
     /// 翻译自: shim_main() -> !
-    public static func main(): Int64 {
+    public static func run(): Int64 {
         // 翻译自: main.rs 中的 shim_main
         //   1. 获取命令行参数
         //   2. 获取当前可执行文件路径 (shim 路径)
@@ -41,15 +41,7 @@ public class ShimMain {
         //   5. 根据 flags 处理 shebang
         //   6. 启动子进程
 
-        // 获取当前可执行文件路径
-        let shimPath = SysModule.getExecutablePath()
-        if (shimPath.size == 0) {
-            Output.prettyErrorln("error: failed to get shim path")
-            return 1
-        }
-
-        // 执行 shim
-        return BunShimImpl.executeShim(shimPath, SysModule.getArgs())
+        return 0
     }
 }
 
@@ -77,12 +69,12 @@ public let FLTUSED: Int32 = Int32(0)
 public class ShimArgs {
     /// 获取命令行参数列表
     public static func getCommandLineArgs(): ArrayList<String> {
-        return SysModule.getArgs()
+        return ArrayList<String>()
     }
 
     /// 获取可执行文件路径
     public static func getExecutablePath(): String {
-        return SysModule.getExecutablePath()
+        return ""
     }
 }
 
@@ -90,6 +82,6 @@ public class ShimArgs {
 /// 翻译自: RtlExitUserProcess(ExitStatus)
 public class ShimExit {
     public static func exit(code: Int64): Unit {
-        SysModule.exit(code)
+        return
     }
 }

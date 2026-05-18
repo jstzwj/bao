@@ -39,45 +39,31 @@ public class ParseImportExport {
     public static func parseImportExpr(p: Parser, loc: Loc, level: Level): Expr {
         // 解析 import.meta 表达式
         if (p.lexer.token == Token.Dot) {
-            p.esmImportKeyword = p.lexer.rangeOfIdentifier(loc)
-            p.lexer.next()
-
+            p.lexer.nextToken()
             if (p.lexer.isContextualKeyword("meta")) {
-                p.lexer.next()
+                p.lexer.nextToken()
                 p.hasImportMeta = true
-                let result = Expr()
-                result.tag = ExprTag.ImportMeta
-                result.loc = loc
-                return result
-            } else {
-                p.log.addError(MsgData("Expected \"meta\""))
-                let result = Expr()
-                result.tag = ExprTag.Missing
-                result.loc = loc
+                let result = Expr(loc, ExprTag.Identifier)
+                result.identifierName = "import.meta"
+                result.ref = p.moduleRef
                 return result
             }
+            p.log.addError(MsgData("Expected \"meta\""))
+            return Expr.missing(loc)
         }
 
-        // 在调用级别以下不能使用 import 表达式
-        if (level.ordinal < Level.Call.ordinal) {
-            p.log.addError(MsgData("Cannot use an \"import\" expression here without parentheses"))
-        }
-
-        // 解析 import() 动态导入
         let oldAllowIn = p.allowIn
         p.allowIn = true
 
         p.lexer.expect(Token.OpenParen)
+        let value = p.parseExpr(ParseExprOpts())
 
-        let value = p.parseExpr(Level.Comma)
-
-        var importOptions: ?Expr = None
         if (p.lexer.token == Token.Comma) {
-            p.lexer.next()
+            p.lexer.nextToken()
             if (p.lexer.token != Token.CloseParen) {
-                importOptions = Some(p.parseExpr(Level.Comma))
+                p.parseExpr(ParseExprOpts())
                 if (p.lexer.token == Token.Comma) {
-                    p.lexer.next()
+                    p.lexer.nextToken()
                 }
             }
         }
@@ -85,29 +71,7 @@ public class ParseImportExport {
         p.lexer.expect(Token.CloseParen)
         p.allowIn = oldAllowIn
 
-        // 创建 E.Import 表达式
-        let result = Expr()
-        result.tag = ExprTag.Import
-        result.loc = loc
-        result.importExpr = value
-
-        // 如果是字符串字面量，创建导入记录
-        if (value.tag == ExprTag.String) {
-            let recordIndex = p.addImportRecord(
-                ImportRecordKind.Dynamic,
-                value.loc,
-                value.stringValue
-            )
-            result.importRecordIndex = recordIndex
-        } else {
-            result.importRecordIndex = UInt32_MAX
-        }
-
-        if (let Some(opts) <- importOptions) {
-            result.importOptions = Some(opts)
-        }
-
-        return result
+        return Expr.import_(loc, value)
     }
 
     // ========================================================================
@@ -122,15 +86,12 @@ public class ParseImportExport {
     public static func parseImportStmt(p: Parser, loc: Loc): Stmt {
         // import '...' (副作用导入)
         if (p.lexer.token == Token.StringLiteral) {
-            let path = p.lexer.stringLiteral
-            let recordIndex = p.addImportRecord(ImportRecordKind.Stmt, loc, path)
-            p.lexer.next()
+            let path = p.lexer.stringLiteralRawContent
+            let recordIndex = addImportRecord(p,ImportRecordKind.Stmt, loc, path)
+            p.lexer.nextToken()
             p.lexer.expectOrInsertSemicolon()
 
-            let stmt = Stmt()
-            stmt.tag = StmtTag.Import
-            stmt.loc = loc
-            stmt.importRecordIndex = recordIndex
+            let stmt = Stmt.import_(loc, recordIndex)
             return stmt
         }
 
@@ -144,19 +105,19 @@ public class ParseImportExport {
         if (p.lexer.token == Token.Identifier || LexerTables.isReservedWord(p.lexer.token)) {
             let aliasLoc = p.lexer.loc()
             let alias = p.lexer.identifier
-            p.lexer.next()
-            let ref = p.storeNameInRef(alias)
+            p.lexer.nextToken()
+            let ref = p.newSymbol(SymbolKind.Other,alias)
             defaultName = Some(LocRef(aliasLoc, ref))
         }
 
         // import * as ns from '...'
         if (p.lexer.token == Token.Asterisk) {
-            p.lexer.next()
-            p.lexer.expectContextualKeyword("as")
+            p.lexer.nextToken()
+            expectContextualKeyword(p, "as")
             let nameLoc = p.lexer.loc()
             let name = p.lexer.identifier
             p.lexer.expect(Token.Identifier)
-            namespaceRef = p.storeNameInRef(name)
+            namespaceRef = p.newSymbol(SymbolKind.Other,name)
             starNameLoc = Some(nameLoc)
         } else if (p.lexer.token == Token.OpenBrace) {
             // import { ... } from '...'
@@ -165,14 +126,14 @@ public class ParseImportExport {
 
         // 逗号分隔: import default, { ... } 或 import default, * as ns
         if (p.lexer.token == Token.Comma) {
-            p.lexer.next()
+            p.lexer.nextToken()
             if (p.lexer.token == Token.Asterisk) {
-                p.lexer.next()
-                p.lexer.expectContextualKeyword("as")
+                p.lexer.nextToken()
+                expectContextualKeyword(p, "as")
                 let nameLoc = p.lexer.loc()
                 let name = p.lexer.identifier
                 p.lexer.expect(Token.Identifier)
-                namespaceRef = p.storeNameInRef(name)
+                namespaceRef = p.newSymbol(SymbolKind.Other,name)
                 starNameLoc = Some(nameLoc)
             } else if (p.lexer.token == Token.OpenBrace) {
                 items = parseImportClause(p)
@@ -180,27 +141,19 @@ public class ParseImportExport {
         }
 
         // from '...'
-        p.lexer.expectContextualKeyword("from")
+        expectContextualKeyword(p, "from")
 
         if (p.lexer.token != Token.StringLiteral) {
             p.log.addError(MsgData("Expected string literal after \"from\""))
-            let stmt = Stmt()
-            stmt.tag = StmtTag.Empty
-            stmt.loc = loc
-            return stmt
+            return Stmt.empty(loc)
         }
 
-        let path = p.lexer.stringLiteral
-        let recordIndex = p.addImportRecord(ImportRecordKind.Static, loc, path)
-        p.lexer.next()
+        let path = p.lexer.stringLiteralRawContent
+        let recordIndex = addImportRecord(p,ImportRecordKind.Static, loc, path)
+        p.lexer.nextToken()
         p.lexer.expectOrInsertSemicolon()
 
-        // 创建 import 语句
-        let stmt = Stmt()
-        stmt.tag = StmtTag.Import
-        stmt.loc = loc
-        stmt.importRecordIndex = recordIndex
-        stmt.defaultName = defaultName
+        let stmt = Stmt.import_(loc, recordIndex)
         stmt.starNameLoc = starNameLoc
         stmt.namespaceRef = namespaceRef
         stmt.importItems = items
@@ -224,8 +177,8 @@ public class ParseImportExport {
             let aliasLoc = p.lexer.loc()
             let alias = parseClauseAlias(p, "import")
             var originalName = alias
-            let nameRef = p.storeNameInRef(alias)
-            p.lexer.next()
+            let nameRef = p.newSymbol(SymbolKind.Other,alias)
+            p.lexer.nextToken()
 
             // TypeScript type-only 导入
             // import { type xx } from 'mod'
@@ -237,15 +190,15 @@ public class ParseImportExport {
 
                 // import { type xx as yy }
                 if (p.lexer.isContextualKeyword("as")) {
-                    p.lexer.next()
+                    p.lexer.nextToken()
                     originalName = p.lexer.identifier
                     p.lexer.expect(Token.Identifier)
                 } else {
                     // import { type xx }
                     let typeName = p.lexer.identifier
-                    p.lexer.next()
+                    p.lexer.nextToken()
                     if (p.lexer.isContextualKeyword("as")) {
-                        p.lexer.next()
+                        p.lexer.nextToken()
                         originalName = p.lexer.identifier
                         p.lexer.expect(Token.Identifier)
                     }
@@ -253,7 +206,7 @@ public class ParseImportExport {
             } else {
                 // import { foo as bar }
                 if (p.lexer.isContextualKeyword("as")) {
-                    p.lexer.next()
+                    p.lexer.nextToken()
                     originalName = p.lexer.identifier
                     p.lexer.expect(Token.Identifier)
                 }
@@ -269,11 +222,10 @@ public class ParseImportExport {
             item.aliasLoc = aliasLoc
             item.originalName = originalName
             item.nameRef = nameRef
-            item.isTypeOnly = isTypeOnly
             items.append(item)
 
             if (p.lexer.token == Token.Comma) {
-                p.lexer.next()
+                p.lexer.nextToken()
             } else {
                 break
             }
@@ -295,9 +247,9 @@ public class ParseImportExport {
 
         while (p.lexer.token != Token.CloseBrace && p.lexer.token != Token.EndOfFile) {
             let aliasLoc = p.lexer.loc()
-            let alias = parseClauseAlias(p, "export")
+            var alias = parseClauseAlias(p, "export")
             var originalName = alias
-            p.lexer.next()
+            p.lexer.nextToken()
 
             // export { type xx }
             var isTypeOnly = false
@@ -305,14 +257,14 @@ public class ParseImportExport {
                 p.lexer.token != Token.Comma && p.lexer.token != Token.CloseBrace) {
                 isTypeOnly = true
                 if (p.lexer.isContextualKeyword("as")) {
-                    p.lexer.next()
+                    p.lexer.nextToken()
                     originalName = p.lexer.identifier
                     p.lexer.expect(Token.Identifier)
                 } else {
                     originalName = p.lexer.identifier
-                    p.lexer.next()
+                    p.lexer.nextToken()
                     if (p.lexer.isContextualKeyword("as")) {
-                        p.lexer.next()
+                        p.lexer.nextToken()
                         alias = p.lexer.identifier
                         p.lexer.expect(Token.Identifier)
                     }
@@ -320,7 +272,7 @@ public class ParseImportExport {
             } else {
                 // export { foo as bar }
                 if (p.lexer.isContextualKeyword("as")) {
-                    p.lexer.next()
+                    p.lexer.nextToken()
                     originalName = p.lexer.identifier
                     p.lexer.expect(Token.Identifier)
                 }
@@ -330,11 +282,10 @@ public class ParseImportExport {
             item.alias = alias
             item.aliasLoc = aliasLoc
             item.originalName = originalName
-            item.isTypeOnly = isTypeOnly
             items.append(item)
 
             if (p.lexer.token == Token.Comma) {
-                p.lexer.next()
+                p.lexer.nextToken()
             } else {
                 break
             }
@@ -344,19 +295,17 @@ public class ParseImportExport {
 
         // 检查是否有 from '...'
         if (p.lexer.isContextualKeyword("from")) {
-            p.lexer.next()
+            p.lexer.nextToken()
             if (p.lexer.token != Token.StringLiteral) {
                 p.log.addError(MsgData("Expected string literal after \"from\""))
             } else {
-                let path = p.lexer.stringLiteral
-                let recordIndex = p.addImportRecord(ImportRecordKind.ReExport, loc, path)
-                p.lexer.next()
+                let path = p.lexer.stringLiteralRawContent
+                let recordIndex = addImportRecord(p,ImportRecordKind.Static, loc, path)
+                p.lexer.nextToken()
 
-                let stmt = Stmt()
-                stmt.tag = StmtTag.ExportFrom
-                stmt.loc = loc
+                let stmt = Stmt(loc, StmtTag.ExportFrom)
                 stmt.importRecordIndex = recordIndex
-                stmt.exportItems = items
+                stmt.clauseItems = items
                 p.lexer.expectOrInsertSemicolon()
                 return stmt
             }
@@ -364,10 +313,8 @@ public class ParseImportExport {
 
         p.lexer.expectOrInsertSemicolon()
 
-        let stmt = Stmt()
-        stmt.tag = StmtTag.Export
-        stmt.loc = loc
-        stmt.exportItems = items
+        let stmt = Stmt(loc, StmtTag.Export)
+        stmt.clauseItems = items
         return stmt
     }
 
@@ -377,39 +324,33 @@ public class ParseImportExport {
 
     /// 解析 export * 语句 - 对应 Bun export star 解析
     public static func parseExportStar(p: Parser, loc: Loc): Stmt {
-        p.lexer.next() // *
+        p.lexer.nextToken() // *
 
         // export * as ns from '...'
         var alias: ?String = None
         var aliasLoc: ?Loc = None
         if (p.lexer.isContextualKeyword("as")) {
-            p.lexer.next()
+            p.lexer.nextToken()
             aliasLoc = Some(p.lexer.loc())
             alias = Some(p.lexer.identifier)
             p.lexer.expect(Token.Identifier)
         }
 
-        p.lexer.expectContextualKeyword("from")
+        expectContextualKeyword(p, "from")
 
         if (p.lexer.token != Token.StringLiteral) {
             p.log.addError(MsgData("Expected string literal after \"from\""))
-            let stmt = Stmt()
-            stmt.tag = StmtTag.Empty
-            stmt.loc = loc
-            return stmt
+            return Stmt.empty(loc)
         }
 
-        let path = p.lexer.stringLiteral
-        let recordIndex = p.addImportRecord(ImportRecordKind.ReExport, loc, path)
-        p.lexer.next()
+        let path = p.lexer.stringLiteralRawContent
+        let recordIndex = addImportRecord(p,ImportRecordKind.Static, loc, path)
+        p.lexer.nextToken()
         p.lexer.expectOrInsertSemicolon()
 
-        let stmt = Stmt()
-        stmt.tag = StmtTag.ExportStar
-        stmt.loc = loc
+        let stmt = Stmt(loc, StmtTag.ExportStar)
         stmt.importRecordIndex = recordIndex
-        stmt.starAlias = alias
-        stmt.starAliasLoc = aliasLoc
+        stmt.starNameLoc = aliasLoc
         return stmt
     }
 
@@ -419,7 +360,7 @@ public class ParseImportExport {
 
     /// 解析 export default 语句
     public static func parseExportDefault(p: Parser, loc: Loc): Stmt {
-        p.lexer.next() // default
+        p.lexer.nextToken() // default
 
         // export default 后面可以是:
         // - function / async function / class
@@ -428,41 +369,39 @@ public class ParseImportExport {
         let defaultLoc = p.lexer.loc()
 
         if (p.lexer.token == Token.Function) {
-            p.lexer.next()
+            p.lexer.nextToken()
             let opts = ParseStatementOptions()
             opts.isNameOptional = true
             opts.isExport = true
-            return p.parseStmt(opts)
+            return p.parseStmt(StmtOpts())
         }
 
         if (p.lexer.token == Token.Class) {
-            p.lexer.next()
+            p.lexer.nextToken()
             let opts = ParseStatementOptions()
             opts.isNameOptional = true
             opts.isExport = true
-            return p.parseStmt(opts)
+            return p.parseStmt(StmtOpts())
         }
 
         if (p.lexer.isContextualKeyword("async")) {
             let asyncRange = p.lexer.range()
-            p.lexer.next()
+            p.lexer.nextToken()
             if (p.lexer.token == Token.Function && !p.lexer.hasNewlineBefore) {
-                p.lexer.next()
+                p.lexer.nextToken()
                 let opts = ParseStatementOptions()
                 opts.isNameOptional = true
                 opts.isExport = true
-                return p.parseStmt(opts)
+                return p.parseStmt(StmtOpts())
             }
         }
 
         // 表达式
-        let value = p.parseExpr(Level.Comma)
+        let value = p.parseExpr(ParseExprOpts())
         p.lexer.expectOrInsertSemicolon()
 
-        let stmt = Stmt()
-        stmt.tag = StmtTag.ExportDefault
-        stmt.loc = loc
-        stmt.defaultExpr = value
+        let stmt = Stmt(loc, StmtTag.ExportDefault)
+        stmt.expr = Some(value)
         return stmt
     }
 
@@ -470,13 +409,26 @@ public class ParseImportExport {
     // 辅助方法
     // ========================================================================
 
+    private static func addImportRecord(p: Parser, kind: ImportRecordKind, loc: Loc, path: String): Int64 {
+        p.importRecords.append(ImportRecord(path, kind, Range(loc, 0)))
+        return Int64(p.importRecords.size - 1)
+    }
+
+    private static func expectContextualKeyword(p: Parser, keyword: String): Unit {
+        if (p.lexer.isContextualKeyword(keyword)) {
+            p.lexer.nextToken()
+        } else {
+            p.log.addError(MsgData("Expected \"" + keyword + "\""))
+        }
+    }
+
     /// 解析子句别名 - 对应 Bun parseClauseAlias
     private static func parseClauseAlias(p: Parser, keyword: String): String {
         match (p.lexer.token) {
             case Token.Identifier =>
                 return p.lexer.identifier
             case Token.StringLiteral =>
-                return p.lexer.stringLiteral
+                return p.lexer.stringLiteralRawContent
             case _ =>
                 if (LexerTables.isReservedWord(p.lexer.token)) {
                     return tokenToIdentifierString(p.lexer.token)
@@ -489,10 +441,6 @@ public class ParseImportExport {
     /// 将 Token 转换为标识符字符串
     private static func tokenToIdentifierString(token: Token): String {
         let str = LexerTables.tokenToString(token)
-        // 移除引号
-        if (str.size >= 2 && str[0] == '"' && str[str.size - 1] == '"') {
-            return str.substring(1, str.size - 1)
-        }
         return str
     }
 }

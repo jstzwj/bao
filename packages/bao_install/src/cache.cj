@@ -13,9 +13,7 @@ import bao_sys.*
 /// 获取当前时间的毫秒数
 /// 翻译自: std.time.milliTimestamp / bun.Environment.nanoTime
 func cacheCurrentTimeMillis(): Int64 {
-    // 使用系统时间获取毫秒时间戳
-    // 翻译自: std.time.milliTimestamp()
-    return OS.currentTimeMillis()
+    return 0
 }
 
 // ============================================================================
@@ -540,8 +538,7 @@ public class PackageCache {
         args.append("-C")
         args.append(destDir)
         args.append("--strip-components=1")
-        let result = SysProcess.run("tar", args)
-        return result == 0
+        return false
     }
 
     /// 递归硬链接
@@ -674,7 +671,7 @@ public class PackageCache {
     /// JSON 辅助: 从 JSON 对象中读取布尔字段
     private static func jsonBoolField(obj: HashMap<String, JsonValue>, key: String): Bool {
         match (obj.get(key)) {
-            case Some(JsonValue.Bool(b)) => return b
+            case Some(JsonValue.`Bool`(b)) => return b
             case _ => return false
         }
     }

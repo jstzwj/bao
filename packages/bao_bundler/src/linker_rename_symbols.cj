@@ -190,7 +190,7 @@ private func renameSymbolsNumbered(linker: LinkerContext,
         let parts = allParts[sourceIndex].slice()
 
         match (wrap) {
-            case WrapKind.CJS => {
+            case WrapKind.CJS =>
                 // CJS wrapper: add wrapper ref as top-level
                 r.addTopLevelSymbol(allWrapperRefs[sourceIndex])
 
@@ -200,7 +200,7 @@ private func renameSymbolsNumbered(linker: LinkerContext,
                     for (part in parts) {
                         for (stmt in part.stmts) {
                             match (stmt.tag) {
-                                case StmtKind.Import => {
+                                case StmtKind.Import =>
                                     if (!importRecords[stmt.importRecordIndex].sourceIndex.isValid) {
                                         r.addTopLevelSymbol(stmt.namespaceRef)
                                         if (stmt.defaultName != None) {
@@ -212,13 +212,11 @@ private func renameSymbolsNumbered(linker: LinkerContext,
                                             }
                                         }
                                     }
-                                }
-                                case StmtKind.ExportStar => {
+                                case StmtKind.ExportStar =>
                                     if (!importRecords[stmt.importRecordIndex].sourceIndex.isValid) {
                                         r.addTopLevelSymbol(stmt.namespaceRef)
                                     }
-                                }
-                                case StmtKind.ExportFrom => {
+                                case StmtKind.ExportFrom =>
                                     if (!importRecords[stmt.importRecordIndex].sourceIndex.isValid) {
                                         r.addTopLevelSymbol(stmt.namespaceRef)
                                         for (item in stmt.items) {
@@ -227,7 +225,6 @@ private func renameSymbolsNumbered(linker: LinkerContext,
                                             }
                                         }
                                     }
-                                }
                                 case _ => ()
                             }
                         }
@@ -236,11 +233,9 @@ private func renameSymbolsNumbered(linker: LinkerContext,
                 r.assignNamesRecursiveWithNumberScope(
                     r.root, allModuleScopes[sourceIndex], sourceIndex)
                 continue
-            }
-            case WrapKind.ESM => {
+            case WrapKind.ESM =>
                 // ESM wrapper: add wrapper ref as top-level
                 r.addTopLevelSymbol(allWrapperRefs[sourceIndex])
-            }
             case WrapKind.None => ()
         }
 
@@ -254,7 +249,6 @@ private func renameSymbolsNumbered(linker: LinkerContext,
             for (scope in part.scopes) {
                 r.assignNamesRecursiveWithNumberScope(
                     r.root, scope, sourceIndex)
-            }
         }
     }
 

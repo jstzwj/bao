@@ -5,7 +5,7 @@
 // Bun WaitGroup 实现:
 //   raw_count: Atomic(usize) = .init(0)
 //   mutex: Mutex = .{}
-//   cond: Condition = .{}
+//   cond: Condvar = .{}
 //
 //   init(): raw_count = 0
 //   initWithCount(count): raw_count = count
@@ -30,7 +30,7 @@ import std.sync.*
 // WaitGroup - 等待组
 // 严格翻译自: src/threading/WaitGroup.zig
 //
-// Bun WaitGroup 使用 atomic usize 计数器 + Mutex + Condition:
+// Bun WaitGroup 使用 atomic usize 计数器 + Mutex + Condvar:
 //   - atomic count: 跟踪未完成任务数
 //   - mutex + cond: 等待计数归零
 //
@@ -65,8 +65,8 @@ public class WaitGroup {
     private let mutex: Mutex
 
     /// 条件变量 - 对应 Bun WaitGroup.cond
-    /// 严格翻译自: WaitGroup.zig:15 cond: Condition = .{}
-    private let cond: Condition
+    /// 严格翻译自: WaitGroup.zig:15 cond: Condvar = .{}
+    private let cond: Condvar
 
     /// 默认初始化，计数为 0 - 对应 Bun WaitGroup.init()
     /// 严格翻译自: WaitGroup.zig:17-19
@@ -74,7 +74,7 @@ public class WaitGroup {
     public init() {
         count = AtomicInt64(Int64(0))
         mutex = Mutex()
-        cond = mutex.condition()
+        cond = Condvar(mutex)
     }
 
     /// 指定初始计数的初始化 - 对应 Bun WaitGroup.initWithCount(count)
@@ -83,7 +83,7 @@ public class WaitGroup {
     public init(initialCount: Int64) {
         count = AtomicInt64(initialCount)
         mutex = Mutex()
-        cond = mutex.condition()
+        cond = Condvar(mutex)
     }
 
     /// 非同步增加计数 - 对应 Bun WaitGroup.addUnsynchronized(n)
@@ -144,7 +144,7 @@ public class WaitGroup {
         // 这是最后一个任务 - 严格对应 Bun 的 lock+unlock+signal 模式
         // lock+unlock 确保 wait() 中已经进入 cond.wait 的线程不会丢失 signal
         synchronized(mutex) {
-            cond.notify()
+            cond.signal()
         }
     }
 
@@ -169,12 +169,12 @@ public class WaitGroup {
 
     /// 带超时等待所有任务完成
     /// Bun WaitGroup 没有直接提供带超时的 wait
-    /// 但 Condition 支持 timedWait
+    /// 但 Condvar 支持 timedWait
     /// 返回 true 表示所有任务完成，false 表示超时
     public func wait(timeout: Duration): Bool {
         synchronized(mutex) {
             while (count.load() > Int64(0)) {
-                let signaled = cond.wait(timeout: timeout)
+                let signaled = cond.wait(timeout)
                 if (count.load() > Int64(0)) {
                     return false
                 }

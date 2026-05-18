@@ -36,14 +36,8 @@ public func convertStmtsForChunkForDevServer(
     // For each import statement, rewrite for HMR
     for (stmt in partStmts) {
         match (stmt.tag) {
-            case StmtTag.Import => {
-                // Convert import to HMR-compatible format
-                // Non-module code goes to outsideWrapperPrefix
-                stmts.append(StmtListKind.OutsideWrapperPrefix, stmt)
-            }
-            case _ => {
-                stmts.append(StmtListKind.InsideWrapperSuffix, stmt)
-            }
+            case StmtTag.Import => stmts.append(StmtListKind.OutsideWrapperPrefix, stmt)
+            case _ => stmts.append(StmtListKind.InsideWrapperSuffix, stmt)
         }
     }
 

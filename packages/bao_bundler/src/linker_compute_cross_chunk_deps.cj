@@ -300,7 +300,7 @@ private func generateCrossChunkExports(c: LinkerContext, chunks: ArrayList<Chunk
         }
 
         match (c.options.outputFormat) {
-            case OutputFormat.ESM => {
+            case OutputFormat.ESM =>
                 // Sort cross-chunk exports by stable source index
                 let stableRefList = c.sortedCrossChunkExportItems(chunkMetas[i].exports)
 
@@ -328,7 +328,6 @@ private func generateCrossChunkExports(c: LinkerContext, chunks: ArrayList<Chunk
                     chunks[i].content.javascript.crossChunkSuffixStmts =
                         createExportClauseStmt(clauseItems)
                 }
-            }
             case _ => ()
         }
     }
@@ -344,7 +343,7 @@ private func generateCrossChunkImports(c: LinkerContext, chunks: ArrayList<Chunk
         }
 
         match (c.options.outputFormat) {
-            case OutputFormat.ESM => {
+            case OutputFormat.ESM =>
                 // Sort cross-chunk imports
                 let sortedImports = sortCrossChunkImports(chunks, chunks[i])
 
@@ -370,7 +369,6 @@ private func generateCrossChunkImports(c: LinkerContext, chunks: ArrayList<Chunk
                 }
 
                 chunks[i].content.javascript.crossChunkPrefixStmts = crossChunkPrefixStmts
-            }
             case _ => ()
         }
     }

@@ -42,7 +42,7 @@ public func postProcessCSSChunk(
     var compileResultsForSourceMap = ArrayList<CompileResultForSourceMap>()
 
     let sources = c.parseGraph.inputFiles.sources
-    for (compileResults) { compileResult =>
+    for (compileResult in compileResults) {
         let sourceIndex = compileResult.sourceIndex
 
         // Add file path comment (non-minified bundle mode)

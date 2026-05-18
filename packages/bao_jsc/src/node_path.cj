@@ -11,9 +11,16 @@ package bao_jsc
 import bao_core.*
 import bao_sys.Fd
 
-// Stub types not yet fully ported
-struct SliceWithUnderlyingString { var data: String = "" }
-struct ZigStringSlice { var data: String = "" }
+// 对应 Bun string.SliceWithUnderlyingString: struct { utf8, underlying }
+struct SliceWithUnderlyingString {
+    var utf8: String = ""
+    var underlying: String = ""
+}
+// 对应 Bun ZigString.Slice: struct { ptr, len }
+struct ZigStringSlice {
+    var ptr: CPointer<Int8> = CPointer<Int8>.null()
+    var len: Int64 = 0
+}
 
 // ========== Unprotect ==========
 // 严格翻译自 node_path.rs Unprotect trait

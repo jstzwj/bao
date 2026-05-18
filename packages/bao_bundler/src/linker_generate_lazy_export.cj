@@ -120,7 +120,7 @@ public func generateCodeForLazyExportExt(linker: LinkerContext,
     let expr = stmt.expr
 
     match (exportsKind) {
-        case ExportsKind.CJS => {
+        case ExportsKind.CJS =>
             // "module.exports = expr;"
             part.stmts[0] = Stmt.assign(
                 Expr.dot(Expr.identifier(moduleRef), "exports"),
@@ -136,8 +136,7 @@ public func generateCodeForLazyExportExt(linker: LinkerContext,
                 linker.graph.generateRuntimeSymbolImportAndUse(
                     sourceIndex, 1, "__require", 1)
             }
-        }
-        case _ => {
+        case _ =>
             // Generate ES6 export statements as additional parts
             part.stmts.clear()
 
@@ -176,7 +175,6 @@ public func generateCodeForLazyExportExt(linker: LinkerContext,
             parts[generated[1]].stmts.append(Stmt.exportDefault(
                 generated[0], expr
             ))
-        }
     }
 }
 
@@ -250,7 +248,7 @@ public class ComposesVisitor {
         for (compose in composes.items) {
             if (compose.from != None) {
                 match (compose.from) {
-                    case ComposeFrom.ImportRecordIndex => {
+                    case ComposeFrom.ImportRecordIndex =>
                         let importRecordIdx = compose.from.importRecordIndex
                         let importRecords = allImportRecords[idx]
                         let record = importRecords[importRecordIdx]
@@ -273,8 +271,7 @@ public class ComposesVisitor {
                                 }
                             }
                         }
-                    }
-                    case ComposeFrom.Global => {
+                    case ComposeFrom.Global =>
                         // "composes: foo from global" - add as string
                         for (name in compose.names) {
                             parts.append(TemplatePart(
@@ -282,7 +279,6 @@ public class ComposesVisitor {
                                 tail = " "
                             ))
                         }
-                    }
                 }
             } else {
                 // From the current file
@@ -296,7 +292,6 @@ public class ComposesVisitor {
                         warnNonSingleClassComposes(ast, nameEntry.ref, idx, compose.loc)
                     } else {
                         visitName(ast, nameEntry.ref, idx)
-                    }
                 }
             }
         }

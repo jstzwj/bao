@@ -58,13 +58,6 @@ public class ParseSuffix {
         var optionalChain: ?OptionalChain = None
 
         while (true) {
-            // 检查优先级
-            // 调用和后缀运算符需要足够高的优先级
-            if (level.ordinal < Level.Postfix.ordinal &&
-                level.ordinal < Level.Call.ordinal) {
-                break
-            }
-
             let oldOptionalChain = optionalChain
 
             // 处理 TypeScript as / satisfies
@@ -79,13 +72,13 @@ public class ParseSuffix {
                     let result = sfxTDot(p, optionalChain, oldOptionalChain, current)
                     current = result
                     // 更新可选链
-                    if (oldOptionalChain != None) {
+                    if (oldOptionalChain.isSome()) {
                         optionalChain = Some(OptionalChain.Continuation)
                     }
 
                 // ?.
                 case Token.QuestionDot =>
-                    p.lexer.next()
+                    p.lexer.nextToken()
                     optionalChain = Some(OptionalChain.Start)
 
                     if (p.lexer.token == Token.OpenBracket) {
@@ -104,7 +97,7 @@ public class ParseSuffix {
                     if (!p.lexer.hasNewlineBefore) {
                         let chain = optionalChain
                         current = sfxTIndex(p, chain, current)
-                        if (chain != None) {
+                        if (chain.isSome()) {
                             optionalChain = Some(OptionalChain.Continuation)
                         }
                     } else {
@@ -113,10 +106,10 @@ public class ParseSuffix {
 
                 // (
                 case Token.OpenParen =>
-                    if (!p.lexer.hasNewlineBefore && level.ordinal >= Level.Call.ordinal) {
+                    if (!p.lexer.hasNewlineBefore) {
                         let chain = optionalChain
                         current = sfxTCall(p, chain, current, level)
-                        if (chain != None) {
+                        if (chain.isSome()) {
                             optionalChain = Some(OptionalChain.Continuation)
                         }
                     } else {
@@ -125,31 +118,23 @@ public class ParseSuffix {
 
                 // ++
                 case Token.PlusPlus =>
-                    if (level.ordinal >= Level.Postfix.ordinal) {
-                        p.lexer.next()
-                        let result = Expr()
-                        result.tag = ExprTag.Unary
-                        result.loc = current.loc
-                        result.unaryOp = OpCode.UnPostInc
-                        result.exprData = current
-                        current = result
-                    } else {
-                        break
-                    }
+                    p.lexer.nextToken()
+                    let result = Expr()
+                    result.tag = ExprTag.Postfix
+                    result.loc = current.loc
+                    result.op = OpCode.UnPos
+                    result.value = Some(current)
+                    current = result
 
                 // --
                 case Token.MinusMinus =>
-                    if (level.ordinal >= Level.Postfix.ordinal) {
-                        p.lexer.next()
-                        let result = Expr()
-                        result.tag = ExprTag.Unary
-                        result.loc = current.loc
-                        result.unaryOp = OpCode.UnPostDec
-                        result.exprData = current
-                        current = result
-                    } else {
-                        break
-                    }
+                    p.lexer.nextToken()
+                    let result = Expr()
+                    result.tag = ExprTag.Postfix
+                    result.loc = current.loc
+                    result.op = OpCode.UnNeg
+                    result.value = Some(current)
+                    current = result
 
                 // 模板字面量标签
                 case Token.NoSubstitutionTemplateLiteral | Token.TemplateHead =>
@@ -158,7 +143,7 @@ public class ParseSuffix {
                 // ! (TypeScript 非空断言)
                 case Token.Exclamation =>
                     if (p.options.features.typescript && !p.lexer.hasNewlineBefore) {
-                        p.lexer.next()
+                        p.lexer.nextToken()
                         // 非空断言在编译时被移除
                     } else {
                         break
@@ -188,7 +173,7 @@ public class ParseSuffix {
         oldOptionalChain: ?OptionalChain,
         left: Expr
     ): Expr {
-        p.lexer.next() // .
+        p.lexer.nextToken() // .
 
         let target = left
 
@@ -196,13 +181,13 @@ public class ParseSuffix {
         if (p.lexer.token == Token.PrivateIdentifier && p.allowPrivateIdentifiers) {
             let name = p.lexer.identifier
             let nameLoc = p.lexer.loc()
-            p.lexer.next()
+            p.lexer.nextToken()
 
             // 私有字段访问实际上是索引访问
             let result = Expr()
             result.tag = ExprTag.Index
             result.loc = target.loc
-            result.indexTarget = target
+            result.target = Some(target)
             result.optionalChain = oldOptionalChain
             return result
         }
@@ -210,7 +195,7 @@ public class ParseSuffix {
         // 正常属性访问
         let nameLoc = p.lexer.loc()
         let name = p.lexer.identifier
-        p.lexer.next()
+        p.lexer.nextToken()
 
         // 检查是否可以重写属性访问 (命名空间等)
         if (let Some(rewritten) <- FoldHelper.maybeRewritePropertyAccess(
@@ -223,10 +208,9 @@ public class ParseSuffix {
         let result = Expr()
         result.tag = ExprTag.Dot
         result.loc = target.loc
-        result.dotTarget = target
+        result.target = Some(target)
         result.propertyName = name
-        result.propertyLoc = nameLoc
-        result.optionalChain = oldOptionalChain
+                result.optionalChain = oldOptionalChain
         return result
     }
 
@@ -238,15 +222,14 @@ public class ParseSuffix {
     ): Expr {
         let nameLoc = p.lexer.loc()
         let name = p.lexer.identifier
-        p.lexer.next()
+        p.lexer.nextToken()
 
         let result = Expr()
         result.tag = ExprTag.Dot
         result.loc = left.loc
-        result.dotTarget = left
+        result.target = Some(left)
         result.propertyName = name
-        result.propertyLoc = nameLoc
-        result.optionalChain = Some(optionalChain)
+                result.optionalChain = Some(optionalChain)
         return result
     }
 
@@ -261,15 +244,15 @@ public class ParseSuffix {
         optionalChain: ?OptionalChain,
         left: Expr
     ): Expr {
-        p.lexer.next() // [
+        p.lexer.nextToken() // [
 
-        let index = p.parseExpr(Level.Lowest)
+        let index = p.parseExpr(ParseExprOpts())
         p.lexer.expect(Token.CloseBracket)
 
         let result = Expr()
         result.tag = ExprTag.Index
         result.loc = left.loc
-        result.indexTarget = left
+        result.target = Some(left)
         result.indexExpr = index
         result.optionalChain = optionalChain
         return result
@@ -288,7 +271,7 @@ public class ParseSuffix {
         level: Level
     ): Expr {
         let loc = p.lexer.loc()
-        p.lexer.next() // (
+        p.lexer.nextToken() // (
 
         let args = ArrayList<Expr>()
         var hasSpread = false
@@ -299,20 +282,16 @@ public class ParseSuffix {
         while (p.lexer.token != Token.CloseParen && p.lexer.token != Token.EndOfFile) {
             // 展开参数
             if (p.lexer.token == Token.DotDotDot) {
-                p.lexer.next()
-                let value = p.parseExpr(Level.Comma)
-                let spread = Expr()
-                spread.tag = ExprTag.Spread
-                spread.loc = value.loc
-                spread.exprData = value
-                args.append(spread)
+                p.lexer.nextToken()
+                let value = p.parseExpr(ParseExprOpts())
+                args.append(Expr.spread(value.loc, value))
                 hasSpread = true
             } else {
-                args.append(p.parseExpr(Level.Comma))
+                args.append(p.parseExpr(ParseExprOpts()))
             }
 
             if (p.lexer.token == Token.Comma) {
-                p.lexer.next()
+                p.lexer.nextToken()
             } else {
                 break
             }
@@ -321,11 +300,7 @@ public class ParseSuffix {
         p.lexer.expect(Token.CloseParen)
         p.allowIn = oldAllowIn
 
-        let result = Expr()
-        result.tag = ExprTag.Call
-        result.loc = left.loc
-        result.callTarget = left
-        result.callArgs = args
+        let result = Expr.call(left.loc, left, args)
         result.optionalChain = optionalChain
         return result
     }
@@ -340,9 +315,6 @@ public class ParseSuffix {
         if (!p.options.features.typescript) {
             return Continuation.Done
         }
-        if (level.ordinal < Level.Compare.ordinal) {
-            return Continuation.Done
-        }
         if (p.lexer.hasNewlineBefore) {
             return Continuation.Done
         }
@@ -350,7 +322,7 @@ public class ParseSuffix {
             return Continuation.Done
         }
 
-        p.lexer.next()
+        p.lexer.nextToken()
         ParseSkipTypeScript.skipTypeScriptType(p, Level.Lowest)
 
         // 某些 token 不允许出现在类型断言之后
@@ -383,23 +355,23 @@ public class ParseSuffix {
         var strings = ArrayList<String>()
 
         if (p.lexer.token == Token.NoSubstitutionTemplateLiteral) {
-            strings.append(p.lexer.stringLiteral)
-            p.lexer.next()
+            strings.append(p.lexer.stringLiteralRawContent)
+            p.lexer.nextToken()
         } else {
             // TemplateHead ... TemplateTail
-            strings.append(p.lexer.stringLiteral)
-            p.lexer.next()
+            strings.append(p.lexer.stringLiteralRawContent)
+            p.lexer.nextToken()
 
             while (true) {
-                parts.append(p.parseExpr(Level.Lowest))
+                parts.append(p.parseExpr(ParseExprOpts()))
                 if (p.lexer.token == Token.TemplateTail) {
-                    strings.append(p.lexer.stringLiteral)
-                    p.lexer.next()
+                    strings.append(p.lexer.stringLiteralRawContent)
+                    p.lexer.nextToken()
                     break
                 }
                 if (p.lexer.token == Token.TemplateMiddle) {
-                    strings.append(p.lexer.stringLiteral)
-                    p.lexer.next()
+                    strings.append(p.lexer.stringLiteralRawContent)
+                    p.lexer.nextToken()
                 } else {
                     break
                 }
@@ -409,8 +381,10 @@ public class ParseSuffix {
         let result = Expr()
         result.tag = ExprTag.Template
         result.loc = tag.loc
-        result.templateTag = tag
-        result.templateStrings = strings
+        result.templateTag = Some(tag)
+        if (strings.size > 0) {
+            result.stringValue = BaoString(strings[0])
+        }
         result.templateParts = parts
         return result
     }

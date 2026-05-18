@@ -227,6 +227,10 @@ public class Expr {
         jsxChildren = ArrayList<Expr>()
     }
 
+    public init() {
+        this(Loc.EMPTY, ExprTag.Missing)
+    }
+
     // === 工厂方法 (对应 Bun 中 p.e 的各种分配方法) ===
 
     /// 创建布尔表达式 - 对应 Bun Expr.init(E.Boolean, .{ .value = v }, loc)
@@ -704,6 +708,10 @@ public class Stmt {
         innerStmtVal = None
         isAsync = false
         isGenerator = false
+    }
+
+    public init() {
+        this(Loc.EMPTY, StmtTag.Empty)
     }
 
     // === 工厂方法 ===

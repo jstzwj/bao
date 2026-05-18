@@ -19,6 +19,7 @@ package bao_threading
 
 import std.sync.*
 import std.time.*
+import std.sync.Condition as StdCondition
 
 // ============================================================================
 // Linux futex 系统调用 FFI 声明
@@ -60,7 +61,7 @@ public class FutexWord {
     /// 等待互斥锁 - 模拟 futex 内核等待队列
     private let waitMutex: Mutex
     /// 等待条件 - 模拟 futex 唤醒
-    private let waitCond: Condition
+    private let waitCond: StdCondition
     /// 等待线程计数
     private let waiters: AtomicInt64
 

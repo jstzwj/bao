@@ -17,7 +17,7 @@
 //   run_queue: Node.Queue - 本地任务队列
 //   pop(): 本地buffer -> 本地queue -> 全局queue -> steal其他线程
 //
-// 仓颉没有 lock-free 数据结构，使用 Mutex + Condition 实现等价语义
+// 仓颉没有 lock-free 数据结构，使用 Mutex + Condvar 实现等价语义
 package bao_threading
 
 import std.sync.*
@@ -187,14 +187,14 @@ public class ThreadPoolConfig {
 //   wait_group: WaitGroup - 等待所有任务完成
 //   is_running: Atomic(bool) - 是否已启动
 //
-// 仓颉使用 Mutex + Condition + Atomic 实现等价语义
+// 仓颉使用 Mutex + Condvar + Atomic 实现等价语义
 // ============================================================================
 
 /// 线程池 - 严格对应 Bun ThreadPool
 /// 严格翻译自: src/threading/ThreadPool.zig
 ///
 /// Bun 使用 lock-free 队列 + 原子操作 + futex 实现高性能线程池
-/// 仓颉使用 Mutex + Condition + Atomic 实现等价语义
+/// 仓颉使用 Mutex + Condvar + Atomic 实现等价语义
 public class ThreadPool {
     /// 工作线程列表 - 对应 Bun threads: Atomic(?*Thread) 链表
     private var workers: ArrayList<Future<Unit>>
@@ -215,9 +215,9 @@ public class ThreadPool {
     /// 互斥锁 - 保护内部状态
     private let mutex: Mutex
     /// 空闲等待条件 - 对应 Bun idle_event: Event
-    private let idleCond: Condition
+    private let idleCond: Condvar
     /// 退出等待条件 - 对应 Bun join_event: Event
-    private let joinCond: Condition
+    private let joinCond: Condvar
     /// 等待组 - 对应 Bun wait_group: WaitGroup
     private let waitGroup: WaitGroup
     /// 待处理任务数
@@ -234,8 +234,8 @@ public class ThreadPool {
         stackSize = config.stackSize
         idleCount = AtomicInt64(0)
         mutex = Mutex()
-        idleCond = mutex.condition()
-        joinCond = mutex.condition()
+        idleCond = Condvar(mutex)
+        joinCond = Condvar(mutex)
         waitGroup = WaitGroup()
         pendingCount = AtomicInt64(0)
     }
@@ -250,8 +250,8 @@ public class ThreadPool {
         stackSize = config.stackSize
         idleCount = AtomicInt64(0)
         mutex = Mutex()
-        idleCond = mutex.condition()
-        joinCond = mutex.condition()
+        idleCond = Condvar(mutex)
+        joinCond = Condvar(mutex)
         waitGroup = WaitGroup()
         pendingCount = AtomicInt64(0)
     }
@@ -336,8 +336,8 @@ public class ThreadPool {
         state.store(Int64(3))
         // 唤醒所有等待的线程
         synchronized(mutex) {
-            idleCond.notifyAll()
-            joinCond.notifyAll()
+            idleCond.broadcast()
+            joinCond.broadcast()
         }
     }
 
@@ -349,7 +349,7 @@ public class ThreadPool {
         // 等待所有线程退出
         synchronized(mutex) {
             while (spawnedCount.load() > 0) {
-                joinCond.wait(timeout: Duration.second)
+                joinCond.wait(Duration.second)
             }
         }
     }
@@ -373,7 +373,7 @@ public class ThreadPool {
         synchronized(mutex) {
             // 对应 Bun notifySlow: 如果有等待者，唤醒
             if (idleCount.load() > 0) {
-                idleCond.notify()
+                idleCond.signal()
             } else if (spawnedCount.load() < maxThreads) {
                 spawnWorker()
             }
@@ -421,7 +421,7 @@ public class ThreadPool {
                     idleCount.fetchAdd(1)
                     // 对应 Bun wait() 中的 idle_event.wait()
                     // 带 10 秒超时，对应 Bun Event.wait 中的 timeout
-                    idleCond.wait(timeout: Duration.second * 10)
+                    idleCond.wait(Duration.second * 10)
                     idleCount.fetchSub(1)
                 }
             }
@@ -431,7 +431,7 @@ public class ThreadPool {
         if (remaining == 0) {
             // 最后一个线程退出，通知 join()er
             synchronized(mutex) {
-                joinCond.notifyAll()
+                joinCond.broadcast()
             }
         }
     }

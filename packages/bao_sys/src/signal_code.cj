@@ -90,39 +90,37 @@ public class PosixSignalCode {
     /// 获取信号描述
     /// 描述名称复制自 fish shell
     public func description(): ?String {
-        match (value) {
-            case PosixSignalCode.SIGHUP.value => "Terminal hung up"
-            case PosixSignalCode.SIGINT.value => "Quit request"
-            case PosixSignalCode.SIGQUIT.value => "Quit request"
-            case PosixSignalCode.SIGILL.value => "Illegal instruction"
-            case PosixSignalCode.SIGTRAP.value => "Trace or breakpoint trap"
-            case PosixSignalCode.SIGABRT.value => "Abort"
-            case PosixSignalCode.SIGBUS.value => "Misaligned address error"
-            case PosixSignalCode.SIGFPE.value => "Floating point exception"
-            case PosixSignalCode.SIGKILL.value => "Forced quit"
-            case PosixSignalCode.SIGUSR1.value => "User defined signal 1"
-            case PosixSignalCode.SIGUSR2.value => "User defined signal 2"
-            case PosixSignalCode.SIGSEGV.value => "Address boundary error"
-            case PosixSignalCode.SIGPIPE.value => "Broken pipe"
-            case PosixSignalCode.SIGALRM.value => "Timer expired"
-            case PosixSignalCode.SIGTERM.value => "Polite quit request"
-            case PosixSignalCode.SIGCHLD.value => "Child process status changed"
-            case PosixSignalCode.SIGCONT.value => "Continue previously stopped process"
-            case PosixSignalCode.SIGSTOP.value => "Forced stop"
-            case PosixSignalCode.SIGTSTP.value => "Stop request from job control (^Z)"
-            case PosixSignalCode.SIGTTIN.value => "Stop from terminal input"
-            case PosixSignalCode.SIGTTOU.value => "Stop from terminal output"
-            case PosixSignalCode.SIGURG.value => "Urgent socket condition"
-            case PosixSignalCode.SIGXCPU.value => "CPU time limit exceeded"
-            case PosixSignalCode.SIGXFSZ.value => "File size limit exceeded"
-            case PosixSignalCode.SIGVTALRM.value => "Virtual timer expired"
-            case PosixSignalCode.SIGPROF.value => "Profiling timer expired"
-            case PosixSignalCode.SIGWINCH.value => "Window size change"
-            case PosixSignalCode.SIGIO.value => "I/O on asynchronous file descriptor is possible"
-            case PosixSignalCode.SIGSYS.value => "Bad system call"
-            case PosixSignalCode.SIGPWR.value => "Power failure"
-            case _ => None
-        }
+        if (value == PosixSignalCode.SIGHUP.value) { return "Terminal hung up" }
+        if (value == PosixSignalCode.SIGINT.value) { return "Quit request" }
+        if (value == PosixSignalCode.SIGQUIT.value) { return "Quit request" }
+        if (value == PosixSignalCode.SIGILL.value) { return "Illegal instruction" }
+        if (value == PosixSignalCode.SIGTRAP.value) { return "Trace or breakpoint trap" }
+        if (value == PosixSignalCode.SIGABRT.value) { return "Abort" }
+        if (value == PosixSignalCode.SIGBUS.value) { return "Misaligned address error" }
+        if (value == PosixSignalCode.SIGFPE.value) { return "Floating point exception" }
+        if (value == PosixSignalCode.SIGKILL.value) { return "Forced quit" }
+        if (value == PosixSignalCode.SIGUSR1.value) { return "User defined signal 1" }
+        if (value == PosixSignalCode.SIGUSR2.value) { return "User defined signal 2" }
+        if (value == PosixSignalCode.SIGSEGV.value) { return "Address boundary error" }
+        if (value == PosixSignalCode.SIGPIPE.value) { return "Broken pipe" }
+        if (value == PosixSignalCode.SIGALRM.value) { return "Timer expired" }
+        if (value == PosixSignalCode.SIGTERM.value) { return "Polite quit request" }
+        if (value == PosixSignalCode.SIGCHLD.value) { return "Child process status changed" }
+        if (value == PosixSignalCode.SIGCONT.value) { return "Continue previously stopped process" }
+        if (value == PosixSignalCode.SIGSTOP.value) { return "Forced stop" }
+        if (value == PosixSignalCode.SIGTSTP.value) { return "Stop request from job control (^Z)" }
+        if (value == PosixSignalCode.SIGTTIN.value) { return "Stop from terminal input" }
+        if (value == PosixSignalCode.SIGTTOU.value) { return "Stop from terminal output" }
+        if (value == PosixSignalCode.SIGURG.value) { return "Urgent socket condition" }
+        if (value == PosixSignalCode.SIGXCPU.value) { return "CPU time limit exceeded" }
+        if (value == PosixSignalCode.SIGXFSZ.value) { return "File size limit exceeded" }
+        if (value == PosixSignalCode.SIGVTALRM.value) { return "Virtual timer expired" }
+        if (value == PosixSignalCode.SIGPROF.value) { return "Profiling timer expired" }
+        if (value == PosixSignalCode.SIGWINCH.value) { return "Window size change" }
+        if (value == PosixSignalCode.SIGIO.value) { return "I/O on asynchronous file descriptor is possible" }
+        if (value == PosixSignalCode.SIGSYS.value) { return "Bad system call" }
+        if (value == PosixSignalCode.SIGPWR.value) { return "Power failure" }
+        return None
     }
 
     /// 从任意值构造
@@ -132,41 +130,37 @@ public class PosixSignalCode {
 
     /// 从信号名称解析
     public static func fromName(name: String): ?PosixSignalCode {
-        var searchName = name
-        if (searchName.startsWith("SIG")) {
-            searchName = searchName.substring(3)
-        }
-        match (searchName) {
-            case "HUP" => PosixSignalCode.SIGHUP
-            case "INT" => PosixSignalCode.SIGINT
-            case "QUIT" => PosixSignalCode.SIGQUIT
-            case "ILL" => PosixSignalCode.SIGILL
-            case "TRAP" => PosixSignalCode.SIGTRAP
-            case "ABRT" => PosixSignalCode.SIGABRT
-            case "BUS" => PosixSignalCode.SIGBUS
-            case "FPE" => PosixSignalCode.SIGFPE
-            case "KILL" => PosixSignalCode.SIGKILL
-            case "USR1" => PosixSignalCode.SIGUSR1
-            case "SEGV" => PosixSignalCode.SIGSEGV
-            case "USR2" => PosixSignalCode.SIGUSR2
-            case "PIPE" => PosixSignalCode.SIGPIPE
-            case "ALRM" => PosixSignalCode.SIGALRM
-            case "TERM" => PosixSignalCode.SIGTERM
-            case "CHLD" => PosixSignalCode.SIGCHLD
-            case "CONT" => PosixSignalCode.SIGCONT
-            case "STOP" => PosixSignalCode.SIGSTOP
-            case "TSTP" => PosixSignalCode.SIGTSTP
-            case "TTIN" => PosixSignalCode.SIGTTIN
-            case "TTOU" => PosixSignalCode.SIGTTOU
-            case "URG" => PosixSignalCode.SIGURG
-            case "XCPU" => PosixSignalCode.SIGXCPU
-            case "XFSZ" => PosixSignalCode.SIGXFSZ
-            case "VTALRM" => PosixSignalCode.SIGVTALRM
-            case "PROF" => PosixSignalCode.SIGPROF
-            case "WINCH" => PosixSignalCode.SIGWINCH
-            case "IO" => PosixSignalCode.SIGIO
-            case "PWR" => PosixSignalCode.SIGPWR
-            case "SYS" => PosixSignalCode.SIGSYS
+        match (name) {
+            case "HUP" | "SIGHUP" => PosixSignalCode.SIGHUP
+            case "INT" | "SIGINT" => PosixSignalCode.SIGINT
+            case "QUIT" | "SIGQUIT" => PosixSignalCode.SIGQUIT
+            case "ILL" | "SIGILL" => PosixSignalCode.SIGILL
+            case "TRAP" | "SIGTRAP" => PosixSignalCode.SIGTRAP
+            case "ABRT" | "SIGABRT" => PosixSignalCode.SIGABRT
+            case "BUS" | "SIGBUS" => PosixSignalCode.SIGBUS
+            case "FPE" | "SIGFPE" => PosixSignalCode.SIGFPE
+            case "KILL" | "SIGKILL" => PosixSignalCode.SIGKILL
+            case "USR1" | "SIGUSR1" => PosixSignalCode.SIGUSR1
+            case "SEGV" | "SIGSEGV" => PosixSignalCode.SIGSEGV
+            case "USR2" | "SIGUSR2" => PosixSignalCode.SIGUSR2
+            case "PIPE" | "SIGPIPE" => PosixSignalCode.SIGPIPE
+            case "ALRM" | "SIGALRM" => PosixSignalCode.SIGALRM
+            case "TERM" | "SIGTERM" => PosixSignalCode.SIGTERM
+            case "CHLD" | "SIGCHLD" => PosixSignalCode.SIGCHLD
+            case "CONT" | "SIGCONT" => PosixSignalCode.SIGCONT
+            case "STOP" | "SIGSTOP" => PosixSignalCode.SIGSTOP
+            case "TSTP" | "SIGTSTP" => PosixSignalCode.SIGTSTP
+            case "TTIN" | "SIGTTIN" => PosixSignalCode.SIGTTIN
+            case "TTOU" | "SIGTTOU" => PosixSignalCode.SIGTTOU
+            case "URG" | "SIGURG" => PosixSignalCode.SIGURG
+            case "XCPU" | "SIGXCPU" => PosixSignalCode.SIGXCPU
+            case "XFSZ" | "SIGXFSZ" => PosixSignalCode.SIGXFSZ
+            case "VTALRM" | "SIGVTALRM" => PosixSignalCode.SIGVTALRM
+            case "PROF" | "SIGPROF" => PosixSignalCode.SIGPROF
+            case "WINCH" | "SIGWINCH" => PosixSignalCode.SIGWINCH
+            case "IO" | "SIGIO" => PosixSignalCode.SIGIO
+            case "PWR" | "SIGPWR" => PosixSignalCode.SIGPWR
+            case "SYS" | "SIGSYS" => PosixSignalCode.SIGSYS
             case _ => None
         }
     }

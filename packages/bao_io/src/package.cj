@@ -11,6 +11,7 @@ package bao_io
 import bao_core.*
 import bao_sys.*
 import bao_collections.*
+import bao_path.*
 
 // ============================================================================
 // MaxBuf - 最大缓冲区大小
@@ -399,21 +400,56 @@ public class BaoFile {
     }
 
     /// 递归删除目录
+    /// 对应 Bun: removeRecursive - stat, recurse dirs, unlink entries
     public static func removeRecursive(path: String): Bool {
-        // TODO: 实现递归删除
-        return remove(path)
+        match (SysFs.stat(path)) {
+            case SysMaybe<PosixStat>.Ok(stat) =>
+                if (stat.isDirectory()) {
+                    let entries = DirUtils.listDir(path)
+                    match (entries) {
+                        case SysMaybe<ArrayList<DirEntry>>.Ok(dirEntries) =>
+                            for (entry in dirEntries) {
+                                let childPath = Path.join([path, entry.name])
+                                if (!removeRecursive(childPath)) {
+                                    return false
+                                }
+                            }
+                        case _ => ()
+                    }
+                    match (SysFs.rmdir(path)) {
+                        case SysMaybe<Unit>.Ok(_) => return true
+                        case SysMaybe<Unit>.Err(_) => return false
+                    }
+                } else {
+                    return remove(path)
+                }
+            case SysMaybe<PosixStat>.Err(_) =>
+                return remove(path)
+        }
     }
 
     /// 判断是否是目录
+    /// 对应 Bun: isDirectory via stat
     public static func isDirectory(path: String): Bool {
-        // TODO: 使用 SysFs.stat 实现
-        return false
+        match (SysFs.stat(path)) {
+            case SysMaybe<PosixStat>.Ok(stat) => stat.isDirectory()
+            case SysMaybe<PosixStat>.Err(_) => false
+        }
     }
 
     /// 读取目录条目
+    /// 对应 Bun: readdir via DirIterator
     public static func readdir(path: String): Array<String> {
-        // TODO: 使用 SysFs.readdir 或 std.fs 实现
-        return Array<String>()
+        let result = ArrayList<String>()
+        let entries = DirUtils.listDir(path)
+        match (entries) {
+            case SysMaybe<ArrayList<DirEntry>>.Ok(dirEntries) =>
+                for (entry in dirEntries) {
+                    result.append(entry.name)
+                }
+            case _ => ()
+        }
+        return result.toArray()
     }
 }
 

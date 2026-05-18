@@ -78,7 +78,7 @@ public class ParsePrefix {
             case Token.Plus =>
                 return pfxTUnary(p, OpCode.UnPos)
             case Token.Tilde =>
-                return pfxTUnary(p, OpCode.UnBNot)
+                return pfxTUnary(p, OpCode.UnCpl)
             case Token.Exclamation =>
                 return pfxTUnary(p, OpCode.UnNot)
             case Token.Typeof =>
@@ -99,12 +99,6 @@ public class ParsePrefix {
                 return pfxTTemplateLiteral(p)
             case Token.TemplateHead =>
                 return pfxTTemplateLiteral(p)
-
-            // 等待 / 让步
-            case Token.Await =>
-                return pfxTAwait(p, level)
-            case Token.Yield =>
-                return pfxTYield(p, level)
 
             // 私有标识符
             case Token.PrivateIdentifier =>
@@ -130,10 +124,10 @@ public class ParsePrefix {
     /// 解析 false - 对应 Bun pfx_t_false
     private static func pfxTFalse(p: Parser): Expr {
         let loc = p.lexer.loc()
-        p.lexer.next()
+        p.lexer.nextToken()
         let result = Expr()
         result.tag = ExprTag.Boolean
-        result.booleanValue = false
+        result.boolValue = false
         result.loc = loc
         return result
     }
@@ -141,10 +135,10 @@ public class ParsePrefix {
     /// 解析 true - 对应 Bun pfx_t_true
     private static func pfxTTrue(p: Parser): Expr {
         let loc = p.lexer.loc()
-        p.lexer.next()
+        p.lexer.nextToken()
         let result = Expr()
         result.tag = ExprTag.Boolean
-        result.booleanValue = true
+        result.boolValue = true
         result.loc = loc
         return result
     }
@@ -152,7 +146,7 @@ public class ParsePrefix {
     /// 解析 null - 对应 Bun pfx_t_null
     private static func pfxTNull(p: Parser): Expr {
         let loc = p.lexer.loc()
-        p.lexer.next()
+        p.lexer.nextToken()
         let result = Expr()
         result.tag = ExprTag.Null
         result.loc = loc
@@ -162,7 +156,7 @@ public class ParsePrefix {
     /// 解析 this - 对应 Bun pfx_t_this
     private static func pfxTThis(p: Parser): Expr {
         let loc = p.lexer.loc()
-        p.lexer.next()
+        p.lexer.nextToken()
         let result = Expr()
         result.tag = ExprTag.ThisExpr
         result.loc = loc
@@ -173,7 +167,7 @@ public class ParsePrefix {
     private static func pfxTNumericLiteral(p: Parser): Expr {
         let loc = p.lexer.loc()
         let value = p.lexer.number
-        p.lexer.next()
+        p.lexer.nextToken()
         let result = Expr()
         result.tag = ExprTag.Number
         result.numberValue = value
@@ -184,11 +178,11 @@ public class ParsePrefix {
     /// 解析字符串字面量
     private static func pfxTStringLiteral(p: Parser): Expr {
         let loc = p.lexer.loc()
-        let value = p.lexer.stringLiteral
-        p.lexer.next()
+        let value = p.lexer.stringLiteralRawContent
+        p.lexer.nextToken()
         let result = Expr()
         result.tag = ExprTag.String
-        result.stringValue = value
+        result.stringValue = BaoString(value)
         result.loc = loc
         return result
     }
@@ -197,10 +191,10 @@ public class ParsePrefix {
     private static func pfxTBigIntegerLiteral(p: Parser): Expr {
         let loc = p.lexer.loc()
         let value = p.lexer.identifier
-        p.lexer.next()
+        p.lexer.nextToken()
         let result = Expr()
         result.tag = ExprTag.BigInt
-        result.stringValue = value
+        result.stringValue = BaoString(value)
         result.loc = loc
         return result
     }
@@ -214,7 +208,7 @@ public class ParsePrefix {
     private static func pfxTIdentifier(p: Parser, level: Level): Expr {
         let loc = p.lexer.loc()
         let name = p.lexer.identifier
-        p.lexer.next()
+        p.lexer.nextToken()
 
         // 检查是否为箭头函数
         // 如果后面跟着 => 则是箭头函数
@@ -235,7 +229,7 @@ public class ParsePrefix {
         result.tag = ExprTag.Identifier
         result.loc = loc
         result.identifierName = name
-        result.ref = p.storeNameInRef(name)
+        result.ref = p.newSymbol(SymbolKind.Other,name)
         return result
     }
 
@@ -256,19 +250,8 @@ public class ParsePrefix {
     /// 可能是: 分组表达式, 箭头函数参数, 解构赋值
     private static func pfxTOpenParen(p: Parser, level: Level): Expr {
         let loc = p.lexer.loc()
-        p.lexer.next()
+        p.lexer.nextToken()
 
-        // 箭头函数不在表达式中间允许
-        if (level.ordinal > Level.Assign.ordinal) {
-            let oldAllowIn = p.allowIn
-            p.allowIn = true
-            let value = p.parseExpr(Level.Lowest)
-            p.lexer.expect(Token.CloseParen)
-            p.allowIn = oldAllowIn
-            return value
-        }
-
-        // 解析括号表达式 (可能包含箭头函数)
         return parseParenExpr(p, loc, level)
     }
 
@@ -277,7 +260,7 @@ public class ParsePrefix {
         // 检查是否为箭头函数
         // (...args) => body
 
-        let value = p.parseExpr(Level.Comma)
+        let value = p.parseExpr(ParseExprOpts())
         p.lexer.expect(Token.CloseParen)
 
         // 如果后面跟着 => 则是箭头函数
@@ -290,7 +273,7 @@ public class ParsePrefix {
 
     /// 从括号表达式解析箭头函数
     private static func parseArrowFromParen(p: Parser, loc: Loc, parenExpr: Expr): Expr {
-        p.lexer.next() // =>
+        p.lexer.nextToken() // =>
         let result = Expr()
         result.tag = ExprTag.Arrow
         result.loc = loc
@@ -304,34 +287,30 @@ public class ParsePrefix {
     /// 解析数组字面量 - 对应 Bun pfx_t_open_bracket
     private static func pfxTOpenBracket(p: Parser, level: Level): Expr {
         let loc = p.lexer.loc()
-        p.lexer.next()
+        p.lexer.nextToken()
 
         let elements = ArrayList<Expr>()
 
         while (p.lexer.token != Token.CloseBracket && p.lexer.token != Token.EndOfFile) {
             // 展开元素
             if (p.lexer.token == Token.DotDotDot) {
-                p.lexer.next()
-                let value = p.parseExpr(Level.Comma)
-                let spread = Expr()
-                spread.tag = ExprTag.Spread
-                spread.loc = value.loc
-                spread.exprData = value
-                elements.append(spread)
+                p.lexer.nextToken()
+                let value = p.parseExpr(ParseExprOpts())
+                elements.append(Expr.spread(value.loc, value))
             } else if (p.lexer.token == Token.Comma) {
                 // 稀疏数组: [1,,3]
-                p.lexer.next()
+                p.lexer.nextToken()
                 let missing = Expr()
                 missing.tag = ExprTag.Missing
                 missing.loc = p.lexer.loc()
                 elements.append(missing)
                 continue
             } else {
-                elements.append(p.parseExpr(Level.Comma))
+                elements.append(p.parseExpr(ParseExprOpts()))
             }
 
             if (p.lexer.token == Token.Comma) {
-                p.lexer.next()
+                p.lexer.nextToken()
             }
         }
 
@@ -340,25 +319,25 @@ public class ParsePrefix {
         let result = Expr()
         result.tag = ExprTag.Array
         result.loc = loc
-        result.arrayElements = elements
+        result.items = elements
         return result
     }
 
     /// 解析对象字面量 - 对应 Bun pfx_t_open_brace
     private static func pfxTOpenBrace(p: Parser, level: Level): Expr {
         let loc = p.lexer.loc()
-        p.lexer.next()
+        p.lexer.nextToken()
 
-        let properties = ArrayList<Property>()
+        let properties = ArrayList<GProperty>()
 
         while (p.lexer.token != Token.CloseBrace && p.lexer.token != Token.EndOfFile) {
             // 展开属性
             if (p.lexer.token == Token.DotDotDot) {
-                p.lexer.next()
-                let value = p.parseExpr(Level.Comma)
-                let property = Property()
-                property.kind = PropertyKind.Normal
-                property.value = value
+                p.lexer.nextToken()
+                let value = p.parseExpr(ParseExprOpts())
+                let property = GProperty(loc, "...", Some(value))
+                property.kind = GPropertyKind.Spread
+                property.flags.isSpread = true
                 properties.append(property)
             } else {
                 let property = parseObjectProperty(p)
@@ -366,65 +345,56 @@ public class ParsePrefix {
             }
 
             if (p.lexer.token == Token.Comma) {
-                p.lexer.next()
+                p.lexer.nextToken()
             }
         }
 
         p.lexer.expect(Token.CloseBrace)
 
-        let result = Expr()
-        result.tag = ExprTag.Object
-        result.loc = loc
-        result.objectProperties = properties
-        return result
+        return Expr.object(loc, properties)
     }
 
     /// 解析对象属性
-    private static func parseObjectProperty(p: Parser): Property {
-        let property = Property()
-
-        // 计算属性 [...]
-        if (p.lexer.token == Token.OpenBracket) {
-            p.lexer.next()
-            let key = p.parseExpr(Level.Comma)
+    private static func parseObjectProperty(p: Parser): GProperty {
+        let loc = p.lexer.loc()
+        var isComputed = false
+        let key = if (p.lexer.token == Token.OpenBracket) {
+            isComputed = true
+            p.lexer.nextToken()
+            let expr = p.parseExpr(ParseExprOpts())
             p.lexer.expect(Token.CloseBracket)
-            property.key = key
-
-            // 方法简写
-            if (p.lexer.token == Token.OpenParen) {
-                property.value = parseMethodExpression(p)
-                return property
-            }
+            expr
         } else {
-            // 标识符或字符串键
-            let key = parsePropertyKey(p)
-            property.key = key
+            parsePropertyKey(p)
         }
 
-        // getter / setter
-        // 方法简写: { foo() {} }
+        let keyName = if (key.tag == ExprTag.Identifier) {
+            key.identifierName
+        } else {
+            ""
+        }
+
         if (p.lexer.token == Token.OpenParen) {
-            property.value = parseMethodExpression(p)
+            let property = GProperty(loc, keyName, Some(parseMethodExpression(p)))
+            property.keyExpr = if (isComputed) { Some(key) } else { None }
+            property.kind = GPropertyKind.Method
+            property.flags.isComputed = isComputed
+            property.flags.isMethod = true
             return property
         }
 
-        // 普通属性: { foo: bar }
         if (p.lexer.token == Token.Colon) {
-            p.lexer.next()
-            property.value = p.parseExpr(Level.Comma)
+            p.lexer.nextToken()
+            let property = GProperty(loc, keyName, Some(p.parseExpr(ParseExprOpts())))
+            property.keyExpr = if (isComputed) { Some(key) } else { None }
+            property.flags.isComputed = isComputed
             return property
         }
 
-        // 简写属性: { foo } 等同于 { foo: foo }
-        match (property.key) {
-            case Some(key) =>
-                if (key.tag == ExprTag.Identifier) {
-                    property.value = Some(key)
-                    return property
-                }
-            case None => ()
-        }
-
+        let property = GProperty(loc, keyName, Some(key))
+        property.keyExpr = if (isComputed) { Some(key) } else { None }
+        property.flags.isComputed = isComputed
+        property.flags.wasShorthand = true
         return property
     }
 
@@ -434,7 +404,7 @@ public class ParsePrefix {
             case Token.Identifier =>
                 let loc = p.lexer.loc()
                 let name = p.lexer.identifier
-                p.lexer.next()
+                p.lexer.nextToken()
                 let result = Expr()
                 result.tag = ExprTag.Identifier
                 result.loc = loc
@@ -442,17 +412,17 @@ public class ParsePrefix {
                 return result
             case Token.StringLiteral =>
                 let loc = p.lexer.loc()
-                let value = p.lexer.stringLiteral
-                p.lexer.next()
+                let value = p.lexer.stringLiteralRawContent
+                p.lexer.nextToken()
                 let result = Expr()
                 result.tag = ExprTag.String
                 result.loc = loc
-                result.stringValue = value
+                result.stringValue = BaoString(value)
                 return result
             case Token.NumericLiteral =>
                 let loc = p.lexer.loc()
                 let value = p.lexer.number
-                p.lexer.next()
+                p.lexer.nextToken()
                 let result = Expr()
                 result.tag = ExprTag.Number
                 result.loc = loc
@@ -460,7 +430,7 @@ public class ParsePrefix {
                 return result
             case _ =>
                 let loc = p.lexer.loc()
-                p.lexer.next()
+                p.lexer.nextToken()
                 let result = Expr()
                 result.tag = ExprTag.Missing
                 result.loc = loc
@@ -477,16 +447,16 @@ public class ParsePrefix {
 
         // 简化的参数解析
         while (p.lexer.token != Token.CloseParen && p.lexer.token != Token.EndOfFile) {
-            p.lexer.next()
+            p.lexer.nextToken()
             if (p.lexer.token == Token.Comma) {
-                p.lexer.next()
+                p.lexer.nextToken()
             }
         }
         p.lexer.expect(Token.CloseParen)
 
         // 函数体
         if (p.lexer.token == Token.OpenBrace) {
-            p.lexer.next()
+            p.lexer.nextToken()
             var depth = 1
             while (depth > 0 && p.lexer.token != Token.EndOfFile) {
                 match (p.lexer.token) {
@@ -494,7 +464,7 @@ public class ParsePrefix {
                     case Token.CloseBrace => depth--
                     case _ => ()
                 }
-                if (depth > 0) { p.lexer.next() }
+                if (depth > 0) { p.lexer.nextToken() }
             }
             p.lexer.expect(Token.CloseBrace)
         }
@@ -509,26 +479,26 @@ public class ParsePrefix {
     /// 解析一元运算符表达式
     private static func pfxTUnary(p: Parser, op: OpCode): Expr {
         let loc = p.lexer.loc()
-        p.lexer.next()
-        let value = p.parseExpr(Level.Unary)
+        p.lexer.nextToken()
+        let value = p.parseExpr(ParseExprOpts())
         let result = Expr()
         result.tag = ExprTag.Unary
         result.loc = loc
-        result.unaryOp = op
-        result.exprData = value
+        result.op = op
+        result.value = Some(value)
         return result
     }
 
     /// 解析 typeof 表达式
     private static func pfxTTypeof(p: Parser): Expr {
         let loc = p.lexer.loc()
-        p.lexer.next()
-        let value = p.parseExpr(Level.Unary)
+        p.lexer.nextToken()
+        let value = p.parseExpr(ParseExprOpts())
         let result = Expr()
         result.tag = ExprTag.Unary
         result.loc = loc
-        result.unaryOp = OpCode.UnTypeof
-        result.exprData = value
+        result.op = OpCode.Typeof
+        result.value = Some(value)
         return result
     }
 
@@ -539,7 +509,7 @@ public class ParsePrefix {
     /// 解析 super - 对应 Bun pfx_t_super
     private static func pfxTSuper(p: Parser, level: Level): Expr {
         let loc = p.lexer.loc()
-        p.lexer.next()
+        p.lexer.nextToken()
         let result = Expr()
         result.tag = ExprTag.Super
         result.loc = loc
@@ -549,41 +519,35 @@ public class ParsePrefix {
     /// 解析 new 表达式 - 对应 Bun pfx_t_new
     private static func pfxTNew(p: Parser, level: Level): Expr {
         let loc = p.lexer.loc()
-        p.lexer.next()
+        p.lexer.nextToken()
 
         // new.target
         if (p.lexer.token == Token.Dot) {
-            p.lexer.next()
+            p.lexer.nextToken()
             if (p.lexer.isContextualKeyword("target")) {
-                p.lexer.next()
-                let result = Expr()
-                result.tag = ExprTag.NewTarget
-                result.loc = loc
+                p.lexer.nextToken()
+                let result = Expr(loc, ExprTag.Identifier)
+                result.identifierName = "new.target"
                 return result
             }
         }
 
-        let target = p.parseExpr(Level.Postfix)
+        let target = p.parseExpr(ParseExprOpts())
         var args = ArrayList<Expr>()
 
         // 检查是否有参数列表
         if (p.lexer.token == Token.OpenParen) {
-            p.lexer.next()
+            p.lexer.nextToken()
             while (p.lexer.token != Token.CloseParen && p.lexer.token != Token.EndOfFile) {
-                args.append(p.parseExpr(Level.Comma))
+                args.append(p.parseExpr(ParseExprOpts()))
                 if (p.lexer.token == Token.Comma) {
-                    p.lexer.next()
+                    p.lexer.nextToken()
                 }
             }
             p.lexer.expect(Token.CloseParen)
         }
 
-        let result = Expr()
-        result.tag = ExprTag.New
-        result.loc = loc
-        result.newTarget = target
-        result.callArgs = args
-        return result
+        return Expr.new_(loc, target, args)
     }
 
     // ========================================================================
@@ -593,30 +557,26 @@ public class ParsePrefix {
     /// 解析函数表达式 - 对应 Bun pfx_t_function
     private static func pfxTFunction(p: Parser): Expr {
         let loc = p.lexer.loc()
-        p.lexer.next()
+        p.lexer.nextToken()
 
         var isGenerator = false
         if (p.lexer.token == Token.Asterisk) {
             isGenerator = true
-            p.lexer.next()
+            p.lexer.nextToken()
         }
 
         // 函数名 (可选)
         var name: ?String = None
         if (p.lexer.token == Token.Identifier) {
             name = Some(p.lexer.identifier)
-            p.lexer.next()
+            p.lexer.nextToken()
         }
 
         // 解析函数 (复用 ParseFn)
         let fnOrArrowData = FnOrArrowDataParse()
-        let fnData = ParseFn.parseFn(p, None, fnOrArrowData)
+        let fnData = ParseFn.parseFn(p, Option<LocRef>.None, fnOrArrowData)
 
-        let result = Expr()
-        result.tag = ExprTag.Function
-        result.loc = loc
-        result.funcData = fnData
-        return result
+        return Expr.fn_(loc, fnData)
     }
 
     /// 解析 import 表达式 - 对应 Bun pfx_t_import
@@ -632,39 +592,37 @@ public class ParsePrefix {
     /// 解析 await - 对应 Bun pfx_t_await
     private static func pfxTAwait(p: Parser, level: Level): Expr {
         let loc = p.lexer.loc()
-        p.lexer.next()
+        p.lexer.nextToken()
 
-        let value = p.parseExpr(Level.Unary)
+        let value = p.parseExpr(ParseExprOpts())
         let result = Expr()
         result.tag = ExprTag.Await
         result.loc = loc
-        result.exprData = value
+        result.value = Some(value)
         return result
     }
 
     /// 解析 yield - 对应 Bun pfx_t_yield
     private static func pfxTYield(p: Parser, level: Level): Expr {
         let loc = p.lexer.loc()
-        p.lexer.next()
+        p.lexer.nextToken()
 
         var value: ?Expr = None
         if (p.lexer.token == Token.Asterisk) {
-            p.lexer.next()
-            value = Some(p.parseExpr(Level.Assign))
+            p.lexer.nextToken()
+            value = Some(p.parseExpr(ParseExprOpts()))
         } else if (!p.lexer.hasNewlineBefore &&
                    p.lexer.token != Token.Semicolon &&
                    p.lexer.token != Token.CloseBrace &&
                    p.lexer.token != Token.CloseParen &&
                    p.lexer.token != Token.EndOfFile) {
-            value = Some(p.parseExpr(Level.Assign))
+            value = Some(p.parseExpr(ParseExprOpts()))
         }
 
         let result = Expr()
         result.tag = ExprTag.Yield
         result.loc = loc
-        if (let Some(v) <- value) {
-            result.exprData = v
-        }
+        result.value = value
         return result
     }
 
@@ -676,7 +634,7 @@ public class ParsePrefix {
     private static func pfxTTemplateLiteral(p: Parser): Expr {
         let loc = p.lexer.loc()
         // 简化: 读取模板字符串
-        p.lexer.next()
+        p.lexer.nextToken()
 
         let result = Expr()
         result.tag = ExprTag.Template
@@ -688,11 +646,9 @@ public class ParsePrefix {
     private static func pfxTPrivateIdentifier(p: Parser): Expr {
         let loc = p.lexer.loc()
         let name = p.lexer.identifier
-        p.lexer.next()
+        p.lexer.nextToken()
 
-        let result = Expr()
-        result.tag = ExprTag.PrivateIdentifier
-        result.loc = loc
+        let result = Expr(loc, ExprTag.Identifier)
         result.identifierName = name
         return result
     }
@@ -700,15 +656,8 @@ public class ParsePrefix {
     /// 解析正则字面量
     private static func pfxTRegexLiteral(p: Parser): Expr {
         let loc = p.lexer.loc()
-        let pattern = p.lexer.regexPattern
-        let flags = p.lexer.regexFlags
-        p.lexer.next()
+        p.lexer.nextToken()
 
-        let result = Expr()
-        result.tag = ExprTag.Regex
-        result.loc = loc
-        result.regexPattern = pattern
-        result.regexFlags = flags
-        return result
+        return Expr(loc, ExprTag.Regex)
     }
 }

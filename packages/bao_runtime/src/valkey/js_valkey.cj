@@ -148,8 +148,12 @@ public class SubscriptionCtx {
             // 调用回调函数
             match (callback.functionData) {
                 case Some(fn) =>
-                    // TODO: 需要通过 Interpreter 执行 JsFunction
-                    ()
+                    // 对应 Bun: event_loop.runCallback(callback, globalObject, .js_undefined, args)
+                    let vm = VirtualMachine.get()
+                    let eventLoop = vm.eventLoop()
+                    eventLoop.enter()
+                    eventLoop.runCallback(callback, globalThis, JsValue.jsUndefined(), args)
+                    eventLoop.exit()
                 case None => ()
             }
         }

@@ -3,7 +3,7 @@
 //   src/threading/channel.zig - Channel(T, buffer_type)
 //
 // Bun Channel 实现:
-//   mutex: Mutex
+//   mutex: ThreadMutex
 //   putters: Condition (生产者等待条件)
 //   getters: Condition (消费者等待条件)
 //   buffer: LinearFifo(T) (内部环形缓冲区)
@@ -108,8 +108,8 @@ public class Channel<T> {
     private var closed: Bool
 
     /// 互斥锁 - 对应 Bun Channel.mutex
-    /// 严格翻译自: channel.zig:9 mutex: Mutex
-    private let mutex: Mutex
+    /// 严格翻译自: channel.zig:9 mutex: ThreadMutex
+    private let mutex: ThreadMutex
 
     /// 消费者等待条件 - 对应 Bun Channel.getters
     /// 严格翻译自: channel.zig:11 getters: Condition
@@ -133,9 +133,9 @@ public class Channel<T> {
     public init() {
         buffer = ArrayList<T>()
         closed = false
-        mutex = Mutex()
-        getters = mutex.condition()
-        putters = mutex.condition()
+        mutex = ThreadMutex()
+        getters = Condition()
+        putters = Condition()
         capacity = Int64(-1)
     }
 
@@ -144,9 +144,9 @@ public class Channel<T> {
     public init(capacity: Int64) {
         buffer = ArrayList<T>()
         closed = false
-        mutex = Mutex()
-        getters = mutex.condition()
-        putters = mutex.condition()
+        mutex = ThreadMutex()
+        getters = Condition()
+        putters = Condition()
         this.capacity = capacity
     }
 
@@ -364,11 +364,11 @@ public class Channel<T> {
                 buffer.add(items[pushed])
                 pushed += Int64(1)
                 // 严格对应 Bun: self.getters.signal()
-                getters.notify()
+                getters.signal()
             } else if (shouldBlock) {
                 // 严格对应 Bun: self.putters.wait(&self.mutex)
                 // 缓冲区满且需要阻塞，等待消费者读取
-                putters.wait()
+                putters.wait(mutex.conditionThreadMutex())
             } else {
                 // 严格对应 Bun: break (非阻塞，缓冲区满)
                 break
@@ -414,7 +414,7 @@ public class Channel<T> {
                 // 缓冲区空
                 if (shouldBlock) {
                     // 严格对应 Bun: self.getters.wait(&self.mutex)
-                    getters.wait()
+                    getters.wait(mutex.conditionThreadMutex())
                 } else {
                     // 严格对应 Bun: break (非阻塞，缓冲区空)
                     break
@@ -424,7 +424,7 @@ public class Channel<T> {
                 let item = buffer.remove(at: Int64(0))
                 result.add(item)
                 // 严格对应 Bun: self.putters.signal()
-                putters.notify()
+                putters.signal()
             }
         }
         if (result.size == Int64(0)) {

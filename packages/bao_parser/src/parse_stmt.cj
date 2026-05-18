@@ -38,7 +38,7 @@ public class ParseStmt {
         match (p.lexer.token) {
             // 分号
             case Token.Semicolon =>
-                p.lexer.next()
+                p.lexer.nextToken()
                 let stmt = Stmt()
                 stmt.tag = StmtTag.Empty
                 stmt.loc = p.lexer.loc()
@@ -54,7 +54,7 @@ public class ParseStmt {
 
             // function / async function
             case Token.Function =>
-                return ParseFn.parseFnStmt(p, p.lexer.loc(), opts, None)
+                return ParseFn.parseFnStmt(p, p.lexer.loc(), opts, Option<Range>.None)
 
             // class
             case Token.Class =>
@@ -112,7 +112,7 @@ public class ParseStmt {
 
             // debugger
             case Token.Debugger =>
-                p.lexer.next()
+                p.lexer.nextToken()
                 p.lexer.expectOrInsertSemicolon()
                 let stmt = Stmt()
                 stmt.tag = StmtTag.Debugger
@@ -157,7 +157,7 @@ public class ParseStmt {
 
     /// 解析导出语句 - 对应 Bun t_export
     private static func parseExport(p: Parser, opts: ParseStatementOptions, loc: Loc): Stmt {
-        p.lexer.next() // export
+        p.lexer.nextToken() // export
 
         match (p.lexer.token) {
             // export class / const / function / var
@@ -203,7 +203,7 @@ public class ParseStmt {
             case Token.Identifier =>
                 if (p.lexer.isContextualKeyword("async")) {
                     let asyncRange = p.lexer.range()
-                    p.lexer.next()
+                    p.lexer.nextToken()
                     if (p.lexer.hasNewlineBefore) {
                         p.log.addError(MsgData("Unexpected newline after \"async\""))
                     }
@@ -227,7 +227,7 @@ public class ParseStmt {
                         return parseTypeScriptDeclareExport(p, opts, loc)
                     }
                     if (p.lexer.isContextualKeyword("abstract")) {
-                        p.lexer.next()
+                        p.lexer.nextToken()
                         p.lexer.expect(Token.Class)
                         opts.isExport = true
                         return parseClass(p, opts, loc)
@@ -237,8 +237,12 @@ public class ParseStmt {
                     }
                     if (opts.isTypescriptDeclare && p.lexer.isContextualKeyword("as")) {
                         // export as namespace ns;
-                        p.lexer.next()
-                        p.lexer.expectContextualKeyword("namespace")
+                        p.lexer.nextToken()
+                        if (p.lexer.isContextualKeyword("namespace")) {
+                            p.lexer.nextToken()
+                        } else {
+                            p.log.addError(MsgData("Expected \"namespace\""))
+                        }
                         p.lexer.expect(Token.Identifier)
                         p.lexer.expectOrInsertSemicolon()
                         let stmt = Stmt()
@@ -294,9 +298,9 @@ public class ParseStmt {
             case Token.Let => VarKind.Let
             case _ => VarKind.Var
         }
-        p.lexer.next()
+        p.lexer.nextToken()
 
-        let decls = ArrayList<Decl>()
+        let decls = ArrayList<GDecl>()
         var hasOut = false
 
         while (true) {
@@ -304,58 +308,56 @@ public class ParseStmt {
             var value: ?Expr = None
 
             if (p.lexer.token == Token.Equals) {
-                p.lexer.next()
-                value = Some(p.parseExpr(Level.Comma))
+                p.lexer.nextToken()
+                value = Some(p.parseExpr(ParseExprOpts()))
                 hasOut = true
             }
 
-            let decl = Decl()
-            decl.binding = binding
+            let decl = GDecl(binding)
             decl.value = value
             decls.append(decl)
 
             if (p.lexer.token != Token.Comma) {
                 break
             }
-            p.lexer.next()
+            p.lexer.nextToken()
         }
 
         p.lexer.expectOrInsertSemicolon()
 
-        let stmt = Stmt()
-        stmt.tag = StmtTag.Local
-        stmt.loc = loc
+        let declKind = match (kind) {
+            case VarKind.Const => DeclKind.Const
+            case VarKind.Let => DeclKind.Let
+            case _ => DeclKind.Var
+        }
+        let stmt = Stmt.local(loc, declKind, decls)
         stmt.isExport = opts.isExport
-        stmt.varKind = kind
-        stmt.decls = decls
         return stmt
     }
 
     /// 解析绑定模式
-    private static func parseBinding(p: Parser): BindingPattern {
+    private static func parseBinding(p: Parser): Binding {
         match (p.lexer.token) {
             case Token.Identifier =>
                 let loc = p.lexer.loc()
                 let name = p.lexer.identifier
-                p.lexer.next()
+                p.lexer.nextToken()
 
                 // TypeScript 类型注解
                 if (p.options.features.typescript && p.lexer.token == Token.Colon) {
-                    p.lexer.next()
+                    p.lexer.nextToken()
                     ParseSkipTypeScript.skipTypeScriptType(p, Level.Lowest)
                 }
 
-                let binding = BindingPattern(loc, BindingPatternTag.Identifier)
-                binding.name = name
-                binding.ref = p.storeNameInRef(name)
-                return binding
+                let ref = p.newSymbol(SymbolKind.Other, name)
+                return Binding.identifier(loc, name, ref)
             case Token.OpenBrace =>
-                return BindingPattern(p.lexer.loc(), BindingPatternTag.ObjectPattern)
+                return Binding.object_(p.lexer.loc(), ArrayList<BindingProperty>())
             case Token.OpenBracket =>
-                return BindingPattern(p.lexer.loc(), BindingPatternTag.ArrayPattern)
+                return Binding.array_(p.lexer.loc(), ArrayList<Binding>())
             case _ =>
                 p.lexer.expect(Token.Identifier)
-                return BindingPattern(p.lexer.loc(), BindingPatternTag.Missing)
+                return Binding(p.lexer.loc(), BindingTag.Missing)
         }
     }
 
@@ -365,21 +367,19 @@ public class ParseStmt {
 
     /// 解析类声明
     private static func parseClass(p: Parser, opts: ParseStatementOptions, loc: Loc): Stmt {
-        p.lexer.next() // class
+        p.lexer.nextToken() // class
 
         // TypeScript abstract
         if (p.options.features.typescript && p.lexer.isContextualKeyword("abstract")) {
-            p.lexer.next()
+            p.lexer.nextToken()
         }
 
         // 类名
-        var name: ?LocRef = None
+        var nameText = ""
         if (!opts.isNameOptional || p.lexer.token == Token.Identifier) {
-            let nameLoc = p.lexer.loc()
-            let nameText = p.lexer.identifier
+            nameText = p.lexer.identifier
             p.lexer.expect(Token.Identifier)
-            let ref = p.newSymbol(SymbolKind.Other, nameText)
-            name = Some(LocRef(nameLoc, ref))
+            p.newSymbol(SymbolKind.Other, nameText)
         }
 
         // TypeScript 类型参数
@@ -390,16 +390,16 @@ public class ParseStmt {
         // extends
         var `super`: ?Expr = None
         if (p.lexer.token == Token.Extends) {
-            p.lexer.next()
-            `super` = Some(p.parseExpr(Level.Lowest))
+            p.lexer.nextToken()
+            `super` = Some(p.parseExpr(ParseExprOpts()))
         }
 
         // implements (TypeScript)
         if (p.options.features.typescript && p.lexer.isContextualKeyword("implements")) {
-            p.lexer.next()
+            p.lexer.nextToken()
             ParseSkipTypeScript.skipTypeScriptType(p, Level.Lowest)
             while (p.lexer.token == Token.Comma) {
-                p.lexer.next()
+                p.lexer.nextToken()
                 ParseSkipTypeScript.skipTypeScriptType(p, Level.Lowest)
             }
         }
@@ -416,19 +416,16 @@ public class ParseStmt {
             properties.append(property)
 
             if (p.lexer.token == Token.Semicolon) {
-                p.lexer.next()
+                p.lexer.nextToken()
             }
         }
 
         p.lexer.expect(Token.CloseBrace)
 
-        let stmt = Stmt()
-        stmt.tag = StmtTag.Class
-        stmt.loc = loc
+        let classData = GClass(nameText, `super`, properties, loc)
+        classData.isExport = opts.isExport
+        let stmt = Stmt.`class`(loc, classData)
         stmt.isExport = opts.isExport
-        stmt.className = name
-        stmt.classSuper = `super`
-        stmt.classProperties = properties
         return stmt
     }
 
@@ -438,16 +435,16 @@ public class ParseStmt {
 
     /// 解析 if 语句
     private static func parseIf(p: Parser, loc: Loc): Stmt {
-        p.lexer.next() // if
+        p.lexer.nextToken() // if
         p.lexer.expect(Token.OpenParen)
-        let test = p.parseExpr(Level.Lowest)
+        let test = p.parseExpr(ParseExprOpts())
         p.lexer.expect(Token.CloseParen)
 
         let yes = parseStmt(p, ParseStatementOptions())
         var no: ?Stmt = None
 
         if (p.lexer.token == Token.Else) {
-            p.lexer.next()
+            p.lexer.nextToken()
             no = Some(parseStmt(p, ParseStatementOptions()))
         }
 
@@ -462,80 +459,80 @@ public class ParseStmt {
 
     /// 解析 for 语句
     private static func parseFor(p: Parser, loc: Loc): Stmt {
-        p.lexer.next() // for
+        p.lexer.nextToken() // for
 
         // for await
         var isForAwait = false
         if (p.lexer.isContextualKeyword("await")) {
             isForAwait = true
-            p.lexer.next()
+            p.lexer.nextToken()
         }
 
         p.lexer.expect(Token.OpenParen)
 
         // 确定是 for, for-in, 还是 for-of
-        let init_ = p.parseExpr(Level.Lowest)
+        let init_ = p.parseExpr(ParseExprOpts())
 
         if (p.lexer.token == Token.In) {
             // for (x in obj)
-            p.lexer.next()
-            let value = p.parseExpr(Level.Lowest)
+            p.lexer.nextToken()
+            let value = p.parseExpr(ParseExprOpts())
             p.lexer.expect(Token.CloseParen)
             let body = parseStmt(p, ParseStatementOptions())
 
             let stmt = Stmt()
             stmt.tag = StmtTag.ForIn
             stmt.loc = loc
-            stmt.initExpr = init_
+            stmt.expr = Some(init_)
             stmt.valueExpr = value
-            stmt.bodyStmt = body
+            stmt.body = Some(body)
             return stmt
         }
 
         if (p.lexer.isContextualKeyword("of")) {
             // for (x of iterable)
-            p.lexer.next()
-            let value = p.parseExpr(Level.Lowest)
+            p.lexer.nextToken()
+            let value = p.parseExpr(ParseExprOpts())
             p.lexer.expect(Token.CloseParen)
             let body = parseStmt(p, ParseStatementOptions())
 
             let stmt = Stmt()
             stmt.tag = StmtTag.ForOf
             stmt.loc = loc
-            stmt.initExpr = init_
+            stmt.expr = Some(init_)
             stmt.valueExpr = value
-            stmt.bodyStmt = body
-            stmt.isForAwait = isForAwait
+            stmt.body = Some(body)
+            stmt.isAwait = isForAwait
             return stmt
         }
 
         // for (init; test; update)
         p.lexer.expect(Token.Semicolon)
         let test = if (p.lexer.token != Token.Semicolon) {
-            Some(p.parseExpr(Level.Lowest))
-        } else { None }
+            Some(p.parseExpr(ParseExprOpts()))
+        } else { Option<Expr>.None }
         p.lexer.expect(Token.Semicolon)
         let update = if (p.lexer.token != Token.CloseParen) {
-            Some(p.parseExpr(Level.Lowest))
-        } else { None }
+            Some(p.parseExpr(ParseExprOpts()))
+        } else { Option<Expr>.None }
         p.lexer.expect(Token.CloseParen)
         let body = parseStmt(p, ParseStatementOptions())
 
         let stmt = Stmt()
         stmt.tag = StmtTag.For
         stmt.loc = loc
-        stmt.initExpr = init_
-        stmt.testExpr2 = test
-        stmt.updateExpr = update
-        stmt.bodyStmt = body
+        stmt.expr = Some(init_)
+        stmt.expr = test
+        stmt.update = update
+        stmt.body = Some(body)
         return stmt
     }
 
     /// 解析 while 语句
     private static func parseWhile(p: Parser, loc: Loc): Stmt {
-        p.lexer.next()
+        p.lexer.nextToken()
         p.lexer.expect(Token.OpenParen)
-        let test = p.parseExpr(Level.Lowest)
+        let test = p.parseExpr(ParseExprOpts())
         p.lexer.expect(Token.CloseParen)
         let body = parseStmt(p, ParseStatementOptions())
 
@@ -543,17 +540,17 @@ public class ParseStmt {
         stmt.tag = StmtTag.While
         stmt.loc = loc
         stmt.testExpr = test
-        stmt.bodyStmt = body
+        stmt.body = Some(body)
         return stmt
     }
 
     /// 解析 do-while 语句
     private static func parseDoWhile(p: Parser, loc: Loc): Stmt {
-        p.lexer.next()
+        p.lexer.nextToken()
         let body = parseStmt(p, ParseStatementOptions())
         p.lexer.expect(Token.While)
         p.lexer.expect(Token.OpenParen)
-        let test = p.parseExpr(Level.Lowest)
+        let test = p.parseExpr(ParseExprOpts())
         p.lexer.expect(Token.CloseParen)
         p.lexer.expectOrInsertSemicolon()
 
@@ -561,32 +558,34 @@ public class ParseStmt {
         stmt.tag = StmtTag.DoWhile
         stmt.loc = loc
         stmt.testExpr = test
-        stmt.bodyStmt = body
+        stmt.body = Some(body)
         return stmt
     }
 
     /// 解析 switch 语句
     private static func parseSwitch(p: Parser, loc: Loc): Stmt {
-        p.lexer.next()
+        p.lexer.nextToken()
         p.lexer.expect(Token.OpenParen)
-        let test = p.parseExpr(Level.Lowest)
+        let test = p.parseExpr(ParseExprOpts())
         p.lexer.expect(Token.CloseParen)
         p.lexer.expect(Token.OpenBrace)
 
         let cases = ArrayList<SwitchCase>()
         while (p.lexer.token != Token.CloseBrace && p.lexer.token != Token.EndOfFile) {
-            let switchCase = SwitchCase()
+            let switchCase = SwitchCase(p.lexer.loc())
             if (p.lexer.token == Token.Case) {
-                p.lexer.next()
-                switchCase.test = Some(p.parseExpr(Level.Comma))
+                p.lexer.nextToken()
+                let caseValue = p.parseExpr(ParseExprOpts())
+                switchCase.value = Some(caseValue)
+                switchCase.valueExpr = Some(caseValue)
                 p.lexer.expect(Token.Colon)
             } else if (p.lexer.token == Token.Default) {
-                p.lexer.next()
+                p.lexer.nextToken()
                 p.lexer.expect(Token.Colon)
             }
             while (p.lexer.token != Token.Case && p.lexer.token != Token.Default &&
                    p.lexer.token != Token.CloseBrace && p.lexer.token != Token.EndOfFile) {
-                switchCase.stmts.append(parseStmt(p, ParseStatementOptions()))
+                switchCase.body.append(parseStmt(p, ParseStatementOptions()))
             }
             cases.append(switchCase)
         }
@@ -597,23 +596,23 @@ public class ParseStmt {
         stmt.tag = StmtTag.Switch
         stmt.loc = loc
         stmt.testExpr = test
-        stmt.switchCases = cases
+        stmt.cases = cases
         return stmt
     }
 
     /// 解析 try 语句
     private static func parseTry(p: Parser, loc: Loc): Stmt {
-        p.lexer.next()
+        p.lexer.nextToken()
         let body = parseBlock(p, p.lexer.loc())
 
         var catch_: ?Stmt = None
         var finally_: ?Stmt = None
 
         if (p.lexer.token == Token.Catch) {
-            p.lexer.next()
-            var catchBinding: ?BindingPattern = None
+            p.lexer.nextToken()
+            var catchBinding: ?Binding = Option<Binding>.None
             if (p.lexer.token == Token.OpenParen) {
-                p.lexer.next()
+                p.lexer.nextToken()
                 catchBinding = Some(parseBinding(p))
                 p.lexer.expect(Token.CloseParen)
             }
@@ -621,24 +620,24 @@ public class ParseStmt {
         }
 
         if (p.lexer.token == Token.Finally) {
-            p.lexer.next()
+            p.lexer.nextToken()
             finally_ = Some(parseBlock(p, p.lexer.loc()))
         }
 
         let stmt = Stmt()
         stmt.tag = StmtTag.Try
         stmt.loc = loc
-        stmt.bodyStmt = body
-        stmt.catchStmt = catch_
-        stmt.finallyStmt = finally_
+        stmt.body = Some(body)
+        stmt.catchBody = catch_
+        stmt.finallyBody = finally_
         return stmt
     }
 
     /// 解析 with 语句
     private static func parseWith(p: Parser, loc: Loc): Stmt {
-        p.lexer.next()
+        p.lexer.nextToken()
         p.lexer.expect(Token.OpenParen)
-        let obj = p.parseExpr(Level.Lowest)
+        let obj = p.parseExpr(ParseExprOpts())
         p.lexer.expect(Token.CloseParen)
         let body = parseStmt(p, ParseStatementOptions())
 
@@ -646,7 +645,7 @@ public class ParseStmt {
         stmt.tag = StmtTag.With
         stmt.loc = loc
         stmt.valueExpr = obj
-        stmt.bodyStmt = body
+        stmt.body = Some(body)
         return stmt
     }
 
@@ -656,69 +655,61 @@ public class ParseStmt {
 
     /// 解析 return 语句
     private static func parseReturn(p: Parser, loc: Loc): Stmt {
-        p.lexer.next()
+        p.lexer.nextToken()
         var value: ?Expr = None
         if (!p.lexer.hasNewlineBefore && p.lexer.token != Token.Semicolon &&
             p.lexer.token != Token.CloseBrace && p.lexer.token != Token.EndOfFile) {
-            value = Some(p.parseExpr(Level.Lowest))
+            value = Some(p.parseExpr(ParseExprOpts()))
         }
         p.lexer.expectOrInsertSemicolon()
 
-        let stmt = Stmt()
-        stmt.tag = StmtTag.Return
-        stmt.loc = loc
-        stmt.returnExpr = value
-        return stmt
+        return Stmt.return_(loc, value)
     }
 
     /// 解析 throw 语句
     private static func parseThrow(p: Parser, loc: Loc): Stmt {
-        p.lexer.next()
+        p.lexer.nextToken()
         if (p.lexer.hasNewlineBefore) {
             p.log.addError(MsgData("Unexpected newline after \"throw\""))
         }
-        let value = p.parseExpr(Level.Lowest)
+        let value = p.parseExpr(ParseExprOpts())
         p.lexer.expectOrInsertSemicolon()
 
-        let stmt = Stmt()
-        stmt.tag = StmtTag.Throw
-        stmt.loc = loc
-        stmt.throwExpr = value
-        return stmt
+        return Stmt.throw_(loc, value)
     }
 
     /// 解析 break 语句
     private static func parseBreak(p: Parser, loc: Loc): Stmt {
-        p.lexer.next()
+        p.lexer.nextToken()
         var label: ?String = None
         if (!p.lexer.hasNewlineBefore && p.lexer.token == Token.Identifier) {
             label = Some(p.lexer.identifier)
-            p.lexer.next()
+            p.lexer.nextToken()
         }
         p.lexer.expectOrInsertSemicolon()
 
-        let stmt = Stmt()
-        stmt.tag = StmtTag.Break
-        stmt.loc = loc
-        stmt.label = label
-        return stmt
+        let labelText = match (label) {
+            case Some(text) => text
+            case None => ""
+        }
+        return Stmt.break_(loc, labelText)
     }
 
     /// 解析 continue 语句
     private static func parseContinue(p: Parser, loc: Loc): Stmt {
-        p.lexer.next()
+        p.lexer.nextToken()
         var label: ?String = None
         if (!p.lexer.hasNewlineBefore && p.lexer.token == Token.Identifier) {
             label = Some(p.lexer.identifier)
-            p.lexer.next()
+            p.lexer.nextToken()
         }
         p.lexer.expectOrInsertSemicolon()
 
-        let stmt = Stmt()
-        stmt.tag = StmtTag.Continue
-        stmt.loc = loc
-        stmt.label = label
-        return stmt
+        let labelText = match (label) {
+            case Some(text) => text
+            case None => ""
+        }
+        return Stmt.continue_(loc, labelText)
     }
 
     // ========================================================================
@@ -740,13 +731,13 @@ public class ParseStmt {
 
     /// 解析表达式语句
     private static func parseExprStmt(p: Parser): Stmt {
-        let expr = p.parseExpr(Level.Lowest)
+        let expr = p.parseExpr(ParseExprOpts())
         p.lexer.expectOrInsertSemicolon()
 
         let stmt = Stmt()
         stmt.tag = StmtTag.Expr
         stmt.loc = expr.loc
-        stmt.exprData = expr
+        stmt.expr = Some(expr)
         return stmt
     }
 
@@ -757,31 +748,25 @@ public class ParseStmt {
         // let
         if (name == "let") {
             // 如果后面跟着标识符或解构，则作为变量声明
-            p.lexer.next()
+            p.lexer.nextToken()
             if (p.lexer.token == Token.Identifier || p.lexer.token == Token.OpenBrace ||
                 p.lexer.token == Token.OpenBracket) {
-                let stmt = Stmt()
-                stmt.tag = StmtTag.Local
-                stmt.loc = loc
-                stmt.isExport = opts.isExport
-                stmt.varKind = VarKind.Let
-                // 解析声明
-                let decls = ArrayList<Decl>()
+                let decls = ArrayList<GDecl>()
                 while (true) {
                     let binding = parseBinding(p)
-                    var value: ?Expr = None
+                    var value: ?Expr = Option<Expr>.None
                     if (p.lexer.token == Token.Equals) {
-                        p.lexer.next()
-                        value = Some(p.parseExpr(Level.Comma))
+                        p.lexer.nextToken()
+                        value = Some(p.parseExpr(ParseExprOpts()))
                     }
-                    let decl = Decl()
-                    decl.binding = binding
+                    let decl = GDecl(binding)
                     decl.value = value
                     decls.append(decl)
                     if (p.lexer.token != Token.Comma) { break }
-                    p.lexer.next()
+                    p.lexer.nextToken()
                 }
-                stmt.decls = decls
+                let stmt = Stmt.local(loc, DeclKind.Let, decls)
+                stmt.isExport = opts.isExport
                 p.lexer.expectOrInsertSemicolon()
                 return stmt
             }
@@ -792,7 +777,7 @@ public class ParseStmt {
         // async
         if (name == "async") {
             let asyncRange = p.lexer.range()
-            p.lexer.next()
+            p.lexer.nextToken()
             if (p.lexer.token == Token.Function && !p.lexer.hasNewlineBefore) {
                 return ParseFn.parseFnStmt(p, loc, opts, Some(asyncRange))
             }
@@ -802,7 +787,7 @@ public class ParseStmt {
         // TypeScript: type, interface, namespace, declare, abstract, enum
         if (p.options.features.typescript) {
             if (name == "type") {
-                p.lexer.next()
+                p.lexer.nextToken()
                 ParseSkipTypeScript.skipTypeScriptType(p, Level.Lowest)
                 p.lexer.expectOrInsertSemicolon()
                 let stmt = Stmt()
@@ -817,12 +802,12 @@ public class ParseStmt {
                 return ParseSkipTypeScript.skipTypeScriptNamespace(p, loc)
             }
             if (name == "declare") {
-                p.lexer.next()
+                p.lexer.nextToken()
                 opts.isTypescriptDeclare = true
                 return parseStmt(p, opts)
             }
             if (name == "abstract") {
-                p.lexer.next()
+                p.lexer.nextToken()
                 if (p.lexer.token == Token.Class) {
                     return parseClass(p, opts, loc)
                 }
@@ -840,13 +825,13 @@ public class ParseStmt {
     /// 解析以标识符开头的表达式语句
     private static func parseExprStmtWithIdentifier(p: Parser, loc: Loc, name: String): Stmt {
         // 标识符已在 token 中
-        let expr = p.parseExpr(Level.Lowest)
+        let expr = p.parseExpr(ParseExprOpts())
         p.lexer.expectOrInsertSemicolon()
 
         let stmt = Stmt()
         stmt.tag = StmtTag.Expr
         stmt.loc = loc
-        stmt.exprData = expr
+        stmt.expr = Some(expr)
         return stmt
     }
 
@@ -856,11 +841,11 @@ public class ParseStmt {
 
     /// 解析 TypeScript type 导出
     private static func parseTypeScriptTypeExport(p: Parser, opts: ParseStatementOptions, loc: Loc): Stmt {
-        p.lexer.next() // type
+        p.lexer.nextToken() // type
         p.lexer.expect(Token.Identifier) // type name
         // 跳过类型定义
         if (p.lexer.token == Token.Equals) {
-            p.lexer.next()
+            p.lexer.nextToken()
             ParseSkipTypeScript.skipTypeScriptType(p, Level.Lowest)
         }
         p.lexer.expectOrInsertSemicolon()
@@ -872,7 +857,7 @@ public class ParseStmt {
 
     /// 解析 TypeScript declare 导出
     private static func parseTypeScriptDeclareExport(p: Parser, opts: ParseStatementOptions, loc: Loc): Stmt {
-        p.lexer.next() // declare
+        p.lexer.nextToken() // declare
         opts.isTypescriptDeclare = true
         opts.isExport = true
         return parseStmt(p, opts)
@@ -885,17 +870,17 @@ public class ParseStmt {
 
     /// 解析 TypeScript import =
     private static func parseTypeScriptImportEquals(p: Parser, loc: Loc): Stmt {
-        p.lexer.next() // identifier
+        p.lexer.nextToken() // identifier
         p.lexer.expect(Token.Equals)
         if (p.lexer.isContextualKeyword("require")) {
-            p.lexer.next()
+            p.lexer.nextToken()
             p.lexer.expect(Token.OpenParen)
             p.lexer.expect(Token.StringLiteral)
             p.lexer.expect(Token.CloseParen)
         } else {
             p.lexer.expect(Token.Identifier)
             while (p.lexer.token == Token.Dot) {
-                p.lexer.next()
+                p.lexer.nextToken()
                 p.lexer.expect(Token.Identifier)
             }
         }

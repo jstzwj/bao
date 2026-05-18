@@ -37,19 +37,19 @@ import std.time.*
 /// 严格翻译自: unbounded_queue.zig
 ///
 /// Bun 使用 lock-free 原子链表实现 MPSC 队列
-/// 仓颉使用 Mutex + Condition 实现等价的线程安全队列
+/// 仓颉使用 Mutex + Condvar 实现等价的线程安全队列
 public class ConcurrentQueue<T> {
     /// 内部存储
     private var items: ArrayList<T>
     /// 互斥锁
     private let mutex: Mutex
     /// 条件变量 - 用于 take() 阻塞等待
-    private let notEmpty: Condition
+    private let notEmpty: Condvar
 
     public init() {
         items = ArrayList<T>()
         mutex = Mutex()
-        notEmpty = mutex.condition()
+        notEmpty = Condvar(mutex)
     }
 
     /// 添加元素到队尾 - 对应 Bun UnboundedQueue.push(item)
@@ -60,7 +60,7 @@ public class ConcurrentQueue<T> {
     public func push(item: T): Unit {
         synchronized(mutex) {
             items.add(item)
-            notEmpty.notify()
+            notEmpty.signal()
         }
     }
 
@@ -74,7 +74,7 @@ public class ConcurrentQueue<T> {
             for (item in items) {
                 this.items.add(item)
             }
-            notEmpty.notifyAll()
+            notEmpty.broadcast()
         }
     }
 
@@ -120,7 +120,7 @@ public class ConcurrentQueue<T> {
     public func poll(timeout: Duration): ?T {
         synchronized(mutex) {
             if (items.size == 0) {
-                let signaled = notEmpty.wait(timeout: timeout)
+                let signaled = notEmpty.wait(timeout)
                 if (items.size == 0) {
                     return None
                 }
@@ -266,8 +266,8 @@ public class ConcurrentMap<K, V> where K <: Hashable & Equatable<K> {
 //
 // Bun 的 Channel:
 //   mutex: Mutex
-//   putters: Condition (生产者等待)
-//   getters: Condition (消费者等待)
+//   putters: Condvar (生产者等待)
+//   getters: Condvar (消费者等待)
 //   buffer: LinearFifo(T) (内部缓冲区)
 //   is_closed: bool
 //
@@ -286,7 +286,7 @@ public class ConcurrentChannelError <: Exception {
 /// 线程安全通道 - 对应 Bun Channel<T>
 /// 严格翻译自: src/threading/channel.zig
 ///
-/// Bun Channel 使用 Mutex + 两个 Condition + LinearFifo 实现:
+/// Bun Channel 使用 Mutex + 两个 Condvar + LinearFifo 实现:
 ///   putters: 生产者等待条件 (缓冲区满时阻塞)
 ///   getters: 消费者等待条件 (缓冲区空时阻塞)
 ///   buffer: 内部缓冲区
@@ -299,9 +299,9 @@ public class ConcurrentChannel<T> {
     /// 互斥锁 - 对应 Bun Channel.mutex
     private let mutex: Mutex
     /// 消费者等待条件 - 对应 Bun Channel.getters
-    private let getters: Condition
+    private let getters: Condvar
     /// 生产者等待条件 - 对应 Bun Channel.putters
-    private let putters: Condition
+    private let putters: Condvar
     /// 缓冲区容量 (-1 表示无界)
     private let capacity: Int64
 
@@ -310,8 +310,8 @@ public class ConcurrentChannel<T> {
         buffer = ArrayList<T>()
         closed = false
         mutex = Mutex()
-        getters = mutex.condition()
-        putters = mutex.condition()
+        getters = Condvar(mutex)
+        putters = Condvar(mutex)
         capacity = -1
     }
 
@@ -320,8 +320,8 @@ public class ConcurrentChannel<T> {
         buffer = ArrayList<T>()
         closed = false
         mutex = Mutex()
-        getters = mutex.condition()
-        putters = mutex.condition()
+        getters = Condvar(mutex)
+        putters = Condvar(mutex)
         this.capacity = capacity
     }
 
@@ -342,7 +342,7 @@ public class ConcurrentChannel<T> {
             // 写入缓冲区
             buffer.add(value)
             // 严格翻译自: channel.zig:117 self.getters.signal()
-            getters.notify()
+            getters.signal()
             return true
         }
     }
@@ -362,7 +362,7 @@ public class ConcurrentChannel<T> {
                 }
             }
             buffer.add(value)
-            getters.notify()
+            getters.signal()
         }
     }
 
@@ -380,7 +380,7 @@ public class ConcurrentChannel<T> {
             }
             let item = buffer.remove(at: 0)
             // 严格翻译自: channel.zig:149 self.putters.signal()
-            putters.notify()
+            putters.signal()
             return Some(item)
         }
     }
@@ -397,7 +397,7 @@ public class ConcurrentChannel<T> {
                 getters.wait()
             }
             let item = buffer.remove(at: 0)
-            putters.notify()
+            putters.signal()
             return Some(item)
         }
     }
@@ -409,7 +409,7 @@ public class ConcurrentChannel<T> {
                 return None
             }
             let item = buffer.remove(at: 0)
-            putters.notify()
+            putters.signal()
             return Some(item)
         }
     }
@@ -427,8 +427,8 @@ public class ConcurrentChannel<T> {
             }
             closed = true
             // 严格翻译自: channel.zig:59-60 broadcast both conditions
-            putters.notifyAll()
-            getters.notifyAll()
+            putters.broadcast()
+            getters.broadcast()
         }
     }
 
@@ -461,7 +461,7 @@ public class ConcurrentChannel<T> {
 // Bun 的 WaitGroup:
 //   raw_count: Atomic(usize) = .init(0)
 //   mutex: Mutex = .{}
-//   cond: Condition = .{}
+//   cond: Condvar = .{}
 //
 //   add(n): raw_count.fetchAdd(n, .monotonic)
 //   addUnsynchronized(n): raw_count.raw += n (无原子操作)
@@ -476,7 +476,7 @@ public class ConcurrentChannel<T> {
 /// 等待组 - 对应 Bun WaitGroup
 /// 严格翻译自: src/threading/WaitGroup.zig
 ///
-/// Bun WaitGroup 使用 atomic usize 计数器 + Mutex + Condition:
+/// Bun WaitGroup 使用 atomic usize 计数器 + Mutex + Condvar:
 ///   add(n): 原子增加计数
 ///   addUnsynchronized(n): 非同步增加 (已知没有并发)
 ///   finish(): 原子减少计数，最后一个完成时 signal
@@ -487,19 +487,19 @@ public class ConcurrentWaitGroup {
     /// 互斥锁 - 对应 Bun WaitGroup.mutex
     private let mutex: Mutex
     /// 条件变量 - 对应 Bun WaitGroup.cond
-    private let cond: Condition
+    private let cond: Condvar
 
     public init() {
         count = AtomicInt64(0)
         mutex = Mutex()
-        cond = mutex.condition()
+        cond = Condvar(mutex)
     }
 
     /// 初始化指定计数
     public init(initialCount: Int64) {
         count = AtomicInt64(initialCount)
         mutex = Mutex()
-        cond = mutex.condition()
+        cond = Condvar(mutex)
     }
 
     /// 增加计数 - 对应 Bun WaitGroup.add(n)
@@ -537,7 +537,7 @@ public class ConcurrentWaitGroup {
         }
         // 最后一个任务完成 - 严格对应 Bun 的 mutex.lock+unlock+signal 模式
         synchronized(mutex) {
-            cond.notify()
+            cond.signal()
         }
     }
 

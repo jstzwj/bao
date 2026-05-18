@@ -15,8 +15,20 @@ import bao_core.*
 import bao_http_types.MimeType
 import bao_ptr.RawRefCount
 
-// Stub `type` not yet fully ported
-struct AsciiStatus { var value: UInt8 = 0 }
+// 对应 Bun bun_core::string::immutable::AsciiStatus: enum { Unknown, AllAscii, NonAscii }
+enum AsciiStatus {
+    | Unknown
+    | AllAscii
+    | NonAscii
+
+    public static func fromBool(isAllAscii: ?Bool): AsciiStatus {
+        match (isAllAscii) {
+            case None => AsciiStatus.Unknown
+            case Some(true) => AsciiStatus.AllAscii
+            case Some(false) => AsciiStatus.NonAscii
+        }
+    }
+}
 
 // ========== SizeType ==========
 // 严格翻译自 webcore_types.rs SizeType

@@ -28,9 +28,7 @@ public func findAllImportedPartsInJSOrderAll(linker: LinkerContext,
                                               chunks: ArrayList<Chunk>): Unit {
     for (i in 0..chunks.size) {
         match (chunks[i].content) {
-            case ChunkContent.JavaScript => {
-                findImportedPartsInJSOrder(linker, chunks[i], Int64(i))
-            }
+            case ChunkContent.JavaScript => findImportedPartsInJSOrder(linker, chunks[i], Int64(i))
             case _ => ()
         }
     }

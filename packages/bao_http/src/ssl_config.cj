@@ -300,16 +300,16 @@ public class SSLConfigFull {
         hash = hashStringList(hash, key)
         hash = hashStringList(hash, cert)
         hash = hashStringList(hash, ca)
-        hash = hash +% UInt32ToHash(secureOptions)
-        hash = hash +% UInt32ToHash(UInt32(requestCert))
-        hash = hash +% UInt32ToHash(UInt32(rejectUnauthorized))
+        hash = hash + UInt32ToHash(secureOptions)
+        hash = hash + UInt32ToHash(UInt32(requestCert))
+        hash = hash + UInt32ToHash(UInt32(rejectUnauthorized))
         hash = hashField(hash, sslCiphers)
         hash = hashField(hash, protos)
-        hash = hash +% UInt32ToHash(clientRenegotiationLimit)
-        hash = hash +% UInt32ToHash(clientRenegotiationWindow)
-        if (requiresCustomRequestCtx) { hash = hash +% UInt64(1) }
-        if (isUsingDefaultCiphers) { hash = hash +% UInt64(2) }
-        if (lowMemoryMode) { hash = hash +% UInt64(3) }
+        hash = hash + UInt32ToHash(clientRenegotiationLimit)
+        hash = hash + UInt32ToHash(clientRenegotiationWindow)
+        if (requiresCustomRequestCtx) { hash = hash + UInt64(1) }
+        if (isUsingDefaultCiphers) { hash = hash + UInt64(2) }
+        if (lowMemoryMode) { hash = hash + UInt64(3) }
 
         // 避免使用 0 作为哈希值 (0 是"未计算"的哨兵值)
         if (hash == UInt64(0)) {

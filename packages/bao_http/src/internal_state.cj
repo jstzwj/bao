@@ -29,6 +29,25 @@ public enum HTTPStage {
     | proxyHandshake  // 代理握手阶段
     | proxyHeaders    // 代理头部阶段
     | proxyBody       // 代理 body 阶段
+
+    public operator func ==(right: HTTPStage): Bool {
+        match (this) {
+            case pending => match (right) { case pending => true case _ => false }
+            case opened => match (right) { case opened => true case _ => false }
+            case headers => match (right) { case headers => true case _ => false }
+            case body => match (right) { case body => true case _ => false }
+            case bodyChunk => match (right) { case bodyChunk => true case _ => false }
+            case fail => match (right) { case fail => true case _ => false }
+            case done => match (right) { case done => true case _ => false }
+            case proxyHandshake => match (right) { case proxyHandshake => true case _ => false }
+            case proxyHeaders => match (right) { case proxyHeaders => true case _ => false }
+            case proxyBody => match (right) { case proxyBody => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: HTTPStage): Bool {
+        return !(this == right)
+    }
 }
 
 /// 连接阶段
@@ -38,6 +57,19 @@ public enum Stage {
     | connect
     | done
     | fail
+
+    public operator func ==(right: Stage): Bool {
+        match (this) {
+            case pending => match (right) { case pending => true case _ => false }
+            case connect => match (right) { case connect => true case _ => false }
+            case done => match (right) { case done => true case _ => false }
+            case fail => match (right) { case fail => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: Stage): Bool {
+        return !(this == right)
+    }
 }
 
 /// 内容编码

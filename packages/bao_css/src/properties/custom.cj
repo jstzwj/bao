@@ -206,8 +206,8 @@ public class TokenList {
         for (old in v) {
             match (old) {
                 case TokenOrValue.ColorVal(c) =>
-                    // TODO: CssColor.getFallback not yet implemented, clone as-is
-                    tokens.append(TokenOrValue.ColorVal(c.deepClone()))
+                    // 对应 Bun: color.getFallback(allocator, kind)
+                    tokens.append(TokenOrValue.ColorVal(c.getFallback(kind)))
                 case TokenOrValue.FunctionVal(f) =>
                     tokens.append(TokenOrValue.FunctionVal(f.getFallback(kind)))
                 case TokenOrValue.VarVal(vr) =>
@@ -228,8 +228,8 @@ public class TokenList {
         for (token in v) {
             match (token) {
                 case TokenOrValue.ColorVal(c) =>
-                    // TODO: CssColor.getPossibleFallbacks not yet implemented
-                    ()
+                    // 对应 Bun: color.getPossibleFallbacks(targets)
+                    fallbacks.insert(c.getPossibleFallbacks(targets))
                 case TokenOrValue.FunctionVal(f) =>
                     fallbacks.insert(f.arguments.getNecessaryFallbacks(targets))
                 case TokenOrValue.VarVal(vr) =>
