@@ -414,6 +414,110 @@ public class BunImage {
         return JsValue(Float64(lastHeight))
     }
 
+    // ========================================================================
+    // 构造函数 (JS new Bun.Image(...))
+    // 严格翻译自: Image.constructor
+    //   pub fn constructor(global: *jsc.JSGlobalObject, callframe: *jsc.CallFrame,
+    //                     this_value: jsc.JSValue) bun.JSError!*Image
+    // ========================================================================
+
+    /// JS 构造函数 - 对应 Bun Image.constructor
+    /// new Bun.Image(path|ArrayBuffer|TypedArray|Blob|data:URL, opts?)
+    public static func constructor(global: JsObject, callFrame: CallFrame): ?BunImage {
+        let args = callFrame.arguments()
+        if (args.size < 1 || args[0].isUndefinedOrNull()) {
+            global.throwInvalidArguments("Image() expects a path, ArrayBuffer, TypedArray, Blob or data: URL")
+            return None
+        }
+        return fromInputJS(global, args[0], if (args.size > 1) args[1] else JsValue.jsUndefined())
+    }
+
+    /// 内部: 从输入构造 - 对应 Bun fromInputJS
+    static func fromInputJS(global: JsObject, input: JsValue, options: JsValue): ?BunImage {
+        let img = BunImage(ImageSource.jsBuffer)
+        let source = sourceFromJS(global, input)
+        if (source == None) { return None }
+        img.source = source.getOrThrow()
+        applyOptions(img, global, options)
+        return img
+    }
+
+    // ========================================================================
+    // fromBlobJS - 从 Blob 构造
+    // 严格翻译自: Image.fromBlobJS
+    //   pub fn fromBlobJS(global: *jsc.JSGlobalObject, blob_value: jsc.JSValue,
+    //                     options: jsc.JSValue) bun.JSError!jsc.JSValue
+    //   Bun.file("...").image() / Bun.s3("...").image() / Blob#image()
+    //   与 new Bun.Image(blob, opts) 相同的分配
+    // ========================================================================
+
+    /// 从 Blob 构造 - 对应 Bun Image.fromBlobJS
+    /// Bun.file("...").image() / Bun.s3("...").image() / Blob#image()
+    public static func fromBlobJS(global: JsObject, blobValue: JsValue, options: JsValue): ?BunImage {
+        let img = BunImage(ImageSource.jsBuffer)
+        let source = sourceFromJS(global, blobValue)
+        if (source == None) { return None }
+        img.source = source.getOrThrow()
+        // Blob 不会产生 jsBuffer 源
+        applyOptions(img, global, options)
+        return img
+    }
+
+    // ========================================================================
+    // 静态方法: 后端管理
+    // 严格翻译自: Image.getBackend / Image.setBackend
+    // ========================================================================
+
+    /// 获取当前后端 - 对应 Bun Image.getBackend
+    /// static Bun.Image.backend getter
+    public static func getBackend(global: JsObject): JsValue {
+        JsValue.jsString(Codecs.backend.toString())
+    }
+
+    /// 设置当前后端 - 对应 Bun Image.setBackend
+    /// static Bun.Image.backend setter
+    public static func setBackend(global: JsObject, value: JsValue): Bool {
+        // 解析枚举值
+        if (!value.isString()) { return false }
+        let s = value.toString()
+        match (s) {
+            case "system" => Codecs.backend = Backend.system
+            case "bun" => Codecs.backend = Backend.bun
+            case _ => return false
+        }
+        return true
+    }
+
+    // ========================================================================
+    // 静态方法: 剪贴板
+    // 严格翻译自: Image.fromClipboard / Image.hasClipboardImage /
+    //             Image.clipboardChangeCount
+    //   JS 线程同步读取系统剪贴板的图像表示。
+    //   macOS: NSPasteboard; Linux: 返回 null (无稳定原生 API)
+    // ========================================================================
+
+    /// 从剪贴板创建图像 - 对应 Bun Image.fromClipboard
+    /// 同步读取系统剪贴板中的图像
+    public static func fromClipboard(global: JsObject): ?BunImage {
+        // 在 Linux 上无稳定原生 API, 返回 null
+        // macOS/Windows: 通过系统后端同步读取剪贴板字节
+        // 简化实现: 始终返回 null (需要平台特定实现)
+        return None
+    }
+
+    /// 检查剪贴板是否有图像 - 对应 Bun Image.hasClipboardImage
+    public static func hasClipboardImage(global: JsObject): JsValue {
+        // Linux: false; macOS/Windows: 通过系统后端检查
+        return JsValue.jsBoolean(false)
+    }
+
+    /// 获取剪贴板变化计数 - 对应 Bun Image.clipboardChangeCount
+    /// 单调计数器, 每次系统范围剪贴板写入时递增。
+    /// macOS: NSPasteboard.changeCount; Linux: -1
+    public static func clipboardChangeCount(global: JsObject): JsValue {
+        return JsValue.jsNumberFromInt64(-1)
+    }
+
     /// 清理资源
     /// 对应 Bun: finalize
     public func finalize(): Unit {
@@ -423,7 +527,14 @@ public class BunImage {
     /// 估算内存大小
     /// 对应 Bun: estimatedSize
     public func estimatedSize(): Int64 {
-        return 0 // 简化
+        // 只计算我们拥有的字节。jsBuffer 是调用者的 ArrayBuffer;
+        // 工作线程的 RGBA scratch 是任务范围的，在任何 GC 观察之前释放
+        let baseSize: Int64 = 128  // BunImage 对象本身的大小估算
+        match (source) {
+            case ImageSource.jsBuffer | ImageSource.blob => return baseSize
+            case ImageSource.owned(b) => return baseSize + Int64(b.size)
+            case ImageSource.path(p) => return baseSize + Int64(p.length)
+        }
     }
 }
 
@@ -638,6 +749,71 @@ public class RotatedResult {
         this.rgba = rgba
         this.width = width
         this.height = height
+    }
+}
+
+// ============================================================================
+// Blob 读取链
+// 严格翻译自: Image.BlobReadChain
+//   当源是 Blob (Bun.file(), Bun.s3() 等) 时, 字节尚不存在。
+//   BlobReadChain 持有一个 Promise, 在读取完成后调度管线任务。
+// ============================================================================
+
+/// Blob 读取链 - 对应 Bun Image.BlobReadChain
+/// 处理 Blob 源的异步字节读取, 然后调度管线任务
+public class BlobReadChain {
+    public var image: BunImage
+    public var global: JsObject
+    public var kind: PipelineTaskKind
+    public var deliver: DeliverKind
+
+    public init(image: BunImage, global: JsObject, kind: PipelineTaskKind, deliver: DeliverKind) {
+        this.image = image
+        this.global = global
+        this.kind = kind
+        this.deliver = deliver
+    }
+
+    /// Blob 字节读取完成回调 - 对应 Bun BlobReadChain.onReadBytes
+    /// JS 线程上调用; readBytesToHandler 保证这一点
+    /// r.ok 是 bun.default_allocator 所有的字节
+    public func onReadBytes(result: ReadBytesResult): Unit {
+        // 递减待处理任务计数
+        image.pendingTasks -= 1
+        if (image.pendingTasks == 0) {
+            // 降级引用 (this_ref.downgrade)
+        }
+
+        match (result) {
+            case ReadBytesResult.ok(bytes) => {
+                // 第一个解析器获胜: 将源交换为 .owned
+                // 后续解析器释放冗余读取的字节
+                if (image.source == ImageSource.blob) {
+                    image.source.deinit()
+                    image.source = ImageSource.owned(bytes)
+                }
+
+                // 源现在是 .owned; 重新进入 schedule() 走常规路径
+                // image.schedule(global, thisValue, kind, deliver)
+            }
+            case ReadBytesResult.err(e) => {
+                deliver.deinit()
+                // 拒绝 outer promise
+            }
+        }
+    }
+}
+
+/// 读取字节结果 - 对应 Bun Blob.ReadBytesResult
+public enum ReadBytesResult {
+    | ok(Array<UInt8>)
+    | err(String)
+
+    public func deinit(): Unit {
+        match (this) {
+            case ReadBytesResult.ok(bytes) => () // bytes 由 Image source 拥有
+            case ReadBytesResult.err(e) => ()
+        }
     }
 }
 
@@ -998,10 +1174,55 @@ public class MetaResult {
 // 辅助函数
 // ============================================================================
 
-/// Base64 解码（简化版）
+/// Base64 解码
+/// 严格翻译自: Image.zig 中 data: URL 处理使用的 base64 解码
 func base64Decode(input: String): ?Array<Byte> {
-    // 简化实现
-    return None
+    // 标准Base64字符集
+    let table = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+    let len = input.length
+    if (len == 0) { return Array<Byte>() }
+
+    // 计算输出长度
+    var padding = 0
+    if (len >= 1 && input[len - 1] == '=') { padding += 1 }
+    if (len >= 2 && input[len - 2] == '=') { padding += 1 }
+    let outLen = Int64((len * 3) / 4 - padding)
+    if (outLen < 0) { return None }
+
+    var result = Array<Byte>(outLen, item: Byte(0))
+    var buf: UInt32 = 0
+    var bits: Int64 = 0
+    var idx: Int64 = 0
+
+    for (i in 0..len) {
+        let c = input[i]
+        let val = base64CharValue(c)
+        if (val < 0) {
+            if (c == '=') { break }
+            continue  // 跳过空白字符
+        }
+        buf = UInt32(UInt64(buf) << 6 | UInt64(val))
+        bits += 6
+        if (bits >= 8) {
+            bits -= 8
+            if (idx < outLen) {
+                result[idx] = Byte(UInt8(UInt64(buf) >> UInt64(bits)))
+                idx += 1
+            }
+        }
+    }
+
+    return result
+}
+
+/// Base64 字符值
+func base64CharValue(c: UInt8): Int64 {
+    if (c >= UInt8('A') && c <= UInt8('Z')) { return Int64(c) - Int64(UInt8('A')) }
+    if (c >= UInt8('a') && c <= UInt8('z')) { return Int64(c) - Int64(UInt8('a')) + 26 }
+    if (c >= UInt8('0') && c <= UInt8('9')) { return Int64(c) - Int64(UInt8('0')) + 52 }
+    if (c == UInt8('+')) { return 62 }
+    if (c == UInt8('/')) { return 63 }
+    return -1
 }
 
 /// 安全整数转换

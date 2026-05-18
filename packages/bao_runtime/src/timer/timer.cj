@@ -943,7 +943,8 @@ public class UwsLoop {
 
 /// 获取当前线程 ID - 对应 Bun std.Thread.getCurrentId()
 func currentThreadId(): UInt64 {
-    UInt64(0)  // 简化实现
+    // 使用 Cangjie 标准库获取当前线程 ID
+    UInt64(Thread.currentThread.id)
 }
 
 /// JSValue 辅助扩展
@@ -1133,12 +1134,14 @@ public class Timespec {
 
     /// 从当前时间获取 - 对应 Bun timespec.now(.allow_mocked_time)
     public static func nowAllowMocked(): Timespec {
-        Timespec(0, 0)  // 简化
+        let ms = DateTime.epochMillisecond
+        Timespec(ms / 1000, (ms % 1000) * 1000000)
     }
 
     /// 从当前时间获取 (强制真实时间) - 对应 Bun timespec.now(.force_real_time)
     public static func nowForceRealTime(): Timespec {
-        Timespec(0, 0)  // 简化
+        let ms = DateTime.epochMillisecond
+        Timespec(ms / 1000, (ms % 1000) * 1000000)
     }
 
     /// 添加毫秒 - 对应 Bun timespec.addMs

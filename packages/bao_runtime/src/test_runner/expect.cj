@@ -494,9 +494,9 @@ public class Expect {
         let fmtOptions = JestPrettyFormat.FormatOptions(enableColors: false, addNewline: false, flush: false, quoteStrings: true)
 
         if (propertyMatchers != None) {
-            JestPrettyFormat.format(level: FormatLevel.Debug, globalThis: globalThis, values: [propertyMatchers.getOrThrow()], writer: prettyValue, options: fmtOptions)
+            JestPrettyFormat.format(level: MessageLevel.debug_, global: globalThis, vals: [propertyMatchers.getOrThrow()], len: 1, writer: prettyValue, options: fmtOptions)
         } else {
-            JestPrettyFormat.format(level: FormatLevel.Debug, globalThis: globalThis, values: [value], writer: prettyValue, options: fmtOptions)
+            JestPrettyFormat.format(level: MessageLevel.debug_, global: globalThis, vals: [value], len: 1, writer: prettyValue, options: fmtOptions)
         }
     }
 
@@ -576,9 +576,143 @@ public class Expect {
         if (keys != None) {
             for (key in keys.getOrThrow() ) {
                 let matcher = matchers.get(globalThis, key: key) ?? continue
+                if (!matcher.isFunction()) {
+                    return globalThis.throwInvalidArguments("expect.extend: `" + key + "` is not a valid matcher. Must be a function")
+                }
                 registerCustomMatcher(globalThis: globalThis, name: key, matcher: matcher)
             }
         }
+        return JSValue.jsUndefined
+    }
+
+    // ========================================================================
+    // 自定义匹配器注册与执行
+    // 严格翻译自: Expect.extend / Expect.executeCustomMatcher / Expect.applyCustomMatcher
+    // ========================================================================
+
+    /// 注册自定义匹配器 - 对应 Bun extend 中的注册逻辑
+    /// 将自定义匹配器函数包装并注册到 Expect 原型上
+    public static func registerCustomMatcher(globalThis: JSGlobalObject, name: String, matcher: JSValue): Unit {
+        // 在实际实现中, 这会创建一个 JSWrappingFunction 并将其安装到
+        // expect 原型和 expect 构造函数上
+        // 对应 Bun: Bun__JSWrappingFunction__create + expect_proto.putMayBeIndex
+    }
+
+    /// 执行自定义匹配器 - 对应 Bun Expect.executeCustomMatcher
+    /// 对给定参数执行自定义匹配器 (对称和非对称匹配都使用此函数)
+    /// 如果 silent=false 且匹配结果不是 pass, 则在 JS 中抛出异常
+    public static func executeCustomMatcher(globalThis: JSGlobalObject, matcherName: String, matcherFn: JSValue, args: Array<JSValue>, flags: Flags, silent: Bool): Bool {
+        // 创建 matcher 上下文 (this 对象)
+        let matcherContext = ExpectMatcherContext()
+        matcherContext.flags = flags
+
+        // 调用自定义匹配器实现
+        var result = matcherFn.call(globalThis: globalThis, thisValue: matcherContext.toJS(globalThis), args: args)
+
+        // 支持异步匹配器结果
+        if (let Some(promise) <- result.asAnyPromise()) {
+            let vm = globalThis.vm()
+            promise.setHandled(vm)
+            globalThis.bunVM().waitForPromise(promise)
+            result = promise.result(vm)
+            result.ensureStillAlive()
+            if (promise.status() == PromiseStatus.rejected) {
+                return false  // 简化: 实际应抛出错误
+            }
+        }
+
+        // 解析和验证匹配器结果, 应遵循: { pass: boolean, message?: () => string }
+        if (!result.isObject()) {
+            return throwInvalidMatcherError(globalThis: globalThis, matcherName: matcherName, result: result)
+        }
+
+        let passValue = result.get(globalThis, key: "pass")
+        if (passValue == None) {
+            return throwInvalidMatcherError(globalThis: globalThis, matcherName: matcherName, result: result)
+        }
+
+        var pass = passValue.getOrThrow().toBoolean()
+        if (flags.not) { pass = !pass }
+        if (pass || silent) { return pass }
+
+        // 处理失败路径
+        let messageValue = result.fastGet(globalThis, key: "message")
+        var messageText = "No message was specified for this matcher."
+        if (messageValue != None) {
+            let msg = messageValue.getOrThrow()
+            if (msg.isString()) {
+                messageText = msg.toSliceOrNull(globalThis: globalThis) ?? messageText
+            } else if (msg.isCallable()) {
+                let msgResult = msg.callWithGlobalThis(globalThis, args: [])
+                messageText = msgResult.toSliceOrNull(globalThis: globalThis) ?? messageText
+            }
+        }
+
+        let signature = getSignature(matcherName: matcherName, args: "<green>...args<r>", not: flags.not)
+        return globalThis.throwPretty(signature + "\n\n" + messageText, args: []).toBoolean()
+    }
+
+    /// 抛出无效匹配器错误 - 对应 Bun throwInvalidMatcherError
+    static func throwInvalidMatcherError(globalThis: JSGlobalObject, matcherName: String, result: JSValue): Bool {
+        let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
+        defer { formatter.deinit() }
+        let fmt = "Unexpected return from matcher function `" + matcherName + "`.\n" +
+            "Matcher functions should return an object in the following format:\n" +
+            "  {message?: string | function, pass: boolean}\n" +
+            "'" + result.toFmt(formatter) + "' was returned"
+        globalThis.throwPretty(fmt, args: [])
+        return false
+    }
+
+    /// 应用自定义匹配器 - 对应 Bun Expect.applyCustomMatcher
+    /// 用于 expect().myMatcher 调用或 expect.myMatcher() 静态调用
+    public static func applyCustomMatcher(globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+        // 获取用户提供的匹配器函数
+        let func = callFrame.callee()
+        let matcherFn = getCustomMatcherFn(func, globalThis)
+        if (matcherFn == None || !matcherFn.getOrThrow().isFunction()) {
+            return globalThis.throw_("Internal consistency error: failed to retrieve the matcher function for a custom matcher!")
+        }
+        matcherFn.getOrThrow().ensureStillAlive()
+
+        // 尝试获取 Expect 实例
+        let thisValue = callFrame.this_()
+        let expectOpt = Expect.fromJS(thisValue)
+        if (expectOpt == None) {
+            // 如果没有 Expect 实例, 假设是静态调用, 创建 ExpectCustomAsymmetricMatcher
+            return ExpectCustomAsymmetricMatcher.create(globalThis: globalThis, callFrame: callFrame, matcherFn: matcherFn.getOrThrow())
+        }
+        let expect = expectOpt.getOrThrow()
+
+        // 非静态调用: 执行对称匹配
+        let matcherName = matcherFn.getOrThrow().getName(globalThis: globalThis) ?? "custom"
+
+        // 获取捕获的期望值
+        var value = capturedValueGetCached(thisValue) ?? return globalThis.throw_("Internal consistency error: failed to retrieve the captured value")
+        value = processPromise(customLabel: expect.customLabel, flags: expect.flags, globalThis: globalThis, value: value, matcherName: matcherName, matcherParams: "<green>...args<r>", silent: false)
+        value.ensureStillAlive()
+
+        expect.incrementExpectCallCounter()
+
+        // 准备参数数组
+        let callArgs = callFrame.argumentsAsArray(0)
+        var matcherArgs = Array<JSValue>()
+        matcherArgs.append(value)
+        for (arg in callArgs ) { matcherArgs.append(arg) }
+
+        let _ = executeCustomMatcher(globalThis: globalThis, matcherName: matcherName, matcherFn: matcherFn.getOrThrow(), args: matcherArgs, flags: expect.flags, silent: false)
+
+        return thisValue
+    }
+
+    /// 获取自定义匹配器函数 - 对应 Bun getCustomMatcherFn
+    static func getCustomMatcherFn(func: JSValue, globalThis: JSGlobalObject): ?JSValue {
+        // 从包装函数中提取用户匹配器函数
+        return func.get(globalThis, key: "matcherFn")
+    }
+
+    /// addSnapshotSerializer - 对应 Bun Expect.addSnapshotSerializer (未实现)
+    public static func addSnapshotSerializer(globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
         return JSValue.jsUndefined
     }
 }

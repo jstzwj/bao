@@ -63,17 +63,19 @@ public class DiffFormatter {
         )
 
         JestPrettyFormat.format(
-            level: FormatLevel.Debug,
-            globalThis: globalThis,
-            values: [receivedValue],
+            level: MessageLevel.debug_,
+            global: globalThis,
+            vals: [receivedValue],
+            len: 1,
             writer: receivedBuf,
             options: fmtOptions
         )
 
         JestPrettyFormat.format(
-            level: FormatLevel.Debug,
-            globalThis: globalThis,
-            values: [expectedValue],
+            level: MessageLevel.debug_,
+            global: globalThis,
+            vals: [expectedValue],
+            len: 1,
             writer: expectedBuf,
             options: fmtOptions
         )

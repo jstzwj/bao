@@ -8,6 +8,9 @@ package bao_runtime.image
 
 foreign func bun_image_resize_scratch_size(srcW: Int32, srcH: Int32, dstW: Int32, dstH: Int32, filter: Int32): UInt64
 foreign func bun_image_resize_rgba8(src: CPointer<Unit>, srcW: Int32, srcH: Int32, dst: CPointer<Unit>, dstW: Int32, dstH: Int32, filter: Int32, scratch: CPointer<Unit>): Int32
+foreign func bun_image_rotate_rgba8(src: CPointer<Unit>, w: Int32, h: Int32, out: CPointer<Unit>, degrees: Int32): Unit
+foreign func bun_image_flip_rgba8(src: CPointer<Unit>, w: Int32, h: Int32, out: CPointer<Unit>, horizontal: Int32): Unit
+foreign func bun_image_modulate_rgba8(rgba: CPointer<Unit>, len: UIntNative, brightness: Float32, saturation: Float32): Unit
 
 // ============================================================================
 // 图像格式
@@ -225,6 +228,14 @@ public enum Filter {
 public enum Backend {
     | system
     | bun
+
+    /// 转为字符串
+    public func toString(): String {
+        match (this) {
+            case Backend.system => "system"
+            case Backend.bun => "bun"
+        }
+    }
 }
 
 // ============================================================================
@@ -233,6 +244,9 @@ public enum Backend {
 // ============================================================================
 
 public let DEFAULT_MAX_PIXELS: UInt64 = 0x3FFF * 0x3FFF // 16383 * 16383 ~ 268 MP
+
+/// 兼容别名 (camelCase) - 对应 Image.zig 中的 codecs.default_max_pixels
+public let defaultMaxPixels: UInt64 = DEFAULT_MAX_PIXELS
 
 // ============================================================================
 // 编解码器主入口
@@ -355,26 +369,36 @@ public class Codecs {
     }
 
     /// 旋转图像
-    /// 对应 Bun: rotate
+    /// 严格翻译自: codecs.rotate
+    ///   pub fn rotate(src: []const u8, w: u32, h: u32, degrees: u32) Error!Decoded
+    ///   支持 0/90/180/270 度旋转, 调用 bun_image_rotate_rgba8
     public static func rotate(src: Array<UInt8>, w: UInt32, h: UInt32, degrees: UInt32): ?DecodedImage {
         if (degrees != 0 && degrees != 90 && degrees != 180 && degrees != 270) { return None }
         let dw: UInt32 = if (degrees == 90 || degrees == 270) { h } else { w }
         let dh: UInt32 = if (degrees == 90 || degrees == 270) { w } else { h }
-        // 调用 bun_image_rotate_rgba8
-        return None
+        let outSize = UInt64(dw) * UInt64(dh) * 4
+        var out = Array<UInt8>(Int64(outSize), item: 0)
+        bun_image_rotate_rgba8(src.ptr(), Int32(w), Int32(h), out.ptr(), Int32(degrees))
+        return DecodedImage(rgba: out, width: dw, height: dh)
     }
 
     /// 翻转图像
-    /// 对应 Bun: flip
+    /// 严格翻译自: codecs.flip
+    ///   pub fn flip(src: []const u8, w: u32, h: u32, horizontal: bool) Error![]u8
+    ///   调用 bun_image_flip_rgba8
     public static func flip(src: Array<UInt8>, w: UInt32, h: UInt32, horizontal: Bool): ?Array<UInt8> {
-        // 调用 bun_image_flip_rgba8
-        return None
+        let outSize = UInt64(w) * UInt64(h) * 4
+        var out = Array<UInt8>(Int64(outSize), item: 0)
+        bun_image_flip_rgba8(src.ptr(), Int32(w), Int32(h), out.ptr(), if (horizontal) Int32(1) else Int32(0))
+        return out
     }
 
-    /// 调制（亮度/饱和度）
-    /// 对应 Bun: modulate
+    /// 调制 (亮度/饱和度)
+    /// 严格翻译自: codecs.modulate
+    ///   pub fn modulate(rgba: []u8, brightness: f32, saturation: f32) void
+    ///   调用 bun_image_modulate_rgba8
     public static func modulate(rgba: Array<UInt8>, brightness: Float32, saturation: Float32): Unit {
-        // 调用 bun_image_modulate_rgba8
+        bun_image_modulate_rgba8(rgba.ptr(), UIntNative(rgba.size), brightness, saturation)
     }
 
     static func readUInt32BE(b: Array<UInt8>, off: Int64): UInt32 {
