@@ -33,8 +33,6 @@ public class ParseProperty {
     /// - opts: 属性选项 (是否类属性、静态、计算等)
     /// - 返回: 解析后的属性
     public static func parseProperty(p: Parser, opts: PropertyOpts): GProperty {
-        let property = GProperty()
-
         // 解析属性修饰符 (TypeScript)
         var isStatic = opts.isStatic
         var isAsync = opts.isAsync
@@ -82,12 +80,9 @@ public class ParseProperty {
             }
         }
 
-        property.key = key
-        property.kind = kind
-        property.isComputed = isComputed
-        property.isStatic = isStatic
-
         let keyRange = p.lexer.range()
+        var value: ?Expr = None
+        var isShorthand = false
 
         // 检查是否为方法 (后面跟着括号)
         if (p.lexer.token == Token.OpenParen) {
@@ -121,20 +116,20 @@ public class ParseProperty {
         if (p.lexer.token == Token.Equals) {
             // 类字段初始化器: foo = value
             p.lexer.next()
-            property.value = p.parseExpr(Level.Comma)
+            value = Some(p.parseExpr(Level.Comma))
         } else if (p.lexer.token == Token.Colon) {
             // 对象属性值: foo: value
             p.lexer.next()
-            property.value = p.parseExpr(Level.Comma)
+            value = Some(p.parseExpr(Level.Comma))
         } else {
             // 简写属性: { foo } 等同于 { foo: foo }
             if (key.tag == ExprTag.Identifier) {
-                property.value = key
-                property.isShorthand = true
+                value = Some(key)
+                isShorthand = true
             }
         }
 
-        return property
+        return createProperty(p.lexer.loc(), key, value, kind, isComputed, isStatic, false, isShorthand)
     }
 
     // ========================================================================
@@ -211,20 +206,11 @@ public class ParseProperty {
         var fnData = ParseFn.parseFn(p, None, fnOrArrowData)
         p.popScope()
 
-        // 声明函数符号
-        if (isConstructor) {
-            fnData.isConstructor = true
-        }
+        let value = Expr()
+        value.tag = ExprTag.Function
+        value.funcData = fnData
 
-        let property = GProperty()
-        property.key = key
-        property.kind = kind
-        property.isComputed = isComputed
-        property.isStatic = opts.isStatic
-        property.isMethod = true
-        property.fnData = fnData
-
-        return Some(property)
+        return Some(createProperty(loc, key, Some(value), kind, isComputed, opts.isStatic, true, false))
     }
 
     // ========================================================================
@@ -241,7 +227,7 @@ public class ParseProperty {
         while (true) {
             if (p.lexer.token == Token.Identifier) {
                 let name = p.lexer.identifier
-                if (PropertyModifierKeyword.lookup(name) != None) {
+                if (PropertyModifierKeywords.get(name) != None) {
                     match (name) {
                         case "static" =>
                             result.isStatic = true
@@ -387,6 +373,30 @@ public class ParseProperty {
         }
     }
 
+    private static func createProperty(loc: Loc, key: Expr, value: ?Expr, kind: PropertyKind,
+                                       isComputed: Bool, isStatic: Bool, isMethod: Bool,
+                                       isShorthand: Bool): GProperty {
+        let keyName = if (key.tag == ExprTag.Identifier) {
+            key.identifierName
+        } else if (key.tag == ExprTag.String) {
+            key.stringValue
+        } else {
+            ""
+        }
+        let property = GProperty(loc, keyName, value)
+        property.keyExpr = if (isComputed) { Some(key) } else { None }
+        property.kind = match (kind) {
+            case PropertyKind.Get => GPropertyKind.Getter
+            case PropertyKind.Set => GPropertyKind.Setter
+            case _ => if (isMethod) { GPropertyKind.Method } else { GPropertyKind.Field }
+        }
+        property.flags.isComputed = isComputed
+        property.flags.isStatic = isStatic
+        property.flags.isMethod = isMethod
+        property.flags.wasShorthand = isShorthand
+        return property
+    }
+
     /// 创建键表达式
     private static func createKeyExpr(p: Parser, name: String, isPrivate: Bool): Expr {
         let result = Expr()
@@ -404,31 +414,6 @@ public class ParseProperty {
 // ============================================================================
 // 辅助类型
 // ============================================================================
-
-/// GProperty - 属性 AST 节点 - 对应 Bun G.Property
-public class GProperty {
-    public var key: ?Expr
-    public var value: ?Expr
-    public var kind: PropertyKind
-    public var isComputed: Bool
-    public var isStatic: Bool
-    public var isMethod: Bool
-    public var isShorthand: Bool
-    public var isSpread: Bool
-    public var fnData: ?GFN
-
-    public init() {
-        key = None
-        value = None
-        kind = PropertyKind.Normal
-        isComputed = false
-        isStatic = false
-        isMethod = false
-        isShorthand = false
-        isSpread = false
-        fnData = None
-    }
-}
 
 /// PropertyParseResult - 属性解析结果
 public class PropertyParseResult {

@@ -563,38 +563,6 @@ public class AsyncPrefixExpression {
 }
 
 // ============================================================================
-// IdentifierOpts - 标识符选项
-// 严格翻译自: src/js_parser/parse/parse_entry.rs IdentifierOpts
-// ============================================================================
-
-/// 标识符选项 - 对应 Bun IdentifierOpts
-/// 控制标识符访问时的上下文信息
-public class IdentifierOpts {
-    /// 赋值目标类型
-    public var assignTarget: AssignTarget
-    /// 是否为调用目标
-    public var isCallTarget: Bool
-    /// 是否为删除目标
-    public var isDeleteTarget: Bool
-    /// 是否原本为标识符
-    public var wasOriginallyIdentifier: Bool
-
-    public init() {
-        assignTarget = AssignTarget.None
-        isCallTarget = false
-        isDeleteTarget = false
-        wasOriginallyIdentifier = true
-    }
-
-    public init(assignTarget: AssignTarget, isCallTarget: Bool, isDeleteTarget: Bool) {
-        this.assignTarget = assignTarget
-        this.isCallTarget = isCallTarget
-        this.isDeleteTarget = isDeleteTarget
-        wasOriginallyIdentifier = true
-    }
-}
-
-// ============================================================================
 // DeferredErrors - 延迟错误
 // 严格翻译自: src/js_parser/parse/parse_entry.rs DeferredErrors
 // ============================================================================

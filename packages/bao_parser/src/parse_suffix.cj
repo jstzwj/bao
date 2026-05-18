@@ -36,25 +36,6 @@ public enum Continuation {
 }
 
 // ============================================================================
-// OptionalChain - 可选链类型
-// 严格翻译自: parse_suffix.rs OptionalChain
-// ============================================================================
-
-/// 可选链类型 - 对应 Bun OptionalChain
-public enum OptionalChain {
-    | None           // 非可选链
-    | Start          // 可选链起始 (?.)
-    | Continuation   // 可选链继续 (?.后的属性访问)
-
-    public func isStart(): Bool {
-        match (this) {
-            case Start => true
-            case _ => false
-        }
-    }
-}
-
-// ============================================================================
 // ParseSuffix - 后缀表达式解析器
 // 严格翻译自: src/js_parser/parse/parse_suffix.rs
 //   impl P { parse_suffix, sfx_t_*, ... }

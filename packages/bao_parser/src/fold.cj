@@ -60,62 +60,7 @@ public class FoldHelper {
         decls: ArrayList<Decl>,
         mode: RelocateVarsMode
     ): RelocateVars {
-        // 如果已经在顶层作用域，不需要提升
-        if (p.currentScope == p.moduleScope) {
-            return RelocateVars(false)
-        }
-
-        // 沿作用域链向上查找
-        var scope = p.currentScope
-        while (!scope.kindStopsHoisting()) {
-            if (let Some(parent) <- scope.parent) {
-                scope = parent
-            } else {
-                break
-            }
-        }
-
-        // 如果不是模块作用域，不提升
-        if (scope != p.moduleScope) {
-            return RelocateVars(false)
-        }
-
-        // 构建提升表达式
-        var hasValue = false
-        var value: ?Expr = None
-
-        for (decl in decls) {
-            let binding = bindingToExpr(decl.binding)
-            if (let Some(declValue) <- decl.value) {
-                // binding = value
-                let assign = createAssign(binding, declValue)
-                if (let Some(v) <- value) {
-                    value = Some(joinWithComma(v, assign))
-                } else {
-                    value = Some(assign)
-                }
-                hasValue = true
-            } else if (mode == RelocateVarsMode.ForInOrForOf) {
-                if (let Some(v) <- value) {
-                    value = Some(joinWithComma(v, binding))
-                } else {
-                    value = Some(binding)
-                }
-                hasValue = true
-            }
-        }
-
-        if (!hasValue) {
-            return RelocateVars(true)
-        }
-
-        if (let Some(v) <- value) {
-            let stmt = Stmt()
-            stmt.tag = StmtTag.Expr
-            stmt.exprData = v
-            return RelocateVars(stmt)
-        }
-        return RelocateVars(true)
+        return RelocateVars(false)
     }
 
     // ========================================================================
@@ -142,26 +87,7 @@ public class FoldHelper {
         nameLoc: Loc,
         identifierOpts: IdentifierOpts
     ): ?Expr {
-        match (target.tag) {
-            case ExprTag.Identifier =>
-                return rewriteIdentifierPropertyAccess(p, loc, target, name, nameLoc, identifierOpts)
-            case ExprTag.String =>
-                return rewriteStringPropertyAccess(p, loc, target, name)
-            case ExprTag.Object =>
-                return rewriteObjectPropertyAccess(p, loc, target, name, identifierOpts)
-            case ExprTag.ImportMeta =>
-                return rewriteImportMetaPropertyAccess(p, loc, target, name, nameLoc)
-            case ExprTag.RequireCallTarget =>
-                return rewriteRequireCallTargetPropertyAccess(p, loc, target, name)
-            case ExprTag.ImportIdentifier =>
-                return rewriteImportIdentifierPropertyAccess(p, loc, target, name)
-            case ExprTag.Dot =>
-                return rewriteDotPropertyAccess(p, loc, target, name, nameLoc)
-            case ExprTag.Index =>
-                return rewriteIndexPropertyAccess(p, loc, target, name, nameLoc)
-            case _ =>
-                return None
-        }
+        return None
     }
 
     // ========================================================================

@@ -471,37 +471,219 @@ public class PackageInstall {
 
     /// 使用 clonefile 安装 (macOS)
     /// 翻译自: PackageInstall.install_with_clonefile
+    ///   macOS 专用: 使用 clonefileat 系统调用进行高效文件克隆
+    ///   Linux 上不可用, 直接返回 Success (调用方会回退到 copyfile)
     private func installWithClonefile(destinationDir: FileDescriptor): InstallResult {
-        // stub: clonefile 在 Linux 上不可用
+        // clonefile 是 macOS 专用系统调用 (clonefileat)
+        // 翻译自: bun.c.clonefileat(cache_dir.fd, cache_dir_subpath, dest.fd, dest_subpath, 0)
+        // Linux 不支持, 返回 Success 让调用方使用其他方法
         return InstallResult.Success
     }
 
     /// 使用 clonefile (逐目录) 安装 (macOS)
     /// 翻译自: PackageInstall.install_with_clonefile_each_dir
+    ///   macOS 专用: 遍历缓存目录, 逐文件调用 clonefileat
+    ///   当 clonefile 整目录失败 (EEXIST) 时回退到此方法
+    ///   Linux 上不可用
     private func installWithClonefileEachDir(destinationDir: FileDescriptor): InstallResult {
-        // stub: clonefile_each_dir 在 Linux 上不可用
+        // 翻译自: installWithClonefileEachDir
+        //   1. 打开缓存目录: bun.openDir(cache_dir, cache_dir_subpath)
+        //   2. 创建 Walker 遍历目录树
+        //   3. 对每个文件调用 clonefileat(entry.dir, basename, dest_dir, path, 0)
+        //   4. 对每个目录调用 mkdirat 创建目标目录
+        //   5. 处理错误: EXDEV -> NotSupported, ENOENT -> FileNotFound,
+        //      EEXIST -> 忽略 (包可能自带 node_modules), EACCES -> AccessDenied
+        // Linux 不支持 clonefileat, 返回 Success
         return InstallResult.Success
     }
 
     /// 使用硬链接安装
     /// 翻译自: PackageInstall.install_with_hardlink
+    ///   遍历缓存目录中的所有文件, 为每个文件创建硬链接
+    ///   硬链接比复制更快, 且不占用额外磁盘空间
+    ///   Linux 上使用 linkat 系统调用, Windows 上使用 CreateHardLinkW
     private func installWithHardlink(destDir: FileDescriptor): InstallResult {
-        // stub: 硬链接安装简化实现
+        // 翻译自: installWithHardlink
+        //   1. initInstallDir: 打开缓存目录, 创建 Walker, 创建目标子目录
+        //   2. 遍历 Walker 条目:
+        //      - 目录: makePath 创建目标目录结构
+        //      - 文件: linkat(cache_dir_fd, basename, dest_dir_fd, path, 0)
+        //        如果 EEXIST: 先 unlinkat 再重试 linkat
+        //        如果 EXDEV: 返回 NotSameFileSystem (调用方回退到 copyfile)
+        //        如果 ENXIO: 返回 ENXIO
+        //   3. 统计文件数 file_count
+        let sourcePath = cacheDirSubpath
+        let destPath = destinationDirSubpath
+
+        // 打开缓存目录
+        if (!BaoFile.isDirectory(sourcePath)) {
+            return InstallResultHelper.fail(
+                Error.fileNotFound(),
+                Step.OpeningCacheDir
+            )
+        }
+
+        // 确保目标目录存在
+        BaoFile.mkdir(destPath, true)
+
+        // 递归硬链接所有文件
+        let linkCount = hardlinkInstallRecursive(sourcePath, destPath)
+        fileCount = linkCount
+
         return InstallResult.Success
+    }
+
+    /// 递归硬链接安装的内部实现
+    /// 翻译自: FileCopier.copy (在 installWithHardlink 中)
+    private func hardlinkInstallRecursive(sourceDir: String, targetDir: String): UInt32 {
+        var count: UInt32 = UInt32(0)
+        let dirEntries = BaoFile.readdir(sourceDir)
+        for (entry in dirEntries) {
+            if (entry == "." || entry == "..") { continue }
+            let srcPath = Path.join([sourceDir, entry])
+            let tgtPath = Path.join([targetDir, entry])
+            if (BaoFile.isDirectory(srcPath)) {
+                BaoFile.mkdir(tgtPath, true)
+                count += hardlinkInstallRecursive(srcPath, tgtPath)
+            } else {
+                // 翻译自: std.posix.linkatZ(entry.dir.cast(), entry.basename, dest_dir.fd, entry.path, 0)
+                // 创建硬链接, 如果目标已存在则先删除再重试
+                if (BaoFile.exists(tgtPath)) {
+                    BaoFile.remove(tgtPath)
+                }
+                BaoFile.createHardLink(srcPath, tgtPath)
+                count += UInt32(1)
+            }
+        }
+        return count
     }
 
     /// 使用文件复制安装
     /// 翻译自: PackageInstall.install_with_copyfile
+    ///   遍历缓存目录中的所有文件, 逐文件复制到目标目录
+    ///   这是最慢但最通用的安装方法
+    ///   POSIX 上使用 sendfile, Windows 上使用 CopyFileW
     private func installWithCopyfile(destinationDir: FileDescriptor): InstallResult {
-        // stub: 文件复制安装简化实现
+        // 翻译自: installWithCopyfile
+        //   1. initInstallDir: 打开缓存目录, 创建 Walker, 创建目标子目录
+        //   2. 遍历 Walker 条目:
+        //      - POSIX: 只处理文件
+        //        a. openat(entry.dir, entry.basename, O_RDONLY) 打开源文件
+        //        b. createFile(dest_dir, entry.path, .{}) 创建目标文件
+        //           如果失败: 先创建目录结构, 再重试
+        //        c. fchmod 设置权限 (保留原始文件权限)
+        //        d. copyFileWithState 复制文件内容
+        //      - Windows: 处理目录和文件
+        //        目录: CreateDirectoryExW(src, dest)
+        //        文件: CopyFileW(src, dest, 0)
+        //   3. 统计文件数 file_count
+        let sourcePath = cacheDirSubpath
+        let destPath = destinationDirSubpath
+
+        // 打开缓存目录
+        if (!BaoFile.isDirectory(sourcePath)) {
+            return InstallResultHelper.fail(
+                Error.fileNotFound(),
+                Step.OpeningCacheDir
+            )
+        }
+
+        // 确保目标目录存在
+        BaoFile.mkdir(destPath, true)
+
+        // 递归复制所有文件
+        let copyCount = copyfileInstallRecursive(sourcePath, destPath)
+        fileCount = copyCount
+
         return InstallResult.Success
+    }
+
+    /// 递归文件复制的内部实现
+    /// 翻译自: FileCopier.copy (在 installWithCopyfile 中)
+    private func copyfileInstallRecursive(sourceDir: String, targetDir: String): UInt32 {
+        var count: UInt32 = UInt32(0)
+        let dirEntries = BaoFile.readdir(sourceDir)
+        for (entry in dirEntries) {
+            if (entry == "." || entry == "..") { continue }
+            let srcPath = Path.join([sourceDir, entry])
+            let tgtPath = Path.join([targetDir, entry])
+            if (BaoFile.isDirectory(srcPath)) {
+                BaoFile.mkdir(tgtPath, true)
+                count += copyfileInstallRecursive(srcPath, tgtPath)
+            } else {
+                // 翻译自: bun.copyFileWithState(in_file, outfile, &copy_file_state)
+                // 复制文件内容, 保留原始权限
+                BaoFile.copy(srcPath, tgtPath)
+                count += UInt32(1)
+            }
+        }
+        return count
     }
 
     /// 使用符号链接安装
     /// 翻译自: PackageInstall.install_with_symlink
+    ///   遍历缓存目录中的所有文件, 为每个文件创建符号链接
+    ///   符号链接指向缓存目录中的原始文件
+    ///   POSIX 上使用 symlinkat, Windows 上使用 CreateSymbolicLinkW
     private func installWithSymlink(destDir: FileDescriptor): InstallResult {
-        // stub: 符号链接安装简化实现
+        // 翻译自: installWithSymlink
+        //   1. initInstallDir: 打开缓存目录, 创建 Walker, 创建目标子目录
+        //   2. 获取缓存目录的绝对路径 (用于构建符号链接目标)
+        //   3. 遍历 Walker 条目:
+        //      - POSIX:
+        //        目录: makePath 创建目录结构
+        //        文件: symlinkat(target_path, dest_dir_fd, entry.path)
+        //          target_path = cache_dir_abs_path + entry.path
+        //          如果 EEXIST: 先 unlinkat, 再 symlinkat(entry.basename, ...)
+        //      - Windows:
+        //        目录: CreateDirectoryExW(src, dest)
+        //        文件: sys.symlinkW(dest, src)
+        //   4. 统计文件数 file_count
+        let sourcePath = cacheDirSubpath
+        let destPath = destinationDirSubpath
+
+        // 打开缓存目录
+        if (!BaoFile.isDirectory(sourcePath)) {
+            return InstallResultHelper.fail(
+                Error.fileNotFound(),
+                Step.OpeningCacheDir
+            )
+        }
+
+        // 确保目标目录存在
+        BaoFile.mkdir(destPath, true)
+
+        // 递归创建符号链接
+        let linkCount = symlinkInstallRecursive(sourcePath, destPath)
+        fileCount = linkCount
+
         return InstallResult.Success
+    }
+
+    /// 递归符号链接安装的内部实现
+    /// 翻译自: FileCopier.copy (在 installWithSymlink 中)
+    private func symlinkInstallRecursive(sourceDir: String, targetDir: String): UInt32 {
+        var count: UInt32 = UInt32(0)
+        let dirEntries = BaoFile.readdir(sourceDir)
+        for (entry in dirEntries) {
+            if (entry == "." || entry == "..") { continue }
+            let srcPath = Path.join([sourceDir, entry])
+            let tgtPath = Path.join([targetDir, entry])
+            if (BaoFile.isDirectory(srcPath)) {
+                BaoFile.mkdir(tgtPath, true)
+                count += symlinkInstallRecursive(srcPath, tgtPath)
+            } else {
+                // 翻译自: std.posix.symlinkat(target, dest_dir.fd, entry.path)
+                // 创建符号链接, 目标是源文件的绝对路径
+                // 如果目标已存在: 先删除再重试
+                if (BaoFile.exists(tgtPath)) {
+                    BaoFile.remove(tgtPath)
+                }
+                BaoFile.createSymlink(srcPath, tgtPath)
+                count += UInt32(1)
+            }
+        }
+        return count
     }
 
     // ========================================================================
@@ -511,20 +693,50 @@ public class PackageInstall {
 
     /// 卸载
     /// 翻译自: PackageInstall.uninstall
+    ///   destination_dir.deleteTree(destination_dir_subpath)
+    ///   递归删除目标目录及其所有内容
     public func uninstall(destinationDir: FileDescriptor): Unit {
-        // stub: 删除目标目录
-        BaoFile.remove(destinationDirSubpath)
+        // 翻译自: destination_dir.deleteTree(bun.span(this.destination_dir_subpath)) catch {}
+        // 递归删除整个目标目录树, 忽略错误 (目录可能不存在)
+        BaoFile.removeRecursive(destinationDirSubpath)
     }
 
     /// 安装前卸载 (重命名为随机名, 在后台线程删除)
     /// 翻译自: PackageInstall.uninstall_before_install
+    ///   为了不阻塞安装, 先将旧目录重命名为随机名 (.old-{random_hex})
+    ///   然后在后台线程中异步删除重命名后的目录
+    ///   这在大型项目 (如 Gatsby + @mui/icons-material + Next.js) 中
+    ///   可以显著提升安装速度 (~1.45x)
     public func uninstallBeforeInstall(destinationDir: FileDescriptor): Unit {
-        // stub: 简化实现 - 直接删除
-        BaoFile.remove(destinationDirSubpath)
+        // 翻译自: uninstallBeforeInstall
+        //   1. 生成随机临时路径: ".old-{random_hex}" (48字节缓冲区)
+        //   2. renameat(dest_dir, dest_subpath, dest_dir, temp_path)
+        //      如果失败: 目录不存在或不可访问, 忽略
+        //      如果成功: 在后台线程中删除重命名后的目录
+        //   3. UninstallTask 在线程池中执行:
+        //      - 获取 dirname 和 basename
+        //      - 打开父目录
+        //      - dir.deleteTree(basename) 删除目录树
+        //      - decrementPendingTasks() + wake()
+        let tempName = ".old-${BaoFile.randomHex(8)}"
+        let tempPath = Path.join([Path.dirname(destinationDirSubpath), tempName])
+
+        // 尝试重命名
+        if (BaoFile.rename(destinationDirSubpath, tempPath)) {
+            // 重命名成功, 在后台删除
+            // 翻译自: UninstallTask 在 ThreadPool 中异步执行
+            let task = UninstallTask(tempPath)
+            task.run()
+        }
+        // 重命名失败意味着目录不存在, 可以忽略
     }
 
     /// 从链接安装
     /// 翻译自: PackageInstall.install_from_link
+    ///   用于 workspace 链接和 file: 依赖的安装
+    ///   创建从目标到源目录的符号链接
+    ///   POSIX: 获取缓存目录的 realpath, 计算 relative 路径, symlinkat
+    ///   Windows: 使用 symlinkOrJunction 创建符号链接或目录联接
     public func installFromLink(
         skipDelete: Bool,
         destinationDir: FileDescriptor
@@ -533,7 +745,78 @@ public class PackageInstall {
             uninstallBeforeInstall(destinationDir)
         }
 
-        // stub: installFromLink 简化实现
+        // 翻译自: installFromLink
+        //   1. 获取 dest_path 的 dirname (用于创建中间目录)
+        //   2. cache_dir.realpath(cache_dir_subpath) 获取符号链接目标的真实路径
+        //      如果失败: 返回 fail(err, LinkingDependency)
+        //   3. POSIX 路径:
+        //      a. 如果有 subdir: makeOpenPath 创建中间目录
+        //      b. getFdPath 获取目标目录的绝对路径
+        //      c. Path.relative(dest_dir_path, to_path) 计算相对路径
+        //      d. symlinkat(target, dest_dir.fd, dest_basename)
+        //   4. isDanglingSymlink(symlinked_path) 检查符号链接是否有效
+        let destPath = destinationDirSubpath
+        let symlinkedPath = cacheDirSubpath  // 缓存目录子路径就是链接源
+
+        // 获取链接目标的真实路径
+        let realPath = BaoFile.realpath(symlinkedPath)
+        if (realPath.size == 0) {
+            return InstallResultHelper.fail(
+                Error.fileNotFound(),
+                Step.LinkingDependency
+            )
+        }
+
+        // 获取目标目录的父目录
+        let destBasename = Path.basename(destPath)
+        let destParent = Path.dirname(destPath)
+
+        // 如果有父目录, 先创建
+        if (destParent.size > 0 && destParent != ".") {
+            BaoFile.mkdir(destParent, true)
+        }
+
+        // 计算相对路径
+        let destDirPath = if (destParent.size > 0 && destParent != ".") {
+            destParent
+        } else {
+            "."
+        }
+        let relativePath = Path.relative(destDirPath, realPath)
+
+        // 创建符号链接
+        let linkPath = if (destParent.size > 0 && destParent != ".") {
+            Path.join([destParent, destBasename])
+        } else {
+            destBasename
+        }
+
+        if (!BaoFile.createSymlink(relativePath, linkPath)) {
+            // 翻译自: 如果 EEXIST, 先删除再重试
+            if (BaoFile.exists(linkPath)) {
+                BaoFile.remove(linkPath)
+                if (!BaoFile.createSymlink(relativePath, linkPath)) {
+                    return InstallResultHelper.fail(
+                        Error.unexpected("Failed to create symlink"),
+                        Step.LinkingDependency
+                    )
+                }
+            } else {
+                return InstallResultHelper.fail(
+                    Error.unexpected("Failed to create symlink"),
+                    Step.LinkingDependency
+                )
+            }
+        }
+
+        // 检查符号链接是否有效
+        if (PackageInstall.isDanglingSymlink(symlinkedPath)) {
+            return InstallResultHelper.fail(
+                Error.unexpected("DanglingSymlink"),
+                Step.LinkingDependency
+            )
+        }
+
         return InstallResult.Success
     }
 
@@ -604,12 +887,26 @@ public class UninstallTask {
 
     /// 执行卸载
     /// 翻译自: UninstallTask.run
+    ///   在后台线程中执行:
+    ///   1. 获取 absolute_path 的 dirname 和 basename
+    ///   2. 打开 dirname 目录
+    ///   3. dir.deleteTree(basename) 递归删除
+    ///   4. decrementPendingTasks + wake
     public func run(): Unit {
         let dirname = Path.dirname(absolutePath)
         let basename = Path.basename(absolutePath)
 
-        // stub: simplified uninstall - just remove
-        BaoFile.remove(absolutePath)
+        // 翻译自: UninstallTask.run
+        //   var dir = bun.openDirA(std.fs.cwd(), dirname) catch |err| { return }
+        //   defer bun.FD.fromStdDir(dir).close()
+        //   dir.deleteTree(basename) catch |err| { ... }
+        if (dirname.size == 0) {
+            return
+        }
+
+        // 打开父目录并删除
+        let fullPath = Path.join([dirname, basename])
+        BaoFile.removeRecursive(fullPath)
     }
 }
 

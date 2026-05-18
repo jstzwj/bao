@@ -918,24 +918,3 @@ public enum VarKind {
     | Const
 }
 
-/// Decl - 声明 - 对应 Bun G.Decl
-public class Decl {
-    public var binding: BindingPattern
-    public var value: ?Expr
-
-    public init() {
-        binding = BindingPattern(Loc.EMPTY, BindingPatternTag.Missing)
-        value = None
-    }
-}
-
-/// SwitchCase - switch case - 对应 Bun S.Case
-public class SwitchCase {
-    public var test: ?Expr
-    public var stmts: ArrayList<Stmt>
-
-    public init() {
-        test = None
-        stmts = ArrayList<Stmt>()
-    }
-}

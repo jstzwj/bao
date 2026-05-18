@@ -828,12 +828,36 @@ public class PackageManager {
     }
 
     /// 处理提取响应
+    /// 翻译自: PackageManager.processExtractResponse
+    ///   1. 保存 tarball 到缓存目录
+    ///   2. 解压 tarball
+    ///   3. 更新元数据
     private func processExtractResponse(task: NetworkTask): Unit {
         match (task.extractCallback) {
             case Some(cb) =>
                 if (task.statusCode >= 200 && task.statusCode <= 299) {
                     let cachePath = "${getCacheDirectory()}/${cb.name}"
-                    // TODO: extract tarball to cache
+                    // 翻译自: ExtractTarball.run
+                    //   1. 验证完整性 (integrity check)
+                    //   2. 使用 libarchive 解压 tarball
+                    //   3. 将解压后的文件写入缓存目录
+                    // 此处使用系统 tar 命令
+                    BaoFile.mkdir(cachePath, true)
+                    let tarballPath = "${cachePath}/${cb.name}.tgz"
+                    if (task.responseBody.size > 0) {
+                        BaoFile.writeAllBytes(tarballPath, task.responseBody)
+                        // 解压到缓存目录
+                        let extractDir = "${cachePath}/node_modules/${cb.name}"
+                        BaoFile.mkdir(extractDir, true)
+                        let args = ArrayList<String>()
+                        args.append("tar")
+                        args.append("-xzf")
+                        args.append(tarballPath)
+                        args.append("-C")
+                        args.append(extractDir)
+                        args.append("--strip-components=1")
+                        let _ = SysProcess.run("tar", args)
+                    }
                 } else {
                     Output.printErrorln("Failed to download tarball for ${cb.name}: HTTP ${task.statusCode}")
                 }

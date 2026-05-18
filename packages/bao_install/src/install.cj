@@ -346,10 +346,27 @@ public class PackageInstallRequest {
         }
 
         // 应用补丁
+        // 翻译自: src/install/patch_install.zig PatchTask.ApplyPatch
+        //   1. 解析补丁文件 (unified diff 格式)
+        //   2. 在目标目录中应用补丁
+        //   3. 写入 .bun-tag 标记补丁已应用
         match (patch) {
             case Some(p) =>
-                // TODO: apply patch
-                ()
+                if (p.path.size > 0) {
+                    // 使用系统 patch 命令应用补丁
+                    // 翻译自: PatchTask.runFromThreadPoolImpl
+                    //   实际使用 Bun 内置的 diff 解析器
+                    let args = ArrayList<String>()
+                    args.append("patch")
+                    args.append("-p1")
+                    args.append("-d")
+                    args.append(destPath)
+                    args.append("-i")
+                    args.append(p.path)
+                    args.append("--no-backup-if-mismatch")
+                    args.append("-s")
+                    let _ = SysProcess.run("patch", args)
+                }
             case None => ()
         }
 

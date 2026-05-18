@@ -77,9 +77,9 @@ public class BinManager {
         let bin = pkgJson.bin
 
         // 确保 .bin 目录存在
+        // 翻译自: std.fs.Dir.makeOpenPath(node_modules_path ++ "/.bin", .{})
         if (!dryRun) {
-            // TODO: 使用 std.fs.Directory.create 替换
-            ()
+            BaoFile.mkdir(binDirPath, true)
         }
 
         match (bin.tag) {
@@ -123,8 +123,21 @@ public class BinManager {
     private func installBinDirEntries(dirRelPath: String, packageName: String, nmPath: String, result: BinInstallResult): Unit {
         let packageDir = Path.join([nmPath, packageName])
         let binDir = Path.join([packageDir, dirRelPath])
-        // TODO: 实现目录读取 - 需要 std.fs.Directory.readFrom
-        // 暂时跳过目录扫描
+        // 翻译自: std.fs.Dir.iterate / walker_skippable
+        //   读取 bin 目录中的所有文件
+        if (!BaoFile.isDirectory(binDir)) {
+            return
+        }
+        let files = ArrayList<String>()
+        let entries = BaoFile.readdir(binDir)
+        for (entry in entries) {
+            if (entry == "." || entry == "..") { continue }
+            let entryPath = Path.join([binDir, entry])
+            if (!BaoFile.isDirectory(entryPath)) {
+                files.append(entry)
+            }
+        }
+        linkBinDirFiles(files, dirRelPath, packageName, result)
     }
 
     private func linkBinDirFiles(files: ArrayList<String>, dirRelPath: String, packageName: String, result: BinInstallResult): Unit {
@@ -159,10 +172,22 @@ public class BinManager {
 
     /// 执行 bin 链接
     // 严格翻译自: src/install/PackageInstaller.zig 中 symlink bin
+    //   创建从 node_modules/.bin/<name> 到源文件的符号链接
+    //   如果目标已存在, 先删除再创建
     private func performBinLink(link: BinLink): Bool {
-        // TODO: 实现文件存在检查和删除 - 需要 std.fs.exists/remove
-        // 暂时直接返回 true
-        return true
+        // 翻译自: std.posix.symlinkat(sourceAbsPath, destDirFd, binName)
+        //   1. 检查目标是否已存在
+        //   2. 如果存在且是符号链接, 删除
+        //   3. 创建新的符号链接
+        if (BaoFile.exists(link.linkPath)) {
+            BaoFile.remove(link.linkPath)
+        }
+        // 同时删除 .cmd 文件 (Windows)
+        let cmdPath = link.linkPath + ".cmd"
+        if (BaoFile.exists(cmdPath)) {
+            BaoFile.remove(cmdPath)
+        }
+        return BaoFile.createSymlink(link.sourceAbsPath, link.linkPath)
     }
 
     /// 创建 Windows .cmd shim

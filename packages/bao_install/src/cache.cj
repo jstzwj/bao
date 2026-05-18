@@ -10,10 +10,12 @@ import bao_path.*
 import bao_http.*
 import bao_sys.*
 
-/// 获取当前时间的毫秒数 (存根实现)
+/// 获取当前时间的毫秒数
+/// 翻译自: std.time.milliTimestamp / bun.Environment.nanoTime
 func cacheCurrentTimeMillis(): Int64 {
-    // TODO: 使用 std.time.DateTime 实现精确时间
-    return Int64(0)
+    // 使用系统时间获取毫秒时间戳
+    // 翻译自: std.time.milliTimestamp()
+    return OS.currentTimeMillis()
 }
 
 // ============================================================================
@@ -163,9 +165,24 @@ public class CacheMetadata {
     }
 
     /// 按 LRU 顺序排序 (最旧的在前)
+    /// 翻译自: 按 lastAccessTimestamp 排序, 最旧的在前 (用于 LRU 清理)
     public func entriesByLRU(): ArrayList<CacheEntry> {
         let result = allEntries()
-        // TODO: 实现排序 - ArrayList 缺少 sortWith 方法
+        // 按访问时间升序排序 (最旧在前)
+        // 翻译自: std.sort.sort(CacheEntry, entries, {}, lessThan)
+        var i: Int64 = 0
+        while (i < result.size - 1) {
+            var j: Int64 = 0
+            while (j < result.size - 1 - i) {
+                if (result[j].lastAccessTimestamp > result[j + 1].lastAccessTimestamp) {
+                    let tmp = result[j]
+                    result[j] = result[j + 1]
+                    result[j + 1] = tmp
+                }
+                j += 1
+            }
+            i += 1
+        }
         return result
     }
 }
@@ -510,27 +527,43 @@ public class PackageCache {
     /// 解压 tarball 到目标目录
     /// 翻译自: src/install/extract_tarball.zig ExtractTarball
     ///   Bun 使用 libarchive 进行流式解压
-    ///   此处使用系统 tar 命令
+    ///   此处使用系统 tar 命令进行解压
     private func extractTarballToDir(tarballPath: String, destDir: String): Bool {
-        // TODO: 实现 Process.run - 需要 bao_sys.Process
-        // 暂时返回 false 表示解压未实现
-        return false
+        // 翻译自: ExtractTarball.extract
+        //   Bun 使用 libarchive 的 archive_read_open_memory + archive_read_extract
+        //   此处使用系统 tar 命令作为替代
+        //   Process.run("tar", ["-xzf", tarballPath, "-C", destDir])
+        let args = ArrayList<String>()
+        args.append("tar")
+        args.append("-xzf")
+        args.append(tarballPath)
+        args.append("-C")
+        args.append(destDir)
+        args.append("--strip-components=1")
+        let result = SysProcess.run("tar", args)
+        return result == 0
     }
 
     /// 递归硬链接
     /// 翻译自: Hardlinker.hardlinkFiles
     ///   Bun 遍历源目录中的所有文件, 创建硬链接
+    ///   硬链接使用 linkat 系统调用 (POSIX) 或 CreateHardLinkW (Windows)
     private func hardlinkRecursive(sourceDir: String, targetDir: String): Bool {
         let dirEntries = BaoFile.readdir(sourceDir)
         for (entry in dirEntries) {
+            if (entry == "." || entry == "..") { continue }
             let srcPath = Path.join([sourceDir, entry])
             let tgtPath = Path.join([targetDir, entry])
             if (BaoFile.isDirectory(srcPath)) {
                 BaoFile.mkdir(tgtPath, true)
                 hardlinkRecursive(srcPath, tgtPath)
             } else {
-                // TODO: 创建硬链接
-                ()
+                // 翻译自: std.posix.linkatZ(entry.dir.cast(), entry.basename, dest_dir.fd, entry.path, 0)
+                // 创建硬链接, 如果目标已存在先删除再重试
+                if (BaoFile.exists(tgtPath)) {
+                    BaoFile.remove(tgtPath)
+                }
+                BaoFile.createHardLink(srcPath, tgtPath)
             }
         }
         return true
@@ -565,7 +598,33 @@ public class PackageCache {
         let parser = JsonParser()
         let json = parser.parse(content)
         if (let Some(JsonValue.Object(root)) <- json) {
-            // TODO: 解析 JSON 元数据
+            // 翻译自: Store 元数据 JSON 解析
+            //   格式: {"entries": {"name@version": {name, version, integrity, ...}, ...}}
+            match (root.get("entries")) {
+                case Some(JsonValue.Object(entriesObj)) =>
+                    for (key in entriesObj.keys()) {
+                        match (entriesObj.get(key)) {
+                            case Some(JsonValue.Object(entryObj)) =>
+                                let entry = CacheEntry(
+                                    jsonStringField(entryObj, "name"),
+                                    jsonStringField(entryObj, "version")
+                                )
+                                entry.integrity = jsonStringField(entryObj, "integrity")
+                                entry.cachePath = jsonStringField(entryObj, "cachePath")
+                                entry.tarballPath = jsonStringField(entryObj, "tarballPath")
+                                entry.extracted = jsonBoolField(entryObj, "extracted")
+                                entry.size = jsonIntField(entryObj, "size")
+                                entry.fileCount = jsonIntField(entryObj, "fileCount")
+                                entry.createdTimestamp = jsonIntField(entryObj, "createdTimestamp")
+                                entry.lastAccessTimestamp = jsonIntField(entryObj, "lastAccessTimestamp")
+                                entry.accessCount = jsonIntField(entryObj, "accessCount")
+                                // 直接放入 entries, 不更新 totalSize (会在 put 中更新)
+                                metadata.put(entry)
+                            case _ => ()
+                        }
+                    }
+                case _ => ()
+            }
         }
     }
 
@@ -594,6 +653,30 @@ public class PackageCache {
         }
         sb.append("}}\n")
         BaoFile.writeAllText(metadataPath, sb.toString())
+    }
+
+    /// JSON 辅助: 从 JSON 对象中读取字符串字段
+    private static func jsonStringField(obj: HashMap<String, JsonValue>, key: String): String {
+        match (obj.get(key)) {
+            case Some(JsonValue.Str(s)) => return s
+            case _ => return ""
+        }
+    }
+
+    /// JSON 辅助: 从 JSON 对象中读取整数字段
+    private static func jsonIntField(obj: HashMap<String, JsonValue>, key: String): Int64 {
+        match (obj.get(key)) {
+            case Some(JsonValue.Num(n)) => return Int64(n)
+            case _ => return Int64(0)
+        }
+    }
+
+    /// JSON 辅助: 从 JSON 对象中读取布尔字段
+    private static func jsonBoolField(obj: HashMap<String, JsonValue>, key: String): Bool {
+        match (obj.get(key)) {
+            case Some(JsonValue.Bool(b)) => return b
+            case _ => return false
+        }
     }
 
     private static func escapeJson(s: String): String {
@@ -635,8 +718,9 @@ public class IntegrityVerifier {
         }
         if (expected.startsWith("sha384-")) {
             let expectedHash = expected[7..]
-            // TODO: Sha384 not yet implemented, using Sha512 as fallback
-            let hash = Sha512.hash(data)
+            // 翻译自: Integrity.verify 使用 SHA-384
+            // SHA-384 是 SHA-512 的截断版本, 使用 bao_hash.Sha384
+            let hash = Sha384.hash(data)
             let computed = Base64Encode.encode(hash)
             return computed == expectedHash
         }

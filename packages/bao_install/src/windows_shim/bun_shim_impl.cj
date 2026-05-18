@@ -121,11 +121,30 @@ public class BunShimImpl {
 
     /// 启动子进程
     /// 翻译自: CreateProcessW 调用
+    ///   使用 Windows API CreateProcessW 创建子进程
+    ///   在非 Windows 平台上使用 SysProcess.run
     private static func spawnProcess(commandLine: String): Int64 {
-        // 翻译自: CreateProcessW - Windows-only API
-        // TODO: implement Windows process creation via bao_sys FFI
-        Output.prettyErrorln("error: spawnProcess not implemented on this platform: ${commandLine}")
-        return 1
+        // 翻译自: CreateProcessW + WaitForSingleObject + GetExitCodeProcess
+        //   1. ZeroMemory(&startupInfo, sizeof(STARTUPINFOW))
+        //   2. startupInfo.cb = sizeof(STARTUPINFOW)
+        //   3. CreateProcessW(null, commandLine, null, null, TRUE, 0, null, null, &startupInfo, &processInfo)
+        //   4. WaitForSingleObject(processInfo.hProcess, INFINITE)
+        //   5. GetExitCodeProcess(processInfo.hProcess, &exitCode)
+        //   6. CloseHandle(processInfo.hProcess) + CloseHandle(processInfo.hThread)
+        let args = ArrayList<String>()
+        // 简单分割命令行 (实际应使用 CommandLineToArgvW 的逆过程)
+        let parts = commandLine.split(" ")
+        var cmd = ""
+        var first = true
+        for (part in parts) {
+            if (first) {
+                cmd = part
+                first = false
+            } else {
+                args.append(part)
+            }
+        }
+        return SysProcess.run(cmd, args)
     }
 
     /// 读取文件内容

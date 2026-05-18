@@ -374,67 +374,6 @@ public class LexerTables {
 }
 
 // ============================================================================
-// PropertyModifierKeyword - 属性修饰符关键字
-// 严格翻译自: lexer_tables.zig:215-243
-//   pub const PropertyModifierKeyword = enum { ... }
-// ============================================================================
-
-/// 属性修饰符关键字 - 对应 Bun PropertyModifierKeyword
-/// 用于 TypeScript 类属性的修饰符解析
-public enum PropertyModifierKeyword {
-    | Abstract   // abstract
-    | Accessor   // accessor
-    | Async      // async
-    | Declare    // declare
-    | Get        // get
-    | Override   // override
-    | Private    // private
-    | Protected  // protected
-    | Public     // public
-    | Readonly   // readonly
-    | Set        // set
-    | Static     // static
-
-    /// 从字符串查找属性修饰符关键字
-    /// 对应 Bun PropertyModifierKeyword.List.get()
-    public static func lookup(name: String): ?PropertyModifierKeyword {
-        match (name) {
-            case "abstract" => Some(Abstract)
-            case "accessor" => Some(Accessor)
-            case "async" => Some(Async)
-            case "declare" => Some(Declare)
-            case "get" => Some(Get)
-            case "override" => Some(Override)
-            case "private" => Some(Private)
-            case "protected" => Some(Protected)
-            case "public" => Some(Public)
-            case "readonly" => Some(Readonly)
-            case "set" => Some(Set)
-            case "static" => Some(Static)
-            case _ => None
-        }
-    }
-
-    /// 所有属性修饰符关键字列表
-    public static func allKeywords(): ArrayList<String> {
-        let list = ArrayList<String>()
-        list.append("abstract")
-        list.append("accessor")
-        list.append("async")
-        list.append("declare")
-        list.append("get")
-        list.append("override")
-        list.append("private")
-        list.append("protected")
-        list.append("public")
-        list.append("readonly")
-        list.append("set")
-        list.append("static")
-        return list
-    }
-}
-
-// ============================================================================
 // TypeScriptAccessibilityModifier - TypeScript 可访问性修饰符
 // 严格翻译自: lexer_tables.zig:245-251
 //   pub const TypeScriptAccessibilityModifier = ComptimeStringMap(void, .{ ... })

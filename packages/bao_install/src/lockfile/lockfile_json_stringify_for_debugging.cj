@@ -28,17 +28,17 @@ public interface JsonScalar {
 /// 翻译自: JsonWriter trait
 ///   对应 Zig 的 std.json.WriteStream 方法
 public interface JsonWriter {
-    func beginObject(): Result<Unit>
-    func endObject(): Result<Unit>
-    func beginArray(): Result<Unit>
-    func endArray(): Result<Unit>
-    func objectField(name: Array<Byte>): Result<Unit>
-    func writeBool(value: Bool): Result<Unit>
-    func writeInt(value: Int64): Result<Unit>
-    func writeUInt(value: UInt64): Result<Unit>
-    func writeBytes(value: Array<Byte>): Result<Unit>
-    func writeNull(): Result<Unit>
-    func print(args: String): Result<Unit>
+    func beginObject(): Result<Unit, String>
+    func endObject(): Result<Unit, String>
+    func beginArray(): Result<Unit, String>
+    func endArray(): Result<Unit, String>
+    func objectField(name: Array<Byte>): Result<Unit, String>
+    func writeBool(value: Bool): Result<Unit, String>
+    func writeInt(value: Int64): Result<Unit, String>
+    func writeUInt(value: UInt64): Result<Unit, String>
+    func writeBytes(value: Array<Byte>): Result<Unit, String>
+    func writeNull(): Result<Unit, String>
+    func print(args: String): Result<Unit, String>
 }
 
 // ============================================================================
@@ -125,7 +125,7 @@ public class WriteStream <: JsonWriter {
         }
     }
 
-    public func beginObject(): Result<Unit> {
+    public func beginObject(): Result<Unit, String> {
         valueStart()
         out.append(UInt8(123))
         depth += 1
@@ -133,7 +133,7 @@ public class WriteStream <: JsonWriter {
         return Result.Ok(())
     }
 
-    public func endObject(): Result<Unit> {
+    public func endObject(): Result<Unit, String> {
         let had = hadElement.removeLast()
         depth -= 1
         if (had) {
@@ -143,7 +143,7 @@ public class WriteStream <: JsonWriter {
         return Result.Ok(())
     }
 
-    public func beginArray(): Result<Unit> {
+    public func beginArray(): Result<Unit, String> {
         valueStart()
         out.append(UInt8(91))
         depth += 1
@@ -151,7 +151,7 @@ public class WriteStream <: JsonWriter {
         return Result.Ok(())
     }
 
-    public func endArray(): Result<Unit> {
+    public func endArray(): Result<Unit, String> {
         let had = hadElement.removeLast()
         depth -= 1
         if (had) {
@@ -161,7 +161,7 @@ public class WriteStream <: JsonWriter {
         return Result.Ok(())
     }
 
-    public func objectField(name: Array<Byte>): Result<Unit> {
+    public func objectField(name: Array<Byte>): Result<Unit, String> {
         valueStart()
         encodeJsonString(name, out)
         if (opts.indent > 0) {
@@ -174,7 +174,7 @@ public class WriteStream <: JsonWriter {
         return Result.Ok(())
     }
 
-    public func writeBool(value: Bool): Result<Unit> {
+    public func writeBool(value: Bool): Result<Unit, String> {
         valueStart()
         if (value) {
             out.appendAll("true".toArray())
@@ -184,31 +184,31 @@ public class WriteStream <: JsonWriter {
         return Result.Ok(())
     }
 
-    public func writeInt(value: Int64): Result<Unit> {
+    public func writeInt(value: Int64): Result<Unit, String> {
         valueStart()
         out.appendAll("${value}".toArray())
         return Result.Ok(())
     }
 
-    public func writeUInt(value: UInt64): Result<Unit> {
+    public func writeUInt(value: UInt64): Result<Unit, String> {
         valueStart()
         out.appendAll("${value}".toArray())
         return Result.Ok(())
     }
 
-    public func writeBytes(value: Array<Byte>): Result<Unit> {
+    public func writeBytes(value: Array<Byte>): Result<Unit, String> {
         valueStart()
         encodeJsonString(value, out)
         return Result.Ok(())
     }
 
-    public func writeNull(): Result<Unit> {
+    public func writeNull(): Result<Unit, String> {
         valueStart()
         out.appendAll("null".toArray())
         return Result.Ok(())
     }
 
-    public func print(args: String): Result<Unit> {
+    public func print(args: String): Result<Unit, String> {
         valueStart()
         out.appendAll(args.toArray())
         return Result.Ok(())
@@ -301,7 +301,7 @@ private func encodeDefaultChar(c: UInt8, out: ArrayList<UInt8>): Unit {
 /// 将锁文件序列化为 JSON
 /// 翻译自: json_stringify
 ///   pub fn jsonStringify(self: *Lockfile, w: anytype) !void
-public func jsonStringify(lockfile: Lockfile, w: JsonWriter): Result<Unit> {
+public func jsonStringify(lockfile: Lockfile, w: JsonWriter): Result<Unit, String> {
     let sb = lockfile.buffers.stringBytes
 
     w.beginObject()
@@ -460,7 +460,7 @@ public func jsonStringifyDependency(
     depId: Int64,
     dep: Dependency,
     res: UInt32
-): Result<Unit> {
+): Result<Unit, String> {
     let sb = lockfile.buffers.stringBytes
 
     w.beginObject()
