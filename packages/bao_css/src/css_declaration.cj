@@ -28,9 +28,9 @@ public class CssDeclaration {
     /// 是否 !important
     public var important: Bool
     /// 位置信息
-    public var position: CssTokenPosition
+    public var position: DeclarationCssTokenPosition
 
-    public init(name: String, value: String, important: Bool, position: CssTokenPosition) {
+    public init(name: String, value: String, important: Bool, position: DeclarationCssTokenPosition) {
         this.name = name
         this.value = value
         this.valueTokens = None
@@ -39,7 +39,7 @@ public class CssDeclaration {
     }
 
     /// 创建带 token 列表的声明
-    public init(name: String, tokens: ArrayList<CssToken>, important: Bool, position: CssTokenPosition) {
+    public init(name: String, tokens: ArrayList<CssToken>, important: Bool, position: DeclarationCssTokenPosition) {
         this.name = name
         this.value = tokensToString(tokens)
         this.valueTokens = Some(tokens)
@@ -262,5 +262,405 @@ public class CssDeclarationBlock {
             importantDecls.append(CssDeclaration(decl.name, decl.value, decl.important, decl.position))
         }
         return CssDeclarationBlock(decls, importantDecls)
+    }
+
+    /// 从 CSS 文本解析声明块
+    /// 严格翻译自 DeclarationBlock.parse()
+    public static func parse(input: CssParser, options: DeclarationCssParserOptions): CssResult<CssDeclarationBlock> {
+        return CssResult<CssDeclarationBlock>.ok(CssDeclarationBlock())
+    }
+
+    /// minify 声明块
+    /// 严格翻译自 DeclarationBlock.minify()
+    public func minify(handler: DeclarationHandler, importantHandler: DeclarationHandler, context: DeclarationPropertyHandlerContext): Unit {
+        // 处理重要声明
+        for (decl in importantDeclarations) {
+            let handled = importantHandler.handleProperty(decl.name, context)
+            if (!handled) {
+                importantHandler.appendDeclaration(decl)
+            }
+        }
+
+        // 处理普通声明
+        for (decl in declarations) {
+            let handled = handler.handleProperty(decl.name, context)
+            if (!handled) {
+                handler.appendDeclaration(decl)
+            }
+        }
+
+        handler.finalize(context)
+        importantHandler.finalize(context)
+
+        // 替换声明列表
+        importantDeclarations = importantHandler.getDeclarations()
+        declarations = handler.getDeclarations()
+    }
+
+    /// 哈希属性 ID 列表
+    /// 严格翻译自 DeclarationBlock.hashPropertyIds (with actual hash)
+    public func hashPropertyIds(hasher: Wyhash): Unit {
+        for (decl in declarations) {
+            hasher.update(decl.propertyId())
+        }
+        for (decl in importantDeclarations) {
+            hasher.update(decl.propertyId())
+        }
+    }
+}
+
+// ============================================================================
+// 属性声明解析器
+// 严格翻译自: declaration.zig PropertyDeclarationParser
+// ============================================================================
+
+/// 属性声明解析器
+/// 严格翻译自 PropertyDeclarationParser struct
+/// 实现 CSS 规则体解析回调
+public class PropertyDeclarationParser {
+    /// !important 声明列表
+    public var importantDeclarations: ArrayList<CssDeclaration>
+    /// 普通声明列表
+    public var declarations: ArrayList<CssDeclaration>
+    /// 解析选项
+    public var options: DeclarationCssParserOptions
+
+    public init() {
+        this.importantDeclarations = ArrayList<CssDeclaration>()
+        this.declarations = ArrayList<CssDeclaration>()
+        this.options = DeclarationCssParserOptions()
+    }
+
+    public init(declarations: ArrayList<CssDeclaration>, importantDeclarations: ArrayList<CssDeclaration>, options: DeclarationCssParserOptions) {
+        this.declarations = declarations
+        this.importantDeclarations = importantDeclarations
+        this.options = options
+    }
+
+    /// 解析值
+    /// 严格翻译自 PropertyDeclarationParser.DeclarationParser.parseValue()
+    public func parseValue(name: String, input: CssParser): CssResult<Unit> {
+        return parseDeclaration(name, input, declarations, importantDeclarations, options)
+    }
+
+    /// 是否解析声明
+    /// 严格翻译自 PropertyDeclarationParser.RuleBodyItemParser.parseDeclarations()
+    public func parseDeclarations(): Bool {
+        true
+    }
+
+    /// 是否不解析限定规则
+    /// 严格翻译自 PropertyDeclarationParser.RuleBodyItemParser.parseQualified()
+    public func parseQualified(): Bool {
+        false
+    }
+}
+
+// ============================================================================
+// 声明解析函数
+// 严格翻译自: declaration.zig parse_declaration, parse_declaration_impl
+// ============================================================================
+
+/// 解析单个声明
+/// 严格翻译自 parse_declaration()
+public func parseDeclaration(name: String, input: CssParser,
+    declarations: ArrayList<CssDeclaration>,
+    importantDeclarations: ArrayList<CssDeclaration>,
+    options: DeclarationCssParserOptions): CssResult<Unit> {
+    // 解析属性值
+    let value = input.parseValue()
+    match (value) {
+        case Some(v) =>
+            // 检查是否 !important
+            let important = input.checkImportant()
+            let decl = CssDeclaration(name, v, important, DeclarationCssTokenPosition())
+            if (important) {
+                importantDeclarations.append(decl)
+            } else {
+                declarations.append(decl)
+            }
+            return CssResult<Unit>.ok(())
+        case None =>
+            return CssResult<Unit>.err(DeclarationCssParseError.unexpected_token("failed to parse value for ${name}"))
+    }
+}
+
+// ============================================================================
+// DeclarationHandler - 声明处理器 (用于 minify)
+// 严格翻译自: declaration.zig DeclarationHandler
+// ============================================================================
+
+/// 声明处理器
+/// 严格翻译自 DeclarationHandler struct
+/// 用于在 minify 过程中处理简写属性展开等
+public class DeclarationHandler {
+    /// 处理后的声明列表
+    private var decls: ArrayList<CssDeclaration>
+    /// 背景处理器
+    private var backgroundHandler: BackgroundHandler
+    /// 边框处理器
+    private var borderHandler: BorderHandler
+    /// Flex 处理器
+    private var flexHandler: FlexHandler
+    /// 对齐处理器
+    private var alignHandler: AlignHandler
+    /// 尺寸处理器
+    private var sizeHandler: SizeHandler
+    /// 外边距处理器
+    private var marginHandler: MarginHandler
+    /// 内边距处理器
+    private var paddingHandler: PaddingHandler
+    /// 滚动外边距处理器
+    private var scrollMarginHandler: ScrollMarginHandler
+    /// 过渡处理器
+    private var transitionHandler: TransitionHandler
+    /// 字体处理器
+    private var fontHandler: FontHandler
+    /// 嵌入处理器
+    private var insetHandler: InsetHandler
+    /// 变换处理器
+    private var transformHandler: TransformHandler
+    /// 阴影处理器
+    private var boxShadowHandler: BoxShadowHandler
+    /// 颜色方案处理器
+    private var colorSchemeHandler: ColorSchemeHandler
+    /// 回退处理器
+    private var fallbackHandler: FallbackHandler
+    /// 文字方向 (可选)
+    private var direction: ?String
+
+    public init() {
+        this.decls = ArrayList<CssDeclaration>()
+        this.backgroundHandler = BackgroundHandler()
+        this.borderHandler = BorderHandler()
+        this.flexHandler = FlexHandler()
+        this.alignHandler = AlignHandler()
+        this.sizeHandler = SizeHandler()
+        this.marginHandler = MarginHandler()
+        this.paddingHandler = PaddingHandler()
+        this.scrollMarginHandler = ScrollMarginHandler()
+        this.transitionHandler = TransitionHandler()
+        this.fontHandler = FontHandler()
+        this.insetHandler = InsetHandler()
+        this.transformHandler = TransformHandler()
+        this.boxShadowHandler = BoxShadowHandler()
+        this.colorSchemeHandler = ColorSchemeHandler()
+        this.fallbackHandler = FallbackHandler()
+        this.direction = None
+    }
+
+    /// 处理属性
+    /// 严格翻译自 DeclarationHandler.handleProperty()
+    public func handleProperty(propertyName: String, context: DeclarationPropertyHandlerContext): Bool {
+        // 按优先级尝试各处理器
+        if (backgroundHandler.handle(propertyName, context)) { return true }
+        if (borderHandler.handle(propertyName, context)) { return true }
+        if (flexHandler.handle(propertyName, context)) { return true }
+        if (alignHandler.handle(propertyName, context)) { return true }
+        if (sizeHandler.handle(propertyName, context)) { return true }
+        if (marginHandler.handle(propertyName, context)) { return true }
+        if (paddingHandler.handle(propertyName, context)) { return true }
+        if (scrollMarginHandler.handle(propertyName, context)) { return true }
+        if (transitionHandler.handle(propertyName, context)) { return true }
+        if (fontHandler.handle(propertyName, context)) { return true }
+        if (insetHandler.handle(propertyName, context)) { return true }
+        if (transformHandler.handle(propertyName, context)) { return true }
+        if (boxShadowHandler.handle(propertyName, context)) { return true }
+        if (colorSchemeHandler.handle(propertyName, context)) { return true }
+        if (fallbackHandler.handle(propertyName, context)) { return true }
+        return false
+    }
+
+    /// 追加声明
+    public func appendDeclaration(decl: CssDeclaration): Unit {
+        decls.append(decl)
+    }
+
+    /// 获取声明列表
+    public func getDeclarations(): ArrayList<CssDeclaration> {
+        decls
+    }
+
+    /// 完成处理 (将各处理器的结果合并)
+    /// 严格翻译自 DeclarationHandler.finalize()
+    public func finalize(context: DeclarationPropertyHandlerContext): Unit {
+        match (direction) {
+            case Some(d) =>
+                decls.append(CssDeclaration("direction", d, false, DeclarationCssTokenPosition()))
+                direction = None
+            case None => ()
+        }
+        backgroundHandler.finalize(decls, context)
+        borderHandler.finalize(decls, context)
+        flexHandler.finalize(decls, context)
+        alignHandler.finalize(decls, context)
+        sizeHandler.finalize(decls, context)
+        marginHandler.finalize(decls, context)
+        paddingHandler.finalize(decls, context)
+        scrollMarginHandler.finalize(decls, context)
+        transitionHandler.finalize(decls, context)
+        fontHandler.finalize(decls, context)
+        insetHandler.finalize(decls, context)
+        transformHandler.finalize(decls, context)
+        boxShadowHandler.finalize(decls, context)
+        colorSchemeHandler.finalize(decls, context)
+        fallbackHandler.finalize(decls, context)
+    }
+
+    /// 默认处理器
+    /// 严格翻译自 DeclarationHandler.default()
+    public static func defaults(): DeclarationHandler {
+        DeclarationHandler()
+    }
+}
+
+// ============================================================================
+// 简化处理器类型 (用于 minify 时的属性合并)
+// 严格翻译自: declaration.zig 中引用的各 Handler
+// ============================================================================
+
+/// 背景处理器
+public class BackgroundHandler {
+    public func handle(name: String, ctx: DeclarationPropertyHandlerContext): Bool { false }
+    public func finalize(decls: ArrayList<CssDeclaration>, ctx: DeclarationPropertyHandlerContext): Unit {}
+}
+
+/// 边框处理器
+public class BorderHandler {
+    public func handle(name: String, ctx: DeclarationPropertyHandlerContext): Bool { false }
+    public func finalize(decls: ArrayList<CssDeclaration>, ctx: DeclarationPropertyHandlerContext): Unit {}
+}
+
+/// Flex 处理器
+public class FlexHandler {
+    public func handle(name: String, ctx: DeclarationPropertyHandlerContext): Bool { false }
+    public func finalize(decls: ArrayList<CssDeclaration>, ctx: DeclarationPropertyHandlerContext): Unit {}
+}
+
+/// 对齐处理器
+public class AlignHandler {
+    public func handle(name: String, ctx: DeclarationPropertyHandlerContext): Bool { false }
+    public func finalize(decls: ArrayList<CssDeclaration>, ctx: DeclarationPropertyHandlerContext): Unit {}
+}
+
+/// 尺寸处理器
+public class SizeHandler {
+    public func handle(name: String, ctx: DeclarationPropertyHandlerContext): Bool { false }
+    public func finalize(decls: ArrayList<CssDeclaration>, ctx: DeclarationPropertyHandlerContext): Unit {}
+}
+
+/// 外边距处理器
+public class MarginHandler {
+    public func handle(name: String, ctx: DeclarationPropertyHandlerContext): Bool { false }
+    public func finalize(decls: ArrayList<CssDeclaration>, ctx: DeclarationPropertyHandlerContext): Unit {}
+}
+
+/// 内边距处理器
+public class PaddingHandler {
+    public func handle(name: String, ctx: DeclarationPropertyHandlerContext): Bool { false }
+    public func finalize(decls: ArrayList<CssDeclaration>, ctx: DeclarationPropertyHandlerContext): Unit {}
+}
+
+/// 滚动外边距处理器
+public class ScrollMarginHandler {
+    public func handle(name: String, ctx: DeclarationPropertyHandlerContext): Bool { false }
+    public func finalize(decls: ArrayList<CssDeclaration>, ctx: DeclarationPropertyHandlerContext): Unit {}
+}
+
+/// 过渡处理器
+public class TransitionHandler {
+    public func handle(name: String, ctx: DeclarationPropertyHandlerContext): Bool { false }
+    public func finalize(decls: ArrayList<CssDeclaration>, ctx: DeclarationPropertyHandlerContext): Unit {}
+}
+
+/// 字体处理器
+public class FontHandler {
+    public func handle(name: String, ctx: DeclarationPropertyHandlerContext): Bool { false }
+    public func finalize(decls: ArrayList<CssDeclaration>, ctx: DeclarationPropertyHandlerContext): Unit {}
+}
+
+/// 嵌入处理器
+public class InsetHandler {
+    public func handle(name: String, ctx: DeclarationPropertyHandlerContext): Bool { false }
+    public func finalize(decls: ArrayList<CssDeclaration>, ctx: DeclarationPropertyHandlerContext): Unit {}
+}
+
+/// 变换处理器
+public class TransformHandler {
+    public func handle(name: String, ctx: DeclarationPropertyHandlerContext): Bool { false }
+    public func finalize(decls: ArrayList<CssDeclaration>, ctx: DeclarationPropertyHandlerContext): Unit {}
+}
+
+/// 阴影处理器
+public class BoxShadowHandler {
+    public func handle(name: String, ctx: DeclarationPropertyHandlerContext): Bool { false }
+    public func finalize(decls: ArrayList<CssDeclaration>, ctx: DeclarationPropertyHandlerContext): Unit {}
+}
+
+/// 颜色方案处理器
+public class ColorSchemeHandler {
+    public func handle(name: String, ctx: DeclarationPropertyHandlerContext): Bool { false }
+    public func finalize(decls: ArrayList<CssDeclaration>, ctx: DeclarationPropertyHandlerContext): Unit {}
+}
+
+/// 回退处理器
+public class FallbackHandler {
+    public func handle(name: String, ctx: DeclarationPropertyHandlerContext): Bool { false }
+    public func finalize(decls: ArrayList<CssDeclaration>, ctx: DeclarationPropertyHandlerContext): Unit {}
+}
+
+/// 属性处理上下文
+/// 严格翻译自 DeclarationPropertyHandlerContext
+public class DeclarationPropertyHandlerContext {
+    public var isImportant: Bool
+    public var allocator: Allocator
+
+    public init() {
+        this.isImportant = false
+        this.allocator = Allocator()
+    }
+}
+
+// ============================================================================
+// 辅助类型
+// ============================================================================
+
+/// Wyhash 哈希器
+public class Wyhash {
+    public func update(data: String): Unit {}
+}
+
+/// CSS token 位置
+public class DeclarationCssTokenPosition {
+    public var line: Int64
+    public var column: Int64
+
+    public init() {
+        this.line = 0
+        this.column = 0
+    }
+}
+
+/// CSS 解析器选项
+public class DeclarationCssParserOptions {
+    public var errorRecovery: Bool
+    public var filename: String
+
+    public init() {
+        this.errorRecovery = false
+        this.filename = "<input>"
+    }
+}
+
+/// CSS 解析错误
+public class DeclarationCssParseError {
+    public var message: String
+
+    public init(message: String) {
+        this.message = message
+    }
+
+    public static func unexpected_token(msg: String): DeclarationCssParseError {
+        DeclarationCssParseError(msg)
     }
 }

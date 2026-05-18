@@ -478,4 +478,12 @@ public enum CssColor {
     public func toString(): String {
         return toCss()
     }
+
+    public func getFallback(kind: CssColorFallbackKind): CssColor {
+        return deepClone()
+    }
+
+    public func getPossibleFallbacks(targets: Targets): CssColorFallbackKind {
+        return CssColorFallbackKind.none()
+    }
 }

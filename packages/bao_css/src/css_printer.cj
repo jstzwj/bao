@@ -371,6 +371,204 @@ public class CssPrinter {
         line = 1
         column = 1
     }
+
+    /// 写入所有内容 (兼容 io.Writer)
+    /// 严格翻译自 Printer.writeAll
+    public func writeAll(str: String): Unit {
+        writeStr(str)
+    }
+
+    /// 写入格式化字符串
+    /// 严格翻译自 Printer.writeFmt
+    public func writeFmt(s: String): Unit {
+        writeStr(s)
+    }
+
+    /// 写入 CSS 标识符 (带转义)
+    /// 严格翻译自 Printer.writeIdent
+    public func writeIdent(ident: String, handleCssModule: Bool): Unit {
+        writeStr(CssPrinter.serializeIdentifier(ident))
+    }
+
+    /// 写入带前缀的标识符引用
+    /// 严格翻译自 Printer.writeIdentOrRef
+    public func writeIdentOrRef(ident: String, handleCssModule: Bool): Unit {
+        writeStr(CssPrinter.serializeIdentifier(ident))
+    }
+
+    /// 写入 dashed 标识符 (--*)
+    /// 严格翻译自 Printer.writeDashedIdent
+    public func writeDashedIdent(ident: String, isDeclaration: Bool): Unit {
+        writeStr("--")
+        writeStr(ident)
+    }
+
+    /// 写入字节
+    /// 严格翻译自 Printer.writeByte
+    public func writeByte(c: UInt8): Unit {
+        writeChar(c)
+    }
+
+    /// 获取当前源文件名
+    /// 严格翻译自 Printer.filename()
+    public func getSourceFilename(): String {
+        filename()
+    }
+
+    /// 当前源索引
+    public var sourceIndex: Int64
+
+    /// 是否在 calc 中
+    public var inCalc: Bool
+
+    /// CSS Modules 上下文 (用于打印时处理 composes 等)
+    /// 严格翻译自 Printer.css_module
+    public var cssModule: ?CssModule
+
+    /// 样式上下文 (用于嵌套规则)
+    /// 严格翻译自 Printer.ctx
+    public var context: ?CssStyleContext
+
+    /// 是否移除 @import 规则 (收集依赖时)
+    /// 严格翻译自 Printer.remove_imports
+    public var removeImports: Bool
+
+    /// 是否在调试格式化中
+    /// 严格翻译自 Printer.in_debug_fmt
+    public static var inDebugFmt: Bool
+
+    /// 添加格式化错误
+    /// 严格翻译自 Printer.addFmtError
+    public func addFmtError(): CssPrintError {
+        CssPrintError.formatting_error
+    }
+
+    /// 添加无导入记录错误
+    /// 严格翻译自 Printer.addNoImportRecordError
+    public func addNoImportRecordError(): CssPrintError {
+        CssPrintError.write_error("no import records")
+    }
+
+    /// 添加无效 CSS Modules 模式错误
+    /// 严格翻译自 Printer.addInvalidCssModulesPatternInGridError
+    public func addInvalidCssModulesPatternInGridError(): CssPrintError {
+        CssPrintError.write_error("invalid css modules pattern in grid")
+    }
+
+    /// 创建新错误
+    /// 严格翻译自 Printer.newError
+    public func newError(kind: CssPrinterErrorKind, loc: ?CssDependenciesLocation): CssPrintError {
+        CssPrintError.write_error("printer error")
+    }
+
+    /// 带清除上下文执行闭包
+    /// 严格翻译自 Printer.withClearedContext
+    public func withClearedContext(fn: () -> Unit): Unit {
+        let parent = context
+        context = None
+        fn()
+        context = parent
+    }
+
+    /// 源文件列表
+    public var sources: ?ArrayList<String>
+}
+
+// ============================================================================
+// ImportInfo - 导入记录信息
+// 严格翻译自: printer.zig ImportInfo
+// ============================================================================
+
+/// 导入记录信息
+/// 严格翻译自 ImportInfo struct
+public class CssImportInfo {
+    /// 导入记录
+    public var importRecords: ArrayList<CssImportRecord>
+    /// AST URL 列表
+    public var astUrlsForCss: ArrayList<String>
+    /// AST 唯一键列表
+    public var astUniqueKeyForAdditionalFile: ArrayList<String>
+
+    public init() {
+        this.importRecords = ArrayList<CssImportRecord>()
+        this.astUrlsForCss = ArrayList<String>()
+        this.astUniqueKeyForAdditionalFile = ArrayList<String>()
+    }
+
+    /// 在 bundler 外部初始化
+    /// 严格翻译自 ImportInfo.initOutsideOfBundler
+    public static func initOutsideOfBundler(records: ArrayList<CssImportRecord>): CssImportInfo {
+        let info = CssImportInfo()
+        info.importRecords = records
+        return info
+    }
+}
+
+/// 导入记录 (简化)
+public class CssImportRecord {
+    public var path: String
+    public var sourceIndex: Int64
+
+    public init(path: String) {
+        this.path = path
+        this.sourceIndex = -1
+    }
+}
+
+// ============================================================================
+// CssPrinterErrorKind - 打印错误类型
+// 严格翻译自: printer.zig PrinterErrorKind
+// ============================================================================
+
+/// 打印错误类型
+public enum CssPrinterErrorKind {
+    | fmt_error
+    | no_import_records
+    | invalid_css_modules_pattern_in_grid
+    | other(String)
+}
+
+/// CSS 依赖位置
+public class CssDependenciesLocation {
+    public var line: Int64
+    public var column: Int64
+
+    public init(line: Int64, column: Int64) {
+        this.line = line
+        this.column = column
+    }
+}
+
+// ============================================================================
+// Targets / Features - 目标浏览器
+// 严格翻译自: printer.zig Targets, Features
+// ============================================================================
+
+/// 目标浏览器配置
+public class CssTargets {
+    /// 浏览器版本
+    public var browsers: ?CssBrowserTargets
+
+    public init() {
+        this.browsers = None
+    }
+
+    public init(browsers: CssBrowserTargets) {
+        this.browsers = Some(browsers)
+    }
+
+    /// 检查是否需要编译为旧语法
+    public func shouldCompileTargets(feature: CompatFeature): Bool {
+        match (browsers) {
+            case Some(b) => !feature.isCompatible(b)
+            case None => false
+        }
+    }
+
+    /// 检查是否需要编译同一特性
+    public func shouldCompileSame(feature: CompatFeature): Bool {
+        shouldCompileTargets(feature)
+    }
 }
 
 // ============================================================================

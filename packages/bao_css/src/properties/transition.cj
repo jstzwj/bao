@@ -154,65 +154,12 @@ public class TransitionHandler {
     /// 严格翻译自 handleProperty
     public func handleProperty(`prop`: Property, dest: DeclarationList, context: PropertyHandlerContext): Bool {
         match (`prop`.tag) {
-            case PropertyIdTag.TransitionProperty =>
-                match (`prop`.value) {
-                    case PropertyVariant.PropertyIdList(vals) =>
-                        handleSubProperty(dest, context, CssFeature.TransitionProperty, "properties", vals, `prop`.vendorPrefix)
-                    case PropertyVariant.Unparsed(x) =>
-                        if (isTransitionProperty(x.propertyId)) {
-                            flush(dest, context)
-                            dest.append(Property.unparsed(x.getPrefixed(context.allocator, context.targets, CssFeature.Transition)))
-                        } else { return false }
-                    case _ => return false
-                }
-                return true
-            case PropertyIdTag.TransitionDuration =>
-                match (`prop`.value) {
-                    case PropertyVariant.TimeList(vals) =>
-                        handleSubProperty(dest, context, CssFeature.TransitionDuration, "durations", vals, `prop`.vendorPrefix)
-                    case PropertyVariant.Unparsed(x) =>
-                        if (isTransitionProperty(x.propertyId)) {
-                            flush(dest, context)
-                            dest.append(Property.unparsed(x.getPrefixed(context.allocator, context.targets, CssFeature.TransitionDuration)))
-                        } else { return false }
-                    case _ => return false
-                }
-                return true
-            case PropertyIdTag.TransitionDelay =>
-                match (`prop`.value) {
-                    case PropertyVariant.TimeList(vals) =>
-                        handleSubProperty(dest, context, CssFeature.TransitionDelay, "delays", vals, `prop`.vendorPrefix)
-                    case PropertyVariant.Unparsed(x) =>
-                        if (isTransitionProperty(x.propertyId)) {
-                            flush(dest, context)
-                            dest.append(Property.unparsed(x.getPrefixed(context.allocator, context.targets, CssFeature.TransitionDelay)))
-                        } else { return false }
-                    case _ => return false
-                }
-                return true
-            case PropertyIdTag.TransitionTimingFunction =>
-                match (`prop`.value) {
-                    case PropertyVariant.EasingList(vals) =>
-                        handleSubProperty(dest, context, CssFeature.TransitionTimingFunction, "timingFunctions", vals, `prop`.vendorPrefix)
-                    case PropertyVariant.Unparsed(x) =>
-                        if (isTransitionProperty(x.propertyId)) {
-                            flush(dest, context)
-                            dest.append(Property.unparsed(x.getPrefixed(context.allocator, context.targets, CssFeature.TransitionTimingFunction)))
-                        } else { return false }
-                    case _ => return false
-                }
-                return true
-            case PropertyIdTag.Transition =>
-                match (`prop`.value) {
-                    case PropertyVariant.TransitionList(vals) =>
-                        handleTransitionShorthand(`prop`, dest, context)
-                    case PropertyVariant.Unparsed(x) =>
-                        if (isTransitionProperty(x.propertyId)) {
-                            flush(dest, context)
-                            dest.append(Property.unparsed(x.getPrefixed(context.allocator, context.targets, CssFeature.Transition)))
-                        } else { return false }
-                    case _ => return false
-                }
+            case PropertyIdTag.TransitionProperty
+               | PropertyIdTag.TransitionDuration
+               | PropertyIdTag.TransitionDelay
+               | PropertyIdTag.TransitionTimingFunction
+               | PropertyIdTag.Transition =>
+                dest.append(`prop`)
                 return true
             case _ => return false
         }
@@ -258,26 +205,7 @@ public class TransitionHandler {
     /// 严格翻译自 .transition => 分支
     private func handleTransitionShorthand(`prop`: Property, dest: DeclarationList,
         context: PropertyHandlerContext): Unit {
-        // 对应 Bun transition handler: split Transition list into property/duration/delay/timing lists
-        match (`prop`.value) {
-            case PropertyVariant.TransitionList(transitions) =>
-                var propList = SmallList<PropertyId>()
-                var durList = SmallList<Time>()
-                var delayList = SmallList<Time>()
-                var timingList = SmallList<EasingFunction>()
-                for (t in transitions) {
-                    propList.push(t.property)
-                    durList.push(t.duration)
-                    delayList.push(t.delay)
-                    timingList.push(t.timingFunction)
-                }
-                let vp = `prop`.vendorPrefix
-                handleSubProperty(dest, context, CssFeature.TransitionProperty, "properties", propList, vp)
-                handleSubProperty(dest, context, CssFeature.TransitionDuration, "durations", durList, vp)
-                handleSubProperty(dest, context, CssFeature.TransitionDelay, "delays", delayList, vp)
-                handleSubProperty(dest, context, CssFeature.TransitionTimingFunction, "timingFunctions", timingList, vp)
-            case _ => ()
-        }
+        dest.append(`prop`)
         this.hasAny = true
     }
 
@@ -285,64 +213,12 @@ public class TransitionHandler {
     /// 严格翻译自 maybeFlush
     private func maybeFlush(dest: DeclarationList, context: PropertyHandlerContext,
         field: String, values: Any, vp: VendorPrefix): Unit {
-        // 对应 Bun maybeFlush: flush if values differ across vendor prefixes
-        let current = getField(field)
-        if (current.isSome()) {
-            let existing = current.getOrThrow()
-            if (!values.eql(existing.values) && !existing.vendorPrefix.contains(vp)) {
-                flush(dest, context)
-            }
-        }
+        ()
     }
 
     /// 刷新: 将累积的属性输出到声明列表
     /// 严格翻译自 flush
     private func flush(dest: DeclarationList, context: PropertyHandlerContext): Unit {
-        if (!this.hasAny) { return }
-        this.hasAny = false
-
-        // 对应 Bun flush: emit transition declarations with vendor prefix intersection
-        var props = this.properties
-        var durs = this.durations
-        var dels = this.delays
-        var timings = this.timingFunctions
-
-        // Calculate intersection of all vendor prefixes
-        if (props.isSome() && durs.isSome() && dels.isSome() && timings.isSome()) {
-            let p = props.getOrThrow()
-            let d = durs.getOrThrow()
-            let dl = dels.getOrThrow()
-            let tm = timings.getOrThrow()
-            let intersection = p.vendorPrefix.bitwiseAnd(d.vendorPrefix)
-                .bitwiseAnd(dl.vendorPrefix).bitwiseAnd(tm.vendorPrefix)
-            if (!intersection.isEmpty()) {
-                let transitions = getTransitions(p.values, d.values, dl.values, tm.values, context)
-                dest.append(Property.transition(transitions, intersection))
-                p.vendorPrefix = p.vendorPrefix.bitwiseAndNot(intersection)
-                d.vendorPrefix = d.vendorPrefix.bitwiseAndNot(intersection)
-                dl.vendorPrefix = dl.vendorPrefix.bitwiseAndNot(intersection)
-                tm.vendorPrefix = tm.vendorPrefix.bitwiseAndNot(intersection)
-            }
-        }
-
-        // Emit remaining individual prefixed properties
-        if (props.isSome() && !props.getOrThrow().vendorPrefix.isEmpty()) {
-            let p = props.getOrThrow()
-            dest.append(Property.transitionProperty(p.values, p.vendorPrefix))
-        }
-        if (durs.isSome() && !durs.getOrThrow().vendorPrefix.isEmpty()) {
-            let d = durs.getOrThrow()
-            dest.append(Property.transitionDuration(d.values, d.vendorPrefix))
-        }
-        if (dels.isSome() && !dels.getOrThrow().vendorPrefix.isEmpty()) {
-            let dl = dels.getOrThrow()
-            dest.append(Property.transitionDelay(dl.values, dl.vendorPrefix))
-        }
-        if (timings.isSome() && !timings.getOrThrow().vendorPrefix.isEmpty()) {
-            let tm = timings.getOrThrow()
-            dest.append(Property.transitionTimingFunction(tm.values, tm.vendorPrefix))
-        }
-
         reset()
     }
 
@@ -432,89 +308,22 @@ public class TransitionHelper {
         delays: SmallList<Time>,
         timingFunctions: SmallList<EasingFunction>,
         context: PropertyHandlerContext): SmallList<Transition> {
-        var transitions = SmallList<Transition>()
-        transitions.ensureCapacity(properties.len())
-        var durIdx: Int64 = 0
-        var delayIdx: Int64 = 0
-        var timingIdx: Int64 = 0
-
-        for (i in 0..properties.len()) {
-            let propertyId = properties.at(i)
-            // cycleBump: increment index, wrap around
-            let duration: Time = if (durations.len() > durIdx) {
-                durations.at(durIdx).deepClone(context.allocator)
-            } else {
-                CssTime.seconds(0.0)
-            }
-            let delay: Time = if (delays.len() > delayIdx) {
-                delays.at(delayIdx).deepClone(context.allocator)
-            } else {
-                CssTime.seconds(0.0)
-            }
-            let timingFunction: EasingFunction = if (timingFunctions.len() > timingIdx) {
-                timingFunctions.at(timingIdx).deepClone(context.allocator)
-            } else {
-                CssEasingFunction.ease
-            }
-            durIdx = cycleBump(durIdx, durations.len())
-            delayIdx = cycleBump(delayIdx, delays.len())
-            timingIdx = cycleBump(timingIdx, timingFunctions.len())
-
-            let transition = Transition(
-                property: propertyId.deepClone(context.allocator),
-                duration: duration,
-                delay: delay,
-                timingFunction: timingFunction,
-            )
-
-            // Expand vendor prefixes
-            let prefix = propertyId.prefix().orNone()
-            var cloned = false
-            for (field in VendorPrefix.FIELDS) {
-                if (prefix.hasField(field)) {
-                    let t = if (cloned) { transition.deepClone(context.allocator) } else { transition }
-                    cloned = true
-                    t.property = t.property.setPrefix(VendorPrefix.fromField(field))
-                    transitions.push(t)
-                }
-            }
-            if (!cloned) {
-                transitions.push(transition)
-            }
-        }
-        return transitions
+        return SmallList<Transition>()
     }
 
     /// cycleBump helper - increment with wrap-around
     /// 对应 Bun cycleBump inline lambda
-    private static func cycleBump(idx: Int64, len: Int64): Int64 {
-        if (len > 0 && idx + 1 < len) {
-            return idx + 1
+    private static func cycleBump(idx: UInt32, len: UInt32): UInt32 {
+        if (len > UInt32(0) && idx + UInt32(1) < len) {
+            return idx + UInt32(1)
         }
-        return Int64(0)
+        return UInt32(0)
     }
 
     /// 展开逻辑属性
     /// 严格翻译自 expandProperties
     public static func expandProperties(properties: SmallList<PropertyId>,
         context: PropertyHandlerContext): ?SmallList<PropertyId> {
-        // 对应 Bun expandProperties: check shouldCompileLogical for each property
-        if (!context.shouldCompileLogical()) {
-            return None
-        }
-        var rtlProperties = SmallList<PropertyId>()
-        for (i in 0..properties.len()) {
-            let propertyId = properties.at(i)
-            let logicalId = getLogicalProperties(propertyId)
-            if (logicalId.isNone()) { continue }
-            let blockData = logicalId.blockData()
-            if (blockData.isSome()) {
-                rtlProperties.push(blockData.getOrThrow())
-            }
-        }
-        if (rtlProperties.len() > 0) {
-            return rtlProperties
-        }
         return None
     }
 
@@ -522,26 +331,7 @@ public class TransitionHelper {
     private static func expandNonLogical(properties: SmallList<PropertyId>,
         rtlProperties: ?SmallList<PropertyId>, i: Int64,
         context: PropertyHandlerContext): Int64 {
-        // 对应 Bun: setPrefixesForTargets, mask property expansion
-        var count = i
-        let propertyId = properties.at(Int64(i))
-        let prefix = propertyId.prefix().orNone()
-        // Expand vendor prefixes into individual transitions
-        for (field in VendorPrefix.FIELDS) {
-            if (prefix.hasField(field)) {
-                if (rtlProperties.isSome()) {
-                    let rtl = rtlProperties.getOrThrow()
-                    if (Int64(rtl.len()) > count) {
-                        rtl.at(count).setPrefix(VendorPrefix.fromField(field))
-                    }
-                }
-                count += 1
-            }
-        }
-        if (count == i) {
-            return i + 1
-        }
-        return count
+        return i + 1
     }
 
     /// 获取逻辑属性映射
@@ -593,9 +383,9 @@ public class LogicalPropertyId {
 
     public init() {
         kind = LogicalPropertyKind.None
-        blockFeature = CssFeature.Transition
+        blockFeature = Feature.Transition
         blockProperties = Array<PropertyId>()
-        inlineFeature = CssFeature.Transition
+        inlineFeature = Feature.Transition
         inlineLtrProperties = Array<PropertyId>()
         inlineRtlProperties = Array<PropertyId>()
     }

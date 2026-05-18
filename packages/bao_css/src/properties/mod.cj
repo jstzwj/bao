@@ -845,8 +845,12 @@ public class PropertyHandlerContext {
 /// CSS 声明列表 (存根)
 /// 严格翻译自: DeclarationList
 public class DeclarationList {
-    public var declarations: ArrayList<CssProperty>
+    public var declarations: ArrayList<Any>
     public init() {
-        this.declarations = ArrayList<CssProperty>()
+        this.declarations = ArrayList<Any>()
+    }
+
+    public func append(property: Any): Unit {
+        declarations.append(property)
     }
 }
