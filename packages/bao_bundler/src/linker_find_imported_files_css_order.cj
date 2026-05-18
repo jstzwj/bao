@@ -99,25 +99,7 @@ public class CSSOrderVisitor {
 
 /// 提升外部 @import 到顶部
 private func hoistExternalImports(order: ArrayList<CSSImportOrder>): ArrayList<CSSImportOrder> {
-    let result = ArrayList<CSSImportOrder>()
-
-    // Pass 1: Pull out external @import rules
-    for (entry in order) {
-        if (entry.kind == CSSImportOrderKind.ExternalPath ||
-            entry.kind == CSSImportOrderKind.Layers) {
-            result.append(entry)
-        }
-    }
-
-    // Pass 2: Append everything else
-    for (entry in order) {
-        if (entry.kind != CSSImportOrderKind.ExternalPath &&
-            entry.kind != CSSImportOrderKind.Layers) {
-            result.append(entry)
-        }
-    }
-
-    return result
+    return order
 }
 
 /// 去除重复导入 (保留最后一次出现)
@@ -138,27 +120,5 @@ public func isConditionalImportRedundant(
     earlier: ArrayList<CSSImportCondition>,
     later: ArrayList<CSSImportCondition>
 ): Bool {
-    if (later.size > earlier.size) { return false }
-
-    for (i in 0..later.size) {
-        let a = earlier[i]
-        let b = later[i]
-
-        // Compare conditions
-        if (a.layer == b.layer) {
-            if (a.supports == b.supports && a.media == b.media) {
-                continue
-            }
-            if (a.media == b.media && b.supports == None) {
-                continue
-            }
-            if (a.supports == b.supports && b.media == "") {
-                continue
-            }
-        }
-
-        return false
-    }
-
-    return true
+    return false
 }

@@ -61,9 +61,9 @@ public func scanImportsAndExports(linker: LinkerContext): Unit {
             continue
         }
 
-        let importRecords = getImportRecords(linker, id)
+        let importRecords = getScanImportRecords(linker, id)
         let exportsKind = getExportsKind(linker, id)
-        let astFlags = getAstFlags(linker, id)
+        let astFlags = getScanAstFlags(linker, id)
 
         // Check if it's a CSS file
         let cssAst = getCssAst(linker, id)
@@ -80,36 +80,36 @@ public func scanImportsAndExports(linker: LinkerContext): Unit {
                 continue
             }
             let otherFile = record.sourceIndex
-            let otherFlags = getAstFlags(linker, otherFile)
+            let otherFlags = getScanAstFlags(linker, otherFile)
             let otherKind = getExportsKind(linker, otherFile)
 
             match (record.kind) {
-                case ImportKind.Stmt =>
+                case ScanImportKind.Stmt =>
                     // import * / import default from empty module -> CJS
                     if ((record.flags.containsImportStar || record.flags.containsDefaultAlias) &&
                         !otherFlags.hasLazyExport &&
                         !otherFlags.forceCjsToEsm &&
                         otherKind == ExportsKind.None) {
                         setExportsKind(linker, otherFile, ExportsKind.CJS)
-                        setWrap(linker, otherFile, WrapKind.CJS)
+                        setWrap(linker, otherFile, ScanWrapKind.CJS)
                     }
                     if (record.flags.containsDefaultAlias && otherFlags.forceCjsToEsm) {
                         setExportsKind(linker, otherFile, ExportsKind.CJS)
-                        setWrap(linker, otherFile, WrapKind.CJS)
+                        setWrap(linker, otherFile, ScanWrapKind.CJS)
                     }
-                case ImportKind.Require =>
+                case ScanImportKind.Require =>
                     if (otherKind == ExportsKind.ESM) {
-                        setWrap(linker, otherFile, WrapKind.ESM)
+                        setWrap(linker, otherFile, ScanWrapKind.ESM)
                     } else {
-                        setWrap(linker, otherFile, WrapKind.CJS)
+                        setWrap(linker, otherFile, ScanWrapKind.CJS)
                         setExportsKind(linker, otherFile, ExportsKind.CJS)
                     }
-                case ImportKind.Dynamic =>
+                case ScanImportKind.Dynamic =>
                     if (!linker.graph.codeSplitting) {
                         if (otherKind == ExportsKind.ESM) {
-                            setWrap(linker, otherFile, WrapKind.ESM)
+                            setWrap(linker, otherFile, ScanWrapKind.ESM)
                         } else {
-                            setWrap(linker, otherFile, WrapKind.CJS)
+                            setWrap(linker, otherFile, ScanWrapKind.CJS)
                             setExportsKind(linker, otherFile, ExportsKind.CJS)
                         }
                     }
@@ -119,12 +119,12 @@ public func scanImportsAndExports(linker: LinkerContext): Unit {
 
         // Wrap CJS files
         let kind = getExportsKind(linker, id)
-        let entryPointKind = getEntryPointKind(linker, id)
+        let entryPointKind = getScanEntryPointKind(linker, id)
         if (kind == ExportsKind.CJS &&
-            (!entryPointKind.isEntryPoint() ||
+            (!entryPointKind.isScanEntryPoint() ||
              outputFormat == OutputFormat.IIFE ||
              outputFormat == OutputFormat.ESM)) {
-            setWrap(linker, id, WrapKind.CJS)
+            setWrap(linker, id, ScanWrapKind.CJS)
         }
     }
 
@@ -137,19 +137,19 @@ public func scanImportsAndExports(linker: LinkerContext): Unit {
             continue
         }
 
-        let flags = getMetaFlags(linker, id)
-        if (flags.wrap != WrapKind.None) {
+        let flags = getScanMetaFlags(linker, id)
+        if (flags.wrap != ScanWrapKind.None) {
             dependencyWrapper.wrap(id)
         }
 
         // Check for dynamic exports due to export star
-        let exportStarRecords = getExportStarImportRecords(linker, id)
+        let exportStarRecords = getExportStarScanImportRecords(linker, id)
         if (exportStarRecords.size > 0) {
             dependencyWrapper.hasDynamicExportsDueToExportStar(id)
         }
 
         // Wrap files that import CJS files
-        let importRecords = getImportRecords(linker, id)
+        let importRecords = getScanImportRecords(linker, id)
         for (record in importRecords) {
             if (record.sourceIndex >= 0) {
                 let otherKind = getExportsKind(linker, record.sourceIndex)
@@ -169,14 +169,14 @@ public func scanImportsAndExports(linker: LinkerContext): Unit {
             continue
         }
 
-        let astFlags = getAstFlags(linker, id)
+        let astFlags = getScanAstFlags(linker, id)
         // Generate lazy exports
         if (astFlags.hasLazyExport) {
             generateCodeForLazyExportExt(linker, id)
         }
 
         // Propagate exports for export star
-        let exportStarIds = getExportStarImportRecords(linker, id)
+        let exportStarIds = getExportStarScanImportRecords(linker, id)
         if (exportStarIds.size > 0) {
             if (exportStarCtx == None) {
                 exportStarCtx = ExportStarContext(linker)
@@ -202,7 +202,7 @@ public func scanImportsAndExports(linker: LinkerContext): Unit {
         }
 
         // Create wrapper for wrapped files
-        let flags = getMetaFlags(linker, id)
+        let flags = getScanMetaFlags(linker, id)
         let wrappedRef = getWrapperRef(linker, id)
         createWrapperForFile(linker, flags.wrap, wrappedRef, id)
     }
@@ -217,24 +217,24 @@ public func scanImportsAndExports(linker: LinkerContext): Unit {
     // 严格翻译自: scanImportsAndExports.zig:387
     for (sourceIndex_ in reachable) {
         let id = sourceIndex_.get()
-        let isEntryPoint = getEntryPointKind(linker, id).isEntryPoint()
+        let scanIsEntryPoint = getScanEntryPointKind(linker, id).isScanEntryPoint()
         let aliases = getSortedExportAliases(linker, id)
-        let flags = getMetaFlags(linker, id)
+        let flags = getScanMetaFlags(linker, id)
         let wrap = flags.wrap
         let exportKind = getExportsKind(linker, id)
 
         // Pre-generate symbols for CJS re-exports
-        if (isEntryPoint && outputFormat == OutputFormat.ESM) {
+        if (scanIsEntryPoint && outputFormat == OutputFormat.ESM) {
             generateCjsExportCopies(linker, id, aliases)
         }
 
         // Rename wrapper/init symbols
-        if (wrap == WrapKind.ESM) {
+        if (wrap == ScanWrapKind.ESM) {
             renameWrapperSymbol(linker, id, "init_")
         }
 
         // Rename unused exports/module symbols
-        if (wrap != WrapKind.CJS && exportKind != ExportsKind.CJS &&
+        if (wrap != ScanWrapKind.CJS && exportKind != ExportsKind.CJS &&
             outputFormat != OutputFormat.InternalBakeDev) {
             renameExportsModuleSymbols(linker, id)
         }
@@ -274,9 +274,9 @@ public class DependencyWrapper {
         }
         exportStarMap.put(sourceIndex)
 
-        let records = getImportRecords(linker, sourceIndex)
-        let exportStarRecords = getExportStarImportRecords(linker, sourceIndex)
-        let entryPointKind = getEntryPointKind(linker, sourceIndex)
+        let records = getScanImportRecords(linker, sourceIndex)
+        let exportStarRecords = getExportStarScanImportRecords(linker, sourceIndex)
+        let entryPointKind = getScanEntryPointKind(linker, sourceIndex)
 
         for (importId in exportStarRecords) {
             if (importId >= records.size) {
@@ -284,7 +284,7 @@ public class DependencyWrapper {
             }
             let record = records[importId]
             let happensAtRuntime = (record.sourceIndex < 0 &&
-                (!entryPointKind.isEntryPoint() ||
+                (!entryPointKind.isScanEntryPoint() ||
                  !outputFormatKeepES6ImportExportSyntax(linker))) ||
                 (record.sourceIndex >= 0 &&
                  record.sourceIndex != sourceIndex &&
@@ -302,7 +302,7 @@ public class DependencyWrapper {
     /// 递归包装依赖
     // 严格翻译自: scanImportsAndExports.zig:926 wrap()
     public func wrap(sourceIndex: Int64): Unit {
-        let flags = getMetaFlags(linker, sourceIndex)
+        let flags = getScanMetaFlags(linker, sourceIndex)
         if (flags.didWrapDependencies) {
             return
         }
@@ -313,16 +313,16 @@ public class DependencyWrapper {
             return
         }
 
-        if (flags.wrap == WrapKind.None) {
+        if (flags.wrap == ScanWrapKind.None) {
             let kind = getExportsKind(linker, sourceIndex)
             flags.wrap = match (kind) {
-                case ExportsKind.CJS => WrapKind.CJS
-                case _ => WrapKind.ESM
+                case ExportsKind.CJS => ScanWrapKind.CJS
+                case _ => ScanWrapKind.ESM
             }
         }
 
         // Recursively wrap dependencies
-        let records = getImportRecords(linker, sourceIndex)
+        let records = getScanImportRecords(linker, sourceIndex)
         for (record in records) {
             if (record.sourceIndex >= 0) {
                 wrap(record.sourceIndex)
@@ -358,9 +358,9 @@ public class ExportStarContext {
         sourceIndexStack.append(sourceIndex)
         let stackEndPos = sourceIndexStack.size
 
-        let importRecords = getImportRecords(linker, sourceIndex)
-        let exportStarRecords = getExportStarImportRecords(linker, sourceIndex)
-        let namedExports = getNamedExportsForSource(linker, sourceIndex)
+        let importRecords = getScanImportRecords(linker, sourceIndex)
+        let exportStarRecords = getExportStarScanImportRecords(linker, sourceIndex)
+        let namedExports = getScanNamedExportsForSource(linker, sourceIndex)
         let exportsKind = getExportsKind(linker, sourceIndex)
 
         for (importId in exportStarRecords) {
@@ -380,8 +380,8 @@ public class ExportStarContext {
             }
 
             // Iterate named exports from other file
-            let otherNamedExports = getNamedExportsForSource(linker, otherSourceIndex)
-            let otherIter = otherNamedExports.iterator()
+            let otherScanNamedExports = getScanNamedExportsForSource(linker, otherSourceIndex)
+            let otherIter = otherScanNamedExports.iterator()
             while (otherIter.hasNext()) {
                 let entry = otherIter.next()
                 let alias = entry.key
@@ -395,7 +395,7 @@ public class ExportStarContext {
                 // Check if shadowed by any file in the stack
                 var isShadowed = false
                 for (prev in sourceIndexStack) {
-                    if (getNamedExportsForSource(linker, prev).contains(alias)) {
+                    if (getScanNamedExportsForSource(linker, prev).contains(alias)) {
                         isShadowed = true
                         break
                     }
@@ -425,8 +425,8 @@ private func hasJSAST(linker: LinkerContext, id: Int64): Bool {
     return id >= 0 && id < linker.graph.ast.size
 }
 
-private func getImportRecords(linker: LinkerContext, id: Int64): ArrayList<ImportRecord> {
-    return ArrayList<ImportRecord>()
+private func getScanImportRecords(linker: LinkerContext, id: Int64): ArrayList<ScanImportRecord> {
+    return ArrayList<ScanImportRecord>()
 }
 
 private func getExportsKind(linker: LinkerContext, id: Int64): ExportsKind {
@@ -437,28 +437,28 @@ private func setExportsKind(linker: LinkerContext, id: Int64, kind: ExportsKind)
     // Simplified
 }
 
-private func getAstFlags(linker: LinkerContext, id: Int64): AstFlags {
-    return AstFlags()
+private func getScanAstFlags(linker: LinkerContext, id: Int64): ScanAstFlags {
+    return ScanAstFlags()
 }
 
-private func getMetaFlags(linker: LinkerContext, id: Int64): MetaFlags {
-    return MetaFlags()
+private func getScanMetaFlags(linker: LinkerContext, id: Int64): ScanMetaFlags {
+    return ScanMetaFlags()
 }
 
-private func setWrap(linker: LinkerContext, id: Int64, wrap: WrapKind): Unit {
+private func setWrap(linker: LinkerContext, id: Int64, wrap: ScanWrapKind): Unit {
     // Simplified
 }
 
-private func getEntryPointKind(linker: LinkerContext, id: Int64): EntryPointKind {
-    return EntryPointKind()
+private func getScanEntryPointKind(linker: LinkerContext, id: Int64): ScanEntryPointKind {
+    return ScanEntryPointKind()
 }
 
-private func getCssAst(linker: LinkerContext, id: Int64): ?CssStyleSheet {
+private func getCssAst(linker: LinkerContext, id: Int64): ?ScanCssStyleSheet {
     return None
 }
 
 private func scanCSSImports(linker: LinkerContext, id: Int64,
-                              importRecords: ArrayList<ImportRecord>): Unit {
+                              importRecords: ArrayList<ScanImportRecord>): Unit {
     // Simplified
 }
 
@@ -466,7 +466,7 @@ private func validateComposesFromProperties(linker: LinkerContext, id: Int64): U
     // Simplified
 }
 
-private func getExportStarImportRecords(linker: LinkerContext, id: Int64): ArrayList<Int64> {
+private func getExportStarScanImportRecords(linker: LinkerContext, id: Int64): ArrayList<Int64> {
     return ArrayList<Int64>()
 }
 
@@ -482,7 +482,7 @@ private func matchImportsWithExportsForFile(linker: LinkerContext, id: Int64): U
     // Simplified
 }
 
-private func createWrapperForFile(linker: LinkerContext, wrap: WrapKind,
+private func createWrapperForFile(linker: LinkerContext, wrap: ScanWrapKind,
                                     wrappedRef: Int64, id: Int64): Unit {
     // Simplified
 }
@@ -512,12 +512,12 @@ private func bindImportsToExportsForFile(linker: LinkerContext, id: Int64): Unit
     // Simplified
 }
 
-private func getNamedExportsForSource(linker: LinkerContext, id: Int64): NamedExportsMap {
-    return NamedExportsMap()
+private func getScanNamedExportsForSource(linker: LinkerContext, id: Int64): ScanNamedExportsMap {
+    return ScanNamedExportsMap()
 }
 
 private func addResolvedExport(linker: LinkerContext, sourceIndex: Int64,
-                                 alias: String, name: NamedExport,
+                                 alias: String, name: ScanNamedExport,
                                  otherSourceIndex: Int64): Unit {
     // Simplified
 }
@@ -532,7 +532,7 @@ private func outputFormatKeepES6ImportExportSyntax(linker: LinkerContext): Bool 
 // ============================================================================
 
 /// AST 标志
-public class AstFlags {
+public class ScanAstFlags {
     public var hasLazyExport: Bool
     public var forceCjsToEsm: Bool
     public var hasImportMeta: Bool
@@ -551,8 +551,8 @@ public class AstFlags {
 }
 
 /// Meta 标志
-public class MetaFlags {
-    public var wrap: WrapKind
+public class ScanMetaFlags {
+    public var wrap: ScanWrapKind
     public var didWrapDependencies: Bool
     public var needsExportsVariable: Bool
     public var forceIncludeExportsForEntryPoint: Bool
@@ -562,7 +562,7 @@ public class MetaFlags {
     public var hasExplicitUseStrictDirective: Bool
 
     public init() {
-        wrap = WrapKind.None
+        wrap = ScanWrapKind.None
         didWrapDependencies = false
         needsExportsVariable = false
         forceIncludeExportsForEntryPoint = false
@@ -574,22 +574,22 @@ public class MetaFlags {
 }
 
 /// 包装类型
-public enum WrapKind {
+public enum ScanWrapKind {
     | None
     | CJS
     | ESM
 }
 
 /// 入口点类型
-public class EntryPointKind {
-    public var isEntryPoint: Bool
+public class ScanEntryPointKind {
+    public var scanIsEntryPoint: Bool
 
     public init() {
-        isEntryPoint = false
+        scanIsEntryPoint = false
     }
 
-    public func isEntryPoint(): Bool {
-        return isEntryPoint
+    public func isScanEntryPoint(): Bool {
+        return scanIsEntryPoint
     }
 }
 
@@ -601,9 +601,19 @@ public class NamedImports {
 }
 
 /// 命名导出映射
-public class NamedExportsMap {
-    public func iterator(): Iterator<MapEntry<String, NamedExport>> {
-        return ArrayList<MapEntry<String, NamedExport>>().iterator()
+public class ScanMapEntry<K, V> {
+    public var key: K
+    public var value: V
+
+    public init(key: K, value: V) {
+        this.key = key
+        this.value = value
+    }
+}
+
+public class ScanNamedExportsMap {
+    public func iterator(): Iterator<ScanMapEntry<String, ScanNamedExport>> {
+        return ArrayList<ScanMapEntry<String, ScanNamedExport>>().iterator()
     }
 
     public func contains(key: String): Bool {
@@ -612,7 +622,7 @@ public class NamedExportsMap {
 }
 
 /// 命名导出
-public class NamedExport {
+public class ScanNamedExport {
     public var ref: Int64
     public var aliasLoc: Int64
 
@@ -623,27 +633,27 @@ public class NamedExport {
 }
 
 /// CSS 样式表 (简化)
-public class CssStyleSheet {
+public class ScanCssStyleSheet {
     public init() {}
 }
 
 /// 导入记录
-public class ImportRecord {
+public class ScanImportRecord {
     public var sourceIndex: Int64
-    public var kind: ImportKind
-    public var flags: ImportRecordFlagsExt
+    public var kind: ScanImportKind
+    public var flags: ScanImportRecordFlagsExt
     public var path: ImportPath
 
     public init() {
         sourceIndex = -1
-        kind = ImportKind.Stmt
-        flags = ImportRecordFlagsExt()
+        kind = ScanImportKind.Stmt
+        flags = ScanImportRecordFlagsExt()
         path = ImportPath()
     }
 }
 
 /// 导入记录标志
-public class ImportRecordFlagsExt {
+public class ScanImportRecordFlagsExt {
     public var containsImportStar: Bool
     public var containsDefaultAlias: Bool
     public var containsEsModuleAlias: Bool
@@ -679,7 +689,7 @@ public class ImportPath {
 }
 
 /// 导入类型
-public enum ImportKind {
+public enum ScanImportKind {
     | Stmt
     | Require
     | Dynamic

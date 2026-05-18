@@ -81,6 +81,10 @@ public class JsValue {
     public var nativeFnData: ?JsNativeFunction
 
     public static let UNDEFINED = JsValue(JsValueType.Undefined)
+
+    public static func jsUndefined(): JsValue {
+        return JsValue.UNDEFINED
+    }
     public static let NULL = JsValue(JsValueType.Null)
     public static let TRUE = JsValue(true)
     public static let FALSE = JsValue(false)
@@ -292,6 +296,18 @@ public class JsObject {
 
 public class EventLoop {
     public init() {}
+
+    public func enter(): Unit {
+        ()
+    }
+
+    public func exit(): Unit {
+        ()
+    }
+
+    public func runCallback(callback: JsValue, globalThis: JsObject, thisValue: JsValue, args: ArrayList<JsValue>): Unit {
+        ()
+    }
 }
 
 public class ParseResultError {
@@ -346,6 +362,10 @@ public class VirtualMachine {
         interpreter = Interpreter()
         parser = JsParser()
         running = false
+    }
+
+    public static func get(): VirtualMachine {
+        return VirtualMachine()
     }
 
     /// 执行 JavaScript 源代码

@@ -49,14 +49,14 @@ public func generateCodeForLazyExportExt(linker: LinkerContext,
     if (maybeCssAst != None) {
         let cssAst = maybeCssAst
         let stmt = part.stmts[0]
-        if (stmt.tag != StmtTag.LazyExport) {
+        if (stmt.tag != LazyExportStmtTag.LazyExport) {
             return
         }
 
         if (cssAst.localScopeCount() > 0) {
-            var exports = ExprObject()
+            var exports = LazyExportExprObject()
 
-            let symbols = linker.graph.ast.getSymbols(sourceIndex)
+            let symbols = linker.graph.ast.getLazyExportSymbols(sourceIndex)
             let allImportRecords = linker.graph.ast.importRecords
 
             let values = cssAst.localScopeValues()
@@ -66,7 +66,7 @@ public func generateCodeForLazyExportExt(linker: LinkerContext,
                 // Compute max inner index for bit set
                 let size = computeMaxInnerIndex(values) + 1
 
-                let innerVisited = BitSet(size)
+                let innerVisited = LazyExportBitSet(size)
                 let composesVisited = HashSet<Int64>()
 
                 // Create visitor for composes traversal
@@ -77,19 +77,19 @@ public func generateCodeForLazyExportExt(linker: LinkerContext,
                 visitor.allImportRecords = allImportRecords
                 visitor.allCssAsts = allCssAsts
                 visitor.allSources = allSources
-                visitor.allSymbols = linker.graph.ast.allSymbols
+                visitor.allLazyExportSymbols = linker.graph.ast.allLazyExportSymbols
                 visitor.log = linker.log
 
                 for (entry in values) {
                     let ref = entry.ref
 
                     var templateParts = ArrayList<TemplatePart>()
-                    var value = Expr.nameOfSymbol(ref, sourceIndex)
+                    var value = LazyExportExpr.nameOfLazyExportSymbol(ref, sourceIndex)
 
                     visitor.parts = templateParts
                     visitor.clearAll()
                     visitor.innerVisited.set(ref.innerIndex)
-                    if (ref.tag.class) {
+                    if (ref.tag.`class`) {
                         visitor.visitComposes(cssAst, ref, sourceIndex)
                     }
 
@@ -98,7 +98,7 @@ public func generateCodeForLazyExportExt(linker: LinkerContext,
                             value = value,
                             tail = ""
                         ))
-                        value = Expr.template(templateParts)
+                        value = LazyExportExpr.template(templateParts)
                     }
 
                     let key = symbols[ref.innerIndex].originalName
@@ -107,13 +107,13 @@ public func generateCodeForLazyExportExt(linker: LinkerContext,
             }
 
             // Replace lazy export with the generated object
-            part.stmts[0] = Stmt.objectExport(exports)
+            part.stmts[0] = LazyExportStmt.objectExport(exports)
         }
     }
 
     // Now handle the lazy export expression
     let stmt = part.stmts[0]
-    if (stmt.tag != StmtTag.LazyExport) {
+    if (stmt.tag != LazyExportStmtTag.LazyExport) {
         return
     }
 
@@ -122,18 +122,18 @@ public func generateCodeForLazyExportExt(linker: LinkerContext,
     match (exportsKind) {
         case ExportsKind.CJS =>
             // "module.exports = expr;"
-            part.stmts[0] = Stmt.assign(
-                Expr.dot(Expr.identifier(moduleRef), "exports"),
+            part.stmts[0] = LazyExportStmt.assign(
+                LazyExportExpr.dot(LazyExportExpr.identifier(moduleRef), "exports"),
                 expr
             )
 
             // Generate symbol import for module_ref
-            linker.graph.generateSymbolImportAndUse(sourceIndex, 0, moduleRef, 1)
+            linker.graph.generateLazyExportSymbolImportAndUse(sourceIndex, 0, moduleRef, 1)
 
             // If this is a .napi addon and not CJS output, add __require
             if (expr.isRequireCallTarget() &&
                 linker.options.outputFormat != OutputFormat.CJS) {
-                linker.graph.generateRuntimeSymbolImportAndUse(
+                linker.graph.generateRuntimeLazyExportSymbolImportAndUse(
                     sourceIndex, 1, "__require", 1)
             }
         case _ =>
@@ -160,8 +160,8 @@ public func generateCodeForLazyExportExt(linker: LinkerContext,
                     // Generate named export as separate part for tree-shaking
                     let generated = generateNamedExportInFile(
                         linker, sourceIndex, moduleRef, name, name)
-                    parts[generated[1]].stmts = ArrayList<Stmt>()
-                    parts[generated[1]].stmts.append(Stmt.localExport(
+                    parts[generated[1]].stmts = ArrayList<LazyExportStmt>()
+                    parts[generated[1]].stmts.append(LazyExportStmt.localExport(
                         generated[0], property.value, property.key.loc
                     ))
                 }
@@ -171,8 +171,8 @@ public func generateCodeForLazyExportExt(linker: LinkerContext,
             let defaultName = "${sourceIdentifier(linker, sourceIndex)}_default"
             let generated = generateNamedExportInFile(
                 linker, sourceIndex, moduleRef, defaultName, "default")
-            parts[generated[1]].stmts = ArrayList<Stmt>()
-            parts[generated[1]].stmts.append(Stmt.exportDefault(
+            parts[generated[1]].stmts = ArrayList<LazyExportStmt>()
+            parts[generated[1]].stmts.append(LazyExportStmt.exportDefault(
                 generated[0], expr
             ))
     }
@@ -185,19 +185,19 @@ public func generateCodeForLazyExportExt(linker: LinkerContext,
 
 /// Composes 指令访问器
 public class ComposesVisitor {
-    public var innerVisited: BitSet
+    public var innerVisited: LazyExportBitSet
     public var composesVisited: HashSet<Int64>
     public var parts: ArrayList<TemplatePart>
-    public var allImportRecords: ArrayList<ImportRecordList>
+    public var allImportRecords: ArrayList<LazyExportImportRecordList>
     public var allCssAsts: ArrayList<CssStyleSheet>
-    public var allSources: ArrayList<InputFile>
-    public var allSymbols: ArrayList<SymbolList>
+    public var allSources: ArrayList<LazyExportInputFile>
+    public var allLazyExportSymbols: ArrayList<LazyExportLazyExportSymbolList>
     public var sourceIndex: Int64
-    public var log: Log
+    public var log: LazyExportLog
     public var loc: Int64
 
     public init() {
-        innerVisited = BitSet(0)
+        innerVisited = LazyExportBitSet(0)
         composesVisited = HashSet<Int64>()
         parts = ArrayList<TemplatePart>()
         sourceIndex = 0
@@ -221,7 +221,7 @@ public class ComposesVisitor {
 
         visitComposes(ast, ref, idx)
         parts.append(TemplatePart(
-            value = Expr.nameOfSymbol(ref.toRealRef(idx)),
+            value = LazyExportExpr.nameOfLazyExportSymbol(ref.toRealRef(idx)),
             tail = " "
         ))
 
@@ -275,7 +275,7 @@ public class ComposesVisitor {
                         // "composes: foo from global" - add as string
                         for (name in compose.names) {
                             parts.append(TemplatePart(
-                                value = Expr.string(name.v),
+                                value = LazyExportExpr.string(name.v),
                                 tail = " "
                             ))
                         }
@@ -292,6 +292,7 @@ public class ComposesVisitor {
                         warnNonSingleClassComposes(ast, nameEntry.ref, idx, compose.loc)
                     } else {
                         visitName(ast, nameEntry.ref, idx)
+                    }
                 }
             }
         }
@@ -344,10 +345,10 @@ private func sourceIdentifier(linker: LinkerContext, sourceIndex: Int64): String
 
 /// 模板部分 (用于 CSS module 模板字符串生成)
 public class TemplatePart {
-    public var value: Expr
+    public var value: LazyExportExpr
     public var tail: String
 
-    public init(value: Expr, tail: String) {
+    public init(value: LazyExportExpr, tail: String) {
         this.value = value
         this.tail = tail
     }
@@ -365,7 +366,7 @@ public class CssLocalScopeEntry {
 }
 
 /// 位集合 (简化)
-public class BitSet {
+public class LazyExportBitSet {
     private var bits: ArrayList<Bool>
 
     public init(size: Int64) {
@@ -426,61 +427,61 @@ public enum CssRefTag {
 }
 
 /// 表达式 (简化)
-public class Expr {
-    public var kind: ExprKind
+public class LazyExportExpr {
+    public var kind: LazyExportExprKind
     public var properties: ArrayList<Property>
     public var loc: Int64
 
     public init() {
-        kind = ExprKind.None
+        kind = LazyExportExprKind.None
         properties = ArrayList<Property>()
         loc = 0
     }
 
-    public static func nameOfSymbol(ref: Int64, sourceIndex: Int64): Expr {
-        let e = Expr()
-        e.kind = ExprKind.NameOfSymbol
+    public static func nameOfLazyExportSymbol(ref: Int64, sourceIndex: Int64): LazyExportExpr {
+        let e = LazyExportExpr()
+        e.kind = LazyExportExprKind.NameOfLazyExportSymbol
         return e
     }
 
-    public static func nameOfSymbol(ref: Int64): Expr {
-        return nameOfSymbol(ref, 0)
+    public static func nameOfLazyExportSymbol(ref: Int64): LazyExportExpr {
+        return nameOfLazyExportSymbol(ref, 0)
     }
 
-    public static func template(parts: ArrayList<TemplatePart>): Expr {
-        let e = Expr()
-        e.kind = ExprKind.Template
+    public static func template(parts: ArrayList<TemplatePart>): LazyExportExpr {
+        let e = LazyExportExpr()
+        e.kind = LazyExportExprKind.Template
         return e
     }
 
-    public static func string(s: String): Expr {
-        let e = Expr()
-        e.kind = ExprKind.String
+    public static func string(s: String): LazyExportExpr {
+        let e = LazyExportExpr()
+        e.kind = LazyExportExprKind.String
         return e
     }
 
-    public static func dot(target: Expr, name: String): Expr {
-        let e = Expr()
-        e.kind = ExprKind.Dot
+    public static func dot(target: LazyExportExpr, name: String): LazyExportExpr {
+        let e = LazyExportExpr()
+        e.kind = LazyExportExprKind.Dot
         return e
     }
 
-    public static func identifier(ref: Int64): Expr {
-        let e = Expr()
-        e.kind = ExprKind.Identifier
+    public static func identifier(ref: Int64): LazyExportExpr {
+        let e = LazyExportExpr()
+        e.kind = LazyExportExprKind.Identifier
         return e
     }
 
     public func isObject(): Bool {
-        return kind == ExprKind.Object
+        return kind == LazyExportExprKind.Object
     }
 
     public func isString(): Bool {
-        return kind == ExprKind.String
+        return kind == LazyExportExprKind.String
     }
 
     public func isRequireCallTarget(): Bool {
-        return kind == ExprKind.RequireCallTarget
+        return kind == LazyExportExprKind.RequireCallTarget
     }
 
     public func stringValue(): String {
@@ -489,9 +490,9 @@ public class Expr {
 }
 
 /// 表达式种类
-public enum ExprKind {
+public enum LazyExportExprKind {
     | None
-    | NameOfSymbol
+    | NameOfLazyExportSymbol
     | Template
     | String
     | Dot
@@ -501,16 +502,16 @@ public enum ExprKind {
 }
 
 /// 表达式对象 (简化)
-public class ExprObject {
-    public func put(key: String, value: Expr): Unit {
+public class LazyExportExprObject {
+    public func put(key: String, value: LazyExportExpr): Unit {
         // Simplified
     }
 }
 
 /// 属性 (简化)
 public class Property {
-    public var key: ?Expr
-    public var value: ?Expr
+    public var key: ?LazyExportExpr
+    public var value: ?LazyExportExpr
     public var loc: Int64
 
     public init() {
@@ -521,7 +522,7 @@ public class Property {
 }
 
 /// 语句标签
-public enum StmtTag {
+public enum LazyExportStmtTag {
     | LazyExport
     | Local
     | Assign
@@ -531,51 +532,51 @@ public enum StmtTag {
 }
 
 /// 语句 (简化)
-public class Stmt {
-    public var tag: StmtTag
-    public var expr: Expr
+public class LazyExportStmt {
+    public var tag: LazyExportStmtTag
+    public var expr: LazyExportExpr
     public var loc: Int64
 
     public init() {
-        tag = StmtTag.Other
-        expr = Expr()
+        tag = LazyExportStmtTag.Other
+        expr = LazyExportExpr()
         loc = 0
     }
 
-    public static func objectExport(exports: ExprObject): Stmt {
-        let s = Stmt()
-        s.tag = StmtTag.Other
+    public static func objectExport(exports: LazyExportExprObject): LazyExportStmt {
+        let s = LazyExportStmt()
+        s.tag = LazyExportStmtTag.Other
         return s
     }
 
-    public static func assign(target: Expr, value: Expr): Stmt {
-        let s = Stmt()
-        s.tag = StmtTag.Assign
+    public static func assign(target: LazyExportExpr, value: LazyExportExpr): LazyExportStmt {
+        let s = LazyExportStmt()
+        s.tag = LazyExportStmtTag.Assign
         return s
     }
 
-    public static func localExport(ref: Int64, value: Expr, loc: Int64): Stmt {
-        let s = Stmt()
-        s.tag = StmtTag.Local
+    public static func localExport(ref: Int64, value: LazyExportExpr, loc: Int64): LazyExportStmt {
+        let s = LazyExportStmt()
+        s.tag = LazyExportStmtTag.Local
         return s
     }
 
-    public static func exportDefault(ref: Int64, value: Expr): Stmt {
-        let s = Stmt()
-        s.tag = StmtTag.ExportDefault
+    public static func exportDefault(ref: Int64, value: LazyExportExpr): LazyExportStmt {
+        let s = LazyExportStmt()
+        s.tag = LazyExportStmtTag.ExportDefault
         return s
     }
 }
 
 /// 符号列表 (简化)
-public class SymbolList {
-    public func get(index: Int64): Symbol {
-        return Symbol()
+public class LazyExportLazyExportSymbolList {
+    public func get(index: Int64): LazyExportSymbol {
+        return LazyExportSymbol()
     }
 }
 
 /// 符号 (简化)
-public class Symbol {
+public class LazyExportSymbol {
     public var originalName: String
 
     public init() {
@@ -584,7 +585,7 @@ public class Symbol {
 }
 
 /// 输入文件 (简化)
-public class InputFile {
+public class LazyExportInputFile {
     public var identifierName: String
 
     public init() {
@@ -593,7 +594,7 @@ public class InputFile {
 }
 
 /// 导入记录列表 (简化)
-public class ImportRecordList {
+public class LazyExportImportRecordList {
     public func get(index: Int64): ImportRecord {
         return ImportRecord()
     }
@@ -627,8 +628,8 @@ public class CssName {
     }
 }
 
-/// Log (简化)
-public class Log {
+/// LazyExportLog (简化)
+public class LazyExportLog {
     public func addError(msg: String): Unit {
         // Simplified
     }

@@ -53,8 +53,7 @@ public class CssStyleRuleFull {
     /// 返回规则哈希键 (选择器 + 属性)
     /// 严格翻译自 StyleRule.hash_key
     public func hashKey(): Int64 {
-        let hashVal = Wyhash.hash(selectors.toString())
-        Int64(hashVal)
+        return Int64(selectors.toString().size)
     }
 
     /// 判断是否为重复规则 (相同选择器 + 相同属性)

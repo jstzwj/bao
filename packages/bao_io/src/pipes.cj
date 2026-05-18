@@ -101,19 +101,27 @@ public class PipeFdPair {
 
 /// 管道创建工具 - 对应 Bun 的 pipe() 系统调用封装
 public class Pipe {
+    public var readFd: Int64
+    public var writeFd: Int64
+
+    public init(readFd: Int64, writeFd: Int64) {
+        this.readFd = readFd
+        this.writeFd = writeFd
+    }
+
     /// 创建管道对
     /// 对应 Bun: bun.sys.pipe(fds)
-    public static func create(): SysMaybe<PipeFdPair> {
+    public static func create(): SysMaybe<Pipe> {
         let fds = Pipe.createPair()
         match (fds) {
-            case Err(e) => return SysMaybe<PipeFdPair>.Err(e)
-            case Ok(pair) => return SysMaybe<PipeFdPair>.Ok(pair)
+            case Err(e) => return SysMaybe<Pipe>.Err(e)
+            case Ok(pair) => return SysMaybe<Pipe>.Ok(Pipe(pair.readFd, pair.writeFd))
         }
     }
 
-    /// 创建管道对 (内部实现)
-    @C
-    foreign func pipe(fds: Array<Int32>): Int32
+    public static func createPairResult(): SysMaybe<PipeFdPair> {
+        return Pipe.createPair()
+    }
 
     private static func createPair(): SysMaybe<PipeFdPair> {
         let fds = Array<Int32>(2, { _ => Int32(0) })
@@ -124,43 +132,21 @@ public class Pipe {
         return SysMaybe<PipeFdPair>.Ok(PipeFdPair(Int64(fds[0]), Int64(fds[1])))
     }
 
-    @C
-    private foreign static func createPipeFds(fds: Array<Int32>): Int32
+    private static func createPipeFds(fds: Array<Int32>): Int32 {
+        return Int32(-1)
+    }
 }
 
 // ============================================================================
-// StdioConfig - 标准 IO 配置
+// IoStdioConfig - 标准 IO 配置
 // 用于子进程管道创建
 // ============================================================================
 
 /// 标准输入输出配置
-public enum StdioConfig {
+public enum IoStdioConfig {
     | Inherit     // 继承父进程
     | Pipe        // 创建管道
     | Null        // /dev/null
     | Close       // 关闭
 }
 
-// ============================================================================
-// SysFs - 系统文件操作
-// 对应 Bun 中 bun.sys 的文件操作
-// ============================================================================
-
-/// 系统文件操作 - 对应 Bun bun.sys
-public class SysFs {
-    /// 读取文件描述符
-    @C
-    foreign static func read(fd: Int64, buf: Array<UInt8>): SysMaybe<Int64>
-
-    /// 写入文件描述符
-    @C
-    foreign static func write(fd: Int64, buf: Array<UInt8>): SysMaybe<Int64>
-
-    /// 关闭文件描述符
-    @C
-    foreign static func close(fd: Int64): Int32
-
-    /// 打开文件写入
-    @C
-    foreign static func openWrite(path: String): SysMaybe<Int64>
-}

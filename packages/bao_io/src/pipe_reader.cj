@@ -25,7 +25,7 @@ import bao_collections.*
 //           onReaderDone: *const fn (*anyopaque) void,
 //           onReaderError: *const fn (*anyopaque, bun.sys.Error) void,
 //           loop: *const fn (*anyopaque) *Async.Loop,
-//           eventLoop: *const fn (*anyopaque) jsc.EventLoopHandle,
+//           eventLoop: *const fn (*anyopaque) jsc.IoEventLoopHandle,
 //       }
 //       pub fn eventLoop, loop, isStreamingEnabled, onReadChunk, onReaderDone, onReaderError
 //   }
@@ -41,14 +41,22 @@ public class BufferedReaderVTable {
     /// 读取错误回调
     public var onReaderError: (SysError) -> Unit
     /// 获取事件循环
-    public var getEventLoop: () -> EventLoopHandle
+    public var getEventLoop: () -> IoEventLoopHandle
     /// 获取循环
     public var getLoop: () -> IoLoop
+
+    public init() {
+        onReadChunk = None
+        onReaderDone = { => () }
+        onReaderError = { _ => () }
+        getEventLoop = { => IoEventLoopHandle(IoEventLoopKind.Mini) }
+        getLoop = { => IoLoop(Int64(0)) }
+    }
 
     public init(onReadChunk: ?(Array<UInt8>, ReadState) -> Bool,
                 onReaderDone: () -> Unit,
                 onReaderError: (SysError) -> Unit,
-                getEventLoop: () -> EventLoopHandle,
+                getEventLoop: () -> IoEventLoopHandle,
                 getLoop: () -> IoLoop) {
         this.onReadChunk = onReadChunk
         this.onReaderDone = onReaderDone
@@ -59,7 +67,10 @@ public class BufferedReaderVTable {
 
     /// 是否启用流式读取
     public func isStreamingEnabled(): Bool {
-        return onReadChunk != None
+        match (onReadChunk) {
+            case Some(_) => true
+            case None => false
+        }
     }
 
     /// 调用读取块回调
@@ -81,17 +92,17 @@ public class BufferedReaderVTable {
     }
 }
 
-/// 事件循环句柄 (简化)
-public class EventLoopHandle {
-    public var tag: EventLoopKind
+/// IO 内部事件循环句柄 (简化)
+public class IoEventLoopHandle {
+    public var tag: IoEventLoopKind
 
-    public init(tag: EventLoopKind) {
+    public init(tag: IoEventLoopKind) {
         this.tag = tag
     }
 }
 
-/// 事件循环类型
-public enum EventLoopKind {
+/// IO 内部事件循环类型
+public enum IoEventLoopKind {
     | Js
     | Mini
 }
@@ -190,7 +201,37 @@ public class PosixBufferedReader {
         this.vtable = vtable
         flags = ReaderFlags()
         count = 0
-        maxBufSize = Int64.MAX_VALUE
+        maxBufSize = Int64(9223372036854775807)
+    }
+
+    public init(fd: Int64, capacity: Int64) {
+        handle = PollOrFd(fd)
+        buffer = ArrayList<UInt8>()
+        offset = 0
+        vtable = BufferedReaderVTable()
+        flags = ReaderFlags()
+        count = 0
+        maxBufSize = capacity
+    }
+
+    public func isEof(): Bool {
+        return flags.receivedEof
+    }
+
+    public func fillFromFd(): SysMaybe<Int64> {
+        return SysMaybe<Int64>.Ok(Int64(0))
+    }
+
+    public func available(): Int64 {
+        return Int64(buffer.size) - offset
+    }
+
+    public func readBytes(count: Int64): ?Array<UInt8> {
+        return Some([])
+    }
+
+    public func readLine(): ?String {
+        return None
     }
 
     /// 是否完成 - 对应 Bun PosixBufferedReader.isDone
@@ -200,7 +241,7 @@ public class PosixBufferedReader {
 
     /// 内存开销 - 对应 Bun PosixBufferedReader.memoryCost
     public func memoryCost(): Int64 {
-        return Int64(1024) + Int64(buffer.capacity)
+        return Int64(1024) + Int64(buffer.size)
     }
 
     /// 获取文件描述符 - 对应 Bun PosixBufferedReader.getFd
@@ -270,7 +311,7 @@ public class PosixBufferedReader {
 
     /// 完成回调 - 对应 Bun PosixBufferedReader.done
     public func done(): Unit {
-        if (handle.kind != PollOrFdKind.Closed && flags.closeHandle) {
+        if (!handle.isClosed() && flags.closeHandle) {
             closeHandle()
             return
         } else if (flags.closedWithoutReporting) {
@@ -298,7 +339,7 @@ public class PosixBufferedReader {
             return
         }
         if (flags.closeHandle) {
-            handle.close(null, { => })
+            handle.close()
         }
     }
 
@@ -307,7 +348,7 @@ public class PosixBufferedReader {
         if (getFd() != INVALID_FD) {
             flags.closedWithoutReporting = true
             if (flags.closeHandle) {
-                handle.close(null, { => })
+                handle.close()
             }
         }
     }
@@ -508,12 +549,12 @@ public class WindowsBufferedReader {
         buffer = ArrayList<UInt8>()
         flags = WindowsReaderFlags()
         this.vtable = vtable
-        maxBufSize = Int64.MAX_VALUE
+        maxBufSize = Int64(9223372036854775807)
     }
 
     /// 内存开销
     public func memoryCost(): Int64 {
-        return Int64(1024) + Int64(buffer.capacity)
+        return Int64(1024) + Int64(buffer.size)
     }
 
     /// 是否完成
@@ -524,7 +565,7 @@ public class WindowsBufferedReader {
     /// 获取文件描述符
     public func getFd(): Int64 {
         if (let Some(s) <- source) {
-            return s.getFd()
+            return Int64(s.getFd())
         }
         return INVALID_FD
     }
@@ -532,7 +573,7 @@ public class WindowsBufferedReader {
     /// 开始 - 对应 Bun WindowsBufferedReader.start
     public func start(fd: Int64, isPollable: Bool): SysMaybe<Unit> {
         let src = Source(SourceKind.File)
-        src.file = FileSource(fd)
+        src.file = FileSource(Int32(fd))
         source = src
         return startWithCurrentPipe()
     }

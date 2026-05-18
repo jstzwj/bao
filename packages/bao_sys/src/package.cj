@@ -1472,7 +1472,7 @@ public class SysModule {
             secPtr.write(ms / Int64(1000))
             nsecPtr.write((ms % Int64(1000)) * Int64(1000000))
             // nanosleep(req, NULL)
-            nanosleep(req, CPointer<Unit>.null())
+            nanosleep(req, CPointer<Unit>())
             free(req)
         }
     }
@@ -1496,12 +1496,12 @@ public class SysModule {
             while (true) {
                 let entryPtr = environPtr(i)
                 if (entryPtr.isNull()) { break }
-                let entry = entryPtr.readString()
-                if (entry.length == 0) { break }
+                let entry = unsafeCStringToString(entryPtr)
+                if (entry.size == 0) { break }
                 result.append(entry)
                 i += 1
             }
         }
-        return result.toArray()
+        return result.toOwnedSlice()
     }
 }

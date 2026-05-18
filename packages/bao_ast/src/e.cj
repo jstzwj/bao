@@ -1218,23 +1218,6 @@ public class GFn {
     }
 }
 
-/// 属性 - 对应 Bun G.Property
-public enum PropertyKind {
-    | Normal
-    | Spread
-    | Getter
-    | Setter
-
-    public func name(): String {
-        match (this) {
-            case Normal => "normal"
-            case Spread => "spread"
-            case Getter => "getter"
-            case Setter => "setter"
-        }
-    }
-}
-
 public class GProperty {
     public var key: ?ASTNode
     public var value: ?ASTNode

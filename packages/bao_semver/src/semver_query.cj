@@ -67,6 +67,19 @@ public enum SemverTokenTag {
     }
 }
 
+private func isSemverTokenTag(left: SemverTokenTag, right: SemverTokenTag): Bool {
+    match (left) {
+        case SemverTokenTag.None => return match (right) { case SemverTokenTag.None => true; case _ => false }
+        case SemverTokenTag.Gt => return match (right) { case SemverTokenTag.Gt => true; case _ => false }
+        case SemverTokenTag.Gte => return match (right) { case SemverTokenTag.Gte => true; case _ => false }
+        case SemverTokenTag.Lt => return match (right) { case SemverTokenTag.Lt => true; case _ => false }
+        case SemverTokenTag.Lte => return match (right) { case SemverTokenTag.Lte => true; case _ => false }
+        case SemverTokenTag.Version => return match (right) { case SemverTokenTag.Version => true; case _ => false }
+        case SemverTokenTag.Tilda => return match (right) { case SemverTokenTag.Tilda => true; case _ => false }
+        case SemverTokenTag.Caret => return match (right) { case SemverTokenTag.Caret => true; case _ => false }
+    }
+}
+
 // ============================================================================
 // SemverWildcard - 通配符级别
 // 严格翻译自: src/semver/SemverQuery.rs - Wildcard enum

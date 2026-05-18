@@ -30,8 +30,8 @@ import bao_path.*
 // 严格翻译自: renameSymbolsInChunk.zig:1 renameSymbolsInChunk()
 public func renameSymbolsInChunkExt(linker: LinkerContext,
                                       chunk: Chunk,
-                                      filesInOrder: ArrayList<Int64>): Renamer {
-    let allModuleScopes = linker.graph.ast.moduleScopes
+                                      filesInOrder: ArrayList<Int64>): RenameRenamer {
+    let allRenameModuleRenameScopes = linker.graph.ast.moduleRenameScopes
     let allFlags = linker.graph.meta.flags
     let allParts = linker.graph.ast.parts
     let allWrapperRefs = linker.graph.ast.wrapperRefs
@@ -40,14 +40,14 @@ public func renameSymbolsInChunkExt(linker: LinkerContext,
     // Compute initial reserved names
     var reservedNames = computeInitialReservedNames(linker.options.outputFormat)
     for (sourceIndex in filesInOrder) {
-        computeReservedNamesForScope(
-            allModuleScopes[sourceIndex],
+        computeReservedNamesForRenameScope(
+            allRenameModuleRenameScopes[sourceIndex],
             linker.graph.symbols,
             reservedNames)
     }
 
     // Collect sorted imports from other chunks
-    var sortedImportsFromOtherChunks = ArrayList<StableRef>()
+    var sortedImportsFromOtherChunks = ArrayList<RenameStableRef>()
     let importsFromOtherChunks = chunk.content.javascript.importsFromOtherChunks
     let stableSourceIndices = linker.graph.stableSourceIndices
 
@@ -58,7 +58,7 @@ public func renameSymbolsInChunkExt(linker: LinkerContext,
 
     for (entry in importsFromOtherChunks) {
         for (ref in entry.value) {
-            sortedImportsFromOtherChunks.append(StableRef(
+            sortedImportsFromOtherChunks.append(RenameStableRef(
                 stableSourceIndices[ref.ref.sourceIndex()],
                 ref.ref
             ))
@@ -66,7 +66,7 @@ public func renameSymbolsInChunkExt(linker: LinkerContext,
     }
 
     // Sort by stable source index
-    StableRef.sort(sortedImportsFromOtherChunks)
+    RenameStableRef.sort(sortedImportsFromOtherChunks)
 
     // Choose renaming strategy
     if (linker.options.minifyIdentifiers) {
@@ -85,17 +85,17 @@ public func renameSymbolsInChunkExt(linker: LinkerContext,
 private func renameSymbolsMinified(linker: LinkerContext,
                                      chunk: Chunk,
                                      filesInOrder: ArrayList<Int64>,
-                                     sortedImports: ArrayList<StableRef>,
-                                     reservedNames: HashSet<String>): Renamer {
+                                     sortedImports: ArrayList<RenameStableRef>,
+                                     reservedNames: HashSet<String>): RenameRenamer {
     // Compute first top-level slot counts
-    let nestedScopeSlotCounts = linker.graph.ast.nestedScopeSlotCounts
-    var firstTopLevelSlots = SlotCounts()
+    let nestedRenameScopeRenameSlotCounts = linker.graph.ast.nestedRenameScopeRenameSlotCounts
+    var firstTopLevelSlots = RenameSlotCounts()
     for (i in filesInOrder) {
-        firstTopLevelSlots.unionMax(nestedScopeSlotCounts[i])
+        firstTopLevelSlots.unionMax(nestedRenameScopeRenameSlotCounts[i])
     }
 
     // Create minify renamer
-    let minifyRenamer = MinifyRenamer(linker.graph.symbols, firstTopLevelSlots, reservedNames)
+    let minifyRenameRenamer = MinifyRenameRenamer(linker.graph.symbols, firstTopLevelSlots, reservedNames)
 
     // Collect top-level symbols
     var topLevelSymbols = ArrayList<StableSymbolCount>()
@@ -127,10 +127,10 @@ private func renameSymbolsMinified(linker: LinkerContext,
         topLevelSymbols.clear()
 
         if (astFlags.usesExportsRef) {
-            accumulateSymbolUseCount(topLevelSymbols, exportsRef, 1, stableSourceIndices)
+            accumulateRenameSymbolUseCount(topLevelSymbols, exportsRef, 1, stableSourceIndices)
         }
         if (astFlags.usesModuleRef) {
-            accumulateSymbolUseCount(topLevelSymbols, moduleRef, 1, stableSourceIndices)
+            accumulateRenameSymbolUseCount(topLevelSymbols, moduleRef, 1, stableSourceIndices)
         }
 
         for (part in parts) {
@@ -138,10 +138,10 @@ private func renameSymbolsMinified(linker: LinkerContext,
                 continue
             }
 
-            accumulateSymbolUseCounts(topLevelSymbols, part.symbolUses, stableSourceIndices)
+            accumulateRenameSymbolUseCounts(topLevelSymbols, part.symbolUses, stableSourceIndices)
 
             for (declaredRef in part.declaredSymbols) {
-                accumulateSymbolUseCount(topLevelSymbols, declaredRef, 1, stableSourceIndices)
+                accumulateRenameSymbolUseCount(topLevelSymbols, declaredRef, 1, stableSourceIndices)
             }
         }
 
@@ -153,17 +153,17 @@ private func renameSymbolsMinified(linker: LinkerContext,
     // Add cross-chunk imports
     topLevelSymbols.clear()
     for (stableRef in sortedImports) {
-        accumulateSymbolUseCount(topLevelSymbols, stableRef.ref, 1, stableSourceIndices)
+        accumulateRenameSymbolUseCount(topLevelSymbols, stableRef.ref, 1, stableSourceIndices)
     }
     topLevelSymbolsAll.appendAll(topLevelSymbols)
 
     // Allocate slots and assign names by frequency
-    minifyRenamer.allocateTopLevelSymbolSlots(topLevelSymbolsAll)
+    minifyRenameRenamer.allocateTopLevelSymbolSlots(topLevelSymbolsAll)
 
     let minifier = freq.compile()
-    minifyRenamer.assignNamesByFrequency(minifier)
+    minifyRenameRenamer.assignNamesByFrequency(minifier)
 
-    return minifyRenamer.toRenamer()
+    return minifyRenameRenamer.toRenameRenamer()
 }
 
 /// 普通模式的符号重命名
@@ -171,14 +171,14 @@ private func renameSymbolsMinified(linker: LinkerContext,
 private func renameSymbolsNumbered(linker: LinkerContext,
                                       chunk: Chunk,
                                       filesInOrder: ArrayList<Int64>,
-                                      sortedImports: ArrayList<StableRef>,
-                                      reservedNames: HashSet<String>): Renamer {
+                                      sortedImports: ArrayList<RenameStableRef>,
+                                      reservedNames: HashSet<String>): RenameRenamer {
     let allFlags = linker.graph.meta.flags
     let allParts = linker.graph.ast.parts
     let allWrapperRefs = linker.graph.ast.wrapperRefs
     let allImportRecords = linker.graph.ast.importRecords
 
-    let r = NumberRenamer(linker.graph.symbols, reservedNames)
+    let r = NumberRenameRenamer(linker.graph.symbols, reservedNames)
 
     // Add cross-chunk imports as top-level symbols
     for (stableRef in sortedImports) {
@@ -230,8 +230,8 @@ private func renameSymbolsNumbered(linker: LinkerContext,
                         }
                     }
                 }
-                r.assignNamesRecursiveWithNumberScope(
-                    r.root, allModuleScopes[sourceIndex], sourceIndex)
+                r.assignNamesRecursiveWithNumberRenameScope(
+                    r.root, allRenameModuleRenameScopes[sourceIndex], sourceIndex)
                 continue
             case WrapKind.ESM =>
                 // ESM wrapper: add wrapper ref as top-level
@@ -247,12 +247,13 @@ private func renameSymbolsNumbered(linker: LinkerContext,
 
             r.addTopLevelDeclaredSymbols(part.declaredSymbols)
             for (scope in part.scopes) {
-                r.assignNamesRecursiveWithNumberScope(
+                r.assignNamesRecursiveWithNumberRenameScope(
                     r.root, scope, sourceIndex)
+            }
         }
     }
 
-    return r.toRenamer()
+    return r.toRenameRenamer()
 }
 
 // ============================================================================
@@ -261,7 +262,7 @@ private func renameSymbolsNumbered(linker: LinkerContext,
 
 /// 计算初始保留名称
 // 严格翻译自: renamer.computeInitialReservedNames()
-private func computeInitialReservedNames(format: OutputFormat): HashSet<String> {
+private func computeInitialReservedNames(format: RenameOutputFormat): HashSet<String> {
     let reserved = HashSet<String>()
     // JavaScript keywords and built-in names that cannot be used
     reserved.put("break")
@@ -315,15 +316,15 @@ private func computeInitialReservedNames(format: OutputFormat): HashSet<String> 
 }
 
 /// 为作用域计算保留名称
-private func computeReservedNamesForScope(moduleScope: ModuleScope,
-                                            symbols: SymbolMap,
+private func computeReservedNamesForRenameScope(moduleRenameScope: RenameModuleRenameScope,
+                                            symbols: RenameSymbolMap,
                                             reservedNames: HashSet<String>): Unit {
     // Iterate module scope members, add non-renamable names
     // Simplified
 }
 
 /// 积累符号使用计数
-private func accumulateSymbolUseCount(list: ArrayList<StableSymbolCount>,
+private func accumulateRenameSymbolUseCount(list: ArrayList<StableSymbolCount>,
                                         ref: Int64, count: Int64,
                                         stableIndices: ArrayList<Int64>): Unit {
     let stableIdx = if (ref >= 0 && ref < stableIndices.size) {
@@ -335,13 +336,13 @@ private func accumulateSymbolUseCount(list: ArrayList<StableSymbolCount>,
 }
 
 /// 批量积累符号使用计数
-private func accumulateSymbolUseCounts(list: ArrayList<StableSymbolCount>,
-                                          symbolUses: HashMap<Int64, SymbolUse>,
+private func accumulateRenameSymbolUseCounts(list: ArrayList<StableSymbolCount>,
+                                          symbolUses: HashMap<Int64, RenameSymbolUse>,
                                           stableIndices: ArrayList<Int64>): Unit {
     let iter = symbolUses.iterator()
     while (iter.hasNext()) {
         let entry = iter.next()
-        accumulateSymbolUseCount(list, entry.key, entry.value.count, stableIndices)
+        accumulateRenameSymbolUseCount(list, entry.key, entry.value.count, stableIndices)
     }
 }
 
@@ -369,7 +370,7 @@ public class StableSymbolCount {
 }
 
 /// 稳定引用
-public class StableRef {
+public class RenameStableRef {
     public var stableSourceIndex: Int64
     public var ref: Int64
 
@@ -379,7 +380,7 @@ public class StableRef {
     }
 
     /// 排序
-    public static func sort(list: ArrayList<StableRef>): Unit {
+    public static func sort(list: ArrayList<RenameStableRef>): Unit {
         // Sort by stableSourceIndex ascending
         // Simplified
     }
@@ -423,19 +424,19 @@ public class NameGenerator {
 }
 
 /// Slot 计数
-public class SlotCounts {
-    public func unionMax(other: SlotCounts): Unit {
+public class RenameSlotCounts {
+    public func unionMax(other: RenameSlotCounts): Unit {
         // Simplified
     }
 }
 
 /// 压缩重命名器
-public class MinifyRenamer {
-    public var symbols: SymbolMap
-    public var firstTopLevelSlots: SlotCounts
+public class MinifyRenameRenamer {
+    public var symbols: RenameSymbolMap
+    public var firstTopLevelSlots: RenameSlotCounts
     public var reservedNames: HashSet<String>
 
-    public init(symbols: SymbolMap, firstTopLevelSlots: SlotCounts,
+    public init(symbols: RenameSymbolMap, firstTopLevelSlots: RenameSlotCounts,
                 reservedNames: HashSet<String>) {
         this.symbols = symbols
         this.firstTopLevelSlots = firstTopLevelSlots
@@ -450,21 +451,21 @@ public class MinifyRenamer {
         // Simplified
     }
 
-    public func toRenamer(): Renamer {
-        return Renamer()
+    public func toRenameRenamer(): RenameRenamer {
+        return RenameRenamer()
     }
 }
 
 /// 数字重命名器
-public class NumberRenamer {
-    public var root: NumberScope
-    public var symbols: SymbolMap
+public class NumberRenameRenamer {
+    public var root: NumberRenameScope
+    public var symbols: RenameSymbolMap
     public var reservedNames: HashSet<String>
 
-    public init(symbols: SymbolMap, reservedNames: HashSet<String>) {
+    public init(symbols: RenameSymbolMap, reservedNames: HashSet<String>) {
         this.symbols = symbols
         this.reservedNames = reservedNames
-        this.root = NumberScope()
+        this.root = NumberRenameScope()
     }
 
     public func addTopLevelSymbol(ref: Int64): Unit {
@@ -477,29 +478,29 @@ public class NumberRenamer {
         }
     }
 
-    public func assignNamesRecursiveWithNumberScope(
-        parent: NumberScope, scope: Scope, sourceIndex: Int64): Unit {
+    public func assignNamesRecursiveWithNumberRenameScope(
+        parent: NumberRenameScope, scope: RenameScope, sourceIndex: Int64): Unit {
         // Simplified
     }
 
-    public func toRenamer(): Renamer {
-        return Renamer()
+    public func toRenameRenamer(): RenameRenamer {
+        return RenameRenamer()
     }
 }
 
 /// 数字作用域
-public class NumberScope {
+public class NumberRenameScope {
     public init() {}
 }
 
 /// 模块作用域 (简化)
-public class ModuleScope {}
+public class RenameModuleRenameScope {}
 
 /// 作用域 (简化)
-public class Scope {}
+public class RenameScope {}
 
 /// 重命名器 (简化)
-public class Renamer {
+public class RenameRenamer {
     public init() {}
 
     public func nameForSymbol(ref: Int64): String {
@@ -508,7 +509,7 @@ public class Renamer {
 }
 
 /// 符号使用信息
-public class SymbolUse {
+public class RenameSymbolUse {
     public var count: Int64
 
     public init() {
@@ -517,7 +518,7 @@ public class SymbolUse {
 }
 
 /// 符号映射 (简化)
-public class SymbolMap {
+public class RenameSymbolMap {
     public func follow(ref: Int64): Int64 {
         return ref
     }
@@ -532,13 +533,13 @@ public enum StmtKind {
 }
 
 /// 输出格式 (扩展)
-public enum OutputFormat {
+public enum RenameOutputFormat {
     | ESM
     | CJS
     | IIFE
     | InternalBakeDev
 
     public func keepES6ImportExportSyntax(): Bool {
-        return this == OutputFormat.ESM || this == OutputFormat.IIFE
+        return this == RenameOutputFormat.ESM || this == RenameOutputFormat.IIFE
     }
 }

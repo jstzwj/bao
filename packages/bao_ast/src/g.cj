@@ -316,8 +316,3 @@ public class FunctionFlags {
 // 辅助类型引用
 // ============================================================================
 
-/// 绑定节点 - 在 binding.cj 中定义
-public typealias BindingNode = BindingNode
-
-/// AST 节点 - 在 package.cj 中定义
-public typealias ASTNode = ASTNode

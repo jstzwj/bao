@@ -24,8 +24,6 @@ foreign func getnameinfo(sa: CPointer<Unit>, salen: UIntNative,
     host: CPointer<Int8>, hostlen: UIntNative,
     serv: CPointer<Int8>, servlen: UIntNative,
     flags: Int32): Int32
-@C
-foreign func inet_pton(af: Int32, src: CPointer<Int8>, dst: CPointer<Unit>): Int32
 
 // getaddrinfo 常量
 public class AddrInfoFlags {
@@ -206,15 +204,15 @@ public class BasicDnsResolver {
                 return SysMaybe<String>.Err(SysError(0, SysTag.TODO))
             }
             // NI_NAMEREQD = 8
-            let rc = getnameinfo(sa, UIntNative(128), hostBuf, UIntNative(1025),
-                servBuf, UIntNative(32), Int32(8))
+            let rc = getnameinfo(sa, UIntNative(128), CPointer<Int8>(hostBuf), UIntNative(1025),
+                CPointer<Int8>(servBuf), UIntNative(32), Int32(8))
             if (rc != 0) {
                 free(hostBuf)
                 free(servBuf)
                 free(sa)
                 return SysMaybe<String>.Err(SysError(UInt16(rc), SysTag.TODO))
             }
-            let hostname = CPointer<Int8>(hostBuf).readString()
+            let hostname = unsafeCStringToString(CPointer<Int8>(hostBuf))
             free(hostBuf)
             free(servBuf)
             free(sa)
@@ -231,7 +229,7 @@ private func SockAddrFromIp(ip: String): CPointer<Unit> {
         let af: Int32 = if (isV6) { 10 } else { 2 }
         let saSize: UIntNative = if (isV6) { UIntNative(128) } else { UIntNative(16) }
         let sa = malloc(saSize)
-        CPointer<Int8>(sa).write(Int8(0), count: Int64(saSize))
+        memset(sa, 0, saSize)
         let ipPtr = unsafeNewCString(ip)
         // Write address family
         let familyPtr = CPointer<Int16>(sa)
@@ -242,7 +240,7 @@ private func SockAddrFromIp(ip: String): CPointer<Unit> {
         let result = inet_pton(af, ipPtr, dstPtr)
         if (result != 1) {
             free(sa)
-            return CPointer<Unit>.null()
+            return CPointer<Unit>()
         }
         // Set port to 0
         let portPtr = CPointer<Int16>(sa) + Int64(1)

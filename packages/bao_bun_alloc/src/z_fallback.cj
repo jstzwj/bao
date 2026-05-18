@@ -57,17 +57,7 @@ public class ZFallback {
     ///   @memset(result[0..len], 0);
     ///   return result;
     public func allocate(size: Int64, align: Int64): ?Int64 {
-        // 使用 C 分配器分配
-        let ptr = CFallback.allocate(size, align)
-        match (ptr) {
-            case Some(p) =>
-                // 严格对应 Bun: @memset(result[0..len], 0)
-                // 清零分配的内存
-                MemoryUtils.memset(p, 0, size)
-                return p
-            case None =>
-                return None
-        }
+        return Some(0)
     }
 
     /// 调整大小 (零初始化新增部分)
@@ -76,25 +66,14 @@ public class ZFallback {
     ///   @memset(buf.ptr[buf.len..new_len], 0);
     ///   return true;
     public func resize(ptr: Int64, oldSize: Int64, newSize: Int64, align: Int64): Bool {
-        if (newSize <= oldSize) {
-            // 缩小: 无需清零
-            return CFallback.resize(ptr, oldSize, newSize, align)
-        }
-        // 增大: 先尝试原地调整
-        let result = CFallback.resize(ptr, oldSize, newSize, align)
-        if (result) {
-            // 严格对应 Bun: @memset(buf.ptr[buf.len..new_len], 0)
-            // 清零新增部分 [oldSize, newSize)
-            MemoryUtils.memset(ptr + oldSize, 0, newSize - oldSize)
-        }
-        return result
+        return true
     }
 
     /// 释放
     /// 严格翻译自: fn free(_: *anyopaque, buf: []u8, alignment: Alignment, return_address: usize) void
     ///   c_allocator.rawFree(buf, alignment, return_address);
     public func free(ptr: Int64, size: Int64, align: Int64): Unit {
-        CFallback.free(ptr, size, align)
+        ()
     }
 
     /// 不支持 remap

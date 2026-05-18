@@ -268,9 +268,9 @@ public class PipeIo {
 
     /// 创建子进程管道配置
     /// 对应 Bun: spawn 中的管道创建
-    public static func createChildPipes(config: StdioConfig): ?ChildPipe {
+    public static func createChildPipes(config: IoStdioConfig): ?ChildPipe {
         match (config) {
-            case StdioConfig.Pipe =>
+            case IoStdioConfig.Pipe =>
                 let result = create()
                 match (result) {
                     case Ok((reader, writer)) =>

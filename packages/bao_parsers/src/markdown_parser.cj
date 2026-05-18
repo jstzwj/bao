@@ -13,7 +13,6 @@
 //   对应: md/ref_defs.zig - 引用定义
 package bao_parsers
 
-import bao_core.*
 import bao_collections.*
 
 extend String {

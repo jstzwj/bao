@@ -751,11 +751,12 @@ public class EnvironmentBuilder {
         // Copy parent environment via SysModule.getEnvAll
         let parentEnv = SysModule.getEnvAll()
         for (entry in parentEnv) {
-            let eqIdx = entry.indexOf("=")
-            if (eqIdx >= 0) {
-                let key = entry.substring(0, eqIdx)
-                let val = entry.substring(eqIdx + 1)
-                result.put(key, val)
+            match (entry.indexOf("=")) {
+                case Some(eqIdx) =>
+                    let key = entry[Int64(0)..eqIdx]
+                    let val = entry[(eqIdx + Int64(1))..entry.size]
+                    result.put(key, val)
+                case None => ()
             }
         }
         // Child env overrides parent

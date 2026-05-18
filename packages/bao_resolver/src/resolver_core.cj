@@ -99,28 +99,6 @@ public enum SideEffects {
 // 严格翻译自: resolver.zig - ast.ImportKind (引用)
 // ============================================================================
 
-/// 导入类型 - 对应 Bun ImportKind
-public enum ImportKind {
-    | Entry              // 入口点
-    | Stmt               // import 语句
-    | Dynamic            // import() 表达式
-    | Require            // require() 调用
-    | RequireResolve     // require.resolve()
-    | At                 // CSS @import
-    | AtConditional      // CSS 条件 @import
-    | Url                // CSS url()
-
-    /// 是否来自 CSS
-    public func isFromCSS(): Bool {
-        match (this) {
-            case At => true
-            case AtConditional => true
-            case Url => true
-            case _ => false
-        }
-    }
-}
-
 // ============================================================================
 // ModuleType - 模块类型
 // 严格翻译自: resolver.zig - options.ModuleType (引用)
@@ -341,6 +319,49 @@ public enum ResolveStatus {
     | Failure                 // 解析失败
     | Pending                 // 等待安装
     | NotFound                // 未找到模块
+}
+
+public class ResolveUnionResult {
+    public var status: ResolveStatus
+    public var result: ?ResolveResult
+    public var matchResult: ?MatchResult
+    public var pending: ?PendingResolution
+    public var error: ?String
+
+    public init() {
+        status = ResolveStatus.NotFound
+        result = None
+        matchResult = None
+        pending = None
+        error = None
+    }
+
+    public static func success(result: ResolveResult): ResolveUnionResult {
+        let r = ResolveUnionResult()
+        r.status = ResolveStatus.Success
+        r.result = Some(result)
+        r
+    }
+
+    public static func notFound(): ResolveUnionResult {
+        let r = ResolveUnionResult()
+        r.status = ResolveStatus.NotFound
+        r
+    }
+
+    public static func failure(error: String): ResolveUnionResult {
+        let r = ResolveUnionResult()
+        r.status = ResolveStatus.Failure
+        r.error = Some(error)
+        r
+    }
+
+    public static func createPending(p: PendingResolution): ResolveUnionResult {
+        let r = ResolveUnionResult()
+        r.status = ResolveStatus.Pending
+        r.pending = Some(p)
+        r
+    }
 }
 
 // ============================================================================
@@ -665,137 +686,6 @@ public class RootPathPair {
 }
 
 // ============================================================================
-// BundleOptions - 打包选项 (解析器使用的部分)
-// 严格翻译自: resolver.zig - options.BundleOptions (引用)
-// ============================================================================
-
-/// 打包选项 (解析器使用的部分)
-public class ResolverBundleOptions {
-    public var target: BundleTarget
-    public var extensionOrder: Array<String>
-    public var externalPatterns: ArrayList<ExternalPattern>
-    public var packages: PackagePolicy
-    public var markBuiltinsAsExternal: Bool
-    public var preserveSymlinks: Bool
-    public var loadPackageJson: Bool
-    public var loadTsconfigJson: Bool
-    public var tsconfigOverride: ?String
-    public var globalCache: GlobalCache
-    public var jsx: JsxPragma
-    public var framework: ?FrameworkInfo
-
-    public init() {
-        target = BundleTarget.Browser
-        extensionOrder = [".tsx", ".ts", ".jsx", ".js", ".json"]
-        externalPatterns = ArrayList<ExternalPattern>()
-        packages = PackagePolicy.Bundler
-        markBuiltinsAsExternal = true
-        preserveSymlinks = false
-        loadPackageJson = true
-        loadTsconfigJson = true
-        tsconfigOverride = None
-        globalCache = GlobalCache.Auto
-        jsx = JsxPragma()
-        framework = None
-    }
-}
-
-/// 打包目标
-public enum BundleTarget {
-    | Browser
-    | Node
-    | Bun
-}
-
-/// 包策略
-public enum PackagePolicy {
-    | Bundler      // 正常打包
-    | External     // 所有包标记为外部
-}
-
-/// 全局缓存策略
-public enum GlobalCache {
-    | Auto
-    | Disable
-    | Fallback
-    | Force
-}
-
-/// 外部模式
-public class ExternalPattern {
-    public var prefix: String
-    public var suffix: String
-
-    public init(prefix: String, suffix: String) {
-        this.prefix = prefix
-        this.suffix = suffix
-    }
-}
-
-/// 框架信息
-public class FrameworkInfo {
-    public var builtInModules: HashMap<String, FrameworkModule>
-
-    public init() {
-        builtInModules = HashMap<String, FrameworkModule>()
-    }
-}
-
-/// 框架模块类型
-public enum FrameworkModule {
-    | Code
-    | Import(String)
-}
-
-// ============================================================================
-// ResolveWithoutRemapResult - 不重映射的解析结果
-// ============================================================================
-
-/// 不重映射的解析结果联合体
-public class ResolveUnionResult {
-    public var status: ResolveStatus
-    public var result: ?ResolveResult
-    public var matchResult: ?MatchResult
-    public var pending: ?PendingResolution
-    public var error: ?String
-
-    public init() {
-        status = ResolveStatus.NotFound
-        result = None
-        matchResult = None
-        pending = None
-        error = None
-    }
-
-    public static func success(result: ResolveResult): ResolveUnionResult {
-        let r = ResolveUnionResult()
-        r.status = ResolveStatus.Success
-        r.result = Some(result)
-        r
-    }
-
-    public static func notFound(): ResolveUnionResult {
-        let r = ResolveUnionResult()
-        r.status = ResolveStatus.NotFound
-        r
-    }
-
-    public static func failure(error: String): ResolveUnionResult {
-        let r = ResolveUnionResult()
-        r.status = ResolveStatus.Failure
-        r.error = Some(error)
-        r
-    }
-
-    public static func createPending(p: PendingResolution): ResolveUnionResult {
-        let r = ResolveUnionResult()
-        r.status = ResolveStatus.Pending
-        r.pending = Some(p)
-        r
-    }
-}
-
-// ============================================================================
 // Resolver - 模块解析器
 // 严格翻译自: resolver.zig - Resolver
 //   pub const Resolver = struct {
@@ -879,7 +769,7 @@ public class Resolver {
     public init(opts: ResolverBundleOptions) {
         this.opts = opts
         log = ArrayList<String>()
-        extensionOrder = opts.extensionOrder
+        extensionOrder = opts.extensionOrder.defaultGroup.defaultOrder
         careAboutBinFolder = false
         careAboutBrowserField = match (opts.target) { case BundleTarget.Browser => true case _ => false }
         debugLogs = None
@@ -1518,7 +1408,7 @@ public class Resolver {
     /// 是否为外部模式
     /// 对应 Bun Resolver.isExternalPattern()
     func isExternalPattern(importPath: String): Bool {
-        if (match (opts.packages) { case PackagePolicy.External => true case _ => false } && isPackagePath(importPath)) {
+        if (match (opts.packages) { case PackageStrategy.External => true case _ => false } && isPackagePath(importPath)) {
             return true
         }
         matchesUserExternalPattern(importPath)
@@ -1527,10 +1417,8 @@ public class Resolver {
     /// 是否匹配用户定义的外部模式
     /// 对应 Bun Resolver.matchesUserExternalPattern()
     func matchesUserExternalPattern(importPath: String): Bool {
-        for (pattern in opts.externalPatterns) {
-            if (importPath.size >= pattern.prefix.size + pattern.suffix.size &&
-                importPath.startsWith(pattern.prefix) &&
-                importPath.endsWith(pattern.suffix)) {
+        for (pattern in opts.external.patterns) {
+            if (pattern.matches(importPath)) {
                 return true
             }
         }
@@ -1662,22 +1550,6 @@ class FileInfo {
 
     public prop isExecutable: Bool {
         get() { false }
-    }
-}
-
-// ============================================================================
-// GlobalCache 扩展
-// ============================================================================
-
-/// GlobalCache 扩展方法
-extend GlobalCache {
-    public func isEnabled(): Bool {
-        match (this) {
-            case Auto => true
-            case Disable => false
-            case Fallback => true
-            case Force => true
-        }
     }
 }
 

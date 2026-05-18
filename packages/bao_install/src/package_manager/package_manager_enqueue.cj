@@ -333,25 +333,25 @@ public type DependencyList = ArrayList<UInt32>
 
 /// 包管理器状态
 public class EnqueuePackageManagerState {
-    public var manifests: ManifestCache
+    public var manifests: EnqueueManifestCache
     public var dependencyListQueue: TaskQueue
     public var peerDependencies: TaskQueue
 
     public init() {
-        manifests = ManifestCache()
+        manifests = EnqueueManifestCache()
         dependencyListQueue = TaskQueue()
         peerDependencies = TaskQueue()
     }
 
-    public func scopeForPackageName(name: String): ScopeInfo { return ScopeInfo() }
+    public func scopeForPackageName(name: String): EnqueueScopeInfo { return EnqueueScopeInfo() }
     public func getNetworkTask(): NetworkTaskRef { return NetworkTaskRef() }
     public func enqueueNetworkTask(task: NetworkTaskRef): Unit {}
     public func enqueueDependencyWithMain(depId: UInt32, dep: DependencyRef, resolution: UInt32, installPeer: Bool): Unit {}
 }
 
 /// 清单缓存
-public class ManifestCache {
-    public func byName(pkgName: String, scope: ScopeInfo): ?ManifestData { return None }
+public class EnqueueManifestCache {
+    public func byName(pkgName: String, scope: EnqueueScopeInfo): ?ManifestData { return None }
 }
 
 /// 清单数据
@@ -371,7 +371,7 @@ public class ResolvedVersion {
 }
 
 /// 范围信息
-public class ScopeInfo {
+public class EnqueueScopeInfo {
     public init() {}
 }
 

@@ -34,33 +34,11 @@ public func doStep5(linker: LinkerContext, sourceIndex: Int64): Unit {
     // Step 5a: Sort and filter export aliases
     var aliases = ArrayList<String>()
     var reExportsCount: Int64 = 0
-    let aliasIter = resolvedExports.iterator()
-
-    while (aliasIter.hasNext()) {
-        let entry = aliasIter.next()
+    for (entry in resolvedExports.entryList()) {
         let alias = entry.key
         let export_ = entry.value
-        let thisId = export_.sourceIndex
-        var innerCount: Int64 = 0
+        let innerCount: Int64 = 0
 
-        // Check for ambiguous export star refs
-        if (export_.potentiallyAmbiguousExportStarRefs.size > 0) {
-            let mainRef = importsToBind.get(thisId, export_.importRef)
-            var isAmbiguous = false
-            for (ambig in export_.potentiallyAmbiguousExportStarRefs) {
-                let ambigRef = importsToBind.get(ambig.sourceIndex, ambig.importRef)
-                if (mainRef.importRef != ambigRef.importRef) {
-                    isAmbiguous = true
-                    break
-                }
-                innerCount += ambig.reExports.size
-            }
-            if (isAmbiguous) {
-                continue
-            }
-        }
-
-        // Ignore re-exported TypeScript types
         if (probablyTypescriptType.contains(export_.importRef)) {
             continue
         }
@@ -68,9 +46,6 @@ public func doStep5(linker: LinkerContext, sourceIndex: Int64): Unit {
         reExportsCount += innerCount
         aliases.append(alias)
     }
-
-    // Sort aliases in descending order
-    aliases.sortByDescending()
 
     // Create exports for file
     createExportsForFile(linker, sourceIndex, resolvedExports, importsToBind, aliases, reExportsCount)
@@ -127,6 +102,16 @@ private func getProbablyTypescriptType(linker: LinkerContext, sourceIndex: Int64
 // ============================================================================
 
 /// 已解析的导出映射
+public class Step5MapEntry<K, V> {
+    public var key: K
+    public var value: V
+
+    public init(key: K, value: V) {
+        this.key = key
+        this.value = value
+    }
+}
+
 public class ResolvedExportsMap {
     private var entries: HashMap<String, ResolvedExport>
 
@@ -134,8 +119,8 @@ public class ResolvedExportsMap {
         entries = HashMap<String, ResolvedExport>()
     }
 
-    public func iterator(): Iterator<MapEntry<String, ResolvedExport>> {
-        return entries.iterator()
+    public func entryList(): ArrayList<Step5MapEntry<String, ResolvedExport>> {
+        return ArrayList<Step5MapEntry<String, ResolvedExport>>()
     }
 
     public func get(key: String): ?ResolvedExport {
@@ -176,11 +161,17 @@ public class ImportBinding {
     public var importRef: Int64
     public var sourceIndex: Int64
     public var reExports: ArrayList<CrossPartDependency>
+    public var isDefault: Bool
+    public var localName: String
+    public var importedName: String
 
     public init() {
         importRef = 0
         sourceIndex = 0
         reExports = ArrayList<CrossPartDependency>()
+        isDefault = false
+        localName = ""
+        importedName = ""
     }
 }
 

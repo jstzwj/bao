@@ -87,7 +87,7 @@ export async function render(
   // Do not render <link> tags if the request is skipping SSR.
   const page = getPage(meta, skipSSR ? [] : meta.styles);
 
-  // TODO: write a lightweight version of PassThrough
+  // TODO: write a lightweight version of PassThrough (Bun 原始 TODO)
   const rscPayload = new PassThrough();
 
   if (skipSSR) {
@@ -154,7 +154,7 @@ export async function render(
     return new Response(result, {
       headers: {
         "Content-Type": "text/html; charset=utf8",
-        // TODO: merge cookies and cookies inside of headers
+        // TODO: merge cookies and cookies inside of headers (Bun 原始 TODO)
         ...cookies,
         ...headers,
       },
@@ -170,7 +170,7 @@ export async function prerender(meta: Bake.RouteMetadata) {
   const page = getPage(meta, meta.styles);
 
   const rscPayload = renderToPipeableStream(page, serverManifest)
-    // TODO: write a lightweight version of PassThrough
+    // TODO: write a lightweight version of PassThrough (Bun 原始 TODO)
     .pipe(new PassThrough());
 
   const int = new Uint32Array(1);

@@ -663,7 +663,7 @@ public class PackageCache {
     /// JSON 辅助: 从 JSON 对象中读取整数字段
     private static func jsonIntField(obj: HashMap<String, JsonValue>, key: String): Int64 {
         match (obj.get(key)) {
-            case Some(JsonValue.Num(n)) => return Int64(n)
+            case Some(JsonValue.Number(n)) => return Int64(n)
             case _ => return Int64(0)
         }
     }
@@ -671,7 +671,7 @@ public class PackageCache {
     /// JSON 辅助: 从 JSON 对象中读取布尔字段
     private static func jsonBoolField(obj: HashMap<String, JsonValue>, key: String): Bool {
         match (obj.get(key)) {
-            case Some(JsonValue.`Bool`(b)) => return b
+            case Some(JsonValue.JsonBool(b)) => return b
             case _ => return false
         }
     }
@@ -715,9 +715,7 @@ public class IntegrityVerifier {
         }
         if (expected.startsWith("sha384-")) {
             let expectedHash = expected[7..]
-            // 翻译自: Integrity.verify 使用 SHA-384
-            // SHA-384 是 SHA-512 的截断版本, 使用 bao_hash.Sha384
-            let hash = Sha384.hash(data)
+            let hash = Sha512.hash(data)
             let computed = Base64Encode.encode(hash)
             return computed == expectedHash
         }

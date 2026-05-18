@@ -1,5 +1,5 @@
 // 严格翻译自:
-//   src/bundler/linker_context/MetafileBuilder.zig (1085行)
+//   src/bundler/linker_context/LegacyMetafileBuilder.zig (1085行)
 //   src/bundler/linker_context/postProcessJSChunk.zig (1125行, metafile 部分)
 // bao_bundler - Metafile 生成: esbuild 兼容的 metafile JSON 输出
 package bao_bundler
@@ -13,7 +13,7 @@ import bao_sys.*
 
 // ============================================================================
 // Metafile 构建器
-// 严格翻译自: linker_context/MetafileBuilder.zig (1085行)
+// 严格翻译自: linker_context/LegacyMetafileBuilder.zig (1085行)
 //
 // 生成与 esbuild 格式兼容的 metafile JSON:
 // {
@@ -44,11 +44,11 @@ import bao_sys.*
 // ============================================================================
 
 /// Metafile 构建器
-// 严格翻译自: MetafileBuilder.zig:31 MetafileBuilder
-public class MetafileBuilder {
+// 严格翻译自: LegacyMetafileBuilder.zig:31 LegacyMetafileBuilder
+public class LegacyMetafileBuilder {
 
     /// 生成单个 chunk 的 JSON 片段
-    // 严格翻译自: MetafileBuilder.zig:36 generateChunkJson()
+    // 严格翻译自: LegacyMetafileBuilder.zig:36 generateChunkJson()
     // 在并行 chunk 生成期间调用，结果存储在 chunk.metafile_chunk_json 中
     public static func generateChunkJson(
         linker: LinkerContext,
@@ -72,7 +72,7 @@ public class MetafileBuilder {
 // ============================================================================
 
 /// Metafile 输入信息
-// 严格翻译自: MetafileBuilder.zig 中 MetafileInput
+// 严格翻译自: LegacyMetafileBuilder.zig 中 MetafileInput
 public class MetafileInput {
     /// 文件路径
     public var path: String
@@ -92,7 +92,7 @@ public class MetafileInput {
 }
 
 /// Metafile 导入信息
-// 严格翻译自: MetafileBuilder.zig 中 MetafileImport
+// 严格翻译自: LegacyMetafileBuilder.zig 中 MetafileImport
 public class MetafileImport {
     /// 导入路径
     public var path: String
@@ -109,7 +109,7 @@ public class MetafileImport {
 }
 
 /// Metafile 输出信息
-// 严格翻译自: MetafileBuilder.zig 中 MetafileOutput
+// 严格翻译自: LegacyMetafileBuilder.zig 中 MetafileOutput
 public class MetafileOutput {
     /// 输出路径
     public var path: String
@@ -143,7 +143,7 @@ public class MetafileOutput {
 }
 
 /// 完整的 Metafile
-// 严格翻译自: MetafileBuilder.zig 中完整 metafile 结构
+// 严格翻译自: LegacyMetafileBuilder.zig 中完整 metafile 结构
 public class Metafile {
     /// 输入文件
     public var inputs: HashMap<String, MetafileInput>

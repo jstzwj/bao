@@ -8,6 +8,7 @@
 package bao_ast
 
 import bao_core.*
+import bao_collections.*
 
 // ============================================================================
 // Target - 编译目标平台
@@ -105,7 +106,7 @@ public enum Target {
 }
 
 /// 目标平台名称映射 - 对应 Target.MAP
-public let TARGET_MAP: HashMap<String, Target> = {
+public let TARGET_MAP: HashMap<String, Target> = { =>
     let m = HashMap<String, Target>()
     m.put("browser", Target.Browser)
     m.put("bun", Target.Bun)

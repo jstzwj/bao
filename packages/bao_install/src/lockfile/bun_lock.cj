@@ -34,8 +34,8 @@ public enum TextLockfileVersion {
     /// 翻译自: Version.from_int
     public static func fromInt(n: UInt32): ?TextLockfileVersion {
         match (n) {
-            case UInt32(0) => TextLockfileVersion.V0
-            case UInt32(1) => TextLockfileVersion.V1
+            case 0 => TextLockfileVersion.V0
+            case 1 => TextLockfileVersion.V1
             case _ => None
         }
     }

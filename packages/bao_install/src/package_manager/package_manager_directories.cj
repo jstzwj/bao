@@ -559,7 +559,7 @@ private func crashOnCreateError(err: SyscallError): Unit {
 /// 翻译自: saveLockfile
 public func saveLockfile(
     manager: PackageManager,
-    loadResult: LoadResult,
+    loadResult: DirectoryLoadResult,
     saveFormat: LockfileFormat,
     hadAnyDiffs: Bool,
     lockfileBeforeInstall: Lockfile,
@@ -599,7 +599,7 @@ public func saveLockfile(
 }
 
 /// update lockfile packages helper
-private func updateLockfilePackages(manager: PackageManager, ok: LoadSuccess): Unit {
+private func updateLockfilePackages(manager: PackageManager, ok: DirectoryLoadSuccess): Unit {
     if (ok.serializerResult.packagesNeedUpdate) {
         let slice = manager.lockfile.packages.slice()
         for (meta in slice.itemsMetaMut()) {
@@ -612,10 +612,10 @@ private func updateLockfilePackages(manager: PackageManager, ok: LoadSuccess): U
 /// 翻译自: updateLockfileIfNeeded
 public func updateLockfileIfNeeded(
     manager: PackageManager,
-    loadResult: LoadResult
+    loadResult: DirectoryLoadResult
 ): Result<Unit> {
     match (loadResult) {
-        case LoadResult.Ok(ok) => updateLockfilePackages(manager, ok)
+        case DirectoryLoadResult.Ok(ok) => updateLockfilePackages(manager, ok)
         case _ => ()
     }
     return Result.Ok(())
@@ -669,14 +669,14 @@ public class DirectoryCommandContext {
 }
 
 /// 锁文件加载结果
-public enum LoadResult {
+public enum DirectoryLoadResult {
     | NotFound
-    | Err(LoadError)
-    | Ok(LoadSuccess)
+    | Err(DirectoryLoadError)
+    | Ok(DirectoryLoadSuccess)
 }
 
 /// 加载错误
-public class LoadError {
+public class DirectoryLoadError {
     public var format: LockfileFormat
 
     public init(format: LockfileFormat) {
@@ -685,7 +685,7 @@ public class LoadError {
 }
 
 /// 加载成功
-public class LoadSuccess {
+public class DirectoryLoadSuccess {
     public var format: LockfileFormat
     public var serializerResult: SerializerResult
 

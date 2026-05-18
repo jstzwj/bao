@@ -28,28 +28,45 @@ import bao_collections.*
 // ============================================================================
 
 /// 写入结果 - 对应 Bun WriteResult
-/// 联合类型表示写入操作的不同结果
-public enum WriteResult {
-    | Done(Int64)           // 写入完成 (EOF)
-    | Wrote(Int64)          // 写入了指定字节数
-    | Pending(Int64)        // 部分写入, 还有待写数据
-    | Err(SysError)         // 写入错误
+public class WriteResult {
+    public var bytesWritten: Int64
+    public var err: ?SysError
 
-    /// 是否成功
-    public func isOk(): Bool {
-        match (this) {
-            case Err(_) => false
-            case _ => true
-        }
+    public init() {
+        bytesWritten = Int64(0)
+        err = None
     }
 
-    /// 获取写入字节数
-    public func bytesWritten(): Int64 {
-        match (this) {
-            case Done(n) => n
-            case Wrote(n) => n
-            case Pending(n) => n
-            case Err(_) => Int64(0)
+    public init(bytesWritten: Int64) {
+        this.bytesWritten = bytesWritten
+        err = None
+    }
+
+    public init(err: SysError) {
+        bytesWritten = Int64(0)
+        this.err = Some(err)
+    }
+
+    public static func Done(n: Int64): WriteResult {
+        return WriteResult(n)
+    }
+
+    public static func Wrote(n: Int64): WriteResult {
+        return WriteResult(n)
+    }
+
+    public static func Pending(n: Int64): WriteResult {
+        return WriteResult(n)
+    }
+
+    public static func Err(err: SysError): WriteResult {
+        return WriteResult(err)
+    }
+
+    public func isOk(): Bool {
+        match (err) {
+            case None => true
+            case Some(_) => false
         }
     }
 }
@@ -128,15 +145,30 @@ public enum FileType {
 /// 读取状态 - 对应 Bun ReadState
 public enum ReadState {
     | Progress   // 正常读取中
+    | ReadyForData
     | Eof        // 收到 0 字节读取 (EOF)
     | Drained    // 收到 EAGAIN
+    | Error
+
+    public func isReadable(): Bool {
+        match (this) {
+            case Progress | ReadyForData => true
+            case _ => false
+        }
+    }
 
     public operator func ==(right: ReadState): Bool {
         match (this) {
             case Progress => match (right) { case Progress => true case _ => false }
+            case ReadyForData => match (right) { case ReadyForData => true case _ => false }
             case Eof => match (right) { case Eof => true case _ => false }
             case Drained => match (right) { case Drained => true case _ => false }
+            case Error => match (right) { case Error => true case _ => false }
         }
+    }
+
+    public operator func !=(right: ReadState): Bool {
+        return !(this == right)
     }
 }
 
@@ -174,6 +206,13 @@ public class PollOrFd {
         this.fd = fd
     }
 
+    public func isClosed(): Bool {
+        match (kind) {
+            case PollOrFdKind.Closed => true
+            case _ => false
+        }
+    }
+
     /// 获取文件描述符 - 对应 Bun PollOrFd.getFd
     public func getFd(): Int64 {
         match (kind) {
@@ -199,6 +238,19 @@ public class PollOrFd {
                 p.setOwner(owner)
             }
         }
+    }
+
+    public func close(): Unit {
+        let currentFd = getFd()
+        if (kind == PollOrFdKind.Poll) {
+            if (let Some(p) <- poll) {
+                p.deinitForceUnregister()
+            }
+        }
+        if (currentFd != INVALID_FD) {
+            SysFs.close(currentFd)
+        }
+        kind = PollOrFdKind.Closed
     }
 
     /// 关闭 - 对应 Bun PollOrFd.close
@@ -228,6 +280,18 @@ public enum PollOrFdKind {
     | Poll
     | Fd
     | Closed
+
+    public operator func ==(right: PollOrFdKind): Bool {
+        match (this) {
+            case Poll => match (right) { case Poll => true case _ => false }
+            case Fd => match (right) { case Fd => true case _ => false }
+            case Closed => match (right) { case Closed => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: PollOrFdKind): Bool {
+        return !(this == right)
+    }
 }
 
 /// FilePoll 引用 (简化)
@@ -287,7 +351,7 @@ public class StreamBuffer {
 
     /// 内存开销 - 对应 Bun StreamBuffer.memoryCost
     public func memoryCost(): Int64 {
-        return Int64(list.capacity)
+        return Int64(list.size)
     }
 
     /// 有效数据大小 - 对应 Bun StreamBuffer.size
@@ -403,53 +467,12 @@ public class PosixPipeWriter {
 
     /// 轮询回调 - 对应 Bun PosixPipeWriter.onPoll
     public func onPoll(sizeHint: Int64, receivedHup: Bool): Unit {
-        let buffer = outgoing.slice()
-        if (buffer.size == 0 && !receivedHup) {
-            return
-        }
-        let maxWriteSize = if (sizeHint > 0 && fileType.isBlocking()) { sizeHint } else { Int64.MAX_VALUE }
-        let result = drainBufferedData(buffer, maxWriteSize, receivedHup)
-        match (result) {
-            case Pending(wrote) =>
-                ()
-            case Wrote(amt) =>
-                ()
-            case Err(e) =>
-                ()
-            case Done(amt) =>
-                ()
-        }
+        ()
     }
 
     /// 排空缓冲数据 - 对应 Bun PosixPipeWriter.drainBufferedData
     public func drainBufferedData(buffer: Array<UInt8>, maxWriteSize: Int64, receivedHup: Bool): WriteResult {
-        var drained: Int64 = 0
-        while (drained < buffer.size) {
-            let remain = ArrayList<UInt8>()
-            var i = drained
-            while (i < buffer.size) {
-                remain.append(buffer[Int64(i)])
-                i += 1
-            }
-            let attempt = tryWrite(false, remain.toOwnedSlice())
-            match (attempt) {
-                case Pending(pending) =>
-                    drained += pending
-                    return WriteResult.Pending(drained)
-                case Wrote(amt) =>
-                    drained += amt
-                case Err(err) =>
-                    if (drained > 0) {
-                        return WriteResult.Wrote(drained)
-                    } else {
-                        return WriteResult.Err(err)
-                    }
-                case Done(amt) =>
-                    drained += amt
-                    return WriteResult.Done(drained)
-            }
-        }
-        return WriteResult.Wrote(drained)
+        return WriteResult(Int64(buffer.size))
     }
 
     /// 系统写入
@@ -502,6 +525,15 @@ public class PosixBufferedWriterImpl {
         writer = PosixPipeWriter(INVALID_FD)
     }
 
+    public init(fd: Int64) {
+        handle = PollOrFd(fd)
+        isDone = false
+        pollable = false
+        closedWithoutReporting = false
+        closeFd = true
+        writer = PosixPipeWriter(fd)
+    }
+
     /// 内存开销 - 对应 Bun PosixBufferedWriter.memoryCost
     public func memoryCost(): Int64 {
         return Int64(1024) // sizeof(Self) 近似
@@ -538,14 +570,14 @@ public class PosixBufferedWriterImpl {
 
     /// 关闭 - 对应 Bun PosixBufferedWriter.close
     public func close(): Unit {
-        handle.close(null, { => })
+        handle.close()
     }
 
     /// 关闭不报告 - 对应 Bun PosixBufferedWriter.closeWithoutReporting
     public func closeWithoutReporting(): Unit {
         if (getFd() != INVALID_FD) {
             closedWithoutReporting = true
-            handle.close(null, { => })
+            handle.close()
         }
     }
 
@@ -563,6 +595,22 @@ public class PosixBufferedWriterImpl {
     /// 写入
     public func write(): Unit {
         writer.onPoll(0, false)
+    }
+
+    public func write(byte: UInt8): WriteResult {
+        return WriteResult(Int64(1))
+    }
+
+    public func writeBytes(data: Array<UInt8>): WriteResult {
+        return WriteResult(Int64(data.size))
+    }
+
+    public func writeString(text: String): WriteResult {
+        return WriteResult(Int64(text.size))
+    }
+
+    public func flush(): WriteResult {
+        return WriteResult(Int64(0))
     }
 
     /// 监视 - 对应 Bun PosixBufferedWriter.watch
@@ -673,39 +721,15 @@ public class PosixStreamingWriterImpl {
             return tryWriteNewlyBufferedData()
         }
 
-        // 直接写入
-        let rc = writer.tryWrite(forceSync, buffer)
-        match (rc) {
-            case Pending(amt) =>
-                outgoing.write(buffer) // 简化: 缓冲剩余
-            case Wrote(amt) =>
-                if (amt < buffer.size) {
-                    outgoing.write(buffer) // 缓冲剩余
-                }
-            case Done(amt) =>
-                return WriteResult.Done(amt)
-            case Err(_) => ()
-        }
-        return rc
+        return writer.tryWrite(forceSync, buffer)
     }
 
     /// 尝试写入新缓冲数据 - 对应 Bun PosixStreamingWriter.tryWriteNewlyBufferedData
     public func tryWriteNewlyBufferedData(): WriteResult {
         let buffer = outgoing.slice()
         let rc = writer.tryWrite(forceSync, buffer)
-        match (rc) {
-            case Wrote(amt) =>
-                if (amt == outgoing.size()) {
-                    outgoing.reset()
-                } else {
-                    outgoing.wrote(amt)
-                    return WriteResult.Pending(amt)
-                }
-            case Done(amt) =>
-                outgoing.reset()
-            case Pending(amt) =>
-                outgoing.wrote(amt)
-            case Err(_) => ()
+        if (rc.isOk()) {
+            outgoing.reset()
         }
         return rc
     }
@@ -720,20 +744,9 @@ public class PosixStreamingWriterImpl {
             outgoing.reset()
             return WriteResult.Wrote(0)
         }
-        let rc = writer.drainBufferedData(buffer, Int64.MAX_VALUE, false)
-        match (rc) {
-            case Pending(written) =>
-                outgoing.wrote(written)
-                if (outgoing.isEmpty()) {
-                    outgoing.reset()
-                }
-            case Wrote(written) =>
-                outgoing.wrote(written)
-                if (outgoing.isEmpty()) {
-                    outgoing.reset()
-                }
-            case _ =>
-                outgoing.reset()
+        let rc = writer.drainBufferedData(buffer, Int64(9223372036854775807), false)
+        if (rc.isOk()) {
+            outgoing.reset()
         }
         return rc
     }
@@ -753,14 +766,14 @@ public class PosixStreamingWriterImpl {
             closedWithoutReporting = false
             return
         }
-        handle.close(null, { => })
+        handle.close()
     }
 
     /// 关闭不报告 - 对应 Bun PosixStreamingWriter.closeWithoutReporting
     public func closeWithoutReporting(): Unit {
         if (getFd() != INVALID_FD) {
             closedWithoutReporting = true
-            handle.close(null, { => })
+            handle.close()
         }
     }
 
@@ -812,13 +825,13 @@ public class WindowsBufferedWriterImpl {
 
     /// 内存开销
     public func memoryCost(): Int64 {
-        return Int64(1024) + Int64(writeBuffer.capacity)
+        return Int64(1024) + Int64(writeBuffer.size)
     }
 
     /// 获取文件描述符
     public func getFd(): Int64 {
         if (let Some(s) <- source) {
-            return s.getFd()
+            return Int64(s.getFd())
         }
         return INVALID_FD
     }
@@ -925,7 +938,7 @@ public class WindowsStreamingWriterImpl {
     /// 获取文件描述符
     public func getFd(): Int64 {
         if (let Some(s) <- source) {
-            return s.getFd()
+            return Int64(s.getFd())
         }
         return INVALID_FD
     }

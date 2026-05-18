@@ -186,7 +186,7 @@ public class BundlerWorkerV2 {
     /// 线程本地内存分配器 (mimalloc arena)
     public var heap: ?WorkerHeap
     /// 线程本地内存分配器
-    public var allocator: ?BundlerAllocator
+    public var allocator: ?ThreadPoolBundlerAllocator
     /// 关联的 BundleV2 上下文
     public var ctx: ?BundlerContext
     /// Worker 数据
@@ -225,7 +225,7 @@ public class BundlerWorkerV2 {
 
         // 初始化内存分配器
         heap = Some(WorkerHeap())
-        allocator = Some(BundlerAllocator())
+        allocator = Some(ThreadPoolBundlerAllocator())
 
         // 初始化 AST 内存分配器
         astMemoryAllocator = Some(AstMemoryAllocatorV2())
@@ -280,7 +280,7 @@ public class BundlerWorkerV2 {
 
     /// 初始化 transpiler
     // 严格翻译自: ThreadPool.zig:307 initializeTranspiler()
-    public func initializeTranspiler(transpiler: Transpiler, from: Transpiler, allocator: BundlerAllocator): Unit {
+    public func initializeTranspiler(transpiler: Transpiler, from: Transpiler, allocator: ThreadPoolBundlerAllocator): Unit {
         transpiler.setLog(data.log)
     }
 }
@@ -311,7 +311,7 @@ public class WorkerHeap {
 }
 
 /// Bundler 分配器
-public class BundlerAllocator {
+public class ThreadPoolBundlerAllocator {
     public init() {}
 }
 

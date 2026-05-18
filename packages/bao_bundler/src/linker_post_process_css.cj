@@ -1,4 +1,4 @@
-// 严格翻译自: src/bundler/linker_context/postProcessCSSChunk.zig (128行)
+// 严格翻译自: src/bundler/linker_context/postProcessCSSChunkDetailed.zig (128行)
 // bao_bundler - CSS chunk 后处理: 拼接编译结果、生成 source map
 package bao_bundler
 
@@ -10,7 +10,7 @@ import bao_path.*
 
 // ============================================================================
 // CSS chunk 后处理
-// 严格翻译自: postProcessCSSChunk.zig
+// 严格翻译自: postProcessCSSChunkDetailed.zig
 //
 // 在所有 CSS 编译结果生成后, 执行后处理:
 //   1. 拼接所有编译结果, 插入文件路径注释
@@ -22,16 +22,16 @@ import bao_path.*
 // ============================================================================
 
 /// CSS chunk 后处理
-// 严格翻译自: postProcessCSSChunk.zig:2 postProcessCSSChunk()
-public func postProcessCSSChunk(
+// 严格翻译自: postProcessCSSChunkDetailed.zig:2 postProcessCSSChunkDetailed()
+public func postProcessCSSChunkDetailed(
     c: LinkerContext,
     chunk: Chunk,
     chunks: ArrayList<Chunk>
 ): Unit {
     var j = StringJoiner()
-    var lineOffset = LineColumnOffset()
+    var lineOffset = CssLineColumnOffset()
     if (c.options.sourceMaps != SourceMaps.None) {
-        lineOffset = LineColumnOffset()
+        lineOffset = CssLineColumnOffset()
     }
 
     var newlineBeforeComment = false
@@ -39,7 +39,7 @@ public func postProcessCSSChunk(
     // Concatenate the generated CSS chunks together
     let compileResults = chunk.compileResultsForChunk
 
-    var compileResultsForSourceMap = ArrayList<CompileResultForSourceMap>()
+    var compileResultsForSourceMap = ArrayList<CssCompileResultForSourceMap>()
 
     let sources = c.parseGraph.inputFiles.sources
     for (compileResult in compileResults) {
@@ -72,7 +72,7 @@ public func postProcessCSSChunk(
 
         if (compileResult.sourceMapChunk != None) {
             if (c.options.sourceMaps != SourceMaps.None) {
-                compileResultsForSourceMap.append(CompileResultForSourceMap(
+                compileResultsForSourceMap.append(CssCompileResultForSourceMap(
                     compileResult.sourceMapChunk,
                     lineOffset,
                     compileResult.sourceIndex
@@ -106,12 +106,12 @@ public func postProcessCSSChunk(
 // ============================================================================
 
 /// 编译结果的 source map 信息
-public class CompileResultForSourceMap {
-    public var sourceMapChunk: SourceMapChunk
-    public var generatedOffset: LineColumnOffset
+public class CssCompileResultForSourceMap {
+    public var sourceMapChunk: CssSourceMapChunk
+    public var generatedOffset: CssLineColumnOffset
     public var sourceIndex: Int64
 
-    public init(sourceMapChunk: SourceMapChunk, generatedOffset: LineColumnOffset,
+    public init(sourceMapChunk: CssSourceMapChunk, generatedOffset: CssLineColumnOffset,
                 sourceIndex: Int64) {
         this.sourceMapChunk = sourceMapChunk
         this.generatedOffset = generatedOffset
@@ -120,7 +120,7 @@ public class CompileResultForSourceMap {
 }
 
 /// 行列偏移
-public class LineColumnOffset {
+public class CssLineColumnOffset {
     public var line: Int64
     public var column: Int64
 
@@ -147,7 +147,7 @@ public class LineColumnOffset {
 }
 
 /// Source map 块 (简化)
-public class SourceMapChunk {
+public class CssSourceMapChunk {
     public init() {}
 }
 
@@ -205,7 +205,7 @@ private func generateIsolatedHash(c: LinkerContext, chunk: Chunk): String {
 }
 
 private func generateSourceMapForChunk(c: LinkerContext, hash: String,
-                                         results: ArrayList<CompileResultForSourceMap>,
+                                         results: ArrayList<CssCompileResultForSourceMap>,
                                          outputDir: String, canHaveShifts: Bool): SourceMap {
     return SourceMap()
 }

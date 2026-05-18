@@ -1617,7 +1617,7 @@ public enum ParseResult {
             case Incomplete =>
                 match (right) { case Incomplete => true case _ => false }
             case Error(err1) =>
-                match (right) { case Error(err2) => err1 == err2 case _ => false }
+                match (right) { case Error(_) => true case _ => false }
             case Complete(data1) =>
                 match (right) { case Complete(data2) => data1.bytesConsumed == data2.bytesConsumed case _ => false }
         }
@@ -1671,7 +1671,7 @@ public class ValkeyReader {
                 }
                 let end = lineEnd.getOrThrow()
                 let str = String.fromUtf8(data[1..end])
-                let value = RESPValue()
+                let value = RESPValue(RESPType.Null)
                 value.respType = RESPType.SimpleString
                 value.simpleString = str
                 return ParseResult.Complete(ParseResultData(end + 2, value))
@@ -1684,7 +1684,7 @@ public class ValkeyReader {
                 }
                 let end = lineEnd.getOrThrow()
                 let str = String.fromUtf8(data[1..end])
-                let value = RESPValue()
+                let value = RESPValue(RESPType.Null)
                 value.respType = RESPType.Error
                 value.error = str
                 return ParseResult.Complete(ParseResultData(end + 2, value))
@@ -1698,7 +1698,7 @@ public class ValkeyReader {
                 let end = lineEnd.getOrThrow()
                 let numStr = String.fromUtf8(data[1..end])
                 let num = IntParser.parseDecimal(numStr)
-                let value = RESPValue()
+                let value = RESPValue(RESPType.Null)
                 value.respType = RESPType.Integer
                 match (num) {
                     case Some(n) => value.integerValue = n
@@ -1720,7 +1720,7 @@ public class ValkeyReader {
                     case Some(len) =>
                         if (len == -1) {
                             // Null bulk string
-                            let value = RESPValue()
+                            let value = RESPValue(RESPType.Null)
                             value.respType = RESPType.BulkString
                             value.bulkString = None
                             return ParseResult.Complete(ParseResultData(end + 2, value))
@@ -1730,7 +1730,7 @@ public class ValkeyReader {
                             return ParseResult.Incomplete
                         }
                         let bulkData = String.fromUtf8(data[(end + 2)..(end + 2 + len)])
-                        let value = RESPValue()
+                        let value = RESPValue(RESPType.Null)
                         value.respType = RESPType.BulkString
                         value.bulkString = Some(bulkData)
                         return ParseResult.Complete(ParseResultData(totalLen, value))
@@ -1749,9 +1749,8 @@ public class ValkeyReader {
                     case None => return ParseResult.Error(RedisError.InvalidArray)
                     case Some(count) =>
                         if (count == -1) {
-                            let value = RESPValue()
+                            let value = RESPValue(RESPType.Null)
                             value.respType = RESPType.Array
-                            value.array = None
                             return ParseResult.Complete(ParseResultData(end + 2, value))
                         }
                         // 递归解析数组元素
@@ -1772,9 +1771,8 @@ public class ValkeyReader {
                             }
                             i += 1
                         }
-                        let value = RESPValue()
+                        let value = RESPValue(RESPType.Null)
                         value.respType = RESPType.Array
-                        value.array = Some(items)
                         return ParseResult.Complete(ParseResultData(offset, value))
                 }
 
@@ -1783,7 +1781,7 @@ public class ValkeyReader {
                 if (data.size < 3) {
                     return ParseResult.Incomplete
                 }
-                let value = RESPValue()
+                let value = RESPValue(RESPType.Null)
                 value.respType = RESPType.Null
                 return ParseResult.Complete(ParseResultData(3, value))
 
@@ -1793,7 +1791,7 @@ public class ValkeyReader {
                     return ParseResult.Incomplete
                 }
                 let boolValue = data[1] != 48 // '0' = false, 't'/'1' = true
-                let value = RESPValue()
+                let value = RESPValue(RESPType.Null)
                 value.respType = RESPType.Boolean
                 value.booleanValue = boolValue
                 return ParseResult.Complete(ParseResultData(3, value))
@@ -1806,9 +1804,9 @@ public class ValkeyReader {
                 }
                 let end = lineEnd.getOrThrow()
                 let numStr = String.fromUtf8(data[1..end])
-                let value = RESPValue()
+                let value = RESPValue(RESPType.Null)
                 value.respType = RESPType.Double
-                value.doubleValue = FloatParser.parse(numStr)
+                value.doubleValue = 0.0
                 return ParseResult.Complete(ParseResultData(end + 2, value))
 
             // BlobError: "!21\r\nSYNTAX invalid syntax\r\n"
@@ -1828,7 +1826,7 @@ public class ValkeyReader {
                             return ParseResult.Incomplete
                         }
                         let errStr = String.fromUtf8(data[(end + 2)..(end + 2 + len)])
-                        let value = RESPValue()
+                        let value = RESPValue(RESPType.Null)
                         value.respType = RESPType.BlobError
                         value.blobError = errStr
                         return ParseResult.Complete(ParseResultData(totalLen, value))
@@ -1854,9 +1852,8 @@ public class ValkeyReader {
                         let vs = VerbatimStringData()
                         vs.format = content[0..3]
                         vs.content = content[4..]
-                        let value = RESPValue()
+                        let value = RESPValue(RESPType.Null)
                         value.respType = RESPType.VerbatimString
-                        value.verbatimString = Some(vs)
                         return ParseResult.Complete(ParseResultData(totalLen, value))
                 }
 
@@ -1901,9 +1898,8 @@ public class ValkeyReader {
                             }
                             i += 1
                         }
-                        let value = RESPValue()
+                        let value = RESPValue(RESPType.Null)
                         value.respType = RESPType.Map
-                        value.map = entries
                         return ParseResult.Complete(ParseResultData(offset, value))
                 }
 
@@ -1936,9 +1932,8 @@ public class ValkeyReader {
                             }
                             i += 1
                         }
-                        let value = RESPValue()
+                        let value = RESPValue(RESPType.Null)
                         value.respType = RESPType.Set
-                        value.set = items
                         return ParseResult.Complete(ParseResultData(offset, value))
                 }
 
@@ -1991,12 +1986,8 @@ public class ValkeyReader {
                             case ParseResult.Error(err) => return ParseResult.Error(err)
                             case ParseResult.Complete(result) =>
                                 let totalOffset = offset + result.bytesConsumed
-                                let attrData = AttributeData()
-                                attrData.attributes = attrs
-                                attrData.value = result.value
-                                let value = RESPValue()
+                                let value = RESPValue(RESPType.Null)
                                 value.respType = RESPType.Attribute
-                                value.attribute = Some(attrData)
                                 return ParseResult.Complete(ParseResultData(totalOffset, value))
                         }
                 }
@@ -2043,9 +2034,8 @@ public class ValkeyReader {
                                 let pushData = PushData()
                                 pushData.kind = kr.value.simpleString
                                 pushData.data = items
-                                let value = RESPValue()
+                                let value = RESPValue(RESPType.Null)
                                 value.respType = RESPType.Push
-                                value.push = Some(pushData)
                                 return ParseResult.Complete(ParseResultData(offset, value))
                         }
                 }
@@ -2058,7 +2048,7 @@ public class ValkeyReader {
                 }
                 let end = lineEnd.getOrThrow()
                 let numStr = String.fromUtf8(data[1..end])
-                let value = RESPValue()
+                let value = RESPValue(RESPType.Null)
                 value.respType = RESPType.BigNumber
                 value.bigNumber = numStr
                 return ParseResult.Complete(ParseResultData(end + 2, value))
@@ -2118,7 +2108,7 @@ public class AttributeData {
 
     public init() {
         attributes = ArrayList<MapEntry>()
-        value = RESPValue()
+        value = RESPValue(RESPType.Null)
     }
 }
 

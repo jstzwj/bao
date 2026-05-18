@@ -318,7 +318,7 @@ public class ByteBufferStream {
     }
 
     public func toByteArray(): Array<UInt8> {
-        return Array<UInt8>(buffer.size, { buffer[Int64(it)] })
+        return Array<UInt8>(buffer.size, { it => buffer[Int64(it)] })
     }
 }
 

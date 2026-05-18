@@ -30,15 +30,11 @@ public func convertStmtsForChunk(
     chunk: Chunk,
     wrap: WrapKind
 ): Unit {
-    let shouldExtractESMStmtsForWrap = wrap != WrapKind.None
-    let shouldStripExports = linker.options.mode != LinkerMode.Passthrough
-
     for (stmt in partStmts) {
         match (stmt.tag) {
             case StmtTag.Import => ()
             case StmtTag.ExportStar => ()
             case StmtTag.ExportFrom => ()
-            case StmtTag.ExportClause => ()
             case StmtTag.Function => ()
             case StmtTag.Class => ()
             case StmtTag.Local => ()

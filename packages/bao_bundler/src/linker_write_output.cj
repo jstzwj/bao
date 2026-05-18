@@ -1,4 +1,4 @@
-// 严格翻译自: src/bundler/linker_context/writeOutputFilesToDisk.zig (484行)
+// 严格翻译自: src/bundler/linker_context/writeWriteOutputFilesToDisk.zig (484行)
 // bao_bundler - 输出文件写入: 将 chunk 写入磁盘, 处理 source map 和字节码
 package bao_bundler
 
@@ -10,7 +10,7 @@ import bao_path.*
 
 // ============================================================================
 // 输出文件写入
-// 严格翻译自: writeOutputFilesToDisk.zig
+// 严格翻译自: writeWriteOutputFilesToDisk.zig
 //
 // 将生成的 chunk 写入磁盘:
 //   1. 为每个 chunk:
@@ -20,7 +20,7 @@ import bao_path.*
 //      d. 处理 source map (外部/内联/链接)
 //      e. 生成字节码缓存 (--compile 模式)
 //      f. 写入文件
-//      g. 注册输出文件到 OutputFileListBuilder
+//      g. 注册输出文件到 WriteOutputFileListBuilder
 //   2. 写入额外输出文件 (资源文件)
 //
 // Source map 处理:
@@ -35,12 +35,12 @@ import bao_path.*
 // ============================================================================
 
 /// 写入输出文件到磁盘
-// 严格翻译自: writeOutputFilesToDisk.zig:1 writeOutputFilesToDisk()
-public func writeOutputFilesToDisk(
+// 严格翻译自: writeWriteOutputFilesToDisk.zig:1 writeWriteOutputFilesToDisk()
+public func writeWriteOutputFilesToDisk(
     c: LinkerContext,
     rootPath: String,
     chunks: ArrayList<Chunk>,
-    outputFiles: OutputFileListBuilder,
+    outputFiles: WriteOutputFileListBuilder,
     standaloneChunkContents: ?ArrayList<String>
 ): Unit {
     // Open root directory
@@ -54,7 +54,7 @@ public func writeOutputFilesToDisk(
     for (chunk in chunks) {
         // In standalone mode, only write HTML chunks to disk
         if (standaloneChunkContents != None && !chunk.content.isHTML) {
-            outputFiles.insertForChunk(OutputFile.placeholder(chunk))
+            outputFiles.insertForChunk(WriteOutputFile.placeholder(chunk))
             chunkIndexInChunksList++
             continue
         }
@@ -86,18 +86,18 @@ public func writeOutputFilesToDisk(
         }
 
         // Handle source maps
-        var sourceMapOutputFile: ?OutputFile = None
+        var sourceMapWriteOutputFile: ?WriteOutputFile = None
         match (chunk.content.sourcemap(c.options.sourceMaps)) {
             case SourceMapKind.External =>
                 // Write external source map file
                 let sourceMapFinalRelPath = relPath + ".map"
-                sourceMapOutputFile = writeSourceMapFile(
+                sourceMapWriteOutputFile = writeSourceMapFile(
                     c, rootDir, chunk, codeResult,
                     sourceMapFinalRelPath, publicPath, false)
             case SourceMapKind.Linked =>
                 // Write linked source map with URL comment
                 let sourceMapFinalRelPath = relPath + ".map"
-                sourceMapOutputFile = writeSourceMapFile(
+                sourceMapWriteOutputFile = writeSourceMapFile(
                     c, rootDir, chunk, codeResult,
                     sourceMapFinalRelPath, publicPath, true)
                 // Append sourceMappingURL comment to code
@@ -111,7 +111,7 @@ public func writeOutputFilesToDisk(
         }
 
         // Handle bytecode cache
-        var bytecodeOutputFile: ?OutputFile = None
+        var bytecodeWriteOutputFile: ?WriteOutputFile = None
         if (c.options.generateBytecodeCache) {
             let loader = if (chunk.entryPoint.isEntryPoint) {
                 c.parseGraph.getLoader(chunk.entryPoint.sourceIndex)
@@ -120,34 +120,35 @@ public func writeOutputFilesToDisk(
             }
 
             if (loader.isJavaScriptLike()) {
-                bytecodeOutputFile = generateBytecodeCache(
+                bytecodeWriteOutputFile = generateBytecodeCache(
                     c, rootDir, chunk, codeResult)
+            }
         }
 
         // Write the main output file
         writeFileToDisk(rootDir, relPath, codeResult.buffer, chunk.flags.isExecutable)
 
         // Register source map output file
-        let sourceMapIndex: ?Int64 = if (sourceMapOutputFile != None) {
-            outputFiles.insertForSourcemapOrBytecode(sourceMapOutputFile)
+        let sourceMapIndex: ?Int64 = if (sourceMapWriteOutputFile != None) {
+            outputFiles.insertForSourcemapOrBytecode(sourceMapWriteOutputFile)
         } else {
             None
         }
 
         // Register bytecode output file
-        let bytecodeIndex: ?Int64 = if (bytecodeOutputFile != None) {
-            outputFiles.insertForSourcemapOrBytecode(bytecodeOutputFile)
+        let bytecodeIndex: ?Int64 = if (bytecodeWriteOutputFile != None) {
+            outputFiles.insertForSourcemapOrBytecode(bytecodeWriteOutputFile)
         } else {
             None
         }
 
         // Determine output kind
         let outputKind = if (chunk.content.isCSS) {
-            OutputKind.Asset
+            WriteOutputKind.Asset
         } else if (chunk.entryPoint.isEntryPoint) {
-            c.graph.getEntryPointOutputKind(chunk.entryPoint.sourceIndex)
+            c.graph.getEntryPointWriteOutputKind(chunk.entryPoint.sourceIndex)
         } else {
-            OutputKind.Chunk
+            WriteOutputKind.Chunk
         }
 
         // Get input path
@@ -158,7 +159,7 @@ public func writeOutputFilesToDisk(
         }
 
         // Register chunk output file
-        let chunkOutputFile = OutputFile.chunk(
+        let chunkWriteOutputFile = WriteOutputFile.chunk(
             outputPath = chunk.finalRelPath,
             inputPath = inputPath,
             outputKind = outputKind,
@@ -170,7 +171,7 @@ public func writeOutputFilesToDisk(
             isExecutable = chunk.flags.isExecutable,
             hash = chunk.template.placeholder.hash
         )
-        outputFiles.insertForChunk(chunkOutputFile)
+        outputFiles.insertForChunk(chunkWriteOutputFile)
 
         chunkIndexInChunksList++
     }
@@ -181,7 +182,7 @@ public func writeOutputFilesToDisk(
     }
 
     // Write additional output files (assets)
-    writeAdditionalOutputFiles(c, rootDir, outputFiles)
+    writeAdditionalWriteOutputFiles(c, rootDir, outputFiles)
 }
 
 // ============================================================================
@@ -197,13 +198,13 @@ private func writeSourceMapFile(
     sourceMapFinalRelPath: String,
     publicPath: String,
     isLinked: Bool
-): OutputFile {
+): WriteOutputFile {
     let outputSourceMap = chunk.outputSourceMap.finalize()
 
     // Write source map file
     writeFileToDisk(rootDir, sourceMapFinalRelPath, outputSourceMap, false)
 
-    return OutputFile.sourcemap(
+    return WriteOutputFile.sourcemap(
         outputPath = sourceMapFinalRelPath,
         size = outputSourceMap.size
     )
@@ -219,7 +220,7 @@ private func generateBytecodeCache(
     rootDir: Directory,
     chunk: Chunk,
     codeResult: CodeResult
-): ?OutputFile {
+): ?WriteOutputFile {
     // Generate bytecode using JSC
     // Simplified: in original calls jsc.CachedBytecode.generate()
     let sourceProviderUrl = chunk.finalRelPath + ".bun"
@@ -234,13 +235,13 @@ private func generateBytecodeCache(
 // ============================================================================
 
 /// 写入额外输出文件
-private func writeAdditionalOutputFiles(
+private func writeAdditionalWriteOutputFiles(
     c: LinkerContext,
     rootDir: Directory,
-    outputFiles: OutputFileListBuilder
+    outputFiles: WriteOutputFileListBuilder
 ): Unit {
-    let additionalFiles = outputFiles.getMutableAdditionalOutputFiles()
-    for (src in c.parseGraph.additionalOutputFiles) {
+    let additionalFiles = outputFiles.getMutableAdditionalWriteOutputFiles()
+    for (src in c.parseGraph.additionalWriteOutputFiles) {
         // Create parent directory
         let parentDir = dirname(src.destPath)
         if (parentDir.size > 0) {
@@ -325,7 +326,7 @@ public class SourceMapShift {
 }
 
 /// 输出文件类型
-public enum OutputKind {
+public enum WriteOutputKind {
     | EntryPoint
     | Chunk
     | Asset
@@ -342,10 +343,10 @@ public enum SourceMapKind {
 }
 
 /// 输出文件
-public class OutputFile {
+public class WriteOutputFile {
     public var outputPath: String
     public var inputPath: String
-    public var outputKind: OutputKind
+    public var outputKind: WriteOutputKind
     public var loader: Loader
     public var sourceMapIndex: ?Int64
     public var bytecodeIndex: ?Int64
@@ -357,7 +358,7 @@ public class OutputFile {
     public init() {
         outputPath = ""
         inputPath = ""
-        outputKind = OutputKind.Chunk
+        outputKind = WriteOutputKind.Chunk
         loader = Loader.JS
         sourceMapIndex = None
         bytecodeIndex = None
@@ -368,19 +369,19 @@ public class OutputFile {
     }
 
     /// 创建占位符
-    public static func placeholder(chunk: Chunk): OutputFile {
-        let of = OutputFile()
-        of.outputKind = OutputKind.Chunk
+    public static func placeholder(chunk: Chunk): WriteOutputFile {
+        let of = WriteOutputFile()
+        of.outputKind = WriteOutputKind.Chunk
         return of
     }
 
     /// 创建 chunk 输出文件
     public static func chunk(outputPath: String, inputPath: String,
-                               outputKind: OutputKind, loader: Loader,
+                               outputKind: WriteOutputKind, loader: Loader,
                                sourceMapIndex: ?Int64, bytecodeIndex: ?Int64,
                                size: Int64, displaySize: Int64,
-                               isExecutable: Bool, hash: ?String): OutputFile {
-        let of = OutputFile()
+                               isExecutable: Bool, hash: ?String): WriteOutputFile {
+        let of = WriteOutputFile()
         of.outputPath = outputPath
         of.inputPath = inputPath
         of.outputKind = outputKind
@@ -395,38 +396,38 @@ public class OutputFile {
     }
 
     /// 创建 source map 输出文件
-    public static func sourcemap(outputPath: String, size: Int64): OutputFile {
-        let of = OutputFile()
+    public static func sourcemap(outputPath: String, size: Int64): WriteOutputFile {
+        let of = WriteOutputFile()
         of.outputPath = outputPath
-        of.outputKind = OutputKind.Sourcemap
+        of.outputKind = WriteOutputKind.Sourcemap
         of.size = size
         return of
     }
 }
 
 /// 输出文件列表构建器 (简化)
-public class OutputFileListBuilder {
+public class WriteOutputFileListBuilder {
     public init() {}
 
-    public func insertForChunk(file: OutputFile): Int64 {
+    public func insertForChunk(file: WriteOutputFile): Int64 {
         return 0
     }
 
-    public func insertForSourcemapOrBytecode(file: OutputFile): Int64 {
+    public func insertForSourcemapOrBytecode(file: WriteOutputFile): Int64 {
         return 0
     }
 
-    public func getMutableAdditionalOutputFiles(): ArrayList<AdditionalOutputFile> {
-        return ArrayList<AdditionalOutputFile>()
+    public func getMutableAdditionalWriteOutputFiles(): ArrayList<AdditionalWriteOutputFile> {
+        return ArrayList<AdditionalWriteOutputFile>()
     }
 
-    public func markSaved(src: AdditionalOutputFile): Unit {
+    public func markSaved(src: AdditionalWriteOutputFile): Unit {
         // Simplified
     }
 }
 
 /// 额外输出文件
-public class AdditionalOutputFile {
+public class AdditionalWriteOutputFile {
     public var destPath: String
     public var srcPath: String
     public var value: FileValue

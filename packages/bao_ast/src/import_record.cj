@@ -246,6 +246,3 @@ public enum ImportKind {
         }
     }
 }
-
-/// 导入记录列表 - 对应 Bun ImportRecord.List
-public typealias ImportRecordList = ArrayList<ImportRecord>

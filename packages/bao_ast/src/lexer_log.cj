@@ -8,6 +8,7 @@
 package bao_ast
 
 import bao_core.*
+import bao_collections.*
 
 // ============================================================================
 // LexerLog - 词法分析器日志接口

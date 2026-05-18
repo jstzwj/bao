@@ -46,7 +46,7 @@ public class MetafileBuilder {
         chunk: Chunk,
         chunks: ArrayList<Chunk>
     ): String {
-        var json = StringBuilder()
+        var json = MetafileStringBuilder()
 
         // Start chunk entry: "path/to/output.js": {
         json.append(jsonEncodeString(chunk.finalRelPath))
@@ -247,8 +247,8 @@ public class MetafileBuilder {
             j.pushStatic("\n      ]")
 
             // Write format
-            let loader = c.parseGraph.getLoader(sourceIndex)
-            let format: ?String = getFormatForLoader(loader, c, sourceIndex)
+            let loader = c.parseGraph.getMetafileLoader(sourceIndex)
+            let format: ?String = getFormatForMetafileLoader(loader, c, sourceIndex)
             if (format != None) {
                 j.pushStatic(",\n      \"format\": \"")
                 j.pushStatic(format)
@@ -284,7 +284,7 @@ public class MetafileBuilder {
     /// 生成 Markdown 可视化报告
     // 严格翻译自: MetafileBuilder.zig:351 generateMarkdown()
     public static func generateMarkdown(metafileJson: String): String {
-        var md = StringBuilder()
+        var md = MetafileStringBuilder()
 
         // Parse JSON (simplified - in original uses std.json)
         // For now, generate a basic markdown structure
@@ -338,19 +338,20 @@ public class MetafileBuilder {
     }
 
     /// 获取 loader 对应的格式字符串
-    private static func getFormatForLoader(loader: Loader, c: LinkerContext,
+    private static func getFormatForMetafileLoader(loader: MetafileLoader, c: LinkerContext,
                                             sourceIndex: Int64): ?String {
         match (loader) {
-            case Loader.JS =>
-                let exportsKind = c.graph.getExportsKind(sourceIndex)
+            case MetafileLoader.JS =>
+                let exportsKind = c.graph.getMetafileExportsKind(sourceIndex)
                 match (exportsKind) {
-                    case ExportsKind.CJS => "cjs"
-                    case ExportsKind.ESMWithDynamicFallbackFromCJS => "cjs"
-                    case ExportsKind.ESM => "esm"
-                    case ExportsKind.ESMWithDynamicFallback => "esm"
-                    case ExportsKind.None => None
-            case Loader.JSON => "json"
-            case Loader.CSS => "css"
+                    case MetafileExportsKind.CJS => "cjs"
+                    case MetafileExportsKind.ESMWithDynamicFallbackFromCJS => "cjs"
+                    case MetafileExportsKind.ESM => "esm"
+                    case MetafileExportsKind.ESMWithDynamicFallback => "esm"
+                    case MetafileExportsKind.None => None
+                }
+            case MetafileLoader.JSON => "json"
+            case MetafileLoader.CSS => "css"
             case _ => None
         }
     }
@@ -417,7 +418,7 @@ public class ImportRecordFlags {
 }
 
 /// 输出格式
-public enum OutputFormat {
+public enum MetafileOutputFormat {
     | ESM
     | CJS
     | IIFE
@@ -433,7 +434,7 @@ public enum OutputFormat {
 }
 
 /// 加载器类型
-public enum Loader {
+public enum MetafileLoader {
     | JS
     | JSX
     | TS
@@ -470,7 +471,7 @@ public enum Loader {
 }
 
 /// 导出类型
-public enum ExportsKind {
+public enum MetafileExportsKind {
     | None
     | CJS
     | ESM
@@ -492,7 +493,7 @@ private func stripParentRefs(path: String): String {
 }
 
 /// 字符串构建器
-public class StringBuilder {
+public class MetafileStringBuilder {
     private var parts: ArrayList<String>
 
     public init() {

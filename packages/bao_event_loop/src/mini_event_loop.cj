@@ -10,6 +10,7 @@
 package bao_event_loop
 
 import bao_core.*
+import bao_collections.*
 
 // ============================================================================
 // MiniEventLoop - 轻量级事件循环
@@ -69,10 +70,6 @@ public class MiniEventLoop {
         afterEventLoopCallback = None
     }
 
-    /// 任务类型别名
-    /// 严格翻译自: pub const Task = AnyTaskWithExtraContext
-    public type Task = MiniTask
-
     /// 初始化全局实例
     /// 严格翻译自: pub fn initGlobal(env, cwd) *MiniEventLoop
     public static func initGlobal(env: ?DotEnvLoader, cwd: ?String): MiniEventLoop {
@@ -87,7 +84,7 @@ public class MiniEventLoop {
 
     /// 初始化
     /// 严格翻译自: pub fn init(allocator) MiniEventLoop
-    public static func init(): MiniEventLoop {
+    public static func `init`(): MiniEventLoop {
         return MiniEventLoop()
     }
 
@@ -101,12 +98,29 @@ public class MiniEventLoop {
     /// 严格翻译自: pub fn pipeReadBuffer(this: *MiniEventLoop) []u8
     public func getPipeReadBuffer(): Array<UInt8> {
         match (pipeReadBuffer) {
-            Some(buf) => return buf
-            None =>
+            case Some(buf) => return buf
+            case None =>
                 let buf = Array<UInt8>(262144, { _ => UInt8(0) })
                 pipeReadBuffer = buf
                 return buf
         }
+    }
+
+    public func getIterationNumber(): UInt64 {
+        return UInt64(0)
+    }
+
+    public func stop(): Unit {
+        initialized = false
+    }
+
+    public func setImmediate(callback: () -> Unit): Int64 {
+        enqueue(callback)
+        return Int64(0)
+    }
+
+    public func run(): Unit {
+        tickOnce()
     }
 
     /// 处理并发任务带计数
@@ -164,6 +178,14 @@ public class MiniEventLoop {
     /// 严格翻译自: pub fn enqueueTaskConcurrent(this, task) void
     public func enqueueTaskConcurrent(task: MiniTask): Unit {
         concurrentTasks.append(task)
+    }
+
+    public func enqueue(task: () -> Unit): Unit {
+        tasks.append(MiniTask(task))
+    }
+
+    public func enqueueConcurrent(task: ConcurrentTask): Unit {
+        concurrentTasks.append(MiniTask({ => task.run() }))
     }
 
     /// 唤醒

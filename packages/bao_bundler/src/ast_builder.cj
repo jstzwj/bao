@@ -413,7 +413,7 @@ public class LocRef {
 }
 
 /// 导入记录标志
-public class ImportRecordFlags {
+public class AstBuilderImportRecordFlags {
     public var isUnused: Bool
 
     public init() {

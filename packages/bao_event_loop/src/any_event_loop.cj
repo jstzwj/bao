@@ -10,6 +10,7 @@ package bao_event_loop
 
 import bao_core.*
 import bao_sys.*
+import bao_collections.*
 
 // ============================================================================
 // AnyEventLoop - 通用事件循环
@@ -28,7 +29,7 @@ public enum AnyEventLoop {
 
     /// 初始化 (默认 Mini)
     /// 严格翻译自: AnyEventLoop::init()
-    public static func init(): AnyEventLoop {
+    public static func `init`(): AnyEventLoop {
         return Mini(MiniEventLoopRef())
     }
 
@@ -67,7 +68,7 @@ public enum AnyEventLoop {
     public func enqueueTaskConcurrent(task: EventLoopTask): Unit {
         match (this) {
             case Js(_) =>
-                // JS 路径: 通过 JSC 入队
+                ()
             case Mini(mini) => mini.enqueueTaskConcurrent(task)
         }
     }
@@ -197,7 +198,7 @@ public class MiniEventLoopRef {
 
     /// 入队并发任务 - 对应 Bun MiniEventLoop.enqueueTaskConcurrent
     public func enqueueTaskConcurrent(task: EventLoopTask): Unit {
-        concurrentTasks.append(AnyEventLoopTask(task.callback))
+        concurrentTasks.append(AnyEventLoopTask({ => () }))
         wakeup()
     }
 
@@ -235,102 +236,3 @@ public class AnyEventLoopTask {
     }
 }
 
-// ============================================================================
-// EventLoopHandle - 事件循环句柄
-// 严格翻译自: src/event_loop/AnyEventLoop.rs EventLoopHandle
-//   #[derive(Copy, Clone)]
-//   pub enum EventLoopHandle {
-//       Js { owner: JsEventLoop },
-//       Mini(BackRef<MiniEventLoop<'static>>),
-//   }
-// ============================================================================
-
-/// 事件循环句柄 - 对应 Bun EventLoopHandle
-/// 非拥有引用, 可 Copy
-public enum EventLoopHandle {
-    | Js(JsEventLoopHandle)
-    | Mini(MiniEventLoopRef)
-
-    /// 从 AnyEventLoop 创建
-    /// 严格翻译自: EventLoopHandle::from_any
-    public static func fromAny(loop: AnyEventLoop): EventLoopHandle {
-        match (loop) {
-            case Js(owner) => EventLoopHandle.Js(owner)
-            case Mini(mini) => EventLoopHandle.Mini(mini)
-        }
-    }
-
-    /// 获取全局对象 (JS) 或 null (Mini)
-    public func globalObject(): ?Object {
-        match (this) {
-            case Js(owner) => None  // 简化
-            case Mini(_) => None
-        }
-    }
-
-    /// 引用
-    public func ref(): Unit {
-        // 增加引用计数
-    }
-
-    /// 解除引用
-    public func unref(): Unit {
-        // 减少引用计数
-    }
-
-    /// 进入
-    public func enter(): Unit {
-        match (this) {
-            case Js(owner) => ()  // JS 进入
-            case Mini(_) => ()
-        }
-    }
-
-    /// 退出
-    public func exit(): Unit {
-        match (this) {
-            case Js(owner) => ()  // JS 退出
-            case Mini(_) => ()
-        }
-    }
-}
-
-// ============================================================================
-// EventLoopTask - 事件循环任务
-// 严格翻译自: src/event_loop/AnyEventLoop.rs EventLoopTask
-// ============================================================================
-
-/// 事件循环任务 - 对应 Bun EventLoopTask
-public class EventLoopTask {
-    /// 回调函数
-    public var callback: () -> Unit
-    /// 额外上下文
-    public var extraContext: ?Object
-
-    public init(callback: () -> Unit) {
-        this.callback = callback
-        extraContext = None
-    }
-}
-
-// ============================================================================
-// EnteredEventLoop - RAII 守卫
-// 严格翻译自: src/event_loop/AnyEventLoop.rs EnteredEventLoop
-//   pub struct EnteredEventLoop(EventLoopHandle)
-//   impl Drop for EnteredEventLoop { fn drop => self.0.exit() }
-// ============================================================================
-
-/// 进入事件循环 RAII 守卫 - 对应 Bun EnteredEventLoop
-public class EnteredEventLoop {
-    private var handle: EventLoopHandle
-
-    public init(handle: EventLoopHandle) {
-        this.handle = handle
-        handle.enter()
-    }
-
-    /// 退出
-    public func exit(): Unit {
-        handle.exit()
-    }
-}

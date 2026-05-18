@@ -66,37 +66,3 @@ public class RuntimeTranspilerCache {
         isDisabled
     }
 }
-
-/// 导出类型 - 对应 Bun ExportsKind
-public enum ExportsKind {
-    | None
-    | Cjs
-    | Esm
-    | EsmWithDynamicFallback
-    | EsmWithDynamicFallbackFromCjs
-
-    public operator func ==(right: ExportsKind): Bool {
-        ordinal() == right.ordinal()
-    }
-
-    public func ordinal(): Int64 {
-        match (this) {
-            case None => 0
-            case Cjs => 1
-            case Esm => 2
-            case EsmWithDynamicFallback => 3
-            case EsmWithDynamicFallbackFromCjs => 4
-        }
-    }
-}
-
-/// 源文件引用 - 简化版本
-public class Source {
-    public var path: String
-    public var contents: String
-
-    public init(path: String, contents: String) {
-        this.path = path
-        this.contents = contents
-    }
-}

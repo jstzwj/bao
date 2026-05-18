@@ -155,8 +155,8 @@ public class ExtensionOrderGroup {
     public var esmOrder: Array<String>
 
     public init() {
-        defaultOrder = EXTENSION_ORDER_DEFAULT
-        esmOrder = MODULE_EXTENSION_ORDER_DEFAULT
+        defaultOrder = [".tsx", ".ts", ".jsx", ".cts", ".cjs", ".js", ".mjs", ".mts", ".json"]
+        esmOrder = [".tsx", ".jsx", ".mts", ".ts", ".mjs", ".js", ".cts", ".cjs", ".json"]
     }
 
     public init(defaultOrder: Array<String>, esmOrder: Array<String>) {
@@ -174,10 +174,10 @@ public class ExtensionOrder {
     public init() {
         defaultGroup = ExtensionOrderGroup()
         nodeModules = ExtensionOrderGroup(
-            NODE_MODULES_EXTENSION_ORDER,
-            NODE_MODULES_MODULE_EXTENSION_ORDER
+            [".jsx", ".cjs", ".js", ".mjs", ".mts", ".tsx", ".ts", ".cts", ".json"],
+            [".mjs", ".jsx", ".js", ".mts", ".tsx", ".ts", ".cjs", ".cts", ".json"]
         )
-        css = CSS_EXTENSION_ORDER
+        css = [".css"]
     }
 }
 
@@ -256,8 +256,8 @@ public class ResolverBundleOptions {
         globalCache = GlobalCache.Auto
         loadPackageJson = true
         loadTsconfigJson = true
-        mainFieldExtensionOrder = EXTENSION_ORDER_DEFAULT
-        mainFields = DEFAULT_MAIN_FIELDS_BROWSER
+        mainFieldExtensionOrder = [".tsx", ".ts", ".jsx", ".cts", ".cjs", ".js", ".mjs", ".mts", ".json"]
+        mainFields = ["browser", "module", "jsnext:main", "main"]
         mainFieldsIsDefault = true
         markBuiltinsAsExternal = false
         polyfillNodeGlobals = false
@@ -319,7 +319,7 @@ public class ResolverBundleOptions {
 
 /// 导入类型 - 对应 Bun ImportKind
 public enum ImportKind {
-    | Entry            // 入口点 (build)
+    | Entry            // 入口点
     | EntryPointBuild  // 入口点 (build)
     | EntryPointRun    // 入口点 (run)
     | Stmt             // import 语句

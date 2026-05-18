@@ -29,6 +29,10 @@ public class EventLoopTimer {
     public var nextSec: Int64
     /// 下次触发的绝对时间 (纳秒)
     public var nextNsec: Int64
+    public var id: Int64
+    public var next: Timespec
+    public var intervalMs: Int64
+    public var callback: () -> Unit
 
     /// 定时器状态
     /// 严格翻译自: state: State = .PENDING
@@ -45,7 +49,23 @@ public class EventLoopTimer {
     public init(tag: TimerTag) {
         nextSec = 0
         nextNsec = 0
+        id = Int64(0)
+        next = Timespec()
+        intervalMs = Int64(0)
+        callback = { => () }
         state = TimerState.Pending
+        this.tag = tag
+        inHeap = TimerInHeap.None
+    }
+
+    public init(tag: TimerTag, callback: () -> Unit, deadlineMs: Int64, intervalMs: Int64, id: Int64) {
+        nextSec = deadlineMs / Int64(1000)
+        nextNsec = (deadlineMs % Int64(1000)) * Int64(1000000)
+        this.id = id
+        next = Timespec.fromMillis(deadlineMs)
+        this.intervalMs = intervalMs
+        this.callback = callback
+        state = TimerState.Active
         this.tag = tag
         inHeap = TimerInHeap.None
     }
@@ -84,7 +104,20 @@ public class EventLoopTimer {
             case TimerTag.BunTest => ()
             case TimerTag.EventLoopDelayMonitor => ()
             case TimerTag.CronJob => ()
+            case _ => ()
         }
+    }
+
+    public func isActive(): Bool {
+        match (state) {
+            case TimerState.Active => true
+            case TimerState.Pending => true
+            case _ => false
+        }
+    }
+
+    public func cancel(): Unit {
+        state = TimerState.Cancelled
     }
 
     /// 是否允许假定时器
@@ -125,6 +158,9 @@ public enum TimerState {
 /// 标识定时器的具体用途
 public enum TimerTag {
     | TimerCallback
+    | Timeout
+    | Interval
+    | Immediate
     | TimeoutObject
     | ImmediateObject
     | StatWatcherScheduler

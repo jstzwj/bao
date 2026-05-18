@@ -117,6 +117,9 @@ public class CssPrinter {
         this.cssModule = None
         this.context = None
         this.removeImports = false
+        this.sourceIndex = 0
+        this.sources = None
+        this.inCalc = false
     }
 
     public init(options: CssPrinterOptions) {
@@ -130,6 +133,9 @@ public class CssPrinter {
         this.cssModule = None
         this.context = None
         this.removeImports = options.analyzeDependencies
+        this.sourceIndex = 0
+        this.sources = None
+        this.inCalc = false
     }
 
     // ========================================================================
@@ -421,21 +427,9 @@ public class CssPrinter {
     /// 是否在 calc 中
     public var inCalc: Bool
 
-    /// CSS Modules 上下文 (用于打印时处理 composes 等)
-    /// 严格翻译自 Printer.css_module
-    public var cssModule: ?CssModule
-
-    /// 样式上下文 (用于嵌套规则)
-    /// 严格翻译自 Printer.ctx
-    public var context: ?CssStyleContext
-
-    /// 是否移除 @import 规则 (收集依赖时)
-    /// 严格翻译自 Printer.remove_imports
-    public var removeImports: Bool
-
     /// 是否在调试格式化中
     /// 严格翻译自 Printer.in_debug_fmt
-    public static var inDebugFmt: Bool
+    public static var inDebugFmt: Bool = false
 
     /// 添加格式化错误
     /// 严格翻译自 Printer.addFmtError
@@ -544,32 +538,6 @@ public class CssDependenciesLocation {
 // 严格翻译自: printer.zig Targets, Features
 // ============================================================================
 
-/// 目标浏览器配置
-public class CssTargets {
-    /// 浏览器版本
-    public var browsers: ?CssBrowserTargets
-
-    public init() {
-        this.browsers = None
-    }
-
-    public init(browsers: CssBrowserTargets) {
-        this.browsers = Some(browsers)
-    }
-
-    /// 检查是否需要编译为旧语法
-    public func shouldCompileTargets(feature: CompatFeature): Bool {
-        match (browsers) {
-            case Some(b) => !feature.isCompatible(b)
-            case None => false
-        }
-    }
-
-    /// 检查是否需要编译同一特性
-    public func shouldCompileSame(feature: CompatFeature): Bool {
-        shouldCompileTargets(feature)
-    }
-}
 
 // ============================================================================
 // CSS 序列化工具

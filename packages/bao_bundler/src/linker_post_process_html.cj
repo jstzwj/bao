@@ -1,4 +1,4 @@
-// 严格翻译自: src/bundler/linker_context/postProcessHTMLChunk.zig (36行)
+// 严格翻译自: src/bundler/linker_context/postProcessHTMLChunkDetailed.zig (36行)
 // bao_bundler - HTML chunk 后处理: 拼接编译结果、生成分片输出
 package bao_bundler
 
@@ -10,7 +10,7 @@ import bao_path.*
 
 // ============================================================================
 // HTML chunk 后处理
-// 严格翻译自: postProcessHTMLChunk.zig
+// 严格翻译自: postProcessHTMLChunkDetailed.zig
 //
 // HTML 后处理非常简单:
 //   1. 拼接所有编译结果
@@ -20,8 +20,8 @@ import bao_path.*
 // ============================================================================
 
 /// HTML chunk 后处理
-// 严格翻译自: postProcessHTMLChunk.zig:1 postProcessHTMLChunk()
-public func postProcessHTMLChunk(
+// 严格翻译自: postProcessHTMLChunkDetailed.zig:1 postProcessHTMLChunkDetailed()
+public func postProcessHTMLChunkDetailed(
     c: LinkerContext,
     chunk: Chunk,
     chunks: ArrayList<Chunk>

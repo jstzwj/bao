@@ -7,7 +7,6 @@
 // 仓颉实现完整的 CSV 解析器，包含流式处理
 package bao_parsers
 
-import bao_core.*
 import bao_collections.*
 
 // ============================================================================

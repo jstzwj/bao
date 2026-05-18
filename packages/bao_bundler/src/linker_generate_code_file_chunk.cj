@@ -134,11 +134,11 @@ public class DeclCollector {
         for (stmt in stmts) {
             match (stmt.tag) {
                 case StmtTag.Local =>
-                    // Collect variable declarations
+                    ()
                 case StmtTag.Function =>
-                    // Collect function name
+                    ()
                 case StmtTag.Class =>
-                    // Collect class name
+                    ()
                 case _ => ()
             }
         }

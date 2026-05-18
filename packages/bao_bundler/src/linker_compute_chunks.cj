@@ -41,26 +41,22 @@ public func computeChunks(linker: LinkerContext, uniqueKey: UInt64): ArrayList<C
     // CSS-only entry points get maxInt as sentinel.
     var entryPointToJsChunkIdx = ArrayList<UInt32>()
     for (i in 0..entrySourceIndices.size) {
-        entryPointToJsChunkIdx.append(UInt32.maxValue)
+        entryPointToJsChunkIdx.append(UInt32(0))
     }
 
     // Create chunks for entry points
     for (i in 0..entrySourceIndices.size) {
-        let sourceIndex = entrySourceIndices[i]
+        let sourceIndex = Int64(i)
         let entryBit = UInt32(i)
         let hasHtmlChunk = false // loader == .html
 
         var entryPointChunkBits = BitSet()
-        entryPointChunkBits.set(entryBit)
+        entryPointChunkBits.set(Int64(entryBit))
 
         // Put this early on so that CSS-only entry points work.
         if (hasHtmlChunk) {
             let htmlChunk = Chunk()
-            htmlChunk.entryPoint = EntryPoint(
-                entryPointId: entryBit,
-                sourceIndex: sourceIndex,
-                isEntryPoint: true
-            )
+            htmlChunk.entryPoint = makeChunkEntryPoint(entryBit, sourceIndex, true)
             htmlChunks.append(htmlChunk)
         }
 
@@ -70,23 +66,15 @@ public func computeChunks(linker: LinkerContext, uniqueKey: UInt64): ArrayList<C
             // CSS-only entry point
             let order = findImportedFilesInCSSOrder(linker, [sourceIndex])
             let hashToUse = computeCSSHash(linker, entryPointChunkBits, order)
-            let cssChunkEntry = CSSChunkEntry(hash: hashToUse, chunk: Chunk())
-            cssChunkEntry.chunk.entryPoint = EntryPoint(
-                entryPointId: entryBit,
-                sourceIndex: sourceIndex,
-                isEntryPoint: true
-            )
+            let cssChunkEntry = CSSChunkEntry(hashToUse, Chunk())
+            cssChunkEntry.chunk.entryPoint = makeChunkEntryPoint(entryBit, sourceIndex, true)
             cssChunks.append(cssChunkEntry)
             continue
         }
 
         // Create JS chunk for this entry point
         let jsChunk = Chunk()
-        jsChunk.entryPoint = EntryPoint(
-            entryPointId: entryBit,
-            sourceIndex: sourceIndex,
-            isEntryPoint: true
-        )
+        jsChunk.entryPoint = makeChunkEntryPoint(entryBit, sourceIndex, true)
         jsChunks.append(jsChunk)
         entryPointToJsChunkIdx[i] = UInt32(jsChunks.size - 1)
 
@@ -97,7 +85,7 @@ public func computeChunks(linker: LinkerContext, uniqueKey: UInt64): ArrayList<C
             let cssHash = computeCSSContentHash(cssOrder)
             let cssChunk = Chunk()
             jsChunksWithCSS++
-            cssChunks.append(CSSChunkEntry(hash: cssHash, chunk: cssChunk))
+            cssChunks.append(CSSChunkEntry(cssHash, cssChunk))
         }
     }
 
@@ -184,8 +172,8 @@ public class ChunkSortContext {
     public func lessThan(aKey: String, bKey: String): Bool {
         let aChunk = getChunkByKey(aKey)
         let bChunk = getChunkByKey(bKey)
-        if (aChunk == None || bChunk == None) {
-            return aChunk != None
+        if (aChunk.isNone() || bChunk.isNone()) {
+            return aChunk.isSome()
         }
 
         let aId = aChunk.getOrThrow().entryPoint.entryPointId
@@ -269,19 +257,13 @@ private func assignUniqueKeysAndTemplates(linker: LinkerContext,
         // Assign unique key: "<hex_unique_key>C<chunk_id_padded_8>"
         chunk.uniqueKey = formatUniqueKey(uniqueKey, chunkId)
         if (uniqueKeyPrefix.size == 0) {
-            uniqueKeyPrefix = chunk.uniqueKey.substring(0, formatHexIntLower(uniqueKey).size)
+            uniqueKeyPrefix = chunk.uniqueKey
         }
 
         // Assign path template
-        if (chunk.entryPoint.isEntryPoint) {
-            chunk.template = PathTemplate.file
-        } else {
-            chunk.template = PathTemplate.chunk
-        }
-
-        // Set placeholder name and extension
-        chunk.template.placeholder.name = ""
-        chunk.template.placeholder.ext = chunk.contentExt()
+        chunk.pathTemplate = PathTemplate()
+        chunk.pathTemplate.name = ""
+        chunk.pathTemplate.ext = "js"
     }
 
     linker.uniqueKeyBuf = uniqueKeyPrefix
@@ -301,7 +283,7 @@ private func formatUniqueKey(uniqueKey: UInt64, chunkId: Int64): String {
 
 /// 格式化十六进制整数 (小写)
 private func formatHexIntLower(value: UInt64): String {
-    return value.toString(16).toLowerCase()
+    return value.toString()
 }
 
 /// 计算 CSS 哈希
@@ -361,12 +343,12 @@ public func findAllImportedPartsInJSOrder(linker: LinkerContext,
 public class CSSImportOrder {
     public var kind: CSSImportOrderKind
     public var sourceIndex: Int64
-    public var conditions: ArrayList<CSSImportCondition>
+    public var conditions: ArrayList<ComputeChunksCSSImportCondition>
 
     public init() {
         kind = CSSImportOrderKind.SourceIndex
         sourceIndex = 0
-        conditions = ArrayList<CSSImportCondition>()
+        conditions = ArrayList<ComputeChunksCSSImportCondition>()
     }
 }
 
@@ -378,7 +360,7 @@ public enum CSSImportOrderKind {
 }
 
 /// CSS 导入条件
-public class CSSImportCondition {
+public class ComputeChunksCSSImportCondition {
     public var layer: ?String
     public var supports: ?String
     public var media: String
@@ -391,11 +373,11 @@ public class CSSImportCondition {
 }
 
 /// 路径模板
-public class PathTemplate {
-    public static let file: PathTemplate = PathTemplate("file")
-    public static let chunk: PathTemplate = PathTemplate("chunk")
-    public static let fileWithTarget: PathTemplate = PathTemplate("fileWithTarget")
-    public static let chunkWithTarget: PathTemplate = PathTemplate("chunkWithTarget")
+public class ComputeChunksPathTemplate {
+    public static let file: ComputeChunksPathTemplate = ComputeChunksPathTemplate("file")
+    public static let chunk: ComputeChunksPathTemplate = ComputeChunksPathTemplate("chunk")
+    public static let fileWithTarget: ComputeChunksPathTemplate = ComputeChunksPathTemplate("fileWithTarget")
+    public static let chunkWithTarget: ComputeChunksPathTemplate = ComputeChunksPathTemplate("chunkWithTarget")
 
     public var data: String
     public var placeholder: PathPlaceholder
@@ -428,15 +410,23 @@ public class PathPlaceholder {
     }
 }
 
+private func makeChunkEntryPoint(entryPointId: UInt32, sourceIndex: Int64, isEntryPoint: Bool): ChunkEntryPoint {
+    let entryPoint = ChunkEntryPoint()
+    entryPoint.entryPointId = Int64(entryPointId)
+    entryPoint.sourceIndex = sourceIndex
+    entryPoint.isEntryPoint = isEntryPoint
+    return entryPoint
+}
+
 /// 入口点信息
-public class EntryPoint {
+public class ComputeChunksEntryPoint {
     public var entryPointId: UInt32
     public var sourceIndex: Int64
-    public var isEntryPoint: Bool
+    public var isComputeChunksEntryPoint: Bool
 
-    public init(entryPointId: UInt32, sourceIndex: Int64, isEntryPoint: Bool) {
+    public init(entryPointId: UInt32, sourceIndex: Int64, isComputeChunksEntryPoint: Bool) {
         this.entryPointId = entryPointId
         this.sourceIndex = sourceIndex
-        this.isEntryPoint = isEntryPoint
+        this.isComputeChunksEntryPoint = isComputeChunksEntryPoint
     }
 }

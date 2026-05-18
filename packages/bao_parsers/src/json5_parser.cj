@@ -7,7 +7,6 @@
 // 本文件提供 JSON5 专用解析器，完整实现 JSON5 规范
 package bao_parsers
 
-import bao_core.*
 import bao_collections.*
 import std.convert.*
 

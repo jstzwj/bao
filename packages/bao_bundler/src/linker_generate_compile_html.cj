@@ -360,6 +360,10 @@ public class StringBuilder {
         parts.append(s)
     }
 
+    public func append(b: UInt8): Unit {
+        parts.append(String.fromUtf8([b]))
+    }
+
     public func length(): Int64 {
         var len: Int64 = 0
         for (part in parts) {

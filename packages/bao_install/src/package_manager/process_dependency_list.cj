@@ -23,11 +23,11 @@ import bao_collections.*
 /// 对应 Bun: GitResolver
 public class GitResolver {
     public var resolved: String
-    public var resolution: ResolutionInfo
+    public var resolution: PdlResolutionInfo
     public var depId: UInt32
     public var newName: String
 
-    public init(resolved: String, resolution: ResolutionInfo, depId: UInt32) {
+    public init(resolved: String, resolution: PdlResolutionInfo, depId: UInt32) {
         this.resolved = resolved
         this.resolution = resolution
         this.depId = depId
@@ -42,7 +42,7 @@ public class GitResolver {
 
     /// 解析
     /// 翻译自: GitResolver.resolve
-    public func resolve(): ResolutionInfo {
+    public func resolve(): PdlResolutionInfo {
         return resolution
     }
 
@@ -63,9 +63,9 @@ public class GitResolver {
 /// 对应 Bun: TarballResolver
 public class TarballResolver {
     public var url: String
-    public var resolution: ResolutionInfo
+    public var resolution: PdlResolutionInfo
 
-    public init(url: String, resolution: ResolutionInfo) {
+    public init(url: String, resolution: PdlResolutionInfo) {
         this.url = url
         this.resolution = resolution
     }
@@ -78,7 +78,7 @@ public class TarballResolver {
 
     /// 解析
     /// 翻译自: TarballResolver.resolve
-    public func resolve(): ResolutionInfo {
+    public func resolve(): PdlResolutionInfo {
         return resolution
     }
 
@@ -111,10 +111,10 @@ public class ProcessDependencyList {
     ///   处理 git/github/tarball 包, 解析 package.json, 返回包信息
     ///   返回 true 表示需要排空依赖列表
     public static func processExtractedTarballPackage(
-        manager: PackageManagerRef,
+        manager: PdlPackageManagerRef,
         packageId: UInt32,
         depId: UInt32,
-        resolution: ResolutionInfo,
+        resolution: PdlResolutionInfo,
         data: ExtractData,
         logLevel: LogLevel
     ): ?PackageData {
@@ -125,7 +125,7 @@ public class ProcessDependencyList {
         }
     }
 
-    private static func processGitPackage(manager: PackageManagerRef, packageId: UInt32, depId: UInt32, resolution: ResolutionInfo, data: ExtractData): ?PackageData {
+    private static func processGitPackage(manager: PdlPackageManagerRef, packageId: UInt32, depId: UInt32, resolution: PdlResolutionInfo, data: ExtractData): ?PackageData {
         var pkg = PackageData()
 
         match (data.json) {
@@ -149,7 +149,7 @@ public class ProcessDependencyList {
     }
 
     /// Git package JSON processing helper
-    private static func processGitPackageJson(pkg: PackageData, manager: PackageManagerRef, depId: UInt32, resolution: ResolutionInfo, data: ExtractData, jsonInfo: JsonInfo): Unit {
+    private static func processGitPackageJson(pkg: PackageData, manager: PdlPackageManagerRef, depId: UInt32, resolution: PdlResolutionInfo, data: ExtractData, jsonInfo: JsonInfo): Unit {
         pkg.parse(
             manager: manager,
             source: jsonInfo.path,
@@ -164,7 +164,7 @@ public class ProcessDependencyList {
     }
 
     /// NPM package processing
-    private static func processNpmPackage(manager: PackageManagerRef, packageId: UInt32, depId: UInt32, resolution: ResolutionInfo, data: ExtractData, logLevel: LogLevel): ?PackageData {
+    private static func processNpmPackage(manager: PdlPackageManagerRef, packageId: UInt32, depId: UInt32, resolution: PdlResolutionInfo, data: ExtractData, logLevel: LogLevel): ?PackageData {
         match (data.json) {
             case Some(jsonInfo) => checkNpmJsonBuf(jsonInfo)
             case None => ()
@@ -179,10 +179,10 @@ public class ProcessDependencyList {
 
     /// Tarball package processing (used for LocalTarball/RemoteTarball)
     public static func processTarballPackage(
-        manager: PackageManagerRef,
+        manager: PdlPackageManagerRef,
         packageId: UInt32,
         depId: UInt32,
-        resolution: ResolutionInfo,
+        resolution: PdlResolutionInfo,
         data: ExtractData
     ): ?PackageData {
         match (data.json) {
@@ -192,7 +192,7 @@ public class ProcessDependencyList {
     }
 
     /// Tarball processing helper
-    private static func processTarballWithJson(manager: PackageManagerRef, packageId: UInt32, depId: UInt32, resolution: ResolutionInfo, data: ExtractData, jsonInfo: JsonInfo): ?PackageData {
+    private static func processTarballWithJson(manager: PdlPackageManagerRef, packageId: UInt32, depId: UInt32, resolution: PdlResolutionInfo, data: ExtractData, jsonInfo: JsonInfo): ?PackageData {
         var pkg = PackageData()
         pkg.parse(
             manager: manager,
@@ -220,7 +220,7 @@ public class ProcessDependencyList {
     /// 翻译自: processDependencyListItem
     ///   pub fn processDependencyListItem(this, item, any_root, install_peer) !void
     public static func processDependencyListItem(
-        manager: PackageManagerRef,
+        manager: PdlPackageManagerRef,
         item: TaskCallbackContext,
         anyRoot: ?BoolRef,
         installPeer: Bool
@@ -233,14 +233,14 @@ public class ProcessDependencyList {
     }
 
     /// processDependencyListItem helper for Dependency case
-    private static func processDepItem(manager: PackageManagerRef, depId: UInt32, installPeer: Bool): Unit {
+    private static func processDepItem(manager: PdlPackageManagerRef, depId: UInt32, installPeer: Bool): Unit {
         let dependency = manager.lockfile.dependencies[Int64(depId)]
         let resolution = manager.lockfile.resolutions[Int64(depId)]
         manager.enqueueDependencyWithMain(depId: depId, dependency: dependency, resolution: resolution, installPeer: installPeer)
     }
 
     /// processDependencyListItem helper for RootDependency case
-    private static func processRootDepItem(manager: PackageManagerRef, depId: UInt32, installPeer: Bool, anyRoot: ?BoolRef): Unit {
+    private static func processRootDepItem(manager: PdlPackageManagerRef, depId: UInt32, installPeer: Bool, anyRoot: ?BoolRef): Unit {
         let dependency = manager.lockfile.dependencies[Int64(depId)]
         let resolution = manager.lockfile.resolutions[Int64(depId)]
 
@@ -260,7 +260,7 @@ public class ProcessDependencyList {
     }
 
     /// check if root resolution changed
-    private static func checkRootResolutionChanged(manager: PackageManagerRef, depId: UInt32, oldResolution: UInt32, ref: BoolRef): Unit {
+    private static func checkRootResolutionChanged(manager: PdlPackageManagerRef, depId: UInt32, oldResolution: UInt32, ref: BoolRef): Unit {
         let newResolutionId = manager.lockfile.resolutions[Int64(depId)]
         if (newResolutionId != oldResolution) {
             ref.value = true
@@ -270,7 +270,7 @@ public class ProcessDependencyList {
     /// 处理对等依赖列表
     /// 翻译自: processPeerDependencyList
     ///   pub fn processPeerDependencyList(this) !void
-    public static func processPeerDependencyList(manager: PackageManagerRef): Unit {
+    public static func processPeerDependencyList(manager: PdlPackageManagerRef): Unit {
         while (true) {
             match (manager.peerDependencies.readItem()) {
                 case Some(peerDepId) => processPeerDepItem(manager, peerDepId)
@@ -280,7 +280,7 @@ public class ProcessDependencyList {
     }
 
     /// processPeerDependencyList helper
-    private static func processPeerDepItem(manager: PackageManagerRef, peerDepId: UInt32): Unit {
+    private static func processPeerDepItem(manager: PdlPackageManagerRef, peerDepId: UInt32): Unit {
         let dependency = manager.lockfile.dependencies[Int64(peerDepId)]
         let resolution = manager.lockfile.resolutions[Int64(peerDepId)]
         manager.enqueueDependencyWithMain(depId: peerDepId, dependency: dependency, resolution: resolution, installPeer: true)
@@ -290,7 +290,7 @@ public class ProcessDependencyList {
     /// 翻译自: processDependencyList
     ///   pub fn processDependencyList(this, dep_list, Ctx, ctx, callbacks, install_peer) !void
     public static func processDependencyList(
-        manager: PackageManagerRef,
+        manager: PdlPackageManagerRef,
         depList: TaskCallbackList,
         installPeer: Bool
     ): Unit {
@@ -327,13 +327,13 @@ public class ExtractData {
     public var resolved: String
     public var url: String
     public var json: ?JsonInfo
-    public var integrity: IntegrityInfo
+    public var integrity: PdlIntegrityInfo
 
     public init() {
         resolved = ""
         url = ""
         json = None
-        integrity = IntegrityInfo()
+        integrity = PdlIntegrityInfo()
     }
 }
 
@@ -363,11 +363,11 @@ public class PackageData {
         dependencies = ArrayList<UInt32>()
     }
 
-    public func parse(manager: PackageManagerRef, source: String, resolver: GitResolver): Unit {
+    public func parse(manager: PdlPackageManagerRef, source: String, resolver: GitResolver): Unit {
         // 简化: 实际解析需要读取 package.json
     }
 
-    public func parse(manager: PackageManagerRef, source: String, resolver: TarballResolver): Unit {
+    public func parse(manager: PdlPackageManagerRef, source: String, resolver: TarballResolver): Unit {
         // 简化: 实际解析需要读取 package.json
     }
 }
@@ -375,11 +375,11 @@ public class PackageData {
 /// 包元数据
 public class PackageMeta {
     public var id: UInt32
-    public var integrity: IntegrityInfo
+    public var integrity: PdlIntegrityInfo
 
     public init() {
         id = 0
-        integrity = IntegrityInfo()
+        integrity = PdlIntegrityInfo()
     }
 
     public func setHasInstallScript(has: Bool): Unit {}
@@ -393,7 +393,7 @@ public class PackageScripts {
 }
 
 /// 完整性信息
-public class IntegrityInfo {
+public class PdlIntegrityInfo {
     public init() {}
     public func isSupported(): Bool { return false }
 }
@@ -427,39 +427,39 @@ public class BoolRef {
 
 /// 仓库工具
 public class Repository {
-    public static func createDependencyName(manager: PackageManagerRef, resolution: ResolutionInfo, depId: UInt32): String {
+    public static func createDependencyName(manager: PdlPackageManagerRef, resolution: PdlResolutionInfo, depId: UInt32): String {
         return "unknown"
     }
 }
 
 /// 包管理器引用
-public class PackageManagerRef {
-    public var lockfile: LockfileData
+public class PdlPackageManagerRef {
+    public var lockfile: PdlLockfileData
     public var peerDependencies: PeerDependencyQueue
 
     public init() {
-        lockfile = LockfileData()
+        lockfile = PdlLockfileData()
         peerDependencies = PeerDependencyQueue()
     }
 
-    public func enqueueDependencyWithMain(depId: UInt32, dependency: DependencyInfo, resolution: UInt32, installPeer: Bool): Unit {}
-    public func enqueueDependencyWithMainAndSuccessFn(depId: UInt32, dependency: DependencyInfo, resolution: UInt32, installPeer: Bool, successFn: Fn, failFn: Fn): Unit {}
+    public func enqueueDependencyWithMain(depId: UInt32, dependency: PdlDependencyInfo, resolution: UInt32, installPeer: Bool): Unit {}
+    public func enqueueDependencyWithMainAndSuccessFn(depId: UInt32, dependency: PdlDependencyInfo, resolution: UInt32, installPeer: Bool, successFn: Fn, failFn: Fn): Unit {}
     public func enqueueDependencyList(deps: ArrayList<UInt32>): Unit {}
 }
 
 /// 锁文件数据
-public class LockfileData {
+public class PdlLockfileData {
     public var resolutions: ArrayList<UInt32>
-    public var dependencies: ArrayList<DependencyInfo>
+    public var dependencies: ArrayList<PdlDependencyInfo>
 
     public init() {
         resolutions = ArrayList<UInt32>()
-        dependencies = ArrayList<DependencyInfo>()
+        dependencies = ArrayList<PdlDependencyInfo>()
     }
 }
 
 /// 依赖信息
-public class DependencyInfo {
+public class PdlDependencyInfo {
     public init() {}
 }
 
@@ -470,7 +470,7 @@ public class PeerDependencyQueue {
 }
 
 /// 解析信息
-public class ResolutionInfo {
+public class PdlResolutionInfo {
     public var tag: ResolutionTag
     public init() { tag = ResolutionTag.NPM }
 }

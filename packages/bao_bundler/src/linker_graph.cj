@@ -230,15 +230,15 @@ public class AstFlags {
 /// JS Meta
 public class JsMeta {
     public var flags: MetaFlags
-    public var importsToBind: HashMap<Ref, ImportData>
-    public var resolvedExports: HashMap<String, ResolvedExport>
+    public var importsToBind: HashMap<Ref, GraphImportData>
+    public var resolvedExports: HashMap<String, GraphResolvedExport>
     public var topLevelSymbolToPartsOverlay: HashMap<Ref, BabyListU32>
     public var probablyTypeScriptType: HashSet<Ref>
 
     public init() {
         this.flags = MetaFlags()
-        this.importsToBind = HashMap<Ref, ImportData>()
-        this.resolvedExports = HashMap<String, ResolvedExport>()
+        this.importsToBind = HashMap<Ref, GraphImportData>()
+        this.resolvedExports = HashMap<String, GraphResolvedExport>()
         this.topLevelSymbolToPartsOverlay = HashMap<Ref, BabyListU32>()
         this.probablyTypeScriptType = HashSet<Ref>()
     }
@@ -247,18 +247,18 @@ public class JsMeta {
 /// Meta 标志
 public class MetaFlags {
     public var isAsyncOrHasAsyncDependency: Bool
-    public var wrap: WrapKind
+    public var wrap: GraphWrapKind
     public var forceIncludeExportsForEntryPoint: Bool
 
     public init() {
         this.isAsyncOrHasAsyncDependency = false
-        this.wrap = WrapKind.None
+        this.wrap = GraphWrapKind.None
         this.forceIncludeExportsForEntryPoint = false
     }
 }
 
 /// 包装类型
-public enum WrapKind {
+public enum GraphWrapKind {
     | None
     | CJS
     | ESM
@@ -293,7 +293,7 @@ public class NamedImportEntry {
 }
 
 /// 导入数据
-public class ImportData {
+public class GraphImportData {
     public var sourceIndex: Index
     public var importRef: Ref
     public var reExports: ArrayList<Dependency>
@@ -306,7 +306,7 @@ public class ImportData {
 }
 
 /// 已解析导出
-public class ResolvedExport {
+public class GraphResolvedExport {
     public var importRef: Ref
     public var nameLoc: Int32
     public var sourceIndex: Index

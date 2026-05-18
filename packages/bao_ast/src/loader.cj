@@ -8,6 +8,7 @@
 package bao_ast
 
 import bao_core.*
+import bao_collections.*
 
 // ============================================================================
 // Loader - 模块加载器
@@ -298,7 +299,7 @@ public class LoaderOptional {
 
 /// 加载器名称到加载器类型的映射
 /// 对应 Bun Loader.NAMES (phf map)
-public let LOADER_NAMES: HashMap<String, Loader> = {
+public let LOADER_NAMES: HashMap<String, Loader> = { =>
     let m = HashMap<String, Loader>()
     m.put("js", Loader.Js)
     m.put("mjs", Loader.Js)

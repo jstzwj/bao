@@ -87,7 +87,7 @@ private func generateShortName(counter: Int64): String {
 
 /// 准备 CSS AST
 // 严格翻译自: generateChunksInParallel.zig 中 prepareCssAstsForChunk
-private func prepareCssAstsForChunk(linker: LinkerContext, chunk: Chunk): Unit {
+private func prepareCssAstsForChunkLegacy(linker: LinkerContext, chunk: Chunk): Unit {
     return
 }
 
@@ -106,8 +106,8 @@ private func compileChunkParts(linker: LinkerContext, chunk: Chunk,
 // 严格翻译自: generateCodeForFileInChunkJS.zig:1
 public func generateCodeForFileInChunkJS(linker: LinkerContext, chunk: Chunk,
                                            partRange: PartRange,
-                                           allChunks: ArrayList<Chunk>): CompileResult {
-    return CompileResult()
+                                           allChunks: ArrayList<Chunk>): GenerateCompileResult {
+    return GenerateCompileResult()
 }
 
 // ============================================================================
@@ -181,14 +181,14 @@ private func generateChunkOutputPath(linker: LinkerContext, chunk: Chunk): Strin
 }
 
 /// CSS chunk 编译结果
-private func generateCompileResultForCssChunk(linker: LinkerContext, chunk: Chunk,
-                                                index: Int64): CompileResult {
-    return CompileResult()
+private func generateGenerateCompileResultForCssChunk(linker: LinkerContext, chunk: Chunk,
+                                                index: Int64): GenerateCompileResult {
+    return GenerateCompileResult()
 }
 
 /// HTML chunk 编译结果
-private func generateCompileResultForHtmlChunk(linker: LinkerContext, chunk: Chunk): CompileResult {
-    return CompileResult()
+private func generateGenerateCompileResultForHtmlChunk(linker: LinkerContext, chunk: Chunk): GenerateCompileResult {
+    return GenerateCompileResult()
 }
 
 /// 解析 chunk 间引用
@@ -237,20 +237,20 @@ private func topLevelSymbolsToParts(linker: LinkerContext, sourceIndex: Int64,
 
 /// Part 范围
 // 严格翻译自: Chunk.zig 中 PartRange/// 编译结果
-public class CompileResult {
-    public var kind: CompileResultKind
+public class GenerateCompileResult {
+    public var kind: GenerateCompileResultKind
     public var code: String
     public var decls: ArrayList<DeclInfo>
 
     public init() {
-        kind = CompileResultKind.JavaScript
+        kind = GenerateCompileResultKind.JavaScript
         code = ""
         decls = ArrayList<DeclInfo>()
     }
 }
 
 /// 编译结果类型
-public enum CompileResultKind {
+public enum GenerateCompileResultKind {
     | JavaScript
     | CSS
     | HTML
@@ -303,7 +303,7 @@ public class ExportData {
 }
 
 /// 歧义 export star 引用
-public class AmbiguousExportStarRef {
+public class GenerateAmbiguousExportStarRef {
     public var data: ExportData
     public var reExports: ArrayList<ResolvedExport>
 

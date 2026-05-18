@@ -13,7 +13,6 @@
 // 仓颉实现基本 YAML 解析功能
 package bao_parsers
 
-import bao_core.*
 import bao_collections.*
 import std.convert.*
 

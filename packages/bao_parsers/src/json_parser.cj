@@ -10,7 +10,6 @@
 //   5. 使用 HashMapPool 复用临时 HashMap
 package bao_parsers
 
-import bao_core.*
 import bao_collections.*
 import std.convert.*
 

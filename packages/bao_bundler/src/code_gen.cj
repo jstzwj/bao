@@ -131,7 +131,7 @@ public class ImportExportRewriter {
 
     /// 重写 import 声明为 bundle 内部引用
     // 严格翻译自: linker 中对 ESM import -> __bao_require 转换
-    public func rewriteImportStatement(importPath: String, bindings: Array<ImportBinding>): String {
+    public func rewriteImportStatement(importPath: String, bindings: Array<CodeGenImportBinding>): String {
         let moduleId = assignModuleId(importPath)
         let sb = StringBuilder()
 
@@ -195,7 +195,7 @@ public class ImportExportRewriter {
 }
 
 /// Import 绑定信息
-public class ImportBinding {
+public class CodeGenImportBinding {
     public var localName: String       // 本地变量名
     public var importedName: String    // 导入的原始名
     public var isDefault: Bool

@@ -8,7 +8,6 @@
 // Bun TOML 解析器用于 bunfig.toml 配置文件解析
 package bao_parsers
 
-import bao_core.*
 import bao_collections.*
 import std.convert.*
 

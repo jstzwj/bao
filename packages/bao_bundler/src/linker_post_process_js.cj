@@ -14,7 +14,7 @@ import bao_path.*
 //
 // 在所有 JS 编译结果生成后, 执行后处理:
 //   1. 生成跨 chunk 前缀/后缀代码 (导入/导出语句)
-//   2. 填充 ModuleInfo (用于字节码缓存):
+//   2. 填充 PostProcessModuleInfo (用于字节码缓存):
 //      a. 从 DeclCollector 收集声明
 //      b. 检测 import.meta 使用
 //      c. 检测顶层 await
@@ -49,8 +49,8 @@ public func postProcessJSChunk(
     chunks: ArrayList<Chunk>
 ): Unit {
     // Generate cross-chunk prefix/suffix code
-    let crossChunkPrefix = PrintResult()
-    let crossChunkSuffix = PrintResult()
+    let crossChunkPrefix = PostProcessPrintResult()
+    let crossChunkSuffix = PostProcessPrintResult()
 
     // Simplified: would call js_printer.print() for cross_chunk_prefix_stmts
     // and cross_chunk_suffix_stmts
@@ -64,21 +64,21 @@ public func postProcessJSChunk(
         getRuntimeMemberRef(c, "__require")
     }
 
-    // Create ModuleInfo for ESM bytecode in --compile builds
-    let generateModuleInfo = c.options.generateBytecodeCache &&
+    // Create PostProcessModuleInfo for ESM bytecode in --compile builds
+    let generatePostProcessModuleInfo = c.options.generateBytecodeCache &&
                              c.options.outputFormat == OutputFormat.ESM &&
                              c.options.compile
     let loader = c.parseGraph.getLoader(chunk.entryPoint.sourceIndex)
     let isTypescript = loader.isTypeScript()
-    let moduleInfo: ?ModuleInfo = if (generateModuleInfo) {
-        ModuleInfo(isTypescript)
+    let moduleInfo: ?PostProcessModuleInfo = if (generatePostProcessModuleInfo) {
+        PostProcessModuleInfo(isTypescript)
     } else {
         None
     }
 
-    // Populate ModuleInfo with declarations collected during parallel printing
+    // Populate PostProcessModuleInfo with declarations collected during parallel printing
     if (moduleInfo != None) {
-        populateModuleInfo(c, chunk, moduleInfo)
+        populatePostProcessModuleInfo(c, chunk, moduleInfo)
     }
 
     // Generate the exports for the entry point
@@ -91,7 +91,7 @@ public func postProcessJSChunk(
         CompileResult()
     }
 
-    // Store ModuleInfo on the chunk
+    // Store PostProcessModuleInfo on the chunk
     if (moduleInfo != None) {
         chunk.content.javascript.moduleInfo = moduleInfo
     }
@@ -161,11 +161,12 @@ public func postProcessJSChunk(
     // Add IIFE wrapper start
     match (outputFormat) {
         case OutputFormat.IIFE =>
-            let start = if (c.options.minifyWhitespace) "(()=>{" else "(() => {\n"
+            let start = if (c.options.minifyWhitespace) { "(()=>{" } else { "(() => {\n" }
             j.pushStatic(start)
             lineOffset.advance(start)
         case OutputFormat.InternalBakeDev =>
             // Add HMR runtime start
+            ()
         case _ => ()
     }
 
@@ -182,7 +183,7 @@ public func postProcessJSChunk(
     let sources = c.parseGraph.inputFiles.sources
 
     var prevFilenameComment: Int64 = 0
-    for (compileResults) { compileResult =>
+    for (compileResult in compileResults) {
         let sourceIndex = compileResult.sourceIndex
         let isRuntime = sourceIndex == 0
 
@@ -291,10 +292,10 @@ public func generateEntryPointTailJS(
     toCommonJSRef: ?Int64,
     toESMRef: ?Int64,
     sourceIndex: Int64,
-    moduleInfo: ?ModuleInfo
+    moduleInfo: ?PostProcessModuleInfo
 ): CompileResult {
     let flags = c.graph.getMetaFlags(sourceIndex)
-    var stmts = ArrayList<Stmt>()
+    var stmts = ArrayList<PostProcessStmt>()
 
     match (c.options.outputFormat) {
         case OutputFormat.ESM =>
@@ -302,6 +303,7 @@ public func generateEntryPointTailJS(
                 case WrapKind.CJS =>
                     // "export default require_foo();"
                     // Simplified
+                    ()
                 case WrapKind.ESM =>
                     if (flags.isAsyncOrHasAsyncDependency) {
                         // "await init_foo();"
@@ -313,17 +315,22 @@ public func generateEntryPointTailJS(
                 case WrapKind.None =>
                     // Generate export clause for all exported symbols
                     // Simplified
+                    ()
             }
         case OutputFormat.IIFE =>
             // Nothing needed for IIFE
+            ()
         case OutputFormat.InternalBakeDev =>
             // Nothing needed - exports forwarded in module closure
+            ()
         case OutputFormat.CJS =>
             match (flags.wrap) {
                 case WrapKind.CJS =>
                     // "module.exports = require_foo();"
+                    ()
                 case WrapKind.ESM =>
                     // "init_foo();"
+                    ()
                 case WrapKind.None => ()
             }
         case _ => ()
@@ -333,6 +340,7 @@ public func generateEntryPointTailJS(
     if (moduleInfo != None) {
         for (stmt in stmts) {
             // Add binding vars to module info
+        }
     }
 
     let result = CompileResult()
@@ -343,13 +351,13 @@ public func generateEntryPointTailJS(
 }
 
 // ============================================================================
-// ModuleInfo 填充
+// PostProcessModuleInfo 填充
 // ============================================================================
 
-/// 填充 ModuleInfo
+/// 填充 PostProcessModuleInfo
 // 严格翻译自: postProcessJSChunk.zig:99-235
-private func populateModuleInfo(c: LinkerContext, chunk: Chunk,
-                                  moduleInfo: ModuleInfo): Unit {
+private func populatePostProcessModuleInfo(c: LinkerContext, chunk: Chunk,
+                                  moduleInfo: PostProcessModuleInfo): Unit {
     // 1. Add declarations from DeclCollector
     for (compileResult in chunk.compileResultsForChunk) {
         if (compileResult.kind != CompileResultKind.JavaScript) {
@@ -358,6 +366,7 @@ private func populateModuleInfo(c: LinkerContext, chunk: Chunk,
         for (decl in compileResult.decls) {
             let varKind = decl.kind
             moduleInfo.addVar(decl.name, varKind)
+        }
     }
 
     // 1b. Check if any source uses import.meta
@@ -389,11 +398,11 @@ private func populateModuleInfo(c: LinkerContext, chunk: Chunk,
     // Simplified
 }
 
-/// 递归遍历 Binding 添加变量到 ModuleInfo
-// 严格翻译自: postProcessJSChunk.zig:601 addBindingVarsToModuleInfo()
-private func addBindingVarsToModuleInfo(mi: ModuleInfo, binding: Binding,
+/// 递归遍历 Binding 添加变量到 PostProcessModuleInfo
+// 严格翻译自: postProcessJSChunk.zig:601 addBindingVarsToPostProcessModuleInfo()
+private func addBindingVarsToPostProcessModuleInfo(mi: PostProcessModuleInfo, binding: Binding,
                                           varKind: VarKind, renamer: Renamer,
-                                          symbols: SymbolMap): Unit {
+                                          symbols: PostProcessSymbolMap): Unit {
     match (binding.kind) {
         case BindingKind.Identifier =>
             let name = renamer.nameForSymbol(symbols.follow(binding.ref))
@@ -402,11 +411,11 @@ private func addBindingVarsToModuleInfo(mi: ModuleInfo, binding: Binding,
             }
         case BindingKind.Array =>
             for (item in binding.items) {
-                addBindingVarsToModuleInfo(mi, item.binding, varKind, renamer, symbols)
+                addBindingVarsToPostProcessModuleInfo(mi, item.binding, varKind, renamer, symbols)
             }
         case BindingKind.Object =>
-            for (prop in binding.properties) {
-                addBindingVarsToModuleInfo(mi, prop.value, varKind, renamer, symbols)
+            for (property in binding.properties) {
+                addBindingVarsToPostProcessModuleInfo(mi, property.value, varKind, renamer, symbols)
             }
         case BindingKind.Missing => ()
     }
@@ -417,7 +426,7 @@ private func addBindingVarsToModuleInfo(mi: ModuleInfo, binding: Binding,
 // ============================================================================
 
 /// 打印结果
-public class PrintResult {
+public class PostProcessPrintResult {
     public var code: String
 
     public init() {
@@ -426,12 +435,12 @@ public class PrintResult {
 }
 
 /// 模块信息 (用于字节码缓存)
-public class ModuleInfo {
-    public var flags: ModuleInfoFlags
+public class PostProcessModuleInfo {
+    public var flags: PostProcessModuleInfoFlags
     public var isTypescript: Bool
 
     public init(isTypescript: Bool) {
-        flags = ModuleInfoFlags()
+        flags = PostProcessModuleInfoFlags()
         this.isTypescript = isTypescript
     }
 
@@ -441,7 +450,7 @@ public class ModuleInfo {
 }
 
 /// 模块信息标志
-public class ModuleInfoFlags {
+public class PostProcessModuleInfoFlags {
     public var containsImportMeta: Bool
     public var hasTla: Bool
 
@@ -490,23 +499,23 @@ public class BindingProperty {
 }
 
 /// 语句 (简化)
-public class Stmt {
+public class PostProcessStmt {
     public var tag: String
-    public var data: StmtData
+    public var data: PostProcessStmtData
 
     public init() {
         tag = ""
-        data = StmtData()
+        data = PostProcessStmtData()
     }
 }
 
 /// 语句数据 (简化)
-public class StmtData {
+public class PostProcessStmtData {
     public init() {}
 }
 
 /// 声明信息
-public class DeclInfo {
+public class PostProcessDeclInfo {
     public var name: String
     public var kind: VarKind
 
@@ -517,7 +526,7 @@ public class DeclInfo {
 }
 
 /// 符号映射 (简化)
-public class SymbolMap {
+public class PostProcessSymbolMap {
     public func follow(ref: Int64): Int64 {
         return ref
     }

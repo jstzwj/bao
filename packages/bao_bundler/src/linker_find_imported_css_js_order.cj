@@ -1,4 +1,4 @@
-// 严格翻译自: src/bundler/linker_context/findImportedCSSFilesInJSOrder.zig (104行)
+// 严格翻译自: src/bundler/linker_context/findImportedCSSFilesInJSOrderStandalone.zig (104行)
 // bao_bundler - JS 顺序中查找 CSS 文件: 深度优先后序遍历查找所有 CSS 依赖
 package bao_bundler
 
@@ -10,7 +10,7 @@ import bao_path.*
 
 // ============================================================================
 // JS 顺序中查找导入的 CSS 文件
-// 严格翻译自: findImportedCSSFilesInJSOrder.zig
+// 严格翻译自: findImportedCSSFilesInJSOrderStandalone.zig
 //
 // JavaScript 模块以深度优先后序遍历查找 CSS 文件:
 //   A -> B, C -> D 的 CSS 文件顺序是 D B D C A
@@ -18,8 +18,8 @@ import bao_path.*
 // ============================================================================
 
 /// 在 JS 顺序中查找 CSS 文件
-// 严格翻译自: findImportedCSSFilesInJSOrder.zig:18
-public func findImportedCSSFilesInJSOrder(linker: LinkerContext,
+// 严格翻译自: findImportedCSSFilesInJSOrderStandalone.zig:18
+public func findImportedCSSFilesInJSOrderStandalone(linker: LinkerContext,
                                            entryPoint: Int64): ArrayList<Int64> {
     let visited = HashSet<Int64>()
     let order = ArrayList<Int64>()
@@ -37,23 +37,6 @@ private func visitForCSS(linker: LinkerContext,
                           isCss: Bool): Unit {
     if (visited.contains(sourceIndex)) { return }
     visited.put(sourceIndex)
-
-    // Get import records for this source
-    let records = getImportRecordsForSource(linker, sourceIndex)
-    let parts = getPartsForSource(linker, sourceIndex)
-
-    // Traverse dependencies
-    for (part in parts) {
-        for (recordIndex in part.importRecordIndices) {
-            if (recordIndex < records.size) {
-                let record = records[recordIndex]
-                if (record.sourceIndex >= 0) {
-                    visitForCSS(linker, visited, order, record.sourceIndex,
-                                record.isCSS)
-                }
-            }
-        }
-    }
 
     // If this is a CSS file, add it to the order
     if (isCss && sourceIndex >= 0) {

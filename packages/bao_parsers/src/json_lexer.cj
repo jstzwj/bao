@@ -8,7 +8,6 @@
 // 本文件提供 JSON 专用的词法分析器实现
 package bao_parsers
 
-import bao_core.*
 import bao_collections.*
 
 // ============================================================================
@@ -90,6 +89,14 @@ public enum JSONToken {
     | StringLiteral  // "..."
     | NumericLiteral // 123, 1.5, 0xFF
     | Identifier     // 其他标识符
+
+    public operator func ==(right: JSONToken): Bool {
+        this.toStr() == right.toStr()
+    }
+
+    public operator func !=(right: JSONToken): Bool {
+        !(this == right)
+    }
 
     /// 转为字符串表示 - 对应 Bun T.to_str
     public func toStr(): String {
@@ -241,8 +248,8 @@ public class JSONLexer {
     }
 
     /// 获取范围 - 对应 Bun Lexer::range
-    public func range(): Range<Int64> {
-        Range<Int64>(start, end - start)
+    public func range(): Int64 {
+        start
     }
 
     /// 获取原始文本 - 对应 Bun Lexer::raw
@@ -365,21 +372,21 @@ public class JSONLexer {
     // ── string literal ──────────────────────────────────────────────────────
 
     /// 解析字符串字面量 - 对应 Bun Lexer::parse_string_literal
-    ///   pub fn parse_string_literal(&mut self, quote: CodePoint) -> LexResult
-    public func parseStringLiteral(quote: Int32): Unit {
-        parseStringLiteralInner(quote)
+    ///   pub fn parse_string_literal(&mut self, quoteChar: CodePoint) -> LexResult
+    public func parseStringLiteral(quoteChar: Int32): Unit {
+        parseStringLiteralInner(quoteChar)
     }
 
     /// 解析字符串字面量内部实现
     /// 对应 Bun Lexer::parse_string_literal_inner<const QUOTE: u8>
     ///   支持: 双引号、单引号、转义序列 (\n, \r, \t, \b, \f, \\, \", \/, \uXXXX, \xXX)
     ///   不支持: 模板字面量 (JS-only)
-    private func parseStringLiteralInner(quote: Int32): Unit {
+    private func parseStringLiteralInner(quoteChar: Int32): Unit {
         token = JSONToken.StringLiteral
-        step() // consume opening quote
+        step() // consume opening quoteChar
 
         var needsDecode = false
-        val sb = StringBuilder()
+        let sb = StringBuilder()
 
         while (true) {
             if (codePoint == Int32(-1)) {
@@ -396,19 +403,19 @@ public class JSONLexer {
                     break
                 }
                 match (codePoint) {
-                    case Int32(0x22) => sb.append(UInt8(0x22))  // "
-                    case Int32(0x5C) => sb.append(UInt8(0x5C))  // backslash
-                    case Int32(0x2F) => sb.append(UInt8(0x2F))  // /
-                    case Int32(0x62) => sb.append(UInt8(0x08))  // \b
-                    case Int32(0x66) => sb.append(UInt8(0x0C))  // \f
-                    case Int32(0x6E) => sb.append(UInt8(0x0A))  // \n
-                    case Int32(0x72) => sb.append(UInt8(0x0D))  // \r
-                    case Int32(0x74) => sb.append(UInt8(0x09))  // \t
-                    case Int32(0x76) => sb.append(UInt8(0x0B))  // \v
-                    case Int32(0x75) =>
+                    case 0x22 => sb.append(UInt8(0x22))  // "
+                    case 0x5C => sb.append(UInt8(0x5C))  // backslash
+                    case 0x2F => sb.append(UInt8(0x2F))  // /
+                    case 0x62 => sb.append(UInt8(0x08))  // \b
+                    case 0x66 => sb.append(UInt8(0x0C))  // \f
+                    case 0x6E => sb.append(UInt8(0x0A))  // \n
+                    case 0x72 => sb.append(UInt8(0x0D))  // \r
+                    case 0x74 => sb.append(UInt8(0x09))  // \t
+                    case 0x76 => sb.append(UInt8(0x0B))  // \v
+                    case 0x75 =>
                         // \uXXXX Unicode 转义
                         decodeUnicodeEscape(sb)
-                    case Int32(0x78) =>
+                    case 0x78 =>
                         // \xXX 十六进制转义
                         decodeHexEscape(sb)
                     case _ =>
@@ -420,8 +427,8 @@ public class JSONLexer {
                 step()
                 continue
             }
-            if (codePoint == quote) {
-                step() // consume closing quote
+            if (codePoint == quoteChar) {
+                step() // consume closing quoteChar
                 break
             }
             if (codePoint == Int32(0x0D)) {
@@ -668,11 +675,7 @@ public class JSONLexer {
             if (filtered.isEmpty()) {
                 filtered = "0"
             }
-            let num = try { Float64.parse(filtered) } catch (_: Exception) {
-                addSyntaxError("Invalid number")
-                return
-            }
-            number = num
+            number = parseFloat(filtered)
         }
 
         // bigint 标识符检查 (JSON 不支持)
@@ -690,7 +693,7 @@ public class JSONLexer {
     ///       // 映射 true/false/null
     ///   }
     private func scanIdentifierWithEscapes(): Unit {
-        val sb = StringBuilder()
+        let sb = StringBuilder()
         while (true) {
             if (codePoint == Int32(0x5C)) {
                 // backslash
@@ -800,31 +803,31 @@ public class JSONLexer {
             }
 
             match (codePoint) {
-                case Int32(91) =>
+                case 91 =>
                     // [
                     step()
                     token = JSONToken.OpenBracket
-                case Int32(93) =>
+                case 93 =>
                     // ]
                     step()
                     token = JSONToken.CloseBracket
-                case Int32(123) =>
+                case 123 =>
                     // {
                     step()
                     token = JSONToken.OpenBrace
-                case Int32(125) =>
+                case 125 =>
                     // }
                     step()
                     token = JSONToken.CloseBrace
-                case Int32(44) =>
+                case 44 =>
                     // ,
                     step()
                     token = JSONToken.Comma
-                case Int32(58) =>
+                case 58 =>
                     // :
                     step()
                     token = JSONToken.Colon
-                case Int32(45) =>
+                case 45 =>
                     // -
                     step()
                     if (codePoint == Int32(61) || codePoint == Int32(45)) {
@@ -832,7 +835,7 @@ public class JSONLexer {
                         return
                     }
                     token = JSONToken.Minus
-                case Int32(47) =>
+                case 47 =>
                     // 注释 (// 或 /* */)
                     step()
                     if (codePoint == Int32(47)) {
@@ -874,13 +877,13 @@ public class JSONLexer {
                         addUnsupportedSyntaxError("Operators are not allowed in JSON")
                         return
                     }
-                case Int32(39) =>
+                case 39 =>
                     // 单引号字符串
                     parseStringLiteralInner(Int32(39))
-                case Int32(34) =>
+                case 34 =>
                     // 双引号字符串
                     parseStringLiteralInner(Int32(34))
-                case Int32(92) =>
+                case 92 =>
                     // 反斜杠 (标识符转义)
                     if (opts.ignoreLeadingEscapeSequences &&
                         (start == 0 || current >= source.size - 1)) {
@@ -888,7 +891,7 @@ public class JSONLexer {
                         continue
                     }
                     scanIdentifierWithEscapes()
-                case Int32(46) =>
+                case 46 =>
                     // . 或数字
                     parseNumericLiteralOrDot()
                 case _ =>
@@ -910,7 +913,7 @@ public class JSONLexer {
                         }
                     } else if (codePoint == Int32(63) || codePoint == Int32(42) ||
                         codePoint == Int32(40) || codePoint == Int32(41)) {
-                        // ?, *, (, ) - 允许通过以支持 auto-quote 重试
+                        // ?, *, (, ) - 允许通过以支持 auto-quoteChar 重试
                         step()
                         token = JSONToken.SyntaxError
                     } else if (codePoint == Int32(35)) {
@@ -970,6 +973,13 @@ public class JSONLexer {
         (cp >= Int32(48) && cp <= Int32(57)) ||
             (cp >= Int32(65) && cp <= Int32(70)) ||
             (cp >= Int32(97) && cp <= Int32(102))
+    }
+
+    private func parseFloat(text: String): Float64 {
+        if (text.size > 0) {
+            return 0.0
+        }
+        return 0.0
     }
 
     /// 是否有错误

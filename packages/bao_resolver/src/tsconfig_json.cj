@@ -244,7 +244,7 @@ public enum ImportsNotUsedAsValue {
 }
 
 /// importsNotUsedAsValues 查找表 - 对应 IMPORTS_NOT_USED_AS_VALUE_LIST
-public let IMPORTS_NOT_USED_AS_VALUE_MAP: HashMap<String, ImportsNotUsedAsValue> = {
+public let IMPORTS_NOT_USED_AS_VALUE_MAP: HashMap<String, ImportsNotUsedAsValue> = { =>
     let m = HashMap<String, ImportsNotUsedAsValue>()
     m.put("preserve", ImportsNotUsedAsValue.Preserve)
     m.put("error", ImportsNotUsedAsValue.Err)
@@ -323,9 +323,9 @@ public class TSConfigJSONHelper {
         let c1 = text[1]
         let c2 = text[2]
 
-        // 相对路径 "./" 或 "../"
-        if (c0 == UInt8(46) && (c1 == UInt8(47) || c1 == UInt8(92) ||
-            (c1 == UInt8(46) && (c2 == UInt8(47) || c2 == UInt8(92)))) {
+        let startsWithDotSlash = c0 == UInt8(46) && (c1 == UInt8(47) || c1 == UInt8(92))
+        let startsWithDotDotSlash = c0 == UInt8(46) && c1 == UInt8(46) && (c2 == UInt8(47) || c2 == UInt8(92))
+        if (startsWithDotSlash || startsWithDotDotSlash) {
             return true
         }
 
@@ -386,46 +386,3 @@ public class JsonCache {
     }
 }
 
-/// package.json 信息 (tsconfig 解析器内部使用)
-public class PackageJsonInfo {
-    public var name: String
-    public var main: String
-    public var module: String
-    public var types: String
-    public var exports: ?String
-    public var imports: ?String
-    public var browserMap: HashMap<String, String>
-    public var sideEffects: Bool
-    public var moduleType: ModuleType
-
-    public init() {
-        name = ""
-        main = ""
-        module = ""
-        types = ""
-        exports = None
-        imports = None
-        browserMap = HashMap<String, String>()
-        sideEffects = true
-        moduleType = ModuleType.Unknown
-    }
-}
-
-/// 模块类型 - 对应 Bun ModuleType
-public enum ModuleType {
-    | Unknown
-    | Esm
-    | Cjs
-
-    public operator func ==(right: ModuleType): Bool {
-        ordinal() == right.ordinal()
-    }
-
-    public func ordinal(): Int64 {
-        match (this) {
-            case Unknown => 0
-            case Esm => 1
-            case Cjs => 2
-        }
-    }
-}

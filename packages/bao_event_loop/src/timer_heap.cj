@@ -69,7 +69,7 @@ public class TimerHeap {
     /// 插入定时器 - 对应 Bun timer insert
     /// O(log n) 操作
     public func insert(timer: EventLoopTimer): Unit {
-        timer.inHeap = InHeap.Regular
+        timer.inHeap = TimerInHeap.Regular
         heap.append(timer)
         let idx = heap.size - 1
         idToIndex.put(timer.id, Int64(idx))
@@ -110,14 +110,14 @@ public class TimerHeap {
         let lastIdx = heap.size - 1
         if (lastIdx == 0) {
             heap.removeAt(0)
-            top.inHeap = InHeap.None
+            top.inHeap = TimerInHeap.None
             return Some(top)
         }
         heap[0] = heap[Int64(lastIdx)]
         idToIndex.put(heap[0].id, Int64(0))
         heap.removeAt(Int64(lastIdx))
         siftDown(0)
-        top.inHeap = InHeap.None
+        top.inHeap = TimerInHeap.None
         return Some(top)
     }
 
@@ -136,7 +136,7 @@ public class TimerHeap {
         if (let Some(index) <- idx) {
             let timer = heap[Int64(index)]
             idToIndex.remove(id)
-            timer.inHeap = InHeap.None
+            timer.inHeap = TimerInHeap.None
             let lastIdx = heap.size - 1
             if (Int64(index) == lastIdx) {
                 heap.removeAt(Int64(index))
@@ -262,7 +262,7 @@ public class TimerHeap {
     /// 清空堆
     public func clear(): Unit {
         for (timer in heap) {
-            timer.inHeap = InHeap.None
+            timer.inHeap = TimerInHeap.None
         }
         heap.clear()
         idToIndex.clear()

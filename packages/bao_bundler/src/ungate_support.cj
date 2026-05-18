@@ -73,7 +73,33 @@ public class LayerName {
 public enum DeclInfoKind {
     | Declared
     | Lexical
-}// ============================================================================
+}
+
+public enum CompileResultKind {
+    | JavaScript
+    | CSS
+    | HTML
+}
+
+public class CompileResult {
+    public var kind: CompileResultKind
+    public var sourceIndex: Int64
+    public var code: String
+    public var sourceMapChunk: ?SourceMapChunk
+    public var decls: ArrayList<DeclInfo>
+    public var scriptInjectionOffset: Int64
+
+    public init() {
+        kind = CompileResultKind.JavaScript
+        sourceIndex = 0
+        code = ""
+        sourceMapChunk = None
+        decls = ArrayList<DeclInfo>()
+        scriptInjectionOffset = 0
+    }
+}
+
+// ============================================================================
 // CompileResult — 编译结果
 // 严格翻译自: ungate_support.rs:172-306
 // bundle_v2.zig:CompileResult
@@ -346,6 +372,10 @@ public class JSMetaFlags {
         this.needsSyntheticDefaultExport = false
         this.wrap = WrapKind.None
     }
+}
+
+public class ImportData {
+    public init() {}
 }
 
 /// JSMeta — JS 元数据

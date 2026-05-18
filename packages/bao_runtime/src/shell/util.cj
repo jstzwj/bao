@@ -1,16 +1,16 @@
-// util.cj - Shell工具函数
-// 对应 Bun: src/runtime/shell/util.zig
-// 严格翻译Bun shell工具函数到仓颉
+// 严格翻译自: src/runtime/shell/util.zig
+// Shell 工具函数和类型定义
 
 package bao_runtime.shell
 
 import bao_core.*
 
 // ============================================================================
-// Shell工具类型和函数
+// Shell 工具类型和函数
 // ============================================================================
 
 /// 输出类型枚举
+/// 对应 Bun: util.zig OutKind
 public enum OutKind {
     case stdout
     case stderr
@@ -27,7 +27,25 @@ public enum OutKind {
 }
 
 /// 标准IO配置
+/// 对应 Bun: util.zig Stdio = bun.spawn.Stdio
 public typealias Stdio = bao_spawn.Stdio
 
 /// 监视文件描述符类型
+/// 对应 Bun: util.zig WatchFd
+/// 在 Linux 上是 posix.fd_t (i32)，其他平台是 i32
 public typealias WatchFd = Int32
+
+// ============================================================================
+// Shell 辅助函数
+// ============================================================================
+
+/// 生成不可达状态错误
+/// 对应 Bun: bun.shell.unreachableState
+public func unreachableState(context: String, message: String): Unit {
+    panic("[${context}] Unreachable state: ${message}")
+}
+
+/// 生成未实现错误
+public func unimplemented(context: String, feature: String): Unit {
+    panic("[${context}] Not implemented: ${feature}")
+}

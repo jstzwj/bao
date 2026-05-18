@@ -12,7 +12,7 @@ import bao_collections.*
 // 依赖组
 // 严格翻译自: Package.zig — DependencyGroup
 //   pub const DependencyGroup = struct {
-//       prop: string,  // JSON 属性名
+//       `prop`: string,  // JSON 属性名
 //       field: string, // 字段名
 //       behavior: Behavior,
 //   }
@@ -21,12 +21,12 @@ import bao_collections.*
 /// 依赖组定义
 /// 翻译自: Package.DependencyGroup
 public class DependencyGroup {
-    public var prop: String   // JSON 属性名
+    public var `prop`: String   // JSON 属性名
     public var field: String  // 结构体字段名
     public var behavior: DependencyBehavior
 
-    public init(prop: String, field: String, behavior: DependencyBehavior) {
-        this.prop = prop
+    public init(`prop`: String, field: String, behavior: DependencyBehavior) {
+        this.`prop` = `prop`
         this.field = field
         this.behavior = behavior
     }
@@ -209,7 +209,7 @@ public class LockfilePackageEntry {
     public func count(): Int64 {
         var total: Int64 = Int64(name.size)
         total += resolution.count()
-        total += meta.manDir.size > 0 ? Int64(meta.manDir.size) + 1 : Int64(0)
+        total += if (meta.manDir.size > 0) { Int64(meta.manDir.size) + 1 } else { Int64(0) }
         total += scripts.count()
         return total
     }

@@ -697,5 +697,3 @@ private func currentTimeSeconds(): Int64 {
     }
 }
 
-@C
-foreign func clock_gettime(clockid: Int32, tp: CPointer<Unit>): Int32

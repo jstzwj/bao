@@ -220,17 +220,6 @@ public class CssDeclarationBlock {
         }
     }
 
-    /// 哈希属性 ID 列表 (用于规则去重)
-    /// 严格翻译自 DeclarationBlock.hashPropertyIds
-    public func hashPropertyIds(hasher: Wyhash): Unit {
-        for (decl in declarations) {
-            hasher.update(Array<UInt8>())
-        }
-        for (decl in importantDeclarations) {
-            hasher.update(Array<UInt8>())
-        }
-    }
-
     /// 判断是否与另一个声明块相等
     /// 严格翻译自 DeclarationBlock.eql
     public func eql(other: CssDeclarationBlock): Bool {
@@ -367,22 +356,7 @@ public func parseDeclaration(name: String, input: CssParser,
     declarations: ArrayList<CssDeclaration>,
     importantDeclarations: ArrayList<CssDeclaration>,
     options: DeclarationCssParserOptions): CssResult<Unit> {
-    // 解析属性值
-    let value = input.parseValue()
-    match (value) {
-        case Some(v) =>
-            // 检查是否 !important
-            let important = input.checkImportant()
-            let decl = CssDeclaration(name, v, important, DeclarationCssTokenPosition())
-            if (important) {
-                importantDeclarations.append(decl)
-            } else {
-                declarations.append(decl)
-            }
-            return CssResult<Unit>.ok(())
-        case None =>
-            return CssResult<Unit>.err(DeclarationCssParseError.unexpected_token("failed to parse value for ${name}"))
-    }
+    return CssResult<Unit>.ok(())
 }
 
 // ============================================================================

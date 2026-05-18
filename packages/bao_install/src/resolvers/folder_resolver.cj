@@ -183,7 +183,7 @@ public class FolderResolver {
             case None => ()
         }
 
-        if (!SysFs.exists(paths.abs)) {
+        if (!BaoFile.exists(paths.abs)) {
             let missing = FolderResolution.err("MissingPackageJSON")
             folders.put(absHash, missing)
             return missing

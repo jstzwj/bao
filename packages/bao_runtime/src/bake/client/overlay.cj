@@ -160,7 +160,7 @@ function mountModal() {
       // the build errors. This is done because runtime errors are very big.
       // Only visible when a runtime error is present.
       (domNavBar.root = elem("nav", null, [
-        // TODO: use SVG for this
+        // TODO: use SVG for this (Bun 原始 TODO)
         (domNavBar.prevBtn = elemText(
           "button",
           { class: "tab-button left", disabled: "true", "aria-label": "Previous error" },

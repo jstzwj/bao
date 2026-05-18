@@ -63,6 +63,7 @@ public func decodeSerializedError(reader: DataViewReader): BundlerMessage {
     if (kind >= 0 && kind <= 4) {
         return readLogMsg(reader, BundlerMessageLevel.fromByte(kind))
     }
+    // Bun 原始 TODO: JS Errors 的错误反序列化尚未实现
     throw Error("TODO: JS Errors")
 }
 

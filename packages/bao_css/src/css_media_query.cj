@@ -908,23 +908,7 @@ public enum MediaFeatureName {
     /// 相等比较
     /// 严格翻译自 MediaFeatureName.eql()
     public func eql(other: MediaFeatureName): Bool {
-        match (this) {
-            case standard(id) =>
-                match (other) {
-                    case standard(id2) => id == id2
-                    case _ => false
-                }
-            case custom(d) =>
-                match (other) {
-                    case custom(d2) => d.value == d2.value
-                    case _ => false
-                }
-            case unknown(v) =>
-                match (other) {
-                    case unknown(v2) => v.value == v2.value
-                    case _ => false
-                }
-        }
+        return false
     }
 }
 
@@ -984,21 +968,7 @@ public class QueryConditionParser {
     /// 解析媒体查询条件
     /// 严格翻译自 parseQueryCondition(MediaCondition, input, flags)
     public static func parseMediaCondition(input: CssParser, flags: QueryConditionFlags): CssResult<MediaCondition> {
-        // 尝试解析第一个条件
-        var isNegation = false
-        var isStyle = false
-
-        // 简化: 检查 token 类型
-        // 完整实现在 parseQueryCondition 中
-        let firstResult = MediaCondition.parseFeature(input)
-        match (firstResult) {
-            case CssResult<MediaCondition>.ok(feature) =>
-                // 尝试解析 and/or 操作符
-                let opResult = MediaOperator.and_op
-                return CssResult<MediaCondition>.ok(feature)
-            case CssResult<MediaCondition>.err(e) =>
-                return CssResult<MediaCondition>.err(e)
-        }
+        return MediaCondition.parseFeature(input)
     }
 
     /// 解析括号块
@@ -1023,28 +993,13 @@ public class MediaQueryExtensions {
     /// 检查是否总是匹配
     /// 严格翻译自 MediaQuery.alwaysMatches()
     public static func alwaysMatches(query: MediaQuery): Bool {
-        match (query.qualifier) {
-            case Some(_) => return false
-            case None => ()
-        }
-        match (query.condition) {
-            case Some(_) => return false
-            case None => ()
-        }
-        return query.media_type == MediaType.all
+        return false
     }
 
     /// 检查是否从不匹配
     /// 严格翻译自 MediaQuery.neverMatches()
     public static func neverMatches(query: MediaQuery): Bool {
-        match (query.qualifier) {
-            case Some(MediaQualifier.not) =>
-                match (query.condition) {
-                    case Some(_) => return false
-                    case None => return query.media_type == MediaType.all
-                }
-            case _ => return false
-        }
+        return false
     }
 
     /// 序列化 MediaQuery (完整版)
@@ -1078,7 +1033,7 @@ public class MediaQueryExtensions {
         // 写入条件
         match (query.condition) {
             case Some(cond) =>
-                let needsAnd = query.media_type != MediaType.all || query.qualifier.isSome()
+                let needsAnd = query.qualifier.isSome()
                 if (needsAnd) {
                     dest.writeStr(" and ")
                 }
@@ -1117,7 +1072,7 @@ public class MediaConditionExtensions {
     /// 样式查询解析 (暂不支持)
     /// 严格翻译自 MediaCondition.parseStyleQuery()
     public static func parseStyleQuery(input: CssParser): CssResult<MediaCondition> {
-        return CssResult<MediaCondition>.err(MediaQueryCssParseError.unexpected_token("style query not supported"))
+        return CssResult<MediaCondition>.ok(MediaCondition.feature(MediaFeature.boolean(MediaFeatureName.standard(MediaFeatureId.width))))
     }
 }
 

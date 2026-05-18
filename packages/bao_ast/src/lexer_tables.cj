@@ -136,7 +136,7 @@ public enum Token {
     | Return
     | Super
     | Switch
-    | This
+    | `This`
     | Throw
     | True
     | Try
@@ -246,7 +246,7 @@ public enum Token {
             case Return => 95
             case Super => 96
             case Switch => 97
-            case This => 98
+            case `This` => 98
             case Throw => 99
             case True => 100
             case Try => 101
@@ -324,7 +324,7 @@ public func keyword(s: String): ?Token {
                 case "else" => Token.Else
                 case "enum" => Token.Enum
                 case "null" => Token.Null
-                case "this" => Token.This
+                case "this" => Token.`This`
                 case "true" => Token.True
                 case "void" => Token.Void
                 case "with" => Token.With
@@ -571,13 +571,13 @@ public func isIdentifierContinue(codepoint: Int32): Bool {
 /// 是否为 Latin1 标识符 - 对应 is_latin1_identifier()
 public func isLatin1Identifier(name: String): Bool {
     if (name.size == 0) { return false }
-    val c0 = name[0]
+    let c0 = name[0]
     if (!((c0 >= 0x61 && c0 <= 0x7A) || (c0 >= 0x41 && c0 <= 0x5A) ||
           c0 == 0x24 || c0 == 0x5F)) {
         return false
     }
     for (i in 1..name.size) {
-        val c = name[i]
+        let c = name[i]
         if (!((c >= 0x30 && c <= 0x39) || (c >= 0x61 && c <= 0x7A) ||
               (c >= 0x41 && c <= 0x5A) || c == 0x24 || c == 0x5F)) {
             return false
