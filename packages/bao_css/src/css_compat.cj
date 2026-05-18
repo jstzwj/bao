@@ -509,10 +509,12 @@ public enum CompatFeature {
 }
 
 /// 兼容性检查: abs_function
+/// 严格翻译自: compat.zig .abs_function 分组
 func isCompatible_abs_function(browsers: CssBrowsers): Bool {
     if (let Some(version) <- browsers.firefox) { if (version < UInt32(7733248)) { return false } }
     if (let Some(version) <- browsers.safari) { if (version < UInt32(984064)) { return false } }
     if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(984064)) { return false } }
+    if (browsers.android.isSome() || browsers.chrome.isSome() || browsers.edge.isSome() || browsers.ie.isSome() || browsers.opera.isSome() || browsers.samsung.isSome()) { return false }
     return true
 }
 
@@ -525,20 +527,44 @@ func isCompatible_accent_system_color(browsers: CssBrowsers): Bool {
 }
 
 /// 兼容性检查: afar_list_style_type
+/// 严格翻译自: compat.zig .afar_list_style_type 分组
 func isCompatible_afar_list_style_type(browsers: CssBrowsers): Bool {
-    // 始终兼容 (无版本限制)
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5963776)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(262656)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(196608)) { return false } }
+    if (browsers.firefox.isSome() || browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: amharic_abegede_list_style_type
+/// 严格翻译自: compat.zig .afar_list_style_type 分组
 func isCompatible_amharic_abegede_list_style_type(browsers: CssBrowsers): Bool {
-    // 始终兼容 (无版本限制)
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5963776)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(262656)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(196608)) { return false } }
+    if (browsers.firefox.isSome() || browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: amharic_list_style_type
+/// 严格翻译自: compat.zig .afar_list_style_type 分组
 func isCompatible_amharic_list_style_type(browsers: CssBrowsers): Bool {
-    // 始终兼容 (无版本限制)
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5963776)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(262656)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(196608)) { return false } }
+    if (browsers.firefox.isSome() || browsers.ie.isSome()) { return false }
     return true
 }
 
@@ -590,18 +616,37 @@ func isCompatible_any_pseudo(browsers: CssBrowsers): Bool {
 }
 
 /// 兼容性检查: arabic_indic_list_style_type
+/// 严格翻译自: compat.zig .arabic_indic_list_style_type 分组
 func isCompatible_arabic_indic_list_style_type(browsers: CssBrowsers): Bool {
-    // 始终兼容 (无版本限制)
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(262656)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(263168)) { return false } }
+    if (browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: armenian_list_style_type
+/// 严格翻译自: compat.zig .armenian_list_style_type 分组
 func isCompatible_armenian_list_style_type(browsers: CssBrowsers): Bool {
-    // 始终兼容 (无版本限制)
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(786432)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.ie) { if (version < UInt32(524288)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(655616)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(263168)) { return false } }
     return true
 }
 
 /// 兼容性检查: asterisks_list_style_type
+/// 严格翻译自: compat.zig .asterisks_list_style_type 分组
 func isCompatible_asterisks_list_style_type(browsers: CssBrowsers): Bool {
     if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
     if (let Some(version) <- browsers.edge) { if (version < UInt32(5963776)) { return false } }
@@ -610,10 +655,12 @@ func isCompatible_asterisks_list_style_type(browsers: CssBrowsers): Bool {
     if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(327680)) { return false } }
     if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
     if (let Some(version) <- browsers.android) { if (version < UInt32(263168)) { return false } }
+    if (browsers.firefox.isSome() || browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: auto_size
+/// 严格翻译自: compat.zig .hebrew_list_style_type 分组 (auto_size 在该分组中)
 func isCompatible_auto_size(browsers: CssBrowsers): Bool {
     if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
     if (let Some(version) <- browsers.edge) { if (version < UInt32(786432)) { return false } }
@@ -642,14 +689,31 @@ func isCompatible_autofill(browsers: CssBrowsers): Bool {
 }
 
 /// 兼容性检查: bengali_list_style_type
+/// 严格翻译自: compat.zig .arabic_indic_list_style_type 分组
 func isCompatible_bengali_list_style_type(browsers: CssBrowsers): Bool {
-    // 始终兼容 (无版本限制)
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(262656)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(263168)) { return false } }
+    if (browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: binary_list_style_type
+/// 严格翻译自: compat.zig .binary_list_style_type 分组
 func isCompatible_binary_list_style_type(browsers: CssBrowsers): Bool {
-    // 始终兼容 (无版本限制)
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5963776)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(262656)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(263168)) { return false } }
+    if (browsers.firefox.isSome() || browsers.ie.isSome()) { return false }
     return true
 }
 
@@ -696,8 +760,17 @@ func isCompatible_calc_function(browsers: CssBrowsers): Bool {
 }
 
 /// 兼容性检查: cambodian_list_style_type
+/// 严格翻译自: compat.zig .cambodian_list_style_type 分组
 func isCompatible_cambodian_list_style_type(browsers: CssBrowsers): Bool {
-    // 始终兼容 (无版本限制)
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(2162688)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(262656)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(263168)) { return false } }
+    if (browsers.ie.isSome()) { return false }
     return true
 }
 
@@ -744,8 +817,17 @@ func isCompatible_ch_unit(browsers: CssBrowsers): Bool {
 }
 
 /// 兼容性检查: circle_list_style_type
+/// 严格翻译自: compat.zig .ex_unit 分组 (circle_list_style_type 在该分组中)
 func isCompatible_circle_list_style_type(browsers: CssBrowsers): Bool {
-    // 始终兼容 (无版本限制)
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(786432)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.ie) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(655616)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(65536)) { return false } }
     return true
 }
 
@@ -764,14 +846,32 @@ func isCompatible_cjk_decimal_list_style_type(browsers: CssBrowsers): Bool {
 }
 
 /// 兼容性检查: cjk_earthly_branch_list_style_type
+/// 严格翻译自: compat.zig .arabic_indic_list_style_type 分组
 func isCompatible_cjk_earthly_branch_list_style_type(browsers: CssBrowsers): Bool {
-    // 始终兼容 (无版本限制)
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(262656)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(263168)) { return false } }
+    if (browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: cjk_heavenly_stem_list_style_type
+/// 严格翻译自: compat.zig .arabic_indic_list_style_type 分组
 func isCompatible_cjk_heavenly_stem_list_style_type(browsers: CssBrowsers): Bool {
-    // 始终兼容 (无版本限制)
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(262656)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(263168)) { return false } }
+    if (browsers.ie.isSome()) { return false }
     return true
 }
 
@@ -804,7 +904,23 @@ func isCompatible_color_function(browsers: CssBrowsers): Bool {
 }
 
 /// 兼容性检查: conic_gradient
+/// 严格翻译自: compat.zig .conic_gradient 分组
 func isCompatible_conic_gradient(browsers: CssBrowsers): Bool {
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(4521984)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(5439488)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(3145728)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(786688)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(786944)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(655360)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(4521984)) { return false } }
+    if (browsers.ie.isSome()) { return false }
+    return true
+}
+
+/// 兼容性检查: repeating_conic_gradient
+/// 严格翻译自: compat.zig .conic_gradient 分组 (repeating_conic_gradient 与 conic_gradient 共享逻辑)
+func isCompatible_repeating_conic_gradient(browsers: CssBrowsers): Bool {
     if (let Some(version) <- browsers.chrome) { if (version < UInt32(4521984)) { return false } }
     if (let Some(version) <- browsers.edge) { if (version < UInt32(5177344)) { return false } }
     if (let Some(version) <- browsers.firefox) { if (version < UInt32(5439488)) { return false } }
@@ -858,20 +974,38 @@ func isCompatible_cue_function(browsers: CssBrowsers): Bool {
 }
 
 /// 兼容性检查: custom_media_queries
+/// 严格翻译自: compat.zig .custom_media_queries 分组 (始终兼容)
 func isCompatible_custom_media_queries(browsers: CssBrowsers): Bool {
-    // 始终兼容 (无版本限制)
     return true
 }
 
 /// 兼容性检查: decimal_leading_zero_list_style_type
+/// 严格翻译自: compat.zig .armenian_list_style_type 分组
 func isCompatible_decimal_leading_zero_list_style_type(browsers: CssBrowsers): Bool {
-    // 始终兼容 (无版本限制)
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(786432)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.ie) { if (version < UInt32(524288)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(655616)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(263168)) { return false } }
     return true
 }
 
 /// 兼容性检查: decimal_list_style_type
+/// 严格翻译自: compat.zig .ex_unit 分组 (decimal_list_style_type 在该分组中)
 func isCompatible_decimal_list_style_type(browsers: CssBrowsers): Bool {
-    // 始终兼容 (无版本限制)
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(786432)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.ie) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(655616)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(65536)) { return false } }
     return true
 }
 
@@ -890,8 +1024,17 @@ func isCompatible_default_pseudo(browsers: CssBrowsers): Bool {
 }
 
 /// 兼容性检查: devanagari_list_style_type
+/// 严格翻译自: compat.zig .arabic_indic_list_style_type 分组
 func isCompatible_devanagari_list_style_type(browsers: CssBrowsers): Bool {
-    // 始终兼容 (无版本限制)
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(262656)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(263168)) { return false } }
+    if (browsers.ie.isSome()) { return false }
     return true
 }
 
@@ -924,6 +1067,7 @@ func isCompatible_dir_selector(browsers: CssBrowsers): Bool {
 }
 
 /// 兼容性检查: disc_list_style_type
+/// 严格翻译自: compat.zig .ex_unit 分组 (disc_list_style_type 在该分组中)
 func isCompatible_disc_list_style_type(browsers: CssBrowsers): Bool {
     if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
     if (let Some(version) <- browsers.edge) { if (version < UInt32(786432)) { return false } }
@@ -933,7 +1077,7 @@ func isCompatible_disc_list_style_type(browsers: CssBrowsers): Bool {
     if (let Some(version) <- browsers.safari) { if (version < UInt32(65536)) { return false } }
     if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(65536)) { return false } }
     if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
-    if (let Some(version) <- browsers.android) { if (version < UInt32(263168)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(65536)) { return false } }
     return true
 }
 
@@ -994,98 +1138,228 @@ func isCompatible_em_unit(browsers: CssBrowsers): Bool {
 }
 
 /// 兼容性检查: ethiopic_abegede_am_et_list_style_type
+/// 严格翻译自: compat.zig .afar_list_style_type 分组
 func isCompatible_ethiopic_abegede_am_et_list_style_type(browsers: CssBrowsers): Bool {
-    // 始终兼容 (无版本限制)
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5963776)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(262656)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(196608)) { return false } }
+    if (browsers.firefox.isSome() || browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: ethiopic_abegede_gez_list_style_type
+/// 严格翻译自: compat.zig .afar_list_style_type 分组
 func isCompatible_ethiopic_abegede_gez_list_style_type(browsers: CssBrowsers): Bool {
-    // 始终兼容 (无版本限制)
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5963776)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(262656)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(196608)) { return false } }
+    if (browsers.firefox.isSome() || browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: ethiopic_abegede_list_style_type
+/// 严格翻译自: compat.zig .afar_list_style_type 分组
 func isCompatible_ethiopic_abegede_list_style_type(browsers: CssBrowsers): Bool {
-    // 始终兼容 (无版本限制)
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5963776)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(262656)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(196608)) { return false } }
+    if (browsers.firefox.isSome() || browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: ethiopic_abegede_ti_er_list_style_type
+/// 严格翻译自: compat.zig .afar_list_style_type 分组
 func isCompatible_ethiopic_abegede_ti_er_list_style_type(browsers: CssBrowsers): Bool {
-    // 始终兼容 (无版本限制)
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5963776)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(262656)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(196608)) { return false } }
+    if (browsers.firefox.isSome() || browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: ethiopic_abegede_ti_et_list_style_type
+/// 严格翻译自: compat.zig .afar_list_style_type 分组
 func isCompatible_ethiopic_abegede_ti_et_list_style_type(browsers: CssBrowsers): Bool {
-    // 始终兼容 (无版本限制)
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5963776)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(262656)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(196608)) { return false } }
+    if (browsers.firefox.isSome() || browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: ethiopic_halehame_aa_er_list_style_type
+/// 严格翻译自: compat.zig .afar_list_style_type 分组
 func isCompatible_ethiopic_halehame_aa_er_list_style_type(browsers: CssBrowsers): Bool {
-    // 始终兼容 (无版本限制)
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5963776)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(262656)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(196608)) { return false } }
+    if (browsers.firefox.isSome() || browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: ethiopic_halehame_aa_et_list_style_type
+/// 严格翻译自: compat.zig .afar_list_style_type 分组
 func isCompatible_ethiopic_halehame_aa_et_list_style_type(browsers: CssBrowsers): Bool {
-    // 始终兼容 (无版本限制)
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5963776)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(262656)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(196608)) { return false } }
+    if (browsers.firefox.isSome() || browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: ethiopic_halehame_am_et_list_style_type
+/// 严格翻译自: compat.zig .afar_list_style_type 分组
 func isCompatible_ethiopic_halehame_am_et_list_style_type(browsers: CssBrowsers): Bool {
-    // 始终兼容 (无版本限制)
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5963776)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(262656)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(196608)) { return false } }
+    if (browsers.firefox.isSome() || browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: ethiopic_halehame_gez_list_style_type
+/// 严格翻译自: compat.zig .afar_list_style_type 分组
 func isCompatible_ethiopic_halehame_gez_list_style_type(browsers: CssBrowsers): Bool {
-    // 始终兼容 (无版本限制)
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5963776)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(262656)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(196608)) { return false } }
+    if (browsers.firefox.isSome() || browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: ethiopic_halehame_om_et_list_style_type
+/// 严格翻译自: compat.zig .afar_list_style_type 分组
 func isCompatible_ethiopic_halehame_om_et_list_style_type(browsers: CssBrowsers): Bool {
-    // 始终兼容 (无版本限制)
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5963776)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(262656)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(196608)) { return false } }
+    if (browsers.firefox.isSome() || browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: ethiopic_halehame_sid_et_list_style_type
+/// 严格翻译自: compat.zig .afar_list_style_type 分组
 func isCompatible_ethiopic_halehame_sid_et_list_style_type(browsers: CssBrowsers): Bool {
-    // 始终兼容 (无版本限制)
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5963776)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(262656)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(196608)) { return false } }
+    if (browsers.firefox.isSome() || browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: ethiopic_halehame_so_et_list_style_type
+/// 严格翻译自: compat.zig .afar_list_style_type 分组
 func isCompatible_ethiopic_halehame_so_et_list_style_type(browsers: CssBrowsers): Bool {
-    // 始终兼容 (无版本限制)
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5963776)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(262656)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(196608)) { return false } }
+    if (browsers.firefox.isSome() || browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: ethiopic_halehame_tig_list_style_type
+/// 严格翻译自: compat.zig .afar_list_style_type 分组
 func isCompatible_ethiopic_halehame_tig_list_style_type(browsers: CssBrowsers): Bool {
-    // 始终兼容 (无版本限制)
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5963776)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(262656)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(196608)) { return false } }
+    if (browsers.firefox.isSome() || browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: ethiopic_list_style_type
+/// 严格翻译自: compat.zig .afar_list_style_type 分组
 func isCompatible_ethiopic_list_style_type(browsers: CssBrowsers): Bool {
-    // 始终兼容 (无版本限制)
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5963776)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(262656)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(196608)) { return false } }
+    if (browsers.firefox.isSome() || browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: ethiopic_numeric_list_style_type
+/// 严格翻译自: compat.zig .ethiopic_numeric_list_style_type 分组
 func isCompatible_ethiopic_numeric_list_style_type(browsers: CssBrowsers): Bool {
-    // 始终兼容 (无版本限制)
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(5963776)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5963776)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(4194304)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(983040)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(983040)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(1048576)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(5963776)) { return false } }
+    if (browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: ex_unit
+/// 严格翻译自: compat.zig .ex_unit 分组
 func isCompatible_ex_unit(browsers: CssBrowsers): Bool {
-    // 始终兼容 (无版本限制)
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(786432)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.ie) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(655616)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(65536)) { return false } }
     return true
 }
 
@@ -1256,6 +1530,7 @@ func isCompatible_font_weight_number(browsers: CssBrowsers): Bool {
 }
 
 /// 兼容性检查: footnotes_list_style_type
+/// 严格翻译自: compat.zig .asterisks_list_style_type 分组 (footnotes_list_style_type 在该分组中)
 func isCompatible_footnotes_list_style_type(browsers: CssBrowsers): Bool {
     if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
     if (let Some(version) <- browsers.edge) { if (version < UInt32(5963776)) { return false } }
@@ -1264,6 +1539,7 @@ func isCompatible_footnotes_list_style_type(browsers: CssBrowsers): Bool {
     if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(327680)) { return false } }
     if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
     if (let Some(version) <- browsers.android) { if (version < UInt32(263168)) { return false } }
+    if (browsers.firefox.isSome() || browsers.ie.isSome()) { return false }
     return true
 }
 
@@ -1307,8 +1583,17 @@ func isCompatible_gencontent(browsers: CssBrowsers): Bool {
 }
 
 /// 兼容性检查: georgian_list_style_type
+/// 严格翻译自: compat.zig .armenian_list_style_type 分组
 func isCompatible_georgian_list_style_type(browsers: CssBrowsers): Bool {
-    // 始终兼容 (无版本限制)
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(786432)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.ie) { if (version < UInt32(524288)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(655616)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(263168)) { return false } }
     return true
 }
 
@@ -1327,14 +1612,32 @@ func isCompatible_gradient_interpolation_hints(browsers: CssBrowsers): Bool {
 }
 
 /// 兼容性检查: gujarati_list_style_type
+/// 严格翻译自: compat.zig .arabic_indic_list_style_type 分组
 func isCompatible_gujarati_list_style_type(browsers: CssBrowsers): Bool {
-    // 始终兼容 (无版本限制)
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(262656)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(263168)) { return false } }
+    if (browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: gurmukhi_list_style_type
+/// 严格翻译自: compat.zig .arabic_indic_list_style_type 分组
 func isCompatible_gurmukhi_list_style_type(browsers: CssBrowsers): Bool {
-    // 始终兼容 (无版本限制)
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(262656)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(263168)) { return false } }
+    if (browsers.ie.isSome()) { return false }
     return true
 }
 
@@ -1353,8 +1656,17 @@ func isCompatible_has_selector(browsers: CssBrowsers): Bool {
 }
 
 /// 兼容性检查: hebrew_list_style_type
+/// 严格翻译自: compat.zig .hebrew_list_style_type 分组
 func isCompatible_hebrew_list_style_type(browsers: CssBrowsers): Bool {
-    // 始终兼容 (无版本限制)
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(786432)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.ie) { if (version < UInt32(720896)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(263168)) { return false } }
     return true
 }
 
@@ -1373,14 +1685,32 @@ func isCompatible_hex_alpha_colors(browsers: CssBrowsers): Bool {
 }
 
 /// 兼容性检查: hiragana_iroha_list_style_type
+/// 严格翻译自: compat.zig .hebrew_list_style_type 分组
 func isCompatible_hiragana_iroha_list_style_type(browsers: CssBrowsers): Bool {
-    // 始终兼容 (无版本限制)
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(786432)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.ie) { if (version < UInt32(720896)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(263168)) { return false } }
     return true
 }
 
 /// 兼容性检查: hiragana_list_style_type
+/// 严格翻译自: compat.zig .hebrew_list_style_type 分组
 func isCompatible_hiragana_list_style_type(browsers: CssBrowsers): Bool {
-    // 始终兼容 (无版本限制)
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(786432)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.ie) { if (version < UInt32(720896)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(263168)) { return false } }
     return true
 }
 
@@ -1483,8 +1813,17 @@ func isCompatible_is_selector(browsers: CssBrowsers): Bool {
 }
 
 /// 兼容性检查: japanese_formal_list_style_type
+/// 严格翻译自: compat.zig .ethiopic_numeric_list_style_type 分组
 func isCompatible_japanese_formal_list_style_type(browsers: CssBrowsers): Bool {
-    // 始终兼容 (无版本限制)
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(5963776)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5963776)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(4194304)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(983040)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(983040)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(1048576)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(5963776)) { return false } }
+    if (browsers.ie.isSome()) { return false }
     return true
 }
 
@@ -1503,8 +1842,17 @@ func isCompatible_japanese_informal_list_style_type(browsers: CssBrowsers): Bool
 }
 
 /// 兼容性检查: kannada_list_style_type
+/// 严格翻译自: compat.zig .arabic_indic_list_style_type 分组
 func isCompatible_kannada_list_style_type(browsers: CssBrowsers): Bool {
-    // 始终兼容 (无版本限制)
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(262656)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(263168)) { return false } }
+    if (browsers.ie.isSome()) { return false }
     return true
 }
 
@@ -1523,20 +1871,47 @@ func isCompatible_katakana_iroha_list_style_type(browsers: CssBrowsers): Bool {
 }
 
 /// 兼容性检查: katakana_list_style_type
+/// 严格翻译自: compat.zig .hebrew_list_style_type 分组
 func isCompatible_katakana_list_style_type(browsers: CssBrowsers): Bool {
-    // 始终兼容 (无版本限制)
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(786432)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.ie) { if (version < UInt32(720896)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(263168)) { return false } }
     return true
 }
 
 /// 兼容性检查: khmer_list_style_type
+/// 严格翻译自: compat.zig .arabic_indic_list_style_type 分组
 func isCompatible_khmer_list_style_type(browsers: CssBrowsers): Bool {
-    // 始终兼容 (无版本限制)
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(262656)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(263168)) { return false } }
+    if (browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: korean_hangul_formal_list_style_type
+/// 严格翻译自: compat.zig .korean_hangul_formal_list_style_type 分组
 func isCompatible_korean_hangul_formal_list_style_type(browsers: CssBrowsers): Bool {
-    // 始终兼容 (无版本限制)
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(2949120)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(1835008)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(2097152)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(983040)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(983040)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(2949120)) { return false } }
+    if (browsers.ie.isSome()) { return false }
     return true
 }
 
@@ -1590,8 +1965,17 @@ func isCompatible_lang_selector_list(browsers: CssBrowsers): Bool {
 }
 
 /// 兼容性检查: lao_list_style_type
+/// 严格翻译自: compat.zig .arabic_indic_list_style_type 分组
 func isCompatible_lao_list_style_type(browsers: CssBrowsers): Bool {
-    // 始终兼容 (无版本限制)
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(262656)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(263168)) { return false } }
+    if (browsers.ie.isSome()) { return false }
     return true
 }
 
@@ -1650,8 +2034,8 @@ func isCompatible_logical_border_radius(browsers: CssBrowsers): Bool {
 }
 
 /// 兼容性检查: logical_border_shorthand
+/// 严格翻译自: compat.zig .logical_border_shorthand 分组 (始终兼容)
 func isCompatible_logical_border_shorthand(browsers: CssBrowsers): Bool {
-    // 始终兼容 (无版本限制)
     return true
 }
 
@@ -1768,8 +2152,17 @@ func isCompatible_logical_text_align(browsers: CssBrowsers): Bool {
 }
 
 /// 兼容性检查: lower_alpha_list_style_type
+/// 严格翻译自: compat.zig .armenian_list_style_type 分组
 func isCompatible_lower_alpha_list_style_type(browsers: CssBrowsers): Bool {
-    // 始终兼容 (无版本限制)
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(786432)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.ie) { if (version < UInt32(524288)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(655616)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(263168)) { return false } }
     return true
 }
 
@@ -1788,14 +2181,31 @@ func isCompatible_lower_armenian_list_style_type(browsers: CssBrowsers): Bool {
 }
 
 /// 兼容性检查: lower_greek_list_style_type
+/// 严格翻译自: compat.zig .armenian_list_style_type 分组
 func isCompatible_lower_greek_list_style_type(browsers: CssBrowsers): Bool {
-    // 始终兼容 (无版本限制)
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(786432)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.ie) { if (version < UInt32(524288)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(655616)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(263168)) { return false } }
     return true
 }
 
 /// 兼容性检查: lower_hexadecimal_list_style_type
+/// 严格翻译自: compat.zig .afar_list_style_type 分组
 func isCompatible_lower_hexadecimal_list_style_type(browsers: CssBrowsers): Bool {
-    // 始终兼容 (无版本限制)
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5963776)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(262656)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(196608)) { return false } }
+    if (browsers.firefox.isSome() || browsers.ie.isSome()) { return false }
     return true
 }
 
@@ -1814,20 +2224,46 @@ func isCompatible_lower_latin_list_style_type(browsers: CssBrowsers): Bool {
 }
 
 /// 兼容性检查: lower_norwegian_list_style_type
+/// 严格翻译自: compat.zig .afar_list_style_type 分组
 func isCompatible_lower_norwegian_list_style_type(browsers: CssBrowsers): Bool {
-    // 始终兼容 (无版本限制)
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5963776)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(262656)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(196608)) { return false } }
+    if (browsers.firefox.isSome() || browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: lower_roman_list_style_type
+/// 严格翻译自: compat.zig .armenian_list_style_type 分组
 func isCompatible_lower_roman_list_style_type(browsers: CssBrowsers): Bool {
-    // 始终兼容 (无版本限制)
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(786432)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.ie) { if (version < UInt32(524288)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(655616)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(263168)) { return false } }
     return true
 }
 
 /// 兼容性检查: malayalam_list_style_type
+/// 严格翻译自: compat.zig .arabic_indic_list_style_type 分组
 func isCompatible_malayalam_list_style_type(browsers: CssBrowsers): Bool {
-    // 始终兼容 (无版本限制)
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(262656)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(263168)) { return false } }
+    if (browsers.ie.isSome()) { return false }
     return true
 }
 
@@ -1959,8 +2395,17 @@ func isCompatible_moz_available_size(browsers: CssBrowsers): Bool {
 }
 
 /// 兼容性检查: myanmar_list_style_type
+/// 严格翻译自: compat.zig .arabic_indic_list_style_type 分组
 func isCompatible_myanmar_list_style_type(browsers: CssBrowsers): Bool {
-    // 始终兼容 (无版本限制)
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(262656)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(263168)) { return false } }
+    if (browsers.ie.isSome()) { return false }
     return true
 }
 
@@ -1987,6 +2432,7 @@ func isCompatible_nesting(browsers: CssBrowsers): Bool {
     if (let Some(version) <- browsers.opera) { if (version < UInt32(6946816)) { return false } }
     if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(1114624)) { return false } }
     if (let Some(version) <- browsers.android) { if (version < UInt32(8585216)) { return false } }
+    if (browsers.ie.isSome() || browsers.samsung.isSome()) { return false }
     return true
 }
 
@@ -2033,8 +2479,16 @@ func isCompatible_nth_child_of(browsers: CssBrowsers): Bool {
 }
 
 /// 兼容性检查: octal_list_style_type
+/// 严格翻译自: compat.zig .binary_list_style_type 分组
 func isCompatible_octal_list_style_type(browsers: CssBrowsers): Bool {
-    // 始终兼容 (无版本限制)
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5963776)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(262656)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(263168)) { return false } }
+    if (browsers.firefox.isSome() || browsers.ie.isSome()) { return false }
     return true
 }
 
@@ -2067,14 +2521,31 @@ func isCompatible_optional_pseudo(browsers: CssBrowsers): Bool {
 }
 
 /// 兼容性检查: oriya_list_style_type
+/// 严格翻译自: compat.zig .arabic_indic_list_style_type 分组
 func isCompatible_oriya_list_style_type(browsers: CssBrowsers): Bool {
-    // 始终兼容 (无版本限制)
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(262656)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(263168)) { return false } }
+    if (browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: oromo_list_style_type
+/// 严格翻译自: compat.zig .binary_list_style_type 分组
 func isCompatible_oromo_list_style_type(browsers: CssBrowsers): Bool {
-    // 始终兼容 (无版本限制)
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5963776)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(262656)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(263168)) { return false } }
+    if (browsers.firefox.isSome() || browsers.ie.isSome()) { return false }
     return true
 }
 
@@ -2114,8 +2585,17 @@ func isCompatible_part_pseudo(browsers: CssBrowsers): Bool {
 }
 
 /// 兼容性检查: persian_list_style_type
+/// 严格翻译自: compat.zig .arabic_indic_list_style_type 分组
 func isCompatible_persian_list_style_type(browsers: CssBrowsers): Bool {
-    // 始终兼容 (无版本限制)
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(262656)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(263168)) { return false } }
+    if (browsers.ie.isSome()) { return false }
     return true
 }
 
@@ -2230,8 +2710,16 @@ func isCompatible_rcap_unit(browsers: CssBrowsers): Bool {
 }
 
 /// 兼容性检查: rch_unit
+/// 严格翻译自: compat.zig .rch_unit 分组 (rch_unit, rex_unit, ric_unit 共享逻辑)
 func isCompatible_rch_unit(browsers: CssBrowsers): Bool {
-    // 始终兼容 (无版本限制)
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(7274496)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(7274496)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(4915200)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(1114624)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(1114624)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(1441792)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(7274496)) { return false } }
+    if (browsers.firefox.isSome() || browsers.ie.isSome()) { return false }
     return true
 }
 
@@ -2272,20 +2760,6 @@ func isCompatible_rem_unit(browsers: CssBrowsers): Bool {
     if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(262144)) { return false } }
     if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
     if (let Some(version) <- browsers.android) { if (version < UInt32(131072)) { return false } }
-    return true
-}
-
-/// 兼容性检查: repeating_conic_gradient
-func isCompatible_repeating_conic_gradient(browsers: CssBrowsers): Bool {
-    if (let Some(version) <- browsers.chrome) { if (version < UInt32(4521984)) { return false } }
-    if (let Some(version) <- browsers.edge) { if (version < UInt32(5177344)) { return false } }
-    if (let Some(version) <- browsers.firefox) { if (version < UInt32(5439488)) { return false } }
-    if (let Some(version) <- browsers.opera) { if (version < UInt32(3145728)) { return false } }
-    if (let Some(version) <- browsers.safari) { if (version < UInt32(786688)) { return false } }
-    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(786944)) { return false } }
-    if (let Some(version) <- browsers.samsung) { if (version < UInt32(655360)) { return false } }
-    if (let Some(version) <- browsers.android) { if (version < UInt32(4521984)) { return false } }
-    if (browsers.ie.isSome()) { return false }
     return true
 }
 
@@ -2356,8 +2830,16 @@ func isCompatible_rlh_unit(browsers: CssBrowsers): Bool {
 }
 
 /// 兼容性检查: round_function
+/// 严格翻译自: compat.zig .round_function 分组
 func isCompatible_round_function(browsers: CssBrowsers): Bool {
-    // 始终兼容 (无版本限制)
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(8192000)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(8192000)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(7733248)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(5439488)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(984064)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(984064)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(8192000)) { return false } }
+    if (browsers.ie.isSome() || browsers.samsung.isSome()) { return false }
     return true
 }
 
@@ -2418,34 +2900,70 @@ func isCompatible_shadowdomv1(browsers: CssBrowsers): Bool {
 }
 
 /// 兼容性检查: sidama_list_style_type
+/// 严格翻译自: compat.zig .binary_list_style_type 分组
 func isCompatible_sidama_list_style_type(browsers: CssBrowsers): Bool {
-    // 始终兼容 (无版本限制)
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5963776)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(262656)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(263168)) { return false } }
+    if (browsers.firefox.isSome() || browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: sign_function
+/// 严格翻译自: compat.zig .abs_function 分组 (sign_function 与 abs_function 共享逻辑)
 func isCompatible_sign_function(browsers: CssBrowsers): Bool {
     if (let Some(version) <- browsers.firefox) { if (version < UInt32(7733248)) { return false } }
     if (let Some(version) <- browsers.safari) { if (version < UInt32(984064)) { return false } }
     if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(984064)) { return false } }
+    if (browsers.android.isSome() || browsers.chrome.isSome() || browsers.edge.isSome() || browsers.ie.isSome() || browsers.opera.isSome() || browsers.samsung.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: simp_chinese_formal_list_style_type
+/// 严格翻译自: compat.zig .simp_chinese_formal_list_style_type 分组
 func isCompatible_simp_chinese_formal_list_style_type(browsers: CssBrowsers): Bool {
-    // 始终兼容 (无版本限制)
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(2949120)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(2097152)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(983040)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(983040)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(2949120)) { return false } }
+    if (browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: simp_chinese_informal_list_style_type
+/// 严格翻译自: compat.zig .simp_chinese_formal_list_style_type 分组
 func isCompatible_simp_chinese_informal_list_style_type(browsers: CssBrowsers): Bool {
-    // 始终兼容 (无版本限制)
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(2949120)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5177344)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(2097152)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(983040)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(983040)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(2949120)) { return false } }
+    if (browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: somali_list_style_type
+/// 严格翻译自: compat.zig .binary_list_style_type 分组
 func isCompatible_somali_list_style_type(browsers: CssBrowsers): Bool {
-    // 始终兼容 (无版本限制)
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5963776)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(262656)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(263168)) { return false } }
+    if (browsers.firefox.isSome() || browsers.ie.isSome()) { return false }
     return true
 }
 
@@ -2497,8 +3015,10 @@ func isCompatible_string_list_style_type(browsers: CssBrowsers): Bool {
 }
 
 /// 兼容性检查: symbols_list_style_type
+/// 严格翻译自: compat.zig .symbols_list_style_type
 func isCompatible_symbols_list_style_type(browsers: CssBrowsers): Bool {
     if (let Some(version) <- browsers.firefox) { if (version < UInt32(2293760)) { return false } }
+    if (browsers.android.isSome() || browsers.chrome.isSome() || browsers.edge.isSome() || browsers.ie.isSome() || browsers.ios_saf.isSome() || browsers.opera.isSome() || browsers.safari.isSome() || browsers.samsung.isSome()) { return false }
     return true
 }
 
@@ -2584,20 +3104,44 @@ func isCompatible_tibetan_list_style_type(browsers: CssBrowsers): Bool {
 }
 
 /// 兼容性检查: tigre_list_style_type
+/// 严格翻译自: compat.zig .binary_list_style_type 分组
 func isCompatible_tigre_list_style_type(browsers: CssBrowsers): Bool {
-    // 始终兼容 (无版本限制)
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5963776)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(262656)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(263168)) { return false } }
+    if (browsers.firefox.isSome() || browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: tigrinya_er_abegede_list_style_type
+/// 严格翻译自: compat.zig .binary_list_style_type 分组
 func isCompatible_tigrinya_er_abegede_list_style_type(browsers: CssBrowsers): Bool {
-    // 始终兼容 (无版本限制)
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5963776)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(262656)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(263168)) { return false } }
+    if (browsers.firefox.isSome() || browsers.ie.isSome()) { return false }
     return true
 }
 
 /// 兼容性检查: tigrinya_er_list_style_type
+/// 严格翻译自: compat.zig .binary_list_style_type 分组
 func isCompatible_tigrinya_er_list_style_type(browsers: CssBrowsers): Bool {
-    // 始终兼容 (无版本限制)
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(5963776)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(917504)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(327680)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(262656)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(263168)) { return false } }
+    if (browsers.firefox.isSome() || browsers.ie.isSome()) { return false }
     return true
 }
 
@@ -2654,8 +3198,17 @@ func isCompatible_trad_chinese_informal_list_style_type(browsers: CssBrowsers): 
 }
 
 /// 兼容性检查: upper_alpha_list_style_type
+/// 严格翻译自: compat.zig .armenian_list_style_type 分组
 func isCompatible_upper_alpha_list_style_type(browsers: CssBrowsers): Bool {
-    // 始终兼容 (无版本限制)
+    if (let Some(version) <- browsers.chrome) { if (version < UInt32(1179648)) { return false } }
+    if (let Some(version) <- browsers.edge) { if (version < UInt32(786432)) { return false } }
+    if (let Some(version) <- browsers.firefox) { if (version < UInt32(262144)) { return false } }
+    if (let Some(version) <- browsers.ie) { if (version < UInt32(524288)) { return false } }
+    if (let Some(version) <- browsers.opera) { if (version < UInt32(655616)) { return false } }
+    if (let Some(version) <- browsers.safari) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.ios_saf) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.samsung) { if (version < UInt32(65536)) { return false } }
+    if (let Some(version) <- browsers.android) { if (version < UInt32(263168)) { return false } }
     return true
 }
 
@@ -2726,8 +3279,8 @@ func isCompatible_upper_roman_list_style_type(browsers: CssBrowsers): Bool {
 }
 
 /// 兼容性检查: vb_unit
+/// 严格翻译自: compat.zig .vb_unit 分组 (始终兼容)
 func isCompatible_vb_unit(browsers: CssBrowsers): Bool {
-    // 始终兼容 (无版本限制)
     return true
 }
 
@@ -2746,14 +3299,14 @@ func isCompatible_vh_unit(browsers: CssBrowsers): Bool {
 }
 
 /// 兼容性检查: vi_unit
+/// 严格翻译自: compat.zig .vb_unit 分组 (始终兼容)
 func isCompatible_vi_unit(browsers: CssBrowsers): Bool {
-    // 始终兼容 (无版本限制)
     return true
 }
 
 /// 兼容性检查: viewport_percentage_units_dynamic
+/// 严格翻译自: compat.zig .vb_unit 分组 (始终兼容)
 func isCompatible_viewport_percentage_units_dynamic(browsers: CssBrowsers): Bool {
-    // 始终兼容 (无版本限制)
     return true
 }
 
