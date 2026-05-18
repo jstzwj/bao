@@ -352,7 +352,8 @@ public enum PosixStdio {
     | Buffer                 // socketpair 缓冲
     | Ipc                    // IPC 通道
     | Pipe(Int64)            // 已有 fd 的管道
-    | Dup2(Dup2)             // dup2 重定向 (TODO: 移除此变体，似乎未被使用)
+    | Dup2(Dup2)             // dup2 重定向 (TODO: 移除此变体，似乎未被使用) (Bun original)
+                             // Bun: src/spawn/process.rs:1675 也保留了 Dup2(Dup2) 变体
 
     /// 构造辅助 -- 继承
     /// 严格翻译自: src/spawn_sys/spawn_process.rs:426-428
@@ -979,7 +980,7 @@ public func spawnProcessPosix(
 
         match (ipc) {
             case PosixStdio.Dup2(_) =>
-                panic("TODO dup2 extra fd")
+                panic("TODO dup2 extra fd")  // Bun original: src/spawn/process.rs:2027
             case PosixStdio.Inherit =>
                 let inheritResult = actions.inherit(fileno)
                 match (inheritResult) {

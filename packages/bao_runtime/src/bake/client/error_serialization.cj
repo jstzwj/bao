@@ -64,6 +64,7 @@ public func decodeSerializedError(reader: DataViewReader): BundlerMessage {
         return readLogMsg(reader, BundlerMessageLevel.fromByte(kind))
     }
     // Bun 原始 TODO: JS Errors 的错误反序列化尚未实现
+    // Bun: src/bake/client/error_serialization.ts
     throw Error("TODO: JS Errors")
 }
 

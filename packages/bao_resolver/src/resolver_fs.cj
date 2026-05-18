@@ -808,9 +808,15 @@ public class ResolverFileSystem {
         // 读取目录
         try {
             let entries = FSDirEntry(dir, generation)
-            let files = ArrayList<String>()  // TODO: use actual directory reading API
+            // TODO: use actual directory reading API
+            // 需要外部依赖: bun.iterateDir / std.fs.Dir.Iterator (POSIX opendir/readdir)
+            // Bun 实现: src/resolver/fs.zig:957-989 (readdir 函数)
+            let files = ArrayList<String>()
             for (file in files) {
-                let kind = EntryKind.File  // TODO: determine actual kind
+                // TODO: determine actual kind
+                // 需要外部依赖: stat() 或 dirent.d_type 判断文件类型
+                // Bun 实现: src/resolver/fs.zig DirEntry.Entry.addEntry 使用 bun.S_ISDIR()
+                let kind = EntryKind.File
                 let entry = FSEntry(file, dir, kind)
                 entries.addEntry(entry)
             }

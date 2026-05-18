@@ -91,7 +91,7 @@ public func numberToJS(`this`: ENumber): JSValue {
 /// BigInt 转 JS - 严格对应 Bun bigIntToJS
 /// Zig: pub fn bigIntToJS(_: E.BigInt) jsc.JSValue
 public func bigIntToJS(`this`: EBigInt): JSValue {
-    // TODO:
+    // TODO: (Bun original)
     return JSValue.jsNumber(0)
 }
 

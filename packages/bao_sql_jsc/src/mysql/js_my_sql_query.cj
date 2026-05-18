@@ -185,7 +185,9 @@ public class JSMySQLQuery {
     /// 取消查询
     /// 对应 Bun: JSMySQLQuery.doCancel
     public func doCancel(): JscValue {
-        // TODO: 可以取消待定的查询（未流水线的），正在运行的查询不值得/无法取消
+        // TODO: 可以取消待定的查询（未流水线的），正在运行的查询不值得/无法取消 (Bun original)
+        // Bun: TODO: we can cancel a query that is pending aka not pipelined yet
+        // Bun 实现: src/sql_jsc/mysql/JSMySQLQuery.zig:123-125
         return JscValue.undefined()
     }
 

@@ -20,7 +20,8 @@ import bao_core.*
 
 // ============================================================================
 // Bunfig — corresponds to Bun: pub struct Bunfig;
-// TODO: replace api.TransformOptions with Bunfig
+// TODO: replace api.TransformOptions with Bunfig (Bun original)
+// Bun: src/bunfig/bunfig.rs:34
 // ============================================================================
 
 public class Bunfig {
@@ -1333,7 +1334,8 @@ public class Parser {
                     pluginList.add(s)
                     Some(pluginList)
             }
-            // TODO: accept entire config object
+            // TODO: accept entire config object (Bun original)
+            // Bun: src/bunfig/bunfig.rs:1599
             ctx.args.servePlugins = plugins
         }
 

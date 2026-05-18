@@ -293,7 +293,6 @@ public class StringMap<V> {
 
     /// 排序键 - 对应 Bun StringMap 排序
     /// Zig: sort 方法接受 anytype ctx
-    // TODO(port): StringMap::sort — wire once ArrayHashMap::sort lands
     public func sortKeys(): Unit {
         // 简单冒泡排序 (可优化为归并排序)
         for (i in 0..entries.size) {

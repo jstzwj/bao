@@ -42,11 +42,15 @@ public func downlevelComponent(component: CssSelectorComponent, targets: CssTarg
         case CssComponentKind.NonTsPseudoClass =>
             match (component.pseudoClass) {
                 case Some(_pc) => VendorPrefix()  // TODO: implement getNecessaryPrefixes
+                    // 需要外部依赖: css.prefixes.Feature 枚举 + targets.prefixes() 方法
+                    // Bun 实现: src/css/selectors/parser.zig:937-949 (PseudoClass.getNecessaryPrefixes)
                 case None => VendorPrefix()
             }
         case CssComponentKind.PseudoElement =>
             match (component.pseudoElement) {
                 case Some(_pe) => VendorPrefix()  // TODO: implement getNecessaryPrefixes
+                    // 需要外部依赖: css.prefixes.Feature 枚举 + targets.prefixes() 方法
+                    // Bun 实现: src/css/selectors/parser.zig:2453-2463 (PseudoElement.getNecessaryPrefixes)
                 case None => VendorPrefix()
             }
         case CssComponentKind.Is =>

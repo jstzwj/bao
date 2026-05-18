@@ -221,7 +221,7 @@ public class HMRModule {
     public func invalidate(): Unit {
         emitEvent("bun:invalidate", None)
         // 通过立即抛错触发页面刷新，对应 Bun 上游当前行为。
-        // Bun 源码: throw new Error("TODO: implement ImportMetaHot.invalidate")
+        // Bun 源码: throw new Error("TODO: implement ImportMetaHot.invalidate") (Bun original)
         throw Error("TODO: implement ImportMetaHot.invalidate")
     }
 
@@ -251,7 +251,7 @@ public class HMRModule {
 
     /// send — 发送事件
     public func send(event: String, cb: HotEventHandler): Unit {
-        // Bun 源码: throw new Error("TODO: implement ImportMetaHot.send")
+        // Bun 源码: throw new Error("TODO: implement ImportMetaHot.send") (Bun original)
         throw Error("TODO: implement ImportMetaHot.send")
     }
 }

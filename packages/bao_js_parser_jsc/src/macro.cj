@@ -601,7 +601,10 @@ public class Macro {
                     jsArgs[i] = value
                 }
             case .e_template =>
-                // TODO: support template literals in macros
+                // TODO: support template literals in macros (Bun original)
+                // Bun: @panic("TODO: support template literals in macros")
+                // 需要外部依赖: JS 模板字面量解析器
+                // Bun 实现: src/js_parser_jsc/Macro.zig:557
             default =>
         }
 
