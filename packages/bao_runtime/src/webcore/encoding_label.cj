@@ -75,59 +75,157 @@ public enum EncodingLabel {
     }
 
     /// 从字符串解析编码标签
-    /// 对应 Bun: EncodingLabel string_map 查找
+    /// 对应 Bun: EncodingLabel.string_map (ComptimeStringMap, case-insensitive)
+    /// 严格翻译自 EncodingLabel.zig string_map 全部条目
     public static func fromString(label: String): ?EncodingLabel {
         let lower = label.toLowerCase().trimAscii()
 
-        // UTF-8 别名
-        if (lower == "utf-8" || lower == "utf8" || lower == "unicode11utf8" ||
-            lower == "unicode20utf8" || lower == "x-unicode20utf8" || lower == "unicode-1-1-utf-8") {
-            return Some(EncodingLabel.UTF8)
+        // ── Windows-1252 (Latin1) aliases ──
+        // 对应 Bun: string_map "l1" ... "iso_8859-1:1987"
+        if (lower == "l1" || lower == "ascii" || lower == "cp819" ||
+            lower == "cp1252" || lower == "ibm819" || lower == "latin1" ||
+            lower == "iso88591" || lower == "us-ascii" || lower == "x-cp1252" ||
+            lower == "iso8859-1" || lower == "iso_8859-1" || lower == "iso-8859-1" ||
+            lower == "iso-ir-100" || lower == "csisolatin1" || lower == "windows-1252" ||
+            lower == "ansi_x3.4-1968" || lower == "iso_8859-1:1987") {
+            return Some(EncodingLabel.Windows1252)
         }
 
-        // UTF-16LE 别名
-        if (lower == "utf-16le" || lower == "utf-16" || lower == "ucs-2" ||
-            lower == "unicode" || lower == "unicodefeff" || lower == "csunicode" ||
+        // ── UTF-16LE aliases ──
+        if (lower == "ucs-2" || lower == "utf-16" || lower == "unicode" ||
+            lower == "utf-16le" || lower == "csunicode" || lower == "unicodefeff" ||
             lower == "iso-10646-ucs-2") {
             return Some(EncodingLabel.UTF16LE)
         }
 
-        // UTF-16BE 别名
+        // ── UTF-16BE aliases ──
         if (lower == "utf-16be") {
             return Some(EncodingLabel.UTF16BE)
         }
 
-        // Latin1 / ASCII 别名 (windows-1252)
-        if (lower == "windows-1252" || lower == "latin1" || lower == "latin-1" ||
-            lower == "l1" || lower == "ascii" || lower == "us-ascii" ||
-            lower == "cp819" || lower == "cp1252" || lower == "ibm819" ||
-            lower == "iso88591" || lower == "iso8859-1" || lower == "iso_8859-1" ||
-            lower == "iso-8859-1" || lower == "iso-ir-100" || lower == "csisolatin1" ||
-            lower == "x-cp1252" || lower == "ansi_x3.4-1968" || lower == "iso_8859-1:1987") {
-            return Some(EncodingLabel.Windows1252)
+        // ── UTF-8 aliases ──
+        if (lower == "utf8" || lower == "utf-8" || lower == "unicode11utf8" ||
+            lower == "unicode20utf8" || lower == "x-unicode20utf8" ||
+            lower == "unicode-1-1-utf-8") {
+            return Some(EncodingLabel.UTF8)
         }
 
-        // 其他编码
-        if (lower == "ibm866") { return Some(EncodingLabel.IBM866) }
-        if (lower == "iso-8859-3") { return Some(EncodingLabel.ISO88593) }
-        if (lower == "iso-8859-6") { return Some(EncodingLabel.ISO88596) }
-        if (lower == "iso-8859-7") { return Some(EncodingLabel.ISO88597) }
-        if (lower == "iso-8859-8") { return Some(EncodingLabel.ISO88598) }
-        if (lower == "iso-8859-8-i") { return Some(EncodingLabel.ISO88598I) }
-        if (lower == "koi8-u") { return Some(EncodingLabel.KOI8U) }
-        if (lower == "windows-874") { return Some(EncodingLabel.Windows874) }
-        if (lower == "windows-1253") { return Some(EncodingLabel.Windows1253) }
-        if (lower == "windows-1255") { return Some(EncodingLabel.Windows1255) }
-        if (lower == "windows-1257") { return Some(EncodingLabel.Windows1257) }
-        if (lower == "big5") { return Some(EncodingLabel.Big5) }
-        if (lower == "euc-jp") { return Some(EncodingLabel.EUCJP) }
-        if (lower == "iso-2022-jp") { return Some(EncodingLabel.ISO2022JP) }
-        if (lower == "shift_jis") { return Some(EncodingLabel.ShiftJIS) }
-        if (lower == "euc-kr") { return Some(EncodingLabel.EUCKR) }
-        if (lower == "x-user-defined") { return Some(EncodingLabel.XUserDefined) }
-        if (lower == "replacement") { return Some(EncodingLabel.Replacement) }
-        if (lower == "gbk") { return Some(EncodingLabel.GBK) }
-        if (lower == "gb18030") { return Some(EncodingLabel.GB18030) }
+        // ── IBM866 aliases ──
+        if (lower == "ibm866" || lower == "cp866" || lower == "866" ||
+            lower == "csibm866") {
+            return Some(EncodingLabel.IBM866)
+        }
+
+        // ── ISO-8859-3 aliases ──
+        if (lower == "iso-8859-3" || lower == "iso8859-3" || lower == "iso_8859-3" ||
+            lower == "latin3" || lower == "csisolatin3" || lower == "iso-ir-109" ||
+            lower == "l3") {
+            return Some(EncodingLabel.ISO88593)
+        }
+
+        // ── ISO-8859-6 aliases ──
+        if (lower == "iso-8859-6" || lower == "iso8859-6" || lower == "iso_8859-6" ||
+            lower == "arabic" || lower == "csisolatinarabic" || lower == "iso-ir-127" ||
+            lower == "asmo-708" || lower == "ecma-114") {
+            return Some(EncodingLabel.ISO88596)
+        }
+
+        // ── ISO-8859-7 aliases ──
+        if (lower == "iso-8859-7" || lower == "iso8859-7" || lower == "iso_8859-7" ||
+            lower == "greek" || lower == "greek8" || lower == "csisolatingreek" ||
+            lower == "iso-ir-126" || lower == "ecma-118" || lower == "elot_928") {
+            return Some(EncodingLabel.ISO88597)
+        }
+
+        // ── ISO-8859-8 aliases ──
+        if (lower == "iso-8859-8" || lower == "iso8859-8" || lower == "iso_8859-8" ||
+            lower == "hebrew" || lower == "csisolatinhebrew" || lower == "iso-ir-138" ||
+            lower == "visual") {
+            return Some(EncodingLabel.ISO88598)
+        }
+
+        // ── ISO-8859-8-I aliases ──
+        if (lower == "iso-8859-8-i" || lower == "logical" || lower == "csiso88598i") {
+            return Some(EncodingLabel.ISO88598I)
+        }
+
+        // ── KOI8-U aliases ──
+        if (lower == "koi8-u" || lower == "koi8-ru") {
+            return Some(EncodingLabel.KOI8U)
+        }
+
+        // ── Windows-874 aliases ──
+        if (lower == "windows-874" || lower == "dos-874" || lower == "iso-8859-11" ||
+            lower == "iso8859-11" || lower == "iso885911" || lower == "iso_8859-11" ||
+            lower == "tis-620") {
+            return Some(EncodingLabel.Windows874)
+        }
+
+        // ── Windows-1253 aliases ──
+        if (lower == "windows-1253" || lower == "cp1253" || lower == "x-cp1253") {
+            return Some(EncodingLabel.Windows1253)
+        }
+
+        // ── Windows-1255 aliases ──
+        if (lower == "windows-1255" || lower == "cp1255" || lower == "x-cp1255") {
+            return Some(EncodingLabel.Windows1255)
+        }
+
+        // ── Windows-1257 aliases ──
+        if (lower == "windows-1257" || lower == "cp1257" || lower == "x-cp1257") {
+            return Some(EncodingLabel.Windows1257)
+        }
+
+        // ── Big5 aliases ──
+        if (lower == "big5" || lower == "big5-hkscs" || lower == "cn-big5" ||
+            lower == "csbig5" || lower == "x-x-big5") {
+            return Some(EncodingLabel.Big5)
+        }
+
+        // ── EUC-JP aliases ──
+        if (lower == "euc-jp" || lower == "cseucpkdfmtjapanese" || lower == "x-euc-jp") {
+            return Some(EncodingLabel.EUCJP)
+        }
+
+        // ── ISO-2022-JP aliases ──
+        if (lower == "iso-2022-jp" || lower == "csiso2022jp") {
+            return Some(EncodingLabel.ISO2022JP)
+        }
+
+        // ── Shift_JIS aliases ──
+        if (lower == "shift_jis" || lower == "shift-jis" || lower == "sjis" ||
+            lower == "csshiftjis" || lower == "ms932" || lower == "ms_kanji" ||
+            lower == "windows-31j" || lower == "x-sjis") {
+            return Some(EncodingLabel.ShiftJIS)
+        }
+
+        // ── EUC-KR aliases ──
+        if (lower == "euc-kr" || lower == "cseuckr" || lower == "csksc56011987" ||
+            lower == "iso-ir-149" || lower == "korean" || lower == "ks_c_5601-1987" ||
+            lower == "ks_c_5601-1989" || lower == "ksc5601" || lower == "ksc_5601" ||
+            lower == "windows-949") {
+            return Some(EncodingLabel.EUCKR)
+        }
+
+        // ── GBK aliases ──
+        if (lower == "gbk" || lower == "gb2312" || lower == "chinese" ||
+            lower == "csgb2312" || lower == "csiso58gb231280" || lower == "gb_2312" ||
+            lower == "gb_2312-80" || lower == "iso-ir-58" || lower == "x-gbk") {
+            return Some(EncodingLabel.GBK)
+        }
+
+        // ── GB18030 ──
+        if (lower == "gb18030") {
+            return Some(EncodingLabel.GB18030)
+        }
+
+        // ── Other ──
+        if (lower == "x-user-defined") {
+            return Some(EncodingLabel.XUserDefined)
+        }
+        if (lower == "replacement") {
+            return Some(EncodingLabel.Replacement)
+        }
 
         return None
     }
