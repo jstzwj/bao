@@ -742,6 +742,9 @@ public class WritablePending {
     public var state: PendingState
     /// Promise reference (for futureKind == Promise)
     public var promiseStrong: ?JSPromiseStrong
+    /// Global reference — stored when promise() is called, passed to fulfillPromise.
+    /// 对应 Bun: Writable.Pending.Future.promise { .strong = ..., .global = *JSGlobalObject }
+    public var globalRef: ?JSGlobalObject
     /// Handler callback (for futureKind == Handler)
     public var handler: ?WritableHandlerFn
 
@@ -751,6 +754,7 @@ public class WritablePending {
         consumed = 0
         state = PendingState.None
         promiseStrong = None
+        globalRef = None
         handler = None
     }
 
@@ -766,7 +770,9 @@ public class WritablePending {
             case Promise => {
                 match (promiseStrong) {
                     case Some(strong) => {
-                        WritableResult.fulfillPromise(result, strong.swap(), None)
+                        // 对应 Bun: Writable.fulfillPromise(this.result, p.strong.swap(), p.global)
+                        let global = globalRef.getOrThrow()
+                        WritableResult.fulfillPromise(result, strong.swap(), global)
                     }
                     case None => ()
                 }
@@ -782,8 +788,11 @@ public class WritablePending {
     }
 
     /// 对应 Bun: WritablePending.promise()
+    /// Stores globalThis alongside the promise for later use in fulfillPromise,
+    /// matching Bun's Writable.Pending.Future.promise { .strong = ..., .global = globalThis }
     public func promise(global: JSGlobalObject): JSPromise {
         state = PendingState.Pending
+        globalRef = Some(global)
         match (futureKind) {
             case Promise => {
                 match (promiseStrong) {
@@ -939,6 +948,9 @@ public class StreamResultPending {
     public var state: PendingState
     /// Promise reference (for futureKind == Promise)
     public var promiseRef: ?JSPromise
+    /// Global reference — stored when promise() is called, passed to fulfillPromise.
+    /// 对应 Bun: Pending.Future.promise.globalThis (*jsc.JSGlobalObject)
+    public var globalRef: ?JSGlobalObject
     /// Handler callback (for futureKind == Handler)
     public var handler: ?PendingHandlerFn
 
@@ -947,6 +959,7 @@ public class StreamResultPending {
         result = StreamResult.done()
         state = PendingState.None
         promiseRef = None
+        globalRef = None
         handler = None
     }
 
@@ -975,7 +988,9 @@ public class StreamResultPending {
             case Promise => {
                 match (promiseRef) {
                     case Some(prom) => {
-                        StreamResult.fulfillPromise(result, prom, None) // TODO: pass global
+                        // 对应 Bun: Result.fulfillPromise(&this.result, p.promise, p.globalThis)
+                        let global = globalRef.getOrThrow()
+                        StreamResult.fulfillPromise(result, prom, global)
                     }
                     case None => ()
                 }
@@ -1001,9 +1016,12 @@ public class StreamResultPending {
     }
 
     /// 对应 Bun: Pending.promise()
+    /// Stores globalThis alongside the promise for later use in fulfillPromise,
+    /// matching Bun's Pending.Future.promise { .strong = ..., .global = globalThis }
     public func promise(global: JSGlobalObject): JSPromise {
         let prom = JSPromise.create(global)
         promiseRef = Some(prom)
+        globalRef = Some(global)
         futureKind = PendingFutureKind.Promise
         state = PendingState.Pending
         return prom

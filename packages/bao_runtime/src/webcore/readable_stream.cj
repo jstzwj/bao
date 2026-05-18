@@ -880,7 +880,7 @@ public interface SourceContext {
     /// 对应 Bun: fn memory_cost_fn(&self) -> usize { 0 }
     func memoryCostFn(): Int64
 
-    /// toBufferedValue — None => "not implemented" (caller throws TODO).
+    /// toBufferedValue — 返回 None 表示 "not implemented" (调用方会抛出未实现错误).
     /// 对应 Bun: fn to_buffered_value(global, action) -> Option<JsResult<JSValue>> { None }
     func toBufferedValue(action: BufferActionTag): ?JsValue
 
@@ -1398,40 +1398,42 @@ public class NewSource {
     /// Text from JS
     /// 对应 Bun: pub fn text_from_js
     public func textFromJs(global: JsGlobalObject, callFrame: CallFrame): JsValue {
-        toBufferedValueFromJs(callFrame, BufferActionTag.Text)
+        toBufferedValueFromJs(global, callFrame, BufferActionTag.Text)
     }
 
     /// ArrayBuffer from JS
     /// 对应 Bun: pub fn array_buffer_from_js
     public func arrayBufferFromJs(global: JsGlobalObject, callFrame: CallFrame): JsValue {
-        toBufferedValueFromJs(callFrame, BufferActionTag.ArrayBuffer)
+        toBufferedValueFromJs(global, callFrame, BufferActionTag.ArrayBuffer)
     }
 
     /// Blob from JS
     /// 对应 Bun: pub fn blob_from_js
     public func blobFromJs(global: JsGlobalObject, callFrame: CallFrame): JsValue {
-        toBufferedValueFromJs(callFrame, BufferActionTag.Blob)
+        toBufferedValueFromJs(global, callFrame, BufferActionTag.Blob)
     }
 
     /// Bytes from JS
     /// 对应 Bun: pub fn bytes_from_js
     public func bytesFromJs(global: JsGlobalObject, callFrame: CallFrame): JsValue {
-        toBufferedValueFromJs(callFrame, BufferActionTag.Bytes)
+        toBufferedValueFromJs(global, callFrame, BufferActionTag.Bytes)
     }
 
     /// JSON from JS
     /// 对应 Bun: pub fn json_from_js
     public func jsonFromJs(global: JsGlobalObject, callFrame: CallFrame): JsValue {
-        toBufferedValueFromJs(callFrame, BufferActionTag.Json)
+        toBufferedValueFromJs(global, callFrame, BufferActionTag.Json)
     }
 
     /// Common buffered value helper
     /// 对应 Bun: fn to_buffered_value_from_js(global, call_frame, action)
-    private func toBufferedValueFromJs(callFrame: CallFrame, action: BufferActionTag): JsValue {
+    /// When toBufferedValue is not available, Bun throws TODO via globalThis.throwTODO
+    private func toBufferedValueFromJs(global: JsGlobalObject, callFrame: CallFrame, action: BufferActionTag): JsValue {
         thisJsvalue = callFrame.this()
         match (context.toBufferedValue(action)) {
             case Some(v) => v
-            case None => JsValue(BaoString("This is not implemented yet"))
+            // Bun: globalThis.throwTODO("This is not implemented yet"); return .zero
+            case None => global.createErrorInstance("This is not implemented yet")
         }
     }
 }

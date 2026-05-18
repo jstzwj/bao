@@ -725,12 +725,12 @@ public class BaoStringEncoding {
         if (str.isUTF16()) {
             return EncodingHelper.encodeIntoFrom16(str.utf16(), out, enc)
         }
-        if (str.isUTF8()) {
-            // Zig: `@panic("TODO")` — UTF-8 source path was never implemented
-            // Match Zig behaviour by returning 0 (graceful fallback)
-            return 0
-        }
-        return EncodingHelper.encodeIntoFrom8(str.latin1(), out, enc)
+        // UTF-8 and Latin1 share the same byte path:
+        // Bun: encodeIntoFrom8(self.latin1(), out, enc) handles both.
+        // In Bun's encodeInto(), the UTF-8 branch is `@panic("TODO")` but the
+        // fallback (latin1) treats the bytes the same way since UTF-8 bytes are
+        // valid Latin1. We route UTF-8 source data through encodeIntoFrom8.
+        return EncodingHelper.encodeIntoFrom8(str.utf8(), out, enc)
     }
 
     /// `bun.String.encode` — encode `str` into a new byte array.
