@@ -91,7 +91,7 @@ public class CookieMap {
                         cookieStr += "; Path=${entry.path}"
                     }
                     if (entry.domain.length > 0) {
-                        cookie_str += "; Domain=${entry.domain}"
+                        cookieStr += "; Domain=${entry.domain}"
                     }
                     if (entry.secure) {
                         cookieStr += "; Secure"
