@@ -347,29 +347,26 @@ public class ParseFn {
                 break
             }
 
-            // key: value 或简写
-            let property = BindingPatternProperty()
+            let keyLoc = p.lexer.loc()
             let keyName = p.lexer.identifier
-            property.keyName = keyName
             p.lexer.next()
 
+            var value: BindingPattern
             if (p.lexer.token == Token.Colon) {
                 p.lexer.next()
-                property.value = parseBindingPattern(p)
+                value = parseBindingPattern(p)
             } else {
-                // 简写: { foo } 等同于 { foo: foo }
-                let elem = BindingPattern(p.lexer.loc(), BindingPatternTag.Identifier)
-                elem.name = keyName
-                property.value = elem
+                value = BindingPattern(keyLoc, BindingPatternTag.Identifier)
+                value.name = keyName
             }
 
-            // 默认值
+            var defaultValue: ?Expr = None
             if (p.lexer.token == Token.Equals) {
                 p.lexer.next()
-                property.defaultValue = Some(p.parseExpr(Level.Comma))
+                defaultValue = Some(p.parseExpr(Level.Comma))
             }
 
-            binding.properties.append(property)
+            binding.properties.append(BindingPatternProperty(keyLoc, keyName, value, defaultValue))
 
             if (p.lexer.token == Token.Comma) {
                 p.lexer.next()
@@ -446,17 +443,6 @@ public class ParseFn {
 // 辅助类型定义
 // ============================================================================
 
-/// LocRef - 位置引用 - 对应 Bun LocRef
-public class LocRef {
-    public var loc: Loc
-    public var ref: Ref
-
-    public init(loc: Loc, ref: Ref) {
-        this.loc = loc
-        this.ref = ref
-    }
-}
-
 /// Arg - 函数参数 - 对应 Bun G.Arg
 public class Arg {
     public var binding: BindingPattern
@@ -493,42 +479,6 @@ public class GFN {
     }
 }
 
-/// BindingPatternProperty - 绑定模式属性 - 对应 Bun B.Property
-public class BindingPatternProperty {
-    public var keyName: String
-    public var value: BindingPattern
-    public var defaultValue: ?Expr
-    public var isComputed: Bool
-
-    public init() {
-        keyName = ""
-        value = BindingPattern(Loc.EMPTY, BindingPatternTag.Missing)
-        defaultValue = None
-        isComputed = false
-    }
-}
-
-/// SymbolKind - 符号种类
-public enum SymbolKind {
-    | Other
-    | HoistedFunction
-    | GeneratorOrAsyncFunction
-    | Import
-    | Hoisted
-}
-
-/// ScopeKind - 作用域种类
-public enum ScopeKind {
-    | Block
-    | FunctionArgs
-    | FunctionBody
-    | Module
-    | With
-    | Class
-    | ClassStaticInit
-    | TsModule
-}
-
 /// Level - 优先级 - 对应 Bun Level
 public enum Level {
     | Lowest
@@ -552,11 +502,6 @@ public enum Level {
     | Prefix
     | Postfix
     | Call
-}
-
-/// TSType - TypeScript 类型 (简化表示)
-public class TSType {
-    public init() {}
 }
 
 /// Property - 属性节点 - 对应 Bun G.Property
